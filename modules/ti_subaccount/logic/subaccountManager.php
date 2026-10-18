@@ -307,9 +307,12 @@ function tiSubStatement(int $clientId, string $from = '', string $to = ''): arra
     $from = $from !== '' ? date('Y-m-d', strtotime($from)) : '0000-00-00';
     $to   = $to   !== '' ? date('Y-m-d', strtotime($to))   : '9999-12-31';
     $lines = [];
+    // Po SUB1 (nowa procedura) historia sprzed uruchomienia jest w archiwum dokumentu — wyciąg liczy od zera
+    $cut = tiSubCutover($clientId);
+    $pMin = $cut ? (int)$cut['max_payment_id'] : 0; $bMin = $cut ? (int)$cut['max_billing_id'] : 0;
     foreach (db_all("SELECT p.*, b.month AS b_month, b.year AS b_year FROM k30_ti_payments p
                      LEFT JOIN k30_ti_billing b ON p.source_type='billing_match' AND b.id=p.source_id
-                     WHERE p.client_id=? ORDER BY COALESCE(p.paid_at, date(p.created_at)), p.id", [$clientId]) as $p) {
+                     WHERE p.client_id=? AND p.id > ? ORDER BY COALESCE(p.paid_at, date(p.created_at)), p.id", [$clientId, $pMin]) as $p) {
         $d = (string)($p['paid_at'] ?: substr((string)$p['created_at'], 0, 10));
         $what = $p['source_type'] === 'billing_match' && $p['b_month']
               ? 'przypisana: ' . tiSubCourseName((int)$p['course_id']) . ', ' . tiSubMonthLabel((int)$p['b_month'], (int)$p['b_year'])
@@ -317,10 +320,19 @@ function tiSubStatement(int $clientId, string $from = '', string $to = ''): arra
         $lines[] = ['date' => $d, 'kind' => 'payment', 'desc' => trim((string)$p['note']) ?: 'Wpłata', 'what' => $what,
                     'in' => round((float)$p['amount'], 2), 'out' => 0.0];
     }
+    $snap = $cut ? (json_decode((string)($cut['billing_snap'] ?? ''), true) ?: []) : [];
     foreach (db_all("SELECT * FROM k30_ti_billing WHERE client_id=? AND status IN ('issued','paid') AND COALESCE(hours_only,0)=0
                      ORDER BY year, month, id", [$clientId]) as $b) {
         $d = date('Y-m-t', strtotime(sprintf('%04d-%02d-01', (int)$b['year'], (int)$b['month'])));
         $due = round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2);
+        if ((int)$b['id'] <= $bMin) {
+            // rozliczenie sprzed SUB1: na wyciągu tylko zmiana po uruchomieniu (np. należność RKS dopisana do miesiąca)
+            $due = round($due - (float)($snap[(string)$b['id']] ?? $due), 2);
+            if (abs($due) < 0.005) continue;
+            $lines[] = ['date' => max($d, (string)$cut['since']), 'kind' => 'charge', 'desc' => 'Należność po uruchomieniu nowej procedury (' . tiSubMonthLabel((int)$b['month'], (int)$b['year']) . ')',
+                        'what' => trim((string)($b['adjustment_note'] ?? '')), 'in' => 0.0, 'out' => $due];
+            continue;
+        }
         if (abs($due) < 0.005) continue;
         $lines[] = ['date' => $d, 'kind' => 'charge', 'desc' => 'Należność za ' . tiSubMonthLabel((int)$b['month'], (int)$b['year']),
                     'what' => tiSubCourseName((int)($b['course_id'] ?? 0))
@@ -339,7 +351,52 @@ function tiSubStatement(int $clientId, string $from = '', string $to = ''): arra
     }
     $c = db_one("SELECT name FROM k30_clients WHERE id=?", [$clientId]);
     return ['nrb' => tiSubNrb($clientId), 'client' => (string)($c['name'] ?? ''), 'opening' => $open, 'lines' => $out,
-            'payments' => round($sp, 2), 'charges' => round($sc, 2), 'balance' => ti_client_group_balances($clientId)];
+            'payments' => round($sp, 2), 'charges' => round($sc, 2), 'balance' => ti_client_group_balances($clientId), 'cutover' => $cut];
+}
+
+// ── SUB1: nowa procedura — wyczyszczenie historii subkonta, księgowanie ręczne od dnia uruchomienia ──
+
+function tiSubCutoverMigrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (function_exists('szo_schema_current') && szo_schema_current('ti_sub_cutover', __FILE__)) return;
+    db()->exec("CREATE TABLE IF NOT EXISTS ti_sub_cutover (
+        client_id      INTEGER PRIMARY KEY,
+        since          VARCHAR(10) NOT NULL DEFAULT '',
+        doc_id         INTEGER NOT NULL DEFAULT 0,
+        doc_number     VARCHAR(80) NOT NULL DEFAULT '',
+        max_payment_id INTEGER NOT NULL DEFAULT 0,
+        max_billing_id INTEGER NOT NULL DEFAULT 0,
+        manual         INTEGER NOT NULL DEFAULT 1,
+        billing_snap   TEXT,
+        created_by     VARCHAR(190) NOT NULL DEFAULT '',
+        created_at     VARCHAR(19)
+    )");
+}
+
+/** Punkt odcięcia historii (SUB1) albo null. Wpłaty/rozliczenia o id ≤ max_* należą do zarchiwizowanej historii. */
+function tiSubCutover(int $clientId): ?array {
+    tiSubCutoverMigrate();
+    try { return db_one("SELECT * FROM ti_sub_cutover WHERE client_id=?", [$clientId]) ?: null; } catch (\Throwable $e) { return null; }
+}
+
+/**
+ * Zapis punktu odcięcia: wszystko, co jest w księdze teraz (w tym wpisy zerujące SUB1), przechodzi do archiwum.
+ * $manual — kursant „bez rozliczeń”: od dnia uruchomienia należności tylko ręcznie (RKS), bez kalkulatora.
+ */
+function tiSubCutoverSet(int $clientId, string $since, int $docId, string $docNumber, bool $manual, string $by): array {
+    tiSubCutoverMigrate();
+    $mp = (int)(db_one("SELECT MAX(id) m FROM k30_ti_payments WHERE client_id=?", [$clientId])['m'] ?? 0);
+    $mb = (int)(db_one("SELECT MAX(id) m FROM k30_ti_billing WHERE client_id=?", [$clientId])['m'] ?? 0);
+    $snap = [];
+    foreach (db_all("SELECT id, amount, adjustment FROM k30_ti_billing WHERE client_id=? AND id <= ?", [$clientId, $mb]) as $b) $snap[(string)$b['id']] = round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2);
+    db_exec("DELETE FROM ti_sub_cutover WHERE client_id=?", [$clientId]);
+    db_insert('ti_sub_cutover', ['client_id' => $clientId, 'since' => $since, 'doc_id' => $docId, 'doc_number' => $docNumber, 'max_payment_id' => $mp,
+        'max_billing_id' => $mb, 'billing_snap' => json_encode($snap), 'manual' => $manual ? 1 : 0, 'created_by' => $by, 'created_at' => date('Y-m-d H:i:s')]);
+    if ($manual) db_exec("UPDATE k30_ti_student_accounts SET no_billing=1, updated_at=datetime('now') WHERE client_id=?", [$clientId]);
+    if (function_exists('audit_log')) audit_log('ti_subaccount.sub1_cutover', ['client_id' => $clientId, 'since' => $since, 'doc' => $docNumber, 'max_payment_id' => $mp, 'max_billing_id' => $mb, 'manual' => $manual, 'by' => $by], null);
+    return ['max_payment_id' => $mp, 'max_billing_id' => $mb];
 }
 
 // ── „Płatne z subkonta”: opcja kursanta + grupy pokrywane z subkonta ─────────────

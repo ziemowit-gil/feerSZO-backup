@@ -1701,6 +1701,7 @@ function printBulk(){
           <a class="btn btn-sm btn-outline-warning py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rozliczenia/nowy', 'kind' => 'PRZ', 'klient' => (int)$sa['client_id']])) ?>">PRZ</a>
           <a class="btn btn-sm btn-outline-danger py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rozliczenia/nowy', 'kind' => 'RKO', 'klient' => (int)$sa['client_id']])) ?>">RKO</a>
           <a class="btn btn-sm btn-outline-success py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rozliczenia/nowy', 'kind' => 'RKS', 'klient' => (int)$sa['client_id']])) ?>" title="Ręczne księgowanie środków (kierownik)">RKS</a>
+          <a class="btn btn-sm btn-outline-dark py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rozliczenia/nowy', 'kind' => 'SUB1', 'klient' => (int)$sa['client_id']])) ?>" title="Nowa procedura subkonta: wyczyść historię i księguj ręcznie">SUB1</a>
           <a class="btn btn-sm btn-outline-secondary py-0" href="wnioskiDop.php?<?= h(http_build_query(['klient' => (int)$sa['client_id']])) ?>">wszystkie wnioski uczestnika</a>
         </div>
         <?php if ($_dopOpen): ?><div class="small mt-1">Otwarte: <?php foreach ($_dopOpen as $_d): ?><a class="me-2" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/wnioski/' . (int)$_d['id']])) ?>"><?= h($_d['number']) ?></a><?php endforeach; ?></div><?php endif; ?>

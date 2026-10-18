@@ -343,6 +343,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <strong>Wyciąg z subkonta</strong> — <?= h($stmt['client']) ?> · <?= h((string)$stmt['nrb']) ?> · wygenerowano <?= date('d.m.Y H:i') ?>
   </div>
   <h2 class="h5" id="sk-st-h">Wyciąg z subkonta — <?= h($stmt['client']) ?> <span class="text-body-secondary small" style="font-family:var(--bs-font-monospace)"><?= h((string)$stmt['nrb']) ?></span></h2>
+  <?php if (!empty($stmt['cutover'])): ?><p class="alert alert-warning py-2 small">Nowa procedura od <?= h(date('d.m.Y', strtotime((string)$stmt['cutover']['since']))) ?> (<a href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rozliczenia/' . (int)$stmt['cutover']['doc_id']])) ?>"><?= h((string)$stmt['cutover']['doc_number']) ?></a>): historia sprzed uruchomienia jest w archiwum dokumentu SUB1, księgowanie ręczne (RKS).</p><?php endif; ?>
   <div class="table-responsive">
   <table class="table table-sm align-middle">
     <caption class="visually-hidden">Wpłaty i należności z saldem narastającym</caption>

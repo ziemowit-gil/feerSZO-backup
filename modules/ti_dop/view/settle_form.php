@@ -19,6 +19,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
 <p><b><?= h($c['name']) ?></b> · saldo teraz <?= h(number_format($c['balance'], 2, ',', ' ')) ?> zł · <a href="<?= h(route('settle.new', ['kind' => $kind->value])) ?>">inny uczestnik</a></p>
 <?php if ($errors): ?><div class="alert alert-danger" role="alert"><?= h(implode(' ', $errors)) ?></div><?php endif; ?>
 <form method="post" action="<?= h(route('settle.new')) ?>" novalidate><?= Router::csrfField() ?><input type="hidden" name="kind" value="<?= h($kind->value) ?>"><input type="hidden" name="klient" value="<?= (int)$c['id'] ?>">
+<?php if ($kind === SettleKind::Sub1): ?><input type="hidden" name="course_id" value="0"><?php else: ?>
 <section class="panel accent"><div class="row g-3">
   <?php if ($kind === SettleKind::Rko): ?>
   <div class="col-md-4"><span class="form-label d-block">Zakres</span>
@@ -32,6 +33,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
   <div class="col-md-3"><label class="form-label" for="rn">Numer wniosku (opcjonalnie)</label><input class="form-control" id="rn" name="request_number" value="<?= $v('request_number') ?>" list="rnl" placeholder="pusto = <?= h($kind->suffix()) ?>">
     <datalist id="rnl"><?php foreach ($requests as $rq): ?><option value="<?= h($rq) ?>"><?php endforeach; ?></datalist></div>
 </div></section>
+<?php endif; ?>
 
 <?php if (in_array($kind, [SettleKind::Rm, SettleKind::Rmr], true)): ?>
 <section class="panel"><div class="row g-3"><div class="col-md-4"><label class="form-label" for="ym">Miesiąc rozliczenia *</label><input class="form-control" type="month" id="ym" name="ym" value="<?= $v('ym') ?: h(date('Y-m', strtotime('first day of last month'))) ?>"><?= $err('ym') ?></div>
@@ -54,6 +56,15 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
     <td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][charges]" value="<?= h($y['charges'] ?? '') ?>" inputmode="decimal" aria-label="Należności <?= $m ?>"></td><td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][payments]" value="<?= h($y['payments'] ?? '') ?>" inputmode="decimal" aria-label="Wpłaty <?= $m ?>"></td></tr><?php endfor; ?>
   </tbody></table></section>
 <?php endif; ?>
+<?php elseif ($kind === SettleKind::Sub1): ?>
+<section class="panel warn"><h2 class="mt-0">Nowa procedura subkonta</h2>
+  <p class="small mb-2">Gdy historia subkonta w systemie jest błędna: po zatwierdzeniu przez kierownika dotychczasowa historia (wpłaty, należności, saldo) zostaje <b>zarchiwizowana w dokumencie SUB1</b> (PDF w teczce kursanta), saldo jest zerowane wpisami umorzenia, a wyciąg subkonta liczy się od nowa. Od dnia uruchomienia kierownik księguje ręcznie dokumentami <b>RKS</b> (kwota wpłacona / należna) — automatyczne rozliczenia z kalkulatora zostają wyłączone. Faktur ani danych bankowych nic nie kasuje.</p>
+  <div class="row g-3">
+  <div class="col-md-3"><label class="form-label" for="since">Dzień uruchomienia *</label><input class="form-control" type="date" id="since" name="since" value="<?= $v('since') ?: h(date('Y-m-d')) ?>"><?= $err('since') ?></div>
+  <div class="col-md-3"><label class="form-label" for="op">Saldo otwarcia (zł; + nadpłata, − zaległość)</label><input class="form-control" id="op" name="opening" value="<?= $v('opening') ?>" inputmode="decimal" placeholder="0,00"><?= $err('opening') ?></div>
+  <div class="col-md-6"><label class="form-label" for="ops">Podstawa salda otwarcia</label><input class="form-control" id="ops" name="opening_src" value="<?= $v('opening_src') ?>" placeholder="np. uzgodnienie salda z kursantem / opiekunem z dnia …"><?= $err('opening_src') ?></div>
+  <div class="col-12 small">Saldo w systemie teraz: <b><?= h(number_format($c['balance'], 2, ',', ' ')) ?> zł</b> — zostanie wyzerowane i zarchiwizowane.</div>
+</div></section>
 <?php elseif ($kind === SettleKind::Rks): ?>
 <section class="panel"><h2 class="mt-0">Księgowanie</h2><div class="row g-3">
   <div class="col-md-3"><label class="form-label" for="dt">Data księgowania *</label><input class="form-control" type="date" id="dt" name="date" value="<?= $v('date') ?: h(date('Y-m-d')) ?>"><?= $err('date') ?></div>
@@ -85,7 +96,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
   </tbody></table>
 </section>
 <?php endif; ?>
-<section class="panel"><label class="form-label" for="uz">Uzasadnienie<?= in_array($kind, [SettleKind::Prz, SettleKind::Rmr, SettleKind::Rrr, SettleKind::Rks], true) ? ' *' : '' ?></label><textarea class="form-control" id="uz" name="uzasadnienie" rows="2"><?= $v('uzasadnienie') ?></textarea><?= $err('uzasadnienie') ?></section>
+<section class="panel"><label class="form-label" for="uz">Uzasadnienie<?= in_array($kind, [SettleKind::Prz, SettleKind::Rmr, SettleKind::Rrr, SettleKind::Rks, SettleKind::Sub1], true) ? ' *' : '' ?></label><textarea class="form-control" id="uz" name="uzasadnienie" rows="2"><?= $v('uzasadnienie') ?></textarea><?= $err('uzasadnienie') ?></section>
 <section class="panel warn"><h2 class="mt-0">Obieg</h2>
   <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m1" value="approval"<?= ($old['mode'] ?? 'approval') !== 'direct' ? ' checked' : '' ?>><label class="form-check-label" for="m1"><b>Z akceptacją kierownika</b> — po zatwierdzeniu wykonanie i PDF e-mailem do kursanta i rodzica</label></div>
   <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m2" value="direct"<?= ($old['mode'] ?? '') === 'direct' ? ' checked' : '' ?>><label class="form-check-label" for="m2"><b>Bez akceptacji, tylko do akt</b> — wykonanie od razu, Twój podpis, dokument w teczce kursanta (bez wysyłki)</label></div>

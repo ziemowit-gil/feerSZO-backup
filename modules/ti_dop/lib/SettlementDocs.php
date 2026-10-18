@@ -62,6 +62,7 @@ enum SettleKind: string
     case Rmr  = 'RMR';
     case Rrr  = 'RRR';
     case Rks  = 'RKS';
+    case Sub1 = 'SUB1';
 
     public function title(): string
     {
@@ -74,17 +75,18 @@ enum SettleKind: string
             self::Rmr  => 'Rozliczenie miesięczne ręczne',
             self::Rrr  => 'Rozliczenie roczne ręczne',
             self::Rks  => 'Ręczne księgowanie środków',
+            self::Sub1 => 'Nowa procedura subkonta — wyczyszczenie historii i księgowanie ręczne',
         };
     }
 
     public function suffix(): string
     {
-        return match ($this) { self::Przp => 'SALDPocz', self::Rko => 'SALDKonc', self::Prz => 'GODZ', self::Rm, self::Rmr => 'MIES', self::Rr, self::Rrr => 'ROK', self::Rks => 'KSIEG' };
+        return match ($this) { self::Przp => 'SALDPocz', self::Rko => 'SALDKonc', self::Prz => 'GODZ', self::Rm, self::Rmr => 'MIES', self::Rr, self::Rrr => 'ROK', self::Rks => 'KSIEG', self::Sub1 => 'NOWAPROC' };
     }
 
     public function color(): string
     {
-        return match ($this) { self::Przp => '#647687', self::Prz => '#fa6800', self::Rko => '#a20025', self::Rm => '#00aba9', self::Rr => '#0050ef', self::Rmr => '#d80073', self::Rrr => '#6a00ff', self::Rks => '#008a00' };
+        return match ($this) { self::Przp => '#647687', self::Prz => '#fa6800', self::Rko => '#a20025', self::Rm => '#00aba9', self::Rr => '#0050ef', self::Rmr => '#d80073', self::Rrr => '#6a00ff', self::Rks => '#008a00', self::Sub1 => '#825a2c' };
     }
 
     /** Wyliczane z księgi (RM, RR) vs wpisywane ręcznie (RMR, RRR, PRZ, PRZ-P). */
@@ -224,6 +226,17 @@ final class SettlementDocs
                 if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj podstawę rozliczenia ręcznego (np. dokumentacja sprzed SZO).';
                 $d['rows'] = $rows;
             }
+        } elseif ($k === SettleKind::Sub1) {
+            $d['course_id'] = 0;
+            $d['since'] = (string)($in['since'] ?? date('Y-m-d'));
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d['since'])) $e['since'] = 'Podaj dzień uruchomienia nowej procedury.';
+            $raw = trim((string)($in['opening'] ?? '')); $v = self::num($raw);
+            if ($raw !== '' && $v === null) $e['opening'] = 'Saldo otwarcia: podaj kwotę (+ nadpłata, − zaległość).';
+            $d['opening'] = $v ?? 0.0;
+            $d['opening_src'] = mb_substr(trim((string)($in['opening_src'] ?? '')), 0, 300);
+            if (abs($d['opening']) > 0.004 && $d['opening_src'] === '') $e['opening_src'] = 'Podaj podstawę salda otwarcia (np. uzgodnienie z kursantem z dnia …).';
+            if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj powód wyczyszczenia historii subkonta.';
+            if (db_one("SELECT id FROM settlement_docs WHERE kind = 'SUB1' AND client_id = ? AND status = 'pending'", [$clientId])) $e['since'] = 'Dla tego uczestnika jest już SUB1 czekający na zatwierdzenie.';
         } elseif ($k === SettleKind::Rks) {
             $d['date'] = (string)($in['date'] ?? date('Y-m-d'));
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d['date'])) $e['date'] = 'Podaj datę księgowania.';
@@ -255,7 +268,7 @@ final class SettlementDocs
         if ($e) return ['id' => 0, 'errors' => $e, 'report' => []];
         $mode = $mode === 'direct' ? 'direct' : 'approval';
         // RKS księguje kierownik: bez uprawnień kierownika dokument zawsze czeka na jego zatwierdzenie
-        if ($k === SettleKind::Rks && $mode === 'direct' && !DopService::canApprove((int)($actor['id'] ?? 0))) $mode = 'approval';
+        if (in_array($k, [SettleKind::Rks, SettleKind::Sub1], true) && $mode === 'direct' && !DopService::canApprove((int)($actor['id'] ?? 0))) $mode = 'approval';
         $req = trim(preg_replace('/\s+/', '', (string)($in['request_number'] ?? '')));
         $d['snapshot'] = self::snapshot($k, $clientId, $d);
         $id = db_insert('settlement_docs', ['kind' => $k->value, 'number' => self::number($k, $clientId, $req), 'client_id' => $clientId, 'course_id' => (int)$d['course_id'],
@@ -294,6 +307,21 @@ final class SettlementDocs
         $cid = (int)$r['client_id'];
         require_once dirname(__DIR__, 3) . '/includes/ti_payments.php';
         $res = ['log' => []];
+        if ($r['kindEnum'] === SettleKind::Sub1) {
+            // Archiwum historii (do dokumentu i PDF), potem wyzerowanie salda wpisami umorzenia — własna transakcja
+            require_once dirname(__DIR__, 2) . '/ti_subaccount/logic/subaccountManager.php';
+            require_once dirname(__DIR__, 2) . '/ti_overpayments/logic/overpayments.php';
+            $st = tiSubStatement($cid);
+            $d['archive'] = ['at' => ldNow(), 'opening' => $st['opening'], 'payments' => $st['payments'], 'charges' => $st['charges'],
+                'lines' => array_map(fn($l) => ['date' => $l['date'], 'kind' => $l['kind'], 'desc' => $l['desc'], 'what' => $l['what'], 'in' => $l['in'], 'out' => $l['out'], 'balance' => $l['balance']], $st['lines']),
+                'balance' => (float)ti_client_balance($cid)['balance']];
+            $z = ti_balance_zero_out($cid, -1, 'SUB1 ' . $r['number'] . ' — nowa procedura subkonta: ' . $d['uzasadnienie'], (string)$actor['name'], ($actor['id'] ?? 0) ?: null, false);
+            if (!$z['ok']) throw new DomainException('Nie wyzerowano salda: ' . $z['msg']);
+            $res['zero_out'] = $z['rows'];
+            $res['log'][] = 'historia zarchiwizowana (' . count($d['archive']['lines']) . ' pozycji, saldo ' . self::zl($d['archive']['balance']) . ')';
+            $res['log'][] = $z['rows'] ? mb_strtolower(rtrim($z['msg'], '.')) : 'saldo było zerowe';
+            db_exec("UPDATE settlement_docs SET data = ? WHERE id = ?", [json_encode($d, JSON_UNESCAPED_UNICODE), $id]);
+        }
         $pdo = db();
         $pdo->beginTransaction();
         try {
@@ -340,6 +368,19 @@ final class SettlementDocs
                 else db_insert('k30_ti_billing', ['client_id' => $cid, 'month' => $mo, 'year' => $y, 'course_id' => (int)$r['course_id'], 'hours_billed' => $h, 'hourly_rate' => $rate, 'amount' => $amt,
                     'manual_amount' => $amt, 'manual_note' => mb_substr($note, 0, 500), 'manual_by_name' => (string)$actor['name'], 'manual_at' => ldNow(), 'status' => 'issued', 'issued_at' => ldNow(), 'created_at' => ldNow(), 'due_date' => ldDue()]);
                 $res['log'][] = sprintf('%02d.%d', $mo, $y) . ': ' . $h . ' h → ' . self::zl($amt) . ' (kwota ręczna)';
+            } elseif ($r['kindEnum'] === SettleKind::Sub1) {
+                $res['cutover'] = tiSubCutoverSet($cid, (string)$d['since'], $id, (string)$r['number'], true, (string)$actor['name']);
+                $res['log'][] = 'od ' . ldDate($d['since']) . ' księgowanie ręczne (RKS), automatyczne rozliczenia wyłączone';
+                $s0 = (float)$d['opening'];
+                if ($s0 > 0.004) {
+                    $res['ledger_id'] = db_insert('k30_ti_payments', ['client_id' => $cid, 'course_id' => 0, 'amount' => round($s0, 2), 'paid_at' => $d['since'], 'method' => 'internal',
+                        'note' => 'Saldo otwarcia ' . $r['number'] . ' (SUB1): ' . $d['opening_src'], 'source_type' => 'opening_balance', 'source_id' => $id, 'created_at' => ldNow()]);
+                    $res['log'][] = 'saldo otwarcia +' . self::zl($s0);
+                } elseif ($s0 < -0.004) {
+                    $t = strtotime((string)$d['since']);
+                    $res['billing_id'] = ti_billing_add_charge($cid, round(-$s0, 2), 'Saldo otwarcia ' . $r['number'] . ' (SUB1): ' . $d['opening_src'], (int)date('n', $t), (int)date('Y', $t));
+                    $res['log'][] = 'saldo otwarcia −' . self::zl(-$s0) . ' (zaległość)';
+                } else $res['log'][] = 'saldo otwarcia 0,00 zł';
             } elseif ($r['kindEnum'] === SettleKind::Rks) {
                 $t = strtotime((string)$d['date']); $gname = (int)$r['course_id'] > 0 ? ' [grupa: ' . self::courseName((int)$r['course_id']) . ']' : '';
                 if ((float)$d['nalezna'] > 0.004) {
@@ -543,6 +584,18 @@ final class SettlementDocs
                 foreach ($d['lines'] as $l) $rows .= '<tr><td class="f">' . $e($l['opis']) . '</td><td class="f" style="text-align:right">' . $e($l['h']) . ' h</td><td class="f" style="text-align:right">' . $e($zl($l['rate'])) . '</td><td class="f" style="text-align:right"><b>' . $e($zl($l['amount'])) . '</b></td></tr>';
                 $rows .= '<tr><td class="f"><b>Razem</b></td><td class="f" style="text-align:right"><b>' . $e(array_sum(array_column($d['lines'], 'h'))) . ' h</b></td><td class="f"></td><td class="f" style="text-align:right"><b>' . $e($zl(array_sum(array_column($d['lines'], 'amount')))) . '</b></td></tr>';
                 $h .= '<table class="t">' . $sec('C', 'ROZLICZENIE RĘCZNE MIESIĄCA ' . ($d['ym'] ?? ''), 4) . $th(['Pozycja', 'Godziny', 'Stawka', 'Kwota']) . $rows . '</table>';
+            }
+        } elseif ($k === SettleKind::Sub1) {
+            $ar = $d['archive'] ?? null;
+            $h .= '<table class="t">' . $sec('B', 'NOWA PROCEDURA OD DNIA ' . ldDate($d['since']), 3) . '<tr>' . $fld('Dzień uruchomienia', '<b>' . $e(ldDate($d['since'])) . '</b>', ' width="33%"')
+                . $fld('Saldo otwarcia', '<b>' . $e($zl($d['opening'])) . '</b>' . ($d['opening_src'] !== '' ? '<div class="small">' . $e($d['opening_src']) . '</div>' : ''), ' width="33%"')
+                . $fld('Księgowanie od dnia uruchomienia', 'wyłącznie ręczne (RKS) — bez automatycznych rozliczeń z kalkulatora', ' width="34%"') . '</tr><tr>'
+                . $fld('Historia przed uruchomieniem', $ar ? 'zarchiwizowana w niniejszym dokumencie: ' . count($ar['lines']) . ' pozycji; wpłaty ' . $e($zl($ar['payments'])) . ', należności ' . $e($zl($ar['charges'])) . ', saldo ' . $e($zl($ar['balance'])) : 'zostanie zarchiwizowana przy wykonaniu', ' colspan="2"')
+                . $fld('Wyzerowanie', $ar ? (($r['res']['zero_out'] ?? []) ? $e(implode('; ', array_map(fn($x) => $x['name'] . ($x['debt'] > 0 ? ' umorzono ' . $zl($x['debt']) : '') . ($x['credit'] > 0 ? ' wyzerowano nadpłatę ' . $zl($x['credit']) : ''), $r['res']['zero_out']))) : 'saldo było zerowe') : 'przy wykonaniu', '') . '</tr></table>';
+            if ($ar && $ar['lines']) {
+                $rows = '';
+                foreach ($ar['lines'] as $l) $rows .= '<tr><td class="f">' . $e(ldDate($l['date'])) . '</td><td class="f">' . $e($l['desc']) . '<div class="small">' . $e($l['what']) . '</div></td><td class="f" style="text-align:right">' . ($l['in'] ? $e($zl($l['in'])) : '') . '</td><td class="f" style="text-align:right">' . ($l['out'] ? $e($zl($l['out'])) : '') . '</td><td class="f" style="text-align:right">' . $e($zl($l['balance'])) . '</td></tr>';
+                $h .= '<table class="t">' . $sec('C', 'ZAŁĄCZNIK — ARCHIWUM HISTORII SUBKONTA SPRZED NOWEJ PROCEDURY', 5) . $th(['Data', 'Pozycja', 'Wpłata', 'Należność', 'Saldo']) . $rows . '</table>';
             }
         } elseif ($k === SettleKind::Rks) {
             $diff = (float)$d['roznica'];

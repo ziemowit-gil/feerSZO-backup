@@ -32,6 +32,11 @@ $zl = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
   <?php elseif (in_array($k, [SettleKind::Rm, SettleKind::Rmr], true)): $ms = $s['month'] ?? null; ?>
     <dt class="col-sm-4">Miesiąc</dt><dd class="col-sm-8"><?= h($d['ym']) ?><?= $ms ? ': ' . h($ms['lessons']) . ' zajęć, ' . h($ms['hours_attended']) . ' h obecności, rozliczono ' . h($ms['hours_billed']) . ' h; należności ' . h($zl($ms['charges'])) . ', wpłaty ' . h($zl($ms['payments'])) . ', saldo na koniec ' . h($zl($ms['balance_end'])) : '' ?></dd>
     <?php foreach (($d['lines'] ?? []) as $l): ?><dt class="col-sm-4"><?= h($l['opis']) ?></dt><dd class="col-sm-8"><?= h($l['h']) ?> h × <?= h($zl($l['rate'])) ?> = <b><?= h($zl($l['amount'])) ?></b></dd><?php endforeach; ?>
+  <?php elseif ($k === SettleKind::Sub1): $ar = $d['archive'] ?? null; ?>
+    <dt class="col-sm-4">Dzień uruchomienia</dt><dd class="col-sm-8"><?= h(ldDate($d['since'])) ?> — od tego dnia księgowanie ręczne (RKS)</dd>
+    <dt class="col-sm-4">Saldo otwarcia</dt><dd class="col-sm-8"><?= h($zl($d['opening'])) ?><?= $d['opening_src'] !== '' ? ' — ' . h($d['opening_src']) : '' ?></dd>
+    <dt class="col-sm-4">Archiwum historii</dt><dd class="col-sm-8"><?= $ar ? count($ar['lines']) . ' pozycji; wpłaty ' . h($zl($ar['payments'])) . ', należności ' . h($zl($ar['charges'])) . ', saldo przed wyczyszczeniem ' . h($zl($ar['balance'])) . ' (pełna lista w PDF)' : 'powstanie przy wykonaniu' ?></dd>
+    <?php if ($r['status'] === 'applied'): ?><dt class="col-sm-4">Dalej</dt><dd class="col-sm-8"><a class="btn btn-sm btn-metro green" href="<?= h(route('settle.new', ['kind' => 'RKS', 'klient' => $r['client_id']])) ?>">RKS — zaksięguj ręcznie</a></dd><?php endif; ?>
   <?php elseif ($k === SettleKind::Rks): ?>
     <dt class="col-sm-4">Data księgowania</dt><dd class="col-sm-8"><?= h(ldDate($d['date'])) ?></dd>
     <dt class="col-sm-4">Kwota wpłacona</dt><dd class="col-sm-8"><?= h($zl($d['wplacona'])) ?> (<?= h(['transfer' => 'przelew', 'cash' => 'gotówka', 'other' => 'inna'][$d['method']] ?? '') ?>)</dd>
