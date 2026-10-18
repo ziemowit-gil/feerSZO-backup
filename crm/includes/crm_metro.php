@@ -273,5 +273,64 @@ html body .cs-item:hover .cs-s,html body .cs-item.is-on .cs-s{color:rgba(255,255
 html body .cs-grp{color:var(--cm-muted);letter-spacing:.14em}
 html body .cs-item .cs-flag{border-radius:0;background:var(--cm-red);color:#fff}
 
+/* ── Okno wysyłki wiadomości (#crmComposeModal + treść z compose_modal.php) ──
+   Treść przychodzi fetch-em, więc tylko zwykły CSS z nagłówka; style inline
+   z fragmentu (tła odbiorcy, przycisk AI) wymagają !important. */
+html body #crmComposeModal .modal-dialog{max-width:860px}
+html body #crmComposeModal .modal-header,html body #cm-ai-modal .modal-header,html body #cattOdModal .modal-header{
+  background:var(--cm-dark);color:#fff;border-bottom:0;padding:.85rem 1.25rem!important}
+html body #crmComposeModal .modal-title,html body #cm-ai-modal .modal-title,html body #cattOdModal .modal-title{font-weight:300!important;font-size:1.4rem;color:#fff}
+html body #crmComposeModal .modal-title i,html body #cm-ai-modal .modal-title i,html body #cattOdModal .modal-title i{color:#fff!important}
+html body #crmComposeModal .modal-header .btn-close,html body #cm-ai-modal .btn-close,html body #cattOdModal .btn-close{filter:invert(1) grayscale(1) brightness(2);opacity:.85}
+html body #crmComposeModal .modal-body{padding:1.25rem 1.5rem}
+html body #crmComposeModal .modal-footer{background:var(--cm-light);border-top:0;padding:.75rem 1.5rem!important}
+html body #crmComposeModal .modal-footer .btn{min-width:7rem;font-weight:600}
+html body #cm-root .form-label{text-transform:uppercase;font-size:.66rem!important;letter-spacing:.12em;color:var(--cm-muted);font-weight:700!important;margin-bottom:.3rem}
+html body #cm-root .form-control,html body #cm-root .form-select,html body #cm-ai-modal .form-control,html body #cm-ai-modal .form-select{
+  border:2px solid var(--cm-field);border-radius:0;box-shadow:none;font-size:.9rem;min-height:36px}
+html body #cm-root .form-control:focus,html body #cm-root .form-select:focus,html body #cm-ai-modal .form-control:focus,html body #cm-ai-modal .form-select:focus{border-color:var(--crm-primary);box-shadow:none}
+html body #cm-subject{font-size:1.05rem!important;min-height:42px}
+/* Odbiorca — płaski pas z krawędzią w kolorze akcentu */
+html body #cm-root>.mb-3:first-child>.d-flex,html body #cm-to-chosen{background:var(--cm-light)!important;border:0!important;border-left:6px solid var(--crm-primary)!important;border-radius:0!important;padding:.65rem .9rem!important}
+html body #cm-root .crm-avatar{border-radius:0;background:var(--crm-primary)}
+html body #cm-to-list{border-radius:0;box-shadow:0 12px 32px -12px rgba(16,24,40,.35)!important}
+html body #cm-to-list .list-group-item{border-radius:0}
+html body #cm-to-list .list-group-item-action:hover,html body #cm-to-list .list-group-item-action:focus,html body #cm-to-list .list-group-item.active{background:var(--crm-primary);color:#fff}
+/* Zmienne i AI */
+html body #cm-root .cm-var-btn{border:0;border-radius:0;background:var(--cm-light);color:var(--cm-dark);padding:.2rem .45rem;font-size:.72rem}
+html body #cm-root .cm-var-btn:hover{background:var(--crm-primary);color:#fff}
+html body #cm-root [data-bs-target="#cm-ai-modal"]{background:var(--cm-violet)!important;border:0!important;color:#fff!important;border-radius:0!important;font-weight:600}
+html body #cm-root [data-bs-target="#cm-ai-modal"]:hover{background:var(--cm-dark)!important}
+/* Przełącznik edytora — mini pivot */
+html body #cm-mode-bar{gap:1rem}
+html body #cm-mode-bar .btn{border:0!important;border-bottom:3px solid transparent!important;background:none!important;color:var(--cm-muted);font-weight:400;padding:.2rem 0 .3rem}
+html body #cm-mode-bar .btn.active{color:var(--cm-dark);font-weight:600;border-bottom-color:var(--crm-primary)!important}
+/* Edytor Quill — kwadratowy, ramka 2px, płaski pasek narzędzi */
+html body #cm-quill-wrapper .ql-toolbar.ql-snow{border:2px solid var(--cm-field);border-bottom:0;border-radius:0;background:var(--cm-light)}
+html body #cm-quill-wrapper .ql-container.ql-snow{border:2px solid var(--cm-field);border-radius:0;font-family:inherit;font-size:.95rem}
+html body #cm-quill-wrapper:focus-within .ql-toolbar.ql-snow,html body #cm-quill-wrapper:focus-within .ql-container.ql-snow{border-color:var(--crm-primary)}
+html body #cm-quill-wrapper .ql-editor{min-height:240px}
+html body #cm-root #cm-plain{min-height:240px}
+/* Załączniki */
+html body #cm-root .catt{background:var(--cm-light);border:0;border-radius:0}
+html body #cm-root .catt-title{text-transform:uppercase;font-size:.66rem;letter-spacing:.12em;color:var(--cm-muted);font-weight:700}
+html body #cm-root .catt-count,html body #cm-root .catt-src{border-radius:0;border:0;background:var(--cm-dark);color:#fff}
+html body #cm-root .catt-btn{border:2px solid var(--cm-dark);border-radius:0;background:#fff;color:var(--cm-dark);font-weight:600}
+html body #cm-root .catt-btn:hover{background:var(--cm-dark);color:#fff}
+html body #cm-root .catt-btn--ms{border-color:var(--cm-blue);color:var(--cm-blue)}
+html body #cm-root .catt-btn--ms:hover{background:var(--cm-blue);color:#fff}
+html body #cm-root .catt-drop{border:2px dashed var(--cm-field);border-radius:0;background:#fff}
+html body #cm-root .catt-chip{border-radius:0;border:0;background:#fff}
+html body #cm-root .catt-x{border-radius:0}
+/* Status kanału i błędy */
+html body #cm-mail-info .badge{border:0!important;border-radius:0;color:#fff!important;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:.62rem;padding:.3rem .5rem}
+html body #cm-mail-info .bg-success-subtle{background:var(--cm-green)!important}
+html body #cm-mail-info .bg-info-subtle{background:var(--cm-blue)!important}
+html body #cm-mail-info .bg-warning-subtle{background:var(--cm-orange)!important}
+html body #cm-error,html body #cm-ai-error{background:var(--cm-light);color:var(--cm-dark);border:0;border-left:6px solid var(--cm-red);border-radius:0}
+html body #cm-ai-preview{border:0!important;border-left:6px solid var(--cm-violet)!important;border-radius:0!important;background:var(--cm-light)!important}
+html body #cm-ai-modal .form-label{text-transform:uppercase;font-size:.66rem!important;letter-spacing:.12em;color:var(--cm-muted)}
+html body #cm-ai-modal .modal-footer{background:var(--cm-light);border-top:0}
+
 @media(prefers-reduced-motion:reduce){html body .crm-content *{transition:none!important;animation:none!important}}
 </style>
