@@ -450,7 +450,9 @@ $_ap_pal = array_values(panelMetroPalette());
               <input type="<?= $f['field_type'] === 'date' ? 'date' : ($f['field_type'] === 'number' ? 'number' : 'text') ?>"
                      name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" data-sum="<?= h($f['label']) ?>"
                      value="<?= h($val) ?>" placeholder="<?= $ph ?>"
+                     <?= $_lock ? 'readonly aria-readonly="true" style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed" aria-describedby="' . $fid . '_lock"' : '' ?>
                      <?= $f['required'] ? 'aria-required="true"' : '' ?>>
+              <?php if ($_lock): ?><div class="form-text" id="<?= $fid ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Wnioskodawcą jest zalogowana osoba — dane z konta.</div><?php endif; ?>
               <?php endif; ?>
             </div>
             <?php } ?>
