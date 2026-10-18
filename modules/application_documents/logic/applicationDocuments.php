@@ -96,6 +96,17 @@ function appDocsTemplates(): array {
     ];
 }
 
+/**
+ * Wzór do potwierdzenia złożenia (UPZ): wzór urzędowy typu albo — dla typów bez wzoru — wzór ogólny
+ * PIS z nazwą typu. UPZ wystawia się dla KAŻDEGO wniosku.
+ */
+function appDocsReceiptTpl(array $app): array {
+    $tpl = appDocsTemplateFor($app['type_name'] ?? null);
+    if ($tpl) return $tpl;
+    $label = trim((string)($app['type_label'] ?? '')) ?: 'Pismo / wniosek';
+    return ['code' => 'PIS', 'label' => $label, 'title' => mb_strtoupper($label), 'generic' => true];
+}
+
 /** Wzór dla nazwy typu wniosku albo null (typ bez dokumentu). */
 function appDocsTemplateFor(?string $typeName): ?array {
     return $typeName ? (appDocsTemplates()[$typeName] ?? null) : null;
@@ -278,45 +289,134 @@ function appDocsHashPretty(string $hash): string {
 }
 
 /**
- * Po złożeniu wniosku z wzorem: numer, suma kontrolna, IP, rejestracja przesyłki w EZD (RPW)
- * z PDF wniosku jako skanem. Błąd EZD nie cofa złożenia — trafia do logu, potwierdzenie i tak powstaje.
+ * Po złożeniu KAŻDEGO wniosku: numer (wzór albo PIS), suma kontrolna, IP, rejestracja przesyłki w EZD (RPW)
+ * ze skanem = PDF wniosku (wzory ZSW/DOK) + potwierdzenie złożenia UPZ, oraz wystawienie UPZ
+ * z wysyłką do składającego. Błąd EZD lub poczty nie cofa złożenia — trafia do logu.
  */
 function appDocsAfterSubmit(int $appId): void {
+    appDocsMigrateUpz();
     $app = appDocsLoad($appId);
-    $tpl = $app ? appDocsTemplateFor($app['type_name'] ?? null) : null;
-    if (!$app || !$tpl) return;
+    if (!$app) return;
+    $tpl    = appDocsReceiptTpl($app);
     $number = appDocsNumber($app, $tpl);
     $hash   = appDocsHash($app);
     db()->prepare("UPDATE user_applications SET doc_number=?, doc_hash=?, submitted_ip=? WHERE id=?")
         ->execute([$number, $hash, substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64), $appId]);
 
-    if (!function_exists('module_enabled') || !module_enabled('ezd_enabled')) return;
-    try {
-        require_once dirname(__DIR__, 3) . '/includes/ezd.php';
-        $f = json_decode((string)$app['fields_json'], true) ?: [];
-        $rpw = ezd_rpw_create([
-            'data_wplywu' => date('Y-m-d', strtotime((string)$app['created_at'])),
-            'typ'         => 'inne',
-            'nadawca'     => trim((string)($f['wnioskodawca'] ?? '')) ?: (string)$app['user_name'],
-            'znak_obcy'   => $number,
-            'opis'        => $tpl['code'] . ' — ' . (string)$app['tytul'],
-            'uwagi'       => 'Złożono elektronicznie w Panelu współpracownika (' . ($app['user_email'] ?: 'konto #' . $app['user_id']) . '). '
-                           . 'Suma kontrolna SHA-256: ' . $hash,
-        ], (int)$app['user_id']);
-        db()->prepare("UPDATE user_applications SET ezd_rpw_id=? WHERE id=?")->execute([(int)$rpw['id'], $appId]);
+    if (function_exists('module_enabled') && module_enabled('ezd_enabled')) {
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/ezd.php';
+            $f = json_decode((string)$app['fields_json'], true) ?: [];
+            $rpw = ezd_rpw_create([
+                'data_wplywu' => date('Y-m-d', strtotime((string)$app['created_at'])),
+                'typ'         => 'inne',
+                'nadawca'     => trim((string)($f['wnioskodawca'] ?? '')) ?: (string)$app['user_name'],
+                'znak_obcy'   => $number,
+                'opis'        => $tpl['code'] . ' — ' . (string)$app['tytul'],
+                'uwagi'       => 'Złożono elektronicznie w Panelu współpracownika (' . ($app['user_email'] ?: 'konto #' . $app['user_id']) . '). '
+                               . 'Suma kontrolna SHA-256: ' . $hash . '. W skanie: ' . (empty($tpl['generic']) ? 'wniosek i ' : '') . 'potwierdzenie złożenia UPZ.',
+            ], (int)$app['user_id']);
+            db()->prepare("UPDATE user_applications SET ezd_rpw_id=? WHERE id=?")->execute([(int)$rpw['id'], $appId]);
 
-        $pdf = appDocsPdf(appDocsLoad($appId) ?? $app, $tpl);
-        if ($pdf !== null) {
-            $dir = UPLOAD_DIR . EZD_RPW_SUBDIR . (int)$rpw['id'] . '/';
-            if (!is_dir($dir)) @mkdir($dir, 0755, true);
-            $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf';
-            if (@file_put_contents($dir . $stored, $pdf) !== false) {
-                db()->prepare("UPDATE ezd_rpw SET scan_file=?, scan_name=?, scan_mime='application/pdf', scan_size=? WHERE id=?")
-                    ->execute([$stored, str_replace('/', '_', $number) . '.pdf', strlen($pdf), (int)$rpw['id']]);
+            $fresh = appDocsLoad($appId) ?? $app;
+            $parts = [];
+            if (empty($tpl['generic'])) $parts[] = appDocsPdf($fresh, $tpl);
+            $parts[] = appDocsReceiptPdf($fresh, $tpl);
+            $pdf = appDocsMergePdfs(array_values(array_filter($parts, fn($x) => $x !== null)));
+            if ($pdf !== null) {
+                $dir = UPLOAD_DIR . EZD_RPW_SUBDIR . (int)$rpw['id'] . '/';
+                if (!is_dir($dir)) @mkdir($dir, 0755, true);
+                $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf';
+                if (@file_put_contents($dir . $stored, $pdf) !== false) {
+                    db()->prepare("UPDATE ezd_rpw SET scan_file=?, scan_name=?, scan_mime='application/pdf', scan_size=? WHERE id=?")
+                        ->execute([$stored, str_replace('/', '_', $number) . '.pdf', strlen($pdf), (int)$rpw['id']]);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[application_documents] EZD RPW dla wniosku #' . $appId . ': ' . $e->getMessage());
+        }
+    }
+
+    try { appDocsIssueReceipt($appId); }
+    catch (\Throwable $e) { error_log('[application_documents] UPZ dla wniosku #' . $appId . ': ' . $e->getMessage()); }
+}
+
+/** Kolumny UPZ w user_applications (samonaprawa). */
+function appDocsMigrateUpz(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (function_exists('_applications_init')) _applications_init();   // doc_number, doc_hash, ezd_rpw_id…
+    $cols = array_column(db()->query("PRAGMA table_info(user_applications)")->fetchAll(\PDO::FETCH_ASSOC), 'name');
+    foreach (['upz_file' => 'TEXT', 'upz_issued_at' => 'DATETIME', 'upz_mailed_at' => 'DATETIME'] as $c => $def) {
+        if ($cols && !in_array($c, $cols, true)) db()->exec("ALTER TABLE user_applications ADD COLUMN {$c} {$def}");
+    }
+}
+
+/**
+ * Wystawia potwierdzenie złożenia (UPZ) wniosku: PDF w UPLOAD_DIR/application_receipts/ i — jeśli jeszcze
+ * nie wysłano — e-mail do składającego z PDF w załączniku, wysyłany od razu (bez kolejki). Bezpieczne
+ * do wielokrotnego wywołania (workflow może je odpalić na etapie): drugi raz tylko odświeża PDF.
+ * Zwraca ścieżkę PDF względem UPLOAD_DIR albo null.
+ */
+function appDocsIssueReceipt(int $appId, bool $mail = true): ?string {
+    appDocsMigrateUpz();
+    $app = appDocsLoad($appId);
+    if (!$app) return null;
+    $tpl = appDocsReceiptTpl($app);
+    if (empty($app['doc_number']) || empty($app['doc_hash'])) {
+        db()->prepare("UPDATE user_applications SET doc_number=COALESCE(doc_number, ?), doc_hash=COALESCE(doc_hash, ?) WHERE id=?")
+            ->execute([appDocsNumber($app, $tpl), appDocsHash($app), $appId]);
+        $app = appDocsLoad($appId);
+    }
+    $pdf = appDocsReceiptPdf($app, $tpl);
+    if ($pdf === null) return null;
+    $rel = 'application_receipts/UPZ_' . str_replace('/', '_', (string)$app['doc_number']) . '.pdf';
+    if (!is_dir(UPLOAD_DIR . 'application_receipts')) @mkdir(UPLOAD_DIR . 'application_receipts', 0750, true);
+    if (@file_put_contents(UPLOAD_DIR . $rel, $pdf) === false) return null;
+    db()->prepare("UPDATE user_applications SET upz_file=?, upz_issued_at=COALESCE(upz_issued_at, ?) WHERE id=?")->execute([$rel, date('Y-m-d H:i:s'), $appId]);
+
+    if ($mail && empty($app['upz_mailed_at']) && filter_var((string)$app['user_email'], FILTER_VALIDATE_EMAIL)) {
+        require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $html = '<p>Dzień dobry ' . $e($app['user_name']) . ',</p>'
+              . '<p>potwierdzamy złożenie wniosku <strong>' . $e($app['tytul']) . '</strong> (nr ' . $e($app['doc_number']) . ', '
+              . date('d.m.Y H:i', strtotime((string)$app['created_at'])) . ').</p>'
+              . '<p>W załączniku urzędowe potwierdzenie złożenia (UPZ) z sumą kontrolną treści wniosku. '
+              . 'Status sprawy sprawdzisz w Panelu współpracownika: <a href="' . $e(APP_URL . '/panel/apply.php') . '">' . $e(APP_URL . '/panel/apply.php') . '</a>.</p>';
+        $id = mail_queue_add((string)$app['user_email'], (string)$app['user_name'], 'Potwierdzenie złożenia wniosku ' . $app['doc_number'], $html, '',
+            'application_upz', $appId, '', true,
+            [['path' => $rel, 'name' => basename($rel), 'mime' => 'application/pdf', 'size' => strlen($pdf)]]);
+        $st = $id ? db_one("SELECT status FROM mail_queue WHERE id = ?", [$id]) : null;
+        // wysłany od razu albo czeka w kolejce na ponowienie — w obu przypadkach drugi raz nie dokładamy
+        if ($id) db()->prepare("UPDATE user_applications SET upz_mailed_at=? WHERE id=?")->execute([date('Y-m-d H:i:s'), $appId]);
+        if (($st['status'] ?? '') !== 'sent') error_log('[application_documents] UPZ #' . $appId . ' — e-mail nie wyszedł od razu (kolejka ponowi).');
+    }
+    return $rel;
+}
+
+/** Łączy kilka PDF (stringi) w jeden — mPDF + FPDI. Jeden plik zwraca bez zmian. */
+function appDocsMergePdfs(array $pdfs): ?string {
+    if (!$pdfs) return null;
+    if (count($pdfs) === 1) return $pdfs[0];
+    try {
+        require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+        $tmp = UPLOAD_DIR . 'mpdf_tmp';
+        if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+        $m = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'tempDir' => $tmp]);
+        foreach ($pdfs as $pdf) {
+            $n = $m->setSourceFile(\setasign\Fpdi\PdfParser\StreamReader::createByString($pdf));
+            for ($i = 1; $i <= $n; $i++) {
+                $tplId = $m->importPage($i);
+                $size  = $m->getTemplateSize($tplId);
+                $m->AddPageByArray(['orientation' => $size['orientation'] ?? 'P', 'sheet-size' => [$size['width'], $size['height']]]);
+                $m->useTemplate($tplId);
             }
         }
+        return $m->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
-        error_log('[application_documents] EZD RPW dla wniosku #' . $appId . ': ' . $e->getMessage());
+        error_log('[application_documents] scalanie PDF: ' . $e->getMessage());
+        return $pdfs[0];
     }
 }
 

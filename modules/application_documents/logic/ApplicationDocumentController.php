@@ -10,10 +10,13 @@ final class ApplicationDocumentController
 {
     private const VIEW = __DIR__ . '/../view/';
 
-    /** @return array{0: array, 1: array} wniosek i wzór; kończy żądanie 404/403 przy braku. */
-    private function load(int $id): array {
+    /**
+     * @return array{0: array, 1: array} wniosek i wzór; kończy żądanie 404/403 przy braku.
+     * $receipt — potwierdzenie UPZ istnieje dla każdego typu (wzór ogólny PIS), treść wniosku tylko dla wzorów.
+     */
+    private function load(int $id, bool $receipt = false): array {
         $app = appDocsLoad($id);
-        $tpl = $app ? appDocsTemplateFor($app['type_name'] ?? null) : null;
+        $tpl = $app ? ($receipt ? appDocsReceiptTpl($app) : appDocsTemplateFor($app['type_name'] ?? null)) : null;
         if (!$app || !$tpl) { http_response_code(404); echo 'Nie znaleziono dokumentu wniosku.'; exit; }
         if (!appDocsCanView($app)) { http_response_code(403); echo 'Brak dostępu do tego wniosku.'; exit; }
         return [$app, $tpl];
@@ -27,14 +30,14 @@ final class ApplicationDocumentController
     }
 
     public function receipt(int $id): string {
-        [$app, $tpl] = $this->load($id);
+        [$app, $tpl] = $this->load($id, true);
         return Router::view(self::VIEW . 'document.php', ['app' => $app, 'tpl' => $tpl, 'kind' => 'receipt',
             'css' => appDocsReceiptCss(), 'body' => appDocsReceiptHtml($app, $tpl), 'pdfUrl' => appDocsReceiptUrl($id, true),
-            'otherUrl' => appDocsUrl($id), 'otherLabel' => 'Treść wniosku']);
+            'otherUrl' => empty($tpl['generic']) ? appDocsUrl($id) : '', 'otherLabel' => 'Treść wniosku']);
     }
 
     public function receiptPdf(int $id): ?string {
-        [$app, $tpl] = $this->load($id);
+        [$app, $tpl] = $this->load($id, true);
         return $this->sendPdf(appDocsReceiptPdf($app, $tpl), 'UPZ_' . appDocsNumber($app, $tpl));
     }
 

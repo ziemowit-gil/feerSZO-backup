@@ -28,7 +28,7 @@ body{margin:0;font-family:"Segoe UI",system-ui,Arial,sans-serif}
 <nav class="ad-bar" aria-label="Polecenia dokumentu">
   <a href="javascript:history.back()"><i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć</a>
   <div class="ad-bar-t"><small><?= $kind === 'receipt' ? 'Potwierdzenie' : h($tpl['code']) ?></small><?= h(appDocsNumber($app, $tpl)) ?></div>
-  <a href="<?= h($otherUrl) ?>"><i class="bi <?= $kind === 'receipt' ? 'bi-file-earmark-text' : 'bi-patch-check' ?>" aria-hidden="true"></i><?= h($otherLabel) ?></a>
+  <?php if ($otherUrl !== ''): ?><a href="<?= h($otherUrl) ?>"><i class="bi <?= $kind === 'receipt' ? 'bi-file-earmark-text' : 'bi-patch-check' ?>" aria-hidden="true"></i><?= h($otherLabel) ?></a><?php endif; ?>
   <button type="button" onclick="window.print()"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj</button>
   <a class="is-acc" href="<?= h($pdfUrl) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>PDF</a>
 </nav>
