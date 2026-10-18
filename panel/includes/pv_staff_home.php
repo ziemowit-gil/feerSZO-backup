@@ -106,6 +106,13 @@ $_sh_lead = $_sh_admin
         panelMetroTile(['href'=>APP_URL.'/panel/messages.php','icon'=>'bi-chat-dots','label'=>'Wiadomości','val'=>!empty($msg_unread) ? (string)(int)$msg_unread : '',
                         'sub'=>!empty($msg_unread) ? 'nowych' : 'korespondencja','color'=>'blue']);
     }
+    if (panel_visible('wnioski')) {
+        try {
+            $_sh_apps = (int)(db_one("SELECT COUNT(*) AS c FROM user_applications WHERE user_id = ? AND status IN ('nowy','w_trakcie')", [$_sh_uid])['c'] ?? 0);
+        } catch (\Throwable $e) { $_sh_apps = 0; }
+        panelMetroTile(['href'=>APP_URL.'/panel/apply.php','icon'=>'bi-send','label'=>'Wnioski','val'=>$_sh_apps ? (string)$_sh_apps : '',
+                        'sub'=>$_sh_apps ? 'w toku' : 'zaświadczenia, duplikaty, kserokopie','color'=>$_sh_apps ? 'orange' : 'blue']);
+    }
     panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_sh_hd ? (string)$_sh_hd : '',
                     'sub'=>$_sh_hd ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
     panelMetroTile(['href'=>APP_URL.'/panel/m365.php','icon'=>'bi-microsoft','label'=>'Microsoft 365 i poczta',
