@@ -218,632 +218,280 @@ panelMetroAssets($_vol_color);
   </div>
 
   <?= function_exists('flash_html') ? flash_html() : '' ?>
-<style>
-/* ══ Pulpit wolontariusza — Metro UI jak System Tożsamości ═══════════════════
-   Kafle „Start” (.mt-grid/.mt-tile, kolor kafla = --c) + nawigacja pivot
-   (.mt-pivot, jedna sekcja naraz, #hash) + płaskie grupy (.mt-group).
-   Akcent = per-user --vol-color (--m-acc z pv_metro.php). 0 zaokrągleń/cieni. */
-.pvtz{--tz:var(--m-acc,var(--vol-color,#1ba1e2));--tz-strong:<?= h($_vol_dark) ?>;--tz-rgb:<?= h($_vol_rgb) ?>;color:var(--m-ink,#111827)}
-.pvtz .mt-kicker{font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:var(--m-muted);margin-bottom:.35rem}
-.pvtz .mt-title{margin:0;font-size:2.5rem;font-weight:300;line-height:1.05;letter-spacing:-.02em;color:var(--m-ink)}
-.pvtz .mt-lead{margin:.5rem 0 0;font-size:.95rem;font-weight:300;color:var(--m-muted);max-width:70ch}
-.pvtz .mt-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1rem;margin-bottom:1.5rem}
-/* kafle */
-.pvtz .mt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));grid-auto-rows:150px;gap:8px;grid-auto-flow:dense;margin:0}
-@media(max-width:480px){.pvtz .mt-grid{grid-template-columns:repeat(2,1fr);grid-auto-rows:140px}}
-.pvtz .mt-tile{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:14px 16px;color:#fff;text-decoration:none;background:var(--c,var(--m-acc));overflow:hidden;border:0;text-align:left;font:inherit;cursor:pointer;transition:transform .08s,filter .12s;min-width:0}
-.pvtz .mt-tile:hover{filter:brightness(1.1);color:#fff;text-decoration:none}
-.pvtz .mt-tile:active{transform:scale(.97)}
-.pvtz .mt-tile:focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
-.pvtz .mt-tile--w{grid-column:span 2}
-.pvtz .mt-tile--l{grid-column:span 2;grid-row:span 2}
-.pvtz .mt-tile .ic{font-size:2rem;line-height:1}
-.pvtz .mt-tile--l .ic{font-size:2.6rem}
-.pvtz .mt-tile .lbl{display:block;font-size:.82rem;font-weight:600;line-height:1.2}
-.pvtz .mt-tile .val{display:block;font-size:1.85rem;font-weight:300;line-height:1;letter-spacing:-.02em}
-.pvtz .mt-tile--l .val{font-size:2.1rem}
-.pvtz .mt-tile .sub{display:block;font-size:.72rem;opacity:.9;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pvtz .mt-tile .tag{position:absolute;top:10px;right:12px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:rgba(0,0,0,.3);padding:2px 7px}
-.pvtz .mt-tile .bar{display:block;height:4px;background:rgba(255,255,255,.3);margin-top:.6rem}
-.pvtz .mt-tile .bar>span{display:block;height:100%;background:#fff}
-/* pivot */
-.pvtz .mt-pivot{display:flex;gap:1.75rem;overflow-x:auto;border-bottom:1px solid var(--m-line);margin:1.75rem 0 1.5rem;scrollbar-width:none}
-.pvtz .mt-pivot::-webkit-scrollbar{display:none}
-.pvtz .mt-pivot button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;padding:.35rem 0 .6rem;font:inherit;font-size:1.3rem;font-weight:300;color:var(--m-muted);cursor:pointer;white-space:nowrap;letter-spacing:-.01em;display:inline-flex;align-items:center;gap:.4rem}
-.pvtz .mt-pivot button:hover{color:var(--m-ink)}
-.pvtz .mt-pivot button[aria-selected="true"]{color:var(--m-ink);font-weight:600;border-bottom-color:var(--m-acc)}
-.pvtz .mt-pivot button:focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
-.pvtz .mt-pivot .cnt{font-size:.66rem;font-weight:700;background:var(--m-red);color:#fff;padding:1px 6px;letter-spacing:.04em}
-.pvtz [data-pvm-panel][hidden]{display:none!important}
-/* sekcje */
-.pvtz .mt-h2{margin:0 0 .75rem;font-size:1.35rem;font-weight:300;letter-spacing:-.01em;color:var(--m-ink)}
-.pvtz .mt-h2 b{font-weight:600}
-.pvtz .mt-h2 + .mt-group,.pvtz .mt-h2 + .tz-card{margin-top:0}
-.pvtz .mt-gap{margin-top:2rem}
-.pvtz .mt-group{background:var(--m-light);padding:1.25rem}
-.pvtz .mt-group .tz-dl{margin:0 -1.25rem}
-.pvtz .mt-group .tz-dl>div{border-top:0;padding:.7rem 1.25rem}
-.pvtz .mt-row{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem 1rem;margin-bottom:1rem}
-.pvtz .mt-row .t{font-size:1.1rem;font-weight:600;color:var(--m-ink)}
-.pvtz .mt-row .d{font-size:.85rem;color:var(--m-muted)}
-/* oś czasu umowy */
-.pvtz .pv-tl{margin:1.4rem 0 .2rem}
-.pvtz .pv-tl__track{height:6px;background:var(--m-line);position:relative}
-.pvtz .pv-tl__fill{position:absolute;left:0;top:0;height:6px;background:var(--m-acc)}
-.pvtz .pv-tl__labels{display:flex;justify-content:space-between;gap:.5rem;margin-top:.5rem;font-size:.75rem;color:var(--m-muted)}
-.pvtz .pv-tl__labels strong{color:var(--m-ink)}
-/* wiadomości */
-.pvtz .pv-msgfeed{list-style:none;padding:0;margin:0;background:var(--m-light)}
-.pvtz .pv-msg{display:flex;gap:.8rem;padding:.9rem 1.1rem;border-bottom:1px solid var(--m-bg)}
-.pvtz .pv-msg:last-child{border-bottom:0}
-.pvtz .pv-msg[role="link"]:hover{background:var(--m-light-h)}
-.pvtz .pv-msg__av{width:38px;height:38px;background:var(--m-grey);color:#fff;font-size:.75rem;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.pvtz .pv-msg__av--admin{background:var(--m-acc)}
-.pvtz .pv-msg__body{flex:1;min-width:0}
-.pvtz .pv-msg__meta{font-size:.74rem;color:var(--m-muted);display:flex;justify-content:space-between;gap:.4rem;margin-bottom:.15rem}
-.pvtz .pv-msg__meta strong{color:var(--m-ink);font-weight:600}
-.pvtz .pv-msg__text{font-size:.9rem;color:var(--m-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pvtz .pv-msg--unread .pv-msg__text{font-weight:600}
-.pvtz .pv-msg--unread{border-left:6px solid var(--m-acc)}
-/* usługi: wiersze z grubym paskiem koloru (.mt-svc) */
-.pvtz .mt-svcs{display:grid;gap:8px}
-.pvtz .mt-svc{display:flex;align-items:flex-start;gap:1rem;background:var(--m-light);padding:1rem 1.1rem;border-left:8px solid var(--c,var(--m-acc));min-width:0}
-.pvtz .mt-svc>.ic{font-size:1.6rem;color:var(--m-ink);width:2.25rem;text-align:center;flex-shrink:0;line-height:1.2}
-.pvtz .mt-svc .tz-svc__bd{flex:1;min-width:0}
-.pvtz .mt-svc .tz-svc__ttl{font-weight:600;font-size:1rem;color:var(--m-ink);display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}
-.pvtz .tz-kv{font-size:.85rem;color:var(--m-muted);margin-top:.25rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
-.pvtz .tz-kv code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--m-ink);background:var(--m-bg);padding:.1rem .4rem;font-size:.85rem;word-break:break-all}
-.pvtz .tz-copy{background:none;border:0;padding:.15rem .3rem;cursor:pointer;color:var(--m-muted);line-height:1}
-.pvtz .tz-copy:hover{color:var(--m-ink);background:var(--m-bg)}
-.pvtz .tz-svc__foot{margin-top:.55rem}
-.pvtz .tz-svc__foot a{font-size:.85rem;color:var(--m-ink);text-decoration:underline;text-underline-offset:2px;font-weight:600;display:inline-flex;align-items:center;gap:.35rem}
-.pvtz .tz-svc__foot a.text-muted{color:var(--m-muted)!important;font-weight:400}
-.pvtz .tz-btn{background:var(--m-acc);color:#fff;border:2px solid var(--m-acc);padding:.5rem 1.1rem;font-weight:600;font-size:.87rem;display:inline-flex;align-items:center;gap:.45rem;text-decoration:none;cursor:pointer;min-height:40px}
-.pvtz .tz-btn:hover{background:var(--m-dark);border-color:var(--m-dark);color:#fff}
-.pvtz .tz-btn--ghost{background:transparent;color:var(--m-ink);border:2px solid var(--m-ink)}
-.pvtz .tz-btn--ghost:hover{background:var(--m-ink);color:var(--m-bg);border-color:var(--m-ink)}
-.pvtz .tz-yes{color:var(--m-green)}.pvtz .tz-no{color:var(--m-muted);font-weight:400}
-.pvtz .tz-empty{background:var(--m-light);text-align:center;padding:2rem 1rem;color:var(--m-muted)}
-/* wybór klienta poczty */
-.pvtz .pv-mail-pick{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:.75rem 0 .2rem}
-.pvtz .pv-mail-pick--single{grid-template-columns:1fr}
-.pvtz .pv-mail-btn{display:flex;flex-direction:column;gap:.1rem;padding:.75rem 1rem;background:var(--m-acc);color:#fff;text-decoration:none;font-weight:600;font-size:.92rem;min-height:44px}
-.pvtz .pv-mail-btn:hover,.pvtz .pv-mail-btn:focus-visible{filter:brightness(1.1);color:#fff}
-.pvtz .pv-mail-btn span{font-weight:400;font-size:.78rem;color:rgba(255,255,255,.9)}
-.pvtz .pv-mail-btn i{margin-right:.35rem}
-.pvtz .pv-mail-diff{margin-top:.6rem;font-size:.85rem}
-.pvtz .pv-mail-diff>summary{cursor:pointer;font-weight:600;color:var(--m-ink);list-style:none;display:inline-flex;align-items:center;gap:.5rem;min-height:32px}
-.pvtz .pv-mail-diff>summary::-webkit-details-marker{display:none}
-.pvtz .pv-mail-diff>summary::before{content:'+';width:1.4rem;height:1.4rem;border:2px solid var(--m-ink);display:inline-flex;align-items:center;justify-content:center;font-weight:700;line-height:1}
-.pvtz .pv-mail-diff[open]>summary::before{content:'\2212';background:var(--m-ink);color:var(--m-bg)}
-.pvtz .pv-mail-diff dl{margin:.6rem 0 0;display:grid;gap:.45rem;background:var(--m-bg);padding:1rem}
-.pvtz .pv-mail-diff dt{font-weight:600;color:var(--m-ink)}
-.pvtz .pv-mail-diff dd{margin:0 0 .3rem;color:var(--m-muted)}
-.pvtz .vol-activity{background:var(--m-surface)}
-/* wysoki kontrast */
-[data-theme="hc"] .pvtz .mt-tile{background:#000!important;outline:2px solid #000}
-[data-theme="hc"] .pvtz .mt-group,[data-theme="hc"] .pvtz .mt-svc,[data-theme="hc"] .pvtz .pv-msgfeed{border:2px solid #000}
-[data-theme="hc"] .pvtz .mt-svc{border-left-width:8px;border-left-color:#000}
-@media(prefers-reduced-motion:reduce){.pvtz .mt-tile{transition:none}}
-</style>
 
-<?php
-/* ── Kafle „Start”: kolory palety Metro (odcienie z kontrastem ≥ 4.5:1 dla białego tekstu) ── */
-$_mt_pal = ['#007a78', '#0050ef', '#6a00ff', '#b0005e', '#0e7bb3', '#a85b00', '#008a00', '#1d1d1d'];
-$_mt_c   = function (int $i) use ($_mt_pal): string { return $_mt_pal[$i % count($_mt_pal)]; };
-
-/* ── Pivot: sekcje (klucz = id/#hash). „Wydarzenia” tylko gdy coś się renderuje. ── */
-$_pvm_extra = '';
-if ($contracts) {
-    ob_start();
-    include __DIR__ . '/pv_extra_sections.php';
-    $_pvm_extra = trim((string)ob_get_clean());
-}
-$_pvm_tabs = [
-    'umowa'      => 'umowa',
-    'wiadomosci' => 'wiadomości',
-    'dostepy'    => 'konta i dostępy',
-    'wnioski'    => 'wnioski',
-];
-if ($_pvm_extra !== '') $_pvm_tabs['wydarzenia'] = 'wydarzenia i rezerwacje';
-if ($_tasks_tab_on) $GLOBALS['_pv_tasks_section_done'] = true;
-?>
-
-<a class="visually-hidden-focusable" href="#pvtz-main">Przejdź do treści głównej</a>
-
-<div class="pvtz" id="pvtz-root">
-
-  <!-- ═══════════ NAGŁÓWEK ═══════════ -->
-  <div class="mt-head">
-    <div>
-      <div class="mt-kicker">Panel wolontariusza · <?= h(ORG_NAME) ?></div>
-      <h1 class="mt-title"><?= h($_greet) ?>, <?= h($_fname_first) ?></h1>
-      <p class="mt-lead">Twój panel współpracy — umowa, sprawy, wiadomości i dostępy w jednym miejscu · <?= date('d.m.Y') ?></p>
-    </div>
-    <?php if (count($contracts) > 1): ?>
-    <button type="button" class="tz-btn tz-btn--ghost" data-bs-toggle="modal" data-bs-target="#contractPickerModal" aria-haspopup="dialog">
-      <i class="bi bi-arrow-left-right" aria-hidden="true"></i>Zmień umowę
-    </button>
-    <?php endif; ?>
-  </div>
-
-  <?= function_exists('flash_html') ? flash_html() : '' ?>
+  <?php panelMetroImportant((int)$user['id'], (string)($user['role'] ?? 'viewer')); ?>
 
   <?php if ($_show_dir_invite): ?>
-  <div class="tz-note" role="complementary" aria-label="Zaproszenie do uzupełnienia profilu">
+  <div class="mt-note" role="complementary" aria-label="Zaproszenie do uzupełnienia profilu">
     <i class="bi bi-people-fill" aria-hidden="true"></i>
-    <span style="flex:1">
-      <strong style="color:var(--m-ink)">Uzupełnij swój profil w katalogu.</strong>
-      Dodaj zdjęcie i krótki opis — łatwiej Cię znajdą i dopasują zadania.
-      <a href="<?= APP_URL ?>/directory/profile_edit.php" class="ms-1 fw-semibold" style="color:var(--m-ink)">Uzupełnij profil →</a>
-    </span>
-    <button type="button" class="tz-copy" aria-label="Zamknij" onclick="this.closest('.tz-note').remove()"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+    <span style="flex:1"><strong>Uzupełnij swój profil w katalogu.</strong> Dodaj zdjęcie i krótki opis — łatwiej Cię znajdą i dopasują zadania.
+      <a href="<?= APP_URL ?>/directory/profile_edit.php" class="fw-semibold ms-1" style="color:inherit">Uzupełnij profil →</a></span>
+    <button type="button" class="mt-copy" aria-label="Zamknij zaproszenie" onclick="this.closest('.mt-note').remove()"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
   </div>
   <?php endif; ?>
   <?php if ($_show_sms_nudge): include __DIR__ . '/pv_sms_nudge.php'; endif; ?>
 
   <?php if (!$contracts): ?>
-  <div class="tz-empty">
+  <div class="mt-empty">
     <i class="bi bi-file-earmark-x" style="font-size:2.5rem;display:block;margin-bottom:.6rem" aria-hidden="true"></i>
-    <p class="fw-semibold mb-1" style="color:var(--m-ink)">Nie znaleziono umów powiązanych z Twoim kontem.</p>
+    <p class="fw-semibold mb-1" style="color:var(--pvm-ink)">Nie znaleziono umów powiązanych z Twoim kontem.</p>
     <p class="small mb-0">Skontaktuj się z administratorem, aby powiązać umowę z adresem <?= h($email) ?>.</p>
   </div>
-  <?php else:
-    if ($_active_row) {
-        $_ct_type  = $_active_contract['contract_type'] ?? 'wolontariat';
-        $_is_wol   = $_ct_type === 'wolontariat';
-        $_pesel    = $_active_row['pesel'] ?? '';
-        $_pesel_msk = $_pesel ? (substr($_pesel,0,2).'·····'.substr($_pesel,7)) : '';
-        $_ct_icons = ['wolontariat'=>'bi-heart-fill','zlecenie'=>'bi-person-workspace','dzielo'=>'bi-brush','praca'=>'bi-briefcase-fill'];
-        $_ct_icon  = $_ct_icons[$_ct_type] ?? 'bi-file-earmark-text';
-        $_ct_labels= ['wolontariat'=>'Wolontariat','zlecenie'=>'Umowa zlecenie','dzielo'=>'Umowa o dzieło','praca'=>'Umowa o pracę'];
-        $_ct_label = $_ct_labels[$_ct_type] ?? ucfirst($_ct_type);
-    }
-    $_pct = ($contract_progress && !$_ended) ? min(100, max(0, (int)$contract_progress['pct'])) : null;
-  ?>
+  <?php else: ?>
 
   <!-- ═══════════ KAFLE (Start) ═══════════ -->
-  <div id="pvtz-main" role="region" aria-label="Panel współpracownika">
-  <div class="mt-grid" aria-label="Skróty">
-    <?php if ($_active_row): ?>
-    <a href="#umowa" class="mt-tile mt-tile--l" style="--c:var(--m-acc)" data-pvm-go="umowa"
-       aria-label="<?= h($_ct_label) ?>: <?= h($_status_labels[$_st] ?? ucfirst($_st)) ?><?= $_pct !== null ? ', pozostało ' . (int)$contract_progress['days_left'] . ' dni' : '' ?> — szczegóły umowy">
-      <span class="tag"><?= h($_status_labels[$_st] ?? ucfirst($_st)) ?></span>
-      <i class="bi <?= $_ct_icon ?> ic" aria-hidden="true"></i>
-      <span>
-        <span class="val tw-truncate"><?= h($_ct_label) ?></span>
-        <span class="lbl" style="margin-top:.35rem"><?= h($_active_row['imie_nazwisko'] ?? '') ?><?= $_is_guardian ? ' · opiekun' : '' ?></span>
-        <span class="sub">
-          <?= !empty($_active_contract['numer_umowy']) ? 'Nr ' . h($_active_contract['numer_umowy']) . ' · ' : '' ?>
-          <?php if ($_active_row['data_zawarcia'] ?? null): ?>od <?= date('d.m.Y', strtotime($_active_row['data_zawarcia'])) ?><?php endif; ?>
-          <?php if ($_active_contract['data_zakonczenia'] ?? null): ?> do <?= date('d.m.Y', strtotime($_active_contract['data_zakonczenia'])) ?><?php elseif (!empty($_active_row['bezterminowa'])): ?> · bezterminowo<?php endif; ?>
-        </span>
-        <?php if ($_pct !== null): ?>
-        <span class="sub">pozostało <b><?= (int)$contract_progress['days_left'] ?></b> dni · <?= $_pct ?>%</span>
-        <span class="bar" aria-hidden="true"><span style="width:<?= $_pct ?>%"></span></span>
-        <?php elseif ($_ended): ?>
-        <span class="sub">umowa zakończona</span>
-        <?php endif; ?>
+  <main id="pvtz-main">
+  <h2 class="visually-hidden">Skróty</h2>
+  <div class="mt-grid">
+    <a href="#umowa" class="mt-tile mt-tile--l mt-tile--acc" data-pvm-go="umowa"
+       aria-label="<?= h(trim(($_active_row['imie_nazwisko'] ?? $user['name'] ?? '') . ' — ' . $_ct_label . ', ' . ($_status_labels[$_st] ?? $_st) . ($_pct !== null ? ', pozostało ' . (int)$contract_progress['days_left'] . ' dni' : ''))) ?>">
+      <span class="ava" aria-hidden="true"><?= h($_pv_initials($_active_row['imie_nazwisko'] ?? $user['name'] ?? '')) ?></span>
+      <span aria-hidden="true">
+        <span class="val" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($_active_row['imie_nazwisko'] ?? $user['name'] ?? '') ?></span>
+        <span class="lbl"><?= h($_ct_label) ?> · <?= h($_status_labels[$_st] ?? ucfirst((string)$_st)) ?><?= $_is_guardian ? ' · opiekun' : '' ?></span>
+        <span class="sub"><?= h(implode(' · ', array_filter([
+          $_active_contract['numer_umowy'] ?? '',
+          $_pct !== null ? 'pozostało ' . (int)$contract_progress['days_left'] . ' dni'
+            : ($_ended ? 'umowa zakończona' : (!empty($_active_row['bezterminowa']) ? 'bezterminowo' : '')),
+        ]))) ?></span>
+        <?php if ($_pct !== null): ?><span class="bar"><span style="width:<?= $_pct ?>%"></span></span><?php endif; ?>
       </span>
     </a>
-    <?php else: ?>
-    <a href="#umowa" class="mt-tile mt-tile--l" style="--c:var(--m-grey)" data-pvm-go="umowa">
-      <i class="bi bi-file-earmark-text ic" aria-hidden="true"></i>
-      <span><span class="val">Twoja umowa</span><span class="sub">brak aktywnej umowy do wyświetlenia</span></span>
-    </a>
-    <?php endif; ?>
-
-    <a href="<?= APP_URL ?>/panel/apply.php" class="mt-tile mt-tile--w" style="--c:<?= $_pending_total > 0 ? '#b84d00' : '#008a00' ?>" aria-label="Sprawy do uwagi: <?= $_pending_total ?>">
-      <span class="tag"><?= $_pending_total > 0 ? 'do uwagi' : 'ok' ?></span>
-      <i class="bi bi-bell ic" aria-hidden="true"></i>
-      <span><span class="val"><?= $_pending_total ?></span><span class="lbl" style="margin-top:.25rem">Spraw do uwagi</span><span class="sub">wnioski, zaświadczenia, zwroty, rozwiązania</span></span>
-    </a>
-
-    <a href="<?= APP_URL ?>/panel/messages.php" class="mt-tile" style="--c:<?= $msg_unread > 0 ? '#a20025' : '#0050ef' ?>" aria-label="Wiadomości: <?= $msg_unread ?> nowych">
-      <?php if ($msg_unread): ?><span class="tag">nowe</span><?php endif; ?>
-      <i class="bi bi-chat-dots ic" aria-hidden="true"></i>
-      <span><span class="val"><?= $msg_unread > 99 ? '99+' : $msg_unread ?></span><span class="lbl">Nowych wiadomości</span></span>
-    </a>
-
-    <?php if ($_tasks_tab_on): ?>
-    <a href="https://trello.com/b/VDjMNkbr/feer-wsp%C3%B3%C5%82praca-zespo%C5%82u" target="_blank" rel="noopener"
-       class="mt-tile" style="--c:#a85b00" aria-label="Otwórz tablicę Trello — moduł Zadań tymczasowo niedostępny, zadania tymczasowo w Trello">
-      <span class="tag">tymczasowo</span>
-      <i class="bi bi-trello ic" aria-hidden="true"></i>
-      <span><span class="lbl">Zadania — Trello</span><span class="sub">moduł Zadań tymczasowo niedostępny</span></span>
-    </a>
-    <?php endif; ?>
-
-    <?php foreach ($_pv_all_actions as $_i => $_qa):
-      $_qa_badge = (int)($_qa['badge'] ?? 0);
-      $_qa_aria  = $_qa['label'] . ($_qa_badge ? " — {$_qa_badge} wymaga uwagi" : '');
+    <?php
+    panelMetroTile(['href'=>APP_URL.'/panel/messages.php','go'=>'wiadomosci','icon'=>'bi-chat-dots','label'=>'Wiadomości','val'=>(string)(int)$msg_unread,
+                    'sub'=>$msg_unread ? 'nowych od organizacji' : 'napisz do nas','color'=>$msg_unread ? 'indigo' : 'blue','size'=>'w']);
+    panelMetroTile(['href'=>APP_URL.'/panel/apply.php','go'=>'sprawy','icon'=>'bi-inboxes','label'=>'Sprawy w toku','val'=>(string)$_pending_total,
+                    'sub'=>$_pending_total ? 'czeka na odpowiedź' : 'wnioski, zaświadczenia','color'=>$_pending_total ? 'orange' : 'teal']);
+    if ($_tasks_tab_on) {
+        panelMetroTile(['href'=>$_trello_url,'external'=>true,'icon'=>'bi-trello','label'=>'Zadania','sub'=>'tymczasowo w Trello','color'=>'#0052cc']);
+    }
+    panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_hd_my_open ? (string)$_hd_my_open : '',
+                    'sub'=>$_hd_my_open ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
+    panelMetroTile(['href'=>'#konta','go'=>'konta','icon'=>'bi-microsoft','label'=>'Microsoft 365 i poczta',
+                    'sub'=>$m365_login ?: ($email ?: 'konta i dostępy'),'color'=>'indigo','size'=>'w']);
+    panelMetroTile(['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','label'=>'Komunikaty','val'=>$_ann_unread ? (string)$_ann_unread : '',
+                    'sub'=>$_ann_unread ? 'nowych ogłoszeń' : 'ogłoszenia organizacji','color'=>'violet']);
+    if (is_file($ROOT . '/panel/calendar.php')) {
+        panelMetroTile(['href'=>APP_URL.'/panel/calendar.php','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>'wydarzenia i dyżury','color'=>'green']);
+    }
+    panelMetroTile(['href'=>'#narzedzia','go'=>'narzedzia','icon'=>'bi-grid-3x3-gap','label'=>'Narzędzia','val'=>(string)count($_pv_tools),'color'=>'teal']);
+    if (is_file($ROOT . '/tozsamosc/index.php')) {
+        panelMetroTile(['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'Tożsamość','sub'=>'hasło, MFA, telefon','color'=>'dark']);
+    }
     ?>
-    <a href="<?= h($_qa['href']) ?>" class="mt-tile" style="--c:<?= $_mt_c($_i) ?>" aria-label="<?= h($_qa_aria) ?>">
-      <?php if ($_qa_badge): ?><span class="tag"><?= $_qa_badge > 99 ? '99+' : $_qa_badge ?></span><?php elseif (!empty($_qa['count'])): ?><span class="tag"><?= (int)$_qa['count'] ?></span><?php endif; ?>
-      <i class="bi <?= h($_qa['icon']) ?> ic" aria-hidden="true"></i>
-      <span><span class="lbl"><?= h($_qa['label']) ?></span><?php if (!empty($_qa['sub'])): ?><span class="sub"><?= h($_qa['sub']) ?></span><?php endif; ?></span>
-    </a>
-    <?php endforeach; ?>
-
-    <?php if (is_file(dirname(__DIR__, 2) . '/tozsamosc/index.php')): ?>
-    <a href="<?= APP_URL ?>/tozsamosc/" class="mt-tile" style="--c:#1d1d1d">
-      <i class="bi bi-fingerprint ic" aria-hidden="true"></i>
-      <span><span class="lbl">Tożsamość</span><span class="sub">hasło, telefon, MFA</span></span>
-    </a>
-    <?php endif; ?>
-    <a href="<?= APP_URL ?>/panel/password.php" class="mt-tile" style="--c:#4d4d4d">
-      <i class="bi bi-gear ic" aria-hidden="true"></i>
-      <span><span class="lbl">Ustawienia konta</span><span class="sub">hasło i logowanie</span></span>
-    </a>
   </div>
 
   <!-- ═══════════ PIVOT ═══════════ -->
   <div class="mt-pivot" role="tablist" aria-label="Sekcje panelu" data-pvm-pivot>
-    <?php foreach ($_pvm_tabs as $_tk => $_tl): ?>
-    <button type="button" role="tab" id="pvm-tab-<?= $_tk ?>" aria-controls="<?= $_tk ?>"
-            aria-selected="<?= $_tk === 'umowa' ? 'true' : 'false' ?>" tabindex="<?= $_tk === 'umowa' ? '0' : '-1' ?>"
-            data-pvm-tab="<?= $_tk ?>"><?= h($_tl) ?><?php if ($_tk === 'wiadomosci' && $msg_unread): ?><span class="cnt" aria-label="<?= $msg_unread ?> nowych"><?= $msg_unread > 99 ? '99+' : $msg_unread ?></span><?php endif; ?></button>
+    <?php foreach ($_tabs as $_tk => [$_tl, $_tc]): $_on = $_tk === $_tab_first; ?>
+    <button type="button" role="tab" id="pvm-tab-<?= $_tk ?>" data-tab="<?= $_tk ?>" aria-controls="<?= $_tk ?>"
+            aria-selected="<?= $_on ? 'true' : 'false' ?>" tabindex="<?= $_on ? 0 : -1 ?>"><?= h($_tl) ?><?php if ($_tc): ?><span class="cnt" aria-label="<?= (int)$_tc ?> wymaga uwagi"><?= $_tc > 99 ? '99+' : (int)$_tc ?></span><?php endif; ?></button>
     <?php endforeach; ?>
   </div>
 
   <!-- ═══════════ UMOWA ═══════════ -->
-  <section id="umowa" role="tabpanel" aria-labelledby="pvm-tab-umowa" tabindex="-1" data-pvm-panel>
-    <h2 class="mt-h2">Twoja <b>umowa</b></h2>
+  <section id="umowa" data-pvm-panel="umowa" role="tabpanel" aria-labelledby="pvm-tab-umowa" tabindex="-1"<?= $_tab_first !== 'umowa' ? ' hidden' : '' ?>>
+    <h2 class="mt-h2"><?= h($_ct_label) ?> <b><?= h($_status_labels[$_st] ?? ucfirst((string)$_st)) ?></b></h2>
+    <?php if ($_active_row): ?>
     <div class="mt-group">
-      <?php if ($_active_row): ?>
-      <div class="mt-row">
-        <span class="t" id="bw-heading"><?= h($_ct_label) ?><?php if ($_active_row['imie_nazwisko'] ?? null): ?><span style="color:var(--m-muted);font-weight:400"> · <?= h($_active_row['imie_nazwisko']) ?></span><?php endif; ?></span>
-        <span class="pv-status-badge <?= $_ended ? 'is-ended' : 'is-active' ?>"><?= h($_status_labels[$_st] ?? ucfirst($_st)) ?></span>
-        <?php if ($_is_guardian): ?><span class="tz-badge tz-badge--wait"><i class="bi bi-person-hearts" aria-hidden="true"></i>Opiekun</span><?php endif; ?>
-        <?php if (($_active_row['data_zawarcia'] ?? null) || ($_active_contract['data_zakonczenia'] ?? null) || !empty($_active_row['bezterminowa'])): ?>
-        <span class="d">
-          <?php if ($_active_row['data_zawarcia'] ?? null): ?>od <?= date('d.m.Y', strtotime($_active_row['data_zawarcia'])) ?><?php endif; ?>
-          <?php if ($_active_contract['data_zakonczenia'] ?? null): ?> → <?= date('d.m.Y', strtotime($_active_contract['data_zakonczenia'])) ?><?php elseif (!empty($_active_row['bezterminowa'])): ?> → bezterminowo<?php endif; ?>
-        </span>
+      <dl class="mt-kv">
+        <?php if (!empty($_active_contract['numer_umowy'])): ?><div><dt>Nr umowy</dt><dd class="big"><?= h($_active_contract['numer_umowy']) ?></dd></div><?php endif; ?>
+        <div><dt>Okres</dt><dd><?= h($_fmt_d($_active_row['data_zawarcia'] ?? '')) ?: '—' ?> → <?= !empty($_active_contract['data_zakonczenia']) ? h($_fmt_d($_active_contract['data_zakonczenia'])) : (!empty($_active_row['bezterminowa']) ? 'bezterminowo' : '—') ?></dd></div>
+        <?php if (!empty($_active_row['imie_nazwisko'])): ?><div><dt>Osoba</dt><dd><?= h($_active_row['imie_nazwisko']) ?><?= $_is_guardian ? ' <span class="mt-badge mt-badge--warn">opiekun</span>' : '' ?></dd></div><?php endif; ?>
+        <?php if ($_is_wol && !empty($_active_row['miejsce_wolontariatu'])): ?><div><dt>Miejsce</dt><dd><?= h($_active_row['miejsce_wolontariatu']) ?></dd></div><?php endif; ?>
+        <?php if ($_is_wol && !empty($_active_row['godzin_tygodniowo'])): ?><div><dt>Godzin tygodniowo</dt><dd><?= h($_active_row['godzin_tygodniowo']) ?> h</dd></div><?php endif; ?>
+        <?php if ($_is_wol && !empty($_active_row['godzin_przepracowanych'])): ?>
+        <div><dt>Godziny przepracowane</dt><dd><?= h(number_format((float)$_active_row['godzin_przepracowanych'], 2, ',', ' ')) ?> h<?php if ((float)($_active_row['godzin_z_zadan'] ?? 0) > 0): ?> <small class="mt-no">(<?= h(number_format((float)$_active_row['godzin_z_zadan'], 2, ',', ' ')) ?> h z zadań)</small><?php endif; ?></dd></div>
         <?php endif; ?>
-      </div>
-
-      <?php if (!empty($_active_contract['numer_umowy']) || ($_is_wol && ($_active_row['miejsce_wolontariatu'] ?? null))
-             || ($_is_wol && ($_active_row['godzin_tygodniowo'] ?? null)) || ($_is_wol && ($_active_row['opiekun'] ?? null))
-             || $_pesel || ($_active_row['telefon'] ?? null)): ?>
-      <dl class="tz-dl">
-        <?php if (!empty($_active_contract['numer_umowy'])): ?><div><dt>Nr umowy</dt><dd><?= h($_active_contract['numer_umowy']) ?></dd></div><?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['miejsce_wolontariatu'] ?? null)): ?><div><dt>Miejsce</dt><dd><?= h($_active_row['miejsce_wolontariatu']) ?></dd></div><?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['godzin_tygodniowo'] ?? null)): ?><div><dt>Godzin tyg.</dt><dd><?= h($_active_row['godzin_tygodniowo']) ?> h</dd></div><?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['opiekun'] ?? null)): ?><div><dt>Opiekun</dt><dd><?= h($_active_row['opiekun']) ?></dd></div><?php endif; ?>
-        <?php if ($_pesel): ?><div><dt>PESEL</dt><dd style="font-family:ui-monospace,monospace;font-size:.92rem"><?= h($_pesel_msk) ?></dd></div><?php endif; ?>
-        <?php if ($_active_row['telefon'] ?? null): ?><div><dt>Telefon</dt><dd><?= h($_active_row['telefon']) ?></dd></div><?php endif; ?>
-        <?php if ($_is_wol && ($_active_row['godzin_przepracowanych'] ?? null)): ?>
-        <div><dt>Godz. przepracowane</dt><dd><?= h(number_format((float)$_active_row['godzin_przepracowanych'], 2, ',', ' ')) ?> h
-          <?php if ((float)($_active_row['godzin_z_zadan'] ?? 0) > 0): ?><small style="color:var(--m-muted)">(<?= h(number_format((float)$_active_row['godzin_z_zadan'], 2, ',', ' ')) ?> h z zadań)</small><?php endif; ?></dd></div>
-        <?php endif; ?>
+        <?php if ($_is_wol && !empty($_active_row['opiekun'])): ?><div><dt>Opiekun</dt><dd><?= h($_active_row['opiekun']) ?></dd></div><?php endif; ?>
+        <?php if (!empty($_active_row['projekt_program'])): ?><div><dt>Projekt / program</dt><dd><?= h($_active_row['projekt_program']) ?></dd></div><?php endif; ?>
         <?php if ($_is_wol): ?>
-        <div><dt>BHP</dt><dd><?= !empty($_active_row['szkolenie_bhp']) ? '<span class="tz-yes"><i class="bi bi-check-square-fill"></i> Tak</span>' : '<span class="tz-no">Nie</span>' ?></dd></div>
-        <div><dt>NNW</dt><dd><?= !empty($_active_row['ubezpieczenie_nnw']) ? '<span class="tz-yes"><i class="bi bi-check-square-fill"></i> Tak</span>' : '<span class="tz-no">Nie</span>' ?></dd></div>
+        <div><dt>Szkolenie BHP</dt><dd><?= !empty($_active_row['szkolenie_bhp']) ? '<span class="mt-yes"><i class="bi bi-check-square-fill" aria-hidden="true"></i> Tak</span>' : '<span class="mt-no">Nie</span>' ?></dd></div>
+        <div><dt>Ubezpieczenie NNW</dt><dd><?= !empty($_active_row['ubezpieczenie_nnw']) ? '<span class="mt-yes"><i class="bi bi-check-square-fill" aria-hidden="true"></i> Tak</span>' : '<span class="mt-no">Nie</span>' ?></dd></div>
         <?php endif; ?>
       </dl>
-      <?php endif; ?>
-
       <?php if ($_pct !== null): ?>
-      <div class="pv-tl" aria-hidden="true">
-        <div class="pv-tl__track"><div class="pv-tl__fill" style="width:<?= $_pct ?>%"></div></div>
-        <div class="pv-tl__labels">
-          <span><?= ($_active_row['data_zawarcia'] ?? null) ? date('d.m.Y', strtotime($_active_row['data_zawarcia'])) : 'start' ?></span>
-          <span>pozostało <strong><?= (int)$contract_progress['days_left'] ?></strong> dni · <?= $_pct ?>%</span>
-          <span><?= ($_active_contract['data_zakonczenia'] ?? null) ? date('d.m.Y', strtotime($_active_contract['data_zakonczenia'])) : '' ?></span>
-        </div>
-      </div>
-      <div role="progressbar"
-           aria-valuenow="<?= $_pct ?>" aria-valuemin="0" aria-valuemax="100"
-           aria-valuetext="Wykorzystano <?= $_pct ?>% umowy, pozostało <?= (int)$contract_progress['days_left'] ?> dni"
-           aria-label="Postęp umowy" class="visually-hidden"></div>
+      <div class="mt-progress" role="progressbar" aria-label="Postęp umowy" aria-valuenow="<?= $_pct ?>" aria-valuemin="0" aria-valuemax="100"
+           aria-valuetext="Upłynęło <?= $_pct ?>% okresu umowy, pozostało <?= (int)$contract_progress['days_left'] ?> dni"><span style="width:<?= $_pct ?>%"></span></div>
+      <div class="mt-progress-lbl" aria-hidden="true"><span><?= h($_fmt_d($_active_row['data_zawarcia'] ?? '')) ?: 'start' ?></span><span>pozostało <strong><?= (int)$contract_progress['days_left'] ?></strong> dni</span><span><?= h($_fmt_d($_active_contract['data_zakonczenia'] ?? '')) ?></span></div>
       <?php elseif ($_ended): ?>
-      <p class="small mt-3 mb-0" style="color:var(--m-muted)"><i class="bi bi-flag me-1" aria-hidden="true"></i>Umowa zakończona.</p>
-      <?php endif; ?>
-      <?php else: ?>
-      <p class="mb-0" style="color:var(--m-muted)" id="bw-heading">Brak aktywnej umowy do wyświetlenia.</p>
+      <p class="mt-3 mb-0 mt-no"><i class="bi bi-flag" aria-hidden="true"></i> Umowa zakończona.</p>
       <?php endif; ?>
     </div>
 
-    <?php if ($_active_row && !empty($_active_row['adres'])): ?>
-    <h2 class="mt-h2 mt-gap" id="pv-addr-heading">Dane <b>kontaktowe</b></h2>
-    <div class="mt-group" aria-labelledby="pv-addr-heading">
-      <dl class="tz-dl">
-        <div style="grid-column:1/-1"><dt>Adres korespondencyjny</dt><dd><?= h($_active_row['adres']) ?></dd></div>
-        <?php if ($_active_row['data_urodzenia'] ?? null): ?><div><dt>Data urodzenia</dt><dd><?= h(date('d.m.Y', strtotime($_active_row['data_urodzenia']))) ?></dd></div><?php endif; ?>
-        <?php if ($_active_row['projekt_program'] ?? null): ?><div><dt>Projekt / program</dt><dd><?= h($_active_row['projekt_program']) ?></dd></div><?php endif; ?>
+    <?php if ($_pesel || !empty($_active_row['telefon']) || !empty($_active_row['adres']) || !empty($_active_row['data_urodzenia'])): ?>
+    <h3 class="mt-h3">Dane osobowe w umowie</h3>
+    <div class="mt-group">
+      <dl class="mt-kv">
+        <?php if ($_pesel): ?><div><dt>PESEL</dt><dd style="font-family:ui-monospace,monospace"><?= h($_pesel_msk) ?></dd></div><?php endif; ?>
+        <?php if (!empty($_active_row['data_urodzenia'])): ?><div><dt>Data urodzenia</dt><dd><?= h($_fmt_d($_active_row['data_urodzenia'])) ?></dd></div><?php endif; ?>
+        <?php if (!empty($_active_row['telefon'])): ?><div><dt>Telefon</dt><dd><?= h($_active_row['telefon']) ?></dd></div><?php endif; ?>
+        <?php if (!empty($_active_row['adres'])): ?><div style="grid-column:1/-1"><dt>Adres korespondencyjny</dt><dd><?= h($_active_row['adres']) ?></dd></div><?php endif; ?>
       </dl>
+    </div>
+    <?php endif; ?>
+    <?php else: ?>
+    <div class="mt-empty"><p class="mb-0">Brak aktywnej umowy do wyświetlenia.</p></div>
+    <?php endif; ?>
+  </section>
+
+  <!-- ═══════════ SPRAWY ═══════════ -->
+  <section id="sprawy" data-pvm-panel="sprawy" role="tabpanel" aria-labelledby="pvm-tab-sprawy" tabindex="-1"<?= $_tab_first !== 'sprawy' ? ' hidden' : '' ?>>
+    <h2 class="mt-h2">Sprawy <b>formalne</b></h2>
+    <?php panelMetroTileGrid($_pv_formal, 'Sprawy formalne', ['orange','blue','teal','green','violet','indigo','magenta','dark','red','grey']); ?>
+    <h3 class="mt-h3" style="margin-top:1.75rem">Ostatnie wnioski</h3>
+    <?php if ($_pv_apps): ?>
+    <?php include __DIR__ . '/pv_apps_activity.php'; ?>
+    <?php else: ?>
+    <div class="mt-empty">
+      <p class="mb-2">Nie masz jeszcze żadnych wniosków.</p>
+      <a href="<?= APP_URL ?>/panel/apply.php" class="mt-btn"><i class="bi bi-send" aria-hidden="true"></i>Złóż wniosek / pismo</a>
     </div>
     <?php endif; ?>
   </section>
 
-  <!-- ═══════════ WIADOMOŚCI ═══════════ -->
-  <section id="wiadomosci" role="tabpanel" aria-labelledby="pvm-tab-wiadomosci" tabindex="-1" data-pvm-panel>
-    <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2">
-      <h2 class="mt-h2" id="bm-heading">Ostatnie <b>wiadomości</b></h2>
-      <a href="<?= APP_URL ?>/panel/messages.php" class="tz-btn tz-btn--ghost" style="min-height:34px;padding:.3rem .8rem;font-size:.8rem">Wszystkie <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+  <!-- ═══════════ NARZĘDZIA ═══════════ -->
+  <section id="narzedzia" data-pvm-panel="narzedzia" role="tabpanel" aria-labelledby="pvm-tab-narzedzia" tabindex="-1"<?= $_tab_first !== 'narzedzia' ? ' hidden' : '' ?>>
+    <h2 class="mt-h2">Narzędzia do <b>codziennej pracy</b></h2>
+    <?php panelMetroTileGrid($_pv_tools, 'Narzędzia', ['violet','blue','magenta','green','teal','indigo','orange','red']); ?>
+  </section>
+
+  <!-- ═══════════ KONTA I DOSTĘPY ═══════════ -->
+  <section id="konta" data-pvm-panel="konta" role="tabpanel" aria-labelledby="pvm-tab-konta" tabindex="-1"<?= $_tab_first !== 'konta' ? ' hidden' : '' ?>>
+    <h2 class="mt-h2">Konta i <b>dostępy</b></h2>
+
+    <?php if ($_my_children): ?>
+    <h3 class="mt-h3">Konta dzieci</h3>
+    <?php foreach ($_my_children as $_ch): ?>
+    <form method="post" action="<?= APP_URL ?>/auth/enter_child.php" class="mt-svc" style="--c:var(--m-orange);align-items:center">
+      <i class="bi bi-person-hearts ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd"><h3><?= h($_ch['name']) ?></h3><p><?= h($_ch['email']) ?></p></div>
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="child" value="<?= (int)$_ch['id'] ?>">
+      <button class="mt-btn"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Wejdź na konto</button>
+    </form>
+    <?php endforeach; ?>
+    <h3 class="mt-h3">Twoje konta</h3>
+    <?php endif; ?>
+
+    <div class="mt-svc" style="--c:var(--pvm-acc)">
+      <i class="bi bi-house-door ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3>Panel współpracownika <span class="mt-badge mt-badge--ok">aktywne</span></h3>
+        <p>Login: <code><?= h($email) ?></code> <button class="mt-copy" type="button" data-copy="<?= h($email) ?>" aria-label="Kopiuj login do panelu"><i class="bi bi-copy" aria-hidden="true"></i></button></p>
+        <div class="mt-links"><a href="<?= APP_URL ?>/panel/password.php"><i class="bi bi-key" aria-hidden="true"></i>Zmień hasło</a></div>
+      </div>
     </div>
-    <?php if ($_bento_msgs): ?>
-    <ul class="pv-msgfeed" aria-label="Ostatnie wiadomości" role="list" data-href="<?= APP_URL ?>/panel/messages.php">
-      <?php foreach ($_bento_msgs as $_bmsg): ?>
-      <li class="pv-msg<?= $_bmsg['is_unread'] ? ' pv-msg--unread' : '' ?>">
-        <span class="pv-msg__av<?= $_bmsg['sender_type'] === 'admin' ? ' pv-msg__av--admin' : '' ?>" aria-hidden="true"><?= $_pv_initials($_bmsg['sender_name'] ?: 'A') ?></span>
-        <div class="pv-msg__body">
-          <div class="pv-msg__meta">
-            <strong><?= h($_bmsg['sender_name'] ?: 'Administrator') ?></strong>
-            <span><?= $_pv_rel_time($_bmsg['created_at']) ?></span>
-          </div>
-          <div class="pv-msg__text"><?= h($_bmsg['body']) ?></div>
+
+    <?php if ($m365_login || !empty($user['microsoft_id']) || !empty($u_db['microsoft_id'])): $_m_login = $m365_login ?: $email; ?>
+    <div class="mt-svc" style="--c:var(--m-indigo)">
+      <i class="bi bi-microsoft ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3>Microsoft 365 <span class="mt-badge mt-badge--ok">aktywne</span></h3>
+        <p>Login: <code><?= h($_m_login) ?></code> <button class="mt-copy" type="button" data-copy="<?= h($_m_login) ?>" aria-label="Kopiuj login Microsoft 365"><i class="bi bi-copy" aria-hidden="true"></i></button></p>
+        <?php if (!empty($u_db['m365_security_group_name'])): ?><p>Grupa dostępu: <?= h($u_db['m365_security_group_name']) ?></p><?php endif; ?>
+        <div class="mt-links">
+          <a href="https://portal.office.com" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (aplikacje)<span class="visually-hidden"> — nowa karta</span></a>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($_canva_contract_wolont && $_canva_has_access): ?>
+    <div class="mt-svc" style="--c:var(--m-teal)">
+      <i class="bi bi-palette ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3>Canva Pro <span class="mt-badge mt-badge--ok">aktywne</span></h3>
+        <?php if (!empty($_active_row['canva_login'])): ?>
+        <p>Login: <code><?= h($_active_row['canva_login']) ?></code> <button class="mt-copy" type="button" data-copy="<?= h($_active_row['canva_login']) ?>" aria-label="Kopiuj login Canva"><i class="bi bi-copy" aria-hidden="true"></i></button></p>
+        <?php endif; ?>
+        <?php if ($_canva_own_account): ?>
+        <form method="post" class="d-flex gap-2 mt-2" style="max-width:440px">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_save_canva_account" value="1">
+          <input type="hidden" name="canva_contract_id" value="<?= (int)$_active_contract['id'] ?>">
+          <label for="canvaOwnLogin" class="visually-hidden">Login Canva (e-mail)</label>
+          <input type="email" id="canvaOwnLogin" name="canva_login" class="form-control form-control-sm" placeholder="np. imie.nazwisko@feer.org.pl" value="<?= h($_active_row['canva_login'] ?? '') ?>">
+          <button class="mt-btn mt-btn--ghost" style="min-height:0;white-space:nowrap"><i class="bi bi-save" aria-hidden="true"></i>Zapisz</button>
+        </form>
+        <?php endif; ?>
+        <div class="mt-links"><a href="https://www.canva.com" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Otwórz canva.com — „Continue with Microsoft”<span class="visually-hidden"> — nowa karta</span></a></div>
+      </div>
+    </div>
+    <?php elseif ($_canva_requested): ?>
+    <div class="mt-svc" style="--c:var(--m-grey)">
+      <i class="bi bi-palette ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd"><h3>Canva Pro <span class="mt-badge mt-badge--warn">wniosek wysłany</span></h3><p>Oczekuje na zatwierdzenie przez administratora.</p></div>
+    </div>
+    <?php elseif ($_canva_can_request): ?>
+    <div class="mt-svc" style="--c:var(--m-grey)">
+      <i class="bi bi-palette ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3>Canva Pro</h3><p>Dostęp do zespołu graficznego organizacji.</p>
+        <form method="post" class="mt-2">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_request_canva" value="1">
+          <input type="hidden" name="canva_contract_id" value="<?= (int)$_active_contract['id'] ?>">
+          <button type="submit" class="mt-btn mt-btn--ghost"><i class="bi bi-send" aria-hidden="true"></i>Poproś o dostęp</button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Poczta — klienci do wyboru (katalog includes/webmail_clients.php) -->
+    <div class="mt-svc" style="--c:var(--m-blue)">
+      <i class="bi bi-envelope ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3>Poczta organizacji</h3>
+        <p>Ta sama skrzynka w kilku programach do wyboru<?= $_mail_clients ? ' (' . count($_mail_clients) . ')' : '' ?> — wchodzisz zawsze przez <strong><?= h($_mail_chooser_label) ?></strong>.</p>
+        <a class="mt-btn mt-2" href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-open" aria-hidden="true"></i>Otwórz pocztę<span class="visually-hidden"> — nowa karta</span></a>
+        <details class="mt-2">
+          <summary class="fw-semibold" style="cursor:pointer">Czym różnią się programy?</summary>
+          <dl class="mt-2 mb-0" style="font-size:.88rem">
+            <dt>Outlook w przeglądarce — do codziennej pracy</dt>
+            <dd class="mt-no">Poczta z kalendarzem, Teams, skrzynki współdzielone, reguły i autoodpowiedź, aplikacja na telefon.</dd>
+            <dt>Roundcube / SnappyMail — lekko i szybko</dt>
+            <dd class="mt-no">Tylko poczta — bez kalendarza i skrzynek współdzielonych; działa na słabym łączu i starszym sprzęcie, logowanie przyciskiem „Microsoft 365”.</dd>
+            <dt>Co jest wspólne</dt>
+            <dd class="mt-no mb-0">Adres, hasło (konto Microsoft), foldery i wszystkie wiadomości.</dd>
+          </dl>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ WIADOMOŚCI ═══════════ -->
+  <section id="wiadomosci" data-pvm-panel="wiadomosci" role="tabpanel" aria-labelledby="pvm-tab-wiadomosci" tabindex="-1"<?= $_tab_first !== 'wiadomosci' ? ' hidden' : '' ?>>
+    <h2 class="mt-h2">Wiadomości <b>z organizacją</b></h2>
+    <?php if ($_pv_msgs): ?>
+    <ul class="mt-feed" aria-label="Ostatnie wiadomości">
+      <?php foreach ($_pv_msgs as $_m): $_adm = ($_m['sender_type'] ?? '') === 'admin'; ?>
+      <li class="<?= $_m['is_unread'] ? 'unread' : '' ?>">
+        <span class="av<?= $_adm ? ' av--admin' : '' ?>" aria-hidden="true"><?= h($_pv_initials($_m['sender_name'] ?: 'A')) ?></span>
+        <div style="flex:1;min-width:0">
+          <div class="meta"><strong><?= h($_m['sender_name'] ?: 'Administrator') ?><?= $_m['is_unread'] ? ' <span class="mt-badge mt-badge--info">nowa</span>' : '' ?></strong><span><?= h($_pv_rel_time((string)$_m['created_at'])) ?></span></div>
+          <div class="txt"><?= h($_m['body']) ?></div>
         </div>
       </li>
       <?php endforeach; ?>
     </ul>
-    <p class="mt-3 mb-0">
-      <a href="<?= APP_URL ?>/panel/messages.php" class="tz-btn"><i class="bi bi-pencil-square" aria-hidden="true"></i>Napisz nową wiadomość</a>
-    </p>
     <?php else: ?>
-    <div class="tz-empty">
-      <i class="bi bi-chat-dots" style="font-size:1.8rem;display:block;margin-bottom:.5rem;opacity:.6" aria-hidden="true"></i>
-      <p class="mb-2" style="font-size:.9rem">Brak wiadomości w tym wątku.</p>
-      <a href="<?= APP_URL ?>/panel/messages.php" class="tz-btn"><i class="bi bi-pencil-square" aria-hidden="true"></i>Napisz do nas</a>
-    </div>
+    <div class="mt-empty"><p class="mb-0">Brak wiadomości w wątku tej umowy.</p></div>
     <?php endif; ?>
-  </section>
-
-  <!-- ═══════════ KONTA I DOSTĘPY ═══════════ -->
-  <section id="dostepy" role="tabpanel" aria-labelledby="pvm-tab-dostepy" tabindex="-1" data-pvm-panel>
-    <?php if ($_my_children): ?>
-    <h2 class="mt-h2">Konta <b>dzieci</b></h2>
-    <div class="mt-svcs" style="margin-bottom:2rem">
-      <?php foreach ($_my_children as $_ch): ?>
-      <form method="post" action="<?= APP_URL ?>/auth/enter_child.php" class="mt-svc" style="--c:#b0005e;align-items:center">
-        <i class="bi bi-person-hearts ic" aria-hidden="true"></i>
-        <span class="tz-svc__bd"><strong><?= h($_ch['name']) ?></strong><br><span style="color:var(--m-muted);font-size:.8rem"><?= h($_ch['email']) ?></span></span>
-        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-        <input type="hidden" name="child" value="<?= (int)$_ch['id'] ?>">
-        <button class="tz-btn" style="white-space:nowrap"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Wejdź na konto</button>
-      </form>
-      <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-
-    <h2 class="mt-h2" id="pv-accounts-heading">Konta i <b>dostępy</b> do systemów</h2>
-    <div class="mt-svcs" aria-labelledby="pv-accounts-heading">
-
-      <!-- Portal wolontariusza -->
-      <div class="mt-svc" style="--c:#008a00">
-        <i class="bi bi-house-door-fill ic" aria-hidden="true"></i>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Portal wolontariusza <span class="tz-badge tz-badge--ok"><i class="bi bi-check-lg" aria-hidden="true"></i>Aktywne</span></div>
-          <div class="tz-kv">Login: <code><?= h($email) ?></code>
-            <button class="tz-copy" type="button" onclick="pvCopy(<?= h(json_encode($email)) ?>, this)" aria-label="Kopiuj login portalu"><i class="bi bi-copy" aria-hidden="true"></i></button>
-          </div>
-          <div class="tz-svc__foot"><a href="<?= APP_URL ?>/panel/password.php"><i class="bi bi-key" aria-hidden="true"></i>Zmień hasło</a></div>
-        </div>
-      </div>
-
-      <!-- Microsoft 365 -->
-      <?php if ($m365_login): ?>
-      <div class="mt-svc" style="--c:#0050ef">
-        <i class="bi bi-microsoft ic" aria-hidden="true"></i>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Microsoft 365 <span class="tz-badge tz-badge--ok"><i class="bi bi-check-lg" aria-hidden="true"></i>Aktywne</span></div>
-          <div class="tz-kv">Login: <code><?= h($m365_login) ?></code>
-            <button class="tz-copy" type="button" onclick="pvCopy(<?= h(json_encode($m365_login)) ?>, this)" aria-label="Kopiuj login M365"><i class="bi bi-copy" aria-hidden="true"></i></button>
-          </div>
-          <?php if (!empty($u_db['m365_security_group_name'])): ?><div class="tz-kv">Grupa dostępu: <?= h($u_db['m365_security_group_name']) ?></div><?php endif; ?>
-          <div class="tz-svc__foot d-flex flex-wrap gap-3">
-            <a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-fill" aria-hidden="true"></i>Poczta: <?= h($_mail_chooser_label) ?></a>
-            <a href="https://portal.office.com" target="_blank" rel="noopener" class="text-muted"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (hasło, aplikacje)</a>
-          </div>
-        </div>
-      </div>
-      <?php elseif (!empty($user['microsoft_id']) || !empty($u_db['microsoft_id'])): ?>
-      <div class="mt-svc" style="--c:#0050ef">
-        <i class="bi bi-microsoft ic" aria-hidden="true"></i>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Microsoft 365 <span class="tz-badge tz-badge--ok"><i class="bi bi-check-lg" aria-hidden="true"></i>Aktywne</span></div>
-          <div class="tz-kv">Zaloguj adresem e-mail: <code><?= h($email) ?></code></div>
-          <div class="tz-svc__foot d-flex flex-wrap gap-3">
-            <a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-fill" aria-hidden="true"></i>Poczta: <?= h($_mail_chooser_label) ?></a>
-            <a href="https://portal.office.com" target="_blank" rel="noopener" class="text-muted"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (hasło, aplikacje)</a>
-          </div>
-        </div>
-      </div>
-      <?php endif; ?>
-
-      <!-- Canva -->
-      <?php if ($_canva_contract_wolont && $_canva_has_access): ?>
-      <div class="mt-svc" style="--c:#007a78">
-        <i class="bi bi-palette-fill ic" aria-hidden="true"></i>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Canva Pro <span class="tz-badge tz-badge--ok"><i class="bi bi-check-lg" aria-hidden="true"></i>Aktywne</span></div>
-          <?php if (!empty($_active_row['canva_login'])): ?>
-          <div class="tz-kv">Login: <code><?= h($_active_row['canva_login']) ?></code>
-            <button class="tz-copy" type="button" onclick="pvCopy(<?= h(json_encode($_active_row['canva_login'])) ?>, this)" aria-label="Kopiuj login Canva"><i class="bi bi-copy" aria-hidden="true"></i></button>
-          </div>
-          <?php endif; ?>
-          <?php if ($_canva_own_account): ?>
-          <form method="post" class="d-flex gap-2 mt-2" style="max-width:420px">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_save_canva_account" value="1">
-            <input type="hidden" name="canva_contract_id" value="<?= (int)$_active_contract['id'] ?>">
-            <label for="canvaOwnLogin" class="visually-hidden">Login Canva (e-mail)</label>
-            <input type="email" id="canvaOwnLogin" name="canva_login" class="form-control form-control-sm" placeholder="np. imie.nazwisko@feer.org.pl" value="<?= h($_active_row['canva_login'] ?? '') ?>">
-            <button class="tz-btn tz-btn--ghost" style="white-space:nowrap"><i class="bi bi-save" aria-hidden="true"></i>Zapisz</button>
-          </form>
-          <?php endif; ?>
-          <div class="tz-svc__foot"><a href="https://www.canva.com" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Otwórz canva.com — zaloguj przez „Continue with Microsoft"</a></div>
-        </div>
-      </div>
-      <?php elseif ($_canva_requested): ?>
-      <div class="mt-svc" style="--c:#b84d00">
-        <i class="bi bi-palette-fill ic" aria-hidden="true"></i>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Canva Pro <span class="tz-badge tz-badge--wait"><i class="bi bi-clock" aria-hidden="true"></i>Wniosek wysłany</span></div>
-          <div class="tz-kv">Oczekuje na zatwierdzenie przez administratora.</div>
-        </div>
-      </div>
-      <?php elseif ($_canva_can_request): ?>
-      <div class="mt-svc" style="--c:#666666">
-        <i class="bi bi-palette-fill ic" aria-hidden="true"></i>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Canva Pro</div>
-          <div class="tz-kv">Dostęp do zespołu graficznego organizacji.</div>
-          <form method="post" class="tz-svc__foot">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_request_canva" value="1">
-            <input type="hidden" name="canva_contract_id" value="<?= (int)$_active_contract['id'] ?>">
-            <button type="submit" class="tz-btn tz-btn--ghost"><i class="bi bi-send" aria-hidden="true"></i>Poproś o dostęp</button>
-          </form>
-        </div>
-      </div>
-      <?php endif; ?>
-
-      <!-- Poczta — dwa klienty do wyboru (komunikat: od 1 IX 2026) -->
-      <div class="mt-svc" style="--c:#6a00ff">
-        <i class="bi bi-envelope-fill ic" aria-hidden="true"></i>
-        <div class="tz-svc__bd">
-          <div class="tz-svc__ttl">Poczta organizacji
-            <span class="tz-badge tz-badge--new"><i class="bi bi-stars" aria-hidden="true"></i>Nowość: wybór klienta</span>
-          </div>
-          <div class="tz-kv" style="display:block">
-            <strong>Od 1 września 2026</strong> sam wybierasz, w czym czytasz służbową pocztę —
-            <strong>korzystać możesz już teraz</strong>, bez zgłaszania czegokolwiek.
-            To ta sama skrzynka i te same wiadomości; różni się tylko widok i to, co program
-            dodatkowo potrafi. Wybór jest odwracalny — możesz używać kilku klientów równolegle.
-          </div>
-
-          <div class="pv-mail-pick pv-mail-pick--single">
-            <a class="pv-mail-btn pv-mail-btn--main" href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer">
-              <span style="font-weight:600;color:inherit;font-size:.92rem"><i class="bi bi-envelope-fill" aria-hidden="true"></i>Otwórz pocztę — <?= h($_mail_chooser_label) ?></span>
-              <span>jeden adres do zapamiętania; tam wybierasz klienta<?php
-                if ($_mail_clients) { echo ' (' . count($_mail_clients) . ' do wyboru)'; } ?></span>
-            </a>
-          </div>
-
-          <details class="pv-mail-diff">
-            <summary>Czym się różnią?</summary>
-            <dl>
-              <dt><i class="bi bi-microsoft" aria-hidden="true"></i> Outlook w przeglądarce — zalecany do codziennej pracy</dt>
-              <dd>Poczta razem z <strong>kalendarzem</strong> i spotkaniami, <strong>Teams</strong>,
-                  <strong>skrzynki współdzielone</strong> (np. fundacja@feer.org.pl) i dostęp w zastępstwie,
-                  <strong>reguły i autoodpowiedź</strong>, aplikacja na telefon z powiadomieniami,
-                  wyszukiwanie w całej skrzynce.</dd>
-              <dt><i class="bi bi-envelope-open" aria-hidden="true"></i> Roundcube / SnappyMail — gdy chcesz lekko i szybko</dt>
-              <dd>Tylko poczta: <strong>bez kalendarza, Teams i skrzynek współdzielonych</strong>.
-                  W zamian otwierają się na <strong>słabym łączu i starszym sprzęcie</strong>, logujesz się
-                  jednym przyciskiem „Microsoft 365" (bez osobnego hasła). Roundcube dokłada
-                  załączniki z <strong>OneDrive i ownCloud</strong> oraz kontakty kopiowane z Outlooka;
-                  SnappyMail ma najlżejszy interfejs i da się go „zainstalować" na telefonie.</dd>
-              <dt><i class="bi bi-signpost-split" aria-hidden="true"></i> Skąd wchodzić</dt>
-              <dd>Zawsze z <strong><?= h($_mail_chooser_label) ?></strong> — to nasz własny adres i sam
-                  kieruje dalej. Nie musisz pamiętać adresów Microsoftu ani Roundcube; jeśli kiedyś
-                  zmienimy klienta, ten adres zostanie ten sam.</dd>
-              <dt><i class="bi bi-info-circle" aria-hidden="true"></i> Co jest wspólne</dt>
-              <dd>Adres, hasło (konto Microsoft), foldery i wszystkie wiadomości. Reguły, podpis
-                  i autoodpowiedź ustawione w Outlooku działają na serwerze, więc obowiązują też
-                  w Roundcube.</dd>
-            </dl>
-          </details>
-
-          <div class="tz-svc__foot"><a href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Pełne zestawienie i wybór: <?= h(preg_replace('~^https?://~', '', $_mail_chooser)) ?></a></div>
-        </div>
-      </div>
-
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <a href="<?= APP_URL ?>/panel/messages.php" class="mt-btn"><i class="bi bi-pencil-square" aria-hidden="true"></i>Napisz wiadomość</a>
+      <a href="<?= APP_URL ?>/panel/messages.php" class="mt-btn mt-btn--ghost">Wszystkie wiadomości</a>
     </div>
   </section>
 
-  <!-- ═══════════ WNIOSKI ═══════════ -->
-  <section id="wnioski" role="tabpanel" aria-labelledby="pvm-tab-wnioski" tabindex="-1" data-pvm-panel>
-    <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2">
-      <h2 class="mt-h2" id="pv-act-heading">Ostatnie <b>wnioski</b></h2>
-      <a href="<?= APP_URL ?>/panel/apply.php" class="tz-btn" style="min-height:34px;padding:.3rem .8rem;font-size:.8rem"><i class="bi bi-send" aria-hidden="true"></i>Złóż nowy</a>
-    </div>
-    <?php if ($_pv_apps): ?>
-    <?php include __DIR__ . '/pv_apps_activity.php'; ?>
-    <?php else: ?>
-    <div class="tz-empty">
-      <i class="bi bi-send" style="font-size:1.8rem;display:block;margin-bottom:.5rem;opacity:.6" aria-hidden="true"></i>
-      <p class="fw-semibold mb-2" style="font-size:.9rem">Brak ostatnich wniosków.</p>
-      <a href="<?= APP_URL ?>/panel/apply.php" class="tz-btn"><i class="bi bi-send" aria-hidden="true"></i>Wyślij pismo / złóż wniosek</a>
-    </div>
-    <?php endif; ?>
-  </section>
-
-  <?php if ($_pvm_extra !== ''): ?>
+  <?php if ($_pv_extra_html !== ''): ?>
   <!-- ═══════════ WYDARZENIA I REZERWACJE ═══════════ -->
-  <section id="wydarzenia" role="tabpanel" aria-labelledby="pvm-tab-wydarzenia" tabindex="-1" data-pvm-panel>
-    <?= $_pvm_extra ?>
+  <section id="wydarzenia" data-pvm-panel="wydarzenia" role="tabpanel" aria-labelledby="pvm-tab-wydarzenia" tabindex="-1" hidden>
+    <h2 class="mt-h2">Wydarzenia i <b>rezerwacje</b></h2>
+    <?= $_pv_extra_html ?>
   </section>
   <?php endif; ?>
-  </div><!-- /#pvtz-main -->
+  </main>
 
   <?php endif; /* $contracts */ ?>
-</div><!-- /pvtz -->
-
-<script>
-/* Kopiowanie do schowka */
-function pvCopy(text, btn) {
-  if (!navigator.clipboard) return;
-  navigator.clipboard.writeText(text).then(function () {
-    var i = btn.querySelector('i'), old = i ? i.className : '';
-    if (i) { i.className = 'bi bi-check-lg'; btn.style.color = '#008a00'; }
-    setTimeout(function () {
-      if (i) { i.className = old || 'bi bi-copy'; btn.style.color = ''; }
-    }, 1600);
-  });
-}
-/* Pivot: jedna sekcja naraz, #hash, klawiatura (strzałki/Home/End). Bez JS widać wszystkie sekcje. */
-(function () {
-  var piv = document.querySelector('[data-pvm-pivot]');
-  if (!piv) return;
-  var tabs = Array.prototype.slice.call(piv.querySelectorAll('[data-pvm-tab]'));
-  var keys = tabs.map(function (t) { return t.dataset.pvmTab; });
-  function show(key, focus, push) {
-    if (keys.indexOf(key) < 0) key = keys[0];
-    tabs.forEach(function (t) {
-      var on = t.dataset.pvmTab === key;
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
-      t.tabIndex = on ? 0 : -1;
-      if (on && focus) t.focus();
-    });
-    keys.forEach(function (k) { var p = document.getElementById(k); if (p) p.hidden = (k !== key); });
-    if (push && history.replaceState) history.replaceState(null, '', '#' + key);
-  }
-  tabs.forEach(function (t, i) {
-    t.addEventListener('click', function () { show(t.dataset.pvmTab, false, true); });
-    t.addEventListener('keydown', function (e) {
-      var n = null;
-      if (e.key === 'ArrowRight') n = (i + 1) % tabs.length;
-      else if (e.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
-      else if (e.key === 'Home') n = 0;
-      else if (e.key === 'End') n = tabs.length - 1;
-      if (n !== null) { e.preventDefault(); show(keys[n], true, true); }
-    });
-  });
-  document.querySelectorAll('[data-pvm-go]').forEach(function (a) {
-    a.addEventListener('click', function (e) {
-      e.preventDefault();
-      show(a.dataset.pvmGo, false, true);
-      piv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  });
-  window.addEventListener('hashchange', function () { show(location.hash.slice(1), false, false); });
-  show(location.hash.slice(1), false, false);
-}());
-/* Wiadomości: klik → pełny widok */
-(function () {
-  var feed = document.querySelector('.pv-msgfeed[data-href]');
-  if (!feed) return;
-  var href = feed.dataset.href;
-  feed.querySelectorAll('.pv-msg').forEach(function (li) {
-    li.style.cursor = 'pointer';
-    li.setAttribute('role', 'link');
-    li.setAttribute('tabindex', '0');
-    li.setAttribute('aria-label', (li.querySelector('.pv-msg__text') || {}).textContent || 'Wiadomość');
-    li.addEventListener('click', function () { location.href = href; });
-    li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = href; } });
-  });
-}());
-</script>
+</div><!-- /.pvm -->
