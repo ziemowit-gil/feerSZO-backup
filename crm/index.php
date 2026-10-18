@@ -259,7 +259,7 @@ function _crm_table_html(
                 <?php if ($can_w): ?>
                 <div class="dropdown">
                   <button type="button"
-                          class="crm-badge crm-badge-<?= h($row['status']) ?> border-0 bg-transparent dropdown-toggle"
+                          class="crm-badge crm-badge-<?= h($row['status']) ?> border-0 dropdown-toggle"
                           data-bs-toggle="dropdown"
                           aria-haspopup="true"
                           aria-expanded="false"
