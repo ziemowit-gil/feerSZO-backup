@@ -133,6 +133,9 @@ if (!$_active_contract && $contracts) {
 
 $_active_row  = null;
 $_is_guardian = (bool)($_active_contract['_is_guardian'] ?? false);
+// Kontekst pracy dla paska górnego (header_panel.php: „Pracujesz jako …”) na wszystkich stronach panelu
+if ($_active_contract && !empty($_SESSION['panel_contract'])) $_SESSION['panel_contract']['guardian'] = $_is_guardian ? 1 : 0;
+$_SESSION['panel_contract_count'] = count($contracts);
 if ($_active_contract) {
     $_active_table = table_for_type($_active_contract['contract_type']);
     $_active_row   = db_one("SELECT * FROM {$_active_table} WHERE id = ?", [(int)$_active_contract['id']]);

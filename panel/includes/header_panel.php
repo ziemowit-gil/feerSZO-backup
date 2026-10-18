@@ -212,6 +212,16 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 :root:not([data-theme="hc"]) { --pvl-sub:var(--tz-muted); }
 
 /* Wygląd treści (nagłówki, karty, przyciski, pola, komponenty tz-*) — pv_metro.php. */
+/* Kontekst pracy („Pracujesz jako …”) — w pasku obok marki */
+.pv-ctx { display:inline-flex; align-items:center; gap:.45rem; padding:.3rem .65rem; margin-left:.25rem; min-width:0;
+  background:rgba(255,255,255,.08); color:#fff; text-decoration:none; font-size:.8rem; line-height:1.15; border:0; border-left:3px solid var(--vol-color); }
+.pv-ctx > i { font-size:1rem; flex-shrink:0 }
+.pv-ctx small { display:block; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; opacity:.7 }
+.pv-ctx b { display:block; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px }
+a.pv-ctx:hover, a.pv-ctx:focus-visible { background:var(--vol-color); color:var(--vol-on); }
+.pv-ctx .pv-ctx-chg { font-size:.7rem; opacity:.8; text-decoration:underline; white-space:nowrap }
+@media(max-width:640px){ .pv-ctx small, .pv-ctx .pv-ctx-chg, .pv-ctx-num { display:none } .pv-ctx b { max-width:120px } }
+[data-theme="hc"] .pv-ctx { background:#fff; color:#000; border:2px solid #000 }
 </style>
 <?php /* Wspólny system stylów podstron (.pv-page-*, .pv-card, .vol-detail-*, …) */ ?>
 <?php require_once __DIR__ . '/pv_styles.php'; ?>
@@ -257,6 +267,24 @@ try {
         <?php if ($_pv_org): ?><span class="pv-brand-sub" title="<?= h($_pv_org) ?>"><?= h($_pv_org) ?></span><?php endif; ?>
       </span>
     </a>
+    <?php
+    // Kontekst pracy: w jakiej roli (wg aktywnej umowy) osoba jest zidentyfikowana w systemie.
+    $_pv_ctx = $_SESSION['panel_contract'] ?? null;
+    if ($_pv_ctx && !empty($_pv_ctx['type'])):
+        $_pv_ctx_roles = ['wolontariat'=>'Wolontariusz','zlecenie'=>'Zleceniobiorca','uslugi'=>'Usługodawca','dzielo'=>'Wykonawca (umowa o dzieło)',
+                          'praca'=>'Pracownik','powierzenie'=>'Realizator zadania publicznego','inne'=>'Współpracownik'];
+        $_pv_ctx_icons = ['wolontariat'=>'bi-heart-fill','zlecenie'=>'bi-person-workspace','uslugi'=>'bi-building','dzielo'=>'bi-brush','praca'=>'bi-briefcase-fill','powierzenie'=>'bi-bank'];
+        $_pv_ctx_role  = !empty($_pv_ctx['guardian']) ? 'Opiekun wolontariusza' : ($_pv_ctx_roles[$_pv_ctx['type']] ?? 'Współpracownik');
+        $_pv_ctx_multi = (int)($_SESSION['panel_contract_count'] ?? 0) > 1;
+        $_pv_ctx_tag   = $_pv_ctx_multi ? 'a' : 'span';
+    ?>
+    <<?= $_pv_ctx_tag ?> class="pv-ctx"<?= $_pv_ctx_multi ? ' href="' . APP_URL . '/panel/index.php?wybierz=1"' : '' ?>
+       aria-label="Pracujesz jako: <?= h($_pv_ctx_role) ?><?= !empty($_pv_ctx['numer']) ? ', umowa ' . h($_pv_ctx['numer']) : '' ?><?= $_pv_ctx_multi ? ' — zmień kontekst' : '' ?>">
+      <i class="bi <?= $_pv_ctx_icons[$_pv_ctx['type']] ?? 'bi-person-badge' ?>" aria-hidden="true"></i>
+      <span aria-hidden="true"><small>Pracujesz jako</small><b><?= h($_pv_ctx_role) ?><?php if (!empty($_pv_ctx['numer'])): ?><span class="pv-ctx-num"> · <?= h($_pv_ctx['numer']) ?></span><?php endif; ?></b></span>
+      <?php if ($_pv_ctx_multi): ?><span class="pv-ctx-chg" aria-hidden="true">zmień</span><?php endif; ?>
+    </<?= $_pv_ctx_tag ?>>
+    <?php endif; ?>
     <nav class="ms-auto d-flex align-items-center gap-2" aria-label="Akcje użytkownika">
       <a href="<?= APP_URL ?>/komunikaty/index.php" class="pv-lnk"
          title="Komunikaty organizacji"
