@@ -588,13 +588,26 @@ class SmartCardService
         return $a;
     }
 
-    /** Strefy przyznane karcie wydanej z wniosku (indywidualne + ze wzoru) — do wydruku decyzji. */
+    /**
+     * Strefy przyznane przy wydaniu karty z wniosku — stan z chwili decyzji (wpis smart_cards.card_issued
+     * w audit_logs: strefy indywidualne) + strefy wzoru; bez wpisu — bieżące uprawnienia karty.
+     */
     public function issuedZoneIds(array $app): array
     {
-        if (!(int)$app['card_id']) return [];
-        $s = $this->pdo->prepare("SELECT zone_id FROM card_zone_permissions WHERE card_id = ? OR template_id = ?");
-        $s->execute([(int)$app['card_id'], (int)$app['card_template_id']]);
-        return array_values(array_unique(array_map('intval', $s->fetchAll(PDO::FETCH_COLUMN))));
+        $cardId = (int)$app['card_id'];
+        if (!$cardId) return [];
+        $tpl = $this->templateZoneIds((int)$app['card_template_id']);
+        $s = $this->pdo->prepare("SELECT details FROM audit_logs WHERE action = 'smart_cards.card_issued' AND details LIKE ? ORDER BY id LIMIT 1");
+        $s->execute(['%"card_id":' . $cardId . ',%']);
+        $d = json_decode((string)$s->fetchColumn(), true);
+        if (is_array($d)) {
+            $ids = array_merge(self::idList((string)($d['zones'] ?? '')), $tpl);
+        } else {
+            $c = $this->pdo->prepare("SELECT zone_id FROM card_zone_permissions WHERE card_id = ?");
+            $c->execute([$cardId]);
+            $ids = array_merge(array_map('intval', $c->fetchAll(PDO::FETCH_COLUMN)), $tpl);
+        }
+        return array_values(array_unique($ids));
     }
 
     /** Wpisy dziennika audytu dotyczące wniosku (złożenie, decyzja, wydanie karty). */
