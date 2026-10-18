@@ -58,4 +58,11 @@ final class EzdBulkController
         ezdBulkRemember($deadline === '' ? 'Usunięcie terminu' : 'Ustawienie terminu ' . $deadline, ezdBulkDeadline($ids, $this->userId(), $deadline));
         return $this->back();
     }
+
+    public function urgent(): ?string {
+        if (!($ids = $this->ids())) return $this->back();
+        $on = ($_POST['mode'] ?? '') === 'on';
+        ezdBulkRemember($on ? 'Oznaczenie jako pilne' : 'Zdjęcie oznaczenia pilne', ezdBulkUrgent($ids, $this->userId(), $on));
+        return $this->back();
+    }
 }

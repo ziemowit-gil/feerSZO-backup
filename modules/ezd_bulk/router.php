@@ -25,6 +25,7 @@ $r->group(['auth', 'ezd'], function (Router $r) {
     $r->post('/close', [EzdBulkController::class, 'close'])->name('ezdBulk.close');
     $r->post('/owner', [EzdBulkController::class, 'owner'])->name('ezdBulk.owner');
     $r->post('/deadline', [EzdBulkController::class, 'deadline'])->name('ezdBulk.deadline');
+    $r->post('/urgent', [EzdBulkController::class, 'urgent'])->name('ezdBulk.urgent');
 });
 
 $r->dispatch();

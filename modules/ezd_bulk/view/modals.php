@@ -94,6 +94,29 @@ $ezbUsers = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name")
   </div>
 </div>
 
+<!-- Okno: pilne -->
+<div class="modal fade ezb-modal" id="ezbUrgentModal" tabindex="-1" aria-labelledby="ezbUrgentTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="<?= h(ezdBulkUrl('/urgent')) ?>" data-ezb-ids>
+      <div class="modal-header">
+        <h2 class="modal-title h6 mb-0" id="ezbUrgentTitle"><i class="bi bi-exclamation-triangle me-2" style="color:var(--m-red,#a20025)" aria-hidden="true"></i>Oznacz jako pilne</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Anuluj"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="back" value="<?= h($ezbBack) ?>">
+        <div class="ezb-sum" data-ezb-sum="urgent"></div>
+        <p class="small text-muted mb-0">„Pilne” ustawia priorytet <strong>Pilny</strong>; zdjęcie przywraca priorytet <strong>Normalny</strong>.</p>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" name="mode" value="off" class="btn btn-outline-secondary btn-sm"><i class="bi bi-flag me-1" aria-hidden="true"></i>Zdejmij pilne</button>
+        <button type="submit" name="mode" value="on" class="btn btn-danger btn-sm"><i class="bi bi-flag-fill me-1" aria-hidden="true"></i>Oznacz pilne</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 (function () {
   var bar = document.getElementById('ezbBar');
@@ -120,7 +143,7 @@ $ezbUsers = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name")
         + (zamk ? ' oraz zamknięte (' + zamk + '), jeśli nie jesteś administratorem.' : '.');
       warn = zamk > 0;
     }
-    if (kind === 'deadline') {
+    if (kind === 'deadline' || kind === 'urgent') {
       txt += ' Pominięte zostaną koszulki bez prawa edycji' + (zamk ? ', zamknięte (' + zamk + ', jeśli nie jesteś administratorem)' : '')
         + (kind === 'deadline' && ciagle ? ' oraz ciągłe (' + ciagle + ') — nie mają terminu.' : '.');
       warn = zamk > 0 || (kind === 'deadline' && ciagle > 0);

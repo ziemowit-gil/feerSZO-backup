@@ -129,3 +129,16 @@ function ezdBulkDeadline(array $ids, int $userId, string $deadline): array {
         return null;
     });
 }
+
+/** Oznaczenie pilne (priorytet 'urgent') albo zdjęcie pilności (powrót do 'normal'). */
+function ezdBulkUrgent(array $ids, int $userId, bool $urgent): array {
+    $to = $urgent ? 'urgent' : 'normal';
+    return ezdBulkEach($ids, $userId, function (array $sp) use ($userId, $urgent, $to) {
+        if ($why = ezdBulkEditBlocker($sp, $userId)) return $why;
+        if ($urgent && $sp['priority'] === 'urgent')  return 'już oznaczona jako pilna';
+        if (!$urgent && $sp['priority'] !== 'urgent') return 'nie jest oznaczona jako pilna';
+        ezdBulkSave($sp, ['priority' => $to], $userId,
+            'priorytet: ' . (EZD_PRIORITIES[$sp['priority']]['label'] ?? $sp['priority']) . ' → ' . EZD_PRIORITIES[$to]['label']);
+        return null;
+    });
+}
