@@ -9,8 +9,9 @@ $wzSteps = [
     ['app', 'Aplikacja Microsoft 365 w SZO', 'SZO łączy się z Exchange tą samą aplikacją co z Microsoft Graph (identyfikator dzierżawy, Client ID i sekret z ustawień Microsoft 365).'],
     ['perm', 'Uprawnienie Exchange.ManageAsApp', 'Entra ID → Rejestracje aplikacji → ta aplikacja → Uprawnienia API → Dodaj uprawnienie → zakładka „API używane przez moją organizację” → Office 365 Exchange Online → Uprawnienia aplikacji → zaznacz Exchange.ManageAsApp → Dodaj.'],
     ['consent', 'Zgoda administratora', 'Na tej samej stronie (Uprawnienia API) kliknij „Udziel zgody administratora dla …” i potwierdź. W kolumnie Stan ma pojawić się zielony znacznik.'],
+    ['cert', 'Certyfikat aplikacji', 'Exchange Online w trybie aplikacji przyjmuje tylko logowanie certyfikatem (sekret klienta kończy się błędem 403). Pobierz certyfikat SZO (plik .cer — sama część publiczna), potem Entra ID → Rejestracje aplikacji → ta aplikacja → Certyfikaty i wpisy tajne → zakładka Certyfikaty → Przekaż certyfikat → wybierz plik → Dodaj. Odcisk palca w Entra ma się zgadzać z podanym niżej.'],
     ['role', 'Rola „Exchange Administrator” dla aplikacji', 'Entra ID → Role i administratorzy → Exchange Administrator → Dodaj przypisania → wyszukaj aplikację po nazwie lub Client ID → Przypisz. Uprawnienia działają po kilku–kilkunastu minutach.'],
-    ['rule', 'Reguła transportowa stopki', 'Gdy kroki 1–4 są zielone, włącz synchronizację poniżej i kliknij „Zapisz i wypchnij do Exchange”. Zacznij od trybu Audit.'],
+    ['rule', 'Reguła transportowa stopki', 'Gdy kroki 1–5 są zielone, włącz synchronizację poniżej i kliknij „Zapisz i wypchnij do Exchange”. Zacznij od trybu Audit.'],
 ];
 ?>
 <section class="mt-group" aria-labelledby="h-wz"
@@ -18,7 +19,7 @@ $wzSteps = [
   <div class="tw-flex tw-flex-wrap tw-items-start tw-justify-between tw-gap-3 tw-mb-4">
     <div>
       <h2 id="h-wz" class="mt-h2">Kreator konfiguracji <b>Exchange Online</b></h2>
-      <p class="tw-text-sm tw-text-slate-600">Pięć kroków w Entra ID, każdy sprawdzany na żywo. Kreator tylko czyta — niczego nie zmienia w Microsoft 365.</p>
+      <p class="tw-text-sm tw-text-slate-600">Sześć kroków w Entra ID, każdy sprawdzany na żywo. Kreator tylko czyta — niczego nie zmienia w Microsoft 365.</p>
     </div>
     <button type="button" @click="check()" :disabled="busy" class="tw-rounded tw-bg-white tw-text-slate-800 tw-border tw-border-solid tw-border-slate-400 tw-px-4 tw-py-2 hover:tw-bg-slate-50 disabled:tw-opacity-60">
       <span x-text="busy ? 'Sprawdzam…' : 'Sprawdź ponownie'"></span>
@@ -79,6 +80,14 @@ $wzSteps = [
           <?php if ($key === 'perm'): ?>
           <p class="tw-m-0 tw-text-xs tw-text-slate-500">Nie widać „Office 365 Exchange Online”? Wpisz w wyszukiwarkę zakładki „API używane przez moją organizację” identyfikator <code>00000002-0000-0ff1-ce00-000000000000</code>.</p>
           <?php endif; ?>
+        <?php elseif ($key === 'cert'): ?>
+          <div class="tw-flex tw-flex-wrap tw-gap-2">
+            <a :href="state.links.certDownload" class="tw-inline-block tw-rounded tw-bg-blue-700 tw-text-white tw-px-4 tw-py-2 hover:tw-bg-blue-800 tw-no-underline">Pobierz certyfikat SZO (.cer)</a>
+            <a x-show="state.links.certs" :href="state.links.certs" target="_blank" rel="noopener"
+              class="tw-inline-block tw-rounded tw-bg-white tw-text-slate-800 tw-border tw-border-solid tw-border-slate-400 tw-px-4 tw-py-2 hover:tw-bg-slate-50 tw-no-underline">Otwórz „Certyfikaty i wpisy tajne” ↗</a>
+          </div>
+          <p x-show="state.cert" x-cloak class="tw-m-0 tw-text-xs tw-text-slate-600">Odcisk palca (SHA-1): <code class="tw-break-all" x-text="state.cert?.thumb"></code> · ważny do <span x-text="state.cert?.validTo"></span></p>
+          <p class="tw-m-0 tw-text-xs tw-text-slate-500">Plik zawiera tylko klucz publiczny — klucz prywatny zostaje na serwerze SZO (katalog certs/).</p>
         <?php elseif ($key === 'role'): ?>
           <a :href="state.links.role" target="_blank" rel="noopener"
             class="tw-inline-block tw-rounded tw-bg-blue-700 tw-text-white tw-px-4 tw-py-2 hover:tw-bg-blue-800 tw-no-underline">Otwórz rolę „Exchange Administrator” ↗</a>
@@ -102,7 +111,7 @@ $wzSteps = [
 
 <script>
 function stopkaWizard(d) {
-  const ORDER = ['app', 'perm', 'consent', 'role', 'rule'];
+  const ORDER = ['app', 'perm', 'consent', 'cert', 'role', 'rule'];
   const TITLES = <?= json_encode(array_column($wzSteps, 1, 0), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
   return {
     state: d.state, busy: false, err: '', open: '', copied: '',

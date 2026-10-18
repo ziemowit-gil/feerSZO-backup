@@ -66,18 +66,73 @@ function stopkaExPreviewHtml(array $s, array $me): string {
     return strtr(stopkaExBuildHtml($s), $map);
 }
 
-/** Token aplikacji (client credentials) dla zasobu $resource. Zwraca [token, claims]; NIE sprawdza ról. */
-function stopkaExAppToken(string $resource): array {
+/**
+ * Certyfikat aplikacji dla Exchange Online. Administracyjne API Exchange (InvokeCommand) w trybie aplikacji
+ * przyjmuje WYŁĄCZNIE tokeny uzyskane certyfikatem (claim appidacr=2) — token z sekretu klienta (appidacr=1)
+ * dostaje 403 bez treści mimo uprawnienia Exchange.ManageAsApp i roli Exchange Administrator.
+ * SZO generuje własną parę kluczy (certs/exo_app.key|crt, poza repozytorium); część publiczną (.cer)
+ * administrator wgrywa w Entra ID → Rejestracje aplikacji → ta aplikacja → Certyfikaty i wpisy tajne.
+ * Zwraca ['crt' => PEM, 'key' => PEM, 'x5t' => base64url(SHA-1 DER), 'thumb' => SHA-1 hex, 'valid_to' => Y-m-d].
+ */
+function stopkaExCert(bool $create = true): ?array {
+    $dir = dirname(__DIR__, 3) . '/certs/';
+    $keyF = $dir . 'exo_app.key'; $crtF = $dir . 'exo_app.crt';
+    if ((!is_file($keyF) || !is_file($crtF)) && $create) {
+        if (!is_dir($dir)) @mkdir($dir, 0700, true);
+        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        if (!$key) throw new RuntimeException('Nie udało się wygenerować klucza certyfikatu (OpenSSL).');
+        $org = mb_substr((string)(org_setting('org_short_name') ?: org_setting('org_name') ?: 'SZO'), 0, 40);
+        $csr = openssl_csr_new(['commonName' => 'SZO Exchange stopka — ' . $org], $key, ['digest_alg' => 'sha256']);
+        $x509 = openssl_csr_sign($csr, null, $key, 1095, ['digest_alg' => 'sha256'], random_int(1, PHP_INT_MAX));
+        openssl_pkey_export($key, $keyPem);
+        openssl_x509_export($x509, $crtPem);
+        if (@file_put_contents($keyF, $keyPem) === false || @file_put_contents($crtF, $crtPem) === false) {
+            throw new RuntimeException('Nie udało się zapisać certyfikatu w katalogu certs/.');
+        }
+        @chmod($keyF, 0600);
+    }
+    if (!is_file($keyF) || !is_file($crtF)) return null;
+    $crt = (string)file_get_contents($crtF);
+    $der = base64_decode(preg_replace('/-----[^-]+-----|\s+/', '', $crt));
+    $sha = sha1($der, true);
+    $info = openssl_x509_parse($crt) ?: [];
+    return ['crt' => $crt, 'key' => (string)file_get_contents($keyF), 'x5t' => rtrim(strtr(base64_encode($sha), '+/', '-_'), '='),
+            'thumb' => strtoupper(bin2hex($sha)), 'valid_to' => isset($info['validTo_time_t']) ? date('Y-m-d', (int)$info['validTo_time_t']) : ''];
+}
+
+/** client_assertion (JWT RS256 podpisany kluczem certyfikatu) do żądania tokenu. */
+function stopkaExAssertion(string $tenant, string $cid, array $cert): string {
+    $b = fn(string $s) => rtrim(strtr(base64_encode($s), '+/', '-_'), '=');
+    $now = time();
+    $head = $b(json_encode(['alg' => 'RS256', 'typ' => 'JWT', 'x5t' => $cert['x5t']]));
+    $body = $b(json_encode(['aud' => "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token", 'iss' => $cid, 'sub' => $cid,
+                            'jti' => bin2hex(random_bytes(16)), 'nbf' => $now - 60, 'iat' => $now - 60, 'exp' => $now + 600]));
+    if (!openssl_sign("$head.$body", $sig, $cert['key'], OPENSSL_ALGO_SHA256)) throw new RuntimeException('Nie udało się podpisać żądania tokenu certyfikatem.');
+    return "$head.$body." . $b($sig);
+}
+
+/**
+ * Token aplikacji (client credentials) dla zasobu $resource. Zwraca [token, claims]; NIE sprawdza ról.
+ * $useCert=true: uwierzytelnienie certyfikatem (client_assertion) zamiast sekretu — wymagane przez Exchange.
+ */
+function stopkaExAppToken(string $resource, bool $useCert = false): array {
     $tenant = m365_setting('m365_tenant_id') ?: (defined('MS_TENANT_ID') ? MS_TENANT_ID : '');
     $cid    = m365_setting('m365_graph_client_id');
     $sec    = m365_setting('m365_graph_client_secret');
-    if ($tenant === '' || $cid === '' || $sec === '') throw new RuntimeException('Microsoft 365 (Graph) nie jest skonfigurowany.');
+    if ($tenant === '' || $cid === '' || (!$useCert && $sec === '')) throw new RuntimeException('Microsoft 365 (Graph) nie jest skonfigurowany.');
+    $auth = ['client_secret' => $sec];
+    if ($useCert) {
+        $cert = stopkaExCert();
+        if (!$cert) throw new RuntimeException('Brak certyfikatu aplikacji dla Exchange.');
+        $auth = ['client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+                 'client_assertion' => stopkaExAssertion($tenant, $cid, $cert)];
+    }
     $r = stopkaExHttp('POST', "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token", [
         'Content-Type: application/x-www-form-urlencoded',
     ], http_build_query([
-        'grant_type' => 'client_credentials', 'client_id' => $cid, 'client_secret' => $sec,
+        'grant_type' => 'client_credentials', 'client_id' => $cid,
         'scope' => $resource . '/.default',
-    ]));
+    ] + $auth));
     if (empty($r['access_token'])) {
         throw new RuntimeException('Token ' . $resource . ': ' . ($r['error_description'] ?? $r['error'] ?? 'brak odpowiedzi'));
     }
@@ -86,9 +141,10 @@ function stopkaExAppToken(string $resource): array {
 
 function stopkaExToken(): string {
     try {
-        [$tok, $claims] = stopkaExAppToken('https://outlook.office365.com');
+        [$tok, $claims] = stopkaExAppToken('https://outlook.office365.com', true);
     } catch (RuntimeException $e) {
-        throw new RuntimeException($e->getMessage() . ' — dodaj aplikacji uprawnienie Exchange.ManageAsApp.');
+        throw new RuntimeException($e->getMessage() . ' — wgraj certyfikat SZO w Entra ID (kreator Exchange, krok „Certyfikat aplikacji”)'
+            . ' i sprawdź uprawnienie Exchange.ManageAsApp.');
     }
     $r = ['access_token' => $tok];
     $roles  = $claims['roles'] ?? [];
@@ -131,19 +187,64 @@ function stopkaExHttp(string $method, string $url, array $headers, string $body)
     return $j;
 }
 
+/**
+ * Domeny do nagłówka X-AnchorMailbox (APP:SystemMailbox{…}@<organizacja>), w kolejności prób.
+ * Exchange Online (jak moduł EXO V3) kieruje żądania app-only po DOMENIE organizacji — najlepiej domenie
+ * początkowej *.onmicrosoft.com; GUID dzierżawy w kotwicy daje 403 bez treści mimo poprawnych ról.
+ * Kolejność: domena, która ostatnio zadziałała → domena początkowa z Graph → m365_domain z ustawień → GUID.
+ */
+function stopkaExAnchorDomains(string $tenant): array {
+    $out = [];
+    $ok = org_setting('stopka_ex_anchor_domain');
+    if ($ok !== '') $out[] = $ok;
+    static $initial = null;
+    if ($initial === null) {
+        $initial = '';
+        try {
+            [$gtok] = stopkaExAppToken('https://graph.microsoft.com');
+            foreach (["https://graph.microsoft.com/v1.0/organization?\$select=verifiedDomains", "https://graph.microsoft.com/v1.0/domains?\$select=id,isInitial"] as $u) {
+                $r = stopkaExHttp('GET', $u, ['Authorization: Bearer ' . $gtok, 'Accept: application/json'], '');
+                foreach (($r['value'][0]['verifiedDomains'] ?? $r['value'] ?? []) as $d) {
+                    if (!empty($d['isInitial'])) { $initial = (string)($d['name'] ?? $d['id'] ?? ''); break 2; }
+                }
+            }
+        } catch (Throwable $e) { /* brak Organization.Read.All / Domain.Read.All — zostają zapasowe */ }
+    }
+    if ($initial !== '') $out[] = $initial;
+    $dom = trim((string)m365_setting('m365_domain'));
+    if ($dom !== '') $out[] = $dom;
+    if ($tenant !== '') $out[] = $tenant;
+    return array_values(array_unique(array_filter($out)));
+}
+
 /** Wywołuje cmdlet Exchange Online. Zwraca listę wyników; rzuca wyjątek z treścią błędu. */
 function stopkaExInvoke(string $token, string $cmdlet, array $params = []): array {
     $tenant = m365_setting('m365_tenant_id') ?: (defined('MS_TENANT_ID') ? MS_TENANT_ID : '');
-    $r = stopkaExHttp('POST', "https://outlook.office365.com/adminapi/beta/$tenant/InvokeCommand", [
-        'Authorization: Bearer ' . $token, 'Content-Type: application/json', 'Accept: application/json;odata.metadata=minimal',
-        'X-ResponseFormat: json', 'X-CmdletName: ' . $cmdlet,
-        'X-AnchorMailbox: APP:SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@' . $tenant,
-    ], json_encode(['CmdletInput' => ['CmdletName' => $cmdlet, 'Parameters' => (object)$params]], JSON_UNESCAPED_UNICODE));
-    if (!empty($r['error'])) {
-        $m = $r['error']['message'] ?? ($r['error']['code'] ?? 'błąd');
-        throw new RuntimeException("$cmdlet: " . (is_string($m) ? $m : json_encode($m, JSON_UNESCAPED_UNICODE)));
+    $body = json_encode(['CmdletInput' => ['CmdletName' => $cmdlet, 'Parameters' => (object)$params]], JSON_UNESCAPED_UNICODE);
+    $last = null;
+    $doms = stopkaExAnchorDomains($tenant);
+    foreach ($doms as $dom) {
+        try {
+            $r = stopkaExHttp('POST', "https://outlook.office365.com/adminapi/beta/$tenant/InvokeCommand", [
+                'Authorization: Bearer ' . $token, 'Content-Type: application/json', 'Accept: application/json;odata.metadata=minimal',
+                'X-ResponseFormat: json', 'X-CmdletName: ' . $cmdlet, 'X-ClientApplication: ExoManagementModule',
+                'X-AnchorMailbox: APP:SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@' . $dom,
+            ], $body);
+        } catch (RuntimeException $e) {
+            // 401/403 bez treści przy tej kotwicy — spróbuj następnej domeny; inne błędy przerywają
+            if (!preg_match('/HTTP 40[13] bez JSON/', $e->getMessage())) throw $e;
+            $last = $e;
+            continue;
+        }
+        if (org_setting('stopka_ex_anchor_domain') !== $dom) org_setting_set('stopka_ex_anchor_domain', $dom);
+        if (!empty($r['error'])) {
+            $m = $r['error']['message'] ?? ($r['error']['code'] ?? 'błąd');
+            throw new RuntimeException("$cmdlet: " . (is_string($m) ? $m : json_encode($m, JSON_UNESCAPED_UNICODE)));
+        }
+        return $r['value'] ?? [];
     }
-    return $r['value'] ?? [];
+    if ($last) throw new RuntimeException($last->getMessage() . ' Sprawdzone kotwice skrzynki: ' . implode(', ', $doms) . '.');
+    throw new RuntimeException('Brak identyfikatora dzierżawy Microsoft 365.');
 }
 
 /** Tworzy/aktualizuje regułę. Zwraca [komunikat, czy_błąd]. Zapisuje wynik w ex_last_*. */
@@ -262,11 +363,13 @@ function stopkaExWizardState(bool $probe = true): array {
         'perms'   => $cid !== '' ? 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/' . rawurlencode($cid) . '/isMSAApp~/false' : '',
         'overview'=> $cid !== '' ? 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/' . rawurlencode($cid) . '/isMSAApp~/false' : '',
         'role'    => 'https://entra.microsoft.com/#view/Microsoft_AAD_IAM/RoleMenuBlade/~/RoleMembers/objectId/' . STOPKA_EX_ADMIN_ROLE . '/roleTemplateId/' . STOPKA_EX_ADMIN_ROLE,
+        'certs'   => $cid !== '' ? 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Credentials/appId/' . rawurlencode($cid) . '/isMSAApp~/false' : '',
+        'certDownload' => APP_URL . '/modules/stopka/index.php?download=exo_cert',
     ], 'steps' => []];
     $st['script'] = stopkaExWizardScript($tenant, $cid);
     $wait = ['status' => 'wait', 'msg' => 'Najpierw dokończ poprzedni krok.'];
     if (!$probe) {
-        foreach (['app', 'perm', 'consent', 'role', 'rule'] as $k) $st['steps'][$k] = ['status' => 'loading', 'msg' => 'Sprawdzanie…'];
+        foreach (['app', 'perm', 'consent', 'cert', 'role', 'rule'] as $k) $st['steps'][$k] = ['status' => 'loading', 'msg' => 'Sprawdzanie…'];
         return $st;
     }
 
@@ -275,7 +378,7 @@ function stopkaExWizardState(bool $probe = true): array {
         ? ['status' => 'ok', 'msg' => 'Aplikacja ' . $cid . ' w dzierżawie ' . $tenant . '.']
         : ['status' => 'fail', 'msg' => 'Brakuje: ' . implode(', ', array_keys(array_filter(['identyfikatora dzierżawy' => $tenant === '', 'Client ID' => $cid === '', 'sekretu' => !$hasSec]))) . '. Uzupełnij je w ustawieniach Microsoft 365 SZO.'];
     if (!$appOk) {
-        foreach (['perm', 'consent', 'role', 'rule'] as $k) $st['steps'][$k] = $wait;
+        foreach (['perm', 'consent', 'cert', 'role', 'rule'] as $k) $st['steps'][$k] = $wait;
         return $st;
     }
 
@@ -303,12 +406,28 @@ function stopkaExWizardState(bool $probe = true): array {
         $consented = in_array('Exchange.ManageAsApp', $claims['roles'] ?? [], true);
     } catch (Throwable $e) {
         $st['steps']['perm']    = ['status' => 'fail', 'msg' => $e->getMessage()];
-        $st['steps']['consent'] = $wait; $st['steps']['role'] = $wait; $st['steps']['rule'] = $wait;
+        $st['steps']['consent'] = $wait; $st['steps']['cert'] = $wait; $st['steps']['role'] = $wait; $st['steps']['rule'] = $wait;
         return $st;
     }
     if ($consented) {
         $st['steps']['perm']    = ['status' => 'ok', 'msg' => 'Uprawnienie Exchange.ManageAsApp jest przypisane aplikacji.'];
         $st['steps']['consent'] = ['status' => 'ok', 'msg' => 'Zgoda administratora udzielona — rola jest w tokenie.'];
+        // Exchange przyjmuje tylko token z certyfikatu (appidacr=2) — bez tego krok 5 zawsze kończy się 403
+        try {
+            $cert = stopkaExCert();
+            $st['cert'] = $cert ? ['thumb' => $cert['thumb'], 'validTo' => $cert['valid_to']] : null;
+            [$ctok, $cclaims] = stopkaExAppToken('https://outlook.office365.com', true);
+            $tok = $ctok;
+            $st['steps']['cert'] = ['status' => 'ok', 'msg' => 'Certyfikat SZO (odcisk ' . ($cert['thumb'] ?? '?') . ') jest wgrany — token Exchange z certyfikatu (appidacr=' . ($cclaims['appidacr'] ?? '?') . ').'];
+        } catch (Throwable $e) {
+            $m = $e->getMessage();
+            $st['steps']['cert'] = ['status' => 'fail', 'msg' => (preg_match('/AADSTS700027|AADSTS700024|AADSTS7000274|certificate|Key was not found/i', $m)
+                ? 'Certyfikat SZO nie jest jeszcze wgrany do aplikacji w Entra ID'
+                : 'Nie udało się uzyskać tokenu z certyfikatu: ' . mb_substr($m, 0, 220))
+                . '. Exchange Online przyjmuje tylko tokeny z certyfikatu — sekret klienta daje 403 mimo poprawnych ról.'];
+            $st['steps']['role'] = $wait; $st['steps']['rule'] = $wait;
+            return $st;
+        }
     } else {
         $st['steps']['perm'] = $declared === true
             ? ['status' => 'ok', 'msg' => 'Uprawnienie jest dodane w rejestracji aplikacji.']
@@ -317,7 +436,7 @@ function stopkaExWizardState(bool $probe = true): array {
                 : 'Nie da się odczytać rejestracji aplikacji (brak Application.Read.All) — sprawdź w portalu.'];
         $st['steps']['consent'] = ['status' => 'fail', 'msg' => 'Token Exchange nie zawiera roli Exchange.ManageAsApp — brak zgody administratora (role w tokenie: '
             . (($claims['roles'] ?? []) ? implode(', ', $claims['roles']) : 'brak') . ').'];
-        $st['steps']['role'] = $wait; $st['steps']['rule'] = $wait;
+        $st['steps']['cert'] = $wait; $st['steps']['role'] = $wait; $st['steps']['rule'] = $wait;
         return $st;
     }
 

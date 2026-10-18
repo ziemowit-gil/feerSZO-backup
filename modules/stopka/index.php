@@ -17,6 +17,16 @@ stopkaExMigrate();
 $user = current_user();
 $self = APP_URL . '/modules/stopka/index.php';
 
+// Certyfikat SZO dla Exchange (tylko część publiczna) — do wgrania w Entra ID (kreator, krok „Certyfikat aplikacji”)
+if (($_GET['download'] ?? '') === 'exo_cert' && is_admin()) {
+    $cert = stopkaExCert();
+    if (!$cert) { http_response_code(500); echo 'Brak certyfikatu.'; exit; }
+    header('Content-Type: application/x-x509-ca-cert');
+    header('Content-Disposition: attachment; filename="szo-exchange-stopka.cer"');
+    echo $cert['crt'];
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $do = (string)($_POST['_action'] ?? '');
