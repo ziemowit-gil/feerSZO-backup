@@ -253,53 +253,59 @@ function flash_get(): ?array {
 function flash_html(): string {
     $f = flash_get();
     if (!$f) return '';
-    $type = $f['type'];
-    $cfg = match($type) {
-        'success' => ['icon' => 'bi-check-circle-fill', 'color' => '#15803d', 'bg' => '#f0fdf4', 'border' => '#86efac', 'stripe' => '#22c55e', 'delay' => 5000, 'live' => 'polite'],
+    // Powiadomienie w szacie Metro UI: pełny kolor stanu, biały tekst, zero zaokrągleń i cieni
+    // poza jednym miękkim, w prawym górnym rogu pod paskiem aplikacji (nie zasłania menu).
+    // Kolory = paleta Metro z includes/szo_metro.php (AA z bielą). ID _flash_wrap/_flash_toast bez zmian.
+    $cfg = match($f['type']) {
+        'success' => ['icon' => 'bi-check-lg',             'bg' => '#007a00', 'title' => 'Gotowe',     'delay' => 5000, 'live' => 'polite'],
         'danger',
-        'error'   => ['icon' => 'bi-x-circle-fill',     'color' => '#b91c1c', 'bg' => '#fef2f2', 'border' => '#fca5a5', 'stripe' => '#ef4444', 'delay' => 0,    'live' => 'assertive'],
-        'warning' => ['icon' => 'bi-exclamation-triangle-fill', 'color' => '#b45309', 'bg' => '#fffbeb', 'border' => '#fcd34d', 'stripe' => '#f59e0b', 'delay' => 7000, 'live' => 'polite'],
-        default   => ['icon' => 'bi-info-circle-fill',  'color' => '#0369a1', 'bg' => '#f0f9ff', 'border' => '#7dd3fc', 'stripe' => '#38bdf8', 'delay' => 5000, 'live' => 'polite'],
+        'error'   => ['icon' => 'bi-x-lg',                 'bg' => '#a20025', 'title' => 'Błąd',       'delay' => 0,    'live' => 'assertive'],
+        'warning' => ['icon' => 'bi-exclamation-lg',       'bg' => '#c25100', 'title' => 'Uwaga',      'delay' => 7000, 'live' => 'polite'],
+        default   => ['icon' => 'bi-info-lg',              'bg' => '#0050ef', 'title' => 'Informacja', 'delay' => 5000, 'live' => 'polite'],
     };
-    $msg    = h($f['msg']);
-    $icon   = $cfg['icon'];
-    $color  = $cfg['color'];
-    $bg     = $cfg['bg'];
-    $brd    = $cfg['border'];
-    $stripe = $cfg['stripe'];
-    $delay  = $cfg['delay'];
-    $live   = $cfg['live'];
+    $msg   = h($f['msg']);
+    $icon  = $cfg['icon'];
+    $bg    = $cfg['bg'];
+    $title = $cfg['title'];
+    $delay = $cfg['delay'];
+    $live  = $cfg['live'];
+    $close = "var t=document.getElementById('_flash_toast');if(t)t.classList.add('is-out');setTimeout(function(){var w=document.getElementById('_flash_wrap');if(w&&w.parentNode)w.remove();},220);";
+    // Auto-zamykanie wstrzymane, gdy kursor/fokus jest na powiadomieniu (WCAG 2.2.1).
     $autodismiss = $delay > 0
-        ? "setTimeout(function(){var t=document.getElementById('_flash_toast');if(t)t.style.animation='_flashOut .25s ease forwards';setTimeout(function(){var w=document.getElementById('_flash_wrap');if(w&&w.parentNode)w.remove();},260);},{$delay});"
+        ? "var t=document.getElementById('_flash_toast'),left={$delay},st=Date.now(),tm;function go(){st=Date.now();tm=setTimeout(function(){ {$close} },left);if(bar){bar.style.transition='transform '+left+'ms linear';bar.style.transform='scaleX(0)';}}"
+          . "function stop(){clearTimeout(tm);left-=Date.now()-st;if(bar){var w=getComputedStyle(bar).transform;bar.style.transition='none';bar.style.transform=w;}}"
+          . "var bar=t&&t.querySelector('._flash_bar');if(t){t.addEventListener('mouseenter',stop);t.addEventListener('mouseleave',go);t.addEventListener('focusin',stop);t.addEventListener('focusout',go);}requestAnimationFrame(go);"
         : '';
+    $barHtml = $delay > 0 ? '<span class="_flash_bar" aria-hidden="true"></span>' : '';
     return <<<HTML
-<div id="_flash_wrap"
-     role="alert" aria-live="{$live}" aria-atomic="true"
-     style="position:fixed;top:0;left:0;right:0;z-index:10000;pointer-events:none">
-  <div id="_flash_toast"
-       style="background:{$bg};border-bottom:3px solid {$stripe};
-              box-shadow:0 4px 20px rgba(0,0,0,.14);
-              padding:1rem 1.5rem;
-              display:flex;align-items:center;gap:.9rem;
-              pointer-events:auto;
-              animation:_flashIn .22s cubic-bezier(.16,.84,.44,1) both">
-    <i class="bi {$icon}" style="color:{$color};font-size:1.4rem;flex-shrink:0" aria-hidden="true"></i>
-    <span style="flex:1;font-size:.95rem;font-weight:500;color:#0f172a;line-height:1.45">{$msg}</span>
-    <button type="button"
-            onclick="(function(){var t=document.getElementById('_flash_toast');if(t)t.style.animation='_flashOut .2s ease forwards';setTimeout(function(){var w=document.getElementById('_flash_wrap');if(w&&w.parentNode)w.remove();},220);})()"
-            aria-label="Zamknij powiadomienie"
-            style="background:none;border:none;padding:.25rem;color:#64748b;cursor:pointer;
-                   border-radius:6px;line-height:1;font-size:1.1rem;flex-shrink:0">
+<div id="_flash_wrap" role="alert" aria-live="{$live}" aria-atomic="true">
+  <div id="_flash_toast" style="--fl-bg:{$bg}">
+    <span class="_flash_ico" aria-hidden="true"><i class="bi {$icon}"></i></span>
+    <div class="_flash_txt"><span class="_flash_ttl">{$title}</span><span class="_flash_msg">{$msg}</span></div>
+    <button type="button" class="_flash_x" onclick="(function(){ {$close} })()" aria-label="Zamknij powiadomienie">
       <i class="bi bi-x-lg" aria-hidden="true"></i>
     </button>
+    {$barHtml}
   </div>
 </div>
 <style>
-@keyframes _flashIn  { from { opacity:0; transform:translateY(-100%); } to { opacity:1; transform:none; } }
-@keyframes _flashOut { from { opacity:1; transform:none; } to { opacity:0; transform:translateY(-100%); } }
-@media (prefers-color-scheme:dark) {
-  #_flash_toast { background:{$bg} !important; }
-}
+#_flash_wrap{position:fixed;top:56px;right:16px;z-index:10000;width:min(440px,calc(100vw - 32px));pointer-events:none}
+#_flash_toast{position:relative;display:flex;align-items:stretch;gap:0;background:var(--fl-bg);color:#fff;pointer-events:auto;border-radius:0;overflow:hidden;
+  font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,Arial,sans-serif;
+  box-shadow:0 16px 40px -16px rgba(0,0,0,.55);animation:_flashIn .22s cubic-bezier(.16,.84,.44,1) both}
+#_flash_toast.is-out{animation:_flashOut .2s ease forwards}
+#_flash_toast ._flash_ico{flex:0 0 56px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.18);font-size:1.6rem}
+#_flash_toast ._flash_txt{flex:1;min-width:0;padding:.75rem .9rem .85rem}
+#_flash_toast ._flash_ttl{display:block;font-size:.62rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.85;margin-bottom:.15rem}
+#_flash_toast ._flash_msg{display:block;font-size:.95rem;font-weight:400;line-height:1.4;word-break:break-word}
+#_flash_toast ._flash_x{flex:0 0 44px;border:0;border-radius:0;background:transparent;color:#fff;cursor:pointer;font-size:1rem;line-height:1}
+#_flash_toast ._flash_x:hover{background:rgba(0,0,0,.2)}
+#_flash_toast ._flash_x:focus-visible{outline:3px solid #fbbf24;outline-offset:-3px}
+#_flash_toast ._flash_bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.7);transform-origin:left;transform:scaleX(1)}
+@media (max-width:575.98px){#_flash_wrap{top:0;right:0;left:0;width:auto}#_flash_toast{box-shadow:none}}
+@keyframes _flashIn  { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:none; } }
+@keyframes _flashOut { from { opacity:1; transform:none; } to { opacity:0; transform:translateX(24px); } }
+@media (prefers-reduced-motion:reduce){#_flash_toast,#_flash_toast.is-out{animation:none}#_flash_toast ._flash_bar{display:none}}
 </style>
 <script>(function(){ {$autodismiss} })();</script>
 HTML;

@@ -4167,14 +4167,17 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
     if (!wrap) return;
     var toast = wrap.querySelector('#_flash_toast');
     if (!toast) return;
-    var iconEl  = toast.querySelector('i.bi');
-    var msgEl   = toast.querySelector('span');
+    var iconEl  = toast.querySelector('._flash_ico i.bi') || toast.querySelector('i.bi');
+    var msgEl   = toast.querySelector('._flash_msg') || toast.querySelector('span');
     var iconCls = iconEl ? iconEl.className : '';
     var msgHtml = msgEl  ? msgEl.innerHTML  : '';
-    var accent = '#2563eb';
-    if (iconCls.includes('check-circle'))     accent = '#16a34a';
-    else if (iconCls.includes('x-circle'))   accent = '#dc2626';
-    else if (iconCls.includes('exclamation'))accent = '#d97706';
+    // Kolor z powiadomienia (flash_html ustawia --fl-bg), zapasowo po ikonie
+    var accent = (toast.style.getPropertyValue('--fl-bg') || '').trim() || '#0050ef';
+    if (!toast.style.getPropertyValue('--fl-bg')) {
+      if (iconCls.includes('check'))            accent = '#007a00';
+      else if (iconCls.includes('x-'))          accent = '#a20025';
+      else if (iconCls.includes('exclamation')) accent = '#c25100';
+    }
     document.getElementById('dydFlashCenterIcon').innerHTML =
       '<i class="' + iconCls + '" style="color:' + accent + '" aria-hidden="true"></i>';
     document.getElementById('dydFlashCenterMsg').innerHTML = msgHtml;
