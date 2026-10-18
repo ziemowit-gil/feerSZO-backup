@@ -109,6 +109,9 @@ pv_page_header('Zarządzanie ogłoszeniami', [
             <?php endif; ?>
             <span class="fw-semibold"><?= h($r['title']) ?></span>
           </span>
+          <?php if (($r['display_mode'] ?? 'feed') === 'important' && !$expired): ?>
+          <div><span class="tz-badge mt-1" style="background:#fa68001A;color:#b34a00;border-color:#fa680055"><i class="bi bi-exclamation-square-fill" aria-hidden="true"></i>Ważna informacja na pulpicie</span></div>
+          <?php endif; ?>
           <?php if ($expired): ?>
           <div><span class="tz-badge tz-badge--muted mt-1"><i class="bi bi-clock-history" aria-hidden="true"></i>Wygasło <?= h(date('d.m.Y', strtotime($r['expires_at']))) ?></span></div>
           <?php endif; ?>

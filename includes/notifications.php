@@ -52,7 +52,7 @@ function notif_migrate(): void {
             UNIQUE(announcement_id, user_id)
         )");
 
-        // Sposób wyświetlania w panelu wolontariusza: 'feed' | 'banner' | 'popup'
+        // Sposób wyświetlania w panelu wolontariusza: 'feed' | 'banner' | 'popup' | 'important' (zob. ann_display_modes())
         try { db()->exec("ALTER TABLE announcements ADD COLUMN display_mode TEXT NOT NULL DEFAULT 'feed'"); } catch (\Throwable $e) {}
         // Kategoria ogłoszenia — zob. ann_kategoria_options()
         try { db()->exec("ALTER TABLE announcements ADD COLUMN kategoria TEXT NOT NULL DEFAULT 'ogolne'"); } catch (\Throwable $e) {}
@@ -194,7 +194,7 @@ function ann_create(array $data, int $author_id, string $author_name): int {
         'is_pinned'   => (int)($data['is_pinned'] ?? 0),
         'is_active'   => 1,
         'send_email'  => (int)($data['send_email'] ?? 0),
-        'display_mode'=> in_array(($data['display_mode'] ?? 'feed'), ['feed','banner','popup'], true) ? $data['display_mode'] : 'feed',
+        'display_mode'=> array_key_exists(($data['display_mode'] ?? 'feed'), ann_display_modes()) ? $data['display_mode'] : 'feed',
         'expires_at'  => ($data['expires_at'] ?? '') ?: null,
         'created_at'  => date('Y-m-d H:i:s'),
         'updated_at'  => date('Y-m-d H:i:s'),
@@ -477,6 +477,32 @@ function ann_panel_messages(int $user_id, string $role): array {
         if (($a['audience'] ?? '') === 'ti:prowadzacy') return false;
         $mode = $a['display_mode'] ?? 'feed';
         return in_array($mode, ['banner', 'popup'], true) && !(int)($a['is_read_by_me'] ?? 0);
+    }));
+}
+
+/**
+ * Tryby wyświetlania komunikatu w Panelu współpracownika (klucz => etykieta).
+ * 'important' = „Ważna informacja”: stały kafel na pulpicie, NIE znika po
+ * przeczytaniu — wisi do daty wygaśnięcia albo do usunięcia przez admina.
+ */
+function ann_display_modes(): array {
+    return [
+        'feed'      => 'Tylko lista komunikatów (domyślnie)',
+        'important' => 'Ważna informacja — stały kafel na pulpicie panelu',
+        'banner'    => 'Baner — pasek na górze panelu',
+        'popup'     => 'Popup — okno przy wejściu do panelu',
+    ];
+}
+
+/**
+ * „Ważne informacje” na pulpicie Panelu współpracownika — tryb 'important',
+ * aktywne i nie-wygasłe, widoczne dla użytkownika (audytorium), niezależnie od
+ * tego, czy już je przeczytał. Przypięte pierwsze.
+ */
+function ann_panel_important(int $user_id, string $role): array {
+    return array_values(array_filter(ann_list_for_user($user_id, $role), function ($a) {
+        return ($a['audience'] ?? '') !== 'ti:prowadzacy'
+            && ($a['display_mode'] ?? 'feed') === 'important';
     }));
 }
 

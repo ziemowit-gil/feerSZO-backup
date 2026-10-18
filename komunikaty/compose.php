@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $values['kategoria'] = 'ogolne';
     }
     $values['display_mode'] = trim($_POST['display_mode'] ?? 'feed');
-    if (!in_array($values['display_mode'], ['feed', 'banner', 'popup'], true)) {
+    if (!array_key_exists($values['display_mode'], ann_display_modes())) {
         $values['display_mode'] = 'feed';
     }
     $values['is_pinned']  = isset($_POST['is_pinned']) ? 1 : 0;
@@ -184,14 +184,16 @@ pv_page_header('Nowe ogłoszenie', [
       <section class="tz-card">
         <div class="tz-card__hd"><i class="bi bi-display" aria-hidden="true"></i>Sposób wyświetlania</div>
         <div class="tz-card__bd">
-          <label for="ann-display" class="form-label">W panelu wolontariusza</label>
-          <select name="display_mode" class="form-select" id="ann-display">
-            <option value="feed"   <?= $values['display_mode'] === 'feed'   ? 'selected' : '' ?>>Tylko lista komunikatów (domyślnie)</option>
-            <option value="banner" <?= $values['display_mode'] === 'banner' ? 'selected' : '' ?>>Baner — pasek na górze panelu</option>
-            <option value="popup"  <?= $values['display_mode'] === 'popup'  ? 'selected' : '' ?>>Popup — okno przy wejściu do panelu</option>
+          <label for="ann-display" class="form-label">W Panelu współpracownika</label>
+          <select name="display_mode" class="form-select" id="ann-display" aria-describedby="ann-display-help">
+            <?php foreach (ann_display_modes() as $_dm => $_dl): ?>
+            <option value="<?= h($_dm) ?>" <?= $values['display_mode'] === $_dm ? 'selected' : '' ?>><?= h($_dl) ?></option>
+            <?php endforeach; ?>
           </select>
-          <div class="form-text mt-2">
+          <div class="form-text mt-2" id="ann-display-help">
             <strong>Lista</strong> — widoczne na stronie Komunikaty.
+            <strong>Ważna informacja</strong> — dodatkowo jako kafel „Ważne informacje” na pulpicie panelu;
+            zostaje do daty wygaśnięcia (ustaw ją poniżej) albo do usunięcia w „Zarządzaj”.
             <strong>Baner</strong> — dodatkowo jako pasek nad treścią panelu.
             <strong>Popup</strong> — dodatkowo jako okno modalne przy wejściu.
             Baner i popup znikają po potwierdzeniu „Przeczytane".
