@@ -151,6 +151,7 @@ function dydMenuSections(): array
             $zasoby[] = $it('', 'Rezerwacje konsultacji', 'rezerwacje.php', 'calendar-check');
             $zasoby[] = $it('', 'Karty konsultacji',      'konsultacje.php', 'clipboard2-check');
         }
+        $zasoby[] = $it('', 'PFR1 — informacja PFRON', 'wnioskiDop.php?_route=%2Fpfr1', 'file-earmark-medical');
         $sec[] = ['key' => 'zasoby', 'label' => 'Zasoby', 'items' => $zasoby];
     }
 

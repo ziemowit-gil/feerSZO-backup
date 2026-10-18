@@ -262,6 +262,81 @@ final class DopController
         return $this->view('settle_index.php', ['list' => SettlementDocs::search($f), 'f' => $f, 'autoRm' => $f['kind'] === 'RM' ? AutoRm::enabledList() : []]);
     }
 
+    // ── PFR1 dla prowadzącego: tylko uczestnicy własnych grup, tylko własne dokumenty ──
+
+    private function ownCourseIds(): array
+    {
+        return array_map(fn($c) => (int)$c['id'], dyd_own_courses_cached((int)$this->actor()['id']));
+    }
+
+    /** Czy bieżący użytkownik może wystawić PFR1 dla uczestnika (kierownictwo: każdy; prowadzący: zapisany do jego grupy). */
+    private function pfr1Client(int $cid): bool
+    {
+        if (dyd_is_staff()) return true;
+        $ids = $this->ownCourseIds();
+        return $ids && (bool)db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id = ? AND course_id IN (" . implode(',', $ids) . ")", [$cid]);
+    }
+
+    private function pfr1Doc(int $id): array
+    {
+        $r = SettlementDocs::get($id);
+        if (!$r || $r['kind'] !== 'PFR1' || (!dyd_is_staff() && (int)$r['created_by'] !== (int)$this->actor()['id'])) { http_response_code(404); exit('Nie ma takiego dokumentu.'); }
+        return $r;
+    }
+
+    public function pfr1Index(): string
+    {
+        $list = array_values(array_filter(SettlementDocs::search(['kind' => 'PFR1']), fn($r) => dyd_is_staff() || (int)$r['created_by'] === (int)$this->actor()['id']));
+        return $this->view('pfr1_index.php', ['list' => $list]);
+    }
+
+    public function pfr1Form(array $errors = [], ?array $old = null): string
+    {
+        $cid = (int)($_GET['klient'] ?? $_POST['klient'] ?? 0);
+        if ($cid && !$this->pfr1Client($cid)) $cid = 0;
+        $c = $cid ? DopService::client($cid) : null;
+        $own = $this->ownCourseIds(); $staff = dyd_is_staff();
+        $courses = $c ? array_values(array_filter(SettlementDocs::courses($cid), fn($co) => $staff || in_array((int)$co['id'], $own, true))) : [];
+        $q = trim((string)($_GET['q'] ?? ''));
+        $clients = [];
+        if (!$c) {
+            if ($staff) $clients = DopService::clients($q);
+            elseif ($own) $clients = db_all("SELECT DISTINCT k.id, k.name, k.email FROM k30_ti_enrollments e JOIN k30_clients k ON k.id = e.client_id WHERE e.course_id IN (" . implode(',', $own) . ")"
+                . ($q !== '' ? " AND lower(k.name) LIKE ?" : '') . " ORDER BY k.name LIMIT 200", $q !== '' ? ['%' . mb_strtolower($q) . '%'] : []);
+        }
+        return $this->view('settle_form.php', ['kind' => SettleKind::Pfr1, 'c' => $c, 'courses' => $courses, 'clients' => $clients, 'q' => $q, 'errors' => $errors, 'instr' => true,
+            'old' => $old ?? ['course_id' => (string)($courses[0]['id'] ?? ''), 'mode' => 'approval', 'prowadzacy' => $staff ? '' : (string)$this->actor()['name']],
+            'pfron' => $c && function_exists('k30_pfron_contracts_for_client') ? k30_pfron_contracts_for_client($cid) : [], 'autoRm' => null, 'baselines' => [], 'requests' => $c ? RopStatement::requests($cid) : []]);
+    }
+
+    public function pfr1Create(): ?string
+    {
+        $cid = (int)($_POST['klient'] ?? 0);
+        try {
+            if (!$this->pfr1Client($cid)) throw new DomainException('PFR1 wystawisz tylko dla uczestnika ze swojej grupy.');
+            $gid = (int)($_POST['course_id'] ?? 0);
+            if (!dyd_is_staff() && $gid > 0 && !in_array($gid, $this->ownCourseIds(), true)) throw new DomainException('Wybierz własną grupę.');
+            if (!dyd_is_staff() && $gid <= 0 && (int)($_POST['pfron_contract_id'] ?? 0) <= 0) { echo $this->pfr1Form(['course_id' => 'Wybierz swoją grupę albo umowę PFRON uczestnika.'], $_POST); return null; }
+            $r = SettlementDocs::create(SettleKind::Pfr1, $cid, $_POST, (string)($_POST['mode'] ?? 'approval'), $this->actor());
+            if ($r['errors']) { echo $this->pfr1Form($r['errors'], $_POST); return null; }
+            flash_set('success', 'Wystawiono PFR1. ' . implode(' · ', $r['report']));
+            return Router::redirect(route('pfr1.show', ['id' => $r['id']]));
+        } catch (\Throwable $e) { return $this->fail($e, route('pfr1.index')); }
+    }
+
+    public function pfr1Show(int $id): string
+    {
+        return $this->view('settle_show.php', ['r' => $this->pfr1Doc($id), 'instr' => !dyd_is_staff()]);
+    }
+
+    public function pfr1Pdf(int $id): ?string
+    {
+        $r = $this->pfr1Doc($id);
+        $p = DopService::fullPath((string)$r['pdf_path']);
+        if ($p) { while (ob_get_level() > 0) ob_end_clean(); header('Content-Type: application/pdf'); header('Cache-Control: no-store, private'); header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $r['number']) . '.pdf"'); readfile($p); return null; }
+        return $this->send(SettlementDocs::render($r), (string)$r['number']);
+    }
+
     /** Raport kierownika: godziny i kwota na koncie → stawka godzinowa. */
     public function rates(): ?string
     {

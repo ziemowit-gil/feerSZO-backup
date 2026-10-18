@@ -41,6 +41,15 @@ $r->aliasMiddleware('dyd.staff', function () {
     dyd_require();
     if (!dyd_is_staff()) { http_response_code(403); exit('Wnioski DOP są dostępne dla kierownika, zastępcy i administratora panelu.'); }
 });
+// PFR1 — także prowadzący (własne grupy); kontrola uczestnika i dokumentu w DopController::pfr1*
+$r->aliasMiddleware('dyd.any', function () { dyd_require(); });
+$r->group(['dyd.any'], function (Router $r) {
+    $r->get('/pfr1',                          [DopController::class, 'pfr1Index'])->name('pfr1.index');
+    $r->get('/pfr1/nowy',                     [DopController::class, 'pfr1Form'])->name('pfr1.new');
+    $r->post('/pfr1/nowy',                    [DopController::class, 'pfr1Create']);
+    $r->get('/pfr1/{id}',                     [DopController::class, 'pfr1Show'])->name('pfr1.show');
+    $r->get('/pfr1/{id}/pdf',                 [DopController::class, 'pfr1Pdf'])->name('pfr1.pdf');
+});
 $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/',                              [DopController::class, 'hub'])->name('dop.index');
     $r->get('/wnioski',                       [DopController::class, 'index'])->name('dop.list');

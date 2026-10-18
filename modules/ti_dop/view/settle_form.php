@@ -7,16 +7,17 @@ require dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_parts.php';
 $title = 'Nowy ' . $kind->value . ' — ' . $kind->title();
 include __DIR__ . '/_head.php';
 $v = fn(string $k) => h((string)($old[$k] ?? ''));
+$rn = !empty($instr) ? 'pfr1' : 'settle';   // prowadzący (PFR1) — własne trasy
 $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . h($errors[$k]) . '</div>' : '';
 ?>
-<div class="pivot"><a href="<?= h(route('settle.index')) ?>">Rozliczenia</a><a href="#" aria-current="page"><?= h($kind->value) ?></a></div>
+<div class="pivot"><a href="<?= h(route($rn . '.index')) ?>"><?= !empty($instr) ? 'PFR1' : 'Rozliczenia' ?></a><a href="#" aria-current="page"><?= h($kind->value) ?></a></div>
 <h1><span class="sym" style="background:<?= h($kind->color()) ?>"><?= h($kind->value) ?></span> <?= h($kind->title()) ?></h1>
 <?php if (!$c): ?>
-<section class="panel accent"><form method="get" action="wnioskiDop.php" class="d-flex gap-2" role="search"><input type="hidden" name="_route" value="/rozliczenia/nowy"><input type="hidden" name="kind" value="<?= h($kind->value) ?>">
+<section class="panel accent"><form method="get" action="wnioskiDop.php" class="d-flex gap-2" role="search"><input type="hidden" name="_route" value="<?= !empty($instr) ? '/pfr1/nowy' : '/rozliczenia/nowy' ?>"><input type="hidden" name="kind" value="<?= h($kind->value) ?>">
   <label class="visually-hidden" for="q">Uczestnik</label><input class="form-control" id="q" name="q" value="<?= h($q) ?>" placeholder="imię, nazwisko, e-mail uczestnika" autofocus><button class="btn btn-metro dark">Szukaj</button></form>
-  <ul class="list-unstyled mt-2 mb-0"><?php foreach ($clients as $cl): ?><li class="py-1"><a class="btn btn-sm btn-metro" href="<?= h(route('settle.new', ['kind' => $kind->value, 'klient' => $cl['id']])) ?>">Wybierz</a> <?= h($cl['name']) ?></li><?php endforeach; ?></ul></section>
+  <ul class="list-unstyled mt-2 mb-0"><?php foreach ($clients as $cl): ?><li class="py-1"><a class="btn btn-sm btn-metro" href="<?= h(route($rn . '.new', ['kind' => $kind->value, 'klient' => $cl['id']])) ?>">Wybierz</a> <?= h($cl['name']) ?></li><?php endforeach; ?></ul></section>
 <?php else: ?>
-<p><b><?= h($c['name']) ?></b> · saldo teraz <?= h(number_format($c['balance'], 2, ',', ' ')) ?> zł · <a href="<?= h(route('settle.new', ['kind' => $kind->value])) ?>">inny uczestnik</a></p>
+<p><b><?= h($c['name']) ?></b> · saldo teraz <?= h(number_format($c['balance'], 2, ',', ' ')) ?> zł · <a href="<?= h(route($rn . '.new', ['kind' => $kind->value])) ?>">inny uczestnik</a></p>
 <?php if ($errors): ?><div class="alert alert-danger" role="alert"><?= h(implode(' ', $errors)) ?></div><?php endif; ?>
 <?php if ($kind === SettleKind::Rm): $ar = $autoRm ?? null; $arOn = $ar && (int)$ar['enabled'] === 1; ?>
 <section class="panel <?= $arOn ? 'accent' : '' ?>" aria-labelledby="arm-h"><h2 class="mt-0" id="arm-h">Automatyczne RM co miesiąc <?= $arOn ? ldChip('włączone', '#008a00') : ldChip('wyłączone', '#647687') ?></h2>
@@ -32,7 +33,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
     <?php endif; ?>
   </form></section>
 <?php endif; ?>
-<form method="post" action="<?= h(route('settle.new')) ?>" novalidate><?= Router::csrfField() ?><input type="hidden" name="kind" value="<?= h($kind->value) ?>"><input type="hidden" name="klient" value="<?= (int)$c['id'] ?>">
+<form method="post" action="<?= h(route($rn . '.new')) ?>" novalidate><?= Router::csrfField() ?><input type="hidden" name="kind" value="<?= h($kind->value) ?>"><input type="hidden" name="klient" value="<?= (int)$c['id'] ?>">
 <?php if ($kind === SettleKind::Sub1): ?><input type="hidden" name="course_id" value="0"><?php else: ?>
 <section class="panel accent"><div class="row g-3">
   <?php if ($kind === SettleKind::Rko): ?>
@@ -144,7 +145,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
   <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m1" value="approval"<?= ($old['mode'] ?? 'approval') !== 'direct' ? ' checked' : '' ?>><label class="form-check-label" for="m1"><b>Z akceptacją kierownika</b> — po zatwierdzeniu wykonanie i PDF e-mailem do kursanta i rodzica</label></div>
   <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m2" value="direct"<?= ($old['mode'] ?? '') === 'direct' ? ' checked' : '' ?>><label class="form-check-label" for="m2"><b>Bez akceptacji, tylko do akt</b> — wykonanie od razu, Twój podpis, dokument w teczce kursanta (bez wysyłki)</label></div>
 </section>
-<div class="d-flex gap-2 mb-4"><button class="btn btn-metro">Wystaw <?= h($kind->value) ?></button><a class="btn btn-outline-secondary" href="<?= h(route('settle.index')) ?>">Anuluj</a></div>
+<div class="d-flex gap-2 mb-4"><button class="btn btn-metro">Wystaw <?= h($kind->value) ?></button><a class="btn btn-outline-secondary" href="<?= h(route($rn . '.index')) ?>">Anuluj</a></div>
 </form>
 <?php endif; ?>
 <?php include __DIR__ . '/_foot.php'; ?>

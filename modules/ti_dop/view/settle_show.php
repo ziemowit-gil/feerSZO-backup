@@ -6,13 +6,14 @@ require dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_parts.php';
 $k = $r['kindEnum']; $d = $r['d']; $s = $d['snapshot_after'] ?? $d['snapshot'] ?? [];
 $title = $r['number'];
 include __DIR__ . '/_head.php';
+$rn = !empty($instr) ? 'pfr1' : 'settle';
 $zl = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
 ?>
-<div class="pivot"><a href="<?= h(route('settle.index')) ?>">Rozliczenia</a><a href="#" aria-current="page"><?= h($r['number']) ?></a></div>
+<div class="pivot"><a href="<?= h(route($rn . '.index')) ?>"><?= !empty($instr) ? 'PFR1' : 'Rozliczenia' ?></a><a href="#" aria-current="page"><?= h($r['number']) ?></a></div>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <h1 class="me-auto mb-0"><span class="sym" style="background:<?= h($k->color()) ?>"><?= h($k->value) ?></span> <?= h($k->title()) ?></h1>
-  <a class="btn btn-metro dark" href="<?= h(route('settle.pdf', ['id' => $r['id']])) ?>" target="_blank" rel="noopener">PDF</a>
-  <?php if ($r['status'] === 'applied'): ?><?= ldPost(route('settle.send', ['id' => $r['id']]), 'Wyślij kursantowi i rodzicowi', 'btn-metro') ?><?php endif; ?>
+  <a class="btn btn-metro dark" href="<?= h(route($rn . '.pdf', ['id' => $r['id']])) ?>" target="_blank" rel="noopener">PDF</a>
+  <?php if ($r['status'] === 'applied' && empty($instr)): ?><?= ldPost(route('settle.send', ['id' => $r['id']]), 'Wyślij kursantowi i rodzicowi', 'btn-metro') ?><?php endif; ?>
 </div>
 <div class="tiles">
   <div class="tile wide" style="background:#1d1d1d"><span class="n" style="font-size:1rem;font-weight:600"><?= h($r['number']) ?></span><span class="l"><?= h($r['client_name']) ?> · <?= h(SettlementDocs::courseName((int)$r['course_id'])) ?></span></div>
