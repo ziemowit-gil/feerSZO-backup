@@ -3,7 +3,7 @@
  * includes/szo_metro.php — warstwa wizualna „Metro UI” samego SZO (powłoka #navbar + #content).
  *
  * Włączana przez includes/header.php jako ostatni blok <head>, gdy aktywna zakładka menu
- * (includes/menu.php) należy do SZO_METRO_GROUPS — Umowy, Wolontariat, Finanse, Ludzie, IT, Biuro i Admin.
+ * (includes/menu.php) należy do SZO_METRO_GROUPS — Umowy, Wolontariat, Finanse, Ludzie, IT, Biuro, Admin i RODO.
  * Nagłówek (szo_metro_header_assets) jest w Metro na wszystkich stronach powłoki SZO.
  * Kolejne grupy dochodzą przez dopisanie identyfikatora węzła menu i koloru akcentu.
  *
@@ -11,7 +11,7 @@
  * ciemny app-bar #1d1d1d, Segoe UI, lekkie duże tytuły, ZERO zaokrągleń, cieni i gradientów,
  * płaskie szare powierzchnie #f2f2f2, kwadratowe przyciski/pola z ramką 2px, pasek zakładek
  * jak pivot, nagłówki tabel wersalikami z grubą linią, alerty jako pas z lewą krawędzią,
- * żółty fokus. Akcent zależy od grupy (Metro cobalt / magenta / green / violet / teal / orange / crimson, wszystkie AA z bielą).
+ * żółty fokus. Akcent zależy od grupy (Metro cobalt / magenta / green / violet / teal / orange / crimson / mauve, wszystkie AA z bielą).
  *
  * Tylko CSS. Selektory zaczynają się od `html body`, bo Tailwind CDN (@apply w header.php
  * i klasy tw-*) wstrzykuje reguły dopiero po załadowaniu — przy równej specyficzności wygrałby.
@@ -26,6 +26,7 @@ const SZO_METRO_GROUPS = [
     'it'          => ['#00807e', '#005f5d', '#e5f2f2'],   // teal
     'biuro'       => ['#c25100', '#8f3c00', '#fbeee5'],   // orange (przyciemniony do AA)
     'admin'       => ['#a20025', '#76001b', '#f6e5e9'],   // crimson
+    'rodo'        => ['#76608a', '#574667', '#f1eff3'],   // mauve
 ];
 
 /** Identyfikator aktywnej grupy Metro z drzewa menu albo null. */
@@ -35,7 +36,7 @@ function szo_metro_group(array $tree): ?string {
     return null;
 }
 
-/** Domyślny akcent poza grupami Metro (np. pulpit, RODO) — Metro cobalt. */
+/** Domyślny akcent poza grupami Metro (np. pulpit) — Metro cobalt. */
 const SZO_METRO_DEFAULT = ['#0050ef', '#003bb0', '#e6eefd'];
 
 /**
