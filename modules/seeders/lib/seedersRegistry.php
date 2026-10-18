@@ -157,6 +157,17 @@ function seedersRegistry(): array
             ],
         ],
 
+        // ── Poczta ────────────────────────────────────────────────────────
+        'mail_read_all' => [
+            'group' => 'Poczta', 'title' => 'Oznacz całą pocztę jako przeczytaną', 'script' => 'mailMarkAllRead.php',
+            'desc'  => 'Nieprzeczytane przychodzące w obsłudze (Skrzynka CRM i Poczta EZD — ta sama tabela) → przeczytane; liczniki wątków EZD przeliczone. Spam, ukryte i załatwione bez zmian.',
+            'fields'  => ['mailbox' => ['label' => 'Skrzynka (adres albo ID)', 'type' => 'text', 'opt' => '--mailbox', 'help' => 'puste = wszystkie skrzynki']],
+            'actions' => [
+                ['id' => 'preview', 'label' => 'Ile jest nieprzeczytanych', 'kind' => 'preview', 'use' => ['mailbox']],
+                ['id' => 'apply',   'label' => 'Oznacz jako przeczytane',   'kind' => 'danger',  'args' => ['--apply'], 'use' => ['mailbox']],
+            ],
+        ],
+
         // ── EODoK i Zadania ───────────────────────────────────────────────
         'edok_docs' => [
             'group' => 'EODoK i Zadania', 'title' => '20 dokumentów testowych EODoK', 'script' => 'seed_edok_test_docs.php',
