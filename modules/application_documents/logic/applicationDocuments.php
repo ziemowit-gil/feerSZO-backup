@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/application_documents/logic/applicationDocuments.php — wzory urzędowych wniosków
+ * modules/application_documents/logic/applicationDocuments.php — wzory wniosków organizacji
  * składanych elektronicznie w Panelu współpracownika (panel/apply.php → user_applications)
  * oraz ich dokument do wydruku / PDF.
  *
@@ -95,6 +95,7 @@ function appDocsTemplates(): array {
         ],
         // Wzory z sekcjami (treść jako 'blocks' — zob. appDocsBlocksHtml)
         'wniosek_upo1' => [
+            'group'       => 'collab',   // moduł Zmiana danych współpracownika
             'code'        => 'UPO1',
             'label'       => 'UPO1 · Wniosek o wydanie upoważnienia',
             'icon'        => 'bi-person-check',
@@ -137,6 +138,7 @@ function appDocsTemplates(): array {
             ],
         ],
         'wniosek_upo2' => [
+            'group'       => 'collab',   // moduł Zmiana danych współpracownika
             'code'        => 'UPO2',
             'label'       => 'UPO2 · Upoważnienie osoby trzeciej do kontaktu',
             'icon'        => 'bi-people',
@@ -174,6 +176,7 @@ function appDocsTemplates(): array {
             ],
         ],
         'wniosek_upo3' => [
+            'group'       => 'collab',   // moduł Zmiana danych współpracownika
             'code' => 'UPO3', 'label' => 'UPO3 · Odwołanie upoważnienia', 'icon' => 'bi-person-x', 'sort' => 20,
             'description' => 'Odwołanie udzielonego upoważnienia i cofnięcie powiązanego dostępu (wzór UPO3).',
             'title' => 'ODWOŁANIE UPOWAŻNIENIA', 'titleField' => 'upow_osoba',
@@ -198,6 +201,7 @@ function appDocsTemplates(): array {
             ]),
         ],
         'wniosek_szd' => [
+            'group'       => 'collab',   // moduł Zmiana danych współpracownika
             'code' => 'SZD', 'label' => 'SZD · Wniosek o zmianę danych w systemie', 'icon' => 'bi-pencil-square', 'sort' => 21,
             'description' => 'Wniosek o zmianę danych w systemie — pola, dotychczasowe i nowe wartości (wzór SZD).',
             'title' => 'WNIOSEK O ZMIANĘ DANYCH W SYSTEMIE', 'titleField' => 'system',
@@ -223,6 +227,7 @@ function appDocsTemplates(): array {
             ]),
         ],
         'wniosek_skk' => [
+            'group'       => 'collab',   // moduł Zmiana danych współpracownika
             'code' => 'SKK', 'label' => 'SKK · Wniosek o zmianę kanału kontaktu', 'icon' => 'bi-telephone-forward', 'sort' => 22,
             'description' => 'Wniosek o zmianę kanału kontaktu — e-mail, telefon, inny kanał (wzór SKK).',
             'title' => 'WNIOSEK O ZMIANĘ KANAŁU KONTAKTU', 'titleField' => 'kanal_nowy',
@@ -286,6 +291,7 @@ function appDocsTemplates(): array {
             ],
         ],
         'wniosek_dyd1' => [
+            'group'       => 'collab',   // moduł Zmiana danych współpracownika
             'code' => 'DYD1', 'label' => 'DYD1 · Upoważnienie do wglądu w panel', 'icon' => 'bi-eye', 'sort' => 24,
             'description' => 'Upoważnienie innej osoby do wglądu w panel lub system — bez prawa zmian (wzór DYD1).',
             'title' => 'UPOWAŻNIENIE DO WGLĄDU W PANEL', 'titleField' => 'upow_osoba',
@@ -705,7 +711,7 @@ function appDocsIssueReceipt(int $appId, bool $mail = true): ?string {
         $html = '<p>Dzień dobry ' . $e($app['user_name']) . ',</p>'
               . '<p>potwierdzamy złożenie wniosku <strong>' . $e($app['tytul']) . '</strong> (nr ' . $e($app['doc_number']) . ', '
               . date('d.m.Y H:i', strtotime((string)$app['created_at'])) . ').</p>'
-              . '<p>W załączniku urzędowe potwierdzenie złożenia (UPZ) z sumą kontrolną treści wniosku. '
+              . '<p>W załączniku potwierdzenie złożenia (UPZ) z sumą kontrolną treści wniosku. '
               . 'Status sprawy sprawdzisz w Panelu współpracownika: <a href="' . $e(APP_URL . '/panel/apply.php') . '">' . $e(APP_URL . '/panel/apply.php') . '</a>.</p>';
         $id = mail_queue_add((string)$app['user_email'], (string)$app['user_name'], 'Potwierdzenie złożenia wniosku ' . $app['doc_number'], $html, '',
             'application_upz', $appId, '', true,

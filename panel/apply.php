@@ -158,6 +158,9 @@ $status_map = [
 ];
 
 $selected_type_id = (int)($_POST['type_id'] ?? 0);
+// ?type=ID (np. z modułu Zmiana danych współpracownika) — od razu otwórz kreator tego rodzaju
+$_ap_open = !$selected_type_id && isset($types_by_id[(int)($_GET['type'] ?? 0)]);
+if ($_ap_open) $selected_type_id = (int)$_GET['type'];
 
 $_is_volunteer_only = panel_volunteer_shell($user); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 
@@ -256,12 +259,15 @@ $_ap_pal = array_values(panelMetroPalette());
   <h2 class="mt-h2" id="ap-new-h">Nowe <b>pismo / wniosek</b></h2>
   <p class="text-muted small mb-2">Wybierz rodzaj — otworzy się okno, które poprowadzi Cię krok po kroku.</p>
   <?php
-    // rodzaje pod nagłówkami: wzory urzędowe (ZSW, DOK, UPO…), sprawy umowy i współpracy, inne pisma
-    $_ap_groups = ['urz' => ['Wnioski urzędowe', 'wzory urzędowe — z numerem, PDF i potwierdzeniem złożenia', []],
+    // rodzaje pod nagłówkami: wnioski organizacji (ZSW, DOK, ITSM…), zmiana danych i upoważnienia (SZD, SKK, UPO, DYD —
+    // moduł Zmiana danych współpracownika), sprawy umowy i współpracy, inne pisma
+    $_ap_groups = ['urz' => ['Wnioski organizacji', 'z numerem, PDF i potwierdzeniem złożenia', []],
+                   'zd' => ['Zmiana danych i upoważnienia', 'zmiana danych w systemie, kanału kontaktu, upoważnienia', []],
                    'umowa' => ['Sprawy umowy i współpracy', 'urlop, zaświadczenia, zmiany warunków', []],
                    'inne' => ['Inne pisma', 'zapytania i pisma w dowolnej sprawie', []]];
     foreach ($types as $_ti => $t) {
-        $_g = appDocsTemplateFor($t['name'] ?? null) ? 'urz' : (str_starts_with((string)($t['name'] ?? ''), 'pismo') ? 'inne' : 'umowa');
+        $_tp = appDocsTemplateFor($t['name'] ?? null);
+        $_g = $_tp ? (($_tp['group'] ?? '') === 'collab' ? 'zd' : 'urz') : (str_starts_with((string)($t['name'] ?? ''), 'pismo') ? 'inne' : 'umowa');
         $_ap_groups[$_g][2][] = [$_ti, $t];
     }
   ?>
@@ -418,7 +424,7 @@ $_ap_pal = array_values(panelMetroPalette());
             <label for="tytul" class="form-label">Tytuł <span class="text-danger" id="tytul-req">*</span></label>
             <input type="text" id="tytul" name="tytul" class="form-control" value="<?= h($_POST['tytul'] ?? '') ?>"
                    placeholder="Krótki tytuł pisma lub wniosku" maxlength="255" aria-required="true">
-            <div class="form-text" id="tytul-auto" style="display:none">Dla wzorów urzędowych tytuł może zostać pusty — nadamy go z nazwy dokumentu.</div>
+            <div class="form-text" id="tytul-auto" style="display:none">Dla wniosków organizacji tytuł może zostać pusty — nadamy go z nazwy dokumentu.</div>
           </div>
         </div>
 
@@ -602,7 +608,7 @@ $_ap_pal = array_values(panelMetroPalette());
 
   // Po błędzie walidacji na serwerze: otwórz okno z poprzednio wybranym rodzajem
   const pre = radio();
-  if (pre) { selectType(pre.value); go(1); <?= $errors ? 'modal.show();' : '' ?> } else go(1);
+  if (pre) { selectType(pre.value); go(1); <?= ($errors || $_ap_open) ? 'modal.show();' : '' ?> } else go(1);
 })();
 </script>
 
