@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($app_type) {
         $collected = app_collect_fields($app_type['fields']);
         $errors    = array_merge($errors, $collected['errors']);
-        $fields_data = $collected['data'];
+        $fields_data = appDocsApplyLocked($app_type['name'] ?? null, $collected['data'], $user);
     }
 
     // Załącznik
@@ -316,7 +316,9 @@ $_ap_pal = array_values(panelMetroPalette());
            style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
         <div class="ap-fields">
         <?php foreach ($t['fields'] as $f) {
-            $val   = $_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user);
+            $_lock = appDocsFieldLocked($t['name'] ?? null, $f['name']);
+            $val   = $_lock ? appDocsPrefill($t['name'] ?? null, $f['name'], $user)
+                            : ($_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user));
             $ph    = h($f['placeholder']);
             $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
             $fname = 'field_' . h($f['name']);
@@ -327,9 +329,11 @@ $_ap_pal = array_values(panelMetroPalette());
             <?php if ($f['required']): ?><span class="text-danger">*</span><?php endif; ?>
           </label>
           <?php if ($f['field_type'] === 'textarea'): ?>
-          <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="4"
+          <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="<?= $_lock ? 2 : 4 ?>"
                     placeholder="<?= $ph ?>"
+                    <?= $_lock ? 'readonly aria-readonly="true" style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed;resize:none" aria-describedby="' . $fid . '_lock"' : '' ?>
                     <?= $f['required'] ? 'aria-required="true"' : '' ?>><?= h($val) ?></textarea>
+          <?php if ($_lock): ?><div class="form-text" id="<?= $fid ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Adresat stały — wniosek trafia do organizacji.</div><?php endif; ?>
           <?php elseif ($f['field_type'] === 'select'): ?>
           <select name="<?= $fname ?>" id="<?= $fid ?>" class="form-select"
                   <?= $f['required'] ? 'aria-required="true"' : '' ?>>
@@ -546,7 +550,9 @@ $_ap_pal = array_values(panelMetroPalette());
       <div class="type-fields" id="fields-<?= $t['id'] ?>"
            style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
         <?php foreach ($t['fields'] as $f) {
-            $val   = $_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user);
+            $_lock = appDocsFieldLocked($t['name'] ?? null, $f['name']);
+            $val   = $_lock ? appDocsPrefill($t['name'] ?? null, $f['name'], $user)
+                            : ($_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user));
             $ph    = h($f['placeholder']);
             $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
             $fname = 'field_' . h($f['name']);
@@ -557,9 +563,11 @@ $_ap_pal = array_values(panelMetroPalette());
             <?php if ($f['required']): ?><span class="text-danger">*</span><?php endif; ?>
           </label>
           <?php if ($f['field_type'] === 'textarea'): ?>
-          <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="4"
+          <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="<?= $_lock ? 2 : 4 ?>"
                     placeholder="<?= $ph ?>"
+                    <?= $_lock ? 'readonly aria-readonly="true" style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed;resize:none" aria-describedby="' . $fid . '_lock"' : '' ?>
                     <?= $f['required'] ? 'aria-required="true"' : '' ?>><?= h($val) ?></textarea>
+          <?php if ($_lock): ?><div class="form-text" id="<?= $fid ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Adresat stały — wniosek trafia do organizacji.</div><?php endif; ?>
           <?php elseif ($f['field_type'] === 'select'): ?>
           <select name="<?= $fname ?>" id="<?= $fid ?>" class="form-select"
                   <?= $f['required'] ? 'aria-required="true"' : '' ?>>

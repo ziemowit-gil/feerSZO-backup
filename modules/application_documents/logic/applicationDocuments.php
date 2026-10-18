@@ -136,6 +136,19 @@ function appDocsPrefill(?string $typeName, string $field, array $user): string {
     return '';
 }
 
+/** Pola wzoru zablokowane do edycji (wyszarzone) — adresatem zawsze jest organizacja. */
+function appDocsFieldLocked(?string $typeName, string $field): bool {
+    return appDocsTemplateFor($typeName) !== null && $field === 'organ';
+}
+
+/** Nadpisuje zablokowane pola wartościami z systemu (ochrona przed zmianą w żądaniu). */
+function appDocsApplyLocked(?string $typeName, array $fields, array $user): array {
+    foreach (['organ'] as $f) {
+        if (appDocsFieldLocked($typeName, $f)) $fields[$f] = appDocsPrefill($typeName, $f, $user);
+    }
+    return $fields;
+}
+
 /** Domyślny tytuł wniosku z wzoru (gdy użytkownik go nie wpisał). */
 function appDocsDefaultTitle(string $typeName, array $fields): string {
     $t = appDocsTemplateFor($typeName);
