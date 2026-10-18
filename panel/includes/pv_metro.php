@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/includes/pv_metro.php — warstwa wizualna „Metro UI" panelu wolontariusza.
+ * panel/includes/pv_metro.php — warstwa wizualna „Metro UI" Panelu współpracownika.
  *
  * Ta sama szata co System Tożsamości (tozsamosc/_head.php + index.php, wg
  * metroui.org.ua): ciemny app-bar #1d1d1d, Segoe UI, lekka duża typografia
@@ -12,7 +12,7 @@
  * z panel_color.php nadal działają (tokeny niżej).
  *
  * Tylko CSS — żadnych zmian w znacznikach, ID ani zaczepach skryptów.
- * Ładowany WYŁĄCZNIE przez header_panel.php (powłoka wolontariusza) jako
+ * Ładowany WYŁĄCZNIE przez header_panel.php (powłoka Panelu współpracownika) jako
  * ostatni blok <style> w <head>. Reguły treści mają zakres :where(#pv-main)
  * (specyficzność jednej klasy): wygrywają z pv_styles.php, ale PRZEGRYWAJĄ
  * z pulpitem w zestawie modules/panel_metro (.pvm .x) — pulpit stylizuje się sam.

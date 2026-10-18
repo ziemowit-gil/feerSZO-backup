@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/includes/header_panel.php — Standalone layout panelu wolontariusza.
+ * panel/includes/header_panel.php — Standalone layout Panelu współpracownika.
  * Stały kolor — nie zależy od ustawień organizacji.
  * Wygląd: Metro UI jak System Tożsamości — warstwa w pv_metro.php (ładowana na końcu <head>).
  */
@@ -14,7 +14,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/asystent_ai.php';
 
 require_login();
 
-$_pv_title  = $PAGE_TITLE ?? 'Panel wolontariusza';
+$_pv_title  = $PAGE_TITLE ?? 'Panel współpracownika';
 $_pv_uri    = $_SERVER['REQUEST_URI'] ?? '';
 $_pv_org    = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 
@@ -173,7 +173,7 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 /* ═══════════════════════════════════════════════════════════════════════════
  * Układ paska górnego (pv-bar-inner, przycisk Menu, linki). Kolory i kształty
  * Metro UI jak System Tożsamości nakłada pv_metro.php (ładowany niżej).
- * Kolor akcentu pozostaje kolorem wybranym przez wolontariusza (--vol-color).
+ * Kolor akcentu pozostaje kolorem wybranym przez użytkownika (--vol-color).
  * Tryb wysokiego kontrastu (data-theme="hc") zachowuje własne reguły.
  * ═══════════════════════════════════════════════════════════════════════════ */
 :root { --tz-line:#e5e7eb; --tz-muted:#6b7280; --tz-radius:12px; }
@@ -188,7 +188,7 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 .pv-bar-inner .pv-brand-sub { font-size:.65rem; color:var(--pvl-sub); opacity:1; }
 .pv-bar-inner .pv-avatar { width:30px; height:30px; font-size:.72rem; }
 /* Przycisk menu — jedyne wejście do nawigacji panelu, więc musi być widoczny
-   od pierwszego spojrzenia: ikona + słowo „Menu" w ramce koloru wolontariusza. */
+   od pierwszego spojrzenia: ikona + słowo „Menu" w ramce koloru panelu. */
 .pv-bar-inner .pv-menu-btn { width:auto; height:34px; padding:0 .7rem; border:1.5px solid var(--vol-color);
   background:var(--vol-bg); border-radius:8px; display:inline-flex; align-items:center; gap:.4rem;
   font-size:.85rem; font-weight:700; color:var(--vol-color); }
@@ -246,7 +246,7 @@ try {
       <i class="bi bi-list" aria-hidden="true"></i>
       <span class="pv-menu-btn__lbl">Menu</span>
     </button>
-    <a href="<?= APP_URL ?>/panel/index.php" class="pv-brand" aria-label="Panel wolontariusza — strona główna">
+    <a href="<?= APP_URL ?>/panel/index.php" class="pv-brand" aria-label="Panel współpracownika — strona główna">
       <span class="pv-brand-icon" aria-hidden="true"><i class="bi bi-person-circle"></i></span>
       <span class="d-flex flex-column">
         <span>Panel</span>
@@ -298,10 +298,10 @@ try {
 <?php require_once dirname(dirname(__DIR__)) . '/includes/search_hotkey.php'; ?>
 
 <!-- Menu sekcji (offcanvas) -->
-<div class="offcanvas offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja panelu wolontariusza">
+<div class="offcanvas offcanvas-start pv-offcanvas" tabindex="-1" id="pvNav" aria-label="Nawigacja Panelu współpracownika">
   <div class="offcanvas-header">
     <span class="offcanvas-title fw-bold d-flex align-items-center gap-2">
-      <i class="bi bi-person-circle" aria-hidden="true"></i>Panel wolontariusza
+      <i class="bi bi-person-circle" aria-hidden="true"></i>Panel współpracownika
     </span>
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Zamknij menu"></button>
   </div>
