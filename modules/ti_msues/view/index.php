@@ -27,7 +27,9 @@ include __DIR__ . '/_head.php';
       <div class="col-sm-3"><label class="form-label small mb-0" for="msuDl">Termin dla kadry</label>
         <input type="date" id="msuDl" name="deadline" class="form-control form-control-sm" value="<?= h(date('Y-m-d', strtotime('+30 days'))) ?>"></div>
       <div class="col-sm-9">
-        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="msuMail" name="send_mail" value="1" checked><label class="form-check-label" for="msuMail">wyślij e-mail informacyjny (<?= count($recipients) ?> os.)</label></div>
+        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="msuMail" name="send_mail" value="1" checked><label class="form-check-label" for="msuMail">wyślij e-mail informacyjny</label></div>
+        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="msuSms" name="send_sms" value="1" checked><label class="form-check-label" for="msuSms">wyślij SMS</label></div>
+        <span class="small text-muted">(<?= count($recipients) ?> os., każda osobno)</span><br>
         <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="msuDr" name="create_drafts" value="1" checked><label class="form-check-label" for="msuDr">załóż robocze oświadczenia</label></div>
         <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="msuEnf" name="enforce" value="1"><label class="form-check-label" for="msuEnf">od razu włącz wymóg oświadczenia</label></div>
       </div>
@@ -43,7 +45,9 @@ include __DIR__ . '/_head.php';
 <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
   <div><i class="bi bi-rocket-takeoff" aria-hidden="true"></i> Certyfikację uruchomił(a) <b><?= h($launched['name']) ?></b> <?= h(substr($launched['at'], 0, 16)) ?><?= $launched['deadline'] !== '' ? ' · termin dla kadry: <b>' . h(DeclarationForm::dateLong($launched['deadline'])) . '</b>' : '' ?>.</div>
   <div class="d-flex gap-2">
-    <form method="post" action="<?= h(route('msues.remind')) ?>"><?= Router::csrfField() ?>
+    <form method="post" action="<?= h(route('msues.remind')) ?>" class="d-flex align-items-center gap-2"><?= Router::csrfField() ?>
+      <label class="small"><input type="checkbox" name="send_mail" value="1" checked> e-mail</label>
+      <label class="small"><input type="checkbox" name="send_sms" value="1"> SMS</label>
       <button class="btn btn-sm btn-outline-primary" onclick="return confirm('Wysłać przypomnienie do osób bez zatwierdzonego oświadczenia?')"><i class="bi bi-envelope"></i> Przypomnij kadrze</button></form>
     <a class="btn btn-sm btn-outline-secondary" href="<?= h(route('msues.mail')) ?>" target="_blank" rel="noopener">Podgląd e-maila</a>
   </div>
@@ -93,8 +97,13 @@ include __DIR__ . '/_head.php';
     <section class="card h-100"><div class="card-header fw-semibold">Kadra</div>
     <ul class="list-group list-group-flush">
       <?php foreach ($trainers as $t): $a = $svc->declarations()->approvedFor((int)$t['id'], null); ?>
-        <li class="list-group-item d-flex justify-content-between align-items-center"><a href="<?= h(route('msues.trainer', ['id' => $t['id']])) ?>"><?= h($t['name']) ?></a>
-          <?= $a ? '<span class="badge text-bg-success">oświadczenie ogólne v' . (int)$a['version'] . '</span>' : '<span class="badge text-bg-light border">bez ogólnego oświadczenia</span>' ?></li>
+        <li class="list-group-item d-flex justify-content-between align-items-center gap-2 flex-wrap"><a href="<?= h(route('msues.trainer', ['id' => $t['id']])) ?>"><?= h($t['name']) ?></a>
+          <span class="d-flex align-items-center gap-2">
+          <?= $a ? '<span class="badge text-bg-success">oświadczenie ogólne v' . (int)$a['version'] . '</span>' : '<span class="badge text-bg-light border">bez ogólnego oświadczenia</span>' ?>
+          <form method="post" action="<?= h(route('msues.notify', ['id' => $t['id']])) ?>" class="d-inline"><?= Router::csrfField() ?><input type="hidden" name="_back" value="<?= h(route('msues.index')) ?>">
+            <input type="hidden" name="send_mail" value="1"><input type="hidden" name="send_sms" value="1">
+            <button class="btn btn-sm btn-outline-secondary" title="Wyślij tej osobie e-mail i SMS o certyfikacji MSUES" onclick="return confirm('Wysłać e-mail i SMS do: <?= h(addslashes((string)$t['name'])) ?>?')"><i class="bi bi-send"></i><span class="visually-hidden"> Powiadom <?= h($t['name']) ?></span></button></form>
+          </span></li>
       <?php endforeach; if (!$trainers): ?><li class="list-group-item text-muted">Brak kadry w aktywnych usługach.</li><?php endif; ?>
     </ul></section>
   </div>

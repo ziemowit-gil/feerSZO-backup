@@ -85,7 +85,7 @@ final class MsuesSzoData
         unset($ids[0]);
         if (!$ids) return [];
         $in = implode(',', array_map('intval', array_keys($ids)));
-        return db_all("SELECT id, name, email FROM users WHERE id IN ({$in}) ORDER BY name");
+        return db_all("SELECT id, name, email, phone_number FROM users WHERE id IN ({$in}) ORDER BY name");
     }
 
     /** Kandydaci do wyboru przy zakładaniu oświadczenia (konta z dostępem do panelu dydaktyka). */

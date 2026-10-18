@@ -6,8 +6,9 @@ declare(strict_types=1);
  *
  * Uruchomienie: zapisuje kto i kiedy (msues_launched_at/_by/_name, termin msues_deadline), opcjonalnie zakłada każdej osobie
  * z kadry aktywnych usług roboczą wersję oświadczenia (ogólnego, wypełnioną danymi z SZO) i kolejkuje e-mail informacyjny:
- * co to jest MSUES, po co Fundacji, co prowadzący ma zrobić i do kiedy. E-maile idą przez mail_queue z terminem (nie od razu —
- * wysyła je CRON kolejki), kontekst 'msues_launch'. Ponowne „Wyślij informację” trafia tylko do osób bez zatwierdzonego oświadczenia.
+ * co to jest MSUES, po co Fundacji, co prowadzący ma zrobić i do kiedy, oraz krótki SMS z linkiem (rodzaj ti_msues_notice).
+ * Każda osoba dostaje osobną wiadomość. E-maile idą przez mail_queue z terminem (wysyła je CRON kolejki), kontekst 'msues_launch';
+ * SMS — od razu. Przypomnienie trafia tylko do osób bez zatwierdzonego oświadczenia; notify() — do jednej wybranej osoby.
  */
 require_once __DIR__ . '/MsuesComplianceService.php';
 
@@ -19,23 +20,33 @@ final class MsuesLaunch
         return $at === '' ? null : ['at' => $at, 'by' => (int)msuesSetting('msues_launched_by'), 'name' => msuesSetting('msues_launched_name'), 'deadline' => msuesSetting('msues_deadline')];
     }
 
-    /** Odbiorcy: kadra aktywnych usług z adresem e-mail; $onlyMissing — bez osób z zatwierdzonym oświadczeniem. */
+    /** Odbiorcy: kadra aktywnych usług z e-mailem lub telefonem; $onlyMissing — bez osób z zatwierdzonym oświadczeniem. */
     public static function recipients(DeclarationRepository $repo, bool $onlyMissing): array
     {
         $out = [];
         foreach (MsuesSzoData::trainers() as $t) {
-            $email = trim((string)$t['email']);
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
+            if (self::email($t) === '' && self::phone($t) === '') continue;
             if ($onlyMissing && db_one("SELECT 1 FROM trainer_declarations WHERE trainer_id = ? AND status = 'approved'", [(int)$t['id']])) continue;
             $out[] = $t;
         }
         return $out;
     }
 
+    private static function email(array $t): string
+    {
+        $e = trim((string)($t['email'] ?? ''));
+        return filter_var($e, FILTER_VALIDATE_EMAIL) ? $e : '';
+    }
+
+    private static function phone(array $t): string
+    {
+        return preg_replace('/\D/', '', (string)($t['phone_number'] ?? '')) !== '' ? trim((string)$t['phone_number']) : '';
+    }
+
     /**
-     * @return array{mails:int, drafts:int, skipped:int}
+     * @return array{mails:int, sms:int, drafts:int, skipped:int}
      */
-    public static function launch(array $actor, string $deadline, bool $sendMail, bool $createDrafts, bool $enforce, MsuesComplianceService $svc): array
+    public static function launch(array $actor, string $deadline, bool $sendMail, bool $sendSms, bool $createDrafts, bool $enforce, MsuesComplianceService $svc): array
     {
         $deadline = preg_match('/^\d{4}-\d{2}-\d{2}$/', $deadline) ? $deadline : '';
         $first = self::launched() === null;
@@ -56,28 +67,63 @@ final class MsuesLaunch
                 $drafts++;
             }
         }
-        $mails = 0; $skipped = 0;
-        if ($sendMail) [$mails, $skipped] = self::sendInfo($actor, $repo, !$first);
-        if (function_exists('audit_log')) { try { audit_log('msues.launch', ['first' => $first, 'mails' => $mails, 'drafts' => $drafts, 'deadline' => $deadline, 'enforce' => $enforce], $actor['id'] ?: null); } catch (\Throwable $e) {} }
-        return ['mails' => $mails, 'drafts' => $drafts, 'skipped' => $skipped];
+        $r = ($sendMail || $sendSms) ? self::sendInfo($actor, $repo, !$first, $sendMail, $sendSms) : ['mails' => 0, 'sms' => 0, 'skipped' => 0, 'errors' => []];
+        if (function_exists('audit_log')) { try { audit_log('msues.launch', ['first' => $first, 'mails' => $r['mails'], 'sms' => $r['sms'], 'drafts' => $drafts, 'deadline' => $deadline, 'enforce' => $enforce], $actor['id'] ?: null); } catch (\Throwable $e) {} }
+        return ['mails' => $r['mails'], 'sms' => $r['sms'], 'drafts' => $drafts, 'skipped' => $r['skipped'], 'errors' => $r['errors']];
     }
 
-    /** Kolejkuje e-mail informacyjny. @return array{0:int,1:int} [zakolejkowane, pominięte] */
-    public static function sendInfo(array $actor, DeclarationRepository $repo, bool $onlyMissing): array
+    /**
+     * Informacja do kadry — każda osoba osobno (osobny e-mail, osobny SMS).
+     * @return array{mails:int, sms:int, skipped:int, errors:list<string>}
+     */
+    public static function sendInfo(array $actor, DeclarationRepository $repo, bool $onlyMissing, bool $mail = true, bool $sms = false): array
     {
-        if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
-        $n = 0; $skip = 0;
+        $o = ['mails' => 0, 'sms' => 0, 'skipped' => 0, 'errors' => []];
         foreach (self::recipients($repo, $onlyMissing) as $t) {
-            [$subject, $html] = self::mail((string)$t['name'], (string)$actor['name']);
-            try {
-                $id = mail_queue_add((string)$t['email'], (string)$t['name'], $subject, $html, '', 'msues_launch', (int)$t['id'], date('Y-m-d H:i:s'));
-                $id ? $n++ : $skip++;
-            } catch (\Throwable $e) {
-                $skip++;
-                error_log('msues mail ' . $t['email'] . ': ' . $e->getMessage());
-            }
+            $r = self::notify($t, $actor, $mail, $sms);
+            $o['mails'] += $r['mail'] ? 1 : 0;
+            $o['sms'] += $r['sms'] ? 1 : 0;
+            if (!$r['mail'] && !$r['sms']) $o['skipped']++;
+            array_push($o['errors'], ...$r['errors']);
         }
-        return [$n, $skip];
+        return $o;
+    }
+
+    /**
+     * Powiadomienie jednej osoby: e-mail (kolejka, kontekst msues_launch) i/lub SMS (rodzaj ti_msues_notice — od razu).
+     * @param array $t wiersz users (id, name, email, phone_number)
+     * @return array{mail:bool, sms:bool, errors:list<string>}
+     */
+    public static function notify(array $t, array $actor, bool $mail, bool $sms): array
+    {
+        $o = ['mail' => false, 'sms' => false, 'errors' => []];
+        $name = (string)$t['name'];
+        if ($mail && ($email = self::email($t)) !== '') {
+            if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+            [$subject, $html] = self::mail($name, (string)$actor['name']);
+            try { $o['mail'] = mail_queue_add($email, $name, $subject, $html, '', 'msues_launch', (int)$t['id'], date('Y-m-d H:i:s')) > 0; }
+            catch (\Throwable $e) { $o['errors'][] = $name . ' (e-mail): ' . $e->getMessage(); }
+        } elseif ($mail) {
+            $o['errors'][] = $name . ': brak adresu e-mail';
+        }
+        if ($sms && ($phone = self::phone($t)) !== '') {
+            if (!function_exists('sms_send')) require_once dirname(__DIR__, 3) . '/includes/sms.php';
+            try { $o['sms'] = sms_send($phone, self::smsText(), 'ti_msues_notice') !== ''; }
+            catch (\Throwable $e) { $o['errors'][] = $name . ' (SMS): ' . $e->getMessage(); }
+        } elseif ($sms) {
+            $o['errors'][] = $name . ': brak numeru telefonu';
+        }
+        if (function_exists('audit_log')) { try { audit_log('msues.notify', ['trainer_id' => (int)$t['id'], 'mail' => $o['mail'], 'sms' => $o['sms']], $actor['id'] ?: null); } catch (\Throwable $e) {} }
+        return $o;
+    }
+
+    /** Treść SMS bez polskich znaków (160 znaków na część zamiast 70), z linkiem do panelu. */
+    public static function smsText(): string
+    {
+        require_once dirname(__DIR__, 2) . '/ti_panel_urls/lib/tiPanelUrl.php';
+        $d = msuesSetting('msues_deadline');
+        return 'FEER: przygotowujemy certyfikat jakosci MSUES (WUP Krakow). Prosimy o oswiadczenie o kwalifikacjach, CV i dyplomy w panelu dydaktyka'
+            . ($d !== '' ? ' do ' . DeclarationForm::dateLong($d) : '') . ': ' . tiPanelUrl('dydaktyk', 'msues.php?_route=/moje') . ' Szczegoly w e-mailu.';
     }
 
     /** Treść e-maila informacyjnego: [temat, HTML]. */

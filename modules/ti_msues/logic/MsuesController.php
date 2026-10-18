@@ -87,9 +87,9 @@ final class MsuesController
     {
         $a = $this->actor();
         try {
-            $r = MsuesLaunch::launch($a, (string)($_POST['deadline'] ?? ''), !empty($_POST['send_mail']), !empty($_POST['create_drafts']), !empty($_POST['enforce']), $this->svc);
-            flash_set('success', 'Certyfikacja MSUES uruchomiona. E-maile informacyjne w kolejce: ' . $r['mails'] . ($r['skipped'] ? ' (pominięto ' . $r['skipped'] . ')' : '')
-                . '; nowe robocze oświadczenia: ' . $r['drafts'] . '.');
+            $r = MsuesLaunch::launch($a, (string)($_POST['deadline'] ?? ''), !empty($_POST['send_mail']), !empty($_POST['send_sms']), !empty($_POST['create_drafts']), !empty($_POST['enforce']), $this->svc);
+            flash_set($r['errors'] ? 'warning' : 'success', 'Certyfikacja MSUES uruchomiona. E-maile w kolejce: ' . $r['mails'] . ', SMS wysłane: ' . $r['sms']
+                . '; nowe robocze oświadczenia: ' . $r['drafts'] . '.' . $this->errList($r['errors']));
         } catch (\Throwable $e) { return $this->fail($e, route('msues.index')); }
         return Router::redirect(route('msues.index'));
     }
@@ -97,9 +97,28 @@ final class MsuesController
     public function remind(): ?string
     {
         $a = $this->actor();
-        [$n, $skip] = MsuesLaunch::sendInfo($a, $this->svc->declarations(), true);
-        flash_set('success', 'Przypomnienie w kolejce e-maili: ' . $n . ' os. (bez osób z zatwierdzonym oświadczeniem)' . ($skip ? ', pominięto ' . $skip : '') . '.');
+        $r = MsuesLaunch::sendInfo($a, $this->svc->declarations(), true, !empty($_POST['send_mail']), !empty($_POST['send_sms']));
+        flash_set($r['errors'] ? 'warning' : 'success', 'Przypomnienie (tylko osoby bez zatwierdzonego oświadczenia): e-maile w kolejce ' . $r['mails'] . ', SMS wysłane ' . $r['sms'] . '.' . $this->errList($r['errors']));
         return Router::redirect(route('msues.index'));
+    }
+
+    /** Powiadomienie jednej osoby (e-mail i/lub SMS) — z karty osoby albo listy kadry. */
+    public function notifyOne(int $id): ?string
+    {
+        $u = MsuesSzoData::user($id);
+        if (!$u) { flash_set('danger', 'Nie ma takiej osoby.'); return $this->back(route('msues.index')); }
+        $mail = !empty($_POST['send_mail']); $sms = !empty($_POST['send_sms']);
+        if (!$mail && !$sms) { flash_set('warning', 'Zaznacz e-mail lub SMS.'); return $this->back(route('msues.trainer', ['id' => $id])); }
+        $r = MsuesLaunch::notify($u, $this->actor(), $mail, $sms);
+        $done = array_filter([$r['mail'] ? 'e-mail w kolejce' : '', $r['sms'] ? 'SMS wysłany' : '']);
+        flash_set($done ? ($r['errors'] ? 'warning' : 'success') : 'danger', $u['name'] . ': ' . ($done ? implode(', ', $done) : 'nic nie wysłano') . '.' . $this->errList($r['errors']));
+        return $this->back(route('msues.trainer', ['id' => $id]));
+    }
+
+    private function errList(array $errors): string
+    {
+        if (!$errors) return '';
+        return ' Problemy: ' . implode('; ', array_slice($errors, 0, 8)) . (count($errors) > 8 ? ' (i ' . (count($errors) - 8) . ' więcej)' : '') . '.';
     }
 
     public function mailPreview(): string

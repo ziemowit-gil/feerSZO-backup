@@ -13,7 +13,16 @@ $kinds = MsuesChecklist::documentKinds();
 $back = Router::current()->url('/kadra/' . (int)$u['id']);
 ?>
 <?php if (!empty($actor['staff'])): ?><p class="mb-2"><a href="<?= h(route('msues.index')) ?>">&larr; Certyfikacja MSUES</a></p><?php endif; ?>
-<h1 class="h4 mb-1"><i class="bi bi-person-badge text-primary" aria-hidden="true"></i> <?= h($title) ?></h1>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+<h1 class="h4 mb-0"><i class="bi bi-person-badge text-primary" aria-hidden="true"></i> <?= h($title) ?></h1>
+<?php if (!empty($actor['staff'])): ?>
+<form method="post" action="<?= h(route('msues.notify', ['id' => $u['id']])) ?>" class="d-flex align-items-center gap-2"><?= Router::csrfField() ?><input type="hidden" name="_back" value="<?= h($back) ?>">
+  <label class="small"><input type="checkbox" name="send_mail" value="1" checked<?= trim((string)$u['email']) === '' ? ' disabled' : '' ?>> e-mail</label>
+  <label class="small"><input type="checkbox" name="send_sms" value="1" checked<?= trim((string)$u['phone_number']) === '' ? ' disabled' : '' ?>> SMS<?= trim((string)$u['phone_number']) === '' ? ' (brak numeru)' : '' ?></label>
+  <button class="btn btn-sm btn-outline-primary"><i class="bi bi-send"></i> Wyślij informację o MSUES</button>
+</form>
+<?php endif; ?>
+</div>
 <?php if ($self): ?>
 <div class="alert alert-light border mb-3 small">
   <b>Co to jest?</b> Fundacja przygotowuje się do znaku jakości <b>MSUES</b> (Małopolskie Standardy Usług Edukacyjno-Szkoleniowych, WUP Kraków).

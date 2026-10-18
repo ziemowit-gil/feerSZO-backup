@@ -49,6 +49,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/',                           [MsuesController::class, 'index'])->name('msues.index');
     $r->post('/uruchom',                   [MsuesController::class, 'launch'])->name('msues.launch');
     $r->post('/przypomnij',                [MsuesController::class, 'remind'])->name('msues.remind');
+    $r->post('/kadra/{id}/powiadom',       [MsuesController::class, 'notifyOne'])->name('msues.notify');
     $r->get('/mail',                       [MsuesController::class, 'mailPreview'])->name('msues.mail');
     $r->post('/wymog',                     [MsuesController::class, 'toggle'])->name('msues.toggle');
     $r->post('/ustawienia',                [MsuesController::class, 'settings'])->name('msues.settings');
