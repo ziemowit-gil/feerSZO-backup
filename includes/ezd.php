@@ -1925,19 +1925,39 @@ function ezd_sprawa_set_etap(int $id, string $etap, int $user_id): void {
     ezd_log(null, $id, null, null, $user_id, 'etap_change', 'Etap obiegu: ' . $from_lbl . ' → ' . $etap_lbl);
 }
 
-function ezd_sprawa_close(int $id, int $user_id, string $reason): void {
+/**
+ * Dlaczego użytkownik nie może zamknąć koszulki (null = może). Te same warunki co przycisk „Zamknij koszulkę”
+ * w view.php (dostęp 'write', koszulka otwarta) oraz ochrona koszulek ciągłych (stale otwartych).
+ */
+function ezd_sprawa_close_blocker(array $sprawa, int $user_id): ?string {
+    if (($sprawa['status'] ?? '') === 'closed') return 'koszulka jest już zamknięta';
+    if (!empty($sprawa['ciagla']))              return 'koszulka ciągła (stale otwarta)';
+    if (ezd_sprawa_access($sprawa, $user_id) !== 'write') return 'brak uprawnień do zamknięcia';
+    return null;
+}
+
+/** @param string|null $closed_on Data zamknięcia (RRRR-MM-DD) — domyślnie teraz; nie z przyszłości ani sprzed założenia. */
+function ezd_sprawa_close(int $id, int $user_id, string $reason, ?string $closed_on = null): void {
     $s = ezd_sprawa_get($id);
     if (!$s) throw new \RuntimeException('Koszulka nie istnieje.');
     if ($s['status'] === 'closed') throw new \RuntimeException('Koszulka jest już zamknięta.');
     $reason = trim($reason);
     if ($reason === '') throw new \RuntimeException('Podaj powód zamknięcia.');
+    $closed_at = null;
+    if ($closed_on !== null && $closed_on !== '' && $closed_on !== date('Y-m-d')) {
+        $d = DateTime::createFromFormat('!Y-m-d', $closed_on);
+        if (!$d || $d->format('Y-m-d') !== $closed_on) throw new \RuntimeException('Nieprawidłowa data zamknięcia.');
+        if ($closed_on > date('Y-m-d')) throw new \RuntimeException('Data zamknięcia nie może być z przyszłości.');
+        if (!empty($s['created_at']) && $closed_on < substr((string)$s['created_at'], 0, 10)) throw new \RuntimeException('Data zamknięcia wcześniejsza niż założenie koszulki.');
+        $closed_at = $closed_on . ' 12:00:00';
+    }
     db()->prepare(
-        "UPDATE ezd_sprawy SET status='closed', closed_at=datetime('now'), close_reason=?, closed_by=?, updated_at=datetime('now') WHERE id=?"
-    )->execute([$reason, $user_id, $id]);
+        "UPDATE ezd_sprawy SET status='closed', closed_at=COALESCE(?, datetime('now')), close_reason=?, closed_by=?, updated_at=datetime('now') WHERE id=?"
+    )->execute([$closed_at, $reason, $user_id, $id]);
     db()->prepare(
         "UPDATE ezd_dekretacje SET status='zakonczone', completed_at=datetime('now') WHERE sprawa_id=? AND status='oczekuje'"
     )->execute([$id]);
-    ezd_log(null, $id, null, null, $user_id, 'sprawa_closed', 'Zamknięto koszulkę. Powód: ' . $reason);
+    ezd_log(null, $id, null, null, $user_id, 'sprawa_closed', 'Zamknięto koszulkę. Powód: ' . $reason . ($closed_at ? ' (data zamknięcia: ' . $closed_on . ')' : ''));
 }
 
 /** Generuje BPMN 2.0 XML z liniowej ścieżki kroków (start → zadania → koniec). */

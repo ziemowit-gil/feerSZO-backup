@@ -1,0 +1,36 @@
+<?php
+/**
+ * modules/ezd_bulk/logic/EzdBulkController.php — akcje masowe na liście koszulek (trasy w router.php).
+ * Każda akcja: POST + CSRF (router), weryfikacja danych, wykonanie przez ezdBulk*(), podsumowanie
+ * zapamiętane w sesji i powrót na listę z tymi samymi filtrami.
+ */
+
+require_once __DIR__ . '/ezdBulk.php';
+
+final class EzdBulkController
+{
+    private function userId(): int { return (int)(current_user()['id'] ?? 0); }
+
+    private function back(): ?string { return Router::redirect(ezdBulkBackUrl((string)($_POST['back'] ?? ''))); }
+
+    /** Zaznaczone identyfikatory albo komunikat i powrót. */
+    private function ids(): ?array {
+        $ids = ezdBulkIds($_POST['ids'] ?? []);
+        if (!$ids) { flash_set('warning', 'Zaznacz przynajmniej jedną koszulkę.'); return null; }
+        return $ids;
+    }
+
+    public function close(): ?string {
+        if (!($ids = $this->ids())) return $this->back();
+        $on = trim((string)($_POST['closed_on'] ?? ''));
+        if ($on === '') $on = date('Y-m-d');
+        $d = DateTime::createFromFormat('!Y-m-d', $on);
+        if (!$d || $d->format('Y-m-d') !== $on || $on > date('Y-m-d')) {
+            flash_set('danger', 'Data zamknięcia musi być poprawną datą, nie późniejszą niż dziś.');
+            return $this->back();
+        }
+        $note = mb_substr(trim((string)($_POST['note'] ?? '')), 0, 500);
+        ezdBulkRemember('Zamknięto', ezdBulkClose($ids, $this->userId(), $note, $on));
+        return $this->back();
+    }
+}

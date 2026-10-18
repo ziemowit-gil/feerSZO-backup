@@ -182,11 +182,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </p>
   </div>
   <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
-    <?php if (can_edit()): ?>
-    <button type="button" id="bulkTrigger" class="ezx-btn ezx-btn--emerald tw-py-2 tw-px-3.5 tw-text-sm" disabled data-bs-toggle="modal" data-bs-target="#bulkModal" title="Przerejestruj zaznaczone koszulki">
-      <i class="bi bi-arrow-left-right" aria-hidden="true"></i>Przerejestruj zaznaczone <span class="tw-rounded-full tw-bg-white/25 tw-px-1.5 tw-text-[.7rem]" id="bulkCount">0</span>
-    </button>
-    <?php endif; ?>
     <a href="<?= h($self_q(['export' => 'csv'])) ?>" class="ezx-btn ezx-btn--ghost tw-py-2 tw-px-3.5 tw-text-sm"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>Eksport CSV</a>
     <?php if (can_edit()): ?>
     <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php" class="ezx-btn ezx-btn--ghost tw-py-2 tw-px-3.5 tw-text-sm"><i class="bi bi-stars" aria-hidden="true"></i>Przerejestrowanie (AI)</a>
@@ -262,6 +257,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </form>
 
 <!-- ═══════════ WYNIKI ═══════════ -->
+<?php include dirname(dirname(__DIR__)) . '/modules/ezd_bulk/view/result.php'; ?>
 <div class="ezx-card">
   <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-3 tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-100">
     <span class="tw-text-[.9rem] tw-font-semibold tw-text-slate-900"><i class="bi bi-folder2 tw-text-blue-600 tw-mr-1" aria-hidden="true"></i>Wyniki <span class="ezx-muted tw-font-normal">(<?= count($sprawy) ?>)</span></span>
@@ -287,7 +283,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     ?>
     <div class="sprawa-line<?= $hid ? ' is-hidden' : '' ?>" data-sprawa-id="<?= (int)$s['id'] ?>">
       <?php if (can_edit()): ?>
-      <div class="bulk-cb-wrap"><input type="checkbox" class="form-check-input bulk-cb tw-m-0" name="ids[]" value="<?= (int)$s['id'] ?>" form="bulkForm" aria-label="Zaznacz koszulkę <?= h($s['znak_sprawy']) ?>"></div>
+      <div class="bulk-cb-wrap"><input type="checkbox" class="form-check-input bulk-cb tw-m-0" value="<?= (int)$s['id'] ?>" data-ciagla="<?= empty($s['ciagla']) ? '0' : '1' ?>" data-status="<?= h($s['status']) ?>" aria-label="Zaznacz koszulkę <?= h($s['znak_sprawy']) ?>"></div>
       <?php endif; ?>
       <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$s['id'] ?>" class="sprawa-row ezd-sp-preview"
          data-sprawa-id="<?= (int)$s['id'] ?>" data-sprawa-title="<?= h(mb_substr($s['title'], 0, 60)) ?>"
@@ -331,6 +327,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <?php endif; ?>
   </div>
+  <?php if (can_edit() && $sprawy) include dirname(dirname(__DIR__)) . '/modules/ezd_bulk/view/bar.php'; ?>
 </div>
 
 </div><!-- /x-data ezdSprawy -->
@@ -352,7 +349,7 @@ document.addEventListener('alpine:init', function () {
 <!-- Modal: masowe przerejestrowanie (Bootstrap) -->
 <div class="modal fade" id="bulkModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
-    <form id="bulkForm" method="post" action="<?= h($_SERVER['REQUEST_URI']) ?>" onsubmit="return bulkConfirm()">
+    <form id="bulkForm" method="post" action="<?= h($_SERVER['REQUEST_URI']) ?>" data-ezb-ids>
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title"><i class="bi bi-arrow-left-right me-2 text-success"></i>Przerejestruj zaznaczone koszulki</h5>
@@ -389,34 +386,7 @@ document.addEventListener('alpine:init', function () {
   </div>
 </div>
 
-<script>
-(function(){
-  const cbs     = () => Array.from(document.querySelectorAll('.bulk-cb'));
-  const all     = document.getElementById('bulkAll');
-  const trigger = document.getElementById('bulkTrigger');
-  const badge   = document.getElementById('bulkCount');
-  const mCount  = document.getElementById('bulkModalCount');
-  const sel     = document.querySelector('#bulkForm select[name="target"]');
-  function selected(){ return cbs().filter(c=>c.checked).length; }
-  function refresh(){
-    const n = selected();
-    if(badge)   badge.textContent = n;
-    if(mCount)  mCount.textContent = n;
-    if(trigger) trigger.disabled = (n===0);
-    if(all){ const total=cbs().length; all.checked = n>0 && n===total; all.indeterminate = n>0 && n<total; }
-  }
-  cbs().forEach(c=>c.addEventListener('change', refresh));
-  if(all) all.addEventListener('change', ()=>{ cbs().forEach(c=>c.checked=all.checked); refresh(); });
-  window.bulkConfirm = function(){
-    const n = selected();
-    if(n===0){ alert('Zaznacz przynajmniej jedną koszulkę.'); return false; }
-    if(!sel || sel.value===''){ alert('Wskaż, gdzie przenieść.'); return false; }
-    const label = sel.options[sel.selectedIndex].text.trim();
-    return confirm('Przenieść '+n+' zaznaczonych koszulek do:\n'+label+'\n\nKażda otrzyma NOWY znak sprawy. Operacja nieodwracalna.');
-  };
-  refresh();
-})();
-</script>
+<?php $ezbBack = $_SERVER['REQUEST_URI'] ?? ''; include dirname(dirname(__DIR__)) . '/modules/ezd_bulk/view/modals.php'; ?>
 <?php endif; ?>
 
 <!-- Modal: szybki podgląd koszulki (Bootstrap; treść z ezd/sprawy/ajax_panel.php) -->
