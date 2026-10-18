@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_pliki.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_role('admin', 'editor');
@@ -22,8 +23,7 @@ $row = [
 
 $formy_zlecenia = ['powierzenie' => 'Powierzenie (100% dotacji)', 'wsparcie' => 'Wsparcie (z wkładem własnym)'];
 $tryby = ['konkurs' => 'Otwarty konkurs ofert', 'art19a' => 'Tryb pozakonkursowy (art. 19a — mały grant)', 'inny' => 'Inny tryb'];
-$statuses = ['projekt' => 'Projekt', 'podpisana' => 'Podpisana', 'w realizacji' => 'W realizacji',
-             'do rozliczenia' => 'Do rozliczenia', 'zakończona' => 'Zakończona', 'rozwiązana' => 'Rozwiązana', 'anulowana' => 'Anulowana'];
+$statuses = POWIERZENIE_STATUSY;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -33,8 +33,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($row['numer_umowy']))   $errors[] = 'Numer umowy jest wymagany.';
     if (empty($row['status']))        $errors[] = 'Status jest wymagany.';
     if (empty($row['nazwa_zadania'])) $errors[] = 'Nazwa zadania publicznego jest wymagana.';
-    if (empty($_FILES['plik_jednostronna']['tmp_name'])) $errors[] = 'Dołącz umowę podpisaną jednostronnie (plik jest obowiązkowy).';
-    if (empty($_FILES['plik_umowy']['tmp_name']))        $errors[] = 'Dołącz umowę podpisaną dwustronnie (plik jest obowiązkowy).';
 
     if (!$errors) {
         // Upload plików
@@ -49,8 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($plik_potw)  $row['plik_potwierdzenia'] = $plik_potw;
         if ($zalaczniki) $row['zalaczniki']         = $zalaczniki;
 
-        if (!$plik_jedn)  $errors[] = 'Umowa podpisana jednostronnie: dozwolone PDF/DOCX do 20 MB.';
-        if (!$plik_umowy) $errors[] = 'Umowa podpisana dwustronnie: dozwolone PDF/DOCX do 20 MB.';
+        // Pliki wymagane na etapie wybranego statusu (uzasadnienie w komunikacie); zły format/rozmiar = brak pliku
+        foreach (powierzenie_braki_plikow((string)$row['status'], $row) as $_b) $errors[] = $_b . ' (PDF/DOCX do 20 MB).';
     }
     if (!$errors) {
         $row['created_by'] = current_user()['id'];
@@ -430,24 +428,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="lg:tw-col-span-1 tw-space-y-4">
       <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
         <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-paperclip"></i> Pliki</h2>
-        <div class="tw-mb-3">
-          <label for="plik_projekt" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">1. Projekt umowy</label>
-          <input id="plik_projekt" name="plik_projekt" type="file" accept=".pdf,.docx"
-                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
-          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Nieobowiązkowy — wersja robocza (PDF/DOCX, max 20 MB).</p>
-        </div>
-        <div class="tw-mb-3">
-          <label for="plik_jednostronna" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">2. Umowa podpisana jednostronnie <span class="tw-text-red-600">*</span></label>
-          <input id="plik_jednostronna" name="plik_jednostronna" type="file" accept=".pdf,.docx" required
-                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
-          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Obowiązkowa — podpisana przez jedną stronę.</p>
-        </div>
-        <div class="tw-mb-3">
-          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">3. Umowa podpisana dwustronnie <span class="tw-text-red-600">*</span></label>
-          <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx" required
-                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
-          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Obowiązkowa — po podpisie obu stron.</p>
-        </div>
+        <?php foreach (array_keys(POWIERZENIE_PLIKI) as $_pf) echo powierzenie_pole_pliku($_pf, (string)($row['status'] ?? 'projekt'), []); ?>
         <div>
           <label for="zalaczniki" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">4. Załączniki</label>
           <input id="zalaczniki" name="zalaczniki" type="file" accept=".pdf,.docx,.jpg,.png"
@@ -498,4 +479,5 @@ document.getElementById('forma_podpisania').addEventListener('change', function 
 
 <?php // Wymagalność pól (Admin → Wymagane pola w formularzach): oznaczenia etykiet + ostrzeżenia, bez blokowania zapisu.
 require_once dirname(dirname(__DIR__)) . '/modules/form_fields/logic/formFields.php'; formFieldsAttach('powierzenie'); ?>
+<?= powierzenie_pliki_js() ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

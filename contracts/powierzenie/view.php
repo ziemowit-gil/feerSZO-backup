@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_pliki.php';
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 
@@ -29,6 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
                 ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row, $TYPE);
             } catch (ContractTransitionException $e) {
                 flash_set('error', $e->getMessage());
+                header('Location: view.php?id=' . $id); exit;
+            }
+            // Nowy etap wymaga plików (np. „Podpisana” → egzemplarz dwustronny) — bez nich nie zmieniamy statusu
+            if ($_braki = powierzenie_braki_plikow($new_status, $row)) {
+                flash_set('error', 'Nie zmieniono statusu. ' . implode(' ', $_braki) . ' Dołącz pliki w edycji umowy.');
                 header('Location: view.php?id=' . $id); exit;
             }
             db_update($TABLE, ['status' => $new_status], $id);
@@ -270,9 +276,14 @@ $_badge_obieg += count(array_filter($edit_requests, fn($r) => $r['status'] === '
     <div class="card shadow-sm mb-3">
     <div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>
     <div class="card-body">
-      <div class="mb-2"><div class="detail-label">1. Projekt umowy</div><?= !empty($row['plik_projekt']) ? upload_link_signed($row['plik_projekt']) : '<span class="text-muted small">nie dołączono</span>' ?></div>
-      <div class="mb-2"><div class="detail-label">2. Podpisana jednostronnie</div><?= !empty($row['plik_jednostronna']) ? upload_link_signed($row['plik_jednostronna']) : '<span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> brak — plik obowiązkowy</span>' ?></div>
-      <div class="mb-2"><div class="detail-label">3. Podpisana dwustronnie</div><?= !empty($row['plik_umowy']) ? upload_link_signed($row['plik_umowy']) : '<span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> brak — plik obowiązkowy</span>' ?></div>
+      <?php $_wym = powierzenie_wymagane_pliki((string)($row['status'] ?? ''));
+      foreach (POWIERZENIE_PLIKI as $_pf => $_pl): ?>
+      <div class="mb-2"><div class="detail-label"><?= h($_pl) ?></div>
+        <?php if (!empty($row[$_pf])): ?><?= upload_link_signed($row[$_pf]) ?>
+        <?php elseif (isset($_wym[$_pf])): ?><span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> brak — wymagany, bo <?= h($_wym[$_pf]) ?></span>
+        <?php else: ?><span class="text-muted small">nie dołączono</span><?php endif; ?>
+      </div>
+      <?php endforeach; ?>
       <?php if (!empty($row['zalaczniki'])): ?>
       <div class="mb-2"><div class="detail-label">4. Załączniki</div><?= upload_link($row['zalaczniki']) ?></div>
       <?php endif; ?>

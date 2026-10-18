@@ -12,6 +12,8 @@ const CONTRACT_TYPES = [
 const STATUS_LABELS = [
     'projekt'        => ['label' => 'Projekt',        'class' => 'secondary'],
     'do podpisu'     => ['label' => 'Do podpisu',     'class' => 'teal'],
+    'jednostronnie'  => ['label' => 'Podpisana jednostronnie', 'class' => 'teal'],     // powierzenie: podpis Fundacji
+    'w podpisie w instytucji' => ['label' => 'W podpisie w instytucji', 'class' => 'orange'], // powierzenie: czeka na podpis organu
     'podpisana'      => ['label' => 'Podpisana',      'class' => 'primary'],
     'w realizacji'   => ['label' => 'W realizacji',   'class' => 'info'],
     'zawieszona'     => ['label' => 'Zawieszona',     'class' => 'orange'],
@@ -38,7 +40,9 @@ const STATUS_CUSTOM_COLORS = [
  * Admini mogą ustawić dowolny status (oprócz 'aneks').
  */
 const STATUS_TRANSITIONS = [
-    'projekt'        => ['do podpisu', 'podpisana', 'anulowana'],
+    'projekt'        => ['do podpisu', 'jednostronnie', 'w podpisie w instytucji', 'podpisana', 'anulowana'],
+    'jednostronnie'  => ['w podpisie w instytucji', 'podpisana', 'anulowana'],
+    'w podpisie w instytucji' => ['podpisana', 'anulowana'],
     'do podpisu'     => ['podpisana', 'anulowana'],
     'podpisana'      => ['w realizacji', 'zakończona', 'rozwiązana', 'anulowana'],
     'w realizacji'   => ['zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana'],

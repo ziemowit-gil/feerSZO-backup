@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_schema.php';
+require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_pliki.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_login();
@@ -81,8 +82,7 @@ $_qs_base = array_filter([
 $pag  = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" . http_build_query($_qs_base));
 $rows = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY {$sort_col} {$sort_dir} LIMIT {$per} OFFSET {$pag['offset']}", $params);
 
-$statuses = ['projekt' => 'Projekt', 'podpisana' => 'Podpisana', 'w realizacji' => 'W realizacji',
-             'do rozliczenia' => 'Do rozliczenia', 'zakończona' => 'Zakończona', 'rozwiązana' => 'Rozwiązana', 'anulowana' => 'Anulowana'];
+$statuses = POWIERZENIE_STATUSY;
 $formy_zlecenia = ['powierzenie' => 'Powierzenie', 'wsparcie' => 'Wsparcie'];
 $tryby = ['konkurs' => 'Otwarty konkurs ofert', 'art19a' => 'Art. 19a — mały grant', 'inny' => 'Inny tryb'];
 
@@ -92,9 +92,11 @@ $_in30  = date('Y-m-d', strtotime('+30 days'));
 $_st = db_one("SELECT COUNT(*) AS wszystkie,
         SUM(CASE WHEN status IN ('podpisana','w realizacji') THEN 1 ELSE 0 END) AS realizacja,
         SUM(CASE WHEN status = 'do rozliczenia' THEN 1 ELSE 0 END) AS rozliczenie,
+        SUM(CASE WHEN status = 'jednostronnie' THEN 1 ELSE 0 END) AS jednostronnie,
+        SUM(CASE WHEN status = 'w podpisie w instytucji' THEN 1 ELSE 0 END) AS w_instytucji,
         SUM(CASE WHEN data_zakonczenia >= ? AND data_zakonczenia <= ?
                   AND COALESCE(status,'') NOT IN ('zakończona','rozwiązana','anulowana') THEN 1 ELSE 0 END) AS konczace,
-        SUM(CASE WHEN COALESCE(status,'') NOT IN ('rozwiązana','anulowana','projekt') THEN CAST(kwota_dotacji AS REAL) ELSE 0 END) AS dotacje
+        SUM(CASE WHEN COALESCE(status,'') NOT IN ('rozwiązana','anulowana','projekt','jednostronnie','w podpisie w instytucji') THEN CAST(kwota_dotacji AS REAL) ELSE 0 END) AS dotacje
     FROM {$TABLE} WHERE " . contract_access_where($TYPE), [$_today, $_in30]) ?: [];
 $_soon_on = $koniec_od === $_today && $koniec_do === $_in30;
 
@@ -121,6 +123,16 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
   <a href="?" class="pw-tile is-dark<?= !$search && !$status && !$forma && !$adv_count ? ' is-on' : '' ?>">
     <span class="pw-tile-lbl"><i class="bi bi-collection"></i>Wszystkie</span>
     <span class="pw-tile-val"><?= (int)($_st['wszystkie'] ?? 0) ?></span>
+  </a>
+  <a href="?status=<?= urlencode('jednostronnie') ?>" class="pw-tile<?= (int)($_st['jednostronnie'] ?? 0) ? ' is-acc' : '' ?><?= $status === 'jednostronnie' ? ' is-on' : '' ?>">
+    <span class="pw-tile-lbl"><i class="bi bi-pen"></i>Jednostronnie</span>
+    <span class="pw-tile-val"><?= (int)($_st['jednostronnie'] ?? 0) ?></span>
+    <span class="pw-tile-sub">podpisane przez Fundację</span>
+  </a>
+  <a href="?status=<?= urlencode('w podpisie w instytucji') ?>" class="pw-tile<?= (int)($_st['w_instytucji'] ?? 0) ? ' is-orange' : '' ?><?= $status === 'w podpisie w instytucji' ? ' is-on' : '' ?>">
+    <span class="pw-tile-lbl"><i class="bi bi-building"></i>W podpisie w instytucji</span>
+    <span class="pw-tile-val"><?= (int)($_st['w_instytucji'] ?? 0) ?></span>
+    <span class="pw-tile-sub">czekają na podpis organu</span>
   </a>
   <a href="?status=<?= urlencode('w realizacji') ?>" class="pw-tile is-acc<?= $status === 'w realizacji' ? ' is-on' : '' ?>">
     <span class="pw-tile-lbl"><i class="bi bi-play-circle"></i>W realizacji</span>
