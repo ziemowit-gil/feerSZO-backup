@@ -175,9 +175,9 @@ a.ib-stripe:hover, a.ib-stripe:focus-visible { width:8px }
 .ib-meta strong { color:var(--ib-text) }
 .ib-nav { display:flex; align-items:center; gap:.25rem; white-space:nowrap }
 .ib-nav-pos { font-size:.75rem; color:var(--ib-muted); margin-right:.2rem; font-variant-numeric:tabular-nums }
-.ib-nav a, .ib-nav span.ib-navbtn { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:2px solid #c6c6c6; color:#3f3f3f; text-decoration:none }
+.ib-nav a { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:2px solid #c6c6c6; color:#3f3f3f; text-decoration:none }
 .ib-nav a:hover { border-color:#8a8a8a; color:var(--ib-text) }
-.ib-nav span.ib-navbtn { opacity:.4 }
+.ib-nav a[aria-disabled="true"] { opacity:.4; pointer-events:none }
 .ib-back { display:none }
 .ib-chips { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.6rem; grid-column:1 / -1 }
 .ib-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .6rem; background:#ececec; font-size:.78rem; font-weight:600; color:#3f3f3f; text-decoration:none }

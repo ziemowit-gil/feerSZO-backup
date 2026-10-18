@@ -460,4 +460,213 @@
     // Zwolnij ramkę po zamknięciu — inaczej PDF zostaje wczytany w tle.
     modalEl.addEventListener('hidden.bs.modal', function () { body.innerHTML = ''; });
   })();
+  /* ══ Przeglądanie bez przeładowania ══════════════════════════════════════
+     Klik w wiadomość dociąga tę samą stronę z ?msg=ID i podmienia tylko panel
+     wiadomości (i okna akcji); lista, jej przewinięcie i zaznaczenia zostają.
+     Adres w pasku się zmienia (history), więc „Wstecz” i odświeżenie działają.
+     Gdy cokolwiek pójdzie nie tak — zwykłe przejście pod adres. */
+  var live = document.getElementById('ibLive');
+  function announce(t) { if (live) { live.textContent = ''; setTimeout(function () { live.textContent = t; }, 30); } }
+
+  var toastEl = document.getElementById('ibToast'), toastTimer = null;
+  function toast(msg, o) {
+    if (!toastEl || !msg) return;
+    o = o || {};
+    clearTimeout(toastTimer);
+    toastEl.className = 'ib-toast' + (o.err ? ' ib-toast--err' : '');
+    toastEl.innerHTML = '<span>' + esc(msg) + '</span>';
+    if (o.undo) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = 'Cofnij';
+      b.addEventListener('click', function () { toastEl.hidden = true; o.undo(); });
+      toastEl.appendChild(b);
+    }
+    toastEl.hidden = false;
+    toastTimer = setTimeout(function () { toastEl.hidden = true; }, o.undo ? 8000 : 4500);
+  }
+  IB.toast = toast;
+
+  function rows() { return Array.prototype.slice.call(document.querySelectorAll('#ibList .ib-row')); }
+  function currentId() { var p = document.getElementById('ibPane'); return p ? (parseInt(p.dataset.msg, 10) || 0) : 0; }
+  function rowOf(id) { return document.querySelector('#ibList .ib-row[data-id="' + id + '"]'); }
+  function hrefOf(row) { var a = row && row.querySelector('.ib-item'); return a ? a.getAttribute('href') : null; }
+  function isNarrow() { return window.matchMedia('(max-width:1099.98px)').matches; }
+
+  function markActive(id) {
+    rows().forEach(function (r) {
+      var on = parseInt(r.dataset.id, 10) === id, a = r.querySelector('.ib-item');
+      r.classList.toggle('is-active', on);
+      if (on) {
+        r.classList.remove('unread');
+        var sr = r.querySelector('.ib-sr-unread'); if (sr) sr.remove();
+        a.setAttribute('aria-current', 'true');
+        if (!isNarrow()) r.scrollIntoView({ block: 'nearest' });
+      } else a.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('#ibList .ib-thread-item').forEach(function (t) {
+      t.classList.toggle('active', parseInt(t.dataset.ibOpen, 10) === id);
+    });
+  }
+
+  /** Poprzednia/Następna i „3 z 30” wg listy, którą użytkownik ma przed oczami. */
+  function syncNav() {
+    var rs = rows(), id = currentId(), i = -1;
+    rs.forEach(function (r, k) { if (parseInt(r.dataset.id, 10) === id) i = k; });
+    var pos = document.querySelector('#ibMsgCol .ib-nav-pos');
+    if (pos) pos.textContent = i >= 0 ? (i + 1) + ' z ' + rs.length : '';
+    [['prev', i - 1], ['next', i + 1]].forEach(function (p) {
+      var a = document.querySelector('#ibMsgCol [data-ib-go="' + p[0] + '"]');
+      if (!a) return;
+      var h = (i >= 0 && rs[p[1]]) ? hrefOf(rs[p[1]]) : null;
+      if (h) { a.setAttribute('href', h); a.removeAttribute('aria-disabled'); }
+      else { a.removeAttribute('href'); a.setAttribute('aria-disabled', 'true'); }
+    });
+  }
+
+  var loadSeq = 0;
+  function loadMsg(href, o) {
+    o = o || {};
+    var seq = ++loadSeq;
+    wrap.classList.add('ib-loading');
+    return fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok || r.redirected) throw new Error('http'); return r.text(); })
+      .then(function (html) {
+        if (seq !== loadSeq) return;
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var col = doc.getElementById('ibMsgCol');
+        if (!col) throw new Error('fragment');
+        document.getElementById('ibMsgCol').innerHTML = col.innerHTML;
+        var mods = doc.getElementById('ibMsgModals'), myMods = document.getElementById('ibMsgModals');
+        if (myMods) myMods.innerHTML = mods ? mods.innerHTML : '';
+        // Licznik „Skrzynka” w menu CRM i liczniki widoków — otwarcie = przeczytanie
+        var nb = doc.querySelector('.crm-navlink.active .crm-nav-badge'), ob = document.querySelector('.crm-navlink.active .crm-nav-badge');
+        if (nb && ob) ob.textContent = nb.textContent;
+        var cnt = {};
+        doc.querySelectorAll('[data-ib-cnt]').forEach(function (el) { cnt[el.dataset.ibCnt] = el.textContent; });
+        paintCounts(cnt);
+        if (o.push !== false) history.pushState({ ibMsg: 1 }, '', href);
+        if (doc.title) document.title = doc.title;
+        var id = currentId();
+        markActive(id);
+        syncNav();
+        if (o.reading !== false) wrap.classList.add('is-reading');
+        initPane();
+        wrap.classList.remove('ib-loading');
+        var pane = document.getElementById('ibPane');
+        if (pane && !isNarrow()) pane.scrollTop = 0;
+        if (isNarrow() && o.reading !== false) window.scrollTo(0, 0);
+        var h1 = document.getElementById('ibMsgTitle');
+        if (o.focusPane && h1) h1.focus();
+        if (h1) announce('Otwarto: ' + h1.textContent);
+        document.dispatchEvent(new CustomEvent('ib:pane-loaded'));
+      })
+      .catch(function () { if (seq === loadSeq) window.location.href = href; });
+  }
+  IB.loadMsg = loadMsg;
+  IB.rows = rows; IB.currentId = currentId; IB.hrefOf = hrefOf;
+
+  /** Przejście o jedną wiadomość w górę/dół listy. */
+  IB.go = function (dir, o) {
+    var rs = rows(), id = currentId(), i = -1;
+    rs.forEach(function (r, k) { if (parseInt(r.dataset.id, 10) === id) i = k; });
+    var t = rs[i < 0 ? 0 : i + dir];
+    if (!t) { announce(dir > 0 ? 'To ostatnia wiadomość na tej stronie listy.' : 'To pierwsza wiadomość na liście.'); return; }
+    loadMsg(hrefOf(t), o);
+    var a = t.querySelector('.ib-item');
+    if (a && document.activeElement && document.activeElement.closest && document.activeElement.closest('#ibList')) a.focus();
+  };
+
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target.closest('a[data-ib-open], a[data-ib-go], a[data-ib-back]');
+    if (!a || !a.getAttribute('href')) return;
+    e.preventDefault();
+    if (a.hasAttribute('data-ib-back')) {
+      wrap.classList.remove('is-reading');
+      history.pushState({ ibMsg: 0 }, '', a.getAttribute('href'));
+      var act = document.querySelector('#ibList .ib-row.is-active .ib-item');
+      if (act) { act.scrollIntoView({ block: 'center' }); act.focus(); }
+      return;
+    }
+    loadMsg(a.getAttribute('href'));
+  });
+
+  window.addEventListener('popstate', function () {
+    var m = parseInt(new URLSearchParams(window.location.search).get('msg') || '0', 10);
+    if (!m) { wrap.classList.remove('is-reading'); return; }
+    if (m !== currentId()) loadMsg(window.location.href, { push: false });
+    else wrap.classList.add('is-reading');
+  });
+  syncNav();
+
+  /* ── Akcje na wiadomości bez przeładowania ────────────────────────────────
+     Formularze z data-ib-xhr idą fetch-em z _xhr=1; serwer odpowiada JSON-em
+     z tym samym komunikatem, który pokazałby po przekierowaniu. Gdy wiadomość
+     wypada z bieżącego widoku (załatwiona, spam, porzucona), znika z listy
+     i od razu otwiera się następna — z „Cofnij” w komunikacie. */
+  var STAYS = { archive: ['all', 'mine', 'archived'], spam: ['spam'], hide: ['hidden'] };
+  var UNDO  = { archive: 'restore', spam: 'restore', hide: 'unhide' };
+
+  function post(fd) {
+    fd.set('_xhr', '1');
+    return fetch(window.location.pathname, { method: 'POST', body: fd, credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); });
+  }
+
+  function removeRow(id) {
+    var r = rowOf(id);
+    if (!r) return null;
+    var rs = rows(), i = rs.indexOf(r), nxt = rs[i + 1] || rs[i - 1] || null;
+    var sib = r.nextElementSibling;
+    if (sib && sib.classList.contains('ib-thread')) sib.remove();
+    var prev = r.previousElementSibling, after = r.nextElementSibling;
+    r.remove();
+    // Nagłówek dnia bez wiadomości pod spodem też znika
+    if (prev && prev.classList.contains('ib-day') && (!after || after.classList.contains('ib-day'))) prev.remove();
+    bulkInit();
+    return nxt;
+  }
+
+  function reloadPane() { return loadMsg(window.location.href, { push: false, reading: wrap.classList.contains('is-reading') }); }
+
+  document.addEventListener('submit', function (e) {
+    var f = e.target.closest('form[data-ib-xhr]');
+    if (!f || !window.fetch || !window.FormData) return;
+    e.preventDefault();
+    var op = f.dataset.ibXhr, fd = new FormData(f), id = parseInt(fd.get('msg_id'), 10) || currentId();
+    document.querySelectorAll('#ibMsgCol [data-ib-dd][aria-expanded="true"]').forEach(function (b) {
+      var d = window.bootstrap && window.bootstrap.Dropdown.getInstance(b); if (d) d.hide();
+    });
+    post(fd).then(function (d) {
+      if (!d || !d.ok) { toast((d && d.msg) || 'Nie udało się wykonać działania.', { err: true }); return; }
+      var undo = null;
+      if (UNDO[op]) undo = function () {
+        var u = new FormData(f); u.set('_op', UNDO[op]);
+        post(u).then(function (d2) {
+          toast(d2 && d2.msg);
+          refreshList(function () { var r = rowOf(id); loadMsg(r ? hrefOf(r) : window.location.href); });
+        });
+      };
+      if (STAYS[op] && STAYS[op].indexOf(IB.view) < 0) {
+        var nxt = removeRow(id);
+        toast(d.msg, { undo: undo });
+        if (nxt) loadMsg(hrefOf(nxt), { reading: wrap.classList.contains('is-reading') });
+        else {
+          var u = new URL(window.location.href); u.searchParams.delete('msg');
+          loadMsg(u.pathname + u.search, { reading: false });
+        }
+        return;
+      }
+      if (op === 'unread') {
+        // Ponowne otwarcie oznaczyłoby ją z powrotem jako przeczytaną — zmieniamy tylko wiersz
+        var r = rowOf(id); if (r) r.classList.add('unread');
+        toast(d.msg);
+        return;
+      }
+      toast(d.msg, { undo: undo });
+      reloadPane();
+      refreshList();
+    }).catch(function () { f.removeAttribute('data-ib-xhr'); f.submit(); });
+  });
 })();

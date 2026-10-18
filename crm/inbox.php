@@ -203,7 +203,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Ustawienie zapisane.');
                 break;
         }
+        // Akcja wysłana skryptem (przeglądanie bez przeładowania) — zamiast
+        // przekierowania krótka odpowiedź JSON z komunikatem dla paska u dołu.
+        if (!empty($_POST['_xhr'])) {
+            $f = flash_get() ?? ['type' => 'success', 'msg' => ''];
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => !in_array($f['type'], ['danger', 'error'], true), 'type' => $f['type'],
+                              'msg' => $f['msg'], 'op' => $op, 'id' => $mid], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         header('Location: ' . $back); exit;
+    }
+    if (!empty($_POST['_xhr'])) {
+        flash_get();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'type' => 'danger', 'msg' => 'Brak uprawnień.'], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }
 
@@ -651,7 +666,7 @@ include __DIR__ . '/includes/header_crm.php';
         <a class="ib-item" href="<?= h($href) ?>" data-ib-open="<?= $rid ?>" <?= $act ? 'aria-current="true"' : '' ?>>
           <span class="ib-av<?= $outgoing ? ' ib-av--out' : '' ?>" style="--h:<?= (int)$av_h ?>" aria-hidden="true"><?= h($av_ini) ?></span>
           <span class="ib-l1">
-            <?php if ($unread): ?><span class="visually-hidden">Nieprzeczytana.</span><?php endif; ?>
+            <?php if ($unread): ?><span class="visually-hidden ib-sr-unread">Nieprzeczytana.</span><?php endif; ?>
             <span class="ib-who" title="<?= h($who . (!$outgoing && $r['from_email'] && $r['from_name'] ? ' <' . $r['from_email'] . '>' : '')) ?>"><?= h($who) ?></span>
             <?= crm_sender_trust_badge($trust_of($r['from_email'] ?? ''), 'sm') ?>
             <?php if ((int)$r['has_attachments']): ?>
@@ -781,17 +796,13 @@ include __DIR__ . '/includes/header_crm.php';
           <a class="ib-act ib-back" href="?<?= $qs(['msg' => null]) ?>" data-ib-back>
             <i class="bi bi-arrow-left" aria-hidden="true"></i>Lista
           </a>
-          <?php if ($sel_pos !== false): ?>
-          <span class="ib-nav-pos"><?= $sel_pos + 1 ?> z <?= count($row_ids) ?></span>
-          <?php endif; ?>
-          <?php if ($prev_id): ?>
-          <a href="?<?= $qs(['msg' => $prev_id]) ?>" data-ib-go="prev" aria-label="Poprzednia wiadomość" title="Poprzednia wiadomość (k)">
-            <i class="bi bi-chevron-up" aria-hidden="true"></i></a>
-          <?php else: ?><span class="ib-navbtn" aria-hidden="true"><i class="bi bi-chevron-up"></i></span><?php endif; ?>
-          <?php if ($next_id): ?>
-          <a href="?<?= $qs(['msg' => $next_id]) ?>" data-ib-go="next" aria-label="Następna wiadomość" title="Następna wiadomość (j)">
-            <i class="bi bi-chevron-down" aria-hidden="true"></i></a>
-          <?php else: ?><span class="ib-navbtn" aria-hidden="true"><i class="bi bi-chevron-down"></i></span><?php endif; ?>
+          <span class="ib-nav-pos"><?= $sel_pos !== false ? ($sel_pos + 1) . ' z ' . count($row_ids) : '' ?></span>
+          <?php /* Zawsze oba linki — skrypt przestawia je wg bieżącej listy, która
+                   po przeglądaniu bez przeładowania może różnić się od serwerowej. */ ?>
+          <a <?= $prev_id ? 'href="?' . h($qs(['msg' => $prev_id])) . '"' : 'aria-disabled="true"' ?> data-ib-go="prev" role="link"
+             aria-label="Poprzednia wiadomość" title="Poprzednia wiadomość (k)"><i class="bi bi-chevron-up" aria-hidden="true"></i></a>
+          <a <?= $next_id ? 'href="?' . h($qs(['msg' => $next_id])) . '"' : 'aria-disabled="true"' ?> data-ib-go="next" role="link"
+             aria-label="Następna wiadomość" title="Następna wiadomość (j)"><i class="bi bi-chevron-down" aria-hidden="true"></i></a>
         </nav>
         <div class="ib-chips">
           <?php if (!empty($msg['contact_id'])): ?>
@@ -1372,6 +1383,9 @@ include __DIR__ . '/includes/header_crm.php';
 <?php endforeach; ?>
 <?php endif; ?>
 </div>
+
+<div class="ib-toast" id="ibToast" role="status" aria-live="polite" hidden></div>
+<div class="visually-hidden" id="ibLive" aria-live="polite"></div>
 
 <!-- ══ PODGLĄD ZAŁĄCZNIKA ════════════════════════════════════════════════════ -->
 <div class="modal fade" id="ibAttModal" tabindex="-1" aria-labelledby="ibAttTitle" aria-hidden="true">

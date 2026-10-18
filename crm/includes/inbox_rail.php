@@ -64,7 +64,7 @@ $rail_thread = $rail_thread ?? [];
   </summary>
   <div class="ib-card-body">
     <?php foreach ($rail_thread as $t): $cur = (int)$t['id'] === (int)$sel_id; ?>
-    <a class="ib-rail-item<?= $cur ? ' fw-bold' : '' ?>" href="?<?= $qs(['msg' => (int)$t['id']]) ?>"
+    <a class="ib-rail-item<?= $cur ? ' fw-bold' : '' ?>" href="?<?= $qs(['msg' => (int)$t['id']]) ?>" data-ib-open="<?= (int)$t['id'] ?>"
        <?= $cur ? 'aria-current="true"' : '' ?>>
       <i class="bi bi-<?= $t['direction'] === 'in' ? 'arrow-down-left text-primary' : 'arrow-up-right text-success' ?>"
          aria-hidden="true"></i>
