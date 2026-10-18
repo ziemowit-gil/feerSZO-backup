@@ -14,13 +14,13 @@ require_once dirname(__DIR__) . '/includes/pelnomocnictwa.php';
 
 require_login();
 require_module_enabled('pelnomocnictwa_enabled', 'Rejestr pełnomocnictw');
-if (!can_edit()) { flash_set('error', 'Brak uprawnień do rejestru pełnomocnictw.'); header('Location:'.APP_URL.'/index.php'); exit; }
-
 $id  = (int)($_GET['id'] ?? 0);
 $row = $id ? pelnomocnictwo_get($id) : null;
-if (!$row) { http_response_code(404); die('Nie znaleziono wpisu.'); }
-
 $typ = ($_GET['typ'] ?? '') === 'odwolanie' ? 'odwolanie' : 'pelnomocnictwo';
+// Rejestr (can_edit) albo sam pełnomocnik — tylko PDF własnego pełnomocnictwa (nie odwołania).
+$_holder = $row && $typ === 'pelnomocnictwo' && pelnomocnictwo_user_is_holder($row, current_user() ?? []);
+if (!can_edit() && !$_holder) { flash_set('error', 'Brak uprawnień do rejestru pełnomocnictw.'); header('Location:'.APP_URL.'/index.php'); exit; }
+if (!$row) { http_response_code(404); die('Nie znaleziono wpisu.'); }
 
 $pdf = pelnomocnictwo_pdf_render($row, $typ);
 if (!$pdf) { http_response_code(500); die('Nie udało się wygenerować PDF (brak biblioteki mPDF).'); }

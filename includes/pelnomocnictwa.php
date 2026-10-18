@@ -476,6 +476,18 @@ function pelnomocnictwo_document_delete(int $id): void {
 }
 
 /**
+ * Czy użytkownik jest pełnomocnikiem w tym wpisie (powiązane konto albo to samo imię
+ * i nazwisko — jak w pelnomocnictwa_for_user()). Pozwala pełnomocnikowi pobrać skan
+ * i PDF własnego pełnomocnictwa z Panelu współpracownika bez dostępu do rejestru.
+ */
+function pelnomocnictwo_user_is_holder(array $row, array $user): bool {
+    $uid = (int)($user['id'] ?? 0);
+    if ($uid > 0 && (int)($row['pelnomocnik_user_id'] ?? 0) === $uid) return true;
+    $name = trim((string)($user['name'] ?? ''));
+    return $name !== '' && trim((string)($row['pelnomocnik'] ?? '')) === $name;
+}
+
+/**
  * Pełnomocnictwa, w których dana osoba jest pełnomocnikiem — po powiązaniu z kontem
  * (pelnomocnik_user_id) LUB, dla starszych wpisów bez powiązania, po dopasowaniu nazwiska.
  * Do widżetu „Moje pełnomocnictwa" w panelu i widżetu Zastępstwa w EZD.
