@@ -132,6 +132,29 @@ html body #navbar .dropdown-menu .btn{border:2px solid var(--sm-line)!important;
 html body #navbar .dropdown-menu .btn:hover{background:var(--sm-acc)!important;border-color:var(--sm-acc)!important;color:#fff!important}
 html body #navbar .dropdown-menu .btn-link{border:0!important;background:none!important;color:var(--sm-acc-d)!important}
 html body #navbar .dropdown-menu .badge{border-radius:0!important}
+/* Mega-menu zakładki (np. Umowy) — panel Metro: pas akcentu u góry, grupy jak na ekranie Start
+   (lekki tytuł zamiast wersalików), pozycje z ikoną w kwadratowym kaflu, etykiety ŁAMANE
+   zamiast nachodzić na sąsiednią kolumnę; ostatnia kolumna („Obsługa…”) na szarym tle. */
+html body #navbar .dropdown-menu.nb-mega{padding:0;border-top:4px solid var(--sm-acc);max-width:min(1040px,calc(100vw - 1.5rem))}
+html body #navbar .nb-mega-grid{grid-template-columns:repeat(var(--cols,2),minmax(190px,250px));gap:0}
+html body #navbar .nb-mega-col{padding:.85rem 0 .75rem;display:flex;flex-direction:column}
+html body #navbar .nb-mega-col+.nb-mega-col{border-left:1px solid var(--sm-line);padding-left:0}
+html body #navbar .nb-mega-col:last-child:not(:first-child){background:var(--sm-light);border-left-color:var(--sm-light)}
+html body #navbar .nb-mega .nb-section-label{font-size:1.05rem;font-weight:300;letter-spacing:0;text-transform:none;color:var(--sm-dark);
+  padding:0 1rem .55rem;margin:0;white-space:normal;line-height:1.2}
+html body #navbar .nb-mega .nb-section-label::first-letter{text-transform:uppercase}
+html body #navbar .nb-mega .dropdown-item{white-space:normal;line-height:1.25;padding:.4rem 1rem;gap:.65rem;min-height:40px}
+html body #navbar .nb-mega .dropdown-item>i{width:28px;height:28px;flex:0 0 28px;display:inline-flex;align-items:center;justify-content:center;
+  background:var(--sm-acc-50);color:var(--sm-acc-d);font-size:.9rem}
+html body #navbar .nb-mega-col:last-child:not(:first-child) .dropdown-item>i{background:#fff}
+html body #navbar .nb-mega .dropdown-item:hover>i,html body #navbar .nb-mega .dropdown-item:focus>i{background:rgba(255,255,255,.18)}
+html body #navbar .nb-mega .dropdown-item.active>i{background:var(--sm-acc);color:#fff!important}
+html body #navbar .nb-mega .dropdown-item .badge{background:var(--sm-orange)!important;color:#fff!important;font-size:.62rem;padding:.25em .45em}
+html body #navbar .nb-mega .dropdown-item:hover .badge,html body #navbar .nb-mega .dropdown-item:focus .badge{background:#fff!important;color:var(--sm-dark)!important}
+@media (max-width:991.98px){
+  html body #navbar .nb-mega-grid{grid-template-columns:1fr}
+  html body #navbar .nb-mega-col+.nb-mega-col{border-left:0;border-top:1px solid var(--sm-line)}
+}
 /* Menu mobilne (offcanvas) */
 html body #navOffcanvas .oc-link.active{background:var(--sm-acc-50);color:var(--sm-dark);box-shadow:inset 3px 0 0 var(--sm-acc)}
 html body #navOffcanvas .oc-user .avatar{background:var(--sm-acc)}
