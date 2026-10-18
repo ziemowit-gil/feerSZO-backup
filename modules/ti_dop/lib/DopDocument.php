@@ -69,8 +69,8 @@ final class DopDocument
         // ── Nagłówek ──
         $h = '<table class="hdr"><tr><td style="width:60%">' . $logo . '<b style="font-size:11pt">' . self::e($org) . '</b><br><span class="small">' . self::e((string)org_setting('org_adres')) . '</span></td>'
            . '<td style="width:40%;text-align:right">' . ($blankForm ? '...................................., dnia ....................' : self::e(($r['place'] ?: '') . ', dnia ' . $date)) . '<div class="small">miejscowość i data wypełnienia</div></td></tr></table>'
-           . '<div class="title">WNIOSEK ' . self::e($f->value) . ' – ' . self::e(mb_strtoupper($f->title())) . '</div>'
-           . '<div class="num">Numer wniosku (wypełnia biuro): <b>' . ($blankForm ? self::e($f->value) . ' / ______ / ______' : self::e(str_replace('/', ' / ', (string)$r['number']))) . '</b>'
+           . ($f === DopForm::Zpro ? '' : '<div class="title">' . $f->docLabel() . ' ' . self::e($f->value) . ' – ' . self::e(mb_strtoupper($f->title())) . '</div>')
+           . '<div class="num">Numer ' . ($f->isNonFinancial() ? 'dokumentu' : 'wniosku') . ' (wypełnia biuro): <b>' . ($blankForm ? self::e($f->value) . ' / ______ / ______' : self::e(str_replace('/', ' / ', (string)$r['number']))) . '</b>'
            . (!$blankForm ? ' &nbsp;·&nbsp; termin realizacji: do ' . LD_REALIZATION_DAYS . ' dni (' . self::e(ldDate($r['due_on'])) . ')' : '') . '</div>';
         $section = function (string $roman) use ($f, $fields, $val, $chk): string {
             $rows = '';
@@ -80,7 +80,7 @@ final class DopDocument
                     $cell = $val($k) !== '' ? '<b>' . self::e(self::money($val($k))) . '</b><div class="small">słownie: ' . self::e(dopKwotaSlownie((float)$val($k))) . '</div>'
                                             : '___________________ PLN <div class="small">(słownie: ___________________________________)</div>';
                 } else {
-                    $v = match ($type) { 'date' => ldDate($val($k)), 'iban' => self::iban($val($k)), 'select' => (string)($opts[$val($k)] ?? ''), default => $val($k) };
+                    $v = match ($type) { 'date' => ldDate($val($k)), 'iban' => self::iban($val($k)), 'select' => (string)($opts[$val($k)] ?? ''), 'course' => $val('grupa_nazwa'), default => $val($k) };
                     $cell = $type === 'iban' ? '<b>' . self::e($v) . '</b>' : self::orBlank($v, mb_strtolower($label));
                 }
                 $rows .= '<tr>' . $this->fld($label, $cell, ' colspan="2"') . '</tr>';
@@ -92,7 +92,22 @@ final class DopDocument
             return $rows;
         };
         $sections = $f->sections();
-        if ($f === DopForm::Dop1) {
+        $blankLine = fn(string $v, int $n = 40) => $v !== '' ? '<b>' . self::e($v) . '</b>' : str_repeat('.', $n);
+        if ($f === DopForm::Zpro) {
+            // Pismo wg wzoru „Podanie o zmianę prowadzącego zajęcia”
+            $h .= '<table class="t"><tr>' . $this->fld('Do', $blankLine($val('do'), 60), ' colspan="2"') . '</tr><tr>'
+                . $this->fld('Wnioskodawca', $blankLine($val('nazwa'), 60) . ($val('opiekun') !== '' ? '<div class="small">przedstawiciel ustawowy: ' . self::e($val('opiekun')) . '</div>' : '') . ($val('kontakt') !== '' ? '<div class="small">' . self::e($val('kontakt')) . '</div>' : ''), ' colspan="2"') . '</tr></table>'
+                . '<div class="title" style="margin-top:6mm">PODANIE O ZMIANĘ PROWADZĄCEGO ZAJĘCIA</div>'
+                . '<div class="letter" style="font-size:10.5pt;line-height:1.6;margin:4mm 2mm">'
+                . '<p>Zwracam się z uprzejmą prośbą o zmianę osoby prowadzącej zajęcia w grupie ' . $blankLine($val('grupa_nazwa'), 40) . ', obecnie prowadzone przez ' . $blankLine($val('obecny'), 40) . '.</p>'
+                . ($val('proponowany') !== '' || $val('od_dnia') !== '' ? '<p>' . ($val('proponowany') !== '' ? 'Proponuję, aby zajęcia prowadził(a): <b>' . self::e($val('proponowany')) . '</b>. ' : '') . ($val('od_dnia') !== '' ? 'Proszę o zmianę od dnia <b>' . self::e(ldDate($val('od_dnia'))) . '</b>.' : '') . '</p>' : '')
+                . '<p>Prośbę uzasadniam następująco: ' . $blankLine($val('uzasadnienie'), 120) . '.</p>'
+                . '<p>Proszę o rozpatrzenie podania i poinformowanie mnie o podjętej decyzji.</p>'
+                . '<p style="margin-top:6mm">Z poważaniem,</p></div>';
+        } elseif ($f->isResignation()) {
+            $h .= '<table class="t">' . self::sec('I', $sections['I']) . $section('I') . '</table>';
+            $h .= '<table class="t">' . self::sec('II', $sections['II']) . '<tr><td class="pc" colspan="2"><b>' . self::e($f->statement()) . '</b></td></tr>' . $section('II') . '</table>';
+        } elseif ($f === DopForm::Dop1) {
             $h .= '<table class="t">' . self::sec('I', $sections['I']) . $section('I') . '</table>';
             $reason = $val('przyczyna');
             $h .= '<table class="t">' . self::sec('II', $sections['II']) . '<tr><td class="pc" colspan="2">' . self::e($f->statement()) . '</td></tr>'
@@ -111,14 +126,26 @@ final class DopDocument
             $h .= '<table class="t">' . self::sec('IV', $sections['IV']) . $section('IV') . '</table>';
         }
         // Podpis wnioskodawcy
-        $sigRoman = $f === DopForm::Dop1 ? 'IV' : 'V';
+        $sigRoman = $f->isNonFinancial() ? 'III' : ($f === DopForm::Dop1 ? 'IV' : 'V');
         $signed = !empty($r['signed_at']);
         $sigHtml = $signed && $r['sign_mode'] === 'link'
             ? '<b>' . self::e($r['signed_name']) . '</b>' . self::stamp($r['signed_name'], $r['signed_at'], $r['signed_ip'], 'Podpisano elektronicznie przez link')
-            : ($signed ? '<b>podpis odręczny — skan w aktach wniosku</b>' . self::stamp($r['signed_name'], $r['signed_at'], '', 'Skan wgrano') : '<div style="height:14mm"></div><div class="center">...............................................<br><span class="small">(' . ($f === DopForm::Dop1 ? 'Odręczny podpis Wnioskodawcy / Czytelny' : 'Odręczny podpis / Pieczęć imienna') . ')</span></div>');
+            : ($signed ? '<b>podpis odręczny — skan w aktach wniosku</b>' . self::stamp($r['signed_name'], $r['signed_at'], '', 'Skan wgrano') : '<div style="height:14mm"></div><div class="center">...............................................<br><span class="small">(' . ($f->isNonFinancial() ? 'Czytelny podpis uczestnika / przedstawiciela ustawowego' : ($f === DopForm::Dop1 ? 'Odręczny podpis Wnioskodawcy / Czytelny' : 'Odręczny podpis / Pieczęć imienna')) . ')</span></div>');
         $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec($sigRoman, $sections[$sigRoman]) . '<tr><td class="f" colspan="2">' . $sigHtml . '</td></tr></table>';
         // Część wewnętrzna
-        if ($f === DopForm::Dop1) {
+        if ($f->isNonFinancial()) {
+            $v = $st['verify'] ?? []; $ex = $st['execute'] ?? [];
+            $dec = isset($v['grant']);
+            $okL = $f->isResignation() ? 'Rezygnację przyjęto' : 'Wyrażono zgodę na zmianę prowadzącego';
+            $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('IV', $sections['IV'])
+                . '<tr>' . $this->fld('Decyzja', self::box($dec && !empty($v['grant'])) . ' ' . $okL . ' &nbsp;&nbsp; ' . self::box($dec && empty($v['grant'])) . ' Odmowa (powód: ' . ($dec && empty($v['grant']) ? '<b>' . self::e($v['powod'] ?? '') . '</b>' : '_________________________') . ')'
+                    . ($dec && !empty($v['grant']) && ($v['powod'] ?? '') !== '' ? '<div class="small">' . self::e($v['powod']) . '</div>' : ''), ' colspan="2"', true) . '</tr>'
+                . '<tr>' . $this->fld('Data i podpis kierownika', $dec ? self::e($v['name'] ?? '') . self::stamp($v['name'] ?? '', $v['at'] ?? '', $v['ip'] ?? '', 'Zatwierdzono elektronicznie') : '', ' style="height:12mm"', true)
+                . $this->fld($f->isResignation() ? 'Zapis zakończono z dniem' : 'Zmiana wprowadzona od dnia / nowa osoba prowadząca',
+                    $ex ? ($f->isResignation() ? '<b>' . self::e(ldDate($ex['data_zakonczenia'] ?? '')) . '</b>' . (!empty($ex['zapisy']) ? '<div class="small">' . self::e(implode(', ', $ex['zapisy'])) . '</div>' : '')
+                                               : '<b>' . self::e(ldDate($ex['data_zmiany'] ?? '')) . '</b>' . (($ex['nowy'] ?? '') !== '' ? ' — ' . self::e($ex['nowy']) : ''))
+                        . self::stamp($ex['name'] ?? '', $ex['at'] ?? '', $ex['ip'] ?? '', 'Zarejestrował(a)') : '', '', true) . '</tr></table>';
+        } elseif ($f === DopForm::Dop1) {
             $v = $st['verify'] ?? [];
             $ex = $st['execute'] ?? [];
             $dec = isset($v['grant']);

@@ -126,6 +126,12 @@ final class DopService
             return ['nazwa' => $c['name'], 'nr_klienta' => 'uczestnik #' . $c['id'], 'adres' => $c['address'], 'kontakt' => $kontakt,
                     'kwota' => $c['credit'] > 0 ? number_format($c['credit'], 2, '.', '') : '', 'wlasciciel' => $c['name'], 'przyczyna' => 'podwojna'];
         }
+        if ($f->isNonFinancial()) {
+            $g = '';
+            try { $g = (string)(db_one("SELECT guardian_name FROM k30_ti_student_accounts WHERE client_id = ? ORDER BY id LIMIT 1", [$c['id']])['guardian_name'] ?? ''); } catch (\Throwable $e) {}
+            $base = ['nazwa' => $c['name'], 'adres' => $c['address'], 'kontakt' => $kontakt, 'opiekun' => $g];
+            return $f === DopForm::Zpro ? $base + ['do' => 'Kierownik zajęć — ' . ldOrgName()] : $base + ['zakres' => 'grupa', 'data_rezygnacji' => ldToday()];
+        }
         $lp = $c['last_payment'];
         return ['wnioskodawca' => (string)$actor['name'], 'subkonto' => $c['nrb'] !== '' ? $c['nrb'] : 'uczestnik #' . $c['id'], 'beneficjent' => $c['name'],
                 'przedplata_kwota' => $lp ? number_format((float)$lp['amount'], 2, '.', '') : '', 'przedplata_data' => $lp ? substr((string)$lp['paid_at'], 0, 10) : '',
@@ -151,12 +157,15 @@ final class DopService
                 $v = 'PL' . preg_replace('/^PL/', '', $n);
             }
             if ($type === 'select' && $v !== '' && !isset($opts[$v])) { $err[$k] = $label . ': nieprawidłowa wartość.'; continue; }
+            if ($type === 'course' && $v !== '' && !ctype_digit($v)) { $err[$k] = $label . ': wybierz z listy.'; continue; }
+            if ($type === 'course' && $v === '0') $v = '';
             if ($req && $v === '') { $err[$k] = $type === 'check' ? 'Zaznacz: ' . $label . '.' : $label . ': pole wymagane.'; continue; }
             $data[$k] = $v;
         }
         if ($f === DopForm::Dop1 && ($data['przyczyna'] ?? '') === 'inne' && ($data['przyczyna_inna'] ?? '') === '') $err['przyczyna_inna'] = 'Podaj inną przyczynę nadpłaty.';
         if ($f === DopForm::Dop2 && ($data['kwota'] ?? '') !== '' && ($data['przedplata_kwota'] ?? '') !== '' && (float)$data['kwota'] > (float)$data['przedplata_kwota'])
             $err['kwota'] = 'Kwota do uruchomienia nie może przekraczać wniesionej przedpłaty.';
+        if ($f->isResignation() && ($data['zakres'] ?? '') === 'grupa' && ($data['grupa'] ?? '') === '' && !isset($err['grupa'])) $err['grupa'] = 'Wybierz grupę, z której uczestnik rezygnuje.';
         return [$data, $err];
     }
 
@@ -170,9 +179,17 @@ final class DopService
         [$data, $err] = self::validate($f, $in);
         $place = LdInput::str($in, 'place', 120);
         if ($place === '') $err['place'] = 'Podaj miejscowość wypełnienia.';
-        $signMode = $signMode === 'paper' ? 'paper' : 'link';
+        $signMode = $f->forcedSignMode() ?? ($signMode === 'paper' ? 'paper' : 'link');
         if ($signMode === 'link' && filter_var($c['email'], FILTER_VALIDATE_EMAIL) === false && strlen(preg_replace('/\D/', '', $c['phone'])) < 9)
-            $err['sign_mode'] = 'Uczestnik nie ma e-maila ani telefonu — wybierz wersję papierową (skan podpisanego wniosku).';
+            $err['sign_mode'] = $f === DopForm::Rez1 ? 'Uczestnik nie ma e-maila ani telefonu — ePodpis niemożliwy; użyj REZ2 (prośba odręczna ze skanem).' : 'Uczestnik nie ma e-maila ani telefonu — wybierz wersję papierową (skan podpisanego wniosku).';
+        if (($data['grupa'] ?? '') !== '') {
+            $g = db_one("SELECT c.id, c.name, c.group_code, u.name AS instructor FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id = e.course_id LEFT JOIN users u ON u.id = c.instructor_id WHERE e.client_id = ? AND c.id = ? LIMIT 1", [$clientId, (int)$data['grupa']]);
+            if (!$g) $err['grupa'] = 'Uczestnik nie jest zapisany do tej grupy.';
+            else {
+                $data['grupa_nazwa'] = trim($g['name'] . (trim((string)$g['group_code']) !== '' ? ' (' . $g['group_code'] . ')' : ''));
+                if ($f === DopForm::Zpro && ($data['obecny'] ?? '') === '') $data['obecny'] = (string)$g['instructor'];
+            }
+        }
         if ($err) return ['id' => 0, 'errors' => $err, 'report' => []];
         $now = ldNow(); $year = date('Y');
         for ($try = 0; ; $try++) {
@@ -223,11 +240,17 @@ final class DopService
         $link = self::signUrl($token);
         $f = $r['formEnum'];
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Podpisz wniosek ' . $f->value . ' — ' . $f->title() . ' (' . $r['number'] . ')';
-        $body = '<p>Dzień dobry,</p><p><b>' . $e($r['created_name']) . '</b> przygotował(a) wniosek <b>' . $e($f->value . ' — ' . $f->title()) . '</b> dotyczący konta uczestnika <b>'
-            . $e($r['client_name']) . '</b> na kwotę <b>' . $e(number_format((float)($r['d']['kwota'] ?? 0), 2, ',', ' ')) . ' zł</b>.</p>'
-            . '<p>Sprawdź dane i <b>podpisz wniosek elektronicznie</b>. Numer wniosku: <b>' . $e($r['number']) . '</b>. Realizacja do ' . LD_REALIZATION_DAYS . ' dni (do ' . $e(ldDate($r['due_on'])) . ').</p>';
-        $sms = 'FEER: podpisz wniosek ' . $f->value . ' (' . ($f === DopForm::Dop1 ? 'zwrot nadplaty' : 'platnosc z subkonta') . ', ' . $r['number'] . ') do ' . ldDate($r['due_on']) . ': ' . $link;
+        $doc = mb_strtolower($f->docLabel() === 'WNIOSEK' ? 'wniosek' : $f->docLabel());
+        $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Podpisz ' . $doc . ' ' . $f->value . ' — ' . $f->title() . ' (' . $r['number'] . ')';
+        $what = match (true) {
+            $f->isResignation() => ' — rezygnacja z dniem <b>' . $e(ldDate((string)($r['d']['data_rezygnacji'] ?? ''))) . '</b>' . (($r['d']['grupa_nazwa'] ?? '') !== '' && ($r['d']['zakres'] ?? '') === 'grupa' ? ', grupa: <b>' . $e($r['d']['grupa_nazwa']) . '</b>' : ', wszystkie zajęcia i usługi'),
+            $f === DopForm::Zpro => ' — zmiana prowadzącego w grupie <b>' . $e($r['d']['grupa_nazwa'] ?? '') . '</b>',
+            default => ' na kwotę <b>' . $e(number_format((float)($r['d']['kwota'] ?? 0), 2, ',', ' ')) . ' zł</b>',
+        };
+        $body = '<p>Dzień dobry,</p><p><b>' . $e($r['created_name']) . '</b> przygotował(a) dokument <b>' . $e($f->value . ' — ' . $f->title()) . '</b> dotyczący uczestnika <b>'
+            . $e($r['client_name']) . '</b>' . $what . '.</p>'
+            . '<p>Sprawdź dane i <b>podpisz dokument elektronicznie</b> (ePodpis: imię i nazwisko, data, godzina i adres IP). Numer: <b>' . $e($r['number']) . '</b>. Realizacja do ' . LD_REALIZATION_DAYS . ' dni (do ' . $e(ldDate($r['due_on'])) . ').</p>';
+        $sms = 'FEER: podpisz ' . $f->value . ' (' . match ($f) { DopForm::Dop1 => 'zwrot nadplaty', DopForm::Dop2 => 'platnosc z subkonta', DopForm::Rez1 => 'oswiadczenie o rezygnacji', DopForm::Rez2 => 'prosba o rezygnacje', DopForm::Zpro => 'zmiana prowadzacego' } . ', ' . $r['number'] . ') do ' . ldDate($r['due_on']) . ': ' . $link;
         $res = $this->notify->send($reminder ? LicenseNotificationType::Reminder : LicenseNotificationType::RequestStarted, $this->contact($r), $subject,
             LicenseNotificationService::layout($f->title(), $body, $link, 'Sprawdź i podpisz wniosek', $f->value), $sms, ['type' => 'dop', 'id' => $id], $actor);
         $d = $this->describe($res);
@@ -288,7 +311,7 @@ final class DopService
     private function alertVerify(array $r, array $actor): void
     {
         $this->notify->alertOffice($r['form'] . ' do weryfikacji — ' . $r['number'], '<p>Wniosek <b>' . htmlspecialchars($r['formEnum']->title()) . '</b> uczestnika <b>' . htmlspecialchars((string)$r['client_name'])
-            . '</b> (' . htmlspecialchars(number_format((float)($r['d']['kwota'] ?? 0), 2, ',', ' ')) . ' zł) czeka na weryfikację w panelu dydaktyka › Finanse › Wnioski DOP. Termin: ' . htmlspecialchars(ldDate($r['due_on'])) . '.</p>',
+            . '</b> (' . htmlspecialchars($r['formEnum']->isNonFinancial() ? ($r['d']['grupa_nazwa'] ?? '') ?: 'wszystkie zajęcia' : number_format((float)($r['d']['kwota'] ?? 0), 2, ',', ' ') . ' zł') . ') czeka na weryfikację w panelu dydaktyka › Finanse › Wnioski DOP. Termin: ' . htmlspecialchars(ldDate($r['due_on'])) . '.</p>',
             ['type' => 'dop', 'id' => (int)$r['id']], $actor, LicenseNotificationType::DeclarationAdmin);
     }
 
@@ -313,6 +336,15 @@ final class DopService
         $c = self::client((int)$r['client_id']);
         $kwota = (float)($r['d']['kwota'] ?? 0);
         $grant = ($in['decision'] ?? '') === 'grant';
+        if ($r['formEnum']->isNonFinancial()) {
+            if (!self::canApprove((int)$actor['id'])) throw new DomainException('Decyzję podejmuje kierownik (rola „kierownik” panelu TI) albo administrator.');
+            $powod = LdInput::str($in, 'powod', 500);
+            if (!$grant && $powod === '') return ['powod' => 'Podaj powód odmowy.'];
+            $this->saveStep($id, 'verify', ['grant' => $grant, 'powod' => $powod], $actor, $grant ? DopStatus::Execute : DopStatus::Rejected);
+            $this->event($id, $grant ? 'verify.grant' : 'verify.reject', $grant ? ($r['formEnum']->isResignation() ? 'Przyjęto rezygnację.' : 'Wyrażono zgodę na zmianę prowadzącego.') . ($powod !== '' ? ' ' . $powod : '') : 'Odmowa: ' . $powod, $actor);
+            if (!$grant) $this->sendDocument($id, $actor, $r['formEnum']->isResignation() ? 'Rezygnacja nieprzyjęta' : 'Podanie rozpatrzone odmownie');
+            return [];
+        }
         if ($r['formEnum'] === DopForm::Dop1) {
             if (!self::canApprove((int)$actor['id'])) throw new DomainException('Decyzję o zwrocie nadpłaty podejmuje kierownik (rola „kierownik” panelu TI) albo administrator.');
             $zg = LdInput::str($in, 'zgodnosc', 10);
@@ -349,10 +381,11 @@ final class DopService
     }
 
     /** Krok końcowy: realizacja przelewu (data, nr transakcji) — wpis w księdze i dokument do wnioskodawcy + teczka kursanta. */
-    public function execute(int $id, string $date, string $txId, array $actor): string
+    public function execute(int $id, string $date, string $txId, array $actor, array $in = []): string
     {
         $r = $this->get($id);
         if (!$r || $r['statusEnum'] !== DopStatus::Execute) throw new DomainException('Wniosek nie czeka na realizację.');
+        if ($r['formEnum']->isNonFinancial()) return $this->executeChange($r, $date, $actor, $in);
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) throw new InvalidArgumentException('Podaj datę wykonania przelewu.');
         if (trim($txId) === '') throw new InvalidArgumentException('Podaj numer transakcji / identyfikator wyciągu.');
         $cid = (int)$r['client_id'];
@@ -388,6 +421,41 @@ final class DopService
         $d = $this->sendDocument($id, $actor, 'Wniosek zrealizowany');
         $f = $this->archive($id, $actor);
         return 'Zrealizowano. Dokument: ' . $d . '. Teczka kursanta: ' . $f . '.';
+    }
+
+    /** REZ1/REZ2: zakończenie zapisu (grupa albo wszystkie) z dniem; ZPRO: odnotowanie zmiany, opcjonalnie nowy prowadzący grupy. */
+    private function executeChange(array $r, string $date, array $actor, array $in): string
+    {
+        $id = (int)$r['id']; $cid = (int)$r['client_id']; $d = $r['d'];
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) throw new InvalidArgumentException('Podaj datę.');
+        $out = [];
+        if ($r['formEnum']->isResignation()) {
+            $w = ($d['zakres'] ?? '') === 'grupa' && ($d['grupa'] ?? '') !== '' ? ' AND course_id = ' . (int)$d['grupa'] : '';
+            $rows = db_all("SELECT e.id, c.name FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id = e.course_id WHERE e.client_id = ? AND e.status = 'active'" . $w, [$cid]);
+            foreach ($rows as $e) {
+                k30_ti_unenroll_execute((int)$e['id'], $cid, $r['number'] . ' — ' . $r['formEnum']->title() . ' z dniem ' . ldDate($date) . (($d['przyczyna'] ?? '') !== '' ? ' (' . $d['przyczyna'] . ')' : ''), (int)$actor['id'] ?: null, null);
+                db_exec("UPDATE k30_ti_enrollments SET end_date = ? WHERE id = ? AND (end_date IS NULL OR end_date = '' OR end_date > ?)", [$date, (int)$e['id'], $date]);
+                $out[] = (string)$e['name'];
+            }
+            $this->saveStep($id, 'execute', ['data_zakonczenia' => $date, 'zapisy' => $out], $actor, DopStatus::Done);
+            $this->event($id, 'execute', 'Zakończono zapis z dniem ' . ldDate($date) . ': ' . ($out ? implode(', ', $out) : 'brak aktywnych zapisów') . '.', $actor);
+            $what = 'Rezygnacja przyjęta';
+        } else {
+            $uid = (int)($in['nowy_prowadzacy'] ?? 0);
+            $nu = $uid ? db_one("SELECT id, name FROM users WHERE id = ? AND is_active = 1", [$uid]) : null;
+            $apply = $nu && !empty($in['ustaw_w_grupie']) && (int)($d['grupa'] ?? 0) > 0;
+            if ($apply) {
+                $old = db_one("SELECT instructor_id FROM k30_ti_courses WHERE id = ?", [(int)$d['grupa']]);
+                db_exec("UPDATE k30_ti_courses SET instructor_id = ? WHERE id = ?", [$uid, (int)$d['grupa']]);
+                if (function_exists('audit_log')) audit_log('ti_dop.zpro_instructor', ['course_id' => (int)$d['grupa'], 'from' => $old['instructor_id'] ?? null, 'to' => $uid, 'doc' => $r['number']], (int)$actor['id'] ?: null);
+            }
+            $this->saveStep($id, 'execute', ['data_zmiany' => $date, 'nowy' => $nu['name'] ?? LdInput::str($in, 'nowy_opis', 160), 'w_systemie' => $apply], $actor, DopStatus::Done);
+            $this->event($id, 'execute', 'Zmiana prowadzącego od ' . ldDate($date) . ': ' . (($nu['name'] ?? '') ?: LdInput::str($in, 'nowy_opis', 160) ?: '—') . ($apply ? ' (ustawiono w grupie)' : '') . '.', $actor);
+            $what = 'Zmiana prowadzącego wprowadzona';
+        }
+        $doc = $this->sendDocument($id, $actor, $what);
+        $f = $this->archive($id, $actor);
+        return $what . '. Dokument: ' . $doc . '. Teczka kursanta: ' . $f . '.';
     }
 
     public function cancel(int $id, string $reason, array $actor): void
@@ -448,7 +516,7 @@ final class DopService
         $steps = $r['stepsData'];
         $why = (string)($steps['verify']['powod'] ?? '') ?: (string)($steps['approve']['uwagi'] ?? '');
         $body = '<p>Dzień dobry,</p><p>wniosek <b>' . $e($r['number']) . '</b> (' . $e($f->title()) . '): <b>' . $e(mb_strtolower($what)) . '</b>.'
-            . ($r['statusEnum'] === DopStatus::Done ? ' Przelew ' . $e(number_format((float)$r['d']['kwota'], 2, ',', ' ')) . ' zł wykonano ' . $e(ldDate($steps['execute']['data_przelewu'] ?? '')) . '.' : '')
+            . ($r['statusEnum'] === DopStatus::Done && !$f->isNonFinancial() ? ' Przelew ' . $e(number_format((float)$r['d']['kwota'], 2, ',', ' ')) . ' zł wykonano ' . $e(ldDate($steps['execute']['data_przelewu'] ?? '')) . '.' : '')
             . ($r['statusEnum'] === DopStatus::Rejected && $why !== '' ? ' Powód: ' . $e($why) . '.' : '') . '</p>'
             . ($att ? '<p>Wniosek z adnotacjami jest w załączniku (PDF).</p>' : '<p><i>Dokument doręczymy osobno.</i></p>');
         $res = $this->notify->send(LicenseNotificationType::DecisionInterested, $this->contact($r), $f->value . ' — ' . $what . ' — ' . $r['number'],

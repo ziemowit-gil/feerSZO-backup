@@ -71,6 +71,9 @@ final class DopController
         settleMigrate(); dop5Migrate(); ropMigrate();
         $c = ['dop1' => $cnt("SELECT COUNT(*) c FROM dop_requests WHERE form='DOP1' AND status IN ('signing','verify','approve','execute')"),
               'dop2' => $cnt("SELECT COUNT(*) c FROM dop_requests WHERE form='DOP2' AND status IN ('signing','verify','approve','execute')"),
+              'rez1' => $cnt("SELECT COUNT(*) c FROM dop_requests WHERE form='REZ1' AND status IN ('signing','verify','execute')"),
+              'rez2' => $cnt("SELECT COUNT(*) c FROM dop_requests WHERE form='REZ2' AND status IN ('signing','verify','execute')"),
+              'zpro' => $cnt("SELECT COUNT(*) c FROM dop_requests WHERE form='ZPRO' AND status IN ('signing','verify','execute')"),
               'dop5' => $cnt("SELECT COUNT(*) c FROM dop5_statements WHERE status='signing'"),
               'rop'  => $cnt("SELECT COUNT(*) c FROM rop_statements WHERE issued_at >= ?", [date('Y-m-d', strtotime('-30 days'))])];
         foreach (SettleKind::cases() as $k) $c[$k->value] = $cnt("SELECT COUNT(*) c FROM settlement_docs WHERE kind = ? AND status = 'pending'", [$k->value]);
@@ -87,7 +90,7 @@ final class DopController
         $form = DopForm::tryFrom((string)($_GET['form'] ?? $_POST['form'] ?? '')) ?? DopForm::Dop1;
         $cid = (int)($_GET['klient'] ?? $_POST['klient'] ?? 0);
         $c = $cid ? DopService::client($cid) : null;
-        return $this->view('form.php', ['form' => $form, 'c' => $c, 'clients' => $c ? [] : DopService::clients((string)($_GET['q'] ?? '')), 'q' => (string)($_GET['q'] ?? ''),
+        return $this->view('form.php', ['form' => $form, 'courses' => $c ? SettlementDocs::courses($cid) : [], 'c' => $c, 'clients' => $c ? [] : DopService::clients((string)($_GET['q'] ?? '')), 'q' => (string)($_GET['q'] ?? ''),
             'errors' => $errors, 'old' => $old ?? ($c ? DopService::defaults($form, $c, $this->actor()) + ['place' => (string)(org_setting('org_miasto') ?: ''), 'sign_mode' => 'link'] : [])]);
     }
 
@@ -106,6 +109,7 @@ final class DopController
     {
         $r = $this->req($id);
         return $this->view('show.php', ['r' => $r, 'c' => DopService::client((int)$r['client_id']), 'events' => $this->svc->events($id),
+            'instructors' => $r['form'] === 'ZPRO' ? db_all("SELECT DISTINCT u.id, u.name FROM users u WHERE u.is_active = 1 AND (u.id IN (SELECT instructor_id FROM k30_ti_courses WHERE instructor_id IS NOT NULL) OR u.id IN (SELECT user_id FROM k30_ti_panel_roles)) ORDER BY u.name") : [],
             'notifs' => db_all("SELECT * FROM notification_logs WHERE module = 'ti_dop' AND ref_type = 'dop' AND ref_id = ? ORDER BY id DESC", [$id])]);
     }
 
@@ -162,7 +166,7 @@ final class DopController
 
     public function execute(int $id): ?string
     {
-        try { flash_set('success', $this->svc->execute($id, (string)($_POST['data_przelewu'] ?? ''), (string)($_POST['transakcja'] ?? ''), $this->actor())); }
+        try { flash_set('success', $this->svc->execute($id, (string)($_POST['data_przelewu'] ?? ''), (string)($_POST['transakcja'] ?? ''), $this->actor(), $_POST)); }
         catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id]) . '#obsluga'); }
         return Router::redirect(route('dop.show', ['id' => $id]));
     }

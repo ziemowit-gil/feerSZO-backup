@@ -12,13 +12,14 @@ include dirname(__DIR__, 3) . '/ti_licencje_dydaktyczne/view/public/_top.php';
 <?php if ($errors): ?><div class="tw-bg-m-red tw-text-white tw-p-4 tw-mb-4" role="alert" tabindex="-1" id="bledy"><p class="tw-font-semibold">Popraw zaznaczone pola.</p></div><script>document.getElementById('bledy').focus();</script><?php endif; ?>
 <section class="tw-grid tw-grid-cols-2 md:tw-grid-cols-4 tw-gap-2 tw-mb-4">
   <div class="tw-bg-m-cyan tw-text-white tw-p-4 tw-col-span-2"><div class="tw-text-xs tw-uppercase tw-opacity-80">Numer wniosku</div><div class="tw-text-lg tw-font-semibold"><?= h($r['number']) ?></div></div>
-  <div class="tw-bg-m-cobalt tw-text-white tw-p-4"><div class="tw-text-xs tw-uppercase tw-opacity-80">Kwota</div><div class="tw-font-semibold"><?= h(number_format((float)($r['d']['kwota'] ?? 0), 2, ',', ' ')) ?> zł</div></div>
+  <?php if ($f->isNonFinancial()): ?><div class="tw-bg-m-cobalt tw-text-white tw-p-4"><div class="tw-text-xs tw-uppercase tw-opacity-80"><?= $f->isResignation() ? 'Rezygnacja z dniem' : 'Grupa' ?></div><div class="tw-font-semibold"><?= h($f->isResignation() ? ldDate((string)($r['d']['data_rezygnacji'] ?? '')) : (string)($r['d']['grupa_nazwa'] ?? '')) ?></div></div>
+  <?php else: ?><div class="tw-bg-m-cobalt tw-text-white tw-p-4"><div class="tw-text-xs tw-uppercase tw-opacity-80">Kwota</div><div class="tw-font-semibold"><?= h(number_format((float)($r['d']['kwota'] ?? 0), 2, ',', ' ')) ?> zł</div></div><?php endif; ?>
   <div class="tw-bg-m-amber tw-text-m-dark tw-p-4"><div class="tw-text-xs tw-uppercase">Realizacja do</div><div class="tw-font-semibold"><?= h(ldDate($r['due_on'])) ?></div></div>
 </section>
 <section class="m-tile">
   <h2 class="m-head"><?= h($f->statement()) ?></h2>
   <dl class="m-kv tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
-    <?php foreach ($f->fields() as $k => [$label, $type, , $opts]): $vv = (string)($r['d'][$k] ?? ''); if ($type === 'check') { if ($vv === '') continue; $vv = 'tak'; } elseif ($type === 'money' && $vv !== '') $vv = number_format((float)$vv, 2, ',', ' ') . ' zł (słownie: ' . dopKwotaSlownie((float)$vv) . ')'; elseif ($type === 'date') $vv = ldDate($vv); elseif ($type === 'select') $vv = (string)($opts[$vv] ?? $vv); if ($vv === '') continue; ?>
+    <?php foreach ($f->fields() as $k => [$label, $type, , $opts]): $vv = (string)($r['d'][$k] ?? ''); if ($type === 'check') { if ($vv === '') continue; $vv = 'tak'; } elseif ($type === 'money' && $vv !== '') $vv = number_format((float)$vv, 2, ',', ' ') . ' zł (słownie: ' . dopKwotaSlownie((float)$vv) . ')'; elseif ($type === 'date') $vv = ldDate($vv); elseif ($type === 'select') $vv = (string)($opts[$vv] ?? $vv); elseif ($type === 'course') $vv = (string)($r['d']['grupa_nazwa'] ?? ''); if ($vv === '') continue; ?>
       <div><dt><?= h($label) ?></dt><dd><?= h($vv) ?></dd></div>
     <?php endforeach; ?>
   </dl>
@@ -31,6 +32,6 @@ include dirname(__DIR__, 3) . '/ti_licencje_dydaktyczne/view/public/_top.php';
     <label class="m-check tw-mt-4"><input type="checkbox" name="confirm" value="1"<?= !empty($old['confirm']) ? ' checked' : '' ?><?= $aria('confirm') ?>>
       <span>Potwierdzam dane wniosku i składam go. Zapis elektroniczny (data, godzina, adres IP) zastępuje podpis odręczny.</span></label><?= $err('confirm') ?>
   </fieldset>
-  <button type="submit" class="m-btn">Podpisuję i składam wniosek</button>
+  <button type="submit" class="m-btn"><?= $f->isNonFinancial() ? 'Podpisuję i składam ' . h(mb_strtolower($f->docLabel())) : 'Podpisuję i składam wniosek' ?></button>
 </form>
 <?php include dirname(__DIR__, 3) . '/ti_licencje_dydaktyczne/view/public/_bottom.php'; ?>

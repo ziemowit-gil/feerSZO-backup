@@ -200,6 +200,7 @@ final class LicenseNotificationService
             $symbol === 'AM7' => 'Licencje do oprogramowania (AM7)',
             $symbol === 'AMZ' => 'Zestawienie licencji i usług (AMZ)',
             (bool)preg_match('/^AM\d/', $symbol) => 'Operacje na licencjach (' . $symbol . ')',
+            in_array($symbol, ['REZ1', 'REZ2', 'ZPRO'], true) => 'Dokumenty uczestnika (' . $symbol . ')',
             default => 'Dokumenty rozliczeniowe uczestnika' . ($symbol !== '' && $symbol !== 'SZO' ? ' (' . $symbol . ')' : ''),
         };
     }

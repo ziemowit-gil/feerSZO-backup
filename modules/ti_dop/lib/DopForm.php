@@ -10,25 +10,60 @@ declare(strict_types=1);
  *   DOP2 — Uruchomienie płatności z subkonta na podstawie przedpłaty: wnioskodawca / subkonto / beneficjent, dane przedpłaty,
  *          dyspozycja (kwota, tytuł, odbiorca, rachunek, termin), załączniki → 1. weryfikacja środków (saldo subkonta)
  *          → 2. zatwierdzenie kierownika → 3. realizacja przelewu (wpis ujemny w księdze uczestnika, source_type dop2_payout).
- * Numer wniosku: DOP1/{6 cyfr}/{rok}, DOP2/{6 cyfr}/{rok} (licznik osobny dla każdego wzoru).
+ *   REZ1 — Oświadczenie o rezygnacji: podpis elektroniczny przez link (ePodpis: e-mail + SMS) → przyjęcie przez kierownika
+ *          → zakończenie zapisu (grupa albo wszystkie) z dniem rezygnacji.
+ *   REZ2 — Prośba o rezygnację z dniem: dokument odręczny (wydruk, podpis, skan) → przyjęcie → zakończenie zapisu.
+ *   ZPRO — Podanie o zmianę prowadzącego zajęcia: podpis (link albo odręczny) → decyzja kierownika → wprowadzenie zmiany
+ *          (opcjonalnie nowy prowadzący grupy w systemie).
+ * Numer wniosku: DOP1/{6 cyfr}/{rok}, DOP2/{6 cyfr}/{rok}, REZ1/…, REZ2/… (licznik osobny dla każdego wzoru).
  * Wersja papierowa (podpis odręczny, skan) albo cyfrowa (potwierdzenie przez link e-mail + SMS — imię i nazwisko, czas, IP).
  */
 enum DopForm: string
 {
     case Dop1 = 'DOP1';
     case Dop2 = 'DOP2';
+    case Rez1 = 'REZ1';
+    case Rez2 = 'REZ2';
+    case Zpro = 'ZPRO';
 
     public function title(): string
     {
         return match ($this) {
             self::Dop1 => 'Zwrot nadpłaty',
             self::Dop2 => 'Uruchomienie płatności z subkonta (na podstawie przedpłaty)',
+            self::Rez1 => 'Oświadczenie o rezygnacji',
+            self::Rez2 => 'Prośba o rezygnację z dniem',
+            self::Zpro => 'Podanie o zmianę prowadzącego zajęcia',
         };
     }
 
     public function color(): string
     {
-        return $this === self::Dop1 ? '#00aba9' : '#6a00ff';
+        return match ($this) { self::Dop1 => '#00aba9', self::Dop2 => '#6a00ff', self::Rez1 => '#a20025', self::Rez2 => '#d80073', self::Zpro => '#fa6800' };
+    }
+
+    /** Rezygnacja (REZ1/REZ2) — bez kwot i przelewów; realizacja = zakończenie zapisu. */
+    public function isResignation(): bool
+    {
+        return $this === self::Rez1 || $this === self::Rez2;
+    }
+
+    /** Dokument bez kwot i przelewów (REZ1, REZ2, ZPRO): krok „verify” = decyzja kierownika, „execute” = zmiana w systemie. */
+    public function isNonFinancial(): bool
+    {
+        return $this->isResignation() || $this === self::Zpro;
+    }
+
+    /** Sposób podpisu narzucony przez wzór: REZ1 — elektronicznie (link), REZ2 — odręcznie (skan); DOP — do wyboru. */
+    public function forcedSignMode(): ?string
+    {
+        return match ($this) { self::Rez1 => 'link', self::Rez2 => 'paper', default => null };
+    }
+
+    /** Nazwa dokumentu w nagłówku wydruku. */
+    public function docLabel(): string
+    {
+        return match ($this) { self::Rez1 => 'OŚWIADCZENIE', self::Rez2 => 'PROŚBA', self::Zpro => 'PODANIE', default => 'WNIOSEK' };
     }
 
     /** Kroki obsługi po złożeniu: kod => [nazwa, czy wymaga roli kierownika]. */
@@ -37,14 +72,20 @@ enum DopForm: string
         return match ($this) {
             self::Dop1 => ['verify' => ['Weryfikacja i decyzja działu finansowo-księgowego', true], 'execute' => ['Realizacja przelewu', false]],
             self::Dop2 => ['verify' => ['Weryfikacja dostępności środków na subkoncie', false], 'approve' => ['Zatwierdzenie dyrektora / kierownika', true], 'execute' => ['Realizacja płatności (dział finansowy)', false]],
+            self::Rez1, self::Rez2 => ['verify' => ['Przyjęcie rezygnacji', true], 'execute' => ['Zakończenie zapisu w systemie', false]],
+            self::Zpro => ['verify' => ['Decyzja kierownika', true], 'execute' => ['Wprowadzenie zmiany prowadzącego', false]],
         };
     }
 
     public function statement(): string
     {
-        return $this === self::Dop1
-            ? 'Zwracam się z prośbą o zwrot powstałej nadpłaty na moim koncie rozrachunkowym.'
-            : 'Wnoszę o uruchomienie i przekazanie środków z wyżej wymienionego subkonta.';
+        return match ($this) {
+            self::Dop1 => 'Zwracam się z prośbą o zwrot powstałej nadpłaty na moim koncie rozrachunkowym.',
+            self::Dop2 => 'Wnoszę o uruchomienie i przekazanie środków z wyżej wymienionego subkonta.',
+            self::Rez1 => 'Oświadczam, że rezygnuję z udziału w zajęciach / usługach wskazanych poniżej z dniem podanym w niniejszym oświadczeniu.',
+            self::Rez2 => 'Zwracam się z prośbą o przyjęcie mojej rezygnacji z udziału w zajęciach / usługach wskazanych poniżej z dniem podanym w niniejszej prośbie.',
+            self::Zpro => 'Zwracam się z uprzejmą prośbą o zmianę osoby prowadzącej zajęcia w grupie wskazanej poniżej.',
+        };
     }
 
     /** Pola wniosku: kod => [etykieta, typ, wymagane, opcje|null, sekcja]. */
@@ -83,6 +124,29 @@ enum DopForm: string
                 'zal_wplyw'   => ['Potwierdzenie wpływu przedpłaty na subkonto', 'check', false, null, 'IV'],
                 'zal_zgoda'   => ['Zgoda / upoważnienie do dysponowania subkontem', 'check', false, null, 'IV'],
             ],
+            self::Rez1, self::Rez2 => [
+                'nazwa'       => ['Imię i nazwisko uczestnika', 'text', true, null, 'I'],
+                'pesel'       => ['PESEL', 'text', false, null, 'I'],
+                'adres'       => ['Adres zamieszkania', 'text', false, null, 'I'],
+                'kontakt'     => ['Telefon / e-mail do kontaktu', 'text', false, null, 'I'],
+                'opiekun'     => ['Przedstawiciel ustawowy (uczestnik niepełnoletni)', 'text', false, null, 'I'],
+                'zakres'      => ['Zakres rezygnacji', 'select', true, ['grupa' => 'z udziału w zajęciach wskazanej grupy', 'wszystkie' => 'ze wszystkich zajęć i usług w Fundacji'], 'II'],
+                'grupa'       => ['Grupa / kurs', 'course', false, null, 'II'],
+                'data_rezygnacji' => [$this === self::Rez1 ? 'Rezygnuję z dniem' : 'Proszę o przyjęcie rezygnacji z dniem', 'date', true, null, 'II'],
+                'przyczyna'   => ['Przyczyna rezygnacji (nieobowiązkowo)', 'text', false, null, 'II'],
+                'rozliczenie' => ['Przyjmuję do wiadomości, że zajęcia zrealizowane do dnia rezygnacji podlegają rozliczeniu zgodnie z umową, a ewentualna nadpłata zostanie zwrócona na wniosek o zwrot nadpłaty (DOP1)', 'check', true, null, 'II'],
+            ],
+            self::Zpro => [
+                'do'          => ['Do (adresat)', 'text', true, null, 'I'],
+                'nazwa'       => ['Wnioskodawca — imię i nazwisko', 'text', true, null, 'I'],
+                'kontakt'     => ['Telefon / e-mail do kontaktu', 'text', false, null, 'I'],
+                'opiekun'     => ['Przedstawiciel ustawowy (uczestnik niepełnoletni)', 'text', false, null, 'I'],
+                'grupa'       => ['Grupa', 'course', true, null, 'II'],
+                'obecny'      => ['Zajęcia obecnie prowadzone przez', 'text', false, null, 'II'],
+                'proponowany' => ['Proponowana osoba prowadząca (nieobowiązkowo)', 'text', false, null, 'II'],
+                'od_dnia'     => ['Zmiana od dnia (nieobowiązkowo)', 'date', false, null, 'II'],
+                'uzasadnienie' => ['Uzasadnienie prośby', 'text', true, null, 'II'],
+            ],
         };
     }
 
@@ -92,6 +156,8 @@ enum DopForm: string
         return match ($this) {
             self::Dop1 => ['I' => 'Dane Wnioskodawcy / Klienta', 'II' => 'Treść Wniosku i Dane do Przelewu', 'III' => 'Załączniki', 'IV' => 'Podpis Wnioskodawcy', 'V' => 'Weryfikacja Działu Finansowo-Księgowego'],
             self::Dop2 => ['I' => 'Dane Wnioskodawcy / Weryfikatora', 'II' => 'Dane Przedpłaty (Podstawa Uruchomienia)', 'III' => 'Dyspozycja Płatności / Przekazania Środków', 'IV' => 'Załączone Dokumenty', 'V' => 'Podpis Osoby Składającej Wniosek', 'VI' => 'Ścieżka Akceptacji i Realizacji'],
+            self::Zpro => ['I' => 'Adresat i wnioskodawca', 'II' => 'Treść podania', 'III' => 'Podpis wnioskodawcy / przedstawiciela ustawowego', 'IV' => 'Decyzja (wypełnia Fundacja)'],
+            self::Rez1, self::Rez2 => ['I' => 'Dane uczestnika', 'II' => $this === self::Rez1 ? 'Treść oświadczenia' : 'Treść prośby', 'III' => 'Podpis uczestnika / przedstawiciela ustawowego', 'IV' => 'Przyjęcie rezygnacji (wypełnia Fundacja)'],
         };
     }
 }

@@ -4,7 +4,7 @@
  * (link — e-mail + SMS, albo wersja papierowa ze skanem). Zmienne: $form, $c (uczestnik albo null), $clients, $q, $errors, $old.
  */
 require dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_parts.php';
-$title = 'Nowy wniosek ' . $form->value;
+$title = ($form->isNonFinancial() ? 'Nowy dokument ' : 'Nowy wniosek ') . $form->value;
 include __DIR__ . '/_head.php';
 $v = fn(string $k) => h((string)($old[$k] ?? ''));
 $err = fn(string $k) => isset($errors[$k]) ? '<div id="e-' . h($k) . '" class="invalid-feedback d-block">' . h($errors[$k]) . '</div>' : '';
@@ -34,11 +34,12 @@ $inv = fn(string $k) => isset($errors[$k]) ? ' is-invalid" aria-invalid="true" a
   $fs = array_filter($form->fields(), fn($x) => $x[4] === $roman);
   if (!$fs) continue; ?>
 <section class="panel"><h2 class="mt-0">Sekcja <?= h($roman) ?>: <?= h($secTitle) ?></h2>
-  <?php if (($form === DopForm::Dop1 && $roman === 'II') || ($form === DopForm::Dop2 && $roman === 'III')): ?><p class="small"><?= h($form->statement()) ?></p><?php endif; ?>
+  <?php if (($form === DopForm::Dop1 && $roman === 'II') || ($form === DopForm::Dop2 && $roman === 'III') || ($form->isNonFinancial() && $roman === 'II')): ?><p class="small"><?= h($form->statement()) ?></p><?php endif; ?>
   <div class="row g-3">
   <?php foreach ($fs as $k => [$label, $type, $req, $opts]): $id = 'f-' . $k; $lab = h($label) . ($req ? ' *' : ''); ?>
     <div class="<?= $type === 'check' ? 'col-12' : 'col-md-6' ?>">
       <?php if ($type === 'check'): ?><div class="form-check"><input class="form-check-input<?= $inv($k) ?>" type="checkbox" id="<?= $id ?>" name="<?= h($k) ?>" value="1"<?= !empty($old[$k]) ? ' checked' : '' ?>><label class="form-check-label" for="<?= $id ?>"><?= $lab ?></label></div>
+      <?php elseif ($type === 'course'): ?><label class="form-label" for="<?= $id ?>"><?= $lab ?></label><select class="form-select<?= $inv($k) ?>" id="<?= $id ?>" name="<?= h($k) ?>"><option value="">— wybierz grupę —</option><?php foreach ($courses ?? [] as $co): ?><option value="<?= (int)$co['id'] ?>"<?= (string)($old[$k] ?? '') === (string)$co['id'] ? ' selected' : '' ?>><?= h((trim((string)$co['display_name']) !== '' ? $co['display_name'] : $co['name']) . (trim((string)$co['group_code']) !== '' ? ' (' . $co['group_code'] . ')' : '')) ?></option><?php endforeach; ?></select>
       <?php elseif ($type === 'select'): ?><label class="form-label" for="<?= $id ?>"><?= $lab ?></label><select class="form-select<?= $inv($k) ?>" id="<?= $id ?>" name="<?= h($k) ?>"><?php foreach ($opts as $ov => $ol): ?><option value="<?= h($ov) ?>"<?= (string)($old[$k] ?? '') === (string)$ov ? ' selected' : '' ?>><?= h($ol) ?></option><?php endforeach; ?></select>
       <?php else: ?><label class="form-label" for="<?= $id ?>"><?= $lab ?></label><input class="form-control<?= $inv($k) ?>" id="<?= $id ?>" name="<?= h($k) ?>" value="<?= $v($k) ?>"<?= $type === 'date' ? ' type="date"' : ($type === 'money' ? ' inputmode="decimal"' : ($type === 'iban' ? ' inputmode="numeric" placeholder="PL __ ____ ____ ____ ____ ____ ____"' : '')) ?>><?php endif; ?>
       <?= $err($k) ?>
@@ -47,12 +48,17 @@ $inv = fn(string $k) => isset($errors[$k]) ? ' is-invalid" aria-invalid="true" a
 </section>
 <?php endforeach; ?>
 <section class="panel warn"><h2 class="mt-0">Podpis wnioskodawcy</h2>
+  <?php if ($form->forcedSignMode() === 'link'): ?><input type="hidden" name="sign_mode" value="link"><p class="mb-0"><b>ePodpis</b> — uczestnik (albo przedstawiciel ustawowy) dostanie link e-mailem i SMS-em i podpisze oświadczenie elektronicznie (imię i nazwisko, data, godzina, IP).</p><?= $err('sign_mode') ?>
+  <?php elseif ($form->forcedSignMode() === 'paper'): ?><input type="hidden" name="sign_mode" value="paper"><p><b>Dokument odręczny</b> — po złożeniu wydrukuj prośbę (PDF), daj do podpisu i wgraj skan; możesz też od razu wgrać skan podpisanej prośby. Pusty druk: <a href="<?= h(route('dop.blank', ['form' => $form->value])) ?>" target="_blank" rel="noopener">wzór <?= h($form->value) ?> (PDF)</a>.</p>
+    <div><label class="form-label small" for="skan">Skan podpisanej prośby (PDF, JPG, PNG)</label><input class="form-control" type="file" id="skan" name="skan" accept=".pdf,.jpg,.jpeg,.png"></div>
+  <?php else: ?>
   <div class="form-check"><input class="form-check-input" type="radio" name="sign_mode" id="sm1" value="link"<?= ($old['sign_mode'] ?? 'link') !== 'paper' ? ' checked' : '' ?>><label class="form-check-label" for="sm1"><b>Elektronicznie</b> — wyślij wnioskodawcy link (e-mail + SMS) do sprawdzenia i podpisu</label></div>
   <div class="form-check"><input class="form-check-input" type="radio" name="sign_mode" id="sm2" value="paper"<?= ($old['sign_mode'] ?? '') === 'paper' ? ' checked' : '' ?>><label class="form-check-label" for="sm2"><b>Wersja papierowa</b> — wniosek podpisany odręcznie (wgraj skan teraz albo później)</label></div>
   <?= $err('sign_mode') ?>
   <div class="mt-2"><label class="form-label small" for="skan">Skan podpisanego wniosku (PDF, JPG, PNG — przy wersji papierowej)</label><input class="form-control" type="file" id="skan" name="skan" accept=".pdf,.jpg,.jpeg,.png"></div>
+  <?php endif; ?>
 </section>
-<div class="d-flex gap-2 mb-4"><button class="btn btn-metro" type="submit">Złóż wniosek <?= h($form->value) ?></button><a class="btn btn-outline-secondary" href="<?= h(route('dop.index')) ?>">Anuluj</a></div>
+<div class="d-flex gap-2 mb-4"><button class="btn btn-metro" type="submit">Złóż <?= h($form->isNonFinancial() ? mb_strtolower($form->docLabel()) : 'wniosek') ?> <?= h($form->value) ?></button><a class="btn btn-outline-secondary" href="<?= h(route('dop.index')) ?>">Anuluj</a></div>
 </form>
 <?php endif; ?>
 <?php include __DIR__ . '/_foot.php'; ?>

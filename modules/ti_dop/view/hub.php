@@ -13,6 +13,11 @@ $groups = [
     ['DOP2', 'Płatność z subkonta', '#6a00ff', $c['dop2'], route('dop.new', ['form' => 'DOP2']), route('dop.list', ['form' => 'DOP2'])],
     ['DOP5', 'Oświadczenie o stanie środków', '#1d1d1d', $c['dop5'], route('dop5.new'), route('dop5.index')],
   ],
+  'Rezygnacja i podania' => [
+    ['REZ1', 'Oświadczenie o rezygnacji (ePodpis)', '#a20025', $c['rez1'] ?? 0, route('dop.new', ['form' => 'REZ1']), route('dop.list', ['form' => 'REZ1'])],
+    ['REZ2', 'Prośba o rezygnację z dniem (odręczna)', '#d80073', $c['rez2'] ?? 0, route('dop.new', ['form' => 'REZ2']), route('dop.list', ['form' => 'REZ2'])],
+    ['ZPRO', 'Podanie o zmianę prowadzącego zajęcia', '#fa6800', $c['zpro'] ?? 0, route('dop.new', ['form' => 'ZPRO']), route('dop.list', ['form' => 'ZPRO'])],
+  ],
   'Stan konta' => [
     ['ROP', 'Stan subkonta na dzień wpłaty', '#008a00', $c['rop'], route('rop.index'), route('rop.index')],
     ['RKS', SettleKind::Rks->title() . ' (kierownik)', '#60a917', $c['RKS'] ?? 0, route('settle.new', ['kind' => 'RKS']), route('settle.index', ['kind' => 'RKS'])],
