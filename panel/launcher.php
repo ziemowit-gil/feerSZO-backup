@@ -78,7 +78,7 @@ $choices = [
         'ext'   => false,
     ],
     [
-        'label' => 'Zarządzaj umową',
+        'label' => 'Zarządzaj współpracą',
         'desc'  => 'Umowa, dokumenty, godziny, pisma i dane kontaktowe',
         'icon'  => 'bi-file-earmark-text-fill',
         'color' => 'magenta',
@@ -91,6 +91,14 @@ $choices = [
         'icon'  => 'bi-person-badge-fill',
         'color' => 'dark',
         'url'   => APP_URL . '/tozsamosc/',
+        'ext'   => false,
+    ],
+    [
+        'label' => 'Usługi IT',
+        'desc'  => 'Portal Usług IT — instrukcje, zgłoszenia i pomoc',
+        'icon'  => 'bi-pc-display-horizontal',
+        'color' => 'teal',
+        'url'   => APP_URL . '/uslugi-it/',
         'ext'   => false,
     ],
 ];
