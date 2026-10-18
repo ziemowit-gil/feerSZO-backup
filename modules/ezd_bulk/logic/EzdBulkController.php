@@ -65,4 +65,13 @@ final class EzdBulkController
         ezdBulkRemember($on ? 'Oznaczenie jako pilne' : 'Zdjęcie oznaczenia pilne', ezdBulkUrgent($ids, $this->userId(), $on));
         return $this->back();
     }
+
+    /** Eksport CSV zaznaczonych — plik do pobrania, strona listy zostaje. */
+    public function csv(): ?string {
+        if (!($ids = $this->ids())) return $this->back();
+        $rows = ezdBulkReadable($ids, $this->userId());
+        if (!$rows) { flash_set('warning', 'Brak dostępu do zaznaczonych koszulek.'); return $this->back(); }
+        ezdBulkCsv($rows, 'koszulki_zaznaczone_' . date('Y-m-d') . '.csv');
+        return null;
+    }
 }

@@ -142,3 +142,32 @@ function ezdBulkUrgent(array $ids, int $userId, bool $urgent): array {
         return null;
     });
 }
+
+/** Wysyła CSV koszulek (te same kolumny dla eksportu wyników z filtrami i eksportu zaznaczonych). */
+function ezdBulkCsv(array $rows, string $filename): void {
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // BOM dla Excela
+    fputcsv($out, ['Znak koszulki','Tytuł','Segregator','Status','Priorytet','Etap','Właściciel','Termin'], ';', '"', '\\');
+    foreach ($rows as $s) {
+        fputcsv($out, [
+            $s['znak_sprawy'], $s['title'], $s['teczka_symbol'].' — '.$s['teczka_title'],
+            EZD_STATUSES_SPRAWA[$s['status']]['label'] ?? $s['status'],
+            EZD_PRIORITIES[$s['priority']]['label'] ?? $s['priority'],
+            ezd_etap_label_map()[$s['etap'] ?? '']['label'] ?? ($s['etap'] ?? ''),
+            $s['owner_name'] ?? '', $s['deadline'] ?? '',
+        ], ';', '"', '\\');
+    }
+    fclose($out);
+}
+
+/** Zaznaczone koszulki, do których użytkownik ma dostęp (choćby odczyt), w kolejności zaznaczenia. */
+function ezdBulkReadable(array $ids, int $userId): array {
+    $rows = [];
+    foreach ($ids as $sid) {
+        $sp = ezd_sprawa_get((int)$sid);
+        if ($sp && ezd_sprawa_access($sp, $userId)) $rows[] = $sp;
+    }
+    return $rows;
+}

@@ -117,6 +117,12 @@ $ezbUsers = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name")
   </div>
 </div>
 
+<!-- Eksport CSV zaznaczonych (bez okna — od razu plik) -->
+<form id="ezbCsvForm" method="post" action="<?= h(ezdBulkUrl('/csv')) ?>" data-ezb-ids hidden>
+  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+  <input type="hidden" name="back" value="<?= h($ezbBack) ?>">
+</form>
+
 <script>
 (function () {
   var bar = document.getElementById('ezbBar');

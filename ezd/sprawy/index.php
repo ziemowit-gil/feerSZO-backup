@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ezd_bulk/logic/ezdBulk.php';
 require_login(); require_module_enabled('ezd_enabled','Moduł EZD Wirtualne biurko'); ezd_require_access();
 
 $PAGE_TITLE = 'Koszulki';
@@ -71,21 +72,7 @@ if (can_edit()) {
 
 // Eksport CSV bieżących wyników (respektuje filtry)
 if (($_GET['export'] ?? '') === 'csv') {
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="sprawy_' . date('Y-m-d') . '.csv"');
-    $out = fopen('php://output', 'w');
-    fwrite($out, "\xEF\xBB\xBF"); // BOM dla Excela
-    fputcsv($out, ['Znak koszulki','Tytuł','Segregator','Status','Priorytet','Etap','Właściciel','Termin'], ';');
-    foreach ($sprawy as $s) {
-        fputcsv($out, [
-            $s['znak_sprawy'], $s['title'], $s['teczka_symbol'].' — '.$s['teczka_title'],
-            EZD_STATUSES_SPRAWA[$s['status']]['label'] ?? $s['status'],
-            EZD_PRIORITIES[$s['priority']]['label'] ?? $s['priority'],
-            ezd_etap_label_map()[$s['etap'] ?? '']['label'] ?? ($s['etap'] ?? ''),
-            $s['owner_name'] ?? '', $s['deadline'] ?? '',
-        ], ';');
-    }
-    fclose($out); exit;
+    ezdBulkCsv($sprawy, 'sprawy_' . date('Y-m-d') . '.csv'); exit;
 }
 
 // ── Model widoku listy (układ kaflowy/listowy, Tailwind + Alpine) ──────────────
