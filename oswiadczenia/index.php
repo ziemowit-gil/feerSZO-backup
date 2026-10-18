@@ -86,21 +86,40 @@ tailwind.config = {
 </script>
 <style>
   [hidden]{display:none!important}
+  /* METRO jak System Tożsamości i Panel współpracownika: ciemny app-bar, Segoe UI, 0 zaokrągleń i cieni */
+  body{font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif}
+  .m-bar{background:#1d1d1d;color:#fff}
+  .m-bar a{color:rgba(255,255,255,.85)} .m-bar a:hover{color:#fff;background:rgba(255,255,255,.1)}
+  .m-kicker{font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:#5b6472}
+  .m-title{font-size:clamp(1.9rem,4vw,2.5rem);font-weight:300;letter-spacing:-.02em;line-height:1.05;margin:.3rem 0 0;color:#111827}
+  .m-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));grid-auto-rows:120px;gap:8px}
+  .m-tile{display:flex;flex-direction:column;justify-content:space-between;padding:14px 16px;color:#fff;text-decoration:none;background:var(--c)}
+  .m-tile:hover{filter:brightness(1.1)} .m-tile:focus-visible{outline:3px solid #fbbf24;outline-offset:-3px}
+  .m-tile .val{font-size:1.85rem;font-weight:300;line-height:1}
+  .m-tile .lbl{font-size:.84rem;font-weight:600}
+  .m-h2{font-size:1.35rem;font-weight:300;color:#111827;margin:0 0 .75rem}
+  .m-h2 b{font-weight:600}
+  .m-row{display:flex;align-items:center;gap:.9rem;background:#f2f2f2;border-left:8px solid var(--c);padding:.9rem 1.1rem}
+  .m-btn{background:#0f6fa8;color:#fff;border:2px solid #0f6fa8;padding:.45rem 1rem;font-weight:600;font-size:.88rem;min-height:40px}
+  .m-btn:hover{filter:brightness(1.1)} .m-btn:disabled{opacity:.5;cursor:not-allowed}
+  .m-btn--ghost{background:transparent;color:#111827;border-color:#111827}
+  .m-btn--ghost:hover{background:#111827;color:#fff;filter:none}
+  .m-badge{display:inline-flex;padding:.15rem .5rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:#007a00}
+  .m-empty{background:#f2f2f2;padding:1.5rem 1rem;text-align:center;color:#5b6472;font-size:.9rem}
+  *:focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
   @media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
 </style>
 </head>
-<body class="h-full bg-slate-100 font-sans text-slate-800 antialiased">
+<body class="h-full bg-white text-slate-800 antialiased">
 
-<header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+<header class="m-bar sticky top-0 z-30">
   <div class="mx-auto flex max-w-screen-lg flex-wrap items-center gap-3 px-4 py-3">
-    <a href="<?= h(APP_URL) ?>/portal.php" class="flex items-center gap-2 text-slate-500 hover:text-brand-600"
-       aria-label="Wróć do portalu SZO">
-      <i class="bi bi-arrow-left-short text-xl" aria-hidden="true"></i>
+    <a href="<?= h(APP_URL) ?>/panel/index.php" class="flex items-center gap-2 px-2 py-1 text-sm no-underline">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i>Panel współpracownika
     </a>
-    <h1 class="text-lg font-semibold text-slate-800"><i class="bi bi-file-earmark-check mr-2 text-brand-600" aria-hidden="true"></i>Oświadczenia</h1>
-    <span class="ml-auto text-sm text-slate-500"><?= h($user['name'] ?? $user['email'] ?? '') ?></span>
+    <span class="ml-auto text-sm" style="color:rgba(255,255,255,.75)"><?= h($user['name'] ?? $user['email'] ?? '') ?></span>
     <?php if (function_exists('is_admin') && is_admin()): ?>
-    <a href="<?= h(APP_URL) ?>/admin/oswiadczenia_settings.php" class="text-slate-400 hover:text-brand-600" aria-label="Ustawienia modułu">
+    <a href="<?= h(APP_URL) ?>/admin/oswiadczenia_settings.php" class="px-2 py-1" aria-label="Ustawienia modułu">
       <i class="bi bi-gear text-lg" aria-hidden="true"></i>
     </a>
     <?php endif; ?>
@@ -109,24 +128,37 @@ tailwind.config = {
 
 <main class="mx-auto max-w-screen-lg px-4 py-6" x-data="false">
 
-  <div id="flash" class="mb-4" hidden></div>
+  <div class="mb-6">
+    <div class="m-kicker">Panel współpracownika<?= $org_name ? ' · ' . h($org_name) : '' ?></div>
+    <h1 class="m-title">Oświadczenia</h1>
+    <p class="mt-2 mb-0 text-slate-600" style="font-weight:300">Przeczytaj i podpisz oświadczenia wymagane przez organizację — kodem SMS albo e-mail.</p>
+  </div>
 
-  <section class="mb-8">
-    <h2 class="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-      <i class="bi bi-exclamation-circle text-amber-500" aria-hidden="true"></i>Do podpisania
-    </h2>
-    <div id="listaOczekujace" class="grid gap-3"></div>
-    <p id="pustoOczekujace" class="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500" hidden>
+  <div class="m-grid mb-8" aria-label="Podsumowanie">
+    <a href="#sek-oczekujace" class="m-tile" id="kafelOczekujace" style="--c:#c25100">
+      <i class="bi bi-pen" style="font-size:1.8rem" aria-hidden="true"></i>
+      <span><span class="val" id="liczOczekujace">–</span><span class="lbl block">do podpisania</span></span>
+    </a>
+    <a href="#sek-podpisane" class="m-tile" style="--c:#007a00">
+      <i class="bi bi-patch-check" style="font-size:1.8rem" aria-hidden="true"></i>
+      <span><span class="val" id="liczPodpisane">–</span><span class="lbl block">podpisane</span></span>
+    </a>
+  </div>
+
+  <div id="flash" class="mb-4" hidden role="status"></div>
+
+  <section class="mb-8" id="sek-oczekujace" aria-labelledby="h-ocz">
+    <h2 class="m-h2" id="h-ocz">Do <b>podpisania</b></h2>
+    <div id="listaOczekujace" class="grid gap-2"></div>
+    <p id="pustoOczekujace" class="m-empty" hidden>
       Brak oświadczeń oczekujących na podpis.
     </p>
   </section>
 
-  <section>
-    <h2 class="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-      <i class="bi bi-check-circle text-emerald-500" aria-hidden="true"></i>Podpisane
-    </h2>
-    <div id="listaPodpisane" class="grid gap-3"></div>
-    <p id="pustoPodpisane" class="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500" hidden>
+  <section id="sek-podpisane" aria-labelledby="h-podp">
+    <h2 class="m-h2" id="h-podp"><b>Podpisane</b></h2>
+    <div id="listaPodpisane" class="grid gap-2"></div>
+    <p id="pustoPodpisane" class="m-empty" hidden>
       Brak podpisanych oświadczeń.
     </p>
   </section>
@@ -135,9 +167,9 @@ tailwind.config = {
 
 <!-- ═══ Modal treści + podpisu ═══ -->
 <div id="modalPodpis" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4" hidden>
-  <div class="flex max-h-[90vh] w-full max-w-xl flex-col rounded-xl bg-white shadow-xl">
+  <div class="flex max-h-[90vh] w-full max-w-xl flex-col bg-white" role="dialog" aria-modal="true" aria-labelledby="modalTytul" style="border-top:6px solid #0f6fa8">
     <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-      <h3 id="modalTytul" class="text-base font-semibold text-slate-800"></h3>
+      <h3 id="modalTytul" class="m-h2" style="margin:0"></h3>
       <button type="button" id="btnZamknij" class="text-slate-400 hover:text-slate-600" aria-label="Zamknij">
         <i class="bi bi-x-lg" aria-hidden="true"></i>
       </button>
@@ -161,7 +193,7 @@ tailwind.config = {
         </p>
         <div id="kodDevBox" class="mt-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-700" hidden></div>
         <input type="text" id="poleKod" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
-               class="mt-3 w-40 rounded-lg border border-slate-300 px-3 py-2 text-center text-2xl tracking-[0.4em] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+               class="mt-3 w-40 border-2 border-slate-500 px-3 py-2 text-center text-2xl tracking-[0.4em] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
                placeholder="——————">
         <div id="blad2" class="mt-2 text-sm text-red-600" hidden></div>
         <button type="button" id="btnWyslijPonownie" class="mt-3 text-sm text-brand-600 hover:underline">
@@ -178,13 +210,11 @@ tailwind.config = {
     </div>
 
     <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
-      <button type="button" id="btnAnuluj" class="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">Anuluj</button>
-      <button type="button" id="btnDalej"
-              class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50" disabled>
+      <button type="button" id="btnAnuluj" class="m-btn m-btn--ghost">Anuluj</button>
+      <button type="button" id="btnDalej" class="m-btn" disabled>
         Rozpocznij podpisywanie
       </button>
-      <button type="button" id="btnPotwierdz" hidden
-              class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50" disabled>
+      <button type="button" id="btnPotwierdz" hidden class="m-btn" disabled>
         Potwierdź podpis
       </button>
     </div>
@@ -210,7 +240,7 @@ function pokazFlash(typ, tekst) {
   const kolory = typ === 'error'
     ? 'border-red-200 bg-red-50 text-red-700'
     : 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  el.className = `mb-4 rounded-lg border px-4 py-3 text-sm ${kolory}`;
+  el.className = `mb-4 border-l-8 px-4 py-3 text-sm ${kolory}`;
   el.textContent = tekst;
   el.hidden = false;
   setTimeout(() => { el.hidden = true; }, 6000);
@@ -223,15 +253,15 @@ function karta(o) {
   const podpisane = o.status === 'podpisane';
   const data = o.podpisano_at ? new Date(o.podpisano_at.replace(' ', 'T')).toLocaleDateString('pl-PL') : '';
   return `
-    <article class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <i class="bi ${podpisane ? 'bi-file-earmark-check text-emerald-500' : 'bi-file-earmark-text text-amber-500'} text-xl" aria-hidden="true"></i>
-      <div class="flex-1">
-        <div class="text-sm font-medium text-slate-800">${escapeHtml(o.tytul)}</div>
+    <article class="m-row" style="--c:${podpisane ? '#007a00' : '#c25100'}">
+      <i class="bi ${podpisane ? 'bi-file-earmark-check' : 'bi-file-earmark-text'} text-2xl text-slate-800" aria-hidden="true"></i>
+      <div class="flex-1" style="min-width:0">
+        <div class="font-semibold text-slate-900">${escapeHtml(o.tytul)}</div>
         ${podpisane ? `<div class="text-xs text-slate-500">Podpisano: ${data}</div>` : `<div class="text-xs text-slate-500">Wersja ${escapeHtml(o.wersja)}</div>`}
       </div>
       ${podpisane
-        ? `<span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Podpisane</span>`
-        : `<button data-id="${o.id}" class="btnPodpisz rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">Podpisz</button>`}
+        ? `<span class="m-badge">Podpisane</span>`
+        : `<button data-id="${o.id}" class="btnPodpisz m-btn" aria-label="Podpisz: ${escapeHtml(o.tytul)}">Podpisz</button>`}
     </article>`;
 }
 
@@ -246,6 +276,9 @@ async function odswiezListe() {
   document.getElementById('pustoOczekujace').hidden = oczekujace.length > 0;
   document.getElementById('listaPodpisane').innerHTML = podpisane.map(karta).join('');
   document.getElementById('pustoPodpisane').hidden = podpisane.length > 0;
+  document.getElementById('liczOczekujace').textContent = oczekujace.length;
+  document.getElementById('liczPodpisane').textContent = podpisane.length;
+  document.getElementById('kafelOczekujace').style.setProperty('--c', oczekujace.length ? '#c25100' : '#5f5f5f');
 
   document.querySelectorAll('.btnPodpisz').forEach(btn => {
     btn.addEventListener('click', () => otworzModal(parseInt(btn.dataset.id, 10)));
