@@ -45,6 +45,11 @@ $_kd_csrf = $tab === 'kandydat' ? csrf_token() : '';
 // Kadra loguje się wyłącznie przez Microsoft 365: logowanie MS365 → mostek office_enter.php zakłada sesję panelu dydaktyka.
 $office_login_url = rtrim(APP_URL, '/') . '/auth/ms365.php?redirect='
     . urlencode(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/office_enter.php');
+// Zakładka kadry = od razu logowanie Microsoft 365 (bez strony pośredniej). Zostajemy tylko przy błędzie
+// (e=4 „brak uprawnień” z office_enter → bez tego pętla MS365 → odmowa → MS365) albo z ?stay=1.
+if ($tab === 'dydaktyk' && $ec === 0 && empty($_GET['stay'])) {
+    header('Location: ' . $office_login_url); exit;
+}
 
 // Lewa kolumna: instrukcja zależna od roli.
 $_side = [
