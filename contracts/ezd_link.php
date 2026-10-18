@@ -7,7 +7,11 @@
  * POST action=link     → powiązuje z istniejącą (sprawa_id w body)
  * POST action=unlink   → odwiązuje
  */
-require_once __DIR__ . '/../includes/init.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/approval.php'; // log_contract_action()
 require_once __DIR__ . '/../includes/contract_ezd.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -86,17 +90,14 @@ if (!$can_write) {
     exit;
 }
 
-if (!verify_csrf_token($_POST['_token'] ?? '', false)) {
-    // Toleruj brak CSRF-tokena dla wewnętrznych wywołań JS (nie sensu form)
-    // Zamiast tego sprawdzamy nagłówek XHR
-    $is_xhr = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest'
-           || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
-    if (!$is_xhr) {
-        http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'Błąd CSRF.']);
-        exit;
-    }
+// CSRF jak csrf_check(), ale z odpowiedzią JSON (panel woła przez fetch)
+$_csrf = (string)($_POST['_csrf'] ?? '');
+if ($_csrf === '' || !hash_equals((string)($_SESSION['csrf'] ?? ''), $_csrf)) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'Błąd CSRF. Odśwież stronę i spróbuj ponownie.']);
+    exit;
 }
+if (function_exists('system_block_writes')) system_block_writes();
 
 try {
     switch ($action) {

@@ -6,7 +6,6 @@
  *   $TYPE  (string) — typ umowy np. 'zlecenie'
  *   $id    (int)    — ID umowy
  *   $row   (array)  — wiersz umowy (do tytułu koszulki)
- *   $USER  (array)  — current_user()
  *
  * Wymagane includy przed tym plikiem:
  *   require_once __DIR__ . '/../includes/contract_ezd.php';
@@ -16,15 +15,16 @@ if (!module_enabled('ezd_enabled')) return;
 
 $_ezd_sprawa    = $ezd_sprawa ?? contract_ezd_get_sprawa($TYPE, $id);
 $_ezd_sprawa_id = $_ezd_sprawa['id'] ?? null;
-$_ezd_can_write = isset($USER) && in_array($USER['role'] ?? '', ['admin','editor','manager'], true);
-$_ezd_link_url  = '/contracts/ezd_link.php?type=' . urlencode($TYPE) . '&id=' . $id;
+$_ezd_can_write = in_array((current_user() ?? [])['role'] ?? '', ['admin','editor','manager'], true); // jak w contracts/ezd_link.php
+$_ezd_link_url  = APP_URL . '/contracts/ezd_link.php?type=' . urlencode($TYPE) . '&id=' . $id;
+$_ezd_view_url  = APP_URL . '/ezd/sprawy/view.php?id=' . (int)$_ezd_sprawa_id;
 ?>
 <div class="card mb-3" id="contract-ezd-panel">
   <div class="card-header d-flex align-items-center gap-2">
     <i class="bi bi-folder2-open text-primary"></i>
     <strong>Sprawa EZD</strong>
     <?php if ($_ezd_sprawa_id): ?>
-      <a href="/ezd/sprawa.php?id=<?= $_ezd_sprawa_id ?>"
+      <a href="<?= h($_ezd_view_url) ?>"
          class="badge bg-primary text-decoration-none ms-auto"
          target="_blank">
         <?= h($_ezd_sprawa['znak_sprawy'] ?? '#' . $_ezd_sprawa_id) ?>
@@ -72,7 +72,7 @@ $_ezd_link_url  = '/contracts/ezd_link.php?type=' . urlencode($TYPE) . '&id=' . 
 
       <?php if ($_ezd_can_write): ?>
       <div class="mt-3 d-flex gap-2 flex-wrap">
-        <a href="/ezd/sprawa.php?id=<?= $_ezd_sprawa_id ?>" class="btn btn-sm btn-outline-primary" target="_blank">
+        <a href="<?= h($_ezd_view_url) ?>" class="btn btn-sm btn-outline-primary" target="_blank">
           <i class="bi bi-folder2-open me-1"></i>Otwórz koszulkę EZD
         </a>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-ezd-action="unlink"
@@ -153,10 +153,15 @@ $_ezd_link_url  = '/contracts/ezd_link.php?type=' . urlencode($TYPE) . '&id=' . 
     location.reload();
   }
 
+  // Okno wyszukiwania leży w zakładce — Bootstrap wymaga modala poza .tab-pane
+  const searchModal = document.getElementById('ezdSearchModal');
+  if (searchModal && searchModal.parentNode !== document.body) document.body.appendChild(searchModal);
+
   function post(url, data, cb) {
     const fd = new FormData();
+    fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
     for (const [k, v] of Object.entries(data)) fd.append(k, v);
-    fetch(url, { method: 'POST', body: fd })
+    fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(r => r.json())
       .then(d => cb(d))
       .catch(() => alert('Błąd sieci. Spróbuj ponownie.'));
