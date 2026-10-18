@@ -35,17 +35,20 @@ if ($zas) {
 <title>Weryfikacja zaświadczenia — <?= h($org) ?></title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
+  /* Szata Metro UI jak System Tożsamości: zero zaokrągleń i cieni, statusy jako pas z grubą lewą krawędzią */
   * { box-sizing: border-box; }
-  body { font-family: system-ui, sans-serif; background: #f4f6fa; color: #1a1a2e; margin: 0; padding: 24px 16px; }
-  .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,.10); max-width: 520px; margin: 32px auto; padding: 36px; }
-  .org-header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid #eee; }
-  .status-ok  { color: #15803d; background: #dcfce7; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px 20px; }
-  .status-err { color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px 20px; }
-  .status-exp { color: #92400e; background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 16px 20px; }
+  body { font-family: "Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,sans-serif; background: #fff; color: #111827; margin: 0; padding: 0 0 24px; -webkit-font-smoothing: antialiased; }
+  body::before { content: ""; display: block; height: 48px; background: #1d1d1d; }
+  .card { background: #fff; border: 1px solid #e1e1e1; border-radius: 0; box-shadow: none; max-width: 520px; margin: 32px auto; padding: 32px; }
+  @media (max-width: 560px) { .card { margin: 16px; padding: 22px; } .card .org-header { margin: -22px -22px 20px; padding: 14px 22px; } }
+  .org-header { display: flex; align-items: center; gap: 14px; margin: -32px -32px 24px; padding: 16px 32px; background: #f2f2f2; border-bottom: 0; }
+  .status-ok, .status-err, .status-exp { color: #111827; background: #f2f2f2; border: 0; border-left: 8px solid #007a00; border-radius: 0; padding: 16px 20px; }
+  .status-err { border-left-color: #a20025; }
+  .status-exp { border-left-color: #c25100; }
   dl { margin: 0; }
-  dt { font-size: .77rem; color: #888; margin-top: 10px; }
-  dd { font-size: .97rem; font-weight: 600; margin: 0; }
-  .footer-note { text-align: center; font-size: .74rem; color: #aaa; margin-top: 24px; }
+  dt { font-size: .7rem; color: #5f5f5f; margin-top: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+  dd { font-size: 1.02rem; font-weight: 400; margin: .1rem 0 0; }
+  .footer-note { text-align: center; font-size: .74rem; color: #5f5f5f; margin-top: 24px; }
 </style>
 </head>
 <body>

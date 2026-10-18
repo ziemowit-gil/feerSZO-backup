@@ -156,25 +156,32 @@ if (isset($_GET['zip']) && $verified) {
 <title>Udostępnione dokumenty<?= $sprawa ? ' — ' . h($sprawa['znak_sprawy']) : '' ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
+/* Szata Metro UI jak System Tożsamości: ciemny app-bar, zero zaokrągleń i cieni, ramki 2px, żółty fokus */
 * { box-sizing:border-box }
-body { margin:0; background:#EEF1F4; color:#111827; font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif; }
-.top { background:#1f2937; color:#fff; padding:.7rem 1rem; }
+body { margin:0; background:#fff; color:#111827; font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,sans-serif; -webkit-font-smoothing:antialiased }
+*:focus-visible { outline:3px solid #fbbf24; outline-offset:2px }
+.top { background:#1d1d1d; color:#fff; padding:.55rem 1rem; }
 .top .wrap { max-width:640px; margin:0 auto; display:flex; align-items:center; gap:.6rem; font-weight:700 }
+.top .bi { background:#0f6fa8; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center }
 .wrap { max-width:640px; margin:0 auto; padding:0 1rem }
-.panel { background:#fff; border-radius:12px; padding:22px 24px; margin:18px auto; box-shadow:0 2px 14px rgba(0,0,0,.07) }
-.alert { border-radius:9px; padding:.7rem .9rem; font-size:.9rem; margin:14px auto }
-.alert-success { background:#EFF7ED; border:1px solid #86C79A; color:#14532D }
-.alert-warning { background:#FFF7ED; border:1px solid #FBBF77; color:#7C2D12 }
-.alert-error   { background:#FEF2F2; border:1px solid #FCA5A5; color:#991B1B }
-.alert-info    { background:#EEF4FF; border:1px solid #A5C4FF; color:#1E3A8A }
-.btn { border:none; border-radius:8px; padding:.6rem 1.1rem; font-weight:600; cursor:pointer; font-size:.92rem }
-.btn-primary { background:#2563eb; color:#fff }
-.btn-outline { background:#fff; border:1px solid #D1D5DB; color:#374151 }
-.lbl { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#6B7280 }
-.inp { width:100%; padding:.5rem .65rem; border:1px solid #D1D5DB; border-radius:7px; font-size:1rem; letter-spacing:.05em }
-.file-row { display:flex; align-items:center; gap:.6rem; padding:.6rem 0; border-bottom:1px solid #F1F3F5 }
+.panel { background:#f2f2f2; border-radius:0; padding:22px 24px; margin:18px auto; box-shadow:none }
+.panel h1 { font-weight:300 !important; font-size:1.6rem !important; letter-spacing:-.02em; line-height:1.15 }
+.alert { border-radius:0; padding:.75rem 1rem; font-size:.9rem; margin:14px auto; background:#f2f2f2; border:0; border-left:6px solid #0f6fa8; color:#111827 }
+.alert-success { border-left-color:#007a00 }
+.alert-warning { border-left-color:#c25100 }
+.alert-error   { border-left-color:#a20025 }
+.alert-info    { border-left-color:#0f6fa8 }
+.btn { border:2px solid transparent; border-radius:0; padding:.6rem 1.1rem; font-weight:600; cursor:pointer; font-size:.92rem; min-height:44px }
+.btn-primary { background:#0f6fa8; border-color:#0f6fa8; color:#fff }
+.btn-primary:hover { background:#1d1d1d; border-color:#1d1d1d }
+.btn-outline { background:transparent; border-color:#1d1d1d; color:#1d1d1d }
+.btn-outline:hover { background:#1d1d1d; color:#fff }
+.lbl { font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.14em; color:#5f5f5f }
+.inp { width:100%; padding:.5rem .65rem; border:2px solid #8a8a8a; border-radius:0; font-size:1rem; letter-spacing:.05em; background:#fff }
+.inp:focus { border-color:#0f6fa8; outline:none }
+.file-row { display:flex; align-items:center; gap:.6rem; padding:.6rem 0; border-bottom:1px solid #e1e1e1 }
 .file-row:last-child { border-bottom:none }
-.foot { text-align:center; font-size:.76rem; color:#6B7280; padding:14px 0 26px }
+.foot { text-align:center; font-size:.76rem; color:#5f5f5f; padding:14px 0 26px }
 </style>
 </head>
 <body>
