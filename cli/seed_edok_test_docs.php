@@ -19,7 +19,8 @@
  *   php cli/seed_edok_test_docs.php
  */
 
-if (PHP_SAPI !== 'cli') {
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) {
     http_response_code(403);
     exit("Ten skrypt można uruchomić tylko z CLI.\n");
 }
@@ -27,10 +28,10 @@ if (PHP_SAPI !== 'cli') {
 $base = dirname(__DIR__);
 if (!file_exists($base . '/config.php')) {
     fwrite(STDERR, "Brak config.php — aplikacja nie jest zainstalowana.\n");
-    exit(2);
+    cli_exit(2);
 }
-define('BOOTSTRAP_CHECKED', true);
-define('APP_INSTALLED', true);
+defined('BOOTSTRAP_CHECKED') || define('BOOTSTRAP_CHECKED', true);
+defined('APP_INSTALLED') || define('APP_INSTALLED', true);
 require_once $base . '/config.php';
 require_once $base . '/includes/db.php';
 require_once $base . '/includes/functions.php';

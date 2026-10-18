@@ -23,7 +23,8 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) {
     http_response_code(403);
     exit("Ten skrypt można uruchomić tylko z CLI.\n");
 }
@@ -31,10 +32,10 @@ if (PHP_SAPI !== 'cli') {
 $base = dirname(__DIR__);
 if (!file_exists($base . '/config.php')) {
     fwrite(STDERR, "Brak config.php — aplikacja nie jest zainstalowana.\n");
-    exit(2);
+    cli_exit(2);
 }
 
-define('APP_INSTALLED', true);
+defined('APP_INSTALLED') || define('APP_INSTALLED', true);
 require_once $base . '/config.php';
 require_once $base . '/includes/db.php';
 require_once $base . '/includes/functions.php';
@@ -46,7 +47,7 @@ require_once $base . '/includes/invoices.php';
 const SEED_TAG = '[SEED-FV]';
 
 // ── Argumenty ────────────────────────────────────────────────────────────────
-$opts = getopt('', ['email::', 'month::', 'year::', 'clean']);
+$opts = cli_getopt('', ['email::', 'month::', 'year::', 'clean']);
 $email = trim((string)($opts['email'] ?? 'ziemowit.gil@feer.org.pl'));
 $month = (int)($opts['month'] ?? date('n'));
 $year  = (int)($opts['year']  ?? date('Y'));
@@ -54,12 +55,12 @@ $clean = array_key_exists('clean', $opts);
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     fwrite(STDERR, "Nieprawidłowy adres e-mail: {$email}\n");
-    exit(1);
+    cli_exit(1);
 }
-if ($month < 1 || $month > 12) { fwrite(STDERR, "Miesiąc poza zakresem.\n"); exit(1); }
+if ($month < 1 || $month > 12) { fwrite(STDERR, "Miesiąc poza zakresem.\n"); cli_exit(1); }
 
 try { karty30_migrate(); ti_payments_migrate(); invoices_migrate(); }
-catch (\Throwable $e) { fwrite(STDERR, 'Migracje: ' . $e->getMessage() . "\n"); exit(2); }
+catch (\Throwable $e) { fwrite(STDERR, 'Migracje: ' . $e->getMessage() . "\n"); cli_exit(2); }
 
 // ── Sprzątanie ───────────────────────────────────────────────────────────────
 if ($clean) {
@@ -80,7 +81,7 @@ if ($clean) {
         $n++;
     }
     echo "Usunięto rekordy seeda: {$n}.\n";
-    exit(0);
+    cli_exit(0);
 }
 
 $now  = date('Y-m-d H:i:s');
@@ -235,4 +236,4 @@ if (!invoices_api_ready()) {
     echo "Podgląd wydruku roboczego działa bez konfiguracji.\n";
 }
 echo "\nUsunięcie danych testowych: php cli/seed_ti_faktury.php --clean\n";
-exit(0);
+cli_exit(0);

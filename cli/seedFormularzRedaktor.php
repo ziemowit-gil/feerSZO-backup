@@ -12,17 +12,18 @@
  * Publicznie: /crm/form/redaktor-www. Edycja: CRM → Formularze webowe.
  * Ponowne uruchomienie aktualizuje formularz o tym slugu (nie tworzy drugiego).
  */
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Tylko z CLI.'); }
-define('APP_CLI', true);
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit('Tylko z CLI.'); }
+defined('APP_CLI') || define('APP_CLI', true);
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 
-$opts   = getopt('', ['apply', 'notify::']);
+$opts   = cli_getopt('', ['apply', 'notify::']);
 $apply  = array_key_exists('apply', $opts);
 $notify = trim((string)($opts['notify'] ?? ''));
-if ($notify !== '' && !filter_var($notify, FILTER_VALIDATE_EMAIL)) { fwrite(STDERR, "Zły adres --notify: {$notify}\n"); exit(1); }
+if ($notify !== '' && !filter_var($notify, FILTER_VALIDATE_EMAIL)) { fwrite(STDERR, "Zły adres --notify: {$notify}\n"); cli_exit(1); }
 
 crm_migrate();
 
@@ -59,7 +60,7 @@ echo "Pola dodatkowe kontaktu:\n";
 foreach ($plan as [$l, $s]) echo "  • {$l} — {$s}\n";
 echo 'Powiadomienie: ' . ($notify ?: '— (brak, ustaw --notify=…)') . "\n";
 
-if (!$apply) { echo "\nPodgląd — nic nie zapisano. Dodaj --apply.\n"; exit(0); }
+if (!$apply) { echo "\nPodgląd — nic nie zapisano. Dodaj --apply.\n"; cli_exit(0); }
 
 // ── Pola formularza ──────────────────────────────────────────────────────────
 $fields = [
@@ -76,7 +77,7 @@ foreach ($customDefs as [$label, $type, $required, $placeholder]) {
         'applies_to' => 'osoba',
         'sort_order' => 900,
     ]);
-    if (!$defId) { fwrite(STDERR, "Nie udało się utworzyć pola: {$label}\n"); exit(1); }
+    if (!$defId) { fwrite(STDERR, "Nie udało się utworzyć pola: {$label}\n"); cli_exit(1); }
     $fields[] = ['type' => 'custom', 'field_def_id' => $defId, 'required' => $required, 'placeholder' => $placeholder];
 }
 

@@ -16,21 +16,22 @@
  * Dane osobowe (PESEL, adres, rachunek…) z rejestru osób — nic nie jest wpisane w kodzie.
  * Ponowne uruchomienie aktualizuje istniejącą umowę „---” tej osoby (nie tworzy drugiej).
  */
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Tylko z CLI.'); }
-define('APP_CLI', true);
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit('Tylko z CLI.'); }
+defined('APP_CLI') || define('APP_CLI', true);
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/zlecenie_rachunki.php'; // samonaprawa kolumn (dydaktyka_udostepnij itd.)
 
-$opts  = getopt('', ['osoba::', 'email::', 'od::', 'apply']);
+$opts  = cli_getopt('', ['osoba::', 'email::', 'od::', 'apply']);
 $osoba = trim((string)($opts['osoba'] ?? 'Ziemowit Gil'));
 $email = trim((string)($opts['email'] ?? ''));
 $apply = array_key_exists('apply', $opts);
 $NUMER = '---';
 // Od kiedy obowiązuje: panel dydaktyka szuka umowy obowiązującej w miesiącu protokołu.
 $od = (string)($opts['od'] ?? date('Y-m-01'));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $od) || !strtotime($od)) { fwrite(STDERR, "Zła data --od (RRRR-MM-DD): {$od}\n"); exit(1); }
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $od) || !strtotime($od)) { fwrite(STDERR, "Zła data --od (RRRR-MM-DD): {$od}\n"); cli_exit(1); }
 
 // ── Osoba z rejestru ─────────────────────────────────────────────────────────
 $person = $email !== ''
@@ -39,7 +40,7 @@ $person = $email !== ''
 $person = $person ?: db_one("SELECT * FROM persons WHERE lower(trim(imie_nazwisko)) = lower(?) ORDER BY id LIMIT 1", [$osoba]);
 if (!$person) {
     fwrite(STDERR, "Nie ma w rejestrze osób: {$osoba}" . ($email ? " / {$email}" : '') . ". Dodaj osobę w Osoby → Rejestr i uruchom ponownie.\n");
-    exit(1);
+    cli_exit(1);
 }
 
 // ── Konto użytkownika (prowadzący w e-dzienniku) ────────────────────────────
@@ -92,7 +93,7 @@ echo '  z rejestru osób: ' . implode(', ', array_keys(array_intersect_key($data
 
 if (!$apply) {
     echo "\nPodgląd — nic nie zapisano. Uruchom z --apply, żeby zapisać.\n";
-    exit(0);
+    cli_exit(0);
 }
 
 if ($existing) {

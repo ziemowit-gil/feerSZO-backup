@@ -316,6 +316,7 @@ $groups = [
             ['icon'=>'bi-clipboard2-pulse',     'label'=>'Kontrola IT (pulpit stanu)','url'=>'/modules/it_control/index.php'],
             ['icon'=>'bi-journal-check',        'label'=>'Kontrola Dzienników (logi)','url'=>'/modules/log_control/index.php'],
             ['icon'=>'bi-database-gear',        'label'=>'Zarządzanie migracjami',   'url'=>'/admin/migrations.php'],
+            ['icon'=>'bi-database-add',         'label'=>'Seedery (dane testowe)',   'url'=>'/seeder-test'],
             ['icon'=>'bi-link-45deg',           'label'=>'Krótkie linki',            'url'=>'/admin/short_urls.php'],
             ['icon'=>'bi-rocket-takeoff',       'label'=>'Czyszczenie przed wdrożeniem','url'=>'/admin/clean_for_prod.php','danger'=>true],
             ['icon'=>'bi-trash3',               'label'=>'Wyczyść bazę',             'url'=>'/admin/clean_db.php',         'danger'=>true],

@@ -17,8 +17,9 @@
  *   php cli/seedNaborZgloszenie.php --delete [--email=…]            # lista do usunięcia (podgląd)
  *   php cli/seedNaborZgloszenie.php --delete [--email=…] --apply    # usunięcie
  */
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Tylko z CLI.'); }
-define('APP_CLI', true);
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit('Tylko z CLI.'); }
+defined('APP_CLI') || define('APP_CLI', true);
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
@@ -26,7 +27,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/modules/ti/logic/nabor/nabor.php';
 require_once dirname(__DIR__) . '/modules/ti/logic/nabor/naborAccount.php';
 
-$o     = getopt('', ['email:', 'phone:', 'course:', 'apply', 'delete']);
+$o     = cli_getopt('', ['email:', 'phone:', 'course:', 'apply', 'delete']);
 $email = mb_strtolower(trim((string)($o['email'] ?? '')));
 
 if (array_key_exists('delete', $o)) {
@@ -35,19 +36,19 @@ if (array_key_exists('delete', $o)) {
     $rows = db_all("SELECT s.id, s.registration_number, s.status, s.guardian_email, s.participant_name FROM ti_nabor_submissions s
                      WHERE EXISTS (SELECT 1 FROM ti_nabor_history h WHERE h.submission_id=s.id AND h.comment LIKE 'Zgłoszenie przykładowe utworzone z CLI%')
                        " . ($email !== '' ? 'AND LOWER(s.guardian_email)=?' : '') . " ORDER BY s.id", $email !== '' ? [$email] : []);
-    if (!$rows) { echo "Brak przykładowych zgłoszeń do usunięcia.\n"; exit(0); }
+    if (!$rows) { echo "Brak przykładowych zgłoszeń do usunięcia.\n"; cli_exit(0); }
     foreach ($rows as $r) echo "  {$r['registration_number']} (#{$r['id']}) — {$r['participant_name']}, {$r['guardian_email']}, " . naborStatusLabel($r['status']) . "\n";
-    if (!array_key_exists('apply', $o)) { echo "\nPodgląd — nic nie usunięto. Dodaj --apply.\n"; exit(0); }
+    if (!array_key_exists('apply', $o)) { echo "\nPodgląd — nic nie usunięto. Dodaj --apply.\n"; cli_exit(0); }
     foreach ($rows as $r) {
         $rep = naborDeleteSubmission((int)$r['id'], 0, 'cli/seedNaborZgloszenie.php', 'przykładowe zgłoszenie (seeder)');
         echo "\n{$r['registration_number']}:\n  - " . implode("\n  - ", $rep) . "\n";
     }
-    exit(0);
+    cli_exit(0);
 }
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { fwrite(STDERR, "Podaj poprawny --email=adres\n"); exit(1); }
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { fwrite(STDERR, "Podaj poprawny --email=adres\n"); cli_exit(1); }
 $phone = preg_replace('/\D/', '', (string)($o['phone'] ?? ''));
 if (strlen($phone) === 9) $phone = '48' . $phone;
-if ($phone !== '' && !preg_match('/^48\d{9}$/', $phone)) { fwrite(STDERR, "Numer telefonu: 9 cyfr (polski komórkowy)\n"); exit(1); }
+if ($phone !== '' && !preg_match('/^48\d{9}$/', $phone)) { fwrite(STDERR, "Numer telefonu: 9 cyfr (polski komórkowy)\n"); cli_exit(1); }
 $phone = $phone ?: '48000000000';
 
 naborMigrate();
@@ -55,7 +56,7 @@ $open   = array_values(array_filter(naborCourses(true), fn($c) => (int)$c['plann
 $course = null;
 if (!empty($o['course'])) {
     $course = naborCourseGet((int)$o['course']);
-    if (!$course) { fwrite(STDERR, "Grupa #{$o['course']} nie istnieje albo jest nieaktywna.\n"); exit(1); }
+    if (!$course) { fwrite(STDERR, "Grupa #{$o['course']} nie istnieje albo jest nieaktywna.\n"); cli_exit(1); }
 } elseif ($open) {
     $course = $open[0];
 }
@@ -93,7 +94,7 @@ echo '  grupa:     ' . ($course ? $course['title'] . ' (#' . $course['id'] . ')'
 $acc = naborAccountByEmail($email);
 echo '  konto:     ' . ($acc ? 'istnieje' . ($acc['password_hash'] ? ' (z hasłem)' : ' (bez hasła — przyjdzie e-mail „Ustaw hasło”)') : 'zostanie założone — przyjdzie e-mail „Ustaw hasło”') . "\n";
 echo '  EZD: ' . (module_enabled('ezd_enabled') && org_setting('ti_nabor_ezd_auto') !== '0' ? 'tak' : 'nie') . ', CRM: ' . (module_enabled('crm_enabled') ? 'tak' : 'nie') . "\n";
-if (!array_key_exists('apply', $o)) { echo "\nPodgląd — nic nie zapisano. Dodaj --apply.\n"; exit(0); }
+if (!array_key_exists('apply', $o)) { echo "\nPodgląd — nic nie zapisano. Dodaj --apply.\n"; cli_exit(0); }
 
 $_SERVER['REMOTE_ADDR'] = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 $_SERVER['HTTP_USER_AGENT'] = 'cli/seedNaborZgloszenie.php';

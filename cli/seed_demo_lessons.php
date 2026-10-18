@@ -18,7 +18,8 @@
  *   php cli/seed_demo_lessons.php --login=test2 --instructor=jan@feer.org.pl   # przypisz prowadzącego (także do istniejącej grupy demo)
  */
 
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit("Tylko z CLI.\n"); }
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit("Tylko z CLI.\n"); }
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
@@ -33,12 +34,12 @@ foreach (array_slice($argv, 1) as $a) {
     if (preg_match('/^--login=(.+)$/', $a, $m)) $opt['login'] = trim($m[1]);
     elseif (preg_match('/^--instructor=(.+)$/', $a, $m)) $opt['instructor'] = trim($m[1]);
     elseif (in_array($a, ['--dry-run', '--reset', '--remove'], true)) $opt[substr($a, 2)] = true;
-    else { fwrite(STDERR, "Nieznana opcja: $a\n"); exit(2); }
+    else { fwrite(STDERR, "Nieznana opcja: $a\n"); cli_exit(2); }
 }
 
 $acc = db_one("SELECT id, client_id, login FROM k30_ti_student_accounts WHERE login = ? OR (login_alias != '' AND login_alias = ?)",
               [$opt['login'], $opt['login']]);
-if (!$acc) { fwrite(STDERR, "Nie ma konta kursanta o loginie „{$opt['login']}”.\n"); exit(1); }
+if (!$acc) { fwrite(STDERR, "Nie ma konta kursanta o loginie „{$opt['login']}”.\n"); cli_exit(1); }
 $client_id = (int)$acc['client_id'];
 echo "Konto: {$acc['login']} (konto #{$acc['id']}, klient #{$client_id})\n";
 
@@ -70,14 +71,14 @@ $remove = function (bool $dry) use ($demo_courses): int {
 if ($opt['remove']) {
     $n = $remove($opt['dry-run']);
     echo $n ? "Gotowe.\n" : "Brak danych demo dla tego konta.\n";
-    exit(0);
+    cli_exit(0);
 }
 
 // Prowadzący (opcjonalnie): konto SZO po e-mailu
 $instructor_id = null;
 if ($opt['instructor'] !== '') {
     $u = db_one("SELECT id, name FROM users WHERE LOWER(email) = LOWER(?) AND is_active = 1", [$opt['instructor']]);
-    if (!$u) { fwrite(STDERR, "Nie ma aktywnego konta prowadzącego o e-mailu „{$opt['instructor']}”.\n"); exit(1); }
+    if (!$u) { fwrite(STDERR, "Nie ma aktywnego konta prowadzącego o e-mailu „{$opt['instructor']}”.\n"); cli_exit(1); }
     $instructor_id = (int)$u['id'];
     echo "Prowadzący: {$u['name']} (#{$instructor_id})\n";
 }
@@ -92,9 +93,9 @@ if ($demo_courses()) {
             }
         }
         echo "Gotowe.\n";
-        exit(0);
+        cli_exit(0);
     }
-    if (!$opt['reset']) { echo "Dane demo już istnieją — nic nie robię. Użyj --reset, żeby odświeżyć daty, --instructor=…, żeby przypisać prowadzącego, albo --remove.\n"; exit(0); }
+    if (!$opt['reset']) { echo "Dane demo już istnieją — nic nie robię. Użyj --reset, żeby odświeżyć daty, --instructor=…, żeby przypisać prowadzącego, albo --remove.\n"; cli_exit(0); }
     $remove($opt['dry-run']);
 }
 
@@ -120,7 +121,7 @@ echo ($opt['dry-run'] ? '[dry-run] ' : '') . "Tworzę grupę „Pracownia komput
 foreach ($plan as [$d, $f, $t, $topic, $att]) {
     echo "  • {$d} {$f}–{$t}  {$topic}" . ($att === null ? '' : ($att ? '  [obecny]' : '  [nieobecny]')) . "\n";
 }
-if ($opt['dry-run']) { echo "[dry-run] Nic nie zapisano.\n"; exit(0); }
+if ($opt['dry-run']) { echo "[dry-run] Nic nie zapisano.\n"; cli_exit(0); }
 
 $pdo = db();
 $pdo->beginTransaction();
@@ -172,5 +173,5 @@ try {
 } catch (\Throwable $e) {
     $pdo->rollBack();
     fwrite(STDERR, 'Błąd: ' . $e->getMessage() . "\n");
-    exit(1);
+    cli_exit(1);
 }

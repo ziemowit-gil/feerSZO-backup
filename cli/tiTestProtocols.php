@@ -12,8 +12,9 @@
  * Grupa ma nazwę „TEST — 4 protokoły …”, jest aktywna i przypisana do wskazanego prowadzącego.
  * Nic nie jest wysyłane (bez SMS i maili). Do usunięcia: zwykłe usuwanie kursu w panelu.
  */
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Tylko z CLI.'); }
-define('APP_CLI', true);
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit('Tylko z CLI.'); }
+defined('APP_CLI') || define('APP_CLI', true);
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
@@ -21,18 +22,18 @@ require_once dirname(__DIR__) . '/includes/karty30.php';
 require_once dirname(__DIR__) . '/includes/ti_protocols.php';
 
 $kto = trim((string)($argv[1] ?? ''));
-if ($kto === '') { fwrite(STDERR, "Użycie: php cli/tiTestProtocols.php <e-mail prowadzącego albo id>\n"); exit(1); }
+if ($kto === '') { fwrite(STDERR, "Użycie: php cli/tiTestProtocols.php <e-mail prowadzącego albo id>\n"); cli_exit(1); }
 karty30_migrate();
 ti_protocols_migrate();
 $u = ctype_digit($kto) ? db_one("SELECT id, name FROM users WHERE id = ?", [(int)$kto])
                        : db_one("SELECT id, name FROM users WHERE email = ?", [$kto]);
-if (!$u) { fwrite(STDERR, "Nie ma użytkownika: {$kto}\n"); exit(1); }
+if (!$u) { fwrite(STDERR, "Nie ma użytkownika: {$kto}\n"); cli_exit(1); }
 $uid = (int)$u['id'];
 
 // Kurs: kopia ustawień istniejącej grupy (wymagane kolumny), z własną nazwą i prowadzącym.
 $wzor = db_one("SELECT * FROM k30_ti_courses WHERE format = 'group' ORDER BY id DESC LIMIT 1")
      ?: db_one("SELECT * FROM k30_ti_courses ORDER BY id DESC LIMIT 1");
-if (!$wzor) { fwrite(STDERR, "Brak jakiegokolwiek kursu do skopiowania ustawień.\n"); exit(1); }
+if (!$wzor) { fwrite(STDERR, "Brak jakiegokolwiek kursu do skopiowania ustawień.\n"); cli_exit(1); }
 unset($wzor['id'], $wzor['closed_at'], $wzor['closed_by']);
 // Puste pola pomijamy — niech baza wstawi wartości domyślne (db_insert zamienia '' w kolumnach *_id na NULL).
 $wzor = array_filter($wzor, fn($v, $k) => $v !== null && !($v === '' && str_ends_with((string)$k, '_id')), ARRAY_FILTER_USE_BOTH);

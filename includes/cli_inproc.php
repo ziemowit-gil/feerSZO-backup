@@ -26,6 +26,10 @@ function cli_exit(int $code = 0): never {
  */
 function szo_cli_run(string $script, array $args): array {
     if (!defined('SZO_CLI_INPROC')) define('SZO_CLI_INPROC', true);
+    // W żądaniu WWW nie ma STDOUT/STDERR — fwrite(STDERR, …) skryptów idzie do przechwytywanego wyjścia.
+    if (!defined('STDOUT')) define('STDOUT', fopen('php://output', 'w'));
+    if (!defined('STDERR')) define('STDERR', fopen('php://output', 'w'));
+    $GLOBALS['__szoCliArgs'] = $args;   // dla cli_getopt()
     $t0 = microtime(true);
     ob_start();
     $code = 0;
@@ -45,4 +49,32 @@ function szo_cli_run(string $script, array $args): array {
     }
     $out = (string)ob_get_clean();
     return ['code' => $code, 'out' => $out, 'ms' => (int)round((microtime(true) - $t0) * 1000)];
+}
+
+/**
+ * getopt() działające też w trybie in-process — zwykłe getopt() czyta argv PROCESU,
+ * które w żądaniu WWW jest puste. Obsługuje opcje długie: 'flaga', 'wartosc:' (wymagana),
+ * 'opcja::' (opcjonalna, tylko w postaci --opcja=…). Wynik jak z getopt(): flaga → false.
+ */
+function cli_getopt(string $short, array $long = []): array|false {
+    if (!defined('SZO_CLI_INPROC')) return getopt($short, $long);
+    $spec = [];
+    foreach ($long as $l) $spec[rtrim($l, ':')] = substr_count($l, ':');
+    $args = array_values($GLOBALS['__szoCliArgs'] ?? []);
+    $out  = [];
+    for ($i = 0, $n = count($args); $i < $n; $i++) {
+        $a = (string)$args[$i];
+        if (!str_starts_with($a, '--')) continue;
+        [$k, $v] = array_pad(explode('=', substr($a, 2), 2), 2, null);
+        if (!isset($spec[$k])) continue;
+        $mode = $spec[$k];
+        if ($mode === 0)          $val = false;
+        elseif ($v !== null)      $val = $v;
+        elseif ($mode === 1 && isset($args[$i + 1]) && !str_starts_with((string)$args[$i + 1], '-')) $val = (string)$args[++$i];
+        elseif ($mode === 1)      continue;
+        else                      $val = false;
+        if (array_key_exists($k, $out)) { $out[$k] = (array)$out[$k]; $out[$k][] = $val; }
+        else $out[$k] = $val;
+    }
+    return $out;
 }

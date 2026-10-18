@@ -11,14 +11,15 @@
  * Klauzula RODO: nie ustawiamy — apply.php bierze domyślną klauzulę kontekstu 'volunteer_offer'.
  * Ponowne uruchomienie aktualizuje ogłoszenie o tym samym tytule (nie tworzy drugiego).
  */
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Tylko z CLI.'); }
-define('APP_CLI', true);
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit('Tylko z CLI.'); }
+defined('APP_CLI') || define('APP_CLI', true);
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/rekrutacja_offers.php'; // VolunteerModuleManager + tabele
 
-$opts    = getopt('', ['apply', 'publish']);
+$opts    = cli_getopt('', ['apply', 'publish']);
 $apply   = array_key_exists('apply', $opts);
 $publish = array_key_exists('publish', $opts);
 
@@ -75,7 +76,7 @@ echo ($existing ? "Aktualizacja ogłoszenia #{$existing['id']}" : 'Nowe ogłosze
 echo 'Status: ' . $data['status'] . ($existing && !$publish ? " (istniejące: zostaje {$existing['status']})" : '') . "\n";
 echo 'Pola formularza: ' . count($customFields) . "\n";
 
-if (!$apply) { echo "\nPodgląd — nic nie zapisano. Dodaj --apply.\n"; exit(0); }
+if (!$apply) { echo "\nPodgląd — nic nie zapisano. Dodaj --apply.\n"; cli_exit(0); }
 
 $mgr = new VolunteerModuleManager();
 if ($existing) {

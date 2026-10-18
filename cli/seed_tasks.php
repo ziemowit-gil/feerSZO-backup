@@ -17,7 +17,8 @@
  *   • Tagi, przypisania, podzadania, komentarze, zgłoszenia problemów
  */
 
-if (PHP_SAPI !== 'cli') {
+require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) {
     http_response_code(403);
     die("Uruchom z linii poleceń: php " . basename(__FILE__) . "\n");
 }
@@ -28,7 +29,11 @@ require_once $root . '/includes/db.php';
 require_once $root . '/includes/auth.php';
 require_once $root . '/includes/functions.php';
 
-$opts  = getopt('', ['clean', 'quiet']);
+// Funkcje niżej czytają te zmienne przez `global` — przy uruchomieniu z Admin › Seedery skrypt działa
+// w zasięgu funkcji, więc wiążemy je jawnie z globalnymi (w CLI to nic nie zmienia).
+global $ok, $err, $quiet, $uid_leader, $now;
+
+$opts  = cli_getopt('', ['clean', 'quiet']);
 $clean = isset($opts['clean']);
 $quiet = isset($opts['quiet']);
 
@@ -125,7 +130,7 @@ $uid_viewer = seed_user('viewer.test@feer.test', 'Zofia Obserwator (TEST)', 'vie
 
 if (!$uid_vol || !$uid_leader) {
     log_err("Nie udało się utworzyć kont. Przerywam.");
-    exit(1);
+    cli_exit(1);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -476,4 +481,4 @@ echo "  TEST — Projekty Specjalne  (ID: $ws2)\n";
 echo "\n\033[1mZadania:\033[0m 15 (mix: wolne, zajęte, po terminie, ukończone, problem, transfer)\n";
 echo "\n\033[33mAby wyczyścić dane testowe: php " . basename(__FILE__) . " --clean\033[0m\n\n";
 
-exit($err > 0 ? 1 : 0);
+cli_exit($err > 0 ? 1 : 0);

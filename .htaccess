@@ -49,6 +49,9 @@ RewriteRule ^uslugi-it/komunikaty/([0-9]{1,9})/?$ /modules/it_portal/public/komu
 RewriteRule ^uslugi-it/kontakt/?$ /modules/it_portal/public/kontakt.php [QSA,L]
 RewriteRule ^uslugi-it/szukaj/?$ /modules/it_portal/public/szukaj.php [QSA,L]
 
+# ── Admin › Seedery (dane testowe): /seeder-test → modules/seeders/router.php (trasa ze ścieżki żądania) ──
+RewriteRule ^seeder-test(/.*)?$  /modules/seeders/router.php [QSA,L]
+
 # ── Nabór do grup TI: /nabor → publiczny formularz zgłoszenia (modules/ti/router.php) ──
 # Krótki adres na każdym hoście (szo.feer.org.pl/nabor, ti.feer.org.pl/nabor). Trasa idzie w ?_route=
 # (Router w trybie path czyta ją, gdy brak PATH_INFO); formularz po wysłaniu wraca na pełny adres routera.
