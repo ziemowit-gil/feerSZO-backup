@@ -12,6 +12,10 @@
  *   {configured: true, results: [...]}               — wyniki wyszukiwania
  *
  * Każdy wynik: {source, ms_user: {id,displayName,userPrincipalName,mail}, expected_login?, already_linked?}
+ *
+ *   q      — (opcjonalnie) dowolny fragment nazwy/UPN/adresu: wyszukiwanie w całym tenancie
+ *            (source = 'search', do podpinania istniejącego konta do umowy). Wyniki mają też
+ *            accountEnabled i linked_contracts — umowy wolontariackie z tym kontem (bez $_GET['except']).
  */
 
 require_once dirname(dirname(__DIR__)) . '/config.php';
@@ -30,6 +34,7 @@ if (!current_user() || !can_edit()) {
 }
 
 $email = trim($_GET['email'] ?? '');
+$q     = trim($_GET['q'] ?? '');
 $name  = trim($_GET['name']  ?? '');
 
 try {
@@ -45,6 +50,27 @@ try {
 
 $results     = [];
 $found_ms_ids = [];
+
+// ── 0. Wyszukiwanie dowolnym fragmentem (podpinanie istniejącego konta) ─────
+if ($q !== '') {
+    $except = (int)($_GET['except'] ?? 0);
+    foreach ($g->search_users($q, 15) as $u) {
+        if (empty($u['id'])) continue;
+        $linked = db_one("SELECT id, name FROM users WHERE microsoft_id = ?", [$u['id']]);
+        try {
+            $contracts = db_all("SELECT id, numer_umowy, imie_nazwisko FROM umowy_wolontariat
+                                 WHERE m365_user_id = ? AND id != ? ORDER BY id DESC LIMIT 3", [$u['id'], $except]);
+        } catch (\Throwable $e) { $contracts = []; }
+        $results[] = [
+            'source'           => 'search',
+            'ms_user'          => _ms_user_safe($u) + ['accountEnabled' => isset($u['accountEnabled']) ? (bool)$u['accountEnabled'] : null],
+            'already_linked'   => $linked ? ['id' => (int)$linked['id'], 'name' => $linked['name']] : null,
+            'linked_contracts' => $contracts,
+        ];
+    }
+    echo json_encode(['configured' => true, 'results' => $results]);
+    exit;
+}
 
 // ── 1. Szukaj po e-mailu ────────────────────────────────────────────────────
 if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {

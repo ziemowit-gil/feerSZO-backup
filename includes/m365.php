@@ -564,6 +564,34 @@ class M365Graph {
         return [];
     }
 
+    /**
+     * Wyszukiwanie kont w tenancie po fragmencie nazwy, UPN lub adresu (Graph $search,
+     * wymaga ConsistencyLevel: eventual). Do podpinania istniejącego konta do umowy.
+     * Zwraca do $top kont: id, displayName, userPrincipalName, mail, accountEnabled.
+     */
+    public function search_users(string $q, int $top = 15): array {
+        $q = trim(str_replace(['"', '\\'], ' ', $q));
+        if (mb_strlen($q) < 2) return [];
+        try {
+            $search = '"displayName:' . $q . '" OR "userPrincipalName:' . $q . '" OR "mail:' . $q . '"';
+            $url = "https://graph.microsoft.com/v1.0/users"
+                 . "?\$search=" . rawurlencode($search)
+                 . "&\$select=id,displayName,userPrincipalName,mail,accountEnabled"
+                 . "&\$orderby=displayName&\$count=true&\$top=" . max(1, min(50, $top));
+            $ctx = stream_context_create(['http' => [
+                'method' => 'GET',
+                'header' => "Authorization: Bearer {$this->token()}\r\n"
+                          . "Content-Type: application/json\r\n"
+                          . "ConsistencyLevel: eventual\r\n",
+                'ignore_errors' => true,
+            ]]);
+            $resp = json_decode(@file_get_contents($url, false, $ctx) ?: '{}', true) ?? [];
+            return $resp['value'] ?? [];
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
     // ── Aliasy e-mail (proxyAddresses) ────────────────────────────────────────
 
     /**
