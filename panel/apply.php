@@ -178,10 +178,15 @@ $_ap_pal = array_values(panelMetroPalette());
 /* Wnioski — METRO: kafle typów (otwierają kreator w oknie) po lewej, moje wnioski po prawej */
 .pvm .ap-cols{display:grid;gap:1.5rem;grid-template-columns:1fr;align-items:start}
 @media(min-width:1100px){.pvm .ap-cols{grid-template-columns:minmax(0,7fr) minmax(0,4fr)}}
-.pvm .ap-types{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
-.pvm .ap-type{display:flex;flex-direction:column;justify-content:space-between;gap:.5rem;min-height:118px;margin:0;padding:.85rem 1rem;background:var(--pvm-bg);color:var(--pvm-ink);border-left:8px solid var(--c);cursor:pointer}
+.pvm .ap-grp{font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pvm-ink);margin:1.1rem 0 .4rem;padding-bottom:.3rem;border-bottom:2px solid var(--pvm-ink)}
+.pvm .ap-grp small{display:block;font-size:.75rem;font-weight:400;letter-spacing:0;text-transform:none;color:var(--pvm-muted);margin-top:.15rem}
+.pvm .ap-types{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.pvm .ap-type{display:flex;flex-direction:row;align-items:center;gap:.85rem;margin:0;padding:.7rem 1rem;background:var(--pvm-bg);color:var(--pvm-ink);border-left:6px solid var(--c);cursor:pointer}
+.pvm .ap-type__t{flex:1;min-width:0}
+.pvm .ap-type__go{color:var(--pvm-muted);font-size:1rem}
+.pvm .ap-type:hover .ap-type__go,.pvm .ap-type:focus-visible .ap-type__go{color:var(--c)}
 .pvm .ap-type:hover{background:var(--pvm-light-h)}
-.pvm .ap-type .ic{font-size:1.6rem;line-height:1;color:var(--c)}
+.pvm .ap-type .ic{font-size:1.4rem;line-height:1;color:var(--c);flex-shrink:0}
 .pvm .ap-type b{display:block;font-size:.92rem;font-weight:600;line-height:1.25}
 .pvm .ap-type small{display:block;font-size:.76rem;color:var(--pvm-muted);line-height:1.35}
 .pvm .ap-side{position:sticky;top:5rem}
@@ -250,15 +255,29 @@ $_ap_pal = array_values(panelMetroPalette());
 <section aria-labelledby="ap-new-h">
   <h2 class="mt-h2" id="ap-new-h">Nowe <b>pismo / wniosek</b></h2>
   <p class="text-muted small mb-2">Wybierz rodzaj — otworzy się okno, które poprowadzi Cię krok po kroku.</p>
-  <div class="ap-types">
-    <?php foreach ($types as $_ti => $t): ?>
-    <button type="button" class="ap-type" data-ap-type="<?= (int)$t['id'] ?>" style="--c:<?= h($_ap_pal[$_ti % 8]) ?>">
+  <?php
+    // rodzaje pod nagłówkami: wzory urzędowe (ZSW, DOK, UPO…), sprawy umowy i współpracy, inne pisma
+    $_ap_groups = ['urz' => ['Wnioski urzędowe', 'wzory urzędowe — z numerem, PDF i potwierdzeniem złożenia', []],
+                   'umowa' => ['Sprawy umowy i współpracy', 'urlop, zaświadczenia, zmiany warunków', []],
+                   'inne' => ['Inne pisma', 'zapytania i pisma w dowolnej sprawie', []]];
+    foreach ($types as $_ti => $t) {
+        $_g = appDocsTemplateFor($t['name'] ?? null) ? 'urz' : (str_starts_with((string)($t['name'] ?? ''), 'pismo') ? 'inne' : 'umowa');
+        $_ap_groups[$_g][2][] = [$_ti, $t];
+    }
+  ?>
+  <?php foreach ($_ap_groups as $_gk => [$_gl, $_gs, $_gt]): if (!$_gt) continue; ?>
+  <h3 class="ap-grp" id="ap-grp-<?= $_gk ?>"><?= h($_gl) ?> <small><?= h($_gs) ?></small></h3>
+  <ul class="ap-types" aria-labelledby="ap-grp-<?= $_gk ?>">
+    <?php foreach ($_gt as [$_ti, $t]): ?>
+    <li><button type="button" class="ap-type" data-ap-type="<?= (int)$t['id'] ?>" style="--c:<?= h($_ap_pal[$_ti % 8]) ?>">
       <i class="bi <?= h($t['icon']) ?> ic" aria-hidden="true"></i>
-      <span><b><?= h($t['label']) ?></b>
+      <span class="ap-type__t"><b><?= h($t['label']) ?></b>
         <?php if ($t['description']): ?><small><?= h($t['description']) ?></small><?php endif; ?></span>
-    </button>
+      <i class="bi bi-chevron-right ap-type__go" aria-hidden="true"></i>
+    </button></li>
     <?php endforeach; ?>
-  </div>
+  </ul>
+  <?php endforeach; ?>
   <?php if ($_term_module): ?>
   <div class="tz-note mt-3">
     <i class="bi bi-info-circle" aria-hidden="true"></i>
