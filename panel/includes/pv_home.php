@@ -236,6 +236,15 @@ $_pv_tools[] = ['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','
 if (is_file($ROOT . '/tozsamosc/index.php')) $_pv_tools[] = ['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'System Tożsamości','sub'=>'hasło, MFA, telefon','color'=>'dark'];
 $_pv_tools[] = ['href'=>APP_URL.'/panel/password.php','icon'=>'bi-gear','label'=>'Ustawienia konta','sub'=>'hasło, telefon, kolor','color'=>'grey'];
 
+/* ── Wiedza: osobna zakładka — procedury, dokumenty, komunikaty, katalog ─── */
+$_pv_know_paths = ['/panel/procedures.php', '/panel/org_documents.php', '/komunikaty/', '/directory/'];
+$_pv_know = array_values(array_filter($_pv_tools, function ($t) use ($_pv_know_paths) {
+    foreach ($_pv_know_paths as $kp) if (str_contains($t['href'], $kp)) return true;
+    return false;
+}));
+$_pv_tools = array_values(array_filter($_pv_tools, fn($t) => !in_array($t, $_pv_know, true)));
+array_splice($_pv_know, 0, 0, [['href'=>APP_URL.'/directory/','icon'=>'bi-person-lines-fill','label'=>'Katalog współpracowników','sub'=>'kto jest kim · jednostki i działy']]);
+
 /* ── Wydarzenia / rezerwacje: zakładka tylko, gdy jest treść ─────────────── */
 ob_start();
 include __DIR__ . '/pv_extra_sections.php';
@@ -243,7 +252,7 @@ $_pv_extra_html = trim((string)ob_get_clean());
 
 /* ── Zakładki (klucz => [etykieta, licznik]) ─────────────────────────────── */
 $_tabs = ['umowa' => ['umowa', 0], 'sprawy' => ['sprawy', $_pending_total], 'narzedzia' => ['narzędzia', 0],
-          'konta' => ['konta i dostępy', 0], 'wiadomosci' => ['wiadomości', (int)$msg_unread]];
+          'wiedza' => ['wiedza', 0], 'konta' => ['konta i dostępy', 0], 'wiadomosci' => ['wiadomości', (int)$msg_unread]];
 if ($_pv_extra_html !== '') $_tabs['wydarzenia'] = ['wydarzenia', 0];
 
 /* ── Kalendarz organizacji (kanał ICS z ustawień, ten sam co panel/calendar.php): najbliższe wydarzenia ── */
@@ -417,6 +426,7 @@ panelMetroAssets($_vol_color);
     panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_hd_my_open ? (string)$_hd_my_open : '',
                     'sub'=>$_hd_my_open ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
     panelMetroTile(['href'=>'#narzedzia','go'=>'narzedzia','icon'=>'bi-grid-3x3-gap','label'=>'Narzędzia','val'=>(string)count($_pv_tools),'color'=>'teal']);
+    panelMetroTile(['href'=>'#wiedza','go'=>'wiedza','icon'=>'bi-book','label'=>'Wiedza','val'=>(string)count($_pv_know),'sub'=>'procedury, dokumenty, katalog','color'=>'indigo']);
     ?>
       </div>
     </section>
@@ -512,6 +522,13 @@ panelMetroAssets($_vol_color);
   <section id="narzedzia" data-pvm-panel="narzedzia" role="tabpanel" aria-labelledby="pvm-tab-narzedzia" tabindex="-1"<?= $_tab_first !== 'narzedzia' ? ' hidden' : '' ?>>
     <h2 class="mt-h2">Narzędzia do <b>codziennej pracy</b></h2>
     <?php panelMetroTileGrid($_pv_tools, 'Narzędzia', ['violet','blue','magenta','green','teal','indigo','orange','red']); ?>
+  </section>
+
+  <!-- ═══════════ WIEDZA ═══════════ -->
+  <section id="wiedza" data-pvm-panel="wiedza" role="tabpanel" aria-labelledby="pvm-tab-wiedza" tabindex="-1"<?= $_tab_first !== 'wiedza' ? ' hidden' : '' ?>>
+    <h2 class="mt-h2">Wiedza <b>organizacji</b></h2>
+    <p class="mt-lead" style="margin:-.4rem 0 1rem">Procedury, dokumenty, ogłoszenia i katalog osób — wszystko, co warto wiedzieć.</p>
+    <?php panelMetroTileGrid($_pv_know, 'Wiedza', ['indigo','teal','violet','blue','green','orange']); ?>
   </section>
 
   <!-- ═══════════ KONTA I DOSTĘPY ═══════════ -->
