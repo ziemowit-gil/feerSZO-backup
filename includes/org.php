@@ -884,6 +884,7 @@ function org_render_tree(array $nodes, int $depth = 0): void {
             <div class="flex-grow-1">
               <a href="<?= APP_URL ?>/org/units/view.php?id=<?= $node['id'] ?>" class="fw-semibold text-decoration-none text-dark" style="font-size:.88rem"><?= h($node['name']) ?></a>
               <span class="badge bg-light text-dark border font-monospace ms-1" style="font-size:.65rem"><?= h($node['code']) ?></span>
+              <?= function_exists('orgLevelBadge') ? orgLevelBadge($node) : '' ?>
               <?php if ($is_ext): ?><span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size:.62rem" title="Jednostka zewnętrzna"><i class="bi bi-buildings me-1"></i>zewnętrzna</span><?php endif; ?>
               <?= org_unit_status_badge($node['status']) ?>
             </div>

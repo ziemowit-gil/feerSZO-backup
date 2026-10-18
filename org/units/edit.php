@@ -4,6 +4,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/org.php';
+require_once dirname(dirname(__DIR__)) . '/modules/org_levels/lib/orgLevels.php';
+orgLevelsMigrate();
 require_role('admin'); require_module_enabled('org_enabled','Moduł struktury organizacyjnej');
 
 $id   = (int)($_GET['id'] ?? 0);
@@ -64,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             org_unit_update($id, $row, (int)current_user()['id']);
             org_unit_save_field_values($id, $_POST['cf'] ?? [], $kind);
+            if ($kind !== 'external') orgLevelSet($id, (string)($_POST['org_level'] ?? orgLevelOf($unit)));
             flash_set('success','Jednostka zaktualizowana.');
             header('Location:'.APP_URL.'/org/units/view.php?id='.$id); exit;
         } catch (\RuntimeException $e) {
@@ -98,6 +101,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </select>
     <div class="form-text">Zmiana rodzaju przeładowuje dostępne pola dodatkowe po zapisaniu.</div>
   </div>
+
+  <?php if (!$is_ext) echo orgLevelField((string)($_POST['org_level'] ?? (orgLevelOf($unit) ?: 'dzial'))); ?>
 
   <div class="mb-3">
     <label class="form-label fw-semibold"><?= $is_ext ? 'Jednostka nadrzędna w drzewie' : 'Jednostka nadrzędna' ?></label>

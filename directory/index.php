@@ -22,7 +22,8 @@ if ($q !== '') {
     array_push($params, $like, $like, $like, $like);
 }
 if ($unit_id > 0) {
-    $where[] = 'om_j.unit_id = ?';
+    // Jednostka obejmuje swoje działy (i ich podległe) — rekurencyjnie po parent_id
+    $where[] = "om_j.unit_id IN (WITH RECURSIVE sub(id) AS (SELECT ? UNION SELECT ou2.id FROM org_units ou2 JOIN sub ON ou2.parent_id = sub.id) SELECT id FROM sub)";
     $params[] = $unit_id;
 }
 $order_map = [
@@ -49,16 +50,18 @@ $sql = "
     ORDER BY " . $order_map[$sort];
 
 try { $people = db_all($sql, $params); } catch (\Throwable $e) { $people = []; }
-// Jednostki wewnętrzne z liczbą aktywnych osób (kafle)
+// Jednostki wewnętrzne z liczbą aktywnych osób (kafle); poziom Jednostka/Dział — modules/org_levels
+require_once dirname(__DIR__) . '/modules/org_levels/lib/orgLevels.php';
+orgLevelsMigrate();
 try {
-    $units = db_all("SELECT u.id, u.name, u.code, u.parent_id,
+    $units = db_all("SELECT u.id, u.name, u.code, u.parent_id, COALESCE(u.level,'dzial') AS level,
                (SELECT COUNT(DISTINCT m.user_id) FROM org_members m JOIN users mu ON mu.id=m.user_id AND mu.is_active=1
                  WHERE m.unit_id=u.id AND m.status='active' AND (m.valid_to IS NULL OR m.valid_to >= date('now'))) AS cnt
         FROM org_units u
         WHERE u.status='active' AND COALESCE(u.kind,'internal') <> 'external'
         ORDER BY u.sort_order, u.name");
 } catch (\Throwable $e) {
-    try { $units = db_all("SELECT id, name, '' AS code, NULL AS parent_id, 0 AS cnt FROM org_units WHERE status='active' ORDER BY name"); }
+    try { $units = db_all("SELECT id, name, '' AS code, NULL AS parent_id, 'dzial' AS level, 0 AS cnt FROM org_units WHERE status='active' ORDER BY name"); }
     catch (\Throwable $e2) { $units = []; }
 }
 $unit_cur = null;
@@ -129,19 +132,23 @@ katalogMetroAssets();
   </section>
   <?php endif; ?>
 
-  <?php if ($units): ?>
-  <section class="mt-grp" aria-labelledby="ktm-jedn" data-ktm-filter>
+  <?php
+  $byLevel = ['jednostka' => [], 'dzial' => []];
+  foreach ($units as $u) $byLevel[orgLevelOf($u) ?: 'dzial'][] = $u;
+  $firstGrp = true;
+  foreach ($byLevel as $lvl => $list): if (!$list) continue; ?>
+  <section class="mt-grp" aria-labelledby="ktm-lvl-<?= $lvl ?>" data-ktm-filter>
     <div class="ktm-bar">
-      <h2 class="mt-grp-h" id="ktm-jedn">Jednostki</h2>
-      <?php if ($unit_id): ?><a class="ktm-chip" href="<?= h($qsKeep(['unit_id' => null])) ?>"><i class="bi bi-x-lg" aria-hidden="true"></i>Wszystkie jednostki</a><?php endif; ?>
+      <h2 class="mt-grp-h" id="ktm-lvl-<?= $lvl ?>"><?= h(ORG_LEVEL_PLURAL[$lvl]) ?></h2>
+      <?php if ($unit_id && $firstGrp): ?><a class="ktm-chip" href="<?= h($qsKeep(['unit_id' => null])) ?>"><i class="bi bi-x-lg" aria-hidden="true"></i>Wszystkie</a><?php endif; ?>
     </div>
     <div class="mt-grid mt-grid--sm">
-      <?php foreach ($units as $u)
+      <?php foreach ($list as $u)
           katalogUnitTile($u, $qsKeep(['unit_id' => (int)$u['id'] === $unit_id ? null : (int)$u['id']]) . '#ktm-osoby-h',
-              ['on' => (int)$u['id'] === $unit_id]); ?>
+              ['on' => (int)$u['id'] === $unit_id, 'size' => $lvl === 'jednostka' ? 'w' : '']); ?>
     </div>
   </section>
-  <?php endif; ?>
+  <?php $firstGrp = false; endforeach; ?>
 
   <section class="mt-grp" aria-labelledby="ktm-osoby-h" data-ktm-filter>
     <div class="ktm-bar">

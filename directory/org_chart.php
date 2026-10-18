@@ -9,6 +9,8 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/directory.php';
 require_once dirname(__DIR__) . '/includes/org.php';
+require_once dirname(__DIR__) . '/modules/org_levels/lib/orgLevels.php';
+orgLevelsMigrate();
 
 require_login();
 directory_migrate();
@@ -204,7 +206,7 @@ $ktmHref = fn(int $id) => APP_URL . '/directory/org_chart.php?unit=' . $id . '#j
   <div class="mt-head">
     <div>
       <div class="mt-kicker">Katalog współpracowników · struktura organizacyjna</div>
-      <h1 class="mt-title">Jednostki</h1>
+      <h1 class="mt-title">Jednostki i działy</h1>
       <p class="mt-lead">Kliknij kafel jednostki, aby zobaczyć jej skład, kierownika i jednostki podległe.</p>
       <?php if ($has_units): ?>
       <div class="ktm-search" role="search">
@@ -247,19 +249,32 @@ $ktmHref = fn(int $id) => APP_URL . '/directory/org_chart.php?unit=' . $id . '#j
   </nav>
 
   <div id="ktm-kafle" role="tabpanel" aria-labelledby="ktm-tab-kafle" tabindex="-1">
-    <?php foreach ($internal_tree as $root):
-        $desc = !empty($root['children']) ? $ktmFlatten($root['children']) : [];
-        $gid  = 'ktm-g' . (int)$root['id'];
+    <?php
+    // Grupy: każda Jednostka (poziom „jednostka”) z jej Działami; działy bez jednostki — osobna grupa
+    $byId = [];
+    foreach ($internal_units as $u) $byId[(int)$u['id']] = $u;
+    $groups = [];
+    foreach ($ktmFlatten($internal_tree) as $u) {
+        if (orgLevelOf($u) === 'jednostka') { $groups[(int)$u['id']]['unit'] = $u; $groups[(int)$u['id']]['items'] ??= []; continue; }
+        $pu = orgLevelParentUnit($u, $byId);
+        $groups[$pu ? (int)$pu['id'] : 0]['items'][] = $u;
+    }
+    if (isset($groups[0])) { $loose = $groups[0]; unset($groups[0]); $groups[0] = $loose; } // bez jednostki na końcu
+    foreach ($groups as $gk => $g):
+        $gid = 'ktm-g' . (int)$gk;
     ?>
     <section class="mt-grp" aria-labelledby="<?= $gid ?>" data-ktm-filter>
-      <h2 class="mt-grp-h" id="<?= $gid ?>"><?= h($root['name']) ?></h2>
+      <h2 class="mt-grp-h" id="<?= $gid ?>"><?= $gk ? 'Jednostka · <b style="font-weight:600;color:var(--pvm-ink)">' . h($g['unit']['name']) . '</b>' : 'Działy bez przypisanej jednostki' ?></h2>
       <div class="mt-grid mt-grid--sm">
         <?php
-        $head = null; try { $head = org_unit_head((int)$root['id']); } catch (\Throwable $e) {}
-        katalogUnitTile($root, $ktmHref((int)$root['id']), ['size' => 'w', 'on' => (int)$root['id'] === $unit_focus,
-            'sub' => trim(((int)$root['member_count']) . ' os.' . ($desc ? ' · ' . count($desc) . ' podległych' : '') . ($head ? ' · ' . $head['user_name'] : ''))]);
-        foreach ($desc as $d) katalogUnitTile($d, $ktmHref((int)$d['id']), ['on' => (int)$d['id'] === $unit_focus,
-            'icon' => !empty($d['children']) ? 'bi-diagram-3' : 'bi-folder2']);
+        if ($gk) {
+            $head = null; try { $head = org_unit_head($gk); } catch (\Throwable $e) {}
+            $n = count($g['items'] ?? []);
+            katalogUnitTile($g['unit'], $ktmHref($gk), ['size' => 'w', 'on' => $gk === $unit_focus,
+                'sub' => trim('jednostka · ' . $n . ' ' . ($n === 1 ? 'dział' : ($n % 10 >= 2 && $n % 10 <= 4 && ($n % 100 < 10 || $n % 100 >= 20) ? 'działy' : 'działów'))
+                    . ' · ' . (int)$g['unit']['member_count'] . ' os.' . ($head ? ' · ' . $head['user_name'] : ''))]);
+        }
+        foreach ($g['items'] ?? [] as $d) katalogUnitTile($d, $ktmHref((int)$d['id']), ['on' => (int)$d['id'] === $unit_focus]);
         ?>
       </div>
     </section>

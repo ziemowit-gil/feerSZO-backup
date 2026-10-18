@@ -8,6 +8,7 @@
  * Strony wołają katalogMetroAssets() raz, w treści, wewnątrz kontenera .pvm.
  */
 require_once dirname(__DIR__, 2) . '/panel_metro/lib/panelMetro.php';
+require_once dirname(__DIR__, 2) . '/org_levels/lib/orgLevels.php';
 
 const KATALOG_ACCENT = '#0050ef';
 const KATALOG_UNIT_COLORS = ['teal', 'blue', 'green', 'violet', 'orange', 'indigo', 'magenta', 'red'];
@@ -133,13 +134,13 @@ function katalogUnitTile(array $u, string $href, array $o = []): void {
     $sub  = $o['sub'] ?? ($cnt === 1 ? '1 osoba' : $cnt . ' ' . ($cnt % 10 >= 2 && $cnt % 10 <= 4 && ($cnt % 100 < 10 || $cnt % 100 >= 20) ? 'osoby' : 'osób'));
     $size = !empty($o['size']) ? ' mt-tile--' . $o['size'] : '';
     $col  = $o['color'] ?? ($ext ? panelMetroColor('grey') : katalogUnitColor((int)$u['id']));
-    $aria = ($u['name'] ?? '') . ($u['code'] ? ' (' . $u['code'] . ')' : '') . ', ' . $sub . (!empty($o['on']) ? ', wybrana' : '');
+    $aria = ($ext ? '' : orgLevelLabel($u) . ': ') . ($u['name'] ?? '') . ($u['code'] ? ' (' . $u['code'] . ')' : '') . ', ' . $sub . (!empty($o['on']) ? ', wybrana' : '');
     ?>
     <a href="<?= h($href) ?>" class="mt-tile ktm-unit<?= $size ?><?= !empty($o['on']) ? ' is-on' : '' ?>" style="--c:<?= h($col) ?>"
        data-text="<?= h(mb_strtolower(($u['name'] ?? '') . ' ' . ($u['code'] ?? ''))) ?>"
        aria-label="<?= h($aria) ?>"<?= !empty($o['on']) ? ' aria-current="true"' : '' ?>>
       <?php if (!empty($u['code'])): ?><span class="tag" aria-hidden="true"><?= h($u['code']) ?></span><?php endif; ?>
-      <i class="bi <?= h($o['icon'] ?? ($ext ? 'bi-buildings' : 'bi-diagram-3')) ?> ic" aria-hidden="true"></i>
+      <i class="bi <?= h($o['icon'] ?? ($ext ? 'bi-buildings' : ORG_LEVEL_ICONS[orgLevelOf($u) ?: 'dzial'])) ?> ic" aria-hidden="true"></i>
       <span aria-hidden="true">
         <span class="lbl"><?= h($u['name'] ?? '') ?></span>
         <span class="sub"><?= h($sub) ?></span>

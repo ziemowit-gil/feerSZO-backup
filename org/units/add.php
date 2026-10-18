@@ -4,6 +4,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/org.php';
+require_once dirname(dirname(__DIR__)) . '/modules/org_levels/lib/orgLevels.php';
+orgLevelsMigrate();
 require_role('admin'); require_module_enabled('org_enabled','Moduł struktury organizacyjnej');
 
 // Rodzaj jednostki ustalany przy wejściu (?kind=external) — w tym formularzu jest stały.
@@ -73,7 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $id = org_unit_create($row, (int)current_user()['id']);
             org_unit_save_field_values($id, $_POST['cf'] ?? [], $kind);
-            flash_set('success', $is_ext ? 'Jednostka zewnętrzna utworzona.' : 'Jednostka utworzona.');
+            if (!$is_ext) orgLevelSet($id, (string)($_POST['org_level'] ?? 'dzial'));
+            flash_set('success', $is_ext ? 'Jednostka zewnętrzna utworzona.' : (($_POST['org_level'] ?? '') === 'jednostka' ? 'Jednostka utworzona.' : 'Dział utworzony.'));
             header('Location:'.APP_URL.'/org/units/view.php?id='.$id); exit;
         } catch (\RuntimeException $e) {
             $errors[] = $e->getMessage();
@@ -101,6 +104,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <input type="hidden" name="kind" value="<?= h($kind) ?>">
 <div class="card shadow-sm">
 <div class="card-body">
+
+  <?php if (!$is_ext) echo orgLevelField((string)($_POST['org_level'] ?? $_GET['level'] ?? 'dzial')); ?>
 
   <div class="mb-3">
     <label class="form-label fw-semibold"><?= $is_ext ? 'Jednostka nadrzędna w drzewie' : 'Jednostka nadrzędna' ?></label>

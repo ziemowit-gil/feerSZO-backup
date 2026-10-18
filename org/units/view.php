@@ -4,6 +4,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/org.php';
+require_once dirname(dirname(__DIR__)) . '/modules/org_levels/lib/orgLevels.php';
+orgLevelsMigrate();
 require_login(); require_module_enabled('org_enabled','Moduł struktury organizacyjnej');
 
 $id   = (int)($_GET['id'] ?? 0);
@@ -66,7 +68,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <?= org_unit_status_badge($unit['status']) ?>
               <?php if($unit['parent_name']): ?><span class="badge bg-light text-dark border" style="font-size:.68rem"><i class="bi bi-diagram-3 me-1"></i><?= h($unit['parent_code'].' — '.$unit['parent_name']) ?></span><?php endif; ?>
             </div>
-            <h4 class="fw-bold mb-1"><?= h($unit['name']) ?></h4>
+            <h4 class="fw-bold mb-1"><?= h($unit['name']) ?><?= orgLevelBadge($unit) ?></h4>
             <?php if($unit['short_name']): ?><div class="text-muted" style="font-size:.82rem"><?= h($unit['short_name']) ?></div><?php endif; ?>
             <?php if($unit['description']): ?><div class="text-muted mt-1" style="font-size:.8rem"><?= h($unit['description']) ?></div><?php endif; ?>
           </div>
