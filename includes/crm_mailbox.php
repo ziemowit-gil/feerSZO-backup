@@ -176,7 +176,7 @@ function _crm_mailbox_view_sql(string $view, int $uid, array &$params): string {
 /**
  * Lista wiadomości skrzynki współdzielonej z kontekstem CRM.
  *
- * @param array $f view, mailbox_id, assigned_to, contact_id, q, page, per_page
+ * @param array $f view, mailbox_id, assigned_to, contact_id, q, unread, att, page, per_page
  * @return array{rows:array,total:int,page:int,per_page:int}
  */
 /**
@@ -268,6 +268,10 @@ function crm_mailbox_inbox(array $f = []): array {
     $params = $struct_params;
     if (!empty($f['assigned_to'])) { $where[] = 'c.assigned_to=?'; $params[] = (int)$f['assigned_to']; }
     if (!empty($f['contact_id']))  { $where[] = 'c.contact_id=?';  $params[] = (int)$f['contact_id']; }
+    // Szybkie filtry z paska skrzynki — zawężają wynik, nie zakres widoku,
+    // dlatego nie trafiają do $struct (reprezentant wątku liczy się jak dotąd).
+    if (!empty($f['unread']))      $where[] = 'c.is_read=0';
+    if (!empty($f['att']))         $where[] = 'c.has_attachments=1';
     if (!empty($f['q'])) {
         $q = '%' . trim((string)$f['q']) . '%';
         $where[] = '(c.subject LIKE ? OR c.from_email LIKE ? OR c.from_name LIKE ? OR ct.imie_nazwisko LIKE ?'
