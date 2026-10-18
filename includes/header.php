@@ -512,7 +512,7 @@ require_once __DIR__ . '/szo_metro.php';
 if (!$_ezd_shell && $_user) {
     $_szo_metro_group = szo_metro_group($_menu['tree']);
     szo_metro_header_assets($_szo_metro_group);                 // nagłówek: zawsze Metro
-    if ($_szo_metro_group) szo_metro_assets($_szo_metro_group);  // treść: Umowy, Wolontariat, Finanse, Ludzie
+    if ($_szo_metro_group) szo_metro_assets($_szo_metro_group);  // treść: grupy z SZO_METRO_GROUPS
 }
 /* Tabele nie ucinają kolumn: przewijanie w poziomie + menu Bootstrapa „fixed” */
 require_once __DIR__ . '/table_overflow.php'; table_overflow_assets();
