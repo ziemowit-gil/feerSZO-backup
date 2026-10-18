@@ -31,6 +31,32 @@ function tiPlanPortalUrl(string $self, array $q = []): string {
 }
 
 /**
+ * Wygląd portalu: 'metro' (domyślny, szata Metro UI jak SZO) albo 'klasyczny' (dotychczasowy „Plan lekcji Optivum”).
+ * Wybór z ?wyglad= zapamiętany w ciasteczku na rok — działa bez logowania i bez sesji.
+ */
+function tiPlanPortalSkin(): string {
+    static $skin = null;
+    if ($skin !== null) return $skin;
+    $q = (string)($_GET['wyglad'] ?? '');
+    if (in_array($q, ['metro', 'klasyczny'], true)) {
+        $skin = $q;
+        if (!headers_sent()) setcookie('tiplan_skin', $q, ['expires' => time() + 365 * 86400, 'path' => '/', 'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
+        return $skin;
+    }
+    $c = (string)($_COOKIE['tiplan_skin'] ?? '');
+    return $skin = in_array($c, ['metro', 'klasyczny'], true) ? $c : 'metro';
+}
+
+/** Adres bieżącej strony z przełączonym wyglądem (zachowuje ścieżkę i pozostałe parametry). */
+function tiPlanPortalSkinUrl(string $to): string {
+    $uri = (string)($_SERVER['REQUEST_URI'] ?? '/');
+    $path = (string)parse_url($uri, PHP_URL_PATH);
+    parse_str((string)parse_url($uri, PHP_URL_QUERY), $q);
+    $q['wyglad'] = $to;
+    return h($path . '?' . http_build_query($q));
+}
+
+/**
  * Otwiera stronę. $o: title (tytuł karty), heading (pasek), sub (linia pod paskiem, opcjonalnie), self, org,
  * side ['grupy' => [[nazwa, href], …], 'prowadzacy' => […], 'sale' => […] | null], current (href bieżącej pozycji listy),
  * crumbs [[label, href|null], …] (opcjonalnie).
@@ -50,9 +76,11 @@ function tiPlanPortalOpen(array $o): void {
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <title><?= h($o['title']) ?><?= $orgName !== '' ? ' — ' . h($orgName) : '' ?></title>
+<?php $skin = tiPlanPortalSkin(); ?>
 <style><?php readfile(__DIR__ . '/portal.css'); ?></style>
+<?php if ($skin === 'metro'): ?><style><?php readfile(__DIR__ . '/portal_metro.css'); ?></style><?php endif; ?>
 </head>
-<body>
+<body class="skin-<?= $skin ?>">
 <a class="skip" href="#tresc">Przejdź do planu</a>
 <div class="layout">
   <nav class="side" aria-label="Lista grup, prowadzących i sal">
@@ -78,6 +106,7 @@ function tiPlanPortalOpen(array $o): void {
   <main class="page" id="tresc">
     <div class="titlebar">
       <h1 class="title"><?= h($o['heading'] ?? $o['title']) ?></h1>
+      <a class="skin-btn" href="<?= tiPlanPortalSkinUrl($skin === 'metro' ? 'klasyczny' : 'metro') ?>" title="Przełącz wygląd planu (zapamiętany w tej przeglądarce)"><?= $skin === 'metro' ? 'Widok klasyczny' : 'Widok Metro' ?></a>
       <?php if (!empty($o['full'])): ?>
       <a class="login-btn" href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a>
       <?php else: ?>

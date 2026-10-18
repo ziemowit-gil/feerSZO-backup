@@ -36,6 +36,9 @@ main.page { min-width: 0; }
 .login-btn { position: absolute; top: 10px; right: 12px; background: #fff; color: var(--link) !important; border: 1px solid #fff; padding: 4px 12px;
   font: bold 12px Verdana, sans-serif; text-decoration: none; border-radius: 2px; }
 .login-btn:hover, .login-btn:focus-visible { background: var(--head-bg); }
+.skin-btn { position: absolute; top: 10px; right: 96px; color: #fff !important; font: 12px Verdana, sans-serif; padding: 5px 4px; }
+@media (max-width: 760px) { .skin-btn { position: static; display: block; text-align: center; color: var(--link) !important; padding: 6px; border-bottom: 1px solid var(--line); } }
+@media print { .skin-btn { display: none; } }
 @media (max-width: 760px) { .login-btn { position: static; display: block; text-align: center; border-radius: 0; border: 0; border-bottom: 1px solid var(--line); } }
 @media print { .login-btn { display: none; } }
 h1.title { margin: 0; background: var(--title-bg); color: var(--title-ink); font: bold 30px/1.2 Verdana, sans-serif; text-align: center;
