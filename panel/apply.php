@@ -317,6 +317,15 @@ $_ap_pal = array_values(panelMetroPalette());
         <div class="ap-fields">
         <?php foreach ($t['fields'] as $f) {
             $_lock = appDocsFieldLocked($t['name'] ?? null, $f['name']);
+            // Wzory ZSW/DOK: data sporządzenia = data złożenia, stała (bez pola w formularzu)
+            if ($f['name'] === 'miejscowosc' && appDocsTemplateFor($t['name'] ?? null)): ?>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="fld_data_sp_<?= $t['id'] ?>">Data sporządzenia wniosku</label>
+          <input type="text" id="fld_data_sp_<?= $t['id'] ?>" class="form-control" value="<?= h(date('d.m.Y')) ?>" readonly aria-readonly="true"
+                 style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed" aria-describedby="fld_data_sp_<?= $t['id'] ?>_lock">
+          <div class="form-text" id="fld_data_sp_<?= $t['id'] ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Ustawiana automatycznie — data złożenia wniosku.</div>
+        </div>
+        <?php endif;
             $val   = $_lock ? appDocsPrefill($t['name'] ?? null, $f['name'], $user)
                             : ($_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user));
             $ph    = h($f['placeholder']);
@@ -551,6 +560,15 @@ $_ap_pal = array_values(panelMetroPalette());
            style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
         <?php foreach ($t['fields'] as $f) {
             $_lock = appDocsFieldLocked($t['name'] ?? null, $f['name']);
+            // Wzory ZSW/DOK: data sporządzenia = data złożenia, stała (bez pola w formularzu)
+            if ($f['name'] === 'miejscowosc' && appDocsTemplateFor($t['name'] ?? null)): ?>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="fld_data_sp_<?= $t['id'] ?>">Data sporządzenia wniosku</label>
+          <input type="text" id="fld_data_sp_<?= $t['id'] ?>" class="form-control" value="<?= h(date('d.m.Y')) ?>" readonly aria-readonly="true"
+                 style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed" aria-describedby="fld_data_sp_<?= $t['id'] ?>_lock">
+          <div class="form-text" id="fld_data_sp_<?= $t['id'] ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Ustawiana automatycznie — data złożenia wniosku.</div>
+        </div>
+        <?php endif;
             $val   = $_lock ? appDocsPrefill($t['name'] ?? null, $f['name'], $user)
                             : ($_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user));
             $ph    = h($f['placeholder']);
