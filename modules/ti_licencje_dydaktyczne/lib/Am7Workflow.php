@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * modules/ti_licencje_dydaktyczne/lib/Am7Workflow.php — obieg AM7: udostępnienie licencji / dostępu do Office 365 kursantowi
- * (tenant Microsoft 365 ośrodka, nie szkolny).
+ * modules/ti_licencje_dydaktyczne/lib/Am7Workflow.php — obieg AM7: licencja lub dostęp do oprogramowania / usługi cyfrowej dla kursanta
+ * (dowolny produkt i dostawca; środowisko lub tenant ośrodka, nie szkolny).
  *
  *   1. Wniosek AM7/1 (panel, „standardowo” jak AM5): numer sprawy 4021-MS_AM/NNNNNN/AB, wszczęcie = termin 7 dni,
  *      e-mail + SMS do kursanta (kto wszczął, numer sprawy, termin) z linkiem do podpisu wniosku w portalu.
@@ -39,8 +39,8 @@ final class Am7Workflow
         if ($dto->studentKind === 'client' && ($hd = LicenseManagementService::holderData('client', $dto->studentId))) {
             $name = $hd['name']; $email = $email !== '' ? $email : $hd['email']; $phone = $phone !== '' ? $phone : $hd['phone'];
         }
-        $cols = ['form_kind' => LicenseForm::Am7->value, 'title' => 'Office 365' . ($dto->plan !== '' ? ' — ' . $dto->plan : ''),
-            'work_description' => 'Dostęp do usług Microsoft 365 w tenancie ośrodka na potrzeby kursu.', 'course_id' => $dto->courseId, 'course_name' => $course,
+        $cols = ['form_kind' => LicenseForm::Am7->value, 'title' => $dto->plan !== '' ? $dto->plan : 'Oprogramowanie',
+            'work_description' => 'Licencja lub dostęp do oprogramowania / usługi cyfrowej na potrzeby kursu.', 'course_id' => $dto->courseId, 'course_name' => $course,
             'licensor_name' => $dto->to !== '' ? $dto->to : ldOrgName(), 'applicant_name' => $name, 'applicant_contact' => $dto->account,
             'interested_kind' => $dto->studentKind, 'interested_id' => $dto->studentId, 'interested_name' => $name, 'interested_email' => $email, 'interested_phone' => $phone,
             'request_data' => json_encode($dto->requestData(), JSON_UNESCAPED_UNICODE), 'period_from' => $dto->periodFrom, 'period_to' => $dto->periodTo,
@@ -54,7 +54,7 @@ final class Am7Workflow
             $this->svc->licenses->event($id, 'request.edit', 'Zmieniono wniosek roboczy AM7.', $actor);
         } else {
             $id = $this->svc->licenses->create($cols, $actor);
-            $this->svc->licenses->event($id, 'request.create', 'Założono sprawę ' . ($this->svc->licenses->get($id)['case_number'] ?? '') . ' — wniosek ' . LicenseDoc::Am7Request->symbol() . ' (Office 365).', $actor);
+            $this->svc->licenses->event($id, 'request.create', 'Założono sprawę ' . ($this->svc->licenses->get($id)['case_number'] ?? '') . ' — wniosek ' . LicenseDoc::Am7Request->symbol() . ' (oprogramowanie).', $actor);
         }
         return ['id' => $id, 'errors' => []];
     }
@@ -96,20 +96,20 @@ final class Am7Workflow
         $nr = (string)$l['case_number'];
         $due = ldDate((string)$l['due_on']);
         $r = $l['request'];
-        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Wszczęto proces udostępnienia Office 365 (AM7) — sprawa ' . $nr;
+        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Wszczęto proces udostępnienia oprogramowania (AM7) — sprawa ' . $nr;
         $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p>'
             . '<p><b>' . $e($l['started_name'] ?: 'pracownik ' . ldOrgName()) . '</b> wszczął(-ęła) w dniu ' . $e(ldDate(substr((string)$l['started_at'], 0, 10)))
-            . ' proces udostępnienia Ci licencji / dostępu do <b>Office 365</b> w tenancie ośrodka ' . $e(ldOrgName()) . '.</p>'
+            . ' proces udostępnienia Ci licencji / dostępu do <b>' . $e($l['title']) . '</b> (' . $e(ldOrgName()) . ').</p>'
             . '<table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
             . '<tr><td style="background:#f2f2f2;width:180px">Numer sprawy</td><td><b>' . $e($nr) . '</b></td></tr>'
             . '<tr><td style="background:#f2f2f2">Dokument</td><td>' . LicenseDoc::Am7Request->symbol() . ' — ' . $e(LicenseDoc::Am7Request->title()) . '</td></tr>'
             . '<tr><td style="background:#f2f2f2">Kurs</td><td>' . $e($l['course_name']) . '</td></tr>'
-            . '<tr><td style="background:#f2f2f2">Plan Microsoft 365</td><td>' . $e($r['plan'] ?? '') . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Produkt i licencja</td><td>' . $e($r['plan'] ?? '') . '</td></tr>'
             . '<tr><td style="background:#f2f2f2">Termin realizacji</td><td><b>do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e($due) . '</b></td></tr></table>'
             . '<p>Sprawdź dane we wniosku i <b>podpisz go elektronicznie</b> (przycisk poniżej). Po podpisaniu placówka wyda decyzję — otrzymasz ją e-mailem w PDF.</p>';
-        $sms = 'FEER: ' . ($l['started_name'] ?: 'Fundacja') . ' wszczal(a) proces Office 365 (AM7, sprawa ' . $nr . '). Podpisz wniosek do ' . $due . ': ' . $link;
+        $sms = 'FEER: ' . ($l['started_name'] ?: 'Fundacja') . ' wszczal(a) proces licencji ' . mb_strimwidth((string)$l['title'], 0, 25, '...') . ' (AM7, sprawa ' . $nr . '). Podpisz wniosek do ' . $due . ': ' . $link;
         $res = $this->svc->notify->send($type, $this->svc->interestedContact($l), $subject,
-            LicenseNotificationService::layout('Office 365 — wniosek do podpisu', $body, $link, 'Sprawdź i podpisz wniosek', 'AM7'), $sms, ['type' => 'license', 'id' => $id], $actor);
+            LicenseNotificationService::layout('Licencja — wniosek do podpisu', $body, $link, 'Sprawdź i podpisz wniosek', 'AM7'), $sms, ['type' => 'license', 'id' => $id], $actor);
         $this->svc->licenses->event($id, 'request.sign_link', 'Link do podpisu wniosku: ' . $this->svc->describe($res), $actor);
         return $this->svc->describe($res);
     }
@@ -133,7 +133,7 @@ final class Am7Workflow
         $this->svc->licenses->event($id, 'request.signed', 'Kursant podpisał wniosek AM7/1 w portalu (IP ' . $ip . ').', $actor);
         try { $this->svc->renderRequest($id); } catch (\Throwable $e) { error_log('am7 sign pdf: ' . $e->getMessage()); }
         $this->svc->notify->alertOffice('Wniosek AM7 podpisany — ' . $l['case_number'],
-            '<p><b>' . htmlspecialchars($dto->name) . '</b> podpisał(a) wniosek o dostęp do Office 365 (sprawa <b>' . htmlspecialchars((string)$l['case_number']) . '</b>). '
+            '<p><b>' . htmlspecialchars($dto->name) . '</b> podpisał(a) wniosek AM7 o dostęp do ' . htmlspecialchars((string)$l['title']) . ' (sprawa <b>' . htmlspecialchars((string)$l['case_number']) . '</b>). '
             . 'Prosimy przygotować decyzję AM7/2 lub AM7/3 w panelu dydaktyka › Licencje — termin do ' . htmlspecialchars(ldDate($l['due_on'])) . '.</p>',
             ['type' => 'license', 'id' => $id], $actor, LicenseNotificationType::RequestSigned);
         return [];
@@ -154,7 +154,7 @@ final class Am7Workflow
         $this->svc->licenses->update($id, ['decision_data' => json_encode($data, JSON_UNESCAPED_UNICODE)]);
         $this->svc->licenses->event($id, 'decision.prepare', 'Przygotowano projekt decyzji ' . ($dto->grant ? 'AM7/2 (przyznanie)' : 'AM7/3 (odmowa)') . ' — czeka na zatwierdzenie kierownika.', $actor);
         $this->svc->notify->alertOffice('Projekt decyzji AM7 do zatwierdzenia — ' . $l['case_number'],
-            '<p>' . htmlspecialchars((string)$actor['name']) . ' przygotował(a) projekt decyzji ' . ($dto->grant ? 'o przyznaniu' : 'o odmowie') . ' dostępu do Office 365 dla <b>'
+            '<p>' . htmlspecialchars((string)$actor['name']) . ' przygotował(a) projekt decyzji ' . ($dto->grant ? 'o przyznaniu' : 'o odmowie') . ' dostępu do ' . htmlspecialchars((string)$l['title']) . ' dla <b>'
             . htmlspecialchars((string)$l['interested_name']) . '</b>. Decyzja zostanie wysłana kursantowi po zatwierdzeniu przez kierownika.</p>',
             ['type' => 'license', 'id' => $id], $actor, LicenseNotificationType::DecisionAdmin);
         return [];
@@ -234,12 +234,12 @@ final class Am7Workflow
         $report = [];
         // Wysyłka decyzji e-mailem w PDF (fallback: SMS z informacją + alert do biura z prośbą o doręczenie)
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $subject = ($grant ? 'Decyzja o przyznaniu dostępu do Office 365' : 'Decyzja o odmowie dostępu do Office 365') . ' — sprawa ' . $l['case_number'];
+        $subject = ($grant ? 'Decyzja o przyznaniu dostępu do ' : 'Decyzja o odmowie dostępu do ') . $l['title'] . ' — sprawa ' . $l['case_number'];
         $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy decyzję <b>' . $e($pdf['number']) . '</b> — ' . $e($pdf['doc']->title()) . '.</p>'
-            . ($grant ? '<p>Konto: <b>' . $e($d['account'] ?? '') . '</b>, plan: <b>' . $e($d['plan'] ?? '') . '</b>, okres dostępu: <b>' . $e(ldDate($d['period_from'] ?? '') . ' — ' . ldDate($d['period_to'] ?? '')) . '</b>.</p>'
-                      . '<p>Helpdesk IT przygotuje konto w tenancie ośrodka. W osobnej wiadomości otrzymasz link do złożenia oświadczeń <b>AM7/4</b> i <b>AM7/5</b> (do ' . LD_REALIZATION_DAYS . ' dni).</p>'
+            . ($grant ? '<p>Konto / identyfikator: <b>' . $e($d['account'] ?? '') . '</b>, produkt i licencja: <b>' . $e($d['plan'] ?? '') . '</b>, okres dostępu: <b>' . $e(ldDate($d['period_from'] ?? '') . ' — ' . ldDate($d['period_to'] ?? '')) . '</b>.</p>'
+                      . '<p>Helpdesk IT przygotuje dostęp (konto, klucz lub licencję). W osobnej wiadomości otrzymasz link do złożenia oświadczeń <b>AM7/4</b> i <b>AM7/5</b> (do ' . LD_REALIZATION_DAYS . ' dni).</p>'
                       : '<p>Uzasadnienie: ' . $e($d['refusal_reason'] ?? '') . '</p>');
-        $sms = 'FEER: decyzja AM7 (sprawa ' . $l['case_number'] . ') - ' . ($grant ? 'PRZYZNANO dostep do Office 365.' : 'odmowa dostepu do Office 365.') . ' PDF wyslalismy e-mailem.';
+        $sms = 'FEER: decyzja AM7 (sprawa ' . $l['case_number'] . ') - ' . ($grant ? 'PRZYZNANO dostep.' : 'odmowa dostepu.') . ' PDF wyslalismy e-mailem.';
         $att = LicenseNotificationService::attachment($pdf['path'], $pdf['number']);
         if (!$att) {
             // Fallback: PDF nie powstał (mPDF niedostępny → wersja HTML) — decyzja i tak wychodzi, biuro doręcza wydruk
@@ -266,10 +266,10 @@ final class Am7Workflow
         if (!$l) return 'brak sprawy';
         if (!empty($l['helpdesk_ticket_id'])) return 'zgłoszenie już istnieje (' . $l['helpdesk_number'] . ')';
         $d = $l['decision'];
-        $desc = "Licencja / dostęp do Office 365 — decyzja " . LicenseDocument::number(LicenseDoc::Am7Grant, $l) . " (zatwierdził(a): " . ($d['approved_name'] ?? '') . ").\n\n"
+        $desc = "Licencja / dostęp do: " . $l['title'] . " — decyzja " . LicenseDocument::number(LicenseDoc::Am7Grant, $l) . " (zatwierdził(a): " . ($d['approved_name'] ?? '') . ").\n\n"
             . "Kursant: " . $l['interested_name'] . "\nKurs: " . $l['course_name'] . "\n"
             . "Sposób udostępnienia: " . (($d['access'] ?? '') === 'other' ? 'inny — ' . ($d['access_other'] ?? '') : 'konto użytkownika w tenancie ośrodka') . "\n"
-            . "Konto do przypisania: " . ($d['account'] ?? '') . "\nPlan Microsoft 365 / SKU: " . ($d['plan'] ?? '') . "\n"
+            . "Konto do przypisania: " . ($d['account'] ?? '') . "\nProdukt, licencja, plan / SKU: " . ($d['plan'] ?? '') . "\n"
             . "Usługi / aplikacje: " . ($d['services'] ?? '') . "\nOkres aktywnego dostępu: " . ldDate($d['period_from'] ?? '') . ' — ' . ldDate($d['period_to'] ?? '') . "\n"
             . "Ograniczenia: " . ($d['restrictions'] ?? '') . "\nPo zakończeniu: " . ($d['after_end'] ?? '') . "\n\n"
             . "Do zrobienia: utworzyć / przypisać konto w tenancie ośrodka, nadać licencję z planu, przekazać kursantowi dane logowania bezpiecznym kanałem, "
@@ -278,7 +278,7 @@ final class Am7Workflow
             require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
             $me = $actor['id'] ? db_one("SELECT id, name, email FROM users WHERE id = ?", [(int)$actor['id']]) : null;
             $tid = hd_ticket_quick_create(['id' => $me['id'] ?? null, 'name' => $me['name'] ?? (string)$actor['name'], 'email' => $me['email'] ?? ''],
-                'Office 365 dla kursanta: ' . $l['interested_name'] . ' (' . $l['case_number'] . ')', $desc, 'it_m365', 'wysoki', 'licencje_am7');
+                'Licencja ' . $l['title'] . ' dla kursanta: ' . $l['interested_name'] . ' (' . $l['case_number'] . ')', $desc, preg_match('/microsoft|office|m365|365/i', (string)$l['title'] . ' ' . ($d['plan'] ?? '')) ? 'it_m365' : 'it_oprogramowanie', 'wysoki', 'licencje_am7');
             $num = (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id = ?", [$tid])['number'] ?? '');
             $this->svc->licenses->update($id, ['helpdesk_ticket_id' => $tid, 'helpdesk_number' => $num]);
             $this->svc->licenses->event($id, 'helpdesk.create', 'Utworzono zlecenie Helpdesku IT ' . $num . '.', $actor);
@@ -301,13 +301,13 @@ final class Am7Workflow
     {
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $d = $l['decision'];
-        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Office 365 — złóż oświadczenia AM7/4 i AM7/5 do ' . $due;
-        $body = '<p>Dzień dobry ' . $e($a['holder_name']) . ',</p><p>przyznaliśmy Ci dostęp do Office 365 (sprawa <b>' . $e($l['case_number']) . '</b>): konto <b>' . $e($d['account'] ?? '')
+        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Licencja ' . $l['title'] . ' — złóż oświadczenia AM7/4 i AM7/5 do ' . $due;
+        $body = '<p>Dzień dobry ' . $e($a['holder_name']) . ',</p><p>przyznaliśmy Ci licencję / dostęp do <b>' . $e($l['title']) . '</b> (sprawa <b>' . $e($l['case_number']) . '</b>): konto <b>' . $e($d['account'] ?? '')
             . '</b>, plan <b>' . $e($d['plan'] ?? '') . '</b>, okres ' . $e(ldDate($l['period_from']) . ' — ' . ldDate($l['period_to'])) . '.</p>'
-            . '<p>Złóż dwa oświadczenia: <b>AM7/4</b> — krótkie oświadczenie licencjobiorcy — kursanta oraz <b>AM7/5</b> — o nieodstępowaniu licencji i nieudostępnianiu konta.</p>'
+            . '<p>Złóż dwa oświadczenia: <b>AM7/4</b> — krótkie oświadczenie licencjobiorcy — kursanta oraz <b>AM7/5</b> — o nieprzekazywaniu licencji i dostępu.</p>'
             . ($a['status'] === 'rejected' && trim((string)$a['decision_note']) !== '' ? '<p style="border-left:4px solid #a20025;padding-left:10px"><b>Poprzednie oświadczenia odrzucono:</b> ' . $e($a['decision_note']) . '</p>' : '')
             . '<p><b>Realizacja do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e($due) . '.</b> Link jest osobisty i ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
-        $sms = 'FEER: Office 365 (sprawa ' . $l['case_number'] . ') - zloz oswiadczenia AM7/4 i AM7/5 do ' . $due . ': ' . $link;
+        $sms = 'FEER: licencja ' . mb_strimwidth((string)$l['title'], 0, 25, '...') . ' (sprawa ' . $l['case_number'] . ') - zloz oswiadczenia AM7/4 i AM7/5 do ' . $due . ': ' . $link;
         return [$subject, $body, $sms];
     }
 
@@ -319,7 +319,7 @@ final class Am7Workflow
         $data['plan_period'] = trim((string)($d['plan'] ?? '') . ', ' . ldDate($l['period_from']) . ' — ' . ldDate($l['period_to']), ', ');
         $data['after_end'] = (string)($d['after_end'] ?? '');
         $data['data_rules'] = trim((string)($d['account_data'] ?? '') . ((string)($d['after_end'] ?? '') !== '' ? "\n" . $d['after_end'] : ''));
-        $data['work'] = 'Office 365 — ' . ($d['plan'] ?? '');
+        $data['work'] = (string)($d['plan'] ?? $l['title']);
         return $data;
     }
 }

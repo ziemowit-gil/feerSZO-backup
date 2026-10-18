@@ -1,11 +1,11 @@
 <?php
 /**
- * modules/ti_licencje_dydaktyczne/view/form7.php — wniosek AM7/1 (Office 365) w panelu: adresat, kursant, kurs, konto, plan,
+ * modules/ti_licencje_dydaktyczne/view/form7.php — wniosek AM7/1 (oprogramowanie) w panelu: adresat, kursant, kurs, konto, plan,
  * sposób dostępu (tenant ośrodka / inny), okres, uzasadnienie. Po wszczęciu kursant dostaje e-mail + SMS i podpisuje wniosek w portalu.
  * Zmienne: $l (null = nowy), $errors, $old, $courses, $people, $actor.
  */
 require __DIR__ . '/_parts.php';
-$title = $l ? 'Wniosek ' . $l['case_number'] : 'Nowy wniosek AM7 (Office 365)';
+$title = $l ? 'Wniosek ' . $l['case_number'] : 'Nowy wniosek AM7 (oprogramowanie)';
 $kierLabel = $title;
 include __DIR__ . '/_head.php';
 $v = fn(string $k) => h((string)($old[$k] ?? ''));
@@ -17,7 +17,7 @@ $action = $l ? route('ld.edit', ['id' => $l['id']]) : route('ld.new7');
 ?>
 <div class="pivot"><a href="<?= h(route('ld.index')) ?>">Pulpit</a><a href="<?= h($action) ?>" aria-current="page"><?= h($title) ?></a></div>
 <h1><span class="sym" style="background:#0050ef">AM7</span> <?= h(LicenseDoc::Am7Request->title()) ?></h1>
-<p class="text-secondary">Dostęp w <b>tenancie Microsoft 365 ośrodka</b>. Sprawa dostanie numer <b><?= h($l['case_number'] ?? LD_CASE_PREFIX . '/NNNNNN/XX') ?></b>.
+<p class="text-secondary">Licencja lub dostęp do <b>dowolnego oprogramowania lub usługi cyfrowej</b> (konto w tenancie ośrodka albo inny sposób aktywacji). Sprawa dostanie numer <b><?= h($l['case_number'] ?? LD_CASE_PREFIX . '/NNNNNN/XX') ?></b>.
   Po wszczęciu kursant dostaje e-mail i SMS z linkiem do podpisu wniosku (realizacja do <?= LD_REALIZATION_DAYS ?> dni); decyzję zatwierdza kierownik i wysyłamy ją e-mailem w PDF.</p>
 <?php if ($errors): ?><div class="alert alert-danger" role="alert">Popraw zaznaczone pola (<?= count($errors) ?>).</div><?php endif; ?>
 
@@ -54,8 +54,8 @@ $action = $l ? route('ld.edit', ['id' => $l['id']]) : route('ld.new7');
 <section class="panel">
   <h2 class="mt-0">Wnioskowany dostęp</h2>
   <div class="row g-3">
-    <div class="col-md-6"><label class="form-label" for="account">Adres e-mail lub identyfikator konta</label><input class="form-control" id="account" name="account" value="<?= $v('account') ?>" placeholder="np. jan.kowalski@… (konto w tenancie ośrodka)"></div>
-    <div class="col-md-6"><label class="form-label" for="plan">Wnioskowany plan Microsoft 365 *</label><input class="form-control<?= $inv('plan') ?>" id="plan" name="plan" value="<?= $v('plan') ?>" placeholder="np. Microsoft 365 A3"><?= $err('plan') ?></div>
+    <div class="col-md-6"><label class="form-label" for="account">Konto, identyfikator użytkownika lub klucz licencyjny</label><input class="form-control" id="account" name="account" value="<?= $v('account') ?>" placeholder="np. jan.kowalski@… "></div>
+    <div class="col-md-6"><label class="form-label" for="plan">Wnioskowany produkt i licencja *</label><input class="form-control<?= $inv('plan') ?>" id="plan" name="plan" value="<?= $v('plan') ?>" placeholder="np. Adobe Creative Cloud All Apps, JetBrains IntelliJ Ultimate, Microsoft 365 A3"><?= $err('plan') ?></div>
     <div class="col-md-6"><span class="form-label d-block">Wnioskowany sposób dostępu</span>
       <div class="form-check"><input class="form-check-input" type="radio" name="access" value="tenant" id="ac1"<?= ($old['access'] ?? 'tenant') !== 'other' ? ' checked' : '' ?>><label class="form-check-label" for="ac1">konto w tenancie ośrodka</label></div>
       <div class="form-check"><input class="form-check-input" type="radio" name="access" value="other" id="ac2"<?= ($old['access'] ?? '') === 'other' ? ' checked' : '' ?>><label class="form-check-label" for="ac2">inny sposób:</label></div>

@@ -5,7 +5,7 @@
  * Zmienne: $rows, $f, $counts, $toVerify, $overdueAsg, $alertEmails, $alertSetting, $agentOn, $actor.
  */
 require __DIR__ . '/_parts.php';
-$title = 'Licencje AM5 / Office 365 AM7';
+$title = 'Licencje AM5 / AM7 i zarządzanie';
 include __DIR__ . '/_head.php';
 $u = fn(array $q) => h(route('ld.index', $q));
 $tiles = [
@@ -20,12 +20,13 @@ $tiles = [
 ];
 ?>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-  <h1 class="me-auto mb-0"><span class="sym">AM5</span> <span class="sym" style="background:#0050ef">AM7</span> Licencje dydaktyczne i Office 365</h1>
+  <h1 class="me-auto mb-0"><span class="sym">AM5</span> <span class="sym" style="background:#0050ef">AM7</span> Licencje dydaktyczne i oprogramowanie</h1>
+  <a class="btn btn-metro green" href="<?= h(route('ld.accounts')) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Operacje na licencjach (AM11–AM24)</a>
   <a class="btn btn-metro" href="<?= h(route('ld.new')) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i> Wniosek AM5 — materiały</a>
-  <a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.new7')) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Wniosek AM7 — Office 365</a>
+  <a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.new7')) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Wniosek AM7 — oprogramowanie</a>
 </div>
 <p class="text-secondary"><b>AM5</b> — licencje na materiały dydaktyczne: wniosek do licencjodawcy (AM5/1), oświadczenia kursanta (AM5/2, AM5/3).
-  <b>AM7</b> — licencja / dostęp do Office 365 w tenancie ośrodka: wniosek podpisywany przez kursanta (AM7/1), decyzja placówki zatwierdzana przez kierownika i wysyłana w PDF (AM7/2 / AM7/3), zlecenie Helpdesku IT, oświadczenia (AM7/4, AM7/5).
+  <b>AM7</b> — licencja / dostęp do oprogramowania i usług cyfrowych (dowolny dostawca; konto w tenancie ośrodka lub inna aktywacja): wniosek podpisywany przez kursanta (AM7/1), decyzja placówki zatwierdzana przez kierownika i wysyłana w PDF (AM7/2 / AM7/3), zlecenie Helpdesku IT, oświadczenia (AM7/4, AM7/5).
   Każda sprawa ma numer <b><?= h(LD_CASE_PREFIX) ?>/NNNNNN/AB</b>, każdy etap — termin <b>do <?= LD_REALIZATION_DAYS ?> dni</b>; wszczęcie wysyła e-mail i SMS do osoby zainteresowanej.</p>
 
 <nav class="tiles" aria-label="Podsumowanie">

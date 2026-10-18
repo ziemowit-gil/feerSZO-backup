@@ -13,7 +13,7 @@ declare(strict_types=1);
  *   4. Złożenie w portalu: zapis zmian danych (audit trail), PDF AM5/2 i AM5/3 (fallback HTML), kopia w profilu osoby,
  *      potwierdzenie dla osoby + alert do biura. Weryfikacja w panelu: zatwierdź (audyt MSUES) / odrzuć (nowy link).
  *   Zawieszenie / wznowienie, wygaśnięcie (po okresie licencji — liczone), cofnięcie przydziału, wycofanie wniosku.
- * AM7 (Office 365): wniosek AM7/1 wszczyna biuro → kursant dostaje e-mail + SMS z linkiem i podpisuje wniosek w portalu (7 dni) →
+ * AM7 (oprogramowanie): wniosek AM7/1 wszczyna biuro → kursant dostaje e-mail + SMS z linkiem i podpisuje wniosek w portalu (7 dni) →
  * biuro wydaje decyzję AM7/2 (przyznanie) albo AM7/3 (odmowa) — PDF idzie e-mailem do kursanta (fallback SMS + alert) →
  * po przyznaniu i wysyłce: zlecenie dla Helpdesku IT (konto / licencja w tenancie ośrodka) i zaproszenie do oświadczeń AM7/4 i AM7/5.
  * Wyjątki DomainException / InvalidArgumentException niosą komunikat dla użytkownika.
@@ -437,7 +437,7 @@ final class LicenseManagementService
         if ($l['form'] === LicenseForm::Am7) {
             [$subject, $body, $sms] = Am7Workflow::inviteTexts($l, $a, $link, $due, $type);
             $r = $this->notify->send($type, ['name' => (string)$a['holder_name'], 'email' => (string)$a['holder_email'], 'phone' => (string)$a['holder_phone']],
-                $subject, LicenseNotificationService::layout('Office 365 — oświadczenia', $body, $link, 'Złóż oświadczenia', 'AM7'), $sms,
+                $subject, LicenseNotificationService::layout('Licencja — oświadczenia', $body, $link, 'Złóż oświadczenia', 'AM7'), $sms,
                 ['type' => 'assignment', 'id' => $assignmentId], $actor);
             $this->licenses->event((int)$a['license_id'], $type === LicenseNotificationType::Reminder ? 'invite.remind' : 'invite.send', 'Link do oświadczeń AM7/4 i AM7/5: ' . $this->describe($r), $actor, $assignmentId);
             return $this->describe($r);

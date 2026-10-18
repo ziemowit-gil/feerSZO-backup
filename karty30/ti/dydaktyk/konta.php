@@ -1773,6 +1773,7 @@ function printBulk(){
       <p class="text-body-secondary small mb-0">Brak aktywnego oprogramowania w katalogu.</p>
       <?php endif; ?>
       <a href="licencjeKursantow.php" class="small d-inline-block mt-2"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pełny katalog oprogramowania i wszystkie przypisania</a>
+      <?php try { include dirname(__DIR__, 3) . '/modules/ti_licencje_dydaktyczne/view/_kontaPanel.php'; } catch (\Throwable $_ldE) { error_log('konta ld panel: ' . $_ldE->getMessage()); } /* zarządzanie licencjami AM20–AM24 */ ?>
     </div>
 
     <!-- ── Zakładka: Usługi i produkty (domeny, hosting, inne) ─────────── -->

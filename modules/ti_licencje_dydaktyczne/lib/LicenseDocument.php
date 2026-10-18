@@ -2,19 +2,19 @@
 declare(strict_types=1);
 
 /**
- * modules/ti_licencje_dydaktyczne/lib/LicenseDocument.php — wydruki wzorów AM5 (licencja dydaktyczna) i AM7 (Office 365) w układzie urzędowego
+ * modules/ti_licencje_dydaktyczne/lib/LicenseDocument.php — wydruki wzorów AM5 (licencja dydaktyczna) i AM7 (oprogramowanie i usługi cyfrowe) w układzie urzędowego
  * formularza (jak OKK-1 / deklaracja CIT-8): symbol AM5 w kaflu nagłówka, sekcje z szarymi belkami, numerowane pola
  * w ramkach, kratki ☒/☐, pola jasne (składający) i ciemne (wypełnia licencjodawca / Fundacja), stopka z symbolem i numerem.
  *
  *   AM5/1 — Wniosek o udzielenie licencji na korzystanie z materiałów w celach dydaktycznych + Decyzja licencjodawcy
  *   AM5/2 — Oświadczenie licencjobiorcy – kursanta
  *   AM5/3 — Oświadczenie o nieodstępowaniu licencji i nieudostępnianiu materiałów
- *   AM7/1 — Wniosek o udostępnienie licencji Office 365 do celów dydaktycznych (podpis kursanta w portalu)
- *   AM7/2 — Decyzja o przyznaniu licencji lub dostępu do Office 365 (PDF wysyłany kursantowi)
+ *   AM7/1 — Wniosek o licencję lub dostęp do oprogramowania w celach dydaktycznych (podpis kursanta w portalu)
+ *   AM7/2 — Decyzja o przyznaniu licencji lub dostępu do oprogramowania (PDF wysyłany kursantowi)
  *   AM7/3 — Decyzja o odmowie (PDF wysyłany kursantowi)
  *   AM7/4 — Krótkie oświadczenie licencjobiorcy — kursanta
  *   AM7/5 — Oświadczenie o nieodstępowaniu licencji i nieudostępnianiu konta
- * Tenant Microsoft 365 jest tenantem ośrodka (nie szkolnym) — teksty wzorów AM7 mówią o „tenancie ośrodka”.
+ * Tenant (np. Microsoft 365) jest tenantem ośrodka (nie szkolnym) — teksty wzorów AM7 mówią o „tenancie ośrodka”.
  *
  * Pola puste drukują się z podpowiedzią wzoru i kropkami (do wypełnienia ręcznie). Podpis złożony w portalu drukuje się
  * jako adnotacja „złożono elektronicznie” (data, godzina, IP, skrót SHA-256 treści) — wersję papierową można podpisać odręcznie.
@@ -23,6 +23,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ldSchema.php';
 require_once __DIR__ . '/LicenseEnums.php';
 require_once __DIR__ . '/LicenseDto.php';
+require_once __DIR__ . '/LicenseOperationDefs.php';
 
 final class LicenseDocument
 {
@@ -95,7 +96,7 @@ final class LicenseDocument
             . $this->fld('Kurs / zajęcia', self::e($course), ' width="40%"')
             . '<td class="sym" width="20%"><div class="symb">' . $doc->form()->value . '</div><div class="symp">/' . $doc->part() . '</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
             . '</tr></table>'
-            . '<table class="t"><tr><td class="ttl">' . $titleLines . '<div class="ttl2">' . ($doc->form() === LicenseForm::Am7 ? 'udostępnienie licencji Office 365 kursantom' : 'licencja dydaktyczna') . ' — dokumentacja usługi szkoleniowej (MSUES 2.0)</div></td></tr>'
+            . '<table class="t"><tr><td class="ttl">' . $titleLines . '<div class="ttl2">' . ($doc->form() === LicenseForm::Am7 ? 'licencje do oprogramowania i usług cyfrowych' : 'licencja dydaktyczna') . ' — dokumentacja usługi szkoleniowej (MSUES 2.0)</div></td></tr>'
             . '<tr><td class="lgd">' . $legend . '</td></tr></table>';
     }
 
@@ -221,21 +222,21 @@ final class LicenseDocument
     }
 
 
-    // ── AM7 — Office 365 ────────────────────────────────────────────────────────
+    // ── AM7 — oprogramowanie i usługi cyfrowe ────────────────────────────────────────────────────────
 
-    public const AM7_REQUEST = 'Zwracam się o przyznanie dostępu do usług Microsoft 365 aktywowanych w planie wskazanym przez placówkę, w celu nauki i wykonywania zadań związanych z udziałem we wskazanym kursie. Przyjmuję do wiadomości, że zakres dostępnych usług zależy od planu przypisanego przez administratora oraz konfiguracji tenanta ośrodka.';
+    public const AM7_REQUEST = 'Zwracam się o udostępnienie wskazanego oprogramowania lub usługi cyfrowej na potrzeby nauki w ramach wskazanego kursu. Przyjmuję do wiadomości, że zakres i sposób dostępu zależą od rodzaju licencji, warunków dostawcy oraz sposobu aktywacji przyjętego przez placówkę; jeżeli dostęp wymaga konta w tenancie ośrodka lub innym środowisku placówki, jego używanie podlega także właściwym zasadom organizacyjnym i konfiguracji.';
     public const AM7_REQUEST_DECL = 'Oświadczam, że podane dane są prawidłowe, a wnioskowanego dostępu będę używać w związku z nauką na wskazanym kursie.';
-    public const AM7_GRANT = 'Po rozpatrzeniu wniosku AM7 przyznaję kursantowi licencję lub dostęp do Office 365 na potrzeby nauki w ramach wskazanego kursu, w zakresie i na okres określonych poniżej.';
-    public const AM7_GRANT_SCOPE = 'Dostęp jest przyznawany wyłącznie w celu udziału we wskazanym kursie i w zakresie usług aktywowanych dla przypisanego konta. Niniejsza decyzja dotyczy dostępu organizowanego przez placówkę; nie przesądza o uprawnieniu do korzystania z usług po wygaśnięciu dostępu w tenancie ośrodka.';
-    public const AM7_GRANT_END = 'Kursant powinien przed końcem dostępu wykonać wskazane przez placówkę czynności dotyczące swoich materiałów. Nie należy zakładać, że po odebraniu licencji lub zamknięciu konta konto, pliki albo dostęp do usług pozostaną dostępne; sposób i termin dalszego postępowania określają zasady placówki podane powyżej.';
-    public const AM7_REFUSAL = 'Po rozpatrzeniu wniosku AM7 odmawiam przyznania dostępu do planu Microsoft 365 używanego przez placówkę oraz przypisania albo aktywacji konta kursanta w tenancie ośrodka, o ile taki sposób dostępu był wnioskowany. Niniejsza odmowa nie przyznaje uprawnienia do korzystania z konta ani usług placówki.';
+    public const AM7_GRANT = 'Po rozpatrzeniu wniosku AM7 przyznaję kursantowi licencję lub dostęp do wskazanego oprogramowania albo usługi cyfrowej na potrzeby nauki w ramach wskazanego kursu, w określonym poniżej zakresie i okresie oraz w granicach uprawnienia przysługującego podmiotowi udostępniającemu i warunków licencji dostawcy.';
+    public const AM7_GRANT_SCOPE = 'Licencja lub dostęp są przyznawane wyłącznie na potrzeby udziału we wskazanym kursie i w zakresie określonym w decyzji oraz warunkach licencji. Niniejsza decyzja nie rozszerza uprawnień, które podmiot udostępniający posiada wobec dostawcy, ani nie zmienia warunków licencji dostawcy.';
+    public const AM7_GRANT_END = 'Kursant powinien przed końcem dostępu wykonać wskazane przez placówkę czynności dotyczące danych, plików i materiałów. Nie należy zakładać, że po odebraniu licencji, wyłączeniu konta lub zakończeniu subskrypcji dostęp do oprogramowania, usług albo zapisanych danych pozostanie dostępny; sposób i termin dalszego postępowania określają warunki dostawcy i zasady placówki wskazane powyżej.';
+    public const AM7_REFUSAL = 'Po rozpatrzeniu wniosku AM7 odmawiam przyznania licencji lub dostępu do wskazanego oprogramowania albo usługi cyfrowej w zakresie objętym wnioskiem. Niniejsza decyzja nie przyznaje uprawnienia do korzystania z produktu, konta ani usług placówki.';
     public const AM7_PARTICIPANT = [
-        'Oświadczam, że korzystam z przyznanej mi licencji lub dostępu do Office 365 w celu nauki w ramach wskazanego kursu oraz zobowiązuję się przestrzegać warunków licencji i zasad korzystania przekazanych przez podmiot udostępniający.',
-        'Jeżeli dostęp został przyznany przez konto w tenancie ośrodka, będę używać wyłącznie konta przypisanego mi przez placówkę i przyjmuję do wiadomości, że dostęp do usług zależy od planu oraz konfiguracji tego tenanta. Nie będę zakładać, że dostęp lub zapisane na koncie dane pozostaną dostępne po upływie okresu wskazanego w decyzji.',
+        'Oświadczam, że korzystam z przyznanej mi licencji lub dostępu do wskazanego oprogramowania albo usługi cyfrowej w celu nauki w ramach wskazanego kursu oraz zobowiązuję się przestrzegać warunków licencji, warunków dostawcy i zasad korzystania przekazanych przez podmiot udostępniający.',
+        'Jeżeli dostęp wymaga konta, klucza licencyjnego lub środowiska udostępnionego przez placówkę, będę używać przydzielonych mi danych i uprawnień zgodnie z decyzją, warunkami licencji oraz zasadami placówki. Przyjmuję do wiadomości, że zakres i okres dostępu zależą od rodzaju licencji, konfiguracji usługi oraz postanowień decyzji.',
     ];
     public const AM7_NONTRANSFER = [
-        'Oświadczam, że nie przekażę innej osobie przyznanego mi konta, danych logowania ani możliwości korzystania z usług udostępnionych przez placówkę. Będę korzystać z konta wyłącznie na potrzeby własnej nauki w ramach wskazanego kursu oraz zgodnie z zasadami placówki i warunkami korzystania przekazanymi kursantowi.',
-        'Przyjmuję do wiadomości, że dostęp jest ograniczony do planu Microsoft 365 i okresu wskazanych w decyzji, a po zakończeniu kursu lub upływie tego okresu placówka może odebrać licencję, zablokować albo zamknąć konto zgodnie z podanymi zasadami. Przed końcem dostępu wykonam wskazane przez placówkę czynności dotyczące zapisanych danych; nie zakładam, że konto lub dane będą dostępne po jego wyłączeniu.',
+        'Oświadczam, że nie przekażę innej osobie przyznanego mi konta, danych logowania, klucza licencyjnego ani możliwości korzystania z licencji lub usług w zakresie niedozwolonym warunkami licencji albo zasadami placówki. Będę korzystać z przyznanego produktu wyłącznie na potrzeby własnej nauki w ramach wskazanego kursu, chyba że decyzja i warunki licencji wyraźnie dopuszczają inny sposób korzystania.',
+        'Przyjmuję do wiadomości, że dostęp jest ograniczony do produktu, zakresu licencji i okresu wskazanych w decyzji, a po zakończeniu kursu lub upływie tego okresu placówka może zakończyć udostępnianie, odebrać licencję, dezaktywować konto lub klucz albo usunąć dostęp — zgodnie z warunkami dostawcy i zasadami placówki. Przed końcem dostępu wykonam wskazane czynności dotyczące danych i materiałów; nie zakładam, że licencja, konto lub dane pozostaną dostępne po tym terminie.',
     ];
 
     /** Teksty oświadczeń licencjobiorcy dla portalu (obie rodziny). @return list<string> */
@@ -264,7 +265,7 @@ final class LicenseDocument
         $r = $l['request'] ?? [];
         $sig = !empty($l['requester_signed_at']) ? ['at' => $l['requester_signed_at'], 'ip' => $l['requester_signed_ip'] ?? '', 'by' => (string)($l['requester_signed_name'] ?? '')] : null;
         $h = $this->header(LicenseDoc::Am7Request, self::number(LicenseDoc::Am7Request, $l), (string)$l['course_name'],
-            '<div class="ttl1">FORMULARZ AM7 — WNIOSEK O UDOSTĘPNIENIE LICENCJI</div><div class="ttl1">OFFICE 365 DO CELÓW DYDAKTYCZNYCH</div>',
+            '<div class="ttl1">FORMULARZ AM7 — WNIOSEK O LICENCJĘ LUB DOSTĘP</div><div class="ttl1">DO OPROGRAMOWANIA W CELACH DYDAKTYCZNYCH</div>',
             '<b>Składający:</b> kursant.&nbsp; <b>Wypełnia:</b> pola jasne — kursant (sekcje A–E), pola ciemne — placówka (sekcja F).&nbsp; '
             . '<b>Termin realizacji:</b> do ' . LD_REALIZATION_DAYS . ' dni' . (($l['due_on'] ?? '') !== '' ? ' (do ' . self::e(ldDate($l['due_on'])) . ')' : '') . '.');
         $h .= '<table class="t">' . self::sec('A', 'MIEJSCE, DATA I ADRESAT', 3) . '<tr>'
@@ -274,9 +275,9 @@ final class LicenseDocument
         $h .= '<table class="t">' . self::sec('B', 'DANE KURSANTA', 2) . '<tr>'
             . $this->fld('Imię i nazwisko kursanta', self::val((string)$l['interested_name'], 'imię i nazwisko kursanta'), ' width="50%"')
             . $this->fld('Kurs lub program dydaktyczny', self::val((string)$l['course_name'], 'kurs lub program dydaktyczny'), ' width="50%"')
-            . '</tr><tr>' . $this->fld('Adres e-mail lub identyfikator konta', self::val((string)($r['account'] ?? ''), 'adres e-mail lub identyfikator konta'), ' colspan="2"') . '</tr></table>';
+            . '</tr><tr>' . $this->fld('Konto, identyfikator użytkownika lub klucz licencyjny', self::val((string)($r['account'] ?? ''), 'konto, identyfikator lub klucz'), ' colspan="2"') . '</tr></table>';
         $h .= '<table class="t">' . self::sec('C', 'WNIOSKOWANY DOSTĘP', 2) . '<tr>'
-            . $this->fld('Wnioskowany plan Microsoft 365', self::val((string)($r['plan'] ?? ''), 'plan Microsoft 365'), ' width="50%"')
+            . $this->fld('Wnioskowany produkt i licencja', self::val((string)($r['plan'] ?? ''), 'produkt i licencja'), ' width="50%"')
             . $this->fld('Wnioskowany okres', self::val(trim(ldDate($l['period_from'] ?? '') . ' — ' . ldDate($l['period_to'] ?? ''), ' —'), 'okres'), ' width="50%"')
             . '</tr><tr>' . $this->fld('Wnioskowany sposób dostępu', self::accessBoxes((string)($r['access'] ?? ''), (string)($r['access_other'] ?? '')), ' colspan="2"') . '</tr></table>';
         $h .= '<table class="t">' . self::sec('D', 'WNIOSEK', 1) . '<tr><td class="pc"><div class="pt">' . self::e(self::AM7_REQUEST) . '</div></td></tr><tr>'
@@ -302,7 +303,7 @@ final class LicenseDocument
         $doc = $grant ? LicenseDoc::Am7Grant : LicenseDoc::Am7Refusal;
         $sig = !empty($d['approved_at']) ? ['at' => $d['approved_at'], 'ip' => '', 'by' => (string)($d['approved_name'] ?? ''), 'label' => 'Zatwierdzono elektronicznie w SZO przez kierownika'] : null;
         $h = $this->header($doc, self::number($doc, $l), (string)$l['course_name'],
-            '<div class="ttl1">' . ($grant ? 'DECYZJA O PRZYZNANIU LICENCJI LUB DOSTĘPU' : 'DECYZJA O ODMOWIE PRZYZNANIA LICENCJI LUB DOSTĘPU') . '</div><div class="ttl1">DO OFFICE 365</div>',
+            '<div class="ttl1">' . ($grant ? 'DECYZJA O PRZYZNANIU LICENCJI LUB DOSTĘPU' : 'DECYZJA O ODMOWIE PRZYZNANIA LICENCJI LUB DOSTĘPU') . '</div><div class="ttl1">DO OPROGRAMOWANIA</div>',
             '<b>Wydaje:</b> ' . self::e((string)$l['licensor_name']) . '.&nbsp; <b>Adresat:</b> kursant wskazany we wniosku.&nbsp; <b>Sprawa:</b> ' . self::e((string)$l['case_number']) . '.');
         $reqDate = ldDate((string)($l['request']['date'] ?? '')) ?: ldDate(substr((string)$l['started_at'], 0, 10));
         $h .= '<table class="t">' . self::sec('A', 'STRONY I WNIOSEK', 2) . '<tr>'
@@ -314,14 +315,14 @@ final class LicenseDocument
             $h .= '<table class="t">' . self::sec('B', 'DECYZJA O PRZYZNANIU', 2) . '<tr><td class="pc" colspan="2"><div class="pt">' . self::e(self::AM7_GRANT) . '</div></td></tr><tr>'
                 . $this->fld('Sposób udostępnienia', self::accessBoxes((string)($d['access'] ?? ''), (string)($d['access_other'] ?? '')), ' colspan="2"')
                 . '</tr><tr>' . $this->fld('Konto przypisane kursantowi', self::val((string)($d['account'] ?? ''), 'konto'), ' width="50%"')
-                . $this->fld('Plan Microsoft 365 / SKU', self::val((string)($d['plan'] ?? ''), 'plan / SKU'), ' width="50%"')
-                . '</tr><tr>' . $this->fld('Usługi lub aplikacje udostępnione w ramach planu', self::val((string)($d['services'] ?? ''), 'usługi lub aplikacje'), ' colspan="2"')
+                . $this->fld('Produkt, rodzaj licencji, plan lub SKU', self::val((string)($d['plan'] ?? ''), 'produkt, licencja, plan / SKU'), ' width="50%"')
+                . '</tr><tr>' . $this->fld('Zakres udostępnionych funkcji lub usług', self::val((string)($d['services'] ?? ''), 'zakres funkcji lub usług'), ' colspan="2"')
                 . '</tr><tr>' . $this->fld('Okres aktywnego dostępu', 'od <b>' . self::e(ldDate($d['period_from'] ?? '')) . '</b> do <b>' . self::e(ldDate($d['period_to'] ?? '')) . '</b>', ' colspan="2"')
                 . '</tr><tr>' . $this->fld('Ograniczenia i zasady korzystania', self::val((string)($d['restrictions'] ?? ''), 'ograniczenia i zasady'), ' colspan="2"')
                 . '</tr><tr><td class="pc" colspan="2"><div class="pt">' . self::e(self::AM7_GRANT_SCOPE) . '</div></td></tr></table>';
             $h .= '<table class="t">' . self::sec('C', 'PO ZAKOŃCZENIU KURSU LUB OKRESU DOSTĘPU', 2) . '<tr>'
                 . $this->fld('Postępowanie po zakończeniu kursu lub okresu dostępu', self::val((string)($d['after_end'] ?? ''), 'postępowanie po zakończeniu'), ' width="50%"')
-                . $this->fld('Dane zapisane na koncie', self::val((string)($d['account_data'] ?? ''), 'dane zapisane na koncie'), ' width="50%"')
+                . $this->fld('Postępowanie z danymi i materiałami', self::val((string)($d['account_data'] ?? ''), 'postępowanie z danymi i materiałami'), ' width="50%"')
                 . '</tr><tr><td class="pc" colspan="2"><div class="pt">' . self::e(self::AM7_GRANT_END) . '</div></td></tr></table>';
             $sl = 'D';
         } else {
@@ -341,18 +342,18 @@ final class LicenseDocument
         $this->n = 0;
         $nt = $doc === LicenseDoc::Am7NonTransfer;
         $h = $this->header($doc, self::number($doc, $license, $assignment, $version), (string)($data['course'] ?? ''),
-            $nt ? '<div class="ttl1">OŚWIADCZENIE O NIEODSTĘPOWANIU LICENCJI</div><div class="ttl1">I NIEUDOSTĘPNIANIU KONTA</div>' : '<div class="ttl1">KRÓTKIE OŚWIADCZENIE LICENCJOBIORCY — KURSANTA</div>',
+            $nt ? '<div class="ttl1">OŚWIADCZENIE O NIEPRZEKAZYWANIU</div><div class="ttl1">LICENCJI I DOSTĘPU</div>' : '<div class="ttl1">KRÓTKIE OŚWIADCZENIE LICENCJOBIORCY — KURSANTA</div>',
             '<b>Składający:</b> kursant.&nbsp; <b>Decyzja:</b> ' . self::e(self::number(LicenseDoc::Am7Grant, $license)) . '.&nbsp; <b>Okres dostępu:</b> ' . self::e(ldDate($license['period_from'] ?? '') . ' — ' . ldDate($license['period_to'] ?? '')) . '.');
         $h .= '<table class="t">' . self::sec('A', 'DANE', 2) . '<tr>'
             . $this->fld($nt ? 'Imię i nazwisko kursanta' : 'Imię i nazwisko', self::val((string)($data['name'] ?? ''), 'imię i nazwisko'), ' width="50%"')
-            . $this->fld('Konto Office 365', self::val((string)($data['account'] ?? ''), 'konto Office 365'), ' width="50%"')
+            . $this->fld(($nt ? 'Produkt, licencja lub konto' : 'Konto, identyfikator użytkownika lub licencji'), self::val((string)($data['account'] ?? ''), 'konto / licencja'), ' width="50%"')
             . ($nt ? '' : '</tr><tr>' . $this->fld('Kurs', self::val((string)($data['course'] ?? ''), 'kurs'), ' colspan="2"'))
             . '</tr></table>';
         $rows = '';
         foreach ($nt ? self::AM7_NONTRANSFER : self::AM7_PARTICIPANT as $i => $t) $rows .= '<tr><td class="pc"><div class="pt"><b>' . ($i + 1) . '.</b> ' . self::e($t) . '</div></td></tr>';
         $h .= '<table class="t">' . self::sec('B', 'OŚWIADCZENIE', 1) . $rows . '</table>';
         $h .= '<table class="t">' . self::sec('C', 'PLAN, OKRES I DANE', 2) . '<tr>'
-            . $this->fld($nt ? 'Plan i okres dostępu' : 'Plan i okres przyznanego dostępu', self::val((string)($data['plan_period'] ?? ''), 'plan i okres'), ' width="45%"')
+            . $this->fld($nt ? 'Produkt, licencja i okres dostępu' : 'Produkt, licencja lub plan i okres dostępu', self::val((string)($data['plan_period'] ?? ''), 'plan i okres'), ' width="45%"')
             . $this->fld($nt ? 'Zasady postępowania z danymi po zakończeniu dostępu' : 'Czynności po zakończeniu dostępu dotyczące moich danych',
                          self::val((string)($nt ? ($data['data_rules'] ?? '') : ($data['after_end'] ?? '')), 'zasady / czynności'), ' width="55%"') . '</tr></table>';
         $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('D', 'MIEJSCE, DATA I PODPIS', 2) . '<tr>'
@@ -377,6 +378,109 @@ final class LicenseDocument
             LicenseDoc::Am7Grant, LicenseDoc::Am7Refusal => $this->am7DecisionHtml($l),
             default => $this->declarationHtml($doc, $l, ['id' => 0, 'status' => ''], [], null),
         };
+    }
+
+
+    // ── Rejestr operacji: AM11, AM12, AM13, AM20–AM24 (druk w układzie CIT) ─────────────
+
+    /** Wartość pola formularza operacji do druku (select → etykieta, money → zł, date → dd.mm.rrrr, account → NRB). */
+    private static function opVal(array $def, string $v): string
+    {
+        [, $type, , $opts] = $def + [null, 'text', false, null];
+        if ($v === '') return '';
+        return match ($type) {
+            'select' => (string)(($opts[$v] ?? $v)),
+            'money'  => number_format((float)$v, 2, ',', ' ') . ' zł',
+            'date'   => ldDate($v),
+            'account' => LicenseOperationService::nrb($v),
+            'check'  => 'tak',
+            default  => $v,
+        };
+    }
+
+    /** Pola w dwóch kolumnach (textarea na całą szerokość). */
+    private function opRows(array $fields, array $data, bool $dark, array $skip = []): string
+    {
+        $h = ''; $row = [];
+        foreach ($fields as $k => $def) {
+            if (in_array($k, $skip, true) || $def[1] === 'check') continue;
+            $cell = $this->fld(self::e($def[0]), self::val(self::opVal($def, (string)($data[$k] ?? '')), mb_strtolower($def[0])), $def[1] === 'textarea' ? ' colspan="2"' : ' width="50%"', $dark);
+            if ($def[1] === 'textarea') { if ($row) { $h .= '<tr>' . implode('', $row) . '<td class="f"' . ($dark ? ' style="background:#e6e6e6"' : '') . '>&nbsp;</td></tr>'; $row = []; } $h .= '<tr>' . $cell . '</tr>'; continue; }
+            $row[] = $cell;
+            if (count($row) === 2) { $h .= '<tr>' . implode('', $row) . '</tr>'; $row = []; }
+        }
+        if ($row) $h .= '<tr>' . $row[0] . '<td class="f"' . ($dark ? ' style="background:#e6e6e6"' : '') . '>&nbsp;</td></tr>';
+        return $h;
+    }
+
+    public function operationHtml(array $op): string
+    {
+        $this->n = 0;
+        $f = $op['formEnum'];
+        $st = $op['statusEnum'];
+        $r = $op['request'];
+        $d = $op['decision'];
+        $state = $op['state'];
+        $stampBox = fn(?string $who, ?string $at, ?string $ip, string $label) => $at ? '<div class="esig">' . self::e($label) . ': ' . self::e((string)$who) . ', '
+            . self::e(ldDate(substr((string)$at, 0, 10)) . ' ' . substr((string)$at, 11, 5)) . ($ip ? ', IP ' . self::e($ip) : '') . '</div>' : '';
+        // Nagłówek: numer sprawy, SubID, symbol formularza
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer sprawy', '<span class="big">' . self::e($op['number']) . '</span>', ' width="52%"')
+           . $this->fld('Kurs / projekt', self::e($op['course_name'] ?: '—'), ' width="28%"')
+           . '<td class="sym" width="20%" style="background:' . self::e($f->color()) . '"><div class="symb">' . self::e($f->value) . '</div><div class="symp">' . ($f->lifecycle() ? 'GEN' : '&nbsp;') . '</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '</tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">' . self::e(mb_strtoupper(($f->lifecycle() ? '' : 'FORMULARZ ' . $f->value . ' — ') . $f->title())) . '</div>'
+           . '<div class="ttl2">licencje do oprogramowania i usług cyfrowych — tryb decyzji cyfrowej (stempel: ID, czas, IP)</div></td></tr>'
+           . '<tr><td class="lgd"><b>Składa:</b> ' . self::e($op['created_name']) . '.&nbsp; <b>Wypełnia:</b> pola jasne — wnioskodawca, pola ciemne — ' . ($f->needsApproval() ? 'zatwierdzający' : 'system (bez akceptacji)')
+           . '.&nbsp; <b>Termin realizacji:</b> do ' . LD_REALIZATION_DAYS . ' dni (do ' . self::e(ldDate($op['due_on'])) . ').&nbsp; <b>Stan:</b> ' . self::e($st->label()) . '.</td></tr></table>';
+        // A. Osoba i konto
+        $h .= '<table class="t">' . self::sec('A', 'OSOBA I KONTO', 2) . '<tr>'
+            . $this->fld('Imię i nazwisko', self::e($op['account_name']), ' width="50%"')
+            . $this->fld('Rola w systemie / ID konta SZO', self::e($op['account_role'] . ' · ' . ($op['account_kind'] === 'client' ? 'uczestnik' : 'konto') . ' #' . (int)$op['account_id']), ' width="50%"')
+            . '</tr><tr>' . $this->fld('Identyfikator / login / UPN', self::val((string)$op['account_login'], 'login'), ' width="50%"')
+            . $this->fld('SubID (nr kursu / nr kursanta)', self::e(implode('/', array_slice(explode('/', (string)$op['number']), -2))), ' width="50%"') . '</tr></table>';
+        $L = 'B';
+        if ($state) {
+            $h .= '<table class="t">' . self::sec($L, 'LICENCJA — STAN OBECNY', 2) . '<tr>'
+                . $this->fld('Dostawca / producent', self::e($state['vendor'] ?? ''), ' width="50%"')
+                . $this->fld('Produkt / SKU', self::e($state['sku'] ?? ''), ' width="50%"')
+                . '</tr><tr>' . $this->fld('Typ licencji', self::e($state['type'] ?? ''), ' width="50%"')
+                . $this->fld('Okres (aktywacja — wygaśnięcie)', self::e(trim(ldDate($state['assigned_at'] ?? '') . ' — ' . ldDate($state['expires_at'] ?? ''), ' —')), ' width="50%"')
+                . '</tr><tr>' . $this->fld('Obecny płatnik / źródło finansowania', self::e(trim(($state['payer'] ?? '') . ' (' . ($state['funding_source'] ?? '') . ')')), ' width="50%"')
+                . $this->fld('Pozycja budżetowa / projekt', self::val((string)($state['budget_position_id'] ?? ''), 'pozycja budżetowa'), ' width="50%"') . '</tr></table>';
+            $L = 'C';
+        }
+        // Wniosek
+        $h .= '<table class="t">' . self::sec($L, $f->lifecycle() ? 'DYSPOZYCJA' : 'WNIOSEK', 2) . $this->opRows($f->requestFields(), $r, false, $f === OperationForm::Am20 && ($r['tryb'] ?? '') === 'zajecia' ? ['rachunek'] : [])
+            . ($f === OperationForm::Am11 ? '<tr><td class="pc" colspan="2"><div class="pt"><b>Źródło finansowania:</b> Fundacja FEER — płatność wymaga potwierdzenia dostępności budżetu.</div></td></tr>' : '')
+            . ($f === OperationForm::Am12 && $op['proof_name'] !== '' ? '<tr>' . $this->fld('Załączony plik dowodu', self::e($op['proof_name']), ' colspan="2"') . '</tr>' : '')
+            . '<tr><td class="pc" colspan="2"><div class="pt">' . self::e($f->statement()) . '</div></td></tr><tr>'
+            . $this->fld('Podpis wnioskodawcy (decyzja cyfrowa)', self::e($op['created_name']) . $stampBox($op['created_name'], $op['created_at'], $op['created_ip'], 'Złożono elektronicznie w SZO'), ' colspan="2" style="height:12mm"')
+            . '</tr></table>';
+        $L = chr(ord($L) + 1);
+        // Weryfikacja i decyzja (pola ciemne)
+        if ($f->needsApproval()) {
+            $decided = in_array($st, [OperationStatus::Approved, OperationStatus::Executed, OperationStatus::Rejected], true);
+            $grant = $decided && !empty($d['grant']);
+            $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec($L, 'WERYFIKACJA I DECYZJA ' . $f->value, 2, '(wypełnia zatwierdzający)')
+                . $this->opRows($f->decisionFields(), $d, true)
+                . '<tr>' . $this->fld('Decyzja', self::box($grant) . ' ' . ($f->lifecycle() ? 'zatwierdzono' : 'przyznano') . ' &nbsp;&nbsp; ' . self::box($decided && !$grant) . ' odmowa', ' colspan="2"', true) . '</tr>'
+                . '<tr>' . $this->fld('Osoba zatwierdzająca, data i podpis', $decided ? self::e($op['decided_name']) . $stampBox($op['decided_name'], $op['decided_at'], $op['decided_ip'], 'Zatwierdzono elektronicznie w SZO') : '', ' width="60%" style="height:14mm"', true)
+                . $this->fld('Realizacja', self::e(($op['execution_mode'] === 'AUTOMATIC_WEBHOOK_API' ? 'automatycznie w SZO' : ($op['execution_mode'] !== '' ? 'zadanie dla IT / finansów' : '—')) . ($op['helpdesk_number'] !== '' ? ' · zgłoszenie ' . $op['helpdesk_number'] : '')), ' width="40%"', true)
+                . '</tr></table>';
+        } else {
+            // AM20 — bez akceptacji: rejestracja zmiany płatnika
+            $pay = ($r['tryb'] ?? '') === 'zajecia'
+                ? 'doliczenie do opłaty za zajęcia: <b>+' . self::e(number_format((float)($r['kwota'] ?? 0), 2, ',', ' ')) . ' zł</b> (od ' . self::e(ldDate($r['data_zmiany'] ?? '')) . ')'
+                : 'wpłata <b>' . self::e(number_format((float)($r['kwota'] ?? 0), 2, ',', ' ')) . ' zł</b> na rachunek <b>' . self::e(LicenseOperationService::nrb((string)($r['rachunek'] ?? ''))) . '</b>, tytuł: ' . self::e($op['number']);
+            $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec($L, 'REJESTRACJA ZMIANY PŁATNIKA', 2, '(tryb bez akceptacji)')
+                . '<tr>' . $this->fld('Zatwierdzony płatnik i sposób rozliczenia', self::e(($r['nowy_platnik'] ?? '') . ' (' . ($r['nowe_zrodlo'] ?? '') . ')') . '<br>' . $pay, ' colspan="2"', true) . '</tr>'
+                . '<tr>' . $this->fld('Licencjobiorca, użytkownik i właściciel konta po zmianie', 'pozostają bez zmian', ' width="60%"', true)
+                . $this->fld('Data wejścia zmiany w życie', self::e(ldDate($r['data_zmiany'] ?? '')), ' width="40%"', true) . '</tr>'
+                . '<tr><td class="pc" colspan="2" style="background:#e6e6e6"><div class="pt"><b>Potwierdzenie skutku:</b> ' . self::e($f->effect()) . '</div></td></tr>'
+                . '<tr>' . $this->fld('Rejestracja', $stampBox($op['created_name'], $op['created_at'], $op['created_ip'], 'Zarejestrowano w SZO (bez akceptacji)') . ($op['execution_notes'] ? '<div class="esig">' . self::e($op['execution_notes']) . '</div>' : ''), ' colspan="2" style="height:12mm"', true) . '</tr></table>';
+        }
+        return self::css() . $h;
     }
 
     private static function css(): string

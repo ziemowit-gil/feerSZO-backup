@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * modules/ti_licencje_dydaktyczne/router.php — trasy modułu „Licencje dydaktyczne (AM5) i Office 365 (AM7)”.
+ * modules/ti_licencje_dydaktyczne/router.php — trasy modułu „Licencje dydaktyczne (AM5) i oprogramowanie (AM7)”.
  *
  * Dwa wejścia, osobne sesje:
  *   • panel     — /karty30/ti/dydaktyk/licencjeDydaktyczne.php?_route=<trasa> (definiuje LD_PANEL; sesja i CSRF panelu
@@ -46,6 +46,7 @@ if (defined('LD_PUBLIC')) {
 if (!defined('LD_PANEL')) { http_response_code(404); exit('Nie znaleziono strony.'); }
 
 require_once __DIR__ . '/logic/LicenseAdminController.php';
+require_once __DIR__ . '/logic/LicenseOperationController.php';
 $r = new Router('/karty30/ti/dydaktyk/licencjeDydaktyczne.php', 'query');
 $r->csrfUsing(fn() => dyd_token_check(), fn() => dyd_token(), '_token');
 $r->aliasMiddleware('dyd.staff', function () {
@@ -84,6 +85,20 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/przydzialy/{id}/weryfikacja',     [LicenseAdminController::class, 'verify'])->name('ld.verify');
     $r->post('/zmiany/{id}',                     [LicenseAdminController::class, 'decideChange'])->name('ld.change');
     $r->get('/oswiadczenia/{id}',                [LicenseAdminController::class, 'declarationFile'])->name('ld.decl.file');
+    // Rejestr operacji na licencjach: konta i posiadane licencje, AM11–AM13, AM20–AM24
+    $r->get('/konta',                            [LicenseOperationController::class, 'accounts'])->name('ld.accounts');
+    $r->get('/konto/{kind}/{id}',                [LicenseOperationController::class, 'account'])->name('ld.account');
+    $r->get('/operacje/nowa',                    [LicenseOperationController::class, 'createForm'])->name('ld.op.new');
+    $r->post('/operacje/nowa',                   [LicenseOperationController::class, 'create']);
+    $r->get('/operacje/{id}',                    [LicenseOperationController::class, 'show'])->name('ld.op');
+    $r->get('/operacje/{id}/pdf',                [LicenseOperationController::class, 'pdf'])->name('ld.op.pdf');
+    $r->get('/operacje/{id}/json',               [LicenseOperationController::class, 'json'])->name('ld.op.json');
+    $r->get('/operacje/{id}/dowod',              [LicenseOperationController::class, 'proof'])->name('ld.op.proof');
+    $r->post('/operacje/{id}/decyzja',           [LicenseOperationController::class, 'decide'])->name('ld.op.decide');
+    $r->post('/operacje/{id}/wykonane',          [LicenseOperationController::class, 'done'])->name('ld.op.done');
+    $r->post('/operacje/{id}/wycofaj',           [LicenseOperationController::class, 'cancel'])->name('ld.op.cancel');
+    $r->post('/operacje/{id}/ponownie',          [LicenseOperationController::class, 'resend'])->name('ld.op.resend');
+    $r->get('/wzor-op/{form}',                   [LicenseOperationController::class, 'blank'])->name('ld.op.blank');
     $r->get('/wzor/{doc}',                       [LicenseAdminController::class, 'blank'])->name('ld.blank');
 });
 

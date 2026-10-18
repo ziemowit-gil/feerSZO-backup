@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * modules/ti_licencje_dydaktyczne/logic/LicenseAdminController.php — „Licencje dydaktyczne (AM5) i Office 365 (AM7)” w panelu dydaktyka.
+ * modules/ti_licencje_dydaktyczne/logic/LicenseAdminController.php — „Licencje dydaktyczne (AM5) i oprogramowanie (AM7)” w panelu dydaktyka.
  *
  * Tylko kadra zarządzająca (kierownik / zastępca / administrator panelu — middleware dyd.staff).
  * Pulpit (kafle Metro: pula, wnioski, po terminie 7 dni, do weryfikacji), wniosek AM5/1 (nowy, edycja, wszczęcie),
@@ -107,7 +107,7 @@ final class LicenseAdminController
         } catch (\Throwable $e) { return $this->fail($e, route('ld.new')); }
     }
 
-    // ── AM7 (Office 365) ────────────────────────────────────────────────────────
+    // ── AM7 (oprogramowanie) ────────────────────────────────────────────────────────
 
     private function am7(): Am7Workflow
     {

@@ -39,7 +39,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
     <dt class="col-sm-4">Kursant</dt><dd class="col-sm-8"><?= h($l['interested_name']) ?><?= $l['interested_email'] !== '' ? ' · ' . h($l['interested_email']) : '' ?><?= $l['interested_phone'] !== '' ? ' · ' . h($l['interested_phone']) : '' ?></dd>
     <dt class="col-sm-4">Kurs</dt><dd class="col-sm-8"><?= h($l['course_name']) ?></dd>
     <dt class="col-sm-4">Konto / identyfikator</dt><dd class="col-sm-8"><?= h(($rq['account'] ?? '') ?: '—') ?></dd>
-    <dt class="col-sm-4">Plan Microsoft 365</dt><dd class="col-sm-8"><?= h($rq['plan'] ?? '') ?></dd>
+    <dt class="col-sm-4">Produkt i licencja</dt><dd class="col-sm-8"><?= h($rq['plan'] ?? '') ?></dd>
     <dt class="col-sm-4">Sposób dostępu</dt><dd class="col-sm-8"><?= ($rq['access'] ?? '') === 'other' ? 'inny: ' . h($rq['access_other'] ?? '') : 'konto w tenancie ośrodka' ?></dd>
     <dt class="col-sm-4">Wnioskowany okres</dt><dd class="col-sm-8"><?= h(trim(ldDate($l['period_from']) . ' — ' . ldDate($l['period_to']), ' —')) ?></dd>
     <dt class="col-sm-4">Uzasadnienie</dt><dd class="col-sm-8" style="white-space:pre-line"><?= h($rq['justification'] ?? '') ?></dd>
@@ -116,7 +116,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
   $ov = fn(string $k) => h((string)($o[$k] ?? ''));
   $isGrant = isset($o['decision']) ? $o['decision'] === 'grant' : !empty($o['grant']); ?>
 <section class="panel warn" id="decyzja">
-  <h2 class="mt-0">Decyzja placówki — <?= $d ? 'projekt (możesz poprawić)' : 'przygotuj projekt' ?> <small class="text-secondary">druk w układzie CIT; wysyłka e-mailem w PDF po zatwierdzeniu przez kierownika</small></h2>
+  <h2 class="mt-0">Decyzja placówki — <?= $d ? 'projekt (możesz poprawić)' : 'przygotuj projekt' ?> <small class="text-secondary">wysyłka e-mailem w PDF po zatwierdzeniu przez kierownika</small></h2>
   <form method="post" action="<?= h(route('ld.am7.prepare', ['id' => $id])) ?>" class="row g-2"><?= Router::csrfField() ?>
     <div class="col-md-3"><label class="form-label small" for="ad">Rozstrzygnięcie</label><select class="form-select" id="ad" name="decision">
       <option value="grant"<?= $isGrant ? ' selected' : '' ?>>przyznanie — AM7/2</option><option value="refuse"<?= !$isGrant ? ' selected' : '' ?>>odmowa — AM7/3</option></select></div>
@@ -124,13 +124,13 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <option value="tenant"<?= ($o['access'] ?? '') !== 'other' ? ' selected' : '' ?>>konto w tenancie ośrodka</option><option value="other"<?= ($o['access'] ?? '') === 'other' ? ' selected' : '' ?>>inny sposób</option></select></div>
     <div class="col-md-6"><label class="form-label small" for="aao">Inny sposób (opis)</label><input class="form-control" id="aao" name="access_other" value="<?= $ov('access_other') ?>"></div>
     <div class="col-md-4"><label class="form-label small" for="aac">Konto przypisane kursantowi</label><input class="form-control" id="aac" name="account" value="<?= $ov('account') ?>"></div>
-    <div class="col-md-4"><label class="form-label small" for="apl">Plan Microsoft 365 / SKU</label><input class="form-control" id="apl" name="plan" value="<?= $ov('plan') ?>"></div>
+    <div class="col-md-4"><label class="form-label small" for="apl">Produkt, rodzaj licencji, plan / SKU</label><input class="form-control" id="apl" name="plan" value="<?= $ov('plan') ?>"></div>
     <div class="col-md-2"><label class="form-label small" for="apf">Dostęp od</label><input class="form-control" type="date" id="apf" name="period_from" value="<?= $ov('period_from') ?>"></div>
     <div class="col-md-2"><label class="form-label small" for="apt">do</label><input class="form-control" type="date" id="apt" name="period_to" value="<?= $ov('period_to') ?>"></div>
-    <div class="col-md-6"><label class="form-label small" for="asv">Usługi lub aplikacje w ramach planu</label><input class="form-control" id="asv" name="services" value="<?= $ov('services') ?>" placeholder="np. Word, Excel, PowerPoint, Teams, OneDrive 1 TB"></div>
+    <div class="col-md-6"><label class="form-label small" for="asv">Zakres udostępnionych funkcji lub usług</label><input class="form-control" id="asv" name="services" value="<?= $ov('services') ?>" placeholder="np. wszystkie aplikacje, 100 GB chmury"></div>
     <div class="col-md-6"><label class="form-label small" for="ars">Ograniczenia i zasady korzystania</label><input class="form-control" id="ars" name="restrictions" value="<?= $ov('restrictions') ?>"></div>
     <div class="col-md-6"><label class="form-label small" for="aae">Postępowanie po zakończeniu kursu lub okresu dostępu</label><textarea class="form-control" id="aae" name="after_end" rows="2"><?= $ov('after_end') ?></textarea></div>
-    <div class="col-md-6"><label class="form-label small" for="aad">Dane zapisane na koncie</label><textarea class="form-control" id="aad" name="account_data" rows="2"><?= $ov('account_data') ?></textarea></div>
+    <div class="col-md-6"><label class="form-label small" for="aad">Postępowanie z danymi i materiałami</label><textarea class="form-control" id="aad" name="account_data" rows="2"><?= $ov('account_data') ?></textarea></div>
     <div class="col-md-8"><label class="form-label small" for="arr">Uzasadnienie odmowy (przy odmowie)</label><input class="form-control" id="arr" name="refusal_reason" value="<?= $ov('refusal_reason') ?>"></div>
     <div class="col-md-4"><label class="form-label small" for="asn">Osoba upoważniona do podjęcia decyzji</label><input class="form-control" id="asn" name="signer_name" value="<?= $ov('signer_name') ?>"></div>
     <?php if (!$l['requester_signed_at']): ?><div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="paper_signed" value="1" id="aps"<?= !empty($o['paper_signed']) ? ' checked' : '' ?>><label class="form-check-label small" for="aps">Kursant podpisał wniosek odręcznie (nie w portalu)</label></div></div><?php endif; ?>

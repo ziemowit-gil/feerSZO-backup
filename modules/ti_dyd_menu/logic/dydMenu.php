@@ -167,6 +167,7 @@ function dydMenuSections(): array
     $nLd = 0;   // Licencje AM5/AM7: oświadczenia do weryfikacji + projekty decyzji AM7 (modules/ti_licencje_dydaktyczne, tabela może jeszcze nie istnieć)
     try { $nLd = (int)(db_one("SELECT (SELECT COUNT(*) FROM license_assignments WHERE status='submitted')
                                     + (SELECT COUNT(*) FROM licenses WHERE form_kind='AM7' AND request_status='started' AND decision_data LIKE '%prepared_at%') AS c")['c'] ?? 0); } catch (\Throwable $e) {}
+    try { $nLd += (int)(db_one("SELECT COUNT(*) AS c FROM license_operations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
     $nMsues = 0;   // Certyfikacja MSUES: oświadczenia kadry czekające na weryfikację (modules/ti_msues, tabela może jeszcze nie istnieć)
     try { $nMsues = (int)(db_one("SELECT COUNT(*) AS c FROM trainer_declarations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
 
@@ -186,7 +187,7 @@ function dydMenuSections(): array
         $it('', 'Dokumenty kursantów',   'dokumentyKursanta.php', 'folder2-open', $sfPending, 'warning'),
         $it('', 'Umowy szkoleniowe',     'umowaSzkolenia.php',    'file-earmark-text'),
         $it('', 'Licencje',              'licencjeKursantow.php', 'key'),
-        $it('', 'Licencje AM5 / Office 365 AM7', 'licencjeDydaktyczne.php', 'file-earmark-lock', $nLd, 'warning'),
+        $it('', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock', $nLd, 'warning'),
         $it('', 'Microsoft 365',         'microsoft365.php',      'microsoft'),
         $it('', 'Regulaminy',            'regulaminy.php',        'file-earmark-text'),
         $it('', 'Program poleceń',       'polecenia.php',         'gift'),

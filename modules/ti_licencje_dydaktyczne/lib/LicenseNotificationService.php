@@ -198,6 +198,6 @@ final class LicenseNotificationService
             . '<div style="padding:18px;border:1px solid #d6d6d6;border-top:0">' . $body
             . ($buttonUrl !== '' ? '<p style="margin:20px 0"><a href="' . $e($buttonUrl) . '" style="background:#1ba1e2;color:#fff;text-decoration:none;padding:11px 22px;display:inline-block;font-weight:600">' . $e($buttonLabel) . '</a></p>'
                                  . '<p style="font-size:12px;color:#666">Jeśli przycisk nie działa, skopiuj adres: ' . $e($buttonUrl) . '</p>' : '')
-            . '<p style="margin-top:18px;font-size:12px;color:#666">' . $e(ldOrgName()) . ' · ' . ($symbol === 'AM7' ? 'Licencje Office 365 (AM7)' : 'Licencje dydaktyczne (AM5)') . '</p></div></div>';
+            . '<p style="margin-top:18px;font-size:12px;color:#666">' . $e(ldOrgName()) . ' · ' . ($symbol === 'AM7' ? 'Licencje do oprogramowania (AM7)' : 'Licencje dydaktyczne (AM5)') . '</p></div></div>';
     }
 }

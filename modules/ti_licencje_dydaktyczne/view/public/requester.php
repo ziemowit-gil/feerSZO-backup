@@ -1,9 +1,9 @@
 <?php
 /**
- * modules/ti_licencje_dydaktyczne/view/public/requester.php — portal kursanta: przegląd i podpis elektroniczny wniosku AM7/1 (Office 365).
+ * modules/ti_licencje_dydaktyczne/view/public/requester.php — portal kursanta: przegląd i podpis elektroniczny wniosku AM7/1 (oprogramowanie).
  * Zmienne: $l (sprawa), $token, $errors, $old, $org.
  */
-$title = 'Wniosek o dostęp do Office 365 — podpis';
+$title = 'Wniosek o licencję lub dostęp do oprogramowania — podpis';
 $r = $l['request'];
 $v = fn(string $k) => h((string)($old[$k] ?? ''));
 $err = fn(string $k) => isset($errors[$k]) ? '<p id="e-' . $k . '" class="m-err">' . h($errors[$k]) . '</p>' : '';
@@ -15,17 +15,18 @@ include __DIR__ . '/_top.php';
 
 <section class="tw-grid tw-grid-cols-2 md:tw-grid-cols-4 tw-gap-2 tw-mb-4" aria-label="Sprawa">
   <div class="tw-bg-m-cobalt tw-text-white tw-p-4 tw-col-span-2"><div class="tw-text-xs tw-uppercase tw-opacity-80">Numer sprawy</div><div class="tw-text-lg tw-font-semibold"><?= h($l['case_number']) ?></div></div>
-  <div class="tw-bg-m-cyan tw-text-white tw-p-4"><div class="tw-text-xs tw-uppercase tw-opacity-80">Plan Microsoft 365</div><div class="tw-font-semibold"><?= h($r['plan'] ?? '') ?></div></div>
+  <div class="tw-bg-m-cyan tw-text-white tw-p-4"><div class="tw-text-xs tw-uppercase tw-opacity-80">Produkt i licencja</div><div class="tw-font-semibold"><?= h($r['plan'] ?? '') ?></div></div>
   <div class="tw-bg-m-amber tw-text-m-dark tw-p-4"><div class="tw-text-xs tw-uppercase">Realizacja do <?= LD_REALIZATION_DAYS ?> dni</div><div class="tw-font-semibold">do <?= h(ldDate($l['due_on'])) ?></div></div>
 </section>
 
 <section class="m-tile">
-  <h2 class="m-head">Formularz AM7 — wniosek o udostępnienie licencji Office 365 do celów dydaktycznych</h2>
+  <h2 class="m-head">Formularz AM7 — wniosek o licencję lub dostęp do oprogramowania w celach dydaktycznych</h2>
   <dl class="m-kv tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
     <div><dt>Do</dt><dd><?= h($l['licensor_name']) ?></dd></div>
     <div><dt>Imię i nazwisko kursanta</dt><dd><?= h($l['interested_name']) ?></dd></div>
     <div><dt>Kurs lub program dydaktyczny</dt><dd><?= h($l['course_name']) ?></dd></div>
-    <div><dt>Adres e-mail lub identyfikator konta</dt><dd><?= h(($r['account'] ?? '') ?: '—') ?></dd></div>
+    <div><dt>Konto, identyfikator lub klucz licencyjny</dt><dd><?= h(($r['account'] ?? '') ?: '—') ?></dd></div>
+    <div><dt>Wnioskowany produkt i licencja</dt><dd><?= h($r['plan'] ?? '') ?></dd></div>
     <div><dt>Wnioskowany sposób dostępu</dt><dd><?= ($r['access'] ?? '') === 'other' ? 'inny sposób: ' . h($r['access_other'] ?? '') : 'konto w tenancie ośrodka' ?></dd></div>
     <div><dt>Wnioskowany okres</dt><dd><?= h(ldDate($l['period_from']) . ' — ' . ldDate($l['period_to'])) ?></dd></div>
   </dl>

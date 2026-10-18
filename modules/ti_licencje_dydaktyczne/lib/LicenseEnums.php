@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * modules/ti_licencje_dydaktyczne/lib/LicenseEnums.php — enumy modułu „Licencje dydaktyczne (AM5) i Office 365 (AM7)”.
+ * modules/ti_licencje_dydaktyczne/lib/LicenseEnums.php — enumy modułu „Licencje dydaktyczne (AM5) i oprogramowania (AM7)”.
  *
  * Nazwy z prefiksem License*, bo DeclarationStatus istnieje już w modules/ti_msues (oba moduły bywają ładowane razem).
  */
@@ -150,7 +150,7 @@ enum LicenseDeclarationStatus: string
     }
 }
 
-/** Rodzina wzorów (rodzaj sprawy): AM5 — licencja na materiały dydaktyczne, AM7 — licencja / dostęp do Office 365. */
+/** Rodzina wzorów (rodzaj sprawy): AM5 — licencja na materiały dydaktyczne, AM7 — licencja / dostęp do oprogramowania. */
 enum LicenseForm: string
 {
     case Am5 = 'AM5';
@@ -160,7 +160,7 @@ enum LicenseForm: string
     {
         return match ($this) {
             self::Am5 => 'Licencja na materiały dydaktyczne',
-            self::Am7 => 'Licencja / dostęp do Office 365',
+            self::Am7 => 'Licencja / dostęp do oprogramowania',
         };
     }
 
@@ -187,14 +187,14 @@ enum LicenseForm: string
     }
 }
 
-/** Wzory dokumentów: AM5/1–3 (materiały dydaktyczne) i AM7/1–5 (Office 365). Wartość = symbol wzoru. */
+/** Wzory dokumentów: AM5/1–3 (materiały dydaktyczne) i AM7/1–5 (oprogramowania). Wartość = symbol wzoru. */
 enum LicenseDoc: string
 {
     case Am5Request     = 'AM5/1';   // Wniosek o udzielenie licencji (z decyzją licencjodawcy)
     case Am5Participant = 'AM5/2';   // Oświadczenie licencjobiorcy – kursanta
     case Am5NonTransfer = 'AM5/3';   // Oświadczenie o nieodstępowaniu licencji i nieudostępnianiu materiałów
-    case Am7Request     = 'AM7/1';   // Wniosek o udostępnienie licencji Office 365 do celów dydaktycznych
-    case Am7Grant       = 'AM7/2';   // Decyzja o przyznaniu licencji lub dostępu do Office 365
+    case Am7Request     = 'AM7/1';   // Wniosek o udostępnienie licencji oprogramowania do celów dydaktycznych
+    case Am7Grant       = 'AM7/2';   // Decyzja o przyznaniu licencji lub dostępu do oprogramowania
     case Am7Refusal     = 'AM7/3';   // Decyzja o odmowie
     case Am7Participant = 'AM7/4';   // Krótkie oświadczenie licencjobiorcy — kursanta
     case Am7NonTransfer = 'AM7/5';   // Oświadczenie o nieodstępowaniu licencji i nieudostępnianiu konta
@@ -232,11 +232,11 @@ enum LicenseDoc: string
             self::Am5Request     => 'Wniosek o udzielenie licencji na korzystanie z materiałów w celach dydaktycznych',
             self::Am5Participant => 'Oświadczenie licencjobiorcy – kursanta',
             self::Am5NonTransfer => 'Oświadczenie o nieodstępowaniu licencji i nieudostępnianiu materiałów',
-            self::Am7Request     => 'Wniosek o udostępnienie licencji Office 365 do celów dydaktycznych',
-            self::Am7Grant       => 'Decyzja o przyznaniu licencji lub dostępu do Office 365',
-            self::Am7Refusal     => 'Decyzja o odmowie przyznania licencji lub dostępu do Office 365',
+            self::Am7Request     => 'Wniosek o licencję lub dostęp do oprogramowania w celach dydaktycznych',
+            self::Am7Grant       => 'Decyzja o przyznaniu licencji lub dostępu do oprogramowania',
+            self::Am7Refusal     => 'Decyzja o odmowie przyznania licencji lub dostępu do oprogramowania',
             self::Am7Participant => 'Krótkie oświadczenie licencjobiorcy — kursanta',
-            self::Am7NonTransfer => 'Oświadczenie o nieodstępowaniu licencji i nieudostępnianiu konta',
+            self::Am7NonTransfer => 'Oświadczenie o nieprzekazywaniu licencji i dostępu',
         };
     }
 
@@ -248,7 +248,7 @@ enum LicenseDoc: string
             self::Am7Refusal                            => 'Decyzja o odmowie',
             self::Am5Participant, self::Am7Participant => 'Oświadczenie kursanta',
             self::Am5NonTransfer                        => 'Oświadczenie o nieodstępowaniu',
-            self::Am7NonTransfer                        => 'Oświadczenie o nieudostępnianiu konta',
+            self::Am7NonTransfer                        => 'Oświadczenie o nieprzekazywaniu licencji',
         };
     }
 }

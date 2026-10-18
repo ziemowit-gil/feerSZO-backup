@@ -138,7 +138,7 @@ final class LicenseDeadlineAgent
         }
         if ($am7) {
             $body .= '<p><b>Projekty decyzji AM7 czekające na zatwierdzenie kierownika (' . count($am7) . '):</b></p><ul>';
-            foreach ($am7 as $l) $body .= $item($l, (!empty($l['_d']['grant']) ? 'przyznanie' : 'odmowa') . ' Office 365 dla ' . $e($l['interested_name'])
+            foreach ($am7 as $l) $body .= $item($l, (!empty($l['_d']['grant']) ? 'przyznanie' : 'odmowa') . ' licencji ' . $e($l['title'] ?? '') . ' dla ' . $e($l['interested_name'])
                 . ', projekt z ' . $e(ldDate(substr((string)$l['_d']['prepared_at'], 0, 10))) . ' (' . $e($l['_d']['prepared_name'] ?? '') . '), termin ' . $e(ldDate($l['due_on'])));
             $body .= '</ul><p>Decyzję zatwierdza kierownik (rola „kierownik” panelu TI) albo administrator — dopiero wtedy trafia do kursanta.</p>';
         }

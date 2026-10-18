@@ -43,7 +43,7 @@ $sym = $sym ?? (isset($l['form']) && $l['form'] instanceof LicenseForm ? $l['for
     <div class="<?= $sym === 'AM7' ? 'tw-bg-m-cobalt' : 'tw-bg-m-cyan' ?> tw-px-4 tw-py-3 tw-text-2xl tw-font-semibold tw-tracking-wide" aria-hidden="true"><?= h($sym) ?></div>
     <div class="tw-px-4 tw-py-2">
       <div class="tw-text-xs tw-uppercase tw-tracking-widest tw-opacity-80"><?= h($org) ?></div>
-      <div class="tw-text-lg tw-font-light"><?= $sym === 'AM7' ? 'Licencje Office 365' : 'Licencje dydaktyczne' ?></div>
+      <div class="tw-text-lg tw-font-light"><?= $sym === 'AM7' ? 'Licencje do oprogramowania' : 'Licencje dydaktyczne' ?></div>
     </div>
   </div>
 </header>

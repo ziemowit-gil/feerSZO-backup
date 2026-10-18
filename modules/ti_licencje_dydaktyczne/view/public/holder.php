@@ -5,7 +5,7 @@
  */
 $am7 = $l['form'] === LicenseForm::Am7;
 $sym = $l['form']->value;
-$title = $am7 ? 'Oświadczenia — dostęp do Office 365' : 'Oświadczenia do licencji dydaktycznej';
+$title = $am7 ? 'Oświadczenia — licencja ' . $l['title'] : 'Oświadczenia do licencji dydaktycznej';
 $v = fn(string $k) => h((string)($old[$k] ?? ''));
 $err = fn(string $k) => isset($errors[$k]) ? '<p id="e-' . $k . '" class="m-err">' . h($errors[$k]) . '</p>' : '';
 $aria = fn(string $k) => isset($errors[$k]) ? ' aria-invalid="true" aria-describedby="e-' . $k . '"' : '';
@@ -34,8 +34,8 @@ include __DIR__ . '/_top.php';
     <div><dt>Kurs</dt><dd><?= h($l['course_name'] ?: '—') ?></dd></div>
     <div><dt>Licencjodawca</dt><dd><?= h($l['licensor_name']) ?></dd></div>
     <?php if ($am7): ?>
-    <div><dt>Konto Office 365</dt><dd><?= h($l['decision']['account'] ?? '') ?></dd></div>
-    <div><dt>Plan Microsoft 365</dt><dd><?= h($l['decision']['plan'] ?? '') ?></dd></div>
+    <div><dt>Konto, identyfikator lub klucz</dt><dd><?= h($l['decision']['account'] ?? '') ?></dd></div>
+    <div><dt>Produkt, licencja lub plan</dt><dd><?= h($l['decision']['plan'] ?? '') ?></dd></div>
     <div class="sm:tw-col-span-2"><dt>Po zakończeniu dostępu</dt><dd class="tw-font-normal tw-whitespace-pre-line"><?= h($l['decision']['after_end'] ?? '') ?></dd></div>
     <?php else: ?>
     <div><dt>Rodzaj licencji</dt><dd><?= ($l['license_kind'] ?? '') === 'wylaczna' ? 'wyłączna' : 'niewyłączna' ?></dd></div>
