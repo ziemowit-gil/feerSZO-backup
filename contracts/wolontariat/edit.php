@@ -272,123 +272,126 @@ try {
 $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 'secondary'];
 ?>
 <style>
-/* ── Sticky topbar edycji ──────────────────────────────── */
-#edit-topbar {
-  position: sticky; top: 0; z-index: 40;
-  background: #fff; border-bottom: 1px solid #e2e8f0;
-  padding: .55rem 0; margin: -1.5rem -1.5rem .1rem;
-  padding-left: 1.5rem; padding-right: 1.5rem;
-  display: flex; align-items: center; gap: .75rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,.07);
-}
-#edit-topbar .etb-title {
-  font-weight: 700; font-size: 1rem; color: #1e293b; flex:1; min-width:0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-#edit-topbar .etb-nav a {
-  font-size: .8rem; color: #64748b; text-decoration: none; padding: .25rem .5rem;
-  border-radius: .3rem; white-space: nowrap;
-}
-#edit-topbar .etb-nav a:hover { background: #f1f5f9; color: #1e293b; }
+/* ══ Edycja porozumienia — szata Metro ═════════════════════════════════════
+   Akcent z includes/szo_metro.php (grupa Wolontariat → magenta); zapasowe wartości
+   poza powłoką. Selektory od `html body #content`, żeby wygrać z warstwą Metro/Tailwind.
+   ID i klasy używane przez skrypty (sec-nav, edit-topbar, m365_*) bez zmian. */
+html body #content{--ea:var(--sm-acc,#c0006a);--ea-d:var(--sm-acc-d,#8f004f);--ea-50:var(--sm-acc-50,#fbe5f1);
+  --el:var(--sm-light,#f2f2f2);--el-h:var(--sm-light-h,#e6e6e6);--eline:var(--sm-line,#e1e1e1);--em:var(--sm-muted,#5f5f5f);
+  --ed:var(--sm-dark,#1d1d1d);--eg:var(--sm-green,#007a00);--eo:var(--sm-orange,#c25100);--er:var(--sm-red,#a20025);--eb:#0050ef}
 
-/* ── Section nav — boczny układ (jak w podglądzie) ─────── */
-.edit-layout { display: flex; gap: 1rem; align-items: flex-start; }
-.edit-main   { flex: 1 1 auto; min-width: 0; }
-#sec-nav {
-  flex: 0 0 208px; max-width: 208px;
-  display: flex; flex-direction: column; gap: .18rem;
-  margin-bottom: 0; padding: .5rem;
-  background: #f8fafc; border-radius: .6rem; border: 1px solid #e2e8f0;
-  position: sticky; top: 64px;
-}
-#sec-nav a {
-  font-size: .8rem; font-weight: 600; padding: .45rem .7rem;
-  border-radius: 8px; text-decoration: none;
-  color: #475569; background: transparent; border: none;
-  white-space: normal; transition: all .12s; display: block;
-}
-#sec-nav a:hover  { background: #eef2f7; color: #1e293b; }
-#sec-nav a.active { background: #2563eb; color: #fff; }
+/* ── Pasek tytułu (przyklejony) ── */
+html body #content #edit-topbar{position:sticky;top:0;z-index:40;display:flex;align-items:stretch;gap:0;min-height:52px;
+  background:#fff;border-bottom:1px solid var(--eline);box-shadow:none;margin:-1.75rem -2rem 1rem;padding:0 2rem}
+html body #content #edit-topbar .etb-nav{gap:0!important;align-items:stretch}
+html body #content #edit-topbar .etb-nav a{display:inline-flex;align-items:center;gap:.35rem;padding:0 .85rem;color:var(--em);font-size:.85rem;border-radius:0}
+html body #content #edit-topbar .etb-nav a:hover{background:var(--el);color:var(--ed)}
+html body #content #edit-topbar .etb-title{display:flex;align-items:center;flex:1;min-width:0;padding:0 .75rem;font-size:1.35rem;font-weight:300;color:var(--ed);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html body #content #edit-topbar .etb-title small{font-size:.62rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ea-d);margin-right:.75rem}
+html body #content #edit-topbar>.badge{align-self:center;margin-right:.75rem}
+html body #content #edit-topbar>.btn{border:0!important;height:auto;padding:0 1.1rem!important;display:inline-flex;align-items:center;font-size:.88rem}
+html body #content #edit-topbar>.btn-primary{background:var(--ea)!important;color:#fff!important}
+html body #content #edit-topbar>.btn-primary:hover{background:var(--ed)!important}
+html body #content #edit-topbar>.btn-outline-secondary{background:var(--el)!important;color:var(--ed)!important}
+html body #content #edit-topbar>.btn-outline-secondary:hover{background:var(--el-h)!important}
 
-/* ── Section headers ───────────────────────────────────── */
-.esec {
-  scroll-margin-top: 70px;
-  margin-bottom: 1.75rem;
-}
-.esec-head {
-  display: flex; align-items: center; gap: .55rem;
-  margin-bottom: 1rem; padding-bottom: .55rem;
-  border-bottom: 2px solid #e2e8f0;
-}
-.esec-head i { font-size: 1.1rem; color: #2563eb; }
-.esec-head h6 {
-  margin: 0; font-size: .9rem; font-weight: 700;
-  color: #1e293b; text-transform: uppercase; letter-spacing: .04em;
-}
-.esec-head .esec-sub {
-  font-size: .72rem; color: #94a3b8; font-weight: 400;
-  text-transform: none; letter-spacing: 0; margin-left: .3rem;
-}
+/* ── Układ: lewa nawigacja + formularz + prawy pasek ── */
+.edit-layout{display:flex;gap:1.5rem;align-items:flex-start}
+.edit-main{flex:1 1 auto;min-width:0}
 
-/* ── Field groups ──────────────────────────────────────── */
-.fgroup { display: flex; flex-direction: column; gap: .2rem; }
-.fgroup label { font-size: .78rem; font-weight: 600; color: #475569; margin-bottom: 0; }
-.fgroup .form-text { font-size: .72rem; margin-top: .15rem; }
-.fgroup .form-control, .fgroup .form-select {
-  font-size: .87rem;
-}
+/* Lewy pasek — nawigacja sekcji jak menu boczne Metro */
+html body #content #sec-nav{flex:0 0 220px;max-width:220px;display:flex;flex-direction:column;gap:0;padding:0;margin:0;
+  background:var(--el);border:0;position:sticky;top:64px}
+html body #content #sec-nav .sn-head{padding:.8rem 1rem .5rem;font-size:.62rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--em)}
+html body #content #sec-nav a{display:flex;align-items:center;gap:.65rem;padding:.6rem 1rem;font-size:.88rem;font-weight:400;color:var(--ed)!important;
+  text-decoration:none;background:transparent;border:0;border-radius:0;box-shadow:inset 4px 0 0 transparent;transition:background .1s}
+html body #content #sec-nav a .bi{width:1.1rem;text-align:center;font-size:1rem;color:var(--em)}
+html body #content #sec-nav a:hover{background:var(--el-h)}
+html body #content #sec-nav a.active{background:#fff;font-weight:600;box-shadow:inset 4px 0 0 var(--ea)}
+html body #content #sec-nav a.active .bi{color:var(--ea)}
+html body #content #sec-nav .sn-foot{margin-top:.5rem;padding:.75rem 1rem;border-top:1px solid var(--eline);font-size:.72rem;color:var(--em)}
 
-/* ── Toggle switch row ─────────────────────────────────── */
-.toggle-row {
-  display: flex; align-items: center; gap: .6rem;
-  padding: .55rem .75rem; background: #f8fafc;
-  border-radius: .45rem; border: 1px solid #e9ecef;
-  margin-bottom: .5rem;
-}
-.toggle-row .form-check { margin: 0; padding: 0; }
-.toggle-row .form-check-input { margin: 0; flex-shrink: 0; }
-.toggle-row label { font-size: .84rem; cursor: pointer; }
-.toggle-row .ts-sub { font-size: .72rem; color: #94a3b8; margin-left: auto; }
+/* ── Sekcje formularza ── */
+.esec{scroll-margin-top:70px;margin-bottom:2rem}
+html body #content .esec-head{display:flex;align-items:center;gap:.65rem;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid var(--ed)}
+html body #content .esec-head i{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem;background:var(--ea);color:#fff}
+html body #content .esec-head h6{margin:0;font-size:1.3rem;font-weight:300;color:var(--ed);text-transform:none;letter-spacing:0}
+html body #content .esec-head .esec-sub{font-size:.75rem;color:var(--em);font-weight:400;margin-left:.5rem}
 
-/* ── Sidebar ───────────────────────────────────────────── */
-.edit-sidebar {
-  position: sticky; top: 60px; height: fit-content;
-}
-.sidebar-card {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: .6rem;
-  overflow: hidden; margin-bottom: .75rem;
-}
-.sidebar-card-head {
-  padding: .55rem .85rem; background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  font-size: .73rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .08em; color: #64748b;
-  display: flex; align-items: center; gap: .4rem;
-}
-.sidebar-card-body { padding: .85rem; }
+/* ── Pola ── */
+.fgroup{display:flex;flex-direction:column;gap:.2rem}
+html body #content .fgroup label{font-size:.8rem;font-weight:600;color:var(--ed);margin-bottom:0}
+.fgroup .form-text{font-size:.72rem;margin-top:.15rem}
+.fgroup .form-control,.fgroup .form-select{font-size:.88rem}
 
-/* ── Status alert banner ───────────────────────────────── */
-.status-banner {
-  border-radius: .5rem; padding: .75rem 1rem; margin-bottom: 1.25rem;
-  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
-  border: 1px solid transparent;
-}
-.status-banner.sb-warning { background: #fefce8; border-color: #fde68a; }
-.status-banner.sb-info    { background: #eff6ff; border-color: #bfdbfe; }
-.status-banner .sb-text   { flex: 1; min-width: 200px; }
-.sb-title { font-weight: 700; font-size: .9rem; margin-bottom: .15rem; }
-.sb-desc  { font-size: .8rem; color: #64748b; }
+/* ── Wiersz przełącznika ── */
+html body #content .toggle-row{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;background:var(--el);border:0;border-radius:0;margin-bottom:.5rem}
+.toggle-row .form-check{margin:0;padding:0}
+.toggle-row .form-check-input{margin:0;flex-shrink:0}
+.toggle-row label{font-size:.85rem;cursor:pointer}
+html body #content .toggle-row .ts-sub{font-size:.72rem;color:var(--em);margin-left:auto}
 
-/* ── Responsive ────────────────────────────────────────── */
-@media (max-width: 991px) {
-  .edit-sidebar { position: static; }
-  #edit-topbar  { margin: -.75rem -.75rem .5rem; padding: .5rem .75rem; }
-  .edit-layout  { flex-direction: column; }
-  #sec-nav {
-    flex-basis: auto; max-width: none; width: 100%;
-    flex-direction: row; flex-wrap: wrap; position: static; margin-bottom: 1rem;
-  }
-  #sec-nav a { width: auto; }
+/* ── Prawy pasek — kafle Metro ── */
+.edit-sidebar{position:sticky;top:64px;height:fit-content}
+html body #content .sidebar-card{background:var(--el);border:0;border-radius:0;margin-bottom:.4rem;overflow:visible}
+html body #content .sidebar-card-head{padding:.75rem 1rem .25rem;background:none;border:0;font-size:.62rem;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--em);display:flex;align-items:center;gap:.45rem}
+html body #content .sidebar-card-head .bi{font-size:.9rem}
+html body #content .sidebar-card-body{padding:.5rem 1rem 1rem}
+html body #content .sidebar-card .form-control,html body #content .sidebar-card .form-select{background-color:#fff}
+/* Kafel zapisu — w akcencie */
+html body #content .sidebar-card.sc-save{background:var(--ea);color:#fff}
+html body #content .sidebar-card.sc-save .sidebar-card-head{color:rgba(255,255,255,.85)}
+html body #content .sc-save-st{font-size:1.9rem;font-weight:300;line-height:1.1;margin:.1rem 0 .85rem}
+html body #content .sidebar-card.sc-save .btn{border:0!important;height:44px;display:flex;align-items:center;justify-content:center}
+html body #content .sidebar-card.sc-save .btn-primary{background:#fff!important;color:var(--ea-d)!important}
+html body #content .sidebar-card.sc-save .btn-primary:hover{background:var(--ed)!important;color:#fff!important}
+html body #content .sidebar-card.sc-save .btn-outline-secondary{background:rgba(0,0,0,.18)!important;color:#fff!important;height:36px}
+html body #content .sidebar-card.sc-save .btn-outline-secondary:hover{background:rgba(0,0,0,.32)!important}
+/* Kafel Microsoft 365 */
+html body #content .sidebar-card.sc-m365 .sidebar-card-head{color:var(--eb)}
+html body #content .m365-linked{background:var(--eb);color:#fff;padding:.75rem .85rem;margin-bottom:.6rem}
+html body #content .m365-linked small{display:block;font-size:.6rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.8}
+html body #content .m365-linked b{display:block;font-size:1.05rem;font-weight:400;word-break:break-all;margin:.15rem 0}
+html body #content .m365-linked .m365-uid{font-family:ui-monospace,Menlo,monospace;font-size:.68rem;opacity:.75;word-break:break-all}
+html body #content .m365-linked .m365-acts{display:flex;gap:2px;margin-top:.6rem}
+html body #content .m365-linked .m365-acts button{border:0;background:rgba(255,255,255,.18);color:#fff;font-size:.78rem;font-weight:600;height:30px;padding:0 .7rem}
+html body #content .m365-linked .m365-acts button:hover{background:rgba(255,255,255,.32)}
+html body #content .m365-search{position:relative;margin-bottom:.5rem}
+html body #content .m365-search label{font-size:.78rem;font-weight:600;color:var(--ed);margin-bottom:.2rem;display:block}
+html body #content .m365-results{background:#fff;margin-top:2px;max-height:300px;overflow:auto}
+html body #content .m365-results:empty{display:none}
+html body #content .m365-res{display:block;width:100%;text-align:left;border:0;background:#fff;padding:.5rem .7rem;border-bottom:1px solid var(--eline);font-size:.8rem;color:var(--ed)}
+html body #content .m365-res:hover,html body #content .m365-res:focus-visible{background:var(--eb);color:#fff}
+html body #content .m365-res:hover .m365-res-sub,html body #content .m365-res:focus-visible .m365-res-sub{color:rgba(255,255,255,.85)}
+html body #content .m365-res-name{font-weight:600}
+html body #content .m365-res-sub{color:var(--em);font-family:ui-monospace,Menlo,monospace;font-size:.72rem;word-break:break-all}
+html body #content .m365-res-flag{display:inline-block;font-size:.6rem;font-weight:700;padding:.08rem .3rem;margin-left:.3rem;background:var(--eo);color:#fff;vertical-align:1px}
+html body #content .m365-res-flag.is-off{background:var(--em)}
+html body #content .m365-res-note{padding:.55rem .7rem;font-size:.78rem;color:var(--em);background:#fff}
+html body #content #m365_match_card{background:#fff!important;border:0!important;border-left:4px solid var(--eb)!important;border-radius:0!important}
+html body #content #m365_manual_toggle{font-size:.78rem;color:var(--ed)!important;text-decoration:underline;background:none;border:0;padding:0}
+
+/* ── Baner statusu — pas z lewą krawędzią ── */
+html body #content .status-banner{border:0;border-radius:0;border-left:6px solid var(--eo);background:var(--el);padding:.85rem 1.1rem;margin-bottom:1.25rem;
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+html body #content .status-banner.sb-info{border-left-color:var(--eb)}
+html body #content .status-banner>.bi{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;background:var(--eo);color:#fff!important;font-size:1.3rem!important}
+html body #content .status-banner.sb-info>.bi{background:var(--eb)}
+.status-banner .sb-text{flex:1;min-width:200px}
+html body #content .sb-title{font-weight:300;font-size:1.2rem;color:var(--ed);margin-bottom:.1rem}
+html body #content .sb-desc{font-size:.8rem;color:var(--em)}
+html body #content .status-banner .btn-warning{background:var(--eo)!important;border-color:var(--eo)!important;color:#fff!important}
+
+@media (max-width:991px){
+  .edit-sidebar{position:static}
+  html body #content #edit-topbar{margin:-1rem -.75rem .75rem;padding:0 .75rem}
+  .edit-layout{flex-direction:column}
+  html body #content #sec-nav{flex-basis:auto;max-width:none;width:100%;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;position:static;margin-bottom:.5rem}
+  html body #content #sec-nav .sn-head,html body #content #sec-nav .sn-foot{display:none}
+  html body #content #sec-nav a{white-space:nowrap;box-shadow:inset 0 -3px 0 transparent}
+  html body #content #sec-nav a.active{box-shadow:inset 0 -3px 0 var(--ea)}
 }
 </style>
 
@@ -399,7 +402,7 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
     <a href="view.php?id=<?= $id ?>"><i class="bi bi-eye me-1"></i><span class="d-none d-sm-inline">Podgląd</span></a>
   </div>
   <div class="etb-title">
-    <i class="bi bi-pencil text-primary me-1"></i>
+    <small class="d-none d-md-inline">Edycja porozumienia</small>
     <?= h($row['numer_umowy']) ?>
   </div>
   <span class="badge bg-<?= h($__st['class']) ?> d-none d-sm-inline"><?= h($__st['label']) ?></span>
@@ -454,15 +457,17 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 
 <!-- ── Section jump nav (boczna, przyklejona) ─────────────── -->
 <nav id="sec-nav" aria-label="Sekcje formularza">
-  <a href="#sec-podstawowe">📋 Porozumienie</a>
-  <a href="#sec-wolontariusz">👤 Wolontariusz</a>
-  <a href="#sec-profil">🗂 Profil</a>
-  <a href="#sec-szczegoly">📍 Szczegóły</a>
-  <a href="#sec-bhp">🛡 BHP &amp; Ubezpieczenia</a>
-  <a href="#sec-podpisanie">✍ Podpisanie</a>
-  <a href="#sec-powiazania">🔗 Powiązania</a>
-  <a href="#sec-it">🔐 Dostęp IT</a>
-  <a href="#sec-zaawansowane">⚙ Zaawansowane</a>
+  <div class="sn-head">Sekcje</div>
+  <a href="#sec-podstawowe"><i class="bi bi-file-text" aria-hidden="true"></i>Porozumienie</a>
+  <a href="#sec-wolontariusz"><i class="bi bi-person" aria-hidden="true"></i>Wolontariusz</a>
+  <a href="#sec-profil"><i class="bi bi-person-vcard" aria-hidden="true"></i>Profil</a>
+  <a href="#sec-szczegoly"><i class="bi bi-geo-alt" aria-hidden="true"></i>Szczegóły</a>
+  <a href="#sec-bhp"><i class="bi bi-shield-check" aria-hidden="true"></i>BHP i ubezpieczenia</a>
+  <a href="#sec-podpisanie"><i class="bi bi-pen" aria-hidden="true"></i>Podpisanie</a>
+  <a href="#sec-powiazania"><i class="bi bi-link-45deg" aria-hidden="true"></i>Powiązania</a>
+  <a href="#sec-it"><i class="bi bi-key" aria-hidden="true"></i>Dostęp IT</a>
+  <a href="#sec-zaawansowane"><i class="bi bi-sliders" aria-hidden="true"></i>Zaawansowane</a>
+  <div class="sn-foot">Zmiany zapisują się dopiero po „Zapisz”.</div>
 </nav>
 
 <div class="edit-main">
@@ -1614,9 +1619,10 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 <div class="edit-sidebar">
 
   <!-- Save buttons -->
-  <div class="sidebar-card">
-    <div class="sidebar-card-head"><i class="bi bi-floppy"></i> Zapis</div>
-    <div class="sidebar-card-body d-grid gap-2">
+  <div class="sidebar-card sc-save">
+    <div class="sidebar-card-head"><i class="bi bi-floppy"></i> Status umowy</div>
+    <div class="sidebar-card-body d-grid gap-2 pt-0">
+      <div class="sc-save-st"><?= h($__st['label']) ?></div>
       <button type="submit" class="btn btn-primary">
         <i class="bi bi-check-lg me-1"></i>Zapisz zmiany
       </button>
@@ -1646,11 +1652,30 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   </div>
 
   <!-- Microsoft 365 -->
-  <div class="sidebar-card">
-    <div class="sidebar-card-head" style="color:#0078d4">
-      <i class="bi bi-microsoft"></i> Microsoft 365
-    </div>
+  <?php $__m365_uid = trim((string)($row['m365_user_id'] ?? '')); $__m365_login = trim((string)($row['m365_login'] ?? '')); ?>
+  <div class="sidebar-card sc-m365">
+    <div class="sidebar-card-head"><i class="bi bi-microsoft"></i> Microsoft 365</div>
     <div class="sidebar-card-body">
+
+      <!-- Podpięte konto (kafel) -->
+      <div class="m365-linked" id="m365_linked_tile" <?= ($__m365_login || $__m365_uid) && !empty($row['m365_konto']) ? '' : 'hidden' ?>>
+        <small>Podpięte konto</small>
+        <b id="m365_tile_login"><?= h($__m365_login ?: 'konto bez loginu') ?></b>
+        <div class="m365-uid" id="m365_tile_uid"><?= $__m365_uid ? h($__m365_uid) : 'brak User ID' ?></div>
+        <div class="m365-acts">
+          <button type="button" id="m365_btn_change"><i class="bi bi-arrow-repeat me-1"></i>Zmień</button>
+          <button type="button" id="m365_btn_unlink"><i class="bi bi-x-lg me-1"></i>Odłącz</button>
+        </div>
+      </div>
+
+      <!-- Podepnij istniejące konto z tenanta -->
+      <div class="m365-search" id="m365_search_box" <?= ($__m365_login || $__m365_uid) && !empty($row['m365_konto']) ? 'hidden' : '' ?>>
+        <label for="m365_search">Podepnij istniejące konto</label>
+        <input type="search" id="m365_search" class="form-control form-control-sm" autocomplete="off"
+               placeholder="Imię, nazwisko lub login…" aria-describedby="m365_search_hint" aria-controls="m365_results">
+        <div class="form-text" id="m365_search_hint">Szuka w całym tenancie Microsoft 365 — kliknij konto, aby je podpiąć.</div>
+        <div class="m365-results" id="m365_results" role="listbox" aria-label="Konta Microsoft 365" aria-live="polite"></div>
+      </div>
 
       <div class="toggle-row mb-2">
         <div class="form-check form-switch">
@@ -1668,8 +1693,7 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
       </div>
 
       <!-- Stan: znaleziono dopasowanie -->
-      <div id="m365_match_card" style="display:none"
-           class="rounded p-2 mb-2 border" style="background:#eff6ff;border-color:#bfdbfe!important">
+      <div id="m365_match_card" style="display:none" class="p-2 mb-2">
         <div class="d-flex align-items-center gap-2 mb-1">
           <i class="bi bi-person-check-fill text-primary"></i>
           <strong class="small">Znaleziono istniejące konto</strong>
@@ -1691,25 +1715,26 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
       </div>
 
       <!-- Stan: pola ręczne -->
-      <div id="m365_manual_fields" style="display:<?= !empty($row['m365_konto']) ? '' : 'none' ?>">
+      <div id="m365_manual_fields" style="display:<?= !empty($row['m365_konto']) && !$__m365_login && !$__m365_uid ? '' : 'none' ?>">
         <div id="m365_linked_info" class="alert alert-success alert-sm py-1 px-2 small mb-2 d-none">
           <i class="bi bi-check-circle-fill me-1"></i>Powiązano z istniejącym kontem
         </div>
         <div class="fgroup mb-2">
-          <label>Login M365</label>
+          <label for="m365_login_inp">Login M365</label>
           <input name="m365_login" id="m365_login_inp"
                  class="form-control form-control-sm font-monospace"
                  value="<?= h($row['m365_login']??'') ?>" placeholder="imie.nazwisko@org.pl">
         </div>
         <div class="fgroup">
-          <label>User ID (Azure AD)</label>
+          <label for="m365_uid_inp">User ID (Azure AD)</label>
           <input name="m365_user_id" id="m365_uid_inp"
                  class="form-control form-control-sm font-monospace"
                  value="<?= h($row['m365_user_id']??'') ?>">
         </div>
       </div>
+      <button type="button" id="m365_manual_toggle" class="mt-1">Wpisz login ręcznie</button>
 
-      <div class="form-text mt-1">Konto można też założyć z widoku szczegółów.</div>
+      <div class="form-text mt-2">Nowe konto można założyć z widoku szczegółów (zakładka M365).</div>
     </div>
   </div>
 
@@ -1861,6 +1886,84 @@ document.getElementById('z_webngo').addEventListener('change', function () {
     matchCard.style.display = 'none';
     manual.style.display    = '';
   });
+
+  // ── Podpinanie istniejącego konta: wyszukiwarka w tenancie + kafel podpiętego konta ──
+  var tile     = document.getElementById('m365_linked_tile');
+  var tLogin   = document.getElementById('m365_tile_login');
+  var tUid     = document.getElementById('m365_tile_uid');
+  var sBox     = document.getElementById('m365_search_box');
+  var sInp     = document.getElementById('m365_search');
+  var sRes     = document.getElementById('m365_results');
+  var manTgl   = document.getElementById('m365_manual_toggle');
+  var sTimer   = null, sSeq = 0;
+  function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':String(t); return d.innerHTML; }
+  function touch(el){ el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }
+  function showTile(login, uid) {
+    tLogin.textContent = login || 'konto bez loginu';
+    tUid.textContent   = uid || 'brak User ID';
+    tile.hidden = false; sBox.hidden = true; sRes.innerHTML = '';
+    hideAll();
+  }
+  function attach(u) {
+    loginInp.value = u.userPrincipalName || u.mail || '';
+    uidInp.value   = u.id || '';
+    toggle.checked = true;           // bez zdarzenia change — nie uruchamia auto-dopasowania
+    touch(loginInp); touch(uidInp);
+    showTile(loginInp.value, uidInp.value);
+  }
+  function search(q) {
+    var my = ++sSeq;
+    sRes.innerHTML = '<div class="m365-res-note"><span class="spinner-border spinner-border-sm me-1"></span>Szukam…</div>';
+    fetch('<?= APP_URL ?>/admin/api/m365_find_user.php?q=' + encodeURIComponent(q) + '&except=<?= (int)$id ?>')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (my !== sSeq) return;
+        if (!data.configured) { sRes.innerHTML = '<div class="m365-res-note">Microsoft 365 nie jest skonfigurowane.</div>'; return; }
+        var list = data.results || [];
+        if (!list.length) { sRes.innerHTML = '<div class="m365-res-note">Brak kont dla „' + esc(q) + '”.</div>'; return; }
+        sRes.innerHTML = '';
+        list.forEach(function(r){
+          var u = r.ms_user || {}, flags = '';
+          if (u.accountEnabled === false) flags += '<span class="m365-res-flag is-off">wyłączone</span>';
+          if (r.linked_contracts && r.linked_contracts.length) flags += '<span class="m365-res-flag" title="' + esc(r.linked_contracts.map(function(c){ return c.numer_umowy + ' — ' + c.imie_nazwisko; }).join('; ')) + '">w innej umowie</span>';
+          var b = document.createElement('button');
+          b.type = 'button'; b.className = 'm365-res'; b.setAttribute('role', 'option');
+          b.innerHTML = '<div class="m365-res-name">' + esc(u.displayName || u.userPrincipalName) + flags + '</div>'
+                      + '<div class="m365-res-sub">' + esc(u.userPrincipalName) + '</div>';
+          b.addEventListener('click', function(){
+            if (r.linked_contracts && r.linked_contracts.length
+                && !confirm('To konto jest już podpięte do umowy ' + r.linked_contracts[0].numer_umowy + '. Podpiąć mimo to?')) return;
+            attach(u);
+          });
+          sRes.appendChild(b);
+        });
+      })
+      .catch(function(){ if (my === sSeq) sRes.innerHTML = '<div class="m365-res-note">Nie udało się połączyć z Microsoft 365.</div>'; });
+  }
+  sInp.addEventListener('input', function(){
+    clearTimeout(sTimer);
+    var q = this.value.trim();
+    if (q.length < 2) { sSeq++; sRes.innerHTML = ''; return; }
+    sTimer = setTimeout(function(){ search(q); }, 300);
+  });
+  sInp.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { e.preventDefault(); var f = sRes.querySelector('.m365-res'); if (f) f.focus(); }
+    if (e.key === 'Escape') { sRes.innerHTML = ''; }
+  });
+  document.getElementById('m365_btn_change').addEventListener('click', function(){
+    tile.hidden = true; sBox.hidden = false; sInp.value = ''; sInp.focus();
+  });
+  document.getElementById('m365_btn_unlink').addEventListener('click', function(){
+    if (!confirm('Odłączyć konto Microsoft 365 od tej umowy? (konto w tenancie zostaje bez zmian)')) return;
+    loginInp.value = ''; uidInp.value = ''; toggle.checked = false;
+    touch(loginInp); touch(uidInp); touch(toggle);
+    tile.hidden = true; sBox.hidden = false; hideAll();
+  });
+  manTgl.addEventListener('click', function(){
+    toggle.checked = true; tile.hidden = true; matchCard.style.display = 'none'; manual.style.display = '';
+    loginInp.focus();
+  });
+  btnLink.addEventListener('click', function(){ if (_found) showTile(loginInp.value, uidInp.value); });
 })();
 
 // ── Person search ────────────────────────────────────────
