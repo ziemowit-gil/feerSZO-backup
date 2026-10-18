@@ -114,6 +114,14 @@ switch ($action) {
             ajax_err($e->getMessage(), 422);
         }
 
+        // Powierzenie: nowy etap wymaga plików (np. „Podpisana” → egzemplarz dwustronny) — z uzasadnieniem
+        if ($type === 'powierzenie') {
+            require_once dirname(__DIR__) . '/includes/powierzenie_pliki.php';
+            if ($_braki = powierzenie_braki_plikow($value, $row)) {
+                ajax_err('Nie zmieniono statusu. ' . implode(' ', $_braki) . ' Dołącz pliki w edycji umowy.', 422);
+            }
+        }
+
         try {
             db_update($table, ['status' => $value], $id);
             if (ContractStatusTransitionValidator::isBlockedGroupExit($old_status, $value)) {

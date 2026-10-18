@@ -51,7 +51,7 @@ function powierzenie_wymagane_pliki(string $status): array {
         case 'do rozliczenia':
         case 'zakończona':
         case 'rozwiązana':
-            return ['plik_jednostronna' => 'status „' . $lbl . '”: etap podpisu jednostronnego musi być udokumentowany.'];
+            return ['plik_umowy' => $dwu];
         default:
             return [];
     }

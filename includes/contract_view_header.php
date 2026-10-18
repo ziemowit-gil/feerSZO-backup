@@ -330,6 +330,7 @@ $_cvh_accent = match($_cvh_st['class']) {
                 class="cvh-status-select cvh-status-<?= h($_cvh_st['class']) ?>"
                 data-contract-id="<?= (int)$_cvh_row['id'] ?>"
                 data-contract-type="<?= h($_cvh_type) ?>"
+                data-prev-value="<?= h($_cvh_status) ?>"
                 onchange="cvhSetStatus(this)">
           <?php
           $_cvh_is_admin   = (current_user()['role'] ?? '') === 'admin';
@@ -347,9 +348,9 @@ $_cvh_accent = match($_cvh_st['class']) {
       </span>
       <script>
       function cvhSetStatus(sel) {
-        var prev = sel.dataset.prevValue || sel.value;
-        // Zapamiętaj poprzednią wartość przy pierwszym uruchomieniu
-        if (!sel.dataset.prevValue) sel.dataset.prevValue = sel.value;
+        // Poprzednia wartość z data-prev-value (ustawiana w HTML) — w onchange sel.value to już NOWA wartość,
+        // więc fallback do sel.value sprawiał, że pierwsza zmiana statusu nigdy nie szła do serwera.
+        var prev = sel.dataset.prevValue || '';
         var newVal = sel.value;
         if (newVal === prev) return;
 

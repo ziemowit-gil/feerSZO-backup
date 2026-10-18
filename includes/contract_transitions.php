@@ -174,7 +174,7 @@ final class ContractSettlementGuard
 final class ContractStatusTransitionValidator
 {
     private const GROUPS = [
-        'projekt' => 'draft', 'do podpisu' => 'draft',
+        'projekt' => 'draft', 'do podpisu' => 'draft', 'jednostronnie' => 'draft', 'w podpisie w instytucji' => 'draft',
         'podpisana' => 'active', 'w realizacji' => 'active', 'zawieszona' => 'active',
         'do rozliczenia' => 'active', 'obowiązująca' => 'active',
         'zablokowana' => 'blocked',
