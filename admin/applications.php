@@ -20,46 +20,11 @@ $status_meta = [
     'odrzucony'   => ['label' => 'Odrzucony',   'class' => 'danger'],
 ];
 
-// ── Akcje ─────────────────────────────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_check();
-    if (!can_write('pisma') && !can_write('admin')) { http_response_code(403); die(); }
-
-    $action = $_POST['action'] ?? '';
-    $id     = (int)($_POST['id'] ?? 0);
-
-    if ($action === 'odpowiedz' && $id) {
-        $odpowiedz = trim($_POST['odpowiedz'] ?? '');
-        $status    = $_POST['status'] ?? 'rozpatrzony';
-        if (!isset($status_meta[$status]) || $status === 'nowy') $status = 'rozpatrzony';
-        db_update('user_applications', [
-            'status'       => $status,
-            'odpowiedz'    => $odpowiedz,
-            'odpowiedz_at' => date('Y-m-d H:i:s'),
-            'answered_by'  => current_user()['id'],
-        ], $id);
-        flash_set('success', 'Odpowiedź zapisana.');
-        header('Location: ' . APP_URL . '/admin/applications.php'); exit;
-    }
-
-    if ($action === 'set_status' && $id) {
-        $status = $_POST['status'] ?? '';
-        if (isset($status_meta[$status])) {
-            db_update('user_applications', ['status' => $status], $id);
-        }
-        header('Location: ' . APP_URL . '/admin/applications.php'); exit;
-    }
-}
+// Akcje (odpowiedź, status) obsługuje strona szczegółów admin/application.php
 
 // ── Dane typów (do filtra i wyświetlania) ─────────────────────────────────────
 $all_types    = app_types_all();
 $types_by_id  = array_column($all_types, null, 'id');
-// Pola per typ (lazy cache)
-$fields_cache = [];
-$get_fields   = function (int $tid) use (&$fields_cache): array {
-    if (!isset($fields_cache[$tid])) $fields_cache[$tid] = app_type_fields($tid);
-    return $fields_cache[$tid];
-};
 
 // ── Filtry ────────────────────────────────────────────────────────────────────
 $filter_status  = $_GET['status'] ?? '';
@@ -73,21 +38,23 @@ if ($filter_type_id) {
     $where[] = 'a.type_id = ?'; $params[] = $filter_type_id;
 }
 
-$sql = "SELECT a.*, u.name AS user_name, u.email AS user_email,
+$sql = "SELECT a.*, u.name AS user_name, u.email AS user_email, ab.name AS answered_by_name,
                t.label AS type_label, t.icon AS type_icon, t.allow_attachment AS type_allow_att, t.name AS type_name
         FROM user_applications a
         JOIN users u ON u.id = a.user_id
+        LEFT JOIN users ab ON ab.id = a.answered_by
         LEFT JOIN application_types t ON t.id = a.type_id"
      . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
      . " ORDER BY CASE a.status WHEN 'nowy' THEN 0 WHEN 'w_trakcie' THEN 1 ELSE 2 END, a.created_at DESC";
 
 $applications = db_all($sql, $params);
 
-// Statystyki per status
-$counts = [];
-foreach (array_keys($status_meta) as $s) {
-    $counts[$s] = (int)db()->query("SELECT COUNT(*) FROM user_applications WHERE status='$s'")->fetchColumn();
+// Liczniki zakładek (z uwzględnieniem filtra typu)
+$counts = array_fill_keys(array_keys($status_meta), 0);
+foreach (db_all("SELECT status, COUNT(*) AS n FROM user_applications" . ($filter_type_id ? " WHERE type_id = ?" : '') . " GROUP BY status", $filter_type_id ? [$filter_type_id] : []) as $r) {
+    if (isset($counts[$r['status']])) $counts[$r['status']] = (int)$r['n'];
 }
+$qs = fn(string $st) => '?' . http_build_query(array_filter(['status' => $st, 'type_id' => $filter_type_id ?: null]));
 
 $contract_labels = ['zlecenie' => 'Zlecenie', 'wolontariat' => 'Wolontariat', 'dzielo' => 'Dzieło', 'praca' => 'Praca'];
 
@@ -112,210 +79,72 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<!-- ── Statystyki ─────────────────────────────────────────────────────────── -->
-<div class="row g-3 mb-4">
-  <?php foreach ($status_meta as $s => $meta): ?>
-  <div class="col-6 col-sm-3">
-    <a href="?status=<?= $s ?>" class="card shadow-sm text-decoration-none h-100
-       <?= $filter_status === $s ? 'border-' . $meta['class'] . ' border-2' : '' ?>">
-      <div class="card-body text-center py-3">
-        <div class="fs-3 fw-bold text-<?= $meta['class'] ?>"><?= $counts[$s] ?></div>
-        <div class="text-muted small"><?= $meta['label'] ?></div>
-      </div>
+<!-- ── Zakładki statusów ──────────────────────────────────────────────────── -->
+<ul class="nav nav-tabs mb-3" role="list" aria-label="Status pism">
+  <?php foreach (['' => ['label' => 'Wszystkie', 'class' => 'secondary']] + $status_meta as $s => $meta): ?>
+  <li class="nav-item">
+    <a class="nav-link<?= $filter_status === $s ? ' active' : '' ?>" href="<?= h($qs($s)) ?>"<?= $filter_status === $s ? ' aria-current="page"' : '' ?>>
+      <?= h($meta['label']) ?>
+      <span class="badge rounded-pill bg-<?= $s === '' ? 'secondary' : $meta['class'] ?> ms-1"><?= $s === '' ? array_sum($counts) : $counts[$s] ?></span>
     </a>
-  </div>
+  </li>
   <?php endforeach; ?>
-</div>
+</ul>
 
-<!-- ── Filtry ─────────────────────────────────────────────────────────────── -->
-<form method="get" class="card shadow-sm mb-4">
-  <div class="card-body py-2">
-    <div class="row g-2 align-items-end">
-      <div class="col-sm-4">
-        <label class="form-label small mb-1 fw-semibold">Typ pisma</label>
-        <select name="type_id" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">Wszystkie typy</option>
-          <?php foreach ($all_types as $t): ?>
-          <option value="<?= $t['id'] ?>"<?= $filter_type_id === $t['id'] ? ' selected' : '' ?>><?= h($t['label']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-sm-4">
-        <label class="form-label small mb-1 fw-semibold">Status</label>
-        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">Wszystkie statusy</option>
-          <?php foreach ($status_meta as $s => $meta): ?>
-          <option value="<?= $s ?>"<?= $filter_status === $s ? ' selected' : '' ?>><?= $meta['label'] ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-sm-4 d-flex align-items-end">
-        <?php if ($filter_status || $filter_type_id): ?>
-        <a href="<?= APP_URL ?>/admin/applications.php" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-x-lg"></i> Wyczyść
-        </a>
-        <?php endif; ?>
-      </div>
-    </div>
+<!-- ── Filtr typu ─────────────────────────────────────────────────────────── -->
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <?php if ($filter_status): ?><input type="hidden" name="status" value="<?= h($filter_status) ?>"><?php endif; ?>
+  <div>
+    <label for="f_type" class="form-label small mb-1 fw-semibold">Typ pisma</label>
+    <select id="f_type" name="type_id" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">Wszystkie typy</option>
+      <?php foreach ($all_types as $t): ?>
+      <option value="<?= $t['id'] ?>"<?= $filter_type_id === (int)$t['id'] ? ' selected' : '' ?>><?= h($t['label']) ?></option>
+      <?php endforeach; ?>
+    </select>
   </div>
+  <?php if ($filter_type_id): ?><a href="<?= h(APP_URL . '/admin/applications.php' . ($filter_status ? '?status=' . $filter_status : '')) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg" aria-hidden="true"></i> Wyczyść typ</a><?php endif; ?>
 </form>
 
 <!-- ── Lista ──────────────────────────────────────────────────────────────── -->
 <?php if (!$applications): ?>
 <div class="card shadow-sm">
   <div class="card-body text-center py-5 text-muted">
-    <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+    <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25" aria-hidden="true"></i>
     <p class="mb-0">Brak pism<?= $filter_status || $filter_type_id ? ' dla wybranych filtrów' : '' ?>.</p>
   </div>
 </div>
 <?php else: ?>
-
-<div class="d-flex flex-column gap-3">
-<?php foreach ($applications as $app):
-    $st      = $status_meta[$app['status']] ?? ['label' => $app['status'], 'class' => 'secondary'];
-    $is_new  = $app['status'] === 'nowy';
-    $fields  = $app['type_id'] ? $get_fields((int)$app['type_id']) : [];
-    $fdata   = json_decode($app['fields_json'] ?? '{}', true) ?: [];
-    // Buduj etykiety pól
-    $field_labels = array_column($fields, 'label', 'name');
-?>
-<div class="card shadow-sm <?= $is_new ? 'border-primary border-2' : '' ?>">
-  <div class="card-body">
-    <div class="d-flex align-items-start gap-3">
-      <i class="bi <?= h($app['type_icon'] ?? 'bi-file-text') ?> fs-4 text-primary mt-1 flex-shrink-0"></i>
-      <div class="flex-grow-1">
-
-        <!-- Nagłówek -->
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-          <span class="fw-bold fs-6"><?= h($app['tytul']) ?></span>
-          <span class="badge bg-<?= $st['class'] ?>"><?= $st['label'] ?></span>
-          <?php if ($is_new): ?><span class="badge bg-danger">Nowe</span><?php endif; ?>
-          <span class="text-muted small ms-auto text-nowrap"><?= h(substr($app['created_at'], 0, 10)) ?></span>
-        </div>
-
-        <!-- Meta -->
-        <div class="small text-muted mb-3 d-flex flex-wrap gap-2 align-items-center">
-          <span><i class="bi bi-person me-1"></i><?= h($app['user_name']) ?> &lt;<?= h($app['user_email']) ?>&gt;</span>
-          <span class="opacity-50">·</span>
-          <span><?= h($app['type_label'] ?? '—') ?></span>
-          <?php if ($app['contract_type'] && $app['contract_id']): ?>
-          <span class="opacity-50">·</span>
-          <a href="<?= APP_URL ?>/contracts/<?= h($app['contract_type']) ?>/view.php?id=<?= $app['contract_id'] ?>"
-             class="text-decoration-none">
-            <?= h($contract_labels[$app['contract_type']] ?? $app['contract_type']) ?> #<?= $app['contract_id'] ?>
-          </a>
-          <?php endif; ?>
-        </div>
-
-        <!-- Pola dynamiczne -->
-        <?php if ($fdata): ?>
-        <div class="row g-2 mb-3">
-          <?php foreach ($fields as $f):
-              $val = $fdata[$f['name']] ?? null;
-              if ($val === null || $val === '') continue;
-          ?>
-          <div class="col-sm-6 col-lg-4">
-            <div class="bg-light rounded p-2">
-              <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em"><?= h($f['label']) ?></div>
-              <div class="fw-semibold small"><?= h($val) ?></div>
-            </div>
-          </div>
-          <?php endforeach; ?>
-          <?php // fallback dla starych rekordów bez type_id
-          foreach ($fdata as $k => $v): if ($v && !isset($field_labels[$k])): ?>
-          <div class="col-sm-6 col-lg-4">
-            <div class="bg-light rounded p-2">
-              <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em"><?= h(str_replace('_', ' ', $k)) ?></div>
-              <div class="fw-semibold small"><?= h($v) ?></div>
-            </div>
-          </div>
-          <?php endif; endforeach; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- Dokument wniosku ze wzoru (ZSW-1, ZSW-2, DOK) + potwierdzenie + przesyłka w EZD -->
-        <?php $_adoc = appDocsTemplateFor($app['type_name'] ?? null); if ($_adoc): $_arpw = appDocsRpw($app); ?>
-        <div class="mb-3 d-flex flex-wrap gap-2">
-          <a href="<?= h(appDocsUrl((int)$app['id'])) ?>" class="btn btn-sm btn-outline-primary" target="_blank"><i class="bi bi-file-earmark-text me-1"></i>Wniosek <?= h($_adoc['code']) ?></a>
-          <a href="<?= h(appDocsUrl((int)$app['id'], true)) ?>" class="btn btn-sm btn-outline-secondary" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
-          <a href="<?= h(appDocsReceiptUrl((int)$app['id'])) ?>" class="btn btn-sm btn-outline-secondary" target="_blank"><i class="bi bi-patch-check me-1"></i>Potwierdzenie</a>
-          <?php if ($_arpw): ?>
-          <a href="<?= APP_URL ?>/ezd/rpw/view.php?id=<?= (int)$_arpw['id'] ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-mailbox me-1"></i>EZD: <?= h($_arpw['label']) ?></a>
-          <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- Załącznik -->
-        <?php if ($app['plik']): ?>
-        <div class="mb-3">
-          <a href="<?= h(letter_file_url($app['plik'])) ?>" class="btn btn-sm btn-outline-secondary" download target="_blank">
-            <i class="bi bi-paperclip me-1"></i>Pobierz załącznik
-          </a>
-        </div>
-        <?php endif; ?>
-
-        <!-- Odpowiedź admina -->
-        <?php if ($app['odpowiedz']): ?>
-        <div class="alert alert-success py-2 px-3 mb-3 small">
-          <i class="bi bi-reply me-1"></i>
-          <strong>Odpowiedź:</strong> <?= h($app['odpowiedz']) ?>
-          <span class="text-muted ms-2"><?= h(substr($app['odpowiedz_at'] ?? '', 0, 10)) ?></span>
-        </div>
-        <?php endif; ?>
-
-        <!-- Akcje -->
-        <?php if (can_write('pisma') || can_write('admin')): ?>
-        <div class="d-flex gap-2 flex-wrap align-items-center">
-          <button class="btn btn-sm btn-primary" type="button"
-                  data-bs-toggle="collapse" data-bs-target="#reply-<?= $app['id'] ?>">
-            <i class="bi bi-reply me-1"></i><?= $app['odpowiedz'] ? 'Zmień odpowiedź' : 'Odpowiedz' ?>
-          </button>
-          <!-- Szybka zmiana statusu -->
-          <form method="post" class="d-inline">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="action" value="set_status">
-            <input type="hidden" name="id" value="<?= $app['id'] ?>">
-            <select name="status" class="form-select form-select-sm d-inline-block w-auto"
-                    onchange="this.form.submit()">
-              <?php foreach ($status_meta as $sv => $sm): ?>
-              <option value="<?= $sv ?>"<?= $app['status'] === $sv ? ' selected' : '' ?>><?= $sm['label'] ?></option>
-              <?php endforeach; ?>
-            </select>
-          </form>
-        </div>
-
-        <div class="collapse mt-3" id="reply-<?= $app['id'] ?>">
-          <form method="post">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="action" value="odpowiedz">
-            <input type="hidden" name="id" value="<?= $app['id'] ?>">
-            <div class="mb-2">
-              <textarea name="odpowiedz" class="form-control form-control-sm" rows="3"
-                        placeholder="Treść odpowiedzi dla użytkownika..."><?= h($app['odpowiedz'] ?? '') ?></textarea>
-            </div>
-            <div class="d-flex gap-2 align-items-center">
-              <select name="status" class="form-select form-select-sm w-auto">
-                <?php foreach (['rozpatrzony', 'w_trakcie', 'odrzucony'] as $sv): ?>
-                <option value="<?= $sv ?>"<?= $app['status'] === $sv ? ' selected' : '' ?>>
-                  <?= $status_meta[$sv]['label'] ?>
-                </option>
-                <?php endforeach; ?>
-              </select>
-              <button type="submit" class="btn btn-sm btn-success">
-                <i class="bi bi-check2 me-1"></i>Zapisz odpowiedź
-              </button>
-            </div>
-          </form>
-        </div>
-        <?php endif; ?>
-
-      </div>
-    </div>
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light"><tr>
+        <th scope="col">Pismo</th><th scope="col">Składający</th><th scope="col">Typ</th><th scope="col">Złożone</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Otwórz</span></th>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($applications as $app):
+          $st  = $status_meta[$app['status']] ?? ['label' => $app['status'], 'class' => 'secondary'];
+          $url = APP_URL . '/admin/application.php?id=' . (int)$app['id'];
+      ?>
+      <tr<?= $app['status'] === 'nowy' ? ' class="fw-semibold"' : '' ?>>
+        <td>
+          <i class="bi <?= h($app['type_icon'] ?? 'bi-file-text') ?> text-primary me-1" aria-hidden="true"></i>
+          <a href="<?= h($url) ?>" class="text-decoration-none"><?= h($app['tytul']) ?></a>
+          <?php if (!empty($app['doc_number'])): ?><div class="small text-muted fw-normal font-monospace"><?= h($app['doc_number']) ?></div><?php endif; ?>
+        </td>
+        <td><?= h($app['user_name']) ?><div class="small text-muted fw-normal"><?= h($app['user_email']) ?></div></td>
+        <td class="small fw-normal"><?= h($app['type_label'] ?? '—') ?>
+          <?php if ($app['contract_type'] && $app['contract_id']): ?><div class="text-muted"><?= h($contract_labels[$app['contract_type']] ?? $app['contract_type']) ?> #<?= (int)$app['contract_id'] ?></div><?php endif; ?></td>
+        <td class="small fw-normal text-nowrap"><?= h(date('d.m.Y H:i', strtotime($app['created_at']))) ?>
+          <?php if ($app['odpowiedz_at']): ?><div class="text-muted">odp. <?= h(date('d.m.Y', strtotime($app['odpowiedz_at']))) ?><?= $app['answered_by_name'] ? ' · ' . h($app['answered_by_name']) : '' ?></div><?php endif; ?></td>
+        <td><span class="badge bg-<?= $st['class'] ?>"><?= $st['label'] ?></span><?php if ($app['plik']): ?> <i class="bi bi-paperclip text-muted" title="z załącznikiem" aria-label="z załącznikiem"></i><?php endif; ?></td>
+        <td class="text-end"><a href="<?= h($url) ?>" class="btn btn-sm btn-outline-primary" aria-label="Otwórz pismo <?= h($app['tytul']) ?>">Otwórz <i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
   </div>
 </div>
-<?php endforeach; ?>
-</div>
-
 <?php endif; ?>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
