@@ -74,7 +74,7 @@ if ($filter_type_id) {
 }
 
 $sql = "SELECT a.*, u.name AS user_name, u.email AS user_email,
-               t.label AS type_label, t.icon AS type_icon, t.allow_attachment AS type_allow_att
+               t.label AS type_label, t.icon AS type_icon, t.allow_attachment AS type_allow_att, t.name AS type_name
         FROM user_applications a
         JOIN users u ON u.id = a.user_id
         LEFT JOIN application_types t ON t.id = a.type_id"
@@ -230,6 +230,18 @@ include dirname(__DIR__) . '/includes/header.php';
             </div>
           </div>
           <?php endif; endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <!-- Dokument wniosku ze wzoru (ZSW-1, ZSW-2, DOK) + potwierdzenie + przesyłka w EZD -->
+        <?php $_adoc = appDocsTemplateFor($app['type_name'] ?? null); if ($_adoc): $_arpw = appDocsRpw($app); ?>
+        <div class="mb-3 d-flex flex-wrap gap-2">
+          <a href="<?= h(appDocsUrl((int)$app['id'])) ?>" class="btn btn-sm btn-outline-primary" target="_blank"><i class="bi bi-file-earmark-text me-1"></i>Wniosek <?= h($_adoc['code']) ?></a>
+          <a href="<?= h(appDocsUrl((int)$app['id'], true)) ?>" class="btn btn-sm btn-outline-secondary" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+          <a href="<?= h(appDocsReceiptUrl((int)$app['id'])) ?>" class="btn btn-sm btn-outline-secondary" target="_blank"><i class="bi bi-patch-check me-1"></i>Potwierdzenie</a>
+          <?php if ($_arpw): ?>
+          <a href="<?= APP_URL ?>/ezd/rpw/view.php?id=<?= (int)$_arpw['id'] ?>" class="btn btn-sm btn-outline-dark"><i class="bi bi-mailbox me-1"></i>EZD: <?= h($_arpw['label']) ?></a>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
 

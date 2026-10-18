@@ -56,13 +56,21 @@ function _applications_init(): void {
         "ALTER TABLE user_applications ADD COLUMN fields_json TEXT NOT NULL DEFAULT '{}'",
         "ALTER TABLE user_applications ADD COLUMN tytul TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE user_applications ADD COLUMN updated_at DATETIME DEFAULT NULL",
+        // Wnioski ze wzorów (modules/application_documents): numer, suma kontrolna, IP, przesyłka EZD
+        "ALTER TABLE user_applications ADD COLUMN doc_number TEXT DEFAULT NULL",
+        "ALTER TABLE user_applications ADD COLUMN doc_hash TEXT DEFAULT NULL",
+        "ALTER TABLE user_applications ADD COLUMN submitted_ip TEXT DEFAULT NULL",
+        "ALTER TABLE user_applications ADD COLUMN ezd_rpw_id INTEGER DEFAULT NULL",
     ] as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
     }
 
+    // Wzory urzędowych wniosków (ZSW-1, ZSW-2…) — dopisywane, gdy ich brak (modules/application_documents)
+    require_once dirname(__DIR__) . '/modules/application_documents/logic/applicationDocuments.php';
+
     // Seed: domyślne typy wniosków przy pierwszym uruchomieniu
     $count = (int)$pdo->query("SELECT COUNT(*) FROM application_types")->fetchColumn();
-    if ($count > 0) return;
+    if ($count > 0) { appDocsEnsureTypes($pdo); return; }
 
     $ins = $pdo->prepare(
         "INSERT INTO application_types (name, label, icon, description, requires_contract, allow_attachment, is_active, sort_order)
@@ -103,6 +111,8 @@ function _applications_init(): void {
 
     $iid = $get_id('pismo_inne');
     $fld->execute([$iid, 'tresc',         'Treść pisma', 'textarea', '[]', 'Opisz swoją sprawę szczegółowo...', 1, 10]);
+
+    appDocsEnsureTypes($pdo);
 }
 
 // ── Helpery ───────────────────────────────────────────────────────────────────

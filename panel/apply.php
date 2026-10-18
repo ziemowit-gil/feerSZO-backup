@@ -74,6 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $app_type = $types_by_id[$type_id] ?? null;
     if (!$app_type) $errors[] = 'Wybierz typ pisma / wniosku.';
+    // Wzory urzędowe (ZSW-1…) — tytuł z nazwy dokumentu, gdy nie wpisano
+    if ($tytul === '' && $app_type) $tytul = appDocsDefaultTitle((string)$app_type['name'], ['dokument' => trim((string)($_POST['field_dokument'] ?? ''))]);
     if ($tytul === '') $errors[] = 'Tytuł jest wymagany.';
 
     $contract_type = ''; $contract_id = 0;
@@ -104,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors)) {
-        db_insert('user_applications', [
+        $_new_app_id = db_insert('user_applications', [
             'user_id'       => $user['id'],
             'type_id'       => $type_id,
             'contract_type' => $contract_type,
@@ -114,7 +116,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'plik'          => $plik,
             'status'        => 'nowy',
         ]);
-        flash_set('success', 'Pismo / wniosek został wysłany. Administrator wróci do Ciebie wkrótce.');
+        // Wzory urzędowe (ZSW-1, ZSW-2, DOK): numer, suma kontrolna, rejestracja w EZD (RPW) z PDF
+        $_adoc_tpl = appDocsTemplateFor($app_type['name'] ?? null);
+        if ($_adoc_tpl) appDocsAfterSubmit((int)$_new_app_id);
+        flash_set('success', $_adoc_tpl
+            ? 'Wniosek ' . $_adoc_tpl['code'] . ' został złożony elektronicznie. Potwierdzenie złożenia znajdziesz w „Moich wnioskach”.'
+            : 'Pismo / wniosek został wysłany. Administrator wróci do Ciebie wkrótce.');
         require_once dirname(__DIR__) . '/includes/notifications.php';
         $admins = db_all("SELECT id FROM users WHERE role IN ('admin','editor') AND is_active=1");
         foreach ($admins as $adm) {
@@ -127,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Historia ──────────────────────────────────────────────────────────────────
 $history = db_all(
-    "SELECT a.*, t.label AS type_label, t.icon AS type_icon
+    "SELECT a.*, t.label AS type_label, t.icon AS type_icon, t.name AS type_name
      FROM user_applications a
      LEFT JOIN application_types t ON t.id = a.type_id
      WHERE a.user_id = ?
@@ -304,7 +311,7 @@ $_ap_pal = array_values(panelMetroPalette());
            style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
         <div class="ap-fields">
         <?php foreach ($t['fields'] as $f) {
-            $val   = $_POST['field_' . $f['name']] ?? '';
+            $val   = $_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user);
             $ph    = h($f['placeholder']);
             $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
             $fname = 'field_' . h($f['name']);
@@ -405,12 +412,26 @@ $_ap_pal = array_values(panelMetroPalette());
         <?php endif; ?>
       </div>
       <?php endif; ?>
-      <?php if ($app['plik']): ?>
-      <div class="mt-1">
+      <?php $_adoc = appDocsTemplateFor($app['type_name'] ?? null); ?>
+      <?php if ($app['plik'] || $_adoc): ?>
+      <div class="mt-1 d-flex flex-wrap gap-1">
+        <?php if ($_adoc): ?>
+        <a href="<?= h(appDocsUrl((int)$app['id'])) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem" target="_blank">
+          <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Wniosek <?= h($_adoc['code']) ?>
+        </a>
+        <a href="<?= h(appDocsUrl((int)$app['id'], true)) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem" target="_blank">
+          <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF
+        </a>
+        <a href="<?= h(appDocsReceiptUrl((int)$app['id'])) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem" target="_blank">
+          <i class="bi bi-patch-check me-1" aria-hidden="true"></i>Potwierdzenie złożenia
+        </a>
+        <?php endif; ?>
+        <?php if ($app['plik']): ?>
         <a href="<?= h(letter_file_url($app['plik'])) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem"
            download target="_blank">
           <i class="bi bi-paperclip me-1" aria-hidden="true"></i>Załącznik
         </a>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
     </div>
@@ -520,7 +541,7 @@ $_ap_pal = array_values(panelMetroPalette());
       <div class="type-fields" id="fields-<?= $t['id'] ?>"
            style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
         <?php foreach ($t['fields'] as $f) {
-            $val   = $_POST['field_' . $f['name']] ?? '';
+            $val   = $_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user);
             $ph    = h($f['placeholder']);
             $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
             $fname = 'field_' . h($f['name']);
