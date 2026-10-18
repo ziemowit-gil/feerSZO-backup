@@ -138,6 +138,10 @@ function task_api_ok(mixed $data = null): never {
 }
 
 function task_parse_json_body(): array {
+    // CLI (seedery, np. cli/seedZadaniaPowiadomienia.php): w CLI nie ma treści żądania — ciało podaje skrypt
+    if (PHP_SAPI === 'cli' && isset($GLOBALS['TASK_CLI_JSON_BODY']) && is_array($GLOBALS['TASK_CLI_JSON_BODY'])) {
+        return $GLOBALS['TASK_CLI_JSON_BODY'];
+    }
     $body = json_decode(file_get_contents('php://input'), true);
     return is_array($body) ? $body : [];
 }
