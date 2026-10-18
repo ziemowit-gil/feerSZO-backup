@@ -228,6 +228,12 @@ $_ap_pal = array_values(panelMetroPalette());
 .ap-wiz .mt-btn{display:inline-flex;align-items:center;gap:.4rem;background:var(--c,#0f6fa8);color:#fff;border:2px solid var(--c,#0f6fa8);border-radius:0;padding:.45rem 1rem;font-weight:600;min-height:40px}
 .ap-wiz .mt-btn--ghost{background:transparent;color:#111827;border-color:#111827}
 .ap-wiz .mt-btn--ghost:hover{background:#111827;color:#fff}
+/* Moje wnioski: rozwijane szczegóły zamiast surowych pól */
+.pvm .ap-h details{margin-top:.35rem}
+.pvm .ap-h summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--pvm-ink)}
+.pvm .ap-h dl{margin:.35rem 0 0;display:grid;grid-template-columns:minmax(7rem,auto) 1fr;gap:.2rem .8rem;font-size:.8rem;background:var(--pvm-bg);padding:.5rem .65rem}
+.pvm .ap-h dt{font-weight:600;color:var(--pvm-muted)}
+.pvm .ap-h dd{margin:0;word-break:break-word}
 .pvm .ap-type{width:100%;text-align:left;border-top:0;border-right:0;border-bottom:0;font:inherit}
 </style>
 
@@ -272,6 +278,9 @@ $_ap_pal = array_values(panelMetroPalette());
       $st_icon_map = ['primary' => 'bi-clock', 'warning' => 'bi-hourglass-split', 'success' => 'bi-check-circle-fill', 'danger' => 'bi-x-circle-fill'];
       $st_icon = $st_icon_map[$st['class']] ?? 'bi-circle';
       $_apc = ['primary'=>'var(--m-blue)','warning'=>'var(--m-orange)','success'=>'var(--m-green)','danger'=>'var(--m-red)'][$st['class']] ?? 'var(--m-grey)';
+      // Etykiety pól z definicji typu (zamiast surowych kluczy „miejscowosc”, „zalaczniki”…)
+      $_lbls = [];
+      foreach (($types_by_id[(int)$app['type_id']]['fields'] ?? app_type_fields((int)$app['type_id'])) as $_f) $_lbls[$_f['name']] = $_f['label'];
   ?>
   <article class="ap-h" style="--c:<?= $_apc ?>">
     <i class="bi <?= h($app['type_icon'] ?: $st_icon) ?>" style="font-size:1.15rem;color:<?= $_apc ?>" aria-hidden="true"></i>
@@ -287,6 +296,17 @@ $_ap_pal = array_values(panelMetroPalette());
         <strong>Odpowiedź:</strong> <?= h($app['odpowiedz']) ?>
         <?php if ($app['odpowiedz_at']): ?><span class="text-muted ms-1"><?= h(substr($app['odpowiedz_at'], 0, 10)) ?></span><?php endif; ?>
       </div>
+      <?php endif; ?>
+      <?php $_fd = array_filter($fields_data, fn($v) => $v !== '' && $v !== null); ?>
+      <?php if ($_fd): ?>
+      <details>
+        <summary>Szczegóły wniosku</summary>
+        <dl>
+          <?php foreach ($_fd as $k => $v): ?>
+          <dt><?= h($_lbls[$k] ?? ucfirst(str_replace('_', ' ', (string)$k))) ?></dt><dd><?= h(is_array($v) ? implode(', ', $v) : (string)$v) ?></dd>
+          <?php endforeach; ?>
+        </dl>
+      </details>
       <?php endif; ?>
       <?php $_adoc = appDocsTemplateFor($app['type_name'] ?? null); ?>
       <?php if ($app['plik'] || $_adoc): ?>
