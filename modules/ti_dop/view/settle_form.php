@@ -79,6 +79,14 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
   <div class="col-md-6"><label class="form-label" for="ops">Podstawa salda otwarcia</label><input class="form-control" id="ops" name="opening_src" value="<?= $v('opening_src') ?>" placeholder="np. uzgodnienie salda z kursantem / opiekunem z dnia …"><?= $err('opening_src') ?></div>
   <div class="col-12 small">Saldo w systemie teraz: <b><?= h(number_format($c['balance'], 2, ',', ' ')) ?> zł</b> — zostanie wyzerowane i zarchiwizowane.</div>
 </div></section>
+<?php $ps = array_values((array)($old['p'] ?? [])); while (count($ps) < 4) $ps[] = ['od' => '', 'do' => '', 'opis' => '', 'dokument' => '', 'kwota' => '']; ?>
+<section class="panel"><h2 class="mt-0"><span class="sym" style="background:#825a2c">SUB1-1</span> Dodatkowe okresy rozliczone</h2><?= $err('p') ?>
+  <p class="small text-secondary">Okresy już rozliczone poza systemem albo przed nową procedurą (np. opłacone gotówką, rozliczone fakturą z innego systemu) — trafiają do załącznika SUB1-1. Puste wiersze są pomijane.</p>
+  <table class="table table-sm"><thead><tr><th>Od (miesiąc)</th><th>Do (miesiąc)</th><th>Opis</th><th>Dokument / podstawa</th><th>Kwota (zł)</th></tr></thead><tbody>
+  <?php foreach ($ps as $i => $p): ?><tr><td><input class="form-control form-control-sm" type="month" name="p[<?= $i ?>][od]" value="<?= h($p['od']) ?>" aria-label="Okres <?= $i + 1 ?> od"></td><td><input class="form-control form-control-sm" type="month" name="p[<?= $i ?>][do]" value="<?= h($p['do']) ?>" aria-label="Okres <?= $i + 1 ?> do"></td>
+    <td><input class="form-control form-control-sm" name="p[<?= $i ?>][opis]" value="<?= h($p['opis']) ?>" aria-label="Opis okresu <?= $i + 1 ?>"></td><td><input class="form-control form-control-sm" name="p[<?= $i ?>][dokument]" value="<?= h($p['dokument']) ?>" aria-label="Dokument okresu <?= $i + 1 ?>"></td>
+    <td><input class="form-control form-control-sm" name="p[<?= $i ?>][kwota]" value="<?= h((string)$p['kwota']) ?>" inputmode="decimal" aria-label="Kwota okresu <?= $i + 1 ?>"></td></tr><?php endforeach; ?>
+  </tbody></table></section>
 <?php elseif ($kind === SettleKind::Rks): ?>
 <section class="panel"><h2 class="mt-0">Księgowanie</h2><div class="row g-3">
   <div class="col-md-3"><label class="form-label" for="dt">Data księgowania *</label><input class="form-control" type="date" id="dt" name="date" value="<?= $v('date') ?: h(date('Y-m-d')) ?>"><?= $err('date') ?></div>

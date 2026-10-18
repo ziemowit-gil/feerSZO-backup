@@ -235,6 +235,16 @@ final class SettlementDocs
             $d['opening'] = $v ?? 0.0;
             $d['opening_src'] = mb_substr(trim((string)($in['opening_src'] ?? '')), 0, 300);
             if (abs($d['opening']) > 0.004 && $d['opening_src'] === '') $e['opening_src'] = 'Podaj podstawę salda otwarcia (np. uzgodnienie z kursantem z dnia …).';
+            // SUB1-1 — wykaz dodatkowych okresów rozliczonych (poza systemem / przed nową procedurą)
+            $d['periods'] = [];
+            foreach ((array)($in['p'] ?? []) as $row) {
+                if (!is_array($row) || (trim((string)($row['od'] ?? '')) === '' && trim((string)($row['opis'] ?? '')) === '')) continue;
+                $od = (string)($row['od'] ?? ''); $do = (string)($row['do'] ?? '') ?: $od;
+                if (!preg_match('/^\d{4}-\d{2}$/', $od) || !preg_match('/^\d{4}-\d{2}$/', $do) || $do < $od) { $e['p'] = 'SUB1-1: okres „od–do” w formacie RRRR-MM (do ≥ od).'; continue; }
+                $kw = self::num((string)($row['kwota'] ?? ''));
+                if (trim((string)($row['kwota'] ?? '')) !== '' && $kw === null) { $e['p'] = 'SUB1-1: kwota musi być liczbą.'; continue; }
+                $d['periods'][] = ['od' => $od, 'do' => $do, 'opis' => mb_substr(trim((string)($row['opis'] ?? '')), 0, 200), 'dokument' => mb_substr(trim((string)($row['dokument'] ?? '')), 0, 120), 'kwota' => $kw];
+            }
             if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj powód wyczyszczenia historii subkonta.';
             if (db_one("SELECT id FROM settlement_docs WHERE kind = 'SUB1' AND client_id = ? AND status = 'pending'", [$clientId])) $e['since'] = 'Dla tego uczestnika jest już SUB1 czekający na zatwierdzenie.';
         } elseif ($k === SettleKind::Rks) {
@@ -595,6 +605,14 @@ final class SettlementDocs
                 . $fld('Księgowanie od dnia uruchomienia', 'wyłącznie ręczne (RKS) — bez automatycznych rozliczeń z kalkulatora', ' width="34%"') . '</tr><tr>'
                 . $fld('Historia przed uruchomieniem', $ar ? 'zarchiwizowana w niniejszym dokumencie: ' . count($ar['lines']) . ' pozycji; wpłaty ' . $e($zl($ar['payments'])) . ', należności ' . $e($zl($ar['charges'])) . ', saldo ' . $e($zl($ar['balance'])) : 'zostanie zarchiwizowana przy wykonaniu', ' colspan="2"')
                 . $fld('Wyzerowanie', $ar ? (($r['res']['zero_out'] ?? []) ? $e(implode('; ', array_map(fn($x) => $x['name'] . ($x['debt'] > 0 ? ' umorzono ' . $zl($x['debt']) : '') . ($x['credit'] > 0 ? ' wyzerowano nadpłatę ' . $zl($x['credit']) : ''), $r['res']['zero_out']))) : 'saldo było zerowe') : 'przy wykonaniu', '') . '</tr></table>';
+            if (!empty($d['periods'])) {
+                $ym = fn($v) => substr($v, 5, 2) . '.' . substr($v, 0, 4);
+                $rows = '';
+                foreach ($d['periods'] as $i => $p) $rows .= '<tr><td class="f">' . ($i + 1) . '.</td><td class="f">' . $e($ym($p['od']) . ($p['do'] !== $p['od'] ? ' – ' . $ym($p['do']) : '')) . '</td><td class="f">' . $e($p['opis']) . '</td><td class="f">' . $e($p['dokument']) . '</td><td class="f" style="text-align:right">' . ($p['kwota'] !== null ? $e($zl($p['kwota'])) : '') . '</td></tr>';
+                $sum = array_sum(array_map(fn($p) => (float)$p['kwota'], $d['periods']));
+                $h .= '<table class="t" style="page-break-inside:avoid">' . $sec('SUB1-1', 'WYKAZ DODATKOWYCH OKRESÓW ROZLICZONYCH', 5) . $th(['Lp.', 'Okres', 'Opis', 'Dokument / podstawa', 'Kwota'])
+                    . $rows . '<tr><td class="f" colspan="4"><b>Razem</b> — okresy uznane za rozliczone; nie są ponownie naliczane po uruchomieniu nowej procedury</td><td class="f" style="text-align:right"><b>' . $e($zl($sum)) . '</b></td></tr></table>';
+            }
             if ($ar && $ar['lines']) {
                 $rows = '';
                 foreach ($ar['lines'] as $l) $rows .= '<tr><td class="f">' . $e(ldDate($l['date'])) . '</td><td class="f">' . $e($l['desc']) . '<div class="small">' . $e($l['what']) . '</div></td><td class="f" style="text-align:right">' . ($l['in'] ? $e($zl($l['in'])) : '') . '</td><td class="f" style="text-align:right">' . ($l['out'] ? $e($zl($l['out'])) : '') . '</td><td class="f" style="text-align:right">' . $e($zl($l['balance'])) . '</td></tr>';
