@@ -49,7 +49,7 @@ function phoneVerifyMigrate(): void {
  * zawiodą wszyscy (komunikaty obu prób w treści). '' = sam łańcuch (bez preferencji).
  */
 function smsSendPreferred(string $preferred, string $phone, string $message, string $kind): string {
-    $errors = [];
+    $errors = []; $skip = [];
     if ($preferred !== '' && sms_provider_ready($preferred)) {
         try {
             sms_send_via($preferred, $phone, $message, $kind);
@@ -57,10 +57,11 @@ function smsSendPreferred(string $preferred, string $phone, string $message, str
         } catch (\Throwable $e) {
             $errors[] = sms_provider_label($preferred) . ': ' . $e->getMessage();
             sms_log_event('preferred_failed', sms_normalize_phone($phone), $errors, '', $kind);
+            $skip[] = $preferred;   // nie ponawiaj u tego samego operatora w łańcuchu
         }
     }
     try {
-        return sms_send($phone, $message, $kind);
+        return sms_send($phone, $message, $kind, $skip);
     } catch (\Throwable $e) {
         $errors[] = $e->getMessage();
         throw new RuntimeException(implode(' | ', $errors));

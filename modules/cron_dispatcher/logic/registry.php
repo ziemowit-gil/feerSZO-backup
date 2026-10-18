@@ -58,6 +58,10 @@ function cron_dispatcher_registry(): array
             'interval' => 300,          // co 5 min — SMS-y odłożone w ciszy nocnej (22–7) wychodzą od 7:00
             'schedule' => [7, 22],
         ],
+        'sms_sendly_watch' => [
+            'file'     => $cronDir . '/sms_sendly_watch.php',
+            'interval' => 120,          // co 2 min — SMS-y Sendly bez potwierdzenia doręczenia → ponownie przez innego operatora
+        ],
         'ext_agent' => [
             'file'     => $cronDir . '/ext_agent.php',
             'interval' => 120,          // co 2 min — kolejka stempli i sprzątanie

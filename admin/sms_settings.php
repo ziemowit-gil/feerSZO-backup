@@ -639,7 +639,21 @@ try {
     <label class="form-label fw-semibold small" for="sms_sendly_api_base">Adres API <span class="text-muted fw-normal">(puste = domyślny)</span></label>
     <input type="text" id="sms_sendly_api_base" name="sms_sendly_api_base" class="form-control form-control-sm font-monospace" style="max-width:420px"
            value="<?= h(sms_setting('sms_sendly_api_base')) ?>" placeholder="https://api.sendly.link">
-    <div class="form-text">Raporty doręczeń (DELIVERED / ERROR) Sendly wysyła webhookiem ustawianym w panelu Sendly — SZO ich nie przetwarza.</div>
+  </div>
+  <?php require_once dirname(__DIR__) . '/modules/sms_delivery/logic/sendlyDelivery.php';
+        $sl_stats = sendlyStats(); $sl_alive = sendlyWebhookAlive(); ?>
+  <div class="border rounded p-2 mt-3 small">
+    <div class="fw-semibold mb-1"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Raporty doręczeń i ponowna wysyłka</div>
+    <p class="mb-2">Sendly przyjmuje SMS od razu, a o niedoręczeniu informuje dopiero raportem. Wklej ten adres w panelu Sendly
+      (Bramka SMS → Ustawienia usługi → raporty doręczeń, metoda POST): przy <code>ERROR</code> albo braku potwierdzenia po
+      <?= (int)(org_setting('sms_sendly_confirm_minutes') ?: 4) ?> min ten sam SMS pójdzie przez innego operatora (smsapi albo zapasowego).</p>
+    <label class="visually-hidden" for="sl_webhook">Adres webhooka Sendly</label>
+    <input id="sl_webhook" class="form-control form-control-sm font-monospace mb-2" readonly value="<?= h(sendlyWebhookUrl()) ?>" onclick="this.select()">
+    <div><?= $sl_alive ? '<span class="badge text-bg-success">webhook działa</span> (ostatni raport: ' . h((string)org_setting('sms_sendly_webhook_last')) . ')'
+                       : '<span class="badge text-bg-warning">webhook jeszcze nie przysłał raportu</span> — do tego czasu działa tylko ponowna wysyłka po raporcie ERROR' ?></div>
+    <?php if ($sl_stats): ?>
+    <div class="mt-1 text-muted">Ostatnie 7 dni: <?= h(implode(' · ', array_map(fn($k, $v) => ['sent' => 'czeka na raport', 'delivered' => 'doręczone', 'error' => 'błąd', 'resent' => 'wysłane ponownie innym operatorem', 'resend_failed' => 'ponowna wysyłka nieudana', 'expired' => 'bez raportu (wygaszone)'][$k] . ': ' . $v, array_keys($sl_stats), $sl_stats))) ?></div>
+    <?php endif; ?>
   </div>
 </div>
 </div>

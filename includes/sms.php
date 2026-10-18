@@ -98,7 +98,8 @@ function sms_provider_fallback(): string {
 
 /**
  * Kolejność wysyłki: [główny, zapasowy] — tylko dostawcy z kompletną konfiguracją, bez powtórzeń
- * (zapasowy taki sam jak główny jest ignorowany).
+ * (zapasowy taki sam jak główny jest ignorowany). Para smsapi ↔ Sendly zabezpiecza się wzajemnie: gdy jeden z nich jest
+ * w łańcuchu, a drugi skonfigurowany, drugi dochodzi na koniec (błąd smsapi → Sendly, błąd Sendly → smsapi).
  *
  * @return list<string>
  */
@@ -106,6 +107,9 @@ function sms_provider_chain(): array {
     $chain = [];
     foreach ([sms_provider(), sms_provider_fallback()] as $p) {
         if ($p !== '' && !in_array($p, $chain, true) && sms_provider_ready($p)) $chain[] = $p;
+    }
+    foreach (['smsapi' => 'sendly', 'sendly' => 'smsapi'] as $a => $b) {
+        if (in_array($a, $chain, true) && !in_array($b, $chain, true) && sms_provider_ready($b)) $chain[] = $b;
     }
     return $chain;
 }
@@ -242,8 +246,9 @@ function sms_log_event(string $event, string $phone, array $errors, string $used
  * Rzuca wyjątek dopiero, gdy zawiodą wszyscy: przy jednym dostawcy — jego oryginalny błąd, przy dwóch —
  * RuntimeException z komunikatami obu. Gdy nie skonfigurowano żadnego — błąd konfiguracji głównego.
  * $kind: rodzaj SMS z katalogu (decyduje o nadawcy — patrz sms_kind_sender()); '' = bez rodzaju, domyślny nadawca.
+ * $skip: dostawcy pominięci w łańcuchu (np. preferowany, który właśnie zawiódł — smsSendPreferred()).
  */
-function sms_send(string $phone, string $message, string $kind = ''): string {
+function sms_send(string $phone, string $message, string $kind = '', array $skip = []): string {
     require_once __DIR__ . '/ti_virtual.php';
     if (ti_virtual_blocked('', $phone)) { sms_last_send(['provider' => '', 'fallback' => false, 'errors' => []]); return ''; }   // kursant wirtualny — bez SMS
     $phone = sms_normalize_phone($phone);
@@ -257,7 +262,8 @@ function sms_send(string $phone, string $message, string $kind = ''): string {
         return 'odlozony';   // niepusty wynik = „przyjęty do wysyłki” dla wywołujących
     }
 
-    $chain = sms_provider_chain();
+    $chain = array_values(array_diff(sms_provider_chain(), $skip));
+    if (!$chain && $skip) throw new RuntimeException('Brak innego skonfigurowanego dostawcy SMS (zapasowego) — skonfiguruj go w Ustawieniach SMS.');
     if (!$chain) {
         _sms_dispatch(sms_provider(), $phone, $message, $kind);  // nic nie skonfigurowano → wyjątek z podpowiedzią, czego brakuje
         return sms_provider();
@@ -640,7 +646,8 @@ function _sms_send_serwersms(string $phone, string $message, string $kind = ''):
 /**
  * Sendly (https://sendly.link/pl/) — POST {api}/api/sms, JSON {"to": "48732129000", "body": "..."}, autoryzacja `Authorization: Bearer <token>`
  * (token z panelu app.sendly.link). Numer bez plusa. Odpowiedź zawiera `message_id`; raporty doręczeń (DELIVERED/ERROR) przychodzą webhookiem
- * skonfigurowanym w panelu Sendly (Bramka SMS → Ustawienia usługi) — tu nie są obsługiwane. Nadawca (Sender ID, do 11 znaków, weryfikacja w UKE)
+ * (api/sendly_webhook.php, adres w Ustawieniach SMS) — przy ERROR / braku potwierdzenia SMS idzie ponownie przez innego operatora
+ * (modules/sms_delivery). Nadawca (Sender ID, do 11 znaków, weryfikacja w UKE)
  * jest przypisany do usługi w panelu, więc $kind nie zmienia nadawcy. Adres API przestawia `sms_sendly_api_base` (domyślnie https://api.sendly.link).
  * Powodzenie = HTTP 2xx; token leci w nagłówku, więc certyfikat serwera jest zawsze weryfikowany.
  */
@@ -662,7 +669,13 @@ function _sms_send_sendly(string $phone, string $message, string $kind = ''): vo
         }
         throw $e;
     }
-    if ($code >= 200 && $code < 300) return;
+    if ($code >= 200 && $code < 300) {
+        // Przyjęty ≠ doręczony: Sendly zgłasza niedoręczenie dopiero webhookiem — śledzimy message_id i przy ERROR / braku
+        // potwierdzenia wysyłamy ponownie przez innego operatora (modules/sms_delivery, api/sendly_webhook.php).
+        require_once dirname(__DIR__) . '/modules/sms_delivery/logic/sendlyDelivery.php';
+        sendlyTrack(sendlyMessageId((string)$resp), $phone, $message, $kind);
+        return;
+    }
 
     $data = json_decode($resp, true);
     $emsg = is_array($data) ? trim((string)($data['message'] ?? $data['error'] ?? $data['detail'] ?? '')) : '';
