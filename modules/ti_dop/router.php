@@ -61,6 +61,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/rop/{id}',                      [DopController::class, 'ropShow'])->name('rop.show');
     $r->get('/rop/{id}/pdf',                  [DopController::class, 'ropPdf'])->name('rop.pdf');
     $r->post('/rop/{id}/wyslij',              [DopController::class, 'ropSend'])->name('rop.send');
+    $r->get('/stawki',                        [DopController::class, 'rates'])->name('rates');
     $r->get('/rozliczenia',                   [DopController::class, 'settleIndex'])->name('settle.index');
     $r->get('/rozliczenia/nowy',              [DopController::class, 'settleForm'])->name('settle.new');
     $r->post('/rozliczenia/nowy',             [DopController::class, 'settleCreate']);

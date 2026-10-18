@@ -202,6 +202,7 @@ function dydMenuSections(): array
         $it('',            'Subkonto kursanta',        'subkonto.php',           'bank'),
         $it('',            'Nadpłaty uczestników',     'overpayments.php',       'piggy-bank'),
         $it('',            'Dokumenty rozliczeniowe', 'wnioskiDop.php',     'file-earmark-check', $nDop, 'warning'),
+        $it('',            'Stawki godzinowe (raport)', 'wnioskiDop.php?_route=%2Fstawki', 'calculator'),
         $it('',            'Cenniki i rabaty',         'pricing.php',            'tags'),
         $it('wypłaty',     'Wypłaty prowadzących',     $gt('wypłaty'),           'cash-stack'),
         $it('',            'Żetony SZO',               'zetony.php',             'ticket-detailed'),

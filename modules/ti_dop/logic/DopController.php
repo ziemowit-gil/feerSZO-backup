@@ -9,6 +9,7 @@ require_once dirname(__DIR__) . '/lib/DopService.php';
 require_once dirname(__DIR__) . '/lib/RopStatement.php';
 require_once dirname(__DIR__) . '/lib/SettlementDocs.php';
 require_once dirname(__DIR__) . '/lib/AutoRm.php';
+require_once dirname(__DIR__) . '/lib/RateReport.php';
 require_once dirname(__DIR__) . '/lib/Dop5Statement.php';
 
 final class DopController
@@ -259,6 +260,17 @@ final class DopController
     {
         $f = ['client' => (int)($_GET['klient'] ?? 0), 'kind' => (string)($_GET['kind'] ?? ''), 'status' => (string)($_GET['status'] ?? '')];
         return $this->view('settle_index.php', ['list' => SettlementDocs::search($f), 'f' => $f, 'autoRm' => $f['kind'] === 'RM' ? AutoRm::enabledList() : []]);
+    }
+
+    /** Raport kierownika: godziny i kwota na koncie → stawka godzinowa. */
+    public function rates(): ?string
+    {
+        if (!DopService::canApprove((int)$this->actor()['id'])) { http_response_code(403); return 'Raport stawek jest dostępny dla kierownika i administratora.'; }
+        $f = ['year' => isset($_GET['rok']) ? max(0, (int)$_GET['rok']) : (int)date('Y'), 'month' => min(12, max(0, (int)($_GET['mies'] ?? 0))), 'q' => trim((string)($_GET['q'] ?? '')), 'diff' => !empty($_GET['roznice'])];
+        $rep = RateReport::build($f);
+        if ($f['diff']) $rep['rows'] = array_values(array_filter($rep['rows'], fn($r) => $r['diff']));
+        if (!empty($_GET['csv'])) return $this->send(['mime' => 'text/csv; charset=utf-8', 'ext' => 'csv', 'bytes' => RateReport::csv($rep)], 'stawki-godzinowe-' . ($f['year'] ?: 'wszystkie') . ($f['month'] ? '-' . $f['month'] : ''));
+        return $this->view('rates.php', ['rep' => $rep, 'f' => $f]);
     }
 
     /** Włączenie / wyłączenie automatycznego RM co miesiąc (na prośbę uczestnika). */
