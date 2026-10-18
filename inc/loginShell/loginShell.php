@@ -67,15 +67,23 @@ html.tz-side-off .tz-side-show { display: flex; }
 .tz-side-nav .ks-tab, .tz-side-nav a { display: block; padding: .7rem 1rem; color: #fff; text-decoration: none; font-weight: 600; border-left: 4px solid transparent; background: rgba(255,255,255,.06); }
 .tz-side-nav .ks-tab:hover, .tz-side-nav a:hover { background: rgba(255,255,255,.14); color: #fff; }
 .tz-side-nav [aria-current="page"] { border-left-color: {$a}; background: rgba(27,161,226,.22); }
-.tz-actions { margin-top: 2rem; max-width: 420px; }
+.tz-actions { margin-top: 2rem; max-width: 480px; }
 .tz-actions h3 { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #cbd5e1; margin: 0 0 .25rem; }
-.tz-actions-sub { color: #cbd5e1; font-size: .88rem; margin: 0 0 .6rem; }
-.tz-actions ul { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; font-size: .9rem; }
+.tz-actions-sub { color: #cbd5e1; font-size: .88rem; margin: 0 0 .75rem; }
+/* Kafle METRO: równa wysokość, ikona u góry, podpis na dole; ostatni samotny kafel = kafel szeroki. */
+.tz-actions ul { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .tz-actions li { margin: 0; }
-.tz-actions li:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.tz-actions a { display: flex; align-items: center; gap: .5rem; min-height: 48px; padding: .55rem .75rem; color: #fff; text-decoration: none; font-weight: 600; background: var(--tz-k, #2d2d2d); }
-.tz-actions a:hover { filter: brightness(1.12); color: #fff; text-decoration: underline; }
-.tz-actions a .bi { font-size: 1.15rem; flex-shrink: 0; }
+.tz-actions li:last-child:nth-child(3n+1) { grid-column: 1 / -1; }
+.tz-actions li:last-child:nth-child(3n+2) { grid-column: span 2; }
+.tz-actions a { position: relative; display: flex; flex-direction: column; justify-content: space-between; height: 96px; padding: .7rem .75rem .6rem; color: #fff; text-decoration: none; font-weight: 600; font-size: .86rem; line-height: 1.2; background: var(--tz-k, #2d2d2d); outline: 2px solid transparent; outline-offset: -2px; transition: outline-color .12s, filter .12s; }
+.tz-actions a:hover { filter: brightness(1.1); outline-color: rgba(255,255,255,.55); color: #fff; }
+.tz-actions a .bi { font-size: 1.55rem; line-height: 1; }
+.tz-actions a .tz-ext { position: absolute; top: .55rem; right: .6rem; font-size: .8rem; opacity: .8; }
+@media (max-width: 420px) {
+  .tz-actions ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tz-actions li:last-child:nth-child(n) { grid-column: auto; }
+  .tz-actions li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
 .tz-side-nav nav, .tz-side-nav .ks-tabs { display: flex; flex-direction: column; gap: .25rem; }
 .tz-main { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
 .tz-card { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 2.5rem 2rem; width: 100%; max-width: 420px; border-radius: 0; }
@@ -123,15 +131,16 @@ function loginShellActions(): string {
     $app  = rtrim(APP_URL, '/');
     $self = (string)($_SERVER['SCRIPT_NAME'] ?? '');
     $systemy = [
+        // Kolory METRO przyciemnione tak, by biały tekst miał kontrast ≥ 4,5:1.
         [$app . '/tozsamosc/index.php',   'Moje konto (Tożsamość)', 'bi-person-vcard',       '#0f6fa8'],
         [$app . '/auth/login.php',        'System SZO',             'bi-building',           '#2d2d2d'],
-        [$app . '/karty30/ti/login.php',  'Panel kursanta TI',      'bi-pc-display',         '#2d2d2d'],
-        [$app . '/karty30/login.php',     'Dydaktyka 3',            'bi-card-checklist',     '#2d2d2d'],
-        [$app . '/crm/login.php',         'CRM',                    'bi-people',             '#2d2d2d'],
-        [$app . '/ezd/index.php',         'EZD (dokumenty)',        'bi-folder2-open',       '#2d2d2d'],
-        [$app . '/tasks/index.php',       'Zadania',                'bi-check2-square',      '#2d2d2d'],
-        [$app . '/webmail/index.php',     'Poczta',                 'bi-envelope',           '#2d2d2d'],
-        [$app . '/panel/index.php',       'Panel współpracownika',    'bi-heart',              '#2d2d2d'],
+        [$app . '/karty30/ti/login.php',  'Panel kursanta TI',      'bi-pc-display',         '#00796b'],
+        [$app . '/karty30/login.php',     'Dydaktyka 3',            'bi-card-checklist',     '#5b21b6'],
+        [$app . '/crm/login.php',         'CRM',                    'bi-people',             '#b0125b'],
+        [$app . '/ezd/index.php',         'EZD (dokumenty)',        'bi-folder2-open',       '#a16207'],
+        [$app . '/tasks/index.php',       'Zadania',                'bi-check2-square',      '#c2410c'],
+        ['https://outlook.office.com',    'Poczta',                 'bi-envelope',           '#0050c8'],
+        [$app . '/panel/index.php',       'Panel współpracownika',  'bi-heart',              '#15803d'],
         ['https://www.office.com',        'Microsoft 365',          'bi-microsoft',          '#2d2d2d'],
     ];
     // Aplikacje zewnętrzne logujące przez Tożsamość (SAML) — tylko gdy baza jest dostępna.
@@ -149,8 +158,11 @@ function loginShellActions(): string {
     foreach ($systemy as [$url, $label, $icon, $kolor]) {
         $path = (string)parse_url($url, PHP_URL_PATH);
         if ($self !== '' && str_starts_with($url, $app) && $path === $self) continue;   // bieżąca strona
+        $ext = !str_starts_with($url, $app);
         $li .= '<li><a href="' . $e($url) . '" style="--tz-k:' . $kolor . '">'
-             . '<i class="bi ' . $icon . '" aria-hidden="true"></i>' . $e($label) . '</a></li>';
+             . '<i class="bi ' . $icon . '" aria-hidden="true"></i>'
+             . ($ext ? '<i class="bi bi-box-arrow-up-right tz-ext" aria-hidden="true"></i>' : '')
+             . '<span>' . $e($label) . ($ext ? '<span class="visually-hidden"> (serwis zewnętrzny)</span>' : '') . '</span></a></li>';
     }
     return '<section class="tz-actions" aria-labelledby="tz-actions-h">'
          . '<h3 id="tz-actions-h">Serwisy i systemy z kontem w Tożsamości</h3>'

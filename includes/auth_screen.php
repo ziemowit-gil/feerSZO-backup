@@ -391,14 +391,26 @@ html[data-theme="hc"] body.tzl{--ks:#000;--ks-dark:#000;--ks-ink:#000;--ks-muted
 .tzl .ks-forgot{color:#1d4ed8}
 .tzl .ks-news p strong{display:inline;font-size:inherit;margin:0}
 /* Wybór rodzaju konta (logowanie SZO, krok 1) — kafle METRO */
-.ks-choice{display:grid;gap:.6rem;margin:0 0 1rem}
-.ks-choice__item{display:flex;align-items:flex-start;gap:.85rem;padding:1rem 1.1rem;min-height:72px;text-decoration:none;
-  background:#1d1d1d;color:#fff!important;border-radius:0}
+.ks-choice{display:grid;gap:6px;margin:0 0 1rem}
+.ks-choice__item{position:relative;display:flex;align-items:center;gap:1rem;padding:1.1rem 2.75rem 1.1rem 1.1rem;min-height:88px;text-decoration:none;
+  background:#1d1d1d;color:#fff!important;border-radius:0;outline:2px solid transparent;outline-offset:-2px;transition:filter .12s,outline-color .12s}
 .ks-choice__item--org{background:var(--ks)}
-.ks-choice__item:hover{filter:brightness(1.1);color:#fff}
-.ks-choice__item > .bi{font-size:1.6rem;line-height:1;flex-shrink:0}
+.ks-choice__item:hover{filter:brightness(1.1);outline-color:rgba(255,255,255,.55);color:#fff}
+.ks-choice__item > .bi{font-size:2rem;line-height:1;flex-shrink:0}
+.ks-choice__item::after{content:"\F285";font-family:"bootstrap-icons";position:absolute;right:1rem;top:50%;transform:translateY(-50%);font-size:1.1rem;opacity:.8}
 .ks-choice__item strong{display:block;font-size:1.05rem}
 .ks-choice__sub{display:block;font-size:.85rem;opacity:.9;margin-top:.15rem}
+/* Inne metody logowania — jasne kafle METRO */
+.ks-alt{display:grid;gap:6px}
+.ks-alt__item{display:flex;align-items:center;gap:.9rem;width:100%;min-height:64px;padding:.75rem 1rem;text-align:left;font:inherit;
+  background:#f3f4f6;color:#1d1d1d;border:0;border-left:4px solid var(--ks);border-radius:0;cursor:pointer;transition:background .12s}
+.ks-alt__item:hover{background:#e6f0f7}
+.ks-alt__item > .bi{font-size:1.4rem;color:var(--ks);flex-shrink:0}
+.ks-alt__item strong{display:block;font-size:.95rem}
+.ks-alt__item .ks-optsub{margin-top:.1rem}
+.ks-alt__item:focus-visible{outline:3px solid #facc15;outline-offset:2px}
+html[data-theme="hc"] .ks-alt__item{background:#fff;color:#000;border:2px solid #000;border-left-width:6px}
+html[data-theme="hc"] .ks-alt__item > .bi{color:#000}
 .ks-switch{margin:1rem 0 0;font-size:.9rem}
 .ks-switch a{color:#1d4ed8}
 html[data-theme="hc"] .ks-choice__item{background:#000;border:2px solid #000}

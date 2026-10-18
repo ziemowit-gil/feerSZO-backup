@@ -496,24 +496,29 @@ $_modals_html = ob_get_clean();
     <?php $has_alt = ($code_available || $sms_available || $x509_available); if ($has_alt): ?>
     <hr class="ks-sep">
     <p class="ks-sub">Inne metody logowania</p>
+    <div class="ks-alt">
     <?php if ($code_available): ?>
-    <button class="ks-btn ks-btn--ghost" type="button" data-bs-toggle="modal" data-bs-target="#modal-code">
-      <span><i class="bi bi-key-fill me-1" aria-hidden="true"></i>Kod jednorazowy
+    <button class="ks-alt__item" type="button" data-bs-toggle="modal" data-bs-target="#modal-code">
+      <i class="bi bi-key-fill" aria-hidden="true"></i>
+      <span><strong>Kod jednorazowy</strong>
         <span class="ks-optsub">Pierwsze logowanie lub dostęp od administratora</span></span>
     </button>
     <?php endif; ?>
     <?php if ($sms_available): ?>
-    <button class="ks-btn ks-btn--ghost" type="button" data-bs-toggle="modal" data-bs-target="#modal-sms">
-      <span><i class="bi bi-phone-fill me-1" aria-hidden="true"></i>Kod SMS
+    <button class="ks-alt__item" type="button" data-bs-toggle="modal" data-bs-target="#modal-sms">
+      <i class="bi bi-phone-fill" aria-hidden="true"></i>
+      <span><strong>Kod SMS</strong>
         <span class="ks-optsub">Logowanie przez numer telefonu</span></span>
     </button>
     <?php endif; ?>
     <?php if ($x509_available): ?>
-    <button class="ks-btn ks-btn--ghost" type="button" data-bs-toggle="modal" data-bs-target="#modal-x509">
-      <span><i class="bi bi-patch-check-fill me-1" aria-hidden="true"></i>Certyfikat X.509
+    <button class="ks-alt__item" type="button" data-bs-toggle="modal" data-bs-target="#modal-x509">
+      <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+      <span><strong>Certyfikat X.509</strong>
         <span class="ks-optsub">Plik .p12 — dla administratorów systemu</span></span>
     </button>
     <?php endif; ?>
+    </div>
     <?php endif; ?>
 
 <?php

@@ -57,10 +57,8 @@ foreach (preg_split('/\s+/', trim($_name)) as $w) {
 }
 $_ini  = mb_substr($_ini, 0, 2, 'UTF-8') ?: '?';
 
-// Jeden adres poczty dla użytkowników (strona wyboru klienta) — wspólny helper,
-// żeby nie powielać fallbacku po plikach. Zob. includes/webmail_clients.php.
-require_once dirname(__DIR__) . '/includes/webmail_clients.php';
-$mail_url = webmail_chooser_url();
+// Kafel „Poczta" otwiera od razu Outlook w przeglądarce (skrzynki są na Microsoft 365).
+$mail_url = 'https://outlook.office.com/mail/';
 
 $choices = [
     [
