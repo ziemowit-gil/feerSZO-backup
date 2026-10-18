@@ -8,7 +8,8 @@
  * Model:
  *   itp_categories  — usługi (kafle na „Usługi”): ikona, wstęp, dostępność dla grup, powiązane tematy
  *   itp_articles    — artykuły/instrukcje w usłudze (lista z osią po lewej), powiązane tematy
- *   itp_audiences   — grupy odbiorców do „Dostępność usługi” (pracownik, wolontariusz, kursant, IT…)
+ *   itp_audiences   — grupy odbiorców (pracownik, wolontariusz, uczestnik, IT…): opis, adres /dla/{grupa};
+ *                     usługa wskazuje grupy w itp_categories.audiences, katalog „Usługi” filtruje po grupie
  *   itp_notices     — komunikaty: status zgłoszone / w toku / naprawione / informacja, podpis działu
  *   itp_contacts    — tabela „Kontakt”: jednostka, kontakt, zespół
  *   itp_searches    — dziennik wyszukiwań (statystyka w panelu)
@@ -71,6 +72,16 @@ function itPortalMigrate(): void {
         icon       TEXT    NOT NULL DEFAULT 'user',
         sort_order INTEGER NOT NULL DEFAULT 0
     )");
+    // Grupy jako pełnoprawne filtry katalogu: adres, opis, ukrywanie (2026-10-18)
+    $cols = array_column(db_all("PRAGMA table_info(itp_audiences)"), 'name');
+    foreach (['slug' => "TEXT NOT NULL DEFAULT ''", 'description' => "TEXT NOT NULL DEFAULT ''", 'is_active' => "INTEGER NOT NULL DEFAULT 1"] as $c => $def) {
+        if (!in_array($c, $cols, true)) $pdo->exec("ALTER TABLE itp_audiences ADD COLUMN {$c} {$def}");
+    }
+    foreach (db_all("SELECT id, name FROM itp_audiences WHERE slug = ''") as $a) {
+        $slug = itPortalSlug($a['name']) ?: 'grupa-' . $a['id'];
+        if (db_one("SELECT 1 FROM itp_audiences WHERE slug = ? AND id <> ?", [$slug, $a['id']])) $slug .= '-' . $a['id'];
+        db_exec("UPDATE itp_audiences SET slug = ? WHERE id = ?", [$slug, $a['id']]);
+    }
     $pdo->exec("CREATE TABLE IF NOT EXISTS itp_notices (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         title        TEXT    NOT NULL,
@@ -302,26 +313,108 @@ function itPortalPopular(int $limit = 12): array {
                    ORDER BY a.is_pinned DESC, a.views DESC, a.sort_order, a.title LIMIT " . max(1, $limit));
 }
 
-// ── Grupy odbiorców („Dostępność usługi”) ───────────────────────────────────
+// ── Grupy odbiorców („Dla kogo”) ────────────────────────────────────────────
 
-function itPortalAudiences(): array {
-    return db_all("SELECT * FROM itp_audiences ORDER BY sort_order, id");
+/** Sylwetki grup (klucz → etykieta); rysunki w itPortalAudienceIcon(). */
+const ITP_AUDIENCE_ICONS = [
+    'user'      => 'Pracownik',
+    'volunteer' => 'Wolontariusz',
+    'student'   => 'Uczestnik / uczeń',
+    'it'        => 'IT / administrator',
+    'manager'   => 'Kierownik / zarząd',
+    'teacher'   => 'Prowadzący / trener',
+    'group'     => 'Zespół / jednostka',
+    'guest'     => 'Gość / partner',
+];
+
+function itPortalAudiences(bool $onlyActive = false): array {
+    return db_all("SELECT * FROM itp_audiences" . ($onlyActive ? " WHERE is_active = 1" : "") . " ORDER BY sort_order, id");
 }
 
+function itPortalAudience(int $id): ?array {
+    return db_one("SELECT * FROM itp_audiences WHERE id = ?", [$id]);
+}
+
+function itPortalAudienceBySlug(string $slug): ?array {
+    return db_one("SELECT * FROM itp_audiences WHERE slug = ? AND is_active = 1", [$slug]);
+}
+
+function itPortalAudienceUrl(array $aud): string {
+    return itPortalUrl('dla/' . rawurlencode($aud['slug']));
+}
+
+/** @return int id */
 function itPortalAudienceSave(array $in, int $id = 0): int {
     $name = trim((string)($in['name'] ?? ''));
     if ($name === '') throw new InvalidArgumentException('Podaj nazwę grupy.');
+    $slug = itPortalSlug((string)($in['slug'] ?? '') ?: $name);
+    if ($slug === '') throw new InvalidArgumentException('Nie da się utworzyć adresu z tej nazwy — wpisz adres ręcznie.');
+    if (db_one("SELECT 1 FROM itp_audiences WHERE slug = ? AND id <> ?", [$slug, $id])) {
+        throw new InvalidArgumentException("Adres „{$slug}” zajmuje już inna grupa.");
+    }
     $data = [
-        'name'       => $name,
-        'icon'       => in_array($in['icon'] ?? '', ['user', 'student', 'it', 'volunteer'], true) ? $in['icon'] : 'user',
-        'sort_order' => (int)($in['sort_order'] ?? 0),
+        'name'        => $name,
+        'slug'        => $slug,
+        'description' => trim(str_replace("\r", '', (string)($in['description'] ?? ''))),
+        'icon'        => isset(ITP_AUDIENCE_ICONS[$in['icon'] ?? '']) ? $in['icon'] : 'user',
+        'sort_order'  => (int)($in['sort_order'] ?? 0),
+        'is_active'   => !empty($in['is_active']) ? 1 : 0,
     ];
-    if ($id > 0) { db_update('itp_audiences', $data, $id); return $id; }
-    return db_insert('itp_audiences', $data);
+    if ($id > 0) db_update('itp_audiences', $data, $id);
+    else $id = db_insert('itp_audiences', $data);
+    // Formularz grupy niesie też listę usług — wtedy przypisanie ustawiamy od strony grupy
+    if (!empty($in['services_sent'])) {
+        itPortalAudienceAssign($id, itPortalIds($in['services'] ?? []));
+    }
+    return $id;
 }
 
+/** Usuwa grupę i jej id z „Dla kogo” wszystkich usług. */
 function itPortalAudienceDelete(int $id): void {
+    itPortalAudienceAssign($id, []);
     db_exec("DELETE FROM itp_audiences WHERE id = ?", [$id]);
+}
+
+/** Ustawia, które usługi są dostępne dla grupy (pozostałe tracą tę grupę). */
+function itPortalAudienceAssign(int $audId, array $categoryIds): void {
+    $want = itPortalIds($categoryIds);
+    foreach (db_all("SELECT id, audiences FROM itp_categories") as $c) {
+        $ids = itPortalIds($c['audiences']);
+        $has = in_array($audId, $ids, true);
+        $should = in_array((int)$c['id'], $want, true);
+        if ($has === $should) continue;
+        $ids = $should ? array_merge($ids, [$audId]) : array_values(array_diff($ids, [$audId]));
+        db_exec("UPDATE itp_categories SET audiences = ? WHERE id = ?", [json_encode(array_values($ids)), $c['id']]);
+    }
+}
+
+/**
+ * Macierz usługa × grupa z panelu: $matrix[catId][audId] = 1. Usługi spoza $categoryIds nie są ruszane,
+ * grupy spoza $audienceIds zostają w usłudze bez zmian (np. ukryte, niewyświetlone w macierzy).
+ */
+function itPortalAudienceMatrixSave(array $matrix, array $categoryIds, array $audienceIds): void {
+    $audienceIds = itPortalIds($audienceIds);
+    foreach (itPortalIds($categoryIds) as $cid) {
+        $c = itPortalCategory($cid);
+        if (!$c) continue;
+        $keep = array_values(array_diff(itPortalIds($c['audiences']), $audienceIds));
+        $on = array_values(array_intersect($audienceIds, itPortalIds(array_keys((array)($matrix[$cid] ?? [])))));
+        db_exec("UPDATE itp_categories SET audiences = ? WHERE id = ?", [json_encode(array_values(array_unique(array_merge($keep, $on)))), $cid]);
+    }
+}
+
+/** Liczba usług (wszystkich, także ukrytych) przypisanych do każdej grupy: [audId => n]. */
+function itPortalAudienceCounts(): array {
+    $n = [];
+    foreach (db_all("SELECT audiences FROM itp_categories") as $c) {
+        foreach (itPortalIds($c['audiences']) as $aid) $n[$aid] = ($n[$aid] ?? 0) + 1;
+    }
+    return $n;
+}
+
+/** Usługi dostępne dla grupy (aktywne, w kolejności katalogu). */
+function itPortalCategoriesFor(int $audId): array {
+    return array_values(array_filter(itPortalCategories(), fn($c) => in_array($audId, itPortalIds($c['audiences']), true)));
 }
 
 // ── Komunikaty ──────────────────────────────────────────────────────────────
@@ -526,6 +619,10 @@ function itPortalAudienceIcon(string $key): string {
         'student'   => '<path d="M10 7 24 2l14 5-14 5z"/><path d="M36 8v6"/>',
         'it'        => '<path d="M15 12h18" stroke="#fff" stroke-width="1.6"/><circle cx="20" cy="13" r="2.6" fill="none" stroke="#fff" stroke-width="1.4"/><circle cx="28" cy="13" r="2.6" fill="none" stroke="#fff" stroke-width="1.4"/>',
         'volunteer' => '<path d="M24 41l-5-5a3 3 0 0 1 5-4 3 3 0 0 1 5 4z" fill="#fff"/>',
+        'manager'   => '<path d="M21 27h6l-1.5 3 2 11L24 44l-3.5-3 2-11z" fill="#fff"/>',
+        'teacher'   => '<path d="M34 30l9-12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="16" y="34" width="16" height="5" fill="#fff"/>',
+        'group'     => '<circle cx="9" cy="20" r="5"/><circle cx="39" cy="20" r="5"/><path d="M0 44c0-8 4-13 9-13s6 2 6 2M48 44c0-8-4-13-9-13s-6 2-6 2"/>',
+        'guest'     => '<path d="M17 36h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M24 30v12" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
         default     => '<path d="M24 27l-3 4 3 13 3-13z" fill="#fff"/>',
     };
     return '<svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true" focusable="false">' . $base . $extra . '</svg>';

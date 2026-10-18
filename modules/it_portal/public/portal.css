@@ -110,6 +110,21 @@ a:hover { text-decoration: underline; }
 }
 .itp-tile__ext { font-size: .78rem; font-weight: 400; color: var(--itp-muted); display: block; }
 
+/* ── Filtr „Dla kogo” (grupy odbiorców) ───────────────── */
+.itp-groups { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 20px; }
+.itp-groups__label { font-size: .9rem; color: var(--itp-muted); }
+.itp-groups ul { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.itp-groups a {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 12px;
+  background: var(--itp-sub); color: var(--itp-ink); border: 2px solid transparent; font-size: .92rem; text-decoration: none;
+}
+.itp-groups a svg { width: 20px; height: 20px; color: var(--itp-accent); flex: none; }
+.itp-groups a:hover { border-color: var(--itp-accent); text-decoration: none; }
+.itp-groups a[aria-current] { background: var(--itp-accent); color: #fff; font-weight: 600; }
+.itp-groups a[aria-current] svg { color: #fff; }
+.itp-avail__list a { color: inherit; }
+@media (forced-colors: active) { .itp-groups a { border-color: CanvasText; } .itp-groups a[aria-current] { border-width: 3px; } }
+
 /* ── Strona usługi ────────────────────────────────────── */
 .itp-service { display: grid; grid-template-columns: 270px 1fr 280px; gap: 32px; align-items: start; }
 .itp-side { border-right: 1px solid var(--itp-line); padding: 0 18px 20px 0; }

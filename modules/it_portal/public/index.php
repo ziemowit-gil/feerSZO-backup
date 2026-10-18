@@ -8,6 +8,7 @@ require_once __DIR__ . '/_layout.php';
 
 $popular = itPortalPopular(12);
 $notices = itPortalNotices(3);
+$auds    = itPortalAudiences(true);
 $banner  = itPortalSetting('banner_on') === '1' ? itPortalSanitizeHtml(itPortalSetting('banner_html')) : '';
 
 itPortalPageStart('', 'start', 'Instrukcje, usługi informatyczne i komunikaty o awariach — ' . ORG_NAME);
@@ -20,6 +21,16 @@ itPortalPageStart('', 'start', 'Instrukcje, usługi informatyczne i komunikaty o
   <input id="itp-q" type="search" name="q" placeholder="Szukaj na stronie…" autocomplete="off">
   <button type="submit">Szukaj</button>
 </form>
+<?php if ($auds): ?>
+  <nav class="itp-groups" aria-label="Usługi dla grupy">
+    <span class="itp-groups__label" aria-hidden="true">Usługi dla:</span>
+    <ul>
+      <?php foreach ($auds as $a): ?>
+        <li><a href="<?= h(itPortalAudienceUrl($a)) ?>"><?= itPortalAudienceIcon($a['icon']) ?><?= h($a['name']) ?></a></li>
+      <?php endforeach; ?>
+    </ul>
+  </nav>
+<?php endif; ?>
 
 <div class="itp-start">
   <section aria-labelledby="itp-pop-h">

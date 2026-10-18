@@ -1,7 +1,7 @@
 <?php
 /**
  * modules/it_portal/edit.php — Portal Usług IT: edycja wpisu (admin/editor).
- * ?type=notice|category|article|contact[&id=N] — bez id: nowy wpis. Artykuł: &k=N podpowiada usługę.
+ * ?type=notice|category|audience|article|contact[&id=N] — bez id: nowy wpis. Artykuł: &k=N podpowiada usługę.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
@@ -15,6 +15,7 @@ itPortalMigrate();
 $types = [
     'notice'   => ['tab' => 'komunikaty', 'new' => 'Nowy komunikat',  'edit' => 'Komunikat'],
     'category' => ['tab' => 'uslugi',     'new' => 'Nowa usługa',     'edit' => 'Usługa'],
+    'audience' => ['tab' => 'grupy',      'new' => 'Nowa grupa',      'edit' => 'Grupa'],
     'article'  => ['tab' => 'artykuly',   'new' => 'Nowy artykuł',    'edit' => 'Artykuł'],
     'contact'  => ['tab' => 'kontakt',    'new' => 'Nowy wiersz kontaktu', 'edit' => 'Kontakt'],
 ];
@@ -26,6 +27,7 @@ $user = current_user();
 $load = fn() => match ($type) {
     'notice'   => itPortalNotice($id),
     'category' => itPortalCategory($id),
+    'audience' => itPortalAudience($id),
     'article'  => itPortalArticle($id),
     'contact'  => itPortalContact($id),
 };
@@ -39,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $savedId = match ($type) {
             'notice'   => itPortalNoticeSave($_POST, $id, (int)$user['id']),
             'category' => itPortalCategorySave($_POST, $id),
+            'audience' => itPortalAudienceSave($_POST, $id),
             'article'  => itPortalArticleSave($_POST, $id, (int)$user['id']),
             'contact'  => itPortalContactSave($_POST, $id),
         };
@@ -56,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $row ??= match ($type) {
     'notice'   => ['title' => '', 'body_html' => '', 'status' => 'w_toku', 'signature' => (org_setting('itp_last_signature') ?: 'Dział IT'), 'notice_date' => date('Y-m-d'), 'is_published' => 1],
     'category' => ['name' => '', 'slug' => '', 'icon' => 'help', 'intro_html' => '', 'external_url' => '', 'audiences' => '[]', 'related' => '[]', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_categories")['m'] ?? 0) + 10, 'is_active' => 1],
+    'audience' => ['name' => '', 'slug' => '', 'icon' => 'user', 'description' => '', 'services' => [], 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_audiences")['m'] ?? 0) + 1, 'is_active' => 1],
     'article'  => ['category_id' => (int)($_GET['k'] ?? 0), 'title' => '', 'slug' => '', 'body_html' => '', 'keywords' => '', 'related' => '[]', 'is_pinned' => 0, 'is_published' => 1, 'sort_order' => 0],
     'contact'  => ['unit' => '', 'contact_html' => '', 'team' => '', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_contacts")['m'] ?? 0) + 10],
 };
@@ -112,17 +116,51 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="col-12"><label class="form-label" for="f-i">Wstęp usługi <span class="text-muted small">(strona usługi bez wybranego artykułu; puste = od razu pierwszy artykuł)</span></label>
       <textarea id="f-i" class="form-control itp-rich" name="intro_html" rows="8"><?= $v('intro_html') ?></textarea></div>
     <fieldset class="col-md-5">
-      <legend class="form-label fs-6">Dostępność usługi</legend>
+      <legend class="form-label fs-6">Dla kogo dostępna</legend>
       <?php foreach ($auds as $a): ?>
         <div class="form-check"><input class="form-check-input" type="checkbox" name="audiences[]" id="au-<?= (int)$a['id'] ?>" value="<?= (int)$a['id'] ?>"<?= in_array((int)$a['id'], $avail, true) ? ' checked' : '' ?>><label class="form-check-label" for="au-<?= (int)$a['id'] ?>"><?= h($a['name']) ?></label></div>
       <?php endforeach; ?>
-      <?php if (!$auds): ?><p class="small text-muted">Dodaj grupy w zakładce Ustawienia.</p><?php endif; ?>
+      <?php if (!$auds): ?><p class="small text-muted">Brak grup.</p><?php endif; ?>
+      <a class="small" href="<?= h(APP_URL . '/modules/it_portal/index.php?tab=grupy') ?>"><i class="bi bi-people"></i> Zarządzaj grupami</a>
     </fieldset>
     <div class="col-md-7"><label class="form-label" for="f-r">Powiązane tematy przy wstępie <span class="text-muted small">(Ctrl/⌘ = kilka)</span></label>
       <select id="f-r" class="form-select" name="related[]" multiple size="8">
         <?php foreach ($allArts as $a): ?><option value="<?= (int)$a['id'] ?>"<?= in_array((int)$a['id'], $rel, true) ? ' selected' : '' ?>><?= h($a['category_name'] . ' › ' . $a['title']) ?></option><?php endforeach; ?>
       </select></div>
     <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-a" name="is_active" value="1"<?= $chk('is_active') ?>><label class="form-check-label" for="f-a">Widoczna w portalu</label></div></div>
+  </div>
+
+<?php elseif ($type === 'audience'):
+    $cats = itPortalCategories(false);
+    $sel = isset($row['services']) ? itPortalIds($row['services'])
+         : array_map(fn($c) => (int)$c['id'], array_filter($cats, fn($c) => in_array($id, itPortalIds($c['audiences']), true))); ?>
+  <input type="hidden" name="services_sent" value="1">
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label" for="f-n">Nazwa grupy</label><input id="f-n" class="form-control" name="name" value="<?= $v('name') ?>" required placeholder="np. Wolontariusz"></div>
+    <div class="col-md-4"><label class="form-label" for="f-sl">Adres <span class="text-muted small">(puste = z nazwy)</span></label>
+      <div class="input-group"><span class="input-group-text small">/dla/</span><input id="f-sl" class="form-control" name="slug" value="<?= $v('slug') ?>" pattern="[a-z0-9-]*"></div></div>
+    <div class="col-md-2"><label class="form-label" for="f-o">Kolejność</label><input id="f-o" type="number" class="form-control" name="sort_order" value="<?= $v('sort_order') ?>"></div>
+    <div class="col-12">
+      <span class="form-label d-block">Sylwetka</span>
+      <div class="d-flex flex-wrap gap-2">
+        <?php foreach (ITP_AUDIENCE_ICONS as $k => $label): ?>
+          <input type="radio" class="btn-check" name="icon" id="ai-<?= $k ?>" value="<?= $k ?>"<?= ($row['icon'] ?? '') === $k ? ' checked' : '' ?>>
+          <label class="btn btn-outline-primary p-1 d-flex flex-column align-items-center" for="ai-<?= $k ?>" style="width:96px"><span style="width:36px;height:36px"><?= itPortalAudienceIcon($k) ?></span><span class="small lh-sm"><?= h($label) ?></span></label>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <div class="col-12"><label class="form-label" for="f-d">Opis <span class="text-muted small">(pokazywany nad katalogiem grupy, np. kto do niej należy i jak uzyskać dostęp)</span></label>
+      <textarea id="f-d" class="form-control" name="description" rows="3"><?= $v('description') ?></textarea></div>
+    <fieldset class="col-12">
+      <legend class="form-label fs-6">Usługi dostępne dla tej grupy</legend>
+      <div class="row row-cols-1 row-cols-md-3 g-1">
+        <?php foreach ($cats as $c): ?>
+          <div class="col"><div class="form-check"><input class="form-check-input" type="checkbox" name="services[]" id="sv-<?= (int)$c['id'] ?>" value="<?= (int)$c['id'] ?>"<?= in_array((int)$c['id'], $sel, true) ? ' checked' : '' ?>><label class="form-check-label<?= $c['is_active'] ? '' : ' text-muted' ?>" for="sv-<?= (int)$c['id'] ?>"><?= h($c['name']) ?></label></div></div>
+        <?php endforeach; ?>
+      </div>
+      <?php if (!$cats): ?><p class="small text-muted">Brak usług.</p><?php endif; ?>
+    </fieldset>
+    <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="f-a" name="is_active" value="1"<?= $chk('is_active') ?>><label class="form-check-label" for="f-a">Widoczna w portalu (filtr „Dla kogo” i katalog <code>/dla/…</code>)</label></div></div>
   </div>
 
 <?php elseif ($type === 'article'):

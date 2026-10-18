@@ -25,7 +25,7 @@ if ($artSlug !== '') {
 }
 if ($art) itPortalArticleTouch((int)$art['id']);
 
-$audiences = itPortalAudiences();
+$audiences = itPortalAudiences(true);
 $availIds  = itPortalIds($cat['audiences']);
 $related   = itPortalArticlesByIds(itPortalIds($art ? $art['related'] : $cat['related']));
 
@@ -60,7 +60,7 @@ itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $art ? $art['bo
         <h2 class="itp-h" id="itp-av-h">Dla kogo</h2>
         <ul class="itp-avail__list">
           <?php foreach ($audiences as $au): $on = in_array((int)$au['id'], $availIds, true); ?>
-            <li class="<?= $on ? 'is-on' : 'is-off' ?>"><?= itPortalAudienceIcon($au['icon']) ?><span><?= h($au['name']) ?></span><span class="itp-sr">: <?= $on ? 'dostępna' : 'niedostępna' ?></span></li>
+            <li class="<?= $on ? 'is-on' : 'is-off' ?>"><?= itPortalAudienceIcon($au['icon']) ?><?php if ($on): ?><a href="<?= h(itPortalAudienceUrl($au)) ?>" title="Wszystkie usługi dla: <?= h($au['name']) ?>"><?= h($au['name']) ?></a><?php else: ?><span><?= h($au['name']) ?></span><?php endif; ?><span class="itp-sr">: <?= $on ? 'dostępna' : 'niedostępna' ?></span></li>
           <?php endforeach; ?>
         </ul>
       </section>

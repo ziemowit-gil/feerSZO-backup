@@ -2,10 +2,10 @@
 /**
  * modules/it_portal/index.php — Portal Usług IT: panel edycji (admin/editor).
  *
- * Zakładki (?tab=): komunikaty | uslugi | artykuly | kontakt | ustawienia.
- * Edycja pojedynczych wpisów: edit.php?type=notice|category|article|contact&id=N.
+ * Zakładki (?tab=): komunikaty | uslugi | grupy | artykuly | kontakt | ustawienia.
+ * Edycja pojedynczych wpisów: edit.php?type=notice|category|audience|article|contact&id=N.
  * Tu obsługiwane POST-y: usuwanie wpisów, ustawienia (nagłówek, baner, wstęp Kontaktu,
- * stopka) i grupy odbiorców „Dostępność usługi”.
+ * stopka) i macierz „usługa × grupa” (dla kogo dostępna jest usługa).
  * Strony publiczne: <APP_URL>/uslugi-it/ (linkowane z it.feer.org.pl).
  */
 require_once dirname(__DIR__, 2) . '/config.php';
@@ -17,7 +17,7 @@ require_once __DIR__ . '/logic/itPortal.php';
 require_role('admin', 'editor');
 itPortalMigrate();
 
-$tabs = ['komunikaty' => 'Komunikaty', 'uslugi' => 'Usługi', 'artykuly' => 'Artykuły', 'kontakt' => 'Kontakt', 'ustawienia' => 'Ustawienia'];
+$tabs = ['komunikaty' => 'Komunikaty', 'uslugi' => 'Usługi', 'grupy' => 'Grupy', 'artykuly' => 'Artykuły', 'kontakt' => 'Kontakt', 'ustawienia' => 'Ustawienia'];
 $tab  = isset($tabs[$_GET['tab'] ?? '']) ? $_GET['tab'] : 'komunikaty';
 $self = APP_URL . '/modules/it_portal/index.php';
 
@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete_notice':   itPortalNoticeDelete($id);   flash_set('success', 'Komunikat usunięty.'); break;
             case 'delete_category': itPortalCategoryDelete($id); flash_set('success', 'Usługa usunięta razem z jej artykułami.'); break;
             case 'delete_article':  itPortalArticleDelete($id);  flash_set('success', 'Artykuł usunięty.'); break;
+            case 'delete_audience': itPortalAudienceDelete($id); flash_set('success', 'Grupa usunięta (zniknęła też z „Dla kogo” usług).'); break;
             case 'delete_contact':  itPortalContactDelete($id);  flash_set('success', 'Wiersz kontaktu usunięty.'); break;
             case 'settings':
                 foreach (['title', 'subtitle', 'logo_url', 'footer_links'] as $k) itPortalSettingSet($k, trim((string)($_POST[$k] ?? '')));
@@ -38,14 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 itPortalSettingSet('contact_intro', itPortalSanitizeHtml((string)($_POST['contact_intro'] ?? '')));
                 flash_set('success', 'Ustawienia zapisane.');
                 break;
-            case 'audiences':
-                foreach ((array)($_POST['aud'] ?? []) as $aid => $row) {
-                    $aid = (int)$aid;
-                    if (!empty($row['delete'])) { itPortalAudienceDelete($aid); continue; }
-                    if ($aid > 0) itPortalAudienceSave($row, $aid);
-                }
-                if (trim((string)($_POST['new']['name'] ?? '')) !== '') itPortalAudienceSave($_POST['new']);
-                flash_set('success', 'Grupy odbiorców zapisane.');
+            case 'matrix':
+                itPortalAudienceMatrixSave((array)($_POST['m'] ?? []), (array)($_POST['cats'] ?? []), (array)($_POST['auds'] ?? []));
+                flash_set('success', 'Przypisanie usług do grup zapisane.');
                 break;
         }
     } catch (InvalidArgumentException $e) {
@@ -100,20 +96,21 @@ $edit = fn(string $type, int $id = 0) => APP_URL . '/modules/it_portal/edit.php?
     </tbody>
   </table></div>
 
-<?php elseif ($tab === 'uslugi'): $rows = itPortalCategories(false); ?>
+<?php elseif ($tab === 'uslugi'): $rows = itPortalCategories(false); $audById = array_column(itPortalAudiences(), null, 'id'); ?>
   <div class="d-flex justify-content-between align-items-center mb-2">
     <p class="text-muted small mb-0">Każda usługa to kafel na stronie „Usługi”. Usługa z linkiem zewnętrznym prowadzi od razu poza portal.</p>
     <a class="btn btn-sm btn-primary" href="<?= h($edit('category')) ?>"><i class="bi bi-plus-lg me-1"></i>Nowa usługa</a>
   </div>
   <div class="table-responsive"><table class="table table-sm align-middle">
-    <thead><tr><th style="width:48px"></th><th>Usługa</th><th>Adres</th><th class="text-end">Artykuły</th><th class="text-end">Kolejność</th><th></th></tr></thead>
+    <thead><tr><th style="width:48px"></th><th>Usługa</th><th>Adres</th><th>Dla kogo</th><th class="text-end">Artykuły</th><th class="text-end">Kolejność</th><th></th></tr></thead>
     <tbody>
-    <?php foreach ($rows as $r): ?>
+    <?php foreach ($rows as $r): $rAud = array_filter(array_map(fn($i) => $audById[$i] ?? null, itPortalIds($r['audiences']))); ?>
       <tr class="<?= $r['is_active'] ? '' : 'text-muted' ?>">
         <td class="text-primary"><span style="display:inline-block;width:32px;height:32px"><?= itPortalIcon($r['icon']) ?></span></td>
         <td><a href="<?= h($edit('category', (int)$r['id'])) ?>"><?= h($r['name']) ?></a><?= $r['is_active'] ? '' : ' <span class="badge bg-secondary">ukryta</span>' ?>
           <?php if ($r['external_url'] !== ''): ?><div class="small text-muted"><i class="bi bi-box-arrow-up-right"></i> <?= h($r['external_url']) ?></div><?php endif; ?></td>
         <td class="small"><a href="<?= h(itPortalServiceUrl($r)) ?>" target="_blank" rel="noopener">/<?= h($r['slug']) ?></a></td>
+        <td class="small"><?php foreach ($rAud as $a): ?><span class="badge text-bg-light border me-1<?= $a['is_active'] ? '' : ' text-decoration-line-through' ?>"><?= h($a['name']) ?></span><?php endforeach; ?><?= $rAud ? '' : '<span class="text-muted">— nikt —</span>' ?></td>
         <td class="text-end"><a href="<?= h($self . '?tab=artykuly&k=' . (int)$r['id']) ?>"><?= (int)$r['n_articles'] ?></a></td>
         <td class="text-end"><?= (int)$r['sort_order'] ?></td>
         <td class="text-end text-nowrap">
@@ -121,9 +118,59 @@ $edit = fn(string $type, int $id = 0) => APP_URL . '/modules/it_portal/edit.php?
           <?= $del('delete_category', (int)$r['id'], $r['name'] . ' (z artykułami)') ?></td>
       </tr>
     <?php endforeach; ?>
-    <?php if (!$rows): ?><tr><td colspan="6" class="text-muted">Brak usług.</td></tr><?php endif; ?>
+    <?php if (!$rows): ?><tr><td colspan="7" class="text-muted">Brak usług.</td></tr><?php endif; ?>
     </tbody>
   </table></div>
+
+<?php elseif ($tab === 'grupy'):
+    $auds = itPortalAudiences(); $counts = itPortalAudienceCounts(); $cats = itPortalCategories(false); ?>
+  <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+    <p class="text-muted small mb-0">Grupy odbiorców usług. Każda aktywna grupa ma w portalu własny katalog
+      (<code>/uslugi-it/dla/…</code>) i przycisk filtra na stronie „Usługi”; przy usłudze widać, dla kogo jest dostępna.</p>
+    <a class="btn btn-sm btn-primary" href="<?= h($edit('audience')) ?>"><i class="bi bi-plus-lg me-1"></i>Nowa grupa</a>
+  </div>
+  <div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th style="width:44px"></th><th>Grupa</th><th>Adres w portalu</th><th class="text-end">Usługi</th><th class="text-end">Kolejność</th><th></th></tr></thead>
+    <tbody>
+    <?php foreach ($auds as $a): ?>
+      <tr class="<?= $a['is_active'] ? '' : 'text-muted' ?>">
+        <td class="text-primary"><span style="display:inline-block;width:28px;height:28px"><?= itPortalAudienceIcon($a['icon']) ?></span></td>
+        <td><a href="<?= h($edit('audience', (int)$a['id'])) ?>"><?= h($a['name']) ?></a><?= $a['is_active'] ? '' : ' <span class="badge bg-secondary">ukryta</span>' ?>
+          <?php if ($a['description'] !== ''): ?><div class="small text-muted"><?= h(itPortalExcerpt($a['description'], 110)) ?></div><?php endif; ?></td>
+        <td class="small"><a href="<?= h(itPortalAudienceUrl($a)) ?>" target="_blank" rel="noopener">/dla/<?= h($a['slug']) ?></a></td>
+        <td class="text-end"><?= (int)($counts[(int)$a['id']] ?? 0) ?></td>
+        <td class="text-end"><?= (int)$a['sort_order'] ?></td>
+        <td class="text-end text-nowrap"><?= $del('delete_audience', (int)$a['id'], $a['name']) ?></td>
+      </tr>
+    <?php endforeach; ?>
+    <?php if (!$auds): ?><tr><td colspan="6" class="text-muted">Brak grup — dodaj pierwszą (np. Pracownik, Wolontariusz, Uczestnik).</td></tr><?php endif; ?>
+    </tbody>
+  </table></div>
+
+  <?php if ($auds && $cats): ?>
+  <form method="post" class="card card-body mt-3">
+    <?= csrf_field() ?><input type="hidden" name="_op" value="matrix">
+    <h5 class="h6">Która usługa dla której grupy</h5>
+    <p class="small text-muted">Zaznacz grupy, dla których dana usługa jest dostępna. Usługa bez żadnej grupy nie pojawia się w katalogach grup (dalej widać ją na liście wszystkich usług).</p>
+    <div class="table-responsive"><table class="table table-sm table-bordered align-middle mb-3">
+      <caption class="visually-hidden">Dostępność usług dla grup</caption>
+      <thead><tr><th scope="col">Usługa</th>
+        <?php foreach ($auds as $a): ?><th scope="col" class="text-center small<?= $a['is_active'] ? '' : ' text-muted' ?>" style="min-width:90px"><?= h($a['name']) ?><input type="hidden" name="auds[]" value="<?= (int)$a['id'] ?>"></th><?php endforeach; ?>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($cats as $c): $on = itPortalIds($c['audiences']); ?>
+        <tr class="<?= $c['is_active'] ? '' : 'text-muted' ?>">
+          <th scope="row" class="fw-normal"><?= h($c['name']) ?><?= $c['is_active'] ? '' : ' <span class="badge bg-secondary">ukryta</span>' ?><input type="hidden" name="cats[]" value="<?= (int)$c['id'] ?>"></th>
+          <?php foreach ($auds as $a): $cid = (int)$c['id']; $aid = (int)$a['id']; ?>
+            <td class="text-center"><input class="form-check-input" type="checkbox" name="m[<?= $cid ?>][<?= $aid ?>]" value="1"<?= in_array($aid, $on, true) ? ' checked' : '' ?> aria-label="<?= h($c['name'] . ' — ' . $a['name']) ?>"></td>
+          <?php endforeach; ?>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <div><button class="btn btn-primary">Zapisz przypisanie</button></div>
+  </form>
+  <?php endif; ?>
 
 <?php elseif ($tab === 'artykuly'):
     $filter = (int)($_GET['k'] ?? 0);
@@ -180,7 +227,7 @@ $edit = fn(string $type, int $id = 0) => APP_URL . '/modules/it_portal/edit.php?
     </tbody>
   </table></div>
 
-<?php else: $auds = itPortalAudiences(); $top = itPortalTopSearches(); ?>
+<?php else: $top = itPortalTopSearches(); ?>
   <div class="row g-4">
     <div class="col-lg-7">
       <form method="post" class="card card-body">
@@ -203,27 +250,10 @@ $edit = fn(string $type, int $id = 0) => APP_URL . '/modules/it_portal/edit.php?
       </form>
     </div>
     <div class="col-lg-5">
-      <form method="post" class="card card-body mb-4">
-        <?= csrf_field() ?><input type="hidden" name="_op" value="audiences">
-        <h5 class="h6">Grupy „Dostępność usługi”</h5>
-        <p class="small text-muted">Pokazywane przy każdej usłudze; w edycji usługi zaznaczasz, dla których jest dostępna.</p>
-        <?php $icons = ['user' => 'Pracownik', 'volunteer' => 'Wolontariusz', 'student' => 'Kursant / uczeń', 'it' => 'IT']; ?>
-        <?php foreach ($auds as $a): ?>
-          <div class="row g-1 mb-1 align-items-center">
-            <div class="col-5"><input class="form-control form-control-sm" name="aud[<?= (int)$a['id'] ?>][name]" value="<?= h($a['name']) ?>" aria-label="Nazwa grupy"></div>
-            <div class="col-4"><select class="form-select form-select-sm" name="aud[<?= (int)$a['id'] ?>][icon]" aria-label="Ikona">
-              <?php foreach ($icons as $k => $l): ?><option value="<?= $k ?>"<?= $a['icon'] === $k ? ' selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></div>
-            <div class="col-2"><input class="form-control form-control-sm" type="number" name="aud[<?= (int)$a['id'] ?>][sort_order]" value="<?= (int)$a['sort_order'] ?>" aria-label="Kolejność"></div>
-            <div class="col-1 text-center"><input class="form-check-input" type="checkbox" name="aud[<?= (int)$a['id'] ?>][delete]" value="1" title="Usuń" aria-label="Usuń grupę <?= h($a['name']) ?>"></div>
-          </div>
-        <?php endforeach; ?>
-        <div class="row g-1 mt-2 align-items-center">
-          <div class="col-5"><input class="form-control form-control-sm" name="new[name]" placeholder="Nowa grupa…" aria-label="Nazwa nowej grupy"></div>
-          <div class="col-4"><select class="form-select form-select-sm" name="new[icon]" aria-label="Ikona nowej grupy"><?php foreach ($icons as $k => $l): ?><option value="<?= $k ?>"><?= $l ?></option><?php endforeach; ?></select></div>
-          <div class="col-2"><input class="form-control form-control-sm" type="number" name="new[sort_order]" value="<?= count($auds) + 1 ?>" aria-label="Kolejność"></div>
-        </div>
-        <div class="mt-3"><button class="btn btn-sm btn-primary">Zapisz grupy</button> <span class="small text-muted ms-2">☐ po prawej = usuń</span></div>
-      </form>
+      <div class="card card-body mb-4 small">
+        <h5 class="h6">Grupy odbiorców</h5>
+        <p class="mb-0">Grupy, dla których dostępne są usługi, przeniesiono do zakładki <a href="<?= h($self . '?tab=grupy') ?>">Grupy</a>.</p>
+      </div>
       <div class="card card-body">
         <h5 class="h6">Najczęstsze wyszukiwania (30 dni)</h5>
         <?php if (!$top): ?><p class="small text-muted mb-0">Brak danych.</p><?php else: ?>
