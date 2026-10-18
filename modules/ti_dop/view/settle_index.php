@@ -8,7 +8,7 @@ $title = 'Rozliczenia — PRZ-P, PRZ, RKO';
 include __DIR__ . '/_head.php';
 $stL = ['pending' => ['czeka na zatwierdzenie', '#f0a30a'], 'approved' => ['zatwierdzony', '#1ba1e2'], 'applied' => ['wykonany', '#008a00'], 'rejected' => ['odrzucony', '#a20025']];
 ?>
-<div class="pivot"><a href="<?= h(route('dop.index')) ?>">Wnioski DOP</a><a href="<?= h(route('rop.index')) ?>">ROP</a><a href="<?= h(route('settle.index')) ?>" aria-current="page">Rozliczenia</a></div>
+<div class="pivot"><a href="<?= h(route('dop.index')) ?>">Dokumenty rozliczeniowe</a><a href="<?= h(route('rop.index')) ?>">ROP</a><a href="<?= h(route('settle.index')) ?>" aria-current="page">Rozliczenia</a></div>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <h1 class="me-auto mb-0">Dokumenty rozliczeniowe uczestnika</h1>
   <?php foreach (SettleKind::cases() as $k): ?><a class="btn btn-metro" style="background:<?= h($k->color()) ?>" href="<?= h(route('settle.new', ['kind' => $k->value] + ($f['client'] ? ['klient' => $f['client']] : []))) ?>"><?= h($k->value) ?> — <?= h($k->title()) ?></a><?php endforeach; ?>

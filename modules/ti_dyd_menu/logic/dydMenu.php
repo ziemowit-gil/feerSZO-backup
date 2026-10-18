@@ -201,7 +201,7 @@ function dydMenuSections(): array
         $it('',            'Przypomnienia o wpłatach', 'przypomnieniaWplat.php', 'cash-coin'),
         $it('',            'Subkonto kursanta',        'subkonto.php',           'bank'),
         $it('',            'Nadpłaty uczestników',     'overpayments.php',       'piggy-bank'),
-        $it('',            'Wnioski DOP (zwrot / subkonto)', 'wnioskiDop.php',     'file-earmark-check', $nDop, 'warning'),
+        $it('',            'Dokumenty rozliczeniowe', 'wnioskiDop.php',     'file-earmark-check', $nDop, 'warning'),
         $it('',            'Cenniki i rabaty',         'pricing.php',            'tags'),
         $it('wypłaty',     'Wypłaty prowadzących',     $gt('wypłaty'),           'cash-stack'),
         $it('',            'Żetony SZO',               'zetony.php',             'ticket-detailed'),

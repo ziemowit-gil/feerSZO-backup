@@ -7,7 +7,7 @@ require dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_parts.php';
 $title = 'ROP — stan subkonta na dzień wpłaty';
 include __DIR__ . '/_head.php';
 ?>
-<div class="pivot"><a href="<?= h(route('dop.index')) ?>">Wnioski DOP</a><a href="<?= h(route('rop.index')) ?>" aria-current="page">ROP</a></div>
+<div class="pivot"><a href="<?= h(route('dop.index')) ?>">Dokumenty rozliczeniowe</a><a href="<?= h(route('rop.index')) ?>" aria-current="page">ROP</a></div>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <h1 class="me-auto mb-0"><span class="sym" style="background:#008a00">ROP</span> Stan subkonta na dzień wpłaty</h1>
   <?= ldPost(route('rop.auto'), $auto ? 'Automat po wpłacie: WŁĄCZONY (wyłącz)' : 'Automat po wpłacie: wyłączony (włącz)', $auto ? 'btn-metro green' : 'btn-metro dark') ?>

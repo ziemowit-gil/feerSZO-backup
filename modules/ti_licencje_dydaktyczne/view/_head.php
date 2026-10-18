@@ -23,6 +23,7 @@ $_skin_css = dirname($_dyd) . '/assets/ti_skin.css';
   .ldm .tile .n { font-size: 2.1rem; font-weight: 300; line-height: 1; }
   .ldm .tile .l { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; position: absolute; bottom: .55rem; left: .9rem; right: .6rem; }
   .ldm .tile.wide { grid-column: span 2; }
+  .ldm a.tile, .ldm a.tile:hover, .ldm a.tile:visited, .ldm .tile span, .ldm .tile .n, .ldm .tile .l { color: #fff !important; text-decoration: none !important; }
   .ldm .chip { display: inline-block; color: #fff; padding: .1rem .5rem; font-size: .78rem; font-weight: 600; }
   .ldm .panel { background: #fff; border: 1px solid #d6d6d6; padding: 1rem 1.1rem; margin-bottom: 1rem; }
   .ldm .panel.accent { border-left: 6px solid #1ba1e2; }

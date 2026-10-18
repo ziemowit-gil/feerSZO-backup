@@ -2,12 +2,13 @@
 declare(strict_types=1);
 
 /**
- * modules/ti_dop/logic/DopController.php — „Finanse › Wnioski DOP” w panelu dydaktyka: lista, nowy wniosek DOP1 / DOP2
+ * modules/ti_dop/logic/DopController.php — „Finanse › Dokumenty rozliczeniowe” w panelu dydaktyka: lista, nowy wniosek DOP1 / DOP2
  * (podpis przez link albo wersja papierowa ze skanem), karta wniosku ze ścieżką obsługi, wydruk, puste wzory.
  */
 require_once dirname(__DIR__) . '/lib/DopService.php';
 require_once dirname(__DIR__) . '/lib/RopStatement.php';
 require_once dirname(__DIR__) . '/lib/SettlementDocs.php';
+require_once dirname(__DIR__) . '/lib/Dop5Statement.php';
 
 final class DopController
 {
@@ -58,7 +59,25 @@ final class DopController
     public function index(): string
     {
         $f = ['status' => (string)($_GET['status'] ?? ''), 'form' => (string)($_GET['form'] ?? ''), 'q' => (string)($_GET['q'] ?? ''), 'client' => (int)($_GET['klient'] ?? 0)];
-        return $this->view('index.php', ['list' => $this->svc->search($f), 'f' => $f, 'counts' => $this->svc->counts()]);
+        return $this->view('dop_list.php', ['list' => $this->svc->search($f), 'f' => $f, 'counts' => $this->svc->counts()]);
+    }
+
+    /** Strona startowa „Dokumenty rozliczeniowe uczestnika”: kafle Metro wg grup dokumentów + kolejka „Do zrobienia”. */
+    public function hub(): string
+    {
+        $cnt = fn(string $sql, array $p = []) => (int)(db_one($sql, $p)['c'] ?? 0);
+        settleMigrate(); dop5Migrate(); ropMigrate();
+        $c = ['dop1' => $cnt("SELECT COUNT(*) c FROM dop_requests WHERE form='DOP1' AND status IN ('signing','verify','approve','execute')"),
+              'dop2' => $cnt("SELECT COUNT(*) c FROM dop_requests WHERE form='DOP2' AND status IN ('signing','verify','approve','execute')"),
+              'dop5' => $cnt("SELECT COUNT(*) c FROM dop5_statements WHERE status='signing'"),
+              'rop'  => $cnt("SELECT COUNT(*) c FROM rop_statements WHERE issued_at >= ?", [date('Y-m-d', strtotime('-30 days'))])];
+        foreach (SettleKind::cases() as $k) $c[$k->value] = $cnt("SELECT COUNT(*) c FROM settlement_docs WHERE kind = ? AND status = 'pending'", [$k->value]);
+        $todo = [];
+        foreach ($this->svc->search() as $r) if (in_array($r['status'], ['verify', 'approve', 'execute', 'signing'], true))
+            $todo[] = ['sym' => $r['form'], 'color' => $r['formEnum']->color(), 'number' => $r['number'], 'who' => $r['client_name'], 'what' => $r['statusEnum']->label(), 'due' => $r['due_on'], 'url' => route('dop.show', ['id' => $r['id']])];
+        foreach (SettlementDocs::search(['status' => 'pending']) as $r) $todo[] = ['sym' => $r['kind'], 'color' => SettleKind::from($r['kind'])->color(), 'number' => $r['number'], 'who' => $r['client_name'], 'what' => 'czeka na zatwierdzenie', 'due' => '', 'url' => route('settle.show', ['id' => $r['id']])];
+        foreach (Dop5Statement::search() as $r) if ($r['status'] === 'signing') $todo[] = ['sym' => 'DOP5', 'color' => '#1d1d1d', 'number' => $r['number'], 'who' => ldOrgName(), 'what' => 'czeka na podpisy', 'due' => '', 'url' => route('dop5.show', ['id' => $r['id']])];
+        return $this->view('hub.php', ['c' => $c, 'todo' => $todo, 'ropAuto' => RopStatement::autoEnabled()]);
     }
 
     public function createForm(array $errors = [], ?array $old = null): string
@@ -151,6 +170,86 @@ final class DopController
         try { $this->svc->cancel($id, trim((string)($_POST['reason'] ?? '')), $this->actor()); flash_set('success', 'Wycofano wniosek.'); }
         catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id])); }
         return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    // ── DOP5 — oświadczenie o stanie środków finansowych ────────────────────────
+
+    public function dop5Index(): string
+    {
+        return $this->view('dop5_index.php', ['list' => Dop5Statement::search()]);
+    }
+
+    public function dop5Form(array $errors = [], ?array $old = null): string
+    {
+        $dop2 = db_all("SELECT number FROM dop_requests WHERE form = 'DOP2' AND status NOT IN ('rejected','cancelled') ORDER BY id DESC LIMIT 50");
+        return $this->view('dop5_form.php', ['errors' => $errors, 'old' => $old ?? ['place' => Dop5Statement::org()['city'], 'as_of' => ldToday(), 'sign_mode' => 'link'] + array_combine(array_map(fn($k) => 'org_' . $k, array_keys(Dop5Statement::org())), array_values(Dop5Statement::org())),
+            'suggest' => Dop5Statement::suggestions(), 'dop2' => array_column($dop2, 'number'), 'orgAccounts' => (function () { try { require_once dirname(__DIR__, 3) . '/includes/karty30.php'; return k30_ti_org_accounts_list(); } catch (\Throwable $e) { return []; } })()]);
+    }
+
+    public function dop5Create(): ?string
+    {
+        try {
+            $r = Dop5Statement::create($_POST, $_FILES, (string)($_POST['sign_mode'] ?? 'link'), $this->actor());
+            if ($r['errors']) { echo $this->dop5Form($r['errors'], $_POST); return null; }
+            flash_set('success', 'Utworzono DOP5. ' . implode(' · ', $r['report']));
+            return Router::redirect(route('dop5.show', ['id' => $r['id']]));
+        } catch (\Throwable $e) { return $this->fail($e, route('dop5.index')); }
+    }
+
+    public function dop5Show(int $id): string
+    {
+        $r = Dop5Statement::get($id);
+        if (!$r) { http_response_code(404); return 'Nie ma takiego DOP5.'; }
+        return $this->view('dop5_show.php', ['r' => $r]);
+    }
+
+    public function dop5Pdf(int $id): ?string
+    {
+        $r = Dop5Statement::get($id);
+        if (!$r) { http_response_code(404); return 'Nie ma takiego DOP5.'; }
+        return $this->send(Dop5Statement::render($r), (string)$r['number']);
+    }
+
+    public function dop5Blank(): ?string
+    {
+        return $this->send(Dop5Statement::blank(), 'DOP5-wzor');
+    }
+
+    public function dop5File(int $id, $i): ?string
+    {
+        $r = Dop5Statement::get($id);
+        $f = $r['filesList'][(int)$i] ?? null;
+        $p = $f ? DopService::fullPath((string)$f['path']) : (($i === 'skan' && $r) ? DopService::fullPath((string)$r['scan_path']) : null);
+        if (!$p) { http_response_code(404); return 'Brak pliku.'; }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . (['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'png' => 'image/png'][pathinfo($p, PATHINFO_EXTENSION)] ?? 'application/octet-stream'));
+        header('Cache-Control: no-store, private'); header('X-Content-Type-Options: nosniff');
+        readfile($p);
+        return null;
+    }
+
+    public function dop5Scan(int $id): ?string
+    {
+        try {
+            if (($_FILES['skan']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) throw new InvalidArgumentException('Wybierz plik skanu.');
+            Dop5Statement::uploadScan($id, $_FILES['skan'], $this->actor());
+            flash_set('success', 'Zapisano skan podpisanego DOP5.');
+        } catch (\Throwable $e) { return $this->fail($e, route('dop5.show', ['id' => $id])); }
+        return Router::redirect(route('dop5.show', ['id' => $id]));
+    }
+
+    public function dop5Link(int $id, int $sid): ?string
+    {
+        try { flash_set('success', 'Link do podpisu: ' . Dop5Statement::sendLink($sid, $this->actor()) . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('dop5.show', ['id' => $id])); }
+        return Router::redirect(route('dop5.show', ['id' => $id]));
+    }
+
+    public function dop5Cancel(int $id): ?string
+    {
+        Dop5Statement::cancel($id);
+        flash_set('success', 'Wycofano DOP5.');
+        return Router::redirect(route('dop5.show', ['id' => $id]));
     }
 
     // ── RKO / PRZ / PRZ-P — dokumenty rozliczeniowe ─────────────────────────────

@@ -77,6 +77,26 @@ final class DopPublicController
         return Router::redirect(route('dop.pub.done'));
     }
 
+    public function dop5Form(string $token, array $errors = [], array $old = []): string
+    {
+        if ($this->throttled()) { http_response_code(429); return $this->message('Zbyt wiele prób', 'Spróbuj ponownie za kilkanaście minut.', 'danger'); }
+        require_once dirname(__DIR__) . '/lib/Dop5Statement.php';
+        $ctx = Dop5Statement::bySignToken((string)$token);
+        if (!$ctx) return $this->bad();
+        return $this->view('dop5_sign.php', ['ctx' => $ctx, 'token' => $token, 'errors' => $errors, 'old' => $old ?: ['name' => $ctx['signer']['name']], 'sym' => 'DOP5']);
+    }
+
+    public function dop5Submit(string $token): ?string
+    {
+        require_once dirname(__DIR__) . '/lib/Dop5Statement.php';
+        $ctx = Dop5Statement::bySignToken((string)$token);
+        if (!$ctx) return $this->bad();
+        $err = Dop5Statement::sign($ctx, LdInput::str($_POST, 'name', 190), LdInput::bool($_POST, 'confirm'));
+        if ($err) return $this->dop5Form($token, $err, $_POST);
+        $_SESSION['dop_done'] = (string)$ctx['statement']['number'];
+        return Router::redirect(route('dop.pub.done'));
+    }
+
     public function done(): string
     {
         $n = (string)($_SESSION['dop_done'] ?? '');

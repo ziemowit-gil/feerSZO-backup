@@ -10,7 +10,7 @@ include __DIR__ . '/_head.php';
 $fmt = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
 $stamp = fn(array $s) => h(($s['name'] ?? '') . ', ' . ldDt($s['at'] ?? '') . ', IP ' . ($s['ip'] ?? ''));
 ?>
-<div class="pivot"><a href="<?= h(route('dop.index')) ?>">Wnioski DOP</a><a href="#" aria-current="page"><?= h($r['number']) ?></a></div>
+<div class="pivot"><a href="<?= h(route('dop.index')) ?>">Dokumenty rozliczeniowe</a><a href="#" aria-current="page"><?= h($r['number']) ?></a></div>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <h1 class="me-auto mb-0"><span class="sym" style="background:<?= h($f->color()) ?>"><?= h($f->value) ?></span> <?= h($f->title()) ?></h1>
   <a class="btn btn-metro dark" href="<?= h(route('dop.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Wniosek (PDF)</a>

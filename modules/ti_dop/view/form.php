@@ -10,7 +10,7 @@ $v = fn(string $k) => h((string)($old[$k] ?? ''));
 $err = fn(string $k) => isset($errors[$k]) ? '<div id="e-' . h($k) . '" class="invalid-feedback d-block">' . h($errors[$k]) . '</div>' : '';
 $inv = fn(string $k) => isset($errors[$k]) ? ' is-invalid" aria-invalid="true" aria-describedby="e-' . h($k) : '';
 ?>
-<div class="pivot"><a href="<?= h(route('dop.index')) ?>">Wnioski DOP</a><a href="#" aria-current="page"><?= h($title) ?></a></div>
+<div class="pivot"><a href="<?= h(route('dop.index')) ?>">Dokumenty rozliczeniowe</a><a href="#" aria-current="page"><?= h($title) ?></a></div>
 <h1><span class="sym" style="background:<?= h($form->color()) ?>"><?= h($form->value) ?></span> <?= h($form->title()) ?></h1>
 <?php if (!$c): ?>
 <section class="panel accent"><h2 class="mt-0">Uczestnik</h2>

@@ -141,7 +141,8 @@ final class LicenseNotificationService
     {
         $any = false;
         foreach (self::officeRecipients() as $mail) {
-            $st = $this->email($type, $mail, 'Biuro', '[AM5] ' . $subject, self::layout($subject, $bodyHtml), $ref, $actor, false);
+            $tag = $this->module === 'ti_dop' ? '[Rozliczenia]' : '[Licencje]';
+            $st = $this->email($type, $mail, 'Biuro', $tag . ' ' . $subject, self::layout($subject, $bodyHtml, '', '', $this->module === 'ti_dop' ? 'SZO' : LD_SYMBOL), $ref, $actor, false);
             $any = $any || $st === 'sent' || $st === 'queued';
         }
         return $any;
@@ -191,6 +192,18 @@ final class LicenseNotificationService
         return preg_replace('/[^\x20-\x7E]/', '', $s) ?? '';
     }
 
+    /** Podpis w stopce e-maila wg symbolu dokumentu — dokumenty rozliczeniowe (DOP, ROP, PRZ, RKO, RM…) to nie sprawy AM. */
+    public static function footerLabel(string $symbol): string
+    {
+        return match (true) {
+            $symbol === 'AM5' => 'Licencje dydaktyczne (AM5)',
+            $symbol === 'AM7' => 'Licencje do oprogramowania (AM7)',
+            $symbol === 'AMZ' => 'Zestawienie licencji i usług (AMZ)',
+            (bool)preg_match('/^AM\d/', $symbol) => 'Operacje na licencjach (' . $symbol . ')',
+            default => 'Dokumenty rozliczeniowe uczestnika' . ($symbol !== '' && $symbol !== 'SZO' ? ' (' . $symbol . ')' : ''),
+        };
+    }
+
     /** Szata e-maila w stylu Metro: płaski pasek cyan, kafel z symbolem AM5, bez zaokrągleń. */
     public static function layout(string $title, string $body, string $buttonUrl = '', string $buttonLabel = '', string $symbol = LD_SYMBOL): string
     {
@@ -202,6 +215,6 @@ final class LicenseNotificationService
             . '<div style="padding:18px;border:1px solid #d6d6d6;border-top:0">' . $body
             . ($buttonUrl !== '' ? '<p style="margin:20px 0"><a href="' . $e($buttonUrl) . '" style="background:#1ba1e2;color:#fff;text-decoration:none;padding:11px 22px;display:inline-block;font-weight:600">' . $e($buttonLabel) . '</a></p>'
                                  . '<p style="font-size:12px;color:#666">Jeśli przycisk nie działa, skopiuj adres: ' . $e($buttonUrl) . '</p>' : '')
-            . '<p style="margin-top:18px;font-size:12px;color:#666">' . $e(ldOrgName()) . ' · ' . ($symbol === 'AM7' ? 'Licencje do oprogramowania (AM7)' : 'Licencje dydaktyczne (AM5)') . '</p></div></div>';
+            . '<p style="margin-top:18px;font-size:12px;color:#666">' . $e(ldOrgName()) . ' · ' . $e(self::footerLabel($symbol)) . '</p></div></div>';
     }
 }

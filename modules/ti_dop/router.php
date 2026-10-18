@@ -25,6 +25,8 @@ if (defined('DOP_PUBLIC')) {
         $r->post('/potwierdz/{token}',    [DopPublicController::class, 'submit']);
         $r->get('/potwierdz/{token}/pdf', [DopPublicController::class, 'pdf'])->name('dop.pub.pdf');
         $r->get('/gotowe',                [DopPublicController::class, 'done'])->name('dop.pub.done');
+        $r->get('/dop5/{token}',          [DopPublicController::class, 'dop5Form'])->name('dop5.pub.sign');
+        $r->post('/dop5/{token}',         [DopPublicController::class, 'dop5Submit']);
     });
     $r->dispatch();
     return;
@@ -40,7 +42,8 @@ $r->aliasMiddleware('dyd.staff', function () {
     if (!dyd_is_staff()) { http_response_code(403); exit('Wnioski DOP są dostępne dla kierownika, zastępcy i administratora panelu.'); }
 });
 $r->group(['dyd.staff'], function (Router $r) {
-    $r->get('/',                              [DopController::class, 'index'])->name('dop.index');
+    $r->get('/',                              [DopController::class, 'hub'])->name('dop.index');
+    $r->get('/wnioski',                       [DopController::class, 'index'])->name('dop.list');
     $r->get('/nowy',                          [DopController::class, 'createForm'])->name('dop.new');
     $r->post('/nowy',                         [DopController::class, 'create']);
     $r->get('/wnioski/{id}',                  [DopController::class, 'show'])->name('dop.show');
@@ -65,6 +68,16 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/rozliczenia/{id}/pdf',          [DopController::class, 'settlePdf'])->name('settle.pdf');
     $r->post('/rozliczenia/{id}/decyzja',     [DopController::class, 'settleDecide'])->name('settle.decide');
     $r->post('/rozliczenia/{id}/wyslij',      [DopController::class, 'settleSend'])->name('settle.send');
+    $r->get('/dop5',                          [DopController::class, 'dop5Index'])->name('dop5.index');
+    $r->get('/dop5/nowy',                     [DopController::class, 'dop5Form'])->name('dop5.new');
+    $r->post('/dop5/nowy',                    [DopController::class, 'dop5Create']);
+    $r->get('/dop5/wzor',                     [DopController::class, 'dop5Blank'])->name('dop5.blank');
+    $r->get('/dop5/{id}',                     [DopController::class, 'dop5Show'])->name('dop5.show');
+    $r->get('/dop5/{id}/pdf',                 [DopController::class, 'dop5Pdf'])->name('dop5.pdf');
+    $r->get('/dop5/{id}/plik/{i}',            [DopController::class, 'dop5File'])->name('dop5.file');
+    $r->post('/dop5/{id}/skan',               [DopController::class, 'dop5Scan'])->name('dop5.scan');
+    $r->post('/dop5/{id}/link/{sid}',         [DopController::class, 'dop5Link'])->name('dop5.link');
+    $r->post('/dop5/{id}/wycofaj',            [DopController::class, 'dop5Cancel'])->name('dop5.cancel');
     $r->get('/wzor/{form}',                   [DopController::class, 'blank'])->name('dop.blank');
 });
 $r->dispatch();
