@@ -392,6 +392,7 @@ panelMetroAssets($_vol_color);
     </section>
   </div>
 
+  <div class="pvm-side">
   <aside class="pvm-quick" aria-labelledby="pvm-quick-h">
     <h2 id="pvm-quick-h">Najważniejsze narzędzia</h2>
     <ul>
@@ -404,6 +405,8 @@ panelMetroAssets($_vol_color);
       <?php endforeach; ?>
     </ul>
   </aside>
+  <div class="pvm-feed" style="margin-top:8px"><?php panelMetroSideFeed((int)$user['id'], (string)($user['role'] ?? 'viewer')); ?></div>
+  </div>
   </div>
 
   <!-- ═══════════ PIVOT ═══════════ -->

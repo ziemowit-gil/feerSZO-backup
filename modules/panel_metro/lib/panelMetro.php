@@ -154,3 +154,27 @@ function panelMetroImportant(int $userId, string $role): void {
     if (!$items) return;
     include dirname(__DIR__) . '/view/important.php';
 }
+
+/**
+ * Okienko po prawej stronie pulpitu: najnowsze Komunikaty i moje aktywne Zadania.
+ * Widok: view/sideFeed.php. Każde źródło w try — brak tabeli/modułu ukrywa tylko swoją część.
+ */
+function panelMetroSideFeed(int $userId, string $role, int $limit = 5): void {
+    $ann = [];
+    try {
+        require_once dirname(__DIR__, 3) . '/includes/notifications.php';
+        if (function_exists('ann_list_for_user')) $ann = array_slice(ann_list_for_user($userId, $role), 0, $limit);
+    } catch (\Throwable $e) {}
+    $tasks = null;
+    if (!function_exists('module_enabled') || module_enabled('tasks_enabled')) {
+        try {
+            $tasks = db_all(
+                "SELECT t.id, t.title, t.due_date, t.priority
+                   FROM tasks t JOIN task_assignments ta ON ta.task_id = t.id
+                  WHERE ta.user_id = ? AND t.completed_at IS NULL AND t.deleted_at IS NULL AND t.archived_at IS NULL
+                  ORDER BY CASE WHEN t.due_date IS NULL OR t.due_date = '' THEN 1 ELSE 0 END, t.due_date, t.priority DESC, t.id DESC
+                  LIMIT " . (int)$limit, [$userId]);
+        } catch (\Throwable $e) { $tasks = null; }
+    }
+    include dirname(__DIR__) . '/view/sideFeed.php';
+}

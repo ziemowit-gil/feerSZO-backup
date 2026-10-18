@@ -65,8 +65,11 @@ $_sh_lead = $_sh_admin
 .pvm .sh-sec .card{border-radius:0;box-shadow:none!important;border:0}
 .pvm .sh-sec .card-header{background:var(--pvm-light);border:0;border-radius:0!important}
 .pvm .sh-sec .btn{border-radius:0}
+.pvm.sh-wide{max-width:1400px}
+.pvm .sh-start{display:grid;gap:1.5rem;grid-template-columns:1fr;align-items:start}
+@media(min-width:1100px){.pvm .sh-start{grid-template-columns:minmax(0,1fr) 320px}}
 </style>
-<div class="pvm">
+<div class="pvm sh-wide">
   <div class="mt-head">
     <div>
       <div class="mt-kicker">Mój panel · <?= h(defined('ORG_NAME') ? ORG_NAME : '') ?> · <?= date('d.m.Y') ?></div>
@@ -78,6 +81,8 @@ $_sh_lead = $_sh_admin
   <?= function_exists('flash_html') ? flash_html() : '' ?>
   <?php panelMetroImportant($_sh_uid, (string)($user['role'] ?? 'viewer')); ?>
 
+  <div class="sh-start">
+  <div>
   <h2 class="visually-hidden">Skróty</h2>
   <div class="mt-grid">
     <a href="<?= APP_URL ?>/tozsamosc/" class="mt-tile mt-tile--l mt-tile--acc" aria-label="<?= h(($user['name'] ?? '') . ' — ' . ($user['email'] ?? '') . ' — System Tożsamości') ?>">
@@ -117,6 +122,9 @@ $_sh_lead = $_sh_admin
         }
     }
     ?>
+  </div>
+  </div>
+  <aside aria-label="Komunikaty i zadania"><?php panelMetroSideFeed($_sh_uid, (string)($user['role'] ?? '')); ?></aside>
   </div>
 
   <?php if (module_enabled('tasks_enabled')): ?>
