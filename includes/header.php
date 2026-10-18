@@ -494,6 +494,8 @@ require_once __DIR__ . '/app_bg.php';
 /* EZD ma gęste tabele i podglądy dokumentów — tam geometria ledwie zaznaczona */
 $__bg_subtle = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/ezd/') || !empty($APP_BG_SUBTLE);
 app_bg_css($__bg_subtle ? '#EFF1F5' : '#E8EBF0', $__bg_subtle ? 'subtle' : 'normal');
+/* EZD: szata Metro UI jak System Tożsamości — ostatni blok stylów (wygrywa z motywem i tłem) */
+if (str_contains($_uri, '/ezd/')) require __DIR__ . '/ezd_metro.php';
 ?>
 </head>
 <body>
