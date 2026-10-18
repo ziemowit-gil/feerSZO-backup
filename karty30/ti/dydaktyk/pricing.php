@@ -338,42 +338,50 @@ $gv = ($_GET['v'] ?? 'tabela') === 'karty' ? 'karty' : 'tabela';
 <title>Cenniki i rabaty — TI</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config = { theme: { extend: { colors: { navy: { 600: '#1d4c80', 700: '#10335c' } } } } };</script>
+<script>tailwind.config = { theme: { extend: { colors: { navy: { 600: '#0050ef', 700: '#1ba1e2' }, metro: { dark: '#1d1d1d', steel: '#647687', cyan: '#1ba1e2', cobalt: '#0050ef', green: '#008a00', orange: '#fa6800', amber: '#f0a30a', crimson: '#a20025' } }, fontFamily: { sans: ['"Segoe UI"', '"Open Sans"', 'system-ui', 'sans-serif'] } } } };</script>
 <style type="text/tailwindcss">
-  .tab-on  { @apply border-navy-700 text-navy-700 font-semibold; }
-  .tab-off { @apply border-transparent text-slate-500 hover:text-slate-700; }
-  .pill-on { @apply bg-navy-700 text-white ring-navy-700; }
-  .pill-off{ @apply bg-white text-slate-600 ring-slate-300 hover:bg-slate-50; }
-  .inp { @apply w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-navy-600 focus:outline-none focus:ring-1 focus:ring-navy-600; }
-  .lbl { @apply block text-xs font-medium text-slate-600 mb-1; }
-  .btn { @apply inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium; }
-  .btn-pri { @apply inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium bg-navy-700 text-white hover:bg-navy-600; }
-  .btn-sec { @apply inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50; }
-  .card { @apply rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200; }
-  .step-ok   { @apply border-l-4 border-emerald-500 bg-emerald-50; }
+  /* Szata Metro UI: płasko, zero zaokrągleń, akcent cyan, kafle zamiast zakładek */
+  .tab-on  { @apply border-metro-cyan text-metro-dark; }
+  .tab-off { @apply border-transparent text-metro-steel hover:text-metro-dark; }
+  .pill-on { @apply bg-metro-cyan text-white ring-metro-cyan; }
+  .pill-off{ @apply bg-white text-slate-700 ring-slate-300 hover:bg-slate-100; }
+  .inp { @apply w-full border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-metro-cyan focus:outline-none focus:ring-2 focus:ring-metro-cyan/30; }
+  .lbl { @apply block text-xs font-semibold uppercase tracking-wide text-metro-steel mb-1; }
+  .btn { @apply inline-flex items-center gap-1 px-3 py-1.5 text-sm font-semibold; }
+  .btn-pri { @apply inline-flex items-center gap-1 px-4 py-1.5 text-sm font-semibold bg-metro-cyan text-white hover:bg-metro-cobalt focus:outline focus:outline-2 focus:outline-metro-dark; }
+  .btn-sec { @apply inline-flex items-center gap-1 px-4 py-1.5 text-sm font-semibold bg-metro-dark text-white hover:bg-black focus:outline focus:outline-2 focus:outline-metro-cyan; }
+  .card { @apply bg-white p-4 border border-slate-300; }
+  .card h2.font-semibold { @apply text-xl font-light text-metro-dark; }
+  .step-ok   { @apply border-l-4 border-metro-green bg-emerald-50; }
   .step-skip { @apply border-l-4 border-slate-300 bg-slate-50 text-slate-500; }
+  .mtile { @apply relative block min-h-[84px] px-3 py-2 text-white no-underline hover:outline hover:outline-[3px] hover:-outline-offset-[3px] hover:outline-metro-dark focus:outline focus:outline-[3px] focus:-outline-offset-[3px] focus:outline-metro-dark; }
+  .mtile i { @apply text-2xl; }
+  .mtile span { @apply absolute bottom-2 left-3 right-2 text-xs font-semibold uppercase tracking-wide; }
 </style>
+<style>.metro, .metro *, .metro *::before { border-radius: 0 !important; } .metro .shadow-sm, .metro .shadow { box-shadow: none !important; }</style>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 <style>[x-cloak]{display:none!important}</style>
 </head>
-<body class="min-h-full bg-slate-100 text-slate-800 antialiased" x-data="prApp()" x-init="init()">
+<body class="metro min-h-full bg-[#f4f4f4] text-slate-800 antialiased" x-data="prApp()" x-init="init()">
 
-<header class="bg-navy-700 text-white">
-  <div class="mx-auto max-w-7xl px-4 py-4 flex flex-wrap items-center gap-3">
-    <a href="billing.php" class="text-white/70 hover:text-white text-sm"><i class="bi bi-arrow-left"></i> Rozliczenia</a>
-    <h1 class="text-lg font-semibold">Cenniki i rabaty zajęć</h1>
-    <span class="text-white/60 text-sm">cena = stawka godzinowa zapisu kursanta (zł/h)</span>
+<header class="bg-white border-b border-slate-300">
+  <div class="mx-auto max-w-7xl px-4 pt-4 pb-4">
+    <a href="billing.php" class="text-sm text-metro-steel hover:text-metro-dark"><i class="bi bi-arrow-left" aria-hidden="true"></i> Rozliczenia</a>
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 mt-1">
+      <h1 class="text-3xl font-light text-metro-dark">Cenniki i rabaty zajęć</h1>
+      <span class="text-sm text-metro-steel">cena = stawka godzinowa zapisu kursanta (zł/h)</span>
+    </div>
+    <nav class="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-6" aria-label="Sekcje cennika">
+      <?php foreach (['sym' => ['Symulator', 'calculator', '#1ba1e2'], 'types' => ['Typy zajęć', 'tags', '#0050ef'], 'rules' => ['Reguły rabatowe', 'percent', '#008a00'], 'groups' => ['Grupy i zapisy', 'people', '#fa6800'], 'settle' => ['Rozliczenia', 'cash-coin', '#a20025'], 'log' => ['Historia', 'clock-history', '#647687']] as $k => [$l, $ic, $col]): ?>
+      <a href="pricing.php?tab=<?= $k ?>" class="mtile" style="background:<?= $tab === $k ? '#1d1d1d' : $col ?>"<?= $tab === $k ? ' aria-current="page"' : '' ?>><i class="bi bi-<?= $ic ?>" aria-hidden="true"></i><span><?= $l ?></span></a>
+      <?php endforeach; ?>
+    </nav>
   </div>
-  <nav class="mx-auto max-w-7xl px-4 flex gap-4 overflow-x-auto" aria-label="Zakładki">
-    <?php foreach (['sym' => 'Symulator', 'types' => 'Typy zajęć', 'rules' => 'Reguły rabatowe', 'groups' => 'Grupy i zapisy', 'settle' => 'Rozliczenia', 'log' => 'Historia'] as $k => $l): ?>
-    <a href="pricing.php?tab=<?= $k ?>" class="whitespace-nowrap border-b-2 pb-2 text-sm <?= $tab === $k ? 'border-amber-400 text-white font-semibold' : 'border-transparent text-white/70 hover:text-white' ?>"<?= $tab === $k ? ' aria-current="page"' : '' ?>><?= $l ?></a>
-    <?php endforeach; ?>
-  </nav>
 </header>
 
 <main class="mx-auto max-w-7xl px-4 py-5 space-y-5">
   <?php if ($flash): ?>
-  <div role="status" class="rounded-lg px-4 py-3 text-sm <?= $flash['type'] === 'danger' ? 'bg-red-50 text-red-800 ring-1 ring-red-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' ?>"><?= h((string)$flash['msg']) ?></div>
+  <div role="status" class="border-l-[6px] bg-white px-4 py-3 text-sm <?= $flash['type'] === 'danger' ? 'border-metro-crimson text-red-800' : 'border-metro-green text-emerald-800' ?>"><?= h((string)$flash['msg']) ?></div>
   <?php endif; ?>
 
 <?php if ($tab === 'sym'): ?>
@@ -396,11 +404,11 @@ $gv = ($_GET['v'] ?? 'tabela') === 'karty' ? 'karty' : 'tabela';
       </div>
       <div><label class="lbl" for="s-part">Uczestnik (opcjonalnie — profil z bazy)</label>
         <input type="search" class="inp mb-1" placeholder="Szukaj…" x-model="pq" aria-label="Szukaj uczestnika">
-        <select id="s-part" class="inp" size="5" x-model="s.client" @change="onClient()">
+        <select id="s-part" class="inp" size="7" x-model="s.client" @change="onClient()">
           <option value="">— bez uczestnika —</option>
           <template x-for="p in partsFiltered()" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
         </select></div>
-      <div class="rounded-lg bg-slate-50 p-3 space-y-2">
+      <div class="border-l-4 border-metro-amber bg-[#fafafa] p-3 space-y-2">
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="s.ov" @change="calc()"> Ręczny profil (zamiast danych uczestnika)</label>
         <fieldset :disabled="!s.ov" class="space-y-2" :class="s.ov ? '' : 'opacity-50'">
           <legend class="lbl">Statusy</legend>
