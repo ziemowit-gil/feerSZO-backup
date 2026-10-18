@@ -13,11 +13,11 @@ $wzSteps = [
     ['rule', 'Reguła transportowa stopki', 'Gdy kroki 1–4 są zielone, włącz synchronizację poniżej i kliknij „Zapisz i wypchnij do Exchange”. Zacznij od trybu Audit.'],
 ];
 ?>
-<section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-mt-6" aria-labelledby="h-wz"
+<section class="mt-group" aria-labelledby="h-wz"
   x-data='stopkaWizard(<?= json_encode(['state' => $wzInit, 'url' => $self, 'csrf' => csrf_token()], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)' x-init="check()">
   <div class="tw-flex tw-flex-wrap tw-items-start tw-justify-between tw-gap-3 tw-mb-4">
     <div>
-      <h2 id="h-wz" class="tw-text-lg tw-font-semibold">Kreator konfiguracji Exchange Online</h2>
+      <h2 id="h-wz" class="mt-h2">Kreator konfiguracji <b>Exchange Online</b></h2>
       <p class="tw-text-sm tw-text-slate-600">Pięć kroków w Entra ID, każdy sprawdzany na żywo. Kreator tylko czyta — niczego nie zmienia w Microsoft 365.</p>
     </div>
     <button type="button" @click="check()" :disabled="busy" class="tw-rounded tw-bg-white tw-text-slate-800 tw-border tw-border-solid tw-border-slate-400 tw-px-4 tw-py-2 hover:tw-bg-slate-50 disabled:tw-opacity-60">

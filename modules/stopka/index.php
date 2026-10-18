@@ -75,16 +75,39 @@ $org  = stopkaSettings();
 $me   = stopkaProfile($user);
 $data = ['org' => $org, 'me' => $me, 'design' => $org['design'], 'defaults' => stopkaDesignDefaults(), 'fonts' => STOPKA_FONTS];
 $check = $_SESSION['stopka_check'] ?? null; $checkAt = $_SESSION['stopka_check_at'] ?? ''; unset($_SESSION['stopka_check'], $_SESSION['stopka_check_at']);
-$inp  = 'tw-w-full tw-rounded tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-bg-white';
-$lbl  = 'tw-block tw-text-sm tw-font-medium tw-mb-1';
-$btn  = 'tw-rounded tw-bg-blue-700 tw-text-white tw-px-4 tw-py-2 hover:tw-bg-blue-800 tw-border-0';
+$inp  = 'tw-w-full tw-rounded-none tw-border-2 tw-border-solid tw-border-[#8a8a8a] tw-px-3 tw-py-2 tw-bg-white focus:tw-border-[#0f6fa8] focus:tw-outline-none';
+$lbl  = 'tw-block tw-text-[.82rem] tw-font-semibold tw-mb-1';
+$btn  = 'mt-btn';
+$btnGhost = 'mt-btn mt-btn--ghost';
+$grp  = 'mt-group';
 include dirname(__DIR__, 2) . '/includes/header.php';
+// Wygląd METRO jak System Tożsamości i Panel współpracownika (modules/panel_metro): nagłówek,
+// płaskie grupy, a u admina zakładki pivot zamiast jednej długiej strony.
+require_once dirname(__DIR__) . '/panel_metro/lib/panelMetro.php';
+panelMetroAssets('#0f6fa8');
+echo '<style>.pvm [class*="tw-rounded"]{border-radius:0!important}.pvm [class*="tw-shadow"]{box-shadow:none!important}</style>';
+$tabs = is_admin() ? ['stopka' => 'moja stopka', 'organizacja' => 'organizacja', 'wyglad' => 'wygląd', 'exchange' => 'exchange online'] : [];
 ?>
-<div class="tw-max-w-5xl tw-mx-auto" x-data='stopkaGen(<?= json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>
-  <h1 class="tw-text-2xl tw-font-semibold tw-mb-4">Stopka e-mail</h1>
-  <div class="tw-grid md:tw-grid-cols-2 tw-gap-6">
-    <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-space-y-3" aria-labelledby="h-me">
-      <h2 id="h-me" class="tw-text-lg tw-font-semibold">Twoje dane</h2>
+<div class="pvm" x-data='stopkaGen(<?= json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker">Biuro · Poczta</div>
+      <h1 class="mt-title">Stopka e-mail</h1>
+      <p class="mt-lead">Uzupełnij stanowisko i telefon, sprawdź podgląd i skopiuj stopkę do programu pocztowego.</p>
+    </div>
+  </div>
+  <?php if ($tabs): ?>
+  <div class="mt-pivot" role="tablist" aria-label="Sekcje stopki" data-pvm-pivot>
+    <?php $ti = 0; foreach ($tabs as $tk => $tl): ?>
+    <button type="button" role="tab" id="pvm-tab-<?= $tk ?>" data-tab="<?= $tk ?>" aria-controls="<?= $tk ?>" aria-selected="<?= $ti ? 'false' : 'true' ?>" tabindex="<?= $ti ? -1 : 0 ?>"><?= h($tl) ?></button>
+    <?php $ti++; endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  <div id="stopka" data-pvm-panel="stopka" role="<?= $tabs ? 'tabpanel' : 'region' ?>" aria-labelledby="<?= $tabs ? 'pvm-tab-stopka' : 'h-me' ?>" tabindex="-1">
+  <div class="tw-grid md:tw-grid-cols-2 tw-gap-4">
+    <section class="<?= $grp ?> tw-space-y-3" aria-labelledby="h-me">
+      <h2 id="h-me" class="mt-h2">Twoje <b>dane</b></h2>
       <p class="tw-text-sm tw-text-slate-600">Imię, nazwisko i e-mail pochodzą z Twojego konta: <strong><?= h($me['first_name'] . ' ' . $me['last_name']) ?></strong>, <?= h($me['email']) ?>.</p>
       <form method="post" class="tw-space-y-3">
         <?= csrf_field() ?><input type="hidden" name="_action" value="save_profile">
@@ -92,24 +115,26 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <div><label class="<?= $lbl ?>" for="p4">Telefon</label><input id="p4" name="phone" x-model="me.phone" class="<?= $inp ?>"></div>
         <button class="<?= $btn ?>">Zapisz</button>
       </form>
-      <form method="post" class="tw-border-t tw-border-solid tw-border-slate-200 tw-pt-3">
+      <form method="post" class="tw-border-0 tw-border-t-2 tw-border-solid tw-border-white tw-pt-3">
         <?= csrf_field() ?><input type="hidden" name="_action" value="graph_sync">
         <p class="tw-text-xs tw-text-slate-500 tw-mb-2">Pobiera stanowisko i telefon z Twojego profilu Microsoft 365.</p>
-        <button class="tw-rounded tw-bg-slate-700 tw-text-white tw-px-4 tw-py-2 hover:tw-bg-slate-800 tw-border-0">Synchronizuj z Microsoft 365</button>
+        <button class="<?= $btnGhost ?>"><i class="bi bi-microsoft" aria-hidden="true"></i>Synchronizuj z Microsoft 365</button>
       </form>
     </section>
 
-    <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-space-y-3" aria-labelledby="h-prev">
-      <h2 id="h-prev" class="tw-text-lg tw-font-semibold">Podgląd stopki</h2>
-      <div class="tw-border tw-border-solid tw-border-slate-200 tw-rounded tw-p-4 tw-overflow-x-auto tw-bg-white" x-html="html()" aria-live="polite"></div>
-      <button type="button" @click="copy()" class="<?= $btn ?>" x-text="copied ? 'Skopiowano ✔' : 'Kopiuj stopkę do schowka'"></button>
+    <section class="<?= $grp ?> tw-space-y-3" aria-labelledby="h-prev" style="border-left:8px solid #0f6fa8">
+      <h2 id="h-prev" class="mt-h2">Podgląd <b>stopki</b></h2>
+      <div class="tw-p-4 tw-overflow-x-auto tw-bg-white" x-html="html()" aria-live="polite"></div>
+      <button type="button" @click="copy()" class="<?= $btn ?>"><i class="bi bi-clipboard" aria-hidden="true"></i><span x-text="copied ? 'Skopiowano ✔' : 'Kopiuj stopkę do schowka'"></span></button>
       <p class="tw-text-xs tw-text-slate-500" x-show="fail" x-cloak>Przeglądarka zablokowała schowek — zaznacz podgląd ręcznie i skopiuj (Ctrl+C).</p>
     </section>
   </div>
+  </div><!-- /stopka -->
 
   <?php if (is_admin()): ?>
-  <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-mt-6" aria-labelledby="h-org">
-    <h2 id="h-org" class="tw-text-lg tw-font-semibold tw-mb-3">Administrator — dane organizacji</h2>
+  <section id="organizacja" data-pvm-panel="organizacja" role="tabpanel" aria-labelledby="pvm-tab-organizacja" tabindex="-1" hidden>
+  <div class="<?= $grp ?>">
+    <h2 id="h-org" class="mt-h2">Dane <b>organizacji</b> <span class="mt-no" style="font-size:.9rem">— wspólne dla stopek wszystkich</span></h2>
     <form method="post" class="tw-grid sm:tw-grid-cols-2 tw-gap-3">
       <?= csrf_field() ?><input type="hidden" name="_action" value="save_org">
       <div><label class="<?= $lbl ?>" for="o1">Nazwa organizacji</label><input id="o1" name="org_name" x-model="org.org_name" class="<?= $inp ?>"></div>
@@ -120,12 +145,14 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <div class="sm:tw-col-span-2"><label class="<?= $lbl ?>" for="o6">Treść promocyjna (HTML: a, b, i, u, br, p, span, img) — dołączana do stopek wszystkich</label>
         <textarea id="o6" name="promo_html" rows="4" x-model="org.promo_html" class="<?= $inp ?> tw-font-mono tw-text-sm"></textarea></div>
       <div class="sm:tw-col-span-2"><button class="<?= $btn ?>">Zapisz organizację</button>
-        <span class="tw-text-xs tw-text-slate-500">Podgląd odświeża się na żywo; niedozwolone znaczniki zostaną usunięte przy zapisie.</span></div>
+        <span class="tw-text-xs tw-text-slate-500">Podgląd (zakładka „moja stopka”) odświeża się na żywo; niedozwolone znaczniki zostaną usunięte przy zapisie.</span></div>
     </form>
+  </div>
   </section>
 
-  <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-mt-6" aria-labelledby="h-cfg">
-    <h2 id="h-cfg" class="tw-text-lg tw-font-semibold tw-mb-3">Konfigurator wyglądu stopki</h2>
+  <section id="wyglad" data-pvm-panel="wyglad" role="tabpanel" aria-labelledby="pvm-tab-wyglad" tabindex="-1" hidden>
+  <div class="<?= $grp ?>">
+    <h2 id="h-cfg" class="mt-h2">Konfigurator <b>wyglądu</b></h2>
     <form method="post" class="tw-grid lg:tw-grid-cols-2 tw-gap-6">
       <?= csrf_field() ?><input type="hidden" name="_action" value="save_design">
       <input type="hidden" name="design_json" :value="JSON.stringify(design)">
@@ -170,22 +197,24 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         </fieldset>
         <div class="tw-flex tw-gap-3">
           <button class="<?= $btn ?>">Zapisz wygląd</button>
-          <button type="button" @click="design = JSON.parse(JSON.stringify(defaults))" class="tw-rounded tw-bg-white tw-text-slate-800 tw-border tw-border-solid tw-border-slate-400 tw-px-4 tw-py-2">Przywróć domyślny</button>
+          <button type="button" @click="design = JSON.parse(JSON.stringify(defaults))" class="<?= $btnGhost ?>">Przywróć domyślny</button>
         </div>
       </div>
       <div class="lg:tw-sticky lg:tw-top-20 tw-self-start">
         <h3 class="tw-text-sm tw-font-semibold tw-mb-2">Podgląd na żywo (z Twoimi danymi)</h3>
         <label class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-mb-2"><input type="checkbox" x-model="dark"> Ciemne tło poczty</label>
-        <div class="tw-border tw-border-solid tw-border-slate-200 tw-rounded tw-p-4 tw-overflow-x-auto" :style="dark ? 'background:#1f2937;color:#e5e7eb' : 'background:#fff'" x-html="html()" aria-live="polite"></div>
+        <div class="tw-p-4 tw-overflow-x-auto" :style="dark ? 'background:#1f2937;color:#e5e7eb' : 'background:#fff'" x-html="html()" aria-live="polite"></div>
         <p class="tw-text-xs tw-text-slate-500 tw-mt-2">Zapis wyglądu aktualizuje też regułę w Exchange, jeśli synchronizacja jest włączona.</p>
       </div>
     </form>
+  </div>
   </section>
 
+  <section id="exchange" data-pvm-panel="exchange" role="tabpanel" aria-labelledby="pvm-tab-exchange" tabindex="-1" hidden>
   <?php include __DIR__ . '/view/exchangeWizard.php'; ?>
 
-  <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-mt-6" aria-labelledby="h-ex">
-    <h2 id="h-ex" class="tw-text-lg tw-font-semibold tw-mb-1">Automatyczna stopka w Outlooku (Exchange Online)</h2>
+  <div class="<?= $grp ?> tw-mt-4">
+    <h2 id="h-ex" class="mt-h2">Automatyczna stopka w <b>Outlooku</b> (Exchange Online)</h2>
     <p class="tw-text-sm tw-text-slate-600 tw-mb-3">Jedna reguła transportowa dopisuje stopkę do każdej wysłanej wiadomości — w Outlooku w przeglądarce, klasycznym i na telefonach. Imię, stanowisko, telefon i e-mail Exchange bierze z Entra ID.</p>
     <?php $ex = stopkaExSettings(); ?>
     <form method="post" class="tw-space-y-3">
@@ -207,11 +236,11 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     </form>
     <form method="post" class="tw-mt-3">
       <?= csrf_field() ?><input type="hidden" name="_action" value="check_exchange">
-      <button class="tw-rounded tw-bg-white tw-text-slate-800 tw-border tw-border-solid tw-border-slate-400 tw-px-4 tw-py-2 hover:tw-bg-slate-50">Sprawdź uprawnienia</button>
+      <button class="<?= $btnGhost ?>">Sprawdź uprawnienia</button>
       <span class="tw-text-xs tw-text-slate-500">Tylko odczyty — niczego nie zmienia w Exchange.</span>
     </form>
     <?php if ($check): ?>
-    <div class="tw-mt-3 tw-border tw-border-solid tw-border-slate-200 tw-rounded" role="region" aria-label="Wynik sprawdzenia uprawnień">
+    <div class="tw-mt-3 tw-bg-white" role="region" aria-label="Wynik sprawdzenia uprawnień">
       <p class="tw-text-xs tw-text-slate-500 tw-px-3 tw-pt-2">Sprawdzono: <?= h($checkAt) ?></p>
       <ul class="tw-list-none tw-m-0 tw-p-3 tw-space-y-2">
         <?php foreach ($check as [$label, $ok, $detail]): ?>
@@ -227,8 +256,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <p class="tw-text-sm tw-mt-3" role="status"><strong>Ostatnia synchronizacja:</strong> <?= h($ex['ex_last_sync']) ?> — <?= h($ex['ex_last_msg']) ?></p>
     <?php endif; ?>
     <h3 class="tw-text-sm tw-font-semibold tw-mt-4 tw-mb-2">Podgląd stopki, jaką zobaczą odbiorcy (z Twoimi danymi)</h3>
-    <div class="tw-border tw-border-solid tw-border-slate-200 tw-rounded tw-p-4 tw-overflow-x-auto"><?= stopkaExPreviewHtml($ex, $me) ?></div>
+    <div class="tw-bg-white tw-p-4 tw-overflow-x-auto"><?= stopkaExPreviewHtml($ex, $me) ?></div>
     <p class="tw-text-xs tw-text-slate-500 tw-mt-2">Wymaga w Entra ID: uprawnienia aplikacji Exchange.ManageAsApp (zgoda admina) i roli Exchange Administrator dla tej aplikacji — zob. <a href="#h-wz" class="tw-text-blue-700 tw-underline">kreator konfiguracji</a> powyżej. Reguła odświeża się też automatycznie raz na dobę w nocy (agent CRON <code>stopka_exchange_sync</code>); ręcznie: <code>php cron/stopka_exchange_sync.php</code>.</p>
+  </div>
   </section>
   <?php endif; ?>
 </div>
