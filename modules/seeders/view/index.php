@@ -128,6 +128,17 @@ $kindCls = ['preview' => 'sdr-btn', 'apply' => 'sdr-btn sdr-btn--apply', 'danger
             <?php endforeach; ?>
           </div>
         </form>
+        <?php if ($_cmds = seedersCliExamples($e)): ?>
+        <details class="sdr-cmds">
+          <summary><i class="bi bi-terminal" aria-hidden="true"></i> Polecenia CLI (w katalogu aplikacji na serwerze)</summary>
+          <dl>
+            <?php foreach ($_cmds as [$_cl, $_cc]): ?>
+            <dt><?= h($_cl) ?></dt><dd><code><?= h($_cc) ?></code></dd>
+            <?php endforeach; ?>
+          </dl>
+          <?php if (array_filter($e['fields'] ?? [], fn($f) => ($f['type'] ?? '') === 'password')): ?><p>Zamiast <code>'&lt;hasło&gt;'</code> wpisz własne hasło (w apostrofach).</p><?php endif; ?>
+        </details>
+        <?php endif; ?>
       </article>
       <?php endforeach; ?>
     </div>

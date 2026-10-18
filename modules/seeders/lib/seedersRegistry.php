@@ -256,6 +256,28 @@ function seedersCommand(string $script, array $args, array $secrets = []): strin
     return implode(' ', $parts);
 }
 
+/**
+ * Gotowe polecenia terminala dla akcji seedera (do karty w Admin › Seedery): pola z wartością domyślną,
+ * hasło jako '<hasło>', pozostałe wymagane jako <etykieta>. @return list<array{0:string,1:string}> [akcja, polecenie]
+ */
+function seedersCliExamples(array $entry): array
+{
+    $out = [];
+    foreach ($entry['actions'] ?? [] as $a) {
+        $input = [];
+        foreach ($entry['fields'] ?? [] as $name => $f) {
+            $t = $f['type'] ?? 'text';
+            $def = (string)($f['default'] ?? '');
+            if ($t === 'password') $input[$name] = '<hasło>';
+            elseif ($def !== '') $input[$name] = $def;
+            elseif (in_array($name, $a['req'] ?? [], true)) $input[$name] = $t === 'email' ? 'adres@example.org' : '<' . mb_strtolower((string)$f['label']) . '>';
+        }
+        [$script, $args, $err] = seedersBuildArgs($entry, $a, $input);
+        if ($err === null) $out[] = [(string)$a['label'], seedersCommand($script, $args)];
+    }
+    return $out;
+}
+
 /** Wartości pól, które są hasłami — do zamaskowania w wyświetlanym poleceniu. */
 function seedersSecrets(array $entry, array $input): array
 {

@@ -34,6 +34,14 @@
 .sdr-btn--danger:hover{background:#a20025;color:#fff}
 .sdr-btn:focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
 .sdr-cli{font-size:.74rem;color:#5f5f5f;background:#f2f2f2;padding:.4rem .6rem;border-left:4px solid #8a8a8a}
+.sdr-cmds{margin-top:.6rem;font-size:.78rem}
+.sdr-cmds summary{cursor:pointer;color:#1d1d1d;font-weight:600;padding:.3rem 0}
+.sdr-cmds summary:focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
+.sdr-cmds dl{margin:.3rem 0 0;display:grid;grid-template-columns:auto 1fr;gap:.25rem .6rem;align-items:baseline}
+.sdr-cmds dt{color:#5f5f5f;font-weight:600}
+.sdr-cmds dd{margin:0;min-width:0}
+.sdr-cmds code{display:block;background:#1d1d1d;color:#f2f2f2;padding:.3rem .5rem;white-space:pre-wrap;word-break:break-all;user-select:all}
+.sdr-cmds p{margin:.4rem 0 0;color:#5f5f5f}
 .sdr-out{margin:0 0 2rem}
 .sdr-res{border:1px solid #e1e1e1;margin:0 0 .75rem}
 .sdr-res-h{display:flex;flex-wrap:wrap;gap:.25rem 1rem;align-items:center;padding:.6rem .9rem;background:#f2f2f2;border-left:6px solid var(--k,#5f5f5f)}
