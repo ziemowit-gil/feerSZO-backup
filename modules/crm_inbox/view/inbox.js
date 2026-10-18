@@ -723,6 +723,7 @@
       var c = r && r.querySelector('.ib-check');
       if (c) { c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true })); } else done = false;
     }
+    else if (k === 'I') { var ra = document.getElementById('ibReadAll'); if (ra) ra.click(); else done = false; }
     else if (k === '?') done = openModal('ibKeysModal');
     else if (k === 'c') done = openModal('mdCase');
     else if (k === 'z') done = openModal('mdEzd');

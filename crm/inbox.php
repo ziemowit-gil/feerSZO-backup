@@ -490,6 +490,25 @@ include __DIR__ . '/includes/header_crm.php';
   <?php /* Rzadsze narzędzia w jednym menu — wcześniej pięć przycisków w rzędzie. */
         $tg_on = $inbox['grouped'] ?? false;
         $unread_scope = $can_write ? crm_mailbox_unread_in_scope(['view' => $view, 'mailbox_id' => $mbox_f]) : 0; ?>
+  <?php /* Odczytaj wszystko — na wierzchu (po urlopie, po zalewie newsletterów). Zakres to bieżący widok
+           i wybrana skrzynka — dokładnie to, co widać; wyszukiwarka go nie zawęża. Skrót: Shift+I. */
+  if ($unread_scope > 0):
+        $mb_name = '';
+        foreach ($boxes as $b) { if ((int)$b['id'] === $mbox_f) { $mb_name = (string)$b['mailbox']; break; } }
+        $scope_txt = 'w widoku „' . (CRM_MAILBOX_VIEWS[$view]['label'] ?? $view) . '"'
+                   . ($mb_name !== '' ? ', skrzynka ' . $mb_name : ''); ?>
+  <form method="post" class="d-inline">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_op" value="mark_all_read">
+    <input type="hidden" name="view" value="<?= h($view) ?>">
+    <input type="hidden" name="mailbox_id" value="<?= $mbox_f ?: '' ?>">
+    <button class="ib-tbtn" id="ibReadAll" title="Oznacz jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?> (Shift+I)"
+            onclick="return confirm('Oznaczyć jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?>? Dotyczy <?= (int)$unread_scope ?> wiad.')">
+      <i class="bi bi-envelope-open" aria-hidden="true"></i>Odczytaj wszystko
+      <span class="ib-menu-note"><?= (int)$unread_scope ?></span>
+    </button>
+  </form>
+  <?php endif; ?>
   <div class="dropdown">
     <button type="button" class="ib-tbtn" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
       <i class="bi bi-sliders" aria-hidden="true"></i>Widok i narzędzia
@@ -523,27 +542,6 @@ include __DIR__ . '/includes/header_crm.php';
       </li>
       <li><hr class="dropdown-divider my-1"></li>
       <li><h6 class="dropdown-header">Działania</h6></li>
-      <?php /* Odczytanie skrzynki po powrocie z urlopu. Zakres to bieżący widok
-               i wybrana skrzynka — dokładnie to, co widać; wyszukiwarka go nie zawęża. */ ?>
-      <?php if ($unread_scope > 0):
-            $mb_name = '';
-            foreach ($boxes as $b) { if ((int)$b['id'] === $mbox_f) { $mb_name = (string)$b['mailbox']; break; } }
-            $scope_txt = 'w widoku „' . (CRM_MAILBOX_VIEWS[$view]['label'] ?? $view) . '"'
-                       . ($mb_name !== '' ? ', skrzynka ' . $mb_name : ''); ?>
-      <li>
-        <form method="post">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_op" value="mark_all_read">
-          <input type="hidden" name="view" value="<?= h($view) ?>">
-          <input type="hidden" name="mailbox_id" value="<?= $mbox_f ?: '' ?>">
-          <button class="dropdown-item" title="Oznacz jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?> (<?= (int)$unread_scope ?>)"
-                  onclick="return confirm('Oznaczyć jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?>? Dotyczy <?= (int)$unread_scope ?> wiad.')">
-            <i class="bi bi-envelope-open" aria-hidden="true"></i>Odczytaj wszystko
-            <span class="ib-menu-note"><?= (int)$unread_scope ?></span>
-          </button>
-        </form>
-      </li>
-      <?php endif; ?>
       <?php if (crm_can('export', 'read')):
             $exp_qs = http_build_query(array_filter([
                 'what' => 'comms', 'q' => $search ?: null, 'mailbox_id' => $mbox_f ?: null,
@@ -1414,6 +1412,7 @@ include __DIR__ . '/includes/header_crm.php';
           <tr><td><kbd>Esc</kbd></td><td>wróć do listy (na telefonie i z treści)</td></tr>
           <tr><td><kbd>/</kbd></td><td>szukaj w skrzynce</td></tr>
           <tr><td><kbd>x</kbd></td><td>zaznacz / odznacz wiadomość</td></tr>
+          <tr><td><kbd>Shift</kbd>+<kbd>I</kbd></td><td>odczytaj wszystkie nieprzeczytane w widoku</td></tr>
           <tr><th colspan="2">Działania na otwartej wiadomości</th></tr>
           <tr><td><kbd>a</kbd></td><td>Wezmę to</td></tr>
           <tr><td><kbd>r</kbd></td><td>Odpowiedz</td></tr>
