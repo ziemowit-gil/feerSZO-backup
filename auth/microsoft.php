@@ -17,6 +17,25 @@ $error = '';
 $code  = trim($_GET['code']  ?? '');
 $state = trim($_GET['state'] ?? '');
 
+// Wejście, które NIE jest odpowiedzią na logowanie SZO (ms_auth_url):
+//  • selektor plików OneDrive (OneDrive.js v7.2 w Zadaniach i CRM) używa tego adresu
+//    jako redirectUri — otwiera popup z ?oauth={"clientId":…,"endpoint":…,"scopes":…},
+//    a po zalogowaniu wraca tu z #access_token=…&state=<origin>_<nonce> (fragment —
+//    serwer go nie widzi; ewentualny błąd może przyjść w query ze state OneDrive),
+//  • goły adres (zakładka, Wstecz, odświeżenie po zakończonym logowaniu).
+// Nic tu nie logujemy — strona pokazuje stan sesji, a w popupie OneDrive ładuje
+// OneDrive.js, który przekazuje token do okna-rodzica. Nasz state to 32 znaki hex,
+// state OneDrive zawsze zawiera origin ("https://…"), więc nie da się ich pomylić.
+$_ms_notice = !$code && (
+    isset($_GET['oauth'])
+    || str_contains($state, '://')
+    || ($state === '' && empty($_GET['error']))
+);
+if ($_ms_notice) {
+    require __DIR__ . '/_ms_notice.php';
+    exit;
+}
+
 // Błąd zwrócony przez Microsoft
 if (!empty($_GET['error'])) {
     $error = 'Microsoft: ' . ($_GET['error_description'] ?? $_GET['error']);
@@ -372,10 +391,21 @@ if (!$error) {
     <h5 class="mt-2">Błąd logowania Microsoft 365</h5>
   </div>
   <div class="alert alert-danger small"><?= h($error) ?></div>
+  <?php $_err_user = current_user(); ?>
   <div class="d-grid gap-2">
+  <?php if ($_err_user): ?>
+    <!-- Nieudana próba nie narusza istniejącej sesji — pozwól wrócić do pracy -->
+    <p class="small text-muted text-center mb-1">
+      Nadal jesteś zalogowany/a jako <strong><?= h($_err_user['name'] ?: $_err_user['email']) ?></strong>.
+    </p>
+    <a href="<?= h(auth_default_landing()) ?>" class="btn btn-primary">
+      <i class="bi bi-arrow-right-circle me-1"></i>Przejdź dalej
+    </a>
+  <?php else: ?>
     <a href="<?= APP_URL ?>/auth/login.php" class="btn btn-primary">
       <i class="bi bi-arrow-left me-1"></i>Wróć do logowania
     </a>
+  <?php endif; ?>
   </div>
 <?php endif; ?>
 
