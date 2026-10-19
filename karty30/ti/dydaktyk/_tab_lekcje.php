@@ -544,6 +544,8 @@ if ($_sms_enabled && $cur_course) {
   /* Kolumna „Forma”: ikona + nazwa (nie sama ikona — czytelne też dla czytnika ekranu). */
   #dyd-table-lekcje .lek-forma { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; color: #3d4757; white-space: nowrap; }
   #dyd-table-lekcje .lek-room { display: block; font-size: .72rem; color: #5b6677; margin-top: .1rem; }
+  #dyd-table-lekcje .lek-subst { font-size: .72rem; color: #8a5a00; margin-top: .25rem; }
+  #dyd-table-lekcje .lek-subst .bi { margin-right: .3rem; }
   </style>
 
   <!-- ── Widok: tabela kompaktowa ──────────────────────────────── -->
@@ -634,10 +636,6 @@ if ($_sms_enabled && $cur_course) {
               // żeby wiersz nie rozciągał się na kilka linii (pełny opis w title/tooltip).
               $_s_instr = (int)($s['instructor_id'] ?? 0);
               $_flags = [];
-              if ($_s_instr && $_s_instr !== (int)($course['instructor_id'] ?? 0)) {
-                  $_flags[] = ['icon' => 'person-workspace', 'cls' => 'text-warning-emphasis bg-warning-subtle border-warning-subtle',
-                               'title' => 'Zastępstwo: ' . ($_instr_names[$_s_instr] ?? ('#' . $_s_instr))];
-              }
               if (in_array($s['status'], K30_TI_HELD_STATUSES, true) && empty($s['docs_complete'])) {
                   $_flags[] = ['icon' => 'exclamation-triangle-fill', 'cls' => 'text-danger-emphasis bg-danger-subtle border-danger-subtle',
                                'title' => 'Dokumentacja niekompletna — wpisz temat i obecność albo zaznacz w menu „Więcej”'];
@@ -647,6 +645,10 @@ if ($_sms_enabled && $cur_course) {
                                'title' => 'Przeniesiono z ' . date('d.m.Y', strtotime((string)$s['rescheduled_from_date']))];
               }
             ?>
+            <?php if ($_s_instr && $_s_instr !== (int)($course['instructor_id'] ?? 0)): // zastępstwo — nazwisko tekstem (też dla wyszukiwarki) ?>
+            <?php $_instr_names[$_s_instr] ??= (string)(db_one("SELECT name FROM users WHERE id=?", [$_s_instr])['name'] ?? ('#' . $_s_instr)); ?>
+            <div class="lek-subst"><i class="bi bi-person-workspace" aria-hidden="true"></i>Zastępstwo: <?= h($_instr_names[$_s_instr]) ?></div>
+            <?php endif; ?>
             <?php if ($_flags): ?>
             <div class="mt-1">
               <?php foreach ($_flags as $_f): ?>
