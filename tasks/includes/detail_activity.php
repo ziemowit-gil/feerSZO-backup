@@ -255,6 +255,13 @@ $ev_defs = [
       ? '<span class="td-hi-val" title="' . h($e['to_value']) . '">💬 ' . h(mb_substr($e['to_value'],0,50)) . (mb_strlen($e['to_value'])>50?'…':'') . '</span>'
       : '',
   ],
+  'sla_escalated' => [
+    'icon'        => 'bi-alarm-fill',
+    'bg'          => '#fee2e2', 'color' => '#a20025',
+    'badge_bg'    => '#fef2f2', 'badge_color' => '#a20025',
+    'label'       => 'Eskalacja SLA',
+    'desc'        => fn($e) => $e['to_value'] ? '<span class="td-hi-val">' . h($e['to_value']) . '</span>' : '',
+  ],
   'problem_resolved' => [
     'icon'        => 'bi-shield-check',
     'bg'          => '#dcfce7', 'color' => '#16a34a',

@@ -29,6 +29,7 @@ $_tsk_pivot = [
 ];
 if ($_tsk_is_leader) {
     $_tsk_pivot[] = ['/tasks/problems', 'Problemy', 'bi-megaphone', '/tasks/problems.php', (int)$_tsk_open_problems, 'is-warn'];
+    $_tsk_pivot[] = ['/tasks_plus/router.php/sla', 'SLA', 'bi-alarm', '/modules/tasks_plus/router.php/sla' . $_tsk_wsq, 0, ''];
 }
 
 require_once dirname(dirname(__DIR__)) . '/includes/task_nozbe.php';

@@ -335,7 +335,7 @@ function task_notify_address(int $user_id, ?string $account_email = ''): string 
 }
 
 /** Zdarzenia wysyłane od razu także w trybie podsumowania dziennego. */
-const TASK_NOTIFY_DIGEST_BYPASS = ['due_1day', 'due_today', 'due_soon', 'notify_due_1day', 'notify_due_today'];
+const TASK_NOTIFY_DIGEST_BYPASS = ['due_1day', 'due_today', 'due_soon', 'notify_due_1day', 'notify_due_today', 'sla_escalated'];
 
 /** Przypomnienie ~1 h przed godziną terminu (cron/tasks_due_soon.php co 15 min). */
 function task_notify_due_soon(int $task_id): void {
