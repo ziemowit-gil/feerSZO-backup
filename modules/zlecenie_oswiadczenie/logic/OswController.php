@@ -253,7 +253,15 @@ final class OswController
 
     public function index(): string
     {
-        return Router::view(self::VIEW . 'staffIndex.php', ['rows' => OswService::listAll(), 'newLink' => $_SESSION['_osw_newlink'] ?? null]
+        $f = preg_replace('/[^a-z]/', '', (string)($_GET['f'] ?? '')) ?: 'weryfikacja';
+        $counts = OswService::dashboardCounts();
+        if (!isset($counts[$f])) $f = 'weryfikacja';
+        $rows = OswService::listAll();
+        if ($f === 'powiazanie')  $rows = array_values(array_filter($rows, fn($r) => $r['status'] === 'zlozony' && (int)$r['contract_id'] === 0));
+        if ($f === 'wypelnianie') $rows = array_values(array_filter($rows, fn($r) => $r['status'] === 'roboczy'));
+        return Router::view(self::VIEW . 'staffIndex.php', ['rows' => $rows, 'newLink' => $_SESSION['_osw_newlink'] ?? null,
+                                                            'f' => $f, 'counts' => $counts,
+                                                            'queue' => in_array($f, ['powiazanie', 'wypelnianie'], true) ? [] : OswService::docQueue($f)]
             + (function () { unset($_SESSION['_osw_newlink']); return []; })());
     }
 
@@ -299,6 +307,10 @@ final class OswController
             flash_set('danger', $e->getMessage());
         }
         $back = (string)($_POST['back'] ?? '');
+        if ($back === 'next') {   // ekran weryfikacji: od razu następny skan z kolejki
+            $nx = OswService::nextToVerify($docId);
+            return Router::redirect($nx ? route('osw.doc', ['id' => (int)$nx['id']]) : route('osw.index', ['f' => 'weryfikacja']));
+        }
         return Router::redirect($back === 'umowa' && $c
             ? rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php?id=' . (int)$c['id'] . '&tab=oswiadczenie'
             : route('osw.show', ['id' => (int)$o['id']]));
@@ -337,6 +349,15 @@ final class OswController
             flash_set('danger', $e->getMessage());
             return Router::redirect(route('osw.show', ['id' => $id]));
         }
+    }
+
+    /** Ekran weryfikacji: podgląd skanu obok danych z kreatora, decyzja, przejście do następnego. */
+    public function docShow(int $docId): string
+    {
+        [$doc, $o, $c] = $this->staffDoc($docId);
+        return Router::view(self::VIEW . 'staffDoc.php', ['doc' => $doc, 'osw' => $o, 'contract' => $c, 'a' => OswService::answers($o),
+            'docs' => OswService::docs((int)$o['id']), 'next' => OswService::nextToVerify($docId),
+            'pending' => OswService::dashboardCounts()['weryfikacja'][3]]);
     }
 
     public function scan(int $docId): ?string

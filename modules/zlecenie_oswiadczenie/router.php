@@ -77,6 +77,7 @@ $r->group(['role:admin,editor'], function (Router $r) {
     $r->post('/pakiet/{id}/projekt',        [OswController::class, 'staffProject'])->name('osw.staffProject');
     $r->post('/link/{cid}',                 [OswController::class, 'contractLink'])->name('osw.link');
     $r->post('/dokument/{id}/weryfikacja',  [OswController::class, 'verify'])->name('osw.verify');
+    $r->get('/dokument/{id}',               [OswController::class, 'docShow'])->name('osw.doc');
     $r->get('/dokument/{id}/skan',          [OswController::class, 'scan'])->name('osw.scan');
     $r->get('/dokument/{id}/druk/{fmt}',    [OswController::class, 'staffPrint'])->name('osw.staffPrint');
 }, '/zlecenie/obsluga');

@@ -20,6 +20,7 @@ $_oswDt = fn($d) => $d ? date('d.m.Y H:i', (int)strtotime((string)$d)) : '';
         <a class="btn btn-sm btn-outline-secondary" href="<?= h($_oswDocUrl . '/' . (int)$_d['id'] . '/druk/pdf') ?>" target="_blank" rel="noopener">Wydruk PDF<span class="visually-hidden"> — <?= h($_short) ?></span></a>
         <?php if ($_k === 'zus'): ?><a class="btn btn-sm btn-outline-secondary" href="<?= h($_oswDocUrl . '/' . (int)$_d['id'] . '/druk/docx') ?>">DOCX<span class="visually-hidden"> — <?= h($_short) ?></span></a><?php endif; ?>
         <?php if ($_d['scan_path']): ?><a class="btn btn-sm btn-outline-primary" href="<?= h($_oswDocUrl . '/' . (int)$_d['id'] . '/skan') ?>" target="_blank" rel="noopener">Skan<span class="visually-hidden"> — <?= h($_short) ?></span></a><?php endif; ?>
+        <?php if ($_d['scan_path']): ?><a class="btn btn-sm <?= $_d['status'] === 'skan' ? 'btn-warning' : 'btn-outline-secondary' ?>" href="<?= h($_oswDocUrl . '/' . (int)$_d['id']) ?>"><?= $_d['status'] === 'skan' ? 'Weryfikuj z podglądem' : 'Podgląd' ?><span class="visually-hidden"> — <?= h($_short) ?></span></a><?php endif; ?>
       </span>
     </div>
     <div class="small text-body-secondary mt-1">

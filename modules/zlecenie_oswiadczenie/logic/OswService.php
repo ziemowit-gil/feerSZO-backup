@@ -112,6 +112,46 @@ final class OswService
         return $rows;
     }
 
+    /** Kafle panelu obsługi: klucz => [etykieta, opis, kolor Metro, liczba]. */
+    public static function dashboardCounts(): array
+    {
+        self::init();
+        $n = fn(string $sql) => (int)(db_one($sql)['n'] ?? 0);
+        $docs = "FROM zlec_osw_docs d JOIN zlec_osw o ON o.id = d.osw_id AND o.is_current = 1";
+        return [
+            'weryfikacja' => ['Do weryfikacji', 'przesłane skany', 'orange', $n("SELECT COUNT(*) n {$docs} WHERE d.status = 'skan'")],
+            'skan'        => ['Czeka na skan', 'wypełnione, bez skanu', 'indigo', $n("SELECT COUNT(*) n {$docs} WHERE d.status IN ('wypelnione','wydrukowane')")],
+            'odrzucone'   => ['Odrzucone', 'czekają na nowy skan', 'red', $n("SELECT COUNT(*) n {$docs} WHERE d.status = 'odrzucone'")],
+            'powiazanie'  => ['Do powiązania', 'złożone bez umowy', 'teal', $n("SELECT COUNT(*) n FROM zlec_osw WHERE is_current = 1 AND status = 'zlozony' AND contract_id = 0")],
+            'wypelnianie' => ['W trakcie', 'kreator niedokończony', 'grey', $n("SELECT COUNT(*) n FROM zlec_osw WHERE is_current = 1 AND status = 'roboczy' AND NOT (source = 'public' AND step <= 1)")],
+            'zweryfikowane' => ['Zweryfikowane', 'ostatnie 30 dni', 'green', $n("SELECT COUNT(*) n {$docs} WHERE d.status = 'zweryfikowane' AND d.verified_at >= datetime('now','-30 days')")],
+        ];
+    }
+
+    /** Dokumenty wg filtra panelu (kolejka z podglądem). */
+    public static function docQueue(string $f, int $limit = 60): array
+    {
+        self::init();
+        $where = match ($f) {
+            'skan'          => "d.status IN ('wypelnione','wydrukowane')",
+            'odrzucone'     => "d.status = 'odrzucone'",
+            'zweryfikowane' => "d.status = 'zweryfikowane'",
+            default         => "d.status = 'skan'",
+        };
+        $order = $f === 'zweryfikowane' ? 'd.verified_at DESC' : "COALESCE(d.scan_at, d.updated_at) " . ($f === 'weryfikacja' || $f === '' ? 'ASC' : 'DESC');
+        return db_all("SELECT d.*, o.contract_id, o.answers, o.source, o.submitted_at, z.numer_umowy, z.status AS umowa_status
+                         FROM zlec_osw_docs d JOIN zlec_osw o ON o.id = d.osw_id AND o.is_current = 1
+                         LEFT JOIN umowy_zlecenie z ON z.id = o.contract_id
+                        WHERE {$where} ORDER BY {$order} LIMIT " . (int)$limit);
+    }
+
+    /** Następny skan do weryfikacji (najstarszy), z pominięciem bieżącego. */
+    public static function nextToVerify(int $exceptDocId): ?array
+    {
+        return db_one("SELECT d.id FROM zlec_osw_docs d JOIN zlec_osw o ON o.id = d.osw_id AND o.is_current = 1
+                        WHERE d.status = 'skan' AND d.id <> ? ORDER BY d.scan_at ASC LIMIT 1", [$exceptDocId]) ?: null;
+    }
+
     /** Dane z umowy na start kreatora (żeby nie wpisywać drugi raz tego, co Fundacja już ma). */
     private static function prefill(?array $c): array
     {
