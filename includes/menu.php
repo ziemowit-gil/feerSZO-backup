@@ -325,12 +325,14 @@ function _menu_editor(): array {
         $obs[] = _mi('Rejestr pełnomocnictw','/pelnomocnictwa/index.php','bi-person-badge',['match'=>'/pelnomocnictwa/','kw'=>'pełnomocnictwo upoważnienie mocodawca 013']);
     if (module_enabled('contract_wolontariat') || module_enabled('contract_zlecenie'))
         $obs[] = _mi('Skierowania na badania','/modules/skierowania_badania/router.php','bi-heart-pulse',['match'=>'/modules/skierowania_badania/','kw'=>'skierowanie badania lekarskie medycyna pracy wstępne okresowe kontrolne czynniki szkodliwe orzeczenie wolontariusz zleceniobiorca']);
+    if (module_enabled('contract_zlecenie') && can_edit())
+        $obs[] = _mi('Oświadczenia zleceniobiorców','/modules/zlecenie_oswiadczenie/router.php','bi-file-earmark-check',['match'=>'/modules/zlecenie_oswiadczenie/','kw'=>'oświadczenie zus pit podatkowe ubezpieczenie rachunek bankowy nrb zlb zleceniobiorca kreator skan']);
     $um_g[] = ['label'=>'Obsługa umów','items'=>$obs];
     $nodes[] = [
         'id'=>'umowy','label'=>'Umowy','icon'=>'bi-file-text','badge'=>$cnt['pending']+$cnt['term'],
         'active'=>(_menu_hit('/contracts/') && !_menu_hit('/contracts/wolontariat') && !_menu_hit('/contracts/rekrutacja'))
                  || _menu_hit('/contracts/approvals') || _menu_hit('/contracts/letters') || _menu_hit('/contracts/rejestr') || _menu_hit('/admin/terminations')
-                 || _menu_hit('/pelnomocnictwa/') || _menu_hit('/modules/skierowania_badania/')
+                 || _menu_hit('/pelnomocnictwa/') || _menu_hit('/modules/skierowania_badania/') || _menu_hit('/modules/zlecenie_oswiadczenie/')
                  || _menu_hit('/admin/applications.php') || _menu_hit('/admin/application.php') || _menu_hit('/modules/app_workflow/'),
         'groups'=>$um_g,
     ];
