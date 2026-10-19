@@ -174,8 +174,8 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
     </button>
   </div>
 
-  <div style="overflow-x:auto">
-    <table class="tk-table"
+  <div class="tk-table-box">
+    <table class="tk-table tk-table--v2"
            id="task-table"
            role="grid"
            aria-label="Zadania obszaru <?= $workspace ? h($workspace['name']) : '' ?>"
@@ -189,10 +189,8 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           </th>
           <th scope="col" class="th-title">Zadanie</th>
           <th scope="col" class="th-status">Status</th>
-          <th scope="col" class="th-pri">Priorytet</th>
           <th scope="col" class="th-due">Termin</th>
           <th scope="col" class="th-people">Przypisani</th>
-          <th scope="col" class="th-created">Dodane</th>
           <th scope="col" class="th-act"><span class="visually-hidden">Akcje</span></th>
         </tr>
       </thead>
@@ -200,7 +198,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
 
       <?php if (!$tasks): ?>
       <tr>
-        <td colspan="8">
+        <td colspan="6">
           <?php $is_brand_new = ($workspace && empty($lists_map)); ?>
           <?php if ($is_brand_new && $can_add): ?>
           <div style="padding:2rem 1.5rem;text-align:center;max-width:480px;margin:0 auto">
@@ -282,6 +280,18 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           <div class="tk-subtitle"><?= h(mb_substr(trim(strip_tags($task['description'])),0,140)) ?></div>
           <?php endif; ?>
           <div class="tk-meta">
+            <span class="dropdown tk-meta-pri" onclick="event.stopPropagation()">
+              <button class="pri-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                      title="Priorytet: <?= h($pri_meta[1]) ?> — kliknij, aby zmienić"
+                      aria-label="Priorytet: <?= h($pri_meta[1]) ?>. Kliknij, aby zmienić">
+                <span class="tk-pri" style="--p:<?= $pri_meta[2] ?>"><?= h($pri_meta[1]) ?></span>
+              </button>
+              <ul class="dropdown-menu shadow-sm py-1">
+                <?php foreach ([4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'] as $p=>$pl): ?>
+                <li><button class="dropdown-item" type="button" onclick="tkSetPriority(<?= $task['id'] ?>, <?= $p ?>)"><?= $pl ?></button></li>
+                <?php endforeach; ?>
+              </ul>
+            </span>
             <span title="Numer zadania">#<?= (int)$task['id'] ?></span>
             <span title="Kolumna"><i class="bi bi-columns-gap" aria-hidden="true"></i><?= h($task['list_name']) ?></span>
             <?php if (!empty($task['unit_name'])): ?>
@@ -306,11 +316,15 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
             <span class="tk-tag" style="background:<?= h($tag['color']) ?>;color:<?= h($tag['text_color']) ?>"><?= h($tag['name']) ?></span>
             <?php endforeach; ?>
             <?php if (count($task['tags'])>4): ?><span class="tk-tag tk-tag--more">+<?= count($task['tags'])-4 ?></span><?php endif; ?>
+            <?php if ($task['created_at']): ?>
+            <span class="tk-meta-created" title="Dodane <?= h(date('d.m.Y H:i', strtotime($task['created_at']))) ?><?= !empty($task['creator_name']) ? ' przez ' . h($task['creator_name']) : '' ?>">
+              <i class="bi bi-plus-circle" aria-hidden="true"></i><?= h(date('d.m.Y', strtotime($task['created_at']))) ?><?= !empty($task['creator_name']) ? ' · ' . h($task['creator_name']) : '' ?></span>
+            <?php endif; ?>
           </div>
         </td>
 
         <!-- Status (klikalny) + weryfikacja wykonania Z / ZP / O -->
-        <td class="td-status" onclick="event.stopPropagation()">
+        <td class="td-status" data-label="Status" onclick="event.stopPropagation()">
           <div class="tk-status-cell">
           <?php if ($task['_status'] === 'done'): ?>
           <button type="button" class="tk-status s-done tk-status-btn"
@@ -343,25 +357,8 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           </div>
         </td>
 
-        <!-- Priorytet — dropdown inline -->
-        <td onclick="event.stopPropagation()">
-          <div class="dropdown d-inline-block">
-            <button class="pri-btn btn btn-link btn-sm p-0" data-bs-toggle="dropdown"
-                    style="text-decoration:none"
-                    title="Priorytet: <?= h($pri_meta[1]) ?>"
-                    aria-label="Priorytet: <?= h($pri_meta[1]) ?>. Kliknij, aby zmienić">
-              <span class="tk-pri" style="--p:<?= $pri_meta[2] ?>" aria-hidden="true"><?= h($pri_meta[1]) ?></span>
-            </button>
-            <ul class="dropdown-menu shadow-sm py-1">
-              <?php foreach ([4=>'🔴 Krytyczny',3=>'🟡 Wysoki',2=>'🔵 Normalny',1=>'⚪ Niski'] as $p=>$pl): ?>
-              <li><button class="dropdown-item" onclick="tkSetPriority(<?= $task['id'] ?>, <?= $p ?>)"><?= $pl ?></button></li>
-              <?php endforeach; ?>
-            </ul>
-          </div>
-        </td>
-
         <!-- Termin + ile dni -->
-        <td class="td-due-cell">
+        <td class="td-due-cell" data-label="Termin">
           <?php if ($task['due_date']):
             $_dd = (int)floor((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
             $_dd_lbl = $task['_status'] === 'done' ? '' : ($_dd < 0 ? abs($_dd) . ' dni po terminie' : ($_dd === 0 ? 'dziś' : ($_dd === 1 ? 'jutro' : 'za ' . $_dd . ' dni')));
@@ -377,7 +374,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
         </td>
 
         <!-- Przypisani -->
-        <td>
+        <td class="td-people" data-label="Przypisani">
           <?php if ($task['assignees']): ?>
           <div class="tk-people" aria-label="Przypisani: <?= h(implode(', ', array_column($task['assignees'],'name'))) ?>">
             <div class="tk-av-stack" aria-hidden="true">
@@ -395,14 +392,8 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           <?php endif; ?>
         </td>
 
-        <!-- Dodane -->
-        <td class="td-created">
-          <div class="tk-created"><?= $task['created_at'] ? h(date('d.m.Y', strtotime($task['created_at']))) : '—' ?></div>
-          <?php if (!empty($task['creator_name'])): ?><div class="tk-created-by"><?= h($task['creator_name']) ?></div><?php endif; ?>
-        </td>
-
         <!-- Akcja (klik zatrzymuje propagację) -->
-        <td style="text-align:center" onclick="event.stopPropagation()">
+        <td class="td-act" onclick="event.stopPropagation()">
           <div class="tk-actions justify-content-end">
             <button type="button"
                     class="btn-open"

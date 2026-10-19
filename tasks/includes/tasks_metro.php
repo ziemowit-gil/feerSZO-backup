@@ -300,13 +300,48 @@ html body #tsk-main .tk-ws-side-manage:hover{color:var(--tsk-text);background:va
 }
 
 html body #tsk-main .tk-table td{vertical-align:top;padding:.8rem .7rem}
-html body #tsk-main .tk-table th.th-title{min-width:300px}
-html body #tsk-main .tk-table th.th-status{width:150px}
-html body #tsk-main .tk-table th.th-pri{width:110px}
-html body #tsk-main .tk-table th.th-due{width:130px}
-html body #tsk-main .tk-table th.th-people{width:170px}
-html body #tsk-main .tk-table th.th-created{width:120px}
-html body #tsk-main .tk-table th.th-act{width:96px}
+
+/* ══ Tabela zadań v2: 6 kolumn o stałej szerokości, bez poziomego paska; priorytet i „dodane” w wierszu
+   metadanych zadania. Wąski kontener (< 820px: tablet, telefon, wąskie okno) → wiersze jako karty. ══ */
+html body #tsk-main .tk-table-box{width:100%;container-type:inline-size}
+html body #tsk-main .tk-table--v2{width:100%;table-layout:fixed}
+html body #tsk-main .tk-table--v2 th.th-title{min-width:0;width:auto}
+html body #tsk-main .tk-table--v2 th.th-check{width:44px}
+html body #tsk-main .tk-table--v2 th.th-status{width:150px}
+html body #tsk-main .tk-table--v2 th.th-due{width:118px}
+html body #tsk-main .tk-table--v2 th.th-people{width:170px}
+html body #tsk-main .tk-table--v2 th.th-act{width:128px}
+html body #tsk-main .tk-table--v2 td{overflow:hidden}
+html body #tsk-main .tk-table--v2 td.td-title{overflow:visible}
+html body #tsk-main .tk-table--v2 .tk-title{overflow-wrap:anywhere}
+html body #tsk-main .tk-table--v2 .tk-people{display:flex;align-items:center;gap:.45rem;min-width:0}
+html body #tsk-main .tk-table--v2 .tk-av-stack{flex-shrink:0}
+html body #tsk-main .tk-table--v2 .tk-people-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem}
+html body #tsk-main .tk-table--v2 .tk-meta-pri .pri-btn{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer}
+html body #tsk-main .tk-table--v2 .tk-meta-pri .tk-pri{font-size:.73rem;font-weight:600}
+html body #tsk-main .tk-table--v2 .tk-meta-pri .tk-pri::before{width:8px;height:8px}
+html body #tsk-main .tk-table--v2 .tk-meta-created{color:var(--tm-muted)}
+html body #tsk-main .tk-table--v2 td.td-act .tk-actions{justify-content:flex-end}
+@container (max-width: 820px){
+  html body #tsk-main .tk-table--v2,html body #tsk-main .tk-table--v2 tbody{display:block;width:100%}
+  html body #tsk-main .tk-table--v2 thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  html body #tsk-main .tk-table--v2 tbody tr{display:grid;grid-template-columns:36px minmax(0,1fr) auto;
+    grid-template-areas:"chk title act" ". status status" ". due people";gap:.15rem .5rem;padding:.6rem .6rem .7rem 0;border-left:4px solid #94a3b8}
+  html body #tsk-main .tk-table--v2 tbody tr[data-pri="4"]{border-left-color:#dc2626}
+  html body #tsk-main .tk-table--v2 tbody tr[data-pri="3"]{border-left-color:#f59e0b}
+  html body #tsk-main .tk-table--v2 tbody tr[data-pri="2"]{border-left-color:#3b82f6}
+  html body #tsk-main .tk-table--v2 tbody tr td{display:block;padding:.15rem 0;border:0!important;overflow:visible}
+  html body #tsk-main .tk-table--v2 tbody tr td[colspan]{grid-column:1/-1}
+  html body #tsk-main .tk-table--v2 td.td-check{grid-area:chk;padding:.2rem 0 0 .6rem!important}
+  html body #tsk-main .tk-table--v2 td.td-title{grid-area:title}
+  html body #tsk-main .tk-table--v2 td.td-act{grid-area:act}
+  html body #tsk-main .tk-table--v2 td.td-status{grid-area:status}
+  html body #tsk-main .tk-table--v2 td.td-due-cell{grid-area:due;min-width:0}
+  html body #tsk-main .tk-table--v2 td.td-people{grid-area:people;min-width:0;max-width:55cqi}
+  html body #tsk-main .tk-table--v2 td.td-due-cell::before,html body #tsk-main .tk-table--v2 td.td-people::before{content:attr(data-label);display:block;
+    font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tm-muted)}
+  html body #tsk-main .tk-table--v2 td.td-act .btn-claim,html body #tsk-main .tk-table--v2 td.td-act .btn-unclaim{padding:0 .55rem}
+}
 html body #tsk-main .tk-table td.td-check{padding-top:.95rem}
 html body #tsk-main .tk-table .tk-title{font-size:.94rem;-webkit-line-clamp:2}
 html body #tsk-main .tk-table .tk-subtitle{font-size:.78rem;margin-top:.15rem}
