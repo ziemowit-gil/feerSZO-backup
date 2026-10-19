@@ -60,24 +60,29 @@ function panelMetroAssets(string $accent = '#0f6fa8'): void {
 }
 
 /**
- * Kafel Start. $t: href, icon, label, [sub], [val], [tag], [color], [size: ''|'w'|'l'],
- * [go: klucz zakładki], [external: bool], [aria].
+ * Kafel Start. $t: href, icon, label, [sub], [val], [tag], [color: nazwa z palety | 'acc' = akcent panelu],
+ * [size: ''|'w'|'l'], [go: klucz zakładki], [external: bool], [aria],
+ * [ava: inicjały zamiast ikony — kafel profilu], [group: klucz z panelMetroTileGroups()].
  */
 function panelMetroTile(array $t): void {
     $size  = ($t['size'] ?? '') !== '' ? ' mt-tile--' . $t['size'] : '';
+    $isAcc = ($t['color'] ?? '') === 'acc';
     $color = panelMetroColor((string)($t['color'] ?? 'blue'));
-    $attrs = '';
+    $attrs = $isAcc ? '' : ' style="--c:' . h($color) . '"';
     if (!empty($t['go']))       $attrs .= ' data-pvm-go="' . h($t['go']) . '"';
     if (!empty($t['external'])) $attrs .= ' target="_blank" rel="noopener noreferrer"';
+    if (isset($t['group']))     $attrs .= ' data-pvm-group="' . h(panelMetroTileGroupKey($t)) . '"';
+    if (isset($t['ord']))       $attrs .= ' data-pvm-ord="' . (int)$t['ord'] . '"';
     $aria = $t['aria'] ?? trim(($t['label'] ?? '') . (isset($t['val']) && $t['val'] !== '' ? ': ' . $t['val'] : '')
         . (!empty($t['sub']) ? ' — ' . $t['sub'] : '') . (!empty($t['tag']) ? ' (' . $t['tag'] . ')' : '')
         . (!empty($t['external']) ? ' (otwiera się w nowej karcie)' : ''));
     ?>
-    <a href="<?= h($t['href'] ?? '#') ?>" class="mt-tile<?= $size ?>" style="--c:<?= h($color) ?>"<?= $attrs ?> aria-label="<?= h($aria) ?>">
+    <a href="<?= h($t['href'] ?? '#') ?>" class="mt-tile<?= $size ?><?= $isAcc ? ' mt-tile--acc' : '' ?>"<?= $attrs ?> aria-label="<?= h($aria) ?>">
       <?php if (!empty($t['tag'])): ?><span class="tag" aria-hidden="true"><?= h((string)$t['tag']) ?></span><?php endif; ?>
-      <i class="bi <?= h($t['icon'] ?? 'bi-square') ?> ic" aria-hidden="true"></i>
+      <?php if (!empty($t['ava'])): ?><span class="ava" aria-hidden="true"><?= h((string)$t['ava']) ?></span>
+      <?php else: ?><i class="bi <?= h($t['icon'] ?? 'bi-square') ?> ic" aria-hidden="true"></i><?php endif; ?>
       <span aria-hidden="true">
-        <?php if (isset($t['val']) && $t['val'] !== ''): ?><span class="val"><?= h((string)$t['val']) ?></span><?php endif; ?>
+        <?php if (isset($t['val']) && $t['val'] !== ''): ?><span class="val"<?= !empty($t['ava']) ? ' style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"' : '' ?>><?= h((string)$t['val']) ?></span><?php endif; ?>
         <span class="lbl"><?= h($t['label'] ?? '') ?></span>
         <?php if (!empty($t['sub'])): ?><span class="sub"><?= h($t['sub']) ?></span><?php endif; ?>
       </span>
@@ -115,10 +120,74 @@ function panelMetroIsDydaktyk(array $u): bool {
  * mostek karty30/ti/dydaktyk/office_enter.php (jak w launcherze) — bez ponownego logowania.
  */
 function panelMetroDydaktykTile(): void {
+    if ($t = panelMetroDydaktykTileSpec()) panelMetroTile($t);
+}
+
+/** Definicja kafla „Dydaktyka – panel” (null, gdy konto nie jest dydaktykiem) — do planszy panelMetroTileBoard(). */
+function panelMetroDydaktykTileSpec(): ?array {
     $u = function_exists('current_user') ? (current_user() ?? []) : [];
-    if (!panelMetroIsDydaktyk($u)) return;
-    panelMetroTile(['href'=>APP_URL.'/karty30/ti/dydaktyk/office_enter.php','icon'=>'bi-easel2','label'=>'Dydaktyka – panel',
-                    'sub'=>'moje zajęcia, grupy i oceny','color'=>'orange','size'=>'w']);
+    if (!panelMetroIsDydaktyk($u)) return null;
+    return ['href'=>APP_URL.'/karty30/ti/dydaktyk/office_enter.php','icon'=>'bi-easel2','label'=>'Dydaktyka – panel',
+            'sub'=>'moje zajęcia, grupy i oceny','color'=>'orange','size'=>'w','group'=>'praca'];
+}
+
+/**
+ * Grupy funkcji kafli Start — kolejność = kolejność sekcji w widoku „Grupuj wg funkcji”.
+ * Kafel przypisuje się do grupy kluczem 'group' przy swojej definicji; bez klucza
+ * (albo z nieznanym) trafia do „Inne”.
+ */
+function panelMetroTileGroups(): array {
+    return [
+        'praca'       => 'Praca',
+        'komunikacja' => 'Komunikacja',
+        'konto'       => 'Moje konto i bezpieczeństwo',
+        'pomoc'       => 'Pomoc i IT',
+        'admin'       => 'Administracja',
+        'inne'        => 'Inne',
+    ];
+}
+
+/** Klucz grupy kafla (nieznany/pusty → 'inne'). */
+function panelMetroTileGroupKey(array $t): string {
+    $g = (string)($t['group'] ?? '');
+    return isset(panelMetroTileGroups()[$g]) ? $g : 'inne';
+}
+
+/** Czy użytkownik wybrał widok kafli „Grupuj wg funkcji” (preferencja w user_prefs; domyślnie nie). */
+function panelMetroGroupingOn(int $userId): bool {
+    require_once dirname(__DIR__, 3) . '/includes/crm_sender.php'; // user_pref()/user_prefs
+    return user_pref('panel_tiles_grouped', '0', $userId) === '1';
+}
+
+function panelMetroGroupingSet(int $userId, bool $on): void {
+    require_once dirname(__DIR__, 3) . '/includes/crm_sender.php';
+    user_pref_set('panel_tiles_grouped', $on ? '1' : '0', $userId);
+}
+
+/**
+ * Przełącznik układu kafli „Bez grupowania” | „Grupuj wg funkcji” (dwa przyciski z aria-pressed).
+ * Bez JS: formularz POST do modules/panel_metro/router.php/uklad i powrót na stronę.
+ * Z JS: zapis w tle i przełożenie kafli planszy $boardId bez przeładowania.
+ */
+function panelMetroGroupingToggle(bool $grouped, string $boardId = 'pvmBoard'): void {
+    include dirname(__DIR__) . '/view/groupingToggle.php';
+}
+
+/**
+ * Plansza kafli Start: jedna siatka albo sekcje wg funkcji (h2 + siatka na grupę).
+ * $tiles = lista definicji panelMetroTile() (null pomijane), kolejność listy = kolejność kafli.
+ */
+function panelMetroTileBoard(array $tiles, bool $grouped, string $boardId = 'pvmBoard'): void {
+    $tiles = array_values(array_filter($tiles));
+    foreach ($tiles as $i => &$t) { $t['ord'] = $i; $t['group'] = panelMetroTileGroupKey($t); }
+    unset($t);
+    $groups   = panelMetroTileGroups();
+    $sections = [];
+    foreach ($groups as $key => $_) {
+        $in = array_values(array_filter($tiles, fn($t) => $t['group'] === $key));
+        if ($in) $sections[$key] = $in;
+    }
+    include dirname(__DIR__) . '/view/tileBoard.php';
 }
 
 /**

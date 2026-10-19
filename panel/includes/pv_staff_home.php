@@ -4,7 +4,8 @@
  *
  * Zastępuje stary widok edytora w panel/index.php (gdy $_metro_home = false). Szata METRO jak
  * System Tożsamości (modules/panel_metro): nagłówek, „Ważne informacje”, kafle Start
- * (zadania, komunikaty, wiadomości, helpdesk, Microsoft 365, dydaktyka, tożsamość, admin),
+ * (zadania, komunikaty, wiadomości, helpdesk, Microsoft 365, dydaktyka, tożsamość, admin) — z przełącznikiem
+ * „Bez grupowania” | „Grupuj wg funkcji” (sekcje wg klucza 'group' kafla, panelMetroTileBoard()),
  * pod nimi sekcje: Moje zadania, Moje pełnomocnictwa, wydarzenia i rezerwacje.
  * Działa pod powłoką SZO (includes/header.php) — kafle i grupy mają własne style .pvm.
  *
@@ -18,6 +19,7 @@ panelMetroAssets('#0f6fa8');
 $_sh_uid   = (int)($user['id'] ?? 0);
 $_sh_first = explode(' ', trim((string)($user['name'] ?? '')))[0] ?: 'Witaj';
 $_sh_admin = ($user['role'] ?? '') === 'admin';
+$_sh_grouped = panelMetroGroupingOn($_sh_uid); // „Grupuj wg funkcji” — preferencja per użytkownik (user_prefs)
 
 /* Liczniki kafli (każdy w try — brak tabeli/modułu nie psuje pulpitu) */
 $_sh_tasks = 0;
@@ -76,6 +78,7 @@ $_sh_lead = $_sh_admin
       <h1 class="mt-title">Dzień dobry, <?= h($_sh_first) ?></h1>
       <p class="mt-lead"><?= h($_sh_lead) ?></p>
     </div>
+    <?php panelMetroGroupingToggle($_sh_grouped); ?>
   </div>
 
   <?= function_exists('flash_html') ? flash_html() : '' ?>
@@ -83,55 +86,54 @@ $_sh_lead = $_sh_admin
 
   <div class="sh-start">
   <div>
-  <h2 class="visually-hidden">Skróty</h2>
-  <div class="mt-grid">
-    <a href="<?= APP_URL ?>/tozsamosc/" class="mt-tile mt-tile--l mt-tile--acc" aria-label="<?= h(($user['name'] ?? '') . ' — ' . ($user['email'] ?? '') . ' — System Tożsamości') ?>">
-      <span class="ava" aria-hidden="true"><?= h($initials) ?></span>
-      <span aria-hidden="true">
-        <span class="val" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($user['name'] ?? '') ?></span>
-        <span class="lbl"><?= h(function_exists('ctx_role_label') ? ctx_role_label((string)($user['role'] ?? '')) : ($user['role'] ?? '')) ?></span>
-        <span class="sub"><?= h($user['email'] ?? '') ?></span>
-      </span>
-    </a>
-    <?php
-    if (module_enabled('tasks_enabled')) {
-        panelMetroTile(['href'=>APP_URL.'/tasks/index.php','icon'=>'bi-check2-square','label'=>'Moje zadania','val'=>(string)$_sh_tasks,
-                        'sub'=>$_sh_tasks ? 'aktywnych' : 'wszystko zrobione','color'=>$_sh_tasks ? 'orange' : 'green','size'=>'w']);
-    }
-    panelMetroDydaktykTile();
-    panelMetroTile(['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','label'=>'Komunikaty','val'=>$_sh_ann ? (string)$_sh_ann : '',
-                    'sub'=>$_sh_ann ? 'nowych' : 'ogłoszenia organizacji','color'=>'violet']);
-    panelMetroTile(['href'=>APP_URL.'/directory/','icon'=>'bi-person-lines-fill','label'=>'Katalog','sub'=>'kto jest kim · jednostki i działy','color'=>'indigo']);
-    if (module_enabled('messages_enabled')) {
-        panelMetroTile(['href'=>APP_URL.'/panel/messages.php','icon'=>'bi-chat-dots','label'=>'Wiadomości','val'=>!empty($msg_unread) ? (string)(int)$msg_unread : '',
-                        'sub'=>!empty($msg_unread) ? 'nowych' : 'korespondencja','color'=>'blue']);
-    }
-    if (panel_visible('wnioski')) {
-        try {
-            $_sh_apps = (int)(db_one("SELECT COUNT(*) AS c FROM user_applications WHERE user_id = ? AND status IN ('nowy','w_trakcie')", [$_sh_uid])['c'] ?? 0);
-        } catch (\Throwable $e) { $_sh_apps = 0; }
-        panelMetroTile(['href'=>APP_URL.'/panel/apply.php','icon'=>'bi-send','label'=>'Wnioski','val'=>$_sh_apps ? (string)$_sh_apps : '',
-                        'sub'=>$_sh_apps ? 'w toku' : 'zaświadczenia, duplikaty, kserokopie','color'=>$_sh_apps ? 'orange' : 'blue']);
-    }
-    panelMetroTile(['href'=>APP_URL.'/modules/collaborator_data/router.php','icon'=>'bi-person-gear','label'=>'Zmiana danych',
-                    'sub'=>'kontakt, adres, rachunek, upoważnienia','color'=>'teal']);
-    panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_sh_hd ? (string)$_sh_hd : '',
-                    'sub'=>$_sh_hd ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
-    panelMetroTile(['href'=>APP_URL.'/panel/m365.php','icon'=>'bi-microsoft','label'=>'Microsoft 365 i poczta',
-                    'sub'=>$_sh_m365 ?: 'konto nie zostało założone','color'=>$_sh_m365 ? 'indigo' : 'grey','size'=>'w','tag'=>$_sh_m365 ? '' : 'brak']);
-    if (is_file($ROOT . '/panel/calendar.php') && module_enabled('org_calendar_enabled')) {
-        panelMetroTile(['href'=>APP_URL.'/panel/calendar.php','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>'wydarzenia i dyżury','color'=>'teal']);
-    }
-    if (is_file($ROOT . '/tozsamosc/index.php')) {
-        panelMetroTile(['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'Tożsamość','sub'=>'hasło, MFA, telefon','color'=>'dark']);
-    }
-    if ($_sh_admin) {
-        panelMetroTile(['href'=>APP_URL.'/admin/index.php','icon'=>'bi-gear','label'=>'Panel admina','sub'=>'administrator systemu','color'=>'dark']);
-        if (module_enabled('tasks_enabled')) {
-            panelMetroTile(['href'=>APP_URL.'/tasks/dashboard.php','icon'=>'bi-table','label'=>'Moduł Zadania','sub'=>'pulpit zadań','color'=>'green']);
-        }
-    }
-    ?>
+  <?php
+  /* Kafle Start — jedna lista definicji; 'group' = sekcja w widoku „Grupuj wg funkcji”
+     (klucze: modules/panel_metro panelMetroTileGroups(); bez 'group' → „Inne”). */
+  $_sh_tiles = [];
+  $_sh_tiles[] = ['href'=>APP_URL.'/tozsamosc/','ava'=>$initials,'color'=>'acc','size'=>'l','group'=>'konto',
+                  'val'=>(string)($user['name'] ?? ''),
+                  'label'=>function_exists('ctx_role_label') ? ctx_role_label((string)($user['role'] ?? '')) : (string)($user['role'] ?? ''),
+                  'sub'=>(string)($user['email'] ?? ''),
+                  'aria'=>($user['name'] ?? '') . ' — ' . ($user['email'] ?? '') . ' — System Tożsamości'];
+  if (module_enabled('tasks_enabled')) {
+      $_sh_tiles[] = ['href'=>APP_URL.'/tasks/index.php','icon'=>'bi-check2-square','label'=>'Moje zadania','val'=>(string)$_sh_tasks,
+                      'sub'=>$_sh_tasks ? 'aktywnych' : 'wszystko zrobione','color'=>$_sh_tasks ? 'orange' : 'green','size'=>'w','group'=>'praca'];
+  }
+  $_sh_tiles[] = panelMetroDydaktykTileSpec();
+  $_sh_tiles[] = ['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','label'=>'Komunikaty','val'=>$_sh_ann ? (string)$_sh_ann : '',
+                  'sub'=>$_sh_ann ? 'nowych' : 'ogłoszenia organizacji','color'=>'violet','group'=>'komunikacja'];
+  $_sh_tiles[] = ['href'=>APP_URL.'/directory/','icon'=>'bi-person-lines-fill','label'=>'Katalog','sub'=>'kto jest kim · jednostki i działy','color'=>'indigo','group'=>'komunikacja'];
+  if (module_enabled('messages_enabled')) {
+      $_sh_tiles[] = ['href'=>APP_URL.'/panel/messages.php','icon'=>'bi-chat-dots','label'=>'Wiadomości','val'=>!empty($msg_unread) ? (string)(int)$msg_unread : '',
+                      'sub'=>!empty($msg_unread) ? 'nowych' : 'korespondencja','color'=>'blue','group'=>'komunikacja'];
+  }
+  if (panel_visible('wnioski')) {
+      try {
+          $_sh_apps = (int)(db_one("SELECT COUNT(*) AS c FROM user_applications WHERE user_id = ? AND status IN ('nowy','w_trakcie')", [$_sh_uid])['c'] ?? 0);
+      } catch (\Throwable $e) { $_sh_apps = 0; }
+      $_sh_tiles[] = ['href'=>APP_URL.'/panel/apply.php','icon'=>'bi-send','label'=>'Wnioski','val'=>$_sh_apps ? (string)$_sh_apps : '',
+                      'sub'=>$_sh_apps ? 'w toku' : 'zaświadczenia, duplikaty, kserokopie','color'=>$_sh_apps ? 'orange' : 'blue','group'=>'praca'];
+  }
+  $_sh_tiles[] = ['href'=>APP_URL.'/modules/collaborator_data/router.php','icon'=>'bi-person-gear','label'=>'Zmiana danych',
+                  'sub'=>'kontakt, adres, rachunek, upoważnienia','color'=>'teal','group'=>'konto'];
+  $_sh_tiles[] = ['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_sh_hd ? (string)$_sh_hd : '',
+                  'sub'=>$_sh_hd ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta','group'=>'pomoc'];
+  $_sh_tiles[] = ['href'=>APP_URL.'/panel/m365.php','icon'=>'bi-microsoft','label'=>'Microsoft 365 i poczta',
+                  'sub'=>$_sh_m365 ?: 'konto nie zostało założone','color'=>$_sh_m365 ? 'indigo' : 'grey','size'=>'w','tag'=>$_sh_m365 ? '' : 'brak','group'=>'konto'];
+  if (is_file($ROOT . '/panel/calendar.php') && module_enabled('org_calendar_enabled')) {
+      $_sh_tiles[] = ['href'=>APP_URL.'/panel/calendar.php','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>'wydarzenia i dyżury','color'=>'teal','group'=>'komunikacja'];
+  }
+  if (is_file($ROOT . '/tozsamosc/index.php')) {
+      $_sh_tiles[] = ['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'Tożsamość','sub'=>'hasło, MFA, telefon','color'=>'dark','group'=>'konto'];
+  }
+  if ($_sh_admin) {
+      $_sh_tiles[] = ['href'=>APP_URL.'/admin/index.php','icon'=>'bi-gear','label'=>'Panel admina','sub'=>'administrator systemu','color'=>'dark','group'=>'admin'];
+      if (module_enabled('tasks_enabled')) {
+          $_sh_tiles[] = ['href'=>APP_URL.'/tasks/dashboard.php','icon'=>'bi-table','label'=>'Moduł Zadania','sub'=>'pulpit zadań','color'=>'green','group'=>'praca'];
+      }
+  }
+  panelMetroTileBoard($_sh_tiles, $_sh_grouped);
+  ?>
   </div>
   </div>
   <aside aria-label="Komunikaty i zadania"><?php panelMetroSideFeed($_sh_uid, (string)($user['role'] ?? '')); ?></aside>
