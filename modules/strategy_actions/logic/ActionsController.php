@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/ActionsService.php';
 require_once __DIR__ . '/ActionsReport.php';
+require_once __DIR__ . '/ActionsGrants.php';
 
 final class ActionsController
 {
@@ -54,6 +55,7 @@ final class ActionsController
             'candidates'   => $candidates,
             'canDelete'    => ActionsService::canDelete($a),
             'journal'      => ActionsService::journal($id),
+            'budgets'      => ActionsGrants::budgets(),
             'users'        => ActionsService::coordinators(),
         ]);
     }
@@ -332,6 +334,7 @@ final class ActionsController
             'errors'    => $errors,
             'users'     => ActionsService::coordinators(),
             'grants'    => ActionsService::grantsList(),
+            'budgets'   => ActionsGrants::budgets($id),
         ]);
     }
 

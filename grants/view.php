@@ -18,6 +18,9 @@ if (!$grant) {
 $PAGE_TITLE = h($grant['nazwa']);
 
 $linked_actions = grant_actions_for($id);
+// Budżet grantu na działania (modules/strategy_actions — kwota przyznana kontra kwoty przypisane działaniom)
+require_once dirname(__DIR__) . '/modules/strategy_actions/logic/ActionsGrants.php';
+$budget = ActionsGrants::budget($id);
 $obszary = json_decode($grant['obszar_tematyczny'] ?? '[]', true) ?: [];
 
 $grant_statuses = [
@@ -145,10 +148,34 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 
+<?php if ($budget): $bpct = min(100, (int)($budget['pct'] ?? 0)); ?>
+<!-- Budżet grantu na działania -->
+<div class="card shadow-sm mb-3" aria-labelledby="grant-budget-h">
+  <div class="card-body">
+    <div class="d-flex justify-content-between flex-wrap gap-2 align-items-baseline">
+      <h5 class="mb-0" id="grant-budget-h"><i class="bi bi-pie-chart text-success"></i> Budżet na działania</h5>
+      <?php if ($budget['budget'] !== null): ?>
+      <span class="<?= $budget['over'] ? 'text-danger fw-bold' : 'text-muted' ?>">
+        rozdysponowano <?= money($budget['allocated'], $budget['waluta']) ?> z <?= money($budget['budget'], $budget['waluta']) ?><?= $budget['estimated'] ? ' (kwota wnioskowana)' : '' ?>
+        · <?= $budget['over'] ? 'przekroczono o ' . money(-$budget['remaining'], $budget['waluta']) : 'zostaje ' . money($budget['remaining'], $budget['waluta']) ?>
+      </span>
+      <?php else: ?>
+      <span class="text-muted">Uzupełnij kwotę przyznaną, żeby liczyć budżet. Przypisano działaniom: <?= money($budget['allocated'], $budget['waluta']) ?>.</span>
+      <?php endif; ?>
+    </div>
+    <?php if ($budget['budget'] !== null): ?>
+    <div class="progress mt-2" style="height:10px" role="progressbar" aria-label="Rozdysponowanie budżetu" aria-valuenow="<?= (int)$budget['pct'] ?>" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-bar <?= $budget['over'] ? 'bg-danger' : 'bg-success' ?>" style="width:<?= $bpct ?>%"></div>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- Linked actions -->
 <div class="d-flex justify-content-between align-items-center mb-2">
   <h5 class="mb-0"><i class="bi bi-calendar-event text-primary"></i> Powiązane działania (<?= count($linked_actions) ?>)</h5>
-  <a href="<?= APP_URL ?>/strategy/actions/add.php?grant_id=<?= $id ?>" class="btn btn-outline-primary btn-sm">
+  <a href="<?= APP_URL ?>/dzialania/nowe?grant_id=<?= $id ?>" class="btn btn-outline-primary btn-sm">
     <i class="bi bi-plus-lg"></i> Dodaj działanie z tym grantem
   </a>
 </div>
@@ -173,14 +200,14 @@ include dirname(__DIR__) . '/includes/header.php';
   ?>
   <tr>
     <td>
-      <a href="<?= APP_URL ?>/strategy/actions/view.php?id=<?= $a['id'] ?>" class="fw-semibold text-decoration-none"><?= h($a['nazwa']) ?></a>
+      <a href="<?= APP_URL ?>/dzialania/<?= (int)$a['id'] ?>" class="fw-semibold text-decoration-none"><?= h($a['nazwa']) ?></a>
     </td>
     <td><span class="badge bg-<?= $ast['class'] ?>"><?= h($ast['label']) ?></span></td>
     <td class="small text-nowrap"><?= date_pl($a['data_od']) ?><?= $a['data_do'] ? ' – ' . date_pl($a['data_do']) : '' ?></td>
     <td class="text-end small"><?= $a['udzial_procent'] !== null ? h($a['udzial_procent']) . '%' : '—' ?></td>
     <td class="text-end small"><?= $a['ag_kwota'] !== null ? money((float)$a['ag_kwota'], $grant['waluta']) : '—' ?></td>
     <td class="text-end">
-      <a href="<?= APP_URL ?>/strategy/actions/view.php?id=<?= $a['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+      <a href="<?= APP_URL ?>/dzialania/<?= (int)$a['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
     </td>
   </tr>
   <?php endforeach; ?>
@@ -190,7 +217,7 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 <?php else: ?>
 <div class="alert alert-secondary">Brak powiązanych działań.
-  <a href="<?= APP_URL ?>/strategy/actions/add.php?grant_id=<?= $id ?>">Dodaj pierwsze działanie</a>.
+  <a href="<?= APP_URL ?>/dzialania/nowe?grant_id=<?= $id ?>">Dodaj pierwsze działanie</a>.
 </div>
 <?php endif; ?>
 

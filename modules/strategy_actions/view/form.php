@@ -2,7 +2,7 @@
 /**
  * modules/strategy_actions/view/form.php — formularz nowego działania i edycji (Metro).
  * Nazwy pól jak w dawnym strategy/actions/add.php (grant_id[], udzial_procent[], grant_kwota[], ind_*[]).
- * Zmienne: $row (wartości), $id (null = nowe), $errors, $users, $grants.
+ * Zmienne: $row (wartości), $id (null = nowe), $errors, $users, $grants, $budgets (ActionsGrants::budgets bez tego działania).
  */
 $navActive = $id ? '' : 'nowe';
 $val = fn(string $k) => (string)($row[$k] ?? '');
@@ -28,9 +28,9 @@ include __DIR__ . '/_head.php';
 <?php endif; ?>
 
 <form method="post" action="<?= h($action) ?>" class="dz-form"
-      x-data="{ forma: <?= $json($val('forma') ?: 'stacjonarne') ?>, cykl: <?= !empty($row['cykliczne']) ? 'true' : 'false' ?>,
+      x-data="dzForm({ forma: <?= $json($val('forma') ?: 'stacjonarne') ?>, cykl: <?= !empty($row['cykliczne']) ? 'true' : 'false' ?>,
                 wlasne: <?= !empty($row['wlasne_dzialanie']) ? 'true' : 'false' ?>,
-                grants: <?= $json($grantRows) ?>, inds: <?= $json($indRows) ?> }">
+                grants: <?= $json($grantRows) ?>, inds: <?= $json($indRows) ?> })">
   <?= Router::csrfField() ?>
 
   <h2 class="dz-head">Podstawowe</h2>
@@ -134,10 +134,12 @@ include __DIR__ . '/_head.php';
       <tbody>
         <template x-for="(g, i) in grants" :key="i">
           <tr>
-            <td><select name="grant_id[]" class="dz-in" x-model="g.grant_id" :aria-label="'Grant ' + (i + 1)">
+            <td><select name="grant_id[]" class="dz-in" x-model="g.grant_id" :aria-label="'Grant ' + (i + 1)" :aria-describedby="'gb-' + i">
               <option value="">— wybierz grant —</option>
               <?php foreach ($grants as $gr): ?><option value="<?= (int)$gr['id'] ?>"><?= h($gr['nazwa']) ?><?= $gr['donator'] ? ' — ' . h($gr['donator']) : '' ?></option><?php endforeach; ?>
-            </select></td>
+            </select>
+            <small class="d-block mt-1" :id="'gb-' + i" x-show="budgetOf(g)" :style="overBy(g) > 0 ? 'color:var(--red);font-weight:600' : 'color:var(--muted)'" x-text="budgetText(g)" aria-live="polite"></small>
+            <button type="button" class="dz-btn dz-btn--ghost dz-btn--sm mt-1" x-show="suggest(g) !== null" @click="g.kwota = String(suggest(g))" x-text="'Wstaw kwotę z udziału: ' + money(suggest(g), budgetOf(g) ? budgetOf(g).waluta : 'PLN')"></button></td>
             <td><input name="udzial_procent[]" class="dz-in" inputmode="decimal" x-model="g.udzial" :aria-label="'Udział procentowy grantu ' + (i + 1)"></td>
             <td><input name="grant_kwota[]" class="dz-in" inputmode="decimal" x-model="g.kwota" :aria-label="'Kwota z grantu ' + (i + 1)"></td>
             <td><button type="button" class="dz-btn dz-btn--danger dz-btn--sm" @click="grants.splice(i, 1)" :aria-label="'Usuń grant ' + (i + 1)"><i class="bi bi-x-lg" aria-hidden="true"></i></button></td>
@@ -172,4 +174,32 @@ include __DIR__ . '/_head.php';
     <a href="<?= h($id ? ActionsService::url((string)$id) : ActionsService::url()) ?>" class="dz-btn dz-btn--ghost">Anuluj</a>
   </div>
 </form>
+<script>
+/** Formularz działania: pola zależne i budżet grantu (kwota przyznana − rozdysponowane na inne działania). */
+function dzForm(init) {
+  const budgets = <?= json_encode($budgets, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+  const n = v => { const x = parseFloat(String(v ?? '').replace(/\s/g, '').replace(',', '.')); return isNaN(x) ? null : x; };
+  return Object.assign(init, {
+    money(v, cur) { return Number(v || 0).toLocaleString('pl-PL', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + (cur === 'PLN' ? 'zł' : cur); },
+    budgetOf(g) { return g.grant_id ? (budgets[g.grant_id] || null) : null; },
+    overBy(g) {
+      const b = this.budgetOf(g), k = n(g.kwota);
+      return b && b.remaining !== null && k !== null ? Math.round((k - b.remaining) * 100) / 100 : 0;
+    },
+    suggest(g) {
+      const b = this.budgetOf(g), u = n(g.udzial);
+      return b && b.budget && u !== null && u > 0 && n(g.kwota) === null ? Math.round(b.budget * u) / 100 : null;
+    },
+    budgetText(g) {
+      const b = this.budgetOf(g);
+      if (!b) return '';
+      if (b.budget === null) return 'Grant bez kwoty — uzupełnij ją w module Grantów, żeby liczyć budżet.';
+      const t = (b.estimated ? 'Wnioskowano ' : 'Przyznano ') + this.money(b.budget, b.waluta) + ' · inne działania: ' + this.money(b.allocated, b.waluta)
+              + ' · zostaje ' + this.money(b.remaining, b.waluta);
+      const o = this.overBy(g);
+      return o > 0 ? t + ' — ta kwota przekracza pozostały budżet o ' + this.money(o, b.waluta) + '.' : t;
+    },
+  });
+}
+</script>
 <?php include __DIR__ . '/_foot.php'; ?>

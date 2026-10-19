@@ -80,7 +80,10 @@ include __DIR__ . '/_head.php';
       <tbody>
       <?php foreach ($a['grants'] as $g): ?>
       <tr>
-        <td><a class="nm" href="<?= APP_URL ?>/grants/view.php?id=<?= (int)$g['grant_id'] ?>"><?= h($g['nazwa']) ?></a></td>
+        <td><a class="nm" href="<?= APP_URL ?>/grants/view.php?id=<?= (int)$g['grant_id'] ?>"><?= h($g['nazwa']) ?></a>
+          <?php $b = $budgets[(int)$g['grant_id']] ?? null; if ($b && $b['budget'] !== null): ?>
+          <div class="small <?= $b['over'] ? 'fw-semibold' : 'dz-muted' ?>"<?= $b['over'] ? ' style="color:var(--red)"' : '' ?>>budżet <?= h(money($b['budget'], $b['waluta'])) ?> · rozdysponowano <?= h(money($b['allocated'], $b['waluta'])) ?> · <?= $b['over'] ? 'przekroczono o ' . h(money(-$b['remaining'], $b['waluta'])) : 'zostaje ' . h(money($b['remaining'], $b['waluta'])) ?></div>
+          <?php endif; ?></td>
         <td><?= h($g['donator']) ?></td>
         <td class="dz-num"><?= $g['udzial_procent'] !== null ? h((string)(float)$g['udzial_procent']) . '%' : '—' ?></td>
         <td class="dz-num"><?= $g['kwota'] !== null ? h(money((float)$g['kwota'], $g['waluta'] ?: 'PLN')) : '—' ?></td>
