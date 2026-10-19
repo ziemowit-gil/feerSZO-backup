@@ -79,6 +79,7 @@ $_tsk_set_active = _tsk_active('/tasks/settings') || _tsk_active('/tasks/notific
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/tags.php"><i class="bi bi-tags" aria-hidden="true"></i>Tagi</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/router.php/reguly<?= $_tsk_wsq ?>"><i class="bi bi-magic" aria-hidden="true"></i>Reguły automatyzacji</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/router.php/skrzynka-obszaru<?= $_tsk_wsq ?>"><i class="bi bi-envelope-arrow-down" aria-hidden="true"></i>Skrzynka obszaru (e-mail → zadania)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/notification_settings.php?view=admin"><i class="bi bi-shield-lock" aria-hidden="true"></i>Powiadomienia — administracja</a></li>
         <?php endif; ?>
         <?php if ($_is_admin): ?>
         <li><hr class="dropdown-divider"></li>

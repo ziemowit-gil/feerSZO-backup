@@ -31,6 +31,11 @@ $has_sms  = sms_is_enabled() && !empty($user['phone_number']);
 // Tryb fragmentu: zwraca tylko treść (bez header/footer), POST → JSON
 $is_fragment = !empty($_GET['_fragment']);
 
+// Dwa widoki: użytkownika (domyślny, też w oknie) i administracyjny (?view=admin — tylko pełna strona,
+// lider obszaru albo administrator): odpowiedzi e-mailem, test dla innej osoby, status członków.
+$_ns_leader = is_admin() || (int)(db_one("SELECT COUNT(*) AS n FROM task_workspace_members WHERE user_id = ? AND role IN ('admin','editor')", [$uid])['n'] ?? 0) > 0;
+$ns_view = (!$is_fragment && ($_GET['view'] ?? '') === 'admin' && $_ns_leader) ? 'admin' : 'user';
+
 // ── Zapis ────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['_csrf'] ?? '')) {
@@ -261,6 +266,35 @@ if (!$is_fragment) {
 
 /* ── footer bar ──────────────────────────────────────────────── */
 .ns-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.25rem; background:#f8fafc; border-top:1px solid #e2e8f0; }
+
+/* ══ Prostsza szata (Metro): płaskie sekcje, bez kolorowych kafelków ikon i plakietek kanałów,
+   zielone przełączniki modułu, przycisk „Zapisz” przyklejony do dołu okna ══ */
+.ns-wrap{max-width:720px}
+.ns-header{background:#1d1d1d;border-radius:0}
+.ns-card{border:0;border-radius:0;box-shadow:none;background:#fff;border-top:2px solid #111827;overflow:visible}
+.ns-card-header{background:#fff;border-bottom:1px solid #e1e1e1;padding:.75rem 0;font-size:.95rem;font-weight:600;color:#111827}
+.ns-card-header>i,.ns-card-header .ns-meta,.ns-card-header .sec-badge{display:none}
+.ns-row{padding:.65rem 0;gap:.75rem;border-bottom-color:#f0f0f0}
+.ns-row:hover{background:transparent}
+.ns-row .ns-icon{display:none}
+.ns-label-title{font-weight:500;font-size:.9rem}
+.ns-label-desc{font-size:.75rem;color:#5f5f5f}
+.form-check-input:checked{background-color:#007a00;border-color:#007a00}
+.form-check-input:focus{box-shadow:0 0 0 3px rgba(0,122,0,.2)}
+.ns-presets{gap:4px}
+.ns-preset{border-radius:0;border:2px solid #111827;background:#fff;color:#111827;font-weight:600}
+.ns-preset:hover,.ns-preset:focus-visible{background:#111827;color:#fff;border-color:#111827}
+.ns-footer{position:sticky;bottom:0;z-index:2;background:#fff;padding:.8rem 0;border-top:1px solid #e1e1e1}
+.ns-footer .btn-primary{background:#007a00;border:0;border-radius:0;font-weight:600}
+.ns-footer .btn-primary:hover,.ns-footer .btn-primary:focus-visible{background:#1d1d1d}
+.ns-more>summary{cursor:pointer;list-style:none;border-bottom:0}
+.ns-more>summary::-webkit-details-marker{display:none}
+.ns-more>summary::after{content:"\25BE";margin-left:auto;color:#5f5f5f}
+.ns-more[open]>summary::after{content:"\25B4"}
+.ns-info{background:#f2f2f2;border:0;border-radius:0;color:#3f3f46}
+.ns-admin-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;margin:0 0 1rem;background:#f2f2f2;color:#111827;text-decoration:none}
+.ns-admin-link:hover,.ns-admin-link:focus-visible{background:#1d1d1d;color:#fff}
+.ns-admin-link small{color:inherit;opacity:.75}
 </style>
 
 <div class="ns-wrap <?= $is_fragment ? 'p-3' : 'py-4' ?> mx-auto">
@@ -273,8 +307,10 @@ if (!$is_fragment) {
         <i class="bi bi-bell-fill"></i>
       </div>
       <div style="flex:1">
-        <div style="font-size:1.2rem;font-weight:700">Powiadomienia e-mail</div>
-        <div style="font-size:.82rem;opacity:.85;margin-top:.15rem">Zadania i terminy — kontroluj co i kiedy trafia na Twoją skrzynkę</div>
+        <div style="font-size:1.2rem;font-weight:700"><?= $ns_view === 'admin' ? 'Powiadomienia — administracja' : 'Powiadomienia e-mail' ?></div>
+        <div style="font-size:.82rem;opacity:.85;margin-top:.15rem"><?= $ns_view === 'admin'
+            ? 'Status powiadomień członków obszarów, testy wysyłki i odpowiedzi e-mailem'
+            : 'Zadania i terminy — kontroluj co i kiedy trafia na Twoją skrzynkę' ?></div>
         <?php if ($has_mail): ?>
         <div class="ns-email-chip">
           <i class="bi bi-envelope-fill"></i>
@@ -305,6 +341,9 @@ if (!$is_fragment) {
   </div>
   <?php endif; ?>
 
+  <?php if ($ns_view === 'admin'): ?>
+  <p class="mb-3"><a href="<?= APP_URL ?>/tasks/notification_settings.php"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Moje ustawienia powiadomień</a></p>
+  <?php else: /* ── widok użytkownika ── */ ?>
   <form method="post" id="notifForm">
     <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
 
@@ -680,13 +719,12 @@ if (!$is_fragment) {
   </form>
   <?php endif; ?>
 
-  <!-- ══ Test dostarczania ════════════════════════════════════════ -->
-  <div class="ns-card mb-3 mt-4">
-    <div class="ns-card-header">
+  <!-- ══ Test dostarczania (zwinięty — rzadko używany) ════════════════ -->
+  <details class="ns-card ns-more mb-3 mt-4" <?= $test_result !== null ? 'open' : '' ?>>
+    <summary class="ns-card-header">
       <i class="bi bi-send-fill" style="color:#7c3aed"></i>
-      Testuj dostarczanie
-      <span class="ns-meta ms-auto" style="font-weight:400;font-size:.75rem;color:#94a3b8">Sprawdź czy powiadomienia faktycznie docierają</span>
-    </div>
+      Sprawdź, czy powiadomienia docierają
+    </summary>
 
     <?php if ($test_result !== null): ?>
     <div class="px-3 pt-3">
@@ -726,7 +764,19 @@ if (!$is_fragment) {
         </button>
       </div>
     </form>
-  </div>
+  </details>
+
+  <?php if ($_ns_leader): ?>
+  <a class="ns-admin-link" href="<?= APP_URL ?>/tasks/notification_settings.php?view=admin">
+    <i class="bi bi-shield-lock" aria-hidden="true"></i>
+    <span><strong>Funkcje lidera i administratora</strong><br>
+      <small>Status powiadomień członków obszarów, test dla innej osoby<?= is_admin() ? ', odpowiedzi e-mailem' : '' ?></small></span>
+    <i class="bi bi-chevron-right ms-auto" aria-hidden="true"></i>
+  </a>
+  <?php endif; ?>
+  <?php endif; /* koniec widoku użytkownika */ ?>
+
+  <?php if ($ns_view === 'admin'): ?>
 
   <?php
   $is_leader_or_admin = is_admin() || (int)(db_one("SELECT COUNT(*) AS n FROM task_workspace_members WHERE user_id = ? AND role IN ('admin','editor')", [$uid])['n'] ?? 0) > 0;
@@ -965,6 +1015,9 @@ if (!$is_fragment) {
   <?php endif; ?>
 
   <!-- Informacja ───────────────────────────────────────────────── -->
+  <?php endif; /* koniec widoku administracyjnego */ ?>
+
+  <?php if ($ns_view === 'user'): ?>
   <div class="ns-info mt-3">
     <div class="ns-info-row">
       <i class="bi bi-lightning-fill flex-shrink-0 mt-1" style="color:#2563eb"></i>
@@ -979,6 +1032,7 @@ if (!$is_fragment) {
       <div>Powiadomienia trafiają na adres <strong><?= h($notify_to ?: '— brak adresu —') ?></strong>. Możesz podać inny w sekcji „Adres do powiadomień”.</div>
     </div>
   </div>
+  <?php endif; ?>
 
 </div>
 
