@@ -90,7 +90,7 @@ body{background:#fff;color:var(--dark);margin:0;font-family:"Segoe UI","Segoe UI
 .dz-scroll{overflow-x:auto}
 .dz-num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .dz-flag{display:inline-flex;align-items:center;gap:.2rem;font-size:.7rem;font-weight:600;color:#fff;padding:.05rem .35rem;margin:.15rem .2rem 0 0;background:var(--c)}
-.dz-flag.noGrant{--c:var(--red)}.dz-flag.ending{--c:var(--amber)}.dz-flag.overdue{--c:var(--orange)}.dz-flag.behind{--c:var(--cobalt)}.dz-flag.ms{--c:#6a00ff}
+.dz-flag.noGrant{--c:var(--red)}.dz-flag.ending{--c:var(--amber)}.dz-flag.overdue{--c:var(--orange)}.dz-flag.behind{--c:var(--cobalt)}.dz-flag.msOverdue{--c:#6a00ff}
 .dz-bar{height:6px;background:var(--line);min-width:60px;flex:1}
 .dz-bar>span{display:block;height:100%;background:var(--c,var(--dz))}
 .dz-empty{background:var(--light);padding:1.5rem;color:var(--muted);text-align:center}
@@ -159,6 +159,20 @@ body{background:#fff;color:var(--dark);margin:0;font-family:"Segoe UI","Segoe UI
 .dz-panel .pf{padding:.75rem 1rem;border-top:1px solid var(--line);display:flex;gap:.4rem;flex-wrap:wrap;background:var(--light)}
 .dz-ind{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:.5rem;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--line);font-size:.86rem}
 .dz-ind small{display:block;color:var(--muted)}
+/* Etapy i historia */
+.dz-ms{list-style:none;padding:0;margin:0 0 .6rem}
+.dz-ms li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 .5rem;padding:.4rem .5rem;border-left:4px solid var(--dz);background:var(--light);margin-bottom:4px;font-size:.88rem}
+.dz-ms li small{grid-column:1}
+.dz-ms li .del{grid-column:2;grid-row:1/span 2;align-self:center;background:none;border:0;color:var(--muted);cursor:pointer}
+.dz-ms li .del:hover{color:var(--red)}
+.dz-ms li.done{border-left-color:var(--green)}.dz-ms li.done .t{text-decoration:line-through;color:var(--muted)}
+.dz-ms li.late{border-left-color:#6a00ff}.dz-ms .late-tx{color:#6a00ff;font-weight:600}
+.dz-ms-add{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;background:var(--light);padding:.6rem;margin-bottom:.4rem}
+.dz-ms-add .full{grid-column:1/-1}
+.dz-log{list-style:none;padding:0;margin:0}
+.dz-log li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:.4rem;padding:.4rem 0;border-bottom:1px solid var(--line);font-size:.86rem}
+.dz-log li i{color:var(--muted);margin-top:.15rem}
+.dz-log li.cm .msg{white-space:pre-line;background:var(--dz-50);display:block;padding:.3rem .5rem}
 /* Komunikat po akcji */
 .dz-toast{position:fixed;left:1rem;bottom:1rem;z-index:1060;max-width:420px}
 .dz-toast span{display:block;background:var(--dark);color:#fff;padding:.65rem 1rem;font-size:.9rem}

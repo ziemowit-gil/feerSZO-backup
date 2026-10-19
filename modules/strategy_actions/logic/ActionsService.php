@@ -7,6 +7,7 @@
  * zakłada includes/grants.php — ten plik tylko z nich korzysta.
  */
 require_once dirname(__DIR__, 3) . '/includes/grants.php';
+require_once __DIR__ . '/ActionsJournal.php';
 
 final class ActionsService
 {
@@ -70,7 +71,8 @@ final class ActionsService
         }
         $inds = [];
         foreach (db_all("SELECT * FROM action_indicators ORDER BY id") as $i) $inds[(int)$i['action_id']][] = $i;
-        return array_map(fn(array $a) => self::decorate($a, $grants[(int)$a['id']] ?? [], $inds[(int)$a['id']] ?? []), $rows);
+        $ms = ActionsJournal::milestoneStats();
+        return array_map(fn(array $a) => self::decorate($a, $grants[(int)$a['id']] ?? [], $inds[(int)$a['id']] ?? [], $ms[(int)$a['id']] ?? null), $rows);
     }
 
     /** Jedno działanie w kształcie ekranu (jak all()). */
@@ -80,11 +82,11 @@ final class ActionsService
         if (!$a) return null;
         $grants = db_all("SELECT ag.action_id, ag.grant_id, ag.kwota, ag.udzial_procent, g.nazwa, g.waluta
                           FROM action_grants ag JOIN grants g ON g.id = ag.grant_id WHERE ag.action_id = ? ORDER BY g.nazwa", [$id]);
-        return self::decorate($a, $grants, grant_action_indicators_for($id));
+        return self::decorate($a, $grants, grant_action_indicators_for($id), ActionsJournal::milestoneStats()[$id] ?? null);
     }
 
     /** Wiersz bazy → kształt ekranu z sumami wskaźników, kwotą finansowania i flagami ostrzeżeń. */
-    public static function decorate(array $a, array $grants, array $inds): array
+    public static function decorate(array $a, array $grants, array $inds, ?array $ms = null): array
     {
         $today = date('Y-m-d');
         $in14  = date('Y-m-d', strtotime('+14 days'));
@@ -129,11 +131,13 @@ final class ActionsService
             'pct'           => $plan > 0 ? (int)min(100, round($real / $plan * 100)) : null,
             'createdBy'     => (int)($a['created_by'] ?? 0),
             'updatedAt'     => (string)($a['updated_at'] ?? ''),
+            'ms'            => $ms ?? ['total' => 0, 'done' => 0, 'overdue' => 0, 'next' => null],
             'flags'         => [
                 'noGrant' => !$g && !$a['wlasne_dzialanie'] && $status !== 'anulowane',
                 'ending'  => $active && $do !== null && $do >= $today && $do <= $in14,
                 'overdue' => $active && $do !== null && $do < $today,
                 'behind'  => $behind && $status !== 'anulowane',
+                'msOverdue' => $active && !empty($ms['overdue']),
             ],
         ];
     }
@@ -330,7 +334,11 @@ final class ActionsService
         $d['status'] = 'planowane';
         $grants = array_map(fn($g) => ['grant_id' => (int)$g['grant_id'], 'udzial_procent' => $g['udzial_procent'], 'kwota' => $g['kwota']], $a['grants']);
         $inds = array_map(fn($i) => ['id' => 0, 'nazwa' => (string)$i['nazwa'], 'wartosc_planowana' => $i['wartosc_planowana'], 'wartosc_realizowana' => 0.0], $a['indicators']);
-        return self::save(null, $d, $grants, $inds, $userId);
+        $newId = self::save(null, $d, $grants, $inds, $userId);
+        ActionsJournal::copyMilestones($id, $newId);
+        ActionsJournal::log($newId, 'duplicate', 'Utworzono jako kopię działania #' . $id . ' „' . $a['nazwa'] . '”.', $userId);
+        ActionsJournal::log($id, 'duplicate', 'Skopiowano do nowego działania #' . $newId . '.', $userId);
+        return $newId;
     }
 
     /** Szczegóły do panelu bocznego listy (kształt ekranu + pola opisowe i wskaźniki z id). */
@@ -352,7 +360,14 @@ final class ActionsService
                                                  'plan' => $i['wartosc_planowana'] !== null ? (float)$i['wartosc_planowana'] : null,
                                                  'real' => (float)($i['wartosc_realizowana'] ?? 0)], $a['indicators']),
             'canDelete'  => self::canDelete($a),
+            'journal'    => self::journal($id),
         ];
+    }
+
+    /** Etapy i historia działania (panel, karta, odpowiedzi akcji etapów i komentarzy). */
+    public static function journal(int $id): array
+    {
+        return ['milestones' => ActionsJournal::milestones($id), 'log' => ActionsJournal::entries($id)];
     }
 
     /** Usuwa działanie z finansowaniem, wskaźnikami i powiązaniami (umowy wolontariatu / kursy TI tracą tylko odnośnik). */
@@ -378,7 +393,7 @@ final class ActionsService
     /** Tabele zależne kasowane razem z działaniem. */
     public static function childTables(): array
     {
-        return ['action_grants', 'action_indicators', 'crm_action_links'];
+        return ['action_grants', 'action_indicators', 'crm_action_links', 'action_milestones', 'action_log'];
     }
 
     /** Zdarzenia kalendarza (format FullCalendar; także dawny calendar.php). */

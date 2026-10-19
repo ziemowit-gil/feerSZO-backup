@@ -52,6 +52,8 @@ final class ActionsController
             'participants' => $participants,
             'candidates'   => $candidates,
             'canDelete'    => ActionsService::canDelete($a),
+            'journal'      => ActionsService::journal($id),
+            'users'        => ActionsService::coordinators(),
         ]);
     }
 
@@ -75,6 +77,7 @@ final class ActionsController
             return $this->form($d + ['grants' => $grants, 'indicators' => $inds], null, $errors);
         }
         $id = ActionsService::save(null, $d, $grants, $inds, $this->uid());
+        ActionsJournal::log($id, 'create', 'Utworzono działanie.');
         flash_set('success', 'Działanie zostało dodane.');
         return Router::redirect(ActionsService::url((string)$id));
     }
@@ -100,8 +103,10 @@ final class ActionsController
         if ($errors = ActionsService::validate($d)) {
             return $this->form($d + ['grants' => $grants, 'indicators' => $inds, 'jrwa_symbol' => $a['jrwa_symbol']], $id, $errors);
         }
+        $what = ActionsJournal::describeChanges($a, $d, $grants, $inds);
         ActionsService::save($id, $d, $grants, $inds, $this->uid());
-        flash_set('success', 'Zmiany zostały zapisane.');
+        if ($what !== '') ActionsJournal::log($id, 'change', $what);
+        flash_set('success', $what !== '' ? 'Zmiany zostały zapisane.' : 'Zapisano — bez zmian.');
         return Router::redirect(ActionsService::url((string)$id));
     }
 
@@ -130,6 +135,7 @@ final class ActionsController
             $rola = in_array($_POST['rola'] ?? '', self::crmRoles(), true) ? $_POST['rola'] : 'uczestnik';
             CrmManager::linkToAction($cid, $id, $rola, mb_substr(trim((string)($_POST['nota'] ?? '')), 0, 200));
             $c = db_one("SELECT imie_nazwisko FROM crm_contacts WHERE id = ?", [$cid]);
+            ActionsJournal::log($id, 'crm', 'Dodano uczestnika: ' . ($c['imie_nazwisko'] ?? '#' . $cid) . ' (' . $rola . ').');
             flash_set('success', ($c['imie_nazwisko'] ?? 'Kontakt') . ' dodany jako uczestnik.');
         }
         return Router::redirect(ActionsService::url((string)$id) . '#uczestnicy');
@@ -142,7 +148,9 @@ final class ActionsController
         [$crmOn] = $this->crm($id, false);
         $cid = (int)($_POST['contact_id'] ?? 0);
         if ($crmOn && $cid) {
+            $c = db_one("SELECT imie_nazwisko FROM crm_contacts WHERE id = ?", [$cid]);
             CrmManager::unlinkFromAction($cid, $id);
+            ActionsJournal::log($id, 'crm', 'Usunięto uczestnika: ' . ($c['imie_nazwisko'] ?? '#' . $cid) . '.');
             flash_set('success', 'Uczestnik usunięty z działania.');
         }
         return Router::redirect(ActionsService::url((string)$id) . '#uczestnicy');
@@ -154,8 +162,12 @@ final class ActionsController
         $id = (int)$id;
         $status = (string)($_POST['status'] ?? '');
         if (!isset(ActionsService::STATUSES[$status])) return $this->fail('Nieznany status.');
-        if (ActionsService::setStatus($id, $status) === null) return $this->fail('Działanie nie istnieje.', 404);
-        return ['ok' => true, 'action' => ActionsService::one($id),
+        $prev = ActionsService::setStatus($id, $status);
+        if ($prev === null) return $this->fail('Działanie nie istnieje.', 404);
+        if ($prev !== $status) {
+            ActionsJournal::log($id, 'status', 'Status: ' . ActionsService::statusLabel($prev) . ' → ' . ActionsService::statusLabel($status) . '.');
+        }
+        return ['ok' => true, 'action' => ActionsService::one($id), 'journal' => ActionsService::journal($id),
                 'message' => 'Status zmieniony na „' . ActionsService::statusLabel($status) . '”.'];
     }
 
@@ -172,7 +184,10 @@ final class ActionsController
         $id = (int)$id;
         if (!action_by_id($id)) return $this->fail('Działanie nie istnieje.', 404);
         $changes = ActionsService::setIndicatorValues($id, (array)($_POST['real'] ?? []));
-        return ['ok' => true, 'action' => ActionsService::one($id), 'changed' => count($changes),
+        foreach ($changes as $c) {
+            ActionsJournal::log($id, 'indicator', 'Wykonanie wskaźnika „' . $c['nazwa'] . '”: ' . $this->n($c['from']) . ' → ' . $this->n($c['to']) . '.');
+        }
+        return ['ok' => true, 'action' => ActionsService::one($id), 'changed' => count($changes), 'journal' => ActionsService::journal($id),
                 'message' => $changes ? 'Zapisano wykonanie wskaźników (' . count($changes) . ').' : 'Bez zmian we wskaźnikach.'];
     }
 
@@ -183,6 +198,51 @@ final class ActionsController
         if (!$newId) return $this->notFound();
         flash_set('success', 'Utworzono kopię działania — uzupełnij nazwę i terminy.');
         return Router::redirect(ActionsService::url($newId . '/edycja'));
+    }
+
+    /** POST /dzialania/{id}/etapy (JSON) — nowy etap: title, due, owner. */
+    public function milestoneAdd($id): array
+    {
+        $id = (int)$id;
+        if (!action_by_id($id)) return $this->fail('Działanie nie istnieje.', 404);
+        $due = trim((string)($_POST['due'] ?? ''));
+        $err = ActionsJournal::addMilestone($id, (string)($_POST['title'] ?? ''), $due !== '' ? $due : null, (int)($_POST['owner'] ?? 0) ?: null);
+        return $err ? $this->fail($err) : $this->journalResponse($id, 'Dodano etap.');
+    }
+
+    /** POST /dzialania/{id}/etapy/{ms}/przelacz (JSON) — odhaczenie / ponowne otwarcie etapu. */
+    public function milestoneToggle($id, $ms): array
+    {
+        $err = ActionsJournal::toggleMilestone((int)$id, (int)$ms);
+        return $err ? $this->fail($err, 404) : $this->journalResponse((int)$id, 'Zapisano etap.');
+    }
+
+    /** POST /dzialania/{id}/etapy/{ms}/usun (JSON) */
+    public function milestoneDelete($id, $ms): array
+    {
+        $err = ActionsJournal::deleteMilestone((int)$id, (int)$ms);
+        return $err ? $this->fail($err, 404) : $this->journalResponse((int)$id, 'Usunięto etap.');
+    }
+
+    /** POST /dzialania/{id}/komentarz (JSON) — komentarz zespołu w historii działania. */
+    public function comment($id): array
+    {
+        $id = (int)$id;
+        if (!action_by_id($id)) return $this->fail('Działanie nie istnieje.', 404);
+        $text = trim((string)($_POST['text'] ?? ''));
+        if ($text === '') return $this->fail('Wpisz treść komentarza.');
+        ActionsJournal::log($id, 'comment', $text);
+        return $this->journalResponse($id, 'Dodano komentarz.');
+    }
+
+    private function journalResponse(int $id, string $message): array
+    {
+        return ['ok' => true, 'message' => $message, 'journal' => ActionsService::journal($id), 'action' => ActionsService::one($id)];
+    }
+
+    private function n(float $v): string
+    {
+        return rtrim(rtrim(number_format($v, 2, ',', ' '), '0'), ',');
     }
 
     /** GET /dzialania/kalendarz.json — zdarzenia FullCalendar (zastępuje strategy/actions/calendar.php). */

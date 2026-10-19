@@ -2,7 +2,7 @@
 /**
  * modules/strategy_actions/view/_panel.php — panel szczegółów działania (z prawej) na ekranie listy.
  * Część komponentu dzApp() z index.php: dane z GET /dzialania/{id}/panel, szybka zmiana statusu,
- * wpisywanie wykonania wskaźników, duplikowanie. Esc lub tło zamyka; fokus wraca na element wywołujący.
+ * wpisywanie wykonania wskaźników, etapy i historia (_journal.php), duplikowanie. Esc lub tło zamyka; fokus wraca na element wywołujący.
  */
 ?>
 <div class="dz-overlay" x-show="panel.open" x-cloak @click="closePanel()" aria-hidden="true"></div>
@@ -53,6 +53,8 @@
           </template>
           <button type="submit" class="dz-btn dz-btn--sm mt-2" :disabled="panel.saving"><i class="bi bi-check-lg" aria-hidden="true"></i>Zapisz wykonanie</button>
         </form>
+
+        <?php $jTag = 'h3'; $jClass = ''; include __DIR__ . '/_journal.php'; ?>
       </div>
     </template>
   </div>

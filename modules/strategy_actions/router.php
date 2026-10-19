@@ -7,6 +7,7 @@
  *   POST /dzialania/{id}/status — zmiana statusu (JSON, przeciąganie na tablicy);
  *   /dzialania/{id}/panel      — szczegóły do panelu bocznego (JSON); POST …/wskazniki — wykonanie wskaźników (JSON);
  *   POST /dzialania/{id}/duplikuj — kopia działania i przejście do jej edycji;
+ *   POST /dzialania/{id}/etapy[/{ms}/przelacz|/{ms}/usun], …/komentarz — etapy i historia (JSON);
  *   /dzialania/nowe            — nowe działanie (?grant_id= wstępnie wybiera grant);
  *   /dzialania/{id}            — karta działania (finansowanie, wskaźniki, uczestnicy CRM);
  *   /dzialania/{id}/edycja     — edycja; POST …/usun — usunięcie (admin albo autor);
@@ -59,6 +60,10 @@ $r->group(['role:admin,editor'], function (Router $r) {
     $r->get('/{id}/panel',              [ActionsController::class, 'panel'])->name('dz.panel');
     $r->post('/{id}/wskazniki',         [ActionsController::class, 'indicators'])->name('dz.indicators');
     $r->post('/{id}/duplikuj',          [ActionsController::class, 'duplicate'])->name('dz.duplicate');
+    $r->post('/{id}/etapy',             [ActionsController::class, 'milestoneAdd'])->name('dz.ms.add');
+    $r->post('/{id}/etapy/{ms}/przelacz', [ActionsController::class, 'milestoneToggle'])->name('dz.ms.toggle');
+    $r->post('/{id}/etapy/{ms}/usun',   [ActionsController::class, 'milestoneDelete'])->name('dz.ms.delete');
+    $r->post('/{id}/komentarz',         [ActionsController::class, 'comment'])->name('dz.comment');
     $r->post('/{id}/uczestnicy',        [ActionsController::class, 'participantAdd'])->name('dz.crm.add');
     $r->post('/{id}/uczestnicy/usun',   [ActionsController::class, 'participantRemove'])->name('dz.crm.remove');
 }, '/dzialania');

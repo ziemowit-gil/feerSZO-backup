@@ -1,8 +1,8 @@
 <?php
 /**
  * modules/strategy_actions/view/show.php — karta działania (Metro): szczegóły, harmonogram, finansowanie,
- * wskaźniki, uczestnicy CRM. Zmienne: $a (ActionsService::find), $v (kształt ekranu z flagami), $crmOn,
- * $participants, $candidates, $canDelete.
+ * wskaźniki, etapy i historia, uczestnicy CRM. Zmienne: $a (ActionsService::find), $v (kształt ekranu z flagami),
+ * $crmOn, $participants, $candidates, $canDelete, $journal, $users.
  */
 $navActive = '';
 $id    = (int)$a['id'];
@@ -124,6 +124,10 @@ include __DIR__ . '/_head.php';
       <dt>Cykliczne</dt><dd><?= $a['cykliczne'] ? 'tak' . (!empty($a['czestotliwosc']) ? ' — ' . h(mb_strtolower(ActionsService::FREQS[$a['czestotliwosc']] ?? $a['czestotliwosc'])) : '') : 'nie' ?></dd>
     </dl>
     <p class="dz-muted small mt-2">Dodano <?= h(date_pl($a['created_at'])) ?> · zmieniono <?= h(date_pl($a['updated_at'])) ?></p>
+    <div x-data="dzShow()">
+      <?php $jTag = 'h2'; $jClass = 'dz-head'; include __DIR__ . '/_journal.php'; ?>
+      <div class="dz-toast" role="status" aria-live="polite"><span x-show="msg" x-text="msg"></span></div>
+    </div>
   </aside>
 </div>
 
@@ -186,4 +190,18 @@ include __DIR__ . '/_head.php';
   </div>
 </section>
 <?php endif; ?>
+<?php include __DIR__ . '/_journalScript.php'; ?>
+<script>
+function dzShow() {
+  return {
+    ...dzJournalMixin(<?= json_encode(['base' => ActionsService::url(), 'csrf' => Router::csrfToken(), 'today' => date('Y-m-d'),
+                                      'users' => array_map(fn($u) => ['id' => (int)$u['id'], 'name' => (string)$u['name']], $users)],
+                                     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>),
+    j: <?= json_encode($journal, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    jid() { return <?= $id ?>; },
+    msg: '',
+    say(t) { this.msg = ''; this.$nextTick(() => { this.msg = t; }); clearTimeout(this._t); this._t = setTimeout(() => this.msg = '', 5000); },
+  };
+}
+</script>
 <?php include __DIR__ . '/_foot.php'; ?>

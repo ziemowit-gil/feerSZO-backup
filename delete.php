@@ -30,6 +30,8 @@ $CONFIG = [
             ['action_grants',     'action_id'],
             ['action_indicators', 'action_id'],
             ['crm_action_links',  'action_id'],
+            ['action_milestones', 'action_id'],
+            ['action_log',        'action_id'],
         ],
     ],
     'persons' => [

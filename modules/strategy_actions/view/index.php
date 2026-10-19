@@ -15,6 +15,7 @@ $dzData = [
     'base'     => ActionsService::url(),
     'today'    => date('Y-m-d'),
     'csrf'     => Router::csrfToken(),
+    'users'    => array_map(fn($u) => ['id' => (int)$u['id'], 'name' => (string)$u['name']], $users),
 ];
 include __DIR__ . '/_head.php';
 ?>
@@ -144,6 +145,9 @@ include __DIR__ . '/_head.php';
                 <a class="nm" :href="url(a.id)" x-text="a.nazwa" @click="openAction(a.id, $event)"></a>
                 <span x-show="a.wlasne" class="dz-chip" title="Działanie własne — finansowane ze środków organizacji"><i class="bi bi-star-fill" aria-hidden="true"></i> własne</span>
                 <div><template x-for="fl in flagsOf(a)" :key="fl.key"><span class="dz-flag" :class="fl.key" x-text="fl.label"></span></template></div>
+                <div class="dz-muted small" x-show="a.ms.total">
+                  <i class="bi bi-flag" aria-hidden="true"></i> etapy <span x-text="a.ms.done + '/' + a.ms.total"></span><template x-if="a.ms.next"><span x-text="' · następny: ' + a.ms.next.title + (a.ms.next.due ? ' (' + date(a.ms.next.due) + ')' : '')"></span></template>
+                </div>
               </td>
               <td class="text-nowrap"><i class="bi" :class="typeIcon(a.typ)" aria-hidden="true"></i> <span x-text="typeLabel(a.typ)"></span></td>
               <td x-text="a.koordynator || '—'"></td>
@@ -248,6 +252,7 @@ include __DIR__ . '/_head.php';
   </section>
 </div>
 
+<?php include __DIR__ . '/_journalScript.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script>
 window.DZ = <?= json_encode($dzData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
@@ -258,6 +263,8 @@ function dzApp() {
   const emptyF = () => ({q: '', status: '', typ: '', koord: '', grant: '', cel: '', od: '', do: '', flag: ''});
   const statusOrder = Object.keys(D.statuses);
   return {
+    ...dzJournalMixin({base: D.base, csrf: D.csrf, users: D.users, today: D.today}),
+    jid() { return this.panel.id; },
     all: D.actions,
     view: 'lista',
     views: [{key: 'lista', label: 'Lista'}, {key: 'tablica', label: 'Tablica'}, {key: 'os', label: 'Oś czasu'}, {key: 'kalendarz', label: 'Kalendarz'}],
@@ -267,6 +274,7 @@ function dzApp() {
       {key: 'overdue', label: 'Po terminie', hint: 'minęła data, wciąż w toku', color: '#c25100'},
       {key: 'ending', label: 'Kończą się', hint: 'w ciągu 14 dni', color: '#a86b00'},
       {key: 'behind', label: 'Wskaźniki < 50%', hint: 'wykonanie poniżej połowy planu', color: '#0050ef'},
+      {key: 'msOverdue', label: 'Zaległe etapy', hint: 'minął termin etapu', color: '#6a00ff'},
     ],
     statusKeys: statusOrder,
     dragId: null, dragOver: '',
@@ -311,7 +319,10 @@ function dzApp() {
       const prev = a.status;
       a.status = st;
       const res = await this.post(this.url(a.id, 'status'), {status: st});
-      if (res && res.ok) { this.replace(res.action); this.say(res.message); }
+      if (res && res.ok) {
+        this.replace(res.action); this.say(res.message);
+        if (res.journal && this.panel.open && this.panel.id === a.id) this.j = res.journal;
+      }
       else { a.status = prev; this.say((res && res.error) || 'Nie udało się zmienić statusu.'); }
     },
     async post(url, data) {
@@ -391,7 +402,7 @@ function dzApp() {
     },
 
     flagsOf(a) {
-      const L = {noGrant: 'Bez finansowania', overdue: 'Po terminie', ending: 'Kończy się ≤ 14 dni', behind: 'Wskaźniki < 50%'};
+      const L = {noGrant: 'Bez finansowania', overdue: 'Po terminie', ending: 'Kończy się ≤ 14 dni', behind: 'Wskaźniki < 50%', msOverdue: 'Zaległy etap'};
       return Object.keys(L).filter(k => a.flags && a.flags[k]).map(k => ({key: k, label: L[k]}));
     },
     url(id, sub) { return D.base + '/' + id + (sub ? '/' + sub : ''); },
@@ -452,6 +463,8 @@ function dzApp() {
         if (this.panel.id !== id) return;
         if (!j.ok) throw new Error(j.error || 'Błąd');
         this.p = j;
+        this.j = j.journal || {milestones: [], log: []};
+        this.msNew = {title: '', due: '', owner: ''}; this.comment = '';
         this.replace(j.action);
       } catch (e) { this.panel.error = 'Nie udało się wczytać działania. ' + (e.message || ''); }
       this.panel.loading = false;
@@ -472,7 +485,7 @@ function dzApp() {
       this.panel.saving = true;
       const res = await this.post(this.url(this.panel.id, 'wskazniki'), data);
       this.panel.saving = false;
-      if (res && res.ok) { this.replace(res.action); this.p.action = res.action; }
+      if (res && res.ok) { this.replace(res.action); this.p.action = res.action; if (res.journal) this.j = res.journal; }
       this.say((res && (res.message || res.error)) || 'Nie udało się zapisać wskaźników.');
     },
   };
