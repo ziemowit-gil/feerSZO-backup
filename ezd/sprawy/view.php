@@ -1464,6 +1464,9 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
 
 <!-- ══ Prawa kolumna ═══════════════════════════════════════════════════════════ -->
 <aside class="xl:tw-col-span-4 tw-min-w-0 tw-grid tw-grid-cols-1 tw-gap-4" aria-label="Obieg, metadane i historia koszulki">
+  <?php /* Zadania z modułu Zadania powiązane z koszulką (inne niż dekretacje z zakładki ZADANIA) */
+        require_once dirname(dirname(__DIR__)) . '/tasks/includes/linked_tasks_box.php';
+        echo tasksLinksBox('ezd_sprawa', (string)$id, (int)$user_id, 'bs', '', 'Zadania (moduł Zadania)'); ?>
 
   <?php if(!$mini): ?>
   <!-- Obieg sprawy -->

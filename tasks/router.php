@@ -9,7 +9,8 @@
  *   /sla                  — SLA i eskalacje (liderzy obszarów); POST /sla/zasady, POST /sla/sprawdz
  *   /obciazenie           — obciążenie zespołu (lider: wykonawcy jego obszarów, inni: własne); /obciazenie.csv
  *   /reguly               — reguły automatyzacji obszaru (liderzy); POST /reguly, /reguly/{id}/przelacz, /reguly/{id}/usun
- *   /nowe                 — formularz „Nowe zadanie” (?comm=ID&src=crm|ezd — z wiadomości e-mail); POST /nowe
+ *   /nowe                 — formularz „Nowe zadanie” (?comm=ID&src=crm|ezd — z e-maila; ?link=typ:ref&back= — z karty rekordu)
+ *   /powiazania           — POST: powiązanie zadania z rekordem po wklejonym adresie; /powiazania/usun — POST
  *   /skrzynka-obszaru     — e-maile na skrzynkę obszaru → zadania (liderzy); POST zapisuje
  * Dostęp: zalogowani z włączonym modułem Zadań; uprawnienia per obszar sprawdza logika.
  */
@@ -25,6 +26,7 @@ require_once __DIR__ . '/logic/WorkloadController.php';
 require_once __DIR__ . '/logic/RulesController.php';
 require_once __DIR__ . '/logic/NewTaskController.php';
 require_once __DIR__ . '/logic/MailIntakeController.php';
+require_once __DIR__ . '/logic/LinksController.php';
 
 $r = new Router('/tasks/router.php');
 $r->aliasMiddleware('tasks', function () {
@@ -52,6 +54,8 @@ $r->group(['tasks'], function (Router $r) {
     $r->post('/nowe', [NewTaskController::class, 'store'])->name('new.store');
     $r->get('/skrzynka-obszaru', [MailIntakeController::class, 'index'])->name('intake.index');
     $r->post('/skrzynka-obszaru', [MailIntakeController::class, 'save'])->name('intake.save');
+    $r->post('/powiazania', [LinksController::class, 'add'])->name('links.add');
+    $r->post('/powiazania/usun', [LinksController::class, 'remove'])->name('links.remove');
 });
 
 $r->dispatch();

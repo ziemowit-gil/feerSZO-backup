@@ -255,6 +255,20 @@ $ev_defs = [
       ? '<span class="td-hi-val" title="' . h($e['to_value']) . '">💬 ' . h(mb_substr($e['to_value'],0,50)) . (mb_strlen($e['to_value'])>50?'…':'') . '</span>'
       : '',
   ],
+  'linked' => [
+    'icon'        => 'bi-link-45deg',
+    'bg'          => '#e0f2fe', 'color' => '#0f6fa8',
+    'badge_bg'    => '#f0f9ff', 'badge_color' => '#0f6fa8',
+    'label'       => 'Powiązano',
+    'desc'        => fn($e) => $e['to_value'] ? '<span class="td-hi-val">' . h($e['to_value']) . '</span>' : '',
+  ],
+  'unlinked' => [
+    'icon'        => 'bi-link-45deg',
+    'bg'          => '#f1f5f9', 'color' => '#64748b',
+    'badge_bg'    => '#f8fafc', 'badge_color' => '#64748b',
+    'label'       => 'Usunięto powiązanie',
+    'desc'        => fn($e) => $e['from_value'] ? '<span class="td-hi-from">' . h($e['from_value']) . '</span>' : '',
+  ],
   'mail_source' => [
     'icon'        => 'bi-envelope-paper',
     'bg'          => '#e0f2fe', 'color' => '#0f6fa8',

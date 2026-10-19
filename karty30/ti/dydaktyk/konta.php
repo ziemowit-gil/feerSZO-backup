@@ -1648,6 +1648,10 @@ function printBulk(){
         <?php endif; ?>
       </section>
 
+      <?php // Zadania (moduł Zadania) powiązane z uczestnikiem — tylko z obszarów, do których kadra ma dostęp w SZO
+        require_once dirname(__DIR__, 3) . '/tasks/includes/linked_tasks_box.php';
+        echo tasksLinksBox('ti_client', (string)(int)$sa['client_id'], $uid, 'kk', APP_URL . '/karty30/ti/dydaktyk/konta.php?selected=' . (int)$sa['id']); ?>
+
       <section class="kk-sec kk-sec-danger" aria-labelledby="kk-h-usun">
         <h3 id="kk-h-usun"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i>Usuwanie konta</h3>
         <div class="kk-row">

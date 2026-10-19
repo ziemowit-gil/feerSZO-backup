@@ -2135,6 +2135,15 @@ $case_status_cfg = [
           <span class="cv-count"><?= count($contact['notes']) ?></span>
         </button>
       </li>
+      <?php if (module_enabled('tasks_enabled')): ?>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="cv-tab-tasks-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-tasks" type="button" role="tab"
+                aria-controls="cv-tab-tasks" aria-selected="false">
+          <i class="bi bi-kanban" aria-hidden="true"></i>Zadania
+        </button>
+      </li>
+      <?php endif; ?>
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="cv-tab-engage-btn" data-bs-toggle="tab"
                 data-bs-target="#cv-tab-engage" type="button" role="tab"
@@ -2299,6 +2308,13 @@ $case_status_cfg = [
           <?= _cv_notes_html($contact, $id, $crm_can_write, $crm_can_delete) ?>
         </div></div>
       </div>
+
+      <?php if (module_enabled('tasks_enabled')): ?>
+      <div class="tab-pane fade" id="cv-tab-tasks" role="tabpanel" aria-labelledby="cv-tab-tasks-btn" tabindex="0">
+        <?php require_once dirname(dirname(__DIR__)) . '/tasks/includes/linked_tasks_box.php';
+              echo tasksLinksBox('crm_contact', (string)$id, (int)current_user()['id'], 'bs', APP_URL . '/crm/contact/view.php?id=' . (int)$id); ?>
+      </div>
+      <?php endif; ?>
 
       <?php include dirname(__DIR__) . '/includes/cv/tab_cases.php'; ?>
       <?php include dirname(__DIR__) . '/includes/cv/tab_offers.php'; ?>

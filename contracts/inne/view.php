@@ -557,4 +557,8 @@ $_letters = get_contract_letters($TYPE, $id);
 </div>
 <?php endif; ?>
 
+<?php // Zadania (moduł Zadania) powiązane z umową
+  require_once dirname(dirname(__DIR__)) . '/tasks/includes/linked_tasks_box.php';
+  $_tlb = tasksLinksBox('contract', 'inne:' . (int)$id, (int)(current_user()['id'] ?? 0));
+  if ($_tlb !== '') echo '<div class="container-xl my-4">' . $_tlb . '</div>'; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

@@ -876,4 +876,8 @@ window.CVTabsConfig = {
 </script>
 <script src="<?= APP_URL ?>/assets/js/contract-view-tabs.js?v=<?= @filemtime(dirname(dirname(__DIR__)) . '/assets/js/contract-view-tabs.js') ?: date('Ymd') ?>" defer></script>
 
+<?php // Zadania (moduł Zadania) powiązane z umową
+  require_once dirname(dirname(__DIR__)) . '/tasks/includes/linked_tasks_box.php';
+  $_tlb = tasksLinksBox('contract', 'uslugi:' . (int)$id, (int)(current_user()['id'] ?? 0));
+  if ($_tlb !== '') echo '<div class="container-xl my-4">' . $_tlb . '</div>'; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
