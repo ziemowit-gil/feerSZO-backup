@@ -29,6 +29,21 @@ function seedersRegistry(): array
                 ['id' => 'clean', 'label' => 'Usuń konta',  'kind' => 'danger', 'use' => ['domain'], 'script' => 'cleanup_test_accounts.php'],
             ],
         ],
+        'wol_zmiana_danych' => [
+            'group' => 'Konta testowe', 'title' => 'Wolontariusze do scenariuszy „Zmiana danych” (3 konta)', 'script' => 'seedWolontariuszeZmianaDanych.php',
+            'desc'  => 'wol1 — komplet danych (zmiana adresu od razu, rachunku z akceptacją i kodem SMS), wol2 — osoba bez adresu i rachunku (kod e-mailem), wol3 — umowa bez rekordu Osoby (pierwsza zmiana go zakłada). Idempotentne.',
+            'fields'  => [
+                'haslo'   => ['label' => 'Hasło kont', 'type' => 'password', 'opt' => '--haslo', 'help' => 'nie jest nigdzie zapisywane poza kontami'],
+                'email'   => ['label' => 'Twoja skrzynka (opcjonalnie)', 'type' => 'email', 'opt' => '--email', 'help' => 'konta dostaną adresy +wol1/+wol2/+wol3 i kody przyjdą do Ciebie; puste = @feer.test (bez poczty); nie @feer.org.pl'],
+                'telefon' => ['label' => 'Telefon dla wol1 (48…)', 'type' => 'text', 'opt' => '--telefon', 'help' => 'opcjonalnie — kod SMS przy zmianie rachunku'],
+            ],
+            'actions' => [
+                ['id' => 'prev',    'label' => 'Podgląd',          'kind' => 'preview', 'use' => ['email', 'telefon']],
+                ['id' => 'seed',    'label' => 'Załóż konta',      'kind' => 'apply',   'args' => ['--apply'], 'use' => ['haslo', 'email', 'telefon'], 'req' => ['haslo']],
+                ['id' => 'delprev', 'label' => 'Do usunięcia (podgląd)', 'kind' => 'preview', 'args' => ['--delete'], 'use' => ['email']],
+                ['id' => 'delete',  'label' => 'Usuń konta',       'kind' => 'danger',  'args' => ['--delete', '--apply'], 'use' => ['email']],
+            ],
+        ],
         'rola_metro' => [
             'group' => 'Konta testowe', 'title' => 'Użytkownik rolaMetroTest', 'script' => 'seedRolaMetroTest.php',
             'desc'  => 'Jedno konto lokalne w wybranej roli — do oglądania widoków Metro tak, jak widzi je dana rola.',
