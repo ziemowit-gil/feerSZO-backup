@@ -136,6 +136,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <a href="<?= APP_URL ?>/karty30/schedules/add.php?client_id=<?= $id ?>" class="btn btn-primary btn-sm"><i class="bi bi-calendar-plus me-1"></i>Nowy termin</a>
     <a href="<?= APP_URL ?>/karty30/consultations/add.php?client_id=<?= $id ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-clipboard2-plus me-1"></i>Nowa konsultacja</a>
     <a href="card_print.php?id=<?= $id ?>" target="_blank" class="btn btn-outline-dark btn-sm"><i class="bi bi-printer me-1"></i>Drukuj kartę</a>
+    <a href="card_print.php?id=<?= $id ?>&amp;styl=formularz" target="_blank" class="btn btn-outline-dark btn-sm"><i class="bi bi-file-earmark-text me-1"></i>Drukuj kartę (formularz)</a>
     <?php
     $in_queue = db_one("SELECT id FROM k30_waiting_list WHERE client_id=? AND status IN ('waiting','contacted')", [$id]);
     if ($in_queue): ?>

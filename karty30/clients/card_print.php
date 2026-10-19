@@ -71,6 +71,9 @@ $status_labels = [
     'completed' => 'Ukończono', 'graduated' => 'Absolwent', 'resigned' => 'Zrezygnował',
 ];
 $day_labels = ['mon'=>'Pn','tue'=>'Wt','wed'=>'Śr','thu'=>'Cz','fri'=>'Pt','sat'=>'So','sun'=>'Nd'];
+// Wariant w układzie formularza urzędowego (jak upoważnienia RODO): ?styl=formularz
+if (($_GET['styl'] ?? '') === 'formularz') { require __DIR__ . '/card_print_form.php'; exit; }
+$_form_url = '?' . http_build_query(array_filter(['id' => $is_kursant_mode ? null : $client_id, 'kursant' => $is_kursant_mode ? 1 : null, 'styl' => 'formularz']));
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -181,6 +184,7 @@ html,body{margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;font-size:1
 <div class="print-toolbar" aria-hidden="true">
   <span class="tb-title">Karta Beneficjenta — <?= h($client['name']) ?></span>
   <button onclick="window.print()">&#128438; Drukuj / Zapisz PDF</button>
+  <a href="<?= h($_form_url) ?>">Wariant: formularz</a>
   <?php if ($is_kursant_mode): ?>
   <a href="index.php?tab=dane">&#8592; Wróć do panelu</a>
   <?php else: ?>
@@ -280,7 +284,7 @@ html,body{margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;font-size:1
         <?php foreach ($courses as $c): ?>
         <tr>
           <td style="font-weight:600"><?= h($c['course_name']) ?></td>
-          <td><?= isset($day_labels[$c['day_of_week']]) ? $day_labels[$c['day_of_week']] : '—' ?>
+          <td><?= $day_labels[(string)($c['day_of_week'] ?? '')] ?? '—' ?>
               <?= ($c['time_from'] && $c['time_to']) ? h(substr($c['time_from'],0,5)).'–'.h(substr($c['time_to'],0,5)) : '' ?></td>
           <td><?= $c['instructor_name'] ? h($c['instructor_name']) : '—' ?></td>
           <td><span class="k-badge <?= ($c['status']??'')=='active'?'active':'inactive' ?>"><?= h($c['status'] ?? '—') ?></span></td>
