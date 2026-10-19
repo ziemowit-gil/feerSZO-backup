@@ -1,0 +1,44 @@
+<?php
+/**
+ * modules/zlecenie_oswiadczenie/view/staffShow.php — karta pakietu oświadczeń dla pracownika: odpowiedzi, dokumenty, link.
+ * Wymaga: $osw, $contract (null — jeszcze bez umowy), $docs, $a.
+ */
+$PAGE_TITLE = 'Oświadczenia zleceniobiorcy';
+include dirname(__DIR__, 3) . '/includes/header.php';
+$_oswO = $osw; $_oswDocs = $docs; $_oswBack = '';
+$_link = $osw['token'] && (!$osw['token_expires'] || $osw['token_expires'] >= date('Y-m-d H:i:s')) ? route('osw.t.home', ['token' => $osw['token']]) : '';
+[$_sl, $_sc] = OswService::summaryStatus($osw, $docs);
+?>
+<nav aria-label="Ścieżka" class="small mb-2"><a href="<?= h(route('osw.index')) ?>">Oświadczenia zleceniobiorców</a> › <?= h($a['nazwisko_imiona'] ?? $osw['invite_name'] ?? '') ?></nav>
+<h1 class="h4"><?= h($a['nazwisko_imiona'] ?? $osw['invite_name'] ?? 'Oświadczenia') ?> <span class="badge text-bg-<?= h($_sc) ?> align-middle"><?= h($_sl) ?></span></h1>
+<?= flash_html() ?>
+<p class="small">
+  <?php if ($contract): ?>Umowa: <a href="<?= h(rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php?id=' . (int)$contract['id'] . '&tab=oswiadczenie') ?>"><?= h($contract['numer_umowy']) ?></a>
+    (<?= h($contract['status']) ?>)<?= $osw['draft_created'] ? ' — projekt utworzony z oświadczeń' : '' ?>.
+  <?php else: ?>Bez umowy — po złożeniu oświadczeń powstanie projekt umowy zlecenia.<?php endif; ?>
+  <?php if ($osw['submitted_at']): ?> Złożono <?= h(date('d.m.Y H:i', (int)strtotime((string)$osw['submitted_at']))) ?><?= $osw['submitted_ip'] ? ', IP ' . h($osw['submitted_ip']) : '' ?>.<?php endif; ?>
+</p>
+
+<div class="card border-0 shadow-sm mb-3"><div class="card-header bg-transparent fw-semibold">Dokumenty</div>
+  <div class="card-body"><?php include __DIR__ . '/_staffDocs.php'; ?></div></div>
+
+<?php if ($_link): ?>
+<div class="card border-0 shadow-sm mb-3"><div class="card-body small">
+  <div class="input-group input-group-sm">
+    <label class="input-group-text" for="osw-link">Link zleceniobiorcy</label>
+    <input class="form-control font-monospace" id="osw-link" value="<?= h($_link) ?>" readonly>
+    <button class="btn btn-outline-primary" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('osw-link').value);this.textContent='Skopiowano'">Kopiuj</button>
+  </div>
+  <div class="text-body-secondary mt-1">Ważny do <?= h(date('d.m.Y', (int)strtotime((string)$osw['token_expires']))) ?>.</div>
+</div></div>
+<?php endif; ?>
+
+<div class="card border-0 shadow-sm mb-3"><div class="card-header bg-transparent fw-semibold">Odpowiedzi z kreatora<?= $osw['status'] === 'roboczy' ? ' (szkic, krok ' . (int)$osw['step'] . '/6)' : '' ?></div>
+  <div class="card-body">
+  <?php foreach (OswForm::summary($a) as $_s => $_rows): ?>
+    <h2 class="h6 mt-2"><?= $_s ?>. <?= h(OswForm::STEPS[$_s][1]) ?></h2>
+    <dl class="row small mb-2"><?php foreach ($_rows as [$_l, $_v]): ?><dt class="col-sm-5 fw-normal text-body-secondary"><?= h($_l) ?></dt><dd class="col-sm-7 mb-1"><?= h($_v !== '' ? $_v : '—') ?></dd><?php endforeach; ?></dl>
+  <?php endforeach; ?>
+  <?php if ($osw['status'] !== 'roboczy'): ?><p class="small text-body-secondary mb-0">Podpowiedź ZUS: <?= h(OswForm::zusHint($a)) ?></p><?php endif; ?>
+  </div></div>
+<?php include dirname(__DIR__, 3) . '/includes/footer.php'; ?>
