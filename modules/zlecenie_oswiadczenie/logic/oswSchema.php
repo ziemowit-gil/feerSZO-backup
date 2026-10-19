@@ -55,4 +55,37 @@ function oswMigrate(): void
         updated_at    DATETIME,
         UNIQUE(osw_id, kind)
     )");
+    // Publiczny kreator: źródło pakietu i powiązanie z kontem oświadczeń (po potwierdzeniu z e-maila)
+    foreach (['source' => "TEXT NOT NULL DEFAULT 'invite'", 'account_id' => 'INTEGER', 'account_confirmed_at' => 'DATETIME',
+              'account_mail_at' => 'DATETIME'] as $col => $def) {
+        try { db()->exec("ALTER TABLE zlec_osw ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
+    }
+    db()->exec("CREATE TABLE IF NOT EXISTS zlec_osw_accounts (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        email             TEXT NOT NULL UNIQUE,
+        first_name        TEXT,
+        last_name         TEXT,
+        phone             TEXT,
+        pesel             TEXT,
+        birth_date        DATE,
+        address           TEXT,
+        password_hash     TEXT,
+        token_hash        TEXT,
+        token_purpose     TEXT,
+        token_osw_id      INTEGER,
+        token_expires_at  DATETIME,
+        email_verified_at DATETIME,
+        failed_logins     INTEGER NOT NULL DEFAULT 0,
+        locked_until      DATETIME,
+        last_login_at     DATETIME,
+        created_at        DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at        DATETIME
+    )");
+    db()->exec("CREATE TABLE IF NOT EXISTS zlec_osw_hits (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip_hash TEXT NOT NULL,
+        action  TEXT NOT NULL,
+        at      DATETIME NOT NULL
+    )");
+    db()->exec("CREATE INDEX IF NOT EXISTS idx_zlec_osw_hits ON zlec_osw_hits(action, ip_hash, at)");
 }

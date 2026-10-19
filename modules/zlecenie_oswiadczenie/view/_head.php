@@ -2,7 +2,7 @@
 /**
  * modules/zlecenie_oswiadczenie/view/_head.php — wspólny początek stron zleceniobiorcy (panel i link z tokenem):
  * samodzielny układ bez menu SZO, czytelny na telefonie, kontrast WCAG AA, widoczny fokus.
- * Wymaga: $title; opcjonalnie $back (adres powrotu do panelu), $flash ([typ, treść]).
+ * Wymaga: $title; opcjonalnie $back (adres powrotu), $backLabel, $flash ([typ, treść]).
  */
 $_oswOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''));
 ?><!doctype html>
@@ -37,7 +37,7 @@ h2{font-size:1.2rem;margin:0 0 12px}
 label,.lbl{display:block;font-weight:600;margin-bottom:4px}
 .req{color:#b91c1c}
 .hint{display:block;font-size:.88rem;color:#475569;margin:2px 0 6px}
-input[type=text],input[type=date],input[type=email],select{width:100%;max-width:100%;padding:10px 12px;border:1px solid #64748b;border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:#0f172a}
+input[type=text],input[type=date],input[type=email],input[type=password],select{width:100%;max-width:100%;padding:10px 12px;border:1px solid #64748b;border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:#0f172a}
 input[aria-invalid=true],select[aria-invalid=true]{border:2px solid #b91c1c}
 .err{display:block;color:#b91c1c;font-weight:600;font-size:.92rem;margin-top:4px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
@@ -75,7 +75,7 @@ dl.sum dd{margin:0;font-weight:600;overflow-wrap:anywhere}
 <a class="skip" href="#tresc">Przejdź do treści</a>
 <header class="top"><div class="top-in">
   <span><?= h($_oswOrg) ?></span>
-  <?php if (!empty($back)): ?><a href="<?= h($back) ?>">← Wróć do panelu</a><?php endif; ?>
+  <?php if (!empty($back)): ?><a href="<?= h($back) ?>"><?= h($backLabel ?? '← Wróć do panelu') ?></a><?php endif; ?>
 </div></header>
 <main class="wrap" id="tresc">
 <?php if (!empty($flash)): [$_ft, $_fm] = $flash; ?>

@@ -6,10 +6,13 @@ declare(strict_types=1);
  *
  * Tryby wejścia zleceniobiorcy (te same ekrany kreatora):
  *   'panel' — /umowa/{id}/…  — zalogowany zleceniobiorca swojej umowy (viewer_owns_contract; pracownik z dostępem do umowy też);
- *   'token' — /t/{token}/…   — link wygenerowany przez pracownika (także dla osoby jeszcze bez umowy).
+ *   'token' — /t/{token}/…   — link wygenerowany przez pracownika albo z publicznego kreatora (/publiczne);
+ *             po przypięciu pakietu do konta oświadczeń link przestaje działać (wejście tylko po zalogowaniu);
+ *   'account' — /konto/osw/{id}/… — zalogowane konto oświadczeń (OswAccount), wyłącznie własne pakiety.
  * Pracownik (admin/editor): lista, link dla nowej osoby, karta pakietu, weryfikacja skanów, pobieranie wydruków i skanów.
  */
 require_once __DIR__ . '/OswService.php';
+require_once __DIR__ . '/OswAccount.php';
 require_once dirname(__DIR__) . '/lib/OswiadczenieDocx.php';
 require_once dirname(__DIR__) . '/lib/OswiadczeniePdf.php';
 
@@ -26,9 +29,20 @@ final class OswController
     {
         if ($this->mode === 'token') {
             $o = OswService::byToken((string)$key);
-            if (!$o) $this->fail(404, 'Link do oświadczeń jest nieprawidłowy albo wygasł. Poproś Fundację o nowy link.');
+            if (!$o) $this->fail(404, 'Link do oświadczeń jest nieprawidłowy albo wygasł. Poproś Fundację o nowy link albo wypełnij oświadczenie ponownie.');
+            if (!empty($o['account_confirmed_at'])) {
+                $this->fail(403, 'To oświadczenie jest już na Twoim koncie — zaloguj się, aby je zobaczyć: ' . OswAccount::url('/konto/logowanie'));
+            }
             $base = route('osw.t.home', ['token' => (string)$key]);
             return ['osw' => $o, 'contract' => OswService::contract((int)$o['contract_id']), 'base' => $base, 'back' => null];
+        }
+        if ($this->mode === 'account') {
+            $acc = OswAccount::current();
+            if (!$acc) { header('Location: ' . OswAccount::url('/konto/logowanie'), true, 303); exit; }
+            $o = OswService::byId((int)$key);
+            if (!$o || (int)$o['account_id'] !== (int)$acc['id'] || empty($o['account_confirmed_at'])) $this->fail(404, 'Nie znaleziono oświadczenia na Twoim koncie.');
+            return ['osw' => $o, 'contract' => OswService::contract((int)$o['contract_id']), 'base' => route('osw.a.home', ['oid' => (int)$o['id']]),
+                    'back' => OswAccount::url('/konto'), 'backLabel' => '← Moje oświadczenia'];
         }
         $c = OswService::contract((int)$key);
         if (!$c || !viewer_owns_contract('zlecenie', $c)) $this->fail(403, 'Brak dostępu do tej umowy.');
@@ -43,7 +57,7 @@ final class OswController
         exit;
     }
 
-    private function uid(): int { return $this->mode === 'token' ? 0 : (int)(current_user()['id'] ?? 0); }
+    private function uid(): int { return in_array($this->mode, ['token', 'account'], true) ? 0 : (int)(current_user()['id'] ?? 0); }
 
     private function ip(): string { return (string)($_SERVER['REMOTE_ADDR'] ?? ''); }
 
@@ -55,7 +69,7 @@ final class OswController
         if ($x['osw']['status'] === 'roboczy') return Router::redirect($x['base'] . '/krok/' . max(1, (int)$x['osw']['step']));
         return Router::view(self::VIEW . 'done.php', $x + [
             'docs' => OswService::docs((int)$x['osw']['id']), 'a' => OswService::answers($x['osw']),
-            'flash' => $this->takeFlash(),
+            'flash' => $this->takeFlash(), 'mode' => $this->mode,
         ]);
     }
 
@@ -75,7 +89,7 @@ final class OswController
         auth_start();   // link z tokenem: sesja (błędy kroku, CSRF) nie musi być jeszcze uruchomiona
         $errors = $_SESSION['_osw_err'][$x['osw']['id']] ?? [];
         unset($_SESSION['_osw_err'][$x['osw']['id']]);
-        return Router::view(self::VIEW . 'wizard.php', $x + ['n' => $n, 'a' => $a, 'errors' => $errors, 'flash' => $this->takeFlash()]);
+        return Router::view(self::VIEW . 'wizard.php', $x + ['n' => $n, 'a' => $a, 'errors' => $errors, 'flash' => $this->takeFlash(), 'mode' => $this->mode]);
     }
 
     public function saveStep(string|int $key, int $n): ?string
@@ -131,12 +145,108 @@ final class OswController
         $docs = OswService::docs((int)$x['osw']['id']);
         if (!isset($docs[$kind])) return Router::redirect($x['base']);
         try {
+            if ($this->mode !== 'panel' && !OswAccount::hit('upload', $this->ip())) throw new RuntimeException('Zbyt wiele przesłanych plików z tego adresu. Spróbuj ponownie za godzinę.');
             OswService::storeScan($docs[$kind], $_FILES['skan'] ?? [], $this->ip(), $this->uid(), (int)$x['osw']['contract_id']);
-            $this->flash('success', 'Dziękujemy — skan „' . OswService::KINDS[$kind][0] . '” został przesłany. Fundacja go sprawdzi.');
+            $msg = 'Dziękujemy — skan „' . OswService::KINDS[$kind][0] . '” został przesłany. Fundacja go sprawdzi.';
+            if ($this->mode === 'token' && ($mail = OswAccount::onScanUploaded((array)OswService::byId((int)$x['osw']['id'])))) {
+                $msg .= ' Na adres ' . $mail . ' wysłaliśmy link do Twojego konta — ustaw hasło, aby w każdej chwili sprawdzić status i ponownie wydrukować oświadczenie.';
+            }
+            $this->flash('success', $msg);
         } catch (\Throwable $e) {
             $this->flash('danger', $e->getMessage());
         }
         return Router::redirect($x['base'] . '#dok-' . $kind);
+    }
+
+    /** Ponowne wysłanie linku do konta (publiczny kreator, po przesłaniu skanu; najwyżej co 10 minut). */
+    public function resendAccount(string|int $key): ?string
+    {
+        $x = $this->ctx($key);
+        $mail = OswAccount::onScanUploaded($x['osw']);
+        $this->flash($mail ? 'success' : 'warning', $mail ? 'Link do konta wysłaliśmy na adres ' . $mail . '. Sprawdź też folder SPAM.' : 'Najpierw prześlij skan podpisanego oświadczenia.');
+        return Router::redirect($x['base']);
+    }
+
+    // ── Publiczny kreator i konto oświadczeń ─────────────────────────────────
+
+    public function publicStart(): string
+    {
+        auth_start();
+        $resume = (string)($_SESSION['_osw_public'] ?? '');
+        $o = $resume !== '' ? OswService::byToken($resume) : null;
+        return Router::view(self::VIEW . 'public.php', ['title' => 'Oświadczenia zleceniobiorcy', 'resume' => $o && empty($o['account_confirmed_at']) ? route('osw.t.home', ['token' => $resume]) : null,
+                                                        'flash' => $this->takeFlash(), 'back' => null]);
+    }
+
+    public function publicCreate(): ?string
+    {
+        if (trim((string)($_POST['website'] ?? '')) !== '') return Router::redirect(route('osw.public'));   // pułapka na boty
+        if (!OswAccount::hit('start', $this->ip())) {
+            $this->flash('danger', 'Z tego adresu rozpoczęto już wiele oświadczeń. Spróbuj ponownie później albo skontaktuj się z Fundacją.');
+            return Router::redirect(route('osw.public'));
+        }
+        $o = OswService::startPublic($this->ip());
+        $_SESSION['_osw_public'] = $o['token'];
+        return Router::redirect(route('osw.t.step', ['token' => $o['token'], 'n' => 1]));
+    }
+
+    public function accountHome(): ?string
+    {
+        $acc = OswAccount::current();
+        if (!$acc) return Router::redirect(OswAccount::url('/konto/logowanie'));
+        return Router::view(self::VIEW . 'account.php', ['title' => 'Moje oświadczenia', 'acc' => $acc, 'rows' => OswAccount::pakiety((int)$acc['id']),
+                                                         'flash' => $this->takeFlash(), 'back' => null]);
+    }
+
+    public function loginForm(): ?string
+    {
+        if (OswAccount::current()) return Router::redirect(OswAccount::url('/konto'));
+        return Router::view(self::VIEW . 'accountAuth.php', ['title' => 'Logowanie — oświadczenia', 'screen' => 'login', 'flash' => $this->takeFlash(), 'back' => null]);
+    }
+
+    public function login(): ?string
+    {
+        $err = OswAccount::login((string)($_POST['email'] ?? ''), (string)($_POST['password'] ?? ''), $this->ip());
+        if ($err !== '') { $this->flash('danger', $err); return Router::redirect(OswAccount::url('/konto/logowanie')); }
+        return Router::redirect(OswAccount::url('/konto'));
+    }
+
+    public function logout(): ?string
+    {
+        OswAccount::logout();
+        $this->flash('info', 'Wylogowano.');
+        return Router::redirect(OswAccount::url('/konto/logowanie'));
+    }
+
+    public function confirmForm(): string
+    {
+        $t = (string)($_GET['t'] ?? '');
+        $acc = OswAccount::byToken($t);
+        return Router::view(self::VIEW . 'accountAuth.php', ['title' => 'Konto z oświadczeniem', 'screen' => 'confirm', 'token' => $t, 'acc' => $acc,
+                                                             'flash' => $this->takeFlash(), 'back' => null]);
+    }
+
+    public function confirm(): ?string
+    {
+        $t = (string)($_POST['t'] ?? '');
+        $acc = OswAccount::byToken($t);
+        $err = OswAccount::confirm($t, (string)($_POST['password'] ?? ''), (string)($_POST['password2'] ?? ''));
+        if ($err !== '') { $this->flash('danger', $err); return Router::redirect(OswAccount::url('/konto/potwierdz', ['t' => $t])); }
+        if (OswAccount::current()) { $this->flash('success', 'Gotowe — to Twoje konto z oświadczeniami.'); return Router::redirect(OswAccount::url('/konto')); }
+        $this->flash('success', 'Oświadczenie dodano do Twojego konta' . ($acc ? ' (' . $acc['email'] . ')' : '') . '. Zaloguj się.');
+        return Router::redirect(OswAccount::url('/konto/logowanie'));
+    }
+
+    public function resetForm(): string
+    {
+        return Router::view(self::VIEW . 'accountAuth.php', ['title' => 'Nie pamiętam hasła', 'screen' => 'reset', 'flash' => $this->takeFlash(), 'back' => null]);
+    }
+
+    public function reset(): ?string
+    {
+        OswAccount::requestReset((string)($_POST['email'] ?? ''), $this->ip());
+        $this->flash('info', 'Jeśli konto z tym adresem istnieje, wysłaliśmy na nie link do ustawienia nowego hasła (ważny 2 godziny).');
+        return Router::redirect(OswAccount::url('/konto/logowanie'));
     }
 
     // ── Pracownik ─────────────────────────────────────────────────────────────
@@ -173,8 +283,10 @@ final class OswController
         if (!$o) $this->fail(404, 'Nie znaleziono oświadczeń.');
         $c = OswService::contract((int)$o['contract_id']);
         if ($c && !viewer_owns_contract('zlecenie', $c)) $this->fail(403, 'Brak dostępu do tej umowy.');
-        return Router::view(self::VIEW . 'staffShow.php', ['osw' => $o, 'contract' => $c, 'docs' => OswService::docs($id),
-                                                           'a' => OswService::answers($o)]);
+        $a = OswService::answers($o);
+        return Router::view(self::VIEW . 'staffShow.php', ['osw' => $o, 'contract' => $c, 'docs' => OswService::docs($id), 'a' => $a,
+                                                           'account' => $o['account_id'] ? OswAccount::get((int)$o['account_id']) : null,
+                                                           'candidates' => $c ? [] : OswService::contractCandidates($a)]);
     }
 
     public function verify(int $docId): ?string
@@ -190,6 +302,41 @@ final class OswController
         return Router::redirect($back === 'umowa' && $c
             ? rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php?id=' . (int)$c['id'] . '&tab=oswiadczenie'
             : route('osw.show', ['id' => (int)$o['id']]));
+    }
+
+    /** Pracownik: powiąż pakiet z umową (id z listy kandydatów albo numer umowy). */
+    public function staffLink(int $id): ?string
+    {
+        $o = OswService::byId($id);
+        if (!$o) $this->fail(404, 'Nie znaleziono oświadczeń.');
+        try {
+            $cid = (int)($_POST['contract_id'] ?? 0);
+            $nr = trim((string)($_POST['numer'] ?? ''));
+            if (!$cid && $nr !== '') $cid = (int)(db_one("SELECT id FROM umowy_zlecenie WHERE numer_umowy = ? OR nr_rejestru = ? ORDER BY id DESC LIMIT 1", [$nr, $nr])['id'] ?? 0);
+            $c = OswService::contract($cid);
+            if (!$c) throw new RuntimeException('Nie znaleziono umowy zlecenia' . ($nr !== '' ? ' o numerze ' . $nr : '') . '.');
+            if (!viewer_owns_contract('zlecenie', $c)) throw new RuntimeException('Brak dostępu do tej umowy.');
+            OswService::linkContract($o, $cid, $this->uid());
+            flash_set('success', 'Oświadczenia powiązano z umową ' . $c['numer_umowy'] . '.');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        return Router::redirect(route('osw.show', ['id' => $id]));
+    }
+
+    /** Pracownik: utwórz projekt umowy zlecenia z oświadczeń. */
+    public function staffProject(int $id): ?string
+    {
+        $o = OswService::byId($id);
+        if (!$o) $this->fail(404, 'Nie znaleziono oświadczeń.');
+        try {
+            $cid = OswService::createProject($o, $this->uid());
+            flash_set('success', 'Utworzono projekt umowy zlecenia z danych oświadczeń.');
+            return Router::redirect(rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php?id=' . $cid . '&tab=oswiadczenie');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+            return Router::redirect(route('osw.show', ['id' => $id]));
+        }
     }
 
     public function scan(int $docId): ?string
@@ -211,7 +358,8 @@ final class OswController
     public function staffPrint(int $docId, string $fmt): ?string
     {
         [$doc, $o, $c] = $this->staffDoc($docId);
-        $base = $o['token'] ? route('osw.t.home', ['token' => $o['token']]) : ($c ? route('osw.p.home', ['cid' => (int)$c['id']]) : '');
+        $base = !empty($o['account_confirmed_at']) ? OswAccount::url('/konto/logowanie')
+              : ($o['token'] ? route('osw.t.home', ['token' => $o['token']]) : ($c ? route('osw.p.home', ['cid' => (int)$c['id']]) : ''));
         return $this->streamPrint($o, $c, $doc, $fmt, $base, false);
     }
 

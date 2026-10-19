@@ -13,6 +13,9 @@ $_view = rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php';
 <p class="text-body-secondary small">Oświadczenie dla celów podatkowych i ubezpieczenia ZUS oraz oświadczenie o numerze rachunku bankowego (ZLB), wypełniane online przez zleceniobiorcę.
   Link dla nowej osoby (bez umowy): po złożeniu oświadczeń system utworzy z tych danych <strong>projekt umowy zlecenia</strong>.</p>
 <?= flash_html() ?>
+<p class="small">Publiczny kreator (bez logowania, do udostępnienia na stronie lub w ogłoszeniu):
+  <a href="<?= h(route('osw.public')) ?>" target="_blank" rel="noopener"><?= h(route('osw.public')) ?></a>.
+  Po przesłaniu skanu osoba dostaje konto z dostępem tylko do swoich oświadczeń; z umową wiążesz je w szczegółach.</p>
 
 <?php if ($newLink): ?>
 <div class="alert alert-success" role="status">
@@ -49,8 +52,8 @@ $_view = rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php';
   <?php foreach ($rows as $_r): [$_sl, $_sc] = OswService::summaryStatus($_r, $_r['_docs']);
         $_a = OswService::answers($_r); $_who = $_r['imie_nazwisko'] ?: ($_r['invite_name'] ?: ($_a['nazwisko_imiona'] ?? '—')); ?>
     <tr>
-      <td><?= h($_who) ?></td>
-      <td><?= $_r['contract_id'] ? '<a href="' . h($_view . '?id=' . (int)$_r['contract_id'] . '&tab=oswiadczenie') . '">' . h($_r['numer_umowy']) . '</a>' . ($_r['umowa_status'] === 'projekt' ? ' <span class="badge text-bg-light border">projekt</span>' : '') : '<span class="text-body-secondary">— po złożeniu powstanie projekt</span>' ?></td>
+      <td><?= h($_who) ?><?= ($_r['source'] ?? '') === 'public' ? ' <span class="badge text-bg-light border">publiczny</span>' : '' ?></td>
+      <td><?= $_r['contract_id'] ? '<a href="' . h($_view . '?id=' . (int)$_r['contract_id'] . '&tab=oswiadczenie') . '">' . h($_r['numer_umowy']) . '</a>' . ($_r['umowa_status'] === 'projekt' ? ' <span class="badge text-bg-light border">projekt</span>' : '') : '<span class="text-body-secondary">' . (($_r['source'] ?? '') === 'public' ? '— do powiązania' : '— po złożeniu powstanie projekt') . '</span>' ?></td>
       <td><span class="badge text-bg-<?= h($_sc) ?>"><?= h($_sl) ?></span></td>
       <?php foreach (['zus', 'zlb'] as $_k): $_d = $_r['_docs'][$_k] ?? null; ?>
       <td><?php if ($_d): [$_dl, $_dc] = OswService::DOC_STATUS[$_d['status']]; ?><span class="badge text-bg-<?= h($_dc) ?>"><?= h($_dl) ?></span><?php else: ?>—<?php endif; ?></td>

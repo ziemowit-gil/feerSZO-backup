@@ -1,7 +1,7 @@
 <?php
 /**
  * modules/zlecenie_oswiadczenie/view/staffShow.php — karta pakietu oświadczeń dla pracownika: odpowiedzi, dokumenty, link.
- * Wymaga: $osw, $contract (null — jeszcze bez umowy), $docs, $a.
+ * Wymaga: $osw, $contract (null — jeszcze bez umowy), $docs, $a, $account (konto oświadczeń albo null), $candidates (umowy do powiązania).
  */
 $PAGE_TITLE = 'Oświadczenia zleceniobiorcy';
 include dirname(__DIR__, 3) . '/includes/header.php';
@@ -15,14 +15,42 @@ $_link = $osw['token'] && (!$osw['token_expires'] || $osw['token_expires'] >= da
 <p class="small">
   <?php if ($contract): ?>Umowa: <a href="<?= h(rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php?id=' . (int)$contract['id'] . '&tab=oswiadczenie') ?>"><?= h($contract['numer_umowy']) ?></a>
     (<?= h($contract['status']) ?>)<?= $osw['draft_created'] ? ' — projekt utworzony z oświadczeń' : '' ?>.
+  <?php elseif (($osw['source'] ?? '') === 'public'): ?>Z publicznego kreatora — jeszcze bez umowy.
   <?php else: ?>Bez umowy — po złożeniu oświadczeń powstanie projekt umowy zlecenia.<?php endif; ?>
   <?php if ($osw['submitted_at']): ?> Złożono <?= h(date('d.m.Y H:i', (int)strtotime((string)$osw['submitted_at']))) ?><?= $osw['submitted_ip'] ? ', IP ' . h($osw['submitted_ip']) : '' ?>.<?php endif; ?>
 </p>
 
+<?php if ($account): ?>
+<p class="small">Konto oświadczeń: <strong><?= h($account['email']) ?></strong> —
+  <?= $osw['account_confirmed_at'] ? 'potwierdzone ' . h(date('d.m.Y H:i', (int)strtotime((string)$osw['account_confirmed_at']))) . (empty($account['password_hash']) ? '' : ', hasło ustawione') : 'link wysłany ' . h(date('d.m.Y H:i', (int)strtotime((string)$osw['account_mail_at']))) . ', czeka na kliknięcie' ?>.</p>
+<?php endif; ?>
+
+<?php if (!$contract && $osw['status'] === 'zlozony' && can_edit()): ?>
+<div class="card border-0 shadow-sm mb-3"><div class="card-header bg-transparent fw-semibold">Umowa zlecenia</div>
+  <div class="card-body small">
+    <form method="post" action="<?= h(route('osw.staffLink', ['id' => (int)$osw['id']])) ?>" class="row g-2 align-items-end mb-2">
+      <?= Router::csrfField() ?>
+      <?php if ($candidates): ?>
+      <div class="col-sm-6"><label class="form-label small" for="osw-c">Umowy tej osoby (PESEL / imię i nazwisko)</label>
+        <select class="form-select form-select-sm" id="osw-c" name="contract_id"><option value="">— wybierz —</option>
+        <?php foreach ($candidates as $_c): ?><option value="<?= (int)$_c['id'] ?>"><?= h($_c['numer_umowy'] . ' · ' . $_c['imie_nazwisko'] . ' · ' . $_c['status']) ?></option><?php endforeach; ?></select></div>
+      <?php endif; ?>
+      <div class="col-sm-4"><label class="form-label small" for="osw-nr"><?= $candidates ? 'albo numer umowy' : 'Numer umowy zlecenia' ?></label>
+        <input class="form-control form-control-sm" id="osw-nr" name="numer" placeholder="np. ZLE/0012/2026"></div>
+      <div class="col-sm-2"><button class="btn btn-sm btn-primary w-100">Powiąż</button></div>
+    </form>
+    <form method="post" action="<?= h(route('osw.staffProject', ['id' => (int)$osw['id']])) ?>">
+      <?= Router::csrfField() ?>
+      <button class="btn btn-sm btn-outline-primary">Utwórz projekt umowy zlecenia z tych danych</button>
+      <span class="text-body-secondary ms-1">status „projekt”, dane osoby, adres, urząd skarbowy, rachunek</span>
+    </form>
+  </div></div>
+<?php endif; ?>
+
 <div class="card border-0 shadow-sm mb-3"><div class="card-header bg-transparent fw-semibold">Dokumenty</div>
   <div class="card-body"><?php include __DIR__ . '/_staffDocs.php'; ?></div></div>
 
-<?php if ($_link): ?>
+<?php if ($_link && empty($osw['account_confirmed_at'])): ?>
 <div class="card border-0 shadow-sm mb-3"><div class="card-body small">
   <div class="input-group input-group-sm">
     <label class="input-group-text" for="osw-link">Link zleceniobiorcy</label>

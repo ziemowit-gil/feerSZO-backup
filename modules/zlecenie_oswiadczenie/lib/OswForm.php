@@ -39,7 +39,7 @@ final class OswForm
         return match ($step) {
             1 => ['nazwisko_imiona' => 'Nazwisko i imiona', 'data_urodzenia' => 'Data urodzenia', 'obywatelstwo' => 'Obywatelstwo',
                   'pesel' => 'PESEL', 'dokument' => 'Rodzaj i numer dokumentu tożsamości', 'plec' => 'Formy w oświadczeniu',
-                  'kod_zawodu' => 'Kod zawodu'],
+                  'kod_zawodu' => 'Kod zawodu', 'email' => 'Adres e-mail', 'telefon' => 'Telefon'],
             2 => ['adr_kraj' => 'Kraj', 'adr_miejscowosc' => 'Miejscowość', 'adr_kod' => 'Kod pocztowy', 'adr_ulica' => 'Ulica',
                   'adr_nr_domu' => 'Nr domu', 'adr_nr_mieszkania' => 'Nr mieszkania', 'adr_wojewodztwo' => 'Województwo',
                   'adr_powiat' => 'Powiat', 'adr_gmina' => 'Gmina', 'urzad_skarbowy' => 'Urząd skarbowy'],
@@ -74,6 +74,8 @@ final class OswForm
         if (isset($out['nrb']))     $out['nrb'] = strtoupper(preg_replace('/[\s-]/', '', $out['nrb']));
         if (isset($out['adr_kod'])) $out['adr_kod'] = preg_replace('/^(\d{2})(\d{3})$/', '$1-$2', $out['adr_kod']);
         if (isset($out['kod_zawodu'])) $out['kod_zawodu'] = preg_replace('/\s/', '', $out['kod_zawodu']);
+        if (isset($out['email']))   $out['email'] = mb_strtolower($out['email']);
+        if (isset($out['telefon'])) $out['telefon'] = self::phoneNorm($out['telefon']);
         if (!empty($out['brak_pesel'])) $out['pesel'] = '';
         if ($step === 3 && ($out['zatrudniony'] ?? '') !== 'tak') $out['wynagrodzenie_min'] = '';
         if ($step === 3 && empty($out['inny_tytul'])) $out['inny_tytul_opis'] = '';
@@ -104,6 +106,14 @@ final class OswForm
                 }
                 if (!in_array($a['plec'] ?? '', ['k', 'm', 'obie'], true)) $e['plec'] = 'Wybierz formy, w jakich oświadczenie ma być wypełnione.';
                 if (($a['kod_zawodu'] ?? '') !== '' && !preg_match('/^\d{6}$/', (string)$a['kod_zawodu'])) $e['kod_zawodu'] = 'Kod zawodu ma 6 cyfr (klasyfikacja zawodów i specjalności). Jeśli go nie znasz, zostaw puste.';
+                // Publiczny kreator: na e-mail wyślemy link do konta, telefon — do kontaktu w sprawie umowy
+                $need = !empty($a['_need_contact']);
+                $em = (string)($a['email'] ?? '');
+                if ($em === '' && $need) $e['email'] = 'Wpisz adres e-mail — wyślemy na niego link do Twojego konta z oświadczeniem.';
+                elseif ($em !== '' && (!filter_var($em, FILTER_VALIDATE_EMAIL) || mb_strlen($em) > 190)) $e['email'] = 'Sprawdź adres e-mail, np. jan.kowalski@example.com.';
+                $tel = (string)($a['telefon'] ?? '');
+                if ($tel === '' && $need) $e['telefon'] = 'Wpisz numer telefonu.';
+                elseif ($tel !== '' && !preg_match('/^\+\d{8,15}$/', $tel)) $e['telefon'] = 'Numer telefonu: 9 cyfr albo numer z prefiksem kraju, np. +48 600 100 200.';
                 break;
             case 2:
                 $req('adr_kraj', 'Wpisz kraj.');
@@ -229,6 +239,16 @@ final class OswForm
         return strlen($p) === 11 && ctype_digit($p) ? ((int)$p[9] % 2 === 0 ? 'k' : 'm') : '';
     }
 
+    /** Telefon do postaci +48600100200 (9 cyfr bez prefiksu = Polska). '' gdy puste. */
+    public static function phoneNorm(string $t): string
+    {
+        $d = preg_replace('/[^\d+]/', '', $t) ?? '';
+        if ($d === '') return '';
+        if (str_starts_with($d, '00')) $d = '+' . substr($d, 2);
+        if (!str_starts_with($d, '+')) $d = strlen($d) === 9 ? '+48' . $d : '+' . $d;
+        return '+' . preg_replace('/\D/', '', $d);
+    }
+
     /** „Kowalska Anna Maria” → „Anna Maria Kowalska” (wzór ZUS pyta o „Nazwisko i imiona”, ZLB o „imię i nazwisko”). */
     public static function nameFirst(string $n): string
     {
@@ -259,7 +279,8 @@ final class OswForm
             1 => [['Nazwisko i imiona', $a['nazwisko_imiona'] ?? ''], ['Data urodzenia', self::pl((string)($a['data_urodzenia'] ?? ''))],
                   ['Obywatelstwo', $a['obywatelstwo'] ?? ''],
                   !empty($a['brak_pesel']) ? ['PESEL', 'nie posiadam — ' . ($a['dokument'] ?? '')] : ['PESEL', $a['pesel'] ?? ''],
-                  ['Kod zawodu', ($a['kod_zawodu'] ?? '') ?: '— (uzupełni Fundacja)'], ['Formy w oświadczeniu', $plec]],
+                  ['Kod zawodu', ($a['kod_zawodu'] ?? '') ?: '— (uzupełni Fundacja)'], ['Formy w oświadczeniu', $plec],
+                  ['E-mail', ($a['email'] ?? '') ?: '—'], ['Telefon', ($a['telefon'] ?? '') ?: '—']],
             2 => [['Adres zamieszkania dla celów podatkowych', self::addressLine($a)],
                   ['Województwo / powiat / gmina', trim(($a['adr_wojewodztwo'] ?? '') . ' / ' . ($a['adr_powiat'] ?? '') . ' / ' . ($a['adr_gmina'] ?? ''))],
                   ['Urząd skarbowy', $a['urzad_skarbowy'] ?? '']],

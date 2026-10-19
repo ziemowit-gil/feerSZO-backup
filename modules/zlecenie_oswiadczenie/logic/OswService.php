@@ -10,7 +10,9 @@ declare(strict_types=1);
  * Status dokumentu: wypelnione → wydrukowane (pobranie wydruku) → skan (zleceniobiorca przesłał podpisany skan)
  *   → zweryfikowane | odrzucone (pracownik; po odrzuceniu można przesłać skan ponownie).
  * Dostęp zleceniobiorcy: zalogowany w panelu (viewer_owns_contract) albo link z tokenem wygenerowany przez pracownika.
- * Pakiet bez umowy (contract_id = 0, link „dla nowej osoby”) po złożeniu tworzy projekt umowy zlecenia (status „projekt”).
+ * Pakiet bez umowy z linku pracownika (source 'invite') po złożeniu tworzy projekt umowy zlecenia (status „projekt”).
+ * Publiczny kreator (source 'public', startPublic()) NIE tworzy umowy — po przesłaniu skanu powstaje konto oświadczeń
+ * (OswAccount), a pracownik wiąże pakiet z umową (linkContract) albo tworzy z niego projekt (createProject).
  * Po weryfikacji skanu: plik trafia do dokumentów umowy (contract_extra_docs); ZLB ustawia rachunek bankowy umowy,
  * ZUS uzupełnia PUSTE pola umowy (PESEL, adres, urząd skarbowy). Nic nie wysyła e-maili ani SMS-ów.
  */
@@ -97,7 +99,8 @@ final class OswService
         self::init();
         $rows = db_all("SELECT o.*, z.numer_umowy, z.imie_nazwisko, z.status AS umowa_status
                           FROM zlec_osw o LEFT JOIN umowy_zlecenie z ON z.id = o.contract_id
-                         WHERE o.is_current = 1 ORDER BY COALESCE(o.updated_at, o.created_at) DESC LIMIT " . (int)$limit);
+                         WHERE o.is_current = 1 AND NOT (o.source = 'public' AND o.status = 'roboczy' AND o.step <= 1)
+                         ORDER BY COALESCE(o.updated_at, o.created_at) DESC LIMIT " . (int)$limit);
         foreach ($rows as &$r) $r['_docs'] = self::docs((int)$r['id']);
         return $rows;
     }
@@ -157,6 +160,16 @@ final class OswService
         return (array)self::byId((int)$o['id']);
     }
 
+    /** Publiczny kreator: nowy pakiet bez umowy (limit prób z IP sprawdza kontroler). */
+    public static function startPublic(string $ip): array
+    {
+        self::init();
+        $id = db_insert('zlec_osw', ['contract_id' => 0, 'source' => 'public',
+            'answers' => json_encode(['_need_contact' => 1, 'obywatelstwo' => 'polskie', 'adr_kraj' => 'Polska'], JSON_UNESCAPED_UNICODE),
+            'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'), 'submitted_ip' => $ip]);
+        return self::ensureToken((array)self::byId((int)$id));
+    }
+
     // ── Kreator ───────────────────────────────────────────────────────────────
 
     /** Zapis kroku (bez walidacji całości). Zwraca błędy kroku; zapisuje także przy błędach (szkic). */
@@ -190,10 +203,11 @@ final class OswService
         $pdo->beginTransaction();
         try {
             $cid = (int)$o['contract_id'];
-            if ($cid === 0) $cid = self::createDraftContract($a, $o, $by);
+            $draft = $cid === 0 && ($o['source'] ?? 'invite') !== 'public';
+            if ($draft) $cid = self::createDraftContract($a, $o, $by);
             $now = date('Y-m-d H:i:s');
             db_exec("UPDATE zlec_osw SET answers = ?, status = 'zlozony', contract_id = ?, submitted_at = ?, submitted_ip = ?, draft_created = draft_created OR ?, updated_at = ? WHERE id = ?",
-                [json_encode($a, JSON_UNESCAPED_UNICODE), $cid, $now, $ip, (int)$o['contract_id'] === 0 ? 1 : 0, $now, (int)$o['id']]);
+                [json_encode($a, JSON_UNESCAPED_UNICODE), $cid, $now, $ip, $draft ? 1 : 0, $now, (int)$o['id']]);
             $docs = self::docs((int)$o['id']);
             foreach (array_keys(self::KINDS) as $k) {
                 if (isset($docs[$k])) {
@@ -209,7 +223,7 @@ final class OswService
             $pdo->rollBack();
             throw $e;
         }
-        self::log($cid, $by, 'oswiadczenie_zlozone', 'Złożono w kreatorze oświadczenia ZUS/PIT i ZLB (rachunek bankowy)' . ((int)$o['contract_id'] === 0 ? ' — utworzono projekt umowy' : ''));
+        self::log($cid, $by, 'oswiadczenie_zlozone', 'Złożono w kreatorze oświadczenia ZUS/PIT i ZLB (rachunek bankowy)' . ($draft ? ' — utworzono projekt umowy' : ''));
         return ['ok' => true, 'contract_id' => $cid];
     }
 
@@ -220,6 +234,49 @@ final class OswService
         db_exec("UPDATE zlec_osw SET status = 'roboczy', step = 1, updated_at = ? WHERE id = ?", [date('Y-m-d H:i:s'), (int)$o['id']]);
         self::log((int)$o['contract_id'], $by, 'oswiadczenie_poprawa', 'Zleceniobiorca otworzył oświadczenia do poprawy');
         return true;
+    }
+
+    /** Pracownik: powiązanie pakietu (np. z publicznego kreatora) z istniejącą umową zlecenia. */
+    public static function linkContract(array $o, int $cid, int $by): void
+    {
+        $c = self::contract($cid);
+        if (!$c) throw new RuntimeException('Nie znaleziono umowy zlecenia.');
+        if ((int)$o['contract_id'] > 0 && (int)$o['contract_id'] !== $cid) throw new RuntimeException('Oświadczenia są już powiązane z inną umową.');
+        db_exec("UPDATE zlec_osw SET is_current = 0 WHERE contract_id = ? AND id <> ? AND is_current = 1", [$cid, (int)$o['id']]);
+        db_exec("UPDATE zlec_osw SET contract_id = ?, is_current = 1, updated_at = ? WHERE id = ?", [$cid, date('Y-m-d H:i:s'), (int)$o['id']]);
+        self::log($cid, $by, 'oswiadczenie_powiazane', 'Powiązano oświadczenia zleceniobiorcy (pakiet #' . (int)$o['id'] . ', ' . ($o['source'] === 'public' ? 'publiczny kreator' : 'link') . ') z umową');
+        // Dokumenty już zweryfikowane — przenieś skutki weryfikacji na umowę (skan do dokumentów, rachunek, puste pola)
+        foreach (self::docs((int)$o['id']) as $d) {
+            if ($d['status'] !== 'zweryfikowane' || $d['extra_doc_id']) continue;
+            $extra = (int)db_insert('contract_extra_docs', ['contract_type' => 'zlecenie', 'contract_id' => $cid,
+                'label' => self::KINDS[$d['kind']][0] . ($d['numer'] ? ' ' . $d['numer'] : '') . ' — podpisany skan (zweryfikowany)',
+                'stored_path' => $d['scan_path'], 'uploaded_by' => $by ?: null, 'uploaded_at' => date('Y-m-d H:i:s')]);
+            db_exec("UPDATE zlec_osw_docs SET extra_doc_id = ? WHERE id = ?", [$extra, (int)$d['id']]);
+            self::applyToContract($d['kind'], self::answers($o), $cid, ['id' => $by]);
+        }
+    }
+
+    /** Pracownik: projekt umowy zlecenia (status „projekt”) z danych złożonych oświadczeń. */
+    public static function createProject(array $o, int $by): int
+    {
+        if ((int)$o['contract_id'] > 0) throw new RuntimeException('Oświadczenia są już powiązane z umową.');
+        if ($o['status'] !== 'zlozony') throw new RuntimeException('Projekt umowy można utworzyć dopiero ze złożonych oświadczeń.');
+        $a = self::answers($o);
+        if (!empty($a['email']) && empty($o['invite_email'])) $o['invite_email'] = $a['email'];
+        $cid = self::createDraftContract($a, $o, $by);
+        db_exec("UPDATE zlec_osw SET draft_created = 1 WHERE id = ?", [(int)$o['id']]);
+        self::linkContract((array)self::byId((int)$o['id']), $cid, $by);
+        return $cid;
+    }
+
+    /** Umowy zlecenia, które mogą należeć do osoby z oświadczenia (PESEL albo imię i nazwisko). */
+    public static function contractCandidates(array $a): array
+    {
+        $pesel = (string)($a['pesel'] ?? '');
+        $name = OswForm::nameFirst((string)($a['nazwisko_imiona'] ?? ''));
+        return db_all("SELECT id, numer_umowy, imie_nazwisko, status, data_zawarcia FROM umowy_zlecenie
+                        WHERE (? <> '' AND pesel = ?) OR (? <> '' AND LOWER(imie_nazwisko) = LOWER(?)) ORDER BY id DESC LIMIT 20",
+            [$pesel, $pesel, $name, $name]);
     }
 
     private static function nextZlbNumber(): string
@@ -244,7 +301,7 @@ final class OswService
               . (($a['kod_zawodu'] ?? '') !== '' ? ' Kod zawodu: ' . $a['kod_zawodu'] . '.' : '');
         $data = [
             'numer_umowy' => next_contract_number('zlecenie'), 'status' => 'projekt', 'imie_nazwisko' => $name,
-            'pesel' => (string)($a['pesel'] ?? '') ?: null, 'email' => (string)($o['invite_email'] ?? '') ?: null,
+            'pesel' => (string)($a['pesel'] ?? '') ?: null, 'email' => (string)(($o['invite_email'] ?? '') ?: ($a['email'] ?? '')) ?: null,
             'adres' => OswForm::addressLine($a), 'addr_street' => $street, 'addr_house' => (string)($a['adr_nr_domu'] ?? ''),
             'addr_flat' => (string)($a['adr_nr_mieszkania'] ?? ''), 'addr_postal' => (string)($a['adr_kod'] ?? ''),
             'addr_city' => (string)($a['adr_miejscowosc'] ?? ''), 'addr_country' => OswForm::isPoland((string)($a['adr_kraj'] ?? '')) ? 'PL' : (string)$a['adr_kraj'],
@@ -353,6 +410,7 @@ final class OswService
     /** Status pakietu do list: najsłabszy status dokumentów. */
     public static function summaryStatus(array $o, array $docs): array
     {
+        if (($o['source'] ?? '') === 'public' && $o['status'] === 'roboczy' && (int)$o['step'] <= 1) return ['Publiczny kreator — nie rozpoczęto', 'secondary'];
         if ($o['status'] === 'roboczy') return [(int)$o['step'] > 1 ? 'W trakcie wypełniania (krok ' . (int)$o['step'] . '/6)' : 'Nie rozpoczęto', 'secondary'];
         $order = ['odrzucone', 'wypelnione', 'wydrukowane', 'skan', 'zweryfikowane'];
         $worst = 'zweryfikowane';

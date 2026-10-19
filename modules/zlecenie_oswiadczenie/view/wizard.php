@@ -83,6 +83,13 @@ $radio = function (string $k, string $legend, array $opts, string $hint = '') us
   <div data-dep="brak_pesel"><?= $text('dokument', 'Rodzaj i numer dokumentu tożsamości', false, 'Np. paszport AB1234567 — wpiszemy go w miejscu PESEL.') ?></div>
   <?= $radio('plec', 'Formy w oświadczeniu', ['k' => 'żeńskie — np. „zatrudniona”, „ukończyłam”', 'm' => 'męskie — np. „zatrudniony”, „ukończyłem”', 'obie' => 'nie skreślaj — zostaw obie formy'],
              'Wzór ma formy „zatrudniona/ny”. Na wydruku skreślimy formę, która Ciebie nie dotyczy.') ?>
+  <fieldset>
+    <legend>Dane kontaktowe</legend>
+    <div class="grid">
+      <?= $text('email', 'Adres e-mail', !empty($a['_need_contact']), !empty($a['_need_contact']) ? 'Po przesłaniu skanu wyślemy tu link do ustawienia hasła do Twojego konta z oświadczeniem.' : '', 'autocomplete="email" inputmode="email"') ?>
+      <?= $text('telefon', 'Telefon', !empty($a['_need_contact']), '', 'autocomplete="tel" inputmode="tel"') ?>
+    </div>
+  </fieldset>
   <?= $text('kod_zawodu', 'Kod zawodu', false, 'Nieobowiązkowe: 6 cyfr według klasyfikacji zawodów i specjalności. Jeśli nie znasz kodu, zostaw puste — uzupełni Fundacja.', 'inputmode="numeric" maxlength="6"') ?>
 
 <?php elseif ($n === 2): ?>
@@ -171,7 +178,7 @@ $radio = function (string $k, string $legend, array $opts, string $hint = '') us
     <?php if ($n > 1): ?><button type="submit" name="wstecz" value="1" class="btn btn-sec" formnovalidate>← Wstecz</button><?php else: ?><span></span><?php endif; ?>
     <button type="submit" class="btn"><?= $n === 6 ? 'Złóż oświadczenia' : 'Zapisz i dalej →' ?></button>
   </div>
-  <p class="small muted" style="margin:10px 0 0">Każdy krok zapisuje się od razu — możesz przerwać i wrócić później.</p>
+  <p class="small muted" style="margin:10px 0 0">Każdy krok zapisuje się od razu — możesz przerwać i wrócić później<?= ($mode ?? '') === 'token' && ($osw['source'] ?? '') === 'public' ? ' pod ten sam adres strony (zapisz go w zakładkach; nie udostępniaj go innym)' : '' ?>.</p>
 </form>
 
 <script>

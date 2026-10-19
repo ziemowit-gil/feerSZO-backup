@@ -19,6 +19,19 @@ $_anyVerified = (bool)array_filter($docs, fn($d) => $d['status'] === 'zweryfikow
   </ol>
 </div>
 
+<?php if (($mode ?? '') === 'token' && ($osw['source'] ?? '') === 'public'): ?>
+<div class="card" role="note">
+  <h2 style="font-size:1.05rem">Twoje konto</h2>
+  <?php if (empty($osw['account_mail_at'])): ?>
+  <p style="margin:0">Po przesłaniu skanu założymy Ci konto z dostępem tylko do tych oświadczeń — link do ustawienia hasła wyślemy na <strong><?= h((string)($a['email'] ?? '')) ?></strong>.
+    Do tego czasu zapisz adres tej strony, aby do niej wrócić.</p>
+  <?php else: ?>
+  <p>Link do konta wysłaliśmy na <strong><?= h((string)($a['email'] ?? '')) ?></strong>. Kliknij go i ustaw hasło — potem zalogujesz się <a href="<?= h(OswAccount::url('/konto/logowanie')) ?>">tutaj</a>. Po potwierdzeniu konta ta strona przestanie działać bez logowania.</p>
+  <form method="post" action="<?= h($base . '/konto-link') ?>"><?= Router::csrfField() ?><button type="submit" class="btn btn-sec btn-sm">Nie dotarł? Wyślij link ponownie</button></form>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <?php foreach (OswService::KINDS as $_k => [$_name, $_short]): $_d = $docs[$_k] ?? null; if (!$_d) continue;
       [$_sl, $_sc] = OswService::DOC_STATUS[$_d['status']] ?? [$_d['status'], 'secondary']; ?>
 <section class="doc card" id="dok-<?= h($_k) ?>" aria-labelledby="h-dok-<?= h($_k) ?>">
