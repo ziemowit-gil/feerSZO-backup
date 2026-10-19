@@ -2,7 +2,8 @@
 /**
  * karty30/ti/login.php — Centralny punkt logowania TI (wygląd Tożsamości: METRO UI, układ dwukolumnowy jak w iPKO).
  *
- * Krok 1: wybór roli (Kursant / Prowadzący / Rodzic / Upoważniony). Krok 2: formularz wybranej roli.
+ * Wybór roli: kafle Kursant / Prowadzący / Rodzic, pozostałe (SzK, konsultacje, upoważniony, kandydat)
+ * pod „Inne sposoby logowania”. Pod spodem formularz wybranej roli.
  * POST trafia do sub-handlerów: kursant → tozsamosc/kursant.php, dydaktyk/login.php,
  * kursant/parent_login.php, kursant/authp_login.php. Błędy wracają kodem e=N w query string.
  */
@@ -126,6 +127,27 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
   .tz-choice-badge { position: absolute; top: .6rem; right: .6rem; background: #fff; color: #1d1d1d; font-size: .75rem; font-weight: 700; padding: .1rem .45rem; }
   .tz-hint { font-size: .85rem; color: var(--pp-muted); margin-top: .75rem; }
   .pass-wrap { position: relative; } .pass-wrap .form-control { padding-right: 3rem; }
+  /* Wybór roli: trzy główne kafle + rozwijane „Inne sposoby logowania” */
+  .tz-roles { margin: 0 0 1.6rem; }
+  .tz-roles ul { list-style: none; margin: 0; padding: 0; }
+  .tz-roles-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; }
+  .tz-role { display: flex; align-items: center; gap: .8rem; height: 100%; padding: .85rem 1rem; background: #fff; border: 2px solid var(--pp-line);
+             border-top: 5px solid var(--pp-line); color: var(--pp-ink) !important; text-decoration: none; }
+  .tz-role:hover { border-color: var(--pp-blue); background: #f5f9fc; }
+  .tz-role:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
+  .tz-role[aria-current="page"] { border-color: var(--pp-blue); background: #e8f2f9; }
+  .tz-role > .bi { font-size: 1.6rem; color: var(--pp-blue); flex-shrink: 0; }
+  .tz-role-t { display: block; font-weight: 600; font-size: 1.05rem; }
+  .tz-role-d { display: block; font-size: .85rem; color: var(--pp-muted); }
+  .tz-roles-more { margin-top: .9rem; }
+  .tz-roles-more > summary { cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; color: #0b5f91; font-weight: 600; padding: .2rem 0; }
+  .tz-roles-more > summary:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
+  .tz-roles-more > summary .tz-roles-sel { color: var(--pp-muted); font-weight: 400; }
+  .tz-roles-more ul { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+  .tz-roles-more a { display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .8rem; border: 1px solid var(--pp-line); background: #fff; color: var(--pp-ink) !important; text-decoration: none; }
+  .tz-roles-more a:hover { border-color: var(--pp-blue); }
+  .tz-roles-more a:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
+  .tz-roles-more a[aria-current="page"] { border-color: var(--pp-blue); background: #e8f2f9; font-weight: 600; }
   .pass-toggle { position: absolute; right: 0; top: 0; height: 100%; width: 3rem; border: 0; background: transparent; }
 </style>
 </head>
@@ -135,22 +157,39 @@ $ppTitle = 'Panel Kursanta SSO'; $ppOrg = (string)(org_setting('org_name') ?: (d
 $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
 include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
 // Zakładki: rola (tab) + opcjonalnie funkcja (fn) — szkolenie krótkie i konsultacje logują się jak kursant, z własną podpowiedzią
+// Główne: kursant, prowadzący, rodzic (kafle); pozostałe pod „Inne sposoby logowania”. [etykieta, tab, fn, ikona, opis]
 $_ppRoles = [
-    'kursant'     => ['Kursant', 'kursant', ''],
-    'szk'         => ['Szkolenie krótkie', 'kursant', 'szk'],
-    'konsultacje' => ['Konsultacje', 'kursant', 'konsultacje'],
-    'rodzic'      => ['Rodzic / opiekun', 'rodzic', ''],
-    'up'          => ['Osoba upoważniona', 'up', ''],
-    'kandydat'    => ['Kandydat (zapisy)', 'kandydat', ''],
-    'dydaktyk'    => ['Prowadzący / kadra', 'dydaktyk', ''],
+    'kursant'     => ['Kursant', 'kursant', '', 'bi-pc-display', 'Uczestnik zajęć'],
+    'dydaktyk'    => ['Prowadzący / kadra', 'dydaktyk', '', 'bi-easel2', 'Konto Microsoft 365'],
+    'rodzic'      => ['Rodzic / opiekun', 'rodzic', '', 'bi-people', 'Opiekun kursanta'],
+];
+$_ppMore = [
+    'szk'         => ['Szkolenie krótkie', 'kursant', 'szk', 'bi-lightning-charge'],
+    'konsultacje' => ['Konsultacje', 'kursant', 'konsultacje', 'bi-clipboard2-check'],
+    'up'          => ['Osoba upoważniona', 'up', '', 'bi-person-check'],
+    'kandydat'    => ['Kandydat (zapisy)', 'kandydat', '', 'bi-person-badge'],
 ];
 $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) ? $_fn : $tab;
+$_ppUrl = fn($t, $f) => 'login.php?tab=' . $t . ($f !== '' ? '&amp;fn=' . $f : '');
 ?>
 <main id="pp-main" class="pp-wrap">
   <h1 class="pp-h1">Wybierz sposób logowania</h1>
-  <ul class="pp-tabs" aria-label="Kim jesteś">
-    <?php foreach ($_ppRoles as $_rk => [$_rl, $_rt, $_rf]): ?><li><a href="login.php?tab=<?= $_rt ?><?= $_rf !== '' ? '&amp;fn=' . $_rf : '' ?>"<?= $_ppActive === $_rk ? ' aria-current="page"' : '' ?>><?= h($_rl) ?></a></li><?php endforeach; ?>
-  </ul>
+  <nav class="tz-roles" aria-label="Kim jesteś">
+    <ul class="tz-roles-main">
+      <?php foreach ($_ppRoles as $_rk => [$_rl, $_rt, $_rf, $_ri, $_rd]): ?>
+      <li><a class="tz-role" href="<?= $_ppUrl($_rt, $_rf) ?>"<?= $_ppActive === $_rk ? ' aria-current="page"' : '' ?>>
+        <i class="bi <?= $_ri ?>" aria-hidden="true"></i><span><span class="tz-role-t"><?= h($_rl) ?></span><span class="tz-role-d"><?= h($_rd) ?></span></span></a></li>
+      <?php endforeach; ?>
+    </ul>
+    <details class="tz-roles-more"<?= isset($_ppMore[$_ppActive]) ? ' open' : '' ?>>
+      <summary>Inne sposoby logowania<?php if (isset($_ppMore[$_ppActive])): ?> <span class="tz-roles-sel">(wybrano: <?= h($_ppMore[$_ppActive][0]) ?>)</span><?php endif; ?></summary>
+      <ul>
+        <?php foreach ($_ppMore as $_rk => [$_rl, $_rt, $_rf, $_ri]): ?>
+        <li><a href="<?= $_ppUrl($_rt, $_rf) ?>"<?= $_ppActive === $_rk ? ' aria-current="page"' : '' ?>><i class="bi <?= $_ri ?>" aria-hidden="true"></i><?= h($_rl) ?></a></li>
+        <?php endforeach; ?>
+      </ul>
+    </details>
+  </nav>
   <?php if ($error): ?><div class="pp-error" role="alert" aria-live="assertive"><?= h($error) ?></div><?php endif; ?>
   <?php if (!$error && ($_GET['out'] ?? '') === '1'): ?><div class="pp-ok" role="status">Wylogowano z panelu. Aby wejść ponownie, zaloguj się przez Microsoft 365.</div><?php endif; ?>
   <div class="pp-cols">
