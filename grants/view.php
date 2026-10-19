@@ -17,7 +17,6 @@ if (!$grant) {
 
 $PAGE_TITLE = h($grant['nazwa']);
 
-$linked_actions = grant_actions_for($id);
 // Budżet grantu na działania (modules/strategy_actions — kwota przyznana kontra kwoty przypisane działaniom)
 require_once dirname(__DIR__) . '/modules/strategy_actions/logic/ActionsGrants.php';
 $budget = ActionsGrants::budget($id);
@@ -172,42 +171,62 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 <?php endif; ?>
 
-<!-- Linked actions -->
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <h5 class="mb-0"><i class="bi bi-calendar-event text-primary"></i> Powiązane działania (<?= count($linked_actions) ?>)</h5>
-  <a href="<?= APP_URL ?>/dzialania/nowe?grant_id=<?= $id ?>" class="btn btn-outline-primary btn-sm">
-    <i class="bi bi-plus-lg"></i> Dodaj działanie z tym grantem
-  </a>
+<!-- Powiązane działania (modules/strategy_actions: podpinanie, postęp, eksport) -->
+<?php $grantActions = ActionsGrants::actionsOf($id); $candidates = ActionsGrants::candidates($id); ?>
+<div id="dzialania" class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <h5 class="mb-0"><i class="bi bi-calendar-event text-primary"></i> Powiązane działania (<?= count($grantActions) ?>)</h5>
+  <div class="d-flex gap-2 flex-wrap">
+    <?php if ($grantActions): ?>
+    <a href="<?= APP_URL ?>/dzialania/granty/<?= $id ?>/eksport?format=xlsx" class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-excel"></i> Zestawienie do sprawozdania</a>
+    <a href="<?= APP_URL ?>/dzialania/granty/<?= $id ?>/eksport?format=csv" class="btn btn-outline-secondary btn-sm"><i class="bi bi-filetype-csv"></i> CSV</a>
+    <?php endif; ?>
+    <a href="<?= APP_URL ?>/dzialania/nowe?grant_id=<?= $id ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowe działanie z tym grantem</a>
+  </div>
 </div>
 
-<?php if ($linked_actions): ?>
-<div class="card shadow-sm">
+<?php if ($grantActions): ?>
+<div class="card shadow-sm mb-3">
 <div class="table-responsive">
 <table class="table table-hover table-sm align-middle mb-0">
   <thead class="table-light">
     <tr>
-      <th>Nazwa działania</th>
-      <th>Status</th>
-      <th>Okres</th>
-      <th class="text-end">Udział %</th>
-      <th class="text-end">Kwota</th>
-      <th></th>
+      <th>Nazwa działania</th><th>Status</th><th>Okres</th>
+      <th class="text-end">Udział %</th><th class="text-end">Kwota</th>
+      <th style="min-width:120px">Wskaźniki</th><th>Etapy</th><th><span class="visually-hidden">Akcje</span></th>
     </tr>
   </thead>
   <tbody>
-  <?php foreach ($linked_actions as $a):
+  <?php foreach ($grantActions as $a):
     $ast = $action_statuses[$a['status']] ?? ['label' => $a['status'], 'class' => 'secondary'];
   ?>
   <tr>
     <td>
       <a href="<?= APP_URL ?>/dzialania/<?= (int)$a['id'] ?>" class="fw-semibold text-decoration-none"><?= h($a['nazwa']) ?></a>
+      <?php if (!empty($a['flags']['outsideGrant']) && in_array($grant['nazwa'], $a['outsideOf'], true)): ?>
+      <span class="badge bg-warning text-dark ms-1" title="Termin działania wychodzi poza okres realizacji grantu">poza okresem grantu</span>
+      <?php endif; ?>
+      <?php if (!empty($a['flags']['overdue'])): ?><span class="badge bg-danger ms-1">po terminie</span><?php endif; ?>
     </td>
     <td><span class="badge bg-<?= $ast['class'] ?>"><?= h($ast['label']) ?></span></td>
-    <td class="small text-nowrap"><?= date_pl($a['data_od']) ?><?= $a['data_do'] ? ' – ' . date_pl($a['data_do']) : '' ?></td>
-    <td class="text-end small"><?= $a['udzial_procent'] !== null ? h($a['udzial_procent']) . '%' : '—' ?></td>
-    <td class="text-end small"><?= $a['ag_kwota'] !== null ? money((float)$a['ag_kwota'], $grant['waluta']) : '—' ?></td>
-    <td class="text-end">
-      <a href="<?= APP_URL ?>/dzialania/<?= (int)$a['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+    <td class="small text-nowrap"><?= date_pl($a['od']) ?><?= $a['do'] && $a['do'] !== $a['od'] ? ' – ' . date_pl($a['do']) : '' ?></td>
+    <td class="text-end small"><?= $a['grantUdzial'] !== null ? h(rtrim(rtrim(number_format($a['grantUdzial'], 2, ',', ''), '0'), ',')) . '%' : '—' ?></td>
+    <td class="text-end small"><?= $a['grantKwota'] !== null ? money((float)$a['grantKwota'], $grant['waluta']) : '—' ?></td>
+    <td>
+      <?php if ($a['pct'] !== null): ?>
+      <div class="d-flex align-items-center gap-1" title="<?= h($a['indReal'] . ' / ' . $a['indPlan']) ?>">
+        <div class="progress flex-grow-1" style="height:6px"><div class="progress-bar bg-<?= $a['pct'] >= 100 ? 'success' : ($a['pct'] >= 50 ? 'info' : 'warning') ?>" style="width:<?= (int)$a['pct'] ?>%"></div></div>
+        <small class="text-muted"><?= (int)$a['pct'] ?>%</small>
+      </div>
+      <?php else: ?><span class="text-muted small">—</span><?php endif; ?>
+    </td>
+    <td class="small"><?= $a['ms']['total'] ? (int)$a['ms']['done'] . '/' . (int)$a['ms']['total'] : '—' ?></td>
+    <td class="text-end text-nowrap">
+      <a href="<?= APP_URL ?>/dzialania/<?= (int)$a['id'] ?>" class="btn btn-sm btn-outline-secondary" aria-label="Otwórz działanie <?= h($a['nazwa']) ?>"><i class="bi bi-eye"></i></a>
+      <form method="post" action="<?= APP_URL ?>/dzialania/granty/<?= $id ?>/odepnij" class="d-inline" onsubmit="return confirm('Odpiąć to działanie od grantu? Kwota przypisana z grantu zostanie usunięta.')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="action_id" value="<?= (int)$a['id'] ?>">
+        <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Odepnij od grantu: <?= h($a['nazwa']) ?>"><i class="bi bi-link-45deg"></i><i class="bi bi-x"></i></button>
+      </form>
     </td>
   </tr>
   <?php endforeach; ?>
@@ -216,9 +235,34 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 </div>
 <?php else: ?>
-<div class="alert alert-secondary">Brak powiązanych działań.
-  <a href="<?= APP_URL ?>/dzialania/nowe?grant_id=<?= $id ?>">Dodaj pierwsze działanie</a>.
-</div>
+<div class="alert alert-secondary">Brak powiązanych działań — utwórz nowe albo podepnij istniejące poniżej.</div>
+<?php endif; ?>
+
+<?php if ($candidates): ?>
+<form method="post" action="<?= APP_URL ?>/dzialania/granty/<?= $id ?>/podepnij" class="card shadow-sm mb-3" aria-labelledby="grant-link-h">
+  <div class="card-body">
+    <h6 class="mb-2" id="grant-link-h"><i class="bi bi-link-45deg"></i> Podepnij istniejące działanie</h6>
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label small mb-1" for="gl-action">Działanie</label>
+        <select id="gl-action" name="action_id" class="form-select form-select-sm" required>
+          <option value="">— wybierz —</option>
+          <?php foreach ($candidates as $c): ?><option value="<?= (int)$c['id'] ?>"><?= h($c['nazwa']) ?><?= $c['data_od'] ? ' (' . date_pl($c['data_od']) . ')' : '' ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="gl-udzial">Udział %</label>
+        <input id="gl-udzial" name="udzial" class="form-control form-control-sm" inputmode="decimal">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="gl-kwota">Kwota (<?= h($grant['waluta']) ?>)</label>
+        <input id="gl-kwota" name="kwota" class="form-control form-control-sm" inputmode="decimal"<?= $budget && $budget['remaining'] !== null ? ' placeholder="zostaje ' . h(number_format(max(0, $budget['remaining']), 2, ',', ' ')) . '"' : '' ?>>
+      </div>
+      <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-link-45deg"></i> Podepnij</button></div>
+    </div>
+  </div>
+</form>
 <?php endif; ?>
 
 <div class="text-muted small mt-3">

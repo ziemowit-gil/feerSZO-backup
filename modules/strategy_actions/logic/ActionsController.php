@@ -306,6 +306,35 @@ final class ActionsController
         return [$rok === 'wszystkie' ? null : (in_array((int)$rok, $years, true) ? (int)$rok : (int)date('Y')), $years];
     }
 
+    /** POST /dzialania/granty/{gid}/podepnij — istniejące działanie do grantu (z karty grantu): action_id, kwota, udzial. */
+    public function grantLink($gid): ?string
+    {
+        $gid = (int)$gid;
+        $err = ActionsGrants::link($gid, (int)($_POST['action_id'] ?? 0), ActionsService::num($_POST['kwota'] ?? ''), ActionsService::num($_POST['udzial'] ?? ''));
+        flash_set($err ? 'danger' : 'success', $err ?: 'Działanie podpięte do grantu.');
+        return Router::redirect(APP_URL . '/grants/view.php?id=' . $gid . '#dzialania');
+    }
+
+    /** POST /dzialania/granty/{gid}/odepnij — action_id */
+    public function grantUnlink($gid): ?string
+    {
+        $gid = (int)$gid;
+        $err = ActionsGrants::unlink($gid, (int)($_POST['action_id'] ?? 0));
+        flash_set($err ? 'danger' : 'success', $err ?: 'Działanie odpięte od grantu.');
+        return Router::redirect(APP_URL . '/grants/view.php?id=' . $gid . '#dzialania');
+    }
+
+    /** GET /dzialania/granty/{gid}/eksport?format=csv|xlsx — działania grantu ze wskaźnikami (do sprawozdania). */
+    public function grantExport($gid): ?string
+    {
+        $ds = ActionsGrants::reportDataset((int)$gid);
+        if (!$ds) { http_response_code(404); return 'Nie znaleziono grantu.'; }
+        $name = 'grant_' . (int)$gid . '_dzialania_' . date('Y-m-d');
+        if (($_GET['format'] ?? '') === 'csv') AnalyticsExport::csv($ds, $name . '.csv');
+        else AnalyticsExport::xlsx($ds, (string)(current_user()['name'] ?? ''), $name . '.xlsx');
+        return null;
+    }
+
     /** GET /dzialania/kalendarz.json — zdarzenia FullCalendar (zastępuje strategy/actions/calendar.php). */
     public function calendarFeed(): array
     {

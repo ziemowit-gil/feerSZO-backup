@@ -14,6 +14,7 @@
  *   /dzialania/kalendarz.json  — zdarzenia kalendarza;
  *   POST /dzialania/eksport    — CSV / Excel z wybranymi kolumnami (zakres = filtry ekranu);
  *   /dzialania/raport[/eksport]?rok= — realizacja celów statutowych §6 (ekran, CSV, Excel);
+ *   POST /dzialania/granty/{gid}/podepnij|odepnij, GET …/eksport — działania na karcie grantu (grants/view.php);
  *   /dzialania/ics/{token}.ics — kalendarz do subskrypcji BEZ logowania (token osobisty, POST /ics/link wydaje/wymienia).
  * Dawne adresy strategy/actions/*.php przekierowują tutaj. Dostęp: admin i redaktor. Każdy POST — CSRF (Router).
  */
@@ -60,6 +61,9 @@ $r->group(['role:admin,editor'], function (Router $r) {
     $r->get('/raport',                  [ActionsController::class, 'report'])->name('dz.report');
     $r->get('/raport/eksport',          [ActionsController::class, 'reportExport'])->name('dz.report.export');
     $r->get('/kalendarz.json',          [ActionsController::class, 'calendarFeed'])->name('dz.calendar');
+    $r->post('/granty/{gid}/podepnij',  [ActionsController::class, 'grantLink'])->name('dz.grant.link');
+    $r->post('/granty/{gid}/odepnij',   [ActionsController::class, 'grantUnlink'])->name('dz.grant.unlink');
+    $r->get('/granty/{gid}/eksport',    [ActionsController::class, 'grantExport'])->name('dz.grant.export');
     $r->get('/nowe',                    [ActionsController::class, 'create'])->name('dz.create');
     $r->post('/nowe',                   [ActionsController::class, 'store']);
     $r->get('/{id}',                    [ActionsController::class, 'show'])->name('dz.show');
