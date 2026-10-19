@@ -547,6 +547,9 @@ if ($_sms_enabled && $cur_course) {
   #dyd-table-lekcje .lek-subst { font-size: .72rem; color: #8a5a00; margin-top: .25rem; }
   #dyd-table-lekcje .lek-subst .bi { margin-right: .3rem; }
   #dyd-table-lekcje .lek-plan { color: #5b6677; font-style: italic; }
+  /* Sekcje: status zgodny z sekcją tylko dla czytnika ekranu (nagłówek sekcji mówi to samo). */
+  #dyd-table-lekcje.dyd-lek-sekcje .badge.lek-st-expected { position: absolute !important; width: 1px !important; height: 1px !important;
+      padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
   </style>
 
   <!-- ── Widok: tabela kompaktowa ──────────────────────────────── -->
@@ -591,6 +594,9 @@ if ($_sms_enabled && $cur_course) {
                          JOIN k30_ti_sessions s ON s.id=sc.session_id
                          WHERE s.course_id=? ORDER BY c.section COLLATE NOCASE, c.position, c.id", [(int)$cur_course]) as $_pl)
             $_lek_plan[(int)$_pl['session_id']][] = (string)$_pl['title'];
+        // Status oczywisty dla sekcji (Nadchodzące = zaplanowana, Odbyte = odbyła się, Odwołane = odwołana)
+        // w widoku „Sekcje” chowamy wizualnie — znacznik zostaje tylko przy statusach nietypowych.
+        $_lek_sec_st = ['upcoming' => 'planned', 'done' => 'held', 'cancelled' => 'cancelled'];
         foreach (array_reverse($sessions) as $s): // domyślnie od najnowszych (najbliższe/ostatnie na górze)
           if ((string)$s['lesson_date'] === '') continue; // wersja robocza bez terminu — widoczna tylko w panelu „Wersje robocze”
           $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
@@ -638,7 +644,7 @@ if ($_sms_enabled && $cur_course) {
             <?php else: ?><span class="text-body-tertiary">—</span><?php endif; ?>
           </td>
           <td class="lek-c-status">
-            <span class="badge dyd-st" style="--st:<?= h($st['color']) ?>;background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>44;font-size:.68rem"><?= h($st['label']) ?></span>
+            <span class="badge dyd-st<?= ($_lek_sec_st[$_sec] ?? '') === $s['status'] ? ' lek-st-expected' : '' ?>" style="--st:<?= h($st['color']) ?>;background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>44;font-size:.68rem"><?= h($st['label']) ?></span>
             <?php
               // Odznaki dodatkowe — jako ikony w jednej linii zamiast osobnych bloków,
               // żeby wiersz nie rozciągał się na kilka linii (pełny opis w title/tooltip).
