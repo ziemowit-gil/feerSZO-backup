@@ -5,7 +5,8 @@
  * Działanie z celem statutowym §6 ma pozycję JRWA w klasie celu (action_ensure_jrwa, np. 32.001). Tu dochodzi:
  *   segregator (ezd_teczki) na bieżący rok w tej pozycji JRWA — tworzony, gdy go brak;
  *   koszulka (ezd_sprawy) powiązana z działaniem przez ref_type='action', ref_id=id działania;
- *   przypinanie istniejącej koszulki po znaku, odpinanie, liczniki pism / dokumentów / załączników / notatek.
+ *   przypinanie istniejącej koszulki po znaku, odpinanie, liczniki pism / dokumentów / załączników / notatek;
+ *   notatki w koszulkach z historii działania (status, zakończone etapy, komentarze) — mirror().
  * Terminologia UI EZD: sprawa = „koszulka”, teczka JRWA = „segregator” (rodzaj męski).
  * Dostęp do treści koszulki nadal egzekwuje EZD (ezd/sprawy/view.php) — tu tylko znak, tytuł i liczniki.
  */
@@ -109,6 +110,31 @@ final class ActionsEzd
         ezd_log(null, (int)$s['id'], null, null, $uid, 'sprawa_update', 'Powiązano z działaniem #' . $actionId);
         ActionsJournal::log($actionId, 'ezd', 'Przypięto koszulkę EZD ' . $s['znak_sprawy'] . '.', $uid);
         return null;
+    }
+
+    /**
+     * Notatka w otwartych koszulkach działania dla wybranych wpisów historii: zmiana statusu, zakończenie etapu,
+     * komentarz zespołu. Błąd EZD nigdy nie przerywa akcji w Działaniach.
+     */
+    public static function mirror(int $actionId, string $kind, string $message, int $uid): void
+    {
+        $prefix = match (true) {
+            $kind === 'status'                                                   => 'Działanie — zmiana statusu. ',
+            $kind === 'milestone' && str_starts_with($message, 'Zakończono etap') => 'Działanie — ',
+            $kind === 'comment'                                                  => 'Komentarz w działaniu: ',
+            default                                                              => null,
+        };
+        if ($prefix === null || !self::enabled()) return;
+        try {
+            self::load();
+            $open = db_all("SELECT id FROM ezd_sprawy WHERE ref_type = ? AND ref_id = ? AND status != 'closed'", [self::REF, $actionId]);
+            if (!$open) return;
+            $name = (string)(db_one("SELECT nazwa FROM actions WHERE id = ?", [$actionId])['nazwa'] ?? '');
+            $text = $prefix . $message . "\n— " . $name . ' (' . ActionsService::url((string)$actionId) . ')';
+            foreach ($open as $s) ezd_notatka_create((int)$s['id'], $text, $uid);
+        } catch (\Throwable $e) {
+            error_log('[dzialania] notatka EZD dla działania #' . $actionId . ': ' . $e->getMessage());
+        }
     }
 
     public static function detach(int $actionId, int $sprawaId, int $uid): ?string

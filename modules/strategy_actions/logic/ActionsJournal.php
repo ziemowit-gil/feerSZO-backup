@@ -26,6 +26,8 @@ final class ActionsJournal
         $userId ??= (int)(current_user()['id'] ?? 0);
         db()->prepare("INSERT INTO action_log (action_id, user_id, kind, message, created_at) VALUES (?,?,?,?,?)")
             ->execute([$actionId, $userId ?: null, isset(self::KINDS[$kind]) ? $kind : 'change', mb_substr($message, 0, 2000), date('Y-m-d H:i:s')]);
+        // Statusy, zakończone etapy i komentarze trafiają też do notatek koszulek EZD działania
+        if (class_exists('ActionsEzd', false)) ActionsEzd::mirror($actionId, $kind, $message, (int)$userId);
     }
 
     /** Historia działania od najnowszych. */
