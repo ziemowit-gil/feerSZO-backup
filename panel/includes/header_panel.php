@@ -212,6 +212,18 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 :root:not([data-theme="hc"]) { --pvl-sub:var(--tz-muted); }
 
 /* Wygląd treści (nagłówki, karty, przyciski, pola, komponenty tz-*) — pv_metro.php. */
+/* Tryb podglądu (impersonacja) — pas Metro: pełna czerwień palety, płasko, bez cieni i animacji */
+.pv-imp { display:flex; align-items:stretch; margin-bottom:1.25rem; background:var(--m-red,#a20025); color:#fff; text-decoration:none; font-family:var(--m-font,inherit) }
+.pv-imp:hover, .pv-imp:focus-visible { color:#fff; background:#8a001f }
+.pv-imp:focus-visible { outline:3px solid var(--m-ink,#111); outline-offset:3px }
+.pv-imp-ic { display:flex; align-items:center; justify-content:center; width:64px; flex-shrink:0; background:rgba(0,0,0,.22); font-size:1.5rem }
+.pv-imp-txt { flex:1; min-width:0; padding:.7rem 1rem }
+.pv-imp-txt small { display:block; font-size:.68rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; opacity:.85 }
+.pv-imp-txt b { display:block; font-size:1.25rem; font-weight:300; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.pv-imp-btn { display:flex; align-items:center; gap:.5rem; padding:0 1.25rem; flex-shrink:0; font-weight:600; white-space:nowrap; background:rgba(0,0,0,.22) }
+.pv-imp:hover .pv-imp-btn, .pv-imp:focus-visible .pv-imp-btn { background:rgba(0,0,0,.4) }
+@media(max-width:560px){ .pv-imp { flex-wrap:wrap } .pv-imp-btn { flex-basis:100%; padding:.55rem 1rem } }
+[data-theme="hc"] .pv-imp { background:#000; border:3px solid #000 }
 /* Kontekst pracy („Pracujesz jako …”) — w pasku obok marki */
 .pv-ctx { display:inline-flex; align-items:center; gap:.45rem; padding:.3rem .65rem; margin-left:.25rem; min-width:0;
   background:rgba(255,255,255,.08); color:#fff; text-decoration:none; font-size:.8rem; line-height:1.15; border:0; border-left:3px solid var(--vol-color); }
@@ -583,37 +595,15 @@ try {
 
 <?php if (!empty($_SESSION['_admin_original'])): ?>
 <?php $_imp_name = $_SESSION['user']['name'] ?? 'użytkownik'; ?>
-<a href="<?= APP_URL ?>/admin/impersonate_stop.php"
-   style="display:flex;align-items:center;gap:1rem;
-          background:linear-gradient(135deg,#b91c1c,#dc2626);
-          border-radius:14px;padding:1.1rem 1.4rem;margin-bottom:1.25rem;
-          text-decoration:none;color:#fff;
-          box-shadow:0 4px 20px rgba(185,28,28,.45);
-          animation:_impPulse 2.5s ease-in-out infinite;
-          border:2px solid rgba(255,255,255,.25)"
-   role="alert" aria-label="Tryb podglądu — kliknij aby wrócić do swojego konta">
-  <div style="width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.3rem">
-    👁
-  </div>
-  <div style="flex:1;min-width:0">
-    <div style="font-size:.72rem;font-weight:700;opacity:.8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.1rem">
-      Tryb podglądu — przeglądasz jako:
-    </div>
-    <div style="font-size:1.05rem;font-weight:800">
-      <?= h($_imp_name) ?>
-    </div>
-  </div>
-  <div style="display:flex;align-items:center;gap:.5rem;background:rgba(0,0,0,.3);border-radius:10px;padding:.65rem 1.1rem;font-weight:700;font-size:.95rem;flex-shrink:0;white-space:nowrap;border:1.5px solid rgba(255,255,255,.3)">
-    <i class="bi bi-arrow-left-circle-fill" style="font-size:1.1rem"></i>
-    Powrót do admina
-  </div>
+<a href="<?= APP_URL ?>/admin/impersonate_stop.php" class="pv-imp"
+   aria-label="Tryb podglądu: przeglądasz jako <?= h($_imp_name) ?>. Kliknij, aby wrócić do swojego konta administratora">
+  <span class="pv-imp-ic" aria-hidden="true"><i class="bi bi-eye-fill"></i></span>
+  <span class="pv-imp-txt">
+    <small>Tryb podglądu — przeglądasz jako</small>
+    <b><?= h($_imp_name) ?></b>
+  </span>
+  <span class="pv-imp-btn"><i class="bi bi-arrow-left" aria-hidden="true"></i>Powrót do admina</span>
 </a>
-<style>
-@keyframes _impPulse {
-  0%,100% { box-shadow: 0 4px 20px rgba(185,28,28,.45); }
-  50%      { box-shadow: 0 4px 32px rgba(185,28,28,.75); }
-}
-</style>
 <?php endif; ?>
 
 <?php
