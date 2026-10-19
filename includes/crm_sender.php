@@ -71,8 +71,8 @@ function crm_sender_accounts(?array $user = null): array {
     $out[] = [
         'key'   => 'system',
         'email' => $sys,
-        'label' => 'Konto systemowe' . ($sys !== '' ? ' — ' . $sys : ''),
-        'hint'  => 'Domyślny nadawca systemu; odpowiedzi trafią na tę skrzynkę.',
+        'label' => 'Konto Fundacji' . ($sys !== '' ? ' — ' . $sys : ''),
+        'hint'  => 'Domyślny nadawca korespondencji organizacji; odpowiedzi trafią na tę skrzynkę.',
     ];
 
     $m365 = function_exists('_mail_m365_configured') && _mail_m365_configured();

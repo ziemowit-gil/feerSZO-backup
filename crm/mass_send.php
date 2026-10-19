@@ -322,7 +322,7 @@ include __DIR__ . '/includes/header_crm.php';
         <i class="bi bi-person-badge text-primary" aria-hidden="true"></i> Konto nadawcy (e-mail)
       </label>
       <select id="ms_send_as" class="form-select form-select-sm" style="max-width:420px">
-        <option value="system">Konto systemowe<?= $sys_from_email ? ' (' . h($sys_from_email) . ')' : '' ?></option>
+        <option value="system">Konto Fundacji<?= $sys_from_email ? ' (' . h($sys_from_email) . ')' : '' ?></option>
         <option value="me">Moje konto Microsoft — <?= h($my_ms_email) ?></option>
       </select>
       <div class="form-text" style="font-size:.74rem">
