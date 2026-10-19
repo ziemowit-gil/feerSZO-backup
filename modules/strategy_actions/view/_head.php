@@ -181,6 +181,15 @@ body{background:#fff;color:var(--dark);margin:0;font-family:"Segoe UI","Segoe UI
 .dz-log li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:.4rem;padding:.4rem 0;border-bottom:1px solid var(--line);font-size:.86rem}
 .dz-log li i{color:var(--muted);margin-top:.15rem}
 .dz-log li.cm .msg{white-space:pre-line;background:var(--dz-50);display:block;padding:.3rem .5rem}
+/* Widok Granty */
+.dz-ggroup{background:var(--light);margin-bottom:8px;border-left:4px solid var(--dz)}
+.dz-ggroup header{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(200px,1fr) auto;gap:.8rem;align-items:center;padding:.6rem .8rem}
+@media(max-width:767px){.dz-ggroup header{grid-template-columns:1fr}}
+.dz-ggroup header .t a,.dz-ggroup header .t span{font:400 1.1rem/1.25 "Segoe UI",system-ui,sans-serif;color:var(--dark);text-decoration:none}
+.dz-ggroup header .t a:hover{color:var(--dz);text-decoration:underline}
+.dz-ggroup header .t small{display:block;color:var(--muted);font-size:.78rem}
+.dz-ggroup header .b small{font-size:.78rem;color:var(--muted)}
+.dz-ggroup .dz-table{background:#fff}
 /* Komunikat po akcji */
 .dz-toast{position:fixed;left:1rem;bottom:1rem;z-index:1060;max-width:420px}
 .dz-toast span{display:block;background:var(--dark);color:#fff;padding:.65rem 1rem;font-size:.9rem}

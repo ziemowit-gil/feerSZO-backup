@@ -33,6 +33,7 @@ final class ActionsController
             'actions'   => ActionsService::all(),
             'users'     => ActionsService::coordinators(),
             'grants'    => ActionsService::grantsList(),
+            'budgets'   => ActionsGrants::budgets(),
             'init'      => ['status' => $g('status'), 'typ' => $g('typ'), 'koord' => $g('koordynator_id'),
                             'grant' => $g('grant_id'), 'od' => $g('data_od'), 'do' => $g('data_do'),
                             'cel' => $g('cel'), 'q' => $g('q'), 'widok' => $g('widok')],

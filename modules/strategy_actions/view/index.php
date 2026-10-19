@@ -13,8 +13,11 @@ $dzData = [
     'goals'    => ActionsService::goals(),
     'init'     => $init,
     'base'     => ActionsService::url(),
+    'grantUrl' => APP_URL . '/grants/view.php?id=',
     'today'    => date('Y-m-d'),
     'csrf'     => Router::csrfToken(),
+    'grantsInfo' => array_values($budgets),
+    'grantsLive' => ActionsGrants::LIVE,
     'exportCols' => array_map(fn($k, $c) => ['key' => $k, 'label' => $c[0], 'def' => $c[1]], array_keys(ActionsReport::COLUMNS), ActionsReport::COLUMNS),
     'users'    => array_map(fn($u) => ['id' => (int)$u['id'], 'name' => (string)$u['name']], $users),
 ];
@@ -249,6 +252,48 @@ include __DIR__ . '/_head.php';
   <?php include __DIR__ . '/_panel.php'; ?>
   <?php include __DIR__ . '/_export.php'; ?>
 
+  <!-- GRANTY -->
+  <section x-show="view === 'granty'" x-cloak aria-label="Działania według grantów">
+    <p class="dz-muted small">Budżet grantu liczony ze wszystkich jego działań (bez anulowanych); lista działań — zgodnie z filtrami. Bez filtrów widać też granty w realizacji bez działań.</p>
+    <template x-for="gr in grantGroups" :key="gr.key">
+      <section class="dz-ggroup" :aria-label="gr.g ? 'Grant ' + gr.g.nazwa : gr.label">
+        <header>
+          <div class="t">
+            <template x-if="gr.g"><a :href="grantUrl(gr.g.id)" x-text="gr.g.nazwa"></a></template>
+            <template x-if="!gr.g"><span x-text="gr.label"></span></template>
+            <small x-show="gr.g" x-text="gr.g ? [gr.g.donator, gr.g.statusLabel, grantPeriod(gr.g)].filter(Boolean).join(' · ') : ''"></small>
+          </div>
+          <div class="b" x-show="gr.g && gr.g.budget !== null">
+            <div class="dz-bar" style="height:10px"><span :style="gr.g ? 'width:' + Math.min(100, gr.g.pct || 0) + '%;--c:' + (gr.g.over ? '#a20025' : '#008a00') : ''"></span></div>
+            <small :style="gr.g && gr.g.over ? 'color:var(--red);font-weight:600' : ''"
+                   x-text="gr.g ? money(gr.g.allocated) + ' z ' + money(gr.g.budget) + (gr.g.estimated ? ' (wnioskowane)' : '') + ' · ' + (gr.g.over ? 'przekroczono o ' + money(-gr.g.remaining) : 'zostaje ' + money(gr.g.remaining)) : ''"></small>
+          </div>
+          <a class="dz-btn dz-btn--ghost dz-btn--sm" x-show="gr.g" :href="gr.g ? D.base + '/nowe?grant_id=' + gr.g.id : '#'"><i class="bi bi-plus-lg" aria-hidden="true"></i>Działanie</a>
+        </header>
+        <div class="dz-scroll" x-show="gr.acts.length">
+          <table class="dz-table">
+            <thead><tr><th scope="col">Działanie</th><th scope="col">Status</th><th scope="col">Okres</th><th scope="col" class="dz-num">Kwota z grantu</th><th scope="col">Wskaźniki</th><th scope="col">Etapy</th></tr></thead>
+            <tbody>
+              <template x-for="a in gr.acts" :key="a.id">
+                <tr>
+                  <td><a class="nm" :href="url(a.id)" x-text="a.nazwa" @click="openAction(a.id, $event)"></a>
+                    <div><template x-for="fl in flagsOf(a)" :key="fl.key"><span class="dz-flag" :class="fl.key" x-text="fl.label"></span></template></div></td>
+                  <td><span class="dz-badge" :style="'--c:' + statusColor(a.status)" x-text="statusLabel(a.status)"></span></td>
+                  <td class="text-nowrap" x-text="period(a)"></td>
+                  <td class="dz-num" x-text="gr.g ? grantShare(a, gr.g.id) : (a.wlasne ? 'środki własne' : '—')"></td>
+                  <td x-text="a.pct !== null ? a.pct + '%' : '—'"></td>
+                  <td x-text="a.ms.total ? a.ms.done + '/' + a.ms.total : '—'"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <p class="dz-muted small mb-0 px-2 pb-2" x-show="!gr.acts.length">Brak działań w tym grancie.</p>
+      </section>
+    </template>
+    <div class="dz-empty" x-show="!grantGroups.length">Brak działań dla wybranych filtrów.</div>
+  </section>
+
   <!-- KALENDARZ -->
   <section x-show="view === 'kalendarz'" x-cloak aria-label="Kalendarz działań">
     <div id="dz-cal"></div>
@@ -271,7 +316,7 @@ function dzApp() {
     jid() { return this.panel.id; },
     all: D.actions,
     view: 'lista',
-    views: [{key: 'lista', label: 'Lista'}, {key: 'tablica', label: 'Tablica'}, {key: 'os', label: 'Oś czasu'}, {key: 'kalendarz', label: 'Kalendarz'}],
+    views: [{key: 'lista', label: 'Lista'}, {key: 'tablica', label: 'Tablica'}, {key: 'os', label: 'Oś czasu'}, {key: 'granty', label: 'Granty'}, {key: 'kalendarz', label: 'Kalendarz'}],
     tiles: [
       {key: 'aktywne', label: 'W toku', hint: 'planowane, przygotowanie, trwające', color: '#00808a'},
       {key: 'noGrant', label: 'Bez finansowania', hint: 'brak grantu, nie są własne', color: '#a20025'},
@@ -346,6 +391,25 @@ function dzApp() {
       if (this.cal) this.cal.refetchEvents();
     },
     say(text) { this.msg = ''; this.$nextTick(() => { this.msg = text; }); clearTimeout(this._t); this._t = setTimeout(() => this.msg = '', 5000); },
+
+    get grantGroups() {
+      const rows = this.rows, out = [];
+      D.grantsInfo.forEach(g => {
+        const acts = rows.filter(a => a.grants.some(x => x.id === g.id));
+        if (acts.length || (!this.filtersOn && D.grantsLive.includes(g.status))) out.push({key: 'g' + g.id, g, acts});
+      });
+      const own = rows.filter(a => !a.grants.length && a.wlasne), none = rows.filter(a => !a.grants.length && !a.wlasne);
+      if (own.length) out.push({key: 'own', g: null, label: 'Działania własne (środki organizacji)', acts: own});
+      if (none.length) out.push({key: 'none', g: null, label: 'Bez finansowania', acts: none});
+      return out;
+    },
+    grantUrl(id) { return D.grantUrl + id; },
+    grantPeriod(g) { return g.od || g.do ? 'realizacja ' + (this.date(g.od) || '…') + ' – ' + (this.date(g.do) || '…') : ''; },
+    grantShare(a, gid) {
+      const x = a.grants.find(g => g.id === gid);
+      if (!x) return '—';
+      return (x.kwota !== null ? this.money(x.kwota) : '—') + (x.udzial !== null ? ' (' + this.num(x.udzial) + '%)' : '');
+    },
 
     get undated() { return this.rows.filter(a => !a.od && !a.do); },
     get timeline() {
