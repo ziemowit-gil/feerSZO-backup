@@ -349,10 +349,19 @@ function mail_queue_all(string $status = '', int $limit = 200): array {
  *  4. PHP mail() — ostatni fallback
  */
 function _mail_send(array $msg): bool {
+    $orig = $msg;
+    $msg = _mail_apply_system_sender($msg);
     // 1. M365 Graph API
     try {
         if (_mail_m365_configured()) {
-            return _mail_send_m365($msg);
+            try {
+                return _mail_send_m365($msg);
+            } catch (\Throwable $e) {
+                // Skrzynka systemowa niedostępna (brak skrzynki / uprawnień) — wyślij od domyślnego nadawcy, nie gub wiadomości
+                if (empty($msg['_system'])) throw $e;
+                error_log('[mail] M365 system sender ' . $msg['from_email'] . ' failed, fallback to default: ' . $e->getMessage());
+                return _mail_send_m365($orig);
+            }
         }
     } catch (\Throwable $e) {
         error_log('[mail] M365 failed: ' . $e->getMessage());
@@ -380,6 +389,42 @@ function _mail_send(array $msg): bool {
 
     // 4. PHP mail()
     return _mail_send_native($msg);
+}
+
+// ── Nadawca wiadomości systemowych ────────────────────────────────────────────
+// Ustawienia → Poczta: system_mail_from (pusty = wyłączone), system_mail_from_name, system_mail_reply_to
+// (pusty = domyślny nadawca organizacji), mail_correspondence_contexts — rodzaje (context_type) KORESPONDENCJI
+// z beneficjentami, klientami, urzędami: te i wiadomości z własnym nadawcą (from_email) wychodzą jak dotąd.
+// Gwiazdka na końcu = prefiks (np. crm*).
+
+const MAIL_CORRESPONDENCE_DEFAULT = "crm*\nnewsletter*\nezd\nezd_pismo\npismo_email_sent\nti_message\nti_admin_msg\nti_secretariat\ninvoice*";
+
+/** Wzorce rodzajów korespondencji (z ustawień albo domyślne). */
+function mail_correspondence_patterns(): array {
+    $raw = _mail_setting('mail_correspondence_contexts');
+    if (trim($raw) === '') $raw = MAIL_CORRESPONDENCE_DEFAULT;
+    return array_values(array_filter(array_map('trim', preg_split('/[\s,;]+/', strtolower($raw)))));
+}
+
+/** Czy wiadomość danego rodzaju jest systemowa (powiadomienie, link, kod, przypomnienie, alert), a nie korespondencją. */
+function mail_is_system(string $context_type): bool {
+    $c = strtolower(trim($context_type));
+    foreach (mail_correspondence_patterns() as $p) {
+        if (str_ends_with($p, '*') ? str_starts_with($c, rtrim($p, '*')) : $c === $p) return false;
+    }
+    return true;
+}
+
+/** Ustawia nadawcę systemowego i Reply-To, gdy włączone i wiadomość jest systemowa bez własnego nadawcy. */
+function _mail_apply_system_sender(array $msg): array {
+    $sys = trim(_mail_setting('system_mail_from'));
+    if ($sys === '' || trim((string)($msg['from_email'] ?? '')) !== '' || !mail_is_system((string)($msg['context_type'] ?? ''))) return $msg;
+    $msg['from_email'] = $sys;
+    $msg['_system']    = true;
+    $msg['_from_name'] = trim(_mail_setting('system_mail_from_name')) ?: _mail_from_name();
+    $rt = trim(_mail_setting('system_mail_reply_to')) ?: (_mail_setting('notify_from_email') ?: _mail_setting('m365_send_from_email'));
+    $msg['_reply_to']  = strcasecmp($rt, $sys) !== 0 ? $rt : '';
+    return $msg;
 }
 
 function _mail_setting(string $key): string {
@@ -503,7 +548,7 @@ function _mail_send_m365(array $msg): bool {
             'from' => [
                 'emailAddress' => [
                     'address' => $from,
-                    'name'    => _mail_from_name(),
+                    'name'    => $msg['_from_name'] ?? _mail_from_name(),
                 ],
             ],
         ],
@@ -543,10 +588,12 @@ function _mail_send_m365(array $msg): bool {
 
     // Wysyłka z konta konkretnego użytkownika: nie wymuszaj nadawcy/nazwy organizacji
     // (skrzynka sama poda swoją tożsamość) i zostaw kopię w „Elementach wysłanych".
-    if ($from_override) {
+    if ($from_override && empty($msg['_system'])) {
         unset($payload['message']['from']);
         $payload['saveToSentItems'] = true;
     }
+    // Nadawca systemowy: odpowiedzi trafiają do skrzynki organizacji
+    if (!empty($msg['_reply_to'])) $payload['message']['replyTo'] = [['emailAddress' => ['address' => $msg['_reply_to']]]];
 
     // Załączniki M365
     $attachments = json_decode($msg['attachments'] ?? '[]', true) ?: [];
@@ -595,8 +642,8 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
     $encryption = strtolower(_mail_setting("{$prefix}_encryption") ?: 'tls'); // tls|ssl|none
     // Nadawca: dedykowany adres SMTP lub globalny _mail_from()
     $from_setting = _mail_setting("{$prefix}_from_email");
-    $from       = $from_setting ?: _mail_from();
-    $from_name  = _mail_from_name();
+    $from       = !empty($msg['_system']) ? $msg['from_email'] : ($from_setting ?: _mail_from());
+    $from_name  = $msg['_from_name'] ?? _mail_from_name();
 
     // Ustaw timeout i połącz
     $timeout = 15;
@@ -663,6 +710,7 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
 
     $data  = "Date: {$date}\r\n";
     $data .= "From: {$from_enc}\r\n";
+    if (!empty($msg['_reply_to'])) $data .= "Reply-To: {$msg['_reply_to']}\r\n";
     $data .= "To: {$to_enc}\r\n";
     if ($cc_list) { $data .= "Cc: " . implode(', ', $cc_list) . "\r\n"; }
     $data .= "Subject: {$subj_enc}\r\n";
@@ -772,8 +820,8 @@ function _mail_smtp_domain(): string {
 // ── PHP mail() fallback ───────────────────────────────────────────────────────
 
 function _mail_send_native(array $msg): bool {
-    $from_name  = _mail_from_name();
-    $from_email = _mail_from();
+    $from_name  = $msg['_from_name'] ?? _mail_from_name();
+    $from_email = !empty($msg['_system']) ? $msg['from_email'] : _mail_from();
 
     // Brak wersji HTML = wiadomość zwykłotekstowa (jak w ścieżkach Graph/SMTP)
     $plain_only = ($msg['body_html'] ?? '') === '' && ($msg['body_text'] ?? '') !== '';
@@ -783,7 +831,7 @@ function _mail_send_native(array $msg): bool {
         ? "Content-Type: text/plain; charset=UTF-8\r\n"
         : "Content-Type: text/html; charset=UTF-8\r\n";
     $headers .= "From: =?UTF-8?B?" . base64_encode($from_name) . "?= <{$from_email}>\r\n";
-    $headers .= "Reply-To: {$from_email}\r\n";
+    $headers .= "Reply-To: " . (!empty($msg['_reply_to']) ? $msg['_reply_to'] : $from_email) . "\r\n";
     $headers .= "X-Mailer: RejestrUmow/2026\r\n";
     $cc_list  = json_decode($msg['cc_emails']  ?? '[]', true) ?: [];
     $bcc_list = json_decode($msg['bcc_emails'] ?? '[]', true) ?: [];

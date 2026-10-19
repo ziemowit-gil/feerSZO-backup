@@ -33,6 +33,7 @@ function format_iban_pl(string $nrb): string {
 
 $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','org_sad_rejestrowy','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
+                  'system_mail_from','system_mail_from_name','system_mail_reply_to','mail_correspondence_contexts',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
                   'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
                   'm365_send_from_email','ksiegowy_email','rachunek_skan_email','rachunek_cc_emails',
@@ -162,10 +163,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif (isset($_POST['save_mail'])) {
         $mail_keys = ['notify_from_name','notify_from_email',
+                      'system_mail_from','system_mail_from_name','system_mail_reply_to','mail_correspondence_contexts',
                       'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
                       'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
                       'm365_send_from_email','ksiegowy_email','rachunek_skan_email','rachunek_cc_emails'];
         $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
+        foreach (['system_mail_from', 'system_mail_reply_to'] as $k) {
+            if (trim($_POST[$k] ?? '') !== '' && !filter_var(trim($_POST[$k]), FILTER_VALIDATE_EMAIL)) {
+                flash_set('error', 'Nieprawidłowy adres e-mail: ' . trim($_POST[$k]));
+                header('Location: ' . APP_URL . '/admin/org_settings.php?tab=mail'); exit;
+            }
+        }
         foreach ($mail_keys as $k) {
             $v = trim($_POST[$k] ?? '');
             $stmt->execute([$k, $v]);
@@ -800,6 +808,43 @@ include dirname(__DIR__) . '/includes/header.php';
           <input type="email" name="notify_from_email" class="form-control form-control-sm"
                  value="<?= h($saved['notify_from_email'] ?? '') ?>" placeholder="no-reply@fundacja.pl">
           <div class="form-text">Używany gdy nie ma M365 ani SMTP lub jako Reply-To.</div>
+        </div>
+      </div>
+
+      <!-- Nadawca wiadomości systemowych -->
+      <?php require_once dirname(__DIR__) . '/includes/mail_queue.php'; ?>
+      <h6 class="fw-semibold mb-2 text-muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Wiadomości systemowe</h6>
+      <p class="small text-muted mb-2">Powiadomienia, linki do podpisu, kody, przypomnienia i alerty mogą wychodzić z osobnego adresu.
+        Korespondencja z beneficjentami, klientami i urzędami (rodzaje z listy poniżej) oraz wiadomości wysyłane ze skrzynki pracownika wychodzą jak dotąd.
+        Puste pole adresu = wszystko z domyślnego nadawcy. Przy M365 skrzynka (może być współdzielona) musi istnieć w tenancie — gdy wysyłka z niej się nie uda, wiadomość wyjdzie od domyślnego nadawcy.</p>
+      <div class="row g-3 mb-4">
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold" for="smf">Adres nadawcy wiadomości systemowych</label>
+          <input type="email" id="smf" name="system_mail_from" class="form-control form-control-sm" value="<?= h($saved['system_mail_from'] ?? '') ?>" placeholder="np. powiadomienia@fundacja.pl">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold" for="smn">Nazwa nadawcy</label>
+          <input type="text" id="smn" name="system_mail_from_name" class="form-control form-control-sm" value="<?= h($saved['system_mail_from_name'] ?? '') ?>" placeholder="puste = jak domyślny">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold" for="smr">Odpowiedzi (Reply-To)</label>
+          <input type="email" id="smr" name="system_mail_reply_to" class="form-control form-control-sm" value="<?= h($saved['system_mail_reply_to'] ?? '') ?>" placeholder="<?= h(($saved['notify_from_email'] ?? '') ?: 'adres domyślnego nadawcy') ?>">
+          <div class="form-text">Puste = domyślny nadawca organizacji.</div>
+        </div>
+        <div class="col-md-7">
+          <label class="form-label small fw-semibold" for="smc">Rodzaje korespondencji (nie systemowe)</label>
+          <textarea id="smc" name="mail_correspondence_contexts" rows="5" class="form-control form-control-sm font-monospace" placeholder="<?= h(MAIL_CORRESPONDENCE_DEFAULT) ?>"><?= h($saved['mail_correspondence_contexts'] ?? '') ?></textarea>
+          <div class="form-text">Jeden rodzaj (context_type) w wierszu; gwiazdka na końcu = prefiks, np. <code>crm*</code>. Puste = lista domyślna (w podpowiedzi).</div>
+        </div>
+        <div class="col-md-5">
+          <?php $_ctx = []; try { $_ctx = db_all("SELECT context_type, COUNT(*) AS n FROM mail_queue WHERE created_at >= datetime('now', '-90 days') GROUP BY context_type ORDER BY n DESC LIMIT 40"); } catch (\Throwable $e) {} ?>
+          <span class="form-label small fw-semibold d-block">Rodzaje z ostatnich 90 dni</span>
+          <div style="max-height:9.5rem;overflow:auto" class="border p-2 small">
+            <?php if (!$_ctx): ?><span class="text-muted">brak wysyłek</span><?php endif; ?>
+            <?php foreach ($_ctx as $_c): $_sys = mail_is_system((string)$_c['context_type']); ?>
+              <div><code><?= h($_c['context_type'] !== '' ? $_c['context_type'] : '(bez rodzaju)') ?></code> · <?= (int)$_c['n'] ?> · <span class="<?= $_sys ? 'text-primary' : 'text-success' ?>"><?= $_sys ? 'systemowa' : 'korespondencja' ?></span></div>
+            <?php endforeach; ?>
+          </div>
         </div>
       </div>
 
