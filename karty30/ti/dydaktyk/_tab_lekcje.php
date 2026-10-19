@@ -665,6 +665,8 @@ if ($_sms_enabled && $cur_course) {
           <td class="lek-c-att text-center" style="font-size:.82rem">
             <?php if ($s['status'] === 'remote_material' || (int)($course['track_attendance'] ?? 1) === 0): ?>
             <span class="text-body-tertiary"><i class="bi bi-dash" aria-hidden="true"></i></span>
+            <?php elseif ($att_total > 0 && in_array($s['status'], ['planned', 'reserved'], true) && $att_present === 0): // obecność jeszcze niesprawdzana — liczba zapisanych zamiast „0/N” ?>
+            <span class="text-body-secondary" title="Zapisanych na lekcję — obecność jeszcze nie sprawdzona"><?= $att_total ?> os.<span class="visually-hidden"> zapisanych, obecność jeszcze nie sprawdzona</span></span>
             <?php elseif ($att_total > 0): ?>
             <span class="<?= $att_present===$att_total&&$s['status']!=='planned'?'text-success fw-semibold':'text-body-secondary' ?>"><?= $att_present ?>/<?= $att_total ?></span>
             <?php else: ?>
