@@ -7,6 +7,7 @@
  *   /kalendarz/ical       — POST: nowy prywatny link iCal; /kalendarz/ical/wylacz — POST: wyłączenie
  *   /ical/{token}.ics     — publiczny kanał iCal (autoryzacja tokenem)
  *   /sla                  — SLA i eskalacje (liderzy obszarów); POST /sla/zasady, POST /sla/sprawdz
+ *   /obciazenie           — obciążenie zespołu (lider: wykonawcy jego obszarów, inni: własne); /obciazenie.csv
  * Dostęp: zalogowani z włączonym modułem Zadań; uprawnienia per obszar sprawdza logika.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
@@ -17,6 +18,7 @@ require_once dirname(__DIR__) . '/router/lib/Router.php';
 require_once __DIR__ . '/lib/tasksPlus.php';
 require_once __DIR__ . '/logic/CalendarController.php';
 require_once __DIR__ . '/logic/SlaController.php';
+require_once __DIR__ . '/logic/WorkloadController.php';
 
 $r = new Router('/modules/tasks_plus/router.php');
 $r->aliasMiddleware('tasks', function () {
@@ -34,6 +36,8 @@ $r->group(['tasks'], function (Router $r) {
     $r->get('/sla', [SlaController::class, 'index'])->name('sla.index');
     $r->post('/sla/zasady', [SlaController::class, 'save'])->name('sla.save');
     $r->post('/sla/sprawdz', [SlaController::class, 'runNow'])->name('sla.run');
+    $r->get('/obciazenie', [WorkloadController::class, 'index'])->name('work.index');
+    $r->get('/obciazenie.csv', [WorkloadController::class, 'csv'])->name('work.csv');
 });
 
 $r->dispatch();

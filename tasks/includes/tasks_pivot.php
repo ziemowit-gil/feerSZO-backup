@@ -26,6 +26,7 @@ $_tsk_pivot = [
     ['/tasks/files', 'Pliki', 'bi-folder2-open', '/tasks/files.php' . $_tsk_wsq, 0, ''],
     ['/tasks/archive', 'Archiwum', 'bi-archive', '/tasks/archive.php' . $_tsk_wsq, 0, ''],
     ['/tasks/charts', 'Wykresy', 'bi-bar-chart-line', '/tasks/charts.php' . $_tsk_wsq, 0, ''],
+    ['/tasks_plus/router.php/obciazenie', 'Obciążenie', 'bi-people', '/modules/tasks_plus/router.php/obciazenie' . $_tsk_wsq, 0, ''],
 ];
 if ($_tsk_is_leader) {
     $_tsk_pivot[] = ['/tasks/problems', 'Problemy', 'bi-megaphone', '/tasks/problems.php', (int)$_tsk_open_problems, 'is-warn'];
