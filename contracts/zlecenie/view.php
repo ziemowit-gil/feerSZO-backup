@@ -37,7 +37,7 @@ if (!viewer_owns_contract($TYPE, $row)) {
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
 $PAGE_TITLE = 'Umowa zlecenie ' . $row['numer_umowy'];
-$_tab = in_array($_GET['tab'] ?? '', ['umowa','zleceniobiorca','docs','rozliczenia','rachunki','obieg','m365','historia','docusign','autenti','formalnosci','tasks','godziny','messages'])
+$_tab = in_array($_GET['tab'] ?? '', ['umowa','zleceniobiorca','docs','rozliczenia','rachunki','obieg','m365','historia','docusign','autenti','formalnosci','tasks','godziny','messages','oswiadczenie'])
     ? $_GET['tab'] : 'umowa';
 
 // ── Wejście na konto tej osoby (impersonacja z potwierdzeniem SMS/e-mail) ────
@@ -761,6 +761,18 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
       <?php if ($_msg_unread): ?>
       <span class="badge bg-danger ms-1"><?= $_msg_unread ?></span>
       <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='oswiadczenie') echo ' active'; ?>" id="tab-oswiadczenie-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-oswiadczenie" type="button" role="tab" aria-controls="tab-oswiadczenie">
+      <i class="bi bi-file-earmark-check" aria-hidden="true"></i> Oświadczenie
+      <?php try { require_once dirname(__DIR__, 2) . '/modules/zlecenie_oswiadczenie/logic/OswService.php';
+                  $__osw = OswService::forContract((int)$id);
+                  $__oswS = $__osw ? OswService::summaryStatus($__osw, OswService::docs((int)$__osw['id'])) : null; } catch (\Throwable $e) { $__oswS = null; } ?>
+      <?php if ($__oswS && $__oswS[1] === 'warning'): ?><span class="badge bg-warning text-dark ms-1" title="<?= h($__oswS[0]) ?>">●</span>
+      <?php elseif ($__oswS && $__oswS[1] === 'success'): ?><span class="badge bg-success ms-1" title="<?= h($__oswS[0]) ?>">✓</span><?php endif; ?>
     </button>
   </li>
 
@@ -2242,6 +2254,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <?php if (!empty($row['w_ramach_is'])): ?>
 <?php include __DIR__ . '/_tab_formalnosci.php'; ?>
 <?php endif; ?>
+
+<?php include dirname(__DIR__, 2) . '/modules/zlecenie_oswiadczenie/view/_umowaTab.php'; ?>
 
 
 <?php if (is_admin()): ?>
