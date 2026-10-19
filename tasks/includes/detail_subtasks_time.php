@@ -191,7 +191,8 @@
   <?php endif; ?>
 </div>
 
-<!-- ══ POWTARZALNOŚĆ ══════════════════════════════════════════════════════ -->
+<!-- ══ POWTARZALNOŚĆ (zbierane do zwiniętej sekcji „Więcej” w detail.php) ══ -->
+<?php ob_start(); ?>
 <?php if (task_field_visible('recurrence', $my_role)): ?>
 <div class="td-section">
   <div class="td-label">
@@ -247,4 +248,4 @@
   <?php endif; ?>
 </div>
 <?php endif; ?>
-
+<?php $td_extra_rec = ob_get_clean(); ?>

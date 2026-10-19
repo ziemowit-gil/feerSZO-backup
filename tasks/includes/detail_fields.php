@@ -2,7 +2,8 @@
  tasks/includes/detail_fields.php — wydzielone z tasks/detail.php.
  Tagi + Opis. Wymaga: $task, $my_role, $can_edit, $task_tags, $avail_tags.
 -->
-<!-- ══ TAGI ════════════════════════════════════════════════════════════════ -->
+<!-- ══ TAGI (zbierane do zwiniętej sekcji „Więcej” w detail.php) ═══════════ -->
+<?php ob_start(); ?>
 <div class="td-section">
   <div class="td-label">
     <i class="bi bi-tags" aria-hidden="true"></i>Tagi
@@ -31,6 +32,7 @@
     <?php endif; ?>
   </div>
 </div>
+<?php $td_extra_tags = ob_get_clean(); ?>
 
 <!-- ══ OPIS ════════════════════════════════════════════════════════════════ -->
 <?php if (task_field_visible('description', $my_role)): ?>

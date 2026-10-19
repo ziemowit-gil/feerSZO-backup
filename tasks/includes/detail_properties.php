@@ -85,8 +85,9 @@
       try { $_all_units_det = db_all("SELECT id, name, short_name FROM org_units WHERE status='active' ORDER BY name"); }
       catch (\Throwable $e) {}
     ?>
+    <?php ob_start(); /* jednostka org → zwinięta sekcja „Więcej” w detail.php */ ?>
     <?php if ($_all_units_det && task_field_visible('unit_id', $my_role)): ?>
-    <div>
+    <div style="max-width:22rem">
       <label class="form-label small fw-semibold text-muted mb-1" for="td-unit">
         <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Jednostka org
       </label>
@@ -107,6 +108,7 @@
       <?php endif; ?>
     </div>
     <?php endif; ?>
+    <?php $td_extra_unit = ob_get_clean(); ?>
   </div>
 </div>
 

@@ -50,9 +50,27 @@ require_once __DIR__ . '/includes/detail_load.php';
 <?php require_once __DIR__ . '/includes/detail_properties.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_mail_source.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_links.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_dependencies.php'; ?>
+<?php ob_start(); require_once __DIR__ . '/includes/detail_dependencies.php'; $td_extra_deps = ob_get_clean(); ?>
 <?php require_once __DIR__ . '/includes/detail_fields.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_subtasks_time.php'; ?>
+<?php /* Zależności, tagi i powtarzanie schowane w zwiniętej sekcji — w podsumowaniu widać, co jest ustawione */
+  $td_extra_on = array_filter([
+      !empty($task['unit_id']) ? 'jednostka' : '',
+      $tag_ids ? count($tag_ids) . ' ' . (count($tag_ids) === 1 ? 'tag' : 'tagi') : '',
+      !empty($task['recurrence']) ? 'powtarza się' : '',
+      $blockers ? 'czeka na ' . count($blockers) : '',
+      $blocking ? 'blokuje ' . count($blocking) : '',
+  ]);
+  $td_extra_unit = trim($td_extra_unit) !== '' ? '<div class="td-section">' . $td_extra_unit . '</div>' : '';
+  if (trim($td_extra_unit . $td_extra_deps . $td_extra_tags . $td_extra_rec) !== ''): ?>
+<details class="td-section td-extra">
+  <summary class="td-label td-extra-sum">
+    <i class="bi bi-three-dots" aria-hidden="true"></i>Jednostka, zależności, tagi, powtarzanie
+    <?php if ($td_extra_on): ?><span class="td-extra-on"><?= h(implode(' · ', $td_extra_on)) ?></span><?php endif; ?>
+  </summary>
+  <div class="td-extra-body"><?= $td_extra_unit . $td_extra_deps . $td_extra_tags . $td_extra_rec ?></div>
+</details>
+<?php endif; unset($td_extra_unit, $td_extra_deps, $td_extra_tags, $td_extra_rec, $td_extra_on); ?>
 <?php require_once __DIR__ . '/includes/detail_activity.php'; ?>
   </div>
   <aside class="td-side" aria-label="Komentarze i pliki zadania">
