@@ -962,6 +962,14 @@ include __DIR__ . '/includes/header_crm.php';
                 <span class="ib-menu-note">z</span>
               </button>
             </li>
+            <?php if (module_enabled('tasks_enabled')): ?>
+            <li>
+              <a class="dropdown-item" href="<?= h(APP_URL . '/tasks/router.php/nowe?comm=' . (int)$msg['id'] . '&src=crm') ?>"
+                 title="Zadanie w module Zadania — temat, treść i załączniki tej wiadomości, z linkiem do niej">
+                <i class="bi bi-kanban" style="color:#007a00" aria-hidden="true"></i>Utwórz zadanie
+              </a>
+            </li>
+            <?php endif; ?>
             <li>
               <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#mdFwd"
                       title="Wyślij tę wiadomość dalej e-mailem — z cytatem oryginału i notatką">

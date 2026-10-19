@@ -236,6 +236,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                class="btn btn-sm btn-outline-primary">
               <i class="bi bi-reply me-1"></i>Odpowiedz
             </a>
+            <?php if (module_enabled('tasks_enabled')): ?>
+            <a href="<?= APP_URL ?>/tasks/router.php/nowe?comm=<?= (int)$msg['id'] ?>&amp;src=ezd" class="btn btn-sm btn-outline-success">
+              <i class="bi bi-kanban me-1" aria-hidden="true"></i>Utwórz zadanie
+            </a>
+            <?php endif; ?>
           </div>
         </div>
       </div>

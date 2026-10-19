@@ -369,7 +369,7 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
                     'subtask_deleted'=>'Podzadanie usunięte','time_started'=>'Rozpoczęto czas pracy',
                     'time_logged'=>'Zalogowano czas pracy','leader_notified'=>'Zgłoszono liderowi',
                     'problem_resolved'=>'Problem rozwiązany','takeover_requested'=>'Prośba o przejęcie',
-                    'transfer_rejected'=>'Odrzucono przejęcie','sla_escalated'=>'Eskalacja SLA','rule_applied'=>'Reguła automatyzacji'];
+                    'transfer_rejected'=>'Odrzucono przejęcie','sla_escalated'=>'Eskalacja SLA','rule_applied'=>'Reguła automatyzacji','mail_source'=>'Z wiadomości e-mail'];
       $ev_icons  = ['moved'=>'bi-arrow-right','created'=>'bi-plus-circle','assigned'=>'bi-person-plus',
                     'unassigned'=>'bi-person-dash','completed'=>'bi-check-circle','reopened'=>'bi-arrow-counterclockwise',
                     'comment_added'=>'bi-chat','tag_added'=>'bi-tag','tag_removed'=>'bi-tag',
@@ -380,7 +380,7 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
                     'subtask_deleted'=>'bi-check2-square','time_started'=>'bi-stopwatch',
                     'time_logged'=>'bi-stopwatch','leader_notified'=>'bi-megaphone',
                     'problem_resolved'=>'bi-check-circle','takeover_requested'=>'bi-person-up',
-                    'transfer_rejected'=>'bi-person-x','sla_escalated'=>'bi-alarm','rule_applied'=>'bi-magic'];
+                    'transfer_rejected'=>'bi-person-x','sla_escalated'=>'bi-alarm','rule_applied'=>'bi-magic','mail_source'=>'bi-envelope-paper'];
       if ($recent): foreach ($recent as $ev):
         $icon  = $ev_icons[$ev['event_type']] ?? 'bi-circle';
         $label = $ev_labels[$ev['event_type']] ?? $ev['event_type'];

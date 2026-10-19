@@ -109,6 +109,10 @@ function cron_dispatcher_registry(): array
             'interval' => 86400,
             'schedule' => [6, 8],
         ],
+        'tasks_mail_intake' => [
+            'file'     => $cronDir . '/tasks_mail_intake.php',
+            'interval' => 300,          // co 5 min — skrzynki obszarów: e-maile → zadania (tasks/lib/tasksMail.php)
+        ],
         'tasks_sla' => [
             'file'     => $cronDir . '/tasks_sla.php',
             'interval' => 3600,         // co godzinę — eskalacje SLA zadań (tasks/lib/tasksSla.php)

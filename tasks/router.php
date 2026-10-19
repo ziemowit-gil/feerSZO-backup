@@ -9,6 +9,8 @@
  *   /sla                  — SLA i eskalacje (liderzy obszarów); POST /sla/zasady, POST /sla/sprawdz
  *   /obciazenie           — obciążenie zespołu (lider: wykonawcy jego obszarów, inni: własne); /obciazenie.csv
  *   /reguly               — reguły automatyzacji obszaru (liderzy); POST /reguly, /reguly/{id}/przelacz, /reguly/{id}/usun
+ *   /nowe                 — formularz „Nowe zadanie” (?comm=ID&src=crm|ezd — z wiadomości e-mail); POST /nowe
+ *   /skrzynka-obszaru     — e-maile na skrzynkę obszaru → zadania (liderzy); POST zapisuje
  * Dostęp: zalogowani z włączonym modułem Zadań; uprawnienia per obszar sprawdza logika.
  */
 require_once dirname(__DIR__) . '/config.php';
@@ -21,6 +23,8 @@ require_once __DIR__ . '/logic/CalendarController.php';
 require_once __DIR__ . '/logic/SlaController.php';
 require_once __DIR__ . '/logic/WorkloadController.php';
 require_once __DIR__ . '/logic/RulesController.php';
+require_once __DIR__ . '/logic/NewTaskController.php';
+require_once __DIR__ . '/logic/MailIntakeController.php';
 
 $r = new Router('/tasks/router.php');
 $r->aliasMiddleware('tasks', function () {
@@ -44,6 +48,10 @@ $r->group(['tasks'], function (Router $r) {
     $r->post('/reguly', [RulesController::class, 'store'])->name('rules.store');
     $r->post('/reguly/{id}/przelacz', [RulesController::class, 'toggle'])->name('rules.toggle');
     $r->post('/reguly/{id}/usun', [RulesController::class, 'destroy'])->name('rules.delete');
+    $r->get('/nowe', [NewTaskController::class, 'form'])->name('new.form');
+    $r->post('/nowe', [NewTaskController::class, 'store'])->name('new.store');
+    $r->get('/skrzynka-obszaru', [MailIntakeController::class, 'index'])->name('intake.index');
+    $r->post('/skrzynka-obszaru', [MailIntakeController::class, 'save'])->name('intake.save');
 });
 
 $r->dispatch();

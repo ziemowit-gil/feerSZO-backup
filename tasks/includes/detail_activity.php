@@ -255,6 +255,13 @@ $ev_defs = [
       ? '<span class="td-hi-val" title="' . h($e['to_value']) . '">💬 ' . h(mb_substr($e['to_value'],0,50)) . (mb_strlen($e['to_value'])>50?'…':'') . '</span>'
       : '',
   ],
+  'mail_source' => [
+    'icon'        => 'bi-envelope-paper',
+    'bg'          => '#e0f2fe', 'color' => '#0f6fa8',
+    'badge_bg'    => '#f0f9ff', 'badge_color' => '#0f6fa8',
+    'label'       => 'Z wiadomości e-mail',
+    'desc'        => fn($e) => $e['to_value'] ? '<span class="td-hi-val">✉ ' . h(mb_strimwidth($e['to_value'], 0, 80, '…')) . '</span>' : '',
+  ],
   'sla_escalated' => [
     'icon'        => 'bi-alarm-fill',
     'bg'          => '#fee2e2', 'color' => '#a20025',

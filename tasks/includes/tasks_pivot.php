@@ -36,7 +36,7 @@ if ($_tsk_is_leader) {
 require_once dirname(dirname(__DIR__)) . '/includes/task_nozbe.php';
 $_tsk_nozbe_connected = task_nozbe_configured((int)$_tu['id']);
 $_tsk_set_active = _tsk_active('/tasks/settings') || _tsk_active('/tasks/notification') || _tsk_active('/tasks/nozbe')
-    || _tsk_active('/tasks/router.php/reguly');
+    || _tsk_active('/tasks/router.php/reguly') || _tsk_active('/tasks/router.php/skrzynka-obszaru');
 ?>
 <nav class="tsk-pivot" aria-label="Sekcje modułu Zadania">
   <div class="container-xl tsk-pivot-inner">
@@ -78,6 +78,7 @@ $_tsk_set_active = _tsk_active('/tasks/settings') || _tsk_active('/tasks/notific
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/workspaces.php"><i class="bi bi-sliders" aria-hidden="true"></i>Obszary i listy</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/tags.php"><i class="bi bi-tags" aria-hidden="true"></i>Tagi</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/router.php/reguly<?= $_tsk_wsq ?>"><i class="bi bi-magic" aria-hidden="true"></i>Reguły automatyzacji</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/router.php/skrzynka-obszaru<?= $_tsk_wsq ?>"><i class="bi bi-envelope-arrow-down" aria-hidden="true"></i>Skrzynka obszaru (e-mail → zadania)</a></li>
         <?php endif; ?>
         <?php if ($_is_admin): ?>
         <li><hr class="dropdown-divider"></li>
