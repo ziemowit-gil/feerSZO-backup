@@ -28,6 +28,8 @@ $_oswDt = fn($d) => $d ? date('d.m.Y H:i', (int)strtotime((string)$d)) : '';
       <?php if ($_d['scan_at']): ?>Skan: <?= h($_oswDt($_d['scan_at'])) ?><?= $_d['scan_name'] ? ' · ' . h($_d['scan_name']) : '' ?>. <?php endif; ?>
       <?php if ($_d['verified_at']): ?><?= $_d['status'] === 'zweryfikowane' ? 'Zweryfikował(a)' : 'Odrzucił(a)' ?>: <?= h($_d['verified_name']) ?>, <?= h($_oswDt($_d['verified_at'])) ?>.<?php endif; ?>
       <?php if ($_d['note']): ?><br>Powód odrzucenia: <?= h($_d['note']) ?><?php endif; ?>
+      <?php if (!empty($_d['ezd_pismo_id'])): ?><br>W EZD: <a href="<?= h(rtrim(APP_URL, '/') . '/ezd/sprawy/view.php?id=' . (int)$_d['ezd_sprawa_id']) ?>">pismo w koszulce umowy</a> (<?= h($_oswDt($_d['ezd_at'])) ?>).
+      <?php elseif (!empty($_d['ezd_error'])): ?><br><span class="text-warning-emphasis">EZD: nie dołączono — <?= h($_d['ezd_error']) ?></span><?php endif; ?>
     </div>
     <?php if ($_d['status'] === 'skan' && in_array(current_user()['role'] ?? '', ['admin', 'editor'], true)): ?>
     <form method="post" action="<?= h($_oswDocUrl . '/' . (int)$_d['id'] . '/weryfikacja') ?>" class="row g-2 align-items-end mt-1">

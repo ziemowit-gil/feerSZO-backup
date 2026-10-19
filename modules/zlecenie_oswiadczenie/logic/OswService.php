@@ -13,8 +13,9 @@ declare(strict_types=1);
  * Pakiet bez umowy z linku pracownika (source 'invite') po złożeniu tworzy projekt umowy zlecenia (status „projekt”).
  * Publiczny kreator (source 'public', startPublic()) NIE tworzy umowy — po przesłaniu skanu powstaje konto oświadczeń
  * (OswAccount), a pracownik wiąże pakiet z umową (linkContract) albo tworzy z niego projekt (createProject).
- * Po weryfikacji skanu: plik trafia do dokumentów umowy (contract_extra_docs); ZLB ustawia rachunek bankowy umowy,
- * ZUS uzupełnia PUSTE pola umowy (PESEL, adres, urząd skarbowy). Nic nie wysyła e-maili ani SMS-ów.
+ * Po weryfikacji skanu: plik trafia do dokumentów umowy (contract_extra_docs) i — przy włączonym EZD — jako pismo
+ * wewnętrzne z załącznikiem do koszulki EZD umowy (ezdAttach; brak koszulki → zakładana i wiązana z umową);
+ * ZLB ustawia rachunek bankowy umowy, ZUS uzupełnia PUSTE pola umowy (PESEL, adres, urząd skarbowy). Nic nie wysyła e-maili ani SMS-ów.
  */
 require_once __DIR__ . '/oswSchema.php';
 require_once dirname(__DIR__) . '/lib/OswForm.php';
@@ -300,6 +301,7 @@ final class OswService
                 'stored_path' => $d['scan_path'], 'uploaded_by' => $by ?: null, 'uploaded_at' => date('Y-m-d H:i:s')]);
             db_exec("UPDATE zlec_osw_docs SET extra_doc_id = ? WHERE id = ?", [$extra, (int)$d['id']]);
             self::applyToContract($d['kind'], self::answers($o), $cid, ['id' => $by]);
+            self::ezdAttach((array)self::doc((int)$d['id']), (array)self::byId((int)$o['id']), $cid, ['id' => $by, 'name' => (string)(db_one("SELECT name FROM users WHERE id = ?", [$by])['name'] ?? '')]);
         }
     }
 
@@ -399,8 +401,8 @@ final class OswService
         self::log($contractId, $by, 'oswiadczenie_skan', 'Przesłano skan: ' . self::KINDS[$doc['kind']][0] . ' (' . $name . ')');
     }
 
-    /** Weryfikacja skanu przez pracownika. */
-    public static function verify(array $doc, bool $ok, string $note, array $user): void
+    /** Weryfikacja skanu przez pracownika. Zwraca komunikat o EZD ('' gdy nie dotyczy). */
+    public static function verify(array $doc, bool $ok, string $note, array $user): string
     {
         if ($doc['status'] !== 'skan') throw new RuntimeException('Do weryfikacji jest tylko przesłany skan.');
         if (!$ok && trim($note) === '') throw new RuntimeException('Podaj powód odrzucenia — zobaczy go zleceniobiorca.');
@@ -418,6 +420,51 @@ final class OswService
             [$ok ? 'zweryfikowane' : 'odrzucone', (int)$user['id'], (string)($user['name'] ?? ''), $now, trim($note) ?: null, $extraId, $now, (int)$doc['id']]);
         self::log($cid, (int)$user['id'], $ok ? 'oswiadczenie_zweryfikowane' : 'oswiadczenie_odrzucone',
             self::KINDS[$doc['kind']][0] . ($ok ? ' — zweryfikowano skan' : ' — odrzucono skan: ' . trim($note)));
+        return $ok && $cid > 0 ? self::ezdAttach((array)self::doc((int)$doc['id']), $o, $cid, $user) : '';
+    }
+
+    /**
+     * Zweryfikowany skan → pismo wewnętrzne (zakończone) z załącznikiem w koszulce EZD umowy, jak przy skierowaniach
+     * na badania. Bez koszulki — zakładana i wiązana z umową (contract_ezd_create_and_link). Błąd EZD nie cofa
+     * weryfikacji: zapisuje się w ezd_error i wraca jako komunikat. Zwraca komunikat dla pracownika.
+     */
+    public static function ezdAttach(array $doc, array $o, int $cid, array $user): string
+    {
+        if (!function_exists('module_enabled') || !module_enabled('ezd_enabled')) return '';
+        if (!empty($doc['ezd_pismo_id']) || empty($doc['scan_path']) || !is_file(UPLOAD_DIR . $doc['scan_path'])) return '';
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/ezd.php';
+            require_once dirname(__DIR__, 3) . '/includes/contract_ezd.php';
+            $c = self::contract($cid);
+            if (!$c) return '';
+            $uid = (int)_contract_ezd_actor_id((int)($user['id'] ?? 0));
+            $sid = contract_ezd_get_sprawa_id('zlecenie', $cid);
+            $sprawa = $sid ? ezd_sprawa_get($sid) : null;
+            if ($sprawa && ($sprawa['status'] ?? '') === 'closed') throw new RuntimeException('koszulka EZD ' . ($sprawa['znak_sprawy'] ?? '#' . $sid) . ' jest zamknięta');
+            if (!$sprawa) $sid = contract_ezd_create_and_link('zlecenie', $cid, $uid, $c);
+            $a = self::answers($o);
+            $who = OswForm::nameFirst((string)($a['nazwisko_imiona'] ?? '')) ?: (string)$c['imie_nazwisko'];
+            [$name] = self::KINDS[$doc['kind']];
+            $pid = ezd_pismo_create([
+                'sprawa_id' => $sid, 'kierunek' => 'wewnetrzne', 'status' => 'zakonczone', 'rodzaj_medium' => 'inne',
+                'title'     => $name . ($doc['numer'] ? ' ' . $doc['numer'] : '') . ' — ' . $who . ' (podpisany skan)',
+                'tresc'     => $name . ' do umowy zlecenia nr ' . $c['numer_umowy'] . ', wypełnione w kreatorze ' . date('d.m.Y', (int)strtotime((string)$o['submitted_at']))
+                             . ', podpisany skan przesłany ' . date('d.m.Y H:i', (int)strtotime((string)$doc['scan_at']))
+                             . ' i zweryfikowany przez ' . ($user['name'] ?? 'pracownika') . '. Dołączono automatycznie z modułu Oświadczenia zleceniobiorcy.',
+                'nadawca'   => $who, 'odbiorca' => (string)org_setting('org_name'),
+                'data_pisma' => substr((string)$doc['scan_at'], 0, 10) ?: date('Y-m-d'), 'owner_id' => (int)($user['id'] ?? 0) ?: null,
+            ], $uid);
+            $ext = strtolower(pathinfo((string)$doc['scan_path'], PATHINFO_EXTENSION));
+            $file = ($doc['kind'] === 'zus' ? 'Oswiadczenie_ZUS_PIT_' : 'ZLB_rachunek_bankowy_') . preg_replace('/[^A-Za-z0-9]+/', '_', (string)$c['numer_umowy']) . '_podpisany.' . $ext;
+            ezd_attach_path(UPLOAD_DIR . $doc['scan_path'], $file, $sid, $pid, $uid);
+            db_exec("UPDATE zlec_osw_docs SET ezd_sprawa_id = ?, ezd_pismo_id = ?, ezd_at = ?, ezd_error = NULL WHERE id = ?", [$sid, $pid, date('Y-m-d H:i:s'), (int)$doc['id']]);
+            $sp = ezd_sprawa_get($sid);
+            return 'Skan dołączono do koszulki EZD ' . ($sp['znak_sprawy'] ?? '#' . $sid) . '.';
+        } catch (\Throwable $e) {
+            error_log('[zlecenie_oswiadczenie] EZD dok #' . (int)$doc['id'] . ': ' . $e->getMessage());
+            db_exec("UPDATE zlec_osw_docs SET ezd_error = ? WHERE id = ?", [mb_substr($e->getMessage(), 0, 500), (int)$doc['id']]);
+            return 'Nie udało się dołączyć skanu do EZD (' . $e->getMessage() . ') — dołącz go ręcznie w koszulce umowy.';
+        }
     }
 
     /** Po weryfikacji: ZLB → rachunek bankowy umowy; ZUS → tylko PUSTE pola umowy. */

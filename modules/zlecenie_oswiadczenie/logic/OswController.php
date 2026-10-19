@@ -301,8 +301,8 @@ final class OswController
     {
         [$doc, $o, $c] = $this->staffDoc($docId);
         try {
-            OswService::verify($doc, ($_POST['decision'] ?? '') === 'ok', (string)($_POST['note'] ?? ''), (array)current_user());
-            flash_set('success', ($_POST['decision'] ?? '') === 'ok' ? 'Skan zweryfikowany — plik dołączono do dokumentów umowy.' : 'Skan odrzucony — zleceniobiorca zobaczy powód i prześle go ponownie.');
+            $ezd = OswService::verify($doc, ($_POST['decision'] ?? '') === 'ok', (string)($_POST['note'] ?? ''), (array)current_user());
+            flash_set(str_starts_with($ezd, 'Nie udało') ? 'warning' : 'success', (($_POST['decision'] ?? '') === 'ok' ? 'Skan zweryfikowany — plik dołączono do dokumentów umowy.' : 'Skan odrzucony — zleceniobiorca zobaczy powód i prześle go ponownie.') . ($ezd !== '' ? ' ' . $ezd : ''));
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
         }

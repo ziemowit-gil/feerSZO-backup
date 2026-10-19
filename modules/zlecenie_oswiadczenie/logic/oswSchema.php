@@ -60,6 +60,10 @@ function oswMigrate(): void
               'account_mail_at' => 'DATETIME'] as $col => $def) {
         try { db()->exec("ALTER TABLE zlec_osw ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
     }
+    // Zweryfikowany skan → pismo wewnętrzne w koszulce EZD umowy
+    foreach (['ezd_sprawa_id' => 'INTEGER', 'ezd_pismo_id' => 'INTEGER', 'ezd_at' => 'DATETIME', 'ezd_error' => 'TEXT'] as $col => $def) {
+        try { db()->exec("ALTER TABLE zlec_osw_docs ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
+    }
     db()->exec("CREATE TABLE IF NOT EXISTS zlec_osw_accounts (
         id                INTEGER PRIMARY KEY AUTOINCREMENT,
         email             TEXT NOT NULL UNIQUE,
