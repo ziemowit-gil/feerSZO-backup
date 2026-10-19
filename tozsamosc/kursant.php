@@ -133,7 +133,7 @@ include dirname(__DIR__) . '/modules/ti/view/portal/_header.php';
         <ul style="padding-left:1.1rem;margin:.4rem 0 0">
           <li><a href="/login.php?tab=rodzic">Rodzic lub opiekun</a></li>
           <li><a href="/login.php?tab=up">Osoba upoważniona</a></li>
-          <li><a href="/login.php?tab=kandydat">Kandydat (zapisy)</a></li>
+          <li><a href="/nabor/logowanie">Kandydat (zapisy) — osobna strona</a></li>
           <li><a href="/login.php?tab=dydaktyk">Prowadzący i kadra</a></li>
         </ul>
       </div>

@@ -62,6 +62,8 @@ RewriteRule ^seeder-test(/.*)?$  /modules/seeders/router.php [QSA,L]
 # (Router w trybie path czyta ją, gdy brak PATH_INFO); formularz po wysłaniu wraca na pełny adres routera.
 # Całe /nabor/… (formularz, potwierdzenie, konto kandydata) — router bierze trasę ze ścieżki żądania.
 RewriteRule ^nabor(/.*)?$        /modules/ti/router.php [QSA,L]
+# Krótki adres dedykowanej strony logowania kandydata: /kandydat → /nabor/logowanie
+RewriteRule ^kandydat/?$         /nabor/logowanie [R=302,L]
 
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI

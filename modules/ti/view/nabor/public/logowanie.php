@@ -1,13 +1,16 @@
 <?php
 /**
- * modules/ti/view/nabor/public/logowanie.php — logowanie do konta kandydata (układ portalowy: login i hasło po lewej,
- * inne sposoby i zakładanie konta po prawej).
+ * modules/ti/view/nabor/public/logowanie.php — dedykowana strona „Logowanie kandydata” (/nabor/logowanie, krótko /kandydat).
+ * Układ portalowy: login i hasło po lewej, zakładanie konta i odesłanie do panelu zajęć po prawej.
+ * Strona logowania do panelu zajęć (karty30/ti/login.php) tylko informuje o tej podstronie i linkuje tutaj.
  * Zmienne: $error, $email, $next, $org, $acc, $form. Kontroler: NaborCandidateController::loginForm / login.
  */
-$title = 'Logowanie — konto kandydata';
+$title = 'Logowanie kandydata';
 include __DIR__ . '/_top.php';
 ?>
-<h1 class="pp-h1">Wybierz sposób logowania</h1>
+<h1 class="pp-h1">Logowanie kandydata</h1>
+<p class="pp-note" style="margin:-.6rem 0 1.4rem;max-width:62ch">Strona dla osób, które zapisują się na zajęcia (nabór do grup).
+  Sprawdzisz tu status zgłoszenia, wiadomości od organizatora i dokumenty.</p>
 <?php if ($error): ?><div class="pp-error" role="alert"><?= h($error) ?></div><?php endif; ?>
 <div class="pp-cols">
   <form method="post" action="<?= h(naborUrl('/logowanie')) ?>">
@@ -29,7 +32,14 @@ include __DIR__ . '/_top.php';
       <a class="pp-alt" href="<?= h(naborUrl('/rejestracja')) ?>"><i class="bi bi-person-plus" aria-hidden="true"></i> Załóż konto</a>
       <p class="pp-note">Załóż konto teraz — zgłoszenie złożysz, gdy otworzymy nabór.</p>
     <?php endif; ?>
-    <p class="pp-note">Na koncie: status zgłoszeń, wiadomości od organizatora, dokumenty i potwierdzenie miejsca. Uczestnik zajęć loguje się do <a href="/login.php">panelu zajęć</a>.</p>
+    <div style="border-top:1px solid var(--pp-line);margin-top:1.4rem;padding-top:1.1rem">
+      <p class="pp-note" style="margin:0 0 .3rem"><strong style="color:var(--pp-ink)">Nie jesteś kandydatem?</strong> Zaloguj się do panelu zajęć:</p>
+      <ul style="padding-left:1.1rem;margin:.2rem 0 0">
+        <li><a href="/login.php?tab=kursant">Uczestnik zajęć</a></li>
+        <li><a href="/login.php?tab=rodzic">Rodzic lub opiekun</a></li>
+        <li><a href="/login.php?tab=dydaktyk">Prowadzący i kadra</a></li>
+      </ul>
+    </div>
   </aside>
 </div>
 <?php include __DIR__ . '/_bottom.php'; ?>
