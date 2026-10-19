@@ -22,6 +22,7 @@ $_tsk_pivot = [
     ['/tasks/inbox', 'Skrzynka', 'bi-inbox', '/tasks/inbox.php', (int)$_inbox_unread, 'is-alert'],
     [null, 'Wszystkie zadania', 'bi-table', '/tasks/index.php' . $_tsk_wsq, (int)$_open_count, ''],
     ['/tasks/moje', 'Moje zadania', 'bi-person-check', '/tasks/moje.php', (int)$_my_count, ''],
+    ['/tasks_plus/router.php/kalendarz', 'Kalendarz', 'bi-calendar3', '/modules/tasks_plus/router.php/kalendarz' . $_tsk_wsq, 0, ''],
     ['/tasks/files', 'Pliki', 'bi-folder2-open', '/tasks/files.php' . $_tsk_wsq, 0, ''],
     ['/tasks/archive', 'Archiwum', 'bi-archive', '/tasks/archive.php' . $_tsk_wsq, 0, ''],
     ['/tasks/charts', 'Wykresy', 'bi-bar-chart-line', '/tasks/charts.php' . $_tsk_wsq, 0, ''],
