@@ -546,6 +546,7 @@ if ($_sms_enabled && $cur_course) {
   #dyd-table-lekcje .lek-room { display: block; font-size: .72rem; color: #5b6677; margin-top: .1rem; }
   #dyd-table-lekcje .lek-subst { font-size: .72rem; color: #8a5a00; margin-top: .25rem; }
   #dyd-table-lekcje .lek-subst .bi { margin-right: .3rem; }
+  #dyd-table-lekcje .lek-plan { color: #5b6677; font-style: italic; }
   </style>
 
   <!-- ── Widok: tabela kompaktowa ──────────────────────────────── -->
@@ -583,6 +584,13 @@ if ($_sms_enabled && $cur_course) {
         $_lek_rooms = [];
         foreach (db_all("SELECT id, name, short_label FROM k30_pl_rooms") as $_rm)
             $_lek_rooms[(int)$_rm['id']] = trim((string)$_rm['short_label']) !== '' ? (string)$_rm['short_label'] : (string)$_rm['name'];
+        // Punkty planu nauczania przypisane lekcjom — „planowane: …”, dopóki nie ma wpisanego tematu.
+        $_lek_plan = [];
+        foreach (db_all("SELECT sc.session_id, c.title FROM k30_ti_session_curriculum sc
+                         JOIN k30_ti_curriculum c ON c.id=sc.curriculum_id
+                         JOIN k30_ti_sessions s ON s.id=sc.session_id
+                         WHERE s.course_id=? ORDER BY c.section COLLATE NOCASE, c.position, c.id", [(int)$cur_course]) as $_pl)
+            $_lek_plan[(int)$_pl['session_id']][] = (string)$_pl['title'];
         foreach (array_reverse($sessions) as $s): // domyślnie od najnowszych (najbliższe/ostatnie na górze)
           if ((string)$s['lesson_date'] === '') continue; // wersja robocza bez terminu — widoczna tylko w panelu „Wersje robocze”
           $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
@@ -670,7 +678,10 @@ if ($_sms_enabled && $cur_course) {
             <?php endif; ?>
           </td>
           <td class="lek-c-topic text-truncate" style="max-width:0;font-size:.83rem">
-            <?= !empty($s['topic']) ? h($s['topic']) : '<span class="text-body-tertiary">—</span>' ?>
+            <?php if (!empty($s['topic'])): ?><?= h($s['topic']) ?>
+            <?php elseif (!empty($_lek_plan[(int)$s['id']])): $_plt = implode('; ', $_lek_plan[(int)$s['id']]); ?>
+            <span class="lek-plan" title="<?= h('Planowane wg planu nauczania: ' . $_plt) ?>">planowane: <?= h($_plt) ?></span>
+            <?php else: ?><span class="visually-hidden">brak tematu</span><?php endif; ?>
           </td>
           <td class="lek-c-att text-center" style="font-size:.82rem">
             <?php if ($s['status'] === 'remote_material' || (int)($course['track_attendance'] ?? 1) === 0): ?>
