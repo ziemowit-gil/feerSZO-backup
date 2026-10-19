@@ -13,22 +13,20 @@
   <p class="muted small" style="margin:6px 0 0">Zalogowano jako <?= h($acc['email']) ?>. To konto daje dostęp wyłącznie do Twoich oświadczeń zleceniobiorcy.</p>
 </div>
 
-<?php foreach ($rows as $_r): [$_sl, $_sc] = OswService::summaryStatus($_r, $_r['_docs']); ?>
-<section class="card" aria-labelledby="o-<?= (int)$_r['id'] ?>">
-  <h2 id="o-<?= (int)$_r['id'] ?>" style="margin-bottom:6px">Oświadczenia z <?= h(date('d.m.Y', (int)strtotime((string)($_r['submitted_at'] ?: $_r['created_at'])))) ?></h2>
-  <p style="margin:0 0 8px"><span class="badge b-<?= h($_sc) ?>"><?= h($_sl) ?></span></p>
-  <ul style="margin:0 0 12px">
-    <?php foreach (OswService::KINDS as $_k => [$_n]): $_d = $_r['_docs'][$_k] ?? null; if (!$_d) continue; [$_dl] = OswService::DOC_STATUS[$_d['status']]; ?>
-    <li><?= h($_n) ?><?= $_d['numer'] ? ' (' . h($_d['numer']) . ')' : '' ?> — <?= h($_dl) ?></li>
-    <?php endforeach; ?>
-  </ul>
-  <a class="btn btn-sm" href="<?= h(route('osw.a.home', ['oid' => (int)$_r['id']])) ?>">Otwórz — podgląd, wydruk, status<span style="position:absolute;left:-999px"> (oświadczenia z <?= h(date('d.m.Y', (int)strtotime((string)($_r['submitted_at'] ?: $_r['created_at'])))) ?>)</span></a>
-</section>
+<h2 class="mt-head">Złożone oświadczenia</h2>
+<?php $_tileC = ['secondary' => 'var(--muted)', 'info' => 'var(--indigo)', 'warning' => 'var(--orange)', 'success' => 'var(--green)', 'danger' => 'var(--red)']; ?>
+<div class="mt-tiles">
+<?php foreach ($rows as $_r): [$_sl, $_sc] = OswService::summaryStatus($_r, $_r['_docs']); $_dt = date('d.m.Y', (int)strtotime((string)($_r['submitted_at'] ?: $_r['created_at']))); ?>
+  <a class="mt-tile w2" style="--c:<?= $_tileC[$_sc] ?? 'var(--acc)' ?>" href="<?= h(route('osw.a.home', ['oid' => (int)$_r['id']])) ?>">
+    <strong>Oświadczenia z <?= h($_dt) ?></strong>
+    <small><?= h($_sl) ?><?php foreach (OswService::KINDS as $_k => [, $_short]): $_d = $_r['_docs'][$_k] ?? null; if (!$_d) continue; ?> · <?= h($_short) ?>: <?= h(mb_strtolower(OswService::DOC_STATUS[$_d['status']][0])) ?><?php endforeach; ?></small>
+  </a>
 <?php endforeach; ?>
+</div>
 <?php if (!$rows): ?><div class="card"><p style="margin:0">Na koncie nie ma jeszcze oświadczeń.</p></div><?php endif; ?>
 
+<h2 class="mt-head" id="dane">Moje dane</h2>
 <section class="card" aria-labelledby="dane">
-  <h2 id="dane">Moje dane</h2>
   <p class="small muted">Uzupełnione z ostatniego oświadczenia. Aby je zmienić, popraw oświadczenie albo skontaktuj się z Fundacją.</p>
   <dl class="sum">
     <dt>Imiona i nazwisko</dt><dd><?= h(trim($acc['first_name'] . ' ' . $acc['last_name']) ?: '—') ?></dd>

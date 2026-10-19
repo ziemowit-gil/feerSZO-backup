@@ -32,35 +32,41 @@ $_anyVerified = (bool)array_filter($docs, fn($d) => $d['status'] === 'zweryfikow
 </div>
 <?php endif; ?>
 
+<h2 class="mt-head">Dokumenty do podpisu</h2>
+<?php $_tileC = ['secondary' => 'var(--muted)', 'info' => 'var(--indigo)', 'warning' => 'var(--orange)', 'success' => 'var(--green)', 'danger' => 'var(--red)']; ?>
 <?php foreach (OswService::KINDS as $_k => [$_name, $_short]): $_d = $docs[$_k] ?? null; if (!$_d) continue;
       [$_sl, $_sc] = OswService::DOC_STATUS[$_d['status']] ?? [$_d['status'], 'secondary']; ?>
-<section class="doc card" id="dok-<?= h($_k) ?>" aria-labelledby="h-dok-<?= h($_k) ?>">
-  <h3 id="h-dok-<?= h($_k) ?>"><?= h($_name) ?><?= $_d['numer'] ? ' <span class="muted small">(' . h($_d['numer']) . ')</span>' : '' ?></h3>
-  <p style="margin:0 0 10px"><span class="badge b-<?= h($_sc) ?>"><?= h($_sl) ?></span>
-    <?php if ($_d['scan_at']): ?><span class="small muted"> · skan z <?= h(date('d.m.Y H:i', (int)strtotime((string)$_d['scan_at']))) ?></span><?php endif; ?>
-    <?php if ($_d['status'] === 'zweryfikowane' && $_d['verified_at']): ?><span class="small muted"> · sprawdzono <?= h(date('d.m.Y', (int)strtotime((string)$_d['verified_at']))) ?></span><?php endif; ?>
-  </p>
-  <?php if ($_d['status'] === 'odrzucone' && $_d['note']): ?>
-  <div class="note note-danger" role="note"><strong>Fundacja odrzuciła skan:</strong> <?= h($_d['note']) ?> Popraw i prześlij skan ponownie.</div>
-  <?php endif; ?>
-
-  <div style="display:flex;flex-wrap:wrap;gap:10px">
-    <a class="btn btn-sm" href="<?= h($base . '/druk/' . $_k . '/pdf') ?>" target="_blank" rel="noopener">Pobierz PDF do druku<span style="position:absolute;left:-999px"> — <?= h($_short) ?> (otwiera się w nowej karcie)</span></a>
-    <?php if ($_k === 'zus'): ?>
-    <a class="btn btn-sm btn-sec" href="<?= h($base . '/druk/zus/docx') ?>">Pobierz wzór Word (DOCX)<span style="position:absolute;left:-999px"> — oświadczenie ZUS/PIT</span></a>
+<section class="doc" id="dok-<?= h($_k) ?>" aria-labelledby="h-dok-<?= h($_k) ?>">
+  <div class="mt-tile" style="--c:<?= $_tileC[$_sc] ?? 'var(--muted)' ?>">
+    <span class="sym" aria-hidden="true"><?= $_k === 'zus' ? 'ZUS' : 'ZLB' ?></span>
+    <span class="small" style="color:rgba(255,255,255,.9)">Status</span>
+    <strong><?= h($_sl) ?></strong>
+    <small><?php if ($_d['status'] === 'zweryfikowane' && $_d['verified_at']): ?>sprawdzono <?= h(date('d.m.Y', (int)strtotime((string)$_d['verified_at']))) ?>
+      <?php elseif ($_d['scan_at']): ?>skan z <?= h(date('d.m.Y H:i', (int)strtotime((string)$_d['scan_at']))) ?>
+      <?php else: ?><?= h($_d['numer'] ?: $_short) ?><?php endif; ?></small>
+  </div>
+  <div class="body">
+    <h3 id="h-dok-<?= h($_k) ?>"><?= h($_name) ?><?= $_d['numer'] ? ' <span class="muted small">(' . h($_d['numer']) . ')</span>' : '' ?></h3>
+    <?php if ($_d['status'] === 'odrzucone' && $_d['note']): ?>
+    <div class="note note-danger" role="note"><strong>Fundacja odrzuciła skan:</strong> <?= h($_d['note']) ?> Popraw i prześlij skan ponownie.</div>
+    <?php endif; ?>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <a class="btn btn-sm" href="<?= h($base . '/druk/' . $_k . '/pdf') ?>" target="_blank" rel="noopener">Pobierz PDF do druku<span style="position:absolute;left:-999px"> — <?= h($_short) ?> (otwiera się w nowej karcie)</span></a>
+      <?php if ($_k === 'zus'): ?>
+      <a class="btn btn-sm btn-sec" href="<?= h($base . '/druk/zus/docx') ?>">Wzór Word (DOCX)<span style="position:absolute;left:-999px"> — oświadczenie ZUS/PIT</span></a>
+      <?php endif; ?>
+    </div>
+    <?php if ($_k === 'zus'): ?><p class="small muted" style="margin:8px 0 0">Oryginalny wzór Fundacji bez zmian w treści — wpisaliśmy tylko Twoje dane, zaznaczyliśmy kratki i skreśliliśmy warianty, które Ciebie nie dotyczą.</p><?php endif; ?>
+    <?php if ($_d['status'] !== 'zweryfikowane'): ?>
+    <form method="post" action="<?= h($base . '/skan/' . $_k) ?>" enctype="multipart/form-data" class="drop">
+      <?= Router::csrfField() ?>
+      <label for="skan-<?= h($_k) ?>"><?= $_d['scan_path'] ? 'Prześlij skan ponownie' : 'Prześlij skan podpisanego dokumentu' ?></label>
+      <span class="hint" id="skan-h-<?= h($_k) ?>">PDF, JPG lub PNG, najwyżej 20 MB. Na telefonie możesz od razu zrobić zdjęcie.</span>
+      <input type="file" id="skan-<?= h($_k) ?>" name="skan" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required aria-describedby="skan-h-<?= h($_k) ?>">
+      <div style="margin-top:10px"><button type="submit" class="btn btn-sm">Prześlij skan<span style="position:absolute;left:-999px"> — <?= h($_short) ?></span></button></div>
+    </form>
     <?php endif; ?>
   </div>
-  <?php if ($_k === 'zus'): ?><p class="small muted" style="margin:8px 0 0">Oświadczenie jest na oryginalnym wzorze Fundacji, bez zmian w treści — wpisaliśmy tylko Twoje dane, zaznaczyliśmy kratki i skreśliliśmy warianty, które Ciebie nie dotyczą.</p><?php endif; ?>
-
-  <?php if ($_d['status'] !== 'zweryfikowane'): ?>
-  <form method="post" action="<?= h($base . '/skan/' . $_k) ?>" enctype="multipart/form-data" class="drop">
-    <?= Router::csrfField() ?>
-    <label for="skan-<?= h($_k) ?>"><?= $_d['scan_path'] ? 'Prześlij skan ponownie' : 'Prześlij skan podpisanego dokumentu' ?></label>
-    <span class="hint" id="skan-h-<?= h($_k) ?>">PDF, JPG lub PNG, najwyżej 20 MB. Na telefonie możesz od razu zrobić zdjęcie.</span>
-    <input type="file" id="skan-<?= h($_k) ?>" name="skan" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required aria-describedby="skan-h-<?= h($_k) ?>">
-    <div style="margin-top:10px"><button type="submit" class="btn btn-sm">Prześlij skan<span style="position:absolute;left:-999px"> — <?= h($_short) ?></span></button></div>
-  </form>
-  <?php endif; ?>
 </section>
 <?php endforeach; ?>
 

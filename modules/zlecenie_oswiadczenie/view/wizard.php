@@ -39,15 +39,15 @@ $radio = function (string $k, string $legend, array $opts, string $hint = '') us
 ?>
 <?php include __DIR__ . '/_head.php'; ?>
 <div class="card">
-  <p class="muted small" style="margin:0">Umowa zlecenia<?= !empty($contract['numer_umowy']) ? ' ' . h($contract['numer_umowy']) : ' — po złożeniu oświadczeń Fundacja przygotuje umowę' ?></p>
-  <h1>Oświadczenia zleceniobiorcy</h1>
-  <p class="muted" style="margin:0">Wypełnij dane online — przygotujemy z nich wydruk oświadczeń. Krok <?= $n ?> z <?= count(OswForm::STEPS) ?>.</p>
+  <p class="muted small" style="margin:0 0 4px">Krok <?= $n ?> z <?= count(OswForm::STEPS) ?> · umowa zlecenia<?= !empty($contract['numer_umowy']) ? ' ' . h($contract['numer_umowy']) : ' — po złożeniu oświadczeń Fundacja przygotuje umowę' ?></p>
+  <h1><?= h($_stepTitle) ?></h1>
+  <p class="muted" style="margin:0">Wypełnij dane online — przygotujemy z nich wydruk oświadczeń do podpisu.</p>
   <nav aria-label="Postęp wypełniania">
     <ol class="steps">
       <?php foreach (OswForm::STEPS as $_i => [, $_t]): ?>
       <li class="<?= $_i < $n ? 'done' : '' ?>"<?= $_i === $n ? ' aria-current="step"' : '' ?>>
-        <?php if ($_i < $n): ?><a href="<?= h($base . '/krok/' . $_i) ?>"><?= $_i ?>. <?= h($_t) ?><span class="visually-hidden" style="position:absolute;left:-999px"> (ukończony)</span></a>
-        <?php else: ?><?= $_i ?>. <?= h($_t) ?><?php endif; ?>
+        <?php if ($_i < $n): ?><a href="<?= h($base . '/krok/' . $_i) ?>"><b aria-hidden="true"><?= $_i ?></b><?= h($_t) ?><span style="position:absolute;left:-999px"> (krok <?= $_i ?>, ukończony)</span></a>
+        <?php else: ?><b aria-hidden="true"><?= $_i ?></b><?= h($_t) ?><?php if ($_i === $n): ?><span style="position:absolute;left:-999px"> (krok <?= $_i ?>, bieżący)</span><?php endif; ?><?php endif; ?>
       </li>
       <?php endforeach; ?>
     </ol>
@@ -65,8 +65,7 @@ $radio = function (string $k, string $legend, array $opts, string $hint = '') us
 
 <form method="post" action="<?= h($base . '/krok/' . $n) ?>" class="card" novalidate>
   <?= Router::csrfField() ?>
-  <h2><?= h($_stepTitle) ?></h2>
-  <p class="small muted">Pola oznaczone <span class="req">*</span> są wymagane.</p>
+  <p class="small muted" style="margin-top:0">Pola oznaczone <span class="req">*</span> są wymagane.</p>
 
 <?php if ($n === 1): ?>
   <?= $text('nazwisko_imiona', 'Nazwisko i imiona', true, 'Najpierw nazwisko, potem wszystkie imiona — jak w dowodzie osobistym.', 'autocomplete="name"') ?>
