@@ -1,12 +1,12 @@
 <?php
 /**
- * modules/tasks_plus/lib/tasksPlus.php — wspólne pomocniki rozszerzeń modułu Zadania
+ * tasks/lib/tasksPlus.php — wspólne pomocniki rozszerzeń modułu Zadania
  * (kalendarz + iCal, SLA i eskalacje, obciążenie zespołu, reguły automatyzacji).
  *
  * Rozszerzenia działają w powłoce modułu Zadania (tasks/includes/header_tasks.php — app-bar,
- * pasek sekcji Metro, dzwonek), ale ich logika siedzi tu, w modules/tasks_plus/.
+ * pasek sekcji Metro, dzwonek); logika w tasks/lib, kontrolery w tasks/logic, widoki w tasks/view.
  */
-require_once dirname(__DIR__, 3) . '/includes/tasks.php';
+require_once dirname(__DIR__, 2) . '/includes/tasks.php';
 
 /** Obszary dostępne dla użytkownika z jego rolą (admin systemu → 'admin' wszędzie). */
 function tasksPlusWorkspaces(int $uid): array
@@ -65,10 +65,10 @@ function tasksPlusPage(string $title, string $body, int $wsId = 0, string $subti
     $TASKS_BREADCRUMB = $title;
     $TASKS_WS_ID = $wsId;
     ob_start();
-    require dirname(__DIR__, 3) . '/tasks/includes/header_tasks.php';
+    require dirname(__DIR__) . '/includes/header_tasks.php';
     include dirname(__DIR__) . '/view/_style.php';
     echo $body;
-    require dirname(__DIR__, 3) . '/tasks/includes/footer_tasks.php';
+    require dirname(__DIR__) . '/includes/footer_tasks.php';
     return (string)ob_get_clean();
 }
 

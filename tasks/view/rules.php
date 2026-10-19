@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/view/rules.php — Reguły automatyzacji obszaru.
+ * tasks/view/rules.php — Reguły automatyzacji obszaru.
  * Wejście: $leaderWs, $wsId, $rules, $opt (lists, people, tags).
  */
 $opts = fn(array $rows, string $empty = '') => ($empty !== '' ? '<option value="">' . h($empty) . '</option>' : '')

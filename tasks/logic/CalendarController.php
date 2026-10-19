@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/logic/CalendarController.php — Kalendarz zadań (miesiąc / lista) i kanał iCal.
+ * tasks/logic/CalendarController.php — Kalendarz zadań (miesiąc / lista) i kanał iCal.
  */
 require_once dirname(__DIR__) . '/lib/tasksCalendar.php';
 

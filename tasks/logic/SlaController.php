@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/logic/SlaController.php — SLA i eskalacje (dla liderów obszarów).
+ * tasks/logic/SlaController.php — SLA i eskalacje (dla liderów obszarów).
  */
 require_once dirname(__DIR__) . '/lib/tasksSla.php';
 

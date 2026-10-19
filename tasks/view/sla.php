@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/view/sla.php — SLA i eskalacje.
+ * tasks/view/sla.php — SLA i eskalacje.
  * Wejście: $leaderWs (obszary lidera), $wsId (filtr), $state, $rows (zadania), $counts, $polWs (obszar w formularzu zasad),
  * $policies [priority => wiersz], $people (kandydaci na poziom 2).
  */

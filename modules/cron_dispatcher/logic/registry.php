@@ -111,7 +111,7 @@ function cron_dispatcher_registry(): array
         ],
         'tasks_sla' => [
             'file'     => $cronDir . '/tasks_sla.php',
-            'interval' => 3600,         // co godzinę — eskalacje SLA zadań (modules/tasks_plus)
+            'interval' => 3600,         // co godzinę — eskalacje SLA zadań (tasks/lib/tasksSla.php)
         ],
         'tasks_archive' => [
             'file'     => $cronDir . '/tasks_archive.php',

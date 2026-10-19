@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/logic/RulesController.php — Reguły automatyzacji obszaru (tylko liderzy obszaru).
+ * tasks/logic/RulesController.php — Reguły automatyzacji obszaru (tylko liderzy obszaru).
  */
 require_once dirname(__DIR__) . '/lib/tasksRules.php';
 

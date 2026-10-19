@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/lib/tasksCalendar.php — kalendarz terminów zadań i prywatny kanał iCal.
+ * tasks/lib/tasksCalendar.php — kalendarz terminów zadań i prywatny kanał iCal.
  *
  * Zadanie trafia do kalendarza w dniu terminu (due_date, z godziną due_time, jeśli jest);
  * zadanie bez terminu, ale z datą startu — w dniu startu (oznaczone jako „start”).

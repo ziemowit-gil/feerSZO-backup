@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/view/workload.php — Obciążenie zespołu.
+ * tasks/view/workload.php — Obciążenie zespołu.
  * Wejście: $rep (people, weeks, scope), $f (ws, from, to), $workspaces (obszary do filtra).
  */
 $people = $rep['people'];

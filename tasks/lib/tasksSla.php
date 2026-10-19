@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/lib/tasksSla.php — SLA zadań i automatyczne eskalacje.
+ * tasks/lib/tasksSla.php — SLA zadań i automatyczne eskalacje.
  *
  * Polityka (task_sla_policies) per obszar i priorytet (priority 0 = każdy priorytet bez własnej reguły):
  *   resolve_hours   — czas na realizację od utworzenia, gdy zadanie NIE ma terminu (NULL = tylko zadania z terminem),
@@ -195,7 +195,7 @@ function tasksSlaEscalate(array $t, int $level, int $deadline, array $toUids): v
     task_log($tid, (int)$t['created_by'], 'sla_escalated', null, 'Poziom ' . $level . ' — po terminie ' . $late,
         ['level' => $level, 'deadline' => date('Y-m-d H:i', $deadline), 'notified' => array_values($toUids)]);
 
-    require_once dirname(__DIR__, 3) . '/includes/task_notify.php';
+    require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
     $task = _tn_task($tid);
     if (!$task) return;
     $title = 'Eskalacja SLA (poziom ' . $level . '): ' . $task['title'];

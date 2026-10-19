@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/logic/WorkloadController.php — Obciążenie zespołu (raport + CSV).
+ * tasks/logic/WorkloadController.php — Obciążenie zespołu (raport + CSV).
  */
 require_once dirname(__DIR__) . '/lib/tasksWorkload.php';
 

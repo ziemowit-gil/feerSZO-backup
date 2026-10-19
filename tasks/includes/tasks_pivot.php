@@ -14,7 +14,7 @@ $_tsk_all_active = str_contains($_uri, '/tasks/index')
     || (str_contains($_uri, '/tasks/') && !_tsk_active('/tasks/dashboard') && !_tsk_active('/tasks/inbox')
         && !_tsk_active('/tasks/archive') && !_tsk_active('/tasks/notification') && !_tsk_active('/tasks/settings')
         && !_tsk_active('/tasks/problems') && !_tsk_active('/tasks/files') && !_tsk_active('/tasks/moje')
-        && !_tsk_active('/tasks/charts') && !_tsk_active('/tasks/nozbe'));
+        && !_tsk_active('/tasks/charts') && !_tsk_active('/tasks/nozbe') && !_tsk_active('/tasks/router.php'));
 
 // [ścieżka do _tsk_active, etykieta, ikona, href, licznik, klasa licznika]
 $_tsk_pivot = [
@@ -22,21 +22,21 @@ $_tsk_pivot = [
     ['/tasks/inbox', 'Skrzynka', 'bi-inbox', '/tasks/inbox.php', (int)$_inbox_unread, 'is-alert'],
     [null, 'Wszystkie zadania', 'bi-table', '/tasks/index.php' . $_tsk_wsq, (int)$_open_count, ''],
     ['/tasks/moje', 'Moje zadania', 'bi-person-check', '/tasks/moje.php', (int)$_my_count, ''],
-    ['/tasks_plus/router.php/kalendarz', 'Kalendarz', 'bi-calendar3', '/modules/tasks_plus/router.php/kalendarz' . $_tsk_wsq, 0, ''],
+    ['/tasks/router.php/kalendarz', 'Kalendarz', 'bi-calendar3', '/tasks/router.php/kalendarz' . $_tsk_wsq, 0, ''],
     ['/tasks/files', 'Pliki', 'bi-folder2-open', '/tasks/files.php' . $_tsk_wsq, 0, ''],
     ['/tasks/archive', 'Archiwum', 'bi-archive', '/tasks/archive.php' . $_tsk_wsq, 0, ''],
     ['/tasks/charts', 'Wykresy', 'bi-bar-chart-line', '/tasks/charts.php' . $_tsk_wsq, 0, ''],
-    ['/tasks_plus/router.php/obciazenie', 'Obciążenie', 'bi-people', '/modules/tasks_plus/router.php/obciazenie' . $_tsk_wsq, 0, ''],
+    ['/tasks/router.php/obciazenie', 'Obciążenie', 'bi-people', '/tasks/router.php/obciazenie' . $_tsk_wsq, 0, ''],
 ];
 if ($_tsk_is_leader) {
     $_tsk_pivot[] = ['/tasks/problems', 'Problemy', 'bi-megaphone', '/tasks/problems.php', (int)$_tsk_open_problems, 'is-warn'];
-    $_tsk_pivot[] = ['/tasks_plus/router.php/sla', 'SLA', 'bi-alarm', '/modules/tasks_plus/router.php/sla' . $_tsk_wsq, 0, ''];
+    $_tsk_pivot[] = ['/tasks/router.php/sla', 'SLA', 'bi-alarm', '/tasks/router.php/sla' . $_tsk_wsq, 0, ''];
 }
 
 require_once dirname(dirname(__DIR__)) . '/includes/task_nozbe.php';
 $_tsk_nozbe_connected = task_nozbe_configured((int)$_tu['id']);
 $_tsk_set_active = _tsk_active('/tasks/settings') || _tsk_active('/tasks/notification') || _tsk_active('/tasks/nozbe')
-    || _tsk_active('/tasks_plus/router.php/reguly');
+    || _tsk_active('/tasks/router.php/reguly');
 ?>
 <nav class="tsk-pivot" aria-label="Sekcje modułu Zadania">
   <div class="container-xl tsk-pivot-inner">
@@ -77,7 +77,7 @@ $_tsk_set_active = _tsk_active('/tasks/settings') || _tsk_active('/tasks/notific
         <li><h6 class="dropdown-header">Lider</h6></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/workspaces.php"><i class="bi bi-sliders" aria-hidden="true"></i>Obszary i listy</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/tags.php"><i class="bi bi-tags" aria-hidden="true"></i>Tagi</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/modules/tasks_plus/router.php/reguly<?= $_tsk_wsq ?>"><i class="bi bi-magic" aria-hidden="true"></i>Reguły automatyzacji</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/router.php/reguly<?= $_tsk_wsq ?>"><i class="bi bi-magic" aria-hidden="true"></i>Reguły automatyzacji</a></li>
         <?php endif; ?>
         <?php if ($_is_admin): ?>
         <li><hr class="dropdown-divider"></li>

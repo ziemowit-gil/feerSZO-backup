@@ -272,11 +272,11 @@ function task_move(int $task_id, int $new_list_id, float $new_pos, int $user_id)
 }
 
 /**
- * Reguły automatyzacji obszaru (modules/tasks_plus/lib/tasksRules.php): 'created' | 'moved' | 'completed'.
+ * Reguły automatyzacji obszaru (tasks/lib/tasksRules.php): 'created' | 'moved' | 'completed'.
  * Nigdy nie przerywa operacji, która je wywołała.
  */
 function task_rules_fire(string $trigger, int $task_id, int $user_id, array $ctx = []): void {
-    $f = dirname(__DIR__) . '/modules/tasks_plus/lib/tasksRules.php';
+    $f = dirname(__DIR__) . '/tasks/lib/tasksRules.php';
     if (!is_file($f)) return;
     try {
         require_once $f;

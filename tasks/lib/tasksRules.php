@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/lib/tasksRules.php — reguły automatyzacji obszaru („gdy … → zrób …”).
+ * tasks/lib/tasksRules.php — reguły automatyzacji obszaru („gdy … → zrób …”).
  *
  * Wyzwalacze: created (nowe zadanie, też z szablonu), moved (zadanie trafiło do kolumny; opcjonalnie konkretnej),
  * completed (zadanie ukończone). Warunek opcjonalny: priorytet.
@@ -175,7 +175,7 @@ function tasksRulesApply(array $r, array $task, int $byUid): ?string
     $ws = (int)$task['workspace_id'];
     $v = (string)$r['action_value'];
     $now = date('Y-m-d H:i:s');
-    require_once dirname(__DIR__, 3) . '/includes/task_notify.php';
+    require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
 
     switch ($r['action_type']) {
         case 'assign':

@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/view/calendar.php — Kalendarz zadań (Metro).
+ * tasks/view/calendar.php — Kalendarz zadań (Metro).
  * Wejście: $view (month|agenda), $year, $month, $f (ws, mine, done), $weeks, $items (Y-m-d => zadania),
  * $workspaces, $icalUrl (null = link wyłączony).
  */

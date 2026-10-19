@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/lib/tasksWorkload.php — obciążenie zespołu: zadania i godziny per osoba.
+ * tasks/lib/tasksWorkload.php — obciążenie zespołu: zadania i godziny per osoba.
  *
  * Zakres widoczności: administrator — wszystkie obszary; lider — obszary, w których jest liderem
  * (wszyscy wykonawcy zadań tych obszarów); pozostali — tylko własne obciążenie.

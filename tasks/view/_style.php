@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/tasks_plus/view/_style.php — wspólne style stron rozszerzeń Zadań (szata Metro modułu:
+ * tasks/view/_style.php — wspólne style stron rozszerzeń Zadań (szata Metro modułu:
  * tokeny --tsk-* / --tm-* z tasks/includes/tasks_metro.php, zero zaokrągleń, płaskie kafle).
  * Selektory od `html body #tsk-main`, bo Tailwind CDN wstrzykuje swoje reguły później.
  */

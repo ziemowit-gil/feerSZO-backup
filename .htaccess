@@ -21,6 +21,11 @@ RewriteRule ^mobilna/(.+)$     /crm/mobile/$1 [L]
 # Musi być PRZED regułami subdomen, żeby ich catch-all tego nie przechwycił.
 RewriteRule ^poczta/?$         /webmail/index.php [L]
 
+# ── Zadania: dawne adresy /modules/tasks_plus/router.php/… → tasks/router.php ───
+# Ekrany kalendarza/SLA/obciążenia/reguł przeniesiono do modułu tasks/. Alias
+# wewnętrzny (bez przekierowania), żeby wydane prywatne linki iCal działały dalej.
+RewriteRule ^modules/tasks_plus/router\.php/(.*)$ /tasks/router.php?_route=/$1 [QSA,L]
+
 # ── Publiczne klauzule RODO: /klauzula/{slug} → modules/gdpr_clauses/public ─────
 # Czysty adres do linkowania w formularzach/stopkach; /{lang} = wersja językowa
 # (np. /klauzula/rekrutacja/en), ?embed=1 = wersja do iframe.
