@@ -680,7 +680,7 @@ if ($_sms_enabled && $cur_course) {
                  aria-label="Wejdź do lekcji <?= h(date('d.m.Y', $sdate)) ?>">
                 <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Wejdź
               </a>
-              <?php if ($_meet_url && $s['status'] !== 'cancelled'): ?>
+              <?php if ($_meet_url && $s['status'] !== 'cancelled' && ($s['lesson_method'] ?? '') !== 'stacjonarna'): // stacjonarne — bez linku do spotkania ?>
               <a href="<?= h($_meet_url) ?>" class="btn btn-sm btn-outline-primary py-0 px-2"
                  target="_blank" rel="noopener noreferrer" aria-label="Otwórz spotkanie online (nowa karta)">
                 <i class="bi bi-camera-video-fill me-1" aria-hidden="true"></i>Spotkanie
