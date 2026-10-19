@@ -597,23 +597,22 @@ if (!$is_fragment) {
             <?php endif; ?>
           </div>
           <?php if (!$has_sms && sms_is_enabled()): ?>
-          <!-- Inline: dodaj numer bez przechodzenia do profilu -->
-          <form id="ns-phone-form" method="post" action="notification_settings.php<?= $is_fragment ? '?_fragment=1' : '' ?>"
-                class="mt-2" style="max-width:280px" novalidate>
-            <input type="hidden" name="_csrf"    value="<?= h($csrf) ?>">
-            <input type="hidden" name="_action"  value="save_phone">
+          <!-- Inline: dodaj numer bez przechodzenia do profilu. Pola należą do osobnego formularza
+               #ns-phone-form (atrybut form=, sam formularz pod #notifForm) — zagnieżdżony <form> zamykał
+               wcześniej #notifForm i „Zapisz ustawienia” nic nie zapisywało. -->
+          <div class="mt-2" style="max-width:280px">
             <div class="d-flex gap-2">
-              <input type="tel" name="phone_number" id="ns-phone-input"
+              <input type="tel" name="phone_number" id="ns-phone-input" form="ns-phone-form"
                      class="form-control form-control-sm"
                      placeholder="np. +48600123456"
                      value="<?= h($user['phone_number'] ?? '') ?>"
                      aria-label="Numer telefonu" style="font-size:.83rem">
-              <button type="submit" class="btn btn-sm btn-warning flex-shrink-0" style="font-size:.83rem;white-space:nowrap">
+              <button type="submit" form="ns-phone-form" class="btn btn-sm btn-warning flex-shrink-0" style="font-size:.83rem;white-space:nowrap">
                 <i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz
               </button>
             </div>
             <div id="ns-phone-msg" class="mt-1" style="font-size:.73rem"></div>
-          </form>
+          </div>
           <?php elseif ($has_sms): ?>
           <div class="mt-1 d-flex align-items-center gap-2">
             <span style="font-size:.75rem;color:#16a34a">
@@ -622,21 +621,18 @@ if (!$is_fragment) {
             <button type="button" class="btn btn-sm btn-link p-0" style="font-size:.73rem;color:#94a3b8"
                     id="ns-phone-change-btn">zmień</button>
           </div>
-          <form id="ns-phone-change-form" method="post" action="notification_settings.php<?= $is_fragment ? '?_fragment=1' : '' ?>"
-                class="mt-2" style="max-width:280px;display:none" novalidate>
-            <input type="hidden" name="_csrf"    value="<?= h($csrf) ?>">
-            <input type="hidden" name="_action"  value="save_phone">
+          <div id="ns-phone-change-form" class="mt-2" style="max-width:280px;display:none">
             <div class="d-flex gap-2">
-              <input type="tel" name="phone_number" id="ns-phone-change-input"
+              <input type="tel" name="phone_number" id="ns-phone-change-input" form="ns-phone-form"
                      class="form-control form-control-sm"
                      placeholder="np. +48600123456"
                      value="<?= h($user['phone_number'] ?? '') ?>"
                      aria-label="Numer telefonu" style="font-size:.83rem">
-              <button type="submit" class="btn btn-sm btn-warning flex-shrink-0" style="font-size:.83rem;white-space:nowrap">
+              <button type="submit" form="ns-phone-form" class="btn btn-sm btn-warning flex-shrink-0" style="font-size:.83rem;white-space:nowrap">
                 <i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz
               </button>
             </div>
-          </form>
+          </div>
           <?php endif; ?>
         </div>
         <div class="ns-switch">
@@ -675,6 +671,14 @@ if (!$is_fragment) {
     </div>
 
   </form>
+
+  <?php if (sms_is_enabled()): ?>
+  <!-- Zapis numeru telefonu — pola w sekcji SMS wskazują ten formularz atrybutem form= -->
+  <form id="ns-phone-form" method="post" action="notification_settings.php<?= $is_fragment ? '?_fragment=1' : '' ?>" novalidate hidden>
+    <input type="hidden" name="_csrf"   value="<?= h($csrf) ?>">
+    <input type="hidden" name="_action" value="save_phone">
+  </form>
+  <?php endif; ?>
 
   <!-- ══ Test dostarczania ════════════════════════════════════════ -->
   <div class="ns-card mb-3 mt-4">

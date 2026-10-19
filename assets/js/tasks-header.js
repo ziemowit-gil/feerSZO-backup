@@ -244,6 +244,9 @@
         }
 
         function wireBody(body) {
+            // Ciało modala jest to samo przy każdym otwarciu — nasłuch tylko raz (inaczej N zapisów naraz)
+            if (body.dataset.tskWired) return;
+            body.dataset.tskWired = '1';
             body.addEventListener('submit', function (e) {
                 const form = e.target.closest('form');
                 if (!form) return;
