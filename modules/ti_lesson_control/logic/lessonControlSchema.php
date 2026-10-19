@@ -56,6 +56,11 @@ function tiLcMigrate(): void {
         escalated_at        DATETIME,
         last_checked_at     DATETIME
     )");
+    // Zerowanie zaległości (kontrolaWpisow.php → „Zeruj zaległe wpisy dla”): kto, kiedy, dlaczego.
+    $cols = array_column($pdo->query("PRAGMA table_info(k30_ti_lc_checks)")->fetchAll(\PDO::FETCH_ASSOC), 'name');
+    foreach (['waived_at' => 'DATETIME', 'waived_by' => 'INTEGER', 'waive_comment' => "TEXT NOT NULL DEFAULT ''"] as $c => $def) {
+        if (!in_array($c, $cols, true)) $pdo->exec("ALTER TABLE k30_ti_lc_checks ADD COLUMN $c $def");
+    }
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_lc_checks_instr  ON k30_ti_lc_checks(instructor_id, auto_status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_lc_checks_date   ON k30_ti_lc_checks(lesson_date)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_lc_checks_review ON k30_ti_lc_checks(review_status)");

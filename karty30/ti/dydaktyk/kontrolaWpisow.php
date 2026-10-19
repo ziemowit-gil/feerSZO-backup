@@ -70,6 +70,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$from, $to] = LessonControlService::defaultRange();
             $sum = (new LessonControlService())->run(min($from, $f['from']), $to);
             flash_set('success', "Kontrola wykonana: sprawdzono {$sum->checked} lekcji, zmian statusu: " . count($sum->changes) . '.');
+        } elseif ($op === 'reset_backlog' || $op === 'undo_reset_backlog') {
+            $until = $isDate($_POST['until'] ?? '') ?: date('Y-m-d');
+            if ($until > date('Y-m-d')) $until = date('Y-m-d');
+            $ri = max(0, (int)($_POST['instructor_id'] ?? 0)); $rc = max(0, (int)($_POST['course_id'] ?? 0));
+            $why = trim((string)($_POST['comment'] ?? ''));
+            if (mb_strlen($why) < 3) throw new ReviewException('Podaj powód zerowania — trafi do historii każdej lekcji.');
+            $why = mb_substr($why, 0, 500);
+            $svc = new LessonControlService();
+            $n = $op === 'reset_backlog' ? $svc->resetBacklog($until, $ri, $rc, $actor, $why) : $svc->undoResetBacklog($until, $ri, $rc, $actor, $why);
+            $who = ($ri ? (string)(db_one("SELECT name FROM users WHERE id=?", [$ri])['name'] ?? '#' . $ri) : 'wszyscy prowadzący')
+                 . ($rc ? ', grupa ' . (string)(db_one("SELECT COALESCE(NULLIF(display_name,''), name) AS n FROM k30_ti_courses WHERE id=?", [$rc])['n'] ?? '#' . $rc) : '');
+            try {
+                require_once dirname(__DIR__, 3) . '/modules/audit_logs/logic/audit_logs.php';
+                audit_log('ti_lc.' . $op, ['until' => $until, 'instructor_id' => $ri, 'course_id' => $rc, 'count' => $n, 'comment' => $why], $uid);
+            } catch (\Throwable $e) {}
+            flash_set($n ? 'success' : 'info', ($op === 'reset_backlog' ? 'Wyzerowano zaległe wpisy' : 'Cofnięto zerowanie') . " ($who, do " . date('d.m.Y', strtotime($until)) . "): $n " . ($n === 1 ? 'lekcja' : 'lekcji') . '.');
         } elseif ($op === 'save_settings') {
             $b = fn(string $k) => !empty($_POST[$k]) ? '1' : '0';
             $int = fn(string $k, int $min, int $max) => (string)max($min, min($max, (int)($_POST[$k] ?? 0)));
@@ -121,7 +137,7 @@ if ($f['i']) { $where[] = 'k.instructor_id = ?'; $p[] = $f['i']; }
 if ($f['c']) { $where[] = 'k.course_id = ?'; $p[] = $f['c']; }
 if ($f['a']) { $where[] = 'k.auto_status = ?'; $p[] = $f['a']; }
 if ($f['r']) { $where[] = 'k.review_status = ?'; $p[] = $f['r']; }
-if ($staff && $f['v'] === 'kolejka' && !$f['r']) $where[] = "k.review_status IN ('NIEZWERYFIKOWANY','POPRAWIONY','ZAKWESTIONOWANY') AND k.auto_status <> 'OCZEKUJE'";
+if ($staff && $f['v'] === 'kolejka' && !$f['r']) $where[] = "k.review_status IN ('NIEZWERYFIKOWANY','POPRAWIONY','ZAKWESTIONOWANY') AND k.auto_status NOT IN ('OCZEKUJE','WYZEROWANY')";
 $rows = db_all("SELECT k.*, s.time_from, s.time_to, s.topic, COALESCE(NULLIF(c.display_name,''), c.name) AS course_name, COALESCE(u.name,'') AS instructor_name
                   FROM k30_ti_lc_checks k
                   JOIN k30_ti_sessions s ON s.id = k.session_id
@@ -165,6 +181,7 @@ $EVENT_LABELS = [
     'escalated' => 'Eskalacja do kierownika', 'review_approved' => 'Zatwierdzono', 'review_returned' => 'Zwrócono do poprawy',
     'review_disputed' => 'Zakwestionowano', 'review_reopened' => 'Cofnięto do weryfikacji', 'entry_corrected' => 'Prowadzący poprawił wpis',
     'entry_changed' => 'Zmieniono treść wpisu', 'entry_changed_after_approval' => 'Zmiana po zatwierdzeniu', 'return_notified' => 'E-mail o zwrocie wysłany',
+    'backlog_reset' => 'Wyzerowano zaległość', 'backlog_reset_undone' => 'Cofnięto zerowanie',
 ];
 
 $KP_TITLE  = 'Kontrola wpisów — Panel dydaktyka';
@@ -257,6 +274,32 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </form>
   </div>
   <div class="col-lg-6">
+    <?php // Zerowanie zaległości: lekcje z brakiem / niepełnym wpisem do wybranego dnia przestają być zaległościami (status „Wyzerowany”, powód w historii). ?>
+    <form method="post" class="card border-0 shadow-sm mb-3" id="lcReset">
+      <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-eraser me-1" aria-hidden="true"></i>Zeruj zaległe wpisy dla</h2></div>
+      <div class="card-body small">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_back" value="<?= h($qs()) ?>">
+        <p class="text-body-secondary mt-0">Lekcje z brakiem wpisu albo niepełnym wpisem do wybranego dnia dostaną status „Wyzerowany”:
+          znikną z zaległości prowadzącego, przypomnień i raportu. Wpis nadal można uzupełnić — wtedy liczy się normalnie. Zwrócone do poprawy zostają bez zmian.</p>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6"><label class="form-label" for="lcrI">Prowadzący</label>
+            <select class="form-select form-select-sm" id="lcrI" name="instructor_id"><option value="0">— wszyscy prowadzący —</option>
+              <?php foreach ($instructors as $ins): ?><option value="<?= (int)$ins['id'] ?>"<?= $f['i'] === (int)$ins['id'] ? ' selected' : '' ?>><?= h($ins['name']) ?></option><?php endforeach; ?></select></div>
+          <div class="col-md-6"><label class="form-label" for="lcrC">Grupa</label>
+            <select class="form-select form-select-sm" id="lcrC" name="course_id"><option value="0">— wszystkie grupy —</option>
+              <?php foreach ($courses as $c): ?><option value="<?= (int)$c['id'] ?>"<?= $f['c'] === (int)$c['id'] ? ' selected' : '' ?>><?= h($c['name']) ?></option><?php endforeach; ?></select></div>
+          <div class="col-md-6"><label class="form-label" for="lcrU">Lekcje do dnia (włącznie)</label>
+            <input class="form-control form-control-sm" id="lcrU" type="date" name="until" value="<?= h(date('Y-m-d')) ?>" max="<?= h(date('Y-m-d')) ?>" required>
+            <div class="form-text">Od początku kontroli<?= $S['ti_lc_start_date'] ? ' (' . h(date('d.m.Y', strtotime($S['ti_lc_start_date']))) . ')' : '' ?>.</div></div>
+          <div class="col-md-6"><label class="form-label" for="lcrW">Powód</label>
+            <input class="form-control form-control-sm" id="lcrW" name="comment" required minlength="3" maxlength="500" placeholder="np. rozliczone poza systemem"></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-danger btn-sm" name="_op" value="reset_backlog" onclick="return confirm('Wyzerować zaległe wpisy w wybranym zakresie? Lekcje dostaną status „Wyzerowany”.')"><i class="bi bi-eraser me-1" aria-hidden="true"></i>Zeruj zaległe wpisy</button>
+          <button class="btn btn-outline-secondary btn-sm" name="_op" value="undo_reset_backlog" onclick="return confirm('Cofnąć zerowanie w wybranym zakresie? Lekcje wrócą do oceny automatu.')">Cofnij zerowanie</button>
+        </div>
+      </div>
+    </form>
     <?php
     $ruleForm = function (?array $r, array $courses) {
         $p = LessonControlPolicy::fromRow($r ?? []); $cid = (int)($r['course_id'] ?? -1); $isNew = $r === null;

@@ -20,6 +20,7 @@ final class TiLcStatus
     public const BRAK_WPISU    = 'BRAK_WPISU';
     public const NIEPELNY_WPIS = 'NIEPELNY_WPIS';
     public const OPOZNIONY     = 'OPOZNIONY';
+    public const WYZEROWANY    = 'WYZEROWANY';   // zaległość wyzerowana przez kierownika (nie wymaga już działania)
     // ── weryfikacja ręczna ──
     public const NIEZWERYFIKOWANY = 'NIEZWERYFIKOWANY';
     public const ZATWIERDZONY     = 'ZATWIERDZONY';
@@ -32,6 +33,7 @@ final class TiLcStatus
         self::OPOZNIONY     => ['Opóźniony',     'warning'],
         self::NIEPELNY_WPIS => ['Niepełny wpis', 'warning'],
         self::BRAK_WPISU    => ['Brak wpisu',    'danger'],
+        self::WYZEROWANY    => ['Wyzerowany',    'dark'],
         self::OCZEKUJE      => ['Oczekuje',      'secondary'],
         self::NIE_DOTYCZY   => ['Nie dotyczy',   'light'],
     ];

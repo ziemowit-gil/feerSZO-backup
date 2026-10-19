@@ -97,6 +97,10 @@ final class LessonControlService
                 $old  = $prev[$sid] ?? null;
                 $keepSubmitted = $old && in_array($old['auto_status'], [TiLcStatus::PRAWIDLOWY, TiLcStatus::OPOZNIONY], true) ? $old['entry_submitted_at'] : null;
                 $res  = $this->validator->validate($s, $p, $now, $keepSubmitted);
+                // Zaległość wyzerowana przez kierownika — automat jej nie przywraca. Wpis uzupełniony później liczy się normalnie.
+                if ($old && !empty($old['waived_at']) && in_array($res->autoStatus, TiLcStatus::NEEDS_ACTION, true)) {
+                    $res = new ValidationResult(TiLcStatus::WYZEROWANY, $res->isLate, $res->missing, $res->dueAt, $res->submittedAt, $res->delayMin, $res->hash);
+                }
                 $sum->byStatus[$res->autoStatus] = ($sum->byStatus[$res->autoStatus] ?? 0) + 1;
 
                 if ($res->autoStatus === TiLcStatus::NIE_DOTYCZY && !$old) continue;   // przyszłe/trwające lekcje nie trafiają do rejestru
@@ -133,6 +137,63 @@ final class LessonControlService
             throw $e;
         }
         return $sum;
+    }
+
+    /**
+     * „Zeruj zaległe wpisy dla”: lekcje z brakiem / niepełnym wpisem do dnia $until (od początku kontroli)
+     * dla prowadzącego i/lub grupy (0 = wszyscy) dostają status WYZEROWANY — znikają z zaległości,
+     * przypomnień i raportów. Każda lekcja dostaje zdarzenie backlog_reset z powodem. Zwraca liczbę lekcji.
+     */
+    public function resetBacklog(string $until, int $instructorId, int $courseId, array $actor, string $comment): int {
+        tiLcMigrate();
+        $from = LessonControlSettings::startDate() ?: '2000-01-01';
+        if ($until < $from) return 0;
+        $this->run($from, $until, false, null, $courseId ?: null);   // najpierw świeży stan — lekcje jeszcze niesprawdzone też trafiają do rejestru
+        $ids = $this->scopeIds($from, $until, $instructorId, $courseId, "auto_status IN ('BRAK_WPISU','NIEPELNY_WPIS')");
+        $this->inTx(function () use ($ids, $actor, $comment) {
+            $at = date('Y-m-d H:i:s');
+            foreach ($ids as $sid => $st) {
+                db()->prepare("UPDATE k30_ti_lc_checks SET auto_status = ?, waived_at = ?, waived_by = ?, waive_comment = ?, revision = revision + 1 WHERE session_id = ?")
+                    ->execute([TiLcStatus::WYZEROWANY, $at, (int)$actor['id'], $comment, $sid]);
+                TiLcEventLog::add($sid, 'backlog_reset', $st, TiLcStatus::WYZEROWANY, (int)$actor['id'], (string)$actor['role'], $comment);
+            }
+        });
+        return count($ids);
+    }
+
+    /** Cofnięcie zerowania w tym samym zakresie — lekcje wracają do oceny automatu (zwykle znów BRAK_WPISU / NIEPEŁNY). */
+    public function undoResetBacklog(string $until, int $instructorId, int $courseId, array $actor, string $comment): int {
+        tiLcMigrate();
+        $from = LessonControlSettings::startDate() ?: '2000-01-01';
+        $ids = $this->scopeIds($from, $until, $instructorId, $courseId, "waived_at IS NOT NULL");
+        if (!$ids) return 0;
+        $this->inTx(function () use ($ids, $actor, $comment) {
+            foreach ($ids as $sid => $st) {
+                db()->prepare("UPDATE k30_ti_lc_checks SET waived_at = NULL, waived_by = NULL, waive_comment = '' WHERE session_id = ?")->execute([$sid]);
+                TiLcEventLog::add($sid, 'backlog_reset_undone', $st, '', (int)$actor['id'], (string)$actor['role'], $comment);
+            }
+            $this->evaluate(array_keys($ids), new \DateTimeImmutable(), new ControlRunSummary('', '', false));
+        });
+        return count($ids);
+    }
+
+    /** @return array<int,string> session_id => auto_status w zakresie zerowania */
+    private function scopeIds(string $from, string $until, int $instructorId, int $courseId, string $cond): array {
+        $sql = "SELECT session_id, auto_status FROM k30_ti_lc_checks WHERE lesson_date BETWEEN ? AND ? AND $cond";
+        $p = [$from, $until];
+        if ($instructorId) { $sql .= " AND instructor_id = ?"; $p[] = $instructorId; }
+        if ($courseId)     { $sql .= " AND course_id = ?";     $p[] = $courseId; }
+        $out = [];
+        foreach (db_all($sql, $p) as $r) $out[(int)$r['session_id']] = (string)$r['auto_status'];
+        return $out;
+    }
+
+    private function inTx(callable $fn): void {
+        $pdo = db();
+        $own = !$pdo->inTransaction();
+        if ($own) $pdo->beginTransaction();
+        try { $fn(); if ($own) $pdo->commit(); }
+        catch (\Throwable $e) { if ($own && $pdo->inTransaction()) $pdo->rollBack(); throw $e; }
     }
 
     private function existing(array $ids): array {
