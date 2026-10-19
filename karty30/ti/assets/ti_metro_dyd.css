@@ -239,8 +239,8 @@ html body.ti-metro #dyd-table-lekcje tr[data-filter-item] > td:first-child::befo
 html body.ti-metro #dyd-table-lekcje tr[data-filter-item] > td:first-child a { color:var(--dm-dark) !important; }
 html body.ti-metro #dyd-table-lekcje tr[data-filter-item] > td:first-child .fw-semibold { font-size:1.3rem; font-weight:300 !important; letter-spacing:-.01em; }
 html body.ti-metro #dyd-table-lekcje tr[data-filter-item] > td:first-child .text-body-secondary { color:var(--dm-muted) !important; }
-html body.ti-metro #dyd-table-lekcje tr[data-filter-item] > td:nth-child(2) { font-size:.9rem !important; }
-html body.ti-metro #dyd-table-lekcje tr[data-filter-item] > td:nth-child(4) { font-size:.92rem !important; color:var(--dm-dark); }
+html body.ti-metro #dyd-table-lekcje tr[data-filter-item] > td.lek-c-time { font-size:.9rem !important; }
+html body.ti-metro #dyd-table-lekcje tr[data-filter-item] > td.lek-c-topic { font-size:.92rem !important; color:var(--dm-dark); }
 html body.ti-metro #dyd-table-lekcje .badge.dyd-st, html body.ti-metro .lek-legend .badge.dyd-st { background:color-mix(in srgb, var(--st) 62%, #000) !important; color:#fff !important; border:0 !important;
   font-size:.66rem !important; letter-spacing:.06em; text-transform:uppercase; padding:.3rem .5rem; }
 /* Akcje: jeden rząd płaskich poleceń */

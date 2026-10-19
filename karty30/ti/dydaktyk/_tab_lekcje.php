@@ -519,7 +519,7 @@ if ($_sms_enabled && $cur_course) {
   #dyd-table-lekcje.dyd-lek-os tr.dyd-lek-month th { display: block; border: 0; padding: .9rem .25rem .3rem !important;
       color: #10335c; font-size: .78rem; letter-spacing: .04em; background: none !important; }
   #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] {
-      display: grid; grid-template-columns: 5.5rem 1fr auto; grid-template-areas: "date topic att" "time status actions";
+      display: grid; grid-template-columns: 5.5rem auto 1fr auto; grid-template-areas: "date topic topic att" "time status forma actions";
       column-gap: .75rem; row-gap: .2rem; align-items: center; margin: 0 0 .5rem; padding: .55rem .7rem;
       background: #fff !important; border: 1px solid #d3dce7; border-left-width: 4px; border-radius: 6px;
       box-shadow: 0 1px 2px rgba(16,51,92,.06); position: relative; }
@@ -528,17 +528,21 @@ if ($_sms_enabled && $cur_course) {
   #dyd-table-lekcje .dropdown-menu.show { z-index: 1060; background-color: #fff; }
   #dyd-table-lekcje.dyd-lek-os tr[data-filter-item][hidden], #dyd-table-lekcje.dyd-lek-os tr[style*="display: none"] { display: none; }
   #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td { display: block; border: 0 !important; padding: 0 !important; background: none !important; }
-  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(1) { grid-area: date; font-size: 1rem !important; }
-  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(2) { grid-area: time; color: #5b6677; }
-  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(3) { grid-area: status; }
-  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(4) { grid-area: topic; font-weight: 600; }
-  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(5) { grid-area: att; text-align: right !important; }
-  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(6) { grid-area: actions; text-align: right !important; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-date { grid-area: date; font-size: 1rem !important; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-time { grid-area: time; color: #5b6677; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-status { grid-area: status; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-forma { grid-area: forma; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-topic { grid-area: topic; font-weight: 600; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-att { grid-area: att; text-align: right !important; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-act { grid-area: actions; text-align: right !important; }
   @media (max-width: 575.98px) {
     #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] { grid-template-columns: 1fr auto;
-        grid-template-areas: "date att" "topic topic" "time status" "actions actions"; }
-    #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(6) { text-align: left !important; }
+        grid-template-areas: "date att" "topic topic" "time time" "status forma" "actions actions"; }
+    #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-forma { text-align: right !important; }
+    #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td.lek-c-act { text-align: left !important; }
   }
+  /* Kolumna „Forma”: ikona + nazwa (nie sama ikona — czytelne też dla czytnika ekranu). */
+  #dyd-table-lekcje .lek-forma { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; color: #3d4757; white-space: nowrap; }
   </style>
 
   <!-- ── Widok: tabela kompaktowa ──────────────────────────────── -->
@@ -556,7 +560,8 @@ if ($_sms_enabled && $cur_course) {
           <tr>
             <th scope="col" style="width:92px">Data</th>
             <th scope="col" style="width:96px">Godziny</th>
-            <th scope="col" style="width:150px">Status i forma</th>
+            <th scope="col" style="width:130px">Status</th>
+            <th scope="col" style="width:120px">Forma</th>
             <th scope="col">Temat zajęć</th>
             <th scope="col" class="text-center" style="width:96px">Obecność<br><span class="fw-normal text-body-secondary" style="font-size:.66rem">obecni / wszyscy</span></th>
             <th scope="col" class="text-end"    style="width:210px">Akcje</th>
@@ -567,6 +572,10 @@ if ($_sms_enabled && $cur_course) {
         $_mon_names = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                        7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
         $_last_month = null;
+        // Forma zajęć: [ikona, kolor, nazwa] — ta sama mapa w kolumnie „Forma” i legendzie.
+        $_LEK_FORMS = ['stacjonarna' => ['geo-alt-fill', '#065F46', 'Stacjonarnie'],
+                       'zdalna_zoom' => ['camera-video-fill', '#1D4ED8', 'Zdalnie — Zoom'],
+                       'zdalna_inne' => ['display', '#6B21A8', 'Zdalnie — inne']];
         foreach (array_reverse($sessions) as $s): // domyślnie od najnowszych (najbliższe/ostatnie na górze)
           if ((string)$s['lesson_date'] === '') continue; // wersja robocza bez terminu — widoczna tylko w panelu „Wersje robocze”
           $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
@@ -576,7 +585,7 @@ if ($_sms_enabled && $cur_course) {
             $_last_month = $_mkey;
         ?>
         <tr class="table-light dyd-lek-month">
-          <th colspan="6" scope="colgroup" class="fw-bold text-uppercase small py-1">
+          <th colspan="7" scope="colgroup" class="fw-bold text-uppercase small py-1">
             <?= h(($_mon_names[(int)date('n', $sdate)] ?? '') . ' ' . date('Y', $sdate)) ?>
           </th>
         </tr>
@@ -601,27 +610,20 @@ if ($_sms_enabled && $cur_course) {
         <tr data-filter-item="1" data-date="<?= h($s['lesson_date']) ?>" data-time="<?= h(substr((string)$s['time_from'], 0, 5)) ?>" data-section="<?= $_sec ?>"
             style="--st:<?= h($st['color']) ?>;border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : '' ?>"
             class="<?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>">
-          <td style="font-size:.82rem;line-height:1.3">
+          <td class="lek-c-date" style="font-size:.82rem;line-height:1.3">
             <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>" data-dyd-lesson="<?= (int)$s['id'] ?>"
                class="text-decoration-none" aria-label="Wejdź do lekcji <?= h(date('d.m.Y', $sdate)) ?>">
               <span class="fw-semibold"><?= date('d.m', $sdate) ?></span><span class="text-body-secondary">.<?= date('y', $sdate) ?></span>
             </a>
             <span class="text-body-secondary d-block" style="font-size:.72rem"><?= $dow ?><?php if ($is_today): ?> <span class="badge px-1 py-0" style="font-size:.52rem;background:#2563eb;color:#fff">dziś</span><?php endif; ?></span>
           </td>
-          <td style="font-size:.82rem;white-space:nowrap">
+          <td class="lek-c-time" style="font-size:.82rem;white-space:nowrap">
             <?php if ($s['time_from']): ?>
             <?= h(substr((string)$s['time_from'],0,5)) ?><?= $s['time_to'] ? '–'.h(substr((string)$s['time_to'],0,5)) : '' ?>
             <?php else: ?><span class="text-body-tertiary">—</span><?php endif; ?>
           </td>
-          <td>
+          <td class="lek-c-status">
             <span class="badge dyd-st" style="--st:<?= h($st['color']) ?>;background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>44;font-size:.68rem"><?= h($st['label']) ?></span>
-            <?php $_lm2 = (string)($s['lesson_method'] ?? ''); if ($_lm2 === 'stacjonarna'): ?>
-            <i class="bi bi-geo-alt-fill ms-1" title="Stacjonarna" data-bs-toggle="tooltip" style="color:#065F46;font-size:.8rem"></i>
-            <?php elseif ($_lm2 === 'zdalna_zoom'): ?>
-            <i class="bi bi-camera-video-fill ms-1" title="Zdalna — Zoom" data-bs-toggle="tooltip" style="color:#1D4ED8;font-size:.8rem"></i>
-            <?php elseif ($_lm2 === 'zdalna_inne'): ?>
-            <i class="bi bi-display ms-1" title="Zdalna — Inne" data-bs-toggle="tooltip" style="color:#6B21A8;font-size:.8rem"></i>
-            <?php endif; ?>
             <?php
               // Odznaki dodatkowe — jako ikony w jednej linii zamiast osobnych bloków,
               // żeby wiersz nie rozciągał się na kilka linii (pełny opis w title/tooltip).
@@ -650,10 +652,17 @@ if ($_sms_enabled && $cur_course) {
             </div>
             <?php endif; ?>
           </td>
-          <td class="text-truncate" style="max-width:0;font-size:.83rem">
+          <td class="lek-c-forma">
+            <?php $_lm2 = $_LEK_FORMS[(string)($s['lesson_method'] ?? '')] ?? null; if ($_lm2): ?>
+            <span class="lek-forma"><i class="bi bi-<?= $_lm2[0] ?>" style="color:<?= $_lm2[1] ?>" aria-hidden="true"></i><?= h($_lm2[2]) ?></span>
+            <?php else: ?>
+            <span class="text-body-tertiary" aria-hidden="true">—</span><span class="visually-hidden">forma nieokreślona</span>
+            <?php endif; ?>
+          </td>
+          <td class="lek-c-topic text-truncate" style="max-width:0;font-size:.83rem">
             <?= !empty($s['topic']) ? h($s['topic']) : '<span class="text-body-tertiary">—</span>' ?>
           </td>
-          <td class="text-center" style="font-size:.82rem">
+          <td class="lek-c-att text-center" style="font-size:.82rem">
             <?php if ($s['status'] === 'remote_material' || (int)($course['track_attendance'] ?? 1) === 0): ?>
             <span class="text-body-tertiary"><i class="bi bi-dash" aria-hidden="true"></i></span>
             <?php elseif ($att_total > 0): ?>
@@ -662,7 +671,7 @@ if ($_sms_enabled && $cur_course) {
             <span class="text-body-tertiary">—</span>
             <?php endif; ?>
           </td>
-          <td>
+          <td class="lek-c-act">
             <div class="d-flex justify-content-end align-items-center flex-wrap gap-1">
               <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>" data-dyd-lesson="<?= (int)$s['id'] ?>"
                  class="btn btn-sm btn-outline-secondary py-0 px-2"
@@ -816,9 +825,9 @@ if ($_sms_enabled && $cur_course) {
         <?php endforeach; ?>
       </ul>
       <ul class="lek-legend-forms" aria-label="Formy zajęć">
-        <li><i class="bi bi-geo-alt-fill" style="color:#065F46" aria-hidden="true"></i>stacjonarne</li>
-        <li><i class="bi bi-camera-video-fill" style="color:#1D4ED8" aria-hidden="true"></i>Zoom — obciąża konto Zoom</li>
-        <li><i class="bi bi-display" style="color:#6B21A8" aria-hidden="true"></i>zdalne inaczej (Teams, telefon, link)</li>
+        <li><i class="bi bi-geo-alt-fill" style="color:#065F46" aria-hidden="true"></i>Stacjonarnie</li>
+        <li><i class="bi bi-camera-video-fill" style="color:#1D4ED8" aria-hidden="true"></i>Zdalnie — Zoom (obciąża konto Zoom)</li>
+        <li><i class="bi bi-display" style="color:#6B21A8" aria-hidden="true"></i>Zdalnie — inne (Teams, telefon, link)</li>
       </ul>
     </div>
   </details>
@@ -856,7 +865,7 @@ if ($_sms_enabled && $cur_course) {
       if (!list.length) return;
       var h = document.createElement('tr'); h.className = 'dyd-lek-sec dyd-lek-sec-' + sd[0];
       var collapsed = sd[4] === -1, limit = sd[4] > 0 ? sd[4] : 0;
-      h.innerHTML = '<th colspan="6" scope="colgroup"><button type="button" class="dyd-lek-sec-btn" aria-expanded="' + (!collapsed) + '">'
+      h.innerHTML = '<th colspan="7" scope="colgroup"><button type="button" class="dyd-lek-sec-btn" aria-expanded="' + (!collapsed) + '">'
         + '<i class="bi bi-chevron-' + (collapsed ? 'right' : 'down') + '" aria-hidden="true"></i>'
         + '<span class="dyd-lek-sec-t">' + sd[1] + '</span> <span class="badge">' + list.length + '</span>'
         + '<span class="dyd-lek-sec-d">' + sd[2] + '</span></button></th>';
@@ -865,7 +874,7 @@ if ($_sms_enabled && $cur_course) {
       var more = null;
       if (limit && list.length > limit) {
         more = document.createElement('tr'); more.className = 'dyd-lek-sec dyd-lek-more';
-        more.innerHTML = '<td colspan="6"><button type="button" class="btn btn-sm btn-outline-secondary">Pokaż wszystkie (' + list.length + ')</button></td>';
+        more.innerHTML = '<td colspan="7"><button type="button" class="btn btn-sm btn-outline-secondary">Pokaż wszystkie (' + list.length + ')</button></td>';
         more.querySelector('button').addEventListener('click', function () { list.forEach(function (r) { r.hidden = false; }); more.remove(); });
         tbody.appendChild(more);
       }
