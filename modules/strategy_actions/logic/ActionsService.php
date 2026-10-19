@@ -289,6 +289,15 @@ final class ActionsService
         return $id;
     }
 
+    /** Zmiana samego statusu (tablica, panel szczegółów). Zwraca poprzedni status albo null, gdy działania nie ma. */
+    public static function setStatus(int $id, string $status): ?string
+    {
+        $old = db_one("SELECT status FROM actions WHERE id = ?", [$id]);
+        if (!$old) return null;
+        db()->prepare("UPDATE actions SET status = ?, updated_at = ? WHERE id = ?")->execute([$status, date('Y-m-d H:i:s'), $id]);
+        return (string)$old['status'];
+    }
+
     /** Usuwa działanie z finansowaniem, wskaźnikami i powiązaniami (umowy wolontariatu / kursy TI tracą tylko odnośnik). */
     public static function delete(int $id): void
     {

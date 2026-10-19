@@ -148,6 +148,17 @@ final class ActionsController
         return Router::redirect(ActionsService::url((string)$id) . '#uczestnicy');
     }
 
+    /** POST /dzialania/{id}/status (JSON) — przeniesienie na tablicy / zmiana w panelu. */
+    public function status($id): array
+    {
+        $id = (int)$id;
+        $status = (string)($_POST['status'] ?? '');
+        if (!isset(ActionsService::STATUSES[$status])) return $this->fail('Nieznany status.');
+        if (ActionsService::setStatus($id, $status) === null) return $this->fail('Działanie nie istnieje.', 404);
+        return ['ok' => true, 'action' => ActionsService::one($id),
+                'message' => 'Status zmieniony na „' . ActionsService::statusLabel($status) . '”.'];
+    }
+
     /** GET /dzialania/kalendarz.json — zdarzenia FullCalendar (zastępuje strategy/actions/calendar.php). */
     public function calendarFeed(): array
     {
@@ -160,6 +171,13 @@ final class ActionsController
     }
 
     // ── Pomocnicze ────────────────────────────────────────────────────────────
+
+    /** Odpowiedź JSON z błędem (kod HTTP 4xx). */
+    private function fail(string $msg, int $code = 422): array
+    {
+        http_response_code($code);
+        return ['ok' => false, 'error' => $msg];
+    }
 
     private function form(array $row, ?int $id, array $errors): string
     {

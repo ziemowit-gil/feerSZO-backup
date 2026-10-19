@@ -3,7 +3,8 @@
  * modules/strategy_actions/router.php — jedyne wejście ekranu Działań (moduł Strategia, tabela actions).
  *
  * Czyste adresy /dzialania/… (.htaccess: ^dzialania(/.*)?$ → ten plik; trasa ze ścieżki żądania):
- *   /dzialania                 — lista i kalendarz działań (filtry, wyszukiwanie);
+ *   /dzialania                 — lista, tablica (kanban po statusie), oś czasu i kalendarz (filtry, kafle-liczniki);
+ *   POST /dzialania/{id}/status — zmiana statusu (JSON, przeciąganie na tablicy);
  *   /dzialania/nowe            — nowe działanie (?grant_id= wstępnie wybiera grant);
  *   /dzialania/{id}            — karta działania (finansowanie, wskaźniki, uczestnicy CRM);
  *   /dzialania/{id}/edycja     — edycja; POST …/usun — usunięcie (admin albo autor);
@@ -52,6 +53,7 @@ $r->group(['role:admin,editor'], function (Router $r) {
     $r->get('/{id}/edycja',             [ActionsController::class, 'edit'])->name('dz.edit');
     $r->post('/{id}/edycja',            [ActionsController::class, 'update']);
     $r->post('/{id}/usun',              [ActionsController::class, 'destroy'])->name('dz.delete');
+    $r->post('/{id}/status',            [ActionsController::class, 'status'])->name('dz.status');
     $r->post('/{id}/uczestnicy',        [ActionsController::class, 'participantAdd'])->name('dz.crm.add');
     $r->post('/{id}/uczestnicy/usun',   [ActionsController::class, 'participantRemove'])->name('dz.crm.remove');
 }, '/dzialania');

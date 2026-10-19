@@ -14,6 +14,7 @@ $dzData = [
     'init'     => $init,
     'base'     => ActionsService::url(),
     'today'    => date('Y-m-d'),
+    'csrf'     => Router::csrfToken(),
 ];
 include __DIR__ . '/_head.php';
 ?>
@@ -26,6 +27,16 @@ include __DIR__ . '/_head.php';
     <div class="d-flex gap-2 flex-wrap dz-noprint">
       <a href="<?= h(ActionsService::url('nowe')) ?>" class="dz-btn"><i class="bi bi-plus-lg" aria-hidden="true"></i>Nowe działanie</a>
     </div>
+  </div>
+
+  <div class="dz-tiles dz-noprint" role="group" aria-label="Szybkie filtry — liczniki">
+    <template x-for="t in tiles" :key="t.key">
+      <button type="button" class="dz-tile" :style="'--c:' + t.color" @click="f.flag = f.flag === t.key ? '' : t.key"
+              :aria-pressed="f.flag === t.key ? 'true' : 'false'">
+        <span class="n" x-text="tileCount(t.key)"></span>
+        <span><b x-text="t.label"></b><br><small x-text="t.hint"></small></span>
+      </button>
+    </template>
   </div>
 
   <div class="dz-pivot dz-noprint" role="group" aria-label="Widok działań">
@@ -104,6 +115,7 @@ include __DIR__ . '/_head.php';
     </div>
   </form>
 
+  <div class="dz-toast" role="status" aria-live="polite"><span x-show="msg" x-text="msg"></span></div>
   <p class="dz-muted small mb-2" role="status" aria-live="polite">
     Pokazano <b x-text="rows.length"></b> z <span x-text="all.length"></span> działań<span x-show="filtersOn"> (filtry włączone)</span>.
   </p>
@@ -165,6 +177,68 @@ include __DIR__ . '/_head.php';
     </div>
   </section>
 
+  <!-- TABLICA -->
+  <section x-show="view === 'tablica'" x-cloak aria-label="Tablica działań według statusu">
+    <p class="dz-muted small">Przeciągnij kartę do innej kolumny albo użyj przycisków ◀ ▶, aby zmienić status.</p>
+    <div class="dz-board">
+      <template x-for="(st, si) in statusKeys" :key="st">
+        <div class="dz-col" :class="dragOver === st ? 'over' : ''" :style="'--c:' + statusColor(st)"
+             @dragover.prevent="dragOver = st" @dragleave="dragOver = dragOver === st ? '' : dragOver" @drop.prevent="drop(st)">
+          <h3><span x-text="statusLabel(st)"></span><span x-text="byStatus(st).length"></span></h3>
+          <div class="cards">
+            <template x-for="a in byStatus(st)" :key="a.id">
+              <article class="dz-card" draggable="true" :style="'--c:' + statusColor(a.status)"
+                       @dragstart="dragId = a.id; $event.dataTransfer.effectAllowed = 'move'" @dragend="dragId = null; dragOver = ''"
+                       :aria-grabbed="dragId === a.id ? 'true' : 'false'">
+                <a class="nm" :href="url(a.id)" x-text="a.nazwa" @click="openAction(a.id, $event)"></a>
+                <div class="dz-muted"><i class="bi" :class="typeIcon(a.typ)" aria-hidden="true"></i> <span x-text="typeLabel(a.typ)"></span> · <span x-text="period(a)"></span></div>
+                <div class="dz-muted" x-show="a.koordynator" x-text="a.koordynator"></div>
+                <template x-if="a.pct !== null">
+                  <div class="d-flex align-items-center gap-2 mt-1"><div class="dz-bar"><span :style="'width:' + a.pct + '%;--c:' + pctColor(a.pct)"></span></div><small x-text="a.pct + '%'"></small></div>
+                </template>
+                <div><template x-for="fl in flagsOf(a)" :key="fl.key"><span class="dz-flag" :class="fl.key" x-text="fl.label"></span></template></div>
+                <div class="mv">
+                  <button type="button" x-show="si > 0" @click="move(a, statusKeys[si - 1])" :aria-label="'Przenieś „' + a.nazwa + '” do: ' + statusLabel(statusKeys[si - 1])">◀</button>
+                  <button type="button" x-show="si < statusKeys.length - 1" @click="move(a, statusKeys[si + 1])" :aria-label="'Przenieś „' + a.nazwa + '” do: ' + statusLabel(statusKeys[si + 1])">▶</button>
+                </div>
+              </article>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- OŚ CZASU -->
+  <section x-show="view === 'os'" x-cloak aria-label="Oś czasu działań">
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+      <button type="button" class="dz-btn dz-btn--ghost dz-btn--sm" @click="year--" aria-label="Poprzedni rok"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+      <span style="font:300 1.4rem 'Segoe UI',system-ui,sans-serif" x-text="year" aria-live="polite"></span>
+      <button type="button" class="dz-btn dz-btn--ghost dz-btn--sm" @click="year++" aria-label="Następny rok"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      <button type="button" class="dz-btn dz-btn--ghost dz-btn--sm" @click="year = thisYear" x-show="year !== thisYear">Bieżący rok</button>
+      <span class="dz-muted small ms-auto" x-show="undated.length" x-text="undated.length + ' bez dat — nie ma ich na osi'"></span>
+    </div>
+    <div class="dz-scroll">
+      <div class="dz-tl">
+        <div class="hd"><span class="lb">Działanie</span><div class="months"><template x-for="m in monthNames" :key="m"><span x-text="m"></span></template></div></div>
+        <template x-for="a in timeline" :key="a.id">
+          <div class="rw">
+            <div class="lb"><a :href="url(a.id)" x-text="a.nazwa" :title="a.nazwa" @click="openAction(a.id, $event)"></a></div>
+            <div class="track">
+              <div class="mgrid" aria-hidden="true"><template x-for="m in 12" :key="m"><span></span></template></div>
+              <span class="today" x-show="year === thisYear" :style="'left:' + todayPct + '%'" aria-hidden="true"></span>
+              <a class="bar" :href="url(a.id)" @click="openAction(a.id, $event)" :class="bar(a).cls"
+                 :style="'left:' + bar(a).left + '%;width:' + bar(a).width + '%;--c:' + statusColor(a.status)"
+                 :aria-label="a.nazwa + ': ' + period(a) + ', ' + statusLabel(a.status)" :title="a.nazwa + ' · ' + period(a)"
+                 x-text="bar(a).width > 8 ? statusLabel(a.status) : ''"></a>
+            </div>
+          </div>
+        </template>
+        <div class="dz-empty" x-show="!timeline.length">Brak działań w tym roku dla wybranych filtrów.</div>
+      </div>
+    </div>
+  </section>
+
   <!-- KALENDARZ -->
   <section x-show="view === 'kalendarz'" x-cloak aria-label="Kalendarz działań">
     <div id="dz-cal"></div>
@@ -184,7 +258,19 @@ function dzApp() {
   return {
     all: D.actions,
     view: 'lista',
-    views: [{key: 'lista', label: 'Lista'}, {key: 'kalendarz', label: 'Kalendarz'}],
+    views: [{key: 'lista', label: 'Lista'}, {key: 'tablica', label: 'Tablica'}, {key: 'os', label: 'Oś czasu'}, {key: 'kalendarz', label: 'Kalendarz'}],
+    tiles: [
+      {key: 'aktywne', label: 'W toku', hint: 'planowane, przygotowanie, trwające', color: '#00808a'},
+      {key: 'noGrant', label: 'Bez finansowania', hint: 'brak grantu, nie są własne', color: '#a20025'},
+      {key: 'overdue', label: 'Po terminie', hint: 'minęła data, wciąż w toku', color: '#c25100'},
+      {key: 'ending', label: 'Kończą się', hint: 'w ciągu 14 dni', color: '#a86b00'},
+      {key: 'behind', label: 'Wskaźniki < 50%', hint: 'wykonanie poniżej połowy planu', color: '#0050ef'},
+    ],
+    statusKeys: statusOrder,
+    dragId: null, dragOver: '',
+    year: new Date().getFullYear(), thisYear: new Date().getFullYear(),
+    monthNames: ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'],
+    msg: '',
     f: emptyF(),
     sort: {key: 'od', dir: -1},
     columns: [
@@ -211,6 +297,54 @@ function dzApp() {
       try { localStorage.setItem('dz.state', JSON.stringify({view: this.view, f: this.f, sort: this.sort})); } catch (e) {}
       if (this.view === 'kalendarz') this.$nextTick(() => this.renderCal());
     },
+    tileCount(key) { return this.all.filter(a => this.match(a, true) && this.hasFlag(a, key)).length; },
+    byStatus(st) { return this.rows.filter(a => a.status === st); },
+    drop(st) {
+      const a = this.all.find(x => x.id === this.dragId);
+      this.dragOver = ''; this.dragId = null;
+      if (a) this.move(a, st);
+    },
+    async move(a, st) {
+      if (!a || a.status === st) return;
+      const prev = a.status;
+      a.status = st;
+      const res = await this.post(this.url(a.id, 'status'), {status: st});
+      if (res && res.ok) { this.replace(res.action); this.say(res.message); }
+      else { a.status = prev; this.say((res && res.error) || 'Nie udało się zmienić statusu.'); }
+    },
+    async post(url, data) {
+      const fd = new FormData();
+      fd.append('_csrf', D.csrf);
+      Object.entries(data || {}).forEach(([k, v]) => Array.isArray(v) ? v.forEach(x => fd.append(k + '[]', x)) : fd.append(k, v));
+      try {
+        const r = await fetch(url, {method: 'POST', body: fd, credentials: 'same-origin', headers: {'Accept': 'application/json'}});
+        const ct = r.headers.get('content-type') || '';
+        return ct.includes('json') ? await r.json() : {ok: false, error: (await r.text()).slice(0, 200) || ('Błąd ' + r.status)};
+      } catch (e) { return {ok: false, error: 'Brak połączenia z serwerem.'}; }
+    },
+    replace(row) {
+      if (!row) return;
+      const i = this.all.findIndex(x => x.id === row.id);
+      if (i >= 0) this.all.splice(i, 1, row); else this.all.unshift(row);
+      if (this.cal) this.cal.refetchEvents();
+    },
+    say(text) { this.msg = ''; this.$nextTick(() => { this.msg = text; }); clearTimeout(this._t); this._t = setTimeout(() => this.msg = '', 5000); },
+
+    get undated() { return this.rows.filter(a => !a.od && !a.do); },
+    get timeline() {
+      const ys = this.year + '-01-01', ye = this.year + '-12-31';
+      return this.rows.filter(a => (a.od || a.do) && (a.od || a.do) <= ye && (a.do || a.od) >= ys)
+        .sort((x, y) => (x.od || x.do).localeCompare(y.od || y.do) || x.id - y.id);
+    },
+    dayOfYear(d) { const t = new Date(d + 'T00:00:00'); return Math.round((t - new Date(this.year, 0, 1)) / 864e5); },
+    get yearDays() { return Math.round((new Date(this.year + 1, 0, 1) - new Date(this.year, 0, 1)) / 864e5); },
+    get todayPct() { return this.dayOfYear(D.today) / this.yearDays * 100; },
+    bar(a) {
+      const n = this.yearDays, s0 = this.dayOfYear(a.od || a.do), e0 = this.dayOfYear(a.do || a.od) + 1;
+      const s = Math.max(0, s0), e = Math.min(n, e0);
+      return {left: s / n * 100, width: Math.max(0.4, (e - s) / n * 100), cls: (s0 < 0 ? 'cut-l ' : '') + (e0 > n ? 'cut-r' : '')};
+    },
+
     get filtersOn() { return Object.values(this.f).some(v => v !== ''); },
     resetFilters() { this.f = emptyF(); },
 
@@ -275,9 +409,10 @@ function dzApp() {
 
     calEvents() {
       return this.rows.filter(a => a.od && a.status !== 'anulowane').map(a => {
-        const end = a.do ? new Date(a.do + 'T00:00:00') : null;
+        const end = a.do ? new Date(a.do + 'T12:00:00') : null;
         if (end) end.setDate(end.getDate() + 1);
-        return {id: String(a.id), title: a.nazwa, start: a.od, end: end ? end.toISOString().slice(0, 10) : null,
+        const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        return {id: String(a.id), title: a.nazwa, start: a.od, end: end ? ymd(end) : null,
                 color: this.statusColor(a.status), allDay: true};
       });
     },
@@ -298,7 +433,7 @@ function dzApp() {
         this.cal.updateSize();
       }
     },
-    openAction(id) { window.location = this.url(id); },
+    openAction(id, ev) { if (ev) return; window.location = this.url(id); },
   };
 }
 </script>

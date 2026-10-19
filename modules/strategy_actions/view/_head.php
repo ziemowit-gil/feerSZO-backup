@@ -109,6 +109,48 @@ body{background:#fff;color:var(--dark);margin:0;font-family:"Segoe UI","Segoe UI
 .dz-form fieldset{border:0;padding:0;margin:0 0 .4rem}
 .dz-check{display:flex;gap:.45rem;align-items:center;font-size:.9rem;cursor:pointer}
 .dz-check input{width:18px;height:18px;accent-color:var(--dz)}
+/* Kafle-liczniki (klik = filtr) */
+.dz-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:6px;margin:0 0 1rem}
+.dz-tile{--c:var(--dz);display:flex;flex-direction:column;justify-content:space-between;min-height:104px;padding:10px 12px;background:var(--c);color:#fff;border:0;text-align:left;cursor:pointer;font-family:inherit}
+.dz-tile:hover{filter:brightness(1.12)}
+.dz-tile[aria-pressed="true"]{outline:4px solid var(--dark);outline-offset:-4px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.35)}
+.dz-tile .n{font:300 2.4rem/1 "Segoe UI",system-ui,sans-serif}
+.dz-tile b{font-size:.92rem;font-weight:600}
+.dz-tile small{font-size:.72rem;color:rgba(255,255,255,.9)}
+/* Tablica (kanban po statusie) */
+.dz-board{display:grid;grid-template-columns:repeat(6,minmax(220px,1fr));gap:6px;overflow-x:auto;padding-bottom:.5rem}
+.dz-col{background:var(--light);min-height:220px;display:flex;flex-direction:column}
+.dz-col.over{background:var(--dz-50);outline:2px dashed var(--dz);outline-offset:-2px}
+.dz-col h3{margin:0;padding:.5rem .65rem;color:#fff;background:var(--c);font:600 .85rem/1.3 "Segoe UI",system-ui,sans-serif;display:flex;justify-content:space-between}
+.dz-col .cards{padding:6px;display:flex;flex-direction:column;gap:6px;flex:1}
+.dz-card{background:#fff;padding:.5rem .6rem;border-left:4px solid var(--c);cursor:grab;font-size:.84rem}
+.dz-card[aria-grabbed="true"]{opacity:.5}
+.dz-card a.nm{font-weight:600;color:var(--dark);text-decoration:none;display:block;margin-bottom:.15rem}
+.dz-card a.nm:hover{color:var(--dz);text-decoration:underline}
+.dz-card .mv{display:flex;gap:4px;justify-content:flex-end;margin-top:.35rem}
+.dz-card .mv button{background:#fff;border:1px solid #8a8a8a;font-size:.72rem;padding:.05rem .4rem;cursor:pointer}
+.dz-card .mv button:hover{background:var(--dark);color:#fff}
+/* Oś czasu */
+.dz-tl{min-width:860px}
+.dz-tl .hd,.dz-tl .rw{display:grid;grid-template-columns:260px 1fr;align-items:center}
+.dz-tl .hd{border-bottom:2px solid var(--dark);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600}
+.dz-tl .months{display:grid;grid-template-columns:repeat(12,1fr)}
+.dz-tl .months span{padding:.35rem .3rem;border-left:1px solid var(--line)}
+.dz-tl .rw{border-bottom:1px solid var(--line);min-height:34px}
+.dz-tl .rw:hover{background:#fafafa}
+.dz-tl .lb{padding:.3rem .5rem .3rem 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem}
+.dz-tl .lb a{color:var(--dark);text-decoration:none;font-weight:600}
+.dz-tl .lb a:hover{color:var(--dz);text-decoration:underline}
+.dz-tl .track{position:relative;height:34px}
+.dz-tl .mgrid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(12,1fr)}
+.dz-tl .mgrid span{border-left:1px solid var(--line)}
+.dz-tl .bar{position:absolute;top:8px;height:18px;min-width:6px;background:var(--c);color:#fff;font-size:.68rem;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;text-decoration:none;border:0;cursor:pointer;font-family:inherit;text-align:left}
+.dz-tl .bar:hover{filter:brightness(1.15)}
+.dz-tl .cut-l{border-left:3px dotted #fff}.dz-tl .cut-r{border-right:3px dotted #fff}
+.dz-tl .today{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:1}
+/* Komunikat po akcji */
+.dz-toast{position:fixed;left:1rem;bottom:1rem;z-index:1060;max-width:420px}
+.dz-toast span{display:block;background:var(--dark);color:#fff;padding:.65rem 1rem;font-size:.9rem}
 /* FullCalendar */
 .dz .fc .fc-button{background:#fff;color:var(--dark);border:2px solid var(--dark);font-size:.8rem;text-transform:none;box-shadow:none}
 .dz .fc .fc-button:hover,.dz .fc .fc-button-active{background:var(--dark)!important;color:#fff!important;border-color:var(--dark)!important}
