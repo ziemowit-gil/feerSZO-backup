@@ -365,6 +365,30 @@ html body #tsk-main .tk-created{font-size:.8rem}
 html body #tsk-main .tk-created-by{font-size:.72rem;color:var(--tm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
 html body #tsk-main .tk-table td:last-child .tk-actions{padding-top:2px}
 @media(prefers-reduced-motion:reduce){html body #taskOffcanvas.offcanvas{transition:none}}
+/* ══ Okno zadania: dwie kolumny — szczegóły po lewej, komentarze i pliki w prawej (szarej) kolumnie ══ */
+html body #taskOffcanvas.offcanvas{width:min(1240px,96vw);max-width:96vw}
+html body #td-root .td-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,400px);align-items:start}
+html body #td-root .td-main{min-width:0}
+html body #td-root .td-side{min-width:0;background:var(--tm-light);border-left:1px solid var(--tm-line);align-self:stretch}
+html body #td-root .td-side>.td-section{border-bottom:1px solid #dcdcdc;padding:1rem 1.1rem}
+html body #td-root .td-side .td-label{font-size:.8rem;letter-spacing:.06em;text-transform:none;font-weight:600;margin-bottom:.75rem}
+html body #td-root .td-side .td-label .badge{background:var(--tsk-green)!important;border-radius:0}
+html body #td-root .td-side .td-comment{background:#fff;border-left:3px solid var(--tsk-green);padding:.65rem .8rem;margin-bottom:.5rem}
+html body #td-root .td-side .td-comment-author{font-weight:600}
+html body #td-root .td-side #td-new-cmt{border:2px solid var(--tm-field);border-radius:0;background:#fff;min-height:4.5rem;font-size:.86rem}
+html body #td-root .td-side #td-new-cmt:focus{border-color:var(--tsk-green);box-shadow:none}
+html body #td-root .td-side .btn-primary{background:var(--tsk-green);border:0;border-radius:0;font-weight:600}
+html body #td-root .td-side .btn-primary:hover,html body #td-root .td-side .btn-primary:focus-visible{background:var(--tm-dark)}
+html body #td-root .td-side .td-file-row{background:#fff}
+html body #td-root .td-side .td-drop-zone{background:#fff}
+@media(min-width:992px){
+  html body #td-root .td-side{position:sticky;top:0;max-height:calc(90vh - 3.5rem);overflow-y:auto;overscroll-behavior:contain}
+}
+@media(max-width:991.98px){
+  html body #td-root .td-layout{grid-template-columns:minmax(0,1fr)}
+  html body #td-root .td-side{border-left:0;border-top:4px solid var(--tsk-green)}
+}
+
 
 /* Tabele nie ucinają kolumn: kontener przewija się w poziomie (było overflow:hidden). */
 html body #tsk-main .tk-wrap,html body #tsk-main .card:has(> .table),html body #tsk-main .card-body:has(> .table){overflow-x:auto}

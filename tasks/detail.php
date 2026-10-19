@@ -45,14 +45,21 @@ require_once __DIR__ . '/includes/detail_load.php';
 <?php require_once __DIR__ . '/includes/detail_style.php'; ?>
 
 <?php require_once __DIR__ . '/includes/detail_header.php'; ?>
+<div class="td-layout">
+  <div class="td-main">
 <?php require_once __DIR__ . '/includes/detail_properties.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_mail_source.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_links.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_dependencies.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_fields.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_subtasks_time.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_files.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_activity.php'; ?>
+  </div>
+  <aside class="td-side" aria-label="Komentarze i pliki zadania">
+<?php require_once __DIR__ . '/includes/detail_comments.php'; ?>
+<?php require_once __DIR__ . '/includes/detail_files.php'; ?>
+  </aside>
+</div>
 <?php require_once __DIR__ . '/includes/detail_modals.php'; ?>
 </div><!-- /td-root -->
 
