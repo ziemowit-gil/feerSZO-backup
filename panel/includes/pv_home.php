@@ -255,6 +255,8 @@ $_pv_extra_html = trim((string)ob_get_clean());
 $_tabs = ['umowa' => ['umowa', 0], 'sprawy' => ['sprawy', $_pending_total], 'narzedzia' => ['narzędzia', 0],
           'wiedza' => ['wiedza', 0], 'konta' => ['konta i dostępy', 0], 'wiadomosci' => ['wiadomości', (int)$msg_unread]];
 if ($_pv_extra_html !== '') $_tabs['wydarzenia'] = ['wydarzenia', 0];
+// Umowa zlecenie i rachunki — zawsze, gdy osoba ma umowę zlecenia (także przy wybranym innym kontekście, np. wolontariat)
+include dirname(__DIR__, 2) . '/modules/zlecenie_oswiadczenie/view/_panelZlecenie.php';
 
 /* ── Kalendarz organizacji (kanał ICS z ustawień, ten sam co panel/calendar.php): najbliższe wydarzenia ── */
 $_pv_cal = [];
@@ -705,6 +707,8 @@ panelMetroAssets($_vol_color);
     <?php endforeach; ?>
   </section>
   <?php endif; ?>
+
+  <?php include dirname(__DIR__, 2) . '/modules/zlecenie_oswiadczenie/view/_panelZlecenieSekcje.php'; ?>
 
   <?php if ($_pv_extra_html !== ''): ?>
 
