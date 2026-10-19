@@ -1,8 +1,9 @@
 <?php
 /**
- * API: Import pliku z URL (OneDrive / SharePoint)
- * POST JSON: { _csrf, task_id, url, filename }
- * Pobiera plik z zaufanego URL Microsoft i zapisuje jak normalny upload.
+ * API: Import pliku z OneDrive / URL Microsoft
+ * POST JSON: { _csrf, task_id, od_item_id }      — plik z OneDrive użytkownika (okno modules/onedrive_picker)
+ *        lub { _csrf, task_id, url, filename }   — plik z zaufanego URL Microsoft
+ * Zapisuje plik jak normalny upload.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
@@ -18,28 +19,31 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') task_api_error('Metoda niedozwolona.'
 $body = task_parse_json_body();
 task_csrf_check($body);
 
-$task_id  = (int)($body['task_id'] ?? 0);
-$url      = trim($body['url']      ?? '');
-$filename = trim($body['filename'] ?? 'plik');
+$task_id    = (int)($body['task_id'] ?? 0);
+$od_item_id = trim((string)($body['od_item_id'] ?? ''));
+$url        = trim($body['url']      ?? '');
+$filename   = trim($body['filename'] ?? 'plik');
 
-if (!$task_id) task_api_error('Brak task_id.');
-if (!$url)     task_api_error('Brak URL.');
+if (!$task_id)                      task_api_error('Brak task_id.');
+if (!$url && $od_item_id === '')    task_api_error('Brak URL.');
 
-// ── Weryfikacja że URL pochodzi z Microsoft ────────────────────────────────
-$parsed = parse_url($url);
-$host   = strtolower($parsed['host'] ?? '');
-$trusted_suffixes = [
-    '.sharepoint.com', '.microsoft.com', '.office.com',
-    '.1drv.ms', 'onedrive.live.com', 'graph.microsoft.com',
-];
-$ok = false;
-foreach ($trusted_suffixes as $sfx) {
-    if (str_ends_with($host, $sfx) || $host === ltrim($sfx, '.')) {
-        $ok = true;
-        break;
+// ── Weryfikacja że URL pochodzi z Microsoft (OneDrive po ID nie podaje adresu) ─
+if ($od_item_id === '') {
+    $parsed = parse_url($url);
+    $host   = strtolower($parsed['host'] ?? '');
+    $trusted_suffixes = [
+        '.sharepoint.com', '.microsoft.com', '.office.com',
+        '.1drv.ms', 'onedrive.live.com', 'graph.microsoft.com',
+    ];
+    $ok = false;
+    foreach ($trusted_suffixes as $sfx) {
+        if (str_ends_with($host, $sfx) || $host === ltrim($sfx, '.')) {
+            $ok = true;
+            break;
+        }
     }
+    if (!$ok) task_api_error('URL nie pochodzi z zaufanego serwisu Microsoft.', 403);
 }
-if (!$ok) task_api_error('URL nie pochodzi z zaufanego serwisu Microsoft.', 403);
 
 // ── Sprawdź dostęp do zadania ─────────────────────────────────────────────
 $task = db_one(
@@ -55,7 +59,18 @@ task_require_workspace_access((int)$task['workspace_id'], ['admin', 'editor']);
 $tmpfile = tempnam(sys_get_temp_dir(), 'od_import_');
 $downloaded = false;
 
-if (function_exists('curl_init')) {
+if ($od_item_id !== '') {
+    // OneDrive zalogowanego użytkownika (Graph, po stronie serwera) — tylko jego własny dysk
+    require_once dirname(__DIR__, 2) . '/modules/onedrive_picker/lib/OneDrivePicker.php';
+    try {
+        $od       = (new OneDrivePicker())->fetch($od_item_id, TASK_UPLOAD_MAX_BYTES);
+        $filename = $od['name'];
+        $downloaded = file_put_contents($tmpfile, $od['bytes']) !== false;
+    } catch (\Throwable $e) {
+        @unlink($tmpfile);
+        task_api_error($e->getMessage(), 502);
+    }
+} elseif (function_exists('curl_init')) {
     $ch = curl_init($url);
     $fh = fopen($tmpfile, 'wb');
     curl_setopt_array($ch, [

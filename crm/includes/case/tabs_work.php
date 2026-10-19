@@ -318,7 +318,8 @@ if (!isset($case)) { http_response_code(400); exit; }
                   aria-describedby="drop-formats">
             <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Wybierz pliki…
           </button>
-          <?php if (m365_setting('sp_enabled') === '1' && MS_CLIENT_ID): ?>
+          <?php require_once dirname(__DIR__, 3) . '/modules/onedrive_picker/lib/OneDrivePicker.php'; ?>
+          <?php if (OneDrivePicker::available()): ?>
           <button type="button" id="od-btn"
                   class="btn btn-outline-primary btn-sm"
                   aria-label="Dodaj plik z OneDrive Microsoft 365">
@@ -617,56 +618,39 @@ if (!isset($case)) { http_response_code(400); exit; }
           form.submit();
         };
 
-        // ── OneDrive File Picker v8 ──────────────────────────────────────────
-        var OD_CLIENT_ID   = '<?= h(MS_CLIENT_ID) ?>';
+        // ── OneDrive — okno wyboru z modules/onedrive_picker (Graph po stronie serwera) ──
+        // Plik pobiera serwer po ID elementu (crm/cases/api/od_import.php) — bez SDK OneDrive i popupu logowania.
         var OD_IMPORT_URL  = '<?= APP_URL ?>/crm/cases/api/od_import.php';
+        var OD_PICKER_JS   = '<?= APP_URL ?>/modules/onedrive_picker/view/picker.js?v=<?= (int)@filemtime(dirname(__DIR__, 3) . '/modules/onedrive_picker/view/picker.js') ?>';
         var odBtn = document.getElementById('od-btn');
-        if (odBtn && OD_CLIENT_ID) {
-          // Ładuj SDK lazily przy pierwszym kliknięciu
-          var _odSdkLoaded = false;
-          function loadOdSdk(cb) {
-            if (_odSdkLoaded) { cb(); return; }
-            var s = document.createElement('script');
-            s.src = 'https://res-1.cdn.office.net/files/odsp-next-0.2089.0-0/OneDrive.Picker.js';
-            s.onload = function(){ _odSdkLoaded = true; cb(); };
-            s.onerror = function(){ setAnnounce('Nie udało się załadować OneDrive Picker.'); };
-            document.head.appendChild(s);
+        if (odBtn) {
+          function openOdPicker() {
+            OneDrivePicker.open({
+              endpoint: '<?= APP_URL ?>/modules/onedrive_picker/router.php/list',
+              csrf:     CSRF,
+              accept:   '.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif,.zip,.pptx,.ppt,.odt,.ods',
+              maxBytes: 52428800,
+              title:    'Dodaj pliki z OneDrive do sprawy',
+              onPick:   function(items) {
+                items.forEach(function(it) {
+                  importFromOneDrive({ name: it.name, size: it.size, item_id: it.id });
+                });
+              },
+            });
           }
 
           odBtn.addEventListener('click', function() {
+            if (window.OneDrivePicker) { openOdPicker(); return; }
             odBtn.disabled = true;
             odBtn.setAttribute('aria-busy', 'true');
-            loadOdSdk(function() {
-              odBtn.disabled = false;
-              odBtn.removeAttribute('aria-busy');
-              try {
-                var picker = new OneDrive.OneDrivePicker({
-                  clientId: OD_CLIENT_ID,
-                  action:   'download',
-                  multiSelect: true,
-                  advanced: {
-                    filter: '.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif,.zip,.pptx,.ppt,.odt,.ods',
-                    redirectUri: '<?= h(APP_URL) ?>/auth/microsoft.php',
-                  },
-                  success: function(files) {
-                    files.value.forEach(function(f) {
-                      importFromOneDrive({
-                        name:         f.name,
-                        size:         f.size,
-                        download_url: f['@microsoft.graph.downloadUrl'],
-                      });
-                    });
-                  },
-                  cancel: function() {},
-                  error: function(err) {
-                    setAnnounce('Błąd OneDrive: ' + (err.message || err));
-                  },
-                });
-                picker.open();
-              } catch(e) {
-                setAnnounce('Błąd otwierania OneDrive: ' + e.message);
-              }
-            });
+            var s = document.createElement('script');
+            s.src = OD_PICKER_JS;
+            s.onload  = function(){ odBtn.disabled = false; odBtn.removeAttribute('aria-busy'); openOdPicker(); };
+            s.onerror = function(){
+              odBtn.disabled = false; odBtn.removeAttribute('aria-busy');
+              setAnnounce('Nie udało się otworzyć okna OneDrive.');
+            };
+            document.head.appendChild(s);
           });
 
           function importFromOneDrive(f) {
@@ -726,7 +710,7 @@ if (!isset($case)) { http_response_code(400); exit; }
                 _csrf:        CSRF,
                 name:         f.name,
                 size:         f.size,
-                download_url: f.download_url,
+                item_id:      f.item_id,
                 display_name: nameInput.value.trim(),
               };
 

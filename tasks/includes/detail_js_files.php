@@ -94,46 +94,50 @@ if (tdDropZone) {
     });
 }
 
-/* OneDrive */
+/* OneDrive — okno wyboru z modules/onedrive_picker (Graph po stronie serwera; plik pobiera
+   tasks/api/import_url.php po ID elementu — bez OneDrive.js i bez popupu logowania). */
 window.tdOpenOneDrive = function() {
-    if (!MS_APP_ID) { alert('Brak konfiguracji Microsoft (brak Client ID).'); return; }
-
-    function _doOpen() {
-        const opts = {
-            clientId:   MS_APP_ID,
-            action:     'download',
-            multiSelect: true,
-            openInNewWindow: true,
-            advanced: {
-                redirectUri:     BASE + '/auth/microsoft.php',
-                filter:          '.pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.jpg,.jpeg,.png,.zip,.txt,.csv',
-                queryParameters: 'select=id,name,size,file,@microsoft.graph.downloadUrl',
-            },
-            success: function(result) {
-                const items = result.value || [];
+    function _open() {
+        OneDrivePicker.open({
+            endpoint: BASE + '/modules/onedrive_picker/router.php/list',
+            csrf:     CSRF,
+            accept:   <?= json_encode(task_upload_accept_attr()) ?>,
+            maxBytes: <?= (int)TASK_UPLOAD_MAX_BYTES ?>,
+            title:    'Dodaj pliki z OneDrive',
+            onPick:   function(items) {
                 (function next(i) {
                     if (i >= items.length) return;
-                    const item  = items[i];
-                    const dlUrl = item['@microsoft.graph.downloadUrl'];
-                    if (dlUrl) tdImportFromUrl(dlUrl, item.name || 'plik', () => next(i + 1));
-                    else next(i + 1);
+                    tdImportFromOneDrive(items[i], () => next(i + 1));
                 })(0);
             },
-            cancel: function() {},
-            error:  function(e) { alert('Błąd OneDrive: ' + (e.message || e)); },
-        };
-        OneDrive.open(opts);
+        });
     }
+    if (window.OneDrivePicker) { _open(); return; }
+    const s = document.createElement('script');
+    s.src     = BASE + '/modules/onedrive_picker/view/picker.js?v=<?= (int)@filemtime(dirname(__DIR__, 2) . '/modules/onedrive_picker/view/picker.js') ?>';
+    s.onload  = _open;
+    s.onerror = () => alert('Nie udało się otworzyć okna OneDrive.');
+    document.head.appendChild(s);
+};
 
-    if (typeof OneDrive !== 'undefined') {
-        _doOpen();
-    } else {
-        const s = document.createElement('script');
-        s.src   = 'https://js.live.net/v7.2/OneDrive.js';
-        s.onload  = _doOpen;
-        s.onerror = () => alert('Nie udało się załadować SDK OneDrive.');
-        document.head.appendChild(s);
-    }
+window.tdImportFromOneDrive = function(item, onDone) {
+    const st  = document.getElementById('td-upload-status');
+    const msg = document.getElementById('td-upload-msg');
+    if (st)  st.classList.remove('d-none');
+    if (msg) msg.textContent = 'Pobieram z OneDrive: ' + item.name + '…';
+
+    api('/tasks/api/import_url.php', {task_id: TID, od_item_id: item.id})
+    .then(r => {
+        if (st) st.classList.add('d-none');
+        if (r.ok) { srAnnounce('Plik ' + item.name + ' dodany z OneDrive.'); openTask(TID); }
+        else alert('Błąd importu „' + item.name + '": ' + r.error);
+        if (onDone) onDone();
+    })
+    .catch(() => {
+        if (st) st.classList.add('d-none');
+        alert('Błąd sieci przy imporcie pliku z OneDrive.');
+        if (onDone) onDone();
+    });
 };
 
 window.tdImportFromUrl = function(url, filename, onDone) {

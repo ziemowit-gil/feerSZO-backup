@@ -18,7 +18,8 @@ $code  = trim($_GET['code']  ?? '');
 $state = trim($_GET['state'] ?? '');
 
 // Wejście, które NIE jest odpowiedzią na logowanie SZO (ms_auth_url):
-//  • selektor plików OneDrive (OneDrive.js v7.2 w Zadaniach i CRM) używa tego adresu
+//  • dawny selektor plików OneDrive (OneDrive.js v7.2; Zadania i CRM mają już okno
+//    modules/onedrive_picker — zostaje dla otwartych starych kart) używał tego adresu
 //    jako redirectUri — otwiera popup z ?oauth={"clientId":…,"endpoint":…,"scopes":…},
 //    a po zalogowaniu wraca tu z #access_token=…&state=<origin>_<nonce> (fragment —
 //    serwer go nie widzi; ewentualny błąd może przyjść w query ze state OneDrive),

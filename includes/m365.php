@@ -1312,6 +1312,31 @@ class M365Graph {
         return !empty($r['id']) ? $r : [];
     }
 
+    /**
+     * Treść pliku z OneDrive. Graph odpowiada 302 na adres pobrania — liczy się status
+     * OSTATNIEJ odpowiedzi (sp_download_file() przy błędzie zwróciłby treść JSON-a błędu).
+     */
+    public function od_download(string $drive_id, string $item_id): string {
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'GET',
+            'header'        => "Authorization: Bearer {$this->token()}\r\n",
+            'ignore_errors' => true,
+            'timeout'       => 60,
+        ]]);
+        $data = @file_get_contents(
+            "https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/" . rawurlencode($item_id) . "/content", false, $ctx
+        );
+        $status = 0;
+        foreach ($http_response_header ?? [] as $h) {
+            if (preg_match('#^HTTP/\S+\s+(\d+)#', $h, $m)) $status = (int)$m[1];
+        }
+        $this->last_status = $status;
+        if ($data === false || $status < 200 || $status >= 300) {
+            throw new \RuntimeException('Nie udało się pobrać pliku z OneDrive (HTTP ' . ($status ?: 'brak odpowiedzi') . ').');
+        }
+        return $data;
+    }
+
     // ══ OUTLOOK CONTACTS (delta sync) ════════════════════════════════════════
 
     /**

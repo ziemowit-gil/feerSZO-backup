@@ -172,7 +172,9 @@ foreach ($_unit_members as $m) {
 $cur_user     = current_user();
 $has_ms       = !empty($cur_user['microsoft_id']);
 [, $ms_app_id] = _ms_creds();
-$ms_available  = $ms_app_id !== '';
+// OneDrive: okno wyboru po stronie serwera (Graph, uprawnienie aplikacji Files.Read.All) — patrz modules/onedrive_picker
+require_once dirname(__DIR__, 2) . '/modules/onedrive_picker/lib/OneDrivePicker.php';
+$ms_available  = OneDrivePicker::configured();
 
 function td_render_mentions(string $text, array $users): string {
     $html = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
