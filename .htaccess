@@ -137,6 +137,17 @@ RewriteRule ^kursant/(.+)$    /karty30/ti/kursant/$1 [L]
 RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 
+# szo.* i pozostałe hosty systemu: /login.php, /login, /logowanie, /logout.php → formularz
+# w /auth/ (w korzeniu nie ma login.php — dawniej 404). crm./poczta./webmail. mają własne
+# reguły niżej; ti./kurs. — reguła wyżej. Przekierowanie (302), żeby formularz i jego
+# względne adresy działały z /auth/; query (np. ?redirect=) zostaje.
+RewriteCond %{HTTP_HOST} !^(ti|kurs|crm|poczta|webmail)[^.]*\. [NC]
+RewriteCond %{DOCUMENT_ROOT}/login.php !-f
+RewriteRule ^(login\.php|login|logowanie)/?$ /auth/login.php [R=302,QSA,L]
+RewriteCond %{HTTP_HOST} !^(ti|kurs|crm|poczta|webmail)[^.]*\. [NC]
+RewriteCond %{DOCUMENT_ROOT}/logout.php !-f
+RewriteRule ^(logout\.php|logout|wyloguj)/?$ /auth/logout.php [R=302,QSA,L]
+
 # Pliki „obok” paneli (karty30/ti/assets/ti_skin.css, karty30/ti/ext/…, nowosci.php)
 # — panele linkują do nich względnie („../assets/…”), co przy krótkich adresach
 # daje /assets/ti_skin.css. Serwujemy je z karty30/ti/, o ile plik nie istnieje
