@@ -9,6 +9,7 @@ final class WorkloadController
     public function index(): ?string
     {
         $uid = (int)current_user()['id'];
+        if (!tasksPlusLeaderWorkspaces($uid)) return $this->deny();
         $f = $this->filters();
         $rep = tasksWorkloadReport($uid, $f);
         $workspaces = $rep['scope'] === 'team' ? tasksPlusLeaderWorkspaces($uid) : tasksPlusWorkspaces($uid);
@@ -18,12 +19,20 @@ final class WorkloadController
 
     public function csv(): ?string
     {
+        if (!tasksPlusLeaderWorkspaces((int)current_user()['id'])) return $this->deny();
         $f = $this->filters();
         $rep = tasksWorkloadReport((int)current_user()['id'], $f);
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="obciazenie-zespolu-' . date('Y-m-d') . '.csv"');
         echo tasksWorkloadCsv($rep, $f);
         return null;
+    }
+
+    /** Raport obciążenia widzą tylko liderzy obszarów (lider/edytor) i administratorzy. */
+    private function deny(): string
+    {
+        http_response_code(403);
+        return tasksPlusPage('Obciążenie zespołu', '<div class="tp-empty">Obciążenie zespołu widzą liderzy obszarów.</div>');
     }
 
     /** Filtry: obszar i okres (domyślnie ostatnie 30 dni). */

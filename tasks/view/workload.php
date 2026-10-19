@@ -21,7 +21,7 @@ html body #tsk-main details.twl-more li{padding:.25rem 0;border-top:1px solid va
 
 <div class="tp-head">
   <div>
-    <div class="tp-kicker">Zadania · <?= $rep['scope'] === 'team' ? 'raport lidera' : 'moje obciążenie' ?></div>
+    <div class="tp-kicker">Zadania · raport lidera</div>
     <h1 class="tp-title">Obciążenie zespołu</h1>
     <p class="tp-lead"><?= $rep['scope'] === 'team'
         ? 'Wykonawcy zadań w obszarach, w których jesteś liderem.'
