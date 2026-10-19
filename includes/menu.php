@@ -364,7 +364,7 @@ function _menu_editor(): array {
     if (can_read('umowy') || is_admin())
         $fin[] = _mi('Strategia','/strategy/index.php','bi-bullseye',['match'=>'/strategy/','kw'=>'strategia cele działania projekty']);
     if (menu_visible('actions'))
-        $fin_search[] = _mi('Działania','/strategy/actions/index.php','bi-calendar-event',['match'=>'/strategy/actions/','kw'=>'działania projekt']);
+        $fin_search[] = _mi('Działania','/dzialania','bi-calendar-event',['match'=>'/dzialania','kw'=>'działania projekt']);
     $fin[] = _mi('Zwroty kosztów','/contracts/zwroty/index.php','bi-receipt-cutoff',['match'=>'/contracts/zwroty/','badge'=>$cnt['zwr'],'kw'=>'zwrot koszty refundacja']);
     if ($cnt['has_edok']) {
         $fin[] = _mi('EODoK — Dok. Księgowe','/edok/index.php','bi-journal-check',['match'=>'/edok/index','kw'=>'edok eodok akceptacja dekretacja kontrola merytoryczna formalna rachunkowa dokumenty księgowe']);

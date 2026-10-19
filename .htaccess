@@ -69,6 +69,10 @@ RewriteRule ^kandydat/?$         /nabor/logowanie [R=302,L]
 # modules/zlecenie_oswiadczenie/router.php bierze trasę ze ścieżki żądania (adresy bez „router.php”).
 RewriteRule ^zlecenie(/.*)?$     /modules/zlecenie_oswiadczenie/router.php [QSA,L]
 
+# ── Działania (moduł Strategia): /dzialania → modules/strategy_actions/router.php (trasa ze ścieżki żądania) ──
+# Przed regułami subdomen (crm., ti.…), żeby krótki adres działał na każdym hoście; dawne strategy/actions/*.php przekierowują tu.
+RewriteRule ^dzialania(/.*)?$    /modules/strategy_actions/router.php [QSA,L]
+
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
 # (URL w przeglądarce zostaje czysty). Krótkie adresy:
@@ -258,8 +262,7 @@ RewriteRule ^zadania/(.+)$    tasks/$1              [QSA,L]
 RewriteRule ^granty/?$        grants/index.php      [QSA,L]
 RewriteRule ^granty/(.+)$     grants/$1             [QSA,L]
 
-RewriteRule ^dzialania/?$     actions/index.php     [QSA,L]
-RewriteRule ^dzialania/(.+)$  actions/$1            [QSA,L]
+# /dzialania → modules/strategy_actions/router.php (reguła wyżej, przed aliasami subdomen)
 
 # Generator kont Microsoft 365 Edu (hurtowo / z listy / anonimowe)
 RewriteRule ^ms/?$            modules/ms_edu_bulk/index.php [QSA,L]

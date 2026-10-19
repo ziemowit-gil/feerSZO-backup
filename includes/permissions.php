@@ -47,7 +47,7 @@ const MODULE_REGISTRY = [
     'umowy'         => ['label'=>'Umowy',          'url'=>'/contracts/wolontariat/list.php',  'paths'=>['/contracts/'],    'icon'=>'bi-file-earmark-text',  'grad'=>'linear-gradient(135deg,#1E3A5F,#1D6EF9)'],
     'osoby'         => ['label'=>'Strony umów',    'url'=>'/persons/index.php',               'paths'=>['/persons/'],      'icon'=>'bi-people-fill',        'grad'=>'linear-gradient(135deg,#3730A3,#6366F1)'],
     'granty'        => ['label'=>'Granty',         'url'=>'/grants/index.php',                'paths'=>['/grants/'],       'icon'=>'bi-cash-coin',          'grad'=>'linear-gradient(135deg,#14532D,#15803D)'],
-    'dzialania'     => ['label'=>'Działania',      'url'=>'/strategy/actions/index.php',      'paths'=>['/actions/','/strategy/actions/'], 'icon'=>'bi-lightning-charge-fill', 'grad'=>'linear-gradient(135deg,#155E75,#0891B2)'],
+    'dzialania'     => ['label'=>'Działania',      'url'=>'/dzialania',                      'paths'=>['/actions/','/strategy/actions/','/dzialania','/modules/strategy_actions/'], 'icon'=>'bi-lightning-charge-fill', 'grad'=>'linear-gradient(135deg,#155E75,#0891B2)'],
     'raporty'       => ['label'=>'Raporty',        'url'=>'/reports/index.php',               'paths'=>['/reports/'],      'icon'=>'bi-bar-chart-line-fill','grad'=>'linear-gradient(135deg,#0C4A6E,#0284C7)'],
     'org'           => ['label'=>'Struktura org.', 'url'=>'/org/index.php',                   'paths'=>['/org/'],          'icon'=>'bi-diagram-3-fill',     'grad'=>'linear-gradient(135deg,#0F766E,#14B8A6)'],
     'procedury'     => ['label'=>'Procedury',      'url'=>'/procedures/index.php',            'paths'=>['/procedures/'],   'icon'=>'bi-journal-text',       'grad'=>'linear-gradient(135deg,#374151,#6B7280)'],

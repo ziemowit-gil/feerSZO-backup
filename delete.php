@@ -25,10 +25,11 @@ $CONFIG = [
         'role'     => 'editor',
         'own'      => true,
         'label'    => 'działanie',
-        'redirect' => APP_URL . '/strategy/actions/index.php',
+        'redirect' => APP_URL . '/dzialania',
         'cascade'  => [
             ['action_grants',     'action_id'],
             ['action_indicators', 'action_id'],
+            ['crm_action_links',  'action_id'],
         ],
     ],
     'persons' => [
