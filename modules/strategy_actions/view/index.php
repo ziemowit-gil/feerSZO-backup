@@ -15,6 +15,7 @@ $dzData = [
     'base'     => ActionsService::url(),
     'today'    => date('Y-m-d'),
     'csrf'     => Router::csrfToken(),
+    'exportCols' => array_map(fn($k, $c) => ['key' => $k, 'label' => $c[0], 'def' => $c[1]], array_keys(ActionsReport::COLUMNS), ActionsReport::COLUMNS),
     'users'    => array_map(fn($u) => ['id' => (int)$u['id'], 'name' => (string)$u['name']], $users),
 ];
 include __DIR__ . '/_head.php';
@@ -26,6 +27,8 @@ include __DIR__ . '/_head.php';
       <p class="dz-sub">Projekty, wydarzenia i usługi organizacji — finansowanie, wskaźniki, terminy.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap dz-noprint">
+      <button type="button" class="dz-btn dz-btn--ghost" @click="openExport()"><i class="bi bi-download" aria-hidden="true"></i>Eksport i kalendarz ICS</button>
+      <a href="<?= h(ActionsService::url('raport')) ?>" class="dz-btn dz-btn--ghost"><i class="bi bi-bar-chart-line" aria-hidden="true"></i>Raport §6</a>
       <a href="<?= h(ActionsService::url('nowe')) ?>" class="dz-btn"><i class="bi bi-plus-lg" aria-hidden="true"></i>Nowe działanie</a>
     </div>
   </div>
@@ -244,6 +247,7 @@ include __DIR__ . '/_head.php';
   </section>
 
   <?php include __DIR__ . '/_panel.php'; ?>
+  <?php include __DIR__ . '/_export.php'; ?>
 
   <!-- KALENDARZ -->
   <section x-show="view === 'kalendarz'" x-cloak aria-label="Kalendarz działań">
@@ -446,6 +450,36 @@ function dzApp() {
         this.cal.updateSize();
       }
     },
+    // ── Eksport i kalendarz ICS ──
+    exp: {open: false, format: 'xlsx', cols: []},
+    ics: {url: '', busy: false},
+    expCols: D.exportCols,
+    openExport() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem('dz.export') || 'null'); } catch (e) {}
+      const keys = this.expCols.map(c => c.key);
+      this.exp.cols = saved && Array.isArray(saved.cols) ? saved.cols.filter(k => keys.includes(k)) : this.expCols.filter(c => c.def).map(c => c.key);
+      if (saved && ['csv', 'xlsx'].includes(saved.format)) this.exp.format = saved.format;
+      this._back = document.activeElement;
+      this.exp.open = true;
+      this.$nextTick(() => this.$refs.expClose && this.$refs.expClose.focus());
+    },
+    closeExport() { this.exp.open = false; if (this._back && this._back.focus) this.$nextTick(() => this._back.focus()); },
+    expSave() { try { localStorage.setItem('dz.export', JSON.stringify({cols: this.exp.cols, format: this.exp.format})); } catch (e) {} },
+    expPreset(which) { this.exp.cols = this.expCols.filter(c => which === 'all' || c.def).map(c => c.key); },
+    async icsGet(reset) {
+      if (reset && !confirm('Wygenerować nowy adres? Dotychczasowy przestanie działać we wszystkich kalendarzach, w których go dodano.')) return;
+      this.ics.busy = true;
+      const res = await this.post(D.base + '/ics/link', reset ? {reset: '1'} : {});
+      this.ics.busy = false;
+      if (res && res.ok) { this.ics.url = res.url; if (res.message) this.say(res.message); }
+      else this.say((res && res.error) || 'Nie udało się pobrać adresu kalendarza.');
+    },
+    async icsCopy() {
+      try { await navigator.clipboard.writeText(this.ics.url); this.say('Skopiowano adres kalendarza.'); }
+      catch (e) { this.$refs.icsUrl && this.$refs.icsUrl.select(); this.say('Zaznaczono adres — skopiuj go skrótem Ctrl+C.'); }
+    },
+
     // ── Panel szczegółów ──
     panel: {open: false, loading: false, error: '', id: null, saving: false},
     p: {},

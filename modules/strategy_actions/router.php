@@ -11,7 +11,10 @@
  *   /dzialania/nowe            — nowe działanie (?grant_id= wstępnie wybiera grant);
  *   /dzialania/{id}            — karta działania (finansowanie, wskaźniki, uczestnicy CRM);
  *   /dzialania/{id}/edycja     — edycja; POST …/usun — usunięcie (admin albo autor);
- *   /dzialania/kalendarz.json  — zdarzenia kalendarza.
+ *   /dzialania/kalendarz.json  — zdarzenia kalendarza;
+ *   POST /dzialania/eksport    — CSV / Excel z wybranymi kolumnami (zakres = filtry ekranu);
+ *   /dzialania/raport[/eksport]?rok= — realizacja celów statutowych §6 (ekran, CSV, Excel);
+ *   /dzialania/ics/{token}.ics — kalendarz do subskrypcji BEZ logowania (token osobisty, POST /ics/link wydaje/wymienia).
  * Dawne adresy strategy/actions/*.php przekierowują tutaj. Dostęp: admin i redaktor. Każdy POST — CSRF (Router).
  */
 require_once dirname(__DIR__, 2) . '/config.php';
@@ -47,8 +50,15 @@ if (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) {
 
 $r = new Router('/modules/strategy_actions/router.php', 'path', rtrim(APP_URL, '/'));
 
+// Subskrypcja kalendarza (Outlook, Google, telefon) — osobisty token zamiast sesji
+$r->get('/dzialania/ics/{token}', [ActionsController::class, 'icsFeed'])->name('dz.ics');
+
 $r->group(['role:admin,editor'], function (Router $r) {
     $r->get('/',                        [ActionsController::class, 'index'])->name('dz.index');
+    $r->post('/eksport',                [ActionsController::class, 'export'])->name('dz.export');
+    $r->post('/ics/link',               [ActionsController::class, 'icsLink'])->name('dz.ics.link');
+    $r->get('/raport',                  [ActionsController::class, 'report'])->name('dz.report');
+    $r->get('/raport/eksport',          [ActionsController::class, 'reportExport'])->name('dz.report.export');
     $r->get('/kalendarz.json',          [ActionsController::class, 'calendarFeed'])->name('dz.calendar');
     $r->get('/nowe',                    [ActionsController::class, 'create'])->name('dz.create');
     $r->post('/nowe',                   [ActionsController::class, 'store']);

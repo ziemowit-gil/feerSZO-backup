@@ -2,7 +2,8 @@
 /**
  * modules/strategy_actions/logic/actionsSchema.php — tabele modułu Działań poza bazowymi z includes/grants.php:
  *   action_milestones — etapy (kamienie milowe) działania: tytuł, termin, osoba odpowiedzialna, odhaczenie;
- *   action_log        — historia działania: zmiany, statusy, wskaźniki, etapy, uczestnicy i komentarze.
+ *   action_log        — historia działania: zmiany, statusy, wskaźniki, etapy, uczestnicy i komentarze;
+ *   action_ics_tokens — osobiste tokeny subskrypcji kalendarza ICS (jeden na osobę, wymienialny).
  * Idempotentne (CREATE … IF NOT EXISTS), raz na żądanie.
  */
 function actionsSchemaEnsure(): void
@@ -33,4 +34,9 @@ function actionsSchemaEnsure(): void
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_action_log_action ON action_log(action_id, id)");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS action_ics_tokens (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
 }

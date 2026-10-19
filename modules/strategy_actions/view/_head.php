@@ -14,6 +14,7 @@ $navActive = $navActive ?? '';
 $__nav = [
     'lista' => ['Działania',      'bi-calendar-event', ActionsService::url()],
     'nowe'  => ['Nowe działanie', 'bi-plus-lg',        ActionsService::url('nowe')],
+    'raport' => ['Raport §6',     'bi-bar-chart-line', ActionsService::url('raport')],
 ];
 ?>
 <!doctype html>
@@ -151,6 +152,13 @@ body{background:#fff;color:var(--dark);margin:0;font-family:"Segoe UI","Segoe UI
 /* Panel szczegółów (z prawej) */
 .dz-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1040}
 .dz-panel{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:#fff;z-index:1050;display:flex;flex-direction:column;border-left:4px solid var(--dz)}
+.dz-dialog{position:fixed;top:5vh;left:50%;transform:translateX(-50%);width:min(680px,calc(100% - 1.5rem));max-height:90vh;background:#fff;z-index:1050;display:flex;flex-direction:column;border-top:4px solid var(--dz)}
+.dz-dialog .ph{background:var(--dark);color:#fff;padding:.8rem 1rem;display:flex;gap:.6rem;align-items:flex-start}
+.dz-dialog .ph h2{font:300 1.35rem/1.2 "Segoe UI",system-ui,sans-serif;margin:0;flex:1}
+.dz-dialog .ph .x{background:none;border:0;color:#fff;font-size:1.25rem;cursor:pointer}
+.dz-dialog .pb{padding:1rem;overflow-y:auto}
+.dz-dialog h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:1.2rem 0 .4rem;padding-bottom:.25rem;border-bottom:2px solid var(--dark)}
+.dz-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.15rem .8rem;border:0;padding:0;margin:0}
 .dz-panel .ph{background:var(--dark);color:#fff;padding:.8rem 1rem;display:flex;gap:.6rem;align-items:flex-start}
 .dz-panel .ph h2{font:300 1.35rem/1.2 "Segoe UI",system-ui,sans-serif;margin:0;flex:1;overflow-wrap:anywhere}
 .dz-panel .ph .x{background:none;border:0;color:#fff;font-size:1.25rem;cursor:pointer;padding:0 .2rem}

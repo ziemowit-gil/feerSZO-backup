@@ -4,6 +4,7 @@
  * Dostęp: admin i redaktor (middleware trasy); usuwanie — admin albo autor działania.
  */
 require_once __DIR__ . '/ActionsService.php';
+require_once __DIR__ . '/ActionsReport.php';
 
 final class ActionsController
 {
@@ -243,6 +244,63 @@ final class ActionsController
     private function n(float $v): string
     {
         return rtrim(rtrim(number_format($v, 2, ',', ' '), '0'), ',');
+    }
+
+    /** POST /dzialania/eksport — plik CSV / Excel: format, cols[] (kolumny), ids[] (działania po filtrach ekranu). */
+    public function export(): ?string
+    {
+        $ds = ActionsReport::dataset((array)($_POST['ids'] ?? []), array_map('strval', (array)($_POST['cols'] ?? [])));
+        ActionsReport::send($ds, ($_POST['format'] ?? '') === 'xlsx' ? 'xlsx' : 'csv', (string)(current_user()['name'] ?? ''));
+        return null;
+    }
+
+    /** POST /dzialania/ics/link (JSON) — osobisty adres subskrypcji kalendarza; reset=1 unieważnia poprzedni. */
+    public function icsLink(): array
+    {
+        return ['ok' => true, 'url' => ActionsReport::icsUrl($this->uid(), !empty($_POST['reset'])),
+                'message' => !empty($_POST['reset']) ? 'Wygenerowano nowy adres — poprzedni przestał działać.' : ''];
+    }
+
+    /** GET /dzialania/ics/{token}.ics — kalendarz bez logowania (token zamiast sesji). */
+    public function icsFeed($token): ?string
+    {
+        $token = preg_replace('/\.ics$/', '', (string)$token);
+        if (!ActionsReport::icsOwner($token)) {
+            http_response_code(404);
+            return 'Nie znaleziono kalendarza.';
+        }
+        header('Content-Type: text/calendar; charset=utf-8');
+        header('Content-Disposition: inline; filename="dzialania.ics"');
+        header('Cache-Control: no-store');
+        echo ActionsReport::ics();
+        return null;
+    }
+
+    /** GET /dzialania/raport?rok= — realizacja celów statutowych §6. */
+    public function report(): string
+    {
+        [$year, $years] = $this->reportYear();
+        return $this->render('report', ['pageTitle' => 'Raport celów §6', 'year' => $year, 'years' => $years,
+                                        'report' => ActionsReport::goalsReport($year)]);
+    }
+
+    /** GET /dzialania/raport/eksport?rok=&format=csv|xlsx */
+    public function reportExport(): ?string
+    {
+        [$year] = $this->reportYear();
+        $ds = ActionsReport::goalsDataset(ActionsReport::goalsReport($year), $year);
+        $name = 'dzialania_cele_par6_' . ($year ?? 'wszystkie') . '_' . date('Y-m-d');
+        if (($_GET['format'] ?? '') === 'xlsx') AnalyticsExport::xlsx($ds, (string)(current_user()['name'] ?? ''), $name . '.xlsx');
+        else AnalyticsExport::csv($ds, $name . '.csv');
+        return null;
+    }
+
+    /** @return array{0:?int,1:list<int>} wybrany rok (null = wszystkie) i lata do przełącznika */
+    private function reportYear(): array
+    {
+        $years = ActionsReport::years();
+        $rok = (string)($_GET['rok'] ?? (string)date('Y'));
+        return [$rok === 'wszystkie' ? null : (in_array((int)$rok, $years, true) ? (int)$rok : (int)date('Y')), $years];
     }
 
     /** GET /dzialania/kalendarz.json — zdarzenia FullCalendar (zastępuje strategy/actions/calendar.php). */
