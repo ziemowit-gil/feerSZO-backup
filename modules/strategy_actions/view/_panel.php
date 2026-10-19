@@ -54,6 +54,19 @@
           <button type="submit" class="dz-btn dz-btn--sm mt-2" :disabled="panel.saving"><i class="bi bi-check-lg" aria-hidden="true"></i>Zapisz wykonanie</button>
         </form>
 
+        <template x-if="p.ezd">
+          <div>
+            <h3>EZD — koszulki</h3>
+            <template x-for="c in p.ezd" :key="c.id">
+              <div class="dz-ezd" :class="c.open ? '' : 'closed'">
+                <a class="t" :href="c.url"><i class="bi bi-folder2-open" aria-hidden="true"></i> <span x-text="c.title"></span></a>
+                <small class="d-block dz-muted" x-text="'Znak ' + c.znak + (c.open ? '' : ' · zamknięta')"></small>
+                <small class="d-block" x-text="'pism: ' + c.pisma + ' · dokumentów: ' + c.dokumenty + ' · załączników: ' + c.zalaczniki + ' · notatek: ' + c.notatki"></small>
+              </div>
+            </template>
+            <p class="dz-muted small" x-show="!p.ezd.length">Brak koszulki w EZD. Założysz ją lub przypniesz na <a :href="url(p.action.id) + '#ezd'">karcie działania</a>.</p>
+          </div>
+        </template>
         <?php $jTag = 'h3'; $jClass = ''; include __DIR__ . '/_journal.php'; ?>
       </div>
     </template>

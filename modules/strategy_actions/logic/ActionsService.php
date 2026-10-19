@@ -8,6 +8,7 @@
  */
 require_once dirname(__DIR__, 3) . '/includes/grants.php';
 require_once __DIR__ . '/ActionsJournal.php';
+require_once __DIR__ . '/ActionsEzd.php';
 
 final class ActionsService
 {
@@ -367,6 +368,7 @@ final class ActionsService
                                                  'real' => (float)($i['wartosc_realizowana'] ?? 0)], $a['indicators']),
             'canDelete'  => self::canDelete($a),
             'journal'    => self::journal($id),
+            'ezd'        => ActionsEzd::enabled() ? ActionsEzd::cases($id) : null,
         ];
     }
 
@@ -388,6 +390,8 @@ final class ActionsService
             foreach (['umowy_wolontariat', 'k30_ti_courses'] as $table) {
                 try { $pdo->prepare("UPDATE $table SET action_id = NULL WHERE action_id = ?")->execute([$id]); } catch (\Throwable $e) {}
             }
+            // Koszulki EZD zostają w EZD — tracą tylko powiązanie z działaniem
+            try { $pdo->prepare("UPDATE ezd_sprawy SET ref_type = NULL, ref_id = NULL WHERE ref_type = 'action' AND ref_id = ?")->execute([$id]); } catch (\Throwable $e) {}
             $pdo->prepare("DELETE FROM actions WHERE id = ?")->execute([$id]);
             $pdo->commit();
         } catch (\Throwable $e) {

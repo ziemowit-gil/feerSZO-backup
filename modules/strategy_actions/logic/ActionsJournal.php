@@ -17,6 +17,7 @@ final class ActionsJournal
         'crm'       => ['label' => 'Uczestnicy',  'icon' => 'bi-people'],
         'duplicate' => ['label' => 'Kopia',       'icon' => 'bi-copy'],
         'comment'   => ['label' => 'Komentarz',   'icon' => 'bi-chat-left-text'],
+        'ezd'       => ['label' => 'EZD',         'icon' => 'bi-folder2-open'],
     ];
 
     public static function log(int $actionId, string $kind, string $message, ?int $userId = null): void

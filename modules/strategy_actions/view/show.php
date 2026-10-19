@@ -2,7 +2,7 @@
 /**
  * modules/strategy_actions/view/show.php — karta działania (Metro): szczegóły, harmonogram, finansowanie,
  * wskaźniki, etapy i historia, uczestnicy CRM. Zmienne: $a (ActionsService::find), $v (kształt ekranu z flagami),
- * $crmOn, $participants, $candidates, $canDelete, $journal, $users.
+ * $crmOn, $participants, $candidates, $canDelete, $journal, $users, $budgets, $ezdOn, $ezdCases.
  */
 $navActive = '';
 $id    = (int)$a['id'];
@@ -134,6 +134,7 @@ include __DIR__ . '/_head.php';
       <dt>Cykliczne</dt><dd><?= $a['cykliczne'] ? 'tak' . (!empty($a['czestotliwosc']) ? ' — ' . h(mb_strtolower(ActionsService::FREQS[$a['czestotliwosc']] ?? $a['czestotliwosc'])) : '') : 'nie' ?></dd>
     </dl>
     <p class="dz-muted small mt-2">Dodano <?= h(date_pl($a['created_at'])) ?> · zmieniono <?= h(date_pl($a['updated_at'])) ?></p>
+    <?php if ($ezdOn) include __DIR__ . '/_ezd.php'; ?>
     <div x-data="dzShow()">
       <?php $jTag = 'h2'; $jClass = 'dz-head'; include __DIR__ . '/_journal.php'; ?>
       <div class="dz-toast" role="status" aria-live="polite"><span x-show="msg" x-text="msg"></span></div>

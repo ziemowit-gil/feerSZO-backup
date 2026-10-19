@@ -190,6 +190,11 @@ body{background:#fff;color:var(--dark);margin:0;font-family:"Segoe UI","Segoe UI
 .dz-ggroup header .t small{display:block;color:var(--muted);font-size:.78rem}
 .dz-ggroup header .b small{font-size:.78rem;color:var(--muted)}
 .dz-ggroup .dz-table{background:#fff}
+/* EZD */
+.dz-ezd{background:var(--light);border-left:4px solid #0050ef;padding:.5rem .65rem;margin-bottom:5px;font-size:.86rem}
+.dz-ezd.closed{border-left-color:#8a8a8a}
+.dz-ezd a.t{font-weight:600;color:var(--dark);text-decoration:none}
+.dz-ezd a.t:hover{color:var(--dz);text-decoration:underline}
 /* Komunikat po akcji */
 .dz-toast{position:fixed;left:1rem;bottom:1rem;z-index:1060;max-width:420px}
 .dz-toast span{display:block;background:var(--dark);color:#fff;padding:.65rem 1rem;font-size:.9rem}

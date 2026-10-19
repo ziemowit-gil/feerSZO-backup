@@ -14,6 +14,7 @@
  *   /dzialania/kalendarz.json  — zdarzenia kalendarza;
  *   POST /dzialania/eksport    — CSV / Excel z wybranymi kolumnami (zakres = filtry ekranu);
  *   /dzialania/raport[/eksport]?rok= — realizacja celów statutowych §6 (ekran, CSV, Excel);
+ *   POST /dzialania/{id}/ezd/koszulka|przypnij|{sid}/odepnij — koszulki EZD działania (ref_type=action);
  *   POST /dzialania/granty/{gid}/podepnij|odepnij, GET …/eksport — działania na karcie grantu (grants/view.php);
  *   /dzialania/ics/{token}.ics — kalendarz do subskrypcji BEZ logowania (token osobisty, POST /ics/link wydaje/wymienia).
  * Dawne adresy strategy/actions/*.php przekierowują tutaj. Dostęp: admin i redaktor. Każdy POST — CSRF (Router).
@@ -78,6 +79,9 @@ $r->group(['role:admin,editor'], function (Router $r) {
     $r->post('/{id}/etapy/{ms}/przelacz', [ActionsController::class, 'milestoneToggle'])->name('dz.ms.toggle');
     $r->post('/{id}/etapy/{ms}/usun',   [ActionsController::class, 'milestoneDelete'])->name('dz.ms.delete');
     $r->post('/{id}/komentarz',         [ActionsController::class, 'comment'])->name('dz.comment');
+    $r->post('/{id}/ezd/koszulka',      [ActionsController::class, 'ezdCreate'])->name('dz.ezd.create');
+    $r->post('/{id}/ezd/przypnij',      [ActionsController::class, 'ezdAttach'])->name('dz.ezd.attach');
+    $r->post('/{id}/ezd/{sid}/odepnij', [ActionsController::class, 'ezdDetach'])->name('dz.ezd.detach');
     $r->post('/{id}/uczestnicy',        [ActionsController::class, 'participantAdd'])->name('dz.crm.add');
     $r->post('/{id}/uczestnicy/usun',   [ActionsController::class, 'participantRemove'])->name('dz.crm.remove');
 }, '/dzialania');

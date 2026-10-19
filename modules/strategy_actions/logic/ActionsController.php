@@ -57,6 +57,8 @@ final class ActionsController
             'canDelete'    => ActionsService::canDelete($a),
             'journal'      => ActionsService::journal($id),
             'budgets'      => ActionsGrants::budgets(),
+            'ezdOn'        => ActionsEzd::enabled(),
+            'ezdCases'     => ActionsEzd::cases($id),
             'users'        => ActionsService::coordinators(),
         ]);
     }
@@ -333,6 +335,37 @@ final class ActionsController
         if (($_GET['format'] ?? '') === 'csv') AnalyticsExport::csv($ds, $name . '.csv');
         else AnalyticsExport::xlsx($ds, (string)(current_user()['name'] ?? ''), $name . '.xlsx');
         return null;
+    }
+
+    /** POST /dzialania/{id}/ezd/koszulka — nowa koszulka EZD dla działania (segregator tworzony w razie potrzeby). */
+    public function ezdCreate($id): ?string
+    {
+        $id = (int)$id;
+        try {
+            [, $znak] = ActionsEzd::createCase($id, $this->uid());
+            flash_set('success', 'Założono koszulkę EZD ' . $znak . '.');
+        } catch (\RuntimeException $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        return Router::redirect(ActionsService::url((string)$id) . '#ezd');
+    }
+
+    /** POST /dzialania/{id}/ezd/przypnij — istniejąca koszulka po znaku. */
+    public function ezdAttach($id): ?string
+    {
+        $id = (int)$id;
+        $err = ActionsEzd::attach($id, (string)($_POST['znak'] ?? ''), $this->uid());
+        flash_set($err ? 'danger' : 'success', $err ?: 'Przypięto koszulkę EZD.');
+        return Router::redirect(ActionsService::url((string)$id) . '#ezd');
+    }
+
+    /** POST /dzialania/{id}/ezd/{sid}/odepnij */
+    public function ezdDetach($id, $sid): ?string
+    {
+        $id = (int)$id;
+        $err = ActionsEzd::detach($id, (int)$sid, $this->uid());
+        flash_set($err ? 'danger' : 'success', $err ?: 'Odpięto koszulkę — zostaje w EZD bez powiązania z działaniem.');
+        return Router::redirect(ActionsService::url((string)$id) . '#ezd');
     }
 
     /** GET /dzialania/kalendarz.json — zdarzenia FullCalendar (zastępuje strategy/actions/calendar.php). */
