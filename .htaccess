@@ -65,6 +65,10 @@ RewriteRule ^nabor(/.*)?$        /modules/ti/router.php [QSA,L]
 # Krótki adres dedykowanej strony logowania kandydata: /kandydat → /nabor/logowanie
 RewriteRule ^kandydat/?$         /nabor/logowanie [R=302,L]
 
+# ── Oświadczenia zleceniobiorcy: /zlecenie → publiczny kreator, /zlecenie/… (konto, link, obsługa) ──
+# modules/zlecenie_oswiadczenie/router.php bierze trasę ze ścieżki żądania (adresy bez „router.php”).
+RewriteRule ^zlecenie(/.*)?$     /modules/zlecenie_oswiadczenie/router.php [QSA,L]
+
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
 # (URL w przeglądarce zostaje czysty). Krótkie adresy:

@@ -3,7 +3,7 @@
  * modules/zlecenie_oswiadczenie/view/_staffDocs.php — dokumenty pakietu dla pracownika: status, wydruk, skan, weryfikacja.
  * Działa w module i w karcie umowy (adresy budowane bez Routera). Wymaga: $_oswO (pakiet), $_oswDocs; opcjonalnie $_oswBack ('umowa').
  */
-$_oswUrl = rtrim(APP_URL, '/') . '/modules/zlecenie_oswiadczenie/router.php';
+$_oswDocUrl = OswService::url('/obsluga/dokument');
 $_oswDt = fn($d) => $d ? date('d.m.Y H:i', (int)strtotime((string)$d)) : '';
 ?>
 <?php if (!$_oswDocs): ?>
@@ -17,9 +17,9 @@ $_oswDt = fn($d) => $d ? date('d.m.Y H:i', (int)strtotime((string)$d)) : '';
       <strong><?= h($_name) ?></strong><?php if ($_d['numer']): ?><span class="text-body-secondary small"><?= h($_d['numer']) ?></span><?php endif; ?>
       <span class="badge text-bg-<?= h($_sc) ?>"><?= h($_sl) ?></span>
       <span class="ms-auto d-flex flex-wrap gap-1">
-        <a class="btn btn-sm btn-outline-secondary" href="<?= h($_oswUrl . '/dokument/' . (int)$_d['id'] . '/druk/pdf') ?>" target="_blank" rel="noopener">Wydruk PDF<span class="visually-hidden"> — <?= h($_short) ?></span></a>
-        <?php if ($_k === 'zus'): ?><a class="btn btn-sm btn-outline-secondary" href="<?= h($_oswUrl . '/dokument/' . (int)$_d['id'] . '/druk/docx') ?>">DOCX<span class="visually-hidden"> — <?= h($_short) ?></span></a><?php endif; ?>
-        <?php if ($_d['scan_path']): ?><a class="btn btn-sm btn-outline-primary" href="<?= h($_oswUrl . '/dokument/' . (int)$_d['id'] . '/skan') ?>" target="_blank" rel="noopener">Skan<span class="visually-hidden"> — <?= h($_short) ?></span></a><?php endif; ?>
+        <a class="btn btn-sm btn-outline-secondary" href="<?= h($_oswDocUrl . '/' . (int)$_d['id'] . '/druk/pdf') ?>" target="_blank" rel="noopener">Wydruk PDF<span class="visually-hidden"> — <?= h($_short) ?></span></a>
+        <?php if ($_k === 'zus'): ?><a class="btn btn-sm btn-outline-secondary" href="<?= h($_oswDocUrl . '/' . (int)$_d['id'] . '/druk/docx') ?>">DOCX<span class="visually-hidden"> — <?= h($_short) ?></span></a><?php endif; ?>
+        <?php if ($_d['scan_path']): ?><a class="btn btn-sm btn-outline-primary" href="<?= h($_oswDocUrl . '/' . (int)$_d['id'] . '/skan') ?>" target="_blank" rel="noopener">Skan<span class="visually-hidden"> — <?= h($_short) ?></span></a><?php endif; ?>
       </span>
     </div>
     <div class="small text-body-secondary mt-1">
@@ -29,7 +29,7 @@ $_oswDt = fn($d) => $d ? date('d.m.Y H:i', (int)strtotime((string)$d)) : '';
       <?php if ($_d['note']): ?><br>Powód odrzucenia: <?= h($_d['note']) ?><?php endif; ?>
     </div>
     <?php if ($_d['status'] === 'skan' && in_array(current_user()['role'] ?? '', ['admin', 'editor'], true)): ?>
-    <form method="post" action="<?= h($_oswUrl . '/dokument/' . (int)$_d['id'] . '/weryfikacja') ?>" class="row g-2 align-items-end mt-1">
+    <form method="post" action="<?= h($_oswDocUrl . '/' . (int)$_d['id'] . '/weryfikacja') ?>" class="row g-2 align-items-end mt-1">
       <?= csrf_field() ?><input type="hidden" name="back" value="<?= h($_oswBack ?? '') ?>">
       <div class="col-sm-7"><label class="form-label small mb-0" for="osw-note-<?= (int)$_d['id'] ?>">Powód odrzucenia (wymagany przy odrzuceniu)</label>
         <input class="form-control form-control-sm" id="osw-note-<?= (int)$_d['id'] ?>" name="note" maxlength="500" placeholder="np. nieczytelny podpis, brak daty"></div>

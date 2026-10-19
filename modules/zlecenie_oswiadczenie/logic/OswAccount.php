@@ -217,7 +217,7 @@ final class OswAccount
 
     public static function url(string $path, array $q = []): string
     {
-        return rtrim(APP_URL, '/') . '/modules/zlecenie_oswiadczenie/router.php' . $path . ($q ? '?' . http_build_query($q) : '');
+        return OswService::url($path, $q);
     }
 
     /** E-mail z linkiem (setup — nowe konto, attach — dodanie oświadczenia do konta z hasłem, reset — nowe hasło). */

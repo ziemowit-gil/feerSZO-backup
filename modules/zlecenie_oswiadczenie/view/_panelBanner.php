@@ -38,6 +38,6 @@ $_oRejected = (bool)array_filter($_ot['docs'], fn($d) => $d['status'] === 'odrzu
       <?= $_oFilled ? 'Wydrukuj je, podpisz i prześlij skany przez system.' : 'Wypełnisz je online w kilka minut, potem wydrukujesz, podpiszesz i prześlesz skan.' ?>
     </div>
   </div>
-  <a href="<?= h(rtrim(APP_URL, '/') . '/modules/zlecenie_oswiadczenie/router.php/umowa/' . (int)$_ot['umowa']['id']) ?>"
+  <a href="<?= h(OswService::url('/umowa/' . (int)$_ot['umowa']['id'])) ?>"
      class="btn btn-primary btn-lg flex-shrink-0"><?= $_oFilled ? 'Otwórz oświadczenia' : 'Wypełnij oświadczenia' ?></a>
 </div>

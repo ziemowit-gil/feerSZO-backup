@@ -37,6 +37,13 @@ final class OswService
 
     public static function init(): void { oswMigrate(); }
 
+    /** Pełny adres w module: /zlecenie + ścieżka (czysty adres z .htaccess, bez „router.php”). */
+    public static function url(string $path = '', array $q = []): string
+    {
+        $path = trim($path, '/');
+        return rtrim(APP_URL, '/') . '/zlecenie' . ($path !== '' ? '/' . $path : '') . ($q ? '?' . http_build_query($q) : '');
+    }
+
     // ── Odczyt ────────────────────────────────────────────────────────────────
 
     public static function byId(int $id): ?array

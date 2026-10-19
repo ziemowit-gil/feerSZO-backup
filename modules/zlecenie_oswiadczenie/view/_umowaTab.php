@@ -7,7 +7,8 @@
 require_once dirname(__DIR__) . '/logic/OswService.php';
 try { $_oswO = OswService::forContract((int)$id); } catch (\Throwable $e) { $_oswO = null; error_log('[osw tab] ' . $e->getMessage()); }
 $_oswDocs = $_oswO ? OswService::docs((int)$_oswO['id']) : [];
-$_oswUrl = rtrim(APP_URL, '/') . '/modules/zlecenie_oswiadczenie/router.php';
+$_oswUrl = OswService::url();
+$_oswStaff = OswService::url('/obsluga');
 $_oswBack = 'umowa';
 $_oswLink = $_oswO && $_oswO['token'] && (!$_oswO['token_expires'] || $_oswO['token_expires'] >= date('Y-m-d H:i:s')) ? $_oswUrl . '/t/' . $_oswO['token'] : '';
 [$_oswSl, $_oswSc] = $_oswO ? OswService::summaryStatus($_oswO, $_oswDocs) : ['Nie rozpoczęto', 'secondary'];
@@ -25,7 +26,7 @@ $_oswLink = $_oswO && $_oswO['token'] && (!$_oswO['token_expires'] || $_oswO['to
         <?php if ($_oswO && $_oswO['submitted_at']): ?><span class="small text-body-secondary">złożono <?= h(date('d.m.Y H:i', (int)strtotime((string)$_oswO['submitted_at']))) ?></span><?php endif; ?>
         <?php if ($_oswO && $_oswO['draft_created']): ?><span class="badge text-bg-light border">umowa utworzona z oświadczeń</span><?php endif; ?>
         <?php if ($_oswO && in_array(current_user()['role'] ?? '', ['admin', 'editor'], true)): ?>
-        <a class="ms-auto small" href="<?= h($_oswUrl . '/pakiet/' . (int)$_oswO['id']) ?>">Szczegóły i odpowiedzi</a>
+        <a class="ms-auto small" href="<?= h($_oswStaff . '/pakiet/' . (int)$_oswO['id']) ?>">Szczegóły i odpowiedzi</a>
         <?php endif; ?>
       </div>
       <?php include __DIR__ . '/_staffDocs.php'; ?>
@@ -49,7 +50,7 @@ $_oswLink = $_oswO && $_oswO['token'] && (!$_oswO['token_expires'] || $_oswO['to
       <?php endif; ?>
       <div class="d-flex flex-wrap gap-2">
         <?php if (can_edit()): ?>
-        <form method="post" action="<?= h($_oswUrl . '/link/' . (int)$id) ?>"><?= csrf_field() ?>
+        <form method="post" action="<?= h($_oswStaff . '/link/' . (int)$id) ?>"><?= csrf_field() ?>
           <button class="btn btn-sm btn-primary"><?= $_oswLink ? 'Przedłuż ważność linku' : 'Utwórz link dla zleceniobiorcy' ?></button></form>
         <?php endif; ?>
         <a class="btn btn-sm btn-outline-secondary" href="<?= h($_oswUrl . '/umowa/' . (int)$id) ?>">Otwórz kreator (wypełnij w imieniu)</a>
