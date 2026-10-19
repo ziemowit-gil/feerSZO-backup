@@ -365,16 +365,21 @@ html body #tsk-main .tk-created{font-size:.8rem}
 html body #tsk-main .tk-created-by{font-size:.72rem;color:var(--tm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
 html body #tsk-main .tk-table td:last-child .tk-actions{padding-top:2px}
 @media(prefers-reduced-motion:reduce){html body #taskOffcanvas.offcanvas{transition:none}}
-/* Zwinięta sekcja „Jednostka, zależności, tagi, powtarzanie” w oknie zadania */
-html body #td-root .td-extra{padding:0}
-html body #td-root .td-extra>summary{cursor:pointer;list-style:none;margin:0;padding:var(--c-section);display:flex;align-items:center;gap:.4rem}
-html body #td-root .td-extra>summary::-webkit-details-marker{display:none}
-html body #td-root .td-extra>summary::after{content:"\25BE";margin-left:auto;color:var(--tm-muted)}
-html body #td-root .td-extra[open]>summary::after{content:"\25B4"}
-html body #td-root .td-extra>summary:hover{background:var(--tm-light)}
-html body #td-root .td-extra-on{font-weight:400;text-transform:none;letter-spacing:0;color:var(--tm-muted);font-size:.75rem;margin-left:.4rem}
-html body #td-root .td-extra-body>.td-section{border-top:1px solid var(--tm-line)}
-html body #td-root .td-extra-body>.td-section:last-child{border-bottom:0}
+/* Kafle dodatków w oknie zadania: Powiązania, Jednostka, Zależności, Tagi, Powtarzanie */
+html body #td-root .td-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px}
+html body #td-root .td-tile{display:flex;flex-direction:column;align-items:flex-start;gap:.15rem;min-height:84px;padding:.6rem .7rem;border:0;
+  background:var(--tm-light);color:var(--tsk-text);text-align:left;cursor:pointer;position:relative}
+html body #td-root .td-tile i{font-size:1.15rem;color:var(--tm-muted)}
+html body #td-root .td-tile-lab{font-weight:600;font-size:.85rem;margin-top:auto}
+html body #td-root .td-tile-state{font-size:.72rem;color:var(--tm-muted)}
+html body #td-root .td-tile.is-set{background:var(--tsk-green);color:#fff}
+html body #td-root .td-tile.is-set i,html body #td-root .td-tile.is-set .td-tile-state{color:rgba(255,255,255,.85)}
+html body #td-root .td-tile:hover{outline:2px solid var(--tsk-text);outline-offset:-2px}
+html body #td-root .td-tile:focus-visible{outline:3px solid var(--tsk-text);outline-offset:-3px}
+html body #td-root .td-tile[aria-expanded="true"]{background:var(--tm-dark);color:#fff}
+html body #td-root .td-tile[aria-expanded="true"] i,html body #td-root .td-tile[aria-expanded="true"] .td-tile-state{color:rgba(255,255,255,.8)}
+html body #td-root .td-tile-panel{margin-top:4px;border:2px solid var(--tm-dark)}
+html body #td-root .td-tile-panel>.td-section:last-child{border-bottom:0}
 /* ══ Okno „Nowe zadanie” — Metro: ciemny nagłówek, duży tytuł, kolumna w „Więcej opcji” ══ */
 html body #addTaskModal .at-modal{border:0;border-radius:0}
 html body #addTaskModal .modal-header{background:var(--tm-dark);color:#fff;border:0;padding:1rem 1.25rem;align-items:flex-start}

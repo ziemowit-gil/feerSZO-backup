@@ -49,28 +49,37 @@ require_once __DIR__ . '/includes/detail_load.php';
   <div class="td-main">
 <?php require_once __DIR__ . '/includes/detail_properties.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_mail_source.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_links.php'; ?>
+<?php ob_start(); require_once __DIR__ . '/includes/detail_links.php'; $td_extra_links = ob_get_clean(); ?>
 <?php ob_start(); require_once __DIR__ . '/includes/detail_dependencies.php'; $td_extra_deps = ob_get_clean(); ?>
 <?php require_once __DIR__ . '/includes/detail_fields.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_subtasks_time.php'; ?>
-<?php /* Zależności, tagi i powtarzanie schowane w zwiniętej sekcji — w podsumowaniu widać, co jest ustawione */
-  $td_extra_on = array_filter([
-      !empty($task['unit_id']) ? 'jednostka' : '',
-      $tag_ids ? count($tag_ids) . ' ' . (count($tag_ids) === 1 ? 'tag' : 'tagi') : '',
-      !empty($task['recurrence']) ? 'powtarza się' : '',
-      $blockers ? 'czeka na ' . count($blockers) : '',
-      $blocking ? 'blokuje ' . count($blocking) : '',
-  ]);
-  $td_extra_unit = trim($td_extra_unit) !== '' ? '<div class="td-section">' . $td_extra_unit . '</div>' : '';
-  if (trim($td_extra_unit . $td_extra_deps . $td_extra_tags . $td_extra_rec) !== ''): ?>
-<details class="td-section td-extra">
-  <summary class="td-label td-extra-sum">
-    <i class="bi bi-three-dots" aria-hidden="true"></i>Jednostka, zależności, tagi, powtarzanie
-    <?php if ($td_extra_on): ?><span class="td-extra-on"><?= h(implode(' · ', $td_extra_on)) ?></span><?php endif; ?>
-  </summary>
-  <div class="td-extra-body"><?= $td_extra_unit . $td_extra_deps . $td_extra_tags . $td_extra_rec ?></div>
-</details>
-<?php endif; unset($td_extra_unit, $td_extra_deps, $td_extra_tags, $td_extra_rec, $td_extra_on); ?>
+<?php /* Rzadziej używane części zadania jako kafle: klik rozwija sekcję pod kaflami (jedna naraz).
+         Bez skryptu w bloku detail_js_* — logika w onclick, bo fragment wstrzykiwany jest przy każdym otwarciu. */
+  $td_link_n = count(tasksLinksOf((int)$id));
+  $td_tiles = array_filter([
+      'links' => ['Powiązania', 'bi-link-45deg', $td_link_n ? $td_link_n . ' ' . ($td_link_n === 1 ? 'powiązanie' : 'powiązania') : 'brak', $td_extra_links],
+      'unit'  => ['Jednostka', 'bi-diagram-3', !empty($task['unit_id']) ? strip_tags(task_unit_badge((int)$task['unit_id'])) : 'brak', trim($td_extra_unit) !== '' ? '<div class="td-section">' . $td_extra_unit . '</div>' : ''],
+      'deps'  => ['Zależności', 'bi-diagram-2', $blockers || $blocking ? trim(($blockers ? 'czeka na ' . count($blockers) : '') . ($blockers && $blocking ? ', ' : '') . ($blocking ? 'blokuje ' . count($blocking) : '')) : 'brak', $td_extra_deps],
+      'tags'  => ['Tagi', 'bi-tags', $tag_ids ? count($tag_ids) . ' ' . (count($tag_ids) === 1 ? 'tag' : 'tagi') : 'brak', $td_extra_tags],
+      'rec'   => ['Powtarzanie', 'bi-arrow-repeat', !empty($task['recurrence']) ? (['daily' => 'codziennie', 'weekly' => 'co tydzień', 'monthly' => 'co miesiąc', 'yearly' => 'co rok'][$task['recurrence']] ?? 'tak') : 'nie', $td_extra_rec],
+  ], fn($t) => trim($t[3]) !== '');
+  if ($td_tiles): ?>
+<div class="td-section td-tiles-wrap">
+  <div class="td-tiles" role="group" aria-label="Dodatkowe informacje o zadaniu">
+    <?php foreach ($td_tiles as $k => [$lab, $ico, $state]): $pid = 'td-tile-' . $k . '-' . (int)$id; ?>
+    <button type="button" class="td-tile <?= $state === 'brak' || $state === 'nie' ? '' : 'is-set' ?>" aria-expanded="false" aria-controls="<?= $pid ?>"
+            onclick="(function(b){var r=b.closest('.td-tiles-wrap');r.querySelectorAll('.td-tile').forEach(function(x){if(x!==b){x.setAttribute('aria-expanded','false');document.getElementById(x.getAttribute('aria-controls')).hidden=true;}});var o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',o?'false':'true');document.getElementById(b.getAttribute('aria-controls')).hidden=o;})(this)">
+      <i class="bi <?= $ico ?>" aria-hidden="true"></i>
+      <span class="td-tile-lab"><?= h($lab) ?></span>
+      <span class="td-tile-state"><?= h($state) ?></span>
+    </button>
+    <?php endforeach; ?>
+  </div>
+  <?php foreach ($td_tiles as $k => $t): ?>
+  <div class="td-tile-panel" id="td-tile-<?= $k ?>-<?= (int)$id ?>" hidden><?= $t[3] ?></div>
+  <?php endforeach; ?>
+</div>
+<?php endif; unset($td_extra_links, $td_extra_unit, $td_extra_deps, $td_extra_tags, $td_extra_rec, $td_tiles, $td_link_n); ?>
 <?php require_once __DIR__ . '/includes/detail_activity.php'; ?>
   </div>
   <aside class="td-side" aria-label="Komentarze i pliki zadania">
