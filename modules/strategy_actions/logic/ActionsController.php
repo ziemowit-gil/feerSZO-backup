@@ -159,6 +159,32 @@ final class ActionsController
                 'message' => 'Status zmieniony na „' . ActionsService::statusLabel($status) . '”.'];
     }
 
+    /** GET /dzialania/{id}/panel (JSON) — panel szczegółów na liście. */
+    public function panel($id): array
+    {
+        $p = ActionsService::panel((int)$id);
+        return $p ? ['ok' => true] + $p : $this->fail('Działanie nie istnieje.', 404);
+    }
+
+    /** POST /dzialania/{id}/wskazniki (JSON) — wykonanie wskaźników wpisane w panelu: real[ID]=wartość. */
+    public function indicators($id): array
+    {
+        $id = (int)$id;
+        if (!action_by_id($id)) return $this->fail('Działanie nie istnieje.', 404);
+        $changes = ActionsService::setIndicatorValues($id, (array)($_POST['real'] ?? []));
+        return ['ok' => true, 'action' => ActionsService::one($id), 'changed' => count($changes),
+                'message' => $changes ? 'Zapisano wykonanie wskaźników (' . count($changes) . ').' : 'Bez zmian we wskaźnikach.'];
+    }
+
+    /** POST /dzialania/{id}/duplikuj — kopia działania, od razu do edycji. */
+    public function duplicate($id): ?string
+    {
+        $newId = ActionsService::duplicate((int)$id, $this->uid());
+        if (!$newId) return $this->notFound();
+        flash_set('success', 'Utworzono kopię działania — uzupełnij nazwę i terminy.');
+        return Router::redirect(ActionsService::url($newId . '/edycja'));
+    }
+
     /** GET /dzialania/kalendarz.json — zdarzenia FullCalendar (zastępuje strategy/actions/calendar.php). */
     public function calendarFeed(): array
     {

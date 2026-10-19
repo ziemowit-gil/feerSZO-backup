@@ -141,7 +141,7 @@ include __DIR__ . '/_head.php';
           <template x-for="a in rows" :key="a.id">
             <tr>
               <td style="min-width:240px">
-                <a class="nm" :href="url(a.id)" x-text="a.nazwa"></a>
+                <a class="nm" :href="url(a.id)" x-text="a.nazwa" @click="openAction(a.id, $event)"></a>
                 <span x-show="a.wlasne" class="dz-chip" title="Działanie własne — finansowane ze środków organizacji"><i class="bi bi-star-fill" aria-hidden="true"></i> własne</span>
                 <div><template x-for="fl in flagsOf(a)" :key="fl.key"><span class="dz-flag" :class="fl.key" x-text="fl.label"></span></template></div>
               </td>
@@ -238,6 +238,8 @@ include __DIR__ . '/_head.php';
       </div>
     </div>
   </section>
+
+  <?php include __DIR__ . '/_panel.php'; ?>
 
   <!-- KALENDARZ -->
   <section x-show="view === 'kalendarz'" x-cloak aria-label="Kalendarz działań">
@@ -433,7 +435,46 @@ function dzApp() {
         this.cal.updateSize();
       }
     },
-    openAction(id, ev) { if (ev) return; window.location = this.url(id); },
+    // ── Panel szczegółów ──
+    panel: {open: false, loading: false, error: '', id: null, saving: false},
+    p: {},
+    csrf: D.csrf,
+    async openAction(id, ev) {
+      if (ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button === 1)) return; // nowa karta — zwykły link
+      if (ev) ev.preventDefault();
+      this._back = document.activeElement;
+      this.panel = {open: true, loading: true, error: '', id, saving: false};
+      this.p = {};
+      this.$nextTick(() => this.$refs.pclose && this.$refs.pclose.focus());
+      try {
+        const r = await fetch(this.url(id, 'panel'), {credentials: 'same-origin', headers: {'Accept': 'application/json'}});
+        const j = await r.json();
+        if (this.panel.id !== id) return;
+        if (!j.ok) throw new Error(j.error || 'Błąd');
+        this.p = j;
+        this.replace(j.action);
+      } catch (e) { this.panel.error = 'Nie udało się wczytać działania. ' + (e.message || ''); }
+      this.panel.loading = false;
+    },
+    closePanel() {
+      this.panel.open = false;
+      if (this._back && this._back.focus) this.$nextTick(() => this._back.focus());
+    },
+    async setStatus(st) {
+      const a = this.all.find(x => x.id === this.panel.id);
+      await this.move(a, st);
+      const fresh = this.all.find(x => x.id === this.panel.id);
+      if (fresh) this.p.action = fresh;
+    },
+    async saveIndicators() {
+      const data = {};
+      (this.p.indicators || []).forEach(i => { data['real[' + i.id + ']'] = String(i.real ?? ''); });
+      this.panel.saving = true;
+      const res = await this.post(this.url(this.panel.id, 'wskazniki'), data);
+      this.panel.saving = false;
+      if (res && res.ok) { this.replace(res.action); this.p.action = res.action; }
+      this.say((res && (res.message || res.error)) || 'Nie udało się zapisać wskaźników.');
+    },
   };
 }
 </script>

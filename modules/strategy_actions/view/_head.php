@@ -148,6 +148,17 @@ body{background:#fff;color:var(--dark);margin:0;font-family:"Segoe UI","Segoe UI
 .dz-tl .bar:hover{filter:brightness(1.15)}
 .dz-tl .cut-l{border-left:3px dotted #fff}.dz-tl .cut-r{border-right:3px dotted #fff}
 .dz-tl .today{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:1}
+/* Panel szczegółów (z prawej) */
+.dz-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1040}
+.dz-panel{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:#fff;z-index:1050;display:flex;flex-direction:column;border-left:4px solid var(--dz)}
+.dz-panel .ph{background:var(--dark);color:#fff;padding:.8rem 1rem;display:flex;gap:.6rem;align-items:flex-start}
+.dz-panel .ph h2{font:300 1.35rem/1.2 "Segoe UI",system-ui,sans-serif;margin:0;flex:1;overflow-wrap:anywhere}
+.dz-panel .ph .x{background:none;border:0;color:#fff;font-size:1.25rem;cursor:pointer;padding:0 .2rem}
+.dz-panel .pb{padding:1rem;overflow-y:auto;flex:1}
+.dz-panel h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:1.1rem 0 .35rem;padding-bottom:.25rem;border-bottom:2px solid var(--dark)}
+.dz-panel .pf{padding:.75rem 1rem;border-top:1px solid var(--line);display:flex;gap:.4rem;flex-wrap:wrap;background:var(--light)}
+.dz-ind{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:.5rem;align-items:center;padding:.35rem 0;border-bottom:1px solid var(--line);font-size:.86rem}
+.dz-ind small{display:block;color:var(--muted)}
 /* Komunikat po akcji */
 .dz-toast{position:fixed;left:1rem;bottom:1rem;z-index:1060;max-width:420px}
 .dz-toast span{display:block;background:var(--dark);color:#fff;padding:.65rem 1rem;font-size:.9rem}

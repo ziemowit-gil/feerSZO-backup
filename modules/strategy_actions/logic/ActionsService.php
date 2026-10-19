@@ -298,6 +298,63 @@ final class ActionsService
         return (string)$old['status'];
     }
 
+    /**
+     * Wpisanie wykonania wskaźników z panelu: [id wskaźnika => wartość]. Zmienia tylko wskaźniki tego działania.
+     * @return list<array{nazwa:string, from:float, to:float}> faktyczne zmiany
+     */
+    public static function setIndicatorValues(int $id, array $values): array
+    {
+        $changes = [];
+        $upd = db()->prepare("UPDATE action_indicators SET wartosc_realizowana = ? WHERE id = ? AND action_id = ?");
+        foreach (grant_action_indicators_for($id) as $ind) {
+            $iid = (int)$ind['id'];
+            if (!array_key_exists($iid, $values) && !array_key_exists((string)$iid, $values)) continue;
+            $v = self::num($values[$iid] ?? $values[(string)$iid]);
+            if ($v === null || $v < 0) continue;
+            $from = (float)($ind['wartosc_realizowana'] ?? 0);
+            if (abs($from - $v) < 0.0001) continue;
+            $upd->execute([$v, $iid, $id]);
+            $changes[] = ['nazwa' => (string)$ind['nazwa'], 'from' => $from, 'to' => $v];
+        }
+        if ($changes) db()->prepare("UPDATE actions SET updated_at = ? WHERE id = ?")->execute([date('Y-m-d H:i:s'), $id]);
+        return $changes;
+    }
+
+    /** Kopia działania (status „planowane”, „(kopia)” w nazwie, te same granty, wskaźniki z wyzerowanym wykonaniem). */
+    public static function duplicate(int $id, int $userId): ?int
+    {
+        $a = self::find($id);
+        if (!$a) return null;
+        $d = self::normalize($a);
+        $d['nazwa']  = mb_substr($d['nazwa'] . ' (kopia)', 0, 300);
+        $d['status'] = 'planowane';
+        $grants = array_map(fn($g) => ['grant_id' => (int)$g['grant_id'], 'udzial_procent' => $g['udzial_procent'], 'kwota' => $g['kwota']], $a['grants']);
+        $inds = array_map(fn($i) => ['id' => 0, 'nazwa' => (string)$i['nazwa'], 'wartosc_planowana' => $i['wartosc_planowana'], 'wartosc_realizowana' => 0.0], $a['indicators']);
+        return self::save(null, $d, $grants, $inds, $userId);
+    }
+
+    /** Szczegóły do panelu bocznego listy (kształt ekranu + pola opisowe i wskaźniki z id). */
+    public static function panel(int $id): ?array
+    {
+        $a = self::find($id);
+        if (!$a) return null;
+        $goals = self::goals();
+        return [
+            'action'     => self::one($id),
+            'opis'       => (string)($a['opis'] ?? ''),
+            'forma'      => self::FORMS[$a['forma'] ?? ''] ?? (string)($a['forma'] ?? ''),
+            'link'       => (string)($a['link_online'] ?? ''),
+            'miejsce'    => (string)($a['lokalizacja'] ?? ''),
+            'cel'        => !empty($a['cel_statutowy']) && isset($goals[(int)$a['cel_statutowy']]) ? (int)$a['cel_statutowy'] . '. ' . $goals[(int)$a['cel_statutowy']] : '',
+            'jrwa'       => (string)($a['jrwa_symbol'] ?? ''),
+            'dlaKogo'    => (string)($a['dla_kogo'] ?? ''),
+            'indicators' => array_map(fn($i) => ['id' => (int)$i['id'], 'nazwa' => (string)$i['nazwa'],
+                                                 'plan' => $i['wartosc_planowana'] !== null ? (float)$i['wartosc_planowana'] : null,
+                                                 'real' => (float)($i['wartosc_realizowana'] ?? 0)], $a['indicators']),
+            'canDelete'  => self::canDelete($a),
+        ];
+    }
+
     /** Usuwa działanie z finansowaniem, wskaźnikami i powiązaniami (umowy wolontariatu / kursy TI tracą tylko odnośnik). */
     public static function delete(int $id): void
     {
@@ -345,7 +402,7 @@ final class ActionsService
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) && strtotime($v) ? $v : null;
     }
 
-    private static function num($v): ?float
+    public static function num($v): ?float
     {
         $v = str_replace([' ', "\u{00A0}", ','], ['', '', '.'], trim((string)$v));
         return $v !== '' && is_numeric($v) ? (float)$v : null;

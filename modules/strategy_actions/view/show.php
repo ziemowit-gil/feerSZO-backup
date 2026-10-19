@@ -26,6 +26,10 @@ include __DIR__ . '/_head.php';
   </div>
   <div class="d-flex gap-2 flex-wrap dz-noprint">
     <a href="<?= h(ActionsService::url($id . '/edycja')) ?>" class="dz-btn"><i class="bi bi-pencil" aria-hidden="true"></i>Edytuj</a>
+    <form method="post" action="<?= h(ActionsService::url($id . '/duplikuj')) ?>">
+      <?= Router::csrfField() ?>
+      <button type="submit" class="dz-btn dz-btn--ghost"><i class="bi bi-copy" aria-hidden="true"></i>Duplikuj</button>
+    </form>
     <a href="<?= h(ActionsService::url()) ?>" class="dz-btn dz-btn--ghost"><i class="bi bi-arrow-left" aria-hidden="true"></i>Lista</a>
     <?php if ($canDelete): ?>
     <form method="post" action="<?= h(ActionsService::url($id . '/usun')) ?>" onsubmit="return confirm('Usunąć działanie razem z finansowaniem, wskaźnikami i listą uczestników? Tej operacji nie można cofnąć.')">

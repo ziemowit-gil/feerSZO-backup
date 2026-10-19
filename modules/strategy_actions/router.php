@@ -5,6 +5,8 @@
  * Czyste adresy /dzialania/… (.htaccess: ^dzialania(/.*)?$ → ten plik; trasa ze ścieżki żądania):
  *   /dzialania                 — lista, tablica (kanban po statusie), oś czasu i kalendarz (filtry, kafle-liczniki);
  *   POST /dzialania/{id}/status — zmiana statusu (JSON, przeciąganie na tablicy);
+ *   /dzialania/{id}/panel      — szczegóły do panelu bocznego (JSON); POST …/wskazniki — wykonanie wskaźników (JSON);
+ *   POST /dzialania/{id}/duplikuj — kopia działania i przejście do jej edycji;
  *   /dzialania/nowe            — nowe działanie (?grant_id= wstępnie wybiera grant);
  *   /dzialania/{id}            — karta działania (finansowanie, wskaźniki, uczestnicy CRM);
  *   /dzialania/{id}/edycja     — edycja; POST …/usun — usunięcie (admin albo autor);
@@ -54,6 +56,9 @@ $r->group(['role:admin,editor'], function (Router $r) {
     $r->post('/{id}/edycja',            [ActionsController::class, 'update']);
     $r->post('/{id}/usun',              [ActionsController::class, 'destroy'])->name('dz.delete');
     $r->post('/{id}/status',            [ActionsController::class, 'status'])->name('dz.status');
+    $r->get('/{id}/panel',              [ActionsController::class, 'panel'])->name('dz.panel');
+    $r->post('/{id}/wskazniki',         [ActionsController::class, 'indicators'])->name('dz.indicators');
+    $r->post('/{id}/duplikuj',          [ActionsController::class, 'duplicate'])->name('dz.duplicate');
     $r->post('/{id}/uczestnicy',        [ActionsController::class, 'participantAdd'])->name('dz.crm.add');
     $r->post('/{id}/uczestnicy/usun',   [ActionsController::class, 'participantRemove'])->name('dz.crm.remove');
 }, '/dzialania');
