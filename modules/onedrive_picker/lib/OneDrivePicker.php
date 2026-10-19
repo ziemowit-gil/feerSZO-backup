@@ -30,7 +30,16 @@ final class OneDrivePicker
     public static function available(?array $user = null): bool
     {
         $u = $user ?? current_user();
-        return self::userKeyOf($u) !== '' && !empty($u['microsoft_id']) && self::configured();
+        return self::userKeyOf($u) !== '' && !empty($u['microsoft_id']) && !self::impersonating() && self::configured();
+    }
+
+    /**
+     * Tryb podglądu (admin/impersonate.php): current_user() to osoba podglądana, a Graph z uprawnieniem
+     * aplikacji otworzyłby adminowi JEJ prywatny OneDrive — w podglądzie OneDrive jest niedostępny.
+     */
+    public static function impersonating(): bool
+    {
+        return !empty($_SESSION['_admin_original']);
     }
 
     /** Identyfikator konta M365 do /users/{id}/drive: GUID z logowania, w razie braku e-mail (UPN). */
@@ -43,6 +52,9 @@ final class OneDrivePicker
     public function __construct(?array $user = null, ?M365Graph $graph = null)
     {
         $u = $user ?? current_user();
+        if (self::impersonating()) {
+            throw new \RuntimeException('W trybie podglądu OneDrive jest niedostępny — to prywatny dysk osoby podglądanej.');
+        }
         if (!($graph ? self::userKeyOf($u) !== '' && !empty($u['microsoft_id']) : self::available($u))) {
             throw new \RuntimeException('Twoje konto nie jest połączone z Microsoft 365 — wybieranie plików z OneDrive jest niedostępne.');
         }
