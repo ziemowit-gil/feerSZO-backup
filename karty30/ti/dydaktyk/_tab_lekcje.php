@@ -543,6 +543,7 @@ if ($_sms_enabled && $cur_course) {
   }
   /* Kolumna „Forma”: ikona + nazwa (nie sama ikona — czytelne też dla czytnika ekranu). */
   #dyd-table-lekcje .lek-forma { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; color: #3d4757; white-space: nowrap; }
+  #dyd-table-lekcje .lek-room { display: block; font-size: .72rem; color: #5b6677; margin-top: .1rem; }
   </style>
 
   <!-- ── Widok: tabela kompaktowa ──────────────────────────────── -->
@@ -576,6 +577,10 @@ if ($_sms_enabled && $cur_course) {
         $_LEK_FORMS = ['stacjonarna' => ['geo-alt-fill', '#065F46', 'Stacjonarnie'],
                        'zdalna_zoom' => ['camera-video-fill', '#1D4ED8', 'Zdalnie — Zoom'],
                        'zdalna_inne' => ['display', '#6B21A8', 'Zdalnie — inne']];
+        // Sale (skrót, gdy jest) — dopisek przy formie stacjonarnej.
+        $_lek_rooms = [];
+        foreach (db_all("SELECT id, name, short_label FROM k30_pl_rooms") as $_rm)
+            $_lek_rooms[(int)$_rm['id']] = trim((string)$_rm['short_label']) !== '' ? (string)$_rm['short_label'] : (string)$_rm['name'];
         foreach (array_reverse($sessions) as $s): // domyślnie od najnowszych (najbliższe/ostatnie na górze)
           if ((string)$s['lesson_date'] === '') continue; // wersja robocza bez terminu — widoczna tylko w panelu „Wersje robocze”
           $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
@@ -655,6 +660,9 @@ if ($_sms_enabled && $cur_course) {
           <td class="lek-c-forma">
             <?php $_lm2 = $_LEK_FORMS[(string)($s['lesson_method'] ?? '')] ?? null; if ($_lm2): ?>
             <span class="lek-forma"><i class="bi bi-<?= $_lm2[0] ?>" style="color:<?= $_lm2[1] ?>" aria-hidden="true"></i><?= h($_lm2[2]) ?></span>
+            <?php $_rid = (int)($s['room_id'] ?? 0); if ($s['lesson_method'] === 'stacjonarna' && isset($_lek_rooms[$_rid])): ?>
+            <span class="lek-room">sala: <?= h($_lek_rooms[$_rid]) ?></span>
+            <?php endif; ?>
             <?php else: ?>
             <span class="text-body-tertiary" aria-hidden="true">—</span><span class="visually-hidden">forma nieokreślona</span>
             <?php endif; ?>
