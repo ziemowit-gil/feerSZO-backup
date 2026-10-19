@@ -272,6 +272,21 @@ function task_move(int $task_id, int $new_list_id, float $new_pos, int $user_id)
 }
 
 /**
+ * Domyślna kolumna nowego zadania: pierwsza kolumna obszaru, która nie jest „ukończone”
+ * (a gdy są tylko takie — pierwsza w ogóle). Obszar bez kolumn dostaje „Do zrobienia” i „Gotowe”.
+ */
+function task_default_list(int $workspace_id): int {
+    $l = db_one("SELECT id FROM task_lists WHERE workspace_id=? ORDER BY is_done_state, position, id LIMIT 1", [$workspace_id]);
+    if ($l) return (int)$l['id'];
+    $now = date('Y-m-d H:i:s');
+    $first = db_insert('task_lists', ['workspace_id' => $workspace_id, 'name' => 'Do zrobienia', 'position' => 1,
+                                      'is_done_state' => 0, 'created_at' => $now, 'updated_at' => $now]);
+    db_insert('task_lists', ['workspace_id' => $workspace_id, 'name' => 'Gotowe', 'position' => 2,
+                             'is_done_state' => 1, 'created_at' => $now, 'updated_at' => $now]);
+    return $first;
+}
+
+/**
  * Reguły automatyzacji obszaru (tasks/lib/tasksRules.php): 'created' | 'moved' | 'completed'.
  * Nigdy nie przerywa operacji, która je wywołała.
  */

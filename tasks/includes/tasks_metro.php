@@ -365,6 +365,39 @@ html body #tsk-main .tk-created{font-size:.8rem}
 html body #tsk-main .tk-created-by{font-size:.72rem;color:var(--tm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
 html body #tsk-main .tk-table td:last-child .tk-actions{padding-top:2px}
 @media(prefers-reduced-motion:reduce){html body #taskOffcanvas.offcanvas{transition:none}}
+/* ══ Okno „Nowe zadanie” — Metro: ciemny nagłówek, duży tytuł, kolumna w „Więcej opcji” ══ */
+html body #addTaskModal .at-modal{border:0;border-radius:0}
+html body #addTaskModal .modal-header{background:var(--tm-dark);color:#fff;border:0;padding:1rem 1.25rem;align-items:flex-start}
+html body #addTaskModal .at-kicker{font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.65)}
+html body #addTaskModal .modal-title{font-size:1.5rem;font-weight:300;margin:0;color:#fff}
+html body #addTaskModal .modal-body{padding:1.25rem}
+html body #addTaskModal .at-title-input{width:100%;border:0;border-bottom:2px solid var(--tm-field);border-radius:0;font-size:1.3rem;font-weight:300;padding:.4rem 0;margin-bottom:.9rem;background:transparent;color:var(--tsk-text)}
+html body #addTaskModal .at-title-input:focus{outline:0;border-bottom-color:var(--tsk-green)}
+html body #addTaskModal .at-title-input.is-invalid{border-bottom-color:var(--tm-red)}
+html body #addTaskModal .at-in{width:100%;border:2px solid var(--tm-field);border-radius:0;background:#fff;color:var(--tsk-text);font:inherit;font-size:.9rem;padding:.4rem .55rem;min-height:2.4rem}
+html body #addTaskModal .at-in:focus{outline:0;border-color:var(--tsk-green)}
+html body #addTaskModal .at-desc{min-height:5.5rem;resize:vertical;margin-bottom:1rem}
+html body #addTaskModal .at-l{display:block;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--tm-muted);margin-bottom:.25rem}
+html body #addTaskModal .at-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:.75rem}
+html body #addTaskModal .at-assign{margin-top:1rem;background:var(--tm-light);padding:.75rem}
+html body #addTaskModal .at-assign-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.5rem}
+html body #addTaskModal .at-seg{display:inline-flex}
+html body #addTaskModal .at-seg label{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .7rem;border:2px solid var(--tsk-text);font-size:.78rem;font-weight:600;cursor:pointer;background:#fff;color:var(--tsk-text)}
+html body #addTaskModal .at-seg label+input+label{border-left:0}
+html body #addTaskModal .at-seg .btn-check:checked+label{background:var(--tsk-text);color:#fff}
+html body #addTaskModal .at-seg .btn-check:focus-visible+label{outline:2px solid var(--tsk-green);outline-offset:2px}
+html body #addTaskModal .at-more{margin-top:1rem;border-top:1px solid var(--tm-line);padding-top:.6rem}
+html body #addTaskModal .at-more>summary{cursor:pointer;font-weight:600;font-size:.85rem;color:var(--tsk-text);padding:.2rem 0}
+html body #addTaskModal .at-more>summary span{font-weight:400;color:var(--tm-muted);margin-left:.35rem}
+html body #addTaskModal .at-more[open]>summary{margin-bottom:.6rem}
+html body #addTaskModal .modal-footer{border-top:1px solid var(--tm-line);padding:.75rem 1.25rem;gap:.4rem}
+html body #addTaskModal .at-hint{margin-right:auto;font-size:.75rem;color:var(--tm-muted)}
+html body #addTaskModal .at-btn{display:inline-flex;align-items:center;border:2px solid var(--tsk-green);background:var(--tsk-green);color:#fff;font-weight:600;font-size:.88rem;padding:.4rem 1rem;border-radius:0}
+html body #addTaskModal .at-btn:hover,html body #addTaskModal .at-btn:focus-visible{background:var(--tm-dark);border-color:var(--tm-dark)}
+html body #addTaskModal .at-btn--ghost{background:#fff;color:var(--tsk-text);border-color:var(--tsk-text)}
+html body #addTaskModal .at-btn--ghost:hover{background:var(--tsk-text);color:#fff}
+html body #addTaskModal .at-btn:disabled{opacity:.6}
+
 /* ══ Okno zadania: dwie kolumny — szczegóły po lewej, komentarze i pliki w prawej (szarej) kolumnie ══ */
 html body #taskOffcanvas.offcanvas{width:min(1240px,96vw);max-width:96vw}
 html body #td-root .td-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,400px);align-items:start}

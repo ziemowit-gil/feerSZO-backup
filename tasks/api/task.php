@@ -75,10 +75,12 @@ if ($action === 'create') {
     $workspace_id= (int)($body['workspace_id'] ?? 0);
     $title       = trim($body['title']         ?? '');
 
-    if (!$list_id || !$workspace_id || !$title) {
-        task_api_error('Brak wymaganych pól: title, list_id, workspace_id.');
+    if (!$workspace_id || !$title) {
+        task_api_error('Brak wymaganych pól: title, workspace_id.');
     }
     task_require_workspace_access($workspace_id, ['admin', 'editor']);
+    // Kolumna nieobowiązkowa — bez wskazania trafia do domyślnej kolumny obszaru
+    if (!$list_id) $list_id = task_default_list($workspace_id);
 
     $list = db_one("SELECT * FROM task_lists WHERE id=? AND workspace_id=?", [$list_id, $workspace_id]);
     if (!$list) task_api_error('Lista nie istnieje w tym obszarze.', 404);

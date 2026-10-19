@@ -39,122 +39,108 @@
 <?php if ($can_add && $workspace): ?>
 <div class="modal fade" id="addTaskModal" tabindex="-1"
      aria-labelledby="addTaskModalLabel" aria-modal="true" role="dialog">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h2 class="h6 modal-title fw-bold mb-0" id="addTaskModalLabel">
-          <i class="bi bi-plus-circle me-1 text-primary" aria-hidden="true"></i>Nowe zadanie
-        </h2>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"
+  <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
+    <div class="modal-content at-modal">
+      <div class="modal-header">
+        <div>
+          <div class="at-kicker"><?= $workspace ? h($workspace['name']) : '' ?></div>
+          <h2 class="modal-title" id="addTaskModalLabel">Nowe zadanie</h2>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                 aria-label="Zamknij formularz dodawania zadania"></button>
       </div>
       <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label fw-semibold small" for="at-title">
-            Tytuł <span class="text-danger" aria-hidden="true">*</span>
-            <span class="visually-hidden">(wymagane)</span>
-          </label>
-          <input type="text" id="at-title" class="form-control"
-                 placeholder="Co trzeba zrobić?" maxlength="255" required>
+        <label class="visually-hidden" for="at-title">Tytuł (wymagane)</label>
+        <input type="text" id="at-title" class="at-title-input"
+               placeholder="Co trzeba zrobić?" maxlength="255" required aria-required="true">
+        <label class="visually-hidden" for="at-desc">Opis (opcjonalnie)</label>
+        <textarea id="at-desc" class="at-in at-desc" rows="3" placeholder="Opis, szczegóły, linki… (opcjonalnie)"></textarea>
+
+        <div class="at-grid">
+          <div>
+            <label class="at-l" for="at-due">Termin</label>
+            <input type="date" id="at-due" class="at-in">
+          </div>
+          <div>
+            <label class="at-l" for="at-priority">Priorytet</label>
+            <select id="at-priority" class="at-in">
+              <option value="1">Niski</option>
+              <option value="2" selected>Normalny</option>
+              <option value="3">Wysoki</option>
+              <option value="4">Krytyczny</option>
+            </select>
+          </div>
         </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold small" for="at-desc">
-            Opis <span class="text-muted fw-normal">(opcjonalnie)</span>
-          </label>
-          <textarea id="at-desc" class="form-control" rows="3"
-                    placeholder="Szczegóły zadania…"></textarea>
-        </div>
-        <div class="row g-2 mb-3">
-          <div class="col-sm-6">
-            <label class="form-label fw-semibold small" for="at-list">Kolumna</label>
-            <?php if ($lists_map): ?>
-            <select id="at-list" class="form-select form-select-sm">
-              <?php foreach ($lists_map as $l): ?>
-              <option value="<?= $l['id'] ?>"><?= h($l['name']) ?></option>
+
+        <?php if ($ws_members_for_assign || $all_org_units): ?>
+        <div class="at-assign">
+          <div class="at-assign-head">
+            <span class="at-l mb-0" id="at-assign-lbl">Przypisz do</span>
+            <div class="at-seg" role="group" aria-labelledby="at-assign-lbl">
+              <input type="radio" class="btn-check" name="at-assign-mode" id="at-mode-person" value="person" checked onchange="atToggleMode('person')">
+              <label for="at-mode-person"><i class="bi bi-person" aria-hidden="true"></i>Osoby</label>
+              <input type="radio" class="btn-check" name="at-assign-mode" id="at-mode-unit" value="unit" onchange="atToggleMode('unit')">
+              <label for="at-mode-unit"><i class="bi bi-diagram-3" aria-hidden="true"></i>Jednostka</label>
+            </div>
+          </div>
+          <div id="at-person-panel">
+            <?php if ($ws_members_for_assign): ?>
+            <select id="at-user-select" multiple placeholder="Wyszukaj osobę… (puste = do wzięcia przez chętnych)" aria-label="Wybierz osoby">
+              <?php foreach ($ws_members_for_assign as $m): ?>
+              <option value="<?= (int)$m['user_id'] ?>"><?= h($m['name']) ?></option>
               <?php endforeach; ?>
             </select>
             <?php else: ?>
-            <div class="alert alert-warning py-2 small mb-0">
-              <i class="bi bi-exclamation-triangle me-1"></i>
-              Ten obszar roboczy nie ma kolumn. <a href="<?= APP_URL ?>/tasks/settings/workspaces.php?ws=<?= $ws_id ?>">Dodaj kolumnę</a> przed dodaniem zadania.
-            </div>
-            <input type="hidden" id="at-list" value="0">
+            <p class="text-muted small mb-0">Brak użytkowników w obszarze.</p>
             <?php endif; ?>
           </div>
-          <div class="col-sm-6">
-            <label class="form-label fw-semibold small" for="at-priority">Priorytet</label>
-            <select id="at-priority" class="form-select form-select-sm">
-              <option value="1">⚪ Niski</option>
-              <option value="2" selected>🔵 Normalny</option>
-              <option value="3">🟡 Wysoki</option>
-              <option value="4">🔴 Krytyczny</option>
-            </select>
-          </div>
-          <div class="col-sm-6">
-            <label class="form-label fw-semibold small" for="at-due">Termin</label>
-            <input type="date" id="at-due" class="form-control form-control-sm">
-          </div>
-          <?php if ($all_areas): ?>
-          <div class="col-12">
-            <label class="form-label fw-semibold small" for="at-area">Obszar</label>
-            <select id="at-area" class="form-select form-select-sm">
-              <option value="0">— brak obszaru —</option>
-              <?php foreach ($all_areas as $ar): ?>
-              <option value="<?= $ar['id'] ?>"><?= h($ar['name']) ?></option>
+          <div id="at-unit-panel" class="d-none">
+            <?php if ($all_org_units): ?>
+            <select id="at-unit" class="at-in" aria-label="Jednostka organizacyjna">
+              <option value="0">— brak przypisania do jednostki —</option>
+              <?php foreach ($all_org_units as $ou): ?>
+              <option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?><?= $ou['short_name'] ? ' (' . h($ou['short_name']) . ')' : '' ?></option>
               <?php endforeach; ?>
             </select>
+            <?php else: ?>
+            <p class="text-muted small mb-0">Brak jednostek organizacyjnych.</p>
+            <?php endif; ?>
           </div>
-          <?php endif; ?>
-          <?php if ($ws_members_for_assign || $all_org_units): ?>
-          <div class="col-12">
-            <label class="form-label fw-semibold small mb-1">
-              <i class="bi bi-person-check me-1"></i>Przypisz do
-            </label>
-            <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Tryb przypisania">
-              <input type="radio" class="btn-check" name="at-assign-mode" id="at-mode-person" value="person" checked onchange="atToggleMode('person')">
-              <label class="btn btn-outline-primary" for="at-mode-person">
-                <i class="bi bi-person me-1"></i>Osoby
-              </label>
-              <input type="radio" class="btn-check" name="at-assign-mode" id="at-mode-unit" value="unit" onchange="atToggleMode('unit')">
-              <label class="btn btn-outline-secondary" for="at-mode-unit">
-                <i class="bi bi-diagram-3 me-1"></i>Jednostki
-              </label>
-            </div>
-            <!-- Panel: osoba -->
-            <div id="at-person-panel">
-              <?php if ($ws_members_for_assign): ?>
-              <select id="at-user-select" multiple placeholder="Wyszukaj i dodaj osobę…" aria-label="Wybierz osoby">
-                <?php foreach ($ws_members_for_assign as $m): ?>
-                <option value="<?= (int)$m['user_id'] ?>"><?= h($m['name']) ?></option>
-                <?php endforeach; ?>
-              </select>
-              <?php else: ?>
-              <p class="text-muted small mb-0">Brak użytkowników w obszarze.</p>
-              <?php endif; ?>
-            </div>
-            <!-- Panel: jednostka -->
-            <div id="at-unit-panel" class="d-none">
-              <?php if ($all_org_units): ?>
-              <select id="at-unit" class="form-select form-select-sm">
-                <option value="0">— brak przypisania do jednostki —</option>
-                <?php foreach ($all_org_units as $ou): ?>
-                <option value="<?= $ou['id'] ?>"><?= h($ou['name']) ?><?= $ou['short_name'] ? ' (' . h($ou['short_name']) . ')' : '' ?></option>
-                <?php endforeach; ?>
-              </select>
-              <?php else: ?>
-              <p class="text-muted small mb-0">Brak jednostek organizacyjnych.</p>
-              <?php endif; ?>
-            </div>
-          </div>
-          <?php endif; ?>
         </div>
-        <div id="at-error" class="alert alert-danger py-2 small d-none" role="alert"></div>
+        <?php endif; ?>
+
+        <details class="at-more" id="at-more">
+          <summary>Więcej opcji <span>kolumna<?= $all_areas ? ', obszar tematyczny' : '' ?></span></summary>
+          <div class="at-grid">
+            <div>
+              <label class="at-l" for="at-list">Kolumna</label>
+              <select id="at-list" class="at-in">
+                <?php $_at_def = array_values(array_filter($lists_map, fn($l) => empty($l['is_done_state'])))[0] ?? (array_values($lists_map)[0] ?? null); ?>
+                <option value="0">Domyślna<?= $_at_def ? ' (' . h($_at_def['name']) . ')' : ' — utworzymy „Do zrobienia”' ?></option>
+                <?php foreach ($lists_map as $l): ?>
+                <option value="<?= $l['id'] ?>"><?= h($l['name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <?php if ($all_areas): ?>
+            <div>
+              <label class="at-l" for="at-area">Obszar tematyczny</label>
+              <select id="at-area" class="at-in">
+                <option value="0">— brak —</option>
+                <?php foreach ($all_areas as $ar): ?>
+                <option value="<?= $ar['id'] ?>"><?= h($ar['name']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <?php endif; ?>
+          </div>
+        </details>
+        <div id="at-error" class="alert alert-danger py-2 small d-none mt-3 mb-0" role="alert"></div>
       </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm"
-                data-bs-dismiss="modal">Anuluj</button>
-        <button type="button" class="btn btn-primary btn-sm"
-                id="at-submit" onclick="submitAddTask()">
+      <div class="modal-footer">
+        <span class="at-hint">Enter — dodaj</span>
+        <button type="button" class="at-btn at-btn--ghost" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="at-btn" id="at-submit" onclick="submitAddTask()">
           <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj zadanie
         </button>
       </div>

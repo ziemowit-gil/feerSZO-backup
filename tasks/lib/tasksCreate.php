@@ -38,6 +38,7 @@ function tasksCreateTargets(int $uid): array
 function tasksCreate(array $d, int $byUid): int
 {
     $wsId = (int)$d['workspace_id'];
+    if (empty($d['list_id'])) $d['list_id'] = task_default_list($wsId);
     $list = db_one("SELECT * FROM task_lists WHERE id=? AND workspace_id=?", [(int)$d['list_id'], $wsId]);
     if (!$list) throw new \RuntimeException('Wybierz kolumnę w obszarze.');
     $title = trim((string)($d['title'] ?? ''));

@@ -241,7 +241,9 @@
         document.getElementById('at-priority').value = '2';
         document.getElementById('at-error').classList.add('d-none');
         const listSel = document.getElementById('at-list');
-        if (listSel && listId) listSel.value = String(listId);
+        if (listSel) listSel.value = listId ? String(listId) : '0';
+        const more = document.getElementById('at-more');
+        if (more) more.open = !!listId;   // dodawanie z kolumny Kanbana — pokaż wybraną kolumnę
         // Reset trybu przypisania → osoba
         const modePersonRadio = document.getElementById('at-mode-person');
         if (modePersonRadio) {
@@ -290,10 +292,11 @@
         if (!title) { titleEl.classList.add('is-invalid'); titleEl.focus(); return; }
         titleEl.classList.remove('is-invalid');
 
-        const listId = parseInt(document.getElementById('at-list')?.value);
-        if (!WS_ID || !listId) {
+        // Kolumna nieobowiązkowa: 0 = domyślna kolumna obszaru (serwer ją wybierze albo utworzy)
+        const listId = parseInt(document.getElementById('at-list')?.value || '0') || 0;
+        if (!WS_ID) {
             const err = document.getElementById('at-error');
-            err.textContent = !WS_ID ? 'Nie wybrano obszaru roboczego.' : 'Ten obszar nie ma kolumn — dodaj je w ustawieniach.';
+            err.textContent = 'Nie wybrano obszaru roboczego.';
             err.classList.remove('d-none');
             return;
         }
@@ -320,7 +323,7 @@
                 description:  document.getElementById('at-desc').value,
                 due_date:     document.getElementById('at-due').value || null,
                 priority:     parseInt(document.getElementById('at-priority').value),
-                list_id:      parseInt(document.getElementById('at-list').value),
+                list_id:      listId,
                 area_id:      parseInt(document.getElementById('at-area')?.value || '0') || null,
                 unit_id:      unitId,
                 assignees:    assignees,
