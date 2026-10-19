@@ -420,6 +420,9 @@ if (count($contracts) > 1 && (empty($_SESSION['panel_contract_chosen']) || isset
 </div>
 <?php endif; ?>
 
+<?php /* ══ BANER — oświadczenia zleceniobiorcy (ZUS/PIT + rachunek bankowy ZLB) do wypełnienia / skanu ══ */ ?>
+<?php include dirname(__DIR__) . '/modules/zlecenie_oswiadczenie/view/_panelBanner.php'; ?>
+
 
 <?php if ($_metro_home): ?>
 <?php if (!$_is_volunteer_only) { require_once __DIR__ . '/includes/pv_ui.php'; pv_ui_styles(); /* tokeny tz-* pod powłoką SZO */ } ?>
