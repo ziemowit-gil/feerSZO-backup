@@ -64,7 +64,7 @@ include __DIR__ . '/_head.php';
         <option value="">— brak —</option>
         <?php foreach (ActionsService::goals() as $k => $l): ?><option value="<?= (int)$k ?>"<?= $sel('cel_statutowy', $k) ?>><?= (int)$k ?>. <?= h($l) ?></option><?php endforeach; ?>
       </select>
-      <small id="f-cel-h" class="dz-muted"><?= !empty($row['jrwa_symbol']) ? 'Segregator EZD: JRWA ' . h($row['jrwa_symbol']) : 'Po zapisie powstaje segregator EZD (JRWA) w klasie celu.' ?></small>
+      <small id="f-cel-h" class="dz-muted"><?= !empty($row['jrwa_symbol']) ? 'Segregator EZD: JRWA ' . h($row['jrwa_symbol']) : ($id || !$ezdOn ? 'Po zapisie powstaje pozycja JRWA w klasie celu (EZD).' : 'Po zapisie powstaje pozycja JRWA i koszulka w EZD Wirtualne biurko.') ?></small>
     </div>
     <div class="full">
       <label class="dz-lbl" for="f-opis">Opis</label>

@@ -84,7 +84,7 @@ final class ActionsController
         }
         $id = ActionsService::save(null, $d, $grants, $inds, $this->uid());
         ActionsJournal::log($id, 'create', 'Utworzono działanie.');
-        flash_set('success', 'Działanie zostało dodane.');
+        flash_set('success', 'Działanie zostało dodane.' . $this->autoCase($id, $d));
         return Router::redirect(ActionsService::url((string)$id));
     }
 
@@ -202,7 +202,8 @@ final class ActionsController
     {
         $newId = ActionsService::duplicate((int)$id, $this->uid());
         if (!$newId) return $this->notFound();
-        flash_set('success', 'Utworzono kopię działania — uzupełnij nazwę i terminy.');
+        $copy = ActionsService::find($newId);
+        flash_set('success', 'Utworzono kopię działania — uzupełnij nazwę i terminy.' . ($copy ? $this->autoCase($newId, $copy) : ''));
         return Router::redirect(ActionsService::url($newId . '/edycja'));
     }
 
@@ -381,6 +382,22 @@ final class ActionsController
 
     // ── Pomocnicze ────────────────────────────────────────────────────────────
 
+    /**
+     * Koszulka EZD zakładana automatycznie przy dodaniu działania z celem §6 (gdy EZD jest włączone).
+     * Zwraca dopisek do komunikatu; błąd EZD nie blokuje zapisu działania.
+     */
+    private function autoCase(int $id, array $d): string
+    {
+        if (empty($d['cel_statutowy']) || !ActionsEzd::enabled()) return '';
+        try {
+            [, $znak] = ActionsEzd::createCase($id, $this->uid());
+            return ' Założono koszulkę EZD ' . $znak . '.';
+        } catch (\Throwable $e) {
+            error_log('[dzialania] auto-koszulka EZD #' . $id . ': ' . $e->getMessage());
+            return ' Koszulki EZD nie założono: ' . ($e instanceof \RuntimeException ? $e->getMessage() : 'błąd EZD') . ' Możesz ją założyć na karcie działania.';
+        }
+    }
+
     /** Odpowiedź JSON z błędem (kod HTTP 4xx). */
     private function fail(string $msg, int $code = 422): array
     {
@@ -398,6 +415,7 @@ final class ActionsController
             'users'     => ActionsService::coordinators(),
             'grants'    => ActionsService::grantsList(),
             'budgets'   => ActionsGrants::budgets($id),
+            'ezdOn'     => ActionsEzd::enabled(),
         ]);
     }
 
