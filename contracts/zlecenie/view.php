@@ -1148,6 +1148,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   <?php endif; ?>
   </div>
 
+  <?php include dirname(__DIR__, 2) . '/modules/zlecenie_oswiadczenie/view/_umowaDokumenty.php'; ?>
+
   <?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
   <?php include dirname(__DIR__, 2) . '/modules/skierowania_badania/view/_umowaPanel.php'; ?>
