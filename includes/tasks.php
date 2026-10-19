@@ -263,9 +263,27 @@ function task_move(int $task_id, int $new_list_id, float $new_pos, int $user_id)
             require_once __DIR__ . '/task_notify.php';
             task_notify_moved($task_id, (string)$task['list_name'], (string)$new_list['name'], $user_id);
         } catch (\Throwable $e) {}
+        // Reguły automatyzacji obszaru — po commicie i powiadomieniu
+        task_rules_fire('moved', $task_id, $user_id, ['list_id' => $new_list_id]);
+        if ($new_list['is_done_state'] && !$task['completed_at']) task_rules_fire('completed', $task_id, $user_id);
     }
 
     return db_one("SELECT * FROM tasks WHERE id=?", [$task_id]);
+}
+
+/**
+ * Reguły automatyzacji obszaru (modules/tasks_plus/lib/tasksRules.php): 'created' | 'moved' | 'completed'.
+ * Nigdy nie przerywa operacji, która je wywołała.
+ */
+function task_rules_fire(string $trigger, int $task_id, int $user_id, array $ctx = []): void {
+    $f = dirname(__DIR__) . '/modules/tasks_plus/lib/tasksRules.php';
+    if (!is_file($f)) return;
+    try {
+        require_once $f;
+        tasksRulesFire($trigger, $task_id, $user_id, $ctx);
+    } catch (\Throwable $e) {
+        error_log('[task_rules_fire] ' . $trigger . ' #' . $task_id . ': ' . $e->getMessage());
+    }
 }
 
 /**
@@ -813,6 +831,7 @@ function task_apply_template(int $template_id, int $workspace_id, int $list_id, 
         require_once __DIR__ . '/task_notify.php';
         foreach ($created_ids as $id) task_notify_created($id, $user_id);
     } catch (\Throwable $e) {}
+    foreach ($created_ids as $id) task_rules_fire('created', $id, $user_id);
 
     return $created_ids;
 }

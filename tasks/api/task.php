@@ -146,6 +146,7 @@ if ($action === 'create') {
     } catch (\Throwable $e) {
         error_log('[task.php create] notify exception: ' . $e->getMessage());
     }
+    task_rules_fire('created', $id, $uid);
 
     // Auto-utwórz folder SP dla nowego zadania (nieblokujące)
     try {
@@ -282,6 +283,7 @@ if ($action === 'complete') {
     } else {
         db()->prepare("UPDATE tasks SET completed_at=?, updated_at=? WHERE id=?")->execute([$now, $now, $id]);
         task_log($id, $uid, 'completed');
+        if (!$task['completed_at']) task_rules_fire('completed', $id, $uid);
     }
     task_api_ok(db_one("SELECT * FROM tasks WHERE id=?", [$id]));
 }

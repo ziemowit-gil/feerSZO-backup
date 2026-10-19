@@ -262,6 +262,13 @@ $ev_defs = [
     'label'       => 'Eskalacja SLA',
     'desc'        => fn($e) => $e['to_value'] ? '<span class="td-hi-val">' . h($e['to_value']) . '</span>' : '',
   ],
+  'rule_applied' => [
+    'icon'        => 'bi-magic',
+    'bg'          => '#e0f2fe', 'color' => '#0f6fa8',
+    'badge_bg'    => '#f0f9ff', 'badge_color' => '#0f6fa8',
+    'label'       => 'Reguła automatyzacji',
+    'desc'        => fn($e) => $e['to_value'] ? '<span class="td-hi-val">' . h($e['to_value']) . '</span>' : '',
+  ],
   'problem_resolved' => [
     'icon'        => 'bi-shield-check',
     'bg'          => '#dcfce7', 'color' => '#16a34a',

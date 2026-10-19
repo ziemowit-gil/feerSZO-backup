@@ -102,6 +102,11 @@ switch ($action) {
         foreach ($allowed_ids as $tid) {
             task_log($tid, $uid, 'moved', null, $list['name']);
         }
+        $was_done = array_column($allowed, 'completed_at', 'id');
+        foreach ($allowed_ids as $tid) {
+            task_rules_fire('moved', (int)$tid, $uid, ['list_id' => $list_id]);
+            if ($list['is_done_state'] && empty($was_done[$tid])) task_rules_fire('completed', (int)$tid, $uid);
+        }
         $affected = count($allowed_ids);
         break;
 
@@ -114,6 +119,7 @@ switch ($action) {
                 ->execute(array_merge([$now, $now], $unc_ids));
             foreach ($unc_ids as $tid) {
                 task_log($tid, $uid, 'completed');
+                task_rules_fire('completed', (int)$tid, $uid);
             }
             $affected = count($unc_ids);
         }
