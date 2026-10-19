@@ -65,7 +65,7 @@ final class ActionsService
              ORDER BY a.data_od DESC, a.id DESC"
         );
         $grants = [];
-        foreach (db_all("SELECT ag.action_id, ag.grant_id, ag.kwota, ag.udzial_procent, g.nazwa, g.waluta
+        foreach (db_all("SELECT ag.action_id, ag.grant_id, ag.kwota, ag.udzial_procent, g.nazwa, g.waluta, g.data_od AS g_od, g.data_do AS g_do
                          FROM action_grants ag JOIN grants g ON g.id = ag.grant_id ORDER BY g.nazwa") as $g) {
             $grants[(int)$g['action_id']][] = $g;
         }
@@ -80,7 +80,7 @@ final class ActionsService
     {
         $a = action_by_id($id);
         if (!$a) return null;
-        $grants = db_all("SELECT ag.action_id, ag.grant_id, ag.kwota, ag.udzial_procent, g.nazwa, g.waluta
+        $grants = db_all("SELECT ag.action_id, ag.grant_id, ag.kwota, ag.udzial_procent, g.nazwa, g.waluta, g.data_od AS g_od, g.data_do AS g_do
                           FROM action_grants ag JOIN grants g ON g.id = ag.grant_id WHERE ag.action_id = ? ORDER BY g.nazwa", [$id]);
         return self::decorate($a, $grants, grant_action_indicators_for($id), ActionsJournal::milestoneStats()[$id] ?? null);
     }
@@ -102,8 +102,12 @@ final class ActionsService
         $do     = $a['data_do'] ?: null;
         $kwota  = 0.0;
         $g = [];
+        $outside = [];
+        $s = $a['data_od'] ?: $do;
+        $e = $do ?: ($a['data_od'] ?: null);
         foreach ($grants as $x) {
             $kwota += (float)($x['kwota'] ?? 0);
+            if ($s && ((!empty($x['g_od']) && $s < $x['g_od']) || (!empty($x['g_do']) && $e > $x['g_do']))) $outside[] = (string)$x['nazwa'];
             $g[] = ['id' => (int)$x['grant_id'], 'nazwa' => (string)$x['nazwa'], 'waluta' => (string)($x['waluta'] ?: 'PLN'),
                     'kwota' => $x['kwota'] !== null && $x['kwota'] !== '' ? (float)$x['kwota'] : null,
                     'udzial' => $x['udzial_procent'] !== null && $x['udzial_procent'] !== '' ? (float)$x['udzial_procent'] : null];
@@ -131,6 +135,7 @@ final class ActionsService
             'pct'           => $plan > 0 ? (int)min(100, round($real / $plan * 100)) : null,
             'createdBy'     => (int)($a['created_by'] ?? 0),
             'updatedAt'     => (string)($a['updated_at'] ?? ''),
+            'outsideOf'     => $outside,
             'ms'            => $ms ?? ['total' => 0, 'done' => 0, 'overdue' => 0, 'next' => null],
             'flags'         => [
                 'noGrant' => !$g && !$a['wlasne_dzialanie'] && $status !== 'anulowane',
@@ -138,6 +143,7 @@ final class ActionsService
                 'overdue' => $active && $do !== null && $do < $today,
                 'behind'  => $behind && $status !== 'anulowane',
                 'msOverdue' => $active && !empty($ms['overdue']),
+                'outsideGrant' => $outside && $status !== 'anulowane',
             ],
         ];
     }

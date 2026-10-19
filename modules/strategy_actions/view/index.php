@@ -324,6 +324,7 @@ function dzApp() {
       {key: 'ending', label: 'Kończą się', hint: 'w ciągu 14 dni', color: '#a86b00'},
       {key: 'behind', label: 'Wskaźniki < 50%', hint: 'wykonanie poniżej połowy planu', color: '#0050ef'},
       {key: 'msOverdue', label: 'Zaległe etapy', hint: 'minął termin etapu', color: '#6a00ff'},
+      {key: 'outsideGrant', label: 'Poza okresem grantu', hint: 'termin wychodzi poza realizację grantu', color: '#5f3200'},
     ],
     statusKeys: statusOrder,
     dragId: null, dragOver: '',
@@ -470,7 +471,7 @@ function dzApp() {
     },
 
     flagsOf(a) {
-      const L = {noGrant: 'Bez finansowania', overdue: 'Po terminie', ending: 'Kończy się ≤ 14 dni', behind: 'Wskaźniki < 50%', msOverdue: 'Zaległy etap'};
+      const L = {noGrant: 'Bez finansowania', overdue: 'Po terminie', ending: 'Kończy się ≤ 14 dni', behind: 'Wskaźniki < 50%', msOverdue: 'Zaległy etap', outsideGrant: 'Poza okresem grantu'};
       return Object.keys(L).filter(k => a.flags && a.flags[k]).map(k => ({key: k, label: L[k]}));
     },
     url(id, sub) { return D.base + '/' + id + (sub ? '/' + sub : ''); },

@@ -35,7 +35,8 @@ final class ActionsReport
     ];
 
     private const FLAG_LABELS = ['noGrant' => 'bez finansowania', 'overdue' => 'po terminie', 'ending' => 'kończy się ≤ 14 dni',
-                                 'behind' => 'wskaźniki < 50%', 'msOverdue' => 'zaległy etap'];
+                                 'behind' => 'wskaźniki < 50%', 'msOverdue' => 'zaległy etap',
+                                 'outsideGrant' => 'poza okresem grantu'];
 
     // ── Eksport ───────────────────────────────────────────────────────────────
 
@@ -158,6 +159,20 @@ final class ActionsReport
                 'SUMMARY:' . self::esc('Etap: ' . $m['title'] . ' — ' . $names[(int)$m['action_id']]),
                 'DESCRIPTION:' . self::esc(($m['owner'] ? 'Odpowiada: ' . $m['owner'] . "\n" : '') . ActionsService::url((string)$m['action_id'])),
                 'END:VEVENT');
+        }
+        // Terminy grantów w realizacji: koniec realizacji i rozliczenie
+        require_once __DIR__ . '/ActionsGrants.php';
+        foreach (ActionsGrants::budgets() as $g) {
+            if (!in_array($g['status'], ActionsGrants::LIVE, true)) continue;
+            foreach (['do' => 'Koniec realizacji grantu', 'rozliczenie' => 'Termin rozliczenia grantu'] as $k => $label) {
+                if (!$g[$k]) continue;
+                array_push($lines, 'BEGIN:VEVENT', 'UID:grant-' . $g['id'] . '-' . $k . '@' . $host, 'DTSTAMP:' . $stamp,
+                    'DTSTART;VALUE=DATE:' . date('Ymd', strtotime($g[$k])),
+                    'DTEND;VALUE=DATE:' . date('Ymd', strtotime($g[$k] . ' +1 day')),
+                    'SUMMARY:' . self::esc($label . ': ' . $g['nazwa']),
+                    'DESCRIPTION:' . self::esc(($g['donator'] ? $g['donator'] . "\n" : '') . 'Działań: ' . $g['count'] . "\n" . APP_URL . '/grants/view.php?id=' . $g['id']),
+                    'END:VEVENT');
+            }
         }
         $lines[] = 'END:VCALENDAR';
         return implode("\r\n", array_map([self::class, 'fold'], $lines)) . "\r\n";

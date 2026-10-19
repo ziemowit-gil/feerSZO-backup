@@ -19,7 +19,7 @@ include __DIR__ . '/_head.php';
       <span class="dz-badge" style="--c:<?= h(ActionsService::statusColor((string)$a['status'])) ?>"><?= h(ActionsService::statusLabel((string)$a['status'])) ?></span>
       <span><i class="bi <?= h($type['icon']) ?>" aria-hidden="true"></i> <?= h($type['label']) ?></span>
       <?php if ($a['wlasne_dzialanie']): ?><span class="dz-chip"><i class="bi bi-star-fill" aria-hidden="true"></i> działanie własne</span><?php endif; ?>
-      <?php foreach (['noGrant' => 'Bez finansowania', 'overdue' => 'Po terminie', 'ending' => 'Kończy się ≤ 14 dni', 'behind' => 'Wskaźniki < 50%'] as $fk => $fl): if (!empty($v['flags'][$fk])): ?>
+      <?php foreach (['noGrant' => 'Bez finansowania', 'overdue' => 'Po terminie', 'ending' => 'Kończy się ≤ 14 dni', 'behind' => 'Wskaźniki < 50%', 'msOverdue' => 'Zaległy etap', 'outsideGrant' => 'Poza okresem grantu'] as $fk => $fl): if (!empty($v['flags'][$fk])): ?>
       <span class="dz-flag <?= $fk ?>"><?= h($fl) ?></span>
       <?php endif; endforeach; ?>
     </p>
@@ -44,6 +44,13 @@ include __DIR__ . '/_head.php';
 <div class="dz-alert dz-alert--danger" role="note">
   <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
   <span>Działanie nie ma przypisanego grantu i nie jest oznaczone jako własne. <a href="<?= h(ActionsService::url($id . '/edycja')) ?>" style="color:#fff;font-weight:700">Uzupełnij finansowanie</a>.</span>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($v['flags']['outsideGrant'])): ?>
+<div class="dz-alert dz-alert--warning" role="note">
+  <i class="bi bi-calendar-x" aria-hidden="true"></i>
+  <span>Termin działania wychodzi poza okres realizacji grantu: <?= h(implode(', ', $v['outsideOf'])) ?>. Koszty poza okresem grantu zwykle nie są kwalifikowalne — sprawdź daty.</span>
 </div>
 <?php endif; ?>
 

@@ -91,7 +91,7 @@ body{background:#fff;color:var(--dark);margin:0;font-family:"Segoe UI","Segoe UI
 .dz-scroll{overflow-x:auto}
 .dz-num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .dz-flag{display:inline-flex;align-items:center;gap:.2rem;font-size:.7rem;font-weight:600;color:#fff;padding:.05rem .35rem;margin:.15rem .2rem 0 0;background:var(--c)}
-.dz-flag.noGrant{--c:var(--red)}.dz-flag.ending{--c:var(--amber)}.dz-flag.overdue{--c:var(--orange)}.dz-flag.behind{--c:var(--cobalt)}.dz-flag.msOverdue{--c:#6a00ff}
+.dz-flag.noGrant{--c:var(--red)}.dz-flag.ending{--c:var(--amber)}.dz-flag.overdue{--c:var(--orange)}.dz-flag.behind{--c:var(--cobalt)}.dz-flag.msOverdue{--c:#6a00ff}.dz-flag.outsideGrant{--c:#5f3200}
 .dz-bar{height:6px;background:var(--line);min-width:60px;flex:1}
 .dz-bar>span{display:block;height:100%;background:var(--c,var(--dz))}
 .dz-empty{background:var(--light);padding:1.5rem;color:var(--muted);text-align:center}
