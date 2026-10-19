@@ -2,7 +2,7 @@
 /**
  * karty30/ti/login.php — Centralny punkt logowania TI (wygląd Tożsamości: METRO UI, układ dwukolumnowy jak w iPKO).
  *
- * Wybór roli: kafle Kursant / Prowadzący / Rodzic, pozostałe (SzK, konsultacje, upoważniony, kandydat)
+ * Wybór roli: kafle Kursant / Prowadzący / Rodzic / Szkolenie krótkie / Konsultacje, pozostałe (upoważniony, kandydat)
  * pod „Inne sposoby logowania”. Pod spodem formularz wybranej roli.
  * POST trafia do sub-handlerów: kursant → tozsamosc/kursant.php, dydaktyk/login.php,
  * kursant/parent_login.php, kursant/authp_login.php. Błędy wracają kodem e=N w query string.
@@ -130,7 +130,7 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
   /* Wybór roli: trzy główne kafle + rozwijane „Inne sposoby logowania” */
   .tz-roles { margin: 0 0 1.6rem; }
   .tz-roles ul { list-style: none; margin: 0; padding: 0; }
-  .tz-roles-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; }
+  .tz-roles-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
   .tz-role { display: flex; align-items: center; gap: .8rem; height: 100%; padding: .85rem 1rem; background: #fff; border: 2px solid var(--pp-line);
              border-top: 5px solid var(--pp-line); color: var(--pp-ink) !important; text-decoration: none; }
   .tz-role:hover { border-color: var(--pp-blue); background: #f5f9fc; }
@@ -157,15 +157,15 @@ $ppTitle = 'Panel Kursanta SSO'; $ppOrg = (string)(org_setting('org_name') ?: (d
 $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
 include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
 // Zakładki: rola (tab) + opcjonalnie funkcja (fn) — szkolenie krótkie i konsultacje logują się jak kursant, z własną podpowiedzią
-// Główne: kursant, prowadzący, rodzic (kafle); pozostałe pod „Inne sposoby logowania”. [etykieta, tab, fn, ikona, opis]
+// Główne kafle: kursant, prowadzący, rodzic, szkolenie krótkie, konsultacje; pozostałe pod „Inne sposoby logowania”. [etykieta, tab, fn, ikona, opis]
 $_ppRoles = [
     'kursant'     => ['Kursant', 'kursant', '', 'bi-pc-display', 'Uczestnik zajęć'],
     'dydaktyk'    => ['Prowadzący / kadra', 'dydaktyk', '', 'bi-easel2', 'Konto Microsoft 365'],
     'rodzic'      => ['Rodzic / opiekun', 'rodzic', '', 'bi-people', 'Opiekun kursanta'],
+    'szk'         => ['Szkolenie krótkie', 'kursant', 'szk', 'bi-lightning-charge', 'Login z SMS-a (SzK)'],
+    'konsultacje' => ['Konsultacje', 'kursant', 'konsultacje', 'bi-clipboard2-check', 'Mam umówioną konsultację'],
 ];
 $_ppMore = [
-    'szk'         => ['Szkolenie krótkie', 'kursant', 'szk', 'bi-lightning-charge'],
-    'konsultacje' => ['Konsultacje', 'kursant', 'konsultacje', 'bi-clipboard2-check'],
     'up'          => ['Osoba upoważniona', 'up', '', 'bi-person-check'],
     'kandydat'    => ['Kandydat (zapisy)', 'kandydat', '', 'bi-person-badge'],
 ];
