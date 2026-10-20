@@ -73,12 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wybor'])) {
     } elseif (TiLogin::throttled($login)) {
         $error = TiLogin::ERROR_THROTTLE;
     } elseif (TiLogin::isAltConsultantLogin($login)) {
-        // Login zastępczy konsultanta („…-kz”) zamiast Microsoft 365 → TOTP → tylko tryb Konsultacje.
-        require_once __DIR__ . '/dydaktyk/auth.php';
-        $url = TiLogin::completeAltConsultant($login, $pass);
-        if ($url !== null) { TiLogin::clearAttempts($login); $go($url); }
-        TiLogin::recordAttempt($login);
-        $error = TiLogin::ERROR;
+        // Login zastępczy konsultanta („…-kz”) ma osobny adres logowania (konsultant.php) — tu tylko podpowiedź.
+        $error = 'Login zastępczy konsultanta wpisz na stronie: ' . TiLogin::altUrl();
     } elseif (TiLogin::isStaffLogin($login)) {
         // Kadra hasłem (konta panelowe spoza domeny Microsoft 365) → obowiązkowe TOTP w panelu dydaktyka.
         require_once __DIR__ . '/dydaktyk/auth.php';

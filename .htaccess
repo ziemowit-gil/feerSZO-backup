@@ -125,6 +125,10 @@ RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
 RewriteCond %{THE_REQUEST} \s/karty30/ti/login\.php [NC]
 RewriteRule ^karty30/ti/login\.php$ /login.php [R=302,L]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
+RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+RewriteCond %{THE_REQUEST} \s/karty30/ti/konsultant\.php [NC]
+RewriteRule ^karty30/ti/konsultant\.php$ /konsultant.php [R=302,L]
 
 # /dydaktyk → wymuś końcowy ukośnik, aby ścieżki względne w panelu (login.php,
 # logout.php) rozwiązywały się względem /dydaktyk/ (to nie jest panel domyślny).
@@ -146,6 +150,9 @@ RewriteRule ^kursant/(.+)$    /karty30/ti/kursant/$1 [L]
 # → kursant/login.php → pętla nieskończona.
 RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
+# Osobne logowanie konsultantów loginem zastępczym „…-kz” (modules/ti_consultant_access): /konsultant.php i /konsultant
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
+RewriteRule ^konsultant(\.php)?/?$ /karty30/ti/konsultant.php [QSA,L]
 
 # szo.* i pozostałe hosty systemu: /login.php, /login, /logowanie, /logout.php → formularz
 # w /auth/ (w korzeniu nie ma login.php — dawniej 404). crm./poczta./webmail. mają własne
