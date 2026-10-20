@@ -35,12 +35,24 @@ function _esb_exact(string $path): string {
     global $_ezd_sp;
     return (rtrim($_ezd_sp, '/') === rtrim($path, '/')) ? ' active' : '';
 }
+/** Pozycja menu: ikona + etykieta (+ odznaka); title = podpowiedź w zwiniętym pasku ikon. */
+function _esb_link(string $href, string $icon, string $label, string $active, int $badge = 0, string $badgeStyle = ''): string {
+    return '<a href="' . APP_URL . $href . '" class="ezd-sb-link' . $active . '" title="' . h($label) . '"' . ($active !== '' ? ' aria-current="page"' : '') . '>'
+         . '<i class="bi ' . $icon . '" aria-hidden="true"></i><span class="ezd-sb-lbl">' . h($label) . '</span>'
+         . ($badge ? '<span class="ezd-sb-badge"' . ($badgeStyle !== '' ? ' style="' . $badgeStyle . '"' : '') . '>' . $badge . '</span>' : '') . '</a>';
+}
+// „Ostatnie” — koszulki otwierane w tej sesji (zapis w ezd/sprawy/view.php), jak lista Ostatnie w Dynamics 365
+$_esb_recent = array_slice((array)($_SESSION['ezd_recent'] ?? []), 0, 5);
 ?>
-<aside class="ezd-sidebar" id="ezdSidebar" aria-label="Nawigacja EZD">
+<aside class="ezd-sidebar ezd-sb-dyn" id="ezdSidebar" aria-label="Nawigacja EZD">
+<script>try{if(localStorage.getItem('ezd_sb_collapsed')==='1'&&window.matchMedia('(min-width:992px)').matches)document.getElementById('ezdSidebar').classList.add('is-collapsed')}catch(e){}</script>
 
-  <!-- Nagłówek sidebara: identyfikator modułu + przycisk zamknięcia (mobile) -->
+  <!-- Nagłówek menu: zwijanie do paska ikon (jak ☰ w Dynamics 365) + zamknięcie (mobile) -->
   <div class="ezd-sb-header">
-    <div class="ezd-sb-module-id">
+    <button type="button" class="ezd-sb-collapse d-none d-lg-inline-flex" id="ezdSbCollapse" aria-controls="ezdSidebar" aria-expanded="true" title="Zwiń menu">
+      <i class="bi bi-list" aria-hidden="true"></i><span class="visually-hidden">Zwiń lub rozwiń menu</span>
+    </button>
+    <div class="ezd-sb-module-id d-lg-none">
       <span class="ezd-sb-mod-icon"><i class="bi bi-building-gear" aria-hidden="true"></i></span>
       <div>
         <div class="ezd-sb-mod-name">Wirtualne biurko</div>
@@ -52,139 +64,69 @@ function _esb_exact(string $path): string {
     </button>
   </div>
 
-  <?php if (!$_esb_rpw_only && function_exists('can_edit') && can_edit()): ?>
-  <div class="ezd-sb-actions">
-    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1">
-      <i class="bi bi-folder-plus" aria-hidden="true"></i>Nowa koszulka
-    </a>
-  </div>
-  <?php endif; ?>
-
   <nav class="ezd-sb-nav" aria-label="Moduły EZD">
 
     <?php if ($_esb_rpw_only): ?>
 
-    <a href="<?= APP_URL ?>/ezd/rpw/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/rpw/') ?>">
-      <i class="bi bi-mailbox2" aria-hidden="true"></i><span>Dziennik podawczy</span>
-      <?php if ($_esb_rpw): ?>
-      <span class="ezd-sb-badge"><?= $_esb_rpw ?></span>
-      <?php endif; ?>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/rpw/szukaj.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/rpw/szukaj') ?>">
-      <i class="bi bi-search" aria-hidden="true"></i><span>Szukaj</span>
-    </a>
+    <?= _esb_link('/ezd/rpw/index.php', 'bi-mailbox2', 'Dziennik podawczy', _esb_a('/ezd/rpw/') && !_esb_a('/ezd/rpw/szukaj') ? ' active' : '', $_esb_rpw) ?>
+    <?= _esb_link('/ezd/rpw/szukaj.php', 'bi-search', 'Szukaj', _esb_a('/ezd/rpw/szukaj')) ?>
 
     <?php else: ?>
 
-    <a href="<?= APP_URL ?>/ezd/index.php"
-       class="ezd-sb-link<?= _esb_exact('/ezd/index.php') ?>">
-      <i class="bi bi-house" aria-hidden="true"></i><span>Pulpit</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/szukaj.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/szukaj') ?>">
-      <i class="bi bi-search" aria-hidden="true"></i><span>Szukaj</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/rpw/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/rpw/') ?>">
-      <i class="bi bi-mailbox2" aria-hidden="true"></i><span>Dziennik podawczy</span>
-      <?php if ($_esb_rpw): ?>
-      <span class="ezd-sb-badge"><?= $_esb_rpw ?></span>
-      <?php endif; ?>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/rpwy/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/rpwy/') ?>">
-      <i class="bi bi-send" aria-hidden="true"></i><span>Książka nadawcza</span>
-      <?php if ($_esb_rpwy): ?>
-      <span class="ezd-sb-badge"><?= $_esb_rpwy ?></span>
-      <?php endif; ?>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/sprawy/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/sprawy/') ?>">
-      <i class="bi bi-folder2-open" aria-hidden="true"></i><span>Koszulki</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/pisma/add.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/pisma/') ?>">
-      <i class="bi bi-envelope" aria-hidden="true"></i><span>Pisma</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/teczki/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/teczki/') ?>">
-      <i class="bi bi-archive" aria-hidden="true"></i><span>Segregatory aktowe</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/zadania/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/zadania/') ?>">
-      <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Moje zadania</span>
-      <?php if ($_esb_dekr): ?>
-      <span class="ezd-sb-badge" style="background:#d97706"><?= $_esb_dekr ?></span>
-      <?php endif; ?>
-    </a>
-
-    <div class="ezd-sb-section">Archiwistyka</div>
-
-    <a href="<?= APP_URL ?>/ezd/jrwa/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/jrwa/') ?>">
-      <i class="bi bi-tags" aria-hidden="true"></i><span>Wykaz akt (JRWA)</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/ezd/archiwum/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/archiwum/') ?>">
-      <i class="bi bi-archive-fill" aria-hidden="true"></i><span>Archiwum zakładowe</span>
-    </a>
-
-    <div class="ezd-sb-section">Rejestry</div>
-
-    <?php if (!function_exists('module_enabled') || module_enabled('pelnomocnictwa_enabled')): ?>
-    <a href="<?= APP_URL ?>/pelnomocnictwa/index.php"
-       class="ezd-sb-link<?= _esb_a('/pelnomocnictwa/') ?>">
-      <i class="bi bi-person-badge" aria-hidden="true"></i><span>Pełnomocnictwa</span>
-    </a>
+    <?= _esb_link('/ezd/index.php', 'bi-house', 'Pulpit', _esb_exact('/ezd/index.php')) ?>
+    <?php if ($_esb_recent): ?>
+    <details class="ezd-sb-recent">
+      <summary class="ezd-sb-link" title="Ostatnie"><i class="bi bi-clock-history" aria-hidden="true"></i><span class="ezd-sb-lbl">Ostatnie</span><i class="bi bi-chevron-down ezd-sb-chev" aria-hidden="true"></i></summary>
+      <?php foreach ($_esb_recent as $_r): ?>
+      <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$_r['id'] ?>" class="ezd-sb-sublink" title="<?= h($_r['znak'] . ' — ' . $_r['title']) ?>">
+        <span class="ezd-sb-znak"><?= h($_r['znak']) ?></span><span class="ezd-sb-sub-t"><?= h($_r['title']) ?></span>
+      </a>
+      <?php endforeach; ?>
+    </details>
+    <?php endif; ?>
+    <?= _esb_link('/ezd/szukaj.php', 'bi-search', 'Szukaj', _esb_a('/ezd/szukaj')) ?>
+    <?php if (function_exists('can_edit') && can_edit()): ?>
+    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="ezd-sb-link ezd-sb-new" title="Nowa koszulka"><i class="bi bi-plus-lg" aria-hidden="true"></i><span class="ezd-sb-lbl">Nowa koszulka</span></a>
     <?php endif; ?>
 
-    <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/zaswiadczenia/') ?>">
-      <i class="bi bi-award" aria-hidden="true"></i><span>Zaświadczenia</span>
-    </a>
+    <div class="ezd-sb-section" role="presentation">Moja praca</div>
+    <?= _esb_link('/ezd/zadania/index.php', 'bi-person-lines-fill', 'Moje zadania', _esb_a('/ezd/zadania/'), $_esb_dekr, 'background:#c25100') ?>
+    <?= _esb_link('/ezd/sprawy/index.php', 'bi-folder2-open', 'Koszulki', _esb_a('/ezd/sprawy/')) ?>
+    <?= _esb_link('/ezd/pisma/add.php', 'bi-envelope', 'Pisma', _esb_a('/ezd/pisma/')) ?>
 
-    <a href="<?= APP_URL ?>/ezd/wolontariusze/index.php"
-       class="ezd-sb-link<?= _esb_a('/ezd/wolontariusze/') ?>">
-      <i class="bi bi-heart" aria-hidden="true"></i><span>Wolontariusze</span>
-    </a>
+    <div class="ezd-sb-section" role="presentation">Kancelaria</div>
+    <?= _esb_link('/ezd/rpw/index.php', 'bi-mailbox2', 'Dziennik podawczy', _esb_a('/ezd/rpw/'), $_esb_rpw) ?>
+    <?= _esb_link('/ezd/rpwy/index.php', 'bi-send', 'Książka nadawcza', _esb_a('/ezd/rpwy/'), $_esb_rpwy) ?>
+    <?= _esb_link('/ezd/teczki/index.php', 'bi-archive', 'Segregatory aktowe', _esb_a('/ezd/teczki/')) ?>
+
+    <div class="ezd-sb-section" role="presentation">Archiwistyka</div>
+    <?= _esb_link('/ezd/jrwa/index.php', 'bi-tags', 'Wykaz akt (JRWA)', _esb_a('/ezd/jrwa/')) ?>
+    <?= _esb_link('/ezd/archiwum/index.php', 'bi-archive-fill', 'Archiwum zakładowe', _esb_a('/ezd/archiwum/')) ?>
+
+    <div class="ezd-sb-section" role="presentation">Rejestry</div>
+    <?php if (!function_exists('module_enabled') || module_enabled('pelnomocnictwa_enabled')): ?>
+    <?= _esb_link('/pelnomocnictwa/index.php', 'bi-person-badge', 'Pełnomocnictwa', _esb_a('/pelnomocnictwa/')) ?>
+    <?php endif; ?>
+    <?= _esb_link('/ezd/zaswiadczenia/index.php', 'bi-award', 'Zaświadczenia', _esb_a('/ezd/zaswiadczenia/')) ?>
+    <?= _esb_link('/ezd/wolontariusze/index.php', 'bi-heart', 'Wolontariusze', _esb_a('/ezd/wolontariusze/')) ?>
 
     <?php if (function_exists('is_admin') && is_admin()): ?>
-    <div class="ezd-sb-section">Konfiguracja</div>
-
-    <a href="<?= APP_URL ?>/admin/ezd_settings.php"
-       class="ezd-sb-link<?= _esb_a('/admin/ezd_settings') ?>">
-      <i class="bi bi-gear" aria-hidden="true"></i><span>Ustawienia EZD</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/admin/ezd_szablony.php"
-       class="ezd-sb-link<?= _esb_a('/admin/ezd_szablony') ?>">
-      <i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Szablony pism</span>
-    </a>
-
-    <a href="<?= APP_URL ?>/admin/ezd_access_matrix.php"
-       class="ezd-sb-link<?= _esb_a('/admin/ezd_access_matrix') ?>">
-      <i class="bi bi-shield-check" aria-hidden="true"></i><span>Macierz dostępu</span>
-    </a>
+    <div class="ezd-sb-section" role="presentation">Konfiguracja</div>
+    <?= _esb_link('/admin/ezd_settings.php', 'bi-gear', 'Ustawienia EZD', _esb_a('/admin/ezd_settings')) ?>
+    <?= _esb_link('/admin/ezd_szablony.php', 'bi-file-earmark-text', 'Szablony pism', _esb_a('/admin/ezd_szablony')) ?>
+    <?= _esb_link('/admin/ezd_access_matrix.php', 'bi-shield-check', 'Macierz dostępu', _esb_a('/admin/ezd_access_matrix')) ?>
     <?php endif; ?>
 
     <?php endif; ?>
 
   </nav>
 
+  <!-- Przełącznik obszaru (jak na dole mapy witryny Dynamics 365): bieżący moduł + powrót do SZO -->
   <div class="ezd-sb-foot">
-    <a href="<?= APP_URL ?>/index.php" class="ezd-sb-back">
-      <i class="bi bi-arrow-left-circle" aria-hidden="true"></i><span>Powrót do SZO</span>
+    <a href="<?= APP_URL ?>/index.php" class="ezd-sb-back ezd-sb-area" title="Powrót do SZO">
+      <span class="ezd-sb-area-tile" aria-hidden="true">EZ</span>
+      <span class="ezd-sb-lbl"><span class="ezd-sb-area-n">Wirtualne biurko</span><span class="ezd-sb-area-s">Powrót do SZO</span></span>
+      <i class="bi bi-chevron-expand ezd-sb-chev" aria-hidden="true"></i>
     </a>
   </div>
 
@@ -199,6 +141,7 @@ function _esb_exact(string $path): string {
   var bd  = document.getElementById('ezdSidebarBackdrop');
   var cls = document.getElementById('ezdSidebarClose');
   var tog = document.getElementById('ezdSbToggle');
+  var col = document.getElementById('ezdSbCollapse');
   if (!sb) return;
   function open()  { sb.classList.add('show');  if (bd) bd.classList.add('show'); }
   function close() { sb.classList.remove('show'); if (bd) bd.classList.remove('show'); }
@@ -207,6 +150,22 @@ function _esb_exact(string $path): string {
   if (bd)  bd.addEventListener('click', close);
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && sb.classList.contains('show')) close();
+  });
+  // Zwijanie do paska ikon (desktop); stan w localStorage — tylko wygoda tej przeglądarki
+  function syncCol() {
+    var c = sb.classList.contains('is-collapsed');
+    if (col) { col.setAttribute('aria-expanded', c ? 'false' : 'true'); col.title = c ? 'Rozwiń menu' : 'Zwiń menu'; }
+  }
+  syncCol();
+  if (col) col.addEventListener('click', function () {
+    sb.classList.toggle('is-collapsed');
+    try { localStorage.setItem('ezd_sb_collapsed', sb.classList.contains('is-collapsed') ? '1' : '0'); } catch (e) {}
+    syncCol();
+  });
+  // „Ostatnie” w zwiniętym menu: rozwiń menu, żeby lista była czytelna
+  var rec = sb.querySelector('.ezd-sb-recent');
+  if (rec) rec.addEventListener('toggle', function () {
+    if (rec.open && sb.classList.contains('is-collapsed')) { sb.classList.remove('is-collapsed'); syncCol(); }
   });
 })();
 </script>

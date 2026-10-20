@@ -53,25 +53,53 @@ html body .ezd-topbar .dropdown-menu{border:0}
 html body .ezd-topbar .dropdown-item.text-danger{color:var(--m-red)!important}
 
 /* ── Menu boczne ─────────────────────────────────────────────────────── */
-html body .ezd-sidebar{background:var(--em-light);border-right:0}
-html body .ezd-sb-header{background:var(--em-light);border-bottom:1px solid var(--em-line)}
+/* Mapa witryny jak w Dynamics 365 (includes/ezd_sidebar.php): ☰ zwija do paska ikon, grupy z nagłówkiem
+   zwykłą czcionką, zaznaczenie = jasne tło + niebieska kreska z lewej, „Ostatnie”, przełącznik obszaru na dole. */
+html body .ezd-sidebar{background:#f3f2f1;border-right:1px solid var(--em-line);transition:width .15s,min-width .15s,max-width .15s}
+html body .ezd-sb-header{background:#f3f2f1;border-bottom:0;min-height:44px;padding:.25rem .35rem}
+html body .ezd-sb-collapse{width:40px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;color:var(--em-ink);font-size:1.25rem;cursor:pointer}
+html body .ezd-sb-collapse:hover{background:var(--em-light-h)}
 html body .ezd-sb-mod-icon{background:var(--em-acc);color:#fff}
-html body .ezd-sb-mod-name{font-weight:300;font-size:1.05rem;letter-spacing:-.01em;color:var(--em-ink)}
-html body .ezd-sb-mod-tag{background:transparent;color:var(--em-muted);padding:0;letter-spacing:.18em;font-weight:600}
-html body .ezd-sb-actions .btn-primary{--bs-btn-bg:var(--em-acc);--bs-btn-border-color:var(--em-acc);--bs-btn-hover-bg:var(--em-dark);--bs-btn-hover-border-color:var(--em-dark);font-weight:600;min-height:38px}
-html body .ezd-sb-nav{padding-left:0;padding-right:0}
-html body .ezd-sb-link{margin:0;padding:.55rem 1.1rem;color:var(--em-ink);border-left:0;font-weight:400}
-html body .ezd-sb-link .bi{color:var(--em-muted)}
+html body .ezd-sb-mod-name{font-weight:600;font-size:.9rem;color:var(--em-ink)}
+html body .ezd-sb-mod-tag{background:transparent;color:var(--em-muted);padding:0;letter-spacing:.12em;font-weight:600}
+html body .ezd-sb-nav{padding:0 0 .5rem}
+html body .ezd-sb-link{position:relative;margin:0;padding:.5rem .9rem .5rem 1rem;min-height:38px;color:var(--em-ink);border-left:0;font-size:.875rem;font-weight:400;gap:.75rem;cursor:pointer}
+html body .ezd-sb-link .bi{color:var(--em-ink);font-size:1rem;width:18px}
 html body .ezd-sb-link:hover{background:var(--em-light-h);color:var(--em-ink)}
 html body .ezd-sb-link:hover .bi{color:var(--em-ink)}
-html body .ezd-sb-link.active{background:var(--em-acc);color:#fff;font-weight:600}
-html body .ezd-sb-link.active .bi{color:#fff}
+html body .ezd-sb-link.active{background:#fff;color:var(--em-ink);font-weight:600}
+html body .ezd-sb-link.active::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:4px;background:var(--em-acc)}
 html body .ezd-sb-link.active::after{display:none}
-html body .ezd-sb-link.active .ezd-sb-badge{background:#fff;color:var(--em-acc)}
-html body .ezd-sb-section{letter-spacing:.14em;color:var(--em-muted);font-weight:600;padding-left:1.1rem}
+html body .ezd-sb-link.active .bi{color:var(--em-acc)}
+html body .ezd-sb-new,html body .ezd-sb-new .bi{color:var(--em-acc)!important}
+html body .ezd-sb-section{padding:.95rem 1rem .3rem;font-size:.8rem;font-weight:600;letter-spacing:0;text-transform:none;color:var(--em-ink)}
 html body .ezd-sb-badge{background:var(--m-red);color:#fff;font-weight:700}
-html body .ezd-sb-foot{border-top:1px solid var(--em-line)}
-html body .ezd-sb-back{color:var(--em-ink)}
+html body .ezd-sb-recent > summary{list-style:none}
+html body .ezd-sb-recent > summary::-webkit-details-marker{display:none}
+html body .ezd-sb-chev{margin-left:auto;font-size:.7rem!important;width:auto!important;color:var(--em-muted)!important;transition:transform .15s}
+html body .ezd-sb-recent[open] > summary .ezd-sb-chev{transform:rotate(180deg)}
+html body .ezd-sb-sublink{display:flex;flex-direction:column;padding:.35rem .9rem .35rem 2.85rem;color:var(--em-ink);text-decoration:none;font-size:.8rem;line-height:1.25}
+html body .ezd-sb-sublink:hover{background:var(--em-light-h)}
+html body .ezd-sb-znak{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;color:var(--em-acc-d);font-weight:600}
+html body .ezd-sb-sub-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--em-muted)}
+html body .ezd-sb-foot{border-top:1px solid var(--em-line);padding:.35rem}
+html body .ezd-sb-area{display:flex;align-items:center;gap:.65rem;padding:.4rem .55rem;color:var(--em-ink);text-decoration:none}
+html body .ezd-sb-area:hover{background:var(--em-light-h);color:var(--em-ink)}
+html body .ezd-sb-area-tile{flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--em-acc);color:#fff;font-size:.72rem;font-weight:700;letter-spacing:.04em}
+html body .ezd-sb-area .ezd-sb-lbl{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+html body .ezd-sb-area-n{font-size:.85rem;font-weight:600}
+html body .ezd-sb-area-s{font-size:.72rem;color:var(--em-muted)}
+/* Zwinięte do paska ikon (tylko desktop) */
+@media (min-width:992px){
+  html body .ezd-sidebar.is-collapsed{width:48px;min-width:48px;max-width:48px}
+  html body .ezd-sidebar.is-collapsed .ezd-sb-lbl,html body .ezd-sidebar.is-collapsed .ezd-sb-section,
+  html body .ezd-sidebar.is-collapsed .ezd-sb-chev,html body .ezd-sidebar.is-collapsed .ezd-sb-sublink{display:none!important}
+  html body .ezd-sidebar.is-collapsed .ezd-sb-link{justify-content:center;padding:.5rem 0}
+  html body .ezd-sidebar.is-collapsed .ezd-sb-badge{position:absolute;top:3px;right:3px;min-width:0;padding:0 .3rem;font-size:.55rem}
+  html body .ezd-sidebar.is-collapsed .ezd-sb-nav > .ezd-sb-link + .ezd-sb-section{display:block!important;height:1px;padding:0;margin:.4rem .5rem;background:var(--em-line);font-size:0}
+  html body .ezd-sidebar.is-collapsed .ezd-sb-header{justify-content:center;padding:.25rem 0}
+  html body .ezd-sidebar.is-collapsed .ezd-sb-area{justify-content:center;padding:.4rem 0}
+}
 
 /* ── Treść: typografia ───────────────────────────────────────────────── */
 html body .ezd-main{background:#fff}

@@ -449,6 +449,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: ' . APP_URL . '/ezd/sprawy/view.php?id=' . $id); exit;
 }
 
+// „Ostatnie” w menu bocznym EZD (includes/ezd_sidebar.php) — 5 ostatnio otwartych koszulek w tej sesji
+$_SESSION['ezd_recent'] = array_slice(array_merge(
+    [['id' => $id, 'znak' => (string)$sprawa['znak_sprawy'], 'title' => mb_substr((string)$sprawa['title'], 0, 80)]],
+    array_values(array_filter((array)($_SESSION['ezd_recent'] ?? []), fn($r) => (int)($r['id'] ?? 0) !== $id))
+), 0, 5);
+
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 // Workflow — zmienne używane w metabarze, stepperze i tabie "Przebieg"
