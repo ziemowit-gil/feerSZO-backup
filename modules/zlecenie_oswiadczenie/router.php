@@ -81,6 +81,7 @@ $r->group(['role:admin,editor'], function (Router $r) {
     $r->get('/pakiet/{id}',                 [OswController::class, 'show'])->name('osw.show');
     $r->post('/pakiet/{id}/umowa',          [OswController::class, 'staffLink'])->name('osw.staffLink');
     $r->post('/pakiet/{id}/projekt',        [OswController::class, 'staffProject'])->name('osw.staffProject');
+    $r->post('/pakiet/{id}/konto-sluzbowe', [OswController::class, 'staffWorkAccount'])->name('osw.staffWork');
     $r->post('/link/{cid}',                 [OswController::class, 'contractLink'])->name('osw.link');
     $r->post('/dokument/{id}/weryfikacja',  [OswController::class, 'verify'])->name('osw.verify');
     $r->get('/dokument/{id}',               [OswController::class, 'docShow'])->name('osw.doc');

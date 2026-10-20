@@ -105,6 +105,15 @@ function is_ezd_only(): bool {
 }
 
 /**
+ * Lokalne konto zleceniobiorcy do podglądu oświadczenia (modules/zlecenie_oswiadczenie, OswAccount) — dopóki
+ * Fundacja nie przepnie go na konto służbowe Microsoft 365, widzi wyłącznie /zlecenie/konto.
+ */
+function is_osw_only(): bool {
+    $u = current_user();
+    return $u && ($u['portal_scope'] ?? '') === 'osw_only';
+}
+
+/**
  * Zawężenie w obrębie is_ezd_only(): rola widzi WYŁĄCZNIE Rejestr Przesyłek
  * Wpływających (RPW, „Rejestr Przychodzących") — reszta /ezd/* jest zablokowana.
  * Zob. rola 'ezd_biuro' (includes/permissions.php).
@@ -197,6 +206,19 @@ function require_login(): void {
             session_touch($__stk);
             $_SESSION['_session_touched'] = $__now;
         }
+    }
+
+    // Konto do podglądu oświadczenia zleceniobiorcy — tylko własne oświadczenia, wylogowanie i zmiana hasła
+    if (is_osw_only()) {
+        $uri = $_SERVER['REQUEST_URI'] ?? '';
+        $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+        $rel = ($base && $base !== '/') ? substr($uri, strlen($base)) : $uri;
+        $rel = strtolower(preg_replace('/\?.*/', '', $rel));
+        $ok = false;
+        foreach (['/zlecenie/konto', '/modules/zlecenie_oswiadczenie/router.php/zlecenie/konto', '/auth/'] as $p) {
+            if (str_starts_with($rel, $p)) { $ok = true; break; }
+        }
+        if (!$ok) { header('Location: ' . APP_URL . '/zlecenie/konto'); exit; }
     }
 
     // Użytkownicy crm_user / crm_only — ograniczone ścieżki
@@ -504,6 +526,7 @@ function auth_generate_setup_token(int $user_id): string {
  * bo w chwili wywołania sesja może jeszcze nie istnieć (current_user() = null).
  */
 function auth_login_landing(array $user, string $redirect = ''): string {
+    if (($user['portal_scope'] ?? '') === 'osw_only') return APP_URL . '/zlecenie/konto';   // konto podglądu oświadczenia
     if ($redirect !== '' && str_starts_with($redirect, APP_URL . '/')) return $redirect;
     $role = (string)($user['role'] ?? '');
     $ezd_only = $role === 'ezd_user' || ($user['portal_scope'] ?? '') === 'ezd_only';

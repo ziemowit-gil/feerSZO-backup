@@ -1,7 +1,8 @@
 <?php
 /**
  * modules/zlecenie_oswiadczenie/view/staffShow.php — karta pakietu oświadczeń dla pracownika: odpowiedzi, dokumenty, link.
- * Wymaga: $osw, $contract (null — jeszcze bez umowy), $docs, $a, $account (konto oświadczeń albo null), $candidates (umowy do powiązania).
+ * Wymaga: $osw, $contract (null — jeszcze bez umowy), $docs, $a, $account (konto oświadczeń albo null), $szoUser (konto SZO albo null),
+ * $candidates (umowy do powiązania).
  */
 $PAGE_TITLE = 'Oświadczenia zleceniobiorcy';
 include dirname(__DIR__, 3) . '/includes/header.php';
@@ -23,6 +24,29 @@ $_link = $osw['token'] && (!$osw['token_expires'] || $osw['token_expires'] >= da
 <?php if ($account): ?>
 <p class="small">Konto oświadczeń: <strong><?= h($account['email']) ?></strong> —
   <?= $osw['account_confirmed_at'] ? 'potwierdzone ' . h(date('d.m.Y H:i', (int)strtotime((string)$osw['account_confirmed_at']))) . (empty($account['password_hash']) ? '' : ', hasło ustawione') : 'link wysłany ' . h(date('d.m.Y H:i', (int)strtotime((string)$osw['account_mail_at']))) . ', czeka na kliknięcie' ?>.</p>
+<div class="card border-0 shadow-sm mb-3" id="konto-sluzbowe"><div class="card-header bg-transparent fw-semibold">Konto w SZO</div>
+  <div class="card-body small">
+    <?php if (!empty($account['work_email'])): ?>
+    <p class="mb-0">Przepięte na konto służbowe <strong><?= h($account['work_email']) ?></strong>
+      <?= $account['work_linked_at'] ? '(' . h(date('d.m.Y H:i', (int)strtotime((string)$account['work_linked_at']))) . ')' : '' ?> —
+      logowanie przez Microsoft 365, pełny panel<?= !empty($szoUser['microsoft_id']) ? ', pierwsze logowanie Microsoft wykonane' : ', czeka na pierwsze logowanie przez Microsoft' ?>.</p>
+    <?php elseif ($szoUser): ?>
+    <p>Konto lokalne SZO <strong><?= h($szoUser['email']) ?></strong> (#<?= (int)$szoUser['id'] ?>)<?= ($szoUser['portal_scope'] ?? '') === 'osw_only'
+        ? ' — <span class="badge text-bg-secondary">tylko podgląd oświadczenia</span>' : ' — istniejące konto SZO, oświadczenie przypięte do niego' ?>.</p>
+    <?php if (($szoUser['portal_scope'] ?? '') === 'osw_only' && can_edit()): ?>
+    <form method="post" action="<?= h(route('osw.staffWork', ['id' => (int)$osw['id']])) ?>" class="row g-2 align-items-end"
+          onsubmit="return confirm('Przepiąć konto na konto służbowe? Osoba będzie logować się wyłącznie przez Microsoft 365 i dostanie pełny panel.')">
+      <?= Router::csrfField() ?>
+      <div class="col-sm-8"><label class="form-label mb-1" for="osw-work">Konto służbowe Microsoft 365</label>
+        <input class="form-control form-control-sm" id="osw-work" name="work_email" type="email" required placeholder="imie.nazwisko<?= h(OswAccount::WORK_DOMAIN) ?>"></div>
+      <div class="col-sm-4"><button class="btn btn-sm btn-primary w-100">Przepnij na konto Microsoft</button></div>
+      <p class="text-muted mb-0 mt-1">Ten sam rekord i historia; hasło lokalne zostanie wyłączone. Jeśli konto służbowe już istnieje w SZO, oświadczenia przejdą do niego, a konto lokalne zostanie wyłączone.</p>
+    </form>
+    <?php endif; ?>
+    <?php else: ?>
+    <p class="mb-0 text-muted">Konto SZO powstanie, gdy osoba kliknie link z e-maila i ustawi hasło.</p>
+    <?php endif; ?>
+  </div></div>
 <?php endif; ?>
 
 <?php if (!$contract && $osw['status'] === 'zlozony' && can_edit()): ?>

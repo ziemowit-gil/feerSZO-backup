@@ -195,6 +195,7 @@ final class OswController
         $acc = OswAccount::current();
         if (!$acc) return Router::redirect(OswAccount::url('/konto/logowanie'));
         return Router::view(self::VIEW . 'account.php', ['title' => 'Moje oświadczenia', 'acc' => $acc, 'rows' => OswAccount::pakiety((int)$acc['id']),
+                                                         'limited' => OswAccount::isLimited($acc), 'szoUser' => current_user(),
                                                          'flash' => $this->takeFlash(), 'back' => null]);
     }
 
@@ -294,6 +295,8 @@ final class OswController
         $a = OswService::answers($o);
         return Router::view(self::VIEW . 'staffShow.php', ['osw' => $o, 'contract' => $c, 'docs' => OswService::docs($id), 'a' => $a,
                                                            'account' => $o['account_id'] ? OswAccount::get((int)$o['account_id']) : null,
+                                                           'szoUser' => ($o['account_id'] && ($_acc = OswAccount::get((int)$o['account_id'])) && !empty($_acc['user_id']))
+                                                               ? db_one("SELECT id, email, is_active, portal_scope, microsoft_id FROM users WHERE id = ?", [(int)$_acc['user_id']]) : null,
                                                            'candidates' => $c ? [] : OswService::contractCandidates($a)]);
     }
 
@@ -333,6 +336,16 @@ final class OswController
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
         }
+        return Router::redirect(route('osw.show', ['id' => $id]));
+    }
+
+    /** Pracownik: przepnij konto oświadczeń na konto służbowe Microsoft 365 (pełny panel, logowanie tylko przez M365). */
+    public function staffWorkAccount(int $id): ?string
+    {
+        $o = OswService::byId($id);
+        if (!$o || empty($o['account_id'])) $this->fail(404, 'Te oświadczenia nie mają konta.');
+        $err = OswAccount::linkWorkAccount((int)$o['account_id'], (string)($_POST['work_email'] ?? ''), (int)(current_user()['id'] ?? 0));
+        flash_set($err ? 'danger' : 'success', $err ?: 'Konto przepięto na konto służbowe Microsoft 365 — osoba loguje się teraz przez Microsoft i ma pełny panel.');
         return Router::redirect(route('osw.show', ['id' => $id]));
     }
 

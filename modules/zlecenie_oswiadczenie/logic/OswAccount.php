@@ -12,6 +12,12 @@ declare(strict_types=1);
  * z danymi z oświadczenia i e-mail z linkiem „Ustaw hasło” / „Potwierdź” (token 7 dni, w bazie tylko skrót SHA-256).
  * Pakiet przypina się do konta dopiero po kliknięciu linku — kto poda cudzy e-mail, nie dopisze niczego do cudzego konta.
  * Logowanie: 5 błędnych prób → blokada 15 min; sesja wygasa po 2 h bezczynności. Limity prób z IP: zlec_osw_hits.
+ *
+ * Konto SZO (2026-10-20): po potwierdzeniu powstaje też lokalne konto SZO (users, rola viewer, portal_scope='osw_only',
+ * to samo hasło) — loguje się zwykłą stroną logowania SZO, ale require_login() wpuszcza je tylko do /zlecenie/konto
+ * (panel ograniczony do oświadczeń i danych, z belką „konto służy do podglądu oświadczenia”). Istniejącego konta SZO
+ * z tym samym e-mailem nie przejmujemy — oświadczenie tylko się do niego przypina. Pracownik Fundacji przepina konto na
+ * służbowe Microsoft 365 (linkWorkAccount): e-mail @feer.org.pl, logowanie już tylko przez M365, pełny panel.
  */
 require_once __DIR__ . '/OswService.php';
 
@@ -150,7 +156,114 @@ final class OswAccount
             $pdo->rollBack();
             throw $e;
         }
-        if ($needPass) self::startSession((int)$acc['id']);
+        $acc = (array)self::get((int)$acc['id']);
+        $user = self::ensureUser($acc);
+        if ($needPass) {
+            self::startSession((int)$acc['id']);
+            if ($user && ($user['portal_scope'] ?? '') === self::SCOPE) self::loginSzo($user);
+        }
+        return '';
+    }
+
+    // ── Konto SZO ─────────────────────────────────────────────────────────────
+
+    public const SCOPE = 'osw_only';
+    public const WORK_DOMAIN = '@feer.org.pl';
+
+    /**
+     * Lokalne konto SZO dla konta oświadczeń (tworzy przy pierwszym wywołaniu; hasło = hasło konta oświadczeń).
+     * Istniejące konto SZO z tym e-mailem tylko przypina (bez zmiany hasła i zakresu). Zwraca wiersz users albo null.
+     */
+    public static function ensureUser(array $acc): ?array
+    {
+        if (empty($acc['email'])) return null;
+        if (!empty($acc['user_id']) && ($u = db_one("SELECT * FROM users WHERE id = ?", [(int)$acc['user_id']]))) {
+            if (($u['portal_scope'] ?? '') === self::SCOPE && !empty($acc['password_hash']) && $u['password'] !== $acc['password_hash']) {
+                db_exec("UPDATE users SET password = ? WHERE id = ?", [$acc['password_hash'], (int)$u['id']]);
+                $u['password'] = $acc['password_hash'];
+            }
+            return $u;
+        }
+        $u = db_one("SELECT * FROM users WHERE LOWER(email) = ?", [mb_strtolower((string)$acc['email'])]);
+        if (!$u) {
+            if (empty($acc['password_hash'])) return null;
+            $name = trim(($acc['first_name'] ?? '') . ' ' . ($acc['last_name'] ?? '')) ?: (string)$acc['email'];
+            $id = (int)db_insert('users', [
+                'name' => $name, 'first_name' => $acc['first_name'] ?: null, 'last_name' => $acc['last_name'] ?: null,
+                'email' => mb_strtolower((string)$acc['email']), 'password' => $acc['password_hash'], 'role' => 'viewer',
+                'is_active' => 1, 'portal_scope' => self::SCOPE, 'phone_number' => $acc['phone'] ?: null,
+                'must_change_password' => 0, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+            $u = db_one("SELECT * FROM users WHERE id = ?", [$id]);
+            try { require_once dirname(__DIR__, 3) . '/includes/auth_security.php'; authlog_write($id, 'account_created', (string)$acc['email'], 'Konto lokalne do podglądu oświadczenia zleceniobiorcy'); } catch (\Throwable $e) {}
+        }
+        if ($u) db_exec("UPDATE zlec_osw_accounts SET user_id = ?, updated_at = ? WHERE id = ?", [(int)$u['id'], date('Y-m-d H:i:s'), (int)$acc['id']]);
+        return $u ?: null;
+    }
+
+    /** Sesja SZO dla konta oświadczeń (zakres osw_only — require_login wpuszcza tylko do /zlecenie/konto). */
+    private static function loginSzo(array $user): void
+    {
+        if ((int)($user['is_active'] ?? 0) !== 1) return;
+        $cur = current_user();
+        if ($cur && (int)$cur['id'] === (int)$user['id']) return;
+        login_user($user);
+        $_SESSION['zlec_osw_acc'] = ['id' => (int)(db_one("SELECT id FROM zlec_osw_accounts WHERE user_id = ?", [(int)$user['id']])['id'] ?? 0), 'at' => time()];
+    }
+
+    /** Czy konto ma jeszcze zakres „tylko oświadczenia” (nieprzepięte na Microsoft 365). */
+    public static function isLimited(array $acc): bool
+    {
+        if (empty($acc['user_id'])) return true;
+        $u = db_one("SELECT portal_scope FROM users WHERE id = ?", [(int)$acc['user_id']]);
+        return !$u || ($u['portal_scope'] ?? '') === self::SCOPE;
+    }
+
+    /**
+     * Przepięcie na konto służbowe Microsoft 365 (pracownik Fundacji). Gdy w SZO jest już konto z tym e-mailem —
+     * oświadczenia przechodzą do niego, a lokalne konto „tylko oświadczenia” zostaje wyłączone. Inaczej lokalne konto
+     * dostaje e-mail służbowy (logowanie wyłącznie przez Microsoft 365, hasło lokalne usunięte) i pełny zakres panelu.
+     * @return string błąd albo ''
+     */
+    public static function linkWorkAccount(int $accId, string $workEmail, int $byUserId): string
+    {
+        $acc = self::get($accId);
+        if (!$acc) return 'Nie znaleziono konta oświadczeń.';
+        $work = mb_strtolower(trim($workEmail));
+        if (!filter_var($work, FILTER_VALIDATE_EMAIL) || !str_ends_with($work, self::WORK_DOMAIN)) {
+            return 'Podaj adres konta służbowego w domenie ' . self::WORK_DOMAIN . '.';
+        }
+        $local = self::ensureUser($acc);
+        $existing = db_one("SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(m365_login) = ?", [$work, $work]);
+        $now = date('Y-m-d H:i:s');
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            if ($existing && (!$local || (int)$existing['id'] !== (int)$local['id'])) {
+                db_exec("UPDATE zlec_osw_accounts SET user_id = ? WHERE id = ?", [(int)$existing['id'], $accId]);
+                if ($local && ($local['portal_scope'] ?? '') === self::SCOPE) {
+                    db_exec("UPDATE users SET is_active = 0 WHERE id = ?", [(int)$local['id']]);
+                }
+                $target = (int)$existing['id'];
+            } elseif ($local) {
+                db_exec("UPDATE users SET email = ?, m365_login = ?, password = NULL, portal_scope = NULL, must_change_password = 0 WHERE id = ?",
+                    [$work, $work, (int)$local['id']]);
+                $target = (int)$local['id'];
+            } else {
+                $pdo->rollBack();
+                return 'Konto nie ma jeszcze potwierdzonego dostępu (link z e-maila nie został użyty).';
+            }
+            db_exec("UPDATE zlec_osw_accounts SET work_email = ?, work_linked_at = ?, work_linked_by = ?, updated_at = ? WHERE id = ?",
+                [$work, $now, $byUserId ?: null, $now, $accId]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/auth_security.php';
+            authlog_write($target, 'account_linked_m365', $work, 'Konto oświadczeń ' . $acc['email'] . ' przepięte na konto służbowe przez #' . $byUserId);
+        } catch (\Throwable $e) {}
         return '';
     }
 
@@ -163,6 +276,7 @@ final class OswAccount
         $acc = self::byEmail($email);
         $bad = 'Nieprawidłowy e-mail lub hasło.';
         if (!$acc || empty($acc['password_hash'])) { password_verify($pass, password_hash('brak-konta', PASSWORD_DEFAULT)); return $bad; }
+        if (!empty($acc['work_email'])) return 'To konto przepięto na konto służbowe ' . $acc['work_email'] . ' — zaloguj się w SZO przez Microsoft 365.';
         if ($acc['locked_until'] && $acc['locked_until'] > date('Y-m-d H:i:s')) return 'Zbyt wiele nieudanych prób. Spróbuj ponownie za kilkanaście minut.';
         if (!password_verify($pass, (string)$acc['password_hash'])) {
             $f = (int)$acc['failed_logins'] + 1;
@@ -174,6 +288,8 @@ final class OswAccount
             db_exec("UPDATE zlec_osw_accounts SET password_hash = ? WHERE id = ?", [password_hash($pass, PASSWORD_DEFAULT), (int)$acc['id']]);
         }
         self::startSession((int)$acc['id']);
+        $user = self::ensureUser((array)self::get((int)$acc['id']));
+        if ($user && ($user['portal_scope'] ?? '') === self::SCOPE) self::loginSzo($user);
         return '';
     }
 
@@ -189,6 +305,12 @@ final class OswAccount
     public static function current(): ?array
     {
         auth_start();
+        $u = current_user();
+        if ($u) {
+            OswService::init();
+            $acc = db_one("SELECT * FROM zlec_osw_accounts WHERE user_id = ? ORDER BY id LIMIT 1", [(int)$u['id']]);
+            if ($acc) return $acc;
+        }
         $s = $_SESSION['zlec_osw_acc'] ?? null;
         if (!$s) return null;
         if (time() - (int)$s['at'] > self::IDLE) { unset($_SESSION['zlec_osw_acc']); return null; }
@@ -200,6 +322,7 @@ final class OswAccount
     {
         auth_start();
         unset($_SESSION['zlec_osw_acc']);
+        if (($u = current_user()) && ($u['portal_scope'] ?? '') === self::SCOPE) logout_user();
         session_regenerate_id(true);
     }
 

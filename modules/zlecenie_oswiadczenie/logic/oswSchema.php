@@ -92,4 +92,8 @@ function oswMigrate(): void
         at      DATETIME NOT NULL
     )");
     db()->exec("CREATE INDEX IF NOT EXISTS idx_zlec_osw_hits ON zlec_osw_hits(action, ip_hash, at)");
+    // Konto oświadczeń ↔ lokalne konto SZO (users, portal_scope='osw_only') i przepięcie na konto służbowe Microsoft 365
+    foreach (['user_id INTEGER', 'work_email TEXT', 'work_linked_at DATETIME', 'work_linked_by INTEGER'] as $col) {
+        try { db()->exec("ALTER TABLE zlec_osw_accounts ADD COLUMN $col"); } catch (\Throwable $e) {}
+    }
 }

@@ -1,7 +1,7 @@
 <?php
 /**
  * modules/zlecenie_oswiadczenie/view/account.php — konto oświadczeń: lista własnych oświadczeń i dane z oświadczenia.
- * Wymaga: $acc, $rows (pakiety z _docs); opcjonalnie $flash.
+ * Wymaga: $acc, $rows (pakiety z _docs), $limited (konto „tylko podgląd oświadczenia”), $szoUser; opcjonalnie $flash.
  */
 ?>
 <?php include __DIR__ . '/_head.php'; ?>
@@ -10,8 +10,17 @@
     <h1 style="margin:0">Moje oświadczenia</h1>
     <form method="post" action="<?= h(route('osw.logout')) ?>"><?= Router::csrfField() ?><button type="submit" class="btn btn-sec btn-sm">Wyloguj</button></form>
   </div>
-  <p class="muted small" style="margin:6px 0 0">Zalogowano jako <?= h($acc['email']) ?>. To konto daje dostęp wyłącznie do Twoich oświadczeń zleceniobiorcy.</p>
+  <p class="muted small" style="margin:6px 0 0">Zalogowano jako <?= h($szoUser['email'] ?? $acc['email']) ?>.</p>
 </div>
+<?php if ($limited): ?>
+<div class="note note-info" role="note">
+  <strong>To konto służy do podglądu oświadczenia.</strong> Widzisz tu swoje oświadczenia zleceniobiorcy, ich status i dane —
+  możesz je też ponownie wydrukować. Logujesz się adresem <?= h($acc['email']) ?> i swoim hasłem (także na stronie logowania SZO).
+  Gdy Fundacja przypisze Ci konto służbowe Microsoft 365, zalogujesz się nim do pełnego panelu.
+</div>
+<?php elseif ($szoUser): ?>
+<div class="note note-success" role="note">Twoje oświadczenia są przypięte do konta w SZO. <a href="<?= h(rtrim(APP_URL, '/')) ?>/panel/index.php">Przejdź do panelu</a>.</div>
+<?php endif; ?>
 
 <h2 class="mt-head">Złożone oświadczenia</h2>
 <?php $_tileC = ['secondary' => 'var(--muted)', 'info' => 'var(--indigo)', 'warning' => 'var(--orange)', 'success' => 'var(--green)', 'danger' => 'var(--red)']; ?>
