@@ -376,6 +376,8 @@ function _menu_editor(): array {
             $fin[] = _mi('Zestawienie wypłat','/edok/wyplaty.php','bi-cash-stack',['match'=>'/edok/wyplaty','kw'=>'zestawienie wypłaty listy płac zlecenie eksport csv']);
         if (is_admin() || edok_has_role('zatwierdza'))
             $fin[] = _mi('Przelewy za rachunki','/edok/przelewy_rachunki.php','bi-bank',['match'=>'/edok/przelewy_rachunki','kw'=>'przelewy rachunki umowy zlecenie netto wypłata pko ipko plik bank']);
+        if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')))
+            $fin[] = _mi('Przelewy do US','/modules/us_przelewy/router.php','bi-bank2',['match'=>'/modules/us_przelewy/','kw'=>'urząd skarbowy us podatek pit-4r pit-8ar cit vat mikrorachunek przelew podatkowy zobowiązania podatkowe']);
     }
     if ($cnt['has_kdok'])
         $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
@@ -394,7 +396,7 @@ function _menu_editor(): array {
     $nodes[] = [
         'search'=>$fin_search,
         'id'=>'finanse','label'=>'Finanse','icon'=>'bi-cash-coin','badge'=>$cnt['zwr']+$cnt['res']+$cnt['ship'],
-        'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/edok/')||_menu_hit('/modules/srs/')||_menu_hit('/admin/shipments'),
+        'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/edok/')||_menu_hit('/modules/us_przelewy/')||_menu_hit('/modules/srs/')||_menu_hit('/admin/shipments'),
         'groups'=>[['label'=>null,'items'=>$fin]],
     ];
 

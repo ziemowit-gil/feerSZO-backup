@@ -300,6 +300,20 @@ return [
         },
     ],
 
+    // Przelewy do US (modules/us_przelewy): rodzaje zobowiązań podatkowych (symbol /SFP/, okres, ustawowy termin) jako
+    // słownik systemowy Słownika Centralnego oraz rachunek US podany przez użytkownika 2026-10-20 — mikrorachunek NBP
+    // dla NIP organizacji. Rachunek zapisywany tylko, gdy w ustawieniach jeszcze go nie ma; dalej edytowalny w module.
+    '2026-10_us_przelewy' => [
+        'desc' => 'Przelewy do US: słownik formularzy i rachunek urzędu skarbowego',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/us_przelewy/logic/usPrzelewy.php';
+            $res = dictTransfer()->import(uspFormularzeSeed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+            $nrb = '57101000712222734357053900';
+            if (uspRachunek() === '' && edok_nrb_valid($nrb)) org_setting_set('usp_rachunek', $nrb);
+        },
+    ],
+
     // Certyfikacja MSUES: hasła JRWA 56 (kadra dydaktyczna — MSUES), 561 (oświadczenia o kwalifikacjach, koszulki oświadczeń),
     // 562 (audyty MSUES — paczki audytowe). Tylko gdy EZD ma już tabelę JRWA; brakujące hasła doda też pierwsza rejestracja.
     '2026-10_msues_jrwa' => [
