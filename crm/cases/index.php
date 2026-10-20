@@ -64,7 +64,7 @@ if ($noowner_f) {
 if ($overdue_f) {
     // Po terminie = tylko sprawy w toku; zamkniętej nikt już nie „spóźni"
     $where .= " AND c.due_date IS NOT NULL AND c.due_date <> '' AND date(c.due_date) < date('now')"
-            . " AND c.status IN ('open','in_progress')";
+            . " AND " . crm_case_active_sql('c.status');
 }
 if ($type_f) {
     $where .= " AND c.type_id=?";
@@ -95,13 +95,13 @@ $rows   = db_all(
 $cnt_mine = $cnt_noowner = $cnt_overdue = 0;
 try {
     $cnt_mine = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases
-                               WHERE owner_id=? AND status IN ('open','in_progress')", [$uid])['n'] ?? 0);
+                               WHERE owner_id=? AND " . crm_case_active_sql(), [$uid])['n'] ?? 0);
     $cnt_noowner = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases
-                                  WHERE (owner_id IS NULL OR owner_id=0) AND status IN ('open','in_progress')")['n'] ?? 0);
+                                  WHERE (owner_id IS NULL OR owner_id=0) AND " . crm_case_active_sql())['n'] ?? 0);
     $cnt_overdue = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases
                                   WHERE due_date IS NOT NULL AND due_date <> ''
                                     AND date(due_date) < date('now')
-                                    AND status IN ('open','in_progress')")['n'] ?? 0);
+                                    AND " . crm_case_active_sql())['n'] ?? 0);
 } catch (\Throwable $e) {}
 
 require_once dirname(dirname(__DIR__)) . '/includes/crm_case_extras.php';
@@ -109,19 +109,14 @@ $case_types_list = crm_case_types();
 
 // Statystyki
 $stats = [];
-foreach (['open','in_progress','closed','cancelled'] as $s) {
+foreach (array_keys(crm_case_statuses()) as $s) {
     $stats[$s] = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases WHERE status=?", [$s])['n'] ?? 0);
 }
 $shared_count = (int)(db_one(
     "SELECT COUNT(DISTINCT case_id) AS n FROM crm_case_shares WHERE user_id=?", [$uid]
 )['n'] ?? 0);
 
-$status_cfg = [
-    'open'        => ['label'=>'Otwarta',     'color'=>'#2563EB','bg'=>'#EEF4FF','icon'=>'bi-circle'],
-    'in_progress' => ['label'=>'W toku',      'color'=>'#D97706','bg'=>'#FEF3E2','icon'=>'bi-arrow-clockwise'],
-    'closed'      => ['label'=>'Zamknięta',   'color'=>'#2E844A','bg'=>'#EFF7ED','icon'=>'bi-check-circle'],
-    'cancelled'   => ['label'=>'Anulowana',   'color'=>'#9CA3AF','bg'=>'#F3F4F6','icon'=>'bi-x-circle'],
-];
+$status_cfg = crm_case_statuses();   // Słownik Centralny (crm_sprawy_statusy)
 $priority_cfg = [
     'low'    => ['label'=>'Niski',   'color'=>'#6B7280'],
     'medium' => ['label'=>'Średni',  'color'=>'#D97706'],
@@ -291,7 +286,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
   <?php else: ?>
   <?php foreach ($rows as $r):
-    $sc = $status_cfg[$r['status']] ?? $status_cfg['open'];
+    $sc = crm_case_status_cfg($r['status']);
     $pc = $priority_cfg[$r['priority']] ?? $priority_cfg['medium'];
   ?>
   <a href="view.php?id=<?= (int)$r['id'] ?>" class="case-row"
@@ -320,7 +315,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         <?php if (!empty($r['owner_name'])): ?>
         <span class="ms-2" title="Prowadzi sprawę"><i class="bi bi-person-check me-1" aria-hidden="true"></i><?= h($r['owner_name']) ?></span>
         <?php endif; ?>
-        <?php if (!empty($r['due_date']) && in_array($r['status'], ['open','in_progress'], true)):
+        <?php if (!empty($r['due_date']) && !crm_case_is_closed($r['status'])):
               $dl = (int)floor((strtotime((string)$r['due_date']) - time()) / 86400); ?>
         <span class="ms-2" style="<?= $dl < 0 ? 'color:#B91C1C;font-weight:600' : ($dl <= 2 ? 'color:#B45309' : '') ?>"
               title="Termin sprawy">

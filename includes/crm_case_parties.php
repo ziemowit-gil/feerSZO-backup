@@ -143,7 +143,7 @@ function crm_case_move_docs(int $srcId, int $dstId, int $uid, bool $closeSrc = f
         error_log('[crm] move docs: ' . $e->getMessage());
         return ['ok' => false, 'error' => 'Nie udało się przenieść dokumentacji: ' . $e->getMessage()];
     }
-    if ($closeSrc && !in_array($src['status'], ['closed', 'cancelled'], true)) crm_case_set_status($srcId, 'closed', 'duplikat', $uid ?: null);
+    if ($closeSrc && !crm_case_is_closed($src['status'])) crm_case_set_status($srcId, 'closed', 'duplikat', $uid ?: null);
     if (function_exists('audit_log')) audit_log('crm.case_move_docs', ['from' => $srcId, 'to' => $dstId, 'moved' => $moved, 'closed_src' => $closeSrc], $uid ?: null);
     return ['ok' => true, 'moved' => $moved];
 }

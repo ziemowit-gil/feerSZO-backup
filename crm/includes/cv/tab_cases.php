@@ -30,7 +30,7 @@ if (!isset($contact)) { http_response_code(400); exit; }
           <?php if ($contact_cases): ?>
           <div class="d-flex flex-column">
             <?php foreach ($contact_cases as $cs):
-              $csc = $case_status_cfg[$cs['status']] ?? $case_status_cfg['open'];
+              $csc = crm_case_status_cfg($cs['status']);
             ?>
             <a href="<?= APP_URL ?>/crm/cases/view.php?id=<?= (int)$cs['id'] ?>"
                class="d-flex align-items-center gap-2 py-2 border-bottom text-decoration-none"

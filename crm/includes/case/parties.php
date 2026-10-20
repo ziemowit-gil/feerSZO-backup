@@ -46,8 +46,8 @@ $_pp_move_name = $_pp_move_cid ? (string)(db_one("SELECT imie_nazwisko FROM crm_
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="move_docs">
       <?php foreach ($_pp_other as $o): $d = $o['docs']; ?>
       <div class="form-check small">
-        <input class="form-check-input" type="checkbox" name="src_case[]" value="<?= (int)$o['id'] ?>" id="ppSrc<?= (int)$o['id'] ?>"<?= $o['docs_total'] && !in_array($o['status'], ['closed', 'cancelled'], true) ? ' checked' : '' ?>>
-        <label class="form-check-label" for="ppSrc<?= (int)$o['id'] ?>"><span class="font-monospace"><?= h($o['case_number'] ?: '#' . $o['id']) ?></span> <?= h($o['title']) ?><?= in_array($o['status'], ['closed', 'cancelled'], true) ? ' <span class="badge text-bg-secondary">' . ($o['status'] === 'closed' ? 'zamknięta' : 'anulowana') . '</span>' : '' ?>
+        <input class="form-check-input" type="checkbox" name="src_case[]" value="<?= (int)$o['id'] ?>" id="ppSrc<?= (int)$o['id'] ?>"<?= $o['docs_total'] && !crm_case_is_closed($o['status']) ? ' checked' : '' ?>>
+        <label class="form-check-label" for="ppSrc<?= (int)$o['id'] ?>"><span class="font-monospace"><?= h($o['case_number'] ?: '#' . $o['id']) ?></span> <?= h($o['title']) ?><?= crm_case_is_closed($o['status']) ? ' <span class="badge text-bg-secondary">' . h(mb_strtolower(crm_case_status_label($o['status']))) . '</span>' : '' ?>
           <span class="text-muted d-block" style="font-size:.72rem"><?= (int)$d['pisma'] ?> pism · <?= (int)$d['pliki'] ?> plików · <?= (int)$d['notatki'] ?> notatek · <?= (int)$d['wiadomosci'] ?> wiadomości · <?= (int)$d['zadania'] ?> zadań</span></label>
       </div>
       <?php endforeach; ?>

@@ -74,11 +74,11 @@ $inbox_mine = $count(
     "SELECT COUNT(*) AS c FROM crm_communications
       WHERE direction='in' AND inbox_status='active' AND assigned_to=?", [$uid]);
 
-$cases_open = $count("SELECT COUNT(*) AS c FROM crm_cases WHERE status IN ('open','in_progress')");
-$cases_high = $count("SELECT COUNT(*) AS c FROM crm_cases WHERE status IN ('open','in_progress') AND priority='high'");
+$cases_open = $count("SELECT COUNT(*) AS c FROM crm_cases WHERE " . crm_case_active_sql());
+$cases_high = $count("SELECT COUNT(*) AS c FROM crm_cases WHERE " . crm_case_active_sql() . " AND priority='high'");
 $cases_stale= $count(
     "SELECT COUNT(*) AS c FROM crm_cases
-      WHERE status IN ('open','in_progress') AND updated_at < datetime('now', ?)",
+      WHERE " . crm_case_active_sql() . " AND updated_at < datetime('now', ?)",
     ['-' . CRM_CASE_STALE_DAYS . ' days']);
 
 $offer_stats  = crm_offer_stats();
@@ -125,10 +125,7 @@ try {
 } catch (\Throwable $e) {}
 
 // ── LISTY ──────────────────────────────────────────────────────────────────
-$case_status_cfg = [
-    'open'        => ['label'=>'Otwarta', 'color'=>'#2563EB','bg'=>'#EEF4FF','icon'=>'bi-circle'],
-    'in_progress' => ['label'=>'W toku',  'color'=>'#D97706','bg'=>'#FEF3E2','icon'=>'bi-arrow-clockwise'],
-];
+$case_status_cfg = crm_case_statuses();   // Słownik Centralny (crm_sprawy_statusy)
 $case_priority_cfg = [
     'low'    => ['label'=>'Niski',  'color'=>'#9CA3AF'],
     'medium' => ['label'=>'Średni', 'color'=>'#D97706'],
@@ -140,7 +137,7 @@ $open_cases = db_all(
             (SELECT COUNT(*) FROM crm_case_files f WHERE f.case_id=c.id) AS files_count
        FROM crm_cases c
        LEFT JOIN crm_contacts ct ON ct.id=c.contact_id
-      WHERE c.status IN ('open','in_progress')
+      WHERE " . crm_case_active_sql('c.status') . "
       ORDER BY CASE c.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, c.updated_at DESC
       LIMIT 6"
 );
@@ -409,7 +406,7 @@ include __DIR__ . '/includes/header_crm.php';
       <?php if ($open_cases): ?>
       <div class="crm-panel-body p-0">
         <?php foreach ($open_cases as $c):
-          $sc = $case_status_cfg[$c['status']] ?? $case_status_cfg['open'];
+          $sc = crm_case_status_cfg($c['status']);
           $pc = $case_priority_cfg[$c['priority']] ?? $case_priority_cfg['medium'];
         ?>
         <a href="<?= APP_URL ?>/crm/cases/view.php?id=<?= (int)$c['id'] ?>" class="crm-case-row text-decoration-none"

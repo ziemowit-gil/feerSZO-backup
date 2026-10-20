@@ -367,7 +367,7 @@ function crm_janitor_run(bool $dry_run = false): array
     if (crm_janitor_rule_enabled('stale_cases')) {
         try {
             $n = (int)(db_one(
-                "SELECT COUNT(*) AS c FROM crm_cases WHERE status IN ('open','in_progress') AND updated_at < datetime('now', ?)",
+                "SELECT COUNT(*) AS c FROM crm_cases WHERE " . crm_case_active_sql() . " AND updated_at < datetime('now', ?)",
                 ['-' . CRM_CASE_STALE_DAYS . ' days'])['c'] ?? 0);
             if ($n) $aggregates['stale_cases'] = [$n, "Spraw bez ruchu ponad " . CRM_CASE_STALE_DAYS . " dni: {$n}."];
         } catch (\Throwable $e) {}

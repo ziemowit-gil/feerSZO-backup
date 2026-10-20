@@ -491,7 +491,7 @@ const CRM_CASE_STALE_DAYS = 60;
  */
 function crm_case_stale_days(array $case): int
 {
-    if (in_array((string)($case['status'] ?? ''), ['closed', 'cancelled'], true)) return 0;
+    if (crm_case_is_closed((string)($case['status'] ?? ''))) return 0;
 
     $marks = array_filter([
         $case['stale_ack_at'] ?? null,
@@ -516,7 +516,7 @@ function crm_case_stale_days(array $case): int
 function crm_cases_stale(int $owner_id = 0, int $limit = 100): array
 {
     $params = [];
-    $where  = ["c.status NOT IN ('closed','cancelled')"];
+    $where  = [crm_case_active_sql('c.status')];
 
     // Próg liczymy w SQL na tym samym polu co crm_case_stale_days(), żeby lista
     // i baner nie pokazywały różnych spraw.
@@ -1297,6 +1297,98 @@ function crm_seed_ti_zapisy_automation(): void {
             'is_active'      => 1,
         ]);
     } catch (\Throwable $e) {}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Statusy spraw CRM — Słownik Centralny
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Statusy sprawy ze słownika systemowego CRM_CASE_STATUS_DICT (Admin › Słownik Centralny): etykieta, kolejność,
+ * aktywność oraz atrybuty color/bg/icon i stan ('aktywna' | 'zamknieta'). Kody open/in_progress/closed/cancelled
+ * są w kodzie i w danych — nie zmieniają się. Nowy status dodany w słowniku działa jak „aktywna” (liczy się do
+ * otwartych spraw) albo „zamknieta” (wymaga powodu, ustawia closed_at). Stała = zasiew i zapas, gdy słownika brak.
+ * Zamiast list IN ('open','in_progress') / ['closed','cancelled'] używaj crm_case_active_sql() i crm_case_is_closed().
+ */
+const CRM_CASE_STATUS_DICT = 'crm_sprawy_statusy';
+const CRM_CASE_STATUSES_DEFAULT = [
+    'open'        => ['label' => 'Otwarta',   'color' => '#2563EB', 'bg' => '#EEF4FF', 'icon' => 'bi-circle',          'stan' => 'aktywna'],
+    'in_progress' => ['label' => 'W toku',    'color' => '#D97706', 'bg' => '#FEF3E2', 'icon' => 'bi-arrow-clockwise', 'stan' => 'aktywna'],
+    'closed'      => ['label' => 'Zamknięta', 'color' => '#2E844A', 'bg' => '#EFF7ED', 'icon' => 'bi-check-circle',    'stan' => 'zamknieta'],
+    'cancelled'   => ['label' => 'Anulowana', 'color' => '#5E6470', 'bg' => '#F3F4F6', 'icon' => 'bi-x-circle',        'stan' => 'zamknieta'],
+];
+
+function _crm_case_status_norm(string $code, array $src, array $def): array {
+    $col = fn($v, $d) => is_string($v) && preg_match('/^#[0-9A-Fa-f]{3,8}$/', $v) ? $v : $d;
+    return [
+        'label'  => (string)($src['label'] ?? $def['label'] ?? $code),
+        'color'  => $col($src['color'] ?? null, $def['color'] ?? '#5E6470'),
+        'bg'     => $col($src['bg'] ?? null, $def['bg'] ?? '#F3F4F6'),
+        'icon'   => is_string($src['icon'] ?? null) && preg_match('/^bi-[a-z0-9-]+$/', $src['icon']) ? $src['icon'] : ($def['icon'] ?? 'bi-record-circle'),
+        'active' => (($src['stan'] ?? $def['stan'] ?? 'aktywna') !== 'zamknieta'),
+    ];
+}
+
+/** Statusy do wyboru — aktywne wpisy słownika w jego kolejności. @return array<string, array{label:string,color:string,bg:string,icon:string,active:bool}> */
+function crm_case_statuses(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    require_once dirname(__DIR__) . '/modules/dictionary/lib/dictionaryApi.php';
+    $out = [];
+    foreach (dictItems(CRM_CASE_STATUS_DICT) as $code => $it) {
+        if (!empty($it['has_children'])) continue;
+        $out[$code] = _crm_case_status_norm($code, ['label' => $it['label']] + (array)($it['attributes'] ?? []), CRM_CASE_STATUSES_DEFAULT[$code] ?? []);
+    }
+    if (!$out) foreach (CRM_CASE_STATUSES_DEFAULT as $code => $d) $out[$code] = _crm_case_status_norm($code, $d, $d);
+    return $cache = $out;
+}
+
+/** Konfiguracja dowolnego statusu (także wyłączonego w słowniku) — do wyświetlania zapisanej wartości. */
+function crm_case_status_cfg(?string $code): array {
+    $code = (string)$code;
+    $all = crm_case_statuses();
+    if (isset($all[$code])) return $all[$code];
+    $def = CRM_CASE_STATUSES_DEFAULT[$code] ?? [];
+    require_once dirname(__DIR__) . '/modules/dictionary/lib/dictionaryApi.php';
+    return _crm_case_status_norm($code, ['label' => dictLabel(CRM_CASE_STATUS_DICT, $code, $def['label'] ?? $code)], $def);
+}
+
+function crm_case_status_label(?string $code): string {
+    return (string)crm_case_status_cfg($code)['label'];
+}
+
+/** Status zamyka sprawę (zamknięta, anulowana, nowy status ze stanem „zamknieta”). */
+function crm_case_is_closed(?string $code): bool {
+    return !crm_case_status_cfg($code)['active'];
+}
+
+/** Kody statusów „w toku” (otwarte sprawy). @return list<string> */
+function crm_case_active_statuses(): array {
+    $all = crm_case_statuses();
+    $codes = array_keys(array_filter($all, fn($s) => $s['active']));
+    // bazowy status wyłączony w słowniku nadal liczy się do otwartych — inaczej istniejące sprawy znikają z liczników
+    foreach (CRM_CASE_STATUSES_DEFAULT as $c => $d) if ($d['stan'] === 'aktywna' && !isset($all[$c])) $codes[] = $c;
+    return $codes;
+}
+
+/** Warunek SQL „sprawa otwarta”: "{$col} IN ('open','in_progress',…)". */
+function crm_case_active_sql(string $col = 'status'): string {
+    return $col . ' IN (' . implode(',', array_map(fn($c) => db()->quote($c), crm_case_active_statuses())) . ')';
+}
+
+/** Wpisy startowe słownika statusów (format importu Słownika Centralnego). */
+function crm_case_statuses_seed(): string {
+    $entries = [];
+    $i = 0;
+    foreach (CRM_CASE_STATUSES_DEFAULT as $code => $d)
+        $entries[] = ['code' => $code, 'label' => $d['label'], 'parent_code' => null, 'sort_order' => (++$i) * 10, 'is_active' => true, 'description' => null,
+                      'attributes' => ['color' => $d['color'], 'bg' => $d['bg'], 'icon' => $d['icon'], 'stan' => $d['stan']]];
+    return json_encode(['format' => 'szo-dictionary', 'version' => 1, 'dictionaries' => [
+        ['code' => CRM_CASE_STATUS_DICT, 'name' => 'CRM — statusy sprawy', 'kind' => 'system', 'parent_code' => null,
+         'is_protected' => false, 'sort_order' => 69,
+         'description' => 'Statusy sprawy CRM (panel Zmień status, etapy na karcie sprawy, listy, pulpit, eksport). Zmieniaj etykiety, kolejność i atrybuty: color i bg (kolor tekstu i tła, #RRGGBB), icon (Bootstrap Icons, np. bi-circle), stan (aktywna = sprawa w toku, zamknieta = kończy sprawę i wymaga powodu). Kody open, in_progress, closed i cancelled są używane w kodzie. Nowy status bez atrybutu stan działa jak aktywna.',
+         'entries' => $entries],
+    ]], JSON_UNESCAPED_UNICODE);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

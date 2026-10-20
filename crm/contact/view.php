@@ -1845,7 +1845,7 @@ require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
 
 <?php
   // Fakty o kliencie w jednym pasku — żeby nie trzeba było ich szukać po zakładkach
-  $_open_cases = count(array_filter($contact_cases, static fn($c) => in_array($c['status'] ?? '', ['open','in_progress'], true)));
+  $_open_cases = count(array_filter($contact_cases, static fn($c) => !crm_case_is_closed($c['status'] ?? '')));
   $_last_comm  = null;
   try {
       $_last_comm = db_one("SELECT sent_at, direction FROM crm_communications WHERE contact_id=? ORDER BY sent_at DESC LIMIT 1", [(int)$id]);
@@ -2055,13 +2055,8 @@ require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
 <div id="cv-live" role="status" aria-live="polite" aria-atomic="true" class="visually-hidden"></div>
 
 <?php
-// Konfiguracja statusów spraw (mini-lista w zakładce „Sprawy")
-$case_status_cfg = [
-    'open'        => ['label'=>'Otwarta',   'color'=>'#1D4ED8','bg'=>'#EEF4FF'],
-    'in_progress' => ['label'=>'W toku',    'color'=>'#B45309','bg'=>'#FEF3E2'],
-    'closed'      => ['label'=>'Zamknięta', 'color'=>'#2E844A','bg'=>'#EFF7ED'],
-    'cancelled'   => ['label'=>'Anulowana', 'color'=>'#5E6470','bg'=>'#F3F4F6'],
-];
+// Konfiguracja statusów spraw (mini-lista w zakładce „Sprawy") — Słownik Centralny (crm_sprawy_statusy)
+$case_status_cfg = crm_case_statuses();
 ?>
 
 <?php /* Umowy dostają własną zakładkę — dotąd były schowane w „Dane i powiązania”,

@@ -171,9 +171,9 @@ function crm_inbox_assist(array $msg): array
                 $n = (int)(db_one("SELECT COUNT(*) AS c FROM crm_communications WHERE contact_id=?",
                                   [(int)$msg['contact_id']])['c'] ?? 0);
                 if ($n > 1) $ctx .= "Wcześniejszych wiadomości w historii: " . ($n - 1) . ".\n";
-                $cases = db_all("SELECT title, status FROM crm_cases WHERE contact_id=? AND status IN ('open','in_progress') LIMIT 5",
+                $cases = db_all("SELECT title, status FROM crm_cases WHERE contact_id=? AND " . crm_case_active_sql() . " LIMIT 5",
                                 [(int)$msg['contact_id']]);
-                foreach ($cases as $cs) $ctx .= "Otwarta sprawa: {$cs['title']} ({$cs['status']}).\n";
+                foreach ($cases as $cs) $ctx .= "Otwarta sprawa: {$cs['title']} (" . crm_case_status_label($cs['status']) . ").\n";
             } catch (\Throwable $e) {}
         }
     } else {

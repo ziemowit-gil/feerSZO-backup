@@ -60,7 +60,7 @@ try {
         "SELECT c.*, ct.imie_nazwisko AS contact_name
            FROM crm_cases c
       LEFT JOIN crm_contacts ct ON ct.id = c.contact_id
-          WHERE c.status IN ('open','in_progress')
+          WHERE " . crm_case_active_sql('c.status') . "
             AND c.due_date IS NOT NULL AND c.due_date <> ''
             AND date(c.due_date) <= date('now', '+" . CRM_CASE_DUE_LEAD_DAYS . " days')
             AND c.due_notified_at IS NULL
@@ -100,7 +100,7 @@ try {
         "SELECT c.*, ct.imie_nazwisko AS contact_name
            FROM crm_cases c
       LEFT JOIN crm_contacts ct ON ct.id = c.contact_id
-          WHERE c.status IN ('open','in_progress')
+          WHERE " . crm_case_active_sql('c.status') . "
             AND c.type_id IS NOT NULL
             AND c.sla_breach_notified_at IS NULL
        ORDER BY c.created_at LIMIT 500"

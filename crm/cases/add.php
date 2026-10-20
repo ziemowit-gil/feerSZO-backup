@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cid   = (int)($_POST['contact_id'] ?? 0);
     $title = trim($_POST['title']       ?? '');
     $desc  = trim($_POST['description'] ?? '');
-    $status   = in_array($_POST['status']   ?? '', ['open','in_progress','closed','cancelled']) ? $_POST['status'] : 'open';
+    $status   = array_key_exists((string)($_POST['status'] ?? ''), crm_case_statuses()) ? (string)$_POST['status'] : 'open';
     $priority = in_array($_POST['priority'] ?? '', ['low','medium','high']) ? $_POST['priority'] : 'medium';
 
     if (!$cid)   $errors[] = 'Wybierz kontakt.';
@@ -238,11 +238,11 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
       <div class="mb-3">
         <label class="form-label fw-semibold">Status</label>
-        <?php foreach (['open'=>'Otwarta','in_progress'=>'W toku'] as $sv=>$sl): ?>
+        <?php foreach (array_filter(crm_case_statuses(), fn($s) => $s['active']) as $sv=>$sd): $sl = $sd['label']; ?>
         <div class="form-check">
-          <input class="form-check-input" type="radio" name="status" value="<?= $sv ?>"
-                 id="s_<?= $sv ?>" <?= (($_POST['status']??'open')===$sv)?'checked':'' ?>>
-          <label class="form-check-label" for="s_<?= $sv ?>"><?= $sl ?></label>
+          <input class="form-check-input" type="radio" name="status" value="<?= h($sv) ?>"
+                 id="s_<?= h($sv) ?>" <?= (($_POST['status']??'open')===$sv)?'checked':'' ?>>
+          <label class="form-check-label" for="s_<?= h($sv) ?>"><?= h($sl) ?></label>
         </div>
         <?php endforeach; ?>
       </div>

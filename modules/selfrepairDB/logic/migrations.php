@@ -256,6 +256,17 @@ return [
         },
     ],
 
+    // CRM: statusy sprawy (etykiety, kolory, ikony, kolejność, stan aktywna/zamknieta) jako słownik systemowy.
+    '2026-10_dictionary_crm_case_statuses' => [
+        'desc' => 'Słownik Centralny: statusy sprawy CRM',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/crm.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import(crm_case_statuses_seed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
     // Certyfikacja MSUES: hasła JRWA 56 (kadra dydaktyczna — MSUES), 561 (oświadczenia o kwalifikacjach, koszulki oświadczeń),
     // 562 (audyty MSUES — paczki audytowe). Tylko gdy EZD ma już tabelę JRWA; brakujące hasła doda też pierwsza rejestracja.
     '2026-10_msues_jrwa' => [

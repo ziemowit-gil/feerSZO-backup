@@ -157,9 +157,9 @@ if (!isset($case)) { http_response_code(400); exit; }
         <?php foreach ($case_hist as $hrow): ?>
         <div class="list-group-item px-0" style="font-size:.85rem">
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="text-muted"><?= h($status_cfg[$hrow['from_status']]['label'] ?? ($hrow['from_status'] ?: '—')) ?></span>
+            <span class="text-muted"><?= h($hrow['from_status'] ? crm_case_status_label($hrow['from_status']) : '—') ?></span>
             <i class="bi bi-arrow-right text-muted" aria-hidden="true"></i>
-            <strong><?= h($status_cfg[$hrow['to_status']]['label'] ?? $hrow['to_status']) ?></strong>
+            <strong><?= h(crm_case_status_label($hrow['to_status'])) ?></strong>
             <span class="text-muted ms-auto" style="font-size:.76rem">
               <?= h(date('d.m.Y H:i', strtotime((string)$hrow['created_at']))) ?>
               · <?= h($hrow['user_name'] ?: 'system') ?>

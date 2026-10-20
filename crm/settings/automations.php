@@ -250,8 +250,8 @@ require_once __DIR__ . '/_nav.php';
       <div class="col-md-6" id="cfg_case_status_changed" style="display:none">
         <label class="form-label small mb-1">Docelowy status sprawy</label>
         <select name="t_case_to_status" class="form-select form-select-sm">
-          <?php foreach (['open' => 'Otwarta', 'in_progress' => 'W toku', 'closed' => 'Zamknięta', 'cancelled' => 'Anulowana'] as $sv => $sl): ?>
-          <option value="<?= $sv ?>" <?= ($edit_trigger['to_status'] ?? '') === $sv ? 'selected' : '' ?>><?= $sl ?></option>
+          <?php foreach (crm_case_statuses() as $sv => $sd): ?>
+          <option value="<?= h($sv) ?>" <?= ($edit_trigger['to_status'] ?? '') === $sv ? 'selected' : '' ?>><?= h($sd['label']) ?></option>
           <?php endforeach; ?>
         </select>
       </div>

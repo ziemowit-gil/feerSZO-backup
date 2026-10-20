@@ -137,7 +137,7 @@ function _crm_retention_exclusions(): string
         c.anonymized_at IS NULL
     AND COALESCE(c.retention_hold, 0) = 0
     AND NOT EXISTS (SELECT 1 FROM crm_cases k
-                     WHERE k.contact_id = c.id AND k.status IN ('open','in_progress'))
+                     WHERE k.contact_id = c.id AND " . (function_exists('crm_case_active_sql') ? crm_case_active_sql('k.status') : "k.status IN ('open','in_progress')") . ")
     AND NOT EXISTS (SELECT 1 FROM donations d
                      WHERE d.contact_id = c.id
                        AND COALESCE(d.donation_date, d.created_at) > date('now', '-{$keep_years} years'))

@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     foreach ($ids as $cid) {
         if ($cid <= 0) continue;
         $case = db_one("SELECT id, status, contact_id FROM crm_cases WHERE id=?", [$cid]);
-        if (!$case || in_array((string)$case['status'], ['closed', 'cancelled'], true)) continue;
+        if (!$case || crm_case_is_closed((string)$case['status'])) continue;
 
         if ($op === 'close') {
             db()->prepare("UPDATE crm_cases SET status='closed', updated_at=?, closed_at=? WHERE id=?")

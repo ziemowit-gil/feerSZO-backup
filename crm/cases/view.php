@@ -35,12 +35,7 @@ $can_write = crm_case_can_edit($case);
 $can_manage_shares = is_admin() || (int)($case['created_by'] ?? 0) === $uid;
 $PAGE_TITLE = 'Sprawa: ' . $case['title'];
 
-$status_cfg = [
-    'open'        => ['label'=>'Otwarta',   'color'=>'#2563EB','bg'=>'#EEF4FF','icon'=>'bi-circle'],
-    'in_progress' => ['label'=>'W toku',    'color'=>'#D97706','bg'=>'#FEF3E2','icon'=>'bi-arrow-clockwise'],
-    'closed'      => ['label'=>'Zamknięta', 'color'=>'#2E844A','bg'=>'#EFF7ED','icon'=>'bi-check-circle'],
-    'cancelled'   => ['label'=>'Anulowana', 'color'=>'#5E6470','bg'=>'#F3F4F6','icon'=>'bi-x-circle'],
-];
+$status_cfg = crm_case_statuses();   // Słownik Centralny (crm_sprawy_statusy) — etykiety, kolory, ikony, kolejność
 $priority_cfg = [
     'low'    => ['label'=>'Niski',  'color'=>'#6B7280'],
     'medium' => ['label'=>'Średni', 'color'=>'#D97706'],
@@ -97,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $ns = $_POST['status'] ?? '';
         if (array_key_exists($ns, $status_cfg) && $ns !== $case['status']) {
             $reason = trim((string)($_POST['reason'] ?? ''));
-            if (in_array($ns, ['closed', 'cancelled'], true) && $reason === '') {
+            if (crm_case_is_closed($ns) && $reason === '') {
                 flash_set('warning', 'Przy zamykaniu sprawy podaj powód — bez tego nie da się policzyć skuteczności.');
                 header('Location: view.php?id=' . $id . '#status'); exit;
             }
@@ -502,7 +497,7 @@ if (module_enabled('ezd_enabled')) {
     );
 }
 
-$sc = $status_cfg[$case['status']] ?? $status_cfg['open'];
+$sc = crm_case_status_cfg($case['status']);
 $pc = $priority_cfg[$case['priority']] ?? $priority_cfg['medium'];
 
 include dirname(__DIR__) . '/includes/header_crm.php';
@@ -568,7 +563,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   $_dyn_type  = '';
   if (!empty($case['type_id'])) { try { $_dyn_type = (string)(db_one("SELECT name FROM crm_case_types WHERE id = ?", [(int)$case['type_id']])['name'] ?? ''); } catch (\Throwable $e) {} }
   $_dyn_due   = !empty($case['due_date']) ? date('d.m.Y', strtotime((string)$case['due_date'])) : '';
-  $_dyn_late  = !empty($case['due_date']) && $case['due_date'] < date('Y-m-d') && !in_array($case['status'], ['closed', 'cancelled'], true);
+  $_dyn_late  = !empty($case['due_date']) && $case['due_date'] < date('Y-m-d') && !crm_case_is_closed($case['status']);
 ?>
 <!-- Pasek poleceń (jak w Dynamics 365) -->
 <div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia sprawy">
@@ -646,10 +641,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     </div>
 
     <!-- Etapy sprawy (jak pasek procesu biznesowego w Dynamics) -->
-    <?php $_dyn_stages = ['open' => 'Otwarta', 'in_progress' => 'W toku', 'closed' => 'Zamknięta']; $_dyn_keys = array_keys($_dyn_stages); $_dyn_pos = array_search($case['status'], $_dyn_keys, true); ?>
+    <?php // etapy = statusy aktywne ze słownika (w jego kolejności) + Zamknięta; inne statusy zamykające (Anulowana…) jako stan poza ścieżką
+    $_dyn_stages = array_map(fn($s) => $s['label'], array_filter($status_cfg, fn($s) => $s['active'])) + ['closed' => crm_case_status_label('closed')];
+    $_dyn_off = crm_case_is_closed($case['status']) && $case['status'] !== 'closed'; $_dyn_keys = array_keys($_dyn_stages); $_dyn_pos = array_search($case['status'], $_dyn_keys, true); ?>
     <nav class="dyn-bpf" aria-label="Etapy sprawy">
       <?php foreach ($_dyn_stages as $_sk => $_sl): $_si = array_search($_sk, $_dyn_keys, true); $_cur = $case['status'] === $_sk; $_done = $_dyn_pos !== false && $_si < $_dyn_pos; ?>
-        <?php if ($can_write && !$_cur && $_sk !== 'closed' && $case['status'] !== 'cancelled'): ?>
+        <?php if ($can_write && !$_cur && $_sk !== 'closed' && !$_dyn_off): ?>
           <form method="post" class="dyn-stage<?= $_done ? ' done' : '' ?>"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="set_status"><input type="hidden" name="status" value="<?= $_sk ?>">
             <button type="submit" title="Przejdź do etapu: <?= h($_sl) ?>"><span class="dyn-dot" aria-hidden="true"><?= $_done ? '✓' : $_si + 1 ?></span><?= h($_sl) ?></button></form>
         <?php elseif ($can_write && !$_cur && $_sk === 'closed'): ?>
@@ -658,7 +655,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           <div class="dyn-stage<?= $_cur ? ' current' : ($_done ? ' done' : '') ?>"<?= $_cur ? ' aria-current="step"' : '' ?>><span><span class="dyn-dot" aria-hidden="true"><?= $_done ? '✓' : ($_cur && $_sk === 'closed' ? '✓' : $_si + 1) ?></span><?= h($_sl) ?></span></div>
         <?php endif; ?>
       <?php endforeach; ?>
-      <?php if ($case['status'] === 'cancelled'): ?><div class="dyn-stage current cancelled" aria-current="step"><span><span class="dyn-dot" aria-hidden="true">✕</span>Anulowana</span></div><?php endif; ?>
+      <?php if ($_dyn_off): ?><div class="dyn-stage current cancelled" aria-current="step"><span><span class="dyn-dot" aria-hidden="true">✕</span><?= h($sc['label']) ?></span></div><?php endif; ?>
     </nav>
 
     <!-- Szybkie zamknięcie (collapse) -->

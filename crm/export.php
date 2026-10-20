@@ -80,7 +80,7 @@ if ($what === 'cases') {
     if (!empty($_GET['noowner'])) { $where .= " AND (c.owner_id IS NULL OR c.owner_id=0)"; }
     if (!empty($_GET['overdue'])) {
         $where .= " AND c.due_date IS NOT NULL AND c.due_date <> '' AND date(c.due_date) < date('now')"
-                . " AND c.status IN ('open','in_progress')";
+                . " AND " . crm_case_active_sql('c.status');
     }
 
     $rows = db_all(
@@ -93,12 +93,8 @@ if ($what === 'cases') {
           WHERE $where ORDER BY c.updated_at DESC LIMIT 20000", $params
     );
 
-    // Etykiety statusów i priorytetów są w CRM zdefiniowane w widoku listy spraw;
-    // powtarzamy je tu, żeby plik nie zawierał kodów zrozumiałych tylko w bazie.
-    $statuses = [
-        'open' => 'Otwarta', 'in_progress' => 'W toku',
-        'closed' => 'Zamknięta', 'cancelled' => 'Anulowana',
-    ];
+    // Etykiety zamiast kodów z bazy: statusy ze Słownika Centralnego (crm_case_status_label), priorytety jak
+    // w widoku listy spraw.
     $prios = ['low' => 'Niski', 'medium' => 'Średni', 'high' => 'Wysoki'];
     require_once dirname(__DIR__) . '/includes/crm_case_extras.php';   // powody zamknięcia ze Słownika Centralnego
     $headers  = ['ID', 'Numer', 'Tytuł', 'Kontakt', 'Status', 'Priorytet', 'Typ', 'Opiekun',
@@ -110,7 +106,7 @@ if ($what === 'cases') {
             (string)($r['case_number'] ?? ''),
             (string)$r['title'],
             (string)($r['contact_name'] ?? ''),
-            (string)($statuses[$r['status']] ?? $r['status']),
+            crm_case_status_label($r['status']),
             (string)($prios[$r['priority'] ?? ''] ?? $r['priority'] ?? ''),
             (string)($r['type_name'] ?? ''),
             (string)($r['owner_name'] ?? ''),

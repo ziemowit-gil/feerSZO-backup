@@ -166,7 +166,7 @@ function crm_cases_for_contact(int $contact_id, bool $open_only = false): array 
     try {
         return db_all(
             "SELECT id, title, status, case_number FROM crm_cases
-              WHERE contact_id=?" . ($open_only ? " AND status IN ('open','in_progress')" : '') . "
+              WHERE contact_id=?" . ($open_only ? " AND " . crm_case_active_sql() : '') . "
            ORDER BY updated_at DESC, id DESC LIMIT 50", [$contact_id]
         );
     } catch (\Throwable $e) { return []; }
@@ -309,7 +309,7 @@ function crm_case_sla(array $case): array {
 
     $start = strtotime((string)($case['created_at'] ?? 'now')) ?: time();
     $now   = time();
-    $closed = in_array((string)($case['status'] ?? ''), ['closed', 'cancelled'], true);
+    $closed = crm_case_is_closed((string)($case['status'] ?? ''));
 
     $mk = static function (int $deadline, ?int $met_ts) use ($now): array {
         if ($met_ts !== null) {
@@ -365,7 +365,7 @@ function crm_case_set_status(int $case_id, string $to, string $reason = '', ?int
     if ($from === $to) return ['ok' => true, 'error' => '', 'unchanged' => true];
 
     $now    = date('Y-m-d H:i:s');
-    $closed = in_array($to, ['closed', 'cancelled'], true);
+    $closed = crm_case_is_closed($to);
     $uid    = $user_id ?? (function_exists('current_user') ? (int)(current_user()['id'] ?? 0) : 0);
 
     try {

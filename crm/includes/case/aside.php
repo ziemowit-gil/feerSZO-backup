@@ -170,7 +170,7 @@ if (!isset($case)) { http_response_code(400); exit; }
         <label class="form-label small fw-semibold mb-1" for="mdue">Termin</label>
         <input type="date" name="due_date" id="mdue" class="form-control form-control-sm"
                value="<?= h($case['due_date'] ?? '') ?>">
-        <?php if ($due_left !== null && !in_array($case['status'], ['closed','cancelled'], true)): ?>
+        <?php if ($due_left !== null && !crm_case_is_closed($case['status'])): ?>
         <div style="font-size:.74rem;<?= $due_left < 0 ? 'color:#B91C1C;font-weight:600' : ($due_left <= 2 ? 'color:#B45309' : 'color:#9CA3AF') ?>">
           <?= $due_left < 0 ? 'Po terminie o ' . abs($due_left) . ' dni' : ($due_left === 0 ? 'Termin dziś' : 'Zostało ' . $due_left . ' dni') ?>
         </div>

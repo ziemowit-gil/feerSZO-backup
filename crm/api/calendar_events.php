@@ -83,7 +83,7 @@ if ($method === 'GET' && $action === 'list') {
                 ct.imie_nazwisko AS contact_name, c.status, c.priority
          FROM crm_cases c
          LEFT JOIN crm_contacts ct ON ct.id=c.contact_id
-         WHERE DATE(c.created_at) BETWEEN ? AND ? AND c.status NOT IN ('closed','cancelled')",
+         WHERE DATE(c.created_at) BETWEEN ? AND ? AND " . crm_case_active_sql('c.status'),
         [$from, $to]
     );
 

@@ -666,7 +666,7 @@ $_stale_n = 0;
 try {
     $_stale_n = (int)(db_one(
         "SELECT COUNT(*) AS c FROM crm_cases
-          WHERE status NOT IN ('closed','cancelled') AND created_by = ?
+          WHERE " . crm_case_active_sql() . " AND created_by = ?
             AND COALESCE(stale_ack_at, updated_at, created_at)
                 < datetime('now', '-' || ? || ' days')",
         [(int)($_cu['id'] ?? 0), CRM_CASE_STALE_DAYS]
