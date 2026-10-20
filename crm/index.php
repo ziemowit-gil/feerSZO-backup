@@ -78,7 +78,7 @@ $result  = CrmManager::getContacts($filters, $page, $per_page);
 $rows    = $result['rows'];
 $total   = $result['total'];
 $paging  = paginate($total, $per_page, $page, APP_URL . '/crm/index.php?' . http_build_query(array_filter($filters)));
-$stats   = CrmManager::getStats();
+// Bez kafli statystyk nad listą (prośba użytkownika) — liczba rekordów jest w nagłówku listy, liczby statusów na pulpicie CRM.
 
 $all_tags   = db_all("SELECT tag, COUNT(*) AS cnt FROM crm_tags
                       JOIN crm_contacts ON crm_contacts.id = crm_tags.contact_id
@@ -456,33 +456,6 @@ if (isset($_GET['_ajax'])) {
 // ── Pełna strona ──────────────────────────────────────────────────────────────
 include __DIR__ . '/includes/header_crm.php';
 ?>
-
-<!-- ══ STATYSTYKI ═══════════════════════════════════════════════════════════ -->
-<div class="row g-3 mb-3">
-  <div class="col-6 col-md-3">
-    <div class="crm-stat-card">
-      <div class="crm-stat-value"><?= $stats['total'] ?></div>
-      <div class="crm-stat-label">
-        <i class="bi bi-people-fill me-1" style="color:var(--crm-primary)" aria-hidden="true"></i>Wszystkich kontaktów
-      </div>
-      <?php if ($stats['new_this_month'] > 0): ?>
-      <div class="crm-stat-delta up">
-        <i class="bi bi-arrow-up-short" aria-hidden="true"></i><?= $stats['new_this_month'] ?> nowych w tym miesiącu
-      </div>
-      <?php endif; ?>
-    </div>
-  </div>
-  <?php foreach (array_slice($stats['by_status'], 0, 3) as $bs):
-    $sc = crm_statuses()[$bs['status']] ?? ['label' => $bs['status'], 'color' => '#939393'];
-  ?>
-  <div class="col-6 col-md-3">
-    <div class="crm-stat-card">
-      <div class="crm-stat-value" style="color:<?= h($sc['color']) ?>"><?= (int)$bs['cnt'] ?></div>
-      <div class="crm-stat-label"><?= h($sc['label']) ?></div>
-    </div>
-  </div>
-  <?php endforeach; ?>
-</div>
 
 <!-- ══ OBJECT HEADER ══════════════════════════════════════════════════════════ -->
 <div class="crm-object-header shadow-sm">
