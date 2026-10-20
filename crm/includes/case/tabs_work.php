@@ -270,6 +270,13 @@ if (!isset($case)) { http_response_code(400); exit; }
              aria-label="Pobierz plik: <?= h($disp) ?>">
             <i class="bi bi-download" aria-hidden="true"></i>
           </a>
+          <?php if ($can_write && in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'docx'], true)): ?>
+          <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" title="Pismo z pliku"
+                  aria-label="Utwórz pismo na podstawie pliku: <?= h($disp) ?>"
+                  onclick='pismoFromFile(<?= json_encode(['id' => (int)$f['id'], 'name' => $disp], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>)'>
+            <i class="bi bi-envelope-plus" aria-hidden="true"></i>
+          </button>
+          <?php endif; ?>
           <?php if ($can_write && ($f['created_by']==(current_user()['id']??0) || is_admin())): ?>
           <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

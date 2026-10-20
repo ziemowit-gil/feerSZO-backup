@@ -257,6 +257,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             flash_set('danger', 'Nieprawidłowy kierunek pisma.');
         } else {
             $plik = handle_letter_upload('pismo_plik');
+            // Pismo na podstawie pliku z zakładki „Pliki” — kopia pliku do pism (oryginał zostaje w Plikach)
+            $src_note = '';
+            if (!$plik && ($sfid = (int)($_POST['source_file_id'] ?? 0))) {
+                $sf  = db_one("SELECT * FROM crm_case_files WHERE id=? AND case_id=?", [$sfid, $id]);
+                $ext = $sf ? strtolower(pathinfo((string)$sf['original_name'], PATHINFO_EXTENSION)) : '';
+                $src = $sf ? dirname(dirname(__DIR__)) . '/uploads/' . $sf['stored_path'] : '';
+                if ($sf && in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'docx'], true) && !str_contains((string)$sf['stored_path'], '..') && is_file($src)) {
+                    if (!is_dir(UPLOAD_DIR . 'letters/')) mkdir(UPLOAD_DIR . 'letters/', 0755, true);
+                    $rel = 'letters/' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    if (copy($src, UPLOAD_DIR . $rel)) {
+                        $plik = $rel;
+                        if (function_exists('upload_sync_sharepoint')) upload_sync_sharepoint($rel);
+                        $src_note = ' z pliku „' . ($sf['display_name'] ?: $sf['original_name']) . '”';
+                    }
+                }
+                if (!$plik) flash_set('warning', 'Nie udało się podpiąć pliku z zakładki Pliki (plik niedostępny albo rodzaj inny niż PDF, DOCX, JPG, PNG) — pismo zapisano bez pliku.');
+            }
             create_letter([
                 'contract_type'      => 'crm_case',
                 'contract_id'        => $id,
@@ -286,7 +303,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 'created_at'         => date('Y-m-d H:i:s'),
             ]);
             db()->prepare("UPDATE crm_cases SET updated_at=? WHERE id=?")->execute([date('Y-m-d H:i:s'), $id]);
-            flash_set('success', 'Pismo „' . h($tytul) . '" dodane.');
+            flash_set('success', 'Pismo „' . h($tytul) . '" dodane' . h($src_note) . '.');
         }
         header('Location: view.php?id=' . $id . '#pisma'); exit;
     }

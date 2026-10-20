@@ -184,6 +184,8 @@ if (!isset($case)) { http_response_code(400); exit; }
                 </label>
                 <input type="file" name="pismo_plik" id="p_plik" class="form-control form-control-sm"
                        accept=".pdf,.docx,.doc,.png,.jpg,.jpeg">
+                <input type="hidden" name="source_file_id" id="p_source_file" value="">
+                <div id="p_source_info" class="small mt-1" style="display:none;color:#15803D"><i class="bi bi-paperclip me-1" aria-hidden="true"></i><span></span></div>
               </div>
               <div class="col-12">
                 <label class="form-label small fw-semibold mb-1">Uwagi wewnętrzne</label>
@@ -236,7 +238,23 @@ function pismoReset() {
   document.getElementById('p_miejsce').value = <?= json_encode(defined('ORG_CITY') ? ORG_CITY : '') ?>;
   pismoToggleDoreczenie('email');
   document.getElementById('p_plik_hint').textContent = '(opcjonalny)';
+  document.getElementById('p_source_file').value = '';
+  document.getElementById('p_source_info').style.display = 'none';
   document.getElementById('pismoSubmitBtn').innerHTML = '<i class="bi bi-envelope-check me-1"></i>Zapisz pismo';
+}
+
+// Nowe pismo na podstawie pliku z zakładki „Pliki” — plik zostanie skopiowany do pisma przy zapisie
+function pismoFromFile(f) {
+  pismoReset();
+  document.getElementById('pismoModalTitle').textContent = 'Nowe pismo z pliku';
+  document.getElementById('p_tytul').value = String(f.name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '');
+  document.getElementById('p_source_file').value = f.id;
+  var info = document.getElementById('p_source_info');
+  info.querySelector('span').textContent = 'Plik pisma: ' + (f.name || '') + ' (z zakładki Pliki — zostanie skopiowany; możesz zamiast niego wgrać inny)';
+  info.style.display = '';
+  document.getElementById('p_plik_hint').textContent = '(z zakładki Pliki)';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPismo')).show();
+  setTimeout(function () { document.getElementById('p_tytul').focus(); }, 300);
 }
 
 // Wypełnij modal danymi istniejącego pisma
