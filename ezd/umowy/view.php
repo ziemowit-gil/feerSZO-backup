@@ -60,68 +60,41 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div class="row g-4">
+<!-- ══ Umowa — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php) ══ -->
+<?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
+$_um_d = fn($v) => $v ? date('d.m.Y', strtotime((string)$v)) : '';
+$_um_color = ['success' => 'var(--m-green)', 'warning' => 'var(--m-orange)', 'info' => 'var(--m-teal)', 'danger' => 'var(--m-red)'][$status_color] ?? '';
+$_um_expired = $umowa['data_do'] && $umowa['data_do'] < date('Y-m-d');
+$_um_fields = [['Status', ucfirst((string)$umowa['status']), $_um_color]];
+if ($umowa['wartosc'] !== null) $_um_fields[] = ['Wartość', number_format((float)$umowa['wartosc'], 2, ',', ' ') . ' ' . $umowa['waluta']];
+if ($umowa['data_zawarcia']) $_um_fields[] = ['Zawarta', $_um_d($umowa['data_zawarcia'])];
+if ($umowa['data_od'] || $umowa['data_do']) $_um_fields[] = [$_um_expired ? 'Wygasła' : 'Obowiązuje', trim($_um_d($umowa['data_od']) . ' – ' . $_um_d($umowa['data_do']), ' –'), $_um_expired ? 'var(--m-red)' : ''];
+$_um_fields[] = ['Koszulka', ['html' => '<a href="' . APP_URL . '/ezd/sprawy/view.php?id=' . (int)$sprawa_id . '" class="font-monospace">' . h($umowa['znak_sprawy']) . '</a>']];
+?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia umowy">
+  <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$sprawa_id ?>" class="btn btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i>Koszulka <?= h($umowa['znak_sprawy']) ?></a>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <?php ezd_kopia_menu_btn('umowa', $id, $umowa['sygnatura']); ?>
+  <?php if(can_edit() && $is_active): ?>
+  <a href="<?= APP_URL ?>/ezd/umowy/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+  <?php endif; ?>
+</div>
+
+<section class="dyn-rec" aria-labelledby="um-title">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><i class="bi bi-file-earmark-ruled" aria-hidden="true"></i> <?= h($typ_label) ?> · <code><?= h($umowa['sygnatura']) ?></code></div>
+      <h1 id="um-title" class="dyn-title"><?= h($umowa['title']) ?></h1>
+      <?php if($umowa['strona']): ?><div class="text-muted mt-1" style="font-size:.85rem"><i class="bi bi-building me-1" aria-hidden="true"></i><?= h($umowa['strona']) ?></div><?php endif; ?>
+    </div>
+    <?= dynHFields($_um_fields) ?>
+  </div>
+</section>
+
+<div class="row g-4 dyn-form">
   <!-- Lewa: szczegóły + załączniki -->
   <div class="col-lg-8">
-    <div class="card shadow-sm mb-3">
-      <div class="card-body">
-        <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-          <div>
-            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-              <span class="badge bg-warning bg-opacity-15 text-warning border border-warning" style="font-size:.72rem"><?= h($typ_label) ?></span>
-              <span class="badge bg-secondary bg-opacity-10 text-secondary border font-monospace" style="font-size:.72rem"><?= h($umowa['sygnatura']) ?></span>
-              <span class="badge bg-<?= $status_color ?>"><?= h(ucfirst($umowa['status'])) ?></span>
-            </div>
-            <h5 class="fw-bold mb-0"><?= h($umowa['title']) ?></h5>
-            <?php if($umowa['strona']): ?><div class="text-muted mt-1" style="font-size:.82rem"><i class="bi bi-building me-1"></i><?= h($umowa['strona']) ?></div><?php endif; ?>
-          </div>
-          <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
-            <?php ezd_kopia_menu_btn('umowa', $id, $umowa['sygnatura']); ?>
-            <?php if(can_edit() && $is_active): ?>
-            <a href="<?= APP_URL ?>/ezd/umowy/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Kluczowe parametry -->
-    <div class="row g-3 mb-3">
-      <?php if($umowa['wartosc'] !== null): ?>
-      <div class="col-6 col-md-3">
-        <div class="card shadow-sm h-100 text-center py-3">
-          <div class="fw-bold" style="font-size:1.3rem"><?= number_format((float)$umowa['wartosc'],2,',',' ') ?></div>
-          <div class="text-muted" style="font-size:.72rem"><?= h($umowa['waluta']) ?> — wartość</div>
-        </div>
-      </div>
-      <?php endif; ?>
-      <?php if($umowa['data_zawarcia']): ?>
-      <div class="col-6 col-md-3">
-        <div class="card shadow-sm h-100 text-center py-3">
-          <div class="fw-bold"><?= date_pl($umowa['data_zawarcia']) ?></div>
-          <div class="text-muted" style="font-size:.72rem">Data zawarcia</div>
-        </div>
-      </div>
-      <?php endif; ?>
-      <?php if($umowa['data_od']): ?>
-      <div class="col-6 col-md-3">
-        <div class="card shadow-sm h-100 text-center py-3">
-          <div class="fw-bold"><?= date_pl($umowa['data_od']) ?></div>
-          <div class="text-muted" style="font-size:.72rem">Obowiązuje od</div>
-        </div>
-      </div>
-      <?php endif; ?>
-      <?php if($umowa['data_do']): ?>
-      <div class="col-6 col-md-3">
-        <div class="card shadow-sm h-100 text-center py-3">
-          <?php $expired = $umowa['data_do'] < date('Y-m-d'); ?>
-          <div class="fw-bold <?= $expired?'text-danger':'' ?>"><?= date_pl($umowa['data_do']) ?></div>
-          <div class="text-muted" style="font-size:.72rem"><?= $expired?'Wygasła':'Obowiązuje do' ?></div>
-        </div>
-      </div>
-      <?php endif; ?>
-    </div>
-
     <!-- Warunki płatności -->
     <?php if($umowa['warunki_platnosci']): ?>
     <div class="card shadow-sm mb-3">
