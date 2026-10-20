@@ -1642,6 +1642,24 @@ function edok_ipko_sanitize(string $s): string {
 }
 
 /**
+ * Pole 12 ELIXIR-O (szczegóły płatności, 4×35 znaków złączone "|"). Zwykle tytuł przelewu
+ * zawijany co 35 znaków; przelew podatkowy podaje gotowe wiersze w '_tytul_linie'
+ * (/TI/…/OKR/… | /SFP/… | /TXT/…), żeby żaden znacznik nie został rozcięty między wierszami.
+ */
+function edok_elixir_tytul(array $doc): string {
+    if (!empty($doc['_tytul_linie'])) {
+        $l = array_map(fn($x) => mb_substr(edok_ipko_sanitize((string)$x), 0, 35), array_slice(array_values((array)$doc['_tytul_linie']), 0, 4));
+        return implode('|', array_pad($l, 4, ''));
+    }
+    return implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc)), 35, 4));
+}
+
+/** Pole 15 ELIXIR-O (klasyfikacja polecenia): 51 = przelew zwykły, 71 = przelew do urzędu skarbowego ('_kod'). */
+function edok_elixir_kod(array $doc): string {
+    return ($doc['_kod'] ?? '') === '71' ? '71' : '51';
+}
+
+/**
  * Pole "nazwa i adres" (4*35 znaków, wiersze 1-2 = nazwa, 3-4 = adres, złączone "|").
  * Tabela pól w oficjalnym PDF PKO opisowo podaje separator "?", ale rzeczywiste
  * przykłady pliku w tym samym dokumencie (sekcja 3.2, zweryfikowane wizualnie
@@ -1734,7 +1752,7 @@ function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): stri
         $data_fmt     = str_replace('-', '', date('Y-m-d'));
         $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
         $bank_k       = substr($nrb_k, 2, 8);
-        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc)), 35, 4));
+        $tytul        = edok_elixir_tytul($doc);
         // Referencja własna zleceniodawcy: max 16 znaków, bez polskich liter/znaków specjalnych poza / - ? : ( ) . , ' + spacja.
         $referencja   = mb_substr(preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? '')), 0, 16);
 
@@ -1746,7 +1764,7 @@ function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): stri
             '0', $bank_k,
             $tytul,
             '', '',
-            '51',
+            edok_elixir_kod($doc),
         ];
         // Pole 16 (referencja) pojawia się w przykładach TYLKO gdy ma wartość —
         // bez referencji wiersz kończy się od razu po polu 15 ("51"), bez
@@ -1796,7 +1814,7 @@ function edok_millenet_export(array $docs, string $rachunek_zlecen_nrb): string 
         $data_fmt     = str_replace('-', '', date('Y-m-d'));
         $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
         $bank_k       = substr($nrb_k, 2, 8);
-        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc)), 35, 4));
+        $tytul        = edok_elixir_tytul($doc);
         // Adnotacje: kod rekoncyliacyjny do 16 znaków, umieszczony między "$$$...$$$" (§3.1 pozycja 16).
         $referencja = mb_substr(preg_replace('/[^A-Za-z0-9]/', '', (string)($doc['number'] ?? '')), 0, 16);
         $adnotacje  = $referencja !== '' ? '$$$' . $referencja . '$$$' : '';
@@ -1809,7 +1827,7 @@ function edok_millenet_export(array $docs, string $rachunek_zlecen_nrb): string 
             '0', $bank_k,
             $q($tytul),
             $q(''), $q(''),
-            $q('51'),
+            $q(edok_elixir_kod($doc)),
             $q($adnotacje),
         ];
         $rows[] = implode(',', $fields);
@@ -1847,7 +1865,7 @@ function edok_elixir_export(array $docs, string $rachunek_zlecen_nrb): string {
         // Data realizacji i tytuł przelewu liczone na bieżąco w momencie eksportu — patrz komentarz w edok_ipko_biznes_export().
         $data_fmt     = date('Ymd');
         $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
-        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc)), 35, 4));
+        $tytul        = edok_elixir_tytul($doc);
         $referencja   = mb_substr(preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? '')), 0, 16);
 
         $rows[] = implode(',', [
@@ -1858,7 +1876,7 @@ function edok_elixir_export(array $docs, string $rachunek_zlecen_nrb): string {
             '0', substr($nrb_k, 2, 8),
             $q($tytul),
             $q(''), $q(''),
-            $q('51'),
+            $q(edok_elixir_kod($doc)),
             $q($referencja),
         ]);
     }
