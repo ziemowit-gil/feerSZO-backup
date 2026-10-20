@@ -229,7 +229,7 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
 .pt-brand{display:flex;align-items:center;gap:.55rem;text-decoration:none;color:inherit;flex:1;min-width:0}
 .pt-brand-img{height:30px;max-width:120px;object-fit:contain}
 .pt-brand-icon{width:32px;height:32px;border-radius:8px;background:var(--c,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
-.pt-brand-name{font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pt-brand-name{font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:min(52vw,520px)}
 .pt-right{display:flex;align-items:center;gap:.35rem;flex-shrink:0}
 .pt-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .55rem;border-radius:8px;background:none;border:1.5px solid #E2E8F0;font-size:.78rem;font-weight:500;color:#64748B;text-decoration:none;cursor:pointer;transition:all .1s;white-space:nowrap;position:relative}
 .pt-btn:hover{border-color:var(--c,#2563eb);color:var(--c,#2563eb);background:#EFF6FF}
@@ -310,7 +310,7 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
     <?php else: ?>
     <div class="pt-brand-icon"><i class="bi bi-building-heart"></i></div>
     <?php endif; ?>
-    <span class="pt-brand-name"><?= h(org_setting('org_short_name') ?: mb_substr($_org,0,28,'UTF-8')) ?></span>
+    <span class="pt-brand-name"><?= h(org_setting('org_short_name') ?: $_org) /* pełna nazwa; zbyt długą przycina CSS z wielokropkiem */ ?></span>
   </a>
   <div class="pt-right">
     <a href="<?= APP_URL ?>/komunikaty/index.php" class="pt-btn">
@@ -338,7 +338,7 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
   <div class="ph">
     <div>
       <div class="ph-greet"><?= h($_greet) ?>, <?= h($_fn) ?> 👋</div>
-      <div class="ph-sub"><?= date('l, j F Y') ?><?= $_org ? ' · ' . h($_org) : '' ?></div>
+      <div class="ph-sub"><?= h(['niedziela','poniedziałek','wtorek','środa','czwartek','piątek','sobota'][(int)date('w')] . ', ' . (int)date('j') . ' ' . ['stycznia','lutego','marca','kwietnia','maja','czerwca','lipca','sierpnia','września','października','listopada','grudnia'][(int)date('n') - 1] . ' ' . date('Y')) ?><?= $_org ? ' · ' . h($_org) : '' ?></div>
     </div>
     <div class="ph-stats">
       <div class="chip">
