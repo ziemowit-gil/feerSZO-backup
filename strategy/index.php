@@ -92,93 +92,111 @@ $org_name = function_exists('org_setting') ? (org_setting('org_name') ?: '') : '
 <script>
 tailwind.config = {
   theme: { extend: {
-    colors: { brand: {50:'#eff6ff',100:'#dbeafe',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af'} },
-    fontFamily: { sans: ['system-ui','-apple-system','Segoe UI','Roboto','sans-serif'] },
+    // Szata Metro (jak Działania /dzialania): akcent teal, Segoe UI
+    colors: { brand: {50:'#e0f2f3',100:'#ccecee',200:'#99d9dc',500:'#00999f',600:'#00808a',700:'#006a72',800:'#00545a'} },
+    fontFamily: { sans: ['Segoe UI','Segoe UI Web (West European)','system-ui','-apple-system','Roboto','Arial','sans-serif'] },
   }}
 };
 </script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<link rel="stylesheet" href="<?= h(APP_URL) ?>/assets/css/dynamics.css?v=<?= (int)@filemtime(dirname(__DIR__) . '/assets/css/dynamics.css') ?>">
 <style>
   [x-cloak]{display:none!important}
-  .chip-dot{width:.6rem;height:.6rem;border-radius:9999px;display:inline-block;flex:none}
+  .chip-dot{width:.6rem;height:.6rem;display:inline-block;flex:none}
+  /* ── Szata Metro (zwykły CSS — działa też dla treści renderowanej przez Alpine): zero zaokrągleń i cieni ── */
+  *,*::before,*::after{border-radius:0!important}
+  body *{box-shadow:none!important}
+  :focus-visible{outline:3px solid #fbbf24!important;outline-offset:2px}
+  .m-bar{background:#1d1d1d;color:#fff}
+  .m-bar a.m-lnk,.m-bar button.m-lnk{color:rgba(255,255,255,.85);font-size:.84rem;font-weight:500;padding:.42rem .7rem;display:inline-flex;align-items:center;gap:.4rem;background:transparent;border:0;text-decoration:none}
+  .m-bar .m-lnk:hover{background:rgba(255,255,255,.1);color:#fff}
+  .m-bar .m-lnk.on{background:#00808a;color:#fff}
+  .m-bar select{background:#2b2b2b;color:#fff;border:2px solid #5f5f5f!important;font-size:.84rem;padding:.3rem .5rem}
+  .m-title{font:300 2rem/1.1 "Segoe UI",system-ui,sans-serif;letter-spacing:-.02em;margin:0;color:#1d1d1d}
+  .m-pivot{display:flex;gap:1.3rem;flex-wrap:wrap}
+  .m-pivot button{background:none;border:0;padding:0;font:300 1.35rem/1.3 "Segoe UI",system-ui,sans-serif;color:#9a9a9a;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem}
+  .m-pivot button:hover{color:#5f5f5f}
+  .m-pivot button[aria-selected="true"]{color:#1d1d1d;font-weight:400;box-shadow:inset 0 -3px 0 #00808a!important}
+  .m-filters{background:#f2f2f2}
+  main select,main input[type=search],main input[type=text],main input[type=number],main input[type=date],main textarea,
+  [role=dialog] select,[role=dialog] input[type=text],[role=dialog] input[type=number],[role=dialog] input[type=search],[role=dialog] textarea{border:2px solid #8a8a8a!important;background:#fff}
+  main select:focus,main input:focus,main textarea:focus,[role=dialog] select:focus,[role=dialog] input:focus,[role=dialog] textarea:focus{border-color:#00808a!important;outline:0}
+  main .border-slate-200,main .border-slate-100{border-color:#e1e1e1!important}
+  main table thead{background:#fff!important;color:#5f5f5f}
+  main table thead th{border-bottom:2px solid #1d1d1d}
+  .m-st{color:#fff!important;font-weight:600}
+  .m-st-planowane{background:#5f5f5f}.m-st-w_realizacji{background:#c25100}.m-st-zrealizowane{background:#008a00}.m-st-anulowane{background:#a20025}
+  .m-dot-planowane{background:#8a8a8a}.m-dot-w_realizacji{background:#c25100}.m-dot-zrealizowane{background:#008a00}.m-dot-anulowane{background:#a20025}
+  .dyn-hfields dd{font-size:1.05rem}
   @media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
 </style>
 </head>
-<body class="h-full bg-slate-100 font-sans text-slate-800 antialiased"
+<body class="h-full bg-white font-sans text-slate-800 antialiased"
       x-data="stratApp()" x-init="init()" @keydown.escape.window="drawerOpen=false; settingsOpen=false">
 
-<!-- ═══ Pasek górny ═══ -->
-<header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-  <div class="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-3 px-4 py-3">
-    <a href="<?= h(APP_URL) ?>/portal.php" class="flex items-center gap-2 text-slate-500 hover:text-brand-600"
-       aria-label="Wróć do portalu SZO">
-      <i class="bi bi-arrow-left-short text-xl" aria-hidden="true"></i>
+<!-- ═══ Pasek górny (Metro, jak Działania) ═══ -->
+<header class="m-bar sticky top-0 z-30">
+  <div class="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-2 px-4 py-1.5">
+    <a href="<?= h(APP_URL) ?>/strategy/index.php" class="flex items-center gap-2.5 text-white no-underline me-2" style="text-decoration:none">
+      <span class="grid h-9 w-9 place-items-center bg-brand-600 text-white"><i class="bi bi-bullseye" aria-hidden="true"></i></span>
+      <span class="leading-tight"><b class="block text-sm font-bold">Strategia</b><small class="block text-[.68rem] text-white/60">Plan operacyjny<?= $org_name ? ' · ' . h(mb_substr($org_name, 0, 28)) : '' ?></small></span>
     </a>
-    <div class="flex items-center gap-2.5">
-      <span class="grid h-9 w-9 place-items-center rounded-xl bg-brand-600 text-white"><i class="bi bi-bullseye" aria-hidden="true"></i></span>
-      <div>
-        <h1 class="text-base font-semibold leading-tight">Strategia Organizacji</h1>
-        <p class="text-xs text-slate-500">Planowanie działań operacyjnych<?= $org_name ? ' · ' . h($org_name) : '' ?></p>
-      </div>
-    </div>
-
-    <div class="ms-auto flex flex-wrap items-center gap-2">
-      <!-- Wybór roku -->
-      <label class="sr-only" for="rokSel">Rok planu</label>
-      <select id="rokSel" x-model.number="rok" @change="loadYear()"
-              class="rounded-lg border-slate-300 bg-white px-3 py-2 text-sm font-medium shadow-sm focus:border-brand-500 focus:ring-brand-500">
-        <template x-for="y in yearOptions" :key="y"><option :value="y" x-text="y"></option></template>
-      </select>
-
-      <!-- Przełącznik widoku -->
-      <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-sm" role="tablist" aria-label="Widok danych">
-        <template x-for="v in [['table','bi-table','Tabela'],['grid','bi-calendar3','Siatka miesięcy'],['summary','bi-bar-chart','Podsumowanie']]" :key="v[0]">
-          <button type="button" role="tab" :aria-selected="view===v[0] ? 'true':'false'"
-                  @click="view=v[0]"
-                  :class="view===v[0] ? 'bg-brand-600 text-white shadow' : 'text-slate-600 hover:bg-slate-100'"
-                  class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition">
-            <i :class="v[1]" class="bi" aria-hidden="true"></i><span class="hidden sm:inline" x-text="v[2]"></span>
-          </button>
-        </template>
-      </div>
-
-      <?php if ($is_admin): ?>
-      <button type="button" @click="settingsOpen=true"
-              class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 shadow-sm hover:bg-slate-50"
-              aria-label="Ustawienia słowników">
-        <i class="bi bi-gear" aria-hidden="true"></i>
-      </button>
-      <?php endif; ?>
-
-      <?php if ($can_edit): ?>
-      <button type="button" @click="openNew()"
-              class="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2">
-        <i class="bi bi-plus-lg" aria-hidden="true"></i> Nowe działanie
-      </button>
-      <?php endif; ?>
-    </div>
+    <nav class="flex flex-wrap items-center gap-1" aria-label="Sekcje Strategii">
+      <a class="m-lnk on" href="<?= h(APP_URL) ?>/strategy/index.php" aria-current="page"><i class="bi bi-bullseye" aria-hidden="true"></i>Plan działań</a>
+      <a class="m-lnk" href="<?= h(APP_URL) ?>/dzialania"><i class="bi bi-calendar-event" aria-hidden="true"></i>Działania</a>
+      <a class="m-lnk" href="<?= h(APP_URL) ?>/grants/index.php"><i class="bi bi-cash-coin" aria-hidden="true"></i>Granty</a>
+    </nav>
+    <span class="flex-1"></span>
+    <?php if ($is_admin): ?>
+    <button type="button" @click="settingsOpen=true" class="m-lnk" aria-label="Ustawienia słowników">
+      <i class="bi bi-gear" aria-hidden="true"></i><span class="hidden lg:inline">Słowniki</span>
+    </button>
+    <?php endif; ?>
+    <a class="m-lnk" href="<?= h(APP_URL) ?>/portal.php"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="hidden sm:inline">Wróć do SZO</span></a>
   </div>
 </header>
 
 <main class="mx-auto max-w-screen-2xl px-4 py-6">
 
-  <!-- ═══ Karty KPI ═══ -->
-  <section aria-label="Podsumowanie roku" class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <template x-for="k in kpis" :key="k.label">
-      <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="flex items-center gap-3">
-          <span class="grid h-10 w-10 place-items-center rounded-xl" :class="k.bg"><i :class="k.icon" class="bi text-lg" aria-hidden="true"></i></span>
-          <div>
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500" x-text="k.label"></p>
-            <p class="text-lg font-semibold" x-text="k.value"></p>
-          </div>
-        </div>
+  <!-- ═══ Nagłówek strony: tytuł, liczby roku (pola nagłówka jak w Dynamics — bez dużych kafli), polecenia ═══ -->
+  <div class="dyn-head mb-3">
+    <div class="dyn-head__main">
+      <div class="dyn-entity">Strategia Organizacji · plan operacyjny</div>
+      <h1 class="m-title">Plan działań <span x-text="rok"></span></h1>
+    </div>
+    <dl class="dyn-hfields" aria-label="Podsumowanie widocznych działań">
+      <template x-for="k in kpis" :key="k.label">
+        <div><dt x-text="k.label"></dt><dd x-text="k.value"></dd></div>
+      </template>
+    </dl>
+  </div>
+
+  <div class="mb-4 flex flex-wrap items-end gap-4">
+    <div class="m-pivot" role="tablist" aria-label="Widok danych">
+      <template x-for="v in [['table','bi-table','Tabela'],['grid','bi-calendar3','Siatka miesięcy'],['summary','bi-bar-chart','Podsumowanie']]" :key="v[0]">
+        <button type="button" role="tab" :aria-selected="view===v[0] ? 'true':'false'" @click="view=v[0]">
+          <span x-text="v[2]"></span>
+        </button>
+      </template>
+    </div>
+    <div class="ms-auto flex flex-wrap items-end gap-2">
+      <div>
+        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="rokSel">Rok planu</label>
+        <select id="rokSel" x-model.number="rok" @change="loadYear()" class="px-3 py-1.5 text-sm font-medium">
+          <template x-for="y in yearOptions" :key="y"><option :value="y" x-text="y"></option></template>
+        </select>
       </div>
-    </template>
-  </section>
+      <?php if ($can_edit): ?>
+      <button type="button" @click="openNew()"
+              class="flex items-center gap-1.5 border-2 border-brand-600 bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 hover:border-brand-700">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i> Nowe działanie
+      </button>
+      <?php endif; ?>
+    </div>
+  </div>
 
   <!-- ═══ Filtry (na żywo) ═══ -->
-  <section aria-label="Filtry" class="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+  <section aria-label="Filtry" class="m-filters mb-5 p-4">
     <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-7">
       <div class="col-span-2 md:col-span-3 xl:col-span-2">
         <label for="fSearch" class="mb-1 block text-xs font-medium text-slate-500">Szukaj</label>
@@ -728,10 +746,9 @@ function stratApp() {
     resCount(p, kind)  { return (p.resources || []).filter(r => r.rodzaj === kind).reduce((s, r) => s + (+r.ilosc || 0), 0); },
     resCost(p)         { return (p.resources || []).reduce((s, r) => s + (+r.koszt || 0), 0); },
     sumBudget(list)    { return list.reduce((s, p) => s + (+p.budzet || 0), 0); },
-    statusClass(s) { return { planowane: 'bg-slate-100 text-slate-600', w_realizacji: 'bg-amber-100 text-amber-700',
-                              zrealizowane: 'bg-emerald-100 text-emerald-700', anulowane: 'bg-rose-100 text-rose-600' }[s] || 'bg-slate-100'; },
-    statusDot(s)   { return { planowane: 'bg-slate-300', w_realizacji: 'bg-amber-400',
-                              zrealizowane: 'bg-emerald-500', anulowane: 'bg-rose-400' }[s] || 'bg-slate-300'; },
+    // Kolory statusów jako zwykłe klasy CSS (.m-st-*, .m-dot-* w <style>) — pełne kolory Metro, bez zależności od Tailwind CDN
+    statusClass(s) { return 'm-st m-st-' + (['planowane','w_realizacji','zrealizowane','anulowane'].includes(s) ? s : 'planowane'); },
+    statusDot(s)   { return 'm-dot-' + (['planowane','w_realizacji','zrealizowane','anulowane'].includes(s) ? s : 'planowane'); },
     notify(msg, ok = true) { this.toast = { msg, ok }; setTimeout(() => this.toast.msg = '', 3500); },
 
     // ── filtry (na żywo, po stronie klienta) ──
