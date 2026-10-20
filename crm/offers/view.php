@@ -77,29 +77,20 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </ol>
 </nav>
 
-<!-- Nagłówek rekordu -->
-<div class="crm-page-header">
-  <div>
-    <div class="crm-page-title" style="gap:.6rem">
-      <i class="bi bi-file-earmark-ruled-fill" style="color:#0176D3"></i>
-      <span style="font-family:monospace;font-size:1.05rem;color:#1D4ED8"><?= h($offer['offer_number']) ?></span>
-      <?= crm_offer_status_pill((string)$offer['status']) ?>
-      <?php if ((int)$offer['revision'] > 1): ?>
-      <span class="badge bg-secondary">wersja <?= (int)$offer['revision'] ?></span>
-      <?php endif; ?>
-    </div>
-    <div class="crm-page-subtitle">
-      <?= h($offer['title']) ?> ·
-      <a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$offer['contact_id'] ?>"><?= h($offer['contact_name']) ?></a>
-      · <strong><?= h(crm_offer_money((float)$offer['total_gross'], (string)$offer['currency'])) ?></strong> brutto
-    </div>
-  </div>
-  <div class="crm-page-actions">
+<?php require_once dirname(__DIR__) . '/includes/dynRecord.php';
+  $_ost = CRM_OFFER_STATUSES[$offer['status']] ?? ['label' => $offer['status'], 'color' => '#6B7280'];
+  $_dyn_st = ['szkic' => 'Szkic'] + ($offer['status'] === 'do_zatwierdzenia' ? ['do_zatwierdzenia' => 'Do zatwierdzenia'] : [])
+           + ['wyslana' => 'Wysłana', 'zaakceptowana' => 'Zaakceptowana', 'zrealizowana' => 'Zrealizowana'];
+?>
+<!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css) -->
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia oferty">
+  <a href="index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Oferty</span></a>
+  <span class="dyn-sep" aria-hidden="true"></span>
     <a href="print.php?id=<?= $id ?>" target="_blank" class="btn btn-crm-ghost btn-sm" title="Wydruk">
-      <i class="bi bi-printer"></i>
+      <i class="bi bi-printer" aria-hidden="true"></i>Drukuj
     </a>
     <a href="print.php?id=<?= $id ?>&pdf=1" class="btn btn-crm-ghost btn-sm" title="Pobierz PDF">
-      <i class="bi bi-file-earmark-pdf"></i>
+      <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>PDF
     </a>
     <?php if ($can_write && $editable): ?>
     <a href="form.php?id=<?= $id ?>" class="btn btn-crm-outline btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
@@ -111,8 +102,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
     <?php endif; ?>
     <?php if ($can_write): ?>
     <div class="dropdown">
-      <button class="btn btn-crm-ghost btn-sm" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Więcej akcji">
-        <i class="bi bi-three-dots-vertical"></i>
+      <button class="btn btn-crm-ghost btn-sm" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>Więcej
       </button>
       <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:.85rem">
         <?php if (module_enabled('invoices_enabled')): ?>
@@ -163,8 +154,25 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       </ul>
     </div>
     <?php endif; ?>
-  </div>
 </div>
+
+<!-- Nagłówek rekordu -->
+<div class="cv-panel mb-3" style="overflow:hidden"><div class="cv-panel__body">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <?= dynEntity('Oferta', (string)$offer['offer_number']) ?>
+      <h1 style="font-size:1.35rem;font-weight:600;margin:0;color:#111827"><?= h($offer['title']) ?></h1>
+      <div class="small mt-1"><i class="bi bi-person me-1 text-muted" aria-hidden="true"></i><a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$offer['contact_id'] ?>"><?= h($offer['contact_name']) ?></a></div>
+    </div>
+    <?= dynHFields(array_values(array_filter([
+        ['Status', (string)$_ost['label'], (string)$_ost['color']],
+        ['Wartość brutto', crm_offer_money((float)$offer['total_gross'], (string)$offer['currency'])],
+        ['Ważna do', !empty($offer['valid_until']) ? date_pl($offer['valid_until']) : ''],
+        (int)$offer['revision'] > 1 ? ['Wersja', (string)(int)$offer['revision']] : null,
+    ]))) ?>
+  </div>
+  <?= dynStages($_dyn_st, (string)$offer['status'], ['label' => 'Etapy oferty', 'off' => ['odrzucona' => 'Odrzucona', 'wygasla' => 'Wygasła', 'anulowana' => 'Anulowana']]) ?>
+</div></div>
 
 <?php /* ══ OSTRZEŻENIE: osoba fizyczna wymaga potwierdzenia ══ */ ?>
 <?php if ($warning): ?>
