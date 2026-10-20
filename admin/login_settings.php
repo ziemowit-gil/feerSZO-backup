@@ -455,7 +455,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 <div class="card-header fw-semibold d-flex align-items-center justify-content-between">
   <span><i class="bi bi-key-fill text-warning me-1"></i> Kody jednorazowe użytkowników</span>
   <span class="badge bg-secondary bg-opacity-15 text-secondary border">
-    <?= count(array_filter($users, fn($u) => !empty($u['login_code']))) ?> aktywnych
+    Aktywnych kodów: <?= count(array_filter($users, fn($u) => !empty($u['login_code']))) ?>
   </span>
 </div>
 <div class="card-body p-0">
@@ -483,9 +483,12 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
                 'editor' => ['bg-primary', 'Edytor'],
                 'viewer' => ['bg-secondary','Podgląd'],
             ];
-            [$rb_cls, $rb_lbl] = $role_badges[$u['role']] ?? ['bg-secondary','?'];
+            // pozostałe role (np. ezd_biuro) — nazwa z rejestru ról zamiast „?”
+            static $_role_names = null;
+            if ($_role_names === null) { try { $_role_names = array_column(roles_all(), 'display_name', 'name'); } catch (\Throwable $e) { $_role_names = []; } }
+            [$rb_cls, $rb_lbl] = $role_badges[$u['role']] ?? ['bg-secondary', $_role_names[$u['role']] ?? ($u['role'] ?: '?')];
             ?>
-            <span class="badge <?= $rb_cls ?>"><?= $rb_lbl ?></span>
+            <span class="badge <?= $rb_cls ?>"><?= h($rb_lbl) ?></span>
           </td>
           <td class="text-center">
             <?php if ($u['login_code']): ?>

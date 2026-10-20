@@ -156,6 +156,15 @@ $__admin_active = in_array($TZ_ACTIVE, ['users', 'uzytkownicy', 'administracja']
     .tz-app-foot{display:flex;align-items:center;gap:.4rem;margin-top:.7rem;position:relative;z-index:1}
     .tz-app-cta{font-size:.72rem;font-weight:700;color:rgba(255,255,255,.9);display:flex;align-items:center;gap:.25rem;text-decoration:none}
     .tz-app-cta:hover{color:#fff;text-decoration:underline}
+    /* Miękkie znaczniki „bg-X bg-opacity-15 text-X” ze stron admin/ w tej szacie (Metody logowania, Moduły) — bez app.css
+       Bootstrap nie zna bg-opacity-15: pełne tło w kolorze tekstu = szary pasek bez napisu */
+    .bg-opacity-15{--bs-bg-opacity:.15}
+    .badge.bg-opacity-15.text-secondary{color:#3f3f3f!important}
+    .badge.bg-opacity-15.text-warning{color:#9a4000!important}
+    .badge.bg-opacity-15.text-info{color:#0e7490!important}
+    .badge.bg-opacity-15.text-success{color:#006b00!important}
+    .badge.bg-opacity-15.text-primary{color:#1d4ed8!important}
+    .badge.bg-opacity-15.text-danger{color:#a20025!important}
   </style>
 </head>
 <body>
