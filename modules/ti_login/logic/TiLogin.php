@@ -7,7 +7,9 @@
  *      · adres w domenie Microsoft 365 organizacji (@feer.org.pl) → TYLKO logowanie Microsoft 365 (bez sprawdzania
  *        hasła; reguła po samej domenie, więc nie zdradza, czy konto istnieje),
  *      · inny e-mail (konta panelowe z zespol.php) → hasło SZO + obowiązkowe TOTP (totp_gate.php).
- *  - login bez „@” → konta panelu kursanta (k30_ti_student_accounts / k30_ti_authorized_persons):
+ *  - login bez „@” zakończony „-kz” → login zastępczy konsultanta (modules/ti_consultant_access): hasło + TOTP,
+ *      sesja panelu dydaktyka tylko w trybie Konsultacje (zamiast Microsoft 365).
+ *  - pozostałe loginy bez „@” → konta panelu kursanta (k30_ti_student_accounts / k30_ti_authorized_persons):
  *      · uczestnik: `login` albo `login_alias`,
  *      · rodzic / opiekun: `parent_login` (zwykle „…-r”),
  *      · osoba upoważniona: `k30_ti_authorized_persons.login` (zwykle „…-up”).
@@ -270,6 +272,26 @@ final class TiLogin
         $next = (string)($_COOKIE['k30_dyd_next'] ?? '');
         if ($next !== '') setcookie('k30_dyd_next', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         dyd_2fa_stash($profile, $next);
+        return tiPanelUrl('dydaktyk', 'totp_gate.php');
+    }
+
+    /** Login zastępczy konsultanta („…-kz”). */
+    public static function isAltConsultantLogin(string $login): bool
+    {
+        require_once dirname(__DIR__, 2) . '/ti_consultant_access/logic/consultantAccess.php';
+        return TiConsultantAccess::isAltLogin($login);
+    }
+
+    /**
+     * Konsultant loginem zastępczym: hasło, potem obowiązkowe TOTP; sesja tylko w trybie Konsultacje.
+     * Zwraca adres bramki TOTP albo null (ten sam komunikat dla złego loginu i hasła). Wymaga dydaktyk/auth.php.
+     */
+    public static function completeAltConsultant(string $login, string $pass): ?string
+    {
+        require_once dirname(__DIR__, 2) . '/ti_consultant_access/logic/consultantAccess.php';
+        $profile = TiConsultantAccess::altAuthenticate($login, $pass);
+        if (!$profile) return null;
+        dyd_2fa_stash($profile, 'konsultacjeStart.php');
         return tiPanelUrl('dydaktyk', 'totp_gate.php');
     }
 

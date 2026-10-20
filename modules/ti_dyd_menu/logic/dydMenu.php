@@ -90,6 +90,7 @@ function dydMenuSections(): array
         $sec[] = ['key' => 'moje', 'label' => 'Moje', 'items' => [
             $it('', 'Mój certyfikat', 'moj_certyfikat.php', 'shield-check'),
             $it('', 'Moje godziny',   'godziny.php',        'hourglass-split'),
+            $it('', 'Login zastępczy', 'kontoZastepcze.php', 'key'),
         ]];
     } else {
         $start = [

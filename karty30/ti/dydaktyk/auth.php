@@ -85,6 +85,7 @@ function dyd_current(): ?array {
     if ($rem) {
         $u = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [$rem['account_id']]);
         $profile = $u ? dyd_profile_from_user($u) : null;
+        if ($profile && !empty($rem['payload']['alt_konsultacje'])) { $profile['alt_konsultacje'] = true; $profile['alt_staff'] = !empty($profile['is_staff']); $profile['is_staff'] = false; }
         if ($profile) { dyd_login_user($profile); $_SESSION['k30_dyd_resumed'] = 1; return $_SESSION[DYD_SESSION_KEY]; }
         ti_remember_forget('dyd');
     }
@@ -137,7 +138,8 @@ function dyd_login_user(array $data): void {
     $data['ts'] = time();
     $_SESSION[DYD_SESSION_KEY] = $data;
     $_SESSION['k30_dyd_csrf']  = bin2hex(random_bytes(16));
-    ti_remember_issue('dyd', (int)$data['user_id']);
+    // Login zastępczy konsultanta: wznowienie z tokenu też tylko w trybie Konsultacje (flaga w payloadzie tokenu)
+    ti_remember_issue('dyd', (int)$data['user_id'], !empty($data['alt_konsultacje']) ? ['alt_konsultacje' => 1] : []);
 }
 
 function dyd_logout(): void {
@@ -350,7 +352,11 @@ function dyd_modes_available(?array $s = null): array {
     if (!$s) return [];
     require_once dirname(__DIR__, 3) . '/modules/ti_work_modes/logic/workModes.php';
     // Uprawnienia per osoba (Zespół i role → Tryby pracy); bez ustawienia — automatycznie, kierownik zawsze oba
-    return TiWorkModes::available((int)($s['user_id'] ?? 0), !empty($s['is_staff']), (string)($s['panel_role'] ?? ''));
+    // Login zastępczy: tryby wg pierwotnej roli (alt_staff), choć sesja jest bez funkcji kierownika
+    $m = TiWorkModes::available((int)($s['user_id'] ?? 0), !empty($s['is_staff']) || !empty($s['alt_staff']), (string)($s['panel_role'] ?? ''));
+    // Login zastępczy konsultanta (modules/ti_consultant_access) — tylko Konsultacje
+    if (!empty($s['alt_konsultacje'])) return in_array('konsultacje', $m, true) ? ['konsultacje'] : [];
+    return $m;
 }
 
 /** Strony dostępne w samym trybie Konsultacje (osoba bez uprawnienia do Szkoleń). */
@@ -358,7 +364,7 @@ const DYD_KONSULTACJE_PAGES = ['konsultacjeStart.php', 'konsultacje.php', 'konsu
                                'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'rezerwacjaPdf.php', 'kolejka.php',
                                'konsultacjeZestawienia.php', 'konsultacjeEksport.php', 'konsultacjeUstawienia.php', 'konsultacjeKomunikacja.php',
                                'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php', 'konsultacjePfronDokumenty.php',
-                               'licencjeKursantow.php', 'regulaminy.php',
+                               'licencjeKursantow.php', 'regulaminy.php', 'kontoZastepcze.php',
                                'moj_certyfikat.php', 'saleFormularz.php', 'logout.php', 'choose_mode.php', 'office_enter.php', 'totp_gate.php'];
 
 function dyd_konsultacje_page(): bool {
