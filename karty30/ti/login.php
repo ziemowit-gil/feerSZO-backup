@@ -1,12 +1,15 @@
 <?php
 /**
- * karty30/ti/login.php — Centralny punkt logowania TI (wygląd Tożsamości: METRO UI, układ dwukolumnowy jak w iPKO).
+ * karty30/ti/login.php — wspólne logowanie TI (na ti.* / kurs.* pod „/login.php”).
  *
- * Wybór roli: 3 kafle Kursant / Prowadzący / Rodzic; w panelu Kursanta wybór zajęć w grupie / szkolenia krótkiego /
- * konsultacji (ten sam formularz, inna podpowiedź). Osoba upoważniona pod „Inne sposoby logowania”. Kandydaci logują się
- * na osobnej stronie /nabor/logowanie (krótko /kandydat) — tu tylko informacja; stare ?tab=kandydat przekierowuje tam.
- * POST trafia do sub-handlerów: kursant → tozsamosc/kursant.php, dydaktyk/login.php,
- * kursant/parent_login.php, kursant/authp_login.php. Błędy wracają kodem e=N w query string.
+ * Jeden formularz „login + hasło” dla wszystkich: uczestnik, rodzic/opiekun, osoba upoważniona i kadra (prowadzący,
+ * konsultant, kierownik). Rodzaj konta rozpoznaje TiLogin (modules/ti_login/logic/TiLogin.php) — reguły i zabezpieczenia
+ * opisane tam. Adresy @feer.org.pl → Microsoft 365; kolizja loginów → wybór panelu po poprawnym haśle.
+ *
+ * Stare wejścia (tozsamosc/kursant.php, kursant/login.php, kursant/parent_login.php, kursant/authp_login.php,
+ * dydaktyk/login.php, dydaktyk/logowanie.php) przekierowują tutaj — POST kodem 307 (z danymi formularza).
+ * Kody ?e=N ze starych przekierowań nadal działają (jeden ogólny komunikat dla błędnych danych).
+ * Kandydaci (nabór) mają osobne konto: /nabor/logowanie (?tab=kandydat przekierowuje tam).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -14,362 +17,108 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/pfron.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
-require_once dirname(dirname(__DIR__)) . '/includes/org_case.php';   // odmiana nazwy organizacji
+require_once dirname(dirname(__DIR__)) . '/includes/org_case.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_messages.php';        // ti_account_log() — nieudane próby uczestnika
+require_once dirname(dirname(__DIR__)) . '/includes/ti_student_otp.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_sec_image.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_student_reauth.php';
+require_once __DIR__ . '/kursant/auth.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ti_login/logic/TiLogin.php';
 
 karty30_migrate();
+ti_sec_image_migrate();
+ti_reauth_migrate();
 
-// Linki do stron TI jako ścieżki od korzenia: na ti.* i kursant.* ta strona działa pod /login.php,
-// więc względne „sso.php” prowadziło do /sso.php (404).
 $TI_BASE = rtrim((string)(parse_url(APP_URL, PHP_URL_PATH) ?: ''), '/') . '/karty30/ti/';
 
-// ── Komunikaty błędów ─────────────────────────────────────────────────────────
+$hint = in_array($_GET['tab'] ?? '', ['kursant', 'dydaktyk', 'rodzic', 'up', 'kandydat'], true) ? (string)$_GET['tab'] : '';
+if ($hint === 'kandydat') { header('Location: /nabor/logowanie', true, 302); exit; }
+
 $ERR = [
-    1 => 'Błędny login lub hasło.',
-    2 => 'Rodzic lub opiekun wstrzymał dostęp do panelu.',
-    3 => 'Konto jest wyłączone. Napisz do prowadzącego.',
-    4 => 'To konto nie ma dostępu do panelu prowadzącego.',
-    5 => 'Za dużo prób. Spróbuj za kilka minut.',
-    6 => 'Błędny login lub hasło rodzica.',
-    7 => 'Błędny login lub hasło.',
+    2 => 'Rodzic lub opiekun wstrzymał dostęp do panelu. Skontaktuj się z nim.',
+    4 => 'To konto Microsoft 365 nie ma dostępu do panelu prowadzącego. Napisz do kierownika.',
+    5 => TiLogin::ERROR_THROTTLE,
 ];
-$ec    = (int)($_GET['e'] ?? 0);
-$error = $ERR[$ec] ?? null;
+$ec     = (int)($_GET['e'] ?? 0);
+$error  = $ec > 0 ? ($ERR[$ec] ?? TiLogin::ERROR) : null;
+$notice = ($_GET['out'] ?? '') === '1' ? 'Wylogowano z panelu.' : null;
+$login  = '';
+$view   = 'form';
+$choiceItems = []; $choiceNonce = '';
 
-// ── Aktywna zakładka i krok ───────────────────────────────────────────────────
-$tab   = in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up','kandydat'], true) ? $_GET['tab'] : 'kursant';
-$krok1 = false;   // układ portalowy: role w zakładkach nad formularzem, domyślnie kursant (dawny krok 1 z kaflami usunięty)
-// Kandydaci (nabór) mają własną stronę logowania — stare linki ?tab=kandydat prowadzą tam.
-if ($tab === 'kandydat') { header('Location: /nabor/logowanie', true, 302); exit; }
+$go = static function (string $url): void { header('Location: ' . $url, true, 303); exit; };
 
-// ── Prefill pól po błędzie ────────────────────────────────────────────────────
-$prefill_login = h($_GET['l'] ?? '');
-// ── Kadra (tylko Microsoft 365) ─────────────────────────────────────────────────────────────────────
-// Kadra loguje się wyłącznie przez Microsoft 365: logowanie MS365 → mostek office_enter.php zakłada sesję panelu dydaktyka.
-$office_login_url = rtrim(APP_URL, '/') . '/auth/ms365.php?redirect='
-    . urlencode(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/office_enter.php');
-// Zakładka kadry = od razu logowanie Microsoft 365 (bez strony pośredniej). Zostajemy tylko przy błędzie
-// (e=4 „brak uprawnień” z office_enter → bez tego pętla MS365 → odmowa → MS365) albo z ?stay=1.
-if ($tab === 'dydaktyk' && $ec === 0 && empty($_GET['stay'])) {
-    header('Location: ' . $office_login_url); exit;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wybor'])) {
+    // Krok 2 przy kolizji: wybrany panel (konta zapamiętane w sesji po poprawnym haśle).
+    $c = TiLogin::pendingChoice();
+    $i = (int)$_POST['wybor'];
+    if (!$c || !hash_equals((string)$c['nonce'], (string)($_POST['nonce'] ?? '')) || !isset($c['items'][$i])) {
+        $error = 'Czas na wybór panelu minął. Zaloguj się ponownie.';
+    } else {
+        TiLogin::clearChoice();
+        $url = TiLogin::completePanel($c['items'][$i], (string)$c['login']);
+        if ($url !== null) $go($url);
+        $error = TiLogin::ERROR;
+    }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $login = trim((string)($_POST['login'] ?? ($_POST['email'] ?? '')));
+    $pass  = (string)($_POST['password'] ?? '');
+    $error = null;
+
+    if ($login === '' || mb_strlen($login) > 190) {
+        $error = 'Wpisz login lub adres e-mail.';
+    } elseif (TiLogin::isOfficeLogin($login)) {
+        // Konta Microsoft 365 organizacji — tylko logowanie Microsoft (reguła po domenie, bez sprawdzania hasła).
+        $go(TiLogin::officeUrl());
+    } elseif (TiLogin::throttled($login)) {
+        $error = TiLogin::ERROR_THROTTLE;
+    } elseif (TiLogin::isStaffLogin($login)) {
+        // Kadra hasłem (konta panelowe spoza domeny Microsoft 365) → obowiązkowe TOTP w panelu dydaktyka.
+        require_once __DIR__ . '/dydaktyk/auth.php';
+        $url = TiLogin::completeStaff($login, $pass);
+        if ($url !== null) { TiLogin::clearAttempts($login); $go($url); }
+        TiLogin::recordAttempt($login);
+        $error = TiLogin::ERROR;
+    } else {
+        $r = TiLogin::resolvePanelAccounts($login, $pass);
+        $usable = array_values(array_filter($r['matches'], fn($m) => empty($m['blocked'])));
+        if (count($usable) === 1) {
+            TiLogin::clearAttempts($login);
+            $url = TiLogin::completePanel($usable[0], $login);
+            if ($url !== null) $go($url);
+            $error = TiLogin::ERROR;
+        } elseif (count($usable) > 1) {
+            TiLogin::clearAttempts($login);
+            $choiceItems = $usable;
+            $choiceNonce = TiLogin::stashChoice($login, $usable);
+            $view = 'choice';
+        } elseif ($r['matches']) {
+            // Hasło poprawne, ale uczestnik ma wstrzymany dostęp przez opiekuna — mówimy o tym dopiero po haśle.
+            TiLogin::clearAttempts($login);
+            $error = $ERR[2];
+        } elseif ($r['reauth']) {
+            // Pierwsze logowanie / ponowna autoryzacja uczestnika: kod SMS (liczony do limitu prób — chroni przed zalewem SMS-ów).
+            TiLogin::recordAttempt($login);
+            $url = TiLogin::startReauth($r['reauth']);
+            if ($url !== null) $go($url);
+            $error = TiLogin::ERROR;
+        } else {
+            TiLogin::recordAttempt($login);
+            $error = TiLogin::ERROR;
+        }
+    }
+} elseif ($ec === 0 && $notice === null) {
+    // Podpowiedź dla wejść ze starych adresów (dawne zakładki ról) — formularz i tak jest jeden.
+    $notice = [
+        'dydaktyk' => 'Kadra: zaloguj się przez Microsoft 365 albo wpisz adres e-mail konta panelu.',
+        'rodzic'   => 'Rodzic lub opiekun: wpisz login rodzica (np. j.kowalski-r) i hasło. Bez hasła — kod SMS w „Inne sposoby logowania”.',
+        'up'       => 'Osoba upoważniona: wpisz login od uczestnika (np. a.nowak-up) i hasło.',
+    ][$hint] ?? null;
 }
 
-// Lewa kolumna: instrukcja zależna od roli.
-$_side = [
-    'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
-        ? ['Wybierz, kim jesteś.', 'Wpisz login z SMS-a.', 'Pierwsze hasło to kod z SMS-a.']
-        : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Sprawdź, czy widzisz swój obrazek.', 'Wpisz hasło.'],
-    'dydaktyk' => ['Wybierz „Prowadzący / kadra”.', 'Kadra loguje się tylko kontem Microsoft 365.', 'Po zalogowaniu otworzy się panel prowadzącego.'],
-    'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login rodzica.', 'Wpisz hasło albo zaloguj się kodem SMS.'],
-    'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło od kursanta.'],
-];
-$_side_steps = $krok1 ? $_side['kursant'] : $_side[$tab];
-
-$_titles = [
-    'kursant'  => 'Panel kursanta',
-    'dydaktyk' => 'Panel prowadzącego',
-    'rodzic'   => 'Panel rodzica',
-    'up'       => 'Dostęp upoważnionego',
-];
-$_tabs = [
-    'kursant'  => ['label' => 'Kursant',     'icon' => 'bi-pc-display',   'who' => 'Uczestnik zajęć',                  'kolor' => '#0f6fa8'],
-    'dydaktyk' => ['label' => 'Prowadzący',  'icon' => 'bi-easel2',       'who' => 'Prowadzę zajęcia',                 'kolor' => '#1d1d1d'],
-    'rodzic'   => ['label' => 'Rodzic',      'icon' => 'bi-people',       'who' => 'Opiekun kursanta',                 'kolor' => '#00a300'],
-    'up'       => ['label' => 'Upoważniony', 'icon' => 'bi-person-check', 'who' => 'Osoba upoważniona przez kursanta', 'kolor' => '#7e3878'],
-];
-// Krok 1 z podziałem wg roli (kto) i funkcji (co robi): każdy kafel to rola ($tab) + funkcja (fn),
-// która podpowiada login (kursant) albo tryb pracy po zalogowaniu (prowadzący/konsultant → choose_mode.php).
-$_fn = in_array($_GET['fn'] ?? '', ['szkolenia', 'szk', 'konsultacje', 'kierownik'], true) ? (string)$_GET['fn'] : '';
-$_groups = [
-    ['title' => 'Uczestnicy', 'items' => [
-        ['tab' => 'kursant', 'fn' => 'szkolenia',   'kolor' => '#0f6fa8', 'icon' => 'bi-pc-display',       'label' => 'Uczestnik szkoleń',          'who' => 'Chodzę na zajęcia w grupie'],
-        ['tab' => 'kursant', 'fn' => 'szk',         'kolor' => '#0c5b8a', 'icon' => 'bi-lightning-charge', 'label' => 'Uczestnik szkolenia krótkiego', 'who' => 'Uczę się na krótkim szkoleniu (SzK)'],
-        ['tab' => 'kursant', 'fn' => 'konsultacje', 'kolor' => '#2b6cb0', 'icon' => 'bi-clipboard2-check', 'label' => 'Beneficjent konsultacji',    'who' => 'Mam umówioną konsultację'],
-    ]],
-    ['title' => 'Rodzina i osoby bliskie', 'items' => [
-        ['tab' => 'rodzic',  'fn' => '',            'kolor' => '#00a300', 'icon' => 'bi-people',           'label' => 'Rodzic / opiekun',         'who' => 'Opiekuję się dzieckiem, które tu się uczy'],
-        ['tab' => 'up',      'fn' => '',            'kolor' => '#7e3878', 'icon' => 'bi-person-check',     'label' => 'Osoba upoważniona',        'who' => 'Kursant dał mi dostęp do swoich spraw'],
-    ]],
-    ['title' => 'Kadra', 'items' => [
-        ['tab' => 'dydaktyk', 'fn' => 'szkolenia',   'kolor' => '#1d1d1d', 'icon' => 'bi-easel2',           'label' => 'Prowadzący zajęcia',       'who' => 'Prowadzę grupy i uzupełniam dziennik'],
-        ['tab' => 'dydaktyk', 'fn' => 'konsultacje', 'kolor' => '#3b3b3b', 'icon' => 'bi-chat-square-text', 'label' => 'Konsultant',               'who' => 'Umawiam i prowadzę konsultacje'],
-        ['tab' => 'dydaktyk', 'fn' => 'kierownik',   'kolor' => '#5b5b5b', 'icon' => 'bi-building',         'label' => 'Kierownik',                'who' => 'Zarządzam całą placówką'],
-    ]],
-];
-// Zapamiętany wybór funkcji przez prowadzącego — panel ustawia tryb pracy po zalogowaniu (choose_mode.php czyta cookie)
-if ($tab === 'dydaktyk' && in_array($_fn, ['szkolenia', 'konsultacje', 'kierownik'], true)) {
-    setcookie('ti_login_fn', $_fn, ['expires' => time() + 600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-}
-$_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z SMS-a lub wydruku',
-                  'konsultacje' => 'Login z SMS-a po umówieniu konsultacji'][$_fn] ?? 'Login lub własny alias';
-?><!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h($krok1 ? 'Logowanie — Dydaktyka 3' : $_titles[$tab] . ' — Logowanie') ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<?php include dirname(__DIR__, 2) . '/modules/ti/view/portal/_style.php'; ?>
-<style>
-  /* Formularze ról — w stylu portalu (pp-): pola bez zaokrągleń, żółty przycisk „Zaloguj się” */
-  .pp-form .form-control { border-radius: 0; box-shadow: none; padding: .6rem .8rem; font-size: 1rem; border-color: var(--pp-line); }
-  .pp-form .form-control:focus { border-color: var(--pp-blue); outline: 3px solid var(--pp-yellow); }
-  .pp-form label { font-weight: 600; font-size: 1.02rem; margin-bottom: .55rem; }
-  .tz-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 200px; padding: .5rem 1.5rem; border: 0; border-radius: 0;
-            background: var(--pp-yellow); color: var(--pp-blue); font-weight: 600; text-decoration: none; }
-  .tz-btn:hover { filter: brightness(.95); color: var(--pp-blue); }
-  .tz-btn-ghost { background: #fff; color: var(--pp-blue); border: 2px solid var(--pp-blue); }
-  .tz-tile { display: block; height: 100%; padding: 1rem; text-decoration: none; color: #fff; }
-  .tz-tile:hover { color: #fff; filter: brightness(.92); }
-  .tz-choice { position: relative; padding: 1rem 1.1rem; min-height: 88px; }
-  .tz-choice-badge { position: absolute; top: .6rem; right: .6rem; background: #fff; color: #1d1d1d; font-size: .75rem; font-weight: 700; padding: .1rem .45rem; }
-  .tz-hint { font-size: .85rem; color: var(--pp-muted); margin-top: .75rem; }
-  .pass-wrap { position: relative; } .pass-wrap .form-control { padding-right: 3rem; }
-  /* Wybór roli: trzy główne kafle + rozwijane „Inne sposoby logowania” */
-  .tz-roles { margin: 0 0 1.6rem; }
-  .tz-roles ul { list-style: none; margin: 0; padding: 0; }
-  .tz-roles-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
-  .tz-role { display: flex; align-items: center; gap: .8rem; height: 100%; padding: .85rem 1rem; background: #fff; border: 2px solid var(--pp-line);
-             border-top: 5px solid var(--pp-line); color: var(--pp-ink) !important; text-decoration: none; }
-  .tz-role:hover { border-color: var(--pp-blue); background: #f5f9fc; }
-  .tz-role:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
-  .tz-role[aria-current="page"] { border-color: var(--pp-blue); background: #e8f2f9; }
-  .tz-role > .bi { font-size: 1.6rem; color: var(--pp-blue); flex-shrink: 0; }
-  .tz-role-t { display: block; font-weight: 600; font-size: 1.05rem; }
-  .tz-role-d { display: block; font-size: .85rem; color: var(--pp-muted); }
-  .tz-roles-more { margin-top: .9rem; }
-  .tz-roles-more > summary { cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; color: #0b5f91; font-weight: 600; padding: .2rem 0; }
-  .tz-roles-more > summary:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
-  .tz-roles-more > summary .tz-roles-sel { color: var(--pp-muted); font-weight: 400; }
-  .tz-roles-more ul { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
-  .tz-roles-more a { display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .8rem; border: 1px solid var(--pp-line); background: #fff; color: var(--pp-ink) !important; text-decoration: none; }
-  .tz-roles-more a:hover { border-color: var(--pp-blue); }
-  .tz-roles-more a:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
-  .tz-roles-more a[aria-current="page"] { border-color: var(--pp-blue); background: #e8f2f9; font-weight: 600; }
-  .tz-roles-note { display: flex; gap: .5rem; align-items: baseline; margin: .9rem 0 0; padding: .6rem .8rem; background: #f3f6f9; border-left: 4px solid var(--pp-blue); font-size: .95rem; }
-  .tz-roles-note .bi { color: var(--pp-blue); }
-  .tz-sub { margin: 0 0 1.1rem; }
-  .tz-sub ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem; }
-  .tz-sub a { display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .8rem; border: 1px solid var(--pp-line); background: #fff; color: var(--pp-ink) !important; text-decoration: none; }
-  .tz-sub a:hover { border-color: var(--pp-blue); }
-  .tz-sub a:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
-  .tz-sub a[aria-current="page"] { border-color: var(--pp-blue); background: var(--pp-blue); color: #fff !important; font-weight: 600; }
-  .pass-toggle { position: absolute; right: 0; top: 0; height: 100%; width: 3rem; border: 0; background: transparent; }
-</style>
-</head>
-<body class="pp">
-<?php
-$ppTitle = 'Panel Kursanta SSO'; $ppOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER')); $ppCrumb = 'Logowanie';
-$ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
-include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
-// Zakładki: rola (tab) + opcjonalnie funkcja (fn) — szkolenie krótkie i konsultacje logują się jak kursant, z własną podpowiedzią
-// Maksymalnie 3 kafle: kursant (z wyborem rodzaju zajęć w panelu), prowadzący, rodzic. [etykieta, tab, fn, ikona, opis]
-$_ppRoles = [
-    'kursant'     => ['Kursant', 'kursant', '', 'bi-pc-display', 'Zajęcia, szkolenie krótkie, konsultacje'],
-    'dydaktyk'    => ['Prowadzący / kadra', 'dydaktyk', '', 'bi-easel2', 'Konto Microsoft 365'],
-    'rodzic'      => ['Rodzic / opiekun', 'rodzic', '', 'bi-people', 'Opiekun kursanta'],
-];
-// Panel Kursanta: rodzaj zajęć (ten sam formularz, inna podpowiedź loginu i opis obok).
-$_ppKursantFn = ['' => ['Zajęcia w grupie', 'bi-people-fill'], 'szk' => ['Szkolenie krótkie', 'bi-lightning-charge'], 'konsultacje' => ['Konsultacje', 'bi-clipboard2-check']];
-$_ppMore = [
-    'up'          => ['Osoba upoważniona', 'up', '', 'bi-person-check'],
-];
-$_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) ? $_fn : $tab;
-$_ppUrl = fn($t, $f) => 'login.php?tab=' . $t . ($f !== '' ? '&amp;fn=' . $f : '');
-?>
-<main id="pp-main" class="pp-wrap">
-  <h1 class="pp-h1">Wybierz sposób logowania</h1>
-  <nav class="tz-roles" aria-label="Kim jesteś">
-    <ul class="tz-roles-main">
-      <?php foreach ($_ppRoles as $_rk => [$_rl, $_rt, $_rf, $_ri, $_rd]): ?>
-      <li><a class="tz-role" href="<?= $_ppUrl($_rt, $_rf) ?>"<?= $tab === $_rk ? ' aria-current="page"' : '' ?>>
-        <i class="bi <?= $_ri ?>" aria-hidden="true"></i><span><span class="tz-role-t"><?= h($_rl) ?></span><span class="tz-role-d"><?= h($_rd) ?></span></span></a></li>
-      <?php endforeach; ?>
-    </ul>
-    <details class="tz-roles-more"<?= isset($_ppMore[$_ppActive]) ? ' open' : '' ?>>
-      <summary>Inne sposoby logowania<?php if (isset($_ppMore[$_ppActive])): ?> <span class="tz-roles-sel">(wybrano: <?= h($_ppMore[$_ppActive][0]) ?>)</span><?php endif; ?></summary>
-      <ul>
-        <?php foreach ($_ppMore as $_rk => [$_rl, $_rt, $_rf, $_ri]): ?>
-        <li><a href="<?= $_ppUrl($_rt, $_rf) ?>"<?= $_ppActive === $_rk ? ' aria-current="page"' : '' ?>><i class="bi <?= $_ri ?>" aria-hidden="true"></i><?= h($_rl) ?></a></li>
-        <?php endforeach; ?>
-      </ul>
-    </details>
-    <p class="tz-roles-note"><i class="bi bi-person-badge" aria-hidden="true"></i><span>Kandydat na zajęcia (zapisy)? Logowanie kandydatów jest na osobnej stronie:
-      <a href="/nabor/logowanie">Logowanie kandydata</a>.</span></p>
-  </nav>
-  <?php if ($error): ?><div class="pp-error" role="alert" aria-live="assertive"><?= h($error) ?></div><?php endif; ?>
-  <?php if (!$error && ($_GET['out'] ?? '') === '1'): ?><div class="pp-ok" role="status">Wylogowano z panelu. Aby wejść ponownie, zaloguj się przez Microsoft 365.</div><?php endif; ?>
-  <div class="pp-cols">
-    <div class="pp-form">
-      <p class="tz-hint mt-0 mb-3"><?= h(implode(' ', array_slice($_side[$tab], 1))) ?></p>
-      <?php if ($tab === 'kursant'): ?>
-      <nav class="tz-sub" aria-label="Rodzaj zajęć">
-        <ul>
-          <?php foreach ($_ppKursantFn as $_kf => [$_kl, $_ki]): $_kcur = ($_kf === '' ? !in_array($_fn, ['szk', 'konsultacje'], true) : $_fn === $_kf); ?>
-          <li><a href="<?= $_ppUrl('kursant', $_kf) ?>"<?= $_kcur ? ' aria-current="page"' : '' ?>><i class="bi <?= $_ki ?>" aria-hidden="true"></i><?= h($_kl) ?></a></li>
-          <?php endforeach; ?>
-        </ul>
-      </nav>
-      <form method="post" action="<?= h(rtrim(APP_URL, '/')) ?>/tozsamosc/kursant.php" autocomplete="on">
-        <div class="mb-3">
-          <label for="stu-login">Login</label>
-          <div class="d-flex align-items-start gap-3">
-            <div class="flex-grow-1 min-w-0">
-              <input type="text" class="form-control form-control-lg" id="stu-login" name="login"
-                     value="<?= $prefill_login ?>" required autofocus autocomplete="username"
-                     placeholder="<?= h($_kursant_hint) ?>"
-                     <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
-            </div>
-            <div class="d-flex align-items-center gap-2" id="stu-sec" style="display:none;max-width:11rem" aria-live="polite">
-              <div id="stu-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
-              <div class="small" id="stu-sec-label"></div>
-            </div>
-          </div>
-        </div>
-        <div class="mb-4">
-          <label for="stu-password">Hasło</label>
-          <div class="pass-wrap">
-            <input type="password" class="form-control form-control-lg" id="stu-password" name="password" autocomplete="current-password">
-            <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" onclick="tzPokaz('stu-password', this)">
-              <i class="bi bi-eye" aria-hidden="true"></i>
-            </button>
-          </div>
-          <div class="form-text">Pierwsze hasło to kod z SMS-a.</div>
-        </div>
-        <button type="submit" class="tz-btn">Dalej</button>
-      </form>
-      <?php if (org_setting('ti_nabor_enabled') === '1'): ?>
-      <p class="tz-hint">Nie masz konta? <a href="/nabor">Zapisz się na zajęcia</a>. Zgłoszenie sprawdzisz w <a href="/nabor/logowanie">koncie kandydata</a>.</p>
-      <?php else: ?>
-      <p class="tz-hint">Nie masz konta? <a href="<?= h($TI_BASE) ?>zapisy.php">Zostaw kontakt</a> — odezwiemy się.</p>
-      <?php endif; ?>
-      <?php if (k30_pfron_enabled()): ?>
-      <a href="kursant/pfron.php" class="tz-btn tz-btn-ghost mt-3">Rozliczenia PFRON (Aktywny Samorząd)</a>
-      <?php endif; ?>
-
-      <?php elseif ($tab === 'dydaktyk'): ?>
-      <?php /* Kadra (prowadzący, konsultanci, kierownik) loguje się wyłącznie przez Microsoft 365 — bez formularza hasła */ ?>
-        <a class="tz-btn" href="<?= h($office_login_url) ?>"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Zaloguj przez Microsoft 365</a>
-        <p class="tz-hint">Użyj konta @feer.org.pl.</p>
-
-      <?php elseif ($tab === 'rodzic'): ?>
-      <form method="post" action="kursant/parent_login.php" autocomplete="on">
-        <div class="mb-3">
-          <label for="par-login">Login rodzica/opiekuna</label>
-          <input type="text" class="form-control form-control-lg" id="par-login" name="login"
-                 value="<?= $prefill_login ?>" required autofocus autocomplete="username"
-                 placeholder="Login opiekuna nadany w placówce"
-                 <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
-          <p class="tz-hint">Login dostajesz od placówki.</p>
-        </div>
-        <div class="mb-4">
-          <label for="par-password">Hasło</label>
-          <div class="pass-wrap">
-            <input type="password" class="form-control form-control-lg" id="par-password" name="password"
-                   required autocomplete="current-password">
-            <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" onclick="tzPokaz('par-password', this)">
-              <i class="bi bi-eye" aria-hidden="true"></i>
-            </button>
-          </div>
-        </div>
-        <button type="submit" class="tz-btn">Zaloguj się</button>
-      </form>
-      <p class="tz-hint">Nie masz hasła? Zaloguj się kodem SMS.</p>
-      <a href="kursant/parent.php" class="tz-btn tz-btn-ghost mt-2">Logowanie kodem SMS</a>
-
-      <?php else: /* up */ ?>
-      <form method="post" action="kursant/authp_login.php" autocomplete="on">
-        <div class="mb-3">
-          <label for="up-login">Login osoby upoważnionej</label>
-          <input type="text" class="form-control form-control-lg" id="up-login" name="login"
-                 value="<?= $prefill_login ?>" required autofocus autocomplete="username"
-                 placeholder="Login nadany przez kursanta"
-                 <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
-          <p class="tz-hint">Login i hasło da Ci kursant.</p>
-        </div>
-        <div class="mb-4">
-          <label for="up-password">Hasło</label>
-          <div class="pass-wrap">
-            <input type="password" class="form-control form-control-lg" id="up-password" name="password"
-                   required autocomplete="current-password">
-            <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" onclick="tzPokaz('up-password', this)">
-              <i class="bi bi-eye" aria-hidden="true"></i>
-            </button>
-          </div>
-        </div>
-        <button type="submit" class="tz-btn">Zaloguj się</button>
-      </form>
-      <p class="tz-hint">Zobaczysz rozliczenia, obecności i plan zajęć kursanta.</p>
-      <?php endif; ?>
-    </div>
-
-    <aside aria-labelledby="pp-alt-h" class="pp-note">
-      <?php if ($tab === 'dydaktyk'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Kadra</strong> — prowadzący, konsultanci i kierownik — loguje się tylko kontem Microsoft 365.</p>
-        <p>Nie masz konta @feer.org.pl? Napisz do kierownika.</p>
-      <?php elseif ($tab === 'rodzic'): ?>
-        <p id="pp-alt-h" style="margin:0 0 .3rem">Nie masz hasła albo go nie pamiętasz?</p>
-        <a class="pp-alt" href="kursant/parent.php"><i class="bi bi-chat-dots" aria-hidden="true"></i> Zaloguj kodem SMS</a>
-        <p>Kod przyjdzie na telefon rodzica.</p>
-      <?php elseif ($tab === 'up'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Osoba upoważniona</strong> widzi rozliczenia, obecności i plan zajęć kursanta, który dał jej dostęp.</p>
-      <?php elseif ($_ppActive === 'szk'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong>Szkolenie krótkie (SzK)</strong> — dla uczestników krótkich szkoleń.</p>
-        <p>Login dostaniesz SMS-em albo od prowadzącego.</p>
-        <p>Pierwsze hasło to kod z SMS-a. Potem ustawisz własne.</p>
-        <p>Potem sprawdzaj swój obrazek. Widzisz inny? Nie wpisuj hasła.</p>
-      <?php elseif ($_ppActive === 'konsultacje'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong>Konsultacje</strong> — masz umówioną konsultację.</p>
-        <p>Login dostaniesz SMS-em, np. <span style="font-family:monospace">k1234</span>.</p>
-        <p>Pierwsze hasło to kod z SMS-a. Potem ustawisz własne.</p>
-        <p>W panelu są terminy, notatki i materiały.</p>
-      <?php else: ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Twój obrazek.</strong> Po wpisaniu loginu zobaczysz swój obrazek (czytnik ekranu go opisze). Widzisz inny albo żaden? Nie wpisuj hasła.</p>
-        <p>Pierwsze hasło to kod z SMS-a. Potem ustawisz własne.</p>
-      <?php endif; ?>
-      <div style="border-top:1px solid var(--pp-line);margin-top:1.4rem;padding-top:1.1rem">
-        <strong style="color:var(--pp-ink)">Nie masz jeszcze konta?</strong><br>
-        <?php if (org_setting('ti_nabor_enabled') === '1'): ?><a href="/nabor">Zapisz dziecko na zajęcia</a> · <?php endif; ?><a href="/nabor/rejestracja">Załóż konto kandydata</a>
-      </div>
-    </aside>
-  </div>
-</main>
-<?php
-$ppFootLinks = ['Co nowego w panelu' => $TI_BASE . 'nowosci.php', 'Czym jest SSO' => $TI_BASE . 'sso.php', 'Strona Fundacji FEER' => 'https://feer.org.pl',
-                'Panel współpracownika' => rtrim(APP_URL, '/') . '/panel/index.php', 'Logowanie do systemu (SZO)' => rtrim(APP_URL, '/') . '/auth/login.php'];
-include dirname(__DIR__, 2) . '/modules/ti/view/portal/_footer.php';
-?>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-// Pokazywanie/ukrywanie hasła (dostępne z klawiatury, z aria-pressed).
-function tzPokaz(id, btn) {
-  var p = document.getElementById(id);
-  if (!p) return;
-  var pokaz = p.type === 'password';
-  p.type = pokaz ? 'text' : 'password';
-  btn.setAttribute('aria-pressed', pokaz ? 'true' : 'false');
-  btn.setAttribute('aria-label', pokaz ? 'Ukryj hasło' : 'Pokaż hasło');
-}
-(function () {
-  // Obrazek bezpieczeństwa kursanta po wpisaniu loginu.
-  var inp = document.getElementById('stu-login'), box = document.getElementById('stu-sec');
-  var img = document.getElementById('stu-sec-img'), lbl = document.getElementById('stu-sec-label');
-  if (!inp || !box) return;
-  function pokaz() {
-    var v = inp.value.trim();
-    if (!v) { box.style.display = 'none'; return; }
-    fetch('<?= APP_URL ?>/karty30/ti/kursant/sec_image.php?login=' + encodeURIComponent(v), { credentials: 'omit', cache: 'no-store' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) { img.innerHTML = j.svg; lbl.textContent = j.label; box.style.display = 'flex'; })
-      .catch(function () { box.style.display = 'none'; });
-  }
-  // Obrazek pojawia się od razu podczas pisania (z krótką przerwą), nie dopiero po wyjściu z pola.
-  var t = null;
-  inp.addEventListener('input', function () { clearTimeout(t); t = setTimeout(pokaz, 300); });
-  inp.addEventListener('change', pokaz);
-  inp.addEventListener('blur', pokaz);
-})();
-</script>
-</body>
-</html>
+$formAction = TiLogin::url();
+$officeUrl  = TiLogin::officeUrl();
+$pfronOn    = k30_pfron_enabled();
+$naborOn    = org_setting('ti_nabor_enabled') === '1';
+header('Cache-Control: no-store');
+include dirname(dirname(__DIR__)) . '/modules/ti_login/view/loginPage.php';

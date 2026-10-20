@@ -493,6 +493,12 @@ function authp_login(string $login, string $pass): bool {
     if (!password_verify($pass, $row['password_hash'])) return false;
     // Tylko dla pełnoletnich kursantów
     if (!empty($row['is_minor'])) return false;
+    authp_start_session($row);
+    return true;
+}
+
+/** Sesja osoby upoważnionej po sprawdzeniu hasła (wiersz k30_ti_authorized_persons + client_id kursanta). */
+function authp_start_session(array $row): void {
     db()->prepare("UPDATE k30_ti_authorized_persons SET last_login=datetime('now') WHERE id=?")
        ->execute([(int)$row['id']]);
     student_start();
@@ -503,7 +509,6 @@ function authp_login(string $login, string $pass): bool {
         'name'       => $row['name'],
         'ts'         => time(),
     ];
-    return true;
 }
 
 function authp_logout(): void {
