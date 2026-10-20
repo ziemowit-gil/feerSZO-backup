@@ -85,7 +85,8 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
             <td><?php if ($open): ?><input type="checkbox" class="form-check-input usp-cb" name="zid[]" value="<?= (int)$z['id'] ?>" data-kwota="<?= h((string)_edok_kwota_float($z['kwota'])) ?>"
                    <?= $z['status'] === 'do_zaplaty' ? 'checked' : '' ?> aria-label="<?= h($z['sfp'] . ' ' . $okres) ?>"><?php endif; ?></td>
             <td><a class="tw-font-medium" href="<?= h(route('usp.show', ['id' => $z['id']])) ?>"><?= h($z['sfp']) ?></a>
-              <?php if ($z['zalacznik_path']): ?><i class="bi bi-paperclip tw-text-slate-400" title="ma załącznik" aria-label="ma załącznik"></i><?php endif; ?></td>
+              <?php if ($z['zalacznik_path']): ?><i class="bi bi-paperclip tw-text-slate-400" title="deklaracja" aria-label="ma deklarację"></i><?php endif; ?>
+              <?php if ($z['wyliczenie_path'] ?? ''): ?><i class="bi bi-calculator tw-text-slate-400" title="wyliczenie" aria-label="ma wyliczenie"></i><?php endif; ?></td>
             <td class="tw-whitespace-nowrap"><?= h($okres) ?></td>
             <td class="tw-whitespace-nowrap tw-text-right tw-font-semibold"><?= $money($z['kwota']) ?></td>
             <td class="tw-whitespace-nowrap <?= $late ? 'tw-font-semibold tw-text-red-700' : '' ?>"><?= h(date('d.m.Y', strtotime($z['termin']))) ?><?= $late ? ' <span class="badge text-bg-danger">po terminie</span>' : '' ?></td>

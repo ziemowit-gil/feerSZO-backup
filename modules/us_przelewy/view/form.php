@@ -92,11 +92,14 @@ $swieta = array_merge(uspSwieta((int)date('Y')), uspSwieta((int)date('Y') + 1), 
           </select>
           <?php if ($edokDoc): ?><div class="form-text"><a href="<?= h(APP_URL) ?>/edok/view.php?id=<?= (int)$edokDoc['id'] ?>">Otwórz <?= h($edokDoc['number']) ?></a></div><?php endif; ?>
         </div>
+        <div class="col-md-6"></div>
+        <?php foreach (USP_ZALACZNIKI as $field => $label): ?>
         <div class="col-md-6">
-          <label for="u-zal" class="form-label fw-semibold small">Załącznik (deklaracja, wyliczenie)</label>
-          <input id="u-zal" name="zalacznik" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx">
-          <?php if (!empty($z['zalacznik_path'])): ?><div class="form-text"><a href="<?= h(route('usp.plik', ['id' => $id, 'co' => 'zalacznik'])) ?>"><i class="bi bi-paperclip" aria-hidden="true"></i> <?= h($z['zalacznik_nazwa'] ?: 'załącznik') ?></a> — nowy plik zastąpi obecny.</div><?php endif; ?>
+          <label for="u-<?= h($field) ?>" class="form-label fw-semibold small"><?= h($label) ?> (załącznik)</label>
+          <input id="u-<?= h($field) ?>" name="<?= h($field) ?>" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx" aria-describedby="u-<?= h($field) ?>-h">
+          <div class="form-text" id="u-<?= h($field) ?>-h"><?php if (!empty($z[$field . '_path'])): ?><a href="<?= h(route('usp.plik', ['id' => $id, 'co' => $field])) ?>"><i class="bi bi-paperclip" aria-hidden="true"></i> <?= h($z[$field . '_nazwa'] ?: mb_strtolower($label)) ?></a> — nowy plik zastąpi obecny.<?php else: ?><?= $field === 'wyliczenie' ? 'Np. zestawienie z płac lub arkusz, z którego wynika kwota.' : 'Np. PDF deklaracji z e-Deklaracji / KSeF.' ?><?php endif; ?></div>
         </div>
+        <?php endforeach; ?>
         <div class="col-12">
           <label for="u-uwagi" class="form-label fw-semibold small">Uwagi</label>
           <textarea id="u-uwagi" name="uwagi" class="form-control" rows="2"><?= h((string)($z['uwagi'] ?? '')) ?></textarea>

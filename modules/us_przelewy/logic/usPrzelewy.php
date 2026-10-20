@@ -78,6 +78,11 @@ function uspMigrate(): void {
         created_at      TEXT,
         updated_at      TEXT
     )");
+    // Drugi załącznik: wyliczenie kwoty (obok deklaracji w zalacznik_*).
+    _edok_add_columns($db, 'us_zobowiazania', [
+        'wyliczenie_path'  => "TEXT NOT NULL DEFAULT ''",
+        'wyliczenie_nazwa' => "TEXT NOT NULL DEFAULT ''",
+    ]);
     $db->exec("CREATE INDEX IF NOT EXISTS idx_us_zob_status ON us_zobowiazania(status, termin)");
     $db->exec("CREATE TABLE IF NOT EXISTS us_zobowiazania_log (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -373,12 +378,23 @@ function uspValidate(array $post, int $id = 0): array {
     return [$d, $errors, $dup];
 }
 
-/** Załącznik (deklaracja, wyliczenie) z pola „zalacznik”. Zwraca [ścieżka, nazwa] albo null, gdy nic nie wysłano; string = błąd. */
-function uspUpload(): array|string|null {
-    if (empty($_FILES['zalacznik']['tmp_name'])) return null;
-    $path = handle_upload('zalacznik', 'us_przelewy');
-    if (!$path) return 'Nie udało się zapisać załącznika (PDF, JPG, PNG, DOCX, max 20 MB).';
-    return [$path, mb_substr(basename((string)$_FILES['zalacznik']['name']), 0, 200)];
+/** Załączniki zobowiązania: pole formularza = prefiks kolumn {pole}_path / {pole}_nazwa. */
+const USP_ZALACZNIKI = ['zalacznik' => 'Deklaracja', 'wyliczenie' => 'Wyliczenie'];
+
+/**
+ * Wysłane załączniki (deklaracja, wyliczenie). Zwraca kolumny do zapisu ({pole}_path, {pole}_nazwa) — puste,
+ * gdy nic nie wysłano; string = błąd (pierwszy nieudany plik).
+ */
+function uspUpload(): array|string {
+    $out = [];
+    foreach (USP_ZALACZNIKI as $field => $label) {
+        if (empty($_FILES[$field]['tmp_name'])) continue;
+        $path = handle_upload($field, 'us_przelewy');
+        if (!$path) return 'Nie udało się zapisać pliku „' . $label . '” (PDF, JPG, PNG, DOCX, max 20 MB).';
+        $out[$field . '_path']  = $path;
+        $out[$field . '_nazwa'] = mb_substr(basename((string)$_FILES[$field]['name']), 0, 200);
+    }
+    return $out;
 }
 
 function uspCreate(array $d, array $user): int {
@@ -394,7 +410,7 @@ function uspUpdate(int $id, array $d): void {
     if (($d['termin'] ?? $old['termin']) !== $old['termin']) $d['przypomniano'] = ''; // nowy termin — przypomnienia od nowa
     db_update('us_zobowiazania', $d, $id);
     $zm = [];
-    foreach (['kwota' => 'kwota', 'termin' => 'termin', 'rachunek' => 'rachunek', 'txt' => 'opis'] as $k => $l) {
+    foreach (['kwota' => 'kwota', 'termin' => 'termin', 'rachunek' => 'rachunek', 'txt' => 'opis', 'zalacznik_nazwa' => 'deklaracja', 'wyliczenie_nazwa' => 'wyliczenie'] as $k => $l) {
         if (array_key_exists($k, $d) && (string)$old[$k] !== (string)$d[$k]) $zm[] = $l . ': ' . ($old[$k] ?: '—') . ' → ' . ($d[$k] ?: '—');
     }
     uspLog($id, 'zmieniono', $zm ? implode('; ', $zm) : 'zapisano bez zmian kwoty/terminu');

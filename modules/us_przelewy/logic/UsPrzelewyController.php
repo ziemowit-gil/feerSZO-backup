@@ -32,13 +32,13 @@ final class UsPrzelewyController
     public function store(): ?string {
         uspMigrate();
         [$d, $errors, $dup] = uspValidate($_POST);
-        $up = $errors ? null : uspUpload();
+        $up = $errors ? [] : uspUpload();
         if (is_string($up)) $errors[] = $up;
         if ($errors) {
             flash_set('warning', implode(' ', $errors));
             return $this->form(['id' => 0, 'status' => 'do_zaplaty'] + $_POST, $dup);
         }
-        if (is_array($up)) [$d['zalacznik_path'], $d['zalacznik_nazwa']] = $up;
+        $d += $up;
         $id = uspCreate($d, current_user() ?: []);
         flash_set('success', 'Dodano zobowiązanie ' . $d['sfp'] . ' za ' . uspOkresLabel($d['okres_typ'], $d['okres_rok'], $d['okres_nr']) . '.');
         return Router::redirect(route('usp.show', ['id' => $id]));
@@ -60,13 +60,13 @@ final class UsPrzelewyController
             return Router::redirect(route('usp.show', ['id' => $id]));
         }
         [$d, $errors, $dup] = uspValidate($_POST, $id);
-        $up = $errors ? null : uspUpload();
+        $up = $errors ? [] : uspUpload();
         if (is_string($up)) $errors[] = $up;
         if ($errors) {
             flash_set('warning', implode(' ', $errors));
             return $this->form(array_merge($z, $_POST, ['id' => $id]), $dup);
         }
-        if (is_array($up)) [$d['zalacznik_path'], $d['zalacznik_nazwa']] = $up;
+        $d += $up;
         uspUpdate($id, $d);
         flash_set('success', 'Zapisano zobowiązanie.');
         return Router::redirect(route('usp.show', ['id' => $id]));
@@ -93,18 +93,19 @@ final class UsPrzelewyController
         return null;
     }
 
-    /** Pobranie zapisanego pliku przelewu albo załącznika (?co=plik|zalacznik). */
+    /** Pobranie zapisanego pliku przelewu albo załącznika (?co=plik|zalacznik|wyliczenie). */
     public function plik(int $id): ?string {
         uspMigrate();
         $z = uspGet($id);
-        $zal = ($_GET['co'] ?? '') === 'zalacznik';
-        $rel = $z ? (string)($zal ? $z['zalacznik_path'] : $z['plik_path']) : '';
+        $co  = (string)($_GET['co'] ?? '');
+        $zal = isset(USP_ZALACZNIKI[$co]);
+        $rel = $z ? (string)($zal ? $z[$co . '_path'] : $z['plik_path']) : '';
         $abs = $rel !== '' ? rtrim(UPLOAD_DIR, '/') . '/' . $rel : '';
         if ($abs === '' || !is_file($abs)) {
             flash_set('warning', 'Nie ma zapisanego pliku.');
             return Router::redirect($z ? route('usp.show', ['id' => $id]) : route('usp.index'));
         }
-        $nazwa = $zal ? ($z['zalacznik_nazwa'] ?: basename($rel)) : $z['plik_nazwa'];
+        $nazwa = $zal ? ($z[$co . '_nazwa'] ?: basename($rel)) : $z['plik_nazwa'];
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . str_replace('"', '', $nazwa) . '"');
         header('Content-Length: ' . filesize($abs));
