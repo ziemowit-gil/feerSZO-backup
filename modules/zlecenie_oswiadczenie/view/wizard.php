@@ -89,7 +89,9 @@ $radio = function (string $k, string $legend, array $opts, string $hint = '') us
       <?= $text('telefon', 'Telefon', !empty($a['_need_contact']), '', 'autocomplete="tel" inputmode="tel"') ?>
     </div>
   </fieldset>
-  <?= $text('kod_zawodu', 'Kod zawodu', false, 'Nieobowiązkowe: 6 cyfr według klasyfikacji zawodów i specjalności. Jeśli nie znasz kodu, zostaw puste — uzupełni Fundacja.', 'inputmode="numeric" maxlength="6"') ?>
+  <?= $text('kod_zawodu', 'Kod zawodu', false, 'Nieobowiązkowe. Wpisz nazwę zawodu (np. „kelner”) albo początek kodu i wybierz z podpowiedzi — zapiszemy 6-cyfrowy kod z klasyfikacji zawodów i specjalności. Jeśli nie wiesz, zostaw puste — uzupełni Fundacja.', 'list="kzis-list" autocomplete="off" maxlength="200"') ?>
+  <datalist id="kzis-list"></datalist>
+  <p class="small muted" id="kzis-name" aria-live="polite" style="margin:-6px 0 12px"><?= ($_kz = OswForm::zawodLabel($v('kod_zawodu'))) !== '' ? 'Wybrany zawód: ' . h($_kz) : '' ?></p>
 
 <?php elseif ($n === 2): ?>
   <p class="muted">Adres zamieszkania dla celów podatkowych — tam, gdzie mieszkasz, a nie adres zameldowania, jeśli jest inny.</p>
@@ -215,6 +217,29 @@ $radio = function (string $k, string $legend, array $opts, string $hint = '') us
       if (d.length >= 6 && banks[d.substr(2, 4)] && (bank.value === '' || bank.dataset.auto === '1')) { bank.value = banks[d.substr(2, 4)]; bank.dataset.auto = '1'; }
     });
     bank.addEventListener('input', function () { bank.dataset.auto = ''; });
+  }
+  // Kod zawodu: podpowiedzi z klasyfikacji zawodów i specjalności (Słownik Centralny, słownik kzis)
+  var kz = document.getElementById('f-kod_zawodu'), kl = document.getElementById('kzis-list'), kn = document.getElementById('kzis-name');
+  if (kz && kl) {
+    var kt = 0, names = {};
+    kz.addEventListener('input', function () {
+      clearTimeout(kt);
+      var q = kz.value.trim(), m = q.match(/^(\d{6})(?!\d)/);
+      if (m && names[m[1]] && kn) kn.textContent = 'Wybrany zawód: ' + names[m[1]];
+      if (q.length < 2 || m) return;
+      kt = setTimeout(function () {
+        fetch(<?= json_encode(OswService::url('zawody')) ?> + '?q=' + encodeURIComponent(q), {credentials: 'same-origin'})
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            kl.innerHTML = '';
+            (Array.isArray(d) ? d : []).forEach(function (z) {
+              names[z.code] = z.label;
+              var o = document.createElement('option'); o.value = z.code + ' ' + z.label; kl.appendChild(o);
+            });
+            if (kn) kn.textContent = d.length ? 'Podpowiedzi: ' + d.length + ' — wybierz zawód z listy.' : 'Brak zawodu o takiej nazwie — spróbuj innego słowa.';
+          }).catch(function () {});
+      }, 250);
+    });
   }
 })();
 </script>

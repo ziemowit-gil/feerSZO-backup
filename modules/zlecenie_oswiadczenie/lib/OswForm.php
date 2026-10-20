@@ -73,7 +73,8 @@ final class OswForm
         if (isset($out['pesel']))   $out['pesel'] = preg_replace('/\D/', '', $out['pesel']);
         if (isset($out['nrb']))     $out['nrb'] = strtoupper(preg_replace('/[\s-]/', '', $out['nrb']));
         if (isset($out['adr_kod'])) $out['adr_kod'] = preg_replace('/^(\d{2})(\d{3})$/', '$1-$2', $out['adr_kod']);
-        if (isset($out['kod_zawodu'])) $out['kod_zawodu'] = preg_replace('/\s/', '', $out['kod_zawodu']);
+        // Podpowiedź z listy ma postać „513101 Kelner” — zapisujemy sam kod
+        if (isset($out['kod_zawodu'])) $out['kod_zawodu'] = preg_match('/^(\d{6})(?!\d)/', $out['kod_zawodu'], $m) ? $m[1] : $out['kod_zawodu'];
         if (isset($out['email']))   $out['email'] = mb_strtolower($out['email']);
         if (isset($out['telefon'])) $out['telefon'] = self::phoneNorm($out['telefon']);
         if (!empty($out['brak_pesel'])) $out['pesel'] = '';
@@ -105,7 +106,9 @@ final class OswForm
                     $req('dokument', 'Podaj rodzaj i numer dokumentu tożsamości (np. paszport AB1234567).');
                 }
                 if (!in_array($a['plec'] ?? '', ['k', 'm', 'obie'], true)) $e['plec'] = 'Wybierz formy, w jakich oświadczenie ma być wypełnione.';
-                if (($a['kod_zawodu'] ?? '') !== '' && !preg_match('/^\d{6}$/', (string)$a['kod_zawodu'])) $e['kod_zawodu'] = 'Kod zawodu ma 6 cyfr (klasyfikacja zawodów i specjalności). Jeśli go nie znasz, zostaw puste.';
+                $kz = (string)($a['kod_zawodu'] ?? '');
+                if ($kz !== '' && !preg_match('/^\d{6}$/', $kz)) $e['kod_zawodu'] = 'Wybierz zawód z podpowiedzi albo wpisz 6 cyfr kodu (klasyfikacja zawodów i specjalności). Jeśli go nie znasz, zostaw puste.';
+                elseif ($kz !== '' && self::zawodyAll() && self::zawodLabel($kz) === '') $e['kod_zawodu'] = 'Nie ma kodu ' . $kz . ' w klasyfikacji zawodów i specjalności 2025 — wybierz zawód z podpowiedzi albo zostaw puste.';
                 // Publiczny kreator: na e-mail wyślemy link do konta, telefon — do kontaktu w sprawie umowy
                 $need = !empty($a['_need_contact']);
                 $em = (string)($a['email'] ?? '');
@@ -279,7 +282,7 @@ final class OswForm
             1 => [['Nazwisko i imiona', $a['nazwisko_imiona'] ?? ''], ['Data urodzenia', self::pl((string)($a['data_urodzenia'] ?? ''))],
                   ['Obywatelstwo', $a['obywatelstwo'] ?? ''],
                   !empty($a['brak_pesel']) ? ['PESEL', 'nie posiadam — ' . ($a['dokument'] ?? '')] : ['PESEL', $a['pesel'] ?? ''],
-                  ['Kod zawodu', ($a['kod_zawodu'] ?? '') ?: '— (uzupełni Fundacja)'], ['Formy w oświadczeniu', $plec],
+                  ['Kod zawodu', ($a['kod_zawodu'] ?? '') !== '' ? trim($a['kod_zawodu'] . ' ' . self::zawodLabel((string)$a['kod_zawodu'])) : '— (uzupełni Fundacja)'], ['Formy w oświadczeniu', $plec],
                   ['E-mail', ($a['email'] ?? '') ?: '—'], ['Telefon', ($a['telefon'] ?? '') ?: '—']],
             2 => [['Adres zamieszkania dla celów podatkowych', self::addressLine($a)],
                   ['Województwo / powiat / gmina', trim(($a['adr_wojewodztwo'] ?? '') . ' / ' . ($a['adr_powiat'] ?? '') . ' / ' . ($a['adr_gmina'] ?? ''))],
@@ -293,5 +296,47 @@ final class OswForm
             5 => [['Numer rachunku', self::nrbFormat((string)($a['nrb'] ?? ''))], ['Bank', $a['bank_nazwa'] ?? ''],
                   ['Posiadacz rachunku', $a['posiadacz'] ?? ''], ['Miejscowość', $a['zlb_miejscowosc'] ?? '']],
         ];
+    }
+
+    /**
+     * Zawody (6 cyfr) ze słownika `kzis` Słownika Centralnego — klasyfikacja zawodów i specjalności 2025.
+     * Pusta tablica, gdy słownika jeszcze nie ma (wtedy kod sprawdzany tylko co do formatu).
+     * @return array<string,string> kod => nazwa
+     */
+    public static function zawodyAll(): array
+    {
+        static $map = null;
+        if ($map !== null) return $map;
+        require_once dirname(__DIR__, 2) . '/dictionary/lib/dictionaryApi.php';
+        $map = [];
+        foreach (dictItems('kzis') as $k => $it) if (($it['attributes']['poziom'] ?? '') === 'zawod') $map[(string)$k] = $it['label'];
+        return $map;
+    }
+
+    public static function zawodLabel(string $code): string
+    {
+        return self::zawodyAll()[$code] ?? '';
+    }
+
+    /**
+     * Podpowiedzi kodu zawodu: cyfry → kody od nich zaczynające się, tekst → nazwy zawierające wszystkie słowa
+     * (najpierw te, które od niego się zaczynają).
+     * @return list<array{code:string,label:string}>
+     */
+    public static function zawody(string $q, int $limit = 15): array
+    {
+        $q = trim(mb_strtolower(preg_replace('/\s+/u', ' ', $q) ?? ''));
+        if (mb_strlen($q) < 2) return [];
+        $digits = (bool)preg_match('/^\d+$/', $q);
+        $words = explode(' ', $q);
+        $first = $rest = [];
+        foreach (self::zawodyAll() as $code => $label) {
+            $l = mb_strtolower($label);
+            if ($digits) { if (str_starts_with((string)$code, $q)) $first[] = ['code' => (string)$code, 'label' => $label]; continue; }
+            foreach ($words as $w) if (!str_contains($l, $w)) continue 2;
+            if (str_starts_with($l, $q)) $first[] = ['code' => (string)$code, 'label' => $label];
+            else $rest[] = ['code' => (string)$code, 'label' => $label];
+        }
+        return array_slice(array_merge($first, $rest), 0, $limit);
     }
 }

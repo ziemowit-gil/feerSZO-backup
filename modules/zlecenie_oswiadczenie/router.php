@@ -60,6 +60,12 @@ $r->group([],       fn(Router $r) => $wizard($r, 'a', 'account'), '/zlecenie/kon
 $pub = fn() => new OswController('public');
 $r->get('/zlecenie',                  fn() => $pub()->publicStart())->name('osw.public');
 $r->post('/zlecenie',                 fn() => $pub()->publicCreate());
+// Podpowiedzi kodu zawodu (słownik kzis — dane publiczne, tylko odczyt)
+$r->get('/zlecenie/zawody', function () {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: public, max-age=3600');
+    echo json_encode(OswForm::zawody((string)($_GET['q'] ?? '')), JSON_UNESCAPED_UNICODE);
+})->name('osw.zawody');
 $r->get('/zlecenie/konto',            fn() => $pub()->accountHome())->name('osw.account');
 $r->get('/zlecenie/konto/logowanie',  fn() => $pub()->loginForm())->name('osw.login');
 $r->post('/zlecenie/konto/logowanie', fn() => $pub()->login());

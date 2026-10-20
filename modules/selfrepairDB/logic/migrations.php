@@ -326,4 +326,16 @@ return [
         },
     ],
 
+    // Klasyfikacja zawodów i specjalności 2025 (Dz. U. poz. 1534, stan na 27 XI 2025) jako słownik systemowy `kzis`:
+    // grupa wielka → duża → średnia → elementarna → zawód (6 cyfr), atrybuty poziom i szkolny (znacznik „s”).
+    // Seed wyciągnięty z PDF MRPiPS (psz.praca.gov.pl); używa go pole „Kod zawodu” kreatora oświadczeń zleceniobiorcy.
+    '2026-10_dictionary_kzis' => [
+        'desc' => 'Słownik Centralny: klasyfikacja zawodów i specjalności 2025 (kody zawodów)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import((string)file_get_contents($ROOT . '/modules/dictionary/lib/seeds/kzis2025.json'), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', array_slice($r['errors'], 0, 5)));
+        },
+    ],
+
 ];
