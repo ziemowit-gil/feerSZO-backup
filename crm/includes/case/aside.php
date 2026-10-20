@@ -1,6 +1,7 @@
 <?php
 /**
- * crm/includes/case/aside.php — Prawa szpalta widoku sprawy: status, aktywność, współdzielenie, EZD.
+ * crm/includes/case/aside.php — Pas paneli nad zakładkami sprawy (dawniej prawa szpalta): status, aktywność,
+ * prowadzenie, współdzielenie, EZD — siatka .cv-strip, na szerokim ekranie obok siebie, na wąskim jeden pod drugim.
  *
  * Wydzielone z crm/cases/view.php: plik miał 2279 wiersze i zmiana w jednej
  * sekcji wymagała przewijania przez wszystkie pozostałe.
@@ -10,11 +11,13 @@
  */
 if (!isset($case)) { http_response_code(400); exit; }
 ?>
-<!-- ══ ASIDE: status, aktywność, współdzielenie, EZD ════════════════════════ -->
-<div class="col-lg-4">
+<!-- ══ PAS PANELI: status, aktywność, prowadzenie, współdzielenie, EZD ══════════ -->
+<div class="col-12"><div class="cv-strip">
+<?php $_cvp = [];   // panele zbierane buforem i pokazywane jako zakładki: [klucz, etykieta, ikona, HTML] ?>
 
   <!-- Status -->
   <?php if ($can_write): ?>
+  <?php ob_start(); ?>
   <div class="cv-panel" id="status"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-flag cv-shead__icon" aria-hidden="true"></i>
@@ -42,9 +45,11 @@ if (!isset($case)) { http_response_code(400); exit; }
       </form>
     </div>
   </div>
+  <?php $_cvp[] = ['status', 'Status', 'bi-flag', ob_get_clean()]; ?>
   <?php endif; ?>
 
   <!-- Aktywność -->
+  <?php ob_start(); ?>
   <div class="cv-panel"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-clock-history cv-shead__icon" aria-hidden="true"></i>
@@ -81,6 +86,7 @@ if (!isset($case)) { http_response_code(400); exit; }
       </div>
     </div>
   </div>
+  <?php $_cvp[] = ['aktywnosc', 'Aktywność', 'bi-clock-history', ob_get_clean()]; ?>
 
   <!-- Prowadzenie sprawy: kto, do kiedy, jaki typ i jak z SLA -->
   <?php
@@ -97,6 +103,7 @@ if (!isset($case)) { http_response_code(400); exit; }
         default  => 'color:#2E844A',
     };
   ?>
+  <?php ob_start(); ?>
   <div class="cv-panel" id="prowadzenie"><div class="cv-panel__body">
     <div class="cv-shead">
       <i class="bi bi-person-workspace cv-shead__icon" aria-hidden="true"></i>
@@ -178,9 +185,11 @@ if (!isset($case)) { http_response_code(400); exit; }
     </div>
     <?php endif; ?>
   </div></div>
+  <?php $_cvp[] = ['prowadzenie', 'Prowadzenie', 'bi-person-workspace', ob_get_clean()]; ?>
 
   <!-- Współdzielenie -->
   <?php if ($can_manage_shares || $shares): ?>
+  <?php ob_start(); ?>
   <div class="cv-panel" id="share"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-people cv-shead__icon" aria-hidden="true"></i>
@@ -256,10 +265,12 @@ if (!isset($case)) { http_response_code(400); exit; }
       <?php endif; ?>
     </div>
   </div>
+  <?php $_cvp[] = ['share', 'Współdzielenie', 'bi-people', ob_get_clean()]; ?>
   <?php endif; ?>
 
   <!-- EZD -->
   <?php if (module_enabled('ezd_enabled')): ?>
+  <?php ob_start(); ?>
   <div class="cv-panel" id="ezd"><div class="cv-panel__body">
       <div class="cv-shead">
         <i class="bi bi-folder2-open cv-shead__icon" aria-hidden="true"></i>
@@ -318,6 +329,36 @@ if (!isset($case)) { http_response_code(400); exit; }
       <?php endif; ?>
     </div>
   </div>
+  <?php $_cvp[] = ['ezd', 'EZD', 'bi-folder2-open', ob_get_clean()]; ?>
+  <?php endif; ?>
+
+  <?php if ($_cvp): $_cvp_ids = array_map(fn($x) => $x[0], $_cvp); ?>
+  <ul class="nav cv-tabs mb-2" id="caseSideTabs" role="tablist" aria-label="Status, prowadzenie i powiązania sprawy">
+    <?php foreach ($_cvp as $_i => [$_k, $_l, $_ic]): ?>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link<?= $_i === 0 ? ' active' : '' ?>" id="cvp-<?= $_k ?>-btn" data-bs-toggle="tab" data-bs-target="#cvp-<?= $_k ?>" type="button" role="tab"
+              aria-controls="cvp-<?= $_k ?>" aria-selected="<?= $_i === 0 ? 'true' : 'false' ?>"><i class="bi <?= $_ic ?>" aria-hidden="true"></i><?= h($_l) ?></button>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+  <div class="tab-content mb-1">
+    <?php foreach ($_cvp as $_i => [$_k, $_l, , $_html]): ?>
+    <div class="tab-pane fade<?= $_i === 0 ? ' show active' : '' ?>" id="cvp-<?= $_k ?>" role="tabpanel" aria-labelledby="cvp-<?= $_k ?>-btn" tabindex="0"><?= $_html ?></div>
+    <?php endforeach; ?>
+  </div>
+  <script>
+  /* Zakładki paneli sprawy: po zapisie formularza (#status, #prowadzenie, #share, #ezd) otwórz właściwą; pamiętaj ostatni wybór. */
+  (function () {
+    if (typeof bootstrap === 'undefined') return;
+    var ids = <?= json_encode($_cvp_ids) ?>, key = 'crmCaseSideTab';
+    function show(k) { var b = document.getElementById('cvp-' + k + '-btn'); if (b) { bootstrap.Tab.getOrCreateInstance(b).show(); return true; } return false; }
+    var h = (location.hash || '').slice(1);
+    if (!(h && ids.indexOf(h) >= 0 && show(h))) { try { var s = localStorage.getItem(key); if (s && ids.indexOf(s) >= 0) show(s); } catch (e) {} }
+    document.querySelectorAll('#caseSideTabs [data-bs-toggle="tab"]').forEach(function (b) {
+      b.addEventListener('shown.bs.tab', function () { try { localStorage.setItem(key, b.id.replace(/^cvp-|-btn$/g, '')); } catch (e) {} });
+    });
+  })();
+  </script>
   <?php endif; ?>
 
   <!-- Linki -->
@@ -333,4 +374,4 @@ if (!isset($case)) { http_response_code(400); exit; }
     </a>
   </div>
 
-</div><!-- /col-4 -->
+</div></div><!-- /cv-strip -->

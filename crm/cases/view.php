@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         } catch (\Throwable $e) {
             flash_set('danger', 'Nie udało się zapisać.');
         }
-        header('Location: view.php?id=' . $id); exit;
+        header('Location: view.php?id=' . $id . '#prowadzenie'); exit;
     }
 
     // Zadania sprawy to zadania WŁASNE CRM (includes/crm_tasks.php), nie wiersze
@@ -478,6 +478,10 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
 
 <style>
+/* Panele sprawy nad główną treścią (crm/includes/case/aside.php): zakładki Status / Aktywność / Prowadzenie / Współdzielenie / EZD */
+.cv-strip .tab-pane > .cv-panel { margin-bottom:0; }
+.cv-strip > .d-flex.flex-column { flex-direction:row !important; flex-wrap:wrap; justify-content:flex-end; margin-top:.6rem; }   /* linki: jeden rząd */
+#caseSideTabs { overflow-x:auto; flex-wrap:nowrap; }
 .case-note { background:#FFFBEA;border:1px solid #FDE68A;border-radius:8px;padding:.8rem 1rem;margin-bottom:.6rem }
 .case-note-body { font-size:.9rem;color:#181818;white-space:pre-wrap;word-break:break-word }
 .case-note-meta { font-size:.78rem;color:#5E6470;margin-top:.4rem }
@@ -693,8 +697,10 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
 <div class="row g-3">
 
-<!-- ══ GŁÓWNA: notatki / pisma / pliki w zakładkach ═══════════════════════════ -->
-<div class="col-lg-8">
+<?php include dirname(__DIR__) . '/includes/case/aside.php'; ?>
+
+<!-- ══ GŁÓWNA: notatki / pisma / pliki w zakładkach — na całą szerokość ═══════════ -->
+<div class="col-12">
 
   <ul class="nav cv-tabs mb-3" id="caseTabs" role="tablist">
     <li class="nav-item" role="presentation">
@@ -758,8 +764,6 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <?php include dirname(__DIR__) . '/includes/case/tabs_work.php'; ?>
   </div><!-- /tab-content -->
 </div><!-- /główna -->
-
-<?php include dirname(__DIR__) . '/includes/case/aside.php'; ?>
 </div><!-- /row -->
 
 <?php include dirname(__DIR__) . '/includes/case/modal_pismo.php'; ?>
