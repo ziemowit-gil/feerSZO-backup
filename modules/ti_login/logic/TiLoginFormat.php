@@ -192,4 +192,99 @@ final class TiLoginFormat
         if (function_exists('audit_log')) { try { audit_log('ti.login_format_migration', ['count' => count($done), 'sms' => $sms], $by ?: null); } catch (\Throwable $e) {} }
         return $done;
     }
+
+    // ── E-mail „nowe dane logowania” (szablon edytowalny: admin/tiLoginyMail.php) ──────────────────────────────
+
+    public const MAIL_SUBJECT_DEFAULT = 'Ważne: nowy sposób logowania do panelu kursanta {organizacja}';
+    public const MAIL_BODY_DEFAULT = <<<TXT
+Dzień dobry {imie_nazwisko},
+
+dbając o bezpieczeństwo danych i dalszy rozwój naszych usług, wprowadzamy ujednolicone zasady logowania do panelu kursanta {organizacja}.
+
+Dlaczego wprowadzamy tę zmianę?
+• Bezpieczeństwo i prywatność (RODO) — nowe, uporządkowane loginy nie ujawniają zbędnych danych osobowych.
+• Jasne role — z loginu od razu wynika, z jakiego rodzaju konta korzysta dana osoba.
+• Sprawniejsza obsługa — jednolity standard ułatwia pomoc techniczną i automatyzację.
+
+Nowe formaty loginów:
+• Prowadzący (dydaktyk): logowanie kontem Microsoft 365
+• Kursant: imię.nazwisko albo numer kursanta
+• Uczestnik szkoleń krótkich i konsultacji (SzK): 4 cyfry + litera „k” (np. 1234k)
+• Rodzic / opiekun: 4 cyfry + litera „r” (np. 1234r)
+• Osoba upoważniona: 4 cyfry + litera „u” (np. 1234u)
+
+📌 Twój login ({rodzaj_konta}): {login}
+Hasło pozostaje bez zmian. Poprzedni login już nie działa.
+
+Logowanie: {adres_logowania}
+
+W razie pytań lub trudności technicznych jesteśmy do dyspozycji.
+
+Z poważaniem
+Zespół {organizacja}
+TXT;
+    public const MAIL_PLACEHOLDERS = ['{imie_nazwisko}' => 'imię i nazwisko odbiorcy', '{login}' => 'nowy login', '{rodzaj_konta}' => 'kursant / SzK / rodzic / osoba upoważniona',
+                                      '{adres_logowania}' => 'strona logowania TI', '{organizacja}' => 'krótka nazwa organizacji'];
+
+    public static function mailTemplate(): array
+    {
+        $g = fn($k) => function_exists('org_setting') ? trim((string)org_setting($k)) : '';
+        return ['subject' => $g('ti_login_mail_subject') ?: self::MAIL_SUBJECT_DEFAULT, 'body' => $g('ti_login_mail_body') ?: self::MAIL_BODY_DEFAULT];
+    }
+
+    public static function mailRender(string $tpl, array $r): string
+    {
+        $org = (function_exists('org_setting') ? (string)org_setting('org_short_name') : '') ?: 'Fundacji FEER';
+        return strtr($tpl, ['{imie_nazwisko}' => (string)$r['name'], '{login}' => (string)$r['login'], '{rodzaj_konta}' => (string)$r['kind_label'],
+                            '{adres_logowania}' => function_exists('tiPanelUrl') ? tiPanelUrl('ti', 'login.php') : '', '{organizacja}' => $org]);
+    }
+
+    private static function mailLogMigrate(): void
+    {
+        db()->exec("CREATE TABLE IF NOT EXISTS ti_login_mail_log (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, ref_id INTEGER NOT NULL,
+                    email TEXT NOT NULL, login TEXT NOT NULL, sent_by INTEGER, sent_at DATETIME NOT NULL)");
+    }
+
+    /** Odbiorcy: kursant / SzK (e-mail klienta), rodzic (guardian_email), osoba upoważniona — z bieżącym loginem i informacją, czy już wysłano. */
+    public static function mailRecipients(): array
+    {
+        self::mailLogMigrate();
+        $sent = [];
+        foreach (db_all("SELECT kind, ref_id, login FROM ti_login_mail_log") as $x) $sent[$x['kind'] . ':' . $x['ref_id'] . ':' . $x['login']] = true;
+        $out = [];
+        foreach (db_all("SELECT a.id, a.login, a.parent_login, a.guardian_name, a.guardian_email, a.simple_mode, a.is_active, c.name, c.email
+                           FROM k30_ti_student_accounts a LEFT JOIN k30_clients c ON c.id = a.client_id WHERE a.is_active = 1 ORDER BY c.name") as $a) {
+            $szk = self::isSzk($a);
+            $out[] = ['kind' => $szk ? 'szk' : 'student', 'kind_label' => $szk ? 'uczestnik SzK / konsultacji' : 'kursant', 'ref_id' => (int)$a['id'],
+                      'name' => (string)$a['name'], 'email' => trim((string)$a['email']), 'login' => (string)$a['login']];
+            if (trim((string)$a['parent_login']) !== '')
+                $out[] = ['kind' => 'parent', 'kind_label' => 'rodzic / opiekun', 'ref_id' => (int)$a['id'], 'name' => (string)($a['guardian_name'] ?: 'Rodzic/opiekun: ' . $a['name']),
+                          'email' => trim((string)$a['guardian_email']), 'login' => (string)$a['parent_login']];
+        }
+        try {
+            foreach (db_all("SELECT id, name, email, login FROM k30_ti_authorized_persons WHERE is_active = 1 AND revoked_at IS NULL ORDER BY name") as $p)
+                $out[] = ['kind' => 'authp', 'kind_label' => 'osoba upoważniona', 'ref_id' => (int)$p['id'], 'name' => (string)$p['name'], 'email' => trim((string)$p['email']), 'login' => (string)$p['login']];
+        } catch (\Throwable $e) {}
+        foreach ($out as &$r) $r['sent'] = isset($sent[$r['kind'] . ':' . $r['ref_id'] . ':' . $r['login']]);
+        unset($r);
+        return $out;
+    }
+
+    /** Wysyłka (kolejka poczty) do odbiorców z e-mailem; $resend=false pomija wysłane już na ten sam login. @return array{sent:int,skipped:int,no_email:int} */
+    public static function mailSend(bool $resend, int $by): array
+    {
+        require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+        $t = self::mailTemplate();
+        $c = ['sent' => 0, 'skipped' => 0, 'no_email' => 0];
+        foreach (self::mailRecipients() as $r) {
+            if (!filter_var($r['email'], FILTER_VALIDATE_EMAIL)) { $c['no_email']++; continue; }
+            if ($r['sent'] && !$resend) { $c['skipped']++; continue; }
+            $body = self::mailRender($t['body'], $r);
+            mail_queue_add($r['email'], $r['name'], self::mailRender($t['subject'], $r), nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8')), $body, 'ti_login_notice', $r['ref_id']);
+            db_insert('ti_login_mail_log', ['kind' => $r['kind'], 'ref_id' => $r['ref_id'], 'email' => $r['email'], 'login' => $r['login'], 'sent_by' => $by ?: null, 'sent_at' => date('Y-m-d H:i:s')]);
+            $c['sent']++;
+        }
+        if (function_exists('audit_log')) { try { audit_log('ti.login_mail_sent', $c + ['resend' => $resend], $by ?: null); } catch (\Throwable $e) {} }
+        return $c;
+    }
 }

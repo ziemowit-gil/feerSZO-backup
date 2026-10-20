@@ -150,6 +150,7 @@ $groups = [
             ['icon'=>'bi-people',               'label'=>'Użytkownicy',              'url'=>'/admin/users.php',              'tile'=>true, 'badge'=>$cnt['users'] ?: null, 'badge_type'=>'secondary', 'kw'=>'konta loginy hasła'],
             ['icon'=>'bi-shield-lock',          'label'=>'Role i uprawnienia',       'url'=>'/admin/roles.php',              'tile'=>true, 'kw'=>'role uprawnienia dostęp'],
             ['icon'=>'bi-door-open',            'label'=>'Metody logowania',         'url'=>'/admin/login_settings.php',     'tile'=>true, 'kw'=>'logowanie 2fa office'],
+            ['icon'=>'bi-envelope-paper',       'label'=>'E-mail: nowe dane logowania TI', 'url'=>'/admin/tiLoginyMail.php',  'kw'=>'login loginy nowy format kursant rodzic mail wysyłka'],
             ['icon'=>'bi-person-badge',         'label'=>'Podszywanie',              'url'=>'/admin/impersonate.php',        'tile'=>true, 'kw'=>'impersonacja zaloguj jako'],
             ['icon'=>'bi-person-bounding-box',  'label'=>'Zdjęcia profilowe',        'url'=>'/admin/avatars.php',            'tile'=>true, 'badge'=>$cnt['pending_avatars'] ?: null, 'badge_type'=>'warning', 'kw'=>'awatary zdjęcia akceptacja'],
             ...(org_setting('allow_standalone_vol_accounts') === '1' ? [
