@@ -130,6 +130,70 @@ function strat_org_seed(PDO $pdo): void {
     }
 }
 
+// ── Statut § 3 ust. 1 — formy realizacji celów Fundacji ─────────────────────
+// Wpisy słownika punktów statutu w Strategii (strat_statute_refs, kod „§ 3 ust. 1 pkt N”) i w Słowniku Centralnym
+// (STRAT_STATUTE_DICT, kody p01…p29). Zasiew: selfrepairDB 2026-10_strategy_statute_p3. Pkt 29 jest ucięty w źródle —
+// uzupełnij pełną treść w Słowniku Centralnym i w ustawieniach Strategii.
+const STRAT_STATUTE_DICT = 'statut_formy_realizacji';
+const STRAT_STATUTE_P3_U1 = [
+    1 => 'prowadzenie działalności wydawniczej',
+    2 => 'organizację spotkań, konferencji dotyczących wykluczenia społecznego osób z niepełnosprawnościami oraz osób starszych',
+    3 => 'organizację prezentacji, spotkań poświęconych technologiom wspomagającym osoby z niepełnosprawnościami',
+    4 => 'prowadzenie działalności dydaktycznej',
+    5 => 'propagowanie aktywnego i zdrowego stylu życia, krzewienie idei samorozwoju',
+    6 => 'pomoc finansową, edukacyjną, rzeczową, terapeutyczną i psychologiczną dla beneficjentów Fundacji',
+    7 => 'wspieranie, organizowanie i współorganizowanie wszelkich inicjatyw i działań mających na celu pomoc osobom społecznie wykluczonym, chorym, w trudnej sytuacji życiowej, z niepełnosprawnościami',
+    8 => 'wsparcie merytoryczne, organizacyjne i finansowe wszelkich inicjatyw i działań mających na celu pomoc osobom z niepełnosprawnościami, społecznie wykluczonym, chorym, w trudnej sytuacji życiowej',
+    9 => 'organizowanie warsztatów terapii zajęciowej',
+    10 => 'organizację i współorganizację warsztatów, kursów, szkoleń, prelekcji, wykładów, konferencji, wystaw, prezentacji, konkursów i festiwali o zakresie lokalnym, ogólnokrajowym i międzynarodowym',
+    11 => 'działalność wirtualną (online) propagującą i upowszechniającą wiedzę i promującą cele Fundacji',
+    12 => 'opracowywanie, wydawanie oraz rozpowszechnianie wszelkiego rodzaju wydawnictw, publikacji i innych form medialnych istotnych ze względu na cele Fundacji',
+    13 => 'prowadzenie zajęć edukacji, działalności kulturalnej, artystycznej dla dzieci, młodzieży i dorosłych',
+    14 => 'promowanie zdrowego oraz aktywnego stylu życia, rozwijanie pasji oraz działań hobbistycznych',
+    15 => 'wspieranie, organizowanie, prowadzenie oraz promocję zatrudnienia, w tym poprzez zdobywanie i rozwój kompetencji zawodowych',
+    16 => 'występowanie do organów władzy publicznej w kwestiach istotnych z punktu widzenia celów statutowych Fundacji',
+    17 => 'wspieranie osób pochodzących z ubogich środowisk, w tym poprzez edukację i wychowanie',
+    18 => 'przyznawanie nagród, stypendiów i dotacji',
+    19 => 'udział w przedsięwzięciach zgodnych z celami statutowymi Fundacji',
+    20 => 'współpracę z organami administracji rządowej, organami władzy samorządowej i lokalnej, jak również biznesem, klubami i ośrodkami kulturalnymi, organizacjami gospodarczymi, podmiotami leczniczymi, jak również innymi fundacjami, stowarzyszeniami, grupami wolontaryjnymi, ilekroć działalność tych podmiotów pozostaje zbieżna z działalnością Fundacji lub może przyczyniać się do urzeczywistniania jej celów',
+    21 => 'prowadzenie działalności informacyjnej o wszelkich formach działań własnych Fundacji bądź innych podmiotów nakierowanych na osiągnięcie celów Fundacji, w tym poprzez tworzenie i udostępnianie stron internetowych i serwisów internetowych, baz danych, upowszechnianie wyników badań naukowych, analiz i innych oraz prowadzenie bądź współprowadzenie społecznych kampanii informacyjnych i propagandowych oraz organizowanie i prowadzenie konferencji, seminariów i wizyt studyjnych',
+    22 => 'pozyskiwanie funduszy i środków we wszystkich formach dopuszczalnych prawem służących urzeczywistnianiu celów statutowych przez Fundację, samodzielnie jak i we współpracy z innymi podmiotami, jak również fundowanie nagród i stypendiów dla beneficjentów Fundacji',
+    23 => 'podejmowanie działań w celu wspierania organizacji pozarządowych, społeczności lokalnych, podmiotów ekonomii społecznej, gospodarki i przedsiębiorczości w szczególności poprzez wspieranie i organizację inicjatyw o charakterze edukacyjnym, wychowawczym i kulturalnym',
+    24 => 'podnoszenie świadomości społeczeństwa w zakresie wyrównywania barier edukacyjnych i społecznych',
+    25 => 'lobbing oraz wyrażanie opinii wśród przedstawicieli władz ustawodawczych i wykonawczych wszystkich szczebli oraz władz samorządowych w zakresie realizacji celów statutowych Fundacji',
+    26 => 'promowanie i popularyzowanie działań charytatywnych oraz wolontaryjnych',
+    27 => 'działalność na rzecz współpracy biznesu, edukacji, sektora NGO, sektora publicznego',
+    28 => 'finansowanie działań i projektów związanych z działalnością pożytku publicznego',
+    29 => 'wszelkie inne, zgodne…',
+];
+
+/** Zasiew: Słownik Centralny + brakujące punkty w strat_statute_refs (po kodzie; istniejących nie zmienia). @return array{dict:array, strat:int} */
+function strat_statute_seed(): array {
+    strat_org_migrate();
+    require_once dirname(__DIR__) . '/modules/dictionary/lib/dictionaryApi.php';
+    $entries = [];
+    foreach (STRAT_STATUTE_P3_U1 as $n => $t) {
+        $full = mb_strtoupper(mb_substr($t, 0, 1)) . mb_substr($t, 1);
+        // etykieta słownika do 255 znaków — dłuższe punkty skrócone, pełna treść w opisie
+        $entries[] = ['code' => sprintf('p%02d', $n), 'label' => mb_strlen($full) > 250 ? mb_substr($full, 0, 249) . '…' : $full, 'parent_code' => null,
+                      'sort_order' => $n * 10, 'is_active' => true, 'description' => '§ 3 ust. 1 pkt ' . $n . ' statutu: ' . $full, 'attributes' => ['paragraf' => '§ 3 ust. 1 pkt ' . $n]];
+    }
+    $res = dictTransfer()->import(json_encode(['format' => 'szo-dictionary', 'version' => 1, 'dictionaries' => [[
+        'code' => STRAT_STATUTE_DICT, 'name' => 'Statut § 3 ust. 1 — formy realizacji celów', 'kind' => 'business', 'parent_code' => null,
+        'is_protected' => false, 'sort_order' => 60,
+        'description' => 'Sposoby realizacji celów Fundacji wg § 3 ust. 1 statutu. Te same punkty są w module Strategia (słownik „Punkty statutu”).',
+        'entries' => $entries]]], JSON_UNESCAPED_UNICODE), 'json');
+    $added = 0;
+    $st = db()->prepare("INSERT INTO strat_statute_refs (kod, tytul, opis, is_active, sort_order) VALUES (?, ?, ?, 1, ?)");
+    foreach (STRAT_STATUTE_P3_U1 as $n => $t) {
+        $kod = '§ 3 ust. 1 pkt ' . $n;
+        if (db_one("SELECT 1 FROM strat_statute_refs WHERE kod = ?", [$kod])) continue;
+        $st->execute([$kod, mb_strtoupper(mb_substr($t, 0, 1)) . mb_substr($t, 1), 'Forma realizacji celów Fundacji (statut § 3 ust. 1)', 300 + $n]);
+        $added++;
+    }
+    return ['dict' => $res[0] ?? [], 'strat' => $added];
+}
+
 // ── Stałe słownikowe ─────────────────────────────────────────────────────────
 const STRAT_PLAN_STATUSES  = ['planowane', 'w_realizacji', 'zrealizowane', 'anulowane'];
 const STRAT_FUNDING_TYPES  = ['projekt', 'dotacja', 'srodki_wlasne'];

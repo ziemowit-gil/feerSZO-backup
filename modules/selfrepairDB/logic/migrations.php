@@ -290,6 +290,16 @@ return [
         },
     ],
 
+    // Strategia: formy realizacji celów z § 3 ust. 1 statutu — słownik punktów statutu w Strategii + Słownik Centralny.
+    '2026-10_strategy_statute_p3' => [
+        'desc' => 'Strategia + Słownik Centralny: § 3 ust. 1 statutu (formy realizacji celów)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/strategy_org.php';
+            $r = strat_statute_seed();
+            if (!empty($r['dict']['errors'])) throw new \RuntimeException('Słownik statutu: ' . implode('; ', $r['dict']['errors']));
+        },
+    ],
+
     // Certyfikacja MSUES: hasła JRWA 56 (kadra dydaktyczna — MSUES), 561 (oświadczenia o kwalifikacjach, koszulki oświadczeń),
     // 562 (audyty MSUES — paczki audytowe). Tylko gdy EZD ma już tabelę JRWA; brakujące hasła doda też pierwsza rejestracja.
     '2026-10_msues_jrwa' => [
