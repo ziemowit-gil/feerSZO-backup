@@ -19,7 +19,7 @@ $art      = null;
 if ($artSlug !== '') {
     $art = itPortalArticleBySlug((int)$cat['id'], $artSlug);
     if (!$art) itPortalNotFound('Ten artykuł nie istnieje albo został wycofany.');
-} elseif (trim($cat['intro_html']) === '' && $articles) {
+} elseif (!itPortalBlocksHas($cat, 'intro_blocks', 'intro_html') && $articles) {
     header('Location: ' . itPortalServiceUrl($cat, $articles[0]), true, 302);
     exit;
 }
@@ -46,10 +46,10 @@ itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $art ? $art['bo
   <article class="itp-content">
     <?php if ($art): ?>
       <h1><?= h($art['title']) ?></h1>
-      <div class="itp-body"><?= itPortalSanitizeHtml($art['body_html']) ?: '<p>Treść w przygotowaniu.</p>' ?></div>
+      <div class="itp-body"><?= itPortalRenderBlocks($art, 'blocks', 'body_html', '<p>Treść w przygotowaniu.</p>') ?></div>
     <?php else: ?>
       <h1 class="itp-sr"><?= h($cat['name']) ?></h1>
-      <div class="itp-body"><?= itPortalSanitizeHtml($cat['intro_html']) ?: '<p>Instrukcje do tej usługi są w przygotowaniu.</p>' ?></div>
+      <div class="itp-body"><?= itPortalRenderBlocks($cat, 'intro_blocks', 'intro_html', '<p>Instrukcje do tej usługi są w przygotowaniu.</p>') ?></div>
     <?php endif; ?>
   </article>
 

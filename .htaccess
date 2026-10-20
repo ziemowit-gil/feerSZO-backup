@@ -52,6 +52,7 @@ RewriteRule ^uslugi-it/uslugi/([a-z0-9-]{1,80})/([a-z0-9-]{1,80})/?$ /modules/it
 RewriteRule ^uslugi-it/komunikaty/?$ /modules/it_portal/public/komunikaty.php [QSA,L]
 RewriteRule ^uslugi-it/komunikaty/([0-9]{1,9})/?$ /modules/it_portal/public/komunikaty.php?id=$1 [QSA,L]
 RewriteRule ^uslugi-it/kontakt/?$ /modules/it_portal/public/kontakt.php [QSA,L]
+RewriteRule ^uslugi-it/img/([a-f0-9]{20}\.(png|jpg|gif|webp))$ /modules/it_portal/public/img.php?f=$1 [QSA,L]
 RewriteRule ^uslugi-it/szukaj/?$ /modules/it_portal/public/szukaj.php [QSA,L]
 
 # ── Admin › Seedery (dane testowe): /seeder-test → modules/seeders/router.php (trasa ze ścieżki żądania) ──

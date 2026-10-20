@@ -73,7 +73,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 <h4 class="mb-3"><?= h($id ? $types[$type]['edit'] . ': ' . ($row['title'] ?? $row['name'] ?? $row['unit'] ?? '') : $types[$type]['new']) ?></h4>
 <?php if ($error !== ''): ?><div class="alert alert-danger" role="alert"><?= h($error) ?></div><?php endif; ?>
 
-<form method="post" class="card card-body" style="max-width:980px">
+<form method="post" class="card card-body" style="max-width:<?= in_array($type, ['article', 'category'], true) ? '1180' : '980' ?>px">
   <?= csrf_field() ?>
 
 <?php if ($type === 'notice'): ?>
@@ -114,7 +114,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="col-12"><label class="form-label" for="f-u">Link zewnętrzny <span class="text-muted small">(opcjonalnie — kafel prowadzi wtedy np. do Helpdesku zamiast do instrukcji)</span></label>
       <input id="f-u" class="form-control" name="external_url" value="<?= $v('external_url') ?>" placeholder="https://… albo /helpdesk/new.php"></div>
     <div class="col-12"><label class="form-label" for="f-i">Wstęp usługi <span class="text-muted small">(strona usługi bez wybranego artykułu; puste = od razu pierwszy artykuł)</span></label>
-      <textarea id="f-i" class="form-control itp-rich" name="intro_html" rows="8"><?= $v('intro_html') ?></textarea></div>
+      <?php $blkName = 'intro_blocks'; $blkInit = itPortalBlocksInit($row, 'intro_blocks', 'intro_html'); include __DIR__ . '/_blocks.php'; ?></div>
     <fieldset class="col-md-5">
       <legend class="form-label fs-6">Dla kogo dostępna</legend>
       <?php foreach ($auds as $a): ?>
@@ -175,7 +175,8 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="col-md-6"><label class="form-label" for="f-sl">Adres <span class="text-muted small">(puste = z tytułu)</span></label><input id="f-sl" class="form-control" name="slug" value="<?= $v('slug') ?>" pattern="[a-z0-9-]*"></div>
     <div class="col-md-2"><label class="form-label" for="f-o">Kolejność</label><input id="f-o" type="number" class="form-control" name="sort_order" value="<?= $v('sort_order') ?>"></div>
     <div class="col-md-4"><label class="form-label" for="f-k">Słowa kluczowe <span class="text-muted small">(dla wyszukiwarki)</span></label><input id="f-k" class="form-control" name="keywords" value="<?= $v('keywords') ?>" placeholder="np. hasło, reset, logowanie"></div>
-    <div class="col-12"><label class="form-label" for="f-b">Treść</label><textarea id="f-b" class="form-control itp-rich" name="body_html" rows="14"><?= $v('body_html') ?></textarea></div>
+    <div class="col-12"><span class="form-label d-block">Treść podstrony <span class="text-muted small">(składaj z bloków: tekst, kreator krok po kroku, zrzut ekranu, wyróżnienie)</span></span>
+      <?php $blkName = 'blocks'; $blkInit = itPortalBlocksInit($row, 'blocks', 'body_html'); include __DIR__ . '/_blocks.php'; ?></div>
     <div class="col-md-7"><label class="form-label" for="f-r">Powiązane tematy <span class="text-muted small">(Ctrl/⌘ = kilka)</span></label>
       <select id="f-r" class="form-select" name="related[]" multiple size="8">
         <?php foreach ($allArts as $a): if ((int)$a['id'] === $id) continue; ?><option value="<?= (int)$a['id'] ?>"<?= in_array((int)$a['id'], $rel, true) ? ' selected' : '' ?>><?= h($a['category_name'] . ' › ' . $a['title']) ?></option><?php endforeach; ?>

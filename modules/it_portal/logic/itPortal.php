@@ -18,6 +18,7 @@
  */
 require_once dirname(__DIR__, 3) . '/includes/db.php';
 require_once dirname(__DIR__, 3) . '/includes/functions.php';
+require_once __DIR__ . '/itPortalBlocks.php';
 
 const ITP_NOTICE_STATUSES = [
     'zgloszone'  => ['label' => 'Zgłoszone',  'color' => '#d0312d'],
@@ -81,6 +82,12 @@ function itPortalMigrate(): void {
         $slug = itPortalSlug($a['name']) ?: 'grupa-' . $a['id'];
         if (db_one("SELECT 1 FROM itp_audiences WHERE slug = ? AND id <> ?", [$slug, $a['id']])) $slug .= '-' . $a['id'];
         db_exec("UPDATE itp_audiences SET slug = ? WHERE id = ?", [$slug, $a['id']]);
+    }
+    // Edytor blokowy podstron: JSON bloków (tekst / kreator krok po kroku / obraz / wyróżnienie), 2026-10-20
+    foreach (['itp_articles' => 'blocks', 'itp_categories' => 'intro_blocks'] as $t => $c) {
+        if (!in_array($c, array_column(db_all("PRAGMA table_info({$t})"), 'name'), true)) {
+            $pdo->exec("ALTER TABLE {$t} ADD COLUMN {$c} TEXT NOT NULL DEFAULT ''");
+        }
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS itp_notices (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -212,13 +219,14 @@ function itPortalCategorySave(array $in, int $id = 0): int {
     }
     $url = trim((string)($in['external_url'] ?? ''));
     if ($url !== '' && !preg_match('#^(https?://|/)#i', $url)) throw new InvalidArgumentException('Link zewnętrzny musi zaczynać się od http(s):// albo /.');
-    $intro = itPortalSanitizeHtml((string)($in['intro_html'] ?? ''));
+    [$blocksJson, $intro] = itPortalBlocksFromInput($in, 'intro_blocks', 'intro_html');
     $data = [
         'slug'         => $slug,
         'name'         => $name,
         'icon'         => in_array($in['icon'] ?? '', itPortalIconKeys(), true) ? $in['icon'] : 'help',
         'intro_html'   => $intro,
-        'intro_plain'  => itPortalPlain($intro),
+        'intro_blocks' => $blocksJson,
+        'intro_plain'  => itPortalBlocksPlain($blocksJson, $intro),
         'external_url' => $url,
         'audiences'    => json_encode(itPortalIds($in['audiences'] ?? [])),
         'related'      => json_encode(itPortalIds($in['related'] ?? [])),
@@ -268,13 +276,14 @@ function itPortalArticleSave(array $in, int $id = 0, int $userId = 0): int {
     if (db_one("SELECT 1 FROM itp_articles WHERE category_id = ? AND slug = ? AND id <> ?", [$catId, $slug, $id])) {
         throw new InvalidArgumentException("W tej usłudze jest już artykuł z adresem „{$slug}”.");
     }
-    $body = itPortalSanitizeHtml((string)($in['body_html'] ?? ''));
+    [$blocksJson, $body] = itPortalBlocksFromInput($in, 'blocks', 'body_html');
     $data = [
         'category_id'  => $catId,
         'slug'         => $slug,
         'title'        => $title,
         'body_html'    => $body,
-        'body_plain'   => itPortalPlain($body),
+        'blocks'       => $blocksJson,
+        'body_plain'   => itPortalBlocksPlain($blocksJson, $body),
         'keywords'     => trim((string)($in['keywords'] ?? '')),
         'related'      => json_encode(array_values(array_diff(itPortalIds($in['related'] ?? []), [$id]))),
         'is_pinned'    => !empty($in['is_pinned']) ? 1 : 0,
