@@ -77,19 +77,47 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div class="row g-4">
+<!-- ══ Prośba o podpis — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php) ══ -->
+<?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
+$sclass = EZD_SIGN_STATUSES[$req['status']]['class'] ?? 'secondary';
+$slabel = EZD_SIGN_STATUSES[$req['status']]['label'] ?? $req['status'];
+$_pd_znak = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [$req['sprawa_id']])['znak_sprawy'] ?? '';
+$_pd_color = ['warning' => 'var(--m-orange)', 'success' => 'var(--m-green)', 'primary' => 'var(--m-blue)', 'danger' => 'var(--m-red)'][$sclass] ?? '';
+?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia prośby o podpis">
+  <a href="<?= APP_URL ?>/ezd/podpis/index.php" class="btn btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i>Dokumenty do podpisu</a>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$req['zal_id'] ?>" target="_blank" class="btn btn-sm"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Otwórz dokument</a>
+  <?php if ($_pd_znak !== ''): ?>
+  <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$req['sprawa_id'] ?>" class="btn btn-sm"><i class="bi bi-folder2-open" aria-hidden="true"></i>Koszulka <?= h($_pd_znak) ?></a>
+  <?php endif; ?>
+</div>
+
+<section class="dyn-rec" aria-labelledby="pd-title">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><i class="bi bi-pen" aria-hidden="true"></i> Prośba o podpis · #<?= (int)$req['id'] ?></div>
+      <h1 id="pd-title" class="dyn-title"><?= h($req['zal_name'] ?? '—') ?></h1>
+    </div>
+    <?= dynHFields([
+        ['Status', $slabel, $_pd_color],
+        ['Prośba od', (string)($req['requested_by_name'] ?? '')],
+        ['Podpisuje', (string)($req['requested_to_name'] ?? '')],
+        ['Data prośby', $req['requested_at'] ? date('d.m.Y H:i', strtotime((string)$req['requested_at'])) : ''],
+    ]) ?>
+  </div>
+  <?= dynStages(['oczekuje' => 'Oczekuje na podpis', 'podpisane' => 'Podpisane', 'potwierdzone' => 'Potwierdzone'], (string)$req['status'], ['label' => 'Etapy podpisu', 'off' => ['odrzucone' => 'Odrzucone', 'anulowane' => 'Anulowane']]) ?>
+</section>
+
+<div class="row g-4 dyn-form">
   <div class="col-lg-7">
 
-    <!-- Status -->
-    <?php
-    $sclass = EZD_SIGN_STATUSES[$req['status']]['class'] ?? 'secondary';
-    $slabel = EZD_SIGN_STATUSES[$req['status']]['label'] ?? $req['status'];
-    ?>
-    <div class="alert alert-<?= $sclass === 'primary' ? 'primary' : ($sclass === 'success' ? 'success' : ($sclass === 'danger' ? 'danger' : ($sclass === 'warning' ? 'warning' : 'secondary'))) ?> mb-3" style="font-size:.88rem">
-      <strong><?= h($slabel) ?></strong>
-      <?php if($req['status']==='oczekuje' && $is_signer): ?> — wgraj podpisany PDF poniżej<?php endif; ?>
-      <?php if($req['status']==='podpisane' && $is_sender): ?> — potwierdź odbiór poniżej<?php endif; ?>
+    <?php if (($req['status'] === 'oczekuje' && $is_signer) || ($req['status'] === 'podpisane' && $is_sender)): ?>
+    <div class="alert alert-<?= $req['status'] === 'oczekuje' ? 'warning' : 'success' ?> mb-3" style="font-size:.88rem">
+      <i class="bi bi-arrow-down-circle me-1" aria-hidden="true"></i><?= $req['status'] === 'oczekuje' ? 'Wgraj podpisany PDF poniżej.' : 'Potwierdź odbiór podpisanego dokumentu poniżej.' ?>
     </div>
+    <?php endif; ?>
 
     <!-- Metadane -->
     <div class="card shadow-sm mb-4">
@@ -99,7 +127,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <dt class="col-sm-4 text-muted fw-normal">Dokument</dt>
           <dd class="col-sm-8 fw-semibold"><?= h($req['zal_name']) ?></dd>
           <dt class="col-sm-4 text-muted fw-normal">Koszulka</dt>
-          <dd class="col-sm-8"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $req['sprawa_id'] ?>" class="font-monospace"><?= h(db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?",[$req['sprawa_id']])['znak_sprawy'] ?? '—') ?></a></dd>
+          <dd class="col-sm-8"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $req['sprawa_id'] ?>" class="font-monospace"><?= h($_pd_znak ?: '—') ?></a></dd>
           <dt class="col-sm-4 text-muted fw-normal">Prośba od</dt>
           <dd class="col-sm-8"><?= h($req['requested_by_name']) ?></dd>
           <dt class="col-sm-4 text-muted fw-normal">Do podpisu przez</dt>
