@@ -403,6 +403,14 @@ body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;back
 .lg-alert{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .8rem;margin-bottom:1rem;font-size:.9rem;border-left:4px solid}
 .lg-alert.info{background:#eff6fc;border-color:#0f6fa8}.lg-alert.ok{background:#eef7ee;border-color:#107c10}
 .lg-alert.err{background:#fde7e9;border-color:#a4262c}.lg-alert.warn{background:#fff4ce;border-color:#c25100}
+/* „Nowy wolontariusz / zleceniobiorca” — kafle z ikoną; #0b5582 na białym = 7,9:1 */
+.lg-new{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:1.4rem}
+.lg-new a,.lg-new button{display:flex;align-items:center;gap:.65rem;min-height:56px;padding:.6rem .7rem;border:1px solid #c8c8c8;background:#fff;color:#1f1f1f;text-decoration:none;text-align:left;font:inherit;cursor:pointer}
+.lg-new a:hover,.lg-new button:hover{border-color:#1f1f1f}
+.lg-new i{flex:0 0 2.2rem;height:2.2rem;display:flex;align-items:center;justify-content:center;background:#0f6fa8;color:#fff;font-size:1.15rem}
+.lg-new span{display:flex;flex-direction:column;line-height:1.25;font-size:.85rem;color:#3b3b3b}
+.lg-new strong{font-size:.95rem;color:#0b5582}
+@media(max-width:380px){.lg-new{grid-template-columns:1fr}}
 .lg-more{margin-top:1.4rem;border-top:1px solid #c8c8c8;padding-top:1rem}
 .lg-more summary{cursor:pointer;color:#0b5582;font-size:.95rem;font-weight:600}
 .lg-more .lg-alt{display:grid;gap:.4rem;margin-top:.7rem}
@@ -458,6 +466,15 @@ body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;back
       <button type="submit" class="lg-btn">Zaloguj</button>
     </form>
     <div class="lg-links"><a href="<?= APP_URL ?>/user/verify_reset.php">Nie pamiętasz hasła?</a><a href="<?= APP_URL ?>/user/register.php">Załóż konto</a></div>
+
+    <nav class="lg-new" aria-label="Pierwsze logowanie">
+      <?php if ($code_available): ?>
+      <button type="button" data-bs-toggle="modal" data-bs-target="#modal-code"><i class="bi bi-person-plus" aria-hidden="true"></i><span>Nowy wolontariusz<strong>Kod aktywacyjny</strong></span></button>
+      <?php else: ?>
+      <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-person-plus" aria-hidden="true"></i><span>Nowy wolontariusz<strong>Aktywuj konto</strong></span></a>
+      <?php endif; ?>
+      <a href="<?= APP_URL ?>/zlecenie"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Nowy zleceniobiorca<strong>Oświadczenie</strong></span></a>
+    </nav>
 
     <?php if ($has_alt): ?>
     <details class="lg-more"<?= in_array($active_tab, ['code','sms','x509'], true) ? ' open' : '' ?>>
