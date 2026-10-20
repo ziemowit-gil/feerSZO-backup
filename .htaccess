@@ -260,6 +260,21 @@ RewriteRule ^$ /auth/ms365.php [L]
 # Aliasy krótkich linków do modułów systemu.
 # Format: /alias → /moduł/  (wewnętrzny rewrite — URL zostaje w przeglądarce)
 
+# Skróty do paneli (przekierowanie 302 — panele używają adresów względnych, więc lądujemy w ich katalogu).
+# Na ti.*/kurs.*/crm.* obowiązują reguły wyżej (tam /kursant, /dydaktyk, /konsultant działają bez /karty30/ti/).
+RewriteRule ^kontrahent/?$            /portal_kontrahenta/ [R=302,L]
+RewriteRule ^kontrahent/(.+)$         /portal_kontrahenta/$1 [R=302,QSA,L]
+RewriteRule ^(wspolpracownik|moj-panel)/?$ /panel/ [R=302,L]
+RewriteRule ^start/?$                 /panel/launcher.php [R=302,L]
+RewriteRule ^(eodok|dokumenty-ksiegowe)/?$ /edok/ [R=302,L]
+RewriteRule ^strategia/?$             /strategy/ [R=302,L]
+RewriteRule ^(ti|kursant|uczestnik)/?$ /karty30/ti/login.php [R=302,L]
+RewriteRule ^dydaktyk/?$              /karty30/ti/dydaktyk/ [R=302,L]
+RewriteRule ^konsultant/?$            /karty30/ti/konsultant.php [R=302,L]
+RewriteRule ^rodzic/?$                /karty30/ti/kursant/parent.php [R=302,L]
+RewriteRule ^slowniki/?$              /modules/dictionary/router.php [R=302,L]
+RewriteRule ^administracja/?$         /admin/ [R=302,L]
+
 RewriteRule ^katalog/?$       directory/index.php  [QSA,L]
 RewriteRule ^katalog/(.+)$    directory/$1          [QSA,L]
 
