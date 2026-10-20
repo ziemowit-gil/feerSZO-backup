@@ -8,7 +8,7 @@
  *        hasła; reguła po samej domenie, więc nie zdradza, czy konto istnieje),
  *      · inny e-mail (konta panelowe z zespol.php) → hasło SZO + obowiązkowe TOTP (totp_gate.php).
  *  - login bez „@” zakończony „-kz” → login zastępczy konsultanta — TYLKO na osobnej stronie karty30/ti/konsultant.php
- *      (TiLogin::altUrl); tu tylko podpowiedź z adresem. Hasło + TOTP, sesja tylko w trybie Konsultacje.
+ *      (TiLogin::altUrl); tu tylko podpowiedź z adresem. Samo hasło (bez TOTP), sesja tylko w trybie Konsultacje.
  *  - pozostałe loginy bez „@” → konta panelu kursanta (k30_ti_student_accounts / k30_ti_authorized_persons):
  *      · uczestnik: `login` albo `login_alias`,
  *      · rodzic / opiekun: `parent_login` (zwykle „…-r”),
@@ -289,16 +289,19 @@ final class TiLogin
     }
 
     /**
-     * Konsultant loginem zastępczym: hasło, potem obowiązkowe TOTP; sesja tylko w trybie Konsultacje.
-     * Zwraca adres bramki TOTP albo null (ten sam komunikat dla złego loginu i hasła). Wymaga dydaktyk/auth.php.
+     * Konsultant loginem zastępczym: samo hasło (bez kodu TOTP — decyzja użytkownika 2026-10-20), sesja od razu
+     * tylko w trybie Konsultacje. Zwraca adres startu Konsultacji albo null (ten sam komunikat dla złego loginu
+     * i hasła). Wymaga dydaktyk/auth.php.
      */
     public static function completeAltConsultant(string $login, string $pass): ?string
     {
         require_once dirname(__DIR__, 2) . '/ti_consultant_access/logic/consultantAccess.php';
         $profile = TiConsultantAccess::altAuthenticate($login, $pass);
         if (!$profile) return null;
-        dyd_2fa_stash($profile, 'konsultacjeStart.php');
-        return tiPanelUrl('dydaktyk', 'totp_gate.php');
+        $profile['totp_bypass'] = 'login zastępczy konsultanta';   // dyd_require() nie pyta o TOTP w tej sesji
+        dyd_login_user($profile);
+        $_SESSION['k30_dyd_ctx'] = ['mode' => 'konsultacje'];
+        return tiPanelUrl('dydaktyk', 'konsultacjeStart.php');
     }
 
     /** Pierwsze logowanie uczestnika: kod SMS i strona wpisania kodu albo null (brak telefonu / wysyłka nieudana). */

@@ -5,7 +5,7 @@
  *
  * 1. Login zastępczy „…-kz” — konsultant z kadry (zwykle Microsoft 365) sam ustawia w panelu login i hasło
  *    (dydaktyk/kontoZastepcze.php). Na wspólnej stronie logowania TI (karty30/ti/login.php, TiLogin) wpisuje je
- *    zamiast Microsoft 365, przechodzi obowiązkowe TOTP (totp_gate.php) i dostaje sesję z flagą `alt_konsultacje`:
+ *    zamiast Microsoft 365 (osobna strona karty30/ti/konsultant.php), BEZ kodu TOTP (decyzja użytkownika), i dostaje sesję z flagą `alt_konsultacje`:
  *    tylko tryb Konsultacje (dyd_modes_available), bez uprawnień kierownika. Karty zapisują się na jego users.id.
  *    Końcówka „-kz” jest zarezerwowana — alias uczestnika nie może się tak kończyć.
  * 2. Konsultant zewnętrzny — kierownik wysyła zaproszenie (dydaktyk/konsultacjeUstawienia.php): link z tokenem
@@ -256,7 +256,7 @@ final class TiConsultantAccess
         $by = (int)($inv['created_by'] ?? 0) ? db_one("SELECT email FROM users WHERE id = ?", [(int)$inv['created_by']]) : null;
         if ($by && filter_var($by['email'], FILTER_VALIDATE_EMAIL)) $cc[] = $by['email'];
         $cc = array_values(array_unique(array_filter(array_map('strtolower', $cc), fn($e) => $e !== strtolower((string)$inv['email']))));
-        $login = function_exists('tiPanelUrl') ? tiPanelUrl('ti', 'login.php') : rtrim(APP_URL, '/') . '/karty30/ti/login.php';
+        $login = function_exists('tiPanelUrl') ? tiPanelUrl('ti', 'konsultant.php') : rtrim(APP_URL, '/') . '/karty30/ti/konsultant.php';   // strona logowania konsultantów
         $text = implode("\n", [
             'Dzień dobry ' . $inv['name'] . ',', '',
             'Twoje konto konsultanta w panelu konsultacji (' . $org . ') zostało założone.', '',

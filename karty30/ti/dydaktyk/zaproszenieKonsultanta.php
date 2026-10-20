@@ -20,36 +20,61 @@ if ($inv && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($r['ok']) $done = true; else $error = (string)$r['error'];
 }
 
-$KP_TITLE = 'Zaproszenie do panelu konsultacji';
-$KP_TOPBAR = ['brand' => 'Panel konsultacji', 'icon' => 'clipboard2-check', 'user' => '', 'logout' => '', 'no_enrich' => true];
-$KP_BODY_CLASS = 'ti-skin';
-include dirname(__DIR__) . '/kursant/_layout_head.php';
+$_tok = dyd_token();   // przed wyjściem — otwiera sesję panelu (bez ostrzeżeń „headers already sent”)
+$_org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
+?><!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Konto konsultanta — Panel TI — <?= h($_org) ?></title>
+<meta name="robots" content="noindex,nofollow">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?php include dirname(__DIR__, 3) . '/modules/ti/view/portal/_style.php'; /* szata METRO jak logowanie TI */ ?>
+<style>.zk-lead { font-size: 1.08rem; margin: -.3rem 0 1.4rem; color: var(--pp-muted); max-width: 46rem; }</style>
+</head>
+<body class="pp">
+<?php
+$ppTitle = 'Panel TI'; $ppOrg = $_org; $ppCrumb = 'Konto konsultanta'; $ppLogo = ''; $ppLoginUrl = TiLogin::altUrl(); $ppAccount = null;
+include dirname(__DIR__, 3) . '/modules/ti/view/portal/_header.php';
 ?>
-<main id="main" class="container py-4" style="max-width:560px">
-  <h1 class="h4 fw-bold mb-3"><i class="bi bi-person-plus text-primary me-2" aria-hidden="true"></i>Konto konsultanta</h1>
+<main id="pp-main" class="pp-wrap" tabindex="-1">
+  <h1 class="pp-h1">Konto konsultanta</h1>
   <?php if ($done): ?>
-    <div class="alert alert-success" role="status">Konto gotowe. Zaloguj się adresem <strong><?= h($inv['email']) ?></strong> i ustawionym hasłem.
+    <div class="pp-ok" role="status">Konto gotowe. Zaloguj się adresem <strong><?= h($inv['email']) ?></strong> i ustawionym hasłem.
       Przy pierwszym wejściu skonfigurujesz kod z aplikacji uwierzytelniającej (np. Microsoft Authenticator).</div>
-    <a class="btn btn-primary" href="<?= h(TiLogin::url()) ?>">Przejdź do logowania</a>
+    <p><a class="pp-submit d-inline-flex align-items-center text-decoration-none" href="<?= h(TiLogin::altUrl()) ?>">Przejdź do logowania</a></p>
   <?php elseif (!$inv): ?>
-    <div class="alert alert-warning" role="alert">Link zaproszenia jest nieważny — wygasł, został już użyty albo cofnięty.
-      Poproś osobę, która Cię zaprosiła, o nowy link.</div>
-    <a href="<?= h(TiLogin::url()) ?>">Strona logowania</a>
+    <div class="pp-error" role="alert">Link zaproszenia jest nieważny — wygasł, został już użyty albo cofnięty. Poproś osobę, która Cię zaprosiła, o nowy link.</div>
+    <p><a href="<?= h(TiLogin::altUrl()) ?>">Strona logowania</a></p>
   <?php else: ?>
-    <p>Dzień dobry, <strong><?= h($inv['name']) ?></strong>. Zostałeś(-aś) zaproszony(-a) do panelu konsultacji
-      jako konsultant(ka). Ustaw hasło — loginem będzie adres <strong><?= h($inv['email']) ?></strong>.</p>
-    <p class="small text-body-secondary">Dostęp obejmuje tylko konsultacje (karty, rezerwacje terminów, klienci).
-      Link jest ważny do <?= h(date('d.m.Y H:i', strtotime((string)$inv['expires_at']))) ?>.</p>
-    <?php if ($error !== ''): ?><div class="alert alert-danger" role="alert"><?= h($error) ?></div><?php endif; ?>
-    <form method="post" autocomplete="off" class="card border-0 shadow-sm"><div class="card-body">
-      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="t" value="<?= h($token) ?>">
-      <input type="email" class="visually-hidden" name="username" value="<?= h($inv['email']) ?>" autocomplete="username" tabindex="-1" aria-hidden="true">
-      <label class="form-label" for="zk-p1">Hasło (min. <?= TiConsultantAccess::MIN_PASS ?> znaków)</label>
-      <input class="form-control mb-2" type="password" id="zk-p1" name="password" required minlength="<?= TiConsultantAccess::MIN_PASS ?>" maxlength="72" autocomplete="new-password">
-      <label class="form-label" for="zk-p2">Powtórz hasło</label>
-      <input class="form-control mb-3" type="password" id="zk-p2" name="password2" required maxlength="72" autocomplete="new-password">
-      <button class="btn btn-primary">Załóż konto</button>
-    </div></form>
+    <p class="zk-lead">Dzień dobry, <strong><?= h($inv['name']) ?></strong>. Zapraszamy Cię do panelu konsultacji jako konsultant(kę).
+      Ustaw hasło — loginem będzie adres <strong><?= h($inv['email']) ?></strong>.</p>
+    <?php if ($error !== ''): ?><div class="pp-error" role="alert"><?= h($error) ?></div><?php endif; ?>
+    <div class="pp-cols">
+      <div>
+        <form method="post" autocomplete="off">
+          <input type="hidden" name="_token" value="<?= h($_tok) ?>"><input type="hidden" name="t" value="<?= h($token) ?>">
+          <input type="email" class="visually-hidden" name="username" value="<?= h($inv['email']) ?>" autocomplete="username" tabindex="-1" aria-hidden="true">
+          <div class="pp-field"><label for="zk-p1">Hasło (min. <?= TiConsultantAccess::MIN_PASS ?> znaków)</label>
+            <input class="pp-input" type="password" id="zk-p1" name="password" required minlength="<?= TiConsultantAccess::MIN_PASS ?>" maxlength="72" autocomplete="new-password"></div>
+          <div class="pp-field"><label for="zk-p2">Powtórz hasło</label>
+            <input class="pp-input" type="password" id="zk-p2" name="password2" required maxlength="72" autocomplete="new-password"></div>
+          <button class="pp-submit">Załóż konto</button>
+        </form>
+      </div>
+      <aside class="pp-note">
+        <p style="margin-top:0"><strong>Co dalej?</strong></p>
+        <p>Dostęp obejmuje tylko konsultacje: karty, rezerwacje terminów, klientów.</p>
+        <p style="margin-bottom:0">Link jest ważny do <?= h(date('d.m.Y H:i', strtotime((string)$inv['expires_at']))) ?> i działa jeden raz.</p>
+      </aside>
+    </div>
   <?php endif; ?>
 </main>
-<?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
+<?php
+$ppFootLinks = ['Logowanie TI' => TiLogin::altUrl(), 'Strona Fundacji FEER' => 'https://feer.org.pl'];
+include dirname(__DIR__, 3) . '/modules/ti/view/portal/_footer.php';
+?>
+</body>
+</html>

@@ -85,7 +85,10 @@ function dyd_current(): ?array {
     if ($rem) {
         $u = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [$rem['account_id']]);
         $profile = $u ? dyd_profile_from_user($u) : null;
-        if ($profile && !empty($rem['payload']['alt_konsultacje'])) { $profile['alt_konsultacje'] = true; $profile['alt_staff'] = !empty($profile['is_staff']); $profile['is_staff'] = false; }
+        if ($profile && !empty($rem['payload']['alt_konsultacje'])) {   // login zastępczy: bez TOTP, tylko Konsultacje
+            $profile['alt_konsultacje'] = true; $profile['alt_staff'] = !empty($profile['is_staff']); $profile['is_staff'] = false;
+            $profile['totp_bypass'] = 'login zastępczy konsultanta';
+        }
         if ($profile) { dyd_login_user($profile); $_SESSION['k30_dyd_resumed'] = 1; return $_SESSION[DYD_SESSION_KEY]; }
         ti_remember_forget('dyd');
     }

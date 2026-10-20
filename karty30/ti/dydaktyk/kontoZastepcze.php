@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op = (string)($_POST['_op'] ?? '');
     if ($op === 'save') {
         $err = TiConsultantAccess::altSave($uid, (string)($_POST['login'] ?? ''), (string)($_POST['password'] ?? ''), (string)($_POST['password2'] ?? ''));
-        flash_set($err === '' ? 'success' : 'danger', $err === '' ? 'Zapisano login zastępczy. Logowanie: ' . TiLogin::altUrl() . ' (potem kod z aplikacji).' : $err);
+        flash_set($err === '' ? 'success' : 'danger', $err === '' ? 'Zapisano login zastępczy. Logowanie: ' . TiLogin::altUrl() . '.' : $err);
     } elseif ($op === 'disable_own') {
         TiConsultantAccess::altDisable($uid, $uid);
         flash_set('success', 'Login zastępczy wyłączony.');
@@ -40,7 +40,7 @@ include __DIR__ . '/_rezerwacje_head.php';
 <div class="card border-0 shadow-sm mb-4"><div class="card-body">
   <p class="small mb-2">Gdy logowanie <strong>Microsoft 365</strong> nie działa albo pracujesz na komputerze bez konta organizacji,
     wejdź do panelu loginem zastępczym. Na <strong>osobnej stronie logowania konsultantów</strong> (<a href="<?= h(TiLogin::altUrl()) ?>"><?= h(TiLogin::altUrl()) ?></a>)
-    wpisz login z końcówką <code>-kz</code> i hasło, potem kod z aplikacji uwierzytelniającej (ten sam co zwykle).</p>
+    wpisz login z końcówką <code>-kz</code> i hasło — bez kodu z aplikacji. Ustaw mocne hasło, bo to jedyne zabezpieczenie tego wejścia.</p>
   <ul class="small text-body-secondary mb-3">
     <li>Login zastępczy otwiera <strong>tylko tryb Konsultacje</strong> (bez Szkoleń i funkcji kierownika).</li>
     <li>Karty i wpisy zapisują się na Twoje konto, tak jak po zalogowaniu Microsoft 365.</li>
