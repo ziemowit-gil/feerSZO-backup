@@ -62,27 +62,38 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div class="row g-4">
-  <div class="col-lg-8">
-    <div class="card shadow-sm mb-3"><div class="card-body">
-      <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-        <div>
-          <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-            <span class="badge bg-primary bg-opacity-15 text-primary border border-primary"><i class="bi bi-file-earmark-text me-1"></i><?= h(EZD_DOK_RODZAJE[$doc['rodzaj']] ?? $doc['rodzaj']) ?></span>
-            <span class="badge bg-secondary bg-opacity-10 text-secondary border font-monospace" style="font-size:.72rem"><?= h($doc['sygnatura']) ?></span>
-            <?= ezd_dok_status_badge($doc['status']) ?>
-          </div>
-          <h5 class="fw-bold mb-0"><?= h($doc['title']) ?></h5>
-        </div>
-        <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
-          <?php ezd_kopia_menu_btn('dokument', $id, $doc['sygnatura']); ?>
-          <?php if($can_act): ?>
-          <a href="<?= APP_URL ?>/ezd/dokumenty/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div></div>
+<!-- ══ Dokument wewnętrzny — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php) ══ -->
+<?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
+$_dk_meta = EZD_DOK_STATUSY[$doc['status']] ?? ['label' => $doc['status'], 'class' => 'secondary'];
+?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia dokumentu">
+  <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$sprawa_id ?>" class="btn btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i>Koszulka <?= h($doc['znak_sprawy']) ?></a>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <?php ezd_kopia_menu_btn('dokument', $id, $doc['sygnatura']); ?>
+  <?php if($can_act): ?>
+  <a href="<?= APP_URL ?>/ezd/dokumenty/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+  <?php endif; ?>
+</div>
 
+<section class="dyn-rec" aria-labelledby="dk-title">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> <?= h(EZD_DOK_RODZAJE[$doc['rodzaj']] ?? $doc['rodzaj']) ?> · <code><?= h($doc['sygnatura']) ?></code></div>
+      <h1 id="dk-title" class="dyn-title"><?= h($doc['title']) ?></h1>
+    </div>
+    <?= dynHFields([
+        ['Status', $_dk_meta['label'], $_dk_meta['class'] === 'success' ? 'var(--m-green)' : ''],
+        ['Autor / referent', (string)($doc['owner_name'] ?? '')],
+        ['Utworzono', date('d.m.Y', strtotime((string)$doc['created_at']))],
+        ['Koszulka', ['html' => '<a href="' . APP_URL . '/ezd/sprawy/view.php?id=' . (int)$sprawa_id . '" class="font-monospace">' . h($doc['znak_sprawy']) . '</a>']],
+    ]) ?>
+  </div>
+  <?= dynStages(['projekt' => 'Projekt', 'zatwierdzony' => 'Zatwierdzony', 'archiwalny' => 'Archiwalny'], (string)$doc['status'], ['label' => 'Etapy dokumentu']) ?>
+</section>
+
+<div class="row g-4 dyn-form">
+  <div class="col-lg-8">
     <?php if(trim($doc['tresc']) !== ''): ?>
     <div class="card shadow-sm mb-3">
       <div class="card-header fw-semibold" style="font-size:.82rem"><i class="bi bi-body-text me-1 text-primary"></i>Treść</div>
