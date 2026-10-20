@@ -463,9 +463,9 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 ?>
 
 <style>
-/* ── Karta koszulki — szata Metro UI jak System Tożsamości (warstwa wspólna: includes/ezd_metro.php).
-   Zero zaokrągleń, cieni i gradientów; płaskie szare grupy #f2f2f2; karty z ramką 1px i nagłówkiem w szarym
-   pasie; zakładki jak pivot; znaczniki w pełnych kolorach. Nazwy klas są zaczepami skryptów i motywu —
+/* ── Karta koszulki — układ Dynamics 365 (pasek poleceń, pola nagłówka, etapy obiegu, sekcje z białym
+   nagłówkiem, małe zakładki) na szacie Metro EZD (includes/ezd_metro.php): zero zaokrągleń i cieni,
+   znaczniki w pełnych kolorach. Nazwy klas są zaczepami skryptów i motywu —
    zostają; reguły zakotwiczone w `html body .ezd-main` (wygrywają z Tailwind CDN i ezd-tz-theme.css). ── */
 html body .ezd-main .ezx-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.12rem .45rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;line-height:1.3;color:#fff;background:var(--m-grey);border:0}
 html body .ezd-main .ezx-badge--slate{background:var(--m-grey)}
@@ -475,24 +475,10 @@ html body .ezd-main .ezx-badge--amber{background:var(--m-orange)}
 html body .ezd-main .ezx-badge--emerald{background:var(--m-green)}
 html body .ezd-main .ezx-badge--rose,html body .ezd-main .ezx-badge--urgent{background:var(--m-red)}
 html body .ezd-main .ezx-badge--violet{background:var(--m-violet)}
-/* Nagłówek: kicker ze znakiem koszulki + lekki duży tytuł, metadane w szarej grupie */
-html body .ezd-main .sp-hero{background:transparent;border:0;padding:0;margin:0 0 1.5rem}
-html body .ezd-main .sp-kicker{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;margin-bottom:.5rem}
-html body .ezd-main .sp-znak{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;font-weight:700;letter-spacing:.06em;color:#fff;background:var(--em-acc);padding:.15rem .5rem}
-html body .ezd-main .sp-kicker-lbl{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:var(--em-muted)}
-html body .ezd-main #sp-title{font-size:clamp(1.7rem,3.2vw,2.4rem)!important;font-weight:300!important;letter-spacing:-.02em;line-height:1.1;color:var(--em-ink)}
-html body .ezd-main .sp-desc{margin:.5rem 0 0;font-size:.95rem;font-weight:300;color:var(--em-muted);line-height:1.55;max-width:80ch}
-html body .ezd-main .sp-meta-actions{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
-html body .ezd-main .sp-meta-actions .btn{font-size:.76rem;font-weight:600;padding:.32rem .65rem;display:inline-flex;align-items:center;gap:.3rem}
-html body .ezd-main .sp-kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:1.25rem 0 0;background:var(--em-line);border:1px solid var(--em-line)}
-@media(min-width:768px){html body .ezd-main .sp-kvs{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(min-width:1536px){html body .ezd-main .sp-kvs{grid-template-columns:repeat(5,minmax(0,1fr))}}
-html body .ezd-main .ezx-kv{background:var(--em-light);border:0;padding:.75rem 1rem;min-width:0}
-html body .ezd-main .ezx-kv dt{margin:0;font-size:.66rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--em-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-html body .ezd-main .ezx-kv dt .bi{display:none}
-html body .ezd-main .ezx-kv dd{margin:.2rem 0 0;font-size:1.02rem;font-weight:300;color:var(--em-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-html body .ezd-main .ezx-kv dd a{color:var(--em-ink)!important;text-decoration:underline;text-underline-offset:3px}
-html body .ezd-main .ezx-kv dd.overdue{color:var(--m-red);font-weight:600}
+/* Nagłówek w układzie Dynamics (dynamics.css + blok w ezd_metro.php): znaczniki pod tytułem, opis */
+html body .ezd-main .sp-hero{background:#fff;border:1px solid var(--em-line);padding:.9rem 1.1rem;margin:0 0 1rem}
+html body .ezd-main .sp-flags{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem}
+html body .ezd-main .sp-desc{margin:.45rem 0 0;font-size:.88rem;color:var(--em-muted);line-height:1.5;max-width:80ch}
 html body .ezd-main .sp-closed{display:flex;align-items:center;gap:.6rem;background:var(--em-light);border-left:6px solid var(--m-grey);padding:.75rem 1rem;margin-bottom:1rem;font-size:.86rem}
 /* Pasek poleceń Metro: jedna akcja główna (wypełniona), reszta płaska — ikona + etykieta bez ramki */
 html body .ezd-main .sp-cmd{--bs-btn-color:var(--em-ink);--bs-btn-bg:transparent;--bs-btn-border-color:transparent;--bs-btn-hover-color:var(--em-ink);--bs-btn-hover-bg:var(--em-light-h);--bs-btn-hover-border-color:transparent;--bs-btn-active-bg:var(--em-line);--bs-btn-active-border-color:transparent;--bs-btn-disabled-color:var(--em-muted);--bs-btn-disabled-bg:transparent;--bs-btn-disabled-border-color:transparent;font-weight:600;font-size:.8rem;display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .6rem}
@@ -503,7 +489,6 @@ html body .ezd-main .sp-cmdbar{display:flex;flex-wrap:wrap;align-items:center;ga
 html body .ezd-main .sp-cmdbar .btn-primary{margin-left:.35rem}
 html body .ezd-main .sp-cmdbar--start{gap:.25rem}
 html body .ezd-main .sp-cmdbar--start .btn-primary{margin:0 .5rem 0 0}
-html body .ezd-main .sp-meta-actions .btn-primary{margin-right:.25rem}
 html body .ezd-main .sp-more{min-width:230px;padding:.3rem 0}
 html body .ezd-main .sp-more .dropdown-item,html body .ezd-main .sp-pm-menu .dropdown-item{display:flex;align-items:center;gap:.6rem;padding:.5rem 1rem;font-size:.85rem}
 html body .ezd-main .sp-more .dropdown-item .bi,html body .ezd-main .sp-pm-menu .dropdown-item .bi{color:var(--em-muted);width:1.1rem;text-align:center}
@@ -512,21 +497,20 @@ html body .ezd-main .sp-pm-menu.show{display:grid;grid-template-columns:1fr 1fr;
 html body .ezd-main .sp-pm-col{padding:.35rem 0}
 html body .ezd-main .sp-pm-col + .sp-pm-col{border-left:1px solid var(--em-line)}
 html body .ezd-main .sp-pm-h{display:flex;align-items:center;gap:.4rem;padding:.4rem 1rem .3rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--em-muted)}
-html body .ezd-main .sp-hero > .tw-flex{align-items:flex-end}
-/* Dokumenty w koszulce (akta): karta z szarym pasem nagłówka */
-html body .ezd-main .sp-akta-hdr{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:.7rem 1rem;background:var(--em-light);border:1px solid var(--em-line);border-bottom:0}
-html body .ezd-main .sp-akta-title{font-size:1.15rem;font-weight:300;color:var(--em-ink);letter-spacing:-.01em}
+/* Dokumenty w koszulce (akta): sekcja z białym nagłówkiem (Dynamics) */
+html body .ezd-main .sp-akta-hdr{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:.6rem 1rem;background:#fff;border:1px solid var(--em-line);border-bottom:1px solid var(--em-line)}
+html body .ezd-main .sp-akta-title{font-size:.95rem;font-weight:600;color:var(--em-ink)}
 html body .ezd-main .sp-akta-title .bi{color:var(--em-acc)}
 html body .ezd-main .sp-akta-count{font-size:.8rem;color:var(--em-muted)}
 html body .ezd-main .sp-akta-hdr .btn{font-size:.76rem;font-weight:600}
-html body .ezd-main .sp-akta-body{background:#fff;border:1px solid var(--em-line);overflow:hidden;margin-bottom:1.25rem}
+html body .ezd-main .sp-akta-body{background:#fff;border:1px solid var(--em-line);border-top:0;overflow:hidden;margin-bottom:1rem}
 html body .ezd-main .sp-file-row{display:flex;align-items:center;gap:.65rem;padding:.6rem 1rem;border-bottom:1px solid var(--em-line);font-size:.82rem;transition:background .1s}
 html body .ezd-main .sp-file-row:last-child{border-bottom:0}
 html body .ezd-main .sp-file-row:hover{background:var(--em-light)}
-/* Zakładki → pivot */
-html body .ezd-main .sp-tabs{display:flex;gap:1.5rem;margin:1.5rem 0 0!important;padding:0;background:transparent;border:0;border-bottom:1px solid var(--em-line);overflow-x:auto;flex-wrap:nowrap;white-space:nowrap;scrollbar-width:none}
+/* Zakładki jak w Dynamics 365 */
+html body .ezd-main .sp-tabs{display:flex;gap:1.25rem;margin:1rem 0 0!important;padding:0;background:transparent;border:0;border-bottom:1px solid var(--em-line);overflow-x:auto;flex-wrap:nowrap;white-space:nowrap;scrollbar-width:none}
 html body .ezd-main .sp-tabs::-webkit-scrollbar{display:none}
-html body .ezd-main .sp-tabs .nav-link{display:inline-flex;align-items:center;gap:.4rem;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;padding:.35rem 0 .6rem;font-size:1.2rem;font-weight:300;letter-spacing:-.01em;text-transform:none;color:var(--em-muted);white-space:nowrap}
+html body .ezd-main .sp-tabs .nav-link{display:inline-flex;align-items:center;gap:.4rem;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;padding:.45rem 0 .55rem;font-size:.9rem;font-weight:400;letter-spacing:0;text-transform:none;color:var(--em-muted);white-space:nowrap}
 html body .ezd-main .sp-tabs .nav-link .bi{display:none}
 html body .ezd-main .sp-tabs .nav-link:hover{color:var(--em-ink)}
 html body .ezd-main .sp-tabs .nav-link.active{color:var(--em-ink);font-weight:600;border-bottom-color:var(--em-acc);background:none}
@@ -535,29 +519,15 @@ html body .ezd-main .sp-tab-pane{background:#fff;border:0;padding:1.1rem 0 0}
 /* Przekazania */
 html body .ezd-main .dekr-row{display:flex;align-items:flex-start;gap:.75rem;padding:.65rem 0;border-bottom:1px solid var(--em-line);font-size:.82rem}
 html body .ezd-main .dekr-row:last-child{border-bottom:0}
-/* Prawa kolumna: karty Metro */
+/* Prawa kolumna: sekcje formularza jak w Dynamics 365 */
 html body .ezd-main .sp-side{background:#fff;border:1px solid var(--em-line);min-width:0;overflow:hidden}
-html body .ezd-main .sp-side-hd{display:flex;align-items:center;gap:.5rem;padding:.65rem 1rem;background:var(--em-light);border-bottom:0}
+html body .ezd-main .sp-side-hd{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;background:#fff;border-bottom:1px solid var(--em-line)}
 html body .ezd-main .sp-side-hd .bi{color:var(--em-acc)}
-html body .ezd-main .sp-side-h{margin:0;font-size:1rem;font-weight:600;color:var(--em-ink)}
+html body .ezd-main .sp-side-h{margin:0;font-size:.95rem;font-weight:600;color:var(--em-ink)}
 html body .ezd-main .sp-side-bd{padding:.85rem 1rem}
 html body .ezd-main .sp-kv{display:grid;grid-template-columns:minmax(96px,38%) 1fr;gap:.45rem .75rem;margin:0;font-size:.82rem}
 html body .ezd-main .sp-kv dt{margin:0;min-width:0;font-size:.66rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--em-muted);padding-top:.15rem}
 html body .ezd-main .sp-kv dd{margin:0;min-width:0;color:var(--em-ink);word-break:break-word}
-/* Obieg: kwadratowe kroki z pionową linią */
-html body .ezd-main .sp-wf{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr}
-html body .ezd-main .sp-wf-step{position:relative;display:flex;align-items:center;gap:.75rem;padding:.35rem 0}
-html body .ezd-main .sp-wf-step::before{content:'';position:absolute;left:12px;top:0;bottom:0;width:2px;background:var(--em-line)}
-html body .ezd-main .sp-wf-step:first-child::before{top:50%}
-html body .ezd-main .sp-wf-step:last-child::before{bottom:50%}
-html body .ezd-main .sp-wf-dot{position:relative;z-index:1;width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--em-light);color:var(--em-muted);font-size:.7rem;border:2px solid #fff}
-html body .ezd-main .sp-wf-lbl{font-size:.84rem;color:var(--em-muted);line-height:1.2;min-width:0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-html body .ezd-main .sp-wf-now{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#fff;background:var(--em-acc);padding:.1rem .4rem}
-html body .ezd-main .sp-wf-done::before{background:var(--m-green)}
-html body .ezd-main .sp-wf-done .sp-wf-dot{background:var(--m-green);color:#fff}
-html body .ezd-main .sp-wf-done .sp-wf-lbl{color:var(--m-green)}
-html body .ezd-main .sp-wf-current .sp-wf-dot{background:var(--em-acc);color:#fff}
-html body .ezd-main .sp-wf-current .sp-wf-lbl{color:var(--em-ink);font-weight:700}
 /* Historia operacji */
 html body .ezd-main .sp-log{max-height:380px;overflow-y:auto}
 html body .ezd-main .sp-log-row{display:flex;align-items:flex-start;gap:.5rem;padding:.4rem 0;font-size:.78rem;border-bottom:1px solid var(--em-line)}
@@ -608,67 +578,90 @@ html body .ezd-main .tl-meta{font-size:.72rem;color:var(--em-muted);display:flex
 </div>
 <?php endif; ?>
 
-<!-- ══ Nagłówek koszulki ═══════════════════════════════════════════════════════ -->
+<!-- ══ Nagłówek koszulki — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php):
+     pasek poleceń, „Koszulka · znak”, tytuł, pola nagłówka, pasek etapów obiegu (klik = przejście do etapu) ══ -->
 <?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
 $TONE_V  = ['secondary' => 'slate', 'info' => 'sky', 'primary' => 'blue', 'warning' => 'amber', 'success' => 'emerald', 'danger' => 'rose', 'dark' => 'slate'];
+$TONE_C  = ['secondary' => 'var(--em-ink)', 'info' => 'var(--m-teal)', 'primary' => 'var(--m-blue)', 'warning' => 'var(--m-orange)', 'success' => 'var(--m-green)', 'danger' => 'var(--m-red)', 'dark' => 'var(--em-ink)'];
 $st_meta = EZD_STATUSES_SPRAWA[$sprawa['status']] ?? ['label' => $sprawa['status'], 'class' => 'secondary'];
 $pr_meta = EZD_PRIORITIES[$sprawa['priority']] ?? ['label' => $sprawa['priority'], 'class' => 'secondary'];
 $et_meta = ezd_etap_meta($cur_etap);
 $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_closed && empty($sprawa['ciagla']);
 ?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia koszulki">
+  <?php if($can_act): ?>
+  <button type="button" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#dekrModal"><i class="bi bi-person-lines-fill" aria-hidden="true"></i>Przekaż</button>
+  <button type="button" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#pismoModal"><i class="bi bi-envelope-plus" aria-hidden="true"></i>Nowe pismo</button>
+  <?php if($signed_pdfs): ?>
+  <button type="button" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#sprawaSendMailModal"><i class="bi bi-send" aria-hidden="true"></i>Wyślij mailem</button>
+  <?php endif; ?>
+  <?php endif; ?>
+  <button type="button" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#notatkiModal"><i class="bi bi-sticky" aria-hidden="true"></i>Notatki<?php if($notatki): ?> <span class="badge rounded-pill bg-secondary"><?= count($notatki) ?></span><?php endif; ?></button>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm" onclick="return confirm('Czy na pewno chcesz wydrukować ten dokument?')"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj</a>
+  <?php if(!$mini): ?>
+  <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm"><i class="bi bi-clipboard-check" aria-hidden="true"></i>Metryka</a>
+  <?php endif; ?>
+  <?php if($can_edit_case): ?>
+  <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm"><i class="bi bi-pencil" aria-hidden="true"></i>Edytuj</a>
+  <?php endif; ?>
+  <?php if($can_edit_case || $can_act): ?>
+  <div class="dropdown">
+    <button type="button" class="btn btn-sm" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="menu"><i class="bi bi-three-dots" aria-hidden="true"></i>Więcej</button>
+    <ul class="dropdown-menu dropdown-menu-end sp-more">
+      <?php if($can_edit_case): ?>
+      <li><a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="dropdown-item"><i class="bi bi-stars" aria-hidden="true"></i>Przerejestruj (AI)</a></li>
+      <?php endif; ?>
+      <?php if($can_act): ?>
+      <?php if($can_edit_case): ?><li><hr class="dropdown-divider"></li><?php endif; ?>
+      <li><button type="button" class="dropdown-item sp-more-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij koszulkę</button></li>
+      <?php endif; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+</div>
+
 <section class="sp-hero" aria-labelledby="sp-title">
-  <div class="tw-flex tw-flex-wrap tw-items-start tw-justify-between tw-gap-3">
-    <div class="tw-min-w-0 tw-flex-1">
-      <div class="sp-kicker">
-        <span class="sp-kicker-lbl"><?= $sprawa['parent_id'] ? 'Podkoszulka' : 'Koszulka' ?></span>
-        <code class="sp-znak"><?= h($sprawa['znak_sprawy']) ?></code>
-        <span class="ezx-badge ezx-badge--<?= $TONE_V[$st_meta['class']] ?? 'slate' ?>"><?= h($st_meta['label']) ?></span>
-        <?php if (!$mini): ?><span class="ezx-badge ezx-badge--<?= $cur_etap === 'akceptacja' ? 'violet' : ($TONE_V[$et_meta['class']] ?? 'slate') ?>"><i class="bi <?= h($et_meta['icon'] ?? 'bi-record-circle') ?>" aria-hidden="true"></i><?= $cur_etap === 'akceptacja' ? 'W akceptacji' : h($et_meta['label']) ?></span><?php endif; ?>
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><?= $sprawa['parent_id'] ? 'Podkoszulka' : 'Koszulka' ?> · <code><?= h($sprawa['znak_sprawy']) ?></code></div>
+      <h1 id="sp-title" class="dyn-title"><?= h($sprawa['title']) ?></h1>
+      <?php if (in_array($sprawa['priority'], ['high', 'urgent'], true) || $overdue || !empty($sprawa['ciagla'])): ?>
+      <div class="sp-flags">
         <?php if (in_array($sprawa['priority'], ['high', 'urgent'], true)): ?><span class="ezx-badge ezx-badge--<?= $TONE_V[$pr_meta['class']] ?? 'slate' ?>"><i class="bi bi-flag-fill" aria-hidden="true"></i><?= h($pr_meta['label']) ?></span><?php endif; ?>
         <?php if ($overdue): ?><span class="ezx-badge ezx-badge--urgent"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>Pilne — po terminie</span><?php endif; ?>
         <?php if (!empty($sprawa['ciagla'])): ?><span class="ezx-badge ezx-badge--sky"><i class="bi bi-infinity" aria-hidden="true"></i>Ciągła</span><?php endif; ?>
-        <?php if ($sprawa['parent_id']): ?><span class="ezx-badge ezx-badge--slate"><i class="bi bi-diagram-3" aria-hidden="true"></i>Podkoszulka</span><?php endif; ?>
       </div>
-      <h1 id="sp-title" class="tw-m-0"><?= h($sprawa['title']) ?></h1>
+      <?php endif; ?>
       <?php if ($sprawa['description']): ?><p class="sp-desc"><?= nl2br(h($sprawa['description'])) ?></p><?php endif; ?>
     </div>
-    <div class="sp-meta-actions tw-shrink-0">
-      <?php if($can_act): ?>
-      <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#dekrModal"><i class="bi bi-person-lines-fill" aria-hidden="true"></i>Przekaż</button>
-      <button type="button" class="btn btn-sm sp-cmd" data-bs-toggle="modal" data-bs-target="#pismoModal"><i class="bi bi-envelope-plus" aria-hidden="true"></i>Pismo</button>
-      <?php if($signed_pdfs): ?>
-      <button type="button" class="btn btn-sm sp-cmd" data-bs-toggle="modal" data-bs-target="#sprawaSendMailModal"><i class="bi bi-send" aria-hidden="true"></i>Wyślij mailem</button>
-      <?php endif; ?>
-      <?php endif; ?>
-      <button type="button" class="btn btn-sm sp-cmd" data-bs-toggle="modal" data-bs-target="#notatkiModal"><i class="bi bi-sticky" aria-hidden="true"></i>Notatki<?php if($notatki): ?> <span class="badge rounded-pill bg-secondary"><?= count($notatki) ?></span><?php endif; ?></button>
-      <div class="dropdown">
-        <button type="button" class="btn btn-sm sp-cmd" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="menu"><i class="bi bi-three-dots" aria-hidden="true"></i>Więcej</button>
-        <ul class="dropdown-menu dropdown-menu-end sp-more">
-          <li><a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="dropdown-item" onclick="return confirm('Czy na pewno chcesz wydrukować ten dokument?')"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj</a></li>
-          <?php if(!$mini): ?>
-          <li><a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="dropdown-item"><i class="bi bi-clipboard-check" aria-hidden="true"></i>Metryka koszulki</a></li>
-          <?php endif; ?>
-          <?php if($can_edit_case): ?>
-          <li><a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="dropdown-item"><i class="bi bi-pencil" aria-hidden="true"></i>Edytuj metadane</a></li>
-          <li><a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="dropdown-item"><i class="bi bi-stars" aria-hidden="true"></i>Przerejestruj (AI)</a></li>
-          <?php endif; ?>
-          <?php if($can_act): ?>
-          <li><hr class="dropdown-divider"></li>
-          <li><button type="button" class="dropdown-item sp-more-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij koszulkę</button></li>
-          <?php endif; ?>
-        </ul>
-      </div>
-    </div>
+    <?php
+    $_dyn_term = !empty($sprawa['ciagla']) ? ['html' => '<i class="bi bi-infinity" aria-hidden="true"></i> stale otwarta']
+               : ($sprawa['deadline'] ? ['html' => '<span' . ($overdue ? ' class="overdue" style="color:var(--m-red)"' : '') . '>' . h(date('d.m.Y', strtotime($sprawa['deadline']))) . ($overdue ? ' <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>' : '') . '</span>'] : '');
+    echo dynHFields([
+        ['Status', $st_meta['label'], $TONE_C[$st_meta['class']] ?? ''],
+        ['Prowadzący', (string)($sprawa['owner_name'] ?? '')],
+        ['Wykaz akt', ['html' => '<a href="' . APP_URL . '/ezd/teczki/view.php?id=' . (int)$sprawa['teczka_id'] . '">' . h($sprawa['teczka_symbol']) . '</a>']],
+        ['Termin realizacji', $_dyn_term],
+        ['Wszczęta', date('d.m.Y', strtotime($sprawa['created_at']))],
+    ]);
+    ?>
   </div>
-
-  <dl class="sp-kvs">
-    <div class="ezx-kv"><dt><i class="bi bi-person" aria-hidden="true"></i> Prowadzący</dt><dd><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '—' ?></dd></div>
-    <div class="ezx-kv"><dt><i class="bi bi-archive" aria-hidden="true"></i> Wykaz akt</dt><dd><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" ><?= h($sprawa['teczka_symbol']) ?></a></dd></div>
-    <div class="ezx-kv"><dt><i class="bi bi-calendar3" aria-hidden="true"></i> Data wszczęcia</dt><dd><?= date('d.m.Y', strtotime($sprawa['created_at'])) ?></dd></div>
-    <div class="ezx-kv"><dt><i class="bi bi-calendar-event" aria-hidden="true"></i> Termin realizacji</dt>
-      <dd class="<?= $overdue ? 'overdue' : '' ?>"><?php if(!empty($sprawa['ciagla'])): ?><span class="tw-text-sky-600"><i class="bi bi-infinity" aria-hidden="true"></i> stale otwarta</span><?php elseif($sprawa['deadline']): ?><?= date_pl($sprawa['deadline']) ?><?= $overdue ? ' <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>' : '' ?><?php else: ?>—<?php endif; ?></dd></div>
-    <div class="ezx-kv"><dt><i class="bi bi-files" aria-hidden="true"></i> Zawartość</dt><dd><?= count($zalaczniki) ?> plik<?= count($zalaczniki) === 1 ? '' : 'ów' ?> · <?= count(array_filter($timeline, fn($t) => $t['_typ'] === 'pismo')) ?> pism</dd></div>
-  </dl>
+  <?php if (!$mini && $wf_steps):
+      // Etapy obiegu wg workflow Wykazu akt. Klik = set_etap (jak lista „Przejdź do etapu”); ostatni etap zamyka
+      // koszulkę, więc w pasku jest tylko do odczytu — zamknięcie przez „Zamknij koszulkę” albo „Dalej” w karcie Obieg.
+      $_wf_last = end($wf_keys);
+      $_wf_post = ($can_act && !$is_closed) ? function (string $k) use ($_wf_last, $sprawa): ?string {
+          if ($k === $_wf_last && empty($sprawa['ciagla'])) return null;
+          return '<input type="hidden" name="_csrf" value="' . h(csrf_token()) . '"><input type="hidden" name="_action" value="set_etap"><input type="hidden" name="etap" value="' . h($k) . '">';
+      } : null;
+      echo dynStages(array_column($wf_steps, 'label', 'key'), (string)$cur_etap, array_filter([
+          'label' => 'Etapy obiegu koszulki',
+          'off'   => $cur_idx === -1 ? [$cur_etap => $cur_etap === 'akceptacja' ? 'W akceptacji' : $et_meta['label']] : [],
+          'post'  => $_wf_post,
+      ]));
+  endif; ?>
 </section>
 
 <!-- ══ Układ 2-kolumnowy: lewa = akta + pisma/zadania/uczestnicy, prawa = obieg + metadane + historia ══ -->
@@ -1479,15 +1472,8 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
     </div>
     <div class="sp-side-bd">
       <?php if($wf_steps): ?>
-      <ol class="sp-wf" aria-label="Etapy obiegu">
-        <?php foreach ($wf_steps as $i => $st):
-          $state = $i < $cur_idx ? 'done' : ($i === $cur_idx ? 'current' : 'todo'); ?>
-        <li class="sp-wf-step sp-wf-<?= $state ?>" <?= $state === 'current' ? 'aria-current="step"' : '' ?>>
-          <span class="sp-wf-dot"><i class="bi <?= $state === 'done' ? 'bi-check-lg' : ($st['icon'] ?: 'bi-record-circle') ?>" aria-hidden="true"></i></span>
-          <span class="sp-wf-lbl"><?= h($st['label']) ?><?php if($state === 'current'): ?><span class="sp-wf-now">obecny etap</span><?php endif; ?></span>
-        </li>
-        <?php endforeach; ?>
-      </ol>
+      <?php /* Etapy obiegu są w pasku pod nagłówkiem koszulki (układ Dynamics) — tu bieżący etap i przejścia */ ?>
+      <p class="tw-m-0 tw-text-sm"><?php if ($cur_idx >= 0): ?>Etap <strong><?= $cur_idx + 1 ?> z <?= count($wf_steps) ?></strong>: <?= h($wf_steps[$cur_idx]['label']) ?><?php else: ?>Obecnie: <strong><?= $cur_etap === 'akceptacja' ? 'W akceptacji' : h($et_meta['label']) ?></strong><?php endif; ?></p>
       <?php if($can_act): ?>
       <div class="tw-grid tw-grid-cols-1 tw-gap-2 tw-mt-3 tw-pt-3 tw-border-t tw-border-solid tw-border-slate-100">
         <?php if($next_step): ?>
