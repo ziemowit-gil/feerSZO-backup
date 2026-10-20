@@ -91,6 +91,7 @@ function crm_quick_create(array $in, int $uid): array {
                     'created_at'  => date('Y-m-d H:i:s'),
                     'updated_at'  => date('Y-m-d H:i:s'),
                 ]);
+                crm_case_ensure_number((int)$id);   // numer CRM/NNNN/RRRR
                 return ['ok' => true, 'error' => '', 'id' => (int)$id, 'label' => 'Sprawa',
                         'url' => APP_URL . '/crm/cases/view.php?id=' . (int)$id];
 

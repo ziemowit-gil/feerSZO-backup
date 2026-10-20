@@ -160,7 +160,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         if ($title) {
             db()->prepare("UPDATE crm_cases SET title=?, description=?, priority=?, updated_at=? WHERE id=?")
                 ->execute([$title, $desc ?: null, $prio, date('Y-m-d H:i:s'), $id]);
-            flash_set('success', 'Sprawa zaktualizowana.');
+            // Ręczna zmiana numeru sprawy (CRM/NNNN/RRRR, bez powtórzeń)
+            $num_err = isset($_POST['case_number']) ? crm_case_set_number($id, (string)$_POST['case_number'], $uid) : '';
+            if ($num_err !== '') flash_set('danger', 'Zapisano sprawę, ale numeru nie zmieniono: ' . $num_err);
+            else flash_set('success', 'Sprawa zaktualizowana.');
         }
         header('Location: view.php?id=' . $id); exit;
     }
@@ -625,8 +628,14 @@ include dirname(__DIR__) . '/includes/header_crm.php';
       <form method="post" class="row g-2">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="edit_meta">
-        <div class="col-sm-8">
-          <input name="title" class="form-control form-control-sm" value="<?= h($case['title']) ?>" placeholder="Tytuł" required>
+        <div class="col-sm-3">
+          <label class="visually-hidden" for="cvCaseNo">Numer sprawy</label>
+          <input id="cvCaseNo" name="case_number" class="form-control form-control-sm font-monospace" value="<?= h((string)$case['case_number']) ?>"
+                 placeholder="CRM/0001/<?= date('Y') ?>" pattern="[Cc][Rr][Mm]/[0-9]{4,}/[0-9]{4}" title="Numer sprawy w formacie CRM/0001/2026" aria-describedby="cvCaseNoHelp">
+          <div id="cvCaseNoHelp" class="form-text" style="font-size:.72rem">numer sprawy — zmiana ręczna</div>
+        </div>
+        <div class="col-sm-5">
+          <input name="title" class="form-control form-control-sm" value="<?= h($case['title']) ?>" placeholder="Tytuł" required aria-label="Tytuł sprawy">
         </div>
         <div class="col-sm-4">
           <select name="priority" class="form-select form-select-sm">

@@ -1206,6 +1206,7 @@ function crm_migrate(): void {
         $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_cases_case_number ON crm_cases(case_number) WHERE case_number IS NOT NULL");
         $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_cases_contract ON crm_cases(contract_type, contract_id) WHERE contract_type IS NOT NULL AND contract_id IS NOT NULL");
     } catch (\Throwable $e) {}
+    crm_case_numbers_backfill();   // numery CRM/NNNN/RRRR (jednorazowo dla istniejących, potem tylko braki)
 
     // Katalog rodzajów usług — seed startowy tylko przy pustej tabeli.
     // Katalog jest otwarty: pozycje można dowolnie dodawać, zmieniać i usuwać
@@ -1303,22 +1304,87 @@ function crm_seed_ti_zapisy_automation(): void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Zwraca następny numer sprawy w formacie CASE{RRRR}/{NNN}, np. CASE2026/001.
- * Numer jest wyznaczany na podstawie istniejących wpisów w crm_cases.
+ * Numer sprawy CRM: CRM/{NNNN}/{RRRR} — licznik osobny dla każdego roku (np. CRM/0001/2026).
+ * Następny = największy numer w roku + 1 (numery wpisane ręcznie też się liczą).
  */
+const CRM_CASE_NUMBER_RE = '#^CRM/(\d{4,})/(\d{4})$#';
+
 function crm_next_case_number(int $year = 0): string {
     if ($year <= 0) $year = (int)date('Y');
-    $prefix = 'CASE' . $year . '/';
-    $row = db_one(
-        "SELECT case_number FROM crm_cases WHERE case_number LIKE ? ORDER BY case_number DESC LIMIT 1",
-        [$prefix . '%']
-    );
-    $next = 1;
-    if ($row) {
-        $parts = explode('/', $row['case_number']);
-        $next = (int)end($parts) + 1;
+    $max = 0;
+    foreach (db_all("SELECT case_number FROM crm_cases WHERE case_number LIKE ?", ['CRM/%/' . $year]) as $r) {
+        if (preg_match(CRM_CASE_NUMBER_RE, (string)$r['case_number'], $m) && (int)$m[2] === $year) $max = max($max, (int)$m[1]);
     }
-    return $prefix . str_pad((string)$next, 3, '0', STR_PAD_LEFT);
+    return sprintf('CRM/%04d/%d', $max + 1, $year);
+}
+
+/**
+ * Nadaje sprawie numer, jeśli go nie ma (rok z daty założenia). Odporne na równoległe zakładanie
+ * (unikalny indeks + ponowienie). Zwraca numer sprawy.
+ */
+function crm_case_ensure_number(int $caseId): string {
+    $c = db_one("SELECT case_number, created_at FROM crm_cases WHERE id = ?", [$caseId]);
+    if (!$c) return '';
+    if (trim((string)$c['case_number']) !== '') return (string)$c['case_number'];
+    $year = (int)substr((string)($c['created_at'] ?: date('Y')), 0, 4) ?: (int)date('Y');
+    for ($i = 0; $i < 5; $i++) {
+        $n = crm_next_case_number($year);
+        try {
+            db_exec("UPDATE crm_cases SET case_number = ? WHERE id = ? AND (case_number IS NULL OR case_number = '')", [$n, $caseId]);
+            return $n;
+        } catch (\Throwable $e) { /* kolizja numeru — następna próba */ }
+    }
+    return '';
+}
+
+/**
+ * Ręczna zmiana numeru sprawy (edycja sprawy). Format CRM/NNNN/RRRR, bez powtórzeń.
+ * @return string '' = OK, inaczej komunikat błędu
+ */
+function crm_case_set_number(int $caseId, string $number, int $userId = 0): string {
+    $number = strtoupper(trim($number));
+    if (!preg_match(CRM_CASE_NUMBER_RE, $number)) return 'Numer sprawy w formacie CRM/0001/2026.';
+    $old = db_one("SELECT case_number FROM crm_cases WHERE id = ?", [$caseId]);
+    if (!$old) return 'Nie ma takiej sprawy.';
+    if ((string)$old['case_number'] === $number) return '';
+    if (db_one("SELECT id FROM crm_cases WHERE case_number = ? AND id <> ?", [$number, $caseId])) return 'Numer ' . $number . ' ma już inna sprawa.';
+    db_exec("UPDATE crm_cases SET case_number = ?, updated_at = ? WHERE id = ?", [$number, date('Y-m-d H:i:s'), $caseId]);
+    if (function_exists('audit_log')) audit_log('crm.case_number', ['case_id' => $caseId, 'from' => $old['case_number'], 'to' => $number], $userId ?: null);
+    return '';
+}
+
+/**
+ * Jednorazowo (flaga crm_case_numbers_v2): wszystkie istniejące sprawy dostają numery CRM/NNNN/RRRR
+ * w kolejności założenia w obrębie roku (także stare CASE2026/001). Potem przy każdej migracji
+ * uzupełniamy tylko sprawy bez numeru.
+ */
+function crm_case_numbers_backfill(): void {
+    try {
+        $done = db_one("SELECT value FROM settings WHERE key_ = 'crm_case_numbers_v2'");
+        if (!$done) {
+            $pdo = db(); $pdo->beginTransaction();
+            try {
+                $rows = db_all("SELECT id, case_number, created_at FROM crm_cases ORDER BY created_at, id");
+                db_exec("UPDATE crm_cases SET case_number = NULL WHERE case_number IS NOT NULL AND case_number NOT LIKE 'CRM/%'");
+                $seq = [];
+                foreach (db_all("SELECT case_number FROM crm_cases WHERE case_number LIKE 'CRM/%'") as $r)
+                    if (preg_match(CRM_CASE_NUMBER_RE, (string)$r['case_number'], $m)) $seq[(int)$m[2]] = max($seq[(int)$m[2]] ?? 0, (int)$m[1]);
+                foreach ($rows as $r) {
+                    if (preg_match(CRM_CASE_NUMBER_RE, (string)$r['case_number'])) continue;
+                    $y = (int)substr((string)($r['created_at'] ?: date('Y')), 0, 4) ?: (int)date('Y');
+                    $seq[$y] = ($seq[$y] ?? 0) + 1;
+                    $new = sprintf('CRM/%04d/%d', $seq[$y], $y);
+                    db_exec("UPDATE crm_cases SET case_number = ? WHERE id = ?", [$new, (int)$r['id']]);
+                    if (trim((string)$r['case_number']) !== '' && function_exists('audit_log'))
+                        audit_log('crm.case_number', ['case_id' => (int)$r['id'], 'from' => $r['case_number'], 'to' => $new, 'reason' => 'nowy format CRM/NNNN/RRRR'], null);
+                }
+                db_exec("INSERT OR REPLACE INTO settings (key_, value) VALUES ('crm_case_numbers_v2', ?)", [date('Y-m-d H:i:s')]);
+                $pdo->commit();
+            } catch (\Throwable $e) { $pdo->rollBack(); error_log('[crm] case numbers backfill: ' . $e->getMessage()); }
+            return;
+        }
+        foreach (db_all("SELECT id FROM crm_cases WHERE case_number IS NULL OR case_number = '' ORDER BY created_at, id LIMIT 200") as $r) crm_case_ensure_number((int)$r['id']);
+    } catch (\Throwable $e) {}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

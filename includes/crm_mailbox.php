@@ -652,6 +652,7 @@ function crm_mailbox_create_case(int $id, array $opts = []): array {
         'created_at'  => date('Y-m-d H:i:s'),
         'updated_at'  => date('Y-m-d H:i:s'),
     ]);
+    crm_case_ensure_number((int)$case_id);   // numer CRM/NNNN/RRRR
     crm_mailbox_assign($id, (int)($opts['assign_to'] ?? 0) ?: $uid);
     crm_mailbox_mark_read($id, true);
     // Wiadomość zostaje w skrzynce tylko, gdy operator wyraźnie tego chce
