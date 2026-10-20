@@ -7,7 +7,7 @@
  *      · adres w domenie Microsoft 365 organizacji (@feer.org.pl) → TYLKO logowanie Microsoft 365 (bez sprawdzania
  *        hasła; reguła po samej domenie, więc nie zdradza, czy konto istnieje),
  *      · inny e-mail (konta panelowe z zespol.php) → hasło SZO + obowiązkowe TOTP (totp_gate.php).
- *  - login bez „@” zakończony „-kz” → login zastępczy konsultanta — TYLKO na osobnej stronie karty30/ti/konsultant.php
+ *  - login = 3 cyfry → login zastępczy konsultanta — TYLKO na osobnej stronie karty30/ti/konsultant.php
  *      (TiLogin::altUrl); tu tylko podpowiedź z adresem. Samo hasło (bez TOTP), sesja tylko w trybie Konsultacje.
  *  - pozostałe loginy bez „@” → konta panelu kursanta (k30_ti_student_accounts / k30_ti_authorized_persons):
  *      · uczestnik: `login` albo `login_alias`,
@@ -281,7 +281,7 @@ final class TiLogin
         return tiPanelUrl('ti', 'konsultant.php');
     }
 
-    /** Login zastępczy konsultanta („…-kz”). */
+    /** Login zastępczy konsultanta (numer 3-cyfrowy). */
     public static function isAltConsultantLogin(string $login): bool
     {
         require_once dirname(__DIR__, 2) . '/ti_consultant_access/logic/consultantAccess.php';

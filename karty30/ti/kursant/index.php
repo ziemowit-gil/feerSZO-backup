@@ -824,8 +824,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!preg_match('/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/', $alias)) {
             $err = 'Alias może zawierać tylko litery a–z, cyfry, kropki, myślniki i podkreślenia (3–30 znaków, bez spacji).';
-        } elseif (str_ends_with($alias, '-kz')) {
-            $err = 'Końcówka -kz jest zarezerwowana dla loginów zastępczych konsultantów — wybierz inny alias.';
+        } elseif (preg_match('/^\d{3}$/', $alias)) {
+            $err = 'Alias z samych 3 cyfr jest zarezerwowany dla loginów zastępczych konsultantów — wybierz inny.';
         } elseif (db_one("SELECT id FROM k30_ti_student_accounts WHERE login=? AND id!=?", [$alias, (int)$student['id']])) {
             $err = 'Ta nazwa jest już zajęta jako login innego kursanta.';
         } elseif (db_one("SELECT id FROM k30_ti_student_accounts WHERE login_alias=? AND id!=?", [$alias, (int)$student['id']])) {

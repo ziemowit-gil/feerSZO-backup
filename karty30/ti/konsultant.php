@@ -1,8 +1,8 @@
 <?php
 /**
- * karty30/ti/konsultant.php — osobne logowanie konsultantów loginem zastępczym „…-kz” (zamiast Microsoft 365).
+ * karty30/ti/konsultant.php — osobne logowanie konsultantów: numer zastępczy (3 cyfry) zamiast Microsoft 365.
  * Login + hasło (modules/ti_consultant_access) → od razu panel tylko w trybie Konsultacje (bez kodu TOTP). Limit prób jak na wspólnym logowaniu TI (TiLogin, prefiks „ti:”). Login ustawia sam konsultant
- * w panelu: Konsultacje › Moje › Login zastępczy. Wspólne logowanie TI (login.php) loginów „-kz” nie przyjmuje.
+ * w panelu: Konsultacje › Moje › Login zastępczy. Wspólne logowanie TI (login.php) numerów zastępczych nie przyjmuje.
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -26,9 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (TiLogin::throttled($login)) {
         $error = TiLogin::ERROR_THROTTLE;
     } else {
-        if (!str_contains($login, '@') && !str_ends_with($login, TiConsultantAccess::ALT_SUFFIX)) $login .= TiConsultantAccess::ALT_SUFFIX;
-        // login zastępczy „-kz” → od razu Konsultacje; e-mail (konsultant zewnętrzny) → hasło + kod TOTP
-        $url = str_contains($login, '@') ? TiLogin::completeStaff($login, $pass) : TiLogin::completeAltConsultant($login, $pass);
+        // numer zastępczy (3 cyfry) → od razu Konsultacje; e-mail (konsultant zewnętrzny) → hasło + kod TOTP
+        $url = str_contains($login, '@') ? TiLogin::completeStaff($login, $pass)
+             : (TiConsultantAccess::isAltLogin($login) ? TiLogin::completeAltConsultant($login, $pass) : null);
         if ($url !== null) { TiLogin::clearAttempts($login); header('Location: ' . $url, true, 303); exit; }
         TiLogin::recordAttempt($login);
         $error = TiLogin::ERROR;
@@ -98,15 +98,15 @@ a{color:#4b00b5}
 <main class="kl-main" id="main">
   <div class="kl-box">
     <h1 class="kl-h">Zaloguj się</h1>
-    <p class="kl-lead">Login zastępczy (<span style="font-family:ui-monospace,Menlo,monospace">…-kz</span>) albo e-mail konsultanta.</p>
+    <p class="kl-lead">Numer zastępczy (3 cyfry) albo e-mail konsultanta.</p>
     <?php if ($error !== ''): ?><div class="kl-err" role="alert" id="kl-err"><?= h($error) ?></div><?php endif; ?>
     <form method="post" autocomplete="on">
       <input type="hidden" name="_token" value="<?= h($_tok) ?>">
       <div class="kl-field">
-        <label for="kl-login">Login lub e-mail</label>
+        <label for="kl-login">Numer lub e-mail</label>
         <input class="kl-in" id="kl-login" name="login" required maxlength="190" value="<?= h($login) ?>" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus
                aria-describedby="kl-login-h<?= $error !== '' ? ' kl-err' : '' ?>"<?= $error !== '' ? ' aria-invalid="true"' : '' ?>>
-        <p class="kl-hint" id="kl-login-h">Login zastępczy — wejście bez kodu, tylko Konsultacje. E-mail konsultanta zewnętrznego — po haśle kod z aplikacji.</p>
+        <p class="kl-hint" id="kl-login-h">Numer zastępczy, np. <strong>417</strong> — wejście bez kodu, tylko Konsultacje. E-mail konsultanta zewnętrznego — po haśle kod z aplikacji.</p>
       </div>
       <div class="kl-field">
         <label for="kl-pass">Hasło</label>
@@ -116,7 +116,7 @@ a{color:#4b00b5}
     </form>
     <div class="kl-or">kadra organizacji</div>
     <a class="kl-ms" href="<?= h(TiLogin::officeUrl()) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Zaloguj przez Microsoft 365</a>
-    <p class="kl-foot">Login zastępczy ustawisz po zalogowaniu Microsoft 365: Konsultacje › Moje › Login zastępczy.</p>
+    <p class="kl-foot">Numer zastępczy dostaniesz po zalogowaniu Microsoft 365: Konsultacje › Moje › Login zastępczy.</p>
   </div>
 </main>
 </body>

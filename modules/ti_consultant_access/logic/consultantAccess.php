@@ -3,11 +3,11 @@
  * modules/ti_consultant_access/logic/consultantAccess.php — samodzielne logowanie konsultantów do panelu dydaktyka
  * (tylko tryb Konsultacje).
  *
- * 1. Login zastępczy „…-kz” — konsultant z kadry (zwykle Microsoft 365) sam ustawia w panelu login i hasło
+ * 1. Login zastępczy = numer 3-cyfrowy nadany przez system — konsultant z kadry (zwykle Microsoft 365) sam ustawia hasło
  *    (dydaktyk/kontoZastepcze.php). Na wspólnej stronie logowania TI (karty30/ti/login.php, TiLogin) wpisuje je
  *    zamiast Microsoft 365 (osobna strona karty30/ti/konsultant.php), BEZ kodu TOTP (decyzja użytkownika), i dostaje sesję z flagą `alt_konsultacje`:
  *    tylko tryb Konsultacje (dyd_modes_available), bez uprawnień kierownika. Karty zapisują się na jego users.id.
- *    Końcówka „-kz” jest zarezerwowana — alias uczestnika nie może się tak kończyć.
+ *    Aliasy uczestników nie mogą być samymi 3 cyframi (zarezerwowane).
  * 2. Konsultant zewnętrzny — kierownik wysyła zaproszenie (dydaktyk/konsultacjeUstawienia.php): link z tokenem
  *    (INVITE_DAYS dni, w bazie tylko skrót SHA-256). Osoba otwiera dydaktyk/zaproszenieKonsultanta.php, sama ustawia
  *    hasło; powstaje konto panelowe `users` (rola dydaktyk_ti, k30_consultant=1, tryb tylko Konsultacje — TiWorkModes),
@@ -19,7 +19,6 @@ require_once dirname(__DIR__, 3) . '/includes/db.php';
 
 final class TiConsultantAccess
 {
-    public const ALT_SUFFIX  = '-kz';
     public const INVITE_DAYS = 7;
     public const MIN_PASS    = 10;
     private const DUMMY_HASH = '$2y$12$tWwRjLC/FTTiKrcKYDYrBOloKveMHi1D9Jo.YwzzitQ9yYy9sxfQS';
@@ -64,11 +63,11 @@ final class TiConsultantAccess
         return mb_strtolower(trim($login));
     }
 
-    /** Login zastępczy konsultanta (bez „@”, kończy się na „-kz”). */
+    /** Login zastępczy konsultanta — numer 3-cyfrowy. */
     public static function isAltLogin(string $login): bool
     {
         $l = self::normalize($login);
-        return $l !== '' && !str_contains($l, '@') && str_ends_with($l, self::ALT_SUFFIX);
+        return (bool)preg_match('/^\d{3}$/', $l);
     }
 
     // ── Login zastępczy ─────────────────────────────────────────────────────────
@@ -77,13 +76,6 @@ final class TiConsultantAccess
     {
         self::migrate();
         return db_one("SELECT * FROM ti_consultant_alt_logins WHERE user_id = ?", [$uid]) ?: null;
-    }
-
-    /** Propozycja loginu z części e-maila przed „@” (ziemowit.gil@… → ziemowit.gil-kz). */
-    public static function suggestLogin(string $email): string
-    {
-        $base = preg_replace('/[^a-z0-9.]+/', '', strtolower(explode('@', $email)[0] ?? '')) ?: 'konsultant';
-        return substr(trim($base, '.'), 0, 30) . self::ALT_SUFFIX;
     }
 
     /** Czy login zajmuje ktoś inny (login zastępczy albo dowolny login panelu kursanta, rodzica, osoby upoważnionej). */
@@ -102,16 +94,28 @@ final class TiConsultantAccess
         return false;
     }
 
-    /** Ustawia / zmienia login zastępczy i hasło. @return string '' = OK, inaczej komunikat */
-    public static function altSave(int $uid, string $login, string $pass, string $pass2): string
+    /** Nowy wolny numer 3-cyfrowy (100–999) dla loginu zastępczego; '' gdy pula wyczerpana. */
+    public static function newNumber(int $uid): string
+    {
+        $used = array_column(db_all("SELECT login FROM ti_consultant_alt_logins WHERE user_id <> ?", [$uid]), 'login');
+        $free = array_values(array_diff(array_map('strval', range(100, 999)), $used));
+        for ($i = 0; $i < 40 && $free; $i++) {
+            $n = $free[random_int(0, count($free) - 1)];
+            if (!self::loginTaken($n, $uid)) return $n;
+        }
+        return '';
+    }
+
+    /**
+     * Ustawia hasło loginu zastępczego. Numer (3 cyfry) nadaje system przy pierwszym zapisie (albo gdy $newNumber).
+     * @return string '' = OK, inaczej komunikat
+     */
+    public static function altSave(int $uid, string $pass, string $pass2, bool $newNumber = false): string
     {
         self::migrate();
-        $login = self::normalize($login);
-        if (!str_ends_with($login, self::ALT_SUFFIX)) $login .= self::ALT_SUFFIX;
-        $base = substr($login, 0, -strlen(self::ALT_SUFFIX));
-        if (!preg_match('/^[a-z0-9][a-z0-9._]{1,38}[a-z0-9]$/', $base)) return 'Login: 3–40 znaków przed „-kz” — małe litery, cyfry, kropka lub podkreślenie.';
-        if (self::loginTaken($login, $uid)) return 'Ten login jest zajęty — wybierz inny.';
         $cur = self::altFor($uid);
+        $login = ($cur && !$newNumber && self::isAltLogin((string)$cur['login'])) ? (string)$cur['login'] : self::newNumber($uid);
+        if ($login === '') return 'Brak wolnych numerów — napisz do administratora.';
         if ($pass === '' && $cur) {
             db()->prepare("UPDATE ti_consultant_alt_logins SET login = ?, is_active = 1, disabled_by = NULL, updated_at = ? WHERE user_id = ?")
                 ->execute([$login, date('Y-m-d H:i:s'), $uid]);
