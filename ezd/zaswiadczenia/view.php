@@ -201,6 +201,68 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
+<!-- ══ Zaświadczenie — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php) ══ -->
+<?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
+$_zs_meta  = EZD_ZAS_STATUSY[$st] ?? ['label' => $st, 'class' => 'secondary'];
+$_zs_color = ['secondary' => 'var(--em-ink)', 'warning' => 'var(--m-orange)', 'success' => 'var(--m-green)', 'danger' => 'var(--m-red)'][$_zs_meta['class']] ?? '';
+$_zs_fields = [
+    ['Status', $_zs_meta['label'], $_zs_color],
+    ['Wnioskodawca', (string)($zas['wnioskodawca_name'] ?? '')],
+    ['Złożono', date('d.m.Y', strtotime((string)$zas['created_at']))],
+];
+if ($zas['zatwierdzone_at']) $_zs_fields[] = [$issued ? 'Wydano' : 'Weryfikacja', date('d.m.Y', strtotime((string)$zas['zatwierdzone_at']))];
+if (!empty($zas['wazne_do'])) $_zs_fields[] = ['Ważne do', date('d.m.Y', strtotime((string)$zas['wazne_do'])), strtotime((string)$zas['wazne_do']) < time() ? 'var(--m-red)' : ''];
+?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia zaświadczenia">
+  <a href="<?= APP_URL ?>/ezd/zaswiadczenia/index.php" class="btn btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i>Zaświadczenia</a>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <?php if($issued): ?>
+  <button type="button" class="btn btn-outline-primary btn-sm"
+          onclick="(function(){var n=parseInt(prompt('Liczba egzemplarzy:','1'));if(!n||n<1)return;if(n===1){window.open('<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>','_blank');}else{for(var i=1;i<=n;i++)window.open('<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&egzemplarz='+i+'&z='+n,'_blank');}})()">
+    <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+  </button>
+  <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&duplikat=1" target="_blank"
+     class="btn btn-outline-secondary btn-sm" title="Drukuj duplikat z adnotacją daty wydruku"><i class="bi bi-files me-1"></i>Duplikat</a>
+  <?php ezd_kopia_menu_btn('zaswiadczenie', $id, (string)($zas['nr_zaswiadczenia'] ?? '')); ?>
+  <?php if($can_mgr && empty($zas['plik_path'])): ?>
+  <form method="post" class="d-inline" onsubmit="return confirm('Przerenderować treść z aktualnego szablonu? Nadpisze obecną treść zaświadczenia.')">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_action" value="regeneruj_pdf">
+    <button class="btn btn-outline-warning btn-sm" title="Regeneruj PDF z aktualnego szablonu"><i class="bi bi-arrow-clockwise me-1"></i>Regeneruj</button>
+  </form>
+  <?php endif; ?>
+  <?php if($can_mgr && empty($zas['verify_code']) && empty($zas['plik_path'])): ?>
+  <form method="post" class="d-inline">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_action" value="assign_qr">
+    <button class="btn btn-outline-secondary btn-sm" title="Generuj kod QR weryfikacyjny"><i class="bi bi-qr-code"></i></button>
+  </form>
+  <?php elseif(!empty($zas['verify_code'])): ?>
+  <a href="<?= APP_URL ?>/ezd/zaswiadczenia/verify.php?code=<?= rawurlencode($zas['verify_code']) ?>" target="_blank"
+     class="btn btn-outline-secondary btn-sm" title="Strona weryfikacji QR"><i class="bi bi-qr-code-scan"></i></a>
+  <?php endif; ?>
+  <?php endif; ?>
+  <?php if(is_admin()): ?>
+  <form method="post" onsubmit="return confirm('Na pewno usunąć ten wniosek/zaświadczenie? Operacja jest nieodwracalna.')">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_action" value="delete_zas">
+    <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i></button>
+  </form>
+  <?php endif; ?>
+</div>
+
+<section class="dyn-rec" aria-labelledby="zs-title">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><i class="bi bi-award" aria-hidden="true"></i> <?php if ($issued): ?>Zaświadczenie · <code><?= h($zas['nr_zaswiadczenia']) ?></code><?php else: ?>Wniosek o zaświadczenie · #<?= (int)$id ?><?php endif; ?></div>
+      <h1 id="zs-title" class="dyn-title"><?= h($zas['typ_nazwa']) ?></h1>
+    </div>
+    <?= dynHFields($_zs_fields) ?>
+  </div>
+  <?= dynStages(['wniosek' => 'Wniosek', 'weryfikacja' => 'Weryfikacja', 'wydane' => 'Wydane'], (string)$st, ['label' => 'Etapy zaświadczenia', 'off' => ['odrzucone' => 'Odrzucone']]) ?>
+</section>
+
 <?php if($just_odbior): ?>
 <?php $receipt_url = APP_URL . '/ezd/zaswiadczenia/pickup_receipt.php?id=' . $id; ?>
 <div class="alert alert-primary d-flex align-items-center gap-3 mb-3 shadow-sm" style="border-left:4px solid #2563eb">
@@ -240,51 +302,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <?php endif; ?>
 
-<div class="row g-4">
+<div class="row g-4 dyn-form">
   <!-- Lewa: szczegóły -->
   <div class="col-lg-8">
     <div class="card shadow-sm mb-3">
       <div class="card-header d-flex align-items-center gap-2">
         <i class="bi bi-award-fill text-primary"></i>
-        <span class="fw-semibold" style="font-size:.9rem">
-          <?php if($issued): ?><span class="font-monospace"><?= h($zas['nr_zaswiadczenia']) ?></span><?php else: ?>Wniosek o zaświadczenie<?php endif; ?>
-        </span>
-        <?= ezd_zas_status_badge($st) ?>
-        <div class="ms-auto d-flex gap-2">
-          <?php if($issued): ?>
-          <button type="button" class="btn btn-outline-primary btn-sm"
-                  onclick="(function(){var n=parseInt(prompt('Liczba egzemplarzy:','1'));if(!n||n<1)return;if(n===1){window.open('<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>','_blank');}else{for(var i=1;i<=n;i++)window.open('<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&egzemplarz='+i+'&z='+n,'_blank');}})()">
-            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
-          </button>
-          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/pdf.php?id=<?= $id ?>&duplikat=1" target="_blank"
-             class="btn btn-outline-secondary btn-sm" title="Drukuj duplikat z adnotacją daty wydruku"><i class="bi bi-files me-1"></i>Duplikat</a>
-          <?php ezd_kopia_menu_btn('zaswiadczenie', $id, (string)($zas['nr_zaswiadczenia'] ?? '')); ?>
-          <?php if($can_mgr && empty($zas['plik_path'])): ?>
-          <form method="post" class="d-inline" onsubmit="return confirm('Przerenderować treść z aktualnego szablonu? Nadpisze obecną treść zaświadczenia.')">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="regeneruj_pdf">
-            <button class="btn btn-outline-warning btn-sm" title="Regeneruj PDF z aktualnego szablonu"><i class="bi bi-arrow-clockwise me-1"></i>Regeneruj</button>
-          </form>
-          <?php endif; ?>
-          <?php if($can_mgr && empty($zas['verify_code']) && empty($zas['plik_path'])): ?>
-          <form method="post" class="d-inline">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="assign_qr">
-            <button class="btn btn-outline-secondary btn-sm" title="Generuj kod QR weryfikacyjny"><i class="bi bi-qr-code"></i></button>
-          </form>
-          <?php elseif(!empty($zas['verify_code'])): ?>
-          <a href="<?= APP_URL ?>/ezd/zaswiadczenia/verify.php?code=<?= rawurlencode($zas['verify_code']) ?>" target="_blank"
-             class="btn btn-outline-secondary btn-sm" title="Strona weryfikacji QR"><i class="bi bi-qr-code-scan"></i></a>
-          <?php endif; ?>
-          <?php endif; ?>
-          <?php if(is_admin()): ?>
-          <form method="post" onsubmit="return confirm('Na pewno usunąć ten wniosek/zaświadczenie? Operacja jest nieodwracalna.')">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_action" value="delete_zas">
-            <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i></button>
-          </form>
-          <?php endif; ?>
-        </div>
+        <span class="fw-semibold">Szczegóły</span>
       </div>
       <div class="card-body p-0">
         <!-- Zakładki -->

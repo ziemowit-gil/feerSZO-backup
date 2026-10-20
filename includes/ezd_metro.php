@@ -291,7 +291,7 @@ html body .ezd-main .dyn-cmdbar{border:1px solid var(--em-line);background:#fff;
 html body .ezd-main .dyn-cmdbar .btn,html body .ezd-main .dyn-cmd{font-weight:400;min-height:36px}
 html body .ezd-main .dyn-cmdbar .btn:hover,html body .ezd-main .dyn-cmdbar .btn[aria-expanded="true"],html body .ezd-main .dyn-cmd:hover{background:var(--em-light-h)!important}
 html body .ezd-main .dyn-cmdbar .btn .bi,html body .ezd-main .dyn-cmd .bi{color:var(--em-acc)}
-html body .ezd-main .dyn-cmdbar .dyn-cmd--danger,html body .ezd-main .dyn-cmdbar .dyn-cmd--danger .bi{color:var(--m-red)!important}
+html body .ezd-main .dyn-cmdbar .dyn-cmd--danger,html body .ezd-main .dyn-cmdbar .dyn-cmd--danger .bi,html body .ezd-main .dyn-cmdbar .btn-outline-danger,html body .ezd-main .dyn-cmdbar .btn-outline-danger .bi{color:var(--m-red)!important}
 html body .ezd-main .dyn-entity{color:var(--em-muted)}
 html body .ezd-main .dyn-entity code{font-size:.78rem;color:var(--em-ink);background:none;padding:0}
 html body .ezd-main .dyn-title{font-size:1.45rem;font-weight:600;letter-spacing:-.01em;color:var(--em-ink)}
@@ -308,6 +308,8 @@ html body .ezd-main .dyn-stage.current.cancelled > span{background:var(--m-grey)
 html body .ezd-main .dyn-rec{background:#fff;border:1px solid var(--em-line);padding:.9rem 1.1rem;margin:0 0 1rem}
 html body .ezd-main .dyn-rec .dyn-entity .bi{color:var(--em-acc)}
 /* Sekcje formularza (.dyn-form wokół kolumn karty): biały nagłówek z kreską zamiast szarego pasa */
+html body .ezd-main .dyn-form .nav-tabs .nav-link{font-size:.9rem;font-weight:400}
+html body .ezd-main .dyn-form .nav-tabs .nav-link.active{font-weight:600}
 html body .ezd-main .dyn-form .card-header{background:#fff!important;border-bottom:1px solid var(--em-line)!important;font-size:.95rem!important}
 html body .ezd-main .dyn-sec{background:#fff;border:1px solid var(--em-line);margin-bottom:1rem;min-width:0}
 html body .ezd-main .dyn-sec-hd{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border-bottom:1px solid var(--em-line)}
