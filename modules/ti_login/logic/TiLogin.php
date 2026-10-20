@@ -271,6 +271,7 @@ final class TiLogin
         // Powrót na stronę, z której przyszło logowanie (np. pełny plan zajęć: ciasteczko k30_dyd_next, 15 min).
         $next = (string)($_COOKIE['k30_dyd_next'] ?? '');
         if ($next !== '') setcookie('k30_dyd_next', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        $profile['login_method'] = 'email';   // dziennik logowań panelu (dyd_login_log)
         dyd_2fa_stash($profile, $next);
         return tiPanelUrl('dydaktyk', 'totp_gate.php');
     }
@@ -299,6 +300,8 @@ final class TiLogin
         $profile = TiConsultantAccess::altAuthenticate($login, $pass);
         if (!$profile) return null;
         $profile['totp_bypass'] = 'login zastępczy konsultanta';   // dyd_require() nie pyta o TOTP w tej sesji
+        $profile['login_method'] = 'numer';
+        $profile['alt_login'] = TiConsultantAccess::normalize($login);   // dyd_require() sprawdza, czy numer nadal aktywny
         dyd_login_user($profile);
         $_SESSION['k30_dyd_ctx'] = ['mode' => 'konsultacje'];
         return tiPanelUrl('dydaktyk', 'konsultacjeStart.php');

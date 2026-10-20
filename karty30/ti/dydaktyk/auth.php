@@ -85,9 +85,11 @@ function dyd_current(): ?array {
     if ($rem) {
         $u = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [$rem['account_id']]);
         $profile = $u ? dyd_profile_from_user($u) : null;
+        if ($profile) $profile['login_method'] = 'wznowienie';
         if ($profile && !empty($rem['payload']['alt_konsultacje'])) {   // login zastępczy: bez TOTP, tylko Konsultacje
             $profile['alt_konsultacje'] = true; $profile['alt_staff'] = !empty($profile['is_staff']); $profile['is_staff'] = false;
             $profile['totp_bypass'] = 'login zastępczy konsultanta';
+            $profile['alt_login'] = (string)($rem['payload']['alt_login'] ?? '');
         }
         if ($profile) { dyd_login_user($profile); $_SESSION['k30_dyd_resumed'] = 1; return $_SESSION[DYD_SESSION_KEY]; }
         ti_remember_forget('dyd');
@@ -136,13 +138,45 @@ function dyd_authenticate(string $email, string $password): ?array {
     return dyd_profile_from_user($u);
 }
 
+/**
+ * Dziennik logowań panelu dydaktyka (tabela ti_panel_logins): kto, kiedy, którą drogą (ms365 | email | numer |
+ * wznowienie | impersonacja), adres IP i przeglądarka. Ekran: dydaktyk/konsultanciDostep.php.
+ */
+function dyd_login_log_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    db()->exec("CREATE TABLE IF NOT EXISTS ti_panel_logins (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+        method TEXT NOT NULL, ip TEXT, user_agent TEXT, created_at DATETIME NOT NULL)");
+    db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_panel_logins_user ON ti_panel_logins(user_id, created_at)");
+}
+
+function dyd_login_log(array $data): void {
+    try {
+        dyd_login_log_migrate();
+        $m = !empty($data['imp']) ? 'impersonacja' : (string)($data['login_method'] ?? 'inne');
+        db()->prepare("INSERT INTO ti_panel_logins (user_id, method, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?)")
+            ->execute([(int)$data['user_id'], $m, mb_substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45),
+                       mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 250), date('Y-m-d H:i:s')]);
+    } catch (\Throwable $e) { error_log('[dyd] login log: ' . $e->getMessage()); }
+}
+
+/**
+ * Odcięcie dostępu od razu (wyłączony numer zastępczy / konto): usuwa tokeny „zapamiętaj mnie” osoby; trwające sesje
+ * kończy dyd_require() (sprawdza konto i numer przy każdym żądaniu).
+ */
+function dyd_revoke_remember(int $uid): void {
+    try { db()->prepare("DELETE FROM k30_ti_remember_tokens WHERE realm = 'dyd' AND account_id = ?")->execute([$uid]); } catch (\Throwable $e) {}
+}
+
 function dyd_login_user(array $data): void {
     dyd_start();
+    dyd_login_log($data);
     $data['ts'] = time();
     $_SESSION[DYD_SESSION_KEY] = $data;
     $_SESSION['k30_dyd_csrf']  = bin2hex(random_bytes(16));
     // Login zastępczy konsultanta: wznowienie z tokenu też tylko w trybie Konsultacje (flaga w payloadzie tokenu)
-    ti_remember_issue('dyd', (int)$data['user_id'], !empty($data['alt_konsultacje']) ? ['alt_konsultacje' => 1] : []);
+    ti_remember_issue('dyd', (int)$data['user_id'], !empty($data['alt_konsultacje']) ? ['alt_konsultacje' => 1, 'alt_login' => (string)($data['alt_login'] ?? '')] : []);
 }
 
 function dyd_logout(): void {
@@ -237,6 +271,14 @@ function dyd_2fa_finish(array $profile): void {
 function dyd_require(): array {
     $s = dyd_current();
     if (!$s) { header('Location: login.php'); exit; }
+
+    // Odcięcie od razu: konto wyłączone albo (login zastępczy) numer wyłączony / zmieniony → koniec sesji.
+    $_cut = !db_one("SELECT 1 FROM users WHERE id = ? AND is_active = 1", [(int)$s['user_id']]);
+    if (!$_cut && !empty($s['alt_konsultacje'])) {
+        try { $_cut = !db_one("SELECT 1 FROM ti_consultant_alt_logins WHERE user_id = ? AND login = ? AND is_active = 1", [(int)$s['user_id'], (string)($s['alt_login'] ?? '')]); }
+        catch (\Throwable $e) { $_cut = true; }
+    }
+    if ($_cut) { dyd_logout(); header('Location: ' . (!empty($s['alt_konsultacje']) ? tiPanelUrl('ti', 'konsultant.php') : 'login.php')); exit; }
 
     // TOTP jest obowiązkowe dla każdego konta dydaktyka (patrz totp_gate.php).
     // Sesja mogła powstać przed wprowadzeniem tej bramki albo wznowić się cicho
@@ -367,7 +409,7 @@ const DYD_KONSULTACJE_PAGES = ['konsultacjeStart.php', 'konsultacje.php', 'konsu
                                'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'rezerwacjaPdf.php', 'kolejka.php',
                                'konsultacjeZestawienia.php', 'konsultacjeEksport.php', 'konsultacjeUstawienia.php', 'konsultacjeKomunikacja.php',
                                'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php', 'konsultacjePfronDokumenty.php',
-                               'licencjeKursantow.php', 'regulaminy.php', 'kontoZastepcze.php',
+                               'licencjeKursantow.php', 'regulaminy.php', 'kontoZastepcze.php', 'konsultanciDostep.php',
                                'moj_certyfikat.php', 'saleFormularz.php', 'logout.php', 'choose_mode.php', 'office_enter.php', 'totp_gate.php'];
 
 function dyd_konsultacje_page(): bool {

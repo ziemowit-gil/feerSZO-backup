@@ -72,6 +72,7 @@ try { db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")->e
 // Każde konto (także administrator): dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe, tak
 // samo jak przy haśle. Sesję panelu zakłada dopiero totp_gate.php, po
 // weryfikacji kodu.
+$data['login_method'] = 'ms365';   // dziennik logowań panelu (dyd_login_log)
 dyd_2fa_stash($data, $target);
 header('Location: totp_gate.php');
 exit;

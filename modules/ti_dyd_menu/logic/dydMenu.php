@@ -81,7 +81,7 @@ function dydMenuSections(): array
             $it('', 'Umowy PFRON',           'konsultacjePfron.php',         'building-fill-check'),
             $it('', 'Dokumenty i regulamin PFRON', 'konsultacjePfronDokumenty.php', 'file-earmark-text'),
             $it('', 'Wydruki i zestawienia', 'konsultacjeZestawienia.php',   'printer'),
-            ...($staff ? [$it('', 'Ustawienia konsultacji', 'konsultacjeUstawienia.php', 'gear')] : []),
+            ...($staff ? [$it('', 'Ustawienia konsultacji', 'konsultacjeUstawienia.php', 'gear'), $it('', 'Dostęp konsultantów', 'konsultanciDostep.php', 'shield-lock')] : []),
         ]];
         $sec[] = ['key' => 'komunikacja', 'label' => 'Komunikacja', 'items' => [
             $it('', 'E-mail / SMS do beneficjentów', 'konsultacjeKomunikacja.php', 'send'),

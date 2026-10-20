@@ -55,6 +55,13 @@ include __DIR__ . '/_rezerwacje_head.php';
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:1200px">
 <?= flash_html() ?>
+<?php if ($staff && empty($me['alt_konsultacje'])) {   // przypomnienie: nieużywane konta konsultantów zewnętrznych
+    require_once dirname(__DIR__, 3) . '/modules/ti_consultant_access/logic/consultantAccess.php';
+    $_stale = TiConsultantAccess::externalStaleCount();
+    if ($_stale) echo '<div class="alert alert-warning py-2 small" role="status"><i class="bi bi-person-exclamation me-1" aria-hidden="true"></i>'
+        . $_stale . ' ' . ($_stale === 1 ? 'konto konsultanta zewnętrznego jest nieużywane' : 'konta konsultantów zewnętrznych są nieużywane') . ' ponad '
+        . TiConsultantAccess::STALE_DAYS . ' dni. <a href="konsultanciDostep.php">Przejrzyj i wyłącz</a>.</div>';
+} ?>
 <?= dydWelcomeHero($byName, ($_day_pl[date('D')] ?? '') . ', ' . date('j') . ' ' . $_mon_gen[(int)date('n')] . ' ' . date('Y'), []) ?>
 
 <h1 class="visually-hidden">Konsultacje — start</h1>

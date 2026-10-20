@@ -161,6 +161,7 @@ final class TiConsultantAccess
         self::migrate();
         db()->prepare("UPDATE ti_consultant_alt_logins SET is_active = 0, disabled_by = ?, updated_at = ? WHERE user_id = ?")
             ->execute([$by ?: null, date('Y-m-d H:i:s'), $uid]);
+        if (function_exists('dyd_revoke_remember')) dyd_revoke_remember($uid);   // trwające sesje kończy dyd_require()
         self::audit('alt_login_disabled', ['user_id' => $uid], $by ?: null);
     }
 
@@ -293,6 +294,40 @@ final class TiConsultantAccess
         ]);
         try { mail_queue_add((string)$inv['email'], (string)$inv['name'], 'Konto konsultanta założone — ' . $org, '', $text, 'ti_consultant_account', null, '', false, [], '', $cc); }
         catch (\Throwable $e) { error_log('[ti_consultant_access] account mail: ' . $e->getMessage()); }
+    }
+
+    public const STALE_DAYS = 90;
+
+    /** Konta konsultantów zewnętrznych (z zaproszeń) z ostatnim logowaniem i flagą „nieużywane” (> STALE_DAYS dni). */
+    public static function externalAccounts(): array
+    {
+        self::migrate();
+        // tabela dziennika logowań panelu (dyd_login_log_migrate w dydaktyk/auth.php — ta sama definicja, gdy auth.php nie wczytany)
+        db()->exec("CREATE TABLE IF NOT EXISTS ti_panel_logins (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+            method TEXT NOT NULL, ip TEXT, user_agent TEXT, created_at DATETIME NOT NULL)");
+        $rows = db_all("SELECT u.id, u.name, u.email, u.is_active, u.created_at, i.created_at AS invited_at,
+                               (SELECT MAX(l.created_at) FROM ti_panel_logins l WHERE l.user_id = u.id) AS last_at
+                          FROM ti_consultant_invites i JOIN users u ON u.id = i.user_id
+                         WHERE i.used_at IS NOT NULL GROUP BY u.id ORDER BY u.name");
+        $lim = time() - self::STALE_DAYS * 86400;
+        foreach ($rows as &$r) $r['stale'] = (int)$r['is_active'] === 1 && strtotime((string)($r['last_at'] ?: $r['created_at'] ?: 'now')) < $lim;
+        unset($r);
+        return $rows;
+    }
+
+    public static function externalStaleCount(): int
+    {
+        try { return count(array_filter(self::externalAccounts(), fn($r) => $r['stale'])); } catch (\Throwable $e) { return 0; }
+    }
+
+    /** Wyłączenie / włączenie konta zewnętrznego — wyłączenie od razu kończy sesje (dyd_require) i „zapamiętaj mnie”. */
+    public static function externalSetActive(int $uid, bool $on, int $by): void
+    {
+        self::migrate();
+        if (!db_one("SELECT 1 FROM ti_consultant_invites WHERE user_id = ?", [$uid])) return;   // tylko konta z zaproszeń
+        db()->prepare("UPDATE users SET is_active = ? WHERE id = ?")->execute([$on ? 1 : 0, $uid]);
+        if (!$on && function_exists('dyd_revoke_remember')) dyd_revoke_remember($uid);
+        self::audit($on ? 'external_enabled' : 'external_disabled', ['user_id' => $uid], $by ?: null);
     }
 
     public static function invites(): array
