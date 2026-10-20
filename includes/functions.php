@@ -642,25 +642,86 @@ function get_opiekun_initials(string $opiekun): string {
 }
 
 function suggest_nr_rejestru(string $opiekun = ''): string {
-    $year = date('Y');
-    // Policz istniejące nr_rejestru we wszystkich tabelach
-    $n = 0;
-    foreach (array_keys(CONTRACT_TYPES) as $slug) {
+    // Kolejny numer = najwyższy istniejący + 1 (dawniej: liczba wpisów + 1 — po usunięciu umowy numery się powtarzały)
+    return sprintf('RU/%04d/%s/%s', registry_next_seq(), date('Y'), get_opiekun_initials($opiekun));
+}
+
+/** Tabela umów dla typu z rejestru RU (CONTRACT_TYPES albo CONTRACT_REGISTRY_EXTRA) — null dla nieznanego. */
+function registry_table(string $slug): ?string {
+    if (isset(CONTRACT_TYPES[$slug])) return table_for_type($slug);
+    return CONTRACT_REGISTRY_EXTRA[$slug]['table'] ?? null;
+}
+
+/** Najwyższy numer porządkowy RU/{NNNN}/… we wszystkich tabelach + 1 (bez umów testowych z count_where). */
+function registry_next_seq(): int {
+    $max = 0;
+    $src = array_map(fn($slug) => [table_for_type($slug), ''], array_keys(CONTRACT_TYPES));
+    foreach (CONTRACT_REGISTRY_EXTRA as $x) $src[] = [$x['table'], (string)($x['count_where'] ?? '')];
+    foreach ($src as [$table, $where]) {
         try {
-            $row = db_one("SELECT COUNT(*) AS c FROM " . table_for_type($slug)
-                        . " WHERE nr_rejestru IS NOT NULL AND nr_rejestru != ''");
-            $n += (int)($row['c'] ?? 0);
-        } catch (\Exception $e) {}
+            foreach (db_all("SELECT nr_rejestru FROM {$table} WHERE nr_rejestru LIKE 'RU/%'" . ($where !== '' ? " AND {$where}" : '')) as $r)
+                if (preg_match('#^RU/(\d+)/#', (string)$r['nr_rejestru'], $m)) $max = max($max, (int)$m[1]);
+        } catch (\Throwable $e) {}
     }
-    foreach (CONTRACT_REGISTRY_EXTRA as $x) {
-        try {
-            $row = db_one("SELECT COUNT(*) AS c FROM {$x['table']}"
-                        . " WHERE nr_rejestru IS NOT NULL AND nr_rejestru != ''" . ($x['count_where'] ? " AND {$x['count_where']}" : ''));
-            $n += (int)($row['c'] ?? 0);
-        } catch (\Exception $e) {}
+    return $max + 1;
+}
+
+/** Numery RU użyte więcej niż raz: nr => lista wpisów (z all_contracts_registry), najstarszy pierwszy. */
+function registry_duplicates(?array $rows = null): array {
+    $by = [];
+    foreach ($rows ?? all_contracts_registry() as $r) $by[mb_strtoupper(trim((string)$r['nr_rejestru']))][] = $r;
+    $dups = array_filter($by, fn($g) => count($g) > 1);
+    foreach ($dups as &$g) usort($g, fn($a, $b) => [(string)($a['data_zawarcia'] ?: '9999'), (int)$a['id']] <=> [(string)($b['data_zawarcia'] ?: '9999'), (int)$b['id']]);
+    unset($g);
+    return $dups;
+}
+
+/** Czy numer jest już użyty przez inną umowę (dowolny typ). */
+function registry_number_taken(string $nr, string $slug, int $id): bool {
+    foreach (all_contracts_registry() as $r)
+        if (mb_strtoupper(trim((string)$r['nr_rejestru'])) === mb_strtoupper(trim($nr)) && !($r['contract_type'] === $slug && (int)$r['id'] === $id)) return true;
+    return false;
+}
+
+/** Ręczna zmiana numeru rejestru umowy. @return string '' = OK, inaczej komunikat */
+function registry_set_number(string $slug, int $id, string $nr, int $uid): string {
+    $nr = mb_strtoupper(trim(preg_replace('/\s+/', '', $nr)));
+    $table = registry_table($slug);
+    if (!$table) return 'Nieznany typ umowy.';
+    if (!preg_match('#^RU/\d{1,6}/\d{4}/[A-Z0-9-]{1,10}$#', $nr)) return 'Numer w formacie RU/0001/2026/AB (numer, rok, inicjały opiekuna).';
+    $cur = db_one("SELECT nr_rejestru FROM {$table} WHERE id = ?", [$id]);
+    if (!$cur) return 'Nie ma takiej umowy.';
+    if ((string)$cur['nr_rejestru'] === $nr) return '';
+    if (registry_number_taken($nr, $slug, $id)) return 'Numer ' . $nr . ' ma już inna umowa — wybierz inny albo użyj „Nowy numer”.';
+    db()->prepare("UPDATE {$table} SET nr_rejestru = ? WHERE id = ?")->execute([$nr, $id]);
+    if (function_exists('audit_log')) { try { audit_log('ru.number_set', ['type' => $slug, 'id' => $id, 'from' => $cur['nr_rejestru'], 'to' => $nr], $uid ?: null); } catch (\Throwable $e) {} }
+    return '';
+}
+
+/** Przerejestrowanie: kolejny wolny numer porządkowy, rok i inicjały jak w dotychczasowym numerze. @return string nowy numer ('' gdy błąd) */
+function registry_renumber(string $slug, int $id, int $uid): string {
+    $table = registry_table($slug);
+    $cur = $table ? db_one("SELECT nr_rejestru FROM {$table} WHERE id = ?", [$id]) : null;
+    if (!$cur) return '';
+    $p = explode('/', (string)$cur['nr_rejestru']);
+    $year = preg_match('/^\d{4}$/', $p[2] ?? '') ? $p[2] : date('Y');
+    $ini  = preg_match('/^[A-Z0-9-]{1,10}$/', $p[3] ?? '') ? $p[3] : 'XX';
+    $nr = sprintf('RU/%04d/%s/%s', registry_next_seq(), $year, $ini);
+    db()->prepare("UPDATE {$table} SET nr_rejestru = ? WHERE id = ?")->execute([$nr, $id]);
+    if (function_exists('audit_log')) { try { audit_log('ru.renumber', ['type' => $slug, 'id' => $id, 'from' => $cur['nr_rejestru'], 'to' => $nr], $uid ?: null); } catch (\Throwable $e) {} }
+    return $nr;
+}
+
+/** Przenumerowanie powtórzeń: w każdej grupie najstarsza umowa zostaje, pozostałe dostają kolejne wolne numery. @return list<array{from,to,type,id}> */
+function registry_renumber_duplicates(int $uid): array {
+    $out = [];
+    foreach (registry_duplicates() as $nr => $group) {
+        foreach (array_slice($group, 1) as $r) {
+            $to = registry_renumber((string)$r['contract_type'], (int)$r['id'], $uid);
+            if ($to !== '') $out[] = ['from' => $r['nr_rejestru'], 'to' => $to, 'type' => $r['contract_type_label'], 'id' => (int)$r['id'], 'strona' => (string)($r['strona'] ?? '')];
+        }
     }
-    $n++;
-    return sprintf('RU/%04d/%s/%s', $n, $year, get_opiekun_initials($opiekun));
+    return $out;
 }
 
 function assign_nr_rejestru(array &$data): void {
