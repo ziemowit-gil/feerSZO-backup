@@ -132,6 +132,9 @@ if (!isset($case)) { http_response_code(400); exit; }
               <?php if (!empty($l['sposob_doreczenia'])): ?>
               <span><i class="bi bi-send me-1"></i><?= h($l['sposob_doreczenia']) ?></span>
               <?php endif; ?>
+              <?php if (!empty($l['email_sent']) && strtotime((string)$l['email_sent'])): ?>
+              <span style="color:#15803D"><i class="bi bi-envelope-check me-1" aria-hidden="true"></i>wysłano e-mailem <?= date('d.m.Y H:i', strtotime((string)$l['email_sent'])) ?><?= !empty($l['odbiorca_email']) ? ' · ' . h($l['odbiorca_email']) : '' ?></span>
+              <?php endif; ?>
               <?= $l['created_by_name'] ? '<span>' . h($l['created_by_name']) . '</span>' : '' ?>
             </div>
             <?php if ($has_nadania): ?>
@@ -167,6 +170,11 @@ if (!isset($case)) { http_response_code(400); exit; }
             </a>
             <?php endif; ?>
             <?php if ($can_write): ?>
+            <button type="button" class="btn btn-sm btn-outline-success py-0 px-2"
+                    aria-label="Wyślij e-mailem: <?= h($l['tytul'] ?: $lt['label']) ?>" title="Wyślij e-mailem"
+                    onclick="pismoMail(<?= $ldata ?>)">
+              <i class="bi bi-send" aria-hidden="true"></i>
+            </button>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
                     aria-label="Edytuj pismo: <?= h($l['tytul'] ?: $lt['label']) ?>"
                     onclick="pismoEdit(<?= $ldata ?>)">

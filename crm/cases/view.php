@@ -303,6 +303,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: view.php?id=' . $id . '#pisma'); exit;
     }
 
+    // Wyślij pismo e-mailem na dowolny adres (crm_case_letter_mail w includes/crm_case_extras.php)
+    if ($action === 'mail_pismo') {
+        $res = crm_case_letter_mail($id, (int)($_POST['letter_id'] ?? 0), [
+            'to' => (string)($_POST['mail_to'] ?? ''), 'cc' => (string)($_POST['mail_cc'] ?? ''),
+            'subject' => (string)($_POST['mail_subject'] ?? ''), 'body' => (string)($_POST['mail_body'] ?? ''),
+            'sender' => (string)($_POST['mail_sender'] ?? 'system'),
+            'attach_file' => !empty($_POST['mail_attach']), 'include_text' => !empty($_POST['mail_text']),
+        ], current_user() ?: []);
+        if ($res['ok']) flash_set('success', 'Pismo wysłane do: ' . implode(', ', $res['to']) . ($res['queued'] ? ' (' . $res['queued'] . ' w kolejce — wyjdzie za chwilę)' : '') . '.');
+        else flash_set('danger', 'Nie wysłano: ' . $res['error']);
+        header('Location: view.php?id=' . $id . '#pisma'); exit;
+    }
+
     // Edytuj pismo
     if ($action === 'edit_pismo') {
         $lid    = (int)($_POST['letter_id'] ?? 0);
@@ -733,6 +746,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 </div><!-- /row -->
 
 <?php include dirname(__DIR__) . '/includes/case/modal_pismo.php'; ?>
+<?php include dirname(__DIR__) . '/includes/case/modal_pismo_mail.php'; ?>
 <?php if ($can_write):
         $tm_case_id    = (int)$case['id'];
         $tm_contact_id = (int)($case['contact_id'] ?? 0);

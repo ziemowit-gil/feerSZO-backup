@@ -464,3 +464,91 @@ function crm_case_add_task(int $case_id, string $title, string $due = '', string
         'owner_id'   => (int)($case['owner_id'] ?? 0),
     ]);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. WYSYŁKA PISMA ZE SPRAWY E-MAILEM — na dowolny adres (kilka „Do” = osobne wiadomości, DW w pierwszej),
+//    plik pisma jako załącznik, nadawca jak w CRM (konto Fundacji albo skrzynka imienna). Wysyłka trafia
+//    do „Wiadomości” sprawy i historii kontaktu (crm_communications.case_id), do notatek sprawy
+//    i do pisma (email_sent, odbiorca_email). Rodzaj w kolejce: crm_case_letter (korespondencja — nie adres systemowy).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Adresy z pola tekstowego (przecinek, średnik, spacja, nowa linia). @return array{0:list<string>,1:list<string>} [poprawne, błędne] */
+function crm_parse_emails(string $raw): array {
+    $ok = []; $bad = [];
+    foreach (preg_split('/[\s,;]+/', trim($raw)) ?: [] as $e) {
+        $e = trim($e, " <>\t\"'");
+        if ($e === '') continue;
+        if (filter_var($e, FILTER_VALIDATE_EMAIL)) $ok[strtolower($e)] = $e; else $bad[] = $e;
+    }
+    return [array_values($ok), $bad];
+}
+
+/**
+ * @param array $in ['to','cc','subject','body','sender','attach_file','include_text']
+ * @return array{ok:bool, error?:string, sent?:int, queued?:int, to?:list<string>}
+ */
+function crm_case_letter_mail(int $caseId, int $letterId, array $in, array $user): array {
+    $case   = db_one("SELECT * FROM crm_cases WHERE id = ?", [$caseId]);
+    $letter = db_one("SELECT * FROM contract_letters WHERE id = ? AND contract_type = 'crm_case' AND contract_id = ?", [$letterId, $caseId]);
+    if (!$case || !$letter) return ['ok' => false, 'error' => 'Nie ma takiego pisma w tej sprawie.'];
+    [$to, $badTo] = crm_parse_emails((string)($in['to'] ?? ''));
+    [$cc, $badCc] = crm_parse_emails((string)($in['cc'] ?? ''));
+    if ($badTo || $badCc) return ['ok' => false, 'error' => 'Nieprawidłowy adres e-mail: ' . implode(', ', array_merge($badTo, $badCc)) . '.'];
+    if (!$to) return ['ok' => false, 'error' => 'Podaj co najmniej jeden adres „Do”.'];
+    if (count($to) + count($cc) > 20) return ['ok' => false, 'error' => 'Najwyżej 20 adresów naraz.'];
+    $cc = array_values(array_diff($cc, $to));
+    $subject = trim((string)($in['subject'] ?? '')) ?: (string)$letter['tytul'];
+    $body    = trim((string)($in['body'] ?? ''));
+
+    // Załącznik: plik pisma (tylko z katalogu letters/ w UPLOAD_DIR)
+    $att = [];
+    if (!empty($in['attach_file']) && !empty($letter['plik'])) {
+        $rel = (string)$letter['plik'];
+        $abs = UPLOAD_DIR . $rel;
+        if (!str_starts_with($rel, 'letters/') || str_contains($rel, '..') || !is_file($abs)) return ['ok' => false, 'error' => 'Plik pisma niedostępny na serwerze — wyślij bez załącznika albo wgraj plik ponownie.'];
+        if (filesize($abs) > 20 * 1024 * 1024) return ['ok' => false, 'error' => 'Plik pisma ma ponad 20 MB — za duży na e-mail.'];
+        $ext  = strtolower(pathinfo($rel, PATHINFO_EXTENSION));
+        $name = preg_replace('/[^\pL\pN ._-]+/u', '-', trim((string)$letter['tytul'])) ?: 'pismo';
+        $att[] = ['path' => $rel, 'name' => mb_substr($name, 0, 80) . ($ext !== '' ? '.' . $ext : ''), 'mime' => function_exists('mime_content_type') ? (string)@mime_content_type($abs) : 'application/octet-stream', 'size' => (int)filesize($abs)];
+    }
+
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $html = $body !== '' ? '<div>' . nl2br($e($body)) . '</div>' : '<p>Dzień dobry,</p><p>w załączeniu przesyłamy pismo „' . $e($letter['tytul']) . '”.</p>';
+    if (!empty($in['include_text']) && trim((string)$letter['tresc']) !== '') {
+        $html .= '<hr style="border:0;border-top:1px solid #ccc;margin:16px 0"><div style="white-space:pre-wrap;font-family:Georgia,serif">' . $e(strip_tags((string)$letter['tresc'])) . '</div>';
+    }
+    if (!empty($case['case_number'])) $html .= '<p style="color:#666;font-size:12px;margin-top:18px">Dotyczy sprawy ' . $e($case['case_number']) . '.</p>';
+
+    require_once __DIR__ . '/crm_sender.php';
+    require_once __DIR__ . '/mail_queue.php';
+    $from = crm_sender_email((string)($in['sender'] ?? 'system'), $user);
+    $sent = 0; $queued = 0; $mailIds = [];
+    foreach ($to as $i => $addr) {
+        // DW tylko w pierwszej wiadomości — kopia nie dostaje tego samego pisma kilka razy
+        $mid = mail_queue_add($addr, '', $subject, $html, '', 'crm_case_letter', $letterId, '', true, $att, $from, $i === 0 ? $cc : []);
+        if ($mid <= 0) continue;
+        $mailIds[] = $mid;
+        $st = (string)(db_one("SELECT status FROM mail_queue WHERE id = ?", [$mid])['status'] ?? '');
+        $st === 'sent' ? $sent++ : $queued++;
+    }
+    if (!$mailIds) return ['ok' => false, 'error' => 'Nie udało się dodać wiadomości do wysyłki.'];
+
+    $now = date('Y-m-d H:i:s');
+    $who = (string)($user['name'] ?? '');
+    $fromLabel = $from !== '' ? $from : 'konto Fundacji';
+    // pismo: kiedy i dokąd wysłane
+    db_exec("UPDATE contract_letters SET email_sent = ?, odbiorca_email = CASE WHEN COALESCE(odbiorca_email, '') = '' THEN ? ELSE odbiorca_email END WHERE id = ?", [$now, implode(', ', $to), $letterId]);
+    // wiadomość wychodząca w sprawie i historii kontaktu
+    try {
+        $cid = db_insert('crm_communications', ['contact_id' => (int)$case['contact_id'] ?: null, 'channel' => 'email', 'direction' => 'out', 'subject' => $subject,
+            'body' => mail_html_to_text($html), 'body_html' => $html, 'status' => $queued ? 'w kolejce' : 'wysłana', 'sent_by' => (int)($user['id'] ?? 0) ?: null, 'sent_at' => $now,
+            'from_email' => $from, 'has_attachments' => $att ? 1 : 0, 'case_id' => $caseId]);
+        if (function_exists('crm_msg_no')) crm_msg_no((int)$cid);
+    } catch (\Throwable $ex) { error_log('[crm] letter mail log: ' . $ex->getMessage()); }
+    // notatka w sprawie
+    db_insert('crm_case_notes', ['case_id' => $caseId, 'created_by' => (int)($user['id'] ?? 0) ?: null, 'created_at' => $now,
+        'body' => 'Wysłano pismo „' . $letter['tytul'] . '” e-mailem do: ' . implode(', ', $to) . ($cc ? ' (DW: ' . implode(', ', $cc) . ')' : '') . ' — nadawca: ' . $fromLabel . ($att ? ', z załącznikiem' : ', bez załącznika') . '.' . ($queued ? ' Część wiadomości czeka w kolejce.' : '')]);
+    db_exec("UPDATE crm_cases SET updated_at = ? WHERE id = ?", [$now, $caseId]);
+    if (function_exists('audit_log')) audit_log('crm.case_letter_mail', ['case_id' => $caseId, 'letter_id' => $letterId, 'to' => $to, 'cc' => $cc, 'from' => $fromLabel, 'mail_ids' => $mailIds, 'by' => $who], (int)($user['id'] ?? 0) ?: null);
+    return ['ok' => true, 'sent' => $sent, 'queued' => $queued, 'to' => $to];
+}
