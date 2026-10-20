@@ -76,8 +76,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </ol>
 </nav>
 
-<?php require_once dirname(__DIR__) . '/includes/dynRecord.php'; ?>
-<!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css) -->
+<?php require_once dirname(__DIR__, 2) . '/includes/dynRecord.php'; ?>
+<!-- Pasek poleceń (układ Dynamics 365 — assets/css/dynamics.css) -->
 <div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia kampanii">
   <a href="index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Kampanie</span></a>
   <?php if ($can_write && in_array($campaign['status'], ['draft', 'scheduled'], true)): ?>

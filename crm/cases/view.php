@@ -509,7 +509,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
 
 <style>
-/* Układ Dynamics 365: wspólne style w assets/css/crmDynamics.css (ładowane w crm/includes/header_crm.php) */
+/* Układ Dynamics 365: wspólne style w assets/css/dynamics.css (ładowane w crm/includes/header_crm.php) */
 .case-note { background:#FFFBEA;border:1px solid #FDE68A;border-radius:8px;padding:.8rem 1rem;margin-bottom:.6rem }
 .case-note-body { font-size:.9rem;color:#181818;white-space:pre-wrap;word-break:break-word }
 .case-note-meta { font-size:.78rem;color:#5E6470;margin-top:.4rem }

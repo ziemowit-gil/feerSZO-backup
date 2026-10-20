@@ -225,6 +225,8 @@ if ($_user) {
 <?php if ($_ezd_shell):
       $_ezd_css_v = @filemtime(dirname(__DIR__) . '/assets/css/ezd-tz-theme.css') ?: '1'; ?>
 <link href="<?= APP_URL ?>/assets/css/ezd-tz-theme.css?v=<?= $_ezd_css_v ?>" rel="stylesheet">
+<?php /* karty rekordów EZD (koszulka, pismo…) w układzie Dynamics 365 — jak w CRM; kolory EZD w ezd_metro.php */ ?>
+<link href="<?= APP_URL ?>/assets/css/dynamics.css?v=<?= (int)@filemtime(dirname(__DIR__) . '/assets/css/dynamics.css') ?>" rel="stylesheet">
 <?php endif; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <?php // Znacznik wersji (filemtime) — bez niego przeglądarki trzymały stary app.js (brak komponentów Alpine:

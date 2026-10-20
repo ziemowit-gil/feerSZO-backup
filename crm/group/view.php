@@ -237,8 +237,8 @@ tr:hover .member-row-actions, .member-row-actions:focus-within { opacity: 1 }
   </ol>
 </nav>
 
-<?php require_once __DIR__ . '/../includes/dynRecord.php'; ?>
-<!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css) -->
+<?php require_once dirname(__DIR__, 2) . '/includes/dynRecord.php'; ?>
+<!-- Pasek poleceń (układ Dynamics 365 — assets/css/dynamics.css) -->
 <div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia grupy">
   <a href="<?= APP_URL ?>/crm/groups.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Grupy</span></a>
   <span class="dyn-sep" aria-hidden="true"></span>

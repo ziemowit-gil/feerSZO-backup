@@ -1,10 +1,11 @@
 <?php
 /**
- * crm/includes/dynRecord.php — elementy kart rekordów CRM w układzie Dynamics 365 (style: assets/css/crmDynamics.css).
+ * includes/dynRecord.php — elementy kart rekordów (CRM, EZD) w układzie Dynamics 365 (style: assets/css/dynamics.css).
  *
  *   dynEntity('Kontakt', 'Osoba')                        — etykieta rodzaju rekordu nad tytułem
  *   dynHFields([['Status', 'Klient', '#2E844A'], …])     — pola nagłówka (wartość jako tekst; HTML przez ['html' => …])
- *   dynStages(['draft' => 'Szkic', …], 'sent', ['done' => [...], 'off' => 'rejected'])  — pasek etapów tylko do odczytu
+ *   dynStages(['draft' => 'Szkic', …], 'sent', ['off' => ['rejected' => 'Odrzucona']])  — pasek etapów (procesu biznesowego);
+ *     z ['post' => fn($klucz) => ukryte pola|null] etapy są przyciskami formularza POST (przejście do etapu)
  *
  * Pasek poleceń to zwykły <div class="dyn-cmdbar" role="toolbar">…</div> z dotychczasowymi przyciskami strony
  * (.btn albo .dyn-cmd) — CSS nadaje im wygląd poleceń, logika przycisków się nie zmienia.
@@ -26,8 +27,10 @@ function dynHFields(array $fields): string {
 }
 
 /**
- * Pasek etapów do odczytu. $stages klucz => etykieta (kolejność = proces); $current = bieżący klucz.
+ * Pasek etapów (procesu biznesowego). $stages klucz => etykieta (kolejność = proces); $current = bieżący klucz.
  * $opts['off'] = [klucz => etykieta] stanów spoza ścieżki (np. odrzucona) — pokazywany jako ostatni, szary.
+ * $opts['post'] = fn(string $klucz): ?string — ukryte pola (z _csrf) formularza przejścia do etapu; null = etap do odczytu.
+ *                 Bieżący etap zawsze tylko do odczytu.
  */
 function dynStages(array $stages, string $current, array $opts = []): string {
     $keys = array_keys($stages);
@@ -37,6 +40,12 @@ function dynStages(array $stages, string $current, array $opts = []): string {
     foreach ($stages as $k => $l) {
         $i = array_search($k, $keys, true);
         $cur = $k === $current; $done = $pos !== false && $i < $pos;
+        $post = (!$cur && isset($opts['post'])) ? ($opts['post'])((string)$k) : null;
+        if ($post !== null) {
+            $h .= '<form method="post" class="dyn-stage' . ($done ? ' done' : '') . '">' . $post . '<button type="submit" title="Przejdź do etapu: ' . h($l) . '"><span class="dyn-dot" aria-hidden="true">'
+                . ($done ? '✓' : $i + 1) . '</span>' . h($l) . '</button></form>';
+            continue;
+        }
         $h .= '<div class="dyn-stage' . ($cur ? ' current' : ($done ? ' done' : '')) . '"' . ($cur ? ' aria-current="step"' : '') . '><span><span class="dyn-dot" aria-hidden="true">'
             . ($done ? '✓' : $i + 1) . '</span>' . h($l) . '</span></div>';
     }

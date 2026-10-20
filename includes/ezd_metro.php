@@ -29,7 +29,7 @@ html body{font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple
 html body *:focus-visible{outline:3px solid #fbbf24!important;outline-offset:2px;box-shadow:none!important}
 
 /* ── Zero zaokrągleń, cieni i gradientów. Wyjątki: kontrolki okrągłe z natury, spinnery, kropki osi czasu. ── */
-html body .ezd-content-host *:not(.form-check-input):not(.spinner-border):not(.spinner-grow):not(.rounded-circle):not(.form-range):not(.activity-dot):not(.tl-dot):not(.ezd-step-dot):not(.ezdd-cal-today):not(.tw-rounded-full),
+html body .ezd-content-host *:not(.form-check-input):not(.spinner-border):not(.spinner-grow):not(.rounded-circle):not(.form-range):not(.activity-dot):not(.tl-dot):not(.ezd-step-dot):not(.ezdd-cal-today):not(.tw-rounded-full):not(.dyn-dot),
 html body .modal-content,html body .modal-content *:not(.form-check-input):not(.rounded-circle):not(.spinner-border),
 html body .offcanvas,html body .offcanvas *:not(.form-check-input):not(.rounded-circle),
 html body .dropdown-menu,html body .dropdown-menu *,html body .toast,html body .popover,html body .tooltip-inner{border-radius:0!important}
@@ -76,13 +76,13 @@ html body .ezd-sb-back{color:var(--em-ink)}
 /* ── Treść: typografia ───────────────────────────────────────────────── */
 html body .ezd-main{background:#fff}
 /* Tytuł strony = pierwszy nagłówek strony poza kartami/modalami: kicker wersalikami + lekki duży h1 */
-html body .ezd-main h1:not(.modal-title):not(.card h1):not(.modal h1):not(.ezx-card h1):not(.offcanvas h1),
+html body .ezd-main h1:not(.modal-title):not(.card h1):not(.modal h1):not(.ezx-card h1):not(.offcanvas h1):not(.dyn-title),
 html body .ezd-main h4.fw-bold:not(.modal-title):not(.card h4):not(.modal h4):not(.ezd-card h4):not(.ezx-card h4):not(.bc h4):not(.offcanvas h4):not(table h4),
 html body .ezd-main > .d-flex > h4.mb-0,html body .ezd-main > div > .d-flex > div > h4,
 html body .ezd-main > .d-flex > h5.fw-bold,html body .ezd-main > .d-flex > div > h5.fw-bold:not(.card h5),
 html body .ezd-main > .d-flex > div > h5.fw-semibold{
   font-size:clamp(1.7rem,3.4vw,2.4rem)!important;font-weight:300!important;letter-spacing:-.02em!important;line-height:1.08!important;color:var(--em-ink)!important}
-html body .ezd-main h1:not(.modal-title):not(.card h1):not(.modal h1):not(.ezx-card h1):not(.offcanvas h1)::before,
+html body .ezd-main h1:not(.modal-title):not(.card h1):not(.modal h1):not(.ezx-card h1):not(.offcanvas h1):not(.dyn-title)::before,
 html body .ezd-main h4.fw-bold:not(.modal-title):not(.card h4):not(.modal h4):not(.ezd-card h4):not(.ezx-card h4):not(.bc h4):not(.offcanvas h4):not(table h4)::before,
 html body .ezd-main > .d-flex > h4.mb-0::before,html body .ezd-main > div > .d-flex > div > h4::before,
 html body .ezd-main > .d-flex > h5.fw-bold::before,html body .ezd-main > .d-flex > div > h5.fw-bold:not(.card h5)::before,
@@ -283,6 +283,32 @@ html body .ezd-main .cal-event.sprawa{background:var(--em-acc);color:#fff}
 html body .ezd-main .zas-tresc{border-left:6px solid var(--em-acc);background:var(--em-light)}
 html body .ezd-main .sp-dz-overlay{border-color:var(--em-acc);background:rgba(15,111,168,.08)}
 html body .ezd-main .sp-dz-msg{color:var(--em-acc)}
+
+/* ── Karty rekordów — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php) ──
+   Pasek poleceń, etykieta rodzaju rekordu, pola nagłówka i pasek etapów jak w CRM — w kolorze akcentu EZD.
+   Cień-ramka z dynamics.css jest tu wyłączona (zero cieni) — najechanie = szare tło, fokus = żółty obrys. */
+html body .ezd-main .dyn-cmdbar{border:1px solid var(--em-line);background:#fff;margin-bottom:1rem}
+html body .ezd-main .dyn-cmdbar .btn,html body .ezd-main .dyn-cmd{font-weight:400;min-height:36px}
+html body .ezd-main .dyn-cmdbar .btn:hover,html body .ezd-main .dyn-cmdbar .btn[aria-expanded="true"],html body .ezd-main .dyn-cmd:hover{background:var(--em-light-h)!important}
+html body .ezd-main .dyn-cmdbar .btn .bi,html body .ezd-main .dyn-cmd .bi{color:var(--em-acc)}
+html body .ezd-main .dyn-cmdbar .dyn-cmd--danger,html body .ezd-main .dyn-cmdbar .dyn-cmd--danger .bi{color:var(--m-red)!important}
+html body .ezd-main .dyn-entity{color:var(--em-muted)}
+html body .ezd-main .dyn-entity code{font-size:.78rem;color:var(--em-ink);background:none;padding:0}
+html body .ezd-main .dyn-title{font-size:1.45rem;font-weight:600;letter-spacing:-.01em;color:var(--em-ink)}
+html body .ezd-main .dyn-hfields > div{border-left-color:var(--em-line)}
+html body .ezd-main .dyn-hfields dt{color:var(--em-muted)}
+html body .ezd-main .dyn-hfields dd{color:var(--em-ink)}
+html body .ezd-main .dyn-hfields dd.overdue{color:var(--m-red)}
+html body .ezd-main .dyn-bpf{border-top-color:var(--em-line)}
+html body .ezd-main .dyn-stage > button,html body .ezd-main .dyn-stage > span{background:var(--em-light);color:var(--em-ink)}
+html body .ezd-main .dyn-stage > button:hover{background:var(--tz-50);outline:0}
+html body .ezd-main .dyn-stage.done > button,html body .ezd-main .dyn-stage.done > span{background:#dff0df;color:var(--m-green)}
+html body .ezd-main .dyn-stage.current > span{background:var(--em-acc);color:#fff}
+html body .ezd-main .dyn-stage.current.cancelled > span{background:var(--m-grey)}
+html body .ezd-main .dyn-sec{background:#fff;border:1px solid var(--em-line);margin-bottom:1rem;min-width:0}
+html body .ezd-main .dyn-sec-hd{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border-bottom:1px solid var(--em-line)}
+html body .ezd-main .dyn-sec-h{margin:0;font-size:.95rem;font-weight:600;color:var(--em-ink)}
+html body .ezd-main .dyn-sec-bd{padding:.85rem 1rem}
 
 /* ── Stopka ─────────────────────────────────────────────────────────── */
 html body .ezd-footer{background:#fff!important;border-top:1px solid var(--em-line)!important;color:var(--em-muted)}

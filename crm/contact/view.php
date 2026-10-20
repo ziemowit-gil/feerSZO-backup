@@ -1796,7 +1796,7 @@ $offers_can_write = crm_offer_can_write();
 $roundcube_url = crm_setting('roundcube_url');
 
 include __DIR__ . '/../includes/header_crm.php';
-require_once __DIR__ . '/../includes/dynRecord.php';
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
 ?>
 
 <!-- Breadcrumb + przełącznik widoku -->
@@ -1881,7 +1881,7 @@ require_once __DIR__ . '/../includes/dynRecord.php';
   }
   ?>
 
-<!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css) -->
+<!-- Pasek poleceń (układ Dynamics 365 — assets/css/dynamics.css) -->
 <div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia kontaktu">
   <a href="<?= APP_URL ?>/crm/index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Kontakty</span></a>
   <span class="dyn-sep" aria-hidden="true"></span>

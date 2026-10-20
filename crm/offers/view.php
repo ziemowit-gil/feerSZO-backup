@@ -77,12 +77,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </ol>
 </nav>
 
-<?php require_once dirname(__DIR__) . '/includes/dynRecord.php';
+<?php require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
   $_ost = CRM_OFFER_STATUSES[$offer['status']] ?? ['label' => $offer['status'], 'color' => '#6B7280'];
   $_dyn_st = ['szkic' => 'Szkic'] + ($offer['status'] === 'do_zatwierdzenia' ? ['do_zatwierdzenia' => 'Do zatwierdzenia'] : [])
            + ['wyslana' => 'Wysłana', 'zaakceptowana' => 'Zaakceptowana', 'zrealizowana' => 'Zrealizowana'];
 ?>
-<!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css) -->
+<!-- Pasek poleceń (układ Dynamics 365 — assets/css/dynamics.css) -->
 <div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia oferty">
   <a href="index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Oferty</span></a>
   <span class="dyn-sep" aria-hidden="true"></span>

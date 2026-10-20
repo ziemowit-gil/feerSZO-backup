@@ -115,8 +115,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
 <div class="container-fluid px-0" style="max-width:1000px">
 
-  <?php require_once dirname(__DIR__) . '/includes/dynRecord.php'; ?>
-  <!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css); akcje dokumentu w panelu „Akcje” -->
+  <?php require_once dirname(__DIR__, 2) . '/includes/dynRecord.php'; ?>
+  <!-- Pasek poleceń (układ Dynamics 365 — assets/css/dynamics.css); akcje dokumentu w panelu „Akcje” -->
   <div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia faktury">
     <a href="<?= APP_URL ?>/crm/invoices/index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Faktury</span></a>
     <?php if ($can_write && $is_draft): ?><a href="<?= APP_URL ?>/crm/invoices/form.php?id=<?= $id ?>" class="dyn-cmd"><i class="bi bi-pencil" aria-hidden="true"></i><span>Edytuj szkic</span></a><?php endif; ?>
