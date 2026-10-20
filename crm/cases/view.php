@@ -478,10 +478,31 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
 
 <style>
-/* Panele sprawy nad główną treścią (crm/includes/case/aside.php): zakładki Status / Aktywność / Prowadzenie / Współdzielenie / EZD */
-.cv-strip .tab-pane > .cv-panel { margin-bottom:0; }
-.cv-strip > .d-flex.flex-column { flex-direction:row !important; flex-wrap:wrap; justify-content:flex-end; margin-top:.6rem; }   /* linki: jeden rząd */
-#caseSideTabs { overflow-x:auto; flex-wrap:nowrap; }
+/* ── Formularz sprawy w stylu Dynamics 365: pasek poleceń, pola nagłówka, etapy, trzy kolumny ── */
+.dyn-cmdbar { display:flex; flex-wrap:wrap; align-items:center; gap:.1rem; background:#fff; border:1px solid #E5E7EB; padding:.25rem .4rem; margin-bottom:.75rem; }
+.dyn-cmd { display:inline-flex; align-items:center; gap:.4rem; background:none; border:0; padding:.4rem .6rem; font-size:.85rem; color:#1F2937; text-decoration:none; cursor:pointer; }
+.dyn-cmd:hover, .dyn-cmd:focus-visible { background:#F3F4F6; color:#111827; outline:none; box-shadow:inset 0 0 0 2px #2563EB; }
+.dyn-cmd .bi { color:#2563EB; }
+.dyn-sep { width:1px; height:1.4rem; background:#E5E7EB; margin:0 .2rem; }
+.dyn-entity { font-size:.78rem; color:#6B7280; margin-bottom:.15rem; letter-spacing:.02em; }
+.dyn-hfields { display:flex; flex-wrap:wrap; gap:0; margin:0; }
+.dyn-hfields > div { padding:.1rem 1rem; border-left:1px solid #E5E7EB; min-width:7rem; }
+.dyn-hfields dt { font-size:.72rem; font-weight:400; color:#6B7280; margin:0; }
+.dyn-hfields dd { font-size:.9rem; font-weight:600; color:#111827; margin:0; }
+.dyn-bpf { display:flex; flex-wrap:wrap; margin-top:.9rem; border-top:1px solid #E5E7EB; padding-top:.7rem; gap:.25rem; }
+.dyn-stage { flex:1 1 9rem; margin:0; }
+.dyn-stage > button, .dyn-stage > span { width:100%; display:flex; align-items:center; justify-content:center; gap:.45rem; padding:.45rem .8rem; background:#F3F4F6; border:0; font-size:.84rem; color:#374151; clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%); }
+.dyn-stage:first-child > button, .dyn-stage:first-child > span { clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); }
+.dyn-stage > button { cursor:pointer; }
+.dyn-stage > button:hover, .dyn-stage > button:focus-visible { background:#E0E7FF; outline:2px solid #2563EB; outline-offset:-2px; }
+.dyn-stage.done > button, .dyn-stage.done > span { background:#DCFCE7; color:#166534; }
+.dyn-stage.current > span { background:#1E40AF; color:#fff; font-weight:600; }
+.dyn-stage.current.cancelled > span { background:#6B7280; }
+.dyn-dot { display:inline-flex; align-items:center; justify-content:center; width:1.3rem; height:1.3rem; border-radius:50%; background:rgba(0,0,0,.08); font-size:.72rem; font-weight:700; }
+.dyn-stage.current .dyn-dot { background:rgba(255,255,255,.25); }
+.dyn-col > .cv-panel, .dyn-col > div { margin-bottom:.75rem; }
+.dyn-col-right > .d-flex.flex-column { margin-top:.25rem; }
+@media (min-width: 992px) and (max-width: 1199.98px) { .dyn-col-right { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:.75rem; align-items:start; } .dyn-col-right > * { margin:0 !important; } }
 .case-note { background:#FFFBEA;border:1px solid #FDE68A;border-radius:8px;padding:.8rem 1rem;margin-bottom:.6rem }
 .case-note-body { font-size:.9rem;color:#181818;white-space:pre-wrap;word-break:break-word }
 .case-note-meta { font-size:.78rem;color:#5E6470;margin-top:.4rem }
@@ -534,6 +555,31 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 </div>
 <?php endif; ?>
 
+<?php
+  // Dane do nagłówka w stylu Dynamics 365: prowadzący, typ, termin
+  $_dyn_owner = !empty($case['owner_id']) ? (string)(db_one("SELECT name FROM users WHERE id = ?", [(int)$case['owner_id']])['name'] ?? '') : '';
+  $_dyn_type  = '';
+  if (!empty($case['type_id'])) { try { $_dyn_type = (string)(db_one("SELECT name FROM crm_case_types WHERE id = ?", [(int)$case['type_id']])['name'] ?? ''); } catch (\Throwable $e) {} }
+  $_dyn_due   = !empty($case['due_date']) ? date('d.m.Y', strtotime((string)$case['due_date'])) : '';
+  $_dyn_late  = !empty($case['due_date']) && $case['due_date'] < date('Y-m-d') && !in_array($case['status'], ['closed', 'cancelled'], true);
+?>
+<!-- Pasek poleceń (jak w Dynamics 365) -->
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia sprawy">
+  <a href="index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Wszystkie sprawy</span></a>
+  <?php if ($can_write): ?>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <button type="button" class="dyn-cmd" data-bs-toggle="modal" data-bs-target="#modalPismo"><i class="bi bi-envelope-plus" aria-hidden="true"></i><span>Nowe pismo</span></button>
+  <a href="#notes" class="dyn-cmd" onclick="setTimeout(function(){var t=document.querySelector('textarea[name=note_body]');if(t)t.focus();},150)"><i class="bi bi-chat-left-text" aria-hidden="true"></i><span>Nowa notatka</span></a>
+  <button type="button" class="dyn-cmd" data-bs-toggle="modal" data-bs-target="#crmTaskModal"><i class="bi bi-check2-square" aria-hidden="true"></i><span>Nowe zadanie</span></button>
+  <button type="button" class="dyn-cmd" data-bs-toggle="collapse" data-bs-target="#collapseEditMeta" aria-expanded="false" aria-controls="collapseEditMeta"><i class="bi bi-pencil" aria-hidden="true"></i><span>Edytuj</span></button>
+  <?php if ($case['status'] !== 'closed'): ?>
+  <button type="button" class="dyn-cmd" data-bs-toggle="collapse" data-bs-target="#collapseQuickClose" aria-expanded="false" aria-controls="collapseQuickClose"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>Zamknij sprawę</span></button>
+  <?php endif; ?>
+  <?php if ($can_manage_shares): ?><a href="#share" class="dyn-cmd"><i class="bi bi-people" aria-hidden="true"></i><span>Udostępnij</span></a><?php endif; ?>
+  <?php endif; ?>
+  <a href="add.php?contact_id=<?= (int)$case['ct_id'] ?>" class="dyn-cmd ms-auto"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Nowa sprawa kontaktu</span></a>
+</div>
+
 <!-- Nagłówek sprawy -->
 <div class="cv-panel mb-3" id="case-header" style="overflow:hidden">
   <!-- Pasek statusu -->
@@ -551,20 +597,9 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
       <!-- Treść główna -->
       <div style="flex:1;min-width:0">
-        <?php if (!empty($case['case_number'])): ?>
-        <div style="font-family:monospace;font-size:.82rem;font-weight:700;color:#1D4ED8;letter-spacing:.05em;margin-bottom:.3rem">
-          <?= h($case['case_number']) ?>
-        </div>
-        <?php endif; ?>
+        <div class="dyn-entity">Sprawa<?php if (!empty($case['case_number'])): ?> · <span class="font-monospace"><?= h($case['case_number']) ?></span><?php endif; ?></div>
         <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
-          <h1 style="font-size:1.2rem;font-weight:700;margin:0;color:#181818;line-height:1.3"><?= h($case['title']) ?></h1>
-          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .65rem;border-radius:2rem;font-size:.76rem;font-weight:600;background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;border:1px solid <?= $sc['color'] ?>66">
-            <i class="bi <?= $sc['icon'] ?>" aria-hidden="true"></i><?= $sc['label'] ?>
-          </span>
-          <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .65rem;border-radius:2rem;font-size:.76rem;font-weight:600;background:#F9FAFB;color:<?= $pc['color'] ?>;border:1px solid <?= $pc['color'] ?>66">
-            <span style="width:6px;height:6px;border-radius:50%;background:<?= $pc['color'] ?>;display:inline-block" aria-hidden="true"></span>
-            Priorytet: <?= $pc['label'] ?>
-          </span>
+          <h1 style="font-size:1.35rem;font-weight:600;margin:0;color:#111827;line-height:1.3"><?= h($case['title']) ?></h1>
         </div>
 
         <!-- Metadane w wierszu -->
@@ -592,28 +627,32 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         </div>
       </div>
 
-      <!-- Akcje -->
-      <?php if ($can_write): ?>
-      <div class="d-flex align-items-start gap-2 flex-shrink-0 flex-wrap">
-        <button type="button" class="btn btn-sm btn-warning"
-                data-bs-toggle="modal" data-bs-target="#modalPismo" style="font-size:.82rem">
-          <i class="bi bi-envelope-plus me-1" aria-hidden="true"></i>Nowe pismo
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary"
-                data-bs-toggle="collapse" data-bs-target="#collapseEditMeta"
-                aria-expanded="false" aria-controls="collapseEditMeta" style="font-size:.82rem">
-          <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj
-        </button>
-        <?php if ($case['status'] !== 'closed'): ?>
-        <button type="button" class="btn btn-sm btn-success"
-                data-bs-toggle="collapse" data-bs-target="#collapseQuickClose"
-                aria-expanded="false" aria-controls="collapseQuickClose" style="font-size:.82rem">
-          <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zamknij sprawę
-        </button>
-        <?php endif; ?>
-      </div>
-      <?php endif; ?>
+      <!-- Pola nagłówka (jak w Dynamics 365) -->
+      <dl class="dyn-hfields">
+        <div><dt>Priorytet</dt><dd style="color:<?= $pc['color'] ?>"><?= h($pc['label']) ?></dd></div>
+        <div><dt>Status</dt><dd style="color:<?= $sc['color'] ?>"><?= h($sc['label']) ?></dd></div>
+        <div><dt>Prowadzi</dt><dd><?= $_dyn_owner !== '' ? h($_dyn_owner) : '<span class="text-muted">—</span>' ?></dd></div>
+        <div><dt>Termin</dt><dd<?= $_dyn_late ? ' style="color:#B91C1C"' : '' ?>><?= $_dyn_due !== '' ? h($_dyn_due) : '<span class="text-muted">—</span>' ?></dd></div>
+        <?php if ($_dyn_type !== ''): ?><div><dt>Typ</dt><dd><?= h($_dyn_type) ?></dd></div><?php endif; ?>
+        <div><dt>Utworzona</dt><dd><?= date('d.m.Y', strtotime($case['created_at'])) ?></dd></div>
+      </dl>
     </div>
+
+    <!-- Etapy sprawy (jak pasek procesu biznesowego w Dynamics) -->
+    <?php $_dyn_stages = ['open' => 'Otwarta', 'in_progress' => 'W toku', 'closed' => 'Zamknięta']; $_dyn_keys = array_keys($_dyn_stages); $_dyn_pos = array_search($case['status'], $_dyn_keys, true); ?>
+    <nav class="dyn-bpf" aria-label="Etapy sprawy">
+      <?php foreach ($_dyn_stages as $_sk => $_sl): $_si = array_search($_sk, $_dyn_keys, true); $_cur = $case['status'] === $_sk; $_done = $_dyn_pos !== false && $_si < $_dyn_pos; ?>
+        <?php if ($can_write && !$_cur && $_sk !== 'closed' && $case['status'] !== 'cancelled'): ?>
+          <form method="post" class="dyn-stage<?= $_done ? ' done' : '' ?>"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="set_status"><input type="hidden" name="status" value="<?= $_sk ?>">
+            <button type="submit" title="Przejdź do etapu: <?= h($_sl) ?>"><span class="dyn-dot" aria-hidden="true"><?= $_done ? '✓' : $_si + 1 ?></span><?= h($_sl) ?></button></form>
+        <?php elseif ($can_write && !$_cur && $_sk === 'closed'): ?>
+          <div class="dyn-stage"><button type="button" data-bs-toggle="collapse" data-bs-target="#collapseQuickClose" aria-controls="collapseQuickClose" title="Zamknij sprawę (wymaga powodu)"><span class="dyn-dot" aria-hidden="true"><?= $_si + 1 ?></span><?= h($_sl) ?></button></div>
+        <?php else: ?>
+          <div class="dyn-stage<?= $_cur ? ' current' : ($_done ? ' done' : '') ?>"<?= $_cur ? ' aria-current="step"' : '' ?>><span><span class="dyn-dot" aria-hidden="true"><?= $_done ? '✓' : ($_cur && $_sk === 'closed' ? '✓' : $_si + 1) ?></span><?= h($_sl) ?></span></div>
+        <?php endif; ?>
+      <?php endforeach; ?>
+      <?php if ($case['status'] === 'cancelled'): ?><div class="dyn-stage current cancelled" aria-current="step"><span><span class="dyn-dot" aria-hidden="true">✕</span>Anulowana</span></div><?php endif; ?>
+    </nav>
 
     <!-- Szybkie zamknięcie (collapse) -->
     <?php if ($can_write && $case['status'] !== 'closed'): ?>
@@ -695,12 +734,16 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div>
 </div>
 
-<div class="row g-3">
+<?php include dirname(__DIR__) . '/includes/case/aside.php'; /* zbiera panele do $_cvp, nic nie wypisuje */ ?>
+<div class="row g-3 dyn-form">
 
-<?php include dirname(__DIR__) . '/includes/case/aside.php'; ?>
+<!-- ══ LEWA: szczegóły — prowadzenie i aktywność ═════════════════════════════════ -->
+<div class="col-xl-3 col-lg-4 order-2 order-lg-1 dyn-col" aria-label="Szczegóły sprawy">
+  <?= ($_cvp['prowadzenie'][2] ?? '') . ($_cvp['aktywnosc'][2] ?? '') ?>
+</div>
 
-<!-- ══ GŁÓWNA: notatki / pisma / pliki w zakładkach — na całą szerokość ═══════════ -->
-<div class="col-12">
+<!-- ══ ŚRODEK: notatki / pisma / zadania / historia / wiadomości / pliki ══════════ -->
+<div class="col-xl-6 col-lg-8 order-1 order-lg-2">
 
   <ul class="nav cv-tabs mb-3" id="caseTabs" role="tablist">
     <li class="nav-item" role="presentation">
@@ -763,7 +806,12 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <?php include dirname(__DIR__) . '/includes/case/tabs_notes_pisma.php'; ?>
   <?php include dirname(__DIR__) . '/includes/case/tabs_work.php'; ?>
   </div><!-- /tab-content -->
-</div><!-- /główna -->
+</div><!-- /środek -->
+
+<!-- ══ PRAWA: status, współdzielenie, EZD, skróty ═════════════════════════════════ -->
+<div class="col-xl-3 col-lg-12 order-3 dyn-col dyn-col-right">
+  <?= ($_cvp['status'][2] ?? '') . ($_cvp['share'][2] ?? '') . ($_cvp['ezd'][2] ?? '') . $_cvp_links ?>
+</div>
 </div><!-- /row -->
 
 <?php include dirname(__DIR__) . '/includes/case/modal_pismo.php'; ?>
