@@ -91,37 +91,92 @@ final class TiConsultations
     public const RODO_DEFAULT  = 'Beneficjent wyraził zgodę na przetwarzanie danych osobowych (RODO) po zapoznaniu się z obowiązkiem informacyjnym i {polityka}.';
     public const TERMS_DEFAULT = 'Akceptacja {regulamin} (jeśli dotyczy).';
 
+    /** Słowniki zgłoszenia w Słowniku Centralnym (kategoria ti_konsultacje, słowniki systemowe — klucze zapisane na kartach). */
+    public const DICT_CENTRAL = ['contact_pref' => 'ti_konsultacje_kontakt', 'who' => 'ti_konsultacje_kogo', 'vision' => 'ti_konsultacje_wzrok',
+                                 'topics' => 'ti_konsultacje_tematy', 'systems' => 'ti_konsultacje_systemy', 'form' => 'ti_konsultacje_forma'];
+
+    private static function dictApi(): void
+    {
+        require_once dirname(__DIR__, 3) . '/modules/dictionary/lib/dictionaryApi.php';
+    }
+
     /**
-     * Słowniki po zmianach z ustawień (org_setting ti_consult_dicts, JSON {słownik: [[klucz, etykieta, aktywna], …]}).
-     * $activeOnly — tylko aktywne (formularz); inaczej wszystkie (opisy na kartach i wydrukach starszych kart).
+     * Słowniki zgłoszenia ze Słownika Centralnego (DICT_CENTRAL). $activeOnly — tylko aktywne i obowiązujące (formularz);
+     * inaczej wszystkie (opisy na kartach i wydrukach starszych kart, także wyłączone). Zapas, gdy słownika jeszcze nie ma:
+     * dawne ustawienie org_setting ti_consult_dicts, a bez niego INTAKE.
      * @return array<string, array<string,string>>
      */
     public static function dicts(bool $activeOnly = false): array
     {
         static $cache = null;
         if ($cache === null) {
-            $cache = ['all' => self::INTAKE, 'active' => self::INTAKE];
-            $j = function_exists('org_setting') ? json_decode((string)org_setting('ti_consult_dicts'), true) : null;
-            if (is_array($j)) foreach (self::DICT_NAMES as $d => $_) {
-                if (empty($j[$d]) || !is_array($j[$d])) continue;   // brak / pusty słownik = domyślny
-                $all = []; $act = [];
-                foreach ($j[$d] as $row) {
-                    [$k, $l, $on] = array_pad((array)$row, 3, 1);
-                    if (!is_string($k) || $k === '' || trim((string)$l) === '') continue;
-                    $all[$k] = (string)$l; if ($on) $act[$k] = (string)$l;
+            $cache = self::legacyDicts();
+            try {
+                self::dictApi();
+                $svc = dictService();
+                foreach (self::DICT_CENTRAL as $d => $code) {
+                    if (!$svc->exists($code)) continue;
+                    $all = [];
+                    foreach ($svc->entries($svc->dictionary($code)) as $e) if (!$e->isDeleted()) $all[$e->code] = $e->label;
+                    if (!$all) continue;
+                    foreach ($cache['all'][$d] as $k => $l) if (!isset($all[$k])) $all[$k] = $l;   // stare klucze zawsze opisane
+                    $cache['all'][$d] = $all;
+                    $cache['active'][$d] = dictOptions($code);
                 }
-                foreach (self::INTAKE[$d] as $k => $l) if (!isset($all[$k])) { $all[$k] = $l; }   // stare klucze zawsze opisane
-                $cache['all'][$d] = $all; $cache['active'][$d] = $act;
-            }
+            } catch (\Throwable $e) { error_log('[ti_consultations] dicts: ' . $e->getMessage()); }
         }
         return $cache[$activeOnly ? 'active' : 'all'];
     }
 
-    /** Zapis słowników z formularza ustawień: $in[słownik] = [['key'=>, 'label'=>, 'on'=>bool], …]; puste klucze = nowe pozycje. */
+    /** Dawne słowniki: INTAKE + zmiany z org_setting ti_consult_dicts (JSON {słownik: [[klucz, etykieta, aktywna], …]}). */
+    private static function legacyDicts(): array
+    {
+        $out = ['all' => self::INTAKE, 'active' => self::INTAKE];
+        $j = function_exists('org_setting') ? json_decode((string)org_setting('ti_consult_dicts'), true) : null;
+        if (is_array($j)) foreach (self::DICT_NAMES as $d => $_) {
+            if (empty($j[$d]) || !is_array($j[$d])) continue;   // brak / pusty słownik = domyślny
+            $all = []; $act = [];
+            foreach ($j[$d] as $row) {
+                [$k, $l, $on] = array_pad((array)$row, 3, 1);
+                if (!is_string($k) || $k === '' || trim((string)$l) === '') continue;
+                $all[$k] = (string)$l; if ($on) $act[$k] = (string)$l;
+            }
+            foreach (self::INTAKE[$d] as $k => $l) if (!isset($all[$k])) { $all[$k] = $l; }
+            $out['all'][$d] = $all; $out['active'][$d] = $act;
+        }
+        return $out;
+    }
+
+    /** Zasiew Słownika Centralnego: kategoria + 6 słowników z dotychczasowymi pozycjami (z ustawień, z aktywnością). */
+    public static function dictionarySeed(): string
+    {
+        $L = self::legacyDicts();
+        $dicts = [['code' => 'ti_konsultacje', 'name' => 'Konsultacje TI', 'kind' => 'static', 'parent_code' => null, 'is_protected' => false, 'sort_order' => 75,
+                   'description' => 'Słowniki karty konsultacji w panelu dydaktyka (formularz zgłoszenia).', 'entries' => []]];
+        $i = 0;
+        foreach (self::DICT_CENTRAL as $d => $code) {
+            $entries = [];
+            $n = 0;
+            foreach ($L['all'][$d] as $k => $l)
+                $entries[] = ['code' => $k, 'label' => $l, 'parent_code' => null, 'sort_order' => (++$n) * 10, 'is_active' => isset($L['active'][$d][$k]), 'description' => null];
+            $dicts[] = ['code' => $code, 'name' => 'Konsultacje — ' . mb_strtolower(self::DICT_NAMES[$d]), 'kind' => 'system', 'parent_code' => 'ti_konsultacje',
+                        'is_protected' => false, 'sort_order' => ++$i,
+                        'description' => 'Lista na karcie konsultacji (dydaktyk/konsultacja.php), sekcja Zgłoszenie. Klucze zapisują się na kartach — zmieniaj nazwy, kolejność i aktywność (wyłączone zostają opisane na starszych kartach), nowe pozycje dodawaj tutaj.'
+                                         . (in_array($d, ['who', 'topics'], true) ? ' Pozycja „inne” odblokowuje pole „Inne — jakie?”.' : '') . ($d === 'contact_pref' ? ' Pozycja „phone” wymaga numeru telefonu.' : ''),
+                        'entries' => $entries];
+        }
+        return json_encode(['format' => 'szo-dictionary', 'version' => 1, 'dictionaries' => $dicts], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Zapis słowników z ekranu ustawień (dydaktyk/konsultacjeUstawienia.php) do Słownika Centralnego:
+     * $in[słownik] = [['key'=>, 'label'=>, 'on'=>bool], …]; puste klucze = nowe pozycje. Pozycji się nie usuwa (wyłącza).
+     */
     public static function saveDicts(array $in): void
     {
-        $out = [];
-        foreach (self::DICT_NAMES as $d => $_) {
+        self::dictApi();
+        $cur = self::dicts();
+        foreach (self::DICT_CENTRAL as $d => $code) {
             $rows = []; $used = [];
             $taken = [];   // klucze istniejących pozycji — nowa pozycja ich nie zajmie
             foreach ((array)($in[$d] ?? []) as $r) if (preg_match('/^[a-z0-9_]{1,40}$/', (string)($r['key'] ?? ''))) $taken[$r['key']] = true;
@@ -129,17 +184,40 @@ final class TiConsultations
                 $l = trim(mb_substr((string)($r['label'] ?? ''), 0, 200));
                 if ($l === '') continue;
                 $k = (string)($r['key'] ?? '');
-                if (!preg_match('/^[a-z0-9_]{1,40}$/', $k)) {   // nowa pozycja — klucz z etykiety, unikalny w słowniku (także wobec domyślnych)
-                    $base = substr(trim(preg_replace('/[^a-z0-9]+/', '_', strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $l) ?: '')), '_'), 0, 30) ?: 'poz';
+                if (!preg_match('/^[a-z0-9_]{1,40}$/', $k)) {   // nowa pozycja — klucz z etykiety, unikalny w słowniku
+                    $pl = strtr(mb_strtolower($l), ['ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z']);
+                    $base = substr(trim(preg_replace('/[^a-z0-9]+/', '_', strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $pl) ?: '')), '_'), 0, 30) ?: 'poz';
                     $k = $base; $i = 2;
-                    while (isset($used[$k]) || isset($taken[$k]) || isset(self::INTAKE[$d][$k])) $k = $base . '_' . $i++;
+                    while (isset($used[$k]) || isset($taken[$k]) || isset($cur[$d][$k])) $k = $base . '_' . $i++;
                 }
                 if (isset($used[$k])) continue;
-                $used[$k] = true; $rows[] = [$k, $l, !empty($r['on']) ? 1 : 0];
+                $used[$k] = true;
+                $rows[] = ['code' => $k, 'label' => $l, 'parent_code' => null, 'sort_order' => count($rows) * 10 + 10, 'is_active' => !empty($r['on']), 'description' => null, '_line' => count($rows) + 1];
             }
-            $out[$d] = $rows;
+            if ($rows) self::importDict($code, $rows);
         }
-        org_setting_set('ti_consult_dicts', json_encode($out, JSON_UNESCAPED_UNICODE));
+    }
+
+    /** Przywraca domyślne nazwy i aktywność (INTAKE); pozycje spoza domyślnych zostają wyłączone. */
+    public static function resetDicts(): void
+    {
+        self::dictApi();
+        $cur = self::dicts();
+        foreach (self::DICT_CENTRAL as $d => $code) {
+            $rows = []; $n = 0;
+            foreach (self::INTAKE[$d] as $k => $l) $rows[] = ['code' => $k, 'label' => $l, 'parent_code' => null, 'sort_order' => (++$n) * 10, 'is_active' => true, 'description' => null, '_line' => $n];
+            foreach ($cur[$d] as $k => $l) if (!isset(self::INTAKE[$d][$k])) $rows[] = ['code' => $k, 'label' => $l, 'parent_code' => null, 'sort_order' => (++$n) * 10, 'is_active' => false, 'description' => null, '_line' => $n];
+            self::importDict($code, $rows);
+        }
+        if (function_exists('org_setting_set')) org_setting_set('ti_consult_dicts', '');
+    }
+
+    private static function importDict(string $code, array $rows): void
+    {
+        $svc = dictService();
+        if (!$svc->exists($code)) { dictTransfer()->import(self::dictionarySeed(), 'json'); }
+        $r = $svc->importDictionary(null, $rows, $code);
+        if (!empty($r['errors'])) throw new \RuntimeException('Słownik ' . $code . ': ' . implode('; ', $r['errors']));
     }
 
     /** Tekst zgody z linkami (HTML, już escapowany). $kind = 'rodo' | 'terms'. */

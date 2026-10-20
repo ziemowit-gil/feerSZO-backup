@@ -3,6 +3,7 @@
  * karty30/ti/dydaktyk/konsultacjeUstawienia.php — Ustawienia konsultacji (kierownik): link do Polityki Prywatności
  * i regulaminu, treść zgody RODO i akceptacji regulaminu ({polityka}, {regulamin} → linki), słowniki danych zgłoszenia
  * na karcie konsultacji (zmiana nazw, dodawanie, wyłączanie — wyłączone zostają opisane na starszych kartach).
+ * Słowniki są w Słowniku Centralnym (kategoria „Konsultacje TI”, TiConsultations::DICT_CENTRAL) — ten ekran je tam zapisuje.
  */
 require __DIR__ . '/_rezerwacje_nav.php';
 if (!$staff) { flash_set('warning', 'Ustawienia konsultacji zmienia kierownik.'); header('Location: rezerwacje.php'); exit; }
@@ -21,11 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         org_setting_set('ti_consult_terms_text', mb_substr(trim((string)($_POST['terms_text'] ?? '')), 0, 1000));
         flash_set($err ? 'warning' : 'success', $err ? implode(' ', array_unique($err)) : 'Zapisano linki i treść zgód. Nowe karty zapiszą przy zgodzie aktualny tekst.');
     } elseif ($op === 'dicts') {
-        TiConsultations::saveDicts((array)($_POST['d'] ?? []));
-        flash_set('success', 'Zapisano słowniki zgłoszenia.');
+        try { TiConsultations::saveDicts((array)($_POST['d'] ?? [])); flash_set('success', 'Zapisano słowniki zgłoszenia w Słowniku Centralnym.'); }
+        catch (\Throwable $e) { flash_set('error', 'Nie zapisano słowników: ' . $e->getMessage()); }
     } elseif ($op === 'dicts_reset') {
-        org_setting_set('ti_consult_dicts', '');
-        flash_set('success', 'Przywrócono domyślne słowniki zgłoszenia.');
+        try { TiConsultations::resetDicts(); flash_set('success', 'Przywrócono domyślne nazwy pozycji; pozycje dodane później są wyłączone.'); }
+        catch (\Throwable $e) { flash_set('error', 'Nie przywrócono słowników: ' . $e->getMessage()); }
     }
     header('Location: konsultacjeUstawienia.php'); exit;
 }
@@ -57,7 +58,8 @@ include __DIR__ . '/_rezerwacje_head.php';
 
 <form method="post" class="card border-0 shadow-sm mb-4"><div class="card-body">
   <h2 class="h6 fw-bold">Słowniki zgłoszenia na karcie konsultacji</h2>
-  <p class="small text-body-secondary">Zmień nazwę, odznacz „aktywna”, aby ukryć pozycję w formularzu (na starszych kartach i wydrukach zostaje opisana), dopisz nowe pozycje w pustych wierszach.</p>
+  <p class="small text-body-secondary">Zmień nazwę, odznacz „aktywna”, aby ukryć pozycję w formularzu (na starszych kartach i wydrukach zostaje opisana), dopisz nowe pozycje w pustych wierszach.
+    Listy są w <strong>Słowniku Centralnym</strong> SZO (Admin › Słownik Centralny › Konsultacje TI) — zmiany stąd trafiają tam, a tam można też zmienić kolejność i okres obowiązywania pozycji.</p>
   <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="dicts">
   <div class="row g-3">
   <?php foreach (TiConsultations::DICT_NAMES as $d => $dn): $i = 0; ?>
@@ -80,7 +82,7 @@ include __DIR__ . '/_rezerwacje_head.php';
   </div>
   <div class="d-flex gap-2 mt-2"><button class="btn btn-sm btn-primary">Zapisz słowniki</button></div>
 </div></form>
-<form method="post" onsubmit="return confirm('Przywrócić domyślne słowniki? Twoje zmiany nazw i nowe pozycje zostaną usunięte (starsze karty pokażą domyślne nazwy).')">
+<form method="post" onsubmit="return confirm('Przywrócić domyślne słowniki? Domyślne pozycje wrócą do pierwotnych nazw, a pozycje dodane później zostaną wyłączone (na starszych kartach zostają opisane).')">
   <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="dicts_reset">
   <button class="btn btn-sm btn-link text-danger px-0">Przywróć domyślne słowniki</button>
 </form>

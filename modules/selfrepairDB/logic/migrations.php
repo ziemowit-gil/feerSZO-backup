@@ -278,6 +278,18 @@ return [
         },
     ],
 
+    // Konsultacje TI: słowniki formularza zgłoszenia (forma kontaktu, kogo dotyczy, wzrok, tematy, systemy, forma)
+    // z org_setting ti_consult_dicts do Słownika Centralnego (kategoria ti_konsultacje) — z dotychczasowymi zmianami.
+    '2026-10_dictionary_ti_konsultacje' => [
+        'desc' => 'Słownik Centralny: słowniki karty konsultacji TI',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/ti_consultations/logic/consultations.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import(TiConsultations::dictionarySeed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
     // Certyfikacja MSUES: hasła JRWA 56 (kadra dydaktyczna — MSUES), 561 (oświadczenia o kwalifikacjach, koszulki oświadczeń),
     // 562 (audyty MSUES — paczki audytowe). Tylko gdy EZD ma już tabelę JRWA; brakujące hasła doda też pierwsza rejestracja.
     '2026-10_msues_jrwa' => [
