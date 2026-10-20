@@ -36,7 +36,7 @@ $_org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'F
 </head>
 <body class="pp">
 <?php
-$ppTitle = 'Panel TI'; $ppOrg = $_org; $ppCrumb = 'Konto konsultanta'; $ppLogo = ''; $ppLoginUrl = TiLogin::altUrl(); $ppAccount = null;
+$ppTitle = 'Panel TI'; $ppOrg = $_org; $ppCrumb = 'Konto konsultanta'; $ppLogo = ''; $ppLoginUrl = TiLogin::url(); $ppAccount = null;
 include dirname(__DIR__, 3) . '/modules/ti/view/portal/_header.php';
 ?>
 <main id="pp-main" class="pp-wrap" tabindex="-1">
@@ -44,10 +44,10 @@ include dirname(__DIR__, 3) . '/modules/ti/view/portal/_header.php';
   <?php if ($done): ?>
     <div class="pp-ok" role="status">Konto gotowe. Zaloguj się adresem <strong><?= h($inv['email']) ?></strong> i ustawionym hasłem.
       Przy pierwszym wejściu skonfigurujesz kod z aplikacji uwierzytelniającej (np. Microsoft Authenticator).</div>
-    <p><a class="pp-submit d-inline-flex align-items-center text-decoration-none" href="<?= h(TiLogin::altUrl()) ?>">Przejdź do logowania</a></p>
+    <p><a class="pp-submit d-inline-flex align-items-center text-decoration-none" href="<?= h(TiLogin::url()) ?>">Przejdź do logowania</a></p>
   <?php elseif (!$inv): ?>
     <div class="pp-error" role="alert">Link zaproszenia jest nieważny — wygasł, został już użyty albo cofnięty. Poproś osobę, która Cię zaprosiła, o nowy link.</div>
-    <p><a href="<?= h(TiLogin::altUrl()) ?>">Strona logowania</a></p>
+    <p><a href="<?= h(TiLogin::url()) ?>">Strona logowania</a></p>
   <?php else: ?>
     <p class="zk-lead">Dzień dobry, <strong><?= h($inv['name']) ?></strong>. Zapraszamy Cię do panelu konsultacji jako konsultant(kę).
       Ustaw hasło — loginem będzie adres <strong><?= h($inv['email']) ?></strong>.</p>
@@ -73,7 +73,7 @@ include dirname(__DIR__, 3) . '/modules/ti/view/portal/_header.php';
   <?php endif; ?>
 </main>
 <?php
-$ppFootLinks = ['Logowanie TI' => TiLogin::altUrl(), 'Strona Fundacji FEER' => 'https://feer.org.pl'];
+$ppFootLinks = ['Logowanie TI' => TiLogin::url(), 'Strona Fundacji FEER' => 'https://feer.org.pl'];
 include dirname(__DIR__, 3) . '/modules/ti/view/portal/_footer.php';
 ?>
 </body>

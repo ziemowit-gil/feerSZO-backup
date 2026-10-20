@@ -19,16 +19,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $login = TiConsultantAccess::normalize((string)($_POST['login'] ?? ''));
     $pass  = (string)($_POST['password'] ?? '');
-    if ($login === '') {
-        $error = 'Wpisz login zastępczy albo adres e-mail.';
-    } elseif (str_contains($login, '@') && TiLogin::isOfficeLogin($login)) {
-        header('Location: ' . TiLogin::officeUrl(), true, 303); exit;          // kadra @feer.org.pl → Microsoft 365
+    if (!TiConsultantAccess::isAltLogin($login)) {
+        // tylko numer zastępczy — e-mail (konsultant zewnętrzny, kadra) loguje się na wspólnej stronie TI / przez Microsoft 365
+        $error = 'Wpisz numer zastępczy (3 cyfry). Konto z adresem e-mail loguje się na stronie ' . TiLogin::url() . '.';
     } elseif (TiLogin::throttled($login)) {
         $error = TiLogin::ERROR_THROTTLE;
     } else {
-        // numer zastępczy (3 cyfry) → od razu Konsultacje; e-mail (konsultant zewnętrzny) → hasło + kod TOTP
-        $url = str_contains($login, '@') ? TiLogin::completeStaff($login, $pass)
-             : (TiConsultantAccess::isAltLogin($login) ? TiLogin::completeAltConsultant($login, $pass) : null);
+        $url = TiLogin::completeAltConsultant($login, $pass);   // numer zastępczy → od razu Konsultacje
         if ($url !== null) { TiLogin::clearAttempts($login); header('Location: ' . $url, true, 303); exit; }
         TiLogin::recordAttempt($login);
         $error = TiLogin::ERROR;
@@ -98,15 +95,15 @@ a{color:#4b00b5}
 <main class="kl-main" id="main">
   <div class="kl-box">
     <h1 class="kl-h">Zaloguj się</h1>
-    <p class="kl-lead">Numer zastępczy (3 cyfry) albo e-mail konsultanta.</p>
+    <p class="kl-lead">Numer zastępczy konsultanta (3 cyfry) i hasło.</p>
     <?php if ($error !== ''): ?><div class="kl-err" role="alert" id="kl-err"><?= h($error) ?></div><?php endif; ?>
     <form method="post" autocomplete="on">
       <input type="hidden" name="_token" value="<?= h($_tok) ?>">
       <div class="kl-field">
-        <label for="kl-login">Numer lub e-mail</label>
-        <input class="kl-in" id="kl-login" name="login" required maxlength="190" value="<?= h($login) ?>" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus
+        <label for="kl-login">Numer zastępczy</label>
+        <input class="kl-in" id="kl-login" name="login" required maxlength="3" inputmode="numeric" pattern="\d{3}" value="<?= h($login) ?>" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus
                aria-describedby="kl-login-h<?= $error !== '' ? ' kl-err' : '' ?>"<?= $error !== '' ? ' aria-invalid="true"' : '' ?>>
-        <p class="kl-hint" id="kl-login-h">Numer zastępczy, np. <strong>417</strong> — wejście bez kodu, tylko Konsultacje. E-mail konsultanta zewnętrznego — po haśle kod z aplikacji.</p>
+        <p class="kl-hint" id="kl-login-h">Np. <strong>417</strong> — wejście bez kodu, tylko Konsultacje. Konsultant z adresem e-mail loguje się na <a href="<?= h(TiLogin::url()) ?>">stronie logowania TI</a>.</p>
       </div>
       <div class="kl-field">
         <label for="kl-pass">Hasło</label>

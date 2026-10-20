@@ -260,7 +260,7 @@ final class TiConsultantAccess
         $by = (int)($inv['created_by'] ?? 0) ? db_one("SELECT email FROM users WHERE id = ?", [(int)$inv['created_by']]) : null;
         if ($by && filter_var($by['email'], FILTER_VALIDATE_EMAIL)) $cc[] = $by['email'];
         $cc = array_values(array_unique(array_filter(array_map('strtolower', $cc), fn($e) => $e !== strtolower((string)$inv['email']))));
-        $login = function_exists('tiPanelUrl') ? tiPanelUrl('ti', 'konsultant.php') : rtrim(APP_URL, '/') . '/karty30/ti/konsultant.php';   // strona logowania konsultantów
+        $login = function_exists('tiPanelUrl') ? tiPanelUrl('ti', 'login.php') : rtrim(APP_URL, '/') . '/karty30/ti/login.php';   // e-mail → wspólne logowanie TI (/konsultant = tylko numery zastępcze)
         $text = implode("\n", [
             'Dzień dobry ' . $inv['name'] . ',', '',
             'Twoje konto konsultanta w panelu konsultacji (' . $org . ') zostało założone.', '',
