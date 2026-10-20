@@ -33,6 +33,7 @@ $r->group(['usp.access'], function (Router $r) {
     $r->get('/{id}',           [UsPrzelewyController::class, 'show'])->name('usp.show');
     $r->post('/{id}',          [UsPrzelewyController::class, 'update'])->name('usp.update');
     $r->post('/{id}/status',   [UsPrzelewyController::class, 'status'])->name('usp.status');
+    $r->post('/{id}/zatwierdzenie', [UsPrzelewyController::class, 'zatwierdzenie'])->name('usp.zatwierdzenie');
     $r->get('/{id}/plik',      [UsPrzelewyController::class, 'plik'])->name('usp.plik');
 });
 

@@ -74,16 +74,19 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
           <th scope="col">Termin</th>
           <th scope="col">Tytuł przelewu</th>
           <th scope="col">Status</th>
+          <th scope="col">Zatwierdzenie</th>
           <th scope="col"><span class="visually-hidden">Akcje</span></th>
         </tr></thead>
         <tbody>
         <?php foreach ($rows as $z):
           $open = in_array($z['status'], ['do_zaplaty', 'zlecony'], true);
           $late = $open && $z['termin'] < $today;
-          $okres = uspOkresLabel($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']); ?>
+          $okres = uspOkresLabel($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']);
+          $blokada = $open ? uspBlokadaEksportu($z) : null;
+          $zd = uspZatwDoc($z); ?>
           <tr class="<?= $open ? '' : 'tw-text-slate-500' ?>">
-            <td><?php if ($open): ?><input type="checkbox" class="form-check-input usp-cb" name="zid[]" value="<?= (int)$z['id'] ?>" data-kwota="<?= h((string)_edok_kwota_float($z['kwota'])) ?>"
-                   <?= $z['status'] === 'do_zaplaty' ? 'checked' : '' ?> aria-label="<?= h($z['sfp'] . ' ' . $okres) ?>"><?php endif; ?></td>
+            <td><?php if ($open && !$blokada): ?><input type="checkbox" class="form-check-input usp-cb" name="zid[]" value="<?= (int)$z['id'] ?>" data-kwota="<?= h((string)_edok_kwota_float($z['kwota'])) ?>"
+                   <?= $z['status'] === 'do_zaplaty' ? 'checked' : '' ?> aria-label="<?= h($z['sfp'] . ' ' . $okres) ?>"><?php elseif ($blokada): ?><i class="bi bi-lock tw-text-slate-400" title="<?= h($blokada) ?>" aria-label="<?= h($blokada) ?>"></i><?php endif; ?></td>
             <td><a class="tw-font-medium" href="<?= h(route('usp.show', ['id' => $z['id']])) ?>"><?= h($z['sfp']) ?></a>
               <?php if ($z['zalacznik_path']): ?><i class="bi bi-paperclip tw-text-slate-400" title="deklaracja" aria-label="ma deklarację"></i><?php endif; ?>
               <?php if ($z['wyliczenie_path'] ?? ''): ?><i class="bi bi-calculator tw-text-slate-400" title="wyliczenie" aria-label="ma wyliczenie"></i><?php endif; ?></td>
@@ -94,6 +97,9 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
             <td class="tw-text-xs"><span class="badge <?= h(USP_STATUSY[$z['status']]['badge'] ?? 'text-bg-light') ?>"><?= h(USP_STATUSY[$z['status']]['label'] ?? $z['status']) ?></span>
               <?php if ($z['status'] === 'zaplacony' && $z['data_zaplaty']): ?><div class="tw-mt-1"><?= h(date('d.m.Y', strtotime($z['data_zaplaty']))) ?></div><?php endif; ?>
               <?php if ($z['status'] === 'zlecony' && $z['zlecono_at']): ?><div class="tw-mt-1">plik <?= h(date('d.m.Y', strtotime($z['zlecono_at']))) ?></div><?php endif; ?></td>
+            <td class="tw-text-xs"><?php if ($zd): $eds = EDOK_STATUSES[$zd['status']] ?? ['label' => $zd['status'], 'class' => 'secondary']; ?>
+              <a href="<?= h(APP_URL) ?>/edok/view.php?id=<?= (int)$zd['id'] ?>"><?= h($zd['number']) ?></a><div class="tw-mt-1"><span class="badge text-bg-<?= h($eds['class']) ?>"><?= h($eds['label']) ?></span></div>
+              <?php elseif ($open): ?><span class="tw-text-slate-500">nieprzekazane</span><?php else: ?>—<?php endif; ?></td>
             <td class="tw-whitespace-nowrap"><?php if ($open): ?>
               <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#uspPaid" data-id="<?= (int)$z['id'] ?>" data-opis="<?= h($z['sfp'] . ' ' . $okres . ' — ' . $money($z['kwota']) . ' zł') ?>">Zapłacono</button>
             <?php endif; ?></td>
@@ -157,6 +163,10 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
       <div>
         <label for="s-dni" class="usp-label">Ile dni przed terminem przypominać</label>
         <input id="s-dni" name="przypomnienia_dni" type="number" min="0" max="30" class="usp-input tw-w-28" value="<?= h((string)(org_setting('usp_przypomnienia_dni') !== '' ? org_setting('usp_przypomnienia_dni') : '3')) ?>">
+      </div>
+      <div class="md:tw-col-span-2">
+        <label class="tw-flex tw-items-start tw-gap-2 tw-text-sm"><input type="checkbox" class="form-check-input tw-mt-0.5" name="wymaga_zatwierdzenia" value="1" <?= uspWymagaZatwierdzenia() ? 'checked' : '' ?>>
+          Plik przelewu tylko dla zobowiązań zatwierdzonych do zapłaty w EODoK (przycisk „Przenieś do zatwierdzenia wydatku” na karcie zobowiązania)</label>
       </div>
       <div class="md:tw-col-span-2 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2">
         <p class="tw-m-0 tw-text-xs tw-text-slate-500">Rodzaje zobowiązań, symbole formularzy i ustawowe terminy: <a href="<?= h(APP_URL) ?>/modules/dictionary/router.php">Słownik Centralny</a> → „Księgowość — formularze przelewów do US”.</p>

@@ -189,6 +189,9 @@ function edok_migrate(): void {
         // Obieg papierowy (domyślnie dla rachunków do umów): akceptacja na papierze, w EODoK tylko
         // ewidencja i płatność — bez 5 etapów elektronicznych, decyzje i edycja danych zablokowane.
         'obieg_papierowy'        => "INTEGER NOT NULL DEFAULT 0",
+        // Zobowiązanie podatkowe (modules/us_przelewy) przekazane do zatwierdzenia wydatku — dokument przechodzi
+        // 5 etapów, ale zapłata idzie przelewem podatkowym z modułu Przelewy do US (kod 71), nie z Preliminarza.
+        'us_zob_id'              => "INTEGER",
     ]);
 
     // Rejestr przelewów składek ZUS (bez obiegu akceptacji — kwota wynika z rozliczonych
@@ -2257,6 +2260,8 @@ function edok_przelew_exportable(array $d): bool {
     // Listy płac nie eksportują się online: wynagrodzenia są wypłacane ręcznie (tytuł do
     // skopiowania przy każdej pozycji, wypłatę odnotowuje się przyciskiem „Wypłacono”).
     if (($d['typ_dokumentu'] ?? '') === 'lista_plac') return false;
+    // Zobowiązanie podatkowe: plik przelewu (kod 71, tytuł /TI/…/SFP/…) generuje moduł Przelewy do US.
+    if (!empty($d['us_zob_id'])) return false;
     $d = edok_przelew_doc($d);
     return strlen(preg_replace('/\D/', '', (string)($d['rachunek_bankowy'] ?? ''))) === 26;
 }

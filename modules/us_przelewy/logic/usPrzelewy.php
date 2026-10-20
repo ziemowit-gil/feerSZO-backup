@@ -82,6 +82,8 @@ function uspMigrate(): void {
     _edok_add_columns($db, 'us_zobowiazania', [
         'wyliczenie_path'  => "TEXT NOT NULL DEFAULT ''",
         'wyliczenie_nazwa' => "TEXT NOT NULL DEFAULT ''",
+        // Dokument EODoK, którym zobowiązanie przechodzi obieg zatwierdzenia wydatku (edok_documents.us_zob_id wskazuje z powrotem).
+        'zatw_doc_id'      => "INTEGER",
     ]);
     $db->exec("CREATE INDEX IF NOT EXISTS idx_us_zob_status ON us_zobowiazania(status, termin)");
     $db->exec("CREATE TABLE IF NOT EXISTS us_zobowiazania_log (
@@ -154,12 +156,17 @@ function uspSaveSettings(array $post): array {
         else $emails[] = strtolower($e);
     }
     $dni = max(0, min(30, (int)($post['przypomnienia_dni'] ?? 3)));
+    $wymaga = !empty($post['wymaga_zatwierdzenia']) ? '1' : '0';
     if ($errors) return $errors;
     $old = uspRachunek();
     org_setting_set('usp_rachunek', $nrb);
     org_setting_set('usp_odbiorca', mb_substr(trim((string)($post['odbiorca'] ?? '')), 0, 70));
     org_setting_set('usp_przypomnienia', implode(', ', array_unique($emails)));
     org_setting_set('usp_przypomnienia_dni', (string)$dni);
+    if ($wymaga !== (uspWymagaZatwierdzenia() ? '1' : '0')) {
+        org_setting_set('usp_wymaga_zatwierdzenia', $wymaga);
+        uspLog(0, 'ustawienia', $wymaga === '1' ? 'Włączono wymóg zatwierdzenia wydatku przed plikiem przelewu' : 'WYŁĄCZONO wymóg zatwierdzenia wydatku przed plikiem przelewu');
+    }
     if ($old !== $nrb) uspLog(0, 'ustawienia', 'Rachunek US: ' . ($old !== '' ? edok_nrb_format($old) : '—') . ' → ' . edok_nrb_format($nrb));
     return [];
 }
@@ -429,6 +436,7 @@ function uspSetStatus(int $id, string $status, string $data = ''): ?string {
         $upd['data_zaplaty'] = null;
     }
     db_update('us_zobowiazania', $upd, $id);
+    uspZatwSyncStatus($z, $status);
     uspLog($id, 'status', USP_STATUSY[$z['status']]['label'] . ' → ' . USP_STATUSY[$status]['label'] . ($status === 'zaplacony' ? ' (' . date('d.m.Y', strtotime($data)) . ')' : ''));
     return null;
 }
@@ -446,6 +454,7 @@ function uspGenerujPlik(array $ids, string $nrbZ, string $format, bool $ponowne)
     foreach (array_unique(array_map('intval', $ids)) as $id) {
         $z = uspGet($id);
         if (!$z || !in_array($z['status'], ['do_zaplaty', 'zlecony'], true)) continue;
+        if ($why = uspBlokadaEksportu($z)) return $why;
         if ($z['status'] === 'zlecony' && !$ponowne) return 'Zobowiązanie ' . $z['sfp'] . ' ' . uspOkresLabel($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']) . ' było już w pliku — zaznacz potwierdzenie ponownego ujęcia.';
         $zob[] = $z;
         $rows[] = uspPrzelewRow($z);
@@ -521,4 +530,119 @@ function uspPrzypomnienia(bool $dry = false): array {
         db_update('us_zobowiazania', ['przypomniano' => implode(',', array_unique(array_merge($it['sent'], [$it['kind']])))], (int)$it['z']['id']);
     }
     return ['note' => '', 'lines' => $lines, 'sent' => $n];
+}
+
+// ── Zatwierdzenie wydatku (obieg EODoK) ───────────────────────────────────────
+// Zobowiązanie przechodzi ten sam 5-etapowy obieg co faktury: dokument EODoK (typ „inny”, us_zob_id) z deklaracją
+// jako skanem źródłowym. Zatwierdzenie (status „zaakceptowany”) odblokowuje plik przelewu; Preliminarz go pomija
+// (edok_przelew_exportable), bo przelew podatkowy (kod 71) powstaje tutaj. Zmiana danych zobowiązania w obiegu
+// wycofuje dokument (edok_withdraw), po zatwierdzeniu jest zablokowana do cofnięcia decyzji w EODoK.
+
+function uspWymagaZatwierdzenia(): bool {
+    return org_setting('usp_wymaga_zatwierdzenia') !== '0';
+}
+
+function uspZatwDoc(array $z): ?array {
+    return !empty($z['zatw_doc_id']) ? (db_one("SELECT * FROM edok_documents WHERE id = ?", [(int)$z['zatw_doc_id']]) ?: null) : null;
+}
+
+/** Dokument w obiegu albo zatwierdzony (odrzucony / wycofany = można przekazać ponownie). */
+function uspZatwAktywny(?array $doc): bool {
+    return $doc !== null && in_array($doc['status'], ['draft', 'w_obiegu', 'zaakceptowany'], true);
+}
+
+/** Powód, dla którego zobowiązanie nie może trafić do pliku przelewu (null = może). */
+function uspBlokadaEksportu(array $z): ?string {
+    $opis = $z['sfp'] . ' ' . uspOkresLabel($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']);
+    $doc = uspZatwDoc($z);
+    if (!uspWymagaZatwierdzenia() && !uspZatwAktywny($doc)) return null;
+    if (!$doc || !uspZatwAktywny($doc)) return 'Zobowiązanie ' . $opis . ' nie przeszło zatwierdzenia wydatku — przekaż je do zatwierdzenia na karcie zobowiązania.';
+    if ($doc['status'] !== 'zaakceptowany') return 'Zobowiązanie ' . $opis . ' czeka na zatwierdzenie wydatku (' . $doc['number'] . ').';
+    if (abs(_edok_kwota_float((string)$doc['kwota_brutto']) - _edok_kwota_float((string)$z['kwota'])) > 0.004
+        || preg_replace('/\D/', '', (string)$doc['rachunek_bankowy']) !== $z['rachunek']) {
+        return 'Kwota albo rachunek zobowiązania ' . $opis . ' różni się od zatwierdzonego dokumentu ' . $doc['number'] . ' — cofnij decyzję w EODoK i zatwierdź ponownie.';
+    }
+    return null;
+}
+
+/** Przekazanie do zatwierdzenia: tworzy dokument EODoK w obiegu. Zwraca id dokumentu albo komunikat błędu. */
+function uspDoZatwierdzenia(int $id, array $user): int|string {
+    $z = uspGet($id);
+    if (!$z) return 'Nie znaleziono zobowiązania.';
+    if ($z['status'] !== 'do_zaplaty') return 'Do zatwierdzenia można przekazać tylko zobowiązanie w statusie „Do zapłaty”.';
+    $old = uspZatwDoc($z);
+    if (uspZatwAktywny($old)) return 'Zobowiązanie jest już w obiegu zatwierdzenia (' . $old['number'] . ').';
+    $plik = $z['zalacznik_path'] ?: $z['wyliczenie_path'];
+    if ($plik === '') return 'Dołącz deklarację albo wyliczenie — dokument źródłowy jest wymagany na etapie kontroli merytorycznej.';
+    $okres = uspOkresLabel($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']);
+    $opis = 'Zobowiązanie podatkowe ' . $z['sfp'] . ' za ' . $okres . ', termin płatności ' . date('d.m.Y', strtotime($z['termin']))
+          . '. Zapłata przelewem do urzędu skarbowego z modułu Przelewy do US, tytuł: ' . uspTytul($z) . '.'
+          . ($z['zalacznik_nazwa'] !== '' ? ' Deklaracja: ' . $z['zalacznik_nazwa'] . '.' : '')
+          . ($z['wyliczenie_nazwa'] !== '' ? ' Wyliczenie: ' . $z['wyliczenie_nazwa'] . ($z['zalacznik_path'] !== '' ? ' (w module Przelewy do US).' : '.') : '')
+          . ($z['uwagi'] !== '' ? ' Uwagi: ' . $z['uwagi'] : '');
+    $abs = rtrim(UPLOAD_DIR, '/') . '/' . $plik;
+    $now = date('Y-m-d H:i:s');
+    $doc = [
+        'number'           => edok_next_number(),
+        'title'            => 'Podatek ' . $z['sfp'] . ' za ' . $okres,
+        'kierunek'         => 'wydatek',
+        'typ_dokumentu'    => 'inny',
+        'description'      => $opis,
+        'kontrahent_nazwa' => uspOdbiorca(),
+        'kontrahent_nip'   => '',
+        'nr_faktury'       => 'US-' . $id . '/' . $z['sfp'] . '/' . uspOkresKod($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']),
+        'data_wystawienia' => date('Y-m-d'),
+        'data_wplywu'      => date('Y-m-d'),
+        'kwota_netto'      => $z['kwota'],
+        'kwota_vat'        => '0,00',
+        'kwota_brutto'     => $z['kwota'],
+        'waluta'           => 'PLN',
+        'file_path'        => $plik,
+        'file_size'        => is_file($abs) ? filesize($abs) : null,
+        'termin_platnosci' => $z['termin'],
+        'rachunek_bankowy' => $z['rachunek'],
+        'tytul_przelewu'   => uspTytul($z),
+        'wyklucz_z_preliminarza' => 1,
+        'us_zob_id'        => $id,
+        'status'           => 'w_obiegu',
+        'created_by'       => (int)($user['id'] ?? 0) ?: null,
+        'creator_name'     => (string)($user['name'] ?? ''),
+        'created_at'       => $now,
+        'updated_at'       => $now,
+    ];
+    $docId = db_insert('edok_documents', $doc);
+    edok_log($docId, 'submit', '', 'draft', 'w_obiegu', 'Przekazano do zatwierdzenia wydatku z modułu Przelewy do US (zobowiązanie US-' . $id . ').', $doc);
+    db_update('us_zobowiazania', ['zatw_doc_id' => $docId], $id);
+    uspLog($id, 'zatwierdzenie', 'Przekazano do zatwierdzenia wydatku — dokument ' . $doc['number']);
+    return $docId;
+}
+
+/** Zapis zmian zobowiązania w obiegu wycofuje dokument EODoK (zatwierdzanie od nowa). Zwraca komunikat błędu albo null. */
+function uspZatwPrzedZmiana(array $z): ?string {
+    $doc = uspZatwDoc($z);
+    if (!uspZatwAktywny($doc)) return null;
+    if ($doc['status'] === 'zaakceptowany') return 'Zobowiązanie jest zatwierdzone do zapłaty (' . $doc['number'] . ') — zmiana wymaga cofnięcia decyzji w EODoK.';
+    edok_withdraw((int)$doc['id'], 'Zmiana danych zobowiązania podatkowego US-' . $z['id'] . ' w module Przelewy do US — zatwierdzanie od nowa.');
+    uspLog((int)$z['id'], 'zatwierdzenie', 'Zmiana danych wycofała dokument ' . $doc['number'] . ' z obiegu — przekaż ponownie do zatwierdzenia.');
+    return null;
+}
+
+/** Status płatności dokumentu EODoK idzie za zobowiązaniem: zapłacony ↔ „Opłacony”; anulowanie wycofuje dokument w obiegu. */
+function uspZatwSyncStatus(array $z, string $status): void {
+    $doc = uspZatwDoc($z);
+    if (!$doc) return;
+    try {
+        if ($status === 'anulowany' && in_array($doc['status'], ['draft', 'w_obiegu'], true)) {
+            edok_withdraw((int)$doc['id'], 'Zobowiązanie podatkowe US-' . $z['id'] . ' anulowane w module Przelewy do US.');
+            return;
+        }
+        if ($doc['status'] !== 'zaakceptowany') return;
+        $prev = $doc['status_platnosci'] ?: 'nowy';
+        $new = $status === 'zaplacony' ? 'oplacony' : ($prev === 'oplacony' ? 'nowy' : $prev);
+        if ($new === $prev) return;
+        db_exec("UPDATE edok_documents SET status_platnosci = ?, updated_at = datetime('now') WHERE id = ?", [$new, (int)$doc['id']]);
+        edok_log((int)$doc['id'], 'status_platnosci', '', $prev, $new, 'Status płatności z modułu Przelewy do US: ' . (EDOK_STATUS_PLATNOSCI[$prev]['label'] ?? $prev) . ' → ' . (EDOK_STATUS_PLATNOSCI[$new]['label'] ?? $new));
+    } catch (\Throwable $e) {
+        error_log('[us_przelewy] sync EODoK: ' . $e->getMessage());
+    }
 }

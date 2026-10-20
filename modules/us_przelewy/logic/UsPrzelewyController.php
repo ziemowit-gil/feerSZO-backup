@@ -67,6 +67,12 @@ final class UsPrzelewyController
             return $this->form(array_merge($z, $_POST, ['id' => $id]), $dup);
         }
         $d += $up;
+        $zmiana = (bool)$up;
+        foreach (['formularz', 'okres_rok', 'okres_nr', 'kwota', 'termin', 'rachunek', 'txt'] as $k) $zmiana = $zmiana || (string)$z[$k] !== (string)$d[$k];
+        if ($zmiana && ($err = uspZatwPrzedZmiana($z))) {
+            flash_set('warning', $err);
+            return Router::redirect(route('usp.show', ['id' => $id]));
+        }
         uspUpdate($id, $d);
         flash_set('success', 'Zapisano zobowiązanie.');
         return Router::redirect(route('usp.show', ['id' => $id]));
@@ -77,6 +83,15 @@ final class UsPrzelewyController
         $err = uspSetStatus($id, (string)($_POST['status'] ?? ''), (string)($_POST['data_zaplaty'] ?? ''));
         flash_set($err ? 'warning' : 'success', $err ?? 'Zmieniono status.');
         return Router::redirect((string)($_POST['back'] ?? '') === 'lista' ? route('usp.index') : route('usp.show', ['id' => $id]));
+    }
+
+    /** „Przenieś do zatwierdzenia wydatku” — dokument EODoK w 5-etapowym obiegu. */
+    public function zatwierdzenie(int $id): ?string {
+        uspMigrate();
+        $res = uspDoZatwierdzenia($id, current_user() ?: []);
+        if (is_string($res)) flash_set('warning', $res);
+        else flash_set('success', 'Przekazano do zatwierdzenia wydatku — dokument ' . (db_one("SELECT number FROM edok_documents WHERE id = ?", [$res])['number'] ?? '') . ' jest w obiegu EODoK.');
+        return Router::redirect(route('usp.show', ['id' => $id]));
     }
 
     public function generuj(): ?string {
@@ -124,7 +139,7 @@ final class UsPrzelewyController
         $id = (int)($z['id'] ?? 0);
         return Router::view(self::VIEW . 'form.php', [
             'z' => $z, 'dup' => $dup, 'forms' => uspFormularze(), 'historia' => $id ? uspHistoria($id) : [],
-            'edokDocs' => uspEdokDocs(), 'rachunek' => uspRachunek(),
+            'edokDocs' => uspEdokDocs(), 'rachunek' => uspRachunek(), 'zatwDoc' => $id ? uspZatwDoc($z) : null,
             'edokDoc' => !empty($z['edok_doc_id']) ? db_one("SELECT id, number, title FROM edok_documents WHERE id = ?", [(int)$z['edok_doc_id']]) : null,
         ]);
     }

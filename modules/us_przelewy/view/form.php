@@ -2,11 +2,15 @@
 /**
  * modules/us_przelewy/view/form.php — nowe zobowiązanie podatkowe / karta zobowiązania (edycja, status, historia).
  * Zmienne: $z (wiersz albo dane formularza), $dup (zobowiązania za ten sam okres), $forms, $historia, $edokDocs,
- * $edokDoc (powiązany dokument EODoK), $rachunek (rachunek US z ustawień). Kontroler: create/show/store/update.
+ * $edokDoc (powiązany dokument EODoK), $rachunek (rachunek US z ustawień), $zatwDoc (dokument obiegu zatwierdzenia
+ * wydatku albo null). Kontroler: create/show/store/update.
  */
 $id = (int)($z['id'] ?? 0);
 $status = (string)($z['status'] ?? 'do_zaplaty');
-$editable = $status === 'do_zaplaty';
+$zatwDoc = $zatwDoc ?? null;
+$zatwAktywny = uspZatwAktywny($zatwDoc);
+$zatwOk = $zatwDoc && $zatwDoc['status'] === 'zaakceptowany';
+$editable = $status === 'do_zaplaty' && !$zatwOk;
 $code = (string)($z['formularz'] ?? '');
 $cur = $forms[$code] ?? null;
 if (!$cur && $id) $cur = ['label' => $z['sfp'] . ' (wyłączony w słowniku)', 'sfp' => $z['sfp'], 'okres' => $z['okres_typ'], 'termin_dzien' => 20, 'termin_mies' => 1];
@@ -29,7 +33,12 @@ $swieta = array_merge(uspSwieta((int)date('Y')), uspSwieta((int)date('Y') + 1), 
   </div>
   <?= flash_html() ?>
 
-  <?php if ($id && !$editable): ?>
+  <?php if ($id && $status === 'do_zaplaty' && $zatwOk): ?>
+  <div class="alert alert-info py-2 small">Zatwierdzone do zapłaty w <?= h($zatwDoc['number']) ?> — kwota i rachunek są zablokowane. Zmiana wymaga cofnięcia decyzji w EODoK (Główny Księgowy).</div>
+  <?php elseif ($id && $zatwAktywny): ?>
+  <div class="alert alert-warning py-2 small">Zobowiązanie jest w obiegu zatwierdzenia (<?= h($zatwDoc['number']) ?>). Zapisanie zmian danych wycofa dokument z obiegu — trzeba będzie przekazać je ponownie.</div>
+  <?php endif; ?>
+  <?php if ($id && !$editable && !($status === 'do_zaplaty' && $zatwOk)): ?>
   <div class="alert alert-info py-2 small">
     <?php if ($status === 'zlecony'): ?>Plik przelewu wygenerowano <?= h(date('d.m.Y H:i', strtotime((string)$z['zlecono_at']))) ?> (<?= h($z['plik_format']) ?>, z rachunku …<?= h(substr((string)$z['rachunek_z'], -4)) ?>)<?php if ($z['plik_path']): ?> — <a href="<?= h(route('usp.plik', ['id' => $id])) ?>">pobierz plik</a><?php endif; ?>. Po wykonaniu przelewu oznacz zapłatę.
     <?php elseif ($status === 'zaplacony'): ?>Zapłacono <?= h(date('d.m.Y', strtotime((string)$z['data_zaplaty']))) ?>.
@@ -121,6 +130,31 @@ $swieta = array_merge(uspSwieta((int)date('Y')), uspSwieta((int)date('Y') + 1), 
   </form>
 
   <?php if ($id): ?>
+  <section class="card shadow-sm mb-3" aria-labelledby="u-zw-h">
+    <div class="card-body">
+      <h2 class="h6" id="u-zw-h">Zatwierdzenie wydatku</h2>
+      <?php if ($zatwDoc): $eds = EDOK_STATUSES[$zatwDoc['status']] ?? ['label' => $zatwDoc['status'], 'class' => 'secondary']; ?>
+      <p class="small mb-2">Dokument <a href="<?= h(APP_URL) ?>/edok/view.php?id=<?= (int)$zatwDoc['id'] ?>"><?= h($zatwDoc['number']) ?></a>
+        <span class="badge text-bg-<?= h($eds['class']) ?>"><?= h($eds['label']) ?></span>
+        <?php if (!$zatwAktywny): ?> — możesz przekazać zobowiązanie ponownie.<?php endif; ?></p>
+      <?php endif; ?>
+      <?php if (!$zatwDoc || !$zatwAktywny): ?>
+        <?php if ($status === 'do_zaplaty'): ?>
+        <form method="post" action="<?= h(route('usp.zatwierdzenie', ['id' => $id])) ?>">
+          <?= Router::csrfField() ?>
+          <button class="btn btn-sm btn-primary" type="submit" <?= ($z['zalacznik_path'] ?? '') === '' && ($z['wyliczenie_path'] ?? '') === '' ? 'disabled aria-describedby="u-zw-help"' : '' ?>><i class="bi bi-send-check me-1" aria-hidden="true"></i> Przenieś do zatwierdzenia wydatku</button>
+        </form>
+        <p id="u-zw-help" class="small text-body-secondary mt-2 mb-0">Zobowiązanie trafi do obiegu EODoK (kontrola merytoryczna, formalna, rachunkowa, dekretacja, zatwierdzenie do zapłaty) — z deklaracją jako dokumentem źródłowym<?= ($z['zalacznik_path'] ?? '') === '' && ($z['wyliczenie_path'] ?? '') === '' ? '. <strong>Najpierw dołącz deklarację albo wyliczenie.</strong>' : '.' ?>
+          <?= uspWymagaZatwierdzenia() ? 'Plik przelewu można wygenerować dopiero po zatwierdzeniu.' : '' ?></p>
+        <?php else: ?>
+        <p class="small text-body-secondary mb-0">Przekazać do zatwierdzenia można zobowiązanie w statusie „Do zapłaty”.</p>
+        <?php endif; ?>
+      <?php elseif (!$zatwOk): ?>
+        <p class="small text-body-secondary mb-0">Plik przelewu będzie dostępny po zatwierdzeniu do zapłaty (etap 5).</p>
+      <?php endif; ?>
+    </div>
+  </section>
+
   <section class="card shadow-sm mb-3" aria-labelledby="u-st-h">
     <div class="card-body">
       <h2 class="h6" id="u-st-h">Status</h2>
