@@ -70,6 +70,10 @@ function auth_screen_bg_css(string $sel = 'html,body'): void {
  *                 account_buttons — podzbiór ['login','register','reset']: przyciski konta w lewej kolumnie
  *                                   (zastępują zakładki side_tabs_html)
  *                 actions    — kafle „Serwisy i systemy z kontem w Tożsamości"; domyślnie w trybie 'card'
+ *                 light      — lekki wygląd jak /auth/login.php: jedna biała karta na jasnym tle, logo u góry,
+ *                              bez lewej kolumny z instrukcją i bez kafli serwisów; pod treścią kafle
+ *                              „Nowy wolontariusz / Nowy zleceniobiorca” i linki konta (account_buttons).
+ *                              Wyklucza metro; width = maks. szerokość karty (domyślnie 560).
  */
 function auth_screen_head(array $o = []): void {
     $b         = branding_load();
@@ -83,11 +87,15 @@ function auth_screen_head(array $o = []): void {
     $main_id   = $o['main_id']   ?? 'ks-main';
     $side_tabs = $o['side_tabs_html'] ?? null;
     $metro     = $o['metro'] ?? true;
+    $light     = !empty($o['light']);
+    if ($light) { $metro = false; $width = (int)($o['width'] ?? 560); }
     $GLOBALS['__ks_mode']    = $mode;
     $GLOBALS['__ks_bs']      = $bootstrap;
     $GLOBALS['__ks_org']     = $org_name;
     $GLOBALS['__ks_split']   = !$metro && $side_tabs !== null;
     $GLOBALS['__ks_metro']   = $metro;
+    $GLOBALS['__ks_light']   = $light;
+    $GLOBALS['__ks_account'] = $o['account_buttons'] ?? ['login', 'register', 'reset'];
     ?><!DOCTYPE html>
 <html lang="pl" data-fs="m">
 <head>
@@ -443,6 +451,70 @@ html[data-theme="hc"] .ks-choice__item{background:#000;border:2px solid #000}
 html[data-theme="hc"] .tzl .tz-side{background:#000;border-right:3px solid #fff}
 html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
 <?php endif; ?>
+<?php if ($light): ?>
+
+/* ── Lekki wygląd (jak /auth/login.php): jedna karta, stałe kolory AA ──── */
+body.lgx{--ks:#0f6fa8;--ks-dark:#0b5582;--ks-on:#fff;--ks-ink:#1f1f1f;--ks-line:#6b6b6b;--ks-muted:#3b3b3b;--ks-radius:0;
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:#f3f2f1;color:#1f1f1f;
+  min-height:100vh;display:flex;flex-direction:column}
+/* WCAG 2.4.7/2.4.11: czerwony, gruby fokus — #c50f1f na tle #f3f2f1/#fff ≥ 5:1 */
+.lgx :focus-visible{outline:3px solid #c50f1f!important;outline-offset:3px!important;box-shadow:none!important}
+.lgx .form-control:focus-visible{outline-offset:1px!important}
+.lgx .skip-link{border-radius:0;background:#1f1f1f;color:#fff}
+.lgx-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem 1rem}
+.lgx-card{background:#fff;width:100%;max-width:<?= $width ?>px;padding:2.4rem 2.4rem 2rem;border:1px solid #c8c8c8;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.lgx-brand{margin-bottom:1.5rem}
+.lgx-brand img{height:44px;width:auto;display:block}
+.lgx-brand span{display:block;font-size:.95rem;font-weight:600}
+.lgx-card a:not(.btn):not(.ks-btn):not(.tz-btn):not(.nav-link){color:#0b5582}
+.lgx .ks-hero-ico{width:48px;height:48px;border-radius:0;background:#0f6fa8;color:#fff;font-size:1.4rem;margin:0 0 1rem}
+.lgx .ks-hero-h1,.lgx .ks-h1{color:#111;text-align:left;font-size:1.75rem;font-weight:600;letter-spacing:0;margin:0 0 .25rem}
+.lgx .ks-hero-lead,.lgx .ks-lead{color:#3b3b3b;text-align:left;font-size:1rem;margin:0 0 1.6rem}
+.lgx .ks-steps{justify-content:flex-start;margin-bottom:1.6rem}
+.lgx .ks-step .dot,.lgx .ks-steps--light .ks-step .dot{border-radius:0;background:#fff;border-color:#8a8886;color:#3b3b3b}
+.lgx .ks-step .cap,.lgx .ks-steps--light .ks-step .cap{color:#3b3b3b}
+.lgx .ks-step.is-active .dot{border-color:#0f6fa8;color:#0b5582}
+.lgx .ks-step.is-active .cap{color:#111;font-weight:600}
+.lgx .ks-step.is-done .dot{background:#0f6fa8;border-color:#0f6fa8;color:#fff}
+.lgx .ks-line,.lgx .ks-steps--light .ks-line{background:#c8c8c8}
+.lgx .ks-line.is-done{background:#0f6fa8}
+.lgx .form-control{border:1px solid #6b6b6b;border-radius:0;min-height:46px;color:#111}
+.lgx .form-control:focus{border-color:#1f1f1f;box-shadow:none}
+.lgx .form-label,.lgx .ks-field label{font-size:.95rem!important;font-weight:600;color:#111}
+.lgx .form-text,.lgx .text-muted,.lgx .ks-fieldhint,.lgx .ks-hint,.lgx .ks-note{color:#3b3b3b!important}
+.lgx .ks-btn,.lgx .ks-shell .btn,.lgx .ks-shell .input-group-text,.lgx .ks-shell .alert,.lgx .l-alert,
+.lgx .ks-shell .nav-link,.lgx .lm-content,.lgx .modal-content{border-radius:0!important}
+.lgx .ks-btn--primary{background:#1f1f1f;border-color:#1f1f1f;color:#fff}
+.lgx .ks-btn--primary:hover,.lgx .ks-btn--primary:focus{background:#000;border-color:#000;color:#fff}
+.lgx .ks-btn--ghost{border:2px solid #1f1f1f;color:#1f1f1f}
+.lgx .ks-btn--ghost:hover{border-color:#000;background:#f3f2f1}
+.lgx .ks-shell .input-group-text{border-color:#6b6b6b;background:#f3f2f1;color:#3b3b3b}
+/* Karty Bootstrapa wewnątrz karty strony — bez ramek i podwójnych odstępów */
+.lgx .ks-shell .card{border:0;border-radius:0;box-shadow:none!important;background:transparent}
+.lgx .ks-shell .card-body{padding:0!important}
+.lgx .ks-shell .card.border-primary{border:0!important;border-left:4px solid #0f6fa8!important;background:#eff6fc;margin-bottom:1.25rem}
+.lgx .ks-shell .card.border-primary .card-body{padding:.9rem 1rem!important}
+.lgx .ks-shell .nav-tabs{border-bottom:1px solid #c8c8c8!important;padding:0!important;margin-bottom:1rem}
+.lgx .ks-shell .nav-link{color:#0b5582;min-height:44px}
+.lgx .ks-shell .nav-link.active{color:#111;border-color:#c8c8c8 #c8c8c8 #fff}
+/* Kafle „Nowy wolontariusz / zleceniobiorca” (jak na /auth/login.php); #0b5582 na białym = 7,9:1 */
+.lg-new{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:1.6rem}
+.lg-new a{display:flex;align-items:center;gap:.65rem;min-height:56px;padding:.6rem .7rem;border:1px solid #c8c8c8;background:#fff;color:#1f1f1f!important;text-decoration:none}
+.lg-new a:hover{border-color:#1f1f1f}
+.lg-new i{flex:0 0 2.2rem;height:2.2rem;display:flex;align-items:center;justify-content:center;background:#0f6fa8;color:#fff;font-size:1.15rem}
+.lg-new span{display:flex;flex-direction:column;line-height:1.25;font-size:.85rem;color:#3b3b3b}
+.lg-new strong{font-size:.95rem;color:#0b5582}
+.lg-links{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-top:1.2rem;font-size:.95rem}
+.lg-links a{font-weight:600;display:inline-flex;align-items:center;min-height:44px}
+.lg-foot{text-align:center;font-size:.88rem;color:#3b3b3b;padding:0 1rem 1.2rem}
+.lg-foot a{color:#3b3b3b}
+@media(max-width:480px){.lgx-card{padding:1.6rem 1.2rem;border:0}}
+@media(max-width:380px){.lg-new{grid-template-columns:1fr}}
+/* Zapamiętany „wysoki kontrast” z dawnego wyglądu — tu czarno-biało, bez czarnego tła strony */
+html[data-theme="hc"] body.lgx{background:#fff}
+html[data-theme="hc"] .lgx-card{border:3px solid #000;box-shadow:none}
+html[data-theme="hc"] .lg-foot,html[data-theme="hc"] .lg-foot a{color:#000}
+<?php endif; ?>
 </style>
 <?php if ($metro): ?>
 <style>
@@ -477,7 +549,7 @@ html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
 </style>
 <?php endif; ?>
 </head>
-<body<?= $metro ? ' class="tzl"' : '' ?>>
+<body<?= $metro ? ' class="tzl"' : ($light ? ' class="lgx"' : '') ?>>
 
 <a href="#<?= h($main_id) ?>" class="skip-link">Przejdź do treści</a>
 <div role="status" aria-live="polite"    aria-atomic="true" id="login-live"  class="sr"></div>
@@ -519,9 +591,20 @@ ob_start(); ?>
     </nav>
   </div>
 </header>
-<?php else: ?>
+<?php elseif (!$light): ?>
 <?= $__ks_a11y ?>
 <?php endif; ?>
+
+<?php if ($light): ?>
+<main class="lgx-wrap" id="<?= h($main_id) ?>" tabindex="-1">
+  <div class="lgx-card">
+    <div class="lgx-brand">
+      <?php if (!empty($b['logo_url'])): ?><img src="<?= h($b['logo_url']) ?>" alt="<?= h($org_name) ?>"><?php else: ?><span><?= h($org_name) ?></span><?php endif; ?>
+    </div>
+    <div class="ks-shell">
+<?php
+    return;
+endif; ?>
 
 <?php if ($metro): ?>
 <div class="tz-split<?= ($mode !== 'card' && $width > 800) ? ' tz-split--wide' : '' ?>">
@@ -660,6 +743,10 @@ function auth_screen_foot(array $o = []): void {
         ['url' => APP_URL . '/karty30/ti/dydaktyk/login.php', 'label' => 'Panel dydaktyka',    'icon' => 'bi-easel2'],
         ['url' => APP_URL . '/auth/report_login_issue.php',   'label' => 'Problem z logowaniem','icon' => 'bi-life-preserver'],
     ];
+    if (!empty($GLOBALS['__ks_light'])) {
+        auth_screen_foot_light($o, $bs, $org);
+        return;
+    }
     if (!empty($GLOBALS['__ks_metro'])) {
         $o['links'] = $links;
         auth_screen_foot_metro($o, $bs, $org);
@@ -783,6 +870,51 @@ function auth_screen_foot_metro(array $o, bool $bs, string $org): void {
 </footer>
 <?php
     // Skrypty (dostępność, podgląd hasła, SMS) — wspólne z wyglądem klasycznym.
+    auth_screen_scripts($o, $bs);
+}
+
+/**
+ * Kafle pierwszego wejścia: „Nowy wolontariusz → Kod aktywacyjny” (okno kodu jednorazowego
+ * na stronie logowania — kod z karty umowy) i „Nowy zleceniobiorca → Oświadczenie”
+ * (publiczny kreator /zlecenie). Style .lg-new — w lekkim wyglądzie (light).
+ */
+function auth_screen_new_tiles(): string {
+    $app = rtrim(APP_URL, '/');
+    return '<nav class="lg-new" aria-label="Pierwsze logowanie">'
+         . '<a href="' . $app . '/auth/login.php?tab=code"><i class="bi bi-person-plus" aria-hidden="true"></i>'
+         . '<span>Nowy wolontariusz<strong>Kod aktywacyjny</strong></span></a>'
+         . '<a href="' . $app . '/zlecenie"><i class="bi bi-file-earmark-text" aria-hidden="true"></i>'
+         . '<span>Nowy zleceniobiorca<strong>Oświadczenie</strong></span></a>'
+         . '</nav>';
+}
+
+/**
+ * Stopka lekkiego wyglądu: kafle pierwszego wejścia, linki konta (bez bieżącej strony,
+ * „Załóż konto” tylko przy otwartej rejestracji), zamknięcie karty i stopka jak na logowaniu.
+ */
+function auth_screen_foot_light(array $o, bool $bs, string $org): void {
+    $app  = rtrim(APP_URL, '/');
+    $self = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+    $btn  = [
+        'login'    => ['/auth/login.php',        'Zaloguj się'],
+        'register' => ['/user/register.php',     'Załóż konto'],
+        'reset'    => ['/user/verify_reset.php', 'Nie pamiętasz hasła?'],
+    ];
+    $links = '';
+    foreach ($GLOBALS['__ks_account'] ?? [] as $k) {
+        if (!isset($btn[$k]) || ($k === 'register' && !register_is_open())) continue;
+        if ($self !== '' && str_ends_with($self, $btn[$k][0])) continue;
+        $links .= '<a href="' . $app . $btn[$k][0] . '">' . h($btn[$k][1]) . '</a>';
+    }
+    ?>
+    </div><!-- /.ks-shell -->
+    <?= auth_screen_new_tiles() ?>
+    <?php if ($links !== ''): ?><div class="lg-links"><?= $links ?></div><?php endif; ?>
+  </div>
+</main>
+<?= $o['extra_html'] ?? '' ?>
+<footer class="lg-foot"><?= h($org) ?> · <a href="<?= $app ?>/auth/help.php">Pomoc w logowaniu</a> · <a href="<?= $app ?>/dostepnosc/">Deklaracja dostępności</a></footer>
+<?php
     auth_screen_scripts($o, $bs);
 }
 

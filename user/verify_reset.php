@@ -559,18 +559,9 @@ $step_labels = [
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'     => 'Odzyskiwanie dostępu',
-    'side_title'=> 'Odzyskiwanie hasła',
-    'side_sub'  => 'Jak odzyskać dostęp:',
-    'side_steps'=> [
-        'Podaj dane z umowy.',
-        'Wpisz kod SMS wysłany na Twój telefon.',
-        'Ustaw nowe hasło.',
-    ],
-    'side_tabs_html' => auth_screen_login_tabs('reset'),
-    'actions'   => true,
     'account_buttons' => ['login', 'register'],
-    'mode'      => 'plain',
-    'width'     => 640,
+    'light'     => true,
+    'width'     => 600,
     'bootstrap' => true,
     'main_id'   => 'reset-main',
 ]);
