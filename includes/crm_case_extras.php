@@ -396,15 +396,45 @@ function crm_case_set_status(int $case_id, string $to, string $reason = '', ?int
     return ['ok' => true, 'error' => '', 'from' => $from, 'to' => $to];
 }
 
-/** Powody zamknięcia — zamknięcie „bez powodu" nie mówi nic o skuteczności. */
+/**
+ * Powody zamknięcia — zamknięcie „bez powodu" nie mówi nic o skuteczności.
+ * Lista ze Słownika Centralnego (słownik systemowy CRM_CLOSE_REASONS_DICT): etykiety, kolejność, nowe powody
+ * i wyłączanie w Admin › Słownik Centralny. Stała = wpisy startowe (selfrepairDB) i zapas, gdy słownika brak.
+ * Kody 'zalatwiona' i 'duplikat' są używane w kodzie (szybkie zamknięcie, przeniesienie dokumentacji).
+ */
+const CRM_CLOSE_REASONS_DICT = 'crm_sprawy_powody_zamkniecia';
+const CRM_CLOSE_REASONS_DEFAULT = [
+    'zalatwiona'   => 'Załatwiona — cel osiągnięty',
+    'odrzucona'    => 'Odrzucona — odmowa / poza zakresem',
+    'brak_kontaktu'=> 'Bez odpowiedzi klienta',
+    'duplikat'     => 'Duplikat innej sprawy',
+    'inny'         => 'Inny powód (opisany w notatce)',
+];
+
 function crm_case_close_reasons(): array {
-    return [
-        'zalatwiona'   => 'Załatwiona — cel osiągnięty',
-        'odrzucona'    => 'Odrzucona — odmowa / poza zakresem',
-        'brak_kontaktu'=> 'Bez odpowiedzi klienta',
-        'duplikat'     => 'Duplikat innej sprawy',
-        'inny'         => 'Inny powód (opisany w notatce)',
-    ];
+    require_once dirname(__DIR__) . '/modules/dictionary/lib/dictionaryApi.php';
+    return dictOptions(CRM_CLOSE_REASONS_DICT, CRM_CLOSE_REASONS_DEFAULT);
+}
+
+/** Etykieta zapisanego powodu — także wyłączonego później w słowniku. */
+function crm_case_close_reason_label(?string $code): string {
+    if ($code === null || $code === '') return '';
+    require_once dirname(__DIR__) . '/modules/dictionary/lib/dictionaryApi.php';
+    return (string)dictLabel(CRM_CLOSE_REASONS_DICT, $code, CRM_CLOSE_REASONS_DEFAULT[$code] ?? $code);
+}
+
+/** Wpisy startowe słownika powodów (format importu Słownika Centralnego). */
+function crm_case_close_reasons_seed(): string {
+    $entries = [];
+    $i = 0;
+    foreach (CRM_CLOSE_REASONS_DEFAULT as $code => $label)
+        $entries[] = ['code' => $code, 'label' => $label, 'parent_code' => null, 'sort_order' => (++$i) * 10, 'is_active' => true, 'description' => null];
+    return json_encode(['format' => 'szo-dictionary', 'version' => 1, 'dictionaries' => [
+        ['code' => CRM_CLOSE_REASONS_DICT, 'name' => 'CRM — powody zamknięcia sprawy', 'kind' => 'system', 'parent_code' => null,
+         'is_protected' => false, 'sort_order' => 70,
+         'description' => 'Lista „Powód” przy zamykaniu i anulowaniu sprawy CRM (panel Zmień status, szybkie zamknięcie) oraz w historii statusów i eksporcie. Nowe powody dodawaj tutaj; niepotrzebne wyłącz (odznacz „aktywny”) — stare sprawy zachowają etykietę. Kody zalatwiona i duplikat są używane w kodzie.',
+         'entries' => $entries],
+    ]], JSON_UNESCAPED_UNICODE);
 }
 
 function crm_case_status_history(int $case_id): array {

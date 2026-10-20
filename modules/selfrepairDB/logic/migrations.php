@@ -244,6 +244,18 @@ return [
         },
     ],
 
+    // CRM: powody zamknięcia sprawy (panel „Zmień status”, szybkie zamknięcie, historia, eksport) jako słownik
+    // systemowy Słownika Centralnego. Kody dotychczasowe (zalatwiona, duplikat… — używane w kodzie i w zapisanych sprawach).
+    '2026-10_dictionary_crm_close_reasons' => [
+        'desc' => 'Słownik Centralny: powody zamknięcia sprawy CRM',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/crm_case_extras.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import(crm_case_close_reasons_seed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
     // Certyfikacja MSUES: hasła JRWA 56 (kadra dydaktyczna — MSUES), 561 (oświadczenia o kwalifikacjach, koszulki oświadczeń),
     // 562 (audyty MSUES — paczki audytowe). Tylko gdy EZD ma już tabelę JRWA; brakujące hasła doda też pierwsza rejestracja.
     '2026-10_msues_jrwa' => [

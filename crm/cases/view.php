@@ -101,6 +101,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 flash_set('warning', 'Przy zamykaniu sprawy podaj powód — bez tego nie da się policzyć skuteczności.');
                 header('Location: view.php?id=' . $id . '#status'); exit;
             }
+            if ($reason !== '' && !array_key_exists($reason, crm_case_close_reasons())) {
+                flash_set('warning', 'Wybierz powód z listy (Słownik Centralny).');
+                header('Location: view.php?id=' . $id . '#status'); exit;
+            }
             $r = crm_case_set_status($id, $ns, $reason);
             flash_set(!empty($r['ok']) ? 'success' : 'danger', !empty($r['ok'])
                 ? 'Status zmieniony na: ' . $status_cfg[$ns]['label']

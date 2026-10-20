@@ -153,7 +153,6 @@ if (!isset($case)) { http_response_code(400); exit; }
         Sprawa założona wcześniej pokaże zmiany dopiero od następnej.
       </p>
       <?php else: ?>
-      <?php $reasons = crm_case_close_reasons(); ?>
       <div class="list-group list-group-flush">
         <?php foreach ($case_hist as $hrow): ?>
         <div class="list-group-item px-0" style="font-size:.85rem">
@@ -168,7 +167,7 @@ if (!isset($case)) { http_response_code(400); exit; }
           </div>
           <?php if (!empty($hrow['reason'])): ?>
           <div class="text-muted" style="font-size:.78rem">
-            Powód: <?= h($reasons[$hrow['reason']] ?? $hrow['reason']) ?>
+            Powód: <?= h(crm_case_close_reason_label($hrow['reason'])) ?>
           </div>
           <?php endif; ?>
         </div>

@@ -100,6 +100,7 @@ if ($what === 'cases') {
         'closed' => 'Zamknięta', 'cancelled' => 'Anulowana',
     ];
     $prios = ['low' => 'Niski', 'medium' => 'Średni', 'high' => 'Wysoki'];
+    require_once dirname(__DIR__) . '/includes/crm_case_extras.php';   // powody zamknięcia ze Słownika Centralnego
     $headers  = ['ID', 'Numer', 'Tytuł', 'Kontakt', 'Status', 'Priorytet', 'Typ', 'Opiekun',
                  'Termin', 'Utworzono', 'Zamknięto', 'Powód zamknięcia', 'Notatek'];
     $data = [];
@@ -116,7 +117,7 @@ if ($what === 'cases') {
             $r['due_date']   ? substr((string)$r['due_date'], 0, 10)   : '',
             substr((string)$r['created_at'], 0, 16),
             $r['closed_at']  ? substr((string)$r['closed_at'], 0, 16)  : '',
-            (string)($r['closed_reason'] ?? ''),
+            crm_case_close_reason_label($r['closed_reason'] ?? ''),
             (int)($r['notes_count'] ?? 0),
         ];
     }
