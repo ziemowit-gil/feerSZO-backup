@@ -15,6 +15,7 @@
 
 require_once dirname(__DIR__, 3) . '/includes/edok.php';
 require_once dirname(__DIR__, 3) . '/modules/dictionary/lib/dictionaryApi.php';
+require_once dirname(__DIR__, 3) . '/modules/audit_logs/logic/audit_logs.php';
 
 const USP_DICT = 'us_formularze';
 
@@ -95,6 +96,7 @@ function uspMigrate(): void {
         user_name  TEXT    NOT NULL DEFAULT '',
         created_at TEXT
     )");
+    _edok_add_columns($db, 'us_zobowiazania_log', ['ip' => "TEXT NOT NULL DEFAULT ''"]);
 }
 
 /** Dostęp: administrator i osoby zatwierdzające do zapłaty (EODoK lub archiwum KDOK) — jak Preliminarz. */
@@ -332,7 +334,7 @@ function uspDoTerminu(int $dni): array {
 function uspLog(int $zobId, string $akcja, string $opis): void {
     $u = function_exists('current_user') ? (current_user() ?: []) : [];
     db_insert('us_zobowiazania_log', ['zob_id' => $zobId, 'akcja' => $akcja, 'opis' => $opis,
-        'user_id' => (int)($u['id'] ?? 0) ?: null, 'user_name' => (string)($u['name'] ?? 'system'), 'created_at' => date('Y-m-d H:i:s')]);
+        'user_id' => (int)($u['id'] ?? 0) ?: null, 'user_name' => (string)($u['name'] ?? 'system'), 'ip' => audit_client_ip(), 'created_at' => date('Y-m-d H:i:s')]);
 }
 
 function uspHistoria(int $zobId): array {
@@ -532,11 +534,12 @@ function uspPrzypomnienia(bool $dry = false): array {
     return ['note' => '', 'lines' => $lines, 'sent' => $n];
 }
 
-// ── Zatwierdzenie wydatku (obieg EODoK) ───────────────────────────────────────
-// Zobowiązanie przechodzi ten sam 5-etapowy obieg co faktury: dokument EODoK (typ „inny”, us_zob_id) z deklaracją
-// jako skanem źródłowym. Zatwierdzenie (status „zaakceptowany”) odblokowuje plik przelewu; Preliminarz go pomija
-// (edok_przelew_exportable), bo przelew podatkowy (kod 71) powstaje tutaj. Zmiana danych zobowiązania w obiegu
-// wycofuje dokument (edok_withdraw), po zatwierdzeniu jest zablokowana do cofnięcia decyzji w EODoK.
+// ── Akceptacja wydatku („Akceptuję”) ──────────────────────────────────────────
+// Zobowiązanie podatkowe nie przechodzi 5-etapowego obiegu: kwota wynika z deklaracji, więc osoba z dostępem do
+// modułu (admin / zatwierdzająca do zapłaty) akceptuje je jednym przyciskiem. Akceptacja zakłada w rejestrze
+// wydatków EODoK dokument od razu „zaakceptowany” (typ „inny”, us_zob_id ↔ zatw_doc_id; Preliminarz go pomija —
+// edok_przelew_exportable — bo przelew podatkowy, kod 71, powstaje tutaj). Kto / kiedy / IP: historia zobowiązania,
+// zdarzenia dokumentu EODoK i audit_logs. Zmiana kwoty, rachunku, okresu, terminu albo plików cofa akceptację.
 
 function uspWymagaZatwierdzenia(): bool {
     return org_setting('usp_wymaga_zatwierdzenia') !== '0';
@@ -546,7 +549,7 @@ function uspZatwDoc(array $z): ?array {
     return !empty($z['zatw_doc_id']) ? (db_one("SELECT * FROM edok_documents WHERE id = ?", [(int)$z['zatw_doc_id']]) ?: null) : null;
 }
 
-/** Dokument w obiegu albo zatwierdzony (odrzucony / wycofany = można przekazać ponownie). */
+/** Dokument zaakceptowany albo (po cofnięciu decyzji w EODoK) w obiegu; odrzucony / wycofany = akceptacja nieważna. */
 function uspZatwAktywny(?array $doc): bool {
     return $doc !== null && in_array($doc['status'], ['draft', 'w_obiegu', 'zaakceptowany'], true);
 }
@@ -556,31 +559,32 @@ function uspBlokadaEksportu(array $z): ?string {
     $opis = $z['sfp'] . ' ' . uspOkresLabel($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']);
     $doc = uspZatwDoc($z);
     if (!uspWymagaZatwierdzenia() && !uspZatwAktywny($doc)) return null;
-    if (!$doc || !uspZatwAktywny($doc)) return 'Zobowiązanie ' . $opis . ' nie przeszło zatwierdzenia wydatku — przekaż je do zatwierdzenia na karcie zobowiązania.';
-    if ($doc['status'] !== 'zaakceptowany') return 'Zobowiązanie ' . $opis . ' czeka na zatwierdzenie wydatku (' . $doc['number'] . ').';
+    if (!$doc || !uspZatwAktywny($doc)) return 'Zobowiązanie ' . $opis . ' nie jest zaakceptowane — kliknij „Akceptuję” na karcie zobowiązania.';
+    if ($doc['status'] !== 'zaakceptowany') return 'Zobowiązanie ' . $opis . ' czeka na zatwierdzenie w EODoK (' . $doc['number'] . ').';
     if (abs(_edok_kwota_float((string)$doc['kwota_brutto']) - _edok_kwota_float((string)$z['kwota'])) > 0.004
         || preg_replace('/\D/', '', (string)$doc['rachunek_bankowy']) !== $z['rachunek']) {
-        return 'Kwota albo rachunek zobowiązania ' . $opis . ' różni się od zatwierdzonego dokumentu ' . $doc['number'] . ' — cofnij decyzję w EODoK i zatwierdź ponownie.';
+        return 'Kwota albo rachunek zobowiązania ' . $opis . ' różni się od zaakceptowanego dokumentu ' . $doc['number'] . ' — cofnij akceptację i zaakceptuj ponownie.';
     }
     return null;
 }
 
-/** Przekazanie do zatwierdzenia: tworzy dokument EODoK w obiegu. Zwraca id dokumentu albo komunikat błędu. */
-function uspDoZatwierdzenia(int $id, array $user): int|string {
+/** „Akceptuję”: dokument EODoK od razu zaakceptowany do zapłaty. Zwraca id dokumentu albo komunikat błędu. */
+function uspAkceptuj(int $id, array $user): int|string {
     $z = uspGet($id);
     if (!$z) return 'Nie znaleziono zobowiązania.';
-    if ($z['status'] !== 'do_zaplaty') return 'Do zatwierdzenia można przekazać tylko zobowiązanie w statusie „Do zapłaty”.';
+    if ($z['status'] !== 'do_zaplaty') return 'Zaakceptować można zobowiązanie w statusie „Do zapłaty”.';
     $old = uspZatwDoc($z);
-    if (uspZatwAktywny($old)) return 'Zobowiązanie jest już w obiegu zatwierdzenia (' . $old['number'] . ').';
-    $plik = $z['zalacznik_path'] ?: $z['wyliczenie_path'];
-    if ($plik === '') return 'Dołącz deklarację albo wyliczenie — dokument źródłowy jest wymagany na etapie kontroli merytorycznej.';
+    if (uspZatwAktywny($old)) return 'Zobowiązanie jest już zaakceptowane (' . $old['number'] . ').';
     $okres = uspOkresLabel($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']);
+    $ip = audit_client_ip();
+    $kto = (string)($user['name'] ?? '');
     $opis = 'Zobowiązanie podatkowe ' . $z['sfp'] . ' za ' . $okres . ', termin płatności ' . date('d.m.Y', strtotime($z['termin']))
           . '. Zapłata przelewem do urzędu skarbowego z modułu Przelewy do US, tytuł: ' . uspTytul($z) . '.'
           . ($z['zalacznik_nazwa'] !== '' ? ' Deklaracja: ' . $z['zalacznik_nazwa'] . '.' : '')
           . ($z['wyliczenie_nazwa'] !== '' ? ' Wyliczenie: ' . $z['wyliczenie_nazwa'] . ($z['zalacznik_path'] !== '' ? ' (w module Przelewy do US).' : '.') : '')
           . ($z['uwagi'] !== '' ? ' Uwagi: ' . $z['uwagi'] : '');
-    $abs = rtrim(UPLOAD_DIR, '/') . '/' . $plik;
+    $plik = $z['zalacznik_path'] ?: $z['wyliczenie_path'];
+    $abs = $plik !== '' ? rtrim(UPLOAD_DIR, '/') . '/' . $plik : '';
     $now = date('Y-m-d H:i:s');
     $doc = [
         'number'           => edok_next_number(),
@@ -598,33 +602,58 @@ function uspDoZatwierdzenia(int $id, array $user): int|string {
         'kwota_brutto'     => $z['kwota'],
         'waluta'           => 'PLN',
         'file_path'        => $plik,
-        'file_size'        => is_file($abs) ? filesize($abs) : null,
+        'file_size'        => $abs !== '' && is_file($abs) ? filesize($abs) : null,
         'termin_platnosci' => $z['termin'],
         'rachunek_bankowy' => $z['rachunek'],
         'tytul_przelewu'   => uspTytul($z),
         'wyklucz_z_preliminarza' => 1,
         'us_zob_id'        => $id,
-        'status'           => 'w_obiegu',
+        'status'           => 'zaakceptowany',
         'created_by'       => (int)($user['id'] ?? 0) ?: null,
-        'creator_name'     => (string)($user['name'] ?? ''),
+        'creator_name'     => $kto,
         'created_at'       => $now,
         'updated_at'       => $now,
     ];
-    $docId = db_insert('edok_documents', $doc);
-    edok_log($docId, 'submit', '', 'draft', 'w_obiegu', 'Przekazano do zatwierdzenia wydatku z modułu Przelewy do US (zobowiązanie US-' . $id . ').', $doc);
-    db_update('us_zobowiazania', ['zatw_doc_id' => $docId], $id);
-    uspLog($id, 'zatwierdzenie', 'Przekazano do zatwierdzenia wydatku — dokument ' . $doc['number']);
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $docId = db_insert('edok_documents', $doc);
+        edok_log($docId, 'status_change', '', 'draft', 'zaakceptowany', 'Autoakceptacja przyciskiem „Akceptuję” w module Przelewy do US (zobowiązanie US-' . $id
+            . ') — zaakceptował ' . $kto . ', IP ' . $ip . '. Zobowiązanie podatkowe bez obiegu wieloetapowego; dokument do zapłaty przelewem podatkowym.', $doc);
+        db_update('us_zobowiazania', ['zatw_doc_id' => $docId], $id);
+        uspLog($id, 'akceptacja', 'Zaakceptowano wydatek („Akceptuję”) — ' . $z['kwota'] . ' zł na rachunek ' . edok_nrb_format($z['rachunek']) . ', dokument ' . $doc['number']);
+        audit_log('us_przelewy.accepted', ['zob_id' => $id, 'edok_doc_id' => $docId, 'edok_number' => $doc['number'], 'sfp' => $z['sfp'],
+            'okres' => $okres, 'kwota' => $z['kwota'], 'rachunek' => $z['rachunek']], (int)($user['id'] ?? 0) ?: null);
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
     return $docId;
 }
 
-/** Zapis zmian zobowiązania w obiegu wycofuje dokument EODoK (zatwierdzanie od nowa). Zwraca komunikat błędu albo null. */
-function uspZatwPrzedZmiana(array $z): ?string {
+/**
+ * Cofnięcie akceptacji (przycisk albo zmiana danych): dokument EODoK → „wycofany”. Zwraca komunikat błędu albo null.
+ * Niemożliwe po zapłacie (dokument „Opłacony”) — wtedy najpierw cofnij zapłatę.
+ */
+function uspCofnijAkceptacje(array $z, string $powod): ?string {
     $doc = uspZatwDoc($z);
     if (!uspZatwAktywny($doc)) return null;
-    if ($doc['status'] === 'zaakceptowany') return 'Zobowiązanie jest zatwierdzone do zapłaty (' . $doc['number'] . ') — zmiana wymaga cofnięcia decyzji w EODoK.';
-    edok_withdraw((int)$doc['id'], 'Zmiana danych zobowiązania podatkowego US-' . $z['id'] . ' w module Przelewy do US — zatwierdzanie od nowa.');
-    uspLog((int)$z['id'], 'zatwierdzenie', 'Zmiana danych wycofała dokument ' . $doc['number'] . ' z obiegu — przekaż ponownie do zatwierdzenia.');
+    if (($doc['status_platnosci'] ?: 'nowy') === 'oplacony') return 'Dokument ' . $doc['number'] . ' jest oznaczony jako opłacony — najpierw cofnij zapłatę.';
+    if ($doc['status'] === 'zaakceptowany') {
+        db_exec("UPDATE edok_documents SET status = 'wycofany', updated_at = datetime('now') WHERE id = ?", [(int)$doc['id']]);
+        edok_log((int)$doc['id'], 'withdraw', '', 'zaakceptowany', 'wycofany', 'Cofnięto akceptację w module Przelewy do US (IP ' . audit_client_ip() . '): ' . $powod, $doc);
+    } else {
+        edok_withdraw((int)$doc['id'], 'Cofnięto w module Przelewy do US: ' . $powod);
+    }
+    uspLog((int)$z['id'], 'akceptacja', 'Cofnięto akceptację (' . $doc['number'] . '): ' . $powod);
+    audit_log('us_przelewy.acceptance_revoked', ['zob_id' => (int)$z['id'], 'edok_doc_id' => (int)$doc['id'], 'powod' => $powod]);
     return null;
+}
+
+/** Zapis zmian danych cofa akceptację. Zwraca komunikat błędu albo null. */
+function uspZatwPrzedZmiana(array $z): ?string {
+    return uspCofnijAkceptacje($z, 'zmiana danych zobowiązania — wymagana ponowna akceptacja.');
 }
 
 /** Status płatności dokumentu EODoK idzie za zobowiązaniem: zapłacony ↔ „Opłacony”; anulowanie wycofuje dokument w obiegu. */
@@ -632,8 +661,8 @@ function uspZatwSyncStatus(array $z, string $status): void {
     $doc = uspZatwDoc($z);
     if (!$doc) return;
     try {
-        if ($status === 'anulowany' && in_array($doc['status'], ['draft', 'w_obiegu'], true)) {
-            edok_withdraw((int)$doc['id'], 'Zobowiązanie podatkowe US-' . $z['id'] . ' anulowane w module Przelewy do US.');
+        if ($status === 'anulowany') {
+            uspCofnijAkceptacje($z, 'zobowiązanie anulowane.');
             return;
         }
         if ($doc['status'] !== 'zaakceptowany') return;

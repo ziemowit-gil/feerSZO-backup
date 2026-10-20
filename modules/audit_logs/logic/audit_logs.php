@@ -22,6 +22,7 @@ require_once dirname(__DIR__, 3) . '/includes/db.php';
 const AUDIT_MODULES = [
     'holograms'   => 'Hologramy',
     'smart_cards' => 'Karty dostępu',
+    'us_przelewy' => 'Przelewy do US',
 ];
 
 function audit_logs_migrate(): void {

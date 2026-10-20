@@ -74,7 +74,7 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
           <th scope="col">Termin</th>
           <th scope="col">Tytuł przelewu</th>
           <th scope="col">Status</th>
-          <th scope="col">Zatwierdzenie</th>
+          <th scope="col">Akceptacja</th>
           <th scope="col"><span class="visually-hidden">Akcje</span></th>
         </tr></thead>
         <tbody>
@@ -99,7 +99,7 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
               <?php if ($z['status'] === 'zlecony' && $z['zlecono_at']): ?><div class="tw-mt-1">plik <?= h(date('d.m.Y', strtotime($z['zlecono_at']))) ?></div><?php endif; ?></td>
             <td class="tw-text-xs"><?php if ($zd): $eds = EDOK_STATUSES[$zd['status']] ?? ['label' => $zd['status'], 'class' => 'secondary']; ?>
               <a href="<?= h(APP_URL) ?>/edok/view.php?id=<?= (int)$zd['id'] ?>"><?= h($zd['number']) ?></a><div class="tw-mt-1"><span class="badge text-bg-<?= h($eds['class']) ?>"><?= h($eds['label']) ?></span></div>
-              <?php elseif ($open): ?><span class="tw-text-slate-500">nieprzekazane</span><?php else: ?>—<?php endif; ?></td>
+              <?php elseif ($open): ?><span class="tw-text-slate-500">niezaakceptowane</span><?php else: ?>—<?php endif; ?></td>
             <td class="tw-whitespace-nowrap"><?php if ($open): ?>
               <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#uspPaid" data-id="<?= (int)$z['id'] ?>" data-opis="<?= h($z['sfp'] . ' ' . $okres . ' — ' . $money($z['kwota']) . ' zł') ?>">Zapłacono</button>
             <?php endif; ?></td>
@@ -166,7 +166,7 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
       </div>
       <div class="md:tw-col-span-2">
         <label class="tw-flex tw-items-start tw-gap-2 tw-text-sm"><input type="checkbox" class="form-check-input tw-mt-0.5" name="wymaga_zatwierdzenia" value="1" <?= uspWymagaZatwierdzenia() ? 'checked' : '' ?>>
-          Plik przelewu tylko dla zobowiązań zatwierdzonych do zapłaty w EODoK (przycisk „Przenieś do zatwierdzenia wydatku” na karcie zobowiązania)</label>
+          Plik przelewu tylko dla zaakceptowanych zobowiązań (przycisk „Akceptuję” na karcie zobowiązania)</label>
       </div>
       <div class="md:tw-col-span-2 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2">
         <p class="tw-m-0 tw-text-xs tw-text-slate-500">Rodzaje zobowiązań, symbole formularzy i ustawowe terminy: <a href="<?= h(APP_URL) ?>/modules/dictionary/router.php">Słownik Centralny</a> → „Księgowość — formularze przelewów do US”.</p>

@@ -85,12 +85,22 @@ final class UsPrzelewyController
         return Router::redirect((string)($_POST['back'] ?? '') === 'lista' ? route('usp.index') : route('usp.show', ['id' => $id]));
     }
 
-    /** „Przenieś do zatwierdzenia wydatku” — dokument EODoK w 5-etapowym obiegu. */
-    public function zatwierdzenie(int $id): ?string {
+    /** „Akceptuję” — autoakceptacja wydatku (dokument EODoK od razu zaakceptowany). */
+    public function akceptuj(int $id): ?string {
         uspMigrate();
-        $res = uspDoZatwierdzenia($id, current_user() ?: []);
+        $res = uspAkceptuj($id, current_user() ?: []);
         if (is_string($res)) flash_set('warning', $res);
-        else flash_set('success', 'Przekazano do zatwierdzenia wydatku — dokument ' . (db_one("SELECT number FROM edok_documents WHERE id = ?", [$res])['number'] ?? '') . ' jest w obiegu EODoK.');
+        else flash_set('success', 'Zaakceptowano wydatek — dokument ' . (db_one("SELECT number FROM edok_documents WHERE id = ?", [$res])['number'] ?? '') . '. Zobowiązanie może trafić do pliku przelewu.');
+        return Router::redirect(route('usp.show', ['id' => $id]));
+    }
+
+    public function cofnijAkceptacje(int $id): ?string {
+        uspMigrate();
+        $z = uspGet($id);
+        if (!$z) { http_response_code(404); return 'Nie znaleziono zobowiązania.'; }
+        if ($z['status'] === 'zlecony') { flash_set('warning', 'Plik przelewu jest już wygenerowany — najpierw cofnij zobowiązanie do statusu „Do zapłaty”.'); return Router::redirect(route('usp.show', ['id' => $id])); }
+        $err = uspCofnijAkceptacje($z, trim((string)($_POST['powod'] ?? '')) ?: 'cofnięte ręcznie.');
+        flash_set($err ? 'warning' : 'success', $err ?? 'Cofnięto akceptację wydatku.');
         return Router::redirect(route('usp.show', ['id' => $id]));
     }
 

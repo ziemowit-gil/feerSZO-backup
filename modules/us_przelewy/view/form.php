@@ -34,9 +34,9 @@ $swieta = array_merge(uspSwieta((int)date('Y')), uspSwieta((int)date('Y') + 1), 
   <?= flash_html() ?>
 
   <?php if ($id && $status === 'do_zaplaty' && $zatwOk): ?>
-  <div class="alert alert-info py-2 small">Zatwierdzone do zapłaty w <?= h($zatwDoc['number']) ?> — kwota i rachunek są zablokowane. Zmiana wymaga cofnięcia decyzji w EODoK (Główny Księgowy).</div>
+  <div class="alert alert-info py-2 small">Zaakceptowane do zapłaty (<?= h($zatwDoc['number']) ?>) — kwota i rachunek są zablokowane. Żeby je zmienić, cofnij akceptację poniżej.</div>
   <?php elseif ($id && $zatwAktywny): ?>
-  <div class="alert alert-warning py-2 small">Zobowiązanie jest w obiegu zatwierdzenia (<?= h($zatwDoc['number']) ?>). Zapisanie zmian danych wycofa dokument z obiegu — trzeba będzie przekazać je ponownie.</div>
+  <div class="alert alert-warning py-2 small">Dokument <?= h($zatwDoc['number']) ?> jest w obiegu EODoK (decyzję cofnięto). Zapisanie zmian danych wycofa go — potem zaakceptuj ponownie.</div>
   <?php endif; ?>
   <?php if ($id && !$editable && !($status === 'do_zaplaty' && $zatwOk)): ?>
   <div class="alert alert-info py-2 small">
@@ -132,25 +132,29 @@ $swieta = array_merge(uspSwieta((int)date('Y')), uspSwieta((int)date('Y') + 1), 
   <?php if ($id): ?>
   <section class="card shadow-sm mb-3" aria-labelledby="u-zw-h">
     <div class="card-body">
-      <h2 class="h6" id="u-zw-h">Zatwierdzenie wydatku</h2>
+      <h2 class="h6" id="u-zw-h">Akceptacja wydatku</h2>
       <?php if ($zatwDoc): $eds = EDOK_STATUSES[$zatwDoc['status']] ?? ['label' => $zatwDoc['status'], 'class' => 'secondary']; ?>
-      <p class="small mb-2">Dokument <a href="<?= h(APP_URL) ?>/edok/view.php?id=<?= (int)$zatwDoc['id'] ?>"><?= h($zatwDoc['number']) ?></a>
-        <span class="badge text-bg-<?= h($eds['class']) ?>"><?= h($eds['label']) ?></span>
-        <?php if (!$zatwAktywny): ?> — możesz przekazać zobowiązanie ponownie.<?php endif; ?></p>
+      <p class="small mb-2">Dokument w rejestrze wydatków: <a href="<?= h(APP_URL) ?>/edok/view.php?id=<?= (int)$zatwDoc['id'] ?>"><?= h($zatwDoc['number']) ?></a>
+        <span class="badge text-bg-<?= h($eds['class']) ?>"><?= h($eds['label']) ?></span></p>
       <?php endif; ?>
-      <?php if (!$zatwDoc || !$zatwAktywny): ?>
+      <?php if (!$zatwAktywny): ?>
         <?php if ($status === 'do_zaplaty'): ?>
-        <form method="post" action="<?= h(route('usp.zatwierdzenie', ['id' => $id])) ?>">
+        <form method="post" action="<?= h(route('usp.akceptuj', ['id' => $id])) ?>">
           <?= Router::csrfField() ?>
-          <button class="btn btn-sm btn-primary" type="submit" <?= ($z['zalacznik_path'] ?? '') === '' && ($z['wyliczenie_path'] ?? '') === '' ? 'disabled aria-describedby="u-zw-help"' : '' ?>><i class="bi bi-send-check me-1" aria-hidden="true"></i> Przenieś do zatwierdzenia wydatku</button>
+          <button class="btn btn-success" type="submit" aria-describedby="u-zw-help"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i> Akceptuję</button>
         </form>
-        <p id="u-zw-help" class="small text-body-secondary mt-2 mb-0">Zobowiązanie trafi do obiegu EODoK (kontrola merytoryczna, formalna, rachunkowa, dekretacja, zatwierdzenie do zapłaty) — z deklaracją jako dokumentem źródłowym<?= ($z['zalacznik_path'] ?? '') === '' && ($z['wyliczenie_path'] ?? '') === '' ? '. <strong>Najpierw dołącz deklarację albo wyliczenie.</strong>' : '.' ?>
-          <?= uspWymagaZatwierdzenia() ? 'Plik przelewu można wygenerować dopiero po zatwierdzeniu.' : '' ?></p>
+        <p id="u-zw-help" class="small text-body-secondary mt-2 mb-0">Akceptujesz wydatek <?= h((string)$z['kwota']) ?> zł na rachunek <?= h(edok_nrb_format((string)$z['rachunek'])) ?>. Zobowiązanie trafi do rejestru wydatków EODoK od razu jako zaakceptowane do zapłaty — bez etapów obiegu. Zapisujemy kto, kiedy i z jakiego adresu IP. Po akceptacji kwota i rachunek są zablokowane; zmiana danych cofa akceptację.</p>
         <?php else: ?>
-        <p class="small text-body-secondary mb-0">Przekazać do zatwierdzenia można zobowiązanie w statusie „Do zapłaty”.</p>
+        <p class="small text-body-secondary mb-0">Zaakceptować można zobowiązanie w statusie „Do zapłaty”.</p>
         <?php endif; ?>
       <?php elseif (!$zatwOk): ?>
-        <p class="small text-body-secondary mb-0">Plik przelewu będzie dostępny po zatwierdzeniu do zapłaty (etap 5).</p>
+        <p class="small text-body-secondary mb-0">Decyzja cofnięta w EODoK — dokument jest w obiegu; plik przelewu będzie dostępny po zatwierdzeniu do zapłaty.</p>
+      <?php elseif ($status === 'do_zaplaty'): ?>
+        <form method="post" action="<?= h(route('usp.cofnij', ['id' => $id])) ?>" class="d-flex flex-wrap gap-2 align-items-end">
+          <?= Router::csrfField() ?>
+          <div><label for="u-powod" class="form-label small mb-1">Powód cofnięcia (opcjonalnie)</label><input id="u-powod" name="powod" class="form-control form-control-sm" maxlength="200"></div>
+          <button class="btn btn-sm btn-outline-danger" type="submit">Cofnij akceptację</button>
+        </form>
       <?php endif; ?>
     </div>
   </section>
@@ -185,7 +189,7 @@ $swieta = array_merge(uspSwieta((int)date('Y')), uspSwieta((int)date('Y') + 1), 
       <h2 class="h6" id="u-hist-h">Historia</h2>
       <ul class="list-unstyled small mb-0">
         <?php foreach ($historia as $hh): ?>
-        <li class="mb-1"><span class="text-body-secondary"><?= h(date('d.m.Y H:i', strtotime((string)$hh['created_at']))) ?> · <?= h($hh['user_name']) ?></span> — <?= h($hh['opis']) ?></li>
+        <li class="mb-1"><span class="text-body-secondary"><?= h(date('d.m.Y H:i', strtotime((string)$hh['created_at']))) ?> · <?= h($hh['user_name']) ?><?= ($hh['ip'] ?? '') !== '' && $hh['ip'] !== 'cli' ? ' · IP ' . h($hh['ip']) : '' ?></span> — <?= h($hh['opis']) ?></li>
         <?php endforeach; ?>
       </ul>
     </div>
