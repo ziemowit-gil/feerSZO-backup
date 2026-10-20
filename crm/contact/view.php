@@ -1766,10 +1766,17 @@ $_sfv = [
     'notatka'     => crm_sys_field_visible('notatka'),
 ];
 
-$contact_cases = db_all(
-    "SELECT * FROM crm_cases WHERE contact_id=? ORDER BY updated_at DESC LIMIT 10",
-    [(int)$id]
-);
+// Sprawy kontaktu: jako kontakt główny albo wpięty podmiot sprawy (crm_case_parties)
+try {
+    require_once dirname(dirname(__DIR__)) . '/includes/crm_case_parties.php';
+    crm_case_parties_schema();
+    $contact_cases = db_all(
+        "SELECT * FROM crm_cases WHERE contact_id=? OR id IN (SELECT case_id FROM crm_case_parties WHERE contact_id=?) ORDER BY updated_at DESC LIMIT 10",
+        [(int)$id, (int)$id]
+    );
+} catch (\Throwable $e) {
+    $contact_cases = db_all("SELECT * FROM crm_cases WHERE contact_id=? ORDER BY updated_at DESC LIMIT 10", [(int)$id]);
+}
 
 // ── Integracja Microsoft 365 (książka adresowa + korespondencja) ─────────────
 crm_office_migrate();

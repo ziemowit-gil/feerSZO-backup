@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_case_extras.php';
+require_once dirname(dirname(__DIR__)) . '/includes/crm_case_parties.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';   // m365_setting() w zakładce „Pliki” (crm/includes/case/tabs_work.php) — bez tego fatal przy renderze
 
@@ -318,6 +319,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             flash_set('success', 'Pismo usunięte.');
         }
         header('Location: view.php?id=' . $id . '#pisma'); exit;
+    }
+
+    // Podmioty sprawy: wepnij / odepnij; przeniesienie dokumentacji z innych spraw (includes/crm_case_parties.php)
+    if ($action === 'add_party') {
+        $pcid = (int)($_POST['party_contact_id'] ?? 0);
+        $err  = crm_case_party_add($id, $pcid, (string)($_POST['party_role'] ?? 'strona'), (string)($_POST['party_note'] ?? ''), $uid);
+        if ($err !== '') { flash_set('danger', $err); header('Location: view.php?id=' . $id . '#podmioty'); exit; }
+        flash_set('success', 'Podmiot wpięty do sprawy.');
+        // inne sprawy podmiotu → propozycja przeniesienia dokumentacji
+        header('Location: view.php?id=' . $id . (crm_case_party_other_cases($id, $pcid) ? '&przenies=' . $pcid : '') . '#podmioty'); exit;
+    }
+    if ($action === 'remove_party') {
+        crm_case_party_remove($id, (int)($_POST['party_id'] ?? 0), $uid);
+        flash_set('success', 'Podmiot odpięty — dokumentacja zostaje w sprawie.');
+        header('Location: view.php?id=' . $id . '#podmioty'); exit;
+    }
+    if ($action === 'move_docs') {
+        $msgs = []; $errs = [];
+        foreach (array_unique(array_map('intval', (array)($_POST['src_case'] ?? []))) as $src) {
+            $r = crm_case_move_docs($src, $id, $uid, !empty($_POST['close_src']));
+            if ($r['ok']) $msgs[] = array_sum($r['moved']); else $errs[] = $r['error'];
+        }
+        if ($errs) flash_set('danger', implode(' ', $errs));
+        if ($msgs) flash_set('success', 'Przeniesiono dokumentację z ' . count($msgs) . ' spraw (' . array_sum($msgs) . ' pozycji).');
+        if (!$msgs && !$errs) flash_set('warning', 'Nie zaznaczono żadnej sprawy.');
+        header('Location: view.php?id=' . $id . '#podmioty'); exit;
     }
 
     // Wyślij pismo e-mailem na dowolny adres (crm_case_letter_mail w includes/crm_case_extras.php)
@@ -739,6 +766,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 
 <!-- ══ LEWA: szczegóły — prowadzenie i aktywność ═════════════════════════════════ -->
 <div class="col-xl-3 col-lg-4 order-2 order-lg-1 dyn-col" aria-label="Szczegóły sprawy">
+  <?php include dirname(__DIR__) . '/includes/case/parties.php'; ?>
   <?= ($_cvp['prowadzenie'][2] ?? '') . ($_cvp['aktywnosc'][2] ?? '') ?>
 </div>
 
