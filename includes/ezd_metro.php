@@ -305,6 +305,10 @@ html body .ezd-main .dyn-stage > button:hover{background:var(--tz-50);outline:0}
 html body .ezd-main .dyn-stage.done > button,html body .ezd-main .dyn-stage.done > span{background:#dff0df;color:var(--m-green)}
 html body .ezd-main .dyn-stage.current > span{background:var(--em-acc);color:#fff}
 html body .ezd-main .dyn-stage.current.cancelled > span{background:var(--m-grey)}
+html body .ezd-main .dyn-rec{background:#fff;border:1px solid var(--em-line);padding:.9rem 1.1rem;margin:0 0 1rem}
+html body .ezd-main .dyn-rec .dyn-entity .bi{color:var(--em-acc)}
+/* Sekcje formularza (.dyn-form wokół kolumn karty): biały nagłówek z kreską zamiast szarego pasa */
+html body .ezd-main .dyn-form .card-header{background:#fff!important;border-bottom:1px solid var(--em-line)!important;font-size:.95rem!important}
 html body .ezd-main .dyn-sec{background:#fff;border:1px solid var(--em-line);margin-bottom:1rem;min-width:0}
 html body .ezd-main .dyn-sec-hd{display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;border-bottom:1px solid var(--em-line)}
 html body .ezd-main .dyn-sec-h{margin:0;font-size:.95rem;font-weight:600;color:var(--em-ink)}

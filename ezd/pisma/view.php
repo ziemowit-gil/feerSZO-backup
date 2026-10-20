@@ -117,10 +117,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 .zal-row:last-child{border-bottom:none}
 </style>
 
-<?php if ($from_sprawa && $from_sprawa === $sprawa_id): ?>
-<a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $sprawa_id ?>#tab-pisma"
-   class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-arrow-left me-1"></i>Wróć do koszulki <?= h($pismo['znak_sprawy']) ?></a>
-<?php endif; ?>
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/index.php">EZD Wirtualne biurko</a></li>
   <li class="breadcrumb-item"><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $sprawa_id ?>"><?= h($pismo['znak_sprawy']) ?></a></li>
@@ -129,65 +125,76 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div class="row g-4">
+<!-- ══ Pismo — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php) ══ -->
+<?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
+$_pi_media = EZD_MEDIA[$pismo['rodzaj_medium']] ?? ['label' => (string)$pismo['rodzaj_medium'], 'icon' => 'bi-question-circle'];
+$_pi_d = fn($v) => $v ? date('d.m.Y', strtotime((string)$v)) : '';
+$_pi_fields = [
+    ['Status', mb_convert_case((string)$pismo['status'], MB_CASE_TITLE)],
+    ['Nośnik', ['html' => '<i class="bi ' . h($_pi_media['icon']) . '" aria-hidden="true"></i> ' . h($_pi_media['label'])]],
+    ['Data pisma', $_pi_d($pismo['data_pisma'])],
+];
+if ($pismo['kierunek'] === 'przychodzace') $_pi_fields[] = ['Wpłynęło', $_pi_d($pismo['data_wplywu'])];
+if ($pismo['kierunek'] === 'wychodzace')   $_pi_fields[] = ['Wysłano', $_pi_d($pismo['data_wysylki'])];
+$_pi_fields[] = ['Referent', (string)($pismo['owner_name'] ?? '')];
+$_pi_fields[] = ['Koszulka', ['html' => '<a href="' . APP_URL . '/ezd/sprawy/view.php?id=' . (int)$sprawa_id . '" class="font-monospace">' . h($pismo['znak_sprawy']) . '</a>']];
+?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia pisma">
+  <?php if ($from_sprawa && $from_sprawa === $sprawa_id): ?>
+  <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $sprawa_id ?>#tab-pisma" class="btn btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i>Koszulka <?= h($pismo['znak_sprawy']) ?></a>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <?php endif; ?>
+  <a href="<?= APP_URL ?>/ezd/pisma/wersje.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-clock-history me-1"></i>Historia
+  </a>
+  <?php ezd_kopia_menu_btn('pismo', $id, $pismo['sygnatura']); ?>
+  <script>
+  (function(){
+    // Potwierdzenie przed wydrukiem pisma — scoped tylko do TEGO menu (nie ezd_kopia_menu_btn
+    // w umowach/zaświadczeniach/dokumentach), z fazą capture, żeby zadziałać PRZED globalnym
+    // listenerem modala podglądu PDF (includes/ezd_pdf_modal.php), który jest na bubble.
+    var box = document.getElementById('kppismo<?= (int)$id ?>');
+    if (!box) return;
+    box.addEventListener('click', function(e){
+      var link = e.target.closest('.ezd-pdf-btn');
+      if (!link) return;
+      if (!confirm('Czy na pewno chcesz wydrukować ten dokument?')) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      }
+    }, true);
+  })();
+  </script>
+  <?php if($pismo['tresc'] || $pismo['title']): ?>
+  <a href="<?= APP_URL ?>/ezd/pisma/docx.php?id=<?= $id ?>"
+     class="btn btn-outline-primary btn-sm" title="Pobierz pismo jako DOCX">
+    <i class="bi bi-file-earmark-word me-1"></i>DOCX
+  </a>
+  <?php endif; ?>
+  <?php if($can_act && $pismo['sprawa_status'] !== 'closed'): ?>
+  <?php if($signed_pdfs): ?>
+  <button type="button" class="btn btn-outline-success btn-sm"
+          data-bs-toggle="modal" data-bs-target="#pismoEmailModal">
+    <i class="bi bi-send me-1"></i>Wyślij mailem
+  </button>
+  <?php endif; ?>
+  <a href="<?= APP_URL ?>/ezd/pisma/edit.php?id=<?= $id ?><?= $from_sprawa ? '&from_sprawa='.$from_sprawa : '' ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+  <?php endif; ?>
+</div>
+
+<section class="dyn-rec" aria-labelledby="pi-title">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><i class="bi <?= $kier['icon'] ?>" aria-hidden="true"></i> Pismo <?= h(mb_strtolower($kier['label'])) ?> · <code><?= h($pismo['sygnatura']) ?></code></div>
+      <h1 id="pi-title" class="dyn-title"><?= h($pismo['title']) ?></h1>
+    </div>
+    <?= dynHFields($_pi_fields) ?>
+  </div>
+</section>
+
+<div class="row g-4 dyn-form">
   <!-- Lewa: treść + załączniki -->
   <div class="col-lg-8">
-    <!-- Nagłówek pisma -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-body">
-        <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-          <div>
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <span class="badge bg-<?= $kier['class'] ?> bg-opacity-15 text-<?= $kier['class'] ?> border border-<?= $kier['class'] ?>">
-                <i class="bi <?= $kier['icon'] ?> me-1"></i><?= h($kier['label']) ?>
-              </span>
-              <span class="badge bg-secondary bg-opacity-10 text-secondary border font-monospace" style="font-size:.72rem"><?= h($pismo['sygnatura']) ?></span>
-              <span class="badge bg-light text-dark border" style="font-size:.68rem"><?= h($pismo['status']) ?></span>
-              <span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:.68rem"><i class="bi <?= EZD_MEDIA[$pismo['rodzaj_medium']]['icon'] ?? 'bi-question-circle' ?> me-1"></i><?= h(EZD_MEDIA[$pismo['rodzaj_medium']]['label'] ?? $pismo['rodzaj_medium']) ?></span>
-            </div>
-            <h5 class="fw-bold mb-0"><?= h($pismo['title']) ?></h5>
-          </div>
-          <div class="d-flex gap-2 flex-shrink-0 flex-wrap">
-            <a href="<?= APP_URL ?>/ezd/pisma/wersje.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm">
-              <i class="bi bi-clock-history me-1"></i>Historia
-            </a>
-            <?php ezd_kopia_menu_btn('pismo', $id, $pismo['sygnatura']); ?>
-            <script>
-            (function(){
-              // Potwierdzenie przed wydrukiem pisma — scoped tylko do TEGO menu (nie ezd_kopia_menu_btn
-              // w umowach/zaświadczeniach/dokumentach), z fazą capture, żeby zadziałać PRZED globalnym
-              // listenerem modala podglądu PDF (includes/ezd_pdf_modal.php), który jest na bubble.
-              var box = document.getElementById('kppismo<?= (int)$id ?>');
-              if (!box) return;
-              box.addEventListener('click', function(e){
-                var link = e.target.closest('.ezd-pdf-btn');
-                if (!link) return;
-                if (!confirm('Czy na pewno chcesz wydrukować ten dokument?')) {
-                  e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                }
-              }, true);
-            })();
-            </script>
-            <?php if($pismo['tresc'] || $pismo['title']): ?>
-            <a href="<?= APP_URL ?>/ezd/pisma/docx.php?id=<?= $id ?>"
-               class="btn btn-outline-primary btn-sm" title="Pobierz pismo jako DOCX">
-              <i class="bi bi-file-earmark-word me-1"></i>DOCX
-            </a>
-            <?php endif; ?>
-            <?php if($can_act && $pismo['sprawa_status'] !== 'closed'): ?>
-            <?php if($signed_pdfs): ?>
-            <button type="button" class="btn btn-outline-success btn-sm"
-                    data-bs-toggle="modal" data-bs-target="#pismoEmailModal">
-              <i class="bi bi-send me-1"></i>Wyślij mailem
-            </button>
-            <?php endif; ?>
-            <a href="<?= APP_URL ?>/ezd/pisma/edit.php?id=<?= $id ?><?= $from_sprawa ? '&from_sprawa='.$from_sprawa : '' ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Treść / notatka -->
     <?php if($pismo['tresc']): ?>
     <div class="card shadow-sm mb-3">
@@ -199,7 +206,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <!-- Załączniki -->
     <div class="card shadow-sm">
       <div class="card-header d-flex align-items-center justify-content-between">
-        <span class="fw-semibold" style="font-size:.82rem"><i class="bi bi-paperclip me-1 text-primary"></i>Załączniki (<?= count($zal) ?>)</span>
+        <span class="fw-semibold"><i class="bi bi-paperclip me-1 text-primary"></i>Załączniki (<?= count($zal) ?>)</span>
       </div>
       <?php if($zal): ?>
       <div>

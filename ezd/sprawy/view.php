@@ -475,8 +475,7 @@ html body .ezd-main .ezx-badge--amber{background:var(--m-orange)}
 html body .ezd-main .ezx-badge--emerald{background:var(--m-green)}
 html body .ezd-main .ezx-badge--rose,html body .ezd-main .ezx-badge--urgent{background:var(--m-red)}
 html body .ezd-main .ezx-badge--violet{background:var(--m-violet)}
-/* Nagłówek w układzie Dynamics (dynamics.css + blok w ezd_metro.php): znaczniki pod tytułem, opis */
-html body .ezd-main .sp-hero{background:#fff;border:1px solid var(--em-line);padding:.9rem 1.1rem;margin:0 0 1rem}
+/* Nagłówek w układzie Dynamics (.dyn-rec — dynamics.css + blok w ezd_metro.php): znaczniki pod tytułem, opis */
 html body .ezd-main .sp-flags{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem}
 html body .ezd-main .sp-desc{margin:.45rem 0 0;font-size:.88rem;color:var(--em-muted);line-height:1.5;max-width:80ch}
 html body .ezd-main .sp-closed{display:flex;align-items:center;gap:.6rem;background:var(--em-light);border-left:6px solid var(--m-grey);padding:.75rem 1rem;margin-bottom:1rem;font-size:.86rem}
@@ -622,7 +621,7 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
   <?php endif; ?>
 </div>
 
-<section class="sp-hero" aria-labelledby="sp-title">
+<section class="sp-hero dyn-rec" aria-labelledby="sp-title">
   <div class="dyn-head">
     <div class="dyn-head__main">
       <div class="dyn-entity"><?= $sprawa['parent_id'] ? 'Podkoszulka' : 'Koszulka' ?> · <code><?= h($sprawa['znak_sprawy']) ?></code></div>
