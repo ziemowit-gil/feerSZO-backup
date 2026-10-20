@@ -505,31 +505,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
 
 <style>
-/* ── Formularz sprawy w stylu Dynamics 365: pasek poleceń, pola nagłówka, etapy, trzy kolumny ── */
-.dyn-cmdbar { display:flex; flex-wrap:wrap; align-items:center; gap:.1rem; background:#fff; border:1px solid #E5E7EB; padding:.25rem .4rem; margin-bottom:.75rem; }
-.dyn-cmd { display:inline-flex; align-items:center; gap:.4rem; background:none; border:0; padding:.4rem .6rem; font-size:.85rem; color:#1F2937; text-decoration:none; cursor:pointer; }
-.dyn-cmd:hover, .dyn-cmd:focus-visible { background:#F3F4F6; color:#111827; outline:none; box-shadow:inset 0 0 0 2px #2563EB; }
-.dyn-cmd .bi { color:#2563EB; }
-.dyn-sep { width:1px; height:1.4rem; background:#E5E7EB; margin:0 .2rem; }
-.dyn-entity { font-size:.78rem; color:#6B7280; margin-bottom:.15rem; letter-spacing:.02em; }
-.dyn-hfields { display:flex; flex-wrap:wrap; gap:0; margin:0; }
-.dyn-hfields > div { padding:.1rem 1rem; border-left:1px solid #E5E7EB; min-width:7rem; }
-.dyn-hfields dt { font-size:.72rem; font-weight:400; color:#6B7280; margin:0; }
-.dyn-hfields dd { font-size:.9rem; font-weight:600; color:#111827; margin:0; }
-.dyn-bpf { display:flex; flex-wrap:wrap; margin-top:.9rem; border-top:1px solid #E5E7EB; padding-top:.7rem; gap:.25rem; }
-.dyn-stage { flex:1 1 9rem; margin:0; }
-.dyn-stage > button, .dyn-stage > span { width:100%; display:flex; align-items:center; justify-content:center; gap:.45rem; padding:.45rem .8rem; background:#F3F4F6; border:0; font-size:.84rem; color:#374151; clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%); }
-.dyn-stage:first-child > button, .dyn-stage:first-child > span { clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); }
-.dyn-stage > button { cursor:pointer; }
-.dyn-stage > button:hover, .dyn-stage > button:focus-visible { background:#E0E7FF; outline:2px solid #2563EB; outline-offset:-2px; }
-.dyn-stage.done > button, .dyn-stage.done > span { background:#DCFCE7; color:#166534; }
-.dyn-stage.current > span { background:#1E40AF; color:#fff; font-weight:600; }
-.dyn-stage.current.cancelled > span { background:#6B7280; }
-.dyn-dot { display:inline-flex; align-items:center; justify-content:center; width:1.3rem; height:1.3rem; border-radius:50%; background:rgba(0,0,0,.08); font-size:.72rem; font-weight:700; }
-.dyn-stage.current .dyn-dot { background:rgba(255,255,255,.25); }
-.dyn-col > .cv-panel, .dyn-col > div { margin-bottom:.75rem; }
-.dyn-col-right > .d-flex.flex-column { margin-top:.25rem; }
-@media (min-width: 992px) and (max-width: 1199.98px) { .dyn-col-right { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:.75rem; align-items:start; } .dyn-col-right > * { margin:0 !important; } }
+/* Układ Dynamics 365: wspólne style w assets/css/crmDynamics.css (ładowane w crm/includes/header_crm.php) */
 .case-note { background:#FFFBEA;border:1px solid #FDE68A;border-radius:8px;padding:.8rem 1rem;margin-bottom:.6rem }
 .case-note-body { font-size:.9rem;color:#181818;white-space:pre-wrap;word-break:break-word }
 .case-note-meta { font-size:.78rem;color:#5E6470;margin-top:.4rem }

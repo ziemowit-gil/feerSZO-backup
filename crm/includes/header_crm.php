@@ -117,6 +117,7 @@ try {
 <?php $_crm_css_path = dirname(dirname(__DIR__)) . '/assets/css/crm-module.css';
       $_crm_css_v = @filemtime($_crm_css_path) ?: date('Ymd'); ?>
 <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/crm-module.css?v=<?= $_crm_css_v ?>">
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/crmDynamics.css?v=<?= (int)@filemtime(dirname(dirname(__DIR__)) . '/assets/css/crmDynamics.css') ?>">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <style>
 /* ── CRM Shell ───────────────────────────────────────────────────────── */
