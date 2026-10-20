@@ -175,6 +175,33 @@ return [
         },
     ],
 
+    '2026-10_it_portal_first_login_article' => [
+        'desc' => 'Portal Usług IT: instrukcja „Pierwsze logowanie i zgody” (kreator krok po kroku, wariant bez konta M365)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/logic/itPortal.php';
+            itPortalMigrate();
+            $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'moj-login'");
+            if (!$cat || db_one("SELECT 1 FROM itp_articles WHERE category_id = ? AND slug = 'pierwsze-logowanie'", [$cat['id']])) return;
+            $app = rtrim(APP_URL, '/');
+            $blocks = [
+                ['type' => 'text', 'html' => '<p>Przy pierwszym logowaniu panel przeprowadzi Cię przez <strong>zgody i krótki kreator</strong>. Zajmuje to kilka minut. Poniżej wszystko po kolei — łącznie z tym, co zrobić, gdy <strong>nie masz jeszcze konta służbowego Microsoft 365</strong>.</p>'],
+                ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Nie masz jeszcze konta służbowego?</strong> To normalne — konto zakłada dział IT i może powstać po Twoim pierwszym wejściu do panelu. Wejdź zwykłym logowaniem, przejdź zgody, a w kroku „Microsoft 365” kliknij <em>Dalej</em>. Konto połączysz później.</p>'],
+                ['type' => 'wizard', 'title' => 'Pierwsze logowanie krok po kroku', 'intro' => '<p>Kolejność jest zawsze taka sama.</p>', 'steps' => [
+                    ['title' => 'Zaloguj się', 'html' => '<p>Otwórz <a href="' . $app . '/auth/login.php">stronę logowania</a>. Jeśli masz już konto służbowe — wybierz <strong>Zaloguj przez Microsoft</strong>. Jeśli nie — użyj danych z zaproszenia (adres e-mail i hasło lub kod SMS).</p>', 'images' => []],
+                    ['title' => 'Zaakceptuj regulamin panelu', 'html' => '<p>Zobaczysz ekran <em>Witaj w panelu</em>. Przeczytaj pouczenie i regulamin, zaznacz <strong>zgodę na dokumentową formę umów i korzystanie z panelu</strong>, a następnie kliknij „Akceptuję — przejdź do panelu”. Bez tej zgody dalsze kroki nie są dostępne.</p><p>Opcjonalnie podaj alternatywny e-mail i telefon do powiadomień.</p>', 'images' => []],
+                    ['title' => 'Przejdź kreator pierwszych kroków', 'html' => '<p>Kreator pokazuje tylko kroki, które dotyczą Ciebie: <strong>Telefon</strong> (potwierdzenie kodem SMS), <strong>Microsoft 365 i Outlook</strong>, <strong>Profil w katalogu</strong> oraz <strong>Stopka e-mail</strong>. Każdy krok możesz odłożyć przyciskiem „Później”.</p>', 'images' => []],
+                    ['title' => 'Nie masz konta Microsoft 365? Przejdź dalej', 'html' => '<p>W kroku „Microsoft 365 i Outlook” zobaczysz informację, że konta służbowego jeszcze nie ma. Kliknij <strong>Dalej</strong>. Gdy dział IT założy konto, dostaniesz wiadomość z adresem służbowym.</p><p>Jeśli czekasz dłużej niż kilka dni, <a href="' . $app . '/helpdesk/new.php">zgłoś to w Helpdesku</a>.</p>', 'images' => []],
+                    ['title' => 'Złóż oświadczenie o ochronie danych (RODO)', 'html' => '<p>Na końcu panel poprosi o <strong>oświadczenie o ochronie danych osobowych</strong>. Przeczytaj treść, zaznacz potwierdzenie i złóż elektroniczny podpis. Zapisujemy datę i adres IP.</p>', 'images' => []],
+                    ['title' => 'Gdy dostaniesz konto służbowe — połącz je', 'html' => '<p>Zaloguj się przez Microsoft albo wróć do kreatora (krok „Microsoft 365”) i kliknij <strong>Połącz z kontem Microsoft</strong>. Od tej chwili logujesz się jednym kliknięciem. Zgód nie składasz ponownie.</p>', 'images' => []],
+                ]],
+                ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Administracja i koordynatorzy z adresem @feer.org.pl logują się docelowo <strong>wyłącznie przez Microsoft 365</strong>. Gdyby logowanie Microsoft zawiodło, na stronie logowania jest link do hasła awaryjnego.</p>'],
+            ];
+            itPortalArticleSave(['title' => 'Pierwsze logowanie i zgody', 'slug' => 'pierwsze-logowanie', 'category_id' => $cat['id'],
+                'keywords' => 'pierwsze logowanie, zgody, regulamin, RODO, kreator, brak konta, microsoft, konto służbowe',
+                'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => 1]);
+        },
+    ],
+
     '2026-10_it_portal_seed' => [
         'desc' => 'Portal Usług IT: grupy „Dostępność usługi”, startowe kafle usług i wstęp strony Kontakt (tylko gdy portal jest pusty)',
         'run'  => static function () use ($ROOT): void {
