@@ -76,27 +76,30 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </ol>
 </nav>
 
-<div class="crm-page-header mb-4">
-  <div>
-    <div class="crm-page-title"><i class="bi bi-megaphone-fill" style="color:var(--crm-primary)"></i> <?= h($campaign['name']) ?></div>
-    <div class="crm-page-subtitle">
-      Szablon: <?= h($template['name'] ?? '—') ?> ·
-      Status: <?= h($STATUS_LABELS[$campaign['status']] ?? $campaign['status']) ?>
-      <?php if ($campaign['scheduled_at']): ?> · Zaplanowano na <?= h(date('d.m.Y H:i', strtotime($campaign['scheduled_at']))) ?><?php endif; ?>
-      <?php if ($purpose): ?>
-      · <span title="Wysyłka objęła tylko kontakty ze zgodą na ten cel">
-          <i class="bi bi-shield-check" aria-hidden="true"></i> Cel: <?= h($purpose['nazwa']) ?>
-        </span>
-      <?php endif; ?>
-      <?php if ($design): ?> · <span title="Treść pochodzi z edytora blokowego"><i class="bi bi-grid-1x2" aria-hidden="true"></i> Edytor blokowy</span><?php endif; ?>
-    </div>
-  </div>
+<?php require_once dirname(__DIR__) . '/includes/dynRecord.php'; ?>
+<!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css) -->
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia kampanii">
+  <a href="index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Kampanie</span></a>
   <?php if ($can_write && in_array($campaign['status'], ['draft', 'scheduled'], true)): ?>
-  <div class="crm-page-actions">
-    <a href="editor.php?id=<?= $id ?>" class="btn btn-crm-primary btn-sm"><i class="bi bi-pencil-square me-1"></i>Edytuj treść</a>
-  </div>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <a href="editor.php?id=<?= $id ?>" class="dyn-cmd"><i class="bi bi-pencil-square" aria-hidden="true"></i><span>Edytuj treść</span></a>
   <?php endif; ?>
 </div>
+<!-- Nagłówek rekordu -->
+<div class="cv-panel mb-3" style="overflow:hidden"><div class="cv-panel__body">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <?= dynEntity('Kampania', $design ? 'edytor blokowy' : '') ?>
+      <h1 style="font-size:1.35rem;font-weight:600;margin:0;color:#111827"><?= h($campaign['name']) ?></h1>
+      <?php if ($purpose): ?><div class="small mt-1 text-muted" title="Wysyłka objęła tylko kontakty ze zgodą na ten cel"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Cel: <?= h($purpose['nazwa']) ?></div><?php endif; ?>
+    </div>
+    <?= dynHFields([
+        ['Status', (string)($STATUS_LABELS[$campaign['status']] ?? $campaign['status'])],
+        ['Szablon', (string)($template['name'] ?? '')],
+        ['Zaplanowano', $campaign['scheduled_at'] ? date('d.m.Y H:i', strtotime($campaign['scheduled_at'])) : ''],
+    ]) ?>
+  </div>
+</div></div>
 
 <div class="row g-3 mb-4">
 <?php

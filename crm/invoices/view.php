@@ -115,19 +115,30 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
 <div class="container-fluid px-0" style="max-width:1000px">
 
-  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <a href="<?= APP_URL ?>/crm/invoices/index.php" class="btn btn-sm btn-crm-ghost">
-      <i class="bi bi-arrow-left"></i>
-    </a>
-    <h1 class="h5 mb-0 me-auto">
-      <?= h($inv['number'] ?: 'Szkic faktury #' . $id) ?>
-      <span class="badge ms-1" style="background:<?= h($st['color']) ?>"><?= h($st['label']) ?></span>
-    </h1>
-    <?php if (invoice_is_test($inv)): ?>
-    <span class="badge bg-danger" title="Faktura testowa — nie idzie do żadnego systemu zewnętrznego">TEST</span>
-    <?php endif; ?>
-    <span class="badge bg-light text-dark border"><?= h(INVOICE_SOURCES[$inv['source']] ?? $inv['source']) ?></span>
+  <?php require_once dirname(__DIR__) . '/includes/dynRecord.php'; ?>
+  <!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css); akcje dokumentu w panelu „Akcje” -->
+  <div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia faktury">
+    <a href="<?= APP_URL ?>/crm/invoices/index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Faktury</span></a>
+    <?php if ($can_write && $is_draft): ?><a href="<?= APP_URL ?>/crm/invoices/form.php?id=<?= $id ?>" class="dyn-cmd"><i class="bi bi-pencil" aria-hidden="true"></i><span>Edytuj szkic</span></a><?php endif; ?>
+    <?php if (!empty($inv['contact_id'])): ?><a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$inv['contact_id'] ?>" class="dyn-cmd"><i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Kartoteka nabywcy</span></a><?php endif; ?>
   </div>
+  <!-- Nagłówek rekordu -->
+  <div class="cv-panel mb-3" style="overflow:hidden"><div class="cv-panel__body">
+    <div class="dyn-head">
+      <div class="dyn-head__main">
+        <?= dynEntity('Faktura', (string)(INVOICE_SOURCES[$inv['source']] ?? $inv['source'])) ?>
+        <h1 style="font-size:1.35rem;font-weight:600;margin:0;color:#111827"><?= h($inv['number'] ?: 'Szkic faktury #' . $id) ?>
+          <?php if (invoice_is_test($inv)): ?><span class="badge bg-danger ms-1" style="font-size:.7rem" title="Faktura testowa — nie idzie do żadnego systemu zewnętrznego">TEST</span><?php endif; ?></h1>
+        <div class="small mt-1 text-muted"><?= h($inv['buyer_name'] ?: '—') ?><?= $inv['buyer_tax_no'] ? ' · NIP ' . h($inv['buyer_tax_no']) : '' ?></div>
+      </div>
+      <?= dynHFields([
+          ['Status', (string)$st['label'], (string)$st['color']],
+          ['Brutto', number_format((float)($inv['total_gross'] ?? 0), 2, ',', ' ') . ' ' . (string)($inv['currency'] ?: 'PLN')],
+          ['Wystawiona', $inv['issue_date'] ? date('d.m.Y', strtotime($inv['issue_date'])) : ''],
+          ['Termin płatności', $inv['payment_to'] ? date('d.m.Y', strtotime($inv['payment_to'])) : ''],
+      ]) ?>
+    </div>
+  </div></div>
 
   <?php if (!empty($inv['last_error'])): ?>
   <div class="alert alert-danger py-2" role="alert">

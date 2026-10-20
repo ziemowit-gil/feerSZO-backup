@@ -237,21 +237,11 @@ tr:hover .member-row-actions, .member-row-actions:focus-within { opacity: 1 }
   </ol>
 </nav>
 
-<!-- Header grupy -->
-<div class="crm-page-header mb-3">
-  <div class="d-flex align-items-center gap-2">
-    <div class="group-view-icon" style="background:<?= h($group['color']) ?>" aria-hidden="true">
-      <i class="bi <?= h($group['icon']) ?>"></i>
-    </div>
-    <div>
-      <h1 class="crm-page-title"><?= h($group['name']) ?></h1>
-      <div class="crm-page-subtitle">
-        <?= count($group['members']) ?> <?= count($group['members']) === 1 ? 'kontakt' : (count($group['members']) < 5 ? 'kontakty' : 'kontaktów') ?>
-        <?php if ($group['description']): ?> · <?= h($group['description']) ?><?php endif; ?>
-      </div>
-    </div>
-  </div>
-  <div class="crm-page-actions">
+<?php require_once __DIR__ . '/../includes/dynRecord.php'; ?>
+<!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css) -->
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia grupy">
+  <a href="<?= APP_URL ?>/crm/groups.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Grupy</span></a>
+  <span class="dyn-sep" aria-hidden="true"></span>
     <?php if ($group['members']): ?>
     <a href="<?= APP_URL ?>/crm/mass_send.php?group_id=<?= $id ?>" class="btn btn-crm-primary btn-sm">
       <i class="bi bi-megaphone me-1"></i>Wysyłka masowa
@@ -276,8 +266,21 @@ tr:hover .member-row-actions, .member-row-actions:focus-within { opacity: 1 }
       </button>
     </form>
     <?php endif; ?>
-  </div>
 </div>
+<!-- Nagłówek rekordu -->
+<div class="cv-panel mb-3" style="overflow:hidden"><div class="cv-panel__body">
+  <div class="dyn-head">
+    <div class="d-flex align-items-start gap-3 dyn-head__main">
+      <div class="group-view-icon" style="background:<?= h($group['color']) ?>" aria-hidden="true"><i class="bi <?= h($group['icon']) ?>"></i></div>
+      <div style="min-width:0">
+        <?= dynEntity('Grupa kontaktów') ?>
+        <h1 style="font-size:1.35rem;font-weight:600;margin:0;color:#111827"><?= h($group['name']) ?></h1>
+        <?php if ($group['description']): ?><div class="small mt-1 text-muted"><?= h($group['description']) ?></div><?php endif; ?>
+      </div>
+    </div>
+    <?= dynHFields([['Kontakty', (string)count($group['members'])]] + ($is_vol_group ? [1 => ['Rodzaj', 'wolontariusze']] : [])) ?>
+  </div>
+</div></div>
 
 <div class="row g-3">
 
