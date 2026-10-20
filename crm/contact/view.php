@@ -1796,6 +1796,7 @@ $offers_can_write = crm_offer_can_write();
 $roundcube_url = crm_setting('roundcube_url');
 
 include __DIR__ . '/../includes/header_crm.php';
+require_once __DIR__ . '/../includes/dynRecord.php';
 ?>
 
 <!-- Breadcrumb + przełącznik widoku -->
@@ -1842,36 +1843,48 @@ include __DIR__ . '/../includes/header_crm.php';
 })();
 </script>
 
-<!-- ══ NAGŁÓWEK REKORDU ═══════════════════════════════════════════════════════ -->
-<div class="cv-panel" style="overflow:hidden">
-  <div class="crm-contact-header">
-    <div class="crm-contact-avatar-lg" aria-hidden="true">
-      <?= h($contact['avatar_initials'] ?: CrmManager::makeInitials($contact['imie_nazwisko'])) ?>
-    </div>
-    <div class="flex-grow-1 min-w-0">
-      <h1 class="crm-contact-name"><?= h($contact['imie_nazwisko']) ?></h1>
-      <div class="crm-contact-sub">
-        <?php $_ct_meta = CRM_CONTACT_TYPES[$contact['type']] ?? CRM_CONTACT_TYPES['osoba']; ?>
-        <i class="bi <?= h($_ct_meta['icon']) ?> me-1" aria-hidden="true"></i>
-        <?= h($_ct_meta['label']) ?>
-        <?php if ($_sfv['stanowisko'] && $contact['stanowisko']): ?>
-          · <?= h($contact['stanowisko']) ?>
-        <?php endif; ?>
-        <?php if ($_sfv['organizacja'] && $contact['organizacja'] && $contact['type'] !== 'organizacja'): ?>
-          · <i class="bi bi-building me-1" aria-hidden="true"></i><?= h($contact['organizacja']) ?>
-        <?php endif; ?>
-      </div>
-    </div>
-    <div class="flex-shrink-0">
-      <?php $sc = crm_statuses()[$contact['status']] ?? ['label' => $contact['status'], 'color' => '#939393']; ?>
-      <span class="crm-badge crm-badge-<?= h($contact['status']) ?>" style="font-size:.82rem">
-        <?= h($sc['label']) ?>
-      </span>
-    </div>
-  </div>
+<?php
+  // Fakty o kliencie w jednym pasku — żeby nie trzeba było ich szukać po zakładkach
+  $_open_cases = count(array_filter($contact_cases, static fn($c) => in_array($c['status'] ?? '', ['open','in_progress'], true)));
+  $_last_comm  = null;
+  try {
+      $_last_comm = db_one("SELECT sent_at, direction FROM crm_communications WHERE contact_id=? ORDER BY sent_at DESC LIMIT 1", [(int)$id]);
+  } catch (\Throwable $e) {}
+  ?>
+  <?php
+  /* Pasek faktów pokazuje TYLKO to, co niesie informację. „0 ofert w toku"
+     i „0 zł wygranych ofert" zajmowały dwa z pięciu miejsc przy kartotece,
+     która ofert nigdy nie miała — a zero w tym miejscu nie mówi nic poza tym,
+     że sekcja istnieje. Zera odpadają; ostatni kontakt zostaje zawsze, bo jego
+     brak („—") jest sam w sobie odpowiedzią na pytanie „czy z tym kimś
+     rozmawialiśmy". */
+  $_facts = [];
+  if ($_open_cases > 0) {
+      $_facts[] = [(string)(int)$_open_cases, 'sprawy otwarte', ''];
+  }
+  if ((int)($offers_summary['open'] ?? 0) > 0) {
+      $_facts[] = [(string)(int)$offers_summary['open'], 'oferty w toku', ''];
+  }
+  if ((float)($offers_summary['won_value'] ?? 0) > 0) {
+      $_facts[] = [
+          number_format((float)$offers_summary['won_value'], 0, ',', ' ') . ' zł',
+          'wygrane oferty', '',
+      ];
+  }
+  $_facts[] = [
+      $_last_comm ? date_pl($_last_comm['sent_at']) : '—',
+      'ostatni kontakt' . ($_last_comm ? ($_last_comm['direction'] === 'in' ? ' (od klienta)' : ' (od nas)') : ''),
+      '',
+  ];
+  if (count($contact['notes']) > 0) {
+      $_facts[] = [(string)count($contact['notes']), 'notatki', ''];
+  }
+  ?>
 
-  <!-- Pasek akcji -->
-  <div class="cv-panel__body d-flex flex-wrap gap-2" style="border-top:1px solid var(--crm-border)">
+<!-- Pasek poleceń (układ Dynamics 365 — assets/css/crmDynamics.css) -->
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia kontaktu">
+  <a href="<?= APP_URL ?>/crm/index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Kontakty</span></a>
+  <span class="dyn-sep" aria-hidden="true"></span>
     <?php if ($crm_can_write && !$_is_tech): ?>
     <a href="<?= APP_URL ?>/crm/contact/add.php?id=<?= $id ?>" class="btn btn-sm btn-crm-primary">
       <i class="bi bi-pencil-fill me-1" aria-hidden="true"></i>Edytuj dane
@@ -1918,6 +1931,34 @@ include __DIR__ . '/../includes/header_crm.php';
       <i class="bi bi-envelope-at me-1" aria-hidden="true"></i>Roundcube
     </a>
     <?php endif; ?>
+  </div>
+
+
+<!-- ══ NAGŁÓWEK REKORDU ═══════════════════════════════════════════════════════ -->
+<div class="cv-panel" style="overflow:hidden">
+  <div class="crm-contact-header">
+    <div class="crm-contact-avatar-lg" aria-hidden="true">
+      <?= h($contact['avatar_initials'] ?: CrmManager::makeInitials($contact['imie_nazwisko'])) ?>
+    </div>
+    <div class="flex-grow-1 min-w-0">
+      <?php $_ct_meta = CRM_CONTACT_TYPES[$contact['type']] ?? CRM_CONTACT_TYPES['osoba']; ?>
+      <?= dynEntity('Kontakt', (string)$_ct_meta['label']) ?>
+      <h1 class="crm-contact-name"><?= h($contact['imie_nazwisko']) ?></h1>
+      <?php /* rodzaj kontaktu jest w etykiecie nad nazwą (dynEntity) — tu tylko stanowisko i organizacja */
+        $_sub = [];
+        if ($_sfv['stanowisko'] && $contact['stanowisko']) $_sub[] = h($contact['stanowisko']);
+        if ($_sfv['organizacja'] && $contact['organizacja'] && $contact['type'] !== 'organizacja') $_sub[] = '<i class="bi bi-building me-1" aria-hidden="true"></i>' . h($contact['organizacja']);
+      ?>
+      <?php if ($_sub): ?><div class="crm-contact-sub"><?= implode(' · ', $_sub) ?></div><?php endif; ?>
+    </div>
+    <?php
+      $sc = crm_statuses()[$contact['status']] ?? ['label' => $contact['status'], 'color' => '#939393'];
+      $_dyn_owner = !empty($contact['owner_id']) ? (string)(db_one("SELECT name FROM users WHERE id = ?", [(int)$contact['owner_id']])['name'] ?? '') : '';
+      $_dyn_f = [['Status', (string)$sc['label'], (string)($sc['color'] ?? '')]];
+      if ($_dyn_owner !== '') $_dyn_f[] = ['Opiekun', $_dyn_owner];
+      foreach ($_facts as [$_fv, $_fl]) $_dyn_f[] = [mb_strtoupper(mb_substr($_fl, 0, 1)) . mb_substr($_fl, 1), (string)$_fv];
+    ?>
+    <div class="flex-shrink-0"><?= dynHFields($_dyn_f) ?></div>
   </div>
 
   <!-- Pasek danych kontaktowych -->
@@ -2007,51 +2048,6 @@ include __DIR__ . '/../includes/header_crm.php';
     </span>
   </div>
 
-  <?php
-  // Fakty o kliencie w jednym pasku — żeby nie trzeba było ich szukać po zakładkach
-  $_open_cases = count(array_filter($contact_cases, static fn($c) => in_array($c['status'] ?? '', ['open','in_progress'], true)));
-  $_last_comm  = null;
-  try {
-      $_last_comm = db_one("SELECT sent_at, direction FROM crm_communications WHERE contact_id=? ORDER BY sent_at DESC LIMIT 1", [(int)$id]);
-  } catch (\Throwable $e) {}
-  ?>
-  <?php
-  /* Pasek faktów pokazuje TYLKO to, co niesie informację. „0 ofert w toku"
-     i „0 zł wygranych ofert" zajmowały dwa z pięciu miejsc przy kartotece,
-     która ofert nigdy nie miała — a zero w tym miejscu nie mówi nic poza tym,
-     że sekcja istnieje. Zera odpadają; ostatni kontakt zostaje zawsze, bo jego
-     brak („—") jest sam w sobie odpowiedzią na pytanie „czy z tym kimś
-     rozmawialiśmy". */
-  $_facts = [];
-  if ($_open_cases > 0) {
-      $_facts[] = [(string)(int)$_open_cases, 'sprawy otwarte', ''];
-  }
-  if ((int)($offers_summary['open'] ?? 0) > 0) {
-      $_facts[] = [(string)(int)$offers_summary['open'], 'oferty w toku', ''];
-  }
-  if ((float)($offers_summary['won_value'] ?? 0) > 0) {
-      $_facts[] = [
-          number_format((float)$offers_summary['won_value'], 0, ',', ' ') . ' zł',
-          'wygrane oferty', '',
-      ];
-  }
-  $_facts[] = [
-      $_last_comm ? date_pl($_last_comm['sent_at']) : '—',
-      'ostatni kontakt' . ($_last_comm ? ($_last_comm['direction'] === 'in' ? ' (od klienta)' : ' (od nas)') : ''),
-      '',
-  ];
-  if (count($contact['notes']) > 0) {
-      $_facts[] = [(string)count($contact['notes']), 'notatki', ''];
-  }
-  ?>
-  <div class="cv-facts">
-    <?php foreach ($_facts as [$_fv, $_fl, $_ft]): ?>
-    <div class="cv-fact"<?= $_ft ? ' title="' . h($_ft) . '"' : '' ?>>
-      <span class="cv-fact__v"><?= h($_fv) ?></span>
-      <span class="cv-fact__l"><?= h($_fl) ?></span>
-    </div>
-    <?php endforeach; ?>
-  </div>
 </div>
 
 <!-- ══ TREŚĆ: aside referencyjny + główna z zakładkami ════════════════════════ -->
