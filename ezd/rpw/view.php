@@ -83,16 +83,46 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div class="row g-4">
+<!-- ══ Przesyłka przychodząca — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php) ══ -->
+<?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
+$_rp_meta  = EZD_RPW_STATUSES[$rpw['status']] ?? ['label' => $rpw['status'], 'class' => 'secondary'];
+$_rp_color = ['info' => 'var(--m-teal)', 'primary' => 'var(--m-blue)', 'success' => 'var(--m-green)'][$_rp_meta['class']] ?? '';
+?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia przesyłki">
+  <a href="<?= APP_URL ?>/ezd/rpw/index.php" class="btn btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i>Dziennik podawczy</a>
+  <?php if ($rpw['scan_file']): ?>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <a href="<?= APP_URL ?>/ezd/rpw/scan.php?id=<?= $id ?>" target="_blank" class="btn btn-sm"><i class="bi bi-file-earmark-richtext" aria-hidden="true"></i>Otwórz skan</a>
+  <a href="<?= APP_URL ?>/ezd/rpw/scan.php?id=<?= $id ?>&dl=1" class="btn btn-sm"><i class="bi bi-download" aria-hidden="true"></i>Pobierz skan</a>
+  <?php endif; ?>
+  <?php if ($rpw['sprawa_id'] && $rpw['znak_sprawy']): ?>
+  <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$rpw['sprawa_id'] ?>" class="btn btn-sm"><i class="bi bi-folder2-open" aria-hidden="true"></i>Koszulka <?= h($rpw['znak_sprawy']) ?></a>
+  <?php endif; ?>
+</div>
+
+<section class="dyn-rec" aria-labelledby="rp-title">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><i class="bi <?= h($typ['icon']) ?>" aria-hidden="true"></i> Przesyłka przychodząca · <code><?= h(ezd_rpw_label($rpw)) ?></code></div>
+      <h1 id="rp-title" class="dyn-title"><?= h($rpw['opis'] ?: 'Bez opisu') ?></h1>
+    </div>
+    <?= dynHFields([
+        ['Status', $_rp_meta['label'], $_rp_color],
+        ['Rodzaj', $typ['label']],
+        ['Data wpływu', $rpw['data_wplywu'] ? date('d.m.Y', strtotime((string)$rpw['data_wplywu'])) : ''],
+        ['Nadawca', (string)$rpw['nadawca']],
+    ]) ?>
+  </div>
+  <?= dynStages(['nowa' => 'Nowa', 'przekazana' => 'Przekazana', 'w_sprawie' => 'W sprawie'], (string)$rpw['status'], ['label' => 'Etapy przesyłki', 'off' => ['odrzucona' => 'Odrzucona']]) ?>
+</section>
+
+<div class="row g-4 dyn-form">
   <!-- LEWA: dane + skan -->
   <div class="col-lg-7">
-    <div class="card shadow-sm mb-4"><div class="card-body">
-      <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-        <code class="bg-light px-2 py-0 rounded fw-bold" style="font-size:.9rem;color:#1d4ed8"><?= h(ezd_rpw_label($rpw)) ?></code>
-        <?= ezd_rpw_status_badge($rpw['status']) ?>
-        <span class="text-muted" style="font-size:.78rem"><i class="bi <?= $typ['icon'] ?> me-1"></i><?= h($typ['label']) ?></span>
-      </div>
-      <h4 class="fw-bold mb-3"><?= h($rpw['opis'] ?: '—') ?></h4>
+    <div class="card shadow-sm mb-4">
+      <div class="card-header"><span class="fw-semibold"><i class="bi bi-info-circle me-1"></i>Szczegóły</span></div>
+      <div class="card-body">
       <dl class="row mb-0" style="font-size:.85rem;row-gap:.4rem">
         <dt class="col-4 col-sm-3 text-muted fw-normal">Data wpływu</dt>
         <dd class="col-8 col-sm-9 mb-0"><?= date_pl($rpw['data_wplywu']) ?></dd>
