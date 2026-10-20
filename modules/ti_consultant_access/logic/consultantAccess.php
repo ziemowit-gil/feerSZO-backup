@@ -133,6 +133,29 @@ final class TiConsultantAccess
         return '';
     }
 
+    /**
+     * Administrator / kierownik generuje login zastępczy dla konsultanta: nowy numer (albo dotychczasowy) i losowe hasło,
+     * pokazywane raz. Osoba musi mieć tryb Konsultacje. @return array{ok:bool,error?:string,login?:string,password?:string}
+     */
+    public static function altGenerate(int $uid, int $by): array
+    {
+        self::migrate();
+        $u = db_one("SELECT * FROM users WHERE id = ? AND is_active = 1", [$uid]);
+        if (!$u) return ['ok' => false, 'error' => 'Nie ma takiej aktywnej osoby.'];
+        require_once dirname(__DIR__, 2) . '/ti_work_modes/logic/workModes.php';
+        $pr = function_exists('ti_panel_role') ? ti_panel_role($uid) : '';
+        if (!in_array('konsultacje', TiWorkModes::available($uid, $u['role'] === 'admin' || in_array($pr, ['kierownik', 'zastepca'], true), $pr), true))
+            return ['ok' => false, 'error' => 'Ta osoba nie ma trybu Konsultacje — nadaj go w „Zespół i role”.'];
+        $chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        $pass = '';
+        for ($i = 0; $i < 12; $i++) $pass .= $chars[random_int(0, strlen($chars) - 1)];
+        $err = self::altSave($uid, $pass, $pass, false);
+        if ($err !== '') return ['ok' => false, 'error' => $err];
+        $login = (string)(self::altFor($uid)['login'] ?? '');
+        self::audit('alt_login_generated', ['user_id' => $uid, 'login' => $login], $by ?: null);
+        return ['ok' => true, 'login' => $login, 'password' => $pass];
+    }
+
     public static function altDisable(int $uid, int $by): void
     {
         self::migrate();

@@ -3,7 +3,8 @@
  * karty30/ti/dydaktyk/kontoZastepcze.php — login zastępczy konsultanta (modules/ti_consultant_access).
  * Konsultant dostaje numer zastępczy (3 cyfry, nadaje system) i sam ustawia hasło, żeby wejść do Konsultacji bez
  * Microsoft 365 na osobnej stronie /konsultant.php (bez kodu TOTP).
- * Kierownik (sesja pełna, nie zastępcza) widzi wszystkie loginy zastępcze i może je wyłączyć.
+ * Administrator / kierownik (sesja pełna, nie zastępcza) widzi wszystkie loginy zastępcze, może je wyłączyć
+ * i wygenerować dla konsultanta (numer + losowe hasło pokazywane raz).
  */
 require __DIR__ . '/_rezerwacje_nav.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_consultant_access/logic/consultantAccess.php';
@@ -21,6 +22,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($op === 'disable_own') {
         TiConsultantAccess::altDisable($uid, $uid);
         flash_set('success', 'Login zastępczy wyłączony.');
+    } elseif ($op === 'generate' && $staff && !$isAlt) {
+        $g = TiConsultantAccess::altGenerate((int)($_POST['user_id'] ?? 0), $uid);
+        if (!$g['ok']) flash_set('danger', (string)$g['error']);
+        else {
+            $_gu = db_one("SELECT name FROM users WHERE id = ?", [(int)$_POST['user_id']]);
+            $_SESSION['kz_generated'] = ['name' => (string)($_gu['name'] ?? ''), 'login' => $g['login'], 'pass' => $g['password']];
+            flash_set('success', 'Wygenerowano login zastępczy.');
+        }
     } elseif ($op === 'disable' && $staff && !$isAlt) {
         TiConsultantAccess::altDisable((int)($_POST['user_id'] ?? 0), $uid);
         flash_set('success', 'Login zastępczy wyłączony.');
@@ -30,6 +39,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $alt = TiConsultantAccess::altFor($uid);
 $list = ($staff && !$isAlt) ? TiConsultantAccess::altList() : [];
+$people = [];
+if ($staff && !$isAlt) {
+    require_once dirname(__DIR__, 3) . '/modules/ti_work_modes/logic/workModes.php';
+    foreach (TiWorkModes::people() as $_p) {
+        $_kons = !empty(($_p['explicit'] ?? $_p['auto'])['konsultacje']);
+        if ($_kons || $_p['staff']) $people[] = $_p;
+    }
+}
+$generated = $_SESSION['kz_generated'] ?? null; unset($_SESSION['kz_generated']);   // dane pokazywane raz
 $RZ_TITLE = 'Login zastępczy'; $RZ_CUR = 'kontoZastepcze.php';
 include __DIR__ . '/_rezerwacje_head.php';
 ?>
@@ -69,6 +87,24 @@ include __DIR__ . '/_rezerwacje_head.php';
   </form>
   <?php endif; ?>
 </div></div>
+
+<?php if ($staff && !$isAlt): ?>
+<div class="card border-0 shadow-sm mb-4"><div class="card-body">
+  <h2 class="h6 fw-bold">Wygeneruj login zastępczy dla konsultanta</h2>
+  <?php if ($generated): ?>
+  <div class="alert alert-info py-2" role="status"><strong><?= h($generated['name']) ?></strong> — numer: <code class="fs-5"><?= h($generated['login']) ?></code>
+    · hasło: <code class="fs-6"><?= h($generated['pass']) ?></code><br><span class="small">Zapisz i przekaż — hasło pokazujemy tylko raz. Logowanie: <?= h(TiLogin::altUrl()) ?></span></div>
+  <?php endif; ?>
+  <form method="post" class="row g-2 align-items-end" onsubmit="return confirm('Wygenerować nowe hasło? Dotychczasowe hasło zastępcze tej osoby przestanie działać.')">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="generate">
+    <div class="col-md-8"><label class="form-label small mb-0" for="kz-gen">Konsultant (tryb Konsultacje)</label>
+      <select class="form-select form-select-sm" id="kz-gen" name="user_id" required><option value="">— wybierz —</option>
+        <?php foreach ($people as $_p): ?><option value="<?= (int)$_p['id'] ?>"><?= h($_p['name'] . ' (' . $_p['email'] . ')') ?></option><?php endforeach; ?></select></div>
+    <div class="col-md-4"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-key me-1" aria-hidden="true"></i>Wygeneruj numer i hasło</button></div>
+  </form>
+  <p class="small text-body-secondary mt-2 mb-0">Osoba, która ma już numer, zachowuje go — dostaje tylko nowe hasło.</p>
+</div></div>
+<?php endif; ?>
 
 <?php if ($list): ?>
 <div class="card border-0 shadow-sm mb-4"><div class="card-body">
