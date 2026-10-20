@@ -1,55 +1,17 @@
 <?php
 /**
- * karty30/ti/dydaktyk/login.php — Handler logowania dydaktyka (tylko POST).
- * GET → redirect do centralnego login.php (PRG).
- * POST → weryfikacja hasłem SZO, redirect do panelu lub z kodem błędu.
- * SSO (Microsoft 365) obsługuje office_enter.php przez auth/ms365.php.
+ * karty30/ti/dydaktyk/login.php — dawne wejście logowania panelu dydaktyka (dyd_require() → „login.php”).
+ * Kadra loguje się we wspólnym logowaniu TI (karty30/ti/login.php, modules/ti_login): e-mail @feer.org.pl → Microsoft 365
+ * (mostek office_enter.php), inne konta panelowe → e-mail + hasło, potem obowiązkowe TOTP (totp_gate.php).
+ * GET → strona logowania (już zalogowany → panel), POST → 307 (pola email/login + password), odmowa Office → e=4.
  */
 require_once __DIR__ . '/auth.php';
 
-karty30_migrate();
-
-// Już zalogowany → panel
-if (dyd_current()) {
-    header('Location: index.php'); exit;
-}
-
-// Office SSO odmowił dostępu (brak uprawnień dydaktyka)
 if (($_GET['office'] ?? '') === 'denied') {
-    header('Location: ../login.php?tab=dydaktyk&e=4'); exit;
+    header('Location: ' . tiPanelUrl('ti', 'login.php') . '?tab=dydaktyk&e=4'); exit;
 }
-
-// GET → centralna strona logowania
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ../login.php?tab=dydaktyk'); exit;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Location: ' . tiPanelUrl('ti', 'login.php'), true, 307); exit;
 }
-
-// POST — uwierzytelnianie hasłem
-$email    = trim($_POST['email']    ?? '');
-$password = $_POST['password'] ?? '';
-// back=alt → błędy wracają na samodzielną stronę logowania dydaktyka (logowanie.php)
-$back_alt = ($_POST['back'] ?? '') === 'alt';
-
-$data = dyd_authenticate($email, $password);
-if ($data) {
-    try {
-        db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")
-            ->execute([$data['user_id']]);
-    } catch (\Throwable $e) {}
-
-    // Każde konto (także administrator): dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe.
-    // Sesję panelu zakłada dopiero totp_gate.php, po weryfikacji (albo
-    // pierwszym założeniu) kodu.
-    // Powrót na stronę, z której przyszło logowanie (np. pełny plan zajęć: ciasteczko k30_dyd_next, 15 min)
-    $next = (string)($_COOKIE['k30_dyd_next'] ?? '');
-    if ($next !== '') setcookie('k30_dyd_next', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-    dyd_2fa_stash($data, $next);
-    header('Location: totp_gate.php'); exit;
-}
-
-// Próba odróżnienia: złe hasło (kod 1) vs brak uprawnień dydaktyka (kod 4)
-$u_row = db_one("SELECT * FROM users WHERE email=? AND is_active=1", [$email]);
-$ec = ($u_row && !empty($u_row['password']) && password_verify($password, $u_row['password'])) ? 4 : 1;
-
-header('Location: ' . ($back_alt ? 'logowanie.php?e=' : '../login.php?tab=dydaktyk&e=')
-    . $ec . '&m=' . urlencode($email)); exit;
+if (dyd_current()) { header('Location: index.php'); exit; }
+header('Location: ' . tiPanelUrl('ti', 'login.php') . '?tab=dydaktyk'); exit;

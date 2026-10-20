@@ -1,30 +1,11 @@
 <?php
 /**
- * karty30/ti/kursant/parent_login.php — Handler logowania rodzica/opiekuna hasłem (tylko POST).
- * GET → redirect do centralnego login.php?tab=rodzic (PRG).
- * POST → weryfikacja login+hasło, redirect do parent.php lub z kodem błędu.
+ * karty30/ti/kursant/parent_login.php — dawny handler logowania rodzica/opiekuna hasłem.
+ * Rodzic loguje się we wspólnym logowaniu TI (karty30/ti/login.php) — login rodzica rozpoznawany automatycznie.
+ * GET → strona logowania, POST → 307 (dane formularza: login, password).
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
-require_once __DIR__ . '/auth.php';
-
-karty30_migrate();
-
-if (parent_current()) {
-    header('Location: parent.php'); exit;
-}
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ../login.php?tab=rodzic'); exit;
-}
-
-$login = trim($_POST['login'] ?? '');
-$pass  = $_POST['password'] ?? '';
-
-if (parent_login_with_password($login, $pass)) {
-    header('Location: parent.php'); exit;
-}
-
-header('Location: ../login.php?tab=rodzic&e=6&l=' . urlencode($login)); exit;
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_panel_urls/lib/tiPanelUrl.php';
+$post = $_SERVER['REQUEST_METHOD'] === 'POST';
+header('Location: ' . tiPanelUrl('ti', 'login.php') . ($post ? '' : '?tab=rodzic'), true, $post ? 307 : 302);
+exit;

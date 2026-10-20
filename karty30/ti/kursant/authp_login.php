@@ -1,30 +1,11 @@
 <?php
 /**
- * karty30/ti/kursant/authp_login.php — Handler logowania osoby upoważnionej (tylko POST).
- * GET → redirect do centralnego login.php?tab=up (PRG).
- * POST → weryfikacja login+hasło, redirect do authorized_person.php lub z kodem błędu.
+ * karty30/ti/kursant/authp_login.php — dawny handler logowania osoby upoważnionej.
+ * Osoba upoważniona loguje się we wspólnym logowaniu TI (karty30/ti/login.php) — login rozpoznawany automatycznie.
+ * GET → strona logowania, POST → 307 (dane formularza: login, password).
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
-require_once __DIR__ . '/auth.php';
-
-karty30_migrate();
-
-if (authp_current()) {
-    header('Location: authorized_person.php'); exit;
-}
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ../login.php?tab=up'); exit;
-}
-
-$login = trim($_POST['login'] ?? '');
-$pass  = $_POST['password'] ?? '';
-
-if (authp_login($login, $pass)) {
-    header('Location: authorized_person.php'); exit;
-}
-
-header('Location: ../login.php?tab=up&e=7&l=' . urlencode($login)); exit;
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_panel_urls/lib/tiPanelUrl.php';
+$post = $_SERVER['REQUEST_METHOD'] === 'POST';
+header('Location: ' . tiPanelUrl('ti', 'login.php') . ($post ? '' : '?tab=up'), true, $post ? 307 : 302);
+exit;

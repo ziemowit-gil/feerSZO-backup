@@ -16,9 +16,13 @@ require_once __DIR__ . '/auth.php';
 karty30_migrate();
 k30_ti_reschedule_migrate();
 
-$err = ''; $info = ''; $stage = 'phone'; // phone | code | choose | pwd
-if (($_GET['m'] ?? '') === 'pwd') $stage = 'pwd';
-$role = in_array($_GET['role'] ?? '', ['up'], true) ? 'up' : 'rodzic'; // up = osoba upoważniona
+$err = ''; $info = ''; $stage = 'phone'; // phone | code | choose
+// Logowanie loginem i hasłem (rodzic, osoba upoważniona) jest we wspólnym logowaniu TI — stare wejścia tam prowadzą.
+if (($_GET['m'] ?? '') === 'pwd' && !parent_current()) { header('Location: ' . tiPanelUrl('ti', 'login.php') . '?tab=rodzic'); exit; }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['pwd_login', 'up_login'], true)) {
+    header('Location: ' . tiPanelUrl('ti', 'login.php'), true, 307); exit;
+}
+if (($_GET['role'] ?? '') === 'up' && !parent_current()) { header('Location: ' . tiPanelUrl('ti', 'login.php') . '?tab=up'); exit; }   // osoba upoważniona
 
 /** Proste hasło dla dziecka: słowo + 2 cyfry. */
 function _parent_gen_child_pass(): string {
@@ -284,15 +288,6 @@ if (isset($_GET['t'])) {
     $err = 'Link wygasł lub jest nieprawidłowy. Zaloguj się kodem SMS.';
 }
 
-// ── Logowanie osoby upoważnionej (role=up) ───────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'up_login' && !authp_current()) {
-    if (authp_login((string)($_POST['login'] ?? ''), (string)($_POST['password'] ?? ''))) {
-        header('Location: authorized_person.php'); exit;
-    }
-    $err  = 'Nieprawidłowy login lub hasło.';
-    $role = 'up';
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op = $_POST['_op'] ?? '';
     if ($op === 'otp_request') {
@@ -325,12 +320,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             parent_login_for_student($sid); header('Location: parent.php'); exit;
         }
         $err = 'Wybierz kursanta.'; $stage = 'choose';
-    } elseif ($op === 'pwd_login') {
-        // Logowanie loginem i hasłem (konto rodzica)
-        if (parent_login_with_password($_POST['login'] ?? '', $_POST['password'] ?? '')) {
-            header('Location: parent.php'); exit;
-        }
-        $err = 'Nieprawidłowy login lub hasło konta rodzica.'; $stage = 'pwd';
     }
 }
 

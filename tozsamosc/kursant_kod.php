@@ -20,12 +20,12 @@ student_start();
 $p = $_SESSION['k30_ti_student_otp'] ?? null;
 if (!$p || time() - (int)($p['ts'] ?? 0) > 600) {
     unset($_SESSION['k30_ti_student_otp']);
-    header('Location: ' . APP_URL . '/tozsamosc/kursant.php'); exit;
+    header('Location: ' . tiPanelUrl('ti', 'login.php')); exit;   // wspólne logowanie TI
 }
 $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id = ? AND is_active = 1", [(int)$p['id']]);
 if (!$acc) {
     unset($_SESSION['k30_ti_student_otp']);
-    header('Location: ' . APP_URL . '/tozsamosc/kursant.php'); exit;
+    header('Location: ' . tiPanelUrl('ti', 'login.php')); exit;   // wspólne logowanie TI
 }
 
 $blad = '';

@@ -25,7 +25,7 @@ function zespol_notify_role(string $email, string $name, string $role, string $g
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return;
     require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
     $label = K30_TI_PANEL_ROLES[$role] ?? $role;
-    $login = rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/logowanie.php';
+    $login = rtrim(APP_URL, '/') . '/karty30/ti/login.php';   // wspólne logowanie TI (e-mail + hasło albo Microsoft 365)
     $lines = [
         'Dzień dobry' . ($name !== '' ? ' ' . $name : '') . ',',
         '',
@@ -223,8 +223,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div>
     <strong>Dane logowania do panelu</strong> — zapisz i przekaż, hasło pokazujemy tylko raz:<br>
     e-mail: <code><?= h($zu_newpass['email']) ?></code> · hasło: <code><?= h($zu_newpass['pass']) ?></code><br>
-    <span class="small">Logowanie: <?= h(rtrim(APP_URL, '/')) ?>/karty30/ti/dydaktyk/logowanie.php
-      (samodzielna strona tylko dla dydaktyków; działa też wspólna strona logowania).</span>
+    <span class="small">Logowanie: <?= h(rtrim(APP_URL, '/')) ?>/karty30/ti/login.php
+      (wspólne logowanie TI — wpisz e-mail i hasło, potem kod z aplikacji).</span>
   </div>
 </div>
 <?php endif; ?>
