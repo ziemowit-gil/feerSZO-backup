@@ -391,6 +391,7 @@ function uspCreate(array $d, array $user): int {
 
 function uspUpdate(int $id, array $d): void {
     $old = uspGet($id);
+    if (($d['termin'] ?? $old['termin']) !== $old['termin']) $d['przypomniano'] = ''; // nowy termin — przypomnienia od nowa
     db_update('us_zobowiazania', $d, $id);
     $zm = [];
     foreach (['kwota' => 'kwota', 'termin' => 'termin', 'rachunek' => 'rachunek', 'txt' => 'opis'] as $k => $l) {
@@ -456,4 +457,52 @@ function uspEdokDocs(string $q = ''): array {
     $w = "kierunek = 'wydatek'";
     if ($q !== '') { $w .= " AND (number LIKE ? OR kontrahent_nazwa LIKE ? OR title LIKE ?)"; $p = ["%$q%", "%$q%", "%$q%"]; }
     return db_all("SELECT id, number, title, kontrahent_nazwa, kwota_brutto FROM edok_documents WHERE $w ORDER BY id DESC LIMIT 100", $p);
+}
+
+// ── Przypomnienia (cron/agents/usPrzelewyReminders.php) ──────────────────────
+
+/**
+ * Jedno zbiorcze przypomnienie dziennie na adres z usp_przypomnienia: zobowiązania z terminem w ciągu
+ * usp_przypomnienia_dni dni (raz na zobowiązanie, znacznik „przed”) i po terminie (raz, znacznik „po”).
+ * Puste adresy = wyłączone. $dry — tylko lista, bez wysyłki i bez znaczników.
+ * @return array{note:string, lines:list<string>, sent:int}
+ */
+function uspPrzypomnienia(bool $dry = false): array {
+    uspMigrate();
+    $emails = array_values(array_filter(array_map('trim', explode(',', (string) org_setting('usp_przypomnienia'))), fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
+    if (!$emails && !$dry) return ['note' => 'Przypomnienia wyłączone (brak adresów w ustawieniach Przelewów do US).', 'lines' => [], 'sent' => 0];
+    $dni = org_setting('usp_przypomnienia_dni') !== '' ? (int) org_setting('usp_przypomnienia_dni') : 3;
+    $today = date('Y-m-d');
+    $items = [];
+    foreach (uspDoTerminu($dni) as $z) {
+        $sent = array_filter(explode(',', (string)$z['przypomniano']));
+        $kind = $z['termin'] < $today ? 'po' : 'przed';
+        if (in_array($kind, $sent, true)) continue;
+        $items[] = ['z' => $z, 'kind' => $kind, 'sent' => $sent];
+    }
+    if (!$items) return ['note' => 'Brak zobowiązań do przypomnienia.', 'lines' => [], 'sent' => 0];
+
+    $money = fn($v) => number_format(_edok_kwota_float((string)$v), 2, ',', ' ');
+    $lines = []; $rows = ''; $txt = '';
+    foreach ($items as $it) {
+        $z = $it['z'];
+        $opis = $z['sfp'] . ' ' . uspOkresLabel($z['okres_typ'], (int)$z['okres_rok'], (int)$z['okres_nr']) . ' — ' . $money($z['kwota']) . ' zł, termin ' . date('d.m.Y', strtotime($z['termin']))
+              . ($it['kind'] === 'po' ? ' (PO TERMINIE)' : '') . ($z['status'] === 'zlecony' ? ' — plik przelewu wygenerowany, zapłata nieoznaczona' : '');
+        $lines[] = $opis;
+        $txt .= '- ' . $opis . "\n";
+        $rows .= '<li' . ($it['kind'] === 'po' ? ' style="color:#b91c1c"' : '') . '>' . htmlspecialchars($opis) . '</li>';
+    }
+    if ($dry) return ['note' => '', 'lines' => $lines, 'sent' => 0];
+
+    $url = rtrim(APP_URL, '/') . '/modules/us_przelewy/router.php';
+    $po = count(array_filter($items, fn($i) => $i['kind'] === 'po'));
+    $subject = 'Przelewy do US: ' . count($items) . ' zobowiązań' . ($po ? ' (' . $po . ' po terminie)' : '') . ' do zapłaty';
+    $html = '<p>Zobowiązania podatkowe wymagające zapłaty:</p><ul>' . $rows . '</ul><p><a href="' . htmlspecialchars($url) . '">Otwórz Przelewy do US</a> — wygeneruj plik przelewu albo oznacz zapłatę.</p>';
+    require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+    $n = 0;
+    foreach ($emails as $e) { mail_queue_add($e, '', $subject, $html, $txt . "\n" . $url, 'us_przelewy'); $n++; }
+    foreach ($items as $it) {
+        db_update('us_zobowiazania', ['przypomniano' => implode(',', array_unique(array_merge($it['sent'], [$it['kind']])))], (int)$it['z']['id']);
+    }
+    return ['note' => '', 'lines' => $lines, 'sent' => $n];
 }

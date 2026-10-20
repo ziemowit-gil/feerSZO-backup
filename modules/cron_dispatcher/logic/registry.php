@@ -290,6 +290,11 @@ function cron_dispatcher_registry(): array
             'interval' => 82800,        // 23 h: start o 6:00 bez dryfu
             'schedule' => [6, 7],       // okno 6:00–7:00 — RM za poprzedni miesiąc dla uczestników, którzy o to poprosili (od 5. dnia miesiąca)
         ],
+        'us_przelewy_reminders' => [
+            'file'     => $cronDir . '/agents/usPrzelewyReminders.php',
+            'interval' => 82800,        // 23 h: start o 7:00 bez dryfu
+            'schedule' => [7, 8],       // okno 7:00–8:00 — terminy zobowiązań podatkowych (Przelewy do US); wyłączone, póki w module nie ma adresów e-mail
+        ],
         'ti_licencje_reminders' => [
             'file'     => $cronDir . '/agents/tiLicenseReminders.php',
             'interval' => 82800,        // 23 h: start o 7:00 bez dryfu
