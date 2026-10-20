@@ -758,7 +758,8 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
   </div>
 
   <?php
-  $woj_list = ['dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie','małopolskie','mazowieckie','opolskie','podkarpackie','podlaskie','pomorskie','śląskie','świętokrzyskie','warmińsko-mazurskie','wielkopolskie','zachodniopomorskie'];
+  require_once dirname(dirname(__DIR__)) . '/includes/teryt.php';
+  $woj_list = terytWojNames();   // Słownik Centralny (TERYT)
   $typ_list  = ['stały' => 'Stały', 'jednorazowy' => 'Jednorazowy', 'projektowy' => 'Projektowy', 'akcyjny' => 'Akcyjny / eventowy', 'wakacyjny' => 'Wakacyjny'];
   $obszar_all = ['społeczny' => 'Społeczny', 'edukacyjny' => 'Edukacyjny', 'zdrowotny' => 'Zdrowotny', 'ekologiczny' => 'Ekologiczny', 'kulturalny' => 'Kulturalny', 'sportowy' => 'Sportowy', 'pomocowy' => 'Pomocowy / humanitarny', 'zwierzeta' => 'Ochrona zwierząt', 'cyfrowy' => 'Cyfrowy / IT', 'inny' => 'Inny'];
   $wyksztalcenie_list = ['podstawowe' => 'Podstawowe', 'zawodowe' => 'Zawodowe', 'srednie' => 'Średnie', 'wyzsze_lic' => 'Wyższe — licencjat', 'wyzsze_mgr' => 'Wyższe — magister', 'doktorat' => 'Doktorat / dr', 'student' => 'Student'];
@@ -851,6 +852,7 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
                value="<?= h($row['teryt_kod'] ?? '') ?>">
       </div>
     </div>
+    <?= terytFieldsAttach('select[name=wojewodztwo]', 'input[name=powiat]', 'input[name=gmina]', 'input[name=teryt_kod]') ?>
   </div>
 
   <!-- Dostępność -->

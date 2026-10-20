@@ -403,7 +403,7 @@ include __DIR__ . '/../includes/header_crm.php';
   <div class="card">
     <div class="card-body">
       <div class="sec-label"><i class="bi bi-geo-alt" style="color:#059669"></i>Lokalizacja</div>
-      <?php $woj_list = ['dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie','małopolskie','mazowieckie','opolskie','podkarpackie','podlaskie','pomorskie','śląskie','świętokrzyskie','warmińsko-mazurskie','wielkopolskie','zachodniopomorskie']; ?>
+      <?php require_once dirname(dirname(__DIR__)) . '/includes/teryt.php'; $woj_list = terytWojNames(); /* Słownik Centralny (TERYT) */ ?>
       <select name="wojewodztwo" class="form-select form-select-sm">
         <option value="">— województwo —</option>
         <?php foreach ($woj_list as $w): ?>
@@ -411,6 +411,7 @@ include __DIR__ . '/../includes/header_crm.php';
         <?php endforeach; ?>
       </select>
       <div class="field-hint mt-1">Dokładniejsza lokalizacja (powiat, gmina) w sekcji Dane formalne powyżej.</div>
+      <?= terytFieldsAttach('select[name=wojewodztwo]', '#powiat', '#gmina') ?>
     </div>
   </div>
 

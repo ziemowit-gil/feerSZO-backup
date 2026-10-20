@@ -267,6 +267,17 @@ return [
         },
     ],
 
+    // TERYT: województwa → powiaty → gminy jako słownik systemowy (drzewo, kody TERYT) z tabeli teryt_units
+    // (import GUS); bez niej — 16 województw. Kolejne importy TERC (admin/teryt_import.php) aktualizują słownik.
+    '2026-10_dictionary_teryt' => [
+        'desc' => 'Słownik Centralny: TERYT — województwa, powiaty, gminy',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/teryt.php';
+            $r = terytSyncDictionary();
+            if ($r['errors']) throw new \RuntimeException('Słownik teryt: ' . implode('; ', array_slice($r['errors'], 0, 5)));
+        },
+    ],
+
     // Certyfikacja MSUES: hasła JRWA 56 (kadra dydaktyczna — MSUES), 561 (oświadczenia o kwalifikacjach, koszulki oświadczeń),
     // 562 (audyty MSUES — paczki audytowe). Tylko gdy EZD ma już tabelę JRWA; brakujące hasła doda też pierwsza rejestracja.
     '2026-10_msues_jrwa' => [

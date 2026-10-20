@@ -892,6 +892,7 @@ include __DIR__ . '/includes/header_crm.php';
         <input type="text" name="gmina" value="<?= h($filters['gmina']) ?>"
                class="form-control form-control-sm" autocomplete="off">
       </label>
+      <?php require_once dirname(__DIR__) . '/includes/teryt.php'; echo terytFieldsAttach('select[name=wojewodztwo]', '.crm-adv-field input[name=powiat]', '.crm-adv-field input[name=gmina]'); ?>
 
       <label class="crm-adv-field">
         <span>Dodano od</span>

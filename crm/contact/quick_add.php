@@ -255,7 +255,8 @@ include __DIR__ . '/../includes/header_crm.php';
             <select name="wojewodztwo" id="sel_woj" class="form-select form-select-sm">
               <option value="">— wybierz —</option>
               <?php
-              $woj_db = db_all("SELECT kod_woj, nazwa FROM teryt_units WHERE level=1 ORDER BY nazwa");
+              require_once dirname(dirname(__DIR__)) . '/includes/teryt.php';   // Słownik Centralny (TERYT)
+              $woj_db = array_map(fn($k, $n) => ['kod_woj' => $k, 'nazwa' => $n], array_keys(terytWojewodztwa()), terytWojewodztwa());
               foreach ($woj_db as $w):
               ?>
               <option value="<?= h($w['nazwa']) ?>"

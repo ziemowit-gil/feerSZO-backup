@@ -642,7 +642,8 @@ include __DIR__ . '/../includes/header_crm.php';
         Terytorium
       </div>
       <?php
-      $woj_list = ['dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie','małopolskie','mazowieckie','opolskie','podkarpackie','podlaskie','pomorskie','śląskie','świętokrzyskie','warmińsko-mazurskie','wielkopolskie','zachodniopomorskie'];
+      require_once dirname(dirname(__DIR__)) . '/includes/teryt.php';
+      $woj_list = terytWojNames();   // Słownik Centralny (TERYT)
       ?>
       <div class="row g-2">
         <div class="col-md-5">
@@ -665,6 +666,7 @@ include __DIR__ . '/../includes/header_crm.php';
                  value="<?= h($row['gmina'] ?? '') ?>" placeholder="gmina">
         </div>
       </div>
+      <?= terytFieldsAttach('select[name=wojewodztwo]', 'input[name=powiat]', 'input[name=gmina]') ?>
     </div>
   </div>
 

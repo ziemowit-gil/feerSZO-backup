@@ -2,12 +2,13 @@
 /**
  * crm/api/addr.php — Autocomplete adresu: miasto (TERYT) + kody pocztowe.
  *
- * GET ?action=city&q=...              → lista miast z TERYT (gminy level=3)
+ * GET ?action=city&q=...              → lista miast z TERYT (gminy — Słownik Centralny, includes/teryt.php)
  * GET ?action=postal&q=XX            → lista kodów pocztowych z tabeli postal_codes
  * GET ?action=postal_city&code=XX-XXX → miasta przypisane do kodu (do auto-fill)
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
+require_once dirname(dirname(__DIR__)) . '/includes/teryt.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -15,31 +16,13 @@ header('Cache-Control: max-age=120, private');
 
 $action = $_GET['action'] ?? '';
 
-// ── Szukaj miasta (gminy TERYT, level=3) ────────────────────────────────────
+// ── Szukaj miasta (gminy TERYT ze Słownika Centralnego) ─────────────────────
 if ($action === 'city') {
     $q = trim($_GET['q'] ?? '');
     if (strlen($q) < 2) { echo json_encode([]); exit; }
-
-    // Najpierw: zaczyna od frazy — wyższy priorytet
-    $starts = db_all(
-        "SELECT DISTINCT nazwa FROM teryt_units
-         WHERE level = 3 AND nazwa LIKE ? ORDER BY nazwa LIMIT 15",
-        [$q . '%']
-    );
-    $out = array_column($starts, 'nazwa');
-
-    // Uzupełnij do 20 wyników: zawiera frazę (nie zaczyna)
-    if (count($out) < 20) {
-        $rest = db_all(
-            "SELECT DISTINCT nazwa FROM teryt_units
-             WHERE level = 3 AND nazwa LIKE ? AND nazwa NOT LIKE ?
-             ORDER BY nazwa LIMIT " . (20 - count($out)),
-            ['%' . $q . '%', $q . '%']
-        );
-        $out = array_merge($out, array_column($rest, 'nazwa'));
-    }
-
-    echo json_encode(array_values(array_unique($out)), JSON_UNESCAPED_UNICODE);
+    // najpierw „zaczyna się od”, potem „zawiera” (terytSearch); bez powtórzeń nazw (części gmin miejsko-wiejskich)
+    $out = array_values(array_unique(array_column(terytSearch($q, 3, 60), 'nazwa')));
+    echo json_encode(array_slice($out, 0, 20), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -93,31 +76,10 @@ echo json_encode(['error' => 'Nieznana akcja'], JSON_UNESCAPED_UNICODE);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Pobiera pełne dane TERYT dla gminy (level=3) przez dowolną kolumnę. */
+/** Pełne dane TERYT gminy (Słownik Centralny) po nazwie albo kodzie. */
 function _teryt_details(string $col, string $val): ?array {
-    $allowed = ['nazwa', 'kod_gmi'];
-    if (!in_array($col, $allowed, true)) return null;
-
-    $gmi = db_one("SELECT nazwa, kod_gmi, kod_pow, kod_woj, nazwa_typ
-                   FROM teryt_units WHERE level=3 AND {$col}=? LIMIT 1", [$val]);
-    if (!$gmi) return null;
-
-    // Osobne zapytania — bezpieczniejsze niż trójkowy self-join na SQLite
-    $pow = db_one("SELECT nazwa FROM teryt_units
-                   WHERE level=2 AND kod_pow=? AND kod_woj=? LIMIT 1",
-                  [$gmi['kod_pow'], $gmi['kod_woj']]);
-    $woj = db_one("SELECT nazwa FROM teryt_units
-                   WHERE level=1 AND kod_woj=? LIMIT 1",
-                  [$gmi['kod_woj']]);
-
-    return [
-        'gmina'   => $gmi['nazwa'],
-        'kod_gmi' => $gmi['kod_gmi'],
-        'kod_pow' => $gmi['kod_pow'],
-        'kod_woj' => $gmi['kod_woj'],
-        'powiat'  => $pow['nazwa'] ?? null,
-        'woj'     => $woj['nazwa'] ?? null,
-    ];
+    if (!in_array($col, ['nazwa', 'kod_gmi'], true)) return null;
+    return terytGmina($col === 'kod_gmi' ? 'kod' : 'nazwa', $val);
 }
 
 function _postal_table_exists(): bool {

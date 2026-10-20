@@ -2174,8 +2174,8 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
             <div class="col-md-2"><label class="form-label small mb-0">Nr domu</label><input type="text" name="home_number" class="form-control form-control-sm"></div>
             <div class="col-md-2"><label class="form-label small mb-0">Nr lokalu</label><input type="text" name="flat_number" class="form-control form-control-sm"></div>
             <div class="col-md-6"><label class="form-label small mb-0">Adres cd. (opcjonalnie)</label><input type="text" name="address_line2" class="form-control form-control-sm"></div>
-            <div class="col-md-3"><label class="form-label small mb-0">Kod pocztowy <span class="text-danger">*</span></label><input type="text" name="postcode" class="form-control form-control-sm" placeholder="00-001"></div>
-            <div class="col-md-3"><label class="form-label small mb-0">Miasto <span class="text-danger">*</span></label><input type="text" name="city" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><label class="form-label small mb-0">Kod pocztowy <span class="text-danger">*</span></label><input type="text" name="postcode" id="qd-city-postal" class="form-control form-control-sm" placeholder="00-001"></div>
+            <div class="col-md-3"><label class="form-label small mb-0">Miasto <span class="text-danger">*</span></label><input type="text" name="city" id="qd-city" class="form-control form-control-sm"><?php require_once dirname(__DIR__, 2) . '/includes/teryt.php'; echo terytCityAttach('#qd-city', '#qd-city-postal'); ?></div>
             <div class="col-md-6"><label class="form-label small mb-0">Telefon (opcjonalnie)</label><input type="text" name="phone_number" class="form-control form-control-sm"></div>
             <div class="col-md-6"><label class="form-label small mb-0">Kraj</label><input type="text" name="country" class="form-control form-control-sm" value="PL"></div>
             <div class="col-12">

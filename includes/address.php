@@ -191,7 +191,7 @@ function address_format(array $row, bool $html = false): string {
  *   'show_legacy'  => bool     Show read-only legacy field if no structured data (default: true)
  *   'copy_button'  => bool     Show "Kopiuj adres" clipboard button (default: false)
  *   'widget_id'    => string   HTML id prefix for the widget div (default: auto)
- *   'autocomplete' => bool     Enable TERYT/postal autocomplete (default: false)
+ *   'autocomplete' => bool     Enable TERYT/postal autocomplete (default: true — TERYT ze Słownika Centralnego)
  *   'api_url'      => string   Base URL for addr API (default: APP_URL + /crm/api/addr.php)
  * @return string  HTML
  */
@@ -207,7 +207,7 @@ function address_widget(array $row, array $opts = []): string {
     $sz_sel       = !empty($opts['size']) ? ' form-select-'  . $opts['size'] : '';
     $show_legacy  = $opts['show_legacy']  ?? true;
     $copy_button  = $opts['copy_button']  ?? false;
-    $autocomplete = $opts['autocomplete'] ?? false;
+    $autocomplete = $opts['autocomplete'] ?? true;   // miasto z TERYT (Słownik Centralny) + kody pocztowe — domyślnie wszędzie
     $api_url      = $opts['api_url']      ?? (defined('APP_URL') ? APP_URL . '/crm/api/addr.php' : '/crm/api/addr.php');
     $wid          = $opts['widget_id']    ?? ('addrWidget' . $_addr_widget_counter);
 

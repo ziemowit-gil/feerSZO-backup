@@ -457,6 +457,7 @@ $_pi_fields[] = ['Koszulka', ['html' => '<a href="' . APP_URL . '/ezd/sprawy/vie
               </div>
               <div class="col-8">
                 <input type="text" name="city" id="postivo-city" class="form-control form-control-sm" placeholder="Miasto" required>
+                <?php require_once dirname(__DIR__, 2) . '/includes/teryt.php'; echo terytCityAttach('#postivo-city', '#postivo-postal'); ?>
               </div>
             </div>
             <div class="mb-1">

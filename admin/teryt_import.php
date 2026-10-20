@@ -6,13 +6,27 @@
  *  - TERC_Urzedowy_YYYY-MM-DD.xml  (pobierany z eTERYT GUS)
  *  - TERC_Adresowy_YYYY-MM-DD.xml
  *  - terc.csv  (CSV export z eTERYT: WOJ;POW;GMI;RODZ;NAZWA;NAZWA_DOD;STAN_NA)
+ *
+ * Po imporcie (i zasiewie województw) synchronizuje Słownik Centralny „teryt” (includes/teryt.php) — z niego czytają
+ * formularze, API powiatów/gmin i autouzupełnianie miejscowości. Tabela teryt_units zostaje jako źródło importu.
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/teryt.php';
 
 require_role('admin');
+
+/** Synchronizacja słownika po zmianie teryt_units — komunikat do dopisania w flashu. */
+function _teryt_dict_sync_msg(): string {
+    try {
+        $r = terytSyncDictionary();
+        return ' Słownik Centralny „TERYT”: ' . $r['created'] . ' nowych, ' . $r['updated'] . ' zmienionych' . ($r['errors'] ? ', błędów: ' . count($r['errors']) : '') . '.';
+    } catch (\Throwable $e) {
+        return ' Słownika Centralnego nie zaktualizowano: ' . $e->getMessage();
+    }
+}
 $PAGE_TITLE = 'Import TERYT';
 
 // Auto-migracja tabeli
@@ -46,13 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         $ins = db()->prepare("INSERT OR IGNORE INTO teryt_units (level,kod_woj,nazwa) VALUES (1,?,?)");
         foreach ($woj as $k => $n) $ins->execute([$k, $n]);
-        flash_set('success', 'Seeded 16 województw.');
+        flash_set('success', 'Dodano 16 województw.' . _teryt_dict_sync_msg());
         header('Location: '.$_SERVER['PHP_SELF']); exit;
     }
 
     if ($op === 'clear') {
         db()->exec("DELETE FROM teryt_units");
-        flash_set('warning', 'Usunięto wszystkie dane TERYT.');
+        flash_set('warning', 'Usunięto wszystkie dane TERYT z tabeli importu. Słownik Centralny „TERYT” zostaje bez zmian (wpisów słownika systemowego się nie usuwa — zbędne wyłącz w Słowniku Centralnym).');
         header('Location: '.$_SERVER['PHP_SELF']); exit;
     }
 
@@ -96,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stats = $ext === 'xml'
                         ? import_terc_xml($tmp)
                         : import_terc_csv($tmp);
-                    flash_set('success', "Import zakończony: {$stats['woj']} woj., {$stats['pow']} pow., {$stats['gmi']} gmin.");
+                    flash_set('success', "Import zakończony: {$stats['woj']} woj., {$stats['pow']} pow., {$stats['gmi']} gmin." . _teryt_dict_sync_msg());
                 } catch (\Throwable $e) {
                     $errors[] = 'Błąd importu: ' . $e->getMessage();
                 }

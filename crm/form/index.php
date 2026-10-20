@@ -54,7 +54,8 @@ if ($custom_def_ids) {
         if ($def) $custom_defs[$did] = $def;
     }
 }
-$WOJ_LIST = ['dolnośląskie','kujawsko-pomorskie','lubelskie','lubuskie','łódzkie','małopolskie','mazowieckie','opolskie','podkarpackie','podlaskie','pomorskie','śląskie','świętokrzyskie','warmińsko-mazurskie','wielkopolskie','zachodniopomorskie'];
+require_once dirname(dirname(__DIR__)) . '/includes/teryt.php';
+$WOJ_LIST = terytWojNames();   // Słownik Centralny (TERYT)
 
 $errors  = [];
 $success = false;

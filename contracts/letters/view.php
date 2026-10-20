@@ -379,7 +379,7 @@ if (can_edit() && postivo_setting('postivo_enabled') === '1'):
             <label class="form-label form-label-sm fw-semibold mb-1">
               Kod pocztowy <span class="text-danger">*</span>
             </label>
-            <input type="text" name="postcode" class="form-control form-control-sm font-monospace"
+            <input type="text" name="postcode" id="pl-postcode" class="form-control form-control-sm font-monospace"
                    required placeholder="00-001" pattern="\d{2}-\d{3}"
                    title="Format: XX-XXX">
           </div>
@@ -388,8 +388,9 @@ if (can_edit() && postivo_setting('postivo_enabled') === '1'):
             <label class="form-label form-label-sm fw-semibold mb-1">
               Miasto <span class="text-danger">*</span>
             </label>
-            <input type="text" name="city" class="form-control form-control-sm"
+            <input type="text" name="city" id="pl-city" class="form-control form-control-sm"
                    required placeholder="Warszawa">
+            <?php require_once dirname(__DIR__, 2) . '/includes/teryt.php'; echo terytCityAttach('#pl-city', '#pl-postcode'); ?>
           </div>
 
           <div class="col-6">
