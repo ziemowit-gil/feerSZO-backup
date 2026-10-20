@@ -55,8 +55,21 @@ include __DIR__ . '/_head.php';
   <li class="nav-item"><a class="nav-link <?= $trash ? 'active' : '' ?>" <?= $trash ? 'aria-current="page"' : '' ?> href="<?= h(route('dict.show', ['code' => $dict->code, 'trash' => 1])) ?>">Kosz (<?= $trashCount ?>)</a></li>
 </ul>
 
+<?php if (!empty($treeView['big'])): $tv = $treeView; ?>
+<form method="get" action="<?= h(route('dict.show', ['code' => $dict->code])) ?>" class="d-flex flex-wrap align-items-center gap-2 mb-2" role="search">
+  <label class="visually-hidden" for="dictTreeQ">Szukaj w słowniku</label>
+  <input type="search" name="q" id="dictTreeQ" value="<?= h($tv['q']) ?>" class="form-control form-control-sm" style="max-width:22rem" placeholder="Szukaj po nazwie lub kodzie…">
+  <button class="btn btn-sm btn-outline-primary"><i class="bi bi-search" aria-hidden="true"></i> Szukaj</button>
+  <span class="small text-body-secondary">
+    Duży słownik (<?= (int)$tv['total'] ?> wpisów) — pokazano <?= (int)$tv['shown'] ?>:
+    <?= $tv['q'] !== '' ? 'wyniki dla „' . h($tv['q']) . '”' : ($tv['pod'] !== '' ? 'gałąź „' . h($tv['podLabel'] ?: $tv['pod']) . '”' : 'najwyższy poziom') ?>.
+    <?php if ($tv['q'] !== '' || $tv['pod'] !== ''): ?><a href="<?= h(route('dict.show', ['code' => $dict->code])) ?>">Najwyższy poziom</a><?php endif; ?>
+  </span>
+</form>
+<?php endif; ?>
+
 <?php if (!$entries): ?>
-  <div class="alert alert-light border"><?= $trash ? 'Kosz jest pusty.' : 'Słownik nie ma jeszcze wpisów.' ?>
+  <div class="alert alert-light border"><?= $trash ? 'Kosz jest pusty.' : (!empty($treeView['big']) ? 'Brak wpisów pasujących do wyszukiwania.' : 'Słownik nie ma jeszcze wpisów.') ?>
     <?php if (!$trash && $editable): ?><a href="<?= h(route('dict.entry.create', ['code' => $dict->code])) ?>">Dodaj pierwszy wpis</a>.<?php endif; ?></div>
 <?php else: ?>
 <div class="table-responsive">
@@ -67,7 +80,7 @@ include __DIR__ . '/_head.php';
     <?php if ($locales): ?><th scope="col">Tłumaczenia</th><?php endif; ?><th scope="col" class="text-end">Akcje</th>
   </tr></thead>
   <tbody>
-  <?php foreach ($entries as [$e, $depth]):
+  <?php foreach ($entries as $_row): [$e, $depth] = $_row; $_hidden = (int)($_row[2] ?? 0);
       $valid = $e->isValidOn($today);
       $muted = !$e->isActive || !$valid || $e->isDeleted(); ?>
     <tr id="e<?= $e->id ?>" class="<?= $muted ? 'dict-muted' : '' ?>">
@@ -75,6 +88,7 @@ include __DIR__ . '/_head.php';
         <span class="dict-tree-pad" style="width:<?= $depth * 1.4 ?>rem"></span>
         <?php if ($depth): ?><i class="bi bi-arrow-return-right text-body-secondary" aria-hidden="true"></i><?php endif; ?>
         <span class="<?= $depth ? '' : 'fw-semibold' ?>"><?= h($e->label) ?></span>
+        <?php if ($_hidden && ($treeView['pod'] ?? '') !== $e->code): ?><a class="dict-tag ms-1 text-decoration-none" href="<?= h(route('dict.show', ['code' => $dict->code, 'pod' => $e->code])) ?>"><?= $_hidden ?> podrzędnych →</a><?php endif; ?>
         <?php if (!$e->isActive): ?><span class="dict-tag ms-1">nieaktywny</span><?php endif; ?>
         <?php if ($e->isActive && !$valid): ?><span class="dict-tag ms-1"><?= $e->validFrom !== null && $e->validFrom > $today ? 'jeszcze nie obowiązuje' : 'wygasł' ?></span><?php endif; ?>
         <?php if ($e->description): ?><div class="small text-body-secondary" style="margin-left:<?= $depth * 1.4 ?>rem"><?= h(mb_strimwidth($e->description, 0, 160, '…')) ?></div><?php endif; ?>

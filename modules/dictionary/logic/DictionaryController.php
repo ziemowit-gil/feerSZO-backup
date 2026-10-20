@@ -71,8 +71,9 @@ final class DictionaryController
         $today = date('Y-m-d');
         $parents = [];
         foreach ($entries as $e) $parents[$e->id] = $e;
+        [$rows, $view] = $this->limitTree($this->orderTree($entries, $trash), $trash);
         return $this->render('show.php', [
-            'dict' => $d, 'entries' => $this->orderTree($entries, $trash), 'byId' => $parents, 'trash' => $trash, 'today' => $today,
+            'dict' => $d, 'entries' => $rows, 'treeView' => $view, 'byId' => $parents, 'trash' => $trash, 'today' => $today,
             'trashCount' => count(array_filter($entries, fn($e) => $e->isDeleted())),
             'parentDict' => $d->parentId ? $this->findById($d->parentId) : null,
             'children' => array_filter($this->svc()->allDictionaries(), fn($c) => $c->parentId === $d->id),
@@ -316,6 +317,42 @@ final class DictionaryController
      * Wpisy w kolejności drzewa: [DictionaryEntry, głębokość]. $trash = tylko usunięte (płasko).
      * @param DictionaryEntry[] $entries
      */
+    /** Powyżej tylu wpisów (np. TERYT: ~4400) drzewo pokazujemy po gałęziach — inaczej strona ma kilka MB. */
+    private const BIG_TREE = 500;
+
+    /**
+     * Duże drzewo: domyślnie tylko najwyższy poziom; ?pod=kod — wpis z bezpośrednimi podrzędnymi; ?q= — szukaj
+     * po etykiecie i kodzie (do 300 wyników). Wiersze dostają liczbę ukrytych podrzędnych (link „N podrzędnych”).
+     * @return array{0: list<array{0:mixed,1:int,2?:int}>, 1: array{big:bool,q:string,pod:string,podLabel:string,total:int,shown:int}}
+     */
+    private function limitTree(array $tree, bool $trash): array
+    {
+        $q = trim((string)($_GET['q'] ?? ''));
+        $pod = trim((string)($_GET['pod'] ?? ''));
+        $view = ['big' => false, 'q' => $q, 'pod' => $pod, 'podLabel' => '', 'total' => count($tree), 'shown' => count($tree)];
+        if ($trash || (count($tree) <= self::BIG_TREE && $q === '' && $pod === '')) return [$tree, $view];
+        $view['big'] = true;
+        $kids = [];
+        foreach ($tree as [$e]) if ($e->parentId !== null) $kids[$e->parentId] = ($kids[$e->parentId] ?? 0) + 1;
+        $rows = [];
+        if ($q !== '') {
+            $n = mb_strtolower($q);
+            foreach ($tree as [$e, $depth]) {
+                if (mb_strpos(mb_strtolower($e->label), $n) === false && mb_strpos(mb_strtolower($e->code), $n) === false) continue;
+                $rows[] = [$e, 0, $kids[$e->id] ?? 0];
+                if (count($rows) >= 300) break;
+            }
+        } elseif ($pod !== '') {
+            $root = null;
+            foreach ($tree as [$e, $depth]) if ($e->code === $pod) { $root = $e; $rows[] = [$e, 0, 0]; $view['podLabel'] = $e->label; break; }
+            if ($root) foreach ($tree as [$e]) if ($e->parentId === $root->id) $rows[] = [$e, 1, $kids[$e->id] ?? 0];
+        } else {
+            foreach ($tree as [$e, $depth]) if ($depth === 0) $rows[] = [$e, 0, $kids[$e->id] ?? 0];
+        }
+        $view['shown'] = count($rows);
+        return [$rows, $view];
+    }
+
     private function orderTree(array $entries, bool $trash): array
     {
         if ($trash) return array_map(fn($e) => [$e, 0], array_values(array_filter($entries, fn($e) => $e->isDeleted())));
