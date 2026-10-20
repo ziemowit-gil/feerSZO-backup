@@ -22,7 +22,7 @@ function naborCreateAccounts(int $sid, int $uid): array {
     $cid   = (int)$s['client_id'];
     $minor = naborIsMinor($s);
 
-    $child = TiSimpleGroups::createAccount($cid, $uid, false);
+    $child = TiSimpleGroups::createAccount($cid, $uid, false, false);   // kursant: imie.nazwisko
     if ($child) $out['child'] = ['login' => $child['login'], 'password' => $child['password']];
     else $out['notes'][] = 'Uczestnik miał już konto panelu — bez zmian.';
 
@@ -36,9 +36,8 @@ function naborCreateAccounts(int $sid, int $uid): array {
                     updated_at=datetime('now') WHERE id=?",
                 [$s['guardian_name'], '+' . $s['guardian_phone'], $s['guardian_email'], $acc['id']]);
         if (trim((string)$acc['parent_login']) === '') {
-            $base = naborLoginBase($s['participant_name']) . '-r';
-            $login = $base; $i = 2;
-            while (db_one("SELECT 1 FROM k30_ti_student_accounts WHERE parent_login=?", [$login])) $login = $base . $i++;
+            require_once dirname(__DIR__, 3) . '/ti_login/logic/TiLoginFormat.php';
+            $login = TiLoginFormat::numberLogin(TiLoginFormat::PARENT);   // rodzic: 4 cyfry + „r”
             $pass = naborOneTimePassword();
             db_exec("UPDATE k30_ti_student_accounts SET parent_login=?, parent_password_hash=?, parent_must_change=1, updated_at=datetime('now') WHERE id=?",
                     [$login, password_hash($pass, PASSWORD_BCRYPT), $acc['id']]);

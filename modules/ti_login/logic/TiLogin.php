@@ -143,8 +143,8 @@ final class TiLogin
         // Uczestnik: login albo własny alias (loginy uczestników bywają z wielkimi literami — porównanie jak dotąd).
         $stu = $raw === '' ? [] : db_all(
             "SELECT * FROM k30_ti_student_accounts
-              WHERE (login = ? OR login = ? OR (login_alias != '' AND login_alias = ?)) AND is_active = 1",
-            [$raw, $low, $low]);
+              WHERE (login = ? OR login = ? OR (login_alias != '' AND login_alias = ?) OR (student_no != '' AND student_no = ?)) AND is_active = 1",
+            [$raw, $low, $low, $raw]);   // kursant: imie.nazwisko albo numer kursanta
         foreach ($stu as $acc) {
             $ok = $pass !== '' && !empty($acc['password_hash']) && password_verify($pass, (string)$acc['password_hash']);
             $checked = $checked || $pass !== '';

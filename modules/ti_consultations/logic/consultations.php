@@ -424,13 +424,8 @@ final class TiConsultations
         if ($clientId <= 0 || db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=?", [$clientId])) return null;
         $c = db_one("SELECT id, name, phone FROM k30_clients WHERE id=?", [$clientId]);
         if (!$c) return null;
-        $digits = 4; $login = '';
-        for ($try = 0; $try < 60; $try++) {
-            if ($try === 40) $digits = 5;   // pula 4 cyfr prawie pełna — dłuższy numer
-            $cand = 'k' . str_pad((string)random_int(0, 10 ** $digits - 1), $digits, '0', STR_PAD_LEFT);
-            if (!db_one("SELECT 1 FROM k30_ti_student_accounts WHERE login=? OR login_alias=?", [$cand, $cand])) { $login = $cand; break; }
-        }
-        if ($login === '') return null;
+        require_once dirname(__DIR__, 2) . '/ti_login/logic/TiLoginFormat.php';
+        try { $login = TiLoginFormat::numberLogin(TiLoginFormat::SZK); } catch (\Throwable $e) { return null; }   // 4 cyfry + „k”
         $chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; $pass = '';
         for ($i = 0; $i < 8; $i++) $pass .= $chars[random_int(0, strlen($chars) - 1)];
         require_once dirname(__DIR__, 2) . '/ti_simple_groups/logic/simpleGroups.php';

@@ -155,13 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $c    = $cid ? db_one("SELECT * FROM k30_clients WHERE id=?", [$cid]) : null;
         if (!$c) { flash_set('danger','Wybierz beneficjenta.'); header('Location: konta.php'); exit; }
 
-        // Wygeneruj unikalny login
-        $base  = _gen_student_login($c['name']);
-        $login = $base;
-        $i     = 2;
-        while (db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$login])) {
-            $login = $base . $i++;
-        }
+        // Login w formacie imie.nazwisko (TiLoginFormat), unikalny we wszystkich loginach TI
+        require_once dirname(__DIR__, 3) . '/modules/ti_login/logic/TiLoginFormat.php';
+        $login = TiLoginFormat::nameLogin((string)$c['name']);
         $pass  = _gen_student_pass();
         $hash  = password_hash($pass, PASSWORD_BCRYPT);
 
@@ -209,8 +205,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $c = db_one("SELECT * FROM k30_clients WHERE id=?", [$cid]);
             if (!$c) { $skipped++; continue; }
 
-            $base = _gen_student_login($c['name']); $login = $base; $i = 2;
-            while (db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$login])) { $login = $base . $i++; }
+            require_once dirname(__DIR__, 3) . '/modules/ti_login/logic/TiLoginFormat.php';
+            $login = TiLoginFormat::nameLogin((string)$c['name']);   // imie.nazwisko
             $pass = _gen_student_pass();
 
             db_insert('k30_ti_student_accounts', [
@@ -711,12 +707,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('warning', 'Konto rodzica już istnieje (login: ' . $acc['parent_login'] . '). Użyj „Resetuj hasło".');
             header('Location: konta.php?guardian=' . $aid); exit;
         }
-        // login z imienia i nazwiska dziecka z dopiskiem „-r" (rodzic), unikalny
-        $base  = _gen_student_login($acc['client_name'], '-r');
-        $login = $base; $i = 2;
-        while (db_one("SELECT id FROM k30_ti_student_accounts WHERE parent_login=?", [$login])) {
-            $login = $base . $i++;
-        }
+        // login rodzica: 4 cyfry + „r” (TiLoginFormat; przy koncie SzK 1234k → 1234r)
+        require_once dirname(__DIR__, 3) . '/modules/ti_login/logic/TiLoginFormat.php';
+        $_al = db_one("SELECT login FROM k30_ti_student_accounts WHERE id=?", [$aid]);
+        $login = TiLoginFormat::numberLogin(TiLoginFormat::PARENT, TiLoginFormat::numberOf((string)($_al['login'] ?? '')));
         $pass = _gen_student_pass();
         db()->prepare(
             "UPDATE k30_ti_student_accounts

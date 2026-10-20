@@ -225,13 +225,14 @@ final class TiSimpleGroups
      * Konto panelu kursanta dla uczestnika bez konta — te same zasady co „Utwórz konto” w dydaktyk/konta.php.
      * @return array{name:string, login:string, password:string, sms:string}|null  null = konto już istnieje
      */
-    public static function createAccount(int $clientId, int $uid, bool $sendSms): ?array
+    /** $szk — konto szkolenia krótkiego (login 1234k); false = zwykły kursant (imie.nazwisko), np. nabór. */
+    public static function createAccount(int $clientId, int $uid, bool $sendSms, bool $szk = true): ?array
     {
         if (db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=?", [$clientId])) return null;
         $c = db_one("SELECT id, name, phone FROM k30_clients WHERE id=?", [$clientId]);
         if (!$c) return null;
-        $base = self::loginBase((string)$c['name']); $login = $base; $i = 2;
-        while (db_one("SELECT 1 FROM k30_ti_student_accounts WHERE login=?", [$login])) $login = $base . $i++;
+        require_once dirname(__DIR__, 2) . '/ti_login/logic/TiLoginFormat.php';
+        $login = $szk ? TiLoginFormat::numberLogin(TiLoginFormat::SZK) : TiLoginFormat::nameLogin((string)$c['name']);
         $words = ['Kot', 'Pies', 'Dom', 'Las', 'Rok', 'Nos', 'Byk', 'Lis', 'Mak', 'Rak'];
         $pass = $words[random_int(0, count($words) - 1)] . random_int(10, 99);   // jednorazowe — kursant zmienia przy pierwszym logowaniu
         db_insert('k30_ti_student_accounts', [

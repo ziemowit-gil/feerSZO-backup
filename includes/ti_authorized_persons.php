@@ -38,17 +38,11 @@ function ti_authp_login_base(string $name): string {
     return $login . '-up';
 }
 
-/** Unikalny login osoby upoważnionej (sprawdza osoby upoważnione i konta kursantów). */
+/** Unikalny login osoby upoważnionej: 4 cyfry + „u” (TiLoginFormat). $name zostaje dla zgodności wywołań. */
 function ti_authp_unique_login(string $name): string {
-    $base  = ti_authp_login_base($name);
-    $login = $base;
-    $n = 0;
-    while (db_one("SELECT id FROM k30_ti_authorized_persons WHERE login=?", [$login])
-        || db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$login])) {
-        $n++;
-        $login = $base . $n;
-    }
-    return $login;
+    // Nowy format (TiLoginFormat): 4 cyfry + „u”
+    require_once dirname(__DIR__) . '/modules/ti_login/logic/TiLoginFormat.php';
+    return TiLoginFormat::numberLogin(TiLoginFormat::AUTHP);
 }
 
 /**
