@@ -49,35 +49,40 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div class="card shadow-sm mb-4">
-  <div class="card-body">
-    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-      <div>
-        <div class="d-flex align-items-center gap-2 mb-1">
-          <span class="badge bg-primary bg-opacity-15 text-primary fw-bold font-monospace fs-6"><?= h($teczka['symbol']) ?></span>
-          <span class="badge bg-<?= $teczka['status']==='open'?'success':'secondary' ?>"><?= $teczka['status']==='open'?'Otwarty':'Zamknięty' ?></span>
-          <?php if($teczka['kat_arch']): ?><span class="badge bg-light text-dark border" style="font-size:.68rem">Kat. <?= h($teczka['kat_arch']) ?></span><?php endif; ?>
-          <?php if(!empty($teczka['arch_status'])): ?><?= ezd_arch_teczka_badge($teczka['arch_status']) ?><?php if(!empty($teczka['rok_brakowania'])): ?><span class="badge bg-light text-dark border" style="font-size:.68rem">Brakowanie: <?= (int)$teczka['rok_brakowania'] ?></span><?php endif; ?><?php endif; ?>
-        </div>
-        <h4 class="fw-bold mb-1"><?= h($teczka['title']) ?></h4>
-        <div class="text-muted" style="font-size:.8rem">
-          <?php if($teczka['jrwa_title']): ?><i class="bi bi-tag me-1"></i><?= h($teczka['jrwa_symbol'].' — '.$teczka['jrwa_title']) ?> &nbsp;·&nbsp;<?php endif; ?>
-          Rok: <?= $teczka['rok'] ?>
-          <?php if($teczka['owner_name']): ?>&nbsp;·&nbsp;<i class="bi bi-person me-1"></i><?= h($teczka['owner_name']) ?><?php endif; ?>
-        </div>
-      </div>
-      <div class="d-flex gap-2">
-        <a href="<?= APP_URL ?>/ezd/teczki/spis.php?id=<?= $id ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-list-ol me-1"></i>Spis koszulek</a>
-        <?php if(can_edit()): ?>
-        <a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $id ?>" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa koszulka</a>
-        <?php endif; ?>
-        <?php if(is_admin()): ?>
-        <a href="<?= APP_URL ?>/ezd/teczki/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i></a>
-        <?php endif; ?>
-      </div>
-    </div>
-  </div>
+<!-- ══ Segregator aktowy — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php) ══ -->
+<?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
+$_tk_fields = [
+    ['Status', $teczka['status'] === 'open' ? 'Otwarty' : 'Zamknięty', $teczka['status'] === 'open' ? 'var(--m-green)' : ''],
+    ['Rok', (string)$teczka['rok']],
+];
+if ($teczka['jrwa_title']) $_tk_fields[] = ['Wykaz akt', ['html' => '<span title="' . h($teczka['jrwa_title']) . '">' . h($teczka['jrwa_symbol']) . '</span>']];
+if ($teczka['kat_arch']) $_tk_fields[] = ['Kat. archiwalna', (string)$teczka['kat_arch']];
+if (!empty($teczka['arch_status'])) $_tk_fields[] = ['Archiwum', ['html' => ezd_arch_teczka_badge($teczka['arch_status']) . (!empty($teczka['rok_brakowania']) ? ' <span class="text-muted" style="font-size:.78rem">brak. ' . (int)$teczka['rok_brakowania'] . '</span>' : '')]];
+$_tk_fields[] = ['Prowadzący', (string)($teczka['owner_name'] ?? '')];
+?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia segregatora">
+  <a href="<?= APP_URL ?>/ezd/teczki/index.php" class="btn btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i>Segregatory</a>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <?php if(can_edit()): ?>
+  <a href="<?= APP_URL ?>/ezd/sprawy/add.php?teczka_id=<?= $id ?>" class="btn btn-sm"><i class="bi bi-folder-plus" aria-hidden="true"></i>Nowa koszulka</a>
+  <?php endif; ?>
+  <a href="<?= APP_URL ?>/ezd/teczki/spis.php?id=<?= $id ?>" class="btn btn-sm"><i class="bi bi-list-ol" aria-hidden="true"></i>Spis koszulek</a>
+  <?php if(is_admin()): ?>
+  <a href="<?= APP_URL ?>/ezd/teczki/edit.php?id=<?= $id ?>" class="btn btn-sm"><i class="bi bi-pencil" aria-hidden="true"></i>Edytuj</a>
+  <?php endif; ?>
 </div>
+
+<section class="dyn-rec" aria-labelledby="tk-title">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><i class="bi bi-archive" aria-hidden="true"></i> Segregator aktowy · <code><?= h($teczka['symbol']) ?></code></div>
+      <h1 id="tk-title" class="dyn-title"><?= h($teczka['title']) ?></h1>
+      <?php if($teczka['jrwa_title']): ?><div class="text-muted mt-1" style="font-size:.85rem"><i class="bi bi-tag me-1" aria-hidden="true"></i><?= h($teczka['jrwa_symbol'] . ' — ' . $teczka['jrwa_title']) ?></div><?php endif; ?>
+    </div>
+    <?= dynHFields($_tk_fields) ?>
+  </div>
+</section>
 
 <!-- Filtry statusu spraw -->
 <div class="d-flex gap-2 mb-3 flex-wrap">
