@@ -371,39 +371,45 @@ $_show_ms = $ms_available && !$emergency;
 <?php branding_css($_b); ?>
 <style>
 body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:#f3f2f1;color:#1f1f1f;min-height:100vh;display:flex;flex-direction:column;margin:0}
-:focus-visible{outline:3px solid #fbbf24!important;outline-offset:2px}
+/* WCAG 2.4.7/2.4.11: czerwony, gruby fokus — #c50f1f na tle #f3f2f1/#fff ≥ 5:1, odsunięty od niebieskiego przycisku */
+:focus-visible{outline:3px solid #c50f1f!important;outline-offset:3px!important;box-shadow:none!important}
+.lg-in:focus-visible{outline-offset:1px!important}
+.lg-skip{position:absolute;left:1rem;top:-4rem;background:#1f1f1f;color:#fff;padding:.6rem 1rem;font-weight:600;z-index:10}
+.lg-skip:focus{top:1rem}
+.lg-in[aria-invalid=true]{border:2px solid #a4262c}
 .lg-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem 1rem}
-.lg-card{background:#fff;width:100%;max-width:440px;padding:2.2rem 2.2rem 1.8rem;border:1px solid #e1e1e1}
-.lg-brand{display:flex;align-items:center;gap:.7rem;margin-bottom:1.6rem}
-.lg-brand img{height:38px;width:auto}
-.lg-brand span{font-size:.85rem;color:#5f5f5f;line-height:1.25}
-.lg-h1{font-size:1.6rem;font-weight:600;margin:0 0 .3rem}
-.lg-lead{color:#5f5f5f;margin:0 0 1.4rem;font-size:.95rem}
-.lg-ms{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;min-height:48px;background:var(--bp,#2f2f2f);color:#fff!important;text-decoration:none;font-weight:600}
-.lg-ms:hover{filter:brightness(.92)}
-.lg-ms-sub{font-size:.8rem;color:#5f5f5f;text-align:center;margin:.35rem 0 0}
-.lg-or{display:flex;align-items:center;gap:.8rem;margin:1.3rem 0 1rem;color:#5f5f5f;font-size:.85rem}
-.lg-or::before,.lg-or::after{content:"";flex:1;border-top:1px solid #e1e1e1}
+.lg-card{background:#fff;width:100%;max-width:460px;padding:2.4rem 2.4rem 2rem;border:1px solid #c8c8c8;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.lg-brand{margin-bottom:1.5rem}
+.lg-brand img{height:44px;width:auto;display:block}
+.lg-brand span{display:block;font-size:.95rem;font-weight:600;color:#1f1f1f}
+.lg-h1{font-size:1.75rem;font-weight:600;margin:0 0 .25rem;color:#111}
+.lg-lead{color:#3b3b3b;margin:0 0 1.6rem;font-size:1rem}
+/* stałe kolory (nie z brandingu — jasny kolor marki dawał biały napis na jasnym tle): #0f6fa8 na białym = 5,6:1 */
+.lg-ms{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;min-height:50px;background:#0f6fa8;color:#fff!important;text-decoration:none;font-weight:600;font-size:1.02rem}
+.lg-ms:hover,.lg-ms:focus{background:#0b5582}
+.lg-ms-sub{font-size:.88rem;color:#3b3b3b;text-align:center;margin:.45rem 0 0}
+.lg-or{display:flex;align-items:center;gap:.8rem;margin:1.5rem 0 1.1rem;color:#3b3b3b;font-size:.9rem}
+.lg-or::before,.lg-or::after{content:"";flex:1;border-top:1px solid #c8c8c8}
 .lg-field{margin-bottom:.9rem}
-.lg-field label{display:block;font-weight:600;font-size:.9rem;margin-bottom:.3rem}
-.lg-in{width:100%;min-height:44px;border:1px solid #8a8a8a;border-radius:0;padding:.45rem .65rem;font:inherit}
-.lg-in:focus{border-color:#1f1f1f;outline:none;box-shadow:inset 0 0 0 1px #1f1f1f}
+.lg-field label{display:block;font-weight:600;font-size:.95rem;margin-bottom:.35rem;color:#111}
+.lg-in{width:100%;min-height:46px;border:1px solid #6b6b6b;border-radius:0;padding:.5rem .7rem;font:inherit;font-size:1rem;color:#111;background:#fff}
+.lg-in:focus{border-color:#1f1f1f}
 .lg-pass{position:relative}.lg-pass .lg-in{padding-right:2.8rem}
 .lg-pass button{position:absolute;right:1px;top:1px;bottom:1px;width:2.6rem;border:0;background:#fff;cursor:pointer}
-.lg-btn{width:100%;min-height:46px;border:2px solid #1f1f1f;background:#fff;color:#1f1f1f;font-weight:600;cursor:pointer}
-.lg-btn:hover{background:#1f1f1f;color:#fff}
-.lg-links{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-top:.9rem;font-size:.88rem}
-.lg-links a{color:#0b5f91}
+.lg-btn{width:100%;min-height:48px;border:0;background:#1f1f1f;color:#fff;font-weight:600;font-size:1.02rem;cursor:pointer}
+.lg-btn:hover,.lg-btn:focus{background:#000}
+.lg-links{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-top:1rem;font-size:.95rem}
+.lg-links a{color:#0b5582;font-weight:600}
 .lg-alert{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .8rem;margin-bottom:1rem;font-size:.9rem;border-left:4px solid}
 .lg-alert.info{background:#eff6fc;border-color:#0f6fa8}.lg-alert.ok{background:#eef7ee;border-color:#107c10}
 .lg-alert.err{background:#fde7e9;border-color:#a4262c}.lg-alert.warn{background:#fff4ce;border-color:#c25100}
-.lg-more{margin-top:1.3rem;border-top:1px solid #e1e1e1;padding-top:.9rem}
-.lg-more summary{cursor:pointer;color:#0b5f91;font-size:.9rem}
+.lg-more{margin-top:1.4rem;border-top:1px solid #c8c8c8;padding-top:1rem}
+.lg-more summary{cursor:pointer;color:#0b5582;font-size:.95rem;font-weight:600}
 .lg-more .lg-alt{display:grid;gap:.4rem;margin-top:.7rem}
 .lg-alt button{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;border:1px solid #e1e1e1;background:#fff;padding:.55rem .7rem;font:inherit;font-size:.9rem;cursor:pointer}
 .lg-alt button:hover{border-color:#1f1f1f}
-.lg-foot{text-align:center;font-size:.8rem;color:#5f5f5f;padding:0 1rem 1.2rem}
-.lg-foot a{color:#5f5f5f}
+.lg-foot{text-align:center;font-size:.88rem;color:#3b3b3b;padding:0 1rem 1.2rem}
+.lg-foot a{color:#3b3b3b}
 @media(max-width:480px){.lg-card{padding:1.6rem 1.2rem;border:0}}
 /* klasy używane w modalach metod alternatywnych (auth/_login_modals.php) */
 .ks-field{margin-bottom:.9rem}.ks-field label{display:block;font-weight:600;font-size:.9rem;margin-bottom:.3rem}
@@ -417,11 +423,11 @@ body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;back
 </style>
 </head>
 <body>
+<a class="lg-skip" href="#f-email">Przejdź do logowania</a>
 <main class="lg-wrap" id="login-main">
   <div class="lg-card">
     <div class="lg-brand">
-      <?php if ($_b['logo_url']): ?><img src="<?= h($_b['logo_url']) ?>" alt=""><?php endif; ?>
-      <span><?= h($_org) ?></span>
+      <?php if ($_b['logo_url']): ?><img src="<?= h($_b['logo_url']) ?>" alt="<?= h($_org) ?>"><?php else: ?><span><?= h($_org) ?></span><?php endif; ?>
     </div>
     <h1 class="lg-h1"><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się' ?></h1>
     <p class="lg-lead"><?= $_login_welcome_is_custom ? nl2br(h($_login_welcome)) : 'System Wspomagania Zarządzania Organizacją' ?></p>
@@ -445,9 +451,9 @@ body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;back
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_method" value="local">
       <div class="lg-field"><label for="f-email">Adres e-mail</label>
-        <input type="email" name="email" id="f-email" class="lg-in" autocomplete="email" inputmode="email" required<?= (!$_show_ms || ($error && $active_tab === 'local')) ? ' autofocus' : '' ?><?= ($error && $active_tab === 'local') ? ' aria-invalid="true"' : '' ?>></div>
+        <input type="email" name="email" id="f-email" class="lg-in" autocomplete="email" inputmode="email" required<?= (!$_show_ms || ($error && $active_tab === 'local')) ? ' autofocus' : '' ?><?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>></div>
       <div class="lg-field"><label for="f-pass">Hasło</label>
-        <div class="lg-pass"><input type="password" name="password" id="f-pass" class="lg-in" autocomplete="current-password" required<?= ($error && $active_tab === 'local') ? ' aria-invalid="true"' : '' ?>>
+        <div class="lg-pass"><input type="password" name="password" id="f-pass" class="lg-in" autocomplete="current-password" required<?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>>
           <button type="button" aria-label="Pokaż hasło" aria-pressed="false" onclick="var i=document.getElementById('f-pass'),s=i.type==='password';i.type=s?'text':'password';this.setAttribute('aria-pressed',s);this.firstElementChild.className=s?'bi bi-eye-slash':'bi bi-eye'"><i class="bi bi-eye" aria-hidden="true"></i></button></div></div>
       <button type="submit" class="lg-btn">Zaloguj</button>
     </form>
