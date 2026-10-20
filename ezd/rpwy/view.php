@@ -87,17 +87,40 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <?= flash_html() ?>
 
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <div>
-    <h4 class="mb-1 fw-bold font-monospace text-primary"><?= h(ezd_rpwy_label($r)) ?></h4>
-    <div><?= ezd_rpwy_status_badge($r['status']) ?>
-      <span class="text-muted ms-2" style="font-size:.82rem"><i class="bi <?= $sp['icon'] ?> me-1"></i><?= h($sp['label']) ?></span>
-    </div>
-  </div>
+<!-- ══ Przesyłka wychodząca — układ Dynamics 365 (assets/css/dynamics.css, includes/dynRecord.php; kolory EZD w ezd_metro.php) ══ -->
+<?php
+require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
+$_rw_meta  = EZD_RPWY_STATUSY[$r['status']] ?? ['label' => $r['status'], 'class' => 'secondary'];
+$_rw_color = ['primary' => 'var(--m-blue)', 'warning' => 'var(--m-orange)', 'success' => 'var(--m-green)', 'danger' => 'var(--m-red)'][$_rw_meta['class']] ?? '';
+$_rw_d     = fn($v) => $v ? date('d.m.Y', strtotime((string)$v)) : '';
+$_rw_fields = [
+    ['Status', $_rw_meta['label'], $_rw_color],
+    ['Sposób', ['html' => '<i class="bi ' . h($sp['icon']) . '" aria-hidden="true"></i> ' . h($sp['label'])]],
+    ['Data nadania', $_rw_d($r['data_wysylki'])],
+];
+if (!empty($r['nr_nadania'])) $_rw_fields[] = ['Nr nadania', ['html' => '<span class="font-monospace">' . h($r['nr_nadania']) . '</span>']];
+if (!empty($r['data_doreczenia'])) $_rw_fields[] = ['Doręczono', $_rw_d($r['data_doreczenia']), 'var(--m-green)'];
+// Etapy przesyłki; „Przetwarzanie – Postivo” tylko gdy przesyłka przez nie przechodzi
+$_rw_stages = ['przygotowana' => 'Przygotowana'] + ($r['status'] === 'postivo_queued' || !empty($r['postivo_job_id']) ? ['postivo_queued' => 'Postivo'] : []) + ['nadana' => 'Nadana', 'doreczona' => 'Doręczona'];
+?>
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia przesyłki">
+  <a href="<?= APP_URL ?>/ezd/rpwy/index.php" class="btn btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i>Książka nadawcza</a>
   <?php if (can_edit() && $r['status'] !== 'anulowana'): ?>
-  <a href="<?= APP_URL ?>/ezd/rpwy/edit.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <a href="<?= APP_URL ?>/ezd/rpwy/edit.php?id=<?= $id ?>" class="btn btn-sm"><i class="bi bi-pencil" aria-hidden="true"></i>Edytuj</a>
   <?php endif; ?>
 </div>
+
+<section class="dyn-rec" aria-labelledby="rw-title">
+  <div class="dyn-head">
+    <div class="dyn-head__main">
+      <div class="dyn-entity"><i class="bi bi-send" aria-hidden="true"></i> Przesyłka wychodząca · <code><?= h(ezd_rpwy_label($r)) ?></code></div>
+      <h1 id="rw-title" class="dyn-title"><?= h($r['odbiorca'] ?: 'Bez odbiorcy') ?></h1>
+    </div>
+    <?= dynHFields($_rw_fields) ?>
+  </div>
+  <?= dynStages($_rw_stages, (string)$r['status'], ['label' => 'Etapy przesyłki', 'off' => ['zwrocona' => 'Zwrócona', 'anulowana' => 'Anulowana']]) ?>
+</section>
 
 <?php if ($trm): ?>
 <div class="alert <?= $trm['po_terminie'] ? 'alert-danger' : 'alert-info' ?> py-2" style="font-size:.84rem">
@@ -107,7 +130,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <?php endif; ?>
 
-<div class="row g-4">
+<div class="row g-4 dyn-form">
   <div class="col-lg-7">
     <div class="card shadow-sm mb-3">
       <div class="card-header fw-semibold" style="font-size:.82rem"><i class="bi bi-person-lines-fill me-1 text-primary"></i>Adresat i przesyłka</div>
