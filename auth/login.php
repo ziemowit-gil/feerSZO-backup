@@ -346,188 +346,134 @@ $_konto_url = function (string $k): string {
 // Nazwa systemu na ekranie powitania (spójna z nagłówkiem SZO)
 $_sys_name = 'Systemie Wspomagania Zarządzania Organizacją';
 
-require_once dirname(__DIR__) . '/includes/auth_screen.php';
-auth_screen_head([
-    'title'          => 'Logowanie',
-    'side_title'     => 'Logowanie do systemu (SZO)',
-    'account_buttons'=> ['register'],   // „Nie pamiętasz hasła?” jest w karcie, pod polem hasła
-    'side_sub'       => 'Jak się zalogować:',
-    'side_steps'     => [
-        'Wybierz, jaki masz adres e-mail: w domenie fundacji czy prywatny.',
-        'Poczta @feer.org.pl: zaloguj się przez Microsoft 365.',
-        'Prywatny e-mail: wpisz adres e-mail i hasło.',
-    ],
-    'side_tabs_html' => auth_screen_login_tabs('login'),
-    'bootstrap'      => true,
-    'width'          => 760,
-    'main_id'        => 'login-main',
-]);
-
-// Modale alternatywnych metod renderujemy do bufora — trafiają poza kartę.
+// ── Widok: lekka karta logowania (2026-10-20: „toporne to okno”) — Microsoft 365 + e-mail/hasło na jednym ekranie,
+// inne metody schowane; bez panelu z instrukcją. Logika powyżej bez zmian; modale metod alternatywnych z _login_modals.php.
 ob_start();
 require __DIR__ . '/_login_modals.php';
 $_modals_html = ob_get_clean();
-?>
-
-    <?php auth_screen_news(); ?>
-
-    <?php
-    $_ln_show = null;
-    foreach ($_login_notices as $_ln_item) {
-        if ($_ln_item['is_pinned'] ?? 0) { $_ln_show = $_ln_item; break; }
-    }
-    if (!$_ln_show && !empty($_login_notices)) $_ln_show = $_login_notices[0];
-    if ($_ln_show): ?>
-    <div class="l-alert l-alert-info" role="region" aria-label="Komunikat">
-      <i class="bi bi-megaphone-fill flex-shrink-0" aria-hidden="true"></i>
-      <div>
-        <strong><?= h($_ln_show['title']) ?></strong>
-        <?php if ($_ln_show['body']): ?><br><span style="font-size:.85rem"><?= nl2br(h($_ln_show['body'])) ?></span><?php endif; ?>
-      </div>
+$_b = branding_load();
+$_org = $_b['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : '');
+$_ln_show = null;
+foreach ($_login_notices as $_ln_item) { if ($_ln_item['is_pinned'] ?? 0) { $_ln_show = $_ln_item; break; } }
+if (!$_ln_show && !empty($_login_notices)) $_ln_show = $_login_notices[0];
+$_sso_hint = $_SESSION['sso_hint'] ?? null;
+if ($_sso_hint && time() - (int)($_sso_hint['at'] ?? 0) > 900) { unset($_SESSION['sso_hint']); $_sso_hint = null; }
+$has_alt = ($code_available || $sms_available || $x509_available);
+$_show_ms = $ms_available && !$emergency;
+?><!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logowanie — <?= h($_org) ?></title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?php branding_css($_b); ?>
+<style>
+body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:#f3f2f1;color:#1f1f1f;min-height:100vh;display:flex;flex-direction:column;margin:0}
+:focus-visible{outline:3px solid #fbbf24!important;outline-offset:2px}
+.lg-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem 1rem}
+.lg-card{background:#fff;width:100%;max-width:440px;padding:2.2rem 2.2rem 1.8rem;border:1px solid #e1e1e1}
+.lg-brand{display:flex;align-items:center;gap:.7rem;margin-bottom:1.6rem}
+.lg-brand img{height:38px;width:auto}
+.lg-brand span{font-size:.85rem;color:#5f5f5f;line-height:1.25}
+.lg-h1{font-size:1.6rem;font-weight:600;margin:0 0 .3rem}
+.lg-lead{color:#5f5f5f;margin:0 0 1.4rem;font-size:.95rem}
+.lg-ms{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;min-height:48px;background:var(--bp,#2f2f2f);color:#fff!important;text-decoration:none;font-weight:600}
+.lg-ms:hover{filter:brightness(.92)}
+.lg-ms-sub{font-size:.8rem;color:#5f5f5f;text-align:center;margin:.35rem 0 0}
+.lg-or{display:flex;align-items:center;gap:.8rem;margin:1.3rem 0 1rem;color:#5f5f5f;font-size:.85rem}
+.lg-or::before,.lg-or::after{content:"";flex:1;border-top:1px solid #e1e1e1}
+.lg-field{margin-bottom:.9rem}
+.lg-field label{display:block;font-weight:600;font-size:.9rem;margin-bottom:.3rem}
+.lg-in{width:100%;min-height:44px;border:1px solid #8a8a8a;border-radius:0;padding:.45rem .65rem;font:inherit}
+.lg-in:focus{border-color:#1f1f1f;outline:none;box-shadow:inset 0 0 0 1px #1f1f1f}
+.lg-pass{position:relative}.lg-pass .lg-in{padding-right:2.8rem}
+.lg-pass button{position:absolute;right:1px;top:1px;bottom:1px;width:2.6rem;border:0;background:#fff;cursor:pointer}
+.lg-btn{width:100%;min-height:46px;border:2px solid #1f1f1f;background:#fff;color:#1f1f1f;font-weight:600;cursor:pointer}
+.lg-btn:hover{background:#1f1f1f;color:#fff}
+.lg-links{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-top:.9rem;font-size:.88rem}
+.lg-links a{color:#0b5f91}
+.lg-alert{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .8rem;margin-bottom:1rem;font-size:.9rem;border-left:4px solid}
+.lg-alert.info{background:#eff6fc;border-color:#0f6fa8}.lg-alert.ok{background:#eef7ee;border-color:#107c10}
+.lg-alert.err{background:#fde7e9;border-color:#a4262c}.lg-alert.warn{background:#fff4ce;border-color:#c25100}
+.lg-more{margin-top:1.3rem;border-top:1px solid #e1e1e1;padding-top:.9rem}
+.lg-more summary{cursor:pointer;color:#0b5f91;font-size:.9rem}
+.lg-more .lg-alt{display:grid;gap:.4rem;margin-top:.7rem}
+.lg-alt button{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;border:1px solid #e1e1e1;background:#fff;padding:.55rem .7rem;font:inherit;font-size:.9rem;cursor:pointer}
+.lg-alt button:hover{border-color:#1f1f1f}
+.lg-foot{text-align:center;font-size:.8rem;color:#5f5f5f;padding:0 1rem 1.2rem}
+.lg-foot a{color:#5f5f5f}
+@media(max-width:480px){.lg-card{padding:1.6rem 1.2rem;border:0}}
+/* klasy używane w modalach metod alternatywnych (auth/_login_modals.php) */
+.ks-field{margin-bottom:.9rem}.ks-field label{display:block;font-weight:600;font-size:.9rem;margin-bottom:.3rem}
+.ks-muted{color:#5f5f5f;font-size:.88rem}
+.ks-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;width:100%;min-height:44px;border:2px solid #1f1f1f;background:#fff;color:#1f1f1f;font-weight:600}
+.ks-btn--primary{background:#1f1f1f;color:#fff}.ks-btn--primary:hover{background:#000}
+.l-alert{display:flex;gap:.6rem;align-items:flex-start;padding:.6rem .8rem;margin-bottom:.9rem;font-size:.9rem;border-left:4px solid #0f6fa8;background:#eff6fc}
+.l-alert-danger{border-color:#a4262c;background:#fde7e9}.l-alert-success{border-color:#107c10;background:#eef7ee}
+.pass-wrap{position:relative}.pass-toggle{position:absolute;right:1px;top:1px;bottom:1px;width:2.6rem;border:0;background:#fff}
+.modal-content{border-radius:0}
+</style>
+</head>
+<body>
+<main class="lg-wrap" id="login-main">
+  <div class="lg-card">
+    <div class="lg-brand">
+      <?php if ($_b['logo_url']): ?><img src="<?= h($_b['logo_url']) ?>" alt=""><?php endif; ?>
+      <span><?= h($_org) ?></span>
     </div>
+    <h1 class="lg-h1"><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się' ?></h1>
+    <p class="lg-lead"><?= $_login_welcome_is_custom ? nl2br(h($_login_welcome)) : 'System Wspomagania Zarządzania Organizacją' ?></p>
+
+    <?php if ($_ln_show): ?><div class="lg-alert info" role="region" aria-label="Komunikat"><i class="bi bi-megaphone" aria-hidden="true"></i><div><strong><?= h($_ln_show['title']) ?></strong><?php if ($_ln_show['body']): ?><br><?= nl2br(h($_ln_show['body'])) ?><?php endif; ?></div></div><?php endif; ?>
+    <?php if ($_sso_hint): ?><div class="lg-alert info" role="alert" id="sso-hint"><i class="bi bi-shield-check" aria-hidden="true"></i><div>
+      <?php if (!empty($_sso_hint['reauth'])): ?><strong>Wymagane ponowne logowanie.</strong> <?php endif; ?>
+      Logujesz się, aby otworzyć <?= ($_sso_hint['app'] ?? '') !== '' ? 'aplikację: <strong>' . h($_sso_hint['app']) . '</strong>' : 'zewnętrzną aplikację' ?>.
+      Jeśli nie otwierasz żadnej aplikacji, nie wpisuj hasła.</div></div><?php endif; ?>
+    <?php if (isset($_GET['ended'])): ?><div class="lg-alert ok" role="status"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Sesja zakończona — zaloguj się ponownie.</span></div><?php endif; ?>
+    <?php if ($error && !in_array($active_tab, ['code','sms','x509'], true)): ?><div class="lg-alert err" role="alert" id="login-error-box"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span id="login-error-text"><?= h($error) ?></span></div><?php endif; ?>
+    <?php if ($emergency): ?><div class="lg-alert warn" role="note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>Logowanie awaryjne — użyj adresu e-mail i <strong>hasła awaryjnego</strong>.</span></div><?php endif; ?>
+
+    <?php if ($_show_ms): ?>
+    <a class="lg-ms" href="<?= h($_ms_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Zaloguj przez Microsoft 365</a>
+    <p class="lg-ms-sub">Poczta w domenie fundacji (@feer.org.pl)</p>
+    <div class="lg-or">albo e-mail i hasło</div>
     <?php endif; ?>
 
-    <?php
-    // Komunikat z żądania SSO: którą aplikację się loguje (role="alert", żeby czytnik
-    // ekranu przeczytał go przed polem hasła). Wygasa po 15 min.
-    $_sso_hint = $_SESSION['sso_hint'] ?? null;
-    if ($_sso_hint && time() - (int)($_sso_hint['at'] ?? 0) > 900) {
-        unset($_SESSION['sso_hint']);
-        $_sso_hint = null;
-    }
-    if ($_sso_hint): ?>
-    <div class="l-alert l-alert-info" role="alert" id="sso-hint">
-      <i class="bi bi-shield-check flex-shrink-0" aria-hidden="true"></i>
-      <div>
-        <?php if (!empty($_sso_hint['reauth'])): ?><strong>Wymagane ponowne logowanie.</strong> <?php endif; ?>
-        <?php if (($_sso_hint['app'] ?? '') !== ''): ?>
-          Logujesz się, aby otworzyć aplikację: <strong><?= h($_sso_hint['app']) ?></strong>.
-        <?php else: ?>
-          Logujesz się, aby otworzyć zewnętrzną aplikację.
-        <?php endif; ?>
-        Jeśli nie otwierasz żadnej aplikacji, nie wpisuj hasła i zamknij tę stronę.
-      </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if (isset($_GET['ended'])): ?>
-    <div class="l-alert l-alert-success" role="status">
-      <i class="bi bi-box-arrow-right flex-shrink-0" aria-hidden="true"></i>
-      <span>Sesja zakończona — zaloguj się ponownie.</span>
-    </div>
-    <?php endif; ?>
-
-    <?php if ($error && !in_array($active_tab, ['code','sms','x509'], true)): ?>
-    <div class="l-alert l-alert-danger" role="alert" id="login-error-box">
-      <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
-      <span id="login-error-text"><?= h($error) ?></span>
-    </div>
-    <?php endif; ?>
-
-    <?php if ($emergency): ?>
-    <div class="l-alert" style="background:#7c2d12;color:#fff;border:1px solid #92400e" role="note">
-      <i class="bi bi-shield-lock-fill flex-shrink-0" aria-hidden="true"></i>
-      <span>Logowanie awaryjne — użyj <strong>adresu e-mail</strong> i <strong>hasła awaryjnego</strong>.</span>
-    </div>
-    <?php endif; ?>
-
-    <h1 class="ks-h1"><?= $_login_tagline ? h($_login_tagline) : 'Witaj w ' . h($_sys_name) ?></h1>
-    <p class="ks-lead">
-      <?php if ($_login_welcome_is_custom): ?><?= nl2br(h($_login_welcome)) ?>
-      <?php elseif ($konto === ''): ?>Jaki adres e-mail masz?
-      <?php else: ?>Zaloguj się adresem e-mail i hasłem.
-      <?php endif; ?>
-    </p>
-
-    <?php if ($konto === ''): ?>
-    <!-- ══ Krok 1: wybór rodzaju adresu e-mail ══════════════════════════ -->
-    <div class="ks-choice" role="list" aria-label="Rodzaj adresu e-mail">
-      <a role="listitem" class="ks-choice__item ks-choice__item--org" href="<?= h($_ms_url) ?>"
-         aria-label="Mam pocztę w domenie fundacji — zaloguj przez Microsoft 365, zostaniesz przekierowany do Microsoft">
-        <i class="bi bi-building" aria-hidden="true"></i>
-        <span><strong>Mam pocztę w domenie fundacji</strong>
-          <span class="ks-choice__sub">Adres <b>@feer.org.pl</b> — logowanie przez Microsoft 365</span></span>
-      </a>
-      <a role="listitem" class="ks-choice__item" href="<?= h($_konto_url('prywatny')) ?>">
-        <i class="bi bi-envelope" aria-hidden="true"></i>
-        <span><strong>Mam prywatny adres e-mail</strong>
-          <span class="ks-choice__sub">Np. Gmail, Onet, WP — logowanie e-mailem i hasłem</span></span>
-      </a>
-    </div>
-    <?php endif; ?>
-
-    <?php if ($konto === 'prywatny'): ?>
-    <!-- ══ E-mail + hasło ═══════════════════════════════════════════════ -->
     <form method="post" novalidate autocomplete="on" aria-label="Logowanie e-mailem i hasłem">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_method" value="local">
-
-      <div class="ks-field">
-        <label for="f-email">Adres e-mail</label>
-        <input type="email" name="email" id="f-email" class="form-control"
-               autocomplete="email" inputmode="email" required
-               autofocus
-               <?php if ($error && $active_tab === 'local'): ?>aria-invalid="true"<?php endif; ?>>
-      </div>
-
-      <div class="ks-field">
-        <label for="f-pass">Hasło</label>
-        <div class="pass-wrap">
-          <input type="password" name="password" id="f-pass" class="form-control"
-                 autocomplete="current-password" required
-                 <?php if ($error && $active_tab === 'local'): ?>aria-invalid="true"<?php endif; ?>>
-          <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
-                  onclick="togglePass('f-pass', this)">
-            <i class="bi bi-eye" aria-hidden="true"></i>
-          </button>
-        </div>
-        <a href="<?= APP_URL ?>/user/verify_reset.php" class="ks-forgot">Nie pamiętasz hasła?</a>
-      </div>
-
-      <button type="submit" class="ks-btn ks-btn--primary">Zaloguj</button>
+      <div class="lg-field"><label for="f-email">Adres e-mail</label>
+        <input type="email" name="email" id="f-email" class="lg-in" autocomplete="email" inputmode="email" required<?= (!$_show_ms || ($error && $active_tab === 'local')) ? ' autofocus' : '' ?><?= ($error && $active_tab === 'local') ? ' aria-invalid="true"' : '' ?>></div>
+      <div class="lg-field"><label for="f-pass">Hasło</label>
+        <div class="lg-pass"><input type="password" name="password" id="f-pass" class="lg-in" autocomplete="current-password" required<?= ($error && $active_tab === 'local') ? ' aria-invalid="true"' : '' ?>>
+          <button type="button" aria-label="Pokaż hasło" aria-pressed="false" onclick="var i=document.getElementById('f-pass'),s=i.type==='password';i.type=s?'text':'password';this.setAttribute('aria-pressed',s);this.firstElementChild.className=s?'bi bi-eye-slash':'bi bi-eye'"><i class="bi bi-eye" aria-hidden="true"></i></button></div></div>
+      <button type="submit" class="lg-btn">Zaloguj</button>
     </form>
-    <?php if ($ms_available && !$emergency): ?>
-    <p class="ks-switch"><a href="<?= h($_ms_url) ?>">Mam pocztę @feer.org.pl — zaloguj przez Microsoft 365</a></p>
-    <?php endif; ?>
-    <?php endif; ?>
+    <div class="lg-links"><a href="<?= APP_URL ?>/user/verify_reset.php">Nie pamiętasz hasła?</a><a href="<?= APP_URL ?>/user/register.php">Załóż konto</a></div>
 
-    <?php /* „Załóż konto" i „Odzyskaj hasło" są w lewej kolumnie (account_buttons). */ ?>
-
-    <?php $has_alt = ($code_available || $sms_available || $x509_available); if ($has_alt): ?>
-    <hr class="ks-sep">
-    <p class="ks-sub">Inne metody logowania</p>
-    <div class="ks-alt">
-    <?php if ($code_available): ?>
-    <button class="ks-alt__item" type="button" data-bs-toggle="modal" data-bs-target="#modal-code">
-      <i class="bi bi-key-fill" aria-hidden="true"></i>
-      <span><strong>Kod jednorazowy</strong>
-        <span class="ks-optsub">Pierwsze logowanie lub dostęp od administratora</span></span>
-    </button>
+    <?php if ($has_alt): ?>
+    <details class="lg-more"<?= in_array($active_tab, ['code','sms','x509'], true) ? ' open' : '' ?>>
+      <summary>Inne metody logowania</summary>
+      <div class="lg-alt">
+        <?php if ($code_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-code"><i class="bi bi-key" aria-hidden="true"></i> Kod jednorazowy</button><?php endif; ?>
+        <?php if ($sms_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-sms"><i class="bi bi-phone" aria-hidden="true"></i> Kod SMS</button><?php endif; ?>
+        <?php if ($x509_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-x509"><i class="bi bi-patch-check" aria-hidden="true"></i> Certyfikat X.509 (administratorzy)</button><?php endif; ?>
+      </div>
+    </details>
     <?php endif; ?>
-    <?php if ($sms_available): ?>
-    <button class="ks-alt__item" type="button" data-bs-toggle="modal" data-bs-target="#modal-sms">
-      <i class="bi bi-phone-fill" aria-hidden="true"></i>
-      <span><strong>Kod SMS</strong>
-        <span class="ks-optsub">Logowanie przez numer telefonu</span></span>
-    </button>
-    <?php endif; ?>
-    <?php if ($x509_available): ?>
-    <button class="ks-alt__item" type="button" data-bs-toggle="modal" data-bs-target="#modal-x509">
-      <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
-      <span><strong>Certyfikat X.509</strong>
-        <span class="ks-optsub">Plik .p12 — dla administratorów systemu</span></span>
-    </button>
-    <?php endif; ?>
-    </div>
-    <?php endif; ?>
-
-<?php
-auth_screen_foot([
-    'extra_html' => $_modals_html,
-    'extra_js'   => '<script>(function(){'
-        . 'document.querySelectorAll(".modal").forEach(function(m){'
-        . 'm.addEventListener("shown.bs.modal",function(){var f=m.querySelector("input:not([type=hidden])");if(f)f.focus();});});'
-        . 'var a=' . json_encode(in_array($active_tab, ['code','sms','x509'], true) ? $active_tab : null) . ';'
-        . 'if(a){var el=document.getElementById("modal-"+a);if(el)bootstrap.Modal.getOrCreateInstance(el).show();}'
-        . '})();</script>',
-]);
+  </div>
+</main>
+<footer class="lg-foot"><?= h($_org) ?> · <a href="<?= APP_URL ?>/auth/help.php">Pomoc w logowaniu</a> · <a href="<?= APP_URL ?>/dostepnosc/">Deklaracja dostępności</a></footer>
+<?= $_modals_html ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function togglePass(id, btn){var i=document.getElementById(id);if(!i)return;var s=i.type==='password';i.type=s?'text':'password';btn.setAttribute('aria-pressed',s);var ic=btn.querySelector('i');if(ic)ic.className=s?'bi bi-eye-slash':'bi bi-eye';}
+(function(){
+document.querySelectorAll(".modal").forEach(function(m){m.addEventListener("shown.bs.modal",function(){var f=m.querySelector("input:not([type=hidden])");if(f)f.focus();});});
+var a=<?= json_encode(in_array($active_tab, ['code','sms','x509'], true) ? $active_tab : null) ?>;
+if(a){var el=document.getElementById("modal-"+a);if(el)bootstrap.Modal.getOrCreateInstance(el).show();}
+})();</script>
+</body>
+</html>
