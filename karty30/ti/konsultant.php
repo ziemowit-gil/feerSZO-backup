@@ -94,16 +94,14 @@ a{color:#4b00b5}
 </aside>
 <main class="kl-main" id="main">
   <div class="kl-box">
-    <h1 class="kl-h">Zaloguj się</h1>
-    <p class="kl-lead">Numer zastępczy konsultanta (3 cyfry) i hasło.</p>
+    <h1 class="kl-h" style="margin-bottom:1.4rem">Zaloguj się</h1>
     <?php if ($error !== ''): ?><div class="kl-err" role="alert" id="kl-err"><?= h($error) ?></div><?php endif; ?>
     <form method="post" autocomplete="on">
       <input type="hidden" name="_token" value="<?= h($_tok) ?>">
       <div class="kl-field">
         <label for="kl-login">Numer zastępczy</label>
         <input class="kl-in" id="kl-login" name="login" required maxlength="3" inputmode="numeric" pattern="\d{3}" value="<?= h($login) ?>" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus
-               aria-describedby="kl-login-h<?= $error !== '' ? ' kl-err' : '' ?>"<?= $error !== '' ? ' aria-invalid="true"' : '' ?>>
-        <p class="kl-hint" id="kl-login-h">Np. <strong>417</strong> — wejście bez kodu, tylko Konsultacje. Konsultant z adresem e-mail loguje się na <a href="<?= h(TiLogin::url()) ?>">stronie logowania TI</a>.</p>
+               <?= $error !== '' ? 'aria-describedby="kl-err"' : '' ?><?= $error !== '' ? ' aria-invalid="true"' : '' ?>>
       </div>
       <div class="kl-field">
         <label for="kl-pass">Hasło</label>
@@ -113,7 +111,6 @@ a{color:#4b00b5}
     </form>
     <div class="kl-or">kadra organizacji</div>
     <a class="kl-ms" href="<?= h(TiLogin::officeUrl()) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Zaloguj przez Microsoft 365</a>
-    <p class="kl-foot">Numer zastępczy dostaniesz po zalogowaniu Microsoft 365: Konsultacje › Moje › Login zastępczy.</p>
   </div>
 </main>
 </body>
