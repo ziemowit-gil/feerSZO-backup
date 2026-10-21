@@ -376,4 +376,38 @@ return [
         },
     ],
 
+    // Umowy: ujednolicenie zapisanych statusów do wartości ze słownika umowy_statusy — warianty bez polskich znaków,
+    // inna wielkość liter/spacje, statusy spoza zestawu (wypowiedziana, oczekujaca, aktywna…), „obowiązująca” poza
+    // umową o pracę. Nieznanych wartości nie zmienia (tylko error_log). Każda zmiana w historii umowy (contract_audit_log).
+    '2026-10_umowy_statusy_dane' => [
+        'desc' => 'Umowy: stare/niespójne wartości statusów → statusy ze słownika umowy_statusy',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/contract_statuses/lib/contractStatuses.php';
+            require_once $ROOT . '/includes/approval.php';
+            $alias = [
+                'zakonczona' => 'zakończona', 'rozwiazana' => 'rozwiązana', 'wygasla' => 'wygasła', 'obowiazujaca' => 'obowiązująca',
+                'aktywna' => 'w realizacji', 'aktywne' => 'w realizacji', 'w_realizacji' => 'w realizacji', 'w trakcie' => 'w realizacji', 'w_trakcie' => 'w realizacji',
+                'wypowiedziana' => 'rozwiązana', 'oczekujaca' => 'do podpisu', 'oczekująca' => 'do podpisu',
+                'do_podpisu' => 'do podpisu', 'do_rozliczenia' => 'do rozliczenia', 'w_podpisie_w_instytucji' => 'w podpisie w instytucji',
+            ];
+            $known = array_keys(CONTRACT_STATUS_DEFAULTS);
+            $tables = ['zlecenie', 'dzielo', 'uslugi', 'wolontariat', 'inne', 'praca', 'powierzenie', 'szkolenie_ti'];
+            foreach ($tables as $type) {
+                $table = 'umowy_' . $type;
+                try { $rows = db_all("SELECT id, status FROM {$table}"); } catch (\Throwable $e) { continue; } // brak tabeli
+                foreach ($rows as $r) {
+                    $old = (string)$r['status'];
+                    $v = mb_strtolower(trim(preg_replace('/\s+/u', ' ', $old)));
+                    if ($v === '') continue;
+                    $new = in_array($v, $known, true) ? $v : ($alias[$v] ?? null);
+                    if ($new === 'obowiązująca' && $type !== 'praca') $new = 'w realizacji';
+                    if ($new === null) { error_log("[umowy_statusy] {$table}#{$r['id']}: nieznany status „{$old}” — bez zmian"); continue; }
+                    if ($new === $old) continue;
+                    db()->prepare("UPDATE {$table} SET status = ? WHERE id = ?")->execute([$new, (int)$r['id']]);
+                    log_contract_action($type, (int)$r['id'], 0, 'status_change', "Ujednolicenie statusu: {$old} → {$new}");
+                }
+            }
+        },
+    ],
+
 ];
