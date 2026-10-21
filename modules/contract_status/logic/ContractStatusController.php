@@ -16,6 +16,11 @@ final class ContractStatusController
         return Router::view(self::VIEW . 'index.php', ['q' => $q, 'type' => $type, 'found' => $q !== '' ? contractStatusFind($type, $q) : []]);
     }
 
+    /** Rozpiska statusów umów: słownik umowy_statusy, grupy, zestawy per typ, przejścia, liczby umów. */
+    public function map(): string {
+        return Router::view(self::VIEW . 'map.php', contractStatusMap());
+    }
+
     public function show(string $type, int $id): string {
         $row = contractStatusRow($type, $id);
         if (!$row) { http_response_code(404); return 'Nie znaleziono umowy.'; }

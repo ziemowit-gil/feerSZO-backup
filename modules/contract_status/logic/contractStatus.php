@@ -86,3 +86,49 @@ function contractStatusSet(string $type, array $row, string $to, string $reason,
         . ($undo ? ' (cofnięcie)' : '') . ($reason !== '' ? '. Powód: ' . $reason : ''));
     return $cur;
 }
+
+/**
+ * Rozpiska statusów umów (widok admina „Statusy umów”): wszystkie wpisy słownika umowy_statusy — także wyłączone —
+ * z atrybutami, liczbą umów per typ i wartościami w danych spoza słownika.
+ * @return array{rows: list<array>, types: array<string,string>, counts: array<string,array<string,int>>, unknown: array<string,array<string,int>>, dict: bool}
+ */
+function contractStatusMap(): array {
+    $types = CONTRACT_TYPES + array_map(fn($x) => $x['label'], CONTRACT_REGISTRY_EXTRA);
+
+    // liczba umów: typ → wartość statusu → n
+    $counts = [];
+    foreach (array_keys($types) as $t) {
+        $table = registry_table($t);
+        if (!$table) continue;
+        try {
+            foreach (db_all("SELECT COALESCE(status,'') AS s, COUNT(*) AS n FROM {$table} GROUP BY COALESCE(status,'')") as $r) $counts[$t][(string)$r['s']] = (int)$r['n'];
+        } catch (\Throwable $e) { /* brak tabeli (moduł nieużywany) */ }
+    }
+
+    // wpisy słownika (z wyłączonymi; bez kosza) — odczyt bez serwisu, tylko do podglądu
+    $entries = [];
+    try {
+        $entries = db_all("SELECT e.id, e.code, e.label, e.attributes, e.is_active, e.valid_from, e.valid_to
+                             FROM dictionary_entries e JOIN dictionaries d ON d.id = e.dictionary_id
+                            WHERE d.code = ? AND d.deleted_at IS NULL AND e.deleted_at IS NULL
+                            ORDER BY e.sort_order, e.id", [CONTRACT_STATUS_DICT]);
+    } catch (\Throwable $e) {}
+
+    $rows = [];
+    $today = date('Y-m-d');
+    foreach ($entries as $e) {
+        $attr  = json_decode((string)$e['attributes'], true) ?: [];
+        $value = is_string($attr['wartosc'] ?? null) && trim($attr['wartosc']) !== '' ? trim($attr['wartosc']) : (string)$e['code'];
+        $live  = (int)$e['is_active'] === 1 && (!$e['valid_from'] || $e['valid_from'] <= $today) && (!$e['valid_to'] || $e['valid_to'] >= $today);
+        $rows[] = ['value' => $value, 'entry' => (string)$e['code'], 'entry_id' => (int)$e['id'], 'active' => $live]
+                + _contractStatusNorm($value, ['label' => $e['label']] + $attr, _contractStatusDefault($value));
+    }
+    $dict = (bool)$rows;
+    if (!$dict) foreach (contractStatuses() as $v => $s) $rows[] = ['value' => $v, 'entry' => contractStatusSlug($v), 'entry_id' => 0, 'active' => true] + $s;
+
+    $known = array_column($rows, 'value');
+    $unknown = [];
+    foreach ($counts as $t => $byStatus) foreach ($byStatus as $s => $n) if (!in_array($s, $known, true)) $unknown[$t][$s] = $n;
+
+    return ['rows' => $rows, 'types' => $types, 'counts' => $counts, 'unknown' => $unknown, 'dict' => $dict];
+}
