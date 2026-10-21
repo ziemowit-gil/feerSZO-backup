@@ -1,4 +1,7 @@
 <?php
+// Statusy umów — jedno źródło: słownik umowy_statusy (STATUS_LABELS niżej = zapas i zasiew).
+require_once dirname(__DIR__) . '/modules/contract_statuses/lib/contractStatuses.php';
+
 const CONTRACT_TYPES = [
     'zlecenie'    => 'Umowa zlecenie',
     'uslugi'      => 'Umowa o świadczenie usług',
@@ -9,6 +12,7 @@ const CONTRACT_TYPES = [
     'inne'        => 'Inna umowa',
 ];
 
+/** Zapas, gdy brak słownika umowy_statusy — w kodzie używaj contractStatus*() (modules/contract_statuses). */
 const STATUS_LABELS = [
     'projekt'        => ['label' => 'Projekt',        'class' => 'secondary'],
     'do podpisu'     => ['label' => 'Do podpisu',     'class' => 'teal'],

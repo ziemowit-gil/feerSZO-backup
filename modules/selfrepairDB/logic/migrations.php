@@ -365,4 +365,15 @@ return [
         },
     ],
 
+    // Umowy: statusy wszystkich typów (etykiety, kolory, ikony, grupy, typy, przejścia) jako słownik systemowy.
+    '2026-10_dictionary_umowy_statusy' => [
+        'desc' => 'Słownik Centralny: statusy umów',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/contract_statuses/lib/contractStatuses.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import(contractStatusesSeed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
 ];
