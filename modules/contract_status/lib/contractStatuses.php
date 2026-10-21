@@ -50,6 +50,9 @@ const CONTRACT_STATUS_DEFAULTS = [
                                   'next' => ['zakończona', 'rozwiązana', 'wygasła']],
     'w realizacji'            => ['label' => 'W realizacji',            'class' => 'info',      'color' => '#0369A1', 'bg' => '#F0F9FF', 'icon' => 'bi-play-circle',      'grupa' => 'active',    'typy' => [...CONTRACT_STATUS_CIVIL, 'powierzenie'],
                                   'next' => ['zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana']],
+    // Zlecenie wielomiesięczne z niezamkniętym minionym miesiącem w saldzie — nadaje i zdejmuje system (zl_okres_sync()).
+    'okres do rozliczenia'    => ['label' => 'Okres do rozliczenia',    'class' => 'orange',    'color' => '#A16207', 'bg' => '#FEFCE8', 'icon' => 'bi-calendar2-check', 'grupa' => 'active',    'typy' => ['zlecenie'],
+                                  'next' => ['w realizacji', 'zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana'], 'systemowy' => true],
     'zawieszona'              => ['label' => 'Zawieszona',              'class' => 'orange',    'color' => '#C2410C', 'bg' => '#FFF7ED', 'icon' => 'bi-pause-circle',     'grupa' => 'active',    'typy' => CONTRACT_STATUS_CIVIL,
                                   'next' => ['w realizacji', 'do rozliczenia', 'zakończona', 'rozwiązana']],
     'do rozliczenia'          => ['label' => 'Do rozliczenia',          'class' => 'indigo',    'color' => '#4F46E5', 'bg' => '#EEF2FF', 'icon' => 'bi-calculator',       'grupa' => 'active',    'typy' => [...CONTRACT_STATUS_CIVIL, 'powierzenie'],
@@ -164,13 +167,16 @@ function contractStatusExists(?string $code, string $type = ''): bool
 /**
  * Statusy do wyboru w typie umowy: ['kod' => 'Etykieta'] (bez systemowych). Bieżąca wartość zawsze zostaje
  * na liście (także spoza zestawu typu), żeby edycja jej nie gubiła. $type '' = wszystkie typy.
+ * $withSystem — także statusy nadawane przez system (do FILTRÓW list, nie do formularzy).
  * @return array<string,string>
  */
-function contractStatusOptions(string $type = '', ?string $current = null): array
+function contractStatusOptions(string $type = '', ?string $current = null, bool $withSystem = false): array
 {
     $out = [];
     foreach (contractStatuses() as $code => $s) {
-        if ($code === $current || (!$s['system'] && ($type === '' || in_array($type, $s['types'], true)))) $out[$code] = $s['label'];
+        if ($code === 'aneks' && !$withSystem) continue;
+        $inType = $type === '' || in_array($type, $s['types'], true) || ($code === 'aneks' && $withSystem);
+        if ($code === $current || ((!$s['system'] || $withSystem) && $inType)) $out[$code] = $s['label'];
     }
     if ($current !== null && $current !== '' && !isset($out[$current])) $out[$current] = contractStatusLabel($current);
     return $out;

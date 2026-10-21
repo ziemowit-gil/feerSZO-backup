@@ -127,7 +127,7 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
         <div class="col-auto">
           <select name="status" class="form-select form-select-sm">
             <option value="">— status —</option>
-            <?php foreach ($statuses as $k => $v): ?>
+            <?php foreach (contractStatusOptions($TYPE, null, true) as $k => $v): // filtr — także statusy nadawane przez system ?>
             <option value="<?= h($k) ?>" <?= $status === $k ? 'selected' : '' ?>><?= h($v) ?></option>
             <?php endforeach; ?>
           </select>

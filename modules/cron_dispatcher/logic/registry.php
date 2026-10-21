@@ -290,6 +290,11 @@ function cron_dispatcher_registry(): array
             'interval' => 82800,        // 23 h: start o 6:00 bez dryfu
             'schedule' => [6, 7],       // okno 6:00–7:00 — RM za poprzedni miesiąc dla uczestników, którzy o to poprosili (od 5. dnia miesiąca)
         ],
+        'zlecenie_okres_rozliczenia' => [
+            'file'     => $cronDir . '/agents/zlecenieOkresRozliczenia.php',
+            'interval' => 82800,        // 23 h: start o 6:00 bez dryfu
+            'schedule' => [6, 7],       // okno 6:00–7:00 — zlecenia > 1 mies.: status „okres do rozliczenia” + przypomnienia o zamknięciu miesiąca (dni 1, 8, 15)
+        ],
         'us_przelewy_reminders' => [
             'file'     => $cronDir . '/agents/usPrzelewyReminders.php',
             'interval' => 82800,        // 23 h: start o 7:00 bez dryfu

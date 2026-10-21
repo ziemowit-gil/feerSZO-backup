@@ -824,6 +824,38 @@ HTML;
             ],
         ],
 
+        'zlecenie_okres_rozliczenia' => [
+            'label'       => 'Przypomnienie — zamknięcie miesiąca (zlecenie)',
+            'group'       => 'Umowy',
+            'icon'        => 'bi-calendar2-check',
+            'auto'        => true,
+            'description' => 'Zbiorcze przypomnienie dla opiekuna umowy (i adresów z ustawienia zl_okres_przypomnienia) o zleceniach w statusie „Okres do rozliczenia” — miniony miesiąc nie jest zamknięty w saldzie rozliczeń. Dni wysyłki: ustawienie zl_okres_przypomnienia_dni (domyślnie 1, 8, 15).',
+            'subject'     => 'Zamknij miesiąc w rozliczeniach — umowy zlecenie (liczba: {{liczba}})',
+            'body'        => <<<HTML
+<p style="margin:0 0 16px;font-size:15px;color:#333333;">Dzień dobry{{greeting}},</p>
+<p style="margin:0 0 16px;font-size:15px;color:#333333;">
+  te umowy zlecenie trwają dłużej niż miesiąc i mają <strong>niezamknięte miesiące w saldzie rozliczeń</strong> —
+  mają status „Okres do rozliczenia”. Sprawdź godziny i rachunki, a potem zamknij miesiąc w zakładce <strong>Rozliczenia</strong> umowy.
+</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;margin-bottom:20px;">
+  <tr style="background:#f8f9fa;text-align:left">
+    <th style="padding:6px 8px;border-bottom:2px solid #dee2e6">Umowa</th>
+    <th style="padding:6px 8px;border-bottom:2px solid #dee2e6">Zleceniobiorca</th>
+    <th style="padding:6px 8px;border-bottom:2px solid #dee2e6">Niezamknięte miesiące</th>
+  </tr>
+  {{lista}}
+</table>
+<p style="margin:0 0 8px;"><a href="{{url}}" style="background:#A16207;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">Lista umów do rozliczenia</a></p>
+<p style="margin:16px 0 0;font-size:12px;color:#6c757d;">Po zamknięciu wszystkich minionych miesięcy umowa wróci do statusu „W realizacji” automatycznie.</p>
+HTML,
+            'vars'        => [
+                'greeting' => ['label' => 'Zwrot (np. ", Anna Nowak")', 'sample' => ', <strong>Anna Nowak</strong>'],
+                'liczba'   => ['label' => 'Liczba umów',               'sample' => '2'],
+                'lista'    => ['label' => 'Wiersze tabeli umów (HTML)', 'sample' => '<tr><td>UZ/2026/014</td><td>Jan Kowalski</td><td>październik 2026</td></tr>'],
+                'url'      => ['label' => 'Link do listy umów',        'sample' => $base . '/contracts/zlecenie/list.php?status=okres%20do%20rozliczenia'],
+            ],
+        ],
+
         'zus_reminder' => [
             'label'       => 'Przypomnienie — ZUS (zlecenie)',
             'group'       => 'Umowy',

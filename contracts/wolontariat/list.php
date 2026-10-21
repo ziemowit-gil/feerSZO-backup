@@ -133,7 +133,7 @@ $_typ_labels = ['stały'=>'Stały','jednorazowy'=>'Jednorazowy','projektowy'=>'P
 $_obs_labels = ['społeczny'=>'Społeczny','edukacyjny'=>'Edukacyjny','zdrowotny'=>'Zdrowotny','ekologiczny'=>'Ekologiczny','kulturalny'=>'Kulturalny','sportowy'=>'Sportowy','pomocowy'=>'Pomocowy','zwierzeta'=>'Ochrona zwierząt','cyfrowy'=>'Cyfrowy / IT','inny'=>'Inny'];
 
 $status_counts = [];
-$all_statuses  = array_keys(contractStatusOptions('wolontariat')); // słownik umowy_statusy
+$all_statuses  = array_keys(contractStatusOptions('wolontariat', null, true)); // słownik umowy_statusy (z systemowymi: zablokowana, aneks)
 $all_total     = 0;
 foreach ($all_statuses as $s) {
     $c = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status=?", [$s])['c'] ?? 0);

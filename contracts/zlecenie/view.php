@@ -1160,6 +1160,13 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
 <!-- ═══════════════════ TAB — ROZLICZENIA ═══════════════════ -->
 <div class="tab-pane fade<?php if($_tab==='rozliczenia') echo ' show active'; ?>" id="tab-rozliczenia" role="tabpanel">
+  <?php $_zl_okres_open = zl_okres_open_months($row); if ($_zl_okres_open): ?>
+  <div class="alert alert-warning d-flex gap-2 align-items-start" role="status">
+    <i class="bi bi-calendar2-check fs-5" aria-hidden="true"></i>
+    <div><strong>Okres do rozliczenia:</strong> niezamknięte w saldzie <?= h(implode(', ', array_map('zl_ew_ym_label', $_zl_okres_open))) ?>.
+      Sprawdź godziny i rachunki, a potem zamknij miesiąc poniżej — po zamknięciu wszystkich minionych miesięcy umowa wróci do statusu „W realizacji”.</div>
+  </div>
+  <?php endif; ?>
   <!-- ═══ SALDO ROZLICZEŃ — należność / wypłata z rachunków / pozostało (przenoszone na kolejny miesiąc) ═══ -->
   <?php $_S = $_zl_ledger['suma']; $_is_godz = $_S['typ_stawki'] === 'godzinowo'; ?>
   <div class="card shadow-sm mb-3">

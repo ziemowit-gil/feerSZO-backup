@@ -1520,6 +1520,7 @@ function zl_rozl_month_close(int $contract_id, string $ym, ?int $user_id, ?float
     }
     $info = $wyplata_override !== null ? sprintf(', wypłata ustalona ręcznie: %.2f zł', $wyplata_override) : '';
     zl_ew_log($contract_id, 'rozliczenie_zamknij', 'Zamknięto miesiąc ' . zl_ew_ym_label($ym) . ' w saldzie rozliczeń' . $info, $user_id);
+    zl_okres_sync($contract_id, $user_id);   // ostatni niezamknięty miesiąc → z powrotem „w realizacji”
 }
 
 function zl_rozl_month_reopen(int $contract_id, string $ym, ?int $user_id, string $powod): void {
@@ -1527,6 +1528,7 @@ function zl_rozl_month_reopen(int $contract_id, string $ym, ?int $user_id, strin
     if (!$row || $row['status'] !== 'zamkniety') return;
     db_exec("UPDATE zlecenie_rozliczenie_miesiace SET status='otwarty', zamkniety_by=NULL, zamkniety_at=NULL, updated_at=datetime('now') WHERE id=?", [(int)$row['id']]);
     zl_ew_log($contract_id, 'rozliczenie_otworz', 'Ponownie otwarto miesiąc ' . zl_ew_ym_label($ym) . '. Powód: ' . $powod, $user_id);
+    zl_okres_sync($contract_id, $user_id);   // otwarty miniony miesiąc → „okres do rozliczenia”
 }
 
 /** Ręczne ustalenie kwoty wypłaty za miesiąc (NULL = wróć do sumy rachunków). */
@@ -2308,4 +2310,152 @@ function zl_rozl_close_blocker(array $contract): ?string {
         if ($m['status'] !== 'zamkniety' && $m['godziny_rozl'] > 0) return 'Miesiąc ' . $m['label'] . ' z godzinami nie został zamknięty w saldzie.';
     }
     return null;
+}
+
+// ── Okres do rozliczenia (zlecenia dłuższe niż miesiąc) ───────────────────────
+// Umowa zlecenie trwająca dłużej niż miesiąc rozlicza się co miesiąc: gdy miniony miesiąc nie jest zamknięty w saldzie
+// (zakładka Rozliczenia), umowa dostaje status systemowy „okres do rozliczenia”; po zamknięciu wszystkich minionych
+// miesięcy wraca do „w realizacji”. Agent CRON zlecenie_okres_rozliczenia (cron/agents/zlecenieOkresRozliczenia.php)
+// pilnuje statusów codziennie i przypomina o zamknięciu miesiąca. Wyłączenie: dezaktywacja statusu w słowniku umowy_statusy.
+// Ustawienia (settings): zl_okres_od — pierwszy miesiąc objęty rozliczaniem (RRRR-MM, domyślnie 2026-10),
+// zl_okres_przypomnienia_dni — dni miesiąca z przypomnieniem (domyślnie 1,8,15),
+// zl_okres_przypomnienia — dodatkowi adresaci przypomnień (e-maile po przecinku, np. księgowość).
+
+const ZL_OKRES_STATUS = 'okres do rozliczenia';
+
+/** Pierwszy miesiąc objęty miesięcznym rozliczaniem (wcześniejszych nie zamykano w saldzie). */
+function zl_okres_od(): string {
+    $v = trim(org_setting('zl_okres_od'));
+    return zl_ew_ym_valid($v) ? $v : '2026-10';
+}
+
+/** Mechanizm włączony: status „okres do rozliczenia” jest aktywny w słowniku umowy_statusy. */
+function zl_okres_enabled(): bool {
+    return contractStatusExists(ZL_OKRES_STATUS, 'zlecenie');
+}
+
+/** Umowa trwa dłużej niż miesiąc (albo jest bezterminowa / bez daty zakończenia). */
+function zl_okres_multi_month(array $c): bool {
+    $start = (string)($c['data_rozpoczecia'] ?: ($c['data_zawarcia'] ?? ''));
+    if ($start === '') return false;
+    $end = (string)($c['data_zakonczenia'] ?? '');
+    if (!empty($c['bezterminowa']) || $end === '') return true;
+    return $end > date('Y-m-d', strtotime($start . ' +1 month'));
+}
+
+/**
+ * Minione miesiące umowy (od jej początku, nie wcześniej niż zl_okres_od(), do poprzedniego miesiąca i końca umowy),
+ * które nie są zamknięte w saldzie rozliczeń. @return string[] RRRR-MM, najstarszy pierwszy
+ */
+function zl_okres_open_months(array $c, ?string $today = null): array {
+    if (!zl_okres_multi_month($c)) return [];
+    $today = $today ?: date('Y-m-d');
+    $from  = max(substr((string)($c['data_rozpoczecia'] ?: $c['data_zawarcia']), 0, 7), zl_okres_od());
+    $to    = zl_ew_ym_add(substr($today, 0, 7), -1);
+    $end   = (string)($c['data_zakonczenia'] ?? '');
+    if ($end !== '' && empty($c['bezterminowa'])) $to = min($to, substr($end, 0, 7));
+    $out = []; $ym = $from; $guard = 0;
+    while ($ym <= $to && $guard++ < 240) {
+        if (!zl_rozl_month_locked((int)$c['id'], $ym)) $out[] = $ym;
+        $ym = zl_ew_ym_add($ym, 1);
+    }
+    return $out;
+}
+
+/**
+ * Uzgadnia status umowy z saldem: „w realizacji” ↔ „okres do rozliczenia”. Dotyka tylko umów w jednym z tych dwóch
+ * statusów. Zwraca nowy status albo null (bez zmiany). Zmiana trafia do historii umowy.
+ */
+function zl_okres_sync(int $contract_id, ?int $user_id = null): ?string {
+    if (!zl_okres_enabled()) return null;
+    $c = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [$contract_id]);
+    if (!$c || !in_array((string)$c['status'], ['w realizacji', ZL_OKRES_STATUS], true)) return null;
+    $open   = zl_okres_open_months($c);
+    $target = $open ? ZL_OKRES_STATUS : 'w realizacji';
+    if ($target === $c['status']) return null;
+    db_update('umowy_zlecenie', ['status' => $target, 'updated_at' => date('Y-m-d H:i:s')], $contract_id);
+    require_once __DIR__ . '/approval.php';
+    log_contract_action('zlecenie', $contract_id, (int)$user_id, 'status_change', 'Zmiana statusu: ' . $c['status'] . ' → ' . $target
+        . ($open ? ' (automatycznie: niezamknięte w saldzie: ' . implode(', ', array_map('zl_ew_ym_label', $open)) . ')'
+                 : ' (automatycznie: wszystkie minione miesiące zamknięte w saldzie)'));
+    return $target;
+}
+
+/** Uzgadnia statusy wszystkich zleceń „w realizacji” / „okres do rozliczenia”. @return string[] opis zmian */
+function zl_okres_sync_all(bool $dry = false): array {
+    if (!zl_okres_enabled()) return ['Status „' . ZL_OKRES_STATUS . '” jest wyłączony w słowniku umowy_statusy — nic do zrobienia.'];
+    $lines = [];
+    foreach (db_all("SELECT * FROM umowy_zlecenie WHERE status IN ('w realizacji', ?)", [ZL_OKRES_STATUS]) as $c) {
+        $open = zl_okres_open_months($c);
+        $target = $open ? ZL_OKRES_STATUS : 'w realizacji';
+        if ($target === $c['status']) continue;
+        if (!$dry) zl_okres_sync((int)$c['id'], null);
+        $lines[] = ($c['numer_umowy'] ?: '#' . $c['id']) . ' (' . $c['imie_nazwisko'] . '): ' . $c['status'] . ' → ' . $target
+                 . ($open ? ' — niezamknięte: ' . implode(', ', array_map('zl_ew_ym_label', $open)) : '');
+    }
+    return $lines;
+}
+
+/**
+ * Przypomnienia o zamknięciu miesięcy (dni z zl_okres_przypomnienia_dni, raz dziennie): jeden zbiorczy e-mail na adresata —
+ * opiekun umowy (konto o nazwie z pola „opiekun”) i dodatkowi adresaci z zl_okres_przypomnienia (wszystkie umowy).
+ * @return array{note:string, lines:string[], sent:int}
+ */
+function zl_okres_przypomnienia(bool $dry = false, ?string $today = null): array {
+    $today = $today ?: date('Y-m-d');
+    if (!zl_okres_enabled()) return ['note' => 'Status „' . ZL_OKRES_STATUS . '” wyłączony w słowniku — bez przypomnień.', 'lines' => [], 'sent' => 0];
+    $days = array_filter(array_map('intval', explode(',', org_setting('zl_okres_przypomnienia_dni') ?: '1,8,15')));
+    if (!in_array((int)date('j', strtotime($today)), $days, true)) return ['note' => 'Dziś nie ma przypomnień (dni: ' . implode(', ', $days) . ').', 'lines' => [], 'sent' => 0];
+    $key = 'zl_okres_przypomnienie_' . $today;
+    $done = db_one("SELECT value FROM settings WHERE key_=?", [$key]);   // bez cache org_setting()
+    if (!$dry && $done) return ['note' => 'Przypomnienia na dziś już wysłane.', 'lines' => [], 'sent' => 0];
+
+    $extra = array_values(array_filter(array_map('trim', explode(',', org_setting('zl_okres_przypomnienia'))), fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
+    $byRecipient = [];   // email => ['name' => …, 'rows' => [...]]
+    foreach (db_all("SELECT * FROM umowy_zlecenie WHERE status=? ORDER BY numer_umowy", [ZL_OKRES_STATUS]) as $c) {
+        $open = zl_okres_open_months($c, $today);
+        if (!$open) continue;
+        $row = ['c' => $c, 'open' => $open];
+        $op = trim((string)$c['opiekun']);
+        if ($op !== '') {
+            $u = db_one("SELECT name, email FROM users WHERE LOWER(TRIM(name))=LOWER(?) AND COALESCE(is_active,1)=1 AND email<>'' LIMIT 1", [$op]);
+            if ($u && filter_var($u['email'], FILTER_VALIDATE_EMAIL)) {
+                $byRecipient[strtolower($u['email'])]['name'] = $u['name'];
+                $byRecipient[strtolower($u['email'])]['rows'][(int)$c['id']] = $row;
+            }
+        }
+        foreach ($extra as $e) { $byRecipient[strtolower($e)]['name'] ??= ''; $byRecipient[strtolower($e)]['rows'][(int)$c['id']] = $row; }
+    }
+    if (!$byRecipient) return ['note' => 'Brak umów do przypomnienia albo adresatów (opiekun bez konta, brak zl_okres_przypomnienia).', 'lines' => [], 'sent' => 0];
+
+    require_once __DIR__ . '/email_templates.php';
+    require_once __DIR__ . '/mail_queue.php';
+    $esc = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
+    $lines = []; $sent = 0;
+    foreach ($byRecipient as $email => $r) {
+        $html = ''; $txt = '';
+        foreach ($r['rows'] as $row) {
+            $c = $row['c'];
+            $url = rtrim(APP_URL, '/') . '/contracts/zlecenie/view.php?id=' . (int)$c['id'] . '&tab=rozliczenia';
+            $mies = implode(', ', array_map('zl_ew_ym_label', $row['open']));
+            $html .= '<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb"><a href="' . $esc($url) . '">' . $esc($c['numer_umowy']) . '</a></td>'
+                   . '<td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">' . $esc($c['imie_nazwisko']) . '</td>'
+                   . '<td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;color:#A16207;font-weight:600">' . $esc($mies) . '</td></tr>';
+            $txt  .= '- ' . $c['numer_umowy'] . ' (' . $c['imie_nazwisko'] . '): ' . $mies . ' — ' . $url . "\n";
+        }
+        $rendered = email_tpl_render('zlecenie_okres_rozliczenia', [
+            'greeting' => $r['name'] !== '' ? ', <strong>' . $esc($r['name']) . '</strong>' : '',
+            'liczba'   => (string)count($r['rows']),
+            'lista'    => $html,
+            'url'      => $esc(rtrim(APP_URL, '/') . '/contracts/zlecenie/list.php?status=' . rawurlencode(ZL_OKRES_STATUS)),
+        ]);
+        if (!$rendered['enabled']) return ['note' => 'Szablon „zlecenie_okres_rozliczenia” wyłączony w panelu szablonów e-mail.', 'lines' => [], 'sent' => 0];
+        $lines[] = $email . ': ' . count($r['rows']) . ' umów';
+        if ($dry) continue;
+        mail_queue_add($email, $r['name'], $rendered['subject'], $rendered['html'],
+            "Umowy zlecenie z niezamkniętymi miesiącami w saldzie rozliczeń:\n" . $txt, 'zlecenie_okres');
+        $sent++;
+    }
+    if (!$dry) org_setting_set($key, date('Y-m-d H:i:s'));
+    return ['note' => '', 'lines' => $lines, 'sent' => $sent];
 }

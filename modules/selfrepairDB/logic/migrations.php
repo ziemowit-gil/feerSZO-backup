@@ -410,4 +410,18 @@ return [
         },
     ],
 
+    // Umowy: status systemowy „okres do rozliczenia” (zlecenia dłuższe niż miesiąc z niezamkniętym miesiącem w saldzie).
+    // Dokłada tylko ten wpis — pozostałych wpisów słownika (i zmian administratora) nie rusza.
+    '2026-10_dictionary_umowy_statusy_okres' => [
+        'desc' => 'Słownik Centralny: status umowy „okres do rozliczenia”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/contract_status/lib/contractStatuses.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $seed = json_decode(contractStatusesSeed(), true);
+            $seed['dictionaries'][0]['entries'] = array_values(array_filter($seed['dictionaries'][0]['entries'], fn($e) => $e['code'] === 'okres_do_rozliczenia'));
+            $res = dictTransfer()->import(json_encode($seed, JSON_UNESCAPED_UNICODE), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
 ];
