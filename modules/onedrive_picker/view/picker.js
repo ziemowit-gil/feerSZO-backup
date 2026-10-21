@@ -2,7 +2,7 @@
  * modules/onedrive_picker/view/picker.js — okno wyboru plików z OneDrive (funkcjonalność współdzielona).
  *
  *   OneDrivePicker.open({
- *     endpoint: APP_URL + '/modules/onedrive_picker/router.php/list',
+ *     endpoint: APP_URL + '/modules/onedrive_picker/router.php?_route=/list',
  *     csrf:     CSRF,
  *     accept:   '.pdf,.docx',        // opcjonalnie — pokazywane typy plików
  *     maxBytes: 10485760,            // opcjonalnie — większe pliki są widoczne, ale wyłączone

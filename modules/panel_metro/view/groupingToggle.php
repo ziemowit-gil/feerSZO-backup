@@ -4,7 +4,7 @@
  * Wejście: $grouped, $boardId. Dwa przyciski z aria-pressed w role="group"; komunikat o zmianie
  * w regionie role="status". Bez JS formularz idzie zwykłym POST-em (powrót na tę samą stronę).
  */
-$_gtUrl = APP_URL . '/modules/panel_metro/router.php/uklad';
+$_gtUrl = APP_URL . '/modules/panel_metro/router.php?_route=/uklad';
 ?>
 <style>
 .pvm .mt-seg{margin:0}

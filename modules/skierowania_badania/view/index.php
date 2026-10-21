@@ -20,7 +20,7 @@ $fmt = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '—';
   <a href="<?= h(route('skb.index', ['wygasa' => 30])) ?>">pokaż</a> i wystaw skierowanie na badania okresowe.</div>
 <?php endif; ?>
 
-<form method="get" action="<?= h(route('skb.index')) ?>" class="row g-2 align-items-end mb-3">
+<form method="get" action="<?= h(route('skb.index')) ?>" class="row g-2 align-items-end mb-3"><?= route_field('skb.index') ?>
   <div class="col-sm-4"><label class="form-label small" for="f-q">Szukaj</label><input id="f-q" class="form-control form-control-sm" name="q" value="<?= h($f['q']) ?>" placeholder="osoba, numer, stanowisko"></div>
   <div class="col-sm-2"><label class="form-label small" for="f-t">Umowa</label>
     <select id="f-t" class="form-select form-select-sm" name="typ"><option value="">wszystkie</option>

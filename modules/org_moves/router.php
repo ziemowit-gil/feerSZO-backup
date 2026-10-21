@@ -2,8 +2,8 @@
 /**
  * modules/org_moves/router.php — jedyne wejście modułu Przenoszenie w strukturze.
  *
- * Adresy: /modules/org_moves/router.php (lista osób i działów), …/router.php/osoby (POST, przeniesienie
- * osób), …/router.php/dzialy (POST, przeniesienie działów). Dostęp: administrator i zarząd.
+ * Adresy: /modules/org_moves/router.php (lista osób i działów), …?_route=/osoby (POST, przeniesienie
+ * osób), …?_route=/dzialy (POST, przeniesienie działów). Dostęp: administrator i zarząd.
  * Wejścia z Katalogu: ?unit=ID (osoby z jednostki), ?user=ID (jedna osoba), #dzialy.
  */
 require_once dirname(__DIR__, 2) . '/config.php';

@@ -8,7 +8,7 @@ $stateTag = [
     'ok' => ['W terminie', 'is-green'], 'risk' => ['Zagrożone', 'is-orange'],
     'breach' => ['Po terminie', 'is-red'], 'escalated' => ['Eskalowane', 'is-red'],
 ];
-$url = fn(array $p) => route('sla.index') . '?' . http_build_query(array_filter($p + ['ws' => $wsId ?: null]));
+$url = fn(array $p) => route('sla.index', array_filter($p + ['ws' => $wsId ?: null]));
 $hrs = fn($v) => $v === null || $v === '' ? '' : rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.');
 ?>
 <div class="tp-head">
@@ -30,7 +30,7 @@ $hrs = fn($v) => $v === null || $v === '' ? '' : rtrim(rtrim(number_format((floa
 <div class="tp-empty">SLA i eskalacje są dostępne dla liderów obszarów (rola lider/edytor w obszarze).</div>
 <?php return; endif; ?>
 
-<form class="tp-bar" method="get" action="<?= h(route('sla.index')) ?>">
+<form class="tp-bar" method="get" action="<?= h(route('sla.index')) ?>"><?= route_field('sla.index') ?>
   <div>
     <label class="tp-l" for="sla-ws">Obszar</label>
     <select class="tp-in" id="sla-ws" name="ws" onchange="this.form.submit()">
@@ -84,7 +84,7 @@ $hrs = fn($v) => $v === null || $v === '' ? '' : rtrim(rtrim(number_format((floa
   <div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:.75rem">
     <div>
       <label class="tp-l" for="sla-pws">Obszar</label>
-      <select class="tp-in" id="sla-pws" name="ws" onchange="location.href='<?= h(route('sla.index')) ?>?ws='+this.value+'#zasady'">
+      <select class="tp-in" id="sla-pws" name="ws" onchange="location.href='<?= h(route('sla.index', ['ws' => '__WS__'])) ?>'.replace('__WS__', this.value)+'#zasady'">
         <?php foreach ($leaderWs as $w): ?>
         <option value="<?= (int)$w['id'] ?>" <?= $polWs === (int)$w['id'] ? 'selected' : '' ?>><?= h($w['name']) ?></option>
         <?php endforeach; ?>

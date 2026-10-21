@@ -10,7 +10,7 @@ include dirname(__DIR__, 3) . '/includes/header.php';
 <nav aria-label="Ścieżka"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="<?= h(route('skb.index')) ?>">Skierowania na badania</a></li><li class="breadcrumb-item active" aria-current="page">Nowe — wybór osoby</li></ol></nav>
 <h4><i class="bi bi-person-check text-primary" aria-hidden="true"></i> Kogo kierujesz na badania?</h4>
 <?= flash_html() ?>
-<form method="get" action="<?= h(route('skb.create')) ?>" class="d-flex gap-2 mb-3" role="search">
+<form method="get" action="<?= h(route('skb.create')) ?>" class="d-flex gap-2 mb-3" role="search"><?= route_field('skb.create') ?>
   <label class="visually-hidden" for="w-q">Szukaj osoby</label>
   <input id="w-q" class="form-control" name="q" value="<?= h($q) ?>" placeholder="imię i nazwisko albo numer umowy" autofocus>
   <button class="btn btn-outline-primary">Szukaj</button>

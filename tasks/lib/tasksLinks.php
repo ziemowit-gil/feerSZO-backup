@@ -211,5 +211,5 @@ function tasksLinksTasksFor(string $type, string $ref, int $uid): array
 /** Adres formularza „Nowe zadanie” z prewypełnionym powiązaniem i powrotem na kartę. */
 function tasksLinksNewUrl(string $type, string $ref, string $back = ''): string
 {
-    return APP_URL . '/tasks/router.php/nowe?' . http_build_query(array_filter(['link' => $type . ':' . $ref, 'back' => $back ?: null]));
+    return APP_URL . '/tasks/router.php?' . http_build_query(['_route' => '/nowe'] + array_filter(['link' => $type . ':' . $ref, 'back' => $back ?: null]));
 }

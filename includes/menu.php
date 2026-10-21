@@ -420,7 +420,7 @@ function _menu_editor(): array {
     if (module_enabled('byli_enabled'))
         $ludzie[] = _mi('Byłe osoby','/byli/index.php','bi-person-dash',['match'=>'/byli/','kw'=>'byli archiwum']);
     if (can_edit())
-        $ludzie[] = _mi('Zmiany danych współpracowników','/modules/collaborator_data/router.php/admin','bi-person-gear',['match'=>'/modules/collaborator_data/','kw'=>'zmiana danych adres rachunek bankowy telefon akceptacja dziennik współpracownik']);
+        $ludzie[] = _mi('Zmiany danych współpracowników','/modules/collaborator_data/router.php?_route=/admin','bi-person-gear',['match'=>'/modules/collaborator_data/','kw'=>'zmiana danych adres rachunek bankowy telefon akceptacja dziennik współpracownik']);
     $nodes[] = [
         'id'=>'ludzie','label'=>'Ludzie','icon'=>'bi-people',
         'active'=>_menu_hit('/persons/')||_menu_hit('/crm/')||_menu_hit('/mobilna/')||_menu_hit('/directory/')||_menu_hit('/org/')||_menu_hit('/byli/')||_menu_hit('/modules/collaborator_data/admin'),

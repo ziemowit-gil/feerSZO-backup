@@ -964,7 +964,7 @@ include __DIR__ . '/includes/header_crm.php';
             </li>
             <?php if (module_enabled('tasks_enabled')): ?>
             <li>
-              <a class="dropdown-item" href="<?= h(APP_URL . '/tasks/router.php/nowe?comm=' . (int)$msg['id'] . '&src=crm') ?>"
+              <a class="dropdown-item" href="<?= h(APP_URL . '/tasks/router.php?_route=/nowe&comm=' . (int)$msg['id'] . '&src=crm') ?>"
                  title="Zadanie w module Zadania — temat, treść i załączniki tej wiadomości, z linkiem do niej">
                 <i class="bi bi-kanban" style="color:#007a00" aria-hidden="true"></i>Utwórz zadanie
               </a>

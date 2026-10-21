@@ -441,7 +441,7 @@ function appDocsNumber(array $app, array $tpl): string {
 
 /** Adres dokumentu (HTML) lub PDF dla wniosku. */
 function appDocsUrl(int $id, bool $pdf = false): string {
-    return APP_URL . '/modules/application_documents/router.php/' . $id . ($pdf ? '/pdf' : '');
+    return APP_URL . '/modules/application_documents/router.php?_route=/' . $id . ($pdf ? '/pdf' : '');
 }
 
 /** Treść dokumentu (HTML, bez <html>) — wspólna dla podglądu i PDF. */
@@ -761,7 +761,7 @@ function appDocsRpw(array $app): ?array {
 
 /** Adres potwierdzenia złożenia (HTML) lub jego PDF. */
 function appDocsReceiptUrl(int $id, bool $pdf = false): string {
-    return APP_URL . '/modules/application_documents/router.php/' . $id . '/potwierdzenie' . ($pdf ? '/pdf' : '');
+    return APP_URL . '/modules/application_documents/router.php?_route=/' . $id . '/potwierdzenie' . ($pdf ? '/pdf' : '');
 }
 
 /**

@@ -167,7 +167,7 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
     <div class="d-flex flex-wrap gap-2">
       <?php if (in_array(current_user()['role'] ?? '', ['admin', 'editor', 'manager'], true)): ?>
-      <a class="btn btn-outline-secondary" href="<?= h(APP_URL) ?>/modules/skierowania_badania/router.php/nowe?<?= h(http_build_query(['pre' => 1, 'type' => $app['type'] === 'wolontariat' ? 'wolontariat' : 'zlecenie', 'rekr' => (int)$app['id']])) ?>">
+      <a class="btn btn-outline-secondary" href="<?= h(APP_URL) ?>/modules/skierowania_badania/router.php?<?= h(http_build_query(['_route' => '/nowe', 'pre' => 1, 'type' => $app['type'] === 'wolontariat' ? 'wolontariat' : 'zlecenie', 'rekr' => (int)$app['id']])) ?>">
         <i class="bi bi-heart-pulse me-1" aria-hidden="true"></i>Skierowanie na badania
       </a>
       <?php endif; ?>

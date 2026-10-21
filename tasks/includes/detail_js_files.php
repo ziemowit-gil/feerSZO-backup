@@ -99,7 +99,7 @@ if (tdDropZone) {
 window.tdOpenOneDrive = function() {
     function _open() {
         OneDrivePicker.open({
-            endpoint: BASE + '/modules/onedrive_picker/router.php/list',
+            endpoint: BASE + '/modules/onedrive_picker/router.php?_route=/list',
             csrf:     CSRF,
             accept:   <?= json_encode(task_upload_accept_attr()) ?>,
             maxBytes: <?= (int)TASK_UPLOAD_MAX_BYTES ?>,

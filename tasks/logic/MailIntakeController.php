@@ -35,6 +35,6 @@ final class MailIntakeController
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
         }
-        return Router::redirect(route('intake.index') . '?ws=' . $wsId);
+        return Router::redirect(route('intake.index', ['ws' => $wsId]));
     }
 }

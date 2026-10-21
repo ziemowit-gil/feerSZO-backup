@@ -166,7 +166,7 @@ function panelMetroGroupingSet(int $userId, bool $on): void {
 
 /**
  * Przełącznik układu kafli „Bez grupowania” | „Grupuj wg funkcji” (dwa przyciski z aria-pressed).
- * Bez JS: formularz POST do modules/panel_metro/router.php/uklad i powrót na stronę.
+ * Bez JS: formularz POST do modules/panel_metro/router.php?_route=/uklad i powrót na stronę.
  * Z JS: zapis w tle i przełożenie kafli planszy $boardId bez przeładowania.
  */
 function panelMetroGroupingToggle(bool $grouped, string $boardId = 'pvmBoard'): void {

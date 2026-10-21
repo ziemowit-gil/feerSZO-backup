@@ -56,7 +56,7 @@ include __DIR__ . '/_head.php';
 </ul>
 
 <?php if (!empty($treeView['big'])): $tv = $treeView; ?>
-<form method="get" action="<?= h(route('dict.show', ['code' => $dict->code])) ?>" class="d-flex flex-wrap align-items-center gap-2 mb-2" role="search">
+<form method="get" action="<?= h(route('dict.show', ['code' => $dict->code])) ?>" class="d-flex flex-wrap align-items-center gap-2 mb-2" role="search"><?= route_field('dict.show', ['code' => $dict->code]) ?>
   <label class="visually-hidden" for="dictTreeQ">Szukaj w słowniku</label>
   <input type="search" name="q" id="dictTreeQ" value="<?= h($tv['q']) ?>" class="form-control form-control-sm" style="max-width:22rem" placeholder="Szukaj po nazwie lub kodzie…">
   <button class="btn btn-sm btn-outline-primary"><i class="bi bi-search" aria-hidden="true"></i> Szukaj</button>

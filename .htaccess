@@ -26,6 +26,11 @@ RewriteRule ^poczta/?$         /webmail/index.php [L]
 # wewnętrzny (bez przekierowania), żeby wydane prywatne linki iCal działały dalej.
 RewriteRule ^modules/tasks_plus/router\.php/(.*)$ /tasks/router.php?_route=/$1 [QSA,L]
 
+# ── Stare adresy routerów modułów …/router.php/<trasa> → …/router.php?_route=/<trasa> ─────────────
+# Routery działają w trybie ?_route= (adres z „.php/” serwer traktuje jak plik). Alias wewnętrzny, żeby
+# wydane wcześniej linki (e-maile, iCal, zakładki) działały dalej. Czyste adresy (/nabor, /zlecenie…) bez zmian.
+RewriteRule ^((?:modules/[a-z0-9_]+|tasks)/router\.php)/(.+)$ /$1?_route=/$2 [QSA,L]
+
 # ── Publiczne klauzule RODO: /klauzula/{slug} → modules/gdpr_clauses/public ─────
 # Czysty adres do linkowania w formularzach/stopkach; /{lang} = wersja językowa
 # (np. /klauzula/rekrutacja/en), ?embed=1 = wersja do iframe.

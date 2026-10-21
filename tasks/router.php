@@ -2,7 +2,7 @@
 /**
  * tasks/router.php — wejście nowych ekranów modułu Zadania (kalendarz, SLA, obciążenie, reguły).
  *
- * Adresy (…/tasks/router.php/…); stare /modules/tasks_plus/router.php/… → alias w .htaccess:
+ * Adresy (…/tasks/router.php?_route=/…, tryb query); stare /modules/tasks_plus/router.php/… → alias w .htaccess:
  *   /kalendarz            — kalendarz terminów (miesiąc / lista), filtry ?ws, ?mine, ?done, ?m=RRRR-MM
  *   /kalendarz/ical       — POST: nowy prywatny link iCal; /kalendarz/ical/wylacz — POST: wyłączenie
  *   /ical/{token}.ics     — publiczny kanał iCal (autoryzacja tokenem)

@@ -137,7 +137,7 @@ include dirname(__DIR__, 3) . '/includes/header.php';
 
 <?php if (!$isNew && $pre && !$locked): ?>
 <div class="card mt-3 border-warning"><div class="card-header">Umowa zawarta? Powiąż z nią skierowanie</div><div class="card-body">
-  <form method="get" action="<?= h(route('skb.show', ['id' => $s['id']])) ?>" class="d-flex gap-2 mb-2" role="search">
+  <form method="get" action="<?= h(route('skb.show', ['id' => $s['id']])) ?>" class="d-flex gap-2 mb-2" role="search"><?= route_field('skb.show', ['id' => $s['id']]) ?>
     <label class="visually-hidden" for="uq">Szukaj umowy</label>
     <input id="uq" class="form-control form-control-sm" name="uq" value="<?= h((string)($_GET['uq'] ?? '')) ?>" placeholder="imię i nazwisko albo numer umowy (domyślnie: <?= h($s['imie_nazwisko']) ?>)">
     <button class="btn btn-sm btn-outline-secondary">Szukaj</button></form>

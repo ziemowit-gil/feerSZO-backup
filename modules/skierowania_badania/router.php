@@ -2,8 +2,8 @@
 /**
  * modules/skierowania_badania/router.php — jedyne wejście modułu Skierowania na badania lekarskie (medycyna pracy).
  *
- * Adresy: /modules/skierowania_badania/router.php/<trasa>, np. …/router.php/nowe?type=zlecenie&id=12,
- * …/router.php/5 (karta skierowania), …/router.php/5/pdf. Każdy POST przechodzi przez CSRF (Router).
+ * Adresy: /modules/skierowania_badania/router.php?_route=<trasa>, np. …?_route=/nowe&type=zlecenie&id=12,
+ * …?_route=/5 (karta skierowania), …?_route=/5/pdf. Każdy POST przechodzi przez CSRF (Router).
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';

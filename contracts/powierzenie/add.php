@@ -260,7 +260,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <label for="organ_zlecajacy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Organ zlecający</label>
       <input id="organ_zlecajacy" name="organ_zlecajacy" list="dl-organ_zlecajacy" autocomplete="off" aria-describedby="organ_zlecajacy_hint" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['organ_zlecajacy'] ?? '') ?>" placeholder="np. Gmina Miasta X / Urząd Marszałkowski…">
-      <p id="organ_zlecajacy_hint" class="tw-text-xs tw-text-slate-500 tw-mt-1">Zacznij pisać — podpowiedzi ze Słownika Centralnego (instytucje udzielające dotacji) uzupełnią pusty adres organu.<?php if (can_write('slowniki')): ?> <a href="<?= APP_URL ?>/modules/dictionary/router.php/d/instytucje_dotujace" class="tw-underline">Zarządzaj listą</a><?php endif; ?></p>
+      <p id="organ_zlecajacy_hint" class="tw-text-xs tw-text-slate-500 tw-mt-1">Zacznij pisać — podpowiedzi ze Słownika Centralnego (instytucje udzielające dotacji) uzupełnią pusty adres organu.<?php if (can_write('slowniki')): ?> <a href="<?= APP_URL ?>/modules/dictionary/router.php?_route=/d/instytucje_dotujace" class="tw-underline">Zarządzaj listą</a><?php endif; ?></p>
       <?= dictDatalist('instytucje_dotujace', 'organ_zlecajacy', ['adres' => 'organ_adres']) ?>
     </div>
     <div>

@@ -59,7 +59,7 @@ function tasksPlusTaskUrl(int $taskId): string
  */
 function tasksPlusPage(string $title, string $body, int $wsId = 0, string $subtitle = ''): string
 {
-    $GLOBALS['_uri'] = $_SERVER['REQUEST_URI'] ?? '';
+    $GLOBALS['_uri'] = rawurldecode($_SERVER['REQUEST_URI'] ?? ''); // ?_route=%2Fsla → _route=/sla (podświetlenie menu)
     $PAGE_TITLE = $title;
     $PAGE_SUBTITLE = $subtitle;
     $TASKS_BREADCRUMB = $title;

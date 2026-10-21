@@ -231,7 +231,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php endif; ?>
 
 <?php // „Karta umowy — informacje o umowie” (modules/contract_card) — wydruk dla każdego typu umowy
-$_cvh_card_li = '<li><a class="dropdown-item" href="' . APP_URL . '/modules/contract_card/router.php/' . rawurlencode((string)($_cvh_type ?? '')) . '/' . (int)($_cvh_id ?? 0) . '" target="_blank"><i class="bi bi-card-text me-2 text-primary"></i>Karta umowy — informacje o umowie</a></li>'; ?>
+$_cvh_card_li = '<li><a class="dropdown-item" href="' . APP_URL . '/modules/contract_card/router.php?_route=/' . rawurlencode((string)($_cvh_type ?? '')) . '/' . (int)($_cvh_id ?? 0) . '" target="_blank"><i class="bi bi-card-text me-2 text-primary"></i>Karta umowy — informacje o umowie</a></li>'; ?>
       <?php if (($_cvh_type ?? '') === 'wolontariat'): ?>
       <!-- Dropdown: Dokumenty -->
       <?php $_cvh_wid = (int)($_cvh_id ?? 0); $_cvh_burl = APP_URL . '/contracts/wolontariat/potwierdzenie.php?id=' . $_cvh_wid; ?>

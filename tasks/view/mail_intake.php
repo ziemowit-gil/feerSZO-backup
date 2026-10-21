@@ -20,7 +20,7 @@ $t = $targets[$wsId] ?? ['lists' => [], 'people' => []];
 <div class="tp-empty">Skrzynkę obszaru ustawia lider obszaru.</div>
 <?php return; endif; ?>
 
-<form class="tp-bar" method="get" action="<?= h(route('intake.index')) ?>">
+<form class="tp-bar" method="get" action="<?= h(route('intake.index')) ?>"><?= route_field('intake.index') ?>
   <div><label class="tp-l" for="tmi-ws">Obszar</label>
     <select class="tp-in" id="tmi-ws" name="ws" onchange="this.form.submit()">
       <?php foreach ($leaderWs as $w): ?><option value="<?= (int)$w['id'] ?>" <?= $wsId === (int)$w['id'] ? 'selected' : '' ?>><?= h($w['name']) ?></option><?php endforeach; ?>

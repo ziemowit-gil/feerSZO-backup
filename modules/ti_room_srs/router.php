@@ -5,7 +5,7 @@
  * Dwa wejścia, te same trasy i ta sama logika (źródło formularza/rezerwacji zapisywane jako DYD albo SZO):
  *   • panel — /karty30/ti/dydaktyk/saleFormularz.php?_route=<trasa> (definiuje TI_ROOM_SRS_PANEL; sesja i CSRF panelu
  *             dydaktyka; kierownik = dyd_is_staff());
- *   • SZO   — /modules/ti_room_srs/router.php/<trasa> (sesja SZO; kierownik = administrator albo zapis w module SRS).
+ *   • SZO   — /modules/ti_room_srs/router.php?_route=<trasa> (sesja SZO; kierownik = administrator albo zapis w module SRS).
  * Trasy: / (grupy z salą + rezerwacje przestrzeni), /formularz (grupa), /nowa („Rezerwuj przestrzeń”), /sale (przypisanie
  * sal — tylko kierownik), /formularz/{id}/plik (podgląd z karty rezerwacji SRS — tylko SZO).
  * Dostęp: kierownik albo uprawnienie „Może rezerwować” (Zespół panelu dydaktyka).

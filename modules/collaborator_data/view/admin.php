@@ -32,7 +32,7 @@ include dirname(__DIR__, 3) . '/includes/header.php';
     <tr><th>Osoba</th><th>Pole</th><th>Dotychczas</th><th>Nowa wartość</th><th>Zgłoszono</th><th>Decyzja</th></tr>
     <?php foreach ($pending as $c): ?>
     <tr>
-      <td><a href="?u=<?= (int)$c['user_id'] ?>"><?= h($c['user_name']) ?></a><br><small class="text-muted"><?= h($c['user_email']) ?></small></td>
+      <td><a href="<?= h(route('cdc.admin', ['u' => (int)$c['user_id']])) ?>"><?= h($c['user_name']) ?></a><br><small class="text-muted"><?= h($c['user_email']) ?></small></td>
       <td><?= h($fields[$c['field']]['label'] ?? $c['field']) ?></td>
       <td><?= h(CollaboratorDataService::display((string)$c['field'], $c['old_value'], true)) ?></td>
       <td><b><?= h(CollaboratorDataService::display((string)$c['field'], $c['new_value'], true)) ?></b></td>
@@ -58,7 +58,7 @@ include dirname(__DIR__, 3) . '/includes/header.php';
     <?php foreach ($log as $c): $st = CollabChangeStatus::tryFrom((string)$c['status']) ?? CollabChangeStatus::Applied; ?>
     <tr>
       <td><?= h(date('d.m.Y H:i', strtotime((string)$c['created_at']))) ?></td>
-      <td><a href="?u=<?= (int)$c['user_id'] ?>"><?= h($c['user_name']) ?></a></td>
+      <td><a href="<?= h(route('cdc.admin', ['u' => (int)$c['user_id']])) ?>"><?= h($c['user_name']) ?></a></td>
       <td><?= h($fields[$c['field']]['label'] ?? $c['field']) ?></td>
       <td><?= h(CollaboratorDataService::display((string)$c['field'], $c['old_value'])) ?> → <b><?= h(CollaboratorDataService::display((string)$c['field'], $c['new_value'])) ?></b></td>
       <td><span class="st" style="background:<?= $st->color() ?>"><?= h($st->label()) ?></span><?= $c['decision_note'] ? '<br><small>' . h($c['decision_note']) . '</small>' : '' ?></td>

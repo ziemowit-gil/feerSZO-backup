@@ -27,7 +27,7 @@ html body #tsk-main tr.is-off td{opacity:.55}
 <div class="tp-empty">Reguły automatyzacji ustawia lider obszaru (rola lider/edytor w obszarze).</div>
 <?php return; endif; ?>
 
-<form class="tp-bar" method="get" action="<?= h(route('rules.index')) ?>">
+<form class="tp-bar" method="get" action="<?= h(route('rules.index')) ?>"><?= route_field('rules.index') ?>
   <div>
     <label class="tp-l" for="trl-ws">Obszar</label>
     <select class="tp-in" id="trl-ws" name="ws" onchange="this.form.submit()">

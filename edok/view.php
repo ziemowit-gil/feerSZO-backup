@@ -595,7 +595,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
 <div class="edok-alert edok-alert-warning tw-mb-4">
   <i class="bi bi-bank2 tw-mt-0.5" aria-hidden="true"></i>
   <div>Zobowiązanie podatkowe z modułu <strong>Przelewy do US</strong> — akceptowane tam przyciskiem „Akceptuję”, bez etapów obiegu. Przelew podatkowy (kod 71) generuje się w tym module, nie w Preliminarzu.
-    <a href="<?= APP_URL ?>/modules/us_przelewy/router.php/<?= (int)$doc['us_zob_id'] ?>">Otwórz zobowiązanie</a></div>
+    <a href="<?= APP_URL ?>/modules/us_przelewy/router.php?_route=/<?= (int)$doc['us_zob_id'] ?>">Otwórz zobowiązanie</a></div>
 </div>
 <?php endif; ?>
 

@@ -67,9 +67,9 @@ i podbija pokolenie grupy (`szo_cache_bump('dict')`), więc zmiana jest widoczna
 
 ## API JSON (dla JS)
 
-- `GET /modules/dictionary/router.php/api/{kod}?locale=en&at=2026-01-01&leaves=1` →
+- `GET /modules/dictionary/router.php?_route=/api/{kod}&locale=en&at=2026-01-01&leaves=1` →
   `{"code": "...", "items": [{"code","label","parent","depth","has_children","attributes","description"}]}`
-- `GET /modules/dictionary/router.php/api` — lista słowników (wymaga `can_read('slowniki')`).
+- `GET /modules/dictionary/router.php?_route=/api` — lista słowników (wymaga `can_read('slowniki')`).
 
 ## Import / eksport
 

@@ -2,8 +2,8 @@
 /**
  * modules/us_przelewy/router.php — jedyne wejście modułu Przelewy do Urzędu Skarbowego (EODoK › Płatności).
  *
- * Adresy: /modules/us_przelewy/router.php (rejestr), …/router.php/nowe, …/router.php/5 (karta zobowiązania),
- * …/router.php/plik (POST — plik przelewów). Dostęp: administrator i osoby zatwierdzające do zapłaty.
+ * Adresy: /modules/us_przelewy/router.php (rejestr), …?_route=/nowe, …?_route=/5 (karta zobowiązania),
+ * …?_route=/plik (POST — plik przelewów). Dostęp: administrator i osoby zatwierdzające do zapłaty.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';

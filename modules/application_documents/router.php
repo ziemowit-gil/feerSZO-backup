@@ -2,7 +2,7 @@
 /**
  * modules/application_documents/router.php — dokumenty wniosków złożonych elektronicznie (ZSW-1, ZSW-2).
  *
- * Adresy: …/router.php/{id} (podgląd do druku), …/{id}/pdf (PDF), …/{id}/potwierdzenie[/pdf]
+ * Adresy: …/router.php?_route=/{id} (podgląd do druku), …/{id}/pdf (PDF), …/{id}/potwierdzenie[/pdf]
  * (potwierdzenie złożenia w układzie formularza z sumą kontrolną). Zalogowani; dostęp
  * do konkretnego wniosku sprawdza kontroler (autor albo admin/redaktor).
  */

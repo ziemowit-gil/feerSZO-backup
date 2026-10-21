@@ -393,7 +393,7 @@ final class CollaboratorDataService
             $u = $this->user();
             foreach (db_all("SELECT id FROM users WHERE role IN ('admin','editor') AND is_active = 1") as $a) {
                 notif_create((int)$a['id'], 'system', 'Zmiana danych do akceptacji: ' . ($u['name'] ?? ''), $n . ' zmian(y) czeka na decyzję',
-                             APP_URL . '/modules/collaborator_data/router.php/admin');
+                             APP_URL . '/modules/collaborator_data/router.php?_route=/admin');
             }
         } catch (\Throwable $e) {}
     }

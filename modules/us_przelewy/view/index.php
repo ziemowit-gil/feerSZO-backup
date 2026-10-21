@@ -42,7 +42,7 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
   <div class="alert alert-danger py-2"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> Po terminie: <strong><?= count($poTerminie) ?></strong> — sprawdź, czy przelew wyszedł, i oznacz zapłatę albo zapłać z odsetkami.</div>
   <?php endif; ?>
 
-  <form method="get" action="<?= h(route('usp.index')) ?>" class="tw-mb-3 tw-flex tw-flex-wrap tw-items-end tw-gap-2">
+  <form method="get" action="<?= h(route('usp.index')) ?>" class="tw-mb-3 tw-flex tw-flex-wrap tw-items-end tw-gap-2"><?= route_field('usp.index') ?>
     <div><label class="usp-label" for="f-st">Status</label>
       <select id="f-st" name="status" class="usp-input">
         <option value="">otwarte (do zapłaty i zlecone)</option>
@@ -192,11 +192,11 @@ $fmtLabels = EDOK_PRZELEWY_FORMATY;
 
 <script>
 (function () {
-  var base = <?= json_encode(route('usp.show', ['id' => 0])) ?>.replace(/\/0$/, '/');
+  var statusUrl = <?= json_encode(route('usp.status', ['id' => '__ID__'])) ?>;
   var modal = document.getElementById('uspPaid');
   modal.addEventListener('show.bs.modal', function (e) {
     var b = e.relatedTarget;
-    document.getElementById('uspPaidForm').action = base + b.dataset.id + '/status';
+    document.getElementById('uspPaidForm').action = statusUrl.replace('__ID__', encodeURIComponent(b.dataset.id));
     document.getElementById('uspPaidOpis').textContent = b.dataset.opis;
   });
   var cbs = Array.prototype.slice.call(document.querySelectorAll('.usp-cb'));

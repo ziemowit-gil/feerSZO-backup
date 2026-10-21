@@ -2,7 +2,7 @@
 /**
  * modules/panel_metro/router.php — ustawienia pulpitu METRO „Mój panel”.
  *
- * Adresy: POST …/router.php/uklad (grouped=0|1 — układ kafli „Bez grupowania” / „Grupuj wg funkcji”,
+ * Adresy: POST …/router.php?_route=/uklad (grouped=0|1 — układ kafli „Bez grupowania” / „Grupuj wg funkcji”,
  * preferencja per użytkownik w user_prefs; odpowiedź JSON dla fetch, inaczej powrót na stronę).
  */
 require_once dirname(__DIR__, 2) . '/config.php';

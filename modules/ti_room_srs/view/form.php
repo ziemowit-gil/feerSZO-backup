@@ -38,7 +38,7 @@ $radios = function (string $k, string $legend, array $opts) use ($trData, $fid) 
 
 <?php if ($trMode === 'adhoc'): ?>
 <p class="text-body-secondary small mb-2">Rezerwacja sali bez grupy TI — np. na konsultacje albo spotkanie. Wybierz salę, dzień i godziny; resztę wniosku operatora uzupełnimy z systemu.</p>
-<form method="get" action="<?= h(route('trs.adhoc')) ?>" class="card card-body mb-3">
+<form method="get" action="<?= h(route('trs.adhoc')) ?>" class="card card-body mb-3"><?= route_field('trs.adhoc') ?>
   <?php if (defined('TI_ROOM_SRS_PANEL')): ?><input type="hidden" name="_route" value="/nowa"><?php endif; ?>
   <?php if ((int)$trKey['formId']): ?><input type="hidden" name="id" value="<?= (int)$trKey['formId'] ?>"><?php endif; ?>
   <div class="row g-2 align-items-end">

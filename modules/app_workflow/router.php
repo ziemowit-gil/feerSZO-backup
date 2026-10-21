@@ -2,8 +2,8 @@
 /**
  * modules/app_workflow/router.php — workflow pism i wniosków użytkowników.
  *
- * Adresy: …/router.php/ (typy wniosków i liczba etapów), …/router.php/typ/{id} (edytor etapów typu),
- * POST …/router.php/wniosek/{id} (przejście wniosku do etapu — z admin/application.php).
+ * Adresy: …/router.php (typy wniosków i liczba etapów), …?_route=/typ/{id} (edytor etapów typu),
+ * POST …?_route=/wniosek/{id} (przejście wniosku do etapu — z admin/application.php).
  * Dostęp: odczyt/przejścia — can_read('admin') lub can_read('pisma'); edycja etapów — can_write('admin').
  */
 require_once dirname(__DIR__, 2) . '/config.php';

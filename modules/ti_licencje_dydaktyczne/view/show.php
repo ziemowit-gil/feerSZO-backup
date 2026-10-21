@@ -198,7 +198,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
             <tr><td><?= h($fieldLabels[$c['field']] ?? $c['field']) ?></td><td><?= h($c['old_value']) ?></td><td><b><?= h($c['new_value']) ?></b></td><td><?= ldChip($cl, $cc) ?></td><td><?= h(ldDt($c['created_at'])) ?></td>
               <td class="text-nowrap"><?php if ($c['status'] === 'pending' && empty($c['cdc_id'])): ?>
                 <?= ldPost(route('ld.change', ['id' => $c['id']]), 'Wprowadź', 'btn-metro green', ['decision' => 'apply']) ?> <?= ldPost(route('ld.change', ['id' => $c['id']]), 'Odrzuć', 'btn-outline-secondary', ['decision' => 'reject']) ?>
-              <?php elseif (!empty($c['cdc_id'])): ?><a href="<?= h(rtrim(APP_URL, '/') . '/modules/collaborator_data/router.php/admin') ?>">kolejka „Zmiana danych”</a><?php endif; ?></td></tr>
+              <?php elseif (!empty($c['cdc_id'])): ?><a href="<?= h(rtrim(APP_URL, '/') . '/modules/collaborator_data/router.php?_route=/admin') ?>">kolejka „Zmiana danych”</a><?php endif; ?></td></tr>
           <?php endforeach; ?></tbody></table></details>
       <?php endif; ?>
     </div>

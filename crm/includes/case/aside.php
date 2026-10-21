@@ -34,7 +34,7 @@ if (!isset($case)) { http_response_code(400); exit; }
           <?php endforeach; ?>
         </select>
         <?php if (function_exists('can_write') && can_write('slowniki')): ?>
-        <a href="<?= APP_URL ?>/modules/dictionary/router.php/d/<?= CRM_CLOSE_REASONS_DICT ?>" class="small text-muted text-decoration-none" style="margin-top:-.25rem"><i class="bi bi-journal-bookmark" aria-hidden="true"></i> Lista powodów w Słowniku Centralnym</a>
+        <a href="<?= APP_URL ?>/modules/dictionary/router.php?_route=/d/<?= CRM_CLOSE_REASONS_DICT ?>" class="small text-muted text-decoration-none" style="margin-top:-.25rem"><i class="bi bi-journal-bookmark" aria-hidden="true"></i> Lista powodów w Słowniku Centralnym</a>
         <?php endif; ?>
         <?php foreach ($status_cfg as $sv=>$sd): ?>
         <button type="submit" name="status" value="<?= $sv ?>"

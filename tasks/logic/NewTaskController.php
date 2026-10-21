@@ -39,7 +39,7 @@ final class NewTaskController
         $uid = (int)current_user()['id'];
         $wsId = (int)($_POST['workspace_id'] ?? 0);
         $targets = tasksCreateTargets($uid);
-        $back = route('new.form') . '?' . http_build_query(array_filter(['comm' => (int)($_POST['comm'] ?? 0) ?: null,
+        $back = route('new.form', array_filter(['comm' => (int)($_POST['comm'] ?? 0) ?: null,
             'src' => $_POST['src'] ?? null, 'ws' => $wsId ?: null, 'link' => $_POST['link'] ?? null]));
         [$linkSpec, $linkLabel] = $this->link((string)($_POST['link'] ?? ''));
         if ($linkSpec !== '' && $linkLabel === '') { http_response_code(403); return 'Nie masz dostępu do rekordu, z którym chcesz powiązać zadanie.'; }

@@ -27,7 +27,7 @@ foreach ($tree as [$d]) { $byKind[$d->kind->value] = ($byKind[$d->kind->value] ?
 </div>
 <?php endif; ?>
 
-<form method="get" action="<?= h(route('dict.index')) ?>" class="row g-2 align-items-end mb-3" role="search">
+<form method="get" action="<?= h(route('dict.index')) ?>" class="row g-2 align-items-end mb-3" role="search"><?= route_field('dict.index') ?>
   <div class="col-sm-6"><label class="form-label small" for="dict-q">Szukaj słownika (nazwa, kod, opis)</label>
     <input id="dict-q" class="form-control" name="q" value="<?= h($q) ?>" placeholder="np. instytucje"></div>
   <div class="col-sm-3 form-check ms-2 mb-2">

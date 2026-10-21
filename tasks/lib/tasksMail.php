@@ -2,7 +2,7 @@
 /**
  * tasks/lib/tasksMail.php — zadania z e-maila.
  *
- * 1. Ręcznie: „Utwórz zadanie” przy wiadomości w Skrzynce CRM i w Poczcie EZD → formularz tasks/router.php/nowe?comm=ID
+ * 1. Ręcznie: „Utwórz zadanie” przy wiadomości w Skrzynce CRM i w Poczcie EZD → formularz tasks/router.php?_route=/nowe&comm=ID
  *    (temat → tytuł, treść → opis, wybrane załączniki → pliki zadania, link zwrotny do wiadomości).
  * 2. Automatycznie: skrzynka obszaru (task_mail_intake) — wiadomości przychodzące na wskazaną skrzynkę z modułu Poczta
  *    (te same dane, które zapisuje PocztaScanService; ŻADNYCH nowych uprawnień M365) zamieniają się w zadania;

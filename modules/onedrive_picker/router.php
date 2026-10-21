@@ -2,7 +2,7 @@
 /**
  * modules/onedrive_picker/router.php — okno wyboru plików z OneDrive (funkcjonalność współdzielona).
  *
- * POST …/router.php/list — zawartość folderu / wyszukiwanie w OneDrive zalogowanego użytkownika (JSON).
+ * POST …/router.php?_route=/list — zawartość folderu / wyszukiwanie w OneDrive zalogowanego użytkownika (JSON).
  * Okno: modules/onedrive_picker/view/picker.js (window.OneDrivePicker.open({...})).
  * Pobranie wybranych plików: OneDrivePicker::fetch() w module docelowym, np. tasks/api/import_url.php
  * (od_item_id) i crm/cases/api/od_import.php (item_id).

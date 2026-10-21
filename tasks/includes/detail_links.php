@@ -1,14 +1,14 @@
 <!--
  tasks/includes/detail_links.php — Powiązania zadania (koszulka EZD, kontakt/firma CRM, uczestnik TI, umowa).
  Wymaga: $id, $can_edit. Zapis zwykłym formularzem (bez JS — fragment ładowany do okna zadania):
- POST tasks/router.php/powiazania i …/powiazania/usun, powrót na listę z otwartym zadaniem.
+ POST tasks/router.php?_route=/powiazania i …?_route=/powiazania/usun, powrót na listę z otwartym zadaniem.
 -->
 <?php
 require_once dirname(__DIR__) . '/lib/tasksLinks.php';
 $td_links = tasksLinksOf((int)$id);
 if ($td_links || $can_edit):
   $td_csrf = csrf_token();
-  $td_base = APP_URL . '/tasks/router.php/powiazania';
+  $td_base = APP_URL . '/tasks/router.php?_route=/powiazania';
 ?>
 <div class="td-section">
   <div class="td-label"><i class="bi bi-link-45deg" aria-hidden="true"></i>Powiązania</div>

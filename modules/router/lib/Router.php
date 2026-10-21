@@ -12,9 +12,12 @@
  *   $r->dispatch();
  *
  * Adresowanie:
- *   'path'  (domyślne) — trasa w PATH_INFO: /modules/ti/router.php/nabor/zapisy (bez mod_rewrite);
- *   'query'            — trasa w ?_route=/nabor/zapisy — dla wejść osadzonych w istniejących katalogach
- *                        (np. panel dydaktyka), gdzie względne linki menu muszą zostać poprawne.
+ *   'query' (domyślne) — trasa w ?_route=/nabor/zapisy. Na serwerze wszystko z „.php” w adresie to plik, więc adres
+ *                        typu router.php/nabor/zapisy (PATH_INFO) nie działa — nie budujemy takich adresów.
+ *                        Stare linki router.php/… (wysłane e-maile, iCal) obsługuje alias w .htaccess (→ ?_route=)
+ *                        oraz odczyt PATH_INFO, gdy brak ?_route=. Formularz GET do trasy innej niż „/” potrzebuje
+ *                        ukrytego pola trasy: <?= route_field('nazwa') ?> (przeglądarka gubi query z action).
+ *   'path'             — tylko z $publicBase (czyste adresy z .htaccess, np. /nabor/…, /zlecenie/…, /seeder-test).
  * Parametry {id} trafiają do akcji jako argumenty (cyfry → int). Akcja: [Klasa::class, 'metoda'] albo Closure.
  * Middleware: 'auth' (require_login), 'role:a,b' (require_role), 'guest', oraz własne aliasy (aliasMiddleware).
  * Każdy POST przechodzi przez weryfikację CSRF (domyślnie csrf_check() SZO, pole _csrf; inne przez csrfUsing()),
@@ -39,7 +42,7 @@ final class Router
      * $publicBase — dla czystych adresów z .htaccess (np. '' przy regule ^nabor(/.*)?$): adresy tras budowane jako
      * ścieżki od korzenia bieżącego hosta ('/nabor/zapisy'), bez pliku wejścia i bez APP_URL. null = zwykłe adresy.
      */
-    public function __construct(private string $entry, private string $mode = 'path', private ?string $publicBase = null)
+    public function __construct(private string $entry, private string $mode = 'query', private ?string $publicBase = null)
     {
         self::$current = $this;
         $this->csrfCheck = fn() => csrf_check();
@@ -88,6 +91,17 @@ final class Router
         return $this;
     }
 
+    /** Ukryte pole trasy do formularza GET (tryb query; action z ?_route= przeglądarka pomija). */
+    public static function routeField(string $name, array $params = []): string
+    {
+        $r = self::$current;
+        if (!$r || $r->mode !== 'query' || $r->publicBase !== null) return '';
+        parse_str((string)parse_url($r->route($name, $params), PHP_URL_QUERY), $q);
+        $h = '';
+        foreach ($q as $k => $v) if (is_string($v)) $h .= '<input type="hidden" name="' . htmlspecialchars($k, ENT_QUOTES) . '" value="' . htmlspecialchars($v, ENT_QUOTES) . '">';
+        return $h;
+    }
+
     /** Ukryte pole CSRF bieżącego routera (do formularzy w widokach). */
     public static function csrfField(): string
     {
@@ -129,8 +143,19 @@ final class Router
     {
         // Jawne ?_route= ma pierwszeństwo (tryb query oraz wejścia przez RewriteRule …/router.php?_route=…, gdzie serwer
         // potrafi ustawić PATH_INFO na '' albo na pierwotny adres, np. /nabor); w trybie path poza tym PATH_INFO.
-        if (isset($_GET['_route']) || $this->mode === 'query') {
-            $p = (string)($_GET['_route'] ?? '/');
+        if (isset($_GET['_route'])) {
+            $p = (string)$_GET['_route'];
+            // route('x') . '?a=1' daje ?_route=/x?a=1 — reszta po „?” to zwykłe parametry
+            if (str_contains($p, '?')) {
+                [$p, $rest] = explode('?', $p, 2);
+                parse_str($rest, $extra);
+                $_GET += $extra; $_REQUEST += $extra;
+                $_GET['_route'] = $p;
+            }
+        } elseif ($this->mode === 'query') {
+            // stary adres router.php/… (tam, gdzie serwer go przepuści) — trasa z PATH_INFO
+            $pi = trim((string)($_SERVER['PATH_INFO'] ?? ''), '/');
+            $p = $pi !== '' && !$this->isShortUrl() ? '/' . $pi : '/';
         } elseif (trim((string)($_SERVER['PATH_INFO'] ?? ''), '/') !== '' && !$this->isShortUrl()) {
             $p = (string)$_SERVER['PATH_INFO'];
         } else {
@@ -227,4 +252,10 @@ final class Router
 function route(string $name, array $params = []): string
 {
     return Router::current()->route($name, $params);
+}
+
+/** Skrót: ukryte pola trasy do formularza GET (<form method="get" action="<?= route('x') ?>"><?= route_field('x') ?>). */
+function route_field(string $name, array $params = []): string
+{
+    return Router::routeField($name, $params);
 }

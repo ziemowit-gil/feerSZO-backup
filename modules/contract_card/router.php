@@ -3,7 +3,7 @@
  * modules/contract_card/router.php — wejście funkcjonalności „Karta umowy — informacje o umowie” (wydruk A4
  * w układzie urzędowego formularza, wzór CIT-8: numerowane pola w ramkach, szare paski sekcji).
  *
- * Adres: /modules/contract_card/router.php/{typ}/{id}, np. …/router.php/zlecenie/12 — dla KAŻDEGO typu umowy.
+ * Adres: /modules/contract_card/router.php?_route=/{typ}/{id}, np. …/router.php?_route=/zlecenie/12 — dla KAŻDEGO typu umowy.
  * Dostęp: zalogowany i viewer_owns_contract() (te same zasady co karta umowy w contracts/{typ}/view.php).
  */
 require_once dirname(__DIR__, 2) . '/config.php';

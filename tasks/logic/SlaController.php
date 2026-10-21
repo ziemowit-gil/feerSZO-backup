@@ -43,7 +43,7 @@ final class SlaController
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
         }
-        return Router::redirect(route('sla.index') . '?ws=' . $wsId . '#zasady');
+        return Router::redirect(route('sla.index', ['ws' => $wsId]) . '#zasady');
     }
 
     public function runNow(): ?string

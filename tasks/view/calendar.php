@@ -4,7 +4,7 @@
  * Wejście: $view (month|agenda), $year, $month, $f (ws, mine, done), $weeks, $items (Y-m-d => zadania),
  * $workspaces, $icalUrl (null = link wyłączony).
  */
-$q = fn(array $over = []) => route('cal.index') . '?' . http_build_query(array_filter(array_merge([
+$q = fn(array $over = []) => route('cal.index', array_filter(array_merge([
     'view' => $view, 'm' => sprintf('%04d-%02d', $year, $month),
     'ws' => $f['ws'] ?: null, 'mine' => $f['mine'] ? 1 : null, 'done' => $f['done'] ? 1 : null,
 ], $over), fn($v) => $v !== null && $v !== ''));
@@ -76,7 +76,7 @@ html body #tsk-main .tcal-url{width:100%;font-family:ui-monospace,Menlo,Consolas
   </div>
 </div>
 
-<form class="tp-bar" method="get" action="<?= h(route('cal.index')) ?>" aria-label="Filtry kalendarza">
+<form class="tp-bar" method="get" action="<?= h(route('cal.index')) ?>" aria-label="Filtry kalendarza"><?= route_field('cal.index') ?>
   <input type="hidden" name="view" value="<?= h($view) ?>">
   <div>
     <label class="tp-l" for="tcal-m">Miesiąc</label>

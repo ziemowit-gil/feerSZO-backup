@@ -632,7 +632,7 @@ if (!isset($case)) { http_response_code(400); exit; }
         if (odBtn) {
           function openOdPicker() {
             OneDrivePicker.open({
-              endpoint: '<?= APP_URL ?>/modules/onedrive_picker/router.php/list',
+              endpoint: '<?= APP_URL ?>/modules/onedrive_picker/router.php?_route=/list',
               csrf:     CSRF,
               accept:   '.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif,.zip,.pptx,.ppt,.odt,.ods',
               maxBytes: 52428800,

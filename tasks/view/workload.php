@@ -9,7 +9,7 @@ $maxEst = max(1, ...array_map(fn($p) => (float)$p['est'], $people ?: [['est' => 
 $sum = fn($k) => array_sum(array_column($people, $k));
 $maxCell = 1;
 foreach ($people as $p) foreach ($p['weeks'] as $w) $maxCell = max($maxCell, $w['h'] ?: $w['n']);
-$csvUrl = route('work.csv') . '?' . http_build_query(array_filter($f));
+$csvUrl = route('work.csv', array_filter($f));
 ?>
 <style>
 html body #tsk-main .twl-heat td.cell{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:5.5rem}
@@ -31,7 +31,7 @@ html body #tsk-main details.twl-more li{padding:.25rem 0;border-top:1px solid va
   <a class="tp-btn tp-btn--ghost" href="<?= h($csvUrl) ?>"><i class="bi bi-filetype-csv" aria-hidden="true"></i>Eksport CSV</a>
 </div>
 
-<form class="tp-bar" method="get" action="<?= h(route('work.index')) ?>" aria-label="Filtry raportu">
+<form class="tp-bar" method="get" action="<?= h(route('work.index')) ?>" aria-label="Filtry raportu"><?= route_field('work.index') ?>
   <div>
     <label class="tp-l" for="twl-ws">Obszar</label>
     <select class="tp-in" id="twl-ws" name="ws">

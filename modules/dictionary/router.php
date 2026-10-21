@@ -4,10 +4,10 @@ declare(strict_types=1);
  * modules/dictionary/router.php — Słownik Centralny: panel zarządzania słownikami + JSON API.
  *
  * Panel:   …/router.php                 drzewo słowników (?q=, ?trash=1)
- *          …/router.php/d/{kod}         wpisy słownika; /edit, /history, /export?format=csv|json, /entries/…
- *          …/router.php/import          import CSV/JSON (z próbą na sucho)
- * JSON:    …/router.php/api             lista słowników (can_read)
- *          …/router.php/api/{kod}       aktywne wpisy (?locale=en&at=RRRR-MM-DD&leaves=1) — każdy zalogowany
+ *          …/router.php?_route=/d/{kod}         wpisy słownika; /edit, /history, /export?format=csv|json, /entries/…
+ *          …/router.php?_route=/import          import CSV/JSON (z próbą na sucho)
+ * JSON:    …/router.php?_route=/api             lista słowników (can_read)
+ *          …/router.php?_route=/api/{kod}       aktywne wpisy (?locale=en&at=RRRR-MM-DD&leaves=1) — każdy zalogowany
  * Uprawnienia: moduł 'slowniki' (can_read/can_write/can_delete) — middleware perm:read|write|delete.
  */
 require_once dirname(__DIR__, 2) . '/config.php';

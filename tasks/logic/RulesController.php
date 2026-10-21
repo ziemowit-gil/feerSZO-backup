@@ -28,7 +28,7 @@ final class RulesController
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
         }
-        return Router::redirect(route('rules.index') . '?ws=' . $wsId);
+        return Router::redirect(route('rules.index', ['ws' => $wsId]));
     }
 
     public function toggle(int $id): ?string
@@ -37,7 +37,7 @@ final class RulesController
         if (!$rule) return $this->deny();
         db()->prepare("UPDATE task_rules SET is_active=1-is_active WHERE id=?")->execute([$id]);
         flash_set('success', (int)$rule['is_active'] ? 'Reguła wyłączona.' : 'Reguła włączona.');
-        return Router::redirect(route('rules.index') . '?ws=' . (int)$rule['workspace_id']);
+        return Router::redirect(route('rules.index', ['ws' => (int)$rule['workspace_id']]));
     }
 
     public function destroy(int $id): ?string
@@ -46,7 +46,7 @@ final class RulesController
         if (!$rule) return $this->deny();
         db()->prepare("DELETE FROM task_rules WHERE id=?")->execute([$id]);
         flash_set('success', 'Usunięto regułę „' . $rule['name'] . '”.');
-        return Router::redirect(route('rules.index') . '?ws=' . (int)$rule['workspace_id']);
+        return Router::redirect(route('rules.index', ['ws' => (int)$rule['workspace_id']]));
     }
 
     /** Reguła z obszaru, w którym bieżący użytkownik jest liderem. */
