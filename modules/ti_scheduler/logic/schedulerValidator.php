@@ -44,13 +44,13 @@ function sc_limits(int $instructor_id): ?array {
     return db_one("SELECT * FROM k30_sc_instructor_limits WHERE instructor_id=?", [$instructor_id]) ?: null;
 }
 
-/** Suma minut zajęć trenera w zakresie dat (bez odwołanych, bez $skip_id). */
+/** Suma minut zajęć trenera w zakresie dat (bez odwołanych, bez grup archiwalnych, bez $skip_id). */
 function sc_instructor_minutes(int $iid, string $from, string $to, int $skip_id = 0): int {
     $r = db_one(
         "SELECT COALESCE(SUM(" . SC_DUR_SQL . "),0) AS m
            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
           WHERE COALESCE(s.instructor_id,c.instructor_id)=CAST(? AS INTEGER) AND s.draft_id IS NULL
-            AND s.status NOT IN ('cancelled') AND s.lesson_date BETWEEN ? AND ?" . ($skip_id ? " AND s.id!=?" : ''),
+            AND s.status NOT IN ('cancelled') AND s.lesson_date BETWEEN ? AND ? AND COALESCE(c.status,'active')!='archived'" . ($skip_id ? " AND s.id!=?" : ''),
         $skip_id ? [$iid, $from, $to, $skip_id] : [$iid, $from, $to]
     );
     return (int)($r['m'] ?? 0);
@@ -217,7 +217,7 @@ function sc_check_limits(int $iid, array $lim, string $date, string $tf, string 
         $rows = db_all(
             "SELECT s.time_from, s.time_to FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
               WHERE COALESCE(s.instructor_id,c.instructor_id)=CAST(? AS INTEGER) AND s.lesson_date=? AND s.draft_id IS NULL
-                AND s.status NOT IN ('cancelled')" . ($skip ? " AND s.id!=?" : '') . " ORDER BY s.time_from",
+                AND s.status NOT IN ('cancelled') AND COALESCE(c.status,'active')!='archived'" . ($skip ? " AND s.id!=?" : '') . " ORDER BY s.time_from",
             $skip ? [$iid, $date, $skip] : [$iid, $date]
         );
         $iv = array_map(fn($r) => [ti_hm2min($r['time_from']), ti_hm2min($r['time_to'])], $rows);
