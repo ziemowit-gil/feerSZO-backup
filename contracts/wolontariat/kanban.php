@@ -51,8 +51,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'move
         exit;
     }
 
+    // te same reguły co nagłówek umowy: przejścia edytora, macierz grup, rozliczenia, zgoda, aneks
+    $_is_admin = (current_user()['role'] ?? '') === 'admin';
+    $_full = db_one("SELECT * FROM umowy_wolontariat WHERE id = ?", [$id]) ?: $contract;
+    require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
+    $_err = !$_is_admin && !in_array($status, status_allowed_next((string)$old_status, false, 'wolontariat'), true)
+        ? 'Niedozwolona zmiana statusu: ' . contractStatusLabel($old_status) . ' → ' . contractStatusLabel($status) . '.'
+        : contract_status_change_error('wolontariat', $_full, $status);
+    if ($_err) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => $_err]);
+        exit;
+    }
+
     db()->prepare("UPDATE umowy_wolontariat SET status = ?, updated_at = ? WHERE id = ?")
         ->execute([$status, date('Y-m-d H:i:s'), $id]);
+    contract_status_after_change('wolontariat', $id, (string)$old_status, $status);
 
     admin_audit(
         'kanban_move',

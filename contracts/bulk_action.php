@@ -99,13 +99,22 @@ if ($action === 'set_status') {
     if (!contractStatusExists($status, $type) || $status === 'aneks') _json(false, 0, 'Nieprawidłowy status.');
 
     require_once dirname(__DIR__) . '/includes/approval.php';
-    $uid   = (int)(current_user()['id'] ?? 0);
-    $count = 0;
+    require_once dirname(__DIR__) . '/includes/contract_transitions.php';
+    $uid      = (int)(current_user()['id'] ?? 0);
+    $is_admin = (current_user()['role'] ?? '') === 'admin';
+    $count    = 0;
+    $skipped  = [];
     foreach ($ids as $id) {
         try {
-            $old = db_one("SELECT status FROM {$tbl} WHERE id=?", [(int)$id]);
-            if (($old['status'] ?? '') === $status) continue;  // bez zmian — pomiń
+            $old = db_one("SELECT * FROM {$tbl} WHERE id=?", [(int)$id]);
+            if (!$old || ($old['status'] ?? '') === $status) continue;  // bez zmian — pomiń
+            // te same reguły co nagłówek umowy: przejścia edytora, macierz grup, rozliczenia, zgoda, aneks
+            $err = !$is_admin && !in_array($status, status_allowed_next((string)$old['status'], false, $type), true)
+                ? 'niedozwolona zmiana z „' . contractStatusLabel($old['status']) . '”'
+                : contract_status_change_error($type, $old, $status);
+            if ($err) { $skipped[] = ($old['numer_umowy'] ?? ('#' . $id)) . ': ' . $err; continue; }
             db_update($tbl, ['status' => $status], (int)$id);
+            contract_status_after_change($type, (int)$id, (string)$old['status'], $status);
             log_contract_action($type, (int)$id, $uid, 'status',
                 'Masowa zmiana statusu: ' . ($old['status'] ?? '—') . ' → ' . $status);
             $count++;
@@ -113,7 +122,7 @@ if ($action === 'set_status') {
             error_log("[bulk_status] type={$type} id={$id}: " . $e->getMessage());
         }
     }
-    _json(true, $count);
+    _json(true, $count, $skipped ? 'Pominięto ' . count($skipped) . ': ' . implode('; ', array_slice($skipped, 0, 5)) . (count($skipped) > 5 ? '…' : '') : '');
 }
 
 _json(false, 0, 'Nieznana akcja.');

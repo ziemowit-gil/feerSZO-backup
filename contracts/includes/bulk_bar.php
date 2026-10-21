@@ -222,13 +222,13 @@ if (!isset($TYPE)) return;
   function showToast(msg, ok) {
     const t = document.createElement('div');
     t.className = 'position-fixed top-0 end-0 m-3 px-3 py-2 rounded shadow fw-semibold';
-    t.style.cssText = 'z-index:9999;background:' + (ok ? '#16A34A' : '#DC2626') + ';color:#fff;font-size:.88rem';
+    t.style.cssText = 'z-index:9999;max-width:32rem;background:' + (ok ? '#15803D' : '#DC2626') + ';color:#fff;font-size:.88rem';
     t.setAttribute('role', ok ? 'status' : 'alert');
     t.setAttribute('aria-live', ok ? 'polite' : 'assertive');
-    t.setAttribute('aria-label', ok ? 'Powiadomienie: Gotowe' : 'Powiadomienie: Błąd');
-    t.textContent = msg;
+    t.textContent = msg; // treść czytana przez czytnik (bez aria-label, który zasłaniał powód błędu)
     document.body.appendChild(t);
-    setTimeout(() => { t.remove(); location.reload(); }, 2200);
+    // dłuższy komunikat (np. lista pominiętych umów) — więcej czasu na przeczytanie
+    setTimeout(() => { t.remove(); location.reload(); }, msg.length > 60 ? 9000 : 2200);
   }
 
   function setBusy(btnId, busy, label) {
@@ -289,7 +289,7 @@ if (!isset($TYPE)) return;
     const res = await post('set_status', { status });
     hideModal('bulk-modal-status');
     setBusy('bulk-status-btn', false, '<i class="bi bi-check-lg me-1"></i>Zastosuj');
-    showToast(res.ok ? 'Zmieniono status dla ' + res.count + ' umów.' : ('Błąd: ' + (res.msg || '?')), res.ok);
+    showToast(res.ok ? 'Zmieniono status dla ' + res.count + ' umów.' + (res.msg ? ' ' + res.msg : '') : ('Błąd: ' + (res.msg || '?')), res.ok && !res.msg);
   });
 })();
 </script>

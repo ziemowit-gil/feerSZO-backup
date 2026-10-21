@@ -233,3 +233,35 @@ final class ContractStatusTransitionValidator
         return self::group($from) === 'blocked' && self::group($to) !== 'blocked';
     }
 }
+
+/**
+ * Strażnik zmiany statusu dla ścieżek poza api/ajax.php (szybka zmiana z listy umów, kanban) — te same reguły
+ * co nagłówek umowy: blokada aneksu, status dostępny w typie, macierz grup + rozliczenie zaliczki/hologramów/salda
+ * i zgoda przedstawiciela (ContractStatusTransitionValidator), pliki wymagane w powierzeniu.
+ * Miękkie przejścia edytora (status_allowed_next) sprawdza wywołujący. Zwraca komunikat błędu albo null.
+ */
+function contract_status_change_error(string $type, array $row, string $to): ?string
+{
+    if (contract_is_locked($row)) return 'Umowa jest zablokowana aneksem — statusu nie można zmienić.';
+    if ($to === 'aneks' || !contractStatusExists($to, $type)) return 'Nieznany status: ' . $to . '.';
+    require_once __DIR__ . '/guardian_consent.php';
+    try {
+        ContractStatusTransitionValidator::assertAllowed((string)($row['status'] ?? ''), $to, $row, $type);
+    } catch (ContractTransitionException $e) {
+        return $e->getMessage();
+    }
+    if ($type === 'powierzenie') {
+        require_once __DIR__ . '/powierzenie_pliki.php';
+        if ($braki = powierzenie_braki_plikow($to, $row)) return 'Nie zmieniono statusu. ' . implode(' ', $braki) . ' Dołącz pliki w edycji umowy.';
+    }
+    return null;
+}
+
+/** Po zapisie nowego statusu: wyjście z grupy „zablokowana” zdejmuje flagę is_blocked (jak api/ajax.php). */
+function contract_status_after_change(string $type, int $id, string $from, string $to): void
+{
+    if (!ContractStatusTransitionValidator::isBlockedGroupExit($from, $to)) return;
+    $uid = (int)(current_user()['id'] ?? 0);
+    db_update(table_for_type($type), ['is_blocked' => 0, 'unblocked_by' => $uid, 'unblocked_at' => date('Y-m-d H:i:s')], $id);
+    log_contract_action($type, $id, $uid, 'unblock', 'Odblokowano po potwierdzeniu zgody przedstawiciela ustawowego.');
+}

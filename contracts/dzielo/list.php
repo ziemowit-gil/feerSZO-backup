@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id     = (int)($_POST['id'] ?? 0);
 
     $reply = function (bool $ok, array $extra = []) use ($xhr, $f) {
+        if (!$ok && !$xhr && !empty($extra['error'])) flash_set('error', $extra['error']);
         if ($xhr) { header('Content-Type: application/json'); echo json_encode(['ok'=>$ok]+$extra); exit; }
         header('Location: ' . APP_URL . '/contracts/dzielo/list.php?' . http_build_query(array_filter($f)));
         exit;
@@ -69,12 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? array_keys($statuses)
             : array_values(array_unique(array_merge([$row['status']], status_allowed_next($row['status'], false, $TYPE))));
         if ($new !== '' && in_array($new, $allowed, true) && isset($statuses[$new])) {
+            // te same reguły co nagłówek umowy (macierz grup, rozliczenia, zgoda, aneks)
+            require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
+            if ($_err = contract_status_change_error($TYPE, $row, $new)) $reply(false, ['error' => $_err]);
             db_update($TABLE, ['status'=>$new, 'updated_at'=>date('Y-m-d H:i:s')], $id);
+            contract_status_after_change($TYPE, $id, (string)$row['status'], $new);
             require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
             log_contract_action($TYPE, $id, current_user()['id'], 'status', 'Status → ' . $new);
             $reply(true, ['new_status'=>$new]);
         }
-        $reply(false);
+        $reply(false, ['error' => 'Niedozwolona zmiana statusu.']);
     }
 
     if ($action === 'delete' && $row && $owns) {
@@ -572,7 +577,8 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
         fd.append('_action', 'quick_status');
         fd.append('id', a.dataset.id);
         fd.append('new_status', a.dataset.quickStatus);
-        postAction(fd).then(function (d) { if (d.ok) load(formParams(), false); }).catch(function () {});
+        postAction(fd).then(function (d) { if (d.ok) load(formParams(), false); else alert(d.error || 'Nie zmieniono statusu.'); })
+          .catch(function () { alert('Błąd połączenia z serwerem — status nie został zmieniony.'); });
       });
     });
     region.querySelectorAll('form[data-ajax-action="delete"]').forEach(function (frm) {
