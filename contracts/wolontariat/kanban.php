@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'move
     $id     = (int)($_POST['id']     ?? 0);
     $status = trim($_POST['status'] ?? '');
 
-    $allowed_statuses = ['projekt', 'podpisana', 'w realizacji', 'zakończona', 'rozwiązana', 'anulowana'];
+    $allowed_statuses = array_keys(contractStatusOptions('wolontariat')); // słownik umowy_statusy
 
     if (!$id || !in_array($status, $allowed_statuses, true)) {
         http_response_code(400);
@@ -67,14 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'move
 }
 
 // ── Definicja kolumn ──────────────────────────────────────────────────────────
-$COLUMNS = [
-    'projekt'      => ['label' => 'Projekt',      'color' => '#6366F1', 'bg' => '#EEF2FF', 'icon' => 'bi-file-earmark-text'],
-    'podpisana'    => ['label' => 'Podpisana',     'color' => '#2E844A', 'bg' => '#EFF7ED', 'icon' => 'bi-check-circle'],
-    'w realizacji' => ['label' => 'W realizacji',  'color' => '#0176D3', 'bg' => '#EEF4FF', 'icon' => 'bi-play-circle'],
-    'zakończona'   => ['label' => 'Zakończona',    'color' => '#374151', 'bg' => '#F3F4F6', 'icon' => 'bi-flag'],
-    'rozwiązana'   => ['label' => 'Rozwiązana',    'color' => '#D97706', 'bg' => '#FEF3E2', 'icon' => 'bi-x-circle'],
-    'anulowana'    => ['label' => 'Anulowana',     'color' => '#DC2626', 'bg' => '#FEF2F2', 'icon' => 'bi-slash-circle'],
-];
+// kolumny = statusy porozumienia ze słownika umowy_statusy (etykieta, kolor, tło, ikona)
+$COLUMNS = [];
+foreach (contractStatusOptions('wolontariat') as $_k => $_l) {
+    $_c = contractStatusCfg($_k);
+    $COLUMNS[$_k] = ['label' => $_l, 'color' => $_c['color'], 'bg' => $_c['bg'], 'icon' => $_c['icon']];
+}
 
 // ── Filtry ────────────────────────────────────────────────────────────────────
 $filter_opiekun = trim($_GET['opiekun'] ?? '');

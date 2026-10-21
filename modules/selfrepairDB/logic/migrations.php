@@ -369,7 +369,7 @@ return [
     '2026-10_dictionary_umowy_statusy' => [
         'desc' => 'Słownik Centralny: statusy umów',
         'run'  => static function () use ($ROOT): void {
-            require_once $ROOT . '/modules/contract_statuses/lib/contractStatuses.php';
+            require_once $ROOT . '/modules/contract_status/lib/contractStatuses.php';
             require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
             $res = dictTransfer()->import(contractStatusesSeed(), 'json');
             foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
@@ -382,7 +382,7 @@ return [
     '2026-10_umowy_statusy_dane' => [
         'desc' => 'Umowy: stare/niespójne wartości statusów → statusy ze słownika umowy_statusy',
         'run'  => static function () use ($ROOT): void {
-            require_once $ROOT . '/modules/contract_statuses/lib/contractStatuses.php';
+            require_once $ROOT . '/modules/contract_status/lib/contractStatuses.php';
             require_once $ROOT . '/includes/approval.php';
             $alias = [
                 'zakonczona' => 'zakończona', 'rozwiazana' => 'rozwiązana', 'wygasla' => 'wygasła', 'obowiazujaca' => 'obowiązująca',

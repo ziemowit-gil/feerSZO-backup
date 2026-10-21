@@ -202,7 +202,7 @@ if ($_is_volunteer_only) {
               <option value="<?= h($opt_val) ?>"
                       <?= $sel_c ? 'selected' : '' ?>
                       <?= $has_p ? 'disabled' : '' ?>>
-                <?= h($c['numer_umowy']) ?> — <?= h(STATUS_LABELS[$c['status']]['label'] ?? $c['status']) ?>
+                <?= h($c['numer_umowy']) ?> — <?= h(contractStatusLabel($c['status'])) ?>
                 <?= $has_p ? ' (wniosek w toku)' : '' ?>
               </option>
               <?php endforeach; ?>
@@ -330,7 +330,7 @@ if ($_is_volunteer_only) {
                 <option value="<?= h($opt_val) ?>"
                         <?= $sel_c ? 'selected' : '' ?>
                         <?= $has_p ? 'disabled' : '' ?>>
-                  <?= h($c['numer_umowy']) ?> — <?= h(STATUS_LABELS[$c['status']]['label'] ?? $c['status']) ?>
+                  <?= h($c['numer_umowy']) ?> — <?= h(contractStatusLabel($c['status'])) ?>
                   <?= $has_p ? ' (wniosek w toku)' : '' ?>
                 </option>
                 <?php endforeach; ?>

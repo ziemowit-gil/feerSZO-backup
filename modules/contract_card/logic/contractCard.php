@@ -113,7 +113,7 @@ function contractCardHead(string $type, array $row): array {
     return [
         'numer'   => (string)($row['numer_umowy'] ?? ''),
         'rejestr' => (string)($row['nr_rejestru'] ?? ''),
-        'status'  => STATUS_LABELS[$row['status'] ?? '']['label'] ?? (string)($row['status'] ?? ''),
+        'status'  => contractStatusLabel($row['status'] ?? ''),
         'od'      => $od ? date('d.m.Y', strtotime((string)$od)) : '',
         'do'      => $do ? date('d.m.Y', strtotime((string)$do)) : (!empty($row['bezterminowa']) ? 'bezterminowo' : ''),
         'rodzaj'  => CONTRACT_TYPES[$type] ?? $type,

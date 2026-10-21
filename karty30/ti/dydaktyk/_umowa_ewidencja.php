@@ -84,7 +84,7 @@ $_um_zr = fn(string $z) => ['karty30' => 'protokół zajęć TI', 'reczne' => 'w
       <ul class="mb-0">
         <?php foreach ($_um_pomin as $_u): $_pow = [];
           if (in_array($_u['status'], ['anulowana', 'odrzucona'], true))
-              $_pow[] = 'ma status „' . ((defined('STATUS_LABELS') ? (STATUS_LABELS[$_u['status']]['label'] ?? null) : null) ?? ucfirst((string)$_u['status'])) . '”';
+              $_pow[] = 'ma status „' . (function_exists('contractStatusLabel') ? contractStatusLabel($_u['status']) : ucfirst((string)$_u['status'])) . '”';
           if (!(int)$_u['dyd']) $_pow[] = 'nie ma zaznaczonego pola „Dydaktyka — udostępnij dane do modułu”'; ?>
         <li>Umowa <strong><?= h($_um_nr($_u)) ?></strong> <?= h(implode(' i ', $_pow)) ?>.</li>
         <?php endforeach; ?>

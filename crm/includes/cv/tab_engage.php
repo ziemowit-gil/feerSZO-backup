@@ -68,13 +68,8 @@ if (!isset($contact)) { http_response_code(400); exit; }
           <!-- Umowy wolontariackie -->
           <div class="border-top pt-2 mt-2">
             <?php if ($volunteer_contracts):
-              $contract_statuses = [
-                'projekt'=>['label'=>'Projekt','color'=>'#5E6470'],'podpisana'=>['label'=>'Podpisana','color'=>'#1D4ED8'],
-                'w realizacji'=>['label'=>'W realizacji','color'=>'#2E844A'],'zakończona'=>['label'=>'Zakończona','color'=>'#032D60'],
-                'rozwiązana'=>['label'=>'Rozwiązana','color'=>'#B45309'],'anulowana'=>['label'=>'Anulowana','color'=>'#DC2626'],
-              ];
               foreach ($volunteer_contracts as $wol):
-                $wst = $contract_statuses[$wol['status']] ?? ['label'=>$wol['status'],'color'=>'#5E6470'];
+                $wst = contractStatusCfg($wol['status']); // słownik umowy_statusy
             ?>
             <div class="d-flex align-items-start gap-2 p-2 border rounded mb-1" style="font-size:.86rem">
               <i class="bi bi-file-earmark-text mt-1 flex-shrink-0" style="color:<?= h($wst['color']) ?>" aria-hidden="true"></i>

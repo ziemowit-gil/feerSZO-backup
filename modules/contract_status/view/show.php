@@ -7,10 +7,7 @@ $PAGE_TITLE = 'Status umowy ' . ($row['numer_umowy'] ?? '');
 include dirname(__DIR__, 3) . '/includes/header.php';
 $cur   = (string)($row['status'] ?? '');
 $view  = APP_URL . '/contracts/' . rawurlencode($type) . '/view.php?id=' . (int)$row['id'];
-$color = function (string $s): string {
-    $c = STATUS_LABELS[$s]['class'] ?? 'secondary';
-    return STATUS_CUSTOM_COLORS[$c] ?? (['primary' => '#0d6efd', 'secondary' => '#6c757d', 'success' => '#198754', 'info' => '#0aa2c0', 'warning' => '#b45309', 'danger' => '#dc3545'][$c] ?? '#6c757d');
-};
+$color = fn(string $s): string => contractStatusColor($s); // słownik umowy_statusy
 ?>
 <style>
 .cst-hero{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem}
@@ -54,7 +51,7 @@ $color = function (string $s): string {
       <form method="post" action="<?= h(route('cst.update', ['type' => $type, 'id' => $row['id']])) ?>" id="cst-form"><?= csrf_field() ?>
         <fieldset class="mb-3"><legend class="form-label small fw-semibold">Nowy status</legend>
           <div class="cst-pick">
-            <?php foreach (STATUS_LABELS as $k => $s): if ($k === 'aneks') continue; $id = 'cst-' . md5($k); ?>
+            <?php foreach (contractStatuses() as $k => $s): if ($k === 'aneks') continue; $id = 'cst-' . md5($k); ?>
               <span style="--k:<?= $color($k) ?>">
                 <input type="radio" name="to" id="<?= $id ?>" value="<?= h($k) ?>"<?= $k === $cur ? ' disabled' : '' ?><?= $k === $undo ? ' checked' : '' ?>>
                 <label for="<?= $id ?>"><span class="sw" aria-hidden="true"></span><?= h($s['label']) ?><?= $k === $cur ? ' <span class="fw-normal small">(teraz)</span>' : '' ?></label>

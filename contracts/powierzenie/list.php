@@ -82,7 +82,7 @@ $_qs_base = array_filter([
 $pag  = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" . http_build_query($_qs_base));
 $rows = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY {$sort_col} {$sort_dir} LIMIT {$per} OFFSET {$pag['offset']}", $params);
 
-$statuses = POWIERZENIE_STATUSY;
+$statuses = contractStatusOptions($TYPE); // słownik umowy_statusy
 $formy_zlecenia = ['powierzenie' => 'Powierzenie', 'wsparcie' => 'Wsparcie'];
 $tryby = ['konkurs' => 'Otwarty konkurs ofert', 'art19a' => 'Art. 19a — mały grant', 'inny' => 'Inny tryb'];
 

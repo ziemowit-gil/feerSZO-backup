@@ -25,7 +25,7 @@ $rejestr = contracts_registry_filter(all_contracts_registry(), $filters);
 // Opis aktywnych filtrów do nagłówka wydruku
 $filter_desc = array_filter([
     $filters['typ']     !== '' ? 'Typ: ' . (CONTRACT_TYPES[$filters['typ']] ?? $filters['typ']) : '',
-    $filters['status']  !== '' ? 'Status: ' . (STATUS_LABELS[$filters['status']]['label'] ?? $filters['status']) : '',
+    $filters['status']  !== '' ? 'Status: ' . contractStatusLabel($filters['status']) : '',
     $filters['rok']     !== '' ? 'Rok rejestru: ' . $filters['rok'] : '',
     $filters['opiekun'] !== '' ? 'Opiekun: ' . $filters['opiekun'] : '',
     ($filters['data_od'] !== '' || $filters['data_do'] !== '')
@@ -85,7 +85,7 @@ $org = defined('ORG_NAME') ? ORG_NAME : '';
     <td><?= h($r['opiekun'] ?: '—') ?></td>
     <td><?= h($r['numer_umowy']) ?></td>
     <td><?= $r['data_zawarcia'] ? date('d.m.Y', strtotime($r['data_zawarcia'])) : '—' ?></td>
-    <td><?= h(STATUS_LABELS[$r['status']]['label'] ?? $r['status']) ?></td>
+    <td><?= h(contractStatusLabel($r['status'])) ?></td>
   </tr>
   <?php endforeach; ?>
   </tbody>

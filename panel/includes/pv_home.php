@@ -92,7 +92,11 @@ $_hour        = (int)date('G');
 $_greet       = $_hour < 12 ? 'Dzień dobry' : ($_hour < 18 ? 'Witaj' : 'Dobry wieczór');
 
 /* ── Status umowy: etykiety + ikony ──────────────────────────────────────── */
-$_status_labels = ['projekt'=>'W przygotowaniu','podpisana'=>'Aktywne','w realizacji'=>'Aktywne','zakończona'=>'Zakończone','rozwiązana'=>'Zakończone','anulowana'=>'Anulowane'];
+// uproszczone nazwy wg grupy statusu ze słownika umowy_statusy
+$_status_labels = [];
+foreach (contractStatuses() as $_k => $_s)
+    $_status_labels[$_k] = ['draft' => 'W przygotowaniu', 'active' => 'Aktywne', 'blocked' => 'Wstrzymane', 'closed' => 'Zakończone',
+                            'cancelled' => $_k === 'anulowana' ? 'Anulowane' : 'Zakończone'][$_s['group']] ?? $_s['label'];
 $_status_icons  = ['podpisana'=>'bi-check-circle','w realizacji'=>'bi-play-circle','zakończona'=>'bi-flag','rozwiązana'=>'bi-x-circle','anulowana'=>'bi-slash-circle','projekt'=>'bi-clock'];
 $_st    = $_active_contract['status'] ?? '';
 $_ended = !empty($contract_progress['ended']);

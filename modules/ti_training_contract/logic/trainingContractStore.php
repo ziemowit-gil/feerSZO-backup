@@ -14,7 +14,14 @@ final class TiTrainingContractStore
 {
     public const TABLE = 'umowy_szkolenie_ti';
 
+    /** Zapas — statusy są w słowniku umowy_statusy (statuses()). */
     public const STATUSES = ['projekt', 'do podpisu', 'podpisana', 'w realizacji', 'zakończona', 'rozwiązana', 'anulowana'];
+
+    /** Statusy umowy szkoleniowej ze słownika umowy_statusy: ['kod' => 'Etykieta']. */
+    public static function statuses(?string $current = null): array
+    {
+        return function_exists('contractStatusOptions') ? contractStatusOptions('szkolenie_ti', $current) : array_combine(self::STATUSES, self::STATUSES);
+    }
 
     public static function migrate(): void
     {
@@ -135,7 +142,7 @@ final class TiTrainingContractStore
 
     public static function setStatus(int $id, string $status): bool
     {
-        if (!in_array($status, self::STATUSES, true)) return false;
+        if (!isset(self::statuses()[$status])) return false;
         self::migrate();
         db_update(self::TABLE, ['status' => $status], $id);
         return true;

@@ -184,7 +184,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div>
       <label for="status" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Status <span class="tw-text-red-500">*</span></label>
       <select id="status" name="status" required class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
-        <?php foreach(['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji','zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'] as $k=>$v):
+        <?php foreach(contractStatusOptions('dzielo', $row['status'] ?? null) as $k=>$v):
           $sel = ($row['status']??'')===$k?'selected':''; ?>
         <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
         <?php endforeach; ?>

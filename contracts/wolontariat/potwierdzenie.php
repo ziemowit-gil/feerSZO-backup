@@ -101,8 +101,7 @@ $oc         = !empty($row['ubezpieczenie_oc']) ? 'Tak' : 'Nie';
 $zwrot      = !empty($row['zwrot_kosztow'])
     ? ('Tak' . ($row['limit_zwrotu_kosztow'] ? ', limit: ' . number_format((float)$row['limit_zwrotu_kosztow'], 2, ',', ' ') . ' zł' : ''))
     : 'Nie';
-$status_labels = ['aktywna'=>'Aktywne','aktywne'=>'Aktywne','zakonczona'=>'Zakończone','zawarta'=>'Zawarte','robocza'=>'Wersja robocza'];
-$status_txt    = $status_labels[$row['status'] ?? ''] ?? ucfirst($row['status'] ?? '') ?: '—';
+$status_txt    = contractStatusLabel($row['status'] ?? ''); // słownik umowy_statusy
 
 $fn_safe  = preg_replace('/[^a-zA-Z0-9_-]/', '_', $numer);
 $base_url = APP_URL . '/contracts/wolontariat/potwierdzenie.php?id=' . $id;

@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_renew'])) {
     } elseif ($new_start && $new_end < $new_start) {
         $errors[] = 'Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.';
     }
-    if (!array_key_exists($new_status, STATUS_LABELS)) {
+    if (!contractStatusExists($new_status, 'wolontariat') || contractStatusCfg($new_status)['system']) {
         $new_status = 'podpisana';
     }
 
@@ -320,9 +320,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="mb-3">
         <label for="status" class="form-label">Nowy status</label>
         <select id="status" name="status" class="form-select">
-          <?php foreach (STATUS_LABELS as $sv => $sm): ?>
+          <?php foreach (contractStatusOptions('wolontariat') as $sv => $sl): ?>
           <option value="<?= h($sv) ?>" <?= $sv === 'podpisana' ? 'selected' : '' ?>>
-            <?= h($sm['label']) ?>
+            <?= h($sl) ?>
           </option>
           <?php endforeach; ?>
         </select>

@@ -3,7 +3,7 @@
  * modules/contract_status/logic/contractStatus.php — administracyjne wycofanie / ustawienie DOWOLNEGO statusu umowy.
  *
  * Wspólne dla widoku admina (router.php) i konsoli (cli/contractStatus.php). Omija walidatory przejść
- * (STATUS_TRANSITIONS, ContractStatusTransitionValidator, wymagane pliki powierzenia) — narzędzie awaryjne,
+ * (przejścia ze słownika umowy_statusy, ContractStatusTransitionValidator, wymagane pliki powierzenia) — narzędzie awaryjne,
  * np. na omyłkowe „Zakończona” / „Anulowana”, z których w aplikacji nie ma wyjścia. Każda zmiana trafia
  * do dziennika umowy (contract_audit_log) z adnotacją, skąd przyszła (panel administratora / CLI).
  */
@@ -40,10 +40,6 @@ function contractStatusRow(string $type, int $id): ?array {
     catch (\Throwable $e) { return null; }
 }
 
-function contractStatusLabel(string $s): string {
-    return STATUS_LABELS[$s]['label'] ?? ($s !== '' ? $s : '—');
-}
-
 /** Historia zmian statusu z dziennika (najnowsze pierwsze): [[at, who, from, to, note], …]; from '' = nieznany. */
 function contractStatusHistory(string $type, int $id): array {
     $hist = [];
@@ -66,7 +62,7 @@ function contractStatusHistory(string $type, int $id): array {
 /** Status sprzed ostatniej zmiany (do „Cofnij”) albo null, gdy dziennik tego nie mówi. */
 function contractStatusUndoTarget(array $hist): ?string {
     $last = $hist[0] ?? null;
-    return ($last && $last['from'] !== '' && isset(STATUS_LABELS[$last['from']])) ? $last['from'] : null;
+    return ($last && $last['from'] !== '' && isset(contractStatuses()[$last['from']])) ? $last['from'] : null;
 }
 
 /**
@@ -74,7 +70,7 @@ function contractStatusUndoTarget(array $hist): ?string {
  * $via — skąd zmiana („panel administratora” / „CLI”), $undo — czy to cofnięcie ostatniej zmiany.
  */
 function contractStatusSet(string $type, array $row, string $to, string $reason, int $adminId, string $via, bool $undo = false): string {
-    if (!isset(STATUS_LABELS[$to])) throw new \InvalidArgumentException('Nieznany status: ' . $to);
+    if (!isset(contractStatuses()[$to]) || $to === 'aneks') throw new \InvalidArgumentException('Nieznany status: ' . $to);
     $cur = (string)($row['status'] ?? '');
     if ($to === $cur) return $cur;
     $id  = (int)$row['id'];

@@ -96,7 +96,7 @@ if ($action === 'set_access') {
 if ($action === 'set_status') {
     if (!can_edit()) _json(false, 0, 'Brak uprawnień do zmiany statusu.');
     $status = trim($_POST['status'] ?? '');
-    if (!array_key_exists($status, STATUS_LABELS)) _json(false, 0, 'Nieprawidłowy status.');
+    if (!contractStatusExists($status, $type) || $status === 'aneks') _json(false, 0, 'Nieprawidłowy status.');
 
     require_once dirname(__DIR__) . '/includes/approval.php';
     $uid   = (int)(current_user()['id'] ?? 0);

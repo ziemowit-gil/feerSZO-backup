@@ -232,13 +232,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
     csrf_check();
     if (can_edit() && !contract_is_locked($row)) {
         $new_status = $_POST['status'] ?? '';
-        if (isset(STATUS_LABELS[$new_status]) && $new_status !== 'aneks') {
+        if (contractStatusExists($new_status, $TYPE) && $new_status !== 'aneks') {
             $old_status  = $row['status'];
             $_is_adm     = (current_user()['role'] ?? '') === 'admin';
-            $_next_ok    = status_allowed_next($old_status, $_is_adm);
+            $_next_ok    = status_allowed_next($old_status, $_is_adm, $TYPE);
             if ($new_status !== $old_status && !in_array($new_status, $_next_ok, true)) {
-                $from_lbl = STATUS_LABELS[$old_status]['label']  ?? $old_status;
-                $to_lbl   = STATUS_LABELS[$new_status]['label']  ?? $new_status;
+                $from_lbl = contractStatusLabel($old_status);
+                $to_lbl   = contractStatusLabel($new_status);
                 flash_set('error', 'Niedozwolona zmiana statusu: ' . $from_lbl . ' → ' . $to_lbl . '.');
                 header('Location: view.php?id=' . $id); exit;
             }

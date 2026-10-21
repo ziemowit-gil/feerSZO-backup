@@ -53,9 +53,7 @@ $sort_dir = $f['dir'] === 'asc' ? 'ASC' : 'DESC';
 $page = max(1, intval($_GET['page'] ?? 1));
 $per  = 20;
 
-$statuses = ['projekt' => 'Projekt', 'do podpisu' => 'Do podpisu', 'podpisana' => 'Podpisana',
-             'w realizacji' => 'W realizacji', 'zawieszona' => 'Zawieszona', 'do rozliczenia' => 'Do rozliczenia',
-             'zakończona' => 'Zakończona', 'rozwiązana' => 'Rozwiązana', 'anulowana' => 'Anulowana'];
+$statuses = contractStatusOptions($TYPE); // słownik umowy_statusy
 $formy    = ['papierowa' => 'Papierowa', 'elektroniczna' => 'Elektroniczna',
              'epodpis_kwalifikowany' => 'ePodpis kwalifikowany', 'kwalifikowany' => 'Kwalifikowany e-podpis'];
 $rozl_lab = ['nierozliczone' => 'Nierozliczone', 'częściowo' => 'Częściowo rozliczone', 'rozliczone' => 'Rozliczone'];
@@ -82,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new = trim($_POST['new_status'] ?? '');
         $allowed = is_admin()
             ? array_keys($statuses)
-            : status_allowed_next($row['status'] ?? '', false);
+            : status_allowed_next($row['status'] ?? '', false, $TYPE);
         if ($new !== '' && ($new === ($row['status'] ?? '') || in_array($new, $allowed, true)) && isset($statuses[$new])) {
             db_update($TABLE, ['status' => $new, 'updated_at' => date('Y-m-d H:i:s')], $id);
             require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
@@ -247,7 +245,7 @@ function _uslugi_table_html(array $rows, int $total, array $pag, int $per, array
                       $cur = $r['status'] ?? '';
                       $next = is_admin()
                           ? array_keys($statuses)
-                          : array_values(array_unique(array_merge([$cur], status_allowed_next($cur, false))));
+                          : array_values(array_unique(array_merge([$cur], status_allowed_next($cur, false, $TYPE))));
                       foreach ($next as $st):
                         if (!isset($statuses[$st])) continue;
                         $lbl = $statuses[$st];

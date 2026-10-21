@@ -22,7 +22,7 @@ $_dis = $locked ? ' disabled' : '';
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="act" value="status"><input type="hidden" name="id" value="<?= (int)$id ?>">
     <div><label class="form-label small mb-1" for="u-status">Status</label>
       <select class="form-select form-select-sm" id="u-status" name="status">
-        <?php foreach (TiTrainingContractStore::STATUSES as $_s): ?><option <?= $row['status'] === $_s ? 'selected' : '' ?>><?= h($_s) ?></option><?php endforeach; ?>
+        <?php foreach (TiTrainingContractStore::statuses($row['status']) as $_s => $_sl): ?><option value="<?= h($_s) ?>" <?= $row['status'] === $_s ? 'selected' : '' ?>><?= h($_sl) ?></option><?php endforeach; ?>
       </select></div>
     <button class="btn btn-outline-secondary btn-sm">Zmień status</button>
   </form>

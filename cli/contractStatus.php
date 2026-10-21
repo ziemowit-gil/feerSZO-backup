@@ -3,7 +3,7 @@
 /**
  * cli/contractStatus.php — administracyjne cofnięcie / ustawienie DOWOLNEGO statusu umowy z konsoli.
  *
- * Omija walidatory przejść (STATUS_TRANSITIONS, ContractStatusTransitionValidator, wymagane pliki powierzenia)
+ * Omija walidatory przejść (przejścia ze słownika umowy_statusy, ContractStatusTransitionValidator, wymagane pliki powierzenia)
  * — to narzędzie awaryjne dla administratora serwera (np. omyłkowe „Zakończona” / „Anulowana”, z których
  * w aplikacji nie ma wyjścia). Każda zmiana trafia do dziennika umowy (contract_audit_log) z adnotacją „CLI”.
  *
@@ -60,7 +60,7 @@ if (count($found) > 1) {
 [$type, $row] = $found[0];
 $id  = (int)$row['id'];
 $cur = (string)($row['status'] ?? '');
-$lbl = fn(string $s) => (STATUS_LABELS[$s]['label'] ?? $s) . " [{$s}]";
+$lbl = fn(string $s) => contractStatusLabel($s) . " [{$s}]";
 
 echo "Umowa:  " . (CONTRACT_TYPES[$type] ?? $type) . " #{$id}  {$row['numer_umowy']}\n";
 echo "Status: " . $lbl($cur) . "\n";
@@ -82,8 +82,8 @@ if ($undo) {
     if ($last['to'] !== $cur) fwrite(STDERR, "\nUwaga: ostatni wpis dziennika kończy się na „{$last['to']}”, a umowa ma „{$cur}”.\n");
     $to = $last['from'];
 }
-if (!isset(STATUS_LABELS[$to])) {
-    fwrite(STDERR, "\nNieznany status: {$to}. Dostępne: " . implode(', ', array_keys(STATUS_LABELS)) . "\n"); exit(2);
+if (!isset(contractStatuses()[$to])) {
+    fwrite(STDERR, "\nNieznany status: {$to}. Dostępne: " . implode(', ', array_keys(contractStatuses())) . "\n"); exit(2);
 }
 if ($to === $cur) { echo "\nUmowa ma już status " . $lbl($to) . " — nic do zrobienia.\n"; exit(0); }
 

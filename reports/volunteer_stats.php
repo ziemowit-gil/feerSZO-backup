@@ -245,9 +245,9 @@ include dirname(__DIR__) . '/includes/header.php';
       <label class="form-label form-label-sm mb-1">Status umowy</label>
       <select name="status" class="form-select form-select-sm" style="width:auto">
         <option value="">— wszystkie —</option>
-        <?php foreach (STATUS_LABELS as $sv => $sm): ?>
+        <?php foreach (contractStatusOptions('wolontariat', $sel_status ?: null) as $sv => $sl): ?>
         <option value="<?= h($sv) ?>" <?= $sel_status === $sv ? 'selected' : '' ?>>
-          <?= h($sm['label']) ?>
+          <?= h($sl) ?>
         </option>
         <?php endforeach; ?>
       </select>

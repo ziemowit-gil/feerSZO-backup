@@ -31,7 +31,7 @@ final class ContractStatusController
         $to     = $undo ? (string)contractStatusUndoTarget(contractStatusHistory($type, $id)) : (string)($_POST['to'] ?? '');
         $reason = trim((string)($_POST['reason'] ?? ''));
         if ($reason === '')                { flash_set('error', 'Podaj powód zmiany statusu (trafi do dziennika umowy).'); header('Location: ' . $back); exit; }
-        if (!isset(STATUS_LABELS[$to]))    { flash_set('error', $undo ? 'Nie da się ustalić poprzedniego statusu z dziennika — wybierz status ręcznie.' : 'Wybierz status.'); header('Location: ' . $back); exit; }
+        if (!isset(contractStatuses()[$to])) { flash_set('error', $undo ? 'Nie da się ustalić poprzedniego statusu z dziennika — wybierz status ręcznie.' : 'Wybierz status.'); header('Location: ' . $back); exit; }
         if ($to === (string)$row['status']) { flash_set('info', 'Umowa ma już ten status.'); header('Location: ' . $back); exit; }
         $old = contractStatusSet($type, $row, $to, $reason, (int)(current_user()['id'] ?? 0), 'Panel administratora', $undo);
         flash_set('success', 'Status zmieniony: ' . contractStatusLabel($old) . ' → ' . contractStatusLabel($to) . '.');

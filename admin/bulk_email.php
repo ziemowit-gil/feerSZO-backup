@@ -194,7 +194,7 @@ foreach (array_keys(CONTRACT_TYPES) as $type) {
 }
 ksort($opiekunowie);
 
-$status_labels = STATUS_LABELS;
+$status_labels = array_map(fn($c) => contractStatusCfg($c), array_combine($k = array_keys(contractStatusOptions()), $k)); // słownik umowy_statusy
 
 $PAGE_TITLE = 'Masowa wysyłka e-mail';
 include dirname(__DIR__) . '/includes/header.php';
@@ -248,7 +248,7 @@ include dirname(__DIR__) . '/includes/header.php';
                        name="statuses[]" value="<?= h($slug) ?>"
                        id="status_<?= h(str_replace(' ','_',$slug)) ?>">
                 <label class="form-check-label small" for="status_<?= h(str_replace(' ','_',$slug)) ?>">
-                  <span class="badge bg-<?= $info['class'] ?>" style="font-size:.7rem"><?= h($info['label']) ?></span>
+                  <span class="badge" style="font-size:.7rem;background:<?= h($info['color']) ?>"><?= h($info['label']) ?></span>
                 </label>
               </div>
               <?php endforeach; ?>

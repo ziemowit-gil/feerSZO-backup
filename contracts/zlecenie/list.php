@@ -44,9 +44,7 @@ $sort_dir = $f['dir'] === 'asc' ? 'ASC' : 'DESC';
 $page = max(1, intval($_GET['page'] ?? 1));
 $per  = 20;
 
-$statuses = ['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji',
-             'zawieszona'=>'Zawieszona','do rozliczenia'=>'Do rozliczenia',
-             'zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'];
+$statuses = contractStatusOptions($TYPE); // słownik umowy_statusy
 $typy_st  = ['miesięczna'=>'Miesięczna','godzinowa'=>'Godzinowa','akordowa'=>'Akordowa','ryczałtowa'=>'Ryczałtowa'];
 $formy    = ['papierowa'=>'Papierowa','elektroniczna'=>'Elektroniczna','kwalifikowany'=>'Kwalifikowany e-podpis'];
 
@@ -72,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new     = trim($_POST['new_status'] ?? '');
         $allowed = is_admin()
             ? array_keys($statuses)
-            : array_values(array_unique(array_merge([$row['status']], status_allowed_next($row['status'], false))));
+            : array_values(array_unique(array_merge([$row['status']], status_allowed_next($row['status'], false, $TYPE))));
         if ($new !== '' && in_array($new, $allowed, true) && isset($statuses[$new])) {
             db_update($TABLE, ['status'=>$new, 'updated_at'=>date('Y-m-d H:i:s')], $id);
             require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
@@ -274,7 +272,7 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
                       $cur  = $r['status'] ?? '';
                       $next = is_admin()
                           ? array_keys($statuses)
-                          : array_values(array_unique(array_merge([$cur], status_allowed_next($cur, false))));
+                          : array_values(array_unique(array_merge([$cur], status_allowed_next($cur, false, $TYPE))));
                       foreach ($next as $st):
                         if (!isset($statuses[$st])) continue;
                     ?>

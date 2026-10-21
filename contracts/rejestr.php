@@ -112,7 +112,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <select name="status" class="form-select form-select-sm">
             <option value="">— wszystkie —</option>
             <?php foreach ($statuses as $s): ?>
-            <option value="<?= h($s) ?>" <?= $filters['status'] === $s ? 'selected' : '' ?>><?= h(STATUS_LABELS[$s]['label'] ?? $s) ?></option>
+            <option value="<?= h($s) ?>" <?= $filters['status'] === $s ? 'selected' : '' ?>><?= h(contractStatusLabel($s)) ?></option>
             <?php endforeach; ?>
           </select>
         </div>

@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
     csrf_check();
     if (can_edit() && !contract_is_locked($row)) {
         $new_status = $_POST['status'] ?? '';
-        if (isset(STATUS_LABELS[$new_status]) && $new_status !== 'aneks') {
+        if (contractStatusExists($new_status, $TYPE) && $new_status !== 'aneks') {
             $old_status = $row['status'];
             require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
             require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';

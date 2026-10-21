@@ -67,13 +67,13 @@ switch ($action) {
         if (!$type)      ajax_err('Brak type');
         if (!$value)     ajax_err('Brak value');
 
-        if (!isset(STATUS_LABELS[$value])) {
-            ajax_err('Nieznany status: ' . $value);
-        }
-
         $table = 'umowy_' . $type;
         if (!isset(CONTRACT_TYPES[$type])) {
             ajax_err('Nieznany typ umowy: ' . $type);
+        }
+
+        if (!contractStatusExists($value, $type) || $value === 'aneks') {
+            ajax_err('Nieznany status: ' . $value);
         }
 
         try {
@@ -87,7 +87,7 @@ switch ($action) {
         $old_status = $row['status'];
         if ($old_status === $value) {
             // Nic do zmiany — zwróć aktualny stan
-            $st = STATUS_LABELS[$value];
+            $st = contractStatusCfg($value);
             ajax_ok([
                 'label'       => $st['label'],
                 'badge_class' => $st['class'],
@@ -97,10 +97,10 @@ switch ($action) {
         // Walidacja dozwolonych przejść — edytorzy tylko do przodu, admini bez ograniczeń
         $is_admin = (current_user()['role'] ?? '') === 'admin';
         if (!$is_admin) {
-            $allowed_next = STATUS_TRANSITIONS[$old_status] ?? [];
+            $allowed_next = status_allowed_next((string)$old_status, false, $type);
             if (!in_array($value, $allowed_next, true)) {
-                $from_lbl = STATUS_LABELS[$old_status]['label'] ?? $old_status;
-                $to_lbl   = STATUS_LABELS[$value]['label']      ?? $value;
+                $from_lbl = contractStatusLabel($old_status);
+                $to_lbl   = contractStatusLabel($value);
                 ajax_err('Niedozwolona zmiana: ' . $from_lbl . ' → ' . $to_lbl, 403);
             }
         }
@@ -143,7 +143,7 @@ switch ($action) {
             ajax_err('Błąd zapisu: ' . $e->getMessage());
         }
 
-        $st = STATUS_LABELS[$value];
+        $st = contractStatusCfg($value);
         $extra = [
             'label'       => $st['label'],
             'badge_class' => $st['class'],

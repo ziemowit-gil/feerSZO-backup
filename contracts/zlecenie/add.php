@@ -323,9 +323,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="zl-c2">
         <label for="status" class="zl-label">Status <span class="zl-req" aria-hidden="true">*</span></label>
         <select id="status" name="status" required class="zl-input" aria-describedby="status_help">
-          <?php foreach(STATUS_LABELS as $k=>$v): if($k==='aneks') continue;
+          <?php foreach(contractStatusOptions('zlecenie', $row['status'] ?? null) as $k=>$v):
             $sel = ($row['status']??'projekt')===$k?'selected':''; ?>
-          <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v['label']) ?></option>
+          <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
           <?php endforeach; ?>
         </select>
         <p id="status_help" class="zl-help">projekt → podpisana → w realizacji → do rozliczenia → zakończona</p>

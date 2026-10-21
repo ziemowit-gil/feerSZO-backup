@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/powi
 
 $formy_zlecenia = ['powierzenie' => 'Powierzenie (100% dotacji)', 'wsparcie' => 'Wsparcie (z wkładem własnym)'];
 $tryby = ['konkurs' => 'Otwarty konkurs ofert', 'art19a' => 'Tryb pozakonkursowy (art. 19a — mały grant)', 'inny' => 'Inny tryb'];
-$statuses = POWIERZENIE_STATUSY;
+$statuses = contractStatusOptions($TYPE, $row['status'] ?? null); // słownik umowy_statusy
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();

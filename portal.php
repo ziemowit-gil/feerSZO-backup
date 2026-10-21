@@ -406,7 +406,7 @@ html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe U
     <div class="ps-card">
       <div class="ps-head"><i class="bi bi-clock-history"></i> Ostatnie umowy</div>
       <?php foreach ($_recent as $r):
-        $st = STATUS_LABELS[$r['status']] ?? ['class'=>'secondary','label'=>$r['status']];
+        $st = contractStatusCfg($r['status']);
       ?>
       <a href="<?= APP_URL ?>/contracts/<?= h($r['type']) ?>/view.php?id=<?= (int)$r['id'] ?>" class="ps-item">
         <div class="ps-item-icon" style="background:#EFF6FF;color:#2563EB">

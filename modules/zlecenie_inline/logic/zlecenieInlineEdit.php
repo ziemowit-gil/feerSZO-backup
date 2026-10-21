@@ -6,7 +6,7 @@
  * lista dozwolonych kolumn, diff do audytu, db_update, kontrola utrwalenia, log_contract_action.
  *
  * Jedyny edytor umowy zlecenie (osobny formularz edit.php przekierowuje tutaj): także status — z tymi
- * samymi regułami przejść co szybka zmiana w nagłówku (STATUS_TRANSITIONS dla nie-adminów,
+ * samymi regułami przejść co szybka zmiana w nagłówku (przejścia ze słownika umowy_statusy dla nie-adminów,
  * ContractStatusTransitionValidator dla wszystkich, blokada zamknięcia bez rozliczenia) — pliki umowy,
  * kartoteka osób, komórka, IS, M365 i dostęp (access_users).
  */
@@ -122,11 +122,11 @@ function zlecenie_inline_columns(): array {
 /** Statusy do wyboru: obecny + dozwolone następne (jak szybka zmiana w nagłówku). */
 function zlecenie_inline_status_options(string $current): array {
     $is_admin = (current_user()['role'] ?? '') === 'admin';
-    $next = function_exists('status_allowed_next') ? status_allowed_next($current, $is_admin) : array_keys(STATUS_LABELS);
+    $next = status_allowed_next($current, $is_admin, 'zlecenie');
     $out = [];
-    foreach (STATUS_LABELS as $k => $v) {
+    foreach (contractStatusOptions('zlecenie', $current) + array_fill_keys($next, '') as $k => $v) {
         if ($k === 'aneks') continue;
-        if ($k === $current || in_array($k, $next, true)) $out[$k] = $v['label'];
+        if ($k === $current || in_array($k, $next, true)) $out[$k] = contractStatusLabel($k);
     }
     return $out;
 }
@@ -167,13 +167,13 @@ function zlecenie_inline_save(array $row, array $post, int $uid): array {
     // Status: te same reguły co szybka zmiana w nagłówku (api/ajax.php set_status) i edit.php.
     $old_status = (string)$row['status'];
     $new_status = (string)($data['status'] ?? $old_status);
-    if ($new_status === '' || !isset(STATUS_LABELS[$new_status]) || $new_status === 'aneks') {
+    if ($new_status === '' || !contractStatusExists($new_status, 'zlecenie') || $new_status === 'aneks') {
         $errors[] = 'Wybierz poprawny status.';
     } elseif ($new_status !== $old_status) {
         require_once dirname(__DIR__, 3) . '/includes/contract_transitions.php';
         $is_admin = (current_user()['role'] ?? '') === 'admin';
-        if (!$is_admin && !in_array($new_status, STATUS_TRANSITIONS[$old_status] ?? [], true)) {
-            $errors[] = 'Niedozwolona zmiana statusu: ' . (STATUS_LABELS[$old_status]['label'] ?? $old_status) . ' → ' . (STATUS_LABELS[$new_status]['label'] ?? $new_status) . '.';
+        if (!$is_admin && !in_array($new_status, status_allowed_next($old_status, false, 'zlecenie'), true)) {
+            $errors[] = 'Niedozwolona zmiana statusu: ' . contractStatusLabel($old_status) . ' → ' . contractStatusLabel($new_status) . '.';
         } else {
             try {
                 ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, array_merge($row, $data), 'zlecenie');

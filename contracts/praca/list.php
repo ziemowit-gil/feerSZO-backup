@@ -82,7 +82,7 @@ $_qs_base = array_filter([
 $pag  = paginate($total, $per, $page, APP_URL . "/contracts/{$TYPE}/list.php?" . http_build_query($_qs_base));
 $rows = db_all("SELECT * FROM {$TABLE} WHERE {$where} ORDER BY {$sort_col} {$sort_dir} LIMIT {$per} OFFSET {$pag['offset']}", $params);
 
-$statuses = ['obowiązująca' => 'Obowiązująca', 'rozwiązana' => 'Rozwiązana', 'wygasła' => 'Wygasła'];
+$statuses = contractStatusOptions($TYPE); // słownik umowy_statusy
 $rodzaje  = ['na czas określony' => 'Na czas określony', 'na czas nieokreślony' => 'Na czas nieokreślony',
              'na okres próbny' => 'Na okres próbny', 'zastępstwo' => 'Zastępstwo'];
 $formy    = ['papierowa' => 'Papierowa', 'elektroniczna' => 'Elektroniczna', 'kwalifikowany' => 'Kwalifikowany e-podpis'];

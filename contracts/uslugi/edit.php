@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Wiersz scalony z formularzem, żeby potwierdzenie rozliczenia zaliczki w tym samym zapisie się liczyło.
     if (!empty($data['status']) && $data['status'] !== ($row['status'] ?? '')) {
         require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
-        if (in_array($data['status'], ContractSettlementGuard::CLOSING_STATUSES, true)
+        if (in_array($data['status'], ContractSettlementGuard::closingStatuses(), true)
             && ($why = ContractSettlementGuard::closeBlocker($TYPE, array_merge($row, $data, ['id' => $id])))) {
             $errors[] = $why;
         }
@@ -158,9 +158,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div>
       <label for="status" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Status <span class="tw-text-red-500">*</span></label>
       <select id="status" name="status" required class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
-        <?php foreach(['projekt','do podpisu','podpisana','w realizacji','zawieszona','do rozliczenia','zakończona','rozwiązana','anulowana'] as $s):
-          $sel = $row['status']===$s?'selected':''; ?>
-        <option value="<?= h($s) ?>" <?= $sel ?>><?= h(ucfirst($s)) ?></option>
+        <?php foreach (contractStatusOptions('uslugi', $row['status']) as $s => $_sl):
+          $sel = $row['status'] === $s ? 'selected' : ''; ?>
+        <option value="<?= h($s) ?>" <?= $sel ?>><?= h($_sl) ?></option>
         <?php endforeach; ?>
       </select>
     </div>

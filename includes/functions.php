@@ -1,6 +1,6 @@
 <?php
 // Statusy umów — jedno źródło: słownik umowy_statusy (STATUS_LABELS niżej = zapas i zasiew).
-require_once dirname(__DIR__) . '/modules/contract_statuses/lib/contractStatuses.php';
+require_once dirname(__DIR__) . '/modules/contract_status/lib/contractStatuses.php';
 
 const CONTRACT_TYPES = [
     'zlecenie'    => 'Umowa zlecenie',
@@ -12,7 +12,7 @@ const CONTRACT_TYPES = [
     'inne'        => 'Inna umowa',
 ];
 
-/** Zapas, gdy brak słownika umowy_statusy — w kodzie używaj contractStatus*() (modules/contract_statuses). */
+/** Zapas, gdy brak słownika umowy_statusy — w kodzie używaj contractStatus*() (modules/contract_status). */
 const STATUS_LABELS = [
     'projekt'        => ['label' => 'Projekt',        'class' => 'secondary'],
     'do podpisu'     => ['label' => 'Do podpisu',     'class' => 'teal'],
@@ -40,6 +40,7 @@ const STATUS_CUSTOM_COLORS = [
 ];
 
 /**
+ * Zapas — przejścia są w słowniku umowy_statusy (atrybut next), zob. contractStatusNext().
  * Dozwolone przejścia między statusami dla zwykłych edytorów.
  * Admini mogą ustawić dowolny status (oprócz 'aneks').
  */
@@ -65,14 +66,11 @@ const STATUS_TRANSITIONS = [
 ];
 
 /**
- * Zwraca listę statusów, na które można przejść z podanego statusu.
- * Admini widzą wszystkie statusy (bez 'aneks').
+ * Zwraca listę statusów, na które można przejść z podanego statusu (słownik umowy_statusy, atrybut next).
+ * Admini widzą wszystkie statusy typu (bez 'aneks'). $type '' = bez ograniczenia do typu umowy.
  */
-function status_allowed_next(string $current, bool $is_admin = false): array {
-    if ($is_admin) {
-        return array_keys(array_filter(STATUS_LABELS, static fn($_, $k) => $k !== 'aneks', ARRAY_FILTER_USE_BOTH));
-    }
-    return STATUS_TRANSITIONS[$current] ?? [];
+function status_allowed_next(string $current, bool $is_admin = false, string $type = ''): array {
+    return contractStatusNext($current, $type, $is_admin);
 }
 
 /** Zwraca true jeśli umowa jest zablokowana (status aneks). */
@@ -81,11 +79,7 @@ function contract_is_locked(array $row): bool {
 }
 
 function status_badge(string $status): string {
-    $s = STATUS_LABELS[$status] ?? ['label' => $status, 'class' => 'secondary'];
-    if (isset(STATUS_CUSTOM_COLORS[$s['class']])) {
-        return '<span class="badge" style="background:' . STATUS_CUSTOM_COLORS[$s['class']] . '">' . htmlspecialchars($s['label']) . '</span>';
-    }
-    return '<span class="badge bg-' . $s['class'] . '">' . htmlspecialchars($s['label']) . '</span>';
+    return contractStatusBadge($status);
 }
 
 /**

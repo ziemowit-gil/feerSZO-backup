@@ -234,8 +234,8 @@ $org = defined('ORG_NAME') ? ORG_NAME : '';
       } elseif (in_array($col, ['wynagrodzenie_brutto','wartosc_netto','wartosc_brutto','wartosc_umowy'], true)) {
           $val = $val !== '' && $val !== null ? number_format((float)$val, 2, ',', ' ') . ' PLN' : '—';
       } elseif ($col === 'status') {
-          $s = STATUS_LABELS[$val] ?? ['label'=>$val,'class'=>'secondary'];
-          $val = '<span class="badge" style="background:' . badge_color($s['class']) . ';color:#fff">' . h($s['label']) . '</span>';
+          $s = contractStatusCfg($val); // słownik umowy_statusy
+          $val = '<span class="badge" style="background:' . h($s['color']) . ';color:#fff">' . h($s['label']) . '</span>';
       } else {
           $val = htmlspecialchars((string)($val ?: '—'));
       }

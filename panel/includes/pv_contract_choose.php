@@ -17,9 +17,11 @@ panelMetroAssets($_vol_color ?? '#0f6fa8');
 $_cc_types  = ['wolontariat' => 'Wolontariat', 'zlecenie' => 'Umowa zlecenie', 'dzielo' => 'Umowa o dzieło', 'praca' => 'Umowa o pracę'];
 $_cc_icons  = ['wolontariat' => 'bi-heart-fill', 'zlecenie' => 'bi-person-workspace', 'dzielo' => 'bi-brush', 'praca' => 'bi-briefcase-fill'];
 $_cc_colors = ['wolontariat' => 'magenta', 'zlecenie' => 'blue', 'dzielo' => 'violet', 'praca' => 'indigo'];
-$_cc_status = ['projekt' => 'w przygotowaniu', 'podpisana' => 'aktywna', 'w realizacji' => 'aktywna',
-               'zakończona' => 'zakończona', 'rozwiązana' => 'rozwiązana', 'anulowana' => 'anulowana'];
-$_cc_ended  = ['zakończona', 'rozwiązana', 'anulowana'];
+// Uproszczone nazwy dla uczestnika wg grupy statusu ze słownika umowy_statusy
+$_cc_group  = ['draft' => 'w przygotowaniu', 'active' => 'aktywna', 'blocked' => 'wstrzymana'];
+$_cc_status = [];
+foreach (contractStatuses() as $_k => $_s) $_cc_status[$_k] = $_cc_group[$_s['group']] ?? mb_strtolower($_s['label']);
+$_cc_ended  = contractStatusesInGroup('closed', 'cancelled');
 
 // Najpierw umowy trwające, potem zakończone (kolejność w grupie bez zmian).
 $_cc_list = $contracts;

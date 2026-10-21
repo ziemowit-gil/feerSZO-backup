@@ -17,6 +17,7 @@ const POWIERZENIE_PLIKI = [
 ];
 
 /** Statusy umowy powierzenia w kolejności obiegu. */
+/** Zapas — statusy powierzenia są w słowniku umowy_statusy (contractStatusOptions('powierzenie')). */
 const POWIERZENIE_STATUSY = [
     'projekt'                 => 'Projekt',
     'jednostronnie'           => 'Podpisana jednostronnie',
@@ -35,7 +36,7 @@ const POWIERZENIE_STATUSY = [
  * przy statusie „Podpisana” — także egzemplarz dwustronny (tylko wtedy).
  */
 function powierzenie_wymagane_pliki(string $status): array {
-    $lbl  = POWIERZENIE_STATUSY[$status] ?? $status;
+    $lbl  = function_exists('contractStatusLabel') ? contractStatusLabel($status) : (POWIERZENIE_STATUSY[$status] ?? $status);
     $jedn = 'status „' . $lbl . '”: Fundacja podpisała umowę — dołącz egzemplarz z naszym podpisem.';
     $dwu  = 'status „' . $lbl . '”: umowa jest zawarta — dołącz egzemplarz podpisany przez obie strony.';
     switch ($status) {
@@ -69,7 +70,7 @@ function powierzenie_braki_plikow(string $status, array $row): array {
 /** Mapa status → [pole => uzasadnienie] dla JS formularza (podpowiedź na żywo przy zmianie statusu). */
 function powierzenie_wymagania_json(): string {
     $m = [];
-    foreach (array_keys(POWIERZENIE_STATUSY) as $s) $m[$s] = powierzenie_wymagane_pliki($s);
+    foreach (array_keys(function_exists('contractStatusOptions') ? contractStatusOptions('powierzenie') : POWIERZENIE_STATUSY) as $s) $m[$s] = powierzenie_wymagane_pliki($s);
     return json_encode($m, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 }
 

@@ -37,9 +37,7 @@ $field_configs = [
     'zakres_wolontariatu'      => ['label' => 'Zakres wolontariatu',       'type' => 'textarea'],
     'uwagi'                    => ['label' => 'Uwagi / postanowienia',     'type' => 'textarea'],
     'status'                   => ['label' => 'Status umowy',              'type' => 'select',
-        'options' => ['projekt'=>'Projekt','podpisana'=>'Podpisana',
-                      'w realizacji'=>'W realizacji','zakończona'=>'Zakończona',
-                      'rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana']],
+        'options' => contractStatusOptions($type)], // słownik umowy_statusy
 ];
 
 $type_fields = [

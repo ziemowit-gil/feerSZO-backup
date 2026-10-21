@@ -28,7 +28,7 @@ require_once __DIR__ . '/contract_correction.php';
 require_once __DIR__ . '/guardian_consent.php';
 require_once __DIR__ . '/contract_transitions.php';
 
-$_cvh_st       = STATUS_LABELS[$_cvh_row['status']] ?? ['label' => $_cvh_row['status'], 'class' => 'secondary'];
+$_cvh_st       = contractStatusCfg($_cvh_row['status']); // słownik umowy_statusy
 $_cvh_status   = $_cvh_row['status'];
 $_cvh_locked   = contract_is_locked($_cvh_row); // status 'aneks' = blokada
 
@@ -373,8 +373,8 @@ $_cvh_card_li = '<li><a class="dropdown-item" href="' . APP_URL . '/modules/cont
                 onchange="cvhSetStatus(this)">
           <?php
           $_cvh_is_admin   = (current_user()['role'] ?? '') === 'admin';
-          $_cvh_next_ok    = status_allowed_next($_cvh_status, $_cvh_is_admin);
-          foreach (STATUS_LABELS as $_sv => $_sm):
+          $_cvh_next_ok    = status_allowed_next($_cvh_status, $_cvh_is_admin, (string)$_cvh_type);
+          foreach (contractStatuses() + [$_cvh_status => contractStatusCfg($_cvh_status)] as $_sv => $_sm):
             if ($_sv === 'aneks') continue; // nie można ręcznie ustawić aneksu
             if ($_sv !== $_cvh_status && !in_array($_sv, $_cvh_next_ok, true)) continue;
           ?>

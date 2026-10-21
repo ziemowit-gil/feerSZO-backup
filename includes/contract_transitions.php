@@ -161,15 +161,21 @@ final class ContractSettlementGuard
         catch (ContractTransitionException $e) { return $e->getMessage(); }
     }
 
-    /** Statusy zamykające umowę (grupy closed + cancelled). */
+    /** Statusy zamykające umowę (grupy closed + cancelled) — zapas; w kodzie closingStatuses() (słownik umowy_statusy). */
     public const CLOSING_STATUSES = ['zakończona', 'wygasła', 'rozwiązana', 'anulowana'];
+
+    /** @return list<string> */
+    public static function closingStatuses(): array
+    {
+        return contractStatusesInGroup('closed', 'cancelled') ?: self::CLOSING_STATUSES;
+    }
 }
 
 /**
  * Task 3: twarda macierz grup statusów (Draft/Active/Blocked/Closed/Cancelled).
  * Obowiązuje WSZYSTKICH, także admina — w przeciwieństwie do miękkiej
  * STATUS_TRANSITIONS (includes/functions.php), którą admin dziś obchodzi.
- * Grupuje istniejące 12 statusów PL bez ich zastępowania.
+ * Grupa statusu = atrybut `grupa` w słowniku umowy_statusy (GROUPS niżej to zapas).
  */
 final class ContractStatusTransitionValidator
 {
@@ -182,6 +188,13 @@ final class ContractStatusTransitionValidator
         'rozwiązana' => 'cancelled', 'anulowana' => 'cancelled',
         // 'aneks' pozostaje poza modelem grup — obsługiwane osobno przez contract_is_locked().
     ];
+
+    /** Grupa statusu ze słownika (null — poza modelem grup, np. aneks). */
+    private static function group(string $status): ?string
+    {
+        $g = function_exists('contractStatusGroup') ? contractStatusGroup($status) : (self::GROUPS[$status] ?? '');
+        return $g !== '' ? $g : null;
+    }
 
     private const GROUP_TRANSITIONS = [
         'draft'     => ['active', 'cancelled', 'blocked'],
@@ -198,8 +211,8 @@ final class ContractStatusTransitionValidator
      */
     public static function assertAllowed(string $from, string $to, array $row, string $type = ''): void
     {
-        $fromGroup = self::GROUPS[$from] ?? null;
-        $toGroup   = self::GROUPS[$to] ?? null;
+        $fromGroup = self::group($from);
+        $toGroup   = self::group($to);
         if ($fromGroup === null || $toGroup === null) return; // status poza modelem grup (np. aneks) — bez zmian
 
         if ($fromGroup !== $toGroup && !in_array($toGroup, self::GROUP_TRANSITIONS[$fromGroup] ?? [], true)) {
@@ -217,6 +230,6 @@ final class ContractStatusTransitionValidator
     /** Czy ten przejście wyprowadza umowę z grupy "blocked" — sygnał do zdjęcia is_blocked. */
     public static function isBlockedGroupExit(string $from, string $to): bool
     {
-        return (self::GROUPS[$from] ?? null) === 'blocked' && (self::GROUPS[$to] ?? null) !== 'blocked';
+        return self::group($from) === 'blocked' && self::group($to) !== 'blocked';
     }
 }

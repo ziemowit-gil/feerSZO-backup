@@ -1,8 +1,9 @@
 <?php /* ═══════════════════ TAB: FORMALNOŚCI ═══════════════════ */ ?>
 <?php
   $ct_labels = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowa zlecenie','dzielo'=>'Umowa o dzieło','praca'=>'Umowa o pracę'];
-  $st_labels = ['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji','zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'];
-  $st_colors = ['podpisana'=>'success','w realizacji'=>'primary','projekt'=>'secondary','zakończona'=>'dark','rozwiązana'=>'warning','anulowana'=>'danger'];
+  // etykiety i kolory ze słownika umowy_statusy
+  $st_labels = array_map(fn($s) => $s['label'], contractStatuses());
+  $st_hex    = array_map(fn($s) => $s['color'], contractStatuses());
 ?>
 <div class="mt-3">
 
@@ -58,7 +59,7 @@
   <?php endif; ?>
   <?php foreach ($dyd_contracts as $dc):
     $st    = $dc['status'] ?? '';
-    $stc   = $st_colors[$st] ?? 'secondary';
+    $stc   = $st_hex[$st] ?? '#4B5563';
     $is_active = in_array($st, ['podpisana','w realizacji'], true);
     $is_is = $dc['contract_type'] === 'zlecenie' && !empty($dc['w_ramach_is']);
   ?>
@@ -76,7 +77,7 @@
             <?php endif; ?>
           </div>
         </div>
-        <span class="badge bg-<?= $stc ?> ms-auto align-self-start" style="font-size:.78rem"><?= h($st_labels[$st] ?? $st) ?></span>
+        <span class="badge ms-auto align-self-start" style="font-size:.78rem;background:<?= h($stc) ?>"><?= h($st_labels[$st] ?? $st) ?></span>
       </div>
       <dl class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-2 mb-0" style="font-size:.88rem">
         <?php if (!empty($dc['imie_nazwisko'])): ?>

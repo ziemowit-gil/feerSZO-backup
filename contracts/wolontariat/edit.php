@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Wiersz scalony z formularzem, żeby potwierdzenie rozliczenia zaliczki w tym samym zapisie się liczyło.
     if (!empty($data['status']) && $data['status'] !== ($row['status'] ?? '')) {
         require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
-        if (in_array($data['status'], ContractSettlementGuard::CLOSING_STATUSES, true)
+        if (in_array($data['status'], ContractSettlementGuard::closingStatuses(), true)
             && ($why = ContractSettlementGuard::closeBlocker($TYPE, array_merge($row, $data, ['id' => $id])))) {
             $errors[] = $why;
         }
@@ -269,7 +269,7 @@ try {
         [(int)$id]
     );
 } catch (\Throwable $e) { $__opiekunowie_wol = []; }
-$__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 'secondary'];
+$__st = contractStatusCfg($row['status']);
 ?>
 <style>
 /* ══ Edycja porozumienia — szata Metro ═════════════════════════════════════
@@ -499,9 +499,9 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
     <div class="col-md-4 fgroup">
       <label for="status_sel">Status <span class="text-danger">*</span></label>
       <select name="status" id="status_sel" class="form-select" required>
-        <?php foreach (['projekt','podpisana','w realizacji','zakończona','rozwiązana','anulowana','obowiązująca'] as $s):
+        <?php foreach (contractStatusOptions('wolontariat', $row['status']) as $s => $_sl):
           $sel = $row['status'] === $s ? 'selected' : ''; ?>
-        <option value="<?= h($s) ?>" <?= $sel ?>><?= h(ucfirst($s)) ?></option>
+        <option value="<?= h($s) ?>" <?= $sel ?>><?= h($_sl) ?></option>
         <?php endforeach; ?>
       </select>
     </div>

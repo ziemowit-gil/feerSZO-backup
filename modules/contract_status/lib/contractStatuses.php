@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/contract_statuses/lib/contractStatuses.php — statusy umów (wszystkie typy) z jednego źródła:
+ * modules/contract_status/lib/contractStatuses.php — statusy umów (wszystkie typy) z jednego źródła:
  * słownika systemowego CONTRACT_STATUS_DICT w Słowniku Centralnym (Admin › Słownik Centralny › umowy_statusy).
  *
  * Wpis = status. Kod wpisu jest ASCII (wymóg słownika: `w_realizacji`), a wartość kolumny `status` w tabelach umowy_*
@@ -67,11 +67,6 @@ const CONTRACT_STATUS_DEFAULTS = [
                                   'next' => [], 'systemowy' => true],
     'aneks'                   => ['label' => 'Aneks',                   'class' => 'purple',    'color' => '#7C3AED', 'bg' => '#F5F3FF', 'icon' => 'bi-files',            'grupa' => '',          'typy' => [],
                                   'next' => [], 'systemowy' => true],
-];
-
-/** Kolory plakietek dla klas spoza palety Bootstrap (jak STATUS_CUSTOM_COLORS). */
-const CONTRACT_STATUS_CLASS_COLORS = [
-    'purple' => '#7c3aed', 'teal' => '#0d9488', 'orange' => '#ea580c', 'indigo' => '#6366f1',
 ];
 
 /** Kod wpisu słownika dla wartości statusu: bez polskich znaków, spacje → _ (np. „w realizacji” → w_realizacji). */
@@ -214,13 +209,11 @@ function contractStatusSqlIn(array $groups, string $col = 'status'): string
     return $col . ' IN (' . implode(',', array_map(fn($c) => "'" . str_replace("'", "''", $c) . "'", $codes)) . ')';
 }
 
-/** Plakietka statusu (Bootstrap badge). */
+/** Plakietka statusu — tło = kolor ze słownika (kontrast z białym tekstem ≥ 4,5:1). */
 function contractStatusBadge(?string $code): string
 {
     $s = contractStatusCfg($code);
-    $label = htmlspecialchars($s['label'], ENT_QUOTES);
-    if (isset(CONTRACT_STATUS_CLASS_COLORS[$s['class']])) return '<span class="badge" style="background:' . CONTRACT_STATUS_CLASS_COLORS[$s['class']] . '">' . $label . '</span>';
-    return '<span class="badge bg-' . $s['class'] . '">' . $label . '</span>';
+    return '<span class="badge" style="background:' . $s['color'] . ';color:#fff">' . htmlspecialchars($s['label'], ENT_QUOTES) . '</span>';
 }
 
 /** Zasiew słownika (format importu Słownika Centralnego). */

@@ -609,7 +609,7 @@ a.dash-row:hover,button.dash-row:hover{background:#f2f2f2;color:inherit}
           <a href="<?= APP_URL ?>/contracts/rejestr.php" class="dash-link">Rejestr <i class="bi bi-arrow-right"></i></a>
         </div>
         <?php if ($recent): foreach ($recent as $r):
-          $st = STATUS_LABELS[$r['status']] ?? ['class' => 'secondary', 'label' => $r['status']];
+          $st = contractStatusCfg($r['status']);
         ?>
         <a href="<?= contract_url($r['type'], (int)$r['id']) ?>" class="dash-row">
           <span class="dash-ic"><i class="bi <?= h($ct_icons[$r['type']] ?? 'bi-file-text') ?>"></i></span>

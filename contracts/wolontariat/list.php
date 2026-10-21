@@ -133,7 +133,7 @@ $_typ_labels = ['stały'=>'Stały','jednorazowy'=>'Jednorazowy','projektowy'=>'P
 $_obs_labels = ['społeczny'=>'Społeczny','edukacyjny'=>'Edukacyjny','zdrowotny'=>'Zdrowotny','ekologiczny'=>'Ekologiczny','kulturalny'=>'Kulturalny','sportowy'=>'Sportowy','pomocowy'=>'Pomocowy','zwierzeta'=>'Ochrona zwierząt','cyfrowy'=>'Cyfrowy / IT','inny'=>'Inny'];
 
 $status_counts = [];
-$all_statuses  = ['projekt','podpisana','w realizacji','do rozliczenia','zakończona','rozwiązana','anulowana'];
+$all_statuses  = array_keys(contractStatusOptions('wolontariat')); // słownik umowy_statusy
 $all_total     = 0;
 foreach ($all_statuses as $s) {
     $c = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status=?", [$s])['c'] ?? 0);
@@ -143,15 +143,11 @@ foreach ($all_statuses as $s) {
 $active_total = ($status_counts['podpisana'] ?? 0) + ($status_counts['w realizacji'] ?? 0)
               + ($status_counts['projekt'] ?? 0) + ($status_counts['do rozliczenia'] ?? 0);
 
-$status_cfg = [
-    'projekt'        => ['label'=>'Projekt',        'color'=>'#6366F1','bg'=>'#EEF2FF','icon'=>'bi-file-earmark-text'],
-    'podpisana'      => ['label'=>'Podpisana',      'color'=>'#2E844A','bg'=>'#EFF7ED','icon'=>'bi-check-circle'],
-    'w realizacji'   => ['label'=>'W realizacji',   'color'=>'#0176D3','bg'=>'#EEF4FF','icon'=>'bi-play-circle'],
-    'do rozliczenia' => ['label'=>'Do rozliczenia', 'color'=>'#7C3AED','bg'=>'#F5F3FF','icon'=>'bi-cash-coin'],
-    'zakończona'     => ['label'=>'Zakończona',     'color'=>'#374151','bg'=>'#F3F4F6','icon'=>'bi-flag'],
-    'rozwiązana'     => ['label'=>'Rozwiązana',     'color'=>'#D97706','bg'=>'#FEF3E2','icon'=>'bi-x-circle'],
-    'anulowana'      => ['label'=>'Anulowana',      'color'=>'#DC2626','bg'=>'#FEF2F2','icon'=>'bi-slash-circle'],
-];
+$status_cfg = [];
+foreach ($all_statuses as $_s) {
+    $_c = contractStatusCfg($_s);
+    $status_cfg[$_s] = ['label' => $_c['label'], 'color' => $_c['color'], 'bg' => $_c['bg'], 'icon' => $_c['icon']];
+}
 
 $opiekunowie = db_all("SELECT DISTINCT opiekun FROM {$TABLE} WHERE opiekun IS NOT NULL AND opiekun != '' ORDER BY opiekun");
 

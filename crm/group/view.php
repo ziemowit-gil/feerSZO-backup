@@ -142,8 +142,8 @@ $group = CrmManager::getGroup($id);
 $vol_contracts_map  = [];
 $vol_filter_actions = [];
 $import_actions     = [];
-$vol_all_statuses   = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca', 'zakończona', 'rozwiązana', 'anulowana'];
-$vol_status_labels  = ['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji','obowiązująca'=>'Obowiązująca','zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'];
+$vol_status_labels  = contractStatusOptions('wolontariat'); // słownik umowy_statusy
+$vol_all_statuses   = array_keys($vol_status_labels);
 
 if ($is_vol_group && $group['members']) {
     $member_emails = array_values(array_unique(array_filter(
@@ -353,11 +353,7 @@ tr:hover .member-row-actions, .member-row-actions:focus-within { opacity: 1 }
               $vc      = $m['_vc'] ?? null;
               $vc_st   = $vc['status'] ?? '';
               $vc_aid  = (int)($vc['action_id'] ?? 0);
-              $vc_color = match($vc_st) {
-                'projekt','podpisana','w realizacji','obowiązująca' => '#2E844A',
-                'zakończona' => '#374151', 'rozwiązana' => '#D97706', 'anulowana' => '#E31010',
-                default => '#6B7280',
-              };
+              $vc_color = $vc_st !== '' ? contractStatusColor($vc_st) : '#6B7280';
               // Nazwa działania z mapy załadowanych wcześniej akcji
               $vc_action_name = null;
               foreach ($vol_filter_actions as $_va) {
@@ -397,7 +393,7 @@ tr:hover .member-row-actions, .member-row-actions:focus-within { opacity: 1 }
                   <span style="font-size:.68rem;padding:.1rem .3rem;border-radius:3px;display:inline-flex;align-items:center;gap:.2rem;background:<?= $vc_color ?>22;color:<?= $vc_color ?>;border:1px solid <?= $vc_color ?>44"
                         title="<?= h($vc['numer_umowy'] ?? '') ?> · <?= h($vc['data_od'] ?? '') ?>–<?= h($vc['data_do'] ?? '') ?>">
                     <i class="bi bi-file-earmark-text" style="font-size:.6rem"></i>
-                    <?= h($vol_status_labels[$vc_st] ?? $vc_st) ?>
+                    <?= h(contractStatusLabel($vc_st)) ?>
                   </span>
                 </div>
                 <?php endif; ?>

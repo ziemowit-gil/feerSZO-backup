@@ -106,6 +106,6 @@ Kolejne listy przepinaj **po jednej, osobnym commitem**:
    `CERTIFICATE_TYPES`, `SHIPMENT_PURPOSE`, sfery zadań publicznych (datalist `sfery_list` w powierzeniu).
    Statusy z logiką przejść (`STATUS_LABELS` umów, statusy CRM) przenoś ostatnie i tylko jako **systemowe**.
 7. Przeniesione statusy z logiką: `crm_sprawy_statusy` (includes/crm.php) i **`umowy_statusy`** — statusy umów wszystkich
-   typów (`modules/contract_statuses/lib/contractStatuses.php`: `contractStatusOptions($typ)`, `contractStatusLabel()`,
+   typów (`modules/contract_status/lib/contractStatuses.php`: `contractStatusOptions($typ)`, `contractStatusLabel()`,
    `contractStatusBadge()`, `contractStatusesInGroup('active')`, `contractStatusSqlIn()`). Gdy zapisywana wartość ma polskie
    znaki lub spacje, kod wpisu jest jej wersją ASCII (`w_realizacji`), a wartość leży w atrybucie `wartosc`.

@@ -140,8 +140,8 @@ if (!isset($TYPE)) return;
         </p>
         <label for="bulk-status-select" class="form-label fw-semibold">Nowy status</label>
         <select id="bulk-status-select" class="form-select">
-          <?php foreach (STATUS_LABELS as $sk => $sv): ?>
-          <option value="<?= h($sk) ?>"><?= h($sv['label']) ?></option>
+          <?php foreach (contractStatusOptions((string)$TYPE) as $sk => $sl): ?>
+          <option value="<?= h($sk) ?>"><?= h($sl) ?></option>
           <?php endforeach; ?>
         </select>
         <div class="form-text">Zmiana zostanie odnotowana w historii każdej umowy.</div>

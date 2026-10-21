@@ -450,7 +450,7 @@ if ($migracja_mode) {
 $_is_admin = (current_user()['role'] ?? '') === 'admin';
 
 // Statusy terminalne — wymagają roli admin + uzasadnienia
-$_terminal_statuses = ['zakończona', 'rozwiązana', 'anulowana'];
+$_terminal_statuses = contractStatusesInGroup('closed', 'cancelled'); // słownik umowy_statusy
 
 // Prefill z kwestionariusza onboardingowego (ustawiany przez admin/onboarding_view.php)
 auth_start();
@@ -1179,14 +1179,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <label class="form-label fw-semibold">Status <span class="text-danger">*</span></label>
           <select name="status" id="status_select" class="form-select" required>
             <optgroup label="Aktywne">
-              <?php foreach (['projekt'=>'Projekt','podpisana'=>'Podpisana','w realizacji'=>'W realizacji'] as $k=>$v):
+              <?php $_st_opts = contractStatusOptions('wolontariat', $row['status'] ?? null);
+              foreach (array_diff_key($_st_opts, array_flip($_terminal_statuses)) as $k=>$v):
                 $sel = ($row['status']??'')===$k?'selected':''; ?>
               <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
               <?php endforeach; ?>
             </optgroup>
             <?php if ($_is_admin): ?>
             <optgroup label="Terminalne (tylko admin)">
-              <?php foreach (['zakończona'=>'Zakończona','rozwiązana'=>'Rozwiązana','anulowana'=>'Anulowana'] as $k=>$v):
+              <?php foreach (array_intersect_key($_st_opts, array_flip($_terminal_statuses)) as $k=>$v):
                 $sel = ($row['status']??'')===$k?'selected':''; ?>
               <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
               <?php endforeach; ?>
