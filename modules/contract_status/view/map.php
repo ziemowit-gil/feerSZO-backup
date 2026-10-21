@@ -6,7 +6,8 @@
 $PAGE_TITLE = 'Statusy umów — rozpiska';
 include dirname(__DIR__, 3) . '/includes/header.php';
 
-$dictUrl = APP_URL . '/modules/dictionary/router.php/d/' . CONTRACT_STATUS_DICT;
+// Słownik Centralny — trasa w ?_route= (adres „router.php/…” serwer traktuje jak plik)
+$dictUrl = APP_URL . '/modules/dictionary/router.php?_route=/d/' . CONTRACT_STATUS_DICT;
 $groupInfo = [
     'draft'     => ['Robocza',     'Przed zawarciem umowy. Liczy się do „żywych” umów (CRM, usuwanie konta, przypomnienia o ewidencji), nie do aktywnych.'],
     'active'    => ['Aktywna',     'Umowa obowiązuje: liczniki aktywnych umów (pulpit, portal, raporty), zwroty kosztów, wypowiedzenie, rachunki zlecenia, dostęp prowadzącego.'],

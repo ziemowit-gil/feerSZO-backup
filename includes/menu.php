@@ -545,7 +545,7 @@ function _menu_editor(): array {
             _mi('Panel admina','/admin/index.php','bi-shield-shaded',['match'=>'/admin/index','kw'=>'admin panel ustawienia']),
             _mi('Wzory dokumentów','/admin/contract_templates.php','bi-file-earmark-text',['match'=>'/admin/contract_templates','kw'=>'wzory dokumentów szablony umów']),
             _mi('Harmonogram CRON','/admin/cron_dispatcher.php','bi-calendar2-range',['match'=>'/admin/cron_dispatcher','kw'=>'cron dispatcher dyspozytor harmonogram agenci zadania automatyczne interwał']),
-            _mi('Statusy umów','/modules/contract_status/router.php/statusy','bi-signpost-split',['match'=>'/modules/contract_status/router.php/statusy','kw'=>'statusy umów rozpiska grupy przejścia aktywna zakończona słownik umowy_statusy']),
+            _mi('Statusy umów','/modules/contract_status/router.php?_route=/statusy','bi-signpost-split',['match'=>'_route=/statusy','kw'=>'statusy umów rozpiska grupy przejścia aktywna zakończona słownik umowy_statusy']),
             _mi('Słownik Centralny','/modules/dictionary/router.php','bi-book-half',['match'=>'/modules/dictionary/','kw'=>'słownik słowniki centralny listy wyboru instytucje dotujące urzędy marszałkowskie niw kategorie import eksport']),
             _mi('Redis (cache)','/admin/redis.php','bi-lightning-charge',['match'=>'/admin/redis','kw'=>'redis cache pamięć podręczna przyspieszenie wydajność']),
             _mi('Kontrola IT','/modules/it_control/index.php','bi-clipboard2-pulse',['match'=>'/modules/it_control/','kw'=>'kontrola it audyt operacyjny status usług dysk backup certyfikat cron monitoring pulpit stanu']),

@@ -265,7 +265,7 @@ $groups = [
             ['icon'=>'bi-pen-fill',             'label'=>'Autenti eSign',            'url'=>'/admin/autenti_settings.php',   'kw'=>'autenti podpis'],
             ['icon'=>'bi-pen-fill',             'label'=>'DocuSign eSign',           'url'=>'/admin/docusign_settings.php',  'kw'=>'docusign podpis'],
             ['icon'=>'bi-bar-chart-line',       'label'=>'Statystyki',               'url'=>'/reports/volunteer_stats.php',  'kw'=>'statystyki raporty wolontariusze'],
-            ['icon'=>'bi-signpost-split',       'label'=>'Statusy umów',             'url'=>'/modules/contract_status/router.php/statusy', 'tile'=>true, 'kw'=>'statusy umów rozpiska grupy przejścia słownik'],
+            ['icon'=>'bi-signpost-split',       'label'=>'Statusy umów',             'url'=>'/modules/contract_status/router.php?_route=/statusy', 'tile'=>true, 'kw'=>'statusy umów rozpiska grupy przejścia słownik'],
             ['icon'=>'bi-arrow-counterclockwise','label'=>'Status umowy — wycofanie', 'url'=>'/modules/contract_status/router.php', 'danger'=>true, 'kw'=>'cofnij status umowy'],
         ],
     ],

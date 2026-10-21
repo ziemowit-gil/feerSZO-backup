@@ -3,8 +3,9 @@
  * modules/contract_status/router.php — „Status umowy (wycofanie)”: administrator ustawia dowolny status
  * albo cofa ostatnią zmianę, z pominięciem walidatorów przejść. Odpowiednik graficzny cli/contractStatus.php.
  *
- * Adresy: …/router.php (wyszukiwanie), …/router.php/{typ}/{id} (umowa), POST …/{typ}/{id} (zmiana),
- * …/router.php/statusy (rozpiska statusów ze słownika umowy_statusy: grupy, typy, przejścia, liczby umów). Tylko admin.
+ * Adresy (tryb query — na serwerze wszystko z .php w adresie to plik, więc trasa idzie w ?_route=, nie po „router.php/”):
+ * …/router.php (wyszukiwanie), …/router.php?_route=/{typ}/{id} (umowa), POST …?_route=/{typ}/{id} (zmiana),
+ * …/router.php?_route=/statusy (rozpiska statusów ze słownika umowy_statusy: grupy, typy, przejścia, liczby umów). Tylko admin.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
@@ -13,7 +14,7 @@ require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/router/lib/Router.php';
 require_once __DIR__ . '/logic/ContractStatusController.php';
 
-$r = new Router('/modules/contract_status/router.php');
+$r = new Router('/modules/contract_status/router.php', 'query');
 
 $r->group(['role:admin'], function (Router $r) {
     $r->get('/',               [ContractStatusController::class, 'index'])->name('cst.index');
