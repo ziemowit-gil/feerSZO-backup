@@ -60,7 +60,7 @@
   <?php foreach ($dyd_contracts as $dc):
     $st    = $dc['status'] ?? '';
     $stc   = $st_hex[$st] ?? '#4B5563';
-    $is_active = in_array($st, ['podpisana','w realizacji'], true);
+    $is_active = contractStatusGroup($st) === 'active';
     $is_is = $dc['contract_type'] === 'zlecenie' && !empty($dc['w_ramach_is']);
   ?>
   <div class="card border-0 shadow-sm mb-3 <?= $is_active ? '' : 'opacity-75' ?>">

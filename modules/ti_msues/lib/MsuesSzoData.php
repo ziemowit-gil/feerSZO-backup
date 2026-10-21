@@ -18,6 +18,7 @@ final class MsuesSzoData
         'dzielo'      => ['umowy_dzielo',      'termin_oddania',   'inna',        'Umowa o dzieło'],
         'praca'       => ['umowy_praca',       'data_zakonczenia', 'inna',        'Umowa o pracę'],
     ];
+    /** Zapas — aktywne = grupa active w słowniku umowy_statusy. */
     public const ACTIVE_STATUSES = ['podpisana', 'w realizacji'];
 
     public static function user(int $id): ?array
@@ -141,7 +142,7 @@ final class MsuesSzoData
                     'numer_umowy' => (string)($r['numer_umowy'] ?: $r['nr_rejestru']), 'status' => (string)$r['status'],
                     'data_zawarcia' => (string)$r['data_zawarcia'], 'data_zakonczenia' => (string)$r['data_konca'],
                     'adres' => (string)$r['adres'], 'plik_umowy' => (string)$r['plik_umowy'],
-                    'active' => in_array((string)$r['status'], self::ACTIVE_STATUSES, true),
+                    'active' => (function_exists('contractStatusGroup') ? contractStatusGroup((string)$r['status']) === 'active' : in_array((string)$r['status'], self::ACTIVE_STATUSES, true)),
                     'podstawa' => $podstawa, 'uprawnienia' => (string)$r['is_uprawnienia_nr'], 'dyplom' => (string)$r['is_dyplom_nr'],
                     'przedmiot' => trim((string)($r['przedmiot_zlecenia'] ?: $r['przedmiot_porozumienia'] ?: $r['stanowisko'])),
                 ];

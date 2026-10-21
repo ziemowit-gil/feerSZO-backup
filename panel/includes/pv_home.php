@@ -124,7 +124,7 @@ $_pv_zl_saldo = null; $_pv_zl_aug = false;
 if ($_pv_zl) {
     try {
         require_once $ROOT . '/includes/zlecenie_rachunki.php';
-        $_zl_row = db_one("SELECT * FROM umowy_zlecenie WHERE id=? AND status NOT IN ('anulowana','rozwiązana')", [(int)$_pv_zl['id']]);
+        $_zl_row = db_one("SELECT * FROM umowy_zlecenie WHERE id=? AND status NOT IN (" . contractStatusSqlList('cancelled') . ")", [(int)$_pv_zl['id']]);
         if ($_zl_row) {
             $_zl_led = zl_rozl_ledger($_zl_row);
             $_pv_zl_saldo = (float)($_zl_led['suma']['pozostalo'] ?? 0);

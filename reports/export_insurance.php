@@ -103,7 +103,7 @@ foreach ($sources as $slug => $src) {
                AND {$ce} IS NOT NULL AND {$ce} != ''
                AND {$cs} <= ?
                AND {$ce} >= ?
-               AND status NOT IN ('anulowana','rozwiązana')
+               AND status NOT IN (" . contractStatusSqlList('cancelled') . ")
                AND (
                  CAST(julianday({$ce}) - julianday({$cs}) AS INTEGER) < ?
                )

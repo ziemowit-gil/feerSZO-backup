@@ -275,7 +275,7 @@ $_zwroty_pending = 0;
         $conds[] = "{$col} = ?"; $params[] = $val;
     }
     if (!$conds) return;
-    $active = "'aktywna','w_realizacji','zatwierdzony','zatwierdzona','aktywny','obowiazuje'";
+    $active = contractStatusSqlList('active'); // słownik umowy_statusy — umowy aktywne
     $has = db_one(
         "SELECT COUNT(*) AS cnt FROM umowy_wolontariat
          WHERE zwrot_kosztow = 1 AND status IN ({$active})

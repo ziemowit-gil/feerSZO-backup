@@ -294,7 +294,7 @@ class VolunteerModuleManager
             $v = db_one(
                 "SELECT id, numer_umowy, imie_nazwisko FROM umowy_wolontariat
                  WHERE email = ?
-                   AND status IN ('aktywna','w_realizacji','zatwierdzony','zatwierdzona','aktywny','obowiazuje')
+                   AND status IN (" . contractStatusSqlList('active') . ")
                  LIMIT 1",
                 [$email]
             );

@@ -302,7 +302,7 @@ function strategy_add_progress_snapshot(int $obj_id): void {
                         try {
                             $table = 'umowy_' . $ct;
                             $c = db_one("SELECT status FROM {$table} WHERE id = ?", [(int)$m['entity_id']]);
-                            if ($c && in_array($c['status'], ['podpisana','w realizacji','obowiązująca'], true)) {
+                            if ($c && function_exists('contractStatusGroup') && contractStatusGroup($c['status']) === 'active') {
                                 $wartosc_realizowana += 1.0;
                             }
                         } catch (\Throwable $e) {}

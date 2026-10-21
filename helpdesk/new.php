@@ -174,7 +174,7 @@ $pref_name  = $u['name'] ?? '';
 $pref_email = $u['email'] ?? '';
 $pref_phone = '';
 try {
-    $pu = db_one("SELECT telefon FROM umowy_wolontariat WHERE email=? AND status NOT IN ('zakończona','anulowana','rozwiązana') ORDER BY id DESC LIMIT 1", [$pref_email]);
+    $pu = db_one("SELECT telefon FROM umowy_wolontariat WHERE email=? AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ") ORDER BY id DESC LIMIT 1", [$pref_email]);
     if ($pu && !empty($pu['telefon'])) $pref_phone = $pu['telefon'];
 } catch (\Throwable $e) {}
 ?>

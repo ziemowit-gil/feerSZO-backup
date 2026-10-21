@@ -44,7 +44,7 @@ $TYPES = [
 ];
 
 // Statusy uznawane za aktywne — tylko te podlegają automatycznemu zakończeniu
-$ACTIVE_STATUSES = ['podpisana', 'w realizacji', 'zawieszona', 'do rozliczenia', 'obowiązująca'];
+$ACTIVE_STATUSES = contractStatusesInGroup('active'); // słownik umowy_statusy
 
 // Typy, dla których minięcie terminu przenosi status do "do rozliczenia" zamiast wprost do "zakończona"
 $ROZLICZENIE_TYPES = ['wolontariat', 'zlecenie'];

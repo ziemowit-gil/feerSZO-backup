@@ -66,7 +66,7 @@ $members = db_all(
 );
 echo '  Członków grupy „' . $vol['name'] . "\": " . count($members) . "\n";
 
-$ACTIVE_STATUSES = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
+$ACTIVE_STATUSES = contractStatusesInGroup('draft', 'active', 'blocked'); // słownik umowy_statusy
 $cutoff = date('Y-m-d', strtotime("-{$grace} days"));
 
 /**

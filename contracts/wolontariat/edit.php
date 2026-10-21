@@ -264,7 +264,7 @@ try {
     $__opiekunowie_wol = db_all(
         "SELECT id, imie_nazwisko FROM umowy_wolontariat
          WHERE id != ? AND (niepelnoletni = 0 OR niepelnoletni IS NULL)
-           AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')
+           AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")
          ORDER BY imie_nazwisko",
         [(int)$id]
     );

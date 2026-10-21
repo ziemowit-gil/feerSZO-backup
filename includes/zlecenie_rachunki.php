@@ -960,7 +960,13 @@ function rachunek_comment_delete(int $comment_id): void {
 // ── Baner „wyślij rachunek” ────────────────────────────────────────────────────
 
 /** Statusy umowy, przy których oczekujemy rachunku za bieżący miesiąc. */
+/** Zapas — umowy „otwarte” do rachunków = grupa active słownika umowy_statusy, zob. zl_rachunek_active_statuses(). */
 const ZLEC_RACHUNEK_ACTIVE_STATUSES = ['podpisana', 'w realizacji', 'do rozliczenia', 'obowiązująca'];
+
+/** @return list<string> statusy umowy zlecenia, przy których prowadzimy rachunki (grupa active). */
+function zl_rachunek_active_statuses(): array {
+    return function_exists('contractStatusesInGroup') ? (contractStatusesInGroup('active') ?: ZLEC_RACHUNEK_ACTIVE_STATUSES) : ZLEC_RACHUNEK_ACTIVE_STATUSES;
+}
 
 /**
  * Czy w rejestrze jest rachunek za wskazany miesiąc (domyślnie bieżący).
@@ -1028,7 +1034,7 @@ function rachunek_okres_label(string $od, string $do = ''): string {
  * nie zakończona w poprzednim miesiącu i bez rachunku za bieżący miesiąc.
  */
 function rachunek_banner_needed(array $contract, string $type = 'zlecenie'): bool {
-    if (!in_array((string)($contract['status'] ?? ''), ZLEC_RACHUNEK_ACTIVE_STATUSES, true)) return false;
+    if (!in_array((string)($contract['status'] ?? ''), zl_rachunek_active_statuses(), true)) return false;
     $koniec = (string)($contract['data_zakonczenia'] ?? '');
     if ($koniec !== '' && $koniec < date('Y-m-01')) return false;   // umowa skończyła się przed tym miesiącem
     $start = (string)($contract['data_rozpoczecia'] ?? '');

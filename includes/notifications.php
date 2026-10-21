@@ -305,6 +305,7 @@ function ann_all_list(string $kategoria = ''): array {
  * miejscu, żeby komunikat do „osób z aktywnymi umowami" nie rozjechał się
  * z tym, co panel pokazuje jako aktywne.
  */
+/** Zapas — aktywne umowy = grupa active słownika umowy_statusy (contractStatusesInGroup('active')). */
 const ANN_ACTIVE_CONTRACT_STATUSES = ['podpisana', 'w realizacji', 'obowiązująca', 'aktywna'];
 
 /**
@@ -331,7 +332,8 @@ function ann_active_contract_users(): array {
         ['umowy_praca',       ['email_login'],          'data_zakonczenia'],
     ];
 
-    $st_ph  = implode(',', array_fill(0, count(ANN_ACTIVE_CONTRACT_STATUSES), '?'));
+    $st_act = function_exists('contractStatusesInGroup') ? contractStatusesInGroup('active') : ANN_ACTIVE_CONTRACT_STATUSES;
+    $st_ph  = implode(',', array_fill(0, count($st_act), '?'));
     $by_id  = [];
 
     foreach ($sources as [$table, $cols, $end_col]) {
@@ -348,7 +350,7 @@ function ann_active_contract_users(): array {
                    AND (c.{$end_col} IS NULL OR c.{$end_col} = ''
                         OR date(c.{$end_col}) >= date('now'))";
         try {
-            foreach (db_all($sql, ANN_ACTIVE_CONTRACT_STATUSES) as $r) {
+            foreach (db_all($sql, $st_act) as $r) {
                 $by_id[(int)$r['id']] = ['id' => (int)$r['id'], 'name' => $r['name'], 'email' => $r['email']];
             }
         } catch (\Throwable $e) {

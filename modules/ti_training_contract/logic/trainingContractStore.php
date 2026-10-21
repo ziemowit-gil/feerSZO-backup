@@ -140,6 +140,13 @@ final class TiTrainingContractStore
         return sprintf('%s%03d/%s', $prefix, $max + 1, $year);
     }
 
+    /** Umowa już podpisana (treści nie zmieniamy): grupa aktywna albo zamknięta, rozwiązana — nie projekt i nie anulowana. */
+    public static function isSigned(?string $status): bool
+    {
+        $g = function_exists('contractStatusGroup') ? contractStatusGroup($status) : '';
+        return in_array($g, ['active', 'closed'], true) || $status === 'rozwiązana';
+    }
+
     public static function setStatus(int $id, string $status): bool
     {
         if (!isset(self::statuses()[$status])) return false;

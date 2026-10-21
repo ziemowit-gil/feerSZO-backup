@@ -1777,7 +1777,7 @@ function m365_should_be_active(array $row): bool {
     // jeszcze 4h od decyzji, dopóki nie minie m365_deactivate_after.
     $grace_until = $row['m365_deactivate_after'] ?? null;
     $in_grace    = $grace_until && strtotime($grace_until) > time();
-    if (!$nie_wylaczaj && !$in_grace && in_array($status, ['zakończona','anulowana','rozwiązana','wygasła'], true)) return false;
+    if (!$nie_wylaczaj && !$in_grace && (function_exists('contractStatusGroup') ? in_array(contractStatusGroup($status), ['closed', 'cancelled'], true) : in_array($status, ['zakończona', 'anulowana', 'rozwiązana', 'wygasła'], true))) return false;
     if ($start && $start > $today) return false;
     // Wyłącz konto w dniu wygaśnięcia umowy (włącznie) — nie dzień po
     if (!$bezterminowa && !$nie_wylaczaj && !$in_grace && $end && $end <= $today) return false;

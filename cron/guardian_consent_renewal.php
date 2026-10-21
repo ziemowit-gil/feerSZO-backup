@@ -40,7 +40,7 @@ try {
     $contracts = db_all(
         "SELECT * FROM umowy_wolontariat
          WHERE niepelnoletni = 1
-           AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')"
+           AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")"
     );
 } catch (\Throwable $e) {
     echo "[" . date('Y-m-d H:i:s') . "] BLAD zapytania: " . $e->getMessage() . "\n";

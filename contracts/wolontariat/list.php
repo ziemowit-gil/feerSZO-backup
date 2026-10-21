@@ -140,8 +140,7 @@ foreach ($all_statuses as $s) {
     $status_counts[$s] = $c;
     $all_total += $c;
 }
-$active_total = ($status_counts['podpisana'] ?? 0) + ($status_counts['w realizacji'] ?? 0)
-              + ($status_counts['projekt'] ?? 0) + ($status_counts['do rozliczenia'] ?? 0);
+$active_total = array_sum(array_intersect_key($status_counts, array_flip(contractStatusesInGroup('draft', 'active'))));
 
 $status_cfg = [];
 foreach ($all_statuses as $_s) {

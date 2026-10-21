@@ -90,12 +90,12 @@ $tryby = ['konkurs' => 'Otwarty konkurs ofert', 'art19a' => 'Art. 19a — mały 
 $_today = date('Y-m-d');
 $_in30  = date('Y-m-d', strtotime('+30 days'));
 $_st = db_one("SELECT COUNT(*) AS wszystkie,
-        SUM(CASE WHEN status IN ('podpisana','w realizacji') THEN 1 ELSE 0 END) AS realizacja,
+        SUM(CASE WHEN " . contractStatusSqlIn(['active']) . " THEN 1 ELSE 0 END) AS realizacja,
         SUM(CASE WHEN status = 'do rozliczenia' THEN 1 ELSE 0 END) AS rozliczenie,
         SUM(CASE WHEN status = 'jednostronnie' THEN 1 ELSE 0 END) AS jednostronnie,
         SUM(CASE WHEN status = 'w podpisie w instytucji' THEN 1 ELSE 0 END) AS w_instytucji,
         SUM(CASE WHEN data_zakonczenia >= ? AND data_zakonczenia <= ?
-                  AND COALESCE(status,'') NOT IN ('zakończona','rozwiązana','anulowana') THEN 1 ELSE 0 END) AS konczace,
+                  AND COALESCE(status,'') NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ") THEN 1 ELSE 0 END) AS konczace,
         SUM(CASE WHEN COALESCE(status,'') NOT IN ('rozwiązana','anulowana','projekt','jednostronnie','w podpisie w instytucji') THEN CAST(kwota_dotacji AS REAL) ELSE 0 END) AS dotacje
     FROM {$TABLE} WHERE " . contract_access_where($TYPE), [$_today, $_in30]) ?: [];
 $_soon_on = $koniec_od === $_today && $koniec_do === $_in30;
@@ -313,7 +313,7 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
             <?= date_pl($r['data_rozpoczecia']) ?: '—' ?>
             <?php if ($r['data_zakonczenia']):
               $_soon = $r['data_zakonczenia'] >= $_today && $r['data_zakonczenia'] <= $_in30
-                    && !in_array($r['status'] ?? '', ['zakończona','rozwiązana','anulowana'], true); ?>
+                    && !in_array(contractStatusGroup($r['status'] ?? ''), ['closed', 'cancelled'], true); ?>
             <span class="text-muted">→</span> <span class="<?= $_soon ? 'pw-end-soon' : '' ?>"<?= $_soon ? ' title="Kończy się w ciągu 30 dni"' : '' ?>><?= date_pl($r['data_zakonczenia']) ?></span><?php endif; ?>
           </td>
           <td class="d-none d-xl-table-cell"><?= money($r['kwota_dotacji'], $r['waluta'] ?: 'PLN') ?></td>

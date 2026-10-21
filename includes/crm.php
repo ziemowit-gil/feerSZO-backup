@@ -3710,12 +3710,12 @@ class SyncService
      * Statusy umów wolontariatu uznawane za aktywne (wolontariusz jest w grupie).
      */
     private static function _activeVolStatuses(): array {
-        return ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
+        return contractStatusesInGroup('draft', 'active', 'blocked'); // słownik umowy_statusy
     }
 
     /** Statusy uznawane za zakończone (przechodzą do "Byli wolontariusze"). */
     private static function _inactiveVolStatuses(): array {
-        return ['zakończona', 'rozwiązana', 'anulowana'];
+        return contractStatusesInGroup('closed', 'cancelled'); // słownik umowy_statusy
     }
 
     /**

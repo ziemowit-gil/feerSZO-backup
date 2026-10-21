@@ -25,7 +25,7 @@ $_n_avail     = isset($my_avail) ? count($my_avail) : 0;
 $_n_msg       = (int)($dyd_msg_unread_total ?? 0);
 $_n_notices   = (int)($dyd_notices_unread ?? 0);
 $_n_contracts = isset($dyd_contracts) && is_array($dyd_contracts)
-    ? count(array_filter($dyd_contracts, fn($c) => in_array($c['status'] ?? '', ['podpisana','w realizacji'], true)))
+    ? count(array_filter($dyd_contracts, fn($c) => contractStatusGroup($c['status'] ?? '') === 'active'))
     : 0;
 $_n_protocols = isset($_my_pending_protocols) ? count($_my_pending_protocols) : 0;
 

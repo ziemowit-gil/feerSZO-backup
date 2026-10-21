@@ -38,7 +38,7 @@ function panel_terminable_contracts(array $user): array {
         }
         if (!$conds) continue;
         $placeholders = implode(' OR ', $conds);
-        $status_in    = "'" . implode("','", TERMINABLE_STATUSES) . "'";
+        $status_in    = "'" . implode("','", contractStatusesInGroup('active')) . "'";
         $rows = db_all(
             "SELECT id, '{$type}' AS contract_type, numer_umowy, status,
                     {$name_col} AS strona, data_zawarcia, {$end_col} AS data_zakonczenia

@@ -201,12 +201,17 @@ function contractStatusesInGroup(string ...$groups): array
     return $codes;
 }
 
+/** Lista SQL kodów z grup: "'podpisana','w realizacji',…" (do wstawienia w IN (…)). */
+function contractStatusSqlList(string ...$groups): string
+{
+    $codes = contractStatusesInGroup(...$groups) ?: ['-'];
+    return implode(',', array_map(fn($c) => "'" . str_replace("'", "''", $c) . "'", $codes));
+}
+
 /** Warunek SQL: "{$col} IN ('podpisana','w realizacji',…)" dla grup statusów. */
 function contractStatusSqlIn(array $groups, string $col = 'status'): string
 {
-    $codes = contractStatusesInGroup(...$groups);
-    if (!$codes) return '1=0';
-    return $col . ' IN (' . implode(',', array_map(fn($c) => "'" . str_replace("'", "''", $c) . "'", $codes)) . ')';
+    return $col . ' IN (' . contractStatusSqlList(...$groups) . ')';
 }
 
 /** Plakietka statusu — tło = kolor ze słownika (kontrast z białym tekstem ≥ 4,5:1). */

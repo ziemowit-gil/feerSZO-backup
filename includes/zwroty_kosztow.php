@@ -219,10 +219,10 @@ class FinanceManager
             return $this->ineligible('Umowa nie przewiduje zwrotu kosztow (flaga = 0).', $umowa);
         }
 
-        $valid = ['aktywna','w_realizacji','w realizacji','zatwierdzony','zatwierdzona','aktywny','obowiazuje'];
-        if (!in_array(strtolower($umowa['status'] ?? ''), $valid, true)) {
+        require_once dirname(__DIR__) . '/modules/contract_status/lib/contractStatuses.php';
+        if (contractStatusGroup($umowa['status'] ?? '') !== 'active') { // słownik umowy_statusy
             return $this->ineligible(
-                "Umowa ma status \"{$umowa['status']}\" — zwroty mozliwe tylko dla aktywnych umow.",
+                "Umowa ma status \"" . contractStatusLabel($umowa['status'] ?? '') . "\" — zwroty mozliwe tylko dla aktywnych umow.",
                 $umowa
             );
         }

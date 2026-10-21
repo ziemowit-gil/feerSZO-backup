@@ -93,8 +93,8 @@ try {
     $d7    = date('Y-m-d', strtotime('+7 days'));
     foreach (['umowy_wolontariat','umowy_zlecenie','umowy_dzielo','umowy_uslugi','umowy_inne'] as $_et) {
         try {
-            $r30 = db_one("SELECT COUNT(*) AS c FROM {$_et} WHERE bezterminowa=0 AND data_zakonczenia IS NOT NULL AND data_zakonczenia >= ? AND data_zakonczenia <= ? AND status NOT IN ('zakończona','anulowana','rozwiązana')", [$today, $d30]);
-            $r7  = db_one("SELECT COUNT(*) AS c FROM {$_et} WHERE bezterminowa=0 AND data_zakonczenia IS NOT NULL AND data_zakonczenia >= ? AND data_zakonczenia <= ? AND status NOT IN ('zakończona','anulowana','rozwiązana')", [$today, $d7]);
+            $r30 = db_one("SELECT COUNT(*) AS c FROM {$_et} WHERE bezterminowa=0 AND data_zakonczenia IS NOT NULL AND data_zakonczenia >= ? AND data_zakonczenia <= ? AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")", [$today, $d30]);
+            $r7  = db_one("SELECT COUNT(*) AS c FROM {$_et} WHERE bezterminowa=0 AND data_zakonczenia IS NOT NULL AND data_zakonczenia >= ? AND data_zakonczenia <= ? AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")", [$today, $d7]);
             $cnt['expiring_30'] += (int)($r30['c'] ?? 0);
             $cnt['expiring_7']  += (int)($r7['c'] ?? 0);
         } catch (\Throwable $e) {}

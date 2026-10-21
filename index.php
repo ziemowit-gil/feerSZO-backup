@@ -35,10 +35,10 @@ foreach (CONTRACT_TYPES as $slug => $label) {
     $col   = $end_col_map[$slug] ?? 'data_zakonczenia';
     try {
         $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table}")['c'] ?? 0);
-        $active = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE status IN ('podpisana','w realizacji','obowiązująca')")['c'] ?? 0);
+        $active = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE " . contractStatusSqlIn(['active']))['c'] ?? 0);
         $new_m  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE DATE(created_at) >= ?", [$month_start])['c'] ?? 0);
-        $exp7   = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+7 days') AND status NOT IN ('zakończona','anulowana','rozwiązana')", [$today, $today])['c'] ?? 0);
-        $exp30  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+30 days') AND status NOT IN ('zakończona','anulowana','rozwiązana')", [$today, $today])['c'] ?? 0);
+        $exp7   = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+7 days') AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")", [$today, $today])['c'] ?? 0);
+        $exp30  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+30 days') AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")", [$today, $today])['c'] ?? 0);
         $kpi['total']       += $total;
         $kpi['active']      += $active;
         $kpi['new_month']   += $new_m;
@@ -63,7 +63,7 @@ foreach (CONTRACT_TYPES as $slug => $label) {
             "SELECT id, numer_umowy, imie_nazwisko, {$col} AS end_date, '{$slug}' AS type, '{$label}' AS type_label
              FROM {$table}
              WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+30 days')
-               AND status NOT IN ('zakończona','anulowana','rozwiązana')
+               AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")
              ORDER BY {$col} LIMIT 8",
             [$today, $today]
         );

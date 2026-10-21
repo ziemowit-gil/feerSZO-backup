@@ -63,7 +63,7 @@ if (!function_exists('guardian_consent_pending_for_email')) {
             $rows = db_all(
                 "SELECT * FROM umowy_wolontariat
                  WHERE niepelnoletni = 1 AND rodzic_email = ?
-                   AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')",
+                   AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")",
                 [$email]
             );
         } catch (\Throwable $e) {

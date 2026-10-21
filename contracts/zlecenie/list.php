@@ -111,24 +111,24 @@ if ($f['wyna_do'] !== '') { $where .= " AND CAST(wynagrodzenie_brutto AS REAL) <
 if ($f['zus'])     { $where .= " AND zus_skladki = 1"; }
 if ($f['bez_rach']) {
     // Aktywne umowy bez rachunku za bieżący miesiąc — źródło banera „Wyślij rachunek”.
-    $_ph_act = implode(',', array_fill(0, count(ZLEC_RACHUNEK_ACTIVE_STATUSES), '?'));
+    $_ph_act = implode(',', array_fill(0, count(zl_rachunek_active_statuses()), '?'));
     $where  .= " AND status IN ({$_ph_act})"
              . " AND (data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)"
              . " AND id NOT IN (SELECT contract_id FROM zlecenie_rachunki"
              . "                WHERE contract_type = 'zlecenie'"
              . "                  AND substr(COALESCE(data_wystawienia, created_at), 1, 7) = ?)";
-    $params  = array_merge($params, ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-01'), date('Y-m')]);
+    $params  = array_merge($params, zl_rachunek_active_statuses(), [date('Y-m-01'), date('Y-m')]);
 }
-$_ph_open = implode(',', array_fill(0, count(ZLEC_RACHUNEK_ACTIVE_STATUSES), '?'));
+$_ph_open = implode(',', array_fill(0, count(zl_rachunek_active_statuses()), '?'));
 if ($f['konczy']) {
     $where .= " AND status IN ({$_ph_open}) AND (bezterminowa IS NULL OR bezterminowa = 0)"
             . " AND data_zakonczenia IS NOT NULL AND data_zakonczenia <> '' AND data_zakonczenia BETWEEN ? AND ?";
-    $params = array_merge($params, ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-d'), date('Y-m-d', strtotime('+14 days'))]);
+    $params = array_merge($params, zl_rachunek_active_statuses(), [date('Y-m-d'), date('Y-m-d', strtotime('+14 days'))]);
 }
 if ($f['po_term']) {
     $where .= " AND status IN ({$_ph_open}) AND (bezterminowa IS NULL OR bezterminowa = 0)"
             . " AND data_zakonczenia IS NOT NULL AND data_zakonczenia <> '' AND data_zakonczenia < ?";
-    $params = array_merge($params, ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-d')]);
+    $params = array_merge($params, zl_rachunek_active_statuses(), [date('Y-m-d')]);
 }
 $where .= ' AND ' . contract_access_where($TYPE);
 
@@ -141,9 +141,9 @@ $adv_open  = $adv_count > 0 || !empty($_GET['adv']);
 $_zl_cnt_konczy = $_zl_cnt_poterm = 0;
 try {
     $_zl_cnt_konczy = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status IN ({$_ph_open}) AND (bezterminowa IS NULL OR bezterminowa=0) AND data_zakonczenia IS NOT NULL AND data_zakonczenia<>'' AND data_zakonczenia BETWEEN ? AND ? AND " . contract_access_where($TYPE),
-        array_merge(ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-d'), date('Y-m-d', strtotime('+14 days'))]))['c'] ?? 0);
+        array_merge(zl_rachunek_active_statuses(), [date('Y-m-d'), date('Y-m-d', strtotime('+14 days'))]))['c'] ?? 0);
     $_zl_cnt_poterm = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status IN ({$_ph_open}) AND (bezterminowa IS NULL OR bezterminowa=0) AND data_zakonczenia IS NOT NULL AND data_zakonczenia<>'' AND data_zakonczenia < ? AND " . contract_access_where($TYPE),
-        array_merge(ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-d')]))['c'] ?? 0);
+        array_merge(zl_rachunek_active_statuses(), [date('Y-m-d')]))['c'] ?? 0);
 } catch (\Throwable $e) {}
 
 $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE {$where}", $params)['c'] ?? 0);
@@ -151,7 +151,7 @@ $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE {$where}", $par
 // ── Ile aktywnych umów nie ma jeszcze rachunku za bieżący miesiąc (baner) ─────
 $_rach_missing = 0;
 try {
-    $_pha = implode(',', array_fill(0, count(ZLEC_RACHUNEK_ACTIVE_STATUSES), '?'));
+    $_pha = implode(',', array_fill(0, count(zl_rachunek_active_statuses()), '?'));
     $_rach_missing = (int)(db_one(
         "SELECT COUNT(*) AS c FROM {$TABLE}
          WHERE status IN ({$_pha})
@@ -160,7 +160,7 @@ try {
                           WHERE contract_type = 'zlecenie'
                             AND substr(COALESCE(data_wystawienia, created_at), 1, 7) = ?)
            AND " . contract_access_where($TYPE),
-        array_merge(ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-01'), date('Y-m')])
+        array_merge(zl_rachunek_active_statuses(), [date('Y-m-01'), date('Y-m')])
     )['c'] ?? 0);
 } catch (\Throwable $e) {}
 
@@ -181,7 +181,7 @@ $stats = [
     'total' => (int)(db_one("SELECT COUNT(*) c FROM {$TABLE}")['c'] ?? 0),
     'real'  => (int)(db_one("SELECT COUNT(*) c FROM {$TABLE} WHERE status = 'w realizacji'")['c'] ?? 0),
     'rozl'  => (int)(db_one("SELECT COUNT(*) c FROM {$TABLE} WHERE status = 'do rozliczenia'")['c'] ?? 0),
-    'suma'  => (float)(db_one("SELECT COALESCE(SUM(CAST(wynagrodzenie_brutto AS REAL)),0) s FROM {$TABLE} WHERE status NOT IN ('anulowana','rozwiązana')")['s'] ?? 0),
+    'suma'  => (float)(db_one("SELECT COALESCE(SUM(CAST(wynagrodzenie_brutto AS REAL)),0) s FROM {$TABLE} WHERE status NOT IN (" . contractStatusSqlList('cancelled') . ")")['s'] ?? 0),
 ];
 
 // ── Renderer fragmentu listy ──────────────────────────────────────────────────
@@ -254,7 +254,7 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
               <td class="d-none d-lg-table-cell" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.83rem"><?= h($r['przedmiot_zlecenia']) ?></td>
               <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zawarcia']) ?></td>
               <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zakonczenia']) ?>
-                <?php $_dz = (!empty($r['data_zakonczenia']) && empty($r['bezterminowa']) && in_array((string)$r['status'], ZLEC_RACHUNEK_ACTIVE_STATUSES, true))
+                <?php $_dz = (!empty($r['data_zakonczenia']) && empty($r['bezterminowa']) && in_array((string)$r['status'], zl_rachunek_active_statuses(), true))
                         ? (int)floor((strtotime($r['data_zakonczenia']) - strtotime(date('Y-m-d'))) / 86400) : null;
                       if ($_dz !== null && $_dz < 0): ?><span class="badge text-bg-danger ms-1" title="Termin minął, umowa wciąż otwarta">po terminie</span>
                 <?php elseif ($_dz !== null && $_dz <= 14): ?><span class="badge text-bg-warning ms-1" title="Kończy się w ciągu 14 dni"><?= $_dz === 0 ? 'dziś' : 'za ' . $_dz . ' dn.' ?></span><?php endif; ?></td>

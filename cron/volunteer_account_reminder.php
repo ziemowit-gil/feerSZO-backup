@@ -33,7 +33,7 @@ echo "[" . date('Y-m-d H:i:s') . "] Start: volunteer_account_reminder\n";
 $contracts = db_all(
     "SELECT * FROM umowy_wolontariat
      WHERE created_at IS NOT NULL
-       AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')",
+       AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")",
     []
 );
 

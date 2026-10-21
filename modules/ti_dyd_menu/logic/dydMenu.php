@@ -50,7 +50,7 @@ function dydMenuSections(): array
     $nAvail = isset($g['my_avail']) && is_array($g['my_avail']) ? count($g['my_avail']) : 0;
     $nProt  = isset($g['_my_pending_protocols']) && is_array($g['_my_pending_protocols']) ? count($g['_my_pending_protocols']) : 0;
     $nContr = isset($g['dyd_contracts']) && is_array($g['dyd_contracts'])
-            ? count(array_filter($g['dyd_contracts'], fn($x) => in_array($x['status'] ?? '', ['podpisana', 'w realizacji'], true))) : 0;
+            ? count(array_filter($g['dyd_contracts'], fn($x) => contractStatusGroup($x['status'] ?? '') === 'active')) : 0;
     $canAn  = function_exists('dyd_can_analytics') && dyd_can_analytics();
     $isAdm  = function_exists('dyd_is_admin') && dyd_is_admin();
     $isKier = (function_exists('is_admin') && is_admin()) || (function_exists('ti_panel_role') && ti_panel_role($uid) === 'kierownik');

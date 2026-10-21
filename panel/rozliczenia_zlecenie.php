@@ -23,7 +23,7 @@ $conds = []; $params = [];
 if ($ms_id !== '') { $conds[] = 'm365_user_id = ?'; $params[] = $ms_id; }
 if ($email !== '') { $conds[] = 'm365_login = ?'; $params[] = $email; $conds[] = 'email = ?'; $params[] = $email; }
 $contracts = $conds
-    ? db_all("SELECT * FROM umowy_zlecenie WHERE (" . implode(' OR ', $conds) . ") AND status NOT IN ('anulowana','rozwiązana') ORDER BY data_zawarcia DESC, id DESC", $params)
+    ? db_all("SELECT * FROM umowy_zlecenie WHERE (" . implode(' OR ', $conds) . ") AND status NOT IN (" . contractStatusSqlList('cancelled') . ") ORDER BY data_zawarcia DESC, id DESC", $params)
     : [];
 
 $sel_id = (int)($_GET['id'] ?? 0);

@@ -37,7 +37,7 @@ function panel_zwroty_contracts(array $user): array
     }
     if (!$conds) return [];
 
-    $active = "'aktywna','w_realizacji','zatwierdzony','zatwierdzona','aktywny','obowiazuje'";
+    $active = contractStatusSqlList('active'); // słownik umowy_statusy — umowy aktywne
 
     return db_all(
         "SELECT id, numer_umowy, imie_nazwisko, status, data_zawarcia, data_zakonczenia,

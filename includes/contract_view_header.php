@@ -188,7 +188,7 @@ $_cvh_accent = match($_cvh_st['class']) {
         // ── Grupa "Umowa": akcje zmieniające cykl życia umowy (przedłużenie, rozwiązanie) ──
         $_cvh_show_renew     = can_edit() && ($_cvh_type ?? '') === 'wolontariat';
         $_cvh_show_terminate = can_edit() && ($_cvh_type ?? '') === 'wolontariat'
-            && empty($_pending_term) && defined('TERMINABLE_STATUSES') && in_array($_cvh_status, TERMINABLE_STATUSES);
+            && empty($_pending_term) && contractStatusGroup($_cvh_status) === 'active';
         $_cvh_show_term_link = is_admin() && ($_cvh_type ?? '') === 'wolontariat'
             && function_exists('module_enabled') && module_enabled('terminations_enabled');
         $_cvh_term_count = ($_cvh_show_term_link && function_exists('get_termination_requests'))

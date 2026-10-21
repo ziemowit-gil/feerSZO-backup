@@ -187,7 +187,7 @@ function dyspo_contract_for_user(array $user): ?array {
     return db_one(
         "SELECT * FROM umowy_wolontariat
          WHERE (" . implode(' OR ', $conds) . ")
-         ORDER BY (status IN ('podpisana','w realizacji','obowiązująca','aktywna')) DESC,
+         ORDER BY (" . contractStatusSqlIn(['active']) . ") DESC,
                   COALESCE(data_zawarcia,'') DESC, id DESC
          LIMIT 1",
         $params

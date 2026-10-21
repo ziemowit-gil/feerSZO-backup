@@ -99,7 +99,8 @@ function user_delete_impact(int $uid): array
 
     // Aktywne umowy (ostrzeżenie)
     $contracts = [];
-    $active_statuses = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
+    require_once dirname(__DIR__) . '/modules/contract_status/lib/contractStatuses.php';
+    $active_statuses = contractStatusesInGroup('draft', 'active', 'blocked'); // słownik umowy_statusy
     $ph = implode(',', array_fill(0, count($active_statuses), '?'));
     foreach (['wolontariat', 'zlecenie', 'dzielo', 'praca'] as $tbl) {
         try {

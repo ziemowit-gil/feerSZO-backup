@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_
              FROM {$table}
              WHERE bezterminowa = 0
                AND data_zakonczenia IS NOT NULL
-               AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')",
+               AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")",
             []
         );
 
@@ -173,7 +173,7 @@ foreach ($contract_tables as $type => $table) {
          WHERE bezterminowa = 0
            AND data_zakonczenia IS NOT NULL
            AND data_zakonczenia BETWEEN ? AND ?
-           AND status NOT IN ('zakończona', 'anulowana', 'rozwiązana')
+           AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")
          ORDER BY data_zakonczenia ASC",
         [$today, $horizon]
     );

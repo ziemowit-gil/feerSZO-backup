@@ -136,7 +136,7 @@ $stats = [
     'total' => (int)(db_one("SELECT COUNT(*) c FROM {$TABLE}")['c'] ?? 0),
     'real'  => (int)(db_one("SELECT COUNT(*) c FROM {$TABLE} WHERE status = 'w realizacji'")['c'] ?? 0),
     'done'  => (int)(db_one("SELECT COUNT(*) c FROM {$TABLE} WHERE status = 'zakończona'")['c'] ?? 0),
-    'suma'  => (float)(db_one("SELECT COALESCE(SUM(CAST(wynagrodzenie_brutto AS REAL)),0) s FROM {$TABLE} WHERE status NOT IN ('anulowana','rozwiązana')")['s'] ?? 0),
+    'suma'  => (float)(db_one("SELECT COALESCE(SUM(CAST(wynagrodzenie_brutto AS REAL)),0) s FROM {$TABLE} WHERE status NOT IN (" . contractStatusSqlList('cancelled') . ")")['s'] ?? 0),
 ];
 
 // ── Renderer fragmentu listy ──────────────────────────────────────────────────

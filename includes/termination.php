@@ -9,6 +9,7 @@ const TERMINATION_STATUSES = [
 ];
 
 // Statusy umów, dla których rozwiązanie ma sens
+/** Zapas — umowę można wypowiedzieć w grupie active słownika umowy_statusy: contractStatusesInGroup('active'). */
 const TERMINABLE_STATUSES = ['podpisana', 'w realizacji', 'obowiązująca'];
 
 // Strona wypowiadająca porozumienie (§ 7 contracts/wolontariat/print.php)

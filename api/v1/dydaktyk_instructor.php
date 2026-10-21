@@ -314,7 +314,7 @@ switch ($action) {
             } catch (\Throwable $e) {}
         }
         usort($contracts, function ($a, $b) {
-            $active = fn($s) => in_array($s, ['podpisana', 'w realizacji'], true) ? 0 : 1;
+            $active = fn($s) => contractStatusGroup($s) === 'active' ? 0 : 1;
             return $active($a['status']) <=> $active($b['status'])
                 ?: strcmp((string)($b['data_zawarcia'] ?? ''), (string)($a['data_zawarcia'] ?? ''));
         });

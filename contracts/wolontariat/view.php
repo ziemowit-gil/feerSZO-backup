@@ -4113,7 +4113,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 <?php endif; ?>
 
 <!-- ── Modal rozwiązania umowy ──────────────────────────────────────────────── -->
-<?php if (can_edit() && in_array($row['status'], TERMINABLE_STATUSES) && !$_pending_term): ?>
+<?php if (can_edit() && contractStatusGroup($row['status']) === 'active' && !$_pending_term): ?>
 <div class="modal fade" id="terminateModal" tabindex="-1" aria-labelledby="terminateModalLabel">
   <div class="modal-dialog">
     <div class="modal-content">

@@ -18,7 +18,7 @@ cpc_migrate();
 
 $TYPE  = 'wolontariat';
 $TABLE = 'umowy_wolontariat';
-define('_TERMINAL_STATUSES', ['zakończona', 'rozwiązana', 'anulowana']);
+define('_TERMINAL_STATUSES', contractStatusesInGroup('closed', 'cancelled')); // słownik umowy_statusy
 
 // ── Funkcja tworzenia konta portalu wolontariusza ────────────────────────────
 function _review_provision_account(string $email, string $name, string $numer, ?string $m365_pass = null, ?string $m365_login = null): ?string {

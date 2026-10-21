@@ -16,7 +16,7 @@ if (!can_edit()) {
 $contracts = db_all(
     "SELECT id, numer_umowy, imie_nazwisko, status, data_od, data_do
        FROM umowy_wolontariat
-      WHERE status IN ('podpisana', 'w realizacji')
+      WHERE " . contractStatusSqlIn(['active']) . "
       ORDER BY imie_nazwisko ASC"
 );
 

@@ -16,16 +16,13 @@ if (isset($_GET['_ajax'])) {
     $_sfmt    = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '';
     $_bezterm = fn(array $c) => !empty($c['bezterminowa']) || !empty($c['czas_nieokreslony']);
     $_byl_jest = fn(string $st) =>
-        in_array($st, ['podpisana','w realizacji','obowiązująca','aktywna','w trakcie'], true)
+        contractStatusGroup($st) === 'active'
             ? 'jest' : 'był/była';
     $_tlab = ['wolontariat'=>'Porozumienie wolontariackie','zlecenie'=>'Umowy zlecenie',
               'praca'=>'Umowy o pracę','dzielo'=>'Umowy o dzieło',
               'uslugi'=>'Umowy o świadczenie usług','inne'=>'Innej umowy','powierzenie'=>'Innej umowy'];
-    $_st_umowy = fn(string $st) => [
-        'podpisana'=>'aktywna','w realizacji'=>'aktywna','obowiązująca'=>'aktywna',
-        'aktywna'=>'aktywna','w trakcie'=>'aktywna','zawieszona'=>'zawieszona',
-        'zakończona'=>'zakończona','rozwiązana'=>'rozwiązana',
-    ][$st] ?? '';
+    $_st_umowy = fn(string $st) => $st === 'zawieszona' || $st === 'rozwiązana' ? $st
+        : (['active' => 'aktywna', 'closed' => 'zakończona'][contractStatusGroup($st)] ?? '');
 
     if (($_GET['_ajax'] ?? '') === 'search_contracts') {
         $ctype = preg_replace('/[^a-z]/', '', strtolower($_GET['type'] ?? ''));
@@ -210,15 +207,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                      'uslugi'=>'Umowy o świadczenie usług','inne'=>'Innej umowy','powierzenie'=>'Innej umowy'];
         // Aktywne statusy → "jest", zakończone → "był/była"
         $_byl_jest = fn(string $st) =>
-            in_array($st, ['podpisana','w realizacji','obowiązująca','aktywna','w trakcie'], true)
+            contractStatusGroup($st) === 'active'
                 ? 'jest' : 'był/była';
         // Status umowy → etykieta dla pola status_umowy (ZAS-UM)
-        $_st_umowy = fn(string $st) => [
-            'podpisana'    => 'aktywna', 'w realizacji' => 'aktywna',
-            'obowiązująca' => 'aktywna', 'aktywna'      => 'aktywna',
-            'w trakcie'    => 'aktywna', 'zawieszona'   => 'zawieszona',
-            'zakończona'   => 'zakończona', 'rozwiązana' => 'rozwiązana',
-        ][$st] ?? '';
+        $_st_umowy = fn(string $st) => $st === 'zawieszona' || $st === 'rozwiązana' ? $st
+            : (['active' => 'aktywna', 'closed' => 'zakończona'][contractStatusGroup($st)] ?? '');
 
         try {
             if ($_ptype === 'wolontariat') {

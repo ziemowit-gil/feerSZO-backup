@@ -131,7 +131,7 @@ $total_last_year = (int)(db_one(
 
 // Aktywne umowy (status w realizacji lub podpisana, niezależnie od roku)
 $active_contracts = (int)(db_one(
-    "SELECT COUNT(*) AS c FROM umowy_wolontariat WHERE status IN ('podpisana','w realizacji','obowiązująca')"
+    "SELECT COUNT(*) AS c FROM umowy_wolontariat WHERE " . contractStatusSqlIn(['active'])
 )['c'] ?? 0);
 
 // Suma godzin (wybrany rok + filtr statusu)

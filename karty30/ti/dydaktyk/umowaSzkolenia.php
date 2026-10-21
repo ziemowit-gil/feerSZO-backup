@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         [$d, $err] = TiTrainingContract::normalize($_POST);
         $d['nr'] = $cur['nr'] ?? '';
         if ($act === 'preview' && !$err) $sendDocx($d);
-        if ($cur && in_array($cur['_row']['status'], ['podpisana', 'w realizacji', 'zakończona', 'rozwiązana'], true)) $err[] = 'Umowa jest już podpisana — treści nie można zmieniać.';
+        if ($cur && TiTrainingContractStore::isSigned($cur['_row']['status'])) $err[] = 'Umowa jest już podpisana — treści nie można zmieniać.';
         if ($act === 'register' && trim($d['imie_nazwisko']) === '') $err[] = 'Do rejestracji potrzebne jest imię i nazwisko.';
         if ($act === 'register' && trim($d['data']) === '') $err[] = 'Do rejestracji potrzebna jest data zawarcia.';
         if (!$err) {
@@ -95,7 +95,7 @@ if ($mode === 'form') {
         $data['nr'] = '';
     }
     $row = $c['_row'] ?? null;
-    $locked = $row && in_array($row['status'], ['podpisana', 'w realizacji', 'zakończona', 'rozwiązana'], true);
+    $locked = $row && TiTrainingContractStore::isSigned($row['status']);
 }
 
 $KP_TITLE = 'Umowy szkoleniowe — Panel dydaktyka';

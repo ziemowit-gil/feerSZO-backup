@@ -19,7 +19,7 @@ $pref_phone = '';
 try {
     $pu = db_one(
         "SELECT telefon FROM umowy_wolontariat
-         WHERE email=? AND status NOT IN ('zakończona','anulowana','rozwiązana')
+         WHERE email=? AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")
          ORDER BY id DESC LIMIT 1",
         [$u['email'] ?? '']
     );

@@ -34,7 +34,7 @@ function panel_vol_contracts(int $uid): array {
         "SELECT id, numer_umowy, imie_nazwisko, adres, telefon, email, m365_login, status
          FROM umowy_wolontariat
          WHERE (" . implode(' OR ', $conds) . ")
-           AND status NOT IN ('anulowana','rozwiązana')
+           AND status NOT IN (" . contractStatusSqlList('cancelled') . ")
          ORDER BY status DESC, id DESC",
         $params
     );

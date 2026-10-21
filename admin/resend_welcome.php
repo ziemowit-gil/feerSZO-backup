@@ -108,7 +108,7 @@ $contracts = db_all(
      FROM umowy_wolontariat w
      LEFT JOIN users u ON LOWER(u.email) = LOWER(w.email)
      WHERE w.email IS NOT NULL AND w.email != ''
-       AND w.status NOT IN ('anulowana','rozwiązana')
+       AND w.status NOT IN (" . contractStatusSqlList('cancelled') . ")
      ORDER BY w.created_at DESC"
 );
 

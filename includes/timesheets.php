@@ -107,7 +107,7 @@ function ts_user_contracts(int $user_id): array {
         "SELECT id, numer_umowy, imie_nazwisko, status, data_zawarcia, data_zakonczenia
          FROM umowy_wolontariat
          WHERE (" . implode(' OR ', $conds) . ")
-           AND status NOT IN ('anulowana','rozwiązana')
+           AND status NOT IN (" . contractStatusSqlList('cancelled') . ")
          ORDER BY data_zawarcia DESC",
         $params
     );

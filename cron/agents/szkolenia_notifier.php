@@ -73,7 +73,7 @@ $volunteers = db_all(
     "SELECT id, numer_umowy, imie_nazwisko, email,
             szkolenie_bhp, data_szkolenia_bhp, guardian_editor_id
      FROM umowy_wolontariat
-     WHERE status NOT IN ('zakończona', 'anulowana', 'rozwiązana')
+     WHERE status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")
        AND imie_nazwisko != ''",
     []
 );

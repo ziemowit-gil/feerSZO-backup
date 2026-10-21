@@ -559,7 +559,7 @@ $_zl_rach_np  = zl_rozl_rachunki_niepewne($id);
 $_zl_rach_lacz = zl_rozl_rachunki_laczone($row);
 $_zl_days_end = (!empty($row['data_zakonczenia']) && empty($row['bezterminowa']))
     ? (int)floor((strtotime($row['data_zakonczenia']) - strtotime(date('Y-m-d'))) / 86400) : null;
-$_zl_open_status = in_array((string)$row['status'], ZLEC_RACHUNEK_ACTIVE_STATUSES, true);
+$_zl_open_status = in_array((string)$row['status'], zl_rachunek_active_statuses(), true);
 
 // ── Wiadomości — liczba nieprzeczytanych ─────────────────────────────────────
 $_msg_unread = msg_unread_thread('contract', $id, can_edit() ? 'admin' : 'user');

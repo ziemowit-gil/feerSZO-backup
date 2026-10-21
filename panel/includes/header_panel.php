@@ -457,7 +457,7 @@ try {
     $_pv_u = current_user();
     $_pv_has_zl = false;
     try {
-        $_pv_has_zl = (bool)db_one("SELECT 1 AS x FROM umowy_zlecenie WHERE (m365_user_id = ? OR m365_login = ? OR email = ?) AND status NOT IN ('anulowana','rozwiązana') LIMIT 1",
+        $_pv_has_zl = (bool)db_one("SELECT 1 AS x FROM umowy_zlecenie WHERE (m365_user_id = ? OR m365_login = ? OR email = ?) AND status NOT IN (" . contractStatusSqlList('cancelled') . ") LIMIT 1",
             [(string)($_pv_u['microsoft_id'] ?? '') ?: '-', (string)($_pv_u['email'] ?? '') ?: '-', (string)($_pv_u['email'] ?? '') ?: '-']);
     } catch (\Throwable $e) {}
   ?>

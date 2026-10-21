@@ -159,7 +159,7 @@ if ($is_vol_group && $group['members']) {
                  ORDER BY data_od DESC",
                 $member_emails
             );
-            $active_st = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
+            $active_st = contractStatusesInGroup('draft', 'active', 'blocked');
             foreach ($all_vol_c as $vc) {
                 $e = $vc['email'];
                 // Preferuj aktywną umowę; jeśli kilka aktywnych — bierz pierwszą (najnowszą)

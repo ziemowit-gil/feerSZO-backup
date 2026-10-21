@@ -194,7 +194,7 @@ function skbPrefill(string $type, array $c): array {
         'pesel'            => (string)($c['pesel'] ?? ''),
         'dokument'         => $doc,
         'adres'            => skbContractAddress($c),
-        'podejmujacy'      => in_array((string)($c['status'] ?? ''), ['podpisana', 'w realizacji', 'obowiązująca'], true) ? 0 : 1,
+        'podejmujacy'      => contractStatusGroup((string)($c['status'] ?? '')) === 'active' ? 0 : 1,
         'stanowisko'       => $stanowisko,
         'opis_warunkow'    => $zakres,
         'czynniki'         => [],
@@ -303,7 +303,7 @@ function skbList(array $f): array {
 function skbContractsSearch(string $q): array {
     $out = [];
     foreach (array_keys(SKB_TYPY) as $t) {
-        $p = []; $w = "COALESCE(status,'') NOT IN ('rozwiązana','anulowana','zakończona','wygasła','wypowiedziana')";
+        $p = []; $w = "COALESCE(status,'') NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")";
         if ($q !== '') { $w .= " AND (imie_nazwisko LIKE ? OR numer_umowy LIKE ? OR nr_rejestru LIKE ?)"; array_push($p, "%$q%", "%$q%", "%$q%"); }
         try {
             foreach (db_all("SELECT id, imie_nazwisko, numer_umowy, nr_rejestru, status, data_rozpoczecia FROM umowy_{$t} WHERE {$w} ORDER BY imie_nazwisko COLLATE NOCASE LIMIT 200", $p) as $r)

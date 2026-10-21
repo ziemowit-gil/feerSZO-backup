@@ -19,7 +19,7 @@ $umowy = db_all(
     "SELECT id, numer_umowy, imie_nazwisko, status, person_id
      FROM umowy_wolontariat
      WHERE zwrot_kosztow = 1
-       AND status IN ('aktywna','w_realizacji','zatwierdzony','zatwierdzona')
+       AND status IN (" . contractStatusSqlList('active') . ")
      ORDER BY numer_umowy DESC"
 );
 

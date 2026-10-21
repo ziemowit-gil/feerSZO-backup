@@ -30,6 +30,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
 
+/** Zapas — „żywa” umowa = grupy draft + active słownika umowy_statusy. */
 const CRM_PARTNER_ACTIVE_STATUSES = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
 const CRM_PARTNER_GRACE_DAYS      = 30;
 
@@ -102,7 +103,7 @@ function crm_partner_contacts_for_type(string $slug): array {
     $ids    = [];
 
     foreach ($rows as $r) {
-        if (!in_array((string)($r['status'] ?? ''), CRM_PARTNER_ACTIVE_STATUSES, true)) continue;
+        if (!in_array(contractStatusGroup((string)($r['status'] ?? '')), ['draft', 'active'], true)) continue;
 
         // Umowa z datą końca w przeszłości (po karencji) nie robi już ze mnie współpracownika
         $end = trim((string)($r['data_zakonczenia'] ?? ''));

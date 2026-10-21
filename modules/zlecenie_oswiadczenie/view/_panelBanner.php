@@ -10,7 +10,7 @@ try {
     foreach ($contracts ?? [] as $_oc) {
         if (($_oc['contract_type'] ?? '') !== 'zlecenie' || !empty($_oc['_is_guardian'])) continue;
         if (!empty($_oc['data_zakonczenia']) && $_oc['data_zakonczenia'] < date('Y-m-d')) continue;
-        if (in_array($_oc['status'] ?? '', ['rozwiazana', 'zakonczona', 'anulowana'], true)) continue;
+        if (in_array(contractStatusGroup($_oc['status'] ?? ''), ['closed', 'cancelled'], true)) continue;
         $_oo = OswService::forContract((int)$_oc['id']);
         $_od = $_oo ? OswService::docs((int)$_oo['id']) : [];
         $_need = !$_oo || $_oo['status'] === 'roboczy'

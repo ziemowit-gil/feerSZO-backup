@@ -70,7 +70,7 @@ if ($dry_run) echo "  ⚠  Tryb dry-run — nic nie zostanie wysłane\n";
 echo "  " . str_repeat('─', 55) . "\n";
 
 // ── Aktywne umowy wolontariatu z adresem e-mail ───────────────────────────────
-$active_statuses = ['projekt', 'podpisana', 'w realizacji', 'obowiązująca'];
+$active_statuses = contractStatusesInGroup('draft', 'active'); // słownik umowy_statusy
 $placeholders    = implode(',', array_fill(0, count($active_statuses), '?'));
 
 $contracts = db_all(

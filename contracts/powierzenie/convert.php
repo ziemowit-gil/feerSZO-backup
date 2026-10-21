@@ -38,7 +38,7 @@ if (!$src) {
 }
 
 // Status: zachowaj jeśli sensowny, w innym wypadku „projekt".
-$keep_statuses = ['projekt', 'podpisana', 'w realizacji', 'do rozliczenia', 'zakończona', 'rozwiązana', 'anulowana'];
+$keep_statuses = array_keys(contractStatusOptions('powierzenie')); // słownik umowy_statusy
 $status = in_array($src['status'] ?? '', $keep_statuses, true) ? $src['status'] : 'projekt';
 
 // Wspólne (kopiowane 1:1 jeśli istnieją w źródle).

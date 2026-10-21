@@ -603,13 +603,13 @@ if ($action === 'stats') {
             $r = db_one("SELECT COUNT(*) AS c FROM umowy_{$t}");
             $stats['contracts']['total'] += (int)($r['c'] ?? 0);
 
-            $r = db_one("SELECT COUNT(*) AS c FROM umowy_{$t} WHERE status IN ('podpisana','w realizacji','obowiązująca')");
+            $r = db_one("SELECT COUNT(*) AS c FROM umowy_{$t} WHERE " . contractStatusSqlIn(['active']));
             $stats['contracts']['active'] += (int)($r['c'] ?? 0);
 
             $r = db_one(
                 "SELECT COUNT(*) AS c FROM umowy_{$t}
                  WHERE bezterminowa=0 AND {$endCol} BETWEEN ? AND ?
-                   AND status NOT IN ('zakończona','anulowana','rozwiązana')",
+                   AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")",
                 [$today, $in30]
             );
             $stats['contracts']['expiring_30'] += (int)($r['c'] ?? 0);

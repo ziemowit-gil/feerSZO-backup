@@ -355,7 +355,7 @@ foreach ([
 }
 // sortuj: aktywne na górze
 usort($dyd_contracts, function($a, $b) {
-    $active = fn($s) => in_array($s, ['podpisana','w realizacji'], true) ? 0 : 1;
+    $active = fn($s) => contractStatusGroup($s) === 'active' ? 0 : 1;
     return $active($a['status']) <=> $active($b['status']) ?: strcmp((string)($b['data_zawarcia'] ?? ''), (string)($a['data_zawarcia'] ?? ''));
 });
 
@@ -3319,7 +3319,7 @@ if ($cur_course && dyd_is_staff()) {
   <a class="dyd-sb-link <?= $tab==='formalnosci'?'active':'' ?>" href="index.php?tab=formalnosci"
      <?= $tab==='formalnosci'?'aria-current="page"':'' ?>>
     <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalności
-    <?php $active_cnt = count(array_filter($dyd_contracts, fn($c) => in_array($c['status'],['podpisana','w realizacji'],true))); ?>
+    <?php $active_cnt = count(array_filter($dyd_contracts, fn($c) => contractStatusGroup($c['status']) === 'active')); ?>
     <?php if ($active_cnt): ?>
     <span class="badge bg-success ms-auto" style="font-size:.6rem"><?= $active_cnt ?></span>
     <?php endif; ?>
