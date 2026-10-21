@@ -418,7 +418,8 @@ function pl_room_availability(int $room_id, string $date, string $from, string $
         "SELECT id,course_id,lesson_date,time_from,time_to,status FROM k30_ti_sessions
          WHERE room_id=? AND lesson_date=? AND draft_id IS NULL
            AND status NOT IN ('cancelled')
-           AND time_from<? AND time_to>?" . ($skip_id ? " AND id!=?" : ''),
+           AND time_from<? AND time_to>?
+           AND course_id NOT IN (SELECT id FROM k30_ti_courses WHERE status='archived')" . ($skip_id ? " AND id!=?" : ''),
         $skip_id ? [$room_id, $date, $to, $from, $skip_id] : [$room_id, $date, $to, $from]
     );
 }
@@ -618,7 +619,8 @@ function pl_check_conflicts(array $p): array {
             "SELECT s.id,s.course_id,s.time_from,s.time_to FROM k30_pl_session_staff ss
              JOIN k30_ti_sessions s ON s.id=ss.session_id
              WHERE ss.user_id=? AND s.lesson_date=? AND s.draft_id IS NULL
-               AND s.status NOT IN ('cancelled') AND s.time_from<? AND s.time_to>?" .
+               AND s.status NOT IN ('cancelled') AND s.time_from<? AND s.time_to>?
+               AND s.course_id NOT IN (SELECT id FROM k30_ti_courses WHERE status='archived')" .
             ($skip_id ? " AND s.id!=?" : ''),
             $skip_id ? [$uid, $date, $to, $from, $skip_id] : [$uid, $date, $to, $from]
         );

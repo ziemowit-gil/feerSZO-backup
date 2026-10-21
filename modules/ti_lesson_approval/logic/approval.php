@@ -95,7 +95,7 @@ function ti_appr_warnings(int $course_id, array $sessions, array $recipients, ar
         $sql = "SELECT s2.lesson_date, s2.time_from, c.name AS course_name FROM k30_ti_sessions s2
                 JOIN k30_ti_courses c ON c.id=s2.course_id
                 WHERE s2.id<>? AND s2.lesson_date=? AND s2.status NOT IN ('draft','cancelled')
-                  AND s2.time_from < ? AND s2.time_to > ?";
+                  AND s2.time_from < ? AND s2.time_to > ? AND COALESCE(c.status,'active')!='archived'";
         $par = [(int)$s['id'], (string)$s['lesson_date'], (string)$s['time_to'], (string)$s['time_from']];
         $cond = [];
         if ($room)  { $cond[] = "s2.room_id=?"; $par[] = $room; }
@@ -387,6 +387,7 @@ function ti_appr_collisions(int $course_id, array $s): array {
     $out = [];
     foreach (db_all("SELECT s2.time_from, c.name AS course_name FROM k30_ti_sessions s2 JOIN k30_ti_courses c ON c.id=s2.course_id
                      WHERE s2.id<>? AND s2.lesson_date=? AND s2.status NOT IN ('draft','cancelled') AND s2.time_from < ? AND s2.time_to > ?
+                       AND COALESCE(c.status,'active')!='archived'
                        AND (" . implode(' OR ', $cond) . ")", $par) as $k) {
         $out[] = 'Kolizja terminu ' . date('d.m.Y', strtotime((string)$s['lesson_date'])) . ' ' . substr((string)$s['time_from'], 0, 5)
                . ' z lekcją „' . $k['course_name'] . '” o ' . substr((string)$k['time_from'], 0, 5) . ' (ta sama sala lub prowadzący).';

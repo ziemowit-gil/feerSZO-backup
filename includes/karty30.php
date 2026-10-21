@@ -7364,7 +7364,8 @@ function ti_zoom_slot_check(
               WHERE s.lesson_date = ?
                 AND s.status NOT IN ('cancelled','draft')
                 AND s.time_from != '' AND s.time_to != ''
-                AND s.time_from < ? AND s.time_to > ?"
+                AND s.time_from < ? AND s.time_to > ?
+                AND COALESCE(c.status,'active')!='archived'"
             . ($skip_session_id ? " AND s.id != ?" : ''),
             $skip_session_id ? [$date, $tt, $tf, $skip_session_id] : [$date, $tt, $tf]
         );

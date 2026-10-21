@@ -45,7 +45,7 @@ function sc_feed(string $from, string $to, int $scenario = 0): array {
     $rows = db_all(
         "SELECT s.id, s.course_id, s.lesson_date, s.time_from, s.time_to, s.status, s.topic, s.lesson_method,
                 s.instructor_id AS s_instr, c.instructor_id AS c_instr, s.room_id, s.series_id, s.rescheduled_from_date, s.rate_override,
-                c.name AS course_name, c.group_code, u.name AS instr_name, r.name AS room_name,
+                c.name AS course_name, c.group_code, c.status AS course_status, u.name AS instr_name, r.name AS room_name,
                 st.client_confirmed_at, st.instr_confirmed_at
            FROM k30_ti_sessions s
            JOIN k30_ti_courses c ON c.id=s.course_id
@@ -74,6 +74,7 @@ function sc_feed(string $from, string $to, int $scenario = 0): array {
             'topic' => (string)($r['topic'] ?? ''), 'method' => (string)($r['lesson_method'] ?? ''),
             'moved' => !empty($r['rescheduled_from_date']), 'series' => (int)$r['series_id'],
             'client_ok' => !empty($r['client_confirmed_at']), 'instr_ok' => !empty($r['instr_confirmed_at']), 'rate' => ($r['rate_override'] !== null && (float)$r['rate_override'] > 0.005) ? (float)$r['rate_override'] : 0,
+            'archived' => ($r['course_status'] ?? '') === 'archived',   // grupa archiwalna — widoczna, bez kolizji
             'conflicts' => [], 'changed' => false,
         ];
         if (isset($changes[(int)$r['id']])) {
@@ -91,7 +92,7 @@ function sc_feed(string $from, string $to, int $scenario = 0): array {
     // Nakładania w obrębie pobranego zakresu (trener / sala / grupa)
     $groups = [];
     foreach ($sessions as $i => $s) {
-        if ($s['status'] === 'cancelled') continue;
+        if ($s['status'] === 'cancelled' || $s['archived']) continue;
         if ($s['instructor_id']) $groups['i' . $s['instructor_id'] . '|' . $s['date']][] = $i;
         if ($s['room_id'])       $groups['r' . $s['room_id'] . '|' . $s['date']][] = $i;
         $groups['c' . $s['course_id'] . '|' . $s['date']][] = $i;

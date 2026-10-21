@@ -37,7 +37,8 @@ if (count($courses) > 1) $warn[] = 'Zatwierdzasz sloty z ' . count($courses) . '
 foreach ($slots as $sl) {
     if (!empty($sl['is_online']) && trim((string)$sl['default_meeting_url']) === '') $warn[] = 'Kurs „' . $sl['course_name'] . '” jest online, ale nie ma domyślnego linku do spotkania.';
     $n = (int)db_one("SELECT COUNT(*) AS n FROM k30_ti_weekly_plan WHERE instructor_id=? AND day_of_week=? AND status='approved' AND id<>?
-                      AND time_from < ? AND time(time_from, '+' || duration_min || ' minutes') > ?", [(int)$sl['instructor_id'], (int)$sl['day_of_week'], (int)$sl['id'], date('H:i', strtotime('2000-01-01 ' . substr($sl['time_from'], 0, 5) . ' +' . (int)$sl['duration_min'] . ' minutes')), substr($sl['time_from'], 0, 5)])['n'];
+                      AND time_from < ? AND time(time_from, '+' || duration_min || ' minutes') > ?
+                      AND course_id NOT IN (SELECT id FROM k30_ti_courses WHERE status='archived')", [(int)$sl['instructor_id'], (int)$sl['day_of_week'], (int)$sl['id'], date('H:i', strtotime('2000-01-01 ' . substr($sl['time_from'], 0, 5) . ' +' . (int)$sl['duration_min'] . ' minutes')), substr($sl['time_from'], 0, 5)])['n'];
     if ($n) $warn[] = 'Slot ' . (K30_TI_DAYS[(int)$sl['day_of_week']] ?? '') . ' ' . ti_slot_range($sl) . ' nakłada się na już zatwierdzony slot prowadzącego.';
 }
 if (!$rec) $warn[] = 'Kurs „' . $first['course_name'] . '” nie ma kursantów z poprawnym adresem e-mail — mail nie zostanie wysłany.';

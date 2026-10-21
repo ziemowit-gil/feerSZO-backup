@@ -380,7 +380,7 @@ function blockHtml(s, a) {
 
 function overlapsLocal(s, key, from, to) {
   if (st.rows === 'course') return false;
-  return st.data.sessions.some(o => o.id !== s.id && o.date === s.date && o.status !== 'cancelled' && (st.rows === 'instructor' ? o.instructor_id : o.room_id) === key && key && h2m(o.from) < to && from < h2m(o.to));
+  return st.data.sessions.some(o => o.id !== s.id && o.date === s.date && o.status !== 'cancelled' && !o.archived && (st.rows === 'instructor' ? o.instructor_id : o.room_id) === key && key && h2m(o.from) < to && from < h2m(o.to));
 }
 
 function bindDrag(el) {

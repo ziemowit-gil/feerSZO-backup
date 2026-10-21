@@ -63,7 +63,7 @@ function sc_instructor_overlaps(int $iid, string $date, string $from, string $to
         "SELECT s.id, s.course_id, s.time_from, s.time_to, c.name AS course_name
            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
           WHERE COALESCE(s.instructor_id,c.instructor_id)=CAST(? AS INTEGER) AND s.lesson_date=? AND s.draft_id IS NULL
-            AND s.status NOT IN ('cancelled') AND s.time_from<? AND s.time_to>?" . ($skip_id ? " AND s.id!=?" : ''),
+            AND s.status NOT IN ('cancelled') AND s.time_from<? AND s.time_to>? AND COALESCE(c.status,'active')!='archived'" . ($skip_id ? " AND s.id!=?" : ''),
         $skip_id ? [$iid, $date, $to, $from, $skip_id] : [$iid, $date, $to, $from]
     );
 }
