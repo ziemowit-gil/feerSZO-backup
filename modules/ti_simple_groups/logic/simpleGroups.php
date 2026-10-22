@@ -300,11 +300,11 @@ final class TiSimpleGroups
         $e     = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $termsHtml = $terms ? '<ul style="margin:2mm 0 0 0;padding-left:5mm">' . implode('', array_map(fn($t) => '<li>' . $e($t) . '</li>', $terms)) . '</ul>' : '';
 
-        $html = '<style>body{font-family:dejavusans;font-size:10pt;color:#111}h1{font-size:14pt;margin:0 0 2mm}
-                 table.t{border-collapse:collapse;width:100%}table.t th,table.t td{border:0.3mm solid #555;padding:2mm;text-align:left}
-                 table.t th{background:#e8eef5}.mono{font-family:dejavusansmono;font-size:11pt}
-                 .slip{border:0.4mm dashed #777;padding:5mm;margin:0 0 6mm 0;page-break-inside:avoid}
-                 .slip .big{font-family:dejavusansmono;font-size:14pt;font-weight:bold}.muted{color:#555;font-size:8.5pt}</style>';
+        $html = '<style>body{font-family:dejavusans;font-size:10pt;color:#1d1d1d}h1{font-size:14pt;margin:0 0 2mm;padding-bottom:2mm;border-bottom:.8mm solid #1ba1e2}
+                 table.t{border-collapse:collapse;width:100%}table.t th,table.t td{border:0.3mm solid #d1d5db;padding:2mm;text-align:left}
+                 table.t th{background:#1d1d1d;color:#fff;border-color:#1d1d1d}.mono{font-family:dejavusansmono;font-size:11pt}
+                 .slip{border:0.4mm dashed #4b5563;border-left:1.6mm solid #1ba1e2;padding:5mm;margin:0 0 6mm 0;page-break-inside:avoid}
+                 .slip .big{font-family:dejavusansmono;font-size:14pt;font-weight:bold}.muted{color:#4b5563;font-size:8.5pt}</style>';
         $html .= '<h1>Dane logowania — grupa ' . $e($c['name']) . '</h1>'
                . '<p class="muted">Wydruk dla kadry, ' . date('d.m.Y H:i') . '. Hasła są jednorazowe — przy pierwszym logowaniu kursant ustawia własne. Po wręczeniu kartek zniszcz tę stronę.</p>'
                . '<table class="t"><thead><tr><th style="width:8mm">#</th><th>Uczestnik</th><th>Login</th><th>Hasło jednorazowe</th></tr></thead><tbody>';

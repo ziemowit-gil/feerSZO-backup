@@ -219,8 +219,8 @@ final class TiTestAccounts
     {
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $url = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/kursant/login.php';
-        $h = '<style>body{font-family:dejavusans;font-size:9.5pt}h1{font-size:14pt;margin:0 0 2mm}table{border-collapse:collapse;width:100%}
-              th,td{border:0.3mm solid #555;padding:1.8mm;vertical-align:top}th{background:#eef2f7}.m{font-family:dejavusansmono;font-size:10.5pt}.s{color:#555;font-size:8.5pt}</style>'
+        require_once dirname(__DIR__, 3) . '/modules/ti_pdf/logic/tiMetroCss.php';
+        $h = '<style>' . ti_metro_pdf_css() . 'h1{font-size:14pt;margin:0 0 2mm}.m{font-family:dejavusansmono;font-size:10.5pt}</style>'
            . '<h1>Konta testowe — konsultacje i szkolenia krótkie</h1>'
            . '<p class="s">Wydruk ' . date('d.m.Y H:i') . ' · logowanie: ' . $e($url) . ' · telefon wszystkich osób testowych: ' . $e(self::phone())
            . ' · hasła bez wymuszonej zmiany; ponowne „Odśwież” w panelu nadaje nowe.</p>'

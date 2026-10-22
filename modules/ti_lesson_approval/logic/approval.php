@@ -197,11 +197,14 @@ function ti_appr_files_from_rows(array $course, array $head, array $rows, string
                              'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 12, 'margin_bottom' => 12]);
         $m->SetTitle($title);
         $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $html = '<h2>' . $h($title) . '</h2><table border="1" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:9pt"><thead><tr>';
-        foreach ($head as $c) $html .= '<th style="background:#e2e8f0;text-align:left">' . $h($c) . '</th>';
+        require_once dirname(__DIR__, 3) . '/modules/ti_pdf/logic/tiMetroCss.php';
+        $m->SetHTMLFooter(ti_metro_pdf_footer('Harmonogram · ' . date('d.m.Y H:i')));
+        $m->WriteHTML(ti_metro_pdf_css(), \Mpdf\HTMLParserMode::HEADER_CSS);
+        $html = '<h2>' . $h($title) . '</h2><table class="zebra"><thead><tr>';
+        foreach ($head as $c) $html .= '<th>' . $h($c) . '</th>';
         $html .= '</tr></thead><tbody>';
         foreach ($rows as $r) { $html .= '<tr>'; foreach ($r as $c) $html .= '<td>' . $h($c) . '</td>'; $html .= '</tr>'; }
-        $m->WriteHTML($html . '</tbody></table><p style="font-size:8pt;color:#666">Wygenerowano: ' . date('d.m.Y H:i') . '</p>');
+        $m->WriteHTML($html . '</tbody></table><p class="s">Wygenerowano: ' . date('d.m.Y H:i') . '</p>');
         $add('pdf', 'application/pdf', $m->Output('', \Mpdf\Output\Destination::STRING_RETURN));
     } catch (\Throwable $e) { error_log('[ti_appr pdf] ' . $e->getMessage()); }
     return $out;

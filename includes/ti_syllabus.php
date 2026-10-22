@@ -468,26 +468,27 @@ function ti_syllabus_pdf(array $syl): ?string {
             'margin_right'  => 18,
             'margin_top'    => 18,
             'margin_bottom' => 18,
-            'default_font'  => 'dejavuserif',
+            'default_font'  => 'dejavusans',
             'tempDir'       => $mpdf_tmp,
         ]);
         $name = trim((string)($syl['subject_abbr'] ?? '') . ' ' . (string)$syl['title']);
         $mpdf->SetTitle('Sylabus — ' . ($name !== '' ? $name : 'przedmiot'));
         $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
+        require_once __DIR__ . '/../modules/ti_pdf/logic/tiMetroCss.php';
         $mpdf->WriteHTML(
-            'body { font-family: "DejaVu Serif", serif; font-size: 10.5pt; line-height: 1.45; color: #000; }
+            ti_metro_pdf_css() . '
+             body { font-size: 10pt; line-height: 1.45; }
              h1 { font-size: 15pt; margin: 0 0 2mm; }
-             h2 { font-size: 12pt; margin: 6mm 0 2mm; border-bottom: .3mm solid #999; padding-bottom: 1mm; }
-             p.meta { color: #555; font-size: 9.5pt; margin: 0 0 4mm; }
-             p.note { background: #f4f6f8; padding: 2mm 3mm; font-size: 10pt; }
-             p.sum, p.empty { font-size: 9.5pt; color: #555; }
-             table { border-collapse: collapse; width: 100%; }
-             table.head th { text-align: left; width: 34%; background: #f4f6f8; }
-             table.head th, table.head td { border: .2mm solid #ccc; padding: 1.4mm 2mm; font-size: 10pt; }
-             table.items th { background: #eef1f4; border: .2mm solid #ccc; padding: 1.4mm 2mm; text-align: left; font-size: 9.5pt; }
-             table.items td { border: .2mm solid #ccc; padding: 1.4mm 2mm; vertical-align: top; }
-             tr.sec td { background: #f7f7f7; font-weight: bold; font-size: 9.5pt; }
-             div.desc { color: #444; font-size: 9.5pt; margin-top: .8mm; }
+             h2 { font-size: 11.5pt; margin: 6mm 0 2mm; }
+             p.meta { color: #4b5563; font-size: 9.5pt; margin: 0 0 4mm; }
+             p.note { background: #f3f4f6; border-left: 1.6mm solid #1ba1e2; padding: 2mm 3mm; font-size: 10pt; }
+             p.sum, p.empty { font-size: 9.5pt; color: #4b5563; }
+             table.head th { text-align: left; width: 34%; background: #f3f4f6; color: #1d1d1d; border: .2mm solid #d1d5db; }
+             table.head th, table.head td { padding: 1.4mm 2mm; font-size: 10pt; }
+             table.items th { padding: 1.4mm 2mm; font-size: 9.5pt; }
+             table.items td { padding: 1.4mm 2mm; }
+             tr.sec td { background: #f3f4f6; font-weight: bold; font-size: 9.5pt; }
+             div.desc { color: #374151; font-size: 9.5pt; margin-top: .8mm; }
              ol.list li { margin-bottom: 1.6mm; }',
             \Mpdf\HTMLParserMode::HEADER_CSS
         );

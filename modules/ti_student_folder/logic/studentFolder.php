@@ -380,9 +380,9 @@ final class TiStudentFolder
             $att = '<tr><th>Załącznik</th><td>' . $h($f['title']) . ' (' . $h($f['file_name']) . ')<br><span style="font-size:8pt">SHA-256: ' . $h($f['sha256']) . '</span></td></tr>';
         }
         $kind = ($r['decided_kind'] ?? '') === 'parent' ? 'opiekun (przedstawiciel ustawowy)' : 'kursant';
-        return '<style>body{font-size:10pt;color:#111} h1{font-size:14pt;margin:0 0 4mm} table{border-collapse:collapse;width:100%;margin:3mm 0}
-                th,td{border:1px solid #999;padding:2mm;text-align:left;vertical-align:top} th{background:#eef1f5;width:32%} .tresc{border:1px solid #ccc;padding:3mm;margin-top:3mm}</style>'
-             . '<div style="font-size:9pt;color:#555">' . $h($org) . '</div>'
+        return '<style>body{font-size:10pt;color:#1d1d1d} h1{font-size:14pt;margin:0 0 4mm;padding-bottom:2mm;border-bottom:.8mm solid #1ba1e2} table{border-collapse:collapse;width:100%;margin:3mm 0}
+                th,td{border:1px solid #d1d5db;padding:2mm;text-align:left;vertical-align:top} th{background:#f3f4f6;color:#1d1d1d;width:32%} .tresc{border:1px solid #d1d5db;border-left:1.6mm solid #1ba1e2;padding:3mm;margin-top:3mm}</style>'
+             . '<div style="font-size:9pt;color:#4b5563">' . $h($org) . '</div>'
              . '<h1>Potwierdzenie akceptacji dokumentu</h1>'
              . '<table>'
              . '<tr><th>Dokument</th><td><strong>' . $h($r['title']) . '</strong></td></tr>'

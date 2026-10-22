@@ -64,19 +64,21 @@ try {
     $mpdf->SetTitle('Wykaz sal do rezerwacji' . $title_suffix . ' — ' . $range_label);
     $mpdf->SetAuthor($org !== '' ? $org : 'FEER');
 
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/tiMetroCss.php';
+    $mpdf->SetHTMLFooter(ti_metro_pdf_footer('Wykaz sal do rezerwacji · ' . date('d.m.Y H:i')));
     $mpdf->WriteHTML(
-        'body { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; color: #111; }
-         h1 { font-size: 15pt; margin: 0 0 1mm; }
-         p.meta { color: #555; font-size: 9pt; margin: 0 0 5mm; }
-         h2.day { font-size: 10.5pt; background: #f1f5f9; padding: 1.5mm 2.5mm; margin: 4mm 0 1.5mm; border-left: 1mm solid #3b82f6; }
-         table { border-collapse: collapse; width: 100%; margin-bottom: 2mm; }
-         th { background: #f8fafc; border-bottom: .3mm solid #cbd5e1; padding: 1mm 2mm; text-align: left; font-size: 8.5pt; color: #475569; }
-         td { border-bottom: .2mm solid #e2e8f0; padding: 1.2mm 2mm; font-size: 9pt; vertical-align: top; }
+        ti_metro_pdf_css() . '
+         h1 { margin: 0 0 1mm; }
+         p.meta { color: #4b5563; font-size: 9pt; margin: 0 0 5mm; }
+         h2.day { margin: 4mm 0 1.5mm; }
+         table { margin-bottom: 2mm; }
+         th { padding: 1.2mm 2mm; }
+         td { padding: 1.2mm 2mm; }
          td.time { white-space: nowrap; }
-         .st-confirmed { color: #166534; }
-         .st-pending   { color: #92400e; }
-         p.empty { color: #64748b; font-style: italic; }
-         p.footer { color: #94a3b8; font-size: 7.5pt; margin-top: 6mm; }',
+         .st-confirmed { color: #007a00; font-weight: bold; }
+         .st-pending   { color: #8a4a00; font-weight: bold; }
+         p.empty { color: #4b5563; }
+         p.footer { color: #4b5563; font-size: 7.5pt; margin-top: 6mm; }',
         \Mpdf\HTMLParserMode::HEADER_CSS
     );
 

@@ -95,14 +95,14 @@ try {
         'default_font' => 'dejavusans',
     ]);
     $mpdf->SetTitle('Wyciąg zmian cen zajęć TI');
-    $mpdf->SetFooter('{PAGENO} / {nbpg}');
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/tiMetroCss.php';
+    $mpdf->SetHTMLFooter(ti_metro_pdf_footer('Wyciąg zmian cen zajęć TI · ' . date('d.m.Y H:i')));
     $mpdf->WriteHTML(
-        'body { font-size:8pt; } h1 { font-size:13pt; margin:0 0 2mm; }
-         p.meta { color:#555; margin:0 0 4mm; } p.sum { margin-top:3mm; font-weight:bold; }
-         table { border-collapse:collapse; width:100%; }
-         th { background:#e9eef5; text-align:left; }
-         th, td { border:.2mm solid #b8c2cc; padding:1.2mm 1.5mm; vertical-align:top; }
-         tr.off td { color:#888; }',
+        ti_metro_pdf_css() . '
+         body { font-size:8pt; } h1 { font-size:13pt; margin:0 0 2mm; }
+         p.meta { color:#4b5563; margin:0 0 4mm; } p.sum { margin-top:3mm; font-weight:bold; }
+         th, td { padding:1.2mm 1.5mm; font-size:8pt; }
+         tr.off td { color:#4b5563; }',
         \Mpdf\HTMLParserMode::HEADER_CSS
     );
     $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::HTML_BODY);

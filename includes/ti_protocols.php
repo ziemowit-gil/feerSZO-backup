@@ -1795,6 +1795,7 @@ function ti_protocol_obecnosc_pdf(array $prot, ?array $umowa, bool $podglad = fa
  */
 function ti_pdf_new(string $title, string $doc_label): \Mpdf\Mpdf {
     require_once dirname(__DIR__) . '/vendor/autoload.php';
+    require_once dirname(__DIR__) . '/modules/ti_pdf/logic/tiMetroCss.php';
     $tmp = UPLOAD_DIR . 'mpdf_tmp';
     if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
     $mpdf = new \Mpdf\Mpdf([
@@ -1806,14 +1807,8 @@ function ti_pdf_new(string $title, string $doc_label): \Mpdf\Mpdf {
     $e   = fn($x) => htmlspecialchars((string)$x, ENT_QUOTES, 'UTF-8');
     $mpdf->SetTitle($title);
     $mpdf->SetAuthor($org);
-    $mpdf->SetHTMLHeader(
-        '<table width="100%" style="border-bottom:.6mm solid #0f6fa8;font-family:dejavusans;font-size:8pt;color:#10335c">'
-        . '<tr><td style="font-weight:bold;padding-bottom:1.5mm">' . $e($org) . '</td>'
-        . '<td style="text-align:right;padding-bottom:1.5mm;color:#4b5563">' . $e($doc_label) . '</td></tr></table>');
-    $mpdf->SetHTMLFooter(
-        '<table width="100%" style="border-top:.2mm solid #c9d6e3;font-family:dejavusans;font-size:7.5pt;color:#6b7280">'
-        . '<tr><td style="padding-top:1.5mm">Dokument wygenerowany w systemie SZO · ' . date('d.m.Y H:i') . '</td>'
-        . '<td style="text-align:right;padding-top:1.5mm">Strona {PAGENO} z {nbpg}</td></tr></table>');
+    $mpdf->SetHTMLHeader(ti_metro_pdf_header($org, $doc_label));
+    $mpdf->SetHTMLFooter(ti_metro_pdf_footer('Dokument wygenerowany w systemie SZO · ' . date('d.m.Y H:i')));
     $mpdf->WriteHTML(ti_pdf_css(), \Mpdf\HTMLParserMode::HEADER_CSS);
     return $mpdf;
 }
@@ -1851,7 +1846,7 @@ function ti_pdf_sign_note(array $prot): string {
         $odc  = strtoupper(implode(':', str_split(substr($fp, 0, 32), 2)));
         $szcz = '<br>Certyfikat: ' . $e($prot['sign_subject'] ?? '') . ($odc !== '' ? ' · odcisk SHA-256: ' . $e($odc) . '…' : '');
     }
-    return '<div style="margin-top:8mm;border:.4mm solid #15803d;background:#f0fdf4;padding:3mm 3.5mm;font-size:8.5pt;color:#14532d">'
+    return '<div style="margin-top:8mm;border:.4mm solid #007a00;border-left:1.6mm solid #007a00;background:#f9fafb;padding:3mm 3.5mm;font-size:8.5pt;color:#1d1d1d">'
         . '<strong>Dokument podpisany elektronicznie w systemie SZO ' . $jak . '.</strong><br>'
         . 'Podpisał(a): ' . $e($kto !== '' ? $kto : '—') . ($kiedy !== '' ? ' · ' . $e($kiedy) : '') . $szcz
         . '<br>Podpis obejmuje treść ewidencji godzin z tego protokołu; jej zmiana unieważnia podpis.</div>';
@@ -1864,24 +1859,19 @@ function ti_pdf_write_sign_note(\Mpdf\Mpdf $mpdf, array $prot): void {
 }
 
 function ti_pdf_css(): string {
-    return 'body { font-family:dejavusans; font-size:9.5pt; color:#1d1d1d; line-height:1.35; }
-     h1 { font-size:15pt; color:#10335c; margin:0 0 4mm; padding-bottom:2mm; border-bottom:.6mm solid #0f6fa8; }
-     h2 { font-size:10.5pt; color:#10335c; margin:7mm 0 2.5mm; padding:1.4mm 2.5mm; border-left:1.2mm solid #0f6fa8; background:#eef4fa; }
-     p.sub { font-size:8.5pt; color:#4b5563; margin:1mm 0 2.5mm; }
-     table { border-collapse:collapse; width:100%; }
-     table.head th { text-align:left; width:30%; background:#eef4fa; color:#10335c; font-weight:bold; }
-     table.head th, table.head td { border:.2mm solid #c9d6e3; padding:1.7mm 2.4mm; font-size:9pt; }
+    require_once dirname(__DIR__) . '/modules/ti_pdf/logic/tiMetroCss.php';
+    return ti_metro_pdf_css() . '
+     table.head th { text-align:left; width:30%; background:#f3f4f6; color:#1d1d1d; font-weight:bold; border:.2mm solid #d1d5db; }
+     table.head th, table.head td { border:.2mm solid #d1d5db; padding:1.7mm 2.4mm; font-size:9pt; }
      table.items { margin-top:4mm; }
-     table.items th { background:#10335c; color:#ffffff; border:.2mm solid #10335c; padding:1.8mm 2mm; font-size:8.5pt; text-align:left; font-weight:bold; }
-     table.items td { border:.2mm solid #c9d6e3; padding:1.7mm 2mm; font-size:9pt; }
-     table.items tr:nth-child(even) td { background:#f6f9fc; }
-     .r, td.r, th.r { text-align:right; }
-     .c, td.c, th.c { text-align:center; }
-     tr.sum td { background:#dbe7f3; font-weight:bold; border-top:.5mm solid #10335c; }
-     p.empty-note { margin-top:5mm; padding:3mm 3.5mm; border-left:1.2mm solid #b45309; background:#fff7ed; font-weight:bold; font-size:9.5pt; }
+     table.items th { padding:1.8mm 2mm; }
+     table.items td { padding:1.7mm 2mm; }
+     table.items tr:nth-child(even) td { background:#f9fafb; }
+     tr.sum td { background:#f3f4f6; }
+     p.empty-note { margin-top:5mm; padding:3mm 3.5mm; border-left:1.6mm solid #8a4a00; background:#f3f4f6; font-weight:bold; font-size:9.5pt; }
      p.trace { margin-top:6mm; font-size:9pt; }
-     div.stmt { margin-top:6mm; border:.3mm solid #10335c; padding:3.5mm; background:#f8fafc; }
-     p.stmt-h { font-weight:bold; color:#10335c; margin:0 0 1.5mm; font-size:10pt; }
+     div.stmt { margin-top:6mm; border:.3mm solid #1d1d1d; padding:3.5mm; background:#f9fafb; }
+     p.stmt-h { font-weight:bold; color:#1d1d1d; margin:0 0 1.5mm; font-size:10pt; }
      div.stmt p { font-size:9pt; margin:0 0 2mm; }
      table.signs { margin-top:8mm; }
      table.signs td { width:50%; padding:14mm 4mm 0; font-size:8.5pt; text-align:center; border:none; color:#4b5563; }';
