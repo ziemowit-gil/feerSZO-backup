@@ -40,14 +40,14 @@ function zlecenie_inline_fields(): array {
             'addr_country'     => ['label' => 'Kraj', 'type' => 'text', 'short' => true],
             'org_unit_id'      => ['label' => 'Komórka organizacyjna', 'type' => 'select', 'options' => '__units__'],
         ],
-        'Inicjatywa społeczna (IS)' => [
-            'w_ramach_is'       => ['label' => 'Umowa w ramach IS', 'type' => 'checkbox'],
-            'is_nazwa'          => ['label' => 'Nazwa IS', 'type' => 'text'],
-            'is_numer_umowy'    => ['label' => 'Numer umowy IS', 'type' => 'text'],
+        'Instytucja szkoleniowa (IS)' => [
+            'w_ramach_is'       => ['label' => 'Umowa w ramach IS (instytucji szkoleniowej)', 'type' => 'checkbox'],
+            'is_nazwa'          => ['label' => 'Nazwa instytucji szkoleniowej', 'type' => 'text'],
+            'is_numer_umowy'    => ['label' => 'Numer umowy z IS', 'type' => 'text'],
             'is_uprawnienia_nr' => ['label' => 'Nr uprawnień', 'type' => 'text'],
             'is_dyplom_nr'      => ['label' => 'Nr dyplomu', 'type' => 'text'],
             'is_dopuszczenie'   => ['label' => 'Dopuszczenie', 'type' => 'text'],
-            'is_adres'          => ['label' => 'Adres IS', 'type' => 'textarea', 'wide' => true, 'rows' => 2],
+            'is_adres'          => ['label' => 'Adres instytucji szkoleniowej', 'type' => 'textarea', 'wide' => true, 'rows' => 2],
             'klauzula_rodo'     => ['label' => 'Klauzula RODO', 'type' => 'checkbox'],
         ],
         'Wynagrodzenie i podatek' => [
