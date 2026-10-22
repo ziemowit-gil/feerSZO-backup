@@ -21,9 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ((array)($_POST['n'] ?? []) as $key => $_) $want[(string)$key] = true;
     $changed = 0;
     foreach (TiLodging::spans() as $r) {
-        foreach (array_keys(TiLodging::KINDS) as $k) {
+        foreach ([...array_keys(TiLodging::KINDS), 'none'] as $k) {
             $key = $r['course_id'] . ':' . $r['uid'] . ':' . $k;
             $flags = TiLodging::flags();
+            // „bez noclegu” ma pierwszeństwo przed zaznaczoną nocą przed/po
+            if ($k !== 'none' && isset($want[$r['course_id'] . ':' . $r['uid'] . ':none'])) $want[$key] = null;
             if (isset($want[$key]) !== isset($flags[$key])) {
                 if (TiLodging::set((int)$r['course_id'], (int)$r['uid'], $k, isset($want[$key]), $uid)) $changed++;
             }
@@ -52,7 +54,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="container-fluid py-3" style="max-width:1100px">
 <?= flash_html() ?>
 <h1 class="h4 fw-bold mb-2"><i class="bi bi-moon-stars text-primary me-2" aria-hidden="true"></i><?= $staff ? 'Noclegi kadry' : 'Moje noclegi' ?></h1>
-<p class="small text-body-secondary">Szkolenia stacjonarne od dziś. Noc przed: noc poprzedzająca pierwszą lekcję stacjonarną. Noc po: noc po ostatniej lekcji stacjonarnej. Daty wynikają z terminów lekcji.</p>
+<p class="small text-body-secondary">Szkolenia stacjonarne od dziś. Noc przed: noc poprzedzająca pierwszą lekcję stacjonarną. Noc po: noc po ostatniej lekcji stacjonarnej. Daty wynikają z terminów lekcji. Gdy lokalizacja sali zawiera KR, SZ lub WA, nocleg jest sugerowany (zaznaczony do zapisu); „Bez noclegu” wyłącza sugestię.</p>
 
 <?php if (!$rows): ?>
 <div class="alert alert-secondary">Brak nadchodzących szkoleń stacjonarnych.</div>
@@ -65,16 +67,20 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <thead><tr>
       <th scope="col">Grupa</th><th scope="col">Osoba</th><th scope="col">Lekcje stacjonarne</th>
       <?php foreach (TiLodging::KINDS as $label): ?><th scope="col"><?= h($label) ?></th><?php endforeach; ?>
+      <th scope="col">Bez noclegu</th>
     </tr></thead>
     <tbody>
     <?php foreach ($rows as $r):
-      $nt = TiLodging::nights($r['first_d'], $r['last_d']); ?>
+      $nt = TiLodging::nights($r['first_d'], $r['last_d']);
+      $pre = $r['course_id'] . ':' . $r['uid'] . ':';
+      $decided = isset($flags[$pre . 'before']) || isset($flags[$pre . 'after']) || isset($flags[$pre . 'none']);
+      $sug = !$decided && $r['suggest']; ?>
       <tr>
-        <td><?= h($r['course_name']) ?></td>
+        <td><?= h($r['course_name']) ?><?php if ($sug): ?> <span class="badge text-bg-warning">Sugerowany nocleg</span><?php endif; ?></td>
         <td><?= h($names[(int)$r['uid']] ?? '—') ?></td>
         <td><?= h($fmt($r['first_d'])) ?><?= $r['first_d'] !== $r['last_d'] ? ' – ' . h($fmt($r['last_d'])) : '' ?> <span class="text-body-secondary small">(<?= (int)$r['n'] ?>)</span></td>
         <?php foreach (array_keys(TiLodging::KINDS) as $k):
-          $key = $r['course_id'] . ':' . $r['uid'] . ':' . $k; $on = isset($flags[$key]);
+          $key = $r['course_id'] . ':' . $r['uid'] . ':' . $k; $on = isset($flags[$key]) || $sug;
           $lbl = TiLodging::KINDS[$k] . ' — ' . ($names[(int)$r['uid']] ?? '') . ', ' . $r['course_name']; ?>
         <td>
           <?php if ($staff): ?>
@@ -85,6 +91,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <?php else: ?><span class="text-body-secondary">Nie</span><?php endif; ?>
         </td>
         <?php endforeach; ?>
+        <td>
+          <?php $nk = $pre . 'none'; $non = isset($flags[$nk]); ?>
+          <?php if ($staff): ?>
+            <input class="form-check-input" type="checkbox" name="n[<?= h($nk) ?>]" value="1" id="n-<?= h(str_replace(':', '-', $nk)) ?>" <?= $non ? 'checked' : '' ?> aria-label="Bez noclegu — <?= h(($names[(int)$r['uid']] ?? '') . ', ' . $r['course_name']) ?>">
+          <?php else: ?><?= $non ? '<span class="badge text-bg-secondary">Bez noclegu</span>' : '<span class="text-body-secondary">—</span>' ?><?php endif; ?>
+        </td>
       </tr>
     <?php endforeach; ?>
     </tbody>
