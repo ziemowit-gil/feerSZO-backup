@@ -1861,16 +1861,16 @@ function ti_pdf_write_sign_note(\Mpdf\Mpdf $mpdf, array $prot): void {
 function ti_pdf_css(): string {
     require_once dirname(__DIR__) . '/modules/ti_pdf/logic/tiMetroCss.php';
     return ti_metro_pdf_css() . '
-     table.head th { text-align:left; width:30%; background:#f3f4f6; color:#1d1d1d; font-weight:bold; border:.2mm solid #d1d5db; }
-     table.head th, table.head td { border:.2mm solid #d1d5db; padding:1.7mm 2.4mm; font-size:9pt; }
+     table.head th { text-align:left; width:30%; background:#f3f4f6; color:#1d1d1d; font-weight:bold; border-bottom:.2mm solid #d1d5db; }
+     table.head th, table.head td { padding:1.7mm 2.4mm; font-size:9pt; }
      table.items { margin-top:4mm; }
      table.items th { padding:1.8mm 2mm; }
      table.items td { padding:1.7mm 2mm; }
      table.items tr:nth-child(even) td { background:#f9fafb; }
-     tr.sum td { background:#f3f4f6; }
-     p.empty-note { margin-top:5mm; padding:3mm 3.5mm; border-left:1.6mm solid #8a4a00; background:#f3f4f6; font-weight:bold; font-size:9.5pt; }
+     table.items tr.sum td { background:#1d1d1d; color:#ffffff; }
+     p.empty-note { margin-top:5mm; padding:3mm 3.5mm; border-left:3mm solid #8a4a00; background:#f3f4f6; font-weight:bold; font-size:9.5pt; }
      p.trace { margin-top:6mm; font-size:9pt; }
-     div.stmt { margin-top:6mm; border:.3mm solid #1d1d1d; padding:3.5mm; background:#f9fafb; }
+     div.stmt { margin-top:6mm; border-left:3mm solid #0f6fa8; padding:3.5mm; background:#f9fafb; }
      p.stmt-h { font-weight:bold; color:#1d1d1d; margin:0 0 1.5mm; font-size:10pt; }
      div.stmt p { font-size:9pt; margin:0 0 2mm; }
      table.signs { margin-top:8mm; }

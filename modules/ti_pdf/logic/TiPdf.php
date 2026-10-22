@@ -33,9 +33,10 @@ class TiPdf extends FPDF
     public string $tiOrg = '';
 
     /** Barwy skórki (ti_skin.css) — wspólne dla wydruków. */
+    // Kafle METRO: tytuł = kafel #0f6fa8 (biały 5,4:1) z grafitową listwą; tabele bez ramek pionowych, tylko linie poziome.
     // METRO (jak ti_metro_kursant.css / Tożsamość): grafit, cyjan #1ba1e2, płasko, bez zaokrągleń.
     // Kontrasty na białym: TEXT 16:1, SOFT 10:1, MUTED 7,6:1, RED 6,9:1, GREEN 5,6:1; biały na NAVY 16:1.
-    public const NAVY = [29, 29, 29], GOLD = [27, 161, 226], BAR = [243, 244, 246],
+    public const NAVY = [15, 111, 168], GOLD = [29, 29, 29], BAR = [243, 244, 246],
                  ZEBRA = [249, 250, 251], GRID = [209, 213, 219], TEXT = [29, 29, 29],
                  MUTED = [75, 85, 99], SOFT = [55, 65, 81], RED = [162, 0, 37], GREEN = [0, 122, 0], LINK = [15, 111, 168], AMBER = [138, 74, 0];
     private const FILL_MAP = [
@@ -85,6 +86,8 @@ class TiPdf extends FPDF
     /** Pod pełnoszerokim paskiem tytułowym (granat) — złota kreska jak w nagłówku panelu. */
     public function Cell($w, $h = 0, $txt = '', $border = 0, $ln = 0, $align = '', $fill = false, $link = '')
     {
+        // Styl kafli: pełna ramka komórki → tylko dolna linia (bez siatki pionowej)
+        if ($border === 1 || $border === '1' || (is_string($border) && $border !== '' && strpbrk($border, 'LRT') !== false)) $border = 'B';
         $x = $this->x; $y = $this->y; $page = $this->page;
         parent::Cell($w, $h, $txt, $border, $ln, $align, $fill, $link);
         // Komórka przeniesiona na nową stronę (auto page break) — pozycja sprzed niej nieaktualna
@@ -92,7 +95,7 @@ class TiPdf extends FPDF
         $cw = $w == 0 ? $this->w - $this->rMargin - $x : $w;
         if ($cw < ($this->w - $this->lMargin - $this->rMargin) * 0.85) return;
         parent::SetFillColor(self::GOLD[0], self::GOLD[1], self::GOLD[2]);
-        $this->Rect($x, $y + $h, $cw, 0.9, 'F');
+        $this->Rect($x, $y + $h, $cw, 1.4, 'F');
         parent::SetFillColor($this->tiFillRgb[0], $this->tiFillRgb[1], $this->tiFillRgb[2]);
     }
 
@@ -138,15 +141,15 @@ class TiPdf extends FPDF
         if (!$this->tiFooter) return;
         $keepFont = [$this->FontFamily, $this->FontStyle, $this->FontSizePt];
         $this->SetY(-10);
-        $this->SetDrawColor(27, 161, 226);
-        $this->SetLineWidth(0.5);
-        $this->Line($this->lMargin, $this->GetY(), $this->GetPageWidth() - $this->rMargin, $this->GetY());
-        $this->SetY(-9);
-        $this->SetFont('DejaVu', '', 7);
+        parent::SetFillColor(self::NAVY[0], self::NAVY[1], self::NAVY[2]);
+        $this->Rect($this->lMargin, $this->GetY() + 0.6, 3.2, 3.2, 'F');
+        $this->SetX($this->lMargin + 5);
+        $this->SetFont('DejaVu', 'B', 7);
         $this->SetTextColor(75, 85, 99);
         $w = $this->GetPageWidth() - $this->lMargin - $this->rMargin;
-        $this->Cell($w / 2, 4, self::pl($this->tiOrg), 0, 0, 'L');
-        $this->Cell($w / 2, 4, self::pl('Strona ' . $this->PageNo() . ' z {nb}'), 0, 0, 'R');
+        $this->Cell($w / 2 - 5, 4.4, self::pl($this->tiOrg), 0, 0, 'L');
+        $this->SetFont('DejaVu', '', 7);
+        $this->Cell($w / 2, 4.4, self::pl('Strona ' . $this->PageNo() . ' z {nb}'), 0, 0, 'R');
         $this->SetTextColor(0, 0, 0);
         if ($keepFont[0] !== '') parent::SetFont($keepFont[0], $keepFont[1], $keepFont[2]);
     }

@@ -483,7 +483,7 @@ function ti_syllabus_pdf(array $syl): ?string {
              p.meta { color: #4b5563; font-size: 9.5pt; margin: 0 0 4mm; }
              p.note { background: #f3f4f6; border-left: 1.6mm solid #1ba1e2; padding: 2mm 3mm; font-size: 10pt; }
              p.sum, p.empty { font-size: 9.5pt; color: #4b5563; }
-             table.head th { text-align: left; width: 34%; background: #f3f4f6; color: #1d1d1d; border: .2mm solid #d1d5db; }
+             table.head th { text-align: left; width: 34%; background: #f3f4f6; color: #1d1d1d; border-bottom: .2mm solid #d1d5db; }
              table.head th, table.head td { padding: 1.4mm 2mm; font-size: 10pt; }
              table.items th { padding: 1.4mm 2mm; font-size: 9.5pt; }
              table.items td { padding: 1.4mm 2mm; }
