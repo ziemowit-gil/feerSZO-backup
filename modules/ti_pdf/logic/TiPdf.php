@@ -55,6 +55,7 @@ class TiPdf extends FPDF
     /** Czy bieżące wypełnienie to pasek tytułowy (granat) — pod pełnoszerokim dostaje złotą kreskę. */
     private bool $tiTitleFill = false;
     private array $tiFillRgb = [255, 255, 255];
+    private array $tiTextRgb = [0, 0, 0];
 
     private static function mapRgb(array $map, $r, $g, $b): array
     {
@@ -67,6 +68,8 @@ class TiPdf extends FPDF
     {
         $rgb = self::mapRgb(self::FILL_MAP, $r, $g, $b);
         $this->tiTitleFill = $rgb === self::NAVY;
+        // Lekki METRO: ciężkie (granatowe) paski tytułów i nagłówków tabel → jasne tło, ciemny tekst, cyjanowa kreska pod spodem
+        if ($this->tiTitleFill) $rgb = self::BAR;
         $this->tiFillRgb = $rgb;
         parent::SetFillColor($rgb[0], $rgb[1], $rgb[2]);
     }
@@ -80,6 +83,7 @@ class TiPdf extends FPDF
     public function SetTextColor($r, $g = null, $b = null)
     {
         $rgb = self::mapRgb(self::TEXT_MAP, $r, $g, $b);
+        $this->tiTextRgb = $rgb;
         parent::SetTextColor($rgb[0], $rgb[1], $rgb[2]);
     }
 
@@ -89,13 +93,17 @@ class TiPdf extends FPDF
         // Styl kafli: pełna ramka komórki → tylko dolna linia (bez siatki pionowej)
         if ($border === 1 || $border === '1' || (is_string($border) && $border !== '' && strpbrk($border, 'LRT') !== false)) $border = 'B';
         $x = $this->x; $y = $this->y; $page = $this->page;
+        // Jasne tło pod dawnym granatem: biały tekst → grafit (na czas rysowania komórki)
+        $flip = $fill && $this->tiTitleFill && min($this->tiTextRgb) >= 200;
+        if ($flip) parent::SetTextColor(self::TEXT[0], self::TEXT[1], self::TEXT[2]);
         parent::Cell($w, $h, $txt, $border, $ln, $align, $fill, $link);
+        if ($flip) parent::SetTextColor($this->tiTextRgb[0], $this->tiTextRgb[1], $this->tiTextRgb[2]);
         // Komórka przeniesiona na nową stronę (auto page break) — pozycja sprzed niej nieaktualna
         if (!$fill || !$this->tiTitleFill || $h <= 0 || $this->page !== $page) return;
         $cw = $w == 0 ? $this->w - $this->rMargin - $x : $w;
-        if ($cw < ($this->w - $this->lMargin - $this->rMargin) * 0.85) return;
-        parent::SetFillColor(self::GOLD[0], self::GOLD[1], self::GOLD[2]);
-        $this->Rect($x, $y + $h, $cw, 1.4, 'F');
+        $wide = $cw >= ($this->w - $this->lMargin - $this->rMargin) * 0.85;
+        parent::SetFillColor(27, 161, 226);   // cyjan #1ba1e2 — kreska pod tytułem / nagłówkiem tabeli
+        $this->Rect($x, $y + $h - ($wide ? 0.4 : 0.2), $cw, $wide ? 0.9 : 0.5, 'F');
         parent::SetFillColor($this->tiFillRgb[0], $this->tiFillRgb[1], $this->tiFillRgb[2]);
     }
 
@@ -141,13 +149,13 @@ class TiPdf extends FPDF
         if (!$this->tiFooter) return;
         $keepFont = [$this->FontFamily, $this->FontStyle, $this->FontSizePt];
         $this->SetY(-10);
-        parent::SetFillColor(self::NAVY[0], self::NAVY[1], self::NAVY[2]);
-        $this->Rect($this->lMargin, $this->GetY() + 0.6, 3.2, 3.2, 'F');
-        $this->SetX($this->lMargin + 5);
+        parent::SetFillColor(27, 161, 226);
+        $this->Rect($this->lMargin, $this->GetY() + 0.6, 1.2, 3.2, 'F');
+        $this->SetX($this->lMargin + 3);
         $this->SetFont('DejaVu', 'B', 7);
         $this->SetTextColor(75, 85, 99);
         $w = $this->GetPageWidth() - $this->lMargin - $this->rMargin;
-        $this->Cell($w / 2 - 5, 4.4, self::pl($this->tiOrg), 0, 0, 'L');
+        $this->Cell($w / 2 - 3, 4.4, self::pl($this->tiOrg), 0, 0, 'L');
         $this->SetFont('DejaVu', '', 7);
         $this->Cell($w / 2, 4.4, self::pl('Strona ' . $this->PageNo() . ' z {nb}'), 0, 0, 'R');
         $this->SetTextColor(0, 0, 0);
