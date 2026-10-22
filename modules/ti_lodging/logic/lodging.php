@@ -47,6 +47,10 @@ final class TiLodging
             db()->exec("INSERT INTO k30_ti_lodging (course_id,user_id,kind,created_by,created_at) SELECT course_id,user_id,kind,created_by,created_at FROM k30_ti_lodging_old");
             db()->exec("DROP TABLE k30_ti_lodging_old");
         }
+        // Migawka lekcji stacjonarnych z chwili zaznaczenia — do wykrycia zmiany terminów (powiadomienie).
+        foreach (["snap_first TEXT NOT NULL DEFAULT ''", "snap_last TEXT NOT NULL DEFAULT ''"] as $col) {
+            try { db()->exec("ALTER TABLE k30_ti_lodging ADD COLUMN {$col}"); } catch (\Throwable $e) {}
+        }
     }
 
     /**
@@ -64,7 +68,7 @@ final class TiLodging
                    AND COALESCE(s.instructor_id, c.instructor_id) IS NOT NULL";
         $p = [];
         if ($courseId) { $sql .= " AND s.course_id = ?"; $p[] = $courseId; }
-        if ($userId)   { $sql .= " AND COALESCE(s.instructor_id, c.instructor_id) = ?"; $p[] = $userId; }
+        if ($userId)   { $sql .= " AND COALESCE(s.instructor_id, c.instructor_id) = CAST(? AS INTEGER)"; $p[] = $userId; }
         $sql .= " GROUP BY s.course_id, uid HAVING MAX(s.lesson_date) >= ? ORDER BY MIN(s.lesson_date), c.name";
         $p[] = $from;
         $out = [];
@@ -85,7 +89,7 @@ final class TiLodging
                           LEFT JOIN k30_pl_buildings b ON b.id = r.building_id
                          WHERE s.course_id = ? AND s.lesson_method = 'stacjonarna' AND s.draft_id IS NULL
                            AND s.status NOT IN ('draft','reserved','cancelled')
-                           AND COALESCE(s.instructor_id, c.instructor_id) = ?", [$courseId, $userId]);
+                           AND COALESCE(s.instructor_id, c.instructor_id) = CAST(? AS INTEGER)", [$courseId, $userId]);
         foreach ($rows as $r) {
             $txt = ($r['name'] ?? '') . ' ' . ($r['short_label'] ?? '') . ' ' . ($r['location'] ?? '') . ' ' . ($r['bname'] ?? '');
             foreach (self::SUGGEST_MARKS as $m) if (str_contains($txt, $m)) return true;
@@ -121,11 +125,59 @@ final class TiLodging
             $drop = $kind === 'none' ? "kind IN ('before','after')" : "kind = 'none'";
             db()->prepare("DELETE FROM k30_ti_lodging WHERE course_id=? AND user_id=? AND $drop")->execute([$courseId, $userId]);
             if (!self::spans(date('Y-m-d', 0), $courseId, $userId)) return false;
-            db()->prepare("INSERT OR IGNORE INTO k30_ti_lodging (course_id, user_id, kind, created_by) VALUES (?,?,?,?)")
-               ->execute([$courseId, $userId, $kind, $by ?: null]);
+            $sp = self::spans(date('Y-m-d', 0), $courseId, $userId)[0];
+            db()->prepare("INSERT OR IGNORE INTO k30_ti_lodging (course_id, user_id, kind, created_by, snap_first, snap_last) VALUES (?,?,?,?,?,?)")
+               ->execute([$courseId, $userId, $kind, $by ?: null, $sp['first_d'], $sp['last_d']]);
         } else {
             db()->prepare("DELETE FROM k30_ti_lodging WHERE course_id=? AND user_id=? AND kind=?")->execute([$courseId, $userId, $kind]);
         }
         return true;
+    }
+
+    /** Zestawienie do zamawiania (zaznaczone noclegi nadchodzących szkoleń) w formacie AnalyticsExport. */
+    public static function dataset(int $onlyUser = 0): array
+    {
+        $flags = self::flags();
+        $names = [];
+        foreach (db_all("SELECT id, name FROM users") as $u) $names[(int)$u['id']] = (string)$u['name'];
+        $rows = [];
+        foreach (self::spans(null, 0, $onlyUser) as $r) {
+            $nt = self::nights($r['first_d'], $r['last_d']);
+            foreach (self::KINDS as $k => $label) {
+                if (!isset($flags[$r['course_id'] . ':' . $r['uid'] . ':' . $k])) continue;
+                $rows[] = [$nt[$k][0], $nt[$k][1], $names[(int)$r['uid']] ?? '', $r['course_name'], $label];
+            }
+        }
+        usort($rows, fn($a, $b) => [$a[0], $a[2]] <=> [$b[0], $b[2]]);
+        return ['title' => 'Noclegi kadry', 'subtitle' => 'Zaznaczone noclegi nadchodzących szkoleń stacjonarnych (data przyjazdu i wyjazdu).',
+                'headers' => ['Przyjazd', 'Wyjazd', 'Osoba', 'Grupa', 'Rodzaj'], 'rows' => $rows, 'num' => [], 'dec' => [], 'sheet' => 'Noclegi', 'notes' => []];
+    }
+
+    /**
+     * Zaznaczone noclegi, którym zmieniły się terminy lekcji stacjonarnych od zaznaczenia:
+     * [['id','course_id','user_id','course_name','old'=>[first,last],'new'=>[first,last]|null (brak lekcji)]].
+     */
+    public static function changed(): array
+    {
+        self::migrate();
+        $out = [];
+        foreach (db_all("SELECT l.id, l.course_id, l.user_id, l.snap_first, l.snap_last, c.name AS course_name
+                           FROM k30_ti_lodging l JOIN k30_ti_courses c ON c.id = l.course_id
+                          WHERE l.kind IN ('before','after') AND l.snap_first != ''") as $l) {
+            $sp = self::spans(date('Y-m-d', 0), (int)$l['course_id'], (int)$l['user_id']);
+            $new = $sp ? [$sp[0]['first_d'], $sp[0]['last_d']] : null;
+            if ($new === [$l['snap_first'], $l['snap_last']]) continue;
+            if ($l['snap_last'] < date('Y-m-d') && $new === null) continue;   // szkolenie już za nami
+            $out[] = ['id' => (int)$l['id'], 'course_id' => (int)$l['course_id'], 'user_id' => (int)$l['user_id'],
+                      'course_name' => (string)$l['course_name'], 'old' => [$l['snap_first'], $l['snap_last']], 'new' => $new];
+        }
+        return $out;
+    }
+
+    /** Przyjmuje nowe terminy jako stan odniesienia (po powiadomieniu). */
+    public static function acceptChange(int $lodgingId, ?array $new): void
+    {
+        if ($new) db()->prepare("UPDATE k30_ti_lodging SET snap_first=?, snap_last=? WHERE id=?")->execute([$new[0], $new[1], $lodgingId]);
+        else      db()->prepare("DELETE FROM k30_ti_lodging WHERE id=?")->execute([$lodgingId]);
     }
 }

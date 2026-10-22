@@ -80,6 +80,7 @@ if (!empty($KIER_ITEMS)) {
         ['Zapisy na zajęcia',         'rekrutacja.php',             'ticket-perforated'],
         ['Dostępności prowadzących',  'dostepnosci.php',            'clock-history'],
         ['Urlopy prowadzących',       'urlopy.php',                 'airplane'],
+        ['Noclegi kadry',             'noclegi.php',                'moon-stars'],
         ['Planista zajęć',            'planista.php',               'calendar3-range'],
         ['Raporty planisty',          'raportyPlanisty.php',        'bar-chart-line'],
         ['Generator ciągów zajęć',    'generatorCiagow.php',        'magic'],
@@ -111,7 +112,7 @@ if (!empty($KIER_ITEMS)) {
 // Sekcje menu kierownika (zwijane). Pozycja trafia do sekcji po adresie (href); nieznane — do „Inne”.
 $_kier_grupy = [
     'Grupy i kursy'          => ['index.php?tab=grupy', 'index.php?tab=kursy', 'grupaUproszczona.php', 'rezerwacje.php', 'konsultacje.php', 'index.php?tab=praca_wlasna', 'log_grup.php',
-                                 'planLinki.php', 'godziny.php', 'dostepnosci.php', 'urlopy.php'],
+                                 'planLinki.php', 'godziny.php', 'dostepnosci.php', 'urlopy.php', 'noclegi.php'],
     'Kursanci i konta'       => ['klienci.php', 'konta.php', 'regulaminy.php', 'microsoft365.php', 'licencjeKursantow.php', 'dokumentyKursanta.php',
                                  'rekrutacja.php', 'polecenia.php', 'kursanci_onboarding.php'],
     'Finanse'                => ['index.php?tab=rozliczenia', 'billing.php', 'overpayments.php', 'przypomnieniaWplat.php',

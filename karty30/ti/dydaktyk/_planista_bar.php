@@ -17,6 +17,7 @@ $_pl_defs = [
     ['Normy sal MSUES',               'msues.php?_route=%2Fsale', 'door-open',       0, '', 'Kadra i zasoby'],
     ['Limity i kwalifikacje kadry',   'kadraLimity.php',       'person-gear',     0, '', 'Kadra i zasoby'],
     ['Urlopy prowadzących',           'urlopy.php',            'airplane',        0, '', 'Kadra i zasoby'],
+    ['Noclegi kadry',                 'noclegi.php',           'moon-stars',      0, '', 'Kadra i zasoby'],
     ['Dostępności prowadzących',      'dostepnosci.php',       'clock-history',   0, '', 'Kadra i zasoby'],
     ['Sale / lokalizacje',            'sale.php',              'geo-alt',         0, '', 'Kadra i zasoby'],
     ['Okresy nauczania',              'okresy.php',            'calendar-range',  0, '', 'Kalendarz'],
