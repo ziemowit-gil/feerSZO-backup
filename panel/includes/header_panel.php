@@ -453,6 +453,13 @@ try {
     <i class="bi bi-clock-history" aria-hidden="true"></i>Ewidencja godzin
   </a>
   <?php endif; ?>
+  <?php /* Noclegi — tylko z „Dop. noclegi” na umowie (modules/noclegi) */
+    require_once dirname(__DIR__, 2) . '/modules/noclegi/lib/noclegiPanel.php';
+    if (noclPanelTile((int)(current_user()['id'] ?? 0))): ?>
+  <a href="<?= APP_URL ?>/panel/noclegi.php" class="pv-nav-link<?= _pv_nav_active('/panel/noclegi') ?>">
+    <i class="bi bi-moon-stars" aria-hidden="true"></i>Noclegi
+  </a>
+  <?php endif; ?>
   <?php
     $_pv_u = current_user();
     $_pv_has_zl = false;
