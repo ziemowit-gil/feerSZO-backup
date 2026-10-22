@@ -327,6 +327,18 @@ return [
         },
     ],
 
+    // Noclegi (modules/noclegi): słowniki Centralnego Słownika (statusy, role modułu, typy pokoi/obiektów, preferencje, kategorie kosztów,
+    // statusy faktur) oraz kolumna umowy „Dop. noclegi” (bramka dostępu do modułu).
+    '2026-10_noclegi_dict' => [
+        'desc' => 'Noclegi: słowniki modułu i kolumna umowy dop_noclegi',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/noclegi/logic/noclegi.php';
+            noclContractFlagMigrate();
+            $err = noclDictSeedRun();
+            if ($err) throw new \RuntimeException('Słowniki Noclegów: ' . implode('; ', $err));
+        },
+    ],
+
     // Przelewy do US (modules/us_przelewy): rodzaje zobowiązań podatkowych (symbol /SFP/, okres, ustawowy termin) jako
     // słownik systemowy Słownika Centralnego oraz rachunek US podany przez użytkownika 2026-10-20 — mikrorachunek NBP
     // dla NIP organizacji. Rachunek zapisywany tylko, gdy w ustawieniach jeszcze go nie ma; dalej edytowalny w module.

@@ -3,6 +3,8 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/modules/noclegi/lib/noclegiSchema.php';
+noclContractFlagMigrate();   // kolumna dop_noclegi (samonaprawa)
 require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
@@ -51,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        foreach (['zus_skladki','zwolnienie_wiek','wymagany_rachunek','dydaktyka_udostepnij'] as $f) {
+        foreach (['zus_skladki','zwolnienie_wiek','wymagany_rachunek','dydaktyka_udostepnij','dop_noclegi'] as $f) {
             $row[$f] = isset($_POST[$f]) ? 1 : 0;
         }
         $row['m365_konto'] = 0;
@@ -73,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
             'rachunek_bankowy','przedmiot_zlecenia','data_zawarcia','data_rozpoczecia','data_zakonczenia',
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
-            'zrodlo_godzin','ti_instructor_user_id','dydaktyka_udostepnij',
+            'zrodlo_godzin','ti_instructor_user_id','dydaktyka_udostepnij','dop_noclegi',
             'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
             'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','data_rachunku','okres_rachunku','forma_podpisania',
             'platforma_el','id_dokumentu_el','epodpis_dostawca','epodpis_nr_certyfikatu','epodpis_data_waznosci',
@@ -581,6 +583,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <input class="zl-cb" type="checkbox" name="dydaktyka_udostepnij" id="dydaktyka_udostepnij" value="1" onchange="document.getElementById('ti-instr-wrap').style.display = (this.checked || document.getElementById('zrodlo_godzin').value==='karty30') ? '' : 'none'" aria-describedby="dydaktyka_udostepnij_opis" <?= !empty($row['dydaktyka_udostepnij'])?'checked':'' ?>>
             <span><strong class="tw-font-semibold">Dydaktyka — udostępnij dane do modułu</strong>
               <span id="dydaktyka_udostepnij_opis" class="tw-block tw-text-xs tw-text-slate-500">Umowa widoczna w panelu dydaktyka TI: e-ewidencja godzin i lista obecności z protokołów, strona „Umowa” prowadzącego.</span></span>
+          </label>
+        </div>
+        <div class="zl-c6">
+          <label for="dop_noclegi" class="zl-check">
+            <input class="zl-cb" type="checkbox" name="dop_noclegi" id="dop_noclegi" value="1" aria-describedby="dop_noclegi_opis" <?= !empty($row['dop_noclegi'])?'checked':'' ?>>
+            <span><strong class="tw-font-semibold">Dop. noclegi</strong>
+              <span id="dop_noclegi_opis" class="tw-block tw-text-xs tw-text-slate-500">Zleceniobiorca może zgłaszać noclegi w module Noclegi. Bez tego znacznika moduł jest dla niego niedostępny.</span></span>
           </label>
         </div>
       </div>

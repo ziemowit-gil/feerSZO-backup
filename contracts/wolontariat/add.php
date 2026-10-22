@@ -3,6 +3,8 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/modules/noclegi/lib/noclegiSchema.php';
+noclContractFlagMigrate();   // kolumna dop_noclegi (samonaprawa)
 require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
@@ -507,7 +509,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $identity_type    = $_POST['identity_type']    ?? 'pesel';
 
         // Pola checkboxowe
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'z_webngo', 'm365_nie_wylaczaj', 'rpts_wymagana', 'rpts_zweryfikowano'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'dop_noclegi', 'z_webngo', 'm365_nie_wylaczaj', 'rpts_wymagana', 'rpts_zweryfikowano'] as $f) {
             $row[$f] = isset($_POST[$f]) ? 1 : 0;
         }
         $row['wspolpraca_przed_2026'] = $is_technical ? 1 : 0;
@@ -563,7 +565,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'adres_odbiorca', 'adres_linia1', 'adres_linia2', 'adres_kod_pocztowy', 'adres_miasto', 'adres_kraj',
             'addr_street', 'addr_house', 'addr_flat', 'addr_postal', 'addr_city', 'addr_country',
             'z_webngo', 'webngo_id', 'webngo_numer_umowy', 'person_id', 'org_unit_id',
-            'wspolpraca_przed_2026', 'is_technical', 'canva_access',
+            'wspolpraca_przed_2026', 'is_technical', 'canva_access', 'dop_noclegi',
             'action_id', 'grant_id',
             'guardian_editor_id', 'guardian_initials',
             'id_document_type', 'id_document_number', 'no_pesel_reason',
@@ -1544,6 +1546,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </div>
           <div class="form-text">Godziny przepracowane są liczone z zadań; tu wpisz ewentualną korektę.</div>
         </div>
+      </div>
+
+      <!-- Dop. noclegi -->
+      <div class="mt-3 pt-3 border-top">
+        <div class="form-check form-switch mb-1">
+          <input class="form-check-input" type="checkbox" name="dop_noclegi" id="dop_noclegi" value="1" aria-describedby="dop_noclegi_opis" <?= !empty($row['dop_noclegi'])?'checked':'' ?>>
+          <label class="form-check-label fw-semibold" for="dop_noclegi"><i class="bi bi-moon-stars me-1 text-primary"></i>Dop. noclegi</label>
+        </div>
+        <div id="dop_noclegi_opis" class="form-text">Wolontariusz może zgłaszać noclegi w module Noclegi. Bez tego znacznika moduł jest dla niego niedostępny.</div>
       </div>
 
       <!-- Zwrot kosztów -->

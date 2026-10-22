@@ -69,3 +69,34 @@ function noclRolesList(): array {
                      FROM nocl_user_roles r LEFT JOIN users u ON u.id = r.user_id LEFT JOIN nocl_budgets b ON b.id = r.budget_id
                     ORDER BY CASE r.role WHEN 'logistyk' THEN 0 ELSE 1 END, u.name");
 }
+
+/**
+ * Bramka „Dop. noclegi”: moduł działa dla osoby tylko wtedy, gdy ma aktywną umowę (wolontariat / zlecenie) ze znacznikiem
+ * „Dop. noclegi” (umowy_*.dop_noclegi = 1), której okres obejmuje dziś. Konto łączymy z umową po users.id
+ * (zlecenie: ti_instructor_user_id, m365_user_id) albo po adresie e-mail. Koordynator i Logistyk są wolni od bramki
+ * (obsługują cudze zgłoszenia), administrator SZO jest Logistykiem.
+ */
+function noclEligible(?int $uid = null): bool {
+    $uid = noclUid($uid);
+    if ($uid <= 0) return false;
+    if (noclRole($uid) !== 'uzytkownik') return true;
+    return noclContractFor($uid) !== null;
+}
+
+/** Umowa dająca dostęp: ['type'=>'wolontariat'|'zlecenie','id'=>…] albo null. */
+function noclContractFor(int $uid): ?array {
+    $u = db_one("SELECT email FROM users WHERE id = ? AND is_active = 1", [$uid]);
+    if (!$u) return null;
+    $email = mb_strtolower(trim((string)$u['email']));
+    if (!function_exists('contractStatusSqlIn')) require_once dirname(__DIR__, 2) . '/contract_status/lib/contractStatuses.php';
+    $st = contractStatusSqlIn(['active']);
+    $today = date('Y-m-d');
+    $dates = "AND (data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?) AND (data_rozpoczecia IS NULL OR data_rozpoczecia = '' OR data_rozpoczecia <= ?)";
+    try {
+        $w = db_one("SELECT id FROM umowy_wolontariat WHERE dop_noclegi = 1 AND $st $dates AND (CAST(m365_user_id AS TEXT) = CAST(? AS TEXT) OR (? != '' AND lower(email) = ?)) ORDER BY id DESC LIMIT 1", [$today, $today, $uid, $email, $email]);
+        if ($w) return ['type' => 'wolontariat', 'id' => (int)$w['id']];
+        $z = db_one("SELECT id FROM umowy_zlecenie WHERE dop_noclegi = 1 AND $st $dates AND (ti_instructor_user_id = CAST(? AS INTEGER) OR (? != '' AND lower(email) = ?)) ORDER BY id DESC LIMIT 1", [$today, $today, $uid, $email, $email]);
+        if ($z) return ['type' => 'zlecenie', 'id' => (int)$z['id']];
+    } catch (\Throwable $e) { error_log('noclegi: bramka umowy — ' . $e->getMessage()); }
+    return null;
+}

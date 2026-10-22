@@ -3,11 +3,29 @@
  * modules/noclegi/lib/noclegiSchema.php — samonaprawa schematu modułu Noclegi (tabele nocl_*).
  * Wywołanie: noclMigrate() — idempotentne, za bramką szo_schema_current.
  */
+/**
+ * Znacznik „Dop. noclegi” na umowie (wolontariat, zlecenie): tylko osoba z aktywną umową z tym znacznikiem może sama
+ * zgłaszać noclegi (noclEligible). Wywoływane z formularzy umów i z noclMigrate().
+ */
+function noclContractFlagMigrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    foreach (['umowy_wolontariat', 'umowy_zlecenie'] as $t) {
+        try {
+            $has = false;
+            foreach (db_all("PRAGMA table_info($t)") as $c) if ($c['name'] === 'dop_noclegi') $has = true;
+            if (!$has) db()->exec("ALTER TABLE $t ADD COLUMN dop_noclegi INTEGER NOT NULL DEFAULT 0");
+        } catch (\Throwable $e) { error_log('noclegi: dop_noclegi ' . $t . ' — ' . $e->getMessage()); }
+    }
+}
+
 function noclMigrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
     if (function_exists('szo_schema_current') && szo_schema_current('noclegi_migrate', __FILE__)) return;
+    noclContractFlagMigrate();
     $db = db();
     $db->exec("CREATE TABLE IF NOT EXISTS nocl_user_roles (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,

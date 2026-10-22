@@ -7,7 +7,8 @@
  * cel = nazwa grupy. Synchronizacja jest jednokierunkowa (TI → Noclegi) i idempotentna:
  *  • nowa flaga → nowe zgłoszenie „Wniosek”,
  *  • zmiana terminów lekcji → aktualizacja dat (gdy zgłoszenie nie jest zamknięte; potwierdzone wraca do „W trakcie”, jeśli pokój przestał pasować),
- *  • zdjęta flaga → anulowanie (zgłoszenia zamknięte bez zmian).
+ *  • zdjęta flaga → anulowanie (zgłoszenia zamknięte bez zmian),
+ *  • osoba bez umowy ze znacznikiem „Dop. noclegi” jest pomijana.
  * Nie zmienia nic w ti_lodging.
  */
 require_once __DIR__ . '/noclegiRequests.php';
@@ -28,7 +29,7 @@ function noclTiSync(int $by): array {
             $seen[$key] = true;
             $nt = TiLodging::nights($sp['first_d'], $sp['last_d'])[$kind];
             $u = $users[(int)$sp['uid']] ?? null;
-            if (!$u) { $res['skipped']++; continue; }
+            if (!$u || !noclEligible((int)$sp['uid'])) { $res['skipped']++; continue; }   // bramka „Dop. noclegi” na umowie
             $ex = db_one("SELECT * FROM nocl_requests WHERE ti_key = ? AND status != 'anulowane' ORDER BY id DESC LIMIT 1", [$key]);
             if (!$ex) {
                 $anyCancelled = db_one("SELECT id FROM nocl_requests WHERE ti_key = ? AND status = 'anulowane'", [$key]);

@@ -3,6 +3,8 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/modules/noclegi/lib/noclegiSchema.php';
+noclContractFlagMigrate();   // kolumna dop_noclegi (samonaprawa)
 require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
@@ -64,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'm365_nie_wylaczaj', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe', 'rpts_wymagana', 'rpts_zweryfikowano', 'otrzymano_dowod_ksiegowy', 'rozliczono_srodki'] as $f) {
+        foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'dop_noclegi', 'm365_konto', 'm365_nie_wylaczaj', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe', 'rpts_wymagana', 'rpts_zweryfikowano', 'otrzymano_dowod_ksiegowy', 'rozliczono_srodki'] as $f) {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
         }
         $data['pobrana_zaliczka'] = (($_POST['pobrana_zaliczka'] ?? '') === '')
@@ -154,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'z_webngo', 'webngo_id', 'webngo_numer_umowy', 'person_id', 'org_unit_id',
             'action_id', 'grant_id',
             // Dostęp IT
-            'portal_scope', 'canva_access',
+            'portal_scope', 'canva_access', 'dop_noclegi',
             'm365_security_group_id', 'm365_security_group_name',
             // Opiekun
             'guardian_editor_id', 'guardian_initials',
@@ -1543,6 +1545,17 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
         </div>
       </label>
       <?php endforeach; ?>
+    </div>
+  </div>
+
+  <!-- Dop. noclegi -->
+  <div class="toggle-row mb-3">
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" role="switch" name="dop_noclegi" id="dop_noclegi_edit" value="1" aria-describedby="dop_noclegi_edit_opis" <?= !empty($row['dop_noclegi'])?'checked':'' ?>>
+    </div>
+    <div>
+      <label for="dop_noclegi_edit" class="mb-0 fw-semibold small">Dop. noclegi</label>
+      <div id="dop_noclegi_edit_opis" style="font-size:.72rem;color:#64748b">Dostęp do modułu Noclegi (zgłaszanie noclegów przez wolontariusza)</div>
     </div>
   </div>
 
