@@ -44,6 +44,16 @@ function seedersRegistry(): array
                 ['id' => 'delete',  'label' => 'Usuń konta',       'kind' => 'danger',  'args' => ['--delete', '--apply'], 'use' => ['email']],
             ],
         ],
+        'noclegi_test' => [
+            'group' => 'Konta testowe', 'title' => 'Moduł Noclegi (konta, budżet, obiekt, zgłoszenia)', 'script' => 'seedNoclegiTest.php',
+            'desc'  => '3 konta @domena (użytkownik z umową „Dop. noclegi”, Koordynator Projektu, Logistyk), budżet TEST-NOCL z limitami, obiekt z 3 pokojami (w tym dostępnym) i zgłoszenia we wszystkich statusach (jedno z kodem widocznym). Bez wysyłek e-mail. Idempotentne.',
+            'fields'  => ['password' => $pw, 'domain' => $dom],
+            'actions' => [
+                ['id' => 'status', 'label' => 'Stan',     'kind' => 'preview', 'args' => ['status'], 'use' => ['domain']],
+                ['id' => 'create', 'label' => 'Załóż',    'kind' => 'apply',   'args' => ['create'], 'use' => ['password', 'domain'], 'req' => ['password']],
+                ['id' => 'delete', 'label' => 'Usuń',     'kind' => 'danger',  'args' => ['delete'], 'use' => ['domain']],
+            ],
+        ],
         'rola_metro' => [
             'group' => 'Konta testowe', 'title' => 'Użytkownik rolaMetroTest', 'script' => 'seedRolaMetroTest.php',
             'desc'  => 'Jedno konto lokalne w wybranej roli — do oglądania widoków Metro tak, jak widzi je dana rola.',
