@@ -27,7 +27,7 @@ function noclRoomingPdf(int $facilityId, string $from, string $to): string {
     $pdf->SetTextColor(...TiPdf::MUTED);
     $pdf->Cell($W, 5, TiPdf::pl('Wygenerowano ' . date('d.m.Y H:i') . '. Lista nie zawiera kodów dostępu ani danych o zdrowiu.'), 0, 1);
     $pdf->Ln(2);
-    $cols = [['Pokój', 28], ['Typ', 38], ['Miejsca', 17], ['Osoba', 62], ['Rola', 32], ['Przyjazd', 24], ['Wyjazd', 24], ['Noce', 13], ['Dostępny', 17], ['Status', 18]];
+    $cols = [['Pokój', 28], ['Typ', 38], ['Miejsca', 17], ['Osoba', 52], ['Rola', 29], ['Przyjazd', 24], ['Wyjazd', 24], ['Noce', 13], ['Dostępny', 20], ['Status', 28]];
     $head = function () use ($pdf, $cols) {
         $pdf->SetFillColor(...TiPdf::BAR); $pdf->SetTextColor(...TiPdf::TEXT); $pdf->SetFont('DejaVu', 'B', 8.5);
         foreach ($cols as [$t, $w]) $pdf->Cell($w, 7, TiPdf::pl($t), 1, 0, 'L', true);
