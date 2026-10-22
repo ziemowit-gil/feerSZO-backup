@@ -52,12 +52,13 @@ function ti_fv_summary_output(int $bid, int $course_id, int $client_id, int $mon
     $org     = defined('ORG_NAME') ? ORG_NAME : '';
 
     require_once __DIR__ . '/fpdf/fpdf.php';
+    require_once __DIR__ . '/../modules/ti_pdf/logic/TiPdf.php';
     // Font z pełnym zestawem polskich znaków (DejaVu, kodowanie ISO-8859-2)
-    $pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    $pl = fn(string $s): string => TiPdf::pl($s);
     $zl = fn($x): string => number_format((float)$x, 2, ',', ' ');
 
     try {
-        $pdf = new FPDF('P', 'mm', 'A4');
+        $pdf = new TiPdf('P', 'mm', 'A4');
         $pdf->SetAutoPageBreak(true, 15);
         $pdf->SetMargins(12, 12, 12);
         $fdir = __DIR__ . '/fpdf/font/';

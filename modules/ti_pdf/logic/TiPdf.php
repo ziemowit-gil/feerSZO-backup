@@ -13,14 +13,15 @@
  *     i po cichu mapuje na nią Helvetica/Arial z istniejącego kodu wydruków;
  *   • TiPdf::pl($tekst) — UTF-8 → ISO-8859-2, typografia spoza strony kodowej
  *     („ ” — – … · › €) zamieniana na czytelne odpowiedniki zamiast znikać;
- *   • jednolita stopka na każdej stronie: cienka granatowa linia, nazwa
+ *   • jednolita stopka na każdej stronie: cyjanowa linia, nazwa
  *     organizacji i „Strona X z Y” (poniżej wiersza „Wygenerowano…”, który
  *     wydruki stawiają na −15 mm).
- *   • paleta panelu (2026-09-29): stałe kolory wpisane w wydrukach (kilkanaście
- *     odcieni) mapowane przy rysowaniu na barwy skórki USOS — paski tytułowe
- *     na granat #10335c ze złotą kreską pod pełnoszerokim tytułem, nagłówki
- *     tabel #dde6f0, zebra #f4f7fa, siatka #b9c6d6, tekst #1c1c1c, szarości
- *     w dwóch stopniach. Kolory dynamiczne (np. statusy lekcji) bez zmian.
+ *   • paleta METRO (2026-10-22): stałe kolory wpisane w wydrukach (kilkanaście
+ *     odcieni) mapowane przy rysowaniu na barwy METRO — paski tytułowe
+ *     grafit #1d1d1d z cyjanową kreską #1ba1e2 pod pełnoszerokim tytułem,
+ *     nagłówki tabel #f3f4f6, zebra #f9fafb, siatka #d1d5db, tekst #1d1d1d,
+ *     szarości #4b5563 / #374151. Stałe NAVY/GOLD zachowały nazwy (używane
+ *     w wydrukach), zmieniły wartości. Kolory dynamiczne (np. statusy lekcji) bez zmian.
  * Kursywy DejaVu nie ma w projekcie — styl I jest pomijany (zostaje B/U).
  */
 require_once dirname(__DIR__, 3) . '/includes/fpdf/fpdf.php';
@@ -32,20 +33,23 @@ class TiPdf extends FPDF
     public string $tiOrg = '';
 
     /** Barwy skórki (ti_skin.css) — wspólne dla wydruków. */
-    public const NAVY = [16, 51, 92], GOLD = [200, 161, 26], BAR = [221, 230, 240],
-                 ZEBRA = [244, 247, 250], GRID = [185, 198, 214], TEXT = [28, 28, 28],
-                 MUTED = [91, 102, 119], SOFT = [69, 81, 107], RED = [176, 42, 55], GREEN = [31, 122, 77];
+    // METRO (jak ti_metro_kursant.css / Tożsamość): grafit, cyjan #1ba1e2, płasko, bez zaokrągleń.
+    // Kontrasty na białym: TEXT 16:1, SOFT 10:1, MUTED 7,6:1, RED 6,9:1, GREEN 5,6:1; biały na NAVY 16:1.
+    public const NAVY = [29, 29, 29], GOLD = [27, 161, 226], BAR = [243, 244, 246],
+                 ZEBRA = [249, 250, 251], GRID = [209, 213, 219], TEXT = [29, 29, 29],
+                 MUTED = [75, 85, 99], SOFT = [55, 65, 81], RED = [162, 0, 37], GREEN = [0, 122, 0], LINK = [15, 111, 168], AMBER = [138, 74, 0];
     private const FILL_MAP = [
-        '15,80,150' => 'NAVY', '30,58,95' => 'NAVY', '30,41,59' => 'NAVY',
+        '15,80,150' => 'NAVY', '30,58,95' => 'NAVY', '30,64,120' => 'NAVY', '233,238,245' => 'BAR', '236,240,246' => 'BAR', '210,221,236' => 'BAR', '233,245,248' => 'BAR', '220,230,245' => 'BAR', '247,249,253' => 'ZEBRA', '245,245,245' => 'ZEBRA', '37,99,235' => 'NAVY', '8,145,178' => 'NAVY', '30,41,59' => 'NAVY',
         '224,232,244' => 'BAR', '220,232,248' => 'BAR', '230,236,245' => 'BAR',
         '241,245,249' => 'ZEBRA', '248,250,252' => 'ZEBRA', '245,248,255' => 'ZEBRA', '240,244,250' => 'ZEBRA',
         '238,240,244' => 'ZEBRA', '240,240,240' => 'ZEBRA', '238,238,238' => 'ZEBRA',
     ];
-    private const DRAW_MAP = ['190,205,225' => 'GRID', '180,195,215' => 'GRID', '180,190,200' => 'GRID', '208,208,216' => 'GRID', '226,232,240' => 'GRID'];
+    private const DRAW_MAP = ['190,205,225' => 'GRID', '180,195,215' => 'GRID', '180,190,200' => 'GRID', '208,208,216' => 'GRID', '200,210,220' => 'GRID', '150,165,185' => 'GRID', '226,232,240' => 'GRID'];
     private const TEXT_MAP = [
         '0,0,0' => 'TEXT', '130,130,130' => 'MUTED', '120,120,120' => 'MUTED', '110,110,110' => 'MUTED', '148,163,184' => 'MUTED',
         '100,100,100' => 'SOFT', '90,90,90' => 'SOFT', '80,80,80' => 'SOFT', '71,85,105' => 'SOFT', '51,65,85' => 'SOFT', '30,41,59' => 'NAVY',
-        '170,0,0' => 'RED', '0,130,0' => 'GREEN',
+        '170,0,0' => 'RED', '0,130,0' => 'GREEN', '15,80,150' => 'LINK', '15,40,80' => 'NAVY', '40,40,40' => 'TEXT', '150,150,150' => 'MUTED',
+        '180,60,60' => 'RED', '160,30,30' => 'RED', '0,120,0' => 'GREEN', '0,110,0' => 'GREEN', '0,100,20' => 'GREEN', '180,100,0' => 'AMBER', '150,60,0' => 'AMBER',
     ];
     /** Czy bieżące wypełnienie to pasek tytułowy (granat) — pod pełnoszerokim dostaje złotą kreskę. */
     private bool $tiTitleFill = false;
@@ -88,7 +92,7 @@ class TiPdf extends FPDF
         $cw = $w == 0 ? $this->w - $this->rMargin - $x : $w;
         if ($cw < ($this->w - $this->lMargin - $this->rMargin) * 0.85) return;
         parent::SetFillColor(self::GOLD[0], self::GOLD[1], self::GOLD[2]);
-        $this->Rect($x, $y + $h, $cw, 0.7, 'F');
+        $this->Rect($x, $y + $h, $cw, 0.9, 'F');
         parent::SetFillColor($this->tiFillRgb[0], $this->tiFillRgb[1], $this->tiFillRgb[2]);
     }
 
@@ -134,12 +138,12 @@ class TiPdf extends FPDF
         if (!$this->tiFooter) return;
         $keepFont = [$this->FontFamily, $this->FontStyle, $this->FontSizePt];
         $this->SetY(-10);
-        $this->SetDrawColor(16, 51, 92);
-        $this->SetLineWidth(0.2);
+        $this->SetDrawColor(27, 161, 226);
+        $this->SetLineWidth(0.5);
         $this->Line($this->lMargin, $this->GetY(), $this->GetPageWidth() - $this->rMargin, $this->GetY());
         $this->SetY(-9);
         $this->SetFont('DejaVu', '', 7);
-        $this->SetTextColor(110, 118, 130);
+        $this->SetTextColor(75, 85, 99);
         $w = $this->GetPageWidth() - $this->lMargin - $this->rMargin;
         $this->Cell($w / 2, 4, self::pl($this->tiOrg), 0, 0, 'L');
         $this->Cell($w / 2, 4, self::pl('Strona ' . $this->PageNo() . ' z {nb}'), 0, 0, 'R');

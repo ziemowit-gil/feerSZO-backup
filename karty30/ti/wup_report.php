@@ -369,11 +369,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['out'] ?? '') === 'pdf') {
     $fld = fn(string $k, $def = '') => $fields[$k] ?? $def;
 
     require_once dirname(dirname(__DIR__)) . '/includes/fpdf/fpdf.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ti_pdf/logic/TiPdf.php';
     $FD = dirname(dirname(__DIR__)) . '/includes/fpdf/font/';
-    $pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
+    $pl = fn(string $s): string => TiPdf::pl($s);
 
     try {
-        $pdf = new FPDF('P', 'mm', 'A4');
+        $pdf = new TiPdf('P', 'mm', 'A4');
         $pdf->SetAutoPageBreak(true, 18);
         $pdf->SetMargins(14, 14, 14);
         $pdf->AddPage();

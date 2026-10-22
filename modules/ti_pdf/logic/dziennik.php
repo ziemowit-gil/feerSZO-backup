@@ -148,10 +148,10 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
     $pdf->Cell($W(), 5, $pl($org), 0, 1, 'R');
     $pdf->SetFont('DejaVu', '', 8.5); $pdf->SetTextColor(90, 90, 90);
     $pdf->Cell($W(), 5, $pl($adr), 0, 1, 'R');
-    $pdf->SetDrawColor(16, 51, 92); $pdf->Line(12 + $W() / 2, $pdf->GetY() + 1, 12 + $W(), $pdf->GetY() + 1);
+    $pdf->SetDrawColor(27, 161, 226); $pdf->Line(12 + $W() / 2, $pdf->GetY() + 1, 12 + $W(), $pdf->GetY() + 1);
     $pdf->SetDrawColor(190, 205, 225); $pdf->SetTextColor(0, 0, 0);
     $pdf->Ln(45);
-    $pdf->SetFont('DejaVu', 'B', 28); $pdf->SetTextColor(16, 51, 92);
+    $pdf->SetFont('DejaVu', 'B', 28); $pdf->SetTextColor(29, 29, 29);
     $pdf->Cell($W(), 14, $pl('DZIENNIK ZAJĘĆ'), 0, 1, 'C');
     $pdf->SetFont('DejaVu', '', 15); $pdf->SetTextColor(0, 0, 0);
     $pdf->Cell($W(), 10, $pl('Rok szkolny ' . $sy_from . '/' . $sy_to), 0, 1, 'C');

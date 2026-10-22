@@ -41,18 +41,19 @@ if (!$lessons) {
 }
 
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.php';
 
 $FONT_DIR = dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/font/';
 $ORG      = defined('ORG_NAME') ? ORG_NAME : '';
 
 function _lp(string $s): string {
-    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
+    return TiPdf::pl($s);
 }
 
 $DAYS_PL   = ['Nd','Pn','Wt','Sr','Czw','Pt','Sb'];
 $MONTHS_PL = ['','sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paz','lis','gru'];
 
-$pdf = new FPDF('P', 'mm', 'A4');
+$pdf = new TiPdf('P', 'mm', 'A4');
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(12, 12, 12);
 $pdf->AddPage();
