@@ -83,6 +83,10 @@ function launcherCatalog(): array {
         ['key'=>'panel',      'sec'=>'Relacje i ludzie',   'label'=>'Panel współpracownika','desc'=>'Moje umowy, godziny, dokumenty',
          'icon'=>'bi-person-heart',       'mc'=>'#be185d','mb'=>'#fdf2f8','url'=>"$app/panel/index.php",
          'check'=>fn()=>function_exists('user_has_volunteer_panel') && user_has_volunteer_panel(), 'match'=>['/panel/']],
+        ['key'=>'noclegi',    'sec'=>'Relacje i ludzie',   'label'=>'Noclegi',        'desc'=>'Zgłoszenia, rooming, budżety',
+         'icon'=>'bi-moon-stars',         'mc'=>'#0f6fa8','mb'=>'#e8f4fb','url'=>"$app/modules/noclegi/router.php",
+         'check'=>function () { try { require_once dirname(__DIR__, 2) . '/noclegi/logic/noclegi.php'; return noclEligible(); } catch (\Throwable $e) { return false; } },
+         'match'=>['/modules/noclegi/']],
         // ── Dydaktyka ────────────────────────────────────────────────────────
         ['key'=>'k30',        'sec'=>'Dydaktyka',          'label'=>'Dydaktyka',      'desc'=>'Zajęcia TI, beneficjenci, wizyty',
          'icon'=>'bi-card-checklist',     'mc'=>'#c2410c','mb'=>'#fff7ed','url'=>"$app/karty30/index.php",

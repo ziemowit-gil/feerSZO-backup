@@ -114,6 +114,8 @@ $_sh_lead = $_sh_admin
       $_sh_tiles[] = ['href'=>APP_URL.'/panel/apply.php','icon'=>'bi-send','label'=>'Wnioski','val'=>$_sh_apps ? (string)$_sh_apps : '',
                       'sub'=>$_sh_apps ? 'w toku' : 'zaświadczenia, duplikaty, kserokopie','color'=>$_sh_apps ? 'orange' : 'blue','group'=>'praca'];
   }
+  require_once $ROOT . '/modules/noclegi/lib/noclegiPanel.php';
+  if ($_nocl_tile = noclPanelTile((int)($user['id'] ?? 0))) $_sh_tiles[] = $_nocl_tile;   // Noclegi: tylko z „Dop. noclegi” na umowie
   $_sh_tiles[] = ['href'=>APP_URL.'/modules/collaborator_data/router.php','icon'=>'bi-person-gear','label'=>'Zmiana danych',
                   'sub'=>'kontakt, adres, rachunek, upoważnienia','color'=>'teal','group'=>'konto'];
   $_sh_tiles[] = ['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_sh_hd ? (string)$_sh_hd : '',

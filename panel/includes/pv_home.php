@@ -104,6 +104,8 @@ $_ended = !empty($contract_progress['ended']);
 /* ── Sprawy formalne (kafelki zakładki 1) ────────────────────────────────── */
 $_pv_formal = [];
 $_pv_formal[] = ['href'=>APP_URL.'/panel/apply.php','icon'=>'bi-send','label'=>'Złóż wniosek / pismo','sub'=>$my_apps_new ? "$my_apps_new w toku" : 'do organizacji'];
+require_once dirname(__DIR__, 2) . '/modules/noclegi/lib/noclegiPanel.php';
+if ($_nocl_tile = noclPanelTile((int)(current_user()['id'] ?? 0))) $_pv_formal[] = ['href'=>$_nocl_tile['href'],'icon'=>$_nocl_tile['icon'],'label'=>'Noclegi','sub'=>$_nocl_tile['sub']];   // tylko z „Dop. noclegi” na umowie
 $_pv_formal[] = ['href'=>APP_URL.'/modules/collaborator_data/router.php','icon'=>'bi-person-gear','label'=>'Zmiana danych','sub'=>'kontakt, adres, rachunek, upoważnienia'];
 if (module_enabled('certificates_enabled')) $_pv_formal[] = ['href'=>APP_URL.'/panel/certificates.php','icon'=>'bi-award','label'=>'Zaświadczenia','sub'=>$my_certs_pending ? "$my_certs_pending w toku" : 'pobierz / poproś','badge'=>$my_certs_pending];
 if ($_active_zwroty) $_pv_formal[] = ['href'=>APP_URL.'/panel/zwroty.php','icon'=>'bi-receipt','label'=>'Rozliczenie kosztów','sub'=>$_zwroty_pending ? 'oczekuje zwrotu' : 'złóż rozliczenie','badge'=>$_zwroty_pending];

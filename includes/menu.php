@@ -382,6 +382,11 @@ function _menu_editor(): array {
     if ($cnt['has_kdok'])
         $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
     $fin[] = _mi('Zasoby','/modules/srs/','bi-box-seam',['match'=>'/modules/srs/','badge'=>$cnt['res'],'kw'=>'zasoby rezerwacje sprzęt srs']);
+    // Noclegi (modules/noclegi): role modułu + bramka „Dop. noclegi” na umowie (noclEligible)
+    $_nocl_ok = false;
+    try { require_once dirname(__DIR__) . '/modules/noclegi/logic/noclegi.php'; $_nocl_ok = noclEligible(); } catch (Throwable $e) {}
+    if ($_nocl_ok)
+        $fin[] = _mi('Noclegi','/modules/noclegi/router.php','bi-moon-stars',['match'=>'/modules/noclegi/','kw'=>'noclegi nocleg hotel zakwaterowanie rooming logistyk koordynator projektu dop. noclegi']);
     // Formularze rezerwacji sal operatorów (modules/ti_room_srs): administrator / zapis w SRS / uprawnienie „Może rezerwować”
     $_trs_book = is_admin() || can_write('srs');
     if (!$_trs_book) { try { $_trs_book = (bool)db_one("SELECT 1 FROM ti_room_srs_bookers WHERE user_id=?", [(int)(current_user()['id'] ?? 0)]); } catch (Throwable $e) {} }
@@ -396,7 +401,7 @@ function _menu_editor(): array {
     $nodes[] = [
         'search'=>$fin_search,
         'id'=>'finanse','label'=>'Finanse','icon'=>'bi-cash-coin','badge'=>$cnt['zwr']+$cnt['res']+$cnt['ship'],
-        'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/edok/')||_menu_hit('/modules/us_przelewy/')||_menu_hit('/modules/srs/')||_menu_hit('/admin/shipments'),
+        'active'=>_menu_hit('/contracts/zwroty')||_menu_hit('/grants/')||_menu_hit('/strategy/')||_menu_hit('/ksiegowosc/')||_menu_hit('/edok/')||_menu_hit('/modules/us_przelewy/')||_menu_hit('/modules/srs/')||_menu_hit('/modules/noclegi/')||_menu_hit('/admin/shipments'),
         'groups'=>[['label'=>null,'items'=>$fin]],
     ];
 
