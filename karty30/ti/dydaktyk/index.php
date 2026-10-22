@@ -2188,7 +2188,16 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
     // — źródło podpowiedzi dla tematu lekcji, żeby nie wpisywać go ręcznie za każdym razem.
     $_curr = k30_ti_curriculum_list($cur_course, true);
     ?>
-  <form method="post">
+  <style>
+    /* METRO: płaskie kafle sekcji, zero zaokrągleń, cyjanowy akcent; 3 kolumny od xl, 2 od md, 1 na telefonie */
+    .dyd-lesson-form .dyd-tile { background:#f3f4f6; border:0; border-top:3px solid #1ba1e2; border-radius:0; }
+    .dyd-lesson-form .dyd-tile > h6 { color:#1d1d1d; letter-spacing:.06em; }
+    .dyd-lesson-form .form-control, .dyd-lesson-form .form-select, .dyd-lesson-form .btn, .dyd-lesson-form .alert { border-radius:0; }
+    .dyd-lesson-form .form-control:focus, .dyd-lesson-form .form-select:focus { border-color:#0f6fa8; box-shadow:0 0 0 .2rem rgba(15,111,168,.35); }
+    .dyd-lesson-form .modal-header { border-bottom:3px solid #1ba1e2; }
+    .dyd-lesson-form .modal-title { font-weight:600; }
+  </style>
+  <form method="post" class="dyd-lesson-form">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="save_lesson">
     <input type="hidden" name="_tab" value="lekcje">
@@ -2200,8 +2209,8 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
     </div>
     <div class="modal-body">
       <div class="row g-3">
-        <div class="col-lg-6">
-          <section class="border rounded p-3 mb-3 bg-body">
+        <div class="col-12 col-md-6 col-xl-4">
+          <section class="dyd-tile p-3 mb-3">
             <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Termin</h6>
       <?php if ($isPast || $_hyb_lock): ?>
       <div class="alert alert-secondary py-2 mb-3 small d-flex align-items-center gap-2">
@@ -2281,7 +2290,9 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       </div>
       <?php endif; ?>
           </section>
-          <section class="border rounded p-3 mb-3 bg-body">
+        </div>
+        <div class="col-12 col-md-6 col-xl-4">
+          <section class="dyd-tile p-3 mb-3">
             <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>Forma i miejsce</h6>
       <?php $_lm_val = $r['lesson_method'] ?? ''; $_lm_zdalna = in_array($_lm_val, ['zdalna_zoom','zdalna_inne'], true); ?>
       <div class="mb-2">
@@ -2318,7 +2329,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       </div>
           </section>
           <?php if (dyd_is_staff()): // prowadzenie (zastępstwo, dostępność) ustawia tylko kierownik ?>
-          <section class="border rounded p-3 mb-3 bg-body">
+          <section class="dyd-tile p-3 mb-3">
             <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>Prowadzenie</h6>
       <?php if (dyd_is_staff()): $_les_instrs = k30_ti_instructors(); ?>
       <div class="mb-2">
@@ -2346,8 +2357,8 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
           </section>
           <?php endif; ?>
         </div>
-        <div class="col-lg-6">
-          <section class="border rounded p-3 mb-3 bg-body">
+        <div class="col-12 col-xl-4">
+          <section class="dyd-tile p-3 mb-3">
             <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>Treść zajęć</h6>
       <div class="mb-2">
         <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
@@ -2410,7 +2421,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         </div>
       </div>
           </section>
-          <section class="border rounded p-3 mb-3 bg-body">
+          <section class="dyd-tile p-3 mb-3">
             <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Rozliczenie i powiadomienia</h6>
       <?php if (dyd_is_staff()): $_ro = $r['rate_override'] ?? null; ?>
       <div class="mb-2 p-2 rounded" style="background:#FFFBEB">
