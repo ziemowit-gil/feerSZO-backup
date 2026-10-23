@@ -566,7 +566,7 @@ function crm_mailbox_message(int $id): ?array {
     $m['attachments'] = [];
     try {
         $m['attachments'] = db_all(
-            "SELECT id, original_name, mime_type, size_bytes, stored_path
+            "SELECT id, original_name, mime_type, size_bytes, stored_path, graph_attachment_id
              FROM poczta_attachments WHERE communication_id=? ORDER BY id", [$id]
         );
     } catch (\Throwable $e) {}

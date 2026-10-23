@@ -106,15 +106,34 @@ require_once __DIR__ . '/crm.php';
 
 // ── Wiadomości przy sprawie ─────────────────────────────────────────────────
 
+/** Dokłada do wiadomości klucz 'attachments' (lista z poczta_attachments) jednym zapytaniem. */
+function crm_comms_with_attachments(array $rows): array {
+    $ids = array_map(static fn($r) => (int)$r['id'], array_filter($rows, static fn($r) => !empty($r['has_attachments'])));
+    $by = [];
+    if ($ids) {
+        try {
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            foreach (db_all("SELECT id, communication_id, original_name, size_bytes, stored_path, graph_attachment_id
+                               FROM poczta_attachments WHERE communication_id IN ($in) ORDER BY id", $ids) as $a) {
+                $by[(int)$a['communication_id']][] = $a;
+            }
+        } catch (\Throwable $e) {}
+    }
+    foreach ($rows as &$r) $r['attachments'] = $by[(int)$r['id']] ?? [];
+    unset($r);
+    return $rows;
+}
+
 /** Wiadomości dopięte do sprawy (najnowsze pierwsze). */
 function crm_case_messages(int $case_id): array {
     if ($case_id <= 0) return [];
     try {
-        return db_all(
+        $rows = db_all(
             "SELECT id, direction, subject, body, from_name, from_email, sent_at, msg_no, has_attachments
                FROM crm_communications
               WHERE case_id=? ORDER BY sent_at DESC, id DESC LIMIT 200", [$case_id]
         );
+        return crm_comms_with_attachments($rows);
     } catch (\Throwable $e) { return []; }
 }
 

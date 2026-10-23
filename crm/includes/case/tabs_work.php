@@ -215,6 +215,20 @@ if (!isset($case)) { http_response_code(400); exit; }
             <?= h(mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$m['body'])), 0, 140)) ?>
           </div>
         </a>
+        <?php if (!empty($m['attachments'])): ?>
+        <div class="list-group-item px-0 border-top-0 d-flex flex-wrap gap-2" style="font-size:.78rem">
+          <?php foreach ($m['attachments'] as $a): $has = !empty($a['stored_path']) || !empty($a['graph_attachment_id']); ?>
+          <?php if ($has): ?>
+          <a class="text-decoration-none" target="_blank" rel="noopener"
+             href="<?= APP_URL ?>/crm/api/attachment.php?id=<?= (int)$a['id'] ?>"
+             title="Otwórz załącznik: <?= h((string)$a['original_name']) ?>">
+            <i class="bi bi-paperclip" aria-hidden="true"></i> <?= h((string)$a['original_name']) ?></a>
+          <?php else: ?>
+          <span class="text-muted"><i class="bi bi-paperclip" aria-hidden="true"></i> <?= h((string)$a['original_name']) ?></span>
+          <?php endif; ?>
+          <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
         <?php endforeach; ?>
       </div>
       <?php endif; ?>
