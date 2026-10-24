@@ -13,7 +13,7 @@ $PAGE_TITLE = 'Konfiguracja Microsoft 365';
 $cfg = [];
 foreach (['m365_enabled','m365_graph_client_id','m365_graph_client_secret',
           'm365_domain','m365_license_sku_id','m365_sender_user_id',
-          'm365_send_from_email'] as $k) {
+          'm365_send_from_email','m365_self_create'] as $k) {
     $cfg[$k] = m365_setting($k);
 }
 
@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         m365_save_setting('m365_domain',              $domain);
         m365_save_setting('m365_license_sku_id',      trim($post['m365_license_sku_id']   ?? ''));
         m365_save_setting('m365_sender_user_id',      trim($post['m365_sender_user_id']   ?? ''));
+        m365_save_setting('m365_self_create',         empty($post['m365_self_create']) ? '0' : '1');
         m365_save_setting('m365_send_from_email',    trim($post['m365_send_from_email']  ?? ''));
         flash_set('success', 'Konfiguracja M365 zapisana.');
         header('Location: m365_settings.php'); exit;
@@ -322,6 +323,15 @@ include dirname(__DIR__) . '/includes/header.php';
     </label>
   </div>
   <div class="form-text">Gdy wyłączona, konta M365 nie są tworzone ani synchronizowane automatycznie.</div>
+
+  <div class="form-check form-switch mt-3">
+    <input class="form-check-input" type="checkbox" role="switch" name="m365_self_create"
+      id="m365_self_create" value="1" <?= $cfg['m365_self_create']!=='0' ? 'checked' : '' ?>>
+    <label class="form-check-label fw-semibold" for="m365_self_create">
+      Współpracownik może sam założyć konto (po regulaminie i oświadczeniu RODO)
+    </label>
+  </div>
+  <div class="form-text">Panel → Microsoft 365. Każde założone konto tworzy informacyjne zgłoszenie w Helpdesku (it_m365).</div>
 
   <div class="d-flex gap-2 mt-3">
     <button type="button" class="btn btn-primary" onclick="submitAction('save')">
