@@ -68,6 +68,22 @@ function desktop_parse_scope(string $raw): array|false|null {
     return array_keys($out);
 }
 
+/**
+ * Znane aplikacje zewnętrzne — rozpoznawane po HOŚCIE adresu powrotu (nie po nazwie `device`, którą może podać każdy).
+ * Aplikacja z rejestru dostaje najwyżej swoje scope'y, także gdy prosi o więcej lub nie poda `scope`.
+ */
+function desktop_known_apps(): array {
+    return [
+        'msues.feer.org.pl' => ['name' => 'Wdrożenie MSUES', 'scopes' => ['msues:read', 'msues:write']],
+    ];
+}
+
+/** Definicja znanej aplikacji dla adresu powrotu albo null (np. EZD Client na loopbacku). */
+function desktop_app_for_redirect(string $redirect): ?array {
+    $host = strtolower((string)parse_url($redirect, PHP_URL_HOST));
+    return desktop_known_apps()[$host] ?? null;
+}
+
 /** Przecięcie uprawnień konta z żądanym zawężeniem (null = bez zawężenia). */
 function desktop_effective_scopes(array $user, ?array $limit): array {
     $scopes = desktop_scopes_for_user($user);

@@ -30,6 +30,11 @@ if ($bad) {
     exit('Nieprawidłowe żądanie logowania aplikacji. Uruchom logowanie ponownie z aplikacji.');
 }
 
+$knownApp = desktop_app_for_redirect($redirect);
+if ($knownApp) {   // aplikacja z rejestru: tylko jej scope'y, nazwa z rejestru (nie z parametru device)
+    $scopeParam = $scopeParam === null ? $knownApp['scopes'] : array_values(array_intersect($scopeParam, $knownApp['scopes']));
+    $device = $knownApp['name'];
+}
 $user   = current_user();
 $scopes = desktop_effective_scopes($user, $scopeParam);   // przecięcie z uprawnieniami konta
 $back   = static fn(array $q) => $redirect . (str_contains($redirect, '?') ? '&' : '?') . http_build_query($q + ['state' => $state]);
@@ -114,23 +119,21 @@ $hidden = '<input type="hidden" name="redirect_uri" value="' . h($redirect) . '"
 <div class="dl-bar"><strong>FEER</strong> · Konto SZO · zgoda dla aplikacji</div>
 <div class="dl-wrap"><main id="tresc" aria-labelledby="h">
   <h1 id="h">Zalogować aplikację <?= h($app) ?>?</h1>
-  <p class="lead">Jesteś zalogowany(-a) jako <strong><?= h($user['name']) ?></strong>. Aplikacja <strong><?= h($app) ?></strong> chce korzystać z Twojego konta.</p>
+  <p class="lead">Aplikacja <strong><?= h($app) ?></strong> chce działać jako <strong><?= h($user['name']) ?></strong>.</p>
   <?php if (!$scopes): ?>
-    <p class="alert" role="alert"><?= $limited
-        ? 'Twoje konto nie ma uprawnień potrzebnych tej aplikacji, więc nie można jej zalogować. Napisz do administratora.'
-        : 'Twoje konto nie ma uprawnień do żadnej aplikacji, więc nie można jej zalogować. Napisz do administratora.' ?></p>
+    <p class="alert" role="alert">Twoje konto nie ma uprawnień do tej aplikacji, więc nie można jej zalogować. Napisz do administratora.</p>
     <form method="post"><?= csrf_field() ?><?= $hidden ?>
       <div class="row"><button name="decision" value="deny">Wróć do aplikacji</button></div>
     </form>
   <?php else: ?>
     <div class="panel">
-      <h2>Co będzie mogła zrobić?</h2>
+      <h2>Będzie mogła:</h2>
       <ul>
-        <?php foreach ($readList as [$g, $l]) echo '<li>' . h($g) . ': ' . h($l) . ' <span class="muted">(tylko odczyt)</span></li>'; ?>
+        <?php foreach ($readList as [$g, $l]) echo '<li>' . h($g) . ': ' . h($l) . '</li>'; ?>
         <?php foreach ($writeList as [$g, $l]) echo '<li>' . h($g) . ': ' . h($l) . ' <span class="tag">zmienia dane</span></li>'; ?>
       </ul>
     </div>
-    <p class="small">Zatwierdź tylko wtedy, gdy właśnie sam(a) logujesz się w tej aplikacji. Dostęp możesz w każdej chwili cofnąć, wylogowując się z aplikacji.<?= $remote ? ' Po zatwierdzeniu wrócisz na stronę <strong>' . h($host) . '</strong>.' : '' ?></p>
+    <p class="small">Zatwierdź tylko wtedy, gdy właśnie sam(a) logujesz się w tej aplikacji. Dostęp cofniesz, wylogowując się z aplikacji.<?= $remote && !$knownApp ? ' Po zatwierdzeniu wrócisz na stronę <strong>' . h($host) . '</strong>.' : '' ?></p>
     <form method="post"><?= csrf_field() ?><?= $hidden ?>
       <div class="row">
         <button class="primary" name="decision" value="approve" autofocus>Tak, zaloguj</button>

@@ -20,7 +20,9 @@ OAuth 2.0 Authorization Code + PKCE (S256) — ten sam, z którego korzysta EZD 
 - Token dostaje **przecięcie** żądanych scope’ów z uprawnieniami konta; ekran zgody pokazuje tylko te faktycznie przyznawane.
   Konto bez żadnego z żądanych scope’ów nie dostaje tokenu (komunikat „Twoje konto nie ma uprawnień wymaganych przez tę aplikację.”).
 - Zawężenie jest zapamiętane: `renew` odświeża uprawnienia tylko w granicach zawężenia (nigdy do pełnych uprawnień konta).
-- **Bez parametru** zachowanie jak dotąd: wszystkie uprawnienia konta (zgodność wstecz, EZD Client).
+- **Aplikacja z rejestru** (`desktop_known_apps()` w `includes/desktop_auth.php`, rozpoznawana po hoście `redirect_uri`, np. `msues.feer.org.pl`)
+  dostaje najwyżej własne scope’y (`msues:read`, `msues:write`) — także gdy poprosi o więcej albo pominie `scope`; nazwa na ekranie pochodzi z rejestru, nie z `device`.
+- **Bez parametru** (aplikacja spoza rejestru, np. EZD Client) zachowanie jak dotąd: wszystkie uprawnienia konta (zgodność wstecz, EZD Client).
 - Ekran zgody pokazuje nazwę aplikacji z `device` (np. `device=Wdrożenie MSUES`; domyślnie „EZD Client”) oraz host z `redirect_uri`.
 
 ## Uprawnienie i scope’y
