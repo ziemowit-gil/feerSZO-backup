@@ -33,6 +33,7 @@ const PERMISSION_MODULES = [
     'srs'           => 'System Rezerwacji Sal (SRS)',
     'analityka'     => 'Analityka TI (KPI i raporty zarządcze)',
     'slowniki'      => 'Słownik Centralny (słowniki systemu)',
+    'msues_wdrozenie' => 'Wdrożenie MSUES (aplikacja zewnętrzna, SSO)',
     'admin'         => 'Administracja',
 ];
 
@@ -148,10 +149,10 @@ function _permissions_init(): void {
             if ($mod !== 'admin') {
                 // EZD: dostęp tylko per-konto (user_permissions) albo rola ezd_user;
                 // editor i viewer nie dostają EZD przez rolę.
-                if ($mod !== 'ezd') {
+                if (!in_array($mod, ['ezd', 'msues_wdrozenie'], true)) {   // tylko admin i konta nadawane ręcznie
                     $ins->execute([$editor_id, $mod, 1, 1, 0]);
                 }
-                $ins->execute([$viewer_id, $mod, in_array($mod, ['ezd', 'analityka'], true) ? 0 : 1, 0, 0]);   // EZD i Analityka TI tylko na wniosek
+                $ins->execute([$viewer_id, $mod, in_array($mod, ['ezd', 'analityka', 'msues_wdrozenie'], true) ? 0 : 1, 0, 0]);   // EZD i Analityka TI tylko na wniosek
             }
         }
         // crm_user: tylko crm read+write

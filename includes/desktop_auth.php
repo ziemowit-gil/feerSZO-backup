@@ -45,6 +45,8 @@ function desktop_scopes_for_user(array $user): array {
     if ($has('ezd', 'can_write')) { $scopes[] = 'ezd:upload'; $scopes[] = 'ezd:write'; }
     if ($has('crm', 'can_read'))  $scopes[] = 'crm:read';
     if ($has('crm', 'can_write')) $scopes[] = 'crm:write';
+    if ($has('msues_wdrozenie', 'can_read'))  $scopes[] = 'msues:read';
+    if ($has('msues_wdrozenie', 'can_write')) $scopes[] = 'msues:write';
     return $scopes;
 }
 

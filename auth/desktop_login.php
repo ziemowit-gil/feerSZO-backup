@@ -65,7 +65,7 @@ header('X-Frame-Options: DENY');
   <p>Aplikacja<?= $device !== '' ? ' na urządzeniu <strong>' . h($device) . '</strong>' : '' ?> prosi o dostęp do Twojego konta:
      <strong><?= h($user['name']) ?></strong> (<?= h($user['email'] ?? '') ?>).</p>
   <?php if (!$scopes): ?>
-    <p class="err" role="alert">To konto nie ma uprawnień do EZD ani CRM — logowanie aplikacji nie jest możliwe. Skontaktuj się z administratorem.</p>
+    <p class="err" role="alert">To konto nie ma uprawnień do żadnej aplikacji zewnętrznej — logowanie aplikacji nie jest możliwe. Skontaktuj się z administratorem.</p>
     <form method="post"><?= csrf_field() ?>
       <input type="hidden" name="redirect_uri" value="<?= h($redirect) ?>"><input type="hidden" name="state" value="<?= h($state) ?>">
       <input type="hidden" name="code_challenge" value="<?= h($challenge) ?>"><input type="hidden" name="device" value="<?= h($device) ?>">
@@ -78,6 +78,8 @@ header('X-Frame-Options: DENY');
       <?php if (in_array('ezd:write', $scopes, true))  echo '<li>EZD — dodawanie plików i skanów, rejestracja koszulek, pism i wpisów RPW</li>'; ?>
       <?php if (in_array('crm:read', $scopes, true))   echo '<li>CRM — przeglądanie kontaktów</li>'; ?>
       <?php if (in_array('crm:write', $scopes, true))  echo '<li>CRM — dodawanie i edycja kontaktów, notatki</li>'; ?>
+      <?php if (in_array('msues:read', $scopes, true))  echo '<li>Wdrożenie MSUES — przeglądanie danych wdrożenia</li>'; ?>
+      <?php if (in_array('msues:write', $scopes, true)) echo '<li>Wdrożenie MSUES — zapis i zmiany w aplikacji wdrożenia</li>'; ?>
     </ul>
     <p class="muted">Dostęp wygasa po <?= DESKTOP_TOKEN_TTL_DAYS ?> dniach nieużywania; możesz go cofnąć, wylogowując się w aplikacji.</p>
     <form method="post"><?= csrf_field() ?>

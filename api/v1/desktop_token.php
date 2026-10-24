@@ -73,7 +73,7 @@ if (!hash_equals((string)$row['code_challenge'], desktop_b64url(hash('sha256', $
 $user = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [(int)$row['user_id']]);
 if (!$user) api_error('Konto jest nieaktywne.', 403);
 $issued = desktop_issue_token($user, (string)$row['device']);
-if (!$issued['scopes']) api_error('Konto nie ma uprawnień do EZD ani CRM.', 403);
+if (!$issued['scopes']) api_error('Konto nie ma uprawnień do żadnej aplikacji zewnętrznej.', 403);
 
 api_json([
     'access_token' => $issued['token'], 'token_type' => 'Bearer', 'expires_at' => $issued['expires_at'],
