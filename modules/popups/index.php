@@ -1,6 +1,6 @@
 <?php
 /**
- * Edytor komunikatów popup (okna informacyjne w SZO i Panelu współpracownika) — tylko administrator.
+ * Edytor komunikatów popup (okna informacyjne w Panelu współpracownika) — tylko administrator.
  * Logika wyświetlania: lib/popups.php. ?edit=<id> | ?new=1 — formularz; ?preview=<id> — podgląd okna na tej stronie.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $slug  = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim((string)($_POST['slug'] ?? ''))));
         $slug  = trim($slug, '-') ?: ('popup-' . date('YmdHis'));
         $color = array_key_exists($_POST['color'] ?? '', POPUP_COLORS) ? $_POST['color'] : 'blue';
-        $shell = in_array($_POST['shell'] ?? '', ['both', 'szo', 'panel'], true) ? $_POST['shell'] : 'both';
+        $shell = 'panel';
         $roles = implode(',', array_map('trim', array_filter((array)($_POST['roles'] ?? []), 'is_string')));
         $icon  = preg_match('/^bi-[a-z0-9-]+$/', (string)($_POST['icon'] ?? '')) ? $_POST['icon'] : 'bi-info-circle-fill';
         $dt    = fn($k) => ($v = trim((string)($_POST[$k] ?? ''))) !== '' ? str_replace('T', ' ', $v) . (strlen($v) === 16 ? ':00' : '') : null;
@@ -56,7 +56,7 @@ if (isset($_GET['edit'])) { $edit = db_one("SELECT * FROM popups WHERE id=?", [(
 if (isset($_GET['preview'])) $GLOBALS['POPUPS_PREVIEW'] = (int)$_GET['preview'];
 $rows   = db_all("SELECT * FROM popups ORDER BY sort, id");
 $roleOpts = array_column(db_all("SELECT DISTINCT role FROM users WHERE role IS NOT NULL AND role<>'' ORDER BY role"), 'role');
-$e = $edit ?: ['id' => 0, 'slug' => '', 'title' => '', 'body' => '', 'icon' => 'bi-info-circle-fill', 'color' => 'blue', 'shell' => 'both', 'roles' => '',
+$e = $edit ?: ['id' => 0, 'slug' => '', 'title' => '', 'body' => '', 'icon' => 'bi-info-circle-fill', 'color' => 'blue', 'shell' => 'panel', 'roles' => '',
                'starts_at' => '', 'ends_at' => '', 'is_active' => 1, 'version' => 1, 'btn_label' => '', 'btn_url' => '', 'bug_button' => 0, 'sort' => 100];
 $sel  = array_filter(explode(',', (string)$e['roles']));
 $dtl  = fn($v) => $v ? str_replace(' ', 'T', substr((string)$v, 0, 16)) : '';
@@ -67,7 +67,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <div>
       <h1 class="h3 mb-1"><i class="bi bi-window-stack me-2" aria-hidden="true"></i>Komunikaty popup</h1>
-      <p class="text-muted mb-0">Okna informacyjne pokazywane po wejściu do SZO i Panelu współpracownika — każdy raz na przeglądarkę.</p>
+      <p class="text-muted mb-0">Okna informacyjne pokazywane współpracownikom po wejściu do Panelu (nie w SZO administratorów i zarządu) — każdy raz na przeglądarkę.</p>
     </div>
     <?php if ($isForm): ?><a class="btn btn-outline-secondary" href="<?= h($SELF) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Lista</a>
     <?php else: ?><a class="btn btn-primary" href="<?= h($SELF) ?>?new=1"><i class="bi bi-plus-lg" aria-hidden="true"></i> Nowy komunikat</a><?php endif; ?>
@@ -81,7 +81,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <tr>
         <td><span class="d-inline-flex align-items-center justify-content-center text-white me-2" style="width:30px;height:30px;background:<?= $c[1] ?>"><i class="bi <?= h($p['icon']) ?>" aria-hidden="true"></i></span>
             <strong><?= h($p['title']) ?></strong> <span class="text-muted small">v<?= (int)$p['version'] ?></span></td>
-        <td class="small"><?= ['both' => 'SZO i Panel', 'szo' => 'SZO', 'panel' => 'Panel'][$p['shell']] ?? h($p['shell']) ?> · <?= $p['roles'] !== '' ? h($p['roles']) : 'wszyscy' ?></td>
+        <td class="small"><?= 'Panel współpracownika' ?> · <?= $p['roles'] !== '' ? h($p['roles']) : 'wszyscy' ?></td>
         <td class="small"><?= $p['starts_at'] ? h(substr($p['starts_at'], 0, 16)) : 'od zaraz' ?> → <?= $p['ends_at'] ? h(substr($p['ends_at'], 0, 16)) : 'bez końca' ?></td>
         <td><?= $p['is_active'] ? '<span class="badge text-bg-success">aktywny</span>' : '<span class="badge text-bg-secondary">wyłączony</span>' ?></td>
         <td class="text-end text-nowrap">
@@ -118,8 +118,6 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     </div>
     <div class="col-lg-5">
       <div class="row g-2 mb-3">
-        <div class="col-6"><label class="form-label fw-semibold" for="pp-shell">Gdzie</label>
-          <select class="form-select" id="pp-shell" name="shell"><?php foreach (['both' => 'SZO i Panel', 'szo' => 'Tylko SZO', 'panel' => 'Tylko Panel'] as $k => $l): ?><option value="<?= $k ?>" <?= $e['shell'] === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></div>
         <div class="col-6"><label class="form-label fw-semibold" for="pp-color">Kolor</label>
           <select class="form-select" id="pp-color" name="color"><?php foreach (POPUP_COLORS as $k => $c): ?><option value="<?= $k ?>" <?= $e['color'] === $k ? 'selected' : '' ?>><?= h($c[0]) ?></option><?php endforeach; ?></select></div>
         <div class="col-6"><label class="form-label fw-semibold" for="pp-icon">Ikona (Bootstrap Icons)</label><input class="form-control" id="pp-icon" name="icon" value="<?= h($e['icon']) ?>" pattern="bi-[a-z0-9-]+"></div>

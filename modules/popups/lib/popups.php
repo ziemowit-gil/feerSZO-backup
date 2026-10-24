@@ -1,11 +1,12 @@
 <?php
 /**
- * modules/popups/lib/popups.php — komunikaty „popup” (okna informacyjne) w SZO i Panelu współpracownika.
+ * modules/popups/lib/popups.php — komunikaty „popup” (okna informacyjne) w Panelu współpracownika.
  *
  * Zastępują zahardkodowane includes/welcome_notice.php i includes/mobywatel_notice.php: treść, odbiorcy (role),
  * miejsce (SZO / Panel / oba), daty od–do i wersja są w tabeli popups, edytowane w modules/popups/index.php.
  * Pokazują się po kolei, każdy raz na przeglądarkę (localStorage, klucz z wersją); podbicie wersji pokazuje go ponownie.
- * Wołają popupsRender('szo') z includes/header.php i popupsRender('panel') z panel/includes/footer_panel.php.
+ * Pokazywane TYLKO w Panelu współpracownika (popupsRender('panel') z panel/includes/footer_panel.php); SZO (administratorzy, zarząd)
+ * wywołuje popupsRender('szo') wyłącznie dla podglądu w edytorze.
  */
 
 const POPUP_COLORS = [
@@ -39,6 +40,8 @@ function popupsMigrate(): void {
         sort INTEGER NOT NULL DEFAULT 100,
         created_at TEXT, updated_at TEXT
     )");
+    // popupy są dla współpracowników (Panel); SZO to moduł administratorów i zarządu — bez popupów (poza podglądem w edytorze)
+    db()->exec("UPDATE popups SET shell='panel' WHERE shell<>'panel'");
     // jednorazowy import dwóch dotychczasowych, zahardkodowanych okien (zachowują „już widziałem” z localStorage)
     if ((int)(db_one("SELECT COUNT(*) c FROM popups")['c'] ?? 0) === 0) {
         $now = date('Y-m-d H:i:s');
@@ -47,14 +50,14 @@ function popupsMigrate(): void {
         $ins->execute(['witamy', 'Witamy w nowym systemie!',
             '<p>System został <strong>świeżo wdrożony</strong>. Pracujemy nad tym, aby działał bez zarzutu — ale na początku mogą zdarzyć się drobne usterki.</p>'
             . '<p><strong>Zauważyłeś błąd? Daj nam znać.</strong> Każde zgłoszenie pomaga nam szybciej poprawiać system. Skorzystaj z przycisku „Zgłoś błąd” albo z naszego helpdesku.</p>',
-            'bi-rocket-takeoff-fill', 'blue', 'szo', 'Przejdź do helpdesku', '/helpdesk/new.php', 1,
+            'bi-rocket-takeoff-fill', 'blue', 'panel', 'Przejdź do helpdesku', '/helpdesk/new.php', 1,
             'feer_welcome_notice_dismissed', '2026-06-go-live', 10, $now, $now]);
         $ins->execute(['mobywatel', 'Niebawem: mObywatel',
             '<p>Pracujemy nad integracją z aplikacją <strong>mObywatel</strong>. Wkrótce udostępnimy w systemie dwie nowe możliwości:</p>'
             . '<ul><li><strong>Weryfikacja tożsamości</strong> — szybkie i bezpieczne potwierdzenie danymi z aplikacji mObywatel.</li>'
             . '<li><strong>eZawieranie umów</strong> — podpisywanie umów w pełni elektronicznie, bez drukowania i skanowania.</li></ul>'
             . '<p>Poinformujemy Cię, gdy funkcje będą gotowe do użycia.</p>',
-            'bi-phone-fill', 'teal', 'szo', '', '', 0,
+            'bi-phone-fill', 'teal', 'panel', '', '', 0,
             'feer_mobywatel_notice_dismissed', '2026-07-mobywatel', 20, $now, $now]);
     }
 }
@@ -98,6 +101,7 @@ function popupsActive(string $shell, ?array $user): array {
 function popupsRender(string $shell): void {
     $user = current_user();
     $prev = (int)($GLOBALS['POPUPS_PREVIEW'] ?? 0);
+    if ($shell === 'szo' && !$prev) return;
     if ($prev) { popupsMigrate(); $p = db_one("SELECT * FROM popups WHERE id=?", [$prev]); $list = $p ? [$p] : []; }
     else $list = popupsActive($shell, $user);
     if (!$list) return;
