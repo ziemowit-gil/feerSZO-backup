@@ -109,7 +109,6 @@ function dydMenuSections(): array
             $it('',                'Hospitacje',        'hospitacje.php',       'clipboard2-pulse'),
             $it('',                'Umowa',             'index.php?tab=formalnosci#umowa', 'file-earmark-text', $nContr, 'success'),
             $it('',                'Mój certyfikat',    'moj_certyfikat.php',   'shield-check'),
-            $it('',                'Certyfikacja MSUES', 'msues.php?_route=/moje', 'award'),
         ];
         if (function_exists('dyd_plan_cykliczny_enabled') && dyd_plan_cykliczny_enabled()) $start[] = $it('cykliczne', 'Plan cykliczny', $gt('cykliczne'), 'arrow-repeat');
         if ($canAn && !$staff) $start[] = $it('', 'Analityka TI', 'analityka.php', 'speedometer2');
@@ -174,8 +173,6 @@ function dydMenuSections(): array
     try { $nLd += (int)(db_one("SELECT COUNT(*) AS c FROM license_operations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
     $nDop = 0;   // Wnioski DOP1/DOP2 czekające na obsługę (modules/ti_dop, tabela może jeszcze nie istnieć)
     try { $nDop = (int)(db_one("SELECT COUNT(*) AS c FROM dop_requests WHERE status IN ('verify','approve','execute')")['c'] ?? 0); } catch (\Throwable $e) {}
-    $nMsues = 0;   // Certyfikacja MSUES: oświadczenia kadry czekające na weryfikację (modules/ti_msues, tabela może jeszcze nie istnieć)
-    try { $nMsues = (int)(db_one("SELECT COUNT(*) AS c FROM trainer_declarations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
 
     $sec[] = ['key' => 'k_grupy', 'staff' => true, 'label' => 'Grupy i zajęcia', 'items' => [
         $it('grupy',        'Przegląd grup',           $gt('grupy'),          'people'),
@@ -225,7 +222,6 @@ function dydMenuSections(): array
         $it('', 'Zgłoszenia trenerów',    'zgloszenia.php',      'inbox', $scPending, 'warning'),
         $it('', 'Generator ciągów zajęć', 'generatorCiagow.php', 'magic'),
         $it('', 'Raporty planisty',       'raportyPlanisty.php', 'bar-chart-line'),
-        $it('', 'Wymagania MSUES grup',   'msues.php?_route=%2Fwymagania', 'award'),
         $it('', 'Sale / lokalizacje',     'sale.php',            'geo-alt'),
         $it('', 'Formularze rezerwacji sal', 'saleFormularz.php', 'file-earmark-text'),
         $it('', 'Okresy nauczania',       'okresy.php',          'calendar-range'),
@@ -241,7 +237,6 @@ function dydMenuSections(): array
         $it('', 'Limity i kwalifikacje kadry', 'kadraLimity.php',  'person-gear'),
         $it('', 'Zespół i role',               'zespol.php',       'people-fill'),
         $isKier ? $it('', 'Certyfikaty prowadzących', 'certyfikaty.php', 'shield-check') : null,
-        $it('', 'Certyfikacja MSUES',          'msues.php',        'award', $nMsues, 'warning'),
         $it('', 'Role w panelu TI', rtrim(APP_URL, '/') . '/tozsamosc/ti_role.php', 'person-gear'),
     ]))];
     $sec[] = ['key' => 'k_komunikacja', 'staff' => true, 'label' => 'Komunikacja z kursantami', 'items' => [

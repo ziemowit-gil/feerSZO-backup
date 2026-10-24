@@ -248,18 +248,6 @@ return [
         },
     ],
 
-    // Certyfikacja MSUES (modules/ti_msues): kryteria checklisty kadry jako słownik systemowy Słownika Centralnego
-    // (etykiety/opisy/„required” edytowalne, kody używane w MsuesChecklist).
-    '2026-10_msues_dictionary' => [
-        'desc' => 'Słownik Centralny: kryteria checklisty kadry MSUES',
-        'run'  => static function () use ($ROOT): void {
-            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
-            require_once $ROOT . '/modules/ti_msues/lib/MsuesChecklist.php';
-            $res = dictTransfer()->import(MsuesChecklist::dictionarySeed(), 'json');
-            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
-        },
-    ],
-
     // Zmiana danych współpracownika (modules/collaborator_data): pola formularza (etykiety, grupa, czy zmiana wymaga
     // akceptacji) i statusy zmian jako słowniki systemowe Słownika Centralnego. Kody używane w CollaboratorDataService.
     '2026-10_collab_data_dictionary' => [
@@ -350,18 +338,6 @@ return [
             foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
             $nrb = '57101000712222734357053900';
             if (uspRachunek() === '' && edok_nrb_valid($nrb)) org_setting_set('usp_rachunek', $nrb);
-        },
-    ],
-
-    // Certyfikacja MSUES: hasła JRWA 56 (kadra dydaktyczna — MSUES), 561 (oświadczenia o kwalifikacjach, koszulki oświadczeń),
-    // 562 (audyty MSUES — paczki audytowe). Tylko gdy EZD ma już tabelę JRWA; brakujące hasła doda też pierwsza rejestracja.
-    '2026-10_msues_jrwa' => [
-        'desc' => 'EZD: hasła JRWA 56/561/562 dla Certyfikacji MSUES',
-        'run'  => static function () use ($ROOT): void {
-            try { db()->query("SELECT 1 FROM ezd_jrwa LIMIT 1"); } catch (\Throwable $e) { return; }
-            require_once $ROOT . '/modules/ti_msues/lib/MsuesEzdService.php';
-            $a = db_one("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1");
-            MsuesEzdService::ensureJrwa((int)($a['id'] ?? 0));
         },
     ],
 

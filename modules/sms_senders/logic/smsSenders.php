@@ -60,7 +60,6 @@ final class SmsSenders
 
         'ti_dop_notice'          => [self::G_TI_PAY, 'Wnioski DOP1 / DOP2 — zwrot nadpłaty, płatność z subkonta', 'Rozliczenia kursanta: link do potwierdzenia wniosku DOP1 (zwrot nadpłaty) lub DOP2 (płatność z subkonta), decyzja, realizacja przelewu.'],
         'ti_licencja_am5'        => [self::G_TI, 'Licencje AM5 / Office 365 AM7 — obieg', 'Licencje dydaktyczne i Office 365: wszczęcie procesu (osoba zainteresowana), link do podpisu wniosku i oświadczeń, decyzja, przypomnienia o terminie 7 dni.'],
-        'ti_msues_notice'        => [self::G_TI, 'Certyfikacja MSUES — informacja dla kadry', 'Kadra › Certyfikacja MSUES: uruchomienie certyfikacji, przypomnienie i wysyłka pojedyncza do prowadzącego.'],
         'ti_nabor_status'        => [self::G_TI, 'Nabór do grup — status zgłoszenia', 'Nabór do grup TI: zmiana statusu zgłoszenia (SMS do rodzica / opiekuna).'],
 
         'ti_billing_notice'      => [self::G_TI_PAY, 'Rozliczenie za miesiąc', 'Powiadomienie o należności za zajęcia (kwota, termin, rachunek).'],

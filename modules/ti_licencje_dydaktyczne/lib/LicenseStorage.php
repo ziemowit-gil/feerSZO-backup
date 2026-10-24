@@ -5,7 +5,7 @@ declare(strict_types=1);
  * modules/ti_licencje_dydaktyczne/lib/LicenseStorage.php — pliki dokumentów AM5 w UPLOAD_DIR/licencje_am5/ (katalog zablokowany
  * .htaccess, wydawane wyłącznie przez kontroler po sprawdzeniu uprawnień albo tokenu) oraz kopie w profilu osoby:
  *   kursant (k30_clients)  → teczka „Dokumenty kursanta” (k30_ti_sfile, kategoria zgoda, źródło system, widoczna dla kursanta),
- *   współpracownik (users) → dokumenty kadry MSUES (msues_staff_documents, rodzaj „inne”) — do paczki audytowej.
+ *   współpracownik (users) → bez kopii (dokumenty kadry MSUES wyniesiono do osobnej mikroaplikacji).
  * Kopia w profilu jest „najlepszą próbą”: błąd nie przerywa złożenia oświadczeń (zwraca komunikat do dziennika).
  */
 final class LicenseStorage
@@ -68,7 +68,7 @@ final class LicenseStorage
         return null;
     }
 
-    /** Kopia dokumentu w profilu osoby (teczka kursanta / dokumenty kadry MSUES). Zwraca opis wyniku. */
+    /** Kopia dokumentu w profilu osoby (teczka kursanta). Zwraca opis wyniku. */
     public static function archiveToProfile(string $rel, string $title, string $holderKind, ?int $holderId): string
     {
         $src = self::fullPath($rel);
@@ -91,12 +91,6 @@ final class LicenseStorage
                     'size' => (int)filesize($src), 'sha256' => (string)hash_file('sha256', $src), 'visible_student' => 1,
                     'source' => 'system', 'status' => 'approved', 'created_by_name' => 'system (' . LD_SYMBOL . ')', 'created_at' => ldNow()]);
                 return 'kopia w teczce „Dokumenty kursanta”';
-            }
-            if ($holderKind === 'user') {
-                require_once dirname(__DIR__, 2) . '/ti_msues/lib/MsuesStaffDocuments.php';
-                (new MsuesStaffDocuments())->add($holderId, 'inne', $title, ldToday(), '', $src, preg_replace('/[^\w.\-]+/u', '_', $title) . '.pdf',
-                                                 ['id' => 0, 'name' => 'system (' . LD_SYMBOL . ')'], false);
-                return 'kopia w dokumentach kadry (MSUES)';
             }
         } catch (\Throwable $e) {
             error_log('am5 archive: ' . $e->getMessage());

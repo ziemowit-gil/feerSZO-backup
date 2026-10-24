@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * modules/ti_licencje_dydaktyczne/lib/LicenseEnums.php — enumy modułu „Licencje dydaktyczne (AM5) i oprogramowania (AM7)”.
  *
- * Nazwy z prefiksem License*, bo DeclarationStatus istnieje już w modules/ti_msues (oba moduły bywają ładowane razem).
+ * Nazwy z prefiksem License*, żeby nie kolidować z innymi klasami o nazwach ogólnych (np. DeclarationStatus).
  */
 
 /** Obieg wniosku AM5/1: robocze → wszczęte (czeka na decyzję licencjodawcy, do 7 dni) → udzielona / odmowa / wycofany. */

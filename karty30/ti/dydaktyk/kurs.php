@@ -314,14 +314,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'plan_status'         => $up_plan_status,
             'plan_note'           => mb_substr($up_plan_note, 0, 500),
         ];
-        // Certyfikacja MSUES: przy włączonym wymogu (require_trainer_formal_declaration) nowy prowadzący musi mieć zatwierdzone oświadczenie
-        if ((int)$data['instructor_id'] && (int)$data['instructor_id'] !== (int)$course['instructor_id']) {
-            require_once dirname(__DIR__, 3) . '/modules/ti_msues/lib/MsuesComplianceService.php';
-            if (($msuesBlock = msuesAssignGuard((int)$data['instructor_id'], $id)) !== '') {
-                flash_set('danger', 'Nie zmieniono prowadzącego. ' . $msuesBlock . ' (panel › Kadra › Certyfikacja MSUES)');
-                header('Location: kurs.php?id=' . $id); exit;
-            }
-        }
         $set = []; $par = [];
         foreach ($data as $k => $v) { $set[] = "$k=?"; $par[] = $v; }
         $par[] = $id;
@@ -444,11 +436,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'coinstr_add') {
         $cu = (int)($_POST['coinstr_user_id'] ?? 0);
         if ($cu && $cu !== (int)$course['instructor_id']) {
-            require_once dirname(__DIR__, 3) . '/modules/ti_msues/lib/MsuesComplianceService.php';
-            if (($msuesBlock = msuesAssignGuard($cu, $id)) !== '') {
-                flash_set('danger', 'Nie dodano coProwadzącego. ' . $msuesBlock . ' (panel › Kadra › Certyfikacja MSUES)');
-                header('Location: kurs.php?id=' . $id . '#coinstructors'); exit;
-            }
             k30_ti_coinstruct_add($id, $cu, $uid);
             _dyd_zoom_sync_alt_hosts($id, $course);
             flash_set('success', 'CoProwadzący dodany.');
@@ -583,33 +570,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <?php if ($price_changes): ?><span class="badge bg-secondary ms-1"><?= count($price_changes) ?></span><?php endif; ?>
     </button>
     <?php endif; ?>
-    <a href="msues.php?_route=<?= rawurlencode('/uslugi/' . $id . '/profil') ?>" class="btn btn-sm btn-outline-secondary" title="Usługa w standardzie MSUES: profil i wymagania">
-      <i class="bi bi-award me-1" aria-hidden="true"></i>MSUES</a>
     <a href="log_grup.php?course=<?= $id ?>" class="btn btn-sm btn-outline-secondary" title="Log operacji tej grupy">
       <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Log operacji</a>
   </div>
 </div>
 
 <?= flash_html() ?>
-
-<?php // Standard MSUES: wezwania do uzupełnienia, gdy grupa jest oznaczona jako usługa MSUES (modules/ti_msues)
-$msuesReq = null;
-try {
-    require_once dirname(__DIR__, 3) . '/modules/ti_msues/lib/MsuesRequirements.php';
-    require_once dirname(__DIR__, 3) . '/modules/ti_msues/view/_reqList.php';
-    $msuesReq = MsuesRequirements::evaluate($id);
-} catch (\Throwable $e) { error_log('kurs.php msues: ' . $e->getMessage()); }
-if ($msuesReq): $msuesOpen = $msuesReq['missing'] + $msuesReq['warn']; ?>
-<section class="card mb-3 <?= $msuesReq['missing'] ? 'border-warning' : 'border-success' ?>" id="msues" aria-labelledby="msuesH">
-  <div class="card-header d-flex align-items-center gap-2 flex-wrap <?= $msuesReq['missing'] ? 'bg-warning-subtle' : 'bg-success-subtle' ?>">
-    <h2 class="h6 mb-0" id="msuesH"><i class="bi bi-award me-1" aria-hidden="true"></i>Standard MSUES — <?= $msuesOpen ? 'do uzupełnienia: ' . (int)$msuesOpen : 'wszystkie wymagania spełnione' ?></h2>
-    <span class="ms-auto" style="width:150px"><?= msuesReqSummary($msuesReq) ?></span>
-    <a class="btn btn-sm btn-outline-primary" href="msues.php?_route=<?= rawurlencode('/uslugi/' . $id . '/profil') ?>">Profil usługi</a>
-    <a class="btn btn-sm btn-outline-secondary" href="msues.php?_route=<?= rawurlencode('/uslugi/' . $id) ?>">Pełna lista</a>
-  </div>
-  <?= $msuesOpen ? msuesReqList($msuesReq, true) : '' ?>
-</section>
-<?php endif; ?>
 
 <?php if (zoom_enabled()): ?>
 <div class="card mb-3" id="zoom">
