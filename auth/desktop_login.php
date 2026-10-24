@@ -60,10 +60,10 @@ $remote  = !in_array(strtolower($host), ['127.0.0.1', 'localhost', '[::1]'], tru
 
 /* Uprawnienia po polsku, pogrupowane; zapis wyróżniony osobno. Pokazujemy wyłącznie przyznawane scope'y. */
 $groups = [
-    'EZD'             => ['ezd:read' => 'przeglądanie koszulek i pism', 'ezd:upload' => 'dodawanie plików i skanów',
-                          'ezd:write' => 'rejestracja koszulek, pism i wpisów RPW'],
-    'CRM'             => ['crm:read' => 'przeglądanie kontaktów', 'crm:write' => 'dodawanie i edycja kontaktów, notatki'],
-    'Wdrożenie MSUES' => ['msues:read' => 'podgląd danych wdrożenia', 'msues:write' => 'zapis i zmiany w danych wdrożenia'],
+    'Dokumenty (EZD)' => ['ezd:read' => 'oglądanie spraw i pism', 'ezd:upload' => 'dodawanie plików i skanów do spraw',
+                          'ezd:write' => 'zakładanie spraw i rejestrowanie pism'],
+    'Kontakty (CRM)'   => ['crm:read' => 'oglądanie kontaktów', 'crm:write' => 'dodawanie i zmiana kontaktów oraz notatek'],
+    'Wdrożenie MSUES' => ['msues:read' => 'oglądanie postępu wdrożenia', 'msues:write' => 'wpisywanie i zmiana danych wdrożenia'],
 ];
 $readList = []; $writeList = [];
 foreach ($groups as $gname => $items) {
