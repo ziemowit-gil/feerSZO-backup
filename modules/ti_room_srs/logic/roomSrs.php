@@ -485,10 +485,7 @@ function tiRoomSrsAdhocDefaults(int $roomId, string $date, string $tf, string $t
     if ($form && $roomId === (int)$form['room_id'] && (string)($saved['room'] ?? '') !== '') $data['room'] = (string)$saved['room'];
     $conflicts = [];
     if ($room && $date !== '' && $tf !== '' && $tt !== '') {
-        foreach (pl_room_availability($roomId, $date, $tf, $tt) as $c) {
-            $cn = db_one("SELECT name FROM k30_ti_courses WHERE id = ?", [(int)$c['course_id']]);
-            $conflicts[] = 'zajęcia TI „' . ($cn['name'] ?? '?') . '” ' . substr((string)$c['time_from'], 0, 5) . '–' . substr((string)$c['time_to'], 0, 5);
-        }
+        $conflicts = tiRoomSrsConflicts($roomId, $date, $tf, $tt, $formId);
     }
     return ['data' => $data, 'meta' => ['room' => $room, 'form' => $form, 'date' => $date, 'timeFrom' => $tf, 'timeTo' => $tt, 'conflicts' => $conflicts]];
 }
@@ -670,7 +667,10 @@ function tiRoomSrsApprove(int $formId, int $approverId, bool $notify = true): vo
     db_exec("UPDATE ti_room_srs_forms SET approval_status='zatwierdzony', approved_by=?, approved_at=datetime('now') WHERE id=?",
         [$approverId ?: null, $formId]);
     $data = json_decode((string)$form['form_data'], true) ?: [];
-    if (!empty($data['_srs'])) tiRoomSrsSubmitToSrs($formId, (int)($form['created_by'] ?: $approverId));
+    if (!empty($form['series_id'])) {
+        // Seria: jedna rezerwacja SRS na całą serię (zbiorczo robi to tiRoomSrsApproveSeries / tiRoomSrsSaveSeries)
+        if (!tiRoomSrsSeriesBulk()) tiRoomSrsSubmitSeriesToSrs((int)$form['series_id'], (int)($form['created_by'] ?: $approverId));
+    } elseif (!empty($data['_srs'])) tiRoomSrsSubmitToSrs($formId, (int)($form['created_by'] ?: $approverId));
     if ($notify && (int)$form['created_by'] && (int)$form['created_by'] !== $approverId) tiRoomSrsNotifyApproved($formId, $approverId);
 }
 

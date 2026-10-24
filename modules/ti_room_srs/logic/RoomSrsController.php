@@ -133,6 +133,8 @@ final class RoomSrsController
             flash_set('danger', $e->getMessage());
             return Router::redirect($back);
         }
+        $clash = tiRoomSrsConflicts($roomId, $date, $tf, $tt, $formId);
+        if ($clash) flash_set('warning', 'Uwaga — w terminie ' . date('d.m.Y', strtotime($date)) . ' ' . $tf . '–' . $tt . ' sala jest zajęta: ' . implode('; ', $clash) . '. Rezerwacja zapisana mimo to — sprawdź termin.');
         return $this->afterSave($formId, $data, (string)($room['template'] ?? ''), route('trs.adhoc', ['id' => $formId]),
             'Rezerwacja przestrzeni — ' . $date . ' ' . $tf . '–' . $tt, 0);
     }
@@ -194,6 +196,15 @@ final class RoomSrsController
         tiRoomSrsCancelForm($id, $me['id']);
         flash_set('success', 'Odwołano termin ' . date('d.m.Y', strtotime((string)$f['date_from'])) . '.');
         return Router::redirect(!empty($f['series_id']) ? route('trs.series', ['id' => (int)$f['series_id']]) : route('trs.index'));
+    }
+
+    /** Kierownik: ręczne „Potwierdzone” / „Do rezerwacji” dla całej serii (sala ustalona z operatorem poza SRS). */
+    public function seriesConfirm(int $id): ?string
+    {
+        $on = ($_POST['status'] ?? '') === 'potwierdzone';
+        $n = tiRoomSrsSetManualStatus([], $on, $id);
+        flash_set('success', ($on ? 'Oznaczono jako potwierdzone: ' : 'Cofnięto potwierdzenie: ') . $n . ' ' . tiRoomSrsTermWord($n) . '.');
+        return Router::redirect(route('trs.series', ['id' => $id]));
     }
 
     public function seriesApprove(int $id): ?string

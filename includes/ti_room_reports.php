@@ -911,6 +911,7 @@ function ti_room_reservation_report_by_operator(string $from, string $to): array
                 'count'            => 0,
                 'pending'          => 0,
                 'session_ids'      => [],
+                'form_ids'         => [],
             ];
         }
         $slot = &$slots[$key][$slot_key];
@@ -919,6 +920,7 @@ function ti_room_reservation_report_by_operator(string $from, string $to): array
         $slot['count']++;
         if ($r['room_reservation_status'] !== 'potwierdzone') $slot['pending']++;
         if ((int)$r['id'] > 0) $slot['session_ids'][] = (int)$r['id'];
+        if (!empty($r['adhoc']) && $r['room_reservation_status'] !== 'potwierdzone') $slot['form_ids'][] = (int)$r['form_id'];
         unset($slot);
     }
 

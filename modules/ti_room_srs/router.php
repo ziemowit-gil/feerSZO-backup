@@ -54,6 +54,7 @@ $r->group(['trs.staff'], function (Router $r) {
     $r->post('/sale', [RoomSrsController::class, 'roomsSave'])->name('trs.rooms.save');
     $r->post('/zatwierdz/{id}', [RoomSrsController::class, 'approve'])->name('trs.approve');
     $r->post('/seria/{id}/zatwierdz', [RoomSrsController::class, 'seriesApprove'])->name('trs.series.approve');
+    $r->post('/seria/{id}/potwierdz', [RoomSrsController::class, 'seriesConfirm'])->name('trs.series.confirm');
 });
 
 $r->dispatch();

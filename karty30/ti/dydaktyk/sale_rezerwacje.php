@@ -21,7 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'toggle_r
     csrf_check();
     $sid    = (int)($_POST['session_id'] ?? 0);
     $status = ($_POST['status'] ?? '') === 'potwierdzone' ? 'potwierdzone' : 'do_rezerwacji';
-    pl_room_reservation_set($sid, $status);
+    if ((int)($_POST['form_id'] ?? 0) > 0) {   // rezerwacja przestrzeni (też z serii) — ręczne potwierdzenie
+        require_once dirname(__DIR__, 3) . '/modules/ti_room_srs/logic/roomSrs.php';
+        tiRoomSrsSetManualStatus([(int)$_POST['form_id']], $status === 'potwierdzone');
+    } else pl_room_reservation_set($sid, $status);
     header('Location: ' . $_SERVER['REQUEST_URI']); exit;
 }
 
@@ -39,16 +42,19 @@ $by_group = $view === 'operator' ? ti_room_reservation_report_by_operator($from,
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'approve_drafts') {
     csrf_check();
     $only_op = trim((string)($_POST['operator'] ?? ''));
-    $ids = [];
+    $ids = []; $fids = [];
     foreach ($by_group as $gk => $grows) {
         if ($only_op !== '' && (string)$gk !== $only_op) continue;
         foreach ($grows as $gr) {
-            if ($view === 'operator') { if ((int)$gr['pending'] > 0) $ids = array_merge($ids, $gr['session_ids']); }
+            if ($view === 'operator') { if ((int)$gr['pending'] > 0) { $ids = array_merge($ids, $gr['session_ids']); $fids = array_merge($fids, $gr['form_ids'] ?? []); } }
+            elseif (!empty($gr['adhoc'])) { if (($gr['room_reservation_status'] ?? '') !== 'potwierdzone') $fids[] = (int)$gr['form_id']; }
             elseif (($gr['room_reservation_status'] ?? '') !== 'potwierdzone' && (int)$gr['id'] > 0) $ids[] = (int)$gr['id'];
         }
     }
     $ids = array_values(array_filter(array_unique(array_map('intval', $ids))));
     foreach ($ids as $sid) pl_room_reservation_set($sid, 'potwierdzone');
+    if ($fids) { require_once dirname(__DIR__, 3) . '/modules/ti_room_srs/logic/roomSrs.php'; $fids = array_values(array_unique(array_map('intval', $fids))); tiRoomSrsSetManualStatus($fids, true); }
+    $ids = array_merge($ids, $fids);
     ti_print_log_add('sale_rezerwacje_approve', 'Zatwierdzono robocze rezerwacje sal (' . count($ids) . ') — ' . $from . ' – ' . $to, 0, 0,
         ['range' => $range, 'view' => $view, 'operator' => $only_op, 'count' => count($ids)], $me);
     flash_set('success', $ids ? 'Zatwierdzono rezerwacje robocze: ' . count($ids) . '.' : 'Brak rezerwacji roboczych do zatwierdzenia.');
@@ -225,7 +231,16 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <td class="small"><?= h($r['instructor_label']) ?></td>
           <td class="small">
             <?php if (!empty($r['adhoc'])): ?>
-            <span class="badge <?= $confirmed ? 'text-bg-success' : 'text-bg-warning' ?>"><?= $confirmed ? 'Potwierdzone' : 'Do rezerwacji' ?></span>
+            <form method="post" class="d-inline usos-noprint">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op" value="toggle_reservation">
+              <input type="hidden" name="form_id" value="<?= (int)$r['form_id'] ?>">
+              <input type="hidden" name="status" value="<?= $confirmed ? 'do_rezerwacji' : 'potwierdzone' ?>">
+              <button class="btn btn-sm <?= $confirmed ? 'btn-success' : 'btn-outline-warning' ?>">
+                <i class="bi bi-<?= $confirmed ? 'check-circle-fill' : 'hourglass-split' ?> me-1"></i><?= $confirmed ? 'Potwierdzone' : 'Do rezerwacji' ?>
+              </button>
+            </form>
+            <span class="badge d-none d-print-inline <?= $confirmed ? 'text-bg-success' : 'text-bg-warning' ?>"><?= $confirmed ? 'Potwierdzone' : 'Do rezerwacji' ?></span>
             <a class="usos-noprint small ms-1" href="saleFormularz.php?_route=<?= h(rawurlencode($r['series_id'] ? '/seria/' . (int)$r['series_id'] : '/nowa')) ?><?= $r['series_id'] ? '' : '&amp;id=' . (int)$r['form_id'] ?>"><?= $r['series_id'] ? 'Seria' : 'Rezerwacja' ?><span class="visually-hidden"> przestrzeni — zarządzaj</span></a>
             <?php else: ?>
             <form method="post" class="d-inline usos-noprint">

@@ -38,6 +38,12 @@ $roomLbl = (string)($s['room_short_label'] ?: $s['room_name']);
   <?php if ($live && !$pendingAppr): ?>
   <a class="btn btn-sm btn-primary" href="<?= h(route('trs.series.file', ['id' => (int)$s['id']])) ?>"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz wniosek dla całej serii</a>
   <?php endif; ?>
+  <?php if ($me['staff'] && $live): $allOk = !array_filter($live, fn($f) => ($f['manual_status'] ?? '') !== 'potwierdzone' && !in_array((string)$f['srs_status'], TI_ROOM_SRS_CONFIRMED, true)); ?>
+  <form method="post" action="<?= h(route('trs.series.confirm', ['id' => (int)$s['id']])) ?>" class="d-inline">
+    <?= Router::csrfField() ?><input type="hidden" name="status" value="<?= $allOk ? 'do_rezerwacji' : 'potwierdzone' ?>">
+    <button class="btn btn-sm btn-outline-success"><i class="bi bi-check-circle me-1" aria-hidden="true"></i><?= $allOk ? 'Cofnij potwierdzenie sali' : 'Oznacz salę jako potwierdzoną' ?></button>
+  </form>
+  <?php endif; ?>
   <?php if ($future): ?>
   <form method="post" action="<?= h(route('trs.series.cancel', ['id' => (int)$s['id']])) ?>" class="d-inline"
         onsubmit="return confirm('Odwołać wszystkie przyszłe terminy serii? Rezerwacje SRS tych terminów zostaną anulowane.')">
@@ -65,7 +71,8 @@ $roomLbl = (string)($s['room_short_label'] ?: $s['room_name']);
       <td class="small text-nowrap"><?= h(($fd['timeFrom'] ?? '') . '–' . ($fd['timeTo'] ?? '')) ?></td>
       <td class="small"><?php if ($canc): ?><span class="badge text-bg-secondary">odwołany</span>
         <?php elseif (!tiRoomSrsIsApproved($f)): ?><span class="badge text-bg-warning">czeka na akceptację</span>
-        <?php else: ?><span class="badge text-bg-success">zatwierdzony</span><?php endif; ?></td>
+        <?php else: ?><span class="badge text-bg-success">zatwierdzony</span><?php endif; ?>
+        <?php if (!$canc && (($f['manual_status'] ?? '') === 'potwierdzone' || in_array($st, TI_ROOM_SRS_CONFIRMED, true))): ?> <span class="badge text-bg-success">sala potwierdzona</span><?php endif; ?></td>
       <td class="small"><?php if ((int)$f['srs_reservation_id']): ?>#<?= (int)$f['srs_reservation_id'] ?> <?= h(RES_STATUSES[$st]['label'] ?? $st) ?><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
       <td class="text-end text-nowrap">
         <?php if (!$canc): ?>
