@@ -126,6 +126,7 @@ final class RoomSrsController
         $data = tiRoomSrsDataFromPost($_POST, (string)($room['template'] ?? ''));
         $back = route('trs.adhoc', array_filter(['id' => $formId ?: null, 'room' => $roomId ?: null, 'date' => $date, 'tf' => $tf, 'tt' => $tt]));
         if (!$this->peselOk($data)) return Router::redirect($back);
+        if (!$formId && !empty($_POST['rep'])) return $this->seriesSave($me, $roomId, $date, $tf, $tt, $data, $room, $back);
         try {
             $formId = tiRoomSrsSaveAdhoc($formId, $roomId, $date, $tf, $tt, $data, $me['id'], !empty($_POST['srs']), self::source(), $me['staff']);
         } catch (RuntimeException $e) {
@@ -134,6 +135,94 @@ final class RoomSrsController
         }
         return $this->afterSave($formId, $data, (string)($room['template'] ?? ''), route('trs.adhoc', ['id' => $formId]),
             'Rezerwacja przestrzeni — ' . $date . ' ' . $tf . '–' . $tt, 0);
+    }
+
+    /** Rezerwacja cykliczna: reguła z formularza → seria terminów (kolizje i dni wolne pomijane z komunikatem). */
+    private function seriesSave(array $me, int $roomId, string $date, string $tf, string $tt, array $data, ?array $room, string $back): ?string
+    {
+        try {
+            $rule = tiRoomSrsSeriesRuleFromPost($_POST, $date, $tf, $tt);
+            $r = tiRoomSrsSaveSeries($roomId, $rule, $data, $me['id'], !empty($_POST['srs']), self::source(), $me['staff']);
+        } catch (RuntimeException $e) {
+            flash_set('danger', $e->getMessage());
+            return Router::redirect($back);
+        }
+        $seriesUrl = route('trs.series', ['id' => $r['series_id']]);
+        $msg = 'Utworzono serię: ' . count($r['dates']) . ' ' . tiRoomSrsTermWord(count($r['dates'])) . '.';
+        if ($r['skipped']) {
+            $msg .= ' Pominięto (sala niedostępna): ' . implode('; ', array_map(fn($x) => date('d.m.Y', strtotime($x[0])) . ' — ' . $x[1], $r['skipped'])) . '.';
+        }
+        if (!$me['staff']) {
+            flash_set('info', $msg . ' Seria czeka na akceptację kierownika (dostał e-mail) — wydruk po zatwierdzeniu.');
+            return Router::redirect($seriesUrl);
+        }
+        flash_set($r['skipped'] ? 'warning' : 'success', $msg);
+        if (($_POST['_op'] ?? '') === 'save') return Router::redirect($seriesUrl);
+        $data['terms'] = tiRoomSrsSeriesTermLines($r['dates'], $tf, $tt);
+        ti_print_log_add('sale_formularz', 'Rezerwacja cykliczna przestrzeni — seria #' . $r['series_id'] . ' [' . strtoupper(self::source()) . ']', 0, 0,
+            ['series_id' => $r['series_id'], 'source' => self::source()], ['user_id' => $me['id'], 'name' => $me['name']]);
+        try {
+            return $this->send((string)($room['template'] ?? ''), $data, 0, $r['dates'][0]);
+        } catch (RuntimeException $e) {
+            flash_set('warning', $msg . ' Pliku nie da się wygenerować: ' . $e->getMessage());
+            return Router::redirect($seriesUrl);
+        }
+    }
+
+    /** Zarządzanie serią: lista terminów, odwołanie terminu / serii, zatwierdzenie (kierownik), plik dla całej serii. */
+    public function series(int $id): string
+    {
+        $me = self::me();
+        $s = $this->ownSeries($me, $id);
+        return Router::view(self::VIEW . 'series.php', ['me' => $me, 's' => $s, 'forms' => tiRoomSrsSeriesForms($id)]);
+    }
+
+    public function seriesCancel(int $id): ?string
+    {
+        $me = self::me();
+        $this->ownSeries($me, $id);
+        $n = tiRoomSrsCancelSeries($id, $me['id'], ($_POST['scope'] ?? '') === 'future' ? date('Y-m-d') : '');
+        flash_set('success', 'Odwołano terminów: ' . $n . '. Rezerwacje SRS tych terminów zostały anulowane.');
+        return Router::redirect(route('trs.series', ['id' => $id]));
+    }
+
+    public function termCancel(int $id): ?string
+    {
+        $me = self::me();
+        $this->ownAdhoc($me, $id);
+        $f = tiRoomSrsFormGet($id);
+        tiRoomSrsCancelForm($id, $me['id']);
+        flash_set('success', 'Odwołano termin ' . date('d.m.Y', strtotime((string)$f['date_from'])) . '.');
+        return Router::redirect(!empty($f['series_id']) ? route('trs.series', ['id' => (int)$f['series_id']]) : route('trs.index'));
+    }
+
+    public function seriesApprove(int $id): ?string
+    {
+        $me = self::me();
+        $n = tiRoomSrsApproveSeries($id, $me['id']);
+        flash_set('success', 'Zatwierdzono terminów: ' . $n . '.');
+        return Router::redirect(route('trs.series', ['id' => $id]));
+    }
+
+    /** Wniosek operatora dla całej serii (wszystkie nieodwołane terminy w jednym dokumencie). */
+    public function seriesFile(int $id): ?string
+    {
+        $me = self::me();
+        $s = $this->ownSeries($me, $id);
+        $live = array_values(array_filter(tiRoomSrsSeriesForms($id), fn($f) => empty($f['cancelled_at'])));
+        if (!$live || !tiRoomSrsIsApproved($live[0])) { flash_set('warning', 'Brak zatwierdzonych terminów serii do wydruku.'); return Router::redirect(route('trs.series', ['id' => $id])); }
+        $data = tiRoomSrsAdhocDefaults(0, '', '', '', (int)$live[0]['created_by'], (int)$live[0]['id'])['data'];
+        $data['terms'] = tiRoomSrsSeriesTermLines(array_column($live, 'date_from'), (string)$s['time_from'], (string)$s['time_to']);
+        $room = tiRoomSrsRoom((int)$s['room_id']);
+        try { return $this->send((string)($room['template'] ?? ''), $data, 0, (string)$live[0]['date_from']); }
+        catch (RuntimeException $e) { flash_set('warning', 'Pliku nie da się wygenerować: ' . $e->getMessage()); return Router::redirect(route('trs.series', ['id' => $id])); }
+    }
+
+    private function ownSeries(array $me, int $id): array
+    {
+        $s = tiRoomSrsSeriesGet($id);
+        if ($s && ($me['staff'] || (int)$s['created_by'] === $me['id'])) return $s;
+        http_response_code(403); exit('Brak dostępu do tej serii.');
     }
 
     /** Kierownik: „Zatwierdź” — formularz można wydrukować, rezerwacja idzie do SRS, autor dostaje e-mail. */

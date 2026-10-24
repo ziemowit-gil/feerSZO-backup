@@ -106,6 +106,7 @@ function tiRoomSrsMigrate(): void
         granted_by INTEGER,
         created_at TEXT
     )");
+    tiRoomSrsSeriesMigrate();
 }
 
 /* ── Uprawnienie „Może rezerwować” ────────────────────────────────────────── */
@@ -567,7 +568,7 @@ function tiRoomSrsAdhocList(int $userId, bool $all, string $from): array
          JOIN k30_pl_rooms r ON r.id = f.room_id
          LEFT JOIN users u ON u.id = f.created_by
          LEFT JOIN resource_reservations rr ON rr.id = f.srs_reservation_id
-         WHERE f.course_id = 0 AND f.date_to >= ?" . ($all ? '' : ' AND f.created_by = ?') . "
+         WHERE f.course_id = 0 AND f.cancelled_at IS NULL AND f.date_to >= ?" . ($all ? '' : ' AND f.created_by = ?') . "
          ORDER BY f.date_from, f.id",
         $all ? [$from] : [$from, $userId]
     );
@@ -677,7 +678,7 @@ function tiRoomSrsApprove(int $formId, int $approverId, bool $notify = true): vo
 function tiRoomSrsSubmitToSrs(int $formId, int $userId): ?int
 {
     $form = tiRoomSrsFormGet($formId);
-    if (!$form) return null;
+    if (!$form || !empty($form['cancelled_at'])) return null;
     $data = json_decode((string)$form['form_data'], true) ?: [];
     $source = (string)($form['source'] ?? 'dyd');
     if ((int)$form['course_id'] > 0) {
@@ -707,7 +708,7 @@ function tiRoomSrsPendingList(): array
          JOIN k30_pl_rooms r ON r.id = f.room_id
          LEFT JOIN users u ON u.id = f.created_by
          LEFT JOIN k30_ti_courses c ON c.id = f.course_id
-         WHERE f.approval_status = 'do_akceptacji'
+         WHERE f.approval_status = 'do_akceptacji' AND f.cancelled_at IS NULL
          ORDER BY f.updated_at"
     );
 }
@@ -851,3 +852,5 @@ function tiRoomSrsSyncFromSrs(int $reservationId, string $status): void
     else return;
     foreach (json_decode((string)$form['session_ids'], true) ?: [] as $sid) pl_room_reservation_set((int)$sid, $to);
 }
+
+require_once __DIR__ . '/roomSrsSeries.php';

@@ -44,10 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'approve_
         if ($only_op !== '' && (string)$gk !== $only_op) continue;
         foreach ($grows as $gr) {
             if ($view === 'operator') { if ((int)$gr['pending'] > 0) $ids = array_merge($ids, $gr['session_ids']); }
-            elseif (($gr['room_reservation_status'] ?? '') !== 'potwierdzone') $ids[] = (int)$gr['id'];
+            elseif (($gr['room_reservation_status'] ?? '') !== 'potwierdzone' && (int)$gr['id'] > 0) $ids[] = (int)$gr['id'];
         }
     }
-    $ids = array_values(array_unique(array_map('intval', $ids)));
+    $ids = array_values(array_filter(array_unique(array_map('intval', $ids))));
     foreach ($ids as $sid) pl_room_reservation_set($sid, 'potwierdzone');
     ti_print_log_add('sale_rezerwacje_approve', 'Zatwierdzono robocze rezerwacje sal (' . count($ids) . ') — ' . $from . ' – ' . $to, 0, 0,
         ['range' => $range, 'view' => $view, 'operator' => $only_op, 'count' => count($ids)], $me);
@@ -224,6 +224,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <td class="small"><?= h($r['course_name']) ?></td>
           <td class="small"><?= h($r['instructor_label']) ?></td>
           <td class="small">
+            <?php if (!empty($r['adhoc'])): ?>
+            <span class="badge <?= $confirmed ? 'text-bg-success' : 'text-bg-warning' ?>"><?= $confirmed ? 'Potwierdzone' : 'Do rezerwacji' ?></span>
+            <a class="usos-noprint small ms-1" href="saleFormularz.php?_route=<?= h(rawurlencode($r['series_id'] ? '/seria/' . (int)$r['series_id'] : '/nowa')) ?><?= $r['series_id'] ? '' : '&amp;id=' . (int)$r['form_id'] ?>"><?= $r['series_id'] ? 'Seria' : 'Rezerwacja' ?><span class="visually-hidden"> przestrzeni — zarządzaj</span></a>
+            <?php else: ?>
             <form method="post" class="d-inline usos-noprint">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op" value="toggle_reservation">
@@ -234,6 +238,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               </button>
             </form>
             <span class="badge d-none d-print-inline <?= $confirmed ? 'text-bg-success' : 'text-bg-warning' ?>"><?= $confirmed ? 'Potwierdzone' : 'Do rezerwacji' ?></span>
+            <?php endif; ?>
           </td>
         </tr>
         <?php endforeach; ?>

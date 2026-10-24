@@ -849,6 +849,12 @@ function _ti_room_reservation_rows(string $from, string $to): array {
         $r['room_label']       = ti_room_label(['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label'] ?? '']);
     }
     unset($r);
+    // Rezerwacje przestrzeni bez grupy (w tym cykliczne serie) — modules/ti_room_srs
+    try {
+        require_once dirname(__DIR__) . '/modules/ti_room_srs/logic/roomSrs.php';
+        $rows = array_merge($rows, tiRoomSrsAdhocReportRows($from, $to));
+        usort($rows, fn($a, $b) => [$a['lesson_date'], $a['room_label'], $a['time_from']] <=> [$b['lesson_date'], $b['room_label'], $b['time_from']]);
+    } catch (\Throwable $e) { error_log('ti_room_reports adhoc: ' . $e->getMessage()); }
     return $rows;
 }
 
@@ -889,7 +895,7 @@ function ti_room_reservation_report_by_operator(string $from, string $to): array
         $dow = (int)date('N', strtotime((string)$r['lesson_date']));
         $tf  = substr((string)$r['time_from'], 0, 5);
         $tt  = substr((string)$r['time_to'], 0, 5);
-        $slot_key = $r['room_id'] . '|' . $r['course_id'] . '|' . $dow . '|' . $tf . '|' . $tt;
+        $slot_key = $r['room_id'] . '|' . $r['course_id'] . '|' . (!empty($r['adhoc']) ? 'a' . ($r['series_id'] ?: 'f' . $r['form_id']) . '|' : '') . $dow . '|' . $tf . '|' . $tt;
 
         if (!isset($slots[$key][$slot_key])) {
             $slots[$key][$slot_key] = [
@@ -912,7 +918,7 @@ function ti_room_reservation_report_by_operator(string $from, string $to): array
         if ($r['lesson_date'] > $slot['date_to'])   $slot['date_to']   = (string)$r['lesson_date'];
         $slot['count']++;
         if ($r['room_reservation_status'] !== 'potwierdzone') $slot['pending']++;
-        $slot['session_ids'][] = (int)$r['id'];
+        if ((int)$r['id'] > 0) $slot['session_ids'][] = (int)$r['id'];
         unset($slot);
     }
 

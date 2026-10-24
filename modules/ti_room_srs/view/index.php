@@ -44,19 +44,20 @@ $badge = fn(?string $st, int $rid) => $st
   <div class="table-responsive"><table class="table table-sm align-middle mb-0">
     <thead class="table-light"><tr><th scope="col">Co</th><th scope="col">Sala</th><th scope="col">Termin</th><th scope="col">Kto</th><th scope="col">Źródło</th><th scope="col"></th></tr></thead>
     <tbody>
-    <?php foreach ($pending as $p): $pd = json_decode((string)$p['form_data'], true) ?: [];
+    <?php $seenSeries = []; foreach ($pending as $p): $pd = json_decode((string)$p['form_data'], true) ?: [];
+        $sid = (int)($p['series_id'] ?? 0); if ($sid && isset($seenSeries[$sid])) continue; if ($sid) $seenSeries[$sid] = true;
         $open = (int)$p['course_id'] > 0
             ? route('trs.form', ['course' => (int)$p['course_id'], 'room' => (int)$p['room_id'], 'from' => $p['date_from'], 'to' => $p['date_to']])
-            : route('trs.adhoc', ['id' => (int)$p['id']]); ?>
+            : ($sid ? route('trs.series', ['id' => $sid]) : route('trs.adhoc', ['id' => (int)$p['id']])); ?>
       <tr>
-        <td class="small"><?= (int)$p['course_id'] > 0 ? 'Grupa: ' . h((string)($p['course_display'] ?: $p['course_name'])) : 'Przestrzeń: ' . h(mb_strimwidth((string)($pd['topic'] ?? ''), 0, 60, '…')) ?></td>
+        <td class="small"><?= $sid ? '<span class="badge text-bg-light border"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> seria</span> ' : '' ?><?= (int)$p['course_id'] > 0 ? 'Grupa: ' . h((string)($p['course_display'] ?: $p['course_name'])) : 'Przestrzeń: ' . h(mb_strimwidth((string)($pd['topic'] ?? ''), 0, 60, '…')) ?></td>
         <td class="small"><?= h((string)($p['room_short_label'] ?: $p['room_name'])) ?></td>
         <td class="small"><?= nl2br(h(mb_strimwidth((string)($pd['terms'] ?? ''), 0, 160, '…'))) ?></td>
         <td class="small"><?= h((string)$p['user_name']) ?></td>
         <td><?= tiRoomSrsSourceBadge($p['source'] ?? 'dyd') ?></td>
         <td class="text-end text-nowrap">
           <a class="btn btn-sm btn-outline-secondary" href="<?= h($open) ?>">Sprawdź<span class="visually-hidden"> formularz — <?= h((string)$p['user_name']) ?></span></a>
-          <form method="post" action="<?= h(route('trs.approve', ['id' => (int)$p['id']])) ?>" class="d-inline">
+          <form method="post" action="<?= h($sid ? route('trs.series.approve', ['id' => $sid]) : route('trs.approve', ['id' => (int)$p['id']])) ?>" class="d-inline">
             <?= Router::csrfField() ?><input type="hidden" name="back" value="<?= h($nav($rr['from'])) ?>">
             <button class="btn btn-sm btn-success"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Zatwierdź<span class="visually-hidden"> formularz — <?= h((string)$p['user_name']) ?></span></button>
           </form>
@@ -77,7 +78,8 @@ $badge = fn(?string $st, int $rid) => $st
   <tbody>
   <?php foreach ($adhoc as $a): $fd = json_decode((string)$a['form_data'], true) ?: []; ?>
     <tr>
-      <td class="small text-nowrap"><?= h(date('d.m.Y', strtotime($a['date_from']))) ?> <?= h(($fd['timeFrom'] ?? '') . '–' . ($fd['timeTo'] ?? '')) ?></td>
+      <td class="small text-nowrap"><?= h(date('d.m.Y', strtotime($a['date_from']))) ?> <?= h(($fd['timeFrom'] ?? '') . '–' . ($fd['timeTo'] ?? '')) ?>
+        <?php if (!empty($a['series_id'])): ?><a class="badge text-bg-light border text-decoration-none" href="<?= h(route('trs.series', ['id' => (int)$a['series_id']])) ?>"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> cykliczna #<?= (int)$a['series_id'] ?></a><?php endif; ?></td>
       <td class="small"><?= h((string)($a['room_short_label'] ?: $a['room_name'])) ?></td>
       <td class="small"><?= h(mb_strimwidth((string)($fd['topic'] ?? ''), 0, 80, '…')) ?></td>
       <td class="small"><?= h((string)$a['user_name']) ?></td>

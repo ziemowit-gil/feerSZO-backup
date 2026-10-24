@@ -69,6 +69,9 @@ $radios = function (string $k, string $legend, array $opts) use ($trData, $fid) 
 </p>
 <?php endif; ?>
 
+<?php if (!empty($trMeta['form']['series_id'])): ?>
+<div class="alert alert-info py-2 small"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Ten termin należy do <a href="<?= h(route('trs.series', ['id' => (int)$trMeta['form']['series_id']])) ?>">rezerwacji cyklicznej #<?= (int)$trMeta['form']['series_id'] ?></a>. Zmiany dotyczą tylko tego terminu.</div>
+<?php endif; ?>
 <?php $trForm = $trMeta['form']; $trApproved = !$trForm || tiRoomSrsIsApproved($trForm); ?>
 <?php if ($trForm && !$trApproved): ?>
 <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2">
@@ -104,6 +107,36 @@ $radios = function (string $k, string $legend, array $opts) use ($trData, $fid) 
   <input type="hidden" name="k_room" value="<?= (int)$trKey['roomId'] ?>">
   <input type="hidden" name="k_from" value="<?= h($trKey['from']) ?>">
   <input type="hidden" name="k_to" value="<?= h($trKey['to']) ?>">
+  <?php endif; ?>
+
+  <?php if ($trMode === 'adhoc' && !(int)$trKey['formId']): ?>
+  <fieldset class="card mb-3" id="trs_rep_box"><legend class="card-header fw-semibold fs-6 mb-0">Powtarzanie (rezerwacja cykliczna)</legend><div class="card-body row g-3">
+    <div class="col-12"><div class="form-check">
+      <input class="form-check-input" type="checkbox" id="trs_rep" name="rep" value="1" aria-controls="trs_rep_opts" aria-describedby="trs_rep_h" <?= !empty($_POST['rep']) ? 'checked' : '' ?>>
+      <label class="form-check-label" for="trs_rep">Powtarzaj w kolejne tygodnie</label>
+      <div class="form-text" id="trs_rep_h">Pierwszy termin to wybrany wyżej dzień. Terminy, w których sala jest zajęta albo wypada dzień wolny, zostaną pominięte i wypisane po zapisie.</div>
+    </div></div>
+    <div id="trs_rep_opts" class="col-12 row g-3 m-0" hidden>
+      <fieldset class="col-md-7"><legend class="form-label small fw-semibold mb-1" style="font-size:.875rem">Dni tygodnia</legend>
+        <?php foreach ([1 => 'pon', 2 => 'wt', 3 => 'śr', 4 => 'czw', 5 => 'pt', 6 => 'sob', 7 => 'niedz'] as $dn => $dl): $def = (int)date('N', strtotime($trMeta['date'] ?: 'today')) === $dn; ?>
+        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="rep_days[]" id="trs_rd<?= $dn ?>" value="<?= $dn ?>" <?= $def ? 'checked' : '' ?>><label class="form-check-label small" for="trs_rd<?= $dn ?>"><?= $dl ?></label></div>
+        <?php endforeach; ?>
+      </fieldset>
+      <div class="col-md-5"><label class="form-label small fw-semibold" for="trs_rep_interval">Co ile tygodni</label>
+        <select class="form-select form-select-sm" id="trs_rep_interval" name="rep_interval">
+          <?php foreach ([1 => 'co tydzień', 2 => 'co 2 tygodnie', 3 => 'co 3 tygodnie', 4 => 'co 4 tygodnie'] as $iv => $il): ?><option value="<?= $iv ?>"><?= $il ?></option><?php endforeach; ?>
+        </select></div>
+      <fieldset class="col-12"><legend class="form-label small fw-semibold mb-1" style="font-size:.875rem">Koniec serii</legend>
+        <div class="d-flex flex-wrap align-items-center gap-3">
+          <div class="form-check"><input class="form-check-input" type="radio" name="rep_end" id="trs_re_date" value="date" checked><label class="form-check-label small" for="trs_re_date">do dnia</label></div>
+          <div><label class="visually-hidden" for="trs_rep_until">Data końca serii</label><input class="form-control form-control-sm" type="date" id="trs_rep_until" name="rep_until" value="<?= h(date('Y-m-d', strtotime(($trMeta['date'] ?: 'today') . ' +3 months'))) ?>"></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="rep_end" id="trs_re_count" value="count"><label class="form-check-label small" for="trs_re_count">po liczbie terminów</label></div>
+          <div><label class="visually-hidden" for="trs_rep_count">Liczba terminów</label><input class="form-control form-control-sm" type="number" min="2" max="<?= TI_ROOM_SRS_SERIES_MAX ?>" id="trs_rep_count" name="rep_count" value="10" style="width:90px"></div>
+        </div>
+      </fieldset>
+    </div>
+  </div></fieldset>
+  <script>(function(){var c=document.getElementById('trs_rep'),o=document.getElementById('trs_rep_opts');function f(){o.hidden=!c.checked}c.addEventListener('change',f);f();})();</script>
   <?php endif; ?>
 
   <div class="card mb-3"><div class="card-header fw-semibold">Sala i termin</div><div class="card-body row g-3">

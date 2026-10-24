@@ -6,7 +6,7 @@
  *   • panel — /karty30/ti/dydaktyk/saleFormularz.php?_route=<trasa> (definiuje TI_ROOM_SRS_PANEL; sesja i CSRF panelu
  *             dydaktyka; kierownik = dyd_is_staff());
  *   • SZO   — /modules/ti_room_srs/router.php?_route=<trasa> (sesja SZO; kierownik = administrator albo zapis w module SRS).
- * Trasy: / (grupy z salą + rezerwacje przestrzeni), /formularz (grupa), /nowa („Rezerwuj przestrzeń”), /sale (przypisanie
+ * Trasy: / (grupy z salą + rezerwacje przestrzeni), /formularz (grupa), /nowa („Rezerwuj przestrzeń”, też cyklicznie), /seria/{id} (zarządzanie serią), /sale (przypisanie
  * sal — tylko kierownik), /formularz/{id}/plik (podgląd z karty rezerwacji SRS — tylko SZO).
  * Dostęp: kierownik albo uprawnienie „Może rezerwować” (Zespół panelu dydaktyka).
  */
@@ -44,11 +44,16 @@ $r->group(['trs.book'], function (Router $r) {
     $r->post('/formularz', [RoomSrsController::class, 'generate'])->name('trs.generate');
     $r->get('/nowa',       [RoomSrsController::class, 'adhoc'])->name('trs.adhoc');
     $r->post('/nowa',      [RoomSrsController::class, 'adhocSave'])->name('trs.adhoc.save');
+    $r->get('/seria/{id}',           [RoomSrsController::class, 'series'])->name('trs.series');
+    $r->get('/seria/{id}/plik',      [RoomSrsController::class, 'seriesFile'])->name('trs.series.file');
+    $r->post('/seria/{id}/anuluj',   [RoomSrsController::class, 'seriesCancel'])->name('trs.series.cancel');
+    $r->post('/termin/{id}/anuluj',  [RoomSrsController::class, 'termCancel'])->name('trs.term.cancel');
 });
 $r->group(['trs.staff'], function (Router $r) {
     $r->get('/sale',  [RoomSrsController::class, 'rooms'])->name('trs.rooms');
     $r->post('/sale', [RoomSrsController::class, 'roomsSave'])->name('trs.rooms.save');
     $r->post('/zatwierdz/{id}', [RoomSrsController::class, 'approve'])->name('trs.approve');
+    $r->post('/seria/{id}/zatwierdz', [RoomSrsController::class, 'seriesApprove'])->name('trs.series.approve');
 });
 
 $r->dispatch();

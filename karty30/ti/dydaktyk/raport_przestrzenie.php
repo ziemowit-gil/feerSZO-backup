@@ -80,6 +80,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           ORDER BY s.lesson_date, s.time_from",
         [$room_id, $from, $to]
     );
+    // Rezerwacje przestrzeni bez grupy (w tym cykliczne) — razem z lekcjami, z oznaczeniem serii
+    require_once dirname(__DIR__, 3) . '/modules/ti_room_srs/logic/roomSrs.php';
+    foreach (tiRoomSrsAdhocReportRows($from, $to, $room_id) as $a) {
+        $t1 = strtotime((string)$a['time_from']); $t2 = strtotime((string)$a['time_to']);
+        $sessions[] = ['id' => 0, 'lesson_date' => $a['lesson_date'], 'time_from' => $a['time_from'], 'time_to' => $a['time_to'],
+            'duration_min' => $t1 && $t2 ? (int)(($t2 - $t1) / 60) : 0, 'status' => $a['room_reservation_status'] === 'potwierdzone' ? 'rezerwacja potwierdzona' : 'rezerwacja przestrzeni',
+            'course_name' => $a['course_name'], 'instr_name' => $a['instructor_label'], 'course_instr_name' => '', 'series_id' => (int)$a['series_id']];
+    }
+    usort($sessions, fn($x, $y) => [$x['lesson_date'], $x['time_from']] <=> [$y['lesson_date'], $y['time_from']]);
     $total_min = 0; $courses_seen = [];
     foreach ($sessions as $s) { $total_min += (int)$s['duration_min']; $courses_seen[$s['course_name']] = true; }
 ?>
@@ -111,7 +120,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <tr>
             <td class="text-nowrap"><?= h(date('d.m.Y', strtotime((string)$s['lesson_date']))) ?></td>
             <td class="text-nowrap small"><?= h(substr((string)$s['time_from'], 0, 5)) ?>–<?= h(substr((string)$s['time_to'], 0, 5)) ?></td>
-            <td class="small"><?= h($s['course_name']) ?></td>
+            <td class="small"><?= h($s['course_name']) ?><?php if (!empty($s['series_id'])): ?> <a class="small" href="saleFormularz.php?_route=<?= h(rawurlencode('/seria/' . (int)$s['series_id'])) ?>">seria<span class="visually-hidden"> rezerwacji — zarządzaj</span></a><?php endif; ?></td>
             <td class="small"><?= h($s['instr_name'] ?: $s['course_instr_name'] ?: '—') ?></td>
             <td class="small"><?= h($s['status']) ?></td>
           </tr>
