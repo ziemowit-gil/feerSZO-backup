@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/includes/email_alias.php';
 require_once dirname(__DIR__) . '/includes/webmail_clients.php';
+require_once dirname(__DIR__) . '/modules/m365_self/lib/m365Self.php';
 email_alias_migrate();
 
 require_login();
@@ -35,6 +36,24 @@ $has_m365 = $m365_row && !empty($m365_row['m365_user_id']);
 
 $ms_login_available = ms_login_available();
 $ms_linked = !empty($user['microsoft_id']);
+
+// ── Samodzielne założenie konta (po zgodzie i oświadczeniu RODO) ──────────────
+$create_error = null;
+$self = $has_m365 ? null : m365SelfStatus($user);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'create_m365') {
+    csrf_check();
+    try {
+        if ($has_m365) throw new RuntimeException('Masz już konto Microsoft 365.');
+        $made = m365SelfCreate($user);
+        auth_start();
+        $_SESSION['m365_new_pass']    = $made['password'];
+        $_SESSION['m365_new_login']   = $made['login'];
+        $_SESSION['m365_just_created'] = 1;
+        header('Location: ' . APP_URL . '/panel/m365.php?done=1'); exit;
+    } catch (\Throwable $e) {
+        $create_error = $e->getMessage();
+    }
+}
 
 // ── Reset hasła M365 ──────────────────────────────────────────────────────────
 $pass_error   = null;
@@ -74,7 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'rese
 if (isset($_GET['done'])) {
     auth_start();
     $pass_success = $_SESSION['m365_new_pass'] ?? null;
-    unset($_SESSION['m365_new_pass']);
+    $just_created = !empty($_SESSION['m365_just_created']);
+    $new_login    = $_SESSION['m365_new_login'] ?? '';
+    unset($_SESSION['m365_new_pass'], $_SESSION['m365_just_created'], $_SESSION['m365_new_login']);
 }
 
 // ── Usunięcie konta M365 ────────────────────────────────────────────────────
@@ -259,6 +280,7 @@ $m365_apps = [
   </div>
 
   <?php if ($pass_error): ?><div class="mt-note" role="alert" style="border-left-color:var(--m-red)"><i class="bi bi-x-circle" style="color:var(--m-red)" aria-hidden="true"></i><span><?= h($pass_error) ?></span></div><?php endif; ?>
+  <?php if ($create_error): ?><div class="mt-note" role="alert" style="border-left-color:var(--m-red)"><i class="bi bi-x-circle" style="color:var(--m-red)" aria-hidden="true"></i><span><?= h($create_error) ?></span></div><?php endif; ?>
   <?php if ($del_error): ?><div class="mt-note" role="alert" style="border-left-color:var(--m-red)"><i class="bi bi-x-circle" style="color:var(--m-red)" aria-hidden="true"></i><span><?= h($del_error) ?></span></div><?php endif; ?>
   <?php if ($del_success !== null): ?>
   <div class="mt-note" role="status" style="border-left-color:var(--m-green)"><i class="bi bi-check-circle" style="color:var(--m-green)" aria-hidden="true"></i>
@@ -267,8 +289,9 @@ $m365_apps = [
 
   <?php if ($pass_success): ?>
   <section class="mt-group" style="border-left:6px solid var(--m-green)" aria-labelledby="m3-pass-h">
-    <h2 class="mt-h2" id="m3-pass-h"><b>Hasło zostało zresetowane</b></h2>
-    <p style="margin:0">Zapisz nowe hasło — nie będzie już pokazane.</p>
+    <h2 class="mt-h2" id="m3-pass-h"><?= !empty($just_created) ? '<b>Konto Microsoft 365 zostało założone</b>' : '<b>Hasło zostało zresetowane</b>' ?></h2>
+    <?php if (!empty($just_created) && !empty($new_login)): ?><p style="margin:0 0 .4rem">Login: <b><?= h($new_login) ?></b></p><?php endif; ?>
+    <p style="margin:0"><?= !empty($just_created) ? 'Zapisz hasło tymczasowe' : 'Zapisz nowe hasło' ?> — nie będzie już pokazane.</p>
     <div class="m3-pass">
       <span id="new-pass-val"><?= h($pass_success) ?></span>
       <button type="button" class="mt-btn mt-btn--ghost"
@@ -333,6 +356,18 @@ $m365_apps = [
       <?php else: ?>
       <div class="m3-state" style="--c:var(--m-grey)"><span class="sq" aria-hidden="true"><i class="bi bi-microsoft"></i></span>
         <span><b>Brak konta</b><small>Nie masz przypisanego konta Microsoft 365 w organizacji.</small></span></div>
+      <?php if (!empty($self['contract'])): ?>
+        <?php if ($self['ok']): ?>
+        <p style="margin:0 0 .8rem">Możesz założyć je sam — login i hasło tymczasowe pokażemy raz, po założeniu.</p>
+        <form method="post" onsubmit="return confirm('Założyć konto Microsoft 365 w organizacji?')">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="create_m365">
+          <button type="submit" class="mt-btn"><i class="bi bi-plus-circle" aria-hidden="true"></i>Załóż konto Microsoft 365</button>
+        </form>
+        <?php else: ?>
+        <div class="mt-note" style="border-left-color:var(--m-orange);margin:0"><i class="bi bi-info-circle" style="color:var(--m-orange)" aria-hidden="true"></i><span><?= h($self['reason']) ?></span></div>
+        <?php endif; ?>
+      <?php endif; ?>
       <?php endif; ?>
     </section>
 
