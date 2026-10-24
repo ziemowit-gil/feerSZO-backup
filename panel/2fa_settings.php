@@ -175,263 +175,178 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<div class="pv-wrap">
+<?php
+require_once dirname(__DIR__) . '/modules/panel_metro/lib/panelMetro.php';
+require_once dirname(__DIR__) . '/modules/mfa_ui/lib/mfaUi.php';
+panelMetroAssets($_vol_color ?? '#0050ef');
+mfaUiStyles();
+$m_totp  = $current_method === 'totp';
+$m_sms   = $current_method === 'sms';
+$m_on    = $m_totp || $m_sms;
+?>
+<div class="pvm mfa">
 
-<div class="pv-page-header">
-  <div class="pv-page-head-main">
-    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
-    <h1 class="pv-page-title"><i class="bi bi-shield-lock" aria-hidden="true"></i>Weryfikacja dwuetapowa</h1>
-    <p class="pv-page-sub">Zabezpiecz swoje konto dodatkową weryfikacją</p>
-  </div>
-</div>
-
-<?= flash_html() ?>
-
-<?php if ($errors): ?>
-<div class="tz-note tz-note--danger" role="alert"><ul class="mb-0">
-  <?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?>
-</ul></div>
-<?php endif; ?>
-
-<!-- ── Current status ──────────────────────────────────────────────────── -->
-<div class="tz-card mb-4">
-  <div class="tz-card__bd d-flex align-items-center gap-3">
-    <?php if ($current_method === 'totp'): ?>
-      <i class="bi bi-shield-fill-check text-success fs-2" aria-hidden="true"></i>
-      <div>
-        <div class="fw-semibold">Aktywna metoda: <span class="text-success">Aplikacja TOTP</span></div>
-        <div class="text-muted small">Logowanie wymaga kodu z aplikacji Google/Microsoft Authenticator.</div>
-      </div>
-    <?php elseif ($current_method === 'sms'): ?>
-      <i class="bi bi-shield-fill-check text-success fs-2" aria-hidden="true"></i>
-      <div>
-        <div class="fw-semibold">Aktywna metoda: <span class="text-success">Kod SMS</span></div>
-        <div class="text-muted small">Logowanie wymaga jednorazowego kodu SMS.</div>
-      </div>
-    <?php else: ?>
-      <i class="bi bi-shield-x text-secondary fs-2" aria-hidden="true"></i>
-      <div>
-        <div class="fw-semibold text-muted">2FA wyłączone</div>
-        <div class="text-muted small">Twoje konto nie jest chronione dodatkowym czynnikiem.</div>
-      </div>
-    <?php endif; ?>
-  </div>
-</div>
-
-<!-- ── Disable all 2FA ─────────────────────────────────────────────────── -->
-<?php if ($current_method): ?>
-<div class="tz-card tz-card--danger mb-4">
-  <div class="tz-card__hd">
-    <i class="bi bi-shield-x" aria-hidden="true"></i> Wyłącz uwierzytelnianie dwuetapowe
-  </div>
-  <div class="tz-card__bd">
-    <p class="text-muted small mb-3">
-      Po wyłączeniu 2FA konto będzie chronione wyłącznie hasłem. Upewnij się, że masz silne hasło.
-    </p>
-    <form method="post" onsubmit="return confirm('Na pewno wyłączyć 2FA?')">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_action" value="disable_all">
-      <button type="submit" class="tz-btn tz-btn--ghost">
-        <i class="bi bi-shield-x" aria-hidden="true"></i> Wyłącz 2FA
-      </button>
-    </form>
-  </div>
-</div>
-<?php endif; ?>
-
-<!-- ── Backup codes display (once after enable) ───────────────────────── -->
-<?php if ($backup_codes_show !== null): ?>
-<div class="tz-note tz-note--warning" role="alert">
-  <div class="fw-semibold mb-2"><i class="bi bi-key-fill" aria-hidden="true"></i> Zapisz kody zapasowe — wyświetlone tylko raz!</div>
-  <p class="small mb-2">Jeśli zgubisz dostęp do aplikacji, możesz użyć jednego z tych kodów. Każdy działa tylko raz.</p>
-  <div class="row row-cols-2 row-cols-md-4 g-2 mb-2">
-    <?php foreach ($backup_codes_show as $bc): ?>
-    <div class="col"><code class="d-block text-center p-2 bg-white border rounded fw-bold"><?= h($bc) ?></code></div>
-    <?php endforeach; ?>
-  </div>
-  <small class="text-muted">Przechowuj je w bezpiecznym miejscu (menedżer haseł, wydruk).</small>
-  <?php unset($_SESSION['2fa_backup_codes_display']); ?>
-</div>
-<?php endif; ?>
-
-<!-- ── TOTP Section ────────────────────────────────────────────────────── -->
-<div class="tz-card mb-4">
-  <div class="tz-card__hd">
-    <i class="bi bi-phone" aria-hidden="true"></i> Aplikacja uwierzytelniająca (TOTP)
-    <?php if ($current_method === 'totp'): ?>
-      <span class="tz-badge tz-badge--success ms-2">Aktywne</span>
-    <?php endif; ?>
-  </div>
-  <div class="tz-card__bd">
-
-    <?php if ($current_method === 'totp'): ?>
-    <!-- Already enabled — show disable option -->
-    <p class="text-muted small mb-3">
-      TOTP jest aktywne. Używasz aplikacji np. Google Authenticator lub Microsoft Authenticator.
-    </p>
-    <form method="post" onsubmit="return confirm('Wyłączyć TOTP?')">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_action" value="totp_disable">
-      <button type="submit" class="tz-btn tz-btn--ghost">
-        <i class="bi bi-shield-minus" aria-hidden="true"></i> Wyłącz TOTP
-      </button>
-    </form>
-
-    <?php elseif ($pending_secret): ?>
-    <!-- Step 2: scan QR and confirm code -->
-    <p class="fw-semibold mb-1">Krok 2 — Skanuj kod QR lub wpisz klucz ręcznie</p>
-    <p class="text-muted small mb-3">
-      Otwórz aplikację Google Authenticator lub Microsoft Authenticator i dodaj nowe konto.
-    </p>
-
-    <div class="text-center mb-3">
-      <canvas id="qrcode-canvas" class="border rounded p-2"
-              aria-label="Kod QR do konfiguracji aplikacji TOTP — zeskanuj w Google Authenticator lub Microsoft Authenticator"></canvas>
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker"><a href="<?= APP_URL ?>/panel/index.php" style="color:inherit">Panel współpracownika</a> · konta i dostępy</div>
+      <h1 class="mt-title">Weryfikacja dwuetapowa</h1>
+      <p class="mt-lead">Dodatkowy czynnik przy logowaniu hasłem: aplikacja uwierzytelniająca, kod SMS albo klucz sprzętowy.</p>
     </div>
-
-    <div class="mb-3">
-      <label class="form-label small fw-semibold" for="totp-secret-display">Klucz ręczny (jeśli nie możesz skanować QR):</label>
-      <div class="input-group input-group-sm">
-        <input type="text" class="form-control font-monospace" readonly
-               value="<?= h($pending_secret) ?>" id="totp-secret-display"
-               aria-label="Klucz TOTP do ręcznego wpisania w aplikacji">
-        <button type="button" class="tz-btn tz-btn--ghost"
-                onclick="navigator.clipboard.writeText(document.getElementById('totp-secret-display').value)"
-                aria-label="Kopiuj klucz TOTP do schowka">
-          <i class="bi bi-clipboard" aria-hidden="true"></i>
-        </button>
-      </div>
-    </div>
-
-    <form method="post">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_action" value="totp_confirm">
-      <div class="mb-3">
-        <label class="form-label fw-semibold" for="totp-code">Krok 3 — Wpisz 6-cyfrowy kod z aplikacji</label>
-        <input type="text" name="code" id="totp-code" class="form-control"
-               inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-               placeholder="______" autofocus required aria-required="true"
-               style="font-size:1.5rem;letter-spacing:.4rem;text-align:center;font-weight:700">
-      </div>
-      <div class="d-flex gap-2">
-        <button type="submit" class="tz-btn">
-          <i class="bi bi-shield-check" aria-hidden="true"></i> Potwierdź i włącz 2FA
-        </button>
-        <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="tz-btn tz-btn--ghost">Anuluj</a>
-      </div>
-    </form>
-
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-    <script>
-    QRCode.toCanvas(
-        document.getElementById('qrcode-canvas'),
-        <?= json_encode($totp_uri) ?>,
-        {width: 200},
-        function(err) { if (err) console.error(err); }
-    );
-    </script>
-
-    <?php else: ?>
-    <!-- Step 1: start TOTP setup -->
-    <p class="text-muted small mb-3">
-      Zainstaluj aplikację <strong>Google Authenticator</strong> lub <strong>Microsoft Authenticator</strong>
-      na swoim telefonie, a następnie kliknij poniższy przycisk.
-    </p>
-    <form method="post">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_action" value="totp_start">
-      <button type="submit" class="tz-btn">
-        <i class="bi bi-qr-code" aria-hidden="true"></i> Skonfiguruj aplikację TOTP
-      </button>
-    </form>
-    <?php endif; ?>
-
   </div>
-</div>
 
-<!-- ── SMS Section ────────────────────────────────────────────────────── -->
-<?php if ($sms_available): ?>
-<div class="tz-card mb-4">
-  <div class="tz-card__hd">
-    <i class="bi bi-chat-dots" aria-hidden="true"></i> Kod SMS
-    <?php if ($current_method === 'sms'): ?>
-      <span class="tz-badge tz-badge--success ms-2">Aktywne</span>
-    <?php endif; ?>
-  </div>
-  <div class="tz-card__bd">
+  <?= flash_html() ?>
 
-    <?php if ($current_method === 'sms'): ?>
-    <p class="text-muted small mb-3">
-      SMS 2FA jest aktywne. Numer telefonu: <strong><?= h($db_user['twofa_phone'] ?? '—') ?></strong>
-    </p>
-    <form method="post" onsubmit="return confirm('Wyłączyć SMS 2FA?')">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_action" value="sms_disable">
-      <button type="submit" class="tz-btn tz-btn--ghost">
-        <i class="bi bi-shield-minus" aria-hidden="true"></i> Wyłącz SMS 2FA
-      </button>
-    </form>
+  <?php foreach ($errors as $e): ?>
+  <div class="mt-note" role="alert" style="border-left-color:var(--m-red)"><i class="bi bi-x-circle" style="color:var(--m-red)" aria-hidden="true"></i><span><?= h($e) ?></span></div>
+  <?php endforeach; ?>
 
-    <?php elseif ($success === 'sms_sent' || $success === 'sms_fallback_email'): ?>
-    <!-- Step 2: verify SMS OTP (or email fallback) -->
-    <?php if ($success === 'sms_fallback_email'): ?>
-    <div class="tz-note tz-note--warning small mb-3" role="alert">
-      <i class="bi bi-envelope-exclamation me-1" aria-hidden="true"></i>
-      Wysyłka SMS nie powiodła się — kod wysłany na adres e-mail Twojego konta. Sprawdź skrzynkę.
+  <!-- Stan -->
+  <section class="mt-group" aria-labelledby="mfa-state-h">
+    <h2 class="mt-h2" id="mfa-state-h">Stan <b>zabezpieczenia</b></h2>
+    <div class="mfa-state" style="--c:<?= $m_on ? 'var(--m-green)' : 'var(--m-grey)' ?>">
+      <span class="sq" aria-hidden="true"><i class="bi <?= $m_on ? 'bi-shield-fill-check' : 'bi-shield-x' ?>"></i></span>
+      <span>
+        <?php if ($m_totp): ?><b>Włączone: aplikacja TOTP</b><small>Logowanie wymaga kodu z Google lub Microsoft Authenticator.</small>
+        <?php elseif ($m_sms): ?><b>Włączone: kod SMS</b><small>Logowanie wymaga jednorazowego kodu SMS.</small>
+        <?php else: ?><b>2FA wyłączone</b><small>Konto jest chronione tylko hasłem.</small><?php endif; ?>
+      </span>
     </div>
-    <?php else: ?>
-    <p class="small text-muted mb-3">
-      Kod SMS wysłany na numer <strong><?= h($db_user['twofa_phone'] ?? '') ?></strong>.
-      Ważny przez 5 minut.
-    </p>
+    <?php if (in_array($user['role'] ?? '', ['admin', 'editor'], true)): ?>
+    <div class="mfa-acts"><a class="mt-btn mt-btn--ghost" href="<?= APP_URL ?>/panel/webauthn.php"><i class="bi bi-fingerprint" aria-hidden="true"></i>Klucze bezpieczeństwa (WebAuthn)</a></div>
     <?php endif; ?>
-    <form method="post">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_action" value="sms_confirm">
-      <div class="mb-3">
-        <label class="form-label fw-semibold" for="sms-code">6-cyfrowy kod</label>
-        <input type="text" name="code" id="sms-code" class="form-control"
-               inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-               placeholder="______" autofocus required aria-required="true"
-               style="font-size:1.5rem;letter-spacing:.4rem;text-align:center;font-weight:700">
-      </div>
-      <div class="d-flex gap-2">
-        <button type="submit" class="tz-btn">
-          <i class="bi bi-shield-check" aria-hidden="true"></i> Potwierdź i włącz SMS 2FA
-        </button>
-        <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="tz-btn tz-btn--ghost">Anuluj</a>
-      </div>
-    </form>
+  </section>
 
-    <?php else: ?>
-    <!-- Step 1: enter phone -->
-    <p class="text-muted small mb-3">
-      Po włączeniu, przy każdym logowaniu hasłem zostanie wysłany jednorazowy kod SMS na Twój numer.
-    </p>
-    <form method="post">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_action" value="sms_start">
-      <div class="mb-3">
-        <label class="form-label fw-semibold" for="twofa-phone">Numer telefonu</label>
-        <div class="input-group">
-          <span class="input-group-text fw-semibold text-muted">+48</span>
-          <input type="tel" name="twofa_phone" id="twofa-phone" class="form-control phone-48"
-                 placeholder="123 456 789"
-                 value="<?= h($db_user['twofa_phone'] ?? '') ?>" required aria-required="true">
+  <?php if ($backup_codes_show !== null): ?>
+  <section class="mt-group" style="border-left:6px solid var(--m-orange)" aria-labelledby="mfa-bk-h" role="alert">
+    <h2 class="mt-h2" id="mfa-bk-h"><i class="bi bi-key-fill" aria-hidden="true"></i> Kody zapasowe — <b>pokazane tylko raz</b></h2>
+    <p class="mfa-lead">Jeśli stracisz dostęp do aplikacji, użyj jednego z tych kodów. Każdy działa jednorazowo. Zapisz je w menedżerze haseł albo wydrukuj.</p>
+    <div class="mfa-codes">
+      <?php foreach ($backup_codes_show as $bc): ?><code><?= h($bc) ?></code><?php endforeach; ?>
+    </div>
+    <?php unset($_SESSION['2fa_backup_codes_display']); ?>
+  </section>
+  <?php endif; ?>
+
+  <div class="mfa-cols">
+
+    <!-- TOTP -->
+    <section class="mt-group" aria-labelledby="mfa-totp-h">
+      <h2 class="mt-h2" id="mfa-totp-h"><i class="bi bi-phone" aria-hidden="true"></i> Aplikacja <b>uwierzytelniająca</b><?php if ($m_totp): ?><span class="mfa-badge">Aktywne</span><?php endif; ?></h2>
+
+      <?php if ($m_totp): ?>
+      <p class="mfa-lead">TOTP jest aktywne — kody generuje Twoja aplikacja (np. Google Authenticator, Microsoft Authenticator).</p>
+      <form method="post" class="mfa-acts" onsubmit="return confirm('Wyłączyć TOTP?')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="totp_disable">
+        <button type="submit" class="mt-btn mt-btn--ghost"><i class="bi bi-shield-minus" aria-hidden="true"></i>Wyłącz TOTP</button>
+      </form>
+
+      <?php elseif ($pending_secret): ?>
+      <ol class="mfa-steps" aria-label="Postęp konfiguracji">
+        <li class="is-done"><span class="n" aria-hidden="true">&#10003;</span>Aplikacja</li>
+        <li class="is-cur" aria-current="step"><span class="n" aria-hidden="true">2</span>Skanuj kod QR</li>
+        <li><span class="n" aria-hidden="true">3</span>Potwierdź kod</li>
+      </ol>
+      <p class="mfa-lead">Dodaj nowe konto w aplikacji i zeskanuj kod QR albo wpisz klucz ręcznie.</p>
+      <div class="mfa-qr"><canvas id="qrcode-canvas" aria-label="Kod QR do konfiguracji aplikacji TOTP"></canvas></div>
+      <label class="lbl" for="totp-secret-display">Klucz ręczny</label>
+      <div class="mfa-secret">
+        <input type="text" class="mfa-in" readonly value="<?= h($pending_secret) ?>" id="totp-secret-display" aria-label="Klucz TOTP do ręcznego wpisania">
+        <button type="button" class="mt-btn mt-btn--ghost" aria-label="Kopiuj klucz TOTP"
+                onclick="navigator.clipboard.writeText(document.getElementById('totp-secret-display').value);this.innerHTML='<i class=\'bi bi-check2\' aria-hidden=\'true\'></i>'"><i class="bi bi-clipboard" aria-hidden="true"></i></button>
+      </div>
+      <form method="post" style="margin-top:1rem">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="totp_confirm">
+        <label class="lbl" for="totp-code">Kod z aplikacji (6 cyfr)</label>
+        <input type="text" name="code" id="totp-code" class="mfa-in mfa-in--code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="______" autocomplete="one-time-code" autofocus required aria-required="true">
+        <div class="mfa-acts" style="margin-top:.8rem">
+          <button type="submit" class="mt-btn"><i class="bi bi-shield-check" aria-hidden="true"></i>Potwierdź i włącz</button>
+          <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="mt-btn mt-btn--ghost">Anuluj</a>
         </div>
-        <div class="form-text">Wpisz 9 cyfr — prefiks +48 zostanie dodany automatycznie.</div>
-      </div>
-      <button type="submit" class="tz-btn">
-        <i class="bi bi-send" aria-hidden="true"></i> Wyślij kod weryfikacyjny
-      </button>
-    </form>
+      </form>
+      <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+      <script>QRCode.toCanvas(document.getElementById('qrcode-canvas'), <?= json_encode($totp_uri) ?>, {width: 200}, function (err) { if (err) console.error(err); });</script>
+
+      <?php else: ?>
+      <p class="mfa-lead">Zainstaluj <b style="font-weight:600">Google Authenticator</b> lub <b style="font-weight:600">Microsoft Authenticator</b> na telefonie, potem kliknij poniżej.</p>
+      <form method="post" class="mfa-acts">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="totp_start">
+        <button type="submit" class="mt-btn"><i class="bi bi-qr-code" aria-hidden="true"></i>Skonfiguruj aplikację</button>
+      </form>
+      <?php endif; ?>
+    </section>
+
+    <!-- SMS -->
+    <?php if ($sms_available): ?>
+    <section class="mt-group" aria-labelledby="mfa-sms-h">
+      <h2 class="mt-h2" id="mfa-sms-h"><i class="bi bi-chat-dots" aria-hidden="true"></i> Kod <b>SMS</b><?php if ($m_sms): ?><span class="mfa-badge">Aktywne</span><?php endif; ?></h2>
+
+      <?php if ($m_sms): ?>
+      <p class="mfa-lead">Kod SMS jest aktywny. Numer: <b style="font-weight:600"><?= h($db_user['twofa_phone'] ?? '—') ?></b></p>
+      <form method="post" class="mfa-acts" onsubmit="return confirm('Wyłączyć SMS 2FA?')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="sms_disable">
+        <button type="submit" class="mt-btn mt-btn--ghost"><i class="bi bi-shield-minus" aria-hidden="true"></i>Wyłącz SMS 2FA</button>
+      </form>
+
+      <?php elseif ($success === 'sms_sent' || $success === 'sms_fallback_email'): ?>
+      <ol class="mfa-steps" aria-label="Postęp konfiguracji">
+        <li class="is-done"><span class="n" aria-hidden="true">&#10003;</span>Numer</li>
+        <li class="is-cur" aria-current="step"><span class="n" aria-hidden="true">2</span>Potwierdź kod</li>
+      </ol>
+      <?php if ($success === 'sms_fallback_email'): ?>
+      <div class="mt-note" role="alert" style="border-left-color:var(--m-orange)"><i class="bi bi-envelope-exclamation" style="color:var(--m-orange)" aria-hidden="true"></i><span>Wysyłka SMS nie powiodła się — kod poszedł na e-mail konta. Sprawdź skrzynkę.</span></div>
+      <?php else: ?>
+      <p class="mfa-lead">Kod wysłaliśmy na numer <b style="font-weight:600"><?= h($db_user['twofa_phone'] ?? '') ?></b>. Jest ważny 5 minut.</p>
+      <?php endif; ?>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="sms_confirm">
+        <label class="lbl" for="sms-code">Kod (6 cyfr)</label>
+        <input type="text" name="code" id="sms-code" class="mfa-in mfa-in--code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="______" autocomplete="one-time-code" autofocus required aria-required="true">
+        <div class="mfa-acts" style="margin-top:.8rem">
+          <button type="submit" class="mt-btn"><i class="bi bi-shield-check" aria-hidden="true"></i>Potwierdź i włącz</button>
+          <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="mt-btn mt-btn--ghost">Anuluj</a>
+        </div>
+      </form>
+
+      <?php else: ?>
+      <p class="mfa-lead">Po włączeniu, przy każdym logowaniu hasłem wyślemy jednorazowy kod SMS na Twój numer.</p>
+      <form method="post">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="sms_start">
+        <label class="lbl" for="twofa-phone">Numer telefonu</label>
+        <div class="mfa-phone">
+          <span class="pre" aria-hidden="true">+48</span>
+          <input type="tel" name="twofa_phone" id="twofa-phone" class="mfa-in phone-48" placeholder="123 456 789" autocomplete="tel-national"
+                 value="<?= h($db_user['twofa_phone'] ?? '') ?>" required aria-required="true" aria-describedby="twofa-phone-h">
+        </div>
+        <p class="mfa-hint" id="twofa-phone-h">Wpisz 9 cyfr — prefiks +48 dodamy automatycznie.</p>
+        <div class="mfa-acts" style="margin-top:.8rem"><button type="submit" class="mt-btn"><i class="bi bi-send" aria-hidden="true"></i>Wyślij kod</button></div>
+      </form>
+      <?php endif; ?>
+    </section>
     <?php endif; ?>
 
   </div>
-</div>
-<?php endif; ?>
 
-</div><!-- /.pv-wrap -->
+  <?php if ($m_on): ?>
+  <section class="mfa-danger" aria-labelledby="mfa-off-h">
+    <h3 id="mfa-off-h"><i class="bi bi-shield-x me-1" aria-hidden="true"></i>Wyłącz uwierzytelnianie dwuetapowe</h3>
+    <p class="mfa-hint" style="margin:0 0 .6rem">Po wyłączeniu konto będzie chronione wyłącznie hasłem. Upewnij się, że ma silne hasło.</p>
+    <form method="post" onsubmit="return confirm('Na pewno wyłączyć 2FA?')">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="disable_all">
+      <button type="submit" class="mt-btn" style="background:var(--m-red);border-color:var(--m-red);color:#fff"><i class="bi bi-shield-x" aria-hidden="true"></i>Wyłącz 2FA</button>
+    </form>
+  </section>
+  <?php endif; ?>
+
+</div><!-- /.pvm -->
 
 <?php
 if ($_is_volunteer_only) {

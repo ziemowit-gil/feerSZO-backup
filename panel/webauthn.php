@@ -31,105 +31,68 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<div class="pv-wrap">
+<?php
+require_once dirname(__DIR__) . '/modules/panel_metro/lib/panelMetro.php';
+require_once dirname(__DIR__) . '/modules/mfa_ui/lib/mfaUi.php';
+panelMetroAssets($_vol_color ?? '#0050ef');
+mfaUiStyles();
+?>
+<div class="pvm mfa">
 
-  <div class="pv-page-header">
-    <div class="pv-page-head-main">
-      <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
-      <h1 class="pv-page-title"><i class="bi bi-fingerprint" aria-hidden="true"></i>Klucze bezpieczeństwa</h1>
-      <p class="pv-page-sub">Passkeys i klucze sprzętowe do logowania</p>
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker"><a href="<?= APP_URL ?>/panel/index.php" style="color:inherit">Panel współpracownika</a> · konta i dostępy</div>
+      <h1 class="mt-title">Klucze bezpieczeństwa</h1>
+      <p class="mt-lead">Passkeys i klucze sprzętowe (WebAuthn / FIDO2), np. YubiKey. Po zarejestrowaniu klucza każde logowanie wymaga jego dotknięcia.</p>
     </div>
   </div>
 
-  <?php if ($_is_volunteer_only): ?>
-  <?php echo flash_html(); ?>
-  <?php endif; ?>
+  <?= flash_html() ?>
 
-  <div class="tz-note mb-4">
-    <i class="bi bi-info-circle-fill flex-shrink-0" aria-hidden="true"></i>
-    <div class="small">
-      <strong>WebAuthn / FIDO2</strong> — klucze sprzętowe (np. YubiKey) zapewniają
-      silne uwierzytelnianie dwuskładnikowe. Po zarejestrowaniu klucza, każde logowanie
-      będzie wymagało jego fizycznego dotknięcia.
+  <section class="mt-group" aria-labelledby="wa-state-h">
+    <h2 class="mt-h2" id="wa-state-h">Twoje <b>klucze</b></h2>
+    <?php if (empty($keys)): ?>
+    <div class="mfa-state" style="--c:var(--m-grey)">
+      <span class="sq" aria-hidden="true"><i class="bi bi-fingerprint"></i></span>
+      <span><b>Brak kluczy</b><small>Logowanie nie wymaga klucza sprzętowego.</small></span>
     </div>
-  </div>
-
-  <?php if (empty($keys)): ?>
-  <div class="tz-note mb-4" role="alert">
-    <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
-    <span>Brak kluczy — logowanie nie wymaga klucza sprzętowego.</span>
-  </div>
-  <?php else: ?>
-  <div class="pv-table-wrap mb-4">
-    <table class="pv-table">
-      <thead>
-        <tr>
-          <th>Nazwa</th>
-          <th>Algorytm</th>
-          <th>Zarejestrowany</th>
-          <th>Ostatnie użycie</th>
-          <th class="text-end">Akcje</th>
-        </tr>
-      </thead>
+    <?php else: ?>
+    <table class="mfa-tbl">
+      <thead><tr><th scope="col">Nazwa</th><th scope="col">Algorytm</th><th scope="col">Zarejestrowany</th><th scope="col">Ostatnie użycie</th><th scope="col" class="end">Akcje</th></tr></thead>
       <tbody>
         <?php foreach ($keys as $key): ?>
         <tr>
-          <td>
-            <i class="bi bi-usb-symbol me-2 text-muted" aria-hidden="true"></i>
-            <?= h($key['name']) ?>
-          </td>
-          <td>
-            <span class="tz-badge">
-              <?= $key['alg'] == -257 ? 'RSA-SHA256' : 'EC P-256 (ECDSA)' ?>
-            </span>
-          </td>
-          <td class="text-muted small">
-            <?= h($key['created_at'] ? date('d.m.Y H:i', strtotime($key['created_at'])) : '—') ?>
-          </td>
-          <td class="text-muted small">
-            <?= h($key['last_used_at'] ? date('d.m.Y H:i', strtotime($key['last_used_at'])) : 'Nigdy') ?>
-          </td>
-          <td class="text-end">
-            <form method="post" class="d-inline"
-                  onsubmit="return confirm('Usunąć klucz «<?= h(addslashes($key['name'])) ?>»?')">
-              <input type="hidden" name="_csrf"    value="<?= csrf_token() ?>">
-              <input type="hidden" name="action"   value="delete">
-              <input type="hidden" name="cred_id"  value="<?= (int)$key['id'] ?>">
-              <button type="submit" class="tz-btn tz-btn--ghost"
-                      aria-label="Usuń klucz <?= h($key['name']) ?>">
-                <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń
-              </button>
+          <td><i class="bi bi-usb-symbol me-2" aria-hidden="true"></i><b style="font-weight:600"><?= h($key['name']) ?></b></td>
+          <td><?= $key['alg'] == -257 ? 'RSA-SHA256' : 'EC P-256 (ECDSA)' ?></td>
+          <td><?= h($key['created_at'] ? date('d.m.Y H:i', strtotime($key['created_at'])) : '—') ?></td>
+          <td><?= h($key['last_used_at'] ? date('d.m.Y H:i', strtotime($key['last_used_at'])) : 'Nigdy') ?></td>
+          <td class="end">
+            <form method="post" style="display:inline" onsubmit="return confirm('Usunąć klucz «<?= h(addslashes($key['name'])) ?>»?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="cred_id" value="<?= (int)$key['id'] ?>">
+              <button type="submit" class="mt-btn mt-btn--ghost" aria-label="Usuń klucz <?= h($key['name']) ?>"><i class="bi bi-trash" aria-hidden="true"></i>Usuń</button>
             </form>
           </td>
         </tr>
         <?php endforeach; ?>
       </tbody>
     </table>
-  </div>
-  <?php endif; ?>
+    <?php endif; ?>
+  </section>
 
-  <div class="tz-card">
-    <div class="tz-card__hd">
-      <i class="bi bi-plus-circle" aria-hidden="true"></i> Dodaj nowy klucz
+  <section class="mt-group" aria-labelledby="wa-add-h">
+    <h2 class="mt-h2" id="wa-add-h"><i class="bi bi-plus-circle" aria-hidden="true"></i> Dodaj <b>nowy klucz</b></h2>
+    <label class="lbl" for="keyName">Nazwa klucza</label>
+    <div class="mfa-secret">
+      <input id="keyName" type="text" class="mfa-in" placeholder="np. YubiKey 5" maxlength="80" style="font-family:inherit">
+      <button id="btnRegister" type="button" class="mt-btn" onclick="registerKey()"><i class="bi bi-usb-symbol" aria-hidden="true"></i>Dodaj klucz</button>
     </div>
-    <div class="tz-card__bd">
-      <div class="row g-2 align-items-end">
-        <div class="col-sm-5">
-          <label class="form-label small fw-semibold" for="keyName">Nazwa klucza</label>
-          <input id="keyName" type="text" class="form-control"
-                 placeholder="np. YubiKey 5" maxlength="80">
-        </div>
-        <div class="col-auto">
-          <button id="btnRegister" class="tz-btn" onclick="registerKey()">
-            <i class="bi bi-usb-symbol me-2" aria-hidden="true"></i>Dodaj nowy klucz
-          </button>
-        </div>
-      </div>
-      <div id="regStatus" class="mt-3" role="alert" aria-live="polite"></div>
-    </div>
-  </div>
+    <p class="mfa-hint">Po kliknięciu przeglądarka poprosi o dotknięcie klucza lub użycie odcisku palca.</p>
+    <div id="regStatus" class="mfa-status" role="status" aria-live="polite"></div>
+  </section>
 
-</div><!-- /.pv-wrap -->
+</div><!-- /.pvm -->
 
 <input type="hidden" id="csrf_token" value="<?= csrf_token() ?>">
 
@@ -153,7 +116,7 @@ function ab_to_b64u(buf) {
 function setStatus(msg, type) {
     type = type || 'info';
     var d = document.getElementById('regStatus');
-    d.innerHTML = '<div class="pv-alert pv-alert-' + type + ' py-2 small">' + msg + '</div>';
+    d.innerHTML = '<div class="mfa-msg ' + (type === 'success' ? 'ok' : type === 'danger' ? 'err' : '') + '">' + msg + '</div>';
 }
 
 async function registerKey() {
@@ -162,7 +125,7 @@ async function registerKey() {
     var csrf     = document.getElementById('csrf_token').value;
 
     btn.disabled = true;
-    setStatus('<span class="spinner-border spinner-border-sm me-2"></span>Inicjalizacja rejestracji…', 'info');
+    setStatus('<i class="bi bi-hourglass-split me-2" aria-hidden="true"></i>Inicjalizacja rejestracji…', 'info');
 
     try {
         // 1. Begin register
@@ -185,12 +148,12 @@ async function registerKey() {
             });
         }
 
-        setStatus('<span class="spinner-border spinner-border-sm me-2"></span>Dotknij klucz sprzętowy…', 'info');
+        setStatus('<i class="bi bi-hourglass-split me-2" aria-hidden="true"></i>Dotknij klucz sprzętowy…', 'info');
 
         // 3. Create credential
         var credential = await navigator.credentials.create({publicKey: opts});
 
-        setStatus('<span class="spinner-border spinner-border-sm me-2"></span>Zapisywanie klucza…', 'info');
+        setStatus('<i class="bi bi-hourglass-split me-2" aria-hidden="true"></i>Zapisywanie klucza…', 'info');
 
         // 4. Complete register
         var credData = {
