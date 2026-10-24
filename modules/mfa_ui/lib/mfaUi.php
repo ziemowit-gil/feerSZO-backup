@@ -34,7 +34,7 @@ function mfaUiStyles(): void {
 .mfa-in--code{font-size:1.8rem;letter-spacing:.5rem;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
 .mfa-phone{display:flex;max-width:360px}.mfa-phone .pre{display:flex;align-items:center;padding:0 .75rem;background:var(--pvm-light,#f2f2f2);border:2px solid #8a8a8a;border-right:0;font-weight:600}
 .mfa-qr{display:flex;justify-content:center;background:#fff;padding:.75rem;margin:0 0 1rem;border:1px solid var(--m-line,#e1e1e1)}
-.mfa-secret{display:flex;gap:8px;max-width:520px}.mfa-secret .mfa-in{font-family:ui-monospace,Menlo,Consolas,monospace}
+.mfa-secret{display:flex;gap:8px;max-width:520px}.mfa-secret .mt-btn{white-space:nowrap;flex-shrink:0}.mfa-secret .mfa-in{font-family:ui-monospace,Menlo,Consolas,monospace}
 .mfa-codes{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin:.6rem 0}
 .mfa-codes code{display:block;text-align:center;padding:.55rem;background:var(--mfa-bg);font-weight:700;font-size:1rem;letter-spacing:.06em}
 .mfa-danger{border-left:6px solid var(--mfa-red);background:var(--mfa-bg);padding:1rem;margin-top:.5rem}
