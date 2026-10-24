@@ -56,6 +56,7 @@ $host   = (string)parse_url($redirect, PHP_URL_HOST);
 $port   = parse_url($redirect, PHP_URL_PORT);
 $target = $host . ($port ? ':' . $port : '');
 $limited = $scopeParam !== null;
+$remote  = !in_array(strtolower($host), ['127.0.0.1', 'localhost', '[::1]'], true);   // adres lokalny to szczegół techniczny — pokazujemy tylko obcą stronę
 
 /* Uprawnienia po polsku, pogrupowane; zapis wyróżniony osobno. Pokazujemy wyłącznie przyznawane scope'y. */
 $groups = [
@@ -129,8 +130,7 @@ $hidden = '<input type="hidden" name="redirect_uri" value="' . h($redirect) . '"
         <?php foreach ($writeList as [$g, $l]) echo '<li>' . h($g) . ': ' . h($l) . ' <span class="tag">zmienia dane</span></li>'; ?>
       </ul>
     </div>
-    <p class="small">Po zatwierdzeniu wrócisz do: <strong><?= h($target) ?></strong>. Zatwierdź tylko wtedy, gdy właśnie sam(a) logujesz się w tej aplikacji.
-       Dostęp możesz w każdej chwili cofnąć, wylogowując się w aplikacji. Wygasa też sam po <?= DESKTOP_TOKEN_TTL_DAYS ?> dniach nieużywania.</p>
+    <p class="small">Zatwierdź tylko wtedy, gdy właśnie sam(a) logujesz się w tej aplikacji. Dostęp możesz w każdej chwili cofnąć, wylogowując się z aplikacji.<?= $remote ? ' Po zatwierdzeniu wrócisz na stronę <strong>' . h($host) . '</strong>.' : '' ?></p>
     <form method="post"><?= csrf_field() ?><?= $hidden ?>
       <div class="row">
         <button class="primary" name="decision" value="approve" autofocus>Tak, zaloguj</button>
