@@ -39,7 +39,7 @@ $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres',
                   'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
                   'm365_send_from_email','ksiegowy_email','rachunek_skan_email','rachunek_cc_emails',
                   'admin_ip_restrict','admin_ip_whitelist',
-                  'ezd_vpn_only','ezd_vpn_allowlist','desktop_allowed_redirects'];
+                  'ezd_vpn_only','ezd_vpn_allowlist','desktop_allowed_redirects','ld_declarations_in_msues','msues_app_url'];
 $saved = [];
 foreach ($branding_keys as $k) {
     $r = db_one("SELECT value FROM settings WHERE key_=?", [$k]);
@@ -314,6 +314,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             org_setting_set('desktop_allowed_redirects', $val);
             $saved['desktop_allowed_redirects'] = $val;
             flash_set('success', 'Dozwolone adresy powrotu aplikacji zewnętrznych zapisane.');
+        }
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
+    } elseif (isset($_POST['save_msues_move'])) {
+        // Oświadczenia i dokumenty licencyjne przyjmuje aplikacja Wdrożenie MSUES zamiast SZO (portal /oswiadczenie/{token}).
+        $url = rtrim(trim((string)($_POST['msues_app_url'] ?? '')), '/');
+        if ($url !== '' && !preg_match('#^https://[^\s"<>]+$#', $url)) {
+            flash_set('error', 'Adres aplikacji MSUES musi zaczynać się od https://.');
+        } else {
+            org_setting_set('ld_declarations_in_msues', !empty($_POST['ld_declarations_in_msues']) ? '1' : '0');
+            org_setting_set('msues_app_url', $url);
+            flash_set('success', 'Ustawienia przenoszenia oświadczeń do MSUES zapisane.');
         }
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
     } elseif (isset($_POST['save_zus_nrs'])) {
@@ -1247,6 +1258,33 @@ include dirname(__DIR__) . '/includes/header.php';
             <button type="submit" name="save_desktop_redirects" class="btn btn-primary">
               <i class="bi bi-floppy me-1"></i>Zapisz adresy powrotu
             </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card mt-4">
+        <div class="card-header d-flex align-items-center gap-2" style="border-top:3px solid #0b5fff">
+          <i class="bi bi-arrow-right-square" style="color:#0b5fff"></i>
+          <strong>Oświadczenia i dokumenty — przeniesienie do aplikacji MSUES</strong>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            <?= csrf_field() ?>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="ld_declarations_in_msues" id="ld_declarations_in_msues" value="1"
+                     aria-describedby="ld_declarations_in_msues_help"<?= ($saved['ld_declarations_in_msues'] ?? '') === '1' ? ' checked' : '' ?>>
+              <label class="form-check-label fw-semibold" for="ld_declarations_in_msues">SZO nie przyjmuje już oświadczeń licencyjnych (kieruj do MSUES)</label>
+              <div class="form-text" id="ld_declarations_in_msues_help">
+                Gdy zaznaczone, linki <code>/oswiadczenie/…</code> w mailach pokazują informację z adresem aplikacji MSUES zamiast formularza.
+                Dane już złożone zostają w SZO. Włącz dopiero, gdy MSUES działa na produkcji i osoby wiedzą, gdzie się logować.
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="msues_app_url">Adres aplikacji MSUES</label>
+              <input type="url" name="msues_app_url" id="msues_app_url" class="form-control" placeholder="https://msues.feer.org.pl"
+                     value="<?= h($saved['msues_app_url'] ?? '') ?>">
+            </div>
+            <button type="submit" name="save_msues_move" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Zapisz</button>
           </form>
         </div>
       </div>

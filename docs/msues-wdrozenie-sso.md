@@ -36,3 +36,9 @@ OAuth 2.0 Authorization Code + PKCE (S256) — ten sam, z którego korzysta EZD 
 Domyślnie tylko `http://127.0.0.1:PORT/callback` (PORT 1024–65535). Hostowana aplikacja https:
 dopisz dokładny URI w **Admin → Ustawienia organizacji → Bezpieczeństwo → „Aplikacje zewnętrzne (SSO) — dozwolone adresy powrotu”**
 (ustawienie `desktop_allowed_redirects`, jeden URI na linię, porównanie dokładne, tylko `https://` lub loopback).
+
+## Dokumenty i oświadczenia w aplikacji MSUES
+Aplikacja MSUES przyjmuje dokumenty i oświadczenia pod `/dokumenty` (pliki w `data/dokumenty/` na serwerze aplikacji, zatwierdzanie przez osoby z `msues:write`).
+W SZO: **Admin → Ustawienia organizacji → Bezpieczeństwo → „Oświadczenia i dokumenty — przeniesienie do aplikacji MSUES”**
+(`ld_declarations_in_msues`, domyślnie wyłączone) — po włączeniu linki `/oswiadczenie/{token}` w SZO pokazują adres MSUES zamiast formularza.
+Dane już złożone w SZO zostają w bazie. Powiadomienia do koordynatorów: `POST /api/v1/msues_mail.php` (scope `msues:write`).
