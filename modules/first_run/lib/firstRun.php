@@ -63,6 +63,50 @@ function firstRunGate(?array $user): void {
     exit;
 }
 
+/**
+ * Jedna kolejka pierwszego logowania (jedyne miejsce, które ją ustala):
+ *   1. zgoda na dokumentową formę umów (/user/first_login_consent.php),
+ *   2. kreator pierwszych kroków (firstRunGate),
+ *   3. oświadczenie o ochronie danych (/panel/gdpr_statement.php) — tylko w Panelu ($gdpr = true).
+ * Wołają ją includes/header.php (SZO: zgoda + kreator), panel/includes/header_panel.php (kreator + RODO)
+ * i panel/launcher.php (wszystko). $consent / $gdpr wyłączają kroki, których dany ekran nie wymaga.
+ */
+function firstLoginGate(?array $user, bool $consent = true, bool $gdpr = false): void {
+    if (!$user || PHP_SAPI === 'cli') return;
+    if (($user['email'] ?? '') === 'serwis@local') return;
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+    $uid  = (int)$user['id'];
+
+    if ($consent) {
+        $skip = false;
+        foreach (['/user/first_login_consent.php', '/user/verify_reset.php', '/auth/', '/admin/api/', '/api/'] as $p) {
+            if (str_contains($path, $p)) { $skip = true; break; }
+        }
+        if (!$skip) {
+            require_once dirname(__DIR__, 3) . '/includes/cpc.php';
+            cpc_migrate();
+            $row = db_one("SELECT document_form_consent, consent_text_version_hash FROM users WHERE id=?", [$uid]);
+            if ($row && ((int)($row['document_form_consent'] ?? 0) !== 1
+                         || ($row['consent_text_version_hash'] ?? '') !== consent_current_hash())) {
+                header('Location: ' . APP_URL . '/user/first_login_consent.php');
+                exit;
+            }
+        }
+    }
+
+    firstRunGate($user);
+
+    if ($gdpr && !str_ends_with($path, '/panel/gdpr_statement.php')) {
+        try { db()->exec("ALTER TABLE users ADD COLUMN gdpr_statement_signed_at DATETIME"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE users ADD COLUMN gdpr_statement_ip TEXT"); } catch (\Throwable $e) {}
+        $row = db_one("SELECT gdpr_statement_signed_at FROM users WHERE id=?", [$uid]);
+        if (empty($row['gdpr_statement_signed_at'])) {
+            header('Location: ' . APP_URL . '/panel/gdpr_statement.php');
+            exit;
+        }
+    }
+}
+
 function firstRunFinish(int $userId): void {
     firstRunMigrate();
     db_exec("UPDATE users SET first_run_done_at = datetime('now') WHERE id=?", [$userId]);

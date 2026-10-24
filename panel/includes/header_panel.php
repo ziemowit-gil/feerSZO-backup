@@ -14,9 +14,9 @@ require_once dirname(dirname(__DIR__)) . '/includes/asystent_ai.php';
 
 require_login();
 
-// Kreator pierwszego logowania (modules/first_run) — przekierowuje osobę, która go nie ukończyła.
+// Kolejka pierwszego logowania (modules/first_run): kreator → oświadczenie RODO.
 require_once dirname(dirname(__DIR__)) . '/modules/first_run/lib/firstRun.php';
-firstRunGate(current_user());
+firstLoginGate(current_user(), false, true);
 
 $_pv_title  = $PAGE_TITLE ?? 'Panel współpracownika';
 $_pv_uri    = $_SERVER['REQUEST_URI'] ?? '';
@@ -62,15 +62,8 @@ function _pv_nav_active(string $path): string {
     return str_contains($_pv_uri, $path) ? ' pv-active' : '';
 }
 
-// ── Oświadczenie o ochronie danych — blokada panelu do momentu podpisania ─────
-try { db()->exec("ALTER TABLE users ADD COLUMN gdpr_statement_signed_at DATETIME"); } catch (\Throwable $e) {}
-try { db()->exec("ALTER TABLE users ADD COLUMN gdpr_statement_ip TEXT"); } catch (\Throwable $e) {}
-$_gdpr_signed   = !empty(db_one("SELECT gdpr_statement_signed_at FROM users WHERE id=?",
-    [(int)($_pu['id'] ?? 0)])['gdpr_statement_signed_at']);
+$_gdpr_signed   = !empty(db_one("SELECT gdpr_statement_signed_at FROM users WHERE id=?", [(int)($_pu['id'] ?? 0)])['gdpr_statement_signed_at']);
 $_gdpr_has_m365 = false; // zachowane tylko do wyświetlenia ikony w menu
-if (!$_gdpr_signed && basename($_SERVER['SCRIPT_NAME']) !== 'gdpr_statement.php') {
-    header('Location: ' . APP_URL . '/panel/gdpr_statement.php'); exit;
-}
 ?>
 <!DOCTYPE html>
 <html lang="pl"<?= $_pv_theme ? ' data-theme="'.h($_pv_theme).'"' : '' ?>>

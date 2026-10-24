@@ -26,24 +26,10 @@ try {
     }
 } catch (\Throwable $e) {}
 
-// Strona startowa po każdym logowaniu (auth_default_landing()) — ale nowa osoba albo bez złożonych
-// oświadczeń najpierw je przechodzi, jak na każdej innej stronie SZO/panelu:
-// zgoda na formularze (includes/header.php) → kreator pierwszych kroków → oświadczenie RODO (header_panel.php).
-if (($user['email'] ?? '') !== 'serwis@local') {
-    require_once dirname(__DIR__) . '/includes/cpc.php';
-    cpc_migrate();
-    $_lc = db_one("SELECT document_form_consent, consent_text_version_hash FROM users WHERE id=?", [$user_id]);
-    if ($_lc && ((int)($_lc['document_form_consent'] ?? 0) !== 1
-                 || ($_lc['consent_text_version_hash'] ?? '') !== consent_current_hash())) {
-        header('Location: ' . APP_URL . '/user/first_login_consent.php'); exit;
-    }
-    require_once dirname(__DIR__) . '/modules/first_run/lib/firstRun.php';
-    firstRunGate($user);
-    try { db()->exec("ALTER TABLE users ADD COLUMN gdpr_statement_signed_at DATETIME"); } catch (\Throwable $e) {}
-    if (empty(db_one("SELECT gdpr_statement_signed_at FROM users WHERE id=?", [$user_id])['gdpr_statement_signed_at'])) {
-        header('Location: ' . APP_URL . '/panel/gdpr_statement.php'); exit;
-    }
-}
+// Strona startowa po każdym logowaniu (auth_default_landing()) — nowa osoba albo bez złożonych oświadczeń
+// najpierw przechodzi kolejkę pierwszego logowania: zgoda → kreator → oświadczenie RODO.
+require_once dirname(__DIR__) . '/modules/first_run/lib/firstRun.php';
+firstLoginGate($user, true, true);
 
 $_b    = branding_load();
 $_org  = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');

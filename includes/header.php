@@ -51,50 +51,11 @@ if ($_user && function_exists('system_is_downtime') && system_is_downtime()
     exit;
 }
 
-// ── Consent / onboarding check ───────────────────────────────────────────────
-// Runs for every logged-in user. Redirects to consent page if:
-//   - document_form_consent is 0  OR
-//   - consent text has changed since last acceptance
-// Skipped for: SAAS admin, API endpoints, auth pages, the consent page itself.
-if ($_user && !defined('SKIP_CONSENT_CHECK')) {
-    // Pages that must never be redirected
-    $_skip_consent_paths = [
-        '/user/first_login_consent.php',
-        '/user/verify_reset.php',
-        '/auth/',
-        '/admin/api/',
-        '/api/',
-    ];
-    $_current_path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
-    $_skip_consent = false;
-    foreach ($_skip_consent_paths as $_sp) {
-        if (str_contains($_current_path, $_sp)) { $_skip_consent = true; break; }
-    }
-
-    // SaaS system admin never needs consent
-    $_is_saas_sys = ($_user['email'] ?? '') === 'serwis@local';
-
-    if (!$_skip_consent && !$_is_saas_sys) {
-        require_once __DIR__ . '/cpc.php';
-        cpc_migrate();
-
-        // Refresh consent status from DB (session may be stale)
-        $_fresh_user = db_one("SELECT document_form_consent, consent_text_version_hash FROM users WHERE id=?", [(int)$_user['id']]);
-        if ($_fresh_user) {
-            $_has_consent = (int)($_fresh_user['document_form_consent'] ?? 0) === 1;
-            $_hash_match  = ($_fresh_user['consent_text_version_hash'] ?? '') === consent_current_hash();
-            if (!$_has_consent || !$_hash_match) {
-                header('Location: ' . APP_URL . '/user/first_login_consent.php');
-                exit;
-            }
-        }
-    }
-}
-
-// ── Kreator pierwszego logowania (modules/first_run) — po zgodzie, przed treścią strony ──
+// ── Pierwsze logowanie: zgoda → kreator (modules/first_run, firstLoginGate) ──
+// Pomijane: SAAS admin, API, strony logowania, sama strona zgody (lista wyjątków w firstLoginGate).
 if ($_user && !defined('SKIP_CONSENT_CHECK')) {
     require_once dirname(__DIR__) . '/modules/first_run/lib/firstRun.php';
-    firstRunGate($_user);
+    firstLoginGate($_user);
 }
 
 $_pending = 0;
