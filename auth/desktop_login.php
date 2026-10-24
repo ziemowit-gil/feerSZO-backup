@@ -82,7 +82,7 @@ $hidden = '<input type="hidden" name="redirect_uri" value="' . h($redirect) . '"
         . '<input type="hidden" name="scope" value="' . h($scopeParam === null ? '' : implode(' ', $scopeParam)) . '">';
 ?><!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zezwolenie dla aplikacji <?= h($app) ?> — logowanie</title>
+<title>Wejście do „<?= h($app) ?>” — logowanie</title>
 <style>
  /* Metro UI: płaskie kafle, 0 zaokrągleń, Segoe UI; kontrasty ≥ 4,5:1 (biały na #006ba6 = 5,9:1, #111 na #f2f2f2 = 16:1) */
  *{box-sizing:border-box;border-radius:0}
@@ -116,28 +116,28 @@ $hidden = '<input type="hidden" name="redirect_uri" value="' . h($redirect) . '"
  @media(max-width:520px){.tiles{grid-template-columns:1fr}h1{font-size:1.8rem}}
 </style></head><body>
 <a class="dl-skip" href="#tresc">Przejdź do treści</a>
-<div class="dl-bar"><strong>FEER</strong> · Konto SZO · zgoda dla aplikacji</div>
+<div class="dl-bar"><strong>FEER</strong> · Konto SZO · logowanie</div>
 <div class="dl-wrap"><main id="tresc" aria-labelledby="h">
-  <h1 id="h">Zalogować aplikację <?= h($app) ?>?</h1>
-  <p class="lead">Aplikacja <strong><?= h($app) ?></strong> chce działać jako <strong><?= h($user['name']) ?></strong>.</p>
+  <h1 id="h">Wejść do „<?= h($app) ?>” swoim kontem?</h1>
+  <p class="lead">Zalogujemy Cię tam jako <strong><?= h($user['name']) ?></strong>.</p>
   <?php if (!$scopes): ?>
-    <p class="alert" role="alert">Twoje konto nie ma uprawnień do tej aplikacji, więc nie można jej zalogować. Napisz do administratora.</p>
+    <p class="alert" role="alert">Nie masz uprawnień do „<?= h($app) ?>”, więc nie możemy Cię tam wpuścić. Napisz do administratora.</p>
     <form method="post"><?= csrf_field() ?><?= $hidden ?>
-      <div class="row"><button name="decision" value="deny">Wróć do aplikacji</button></div>
+      <div class="row"><button name="decision" value="deny">Wróć</button></div>
     </form>
   <?php else: ?>
     <div class="panel">
-      <h2>Będzie mogła:</h2>
+      <h2>Będziesz tam mieć dostęp do:</h2>
       <ul>
         <?php foreach ($readList as [$g, $l]) echo '<li>' . h($g) . ': ' . h($l) . '</li>'; ?>
         <?php foreach ($writeList as [$g, $l]) echo '<li>' . h($g) . ': ' . h($l) . ' <span class="tag">zmienia dane</span></li>'; ?>
       </ul>
     </div>
-    <p class="small">Zatwierdź tylko wtedy, gdy właśnie sam(a) logujesz się w tej aplikacji. Dostęp cofniesz, wylogowując się z aplikacji.<?= $remote && !$knownApp ? ' Po zatwierdzeniu wrócisz na stronę <strong>' . h($host) . '</strong>.' : '' ?></p>
+    <p class="small">Jeśli to nie Ty chcesz tam wejść, kliknij „Nie”. Dostęp cofniesz, wylogowując się.<?= $remote && !$knownApp ? ' Po zatwierdzeniu wrócisz na stronę <strong>' . h($host) . '</strong>.' : '' ?></p>
     <form method="post"><?= csrf_field() ?><?= $hidden ?>
       <div class="row">
-        <button class="primary" name="decision" value="approve" autofocus>Tak, zaloguj</button>
-        <button name="decision" value="deny">Nie, anuluj</button>
+        <button class="primary" name="decision" value="approve" autofocus>Tak, wchodzę</button>
+        <button name="decision" value="deny">Nie</button>
       </div>
     </form>
   <?php endif; ?>
