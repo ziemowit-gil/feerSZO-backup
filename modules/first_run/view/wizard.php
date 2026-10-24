@@ -85,6 +85,7 @@ code { background: #f0f0f0; padding: 1px 5px; }
   </nav>
 
   <main class="main" id="tresc">
+    <?php if (!$isAdminView) echo firstLoginProgressHtml($user, 'wizard'); ?>
     <?php if ($msg): ?><div class="msg <?= h($msg[0]) ?>" role="<?= $msg[0] === 'error' ? 'alert' : 'status' ?>"><?= h($msg[1]) ?></div><?php endif; ?>
 
     <?php if ($isAdminView): $mode = firstRunEnabled() ? 'on' : 'off'; ?>
@@ -142,8 +143,8 @@ code { background: #f0f0f0; padding: 1px 5px; }
           <b>Nie masz jeszcze konta służbowego Microsoft 365 — to normalne przy pierwszym logowaniu.</b>
           <ul style="margin:8px 0 0 18px;padding:0">
             <li>Nic tu nie musisz robić — kliknij <b>Dalej</b>. Panel działa już na obecnym logowaniu.</li>
-            <li>Konto służbowe zakłada dział IT. Gdy będzie gotowe, dostaniesz wiadomość z adresem służbowym.</li>
-            <li>Wtedy wróć do tego kroku (lub zaloguj się przez Microsoft) — konta zostaną połączone. Brakuje konta dłużej niż kilka dni? <a href="<?= h(APP_URL) ?>/helpdesk/new.php" <?= $ext ?>>Zgłoś w Helpdesku ↗</a></li>
+            <li>Konto służbowe założysz sam: po akceptacji regulaminu i podpisaniu oświadczenia o ochronie danych wejdź w <b>Panel → Microsoft 365</b> i kliknij „Załóż konto”.</li>
+            <li>Konta zostaną połączone automatycznie. Coś nie działa? <a href="<?= h(APP_URL) ?>/helpdesk/new.php" <?= $ext ?>>Zgłoś w Helpdesku ↗</a></li>
           </ul>
           <p style="margin:8px 0 0"><a href="<?= h(APP_URL) ?>/uslugi-it/uslugi/moj-login/pierwsze-logowanie" <?= $ext ?>>Instrukcja: pierwsze logowanie i zgody ↗</a></p>
         </div>

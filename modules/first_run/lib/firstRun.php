@@ -125,6 +125,45 @@ function firstLoginGate(?array $user, bool $consent = true, bool $gdpr = false):
     }
 }
 
+/**
+ * Pasek postępu kolejki pierwszego logowania (ta sama kolejność co firstLoginGate), wspólny dla ekranów:
+ * hasło, regulamin, kreator, oświadczenie RODO. $current: password|consent|wizard|gdpr. Zwraca HTML z własnym CSS.
+ */
+function firstLoginProgressHtml(array $user, string $current): string {
+    $uid = (int)$user['id'];
+    $r   = db_one("SELECT password, must_change_password, document_form_consent, consent_text_version_hash,
+                          first_run_done_at, gdpr_statement_signed_at, microsoft_id FROM users WHERE id=?", [$uid]) ?: [];
+    $steps = [];
+    if ($current === 'password' || (!empty($r['must_change_password']) && !empty($r['password']))) {
+        $steps['password'] = ['Hasło', empty($r['must_change_password'])];
+    }
+    $consentOk = (int)($r['document_form_consent'] ?? 0) === 1;
+    if (function_exists('consent_current_hash')) $consentOk = $consentOk && ($r['consent_text_version_hash'] ?? '') === consent_current_hash();
+    $steps['consent'] = ['Regulamin', $consentOk];
+    if (firstRunEnabled()) $steps['wizard'] = ['Pierwsze kroki', !empty($r['first_run_done_at'])];
+    $steps['gdpr'] = ['Oświadczenie RODO', !empty($r['gdpr_statement_signed_at'])];
+    $steps['m365'] = ['Konto Microsoft 365', !empty($r['microsoft_id'])];
+
+    $n = count($steps);
+    $h = '<nav class="flp" aria-label="Postęp pierwszego logowania"><ol>';
+    $i = 0;
+    foreach ($steps as $k => [$label, $done]) {
+        $i++;
+        $cur = $k === $current;
+        $h .= '<li class="' . ($done ? 'is-done' : '') . ($cur ? ' is-cur' : '') . '"' . ($cur ? ' aria-current="step"' : '') . '>'
+            . '<span class="flp-n" aria-hidden="true">' . ($done ? '&#10003;' : $i) . '</span>'
+            . '<span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8')
+            . '<span class="flp-sr"> — krok ' . $i . ' z ' . $n . ($done ? ', zrobione' : '') . '</span></span></li>';
+    }
+    $h .= '</ol></nav>'
+        . '<style>.flp{margin:0 0 1.25rem}.flp ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.35rem}'
+        . '.flp li{display:flex;align-items:center;gap:.5rem;padding:.4rem .75rem .4rem .4rem;background:#f2f2f2;color:#1d1d1d;font-size:.85rem;border-bottom:3px solid transparent}'
+        . '.flp .flp-n{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;background:#5f5f5f;color:#fff;font-weight:700;font-size:.78rem}'
+        . '.flp li.is-done .flp-n{background:#007a00}.flp li.is-cur{border-bottom-color:#0f6fa8;font-weight:600;background:#e6f1f8}.flp li.is-cur .flp-n{background:#0f6fa8}'
+        . '.flp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}</style>';
+    return $h;
+}
+
 function firstRunFinish(int $userId): void {
     firstRunMigrate();
     db_exec("UPDATE users SET first_run_done_at = datetime('now') WHERE id=?", [$userId]);

@@ -99,7 +99,7 @@ require_once __DIR__ . '/includes/pv_ui.php';
 
 <?= flash_html() ?>
 
-<?php if ($force_change): ?>
+<?php if ($force_change): require_once dirname(__DIR__) . '/modules/first_run/lib/firstRun.php'; echo firstLoginProgressHtml($user, 'password'); ?>
 <div class="pv-note pv-note-warn" role="alert">
   <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
   <div><strong style="color:var(--tz-ink)">Wymagana zmiana hasła.</strong> Administrator zresetował Twoje hasło — ustaw nowe przed dalszym korzystaniem z systemu.</div>

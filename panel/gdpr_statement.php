@@ -43,10 +43,12 @@ $who      = trim((string)($user['name'] ?? '')) ?: (string)($user['email'] ?? ''
     </div>
   </div>
 
+  <?php require_once dirname(__DIR__) . '/modules/first_run/lib/firstRun.php'; echo firstLoginProgressHtml($user, 'gdpr'); ?>
+
   <?php if (isset($_GET['signed'])): ?>
   <div class="pv-alert pv-alert-success" role="status">
     <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
-    <div><strong>Oświadczenie zostało złożone elektronicznie.</strong> Konto Microsoft 365 może zostać teraz aktywowane przez administratora.</div>
+    <div><strong>Oświadczenie zostało złożone elektronicznie.</strong> Możesz teraz samodzielnie założyć konto Microsoft 365 (Moje konto Microsoft 365).</div>
   </div>
   <?php endif; ?>
   <?php if ($error): ?>
@@ -63,7 +65,7 @@ $who      = trim((string)($user['name'] ?? '')) ?: (string)($user['email'] ?? ''
     <li class="gd-tile <?= $already_signed ? 'is-blue' : 'is-grey' ?>">
       <i class="bi bi-microsoft" aria-hidden="true"></i>
       <span class="gd-tile__lbl">Konto Microsoft 365</span>
-      <span class="gd-tile__val"><?= $already_signed ? 'Może być aktywowane' : 'Czeka na podpis' ?></span>
+      <span class="gd-tile__val"><?= $already_signed ? 'Możesz je założyć sam' : 'Czeka na podpis' ?></span>
     </li>
     <li class="gd-tile is-dark">
       <i class="bi bi-person" aria-hidden="true"></i>
@@ -111,11 +113,12 @@ $who      = trim((string)($user['name'] ?? '')) ?: (string)($user['email'] ?? ''
         <dt>Adres IP</dt><dd class="gd-mono"><?= h($row['gdpr_statement_ip'] ?? '—') ?></dd>
       </dl>
       <div class="gd-actions">
-        <a href="<?= APP_URL ?>/panel/index.php" class="tz-btn"><i class="bi bi-house-door" aria-hidden="true"></i> Przejdź do Pulpitu</a>
+        <a href="<?= APP_URL ?>/panel/m365.php" class="tz-btn"><i class="bi bi-microsoft" aria-hidden="true"></i> Konto Microsoft 365</a>
+        <a href="<?= APP_URL ?>/panel/index.php" class="tz-btn tz-btn--ghost"><i class="bi bi-house-door" aria-hidden="true"></i> Przejdź do Pulpitu</a>
         <button type="button" class="tz-btn tz-btn--ghost" onclick="window.print()"><i class="bi bi-printer" aria-hidden="true"></i> Drukuj</button>
       </div>
       <?php else: ?>
-      <p class="gd-sign__lead">Konto Microsoft 365 zostanie aktywowane dopiero po złożeniu podpisu. Przeczytaj treść oświadczenia, potwierdź i podpisz.</p>
+      <p class="gd-sign__lead">Konto Microsoft 365 założysz samodzielnie dopiero po złożeniu podpisu. Przeczytaj treść oświadczenia, potwierdź i podpisz.</p>
       <dl class="gd-dl">
         <dt>Podpisujący</dt><dd><?= h($who) ?></dd>
         <dt>Data</dt><dd><?= h(date('d.m.Y')) ?></dd>

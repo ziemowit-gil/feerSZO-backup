@@ -166,6 +166,7 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
 
 <main id="fl-main" class="consent-wrapper">
 
+  <?php require_once dirname(__DIR__) . '/modules/first_run/lib/firstRun.php'; echo firstLoginProgressHtml($user, 'consent'); ?>
   <!-- Nagłówek -->
   <div class="fl-kicker">Panel współpracownika · witaj</div>
   <h1 class="fl-title">Witaj w panelu <?= h($org_name) ?></h1>
