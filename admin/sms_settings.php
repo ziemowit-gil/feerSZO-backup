@@ -8,7 +8,7 @@ require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/modules/sms_senders/logic/smsSenders.php';
 
 require_role('admin');
-$PAGE_TITLE = 'Ustawienia SMS';
+$PAGE_TITLE = 'Ustawienia SMS';   // samodzielna strona Metro — bez includes/header.php (menu SZO)
 
 // ── Załaduj bieżącą konfigurację ──────────────────────────────────────────────
 $cfg = [
@@ -36,6 +36,8 @@ $cfg = [
 ];
 
 $test_result = null;
+$TABS = ['dostawca', 'zapas', 'nadawca', 'test', 'status'];
+$TAB  = in_array($_GET['tab'] ?? '', $TABS, true) ? $_GET['tab'] : 'dostawca';
 
 // ── Obsługa POST ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -107,7 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'Ustawienia SMS — dostawca: ' . $provider);
         if ($api_base_bad) flash_set('warning', 'Ustawienia SMS zapisane, ale adres API SerwerSMS pominięto — musi zaczynać się od https://.');
         else               flash_set('success', 'Ustawienia SMS zapisane.');
-        header('Location: sms_settings.php'); exit;
+        $back_tab = in_array($_POST['_tab'] ?? '', ['dostawca', 'zapas'], true) ? $_POST['_tab'] : 'dostawca';
+        header('Location: sms_settings.php?tab=' . $back_tab); exit;
     }
 
     if ($action === 'save_kind_senders') {
@@ -123,10 +126,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('success', $n ? 'Nadawcy wg rodzaju SMS zapisani (zmian: ' . $n . ').' : 'Bez zmian — nadawcy wg rodzaju SMS są już zapisani w tej postaci.');
         }
-        header('Location: sms_settings.php#kind-senders'); exit;
+        header('Location: sms_settings.php?tab=nadawca'); exit;
     }
 
     if ($action === 'test') {
+        $TAB = 'test';
         $phone    = trim($_POST['test_phone'] ?? '');
         $kind     = (string)($_POST['kind'] ?? '');
         if (!SmsSenders::exists($kind)) $kind = '';                  // tylko rodzaje z katalogu; pusty = domyślny nadawca
@@ -169,9 +173,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-include dirname(__DIR__) . '/includes/header.php';
-
-// Pomocnik: czy dana konfiguracja jest kompletna
 $smsapi_ok = (bool)sms_setting('sms_api_token')
           || ((bool)$cfg['sms_api_login'] && (bool)$cfg['sms_api_password']);
 $serwersms_token = sms_setting('sms_serwersms_token');
@@ -209,46 +210,94 @@ try {
     audit_logs_migrate();
     $events = db_all("SELECT action, details, created_at FROM audit_logs WHERE action LIKE 'sms.%' ORDER BY id DESC LIMIT 10");
 } catch (\Throwable $e) {}
+
+// Nadawca wg rodzaju SMS: dostawcy łańcucha (główny, zapasowy) — kolumna „Obowiązuje teraz” pokazuje wynik dla każdego z nich
+$ks_groups    = SmsSenders::groups();
+$ks_stored    = SmsSenders::all();
+$ks_providers = array_values(array_unique(array_filter([sms_provider(), sms_provider_fallback()])));
+$ks_labels    = sms_providers();
+$ks_suggest   = array_values(array_unique(array_filter([
+    trim((string)$cfg['sms_sender_name']), trim((string)$cfg['sms_serwersms_sender']), sms_serwersms_sender(),
+])));
+
 ?>
-
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ustawienia SMS — <?= h(defined('ORG_NAME') ? ORG_NAME : 'SZO') ?></title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-.provider-card {
-    border: 2px solid #e2e8f0;
-    border-radius: .6rem;
-    padding: 1rem 1.1rem;
-    cursor: pointer;
-    transition: border-color .15s, background .15s;
-}
-.provider-card:has(input:checked) {
-    border-color: #2563eb;
-    background: #eff6ff;
-}
-.provider-card label { cursor: pointer; }
-.provider-logo { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
-.logo-smsapi  { background: #e0f2fe; color: #0369a1; }
-.logo-twilio  { background: #fce7f3; color: #be185d; }
-.logo-serwersms { background: #fef3c7; color: #b45309; }
-.logo-sendly { background: #dcfce7; color: #15803d; }
-.logo-http    { background: #f0fdf4; color: #15803d; }
+/* METRO: ciemny pasek, płaskie szare grupy, zero zaokrągleń i cieni (jak ekrany MFA i Tożsamość) */
+:root{--m-acc:#0f6fa8;--m-dark:#1d1d1d;--m-green:#007a00;--m-red:#a20025;--m-orange:#c25100;--m-light:#f2f2f2;--m-ink:#111827;--m-muted:#5f5f5f}
+html,body{background:#fff;color:var(--m-ink);font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+*:focus-visible{outline:3px solid #fbbf24!important;outline-offset:2px}
+.skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;z-index:2000;background:#fff;padding:.5rem 1rem;font-weight:600}
+.sbar{background:var(--m-dark);color:#fff}
+.sbar .in{max-width:1100px;margin:0 auto;padding:.45rem 1rem;display:flex;align-items:center;gap:.7rem}
+.sbar .mark{width:34px;height:34px;background:var(--m-acc);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sbar b{font-weight:700;font-size:.95rem;line-height:1.05}.sbar small{display:block;font-size:.65rem;color:rgba(255,255,255,.65);font-weight:500}
+.sbar a{color:#fff;text-decoration:none;font-size:.85rem;margin-left:auto;display:inline-flex;gap:.4rem;align-items:center}.sbar a:hover{text-decoration:underline}
+.smain{max-width:1100px;margin:0 auto;padding:1.75rem 1rem 3rem}
+.kick{font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:var(--m-muted);margin-bottom:.35rem}
+.stitle{margin:0;font-size:clamp(1.8rem,4vw,2.4rem);font-weight:300;letter-spacing:-.02em;line-height:1.05;display:flex;flex-wrap:wrap;align-items:center;gap:.8rem}
+.slead{margin:.5rem 0 1.25rem;font-weight:300;color:var(--m-muted);max-width:75ch}
+.stabs{display:flex;flex-wrap:wrap;gap:2px;margin:0 0 1.25rem;border-bottom:3px solid var(--m-dark)}
+.stabs button{display:flex;align-items:center;gap:.5rem;background:var(--m-light);border:0;border-radius:0;padding:.7rem 1.1rem;font:inherit;font-weight:600;font-size:.92rem;color:var(--m-ink);cursor:pointer;min-height:46px}
+.stabs button:hover{background:#e4e4e4}
+.stabs button[aria-selected="true"]{background:var(--m-dark);color:#fff}
+.stabs .dot{width:10px;height:10px;display:inline-block;background:#8a8a8a}.stabs .dot.ok{background:var(--m-green)}.stabs .dot.warn{background:var(--m-orange)}.stabs .dot.bad{background:var(--m-red)}
+.stabs button[aria-selected="true"] .dot.ok{background:#4ade80}.stabs button[aria-selected="true"] .dot.warn{background:#fdba74}.stabs button[aria-selected="true"] .dot.bad{background:#fca5a5}
+.spanel[hidden],#cfg-store[hidden]{display:none}
+.card{border:0!important;border-radius:0!important;box-shadow:none!important;background:var(--m-light)}
+.card-header{background:transparent!important;border:0!important;font-size:1.2rem;font-weight:300!important;padding:1rem 1.25rem .25rem}
+.card-body{padding:.75rem 1.25rem 1.25rem}
+.form-control,.form-select,.input-group-text{border-radius:0!important;border:2px solid #8a8a8a!important}
+.form-control:focus,.form-select:focus{border-color:var(--m-acc)!important;box-shadow:none!important}
+.btn{border-radius:0!important;font-weight:600;min-height:40px}
+.btn-primary{background:var(--m-acc);border-color:var(--m-acc)}.btn-primary:hover{background:var(--m-dark);border-color:var(--m-dark)}
+.badge{border-radius:0!important}
+.alert{border-radius:0!important;border:0;border-left:6px solid}
+.alert-danger{background:#fde8ec;border-color:var(--m-red)!important}.alert-warning{background:#fff1e0;border-color:var(--m-orange)!important}
+.alert-success{background:#e3f4e3;border-color:var(--m-green)!important}.alert-light{background:#fff}
+.provider-card{border:2px solid #c8c8c8;border-radius:0;padding:1rem 1.1rem;cursor:pointer;background:#fff}
+.provider-card:has(input:checked){border-color:var(--m-acc);background:#e8f3fa}
+.provider-card:has(input:focus-visible){outline:3px solid #fbbf24}
+.provider-card label{cursor:pointer}
+.provider-logo{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.logo-smsapi{background:#e0f2fe;color:#0369a1}.logo-twilio{background:#fce7f3;color:#be185d}.logo-serwersms{background:#fef3c7;color:#b45309}.logo-sendly{background:#dcfce7;color:#15803d}.logo-http{background:#f0fdf4;color:#15803d}
+.sflash{padding:.8rem 1.1rem;color:#fff;margin:0 0 1rem;display:flex;gap:.6rem;align-items:flex-start}
+.sflash.success{background:var(--m-green)}.sflash.danger,.sflash.error{background:var(--m-red)}.sflash.warning{background:var(--m-orange)}.sflash.info{background:var(--m-acc)}
+.slot-empty{background:#fff;border-left:6px solid #8a8a8a;padding:.8rem 1rem;font-size:.9rem}
 </style>
+</head>
+<body>
+<a href="#sms-main" class="skip">Przejdź do treści</a>
+<header class="sbar"><div class="in">
+  <span class="mark" aria-hidden="true"><i class="bi bi-phone-fill"></i></span>
+  <span><b><?= h(defined('ORG_NAME') ? ORG_NAME : 'SZO') ?></b><small>Administracja · Bramka SMS</small></span>
+  <a href="<?= APP_URL ?>/admin/index.php"><i class="bi bi-arrow-left" aria-hidden="true"></i>Panel admina</a>
+</div></header>
 
-<div class="d-flex align-items-center gap-2 mb-3">
-  <h4 class="mb-0"><i class="bi bi-phone text-primary"></i> Ustawienia SMS</h4>
-  <?php if ($cfg['sms_enabled'] === '1' && $active_ok): ?>
-    <span class="badge bg-success">Aktywne — <?= $provider_label ?></span>
-  <?php elseif ($cfg['sms_enabled'] === '1'): ?>
-    <span class="badge bg-warning text-dark">Włączone — wymaga konfiguracji</span>
-  <?php else: ?>
-    <span class="badge bg-secondary">Wyłączone</span>
+<main class="smain" id="sms-main">
+  <div class="kick">Administracja · integracje</div>
+  <h1 class="stitle">Ustawienia SMS
+  <?php if ($cfg['sms_enabled'] === '1' && $active_ok): ?><span class="badge bg-success fs-6">Aktywne — <?= h($provider_label) ?></span>
+  <?php elseif ($cfg['sms_enabled'] === '1'): ?><span class="badge bg-warning text-dark fs-6">Włączone — wymaga konfiguracji</span>
+  <?php else: ?><span class="badge bg-secondary fs-6">Wyłączone</span><?php endif; ?>
+  </h1>
+  <p class="slead">Dostawca główny i zapasowy, nadawca wg rodzaju wiadomości, test wysyłki i stan bramki. Ustawienia są wspólne dla całego systemu.</p>
+
+  <?php if ($__f = flash_get()): ?>
+  <div class="sflash <?= h($__f['type']) ?>" role="<?= in_array($__f['type'], ['danger', 'error'], true) ? 'alert' : 'status' ?>"><i class="bi bi-info-circle-fill" aria-hidden="true"></i><div><?= h($__f['msg'] ?? '') ?></div></div>
   <?php endif; ?>
-</div>
-
-<?= flash_html() ?>
 
 <?php if (!$chain): ?>
 <div class="alert alert-danger small">
   <strong>Żaden dostawca SMS nie jest skonfigurowany</strong> — powiadomienia i kody SMS nie będą wysyłane.
-  Uzupełnij konfigurację głównego dostawcy (<?= h($labels[$cfg['sms_provider']] ?? '') ?>) poniżej.
+  Uzupełnij konfigurację głównego dostawcy (<?= h($labels[$cfg['sms_provider']] ?? '') ?>) w zakładce „Dostawca”.
 </div>
 <?php elseif (!$active_ok): ?>
 <div class="alert alert-warning small">
@@ -262,16 +311,30 @@ try {
   Uzupełnij jego pola w sekcji „Konfiguracja <?= h($labels[$fb] ?? $fb) ?>” poniżej i zapisz.
 </div>
 <?php endif; ?>
-
-<div class="row g-3">
-<div class="col-xl-7">
+<?php
+$tab_state = [
+    'dostawca' => ['Dostawca', $active_ok ? 'ok' : 'warn'],
+    'zapas'    => ['Zapas (fallback)', $fb_valid ? ($fb_ready ? 'ok' : 'warn') : ''],
+    'nadawca'  => ['Nadawca wg rodzaju', count($ks_stored) ? 'ok' : ''],
+    'test'     => ['Test wysyłki', ''],
+    'status'   => ['Status', $chain ? ($events ? 'warn' : 'ok') : 'bad'],
+];
+?>
+<div class="stabs" role="tablist" aria-label="Sekcje ustawień SMS" id="sms-tabs">
+<?php foreach ($tab_state as $k => [$lbl, $st]): ?>
+  <button type="button" role="tab" id="tab-<?= $k ?>" data-tab="<?= $k ?>" aria-controls="panel-<?= $k ?>" aria-selected="<?= $TAB === $k ? 'true' : 'false' ?>" tabindex="<?= $TAB === $k ? '0' : '-1' ?>">
+    <?php if ($st): ?><span class="dot <?= $st ?>" aria-hidden="true"></span><?php endif; ?><?= h($lbl) ?>
+    <?php if ($st === 'warn'): ?><span class="visually-hidden"> — wymaga uwagi</span><?php elseif ($st === 'bad'): ?><span class="visually-hidden"> — problem</span><?php elseif ($st === 'ok'): ?><span class="visually-hidden"> — w porządku</span><?php endif; ?>
+  </button>
+<?php endforeach; ?>
+</div>
 
 <form method="post" id="smsForm">
-<input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+<input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 <input type="hidden" name="_action" value="save">
-
-<!-- ── Aktywacja ──────────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3">
+<input type="hidden" name="_tab" id="smsTab" value="dostawca">
+<section class="spanel" id="panel-dostawca" role="tabpanel" aria-labelledby="tab-dostawca"<?= $TAB === 'dostawca' ? '' : ' hidden' ?>>
+<div class="card mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-toggles"></i> Aktywacja</div>
 <div class="card-body">
   <div class="form-check form-switch">
@@ -285,9 +348,7 @@ try {
   <div class="form-text">Gdy włączone, na stronie logowania pojawi się zakładka <em>Kod SMS</em> dla wolontariuszy.</div>
 </div>
 </div>
-
-<!-- ── Wybór dostawcy ─────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3">
+<div class="card mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-diagram-3"></i> Dostawca SMS</div>
 <div class="card-body">
   <div class="row g-2">
@@ -405,9 +466,27 @@ try {
   </div>
 </div>
 </div>
-
-<!-- ── Dostawca zapasowy (fallback) ───────────────────────────────────────── -->
-<div class="card shadow-sm mb-3">
+<div class="card mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-person-badge"></i> Nazwa nadawcy</div>
+<div class="card-body">
+  <label class="form-label fw-semibold small" for="sms_sender_name">
+    Nazwa nadawcy <span class="text-muted fw-normal">(maks. 11 znaków ASCII)</span>
+  </label>
+  <input type="text" id="sms_sender_name" name="sms_sender_name" class="form-control form-control-sm" style="max-width:280px"
+         value="<?= h($cfg['sms_sender_name']) ?>" maxlength="11" placeholder="INFO" aria-describedby="sender-help">
+  <div class="form-text" id="sender-help">
+    Pojawi się zamiast numeru telefonu u odbiorcy (smsapi.pl) i w placeholderze <code>{sender}</code> bramy HTTP.
+    Twilio wysyła z numeru nadawcy z konfiguracji Twilio. SerwerSMS ma własne pole nadawcy w sekcji „Konfiguracja SerwerSMS.pl”
+    (nazwa musi być tam zarejestrowana). Nadawcę dla poszczególnych rodzajów SMS (kody, powiadomienia TI…) ustawisz osobno
+    w sekcji <a href="?tab=nadawca" data-tab-link="nadawca">„Nadawca wg rodzaju SMS”</a> pod formularzem.
+  </div>
+</div>
+</div>
+<div id="slot-main"></div>
+<div class="d-flex gap-2 mb-3"><button type="submit" class="btn btn-primary"><i class="bi bi-check-lg" aria-hidden="true"></i> Zapisz konfigurację</button></div>
+</section>
+<section class="spanel" id="panel-zapas" role="tabpanel" aria-labelledby="tab-zapas"<?= $TAB === 'zapas' ? '' : ' hidden' ?>>
+<div class="card mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-arrow-repeat"></i> Dostawca zapasowy — inny operator (fallback)</div>
 <div class="card-body">
   <p class="small text-muted mb-2">
@@ -433,28 +512,13 @@ try {
   <div class="form-text fw-semibold" id="fb-note"></div>
 </div>
 </div>
-
-<!-- ── Nazwa nadawcy (wspólna) ────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-person-badge"></i> Nazwa nadawcy</div>
-<div class="card-body">
-  <label class="form-label fw-semibold small" for="sms_sender_name">
-    Nazwa nadawcy <span class="text-muted fw-normal">(maks. 11 znaków ASCII)</span>
-  </label>
-  <input type="text" id="sms_sender_name" name="sms_sender_name" class="form-control form-control-sm" style="max-width:280px"
-         value="<?= h($cfg['sms_sender_name']) ?>" maxlength="11" placeholder="INFO" aria-describedby="sender-help">
-  <div class="form-text" id="sender-help">
-    Pojawi się zamiast numeru telefonu u odbiorcy (smsapi.pl) i w placeholderze <code>{sender}</code> bramy HTTP.
-    Twilio wysyła z numeru nadawcy z konfiguracji Twilio. SerwerSMS ma własne pole nadawcy w sekcji „Konfiguracja SerwerSMS.pl”
-    (nazwa musi być tam zarejestrowana). Nadawcę dla poszczególnych rodzajów SMS (kody, powiadomienia TI…) ustawisz osobno
-    w sekcji <a href="#kind-senders">„Nadawca wg rodzaju SMS”</a> pod formularzem.
-  </div>
-</div>
-</div>
-
+<div id="slot-fb"></div>
+<div class="slot-empty mb-3" id="fb-empty" hidden>Wybierz dostawcę zapasowego powyżej — pojawi się jego konfiguracja.</div>
+<div class="d-flex gap-2 mb-3"><button type="submit" class="btn btn-primary"><i class="bi bi-check-lg" aria-hidden="true"></i> Zapisz konfigurację</button></div>
+</section>
+<div id="cfg-store" hidden>
 <!-- ── Konfiguracja smsapi.pl ─────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3" id="section-smsapi"
-     <?= $show('smsapi') ? '' : 'style="display:none"' ?>>
+<div class="card mb-3 cfg-sec" id="section-smsapi">
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
   <div class="provider-logo logo-smsapi" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
     <i class="bi bi-chat-dots"></i>
@@ -514,8 +578,7 @@ try {
 </div>
 
 <!-- ── Konfiguracja SerwerSMS.pl ──────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3" id="section-serwersms"
-     <?= $show('serwersms') ? '' : 'style="display:none"' ?>>
+<div class="card mb-3 cfg-sec" id="section-serwersms">
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
   <div class="provider-logo logo-serwersms" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
     <i class="bi bi-send"></i>
@@ -615,8 +678,7 @@ try {
 </div>
 
 <!-- ── Konfiguracja Twilio ────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3" id="section-sendly"
-     <?= $show('sendly') ? '' : 'style="display:none"' ?>>
+<div class="card mb-3 cfg-sec" id="section-sendly">
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
   <div class="provider-logo logo-sendly" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
     <i class="bi bi-chat-dots"></i>
@@ -658,8 +720,7 @@ try {
 </div>
 </div>
 
-<div class="card shadow-sm mb-3" id="section-twilio"
-     <?= $show('twilio') ? '' : 'style="display:none"' ?>>
+<div class="card mb-3 cfg-sec" id="section-twilio">
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
   <div class="provider-logo logo-twilio" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
     <i class="bi bi-telephone"></i>
@@ -708,8 +769,7 @@ try {
 </div>
 
 <!-- ── Konfiguracja HTTP Request ──────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3" id="section-httprequest"
-     <?= $show('httprequest') ? '' : 'style="display:none"' ?>>
+<div class="card mb-3 cfg-sec" id="section-httprequest">
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
   <div class="provider-logo logo-http" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
     <i class="bi bi-globe2"></i>
@@ -761,30 +821,13 @@ try {
   </div>
 </div>
 </div>
-
-<!-- ── Zapisz ─────────────────────────────────────────────────────────────── -->
-<div class="d-flex gap-2 mb-3">
-  <button type="submit" class="btn btn-primary">
-    <i class="bi bi-check-lg"></i> Zapisz konfigurację
-  </button>
 </div>
-
 </form>
-
-<?php
-// Nadawca wg rodzaju SMS: dostawcy łańcucha (główny, zapasowy) — kolumna „Obowiązuje teraz” pokazuje wynik dla każdego z nich
-$ks_groups    = SmsSenders::groups();
-$ks_stored    = SmsSenders::all();
-$ks_providers = array_values(array_unique(array_filter([sms_provider(), sms_provider_fallback()])));
-$ks_labels    = sms_providers();
-$ks_suggest   = array_values(array_unique(array_filter([
-    trim((string)$cfg['sms_sender_name']), trim((string)$cfg['sms_serwersms_sender']), sms_serwersms_sender(),
-])));
-include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
-?>
-
-<!-- ── Test wysyłki ───────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3">
+<section class="spanel" id="panel-nadawca" role="tabpanel" aria-labelledby="tab-nadawca"<?= $TAB === 'nadawca' ? '' : ' hidden' ?>>
+<?php include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php'; ?>
+</section>
+<section class="spanel" id="panel-test" role="tabpanel" aria-labelledby="tab-test"<?= $TAB === 'test' ? '' : ' hidden' ?>>
+<div class="card mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-send"></i> Test wysyłki SMS</div>
 <div class="card-body">
   <?php if ($test_result !== null): ?>
@@ -829,14 +872,11 @@ include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
   </form>
 </div>
 </div>
-
-</div><!-- /col-xl-7 -->
-
-<!-- ── Panel informacyjny ──────────────────────────────────────────────────── -->
-<div class="col-xl-5">
-
+</section>
+<section class="spanel" id="panel-status" role="tabpanel" aria-labelledby="tab-status"<?= $TAB === 'status' ? '' : ' hidden' ?>>
+<div class="row g-3"><div class="col-lg-6">
 <!-- Status -->
-<div class="card shadow-sm mb-3">
+<div class="card mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-shield-check"></i> Status</div>
 <div class="card-body small">
 
@@ -871,7 +911,7 @@ include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
 
   <div class="d-flex justify-content-between align-items-center mb-2">
     <span class="text-muted">Rodzaje SMS z własnym nadawcą</span>
-    <span class="fw-semibold"><a href="#kind-senders"><?= (int)count($ks_stored) ?></a> z <?= (int)count(SmsSenders::kinds()) ?></span>
+    <span class="fw-semibold"><a href="?tab=nadawca" data-tab-link="nadawca"><?= (int)count($ks_stored) ?></a> z <?= (int)count(SmsSenders::kinds()) ?></span>
   </div>
 
   <hr class="my-2">
@@ -940,7 +980,7 @@ include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
 </div>
 
 <!-- Ostatnie zdarzenia -->
-<div class="card shadow-sm mb-3">
+<div class="card mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-clock-history"></i> Ostatnie zdarzenia wysyłki</div>
 <div class="card-body small">
   <?php if (!$events): ?>
@@ -968,8 +1008,8 @@ include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
 </div>
 </div>
 
-<!-- Jak to działa -->
-<div class="card shadow-sm mb-3">
+</div><div class="col-lg-6"><!-- Jak to działa -->
+<div class="card mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-info-circle"></i> Jak to działa</div>
 <div class="card-body small">
   <p class="mb-2">Wolontariusz wpisuje numer telefonu → system wysyła 6-cyfrowy kod → wolontariusz wpisuje kod i jest zalogowany.</p>
@@ -977,7 +1017,7 @@ include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
   <ul class="ps-3 mb-0">
     <li>Numer telefonu w umowie wolontariackiej</li>
     <li>Konto lokalne z tym samym e-mailem co w umowie</li>
-    <li>Skonfigurowany jeden z dostawców SMS poniżej</li>
+    <li>Skonfigurowany jeden z dostawców SMS (zakładka „Dostawca”)</li>
   </ul>
 </div>
 </div>
@@ -1022,7 +1062,7 @@ include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
 </div>
 
 <!-- Konfiguracja pod Dydaktyka 3 / Dydaktyka -->
-<div class="card shadow-sm mt-3">
+<div class="card mt-3">
 <div class="card-header fw-semibold"><i class="bi bi-card-checklist text-primary"></i> Konfiguracja SMS dla modułu „Dydaktyka" (Dydaktyka 3)</div>
 <div class="card-body small">
   <p class="mb-2">
@@ -1056,12 +1096,39 @@ include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
   </div>
 </div>
 </div>
-
-</div><!-- /col-xl-5 -->
-</div><!-- /row -->
+</div></div>
+</section>
+</main>
 
 <script>
-// Sekcje konfiguracji widać dla dostawcy głównego i zapasowego; plakietki mówią, kim jest który.
+// ── Zakładki (WAI-ARIA): klik, strzałki, Home/End; adres ?tab= zapamiętuje wybór ──
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('#sms-tabs [role="tab"]'));
+  function show(name, focus) {
+    tabs.forEach(function (t) {
+      var on = t.dataset.tab === name;
+      t.setAttribute('aria-selected', on ? 'true' : 'false'); t.tabIndex = on ? 0 : -1;
+      var p = document.getElementById('panel-' + t.dataset.tab); if (p) p.hidden = !on;
+      if (on && focus) t.focus();
+    });
+    var h = document.getElementById('smsTab'); if (h && (name === 'dostawca' || name === 'zapas')) h.value = name;
+    try { var u = new URL(location.href); u.searchParams.set('tab', name); history.replaceState(null, '', u); } catch (e) {}
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { show(t.dataset.tab, false); });
+    t.addEventListener('keydown', function (e) {
+      var j = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+      if (j < 0) return; e.preventDefault(); show(tabs[j].dataset.tab, true);
+    });
+  });
+  document.querySelectorAll('[data-tab-link]').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); show(a.dataset.tabLink, true); window.scrollTo(0, 0); });
+  });
+  var cur = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0];
+  var hid = document.getElementById('smsTab'); if (hid && cur && (cur.dataset.tab === 'dostawca' || cur.dataset.tab === 'zapas')) hid.value = cur.dataset.tab;
+})();
+
+// ── Dostawcy: konfiguracja głównego ląduje w zakładce „Dostawca”, zapasowego w „Zapas” ──
 function refreshProviders() {
     var main = (document.querySelector('[name="sms_provider"]:checked') || {}).value || '';
     var fbSel = document.getElementById('sms_fallback_provider');
@@ -1071,10 +1138,14 @@ function refreshProviders() {
         Array.prototype.forEach.call(fbSel.options, function (o) { o.disabled = (o.value !== '' && o.value === main); });
         if (fb === main) { fbSel.value = ''; fb = ''; }
     }
+    var store = document.getElementById('cfg-store'), slotMain = document.getElementById('slot-main'), slotFb = document.getElementById('slot-fb');
     ['smsapi', 'serwersms', 'sendly', 'twilio', 'httprequest'].forEach(function (p) {
         var sec = document.getElementById('section-' + p);
-        if (sec) sec.style.display = (p === main || p === fb) ? '' : 'none';
+        if (!sec) return;
+        var dest = p === main ? slotMain : (p === fb ? slotFb : store);
+        if (dest && sec.parentNode !== dest) dest.appendChild(sec);
     });
+    var empty = document.getElementById('fb-empty'); if (empty) empty.hidden = !!fb;
     document.querySelectorAll('.role-badge').forEach(function (b) {
         var p = b.getAttribute('data-provider');
         var role = p === main ? 'Główny' : (p === fb ? 'Zapasowy' : '');
@@ -1083,9 +1154,20 @@ function refreshProviders() {
         b.style.display = role ? '' : 'none';
     });
     var note = document.getElementById('fb-note');
-    if (note) note.textContent = fb ? 'Zapasowy: ' + names[fb] + ' — uzupełnij jego konfigurację w sekcji poniżej.' : 'Bez fallbacku: porażka głównego dostawcy oznacza niewysłany SMS.';
+    if (note) note.textContent = fb ? 'Zapasowy: ' + names[fb] + ' — jego konfiguracja jest poniżej.' : 'Bez fallbacku: porażka głównego dostawcy oznacza niewysłany SMS.';
 }
 document.addEventListener('DOMContentLoaded', refreshProviders);
-</script>
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+// ── Prefiks +48 dla pól .phone-48 (jak w stopce SZO) ──
+(function () {
+  function strip48(v) { var d = v.replace(/\D/g, ''); if (d.length === 11 && d.indexOf('48') === 0) return d.slice(2); return d.length === 9 ? d : v; }
+  document.querySelectorAll('.phone-48').forEach(function (input) {
+    input.value = strip48(input.value);
+    var frm = input.form || input.closest('form');
+    if (frm) frm.addEventListener('submit', function () { var d = input.value.replace(/\D/g, ''); if (d.length === 9) input.value = '48' + d; });
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
