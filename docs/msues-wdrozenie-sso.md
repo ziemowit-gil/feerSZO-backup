@@ -5,13 +5,23 @@ OAuth 2.0 Authorization Code + PKCE (S256) — ten sam, z którego korzysta EZD 
 (`includes/desktop_auth.php`).
 
 ## Adresy (baza: APP_URL, produkcyjnie https://szo.feer.org.pl)
-- **authorize:** `GET /auth/desktop_login.php?redirect_uri=…&state=…&code_challenge=…&device=…`
+- **authorize:** `GET /auth/desktop_login.php?redirect_uri=…&state=…&code_challenge=…&device=…&scope=msues:read msues:write`
   (`state` 16–128 znaków `[A-Za-z0-9_-]`, `code_challenge` = BASE64URL(SHA256(verifier)), 43 znaki; `code_challenge_method` = S256 zawsze).
   Użytkownik loguje się jak zwykle (M365) i zatwierdza dostęp; powrót: `redirect_uri?code=…&state=…` (lub `error=access_denied`).
 - **token:** `POST /api/v1/desktop_token.php` JSON `{"grant_type":"authorization_code","code":"…","code_verifier":"…"}`
   → `access_token` (Bearer, 30 dni), `scopes`, `user{id,name,email}`. Kod jednorazowy, ważny 2 min.
 - **odnowienie:** `POST /api/v1/desktop_token.php?action=renew` (Bearer) — przedłuża o 30 dni i odświeża scope’y.
 - **wylogowanie:** `POST /api/v1/desktop_token.php?action=logout` (Bearer) — unieważnia token.
+
+## Parametr `scope` (zasada najmniejszych uprawnień)
+- Nazwa: **`scope`** (opcjonalny), wartość: lista scope’ów **rozdzielona spacjami** (w URL zakodowana: `scope=msues%3Aread%20msues%3Awrite`
+  lub `msues:read+msues:write`). Dozwolone: `ezd:read`, `ezd:upload`, `ezd:write`, `crm:read`, `crm:write`, `msues:read`, `msues:write`.
+  Nieznany scope → błąd 400 na ekranie zgody. Wdrożenie MSUES powinno wysyłać: `scope=msues:read msues:write`.
+- Token dostaje **przecięcie** żądanych scope’ów z uprawnieniami konta; ekran zgody pokazuje tylko te faktycznie przyznawane.
+  Konto bez żadnego z żądanych scope’ów nie dostaje tokenu (komunikat „Twoje konto nie ma uprawnień wymaganych przez tę aplikację.”).
+- Zawężenie jest zapamiętane: `renew` odświeża uprawnienia tylko w granicach zawężenia (nigdy do pełnych uprawnień konta).
+- **Bez parametru** zachowanie jak dotąd: wszystkie uprawnienia konta (zgodność wstecz, EZD Client).
+- Ekran zgody pokazuje nazwę aplikacji z `device` (np. `device=Wdrożenie MSUES`; domyślnie „EZD Client”) oraz host z `redirect_uri`.
 
 ## Uprawnienie i scope’y
 - Uprawnienie **„Wdrożenie MSUES”** (moduł `msues_wdrozenie`) nadaje się w `admin/user_modules.php` (per konto) lub w roli (`admin/roles.php`).
