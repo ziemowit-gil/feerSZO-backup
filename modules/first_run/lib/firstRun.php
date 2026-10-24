@@ -65,6 +65,7 @@ function firstRunGate(?array $user): void {
 
 /**
  * Jedna kolejka pierwszego logowania (jedyne miejsce, które ją ustala):
+ *   0. wymuszona zmiana hasła (must_change_password) — tylko konta z hasłem lokalnym,
  *   1. zgoda na dokumentową formę umów (/user/first_login_consent.php),
  *   2. kreator pierwszych kroków (firstRunGate),
  *   3. oświadczenie o ochronie danych (/panel/gdpr_statement.php) — tylko w Panelu ($gdpr = true).
@@ -76,6 +77,23 @@ function firstLoginGate(?array $user, bool $consent = true, bool $gdpr = false):
     if (($user['email'] ?? '') === 'serwis@local') return;
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
     $uid  = (int)$user['id'];
+
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+        && !isset($_GET['_ajax']) && !isset($_GET['ajax']) && empty($_SESSION['_admin_original'])) {
+        $skipPwd = false;
+        foreach (['/panel/password.php', '/auth/', '/api/', '/admin/api/', '/tozsamosc/', '/user/verify_reset.php'] as $p) {
+            if (str_contains($path, $p)) { $skipPwd = true; break; }
+        }
+        if (!$skipPwd) {
+            $row = db_one("SELECT must_change_password, password FROM users WHERE id=?", [$uid]);
+            // konta bez hasła lokalnego (Microsoft 365) nie mają czego zmieniać
+            if ($row && !empty($row['must_change_password']) && !empty($row['password'])) {
+                if (function_exists('flash_set')) flash_set('warning', 'Ustaw nowe hasło przed kontynuowaniem.');
+                header('Location: ' . APP_URL . '/panel/password.php?force=1');
+                exit;
+            }
+        }
+    }
 
     if ($consent) {
         $skip = false;
