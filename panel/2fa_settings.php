@@ -266,7 +266,7 @@ $m_on    = $m_totp || $m_sms;
           <a href="<?= APP_URL ?>/panel/2fa_settings.php" class="mt-btn mt-btn--ghost">Anuluj</a>
         </div>
       </form>
-      <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
       <script>QRCode.toCanvas(document.getElementById('qrcode-canvas'), <?= json_encode($totp_uri) ?>, {width: 200}, function (err) { if (err) console.error(err); });</script>
 
       <?php else: ?>
