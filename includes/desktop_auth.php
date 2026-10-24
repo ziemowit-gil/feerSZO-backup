@@ -50,9 +50,31 @@ function desktop_scopes_for_user(array $user): array {
     return $scopes;
 }
 
+/** Składnia dozwolonego dodatkowego adresu powrotu: https:// albo loopback, bez fragmentu i danych logowania. */
+function desktop_redirect_syntax_ok(string $uri): bool {
+    if ($uri === '' || strlen($uri) > 500 || preg_match('/[\s#\x00-\x1f]/', $uri)) return false;
+    $p = parse_url($uri);
+    if (!$p || empty($p['host']) || isset($p['user']) || isset($p['pass'])) return false;
+    $scheme = strtolower((string)($p['scheme'] ?? ''));
+    if ($scheme === 'https') return true;
+    return $scheme === 'http' && in_array(strtolower($p['host']), ['127.0.0.1', 'localhost', '[::1]'], true);
+}
+
+/** Lista dodatkowych adresów z ustawienia desktop_allowed_redirects (czytana wprost z bazy — bez cache org_setting). */
+function desktop_allowed_redirects(): array {
+    $r = db_one("SELECT value FROM settings WHERE key_=?", ['desktop_allowed_redirects']);
+    $out = [];
+    foreach (explode("\n", (string)($r['value'] ?? '')) as $l) {
+        $l = trim($l);
+        if ($l !== '' && desktop_redirect_syntax_ok($l)) $out[] = $l;
+    }
+    return $out;
+}
+
 function desktop_valid_redirect(string $uri): bool {
-    return (bool)preg_match('#^http://127\.0\.0\.1:(\d{4,5})/callback$#', $uri)
-        && (int)parse_url($uri, PHP_URL_PORT) >= 1024 && (int)parse_url($uri, PHP_URL_PORT) <= 65535;
+    if (preg_match('#^http://127\.0\.0\.1:(\d{4,5})/callback$#', $uri)
+        && (int)parse_url($uri, PHP_URL_PORT) >= 1024 && (int)parse_url($uri, PHP_URL_PORT) <= 65535) return true;
+    return in_array($uri, desktop_allowed_redirects(), true);   // porównanie dokładne, bez wildcardów
 }
 
 function desktop_b64url(string $bin): string {

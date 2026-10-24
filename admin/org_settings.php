@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/krs.php';
+require_once dirname(__DIR__) . '/includes/desktop_auth.php';
 require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
 
 require_role('admin');
@@ -38,7 +39,7 @@ $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres',
                   'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
                   'm365_send_from_email','ksiegowy_email','rachunek_skan_email','rachunek_cc_emails',
                   'admin_ip_restrict','admin_ip_whitelist',
-                  'ezd_vpn_only','ezd_vpn_allowlist'];
+                  'ezd_vpn_only','ezd_vpn_allowlist','desktop_allowed_redirects'];
 $saved = [];
 foreach ($branding_keys as $k) {
     $r = db_one("SELECT value FROM settings WHERE key_=?", [$k]);
@@ -300,6 +301,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $saved['ezd_vpn_only']      = $vpn_only;
             $saved['ezd_vpn_allowlist'] = $allowlist;
             flash_set('success', 'Ustawienia VPN dla Wirtualnego biurka zapisane.');
+        }
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
+    } elseif (isset($_POST['save_desktop_redirects'])) {
+        // Dodatkowe adresy powrotu logowania aplikacji zewnętrznych (auth/desktop_login.php) — dokładne URI, https lub loopback.
+        $lines = array_values(array_unique(array_filter(array_map('trim', explode("\n", (string)($_POST['desktop_allowed_redirects'] ?? ''))))));
+        $bad = array_filter($lines, static fn($u) => !desktop_redirect_syntax_ok($u));
+        if ($bad) {
+            flash_set('error', 'Nieprawidłowe adresy (dozwolone tylko https:// lub http://127.0.0.1 / localhost, bez fragmentu #): ' . implode(', ', array_map('htmlspecialchars', $bad)));
+        } else {
+            $val = implode("\n", $lines);
+            org_setting_set('desktop_allowed_redirects', $val);
+            $saved['desktop_allowed_redirects'] = $val;
+            flash_set('success', 'Dozwolone adresy powrotu aplikacji zewnętrznych zapisane.');
         }
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
     } elseif (isset($_POST['save_zus_nrs'])) {
@@ -1206,6 +1220,33 @@ include dirname(__DIR__) . '/includes/header.php';
               <i class="bi bi-floppy me-1"></i>Zapisz ustawienia VPN dla EZD
             </button>
 
+          </form>
+        </div>
+      </div>
+
+      <div class="card mt-4">
+        <div class="card-header d-flex align-items-center gap-2" style="border-top:3px solid #0b5fff">
+          <i class="bi bi-box-arrow-in-right" style="color:#0b5fff"></i>
+          <strong>Aplikacje zewnętrzne (SSO) — dozwolone adresy powrotu</strong>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            <?= csrf_field() ?>
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="desktop_allowed_redirects">Dodatkowe adresy powrotu (redirect_uri)</label>
+              <textarea name="desktop_allowed_redirects" id="desktop_allowed_redirects" class="form-control font-monospace"
+                        rows="4" aria-describedby="desktop_allowed_redirects_help"
+                        placeholder="https://msues.example.org/auth/callback"><?= h($saved['desktop_allowed_redirects'] ?? '') ?></textarea>
+              <div class="form-text" id="desktop_allowed_redirects_help">
+                Jeden dokładny adres na linię; porównanie dosłowne, bez znaków wieloznacznych. Dozwolone wyłącznie
+                <code>https://</code> oraz loopback (<code>http://127.0.0.1</code>, <code>http://localhost</code>).
+                Pole puste = tylko <code>http://127.0.0.1:PORT/callback</code> (aplikacja EZD Client). Dotyczy
+                logowania przez <code>/auth/desktop_login.php</code> (OAuth2 Authorization Code + PKCE).
+              </div>
+            </div>
+            <button type="submit" name="save_desktop_redirects" class="btn btn-primary">
+              <i class="bi bi-floppy me-1"></i>Zapisz adresy powrotu
+            </button>
           </form>
         </div>
       </div>

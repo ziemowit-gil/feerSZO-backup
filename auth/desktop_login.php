@@ -30,7 +30,7 @@ if ($bad) {
 
 $user   = current_user();
 $scopes = desktop_scopes_for_user($user);
-$back   = static fn(array $q) => $redirect . '?' . http_build_query($q + ['state' => $state]);
+$back   = static fn(array $q) => $redirect . (str_contains($redirect, '?') ? '&' : '?') . http_build_query($q + ['state' => $state]);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
