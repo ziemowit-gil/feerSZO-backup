@@ -1,0 +1,55 @@
+SKRÓTY DO PANELI — System SZO, Fundacja FEER
+(stan na 20.10.2026)
+
+SYSTEM SZO — https://szo.feer.org.pl/...
+
+Panele i logowanie
+  /kontrahent                     Portal Kontrahenta
+  /wspolpracownik  (/moj-panel)   Panel współpracownika
+  /start                          Strona startowa po zalogowaniu
+  /panel                          Panel współpracownika
+  /tozsamosc                      System Tożsamości (konto, hasło, metody logowania)
+  /administracja                  Panel administratora
+
+Moduły
+  /crm                            CRM
+  /ezd                            EZD — Wirtualne biurko
+  /eodok  (/dokumenty-ksiegowe)   Dokumenty księgowe (EODoK)
+  /strategia                      Strategia organizacji
+  /dzialania                      Działania
+  /zadania                        Zadania
+  /granty                         Granty
+  /katalog                        Katalog (współpracownicy, kontakty, jednostki)
+  /osoby                          Rejestr osób
+  /raporty                        Raporty
+  /procedury                      Procedury
+  /slowniki                       Słownik Centralny
+  /platnosci                      Portal płatności
+  /uslugi-it                      Portal Usług IT
+
+Zajęcia TI (z adresu szo.feer.org.pl)
+  /ti  (/kursant, /uczestnik)     Logowanie do panelu TI
+  /dydaktyk                       Panel dydaktyka
+  /konsultant                     Logowanie konsultanta numerem zastępczym
+  /rodzic                         Logowanie rodzica / opiekuna kodem SMS
+  /nabor                          Nabór na zajęcia
+
+
+PANEL TI — https://kursant.feer.org.pl/...
+
+  /login.php                      Logowanie (uczestnik, rodzic, upoważniony, kadra)
+  /kursant                        Panel uczestnika
+  /dydaktyk                       Panel dydaktyka
+  /konsultant                     Logowanie konsultanta numerem zastępczym
+  /plan                           Publiczny plan zajęć
+  /katalog                        Katalog szkoleń
+  /nabor                          Nabór na zajęcia
+
+
+FORMATY LOGINÓW TI
+  Dydaktyk / prowadzący           konto Microsoft 365
+  Kursant                         imie.nazwisko albo numer kursanta
+  SzK (szkolenia krótkie, konsultacje)   4 cyfry + k   (np. 1234k)
+  Rodzic / opiekun                4 cyfry + r   (np. 1234r)
+  Osoba upoważniona               4 cyfry + u   (np. 1234u)
+  Konsultant (login zastępczy)    3 cyfry       (np. 417) — tylko na /konsultant
