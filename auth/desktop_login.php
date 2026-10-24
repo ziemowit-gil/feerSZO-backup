@@ -91,6 +91,7 @@ $hidden = '<input type="hidden" name="redirect_uri" value="' . h($redirect) . '"
  h2{font-size:1.25rem;font-weight:600;margin:0 0 .6rem;color:#111}
  p{margin:.5rem 0;line-height:1.55} ul{margin:.3rem 0;padding-left:1.4rem;line-height:1.7}
  li+li{margin-top:.25rem}
+ .lead{font-size:1.2rem}.small{font-size:1rem;color:#333;margin:1rem 0}.muted{color:#333}
  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
  .tile{background:#1d1d1d;color:#fff;padding:1rem 1.1rem;min-height:92px}
  .tile span{display:block;font-size:.95rem;color:#e6e6e6}
@@ -112,36 +113,28 @@ $hidden = '<input type="hidden" name="redirect_uri" value="' . h($redirect) . '"
 <div class="dl-bar"><strong>FEER</strong> · Konto SZO · zgoda dla aplikacji</div>
 <div class="dl-wrap"><main id="tresc" aria-labelledby="h">
   <h1 id="h">Zalogować aplikację <?= h($app) ?>?</h1>
-  <div class="tiles">
-    <div class="tile"><span>Logujesz się jako</span><b><?= h($user['name']) ?></b><?= !empty($user['email']) ? '<span>' . h($user['email']) . '</span>' : '' ?></div>
-    <div class="tile host"><span>Po zatwierdzeniu wrócisz do</span><b><?= h($target) ?></b></div>
-  </div>
-  <p class="panel info">Zatwierdź tylko wtedy, gdy logowanie zostało uruchomione przez Ciebie w aplikacji <?= h($app) ?> i powyższy adres jest Ci znany.</p>
+  <p class="lead">Jesteś zalogowany(-a) jako <strong><?= h($user['name']) ?></strong>. Aplikacja <strong><?= h($app) ?></strong> chce korzystać z Twojego konta.</p>
   <?php if (!$scopes): ?>
     <p class="alert" role="alert"><?= $limited
-        ? 'Twoje konto nie ma uprawnień wymaganych przez tę aplikację — logowanie nie jest możliwe. Skontaktuj się z administratorem.'
-        : 'To konto nie ma uprawnień do żadnej aplikacji zewnętrznej — logowanie aplikacji nie jest możliwe. Skontaktuj się z administratorem.' ?></p>
+        ? 'Twoje konto nie ma uprawnień potrzebnych tej aplikacji, więc nie można jej zalogować. Napisz do administratora.'
+        : 'Twoje konto nie ma uprawnień do żadnej aplikacji, więc nie można jej zalogować. Napisz do administratora.' ?></p>
     <form method="post"><?= csrf_field() ?><?= $hidden ?>
       <div class="row"><button name="decision" value="deny">Wróć do aplikacji</button></div>
     </form>
   <?php else: ?>
-    <p class="panel info">Aplikacja będzie działać z Twoimi uprawnieniami, a zapisy będą widoczne pod Twoim nazwiskiem. Zyska dostęp wyłącznie do poniższych zasobów.</p>
-    <?php if ($readList): ?>
-      <div class="panel"><h2>Podgląd (tylko odczyt)</h2>
-      <ul><?php foreach ($readList as [$g, $l]) echo '<li><strong>' . h($g) . ':</strong> ' . h($l) . '</li>'; ?></ul></div>
-    <?php endif; ?>
-    <?php if ($writeList): ?>
-      <div class="panel write">
-        <h2>Zapis i zmiany <span class="tag">uwaga: zmienia dane</span></h2>
-        <ul><?php foreach ($writeList as [$g, $l]) echo '<li><strong>' . h($g) . ':</strong> ' . h($l) . '</li>'; ?></ul>
-      </div>
-    <?php endif; ?>
-    <div class="panel info"><h2>Ważność i cofnięcie dostępu</h2>
-    <p>Dostęp wygasa po <?= DESKTOP_TOKEN_TTL_DAYS ?> dniach nieużywania. Możesz go cofnąć w każdej chwili: wylogowując się w aplikacji albo unieważniając klucz w panelu „Zarządzaj API”.</p></div>
+    <div class="panel">
+      <h2>Co będzie mogła zrobić?</h2>
+      <ul>
+        <?php foreach ($readList as [$g, $l]) echo '<li>' . h($g) . ': ' . h($l) . ' <span class="muted">(tylko odczyt)</span></li>'; ?>
+        <?php foreach ($writeList as [$g, $l]) echo '<li>' . h($g) . ': ' . h($l) . ' <span class="tag">zmienia dane</span></li>'; ?>
+      </ul>
+    </div>
+    <p class="small">Po zatwierdzeniu wrócisz do: <strong><?= h($target) ?></strong>. Zatwierdź tylko wtedy, gdy właśnie sam(a) logujesz się w tej aplikacji.
+       Dostęp możesz w każdej chwili cofnąć, wylogowując się w aplikacji. Wygasa też sam po <?= DESKTOP_TOKEN_TTL_DAYS ?> dniach nieużywania.</p>
     <form method="post"><?= csrf_field() ?><?= $hidden ?>
       <div class="row">
-        <button class="primary" name="decision" value="approve" autofocus>Zezwól i zaloguj</button>
-        <button name="decision" value="deny">Anuluj</button>
+        <button class="primary" name="decision" value="approve" autofocus>Tak, zaloguj</button>
+        <button name="decision" value="deny">Nie, anuluj</button>
       </div>
     </form>
   <?php endif; ?>
