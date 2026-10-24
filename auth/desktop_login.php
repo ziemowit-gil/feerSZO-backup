@@ -1,6 +1,6 @@
 <?php
 /**
- * Ekran zatwierdzenia logowania aplikacji EZD Client (OAuth Authorization Code + PKCE, loopback).
+ * Ekran zgody na logowanie aplikacji zewnętrznej (EZD Client, Wdrożenie MSUES…) (OAuth Authorization Code + PKCE, loopback).
  * Użytkownik loguje się standardowo (Microsoft 365), a tu tylko zatwierdza dostęp aplikacji.
  * Opis przepływu: includes/desktop_auth.php.
  */
@@ -27,7 +27,7 @@ $bad = $scopeParam === false
     || !preg_match('/^[A-Za-z0-9_-]{43}$/', $challenge);
 if ($bad) {
     http_response_code(400);
-    exit('Nieprawidłowe żądanie logowania aplikacji. Uruchom logowanie ponownie z aplikacji EZD Client.');
+    exit('Nieprawidłowe żądanie logowania aplikacji. Uruchom logowanie ponownie z aplikacji.');
 }
 
 $user   = current_user();
@@ -50,47 +50,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 header('Cache-Control: no-store');
 header('X-Frame-Options: DENY');
+
+$app    = $device !== '' ? $device : 'EZD Client';
+$host   = (string)parse_url($redirect, PHP_URL_HOST);
+$port   = parse_url($redirect, PHP_URL_PORT);
+$target = $host . ($port ? ':' . $port : '');
+$limited = $scopeParam !== null;
+
+/* Uprawnienia po polsku, pogrupowane; zapis wyróżniony osobno. Pokazujemy wyłącznie przyznawane scope'y. */
+$groups = [
+    'EZD'             => ['ezd:read' => 'przeglądanie koszulek i pism', 'ezd:upload' => 'dodawanie plików i skanów',
+                          'ezd:write' => 'rejestracja koszulek, pism i wpisów RPW'],
+    'CRM'             => ['crm:read' => 'przeglądanie kontaktów', 'crm:write' => 'dodawanie i edycja kontaktów, notatki'],
+    'Wdrożenie MSUES' => ['msues:read' => 'podgląd danych wdrożenia', 'msues:write' => 'zapis i zmiany w danych wdrożenia'],
+];
+$readList = []; $writeList = [];
+foreach ($groups as $gname => $items) {
+    foreach ($items as $sc => $label) {
+        if (!in_array($sc, $scopes, true)) continue;
+        if (str_ends_with($sc, ':read')) $readList[] = [$gname, $label]; else $writeList[] = [$gname, $label];
+    }
+}
+$hidden = '<input type="hidden" name="redirect_uri" value="' . h($redirect) . '"><input type="hidden" name="state" value="' . h($state) . '">'
+        . '<input type="hidden" name="code_challenge" value="' . h($challenge) . '"><input type="hidden" name="device" value="' . h($device) . '">'
+        . '<input type="hidden" name="scope" value="' . h($scopeParam === null ? '' : implode(' ', $scopeParam)) . '">';
 ?><!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zaloguj aplikację EZD Client</title>
+<title>Zezwolenie dla aplikacji <?= h($app) ?> — logowanie</title>
 <style>
- body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f6f7f9;color:#14171a;margin:0;display:grid;place-items:center;min-height:100vh;padding:16px}
- main{background:#fff;border:1px solid #c9d0d8;border-radius:10px;padding:28px;max-width:480px;width:100%}
- h1{font-size:1.3rem;margin:0 0 12px} ul{padding-left:1.2em} .muted{color:#4a5560;font-size:.9rem}
- button{font:inherit;padding:9px 18px;border-radius:6px;border:1px solid #c9d0d8;background:#fff;cursor:pointer}
- button.primary{background:#0b5fff;color:#fff;border-color:#0b5fff;font-weight:600}
- .row{display:flex;gap:10px;margin-top:18px} :focus-visible{outline:3px solid #c25e00;outline-offset:2px}
- .err{color:#b3261e;font-weight:600}
+ /* Metro UI: płaskie kafle, 0 zaokrągleń, Segoe UI; kontrasty ≥ 4,5:1 (biały na #006ba6 = 5,9:1, #111 na #f2f2f2 = 16:1) */
+ *{box-sizing:border-box;border-radius:0}
+ body{font-family:"Segoe UI","Segoe UI Web",system-ui,-apple-system,Roboto,Arial,sans-serif;font-size:1.125rem;background:#f2f2f2;color:#111;margin:0;min-height:100vh;display:flex;flex-direction:column}
+ .dl-skip{position:absolute;left:1rem;top:-4rem;background:#111;color:#fff;padding:.7rem 1.1rem;font-weight:600;z-index:10}
+ .dl-skip:focus{top:1rem}
+ .dl-bar{background:#1d1d1d;color:#fff;padding:.9rem 1.5rem;font-size:1rem;letter-spacing:.02em}
+ .dl-bar strong{font-weight:600}
+ .dl-wrap{flex:1;display:flex;justify-content:center;padding:2rem 1rem}
+ main{width:100%;max-width:640px}
+ h1{font-size:2.2rem;font-weight:300;line-height:1.2;margin:0 0 1.4rem;color:#111}
+ h2{font-size:1.25rem;font-weight:600;margin:0 0 .6rem;color:#111}
+ p{margin:.5rem 0;line-height:1.55} ul{margin:.3rem 0;padding-left:1.4rem;line-height:1.7}
+ li+li{margin-top:.25rem}
+ .tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+ .tile{background:#1d1d1d;color:#fff;padding:1rem 1.1rem;min-height:92px}
+ .tile span{display:block;font-size:.95rem;color:#e6e6e6}
+ .tile b{display:block;font-size:1.2rem;font-weight:600;margin-top:.25rem;word-break:break-all}
+ .tile.host{background:#006ba6}.tile.host span{color:#fff}
+ .panel{background:#fff;padding:1.2rem 1.3rem;margin-top:6px;border-left:8px solid #006ba6}
+ .panel.write{border-left-color:#a4262c;background:#fff4ce}
+ .panel.info{border-left-color:#1d1d1d}
+ .tag{display:inline-block;background:#a4262c;color:#fff;font-size:.85rem;font-weight:600;padding:.1rem .5rem;margin-left:.4rem;vertical-align:middle}
+ .alert{background:#a4262c;color:#fff;padding:1rem 1.2rem;margin:6px 0;font-weight:600;line-height:1.5}
+ .row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+ button{font:inherit;font-weight:600;min-height:60px;min-width:44px;padding:.6rem 1.4rem;border:0;background:#1d1d1d;color:#fff;cursor:pointer;flex:1 1 200px;text-align:left}
+ button.primary{background:#006ba6;flex:2 1 240px;font-size:1.2rem}
+ button:hover{background:#000} button.primary:hover{background:#005283}
+ :focus-visible{outline:3px solid #c50f1f!important;outline-offset:3px!important}
+ @media(max-width:520px){.tiles{grid-template-columns:1fr}h1{font-size:1.8rem}}
 </style></head><body>
-<main aria-labelledby="h">
-  <h1 id="h">Zalogować aplikację EZD Client?</h1>
-  <p>Aplikacja<?= $device !== '' ? ' na urządzeniu <strong>' . h($device) . '</strong>' : '' ?> prosi o dostęp do Twojego konta:
-     <strong><?= h($user['name']) ?></strong> (<?= h($user['email'] ?? '') ?>).</p>
+<a class="dl-skip" href="#tresc">Przejdź do treści</a>
+<div class="dl-bar"><strong>FEER</strong> · Konto SZO · zgoda dla aplikacji</div>
+<div class="dl-wrap"><main id="tresc" aria-labelledby="h">
+  <h1 id="h">Zalogować aplikację <?= h($app) ?>?</h1>
+  <div class="tiles">
+    <div class="tile"><span>Logujesz się jako</span><b><?= h($user['name']) ?></b><?= !empty($user['email']) ? '<span>' . h($user['email']) . '</span>' : '' ?></div>
+    <div class="tile host"><span>Po zatwierdzeniu wrócisz do</span><b><?= h($target) ?></b></div>
+  </div>
+  <p class="panel info">Zatwierdź tylko wtedy, gdy logowanie zostało uruchomione przez Ciebie w aplikacji <?= h($app) ?> i powyższy adres jest Ci znany.</p>
   <?php if (!$scopes): ?>
-    <p class="err" role="alert">To konto nie ma uprawnień do żadnej aplikacji zewnętrznej — logowanie aplikacji nie jest możliwe. Skontaktuj się z administratorem.</p>
-    <form method="post"><?= csrf_field() ?>
-      <input type="hidden" name="redirect_uri" value="<?= h($redirect) ?>"><input type="hidden" name="state" value="<?= h($state) ?>">
-      <input type="hidden" name="code_challenge" value="<?= h($challenge) ?>"><input type="hidden" name="device" value="<?= h($device) ?>"><input type="hidden" name="scope" value="<?= h($scopeParam === null ? '' : implode(' ', $scopeParam)) ?>">
+    <p class="alert" role="alert"><?= $limited
+        ? 'Twoje konto nie ma uprawnień wymaganych przez tę aplikację — logowanie nie jest możliwe. Skontaktuj się z administratorem.'
+        : 'To konto nie ma uprawnień do żadnej aplikacji zewnętrznej — logowanie aplikacji nie jest możliwe. Skontaktuj się z administratorem.' ?></p>
+    <form method="post"><?= csrf_field() ?><?= $hidden ?>
       <div class="row"><button name="decision" value="deny">Wróć do aplikacji</button></div>
     </form>
   <?php else: ?>
-    <p>Aplikacja będzie działać z Twoimi uprawnieniami, a wpisy w EZD i CRM będą zapisywane na Twoje nazwisko:</p>
-    <ul>
-      <?php if (in_array('ezd:read', $scopes, true))   echo '<li>EZD — przeglądanie koszulek i pism</li>'; ?>
-      <?php if (in_array('ezd:write', $scopes, true))  echo '<li>EZD — dodawanie plików i skanów, rejestracja koszulek, pism i wpisów RPW</li>'; ?>
-      <?php if (in_array('crm:read', $scopes, true))   echo '<li>CRM — przeglądanie kontaktów</li>'; ?>
-      <?php if (in_array('crm:write', $scopes, true))  echo '<li>CRM — dodawanie i edycja kontaktów, notatki</li>'; ?>
-      <?php if (in_array('msues:read', $scopes, true))  echo '<li>Wdrożenie MSUES — przeglądanie danych wdrożenia</li>'; ?>
-      <?php if (in_array('msues:write', $scopes, true)) echo '<li>Wdrożenie MSUES — zapis i zmiany w aplikacji wdrożenia</li>'; ?>
-    </ul>
-    <p class="muted">Dostęp wygasa po <?= DESKTOP_TOKEN_TTL_DAYS ?> dniach nieużywania; możesz go cofnąć, wylogowując się w aplikacji.</p>
-    <form method="post"><?= csrf_field() ?>
-      <input type="hidden" name="redirect_uri" value="<?= h($redirect) ?>"><input type="hidden" name="state" value="<?= h($state) ?>">
-      <input type="hidden" name="code_challenge" value="<?= h($challenge) ?>"><input type="hidden" name="device" value="<?= h($device) ?>"><input type="hidden" name="scope" value="<?= h($scopeParam === null ? '' : implode(' ', $scopeParam)) ?>">
+    <p class="panel info">Aplikacja będzie działać z Twoimi uprawnieniami, a zapisy będą widoczne pod Twoim nazwiskiem. Zyska dostęp wyłącznie do poniższych zasobów.</p>
+    <?php if ($readList): ?>
+      <div class="panel"><h2>Podgląd (tylko odczyt)</h2>
+      <ul><?php foreach ($readList as [$g, $l]) echo '<li><strong>' . h($g) . ':</strong> ' . h($l) . '</li>'; ?></ul></div>
+    <?php endif; ?>
+    <?php if ($writeList): ?>
+      <div class="panel write">
+        <h2>Zapis i zmiany <span class="tag">uwaga: zmienia dane</span></h2>
+        <ul><?php foreach ($writeList as [$g, $l]) echo '<li><strong>' . h($g) . ':</strong> ' . h($l) . '</li>'; ?></ul>
+      </div>
+    <?php endif; ?>
+    <div class="panel info"><h2>Ważność i cofnięcie dostępu</h2>
+    <p>Dostęp wygasa po <?= DESKTOP_TOKEN_TTL_DAYS ?> dniach nieużywania. Możesz go cofnąć w każdej chwili: wylogowując się w aplikacji albo unieważniając klucz w panelu „Zarządzaj API”.</p></div>
+    <form method="post"><?= csrf_field() ?><?= $hidden ?>
       <div class="row">
         <button class="primary" name="decision" value="approve" autofocus>Zezwól i zaloguj</button>
         <button name="decision" value="deny">Anuluj</button>
       </div>
     </form>
   <?php endif; ?>
-</main></body></html>
+</main></div></body></html>
