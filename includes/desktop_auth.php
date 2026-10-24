@@ -9,6 +9,8 @@
  *   3. aplikacja wymienia kod + code_verifier na token:  POST /api/v1/desktop_token.php
  * Token to zwykły klucz API (api_keys) z created_by = użytkownik, więc wszystkie akcje w EZD/CRM mają
  * właściwego autora, a uprawnienia (scope) wynikają z uprawnień konta — nie ze wspólnego klucza.
+ * Opcjonalny parametr `scope` (spacje) zawęża token do PRZECIĘCIA żądanych scope'ów z uprawnieniami konta
+ * (zasada najmniejszych uprawnień); bez parametru token dostaje wszystkie uprawnienia konta (zgodność wstecz).
  */
 
 const DESKTOP_TOKEN_PREFIX  = 'EZD Client — ';
@@ -19,16 +21,57 @@ function desktop_auth_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    if (szo_schema_current('desktop_auth_migrate', __FILE__)) return;   // raz na wersję pliku (modules/selfrepairDB)
     db()->exec("
         CREATE TABLE IF NOT EXISTS desktop_auth_codes (
             code_hash      TEXT PRIMARY KEY,
             user_id        INTEGER NOT NULL,
             code_challenge TEXT NOT NULL,
             device         TEXT NOT NULL DEFAULT '',
+            scope          TEXT NOT NULL DEFAULT '',
             expires_at     INTEGER NOT NULL,
             used_at        INTEGER
         )
     ");
+    // Zawężenie scope'ów tokenu (brak wiersza = bez zawężenia); renew nie może go rozszerzyć.
+    db()->exec("
+        CREATE TABLE IF NOT EXISTS desktop_token_limits (
+            key_id INTEGER PRIMARY KEY,
+            scopes TEXT NOT NULL DEFAULT ''
+        )
+    ");
+    foreach (['scope' => "TEXT NOT NULL DEFAULT ''"] as $col => $def) {
+        try { db()->exec("ALTER TABLE desktop_auth_codes ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) { /* już istnieje */ }
+    }
+}
+
+/** Wszystkie scope'y, o które może prosić aplikacja zewnętrzna. */
+function desktop_known_scopes(): array {
+    return ['ezd:read', 'ezd:upload', 'ezd:write', 'crm:read', 'crm:write', 'msues:read', 'msues:write'];
+}
+
+/**
+ * Parsuje parametr `scope` (lista rozdzielona spacjami). Zwraca:
+ *   null  — parametr nieobecny/pusty (brak zawężenia),
+ *   false — zawiera nieznany scope lub jest nieprawidłowy,
+ *   array — unikalna lista znanych scope'ów.
+ */
+function desktop_parse_scope(string $raw): array|false|null {
+    $raw = trim($raw);
+    if ($raw === '') return null;
+    if (strlen($raw) > 300) return false;
+    $out = [];
+    foreach (preg_split('/ +/', $raw) as $s) {
+        if (!in_array($s, desktop_known_scopes(), true)) return false;
+        $out[$s] = true;
+    }
+    return array_keys($out);
+}
+
+/** Przecięcie uprawnień konta z żądanym zawężeniem (null = bez zawężenia). */
+function desktop_effective_scopes(array $user, ?array $limit): array {
+    $scopes = desktop_scopes_for_user($user);
+    return $limit === null ? $scopes : array_values(array_intersect($scopes, $limit));
 }
 
 /** Uprawnienia API wynikające z uprawnień konta (rola ∪ indywidualne; admin ma wszystko). */
@@ -86,14 +129,15 @@ function desktop_clean_device(string $d): string {
     return mb_substr($d, 0, 60);
 }
 
-/** Wystawia token dla użytkownika. Poprzednie tokeny tego urządzenia są unieważniane. */
-function desktop_issue_token(array $user, string $device): array {
+/** Wystawia token dla użytkownika (z opcjonalnym zawężeniem scope'ów). Poprzednie tokeny tego urządzenia są unieważniane. */
+function desktop_issue_token(array $user, string $device, ?array $limit = null): array {
+    $scopes = desktop_effective_scopes($user, $limit);
+    if (!$scopes) return ['token' => '', 'expires_at' => '', 'scopes' => []];   // nic nie wydajemy
     $name = DESKTOP_TOKEN_PREFIX . $user['name'] . ($device !== '' ? ' (' . $device . ')' : '');
     db()->prepare("UPDATE api_keys SET is_active=0 WHERE created_by=? AND name=?")->execute([(int)$user['id'], $name]);
     $plain   = 'ezdc_' . bin2hex(random_bytes(32));
-    $scopes  = desktop_scopes_for_user($user);
     $expires = date('Y-m-d H:i:s', time() + DESKTOP_TOKEN_TTL_DAYS * 86400);
-    db_insert('api_keys', [
+    $id = db_insert('api_keys', [
         'key_hash'    => hash('sha256', $plain),
         'name'        => $name,
         'permissions' => json_encode($scopes),
@@ -102,5 +146,8 @@ function desktop_issue_token(array $user, string $device): array {
         'is_active'   => 1,
         'created_by'  => (int)$user['id'],
     ]);
+    if ($limit !== null) {
+        db()->prepare("REPLACE INTO desktop_token_limits (key_id, scopes) VALUES (?,?)")->execute([(int)$id, implode(' ', $limit)]);
+    }
     return ['token' => $plain, 'expires_at' => $expires, 'scopes' => $scopes];
 }

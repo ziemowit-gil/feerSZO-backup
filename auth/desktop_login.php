@@ -20,7 +20,9 @@ $state     = (string)($src['state'] ?? '');
 $challenge = (string)($src['code_challenge'] ?? '');
 $device    = desktop_clean_device((string)($src['device'] ?? ''));
 
-$bad = !desktop_valid_redirect($redirect)
+$scopeParam = desktop_parse_scope((string)($src['scope'] ?? ''));   // null = bez zawężenia, false = nieprawidłowy
+$bad = $scopeParam === false
+    || !desktop_valid_redirect($redirect)
     || !preg_match('/^[A-Za-z0-9_-]{16,128}$/', $state)
     || !preg_match('/^[A-Za-z0-9_-]{43}$/', $challenge);
 if ($bad) {
@@ -29,7 +31,7 @@ if ($bad) {
 }
 
 $user   = current_user();
-$scopes = desktop_scopes_for_user($user);
+$scopes = desktop_effective_scopes($user, $scopeParam);   // przecięcie z uprawnieniami konta
 $back   = static fn(array $q) => $redirect . (str_contains($redirect, '?') ? '&' : '?') . http_build_query($q + ['state' => $state]);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -41,8 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $code = bin2hex(random_bytes(32));
     db()->prepare("DELETE FROM desktop_auth_codes WHERE expires_at < ?")->execute([time() - 3600]);
     db()->prepare(
-        "INSERT INTO desktop_auth_codes (code_hash, user_id, code_challenge, device, expires_at) VALUES (?,?,?,?,?)"
-    )->execute([hash('sha256', $code), (int)$user['id'], $challenge, $device, time() + DESKTOP_CODE_TTL_SEC]);
+        "INSERT INTO desktop_auth_codes (code_hash, user_id, code_challenge, device, scope, expires_at) VALUES (?,?,?,?,?,?)"
+    )->execute([hash('sha256', $code), (int)$user['id'], $challenge, $device, $scopeParam === null ? '' : implode(' ', $scopeParam), time() + DESKTOP_CODE_TTL_SEC]);
     header('Location: ' . $back(['code' => $code]));
     exit;
 }
@@ -68,7 +70,7 @@ header('X-Frame-Options: DENY');
     <p class="err" role="alert">To konto nie ma uprawnień do żadnej aplikacji zewnętrznej — logowanie aplikacji nie jest możliwe. Skontaktuj się z administratorem.</p>
     <form method="post"><?= csrf_field() ?>
       <input type="hidden" name="redirect_uri" value="<?= h($redirect) ?>"><input type="hidden" name="state" value="<?= h($state) ?>">
-      <input type="hidden" name="code_challenge" value="<?= h($challenge) ?>"><input type="hidden" name="device" value="<?= h($device) ?>">
+      <input type="hidden" name="code_challenge" value="<?= h($challenge) ?>"><input type="hidden" name="device" value="<?= h($device) ?>"><input type="hidden" name="scope" value="<?= h($scopeParam === null ? '' : implode(' ', $scopeParam)) ?>">
       <div class="row"><button name="decision" value="deny">Wróć do aplikacji</button></div>
     </form>
   <?php else: ?>
@@ -84,7 +86,7 @@ header('X-Frame-Options: DENY');
     <p class="muted">Dostęp wygasa po <?= DESKTOP_TOKEN_TTL_DAYS ?> dniach nieużywania; możesz go cofnąć, wylogowując się w aplikacji.</p>
     <form method="post"><?= csrf_field() ?>
       <input type="hidden" name="redirect_uri" value="<?= h($redirect) ?>"><input type="hidden" name="state" value="<?= h($state) ?>">
-      <input type="hidden" name="code_challenge" value="<?= h($challenge) ?>"><input type="hidden" name="device" value="<?= h($device) ?>">
+      <input type="hidden" name="code_challenge" value="<?= h($challenge) ?>"><input type="hidden" name="device" value="<?= h($device) ?>"><input type="hidden" name="scope" value="<?= h($scopeParam === null ? '' : implode(' ', $scopeParam)) ?>">
       <div class="row">
         <button class="primary" name="decision" value="approve" autofocus>Zezwól i zaloguj</button>
         <button name="decision" value="deny">Anuluj</button>

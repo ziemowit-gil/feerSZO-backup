@@ -43,7 +43,9 @@ if ($action === 'renew' || $action === 'logout') {
         db()->prepare("UPDATE api_keys SET is_active=0 WHERE id=?")->execute([(int)$api_current_key['id']]);
         api_error('Konto jest nieaktywne.', 401);
     }
-    $scopes  = desktop_scopes_for_user($user);
+    $lim = db_one("SELECT scopes FROM desktop_token_limits WHERE key_id=?", [(int)$api_current_key['id']]);
+    $limit = $lim ? (desktop_parse_scope((string)$lim['scopes']) ?: []) : null;   // zawężony token nie rośnie do pełnych uprawnień konta
+    $scopes  = desktop_effective_scopes($user, $limit);
     $expires = date('Y-m-d H:i:s', time() + DESKTOP_TOKEN_TTL_DAYS * 86400);
     db()->prepare("UPDATE api_keys SET expires_at=?, permissions=? WHERE id=?")
         ->execute([$expires, json_encode($scopes), (int)$api_current_key['id']]);
@@ -72,8 +74,11 @@ if (!hash_equals((string)$row['code_challenge'], desktop_b64url(hash('sha256', $
 
 $user = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [(int)$row['user_id']]);
 if (!$user) api_error('Konto jest nieaktywne.', 403);
-$issued = desktop_issue_token($user, (string)$row['device']);
-if (!$issued['scopes']) api_error('Konto nie ma uprawnień do żadnej aplikacji zewnętrznej.', 403);
+$limit  = desktop_parse_scope((string)($row['scope'] ?? '')) ?: null;   // '' = bez zawężenia
+$issued = desktop_issue_token($user, (string)$row['device'], $limit);
+if (!$issued['scopes']) api_error($limit !== null
+    ? 'Konto nie ma uprawnień wymaganych przez aplikację.'
+    : 'Konto nie ma uprawnień do żadnej aplikacji zewnętrznej.', 403);
 
 api_json([
     'access_token' => $issued['token'], 'token_type' => 'Bearer', 'expires_at' => $issued['expires_at'],
