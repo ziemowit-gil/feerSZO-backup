@@ -42,3 +42,17 @@ Aplikacja MSUES przyjmuje dokumenty i oświadczenia pod `/dokumenty` (pliki w `d
 W SZO: **Admin → Ustawienia organizacji → Bezpieczeństwo → „Oświadczenia i dokumenty — przeniesienie do aplikacji MSUES”**
 (`ld_declarations_in_msues`, domyślnie wyłączone) — po włączeniu linki `/oswiadczenie/{token}` w SZO pokazują adres MSUES zamiast formularza.
 Dane już złożone w SZO zostają w bazie. Powiadomienia do koordynatorów: `POST /api/v1/msues_mail.php` (scope `msues:write`).
+
+## Lista osób do importu w aplikacji MSUES
+`GET /api/v1/msues_users.php` — tylko odczyt, `Authorization: Bearer <token SSO>`, wymagany scope **`msues:write`** (dane osobowe kadry).
+Inna metoda niż GET → 405; brak/zły token → 401/403.
+
+Zwraca aktywne konta (`is_active=1`) z efektywnym odczytem modułu `msues_wdrozenie` (rola ∪ uprawnienia indywidualne, admin zawsze),
+posortowane po nazwisku i imieniu, najwyżej 500 rekordów:
+
+```json
+{"ok":true,"count":2,"users":[{"id":12,"name":"Anna Kowalska","email":"anna@feer.org.pl","can_write":true,"active":true}]}
+```
+
+Pola: `id` (users.id), `name` (imię i nazwisko), `email`, `can_write` (ma `msues:write`), `active` (zawsze `true`). Nic więcej — bez telefonów, ról, PESEL-i.
+Każde wywołanie zapisuje się w dzienniku audytu API (konto/klucz + liczba zwróconych rekordów).
