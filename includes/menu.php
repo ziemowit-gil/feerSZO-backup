@@ -552,6 +552,7 @@ function _menu_editor(): array {
             _mi('Harmonogram CRON','/admin/cron_dispatcher.php','bi-calendar2-range',['match'=>'/admin/cron_dispatcher','kw'=>'cron dispatcher dyspozytor harmonogram agenci zadania automatyczne interwał']),
             _mi('Statusy umów','/modules/contract_status/router.php?_route=/statusy','bi-signpost-split',['match'=>'_route=/statusy','kw'=>'statusy umów rozpiska grupy przejścia aktywna zakończona słownik umowy_statusy']),
             _mi('Słownik Centralny','/modules/dictionary/router.php','bi-book-half',['match'=>'/modules/dictionary/','kw'=>'słownik słowniki centralny listy wyboru instytucje dotujące urzędy marszałkowskie niw kategorie import eksport']),
+            _mi('Komunikaty popup','/modules/popups/index.php','bi-window-stack',['match'=>'/modules/popups/','kw'=>'popup komunikaty okna informacyjne powitalne mobywatel zapowiedź edytor']),
             _mi('Redis (cache)','/admin/redis.php','bi-lightning-charge',['match'=>'/admin/redis','kw'=>'redis cache pamięć podręczna przyspieszenie wydajność']),
             _mi('Kontrola IT','/modules/it_control/index.php','bi-clipboard2-pulse',['match'=>'/modules/it_control/','kw'=>'kontrola it audyt operacyjny status usług dysk backup certyfikat cron monitoring pulpit stanu']),
             _mi('Kontrola Dzienników','/modules/log_control/index.php','bi-journal-check',['match'=>'/modules/log_control/','kw'=>'kontrola dzienników logi błędy php anomalie bezpieczeństwo logowania brute force 2fa']),

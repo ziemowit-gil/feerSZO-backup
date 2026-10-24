@@ -12,5 +12,6 @@ $_pv_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
   </span>
   </div>
 </footer>
+<?php require_once dirname(dirname(__DIR__)) . '/modules/popups/lib/popups.php'; popupsRender('panel'); ?>
 </body>
 </html>

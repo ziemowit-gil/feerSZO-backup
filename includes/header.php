@@ -1173,8 +1173,7 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
       require_once __DIR__ . '/asystent_widget.php'; ?>
 <?php require_once __DIR__ . '/quick_actions_widget.php'; ?>
 <?php require_once __DIR__ . '/search_hotkey.php'; ?>
-<?php require_once __DIR__ . '/welcome_notice.php'; ?>
-<?php require_once __DIR__ . '/mobywatel_notice.php'; ?>
+<?php require_once dirname(__DIR__) . '/modules/popups/lib/popups.php'; popupsRender('szo'); // komunikaty popup (edytor: modules/popups) ?>
 
 
 <?php if ($_ezd_shell): ?>
