@@ -74,7 +74,7 @@ function _k30_ti_dur_min(string $tf, string $tt): ?int {
  * @return array{ok:bool, reason:string, code:string}
  */
 function ti_validate_reschedule(int $session_id, int $course_id, string $date, string $tf, string $tt): array {
-    $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt);
+    $av = ti_instructor_available_at(ti_course_instructor_id($course_id), $date, $tf, $tt, $course_id);
     if (!$av['ok']) return ['ok' => false, 'reason' => $av['reason'], 'code' => 'availability'];
 
     require_once __DIR__ . '/ti_periods.php';

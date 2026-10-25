@@ -606,7 +606,7 @@ switch ($action) {
         }
 
         $eff_instr = ti_course_instructor_id($cid);
-        $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
+        $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt, (int)$cid);
         if (!$av['ok']) json_err($av['reason']);
 
         if ($pc = ti_period_closed_for_date($date)) json_err(ti_period_closed_msg($pc));
@@ -707,7 +707,7 @@ switch ($action) {
         if (!$dates) json_err('Wzorzec nie wygenerował żadnego terminu — sprawdź datę startową i warunek zakończenia.');
 
         $eff_instr = ti_course_instructor_id($cid);
-        $av = ti_instructor_available_at($eff_instr, $dates[0], $tf, $tt);
+        $av = ti_instructor_available_at($eff_instr, $dates[0], $tf, $tt, (int)$cid);
         if (!$av['ok']) json_err($av['reason'] . ' Seria nie została utworzona.');
 
         foreach ($dates as $d) {
@@ -788,7 +788,7 @@ switch ($action) {
         }
         if ($accept) {
             $cid = (int)$req['course_id'];
-            $av  = ti_instructor_available_at(ti_course_instructor_id($cid), (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to']);
+            $av  = ti_instructor_available_at(ti_course_instructor_id($cid), (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to'], (int)$cid);
             if (!$av['ok']) json_err('Nie można zaakceptować: ' . $av['reason']);
             if ($pc = ti_period_closed_for_date((string)$req['proposed_date'])) json_err('Nie można zaakceptować: ' . ti_period_closed_msg($pc));
             $lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [(int)$req['session_id']])['lesson_method'] ?? '');

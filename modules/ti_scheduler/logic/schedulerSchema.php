@@ -90,7 +90,8 @@ function ti_sched_migrate(): void {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sc_requests_status ON k30_sc_requests(status)");
     // Niedostępność godzinowa: puste = cały dzień (okno godzin dotyczy każdego dnia zakresu)
-    foreach (["ALTER TABLE k30_sc_requests ADD COLUMN time_from TEXT NOT NULL DEFAULT ''",
+    foreach (["ALTER TABLE k30_sc_requests ADD COLUMN course_ids TEXT NOT NULL DEFAULT ''",
+              "ALTER TABLE k30_sc_requests ADD COLUMN time_from TEXT NOT NULL DEFAULT ''",
               "ALTER TABLE k30_sc_requests ADD COLUMN time_to   TEXT NOT NULL DEFAULT ''"] as $sql) { try { $pdo->exec($sql); } catch (\Throwable $e) {} }
     // Lekcje dotknięte zgłoszeniem niedostępności i sposób ich rozwiązania.
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_sc_request_items (

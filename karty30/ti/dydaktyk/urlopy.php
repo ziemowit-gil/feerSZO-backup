@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: urlopy.php' . ($lid ? '?edit=' . $lid : '')); exit;
             }
         }
+        $cids = ti_leave_sanitize_course_ids($iid, $_POST['course_ids'] ?? []);   // '' = wszystkie grupy prowadzącego
         $okFrom = DateTime::createFromFormat('Y-m-d', $from);
         $okTo   = DateTime::createFromFormat('Y-m-d', $to);
         if (!$iid || !$okFrom || !$okTo) {
@@ -47,12 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($to < $from) { $tmp = $from; $from = $to; $to = $tmp; }
         if ($lid) {
-            db()->prepare("UPDATE k30_ti_instructor_leaves SET instructor_id=?, date_from=?, date_to=?, time_from=?, time_to=?, type=?, note=? WHERE id=?")
-               ->execute([$iid, $from, $to, $tf, $tt, $type, $note, $lid]);
+            db()->prepare("UPDATE k30_ti_instructor_leaves SET instructor_id=?, date_from=?, date_to=?, time_from=?, time_to=?, course_ids=?, type=?, note=? WHERE id=?")
+               ->execute([$iid, $from, $to, $tf, $tt, $cids, $type, $note, $lid]);
             $saved_id = $lid; $msg = 'Nieobecność zaktualizowana.';
         } else {
             $saved_id = db_insert('k30_ti_instructor_leaves', [
-                'instructor_id' => $iid, 'date_from' => $from, 'date_to' => $to, 'time_from' => $tf, 'time_to' => $tt,
+                'instructor_id' => $iid, 'date_from' => $from, 'date_to' => $to, 'time_from' => $tf, 'time_to' => $tt, 'course_ids' => $cids,
                 'type' => $type, 'note' => $note, 'created_by' => $uid,
             ]);
             $msg = 'Nieobecność dodana.';
@@ -148,13 +149,15 @@ $conf_group = (int)($_GET['group'] ?? 0);
 if (!isset($conf_groups[$conf_group])) $conf_group = 0;
 $conf_rows  = $conf_group ? array_values(array_filter($conf_all, fn($c) => (int)$c['course_id'] === $conf_group)) : $conf_all;
 $instructors = k30_get_consultants();
+$all_courses = db_all("SELECT id, name, instructor_id FROM k30_ti_courses WHERE status NOT IN ('cancelled','archived') AND COALESCE(instructor_id,0)>0 ORDER BY name");
 $current  = ti_leaves_current();
 $upcoming = ti_leaves_upcoming(30);
 $all      = ti_leaves_all();
 
 $edit_id  = (int)($_GET['edit'] ?? 0);
 $edit_row = $edit_id ? ti_leave_get($edit_id) : null;
-$ef = $edit_row ?: ['id'=>0,'instructor_id'=>0,'date_from'=>'','date_to'=>'','time_from'=>'','time_to'=>'','type'=>'urlop','note'=>''];
+$ef = $edit_row ?: ['id'=>0,'instructor_id'=>0,'date_from'=>'','date_to'=>'','time_from'=>'','time_to'=>'','course_ids'=>'','type'=>'urlop','note'=>''];
+$ef_courses = ti_leave_course_ids($ef);
 
 /** Czytelny zakres dat. */
 function _urlopy_range(array $l): string {
@@ -403,6 +406,31 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             </div>
           </div>
           <div class="form-text mb-2" id="l_th">Puste godziny = nieobecność przez cały dzień. Dla kilku dni okno godzin dotyczy każdego dnia zakresu — kolidują tylko zajęcia nakładające się na te godziny.</div>
+          <fieldset class="mb-2" id="l_groups" aria-describedby="l_gh">
+            <legend class="form-label fw-semibold fs-6 mb-1">Dotyczy grup</legend>
+            <div id="l_groups_list" class="border rounded p-2" style="max-height:9rem;overflow:auto">
+              <?php foreach ($all_courses as $gc): ?>
+              <div class="form-check l-grp" data-instr="<?= (int)$gc['instructor_id'] ?>">
+                <input class="form-check-input" type="checkbox" name="course_ids[]" value="<?= (int)$gc['id'] ?>" id="lg<?= (int)$gc['id'] ?>" <?= in_array((int)$gc['id'], $ef_courses, true) ? 'checked' : '' ?>>
+                <label class="form-check-label" for="lg<?= (int)$gc['id'] ?>"><?= h($gc['name']) ?></label>
+              </div>
+              <?php endforeach; ?>
+              <div class="small text-body-secondary" id="l_groups_empty" hidden>Wybierz prowadzącego, aby zobaczyć jego grupy.</div>
+            </div>
+            <div class="form-text" id="l_gh">Bez zaznaczenia nieobecność dotyczy wszystkich grup prowadzącego. Zaznacz wybrane grupy, jeśli prowadzący jest nieobecny tylko na części zajęć — tylko ich lekcje będą kolidować, a powiadomienia dostaną tylko ich uczestnicy.</div>
+          </fieldset>
+          <script>
+          (function(){
+            var sel=document.getElementById('l_instr'); if(!sel) return;
+            var items=[].slice.call(document.querySelectorAll('.l-grp')), empty=document.getElementById('l_groups_empty');
+            function sync(){
+              var id=sel.value, any=false;
+              items.forEach(function(el){ var show=el.getAttribute('data-instr')===id; el.hidden=!show; if(!show){ el.querySelector('input').checked=false; } else any=true; });
+              empty.hidden=any;
+            }
+            sel.addEventListener('change',sync); sync();
+          })();
+          </script>
           <div class="mb-2">
             <label class="form-label fw-semibold" for="l_type">Rodzaj</label>
             <select class="form-select" name="type" id="l_type">
@@ -441,7 +469,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <tr class="<?= $past ? 'opacity-50' : '' ?>">
               <td class="fw-semibold"><?= h($l['instructor_name']) ?></td>
               <td class="small text-nowrap"><?= h(_urlopy_range($l)) ?></td>
-              <td><span class="badge text-bg-<?= $type_badge[$l['type']] ?? 'secondary' ?>"><?= h(ti_leave_type_label($l['type'])) ?></span></td>
+              <td><span class="badge text-bg-<?= $type_badge[$l['type']] ?? 'secondary' ?>"><?= h(ti_leave_type_label($l['type'])) ?></span>
+                <?php if ($l['course_ids'] !== ''): $gn = ti_leave_course_names($l); ?><span class="badge text-bg-light border" title="<?= h(implode(', ', $gn)) ?>">wybrane grupy (<?= count($gn) ?>)</span><?php endif; ?></td>
               <td class="small text-nowrap">
                 <?php $nconf = $past ? 0 : count(ti_leave_conflicts($l)); ?>
                 <?php if ($nconf > 0): ?><a href="?conflicts=<?= (int)$l['id'] ?>#kolidujace" class="badge text-bg-warning text-decoration-none" aria-label="Zajęcia kolidujące z nieobecnością: <?= $nconf ?> — rozstrzygnij"><?= $nconf ?> do rozstrzygnięcia</a><?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>

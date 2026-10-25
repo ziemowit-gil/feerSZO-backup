@@ -203,7 +203,7 @@ function sc_cycle_preview(array $o): array {
             $shifted = $orig . ' → ' . $date;
         }
         if (isset($seen[$date])) continue; $seen[$date] = true;
-        if ($iid && function_exists('ti_instructor_on_leave') && ti_instructor_on_leave($iid, $date, $tf, $tt)) { $skipped[] = ['date' => $date, 'reason' => 'nieobecność trenera']; continue; }
+        if ($iid && function_exists('ti_instructor_on_leave') && ti_instructor_on_leave($iid, $date, $tf, $tt, $course)) { $skipped[] = ['date' => $date, 'reason' => 'nieobecność trenera']; continue; }
         $r = sc_validate(['course_id' => $course, 'lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'instructor_id' => $iid_in, 'room_id' => $room]);
         if ($r['hard']) { $skipped[] = ['date' => $date, 'reason' => $r['hard'][0]['msg']]; continue; }
         $sessions[] = ['date' => $date, 'from' => $tf, 'to' => $tt, 'min' => $dur, 'warn' => array_column($r['soft'], 'msg'), 'shifted' => $shifted];

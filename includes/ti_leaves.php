@@ -45,6 +45,8 @@ function ti_leaves_migrate(): void {
         // Nieobecność godzinowa: puste = cały dzień; w przeciwnym razie okno HH:MM–HH:MM w każdym dniu zakresu
         "ALTER TABLE k30_ti_instructor_leaves ADD COLUMN time_from TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_instructor_leaves ADD COLUMN time_to   TEXT NOT NULL DEFAULT ''",
+        // Nieobecność tylko dla wybranych grup: lista id kursów po przecinku; puste = wszystkie grupy prowadzącego
+        "ALTER TABLE k30_ti_instructor_leaves ADD COLUMN course_ids TEXT NOT NULL DEFAULT ''",
     ] as $sql) { try { db()->exec($sql); } catch (\Throwable $e) {} }
 }
 
@@ -112,6 +114,34 @@ function ti_leave_when_label(array $l): string {
     return ti_leave_is_hourly($l) ? $r . ', ' . ti_leave_hours_label($l) : $r;
 }
 
+/** Identyfikatory grup (kursów), których dotyczy nieobecność; pusta lista = wszystkie grupy prowadzącego. */
+function ti_leave_course_ids(array $l): array {
+    return array_values(array_unique(array_filter(array_map('intval', explode(',', (string)($l['course_ids'] ?? ''))))));
+}
+
+/** CSV id kursów do zapisu — tylko kursy tego prowadzącego (nie ufamy identyfikatorom z formularza). */
+function ti_leave_sanitize_course_ids(int $instructor_id, $ids): string {
+    $ids = array_values(array_unique(array_filter(array_map('intval', (array)$ids))));
+    if (!$ids || !$instructor_id) return '';
+    $own = array_map('intval', array_column(db_all("SELECT id FROM k30_ti_courses WHERE instructor_id=? AND status NOT IN ('cancelled','archived')", [$instructor_id]), 'id'));
+    $ids = array_values(array_intersect($ids, $own));
+    // zaznaczone wszystkie grupy = brak zawężenia
+    return count($ids) === count($own) ? '' : implode(',', $ids);
+}
+
+/** Czy nieobecność dotyczy kursu? Brak zawężenia → tak; $course_id < 0 (kurs nieznany) → tak (konserwatywnie). */
+function ti_leave_applies_to_course(array $l, int $course_id): bool {
+    $ids = ti_leave_course_ids($l);
+    return !$ids || $course_id < 0 || in_array($course_id, $ids, true);
+}
+
+/** Nazwy grup, których dotyczy nieobecność (puste, gdy dotyczy wszystkich). */
+function ti_leave_course_names(array $l): array {
+    $ids = ti_leave_course_ids($l);
+    if (!$ids) return [];
+    return array_column(db_all("SELECT name FROM k30_ti_courses WHERE id IN (" . implode(',', $ids) . ") ORDER BY name"), 'name');
+}
+
 /** HH:MM → minuty (niezależne od karty30.php, żeby moduł działał samodzielnie). */
 function _ti_leave_min(string $hm): int {
     return (int)substr($hm, 0, 2) * 60 + (int)substr($hm, 3, 2);
@@ -122,8 +152,9 @@ function _ti_leave_min(string $hm): int {
  * Nieobecność całodniowa obejmuje każdy przedział; godzinowa — tylko nakładający się. Bez godzin
  * w zapytaniu ($tf === '') godzinowa NIE liczy się jako nieobecność całego dnia.
  */
-function ti_leave_covers(array $l, string $day, string $tf = '', string $tt = ''): bool {
+function ti_leave_covers(array $l, string $day, string $tf = '', string $tt = '', int $course_id = -1): bool {
     if ($day < (string)$l['date_from'] || $day > (string)$l['date_to']) return false;
+    if (!ti_leave_applies_to_course($l, $course_id)) return false;
     if (!ti_leave_is_hourly($l)) return true;
     if ($tf === '') return false;
     $a1 = _ti_leave_min((string)$l['time_from']); $a2 = _ti_leave_min((string)$l['time_to']);
@@ -135,7 +166,7 @@ function ti_leave_covers(array $l, string $day, string $tf = '', string $tt = ''
  * Czy prowadzący jest nieobecny w danym dniu (i opcjonalnie godzinach)? Zwraca wiersz urlopu lub null.
  * Przydatne do ostrzeżeń przy planowaniu lekcji. Z godzinami $tf/$tt uwzględnia nieobecności godzinowe.
  */
-function ti_instructor_on_leave(int $instructor_id, string $day, string $tf = '', string $tt = ''): ?array {
+function ti_instructor_on_leave(int $instructor_id, string $day, string $tf = '', string $tt = '', int $course_id = -1): ?array {
     ti_leaves_migrate();
     if (!$instructor_id || $day === '') return null;
     $rows = db_all(
@@ -144,7 +175,7 @@ function ti_instructor_on_leave(int $instructor_id, string $day, string $tf = ''
          ORDER BY date_to DESC",
         [$instructor_id, $day, $day]
     );
-    foreach ($rows as $l) if (ti_leave_covers($l, $day, $tf, $tt)) return $l;
+    foreach ($rows as $l) if (ti_leave_covers($l, $day, $tf, $tt, $course_id)) return $l;
     return null;
 }
 
@@ -167,6 +198,7 @@ function ti_leaves_for_client(int $client_id, int $days = 30): array {
          JOIN k30_ti_courses c ON c.instructor_id=l.instructor_id
          JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=? AND e.status='active'
          WHERE l.date_to >= ? AND l.date_from <= ?
+           AND (l.course_ids='' OR (',' || l.course_ids || ',') LIKE '%,' || c.id || ',%')
          GROUP BY l.id
          ORDER BY l.date_from ASC, instructor_name",
         [$client_id, $today, $until]
@@ -191,16 +223,17 @@ function ti_leaves_for_instructor(int $instructor_id, int $days = 60): array {
 }
 
 /** Aktywni kursanci uczeni przez danego prowadzącego (adresaci powiadomień o urlopie). */
-function ti_leave_affected_students(int $instructor_id): array {
+function ti_leave_affected_students(int $instructor_id, array $course_ids = []): array {
     ti_leaves_migrate();
     if (!$instructor_id) return [];
+    $scope = $course_ids ? ' AND c.id IN (' . implode(',', array_map('intval', $course_ids)) . ')' : '';
     return db_all(
         "SELECT DISTINCT a.id, a.is_minor, a.guardian_email, cl.name, cl.email
          FROM k30_ti_courses c
          JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.status='active'
          JOIN k30_ti_student_accounts a ON a.client_id=e.client_id AND a.is_active=1
          JOIN k30_clients cl ON cl.id=e.client_id
-         WHERE c.instructor_id=?",
+         WHERE c.instructor_id=?" . $scope,
         [$instructor_id]
     );
 }
@@ -225,7 +258,7 @@ function ti_leave_conflicts(array $l): array {
           ORDER BY s.lesson_date, s.time_from",
         [$iid, $from, $to]
     );
-    return array_values(array_filter($rows, fn($r) => ti_leave_covers($l, (string)$r['lesson_date'], (string)$r['time_from'], (string)$r['time_to'])));
+    return array_values(array_filter($rows, fn($r) => ti_leave_covers($l, (string)$r['lesson_date'], (string)$r['time_from'], (string)$r['time_to'], (int)$r['course_id'])));
 }
 
 /** Krótka data lekcji do SMS: „12.09 10:00”. */
@@ -423,7 +456,7 @@ function ti_leave_withdraw_notify(array $l, bool $sms = true): array {
     $res = ['emails' => 0, 'sms' => 0];
     if ((string)$l['date_to'] < date('Y-m-d') || empty($l['notified_at'])) return $res;   // zakończona albo nikt nie był powiadomiony
     $iname = (string)(db_one("SELECT COALESCE(NULLIF(TRIM(first_name||' '||last_name),''), name) AS n FROM users WHERE id=?", [(int)$l['instructor_id']])['n'] ?? '');
-    $range = ti_leave_when_label($l);
+    $range = ti_leave_when_label($l);   // tak samo jak w zapowiedzi (grupy: ti_leave_course_ids — zawężają adresatów)
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     $org = defined('ORG_NAME') ? ORG_NAME : 'TI';
     $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
@@ -432,7 +465,7 @@ function ti_leave_withdraw_notify(array $l, bool $sms = true): array {
           . '<p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Otwórz panel kursanta</a></p>'
           . '<p style="color:#888;font-size:12px">Wiadomość automatyczna z systemu ' . htmlspecialchars($org, ENT_QUOTES) . '.</p>';
     if (function_exists('mail_queue_add')) {
-        foreach (ti_leave_affected_students((int)$l['instructor_id']) as $s) {
+        foreach (ti_leave_affected_students((int)$l['instructor_id'], ti_leave_course_ids($l)) as $s) {
             $emails = [];
             $p = trim((string)($s['email'] ?? '')); if ($p !== '' && filter_var($p, FILTER_VALIDATE_EMAIL)) $emails[$p] = (string)$s['name'];
             $g = trim((string)($s['guardian_email'] ?? '')); if (!empty($s['is_minor']) && $g !== '' && filter_var($g, FILTER_VALIDATE_EMAIL)) $emails[$g] = (string)$s['name'];
@@ -510,9 +543,11 @@ function ti_leaves_notify(int $leave_id, bool $force = false, bool $sms = true, 
     $url   = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php';
     $range = ti_leave_when_label($l);
     $typeLabel = ti_leave_type_label($l['type']);
+    $scoped = ti_leave_course_names($l);   // nieobecność tylko dla wybranych grup
+    $scopeHtml = $scoped ? '<p>Dotyczy zajęć: <strong>' . htmlspecialchars(implode(', ', $scoped), ENT_QUOTES) . '</strong>.</p>' : '';
 
     $sent = 0;
-    foreach (ti_leave_affected_students((int)$l['instructor_id']) as $s) {
+    foreach (ti_leave_affected_students((int)$l['instructor_id'], ti_leave_course_ids($l)) as $s) {
         // Adresaci: główny e-mail kursanta + e-mail opiekuna (gdy małoletni)
         $emails  = [];
         $primary = trim((string)($s['email'] ?? ''));
@@ -524,6 +559,7 @@ function ti_leaves_notify(int $leave_id, bool $force = false, bool $sms = true, 
         $html = "<p>Dzień dobry,</p>"
               . "<p>Informujemy, że prowadzący <strong>" . htmlspecialchars((string)$l['instructor_name'], ENT_QUOTES) . "</strong> "
               . "ma zaplanowaną nieobecność (" . htmlspecialchars($typeLabel, ENT_QUOTES) . ") w terminie <strong>" . htmlspecialchars($range, ENT_QUOTES) . "</strong>.</p>"
+              . $scopeHtml
               . "<p>W tym czasie zajęcia mogą zostać odwołane lub przełożone. Aktualny harmonogram i ewentualne zmiany znajdziesz w panelu kursanta.</p>"
               . "<p><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'>Otwórz panel kursanta</a></p>"
               . "<p style='color:#888;font-size:12px'>Wiadomość automatyczna z systemu {$org}.</p>";

@@ -792,7 +792,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // może to świadomie ominąć (np. pilne zastępstwo poza zwykłymi godzinami)
         $skip_avail = dyd_is_staff() && !empty($_POST['skip_availability']);
         if (!$skip_avail && !$nodate) {
-            $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
+            $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt, (int)$course_id);
             if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         }
 
@@ -1068,7 +1068,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // chyba że kierownik świadomie ją pomija (np. pilne zastępstwo poza zwykłymi godzinami)
         $ser_skip_avail = dyd_is_staff() && !empty($_POST['skip_availability']);
         if (!$ser_skip_avail) {
-            $av = ti_instructor_available_at($eff_instr, $ser_dates[0], $tf, $tt);
+            $av = ti_instructor_available_at($eff_instr, $ser_dates[0], $tf, $tt, (int)$course_id);
             if (!$av['ok']) { flash_set('danger', $av['reason'] . ' Seria nie została utworzona.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         }
         // Zajętość konta Zoom — sprawdzana per termin (różne dni, ten sam host)
@@ -1483,7 +1483,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($req && dyd_owns_session($uid, (int)$req['session_id'])) {
             $accept = $op === 'reschedule_accept';
             if ($accept) {
-                $av = ti_instructor_available_at(ti_course_instructor_id($course_id), (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to']);
+                $av = ti_instructor_available_at(ti_course_instructor_id($course_id), (string)$req['proposed_date'], (string)$req['proposed_from'], (string)$req['proposed_to'], (int)$course_id);
                 if (!$av['ok']) { flash_set('danger', 'Nie można zaakceptować: ' . $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
                 if ($_pc = ti_period_closed_for_date((string)$req['proposed_date'])) {
                     flash_set('danger', 'Nie można zaakceptować: ' . ti_period_closed_msg($_pc));

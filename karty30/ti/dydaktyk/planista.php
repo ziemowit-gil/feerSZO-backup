@@ -334,15 +334,15 @@ function renderDay(list) {
     let bg = '', wins = '';
     if (st.rows === 'instructor' && r.key) {
       const lvAll = (st.data.leaves[r.key] || []).filter(l => l.from <= st.date && l.to >= st.date);
-      const lv = lvAll.find(l => !l.tf || !l.tt);                      // nieobecność całodniowa
-      const lvH = lvAll.filter(l => l.tf && l.tt);                     // nieobecności godzinowe — paski w osi czasu
+      const lv = lvAll.find(l => (!l.tf || !l.tt) && !l.scoped);       // nieobecność całodniowa (wszystkie grupy)
+      const lvH = lvAll.filter(l => (l.tf && l.tt) || l.scoped);       // godzinowe / tylko wybrane grupy — paski w osi czasu
       const aw = (st.data.avail[r.key] || []).filter(w => w.dow === dow(st.date) && (!w.vf || w.vf <= st.date) && (!w.vt || w.vt >= st.date));
       if (lv) bg = ' sc-hatch" title="Nieobecność: ' + esc(lv.type) + '';
       else if (st.data.avail[r.key]) {
         bg = ' sc-hatch';
         wins = aw.map(w => '<div class="sc-win" style="left:' + (h2m(w.from)-a)*PPM + 'px;width:' + (h2m(w.to)-h2m(w.from))*PPM + 'px"></div>').join('');
       }
-      if (!lv) wins += lvH.map(l => '<div class="sc-leave-h" title="Nieobecność ' + esc(l.tf + '–' + l.tt) + ' (' + esc(l.type) + ')" style="left:' + (h2m(l.tf)-a)*PPM + 'px;width:' + (h2m(l.tt)-h2m(l.tf))*PPM + 'px"></div>').join('');
+      if (!lv) wins += lvH.map(l => { const f = l.tf ? h2m(l.tf) : a, t = l.tt ? h2m(l.tt) : b; return '<div class="sc-leave-h" title="Nieobecność ' + (l.tf ? esc(l.tf + '–' + l.tt) : 'cały dzień') + (l.scoped ? ', tylko wybrane grupy' : '') + ' (' + esc(l.type) + ')" style="left:' + (f-a)*PPM + 'px;width:' + (t-f)*PPM + 'px"></div>'; }).join('');
     }
     html += '<div class="sc-row" data-key="' + r.key + '"><div class="sc-label" title="' + esc(r.label) + '">' + esc(r.label) + (r.sub ? ' <small class="text-body-secondary fw-normal">' + esc(r.sub) + '</small>' : '') + '</div>'
       + '<div class="sc-track' + bg + '" data-key="' + r.key + '" style="width:' + W + 'px;height:' + H + 'px;--hw:' + hw + 'px">' + wins

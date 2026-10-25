@@ -68,16 +68,16 @@ function sc_pending_count(): int {
 }
 
 /** Lekcje trenera (nieodbyte, nieodwołane) w zakresie dat; z $tf/$tt tylko nakładające się na okno godzin. */
-function sc_instructor_sessions(int $iid, string $from, string $to, string $tf = '', string $tt = ''): array {
+function sc_instructor_sessions(int $iid, string $from, string $to, string $tf = '', string $tt = '', string $course_ids = ''): array {
     $rows = db_all(
         "SELECT s.id, s.course_id, s.lesson_date, s.time_from, s.time_to, s.status, c.name AS course_name
            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
           WHERE COALESCE(s.instructor_id,c.instructor_id)=CAST(? AS INTEGER) AND s.lesson_date BETWEEN ? AND ?
             AND s.draft_id IS NULL AND s.status IN ('planned','reserved')
           ORDER BY s.lesson_date, s.time_from", [$iid, $from, $to]);
-    if ($tf === '' || $tt === '') return $rows;
-    $win = ['date_from' => $from, 'date_to' => $to, 'time_from' => $tf, 'time_to' => $tt];
-    return array_values(array_filter($rows, fn($r) => ti_leave_covers($win, (string)$r['lesson_date'], (string)$r['time_from'], (string)$r['time_to'])));
+    if ($tf === '' && $course_ids === '') return $rows;
+    $win = ['date_from' => $from, 'date_to' => $to, 'time_from' => $tf, 'time_to' => $tt, 'course_ids' => $course_ids];
+    return array_values(array_filter($rows, fn($r) => ti_leave_covers($win, (string)$r['lesson_date'], (string)$r['time_from'], (string)$r['time_to'], (int)$r['course_id'])));
 }
 
 /**
@@ -91,12 +91,12 @@ function sc_open_leave_resolution(int $leave_id, int $by): array {
     $l = ti_leave_get($leave_id);
     if (!$l) return ['request_id' => 0, 'items' => 0, 'open' => 0];
     $req = db_one("SELECT id FROM k30_sc_requests WHERE leave_id=? AND type='unavailability'", [$leave_id]);
-    $fields = ['instructor_id' => (int)$l['instructor_id'], 'date_from' => (string)$l['date_from'], 'date_to' => (string)$l['date_to'],
+    $fields = ['instructor_id' => (int)$l['instructor_id'], 'date_from' => (string)$l['date_from'], 'date_to' => (string)$l['date_to'], 'course_ids' => (string)($l['course_ids'] ?? ''),
                'time_from' => (string)($l['time_from'] ?? ''), 'time_to' => (string)($l['time_to'] ?? ''),
                'leave_type' => (string)$l['type'], 'reason' => (string)$l['note']];
     if ($req) {
         $rid = (int)$req['id'];
-        db()->prepare("UPDATE k30_sc_requests SET instructor_id=?, date_from=?, date_to=?, time_from=?, time_to=?, leave_type=?, reason=? WHERE id=?")
+        db()->prepare("UPDATE k30_sc_requests SET instructor_id=?, date_from=?, date_to=?, course_ids=?, time_from=?, time_to=?, leave_type=?, reason=? WHERE id=?")
             ->execute([...array_values($fields), $rid]);
     } else {
         $rid = (int)db_insert('k30_sc_requests', $fields + ['type' => 'unavailability', 'status' => 'approved', 'leave_id' => $leave_id,
@@ -109,7 +109,7 @@ function sc_open_leave_resolution(int $leave_id, int $by): array {
 }
 
 /** @return array{ok:bool,msg:string,id:int} */
-function sc_request_unavailability(int $iid, string $from, string $to, string $leave_type, string $reason, string $tf = '', string $tt = ''): array {
+function sc_request_unavailability(int $iid, string $from, string $to, string $leave_type, string $reason, string $tf = '', string $tt = '', $course_ids = []): array {
     ti_sched_migrate();
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) return ['ok' => false, 'msg' => 'Podaj poprawny zakres dat.', 'id' => 0];
     if ($to < $from) [$from, $to] = [$to, $from];
@@ -121,9 +121,10 @@ function sc_request_unavailability(int $iid, string $from, string $to, string $l
         if (!preg_match('/^\d{2}:\d{2}$/', $tf) || !preg_match('/^\d{2}:\d{2}$/', $tt) || $tt <= $tf)
             return ['ok' => false, 'msg' => 'Podaj poprawne godziny nieobecności (od wcześniejszej do późniejszej) albo zostaw oba pola puste.', 'id' => 0];
     }
+    $cids = ti_leave_sanitize_course_ids($iid, $course_ids);   // '' = wszystkie grupy
     $id = db_insert('k30_sc_requests', ['type' => 'unavailability', 'instructor_id' => $iid, 'date_from' => $from, 'date_to' => $to,
-        'time_from' => $tf, 'time_to' => $tt, 'leave_type' => $leave_type, 'reason' => substr(trim($reason), 0, 500)]);
-    $items = sc_instructor_sessions($iid, $from, $to, $tf, $tt);
+        'time_from' => $tf, 'time_to' => $tt, 'course_ids' => $cids, 'leave_type' => $leave_type, 'reason' => substr(trim($reason), 0, 500)]);
+    $items = sc_instructor_sessions($iid, $from, $to, $tf, $tt, $cids);
     foreach ($items as $it) db_exec("INSERT OR IGNORE INTO k30_sc_request_items (request_id, session_id) VALUES (?,?)", [$id, (int)$it['id']]);
     sc_notify_managers('Zgłoszenie niedostępności: ' . sc_user_name($iid),
         'Prowadzący <strong>' . h(sc_user_name($iid)) . '</strong> zgłasza niedostępność (' . h(ti_leave_type_label($leave_type)) . ') w terminie <strong>' . h($from . ' – ' . $to . ($tf !== '' ? ', ' . $tf . '–' . $tt : ''))
@@ -269,7 +270,7 @@ function sc_request_decide(int $id, string $decision, string $note, int $by, boo
     // niedostępność
     ti_leaves_migrate();
     $lid = (int)db_insert('k30_ti_instructor_leaves', ['instructor_id' => $iid, 'date_from' => $r['date_from'], 'date_to' => $r['date_to'],
-        'time_from' => (string)($r['time_from'] ?? ''), 'time_to' => (string)($r['time_to'] ?? ''),
+        'time_from' => (string)($r['time_from'] ?? ''), 'time_to' => (string)($r['time_to'] ?? ''), 'course_ids' => (string)($r['course_ids'] ?? ''),
         'type' => $r['leave_type'], 'note' => (string)$r['reason'], 'created_by' => $by]);
     db_exec("UPDATE k30_sc_requests SET status='approved', leave_id=?, decided_by=?, decided_at=datetime('now'), decision_note=? WHERE id=?", [$lid, $by, trim($note), $id]);
     try { ti_leaves_notify($lid); } catch (\Throwable $e) {}

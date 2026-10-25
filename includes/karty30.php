@@ -7043,7 +7043,7 @@ function ti_weekly_plan_generate(int $instructor_id, string $date_from, string $
             );
             if ($dup) { $out['skipped']['exists']++; continue; }
 
-            $av = ti_instructor_available_at(ti_course_instructor_id($cid), $d, $tf, $tt);
+            $av = ti_instructor_available_at(ti_course_instructor_id($cid), $d, $tf, $tt, (int)$cid);
             if (!$av['ok']) {
                 $out['skipped']['avail']++;
                 if (count($out['reasons']) < 10) $out['reasons'][] = date('d.m.Y', strtotime($d)) . ' ' . $tf . ': ' . $av['reason'];
@@ -7233,13 +7233,13 @@ function ti_weekly_autoassign(int $instructor_id): int {
  *  - kolizja z urlopem/nieobecnością → ok=false,
  *  - poza oknami danego dnia → ok=false.
  */
-function ti_instructor_available_at(int $instructor_id, string $date, string $time_from, string $time_to = ''): array {
+function ti_instructor_available_at(int $instructor_id, string $date, string $time_from, string $time_to = '', int $course_id = -1): array {
     $res = ['ok' => true, 'configured' => false, 'reason' => ''];
     if (!$instructor_id || $date === '') return $res;
 
     // Kolizja z nieobecnością (urlop/chorobowe) — jeśli moduł urlopów dostępny
     if (function_exists('ti_instructor_on_leave')) {
-        $lv = ti_instructor_on_leave($instructor_id, $date, $time_from, $time_to);
+        $lv = ti_instructor_on_leave($instructor_id, $date, $time_from, $time_to, $course_id);
         if ($lv) {
             $t = function_exists('ti_leave_type_label') ? ti_leave_type_label((string)($lv['type'] ?? '')) : (trim((string)($lv['type'] ?? '')) ?: 'nieobecność');
             $h = function_exists('ti_leave_is_hourly') && ti_leave_is_hourly($lv) ? ' w godzinach ' . ti_leave_hours_label($lv) : '';

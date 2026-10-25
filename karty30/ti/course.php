@@ -239,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         ];
         if (!$sess_data['lesson_date']) { flash_set('danger','Data lekcji jest wymagana.'); header('Location: course.php?id='.$id.'#lekcje'); exit; }
         // Zajęcia tylko w dostępności prowadzącego — admin może nadpisać
-        $av = ti_instructor_available_at(ti_course_instructor_id((int)$id), $sess_data['lesson_date'], $tf, $tt);
+        $av = ti_instructor_available_at(ti_course_instructor_id((int)$id), $sess_data['lesson_date'], $tf, $tt, (int)$id);
         if (!$av['ok'] && empty($_POST['ignore_availability'])) {
             flash_set('warning', $av['reason'] . ' Aby dodać mimo to, zaznacz „Dodaj poza dostępnością".');
             header('Location: course.php?id='.$id.'#lekcje'); exit;
@@ -292,7 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             header('Location: course.php?id='.$id.'#lekcje'); exit;
         }
         // Dostępność prowadzącego dla nowego terminu — admin może nadpisać
-        $av = ti_instructor_available_at(ti_course_instructor_id((int)$src['course_id']), $new_date, (string)$src['time_from'], (string)$src['time_to']);
+        $av = ti_instructor_available_at(ti_course_instructor_id((int)$src['course_id']), $new_date, (string)$src['time_from'], (string)$src['time_to'], (int)$src['course_id']);
         if (!$av['ok'] && empty($_POST['ignore_availability'])) {
             flash_set('warning', $av['reason'] . ' Aby sklonować mimo to, zaznacz „Klonuj poza dostępnością".');
             header('Location: course.php?id='.$id.'#lekcje'); exit;

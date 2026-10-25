@@ -124,9 +124,9 @@ function sc_validate(array $p): array {
 
     // Trener: urlop i okna dostępności
     if ($iid) {
-        $av = ti_instructor_available_at($iid, $date, $tf, $tt);
+        $av = ti_instructor_available_at($iid, $date, $tf, $tt, $course);
         if (!$av['ok']) {
-            $is_leave = function_exists('ti_instructor_on_leave') && ti_instructor_on_leave($iid, $date, $tf, $tt);
+            $is_leave = function_exists('ti_instructor_on_leave') && ti_instructor_on_leave($iid, $date, $tf, $tt, $course);
             $add_h($is_leave ? 'LEAVE' : 'AVAILABILITY', $av['reason'], !$is_leave);
         }
         // Nakładanie z innymi lekcjami trenera
