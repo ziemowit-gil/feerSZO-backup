@@ -1,7 +1,7 @@
 <?php
 /**
  * modules/ti_licencje_dydaktyczne/view/index.php — pulpit „Licencje dydaktyczne (AM5)”: kafle Metro (pula, wnioski, terminy 7 dni),
- * kolejka weryfikacji, przydziały po terminie, lista licencji z filtrem, wzory AM5 do druku, adresy alertów.
+ * zakładki: Sprawy (lista z filtrem), Do działania (weryfikacja, po terminie), Wzory do druku, Alerty i przypomnienia.
  * Zmienne: $rows, $f, $counts, $toVerify, $overdueAsg, $alertEmails, $alertSetting, $agentOn, $actor.
  */
 require __DIR__ . '/_parts.php';
@@ -26,37 +26,25 @@ $tiles = [
   <a class="btn btn-metro" href="<?= h(route('ld.new')) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i> Wniosek AM5 — materiały</a>
   <a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.new7')) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Wniosek AM7 — oprogramowanie</a>
 </div>
-<p class="text-secondary"><b>AM5</b> — licencje na materiały dydaktyczne: wniosek do licencjodawcy (AM5/1), oświadczenia kursanta (AM5/2, AM5/3).
+<details class="mb-2 text-secondary"><summary class="fw-semibold">Jak to działa (AM5, AM7, numer sprawy, termin 7 dni)</summary><p class="mt-1 mb-0"><b>AM5</b> — licencje na materiały dydaktyczne: wniosek do licencjodawcy (AM5/1), oświadczenia kursanta (AM5/2, AM5/3).
   <b>AM7</b> — licencja / dostęp do oprogramowania i usług cyfrowych (dowolny dostawca; konto w tenancie ośrodka lub inna aktywacja): wniosek podpisywany przez kursanta (AM7/1), decyzja placówki zatwierdzana przez kierownika i wysyłana w PDF (AM7/2 / AM7/3), zlecenie Helpdesku IT, oświadczenia (AM7/4, AM7/5).
-  Każda sprawa ma numer <b><?= h(LD_CASE_PREFIX) ?>/NNNNNN/AB</b>, każdy etap — termin <b>do <?= LD_REALIZATION_DAYS ?> dni</b>; wszczęcie wysyła e-mail i SMS do osoby zainteresowanej.</p>
+  Każda sprawa ma numer <b><?= h(LD_CASE_PREFIX) ?>/NNNNNN/AB</b>, każdy etap — termin <b>do <?= LD_REALIZATION_DAYS ?> dni</b>; wszczęcie wysyła e-mail i SMS do osoby zainteresowanej.</p></details>
 
 <nav class="tiles" aria-label="Podsumowanie">
   <?php foreach ($tiles as [$label, $n, $color, $q]): ?>
-    <a class="tile" style="background:<?= $color ?>" href="<?= $q === null ? '#weryfikacja' : $u($q) ?>"><span class="n"><?= (int)$n ?></span><span class="l"><?= h($label) ?></span></a>
+    <a class="tile" style="background:<?= $color ?>" href="<?= $q === null ? '#dzialania' : $u($q) ?>"<?= $q === null ? ' data-ld-goto="dzialania"' : '' ?>><span class="n"><?= (int)$n ?></span><span class="l"><?= h($label) ?></span></a>
   <?php endforeach; ?>
 </nav>
 
-<?php if ($toVerify): ?>
-<section class="panel accent" id="weryfikacja">
-  <h2 class="mt-0">Oświadczenia do weryfikacji</h2>
-  <table class="table table-sm mb-0"><thead><tr><th>Osoba</th><th>Licencja</th><th>Złożono</th><th></th></tr></thead><tbody>
-  <?php foreach ($toVerify as $a): ?>
-    <tr><td><?= h($a['holder_name']) ?></td><td><?= h($a['license_title']) ?></td><td><?= h(ldDt($a['submitted_at'])) ?></td>
-      <td class="text-end"><a class="btn btn-sm btn-metro" href="<?= h(route('ld.show', ['id' => $a['license_id']])) ?>#przydzialy">Weryfikuj</a></td></tr>
-  <?php endforeach; ?></tbody></table>
-</section>
-<?php endif; ?>
+<?php $_tabs = [
+    'sprawy'     => ['Sprawy', count($rows), false],
+    'dzialania'  => ['Do działania', count($toVerify) + count($overdueAsg), true],
+    'wzory'      => ['Wzory do druku', null, false],
+    'ustawienia' => ['Alerty i przypomnienia', null, false],
+]; $_tabDefault = 'sprawy'; $_tabsLabel = 'Sekcje pulpitu licencji';
+include __DIR__ . '/_tabs.php'; ?>
 
-<?php if ($overdueAsg): ?>
-<section class="panel warn">
-  <div class="d-flex flex-wrap align-items-center gap-2"><h2 class="mt-0 me-auto">Oświadczenia po terminie 7 dni (<?= count($overdueAsg) ?>)</h2>
-    <?= ldPost(route('ld.remind'), 'Wyślij przypomnienia (e-mail + SMS)', 'btn-metro orange', [], 'Wysłać przypomnienia do wszystkich osób po terminie? Każda dostanie nowy link i nowy termin 7 dni.') ?></div>
-  <ul class="mb-0"><?php foreach ($overdueAsg as $a): ?>
-    <li><a href="<?= h(route('ld.show', ['id' => $a['license_id']])) ?>#przydzialy"><?= h($a['holder_name']) ?></a> — <?= h($a['license_title']) ?>, termin minął <?= h(ldDate($a['due_on'])) ?></li>
-  <?php endforeach; ?></ul>
-</section>
-<?php endif; ?>
-
+<div class="ld-tabpanel" id="ldp-sprawy" data-ld-panel="sprawy" role="tabpanel" aria-labelledby="ldt-sprawy">
 <form class="row g-2 align-items-end mb-2" method="get" action="licencjeDydaktyczne.php" role="search">
   <div class="col-md-5"><label class="form-label small" for="q">Szukaj</label><input class="form-control" id="q" name="q" value="<?= h($f['q']) ?>" placeholder="tytuł, licencjodawca, osoba, kurs"></div>
   <div class="col-md-4"><label class="form-label small" for="st">Stan</label>
@@ -87,18 +75,48 @@ $tiles = [
 </table>
 </div>
 
-<div class="row g-3 mt-1">
-  <section class="col-md-6"><div class="panel h-100">
+</div>
+
+<div class="ld-tabpanel" id="ldp-dzialania" data-ld-panel="dzialania" role="tabpanel" aria-labelledby="ldt-dzialania" hidden>
+<?php if ($toVerify): ?>
+<section class="panel accent" id="weryfikacja">
+  <h2 class="mt-0">Oświadczenia do weryfikacji</h2>
+  <table class="table table-sm mb-0"><thead><tr><th>Osoba</th><th>Licencja</th><th>Złożono</th><th></th></tr></thead><tbody>
+  <?php foreach ($toVerify as $a): ?>
+    <tr><td><?= h($a['holder_name']) ?></td><td><?= h($a['license_title']) ?></td><td><?= h(ldDt($a['submitted_at'])) ?></td>
+      <td class="text-end"><a class="btn btn-sm btn-metro" href="<?= h(route('ld.show', ['id' => $a['license_id']])) ?>#przydzialy">Weryfikuj</a></td></tr>
+  <?php endforeach; ?></tbody></table>
+</section>
+<?php endif; ?>
+
+<?php if ($overdueAsg): ?>
+<section class="panel warn">
+  <div class="d-flex flex-wrap align-items-center gap-2"><h2 class="mt-0 me-auto">Oświadczenia po terminie 7 dni (<?= count($overdueAsg) ?>)</h2>
+    <?= ldPost(route('ld.remind'), 'Wyślij przypomnienia (e-mail + SMS)', 'btn-metro orange', [], 'Wysłać przypomnienia do wszystkich osób po terminie? Każda dostanie nowy link i nowy termin 7 dni.') ?></div>
+  <ul class="mb-0"><?php foreach ($overdueAsg as $a): ?>
+    <li><a href="<?= h(route('ld.show', ['id' => $a['license_id']])) ?>#przydzialy"><?= h($a['holder_name']) ?></a> — <?= h($a['license_title']) ?>, termin minął <?= h(ldDate($a['due_on'])) ?></li>
+  <?php endforeach; ?></ul>
+</section>
+<?php endif; ?>
+
+<?php if (!$toVerify && !$overdueAsg): ?><p class="panel text-secondary">Nic nie czeka na działanie: brak oświadczeń do weryfikacji i brak spraw po terminie 7 dni.</p><?php endif; ?>
+</div>
+
+<div class="ld-tabpanel" id="ldp-wzory" data-ld-panel="wzory" role="tabpanel" aria-labelledby="ldt-wzory" hidden>
+  <section><div class="panel">
     <h2 class="mt-0">Wzory do druku (obieg papierowy)</h2>
     <p class="small text-secondary">Puste formularze — gdy licencjodawca lub uczestnik nie korzysta z portalu. Decyzję z papieru wpisuje się na karcie licencji.</p>
     <ul class="list-unstyled mb-0">
       <?php foreach (LicenseDoc::cases() as $d): ?><li class="mb-1"><span class="sym"<?= $d->form() === LicenseForm::Am7 ? ' style="background:#0050ef"' : '' ?>><?= h($d->symbol()) ?></span> <a href="<?= h(route('ld.blank', ['doc' => $d->slug()])) ?>" target="_blank" rel="noopener"><?= h($d->title()) ?></a></li><?php endforeach; ?>
-      <?php foreach (OperationForm::cases() as $f): ?><li class="mb-1"><span class="sym" style="background:<?= h($f->color()) ?>"><?= h($f->value) ?></span> <a href="<?= h(route('ld.op.blank', ['form' => $f->value])) ?>" target="_blank" rel="noopener"><?= h($f->title()) ?></a></li>
-        <?php if ($f === OperationForm::Am20): ?><li class="mb-1"><span class="sym" style="background:<?= h($f->color()) ?>">AM20-1</span> <a href="<?= h(route('ld.op.blank', ['form' => 'AM20-1'])) ?>" target="_blank" rel="noopener">Wykaz dokumentów księgowych wystawionych dotąd przez FEER (załącznik do AM20)</a></li><?php endif; ?>
+      <?php foreach (OperationForm::cases() as $of): ?><li class="mb-1"><span class="sym" style="background:<?= h($of->color()) ?>"><?= h($of->value) ?></span> <a href="<?= h(route('ld.op.blank', ['form' => $of->value])) ?>" target="_blank" rel="noopener"><?= h($of->title()) ?></a></li>
+        <?php if ($of === OperationForm::Am20): ?><li class="mb-1"><span class="sym" style="background:<?= h($of->color()) ?>">AM20-1</span> <a href="<?= h(route('ld.op.blank', ['form' => 'AM20-1'])) ?>" target="_blank" rel="noopener">Wykaz dokumentów księgowych wystawionych dotąd przez FEER (załącznik do AM20)</a></li><?php endif; ?>
       <?php endforeach; ?>
     </ul>
   </div></section>
-  <section class="col-md-6"><div class="panel h-100">
+</div>
+
+<div class="ld-tabpanel" id="ldp-ustawienia" data-ld-panel="ustawienia" role="tabpanel" aria-labelledby="ldt-ustawienia" hidden>
+  <section><div class="panel">
     <h2 class="mt-0">Alerty dla biura</h2>
     <p class="small text-secondary">Nowe oświadczenia, decyzje licencjodawców i niedoręczone powiadomienia. Puste pole — fallback: e-mail organizacji, potem administratorzy.
       Teraz trafiają do: <b><?= h($alertEmails ? implode(', ', $alertEmails) : 'nikogo (uzupełnij!)') ?></b>.</p>
