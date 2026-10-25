@@ -44,7 +44,7 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
     $run('logic');
     $run('redis');
     $run('seed');
-    foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook', 'get_pulpit', 'get_pulpit_wk', 'get_hours', 'get_hours_m', 'get_side'] as $m) $run('page', $m);
+    foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook', 'get_pulpit', 'get_pulpit_wk', 'get_hours', 'get_hours_m', 'get_godziny', 'get_side'] as $m) $run('page', $m);
 
     // Strażnik wycieków: tylko adresaci i numery testowe
     foreach (is_file($events) ? file($events, FILE_IGNORE_NEW_LINES) : [] as $l) {
@@ -282,6 +282,7 @@ switch ($pmode) {
     case 'get_pulpit_wk': $script = 'index.php'; $_GET['tab'] = 'pulpit'; $_GET['wk'] = '1'; $expect = 'Grupa A P'; break;   // lekcje testowe są za 6 dni — w następnym tygodniu
     case 'get_hours':     $script = 'raportGodzin.php'; $expect = 'export=csv'; break;   // strona z linkiem eksportu (sam plik CSV zrzuca się poza buforem testu)
     case 'get_hours_m':   $script = 'raportGodzin.php'; $_GET['m'] = date('Y-m', strtotime('+8 day')); $_GET['by'] = 'grupa'; $expect = 'Grupa A H'; break;
+    case 'get_godziny':   $script = 'godziny.php'; $_GET['r'] = 'podsumowanie'; $expect = 'gh-nav'; break;
     case 'get_side':      $_GET['menu'] = 'side'; $expect = 'dostępność prowadzących'; break;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') $_POST['_token'] = dyd_token();

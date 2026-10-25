@@ -150,6 +150,41 @@ html body.ti-metro .kier-sidenav a:focus-visible, html body.ti-metro .kier-siden
   html body.ti-metro .kier-sidenav { display:flex; flex-direction:column; padding-bottom:0; }
   html body.ti-metro .kier-sidenav::after { content:''; flex:1 0 0; min-height:0; background:var(--g); }
 }
+/* ── Zestawienia godzin („Moje godziny” godziny.php, „Godziny TI w miesiącach” raportGodzin.php) — styl Metro ──────
+   Płaskie kafle zamiast pastylek (każde zestawienie ma własny kolor, aktywne z białym spodem), płaskie pola i przyciski,
+   tabele bez pionowych linii i pasków, kafle KPI jak kafle Start. Biały tekst na kolorach ≥ 4,9:1. */
+html body.ti-metro .gh-nav { gap:.4rem; }
+html body.ti-metro a.gh-chip { --c:#0b5582; display:inline-flex; align-items:center; gap:.5rem; min-height:44px; padding:.5rem 1rem; background:var(--c) !important; color:#fff !important; border:0 !important; border-bottom:4px solid transparent !important; border-radius:0 !important; font-size:.9rem; font-weight:400; text-decoration:none !important; }
+html body.ti-metro a.gh-chip:hover { background:color-mix(in srgb,var(--c) 82%,#000) !important; color:#fff !important; text-decoration:none !important; }
+html body.ti-metro a.gh-chip.is-on { font-weight:700; border-bottom-color:#fff !important; box-shadow:inset 0 -2px 0 rgba(0,0,0,.35); }
+html body.ti-metro a.gh-chip:focus-visible { outline:3px solid #fbbf24; outline-offset:2px; }
+html body.ti-metro .gh-nav li:nth-child(1) a.gh-chip  { --c:#0b5582; } html body.ti-metro .gh-nav li:nth-child(2) a.gh-chip  { --c:#006064; }
+html body.ti-metro .gh-nav li:nth-child(3) a.gh-chip  { --c:#2e7d32; } html body.ti-metro .gh-nav li:nth-child(4) a.gh-chip  { --c:#6a1b9a; }
+html body.ti-metro .gh-nav li:nth-child(5) a.gh-chip  { --c:#ad1457; } html body.ti-metro .gh-nav li:nth-child(6) a.gh-chip  { --c:#bf360c; }
+html body.ti-metro .gh-nav li:nth-child(7) a.gh-chip  { --c:#5d4037; } html body.ti-metro .gh-nav li:nth-child(8) a.gh-chip  { --c:#37474f; }
+html body.ti-metro .gh-nav li:nth-child(9) a.gh-chip  { --c:#303f9f; } html body.ti-metro .gh-nav li:nth-child(10) a.gh-chip { --c:#00695c; }
+/* filtry i przyciski akcji: płaskie, kwadratowe */
+html body.ti-metro .gh-filters .form-control, html body.ti-metro .gh-filters .form-select, html body.ti-metro .rg-filters .form-select { border:2px solid #8a8a8a; border-radius:0; min-height:36px; background:#fff; }
+html body.ti-metro .gh-filters .form-control:focus, html body.ti-metro .gh-filters .form-select:focus, html body.ti-metro .rg-filters .form-select:focus { border-color:#0f6fa8; box-shadow:none; }
+html body.ti-metro .gh-filters .btn, html body.ti-metro .gh-actions .btn, html body.ti-metro .rg-actions .btn, html body.ti-metro .rg-filters .btn, html body.ti-metro .input-group .btn { border-radius:0; border-width:2px; }
+html body.ti-metro .gh-filters .btn-outline-primary, html body.ti-metro .gh-actions .btn-outline-secondary, html body.ti-metro .rg-actions .btn-outline-secondary { color:#1d1d1d; border-color:#1d1d1d; background:#fff; }
+html body.ti-metro .gh-actions .btn-outline-secondary:hover, html body.ti-metro .rg-actions .btn-outline-secondary:hover, html body.ti-metro .gh-filters .btn-outline-primary:hover { background:#1d1d1d; color:#fff; }
+/* tabele: nagłówki małymi literami rozstrzelonymi, bez pasków i pionowych linii */
+html body.ti-metro .gh-table, html body.ti-metro .rg-table { --bs-table-striped-bg:transparent; border-collapse:collapse; }
+html body.ti-metro .gh-table thead th, html body.ti-metro .rg-table thead th { font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; font-weight:600; color:#3a3a3a; border-bottom:2px solid #1d1d1d; border-top:0; }
+html body.ti-metro .gh-table td, html body.ti-metro .gh-table th, html body.ti-metro .rg-table td, html body.ti-metro .rg-table th { border-left:0; border-right:0; border-color:#e1e1e1; }
+html body.ti-metro .gh-table tbody tr:hover > *, html body.ti-metro .rg-table tbody tr:hover > * { background:#eef5fa; }
+html body.ti-metro .gh-table tr.gh-total > *, html body.ti-metro .rg-table tr.rg-total > * { border-top:2px solid #1d1d1d; background:#fff; }
+html body.ti-metro .rg-table a { color:#0b5582; font-weight:600; }
+/* kafle KPI (Podsumowanie okresu) jak kafle Start */
+html body.ti-metro .gh-kpi { gap:.5rem; }
+html body.ti-metro .gh-kpi li { --k:#0b5582; position:relative; min-height:118px; display:flex; flex-direction:column; justify-content:flex-end; padding:.8rem 1rem; background:var(--k); color:#fff; border:0; border-radius:0; }
+html body.ti-metro .gh-kpi li:nth-child(6n+1) { --k:#0b5582; } html body.ti-metro .gh-kpi li:nth-child(6n+2) { --k:#c25100; } html body.ti-metro .gh-kpi li:nth-child(6n+3) { --k:#a20025; }
+html body.ti-metro .gh-kpi li:nth-child(6n+4) { --k:#6a00ff; } html body.ti-metro .gh-kpi li:nth-child(6n+5) { --k:#00807e; } html body.ti-metro .gh-kpi li:nth-child(6n)   { --k:#2e7d32; }
+html body.ti-metro .gh-kpi .n { font-size:2.4rem; font-weight:300; line-height:1; color:#fff; }
+html body.ti-metro .gh-kpi .l { font-size:.86rem; font-weight:600; margin-top:.3rem; color:#fff; }
+html body.ti-metro .gh-kpi .c { font-size:.74rem; color:rgba(255,255,255,.92); }
+html body.ti-metro .gh-heat { border-radius:0; }
 html body.ti-metro .dyd-side-toggle { background:var(--dm-dark) !important; }
 
 /* ── Okruszki i podmenu sekcji → pivot ──────────────────────────────── */
