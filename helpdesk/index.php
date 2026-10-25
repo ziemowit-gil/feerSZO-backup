@@ -457,7 +457,8 @@ body.hd-console-page { overflow: hidden; }
 #hdPane{border-radius:0;background:#fff}
 /* Układ: bez zaokrągleń/cieni, filtry zawijane, panel boczny pod wiadomościami w wąskim panelu, brak zasłaniania przez FAB */
 #hdApp{border-radius:0;box-shadow:none}
-.hdList-filters{flex-wrap:wrap;overflow:visible;row-gap:.25rem}
+.hd-cat-select{width:100%;padding:.35rem .5rem;border:2px solid #bdbdbd;border-radius:0;background:#fff;font-size:.8rem;color:#1d1d1d}
+.hd-cat-select:focus{outline:none;border-color:var(--m-cyan)}
 #hdPane{container-type:inline-size}
 #hdPaneContent{padding-bottom:6rem;padding-right:5rem}
 .hd-side-dd,.hd-side-card-body{overflow-wrap:anywhere;min-width:0}
@@ -628,13 +629,12 @@ body.hd-console-page { overflow: hidden; }
                  placeholder="Szukaj numeru, tytułu… (/)"
                  autocomplete="off" aria-label="Szukaj zgłoszeń">
         </div>
-        <div class="hdList-filters mt-1">
+        <select id="hdCatSelect" class="hd-cat-select mt-1" aria-label="Kategoria">
+          <option value="">Wszystkie kategorie</option>
           <?php foreach (HD_CATEGORIES as $ckey => $clbl): ?>
-          <span class="hdList-pill<?= $f_category === $ckey ? ' active' : '' ?>"
-                data-filter="category" data-value="<?= h($ckey) ?>"
-                role="button" tabindex="0"><?= h($clbl) ?></span>
+          <option value="<?= h($ckey) ?>"<?= $f_category === $ckey ? ' selected' : '' ?>><?= h($clbl) ?></option>
           <?php endforeach; ?>
-        </div>
+        </select>
       </form>
     </div>
 
@@ -1022,16 +1022,11 @@ var HdApp = {
   },
 
   bindFilterPills: function () {
-    var self = this;
-    document.querySelectorAll('.hdList-pill').forEach(function (pill) {
-      pill.addEventListener('click', function () {
-        var already = pill.classList.contains('active');
-        document.querySelectorAll('.hdList-pill').forEach(function (p) { p.classList.remove('active'); });
-        self.catInput.value = already ? '' : pill.dataset.value;
-        if (!already) pill.classList.add('active');
-        self.loadList(self.formParams(), true);
-      });
-      pill.addEventListener('keydown', function (e) { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); pill.click(); } });
+    var self = this, sel = document.getElementById('hdCatSelect');
+    if (!sel) return;
+    sel.addEventListener('change', function () {
+      self.catInput.value = sel.value;
+      self.loadList(self.formParams(), true);
     });
   },
 
@@ -1081,6 +1076,7 @@ var HdApp = {
       if (self.viewInput)   self.viewInput.value   = p.get('view')     || '';
       if (self.statusInput) self.statusInput.value = p.get('status')   || '';
       if (self.catInput)    self.catInput.value    = p.get('category') || '';
+      var cs = document.getElementById('hdCatSelect'); if (cs) cs.value = p.get('category') || '';
       if (self.priInput)    self.priInput.value    = p.get('priority') || '';
       if (self.searchInput) self.searchInput.value = p.get('q')        || '';
       self.loadList(p, false);
