@@ -265,6 +265,46 @@ final class TiLicencjeManager
      *
      * @return array{data:array<string,mixed>,errors:list<string>}
      */
+    /**
+     * Rozliczenie cykliczne z formularza: kwota miesięczna, dzień miesiąca (domyślnie dzień $issued), rabat (pct/amt) z opisem.
+     * Puste = bez rozliczenia cyklicznego. Dla konta „tylko rozliczenie licencji” kwota jest obowiązkowa.
+     * Wspólne dla licencji (TiLicencjeManager::validate) i produktów (TiProducts::validate).
+     * @param list<string> $errors  dopisywane błędy
+     * @return array{monthly_amount:?float,billing_day:?int,discount_type:string,discount_value:?float,discount_note:string}
+     */
+    public static function parseBilling(array $in, string $issued, int $clientId, array &$errors): array
+    {
+        $amtRaw = trim(str_replace([' ', "\xc2\xa0"], '', (string)($in['monthly_amount'] ?? '')));
+        $amt = null;
+        if ($amtRaw !== '') {
+            if (!preg_match('/^\d{1,6}([.,]\d{1,2})?$/', $amtRaw) || (float)str_replace(',', '.', $amtRaw) <= 0) $errors[] = 'Kwota miesięczna: podaj dodatnią liczbę (np. 49,00).';
+            else $amt = round((float)str_replace(',', '.', $amtRaw), 2);
+        }
+        $out = ['monthly_amount' => $amt, 'billing_day' => null, 'discount_type' => '', 'discount_value' => null, 'discount_note' => ''];
+        $day = trim((string)($in['billing_day'] ?? ''));
+        if ($amt !== null) {
+            if ($day === '') $day = (string)(int)date('j', strtotime($issued));
+            if (!ctype_digit($day) || (int)$day < 1 || (int)$day > 31) $errors[] = 'Dzień rozliczenia: liczba od 1 do 31.';
+            else $out['billing_day'] = (int)$day;
+        }
+        $dt = (string)($in['discount_type'] ?? '');
+        $dv = trim(str_replace(',', '.', (string)($in['discount_value'] ?? '')));
+        if ($dt === 'pct' || $dt === 'amt') {
+            if ($amt === null) $errors[] = 'Rabat wymaga podania kwoty miesięcznej.';
+            elseif (!preg_match('/^\d{1,6}(\.\d{1,2})?$/', $dv) || (float)$dv <= 0) $errors[] = 'Rabat: podaj dodatnią wartość.';
+            elseif ($dt === 'pct' && (float)$dv >= 100) $errors[] = 'Rabat procentowy musi być mniejszy niż 100%.';
+            elseif ($dt === 'amt' && (float)$dv >= $amt) $errors[] = 'Rabat kwotowy musi być mniejszy niż kwota miesięczna.';
+            else { $out['discount_type'] = $dt; $out['discount_value'] = round((float)$dv, 2); }
+        }
+        $dn = trim((string)($in['discount_note'] ?? ''));
+        if (mb_strlen($dn) > 120) $errors[] = 'Opis rabatu jest za długi (maks. 120 znaków).';
+        $out['discount_note'] = $out['discount_type'] !== '' ? $dn : '';
+        if ($clientId > 0 && self::isLicensesOnly($clientId) && $amt === null) {
+            $errors[] = 'To konto ma opcję „tylko rozliczenie licencji” — podaj kwotę miesięczną i dzień rozliczenia.';
+        }
+        return $out;
+    }
+
     /** Czy konto kursanta ma opcję „tylko rozliczenie licencji”. */
     public static function isLicensesOnly(int $clientId): bool
     {
@@ -334,41 +374,9 @@ final class TiLicencjeManager
         }
         $d['billing_form'] = $form;
 
-        // Rozliczenie cykliczne: kwota miesięczna + dzień miesiąca (+ rabat). Puste = licencja bez rozliczenia cyklicznego.
-        $amtRaw = trim(str_replace([' ', "\xc2\xa0"], '', (string)($in['monthly_amount'] ?? '')));
-        $amt = null;
-        if ($amtRaw !== '') {
-            if (!preg_match('/^\d{1,6}([.,]\d{1,2})?$/', $amtRaw) || (float)str_replace(',', '.', $amtRaw) <= 0) $errors[] = 'Kwota miesięczna: podaj dodatnią liczbę (np. 49,00).';
-            else $amt = round((float)str_replace(',', '.', $amtRaw), 2);
-        }
-        $d['monthly_amount'] = $amt;
-        $day = trim((string)($in['billing_day'] ?? ''));
-        if ($amt !== null) {
-            if ($day === '') $day = (string)(int)date('j', strtotime($issued));          // domyślnie dzień wydania
-            if (!ctype_digit($day) || (int)$day < 1 || (int)$day > 31) $errors[] = 'Dzień rozliczenia: liczba od 1 do 31.';
-            $d['billing_day'] = (int)$day >= 1 && (int)$day <= 31 ? (int)$day : null;
-        } else {
-            $d['billing_day'] = null;
-        }
-        $dt = (string)($in['discount_type'] ?? '');
-        $dv = trim(str_replace(',', '.', (string)($in['discount_value'] ?? '')));
-        $d['discount_type'] = ''; $d['discount_value'] = null;
-        if ($dt === 'pct' || $dt === 'amt') {
-            if ($amt === null) $errors[] = 'Rabat wymaga podania kwoty miesięcznej.';
-            elseif (!preg_match('/^\d{1,6}(\.\d{1,2})?$/', $dv) || (float)$dv <= 0) $errors[] = 'Rabat: podaj dodatnią wartość.';
-            elseif ($dt === 'pct' && (float)$dv >= 100) $errors[] = 'Rabat procentowy musi być mniejszy niż 100%.';
-            elseif ($dt === 'amt' && (float)$dv >= $amt) $errors[] = 'Rabat kwotowy musi być mniejszy niż kwota miesięczna.';
-            else { $d['discount_type'] = $dt; $d['discount_value'] = round((float)$dv, 2); }
-        }
-        $dn = trim((string)($in['discount_note'] ?? ''));
-        if (mb_strlen($dn) > 120) $errors[] = 'Opis rabatu jest za długi (maks. 120 znaków).';
-        $d['discount_note'] = $d['discount_type'] !== '' ? $dn : '';
-
-        // Konto „tylko rozliczenie licencji”: każda licencja musi mieć kwotę miesięczną i dzień rozliczenia
-        $cid = $isNew ? (int)($d['client_id'] ?? 0) : (int)($existing['client_id'] ?? 0);
-        if ($cid > 0 && self::isLicensesOnly($cid) && $amt === null) {
-            $errors[] = 'To konto ma opcję „tylko rozliczenie licencji” — podaj kwotę miesięczną i dzień rozliczenia licencji.';
-        }
+        // Rozliczenie cykliczne: kwota miesięczna + dzień miesiąca (+ rabat); wspólne z produktami (TiProducts)
+        $cidB = $isNew ? (int)($d['client_id'] ?? 0) : (int)($existing['client_id'] ?? 0);
+        $d += self::parseBilling($in, $issued, $cidB, $errors);
 
         // Ochrona przed podwójnym przypisaniem (np. dwukrotne kliknięcie = dwa SMS-y): ta sama licencja, ta sama osoba, wciąż ważna.
         if ($isNew && !$errors) {

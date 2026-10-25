@@ -670,6 +670,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($res['ok']) {
                 // Nowa usługa: e-mail „uruchomiono w Twoim imieniu” do kursanta (+ opiekun małoletniego) i kopia do administratora
                 $note = (!$pid && !empty($_POST['notify'])) ? ' Powiadomienia — ' . TiProducts::notifyStarted($res['id'], $dyd_name) . '.' : '';
+                // Rozliczenie cykliczne (kwota miesięczna): e-mail + SMS z kwotą, formą i dniem rozliczenia — jak przy licencjach
+                if (!$pid && !empty($_POST['notify']) && trim((string)($_POST['monthly_amount'] ?? '')) !== '') {
+                    require_once dirname(__DIR__, 3) . '/modules/ti_licencje/logic/tiLicencjeNotify.php';
+                    require_once dirname(__DIR__, 3) . '/modules/ti_licencje/logic/tiLicencjeBilling.php';
+                    $bs = TiLicencjeBilling::sendStart((int)$res['id'], ['email', 'sms'], $uid, 'product');
+                    $note .= ' Rozliczenie — ' . $bs['msg'];
+                }
                 flash_set('success', ($pid ? 'Zmiany produktu zapisane.' : 'Produkt dodany.') . $note);
             }
             else {

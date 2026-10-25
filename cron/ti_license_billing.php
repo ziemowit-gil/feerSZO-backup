@@ -1,6 +1,6 @@
 <?php
 /**
- * cron/ti_license_billing.php — przypomnienia o rozliczeniu miesięcznym licencji kursantów TI (e-mail + SMS), o 7:00,
+ * cron/ti_license_billing.php — przypomnienia o rozliczeniu miesięcznym licencji i produktów kursantów TI (e-mail + SMS), o 7:00,
  * DZIEŃ PRZED terminem rozliczenia (dzień miesiąca z przypisania; w krótszych miesiącach ostatni dzień).
  *
  *   php cron/ti_license_billing.php --dry-run                 # kto dostałby przypomnienie (nic nie wysyła)
@@ -31,7 +31,7 @@ echo "[" . date('Y-m-d H:i:s') . "] Start: ti_license_billing" . ($dry ? ' (dry-
 try {
     $r = TiLicencjeBilling::runReminders($date !== '' ? $date : null, $dry, $only ?: null);
     echo "  do przypomnienia: " . count($r['due']) . ($dry ? '' : ", wysłano: {$r['sent']}, pominięto: {$r['skipped']}") . "\n";
-    foreach ($r['due'] as $d) echo "   - #{$d['id']} {$d['client']} / {$d['software']} → termin {$d['date']}\n";
+    foreach ($r['due'] as $d) echo "   - {$d['type']} #{$d['id']} {$d['client']} / {$d['software']} → termin {$d['date']}\n";
 } catch (\Throwable $e) {
     echo "  ✗ " . $e->getMessage() . "\n";
     exit(1);

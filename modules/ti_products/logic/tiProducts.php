@@ -17,6 +17,7 @@ final class TiProducts
 
     public const TYPES = [
         'domain'  => ['label' => 'Domena',  'icon' => 'bi-globe2',      'name_label' => 'Nazwa domeny',          'name_ph' => 'np. mojafirma.pl'],
+        'license' => ['label' => 'Licencja', 'icon' => 'bi-key',        'name_label' => 'Nazwa licencji',        'name_ph' => 'np. Adobe Creative Cloud, Canva Pro, antywirus'],
         'hosting' => ['label' => 'Hosting', 'icon' => 'bi-hdd-network', 'name_label' => 'Konto hostingowe',      'name_ph' => 'np. login konta / nazwa usługi'],
         'other'   => ['label' => 'Inne',    'icon' => 'bi-box-seam',    'name_label' => 'Nazwa usługi',          'name_ph' => 'np. skrzynka e-mail, certyfikat SSL'],
     ];
@@ -38,18 +39,24 @@ final class TiProducts
         'archived'  => ['label' => 'Zarchiwizowany', 'icon' => 'bi-archive-fill',      'cls' => 'text-bg-secondary'],
     ];
 
-    public static function migrate(): void
+    private const BILLING_COLS = [
+        'monthly_amount' => 'REAL',                       // rozliczenie cykliczne: cena miesięczna (NULL = brak)
+        'billing_day'    => 'INTEGER',                    // dzień miesiąca rozliczenia 1–31
+        'billing_form'   => "TEXT NOT NULL DEFAULT ''",   // FAK | FAZ | DSC | GST (jak licencje; wymagana, gdy jest kwota)
+        'discount_type'  => "TEXT NOT NULL DEFAULT ''",   // '' | pct | amt
+        'discount_value' => 'REAL',
+        'discount_note'  => "TEXT NOT NULL DEFAULT ''",
+    ];
+
+    private static function createSql(string $table): string
     {
-        static $done = false;
-        if ($done) return;
-        $done = true;
-        db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_client_products (
+        return "CREATE TABLE IF NOT EXISTS {$table} (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             client_id      INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
-            product_type   TEXT    NOT NULL DEFAULT 'other' CHECK (product_type IN ('domain','hosting','other')),
+            product_type   TEXT    NOT NULL DEFAULT 'other' CHECK (product_type IN ('domain','hosting','license','other')),
             provider       TEXT    NOT NULL DEFAULT '',          -- klucz z PROVIDERS
             provider_other TEXT    NOT NULL DEFAULT '',          -- nazwa, gdy provider = other
-            name           TEXT    NOT NULL DEFAULT '',          -- domena / konto hostingowe / nazwa usługi
+            name           TEXT    NOT NULL DEFAULT '',          -- domena / konto hostingowe / licencja / nazwa usługi
             server_details TEXT    NOT NULL DEFAULT '',          -- pakiet, serwer, IP (hosting)
             expires_at     DATE,
             status         TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active','expiring','suspended','archived')),
@@ -59,10 +66,46 @@ final class TiProducts
             created_by     INTEGER,
             updated_by     INTEGER,
             created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
-        )");
-        db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_cl_prod_client ON k30_ti_client_products(client_id)");
-        db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_cl_prod_exp    ON k30_ti_client_products(expires_at)");
+            updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            monthly_amount REAL, billing_day INTEGER, billing_form TEXT NOT NULL DEFAULT '',
+            discount_type TEXT NOT NULL DEFAULT '', discount_value REAL, discount_note TEXT NOT NULL DEFAULT ''
+        )";
+    }
+
+    public static function migrate(): void
+    {
+        static $done = false;
+        if ($done) return;
+        $done = true;
+        $pdo = db();
+        $exists = $pdo->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='k30_ti_client_products'")->fetchColumn();
+        if (!$exists) {
+            $pdo->exec(self::createSql('k30_ti_client_products'));
+        } elseif (!str_contains((string)$exists, "'license'")) {
+            // Typ „Licencja”: SQLite nie zmienia CHECK — przebudowa tabeli (kopiowanie danych; klucze obce wyłączone na czas przebudowy,
+            // inaczej DROP skasowałby kaskadowo dziennik przypomnień). Ręczna procedura z dokumentacji SQLite.
+            $have = array_column($pdo->query("PRAGMA table_info(k30_ti_client_products)")->fetchAll(), 'name');
+            $pdo->exec("PRAGMA foreign_keys = OFF");
+            try {
+                $pdo->exec("BEGIN");
+                $pdo->exec(self::createSql('k30_ti_client_products_new'));
+                $cols = array_values(array_intersect(array_column($pdo->query("PRAGMA table_info(k30_ti_client_products_new)")->fetchAll(), 'name'), $have));
+                $list = implode(', ', $cols);
+                $pdo->exec("INSERT INTO k30_ti_client_products_new ($list) SELECT $list FROM k30_ti_client_products");
+                $pdo->exec("DROP TABLE k30_ti_client_products");
+                $pdo->exec("ALTER TABLE k30_ti_client_products_new RENAME TO k30_ti_client_products");
+                $pdo->exec("COMMIT");
+            } catch (\Throwable $e) {
+                try { $pdo->exec("ROLLBACK"); } catch (\Throwable $e2) {}
+                error_log('[ti_products] przebudowa tabeli: ' . $e->getMessage());
+            }
+            $pdo->exec("PRAGMA foreign_keys = ON");
+        } else {
+            $have = array_column($pdo->query("PRAGMA table_info(k30_ti_client_products)")->fetchAll(), 'name');
+            foreach (self::BILLING_COLS as $col => $ddl) if (!in_array($col, $have, true)) $pdo->exec("ALTER TABLE k30_ti_client_products ADD COLUMN $col $ddl");
+        }
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_cl_prod_client ON k30_ti_client_products(client_id)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_cl_prod_exp    ON k30_ti_client_products(expires_at)");
     }
 
     /** Produkty kursanta: najpierw niezarchiwizowane, potem wg typu i daty wygaśnięcia. */
@@ -102,7 +145,7 @@ final class TiProducts
     }
 
     /** Walidacja i normalizacja danych z formularza. @return array{0: array<string,mixed>, 1: list<string>} */
-    public static function validate(array $in): array
+    public static function validate(array $in, int $clientId = 0): array
     {
         $e = [];
         $type = (string)($in['product_type'] ?? '');
@@ -123,7 +166,13 @@ final class TiProducts
         if ($exp !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $exp) || !strtotime($exp))) $e[] = 'Nieprawidłowa data wygaśnięcia.';
         $status = (string)($in['status'] ?? 'active');
         if (!isset(self::STATUSES[$status])) $e[] = 'Wybierz status.';
-        return [[
+        // Rozliczenie cykliczne — jak przy licencjach (wspólny parser); forma rozliczenia wymagana, gdy jest kwota
+        require_once dirname(__DIR__, 2) . '/ti_licencje/logic/tiLicencjeManager.php';
+        $bill = TiLicencjeManager::parseBilling($in, date('Y-m-d'), $clientId, $e);
+        $form = strtoupper(trim((string)($in['billing_form'] ?? '')));
+        if ($bill['monthly_amount'] !== null && !isset(TiLicencjeManager::BILLING_FORMS[$form])) { $e[] = 'Wybierz formę rozliczenia: FAK, FAZ, DSC lub GST.'; $form = ''; }
+        if ($bill['monthly_amount'] === null) $form = isset(TiLicencjeManager::BILLING_FORMS[$form]) ? $form : '';
+        return [$bill + ['billing_form' => $form] + [
             'product_type'   => $type,
             'provider'       => $prov,
             'provider_other' => $prov === 'other' ? $provOther : '',
@@ -142,7 +191,7 @@ final class TiProducts
     {
         self::migrate();
         if (!$clientId || !db_one("SELECT 1 FROM k30_clients WHERE id = ?", [$clientId])) return ['ok' => false, 'id' => 0, 'errors' => ['Nie znaleziono kursanta.']];
-        [$d, $e] = self::validate($in);
+        [$d, $e] = self::validate($in, $clientId);
         if ($id) {
             $cur = self::get($id);
             if (!$cur || (int)$cur['client_id'] !== $clientId) $e[] = 'Ten produkt nie należy do wybranego kursanta.';

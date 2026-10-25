@@ -64,20 +64,30 @@ function ti_licencje_migrate(): void {
         $pdo->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN licenses_only INTEGER NOT NULL DEFAULT 0");
     }
 
-    // Dziennik przypomnień o rozliczeniu miesięcznym — jedno na licencję, okres, kanał i adresata (dedup)
-    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_license_billing_msgs (
-        id             INTEGER PRIMARY KEY AUTOINCREMENT,
-        assignment_id  INTEGER NOT NULL REFERENCES k30_ti_client_licenses(id) ON DELETE CASCADE,
-        kind           TEXT    NOT NULL CHECK (kind IN ('start','reminder')),
-        period         TEXT    NOT NULL DEFAULT '',                      -- RRRR-MM terminu rozliczenia (start: miesiąc przypisania)
-        channel        TEXT    NOT NULL CHECK (channel IN ('email','sms')),
-        recipient_kind TEXT    NOT NULL DEFAULT 'kursant',
-        recipient      TEXT    NOT NULL DEFAULT '',
-        status         TEXT    NOT NULL DEFAULT 'pending',               -- pending | sent | failed | skipped
-        detail         TEXT    NOT NULL DEFAULT '',
-        amount         REAL,
-        created_at     DATETIME
-    )");
-    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_lic_bm_once
-                ON k30_ti_license_billing_msgs(assignment_id, kind, period, channel, recipient_kind) WHERE status IN ('pending','sent')");
+    // Dziennik wiadomości rozliczeniowych — jedna na pozycję (licencja LUB produkt), okres, kanał i adresata (dedup).
+    // item_type: 'license' (k30_ti_client_licenses) | 'product' (k30_ti_client_products); bez klucza obcego, bo wskazuje na dwie tabele.
+    $bm = $pdo->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='k30_ti_license_billing_msgs'")->fetchColumn();
+    if ($bm && !str_contains((string)$bm, 'item_type')) {
+        $pdo->exec("DROP TABLE k30_ti_license_billing_msgs");     // wersja sprzed produktów — dziennik był pusty (nic jeszcze nie wysyłano)
+        $bm = false;
+    }
+    if (!$bm) {
+        $pdo->exec("CREATE TABLE k30_ti_license_billing_msgs (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_type      TEXT    NOT NULL DEFAULT 'license' CHECK (item_type IN ('license','product')),
+            assignment_id  INTEGER NOT NULL,                         -- id licencji albo produktu (wg item_type)
+            kind           TEXT    NOT NULL CHECK (kind IN ('start','reminder')),
+            period         TEXT    NOT NULL DEFAULT '',              -- RRRR-MM terminu rozliczenia (start: miesiąc przypisania)
+            channel        TEXT    NOT NULL CHECK (channel IN ('email','sms')),
+            recipient_kind TEXT    NOT NULL DEFAULT 'kursant',
+            recipient      TEXT    NOT NULL DEFAULT '',
+            status         TEXT    NOT NULL DEFAULT 'pending',       -- pending | sent | failed | skipped
+            detail         TEXT    NOT NULL DEFAULT '',
+            amount         REAL,
+            created_at     DATETIME
+        )");
+    }
+    $pdo->exec("DROP INDEX IF EXISTS idx_ti_lic_bm_once");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_lic_bm_once2
+                ON k30_ti_license_billing_msgs(item_type, assignment_id, kind, period, channel, recipient_kind) WHERE status IN ('pending','sent')");
 }

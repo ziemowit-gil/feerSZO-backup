@@ -10,7 +10,8 @@ $tp_edit  = !empty($_GET['pedit']) ? TiProducts::get((int)$_GET['pedit']) : null
 if ($tp_edit && (int)$tp_edit['client_id'] !== (int)$sa['client_id']) $tp_edit = null;
 $tp_old   = $_SESSION['ti_product_old'] ?? null; unset($_SESSION['ti_product_old']);
 $tp_fv    = ['product_type' => 'domain', 'provider' => '', 'provider_other' => '', 'name' => '', 'server_details' => '', 'expires_at' => '',
-             'status' => 'active', 'invoice_own' => '', 'invoice_vendor' => '', 'notes' => ''];
+             'status' => 'active', 'invoice_own' => '', 'invoice_vendor' => '', 'notes' => '',
+             'monthly_amount' => '', 'billing_day' => '', 'billing_form' => '', 'discount_type' => '', 'discount_value' => '', 'discount_note' => ''];
 if ($tp_edit) foreach ($tp_fv as $k => $_) $tp_fv[$k] = (string)($tp_edit[$k] ?? '');
 if (is_array($tp_old)) foreach ($tp_fv as $k => $_) if (isset($tp_old[$k])) $tp_fv[$k] = (string)$tp_old[$k];
 $tp_open  = $tp_edit || !empty($_GET['pnew']);
@@ -26,7 +27,7 @@ foreach ($tp_list as $p) $tp_by_type[$p['product_type']][] = $p;
   <?php if (!$tp_list): ?>
   <p class="text-body-secondary small mb-2">Brak usług i produktów.</p>
   <?php else: foreach (TiProducts::TYPES as $tk => $tmeta): if (empty($tp_by_type[$tk])) continue; ?>
-  <h3 class="h6 fw-semibold mt-2 mb-1"><i class="bi <?= h($tmeta['icon']) ?> me-1" aria-hidden="true"></i><?= h($tk === 'other' ? 'Inne usługi' : ($tk === 'domain' ? 'Domeny' : 'Hosting')) ?> <span class="badge text-bg-light border"><?= count($tp_by_type[$tk]) ?></span></h3>
+  <h3 class="h6 fw-semibold mt-2 mb-1"><i class="bi <?= h($tmeta['icon']) ?> me-1" aria-hidden="true"></i><?= h(['other' => 'Inne usługi', 'domain' => 'Domeny', 'hosting' => 'Hosting', 'license' => 'Licencje'][$tk] ?? $tmeta['label']) ?> <span class="badge text-bg-light border"><?= count($tp_by_type[$tk]) ?></span></h3>
   <div class="table-responsive mb-2"><table class="table table-sm align-middle small mb-0">
     <caption class="visually-hidden"><?= h($tmeta['label']) ?> — produkty kursanta</caption>
     <thead class="table-light"><tr>
@@ -36,7 +37,7 @@ foreach ($tp_list as $p) $tp_by_type[$p['product_type']][] = $p;
     </tr></thead>
     <tbody><?php foreach ($tp_by_type[$tk] as $p): $st = TiProducts::STATUSES[$p['status']] ?? TiProducts::STATUSES['active']; $hint = TiProducts::dateHint($p); $dl = TiProducts::daysLeft($p); ?>
       <tr<?= $p['status'] === 'archived' ? ' class="text-body-secondary"' : '' ?>>
-        <th scope="row" class="fw-semibold<?= $tk === 'domain' ? ' font-monospace' : '' ?>"><?= h($p['name']) ?><?php if ($p['notes'] !== ''): ?><div class="fw-normal text-body-secondary font-sans-serif"><?= h($p['notes']) ?></div><?php endif; ?></th>
+        <th scope="row" class="fw-semibold<?= $tk === 'domain' ? ' font-monospace' : '' ?>"><?= h($p['name']) ?><?php $pam = TiLicencjeManager::amounts($p); if ($pam): ?> <span class="badge text-bg-light border fw-normal" title="Rozliczenie miesięczne<?= $pam[0] !== $pam[1] ? ': po rabacie (cena ' . number_format($pam[0], 2, ',', ' ') . ' zł)' : '' ?>"><?= number_format($pam[1], 2, ',', ' ') ?> zł · <?= (int)$p['billing_day'] ?>. dnia<?= $pam[0] !== $pam[1] ? ' · rabat' : '' ?></span><?php endif; ?><?php if ($p['notes'] !== ''): ?><div class="fw-normal text-body-secondary font-sans-serif"><?= h($p['notes']) ?></div><?php endif; ?></th>
         <td><?= h(TiProducts::providerName($p)) ?></td>
         <?php if ($tk !== 'domain'): ?><td><?= h($p['server_details'] ?: '—') ?></td><?php endif; ?>
         <td class="text-nowrap"><?= $p['expires_at'] ? h(date('d.m.Y', strtotime((string)$p['expires_at']))) : '—' ?>
@@ -108,6 +109,25 @@ foreach ($tp_list as $p) $tp_by_type[$p['product_type']][] = $p;
       <div class="col-md-3"><label class="form-label small mb-0" for="tp-inv-ven">Nr faktury — obca</label>
         <input class="form-control form-control-sm font-monospace" id="tp-inv-ven" name="invoice_vendor" value="<?= h($tp_fv['invoice_vendor']) ?>" maxlength="100" aria-describedby="tp-inv-ven-h">
         <div class="form-text" id="tp-inv-ven-h">od dostawcy</div></div>
+      <div class="col-12"><fieldset class="border rounded p-2"><legend class="float-none w-auto px-1 fs-6 fw-semibold mb-1">Rozliczenie miesięczne <span class="fw-normal text-body-secondary">(opcjonalne<?= !empty($sa['licenses_only']) ? ' — wymagane na koncie „tylko rozliczenie licencji”' : '' ?>)</span></legend>
+        <div class="row g-2">
+          <div class="col-6 col-md-2"><label class="form-label small mb-0" for="tp-amt">Kwota mies. (zł)</label>
+            <input class="form-control form-control-sm" id="tp-amt" name="monthly_amount" inputmode="decimal" value="<?= h($tp_fv['monthly_amount']) ?>" placeholder="np. 49,00"<?= !empty($sa['licenses_only']) ? ' required' : '' ?>></div>
+          <div class="col-6 col-md-2"><label class="form-label small mb-0" for="tp-day">Dzień rozliczenia</label>
+            <input type="number" min="1" max="31" class="form-control form-control-sm" id="tp-day" name="billing_day" value="<?= h($tp_fv['billing_day']) ?>" placeholder="dziś"></div>
+          <div class="col-6 col-md-2"><label class="form-label small mb-0" for="tp-bf">Forma rozliczenia</label>
+            <select class="form-select form-select-sm" id="tp-bf" name="billing_form"><option value="">— wybierz —</option>
+              <?php foreach (TiLicencjeManager::BILLING_FORMS as $bfc => $bfm): ?><option value="<?= h($bfc) ?>"<?= $tp_fv['billing_form'] === $bfc ? ' selected' : '' ?>><?= h($bfc . ' — ' . $bfm['label']) ?></option><?php endforeach; ?></select></div>
+          <div class="col-6 col-md-2"><label class="form-label small mb-0" for="tp-dt">Rabat</label>
+            <select class="form-select form-select-sm" id="tp-dt" name="discount_type"><option value="">brak</option>
+              <option value="pct"<?= $tp_fv['discount_type'] === 'pct' ? ' selected' : '' ?>>%</option><option value="amt"<?= $tp_fv['discount_type'] === 'amt' ? ' selected' : '' ?>>zł</option></select></div>
+          <div class="col-6 col-md-1"><label class="form-label small mb-0" for="tp-dv">Wartość</label>
+            <input class="form-control form-control-sm" id="tp-dv" name="discount_value" inputmode="decimal" value="<?= h($tp_fv['discount_value']) ?>"></div>
+          <div class="col-6 col-md-3"><label class="form-label small mb-0" for="tp-dn">Opis rabatu</label>
+            <input class="form-control form-control-sm" id="tp-dn" name="discount_note" maxlength="120" value="<?= h($tp_fv['discount_note']) ?>" placeholder="np. rabat edukacyjny"></div>
+        </div>
+        <div class="form-text">Przy nowej pozycji z kwotą kursant (lub opiekun) dostanie e-mail i SMS z kwotą, formą i dniem rozliczenia, a co miesiąc przypomnienie dzień przed terminem.</div>
+      </fieldset></div>
       <div class="col-12"><label class="form-label small mb-0" for="tp-notes">Uwagi</label>
         <input class="form-control form-control-sm" id="tp-notes" name="notes" value="<?= h($tp_fv['notes']) ?>" maxlength="1000"></div>
     </div>

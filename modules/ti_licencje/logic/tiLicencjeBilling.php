@@ -47,13 +47,28 @@ final class TiLicencjeBilling
                           '„'=>'"','”'=>'"','–'=>'-','—'=>'-',"\u{00A0}"=>' ']);
     }
 
-    private static function assignment(int $id): ?array
+    /** Pozycja rozliczana: licencja ('license') albo produkt ('product'; typ Licencja/Domena/Hosting/Inne) — ujednolicone pola. */
+    private static function assignment(int $id, string $type = 'license'): ?array
     {
         ti_licencje_migrate();
-        return db_one(
+        if ($type === 'product') {
+            require_once dirname(__DIR__, 2) . '/ti_products/logic/tiProducts.php';
+            TiProducts::migrate();
+            $r = db_one("SELECT p.*, c.name AS client_name FROM k30_ti_client_products p JOIN k30_clients c ON c.id = p.client_id WHERE p.id = ?", [$id]);
+            if (!$r) return null;
+            $r['software']    = ($r['product_type'] === 'domain' ? 'domena ' : ($r['product_type'] === 'hosting' ? 'hosting ' : '')) . (string)$r['name'];
+            $r['assigned_at'] = (string)$r['created_at'];
+            $r['issued_at']   = substr((string)$r['created_at'], 0, 10);
+            $r['status']      = in_array($r['status'], ['suspended', 'archived'], true) ? 'revoked' : 'active';   // wstrzymany/zarchiwizowany = bez wiadomości
+            $r['item_type']   = 'product';
+            return $r;
+        }
+        $r = db_one(
             "SELECT cl.*, l.name AS software, c.name AS client_name
                FROM k30_ti_client_licenses cl JOIN k30_ti_licenses l ON l.id = cl.license_id JOIN k30_clients c ON c.id = cl.client_id
               WHERE cl.id = ?", [$id]) ?: null;
+        if ($r) $r['item_type'] = 'license';
+        return $r;
     }
 
     /** Opis rabatu do wiadomości: SMS „ po rabacie 20% (cena 61,25 zl)”, e-mail „ — rabat 20%, cena 61,25 PLN”. */
@@ -99,11 +114,11 @@ final class TiLicencjeBilling
         return $v;
     }
 
-    private static function log(int $aid, string $kind, string $period, string $channel, string $rk, string $to, string $status, string $detail, float $amount): bool
+    private static function log(string $type, int $aid, string $kind, string $period, string $channel, string $rk, string $to, string $status, string $detail, float $amount): bool
     {
         try {
-            db()->prepare("INSERT INTO k30_ti_license_billing_msgs (assignment_id,kind,period,channel,recipient_kind,recipient,status,detail,amount,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-                ->execute([$aid, $kind, $period, $channel, $rk, $to, $status, mb_substr($detail, 0, 300), $amount, date('Y-m-d H:i:s')]);
+            db()->prepare("INSERT INTO k30_ti_license_billing_msgs (item_type,assignment_id,kind,period,channel,recipient_kind,recipient,status,detail,amount,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+                ->execute([$type, $aid, $kind, $period, $channel, $rk, $to, $status, mb_substr($detail, 0, 300), $amount, date('Y-m-d H:i:s')]);
             return true;
         } catch (\PDOException $e) { return false; }   // unikalny indeks: już wysłano
     }
@@ -112,11 +127,11 @@ final class TiLicencjeBilling
      * Wysyła wiadomość rozliczeniową ($kind: 'start' | 'reminder') dla okresu $period (RRRR-MM), $dateYmd = data w treści.
      * @return array{ok:bool,sent:array{email:int,sms:int},msg:string,skipped:list<string>}
      */
-    private static function send(int $aid, string $kind, string $period, string $dateYmd, array $channels): array
+    private static function send(string $type, int $aid, string $kind, string $period, string $dateYmd, array $channels): array
     {
         $res = ['ok' => false, 'sent' => ['email' => 0, 'sms' => 0], 'msg' => '', 'skipped' => []];
-        $a = self::assignment($aid);
-        if (!$a)                          { $res['msg'] = 'Nie znaleziono przypisania.'; return $res; }
+        $a = self::assignment($aid, $type);
+        if (!$a)                          { $res['msg'] = 'Nie znaleziono pozycji.'; return $res; }
         if ($a['status'] === 'revoked')   { $res['msg'] = 'Licencja jest unieważniona.'; return $res; }
         $am = TiLicencjeManager::amounts($a);
         if (!$am || empty($a['billing_day'])) { $res['msg'] = 'Licencja nie ma rozliczenia cyklicznego.'; return $res; }
@@ -128,7 +143,7 @@ final class TiLicencjeBilling
             $to = $c['email'];
             if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) $res['skipped'][] = 'brak poprawnego adresu e-mail';
             elseif (ti_virtual_blocked($to)) $res['skipped'][] = 'kursant wirtualny';
-            elseif (self::log($aid, $kind, $period, 'email', $c['email_kind'], TiLicencjeNotifier::maskEmail($to), 'pending', '', $amount)) {
+            elseif (self::log($type, $aid, $kind, $period, 'email', $c['email_kind'], TiLicencjeNotifier::maskEmail($to), 'pending', '', $amount)) {
                 $status = 'failed'; $reason = '';
                 try {
                     $r = email_tpl_render($tplBase, self::vars($a, $c, 'email', $kind, $dateYmd));
@@ -138,8 +153,8 @@ final class TiLicencjeBilling
                         if ($mid > 0) { $status = 'sent'; $res['sent']['email']++; } else { $status = 'skipped'; $reason = 'zablokowane (kursant wirtualny)'; }
                     }
                 } catch (\Throwable $e) { $reason = $e->getMessage(); }
-                db()->prepare("UPDATE k30_ti_license_billing_msgs SET status=?, detail=? WHERE assignment_id=? AND kind=? AND period=? AND channel='email' AND recipient_kind=? AND status='pending'")
-                    ->execute([$status, mb_substr($reason, 0, 300), $aid, $kind, $period, $c['email_kind']]);
+                db()->prepare("UPDATE k30_ti_license_billing_msgs SET status=?, detail=? WHERE item_type=? AND assignment_id=? AND kind=? AND period=? AND channel='email' AND recipient_kind=? AND status='pending'")
+                    ->execute([$status, mb_substr($reason, 0, 300), $type, $aid, $kind, $period, $c['email_kind']]);
                 if ($status !== 'sent') $res['skipped'][] = 'e-mail: ' . ($reason ?: $status);
             }
         }
@@ -149,7 +164,7 @@ final class TiLicencjeBilling
             if (!(function_exists('sms_channel_ready') && sms_channel_ready())) $res['skipped'][] = 'kanał SMS nie jest skonfigurowany';
             elseif ($phone === '') $res['skipped'][] = 'brak numeru telefonu';
             elseif (ti_virtual_blocked('', $phone)) $res['skipped'][] = 'kursant wirtualny';
-            elseif (self::log($aid, $kind, $period, 'sms', $c['sms_kind'], TiLicencjeNotifier::maskPhone($phone), 'pending', '', $amount)) {
+            elseif (self::log($type, $aid, $kind, $period, 'sms', $c['sms_kind'], TiLicencjeNotifier::maskPhone($phone), 'pending', '', $amount)) {
                 $tpl = $tplBase . ($c['sms_kind'] === 'opiekun' ? '_guardian' : '');
                 $status = 'failed'; $reason = '';
                 try {
@@ -158,8 +173,8 @@ final class TiLicencjeBilling
                     if (empty($m['enabled']) || $msg === '') { $status = 'skipped'; $reason = 'szablon SMS wyłączony'; }
                     else { sms_send($phone, $msg, $tpl); $status = 'sent'; $res['sent']['sms']++; }
                 } catch (\Throwable $e) { $reason = function_exists('sms_scrub') ? sms_scrub($e->getMessage()) : $e->getMessage(); }
-                db()->prepare("UPDATE k30_ti_license_billing_msgs SET status=?, detail=? WHERE assignment_id=? AND kind=? AND period=? AND channel='sms' AND recipient_kind=? AND status='pending'")
-                    ->execute([$status, mb_substr($reason, 0, 300), $aid, $kind, $period, $c['sms_kind']]);
+                db()->prepare("UPDATE k30_ti_license_billing_msgs SET status=?, detail=? WHERE item_type=? AND assignment_id=? AND kind=? AND period=? AND channel='sms' AND recipient_kind=? AND status='pending'")
+                    ->execute([$status, mb_substr($reason, 0, 300), $type, $aid, $kind, $period, $c['sms_kind']]);
                 if ($status !== 'sent') $res['skipped'][] = 'SMS: ' . ($reason ?: $status);
             }
         }
@@ -171,13 +186,13 @@ final class TiLicencjeBilling
         return $res;
     }
 
-    /** W dniu przypisania: kwota, forma, dzień miesiąca, rabat; pierwsza opłata dzisiaj. */
-    public static function sendStart(int $assignmentId, array $channels = ['email', 'sms'], ?int $by = null): array
+    /** W dniu przypisania: kwota, forma, dzień miesiąca, rabat; pierwsza opłata dzisiaj. $type: 'license' | 'product'. */
+    public static function sendStart(int $assignmentId, array $channels = ['email', 'sms'], ?int $by = null, string $type = 'license'): array
     {
-        $a = self::assignment($assignmentId);
+        $a = self::assignment($assignmentId, $type);
         $issued = $a ? (string)($a['issued_at'] ?: substr((string)$a['assigned_at'], 0, 10)) : date('Y-m-d');
-        $res = self::send($assignmentId, 'start', substr($issued, 0, 7), date('Y-m-d'), array_values(array_intersect(['email', 'sms'], $channels)));
-        if ($res['ok']) db_exec("UPDATE k30_ti_client_licenses SET notified_at = ? WHERE id = ?", [date('Y-m-d H:i:s'), $assignmentId]);
+        $res = self::send($type, $assignmentId, 'start', substr($issued, 0, 7), date('Y-m-d'), array_values(array_intersect(['email', 'sms'], $channels)));
+        if ($res['ok'] && $type === 'license') db_exec("UPDATE k30_ti_client_licenses SET notified_at = ? WHERE id = ?", [date('Y-m-d H:i:s'), $assignmentId]);
         return $res;
     }
 
@@ -186,36 +201,47 @@ final class TiLicencjeBilling
      * (z przycięciem dnia do długości miesiąca); pierwszy miesiąc (dzień przypisania) pomijamy — wtedy poszła wiadomość startowa.
      * @return array{due:list<array{id:int,client:string,software:string,date:string}>,sent:int,skipped:int}
      */
-    public static function runReminders(?string $today = null, bool $dry = false, ?int $only = null): array
+    public static function runReminders(?string $today = null, bool $dry = false, ?int $only = null, string $onlyType = ''): array
     {
         ti_licencje_migrate();
+        require_once dirname(__DIR__, 2) . '/ti_products/logic/tiProducts.php';
+        TiProducts::migrate();
         $today    = $today ?: date('Y-m-d');
         $tomorrow = date('Y-m-d', strtotime($today . ' +1 day'));
         $ym       = substr($tomorrow, 0, 7);
         $out = ['due' => [], 'sent' => 0, 'skipped' => 0];
-        $rows = db_all(
-            "SELECT cl.id, cl.billing_day, cl.expires_at, cl.client_id, cl.issued_at, cl.assigned_at, l.name AS software, c.name AS client_name
-               FROM k30_ti_client_licenses cl JOIN k30_ti_licenses l ON l.id = cl.license_id JOIN k30_clients c ON c.id = cl.client_id
-              WHERE cl.status = 'active' AND cl.monthly_amount IS NOT NULL AND cl.monthly_amount > 0 AND cl.billing_day IS NOT NULL"
-              . ($only ? " AND cl.id = " . (int)$only : "")
-        );
-        foreach ($rows as $r) {
+        $pool = [];
+        if ($onlyType === '' || $onlyType === 'license') {
+            foreach (db_all(
+                "SELECT cl.id, cl.billing_day, cl.expires_at, cl.issued_at, cl.assigned_at, l.name AS software, c.name AS client_name
+                   FROM k30_ti_client_licenses cl JOIN k30_ti_licenses l ON l.id = cl.license_id JOIN k30_clients c ON c.id = cl.client_id
+                  WHERE cl.status = 'active' AND cl.monthly_amount IS NOT NULL AND cl.monthly_amount > 0 AND cl.billing_day IS NOT NULL"
+                  . ($only && $onlyType === 'license' ? " AND cl.id = " . (int)$only : "")) as $r) $pool[] = ['license', $r];
+        }
+        if ($onlyType === '' || $onlyType === 'product') {
+            foreach (db_all(
+                "SELECT p.id, p.billing_day, p.expires_at, substr(p.created_at,1,10) AS issued_at, p.created_at AS assigned_at, p.name AS software, c.name AS client_name
+                   FROM k30_ti_client_products p JOIN k30_clients c ON c.id = p.client_id
+                  WHERE p.status IN ('active','expiring') AND p.monthly_amount IS NOT NULL AND p.monthly_amount > 0 AND p.billing_day IS NOT NULL"
+                  . ($only && $onlyType === 'product' ? " AND p.id = " . (int)$only : "")) as $r) $pool[] = ['product', $r];
+        }
+        foreach ($pool as [$type, $r]) {
             if (TiLicencjeManager::dueDate((int)$r['billing_day'], $ym) !== $tomorrow) continue;                 // termin nie wypada jutro
             $issued = (string)($r['issued_at'] ?: substr((string)$r['assigned_at'], 0, 10));
             if (substr($issued, 0, 7) >= $ym) continue;                                                           // miesiąc przypisania — wiadomość startowa
-            if (!empty($r['expires_at']) && (string)$r['expires_at'] < $tomorrow) continue;                       // licencja wygasa przed terminem
-            $out['due'][] = ['id' => (int)$r['id'], 'client' => (string)$r['client_name'], 'software' => (string)$r['software'], 'date' => $tomorrow];
+            if (!empty($r['expires_at']) && (string)$r['expires_at'] < $tomorrow) continue;                       // wygasa przed terminem
+            $out['due'][] = ['type' => $type, 'id' => (int)$r['id'], 'client' => (string)$r['client_name'], 'software' => (string)$r['software'], 'date' => $tomorrow];
             if ($dry) continue;
-            $res = self::send((int)$r['id'], 'reminder', $ym, $tomorrow, ['email', 'sms']);
+            $res = self::send($type, (int)$r['id'], 'reminder', $ym, $tomorrow, ['email', 'sms']);
             if ($res['ok']) $out['sent']++; else $out['skipped']++;
         }
         return $out;
     }
 
     /** Dziennik wiadomości rozliczeniowych licencji (do ekranu). */
-    public static function recent(int $assignmentId): array
+    public static function recent(int $assignmentId, string $type = 'license'): array
     {
         ti_licencje_migrate();
-        return db_all("SELECT kind, period, channel, recipient_kind, recipient, status, detail, amount, created_at FROM k30_ti_license_billing_msgs WHERE assignment_id = ? ORDER BY id DESC LIMIT 40", [$assignmentId]);
+        return db_all("SELECT kind, period, channel, recipient_kind, recipient, status, detail, amount, created_at FROM k30_ti_license_billing_msgs WHERE item_type = ? AND assignment_id = ? ORDER BY id DESC LIMIT 40", [$type, $assignmentId]);
     }
 }
