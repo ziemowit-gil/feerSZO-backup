@@ -253,6 +253,14 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-ct-opt.is-empty{cursor:default;color:#6B7280}
 .ms-ct-opt input{width:1.05rem;height:1.05rem;accent-color:#0F766E}
 .ms-ct-n{font-weight:700;font-variant-numeric:tabular-nums;color:#111827}
+
+.ms-aud{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.6rem .75rem;margin-bottom:1rem;background:#F3F4F6;border:1px solid #D1D5DB}
+.ms-aud-l{font-size:.8rem;font-weight:700;color:#111827;margin:0}
+.ms-aud .form-select{max-width:16rem}.ms-aud #msAudName{max-width:14rem}
+.ms-aud-sep{width:1px;align-self:stretch;background:#D1D5DB;margin:0 .25rem}
+.ms-aud-share{font-size:.78rem;color:#374151;margin:0;display:inline-flex;align-items:center;gap:.3rem}
+.ms-aud-msg{font-size:.78rem;color:#0F4C47;font-weight:600}
+.ms-aud-msg.is-err{color:#B91C1C}
 </style>
 
 <div class="crm-page-header">
@@ -406,6 +414,20 @@ include __DIR__ . '/includes/header_crm.php';
     }
     $groups_json = json_encode(array_values($groups), JSON_UNESCAPED_UNICODE);
     ?>
+
+    <!-- ─── Zapisane listy adresatów (kryteria: grupy, tagi, umowy) ─── -->
+    <div class="ms-aud" id="msAud">
+      <label for="msAudSel" class="ms-aud-l"><i class="bi bi-bookmark-star" aria-hidden="true"></i> Zapisane listy</label>
+      <select id="msAudSel" class="form-select form-select-sm" onchange="MS.audLoad(this.value)">
+        <option value="">— wybierz zapisaną listę —</option>
+      </select>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="msAudDel" onclick="MS.audDelete()" hidden title="Usuń wybraną listę" aria-label="Usuń wybraną listę"><i class="bi bi-trash" aria-hidden="true"></i></button>
+      <span class="ms-aud-sep" aria-hidden="true"></span>
+      <input type="text" id="msAudName" class="form-control form-control-sm" maxlength="80" placeholder="Nazwa nowej listy" aria-label="Nazwa nowej listy">
+      <label class="ms-aud-share"><input type="checkbox" id="msAudShared"> dla wszystkich</label>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="MS.audSave()"><i class="bi bi-save" aria-hidden="true"></i> Zapisz bieżący wybór</button>
+      <span class="ms-aud-msg" id="msAudMsg" role="status" aria-live="polite"></span>
+    </div>
 
     <!-- ─── Wybór adresatów: zakładki (zaznaczenia ze wszystkich zakładek się sumują) ─── -->
     <div class="ms-rp-tabs" role="tablist" aria-label="Sposób wyboru adresatów">
@@ -1152,6 +1174,65 @@ const MS = (function() {
     preview();
   }
 
+
+  // ── Zapisane listy adresatów ──
+  let _auds = [];
+  function audMsg(t, err) { const m = document.getElementById('msAudMsg'); m.textContent = t || ''; m.classList.toggle('is-err', !!err); }
+  function audRender(selectId) {
+    const sel = document.getElementById('msAudSel');
+    sel.innerHTML = '<option value="">— wybierz zapisaną listę —</option>' +
+      _auds.map(a => `<option value="${a.id}">${esc(a.name)}${a.shared && !a.mine ? ' (wspólna)' : ''}</option>`).join('');
+    if (selectId) sel.value = String(selectId);
+    document.getElementById('msAudDel').hidden = !sel.value;
+  }
+  function audCall(payload) {
+    return fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }).then(r => r.json());
+  }
+  function audInit() { audCall({ action:'audience_list' }).then(r => { if (r.ok) { _auds = r.data; audRender(); } }); }
+  function audLoad(id) {
+    document.getElementById('msAudDel').hidden = !id;
+    const a = _auds.find(x => String(x.id) === String(id));
+    if (!a) return;
+    const c = a.criteria || {};
+    _group_ids = new Set((c.group_ids || []).map(Number));
+    document.querySelectorAll('#groupPickerDropdown [data-id]').forEach(el => {
+      const on = _group_ids.has(parseInt(el.dataset.id));
+      el.classList.toggle('selected', on);
+      const ic = el.querySelector('.gsi-check i'); if (ic) ic.style.display = on ? '' : 'none';
+    });
+    renderGroupPills();
+    _tag_filters = new Set(c.tags || []);
+    document.querySelectorAll('#tagChips .tag-chip').forEach(ch => ch.classList.toggle('selected', _tag_filters.has(ch.dataset.tag)));
+    _contract_sets = new Set(c.contract_sets || []);
+    document.querySelectorAll('[data-cset]').forEach(cb => { cb.checked = _contract_sets.has(cb.dataset.cset); });
+    audMsg('Wczytano listę „' + a.name + '”.');
+    preview();
+  }
+  function audSave() {
+    const name = document.getElementById('msAudName').value.trim();
+    if (!name) { audMsg('Podaj nazwę listy.', true); return; }
+    audCall({ action:'audience_save', name, shared: document.getElementById('msAudShared').checked,
+              group_ids: [..._group_ids], tags: [..._tag_filters], contract_sets: [..._contract_sets] }).then(r => {
+      if (!r.ok) { audMsg(r.error, true); return; }
+      _auds = r.data;
+      const saved = _auds.find(x => x.name.toLowerCase() === name.toLowerCase() && x.mine);
+      audRender(saved && saved.id);
+      document.getElementById('msAudName').value = '';
+      audMsg('Zapisano listę „' + name + '” — przy każdej wysyłce przeliczy się na nowo.');
+    });
+  }
+  function audDelete() {
+    const id = document.getElementById('msAudSel').value;
+    const a = _auds.find(x => String(x.id) === String(id));
+    if (!a || !confirm('Usunąć zapisaną listę „' + a.name + '”?')) return;
+    audCall({ action:'audience_delete', id: parseInt(id) }).then(r => {
+      if (!r.ok) { audMsg(r.error, true); return; }
+      _auds = r.data; audRender(); audMsg('Usunięto listę.');
+    });
+  }
+  document.addEventListener('DOMContentLoaded', audInit);
+  if (document.readyState !== 'loading') audInit();
+
   function preview() {
     rpBadges();
     const groups  = [..._group_ids];
@@ -1378,7 +1459,7 @@ recipientRow(c)
 
   wizShow(1);
 
-  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet,
+  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, audLoad, audSave, audDelete,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
            preview, send, insertVar, loadTemplate, purposeChanged, membersChanged,

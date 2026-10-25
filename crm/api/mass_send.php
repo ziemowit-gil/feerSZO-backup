@@ -146,6 +146,21 @@ function recipient_overrides(array $body): array
     return $out;
 }
 
+// ── Zapisane listy adresatów (kryteria: grupy, tagi, umowy) ───────────────
+if (in_array($action, ['audience_list', 'audience_save', 'audience_delete'], true)) {
+    require_once dirname(dirname(__DIR__)) . '/includes/crmSavedAudiences.php';
+    if ($action === 'audience_save') {
+        $nm = trim((string)($body['name'] ?? ''));
+        if ($nm === '' || mb_strlen($nm) > 80) api_err('Podaj nazwę listy (do 80 znaków).');
+        $crit = crm_audience_criteria($body);
+        if (!$crit['group_ids'] && !$crit['tags'] && !$crit['contract_sets']) api_err('Wybierz grupy, tagi lub umowy — lista nie może być pusta.');
+        crm_audience_save($uid, $nm, $crit, !empty($body['shared']));
+    } elseif ($action === 'audience_delete') {
+        if (!crm_audience_delete($uid, (int)($body['id'] ?? 0), is_admin())) api_err('Nie można usunąć tej listy.', 403);
+    }
+    api_ok(crm_audiences_list($uid));
+}
+
 if ($action === 'preview') {
     $ids       = collect_recipients($body);
     $channel   = $body['channel'] ?? 'email';
