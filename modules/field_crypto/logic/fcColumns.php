@@ -1,18 +1,24 @@
 <?php
 /**
- * modules/field_crypto/logic/fcColumns.php — rejestr kolumn szyfrowanych (czytany przez cli/fieldCrypto.php).
+ * modules/field_crypto/logic/fcColumns.php — rejestr kolumn szyfrowanych (czyta go warstwa db() i cli/fieldCrypto.php).
  *
- * Kolumnę dopisujemy tu DOPIERO wtedy, gdy każdy odczyt i zapis w kodzie przechodzi przez fcEncrypt / fcDecrypt
- * (a wyszukiwanie po niej przez indeks ślepy). Dopisanie kolumny, którą kod czyta wprost (np. WHERE pesel = ?, LIKE,
- * ORDER BY, JOIN), po `encrypt --apply` zepsułoby te miejsca — dlatego rejestr jest jawny, a nie „wszystkie PESEL-e”.
+ * Dwa rodzaje wpisów:
+ *   • jawne (bez 'auto')  — kod sam woła fcEncrypt/fcDecrypt (moduł rodo_register);
+ *   • przezroczyste ('auto' => true) — szyfruje je warstwa db() (modules/field_crypto/lib/fcDb.php): kod zapisuje i czyta
+ *     jawnie, a SZUKANIE po nich musi iść przez fcMatchPesel()/fcMatchLast5() zamiast WHERE pesel = ? / LIKE / SUBSTR.
  *
- * Pole: table, column, kind (digits|email|text) = jak normalizować indeks ślepy, blind = kolumna z indeksem (albo null).
+ * Kolumnę przezroczystą dopisujemy DOPIERO po przejrzeniu wszystkich zapytań SQL, które jej używają w warunkach
+ * (grep po nazwie kolumny) — odczyty i zapisy nie wymagają zmian, wyszukiwania tak.
+ *
+ * Pola: table, column, kind (digits|email|text) = normalizacja indeksu ślepego, blind = kolumna indeksu (albo null),
+ *       l5 = true dodaje indeks ostatnich 5 cyfr ({column}_l5), auto = przezroczyste.
  */
 
 require_once dirname(__DIR__) . '/lib/fieldCrypto.php';
 
 function fcColumns(): array {
     return [
+        // — jawne (rodo_register) —
         ['table' => 'rodo_requests', 'column' => 'wnioskodawca', 'kind' => 'text',   'blind' => null],
         ['table' => 'rodo_requests', 'column' => 'email',        'kind' => 'email',  'blind' => 'email_idx'],
         ['table' => 'rodo_requests', 'column' => 'pesel',        'kind' => 'digits', 'blind' => 'pesel_idx'],
@@ -20,6 +26,7 @@ function fcColumns(): array {
         ['table' => 'rodo_requests', 'column' => 'odpowiedz',    'kind' => 'text',   'blind' => null],
         ['table' => 'rodo_breaches', 'column' => 'opis',         'kind' => 'text',   'blind' => null],
         ['table' => 'rodo_breaches', 'column' => 'skutki',       'kind' => 'text',   'blind' => null],
+        // — przezroczyste (warstwa db()): PESEL; dopisywane tabela po tabeli —
     ];
 }
 
@@ -30,12 +37,17 @@ function fcColumnExists(string $table, string $col): bool {
     return false;
 }
 
-/** Zapisuje wartość kolumny zaszyfrowaną (i jej indeks ślepy, jeśli kolumna ma indeks). */
+/** Zapisuje wartość kolumny zaszyfrowaną razem z indeksami ślepymi (pełnym i ostatnich 5 cyfr). */
 function fcWriteColumn(array $c, int $id, string $plain): void {
     $ctx = $c['table'] . '.' . $c['column'];
     $set = "`{$c['column']}` = ?";
     $p = [fcEncrypt($plain, $ctx)];
     if (!empty($c['blind'])) { $set .= ", `{$c['blind']}` = ?"; $p[] = fcBlind($plain, $ctx, $c['kind']); }
+    if (!empty($c['l5'])) {
+        $d = preg_replace('/\D/', '', $plain);
+        $set .= ", `{$c['column']}_l5` = ?";
+        $p[] = strlen($d) >= 5 ? fcBlind(substr($d, -5), $ctx . '#l5', 'digits') : '';
+    }
     $p[] = $id;
     db_exec("UPDATE `{$c['table']}` SET {$set} WHERE id = ?", $p);
 }

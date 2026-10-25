@@ -47,13 +47,15 @@ if ($cmd === 'selftest') {
 }
 
 require_once $base . '/includes/db.php';
-require_once $base . '/modules/field_crypto/logic/fcColumns.php';
+require_once $base . '/modules/field_crypto/lib/fcDb.php';
+FcStatement::$raw = true;   // CLI widzi surowe wartości (bez odszyfrowania przezroczystego i bez rejestrowania zapisów)
 
 $total = ['jawne' => 0, 'szyfr' => 0, 'stary_klucz' => 0, 'nieczytelne' => 0];
 foreach (fcColumns() as $c) {
     [$table, $col] = [$c['table'], $c['column']];
     if (!fcColumnExists($table, $col)) { echo "- {$table}.{$col}: brak kolumny (pomijam)\n"; continue; }
     $ctx = "{$table}.{$col}";
+    if (!empty($c['auto']) && $cmd !== 'status') fcEnsureIdx($c);
     $rows = db_all("SELECT id, `{$col}` AS v FROM `{$table}` WHERE `{$col}` IS NOT NULL AND `{$col}` <> ''");
     $n = ['jawne' => 0, 'szyfr' => 0, 'stary_klucz' => 0, 'nieczytelne' => 0];
     foreach ($rows as $r) {

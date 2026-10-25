@@ -4,6 +4,8 @@ require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php
 require_once dirname(__DIR__) . '/modules/selfrepairDB/logic/selfRepairDB.php';
 // Opcjonalny cache Redis (szo_cache_remember…) — połączenie dopiero przy pierwszym użyciu
 require_once dirname(__DIR__) . '/modules/redis_cache/logic/redisCache.php';
+// Przezroczyste szyfrowanie kolumn z PESEL (włączone dopiero z DATA_KEY w config.local.php; patrz modules/field_crypto)
+require_once dirname(__DIR__) . '/modules/field_crypto/lib/fcDb.php';
 
 function db(): PDO {
     static $pdo = null;
@@ -23,6 +25,7 @@ function db(): PDO {
     }
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    fcAttach($pdo);
     return $pdo;
 }
 
