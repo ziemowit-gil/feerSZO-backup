@@ -130,7 +130,7 @@ function tiPlanPortalOpen(array $o): void {
         <a class="view-opt" href="<?= $vu('uproszczony') ?>" title="Pokaż plan tak, jak widzą go osoby bez logowania">Uproszczony</a><?php endif; ?>
       </span>
       <?php // Stan zalogowania — osobno od rodzaju widoku: zalogowany może oglądać plan także w widoku uproszczonym ?>
-      <span class="login-state <?= $canFull ? 'is-in' : 'is-out' ?>" role="status"><i class="<?= $canFull ? 'fa-solid fa-user-check' : 'fa-regular fa-user' ?>" aria-hidden="true"></i><?= $canFull ? 'Zalogowano' : 'Niezalogowany' ?></span>
+      <span class="login-state <?= $canFull ? 'is-in' : 'is-out' ?>" role="status"><i class="<?= $canFull ? 'fa-solid fa-user-check' : 'fa-regular fa-user' ?>" aria-hidden="true"></i><?php if ($canFull): $la = trim((string)($o['loggedAs'] ?? '')); ?>Zalogowano<?= $la !== '' ? ' jako ' . ($la === 'hasłem kierownika' ? h($la) : '<strong>' . h($la) . '</strong>') : '' ?><?php else: ?>Niezalogowany<?php endif; ?></span>
       <?php if ($canFull): ?><a class="login-btn" href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a>
       <?php else: ?><a class="login-btn" href="<?= tiPlanPortalUrl($self, ['login' => 1]) ?>" title="Logowanie pracowników (pełny plan)">Zaloguj</a><?php endif; ?>
     </div>

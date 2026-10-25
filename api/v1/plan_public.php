@@ -100,7 +100,7 @@ try {
             $roomsOut[] = ['id' => 's:online', 'name' => 'Zajęcia online', 'place' => 'zajęcia zdalne — według platformy i grupy', 'lessons' => tiPlanPublicOnlineCount(8)];
             foreach (tiPlanPublicDirectoryRooms(8) as $s) {
                 $roomsOut[] = ['id' => 's:' . $s['id'], 'name' => $roomName($s), 'place' => trim(implode(', ', array_filter([(string)$s['building'], (string)$s['location']]))),
-                               'lessons' => (int)$s['n_lessons']];
+                               'hours' => trim((string)($s['open_hours'] ?? '')), 'lessons' => (int)$s['n_lessons']];
             }
         }
         $next = $dutyOn ? tiDutyCurrentOrNext() : null;
@@ -161,6 +161,8 @@ try {
                 if (!$room) $send(['error' => 'Nie ma takiej sali.'], 404);
                 $lessons = tiPlanPublicLessons(['room' => (int)$room['id']], $a, $b);
                 $title = $roomName($room);
+                $out['hours'] = trim((string)($room['open_hours'] ?? ''));
+                $out['hoursNote'] = TI_PLAN_HOURS_NOTE;
             }
             $out['kind'] = 'sala'; $out['title'] = $title;
         }

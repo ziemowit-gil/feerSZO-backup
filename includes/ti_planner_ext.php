@@ -57,6 +57,9 @@ function ti_planner_ext_migrate(): void {
     // "Centrum Reymonta 20". Puste = ti_room_label() pokazuje pełną nazwę+lokalizację
     // jak dotąd; skrót nie zmienia pełnego opisu w wykazie sal ani w wyborze sali.
     try { $pdo->exec("ALTER TABLE k30_pl_rooms ADD COLUMN short_label TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    // Godziny otwarcia sali (tekst, np. „Pn–Pt 8:00–20:00; Sb 9:00–14:00”) — pokazywane w portalu planu.
+    // To NIE jest rezerwacja: sala bywa otwarta, a mimo to zajęta albo niezarezerwowana.
+    try { $pdo->exec("ALTER TABLE k30_pl_rooms ADD COLUMN open_hours TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     // Budynki — grupowanie sal ponad pojedynczą lokalizacją (jeden budynek, wiele
     // sal). Osobna, ogólna tabela — nie tylko dla TI, więc bez powiązania z kursem.
@@ -396,6 +399,7 @@ function pl_room_save(array $d, ?int $id = null): int {
         'mode_support'    => in_array($d['mode_support'] ?? '', ['onsite','remote','hybrid','all']) ? $d['mode_support'] : 'onsite',
         'location'        => substr($d['location'] ?? '', 0, 200),
         'short_label'     => substr(trim($d['short_label'] ?? ''), 0, 40),
+        'open_hours'      => mb_substr(trim((string)($d['open_hours'] ?? '')), 0, 300),
         'operator_label'  => substr(trim($d['operator_label'] ?? ''), 0, 120),
         'building_id'     => $building_id > 0 ? $building_id : null,
         'notes'           => substr($d['notes'] ?? '', 0, 500),

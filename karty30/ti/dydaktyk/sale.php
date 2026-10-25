@@ -281,6 +281,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               (siatki planu zajęć, wydruki). Wybór sali przy dodawaniu lekcji nadal pokazuje pełną nazwę.</div>
           </div>
           <div class="mb-2">
+            <label class="form-label fw-semibold" for="rf_open_hours">Godziny otwarcia</label>
+            <input type="text" class="form-control" name="open_hours" id="rf_open_hours" maxlength="300" placeholder="np. Pn–Pt 8:00–20:00; Sb 9:00–14:00">
+            <div class="form-text">Pokazuje się w portalu planu przy sali. <strong>Godziny otwarcia nie są rezerwacją</strong> — portal publiczny dodaje taką adnotację.</div>
+          </div>
+          <div class="mb-2">
             <label class="form-label fw-semibold">Nazwa zwyczajowa (operatora przestrzeni)</label>
             <input type="text" class="form-control" name="operator_label" id="rf_operator_label" maxlength="120" placeholder="np. nazwa używana przez najemcę/właściciela lokalu">
             <div class="form-text">Opcjonalnie — jak tę przestrzeń nazywa jej operator (właściciel/najemca), gdy różni się
@@ -387,6 +392,7 @@ function roomEdit(r) {
   document.getElementById('rf_building').value = r.building_id || '0';
   document.getElementById('rf_location').value = r.location || '';
   document.getElementById('rf_short_label').value = r.short_label || '';
+  document.getElementById('rf_open_hours').value = r.open_hours || '';
   document.getElementById('rf_operator_label').value = r.operator_label || '';
   document.getElementById('rf_capacity').value = r.capacity;
   document.getElementById('rf_workstations').value = r.workstations;
@@ -405,6 +411,7 @@ document.getElementById('btnAddRoom').addEventListener('click', function() {
   document.getElementById('rf_building').value = '0';
   document.getElementById('rf_location').value = '';
   document.getElementById('rf_short_label').value = '';
+  document.getElementById('rf_open_hours').value = '';
   document.getElementById('rf_operator_label').value = '';
   document.getElementById('rf_capacity').value = '20';
   document.getElementById('rf_workstations').value = '0';

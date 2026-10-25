@@ -390,7 +390,7 @@ function tiPlanPublicDirectoryInstrTokens(): array {
 function tiPlanPublicDirectoryRooms(int $weeks = 8): array {
     ti_planner_ext_migrate();
     $rows = db_all(
-        "SELECT r.id, r.name, r.short_label, r.location, r.capacity, b.name AS building,
+        "SELECT r.id, r.name, r.short_label, r.location, r.capacity, r.open_hours, b.name AS building,
                 (SELECT COUNT(*) FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
                   WHERE s.room_id=r.id AND s.lesson_date BETWEEN date('now') AND date('now', ?)
                     AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved','cancelled')
@@ -662,3 +662,7 @@ function tiPlanPublicIcs(array $lessons, string $calName, string $uidSeed): stri
     $out[] = 'END:VCALENDAR';
     return implode("\r\n", $out) . "\r\n";
 }
+
+
+/** Adnotacja przy godzinach otwarcia sal (portal publiczny, API, aplikacja Node). */
+const TI_PLAN_HOURS_NOTE = 'Godziny otwarcia sali nie są równoznaczne z jej rezerwacją — sala jest zarezerwowana tylko w terminach widocznych w planie.';
