@@ -347,6 +347,9 @@ function ldMigrate(): void
         sent_at VARCHAR(19)
     )");
     $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_pkg_corr ON license_doc_packages(correction_id)");
+    foreach (["gen_no INTEGER NOT NULL DEFAULT 1", "gen_reason VARCHAR(255) NOT NULL DEFAULT ''", "manager_sent_at VARCHAR(19)"] as $col) {   // AMSG: numer generowania, powód, wysyłka do kierownika
+        try { $db->exec("ALTER TABLE license_doc_packages ADD COLUMN {$col}"); } catch (\Throwable $e) {}
+    }
     $db->exec("CREATE TABLE IF NOT EXISTS license_doc_issues (
         id {$pk},
         scope VARCHAR(10) NOT NULL DEFAULT 'license',

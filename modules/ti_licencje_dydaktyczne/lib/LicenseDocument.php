@@ -529,6 +529,48 @@ final class LicenseDocument
         return self::css() . $h;
     }
 
+    // ── AMSG: regeneracja pakietu druków AM (po braku pakietu / ponownym generowaniu) — druk informacyjny ──────────────
+
+    /**
+     * $pk — pakiet (license_doc_packages), $c — korekta AMSK, $issues — druki pakietu (obowiązujące), $void — unieważnione druki tej korekty.
+     */
+    public function amsgHtml(array $pk, array $c, array $issues, array $void): string
+    {
+        $this->n = 0;
+        $number = (string)$c['target_number'] . ' · AMSG/' . (int)$pk['gen_no'];
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer dokumentu', '<span class="big">' . self::e($number) . '</span>', ' width="45%"')
+           . $this->fld('Dotyczy sprawy', self::e((string)$c['target_number']), ' width="35%"')
+           . '<td class="sym" width="20%" style="background:#334155"><div class="symb">AMSG</div><div class="symp">/' . (int)$pk['gen_no'] . '</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '</tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">REGENERACJA PAKIETU DRUKÓW AM</div>'
+           . '<div class="ttl2">protokół wygenerowania pakietu poprawionych dokumentów po korekcie AMSK — kody i unieważnienia</div></td></tr>'
+           . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Korekta:</b> ' . self::e(LicenseCorrection::code((int)$c['id'])) . '.&nbsp; Dokument <b>nie wymaga podpisu</b>.</td></tr></table>';
+        $h .= '<table class="t">' . self::sec('A', 'PAKIET', 2) . '<tr>'
+            . $this->fld('Rewizja druków', '<b>R' . (int)$pk['revision'] . '</b>', ' width="25%"')
+            . $this->fld('Generowanie nr', (string)(int)$pk['gen_no'], ' width="25%"')
+            . $this->fld('Wygenerowano', self::e(ldDate(substr((string)$pk['created_at'], 0, 10)) . ' ' . substr((string)$pk['created_at'], 11, 5)), ' width="25%"')
+            . $this->fld('Wygenerował(a)', self::val((string)$pk['created_name'], 'osoba'), ' width="25%"') . '</tr><tr>'
+            . $this->fld('Powód', self::val((string)($pk['gen_reason'] ?? ''), 'powód'), ' colspan="4"') . '</tr></table>';
+        $rows = '';
+        foreach ($issues as $i => $r) {
+            $rows .= '<tr><td class="f" style="width:4%">' . ($i + 1) . '</td><td class="f" style="width:30%"><b>' . self::e((string)$r['label']) . '</b></td><td class="f" style="width:28%">' . self::e((string)$r['doc_number'])
+                  . '</td><td class="f" style="width:28%"><b>' . self::e((string)$r['code']) . '</b></td><td class="f" style="width:10%">obowiązuje</td></tr>';
+        }
+        $h .= '<table class="t">' . self::sec('B', 'DRUKI OBOWIĄZUJĄCE (zastępują dotychczasowe)', 5)
+            . '<tr><td class="lb" style="padding:1mm"><b>Lp.</b></td><td class="lb" style="padding:1mm"><b>Dokument</b></td><td class="lb" style="padding:1mm"><b>Numer</b></td><td class="lb" style="padding:1mm"><b>Kod Code128 (stopka druku)</b></td><td class="lb" style="padding:1mm"><b>Stan</b></td></tr>'
+            . ($rows ?: '<tr><td class="f" colspan="5">—</td></tr>') . '</table>';
+        $vr = '';
+        foreach ($void as $i => $r) {
+            $vr .= '<tr><td class="f" style="width:4%">' . ($i + 1) . '</td><td class="f" style="width:30%">' . self::e((string)$r['label']) . '</td><td class="f" style="width:28%">' . self::e((string)$r['doc_number'])
+                 . '</td><td class="f" style="width:28%">' . self::e((string)$r['code']) . '</td><td class="f" style="width:10%"><b>UNIEWAŻNIONY</b></td></tr>';
+        }
+        $h .= '<table class="t">' . self::sec('C', 'DRUKI UNIEWAŻNIONE (nie używać)', 5) . ($vr ?: '<tr><td class="f" colspan="5">—</td></tr>') . '</table>';
+        $h .= '<table class="t">' . self::sec('D', 'ROZDZIELNIK I ZASADY', 1) . '<tr><td class="pc"><div class="pt">Pakiet (ZIP z hasłem) wysłano do kierownika; hasło przekazano osobnym SMS-em. Osoba, której dotyczy sprawa, otrzymuje pakiet po jego wysłaniu z karty korekty. '
+            . 'Kod Code128 w stopce każdego druku zawiera rewizję — druk z niższą rewizją lub bez rewizji jest nieaktualny. Dokument wygenerowano elektronicznie w SZO.</div></td></tr></table>';
+        return self::css() . $h;
+    }
+
     public function blankHtml(LicenseDoc $doc): string
     {
         $l = ['id' => 0, 'case_number' => '', 'created_at' => date('Y'), 'title' => '', 'work_description' => '', 'course_name' => '', 'licensor_name' => '', 'licensor_email' => '',

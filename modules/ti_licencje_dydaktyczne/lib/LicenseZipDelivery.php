@@ -69,6 +69,35 @@ final class LicenseZipDelivery
         return $out;
     }
 
+    /**
+     * ZIP z hasłem WYŁĄCZNIE do kierowników panelu TI (rola „kierownik”): e-mail z archiwum (do kierowników z adresem), hasło SMS-em (do tych z telefonem).
+     * @return array{report:string, mailed:int, sms:int}
+     */
+    public static function deliverManagers(LicenseManagementService $svc, string $caseNumber, string $personName, array $ref, array $entries, string $subject, string $heading,
+                                           string $bodyHtml, array $actor, string $zipPrefix, string $zipTitle): array
+    {
+        $mgrs = db_all("SELECT DISTINCT u.id, u.name, u.email, u.phone_number FROM k30_ti_panel_roles r JOIN users u ON u.id = r.user_id
+                         WHERE r.role = 'kierownik' AND u.is_active = 1 AND COALESCE(u.email, '') <> ''");
+        if (!$mgrs) throw new DomainException('Brak kierownika (rola „kierownik” panelu TI) z adresem e-mail w koncie — nie ma komu wysłać pakietu.');
+        $pass = self::password();
+        [$rel, $size] = LicenseStorage::putZip($entries, $pass, $zipPrefix);
+        $att = LicenseNotificationService::zipAttachment($rel, $zipTitle, $size);
+        $mailed = 0;
+        foreach ($mgrs as $mg) {
+            $r = $svc->notify->send(LicenseNotificationType::OperationConfirm, ['name' => (string)$mg['name'], 'email' => (string)$mg['email'], 'phone' => ''], $subject,
+                LicenseNotificationService::layout($heading, $bodyHtml, '', '', 'AMSG'), '', $ref, $actor, true, $att);
+            if (!empty($r['delivered']) || in_array('queued', (array)($r['channels'] ?? []), true)) $mailed++;
+        }
+        $report = 'ZIP e-mailem do kierownika: ' . $mailed . '/' . count($mgrs);
+        $sms = 0;
+        if ($mailed > 0) {
+            $m = self::notifyManagers($caseNumber, $personName, $pass);
+            $sms = preg_match('/\((\d+)\)/', $m, $mm) ? (int)$mm[1] : 0;
+            $report .= $m;
+        } else { $report .= ' — SMS z hasłem nie został wysłany (e-mail nie wyszedł)'; }
+        return ['report' => $report, 'mailed' => $mailed, 'sms' => $sms];
+    }
+
     /** SMS z hasłem do archiwum do kierowników panelu TI (telefon w koncie). @return string fragment raportu */
     public static function notifyManagers(string $caseNumber, string $person, string $pass): string
     {

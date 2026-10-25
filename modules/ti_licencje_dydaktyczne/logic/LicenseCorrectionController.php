@@ -113,9 +113,34 @@ final class LicenseCorrectionController
     /** Ręczne wygenerowanie pakietu druków AM po zatwierdzonej korekcie (gdy automat nie zadziałał); unieważnia poprzednie druki. */
     public function pack(int $id): ?string
     {
-        try { (new LicenseDocPackage())->generate($id, $this->actor()); flash_set('success', 'Wygenerowano pakiet poprawionych druków AM; poprzednie druki unieważniono. Wyślij pakiet do osoby i kierownika.'); }
+        try { $rep = (new LicenseDocPackage())->generateManual($id, $this->actor()); flash_set(str_contains($rep, 'UWAGA') ? 'warning' : 'success', ucfirst($rep) . '. Pakiet do osoby wyślesz przyciskiem na karcie korekty.'); }
         catch (\Throwable $e) { return $this->fail($e, route('ld.corr', ['id' => $id])); }
         return Router::redirect(route('ld.corr', ['id' => $id]));
+    }
+
+    /** Regeneracja pakietu bieżącej rewizji z aktualnych danych (ta sama rewizja, kody bez zmian); pakiet wraca do stanu „nie wysłano”. */
+    public function packRegen(int $pid): ?string
+    {
+        $pk = LicenseDocPackage::get($pid);
+        $back = $pk ? route('ld.corr', ['id' => (int)$pk['correction_id']]) . '#pakiet' : route('ld.corr.index');
+        try { $rep = (new LicenseDocPackage())->regenerateManual($pid, $this->actor()); flash_set(str_contains($rep, 'UWAGA') ? 'warning' : 'success', ucfirst($rep) . '. Pakiet do osoby wyślesz ponownie przyciskiem na karcie korekty.'); }
+        catch (\Throwable $e) { return $this->fail($e, $back); }
+        return Router::redirect($back);
+    }
+
+    /** Druk AMSG „Regeneracja pakietu” (PDF). */
+    public function packAmsg(int $pid): ?string
+    {
+        $pk = LicenseDocPackage::get($pid);
+        if (!$pk) { http_response_code(404); exit('Nie ma takiego pakietu.'); }
+        try { $o = (new LicenseDocPackage())->amsgOutput($pk); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.corr', ['id' => (int)$pk['correction_id']])); }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $o['out']['mime'] . ($o['out']['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . ldFileName($o['number']) . '.' . $o['out']['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $o['out']['bytes'];
+        return null;
     }
 
     public function packZip(int $pid): ?string

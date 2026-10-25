@@ -60,15 +60,19 @@ $targetUrl = $isOp ? route('ld.op', ['id' => $c['target_id']]) : route('ld.show'
     <div class="alert alert-warning" role="alert"><b>Korekta jest zatwierdzona, ale nie ma pakietu poprawionych druków AM — wymagane ręczne generowanie.</b>
       Automatyczne wygenerowanie i wysyłka nie powiodły się albo korekta powstała wcześniej. Wygenerowanie pakietu odtworzy druki sprawy z poprawionych danych (kod z nową rewizją R<?= (int)LicenseCodes::revision($c['scope'], (int)$c['target_id']) ?>)
       i <b>unieważni dotychczasowe druki</b>; potem wyślesz ZIP z hasłem do osoby i kierownika.</div>
-    <?= ldPost(route('ld.corr.pack', ['id' => $id]), 'Wygeneruj pakiet druków AM i unieważnij stare', 'btn-metro green', [], 'Wygenerować pakiet poprawionych druków AM? Dotychczasowe druki zostaną unieważnione.') ?>
+    <?= ldPost(route('ld.corr.pack', ['id' => $id]), 'Wygeneruj pakiet druków AM i unieważnij stare', 'btn-metro green', [], 'Wygenerować pakiet poprawionych druków AM? Dotychczasowe druki zostaną unieważnione, powstanie druk AMSG, a ten sam pakiet (ZIP z hasłem) trafi do kierownika.') ?>
   <?php else: $pi = LicenseDocPackage::packageIssues((int)$pk['id']); ?>
-    <p class="small text-secondary">Rewizja <b>R<?= (int)$pk['revision'] ?></b> · wygenerowano <?= h(ldDt($pk['created_at'])) ?> (<?= h($pk['created_name']) ?>) · <?= $pk['sent_at'] ? 'wysłano ZIP z hasłem ' . h(ldDt($pk['sent_at'])) : '<b class="text-danger">nie wysłano</b>' ?></p>
+    <p class="small text-secondary">Rewizja <b>R<?= (int)$pk['revision'] ?></b> · generowanie nr <?= (int)$pk['gen_no'] ?> (<?= h($pk['gen_reason']) ?>) · <?= h(ldDt($pk['created_at'])) ?> (<?= h($pk['created_name']) ?>) · do osoby: <?= $pk['sent_at'] ? 'wysłano ' . h(ldDt($pk['sent_at'])) : '<b class="text-danger">nie wysłano</b>' ?> · do kierownika: <?= $pk['manager_sent_at'] ? 'wysłano ' . h(ldDt($pk['manager_sent_at'])) : '<b class="text-danger">nie wysłano</b>' ?></p>
     <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Dokument</th><th>Numer</th><th>Kod Code128</th><th>Stan</th></tr></thead><tbody>
       <?php foreach ($pi as $i): ?><tr><td><?= h($i['label']) ?></td><td class="small"><?= h($i['doc_number']) ?></td><td><code><?= h($i['code']) ?></code></td><td><?= ldChip('Obowiązuje', '#008a00') ?></td></tr><?php endforeach; ?>
       <?php foreach (db_all("SELECT * FROM license_doc_issues WHERE scope = ? AND target_id = ? AND status = 'void' AND void_correction_id = ? ORDER BY id", [$c['scope'], $c['target_id'], $id]) as $i): ?>
         <tr class="text-secondary"><td style="text-decoration:line-through"><?= h($i['label']) ?></td><td class="small"><?= h($i['doc_number']) ?></td><td><code><?= h($i['code']) ?></code></td><td><?= ldChip('UNIEWAŻNIONY', '#a20025') ?></td></tr><?php endforeach; ?>
     </tbody></table></div>
+    <?php if (!str_starts_with((string)$pk['gen_reason'], 'Automatycznie')): ?><a class="btn btn-sm btn-metro" style="background:#334155" href="<?= h(route('ld.pack.amsg', ['pid' => $pk['id']])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> AMSG/<?= (int)$pk['gen_no'] ?> — Regeneracja pakietu</a><?php endif; ?>
     <a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.pack.zip', ['pid' => $pk['id']])) ?>"><i class="bi bi-file-earmark-zip" aria-hidden="true"></i> Pobierz ZIP (jawny)</a>
+    <?php if ((int)$pk['revision'] === LicenseCodes::revision($c['scope'], (int)$c['target_id'])): ?>
+      <?= ldPost(route('ld.pack.regen', ['pid' => $pk['id']]), 'Regeneruj pakiet', 'btn-metro orange', [], 'Wygenerować druki pakietu ponownie z aktualnych danych (ta sama rewizja R' . (int)$pk['revision'] . ', kody bez zmian)? Powstanie druk AMSG, ten sam pakiet trafi do kierownika, a do osoby zostanie oznaczony jako niewysłany.') ?>
+    <?php endif; ?>
     <?= ldPost(route('ld.pack.send', ['pid' => $pk['id']]), $pk['sent_at'] ? 'Wyślij pakiet ponownie (ZIP z hasłem + SMS)' : 'Wyślij pakiet do osoby i kierownika (ZIP z hasłem + SMS)', 'btn-metro green', [], 'Wysłać pakiet jako ZIP z hasłem do osoby i kierownika? Hasło pójdzie osobnym SMS-em.') ?>
   <?php endif; ?>
 </section>
