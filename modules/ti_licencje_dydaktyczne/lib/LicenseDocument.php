@@ -397,7 +397,7 @@ final class LicenseDocument
            . '<table class="t"><tr><td class="ttl"><div class="ttl1">POTWIERDZENIE WYKONANIA OPERACJI' . ($rev > 1 ? ' — AKTUALIZACJA DANYCH' : '') . '</div>'
            . '<div class="ttl2">' . ($rev > 1 ? 'aktualizacja danych konta po zmianie loginu (UPN) — zastępuje poprzednie potwierdzenie AM90' : 'licencje do oprogramowania i usług cyfrowych — potwierdzenie warunków udostępnienia') . '</div></td></tr>'
            . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Adresat:</b> osoba wskazana we wniosku.&nbsp; <b>Sprawa:</b> ' . self::e((string)$l['case_number'])
-           . '.&nbsp; Dokument jedynie potwierdza warunki — <b>nie wymaga podpisu</b>.</td></tr></table>';
+           . '.&nbsp; ' . ($rev > 1 ? 'Dokument potwierdza <b>aktualizację danych konta</b> (zmiana loginu UPN), zastępuje poprzednie potwierdzenie AM90 i <b>nie wymaga podpisu</b>.' : 'Dokument jedynie potwierdza warunki — <b>nie wymaga podpisu</b>.') . '</td></tr></table>';
         $h .= '<table class="t">' . self::sec('A', 'OSOBA I SPRAWA', 2) . '<tr>'
             . $this->fld('Imię i nazwisko', self::e((string)($info['name'] ?? $l['interested_name'])), ' width="50%"')
             . $this->fld('Wniosek i decyzja', 'wniosek ' . self::e(LicenseDoc::Am7Request->symbol()) . ' (' . self::e((string)$l['case_number']) . '), decyzja ' . self::e(LicenseDoc::Am7Grant->symbol())
