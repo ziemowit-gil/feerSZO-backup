@@ -620,6 +620,35 @@ HTML;
 HTML;
 
     // ── TI: przypomnienie o braku wpłaty (do kursanta / opiekuna) ─────
+    $ti_license_billing_start_body = <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>{{lead}}</p>
+<table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:12px 0">
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Oprogramowanie</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{software}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Opłata miesięczna</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Forma rozliczenia</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{form}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Termin rozliczenia</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{day}}. dnia każdego miesiąca</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Pierwsza opłata</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">dzisiaj ({{date}})</td></tr>
+</table>
+<p>Płatność prosimy wykonać na rachunek <strong>{{account}}</strong>, w tytule: <strong>„{{title}}”</strong>.
+   Dzień przed każdym kolejnym terminem wyślemy przypomnienie. Szczegóły w panelu: <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
+<p style="margin-top:18px">Z poważaniem,<br>{{org}}</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość wygenerowana automatycznie.</p>
+HTML;
+
+    $ti_license_billing_reminder_body = <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>przypominamy, że <strong>jutro ({{date}})</strong> przypada rozliczenie licencji <strong>{{software}}</strong>{{for_student}}.</p>
+<table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:12px 0">
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Do zapłaty</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Forma rozliczenia</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{form}}</td></tr>
+</table>
+<p>Rachunek: <strong>{{account}}</strong>, tytuł: <strong>„{{title}}”</strong>. Jeśli wpłata została już dokonana, prosimy zignorować tę wiadomość.
+   Panel: <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
+<p style="margin-top:18px">Z poważaniem,<br>{{org}}</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość wygenerowana automatycznie.</p>
+HTML;
+
     $ti_payment_reminder_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>przypominamy, że na koncie kursanta <strong>{{student}}</strong> brakuje wpłaty za zajęcia.
@@ -1153,6 +1182,55 @@ HTML,
                 'category_block'   => ['label' => 'Blok kategorii oceny (HTML lub pusty)', 'sample' => '<div style="font-size:.85em;color:#555;margin-top:4px">(zadanie domowe)</div>'],
                 'description_block'=> ['label' => 'Blok opisu (HTML lub pusty)', 'sample' => '<p style="color:#555;font-size:.9em">Zadanie domowe: Wprowadzenie do internetu</p>'],
                 'url'              => ['label' => 'Link do panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/index.php?tab=oceny'],
+            ],
+        ],
+
+        'ti_license_billing_start' => [
+            'label'       => 'TI: licencja — start rozliczenia w dniu przypisania',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-cash-coin',
+            'auto'        => true,
+            'description' => 'W dniu przypisania licencji z rozliczeniem miesięcznym: kwota, forma, dzień miesiąca, ewentualny rabat i dane do przelewu. Do kursanta albo opiekuna małoletniego.',
+            'subject'     => '{{org}}: rozliczenie licencji — {{software}}',
+            'body'        => $ti_license_billing_start_body,
+            'vars'        => [
+                'org'           => ['label' => 'Nazwa organizacji', 'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
+                'greeting'      => ['label' => 'Zwrot (spacja + imię adresata albo puste)', 'sample' => ' Maria'],
+                'student'       => ['label' => 'Kursant', 'sample' => 'Jan Kowalski'],
+                'software'      => ['label' => 'Nazwa oprogramowania', 'sample' => 'Adobe Creative Cloud'],
+                'amount'        => ['label' => 'Kwota do zapłaty (po rabacie)', 'sample' => '49,00 PLN'],
+                'discount_html' => ['label' => 'Rabat (HTML: „ — rabat 20%, cena 61,25 PLN” albo puste)', 'sample' => ' — rabat 20%, cena 61,25 PLN'],
+                'form'          => ['label' => 'Forma rozliczenia', 'sample' => 'Faktura'],
+                'date'          => ['label' => 'Data (start: pierwsza opłata; przypomnienie: termin)', 'sample' => '25.11.2026'],
+                'account'       => ['label' => 'Numer rachunku do wpłat', 'sample' => 'PL61 1090 1014 0000 0712 1981 2874'],
+                'title'         => ['label' => 'Tytuł przelewu', 'sample' => 'TI/105 Jan Kowalski'],
+                'portal'        => ['label' => 'URL logowania do panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/login.php'],
+                'lead'          => ['label' => 'Zdanie wstępne (kursant / opiekun)', 'sample' => 'przypisaliśmy Ci licencję na oprogramowanie. Poniżej warunki rozliczenia.'],
+                'day'           => ['label' => 'Dzień miesiąca rozliczenia', 'sample' => '25'],
+            ],
+        ],
+
+        'ti_license_billing_reminder' => [
+            'label'       => 'TI: licencja — przypomnienie o rozliczeniu (dzień przed)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-bell',
+            'auto'        => true,
+            'description' => 'Co miesiąc, dzień przed terminem rozliczenia licencji (cron o 7:00). Do kursanta albo opiekuna małoletniego.',
+            'subject'     => '{{org}}: jutro rozliczenie licencji — {{software}}',
+            'body'        => $ti_license_billing_reminder_body,
+            'vars'        => [
+                'org'           => ['label' => 'Nazwa organizacji', 'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
+                'greeting'      => ['label' => 'Zwrot (spacja + imię adresata albo puste)', 'sample' => ' Maria'],
+                'student'       => ['label' => 'Kursant', 'sample' => 'Jan Kowalski'],
+                'software'      => ['label' => 'Nazwa oprogramowania', 'sample' => 'Adobe Creative Cloud'],
+                'amount'        => ['label' => 'Kwota do zapłaty (po rabacie)', 'sample' => '49,00 PLN'],
+                'discount_html' => ['label' => 'Rabat (HTML: „ — rabat 20%, cena 61,25 PLN” albo puste)', 'sample' => ' — rabat 20%, cena 61,25 PLN'],
+                'form'          => ['label' => 'Forma rozliczenia', 'sample' => 'Faktura'],
+                'date'          => ['label' => 'Data (start: pierwsza opłata; przypomnienie: termin)', 'sample' => '25.11.2026'],
+                'account'       => ['label' => 'Numer rachunku do wpłat', 'sample' => 'PL61 1090 1014 0000 0712 1981 2874'],
+                'title'         => ['label' => 'Tytuł przelewu', 'sample' => 'TI/105 Jan Kowalski'],
+                'portal'        => ['label' => 'URL logowania do panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/login.php'],
+                'for_student'   => ['label' => 'Dopisek „ (kursant: …)” dla opiekuna albo puste', 'sample' => ' (kursant: Jan Kowalski)'],
             ],
         ],
 

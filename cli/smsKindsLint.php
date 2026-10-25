@@ -38,7 +38,7 @@ const SMS_LINT_FUNCS = [
 const SMS_LINT_DYNAMIC = [
     '$kind'          => ['includes/karty30.php', 'admin/sms_settings.php', 'includes/sms.php', 'includes/ti_cert_issue.php'],
     '$key'           => ['karty30/ti/dydaktyk/szablonySms.php'],
-    '$tpl'           => ['modules/ti_licencje/logic/tiLicencjeNotify.php'],
+    '$tpl'           => ['modules/ti_licencje/logic/tiLicencjeNotify.php', 'modules/ti_licencje/logic/tiLicencjeBilling.php'],
     'self::TEMPLATE' => ['modules/ti_payment_reminders/logic/tiPaymentReminders.php'],
 ];
 

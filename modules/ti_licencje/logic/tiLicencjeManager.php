@@ -265,6 +265,34 @@ final class TiLicencjeManager
      *
      * @return array{data:array<string,mixed>,errors:list<string>}
      */
+    /** Czy konto kursanta ma opcję „tylko rozliczenie licencji”. */
+    public static function isLicensesOnly(int $clientId): bool
+    {
+        self::ready();
+        $r = db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id = ? AND licenses_only = 1 AND is_active = 1 LIMIT 1", [$clientId]);
+        return (bool)$r;
+    }
+
+    /** Kwota po rabacie (lub bez rabatu): [cena katalogowa, kwota do zapłaty]. NULL gdy brak rozliczenia cyklicznego. */
+    public static function amounts(array $row): ?array
+    {
+        if (!isset($row['monthly_amount']) || $row['monthly_amount'] === null || $row['monthly_amount'] === '') return null;
+        $list = (float)$row['monthly_amount'];
+        $due  = $list;
+        $type = (string)($row['discount_type'] ?? '');
+        $val  = (float)($row['discount_value'] ?? 0);
+        if ($type === 'pct') $due = $list * (1 - $val / 100);
+        elseif ($type === 'amt') $due = $list - $val;
+        return [round($list, 2), max(0.0, round($due, 2))];
+    }
+
+    /** Termin rozliczenia w danym miesiącu (dzień ograniczony do długości miesiąca): 'RRRR-MM-DD'. */
+    public static function dueDate(int $billingDay, string $ym): string
+    {
+        $dim = (int)date('t', strtotime($ym . '-01'));
+        return sprintf('%s-%02d', $ym, min(max(1, $billingDay), $dim));
+    }
+
     public static function validate(array $in, ?array $existing = null): array
     {
         self::ready();
@@ -306,6 +334,42 @@ final class TiLicencjeManager
         }
         $d['billing_form'] = $form;
 
+        // Rozliczenie cykliczne: kwota miesięczna + dzień miesiąca (+ rabat). Puste = licencja bez rozliczenia cyklicznego.
+        $amtRaw = trim(str_replace([' ', "\xc2\xa0"], '', (string)($in['monthly_amount'] ?? '')));
+        $amt = null;
+        if ($amtRaw !== '') {
+            if (!preg_match('/^\d{1,6}([.,]\d{1,2})?$/', $amtRaw) || (float)str_replace(',', '.', $amtRaw) <= 0) $errors[] = 'Kwota miesięczna: podaj dodatnią liczbę (np. 49,00).';
+            else $amt = round((float)str_replace(',', '.', $amtRaw), 2);
+        }
+        $d['monthly_amount'] = $amt;
+        $day = trim((string)($in['billing_day'] ?? ''));
+        if ($amt !== null) {
+            if ($day === '') $day = (string)(int)date('j', strtotime($issued));          // domyślnie dzień wydania
+            if (!ctype_digit($day) || (int)$day < 1 || (int)$day > 31) $errors[] = 'Dzień rozliczenia: liczba od 1 do 31.';
+            $d['billing_day'] = (int)$day >= 1 && (int)$day <= 31 ? (int)$day : null;
+        } else {
+            $d['billing_day'] = null;
+        }
+        $dt = (string)($in['discount_type'] ?? '');
+        $dv = trim(str_replace(',', '.', (string)($in['discount_value'] ?? '')));
+        $d['discount_type'] = ''; $d['discount_value'] = null;
+        if ($dt === 'pct' || $dt === 'amt') {
+            if ($amt === null) $errors[] = 'Rabat wymaga podania kwoty miesięcznej.';
+            elseif (!preg_match('/^\d{1,6}(\.\d{1,2})?$/', $dv) || (float)$dv <= 0) $errors[] = 'Rabat: podaj dodatnią wartość.';
+            elseif ($dt === 'pct' && (float)$dv >= 100) $errors[] = 'Rabat procentowy musi być mniejszy niż 100%.';
+            elseif ($dt === 'amt' && (float)$dv >= $amt) $errors[] = 'Rabat kwotowy musi być mniejszy niż kwota miesięczna.';
+            else { $d['discount_type'] = $dt; $d['discount_value'] = round((float)$dv, 2); }
+        }
+        $dn = trim((string)($in['discount_note'] ?? ''));
+        if (mb_strlen($dn) > 120) $errors[] = 'Opis rabatu jest za długi (maks. 120 znaków).';
+        $d['discount_note'] = $d['discount_type'] !== '' ? $dn : '';
+
+        // Konto „tylko rozliczenie licencji”: każda licencja musi mieć kwotę miesięczną i dzień rozliczenia
+        $cid = $isNew ? (int)($d['client_id'] ?? 0) : (int)($existing['client_id'] ?? 0);
+        if ($cid > 0 && self::isLicensesOnly($cid) && $amt === null) {
+            $errors[] = 'To konto ma opcję „tylko rozliczenie licencji” — podaj kwotę miesięczną i dzień rozliczenia licencji.';
+        }
+
         // Ochrona przed podwójnym przypisaniem (np. dwukrotne kliknięcie = dwa SMS-y): ta sama licencja, ta sama osoba, wciąż ważna.
         if ($isNew && !$errors) {
             $dup = db_one(
@@ -341,7 +405,13 @@ final class TiLicencjeManager
             ], $by);
             return $id;
         });
-        $notify = $notifyChannels ? TiLicencjeNotifier::send($id, $notifyChannels, $by) : null;
+        if ($d['monthly_amount'] !== null && $notifyChannels) {
+            // Rozliczenie cykliczne: jedna wiadomość w dniu przypisania z kwotą, formą, dniem rozliczenia (i rabatem) — komunikacja rozliczeniowa
+            require_once __DIR__ . '/tiLicencjeBilling.php';
+            $notify = TiLicencjeBilling::sendStart($id, $notifyChannels, $by);
+        } else {
+            $notify = $notifyChannels ? TiLicencjeNotifier::send($id, $notifyChannels, $by) : null;
+        }
         return ['ok' => true, 'id' => $id, 'errors' => [], 'notify' => $notify];
     }
 
@@ -362,21 +432,23 @@ final class TiLicencjeManager
 
         // Ślad audytowy: nazwy zmienionych pól; wartości tylko tych, które nie są tajne ani swobodnym tekstem.
         $changed = [];
-        foreach (['login', 'access_key', 'notes', 'billing_note', 'issued_at', 'expires_at', 'billing_form', 'billing_ref'] as $k) {
+        foreach (['login', 'access_key', 'notes', 'billing_note', 'issued_at', 'expires_at', 'billing_form', 'billing_ref', 'monthly_amount', 'billing_day', 'discount_type', 'discount_value'] as $k) {
             $old = (string)($k === 'issued_at' ? ($cur['issued'] ?? '') : ($cur[$k] ?? ''));
             $new = (string)($d[$k] ?? '');
             if ($old === $new) continue;
-            $changed[$k] = in_array($k, ['issued_at', 'expires_at', 'billing_form', 'billing_ref'], true) ? ['z' => $old, 'na' => $new] : 'zmieniono';
+            $changed[$k] = in_array($k, ['issued_at', 'expires_at', 'billing_form', 'billing_ref', 'monthly_amount', 'billing_day', 'discount_type', 'discount_value'], true) ? ['z' => $old, 'na' => $new] : 'zmieniono';
         }
 
         self::atomic(function () use ($id, $d, $by, $changed, $cur): void {
             db_exec(
                 "UPDATE k30_ti_client_licenses
                     SET login = ?, access_key = ?, notes = ?, issued_at = ?, expires_at = ?,
-                        billing_form = ?, billing_ref = ?, billing_note = ?
+                        billing_form = ?, billing_ref = ?, billing_note = ?,
+                        monthly_amount = ?, billing_day = ?, discount_type = ?, discount_value = ?, discount_note = ?
                   WHERE id = ?",
                 [$d['login'], $d['access_key'], $d['notes'], $d['issued_at'], $d['expires_at'],
-                 $d['billing_form'], $d['billing_ref'], $d['billing_note'], $id]
+                 $d['billing_form'], $d['billing_ref'], $d['billing_note'],
+                 $d['monthly_amount'], $d['billing_day'], $d['discount_type'], $d['discount_value'], $d['discount_note'], $id]
             );
             if ($changed) audit_log('ti_licencje.updated', ['assignment_id' => $id, 'client_id' => (int)$cur['client_id'], 'zmiany' => $changed], $by);
         });

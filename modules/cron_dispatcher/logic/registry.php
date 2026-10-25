@@ -286,6 +286,11 @@ function cron_dispatcher_registry(): array
             'interval' => 82800,        // 23 h: start o 7:00 bez dryfu (przy 86400 przesuwałby się o minutę dziennie — dyspozytor tyka co minutę)
             'schedule' => [7, 8],       // okno 7:00–8:00 — przypomnienia o braku wpłaty za zajęcia TI (e-mail + SMS); wyłączone, póki ich nie włączy kierownik
         ],
+        'ti_license_billing' => [
+            'file'     => $cronDir . '/ti_license_billing.php',
+            'interval' => 82800,        // 23 h: start o 7:00 bez dryfu (jak ti_payment_reminders)
+            'schedule' => [7, 8],       // okno 7:00–8:00 — przypomnienia o miesięcznym rozliczeniu licencji TI (dzień przed terminem)
+        ],
         'ti_lesson_control' => [
             'file'     => $cronDir . '/ti_lesson_control.php',
             'interval' => 3600,         // co godzinę — Kontrola Lekcji i Wpisów: statusy wpisów (PRAWIDŁOWY / BRAK_WPISU / NIEPEŁNY / OPÓŹNIONY)
