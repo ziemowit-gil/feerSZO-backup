@@ -153,6 +153,24 @@ if ($mode === 'logic') {
     $r = ti_cancel_sessions_notify([$a3], 'Awaria', 'Admin T', ['cause' => 'other']);
     t('odwołanie zwykłe: e-mail 1, SMS 1, rebook info', [$r['emails'], $r['sms'], db_one('SELECT status FROM k30_ti_rebook WHERE session_id=?', [$a3])['status']], [1, 1, 'info']);
 
+    // — poniedziałkowa wysyłka „Zajęcia w tym tygodniu”: wyłączona domyślnie; po włączeniu e-mail + SMS, raz na uczestnika na tydzień
+    require $root . '/modules/ti_week_digest/logic/tiWeekDigest.php';
+    $wedOff = (int)((strtotime(date('Y-m-d', strtotime('wednesday this week'))) - strtotime(date('Y-m-d'))) / 86400);
+    $XW = seed('W', $wedOff); $mon = TiWeekDigest::weekStart(date('Y-m-d'));
+    $r0 = TiWeekDigest::run(['today' => $mon]);
+    t('tydzień: domyślnie wyłączone', [$r0['skipped']['wylaczone'], $r0['sent']['email'] + $r0['sent']['sms']], [1, 0]);
+    TiWeekDigest::saveSettings(['enabled' => 1, 'sms' => 1, 'email' => 1]);
+    $r1 = TiWeekDigest::run(['today' => $mon, 'client_id' => $XW['client']['A'], 'dry_run' => true]);
+    t('tydzień: podgląd bez wysyłki', [count($r1['preview']), $r1['sent']['email'] + $r1['sent']['sms'], $r1['preview'][0]['lessons'] ?? 0], [1, 0, 3]);
+    t('tydzień: nie w poniedziałek cron nic nie wysyła', TiWeekDigest::run(['today' => date('Y-m-d', strtotime($mon . ' +2 day')), 'only_monday' => true])['skipped']['nie_poniedzialek'], 1);
+    $r2 = TiWeekDigest::run(['today' => $mon, 'client_id' => $XW['client']['A']]);
+    t('tydzień: uczestnik A dostał e-mail i SMS', [$r2['sent']['email'], $r2['sent']['sms']], [1, 1]);
+    $r3 = TiWeekDigest::run(['today' => $mon, 'client_id' => $XW['client']['A']]);
+    t('tydzień: ponowny przebieg nie dubluje', [$r3['sent']['email'] + $r3['sent']['sms'], $r3['skipped']['juz_wyslane']], [0, 2]);
+    $plan = TiWeekDigest::smsPlan(TiWeekDigest::lessons((int)$XW['client']['A'], $mon, date('Y-m-d', strtotime($mon . ' +6 days'))));
+    t('tydzień: plan SMS po ASCII, 3 zajęcia, ≤ 240 znaków', [(bool)preg_match('/^[\x20-\x7e]+$/', $plan), substr_count($plan, ';') + 1, strlen($plan) <= 240], [true, 3, true]);
+    TiWeekDigest::saveSettings(['enabled' => 0, 'sms' => 1, 'email' => 1]);   // przywróć domyślne (inne testy nie powinny nic wysyłać)
+
     // — nadawca wiadomości Helpdesku: „FEER | Helpdesk”; inne maile bez zmian
     t('helpdesk: nazwa nadawcy domyślna', _mail_apply_system_sender(['context_type' => 'helpdesk_reply', 'subject' => 'x'])['_from_name'] ?? '', 'FEER | Helpdesk');
     t('helpdesk: inne maile bez nazwy helpdesku', ($m2 = _mail_apply_system_sender(['context_type' => 'ti_leave', 'subject' => 'x']))['_from_name'] ?? '', $m2['_from_name'] ?? '' === 'FEER | Helpdesk' ? 'x' : ($m2['_from_name'] ?? ''));

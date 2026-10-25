@@ -139,6 +139,18 @@ function sms_tpl_registry(): array
                 'instructor' => ['label' => 'Zastępca', 'sample' => 'Anna Nowak'],
             ],
         ],
+        'ti_week_digest' => [
+            'label'       => 'Zajęcia w tym tygodniu — poniedziałkowa wysyłka',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-calendar-week',
+            'auto'        => true,
+            'description' => 'Cron (cron/ti_week_digest.php, poniedziałek 7:00–8:00) — jeden SMS na uczestnika z jego zajęciami od poniedziałku do niedzieli (osoby z włączonym SMS o lekcjach; małoletni — także opiekun). Włączane na ekranie „Wysyłka tygodniowa” (domyślnie wyłączone).',
+            'message'     => 'FEER: zajecia w tym tygodniu ({{range}}): {{plan}}. Szczegoly w panelu uczestnika.',
+            'vars'        => [
+                'range' => ['label' => 'Zakres tygodnia', 'sample' => '26.10-01.11'],
+                'plan'  => ['label' => 'Lista zajęć (dzień, godziny, kurs; do ~230 znaków, reszta „+N”)', 'sample' => 'Pn 26.10 10:00-11:00 Angielski S1; Sr 28.10 14:00-15:00 Informatyka'],
+            ],
+        ],
         'ti_lesson_reminder' => [
             'label'       => 'Przypomnienie o jutrzejszej lekcji',
             'group'       => 'TI — Zajęcia',

@@ -74,6 +74,7 @@ if (!empty($KIER_ITEMS)) {
         ['Wypłaty prowadzących',      'index.php?tab=wypłaty',      'cash-stack'],
         ['Praca własna',              'index.php?tab=praca_wlasna', 'journal-text'],
         ['SMS i mailing do kursantów', 'index.php?tab=komunikacja', 'send'],
+        ['Wysyłka tygodniowa',        'tygodniowaWysylka.php',      'calendar-week'],
         ['Szablony e-mail',           'szablonyEmail.php',          'envelope-paper'],
         ['Szablony SMS',              'szablonySms.php',            'chat-left-text'],
         ['Żetony SZO',                'zetony.php',                 'ticket-detailed'],
@@ -122,7 +123,7 @@ $_kier_grupy = [
     'Protokoły i raporty'    => ['protokoly.php', 'audyt_dziennikow.php', 'kontrolaWpisow.php', 'wydruki.php', 'analityka.php', 'raportGodzin.php', 'raport_odwolanych.php'],
     'Planowanie'             => ['planista.php', 'raportyPlanisty.php', 'generatorCiagow.php', 'zgloszenia.php', 'nowyTermin.php', 'kadraLimity.php',
                                  'sale.php', 'okresy.php', 'przedmioty.php', 'dni_wolne.php', 'wylaczenia.php'],
-    'Komunikacja'            => ['index.php?tab=komunikacja', 'szablonyEmail.php', 'szablonySms.php'],
+    'Komunikacja'            => ['index.php?tab=komunikacja', 'tygodniowaWysylka.php', 'szablonyEmail.php', 'szablonySms.php'],
     'Ustawienia i narzędzia' => ['zetony.php', 'certyfikaty.php', 'zespol.php', APP_URL . '/tozsamosc/ti_role.php', 'testy.php', '../index.php'],
 ];
 // Własna mapa grup (np. menu Konsultacji — _konsultacje_bar.php podaje $KIER_GRUPY) zastępuje mapę kierownika

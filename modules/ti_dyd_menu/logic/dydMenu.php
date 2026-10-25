@@ -274,6 +274,7 @@ function dydMenuSections(): array
     ]))];
     $sec[] = ['key' => 'k_komunikacja', 'staff' => true, 'label' => 'Komunikacja z kursantami', 'items' => [
         $it('komunikacja', 'SMS i mailing',   $gt('komunikacja'),   'send'),
+        $it('',            'Wysyłka tygodniowa', 'tygodniowaWysylka.php', 'calendar-week'),
         $it('',            'Szablony e-mail', 'szablonyEmail.php',  'envelope-paper'),
         $it('',            'Szablony SMS',    'szablonySms.php',    'chat-left-text'),
     ]];
