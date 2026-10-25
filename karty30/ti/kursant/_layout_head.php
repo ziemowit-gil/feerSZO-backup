@@ -14,8 +14,8 @@ $KP_TOPBAR     = $KP_TOPBAR     ?? null;
 $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
 // Panel dydaktyka: sekcje w pasku + menu użytkownika (dydaktyk/_nav.php).
 // Panel kursanta nie ładuje tej funkcji — jego pasek zostaje jak był.
-// Stałe menu boczne (modules/ti_dyd_menu) w skórce ti-skin zastępuje górny rząd sekcji (menu jest tylko boczne);
-// bez menu bocznego (inna skórka) pasek górny zachowuje sekcje.
+// Układ menu (modules/ti_dyd_menu, dydMenuLayout): domyślnie górny pasek sekcji; po wybraniu układu „side” stałe menu boczne
+// zastępuje górny rząd sekcji. Przełączenie: ?menu=top|side na dowolnej stronie panelu (zapamiętywane per osoba).
 $KP_SIDE_MENU = '';
 if ($KP_TOPBAR && function_exists('dyd_current') && ($KP_TOPBAR['brand'] ?? '') === 'Panel dydaktyka' && empty($KP_TOPBAR['no_enrich'])) {
     require_once dirname(__DIR__, 3) . '/modules/ti_dyd_menu/logic/dydMenu.php';

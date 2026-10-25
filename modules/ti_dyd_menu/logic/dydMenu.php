@@ -19,11 +19,30 @@ function dydMenuOn(): bool
     return !empty($GLOBALS['DYD_SIDE_MENU']);
 }
 
+/**
+ * Układ menu panelu: 'top' (domyślnie — górny pasek sekcji, bez menu bocznego) albo 'side' (stałe menu boczne).
+ * Kolejność: wybór osoby (preferencja dyd_menu_layout; ustawia ją odwiedzenie dowolnej strony panelu z ?menu=top|side),
+ * potem ustawienie globalne settings.dyd_menu_layout, na końcu 'top'.
+ */
+function dydMenuLayout(int $uid = 0): string
+{
+    static $memo = [];
+    if (isset($memo[$uid])) return $memo[$uid];
+    $q = $_GET['menu'] ?? '';
+    if ($uid && in_array($q, ['top', 'side'], true) && function_exists('dyd_pref_set')) { try { dyd_pref_set($uid, 'dyd_menu_layout', $q); } catch (\Throwable $e) {} return $memo[$uid] = $q; }
+    $v = '';
+    if ($uid && function_exists('dyd_pref')) { try { $v = (string)dyd_pref($uid, 'dyd_menu_layout'); } catch (\Throwable $e) {} }
+    if (!in_array($v, ['top', 'side'], true)) { try { $v = (string)(db_one("SELECT value FROM settings WHERE key_='dyd_menu_layout'")['value'] ?? ''); } catch (\Throwable $e) {} }
+    return $memo[$uid] = ($v === 'side' ? 'side' : 'top');
+}
+
 /** Wołane z _layout_head.php: włącza menu dla zalogowanego w panelu dydaktyka w skórce ti-skin. Zwraca klasę dla <body>. */
 function dydMenuBoot(array $topbar, string $bodyClass): string
 {
     if (($topbar['brand'] ?? '') !== 'Panel dydaktyka' || !str_contains($bodyClass, 'ti-skin')) return '';
     if (!function_exists('dyd_current') || !dyd_current()) return '';
+    $cur = dyd_current();
+    if (dydMenuLayout((int)($cur['user_id'] ?? 0)) !== 'side') return '';   // układ „górne menu” — bez menu bocznego
     $GLOBALS['DYD_SIDE_MENU']  = true;
     $GLOBALS['DYD_HEADER_NAV'] = true;   // rząd sekcji nie jest już potrzebny ani w pasku, ani nad treścią
     return 'dyd-side-on';

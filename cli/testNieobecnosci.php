@@ -43,7 +43,7 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
     };
     $run('logic');
     $run('seed');
-    foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook'] as $m) $run('page', $m);
+    foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook', 'get_side'] as $m) $run('page', $m);
 
     // Strażnik wycieków: tylko adresaci i numery testowe
     foreach (is_file($events) ? file($events, FILE_IGNORE_NEW_LINES) : [] as $l) {
@@ -195,6 +195,7 @@ switch ($pmode) {
     case 'post_delete':   $_SERVER['REQUEST_METHOD'] = 'POST'; $_POST = ['_op' => 'delete_leave', 'leave_id' => (int)$last['id'], 'notify_withdrawn' => '1', 'notify_sms' => '1', 'notify_email' => '1',
         'session_ids' => array_map('intval', array_column(ti_leave_cancelled_sessions((int)$last['id']), 'id'))]; $flashRe = '/Nieobecność usunięta/u'; break;
     case 'get_rebook':    $script = 'nowyTermin.php'; $expect = 'Nowe terminy po odwołaniu'; break;
+    case 'get_side':      $_GET['menu'] = 'side'; $expect = 'dostępność prowadzących'; break;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') $_POST['_token'] = dyd_token();
 $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] = '/karty30/ti/dydaktyk/' . $script;
@@ -203,8 +204,11 @@ register_shutdown_function(function () use ($pmode, $expect, $flashRe) {
     $out = ob_get_clean(); $flash = json_encode($_SESSION['flash'] ?? null, JSON_UNESCAPED_UNICODE);
     $good = ($flashRe === null || preg_match($flashRe, (string)$flash)) && ($expect === '' || str_contains($out, $expect)) && !preg_match('/Warning|Fatal error|Notice|Deprecated/', $out);
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && strlen($out) < 2000) $good = false;
-    // Menu jest tylko boczne: strona ma menu boczne i nie ma górnego rzędu sekcji
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (!str_contains($out, 'dyd-side-sec') || str_contains($out, 'class="dyd-topnav"'))) $good = false;
+    // Układ menu: domyślnie górny pasek sekcji (bez menu bocznego); z ?menu=side — menu boczne zamiast górnego rzędu
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $side = $pmode === 'get_side';
+        if ($side ? (!str_contains($out, 'dyd-side-sec') || str_contains($out, 'class="dyd-topnav"')) : (str_contains($out, 'dyd-side-sec') || !str_contains($out, 'class="dyd-topnav"'))) $good = false;
+    }
     echo ($good ? "mode=$pmode OK" : "FAIL mode=$pmode bytes=" . strlen($out) . " flash=$flash") . "\n";
 });
 include $root . '/karty30/ti/dydaktyk/' . $script;
