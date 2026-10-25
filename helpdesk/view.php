@@ -135,6 +135,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_op && (isset($_POST['_watch_add
     hd_finish($xhr, $id);
 }
 
+// ── Problem nadrzędny i sprzęt ────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_op && (isset($_POST['_problem_set']) || isset($_POST['_problem_clear']) || isset($_POST['_problem_resolve']) || isset($_POST['_asset_add']) || isset($_POST['_asset_del']))) {
+    csrf_check();
+    require_once dirname(__DIR__) . '/modules/helpdeskExtras/lib/helpdeskExtras.php';
+    $err = null;
+    if (isset($_POST['_problem_set'])) {
+        $err = hdProblemSet($id, (string)($_POST['problem_number'] ?? ''));
+        if (!$err) flash_set('success', 'Powiązano z problemem nadrzędnym.');
+    } elseif (isset($_POST['_problem_clear'])) {
+        hdProblemClear($id); flash_set('success', 'Odłączono od problemu nadrzędnego.');
+    } elseif (isset($_POST['_problem_resolve'])) {
+        $n = hdProblemResolveChildren($id, (string)($_POST['problem_message'] ?? ''), $uid, (string)($u['name'] ?? ''));
+        flash_set('success', $n ? 'Rozwiązano zgłoszenia podrzędne: ' . $n . '.' : 'Brak otwartych zgłoszeń podrzędnych.');
+    } elseif (isset($_POST['_asset_add'])) {
+        $err = hdAssetAdd($id, (int)($_POST['asset_resource'] ?? 0), (string)($_POST['asset_label'] ?? ''), $uid);
+        if (!$err) flash_set('success', 'Dodano sprzęt do zgłoszenia.');
+    } else {
+        hdAssetRemove($id, (int)$_POST['_asset_del']); flash_set('success', 'Usunięto powiązanie ze sprzętem.');
+    }
+    if ($err) flash_set('danger', $err);
+    hd_finish($xhr, $id);
+}
+
 // ── Rejestr czasu pracy ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_log_time']) && $is_op) {
     csrf_check();
@@ -202,6 +225,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
             }
         }
 
+        if ($is_op && $is_internal) {
+            require_once dirname(__DIR__) . '/modules/helpdeskExtras/lib/helpdeskExtras.php';
+            $mentioned = hdMentionsNotify($ticket, $body, $uid, (string)($u['name'] ?? ''));
+            $mention_note = $mentioned ? ' Powiadomiono: ' . implode(', ', $mentioned) . '.' : '';
+        }
         if ($is_op && !empty($_POST['macro_id'])) {
             require_once dirname(__DIR__) . '/modules/helpdeskMacros/lib/helpdeskMacros.php';
             hdMacroApply($id, (int)$_POST['macro_id'], $uid, (string)($u['name'] ?? ''));
@@ -213,7 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
             $fresh = db_one("SELECT t.*, op.email AS assigned_email FROM helpdesk_tickets t LEFT JOIN users op ON op.id=t.assigned_to WHERE t.id=?", [$id]);
             hd_notify_new_message($fresh ?? $ticket, ['user_id' => $uid, 'user_name' => $u['name'] ?? '', 'body' => $body, 'is_internal' => 0]);
         }
-        flash_set('success', 'Wiadomość dodana.');
+        flash_set('success', 'Wiadomość dodana.' . ($mention_note ?? ''));
     }
     hd_finish($xhr, $id);
 }

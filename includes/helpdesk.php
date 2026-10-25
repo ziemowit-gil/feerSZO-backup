@@ -182,6 +182,7 @@ function helpdesk_migrate(): void {
         "ALTER TABLE helpdesk_tickets ADD COLUMN access_token  TEXT",
         "ALTER TABLE helpdesk_tickets ADD COLUMN first_response_at DATETIME", // SLA: pierwsza odpowiedź operatora
         "ALTER TABLE helpdesk_tickets ADD COLUMN merged_into INTEGER",        // łączenie: id zgłoszenia głównego
+        "ALTER TABLE helpdesk_tickets ADD COLUMN problem_id INTEGER",           // problem nadrzędny (modules/helpdeskExtras)
         "ALTER TABLE helpdesk_tickets ADD COLUMN substatus TEXT",              // podstatus zależny od kategorii (modules/helpdeskStatuses)
         "ALTER TABLE helpdesk_tickets ADD COLUMN legacy_number TEXT",          // dawny numer po migracji do wzorca {PREFIX}-{YYYY}-{NNNNN}
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_issue_id INTEGER",   // integracja Redmine: numer issue
@@ -325,6 +326,7 @@ function hd_admin_items(): array {
         ['key' => 'reports',   'label' => 'Raporty',              'icon' => 'bi-graph-up',       'url' => APP_URL . '/modules/helpdeskReports/router.php', 'admin' => false],
         ['key' => 'macros',    'label' => 'Gotowe odpowiedzi',    'icon' => 'bi-card-text',      'url' => APP_URL . '/helpdesk/admin_macros.php',          'admin' => false],
         ['key' => 'templates', 'label' => 'Szablony e-mail',      'icon' => 'bi-envelope-gear',  'url' => APP_URL . '/helpdesk/admin_email_templates.php', 'admin' => true],
+        ['key' => 'statuses',  'label' => 'Statusy kategorii',    'icon' => 'bi-signpost-split', 'url' => APP_URL . '/modules/helpdeskStatuses/router.php','admin' => true],
         ['key' => 'rules',     'label' => 'Reguły automatyczne',  'icon' => 'bi-diagram-3',      'url' => APP_URL . '/modules/helpdeskRules/router.php',   'admin' => true],
         ['key' => 'settings',  'label' => 'Ustawienia',           'icon' => 'bi-gear',           'url' => APP_URL . '/helpdesk/admin.php',                 'admin' => true],
     ];
@@ -953,6 +955,9 @@ function hd_sla(array $ticket): array {
     $created = $ticket['created_at'] ?? null;
     if (!$pr || !$created) return $out;
 
+    // Cele SLA: słownik helpdesk_sla (zapas: HD_PRIORITIES)
+    require_once dirname(__DIR__) . '/modules/helpdeskExtras/lib/helpdeskExtras.php';
+    [$pr['sla_response'], $pr['sla_resolve']] = hdSlaTargets((string)$ticket['priority']);
     $ct  = strtotime($created);
     $now = time();
     $status = (string)($ticket['status'] ?? '');

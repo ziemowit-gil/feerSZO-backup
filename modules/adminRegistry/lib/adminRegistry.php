@@ -81,6 +81,7 @@ function adminRegistry(array $cnt = []): array
             ['icon'=>'bi-kanban',               'label'=>'Redmine (Helpdesk)',       'url'=>'/admin/redmine_settings.php',   'kw'=>'redmine helpdesk'],
             ['icon'=>'bi-ticket-perforated',    'label'=>'Helpdesk — ustawienia',    'url'=>'/helpdesk/admin.php',           'kw'=>'helpdesk ustawienia operatorzy skrzynki e-mail csat sla godziny pracy numeracja migracja numerów zgłoszeń'],
             ['icon'=>'bi-diagram-3',            'label'=>'Helpdesk — reguły automatyczne','url'=>'/modules/helpdeskRules/router.php','kw'=>'helpdesk reguły automatyzacje wyzwalacze kroki sla'],
+            ['icon'=>'bi-signpost-split',       'label'=>'Helpdesk — statusy własne kategorii','url'=>'/modules/helpdeskStatuses/router.php','kw'=>'helpdesk statusy własne kategorii podstatusy etapy wnioski am'],
             ['icon'=>'bi-card-text',            'label'=>'Helpdesk — gotowe odpowiedzi i makra','url'=>'/helpdesk/admin_macros.php','kw'=>'helpdesk makra przebiegi gotowe odpowiedzi'],
             ['icon'=>'bi-envelope-gear',        'label'=>'Helpdesk — szablony e-mail','url'=>'/helpdesk/admin_email_templates.php','kw'=>'helpdesk szablony maili powiadomienia'],
         ],

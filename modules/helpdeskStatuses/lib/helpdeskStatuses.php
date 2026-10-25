@@ -12,6 +12,7 @@
  * Zapas, gdy słownika brak: HD_SUBSTATUS_DEFAULTS.
  */
 require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
+require_once dirname(__DIR__, 3) . '/modules/dictionary/lib/dictionaryApi.php';
 
 const HD_SUBSTATUS_DICT = 'helpdesk_podstatusy';
 
@@ -106,6 +107,89 @@ function hdSubstatusSet(int $ticketId, string $code, int $uid = 0, string $uname
         $fresh = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticketId]);
         if ($fresh) hd_notify_status_change($fresh, $old, $new, '');   // czyści podstatus — ustawiamy go ponownie poniżej
         db_update('helpdesk_tickets', ['substatus' => $code], $ticketId);
+    }
+    return null;
+}
+
+
+// ── Zarządzanie podstatusami (Helpdesk › Administracja › Statusy kategorii) ───
+
+/** Upewnia się, że słownik podstatusów istnieje (po wdrożeniu przed migracją jednorazową). */
+function hdSubstatusEnsureDictionary(): void
+{
+    require_once dirname(__DIR__, 3) . '/modules/dictionary/lib/dictionaryApi.php';
+    try { dictService()->dictionary(HD_SUBSTATUS_DICT); return; } catch (\Throwable $e) {}
+    dictTransfer()->import(hdSubstatusSeed(), 'json');
+}
+
+/** Wpisy do panelu: id, code, label, base, categories[], color, sort, active, version, used (liczba zgłoszeń). */
+function hdSubstatusAdminList(): array
+{
+    hdSubstatusEnsureDictionary();
+    $svc = dictService();
+    $dict = $svc->dictionary(HD_SUBSTATUS_DICT);
+    $out = [];
+    foreach ($svc->entries($dict) as $e) {
+        $a = $e->attributes;
+        $out[] = ['id' => $e->id, 'code' => $e->code, 'label' => $e->label, 'base' => (string)($a['base'] ?? ''),
+            'categories' => array_values(array_filter(array_map('trim', explode(',', (string)($a['categories'] ?? ''))))),
+            'color' => (string)($a['color'] ?? ''), 'sort' => $e->sortOrder, 'active' => $e->isActive, 'version' => $e->version,
+            'used' => (int)(db_one("SELECT COUNT(*) AS n FROM helpdesk_tickets WHERE substatus=?", [$e->code])['n'] ?? 0)];
+    }
+    usort($out, fn($x, $y) => [$x['sort'], $x['id']] <=> [$y['sort'], $y['id']]);
+    return $out;
+}
+
+/** Zapis podstatusu (nowy: $id=0). Kod nowego wpisu powstaje z etykiety i nie zmienia się później. Zwraca listę błędów. */
+function hdSubstatusAdminSave(int $id, array $in): array
+{
+    $e = [];
+    $label = trim((string)($in['label'] ?? ''));
+    if ($label === '') $e[] = 'Podaj nazwę statusu.';
+    $base = (string)($in['base'] ?? '');
+    if (!isset(HD_STATUSES[$base])) $e[] = 'Wybierz status bazowy.';
+    $cats = array_values(array_filter((array)($in['categories'] ?? []), fn($c) => isset(hd_categories()[$c])));
+    if (!$cats) $e[] = 'Wybierz co najmniej jedną kategorię.';
+    $color = preg_match('/^#[0-9A-Fa-f]{6}$/', (string)($in['color'] ?? '')) ? (string)$in['color'] : '';
+    if ($e) return $e;
+    try {
+        $svc = dictService();
+        $existing = hdSubstatusAdminList();
+        $attrs = ['base' => $base, 'categories' => implode(',', $cats), 'color' => $color];
+        if ($id > 0) {
+            $row = current(array_filter($existing, fn($x) => $x['id'] === $id));
+            if (!$row) return ['Nie znaleziono statusu.'];
+            $svc->updateEntry(HD_SUBSTATUS_DICT, $id, EntryInput::fromArray(['code' => $row['code'], 'label' => $label, 'attributes' => $attrs,
+                'sort_order' => (int)($in['sort_order'] ?? $row['sort']), 'is_active' => $row['active'], 'version' => $row['version']]));
+        } else {
+            $slug = trim(preg_replace('/[^a-z0-9]+/', '_', strtolower(strtr(mb_strtolower($label), ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z']))), '_');
+            $code = 'st_' . substr($slug !== '' ? $slug : 'status', 0, 40);
+            $codes = array_column($existing, 'code'); $n = 2; $base0 = $code;
+            while (in_array($code, $codes, true)) $code = $base0 . '_' . $n++;
+            $max = $existing ? max(array_column($existing, 'sort')) : 0;
+            $svc->createEntry(HD_SUBSTATUS_DICT, EntryInput::fromArray(['code' => $code, 'label' => $label, 'attributes' => $attrs,
+                'sort_order' => isset($in['sort_order']) && $in['sort_order'] !== '' ? (int)$in['sort_order'] : $max + 10, 'is_active' => true]));
+        }
+    } catch (DictionaryValidationException $ex) {
+        return array_values($ex->errors);
+    } catch (\Throwable $ex) {
+        return ['Nie zapisano: ' . $ex->getMessage()];
+    }
+    return [];
+}
+
+/** Włącza / wyłącza podstatus (wyłączony znika z wyboru, ale zgłoszenia z nim nadal go wyświetlają). */
+function hdSubstatusAdminToggle(int $id): ?string
+{
+    try {
+        $svc = dictService();
+        $row = current(array_filter(hdSubstatusAdminList(), fn($x) => $x['id'] === $id));
+        if (!$row) return 'Nie znaleziono statusu.';
+        $svc->updateEntry(HD_SUBSTATUS_DICT, $id, EntryInput::fromArray(['code' => $row['code'], 'label' => $row['label'],
+            'attributes' => ['base' => $row['base'], 'categories' => implode(',', $row['categories']), 'color' => $row['color']],
+            'sort_order' => $row['sort'], 'is_active' => !$row['active'], 'version' => $row['version']]));
+    } catch (\Throwable $ex) {
+        return 'Nie zapisano: ' . $ex->getMessage();
     }
     return null;
 }

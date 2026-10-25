@@ -16,6 +16,7 @@ const HD_NOTIFY_EVENTS = [
     'assigned'   => ['label' => 'Przypisano mi zgłoszenie',        'modes' => ['all' => 'Tak', 'off' => 'Nie'], 'default' => 'all'],
     'reply'      => ['label' => 'Odpowiedź zgłaszającego',         'modes' => ['all' => 'Moje i nieprzypisane', 'mine' => 'Tylko moje', 'off' => 'Wyłączone'], 'default' => 'all'],
     'status'     => ['label' => 'Zmiana statusu',                  'modes' => ['all' => 'Wszystkie', 'mine' => 'Tylko moje', 'off' => 'Wyłączone'], 'default' => 'all'],
+    'mention'    => ['label' => 'Wzmianka (@) w notatce',          'modes' => ['all' => 'Tak', 'off' => 'Nie'], 'default' => 'all'],
     'escalation' => ['label' => 'Podbicie zgłoszenia',             'modes' => ['all' => 'Wszystkie', 'mine' => 'Tylko moje', 'off' => 'Wyłączone'], 'default' => 'all'],
 ];
 

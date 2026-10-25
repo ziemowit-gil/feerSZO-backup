@@ -457,6 +457,7 @@ function _menu_editor(): array {
             $biuro_search[] = _mi('Helpdesk — moje powiadomienia','/modules/helpdeskNotify/router.php','bi-bell',['match'=>'/modules/helpdeskNotify/','kw'=>'helpdesk powiadomienia operatora urlop wstrzymaj e-mail']);
             if (is_admin()) {
                 $biuro_search[] = _mi('Helpdesk — reguły automatyczne','/modules/helpdeskRules/router.php','bi-diagram-3',['match'=>'/modules/helpdeskRules/','kw'=>'helpdesk reguły automatyzacje wyzwalacze kroki']);
+                $biuro_search[] = _mi('Helpdesk — statusy własne kategorii','/modules/helpdeskStatuses/router.php','bi-signpost-split',['match'=>'/modules/helpdeskStatuses/','kw'=>'helpdesk statusy własne kategorii podstatusy etapy wnioski am']);
                 $biuro_search[] = _mi('Helpdesk — szablony e-mail','/helpdesk/admin_email_templates.php','bi-envelope-gear',['match'=>'/helpdesk/admin_email_templates','kw'=>'helpdesk szablony maili']);
                 $biuro_search[] = _mi('Helpdesk — ustawienia i migracja numerów','/helpdesk/admin.php','bi-gear',['match'=>'/helpdesk/admin.php','kw'=>'helpdesk ustawienia skrzynki e-mail csat sla godziny numeracja migracja numerów zgłoszeń operatorzy']);
             }
