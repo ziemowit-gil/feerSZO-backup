@@ -162,7 +162,8 @@ function hdMailIntakeOne(array $in, array $c, array $own): string
     $from    = strtolower(trim((string)$c['from_email']));
     $subject = trim((string)$c['subject']);
     $refNum  = hdMailTicketNumber($subject);
-    $ref     = $refNum ? db_one("SELECT * FROM helpdesk_tickets WHERE number=?", [$refNum]) : null;
+    require_once dirname(__DIR__, 2) . '/helpdeskMigrate/lib/helpdeskMigrate.php';
+    $ref     = $refNum ? hdTicketByAnyNumber($refNum) : null;   // numer bieżący albo dawny (po migracji numeracji)
 
     // Odpowiedź w wątku: nadawca = zgłaszający albo operator
     if ($ref) {

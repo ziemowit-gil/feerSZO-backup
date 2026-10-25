@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/modules/helpdeskMail/lib/helpdeskMail.php';
 require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php';
 require_once dirname(__DIR__) . '/modules/helpdeskCsat/lib/helpdeskCsat.php';
 require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
+require_once dirname(__DIR__) . '/modules/helpdeskMigrate/lib/helpdeskMigrate.php';
 helpdesk_migrate();
 require_login();
 require_role('admin');
@@ -43,6 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', $new === '1' ? 'Helpdesk włączony.' : 'Helpdesk wyłączony.');
     }
 
+    if ($op === 'migrate_numbers') {
+        $r = hdMigrateRun((int)(current_user()['id'] ?? 0));
+        flash_set(isset($r['error']) ? 'danger' : 'success', $r['error'] ?? ('Zmigrowano numery zgłoszeń: ' . (int)$r['migrated'] . '. Stare numery zostają w polu „dawny numer” i nadal działają w wyszukiwarce oraz w odpowiedziach na stare e-maile.'));
+    }
     if ($op === 'numbering_save') {
         $pat = trim((string)($_POST['hd_number_pattern'] ?? ''));
         if ($pat === '' || hdNumberPatternValid($pat)) { org_setting_set('hd_number_pattern', $pat); flash_set('success', 'Wzorzec numeru zapisany.'); }
@@ -257,6 +262,30 @@ include dirname(__DIR__) . '/includes/header.php';
       <span class="small">Odpowiedzi: <strong><?= $cs['answered'] ?></strong> / <?= $cs['sent'] ?><?= $cs['avg'] !== null ? ' · średnia <strong>' . h(number_format($cs['avg'], 2, ',', '')) . '</strong>' : '' ?></span>
       <form method="post"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="csat_toggle">
         <button class="btn btn-sm <?= hdCsatEnabled() ? 'btn-outline-danger' : 'btn-success' ?>"><?= hdCsatEnabled() ? 'Wyłącz' : 'Włącz' ?></button></form>
+    </div>
+  </div>
+</div>
+
+<!-- Migracja numerów -->
+<?php $mig_plan = hdMigratePlan(); ?>
+<div class="col-12">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem"><i class="bi bi-arrow-left-right me-1"></i>Migracja numerów zgłoszeń</div>
+    <div class="card-body">
+      <?php if (!$mig_plan): ?>
+      <p class="text-muted small mb-0">Wszystkie zgłoszenia mają już numery w nowym formacie.</p>
+      <?php else: ?>
+      <p class="text-muted small mb-2">Do przeniesienia na wzorzec numeracji: <strong><?= count($mig_plan) ?></strong> zgłoszeń (prefiks zostaje, rok z daty utworzenia, licznik wg kolejności). Stary numer zostaje zapamiętany i nadal działa w wyszukiwarce oraz w odpowiedziach na stare e-maile. Operacja jest zapisywana w historii.</p>
+      <div class="small mb-2" style="font-family:ui-monospace,monospace">
+        <?php foreach (array_slice($mig_plan, 0, 5) as $mp): ?><div><?= h($mp['old']) ?> → <?= h($mp['new']) ?></div><?php endforeach; ?>
+        <?php if (count($mig_plan) > 5): ?><div class="text-muted">… i <?= count($mig_plan) - 5 ?> kolejnych</div><?php endif; ?>
+      </div>
+      <form method="post" onsubmit="return confirm('Zmienić numery <?= count($mig_plan) ?> zgłoszeń? Stare numery zostaną zapamiętane.')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="migrate_numbers">
+        <button class="btn btn-sm btn-primary">Migruj numery</button>
+        <span class="small text-muted ms-2">Z konsoli: <code>php cli/helpdesk_migrate_numbers.php</code> (podgląd) / <code>--apply</code></span>
+      </form>
+      <?php endif; ?>
     </div>
   </div>
 </div>

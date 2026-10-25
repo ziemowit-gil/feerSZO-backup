@@ -180,6 +180,7 @@ function helpdesk_migrate(): void {
         "ALTER TABLE helpdesk_tickets ADD COLUMN access_token  TEXT",
         "ALTER TABLE helpdesk_tickets ADD COLUMN first_response_at DATETIME", // SLA: pierwsza odpowiedź operatora
         "ALTER TABLE helpdesk_tickets ADD COLUMN merged_into INTEGER",        // łączenie: id zgłoszenia głównego
+        "ALTER TABLE helpdesk_tickets ADD COLUMN legacy_number TEXT",          // dawny numer po migracji do wzorca {PREFIX}-{YYYY}-{NNNNN}
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_issue_id INTEGER",   // integracja Redmine: numer issue
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_last_journal_id INTEGER NOT NULL DEFAULT 0", // ost. zaimportowana notatka
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_comments_last TEXT NOT NULL DEFAULT ''",     // ost. wartość pola „Komentarze" z Redmine

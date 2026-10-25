@@ -77,20 +77,32 @@ function hdNumberPrefix(string $category): string
     return HD_CATEGORY_PREFIXES[$category] ?? 'HD';
 }
 
-/** Następny numer: wzorzec z wypełnionymi znacznikami + kolejny licznik dla tego samego „nagłówka” (część przed licznikiem). */
-function hdNextNumber(string $prefix, ?string $pattern = null, ?int $ts = null): string
+/** Głowa numeru (część przed licznikiem) i liczba cyfr licznika dla prefiksu, wzorca i daty. @return array{0:string,1:int} */
+function hdNumberHead(string $prefix, ?string $pattern = null, ?int $ts = null): array
 {
     $pattern = $pattern !== null && hdNumberPatternValid($pattern) ? $pattern : hdNumberPattern();
     $ts = $ts ?? time();
     preg_match('/\{(N+)\}$/', $pattern, $m);
-    $digits = strlen($m[1]);
     $head = strtr(substr($pattern, 0, -strlen($m[0])), ['{PREFIX}' => $prefix, '{YYYY}' => date('Y', $ts), '{YY}' => date('y', $ts), '{MM}' => date('m', $ts)]);
+    return [$head, strlen($m[1])];
+}
+
+/** Największy użyty licznik wśród numerów zaczynających się od $head (same cyfry po głowie). */
+function hdNumberMax(string $head): int
+{
     $max = 0;
-    foreach (db_all("SELECT number FROM helpdesk_tickets WHERE number LIKE ?", [str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $head) . '%'] ) as $r) {
+    foreach (db_all("SELECT number FROM helpdesk_tickets WHERE number LIKE ? ESCAPE '\\'", [str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $head) . '%']) as $r) {
         $rest = substr((string)$r['number'], strlen($head));
         if (strncmp((string)$r['number'], $head, strlen($head)) === 0 && ctype_digit($rest)) $max = max($max, (int)$rest);
     }
-    return $head . str_pad((string)($max + 1), $digits, '0', STR_PAD_LEFT);
+    return $max;
+}
+
+/** Następny numer: wzorzec z wypełnionymi znacznikami + kolejny licznik dla tego samego „nagłówka” (część przed licznikiem). */
+function hdNextNumber(string $prefix, ?string $pattern = null, ?int $ts = null): string
+{
+    [$head, $digits] = hdNumberHead($prefix, $pattern, $ts);
+    return $head . str_pad((string)(hdNumberMax($head) + 1), $digits, '0', STR_PAD_LEFT);
 }
 
 /** Wzorzec numeru zgłoszenia w tekście (temat maila): [INC-2026-00042] albo stare [HD00042]. */

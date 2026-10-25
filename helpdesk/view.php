@@ -213,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_merge']) && $is_op) {
     csrf_check();
     $target_num = trim($_POST['merge_target'] ?? '');
-    $tgt = $target_num !== '' ? db_one("SELECT id FROM helpdesk_tickets WHERE number=?", [$target_num]) : null;
+    $tgt = $target_num !== '' ? db_one("SELECT id FROM helpdesk_tickets WHERE number=? OR legacy_number=?", [$target_num, $target_num]) : null;
     if (!$tgt && ctype_digit($target_num)) $tgt = db_one("SELECT id FROM helpdesk_tickets WHERE id=?", [(int)$target_num]);
     if (!$tgt) {
         flash_set('danger', 'Nie znaleziono zgłoszenia docelowego o numerze: ' . h($target_num));

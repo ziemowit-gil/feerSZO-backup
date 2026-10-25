@@ -56,8 +56,8 @@ if ($f_category && isset(hd_categories()[$f_category])) { $where[] = 't.category
 if ($f_priority && isset(HD_PRIORITIES[$f_priority])) { $where[] = 't.priority = ?'; $params[] = $f_priority; }
 if ($f_tag !== '') { $where[] = 'EXISTS (SELECT 1 FROM helpdesk_tags g WHERE g.ticket_id = t.id AND g.tag = ?)'; $params[] = $f_tag; }
 if ($f_q !== '') {
-    $where[] = '(t.number LIKE ? OR t.title LIKE ? OR t.requester_name LIKE ? OR t.requester_email LIKE ? OR t.description LIKE ?)';
-    $like = '%'.$f_q.'%'; array_push($params, $like, $like, $like, $like, $like);
+    $where[] = '(t.number LIKE ? OR t.legacy_number LIKE ? OR t.title LIKE ? OR t.requester_name LIKE ? OR t.requester_email LIKE ? OR t.description LIKE ?)';
+    $like = '%'.$f_q.'%'; array_push($params, $like, $like, $like, $like, $like, $like);
 }
 $where_sql = implode(' AND ', $where);
 
