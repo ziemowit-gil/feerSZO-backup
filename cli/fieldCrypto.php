@@ -2,7 +2,9 @@
 /**
  * cli/fieldCrypto.php — narzędzie do szyfrowania pól w bazie (modules/field_crypto).
  *
- *   php cli/fieldCrypto.php keygen                      # nowy klucz do DATA_KEY
+ *   php cli/fieldCrypto.php keygen                      # wypisuje nowy klucz do DATA_KEY
+ *   php cli/fieldCrypto.php keygen --write              # dopisuje DATA_KEY do config.local.php (odmawia, gdy klucz już jest)
+ *   php cli/fieldCrypto.php keygen --write --file=ŚCIEŻKA   # j.w., do wskazanego pliku konfiguracji
  *   php cli/fieldCrypto.php selftest                    # sprawdza szyfrowanie na sztucznych danych (bez bazy)
  *   php cli/fieldCrypto.php status                      # ile wartości w zarejestrowanych kolumnach jest zaszyfrowanych
  *   php cli/fieldCrypto.php encrypt [--apply]           # szyfruje jawne wartości zarejestrowanych kolumn (domyślnie próba)
@@ -18,8 +20,34 @@ $cmd = $argv[1] ?? 'status';
 $apply = in_array('--apply', $argv, true);
 
 if ($cmd === 'keygen') {
-    echo "define('DATA_KEY', '" . bin2hex(random_bytes(32)) . "');\n";
-    echo "// Wklej do config.local.php. Przy wymianie klucza stary przenieś do DATA_KEY_PREVIOUS i uruchom: rotate --apply\n";
+    $key = bin2hex(random_bytes(32));
+    $line = "define('DATA_KEY', '{$key}');";
+    if (!in_array('--write', $argv, true)) {
+        echo $line . "\n";
+        echo "// Wklej do config.local.php (albo uruchom ponownie z --write). Przy wymianie klucza stary przenieś do DATA_KEY_PREVIOUS i uruchom: rotate --apply\n";
+        exit(0);
+    }
+    $file = $base . '/config.local.php';
+    foreach ($argv as $a) if (str_starts_with($a, '--file=')) $file = substr($a, 7);
+    $src = is_file($file) ? (string)file_get_contents($file) : "<?php\n";
+    // aktywny (nie zakomentowany) DATA_KEY → nie nadpisujemy: zmiana klucza przy zaszyfrowanych danych = utrata danych
+    if (preg_match('/^\s*define\(\s*[\'"]DATA_KEY[\'"]/m', $src)) {
+        fwrite(STDERR, "W {$file} jest już zdefiniowany DATA_KEY — nie nadpisuję (wymiana klucza: przenieś stary do DATA_KEY_PREVIOUS i użyj rotate --apply).\n");
+        exit(1);
+    }
+    if (is_file($file) && !is_writable($file) || !is_file($file) && !is_writable(dirname($file))) {
+        fwrite(STDERR, "Brak uprawnień do zapisu: {$file}\n"); exit(1);
+    }
+    $block = "\n// Klucz szyfrowania danych osobowych w bazie (wygenerowany " . date('Y-m-d H:i') . ", php cli/fieldCrypto.php keygen --write).\n"
+           . "// NIE ZGUB: bez niego zaszyfrowane PESEL-e są nie do odczytania — trzymaj kopię poza serwerem.\n" . $line . "\n";
+    $closing = preg_match('/\?>\s*$/', $src) ? true : false;
+    $out = $closing ? preg_replace('/\?>\s*$/', ltrim($block, "\n") . "?>\n", $src) : rtrim($src) . "\n" . $block;
+    $tmp = $file . '.tmp' . getmypid();
+    if (file_put_contents($tmp, $out) === false) { fwrite(STDERR, "Nie udało się zapisać pliku tymczasowego.\n"); exit(1); }
+    @chmod($tmp, is_file($file) ? (fileperms($file) & 0777) : 0640);
+    if (!rename($tmp, $file)) { @unlink($tmp); fwrite(STDERR, "Nie udało się podmienić {$file}.\n"); exit(1); }
+    echo "Dopisano DATA_KEY do {$file}.\n";
+    echo "Klucz (zachowaj kopię poza serwerem — np. w menedżerze haseł):\n{$key}\n";
     exit(0);
 }
 

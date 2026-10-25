@@ -14,7 +14,7 @@ donations.donor_pesel, pelnomocnictwa.pelnomocnik_pesel, skierowania_badania.pes
 Poza zakresem (pola mieszane NIP/PESEL albo PESEL/data): umowy_uslugi.nip_pesel, umowy_inne.pesel_nip_krs, ti_nabor_submissions.participant_birth_date_or_pesel.
 
 ## Wdrożenie
-1. `php cli/fieldCrypto.php keygen` → `DATA_KEY` do `config.local.php` (+ kopia klucza poza serwerem).
+1. `php cli/fieldCrypto.php keygen --write` — dopisuje `DATA_KEY` do `config.local.php` (odmawia, gdy klucz już jest; `--file=ŚCIEŻKA` dla innego pliku) i wypisuje klucz do skopiowania poza serwer. Bez `--write` tylko wypisuje linię do ręcznego wklejenia.
 2. **Kopia bazy.**
 3. `php cli/fieldCrypto.php status` → `encrypt --apply` (szyfruje dotychczasowe jawne wartości i buduje indeksy).
 4. Wymiana klucza: stary → `DATA_KEY_PREVIOUS`, nowy → `DATA_KEY`, `rotate --apply`.
