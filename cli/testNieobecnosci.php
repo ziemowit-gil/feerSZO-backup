@@ -44,7 +44,7 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
     $run('logic');
     $run('redis');
     $run('seed');
-    foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook', 'get_pulpit', 'get_pulpit_wk', 'get_hours', 'get_hours_m', 'get_godziny', 'get_side'] as $m) $run('page', $m);
+    foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook', 'get_pulpit', 'get_pulpit_wk', 'get_hours', 'get_hours_m', 'get_godziny', 'get_revenue', 'get_side'] as $m) $run('page', $m);
 
     // Strażnik wycieków: tylko adresaci i numery testowe
     foreach (is_file($events) ? file($events, FILE_IGNORE_NEW_LINES) : [] as $l) {
@@ -171,6 +171,23 @@ if ($mode === 'logic') {
     t('tydzień: plan SMS po ASCII, 3 zajęcia, ≤ 240 znaków', [(bool)preg_match('/^[\x20-\x7e]+$/', $plan), substr_count($plan, ';') + 1, strlen($plan) <= 240], [true, 3, true]);
     TiWeekDigest::saveSettings(['enabled' => 0, 'sms' => 1, 'email' => 1]);   // przywróć domyślne (inne testy nie powinny nic wysyłać)
 
+    // — raport przychodu: naliczone / sugerowane / prognozy wg frekwencji (grupa A: 3 lekcje po 60 min dziś, stawka 50 zł/h, 1 odbyta z obecnością)
+    require $root . '/modules/ti_revenue_report/logic/tiRevenueReport.php';
+    $XV = seed('V', 0);
+    db()->prepare("UPDATE k30_ti_enrollments SET hourly_rate=50 WHERE client_id IN (?,?)")->execute([$XV['client']['A'], $XV['client']['B']]);
+    db()->prepare("UPDATE k30_ti_sessions SET status='held' WHERE id=?")->execute([$XV['s'][0]]);
+    db()->prepare("INSERT INTO k30_ti_attendance (session_id, client_id, attended) VALUES (?,?,1)")->execute([$XV['s'][0], $XV['client']['A']]);
+    $rep = TiRevenueReport::month(date('Y-m'));
+    $rowA = null; foreach ($rep['rows'] as $rw) if ($rw[0] === 'Grupa A V') $rowA = $rw;
+    t('przychód: grupa A — uczestnicy, frekwencja, godziny odbyte/zaplanowane', [$rowA[1] ?? null, $rowA[2] ?? null, $rowA[3] ?? null, $rowA[4] ?? null], [1, 100.0, 1.0, 2.0]);
+    t('przychód: grupa A — naliczone 50, sugerowane 150, utracone 100', [$rowA[5] ?? null, $rowA[6] ?? null, $rowA[7] ?? null], [50.0, 150.0, 100.0]);
+    t('przychód: prognoza 100/90/50% = 150/140/100', [$rowA[8] ?? null, $rowA[9] ?? null, $rowA[13] ?? null], [150.0, 140.0, 100.0]);
+    t('przychód: prognoza przy bieżącej frekwencji (100%) = 150', $rowA[14] ?? null, 150.0);
+    $sumRow = end($rep['rows']);
+    t('przychód: wiersz Razem i podsumowanie spójne', [$sumRow[0], $rep['summary']['accrued'] === $sumRow[5], $rep['summary']['potential'] === $sumRow[6], $rep['summary']['forecast'][100] === $sumRow[8]], ['Razem', true, true, true]);
+    $rowB = null; foreach ($rep['rows'] as $rw) if ($rw[0] === 'Grupa B V') $rowB = $rw;
+    t('przychód: grupa B (tylko zaplanowana) — naliczone 0, sugerowane 50, prognoza 60% = 30', [$rowB[5] ?? null, $rowB[6] ?? null, $rowB[12] ?? null], [0.0, 50.0, 30.0]);
+
     // — linki Helpdesku w mailach zawsze na hoście SZO
     require_once $root . '/includes/helpdesk.php';
     t('helpdesk: kursant.* → szo.*', hd_base_url('https://kursant.feer.org.pl'), 'https://szo.feer.org.pl');
@@ -283,6 +300,7 @@ switch ($pmode) {
     case 'get_hours':     $script = 'raportGodzin.php'; $expect = 'export=csv'; break;   // strona z linkiem eksportu (sam plik CSV zrzuca się poza buforem testu)
     case 'get_hours_m':   $script = 'raportGodzin.php'; $_GET['m'] = date('Y-m', strtotime('+8 day')); $_GET['by'] = 'grupa'; $expect = 'Grupa A H'; break;
     case 'get_godziny':   $script = 'godziny.php'; $_GET['r'] = 'podsumowanie'; $expect = 'gh-nav'; break;
+    case 'get_revenue':   $script = 'raportPrzychodu.php'; $expect = 'Scenariusze frekwencji'; break;
     case 'get_side':      $_GET['menu'] = 'side'; $expect = 'dostępność prowadzących'; break;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') $_POST['_token'] = dyd_token();
