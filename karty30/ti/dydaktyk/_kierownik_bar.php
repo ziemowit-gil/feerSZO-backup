@@ -281,6 +281,14 @@ function kierMenu(pokaz) {
   var b = document.querySelector(pokaz ? '.kier-side-hide' : '.kier-side-show'); if (b) b.focus();
   window.dispatchEvent(new Event('resize'));
 }
+// Skórka Metro: kolumna menu jest przyklejona do ekranu (CSS), startuje pod paskiem górnym — śledzimy jego dolną krawędź przy przewijaniu.
+(function () {
+  var hdr = document.querySelector('body > header'), ticking = false;
+  if (!hdr) return;
+  function place() { ticking = false; document.documentElement.style.setProperty('--kier-top', Math.max(0, hdr.getBoundingClientRect().bottom) + 'px'); }
+  function req() { if (!ticking) { ticking = true; requestAnimationFrame(place); } }
+  place(); window.addEventListener('scroll', req, { passive: true }); window.addEventListener('resize', req);
+})();
 // Menu nie jest przyklejone do ekranu — gdy jest dłuższe niż treść, strona musi być co najmniej tak wysoka jak menu.
 (function () {
   var nav = document.currentScript.previousElementSibling, main = document.querySelector('main.dyd-wrap');

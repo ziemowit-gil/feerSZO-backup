@@ -115,6 +115,23 @@ html body.ti-metro .dyd-side .dyd-side-sec--k_plan         { --sec:#ad1457; }  /
 html body.ti-metro .dyd-side .dyd-side-sec--k_kadra        { --sec:#bf360c; }  /* ceglasty   5,6:1 */
 html body.ti-metro .dyd-side .dyd-side-sec--k_komunikacja  { --sec:#5d4037; }  /* brąz       9,3:1 */
 html body.ti-metro .dyd-side .dyd-side-sec--k_system       { --sec:#37474f; }  /* grafit     9,7:1 */
+/* ── Panel „Menu: …” w treści (kier-sidenav, _kierownik_bar.php) — czytelny, na całą wysokość ──────────
+   Ogólna reguła linków skórki Metro robiła z nich niebieskie napisy na ciemnym tle (kontrast < 3:1).
+   Tło: niebieski Metro #0b5582 z białym tekstem (8:1), aktywna pozycja biała z niebieskim napisem;
+   na desktopie kolumna przyklejona do lewej, od dolnej krawędzi paska górnego do dołu okna. */
+html body.ti-metro .kier-sidenav { background:#0b5582 !important; border-top:0 !important; color:#fff; }
+html body.ti-metro .kier-sidenav a:not(.btn) { color:#fff !important; text-decoration:none !important; }
+html body.ti-metro .kier-sidenav a:not(.btn) .bi { color:#fff !important; opacity:1; }
+html body.ti-metro .kier-sidenav a:not(.btn):hover { background:rgba(0,0,0,.2) !important; text-decoration:none !important; }
+html body.ti-metro .kier-sidenav a.active:not(.btn) { background:#fff !important; color:#0b5582 !important; }
+html body.ti-metro .kier-sidenav a.active:not(.btn) .bi { color:#0b5582 !important; }
+html body.ti-metro .kier-sidenav a .badge.text-bg-secondary { background:#fff !important; color:#0b5582 !important; }
+html body.ti-metro .kier-sidenav a.active .badge { background:#0b5582 !important; color:#fff !important; }
+html body.ti-metro .kier-sidenav a:focus-visible, html body.ti-metro .kier-sidenav summary:focus-visible, html body.ti-metro .kier-side-hide:focus-visible { outline:3px solid #fbbf24 !important; outline-offset:-2px; }
+@media (min-width: 992px) {
+  html body.ti-metro .kier-sidenav { position:fixed; top:var(--kier-top, 66px); bottom:0; left:0; width:264px; margin:0; padding:.6rem .6rem 1rem; overflow-y:auto; overscroll-behavior:contain; z-index:1030; }
+  html body.ti-metro .kier-sidenav.kier-embed { top:var(--kier-top, 66px); }
+}
 html body.ti-metro .dyd-side-toggle { background:var(--dm-dark) !important; }
 
 /* ── Okruszki i podmenu sekcji → pivot ──────────────────────────────── */
