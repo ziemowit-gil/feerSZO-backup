@@ -7,6 +7,7 @@ declare(strict_types=1);
  * wystawienie korekty, druk kontrolny AMSK/1 (QR + Code128, podpis odręczny kierownika), potwierdzenie podpisu, druk AMSK, wysyłka.
  */
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
+require_once dirname(__DIR__) . '/lib/LicenseDocPackage.php';
 
 final class LicenseCorrectionController
 {
@@ -58,8 +59,13 @@ final class LicenseCorrectionController
         if ($r) {
             try {
                 if ($r['scope'] === 'correction' && LicenseCorrection::get($r['id'])) return Router::redirect(route('ld.corr', ['id' => $r['id']]));
-                if ($r['scope'] === 'license' && db_one("SELECT 1 FROM licenses WHERE id = ?", [$r['id']])) return Router::redirect(route('ld.show', ['id' => $r['id']]) . '#wydruki');
-                if ($r['scope'] === 'operation' && db_one("SELECT 1 FROM license_operations WHERE id = ?", [$r['id']])) return Router::redirect(route('ld.op', ['id' => $r['id']]));
+                $exists = $r['scope'] === 'license' ? db_one("SELECT 1 FROM licenses WHERE id = ?", [$r['id']]) : ($r['scope'] === 'operation' ? db_one("SELECT 1 FROM license_operations WHERE id = ?", [$r['id']]) : null);
+                if ($exists) {
+                    $st = LicenseDocPackage::codeState($r['scope'], (int)$r['id'], $r['symbol'], (int)$r['rev']);
+                    if ($st['state'] === 'void') flash_set('danger', 'UWAGA: ten druk jest UNIEWAŻNIONY' . ($st['note'] !== '' ? ' (' . $st['note'] . ')' : ' (rewizja R' . $r['rev'] . ')') . ' — po korekcie AMSK obowiązuje rewizja R' . $st['current'] . '. Użyj druków z rejestru poniżej.');
+                    elseif ($st['state'] === 'valid' && $r['rev'] > 0) flash_set('success', 'Druk obowiązuje (rewizja R' . $r['rev'] . ').');
+                    return Router::redirect($r['scope'] === 'license' ? route('ld.show', ['id' => $r['id']]) . '#wydruki' : route('ld.op', ['id' => $r['id']]));
+                }
             } catch (\Throwable $e) { error_log('ld scan: ' . $e->getMessage()); }
         }
         flash_set('warning', $code === '' ? 'Wpisz lub zeskanuj kod z formularza AM.' : 'Nie rozpoznano kodu „' . $code . '” (oczekiwany np. LD000002/AM7-2, OP000005/AM20 albo AMSK-000012).');
@@ -104,12 +110,41 @@ final class LicenseCorrectionController
         return null;
     }
 
+    /** Ręczne wygenerowanie pakietu druków AM po zatwierdzonej korekcie (gdy automat nie zadziałał); unieważnia poprzednie druki. */
+    public function pack(int $id): ?string
+    {
+        try { (new LicenseDocPackage())->generate($id, $this->actor()); flash_set('success', 'Wygenerowano pakiet poprawionych druków AM; poprzednie druki unieważniono. Wyślij pakiet do osoby i kierownika.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.corr', ['id' => $id])); }
+        return Router::redirect(route('ld.corr', ['id' => $id]));
+    }
+
+    public function packZip(int $pid): ?string
+    {
+        try { $z = (new LicenseDocPackage())->zip($pid); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.corr.index')); }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . $z['name'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $z['bytes'];
+        return null;
+    }
+
+    public function packSend(int $pid): ?string
+    {
+        $pk = LicenseDocPackage::get($pid);
+        $back = $pk ? route('ld.corr', ['id' => (int)$pk['correction_id']]) : route('ld.corr.index');
+        try { $rep = (new LicenseDocPackage())->send($pid, $this->actor()); flash_set(str_contains($rep, 'UWAGA') ? 'warning' : 'success', $rep . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, $back); }
+        return Router::redirect($back);
+    }
+
     public function approve(int $id): ?string
     {
         try {
             if (empty($_POST['signed'])) throw new InvalidArgumentException('Zaznacz, że druk kontrolny AMSK/1 został podpisany odręcznie przez kierownika.');
-            $this->corr->approve($id, $this->actor());
-            flash_set('success', 'Podpis potwierdzony — korekta ' . LicenseCorrection::code($id) . ' wprowadzona w danych sprawy.');
+            $rep = $this->corr->approve($id, $this->actor());
+            flash_set(str_contains($rep, 'UWAGA') ? 'warning' : 'success', 'Podpis potwierdzony — korekta ' . LicenseCorrection::code($id) . ' wprowadzona w danych sprawy. ' . $rep . '.');
         } catch (\Throwable $e) { return $this->fail($e, route('ld.corr', ['id' => $id])); }
         return Router::redirect(route('ld.corr', ['id' => $id]));
     }

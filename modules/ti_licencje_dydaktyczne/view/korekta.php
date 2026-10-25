@@ -5,6 +5,7 @@
  */
 require __DIR__ . '/_parts.php';
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
+require_once dirname(__DIR__) . '/lib/LicenseDocPackage.php';
 $id = (int)$c['id'];
 $code = LicenseCorrection::code($id);
 $title = $code;
@@ -52,4 +53,24 @@ $targetUrl = $isOp ? route('ld.op', ['id' => $c['target_id']]) : route('ld.show'
   <?php else: ?><p class="text-secondary mb-0">Korekta anulowana — brak akcji.</p><?php endif; ?>
 </div></section>
 </div>
+<?php if ($st === LicenseCorrection::APPLIED): $pk = LicenseDocPackage::forCorrection($id); ?>
+<section class="panel <?= $pk ? '' : 'warn' ?>" id="pakiet">
+  <h2 class="mt-0">Pakiet poprawionych druków AM</h2>
+  <?php if (!$pk): ?>
+    <div class="alert alert-warning" role="alert"><b>Korekta jest zatwierdzona, ale nie ma pakietu poprawionych druków AM — wymagane ręczne generowanie.</b>
+      Automatyczne wygenerowanie i wysyłka nie powiodły się albo korekta powstała wcześniej. Wygenerowanie pakietu odtworzy druki sprawy z poprawionych danych (kod z nową rewizją R<?= (int)LicenseCodes::revision($c['scope'], (int)$c['target_id']) ?>)
+      i <b>unieważni dotychczasowe druki</b>; potem wyślesz ZIP z hasłem do osoby i kierownika.</div>
+    <?= ldPost(route('ld.corr.pack', ['id' => $id]), 'Wygeneruj pakiet druków AM i unieważnij stare', 'btn-metro green', [], 'Wygenerować pakiet poprawionych druków AM? Dotychczasowe druki zostaną unieważnione.') ?>
+  <?php else: $pi = LicenseDocPackage::packageIssues((int)$pk['id']); ?>
+    <p class="small text-secondary">Rewizja <b>R<?= (int)$pk['revision'] ?></b> · wygenerowano <?= h(ldDt($pk['created_at'])) ?> (<?= h($pk['created_name']) ?>) · <?= $pk['sent_at'] ? 'wysłano ZIP z hasłem ' . h(ldDt($pk['sent_at'])) : '<b class="text-danger">nie wysłano</b>' ?></p>
+    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Dokument</th><th>Numer</th><th>Kod Code128</th><th>Stan</th></tr></thead><tbody>
+      <?php foreach ($pi as $i): ?><tr><td><?= h($i['label']) ?></td><td class="small"><?= h($i['doc_number']) ?></td><td><code><?= h($i['code']) ?></code></td><td><?= ldChip('Obowiązuje', '#008a00') ?></td></tr><?php endforeach; ?>
+      <?php foreach (db_all("SELECT * FROM license_doc_issues WHERE scope = ? AND target_id = ? AND status = 'void' AND void_correction_id = ? ORDER BY id", [$c['scope'], $c['target_id'], $id]) as $i): ?>
+        <tr class="text-secondary"><td style="text-decoration:line-through"><?= h($i['label']) ?></td><td class="small"><?= h($i['doc_number']) ?></td><td><code><?= h($i['code']) ?></code></td><td><?= ldChip('UNIEWAŻNIONY', '#a20025') ?></td></tr><?php endforeach; ?>
+    </tbody></table></div>
+    <a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.pack.zip', ['pid' => $pk['id']])) ?>"><i class="bi bi-file-earmark-zip" aria-hidden="true"></i> Pobierz ZIP (jawny)</a>
+    <?= ldPost(route('ld.pack.send', ['pid' => $pk['id']]), $pk['sent_at'] ? 'Wyślij pakiet ponownie (ZIP z hasłem + SMS)' : 'Wyślij pakiet do osoby i kierownika (ZIP z hasłem + SMS)', 'btn-metro green', [], 'Wysłać pakiet jako ZIP z hasłem do osoby i kierownika? Hasło pójdzie osobnym SMS-em.') ?>
+  <?php endif; ?>
+</section>
+<?php endif; ?>
 <?php include __DIR__ . '/_foot.php'; ?>

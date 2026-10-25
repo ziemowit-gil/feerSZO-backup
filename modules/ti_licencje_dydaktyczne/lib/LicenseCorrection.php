@@ -223,6 +223,19 @@ final class LicenseCorrection
             . " ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, id DESC LIMIT " . (int)$limit, $p));
     }
 
+    /** Zatwierdzone korekty BEZ pakietu poprawionych druków (np. błąd generowania) — wymagają ręcznego wygenerowania. */
+    public static function withoutPackage(): array
+    {
+        ldMigrate();
+        return array_map([self::class, 'hydrate'], db_all("SELECT c.* FROM license_corrections c WHERE c.status = 'applied'
+            AND NOT EXISTS (SELECT 1 FROM license_doc_packages p WHERE p.correction_id = c.id) ORDER BY c.id DESC"));
+    }
+
+    public static function hasPackage(int $id): bool
+    {
+        try { ldMigrate(); return (bool)db_one("SELECT 1 FROM license_doc_packages WHERE correction_id = ?", [$id]); } catch (\Throwable $e) { return false; }
+    }
+
     public static function pendingCount(): int
     {
         try { ldMigrate(); return (int)(db_one("SELECT COUNT(*) AS n FROM license_corrections WHERE status = 'pending'")['n'] ?? 0); } catch (\Throwable $e) { return 0; }
@@ -263,7 +276,7 @@ final class LicenseCorrection
     }
 
     /** Potwierdzenie podpisanego odręcznie druku AMSK/1 — zapis zmian w danych sprawy. Tylko kierownik / administrator. */
-    public function approve(int $id, array $actor): void
+    public function approve(int $id, array $actor): string
     {
         $c = self::get($id);
         if (!$c) throw new DomainException('Nie ma takiej korekty.');
@@ -303,6 +316,9 @@ final class LicenseCorrection
         } catch (\Throwable $e) { $db->rollBack(); throw $e; }
         if ($c['scope'] === 'operation') (new LicenseOperationService())->saveRecord((int)$c['target_id']);
         self::event($c, 'amsk.apply', 'Potwierdzono podpis kierownika na druku AMSK/1 — korekta ' . self::code($id) . ' wprowadzona (' . count($c['itemsList']) . ' pól).', $actor);
+        // Wdrożona korekta → pakiet poprawionych druków AM (stare unieważnione) i ZIP z hasłem do osoby i kierownika (hasło SMS-em)
+        require_once __DIR__ . '/LicenseDocPackage.php';
+        return (new LicenseDocPackage())->run($id, $actor);
     }
 
     public function cancel(int $id, string $reason, array $actor): void

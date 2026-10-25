@@ -298,35 +298,36 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
     <thead><tr><th scope="col">Dokument</th><th scope="col">Numer</th><th scope="col">Stan</th><th scope="col" class="text-end"><span class="visually-hidden">Akcje</span></th></tr></thead>
     <tbody>
     <tr><td><span class="sym"><?= h($l['form']->requestDoc()->symbol()) ?></span> Wniosek</td>
-      <td class="text-nowrap"><?= h($l['case_number']) ?></td>
+      <td class="text-nowrap"><?= h($l['case_number']) ?><?= ldCodeLine((string)$l['case_number'], $l['form']->value) ?></td>
       <td><?= $l['requester_signed_at'] ? ldChip('podpisany ' . ldDt($l['requester_signed_at']), '#008a00') : (!empty($d['paper_signed']) ? ldChip('podpisany odręcznie', '#008a00') : ldChip('niepodpisany', '#f0a30a')) ?></td>
       <td class="text-end"><a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.request.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
     <?php if ($am7 && $d): $_dDoc = !empty($d['grant']) ? LicenseDoc::Am7Grant : LicenseDoc::Am7Refusal; ?>
     <tr><td><span class="sym"><?= h($_dDoc->symbol()) ?></span> Decyzja <?= !empty($d['grant']) ? 'o przyznaniu' : 'o odmowie' ?></td>
-      <td class="text-nowrap"><?= h(LicenseDocument::number($_dDoc, $l)) ?></td>
+      <td class="text-nowrap"><?= h(LicenseDocument::number($_dDoc, $l)) ?><?= ldCodeLine(LicenseDocument::number($_dDoc, $l), 'AM7') ?></td>
       <td><?= !empty($d['approved_at']) ? ldChip('zatwierdzona ' . ldDt($d['approved_at']), '#008a00') : ldChip('projekt', '#f0a30a') ?></td>
       <td class="text-end"><a class="btn btn-sm btn-metro" style="background:#0050ef" href="<?= h(route('ld.am7.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
     <?php endif; ?>
     <?php foreach ($asg as $_a): foreach (($decl[(int)$_a['id']] ?? []) as $dc): $ds = LicenseDeclarationStatus::tryFrom((string)$dc['status']); ?>
     <tr><td><span class="sym"><?= h($dc['doc']) ?></span> Oświadczenie — <?= h($_a['holder_name'] ?? '') ?></td>
-      <td class="text-nowrap"><?= h($dc['number']) ?></td>
+      <td class="text-nowrap"><?= h($dc['number']) ?><?= ldCodeLine((string)$dc['number'], 'AM5') ?></td>
       <td><?= h($ds?->label() ?? $dc['status']) ?> <span class="small text-secondary">· <?= h(ldDt($dc['signed_at'])) ?></span></td>
       <td class="text-end"><a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.decl.file', ['id' => $dc['id']])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
     <?php endforeach; endforeach; ?>
     <?php if ($am7 && $_tnHead !== ''): $_am90w = (string)(db_one("SELECT am90_sent_at FROM licenses WHERE id = ?", [$id])['am90_sent_at'] ?? ''); ?>
     <tr><td><span class="sym" style="background:#0f766e">AM90</span> Potwierdzenie wykonania operacji<?php if (Am7TenantAccount::am90Revision($id) > 1): ?> — aktualizacja danych<?php endif; ?></td>
-      <td class="text-nowrap"><?= h(LicenseDocument::am90Number($l, Am7TenantAccount::am90Revision($id))) ?></td>
+      <td class="text-nowrap"><?= h(LicenseDocument::am90Number($l, Am7TenantAccount::am90Revision($id))) ?><?= ldCodeLine(LicenseDocument::am90Number($l, Am7TenantAccount::am90Revision($id)), 'AM90') ?></td>
       <td><?= $_am90w !== '' ? ldChip('wysłano ' . ldDt($_am90w), '#008a00') : ldChip('nie wysłano', '#f0a30a') ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#0f766e" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
         <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90w !== '' ? 'Wyślij AM90 ponownie' : 'Wyślij AM90', 'btn-metro green', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?></td></tr>
     <?php endif; ?>
     <?php if ($am7 && $_tnHead !== '' && ($_ch = Am7TenantAccount::upnChanges($id))): ?>
     <tr><td><span class="sym" style="background:#9f1239">AM91</span> Zmiana loginu (UPN) — <?= h(end($_ch)['old']) ?> → <?= h(end($_ch)['new']) ?></td>
-      <td class="text-nowrap"><?= h(LicenseDocument::am91Number($l, count($_ch))) ?></td>
+      <td class="text-nowrap"><?= h(LicenseDocument::am91Number($l, count($_ch))) ?><?= ldCodeLine(LicenseDocument::am91Number($l, count($_ch)), 'AM91') ?></td>
       <td><?= ldChip('wysłano jako AM90/' . Am7TenantAccount::am90Revision($id), '#008a00') ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#9f1239" href="<?= h(route('ld.am91.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
     <?php endif; ?>
     </tbody></table></div>
+  <?php $regScope = 'license'; $regId = $id; include __DIR__ . '/_rejestrDrukow.php'; ?>
 </section>
 </div><!-- /wydruki -->
 

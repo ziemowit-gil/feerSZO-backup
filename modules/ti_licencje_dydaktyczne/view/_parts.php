@@ -27,6 +27,14 @@ if (!function_exists('ldChip')) {
         return $h . '<button type="submit" class="btn btn-sm ' . h($class) . '">' . h($label) . '</button></form>';
     }
 
+    /** Kod Code128 druku (z rewizją) pod numerem dokumentu: „kod LD000002/AM7-2/R2”; pusty, gdy dokumentu nie da się powiązać ze sprawą. */
+    function ldCodeLine(string $number, string $symbol): string
+    {
+        require_once dirname(__DIR__) . '/lib/LicenseCodes.php';
+        $c = LicenseCodes::forNumber($number, $symbol);
+        return $c === '' ? '' : '<div class="small text-secondary">kod <code>' . h($c) . '</code></div>';
+    }
+
     function ldDt(?string $dt): string
     {
         $dt = (string)$dt;

@@ -28,7 +28,8 @@ usort($opOpen, fn($a, $b) => (int)$b['id'] <=> (int)$a['id']);
 $opN = (int)$opCounts['pending'] + (int)($opCounts['signing'] ?? 0) + (int)$opCounts['approved'];
 $corrPending = LicenseCorrection::pendingCount();
 $corrRows = LicenseCorrection::search('', 15);
-$actN = count($toVerify) + count($overdueAsg) + (int)$opCounts['pending'] + $corrPending;
+$corrNoPkg = LicenseCorrection::withoutPackage();
+$actN = count($toVerify) + count($overdueAsg) + (int)$opCounts['pending'] + $corrPending + count($corrNoPkg);
 ?>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h1 class="me-auto mb-0"><span class="sym">AM5</span> <span class="sym" style="background:#0050ef">AM7</span> Licencje dydaktyczne i oprogramowanie</h1>
@@ -164,7 +165,13 @@ include __DIR__ . '/_tabs.php'; ?>
   <ul class="mb-0"><?php foreach ($corrPend as $c): ?><li><a href="<?= h(route('ld.corr', ['id' => $c['id']])) ?>"><?= h(LicenseCorrection::code((int)$c['id'])) ?></a> — <?= h($c['target_number']) ?>, <?= h(implode(', ', array_map(fn($i) => $i['label'], $c['itemsList']))) ?></li><?php endforeach; ?></ul>
 </section>
 <?php endif; ?>
-<?php if (!$toVerify && !$overdueAsg && !$opPend && !$corrPend): ?><p class="panel text-secondary">Nic nie czeka na działanie: brak oświadczeń do weryfikacji, spraw po terminie 7 dni, operacji do decyzji i korekt do podpisu.</p><?php endif; ?>
+<?php if ($corrNoPkg): ?>
+<section class="panel warn">
+  <h2 class="mt-0">Zatwierdzone korekty bez pakietu druków — ręczne generowanie (<?= count($corrNoPkg) ?>)</h2>
+  <ul class="mb-0"><?php foreach ($corrNoPkg as $c): ?><li><a href="<?= h(route('ld.corr', ['id' => $c['id']])) ?>#pakiet"><?= h(LicenseCorrection::code((int)$c['id'])) ?></a> — <?= h($c['target_number']) ?>: wygeneruj pakiet poprawionych druków AM i wyślij ZIP z hasłem</li><?php endforeach; ?></ul>
+</section>
+<?php endif; ?>
+<?php if (!$toVerify && !$overdueAsg && !$opPend && !$corrPend && !$corrNoPkg): ?><p class="panel text-secondary">Nic nie czeka na działanie: brak oświadczeń do weryfikacji, spraw po terminie 7 dni, operacji do decyzji i korekt do podpisu.</p><?php endif; ?>
 </div>
 
 <div class="ld-tabpanel" id="ldp-wzory" data-ld-panel="wzory" role="tabpanel" aria-labelledby="ldt-wzory" hidden>

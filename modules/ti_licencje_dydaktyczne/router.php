@@ -103,6 +103,9 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/korekty/{id}',                     [LicenseCorrectionController::class, 'show'])->name('ld.corr');
     $r->get('/korekty/{id}/pdf',                 [LicenseCorrectionController::class, 'pdf'])->name('ld.corr.pdf');
     $r->post('/korekty/{id}/zatwierdz',          [LicenseCorrectionController::class, 'approve'])->name('ld.corr.approve');
+    $r->post('/korekty/{id}/pakiet',             [LicenseCorrectionController::class, 'pack'])->name('ld.corr.pack');
+    $r->get('/pakiet/{pid}/zip',                 [LicenseCorrectionController::class, 'packZip'])->name('ld.pack.zip');
+    $r->post('/pakiet/{pid}/wyslij',             [LicenseCorrectionController::class, 'packSend'])->name('ld.pack.send');
     $r->post('/korekty/{id}/anuluj',             [LicenseCorrectionController::class, 'cancel'])->name('ld.corr.cancel');
     $r->post('/korekty/{id}/wyslij',             [LicenseCorrectionController::class, 'send'])->name('ld.corr.send');
     // Rejestr operacji na licencjach: konta i posiadane licencje, AM11–AM13, AM20–AM24

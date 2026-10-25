@@ -16,6 +16,7 @@ declare(strict_types=1);
  *   license_operations      — rejestr operacji: AM11–AM13 (wnioski o licencję / zwrot / finansowanie zewnętrzne) i AM20–AM24 (zmiana płatnika,
  *                             planu, zawieszenie, cofnięcie, przedłużenie posiadanej licencji); rekord JSON w record_json
  *   license_corrections     — AMSK: korekty danych w dokumentach AM (czekają na odręczny podpis kierownika, potem zapis zmian)
+ *   license_doc_issues      — rejestr wydanych druków AM (kod z rewizją R1, R2…, obowiązuje | unieważniony); license_doc_packages — pakiety po AMSK
  *   license_funding         — historia płatników / finansowania posiadanych licencji (resource_key ti:N | am:N | m365:N)
  *   notification_logs       — każda próba powiadomienia (kanał, rodzaj, adresat zamaskowany, sent|failed|skipped, błąd, fallback)
  */
@@ -331,6 +332,41 @@ function ldMigrate(): void
         sent_at VARCHAR(19)
     )");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_corr_target ON license_corrections(scope, target_id)");
+
+    // Rejestr wydanych druków AM (kod z rewizją R1, R2… w stopce) i pakiety po korekcie AMSK: nowa rewizja unieważnia poprzednią
+    $db->exec("CREATE TABLE IF NOT EXISTS license_doc_packages (
+        id {$pk},
+        scope VARCHAR(10) NOT NULL DEFAULT 'license',
+        target_id INTEGER NOT NULL DEFAULT 0,
+        revision INTEGER NOT NULL DEFAULT 1,
+        correction_id INTEGER,
+        doc_count INTEGER NOT NULL DEFAULT 0,
+        created_by INTEGER,
+        created_name VARCHAR(190) NOT NULL DEFAULT '',
+        created_at VARCHAR(19),
+        sent_at VARCHAR(19)
+    )");
+    $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_pkg_corr ON license_doc_packages(correction_id)");
+    $db->exec("CREATE TABLE IF NOT EXISTS license_doc_issues (
+        id {$pk},
+        scope VARCHAR(10) NOT NULL DEFAULT 'license',
+        target_id INTEGER NOT NULL DEFAULT 0,
+        symbol VARCHAR(40) NOT NULL DEFAULT '',
+        label VARCHAR(190) NOT NULL DEFAULT '',
+        doc_number VARCHAR(160) NOT NULL DEFAULT '',
+        code VARCHAR(80) NOT NULL DEFAULT '',
+        revision INTEGER NOT NULL DEFAULT 1,
+        status VARCHAR(8) NOT NULL DEFAULT 'valid',
+        file_path VARCHAR(255) NOT NULL DEFAULT '',
+        sha256 VARCHAR(64) NOT NULL DEFAULT '',
+        package_id INTEGER,
+        correction_id INTEGER,
+        void_correction_id INTEGER,
+        void_at VARCHAR(19),
+        created_name VARCHAR(190) NOT NULL DEFAULT '',
+        created_at VARCHAR(19)
+    )");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_issues_target ON license_doc_issues(scope, target_id, symbol, status)");
     $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_corr_token ON license_corrections(token)");
 
     $db->exec("CREATE TABLE IF NOT EXISTS notification_logs (
