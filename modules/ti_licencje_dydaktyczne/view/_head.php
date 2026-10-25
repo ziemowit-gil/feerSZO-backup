@@ -38,7 +38,7 @@ $_skin_css = dirname($_dyd) . '/assets/ti_skin.css';
   .ldm .pivot a[aria-current="page"] { color: #1d1d1d; border-bottom: 3px solid #1ba1e2; }
   .ldm .form-control:focus, .ldm .form-select:focus { border-color: #1ba1e2; box-shadow: 0 0 0 .2rem rgba(27,161,226,.25); }
 </style>
-<?php $KIER_CUR = 'licencjeDydaktyczne.php'; $KIER_LABEL = $kierLabel ?? $title;
+<?php $KIER_CUR = $kierCur ?? 'licencjeDydaktyczne.php';   // $kierCur — gdy ekran ma własną pozycję w menu kierownika (np. Korekty AMSK) $KIER_LABEL = $kierLabel ?? $title;
 include $_dyd . '/_kierownik_bar.php'; ?>
 <main id="main" class="dyd-wrap ldm">
 <div class="container-fluid py-3" style="max-width:1240px">

@@ -21,6 +21,7 @@ declare(strict_types=1);
  * Fallback: brak mPDF lub błąd renderowania → render() zwraca dokument HTML (mime text/html) z tą samą treścią.
  */
 require_once __DIR__ . '/ldSchema.php';
+require_once __DIR__ . '/LicenseCodes.php';
 require_once __DIR__ . '/LicenseEnums.php';
 require_once __DIR__ . '/LicenseDto.php';
 require_once __DIR__ . '/LicenseOperationDefs.php';
@@ -472,6 +473,62 @@ final class LicenseDocument
         return self::css() . $h;
     }
 
+    // ── AMSK: korekta danych w dokumentach AM; AMSK/1 — druk kontrolny do ODRĘCZNEGO podpisu kierownika (QR + Code128) ──
+
+    /**
+     * $c — korekta (LicenseCorrection::get), $t — sprawa / operacja, $control — AMSK/1 (zmiany + kody + podpis odręczny) albo AMSK (korekta dla osoby, po zatwierdzeniu).
+     */
+    public function amskHtml(array $c, array $t, bool $control): string
+    {
+        $this->n = 0;
+        $code = LicenseCorrection::code((int)$c['id']);
+        $number = LicenseCorrection::docNumber($c, $control);
+        $isOp = $c['scope'] === 'operation';
+        $person = (string)($isOp ? ($t['account_name'] ?? '') : ($t['interested_name'] ?? ''));
+        $doc = $isOp ? (string)$t['formEnum']->value . ' — ' . $t['formEnum']->title() : (($t['form'] ?? null) === LicenseForm::Am7 ? 'AM7 — licencja / dostęp do oprogramowania' : 'AM5 — licencja na materiały dydaktyczne');
+        $st = (string)$c['status'];
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer dokumentu', '<span class="big">' . self::e($number) . '</span>', ' width="45%"')
+           . $this->fld('Dotyczy dokumentów AM w sprawie', self::e((string)$c['target_number']), ' width="35%"')
+           . '<td class="sym" width="20%" style="background:#7c2d12"><div class="symb">AMSK</div><div class="symp">' . ($control ? '/1' : '&nbsp;') . '</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '</tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">' . ($control ? 'DRUK KONTROLNY KOREKTY — DO PODPISU' : 'KOREKTA DANYCH W DOKUMENTACH AM') . '</div>'
+           . '<div class="ttl2">' . ($control ? 'dokument dotyczy danych osobowych — wymaga ODRĘCZNEGO podpisu kierownika; zmiany wchodzą w życie po potwierdzeniu podpisu w SZO' : 'korekta błędnych danych — zastępuje wskazane wartości w dokumentach sprawy') . '</div></td></tr>'
+           . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Korekta:</b> ' . self::e($code) . '.&nbsp; <b>Status:</b> ' . self::e(LicenseCorrection::statusLabel($st)) . '.'
+           . ($control ? '' : '&nbsp; Dokument <b>nie wymaga podpisu</b>.') . '</td></tr></table>';
+        $h .= '<table class="t">' . self::sec('A', 'SPRAWA I DOKUMENT', 2) . '<tr>'
+            . $this->fld('Osoba, której dotyczy sprawa', self::val($person, 'osoba'), ' width="50%"')
+            . $this->fld('Dokument', self::e($doc), ' width="50%"') . '</tr><tr>'
+            . $this->fld('Korekta wystawiona', self::e(ldDate(substr((string)$c['created_at'], 0, 10)) . ' ' . substr((string)$c['created_at'], 11, 5)), ' width="50%"')
+            . $this->fld('Wystawił(a)', self::val((string)$c['created_name'], 'osoba wystawiająca'), ' width="50%"') . '</tr></table>';
+        $rows = '';
+        foreach ($c['itemsList'] as $i => $it) {
+            $rows .= '<tr><td class="f" style="width:4%">' . ($i + 1) . '</td><td class="f" style="width:19%"><div class="lb">' . self::e((string)$it['doc']) . '</div><b>' . self::e((string)$it['label']) . '</b></td>'
+                  . '<td class="f" style="width:38.5%">' . nl2br(self::e((string)$it['old_disp'])) . '</td><td class="f" style="width:38.5%"><b>' . nl2br(self::e((string)$it['new_disp'])) . '</b></td></tr>';
+        }
+        $h .= '<table class="t">' . self::sec('B', 'ZAKRES KORECTY', 4)
+            . '<tr><td class="lb" style="padding:1mm"><b>Lp.</b></td><td class="lb" style="padding:1mm"><b>Dokument i pole</b></td><td class="lb" style="padding:1mm"><b>Było (błędnie)</b></td><td class="lb" style="padding:1mm"><b>Jest po korekcie</b></td></tr>'
+            . $rows . '</table>';
+        $h .= '<table class="t">' . self::sec('C', 'UZASADNIENIE KOREKTY', 1) . '<tr><td class="pc"><div class="pt">' . nl2br(self::e((string)$c['reason'])) . '</div></td></tr></table>';
+        if ($control) {
+            $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('D', 'KONTROLA I POWIĄZANIE Z DOKUMENTAMI AM', 3) . '<tr>'
+                . '<td class="f" style="width:22%;text-align:center"><div class="lb">Kod QR — status korekty w SZO</div><barcode code="' . self::e(LicenseCorrection::verifyUrl($c)) . '" type="QR" class="barcode" size="0.85" error="M" disableborder="1" /></td>'
+                . '<td class="f" style="width:38%;text-align:center"><div class="lb">Code128 — kod korekty (łączy formularze sprawy)</div><barcode code="' . self::e($code) . '" type="C128B" size="1" height="1.1" /><div class="v">' . self::e($code) . '</div></td>'
+                . '<td class="pc" style="width:40%"><div class="pt">Kod <b>' . self::e($code) . '</b> wpisz (zeskanuj) w polu „Skanuj kod” na pulpicie Licencji — otworzy korektę, a kod w stopce każdego formularza AM tej sprawy (<b>'
+                . self::e(LicenseCodes::formCode(LicenseCodes::caseCode($c['scope'], (int)$c['target_id']), 'AM')) . '</b> i kolejne symbole) otworzy sprawę. Kod QR prowadzi do strony ze statusem korekty (bez danych osobowych).</div></td></tr></table>';
+            $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('E', 'ZATWIERDZENIE — PODPIS ODRĘCZNY KIEROWNIKA', 2) . '<tr><td class="pc" colspan="2"><div class="pt">'
+                . 'Zatwierdzam korektę wskazanych powyżej danych (dane osobowe) i potwierdzam, że zmiany są zgodne z dokumentami źródłowymi. Podpis składam odręcznie; po podpisaniu druk należy zeskanować do teczki sprawy i potwierdzić w SZO (Licencje › Korekty AMSK).</div></td></tr><tr>'
+                . $this->fld('Imię i nazwisko kierownika (czytelnie)', '', ' width="55%" style="height:20mm"') . $this->fld('Data i miejscowość', '', ' width="45%" style="height:20mm"') . '</tr><tr>'
+                . $this->fld('Podpis odręczny kierownika', '', ' colspan="2" style="height:26mm"') . '</tr></table>';
+        } else {
+            $h .= '<table class="t">' . self::sec('D', 'ZATWIERDZENIE', 1) . '<tr><td class="pc"><div class="pt">Korekta została zatwierdzona <b>' . self::e(ldDate(substr((string)$c['applied_at'], 0, 10)) . ' ' . substr((string)$c['applied_at'], 11, 5))
+                . '</b> (' . self::e((string)$c['applied_name']) . ') na podstawie druku kontrolnego AMSK/1 podpisanego odręcznie przez kierownika (kod ' . self::e($code) . '). '
+                . ($isOp ? 'Korekta zmienia dane dokumentów sprawy; nie cofa skutków operacji już wykonanych (np. doliczonej opłaty) — te wymagają odrębnej operacji. ' : '')
+                . 'Pozostałe dane w dokumentach sprawy pozostają bez zmian. Dokument wygenerowano elektronicznie w SZO.</div></td></tr></table>';
+        }
+        return self::css() . $h;
+    }
+
     public function blankHtml(LicenseDoc $doc): string
     {
         $l = ['id' => 0, 'case_number' => '', 'created_at' => date('Y'), 'title' => '', 'work_description' => '', 'course_name' => '', 'licensor_name' => '', 'licensor_email' => '',
@@ -730,14 +787,17 @@ final class LicenseDocument
             if (!class_exists(\Mpdf\Mpdf::class)) throw new RuntimeException('brak mPDF');
             $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
             if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => 13,
+            $code = LicenseCodes::forNumber($number, $symbol);   // Code128 łączący formularze jednej sprawy (skan → sprawa)
+            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => $code !== '' ? 21 : 13,
                                     'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp, 'shrink_tables_to_fit' => 1]);
             $mpdf->SetTitle($title);
             $mpdf->SetAuthor(ldOrgName());
             $mpdf->SetHTMLFooter('<table width="100%" style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #000"><tr>'
                 . '<td width="33%"><b>' . htmlspecialchars($symbol) . '</b> (' . self::VERSION . ')</td>'
                 . '<td width="34%" style="text-align:center">' . htmlspecialchars($number) . '</td>'
-                . '<td width="33%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr></table>');
+                . '<td width="33%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr>'
+                . ($code !== '' ? '<tr><td colspan="3" style="text-align:right;font-size:6pt"><barcode code="' . htmlspecialchars($code) . '" type="C128B" size="0.75" height="0.55" /><br>' . htmlspecialchars($code) . '</td></tr>' : '')
+                . '</table>');
             $mpdf->WriteHTML($html);
             return ['bytes' => $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN), 'mime' => 'application/pdf', 'ext' => 'pdf'];
         } catch (\Throwable $e) {

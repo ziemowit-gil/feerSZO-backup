@@ -116,6 +116,7 @@ $opVal = function (array $def, string $v): string {
 </section>
 <?php endif; ?>
 
+<?php $corrScope = 'operation'; $corrId = $id; $corrTarget = $op; include __DIR__ . '/_korektaForm.php'; ?>
 <section class="panel" id="detail-panel">
   <h2 class="mt-0">Rekord operacji (JSON)</h2>
   <pre class="small mb-0" style="max-height:28rem;overflow:auto;background:#f4f4f4;padding:.75rem"><?= h(json_encode($record, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) ?></pre>

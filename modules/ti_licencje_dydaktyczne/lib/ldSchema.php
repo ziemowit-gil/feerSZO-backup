@@ -15,6 +15,7 @@ declare(strict_types=1);
  *                             dla współpracowników (users) zmiany idą dodatkowo do collaborator_data_changes jako „czeka na akceptację”
  *   license_operations      — rejestr operacji: AM11–AM13 (wnioski o licencję / zwrot / finansowanie zewnętrzne) i AM20–AM24 (zmiana płatnika,
  *                             planu, zawieszenie, cofnięcie, przedłużenie posiadanej licencji); rekord JSON w record_json
+ *   license_corrections     — AMSK: korekty danych w dokumentach AM (czekają na odręczny podpis kierownika, potem zapis zmian)
  *   license_funding         — historia płatników / finansowania posiadanych licencji (resource_key ti:N | am:N | m365:N)
  *   notification_logs       — każda próba powiadomienia (kanał, rodzaj, adresat zamaskowany, sent|failed|skipped, błąd, fallback)
  */
@@ -306,6 +307,31 @@ function ldMigrate(): void
         created_at VARCHAR(19)
     )");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_funding ON license_funding(resource_key, effective_from)");
+
+    // AMSK — korekty danych w dokumentach AM (sprawy AM5/AM7 i operacje AM11–AM24). Korekta czeka na ODRĘCZNY podpis kierownika
+    // (druk kontrolny AMSK/1 z QR i Code128 — dane osobowe); dopiero po potwierdzeniu podpisu zmiany są zapisywane w danych sprawy.
+    $db->exec("CREATE TABLE IF NOT EXISTS license_corrections (
+        id {$pk},
+        scope VARCHAR(10) NOT NULL DEFAULT 'license',
+        target_id INTEGER NOT NULL DEFAULT 0,
+        target_number VARCHAR(80) NOT NULL DEFAULT '',
+        token VARCHAR(40) NOT NULL DEFAULT '',
+        status VARCHAR(12) NOT NULL DEFAULT 'pending',
+        reason TEXT,
+        items TEXT,
+        created_by INTEGER,
+        created_name VARCHAR(190) NOT NULL DEFAULT '',
+        created_ip VARCHAR(64) NOT NULL DEFAULT '',
+        created_at VARCHAR(19),
+        applied_by INTEGER,
+        applied_name VARCHAR(190) NOT NULL DEFAULT '',
+        applied_ip VARCHAR(64) NOT NULL DEFAULT '',
+        applied_at VARCHAR(19),
+        cancel_reason TEXT,
+        sent_at VARCHAR(19)
+    )");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_corr_target ON license_corrections(scope, target_id)");
+    $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_corr_token ON license_corrections(token)");
 
     $db->exec("CREATE TABLE IF NOT EXISTS notification_logs (
         id {$pk},

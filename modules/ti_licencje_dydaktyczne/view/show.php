@@ -7,6 +7,7 @@
  */
 require __DIR__ . '/_parts.php';
 require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
+require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
 $title = $l['case_number'] ?: ('Licencja #' . $l['id']);
 $kierLabel = $title;
 include __DIR__ . '/_head.php';
@@ -33,7 +34,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 </div>
 
 <?php $_tabs = ['przeglad' => 'Przegląd'] + ($st === LicenseRequestStatus::Started ? ['decyzja' => 'Decyzja'] : [])
-        + ['przydzialy' => 'Przydziały i oświadczenia (' . count($asg ?? []) . ')', 'wydruki' => 'Wydruki', 'dziennik' => 'Dziennik i powiadomienia']; ?>
+        + ['przydzialy' => 'Przydziały i oświadczenia (' . count($asg ?? []) . ')', 'wydruki' => 'Wydruki', 'korekty' => 'Korekty AMSK (' . count(LicenseCorrection::forTarget('license', (int)$l['id'])) . ')', 'dziennik' => 'Dziennik i powiadomienia']; ?>
 <style>
   .ld-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 3px solid #1ba1e2; margin: 0 0 1rem; }
   .ld-tabs button { background: transparent; border: 0; padding: .55rem 1.1rem; font-size: 1rem; font-weight: 600; color: #3f3f3f; cursor: pointer; border-radius: 0; }
@@ -329,6 +330,10 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 </section>
 </div><!-- /wydruki -->
 
+<div class="ld-tabpanel" id="ldp-korekty" data-ld-panel="korekty" role="tabpanel" aria-labelledby="ldt-korekty" hidden>
+<?php $corrScope = 'license'; $corrId = $id; $corrTarget = $l; include __DIR__ . '/_korektaForm.php'; ?>
+</div><!-- /korekty -->
+
 <div class="ld-tabpanel" id="ldp-dziennik" data-ld-panel="dziennik" role="tabpanel" aria-labelledby="ldt-dziennik" hidden>
 <div class="row g-3">
 <section class="col-lg-6"><div class="panel h-100">
@@ -352,7 +357,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 <script>
 (function () {
   var tabs = document.querySelectorAll('[data-ld-tab]'), panels = document.querySelectorAll('[data-ld-panel]');
-  var alias = { decyzja: 'decyzja', przydzialy: 'przydzialy', wydruki: 'wydruki', dziennik: 'dziennik', przeglad: 'przeglad' };
+  var alias = { decyzja: 'decyzja', przydzialy: 'przydzialy', wydruki: 'wydruki', korekty: 'korekty', dziennik: 'dziennik', przeglad: 'przeglad' };
   function show(name, push) {
     if (!document.querySelector('[data-ld-panel="' + name + '"]')) name = 'przeglad';
     tabs.forEach(function (b) { var on = b.getAttribute('data-ld-tab') === name; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });

@@ -41,6 +41,7 @@ if (defined('LD_PUBLIC')) {
         $r->post('/zmiana-platnika/{token}',    [LicensePublicController::class, 'paymentSubmit']);
         $r->get('/zmiana-platnika/{token}/pdf', [LicensePublicController::class, 'paymentPdf'])->name('ld.pub.payment.pdf');
         $r->get('/gotowe',                   [LicensePublicController::class, 'done'])->name('ld.pub.done');
+        $r->get('/amsk/{token}',             [LicensePublicController::class, 'amskVerify'])->name('ld.pub.amsk');
     });
     $r->dispatch();
     return;
@@ -50,6 +51,7 @@ if (!defined('LD_PANEL')) { http_response_code(404); exit('Nie znaleziono strony
 
 require_once __DIR__ . '/logic/LicenseAdminController.php';
 require_once __DIR__ . '/logic/LicenseOperationController.php';
+require_once __DIR__ . '/logic/LicenseCorrectionController.php';
 $r = new Router('/karty30/ti/dydaktyk/licencjeDydaktyczne.php', 'query');
 $r->csrfUsing(fn() => dyd_token_check(), fn() => dyd_token(), '_token');
 $r->aliasMiddleware('dyd.staff', function () {
@@ -94,6 +96,15 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/przydzialy/{id}/weryfikacja',     [LicenseAdminController::class, 'verify'])->name('ld.verify');
     $r->post('/zmiany/{id}',                     [LicenseAdminController::class, 'decideChange'])->name('ld.change');
     $r->get('/oswiadczenia/{id}',                [LicenseAdminController::class, 'declarationFile'])->name('ld.decl.file');
+    // AMSK: korekty danych w dokumentach AM (druk kontrolny AMSK/1 z QR i Code128, podpis odręczny kierownika), skan kodu z formularza
+    $r->get('/korekty',                          [LicenseCorrectionController::class, 'index'])->name('ld.corr.index');
+    $r->get('/korekty/kod',                      [LicenseCorrectionController::class, 'scan'])->name('ld.scan');
+    $r->post('/korekty/nowa',                    [LicenseCorrectionController::class, 'create'])->name('ld.corr.new');
+    $r->get('/korekty/{id}',                     [LicenseCorrectionController::class, 'show'])->name('ld.corr');
+    $r->get('/korekty/{id}/pdf',                 [LicenseCorrectionController::class, 'pdf'])->name('ld.corr.pdf');
+    $r->post('/korekty/{id}/zatwierdz',          [LicenseCorrectionController::class, 'approve'])->name('ld.corr.approve');
+    $r->post('/korekty/{id}/anuluj',             [LicenseCorrectionController::class, 'cancel'])->name('ld.corr.cancel');
+    $r->post('/korekty/{id}/wyslij',             [LicenseCorrectionController::class, 'send'])->name('ld.corr.send');
     // Rejestr operacji na licencjach: konta i posiadane licencje, AM11–AM13, AM20–AM24
     $r->get('/konta',                            [LicenseOperationController::class, 'accounts'])->name('ld.accounts');
     $r->get('/zestawienie/{id}',                 [LicenseOperationController::class, 'amz'])->name('ld.amz');

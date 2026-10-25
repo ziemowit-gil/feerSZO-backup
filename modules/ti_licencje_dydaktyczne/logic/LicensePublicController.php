@@ -12,6 +12,7 @@ declare(strict_types=1);
  */
 require_once dirname(__DIR__) . '/lib/LicenseManagementService.php';
 require_once dirname(__DIR__) . '/lib/LicenseOperationService.php';
+require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
 
 final class LicensePublicController
 {
@@ -217,6 +218,19 @@ final class LicensePublicController
         if ($r['errors']) return $this->holderForm($token, $r['errors'], $_POST);
         $_SESSION['ld_done'] = ['kind' => 'declarations', 'numbers' => $r['numbers']];
         return Router::redirect(route('ld.pub.done'));
+    }
+
+    /** QR z druku AMSK/1: status korekty po tokenie — bez danych osobowych (numer, status, daty). */
+    public function amskVerify(string $token): string
+    {
+        $c = LicenseCorrection::byToken($token);
+        if (!$c) { http_response_code(404); return $this->view('message.php', ['title' => 'Nie znaleziono korekty', 'tone' => 'danger', 'text' => 'Nie znaleziono korekty o tym kodzie. Sprawdź, czy kod QR jest czytelny.']); }
+        $st = (string)$c['status'];
+        $dt = fn(?string $v) => ldDate(substr((string)$v, 0, 10)) . ' ' . substr((string)$v, 11, 5);
+        $text = 'Korekta ' . LicenseCorrection::code((int)$c['id']) . ' do sprawy ' . $c['target_number'] . ': ' . LicenseCorrection::statusLabel($st) . '. Wystawiona ' . $dt($c['created_at'])
+              . ($st === LicenseCorrection::APPLIED ? ', zatwierdzona ' . $dt($c['applied_at']) . '.' : '.');
+        return $this->view('message.php', ['title' => 'Status korekty AMSK', 'tone' => $st === LicenseCorrection::APPLIED ? 'success' : ($st === LicenseCorrection::CANCELLED ? 'danger' : 'info'), 'text' => $text,
+            'numbers' => [LicenseCorrection::code((int)$c['id'])]]);
     }
 
     public function done(): string

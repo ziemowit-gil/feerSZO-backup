@@ -5,6 +5,7 @@
  * Zmienne: $rows, $f, $counts, $toVerify, $overdueAsg, $alertEmails, $alertSetting, $agentOn, $actor.
  */
 require __DIR__ . '/_parts.php';
+require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
 $title = 'Licencje AM5 / AM7 i zarządzanie';
 include __DIR__ . '/_head.php';
 $u = fn(array $q) => h(route('ld.index', $q));
@@ -23,9 +24,14 @@ $tiles = [
   <h1 class="me-auto mb-0"><span class="sym">AM5</span> <span class="sym" style="background:#0050ef">AM7</span> Licencje dydaktyczne i oprogramowanie</h1>
   <a class="btn btn-metro green" href="<?= h(route('ld.am20')) ?>"><i class="bi bi-cash-coin" aria-hidden="true"></i> AM20 + AM20-1 — zmiana płatnika (formularz elektroniczny)</a>
   <a class="btn btn-metro green" href="<?= h(route('ld.accounts')) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Operacje na licencjach (AM11–AM24)</a>
+  <a class="btn btn-metro" style="background:#7c2d12" href="<?= h(route('ld.corr.index')) ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i> Korekty AMSK<?php $_np = LicenseCorrection::pendingCount(); if ($_np > 0): ?> <span class="badge text-bg-light"><?= $_np ?></span><span class="visually-hidden"> czeka na podpis</span><?php endif; ?></a>
   <a class="btn btn-metro" href="<?= h(route('ld.new')) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i> Wniosek AM5 — materiały</a>
   <a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.new7')) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Wniosek AM7 — oprogramowanie</a>
 </div>
+<form class="d-flex gap-2 align-items-end mb-2" method="get" action="<?= h(route('ld.scan')) ?>" role="search" aria-label="Skanuj kod formularza">
+  <div class="flex-grow-1" style="max-width:30rem"><label class="form-label small mb-0" for="kod">Skanuj kod formularza AM (Code128 w stopce: LD…/OP…/AMSK-…)</label>
+    <input class="form-control form-control-sm" id="kod" name="kod" autocomplete="off" autocapitalize="characters" placeholder="zeskanuj lub wpisz kod"></div>
+  <button class="btn btn-sm btn-metro dark">Otwórz</button></form>
 <details class="mb-2 text-secondary"><summary class="fw-semibold">Jak to działa (AM5, AM7, numer sprawy, termin 7 dni)</summary><p class="mt-1 mb-0"><b>AM5</b> — licencje na materiały dydaktyczne: wniosek do licencjodawcy (AM5/1), oświadczenia kursanta (AM5/2, AM5/3).
   <b>AM7</b> — licencja / dostęp do oprogramowania i usług cyfrowych (dowolny dostawca; konto w tenancie ośrodka lub inna aktywacja): wniosek podpisywany przez kursanta (AM7/1), decyzja placówki zatwierdzana przez kierownika i wysyłana w PDF (AM7/2 / AM7/3), zlecenie Helpdesku IT, oświadczenia (AM7/4, AM7/5).
   Każda sprawa ma numer <b><?= h(LD_CASE_PREFIX) ?>/NNNNNN/AB</b>, każdy etap — termin <b>do <?= LD_REALIZATION_DAYS ?> dni</b>; wszczęcie wysyła e-mail i SMS do osoby zainteresowanej.</p></details>
