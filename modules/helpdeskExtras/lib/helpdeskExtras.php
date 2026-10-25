@@ -208,16 +208,17 @@ function hdAssetRemove(int $ticketId, int $assetId): void
 
 /**
  * Artykuły opublikowane w aktywnych usługach Portalu Usług IT pasujące do zapytania (słowa ≥3 znaki; punktacja: tytuł 3,
- * słowa kluczowe 2, treść 1). @return list<array{id:int,title:string,category:string,url:string,excerpt:string}>
+ * słowa kluczowe 2, treść 1). $publicOnly — tylko usługi bez ograniczenia do grup odbiorców (dla zgłaszających). @return list<array{id:int,title:string,category:string,url:string,excerpt:string}>
  */
-function hdKbSearch(string $q, int $limit = 5): array
+function hdKbSearch(string $q, int $limit = 5, bool $publicOnly = false): array
 {
-    $words = array_values(array_unique(array_filter(preg_split('/[\s,.;:!?()\[\]"\'\/\\\\-]+/u', mb_strtolower($q)), fn($w) => mb_strlen($w) >= 3)));
+    static $stop = ['brak','nie','jak','dla','oraz','przez','czy','jest','się','sie','mam','mój','moj','moje','nasz','który','która','gdy','kiedy','proszę','prosze','bardzo','tego','tym','ten','ale','lub','jestem','mogę','moge','chcę','chce','potrzebuję','potrzebuje','pomocy','pomoc','problem','problemy','zgłoszenie'];
+    $words = array_values(array_unique(array_filter(preg_split('/[\s,.;:!?()\[\]"\'\/\\\\-]+/u', mb_strtolower($q)), fn($w) => mb_strlen($w) >= 3 && !in_array($w, $stop, true))));
     if (!$words) return [];
     try {
         $rows = db_all("SELECT a.id, a.title, a.slug, a.keywords, a.body_plain, c.name AS cat_name, c.slug AS cat_slug
                         FROM itp_articles a JOIN itp_categories c ON c.id=a.category_id
-                        WHERE a.is_published=1 AND c.is_active=1");
+                        WHERE a.is_published=1 AND c.is_active=1" . ($publicOnly ? " AND (c.audiences = '[]' OR c.audiences = '')" : ''));
     } catch (\Throwable $e) { return []; }
     $scored = [];
     foreach ($rows as $r) {

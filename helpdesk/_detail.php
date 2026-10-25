@@ -116,6 +116,14 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
 .hd-side-card.hd-folded > .hd-side-card-body { display:none; }
 .hd-side-card-head .ms-auto { margin-right:.5rem; }
 .dyn-stage > form, .dyn-stage > button { margin:0; }
+.hd-kb-bar{position:relative;display:flex;align-items:center;gap:.5rem;padding:.4rem .85rem;border-bottom:1px solid var(--hd-bd-l);background:#fff}
+.hd-kb-bar i{color:#0f6cbd}
+.hd-kb-q{flex:1;border:1px solid #8a8886;padding:.25rem .5rem;font-size:.8rem;border-radius:0}
+.hd-kb-q:focus{outline:none;border-color:#0f6cbd}
+.hd-kb-res{position:absolute;left:2.2rem;right:.85rem;top:100%;z-index:20;margin:0;padding:0;list-style:none;background:#fff;border:1px solid #8a8886}
+.hd-kb-res li{padding:.4rem .6rem;cursor:pointer;font-size:.8rem;border-bottom:1px solid #edebe9}
+.hd-kb-res li:last-child{border-bottom:0}.hd-kb-res li:hover,.hd-kb-res li:focus{background:#eff6fc;outline:none}
+.hd-kb-res small{display:block;color:#605e5c}
 .hd-macro-bar { display:flex; flex-wrap:wrap; gap:.4rem; padding:.55rem .85rem; border-bottom:1px solid var(--hd-bd-l); background:#faf9f8; }
 .hd-macro-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .7rem; border:1px solid #8a8886; background:#fff; color:#242424; font-size:.8rem; cursor:pointer; }
 .hd-macro-chip i { color:#0f6cbd; }
@@ -363,6 +371,14 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
     </div>
     <?php endif; ?>
 
+    <?php if ($is_op): ?>
+    <div class="hd-kb-bar" data-hd-kb>
+      <i class="bi bi-book" aria-hidden="true"></i>
+      <input type="search" class="hd-kb-q" placeholder="Wstaw link do artykułu z bazy wiedzy — wpisz temat…" aria-label="Szukaj w bazie wiedzy" autocomplete="off">
+      <ul class="hd-kb-res" hidden></ul>
+    </div>
+    <?php endif; ?>
+
     <div class="hd-reply-body">
       <form method="post" action="<?= h($view_action) ?>" enctype="multipart/form-data" data-hd-form>
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -561,6 +577,76 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
         <?php endif; ?>
         <div class="input-group input-group-sm">
           <input type="email" name="watch_email" class="form-control" placeholder="…albo e-mail spoza SZO" aria-label="E-mail obserwatora">
+          <button class="btn btn-outline-secondary">Dodaj</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Problem nadrzędny -->
+  <?php require_once dirname(__DIR__) . '/modules/helpdeskExtras/lib/helpdeskExtras.php';
+    $hd_parent = !empty($ticket['problem_id']) ? db_one("SELECT id, number, title, status FROM helpdesk_tickets WHERE id=?", [(int)$ticket['problem_id']]) : null;
+    $hd_children = hdProblemChildren((int)$ticket['id']);
+    $hd_children_open = count(array_filter($hd_children, fn($c) => !in_array($c['status'], ['rozwiązane', 'zamknięte'], true)));
+    $hd_assets = hdAssetsList((int)$ticket['id']); $hd_resources = hdAssetsResources(); ?>
+  <div class="hd-side-card">
+    <div class="hd-side-card-head"><i class="bi bi-link-45deg"></i>Problem nadrzędny<span class="ms-auto fw-normal"><?= $hd_children ? count($hd_children) . ' podrzędne' : '' ?></span></div>
+    <div class="hd-side-card-body">
+      <?php if ($hd_parent): ?>
+      <div class="mb-2" style="font-size:.8rem">Podrzędne wobec <a href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$hd_parent['id'] ?>" class="fw-semibold"><?= h($hd_parent['number']) ?></a><br><span class="text-muted"><?= h($hd_parent['title']) ?></span></div>
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form>
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_problem_clear" value="1">
+        <button class="btn btn-sm btn-outline-secondary">Odłącz od problemu</button>
+      </form>
+      <?php else: ?>
+        <?php if ($hd_children): ?>
+        <ul class="list-unstyled mb-2" style="font-size:.78rem">
+          <?php foreach ($hd_children as $c): ?><li><a href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$c['id'] ?>"><?= h($c['number']) ?></a> <?= hd_status_badge($c['status']) ?> <span class="text-muted"><?= h(mb_substr($c['title'], 0, 40)) ?></span></li><?php endforeach; ?>
+        </ul>
+        <?php if ($hd_children_open): ?>
+        <form method="post" action="<?= h($view_action) ?>" data-hd-form class="mb-2">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_problem_resolve" value="1">
+          <input type="text" name="problem_message" class="form-control form-control-sm mb-1" maxlength="500" placeholder="Wiadomość do zgłaszających (opcjonalnie)">
+          <button class="btn btn-sm btn-outline-success" onclick="return confirm('Rozwiązać <?= (int)$hd_children_open ?> zgłoszeń podrzędnych i powiadomić zgłaszających?')">Rozwiąż podrzędne (<?= (int)$hd_children_open ?>)</button>
+        </form>
+        <?php endif; ?>
+        <?php else: ?>
+        <form method="post" action="<?= h($view_action) ?>" data-hd-form>
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_problem_set" value="1">
+          <div class="input-group input-group-sm">
+            <input type="text" name="problem_number" class="form-control" placeholder="Numer problemu nadrzędnego" required aria-label="Numer problemu nadrzędnego">
+            <button class="btn btn-outline-secondary">Powiąż</button>
+          </div>
+        </form>
+        <?php endif; ?>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Sprzęt / zasób -->
+  <div class="hd-side-card">
+    <div class="hd-side-card-head"><i class="bi bi-pc-display"></i>Sprzęt / zasób<span class="ms-auto fw-normal"><?= $hd_assets ? count($hd_assets) : '' ?></span></div>
+    <div class="hd-side-card-body">
+      <?php foreach ($hd_assets as $as): ?>
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form class="mb-1" style="font-size:.78rem">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <div class="d-flex align-items-center gap-1">
+          <span class="fw-semibold text-truncate" title="<?= h($as['label']) ?>"><?= h($as['label']) ?></span>
+          <button type="submit" name="_asset_del" value="<?= (int)$as['id'] ?>" class="btn btn-sm btn-link text-danger p-0 ms-auto" title="Usuń powiązanie"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <?php if ($as['others']): ?><div class="text-muted">Inne zgłoszenia: <?php foreach ($as['others'] as $o): ?><a href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$o['id'] ?>"><?= h($o['number']) ?></a> <?php endforeach; ?></div><?php endif; ?>
+      </form>
+      <?php endforeach; ?>
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form class="mt-2">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_asset_add" value="1">
+        <?php if ($hd_resources): ?>
+        <select name="asset_resource" class="form-select form-select-sm mb-1" aria-label="Zasób z rejestru">
+          <option value="">— zasób z rejestru —</option>
+          <?php foreach ($hd_resources as $rs): ?><option value="<?= (int)$rs['id'] ?>"><?= h($rs['name']) ?></option><?php endforeach; ?>
+        </select>
+        <?php endif; ?>
+        <div class="input-group input-group-sm">
+          <input type="text" name="asset_label" class="form-control" maxlength="120" placeholder="…albo nazwa / nr inwentarzowy" aria-label="Nazwa lub numer sprzętu">
           <button class="btn btn-outline-secondary">Dodaj</button>
         </div>
       </form>
@@ -1066,6 +1152,27 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
       head.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } });
     });
   })();
+  document.querySelectorAll('[data-hd-kb]').forEach(function(bar){
+    var inp=bar.querySelector('.hd-kb-q'), list=bar.querySelector('.hd-kb-res'), t=null;
+    function esc(x){return String(x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+    inp.addEventListener('input',function(){
+      clearTimeout(t); var q=inp.value.trim();
+      if(q.length<3){list.hidden=true;return;}
+      t=setTimeout(function(){
+        fetch('<?= APP_URL ?>/helpdesk/api/kb.php?q='+encodeURIComponent(q),{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+          list.innerHTML=(d.items||[]).map(function(a,i){return '<li tabindex="0" data-i="'+i+'">'+esc(a.title)+'<small>'+esc(a.category)+' — '+esc(a.excerpt)+'</small></li>';}).join('')||'<li>Brak pasujących artykułów</li>';
+          list.hidden=false; list._items=d.items||[];
+        });
+      },300);
+    });
+    list.addEventListener('click',function(e){
+      var li=e.target.closest('li[data-i]'); if(!li) return; var a=(list._items||[])[+li.dataset.i]; if(!a) return;
+      var form=bar.closest('.hd-reply-box').querySelector('form[data-hd-form]'), wrap=form&&form.querySelector('.hd-quill-wrap'), q=wrap&&wrap._quill; if(!q) return;
+      var len=q.getLength(); q.clipboard.dangerouslyPasteHTML(len-1,(len>1?'<br>':'')+'<a href="'+esc(a.url)+'">'+esc(a.title)+'</a> ');
+      list.hidden=true; inp.value=''; q.focus();
+    });
+    document.addEventListener('click',function(e){ if(!bar.contains(e.target)) list.hidden=true; });
+  });
   document.querySelectorAll('.hd-macro-chip').forEach(function(chip){
     chip.addEventListener('click',function(){
       var box=chip.closest('.hd-reply-box'); if(!box) return;

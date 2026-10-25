@@ -203,6 +203,12 @@ try {
 }
 .hd-info-card-body { padding: .75rem .9rem; font-size: .82rem; }
 .hd-info-card .badge { border-radius: 0; }
+.hd-kb-box { border:1px solid #c7e0f4; background:#eff6fc; padding:.6rem .85rem; margin:-.4rem 0 1rem; }
+.hd-kb-box-h { font-size:.8rem; font-weight:600; color:#0f4c81; margin-bottom:.3rem; }
+.hd-kb-box ul { list-style:none; margin:0; padding:0; }
+.hd-kb-box li { padding:.2rem 0; font-size:.85rem; }
+.hd-kb-box li a { font-weight:600; }
+.hd-kb-box li small { color:#605e5c; display:block; }
 .hd-new-wrap { padding-bottom: 6rem; }
 .hd-new-wrap .hd-pri-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: .5rem; margin-top: .25rem; }
 .hd-new-wrap .hd-pri-grid .hd-pri-btn { justify-content: center; white-space: nowrap; }
@@ -302,6 +308,11 @@ try {
       </div>
 
       <!-- Opis -->
+      <div id="hdKbBox" class="hd-kb-box" hidden aria-live="polite">
+        <div class="hd-kb-box-h"><i class="bi bi-lightbulb" aria-hidden="true"></i>Może to pomoże — artykuły z bazy wiedzy</div>
+        <ul id="hdKbList"></ul>
+      </div>
+
       <div class="mb-3">
         <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Opis problemu <span class="text-danger">*</span></label>
         <textarea name="description" class="form-control" rows="6" required
@@ -389,6 +400,21 @@ try {
 </div><!-- /hd-new-wrap -->
 
 <script>
+(function () {
+  var t = document.querySelector('input[name="title"]'), d = document.querySelector('textarea[name="description"]'), box = document.getElementById('hdKbBox'), list = document.getElementById('hdKbList'), tm = null;
+  if (!t || !box) return;
+  function esc(x) { return String(x).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function run() {
+    var q = (t.value + ' ' + (d ? d.value.slice(0, 200) : '')).trim();
+    if (q.length < 6) { box.hidden = true; return; }
+    fetch('<?= APP_URL ?>/helpdesk/api/kb.php?q=' + encodeURIComponent(q), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      var items = j.items || [];
+      list.innerHTML = items.map(function (a) { return '<li><a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.title) + '</a><small>' + esc(a.excerpt) + '</small></li>'; }).join('');
+      box.hidden = !items.length;
+    }).catch(function () {});
+  }
+  [t, d].forEach(function (el) { if (el) el.addEventListener('input', function () { clearTimeout(tm); tm = setTimeout(run, 500); }); });
+})();
 document.querySelectorAll('.hd-pri-radio').forEach(function(r) {
   r.addEventListener('change', function() {
     document.querySelectorAll('.hd-pri-btn').forEach(function(l) { l.classList.remove('active-pri'); });

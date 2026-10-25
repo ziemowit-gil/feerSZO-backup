@@ -318,6 +318,18 @@ return [
         },
     ],
 
+    // Helpdesk: cele SLA wg priorytetu jako słownik systemowy (edytowalne w Słowniku Centralnym).
+    '2026-10_dictionary_helpdesk_sla' => [
+        'desc' => 'Słownik Centralny: cele SLA Helpdesku wg priorytetu',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/helpdesk.php';
+            require_once $ROOT . '/modules/helpdeskExtras/lib/helpdeskExtras.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import(hdSlaSeed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
     // TERYT: województwa → powiaty → gminy jako słownik systemowy (drzewo, kody TERYT) z tabeli teryt_units
     // (import GUS); bez niej — 16 województw. Kolejne importy TERC (admin/teryt_import.php) aktualizują słownik.
     '2026-10_dictionary_teryt' => [
