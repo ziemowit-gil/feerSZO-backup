@@ -216,6 +216,22 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-wizard .btn { border-radius:0 }
 .channel-btn, .comm-flags .badge { border-radius:0 }
 .channel-btn { border:1px solid #9CA3AF; border-left-width:4px }
+
+/* ── Krok 2 (Odbiorcy): proste krawędzie, skracane długie tagi, kontrast ── */
+.ms-group-list{border-radius:0;border-color:#9CA3AF}
+.ms-group-row.selected{background:#E6F4F1}
+.ms-group-row .group-select-count,.group-select-item .group-select-count{color:#4B5563}
+.group-pill,.contact-chip,.dw-chip{border-radius:0}
+.group-pill{border:1px solid #9CA3AF;padding:.3rem .7rem}
+.tag-chip{border-radius:0;border:1px solid #9CA3AF;max-width:100%;color:#1F2937}
+.tag-chip > span:first-of-type,.tag-chip .tag-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag-chip{max-width:22rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}
+.tag-chip.selected{background:#E6F4F1;border-color:#0F766E;color:#0F4C47}
+.contact-chip{background:#E6F4F1;border-color:#0F766E;color:#0F4C47}
+.recipient-preview{border-radius:0;background:#fff;border:1px solid #D1D5DB;padding:0}
+.recipient-preview > *{padding:.4rem .75rem;border-bottom:1px solid #E5E7EB}
+.recipient-preview > *:nth-child(even){background:#F9FAFB}
+.recipient-preview > *:last-child{border-bottom:0}
 </style>
 
 <div class="crm-page-header">
