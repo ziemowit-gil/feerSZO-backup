@@ -105,3 +105,7 @@
 // ── Equi Exams — silnik testów wiedzy i umiejętności (moduł TI) ──────────────
 // Silnik egzaminów działa w PHP (modules/equi_exams/logic) i nie wymaga
 // żadnej konfiguracji; piaskownicę kodu opisuje modules/equi_exams/logic/sandbox.php.
+
+// Klucz widoku pełnego w API planu (api/v1/plan_public.php, nagłówek X-Plan-Key) — używa go aplikacja feer-plan.
+// Pusty/niezdefiniowany = widok pełny przez API wyłączony (zostaje tylko widok uproszczony).
+// define('TI_PLAN_API_KEY', 'wklej_tutaj_dlugi_losowy_klucz');
