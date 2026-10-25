@@ -18,18 +18,9 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 ?>
 <div class="pivot"><a href="<?= h(route('ld.index')) ?>">Pulpit</a><a href="<?= h(route('ld.show', ['id' => $id])) ?>" aria-current="page"><?= h($title) ?></a></div>
 <?php $_tnHead = $am7 ? (string)(db_one("SELECT tenant_upn FROM licenses WHERE id = ?", [$id])['tenant_upn'] ?? '') : ''; ?>
-<style>
-  .ld-docs { display: flex; flex-wrap: wrap; gap: 6px; }
-  .ldm .ld-docs .btn-metro { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; }
-  .ldm .ld-docs .btn-metro small { font-weight: 400; opacity: .85; }
-</style>
 <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
   <h1 class="me-auto mb-0"><?= h($l['title']) ?></h1>
-  <nav class="ld-docs" aria-label="Dokumenty sprawy (PDF)">
-    <a class="btn btn-metro dark" href="<?= h(route('ld.request.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Wniosek <?= h($l['form']->requestDoc()->symbol()) ?></a>
-    <?php if ($am7 && $d): ?><a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.am7.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Decyzja <?= !empty($d['grant']) ? 'AM7/2' : 'AM7/3' ?><?= empty($d['approved_at']) ? ' <small>projekt</small>' : '' ?></a><?php endif; ?>
-    <?php if ($_tnHead !== ''): ?><a class="btn btn-metro" style="background:#0f766e" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener" title="Potwierdzenie wykonania operacji — warunki udostępnienia"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Potwierdzenie AM90</a><?php endif; ?>
-  </nav>
+  <a class="btn btn-metro dark" href="#wydruki" data-ld-goto="wydruki"><i class="bi bi-printer" aria-hidden="true"></i> Wydruki</a>
 </div>
 
 <div class="tiles">
@@ -41,7 +32,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 </div>
 
 <?php $_tabs = ['przeglad' => 'Przegląd'] + ($st === LicenseRequestStatus::Started ? ['decyzja' => 'Decyzja'] : [])
-        + ['przydzialy' => 'Przydziały i oświadczenia (' . count($asg ?? []) . ')', 'dziennik' => 'Dziennik i powiadomienia']; ?>
+        + ['przydzialy' => 'Przydziały i oświadczenia (' . count($asg ?? []) . ')', 'wydruki' => 'Wydruki', 'dziennik' => 'Dziennik i powiadomienia']; ?>
 <style>
   .ld-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 3px solid #1ba1e2; margin: 0 0 1rem; }
   .ld-tabs button { background: transparent; border: 0; padding: .55rem 1.1rem; font-size: 1rem; font-weight: 600; color: #3f3f3f; cursor: pointer; border-radius: 0; }
@@ -287,6 +278,40 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 </section>
 </div><!-- /przydzialy -->
 
+<div class="ld-tabpanel" id="ldp-wydruki" data-ld-panel="wydruki" role="tabpanel" aria-labelledby="ldt-wydruki" hidden>
+<section class="panel" id="wydruki">
+  <h2 class="mt-0">Wydruki i dokumenty sprawy</h2>
+  <p class="small text-secondary">Wszystkie dokumenty tej sprawy w układzie CIT — podgląd / pobranie PDF.</p>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th scope="col">Dokument</th><th scope="col">Numer</th><th scope="col">Stan</th><th scope="col" class="text-end"><span class="visually-hidden">Akcje</span></th></tr></thead>
+    <tbody>
+    <tr><td><span class="sym"><?= h($l['form']->requestDoc()->symbol()) ?></span> Wniosek</td>
+      <td class="text-nowrap"><?= h($l['case_number']) ?></td>
+      <td><?= $l['requester_signed_at'] ? ldChip('podpisany ' . ldDt($l['requester_signed_at']), '#008a00') : (!empty($d['paper_signed']) ? ldChip('podpisany odręcznie', '#008a00') : ldChip('niepodpisany', '#f0a30a')) ?></td>
+      <td class="text-end"><a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.request.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
+    <?php if ($am7 && $d): $_dDoc = !empty($d['grant']) ? LicenseDoc::Am7Grant : LicenseDoc::Am7Refusal; ?>
+    <tr><td><span class="sym"><?= h($_dDoc->symbol()) ?></span> Decyzja <?= !empty($d['grant']) ? 'o przyznaniu' : 'o odmowie' ?></td>
+      <td class="text-nowrap"><?= h(LicenseDocument::number($_dDoc, $l)) ?></td>
+      <td><?= !empty($d['approved_at']) ? ldChip('zatwierdzona ' . ldDt($d['approved_at']), '#008a00') : ldChip('projekt', '#f0a30a') ?></td>
+      <td class="text-end"><a class="btn btn-sm btn-metro" style="background:#0050ef" href="<?= h(route('ld.am7.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
+    <?php endif; ?>
+    <?php foreach ($asg as $_a): foreach (($decl[(int)$_a['id']] ?? []) as $dc): $ds = LicenseDeclarationStatus::tryFrom((string)$dc['status']); ?>
+    <tr><td><span class="sym"><?= h($dc['doc']) ?></span> Oświadczenie — <?= h($_a['holder_name'] ?? '') ?></td>
+      <td class="text-nowrap"><?= h($dc['number']) ?></td>
+      <td><?= h($ds?->label() ?? $dc['status']) ?> <span class="small text-secondary">· <?= h(ldDt($dc['signed_at'])) ?></span></td>
+      <td class="text-end"><a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.decl.file', ['id' => $dc['id']])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
+    <?php endforeach; endforeach; ?>
+    <?php if ($am7 && $_tnHead !== ''): $_am90w = (string)(db_one("SELECT am90_sent_at FROM licenses WHERE id = ?", [$id])['am90_sent_at'] ?? ''); ?>
+    <tr><td><span class="sym" style="background:#0f766e">AM90</span> Potwierdzenie wykonania operacji</td>
+      <td class="text-nowrap"><?= h(LicenseDocument::am90Number($l)) ?></td>
+      <td><?= $_am90w !== '' ? ldChip('wysłano ' . ldDt($_am90w), '#008a00') : ldChip('nie wysłano', '#f0a30a') ?></td>
+      <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#0f766e" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
+        <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90w !== '' ? 'Wyślij ponownie' : 'Wyślij ręcznie', 'btn-metro', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?></td></tr>
+    <?php endif; ?>
+    </tbody></table></div>
+</section>
+</div><!-- /wydruki -->
+
 <div class="ld-tabpanel" id="ldp-dziennik" data-ld-panel="dziennik" role="tabpanel" aria-labelledby="ldt-dziennik" hidden>
 <div class="row g-3">
 <section class="col-lg-6"><div class="panel h-100">
@@ -310,7 +335,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 <script>
 (function () {
   var tabs = document.querySelectorAll('[data-ld-tab]'), panels = document.querySelectorAll('[data-ld-panel]');
-  var alias = { decyzja: 'decyzja', przydzialy: 'przydzialy', dziennik: 'dziennik', przeglad: 'przeglad' };
+  var alias = { decyzja: 'decyzja', przydzialy: 'przydzialy', wydruki: 'wydruki', dziennik: 'dziennik', przeglad: 'przeglad' };
   function show(name, push) {
     if (!document.querySelector('[data-ld-panel="' + name + '"]')) name = 'przeglad';
     tabs.forEach(function (b) { var on = b.getAttribute('data-ld-tab') === name; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
@@ -324,6 +349,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       var n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; n.focus(); show(n.getAttribute('data-ld-tab'), true); e.preventDefault();
     });
   });
+  document.querySelectorAll('[data-ld-goto]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); show(a.getAttribute('data-ld-goto'), true); window.scrollTo({ top: 0, behavior: 'smooth' }); }); });
   var h = (location.hash || '').replace('#', '');
   show(alias[h] || 'przeglad', false);
   window.addEventListener('hashchange', function () { var x = (location.hash || '').replace('#', ''); if (alias[x]) show(x, false); });
