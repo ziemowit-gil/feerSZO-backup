@@ -19,6 +19,13 @@
 // Wygeneruj: php -r "echo bin2hex(random_bytes(32));"
 // define('APP_KEY', 'wklej_tutaj_64_znakowy_klucz_hex');
 
+// ── Klucz szyfrowania danych osobowych w bazie (PESEL i in.) ──────────────────
+// OSOBNY od APP_KEY. Bez niego szyfrowanie jest wyłączone. Wygeneruj: php cli/fieldCrypto.php keygen
+// UWAGA: klucza nie wolno zgubić (bez niego PESEL-i są nie do odczytania) — trzymaj kopię poza serwerem.
+// define('DATA_KEY', 'wklej_tutaj_64_znakowy_klucz_hex');
+// Przy wymianie klucza: stary przenieś tutaj, ustaw nowy w DATA_KEY i uruchom: php cli/fieldCrypto.php rotate --apply
+// define('DATA_KEY_PREVIOUS', 'stary_klucz_hex');
+
 // ── Nazwa organizacji ─────────────────────────────────────────────────────────
 // define('ORG_NAME', 'Nazwa Twojej Organizacji');
 
