@@ -17,10 +17,19 @@ $am7 = $l['form'] === LicenseForm::Am7;
 $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akceptację', '#f0a30a'], 'rejected' => ['odrzucona', '#a20025']];
 ?>
 <div class="pivot"><a href="<?= h(route('ld.index')) ?>">Pulpit</a><a href="<?= h(route('ld.show', ['id' => $id])) ?>" aria-current="page"><?= h($title) ?></a></div>
-<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<?php $_tnHead = $am7 ? (string)(db_one("SELECT tenant_upn FROM licenses WHERE id = ?", [$id])['tenant_upn'] ?? '') : ''; ?>
+<style>
+  .ld-docs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ldm .ld-docs .btn-metro { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; }
+  .ldm .ld-docs .btn-metro small { font-weight: 400; opacity: .85; }
+</style>
+<div class="d-flex flex-wrap align-items-center gap-3 mb-2">
   <h1 class="me-auto mb-0"><?= h($l['title']) ?></h1>
-  <a class="btn btn-metro dark" href="<?= h(route('ld.request.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Wniosek <?= h($l['form']->requestDoc()->symbol()) ?> (PDF)</a>
-  <?php if ($am7 && $d): ?><a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.am7.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Decyzja <?= !empty($d['grant']) ? 'AM7/2' : 'AM7/3' ?><?= empty($d['approved_at']) ? ' — projekt' : '' ?> (PDF)</a><?php endif; ?>
+  <nav class="ld-docs" aria-label="Dokumenty sprawy (PDF)">
+    <a class="btn btn-metro dark" href="<?= h(route('ld.request.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Wniosek <?= h($l['form']->requestDoc()->symbol()) ?></a>
+    <?php if ($am7 && $d): ?><a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.am7.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Decyzja <?= !empty($d['grant']) ? 'AM7/2' : 'AM7/3' ?><?= empty($d['approved_at']) ? ' <small>projekt</small>' : '' ?></a><?php endif; ?>
+    <?php if ($_tnHead !== ''): ?><a class="btn btn-metro" style="background:#0f766e" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener" title="Potwierdzenie wykonania operacji — warunki udostępnienia"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Potwierdzenie AM90</a><?php endif; ?>
+  </nav>
 </div>
 
 <div class="tiles">
@@ -135,7 +144,6 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <div class="ld-note">Wybierasz tenant (FEER / EDU FEER); braki w danych uzupełnisz przed wysyłką.</div>
     <?php elseif ($_tn !== ''): ?>
       <div class="ld-note" style="margin:0 0 .2rem">Konto: <b><?= h($_tn) ?></b></div>
-      <a class="btn btn-sm btn-metro dark ld-out" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener">Druk AM90 — potwierdzenie warunków</a>
       <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90 !== '' ? 'Wyślij AM90 ponownie (ręcznie)' : 'Wyślij AM90 ręcznie', 'btn-metro', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?>
       <?php if ($_am90 !== ''): ?><div class="ld-note">AM90 wysłano <?= h(ldDt($_am90)) ?>; zgłoszenie w Helpdesku zamknięte.</div><?php endif; ?>
     <?php endif; ?>
