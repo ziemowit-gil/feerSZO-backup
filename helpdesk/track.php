@@ -220,6 +220,36 @@ body { background: var(--hd-bg); color: var(--hd-tx); }
 /* Empty state */
 .tr-empty { text-align: center; padding: 3.5rem 1rem; color: var(--hd-tx3); }
 .tr-empty i { font-size: 2.8rem; display: block; margin-bottom: .5rem; opacity: .35; }
+
+/* ══ Szata Metro: Segoe UI, płasko, zero zaokrągleń/cieni/gradientów ══ */
+:root { --hd-accent:#1ba1e2; --hd-accent-h:#0b6a9a; --hd-accent-l:#e8f5fc; --hd-accent-m:#9fd4f0; --hd-bg:#fff; --hd-bd:#d4d4d4; --hd-shadow:none; --hd-shadow-md:none; }
+body { font-family:'Segoe UI','Segoe UI Web',Roboto,'Helvetica Neue',Arial,sans-serif; }
+.tr-brand { background:#1d1d1d; border:0; border-radius:0; border-bottom:3px solid var(--hd-accent); padding:.85rem 1.1rem; }
+.tr-brand-title { color:#fff; text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+.tr-brand-sub { color:#c8c8c8; }
+.tr-brand-icon { border-radius:0; background:var(--hd-accent); color:#fff; }
+.tr-ticket-head, .tr-side-card, .tr-reply-box { border-radius:0; border:1px solid var(--hd-bd); border-left:4px solid var(--hd-accent); }
+.tr-side-card, .tr-reply-box { border-left-width:1px; }
+.tr-ticket-num { border-radius:0; background:var(--hd-accent); color:#fff; padding:.15rem .5rem; }
+.tr-ticket-title { font-weight:300; font-size:1.5rem; }
+.tr-side-head, .tr-reply-head { border-radius:0; background:#1d1d1d; color:#fff; text-transform:uppercase; letter-spacing:.06em; font-size:.72rem; font-weight:600; border-bottom:0; }
+.tr-reply-head i { color:var(--hd-accent); }
+.tr-msg-av { border-radius:0; }
+.tr-msg-av-req { background:#0050ef; }
+.tr-msg-av-op  { background:#6a00ff; }
+.tr-msg { border-radius:0; border-width:0 0 0 4px; border-style:solid; }
+.tr-msg-user { background:#f2f2f2; border-color:#0050ef; }
+.tr-msg-op   { background:#f2f2f2; border-color:#6a00ff; }
+.tr-alert { border-radius:0; border-width:0 0 0 4px; }
+.tr-alert-info { background:#e8f5fc; border-color:#1ba1e2; color:#0b4d70; }
+.tr-alert-warn { background:#fff1e0; border-color:#fa6800; color:#7a3300; }
+.tr-alert-ok   { background:#e6f4e6; border-color:#008a00; color:#004d00; }
+.tr-alert-err  { background:#fbe6ea; border-color:#a20025; color:#6e0019; }
+.tr-alert-dark { background:#f2f2f2; border-color:#647687; color:#333; }
+.tr-ticket-head .badge, .tr-side-card .badge { border-radius:0 !important; }
+.btn, .form-control, .form-select { border-radius:0 !important; }
+.form-control, .form-select { border:2px solid #bdbdbd; }
+.form-control:focus, .form-select:focus { border-color:var(--hd-accent); box-shadow:none; }
 </style>
 </head><body>
 <div class="container py-4" style="max-width:680px">
