@@ -3536,14 +3536,17 @@ if ($cur_course && dyd_is_staff()) {
       $range   = date('d.m.Y', strtotime($lv['date_from']));
       if ($lv['date_to'] !== $lv['date_from']) $range .= ' – ' . date('d.m.Y', strtotime($lv['date_to']));
       if (ti_leave_is_hourly($lv)) $range .= ', ' . ti_leave_hours_label($lv);
+      $lvc = ti_leave_conflicts($lv); $lv_staff = dyd_is_staff();
+      // Klucz ukrycia: baner wraca, gdy zmieni się nieobecność (termin, godziny, grupy) albo liczba kolidujących zajęć
+      $lv_key = md5($lv['id'] . '|' . $range . '|' . ($lv['course_ids'] ?? '') . '|' . count($lvc));
   ?>
-  <div class="alert <?= $current ? 'alert-warning' : 'alert-info' ?> d-flex align-items-start gap-2" role="alert">
+  <div class="alert dyd-leave-banner alert-dismissible <?= $current ? 'alert-warning' : 'alert-info' ?> d-flex align-items-start gap-2" role="alert" data-key="<?= h($lv_key) ?>">
     <i class="bi bi-airplane-fill fs-5 mt-1 flex-shrink-0" aria-hidden="true"></i>
+    <button type="button" class="btn-close dyd-leave-hide" aria-label="Ukryj informację o nieobecności (<?= h($range) ?>)" title="Ukryj"></button>
     <div>
       <strong><?= $current ? 'Trwa Twoja nieobecność' : 'Masz zaplanowaną nieobecność' ?>
         (<?= h(ti_leave_type_label($lv['type'])) ?>)</strong> — termin <strong><?= h($range) ?></strong>.
       <?php if (!empty($lv['note'])): ?><div class="small mt-1"><?= h($lv['note']) ?></div><?php endif; ?>
-      <?php $lvc = ti_leave_conflicts($lv); $lv_staff = dyd_is_staff(); ?>
       <?php if ($lvc): ?>
       <div class="small mt-2"><strong>Kolidujące zajęcia: <?= count($lvc) ?></strong>
         <ul class="mb-1 ps-3">
@@ -3559,7 +3562,24 @@ if ($cur_course && dyd_is_staff()) {
         <?php else: ?><a href="mojeZgloszenia.php">Moje zgłoszenia (niedostępność, zmiana terminu)</a>.<?php endif; ?></div>
     </div>
   </div>
-  <?php endforeach; endif; ?>
+  <?php endforeach; ?>
+  <script>
+  // Ukrywanie informacji o nieobecności — pamiętane w tej przeglądarce (do zmiany nieobecności lub liczby kolidujących zajęć)
+  (function () {
+    var KEY = 'dydLeaveHidden', hid = [];
+    try { hid = JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch (e) {}
+    document.querySelectorAll('.dyd-leave-banner').forEach(function (el) {
+      var k = el.getAttribute('data-key');
+      if (hid.indexOf(k) !== -1) { el.remove(); return; }
+      el.querySelector('.dyd-leave-hide').addEventListener('click', function () {
+        hid.push(k); hid = hid.slice(-50);
+        try { localStorage.setItem(KEY, JSON.stringify(hid)); } catch (e) {}
+        el.remove();
+      });
+    });
+  })();
+  </script>
+  <?php endif; ?>
 
   <?php if ($tab === 'pulpit'): ?>
   <?php include __DIR__ . '/_tab_pulpit.php'; ?>
