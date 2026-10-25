@@ -42,7 +42,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
     <dt class="col-sm-4">Produkt i licencja</dt><dd class="col-sm-8"><?= h($rq['plan'] ?? '') ?></dd>
     <dt class="col-sm-4">Sposób dostępu</dt><dd class="col-sm-8"><?= ($rq['access'] ?? '') === 'other' ? 'inny: ' . h($rq['access_other'] ?? '') : 'konto w tenancie ośrodka' ?></dd>
     <dt class="col-sm-4">Wnioskowany okres</dt><dd class="col-sm-8"><?= h(trim(ldDate($l['period_from']) . ' — ' . ldDate($l['period_to']), ' —')) ?></dd>
-    <dt class="col-sm-4">Uzasadnienie</dt><dd class="col-sm-8" style="white-space:pre-line"><?= h($rq['justification'] ?? '') ?></dd>
+    <dt class="col-sm-4">Uzasadnienie</dt><dd class="col-sm-8" style="white-space:pre-line"><?= h(trim((string)($rq['justification'] ?? '')) !== '' ? $rq['justification'] : '—') ?></dd>
     <?php if ($l['started_at']): ?><dt class="col-sm-4">Wszczęto</dt><dd class="col-sm-8"><?= h(ldDt($l['started_at'])) ?> — <?= h($l['started_name']) ?></dd><?php endif; ?>
     <dt class="col-sm-4">Podpis kursanta</dt><dd class="col-sm-8"><?= $l['requester_signed_at'] ? ldChip('podpisany ' . ldDt($l['requester_signed_at']), '#008a00') . ' IP ' . h($l['requester_signed_ip']) : (!empty($d['paper_signed']) ? ldChip('podpis odręczny', '#647687') : ldChip('czeka na podpis', '#f0a30a')) ?></dd>
     <?php if ($d): ?><dt class="col-sm-4">Decyzja</dt><dd class="col-sm-8"><?= !empty($d['grant']) ? ldChip('przyznanie (AM7/2)', '#008a00') : ldChip('odmowa (AM7/3)', '#a20025') ?>
@@ -74,8 +74,19 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 
 <section class="col-lg-5"><div class="panel h-100">
   <h2 class="mt-0">Akcje</h2>
-  <div class="d-grid gap-2">
-  <?php if ($am7 && !empty($d['approved_at'])): ?><?= ldPost(route('ld.am7.resend', ['id' => $id]), 'Wyślij decyzję ponownie (PDF e-mailem)', 'btn-metro', [], 'Wysłać decyzję ponownie do kursanta?') ?><?php endif; ?>
+  <style>
+    .ld-acts .ld-gh { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #5f5f5f; margin: .9rem 0 .3rem; padding-bottom: .2rem; border-bottom: 1px solid #d0d0d0; }
+    .ld-acts .ld-gh:first-child { margin-top: 0; }
+    .ld-acts form.d-inline, .ld-acts > a.btn, .ld-acts .ld-grp > a.btn { display: block; }
+    .ld-acts .btn { width: 100%; text-align: left; }
+    .ld-acts .btn-metro.dark.ld-out { background: #fff; color: #1d1d1d; box-shadow: inset 0 0 0 2px #1d1d1d; }
+    .ld-acts .btn-metro.dark.ld-out:hover { background: #1d1d1d; color: #fff; }
+    .ld-acts .ld-note { font-size: .78rem; color: #5f5f5f; margin: .15rem 0 0; }
+    .ld-acts .ld-susp { display: grid; grid-template-columns: 1fr auto; gap: 4px; }
+    .ld-acts .ld-susp .btn { width: auto; }
+  </style>
+  <div class="d-grid gap-2 ld-acts">
+  <?php if ($am7 && !empty($d['approved_at'])): ?><div class="ld-gh">Decyzja</div><?= ldPost(route('ld.am7.resend', ['id' => $id]), 'Wyślij decyzję ponownie (PDF e-mailem)', 'btn-metro', [], 'Wysłać decyzję ponownie do kursanta?') ?><?php endif; ?>
   <?php if ($st === LicenseRequestStatus::Draft): ?>
     <a class="btn btn-metro dark" href="<?= h(route('ld.edit', ['id' => $id])) ?>">Edytuj wniosek</a>
     <form method="post" action="<?= h(route('ld.start', ['id' => $id])) ?>" class="d-grid gap-1"><?= Router::csrfField() ?>
@@ -99,17 +110,30 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <label class="visually-hidden" for="wr">Powód wycofania</label><input class="form-control form-control-sm" id="wr" name="reason" placeholder="powód wycofania">
       <button class="btn btn-sm btn-metro red">Wycofaj</button></form>
   <?php elseif ($st === LicenseRequestStatus::Granted): ?>
-    <?php if ($am7 && empty($l['helpdesk_ticket_id'])): ?><?= ldPost(route('ld.am7.helpdesk', ['id' => $id]), 'Utwórz zlecenie Helpdesku IT', 'btn-metro dark') ?><?php endif; ?>
-    <?php $_tn = $am7 ? (string)(db_one("SELECT tenant_upn FROM licenses WHERE id = ?", [$id])['tenant_upn'] ?? '') : ''; if ($am7 && ($d['access'] ?? ($rq['access'] ?? 'tenant')) !== 'other' && $_tn === ''): ?>
-    <a class="btn btn-sm btn-metro green" href="<?= h(route('ld.am7.tenant', ['id' => $id])) ?>">Utwórz konto w tenancie</a><?php endif; ?>
-    <?php if ($am7 && $_tn !== ''): $_am90 = (string)(db_one("SELECT am90_sent_at FROM licenses WHERE id = ?", [$id])['am90_sent_at'] ?? ''); ?>
-    <a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener">Druk AM90 — potwierdzenie warunków</a>
-    <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90 !== '' ? 'Wyślij AM90 ponownie (ręcznie)' : 'Wyślij AM90 ręcznie', 'btn-metro', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?>
-    <?php if ($_am90 !== ''): ?><span class="small text-secondary align-self-center">wysłano <?= h(ldDt($_am90)) ?></span><?php endif; ?><?php endif; ?>
-    <form method="post" action="<?= h(route('ld.suspend', ['id' => $id])) ?>" class="d-flex gap-1"><?= Router::csrfField() ?>
+    <?php $_tn = $am7 ? (string)(db_one("SELECT tenant_upn FROM licenses WHERE id = ?", [$id])['tenant_upn'] ?? '') : '';
+          $_am90 = ($am7 && $_tn !== '') ? (string)(db_one("SELECT am90_sent_at FROM licenses WHERE id = ?", [$id])['am90_sent_at'] ?? '') : '';
+          $_tenantAccess = ($d['access'] ?? ($rq['access'] ?? 'tenant')) !== 'other'; ?>
+    <?php if ($am7 && ($_tenantAccess || $_tn !== '')): ?>
+    <div class="ld-gh">Konto w tenancie</div>
+    <?php if ($_tenantAccess && $_tn === ''): ?>
+      <a class="btn btn-sm btn-metro green" href="<?= h(route('ld.am7.tenant', ['id' => $id])) ?>">Utwórz konto w tenancie</a>
+      <div class="ld-note">Wybierasz tenant (FEER / EDU FEER); braki w danych uzupełnisz przed wysyłką.</div>
+    <?php elseif ($_tn !== ''): ?>
+      <div class="ld-note" style="margin:0 0 .2rem">Konto: <b><?= h($_tn) ?></b></div>
+      <a class="btn btn-sm btn-metro dark ld-out" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener">Druk AM90 — potwierdzenie warunków</a>
+      <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90 !== '' ? 'Wyślij AM90 ponownie (ręcznie)' : 'Wyślij AM90 ręcznie', 'btn-metro', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?>
+      <?php if ($_am90 !== ''): ?><div class="ld-note">AM90 wysłano <?= h(ldDt($_am90)) ?>; zgłoszenie w Helpdesku zamknięte.</div><?php endif; ?>
+    <?php endif; ?>
+    <?php endif; ?>
+    <?php if ($am7 && empty($l['helpdesk_ticket_id'])): ?>
+    <div class="ld-gh">Helpdesk IT</div>
+    <?= ldPost(route('ld.am7.helpdesk', ['id' => $id]), 'Utwórz zlecenie Helpdesku IT', 'btn-metro dark') ?>
+    <?php endif; ?>
+    <div class="ld-gh">Licencja</div>
+    <form method="post" action="<?= h(route('ld.suspend', ['id' => $id])) ?>" class="ld-susp"><?= Router::csrfField() ?>
       <?php if (empty($l['suspended'])): ?><input type="hidden" name="on" value="1"><label class="visually-hidden" for="sr">Powód zawieszenia</label>
         <input class="form-control form-control-sm" id="sr" name="reason" placeholder="powód zawieszenia" required><button class="btn btn-sm btn-metro orange">Zawieś</button>
-      <?php else: ?><button class="btn btn-sm btn-metro green">Wznów licencję</button><?php endif; ?></form>
+      <?php else: ?><button class="btn btn-sm btn-metro green" style="grid-column:1/-1;width:100%">Wznów licencję</button><?php endif; ?></form>
   <?php else: ?>
     <p class="text-secondary mb-0">Sprawa zamknięta (<?= h(mb_strtolower($st->label())) ?>). Zostaje w dzienniku audytowym.</p>
   <?php endif; ?>
