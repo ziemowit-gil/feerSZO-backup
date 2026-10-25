@@ -186,17 +186,24 @@ function dydMenuSections(): array
     try { require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerWorkflow.php'; $scPending = (int)sc_pending_count(); } catch (\Throwable $e) {}
     $nRebook = 0;
     try { require_once dirname(__DIR__, 3) . '/includes/ti_leaves.php'; $nRebook = ti_rebook_open_count(); } catch (\Throwable $e) {}
-    $sfPending = 0;
-    try { $sfPending = (int)(db_one("SELECT COUNT(*) AS c FROM k30_ti_sfile WHERE status='pending' AND deleted_at IS NULL")['c'] ?? 0); } catch (\Throwable $e) {}
-    $nNabor = 0;   // Nabór do grup: nowe zgłoszenia potwierdzone przez opiekunów (modules/ti, tabela może jeszcze nie istnieć)
-    try { $nNabor = (int)(db_one("SELECT COUNT(*) AS c FROM ti_nabor_submissions WHERE status='new'")['c'] ?? 0); } catch (\Throwable $e) {}
+    // Liczniki grup kierownika (4 zapytania na KAŻDEJ stronie panelu) — jeden wpis cache Redis na 60 s w grupie 'menu'
+    // (podbijanej każdym zapisem, więc po akcji i przekierowaniu liczniki są od razu aktualne); bez Redisa liczone na bieżąco.
+    $cnt = function (): array {
+        $sfPending = 0;
+        try { $sfPending = (int)(db_one("SELECT COUNT(*) AS c FROM k30_ti_sfile WHERE status='pending' AND deleted_at IS NULL")['c'] ?? 0); } catch (\Throwable $e) {}
+        $nNabor = 0;   // Nabór do grup: nowe zgłoszenia potwierdzone przez opiekunów (modules/ti, tabela może jeszcze nie istnieć)
+        try { $nNabor = (int)(db_one("SELECT COUNT(*) AS c FROM ti_nabor_submissions WHERE status='new'")['c'] ?? 0); } catch (\Throwable $e) {}
+        $nLd = 0;   // Licencje AM5/AM7: oświadczenia do weryfikacji + projekty decyzji AM7 (modules/ti_licencje_dydaktyczne, tabela może jeszcze nie istnieć)
+        try { $nLd = (int)(db_one("SELECT (SELECT COUNT(*) FROM license_assignments WHERE status='submitted')
+                                        + (SELECT COUNT(*) FROM licenses WHERE form_kind='AM7' AND request_status='started' AND decision_data LIKE '%prepared_at%') AS c")['c'] ?? 0); } catch (\Throwable $e) {}
+        try { $nLd += (int)(db_one("SELECT COUNT(*) AS c FROM license_operations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
+        $nDop = 0;   // Wnioski DOP1/DOP2 czekające na obsługę (modules/ti_dop, tabela może jeszcze nie istnieć)
+        try { $nDop = (int)(db_one("SELECT COUNT(*) AS c FROM dop_requests WHERE status IN ('verify','approve','execute')")['c'] ?? 0); } catch (\Throwable $e) {}
+        return compact('sfPending', 'nNabor', 'nLd', 'nDop');
+    };
+    $cn = function_exists('szo_cache_remember') ? szo_cache_remember(szo_cache_gkey('menu', 'dyd_staff_counts'), 60, $cnt) : $cnt();
+    [$sfPending, $nNabor, $nLd, $nDop] = [(int)($cn['sfPending'] ?? 0), (int)($cn['nNabor'] ?? 0), (int)($cn['nLd'] ?? 0), (int)($cn['nDop'] ?? 0)];
     $rozDebt = (int)($g['_sb_roz_debt'] ?? 0);
-    $nLd = 0;   // Licencje AM5/AM7: oświadczenia do weryfikacji + projekty decyzji AM7 (modules/ti_licencje_dydaktyczne, tabela może jeszcze nie istnieć)
-    try { $nLd = (int)(db_one("SELECT (SELECT COUNT(*) FROM license_assignments WHERE status='submitted')
-                                    + (SELECT COUNT(*) FROM licenses WHERE form_kind='AM7' AND request_status='started' AND decision_data LIKE '%prepared_at%') AS c")['c'] ?? 0); } catch (\Throwable $e) {}
-    try { $nLd += (int)(db_one("SELECT COUNT(*) AS c FROM license_operations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
-    $nDop = 0;   // Wnioski DOP1/DOP2 czekające na obsługę (modules/ti_dop, tabela może jeszcze nie istnieć)
-    try { $nDop = (int)(db_one("SELECT COUNT(*) AS c FROM dop_requests WHERE status IN ('verify','approve','execute')")['c'] ?? 0); } catch (\Throwable $e) {}
 
     $sec[] = ['key' => 'k_grupy', 'staff' => true, 'label' => 'Grupy i zajęcia', 'items' => [
         $it('grupy',        'Przegląd grup',           $gt('grupy'),          'people'),

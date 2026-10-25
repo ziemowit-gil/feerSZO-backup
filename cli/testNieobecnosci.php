@@ -11,7 +11,7 @@
  * nie poszedł poza adresy/numery testowe, i czy prawdziwa baza nie została zmieniona. Kod wyjścia 0 = wszystko OK.
  * Wewnętrznie ponownie uruchamia siebie w osobnych procesach (--child=…): DB_PATH i strony z exit() wymagają procesu.
  */
-const HTTP_PORT = 18771, SMTP_PORT = 18772;
+const HTTP_PORT = 18771, SMTP_PORT = 18772, REDIS_PORT = 18773;
 $self = __FILE__; $root = dirname(__DIR__);
 
 // ───────────────────────── proces nadrzędny ─────────────────────────
@@ -33,7 +33,7 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
     unset($pdo);
 
     $events = $tmp . '/events.jsonl';
-    $gw = proc_open(['python3', __DIR__ . '/tests/fakegw.py', $events, (string)HTTP_PORT, (string)SMTP_PORT], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+    $gw = proc_open(['python3', __DIR__ . '/tests/fakegw.py', $events, (string)HTTP_PORT, (string)SMTP_PORT, (string)REDIS_PORT], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
     usleep(800000);
     $fail = 0;
     $run = function (string $mode, string ...$extra) use ($self, $db, &$fail): void {
@@ -42,6 +42,7 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
         echo str_pad("[$mode]", 22) . implode(' | ', array_filter($out, fn($l) => str_starts_with($l, 'PASS') || str_starts_with($l, 'mode='))) . "\n";
     };
     $run('logic');
+    $run('redis');
     $run('seed');
     foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook', 'get_side'] as $m) $run('page', $m);
 
@@ -51,7 +52,7 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
         foreach ($o['mail']['to'] ?? [] as $rcpt) if (!str_contains($rcpt, 'example.invalid')) { echo "FAIL wyciek e-maila: $rcpt\n"; $fail++; }
         foreach ((array)($o['sms']['phone'] ?? []) as $ph) if (!preg_match('/^48?6\d{8}$/', (string)$ph) && !preg_match('/^6\d{8}$/', (string)$ph)) { echo "FAIL podejrzany numer SMS: $ph\n"; $fail++; }
     }
-    $n_mail = $n_sms = 0; foreach (is_file($events) ? file($events) : [] as $l) { $o = json_decode($l, true); isset($o['mail']) ? $n_mail++ : $n_sms++; }
+    $n_mail = $n_sms = 0; foreach (is_file($events) ? file($events) : [] as $l) { $o = json_decode($l, true); if (isset($o['mail'])) $n_mail++; elseif (isset($o['sms'])) $n_sms++; }
     echo "Atrapy: e-maile=$n_mail, SMS=$n_sms\n";
     proc_terminate($gw); proc_close($gw);
     array_map('unlink', glob($tmp . '/*')); rmdir($tmp);
@@ -164,6 +165,30 @@ if ($mode === 'logic') {
     sc_request_decide((int)$h['id'], 'approve', '', 1);
     $lv = db_one('SELECT time_from, time_to FROM k30_ti_instructor_leaves WHERE id=(SELECT leave_id FROM k30_sc_requests WHERE id=?)', [$h['id']]);
     t('zatwierdzenie kopiuje godziny do urlopu', [$lv['time_from'], $lv['time_to']], ['16:00', '18:00']);
+    echo "PASS=$ok FAIL=$bad\n"; exit($bad ? 1 : 0);
+}
+
+if ($mode === 'redis') {   // cache liczników menu: wartość trzyma się przez TTL, a podbicie grupy 'menu' (zapis) ją odświeża
+    require $root . '/includes/db.php'; require $root . '/includes/functions.php'; require $root . '/includes/karty30.php';
+    require $root . '/includes/ti_leaves.php'; require $root . '/modules/ti_scheduler/logic/schedulerWorkflow.php';
+    karty30_migrate(); ti_leaves_migrate(); ti_sched_migrate();
+    foreach (['redis_enabled' => '1', 'redis_host' => '127.0.0.1', 'redis_port' => (string)REDIS_PORT, 'redis_prefix' => 'nt:'] as $k => $v) {
+        db()->prepare("DELETE FROM settings WHERE key_=?")->execute([$k]); db()->prepare("INSERT INTO settings(key_,value) VALUES (?,?)")->execute([$k, $v]);
+    }
+    t('redis: połączenie z atrapą', (bool)szo_redis(), true);
+    $X = seed('R', 2);
+    t('rebook: licznik 0', ti_rebook_open_count(), 0);
+    ti_rebook_record(['id' => $X['s'][0], 'course_id' => $X['courses']['A'], 'lesson_date' => $X['d'], 'time_from' => '08:00', 'time_to' => '09:00'], 'x', 0, true);
+    t('rebook: w obrębie TTL trzyma się cache (0)', ti_rebook_open_count(), 0);
+    szo_cache_bump('menu');   // robi to każde żądanie zapisujące (register_shutdown_function)
+    t('rebook: po zapisie (bump grupy menu) licznik 1', ti_rebook_open_count(), 1);
+    t('rebook: wartość jest w Redisie', szo_cache_get(szo_cache_gkey('menu', 'rebook_open')), 1);
+    $base = sc_pending_count();   // zgłoszenia z wcześniejszych testów są już w bazie
+    db_insert('k30_sc_requests', ['type' => 'unavailability', 'instructor_id' => $X['instr'], 'date_from' => $X['d'], 'date_to' => $X['d'], 'status' => 'pending']);
+    t('sc_pending: w obrębie TTL trzyma się cache', sc_pending_count(), $base);
+    szo_cache_bump('menu');
+    t('sc_pending: po zapisie (bump) licznik +1', sc_pending_count(), $base + 1);
+    foreach (['redis_enabled', 'redis_host', 'redis_port', 'redis_prefix'] as $k) db()->prepare("DELETE FROM settings WHERE key_=?")->execute([$k]);
     echo "PASS=$ok FAIL=$bad\n"; exit($bad ? 1 : 0);
 }
 

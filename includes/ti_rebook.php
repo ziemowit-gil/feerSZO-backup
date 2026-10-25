@@ -60,8 +60,12 @@ function ti_rebook_record(array $s, string $reason, int $leave_id, bool $ask_con
 
 /** Liczba odwołanych zajęć czekających na ustalenie nowego terminu (do liczników w menu). */
 function ti_rebook_open_count(): int {
-    try { ti_rebook_migrate(); return (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_rebook WHERE status IN ('open','contacted')")['n'] ?? 0); }
-    catch (\Throwable $e) { return 0; }
+    // Licznik w menu — cache Redis 60 s w grupie 'menu' (unieważniana każdym zapisem)
+    $f = function (): int {
+        try { ti_rebook_migrate(); return (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_rebook WHERE status IN ('open','contacted')")['n'] ?? 0); }
+        catch (\Throwable $e) { return 0; }
+    };
+    return function_exists('szo_cache_remember') ? (int)szo_cache_remember(szo_cache_gkey('menu', 'rebook_open'), 60, $f) : $f();
 }
 
 /** Lista wpisów ('active' = do ustalenia, 'closed' = zamknięte, 'all'), najnowsze pierwsze. */

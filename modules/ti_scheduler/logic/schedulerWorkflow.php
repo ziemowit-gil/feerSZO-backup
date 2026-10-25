@@ -61,10 +61,14 @@ function sc_notify_urgent(int $iid, string $from, string $to, string $tf, string
 }
 
 function sc_pending_count(): int {
-    try { ti_sched_migrate(); return (int)(db_one("SELECT COUNT(*) AS n FROM k30_sc_requests WHERE status='pending'")['n'] ?? 0)
-        + (int)(db_one("SELECT COUNT(DISTINCT i.request_id) AS n FROM k30_sc_request_items i JOIN k30_sc_requests r ON r.id=i.request_id
-                         WHERE r.status='approved' AND i.resolution='pending'")['n'] ?? 0); }
-    catch (\Throwable $e) { return 0; }
+    // Licznik w menu i paskach na każdej stronie panelu — cache Redis 60 s w grupie 'menu' (unieważniana każdym zapisem)
+    $f = function (): int {
+        try { ti_sched_migrate(); return (int)(db_one("SELECT COUNT(*) AS n FROM k30_sc_requests WHERE status='pending'")['n'] ?? 0)
+            + (int)(db_one("SELECT COUNT(DISTINCT i.request_id) AS n FROM k30_sc_request_items i JOIN k30_sc_requests r ON r.id=i.request_id
+                             WHERE r.status='approved' AND i.resolution='pending'")['n'] ?? 0); }
+        catch (\Throwable $e) { return 0; }
+    };
+    return function_exists('szo_cache_remember') ? (int)szo_cache_remember(szo_cache_gkey('menu', 'sc_pending'), 60, $f) : $f();
 }
 
 /** Lekcje trenera (nieodbyte, nieodwołane) w zakresie dat; z $tf/$tt tylko nakładające się na okno godzin. */

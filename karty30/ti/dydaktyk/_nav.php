@@ -74,7 +74,11 @@ function dyd_cert_missing(): bool {
     $s = function_exists('dyd_current') ? dyd_current() : null;
     if (!$s || empty($s['user_id'])) return false;
     require_once dirname(__DIR__, 3) . '/includes/x509_login.php';
-    return !x509_user_has_active_cert((int)$s['user_id']);
+    $uid = (int)$s['user_id'];
+    // Sprawdzane na każdej stronie panelu — cache Redis 2 min w grupie 'menu'
+    return function_exists('szo_cache_remember')
+        ? (bool)szo_cache_remember(szo_cache_gkey('menu', 'cert_missing:u' . $uid), 120, fn() => !x509_user_has_active_cert($uid))
+        : !x509_user_has_active_cert($uid);
 }
 
 /** Sekcja bieżącego ekranu ('' = nieznana — żadna nie jest podświetlona). */
