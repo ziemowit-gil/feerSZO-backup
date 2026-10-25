@@ -143,7 +143,7 @@ enum LicenseDeclarationStatus: string
     {
         return match ($this) {
             self::Pending    => 'Do weryfikacji',
-            self::Approved   => 'Zatwierdzone (audyt MSUES)',
+            self::Approved   => 'Zatwierdzone',
             self::Rejected   => 'Odrzucone',
             self::Superseded => 'Zastąpione nowszym',
         };

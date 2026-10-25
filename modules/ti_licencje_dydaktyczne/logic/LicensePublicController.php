@@ -179,21 +179,8 @@ final class LicensePublicController
 
     // ── Licencjobiorca ──────────────────────────────────────────────────────────
 
-    /** Po przeniesieniu oświadczeń do aplikacji MSUES (ustawienie ld_declarations_in_msues) SZO ich już nie przyjmuje. */
-    private function movedToMsues(): ?string
-    {
-        $on = db_one("SELECT value FROM settings WHERE key_=?", ['ld_declarations_in_msues']);
-        if (($on['value'] ?? '') !== '1') return null;
-        $u = db_one("SELECT value FROM settings WHERE key_=?", ['msues_app_url']);
-        $base = rtrim(trim((string)($u['value'] ?? '')) ?: 'https://msues.feer.org.pl', '/');
-        if (!preg_match('#^https://#', $base)) $base = 'https://msues.feer.org.pl';
-        return $this->view('message.php', ['title' => 'Oświadczenia składasz teraz w nowym miejscu', 'tone' => 'info',
-            'text' => 'Dokumenty i oświadczenia przesyłasz w aplikacji Wdrożenie MSUES: ' . $base . '/dokumenty (zaloguj się kontem SZO). Ten link w SZO już nie przyjmuje oświadczeń.']);
-    }
-
     public function holderForm(string $token, array $errors = [], array $old = []): string
     {
-        if (($m = $this->movedToMsues()) !== null) return $m;
         if ($this->throttled()) return $this->blocked();
         $a = $this->svc->assignments->byToken((string)$token);
         if (!$a) return $this->failToken();
@@ -214,7 +201,6 @@ final class LicensePublicController
 
     public function holderSubmit(string $token): ?string
     {
-        if (($m = $this->movedToMsues()) !== null) return $m;
         if ($this->throttled()) return $this->blocked();
         $a = $this->svc->assignments->byToken((string)$token);
         if (!$a) return $this->failToken();

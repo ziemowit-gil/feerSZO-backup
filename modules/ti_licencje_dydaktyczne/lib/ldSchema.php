@@ -10,7 +10,7 @@ declare(strict_types=1);
  *                             w portalu (requester_*), placówka wydaje decyzję w PDF (decision_pdf), potem zlecenie Helpdesku IT
  *   license_assignments     — przydział licencji osobie (kursant k30_clients / współpracownik users / osoba spoza SZO), token portalu
  *   license_declarations    — oświadczenia AM5/2 i AM5/3 złożone przez portal (PDF, skrót SHA-256, IP, status weryfikacji)
- *   license_events          — dziennik obiegu (kto, kiedy, co) — audyt MSUES 2.0
+ *   license_events          — dziennik obiegu (kto, kiedy, co)
  *   license_holder_changes  — zmiany danych osoby z portalu (stara/nowa wartość, status applied|pending|rejected);
  *                             dla współpracowników (users) zmiany idą dodatkowo do collaborator_data_changes jako „czeka na akceptację”
  *   license_operations      — rejestr operacji: AM11–AM13 (wnioski o licencję / zwrot / finansowanie zewnętrzne) i AM20–AM24 (zmiana płatnika,

@@ -322,9 +322,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($url !== '' && !preg_match('#^https://[^\s"<>]+$#', $url)) {
             flash_set('error', 'Adres aplikacji MSUES musi zaczynać się od https://.');
         } else {
-            org_setting_set('ld_declarations_in_msues', !empty($_POST['ld_declarations_in_msues']) ? '1' : '0');
+            org_setting_set('ld_declarations_in_msues', '0');   // przydziały i oświadczenia AM5/AM7 zostają w SZO (nie idą do audytu MSUES)
             org_setting_set('msues_app_url', $url);
-            flash_set('success', 'Ustawienia przenoszenia oświadczeń do MSUES zapisane.');
+            flash_set('success', 'Adres aplikacji MSUES zapisany.');
         }
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
     } elseif (isset($_POST['save_zus_nrs'])) {
@@ -1265,20 +1265,11 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="card mt-4">
         <div class="card-header d-flex align-items-center gap-2" style="border-top:3px solid #0b5fff">
           <i class="bi bi-arrow-right-square" style="color:#0b5fff"></i>
-          <strong>Oświadczenia i dokumenty — przeniesienie do aplikacji MSUES</strong>
+          <strong>Aplikacja MSUES — adres</strong>
         </div>
         <div class="card-body">
           <form method="post">
             <?= csrf_field() ?>
-            <div class="form-check mb-3">
-              <input class="form-check-input" type="checkbox" name="ld_declarations_in_msues" id="ld_declarations_in_msues" value="1"
-                     aria-describedby="ld_declarations_in_msues_help"<?= ($saved['ld_declarations_in_msues'] ?? '') === '1' ? ' checked' : '' ?>>
-              <label class="form-check-label fw-semibold" for="ld_declarations_in_msues">SZO nie przyjmuje już oświadczeń licencyjnych (kieruj do MSUES)</label>
-              <div class="form-text" id="ld_declarations_in_msues_help">
-                Gdy zaznaczone, linki <code>/oswiadczenie/…</code> w mailach pokazują informację z adresem aplikacji MSUES zamiast formularza.
-                Dane już złożone zostają w SZO. Włącz dopiero, gdy MSUES działa na produkcji i osoby wiedzą, gdzie się logować.
-              </div>
-            </div>
             <div class="mb-3">
               <label class="form-label fw-semibold" for="msues_app_url">Adres aplikacji MSUES</label>
               <input type="url" name="msues_app_url" id="msues_app_url" class="form-control" placeholder="https://msues.feer.org.pl"

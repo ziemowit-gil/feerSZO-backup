@@ -11,7 +11,7 @@ declare(strict_types=1);
  *      gdy wskazano osobę zainteresowaną — automatyczny przydział. Alert do biura + powiadomienie osoby zainteresowanej.
  *   3. Przydział (Przydzielona): token portalu, termin 7 dni, e-mail + SMS z linkiem do oświadczeń AM5/2 i AM5/3.
  *   4. Złożenie w portalu: zapis zmian danych (audit trail), PDF AM5/2 i AM5/3 (fallback HTML), kopia w profilu osoby,
- *      potwierdzenie dla osoby + alert do biura. Weryfikacja w panelu: zatwierdź (audyt MSUES) / odrzuć (nowy link).
+ *      potwierdzenie dla osoby + alert do biura. Weryfikacja w panelu: zatwierdź / odrzuć (nowy link).
  *   Zawieszenie / wznowienie, wygaśnięcie (po okresie licencji — liczone), cofnięcie przydziału, wycofanie wniosku.
  * AM7 (oprogramowanie): wniosek AM7/1 wszczyna biuro → kursant dostaje e-mail + SMS z linkiem i podpisuje wniosek w portalu (7 dni) →
  * biuro wydaje decyzję AM7/2 (przyznanie) albo AM7/3 (odmowa) — PDF idzie e-mailem do kursanta (fallback SMS + alert) →
@@ -650,7 +650,7 @@ final class LicenseManagementService
         return $apply ? 'Zmiana wprowadzona.' : 'Zmiana odrzucona.';
     }
 
-    /** Weryfikacja oświadczeń (biuro): zatwierdź pod audyt MSUES albo odrzuć (osoba dostaje nowy link). */
+    /** Weryfikacja oświadczeń (biuro): zatwierdź albo odrzuć (osoba dostaje nowy link). */
     public function verify(int $assignmentId, bool $approve, string $note, array $actor): string
     {
         $a = $this->mustAssignment($assignmentId);
@@ -660,7 +660,7 @@ final class LicenseManagementService
             'decided_at' => ldNow(), 'decided_by' => $actor['id'] ?: null, 'decided_name' => (string)$actor['name'], 'decision_note' => $note,
             'due_on' => $approve ? (string)$a['due_on'] : ldDue()]);
         $this->assignments->setDeclarationsStatus($assignmentId, $approve ? LicenseDeclarationStatus::Approved : LicenseDeclarationStatus::Rejected);
-        $this->licenses->event((int)$a['license_id'], $approve ? 'declarations.approve' : 'declarations.reject', ($approve ? 'Zatwierdzono oświadczenia (audyt MSUES).' : 'Odrzucono oświadczenia: ' . $note), $actor, $assignmentId);
+        $this->licenses->event((int)$a['license_id'], $approve ? 'declarations.approve' : 'declarations.reject', ($approve ? 'Zatwierdzono oświadczenia.' : 'Odrzucono oświadczenia: ' . $note), $actor, $assignmentId);
         if ($approve) {
             $l = $this->mustLicense((int)$a['license_id']);
             $subject = 'Oświadczenia ' . LD_SYMBOL . ' zatwierdzone — ' . $l['title'];

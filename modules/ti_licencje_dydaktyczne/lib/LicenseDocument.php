@@ -214,7 +214,7 @@ final class LicenseDocument
 
         // ── D. Weryfikacja (pola ciemne) ──
         $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('D', 'WERYFIKACJA', 2, '(wypełnia Fundacja)') . '<tr>'
-            . $this->fld('Rozstrzygnięcie', self::box(($assignment['status'] ?? '') === 'accepted') . ' zatwierdzono (audyt MSUES) &nbsp;&nbsp; ' . self::box(($assignment['status'] ?? '') === 'rejected') . ' odrzucono', ' width="60%"', true)
+            . $this->fld('Rozstrzygnięcie', self::box(($assignment['status'] ?? '') === 'accepted') . ' zatwierdzono &nbsp;&nbsp; ' . self::box(($assignment['status'] ?? '') === 'rejected') . ' odrzucono', ' width="60%"', true)
             . $this->fld('Zweryfikował(a), data', self::e(trim((string)($assignment['decided_name'] ?? '') . ' ' . ldDate(substr((string)($assignment['decided_at'] ?? ''), 0, 10)))), ' width="40%"', true)
             . '</tr></table>';
 
@@ -360,7 +360,7 @@ final class LicenseDocument
             . $this->fld('Miejscowość i data', self::val(trim((string)($data['place'] ?? '') . ', ' . ldDate($data['date'] ?? ''), ', '), 'miejscowość i data'), ' width="35%" style="height:16mm"')
             . $this->fld('Podpis kursanta', $sig ? self::e((string)($data['name'] ?? '')) . self::eSign($sig) : '', ' width="65%"') . '</tr></table>';
         $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('E', 'WERYFIKACJA', 2, '(wypełnia placówka)') . '<tr>'
-            . $this->fld('Rozstrzygnięcie', self::box(($assignment['status'] ?? '') === 'accepted') . ' zatwierdzono (audyt MSUES) &nbsp;&nbsp; ' . self::box(($assignment['status'] ?? '') === 'rejected') . ' odrzucono', ' width="60%"', true)
+            . $this->fld('Rozstrzygnięcie', self::box(($assignment['status'] ?? '') === 'accepted') . ' zatwierdzono &nbsp;&nbsp; ' . self::box(($assignment['status'] ?? '') === 'rejected') . ' odrzucono', ' width="60%"', true)
             . $this->fld('Zweryfikował(a), data', self::e(trim((string)($assignment['decided_name'] ?? '') . ' ' . ldDate(substr((string)($assignment['decided_at'] ?? ''), 0, 10)))), ' width="40%"', true)
             . '</tr></table>';
         return self::css() . $h;

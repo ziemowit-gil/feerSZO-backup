@@ -85,7 +85,7 @@ include __DIR__ . '/_top.php';
         <div><span class="m-label">Data</span><p class="tw-py-2 tw-font-semibold"><?= h(ldDate(ldToday())) ?></p></div>
       </div>
       <label class="m-check"><input type="checkbox" name="accept_rodo" value="1"<?= $checked('accept_rodo') ?><?= $aria('accept_rodo') ?>>
-        <span>Przyjmuję do wiadomości, że <?= h($org) ?> przetwarza moje dane w celu obsługi licencji i dokumentacji usługi szkoleniowej (audyt MSUES 2.0).</span></label><?= $err('accept_rodo') ?>
+        <span>Przyjmuję do wiadomości, że <?= h($org) ?> przetwarza moje dane w celu obsługi licencji i dokumentacji usługi szkoleniowej.</span></label><?= $err('accept_rodo') ?>
     </div>
   </fieldset>
 

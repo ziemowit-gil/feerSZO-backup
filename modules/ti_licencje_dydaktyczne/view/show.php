@@ -191,7 +191,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
         <form method="post" action="<?= h(route('ld.verify', ['id' => $aid])) ?>" class="d-flex flex-wrap gap-2 my-2"><?= Router::csrfField() ?>
           <label class="visually-hidden" for="vn<?= $aid ?>">Uwagi / powód odrzucenia</label>
           <input class="form-control form-control-sm" id="vn<?= $aid ?>" name="note" placeholder="uwagi (przy odrzuceniu — wymagany powód)" style="max-width:28rem">
-          <button class="btn btn-sm btn-metro green" name="decision" value="approve">Zatwierdź (audyt MSUES)</button>
+          <button class="btn btn-sm btn-metro green" name="decision" value="approve">Zatwierdź</button>
           <button class="btn btn-sm btn-metro red" name="decision" value="reject">Odrzuć — wyślij nowy link</button></form>
       <?php elseif ($a['decision_note'] !== null && $a['decision_note'] !== ''): ?><p class="small mb-1">Weryfikacja (<?= h($a['decided_name']) ?>): <?= h($a['decision_note']) ?></p><?php endif; ?>
       <?php if (!empty($changes[$aid])): ?>
