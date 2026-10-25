@@ -96,10 +96,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $where  = '1=1';
 $params = [];
 if ($f['q']) {
+    // PESEL bywa zaszyfrowany (field_crypto): pełny numer szukamy przez indeks ślepy, fragment (LIKE) działa tylko na jawnych wierszach
+    [$peselSql, $peselParams] = fcMatchPesel('umowy_dzielo', 'pesel', $f['q']);
     $where .= " AND (numer_umowy LIKE ? OR imie_nazwisko LIKE ? OR nr_rejestru LIKE ?"
             . " OR pesel LIKE ? OR email LIKE ? OR opis_dziela LIKE ?"
-            . " OR numer_projektu LIKE ? OR opiekun LIKE ? OR uwagi LIKE ?)";
-    $params = array_merge($params, array_fill(0, 9, "%{$f['q']}%"));
+            . " OR numer_projektu LIKE ? OR opiekun LIKE ? OR uwagi LIKE ? OR {$peselSql})";
+    $params = array_merge($params, array_fill(0, 9, "%{$f['q']}%"), $peselParams);
 }
 if ($f['status'])    { $where .= " AND status = ?";            $params[] = $f['status']; }
 if ($f['opiekun'])   { $where .= " AND opiekun LIKE ?";        $params[] = "%{$f['opiekun']}%"; }
