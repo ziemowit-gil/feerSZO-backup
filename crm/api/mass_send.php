@@ -64,6 +64,13 @@ function collect_recipients(array $body): array {
         foreach ($rows as $r) $ids[] = (int)$r['contact_id'];
     }
 
+    // Z umów: zestawy "typ:stan" (aktywne / wygasłe) — includes/crm_contract_segments.php
+    $csets = array_filter(array_map('strval', (array)($body['contract_sets'] ?? [])));
+    if ($csets) {
+        require_once dirname(dirname(__DIR__)) . '/includes/crm_contract_segments.php';
+        foreach (crm_contract_segment_resolve($csets) as $cid) $ids[] = $cid;
+    }
+
     // Z listy ID (indywidualne kontakty)
     foreach ((array)($body['contact_ids'] ?? []) as $cid) {
         $ids[] = (int)$cid;

@@ -83,6 +83,10 @@ require_once dirname(__DIR__) . '/includes/crm_consent.php';
 $consent_purposes = crm_consent_purposes(true);
 $consent_counts   = crm_consent_counts();
 
+// Adresaci wg umów (typ × aktywne/wygasłe)
+require_once dirname(__DIR__) . '/includes/crm_contract_segments.php';
+$contract_counts = crm_contract_segment_counts();
+
 // Wysyłka z konta M365 zalogowanego użytkownika (do wyboru)
 $_cu_now        = current_user();
 $can_send_as_me = $m365_ok && !empty($_cu_now['microsoft_id']) && !empty($_cu_now['email']);
@@ -232,6 +236,23 @@ include __DIR__ . '/includes/header_crm.php';
 .recipient-preview > *{padding:.4rem .75rem;border-bottom:1px solid #E5E7EB}
 .recipient-preview > *:nth-child(even){background:#F9FAFB}
 .recipient-preview > *:last-child{border-bottom:0}
+
+/* ── Zakładki wyboru adresatów + tabela umów ── */
+.ms-rp-tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:2px solid #D1D5DB;margin-bottom:1rem}
+.ms-rp-tab{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;padding:.55rem 1rem;font-size:.86rem;font-weight:600;color:#374151;cursor:pointer;border-radius:0}
+.ms-rp-tab:hover{background:#F3F4F6}
+.ms-rp-tab:focus-visible{outline:2px solid #0F766E;outline-offset:-2px}
+.ms-rp-tab.is-on{color:#0F4C47;border-bottom-color:#0F766E;background:#F9FAFB}
+.ms-rp-n{display:inline-block;min-width:1.3rem;padding:0 .35rem;margin-left:.2rem;background:#0F766E;color:#fff;font-size:.72rem;line-height:1.35rem;text-align:center}
+.ms-rp-panel[hidden]{display:none}
+.ms-ct-table{width:100%;border-collapse:collapse;font-size:.86rem;border:1px solid #D1D5DB}
+.ms-ct-table th,.ms-ct-table td{padding:.5rem .75rem;border-bottom:1px solid #E5E7EB;text-align:left;vertical-align:middle}
+.ms-ct-table thead th{background:#F3F4F6;font-size:.76rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em}
+.ms-ct-table tbody th{font-weight:600;color:#111827}
+.ms-ct-opt{display:flex;align-items:center;gap:.5rem;margin:0;cursor:pointer}
+.ms-ct-opt.is-empty{cursor:default;color:#6B7280}
+.ms-ct-opt input{width:1.05rem;height:1.05rem;accent-color:#0F766E}
+.ms-ct-n{font-weight:700;font-variant-numeric:tabular-nums;color:#111827}
 </style>
 
 <div class="crm-page-header">
@@ -373,7 +394,7 @@ include __DIR__ . '/includes/header_crm.php';
       <span class="ms-step__num" aria-hidden="true">2</span>
       <div class="ms-step__main">
         <div class="ms-step__t">Odbiorcy</div>
-        <div class="ms-step__h">Grupy, tagi oraz pojedyncze kontakty</div>
+        <div class="ms-step__h">Grupy, tagi, umowy (aktywne / wygasłe) i pojedyncze kontakty — wybory z zakładek łączą się</div>
       </div>
     </div>
 
@@ -386,6 +407,15 @@ include __DIR__ . '/includes/header_crm.php';
     $groups_json = json_encode(array_values($groups), JSON_UNESCAPED_UNICODE);
     ?>
 
+    <!-- ─── Wybór adresatów: zakładki (zaznaczenia ze wszystkich zakładek się sumują) ─── -->
+    <div class="ms-rp-tabs" role="tablist" aria-label="Sposób wyboru adresatów">
+      <button type="button" class="ms-rp-tab is-on" role="tab" aria-selected="true" data-rp-tab="groups"><i class="bi bi-people-fill" aria-hidden="true"></i> Grupy <span class="ms-rp-n" data-rp-n="groups" hidden></span></button>
+      <button type="button" class="ms-rp-tab" role="tab" aria-selected="false" data-rp-tab="contracts"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Umowy <span class="ms-rp-n" data-rp-n="contracts" hidden></span></button>
+      <button type="button" class="ms-rp-tab" role="tab" aria-selected="false" data-rp-tab="tags"><i class="bi bi-tags" aria-hidden="true"></i> Tagi <span class="ms-rp-n" data-rp-n="tags" hidden></span></button>
+      <button type="button" class="ms-rp-tab" role="tab" aria-selected="false" data-rp-tab="contacts"><i class="bi bi-person-plus" aria-hidden="true"></i> Kontakty <span class="ms-rp-n" data-rp-n="contacts" hidden></span></button>
+    </div>
+
+    <div class="ms-rp-panel" data-rp="groups">
     <!-- ─── Grupy: kompaktowa, zawsze widoczna lista ─── -->
     <div class="mb-3">
       <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2">
@@ -431,6 +461,37 @@ include __DIR__ . '/includes/header_crm.php';
       <div id="selectedGroupPills" class="mt-2 d-flex flex-wrap gap-1"></div>
     </div>
 
+    </div>
+
+    <!-- ─── Umowy: typ × stan ─── -->
+    <div class="ms-rp-panel" data-rp="contracts" hidden>
+      <div class="small mb-2" style="color:#4B5563">
+        Adresaci z umów, dopasowani po adresie e-mail do kontaktu CRM.
+        <strong>Aktywne</strong> — umowa obowiązująca, robocza lub zablokowana.
+        <strong>Wygasłe</strong> — umowa zakończona lub anulowana, a osoba nie ma w tym typie umowy obowiązującej.
+      </div>
+      <table class="ms-ct-table">
+        <thead><tr><th scope="col">Rodzaj umowy</th><th scope="col">Tylko aktywne</th><th scope="col">Tylko wygasłe</th></tr></thead>
+        <tbody>
+        <?php foreach ($contract_counts as $ck => $cv): ?>
+          <tr>
+            <th scope="row"><?= h($cv['label']) ?></th>
+            <?php foreach (['active' => 'aktywne', 'expired' => 'wygasłe'] as $st => $stl): ?>
+            <td>
+              <label class="ms-ct-opt<?= $cv[$st] ? '' : ' is-empty' ?>">
+                <input type="checkbox" data-cset="<?= h($ck . ':' . $st) ?>" onchange="MS.toggleContractSet(this)"<?= $cv[$st] ? '' : ' disabled' ?>
+                       aria-label="<?= h($cv['label'] . ' — ' . $stl) ?>">
+                <span class="ms-ct-n"><?= (int)$cv[$st] ?></span> <span class="ms-ct-l"><?= h($stl) ?></span>
+              </label>
+            </td>
+            <?php endforeach; ?>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ms-rp-panel" data-rp="tags" hidden>
     <!-- ─── Filtry tagów ─── -->
     <?php if ($tags): ?>
     <div class="mb-3">
@@ -448,6 +509,9 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
     <?php endif; ?>
 
+    </div>
+
+    <div class="ms-rp-panel" data-rp="contacts" hidden>
     <!-- ─── Dodaj kontakt ─── -->
     <div class="mb-3">
       <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2">
@@ -463,6 +527,8 @@ include __DIR__ . '/includes/header_crm.php';
         <div id="contactDropdown" class="contact-dropdown" style="display:none"></div>
       </div>
       <div id="selectedContactChips" class="mt-2 d-flex flex-wrap"></div>
+    </div>
+
     </div>
 
     <!-- ─── Podgląd odbiorców ─── -->
@@ -682,6 +748,7 @@ const MS = (function() {
   let _group_ids    = new Set();
   let _tag_filters  = new Set();
   let _contact_ids  = new Map(); // id → {name, email}
+  let _contract_sets = new Set(); // "typ:stan" (active|expired)
   // Wybór osoby kontaktowej per podmiot: { contact_id: person_id }. Pusty = adresat
   // domyślny (osoba oznaczona jako adresat → osoba główna → adres podmiotu).
   let _person_over  = {};
@@ -1042,7 +1109,8 @@ const MS = (function() {
     return {
       purpose_id:     parseInt(document.getElementById('ms_purpose')?.value, 10) || 0,
       ignore_opt_out: !!document.getElementById('ms_ignore_optout')?.checked,
-      members_basis:  !!document.getElementById('ms_members')?.checked
+      members_basis:  !!document.getElementById('ms_members')?.checked,
+      contract_sets:  [..._contract_sets]
     };
   }
 
@@ -1060,11 +1128,36 @@ const MS = (function() {
                   + parts.join(', ') + '.</span>';
   }
 
+  // Zakładki wyboru adresatów + liczniki wybranych pozycji
+  function rpTab(name) {
+    document.querySelectorAll('.ms-rp-tab').forEach(b => {
+      const on = b.dataset.rpTab === name;
+      b.classList.toggle('is-on', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.ms-rp-panel').forEach(p => { p.hidden = p.dataset.rp !== name; });
+  }
+  function rpBadges() {
+    const n = { groups: _group_ids.size, contracts: _contract_sets.size, tags: _tag_filters.size, contacts: _contact_ids.size };
+    Object.keys(n).forEach(k => {
+      const el = document.querySelector('[data-rp-n="' + k + '"]');
+      if (el) { el.textContent = n[k]; el.hidden = !n[k]; }
+    });
+  }
+  document.addEventListener('click', e => {
+    const t = e.target.closest('.ms-rp-tab');
+    if (t) rpTab(t.dataset.rpTab);
+  });
+  function toggleContractSet(cb) {
+    if (cb.checked) _contract_sets.add(cb.dataset.cset); else _contract_sets.delete(cb.dataset.cset);
+    preview();
+  }
+
   function preview() {
+    rpBadges();
     const groups  = [..._group_ids];
     const tags    = [..._tag_filters].join(',');
     const c_ids   = [..._contact_ids.keys()];
-    if (!groups.length && !tags && !c_ids.length) {
+    if (!groups.length && !tags && !c_ids.length && !_contract_sets.size) {
       _total = 0;
       document.getElementById('recipientPreviewBox').style.display='none';
       document.getElementById('recipientCount').textContent='0';
@@ -1188,7 +1281,7 @@ recipientRow(c)
 
     if (!msgBody) { alert('Wpisz treść wiadomości.'); return; }
     if (_channel==='email'&&!subject) { alert('Podaj temat e-maila.'); return; }
-    if (!groups.length&&!tags&&!c_ids.length) { alert('Wybierz grupę, tag lub dodaj kontakty.'); return; }
+    if (!groups.length&&!tags&&!c_ids.length&&!_contract_sets.size) { alert('Wybierz grupę, umowy, tag lub dodaj kontakty.'); return; }
     if (_total===0) { alert('Brak odbiorców dla wybranego kanału.'); return; }
 
     const dwNote = dw.length ? `\nDW: ${dw.join(', ')}` : '';
@@ -1285,7 +1378,7 @@ recipientRow(c)
 
   wizShow(1);
 
-  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag,
+  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
            preview, send, insertVar, loadTemplate, purposeChanged, membersChanged,
