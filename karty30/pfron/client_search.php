@@ -15,14 +15,16 @@ $q = trim($_GET['q'] ?? '');
 if (strlen($q) < 2) { echo '[]'; exit; }
 
 $like = '%' . $q . '%';
+// PESEL bywa zaszyfrowany (field_crypto): pełny numer szukamy przez indeks ślepy, częściowy (LIKE) tylko w jeszcze jawnych wierszach
+[$peselSql, $peselParams] = fcMatchPesel('k30_clients', 'pesel', $q);
 $rows = db()->prepare(
     "SELECT id, name, pesel, address, phone, email
      FROM k30_clients
-     WHERE (name LIKE ? OR pesel LIKE ?)
+     WHERE (name LIKE ? OR {$peselSql} OR pesel LIKE ?)
      ORDER BY name
      LIMIT 20"
 );
-$rows->execute([$like, $like]);
+$rows->execute([$like, ...$peselParams, $like]);
 $result = $rows->fetchAll(\PDO::FETCH_ASSOC);
 
 echo json_encode(array_map(fn($r) => [

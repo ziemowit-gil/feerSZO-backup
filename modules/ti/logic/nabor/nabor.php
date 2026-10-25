@@ -174,7 +174,10 @@ function naborEnroll(int $sid, int $uid, string $byName = ''): int {
     $pesel = preg_match('/^\d{11}$/', $idv) ? $idv : '';
     $dob   = $pesel === '' ? naborDateIso($idv) : naborPeselBirthDate($pesel);
     $cid   = (int)($s['client_id'] ?? 0);
-    if (!$cid && $pesel !== '') $cid = (int)(db_one("SELECT id FROM k30_clients WHERE pesel=? ORDER BY id LIMIT 1", [$pesel])['id'] ?? 0);
+    if (!$cid && $pesel !== '') {
+        [$peselSql, $peselParams] = fcMatchPesel('k30_clients', 'pesel', $pesel);   // PESEL bywa zaszyfrowany (field_crypto)
+        $cid = (int)(db_one("SELECT id FROM k30_clients WHERE {$peselSql} ORDER BY id LIMIT 1", $peselParams)['id'] ?? 0);
+    }
     if (!$cid) {
         $notes = 'Zgłoszenie z naboru ' . $s['registration_number'] . '. Opiekun: ' . $s['guardian_name'] . ', +' . $s['guardian_phone'] . ', ' . $s['guardian_email']
                . "\nZajęcia online — sprzęt: " . (naborEquipmentLabel($s['equipment'] ?? '[]') ?: 'nie podano') . (($s['equipment_notes'] ?? '') !== '' ? ' — ' . $s['equipment_notes'] : '')
