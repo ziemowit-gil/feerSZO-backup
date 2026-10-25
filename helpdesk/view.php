@@ -107,6 +107,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_share']) && $is_op) 
     hd_finish($xhr, $id);
 }
 
+// ── Rejestr czasu pracy ───────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_log_time']) && $is_op) {
+    csrf_check();
+    require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php';
+    $err = hdTimeAdd($id, $uid, (string)($_POST['time_spent'] ?? ''), (string)($_POST['time_note'] ?? ''));
+    flash_set($err ? 'danger' : 'success', $err ?: 'Zapisano czas pracy.');
+    hd_finish($xhr, $id);
+}
+
 // ── Przypisanie operatora ─────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_assign']) && $is_op) {
     csrf_check();

@@ -435,6 +435,30 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
     </div>
   </div>
 
+  <!-- Czas pracy -->
+  <?php require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php'; $hd_time = hdTimeList((int)$ticket['id']); $hd_time_sum = array_sum(array_column($hd_time, 'minutes')); ?>
+  <div class="hd-side-card">
+    <div class="hd-side-card-head"><i class="bi bi-stopwatch"></i>Czas pracy<span class="ms-auto fw-normal"><?= $hd_time_sum ? h(hdTimeFmt((int)$hd_time_sum)) : '—' ?></span></div>
+    <div class="hd-side-card-body">
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form>
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_log_time" value="1">
+        <div class="input-group input-group-sm mb-1">
+          <input type="text" name="time_spent" class="form-control" placeholder="np. 30 lub 1h 15m" aria-label="Czas pracy" required style="max-width:8.5rem">
+          <input type="text" name="time_note" class="form-control" placeholder="Co zrobiono (opc.)" maxlength="300" aria-label="Opis czynności">
+          <button class="btn btn-outline-secondary">Dodaj</button>
+        </div>
+      </form>
+      <?php foreach (array_slice($hd_time, 0, 5) as $tl): ?>
+      <div class="d-flex gap-2 mt-1" style="font-size:.75rem">
+        <span class="fw-semibold"><?= h(hdTimeFmt((int)$tl['minutes'])) ?></span>
+        <span class="text-muted text-truncate"><?= h($tl['user_name'] ?? '') ?><?= $tl['note'] !== '' ? ' — ' . h($tl['note']) : '' ?></span>
+        <span class="ms-auto text-muted text-nowrap"><?= h(date('d.m H:i', strtotime($tl['created_at']))) ?></span>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
   <!-- Operator -->
   <div class="hd-side-card">
     <div class="hd-side-card-head"><i class="bi bi-person-check"></i>Operator</div>

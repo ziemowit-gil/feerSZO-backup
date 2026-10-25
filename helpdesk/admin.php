@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/helpdesk.php';
 require_once dirname(__DIR__) . '/modules/helpdeskMail/lib/helpdeskMail.php';
+require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php';
 helpdesk_migrate();
 require_login();
 require_role('admin');
@@ -40,6 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', $new === '1' ? 'Helpdesk włączony.' : 'Helpdesk wyłączony.');
     }
 
+    if ($op === 'hours_save') {
+        $err = hdWorkConfigSave($_POST);
+        flash_set($err ? 'danger' : 'success', $err ? implode(' ', $err) : 'Ustawienia SLA zapisane.');
+    }
+
     // Skrzynki Helpdesku (e-mail → zgłoszenia)
     if ($op === 'mail_save') {
         try { hdMailIntakeSave($_POST, (int)(current_user()['id'] ?? 0)); flash_set('success', 'Skrzynka zapisana.'); }
@@ -68,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Dane ─────────────────────────────────────────────────────────────────────
 $hd_enabled         = (db_one("SELECT value FROM settings WHERE key_='helpdesk_enabled'")['value'] ?? '1') === '1';
 $bug_report_enabled = (db_one("SELECT value FROM settings WHERE key_='bug_report_enabled'")['value'] ?? '1') === '1';
+$work_cfg = hdWorkConfig();
 $mail_intakes = hdMailIntakes();
 $mail_free    = hdMailAvailableMailboxes();
 $operators   = db_all("SELECT id, name, email, role FROM users WHERE helpdesk_operator=1 AND is_active=1 ORDER BY name");
@@ -219,6 +226,30 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php endforeach; ?>
       </ul>
       <?php endif; ?>
+    </div>
+  </div>
+</div>
+
+<!-- SLA: godziny pracy -->
+<div class="col-12">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem"><i class="bi bi-clock-history me-1"></i>SLA — godziny pracy</div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">W trybie „godziny pracy” cele reakcji i rozwiązania liczą się tylko w godzinach i dniach pracy (zgłoszenie z piątku po godzinach nie przekracza celu w weekend). Wstrzymanie zegara w statusach oczekiwania działa jak dotąd. Święta nie są uwzględniane.</p>
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="hours_save">
+        <div class="col-md-3"><label class="form-label small mb-0">Tryb liczenia</label>
+          <select name="hd_sla_mode" class="form-select form-select-sm">
+            <option value="calendar"<?= $work_cfg['mode'] === 'calendar' ? ' selected' : '' ?>>Czas kalendarzowy</option>
+            <option value="business"<?= $work_cfg['mode'] === 'business' ? ' selected' : '' ?>>Godziny pracy</option></select></div>
+        <div class="col-md-2"><label class="form-label small mb-0">Początek</label><input name="hd_work_start" class="form-control form-control-sm" value="<?= h($work_cfg['start']) ?>" pattern="\d{1,2}:\d{2}"></div>
+        <div class="col-md-2"><label class="form-label small mb-0">Koniec</label><input name="hd_work_end" class="form-control form-control-sm" value="<?= h($work_cfg['end']) ?>" pattern="\d{1,2}:\d{2}"></div>
+        <div class="col-md-4"><div class="small mb-0">Dni pracy</div>
+          <?php foreach ([1 => 'Pn', 2 => 'Wt', 3 => 'Śr', 4 => 'Cz', 5 => 'Pt', 6 => 'So', 7 => 'Nd'] as $dn => $dl): ?>
+          <label class="form-check form-check-inline small"><input class="form-check-input" type="checkbox" name="hd_work_days[]" value="<?= $dn ?>"<?= in_array($dn, $work_cfg['days'], true) ? ' checked' : '' ?>><?= $dl ?></label>
+          <?php endforeach; ?></div>
+        <div class="col-md-1"><button class="btn btn-sm btn-primary">Zapisz</button></div>
+      </form>
     </div>
   </div>
 </div>

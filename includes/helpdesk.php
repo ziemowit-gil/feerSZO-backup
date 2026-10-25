@@ -912,6 +912,12 @@ function hd_fmt_secs(int $s): string {
  *   ['deadline'=>ts, 'done_at'=>ts|null, 'state'=>'met|breached|paused|due_soon|pending', 'left'=>sek (ujemne=po terminie), 'target_mins'=>int]
  * Statusy „oczekuje" i „przekazane_zewn" wstrzymują zegar rozwiązania (stan paused).
  */
+/** Termin SLA: czas kalendarzowy albo godziny pracy (Helpdesk › Ustawienia). */
+function hd_sla_deadline(int $created, int $minutes): int {
+    require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php';
+    return hdSlaDeadline($created, $minutes);
+}
+
 function hd_sla(array $ticket): array {
     $out = ['response' => null, 'resolution' => null];
     $pr  = HD_PRIORITIES[$ticket['priority'] ?? ''] ?? null;
@@ -941,13 +947,13 @@ function hd_sla(array $ticket): array {
 
     // Reakcja — domknięta przez pierwszą odpowiedź operatora; nie wstrzymywana.
     if (!empty($pr['sla_response'])) {
-        $dl   = $ct + (int)$pr['sla_response'] * 60;
+        $dl   = hd_sla_deadline($ct, (int)$pr['sla_response']);
         $done = !empty($ticket['first_response_at']) ? strtotime($ticket['first_response_at']) : null;
         $out['response'] = $mk($dl, $done, false) + ['target_mins' => (int)$pr['sla_response']];
     }
     // Rozwiązanie — domknięte przez resolved_at/closed_at; wstrzymywane w stanach oczekiwania.
     if (!empty($pr['sla_resolve'])) {
-        $dl = $ct + (int)$pr['sla_resolve'] * 60;
+        $dl = hd_sla_deadline($ct, (int)$pr['sla_resolve']);
         $done = null;
         if ($is_closed) {
             $done = !empty($ticket['resolved_at']) ? strtotime($ticket['resolved_at'])
