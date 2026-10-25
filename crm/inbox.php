@@ -785,6 +785,9 @@ include __DIR__ . '/includes/header_crm.php';
             if ($seen_cur) $conv_after[] = $full; else $conv_before[] = $full;
         }
     }
+    // W widoku rozmowy wątek jest w treści — boczne pole „Wątek” byłoby duplikatem
+    $conv_thread = $rail_thread;
+    if ($conv_on) $rail_thread = [];
     $conv_card = static function (array $m) use ($ib_avatar): void {
         $out = ($m['direction'] ?? 'in') === 'out';
         $who = $out ? 'Ty → ' . ($m['contact_name'] ?: ($m['from_email'] ?: '—'))
@@ -1197,10 +1200,10 @@ include __DIR__ . '/includes/header_crm.php';
         <label><input type="checkbox" data-ib-imgs-always> zawsze pokazuj</label>
       </div>
       <?php endif; ?>
-      <?php if ($rail_thread): ?>
+      <?php if ($conv_thread): ?>
       <div class="ib-conv-bar">
         <i class="bi bi-chat-left-text" aria-hidden="true"></i>
-        <strong>Rozmowa</strong> · <?= count($rail_thread) ?> wiad.
+        <strong>Rozmowa</strong> · <?= count($conv_thread) ?> wiad.
         <a class="ms-auto" href="?<?= $qs(['conv' => $conv_on ? '0' : '1']) ?>"><?= $conv_on ? 'Tylko ta wiadomość' : 'Pokaż całą rozmowę' ?></a>
       </div>
       <?php endif; ?>
