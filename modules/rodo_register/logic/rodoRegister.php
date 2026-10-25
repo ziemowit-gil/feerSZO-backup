@@ -114,6 +114,13 @@ function rodoSeed(): void {
         }
     }
     rodoBackfillForma();
+    // Asystent AI: wpis z pierwszej wersji (przed anonimizacją) zastępujemy nowym, o ile nikt go nie edytował
+    foreach (rodoDefaultActivities() as $a) if ($a['zbior'] === 'Asystent AI') {
+        db_exec("UPDATE rodo_activities SET cel = ?, kategorie_danych = ?, odbiorcy = ?, moduly = ?, dpia = ?, szczegolne = 0
+                 WHERE zbior = 'Asystent AI' AND kategorie_danych = 'Treść zapytań i fragmenty danych SZO wysyłane do dostawcy AI'",
+            [$a['cel'], $a['kategorie_danych'], $a['odbiorcy'], $a['moduly'], $a['dpia']]);
+    }
+    db_exec("UPDATE rodo_processors SET uwagi = 'Co do zasady bez danych osobowych — anonimizacja przed wysyłką (modules/ai_anonymizer). Zweryfikować DPA.' WHERE nazwa = 'Anthropic' AND uwagi = ''");
     foreach ([
         ['Rekrutacja', 'rekr_applications', 'created_at', 12, 'Po zakończeniu naboru, chyba że zgoda na kolejne'],
         ['Wydarzenia', 'ev_registrations', 'created_at', 12, 'Po wydarzeniu'],
@@ -150,7 +157,7 @@ function rodoDefaultActivities(): array {
         $m('Wydarzenia, komunikaty, wsparcie OU', 'Rejestracja na wydarzenia i obsługa wsparcia', '6.1.a, 6.1.b', 'Uczestnicy wydarzeń, odbiorcy', 'Imię, e-mail, telefon, opis problemu', 0, '—', '12 mies. od wydarzenia', 'ev_*, announcements, szo_assistance_requests'),
         $m('Rejestry RODO', 'Wykazanie zgodności (rozliczalność)', '6.1.c', 'Osoby upoważnione, wnioskodawcy, osoby, których dane usunięto', 'PESEL, IP, daty zgód, treść wniosków (szyfrowane)', 0, 'UODO', 'Czas przetwarzania + 6 lat (rozliczalność)', 'rodo_*, gdpr_clauses'),
         $m('Bezpieczeństwo i audyt', 'Wykrywanie nadużyć i dowody zdarzeń', '6.1.c, 6.1.f', 'Wszyscy użytkownicy', 'IP, e-mail, akcje, znaczniki czasu', 0, '—', '12–24 mies.', 'admin_audit_log, audit_logs, *_access_log'),
-        $m('Asystent AI', 'Pomoc w wyszukiwaniu informacji w systemie', '6.1.f', 'Pracownicy; osoby, których dane są w wynikach', 'Treść zapytań i fragmenty danych SZO wysyłane do dostawcy AI', 0, 'Anthropic', 'Brak trwałego zapisu po stronie dostawcy wg umowy — zweryfikować', 'asystent_ai, chatbot', 'wymagane'),
+        $m('Asystent AI', 'Pomoc w wyszukiwaniu informacji w systemie (instrukcje, procedury, ekrany)', '6.1.f', 'Pracownicy zadający pytania', 'Co do zasady brak danych osobowych: przed wysyłką do dostawcy AI e-mail, PESEL, NIP, rachunek, telefon, dokument oraz imiona i nazwiska ze słownika są zastępowane znacznikami (moduł ai_anonymizer); do modelu trafiają treść pytań i fragmenty dokumentów po anonimizacji', 0, 'Anthropic (po anonimizacji)', 'Brak trwałego zapisu po stronie dostawcy wg umowy — zweryfikować', 'asystent_ai, chatbot, ai_anonymizer', 'nie_dotyczy'),
         $m('Integracje zewnętrzne (MSUES, SAML, API)', 'Udostępnianie kont i wiadomości aplikacjom organizacji', '6.1.b, 6.1.f', 'Użytkownicy, koordynatorzy', 'Lista kont, e-maile', 0, 'Aplikacje organizacji', 'Czas współpracy', 'api/v1/msues_*, saml_idp'),
         $m('Pełnomocnictwa i upoważnienia', 'Rejestr pełnomocnictw i upoważnień do przetwarzania danych', '6.1.c, 6.1.f', 'Pełnomocnicy, mocodawcy, osoby upoważnione', 'Imię, nazwisko, PESEL pełnomocnika, e-mail, zakres umocowania', 0, 'Instytucje, wobec których udzielono pełnomocnictwa', 'Czas obowiązywania + 5 lat', 'pelnomocnictwa, rodo_authorizations'),
         $m('Karty NFC i kontrola dostępu', 'Kontrola dostępu do pomieszczeń i systemów', '6.1.f', 'Pracownicy, współpracownicy', 'Identyfikator karty, imię i nazwisko, zdarzenia użycia karty', 0, '—', 'Czas posiadania karty + 12 mies. (zdarzenia)', 'smart_cards, audit_logs'),

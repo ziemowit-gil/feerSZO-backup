@@ -38,7 +38,7 @@ Dokument roboczy dla IOD/zarządu — **podstawy prawne, role (ADO/procesor) i o
 | 14 | Wydarzenia, Komunikaty, Wsparcie OU | uczestnicy wydarzeń, odbiorcy | `ev_registrations`, `announcements`, `szo_assistance_requests`, `szo_consultation_cards`, `wsparcie_ou`, `k30_pl_*` | imię, e-mail, telefon, opis problemu | art. 6(1)(a),(b) |
 | 15 | RODO — rejestry własne | osoby upoważnione, osoby, których dane usunięto | `rodo_authorizations`, `rodo_deletion_log`, `gdpr_clauses` (akceptacje), `users.gdpr_statement_*`, `crm_consents` | PESEL, IP, daty zgód | art. 6(1)(c) |
 | 16 | Bezpieczeństwo i audyt | wszyscy | `admin_audit_log`, `api_audit_log`, `impersonation_requests`, `k30_access_log`, `*_access_log`, `audit_logs` (karty NFC), `smart_cards` | IP, e-mail, akcje, znaczniki czasu | art. 6(1)(f), (c) |
-| 17 | Asystent AI | pracownicy (zapytania) | `asystent_ai.php`, `chatbot/` | treść zapytań + wyniki z danych SZO wysyłane do Anthropic | art. 6(1)(f) — **ryzyko**: wyciek danych do podmiotu trzeciego |
+| 17 | Asystent AI | pracownicy (zapytania) | `asystent_ai.php`, `chatbot/`, `modules/ai_anonymizer` | co do zasady bez danych osobowych: przed wysyłką do Anthropic dane są zastępowane znacznikami (anonimizacja) | art. 6(1)(f); ryzyko szczątkowe: imię i nazwisko spoza słownika lub w innej odmianie |
 | 18 | Zewnętrzne aplikacje (MSUES, SAML IdP, API) | konta, osoby importowane | `api/v1/msues_users.php`, `msues_mail.php`, `saml_idp` | lista kont, e-maile koordynatorów | art. 6(1)(b),(f) |
 
 ## 3. Odbiorcy / podmioty przetwarzające (wynik z kodu `includes/`)
@@ -54,7 +54,7 @@ Microsoft 365 / Graph / SharePoint (konta, poczta, pliki, sync), Fakturownia (fa
 5. **Retencja** — jedyny mechanizm anonimizacji jest w CRM (`crm_retention.php`); poza tym tylko czyszczenie `sprawdz_konto_log`, `kdok`, harmonogramów TI. **Brak polityki retencji** dla umów, TI, rekrutacji, logów (IP), poczty, helpdesku.
 6. **Logi z IP** w >30 tabelach — ustalić okres przechowywania.
 7. **`it_service_passwords`** — hasła usług (nawet czasowo) to ryzyko; sprawdzić szyfrowanie i retencję.
-8. **Asystent AI (Anthropic)** — ocenić, jakie dane osobowe trafiają w zapytaniach; umowa powierzenia/DPA, transfer poza EOG.
+8. **Asystent AI (Anthropic)** — od 2026-10-25 anonimizacja przed wysyłką (e-mail, PESEL, NIP, rachunek, telefon, dokument, imiona i nazwiska ze słownika; ustawienie `asai_anonymize`). Ryzyko szczątkowe: nazwiska spoza słownika/w odmianie oraz adresy i daty podane swobodnym tekstem. Nadal sprawdzić DPA i transfer poza EOG.
 9. **Lokalne pliki z bazą w repozytorium roboczym** (`umowy.db`, `umowy.production.db` — kopia produkcyjna, 12 MB) — kopie z danymi osobowymi poza środowiskiem produkcyjnym; upewnić się, że nie trafiają do gita/backupów bez szyfrowania.
 10. Osobne systemy poza SZO z danymi tej samej organizacji: MSUES (`/Users/zgil/feer-rbs`), vcard-cms, feerSZO-v2 — ujęte tylko jako interfejsy.
 
