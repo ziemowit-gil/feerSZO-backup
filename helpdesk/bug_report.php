@@ -56,7 +56,7 @@ $full_desc = "**Strona:** " . ($page_url ?: '—') . "\n\n"
            . "**Zgłoszone przez:** " . ($user['name'] ?? '') . " <" . ($user['email'] ?? '') . ">";
 
 try {
-    $number = hd_next_number(hd_number_prefix_for($category));
+    $number = hd_next_number(hd_number_prefix_for($category), hd_number_pattern_for($category));
     db()->prepare("INSERT INTO helpdesk_tickets
         (number, title, description, category, priority, status,
          requester_id, requester_name, requester_email, source)

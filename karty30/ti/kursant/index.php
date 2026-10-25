@@ -857,7 +857,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $title = trim((string)($_POST['title'] ?? ''));
         $desc  = trim((string)($_POST['description'] ?? ''));
         $cat   = (string)($_POST['category'] ?? 'it_inne');
-        if (!isset(HD_CATEGORIES[$cat])) $cat = 'it_inne';
+        if (!isset(hd_categories()[$cat])) $cat = 'it_inne';
         if ($title === '' || mb_strlen($desc) < 5) {
             header('Location: index.php?tab=problem&err=1'); exit;
         }

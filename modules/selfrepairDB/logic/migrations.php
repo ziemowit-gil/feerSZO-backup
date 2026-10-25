@@ -293,6 +293,17 @@ return [
         },
     ],
 
+    // Helpdesk: podkategorie (drzewo) w słowniku kategorii — numer wg wzorca {PREFIX}-{YYYY}-{NNNNN}, prefiks dziedziczony.
+    '2026-10_dictionary_helpdesk_categories_tree' => [
+        'desc' => 'Słownik Centralny: podkategorie Helpdesku (drzewo)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/helpdesk.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import(hd_categories_dict_seed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
     // TERYT: województwa → powiaty → gminy jako słownik systemowy (drzewo, kody TERYT) z tabeli teryt_units
     // (import GUS); bez niej — 16 województw. Kolejne importy TERC (admin/teryt_import.php) aktualizują słownik.
     '2026-10_dictionary_teryt' => [

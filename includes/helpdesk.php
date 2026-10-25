@@ -55,28 +55,38 @@ function hd_after_create(int $ticketId): void {
 }
 
 function hd_number_prefix_for(string $category): string {
-    static $map = null;
-    if ($map === null) {
-        $map = [];
-        require_once dirname(__DIR__) . '/modules/dictionary/lib/dictionaryApi.php';
-        foreach (dictItems(HD_CATEGORY_DICT) as $code => $it) {
-            $p = strtoupper(trim((string)($it['attributes']['prefix'] ?? '')));
-            if (preg_match('/^[A-Z]{2,5}$/', $p)) $map[$code] = $p;
-        }
-    }
-    return $map[$category] ?? HD_CATEGORY_PREFIXES[$category] ?? 'HD';
+    require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
+    return hdNumberPrefix($category);
+}
+
+function hd_number_pattern_for(string $category): string {
+    require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
+    return hdNumberPattern($category);
+}
+
+/** Kategorie do wyboru: kod => etykieta ze ścieżką (drzewo ze Słownika Centralnego, zapas: HD_CATEGORIES). */
+function hd_categories(): array {
+    require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
+    return hdCategories();
 }
 
 function hd_categories_dict_seed(): string {
     $entries = [];
     $i = 0;
-    foreach (HD_CATEGORIES as $code => $label)
+    $kids = ['it_sprzet' => ['it_sprzet_laptop' => 'Laptop', 'it_sprzet_telefon' => 'Telefon', 'it_sprzet_peryferia' => 'Monitor i peryferia'],
+             'it_konto' => ['it_konto_haslo' => 'Reset hasła', 'it_konto_mfa' => 'Weryfikacja dwuetapowa (MFA)'],
+             'it_m365' => ['it_m365_teams' => 'Teams', 'it_m365_outlook' => 'Outlook / poczta', 'it_m365_sharepoint' => 'SharePoint / OneDrive']];
+    foreach (HD_CATEGORIES as $code => $label) {
         $entries[] = ['code' => $code, 'label' => $label, 'parent_code' => null, 'sort_order' => (++$i) * 10, 'is_active' => true,
                       'description' => null, 'attributes' => ['prefix' => hd_number_prefix_for_default($code)]];
+        foreach ($kids[$code] ?? [] as $kc => $kl)
+            $entries[] = ['code' => $kc, 'label' => $kl, 'parent_code' => $code, 'sort_order' => (++$i) * 10, 'is_active' => true,
+                          'description' => null, 'attributes' => (object)[]];
+    }
     return json_encode(['format' => 'szo-dictionary', 'version' => 1, 'dictionaries' => [
         ['code' => HD_CATEGORY_DICT, 'name' => 'Helpdesk — kategorie zgłoszeń', 'kind' => 'system', 'parent_code' => null,
          'is_protected' => false, 'sort_order' => 70,
-         'description' => 'Kategorie zgłoszeń Helpdesku. Atrybut prefix (2–5 wielkich liter) = przedrostek numeru zgłoszenia nadawanego w tej kategorii (np. HER00042); numeracja jest osobna dla każdego prefiksu. Brak prefiksu = HD. Kody kategorii są używane w kodzie i w zgłoszeniach.',
+         'description' => 'Kategorie zgłoszeń Helpdesku. Atrybut prefix (2–5 wielkich liter) = przedrostek numeru zgłoszenia nadawanego w tej kategorii (np. HER00042); numeracja jest osobna dla każdego prefiksu. Brak prefiksu = HD. Wpisy podrzędne (podkategorie) dziedziczą prefiks. Atrybut pattern (opcjonalny) = wzorzec numeru, np. {PREFIX}-{YYYY}-{NNNNN} (licznik na końcu; znaczniki {PREFIX} {YYYY} {YY} {MM}); domyślny wzorzec: ustawienie Helpdesk › Ustawienia. Kody kategorii są używane w kodzie i w zgłoszeniach.',
          'entries' => $entries],
     ]], JSON_UNESCAPED_UNICODE);
 }
@@ -539,15 +549,10 @@ function hd_merge(int $sourceId, int $targetId, array $operator): array {
 
 // ── Generowanie numeru ────────────────────────────────────────────────────────
 
-function hd_next_number(string $prefix = 'HD'): string {
-    // Numeruj niezależnie per-prefiks (HD, CHG, …), aby uniknąć kolizji UNIQUE,
-    // gdy w jednej tabeli mieszają się różne prefiksy o różnej długości.
-    $last = db_one(
-        "SELECT number FROM helpdesk_tickets WHERE number LIKE ? ORDER BY id DESC LIMIT 1",
-        [$prefix . '%']
-    );
-    $n = $last ? ((int)preg_replace('/\D/', '', $last['number']) + 1) : 1;
-    return $prefix . str_pad($n, 5, '0', STR_PAD_LEFT);
+function hd_next_number(string $prefix = 'HD', ?string $pattern = null): string {
+    // Wzorzec „prefiks + rok + licznik”, licznik osobny per prefiks i rok — modules/helpdeskCategories.
+    require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
+    return hdNextNumber($prefix, $pattern);
 }
 
 // ── Podbicie zgłoszenia — brak reakcji ────────────────────────────────────────
@@ -1717,9 +1722,9 @@ function hd_redmine_pull_all(): array {
 
 function hd_ticket_quick_create(array $requester, string $title, string $description, string $category, string $priority, string $source): int {
     helpdesk_migrate();
-    if (!isset(HD_CATEGORIES[$category])) $category = 'it_inne';
+    if (!isset(hd_categories()[$category])) $category = 'it_inne';
     if (!isset(HD_PRIORITIES[$priority])) $priority = 'normalny';
-    $number = hd_next_number(hd_number_prefix_for($category));
+    $number = hd_next_number(hd_number_prefix_for($category), hd_number_pattern_for($category));
 
     $ticket_id = db_insert('helpdesk_tickets', [
         'number'          => $number,

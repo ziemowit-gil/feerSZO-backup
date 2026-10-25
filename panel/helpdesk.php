@@ -42,11 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_new_ticket'])) {
 
     if (!$title)                          $errors[] = 'Temat jest wymagany.';
     if (!$description)                    $errors[] = 'Opis problemu jest wymagany.';
-    if (!isset(HD_CATEGORIES[$category])) $category = 'it_inne';
+    if (!isset(hd_categories()[$category])) $category = 'it_inne';
     if (!isset(HD_PRIORITIES[$priority])) $priority = 'normalny';
 
     if (!$errors) {
-        $number    = hd_next_number(hd_number_prefix_for($category));
+        $number    = hd_next_number(hd_number_prefix_for($category), hd_number_pattern_for($category));
         $ticket_id = db_insert('helpdesk_tickets', [
             'number'          => $number,
             'title'           => $title,
@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_new_ticket'])) {
                 $name_h  = h($req_name ?: ($u['name'] ?? ''));
                 $url     = APP_URL . '/panel/helpdesk.php#ticket-' . $ticket_id;
                 $track   = h(hd_track_url(['id' => $ticket_id, 'access_token' => '']));
-                $cat_h   = h(HD_CATEGORIES[$category] ?? $category);
+                $cat_h   = h(hd_categories()[$category] ?? $category);
                 $pri_h   = h(HD_PRIORITIES[$priority]['label'] ?? $priority);
                 $desc_h  = nl2br(h($description));
                 mail_queue_add($email_dest, $req_name ?: ($u['name'] ?? ''),
@@ -249,7 +249,7 @@ panelMetroAssets($_vol_color ?? '#0f6fa8');
       <div class="col-sm-6">
         <label for="hd-category" class="form-label fw-semibold small">Kategoria</label>
         <select id="hd-category" name="category" class="form-select form-select-sm">
-          <?php foreach (HD_CATEGORIES as $k => $v): ?>
+          <?php foreach (hd_categories() as $k => $v): ?>
           <option value="<?= h($k) ?>" <?= ($_POST['category'] ?? 'it_inne') === $k ? 'selected' : '' ?>>
             <?= h($v) ?>
           </option>
@@ -338,7 +338,7 @@ panelMetroAssets($_vol_color ?? '#0f6fa8');
     <i class="bi <?= h($s['icon']) ?>" style="font-size:1.2rem;margin-top:.1rem" aria-hidden="true"></i>
     <div style="flex:1;min-width:0">
       <div class="hd-t__ttl"><?= h($t['title']) ?></div>
-      <div class="hd-t__meta"><span class="font-monospace"><?= h($t['number']) ?></span> · <?= h(HD_CATEGORIES[$t['category']] ?? $t['category']) ?> · <?= date('d.m.Y', strtotime($t['updated_at'])) ?><?php if (!empty($t['assigned_name'])): ?> · <?= h($t['assigned_name']) ?><?php endif; ?></div>
+      <div class="hd-t__meta"><span class="font-monospace"><?= h($t['number']) ?></span> · <?= h(hd_categories()[$t['category']] ?? $t['category']) ?> · <?= date('d.m.Y', strtotime($t['updated_at'])) ?><?php if (!empty($t['assigned_name'])): ?> · <?= h($t['assigned_name']) ?><?php endif; ?></div>
     </div>
     <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
       <span class="mt-badge" style="background:<?= $_hdc[$s['class']] ?? 'var(--m-grey)' ?>"><?= h($s['label']) ?></span>

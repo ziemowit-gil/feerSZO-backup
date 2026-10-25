@@ -135,7 +135,7 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
         <?= hd_status_badge($ticket['status']) ?>
         <?= hd_priority_badge($ticket['priority']) ?>
         <span class="badge bg-light text-secondary border" style="font-size:.7rem">
-          <?= h(HD_CATEGORIES[$ticket['category']] ?? $ticket['category']) ?>
+          <?= h(hd_categories()[$ticket['category']] ?? $ticket['category']) ?>
         </span>
       </div>
       <div class="hd-det-title"><?= h($ticket['title']) ?></div>
@@ -638,7 +638,7 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
       <table class="w-100" style="border-collapse:collapse">
         <?php foreach ([
           ['Numer',        '<span class="font-monospace hd-det-num" style="font-size:.7rem">' . h($ticket['number']) . '</span>'],
-          ['Kategoria',    h(HD_CATEGORIES[$ticket['category']] ?? $ticket['category'])],
+          ['Kategoria',    h(hd_categories()[$ticket['category']] ?? $ticket['category'])],
           ['Priorytet',    hd_priority_badge($ticket['priority'])],
           ['Zgłaszający',  h($ticket['requester_name'])],
           ['E-mail',       $ticket['requester_email'] ? '<a href="mailto:'.h($ticket['requester_email']).'" style="font-size:.78rem">'.h($ticket['requester_email']).'</a>' : '—'],

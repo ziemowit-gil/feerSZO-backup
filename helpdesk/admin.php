@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/helpdesk.php';
 require_once dirname(__DIR__) . '/modules/helpdeskMail/lib/helpdeskMail.php';
 require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php';
+require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
 helpdesk_migrate();
 require_login();
 require_role('admin');
@@ -41,6 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', $new === '1' ? 'Helpdesk włączony.' : 'Helpdesk wyłączony.');
     }
 
+    if ($op === 'numbering_save') {
+        $pat = trim((string)($_POST['hd_number_pattern'] ?? ''));
+        if ($pat === '' || hdNumberPatternValid($pat)) { org_setting_set('hd_number_pattern', $pat); flash_set('success', 'Wzorzec numeru zapisany.'); }
+        else flash_set('danger', 'Nieprawidłowy wzorzec: licznik {NNNNN} (3–8 liter N) musi być na końcu; dozwolone znaczniki {PREFIX} {YYYY} {YY} {MM}.');
+    }
     if ($op === 'hours_save') {
         $err = hdWorkConfigSave($_POST);
         flash_set($err ? 'danger' : 'success', $err ? implode(' ', $err) : 'Ustawienia SLA zapisane.');
@@ -230,6 +236,23 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 
+<!-- Numeracja zgłoszeń -->
+<div class="col-12">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem"><i class="bi bi-hash me-1"></i>Numeracja zgłoszeń</div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">Domyślny wzorzec numeru: znaczniki <code>{PREFIX}</code> (z kategorii), <code>{YYYY}</code>, <code>{YY}</code>, <code>{MM}</code> i licznik <code>{NNNNN}</code> na końcu. Licznik jest osobny dla każdego prefiksu i okresu z wzorca (nowy rok = od 1). Prefiks i opcjonalny własny wzorzec ustawiasz per kategoria w <a href="<?= APP_URL ?>/modules/dictionary/router.php">Słowniku Centralnym</a> (słownik „Helpdesk — kategorie zgłoszeń”, atrybuty <code>prefix</code> i <code>pattern</code>; podkategorie dziedziczą od kategorii nadrzędnej).</p>
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="numbering_save">
+        <div class="col-md-4"><label class="form-label small mb-0">Wzorzec domyślny</label>
+          <input name="hd_number_pattern" class="form-control form-control-sm" value="<?= h(org_setting('hd_number_pattern')) ?>" placeholder="<?= h(HD_NUMBER_DEFAULT_PATTERN) ?>"></div>
+        <div class="col-md-4 small text-muted">Następny numer w tej chwili: <strong><?= h(hdNextNumber('HD', hdNumberPattern())) ?></strong></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-primary">Zapisz</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- SLA: godziny pracy -->
 <div class="col-12">
   <div class="card border-0 shadow-sm">
@@ -275,7 +298,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <div class="small text-muted">od <?= h(date('d.m.Y H:i', strtotime($mi['since_at']))) ?><?= $mi['last_run_at'] ? ', ostatnio ' . h(date('H:i', strtotime($mi['last_run_at']))) : '' ?></div></div>
         <div class="col-md-3"><label class="form-label small mb-0">Kategoria</label>
           <select name="category" class="form-select form-select-sm">
-            <?php foreach (HD_CATEGORIES as $k => $v): ?><option value="<?= h($k) ?>"<?= $mi['category'] === $k ? ' selected' : '' ?>><?= h($v) ?></option><?php endforeach; ?>
+            <?php foreach (hd_categories() as $k => $v): ?><option value="<?= h($k) ?>"<?= $mi['category'] === $k ? ' selected' : '' ?>><?= h($v) ?></option><?php endforeach; ?>
           </select></div>
         <div class="col-md-2"><label class="form-label small mb-0">Priorytet</label>
           <select name="priority" class="form-select form-select-sm">
@@ -301,7 +324,7 @@ include dirname(__DIR__) . '/includes/header.php';
             <?php foreach ($mail_free as $m): ?><option value="<?= (int)$m['id'] ?>"><?= h($m['mailbox']) ?></option><?php endforeach; ?>
           </select></div>
         <div class="col-md-3"><label class="form-label small mb-0">Kategoria</label>
-          <select name="category" class="form-select form-select-sm"><?php foreach (HD_CATEGORIES as $k => $v): ?><option value="<?= h($k) ?>"<?= $k === 'it_inne' ? ' selected' : '' ?>><?= h($v) ?></option><?php endforeach; ?></select></div>
+          <select name="category" class="form-select form-select-sm"><?php foreach (hd_categories() as $k => $v): ?><option value="<?= h($k) ?>"<?= $k === 'it_inne' ? ' selected' : '' ?>><?= h($v) ?></option><?php endforeach; ?></select></div>
         <div class="col-md-2"><label class="form-label small mb-0">Priorytet</label>
           <select name="priority" class="form-select form-select-sm"><?php foreach (HD_PRIORITIES as $k => $p): ?><option value="<?= h($k) ?>"<?= $k === 'normalny' ? ' selected' : '' ?>><?= h($p['label']) ?></option><?php endforeach; ?></select></div>
         <div class="col-md-2"><button class="btn btn-sm btn-success">Podepnij</button></div>

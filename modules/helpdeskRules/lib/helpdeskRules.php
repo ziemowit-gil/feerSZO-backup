@@ -56,12 +56,12 @@ function hdRulesSave(int $id, array $in): array
     $pick = fn(string $k, array $allowed) => isset($allowed[$in[$k] ?? '']) ? (string)$in[$k] : '';
     $d = [
         'name' => mb_substr($name, 0, 120), 'trigger_type' => $trigger,
-        'cond_category' => $pick('cond_category', HD_CATEGORIES), 'cond_priority' => $pick('cond_priority', HD_PRIORITIES),
+        'cond_category' => $pick('cond_category', hd_categories()), 'cond_priority' => $pick('cond_priority', HD_PRIORITIES),
         'cond_source' => preg_replace('/[^a-z_]/', '', strtolower((string)($in['cond_source'] ?? ''))),
         'cond_keyword' => mb_substr(trim((string)($in['cond_keyword'] ?? '')), 0, 120),
         'cond_status' => $pick('cond_status', HD_STATUSES), 'cond_idle_days' => max(0, (int)($in['cond_idle_days'] ?? 0)),
         'act_assign' => ((int)($in['act_assign'] ?? 0)) ?: null,
-        'act_priority' => $pick('act_priority', HD_PRIORITIES), 'act_category' => $pick('act_category', HD_CATEGORIES),
+        'act_priority' => $pick('act_priority', HD_PRIORITIES), 'act_category' => $pick('act_category', hd_categories()),
         'act_status' => $pick('act_status', HD_STATUSES), 'act_note' => mb_substr(trim((string)($in['act_note'] ?? '')), 0, 1000),
         'is_active' => !empty($in['is_active']) ? 1 : 0, 'sort_order' => (int)($in['sort_order'] ?? 100),
     ];
@@ -130,7 +130,7 @@ function hdRulesApplyOnCreate(int $ticketId): int
         }
         $notes = ['Reguła „' . $r['name'] . '”: ' . implode(', ', array_filter([
             isset($upd['assigned_to']) ? 'przypisano operatora' : '', isset($upd['priority']) ? 'priorytet → ' . (HD_PRIORITIES[$upd['priority']]['label'] ?? $upd['priority']) : '',
-            isset($upd['category']) ? 'kategoria → ' . (HD_CATEGORIES[$upd['category']] ?? $upd['category']) : '',
+            isset($upd['category']) ? 'kategoria → ' . (hd_categories()[$upd['category']] ?? $upd['category']) : '',
         ])) ?: 'bez zmian pól'];
         if ($r['act_note'] !== '') $notes[] = $r['act_note'];
         hdRulesNote($ticketId, implode("\n", $notes));

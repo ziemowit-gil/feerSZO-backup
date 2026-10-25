@@ -76,7 +76,7 @@ function hdMailIntakeSave(array $in, int $byUid): void
     $mbx = (int)($in['mailbox_id'] ?? 0);
     if (!db_one("SELECT id FROM poczta_mailboxes WHERE id=?", [$mbx])) throw new \RuntimeException('Wybierz skrzynkę.');
     $cat = (string)($in['category'] ?? 'it_inne');
-    if (!isset(HD_CATEGORIES[$cat])) $cat = 'it_inne';
+    if (!isset(hd_categories()[$cat])) $cat = 'it_inne';
     $pri = (string)($in['priority'] ?? 'normalny');
     if (!isset(HD_PRIORITIES[$pri])) $pri = 'normalny';
     $cur = db_one("SELECT since_at FROM helpdesk_mail_intake WHERE mailbox_id=?", [$mbx]);
@@ -104,7 +104,8 @@ function hdMailKey(array $c): string
 /** Numer zgłoszenia w temacie ([HD00042], [HER00007]…) albo null. */
 function hdMailTicketNumber(string $subject): ?string
 {
-    return preg_match('/\[([A-Z]{2,5}\d{5})\]/', $subject, $m) ? $m[1] : null;
+    require_once dirname(__DIR__, 2) . '/helpdeskCategories/lib/helpdeskCategories.php';
+    return preg_match(hdNumberRegex(), $subject, $m) ? $m[1] : null;
 }
 
 /** Treść maila: tekst, bez cytowanych odpowiedzi nie tniemy (operator widzi całość), limit długości. */
@@ -192,9 +193,9 @@ function hdMailIntakeOne(array $in, array $c, array $own): string
     }
 
     // Nowe zgłoszenie
-    $category = isset(HD_CATEGORIES[$in['category']]) ? $in['category'] : 'it_inne';
+    $category = isset(hd_categories()[$in['category']]) ? $in['category'] : 'it_inne';
     $priority = isset(HD_PRIORITIES[$in['priority']]) ? $in['priority'] : 'normalny';
-    $number   = hd_next_number(hd_number_prefix_for($category));
+    $number   = hd_next_number(hd_number_prefix_for($category), hd_number_pattern_for($category));
     $name     = trim((string)$c['from_name']) ?: $from;
     $user     = db_one("SELECT id, name FROM users WHERE lower(email)=? AND is_active=1", [$from]);
     $title    = mb_substr($subject !== '' ? $subject : '(bez tematu)', 0, 200);

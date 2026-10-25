@@ -34,7 +34,7 @@ if (!$is_op || $f_view === 'mine') {
     $where[] = "t.status NOT IN ('zamknięte')";
 }
 if ($f_status && isset(HD_STATUSES[$f_status]))       { $where[] = 't.status = ?';   $params[] = $f_status; }
-if ($f_category && isset(HD_CATEGORIES[$f_category])) { $where[] = 't.category = ?'; $params[] = $f_category; }
+if ($f_category && isset(hd_categories()[$f_category])) { $where[] = 't.category = ?'; $params[] = $f_category; }
 if ($f_priority && isset(HD_PRIORITIES[$f_priority])) { $where[] = 't.priority = ?'; $params[] = $f_priority; }
 if ($f_q !== '') {
     $where[] = '(t.number LIKE ? OR t.title LIKE ? OR t.requester_name LIKE ?)';
@@ -123,7 +123,7 @@ function _hd_list_html(
     <div class="hd-row-title"><?= h($t['title']) ?></div>
     <div class="hd-c-sub"><?= h($req) ?></div>
   </div>
-  <div class="hd-c hd-c-cat"><?= h(HD_CATEGORIES[$t['category']] ?? $t['category']) ?></div>
+  <div class="hd-c hd-c-cat"><?= h(hd_categories()[$t['category']] ?? $t['category']) ?></div>
   <div class="hd-c hd-c-st"><?= hd_status_badge($t['status']) ?></div>
   <div class="hd-c hd-c-pri"><?= hd_priority_badge($t['priority']) ?></div>
   <?php if ($is_op): ?>
@@ -722,7 +722,7 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
         </div>
         <select id="hdCatSelect" class="hd-cat-select mt-1" aria-label="Kategoria">
           <option value="">Wszystkie kategorie</option>
-          <?php foreach (HD_CATEGORIES as $ckey => $clbl): ?>
+          <?php foreach (hd_categories() as $ckey => $clbl): ?>
           <option value="<?= h($ckey) ?>"<?= $f_category === $ckey ? ' selected' : '' ?>><?= h($clbl) ?></option>
           <?php endforeach; ?>
         </select>

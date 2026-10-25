@@ -7,7 +7,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/redmine.php';
-require_once dirname(__DIR__) . '/includes/helpdesk.php'; // HD_CATEGORIES do mapowania
+require_once dirname(__DIR__) . '/includes/helpdesk.php'; // hd_categories() do mapowania
 
 require_role('admin');
 $PAGE_TITLE = 'Ustawienia Redmine';
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
     $catMap = [];
     foreach ((array)($_POST['cat_tracker'] ?? []) as $ck => $tid) {
         $tid = (int)$tid;
-        if ($tid > 0 && isset(HD_CATEGORIES[$ck])) $catMap[$ck] = $tid;
+        if ($tid > 0 && isset(hd_categories()[$ck])) $catMap[$ck] = $tid;
     }
     org_setting_set('redmine_category_trackers', $catMap ? json_encode($catMap) : '');
 
@@ -263,7 +263,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <table class="table table-sm align-middle mb-0">
         <thead><tr><th class="small">Kategoria zgłoszenia</th><th class="small" style="max-width:220px">Tracker Redmine</th></tr></thead>
         <tbody>
-        <?php foreach (HD_CATEGORIES as $ck => $cl): if ($ck === 'bug_report') continue; ?>
+        <?php foreach (hd_categories() as $ck => $cl): if ($ck === 'bug_report') continue; ?>
           <tr>
             <td class="small"><?= h($cl) ?> <span class="text-muted">(<?= h($ck) ?>)</span></td>
             <td>

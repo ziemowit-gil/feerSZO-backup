@@ -93,7 +93,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="col-sm-6">
           <label class="form-label fw-semibold" for="hd-cat">Kategoria</label>
           <select class="form-select" id="hd-cat" name="category">
-            <?php foreach (HD_CATEGORIES as $k => $v): if (str_starts_with($k, 'zgl_') || $k === 'bug_report') continue; ?>
+            <?php foreach (hd_categories() as $k => $v): if (str_starts_with($k, 'zgl_') || $k === 'bug_report') continue; ?>
             <option value="<?= h($k) ?>" <?= ($_POST['category'] ?? 'it_inne') === $k ? 'selected' : '' ?>><?= h($v) ?></option>
             <?php endforeach; ?>
           </select>

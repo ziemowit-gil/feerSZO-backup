@@ -25,11 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$title)                         $errors[] = 'Temat jest wymagany.';
     if (!$description)                   $errors[] = 'Opis problemu jest wymagany.';
-    if (!isset(HD_CATEGORIES[$category])) $category = 'it_inne';
+    if (!isset(hd_categories()[$category])) $category = 'it_inne';
     if (!isset(HD_PRIORITIES[$priority])) $priority = 'normalny';
 
     if (!$errors) {
-        $number = hd_next_number(hd_number_prefix_for($category));
+        $number = hd_next_number(hd_number_prefix_for($category), hd_number_pattern_for($category));
 
         $ticket_id = db_insert('helpdesk_tickets', [
             'number'         => $number,
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $num_h   = h($number);
                 $title_h = h($title);
                 $name_h  = h($req_name ?: ($u['name'] ?? ''));
-                $cat_h   = h(HD_CATEGORIES[$category] ?? $category);
+                $cat_h   = h(hd_categories()[$category] ?? $category);
                 $pri_h   = h(HD_PRIORITIES[$priority]['label'] ?? $priority);
                 $desc_h  = nl2br(h($description));
                 $html = <<<HTML
@@ -272,7 +272,7 @@ try {
         <div class="col-sm-12 col-xl-6">
           <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Kategoria</label>
           <select name="category" class="form-select">
-            <?php foreach (HD_CATEGORIES as $k => $v): ?>
+            <?php foreach (hd_categories() as $k => $v): ?>
             <option value="<?= h($k) ?>" <?= ($_POST['category'] ?? 'it_inne') === $k ? 'selected' : '' ?>><?= h($v) ?></option>
             <?php endforeach; ?>
           </select>

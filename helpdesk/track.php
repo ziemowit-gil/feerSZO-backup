@@ -277,7 +277,7 @@ body { font-family:'Segoe UI','Segoe UI Web',Roboto,'Helvetica Neue',Arial,sans-
     <span class="tr-ticket-num"><?= h($ticket['number']) ?></span>
     <?= hd_status_badge($ticket['status']) ?>
     <?= hd_priority_badge($ticket['priority']) ?>
-    <span class="badge bg-light text-secondary border" style="font-size:.7rem"><?= h(HD_CATEGORIES[$ticket['category']] ?? $ticket['category']) ?></span>
+    <span class="badge bg-light text-secondary border" style="font-size:.7rem"><?= h(hd_categories()[$ticket['category']] ?? $ticket['category']) ?></span>
   </div>
   <div class="tr-ticket-title"><?= h($ticket['title']) ?></div>
   <div class="tr-ticket-meta">

@@ -22,7 +22,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
 $enabled = redmine_is_enabled() && org_setting('redmine_minihelpdesk_enabled') === '1';
 $title_org = org_setting('org_nazwa') ?: 'Helpdesk';
 
-// Kategorie widoczne w publicznym formularzu (klucze zgodne z HD_CATEGORIES —
+// Kategorie widoczne w publicznym formularzu (klucze zgodne z hd_categories() —
 // mapowanie na tracker Redmine ustawia admin w panelu integracji).
 $MINI_CATS = [
     'it_sprzet'         => 'Sprzęt IT',

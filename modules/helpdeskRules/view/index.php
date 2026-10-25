@@ -27,13 +27,13 @@ $sel = fn($a, $b) => (string)$a === (string)$b ? ' selected' : '';
         <td><?= $r['trigger_type'] === 'idle'
               ? 'Brak aktywności ' . (int)$r['cond_idle_days'] . ' dni · ' . h(HD_STATUSES[$r['cond_status']]['label'] ?? $r['cond_status'])
               : 'Nowe zgłoszenie' . implode('', array_filter([
-                  $r['cond_category'] !== '' ? ' · ' . h(HD_CATEGORIES[$r['cond_category']] ?? '') : '',
+                  $r['cond_category'] !== '' ? ' · ' . h(hd_categories()[$r['cond_category']] ?? '') : '',
                   $r['cond_priority'] !== '' ? ' · ' . h(HD_PRIORITIES[$r['cond_priority']]['label'] ?? '') : '',
                   $r['cond_source'] !== '' ? ' · źródło ' . h($r['cond_source']) : '',
                   $r['cond_keyword'] !== '' ? ' · „' . h($r['cond_keyword']) . '”' : ''])) ?></td>
         <td><?= h(implode(', ', array_filter([
               $r['assign_name'] ? 'przypisz: ' . $r['assign_name'] : '', $r['act_priority'] !== '' ? 'priorytet: ' . (HD_PRIORITIES[$r['act_priority']]['label'] ?? '') : '',
-              $r['act_category'] !== '' ? 'kategoria: ' . (HD_CATEGORIES[$r['act_category']] ?? '') : '', $r['act_status'] !== '' ? 'status: ' . (HD_STATUSES[$r['act_status']]['label'] ?? '') : '',
+              $r['act_category'] !== '' ? 'kategoria: ' . (hd_categories()[$r['act_category']] ?? '') : '', $r['act_status'] !== '' ? 'status: ' . (HD_STATUSES[$r['act_status']]['label'] ?? '') : '',
               $r['act_note'] !== '' ? 'notatka' : '']))) ?></td>
         <td><?= (int)$r['hits'] ?></td>
         <td class="text-nowrap text-end">
@@ -61,7 +61,7 @@ $sel = fn($a, $b) => (string)$a === (string)$b ? ' selected' : '';
     <div class="fw-semibold mt-3 mb-1">Warunki</div>
     <div class="row g-2 mb-2">
       <div class="col-6"><label class="form-label mb-0">Kategoria</label><select name="cond_category" class="form-select form-select-sm"><option value="">dowolna</option>
-        <?php foreach (HD_CATEGORIES as $k => $l): ?><option value="<?= h($k) ?>"<?= $sel($v('cond_category'), $k) ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+        <?php foreach (hd_categories() as $k => $l): ?><option value="<?= h($k) ?>"<?= $sel($v('cond_category'), $k) ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
       <div class="col-6"><label class="form-label mb-0">Priorytet</label><select name="cond_priority" class="form-select form-select-sm"><option value="">dowolny</option>
         <?php foreach (HD_PRIORITIES as $k => $p): ?><option value="<?= h($k) ?>"<?= $sel($v('cond_priority'), $k) ?>><?= h($p['label']) ?></option><?php endforeach; ?></select></div>
       <div class="col-6"><label class="form-label mb-0">Źródło</label><select name="cond_source" class="form-select form-select-sm"><option value="">dowolne</option>
@@ -78,7 +78,7 @@ $sel = fn($a, $b) => (string)$a === (string)$b ? ' selected' : '';
       <div class="col-6"><label class="form-label mb-0">Ustaw priorytet</label><select name="act_priority" class="form-select form-select-sm"><option value="">—</option>
         <?php foreach (HD_PRIORITIES as $k => $p): ?><option value="<?= h($k) ?>"<?= $sel($v('act_priority'), $k) ?>><?= h($p['label']) ?></option><?php endforeach; ?></select></div>
       <div class="col-6"><label class="form-label mb-0">Zmień kategorię</label><select name="act_category" class="form-select form-select-sm"><option value="">—</option>
-        <?php foreach (HD_CATEGORIES as $k => $l): ?><option value="<?= h($k) ?>"<?= $sel($v('act_category'), $k) ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+        <?php foreach (hd_categories() as $k => $l): ?><option value="<?= h($k) ?>"<?= $sel($v('act_category'), $k) ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
       <div class="col-6"><label class="form-label mb-0">Ustaw status (czasowa)</label><select name="act_status" class="form-select form-select-sm"><option value="">—</option>
         <?php foreach (HD_STATUSES as $k => $s): ?><option value="<?= h($k) ?>"<?= $sel($v('act_status'), $k) ?>><?= h($s['label']) ?></option><?php endforeach; ?></select></div>
       <div class="col-12"><label class="form-label mb-0">Notatka wewnętrzna</label><input class="form-control form-control-sm" name="act_note" maxlength="1000" value="<?= h($v('act_note')) ?>"></div>
