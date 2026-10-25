@@ -76,40 +76,41 @@ html body.ti-metro .dropdown-item.active, html body.ti-metro .dropdown-item:acti
 html body.ti-metro .dropdown-header { font-size:.66rem; letter-spacing:.14em; text-transform:uppercase; color:var(--dm-muted); font-weight:700; }
 
 /* ── Stałe menu boczne (modules/ti_dyd_menu) ──────────────────────────
-   Sekcje prowadzącego: jasnoszare #f2f2f2, tekst #1d1d1d (16:1), ikony #3f3f3f.
-   Blok kierownika (pasek „Kierownik” + .dyd-side-sec--staff): każda grupa własny kolor (zmienna --sec,
-   patrz niżej) z białym tekstem, aktywna pozycja biała z tekstem w kolorze grupy. Aktywna pozycja prowadzącego:
-   pełny akcent #0f6fa8 z białym tekstem (5,4:1). */
-html body.ti-metro .dyd-side { background:var(--dm-light) !important; border-top:0 !important; border-right:1px solid #d4d4d4; color:var(--dm-dark); scrollbar-color:rgba(0,0,0,.3) transparent; }
+   Każda grupa menu (prowadzącego i kierownika) ma własny kolor — zmienna --sec — z białym tekstem
+   (kontrast ≥ 4,9:1). Aktywna pozycja: biała, z tekstem w kolorze grupy. Hover przyciemnia kolor grupy
+   (nie rozjaśnia go do szarości). Tło poza grupami jest białe — w menu nie ma szarości. */
+html body.ti-metro .dyd-side { background:#fff !important; border-top:0 !important; border-right:1px solid #d4d4d4; color:#fff; scrollbar-color:rgba(0,0,0,.3) transparent; }
 html body.ti-metro .dyd-side .dyd-side-in { padding:0 0 1rem; }
-html body.ti-metro .dyd-side .dyd-side-sec { border-bottom:1px solid #d4d4d4; padding:0 .4rem; }
+html body.ti-metro .dyd-side .dyd-side-sec { --sec:#0b5582; background:var(--sec); border-bottom:1px solid rgba(255,255,255,.25); padding:0 .4rem; }
 html body.ti-metro .dyd-side .dyd-side-sec.is-open { padding-bottom:.35rem; }
-html body.ti-metro .dyd-side .dyd-side-grp { color:var(--dm-dark) !important; font-size:.68rem; letter-spacing:.14em; min-height:38px; }
-html body.ti-metro .dyd-side .dyd-side-grp:hover { background:var(--dm-light-h) !important; }
-html body.ti-metro .dyd-side .dyd-side-chev { color:#3f3f3f; }
-html body.ti-metro .dyd-side .dyd-side-sub { color:#3f3f3f; }
-html body.ti-metro .dyd-side a:not(.btn) { color:var(--dm-dark) !important; border:0 !important; min-height:32px; font-size:.86rem; font-weight:400; text-decoration:none !important; }
-html body.ti-metro .dyd-side a:not(.btn) .bi { color:#3f3f3f; opacity:1; }
-html body.ti-metro .dyd-side a:not(.btn):hover { background:var(--dm-light-h) !important; text-decoration:none !important; }
-html body.ti-metro .dyd-side a.active:not(.btn) { background:var(--dm-acc) !important; color:#fff !important; font-weight:600; }
-html body.ti-metro .dyd-side a.active:not(.btn) .bi { color:#fff; }
+html body.ti-metro .dyd-side .dyd-side-grp { color:#fff !important; font-size:.68rem; letter-spacing:.14em; min-height:38px; }
+html body.ti-metro .dyd-side .dyd-side-grp:hover { background:rgba(0,0,0,.2) !important; }
+html body.ti-metro .dyd-side .dyd-side-chev { color:#fff; }
+html body.ti-metro .dyd-side .dyd-side-sub { color:rgba(255,255,255,.92); }
+html body.ti-metro .dyd-side a:not(.btn) { color:#fff !important; border:0 !important; min-height:32px; font-size:.86rem; font-weight:400; text-decoration:none !important; }
+/* Ikony: białe plakietki z ikoną w kolorze grupy (aktywna pozycja: odwrotnie) — żadnej szarości */
+html body.ti-metro .dyd-side a:not(.btn) .bi { display:inline-flex; align-items:center; justify-content:center; width:1.55rem; height:1.55rem; border-radius:3px; background:#fff; color:var(--sec) !important; opacity:1; font-size:.85rem; flex-shrink:0; }
+html body.ti-metro .dyd-side a:not(.btn) .dyd-side-ext { background:none; color:#fff !important; width:auto; height:auto; }
+html body.ti-metro .dyd-side a:not(.btn):hover { background:rgba(0,0,0,.2) !important; text-decoration:none !important; }
+html body.ti-metro .dyd-side a.active:not(.btn) { background:#fff !important; color:var(--sec) !important; font-weight:600; }
+html body.ti-metro .dyd-side a.active:not(.btn) .bi { background:var(--sec); color:#fff !important; }
 html body.ti-metro .dyd-side .badge { font-weight:700; }
 html body.ti-metro .dyd-side .badge.text-bg-danger { background:var(--dm-red) !important; color:#fff !important; }
 html body.ti-metro .dyd-side .badge.text-bg-warning { background:var(--dm-orange) !important; color:#fff !important; }
-html body.ti-metro .dyd-side .badge.text-bg-secondary { background:#d4d4d4 !important; color:var(--dm-dark) !important; }
-html body.ti-metro .dyd-side a.active .badge { background:#fff !important; color:var(--dm-acc-d) !important; }
-/* Blok kierownika — niebieski */
+html body.ti-metro .dyd-side .badge.text-bg-secondary { background:rgba(255,255,255,.92) !important; color:var(--sec) !important; }
+html body.ti-metro .dyd-side a.active .badge { background:var(--sec) !important; color:#fff !important; }
+html body.ti-metro .dyd-side .dyd-side-grp:focus-visible,
+html body.ti-metro .dyd-side a:focus-visible { outline-color:#fbbf24 !important; }
+/* Pasek „Kierownik” */
 html body.ti-metro .dyd-side .dyd-side-band { margin:0; padding:.55rem .85rem .45rem; background:#0b5582; color:#fff; font-size:.66rem; letter-spacing:.16em; border-top:1px solid #0b5582; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff { --sec:#0b5582; background:var(--sec); border-bottom-color:rgba(255,255,255,.2); }
-html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-grp { color:#fff !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-grp:hover { background:rgba(255,255,255,.14) !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-chev,
-html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-sub { color:rgba(255,255,255,.85); }
-html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn) { color:#fff !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn) .bi { color:rgba(255,255,255,.9); }
-html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn):hover { background:rgba(255,255,255,.14) !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff a.active:not(.btn) { background:#fff !important; color:var(--sec) !important; }
-/* Każda grupa kierownika ma własny kolor (biały tekst, kontrast ≥ 5:1; aktywna pozycja = biała z tekstem w kolorze grupy) */
+/* Kolory grup — prowadzący */
+html body.ti-metro .dyd-side .dyd-side-sec--start        { --sec:#303f9f; }  /* indygo       9,0:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--kurs         { --sec:#00695c; }  /* zielona toń  6,6:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--komunikacja  { --sec:#7a5c00; }  /* złoty brąz   6,3:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--zasoby       { --sec:#0d47a1; }  /* granat       8,6:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--konsultacje  { --sec:#4527a0; }  /* fiolet      10,2:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--moje         { --sec:#00796b; }  /* morski       5,3:1 */
+/* Kolory grup — kierownik (każda inna; kontrast z białym tekstem ≥ 5:1) */
 html body.ti-metro .dyd-side .dyd-side-sec--k_grupy        { --sec:#0b5582; }  /* niebieski  7,9:1 */
 html body.ti-metro .dyd-side .dyd-side-sec--k_uczestnicy   { --sec:#006064; }  /* morski     7,4:1 */
 html body.ti-metro .dyd-side .dyd-side-sec--k_finanse      { --sec:#2e7d32; }  /* zielony    5,1:1 */
@@ -118,11 +119,6 @@ html body.ti-metro .dyd-side .dyd-side-sec--k_plan         { --sec:#ad1457; }  /
 html body.ti-metro .dyd-side .dyd-side-sec--k_kadra        { --sec:#bf360c; }  /* ceglasty   5,6:1 */
 html body.ti-metro .dyd-side .dyd-side-sec--k_komunikacja  { --sec:#5d4037; }  /* brąz       9,3:1 */
 html body.ti-metro .dyd-side .dyd-side-sec--k_system       { --sec:#37474f; }  /* grafit     9,7:1 */
-html body.ti-metro .dyd-side .dyd-side-sec--staff a.active:not(.btn) .bi { color:var(--sec); }
-html body.ti-metro .dyd-side .dyd-side-sec--staff .badge.text-bg-secondary { background:rgba(255,255,255,.9) !important; color:var(--sec) !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff a.active .badge { color:var(--sec) !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-grp:focus-visible,
-html body.ti-metro .dyd-side .dyd-side-sec--staff a:focus-visible { outline-color:#fbbf24 !important; }
 html body.ti-metro .dyd-side-toggle { background:var(--dm-dark) !important; }
 
 /* ── Okruszki i podmenu sekcji → pivot ──────────────────────────────── */
