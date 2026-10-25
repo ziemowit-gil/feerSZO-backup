@@ -310,7 +310,7 @@ switch ($pmode) {
     case 'get_godziny':   $script = 'godziny.php'; $_GET['r'] = 'podsumowanie'; $expect = 'gh-nav'; break;
     case 'get_revenue':   $script = 'raportPrzychodu.php'; $expect = 'Scenariusze frekwencji'; break;
     case 'get_raporty':   $script = 'wydruki.php'; $expect = 'Przychód i prognozy'; break;   // zestawienia w sekcji „Raporty” strony Wydruki i raporty
-    case 'get_plan':      $script = 'planPubliczny.php'; $expect = 'aria-label="Rodzaj widoku"'; break;   // portal planu: przełącznik Pełny / Uproszczony w nagłówku
+    case 'get_plan':      $script = 'planPubliczny.php'; $_GET['wyglad'] = 'klasyczny'; $expect = 'aria-label="Rodzaj widoku"'; break;   // portal planu: przełącznik Pełny / Uproszczony w nagłówku
     case 'get_side':      $_GET['menu'] = 'side'; $expect = 'dostępność prowadzących'; break;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') $_POST['_token'] = dyd_token();
@@ -319,6 +319,7 @@ ob_start();
 register_shutdown_function(function () use ($pmode, $expect, $flashRe, $script) {   // $_GET widoczne też tu
     $out = ob_get_clean(); $flash = json_encode($_SESSION['flash'] ?? null, JSON_UNESCAPED_UNICODE);
     $good = ($flashRe === null || preg_match($flashRe, (string)$flash)) && ($expect === '' || str_contains($out, $expect)) && !preg_match('/Warning|Fatal error|Notice|Deprecated/', $out);
+    if ($script === 'planPubliczny.php' && (str_contains($out, 'Widok klasyczny') || str_contains($out, 'skin-classic'))) $good = false;   // kursanci/niezalogowani: bez wyglądu klasycznego
     $isExport = isset($_GET['export']) || $script === 'planPubliczny.php';   // plan publiczny ma własny układ (bez menu panelu)   // CSV — sam plik, bez układu strony
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isExport && strlen($out) < 2000) $good = false;
     // Układ menu: domyślnie górny pasek sekcji (bez menu bocznego); z ?menu=side — menu boczne zamiast górnego rzędu

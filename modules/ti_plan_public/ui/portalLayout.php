@@ -32,11 +32,13 @@ function tiPlanPortalUrl(string $self, array $q = []): string {
 
 /**
  * Wygląd portalu: 'metro' (domyślny, szata Metro UI jak SZO) albo 'klasyczny' (dotychczasowy „Plan lekcji Optivum”).
- * Wybór z ?wyglad= zapamiętany w ciasteczku na rok — działa bez logowania i bez sesji.
+ * Wybór z ?wyglad= zapamiętany w ciasteczku na rok. Wygląd klasyczny jest tylko dla pracowników (prowadzący / kierownik z dostępem do
+ * pełnego widoku, $allowClassic); kursanci i osoby bez logowania zawsze dostają Metro — niezależnie od ciasteczka i parametru.
  */
-function tiPlanPortalSkin(): string {
+function tiPlanPortalSkin(bool $allowClassic = false): string {
     static $skin = null;
     if ($skin !== null) return $skin;
+    if (!$allowClassic) return $skin = 'metro';
     $q = (string)($_GET['wyglad'] ?? '');
     if (in_array($q, ['metro', 'klasyczny'], true)) {
         $skin = $q;
@@ -76,7 +78,7 @@ function tiPlanPortalOpen(array $o): void {
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <title><?= h($o['title']) ?><?= $orgName !== '' ? ' — ' . h($orgName) : '' ?></title>
-<?php $skin = tiPlanPortalSkin(); ?>
+<?php $allowClassic = !empty($o['canFull']) || !empty($o['full']); $skin = tiPlanPortalSkin($allowClassic); ?>
 <style><?php readfile(__DIR__ . '/portal.css'); ?></style>
 <?php if ($skin === 'metro'): ?><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 <style><?php readfile(__DIR__ . '/portal_metro.css'); ?></style><?php endif; ?>
@@ -107,7 +109,7 @@ function tiPlanPortalOpen(array $o): void {
   <main class="page" id="tresc">
     <div class="titlebar">
       <h1 class="title"><?= h($o['heading'] ?? $o['title']) ?></h1>
-      <a class="skin-btn" href="<?= tiPlanPortalSkinUrl($skin === 'metro' ? 'klasyczny' : 'metro') ?>" title="Przełącz wygląd planu (zapamiętany w tej przeglądarce)"><?= $skin === 'metro' ? 'Widok klasyczny' : 'Widok Metro' ?></a>
+      <?php if ($allowClassic): ?><a class="skin-btn" href="<?= tiPlanPortalSkinUrl($skin === 'metro' ? 'klasyczny' : 'metro') ?>" title="Przełącz wygląd planu (zapamiętany w tej przeglądarce)"><?= $skin === 'metro' ? 'Widok klasyczny' : 'Widok Metro' ?></a><?php endif; ?>
       <?php $isFull = !empty($o['full']); $canFull = !empty($o['canFull']) || $isFull;
         $vu = fn(string $v) => htmlspecialchars(preg_replace('/([?&])widok=[^&]*&?/', '$1', (string)($_SERVER['REQUEST_URI'] ?? '/')), ENT_QUOTES) . ((str_contains((string)($_SERVER['REQUEST_URI'] ?? ''), '?') ? '&amp;' : '?')) . 'widok=' . $v; // zostajemy na bieżącej stronie planu ?>
       <span class="view-switch" role="group" aria-label="Rodzaj widoku">
