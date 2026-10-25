@@ -200,6 +200,7 @@ final class RodoRegisterController
         'naruszenia' => 'Rejestr naruszeń ochrony danych osobowych (art. 33 ust. 5 RODO)',
         'wnioski'   => 'Rejestr wniosków osób, których dane dotyczą (art. 15–21 RODO)',
         'retencja'  => 'Reguły i raport retencji danych osobowych',
+        'dostep'    => 'Kto może przetwarzać dane — role i osoby upoważnione do zbiorów (art. 29 RODO)',
     ];
 
     public function reports(): string {
@@ -218,6 +219,7 @@ final class RodoRegisterController
             'naruszenia' => $data['rows'] = array_map('rodoBreachDecode', db_all("SELECT * FROM rodo_breaches ORDER BY wykryto_at")),
             'wnioski'   => $data['rows'] = array_map('rodoReqDecode', db_all("SELECT * FROM rodo_requests ORDER BY id")),
             'retencja'  => $data['rows'] = rodoRetentionReport(),
+            'dostep'    => $data['access'] = rodoAccessData(),
         };
         audit_log('rodo.report.print', ['typ' => $typ]);
         return Router::view(self::VIEW . 'print.php', $data);

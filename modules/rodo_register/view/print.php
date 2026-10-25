@@ -3,7 +3,7 @@
  * Wydruk raportu RODO — samodzielna strona A4 (bez menu SZO).
  * Zmienne: $typ, $tytul, $org, $kto, $kiedy, $rows.
  */
-$wide = in_array($typ, ['czynnosci', 'zbiory', 'naruszenia'], true);
+$wide = in_array($typ, ['czynnosci', 'zbiory', 'naruszenia', 'dostep'], true);
 $tak = fn($v) => $v ? 'tak' : 'nie';
 $th = fn(array $c) => '<tr>' . implode('', array_map(fn($x) => '<th scope="col">' . h($x) . '</th>', $c)) . '</tr>';
 ?><!doctype html>
@@ -12,7 +12,7 @@ $th = fn(array $c) => '<tr>' . implode('', array_map(fn($x) => '<th scope="col">
 <style>
   @page { size: A4 <?= $wide ? 'landscape' : 'portrait' ?>; margin: 12mm; }
   body { font: 10pt/1.35 Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 16px; background: #fff; }
-  h1 { font-size: 14pt; margin: 0 0 2px; } .meta { color: #444; font-size: 9pt; margin-bottom: 10px; }
+  h1 { font-size: 14pt; margin: 0 0 2px; } h2 { font-size: 11pt; margin: 14px 0 4px; } .meta { color: #444; font-size: 9pt; margin-bottom: 10px; }
   table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #555; padding: 3px 5px; vertical-align: top; text-align: left; font-size: 8.5pt; }
   th { background: #e9e9e9; } tr { page-break-inside: avoid; } thead { display: table-header-group; }
   .group td { background: #f3f3f3; font-weight: bold; } .sign { display: flex; gap: 60px; margin-top: 36px; font-size: 9pt; } .sign div { border-top: 1px solid #000; padding-top: 3px; min-width: 220px; }
@@ -51,6 +51,29 @@ $th = fn(array $c) => '<tr>' . implode('', array_map(fn($x) => '<th scope="col">
 <?php if (!$rows): ?><tr><td colspan="9">Brak wniosków.</td></tr><?php endif; ?>
 </tbody></table>
 <p class="meta">Raport nie zawiera danych wnioskodawców.</p>
+
+<?php elseif ($typ === 'dostep'): ?>
+<h2>1. Role w systemie i moduły, do których dają dostęp</h2>
+<table><thead><?= $th(['Rola', 'Opis', 'Aktywnych kont', 'Moduły (poziom dostępu)', 'Zbiory danych objęte dostępem']) ?></thead><tbody>
+<?php foreach ($access['roles'] as $r): $zb = []; foreach ($r['modules'] as $m => $_) array_push($zb, ...(RODO_MODULE_ZBIORY[$m] ?? [])); $zb = array_unique($zb); sort($zb); ?>
+<tr><td><strong><?= h($r['display']) ?></strong><br><small><?= h($r['name']) ?></small></td><td><?= h($r['opis']) ?></td><td><?= (int)$r['users'] ?></td>
+<td><?php if ($r['is_admin']): ?>wszystkie moduły i ustawienia<?php else: foreach ($r['modules'] as $m => $lvl): ?><?= h($m) ?>: <?= h($lvl) ?><br><?php endforeach; if (!$r['modules']) echo '—'; endif; ?></td>
+<td><?= $r['is_admin'] ? 'wszystkie zbiory' : h(implode('; ', $zb) ?: '—') ?></td></tr>
+<?php endforeach; ?></tbody></table>
+
+<h2>2. Zbiory danych i kto może je przetwarzać</h2>
+<table><thead><?= $th(['Zbiór', 'Role z dostępem (moduł: poziom)', 'Osoby (z roli lub uprawnień indywidualnych) — bez administratorów']) ?></thead><tbody>
+<?php foreach ($access['by_zbior'] as $z => $b): ?><tr><td><strong><?= h($z) ?></strong></td>
+<td><?php foreach ($b['roles'] as $rn => $lvl): ?><?= h($rn) ?><?= $lvl !== 'pełny dostęp' ? ' — ' . h($lvl) : ' — pełny dostęp' ?><br><?php endforeach; if (!$b['roles']) echo '—'; ?></td>
+<td><?= h(implode(', ', $b['users']) ?: '—') ?></td></tr><?php endforeach; ?></tbody></table>
+
+<h2>3. Ewidencja osób upoważnionych do przetwarzania</h2>
+<table><thead><?= $th(['Lp.', 'Osoba', 'Rola', 'Konto', 'Uprawnienia indywidualne', 'Role i flagi cząstkowe', 'Zbiory (łącznie)']) ?></thead><tbody>
+<?php foreach ($access['users'] as $i => $u): ?><tr><td><?= $i + 1 ?></td><td><?= h($u['label']) ?></td><td><?= h($u['role']) ?></td><td><?= $u['active'] ? 'aktywne' : 'nieaktywne' ?></td>
+<td><?= h(implode('; ', $u['direct']) ?: '—') ?></td><td><?= h(implode('; ', $u['special']) ?: '—') ?></td>
+<td><?= !empty($u['all']) ? 'wszystkie zbiory' : h(implode('; ', $u['zbiory']) ?: '—') ?></td></tr><?php endforeach; ?>
+<?php if (!$access['users']): ?><tr><td colspan="7">Brak kont.</td></tr><?php endif; ?></tbody></table>
+<p class="meta">Mapowanie moduł → zbiór jest orientacyjne (stała RODO_MODULE_ZBIORY w modules/rodo_register/logic/rodoRegister.php) — zweryfikuj je z IOD. Dostęp do pojedynczych umów (contract_access), skrzynek pocztowych i spraw EZD może być węższy lub szerszy niż wynika z roli.</p>
 
 <?php else: ?>
 <table><thead><?= $th(['Zbiór', 'Tabela.kolumna daty', 'Okres (mies.)', 'Wierszy', 'Po terminie', 'Uwagi']) ?></thead><tbody>

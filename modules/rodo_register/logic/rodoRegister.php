@@ -438,6 +438,108 @@ function rodoRetentionReport(): array {
     return $out;
 }
 
+// ───────────────────────── Dostęp: kto może przetwarzać dane ─────────────────────────
+
+/** Klucz modułu z tabel uprawnień (role_permissions / user_permissions) → zbiory (nazwy z rejestru czynności). Mapowanie orientacyjne. */
+const RODO_MODULE_ZBIORY = [
+    'umowy'        => ['Umowy cywilnoprawne i kadry', 'Wolontariat — nabór, onboarding, RPTS'],
+    'osoby'        => ['Umowy cywilnoprawne i kadry'],
+    'pisma'        => ['Umowy cywilnoprawne i kadry'],
+    'akceptacje'   => ['Umowy cywilnoprawne i kadry'],
+    'rozwiazania'  => ['Umowy cywilnoprawne i kadry'],
+    'zaswiadczenia' => ['Wolontariat — nabór, onboarding, RPTS'],
+    'raporty'      => ['Umowy cywilnoprawne i kadry', 'Wolontariat — nabór, onboarding, RPTS'],
+    'crm'          => ['CRM', 'Darowizny'],
+    'crm_eksport'  => ['CRM'],
+    'crm_import'   => ['CRM'],
+    'crm_mailing'  => ['CRM'],
+    'crm_ustawienia' => ['CRM'],
+    'ezd'          => ['EZD — dokumentacja i korespondencja', 'Dokumentacja papierowa i archiwum zakładowe'],
+    'poczta'       => ['Poczta, kalendarz i zadania'],
+    'zadania'      => ['Obiegi i zadania', 'Poczta, kalendarz i zadania'],
+    'karty30'      => ['TI — uczestnicy szkoleń', 'TI — kadra dydaktyczna', 'Konsultacje TI'],
+    'wiadomosci'   => ['Wydarzenia, komunikaty, wsparcie OU'],
+    'wydarzenia'   => ['Wydarzenia, komunikaty, wsparcie OU'],
+    'zgloszenia'   => ['Helpdesk IT i kontrola IT'],
+    'granty'       => [], 'dzialania' => [], 'org' => [], 'procedury' => [], 'slowniki' => [], 'srs' => [],
+];
+
+/** Specjalne uprawnienia poza rolami: flagi na koncie i tabele ról cząstkowych → zbiory. */
+const RODO_SPECIAL_ZBIORY = [
+    'helpdesk_operator'   => ['Operator helpdesk', ['Helpdesk IT i kontrola IT']],
+    'rekrutacja_operator' => ['Operator naboru', ['Rekrutacja']],
+    'k30_consultant'      => ['Konsultant TI', ['Konsultacje TI', 'TI — uczestnicy szkoleń']],
+];
+
+function rodoAccessQuery(string $sql, array $p = []): array { try { return db_all($sql, $p); } catch (\Throwable $e) { return []; } }
+
+/**
+ * Dane do raportu „Kto może przetwarzać dane”: role z uprawnieniami do modułów, osoby z uprawnieniami (rola, indywidualne,
+ * cząstkowe) oraz zestawienie zbiór → role / osoby. Tylko odczyt — nic nie zmienia.
+ * @return array{roles:array, users:array, by_zbior:array}
+ */
+function rodoAccessData(): array {
+    $roles = [];
+    foreach (rodoAccessQuery("SELECT * FROM roles ORDER BY sort_order, id") as $r) {
+        $perm = [];
+        foreach (rodoAccessQuery("SELECT module, can_read, can_write, can_delete FROM role_permissions WHERE role_id = ? AND (can_read+can_write+can_delete) > 0 ORDER BY module", [$r['id']]) as $m) {
+            $perm[$m['module']] = ($m['can_read'] ? 'odczyt' : '') . ($m['can_write'] ? ', zapis' : '') . ($m['can_delete'] ? ', usuwanie' : '');
+        }
+        $roles[$r['name']] = ['name' => $r['name'], 'display' => $r['display_name'], 'opis' => $r['description'], 'is_admin' => $r['name'] === 'admin',
+            'users' => (int)(rodoAccessQuery("SELECT COUNT(*) c FROM users WHERE role = ? AND COALESCE(is_active,1) = 1", [$r['name']])[0]['c'] ?? 0), 'modules' => $perm];
+    }
+
+    $users = [];
+    foreach (rodoAccessQuery("SELECT id, name, first_name, last_name, role, COALESCE(is_active,1) active, helpdesk_operator, rekrutacja_operator, k30_consultant
+                              FROM users ORDER BY role, last_name, name") as $u) {
+        $label = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')) ?: (string)$u['name'];
+        $users[(int)$u['id']] = ['id' => (int)$u['id'], 'label' => $label, 'role' => $u['role'], 'active' => (bool)$u['active'], 'direct' => [], 'special' => [], 'zbiory' => []];
+        foreach (RODO_SPECIAL_ZBIORY as $flag => [$name, $zb]) if (!empty($u[$flag])) { $users[(int)$u['id']]['special'][] = $name; array_push($users[(int)$u['id']]['zbiory'], ...$zb); }
+    }
+    foreach (rodoAccessQuery("SELECT user_id, module, can_read, can_write, can_delete FROM user_permissions WHERE (can_read+can_write+can_delete) > 0") as $m) {
+        if (!isset($users[(int)$m['user_id']])) continue;
+        $users[(int)$m['user_id']]['direct'][] = $m['module'] . ' (' . ($m['can_read'] ? 'odczyt' : '') . ($m['can_write'] ? ', zapis' : '') . ($m['can_delete'] ? ', usuwanie' : '') . ')';
+        array_push($users[(int)$m['user_id']]['zbiory'], ...(RODO_MODULE_ZBIORY[$m['module']] ?? []));
+    }
+    foreach ([['kdok_user_roles', 'KDOK', 'kdok'], ['edok_user_roles', 'EODoK', 'edok'], ['k30_ti_panel_roles', 'Panel TI', 'ti']] as [$tbl, $label, $k]) {
+        foreach (rodoAccessQuery("SELECT user_id, role FROM {$tbl}") as $m) {
+            if (!isset($users[(int)$m['user_id']])) continue;
+            $users[(int)$m['user_id']]['special'][] = $label . ': ' . $m['role'];
+            array_push($users[(int)$m['user_id']]['zbiory'], ...($k === 'ti' ? ['TI — uczestnicy szkoleń', 'TI — kadra dydaktyczna'] : ['Księgowość, EODoK, KDOK, faktury, płatności']));
+        }
+    }
+    foreach (rodoAccessQuery("SELECT a.user_id, COUNT(*) n FROM poczta_mailbox_acl a GROUP BY a.user_id") as $m) {
+        if (!isset($users[(int)$m['user_id']])) continue;
+        $users[(int)$m['user_id']]['special'][] = 'Skrzynki pocztowe: ' . (int)$m['n'];
+        $users[(int)$m['user_id']]['zbiory'][] = 'Poczta, kalendarz i zadania';
+    }
+    // zbiory z roli systemowej (wg modułów roli); administrator = wszystkie
+    $allZbiory = array_column(rodoAccessQuery("SELECT zbior FROM rodo_activities ORDER BY zbior"), 'zbior');
+    foreach ($users as &$u) {
+        $role = $roles[$u['role']] ?? null;
+        if ($role && $role['is_admin']) { $u['zbiory'] = $allZbiory; $u['all'] = true; continue; }
+        foreach ($role['modules'] ?? [] as $mod => $_) array_push($u['zbiory'], ...(RODO_MODULE_ZBIORY[$mod] ?? []));
+        $u['zbiory'] = array_values(array_unique($u['zbiory']));
+        sort($u['zbiory']);
+        $u['all'] = false;
+    }
+    unset($u);
+
+    $by = [];
+    foreach ($allZbiory as $z) $by[$z] = ['roles' => [], 'users' => []];
+    foreach ($roles as $r) {
+        if ($r['is_admin']) { foreach ($allZbiory as $z) $by[$z]['roles'][$r['display']] = 'pełny dostęp'; continue; }
+        foreach ($r['modules'] as $mod => $lvl) foreach (RODO_MODULE_ZBIORY[$mod] ?? [] as $z) {
+            if (isset($by[$z])) $by[$z]['roles'][$r['display']] = trim(($by[$z]['roles'][$r['display']] ?? '') . ' ' . $mod . ': ' . $lvl);
+        }
+    }
+    foreach ($users as $u) if ($u['active'] && !$u['all']) foreach ($u['zbiory'] as $z) if (isset($by[$z])) $by[$z]['users'][$u['label']] = true;
+    foreach ($by as &$b) { $b['users'] = array_keys($b['users']); sort($b['users']); }
+    unset($b);
+
+    return ['roles' => array_values($roles), 'users' => array_values($users), 'by_zbior' => $by];
+}
+
 // ───────────────────────── Podsumowanie (pulpit) ─────────────────────────
 
 function rodoDashboard(): array {
