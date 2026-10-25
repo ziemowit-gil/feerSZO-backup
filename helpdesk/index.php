@@ -509,6 +509,65 @@ body.hd-console-page { overflow: hidden; }
 .hd-bulk-bar .btn-outline-secondary{border-color:#666;color:#ddd}
 .hd-bulk-bar .btn-outline-secondary:hover{background:#2b2b2b}
 .hd-bulk-bar .btn-link{color:var(--m-cyan)}
+
+/* ══ Szata Dynamics 365 (Fluent): jasna nawigacja, biała karta, akcent #0f6cbd ══ */
+:root{
+  --m-cyan:#0f6cbd;--m-dark:#242424;--m-dark2:#f3f2f1;
+  --hd-accent:#0f6cbd;--hd-accent-h:#115ea3;--hd-accent-l:#eff6fc;--hd-accent-m:#c7e0f4;
+  --hd-bg:#faf9f8;--hd-bd:#e1dfdd;--hd-bd-l:#edebe9;
+  --hd-tx:#242424;--hd-tx2:#605e5c;--hd-tx3:#8a8886;
+}
+#hdApp{background:#fff;border-color:#e1dfdd}
+#hdSidebar{background:#faf9f8;border-right:1px solid #e1dfdd}
+.hdSb-head{border-bottom:1px solid #e1dfdd}
+.hdSb-logo{color:#242424;font-weight:600;font-size:1rem}
+.hdSb-logo i{color:#0f6cbd}
+.hdSb-new{background:#0f6cbd;color:#fff;font-weight:600;font-size:.85rem;padding:.5rem .7rem}
+.hdSb-new:hover{background:#115ea3}
+.hdSb-sep{color:#605e5c;font-weight:600;font-size:.7rem;letter-spacing:.02em;text-transform:none;padding:.9rem .9rem .25rem}
+.hdSb-item{color:#242424;padding:.45rem .9rem;border-left:3px solid transparent;font-size:.85rem}
+.hdSb-item:hover{background:#f3f2f1;color:#242424}
+.hdSb-item.active{background:#edebe9;color:#242424;font-weight:600;border-left-color:#0f6cbd}
+.hdSb-cnt,.hdSb-item.active .hdSb-cnt{color:#605e5c;font-weight:400}
+.hdSb-cnt.warn{background:#fff4ce;color:#835c00}.hdSb-cnt.danger{background:#fde7e9;color:#a4262c}
+.hdSb-item[data-sb-status]::before{width:8px;height:8px;border-radius:50% !important}
+.hdSb-item.active[data-sb-status]::before{outline:0}
+.hdSb-foot{border-top:1px solid #e1dfdd}
+.hdSb-foot a{color:#605e5c}.hdSb-foot a:hover{background:#f3f2f1;color:#242424}
+#hdSidebar .hdSb-foot a[style]{color:#0f6cbd !important}
+#hdSearchInput{border:1px solid #8a8886;border-bottom-color:#616161;padding:.38rem .65rem .38rem 1.9rem}
+#hdSearchInput:focus{border-color:#0f6cbd;border-bottom:2px solid #0f6cbd}
+.hd-cat-select{border:1px solid #8a8886;color:#242424}
+.hd-cat-select:focus{border-color:#0f6cbd}
+.hdList-count-bar span{text-transform:none;letter-spacing:0;font-size:.75rem;color:#605e5c}
+#hdApp .hd-row{border-left:3px solid transparent;border-bottom:1px solid #edebe9}
+#hdApp .hd-row:hover{background:#f3f2f1}
+#hdApp .hd-row.active{background:#edebe9;border-left-color:#0f6cbd}
+#hdApp .hd-row-num{color:#0f6cbd}
+.hd-unread-dot{background:#0f6cbd}
+.hd-list-pager .page-item.active .page-link{background:#0f6cbd;border-color:#0f6cbd}
+#hdApp .hd-det-title,html body .hd-det-title{font-weight:600;font-size:1.3rem;letter-spacing:0;color:#242424}
+html body .hd-det-num{background:transparent;color:#605e5c;padding:0;font-weight:400}
+#hdApp .hd-side-card,html body .hd-side-card{background:#fff;border:1px solid #e1dfdd}
+#hdApp .hd-side-card-head,html body .hd-side-card-head{background:#fff;border-bottom:1px solid #edebe9;text-transform:none;letter-spacing:0;font-size:.85rem;font-weight:600;color:#242424}
+html body .hd-side-stat-btn{border:1px solid #8a8886;background:#fff;color:#242424}
+html body .hd-side-stat-btn:hover{background:#f3f2f1;border-color:#605e5c;color:#242424}
+#hdApp .hd-reply-box{border:1px solid #e1dfdd}
+#hdApp .hd-reply-hd{background:#fff;border-bottom:1px solid #edebe9;font-weight:600}
+#hdApp .hd-msg-av-req{background:#038387}#hdApp .hd-msg-av-op{background:#0f6cbd}
+#hdApp .hd-msg-user{background:#eff6fc;border:1px solid #c7e0f4}
+#hdApp .hd-msg-op{background:#faf9f8;border:1px solid #e1dfdd}
+#hdApp .hd-msg-intern{background:#fff4ce;border:1px solid #f2e0a0}
+#hdApp .btn-primary,.hd-bulk-bar .btn-primary{background:#0f6cbd;border-color:#0f6cbd}
+#hdApp .btn-primary:hover{background:#115ea3;border-color:#115ea3}
+html body .hd-macro-toggle:hover,html body .hd-macro-toggle.open{background:#eff6fc;border-color:#0f6cbd;color:#0f6cbd}
+html body .hd-macro-toggle,html body .hd-macro-card{border-width:1px}
+html body .hd-bulk-bar{background:#fff;color:#242424;border-top:1px solid #e1dfdd}
+html body .hd-bulk-count{color:#242424}
+html body .hd-bulk-bar .input-group-text,html body .hd-bulk-bar .form-select{background:#fff;border-color:#8a8886;color:#242424}
+html body .hd-bulk-bar .btn-outline-secondary{border-color:#8a8886;color:#242424}
+html body .hd-bulk-bar .btn-outline-secondary:hover{background:#f3f2f1;color:#242424}
+html body .hd-bulk-bar .btn-link{color:#0f6cbd}
 </style>
 
 <!-- ══ LAYOUT ══════════════════════════════════════════════════════════════════ -->
