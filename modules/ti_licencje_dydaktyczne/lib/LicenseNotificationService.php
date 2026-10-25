@@ -106,7 +106,7 @@ final class LicenseNotificationService
         if ($html === '') return 'skipped';
         if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
         try {
-            $id = mail_queue_add($email, $name, $subject, $html, '', $this->module, (int)$ref['id'], '', true, $attachments);
+            $id = mail_queue_add($email, $name, $subject, $html, '', $this->module, (int)$ref['id'], '', true, $attachments, '', [], self::adminCopy($email));
             if ($id <= 0) { $this->log($type, 'email', $email, 'skipped', 'adres zablokowany (konto wirtualne)', $ref, $actor, $fallback); return 'skipped'; }
             $row = db_one("SELECT status, last_error FROM mail_queue WHERE id = ?", [$id]);
             $st = ($row['status'] ?? '') === 'sent' ? 'sent' : 'queued';
@@ -149,6 +149,18 @@ final class LicenseNotificationService
     }
 
     /** @return list<string> */
+    /**
+     * Adresy UDW z kopią każdego maila AM5/AM7 dla administratora (ustawienie ti_products_admin_email, a gdy puste — konta z rolą admin).
+     * Adresata nie dublujemy. @return list<string>
+     */
+    public static function adminCopy(string $recipient): array
+    {
+        try {
+            require_once dirname(__DIR__, 2) . '/ti_products/logic/tiProducts.php';
+            return array_values(array_filter(TiProducts::adminEmails(), fn($a) => strcasecmp($a, trim($recipient)) !== 0));
+        } catch (\Throwable $e) { return []; }
+    }
+
     public static function officeRecipients(): array
     {
         $raw = '';

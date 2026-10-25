@@ -332,7 +332,7 @@ final class LicenseManagementService
         $l = $this->mustLicense($id);
         if ($l['requestStatus'] !== LicenseRequestStatus::Draft) throw new DomainException('Usunąć można tylko wniosek roboczy (pozostałe zostają w dzienniku audytowym).');
         $this->licenses->delete($id);
-        if (function_exists('audit_log')) { try { audit_log('ld.request.delete', ['id' => $id], $actor['id'] ?: null); } catch (\Throwable $e) {} }
+        // AM5 / AM7 nie trafiają do wspólnego dziennika audytu (audit_logs) — historia sprawy jest w license_events
     }
 
     // ── 2. Decyzja licencjodawcy ────────────────────────────────────────────────
