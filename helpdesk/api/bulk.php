@@ -34,6 +34,13 @@ $ids      = array_map('intval', (array)($data['ids'] ?? []));
 $value    = trim((string)($data['value'] ?? ''));
 $ids      = array_filter($ids);
 
+if ($action === 'close_breached') {
+    // Zamknięcie wszystkich otwartych zgłoszeń z przekroczonym terminem SLA — lista liczona po stronie serwera
+    helpdesk_migrate();
+    $ids = hd_breached_ticket_ids();
+    if (!$ids) { echo json_encode(['ok' => true, 'affected' => 0], JSON_UNESCAPED_UNICODE); exit; }
+    $action = 'close'; $data['_breached'] = true;
+}
 if (!$ids) je('Brak wybranych zgłoszeń');
 
 helpdesk_migrate();
@@ -109,7 +116,7 @@ switch ($action) {
                 'ticket_id'   => (int)$t['id'],
                 'user_id'     => $uid,
                 'user_name'   => $u['name'] ?? '',
-                'body'        => 'Zgłoszenie zamknięte grupowo.',
+                'body'        => !empty($data['_breached']) ? 'Zgłoszenie zamknięte grupowo — przekroczony termin SLA.' : 'Zgłoszenie zamknięte grupowo.',
                 'is_internal' => 1,
             ]);
             try { hd_notify_status_change($t, $t['status'], 'zamknięte'); } catch (\Throwable $e) {}

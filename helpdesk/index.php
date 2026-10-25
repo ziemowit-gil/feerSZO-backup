@@ -581,6 +581,8 @@ html body .hd-bulk-bar .btn-outline-secondary{border-color:#8a8886;color:#242424
 html body .hd-bulk-bar .btn-outline-secondary:hover{background:#f3f2f1;color:#242424}
 html body .hd-bulk-bar .btn-link{color:#0f6cbd}
 
+.hd-close-breached{margin-left:auto;display:inline-flex;align-items:center;gap:.35rem;background:#fff;border:1px solid #a4262c;color:#a4262c;padding:.15rem .6rem;font-size:.75rem;cursor:pointer}
+.hd-close-breached:hover,.hd-close-breached:focus-visible{background:#a4262c;color:#fff;outline:none}
 /* Podmenu Administracja w menu bocznym */
 .hdSb-sub-toggle{display:flex;align-items:center;gap:.5rem;width:100%;background:none;border:0;padding:.45rem .9rem;font-size:.78rem;font-weight:600;color:#605e5c;cursor:pointer;text-align:left}
 .hdSb-sub-toggle:hover{background:#f3f2f1;color:#242424}
@@ -805,6 +807,11 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
       </span>
       <?php if ($is_op && $cnt_unread): ?>
       <span style="font-size:.7rem;color:var(--hd-accent);font-weight:600"><?= $cnt_unread ?> nowych</span>
+      <?php endif; ?>
+      <?php if ($is_op && ($cnt_breached = count(hd_breached_ticket_ids()))): ?>
+      <button type="button" class="hd-close-breached" onclick="HdBulk.closeBreached(<?= (int)$cnt_breached ?>)" title="Zamyka wszystkie otwarte zgłoszenia z przekroczonym terminem rozwiązania SLA">
+        <i class="bi bi-x-octagon"></i>Zamknij przekroczone (<?= (int)$cnt_breached ?>)
+      </button>
       <?php endif; ?>
     </div>
 
@@ -1313,6 +1320,17 @@ var HdBulk = {
   clear: function () {
     document.querySelectorAll('#hdListBody .hd-row-chk').forEach(function (c) { c.checked=false; });
     this.update();
+  },
+  closeBreached: function (n) {
+    if (!confirm('Zamknąć ' + n + ' zgłoszeń z przekroczonym terminem SLA? Zgłaszający dostaną powiadomienie o zamknięciu.')) return;
+    fetch(APP + '/helpdesk/api/bulk.php', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ _csrf:CSRF, action:'close_breached' }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { HdApp.toast(d.error || 'Błąd akcji.', 'err'); return; }
+        HdApp.toast('Zamknięto ' + (d.affected || 0) + ' zgłoszeń.', 'ok');
+        setTimeout(function () { window.location.reload(); }, 700);
+      })
+      .catch(function () { HdApp.toast('Błąd sieci.', 'err'); });
   },
   doAction: function (action, value) {
     var ids = this.getChecked();

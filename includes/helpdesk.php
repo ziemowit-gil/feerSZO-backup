@@ -976,6 +976,16 @@ function hd_sla(array $ticket): array {
     return $out;
 }
 
+/** Id otwartych zgłoszeń z przekroczonym terminem rozwiązania SLA (bez wstrzymanych, scalonych i zakończonych). */
+function hd_breached_ticket_ids(): array {
+    $ids = [];
+    foreach (db_all("SELECT * FROM helpdesk_tickets WHERE merged_into IS NULL AND status NOT IN ('rozwiązane','zamknięte')") as $t) {
+        $sla = hd_sla($t);
+        if (($sla['resolution']['state'] ?? '') === 'breached') $ids[] = (int)$t['id'];
+    }
+    return $ids;
+}
+
 /** Mapuje stan SLA na klasę Bootstrap + ikonę + krótki opis. */
 function _hd_sla_meta(array $part): array {
     return match ($part['state']) {
