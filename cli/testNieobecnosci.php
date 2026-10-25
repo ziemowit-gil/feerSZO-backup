@@ -52,6 +52,16 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
         foreach ($o['mail']['to'] ?? [] as $rcpt) if (!str_contains($rcpt, 'example.invalid')) { echo "FAIL wyciek e-maila: $rcpt\n"; $fail++; }
         foreach ((array)($o['sms']['phone'] ?? []) as $ph) if (!preg_match('/^48?6\d{8}$/', (string)$ph) && !preg_match('/^6\d{8}$/', (string)$ph)) { echo "FAIL podejrzany numer SMS: $ph\n"; $fail++; }
     }
+    // Wiadomość Helpdesku wyszła przez SMTP z nazwą „FEER | Helpdesk” w nagłówku From (nazwa kodowana base64 UTF-8)
+    $hd_from = null;
+    foreach (is_file($events) ? file($events, FILE_IGNORE_NEW_LINES) : [] as $l) {
+        $o = json_decode($l, true);
+        if (isset($o['mail']) && str_contains(implode(' ', $o['mail']['to']), 'hd@example.invalid')) {   // temat jest zakodowany — adresata rozpoznajemy po RCPT
+            if (preg_match('/^From: =\?UTF-8\?B\?([^?]+)\?=/mi', $o['mail']['raw'], $mm)) $hd_from = base64_decode($mm[1]);
+            elseif (preg_match('/^From: ([^<\r\n]*)</mi', $o['mail']['raw'], $mm)) $hd_from = trim($mm[1], " \"");
+        }
+    }
+    if ($hd_from !== 'FEER | Helpdesk') { echo "FAIL nagłówek From wiadomości Helpdesku: " . json_encode($hd_from) . "\n"; $fail++; } else echo str_pad('[helpdesk From]', 22) . "FEER | Helpdesk\n";
     $n_mail = $n_sms = 0; foreach (is_file($events) ? file($events) : [] as $l) { $o = json_decode($l, true); if (isset($o['mail'])) $n_mail++; elseif (isset($o['sms'])) $n_sms++; }
     echo "Atrapy: e-maile=$n_mail, SMS=$n_sms\n";
     proc_terminate($gw); proc_close($gw);
@@ -142,6 +152,12 @@ if ($mode === 'logic') {
     // — zwykłe odwołanie (cause=other) bez prośby o kontakt
     $r = ti_cancel_sessions_notify([$a3], 'Awaria', 'Admin T', ['cause' => 'other']);
     t('odwołanie zwykłe: e-mail 1, SMS 1, rebook info', [$r['emails'], $r['sms'], db_one('SELECT status FROM k30_ti_rebook WHERE session_id=?', [$a3])['status']], [1, 1, 'info']);
+
+    // — nadawca wiadomości Helpdesku: „FEER | Helpdesk”; inne maile bez zmian
+    t('helpdesk: nazwa nadawcy domyślna', _mail_apply_system_sender(['context_type' => 'helpdesk_reply', 'subject' => 'x'])['_from_name'] ?? '', 'FEER | Helpdesk');
+    t('helpdesk: inne maile bez nazwy helpdesku', ($m2 = _mail_apply_system_sender(['context_type' => 'ti_leave', 'subject' => 'x']))['_from_name'] ?? '', $m2['_from_name'] ?? '' === 'FEER | Helpdesk' ? 'x' : ($m2['_from_name'] ?? ''));
+    t('helpdesk: nie nadpisuje jawnej nazwy', _mail_apply_system_sender(['context_type' => 'helpdesk_reply', 'subject' => 'x', '_from_name' => 'Inna'])['_from_name'], 'Inna');
+    mail_queue_add('hd@example.invalid', 'Zgłaszający', 'HDTEST zgłoszenie', '<p>x</p>', '', 'helpdesk_test');   // e2e: nagłówek From sprawdza proces nadrzędny
 
     // — pilne SMS do kierownictwa
     $d1 = date('Y-m-d', strtotime('+1 day'));

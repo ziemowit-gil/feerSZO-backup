@@ -420,14 +420,23 @@ function mail_is_system(string $context_type): bool {
  * ustawienie hd_mail_reply_to, a gdy puste — adres pierwszej aktywnej skrzynki Helpdesku (modules/helpdeskMail).
  * Dzięki temu odpowiedź na powiadomienie wraca do skrzynki, z której zgłoszenia i odpowiedzi trafiają do konsoli. '' = to nie mail Helpdesku.
  */
-function _mail_helpdesk_reply_to(array $msg): string {
+function _mail_is_helpdesk(array $msg): bool {
     $ctx = strtolower((string)($msg['context_type'] ?? ''));
     $isHd = str_starts_with($ctx, 'helpdesk');
     if (!$isHd && preg_match('/^\[([A-Z]{2,5}[-\/]?\d{2,4}[-\/]?\d{3,8})\]/', (string)($msg['subject'] ?? ''), $m)) {
         // numer w nawiasie musi być numerem istniejącego zgłoszenia Helpdesku (inaczej np. [CRM/0001/2026] byłoby błędnie przejęte)
         try { $isHd = (bool)db_one("SELECT 1 FROM helpdesk_tickets WHERE number=? OR legacy_number=?", [$m[1], $m[1]]); } catch (\Throwable $e) { $isHd = false; }
     }
-    if (!$isHd) return '';
+    return $isHd;
+}
+
+/** Nazwa nadawcy wiadomości Helpdesku: ustawienie hd_mail_from_name, domyślnie „FEER | Helpdesk” (adres nadawcy bez zmian). */
+function _mail_helpdesk_from_name(): string {
+    return trim(_mail_setting('hd_mail_from_name')) ?: 'FEER | Helpdesk';
+}
+
+function _mail_helpdesk_reply_to(array $msg): string {
+    if (!_mail_is_helpdesk($msg)) return '';
     static $cache = null;
     if ($cache !== null) return $cache;
     $cache = trim(_mail_setting('hd_mail_reply_to'));
@@ -442,6 +451,8 @@ function _mail_helpdesk_reply_to(array $msg): string {
 
 /** Ustawia nadawcę systemowego i Reply-To, gdy włączone i wiadomość jest systemowa bez własnego nadawcy. */
 function _mail_apply_system_sender(array $msg): array {
+    // Wiadomości Helpdesku (powiadomienia, odpowiedzi, potwierdzenia) wychodzą jako „FEER | Helpdesk”
+    if (empty($msg['_from_name']) && _mail_is_helpdesk($msg)) $msg['_from_name'] = _mail_helpdesk_from_name();
     $hdrt = _mail_helpdesk_reply_to($msg);
     $sys = trim(_mail_setting('system_mail_from'));
     if ($sys === '' || trim((string)($msg['from_email'] ?? '')) !== '' || !mail_is_system((string)($msg['context_type'] ?? ''))) {
@@ -450,7 +461,7 @@ function _mail_apply_system_sender(array $msg): array {
     }
     $msg['from_email'] = $sys;
     $msg['_system']    = true;
-    $msg['_from_name'] = trim(_mail_setting('system_mail_from_name')) ?: _mail_from_name();
+    $msg['_from_name'] = !empty($msg['_from_name']) ? $msg['_from_name'] : (trim(_mail_setting('system_mail_from_name')) ?: _mail_from_name());
     $rt = trim(_mail_setting('system_mail_reply_to')) ?: (_mail_setting('notify_from_email') ?: _mail_setting('m365_send_from_email'));
     $msg['_reply_to']  = $hdrt !== '' ? $hdrt : (strcasecmp($rt, $sys) !== 0 ? $rt : '');
     return $msg;
