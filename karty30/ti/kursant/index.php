@@ -880,6 +880,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'requester_phone' => $rphone !== '' ? $rphone : null,
             'source'          => 'panel_kursanta',
         ]);
+        hd_after_create((int)$ticket_id);
         db_insert('helpdesk_messages', [
             'ticket_id' => $ticket_id, 'user_id' => null,
             'user_name' => $rname, 'body' => mb_substr($desc, 0, 5000), 'is_internal' => 0,

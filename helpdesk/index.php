@@ -672,6 +672,9 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
       <a href="<?= APP_URL ?>/helpdesk/admin_email_templates.php">
         <i class="bi bi-envelope-gear"></i>Szablony e-mail
       </a>
+      <a href="<?= APP_URL ?>/modules/helpdeskRules/router.php">
+        <i class="bi bi-diagram-3"></i>Reguły automatyczne
+      </a>
       <a href="<?= APP_URL ?>/helpdesk/admin.php">
         <i class="bi bi-gear"></i>Ustawienia
       </a>

@@ -213,6 +213,7 @@ function hdMailIntakeOne(array $in, array $c, array $own): string
                    VALUES (?,?,?,?,?,?,?,?)")
         ->execute([hdMailKey($c), (int)$c['id'], $ticketId, 'ticket', (int)$in['mailbox_id'], $from, $subject, (string)$c['sent_at']]);
     hd_redmine_sync_ticket($ticketId);
+    hd_after_create($ticketId);
     hdMailNotifyOperators($ticketId, $number, $title);
     if ((int)$in['ack_enabled']) hdMailAck($ticketId, $number, $title, $name, $from);
     return 'tickets';

@@ -202,6 +202,7 @@ function _li_finish_ticket(string $method): array {
         'requester_phone' => $row['telefon'] ?? null,
         'source'          => 'login_issue',
     ]);
+    hd_after_create((int)$ticket_id);
     db_insert('helpdesk_messages', [
         'ticket_id' => $ticket_id, 'user_id' => null,
         'user_name' => $name ?: 'Zgłaszający', 'body' => $opis, 'is_internal' => 0,

@@ -46,6 +46,14 @@ const HD_CATEGORY_PREFIXES = [
  */
 const HD_CATEGORY_DICT = 'helpdesk_kategorie';
 
+/** Po utworzeniu zgłoszenia (każde źródło): reguły automatyczne Helpdesku. Nigdy nie przerywa tworzenia. */
+function hd_after_create(int $ticketId): void {
+    try {
+        require_once dirname(__DIR__) . '/modules/helpdeskRules/lib/helpdeskRules.php';
+        hdRulesApplyOnCreate($ticketId);
+    } catch (\Throwable $e) { error_log('[helpdesk] reguły: ' . $e->getMessage()); }
+}
+
 function hd_number_prefix_for(string $category): string {
     static $map = null;
     if ($map === null) {
@@ -1728,6 +1736,7 @@ function hd_ticket_quick_create(array $requester, string $title, string $descrip
     ]);
 
     hd_redmine_sync_ticket($ticket_id); // integracja Redmine (best-effort)
+    hd_after_create($ticket_id);
 
     // E-mail potwierdzający do zgłaszającego + powiadomienie operatorów —
     // ten sam wzorzec co w helpdesk/new.php, w try/catch (mail nie może

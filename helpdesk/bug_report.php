@@ -74,6 +74,7 @@ try {
           'bug_report',
       ]);
     $ticket_id = (int)db()->lastInsertId();
+    hd_after_create($ticket_id);
 
     echo json_encode([
         'ok'     => true,

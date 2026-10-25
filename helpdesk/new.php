@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         hd_redmine_sync_ticket($ticket_id); // integracja Redmine (best-effort)
+        hd_after_create($ticket_id);
 
         // Załączniki
         if (!empty($_FILES['attachments']['name'][0])) {

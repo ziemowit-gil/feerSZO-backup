@@ -60,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_new_ticket'])) {
             'requester_phone' => $req_phone ?: null,
             'source'          => 'panel_wolontariusza',
         ]);
+        hd_after_create((int)$ticket_id);
 
         db_insert('helpdesk_messages', [
             'ticket_id'   => $ticket_id,
