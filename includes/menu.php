@@ -448,6 +448,19 @@ function _menu_editor(): array {
         $obs_g[] = _mi('Helpdesk','/helpdesk/index.php','bi-ticket-perforated',['match'=>'/helpdesk/','badge'=>$cnt['hd'],'kw'=>'helpdesk zgłoszenie it wsparcie']);
         if ($cnt['alias_op'])
             $obs_g[] = _mi('Aliasy e-mail','/admin/email_aliasy.php','bi-at',['match'=>'/admin/email_aliasy','badge'=>$cnt['alias'],'kw'=>'alias email']);
+        /* Helpdesk ma własną nawigację (lista, karta zgłoszenia, podmenu Administracja) — w pasku SZO jedno wejście,
+           reszta wyszukiwalna w Ctrl+K. */
+        $biuro_search[] = _mi('Nowe zgłoszenie IT','/helpdesk/new.php','bi-plus-circle',['match'=>'/helpdesk/new','kw'=>'helpdesk nowe zgłoszenie problem awaria wniosek it']);
+        if ($cnt['alias_op']) {
+            $biuro_search[] = _mi('Helpdesk — raporty','/modules/helpdeskReports/router.php','bi-graph-up',['match'=>'/modules/helpdeskReports/','kw'=>'helpdesk raporty statystyki sla csat czas pracy eksport csv']);
+            $biuro_search[] = _mi('Helpdesk — gotowe odpowiedzi i makra','/helpdesk/admin_macros.php','bi-card-text',['match'=>'/helpdesk/admin_macros','kw'=>'helpdesk makra gotowe odpowiedzi przebiegi akcje']);
+            $biuro_search[] = _mi('Helpdesk — moje powiadomienia','/modules/helpdeskNotify/router.php','bi-bell',['match'=>'/modules/helpdeskNotify/','kw'=>'helpdesk powiadomienia operatora urlop wstrzymaj e-mail']);
+            if (is_admin()) {
+                $biuro_search[] = _mi('Helpdesk — reguły automatyczne','/modules/helpdeskRules/router.php','bi-diagram-3',['match'=>'/modules/helpdeskRules/','kw'=>'helpdesk reguły automatyzacje wyzwalacze kroki']);
+                $biuro_search[] = _mi('Helpdesk — szablony e-mail','/helpdesk/admin_email_templates.php','bi-envelope-gear',['match'=>'/helpdesk/admin_email_templates','kw'=>'helpdesk szablony maili']);
+                $biuro_search[] = _mi('Helpdesk — ustawienia i migracja numerów','/helpdesk/admin.php','bi-gear',['match'=>'/helpdesk/admin.php','kw'=>'helpdesk ustawienia skrzynki e-mail csat sla godziny numeracja migracja numerów zgłoszeń operatorzy']);
+            }
+        }
     }
     if (is_admin() || (current_user()['role'] ?? '') === 'editor')
         $obs_g[] = _mi('Portal Usług IT','/modules/it_portal/index.php','bi-life-preserver',['match'=>'/modules/it_portal/','kw'=>'portal usługi it instrukcje komunikaty awarie phishing baza wiedzy it.feer.org.pl']);
@@ -589,11 +602,32 @@ function _menu_editor(): array {
             'id'=>'admin','label'=>'Admin','icon'=>'bi-shield-shaded','badge'=>$cnt['adm'],'end'=>true,
             'path'=>'/admin/index.php','kw'=>'admin panel ustawienia',
             'active'=>$admin_active,
-            'search'=>array_merge(array_slice($adm_main, 1), $integ),
+            'search'=>_menu_admin_search(array_merge(array_slice($adm_main, 1), $integ)),
         ];
     }
 
     return _menu_prune($nodes);
+}
+
+/**
+ * Pozycje panelu admina do Ctrl+K: cały rejestr pulpitu (modules/adminRegistry — jedno źródło z admin/index.php)
+ * plus ręcznie dopisane pozycje spoza rejestru ($extra). Bez duplikatów ścieżek i bez kotwic (#…).
+ */
+function _menu_admin_search(array $extra): array {
+    $out = []; $seen = [];
+    try {
+        require_once dirname(__DIR__) . '/modules/adminRegistry/lib/adminRegistry.php';
+        foreach (adminRegistry() as $group => $g) {
+            foreach ($g['items'] as $it) {
+                $url = (string)$it['url'];
+                if ($url === '' || $url[0] === '#' || isset($seen[$url])) continue;
+                $seen[$url] = true;
+                $out[] = _mi($it['label'], $url, $it['icon'], ['match'=>strtok($url, '?#'), 'kw'=>trim(($it['kw'] ?? '') . ' ' . $group), 'danger'=>!empty($it['danger'])]);
+            }
+        }
+    } catch (\Throwable $e) { error_log('[menu] rejestr admina: ' . $e->getMessage()); }
+    foreach ($extra as $it) if (!isset($seen[$it['path']])) { $seen[$it['path']] = true; $out[] = $it; }
+    return $out;
 }
 
 /**
@@ -622,32 +656,39 @@ function menu_build(): array {
  * z którego korzystają codziennie.
  */
 function menu_search_index(array $tree): array {
-    $out = [];
+    $out = []; $seen = [];
+    // Ta sama ścieżka bywa w kilku miejscach (zakładki, klucz `search`, rejestr admina) — w palecie zostaje pierwsze wystąpienie.
+    $add = function (array $row) use (&$out, &$seen): void {
+        $k = (string)$row['path'];
+        if ($k !== '' && isset($seen[$k])) return;
+        $seen[$k] = true;
+        $out[] = $row;
+    };
     foreach ($tree as $node) {
         // pozycje ukryte w pasku, ale wyszukiwalne
         foreach (($node['search'] ?? []) as $it) {
-            $out[] = [
+            $add([
                 'label'=>$it['label'],'sub'=>$node['label'],'path'=>$it['path'],
                 'icon'=>$it['icon'],'badge'=>(int)($it['badge'] ?? 0),'danger'=>false,
                 'kw'=>trim($node['label'] . ' ' . ($it['kw'] ?? '')),
-            ];
+            ]);
         }
         // zakładka-link
         if (!empty($node['path']) && empty($node['groups'])) {
-            $out[] = [
+            $add([
                 'label'=>$node['label'],'sub'=>'','path'=>$node['path'],
                 'icon'=>$node['icon'],'badge'=>0,'danger'=>false,'kw'=>$node['kw'] ?? '',
-            ];
+            ]);
             continue;
         }
         foreach (($node['groups'] ?? []) as $g) {
             $crumb = $node['label'] . ($g['label'] ? ' · ' . $g['label'] : '');
             foreach ($g['items'] as $it) {
-                $out[] = [
+                $add([
                     'label'=>$it['label'],'sub'=>$crumb,'path'=>$it['path'],
                     'icon'=>$it['icon'],'badge'=>(int)$it['badge'],'danger'=>!empty($it['danger']),
                     'kw'=>trim($crumb . ' ' . ($it['kw'] ?? '')),
-                ];
+                ]);
             }
         }
     }
