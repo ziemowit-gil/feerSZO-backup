@@ -162,6 +162,8 @@ function dydMenuSections(): array
     // ── Kierownik: grupy wg rodzaju pracy, od najczęściej używanych ──────────────
     $scPending = 0;
     try { require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerWorkflow.php'; $scPending = (int)sc_pending_count(); } catch (\Throwable $e) {}
+    $nRebook = 0;
+    try { require_once dirname(__DIR__, 3) . '/includes/ti_leaves.php'; $nRebook = ti_rebook_open_count(); } catch (\Throwable $e) {}
     $sfPending = 0;
     try { $sfPending = (int)(db_one("SELECT COUNT(*) AS c FROM k30_ti_sfile WHERE status='pending' AND deleted_at IS NULL")['c'] ?? 0); } catch (\Throwable $e) {}
     $nNabor = 0;   // Nabór do grup: nowe zgłoszenia potwierdzone przez opiekunów (modules/ti, tabela może jeszcze nie istnieć)
@@ -220,6 +222,7 @@ function dydMenuSections(): array
     $sec[] = ['key' => 'k_plan', 'staff' => true, 'label' => 'Planowanie', 'items' => [
         $it('', 'Planista zajęć',         'planista.php',        'calendar3-range'),
         $it('', 'Zgłoszenia trenerów',    'zgloszenia.php',      'inbox', $scPending, 'warning'),
+        $it('', 'Nowe terminy po odwołaniu', 'nowyTermin.php',   'calendar-plus', $nRebook, 'warning'),
         $it('', 'Generator ciągów zajęć', 'generatorCiagow.php', 'magic'),
         $it('', 'Raporty planisty',       'raportyPlanisty.php', 'bar-chart-line'),
         $it('', 'Sale / lokalizacje',     'sale.php',            'geo-alt'),

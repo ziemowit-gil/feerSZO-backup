@@ -181,7 +181,8 @@ function sc_apply_item(int $item_id, string $action, array $p, int $by, bool $fo
     if ($action === 'cancel') {
         $cancel_reason = trim((string)($p['reason'] ?? '')) ?: 'Niedostępność prowadzącego';
         if (function_exists('ti_absence_cancel_sessions')) {
-            ti_absence_cancel_sessions([$sid], $cancel_reason, sc_user_name($by), $by, true, true, !empty($p['ask_contact']));   // e-mail + SMS do uczestników
+            ti_absence_cancel_sessions([$sid], $cancel_reason, sc_user_name($by), $by, true, true, !empty($p['ask_contact']),
+                (int)(db_one("SELECT leave_id FROM k30_sc_requests WHERE id=?", [(int)$it['request_id']])['leave_id'] ?? 0));   // e-mail + SMS do uczestników
         } else {
             k30_ti_cancel_session($sid, $cancel_reason, 'doradca', sc_user_name($by));
         }

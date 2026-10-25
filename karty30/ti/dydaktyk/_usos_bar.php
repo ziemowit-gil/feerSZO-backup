@@ -156,12 +156,15 @@ if (dyd_is_staff()) {
     // Planowanie zajęć (planista) — osobna sekcja w pasku górnym
     $_sc_pending = 0;
     try { require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerWorkflow.php'; $_sc_pending = sc_pending_count(); } catch (\Throwable $e) {}
+    $_rb_open = 0;
+    try { require_once dirname(__DIR__, 3) . '/includes/ti_leaves.php'; $_rb_open = ti_rebook_open_count(); } catch (\Throwable $e) {}
     $_usos_sections['planowanie'] = [
         'label' => 'Planowanie',
         'href'  => 'planista.php',
         'items' => [
             $_it('', 'Planista (kalendarz i Gantt)', 'planista.php'),
             $_it('', 'Zgłoszenia trenerów',          'zgloszenia.php', $_sc_pending, 'warning'),
+            $_it('', 'Nowe terminy po odwołaniu',    'nowyTermin.php', $_rb_open, 'warning'),
             $_it('', 'Generator ciągów zajęć',       'generatorCiagow.php'),
             $_it('', 'Raporty planisty',             'raportyPlanisty.php'),
             $_it('', 'Limity i kwalifikacje kadry',  'kadraLimity.php'),

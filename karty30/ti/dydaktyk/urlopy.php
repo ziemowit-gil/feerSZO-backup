@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$ids) { flash_set('danger', 'Zaznaczone zajęcia nie kolidują już z tą nieobecnością.'); header('Location: ' . $back); exit; }
         $reason = trim($_POST['reason'] ?? '');
         if ($reason === '') $reason = 'Nieobecność prowadzącego (' . mb_strtolower(ti_leave_type_label((string)$leave['type'])) . ')';
-        $r = ti_absence_cancel_sessions($ids, $reason, (string)($me['name'] ?? ''), (int)$leave['instructor_id'], !empty($_POST['notify_email']), !empty($_POST['notify_sms']), !empty($_POST['ask_contact']));
+        $r = ti_absence_cancel_sessions($ids, $reason, (string)($me['name'] ?? ''), (int)$leave['instructor_id'], !empty($_POST['notify_email']), !empty($_POST['notify_sms']), !empty($_POST['ask_contact']), $lid);
         // Pozycje zgłoszenia oznaczamy jako odwołane
         db()->prepare("UPDATE k30_sc_request_items SET resolution='cancel', resolved_by=?, resolved_at=datetime('now')
                         WHERE resolution='pending' AND session_id IN (" . implode(',', $ids) . ")

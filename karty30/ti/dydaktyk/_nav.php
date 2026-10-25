@@ -36,7 +36,7 @@ const DYD_NAV_PAGES = [
                       'konsultacjeStart.php', 'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'kolejka.php', 'choose_mode.php',
                       'konsultacjeZestawienia.php', 'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php',
                       'konsultacjePfronDokumenty.php'],
-    'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
+    'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php', 'nowyTermin.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'dokumentyKursanta.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
                     'dostepnosci.php', 'sale.php', 'sale_rezerwacje.php', 'saleFormularz.php', 'okresy.php', 'przedmioty.php',
@@ -162,6 +162,7 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         } elseif ($staff && !$acting) {
             $items[] = ['Planista zajęć', 'planista.php', 'calendar3-range'];
             $items[] = ['Zgłoszenia trenerów', 'zgloszenia.php', 'inbox'];
+            $items[] = ['Nowe terminy po odwołaniu', 'nowyTermin.php', 'calendar-plus'];
             $items[] = ['Generator ciągów zajęć', 'generatorCiagow.php', 'magic'];
             $items[] = ['Raporty planisty', 'raportyPlanisty.php', 'bar-chart-line'];
         } else {

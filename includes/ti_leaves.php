@@ -15,6 +15,8 @@ const TI_LEAVE_TYPES = [
     'inne'       => 'Inne',
 ];
 
+require_once __DIR__ . '/ti_rebook.php';
+
 function ti_leave_type_label(string $code): string {
     return TI_LEAVE_TYPES[$code] ?? $code;
 }

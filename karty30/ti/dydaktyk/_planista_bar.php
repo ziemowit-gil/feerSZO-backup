@@ -7,10 +7,12 @@
 $PL_CUR   = $PL_CUR   ?? '';
 $PL_LABEL = $PL_LABEL ?? '';
 try { require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerWorkflow.php'; $_pl_pending = sc_pending_count(); } catch (\Throwable $e) { $_pl_pending = 0; }
+try { require_once dirname(__DIR__, 3) . '/includes/ti_leaves.php'; $_pl_rebook = ti_rebook_open_count(); } catch (\Throwable $e) { $_pl_rebook = 0; }
 /** [etykieta, adres, ikona bi-*, licznik, wariant, grupa] */
 $_pl_defs = [
     ['Planista (kalendarz, Gantt)',   'planista.php',          'calendar3-range', 0, '', 'Planowanie'],
     ['Zgłoszenia trenerów',           'zgloszenia.php',        'inbox',           $_pl_pending, 'warning', 'Planowanie'],
+    ['Nowe terminy po odwołaniu',     'nowyTermin.php',        'calendar-plus',   $_pl_rebook, 'warning', 'Planowanie'],
     ['Generator ciągów zajęć',        'generatorCiagow.php',   'magic',           0, '', 'Planowanie'],
     ['Raporty planisty',              'raportyPlanisty.php',   'bar-chart-line',  0, '', 'Planowanie'],
     ['Limity i kwalifikacje kadry',   'kadraLimity.php',       'person-gear',     0, '', 'Kadra i zasoby'],
