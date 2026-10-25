@@ -357,6 +357,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    // „Tylko rozliczenie licencji” — uczestnik bez zajęć; nie naliczamy lekcji (jak „bez rozliczeń”), a każda licencja musi mieć kwotę
+    // miesięczną i dzień rozliczenia. Po włączeniu prosimy o dodanie licencji (zakładka Licencje).
+    if ($op === 'toggle_licenses_only') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
+        if ($acc) {
+            $v = empty($acc['licenses_only']) ? 1 : 0;
+            db()->prepare("UPDATE k30_ti_student_accounts SET licenses_only=?, updated_at=datetime('now') WHERE id=?")->execute([$v, $aid]);
+            if ($v) {
+                flash_set('warning', 'Włączono „tylko rozliczenie licencji”: lekcje nie są naliczane. Dodaj teraz licencję z kwotą miesięczną i dniem rozliczenia — uczestnik dostanie e-mail i SMS z kwotą i terminem, a potem przypomnienie dzień przed każdym terminem.');
+                header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
+            }
+            flash_set('success', 'Wyłączono „tylko rozliczenie licencji”. Zajęcia znów rozliczane według ustawień; istniejące licencje z rozliczeniem miesięcznym działają dalej.');
+        }
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
     // „Wymaga dokumentu potwierdzającego” — po zalogowaniu kursant wgrywa skan albo składa oświadczenie (modules/ti_student_docs)
     if ($op === 'doc_required') {
         require_once dirname(__DIR__, 3) . '/modules/ti_student_docs/logic/studentDocs.php';
@@ -1593,6 +1610,19 @@ function printBulk(){
         </div>
         <div class="kk-row">
           <div class="kk-row-info">
+            <div class="kk-row-title">Tylko rozliczenie licencji
+              <span class="kk-state <?= !empty($sa['licenses_only']) ? 'kk-state-on' : 'kk-state-off' ?> ms-1"><?= !empty($sa['licenses_only']) ? 'tak' : 'nie' ?></span></div>
+            <div class="kk-row-desc">Uczestnik bez zajęć: nie naliczamy lekcji, a rozliczamy wyłącznie licencje (kwota miesięczna, dzień rozliczenia, ewentualny rabat). E-mail i SMS w dniu przypisania oraz przypomnienie dzień przed każdym terminem. Niedostępny do wysyłek CRM.</div>
+          </div>
+          <form method="post" class="kk-row-ctl">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="toggle_licenses_only">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <button type="submit" class="btn btn-sm btn-outline-secondary"><?= !empty($sa['licenses_only']) ? 'Wyłącz' : 'Włącz' ?></button>
+          </form>
+        </div>
+        <div class="kk-row">
+          <div class="kk-row-info">
             <div class="kk-row-title">Bez rozliczeń i powiadomień
               <span class="kk-state <?= !empty($sa['no_billing']) ? 'kk-state-on' : 'kk-state-off' ?> ms-1"><?= !empty($sa['no_billing']) ? 'tak' : 'nie' ?></span></div>
             <div class="kk-row-desc">Nie naliczamy należności, nie wysyłamy SMS ani e-maili. Istniejące rozliczenia zostają.</div>
@@ -1795,6 +1825,12 @@ function printBulk(){
       <div class="small fw-semibold text-body-secondary mb-1">
         Licencje na oprogramowanie <span class="fw-normal">(inne niż Microsoft 365 — Adobe, Canva, antywirus…)</span>
       </div>
+      <?php if (!empty($sa['licenses_only'])): $_has_billed = (bool)array_filter($sa_licenses, fn($x) => $x['status'] !== 'revoked' && TiLicencjeManager::amounts($x)); if (!$_has_billed): ?>
+      <div class="alert alert-warning py-2 small mb-2" role="alert" style="max-width:640px">
+        To konto ma opcję <strong>„tylko rozliczenie licencji”</strong>, ale nie ma jeszcze licencji z rozliczeniem miesięcznym. Dodaj licencję poniżej —
+        podaj <strong>kwotę miesięczną</strong> i (opcjonalnie) dzień rozliczenia oraz rabat. Uczestnik dostanie e-mail i SMS z kwotą i terminem.
+      </div>
+      <?php endif; endif; ?>
       <?php if ($sa_licenses): ?>
       <ul class="list-group list-group-flush mb-2" style="max-width:560px">
         <?php foreach ($sa_licenses as $sl): $sl_st = TiLicencjeManager::statusOf($sl); ?>
@@ -1805,6 +1841,10 @@ function printBulk(){
           <span class="<?= $sl_st === 'expired' ? 'text-danger fw-semibold' : ($sl_st === 'expiring' ? 'text-warning-emphasis fw-semibold' : 'text-body-secondary') ?>">do <?= h($sl['expires_at']) ?><?= $sl_st === 'expired' ? ' (wygasła)' : ($sl_st === 'expiring' ? ' (wygasa wkrótce)' : '') ?></span>
           <?php endif; ?>
           <span class="badge border text-body" title="Forma rozliczenia"><?= $sl['billing_form'] !== '' ? h($sl['billing_form']) : 'brak formy rozliczenia' ?></span>
+          <?php $sl_am = TiLicencjeManager::amounts($sl); if ($sl_am): ?>
+          <span class="badge text-bg-light border" title="Rozliczenie miesięczne: kwota do zapłaty, dzień miesiąca<?= $sl_am[0] !== $sl_am[1] ? ', po rabacie (cena ' . number_format($sl_am[0], 2, ',', ' ') . ' zł)' : '' ?>">
+            <?= number_format($sl_am[1], 2, ',', ' ') ?> zł · <?= (int)$sl['billing_day'] ?>. dnia<?= $sl_am[0] !== $sl_am[1] ? ' · rabat' : '' ?></span>
+          <?php endif; ?>
           <form method="post" class="ms-auto" onsubmit="return confirm('Cofnąć przypisanie licencji „<?= h(addslashes($sl['license_name'])) ?>”?')">
             <input type="hidden" name="_token"       value="<?= h(dyd_token()) ?>">
             <input type="hidden" name="_op"          value="license_revoke">
@@ -1857,6 +1897,28 @@ function printBulk(){
         <div>
           <label class="form-label small mb-0" for="lic_bref">Nr faktury / kod</label>
           <input type="text" class="form-control form-control-sm font-monospace" id="lic_bref" name="billing_ref" maxlength="190" style="width:150px">
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_amt">Kwota mies. (zł)<?= !empty($sa['licenses_only']) ? ' <span class="text-danger" aria-hidden="true">*</span>' : '' ?></label>
+          <input type="text" inputmode="decimal" class="form-control form-control-sm" id="lic_amt" name="monthly_amount" style="width:90px" placeholder="np. 49,00"<?= !empty($sa['licenses_only']) ? ' required' : '' ?>>
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_day">Dzień rozliczenia</label>
+          <input type="number" min="1" max="31" class="form-control form-control-sm" id="lic_day" name="billing_day" style="width:80px" placeholder="dziś">
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_dt">Rabat</label>
+          <select class="form-select form-select-sm" id="lic_dt" name="discount_type" style="width:90px">
+            <option value="">brak</option><option value="pct">%</option><option value="amt">zł</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_dv">Wartość rabatu</label>
+          <input type="text" inputmode="decimal" class="form-control form-control-sm" id="lic_dv" name="discount_value" style="width:80px">
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_dn">Opis rabatu</label>
+          <input type="text" class="form-control form-control-sm" id="lic_dn" name="discount_note" maxlength="120" style="width:150px" placeholder="np. edukacyjny">
         </div>
         <div class="form-check mb-1">
           <input class="form-check-input" type="checkbox" id="lic_notify" name="notify" value="1" checked>

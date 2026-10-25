@@ -38,9 +38,10 @@ function ti_virtual_blocked(string $email = '', string $phone = ''): bool {
 }
 
 /** Czy wszystkie konta TI tej osoby są oznaczone „bez rozliczeń” (nie naliczamy jej należności). */
+/** „Bez rozliczeń” = no_billing ALBO „tylko rozliczenie licencji” (bez zajęć nie ma czego naliczać; licencje rozlicza moduł ti_licencje). */
 function ti_client_no_billing(int $client_id): bool {
     try {
-        $r = db_one("SELECT COUNT(*) n, SUM(COALESCE(no_billing,0)) v FROM k30_ti_student_accounts WHERE client_id=?", [$client_id]);
+        $r = db_one("SELECT COUNT(*) n, SUM(CASE WHEN COALESCE(no_billing,0)=1 OR COALESCE(licenses_only,0)=1 THEN 1 ELSE 0 END) v FROM k30_ti_student_accounts WHERE client_id=?", [$client_id]);
     } catch (\Throwable $e) { return false; }
     return (int)($r['n'] ?? 0) > 0 && (int)$r['n'] === (int)($r['v'] ?? 0);
 }

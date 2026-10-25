@@ -120,7 +120,8 @@ foreach ($catalog as $c) if ((int)$c['id'] === $soft_id) $soft_edit = $c;
 
 // Wartości formularza przypisania/edycji: z błędnie wysłanego POST, z edytowanego wiersza albo domyślne.
 $fv = ['license_id' => 0, 'client_id' => 0, 'login' => '', 'access_key' => '', 'notes' => '', 'issued_at' => $today,
-       'expires_at' => '', 'billing_form' => '', 'billing_ref' => '', 'billing_note' => ''];
+       'expires_at' => '', 'billing_form' => '', 'billing_ref' => '', 'billing_note' => '',
+       'monthly_amount' => '', 'billing_day' => '', 'discount_type' => '', 'discount_value' => '', 'discount_note' => ''];
 if ($edit) {
     foreach ($fv as $k => $_) $fv[$k] = (string)($k === 'issued_at' ? ($edit['issued'] ?? $today) : ($edit[$k] ?? ''));
 }
@@ -343,6 +344,26 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="col-lg-8">
           <label class="form-label fw-semibold" for="lic-bnote">Notatka rozliczeniowa <span class="fw-normal text-body-secondary">(wewnętrzna — kursant jej nie widzi)</span></label>
           <input type="text" class="form-control" id="lic-bnote" name="billing_note" value="<?= h($fv['billing_note']) ?>" maxlength="500">
+        </div>
+        <div class="col-12">
+          <fieldset class="border rounded p-2">
+            <legend class="float-none w-auto px-1 fs-6 fw-semibold mb-1">Rozliczenie miesięczne <span class="fw-normal text-body-secondary">(opcjonalne — wymagane dla kont „tylko rozliczenie licencji”)</span></legend>
+            <div class="row g-2">
+              <div class="col-sm-3"><label class="form-label" for="lic-amt">Kwota miesięczna (zł)</label>
+                <input type="text" inputmode="decimal" class="form-control" id="lic-amt" name="monthly_amount" value="<?= h($fv['monthly_amount']) ?>" placeholder="np. 49,00"></div>
+              <div class="col-sm-2"><label class="form-label" for="lic-day">Dzień rozliczenia</label>
+                <input type="number" min="1" max="31" class="form-control" id="lic-day" name="billing_day" value="<?= h($fv['billing_day']) ?>" placeholder="jak data wydania"></div>
+              <div class="col-sm-2"><label class="form-label" for="lic-dt">Rabat</label>
+                <select class="form-select" id="lic-dt" name="discount_type"><option value="">brak</option>
+                  <option value="pct"<?= $fv['discount_type'] === 'pct' ? ' selected' : '' ?>>procentowy (%)</option>
+                  <option value="amt"<?= $fv['discount_type'] === 'amt' ? ' selected' : '' ?>>kwotowy (zł)</option></select></div>
+              <div class="col-sm-2"><label class="form-label" for="lic-dv">Wartość rabatu</label>
+                <input type="text" inputmode="decimal" class="form-control" id="lic-dv" name="discount_value" value="<?= h($fv['discount_value']) ?>"></div>
+              <div class="col-sm-3"><label class="form-label" for="lic-dn">Opis rabatu</label>
+                <input type="text" class="form-control" id="lic-dn" name="discount_note" maxlength="120" value="<?= h($fv['discount_note']) ?>" placeholder="np. rabat edukacyjny"></div>
+            </div>
+            <div class="form-text">Uczestnik dostaje e-mail i SMS w dniu przypisania (kwota po rabacie, forma rozliczenia, dzień miesiąca, informacja o rabacie), a co miesiąc przypomnienie dzień przed terminem.</div>
+          </fieldset>
         </div>
         <?php if (!$edit): ?>
         <div class="col-lg-4">

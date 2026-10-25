@@ -512,6 +512,7 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0",
         // „Bez rozliczeń” — nie naliczamy należności, nie wysyłamy SMS/e-mail (rachunek nadany zostaje)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN no_billing INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN licenses_only INTEGER NOT NULL DEFAULT 0",   // „tylko rozliczenie licencji” (modules/ti_licencje) — jak no_billing dla zajęć
         // „Kursant uproszczony” — w panelu kursanta tylko terminy zajęć (zakładka Moje lekcje), patrz student_is_simple()
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN simple_mode INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_dydaktyka INTEGER NOT NULL DEFAULT 1",
