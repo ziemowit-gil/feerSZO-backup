@@ -146,6 +146,9 @@ html body.ti-metro .kier-sidenav a:focus-visible, html body.ti-metro .kier-siden
 @media (min-width: 992px) {
   html body.ti-metro .kier-sidenav { position:fixed; top:var(--kier-top, 66px); bottom:0; left:0; width:264px; margin:0; overflow-y:auto; overscroll-behavior:contain; z-index:1030; }
   html body.ti-metro .kier-sidenav.kier-embed { top:var(--kier-top, 66px); }
+  /* Menu nie zostawia wolnej przestrzeni: kolumna elastyczna, a to, co zostaje pod ostatnią pozycją, wypełnia kolor ostatniej grupy */
+  html body.ti-metro .kier-sidenav { display:flex; flex-direction:column; padding-bottom:0; }
+  html body.ti-metro .kier-sidenav::after { content:''; flex:1 0 0; min-height:0; background:var(--g); }
 }
 html body.ti-metro .dyd-side-toggle { background:var(--dm-dark) !important; }
 

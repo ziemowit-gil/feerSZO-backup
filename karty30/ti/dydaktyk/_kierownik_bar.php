@@ -204,7 +204,12 @@ $_kier_sections = [
   }
 </style>
 
-<nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" id="kierSidenav" style="--g:#0b5582" aria-label="Menu: <?= h($KIER_TITLE) ?>">
+<?php
+// Kolor wypełnienia pod ostatnią pozycją (menu nie zostawia pustego pola): kolor ostatniej niepustej grupy, a na liście płaskiej niebieski
+$_kier_fill = '#0b5582';
+if (!$KIER_FLAT) foreach ($_kier_order as $_fi => $_fg) if (!empty($_kier_by_grp[$_fg])) $_kier_fill = $_kier_col((string)$_fg, (int)$_fi);
+?>
+<nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" id="kierSidenav" style="--g:<?= h($_kier_fill) ?>" aria-label="Menu: <?= h($KIER_TITLE) ?>">
   <details open>
     <summary><i class="bi bi-list" aria-hidden="true"></i> Menu: <?= h(mb_strtolower($KIER_TITLE)) ?></summary>
     <div>
