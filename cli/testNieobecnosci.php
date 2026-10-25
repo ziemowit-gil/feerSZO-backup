@@ -310,7 +310,7 @@ switch ($pmode) {
     case 'get_godziny':   $script = 'godziny.php'; $_GET['r'] = 'podsumowanie'; $expect = 'gh-nav'; break;
     case 'get_revenue':   $script = 'raportPrzychodu.php'; $expect = 'Scenariusze frekwencji'; break;
     case 'get_raporty':   $script = 'wydruki.php'; $expect = 'Przychód i prognozy'; break;   // zestawienia w sekcji „Raporty” strony Wydruki i raporty
-    case 'get_plan':      $script = 'planPubliczny.php'; $_GET['wyglad'] = 'klasyczny'; $expect = 'aria-label="Rodzaj widoku"'; break;   // portal planu: przełącznik Pełny / Uproszczony w nagłówku
+    case 'get_plan':      $script = 'planPubliczny.php'; $_GET['wyglad'] = 'klasyczny'; $expect = 'class="login-state is-out"'; break;   // portal planu: przełącznik Pełny / Uproszczony w nagłówku
     case 'get_side':      $_GET['menu'] = 'side'; $expect = 'dostępność prowadzących'; break;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') $_POST['_token'] = dyd_token();

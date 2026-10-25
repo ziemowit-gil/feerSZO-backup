@@ -119,7 +119,10 @@ function tiPlanPortalOpen(array $o): void {
         <?php if (!$isFull): ?><span class="view-opt is-on" aria-current="true">Uproszczony</span><?php else: ?>
         <a class="view-opt" href="<?= $vu('uproszczony') ?>" title="Pokaż plan tak, jak widzą go osoby bez logowania">Uproszczony</a><?php endif; ?>
       </span>
-      <?php if ($canFull): ?><a class="login-btn" href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a><?php endif; ?>
+      <?php // Stan zalogowania — osobno od rodzaju widoku: zalogowany może oglądać plan także w widoku uproszczonym ?>
+      <span class="login-state <?= $canFull ? 'is-in' : 'is-out' ?>" role="status"><i class="<?= $canFull ? 'fa-solid fa-user-check' : 'fa-regular fa-user' ?>" aria-hidden="true"></i><?= $canFull ? 'Zalogowano' : 'Niezalogowany' ?></span>
+      <?php if ($canFull): ?><a class="login-btn" href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a>
+      <?php else: ?><a class="login-btn" href="<?= tiPlanPortalUrl($self, ['login' => 1]) ?>" title="Logowanie pracowników (pełny plan)">Zaloguj</a><?php endif; ?>
     </div>
     <?php if (trim((string)($o['sub'] ?? '')) !== ''): ?><p class="subtitle"><?= $o['sub'] /* HTML z wywołującego (już escapowany) */ ?></p><?php endif; ?>
     <?php if (!empty($o['crumbs'])): ?>
