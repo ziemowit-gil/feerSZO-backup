@@ -17,7 +17,7 @@ require_once __DIR__ . '/tasksCreate.php';
 
 const TASKS_MAIL_ACK_CONTEXT = 'task_mail_ack';
 const TASKS_MAIL_ACK_PER_HOUR = 3;
-const TASKS_MAIL_AUTO_SUBJECT = '/^(auto(matic)?[ -]?(reply|response|antwort)|odpowied[zź] automatyczna|out of office|poza biurem|nieobecno|undeliver|niedostarcz|delivery (status|failure)|mail delivery|returned mail|zwrócona wiadomo|autoreply|abwesenheit|read:|przeczytano:)/iu';
+const TASKS_MAIL_AUTO_SUBJECT = '/^(auto(matic)?[ -]?(reply|response|antwort)|automatyczna odpowied|odpowied[zź] automatyczna|out of office|poza biurem|nieobecno|undeliver|niedostarcz|delivery (status|failure)|mail delivery|returned mail|zwrócona wiadomo|autoreply|abwesenheit|read:|przeczytano:)/iu';
 const TASKS_MAIL_AUTO_SENDER = '/^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounce|notifications?|powiadomienia)([+.@_-]|$)/i';
 
 function tasksMailMigrate(): void

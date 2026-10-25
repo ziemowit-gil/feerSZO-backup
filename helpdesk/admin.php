@@ -68,6 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try { hdMailIntakeSave($_POST, (int)(current_user()['id'] ?? 0)); flash_set('success', 'Skrzynka zapisana.'); }
         catch (\Throwable $e) { flash_set('danger', $e->getMessage()); }
     }
+    if ($op === 'mail_run_now') {
+        try { $r = hdMailIntakeRun(); flash_set('success', 'Sprawdzono skrzynki: nowe zgłoszenia ' . (int)$r['tickets'] . ', odpowiedzi w wątkach ' . (int)$r['replies'] . ', pominięte ' . (int)$r['skipped'] . '.'); }
+        catch (\Throwable $e) { flash_set('danger', 'Błąd przetwarzania skrzynek: ' . $e->getMessage()); }
+    }
+    if ($op === 'mail_reply_save') {
+        $addr = trim((string)($_POST['hd_mail_reply_to'] ?? ''));
+        if ($addr === '' || filter_var($addr, FILTER_VALIDATE_EMAIL)) { org_setting_set('hd_mail_reply_to', $addr); flash_set('success', 'Adres odpowiedzi zapisany.'); }
+        else flash_set('danger', 'Podaj poprawny adres e-mail albo zostaw puste (użyty zostanie adres podpiętej skrzynki).');
+    }
     if ($op === 'mail_delete') {
         hdMailIntakeDelete((int)($_POST['mailbox_id'] ?? 0));
         flash_set('success', 'Skrzynka odpięta od Helpdesku.');
@@ -385,6 +394,27 @@ include dirname(__DIR__) . '/includes/header.php';
       </form>
       <?php elseif (!$mail_intakes): ?>
       <p class="small text-muted mb-0">Brak skonfigurowanych skrzynek w module Poczta.</p>
+      <?php endif; ?>
+      <?php if ($mail_intakes): $mail_recent = hdMailRecent(12); ?>
+      <hr>
+      <div class="d-flex flex-wrap gap-3 align-items-end mb-2">
+        <form method="post" class="d-flex gap-2 align-items-end">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="mail_reply_save">
+          <div><label class="form-label small mb-0">Adres odpowiedzi w mailach Helpdesku (Reply-To)</label>
+            <input name="hd_mail_reply_to" class="form-control form-control-sm" style="min-width:260px" value="<?= h(org_setting('hd_mail_reply_to')) ?>" placeholder="<?= h(hdMailReplyAddress()) ?>"></div>
+          <button class="btn btn-sm btn-outline-secondary">Zapisz</button>
+        </form>
+        <form method="post"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="mail_run_now">
+          <button class="btn btn-sm btn-outline-primary" title="Przetwarza wiadomości, które Poczta już pobrała — nie odpytuje Microsoft 365"><i class="bi bi-arrow-repeat me-1"></i>Przetwórz teraz</button></form>
+      </div>
+      <p class="small text-muted mb-2">Powiadomienia Helpdesku mają ustawiony Reply-To na ten adres, więc odpowiedź z numerem w temacie wraca do skrzynki i dopisuje się do wątku.</p>
+      <div class="table-responsive"><table class="table table-sm mb-0" style="font-size:.8rem">
+        <thead><tr><th>Kiedy</th><th>Co</th><th>Od</th><th>Temat</th><th>Zgłoszenie / powód</th></tr></thead><tbody>
+        <?php foreach ($mail_recent as $mr): ?>
+        <tr><td class="text-nowrap"><?= h(substr((string)$mr['at'], 0, 16)) ?></td><td><?= h($mr['what']) ?></td><td><?= h($mr['from']) ?></td><td class="text-truncate" style="max-width:260px"><?= h($mr['subject']) ?></td>
+          <td><?= $mr['ticket_id'] ? '<a href="' . h(APP_URL . '/helpdesk/view.php?id=' . $mr['ticket_id']) . '">' . h($mr['number']) . '</a>' : '<span class="text-muted">' . h($mr['note']) . '</span>' ?></td></tr>
+        <?php endforeach; if (!$mail_recent): ?><tr><td colspan="5" class="text-muted text-center py-3">Brak przetworzonych wiadomości.</td></tr><?php endif; ?>
+        </tbody></table></div>
       <?php endif; ?>
     </div>
   </div>

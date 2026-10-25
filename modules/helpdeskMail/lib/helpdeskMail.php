@@ -158,6 +158,8 @@ function hdMailIntakeOne(array $in, array $c, array $own): string
         return 'skipped';
     };
     if ($why = tasksMailSkipReason($c, $own)) return $skip($why);
+    // Autoodpowiedzi, raporty o niedostarczeniu i nieobecności bywają w temacie w różnej kolejności i nie tylko na początku
+    if (preg_match('/(automatyczna odpowied|odpowied[zź] automatyczna|auto-?reply|automatic reply|out of office|poza biurem|nieobecno|undeliver|niedostarcz|delivery (status|failure)|failure notice|mail delivery|returned mail|zwr[oó]cona wiadomo|abwesenheit)/iu', (string)$c['subject'])) return $skip('odpowiedź automatyczna / raport doręczenia');
 
     $from    = strtolower(trim((string)$c['from_email']));
     $subject = trim((string)$c['subject']);
@@ -277,4 +279,30 @@ function hdMailAck(int $ticketId, string $number, string $title, string $name, s
         $GLOBALS['_hdMailAcks'] = ($GLOBALS['_hdMailAcks'] ?? 0) + 1;
     }
     return (bool)$id;
+}
+
+
+/** Adres, na który wracają odpowiedzi do maili Helpdesku (ustawienie hd_mail_reply_to albo pierwsza aktywna skrzynka). */
+function hdMailReplyAddress(): string
+{
+    hdMailMigrate();
+    $v = trim(org_setting('hd_mail_reply_to'));
+    if ($v !== '') return $v;
+    $r = db_one("SELECT m.mailbox FROM helpdesk_mail_intake i JOIN poczta_mailboxes m ON m.id=i.mailbox_id WHERE i.is_active=1 ORDER BY i.id LIMIT 1");
+    return trim((string)($r['mailbox'] ?? ''));
+}
+
+/** Ostatnio przetworzone wiadomości skrzynek: zgłoszenia, odpowiedzi w wątku i pominięte (z powodem). */
+function hdMailRecent(int $limit = 15): array
+{
+    hdMailMigrate();
+    $rows = [];
+    foreach (db_all("SELECT s.created_at AS at, s.kind, s.from_email, s.subject, t.id AS ticket_id, t.number
+                     FROM helpdesk_mail_sources s LEFT JOIN helpdesk_tickets t ON t.id=s.ticket_id ORDER BY s.id DESC LIMIT ?", [$limit]) as $r)
+        $rows[] = ['at' => $r['at'], 'what' => $r['kind'] === 'reply' ? 'odpowiedź w wątku' : 'nowe zgłoszenie', 'from' => $r['from_email'], 'subject' => $r['subject'],
+                   'ticket_id' => (int)$r['ticket_id'], 'number' => (string)$r['number'], 'note' => ''];
+    foreach (db_all("SELECT k.created_at AS at, k.reason, c.from_email, c.subject FROM helpdesk_mail_skips k LEFT JOIN crm_communications c ON c.id=k.comm_id ORDER BY k.created_at DESC LIMIT ?", [$limit]) as $r)
+        $rows[] = ['at' => $r['at'], 'what' => 'pominięta', 'from' => (string)$r['from_email'], 'subject' => (string)$r['subject'], 'ticket_id' => 0, 'number' => '', 'note' => (string)$r['reason']];
+    usort($rows, fn($a, $b) => strcmp((string)$b['at'], (string)$a['at']));
+    return array_slice($rows, 0, $limit);
 }
