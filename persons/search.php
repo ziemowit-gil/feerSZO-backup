@@ -27,12 +27,14 @@ if (strlen($q) < 2) {
     );
 } else {
     $like = '%' . $q . '%';
+    // PESEL bywa zaszyfrowany (field_crypto): pełny numer szukamy przez indeks ślepy, fragment (LIKE) działa tylko na jawnych wierszach
+    [$peselSql, $peselParams] = fcMatchPesel('persons', 'pesel', $q);
     $rows = db_all(
         "SELECT {$cols} FROM persons
-         WHERE imie_nazwisko LIKE ? OR pesel LIKE ? OR email LIKE ? OR telefon LIKE ?
+         WHERE imie_nazwisko LIKE ? OR pesel LIKE ? OR email LIKE ? OR telefon LIKE ? OR {$peselSql}
          ORDER BY imie_nazwisko
          LIMIT 30",
-        [$like, $like, $like, $like]
+        [$like, $like, $like, $like, ...$peselParams]
     );
 }
 

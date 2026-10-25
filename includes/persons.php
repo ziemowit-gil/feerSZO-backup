@@ -69,12 +69,14 @@ function person_by_id(int $id): ?array {
 
 function persons_search(string $q): array {
     $like = '%' . $q . '%';
+    // PESEL bywa zaszyfrowany (field_crypto): pełny numer szukamy przez indeks ślepy, fragment (LIKE) działa tylko na jawnych wierszach
+    [$peselSql, $peselParams] = fcMatchPesel('persons', 'pesel', $q);
     return db_all(
         "SELECT * FROM persons
-         WHERE imie_nazwisko LIKE ? OR pesel LIKE ? OR email LIKE ?
+         WHERE imie_nazwisko LIKE ? OR pesel LIKE ? OR email LIKE ? OR {$peselSql}
          ORDER BY imie_nazwisko
          LIMIT 20",
-        [$like, $like, $like]
+        [$like, $like, $like, ...$peselParams]
     );
 }
 

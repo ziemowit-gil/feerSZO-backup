@@ -38,6 +38,7 @@ function fcColumns(): array {
         ['table' => 'umowy_dzielo', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'l5' => true, 'auto' => true],
         ['table' => 'umowy_praca', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'l5' => true, 'auto' => true],
         ['table' => 'onboarding_volunteers', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'auto' => true],
+        ['table' => 'persons', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'auto' => true],
         ['table' => 'rodo_deletion_log', 'column' => 'auth_pesel', 'kind' => 'digits', 'blind' => 'auth_pesel_idx', 'auto' => true],
     ];
 }
