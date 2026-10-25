@@ -707,6 +707,28 @@ include __DIR__ . '/includes/header_crm.php';
           <?php endif; ?>
           <?php if ($no !== ''): ?><span class="ib-id" aria-hidden="true">#<?= h($no) ?></span><?php endif; ?>
         </a>
+        <?php if ($can_write && !$bulk_view): ?>
+        <div class="ib-quick" role="group" aria-label="Szybkie akcje: <?= h($r['subject'] ?: '(bez tematu)') ?>">
+          <?php $qh = '<input type="hidden" name="_csrf" value="' . csrf_token() . '"><input type="hidden" name="msg_id" value="' . $rid . '">'
+                    . '<input type="hidden" name="view" value="' . h($view) . '"><input type="hidden" name="q" value="' . h($search) . '">'
+                    . ($mbox_f ? '<input type="hidden" name="mailbox_id" value="' . $mbox_f . '">' : '')
+                    . ($f_unread ? '<input type="hidden" name="unread" value="1">' : '')
+                    . ($f_att ? '<input type="hidden" name="att" value="1">' : ''); ?>
+          <?php if (($r['inbox_status'] ?? 'active') === 'active'): ?>
+          <form method="post" data-ib-xhr="archive"><?= $qh ?><input type="hidden" name="_op" value="archive">
+            <button type="submit" title="Załatwione" aria-label="Załatwione"><i class="bi bi-check2-circle" aria-hidden="true"></i></button></form>
+          <?php else: ?>
+          <form method="post" data-ib-xhr="restore"><?= $qh ?><input type="hidden" name="_op" value="restore">
+            <button type="submit" title="Przywróć do skrzynki" aria-label="Przywróć do skrzynki"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button></form>
+          <?php endif; ?>
+          <form method="post" data-ib-xhr="<?= $unread ? 'read' : 'unread' ?>"><?= $qh ?><input type="hidden" name="_op" value="<?= $unread ? 'read' : 'unread' ?>">
+            <button type="submit" title="<?= $unread ? 'Oznacz jako przeczytane' : 'Oznacz jako nieprzeczytane' ?>" aria-label="<?= $unread ? 'Oznacz jako przeczytane' : 'Oznacz jako nieprzeczytane' ?>"><i class="bi bi-<?= $unread ? 'envelope-open' : 'envelope' ?>" aria-hidden="true"></i></button></form>
+          <form method="post" data-ib-xhr="assign_me"><?= $qh ?><input type="hidden" name="_op" value="assign_me">
+            <button type="submit" title="Przypisz do mnie" aria-label="Przypisz do mnie"><i class="bi bi-person-check" aria-hidden="true"></i></button></form>
+          <form method="post" data-ib-xhr="spam"><?= $qh ?><input type="hidden" name="_op" value="spam">
+            <button type="submit" title="Spam" aria-label="Oznacz jako spam"><i class="bi bi-slash-circle" aria-hidden="true"></i></button></form>
+        </div>
+        <?php endif; ?>
       </div>
       <?php // Zwinięty wątek: reszta wymiany pod jednym rozwinięciem, bez ładowania strony
             if (($inbox['grouped'] ?? false) && $tc > 1 && !empty($r['thread_key'])): ?>

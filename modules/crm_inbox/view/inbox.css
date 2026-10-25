@@ -372,3 +372,12 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
 .ib-item .ib-id { display:none }
 .ib-wrap.is-compact .ib-item > .ib-snip { display:block }
 .ib-thread { margin-left:1.9rem }
+
+/* Szybkie akcje przy najechaniu na wiersz (jak w Gmailu) */
+.ib-quick { position:absolute; right:.5rem; top:50%; transform:translateY(-50%); display:none; align-items:center; gap:0; background:#fff;
+  border:1px solid #D1D5DB; box-shadow:0 1px 3px rgba(0,0,0,.15); z-index:2 }
+.ib-row:hover .ib-quick, .ib-row:focus-within .ib-quick { display:flex }
+.ib-quick form { margin:0 }
+.ib-quick button { background:none; border:0; padding:.3rem .5rem; color:#374151; cursor:pointer; font-size:.95rem; line-height:1 }
+.ib-quick button:hover, .ib-quick button:focus-visible { background:#E6F4F1; color:#0F4C47; outline:2px solid #0F766E; outline-offset:-2px }
+.ib-row:hover .ib-time, .ib-row:focus-within .ib-time { visibility:hidden }

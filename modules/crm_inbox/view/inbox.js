@@ -649,6 +649,10 @@
         });
       };
       if (STAYS[op] && STAYS[op].indexOf(IB.view) < 0) {
+        if (f.closest('.ib-quick') && id !== currentId()) {
+          // Szybka akcja na innym wierszu niż otwarty: tylko zdejmujemy wiersz, bez zmiany otwartej wiadomości
+          removeRow(id); toast(d.msg, { undo: undo }); return;
+        }
         var nxt = removeRow(id);
         toast(d.msg, { undo: undo });
         if (nxt) loadMsg(hrefOf(nxt), { reading: wrap.classList.contains('is-reading') });
@@ -657,6 +661,10 @@
           loadMsg(u.pathname + u.search, { reading: false });
         }
         return;
+      }
+      if (op === 'read' && f.closest('.ib-quick')) {
+        var rr = rowOf(id); if (rr) { rr.classList.remove('unread'); var qf = f.querySelector('[name=_op]'); }
+        refreshList(); toast(d.msg); return;
       }
       if (op === 'unread') {
         // Ponowne otwarcie oznaczyłoby ją z powrotem jako przeczytaną — zmieniamy tylko wiersz
