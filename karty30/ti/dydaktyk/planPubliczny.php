@@ -95,8 +95,8 @@ $rooms = tiPlanPublicRoomsEnabled() || $full;
 $dirR  = $rooms ? tiPlanPublicDirectoryRooms(8) : [];
 $links = ['self' => $self, 'groupLinks' => tiPlanPublicDirectoryTokens(), 'instrLinks' => tiPlanPublicDirectoryInstrTokens(), 'roomLinks' => $rooms];
 $roomName = fn(array $r) => trim((string)$r['short_label']) !== '' ? (string)$r['short_label'] : (string)$r['name'];
-// „Sala online” — wirtualna sala zajęć zdalnych (nie wymaga rezerwacji), zawsze pierwsza na liście sal
-if ($rooms) array_unshift($dirR, ['id' => 'online', 'name' => 'Sala online', 'short_label' => '', 'building' => '', 'location' => 'zajęcia zdalne — nie wymaga rezerwacji sali',
+// „Zajęcia online” — wirtualna sala zajęć zdalnych (nie wymaga rezerwacji), zawsze pierwsza na liście sal
+if ($rooms) array_unshift($dirR, ['id' => 'online', 'name' => 'Zajęcia online', 'short_label' => '', 'building' => '', 'location' => 'zajęcia zdalne — nie wymaga rezerwacji sali',
                                   'n_lessons' => tiPlanPublicOnlineCount(8)]);
 // Widok pełny: wszystkie aktywne grupy (?c=id) i prowadzący (?u=id) z prawdziwymi nazwami
 $allG = $full ? tiPlanPublicAllGroups() : [];
@@ -189,14 +189,14 @@ $tiles = $full ? [
     'grupy'      => array_map(fn($g) => [tiPlanPortalUrl($self, ['c' => $g['id']]), (string)$g['name'], implode(' · ', array_filter([(string)$g['subject_name'], (string)$g['instr_name']]))], $allG),
     'prowadzacy' => array_map(fn($u) => [tiPlanPortalUrl($self, ['u' => $u['id']]), (string)$u['name'], 'grup: ' . (int)$u['n_courses']], $allI),
     'sale'       => array_map(fn($r) => [tiPlanPortalUrl($self, ['s' => $r['id']]), $roomName($r),
-                        implode(' · ', array_filter([trim((string)$r['short_label']) !== '' ? (string)$r['name'] : '', (string)($r['building'] ?: $r['location']), (int)$r['n_lessons'] . ' zaj. w 8 tyg.']))], $dirR),
+                        implode(' · ', array_filter([trim((string)$r['short_label']) !== '' ? (string)$r['name'] : '', (string)($r['building'] ?: $r['location']), (int)$r['n_lessons'] . ' zaj. w 8 tyg.'])), (string)$r['id'] === 'online'], $dirR),
 ] : [
     'grupy'      => array_map(fn($g) => [tiPlanPortalUrl($self, ['g' => $g['token']]), (string)$g['name'],
                         implode(' · ', array_filter([(string)$g['subject_name'], $g['instr'] ? 'prow. ' . $g['instr'] : '', $g['next_date'] ? 'najbliższe ' . date('d.m', strtotime((string)$g['next_date'])) : 'brak terminów']))], $dirG),
     'prowadzacy' => array_map(fn($i) => [tiPlanPortalUrl($self, ['p' => $i['token']]), (string)$i['initials'],
                         implode(', ', array_slice($i['groups'], 0, 3)) . (count($i['groups']) > 3 ? ' …' : '')], $dirI),
     'sale'       => array_map(fn($r) => [tiPlanPortalUrl($self, ['s' => $r['id']]), $roomName($r),
-                        implode(' · ', array_filter([trim((string)$r['short_label']) !== '' ? (string)$r['name'] : '', (string)($r['building'] ?: $r['location']), (int)$r['n_lessons'] . ' zaj. w 8 tyg.']))], $dirR),
+                        implode(' · ', array_filter([trim((string)$r['short_label']) !== '' ? (string)$r['name'] : '', (string)($r['building'] ?: $r['location']), (int)$r['n_lessons'] . ' zaj. w 8 tyg.'])), (string)$r['id'] === 'online'], $dirR),
 ];
 $tileCls = ['grupy' => 't-group', 'prowadzacy' => 't-instr', 'sale' => 't-room'];
 $printTiles = function (string $k, ?int $limit = null) use ($tiles, $tileCls, $self): void {
@@ -206,10 +206,19 @@ $printTiles = function (string $k, ?int $limit = null) use ($tiles, $tileCls, $s
     $more = $limit !== null && count($items) > $limit;
     echo '<h2 class="tiles-head" id="h-' . $k . '"><span>' . $titles[$k] . ' (' . count($items) . ')</span>'
        . ($more ? '<a href="' . tiPlanPortalUrl($self, ['k' => $k]) . '">wszystkie ' . mb_strtolower($titles[$k]) . ' »</a>' : '') . '</h2>';
-    echo '<ul class="tiles" aria-labelledby="h-' . $k . '">';
-    foreach ($more ? array_slice($items, 0, $limit) : $items as $it)
-        echo '<li><a class="tile ' . $tileCls[$k] . '" href="' . $it[0] . '"><strong>' . h($it[1]) . '</strong>' . ($it[2] !== '' ? '<small>' . h($it[2]) . '</small>' : '') . '</a></li>';
-    echo '</ul>';
+    // Sale: podział na zajęcia stacjonarne (fizyczne sale) i online (wirtualne „Zajęcia online”)
+    $groups = $k === 'sale'
+        ? ['Stacjonarnie' => array_values(array_filter($items, fn($i) => empty($i[3]))), 'Online' => array_values(array_filter($items, fn($i) => !empty($i[3])))]
+        : ['' => $items];
+    foreach ($groups as $gName => $gItems) {
+        if (!$gItems) continue;
+        $gid = 'h-' . $k . ($gName !== '' ? '-' . mb_strtolower($gName) : '');
+        if ($gName !== '') echo '<h3 class="tiles-sub" id="' . $gid . '">' . h($gName) . ' (' . count($gItems) . ')</h3>';
+        echo '<ul class="tiles" aria-labelledby="' . ($gName !== '' ? $gid : 'h-' . $k) . '">';
+        foreach (($more && $gName !== 'Online') ? array_slice($gItems, 0, $limit) : $gItems as $it)
+            echo '<li><a class="tile ' . $tileCls[$k] . ($gName === 'Online' ? ' t-online' : '') . '" href="' . $it[0] . '"><strong>' . h($it[1]) . '</strong>' . ($it[2] !== '' ? '<small>' . h($it[2]) . '</small>' : '') . '</a></li>';
+        echo '</ul>';
+    }
 };
 
 /* ───────────── Plan grupy (tajny link ?g=, a w widoku pełnym każda grupa ?c=) ───────────── */
@@ -315,25 +324,53 @@ if (isset($_GET['p']) || ($full && isset($_GET['u']))) {
 
 /* ───────────── Sala: zajętość i rezerwacje ───────────── */
 if (isset($_GET['s'])) {
-    // Sala „online” z rejestru = ta sama „Sala online” (jedna pozycja zamiast dwóch)
+    // Sala „online” z rejestru = te same „Zajęcia online” (jedna pozycja zamiast dwóch)
     if ((string)$_GET['s'] !== 'online' && in_array((int)$_GET['s'], tiPlanPublicOnlineRoomIds(), true)) {
         header('Location: ' . html_entity_decode(tiPlanPortalUrl($self, ['s' => 'online'] + array_intersect_key($_GET, ['t' => 1, 'v' => 1]))), true, 301); exit;
     }
     $isOnline = (string)$_GET['s'] === 'online';
     $room = !$rooms ? null : ($isOnline
-        ? ['id' => 'online', 'name' => 'Sala online', 'short_label' => '', 'location' => 'zajęcia zdalne (Zoom / Teams) — nie wymaga rezerwacji sali', 'building' => '', 'building_address' => '', 'capacity' => 0]
+        ? ['id' => 'online', 'name' => 'Zajęcia online', 'short_label' => '', 'location' => 'zajęcia zdalne (Zoom / Teams) — nie wymaga rezerwacji sali', 'building' => '', 'building_address' => '', 'capacity' => 0]
         : tiPlanPublicRoom((int)$_GET['s']));
     if (!$room) $notFound('Nie ma takiej sali albo podgląd sal jest wyłączony.');
     $weeks   = 8;
     $lessons = tiPlanPublicLessons($isOnline ? ['online' => true] : ['room' => (int)$room['id']], $from, date('Y-m-d', strtotime("+{$weeks} weeks")));
+    // Zajęcia online: platforma z adresu spotkania (zanim adres zniknie z widoku uproszczonego) → rozbicie na metody i grupy
+    if ($isOnline) foreach ($lessons as $i => $l) $lessons[$i]['platform'] = tiPlanPublicPlatform($l);
     if (!$full) foreach ($lessons as $i => $l) { $lessons[$i]['url'] = ''; if (!isset($links['groupLinks'][$l['course_id']])) $lessons[$i] = $hideGroup($l); }
+    $onlineAll = $lessons;
+    $fM = $isOnline ? mb_substr((string)($_GET['m'] ?? ''), 0, 60) : '';
+    $fG = $isOnline ? mb_substr((string)($_GET['gr'] ?? ''), 0, 200) : '';
+    if ($fM !== '' || $fG !== '') $lessons = array_values(array_filter($lessons, fn($l) => ($fM === '' || $l['platform'] === $fM) && ($fG === '' || $l['course'] === $fG)));
     $name = $roomName($room);
     $sub  = implode(' · ', array_filter([$name !== (string)$room['name'] ? (string)$room['name'] : '', (string)$room['location'], (string)($room['building'] ?? ''), (string)($room['building_address'] ?? ''), (int)$room['capacity'] ? 'miejsc: ' . (int)$room['capacity'] : '']));
-    tiPlanPortalOpen($base + ['title' => $roomTitle($name), 'heading' => $roomTitle($name), 'sub' => h($sub), 'current' => tiPlanPortalUrl($self, ['s' => $room['id']])]);
+    $roomT = $isOnline ? $name : $roomTitle($name);
+    tiPlanPortalOpen($base + ['title' => $roomT, 'heading' => $roomT, 'sub' => h($sub), 'current' => tiPlanPortalUrl($self, ['s' => $room['id']])]);
     if ($isOnline) echo '<div class="box note" role="note"><strong>Zajęcia zdalne</strong> — odbywają się online (Zoom / Teams), nie wymagają rezerwacji sali. Link do spotkania uczestnicy dostają od prowadzącego lub w panelu kursanta.</div>';
+    if ($isOnline) {   // chipy-filtry: metody (platformy) i grupy, z liczbą nieodwołanych terminów
+        $cnt = function (string $key) use ($onlineAll): array {
+            $m = [];
+            foreach ($onlineAll as $l) if (!$l['cancelled']) { $k = $l[$key] !== '' ? $l[$key] : 'inna / brak linku'; $m[$k] = ($m[$k] ?? 0) + 1; }
+            arsort($m);
+            return $m;
+        };
+        $chip = function (array $pairs, string $param, string $cur) use ($self, $room, $fM, $fG): string {
+            $o = '';
+            foreach ($pairs as $name_ => $n) {
+                $q = ['s' => $room['id']] + ($fM !== '' ? ['m' => $fM] : []) + ($fG !== '' ? ['gr' => $fG] : []);
+                if ($cur === (string)$name_) unset($q[$param]); else $q[$param] = (string)$name_;
+                $o .= '<a href="' . tiPlanPortalUrl($self, $q) . '"' . ($cur === (string)$name_ ? ' aria-current="true"' : '') . ' style="display:inline-block;margin:0 .35rem .35rem 0;padding:.2rem .6rem;border:2px solid currentColor;font-weight:600;text-decoration:none">'
+                    . h((string)$name_) . ' <span style="background:#0a1f3d;color:#fff;padding:0 .35rem;font-size:.85em">' . (int)$n . '<span class="sr-only"> terminów</span></span></a>';
+            }
+            return $o ?: '<em>brak</em>';
+        };
+        echo '<section class="box" aria-label="Rozbicie zajęć online"><h2 style="font-size:1.05rem;margin:0 0 .35rem">Metody (platformy)</h2><p>' . $chip($cnt('platform'), 'm', $fM)
+           . '</p><h2 style="font-size:1.05rem;margin:0 0 .35rem">Grupy</h2><p>' . $chip($cnt('course'), 'gr', $fG) . '</p>'
+           . (($fM !== '' || $fG !== '') ? '<p><a href="' . tiPlanPortalUrl($self, ['s' => $room['id']]) . '">Wyczyść filtry</a></p>' : '') . '</section>';
+    }
     $pending = $isOnline ? 0 : count(array_filter($lessons, fn($l) => !$l['cancelled'] && !$l['room_ok'] && $l['room_id'] > 0 && $l['date'] >= date('Y-m-d')));
     if ($pending) echo '<div class="box note" role="note">Terminy oznaczone „rezerwacja do potwierdzenia” (' . $pending . ') czekają na potwierdzenie sali u operatora przestrzeni.</div>';
-    tiPlanPortalSchedule($links + ['lessons' => $lessons, 'weeks' => $weeks, 'q' => ['s' => $room['id']], 'mode' => 'room', 'label' => 'sali ' . $name]);
+    tiPlanPortalSchedule($links + ['lessons' => $lessons, 'weeks' => $weeks, 'q' => ['s' => $room['id']] + ($fM !== '' ? ['m' => $fM] : []) + ($fG !== '' ? ['gr' => $fG] : []), 'mode' => 'room', 'label' => $isOnline ? 'zajęć online' : 'sali ' . $name]);
     if (!$isOnline) echo '<p class="legend"><span class="st-ok"><strong>sala zarezerwowana</strong></span> — rezerwacja potwierdzona; <span class="st-warn"><strong>rezerwacja do potwierdzenia</strong></span> — zgłoszona, jeszcze niepotwierdzona</p>';
     tiPlanPortalClose($base);
     exit;

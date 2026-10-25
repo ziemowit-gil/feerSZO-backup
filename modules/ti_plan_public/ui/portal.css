@@ -137,3 +137,8 @@ a.view-opt:hover, a.view-opt:focus-visible { background: rgba(255,255,255,.2); }
 
 .login-state { display: flex; align-items: center; gap: 6px; align-self: stretch; padding: 0 12px; font-size: .82rem; color: #fff; border-left: 1px solid rgba(255,255,255,.3); margin-left: 8px; }
 .login-state.is-in { font-weight: 700; }
+
+/* Odwołane zajęcia: cała karta na czerwono (nie tylko etykieta) — kolor + przekreślenie + pasek, nie sam kolor (WCAG) */
+.lesson.is-cancelled { border-left: 4px solid var(--bad); padding-left: 6px; }
+.lesson.is-cancelled, .lesson.is-cancelled .p, .lesson.is-cancelled a, .lesson.is-cancelled .n, .lesson.is-cancelled .s, .lesson.is-cancelled .k { color: var(--bad); }
+.g.is-cancelled, .g.is-cancelled s { color: var(--bad); }

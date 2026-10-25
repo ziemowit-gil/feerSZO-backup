@@ -57,18 +57,7 @@ try {
     $dirTok = tiPlanPublicDirectoryTokens();       // [course_id => token] — grupy z katalogu
     $roomName = fn(array $r): string => trim((string)$r['short_label']) !== '' ? (string)$r['short_label'] : (string)$r['name'];
 
-    /** Platforma zajęć online z adresu spotkania (adres sam poza widokiem pełnym nie wychodzi). */
-    $platform = function (array $l): string {
-        if ($l['method'] !== 'online') return '';
-        $host = strtolower((string)parse_url((string)$l['url'], PHP_URL_HOST));
-        if ($host === '') return 'inna / brak linku';
-        return match (true) {
-            str_contains($host, 'zoom') => 'Zoom',
-            str_contains($host, 'teams') => 'Teams',
-            str_contains($host, 'meet.google') => 'Google Meet',
-            default => 'inna platforma',
-        };
-    };
+    $platform = fn(array $l): string => tiPlanPublicPlatform($l);   // adres spotkania sam nie wychodzi poza widok pełny
 
     /** Termin w kształcie API; poza widokiem pełnym: bez linków online, grupy spoza katalogu ukryte. */
     $shape = function (array $l) use ($full, $dirTok, $platform): array {

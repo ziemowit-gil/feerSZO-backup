@@ -33,10 +33,10 @@ function tiPlanPortalCard(array $l, array $o, bool $withTime = false): string {
     }
     if ($mode !== 'room') {
         if ($l['method'] === 'online') $parts[] = !empty($o['roomLinks'])
-            ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => 'online']) . '" title="Sala online — zajęcia zdalne, bez rezerwacji sali">zdalnie (online)</a>'
+            ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => 'online']) . '" title="Zajęcia online — bez rezerwacji sali">zdalnie (online)</a>'
             : '<span class="s">zdalnie (online)</span>';
         elseif ($l['room_id'] && in_array((int)$l['room_id'], tiPlanPublicOnlineRoomIds(), true)) $parts[] = !empty($o['roomLinks'])
-            ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => 'online']) . '" title="Sala online — zajęcia zdalne, bez rezerwacji sali">zdalnie (online)</a>'
+            ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => 'online']) . '" title="Zajęcia online — bez rezerwacji sali">zdalnie (online)</a>'
             : '<span class="s">zdalnie (online)</span>';
         elseif ($l['room'] !== '') $parts[] = !empty($o['roomLinks']) && $l['room_id']
             ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => $l['room_id']]) . '" title="Plan sali">' . h($l['room']) . '</a>'
@@ -114,7 +114,7 @@ function tiPlanPortalSchedule(array $o): void {
         <?php if (!$byDay): ?><p class="empty">Brak zaplanowanych terminów w najbliższych <?= $weeks ?> tygodniach.</p><?php endif; ?>
         <?php foreach ($byDay as $d => $ls): ?>
         <h3><?= h(TI_DAYS_PL_FULL[(int)date('N', strtotime($d))]) ?>, <?= h(date('d.m.Y', strtotime($d))) ?><?= $d === date('Y-m-d') ? ' (dziś)' : '' ?></h3>
-        <?php foreach ($ls as $l): ?><div class="row"><div class="g"><?= h($l['time'] ?: '—') ?></div><?= tiPlanPortalCard($l, $o) ?></div><?php endforeach; ?>
+        <?php foreach ($ls as $l): ?><div class="row"><div class="g<?= $l['cancelled'] ? ' is-cancelled' : '' ?>"><?= $l['cancelled'] ? '<s>' . h($l['time'] ?: '—') . '</s>' : h($l['time'] ?: '—') ?></div><?= tiPlanPortalCard($l, $o) ?></div><?php endforeach; ?>
         <?php endforeach; ?>
       </div>
     <?php elseif (!$W['slots']): ?>
@@ -128,10 +128,13 @@ function tiPlanPortalSchedule(array $o): void {
             <?php foreach ($W['days'] as $d): ?><th scope="col"<?= $d['today'] ? ' class="is-today"' : '' ?>><?= h($d['full']) ?><small><?= h(date('d.m', strtotime($d['date']))) ?><?= $d['today'] ? ' · dziś' : '' ?></small></th><?php endforeach; ?>
           </tr></thead>
           <tbody>
-          <?php foreach ($W['slots'] as $i => $s): ?>
+          <?php foreach ($W['slots'] as $i => $s):
+              // Godzina przekreślona, gdy wszystkie terminy w wierszu są odwołane
+              $rowLs = array_merge(...array_values(array_map(fn($c) => $c, $W['cells'][$s['key']] ?? [[]])));
+              $allCx = $rowLs && !array_filter($rowLs, fn($x) => !$x['cancelled']); ?>
             <tr>
               <td class="nr"><?= $i + 1 ?></td>
-              <th scope="row" class="g"><?= h($s['tf']) ?>-<?= h($s['tt']) ?></th>
+              <th scope="row" class="g<?= $allCx ? ' is-cancelled' : '' ?>"><?= $allCx ? '<s>' : '' ?><?= h($s['tf']) ?>-<?= h($s['tt']) ?><?= $allCx ? '</s>' : '' ?></th>
               <?php foreach ($W['days'] as $dow => $d): $cell = $W['cells'][$s['key']][$dow] ?? []; ?>
               <td class="l<?= $d['today'] ? ' is-today' : '' ?>"><?php foreach ($cell as $l) echo tiPlanPortalCard($l, $o); ?><?= $cell ? '' : '<span class="sr">brak zajęć</span>&nbsp;' ?></td>
               <?php endforeach; ?>

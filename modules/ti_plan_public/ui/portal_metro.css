@@ -126,3 +126,9 @@ a.view-opt:hover, a.view-opt:focus-visible { background: rgba(255,255,255,.2); }
 
 .login-state { display: flex; align-items: center; gap: 6px; align-self: stretch; padding: 0 12px; font-size: .82rem; color: #fff; border-left: 1px solid rgba(255,255,255,.3); margin-left: 8px; }
 .login-state.is-in { font-weight: 700; }
+
+/* Odwołane zajęcia: cała karta na czerwono (kolor + przekreślenie + pasek) */
+body.skin-metro .lesson.is-cancelled { border-left: 4px solid var(--m-red); padding-left: 8px; }
+body.skin-metro .lesson.is-cancelled, body.skin-metro .lesson.is-cancelled .p, body.skin-metro .lesson.is-cancelled a,
+body.skin-metro .lesson.is-cancelled .n, body.skin-metro .lesson.is-cancelled .s, body.skin-metro .lesson.is-cancelled .k { color: var(--m-red); }
+body.skin-metro .g.is-cancelled, body.skin-metro .g.is-cancelled s { color: var(--m-red); }

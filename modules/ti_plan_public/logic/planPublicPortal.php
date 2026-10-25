@@ -554,7 +554,7 @@ function tiPlanPublicOnlineRoomIds(): array {
     return $ids;
 }
 
-/** Liczba zajęć zdalnych (sesje + konsultacje) w najbliższych $weeks tygodniach — do kafla „Sala online”. */
+/** Liczba zajęć zdalnych (sesje + konsultacje) w najbliższych $weeks tygodniach — do kafla „Zajęcia online”. */
 function tiPlanPublicOnlineCount(int $weeks = 8): int {
     return count(array_filter(tiPlanPublicLessons(['online' => true], date('Y-m-d'), date('Y-m-d', strtotime('+' . (7 * $weeks) . ' days'))), fn($l) => !$l['cancelled']));
 }
@@ -576,6 +576,19 @@ function tiPlanPublicTextHtml(string $text): string {
     }
     $flushPara(); $flushList();
     return $out;
+}
+
+/** Platforma zajęć online (Zoom / Teams / Google Meet / inna) z adresu spotkania terminu; '' dla zajęć stacjonarnych. */
+function tiPlanPublicPlatform(array $l): string {
+    if (($l['method'] ?? '') !== 'online') return '';
+    $host = strtolower((string)parse_url((string)($l['url'] ?? ''), PHP_URL_HOST));
+    if ($host === '') return 'inna / brak linku';
+    return match (true) {
+        str_contains($host, 'zoom') => 'Zoom',
+        str_contains($host, 'teams') => 'Teams',
+        str_contains($host, 'meet.google') => 'Google Meet',
+        default => 'inna platforma',
+    };
 }
 
 /** Poniedziałek tygodnia zawierającego datę (Y-m-d). */
