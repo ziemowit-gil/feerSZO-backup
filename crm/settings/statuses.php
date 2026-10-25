@@ -49,6 +49,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($used > 0) { flash_set('danger',"Nie można usunąć — {$used} kontaktów używa tego statusu."); goto redirect; }
         crm_db()->prepare("DELETE FROM crm_statuses WHERE id=?")->execute([$id]);
         flash_set('success','Status usunięty.');
+    } elseif ($op === 'orphan_add') {
+        // Status używany przez kontakty, ale nieobecny w katalogu — dopisz go, żeby dało się go wybrać z listy
+        $slug = (string)($_POST['slug'] ?? '');
+        if ($slug !== '' && !crm_one("SELECT 1 FROM crm_statuses WHERE slug=?", [$slug])) {
+            $max = (int)(crm_one("SELECT COALESCE(MAX(sort_order),0) AS n FROM crm_statuses")['n'] ?? 0);
+            crm_db()->prepare("INSERT INTO crm_statuses (slug,label,color,sort_order,is_active) VALUES (?,?,?,?,1)")
+                ->execute([$slug, mb_convert_case($slug, MB_CASE_TITLE, 'UTF-8'), '#6B7280', $max + 1]);
+            flash_set('success', "Dodano status „{$slug}” do katalogu.");
+        }
+    } elseif ($op === 'orphan_remap') {
+        $slug = (string)($_POST['slug'] ?? '');
+        $to   = (string)($_POST['to'] ?? '');
+        if ($slug !== '' && crm_one("SELECT 1 FROM crm_statuses WHERE slug=? AND is_active=1", [$to])) {
+            $n = crm_db()->prepare("UPDATE crm_contacts SET status=?, updated_at=? WHERE status=?");
+            $n->execute([$to, date('Y-m-d H:i:s'), $slug]);
+            flash_set('success', 'Zmieniono status „' . $slug . '” na „' . $to . '” u ' . $n->rowCount() . ' kontaktów.');
+        }
     } elseif ($op === 'reorder') {
         $ids = array_map('intval', (array)($_POST['ids'] ?? []));
         foreach ($ids as $i => $sid) {
@@ -86,6 +103,30 @@ require_once __DIR__ . '/_nav.php';
 </div>
 
 <?= flash_get() ?>
+
+<?php
+$orphans = crm_all("SELECT status AS slug, COUNT(*) AS c FROM crm_contacts WHERE crm_active=1 AND status NOT IN (SELECT slug FROM crm_statuses) GROUP BY status ORDER BY c DESC");
+$active_st = array_values(array_filter($statuses, fn($x) => (int)$x['is_active'] === 1));
+if ($orphans): ?>
+<div class="alert alert-warning" role="alert" style="border-radius:0">
+  <strong>Statusy spoza katalogu.</strong> Część kontaktów ma status, którego nie ma na liście poniżej — w menu statusu taki kontakt nie ma własnej pozycji.
+  <?php foreach ($orphans as $o): ?>
+  <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+    <span><code><?= h($o['slug']) ?></code> — <?= (int)$o['c'] ?> kontaktów:</span>
+    <form method="post" class="d-inline"><?= csrf_field() ?><input type="hidden" name="_op" value="orphan_add"><input type="hidden" name="slug" value="<?= h($o['slug']) ?>">
+      <button class="btn btn-sm btn-outline-dark" style="border-radius:0">Dodaj do katalogu</button></form>
+    <span>albo zmień na</span>
+    <form method="post" class="d-inline-flex gap-1"><?= csrf_field() ?><input type="hidden" name="_op" value="orphan_remap"><input type="hidden" name="slug" value="<?= h($o['slug']) ?>">
+      <select name="to" class="form-select form-select-sm" style="width:auto;border-radius:0" aria-label="Nowy status dla <?= h($o['slug']) ?>">
+        <?php foreach ($active_st as $a): ?><option value="<?= h($a['slug']) ?>"><?= h($a['label']) ?></option><?php endforeach; ?>
+      </select>
+      <button class="btn btn-sm btn-outline-dark" style="border-radius:0" onclick="return confirm('Zmienić status u wszystkich tych kontaktów?')">Zmień</button></form>
+  </div>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
+<p class="small mb-3" style="color:#374151;max-width:60rem">Status opisuje <strong>etap relacji</strong> (prospect → aktywny → nieaktywny). To, <strong>kim kontakt jest</strong> (wolontariusz, darczyńca, klient, partner, beneficjent…), ustawia się w
+<a href="<?= APP_URL ?>/crm/settings/categories.php">kategoriach kontaktów</a> — kontakt może mieć kilka naraz i są nadawane automatycznie z umów, darowizn i faktur.</p>
 
 <!-- Lista statusów (przeciągana) -->
 <div class="card mb-4">
