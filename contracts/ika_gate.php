@@ -509,15 +509,15 @@ auth_screen_head([
 #ika-main .recovery-btn i{width:22px;text-align:center;flex-shrink:0}
 
 /* ── Na kogo się logujesz ── */
-.ika-who{display:flex;align-items:center;gap:1rem;background:#1d1d1d;color:#fff;padding:1.1rem 1.25rem;margin:0 0 1rem}
-.ika-who__av{flex:0 0 64px;height:64px;display:flex;align-items:center;justify-content:center;background:#0f6fa8;color:#fff;font-weight:800;font-size:1.35rem}
+.ika-who{display:flex;align-items:center;gap:1rem;background:#fff;color:#242424;padding:1rem 1.15rem;margin:0 0 1rem;border:1px solid #e1dfdd;border-left:4px solid #0f6cbd}
+.ika-who__av{flex:0 0 56px;height:56px;display:flex;align-items:center;justify-content:center;background:#0f6cbd;color:#fff;font-weight:700;font-size:1.2rem}
 .ika-who__txt{min-width:0}
-.ika-who__h{font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#cbd5e1!important;margin:0}
-.ika-who__name{font-size:1.5rem;font-weight:700;line-height:1.2;margin:.1rem 0 0;color:#fff!important;overflow-wrap:anywhere}
-.ika-who__mail{font-size:1rem;color:#e5e7eb!important;margin:.15rem 0 0;overflow-wrap:anywhere}
-.ika-who__out{display:inline-block;margin-top:.4rem;color:#7dd3fc!important;font-size:.9rem;text-decoration:underline}
-.ika-who__out:focus-visible{outline:3px solid #facc15;outline-offset:2px}
-/* ── Pole kodu — jedno pole z etykietą (WCAG: 1.3.1, 3.3.2) ── */
+.ika-who__h{font-size:.75rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#605e5c!important;margin:0}
+.ika-who__name{font-size:1.35rem;font-weight:600;line-height:1.2;margin:.1rem 0 0;color:#242424!important;overflow-wrap:anywhere}
+.ika-who__mail{font-size:.95rem;color:#605e5c!important;margin:.15rem 0 0;overflow-wrap:anywhere}
+.ika-who__out{display:inline-block;margin-top:.4rem;color:#0f6cbd!important;font-size:.88rem;text-decoration:underline}
+.ika-who__out:focus-visible{outline:3px solid #0f6cbd;outline-offset:2px}
+
 .ika-field{max-width:20rem;margin:0 auto 1rem;text-align:center}
 .ika-field__label{display:block;font-weight:700;font-size:1rem;margin:0 0 .2rem;color:#1d1d1d}
 .ika-field__hint{font-size:.85rem;color:#4b5563;margin:0 0 .5rem}
@@ -535,6 +535,22 @@ auth_screen_head([
 .tzl #ika-main .digit-box,.tzl #ika-main .pesel-box{border-width:2px}
 .tzl #ika-main .recovery-btn{box-shadow:none}
 .tzl #ika-main .recovery-btn:hover{transform:none;background:#e6f6fc;border-color:var(--ks)}
+
+/* ── Jasny panel boczny (Dynamics) — tylko na tej stronie; wspólna powłoka logowania zostaje bez zmian ── */
+body.tzl{background:#faf9f8}
+.tzl .tz-side{background:#f3f2f1;color:#242424;border-right:1px solid #e1dfdd}
+.tzl .tz-side .tz-org{color:#605e5c}
+.tzl .tz-side .tz-logo{filter:none}
+.tzl .tz-side h2{color:#242424;font-weight:600}
+.tzl .tz-side .sub{color:#605e5c}
+.tzl .tz-side a{color:#0f6cbd}
+.tzl .tz-side-hide{color:#242424;border-color:#8a8886;background:#fff}
+.tzl .tz-side-hide:hover{background:#faf9f8;border-color:#605e5c}
+.tzl .tz-side-show{background:#f3f2f1;color:#242424;border-right:1px solid #e1dfdd}
+.tzl .tz-side-show:hover{background:#e1dfdd}
+.tzl #ika-main .tz-card{box-shadow:none;border:1px solid #e1dfdd;background:#fff}
+.tzl #ika-main .tz-btn{background:#0f6cbd}
+.tzl #ika-main .tz-btn:hover:not(:disabled){background:#115ea3;box-shadow:none;transform:none}
 </style>
 
 <!-- ── Nagłówek strony ───────────────────────────────────────────────────────── -->
