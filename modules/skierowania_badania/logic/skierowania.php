@@ -243,8 +243,9 @@ function skbPreMatches(array $c, string $type): array {
     $pesel = preg_replace('/\D/', '', (string)($c['pesel'] ?? ''));
     $name  = trim((string)($c['imie_nazwisko'] ?? ''));
     if ($pesel === '' && $name === '') return [];
+    [$peselSql, $peselParams] = fcMatchPesel('skierowania_badania', 'pesel', $pesel);   // PESEL bywa zaszyfrowany (field_crypto)
     return db_all("SELECT * FROM skierowania_badania WHERE contract_id=0 AND status!='anulowane'
-                    AND ((? != '' AND pesel=?) OR (? != '' AND lower(trim(imie_nazwisko))=lower(?))) ORDER BY id DESC", [$pesel, $pesel, $name, $name]);
+                    AND ({$peselSql} OR (? != '' AND lower(trim(imie_nazwisko))=lower(?))) ORDER BY id DESC", [...$peselParams, $name, $name]);
 }
 
 /** Czynniki z formularza: czynnik[GR][i]=1, wielkosc[GR][i]=..., inne[GR]=linie. → lista [{g,name,wielkosc}]. */

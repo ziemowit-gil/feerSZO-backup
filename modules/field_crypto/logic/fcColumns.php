@@ -28,6 +28,7 @@ function fcColumns(): array {
         // — przezroczyste (warstwa db()): PESEL; dopisywane tabela po tabeli —
         ['table' => 'donations', 'column' => 'donor_pesel', 'kind' => 'digits', 'blind' => 'donor_pesel_idx', 'auto' => true],
         ['table' => 'pelnomocnictwa', 'column' => 'pelnomocnik_pesel', 'kind' => 'digits', 'blind' => 'pelnomocnik_pesel_idx', 'auto' => true],
+        ['table' => 'skierowania_badania', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'auto' => true],
     ];
 }
 
