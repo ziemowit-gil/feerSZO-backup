@@ -57,8 +57,21 @@ try {
     $dirTok = tiPlanPublicDirectoryTokens();       // [course_id => token] — grupy z katalogu
     $roomName = fn(array $r): string => trim((string)$r['short_label']) !== '' ? (string)$r['short_label'] : (string)$r['name'];
 
+    /** Platforma zajęć online z adresu spotkania (adres sam poza widokiem pełnym nie wychodzi). */
+    $platform = function (array $l): string {
+        if ($l['method'] !== 'online') return '';
+        $host = strtolower((string)parse_url((string)$l['url'], PHP_URL_HOST));
+        if ($host === '') return 'inna / brak linku';
+        return match (true) {
+            str_contains($host, 'zoom') => 'Zoom',
+            str_contains($host, 'teams') => 'Teams',
+            str_contains($host, 'meet.google') => 'Google Meet',
+            default => 'inna platforma',
+        };
+    };
+
     /** Termin w kształcie API; poza widokiem pełnym: bez linków online, grupy spoza katalogu ukryte. */
-    $shape = function (array $l) use ($full, $dirTok): array {
+    $shape = function (array $l) use ($full, $dirTok, $platform): array {
         $hidden = !$full && !isset($dirTok[$l['course_id']]) && ($l['kind'] ?? '') !== 'consult';
         $subject = $l['subject'];
         if ($hidden && $l['subject'] === $l['course']) $subject = 'Zajęcia';
@@ -66,7 +79,7 @@ try {
             'date' => $l['date'], 'dow' => $l['dow'], 'from' => $l['tf'], 'to' => $l['tt'],
             'course' => $hidden ? 'niepubliczna' : $l['course'],
             'subject' => $subject,
-            'instr' => $l['instr'], 'method' => $l['method'], 'room' => $l['room'],
+            'instr' => $l['instr'], 'method' => $l['method'], 'platform' => $platform($l), 'room' => $l['room'],
             'url' => $full ? $l['url'] : '',
             'cancelled' => $l['cancelled'], 'moved' => $l['moved'], 'flag' => $l['flag'],
             'kind' => $l['kind'] ?? 'course',
@@ -95,7 +108,7 @@ try {
             }
         }
         if ($rooms) {
-            $roomsOut[] = ['id' => 's:online', 'name' => 'Sala online', 'place' => 'zajęcia zdalne', 'lessons' => tiPlanPublicOnlineCount(8)];
+            $roomsOut[] = ['id' => 's:online', 'name' => 'Zajęcia online', 'place' => 'zajęcia zdalne — według platformy i grupy', 'lessons' => tiPlanPublicOnlineCount(8)];
             foreach (tiPlanPublicDirectoryRooms(8) as $s) {
                 $roomsOut[] = ['id' => 's:' . $s['id'], 'name' => $roomName($s), 'place' => trim(implode(', ', array_filter([(string)$s['building'], (string)$s['location']]))),
                                'lessons' => (int)$s['n_lessons']];
@@ -153,7 +166,7 @@ try {
             [$a, $b] = $range($from, 8);
             if ($key === 'online') {
                 $lessons = tiPlanPublicLessons(['online' => true], $a, $b);
-                $title = 'Sala online';
+                $title = 'Zajęcia online';
             } else {
                 $room = tiPlanPublicRoom((int)$key);
                 if (!$room) $send(['error' => 'Nie ma takiej sali.'], 404);
