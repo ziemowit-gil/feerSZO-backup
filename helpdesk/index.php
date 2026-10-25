@@ -107,40 +107,32 @@ function _hd_list_html(
             $crit    = $t['priority'] === 'krytyczny';
             $closed  = in_array($t['status'], ['zamknięte','rozwiązane'], true);
             ?>
-<div class="hd-row<?= $unread ? ' hd-row-unread' : '' ?><?= $closed ? ' hd-row-closed' : '' ?>"
+<div class="hd-row<?= $is_op ? '' : ' hd-np' ?><?= $unread ? ' hd-row-unread' : '' ?><?= $closed ? ' hd-row-closed' : '' ?>"
      role="button" tabindex="0"
      data-id="<?= (int)$t['id'] ?>"
      data-href="<?= APP_URL ?>/helpdesk/view.php?id=<?= (int)$t['id'] ?>"
      aria-label="Zgłoszenie <?= h($t['number']) ?>: <?= h($t['title']) ?>">
-  <div class="hd-row-av" style="background:<?= $avcolor ?>" aria-hidden="true"><?= h($initials) ?></div>
-  <div class="hd-row-body">
-    <div class="hd-row-top">
-      <code class="hd-row-num"><?= h($t['number']) ?></code>
-      <span class="hd-row-time"><?= $ago ?></span>
-    </div>
-    <div class="hd-row-title"><?= h($t['title']) ?></div>
-    <div class="hd-row-meta">
-      <?= hd_status_badge($t['status']) ?>
-      <?php if ($crit): ?><?= hd_priority_badge($t['priority']) ?><?php endif; ?>
-      <?php if ($has_sla): ?><?= $sla_ind ?><?php endif; ?>
-      <?php if ($is_op): ?>
-      <span class="hd-row-meta-person">
-        <?= $t['assigned_name']
-          ? '<i class="bi bi-person-check" style="color:#10b981"></i> '.h($t['assigned_name'])
-          : '<span class="text-danger" style="font-size:.67rem"><i class="bi bi-circle-fill" style="font-size:.4rem"></i> nieopr.</span>' ?>
-      </span>
-      <?php endif; ?>
-      <?php if ($unread): ?>
-      <span class="hd-unread-dot" title="Nowe wiadomości"></span>
-      <?php endif; ?>
-    </div>
-  </div>
   <?php if ($is_op): ?>
   <label class="hd-row-chk-label" onclick="event.stopPropagation()" title="Zaznacz">
     <input type="checkbox" class="form-check-input hd-row-chk" value="<?= (int)$t['id'] ?>"
            onchange="HdBulk.update()" aria-label="Zaznacz <?= h($t['number']) ?>">
   </label>
   <?php endif; ?>
+  <div class="hd-c hd-c-num"><code class="hd-row-num"><?= h($t['number']) ?></code><?php if ($unread): ?><span class="hd-unread-dot" title="Nowe wiadomości"></span><?php endif; ?></div>
+  <div class="hd-c hd-c-title">
+    <div class="hd-row-title"><?= h($t['title']) ?></div>
+    <div class="hd-c-sub"><?= h($req) ?></div>
+  </div>
+  <div class="hd-c hd-c-cat"><?= h(HD_CATEGORIES[$t['category']] ?? $t['category']) ?></div>
+  <div class="hd-c hd-c-st"><?= hd_status_badge($t['status']) ?></div>
+  <div class="hd-c hd-c-pri"><?= hd_priority_badge($t['priority']) ?></div>
+  <?php if ($is_op): ?>
+  <div class="hd-c hd-c-sla"><?= $has_sla ? $sla_ind : '<span class="text-muted">—</span>' ?></div>
+  <div class="hd-c hd-c-asg">
+    <?= $t['assigned_name'] ? h($t['assigned_name']) : '<span class="text-danger">nieprzypisane</span>' ?>
+  </div>
+  <?php endif; ?>
+  <div class="hd-c hd-c-age" title="<?= h($t['updated_at'] ?? '') ?>"><?= $ago ?></div>
 </div>
             <?php endforeach;
             if ($paging['pages'] > 1): ?>
@@ -568,6 +560,43 @@ html body .hd-bulk-bar .input-group-text,html body .hd-bulk-bar .form-select{bac
 html body .hd-bulk-bar .btn-outline-secondary{border-color:#8a8886;color:#242424}
 html body .hd-bulk-bar .btn-outline-secondary:hover{background:#f3f2f1;color:#242424}
 html body .hd-bulk-bar .btn-link{color:#0f6cbd}
+
+/* ══ Widok listy jak w Dynamics: nawigacja + siatka na całą szerokość; zgłoszenie otwiera się na całej stronie ══ */
+#hdApp{grid-template-columns:230px 1fr}
+#hdPane{display:none !important}
+@media (max-width:960px){#hdApp{grid-template-columns:1fr}}
+.hdList-head{padding:.7rem 1rem .5rem}
+.hdList-head form{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.hdList-search-wrap{flex:1 1 280px;max-width:420px;margin:0}
+.hd-cat-select{width:auto;min-width:220px;margin:0 !important}
+.hdList-count-bar{padding:.3rem 1rem}
+.hd-grid-head,#hdApp .hd-row{display:grid;align-items:center;column-gap:.75rem;padding-left:1rem;padding-right:1rem;
+  grid-template-columns:28px 92px minmax(0,1fr) 150px 140px 110px 120px 150px 54px}
+.hd-grid-head{padding-top:.4rem;padding-bottom:.4rem;background:#faf9f8;border-top:1px solid #e1dfdd;border-bottom:1px solid #e1dfdd;font-size:.72rem;font-weight:600;color:#605e5c}
+#hdApp .hd-row{padding-top:.5rem;padding-bottom:.5rem;border-left:3px solid transparent;font-size:.82rem}
+#hdApp .hd-row .hd-c{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#hdApp .hd-row .hd-c-title{display:block}
+#hdApp .hd-row .hd-row-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:unset;display:block}
+#hdApp .hd-row .hd-c-sub{font-size:.73rem;color:#605e5c;overflow:hidden;text-overflow:ellipsis}
+#hdApp .hd-row .hd-c-cat,#hdApp .hd-row .hd-c-asg,#hdApp .hd-row .hd-c-age{color:#605e5c}
+#hdApp .hd-row .hd-row-chk-label{opacity:1;padding:0}
+#hdApp .hd-row .hd-unread-dot{margin-left:.3rem}
+#hdApp .hd-row.hd-row-unread .hd-row-title{font-weight:700}
+#hdApp .hd-row:focus-visible{outline:2px solid #0f6cbd;outline-offset:-2px}
+#hdApp .hd-row.hd-np,.hd-grid-head.hd-np{grid-template-columns:92px minmax(0,1fr) 150px 140px 110px 54px}
+@media (max-width:1200px){
+  .hd-grid-head{display:none}
+  #hdApp .hd-row,#hdApp .hd-row.hd-np{grid-template-columns:28px 1fr auto;row-gap:.15rem}
+  #hdApp .hd-row.hd-np{grid-template-columns:1fr auto}
+  #hdApp .hd-row.hd-np .hd-c-num{grid-column:1}
+  #hdApp .hd-row.hd-np .hd-c-title{grid-column:1 / -1}
+  #hdApp .hd-row.hd-np .hd-c-st{grid-column:2}
+  #hdApp .hd-row .hd-c-cat,#hdApp .hd-row .hd-c-sla,#hdApp .hd-row .hd-c-asg{display:none}
+  #hdApp .hd-row .hd-c-num{grid-column:2}
+  #hdApp .hd-row .hd-c-title{grid-column:2 / -1;grid-row:2}
+  #hdApp .hd-row .hd-c-st{grid-column:3;grid-row:1}
+  #hdApp .hd-row .hd-c-pri,#hdApp .hd-row .hd-c-age{display:none}
+}
 </style>
 
 <!-- ══ LAYOUT ══════════════════════════════════════════════════════════════════ -->
@@ -710,6 +739,14 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
       <?php if ($is_op && $cnt_unread): ?>
       <span style="font-size:.7rem;color:var(--hd-accent);font-weight:600"><?= $cnt_unread ?> nowych</span>
       <?php endif; ?>
+    </div>
+
+    <!-- Nagłówek siatki -->
+    <div class="hd-grid-head<?= $is_op ? '' : ' hd-np' ?>" aria-hidden="true">
+      <?php if ($is_op): ?><span></span><?php endif; ?>
+      <span>Numer</span><span>Temat / zgłaszający</span><span>Kategoria</span><span>Status</span><span>Priorytet</span>
+      <?php if ($is_op): ?><span>SLA</span><span>Przypisane do</span><?php endif; ?>
+      <span>Aktual.</span>
     </div>
 
     <!-- Lista AJAX -->
@@ -1113,8 +1150,7 @@ var HdApp = {
       row.addEventListener('click', function (e) {
         if (e.target.closest('input,label')) return;
         var id = parseInt(row.dataset.id, 10), href = row.dataset.href;
-        if (window.innerWidth < 600) { window.location.href = href; return; }
-        self.loadPane(id);
+        window.location.href = href;
       });
       row.addEventListener('keydown', function (e) { if (e.key==='Enter') row.click(); });
     });
