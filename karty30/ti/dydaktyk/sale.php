@@ -286,6 +286,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <div class="form-text">Pokazuje się w portalu planu przy sali. <strong>Godziny otwarcia nie są rezerwacją</strong> — portal publiczny dodaje taką adnotację.</div>
           </div>
           <div class="mb-2">
+            <label class="form-label fw-semibold" for="rf_reserve_hours">Godziny rezerwacji</label>
+            <input type="text" class="form-control" name="reserve_hours" id="rf_reserve_hours" maxlength="300" placeholder="np. Pn–Pt 9:00–18:00 (po potwierdzeniu u operatora)">
+            <div class="form-text">Kiedy salę można rezerwować — osobno od godzin otwarcia. Pokazuje się w portalu planu.</div>
+          </div>
+          <div class="mb-2">
             <label class="form-label fw-semibold">Nazwa zwyczajowa (operatora przestrzeni)</label>
             <input type="text" class="form-control" name="operator_label" id="rf_operator_label" maxlength="120" placeholder="np. nazwa używana przez najemcę/właściciela lokalu">
             <div class="form-text">Opcjonalnie — jak tę przestrzeń nazywa jej operator (właściciel/najemca), gdy różni się
@@ -393,6 +398,7 @@ function roomEdit(r) {
   document.getElementById('rf_location').value = r.location || '';
   document.getElementById('rf_short_label').value = r.short_label || '';
   document.getElementById('rf_open_hours').value = r.open_hours || '';
+  document.getElementById('rf_reserve_hours').value = r.reserve_hours || '';
   document.getElementById('rf_operator_label').value = r.operator_label || '';
   document.getElementById('rf_capacity').value = r.capacity;
   document.getElementById('rf_workstations').value = r.workstations;
@@ -412,6 +418,7 @@ document.getElementById('btnAddRoom').addEventListener('click', function() {
   document.getElementById('rf_location').value = '';
   document.getElementById('rf_short_label').value = '';
   document.getElementById('rf_open_hours').value = '';
+  document.getElementById('rf_reserve_hours').value = '';
   document.getElementById('rf_operator_label').value = '';
   document.getElementById('rf_capacity').value = '20';
   document.getElementById('rf_workstations').value = '0';

@@ -199,14 +199,14 @@ $tiles = $full ? [
     'grupy'      => array_map(fn($g) => [tiPlanPortalUrl($self, ['c' => $g['id']]), (string)$g['name'], implode(' · ', array_filter([(string)$g['subject_name'], (string)$g['instr_name']]))], $allG),
     'prowadzacy' => array_map(fn($u) => [tiPlanPortalUrl($self, ['u' => $u['id']]), (string)$u['name'], 'grup: ' . (int)$u['n_courses']], $allI),
     'sale'       => array_map(fn($r) => [tiPlanPortalUrl($self, ['s' => $r['id']]), $roomName($r),
-                        implode(' · ', array_filter([trim((string)$r['short_label']) !== '' ? (string)$r['name'] : '', (string)($r['building'] ?: $r['location']), trim((string)($r['open_hours'] ?? '')) !== '' ? 'otwarta: ' . trim((string)$r['open_hours']) : '', (int)$r['n_lessons'] . ' zaj. w 8 tyg.'])), (string)$r['id'] === 'online'], $dirR),
+                        implode(' · ', array_filter([trim((string)$r['short_label']) !== '' ? (string)$r['name'] : '', (string)($r['building'] ?: $r['location']), trim((string)($r['open_hours'] ?? '')) !== '' ? 'otwarta: ' . trim((string)$r['open_hours']) : '', trim((string)($r['reserve_hours'] ?? '')) !== '' ? 'rezerwacje: ' . trim((string)$r['reserve_hours']) : '', (int)$r['n_lessons'] . ' zaj. w 8 tyg.'])), (string)$r['id'] === 'online'], $dirR),
 ] : [
     'grupy'      => array_map(fn($g) => [tiPlanPortalUrl($self, ['g' => $g['token']]), (string)$g['name'],
                         implode(' · ', array_filter([(string)$g['subject_name'], $g['instr'] ? 'prow. ' . $g['instr'] : '', $g['next_date'] ? 'najbliższe ' . date('d.m', strtotime((string)$g['next_date'])) : 'brak terminów']))], $dirG),
     'prowadzacy' => array_map(fn($i) => [tiPlanPortalUrl($self, ['p' => $i['token']]), (string)$i['initials'],
                         implode(', ', array_slice($i['groups'], 0, 3)) . (count($i['groups']) > 3 ? ' …' : '')], $dirI),
     'sale'       => array_map(fn($r) => [tiPlanPortalUrl($self, ['s' => $r['id']]), $roomName($r),
-                        implode(' · ', array_filter([trim((string)$r['short_label']) !== '' ? (string)$r['name'] : '', (string)($r['building'] ?: $r['location']), trim((string)($r['open_hours'] ?? '')) !== '' ? 'otwarta: ' . trim((string)$r['open_hours']) : '', (int)$r['n_lessons'] . ' zaj. w 8 tyg.'])), (string)$r['id'] === 'online'], $dirR),
+                        implode(' · ', array_filter([trim((string)$r['short_label']) !== '' ? (string)$r['name'] : '', (string)($r['building'] ?: $r['location']), trim((string)($r['open_hours'] ?? '')) !== '' ? 'otwarta: ' . trim((string)$r['open_hours']) : '', trim((string)($r['reserve_hours'] ?? '')) !== '' ? 'rezerwacje: ' . trim((string)$r['reserve_hours']) : '', (int)$r['n_lessons'] . ' zaj. w 8 tyg.'])), (string)$r['id'] === 'online'], $dirR),
 ];
 $tileCls = ['grupy' => 't-group', 'prowadzacy' => 't-instr', 'sale' => 't-room'];
 $printTiles = function (string $k, ?int $limit = null) use ($tiles, $tileCls, $self): void {
@@ -356,8 +356,12 @@ if (isset($_GET['s'])) {
     $sub  = implode(' · ', array_filter([$name !== (string)$room['name'] ? (string)$room['name'] : '', (string)$room['location'], (string)($room['building'] ?? ''), (string)($room['building_address'] ?? ''), (int)$room['capacity'] ? 'miejsc: ' . (int)$room['capacity'] : '']));
     $roomT = $isOnline ? $name : $roomTitle($name);
     tiPlanPortalOpen($base + ['title' => $roomT, 'heading' => $roomT, 'sub' => h($sub), 'current' => tiPlanPortalUrl($self, ['s' => $room['id']])]);
-    if (!$isOnline && trim((string)($room['open_hours'] ?? '')) !== '')
-        echo '<div class="box note" role="note"><strong>Godziny otwarcia:</strong> ' . h(trim((string)$room['open_hours'])) . '<br><small>' . h(TI_PLAN_HOURS_NOTE) . '</small></div>';
+    if (!$isOnline && (trim((string)($room['open_hours'] ?? '')) !== '' || trim((string)($room['reserve_hours'] ?? '')) !== '')) {
+        echo '<div class="box note" role="note">';
+        if (trim((string)($room['open_hours'] ?? '')) !== '') echo '<strong>Godziny otwarcia:</strong> ' . h(trim((string)$room['open_hours'])) . '<br>';
+        if (trim((string)($room['reserve_hours'] ?? '')) !== '') echo '<strong>Godziny rezerwacji:</strong> ' . h(trim((string)$room['reserve_hours'])) . '<br>';
+        echo '<small>' . h(TI_PLAN_HOURS_NOTE) . (trim((string)($room['reserve_hours'] ?? '')) !== '' ? ' ' . h(TI_PLAN_RESERVE_NOTE) : '') . '</small></div>';
+    }
     if ($isOnline) echo '<div class="box note" role="note"><strong>Zajęcia zdalne</strong> — odbywają się online (Zoom / Teams), nie wymagają rezerwacji sali. Link do spotkania uczestnicy dostają od prowadzącego lub w panelu kursanta.</div>';
     if ($isOnline) {   // chipy-filtry: metody (platformy) i grupy, z liczbą nieodwołanych terminów
         $cnt = function (string $key) use ($onlineAll): array {
