@@ -37,7 +37,9 @@ function dictService(): DictionaryService
     static $svc = [];
     dictionaryMigrate();
     $uid = null;
-    if (PHP_SAPI !== 'cli' || session_status() === PHP_SESSION_ACTIVE) {
+    // Autora ustalamy tylko, gdy sesja już działa albo da się ją jeszcze bezpiecznie wystartować (nagłówki niewysłane) —
+    // odczyt słownika w trakcie renderowania strony (np. publiczny podgląd zgłoszenia) nie może startować sesji po wyjściu.
+    if (session_status() === PHP_SESSION_ACTIVE || (PHP_SAPI !== 'cli' && !headers_sent())) {
         $u = function_exists('current_user') ? current_user() : null;
         $uid = $u ? (int)($u['id'] ?? 0) ?: null : null;
     }
