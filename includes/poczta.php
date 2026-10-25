@@ -297,6 +297,16 @@ class PocztaScanService
             ]);
             $result['created']++;
 
+            // Reguły Skrzynki CRM (załatwione / spam / przypisz / tag) — błąd reguł nie przerywa skanowania
+            if ($direction === 'in') {
+                try {
+                    require_once __DIR__ . '/crmInboxRules.php';
+                    crm_inbox_rules_apply((int)$comm_id);
+                } catch (\Throwable $e) {
+                    error_log('[poczta] reguły skrzynki: ' . $e->getMessage());
+                }
+            }
+
             if ($has_attach) {
                 $this->store_attachments($comm_id, $mailbox, $msg_id, $cid, $download_attachments, $max_attach_kb);
             }

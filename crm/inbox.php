@@ -528,6 +528,9 @@ include __DIR__ . '/includes/header_crm.php';
         </a>
       </li>
       <li>
+        <a class="dropdown-item" href="<?= APP_URL ?>/crm/inbox_rules.php"><i class="bi bi-funnel" aria-hidden="true"></i>Reguły skrzynki</a>
+      </li>
+      <li>
         <button type="button" class="dropdown-item" id="ibCompactBtn" aria-pressed="false">
           <i class="bi bi-square" aria-hidden="true"></i>Lista zwarta (bez podglądu treści)
         </button>
