@@ -322,7 +322,10 @@ function rodoMatchWhere(array $entry, array $subject): ?array {
     $tel = preg_replace('/\D/', '', (string)($subject['telefon'] ?? ''));
     $tel = strlen($tel) > 9 ? substr($tel, -9) : $tel;
     foreach ($entry['match']['email'] ?? [] as $c) if ($email !== '' && in_array($c, $cols, true)) { $parts[] = "LOWER(TRIM(`{$c}`)) = ?"; $p[] = $email; }
-    foreach ($entry['match']['pesel'] ?? [] as $c) if (strlen($pesel) === 11 && in_array($c, $cols, true)) { $parts[] = "REPLACE(REPLACE(`{$c}`,' ',''),'-','') = ?"; $p[] = $pesel; }
+    foreach ($entry['match']['pesel'] ?? [] as $c) if (strlen($pesel) === 11 && in_array($c, $cols, true)) {
+        [$ps, $pp] = fcMatchPesel($entry['table'], $c, $pesel);   // także gdy kolumna jest zaszyfrowana (field_crypto)
+        $parts[] = $ps; array_push($p, ...$pp);
+    }
     foreach ($entry['match']['telefon'] ?? [] as $c) if (strlen($tel) === 9 && in_array($c, $cols, true)) { $parts[] = "REPLACE(REPLACE(REPLACE(`{$c}`,' ',''),'-',''),'+','') LIKE ?"; $p[] = '%' . $tel; }
     return $parts ? [implode(' OR ', $parts), $p] : null;
 }
