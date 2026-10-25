@@ -13,6 +13,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/LicenseManagementService.php';
 require_once dirname(__DIR__) . '/lib/LicenseOperationService.php';
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
+require_once dirname(__DIR__) . '/lib/LicenseRotation.php';
 
 final class LicensePublicController
 {
@@ -231,6 +232,19 @@ final class LicensePublicController
               . ($st === LicenseCorrection::APPLIED ? ', zatwierdzona ' . $dt($c['applied_at']) . '.' : '.');
         return $this->view('message.php', ['title' => 'Status korekty AMSK', 'tone' => $st === LicenseCorrection::APPLIED ? 'success' : ($st === LicenseCorrection::CANCELLED ? 'danger' : 'info'), 'text' => $text,
             'numbers' => [LicenseCorrection::code((int)$c['id'])]]);
+    }
+
+    /** QR z druku ASK-UP1: status uzasadnienia rotacji po tokenie — bez danych osobowych. */
+    public function rotationVerify(string $token): string
+    {
+        $r = LicenseRotation::byToken($token);
+        if (!$r) { http_response_code(404); return $this->view('message.php', ['title' => 'Nie znaleziono dokumentu', 'tone' => 'danger', 'text' => 'Nie znaleziono uzasadnienia o tym kodzie. Sprawdź, czy kod QR jest czytelny.']); }
+        $dt = fn(?string $v) => ldDate(substr((string)$v, 0, 10)) . ' ' . substr((string)$v, 11, 5);
+        $st = (string)$r['status'];
+        $text = 'Uzasadnienie rotacji licencji ' . LicenseRotation::code((int)$r['id']) . ' (ASK-UP1) do sprawy ' . $r['target_number'] . ': ' . LicenseRotation::statusLabel($st) . '. Wystawione ' . $dt($r['created_at'])
+              . ($st === LicenseRotation::SIGNED ? ', podpis potwierdzony ' . $dt($r['confirmed_at']) . '.' : '.');
+        return $this->view('message.php', ['title' => 'Status uzasadnienia ASK-UP1', 'tone' => $st === LicenseRotation::SIGNED ? 'success' : ($st === LicenseRotation::CANCELLED ? 'danger' : 'info'), 'text' => $text,
+            'numbers' => [LicenseRotation::code((int)$r['id'])]]);
     }
 
     public function done(): string

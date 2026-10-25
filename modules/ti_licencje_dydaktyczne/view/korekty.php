@@ -5,6 +5,7 @@
  */
 require __DIR__ . '/_parts.php';
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
+require_once dirname(__DIR__) . '/lib/LicenseRotation.php';
 $title = 'Korekty AMSK';
 $kierCur = 'licencjeDydaktyczne.php?_route=%2Fkorekty';
 include __DIR__ . '/_head.php';
@@ -29,5 +30,15 @@ include __DIR__ . '/_head.php';
       <td class="small"><?= h(implode(', ', array_map(fn($i) => $i['label'], $c['itemsList']))) ?></td>
       <td><?= ldChip(LicenseCorrection::statusLabel($c['status']), LicenseCorrection::statusColor($c['status'])) ?><?php if ($c['status'] === LicenseCorrection::APPLIED && !LicenseCorrection::hasPackage((int)$c['id'])): ?> <?= ldChip('brak pakietu — ręczne generowanie', '#fa6800') ?><?php endif; ?></td>
       <td class="small text-nowrap"><?= h(ldDt($c['created_at'])) ?> · <?= h($c['created_name']) ?></td></tr>
+  <?php endforeach; ?></tbody></table></div>
+<?php $_rots = db_all("SELECT * FROM license_rotations ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, id DESC LIMIT 30"); ?>
+<h2 class="h5 mt-4"><span class="sym" style="background:#14532d">ASK-UP1</span> Uzasadnienia rotacji licencji</h2>
+<div class="table-responsive panel p-0"><table class="table table-hover mb-0">
+  <thead><tr><th>Kod</th><th>Sprawa</th><th>Było → jest</th><th>Stan</th><th>Wystawiono</th></tr></thead><tbody>
+  <?php if (!$_rots): ?><tr><td colspan="5" class="text-secondary p-3">Brak uzasadnień rotacji. Wystawisz je z karty sprawy lub operacji (sekcja ASK-UP1).</td></tr><?php endif; ?>
+  <?php foreach ($_rots as $r): ?>
+    <tr><td class="text-nowrap"><a href="<?= h(route('ld.rot', ['id' => $r['id']])) ?>"><?= h(LicenseRotation::code((int)$r['id'])) ?></a></td><td><?= h($r['target_number']) ?></td>
+      <td class="small"><?= h($r['from_holder'] ?: '—') ?> → <b><?= h($r['to_holder']) ?></b></td><td><?= ldChip(LicenseRotation::statusLabel($r['status']), LicenseRotation::statusColor($r['status'])) ?></td>
+      <td class="small text-nowrap"><?= h(ldDt($r['created_at'])) ?> · <?= h($r['created_name']) ?></td></tr>
   <?php endforeach; ?></tbody></table></div>
 <?php include __DIR__ . '/_foot.php'; ?>

@@ -35,7 +35,7 @@ final class LicenseCodes
     /** Rewizja druków sprawy: 1 + liczba ZATWIERDZONYCH korekt AMSK. Druk wydany przed korektą ma niższą rewizję (jest nieaktualny). */
     public static function revision(string $scope, int $id): int
     {
-        if ($scope === 'correction') return 1;
+        if ($scope === 'correction' || $scope === 'rotation') return 1;
         try {
             return 1 + (int)(db_one("SELECT COUNT(*) AS n FROM license_corrections WHERE scope = ? AND target_id = ? AND status = 'applied'", [$scope, $id])['n'] ?? 0);
         } catch (\Throwable $e) { return 1; }
@@ -58,6 +58,7 @@ final class LicenseCodes
     {
         try {
             if (preg_match('/AMSK-(\d{6})/', $number, $m)) return self::formCode('AMSK-' . $m[1], $symbol);
+            if (preg_match('/UP1-(\d{6})/', $number, $m) && str_contains($symbol, 'UP1')) return self::formCode('UP1-' . $m[1], $symbol);
             $base = trim(explode(' · ', $number)[0]);
             if ($base === '') return '';
             $scope = ''; $id = 0;
@@ -75,12 +76,12 @@ final class LicenseCodes
     /**
      * Rozpoznanie wpisanego / zeskanowanego kodu: LD000002[/AM7-2], OP000005[/AM20], AMSK-000012[/AMSK-1].
      * Kod może mieć rewizję: LD000002/AM7-2/R2 (rev = 2; 0 = druk bez oznaczenia wersji, sprzed wprowadzenia kodów z rewizją).
-     * @return array{scope:string,id:int,symbol:string,rev:int}|null scope: license | operation | correction
+     * @return array{scope:string,id:int,symbol:string,rev:int}|null scope: license | operation | correction | rotation (UP1-NNNNNN)
      */
     public static function resolve(string $code): ?array
     {
         $code = strtoupper(trim($code));
-        if (!preg_match('~^(LD|OP|AMSK-)(\d{1,9})(?:/(?!R\d+$)([A-Z0-9-]{1,24}))?(?:/R(\d{1,3}))?$~', $code, $m)) return null;
-        return ['scope' => ['LD' => 'license', 'OP' => 'operation', 'AMSK-' => 'correction'][$m[1]], 'id' => (int)$m[2], 'symbol' => $m[3] ?? '', 'rev' => (int)($m[4] ?? 0)];
+        if (!preg_match('~^(LD|OP|AMSK-|UP1-)(\d{1,9})(?:/(?!R\d+$)([A-Z0-9-]{1,24}))?(?:/R(\d{1,3}))?$~', $code, $m)) return null;
+        return ['scope' => ['LD' => 'license', 'OP' => 'operation', 'AMSK-' => 'correction', 'UP1-' => 'rotation'][$m[1]], 'id' => (int)$m[2], 'symbol' => $m[3] ?? '', 'rev' => (int)($m[4] ?? 0)];
     }
 }

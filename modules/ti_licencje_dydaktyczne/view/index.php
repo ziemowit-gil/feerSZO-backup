@@ -7,6 +7,7 @@
 require __DIR__ . '/_parts.php';
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
 require_once dirname(__DIR__) . '/lib/LicenseOperationService.php';
+require_once dirname(__DIR__) . '/lib/LicenseRotation.php';
 $title = 'Licencje AM5 / AM7 i zarządzanie';
 include __DIR__ . '/_head.php';
 $u = fn(array $q) => h(route('ld.index', $q));
@@ -29,7 +30,8 @@ $opN = (int)$opCounts['pending'] + (int)($opCounts['signing'] ?? 0) + (int)$opCo
 $corrPending = LicenseCorrection::pendingCount();
 $corrRows = LicenseCorrection::search('', 15);
 $corrNoPkg = LicenseCorrection::withoutPackage();
-$actN = count($toVerify) + count($overdueAsg) + (int)$opCounts['pending'] + $corrPending + count($corrNoPkg);
+$rotPending = LicenseRotation::pendingCount();
+$actN = count($toVerify) + count($overdueAsg) + (int)$opCounts['pending'] + $corrPending + count($corrNoPkg) + $rotPending;
 ?>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h1 class="me-auto mb-0"><span class="sym">AM5</span> <span class="sym" style="background:#0050ef">AM7</span> Licencje dydaktyczne i oprogramowanie</h1>
@@ -165,13 +167,19 @@ include __DIR__ . '/_tabs.php'; ?>
   <ul class="mb-0"><?php foreach ($corrPend as $c): ?><li><a href="<?= h(route('ld.corr', ['id' => $c['id']])) ?>"><?= h(LicenseCorrection::code((int)$c['id'])) ?></a> — <?= h($c['target_number']) ?>, <?= h(implode(', ', array_map(fn($i) => $i['label'], $c['itemsList']))) ?></li><?php endforeach; ?></ul>
 </section>
 <?php endif; ?>
+<?php if ($rotPending > 0): ?>
+<section class="panel warn">
+  <h2 class="mt-0">Uzasadnienia rotacji licencji (ASK-UP1) czekające na podpis kierownika (<?= $rotPending ?>)</h2>
+  <ul class="mb-0"><?php foreach (db_all("SELECT * FROM license_rotations WHERE status = 'pending' ORDER BY id DESC LIMIT 20") as $_r): ?><li><a href="<?= h(route('ld.rot', ['id' => $_r['id']])) ?>"><?= h(LicenseRotation::code((int)$_r['id'])) ?></a> — <?= h($_r['target_number']) ?>: <?= h($_r['from_holder'] ?: '—') ?> → <?= h($_r['to_holder']) ?></li><?php endforeach; ?></ul>
+</section>
+<?php endif; ?>
 <?php if ($corrNoPkg): ?>
 <section class="panel warn">
   <h2 class="mt-0">Zatwierdzone korekty bez pakietu druków — ręczne generowanie (<?= count($corrNoPkg) ?>)</h2>
   <ul class="mb-0"><?php foreach ($corrNoPkg as $c): ?><li><a href="<?= h(route('ld.corr', ['id' => $c['id']])) ?>#pakiet"><?= h(LicenseCorrection::code((int)$c['id'])) ?></a> — <?= h($c['target_number']) ?>: wygeneruj pakiet poprawionych druków AM i wyślij ZIP z hasłem</li><?php endforeach; ?></ul>
 </section>
 <?php endif; ?>
-<?php if (!$toVerify && !$overdueAsg && !$opPend && !$corrPend && !$corrNoPkg): ?><p class="panel text-secondary">Nic nie czeka na działanie: brak oświadczeń do weryfikacji, spraw po terminie 7 dni, operacji do decyzji i korekt do podpisu.</p><?php endif; ?>
+<?php if (!$toVerify && !$overdueAsg && !$opPend && !$corrPend && !$corrNoPkg && $rotPending === 0): ?><p class="panel text-secondary">Nic nie czeka na działanie: brak oświadczeń do weryfikacji, spraw po terminie 7 dni, operacji do decyzji i korekt do podpisu.</p><?php endif; ?>
 </div>
 
 <div class="ld-tabpanel" id="ldp-wzory" data-ld-panel="wzory" role="tabpanel" aria-labelledby="ldt-wzory" hidden>

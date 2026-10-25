@@ -42,6 +42,7 @@ if (defined('LD_PUBLIC')) {
         $r->get('/zmiana-platnika/{token}/pdf', [LicensePublicController::class, 'paymentPdf'])->name('ld.pub.payment.pdf');
         $r->get('/gotowe',                   [LicensePublicController::class, 'done'])->name('ld.pub.done');
         $r->get('/amsk/{token}',             [LicensePublicController::class, 'amskVerify'])->name('ld.pub.amsk');
+        $r->get('/up1/{token}',              [LicensePublicController::class, 'rotationVerify'])->name('ld.pub.up1');
     });
     $r->dispatch();
     return;
@@ -109,6 +110,12 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/pakiet/{pid}/regeneruj',          [LicenseCorrectionController::class, 'packRegen'])->name('ld.pack.regen');
     $r->post('/pakiet/{pid}/haslo',              [LicenseCorrectionController::class, 'packPwd'])->name('ld.pack.pwd');
     $r->get('/pakiet/{pid}/amsg.pdf',            [LicenseCorrectionController::class, 'packAmsg'])->name('ld.pack.amsg');
+    // ASK-UP1: uzasadnienie rotacji licencji (druk z QR i Code128, podpis odręczny kierownika)
+    $r->post('/rotacje/nowa',                    [LicenseCorrectionController::class, 'rotCreate'])->name('ld.rot.new');
+    $r->get('/rotacje/{id}',                     [LicenseCorrectionController::class, 'rotShow'])->name('ld.rot');
+    $r->get('/rotacje/{id}/pdf',                 [LicenseCorrectionController::class, 'rotPdf'])->name('ld.rot.pdf');
+    $r->post('/rotacje/{id}/podpisano',          [LicenseCorrectionController::class, 'rotConfirm'])->name('ld.rot.confirm');
+    $r->post('/rotacje/{id}/anuluj',             [LicenseCorrectionController::class, 'rotCancel'])->name('ld.rot.cancel');
     $r->post('/korekty/{id}/anuluj',             [LicenseCorrectionController::class, 'cancel'])->name('ld.corr.cancel');
     $r->post('/korekty/{id}/wyslij',             [LicenseCorrectionController::class, 'send'])->name('ld.corr.send');
     // Rejestr operacji na licencjach: konta i posiadane licencje, AM11–AM13, AM20–AM24

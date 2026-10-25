@@ -571,6 +571,43 @@ final class LicenseDocument
         return self::css() . $h;
     }
 
+    // ── ASK-UP1: uzasadnienie rotacji licencji — druk do ODRĘCZNEGO podpisu kierownika (QR + Code128) ──────────────────
+
+    /** $r — rotacja (LicenseRotation), $t — sprawa / operacja. */
+    public function askUp1Html(array $r, array $t): string
+    {
+        $this->n = 0;
+        $code = LicenseRotation::code((int)$r['id']);
+        $number = LicenseRotation::docNumber($r);
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer dokumentu', '<span class="big">' . self::e($number) . '</span>', ' width="45%"')
+           . $this->fld('Dotyczy sprawy', self::e((string)$r['target_number']) . ($r['scope'] === 'operation' ? ' (operacja)' : ' (sprawa)'), ' width="35%"')
+           . '<td class="sym" width="20%" style="background:#14532d"><div class="symb">ASK-UP1</div><div class="symp">&nbsp;</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '</tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">UZASADNIENIE ROTACJI LICENCJI</div>'
+           . '<div class="ttl2">zmiana użytkownika / konta licencji — wymaga ODRĘCZNEGO podpisu kierownika (dane osobowe)</div></td></tr>'
+           . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Kod:</b> ' . self::e($code) . '.&nbsp; <b>Status:</b> ' . self::e(LicenseRotation::statusLabel((string)$r['status'])) . '.&nbsp; Dokument uzasadnia rotację — samej zmiany nie wykonuje (robi to operacja AM22 / AM91).</td></tr></table>';
+        $h .= '<table class="t">' . self::sec('A', 'LICENCJA', 2) . '<tr>'
+            . $this->fld('Licencja / usługa', self::val((string)$r['license_label'], 'licencja'), ' width="60%"')
+            . $this->fld('Data rotacji', $r['rotation_date'] !== '' ? self::e(ldDate((string)$r['rotation_date'])) : self::val('', 'data rotacji'), ' width="40%"') . '</tr></table>';
+        $h .= '<table class="t">' . self::sec('B', 'ROTACJA: BYŁO → JEST', 2) . '<tr>'
+            . $this->fld('Dotychczasowy użytkownik', self::val((string)$r['from_holder'], 'użytkownik'), ' width="50%"')
+            . $this->fld('Nowy użytkownik', '<b>' . self::val((string)$r['to_holder'], 'użytkownik') . '</b>', ' width="50%"') . '</tr><tr>'
+            . $this->fld('Dotychczasowy login (UPN)', self::val((string)$r['from_upn'], 'brak'), ' width="50%"')
+            . $this->fld('Nowy login (UPN)', self::val((string)$r['to_upn'], 'brak'), ' width="50%"') . '</tr></table>';
+        $h .= '<table class="t">' . self::sec('C', 'UZASADNIENIE', 1) . '<tr><td class="pc"><div class="pt">' . nl2br(self::e((string)$r['reason'])) . '</div></td></tr>'
+            . '<tr><td class="pc"><div class="lb">Wystawił(a): ' . self::e((string)$r['created_name']) . ', ' . self::e(ldDate(substr((string)$r['created_at'], 0, 10)) . ' ' . substr((string)$r['created_at'], 11, 5)) . '</div></td></tr></table>';
+        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('D', 'KONTROLA I POWIĄZANIE', 3) . '<tr>'
+            . '<td class="f" style="width:22%;text-align:center"><div class="lb">Kod QR — status w SZO</div><barcode code="' . self::e(LicenseRotation::verifyUrl($r)) . '" type="QR" class="barcode" size="0.85" error="M" disableborder="1" /></td>'
+            . '<td class="f" style="width:38%;text-align:center"><div class="lb">Code128 — kod uzasadnienia</div><barcode code="' . self::e($code) . '" type="C128B" size="1" height="1.1" /><div class="v">' . self::e($code) . '</div></td>'
+            . '<td class="pc" style="width:40%"><div class="pt">Kod <b>' . self::e($code) . '</b> wpisz (zeskanuj) w polu „Skanuj kod” na pulpicie Licencji — otworzy kartę uzasadnienia. Kod QR prowadzi do strony ze statusem (bez danych osobowych).</div></td></tr></table>';
+        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('E', 'ZATWIERDZENIE — PODPIS ODRĘCZNY KIEROWNIKA', 2) . '<tr><td class="pc" colspan="2"><div class="pt">'
+            . 'Potwierdzam zasadność rotacji licencji opisanej powyżej (dane osobowe). Podpis składam odręcznie; po podpisaniu druk należy zeskanować do teczki sprawy i potwierdzić w SZO.</div></td></tr><tr>'
+            . $this->fld('Imię i nazwisko kierownika (czytelnie)', '', ' width="55%" style="height:20mm"') . $this->fld('Data i miejscowość', '', ' width="45%" style="height:20mm"') . '</tr><tr>'
+            . $this->fld('Podpis odręczny kierownika', '', ' colspan="2" style="height:26mm"') . '</tr></table>';
+        return self::css() . $h;
+    }
+
     public function blankHtml(LicenseDoc $doc): string
     {
         $l = ['id' => 0, 'case_number' => '', 'created_at' => date('Y'), 'title' => '', 'work_description' => '', 'course_name' => '', 'licensor_name' => '', 'licensor_email' => '',

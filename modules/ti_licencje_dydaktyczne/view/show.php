@@ -333,6 +333,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 
 <div class="ld-tabpanel" id="ldp-korekty" data-ld-panel="korekty" role="tabpanel" aria-labelledby="ldt-korekty" hidden>
 <?php $corrScope = 'license'; $corrId = $id; $corrTarget = $l; include __DIR__ . '/_korektaForm.php'; ?>
+<?php include __DIR__ . '/_rotacjaForm.php'; ?>
 </div><!-- /korekty -->
 
 <div class="ld-tabpanel" id="ldp-dziennik" data-ld-panel="dziennik" role="tabpanel" aria-labelledby="ldt-dziennik" hidden>

@@ -17,6 +17,7 @@ declare(strict_types=1);
  *                             planu, zawieszenie, cofnięcie, przedłużenie posiadanej licencji); rekord JSON w record_json
  *   license_corrections     — AMSK: korekty danych w dokumentach AM (czekają na odręczny podpis kierownika, potem zapis zmian)
  *   license_doc_issues      — rejestr wydanych druków AM (kod z rewizją R1, R2…, obowiązuje | unieważniony); license_doc_packages — pakiety po AMSK
+ *   license_rotations       — ASK-UP1: uzasadnienie rotacji licencji (druk z QR/Code128, odręczny podpis kierownika)
  *   license_funding         — historia płatników / finansowania posiadanych licencji (resource_key ti:N | am:N | m365:N)
  *   notification_logs       — każda próba powiadomienia (kanał, rodzaj, adresat zamaskowany, sent|failed|skipped, błąd, fallback)
  */
@@ -370,6 +371,34 @@ function ldMigrate(): void
         created_at VARCHAR(19)
     )");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_issues_target ON license_doc_issues(scope, target_id, symbol, status)");
+
+    // ASK-UP1 — uzasadnienie rotacji licencji (zmiana użytkownika / konta licencji): druk z QR i Code128, podpis ODRĘCZNY kierownika; nie zmienia danych sam z siebie
+    $db->exec("CREATE TABLE IF NOT EXISTS license_rotations (
+        id {$pk},
+        scope VARCHAR(10) NOT NULL DEFAULT 'license',
+        target_id INTEGER NOT NULL DEFAULT 0,
+        target_number VARCHAR(80) NOT NULL DEFAULT '',
+        token VARCHAR(40) NOT NULL DEFAULT '',
+        status VARCHAR(12) NOT NULL DEFAULT 'pending',
+        license_label VARCHAR(255) NOT NULL DEFAULT '',
+        from_holder VARCHAR(190) NOT NULL DEFAULT '',
+        to_holder VARCHAR(190) NOT NULL DEFAULT '',
+        from_upn VARCHAR(190) NOT NULL DEFAULT '',
+        to_upn VARCHAR(190) NOT NULL DEFAULT '',
+        rotation_date VARCHAR(10) NOT NULL DEFAULT '',
+        reason TEXT,
+        created_by INTEGER,
+        created_name VARCHAR(190) NOT NULL DEFAULT '',
+        created_ip VARCHAR(64) NOT NULL DEFAULT '',
+        created_at VARCHAR(19),
+        confirmed_by INTEGER,
+        confirmed_name VARCHAR(190) NOT NULL DEFAULT '',
+        confirmed_ip VARCHAR(64) NOT NULL DEFAULT '',
+        confirmed_at VARCHAR(19),
+        cancel_reason TEXT
+    )");
+    $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_rot_token ON license_rotations(token)");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_rot_target ON license_rotations(scope, target_id)");
     $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_corr_token ON license_corrections(token)");
 
     $db->exec("CREATE TABLE IF NOT EXISTS notification_logs (
