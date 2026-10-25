@@ -1528,15 +1528,24 @@ class M365Graph {
      * plików (fileAttachment, do ok. 3 MB) — większe wymagają osobnej sesji uploadu.
      */
     public function get_attachment_content(string $mailbox, string $message_id, string $attachment_id): string {
-        $url = "https://graph.microsoft.com/v1.0/users/" . urlencode($mailbox)
-             . "/messages/" . urlencode($message_id) . "/attachments/" . urlencode($attachment_id)
-             . "?\$select=contentBytes";
-        $resp = $this->http_get($url);
-        if (isset($resp['error']) || empty($resp['contentBytes'])) {
-            $msg = $resp['error']['message'] ?? 'brak contentBytes w odpowiedzi';
-            throw new \RuntimeException("Graph API (get_attachment_content): {$msg}");
+        $base = "https://graph.microsoft.com/v1.0/users/" . urlencode($mailbox)
+              . "/messages/" . urlencode($message_id) . "/attachments/" . urlencode($attachment_id);
+        // Bez $select: contentBytes nie należy do typu bazowego attachment, więc „?$select=contentBytes”
+        // kończy się błędem OData; pełny obiekt fileAttachment zawiera contentBytes sam z siebie.
+        $resp = $this->http_get($base);
+        if (!isset($resp['error']) && !empty($resp['contentBytes'])) {
+            return base64_decode($resp['contentBytes']);
         }
-        return base64_decode($resp['contentBytes']);
+        // Zapasowo surowa zawartość (/$value) — działa też dla większych plików
+        $ctx = stream_context_create(['http' => [
+            'method' => 'GET', 'header' => "Authorization: Bearer {$this->token()}\r\n", 'ignore_errors' => true,
+        ]]);
+        $raw = @file_get_contents($base . '/$value', false, $ctx);
+        $code = 0;
+        foreach (($http_response_header ?? []) as $h) if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) $code = (int)$m[1];
+        if ($raw !== false && $raw !== '' && $code >= 200 && $code < 300) return $raw;
+        $msg = $resp['error']['message'] ?? 'brak contentBytes w odpowiedzi';
+        throw new \RuntimeException("Graph API (get_attachment_content): {$msg}");
     }
 
     /**
