@@ -44,10 +44,12 @@ $where  = '1=1';
 $params = [];
 
 if ($search) {
+    // PESEL bywa zaszyfrowany (field_crypto): pełny numer szukamy przez indeks ślepy, fragment (LIKE) działa tylko na jawnych wierszach
+    [$peselSql, $peselParams] = fcMatchPesel('umowy_praca', 'pesel', $search);
     $where .= " AND (numer_umowy LIKE ? OR imie_nazwisko LIKE ? OR nr_rejestru LIKE ?"
             . " OR pesel LIKE ? OR email LIKE ? OR stanowisko LIKE ?"
-            . " OR dzial_projekt LIKE ? OR opiekun_przelozony LIKE ? OR uwagi LIKE ?)";
-    $params = array_merge($params, array_fill(0, 9, "%$search%"));
+            . " OR dzial_projekt LIKE ? OR opiekun_przelozony LIKE ? OR uwagi LIKE ? OR {$peselSql})";
+    $params = array_merge($params, array_fill(0, 9, "%$search%"), $peselParams);
 }
 if ($status)     { $where .= " AND status = ?"; $params[] = $status; }
 if ($stanowisko) { $where .= " AND stanowisko LIKE ?"; $params[] = "%$stanowisko%"; }
