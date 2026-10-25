@@ -2578,6 +2578,9 @@ class CrmManager
      * @param bool $do_send true = faktycznie wyślij przez bramkę
      * @return int ID logu komunikacji
      */
+    /** Wysyłka masowa w toku z włączonym śledzeniem (ustawia crm/api/mass_send.php) — null = bez śledzenia. */
+    public static ?int $mass_track_send_id = null;
+
     public static function sendAndLog(
         int    $contact_id,
         string $channel,
@@ -2625,6 +2628,12 @@ class CrmManager
                     $crm_footer = trim(org_setting('crm_email_footer'));
                     if ($crm_footer !== '') {
                         $html_body .= "\n<hr>\n" . $crm_footer;
+                    }
+                    if (self::$mass_track_send_id) {
+                        // Wysyłka masowa z włączonym śledzeniem: piksel otwarcia + linki z licznikiem
+                        require_once __DIR__ . '/crmMassStats.php';
+                        $html_body = crm_mass_inject_tracking($html_body, (int)self::$mass_track_send_id,
+                            crm_mass_track_token((int)self::$mass_track_send_id, $contact_id));
                     }
                     mail_queue_add($to['email'], $to_name, $subject ?: 'Wiadomość', $html_body, $body, 'crm', $contact_id, '', false, $attachments, $from_email);
                     // Wyślij natychmiast (nie czekaj na cron) — przez M365/SMTP/mail()

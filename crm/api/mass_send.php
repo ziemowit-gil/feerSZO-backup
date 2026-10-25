@@ -278,6 +278,8 @@ if ($action === 'start') {
             // zapisujemy ją razem z wysyłką, żeby po latach było wiadomo, na czym
             // opierał się nadawca, a nie tylko że coś poszło.
             'members_basis'   => !empty($body['members_basis']),
+            // Śledzenie otwarć i kliknięć (tylko e-mail) — decyzja operatora przy tej wysyłce
+            'track'           => $channel === 'email' && !empty($body['track']),
         ]), $send_id]);
 
     api_ok(['send_id'=>$send_id,'recipients'=>count($ids)]);
@@ -367,6 +369,8 @@ if ($action === 'execute') {
     $from_email = $payload['from_email'] ?? '';
     $overrides  = [];
     foreach ((array)($payload['persons'] ?? []) as $k => $v) $overrides[(int)$k] = (int)$v;
+
+    CrmManager::$mass_track_send_id = (!empty($payload['track']) && $channel === 'email') ? $send_id : null;
 
     $ok = $fail = 0;
     $failed_cids = [];

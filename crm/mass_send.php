@@ -261,7 +261,8 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-aud-share{font-size:.78rem;color:#374151;margin:0;display:inline-flex;align-items:center;gap:.3rem}
 .ms-aud-msg{font-size:.78rem;color:#0F4C47;font-weight:600}
 .ms-aud-msg.is-err{color:#B91C1C}
-.ms-retry{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}.ms-retry .btn{border-radius:0}.ms-test{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem}.ms-test .btn{border-radius:0}.ms-test-msg{font-size:.76rem;color:#374151}
+.ms-retry{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}.ms-retry .btn{border-radius:0}.ms-track{display:flex;gap:.6rem;align-items:flex-start;margin:0 0 .75rem;padding:.6rem .75rem;border:1px solid #D1D5DB;background:#F9FAFB;font-size:.8rem;color:#374151;cursor:pointer}.ms-track input{margin-top:.2rem;width:1rem;height:1rem;accent-color:#0F766E}
+.ms-test{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem}.ms-test .btn{border-radius:0}.ms-test-msg{font-size:.76rem;color:#374151}
 .ms-retry-msg{font-size:.76rem;color:#374151}
 </style>
 
@@ -269,6 +270,9 @@ include __DIR__ . '/includes/header_crm.php';
   <div>
     <div class="crm-page-title"><i class="bi bi-send-fill" style="color:#0176D3"></i> Wysyłka masowa</div>
     <div class="crm-page-subtitle">E-mail i SMS do grup, podgrup i tagów kontaktów</div>
+  </div>
+  <div class="crm-page-actions">
+    <a href="<?= APP_URL ?>/crm/mass_stats.php" class="btn btn-crm-outline btn-sm"><i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Statystyki wysyłek</a>
   </div>
 </div>
 
@@ -675,6 +679,10 @@ include __DIR__ . '/includes/header_crm.php';
     <button type="button" id="previewBtn" class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="MS.preview()">
       <i class="bi bi-eye me-1"></i>Podgląd odbiorców
     </button>
+    <label class="ms-track" id="msTrackRow">
+      <input type="checkbox" id="ms_track">
+      <span><strong>Śledź otwarcia i kliknięcia</strong> (tylko e-mail) — do wiadomości trafia niewidoczny piksel, a linki przechodzą przez przekierowanie z licznikiem. Wyniki: <a href="<?= APP_URL ?>/crm/mass_stats.php">Statystyki wysyłek</a>. Włączaj świadomie — nie dla wiadomości wrażliwych.</span>
+    </label>
     <div class="ms-test mb-2">
       <button type="button" class="btn btn-outline-secondary btn-sm" onclick="MS.testSend(this)">
         <i class="bi bi-envelope-check" aria-hidden="true"></i> Wyślij test do mnie
@@ -1450,6 +1458,7 @@ recipientRow(c)
       template_name: tplText,
       dw: dw,
       send_as: (document.getElementById('ms_send_as')?.value) || 'system',
+      track: _channel === 'email' && !!document.getElementById('ms_track')?.checked,
       person_overrides: _person_over,
     });
 
