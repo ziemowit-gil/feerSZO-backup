@@ -42,11 +42,13 @@ function hdCsatMaybeSend(array $ticket, string $newStatus): bool
     try {
         require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
         $url = APP_URL . '/helpdesk/csat.php?t=' . $token;
-        $html = '<p>Dzień dobry' . (!empty($ticket['requester_name']) ? ', ' . h($ticket['requester_name']) : '') . '!</p>'
-            . '<p>Zgłoszenie <strong>' . h($ticket['number']) . '</strong> — ' . h($ticket['title']) . ' zostało zakończone. '
-            . 'Oceń proszę, jak je załatwiliśmy — zajmie to kilka sekund.</p>'
-            . '<p><a href="' . h($url) . '">Oceń obsługę zgłoszenia</a></p>'
-            . '<p style="color:#64748b;font-size:12px">Ankieta jest anonimowa wobec operatora tylko w raportach zbiorczych.</p>';
+        $html = hd_mail_layout([
+            'title' => 'Jak oceniasz obsługę zgłoszenia?', 'preheader' => 'Oceń obsługę zgłoszenia ' . $ticket['number'] . ' — zajmie to kilka sekund.',
+            'greeting' => 'Dzień dobry' . (!empty($ticket['requester_name']) ? ', ' . $ticket['requester_name'] : '') . ',',
+            'intro' => '<p style="margin:0">Twoje zgłoszenie zostało zakończone. Powiedz nam, jak je załatwiliśmy — to pomaga nam poprawiać obsługę.</p>',
+            'facts' => [['Numer', $ticket['number']], ['Temat', $ticket['title']]],
+            'cta' => ['label' => 'Oceń obsługę', 'url' => $url],
+        ]);
         mail_queue_add($email, (string)($ticket['requester_name'] ?? ''), '[' . $ticket['number'] . '] Jak oceniasz obsługę zgłoszenia?', $html);
     } catch (\Throwable $e) {
         error_log('[helpdeskCsat] ' . $e->getMessage());

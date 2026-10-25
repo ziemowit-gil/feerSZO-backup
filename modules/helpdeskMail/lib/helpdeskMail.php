@@ -245,7 +245,8 @@ function hdMailNotifyOperators(int $ticketId, string $number, string $title): vo
         $url = APP_URL . '/helpdesk/view.php?id=' . $ticketId;
         foreach (db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL AND email != ''") as $op) {
             mail_queue_add((string)$op['email'], (string)($op['name'] ?? ''), "[{$number}] Nowe zgłoszenie (e-mail): {$title}",
-                '<p>Nowe zgłoszenie ' . h($number) . ' z e-maila — ' . h($title) . '.</p><p><a href="' . h($url) . '">Otwórz</a></p>');
+                hd_mail_layout(['title' => 'Nowe zgłoszenie z e-maila', 'preheader' => $number . ' — ' . $title,
+                    'facts' => [['Numer', $number], ['Temat', $title]], 'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => $url]]));
         }
     } catch (\Throwable $e) { error_log('[helpdeskMail] powiadomienie: ' . $e->getMessage()); }
 }
@@ -259,10 +260,14 @@ function hdMailAck(int $ticketId, string $number, string $title, string $name, s
     if ($recent >= HD_MAIL_ACK_PER_HOUR) return false;
     require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
     $track = hd_track_url(db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticketId]) ?: ['id' => $ticketId]);
-    $html = '<p>Dzień dobry,</p><p>Twoja wiadomość <strong>„' . h($title) . '”</strong> została zarejestrowana jako zgłoszenie <strong>'
-        . h($number) . '</strong>.</p><p><a href="' . h($track) . '">Śledź status i dopisz informacje</a></p>'
-        . '<p>Możesz też odpowiedzieć na tę wiadomość, zostawiając numer <strong>[' . h($number) . ']</strong> w temacie.</p>'
-        . '<p style="color:#64748b;font-size:12px">To automatyczne potwierdzenie.</p>';
+    $html = hd_mail_layout([
+        'title' => 'Zgłoszenie zostało przyjęte', 'preheader' => $number . ' — ' . $title,
+        'greeting' => 'Dzień dobry, ' . $name . ',',
+        'intro' => '<p style="margin:0">Twoja wiadomość została zarejestrowana jako zgłoszenie.</p>',
+        'facts' => [['Numer', $number], ['Temat', $title]],
+        'cta' => ['label' => 'Śledź status i dopisz informacje', 'url' => $track],
+        'footnote' => 'Możesz też odpowiedzieć na tę wiadomość, zachowując numer <strong>[' . h($number) . ']</strong> w temacie.',
+    ]);
     $id = mail_queue_add($to, $name, "[{$number}] Zgłoszenie przyjęte: " . mb_substr($title, 0, 150), $html, '', 'helpdesk_mail_ack', $ticketId,
         '', false, [], '', [], [], ['Auto-Submitted' => 'auto-replied', 'X-Auto-Response-Suppress' => 'All']);
     if ($id) {

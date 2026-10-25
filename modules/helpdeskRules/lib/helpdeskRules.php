@@ -149,8 +149,10 @@ function hdRulesNotifyAssignee(int $ticketId, int $uid): void
         if (!$op || empty($op['email']) || !$t) return;
         require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
         mail_queue_add((string)$op['email'], (string)$op['name'], "[{$t['number']}] Przypisano Ci zgłoszenie: {$t['title']}",
-            '<p>Reguła automatyczna przypisała Ci zgłoszenie ' . h($t['number']) . ' — ' . h($t['title']) . '.</p><p><a href="'
-            . h(APP_URL . '/helpdesk/view.php?id=' . $ticketId) . '">Otwórz</a></p>');
+            hd_mail_layout(['title' => 'Przypisano Ci zgłoszenie', 'preheader' => $t['number'] . ' — ' . $t['title'],
+                'intro' => '<p style="margin:0">Reguła automatyczna przypisała Ci to zgłoszenie.</p>',
+                'facts' => [['Numer', $t['number']], ['Temat', $t['title']]],
+                'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => APP_URL . '/helpdesk/view.php?id=' . $ticketId]]));
     } catch (\Throwable $e) { error_log('[helpdeskRules] ' . $e->getMessage()); }
 }
 

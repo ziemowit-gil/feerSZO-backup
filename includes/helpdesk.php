@@ -3,6 +3,8 @@
  * includes/helpdesk.php — Moduł Helpdesk IT
  */
 
+require_once dirname(__DIR__) . '/modules/helpdeskEmail/lib/helpdeskEmail.php';
+
 const HD_STATUSES = [
     'nowe'            => ['label' => 'Nowe',                            'class' => 'primary',   'icon' => 'bi-inbox-fill',         'text' => 'white'],
     'otwarte'         => ['label' => 'Otwarte',                         'class' => 'warning',   'icon' => 'bi-folder2-open',       'text' => 'dark'],
@@ -300,6 +302,12 @@ function helpdesk_migrate(): void {
  * Zwraca niestandardowy szablon e-mail (jeśli aktywny), lub null.
  * $data = ['requester_name' => ..., 'number' => ..., ...] — podstawiane do {{klucz}}.
  */
+/** Wspólny układ e-maili Helpdesku (modules/helpdeskEmail). */
+function hd_mail_layout(array $o): string {
+    require_once dirname(__DIR__) . '/modules/helpdeskEmail/lib/helpdeskEmail.php';
+    return hdMailLayout($o);
+}
+
 function hd_email_tpl(string $key, array $data = []): ?array {
     try {
         $row = db_one(
@@ -431,26 +439,16 @@ function hd_share_ticket(array $ticket, string $email, string $name = '', string
         mail_queue_add(
             $email, $name,
             "[{$ticket['number']}] Udostępniono Ci zgłoszenie — {$ticket['title']}",
-            <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#0f172a;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🔗 Udostępnione zgłoszenie — {$org} Helpdesk</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-  <p>Witaj, <strong>{$to_h}</strong>!</p>
-  <p><strong>{$by_h}</strong> udostępnił(a) Ci zgłoszenie <strong>{$num}</strong> — <em>{$title}</em>.</p>
-  {$note_block}
-  <p>Poniższy link umożliwia podgląd zgłoszenia oraz dodawanie odpowiedzi <strong>bez logowania</strong>:</p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$url}" style="background:#0f172a;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz zgłoszenie →
-    </a>
-  </div>
-  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
-    Link jest osobisty — nie przekazuj go dalej. {$org} · Helpdesk IT
-  </p>
-</div></body></html>
-HTML
+            hd_mail_layout([
+                'title' => 'Udostępniono Ci zgłoszenie ' . $ticket['number'],
+                'preheader' => ($by ?: $org) . ' udostępnił(a) Ci zgłoszenie: ' . $ticket['title'],
+                'greeting' => 'Dzień dobry, ' . ($name ?: $email) . ',',
+                'intro' => '<p style="margin:0 0 6px">' . h($by ?: $org) . ' udostępnił(a) Ci zgłoszenie. Link poniżej pozwala je podejrzeć i dodać odpowiedź <strong>bez logowania</strong>.</p>',
+                'facts' => [['Numer', $ticket['number']], ['Temat', $ticket['title']]],
+                'quote' => trim($note) !== '' ? ['label' => 'Wiadomość od ' . ($by ?: $org), 'html' => hdMailText($note)] : null,
+                'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => $url],
+                'footnote' => 'Link jest osobisty — nie przekazuj go dalej.',
+            ])
         );
         return true;
     } catch (\Throwable $e) { return false; }
@@ -635,26 +633,15 @@ function hd_notify_escalation_requester(array $ticket, string $number): void {
                  'title' => $ticket['title'], 'escalation_number' => $number,
                  'track_url' => $url, 'org' => $org];
     $_er_tpl  = hd_email_tpl('escalation_req', $_er_data);
-    $html  = $_er_tpl ? $_er_tpl['body'] : <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#ea580c;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🚨 Zgłoszenie podbite — {$org} Helpdesk</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-  <p>Witaj, <strong>{$name}</strong>!</p>
-  <p>W związku z brakiem reakcji na zgłoszenie <strong>{$num}</strong> — <em>{$title}</em>, zostało ono podbite
-     (nr podbicia: <strong>{$number}</strong>) i przechodzi na <strong>3. linię wsparcia</strong>.</p>
-  <p>Sprawą priorytetowo zajmie się teraz nasz zespół — o dalszych krokach poinformujemy w tym wątku.</p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$url}" style="background:#ea580c;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz zgłoszenie →
-    </a>
-  </div>
-  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
-    {$org} · Helpdesk IT
-  </p>
-</div></body></html>
-HTML;
+    $html  = $_er_tpl ? $_er_tpl['body'] : hd_mail_layout([
+        'title' => 'Zgłoszenie zostało podbite',
+        'preheader' => 'Zgłoszenie ' . $ticket['number'] . ' przechodzi na 3. linię wsparcia.',
+        'greeting' => 'Dzień dobry, ' . ($ticket['requester_name'] ?? '') . ',',
+        'intro' => '<p style="margin:0">W związku z brakiem reakcji zgłoszenie zostało podbite i przechodzi na <strong>3. linię wsparcia</strong>. O dalszych krokach poinformujemy w tym wątku.</p>',
+        'facts' => [['Zgłoszenie', $ticket['number']], ['Temat', $ticket['title']], ['Numer podbicia', $number]],
+        'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => $url],
+        'accent' => '#d83b01',
+    ]);
     try {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
         $_er_subj = $_er_tpl ? $_er_tpl['subject'] : "[{$ticket['number']}] Zgłoszenie podbite — przekazano do 3. linii wsparcia";
@@ -850,25 +837,15 @@ function hd_notify_escalation(array $ticket, string $number, string $reason, int
         ? '<div style="background:#fff7ed;border-left:3px solid #ea580c;padding:10px 14px;margin:12px 0;border-radius:0 4px 4px 0;font-size:.9em">'
           . nl2br(h($reason)) . '</div>'
         : '';
-    $html = $_eo_tpl ? $_eo_tpl['body'] : <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#ea580c;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🚨 Podbicie zgłoszenia — brak reakcji</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-  <p>Zgłaszający zgłosił <strong>brak reakcji</strong> na zgłoszenie <strong>{$num}</strong> — <em>{$title}</em>.</p>
-  <p>Nr podbicia: <strong>{$number}</strong> · dni bez aktualizacji: <strong>{$days}</strong></p>
-  {$reason_block}
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$url}" style="background:#ea580c;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz zgłoszenie →
-    </a>
-  </div>
-  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
-    {$org} · Helpdesk IT
-  </p>
-</div></body></html>
-HTML;
+    $html = $_eo_tpl ? $_eo_tpl['body'] : hd_mail_layout([
+        'title' => 'Podbicie zgłoszenia — brak reakcji',
+        'preheader' => 'Zgłaszający podbił zgłoszenie ' . $ticket['number'] . ' (' . $days . ' dni bez aktualizacji).',
+        'intro' => '<p style="margin:0">Zgłaszający zgłosił <strong>brak reakcji</strong> na zgłoszenie. Wymaga ono pilnej uwagi.</p>',
+        'facts' => [['Zgłoszenie', $ticket['number']], ['Temat', $ticket['title']], ['Numer podbicia', $number], ['Dni bez aktualizacji', (string)$days]],
+        'quote' => trim($reason) !== '' ? ['label' => 'Powód podbicia', 'html' => hdMailText($reason)] : null,
+        'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => $url],
+        'accent' => '#d83b01',
+    ]);
     $subject = $_eo_tpl ? $_eo_tpl['subject'] : "[PILNE] Podbicie zgłoszenia {$ticket['number']} — brak reakcji";
     try {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
@@ -1440,21 +1417,14 @@ function hd_notify_assigned(array $ticket, array $operator): void {
         mail_queue_add(
             $operator['email'], $operator['name'] ?? '',
             "[{$num}] Przypisano Ci nowe zgłoszenie IT",
-            <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#1e40af;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🎫 Nowe przypisanie — {$org} Helpdesk</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-  <p>Witaj, <strong>{$name}</strong>!</p>
-  <p>Przypisano Ci zgłoszenie <strong>{$num}</strong>: <em>{$title}</em></p>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$url}" style="background:#1e40af;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz zgłoszenie →
-    </a>
-  </div>
-</div></body></html>
-HTML
+            hd_mail_layout([
+                'title' => 'Przypisano Ci zgłoszenie',
+                'preheader' => $ticket['number'] . ' — ' . $ticket['title'],
+                'greeting' => 'Dzień dobry, ' . ($operator['name'] ?? $operator['email']) . ',',
+                'facts' => [['Numer', $num], ['Temat', $ticket['title']], ['Kategoria', hd_categories()[$ticket['category'] ?? ''] ?? ($ticket['category'] ?? '')],
+                            ['Priorytet', HD_PRIORITIES[$ticket['priority'] ?? '']['label'] ?? ($ticket['priority'] ?? '')]],
+                'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => $url],
+            ])
         );
     } catch (\Throwable $e) {}
 }
@@ -1462,73 +1432,34 @@ HTML
 // ── Szablony e-mail (prywatne) ────────────────────────────────────────────────
 
 function _hd_email_status(array $ticket, string $old_label, string $new_label, string $note, string $org, string $url): string {
-    $num   = h($ticket['number']);
-    $title = h($ticket['title']);
-    $name  = h($ticket['requester_name']);
-    $color = match($new_label) {
-        'Zamknięte' => '#16a34a', 'Rozwiązane' => '#0891b2',
-        'Krytyczny' => '#dc2626', 'Wysoki' => '#d97706',
-        default => '#1e40af',
+    $accent = match($new_label) {
+        'Zamknięte' => '#107c10', 'Rozwiązane' => '#038387', 'Krytyczny' => '#d13438', 'Wysoki' => '#d83b01', default => '#0f6cbd',
     };
-    $note_block = $note
-        ? '<div style="background:#f8f9fa;border-left:3px solid #6c757d;padding:10px 14px;margin:12px 0;border-radius:0 4px 4px 0;font-size:.9em">'
-          . nl2br(h($note)) . '</div>'
-        : '';
-    return <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:{$color};padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🎫 Zmiana statusu — {$org} Helpdesk</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-  <p>Witaj, <strong>{$name}</strong>!</p>
-  <p>Status Twojego zgłoszenia <strong>{$num}</strong> — <em>{$title}</em> uległ zmianie:</p>
-  <p style="font-size:1.05em;padding:10px 16px;background:#f8f9fa;border-radius:6px">
-    <strong>{$old_label}</strong> &rarr; <strong style="color:{$color}">{$new_label}</strong>
-  </p>
-  {$note_block}
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$url}" style="background:{$color};color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Otwórz zgłoszenie →
-    </a>
-  </div>
-  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
-    {$org} · Helpdesk IT
-  </p>
-</div></body></html>
-HTML;
+    return hd_mail_layout([
+        'org' => $org, 'accent' => $accent,
+        'title' => 'Zmiana statusu zgłoszenia',
+        'preheader' => $ticket['number'] . ': ' . $old_label . ' → ' . $new_label,
+        'greeting' => 'Dzień dobry, ' . ($ticket['requester_name'] ?? '') . ',',
+        'intro' => '<p style="margin:0">Status Twojego zgłoszenia uległ zmianie.</p>',
+        'facts' => [['Numer', $ticket['number']], ['Temat', $ticket['title']],
+                    ['Status', ['html' => '<span style="color:#605e5c">' . h($old_label) . '</span> &rarr; <strong style="color:' . $accent . '">' . h($new_label) . '</strong>']]],
+        'quote' => trim($note) !== '' ? ['label' => 'Komentarz', 'html' => hdMailText($note)] : null,
+        'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => $url],
+        'footnote' => 'Możesz odpowiedzieć na tę wiadomość, zachowując numer <strong>[' . h($ticket['number']) . ']</strong> w temacie.',
+    ]);
 }
 
 function _hd_email_message(array $ticket, array $message, string $org, string $url, bool $for_operator): string {
-    $num   = h($ticket['number']);
-    $title = h($ticket['title']);
-    $name  = $for_operator ? h($message['user_name']) : h($ticket['requester_name']);
-    $from  = h($message['user_name']);
-    $body  = nl2br(h($message['body']));
-    $intro = $for_operator
-        ? "Zgłaszający odpowiedział na zgłoszenie <strong>{$num}</strong>:"
-        : "Masz nową odpowiedź na zgłoszenie <strong>{$num}</strong> — <em>{$title}</em>:";
-    return <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#1e40af;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">💬 Nowa wiadomość — {$org} Helpdesk</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-  <p>Witaj, <strong>{$name}</strong>!</p>
-  <p>{$intro}</p>
-  <div style="background:#f8f9fa;border-left:4px solid #1e40af;padding:12px 16px;margin:16px 0;border-radius:0 6px 6px 0">
-    <div style="font-size:.8rem;color:#6c757d;margin-bottom:6px">{$from}:</div>
-    {$body}
-  </div>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$url}" style="background:#1e40af;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Odpowiedz →
-    </a>
-  </div>
-  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
-    {$org} · Helpdesk IT
-  </p>
-</div></body></html>
-HTML;
+    return hd_mail_layout([
+        'org' => $org,
+        'title' => $for_operator ? 'Odpowiedź zgłaszającego' : 'Nowa odpowiedź w zgłoszeniu',
+        'preheader' => $ticket['number'] . ' — ' . mb_substr(strip_tags((string)$message['body']), 0, 90),
+        'greeting' => 'Dzień dobry, ' . ($for_operator ? ($message['user_name'] ?? '') : ($ticket['requester_name'] ?? '')) . ',',
+        'facts' => [['Numer', $ticket['number']], ['Temat', $ticket['title']]],
+        'quote' => ['label' => (string)$message['user_name'], 'html' => hdMailText((string)$message['body'])],
+        'cta' => ['label' => $for_operator ? 'Odpowiedz w panelu' : 'Otwórz i odpowiedz', 'url' => $url],
+        'footnote' => 'Możesz odpowiedzieć na tę wiadomość, zachowując numer <strong>[' . h($ticket['number']) . ']</strong> w temacie.',
+    ]);
 }
 
 /**
@@ -1800,8 +1731,14 @@ function hd_ticket_quick_create(array $requester, string $title, string $descrip
             mail_queue_add(
                 (string)$requester['email'], (string)($requester['name'] ?? ''),
                 "[{$number}] Zgłoszenie przyjęte",
-                "<p>Zgłoszenie <strong>{$num_h}</strong> — {$title_h} zostało zarejestrowane.</p>"
-                . "<p><a href=\"{$url}\">Śledź status</a></p>"
+                hd_mail_layout([
+                    'title' => 'Zgłoszenie przyjęte', 'preheader' => $number . ' — ' . $title,
+                    'greeting' => 'Dzień dobry, ' . ($requester['name'] ?? '') . ',',
+                    'intro' => '<p style="margin:0">Twoje zgłoszenie zostało zarejestrowane.</p>',
+                    'facts' => [['Numer', $number], ['Temat', $title]],
+                    'cta' => ['label' => 'Śledź status', 'url' => hd_track_url(db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticket_id]) ?: ['id' => $ticket_id])],
+                    'footnote' => 'Możesz odpowiedzieć na tę wiadomość, zachowując numer <strong>[' . h($number) . ']</strong> w temacie.',
+                ])
             );
         }
         $ops = db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL AND email != ''");
@@ -1810,7 +1747,11 @@ function hd_ticket_quick_create(array $requester, string $title, string $descrip
             mail_queue_add(
                 (string)$op['email'], (string)($op['name'] ?? ''),
                 "[{$number}] Nowe zgłoszenie: {$title}",
-                "<p>Nowe zgłoszenie {$num_h} — {$title_h}.</p><p><a href=\"{$url}\">Otwórz</a></p>"
+                hd_mail_layout([
+                    'title' => 'Nowe zgłoszenie', 'preheader' => $number . ' — ' . $title,
+                    'facts' => [['Numer', $number], ['Temat', $title], ['Zgłaszający', (string)($requester['name'] ?? '')], ['Kategoria', hd_categories()[$category] ?? $category]],
+                    'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => $url],
+                ])
             );
         }
     } catch (\Throwable $e) {}

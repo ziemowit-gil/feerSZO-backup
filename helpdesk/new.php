@@ -93,36 +93,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cat_h   = h(hd_categories()[$category] ?? $category);
                 $pri_h   = h(HD_PRIORITIES[$priority]['label'] ?? $priority);
                 $desc_h  = nl2br(h($description));
-                $html = <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#1e40af;padding:20px 24px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">✅ Potwierdzenie zgłoszenia — {$org} Helpdesk</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-  <p>Witaj, <strong>{$name_h}</strong>!</p>
-  <p>Twoje zgłoszenie zostało zarejestrowane w systemie Helpdesk IT.</p>
-  <table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em">
-    <tr><td style="padding:5px 10px;color:#6c757d;width:130px">Numer</td><td style="padding:5px 10px"><strong style="font-family:monospace">{$num_h}</strong></td></tr>
-    <tr style="background:#f8f9fa"><td style="padding:5px 10px;color:#6c757d">Temat</td><td style="padding:5px 10px">{$title_h}</td></tr>
-    <tr><td style="padding:5px 10px;color:#6c757d">Kategoria</td><td style="padding:5px 10px">{$cat_h}</td></tr>
-    <tr style="background:#f8f9fa"><td style="padding:5px 10px;color:#6c757d">Priorytet</td><td style="padding:5px 10px">{$pri_h}</td></tr>
-  </table>
-  <p style="font-size:.9em;color:#6c757d">Twój opis:</p>
-  <div style="background:#f8f9fa;padding:12px 16px;border-radius:6px;font-size:.9em">{$desc_h}</div>
-  <div style="margin:20px 0;text-align:center">
-    <a href="{$url}" style="background:#1e40af;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Śledź status →
-    </a>
-  </div>
-  <p style="font-size:.85em;color:#6c757d;text-align:center">
-    Bez logowania możesz śledzić i kontynuować zgłoszenie pod adresem:<br>
-    <a href="{$track}" style="color:#1e40af">{$track}</a>
-  </p>
-  <p style="color:#6c757d;font-size:.82em;border-top:1px solid #dee2e6;padding-top:12px;margin-top:20px">
-    {$org} · Helpdesk IT · odpowiedź zostanie wysłana na ten adres
-  </p>
-</div></body></html>
-HTML;
+                $html = hd_mail_layout([
+                    'org' => $org,
+                    'title' => 'Zgłoszenie zostało przyjęte',
+                    'preheader' => $number . ' — ' . $title,
+                    'greeting' => 'Dzień dobry, ' . ($req_name ?: ($u['name'] ?? '')) . ',',
+                    'intro' => '<p style="margin:0">Twoje zgłoszenie zostało zarejestrowane w systemie Helpdesk IT. Odpowiemy na ten adres e-mail.</p>',
+                    'facts' => [['Numer', $number], ['Temat', $title], ['Kategoria', hd_categories()[$category] ?? $category], ['Priorytet', HD_PRIORITIES[$priority]['label'] ?? $priority]],
+                    'quote' => ['label' => 'Twój opis', 'html' => hdMailText($description)],
+                    'cta' => ['label' => 'Śledź status zgłoszenia', 'url' => $url],
+                    'after' => '<p style="margin:14px 0 0;font-size:13px;color:#605e5c">Bez logowania możesz śledzić i kontynuować zgłoszenie pod adresem: <a href="' . $track . '" style="color:#0f6cbd">' . $track . '</a></p>',
+                    'footnote' => 'Możesz też odpowiedzieć na tę wiadomość, zachowując numer <strong>[' . h($number) . ']</strong> w temacie.',
+                ]);
                 mail_queue_add($email_dest, $req_name ?: ($u['name'] ?? ''),
                     "[{$number}] Zgłoszenie przyjęte", $html);
             } catch (\Throwable $e) {}
@@ -141,21 +123,15 @@ HTML;
                 $th     = h($title);
                 mail_queue_add($op['email'], $op['name'] ?? '',
                     "[{$number}] Nowe zgłoszenie IT: {$title}",
-                    <<<HTML
-<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
-<div style="background:#dc2626;padding:18px 22px;border-radius:8px 8px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:1.1rem">🎫 Nowe zgłoszenie Helpdesk — {$org}</h2>
-</div>
-<div style="border:1px solid #dee2e6;border-top:none;padding:22px;border-radius:0 0 8px 8px">
-  <p>Nowe zgłoszenie IT oczekuje na przypisanie:</p>
-  <p><strong style="font-family:monospace">{$num_h}</strong> — {$th}</p>
-  <div style="margin:16px 0;text-align:center">
-    <a href="{$url}" style="background:#dc2626;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-      Przypisz i odpowiedz →
-    </a>
-  </div>
-</div></body></html>
-HTML
+                    hd_mail_layout([
+                        'org' => $org,
+                        'title' => 'Nowe zgłoszenie oczekuje na przypisanie',
+                        'preheader' => $number . ' — ' . $title,
+                        'facts' => [['Numer', $number], ['Temat', $title], ['Zgłaszający', $req_name ?: ($u['name'] ?? '')],
+                                    ['Kategoria', hd_categories()[$category] ?? $category], ['Priorytet', HD_PRIORITIES[$priority]['label'] ?? $priority]],
+                        'quote' => ['label' => 'Opis zgłoszenia', 'html' => hdMailText($description, 600)],
+                        'cta' => ['label' => 'Przypisz i odpowiedz', 'url' => $url],
+                    ])
                 );
             }
         } catch (\Throwable $e) {}
