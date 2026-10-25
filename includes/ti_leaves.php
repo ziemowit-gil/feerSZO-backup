@@ -272,56 +272,83 @@ function _ti_leave_course_emails(int $course_id): array {
 }
 
 /**
- * Odwołuje lekcje z powodu nieobecności prowadzącego i powiadamia uczestników: e-mail (kursant + opiekun)
- * oraz SMS z szablonu ti_absence_cancelled (tylko ci, którzy włączyli SMS o lekcjach). Powiadomienia są
- * zbiorcze per kurs — kursant z kilkoma odwołanymi lekcjami dostaje jeden e-mail i jeden SMS.
- * $ask_contact = prośba do uczestników o kontakt w sprawie ustalenia nowego terminu (e-mail + SMS).
- * Lekcje już odbyte / odwołane są pomijane. Pozostali prowadzący lekcji dostają e-mail (bez $exclude_uid).
- * @return array{cancelled:int, emails:int, sms:int, skipped:int}
+ * Odwołuje lekcje i powiadamia uczestników: e-mail (kursant + opiekun małoletniego) oraz SMS (tylko ci, którzy
+ * włączyli SMS o lekcjach). Powiadomienia są zbiorcze per kurs — kursant z kilkoma odwołanymi lekcjami dostaje
+ * jeden e-mail i jeden SMS. Lekcje już odbyte / odwołane są pomijane. Pozostali prowadzący lekcji dostają e-mail
+ * (bez 'exclude_uid').
+ *
+ * Opcje $o:
+ *  • cause       'absence' (domyślnie: nieobecność prowadzącego; SMS z szablonu ti_absence_cancelled)
+ *                albo 'other' (zwykłe odwołanie z powodem; SMS rodzaju ti_lesson_cancelled),
+ *  • role        rola odwołującego w logu lekcji ('doradca' | 'admin'),
+ *  • exclude_uid prowadzący, który sam odwołuje / jest nieobecny — nie dostaje maila,
+ *  • email, sms  kanały powiadomień uczestników (domyślnie włączone),
+ *  • ask_contact prośba do uczestników o kontakt w sprawie nowego terminu (e-mail + SMS),
+ *  • leave_id    nieobecność, z której wynika odwołanie (do śledzenia terminów i przywracania).
+ * @return array{cancelled:int, emails:int, sms:int, skipped:int, ids:int[]}
  */
-function ti_absence_cancel_sessions(array $session_ids, string $reason, string $by_label, int $exclude_uid = 0, bool $email = true, bool $sms = true, bool $ask_contact = false): array {
-    $res = ['cancelled' => 0, 'emails' => 0, 'sms' => 0, 'skipped' => 0];
+function ti_cancel_sessions_notify(array $session_ids, string $reason, string $by_label, array $o = []): array {
+    $o += ['cause' => 'absence', 'role' => 'doradca', 'exclude_uid' => 0, 'email' => true, 'sms' => true, 'ask_contact' => false, 'leave_id' => 0];
+    $absence = $o['cause'] === 'absence';
+    $res = ['cancelled' => 0, 'emails' => 0, 'sms' => 0, 'skipped' => 0, 'ids' => []];
     $reason = trim($reason) !== '' ? trim($reason) : 'Nieobecność prowadzącego';
     $by_course = []; $done = [];
     foreach (array_values(array_unique(array_filter(array_map('intval', $session_ids)))) as $sid) {
         $s = db_one("SELECT s.id, s.course_id, s.lesson_date, s.time_from, s.time_to, s.status, c.name AS course_name
                        FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id WHERE s.id=?", [$sid]);
         if (!$s || !in_array((string)$s['status'], ['planned', 'reserved'], true)) { $res['skipped']++; continue; }
-        k30_ti_cancel_session($sid, $reason, 'doradca', $by_label, ['sms' => false]);
+        k30_ti_cancel_session($sid, $reason, (string)$o['role'], $by_label, ['sms' => false]);
         $res['cancelled']++; $done[] = $sid;
         $by_course[(int)$s['course_id']]['name'] = (string)$s['course_name'];
         $by_course[(int)$s['course_id']]['sessions'][] = $s;
+        if (function_exists('ti_rebook_record')) ti_rebook_record($s, $reason, (int)$o['leave_id'], (bool)$o['ask_contact']);
     }
+    $res['ids'] = $done;
     if (!$done) return $res;
-    k30_ti_notify_instructors_cancelled($done, $reason, $exclude_uid);
+    k30_ti_notify_instructors_cancelled($done, $reason, (int)$o['exclude_uid']);
 
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     $org = defined('ORG_NAME') ? ORG_NAME : 'TI';
-    $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
-    $msg_url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=wiadomosci';
+    $base = defined('APP_URL') ? rtrim(APP_URL, '/') : '';
+    $url = $base . '/karty30/ti/kursant/index.php?tab=lekcje';
+    $msg_url = $base . '/karty30/ti/kursant/index.php?tab=wiadomosci';
     foreach ($by_course as $cid => $c) {
         $crs = htmlspecialchars($c['name'], ENT_QUOTES);
-        if ($email && function_exists('mail_queue_add')) {
+        if ($o['email'] && function_exists('mail_queue_add')) {
             $items = array_map(fn($x) => htmlspecialchars(date('d.m.Y', strtotime((string)$x['lesson_date']))
                 . (trim((string)$x['time_from']) !== '' ? ', ' . substr((string)$x['time_from'], 0, 5) . '–' . substr((string)$x['time_to'], 0, 5) : ''), ENT_QUOTES), $c['sessions']);
-            $html = '<p>Dzień dobry,</p><p>Z powodu nieobecności prowadzącego odwołano ' . (count($items) === 1 ? 'zajęcia' : 'zajęcia w terminach') . ' <strong>' . $crs . '</strong>:</p>'
+            $html = '<p>Dzień dobry,</p><p>' . ($absence ? 'Z powodu nieobecności prowadzącego odwołano ' : 'Odwołano ')
+                  . (count($items) === 1 ? 'zajęcia' : 'zajęcia w terminach') . ' <strong>' . $crs . '</strong>:</p>'
                   . '<ul><li>' . implode('</li><li>', $items) . '</li></ul>'
                   . '<p style="color:#555">Powód: ' . htmlspecialchars($reason, ENT_QUOTES) . '</p>'
                   . '<p>Odwołane zajęcia nie są wliczane do rozliczenia. '
-                  . ($ask_contact
+                  . ($o['ask_contact']
                       ? '<strong>Prosimy o kontakt w celu ustalenia nowego terminu</strong> — napisz do nas w panelu kursanta (<a href="' . htmlspecialchars($msg_url, ENT_QUOTES) . '">zakładka Wiadomości</a>) lub odpowiedz na tę wiadomość.</p>'
                       : 'O nowym terminie poinformujemy osobno.</p>')
                   . '<p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Otwórz panel kursanta</a></p>'
                   . '<p style="color:#888;font-size:12px">Wiadomość automatyczna z systemu ' . htmlspecialchars($org, ENT_QUOTES) . '.</p>';
             foreach (_ti_leave_course_emails($cid) as $addr => $nm) {
-                try { mail_queue_add($addr, (string)$nm, "{$org}: odwołane zajęcia — " . $c['name'], $html, '', 'ti_absence_cancelled', (int)$c['sessions'][0]['id'], '', false); $res['emails']++; }
+                try { mail_queue_add($addr, (string)$nm, "{$org}: odwołane zajęcia — " . $c['name'], $html, '', $absence ? 'ti_absence_cancelled' : 'ti_lesson_cancelled', (int)$c['sessions'][0]['id'], '', false); $res['emails']++; }
                 catch (\Throwable $e) {}
             }
         }
-        if ($sms) $res['sms'] += ti_leave_sms_course($cid, 'ti_absence_cancelled', ['course' => $c['name'], 'when' => _ti_leave_whens($c['sessions']),
-            'contact' => $ask_contact ? ' Prosimy o kontakt w sprawie nowego terminu.' : '']);
+        if (!$o['sms']) continue;
+        $contact = $o['ask_contact'] ? ' Prosimy o kontakt w sprawie nowego terminu.' : '';
+        if ($absence) {
+            $res['sms'] += ti_leave_sms_course($cid, 'ti_absence_cancelled', ['course' => $c['name'], 'when' => _ti_leave_whens($c['sessions']), 'contact' => $contact]);
+        } elseif (function_exists('ti_lesson_sms_notify')) {
+            try { $res['sms'] += ti_lesson_sms_notify($cid, 'Odwolane zajecia: ' . $c['name'] . ' - ' . _ti_leave_whens($c['sessions']) . '.' . $contact . ' Szczegoly w panelu kursanta.', 'ti_lesson_cancelled'); }
+            catch (\Throwable $e) { /* błąd SMS nie blokuje odwołania */ }
+        }
     }
     return $res;
+}
+
+/** Odwołanie z powodu nieobecności prowadzącego — skrót do ti_cancel_sessions_notify() (cause=absence). */
+function ti_absence_cancel_sessions(array $session_ids, string $reason, string $by_label, int $exclude_uid = 0, bool $email = true, bool $sms = true, bool $ask_contact = false, int $leave_id = 0): array {
+    return ti_cancel_sessions_notify($session_ids, $reason, $by_label, [
+        'cause' => 'absence', 'exclude_uid' => $exclude_uid, 'email' => $email, 'sms' => $sms, 'ask_contact' => $ask_contact, 'leave_id' => $leave_id,
+    ]);
 }
 
 /**

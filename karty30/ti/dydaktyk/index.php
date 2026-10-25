@@ -1431,10 +1431,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $reason = trim($_POST['reason'] ?? '');
                 if ($reason === '') { flash_set('danger', 'Podaj powód odwołania lekcji.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
                 $role = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
-                $sms_sent = k30_ti_cancel_session($sid, $reason, $role, (string)($me['name'] ?? ''));
-                k30_ti_notify_instructors_cancelled([$sid], $reason, $uid);
+                // E-mail i SMS do uczestników (kanały do wyboru w oknie odwołania), opcjonalnie z prośbą o kontakt w sprawie nowego terminu
+                $r = ti_cancel_sessions_notify([$sid], $reason, (string)($me['name'] ?? ''), [
+                    'cause' => 'other', 'role' => $role, 'exclude_uid' => $uid,
+                    'email' => !empty($_POST['notify_email']), 'sms' => !empty($_POST['notify_sms']), 'ask_contact' => !empty($_POST['ask_contact']),
+                ]);
                 flash_set('success', 'Lekcja odwołana — nie zostanie policzona do ceny.'
-                    . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : ''));
+                    . ($r['emails'] ? " Wysłano e-maile: {$r['emails']}." : '') . ($r['sms'] ? " Wysłano SMS: {$r['sms']}." : ''));
             } else {
                 db()->prepare(
                     "UPDATE k30_ti_sessions SET status='planned', cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL, updated_at=datetime('now') WHERE id=?"

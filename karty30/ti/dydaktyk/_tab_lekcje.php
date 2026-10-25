@@ -1816,7 +1816,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal: odwołanie całej lekcji -->
 <div class="modal fade" id="cancelSessionModal" tabindex="-1" aria-labelledby="cancelSession_t" aria-hidden="true">
-  <div class="modal-dialog"><form method="post" class="modal-content" onsubmit="return dydConfirmTwice('Odwołać tę lekcję?', 'Na pewno? Lekcja nie zostanie policzona do ceny, a kursanci dostaną SMS o odwołaniu.')">
+  <div class="modal-dialog"><form method="post" class="modal-content" onsubmit="return dydConfirmTwice('Odwołać tę lekcję?', 'Na pewno? Lekcja nie zostanie policzona do ceny, a kursanci dostaną powiadomienia o odwołaniu (zgodnie z zaznaczonymi kanałami).')">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="cancel_session">
     <input type="hidden" name="_tab" value="lekcje">
@@ -1831,6 +1831,12 @@ document.addEventListener('DOMContentLoaded', function() {
       <p class="text-body-secondary small mb-2">Odwołana lekcja nie zostanie policzona do ceny. Podaj powód.</p>
       <label class="form-label fw-semibold" for="cs_reason">Powód odwołania</label>
       <textarea class="form-control" id="cs_reason" name="reason" rows="3" required placeholder="np. choroba prowadzącego, awaria sprzętu…"></textarea>
+      <fieldset class="mt-3">
+        <legend class="form-label fw-semibold fs-6 mb-1">Powiadom uczestników</legend>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="notify_email" id="cs_mail" value="1" checked><label class="form-check-label" for="cs_mail">E-mail (kursant i opiekun małoletniego)</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="notify_sms" id="cs_sms" value="1" checked><label class="form-check-label" for="cs_sms">SMS (osoby z włączonym SMS o lekcjach)</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="ask_contact" id="cs_contact" value="1"><label class="form-check-label" for="cs_contact">Poproś o kontakt w sprawie nowego terminu</label></div>
+      </fieldset>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>

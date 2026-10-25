@@ -27,6 +27,7 @@ require_once __DIR__ . '/../../includes/karty30.php';
 require_once __DIR__ . '/../../includes/totp.php';
 require_once __DIR__ . '/../../includes/ti_notices.php';
 require_once __DIR__ . '/../../includes/ti_reschedule.php';
+require_once __DIR__ . '/../../includes/ti_leaves.php';
 require_once __DIR__ . '/../../includes/ti_periods.php';
 require_once __DIR__ . '/../../includes/ti_planner_ext.php';
 require_once __DIR__ . '/../../includes/ti_messages.php';
@@ -522,9 +523,14 @@ switch ($action) {
         if ($sess_date && $sess_date < date('Y-m-d')) json_err('Nie można odwołać lekcji z przeszłości.');
 
         $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
-        $sms_sent = k30_ti_cancel_session($sid, $reason, 'doradca', (string)($u['name'] ?? ''));
-        k30_ti_notify_instructors_cancelled([$sid], $reason, $instructor_id);
-        json_ok(null, 'Lekcja odwołana — nie zostanie policzona do ceny.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : ''));
+        // Pola opcjonalne (starsze wersje aplikacji ich nie wysyłają): domyślnie e-mail + SMS jak w panelu
+        $flag = fn(string $k, bool $def) => array_key_exists($k, $body) ? !empty($body[$k]) : $def;
+        $r = ti_cancel_sessions_notify([$sid], $reason, (string)($u['name'] ?? ''), [
+            'cause' => 'other', 'exclude_uid' => $instructor_id,
+            'email' => $flag('notify_email', true), 'sms' => $flag('notify_sms', true), 'ask_contact' => $flag('ask_contact', false),
+        ]);
+        json_ok(['cancelled' => $r['cancelled'], 'emails' => $r['emails'], 'sms' => $r['sms']],
+            'Lekcja odwołana — nie zostanie policzona do ceny.' . ($r['emails'] ? " Wysłano e-maile: {$r['emails']}." : '') . ($r['sms'] ? " Wysłano SMS: {$r['sms']}." : ''));
     }
 
     case 'uncancel_lesson': {
