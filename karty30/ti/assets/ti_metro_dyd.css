@@ -77,8 +77,8 @@ html body.ti-metro .dropdown-header { font-size:.66rem; letter-spacing:.14em; te
 
 /* ── Stałe menu boczne (modules/ti_dyd_menu) ──────────────────────────
    Sekcje prowadzącego: jasnoszare #f2f2f2, tekst #1d1d1d (16:1), ikony #3f3f3f.
-   Blok kierownika (pasek „Kierownik” + .dyd-side-sec--staff): Metro blue #0b5582 z białym
-   tekstem (7,4:1), aktywna pozycja biała z niebieskim tekstem. Aktywna pozycja prowadzącego:
+   Blok kierownika (pasek „Kierownik” + .dyd-side-sec--staff): każda grupa własny kolor (zmienna --sec,
+   patrz niżej) z białym tekstem, aktywna pozycja biała z tekstem w kolorze grupy. Aktywna pozycja prowadzącego:
    pełny akcent #0f6fa8 z białym tekstem (5,4:1). */
 html body.ti-metro .dyd-side { background:var(--dm-light) !important; border-top:0 !important; border-right:1px solid #d4d4d4; color:var(--dm-dark); scrollbar-color:rgba(0,0,0,.3) transparent; }
 html body.ti-metro .dyd-side .dyd-side-in { padding:0 0 1rem; }
@@ -100,7 +100,7 @@ html body.ti-metro .dyd-side .badge.text-bg-secondary { background:#d4d4d4 !impo
 html body.ti-metro .dyd-side a.active .badge { background:#fff !important; color:var(--dm-acc-d) !important; }
 /* Blok kierownika — niebieski */
 html body.ti-metro .dyd-side .dyd-side-band { margin:0; padding:.55rem .85rem .45rem; background:#0b5582; color:#fff; font-size:.66rem; letter-spacing:.16em; border-top:1px solid #0b5582; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff { background:#0b5582; border-bottom-color:rgba(255,255,255,.2); }
+html body.ti-metro .dyd-side .dyd-side-sec--staff { --sec:#0b5582; background:var(--sec); border-bottom-color:rgba(255,255,255,.2); }
 html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-grp { color:#fff !important; }
 html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-grp:hover { background:rgba(255,255,255,.14) !important; }
 html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-chev,
@@ -108,14 +108,19 @@ html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-sub { color:rgba(255
 html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn) { color:#fff !important; }
 html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn) .bi { color:rgba(255,255,255,.9); }
 html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn):hover { background:rgba(255,255,255,.14) !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff a.active:not(.btn) { background:#fff !important; color:#0b5582 !important; }
-/* Wyróżnione grupy kierownika: Planowanie — róż, Kontrola i raporty — purpura (biały tekst, kontrast ≥ 6:1) */
-html body.ti-metro .dyd-side .dyd-side-sec--k_plan { background:#ad1457; }
-html body.ti-metro .dyd-side .dyd-side-sec--k_plan a.active:not(.btn) { color:#ad1457 !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--k_kontrola { background:#6a1b9a; }
-html body.ti-metro .dyd-side .dyd-side-sec--k_kontrola a.active:not(.btn) { color:#6a1b9a !important; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff a.active:not(.btn) .bi { color:#0b5582; }
-html body.ti-metro .dyd-side .dyd-side-sec--staff .badge.text-bg-secondary { background:rgba(255,255,255,.9) !important; color:#0b5582 !important; }
+html body.ti-metro .dyd-side .dyd-side-sec--staff a.active:not(.btn) { background:#fff !important; color:var(--sec) !important; }
+/* Każda grupa kierownika ma własny kolor (biały tekst, kontrast ≥ 5:1; aktywna pozycja = biała z tekstem w kolorze grupy) */
+html body.ti-metro .dyd-side .dyd-side-sec--k_grupy        { --sec:#0b5582; }  /* niebieski  7,9:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--k_uczestnicy   { --sec:#006064; }  /* morski     7,4:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--k_finanse      { --sec:#2e7d32; }  /* zielony    5,1:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--k_kontrola     { --sec:#6a1b9a; }  /* purpura    9,4:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--k_plan         { --sec:#ad1457; }  /* róż        7,0:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--k_kadra        { --sec:#bf360c; }  /* ceglasty   5,6:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--k_komunikacja  { --sec:#5d4037; }  /* brąz       9,3:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--k_system       { --sec:#37474f; }  /* grafit     9,7:1 */
+html body.ti-metro .dyd-side .dyd-side-sec--staff a.active:not(.btn) .bi { color:var(--sec); }
+html body.ti-metro .dyd-side .dyd-side-sec--staff .badge.text-bg-secondary { background:rgba(255,255,255,.9) !important; color:var(--sec) !important; }
+html body.ti-metro .dyd-side .dyd-side-sec--staff a.active .badge { color:var(--sec) !important; }
 html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-grp:focus-visible,
 html body.ti-metro .dyd-side .dyd-side-sec--staff a:focus-visible { outline-color:#fbbf24 !important; }
 html body.ti-metro .dyd-side-toggle { background:var(--dm-dark) !important; }
