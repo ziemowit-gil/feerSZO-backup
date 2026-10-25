@@ -74,6 +74,14 @@ $targetUrl = $isOp ? route('ld.op', ['id' => $c['target_id']]) : route('ld.show'
       <?= ldPost(route('ld.pack.regen', ['pid' => $pk['id']]), 'Regeneruj pakiet', 'btn-metro orange', [], 'Wygenerować druki pakietu ponownie z aktualnych danych (ta sama rewizja R' . (int)$pk['revision'] . ', kody bez zmian)? Powstanie druk AMSG, ten sam pakiet trafi do kierownika, a do osoby zostanie oznaczony jako niewysłany.') ?>
     <?php endif; ?>
     <?= ldPost(route('ld.pack.send', ['pid' => $pk['id']]), $pk['sent_at'] ? 'Wyślij pakiet ponownie (ZIP z hasłem + SMS)' : 'Wyślij pakiet do osoby i kierownika (ZIP z hasłem + SMS)', 'btn-metro green', [], 'Wysłać pakiet jako ZIP z hasłem do osoby i kierownika? Hasło pójdzie osobnym SMS-em.') ?>
+    <?php if ($canApprove): $_myPhone = (string)(db_one("SELECT phone_number FROM users WHERE id = ?", [(int)$actor['id']])['phone_number'] ?? ''); ?>
+    <form method="post" action="<?= h(route('ld.pack.pwd', ['pid' => $pk['id']])) ?>" class="row g-2 align-items-end mt-3 pt-3 border-top" onsubmit="return confirm('Wygenerować NOWE hasło do pakietu? Nowe archiwum trafi na Twój e-mail, a hasło SMS-em na wskazany numer.')"><?= Router::csrfField() ?>
+      <div class="col-md-5"><label class="form-label small mb-0" for="pwdphone">Numer telefonu, na który wysłać nowe hasło (tylko kierownik)</label>
+        <input class="form-control form-control-sm" id="pwdphone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required value="<?= h($_myPhone) ?>" placeholder="np. 600 100 200"></div>
+      <div class="col-auto"><button class="btn btn-sm btn-metro dark"><i class="bi bi-key" aria-hidden="true"></i> Regeneruj hasło do pakietu</button></div>
+      <div class="col-12 small text-secondary">Powstaje nowe archiwum ZIP z nowym hasłem: ZIP dostaniesz e-mailem, hasło SMS-em na wskazany numer. Hasła nigdzie nie zapisujemy; w dzienniku zostaje tylko kto i końcówka numeru.</div>
+    </form>
+    <?php else: ?><p class="small text-secondary mt-3 mb-0"><i class="bi bi-key" aria-hidden="true"></i> Hasło do archiwum regeneruje wyłącznie kierownik.</p><?php endif; ?>
   <?php endif; ?>
 </section>
 <?php endif; ?>

@@ -143,6 +143,16 @@ final class LicenseCorrectionController
         return null;
     }
 
+    /** Nowe hasło do archiwum pakietu — wyłącznie kierownik; hasło SMS-em na wskazany numer, nowy ZIP e-mailem do kierownika. */
+    public function packPwd(int $pid): ?string
+    {
+        $pk = LicenseDocPackage::get($pid);
+        $back = $pk ? route('ld.corr', ['id' => (int)$pk['correction_id']]) . '#pakiet' : route('ld.corr.index');
+        try { $rep = (new LicenseDocPackage())->regeneratePassword($pid, (string)($_POST['phone'] ?? ''), $this->actor()); flash_set(str_contains($rep, 'UWAGA') ? 'warning' : 'success', $rep . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, $back); }
+        return Router::redirect($back);
+    }
+
     public function packZip(int $pid): ?string
     {
         try { $z = (new LicenseDocPackage())->zip($pid); }

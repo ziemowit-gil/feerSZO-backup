@@ -287,6 +287,33 @@ final class LicenseDocPackage
         return 'do kierownika (' . $r['report'] . ')';
     }
 
+    /**
+     * Regeneracja HASŁA do pakietu — tylko kierownik (rola „kierownik” panelu TI) albo administrator. Nowy ZIP z nowym hasłem trafia e-mailem do zlecającego,
+     * hasło — SMS-em na wskazany numer. Stan wysyłek pakietu (do osoby / kierownika) nie zmienia się; w dzienniku: kto i na jaki numer (końcówka), bez hasła.
+     * @return string raport
+     */
+    public function regeneratePassword(int $packageId, string $phone, array $actor): string
+    {
+        if (!Am7Workflow::canApprove((int)($actor['id'] ?? 0))) throw new DomainException('Hasło do archiwum pakietu regeneruje wyłącznie kierownik (rola „kierownik” w panelu TI) albo administrator.');
+        $pk = self::get($packageId);
+        if (!$pk) throw new DomainException('Nie ma takiego pakietu.');
+        [$t, $number] = LicenseCorrection::target((string)$pk['scope'], (int)$pk['target_id']);
+        $person = (string)($pk['scope'] === 'operation' ? ($t['account_name'] ?? '') : ($t['interested_name'] ?? ''));
+        $me = db_one("SELECT name, email FROM users WHERE id = ?", [(int)$actor['id']]) ?: ['name' => (string)($actor['name'] ?? ''), 'email' => ''];
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $rev = (int)$pk['revision'];
+        $body = '<p>Dzień dobry ' . $e($me['name']) . ',</p><p>na Twoje polecenie wygenerowaliśmy <b>nowe hasło</b> do pakietu poprawionych dokumentów AM (rewizja <b>R' . $rev . '</b>) w sprawie <b>' . $e($number) . '</b>. '
+              . 'W załączniku nowe archiwum ZIP; <b>nowe hasło wysłaliśmy SMS-em</b> na wskazany numer. Poprzednie archiwa zachowują dotychczasowe hasła.</p>';
+        $r = LicenseZipDelivery::regeneratePassword(new LicenseManagementService(), ['name' => (string)$me['name'], 'email' => (string)$me['email']], $phone, $number, $person,
+            ['type' => $pk['scope'] === 'operation' ? 'operation' : 'license', 'id' => (int)$pk['target_id']], $this->entries($packageId, true),
+            '[nowe hasło] Pakiet poprawionych dokumentów AM (R' . $rev . ') — sprawa ' . $number, 'Pakiet poprawionych dokumentów AM — nowe hasło', $body, $actor,
+            'pakiet_am_haslo_' . $packageId, 'Pakiet_AM_R' . $rev . '_nowe_haslo_' . $number);
+        $ev = ['action' => 'amsk.package_pwd', 'note' => 'Regeneracja hasła do pakietu R' . $rev . ' (kierownik ' . ($actor['name'] ?? '') . '): ' . $r['report'], 'actor_id' => ($actor['id'] ?? 0) ?: null, 'actor_name' => (string)($actor['name'] ?? ''),
+               'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64), 'created_at' => ldNow()];
+        db_insert('license_events', ($pk['scope'] === 'operation' ? ['license_id' => 0, 'operation_id' => (int)$pk['target_id']] : ['license_id' => (int)$pk['target_id']]) + $ev);
+        return 'Hasło do pakietu: ' . $r['report'];
+    }
+
     /** Brak pakietu → ręczne generowanie: pakiet + druk AMSG + ten sam pakiet do kierownika (osoba — osobnym przyciskiem). @return string raport */
     public function generateManual(int $correctionId, array $actor): string
     {

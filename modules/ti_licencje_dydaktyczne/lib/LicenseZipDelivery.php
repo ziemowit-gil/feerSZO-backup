@@ -98,6 +98,39 @@ final class LicenseZipDelivery
         return ['report' => $report, 'mailed' => $mailed, 'sms' => $sms];
     }
 
+    /**
+     * Nowe hasło do archiwum: powstaje NOWY ZIP (AES-256) z nowym hasłem, ZIP idzie e-mailem do $to (kierownik, który zlecił), hasło — SMS-em na WSKAZANY numer
+     * (szablon „kopia dla kierownika”). Hasła nie zapisujemy nigdzie. Bez poprawnego numeru / kanału SMS — DomainException, nic nie jest wysyłane.
+     * @param array $to ['name','email'] @return array{report:string, mailed:bool, sms:bool, digits:string}
+     */
+    public static function regeneratePassword(LicenseManagementService $svc, array $to, string $phone, string $caseNumber, string $personName, array $ref, array $entries,
+                                              string $subject, string $heading, string $bodyHtml, array $actor, string $zipPrefix, string $zipTitle): array
+    {
+        require_once dirname(__DIR__, 3) . '/includes/sms.php';
+        $digits = preg_replace('/\D/', '', $phone);
+        if (strlen($digits) < 9) throw new InvalidArgumentException('Podaj poprawny numer telefonu (min. 9 cyfr), na który wysłać hasło.');
+        if (!sms_channel_ready()) throw new DomainException('Kanał SMS nie jest skonfigurowany — nowe hasło nie dotarłoby do kierownika.');
+        if (!filter_var((string)($to['email'] ?? ''), FILTER_VALIDATE_EMAIL)) throw new DomainException('Twoje konto nie ma poprawnego adresu e-mail — nie ma dokąd wysłać nowego archiwum.');
+        $pass = self::password();
+        [$rel, $size] = LicenseStorage::putZip($entries, $pass, $zipPrefix);
+        $att = LicenseNotificationService::zipAttachment($rel, $zipTitle, $size);
+        $res = $svc->notify->send(LicenseNotificationType::OperationConfirm, ['name' => (string)($to['name'] ?? ''), 'email' => (string)$to['email'], 'phone' => ''], $subject,
+            LicenseNotificationService::layout($heading, $bodyHtml, '', '', 'AMSG'), '', $ref, $actor, true, $att);
+        $mailed = !empty($res['delivered']) || in_array('queued', (array)($res['channels'] ?? []), true);
+        $out = ['report' => 'nowe archiwum e-mailem: ' . $svc->describe($res), 'mailed' => $mailed, 'sms' => false, 'digits' => $digits];
+        if (!$mailed) { $out['report'] .= ' — SMS z nowym hasłem nie został wysłany (e-mail nie wyszedł)'; return $out; }
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/sms_templates.php';
+            $m = sms_tpl_render('ti_am7_docs_zip_password_mgr', ['case' => $caseNumber, 'person' => $personName, 'password' => $pass]);
+            sms_send($phone, trim((string)$m['message']), 'ti_am7_docs_zip_password_mgr');
+            $out['sms'] = true;
+            $out['report'] .= '; nowe hasło wysłane SMS-em na numer ***' . substr($digits, -3);
+        } catch (\Throwable $e) {
+            $out['report'] .= '; UWAGA: SMS z nowym hasłem NIE wysłany (' . $e->getMessage() . ') — spróbuj ponownie (powstanie kolejne archiwum i hasło)';
+        }
+        return $out;
+    }
+
     /** SMS z hasłem do archiwum do kierowników panelu TI (telefon w koncie). @return string fragment raportu */
     public static function notifyManagers(string $caseNumber, string $person, string $pass): string
     {
