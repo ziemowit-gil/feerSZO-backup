@@ -29,6 +29,7 @@ function fcColumns(): array {
         ['table' => 'donations', 'column' => 'donor_pesel', 'kind' => 'digits', 'blind' => 'donor_pesel_idx', 'auto' => true],
         ['table' => 'pelnomocnictwa', 'column' => 'pelnomocnik_pesel', 'kind' => 'digits', 'blind' => 'pelnomocnik_pesel_idx', 'auto' => true],
         ['table' => 'skierowania_badania', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'auto' => true],
+        ['table' => 'rodo_authorizations', 'column' => 'person_pesel', 'kind' => 'digits', 'blind' => 'person_pesel_idx', 'auto' => true],
     ];
 }
 
