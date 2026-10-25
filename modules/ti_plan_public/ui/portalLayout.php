@@ -108,11 +108,16 @@ function tiPlanPortalOpen(array $o): void {
     <div class="titlebar">
       <h1 class="title"><?= h($o['heading'] ?? $o['title']) ?></h1>
       <a class="skin-btn" href="<?= tiPlanPortalSkinUrl($skin === 'metro' ? 'klasyczny' : 'metro') ?>" title="Przełącz wygląd planu (zapamiętany w tej przeglądarce)"><?= $skin === 'metro' ? 'Widok klasyczny' : 'Widok Metro' ?></a>
-      <?php if (!empty($o['full'])): ?>
-      <a class="login-btn" href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a>
-      <?php else: ?>
-      <a class="login-btn" href="<?= tiPlanPortalUrl($self, ['login' => 1]) ?>" title="Pełny plan dla pracowników (hasło od kierownika)">Zaloguj</a>
-      <?php endif; ?>
+      <?php $isFull = !empty($o['full']); $canFull = !empty($o['canFull']) || $isFull;
+        $vu = fn(string $v) => htmlspecialchars(preg_replace('/([?&])widok=[^&]*&?/', '$1', (string)($_SERVER['REQUEST_URI'] ?? '/')), ENT_QUOTES) . ((str_contains((string)($_SERVER['REQUEST_URI'] ?? ''), '?') ? '&amp;' : '?')) . 'widok=' . $v; // zostajemy na bieżącej stronie planu ?>
+      <span class="view-switch" role="group" aria-label="Rodzaj widoku">
+        <span class="view-switch-l">Widok:</span>
+        <?php if ($isFull): ?><span class="view-opt is-on" aria-current="true">Pełny</span><?php else: ?>
+        <a class="view-opt" href="<?= $canFull ? $vu('pelny') : tiPlanPortalUrl($self, ['login' => 1]) ?>" title="<?= $canFull ? 'Wróć do widoku pełnego' : 'Pełny plan dla pracowników (logowanie)' ?>">Pełny</a><?php endif; ?>
+        <?php if (!$isFull): ?><span class="view-opt is-on" aria-current="true">Uproszczony</span><?php else: ?>
+        <a class="view-opt" href="<?= $vu('uproszczony') ?>" title="Pokaż plan tak, jak widzą go osoby bez logowania">Uproszczony</a><?php endif; ?>
+      </span>
+      <?php if ($canFull): ?><a class="login-btn" href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a><?php endif; ?>
     </div>
     <?php if (trim((string)($o['sub'] ?? '')) !== ''): ?><p class="subtitle"><?= $o['sub'] /* HTML z wywołującego (już escapowany) */ ?></p><?php endif; ?>
     <?php if (!empty($o['crumbs'])): ?>

@@ -127,3 +127,10 @@ footer.site-foot { display: flex; justify-content: space-between; gap: 10px; fle
   .table-wrap { overflow: visible; }
   @page { size: A4 landscape; margin: 9mm; }
 }
+
+/* Rodzaj widoku w nagłówku: Pełny / Uproszczony */
+.view-switch { display: inline-flex; align-items: stretch; align-self: stretch; margin-left: auto; }
+.view-switch-l { display: flex; align-items: center; padding: 0 10px 0 0; font-size: .8rem; color: rgba(255,255,255,.85); }
+.view-opt { display: flex; align-items: center; padding: 0 14px; font-size: .86rem; color: #fff !important; text-decoration: none !important; border-bottom: 4px solid transparent; background: rgba(255,255,255,.08); }
+a.view-opt:hover, a.view-opt:focus-visible { background: rgba(255,255,255,.2); }
+.view-opt.is-on { font-weight: 700; border-bottom-color: #fff; background: rgba(255,255,255,.18); }

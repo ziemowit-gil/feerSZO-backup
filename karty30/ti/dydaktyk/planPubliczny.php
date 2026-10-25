@@ -53,8 +53,17 @@ if (!$fullOk && PHP_SAPI !== 'cli' && (isset($_COOKIE['k30_dydaktyk']) || isset(
     require_once __DIR__ . '/auth.php';
     $fullDyd = $fullOk = dyd_current() !== null;
 }
+// Rodzaj widoku w nagłówku: pełny / uproszczony. Osoba uprawniona do pełnego widoku może w każdej chwili przełączyć się na uproszczony
+// (publiczny: pseudonimy, bez linków do zajęć online) bez wylogowania — ciasteczko sesyjne TIPLAN_SIMPLE; ?widok=pelny wraca do pełnego.
+$canFull = $fullOk;
+if (isset($_GET['widok']) && in_array($_GET['widok'], ['pelny', 'uproszczony'], true) && PHP_SAPI !== 'cli') {
+    setcookie('TIPLAN_SIMPLE', $_GET['widok'] === 'uproszczony' ? '1' : '', ['expires' => $_GET['widok'] === 'uproszczony' ? 0 : time() - 3600, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Lax']);
+    $back = preg_replace('/([?&])widok=[^&]*&?/', '$1', (string)($_SERVER['REQUEST_URI'] ?? '/'));
+    header('Location: ' . rtrim($back, '?&')); exit;
+}
+if ($canFull && (($_COOKIE['TIPLAN_SIMPLE'] ?? '') === '1')) $fullOk = false;
 tiPlanPublicFull($fullOk);
-if ($fullOk) header('Cache-Control: no-store, private');
+if ($fullOk || $canFull) header('Cache-Control: no-store, private');
 
 // „Zaloguj kontem panelu dydaktyka (TI)”: po logowaniu (i TOTP) powrót na plan — dyd_safe_next() w panelu
 if (isset($_GET['login_ti'])) {
@@ -105,7 +114,7 @@ $side = $full ? [
 // DK — dyżury kierownika / Zarządu (publikacja: przełącznik w planLinki.php; w widoku pełnym zawsze)
 $dutyOn = tiDutyPublic() || $full;
 if ($dutyOn) $side['dk'] = [['Dyżur kierownika / Zarządu', tiPlanPortalUrl($self, ['k' => 'dk'])]];
-$base = ['self' => $self, 'org' => $org, 'side' => $side, 'full' => $full, 'canLogin' => $fullHash !== ''];
+$base = ['self' => $self, 'org' => $org, 'side' => $side, 'full' => $full, 'canFull' => $canFull, 'canLogin' => $fullHash !== ''];
 
 /* ───────────── Logowanie do widoku pełnego ───────────── */
 if (isset($_GET['login'])) {
