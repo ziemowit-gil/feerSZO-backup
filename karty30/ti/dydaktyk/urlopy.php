@@ -93,20 +93,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . $back); exit;
     }
 
+    // Przywrócenie odwołanych lekcji w pierwotnym terminie (pomyłka / nieobecność skrócona) + powiadomienie uczestników
+    if ($op === 'restore_cancelled') {
+        $lid  = (int)($_POST['leave_id'] ?? 0);
+        $leave = $lid ? ti_leave_get($lid) : null;
+        $back = 'urlopy.php?conflicts=' . $lid . '#kolidujace';
+        $ids  = array_values(array_filter(array_map('intval', (array)($_POST['session_ids'] ?? []))));
+        $valid = $leave ? array_map('intval', array_column(ti_leave_cancelled_sessions($lid), 'id')) : [];
+        $ids  = array_values(array_intersect($ids, $valid));
+        if (!$ids) { flash_set('danger', 'Zaznacz odwołane zajęcia do przywrócenia.'); header('Location: ' . $back); exit; }
+        $r = ti_absence_restore_sessions($ids, (string)($me['name'] ?? ''), !empty($_POST['notify_email']), !empty($_POST['notify_sms']));
+        $msg = 'Przywrócono zajęć: ' . $r['restored'] . ($r['emails'] ? ", e-maili: {$r['emails']}" : '') . ($r['sms'] ? ", SMS: {$r['sms']}" : '') . '.';
+        if ($r['blocked']) $msg .= ' Pominięto (prowadzący nadal nieobecny — najpierw skróć lub usuń nieobecność): ' . implode('; ', $r['blocked']) . '.';
+        flash_set($r['restored'] > 0 ? ($r['blocked'] ? 'warning' : 'success') : 'danger', $msg);
+        header('Location: ' . $back); exit;
+    }
+
     if ($op === 'delete_leave') {
         $lid = (int)($_POST['leave_id'] ?? 0);
-        if ($lid) {
+        $leave = $lid ? ti_leave_get($lid) : null;
+        $msg = 'Nieobecność usunięta.';
+        if ($leave) {
+            $to_restore = array_values(array_intersect(
+                array_values(array_filter(array_map('intval', (array)($_POST['session_ids'] ?? [])))),
+                array_map('intval', array_column(ti_leave_cancelled_sessions($lid), 'id'))));
             db()->prepare("DELETE FROM k30_ti_instructor_leaves WHERE id=?")->execute([$lid]);
             // Powiązane zgłoszenie przestaje wisieć w kolejce „do rozstrzygnięcia”
             db()->prepare("UPDATE k30_sc_requests SET status='cancelled', leave_id=NULL WHERE leave_id=? AND status='approved'")->execute([$lid]);
+            if (!empty($_POST['notify_withdrawn'])) {
+                $w = ti_leave_withdraw_notify($leave, !empty($_POST['notify_sms']));
+                if ($w['emails'] || $w['sms']) $msg .= " Poinformowano kursantów, że prowadzący jednak będzie (e-maile: {$w['emails']}, SMS: {$w['sms']}).";
+            }
+            if ($to_restore) {
+                $r = ti_absence_restore_sessions($to_restore, (string)($me['name'] ?? ''), !empty($_POST['notify_email']), !empty($_POST['notify_sms']));
+                $msg .= " Przywrócono odwołane zajęcia: {$r['restored']}.";
+            }
         }
-        flash_set('success', 'Nieobecność usunięta.');
+        flash_set('success', $msg);
         header('Location: urlopy.php'); exit;
     }
 }
 
+$del_id     = (int)($_GET['delete'] ?? 0);
+$del_leave  = $del_id ? ti_leave_get($del_id) : null;
+$del_cancelled = $del_leave ? ti_leave_cancelled_sessions($del_id) : [];
 $conf_id    = (int)($_GET['conflicts'] ?? 0);
 $conf_leave = $conf_id ? ti_leave_get($conf_id) : null;
+$conf_cancelled = $conf_leave ? ti_leave_cancelled_sessions($conf_id) : [];
 $conf_all   = $conf_leave ? ti_leave_conflicts($conf_leave) : [];
 // Grupy (kursy) z kolidującymi zajęciami; ?group=ID zawęża listę i odwołanie do jednej grupy
 $conf_groups = [];
@@ -155,6 +188,36 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h1 class="h4 mb-0 fw-bold"><i class="bi bi-airplane text-primary me-2" aria-hidden="true"></i>Urlopy / dostępność prowadzących</h1>
 </div>
+
+<?php if ($del_leave): $del_notified = !empty($del_leave['notified_at']) && $del_leave['date_to'] >= date('Y-m-d'); ?>
+<section class="card border-danger shadow-sm mb-4" id="usuwanie" aria-labelledby="del-h">
+  <div class="card-header fw-semibold d-flex flex-wrap align-items-center gap-2">
+    <i class="bi bi-trash text-danger" aria-hidden="true"></i>
+    <span id="del-h">Usunąć nieobecność: <?= h(sc_user_name((int)$del_leave['instructor_id'])) ?>, <?= h(_urlopy_range($del_leave)) ?>?</span>
+    <a class="btn btn-sm btn-outline-secondary ms-auto" href="urlopy.php">Anuluj</a>
+  </div>
+  <form method="post" class="card-body">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+    <input type="hidden" name="_op" value="delete_leave">
+    <input type="hidden" name="leave_id" value="<?= (int)$del_leave['id'] ?>">
+    <?php if ($del_notified): ?>
+    <div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="notify_withdrawn" id="del_notify" value="1" checked><label class="form-check-label" for="del_notify">Poinformuj kursantów, że prowadzący jednak będzie (e-mail)</label></div>
+    <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="notify_sms" id="del_sms" value="1" checked><label class="form-check-label" for="del_sms">…oraz SMS (kursy z zajęciami w tym terminie; osoby z włączonym SMS o lekcjach)</label></div>
+    <?php else: ?><p class="small text-body-secondary">Kursanci nie byli powiadomieni o tej nieobecności (albo już się zakończyła) — usunięcie nie wymaga informowania.</p><?php endif; ?>
+    <?php if ($del_cancelled): ?>
+    <fieldset class="mb-3">
+      <legend class="fs-6 fw-semibold">Zajęcia odwołane z powodu tej nieobecności — przywrócić?</legend>
+      <?php foreach ($del_cancelled as $c): ?>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="session_ids[]" value="<?= (int)$c['id'] ?>" id="dc<?= (int)$c['id'] ?>" checked>
+        <label class="form-check-label" for="dc<?= (int)$c['id'] ?>"><?= h(date('d.m.Y', strtotime((string)$c['lesson_date']))) ?>, <?= h(substr((string)$c['time_from'], 0, 5)) ?>–<?= h(substr((string)$c['time_to'], 0, 5)) ?> — <?= h($c['course_name']) ?></label></div>
+      <?php endforeach; ?>
+      <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="notify_email" id="del_mail" value="1" checked><label class="form-check-label" for="del_mail">Poinformuj uczestników przywróconych zajęć e-mailem (SMS wg zaznaczenia wyżej)</label></div>
+    </fieldset>
+    <?php endif; ?>
+    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń nieobecność</button>
+  </form>
+</section>
+<?php endif; ?>
 
 <?php if ($conf_leave): ?>
 <section class="card border-0 shadow-sm mb-4" id="kolidujace" aria-labelledby="conf-h">
@@ -227,6 +290,28 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       boxes.forEach(function(b){ b.addEventListener('change',function(){ all.checked=boxes.every(function(x){return x.checked;}); }); });
     })();
     </script>
+  <?php endif; ?>
+  <?php if ($conf_cancelled): ?>
+    <hr>
+    <h2 class="h6 fw-semibold">Odwołane z powodu tej nieobecności (<?= count($conf_cancelled) ?>)</h2>
+    <p class="small text-body-secondary">Odwołane przez pomyłkę albo po skróceniu nieobecności? Przywróć zajęcia w pierwotnym terminie — uczestnicy dostaną informację. Przywrócenie jest możliwe, gdy prowadzący nie jest już nieobecny w tym czasie.</p>
+    <form method="post">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="restore_cancelled">
+      <input type="hidden" name="leave_id" value="<?= (int)$conf_leave['id'] ?>">
+      <ul class="list-unstyled mb-2">
+        <?php foreach ($conf_cancelled as $c): ?>
+        <li class="form-check"><input class="form-check-input" type="checkbox" name="session_ids[]" value="<?= (int)$c['id'] ?>" id="rc<?= (int)$c['id'] ?>">
+          <label class="form-check-label" for="rc<?= (int)$c['id'] ?>"><?= h(date('d.m.Y', strtotime((string)$c['lesson_date']))) ?>, <?= h(substr((string)$c['time_from'], 0, 5)) ?>–<?= h(substr((string)$c['time_to'], 0, 5)) ?> — <?= h($c['course_name']) ?>
+            <?php if ($c['rebook_status'] === 'open' || $c['rebook_status'] === 'contacted'): ?><span class="badge text-bg-warning ms-1">czeka na nowy termin</span><?php endif; ?></label></li>
+        <?php endforeach; ?>
+      </ul>
+      <div class="d-flex flex-wrap gap-3 align-items-center">
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="notify_email" id="rc_mail" value="1" checked><label class="form-check-label" for="rc_mail">E-mail do uczestników</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="notify_sms" id="rc_sms" value="1" checked><label class="form-check-label" for="rc_sms">SMS do uczestników</label></div>
+        <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Przywróć zaznaczone</button>
+      </div>
+    </form>
   <?php endif; ?>
   </div>
 </section>
@@ -363,12 +448,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               </td>
               <td class="text-end text-nowrap">
                 <a href="?edit=<?= (int)$l['id'] ?>" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2" title="Edytuj" aria-label="Edytuj urlop"><i class="bi bi-pencil" aria-hidden="true"></i></a>
-                <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ten urlop?')">
-                  <input type="hidden" name="_token"    value="<?= h(dyd_token()) ?>">
-                  <input type="hidden" name="_op"        value="delete_leave">
-                  <input type="hidden" name="leave_id"   value="<?= (int)$l['id'] ?>">
-                  <button class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" title="Usuń" aria-label="Usuń urlop"><i class="bi bi-trash" aria-hidden="true"></i></button>
-                </form>
+                <a href="?delete=<?= (int)$l['id'] ?>#usuwanie" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" title="Usuń" aria-label="Usuń nieobecność <?= h($l['instructor_name']) ?>"><i class="bi bi-trash" aria-hidden="true"></i></a>
               </td>
             </tr>
             <?php endforeach; ?>

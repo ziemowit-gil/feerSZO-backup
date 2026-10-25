@@ -88,6 +88,31 @@ function sms_tpl_registry(): array
                 'n'          => ['label' => 'Liczba kolidujących zajęć', 'sample' => '3'],
             ],
         ],
+        'ti_absence_withdrawn' => [
+            'label'       => 'Nieobecność prowadzącego odwołana',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-person-check',
+            'auto'        => true,
+            'description' => 'Wysyłane do uczestników kursów, gdy wcześniej zapowiedziana nieobecność prowadzącego zostanie usunięta (prowadzący jednak będzie), jeśli mają jeszcze zaplanowane zajęcia w tym terminie.',
+            'message'     => 'Prowadzacy {{instructor}} jednak bedzie ({{when}}). Zajecia {{course}} odbeda sie zgodnie z planem.',
+            'vars'        => [
+                'instructor' => ['label' => 'Prowadzący', 'sample' => 'Jan Kowalski'],
+                'when'       => ['label' => 'Termin wcześniej zapowiedzianej nieobecności', 'sample' => '12.09.2026, 10:00-12:00'],
+                'course'     => ['label' => 'Nazwa kursu', 'sample' => 'Angielski S1'],
+            ],
+        ],
+        'ti_lesson_restored' => [
+            'label'       => 'Odwołane zajęcia jednak się odbędą',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-calendar-check',
+            'auto'        => true,
+            'description' => 'Wysyłane do uczestników kursu, gdy odwołane wcześniej zajęcia zostaną przywrócone w pierwotnym terminie (ekran nieobecności albo Nowe terminy po odwołaniu).',
+            'message'     => 'Zajecia {{course}} - {{when}} jednak sie odbeda zgodnie z planem. Szczegoly w panelu kursanta.',
+            'vars'        => [
+                'course' => ['label' => 'Nazwa kursu', 'sample' => 'Angielski S1'],
+                'when'   => ['label' => 'Terminy przywróconych zajęć', 'sample' => '12.09 10:00'],
+            ],
+        ],
         'ti_absence_cancelled' => [
             'label'       => 'Odwołane zajęcia — nieobecność prowadzącego',
             'group'       => 'TI — Zajęcia',

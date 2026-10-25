@@ -258,6 +258,8 @@ function ti_leave_sms_course(int $course_id, string $tpl_key, array $vars): int 
             case 'ti_absence_notice':    return ti_lesson_sms_notify($course_id, (string)$t['message'], 'ti_absence_notice');
             case 'ti_absence_cancelled': return ti_lesson_sms_notify($course_id, (string)$t['message'], 'ti_absence_cancelled');
             case 'ti_substitute_notify': return ti_lesson_sms_notify($course_id, (string)$t['message'], 'ti_substitute_notify');
+            case 'ti_absence_withdrawn': return ti_lesson_sms_notify($course_id, (string)$t['message'], 'ti_absence_withdrawn');
+            case 'ti_lesson_restored':   return ti_lesson_sms_notify($course_id, (string)$t['message'], 'ti_lesson_restored');
         }
     } catch (\Throwable $e) { /* błąd SMS nie blokuje odwołania/zastępstwa */ }
     return 0;
@@ -351,6 +353,103 @@ function ti_absence_cancel_sessions(array $session_ids, string $reason, string $
     return ti_cancel_sessions_notify($session_ids, $reason, $by_label, [
         'cause' => 'absence', 'exclude_uid' => $exclude_uid, 'email' => $email, 'sms' => $sms, 'ask_contact' => $ask_contact, 'leave_id' => $leave_id,
     ]);
+}
+
+/** Lekcje odwołane z powodu danej nieobecności (jeszcze odwołane, od dziś wzwyż) — do przywracania. */
+function ti_leave_cancelled_sessions(int $leave_id): array {
+    ti_rebook_migrate();
+    if (!$leave_id) return [];
+    return db_all(
+        "SELECT r.id AS rebook_id, r.status AS rebook_status, s.id, s.course_id, s.lesson_date, s.time_from, s.time_to, c.name AS course_name
+           FROM k30_ti_rebook r JOIN k30_ti_sessions s ON s.id=r.session_id JOIN k30_ti_courses c ON c.id=s.course_id
+          WHERE r.leave_id=? AND s.status='cancelled' AND s.lesson_date>=? ORDER BY s.lesson_date, s.time_from",
+        [$leave_id, date('Y-m-d')]
+    );
+}
+
+/**
+ * Przywraca odwołane lekcje do planu w pierwotnym terminie (np. odwołane przez pomyłkę albo nieobecność została
+ * skrócona) i powiadamia uczestników (e-mail + SMS z szablonu ti_lesson_restored, zbiorczo per kurs).
+ * Pomija lekcje, które nie są odwołane, są z przeszłości albo kolidują z nadal trwającą nieobecnością prowadzącego.
+ * @return array{restored:int, skipped:int, blocked:string[], emails:int, sms:int}
+ */
+function ti_absence_restore_sessions(array $session_ids, string $by_label, bool $email = true, bool $sms = true): array {
+    $res = ['restored' => 0, 'skipped' => 0, 'blocked' => [], 'emails' => 0, 'sms' => 0];
+    ti_rebook_migrate();
+    $by_course = [];
+    foreach (array_values(array_unique(array_filter(array_map('intval', $session_ids)))) as $sid) {
+        $s = db_one("SELECT s.id, s.course_id, s.lesson_date, s.time_from, s.time_to, s.status, COALESCE(s.instructor_id,c.instructor_id) AS instr, c.name AS course_name
+                       FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id WHERE s.id=?", [$sid]);
+        if (!$s || $s['status'] !== 'cancelled' || (string)$s['lesson_date'] < date('Y-m-d')) { $res['skipped']++; continue; }
+        if ($lv = ti_instructor_on_leave((int)$s['instr'], (string)$s['lesson_date'], (string)$s['time_from'], (string)$s['time_to'])) {
+            $res['blocked'][] = date('d.m.Y', strtotime((string)$s['lesson_date'])) . ' ' . substr((string)$s['time_from'], 0, 5) . ' — prowadzący nadal nieobecny (' . ti_leave_type_label((string)$lv['type']) . ')';
+            continue;
+        }
+        db()->prepare("UPDATE k30_ti_sessions SET status='planned', cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL, updated_at=datetime('now') WHERE id=?")->execute([$sid]);
+        db()->prepare("UPDATE k30_ti_rebook SET status='restored', decided_by=?, decided_at=datetime('now') WHERE session_id=?")->execute([$by_label, $sid]);
+        $res['restored']++;
+        $by_course[(int)$s['course_id']]['name'] = (string)$s['course_name'];
+        $by_course[(int)$s['course_id']]['sessions'][] = $s;
+    }
+    if (!$by_course) return $res;
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    $org = defined('ORG_NAME') ? ORG_NAME : 'TI';
+    $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
+    foreach ($by_course as $cid => $c) {
+        if ($email && function_exists('mail_queue_add')) {
+            $items = array_map(fn($x) => htmlspecialchars(date('d.m.Y', strtotime((string)$x['lesson_date']))
+                . (trim((string)$x['time_from']) !== '' ? ', ' . substr((string)$x['time_from'], 0, 5) . '–' . substr((string)$x['time_to'], 0, 5) : ''), ENT_QUOTES), $c['sessions']);
+            $html = '<p>Dzień dobry,</p><p>Zajęcia <strong>' . htmlspecialchars($c['name'], ENT_QUOTES) . '</strong>, które były odwołane, jednak <strong>odbędą się</strong> w pierwotnym terminie:</p>'
+                  . '<ul><li>' . implode('</li><li>', $items) . '</li></ul>'
+                  . '<p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Otwórz panel kursanta</a></p>'
+                  . '<p style="color:#888;font-size:12px">Wiadomość automatyczna z systemu ' . htmlspecialchars($org, ENT_QUOTES) . '.</p>';
+            foreach (_ti_leave_course_emails($cid) as $addr => $nm) {
+                try { mail_queue_add($addr, (string)$nm, "{$org}: zajęcia jednak się odbędą — " . $c['name'], $html, '', 'ti_lesson_restored', (int)$c['sessions'][0]['id'], '', false); $res['emails']++; }
+                catch (\Throwable $e) {}
+            }
+        }
+        if ($sms) $res['sms'] += ti_leave_sms_course($cid, 'ti_lesson_restored', ['course' => $c['name'], 'when' => _ti_leave_whens($c['sessions'])]);
+    }
+    return $res;
+}
+
+/**
+ * Nieobecność wycofana (usunięta) po tym, jak kursanci zostali o niej powiadomieni — informuje ich, że prowadzący
+ * jednak będzie: e-mail do kursantów prowadzącego + SMS (szablon ti_absence_withdrawn) do kursów z lekcjami
+ * w zakresie nieobecności, które nadal są zaplanowane. Wołać po usunięciu wiersza; $l = dane usuniętego urlopu.
+ * @return array{emails:int, sms:int}
+ */
+function ti_leave_withdraw_notify(array $l, bool $sms = true): array {
+    $res = ['emails' => 0, 'sms' => 0];
+    if ((string)$l['date_to'] < date('Y-m-d') || empty($l['notified_at'])) return $res;   // zakończona albo nikt nie był powiadomiony
+    $iname = (string)(db_one("SELECT COALESCE(NULLIF(TRIM(first_name||' '||last_name),''), name) AS n FROM users WHERE id=?", [(int)$l['instructor_id']])['n'] ?? '');
+    $range = ti_leave_when_label($l);
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    $org = defined('ORG_NAME') ? ORG_NAME : 'TI';
+    $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
+    $html = '<p>Dzień dobry,</p><p>Wcześniej zapowiedziana nieobecność prowadzącego <strong>' . htmlspecialchars($iname, ENT_QUOTES) . '</strong> (termin: <strong>'
+          . htmlspecialchars($range, ENT_QUOTES) . '</strong>) została <strong>odwołana</strong>. Zajęcia odbywają się zgodnie z planem, chyba że otrzymasz osobną informację o odwołaniu.</p>'
+          . '<p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Otwórz panel kursanta</a></p>'
+          . '<p style="color:#888;font-size:12px">Wiadomość automatyczna z systemu ' . htmlspecialchars($org, ENT_QUOTES) . '.</p>';
+    if (function_exists('mail_queue_add')) {
+        foreach (ti_leave_affected_students((int)$l['instructor_id']) as $s) {
+            $emails = [];
+            $p = trim((string)($s['email'] ?? '')); if ($p !== '' && filter_var($p, FILTER_VALIDATE_EMAIL)) $emails[$p] = (string)$s['name'];
+            $g = trim((string)($s['guardian_email'] ?? '')); if (!empty($s['is_minor']) && $g !== '' && filter_var($g, FILTER_VALIDATE_EMAIL)) $emails[$g] = (string)$s['name'];
+            foreach ($emails as $addr => $nm) {
+                try { mail_queue_add($addr, $nm, "{$org}: nieobecność prowadzącego odwołana ({$range})", $html, '', 'ti_leave_withdrawn', (int)$l['id'], '', false); $res['emails']++; }
+                catch (\Throwable $e) {}
+            }
+        }
+    }
+    if ($sms) {
+        $by_course = [];
+        foreach (ti_leave_conflicts($l) as $c) $by_course[(int)$c['course_id']] = (string)$c['course_name'];
+        foreach ($by_course as $cid => $cname) {
+            $res['sms'] += ti_leave_sms_course($cid, 'ti_absence_withdrawn', ['instructor' => $iname, 'when' => str_replace('–', '-', $range), 'course' => $cname]);
+        }
+    }
+    return $res;
 }
 
 /**

@@ -23,6 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'contacted' || $op === 'dropped') {
         flash_set(ti_rebook_set($id, $op, (string)($_POST['note'] ?? ''), $who) ? 'success' : 'danger',
             $op === 'contacted' ? 'Zapisano: skontaktowano z uczestnikami.' : 'Zrezygnowano z ustalania nowego terminu.');
+    } elseif ($op === 'restore') {
+        $sid = (int)(db_one("SELECT session_id FROM k30_ti_rebook WHERE id=? AND status IN ('open','contacted')", [$id])['session_id'] ?? 0);
+        $r = $sid ? ti_absence_restore_sessions([$sid], $who, !empty($_POST['notify']), !empty($_POST['notify'])) : ['restored' => 0, 'blocked' => []];
+        flash_set($r['restored'] ? 'success' : 'danger', $r['restored'] ? 'Lekcja przywrócona w pierwotnym terminie.' . (!empty($_POST['notify']) ? ' Uczestnicy zostali powiadomieni.' : '')
+            : ($r['blocked'] ? 'Nie można przywrócić: ' . implode('; ', $r['blocked']) . '.' : 'Nie można przywrócić tej lekcji (minęła albo nie jest odwołana).'));
     } elseif ($op === 'schedule') {
         $r = ti_rebook_schedule($id, trim((string)($_POST['date'] ?? '')), trim((string)($_POST['time_from'] ?? '')), trim((string)($_POST['time_to'] ?? '')),
             $who, !empty($_POST['notify']), !empty($_POST['force']));
@@ -90,6 +95,7 @@ $tok = '<input type="hidden" name="_token" value="' . h(dyd_token()) . '">';
         <label class="small"><input type="checkbox" name="notify" value="1" class="form-check-input me-1" checked>powiadom (e-mail + SMS)</label>
         <label class="small"><input type="checkbox" name="force" value="1" class="form-check-input me-1">mimo ostrzeżeń</label>
         <button class="btn btn-primary btn-sm">Zaproponuj termin</button>
+        <button class="btn btn-outline-secondary btn-sm" name="_op" value="restore" formnovalidate title="Lekcja wraca do planu w pierwotnym terminie (pola daty i godzin są pomijane)">Przywróć pierwotny termin</button>
       </form>
     <?php else: ?><span class="text-body-secondary small">—</span><?php endif; ?>
     </td>
