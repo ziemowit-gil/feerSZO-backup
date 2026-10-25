@@ -23,6 +23,27 @@ final class LicenseStorage
         return [self::DIR . '/' . $name, hash('sha256', $bytes)];
     }
 
+    /**
+     * Szyfrowane archiwum ZIP (AES-256) z dokumentami [nazwa pliku => bajty] w katalogu modułu. Zwraca [ścieżka względna, rozmiar].
+     * Bez obsługi AES w libzip — wyjątek (nigdy nie zapisujemy archiwum bez hasła).
+     */
+    public static function putZip(array $entries, string $password, string $prefix): array
+    {
+        if (!class_exists('ZipArchive')) throw new RuntimeException('Brak rozszerzenia ZIP na serwerze.');
+        $dir = rtrim(UPLOAD_DIR, '/') . '/' . self::DIR;
+        if (!is_dir($dir)) @mkdir($dir, 0750, true);
+        if (!is_file($dir . '/.htaccess')) @file_put_contents($dir . '/.htaccess', "Require all denied\nDeny from all\n");
+        $name = preg_replace('/[^a-z0-9_]/', '', strtolower($prefix)) . '_' . bin2hex(random_bytes(8)) . '.zip';
+        $zip = new \ZipArchive();
+        if ($zip->open($dir . '/' . $name, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) throw new RuntimeException('Nie udało się utworzyć archiwum ZIP.');
+        foreach ($entries as $entry => $bytes) {
+            $zip->addFromString((string)$entry, (string)$bytes);
+            if (!$zip->setEncryptionName((string)$entry, \ZipArchive::EM_AES_256, $password)) { $zip->close(); @unlink($dir . '/' . $name); throw new RuntimeException('Serwer nie obsługuje szyfrowania archiwów ZIP (AES-256).'); }
+        }
+        $zip->close();
+        return [self::DIR . '/' . $name, (int)@filesize($dir . '/' . $name)];
+    }
+
     /** Plik od użytkownika (dowód zakupu AM12): PDF / JPG / PNG do 15 MB, typ sprawdzany po zawartości. Zwraca [ścieżka względna, nazwa]. */
     public static function putUpload(array $file, string $prefix): array
     {

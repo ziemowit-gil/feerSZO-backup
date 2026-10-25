@@ -287,6 +287,78 @@ final class Am7TenantAccount
         return ['out' => LicenseDocument::render($html, 'Zmiana loginu UPN — ' . $l['interested_name'], $number, 'AM91'), 'number' => $number, 'info' => $info];
     }
 
+    /** Hasło do archiwum: 10 znaków bez mylących (0/O, 1/l/I) — przepisywane z SMS-a. */
+    private static function zipPassword(int $len = 10): string
+    {
+        $a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        $p = '';
+        for ($i = 0; $i < $len; $i++) $p .= $a[random_int(0, strlen($a) - 1)];
+        return $p;
+    }
+
+    /**
+     * Zaktualizowane formularze po zmianie UPN: AM90/n + AM91 w szyfrowanym ZIP-ie (AES-256) e-mailem, hasło do ZIP-a osobnym SMS-em.
+     * Bez SMS-a (brak telefonu / kanału) NIE wysyłamy e-maila — archiwum bez hasła byłoby bezużyteczne; błąd z poleceniem wysyłki ręcznej.
+     * Kolejność: e-mail z ZIP-em, a dopiero po jego przyjęciu SMS z hasłem.
+     */
+    private function sendUpdateZip(array $l, array $actor, bool $auto): string
+    {
+        $id = (int)$l['id'];
+        $c = $this->svc->interestedContact($l);
+        $digits = preg_replace('/\D/', '', (string)$c['phone']);
+        require_once dirname(__DIR__, 3) . '/includes/sms.php';
+        if (strlen($digits) < 9) throw new DomainException('Brak numeru telefonu osoby — nie ma dokąd wysłać hasła do archiwum (SMS). Uzupełnij telefon w sprawie i wyślij ponownie.');
+        if (!sms_channel_ready()) throw new DomainException('Kanał SMS nie jest skonfigurowany — hasło do archiwum nie mogłoby dotrzeć do osoby.');
+        $o90 = $this->am90Output($l);
+        $o91 = $this->am91Output($l);
+        $rev = (int)$o90['info']['revision'];
+        $pass = self::zipPassword();
+        [$rel, $size] = LicenseStorage::putZip([
+            ldFileName($o90['number']) . '.' . $o90['out']['ext'] => $o90['out']['bytes'],
+            ldFileName($o91['number']) . '.' . $o91['out']['ext'] => $o91['out']['bytes'],
+        ], $pass, 'am_aktualizacja_' . $id);
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p>'
+              . '<p><b>Przepraszamy za pomyłkę.</b> W załączniku przesyłamy zaktualizowane formularze AM (<b>AM90/' . $rev . ' — aktualizacja danych</b> oraz <b>AM91 — zmiana loginu</b>) w archiwum ZIP zabezpieczonym hasłem.</p>'
+              . '<p>Hasło do archiwum wysłaliśmy <b>SMS-em</b> na numer kończący się na ' . $e(substr($digits, -3)) . '. Nowy login do konta znajdziesz w formularzach; hasło do konta się nie zmieniło. Dokumenty nie wymagają podpisu. <b>Nie jest wymagane żadne działanie z Twojej strony.</b> Sprawa: ' . $e($l['case_number']) . '.</p>';
+        $att = LicenseNotificationService::zipAttachment($rel, 'AM_aktualizacja_' . $o90['number'], $size);
+        $res = $this->svc->notify->send(LicenseNotificationType::OperationConfirm, $c, 'Zaktualizowane formularze AM (AM90/' . $rev . ', AM91) — przepraszamy za pomyłkę, sprawa ' . $l['case_number'],
+            LicenseNotificationService::layout('Zaktualizowane formularze AM', $body, '', '', 'AM90'), '', ['type' => 'license', 'id' => $id], $actor, true, $att);
+        $mailed = !empty($res['delivered']) || in_array('queued', (array)($res['channels'] ?? []), true);
+        $report = 'AM90/' . $rev . ' + AM91 (ZIP): ' . $this->svc->describe($res);
+        $this->svc->licenses->event($id, 'am90.sent', ($auto ? 'Automatycznie' : 'Ręcznie') . ' wysłano ZIP z formularzami AM90/' . $rev . ' i AM91: ' . $this->svc->describe($res), $actor);
+        if (!$mailed) return $report . ' — SMS z hasłem nie został wysłany (e-mail nie wyszedł)';
+        db()->prepare("UPDATE licenses SET am90_sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/sms_templates.php';
+            $m = sms_tpl_render('ti_am7_docs_zip_password', ['case' => (string)$l['case_number'], 'password' => $pass]);
+            sms_send((string)$c['phone'], trim((string)$m['message']), 'ti_am7_docs_zip_password');
+            $report .= '; hasło do archiwum wysłane SMS-em';
+            $this->svc->licenses->event($id, 'am90.zip_sms', 'Hasło do archiwum ZIP wysłano SMS-em (numer ***' . substr($digits, -3) . ').', $actor);
+        } catch (\Throwable $e2) {
+            $report .= '; UWAGA: SMS z hasłem NIE wysłany (' . $e2->getMessage() . ') — wyślij ponownie z zakładki Wydruki (nowe archiwum i hasło)';
+        }
+        // Kierownik (rola „kierownik” panelu TI, z telefonem w koncie) dostaje to samo hasło — może pomóc, gdy SMS do osoby nie dojdzie
+        $report .= $this->smsPasswordToManagers($l, $pass);
+        return $report;
+    }
+
+    /** SMS z hasłem do archiwum do kierowników panelu TI (telefon w koncie). @return string fragment raportu */
+    private function smsPasswordToManagers(array $l, string $pass): string
+    {
+        $sent = 0;
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/sms_templates.php';
+            $m = sms_tpl_render('ti_am7_docs_zip_password_mgr', ['case' => (string)$l['case_number'], 'person' => (string)$l['interested_name'], 'password' => $pass]);
+            if (empty($m['enabled']) || trim((string)$m['message']) === '') return '; SMS do kierownika wyłączony w szablonach';
+            foreach (db_all("SELECT DISTINCT u.id, u.phone_number FROM k30_ti_panel_roles r JOIN users u ON u.id = r.user_id
+                              WHERE r.role = 'kierownik' AND u.is_active = 1 AND COALESCE(u.phone_number, '') <> ''") as $u) {
+                try { sms_send((string)$u['phone_number'], trim((string)$m['message']), 'ti_am7_docs_zip_password_mgr'); $sent++; } catch (\Throwable $e) { /* jeden błąd nie blokuje reszty */ }
+            }
+        } catch (\Throwable $e) { return '; SMS do kierownika NIE wysłany (' . $e->getMessage() . ')'; }
+        return $sent > 0 ? '; hasło wysłane SMS-em także do kierownika (' . $sent . ')' : '; brak kierownika z numerem telefonu w koncie — SMS dla kierownika pominięty';
+    }
+
     // ── AM90: Potwierdzenie wykonania operacji (druk w stylu CIT; wysyłka RĘCZNA) ──────────────────
 
     /** Rewizja AM90: 1 = potwierdzenie utworzenia konta; każda zmiana UPN (AM91) daje kolejną — AM90/2, AM90/3… „Aktualizacja danych”. */
@@ -319,6 +391,7 @@ final class Am7TenantAccount
     {
         $l = $this->svc->licenses->get($id);
         if (!$l || $l['form'] !== LicenseForm::Am7) throw new DomainException('To nie jest sprawa AM7.');
+        if (self::am90Revision($id) > 1) return $this->sendUpdateZip($l, $actor, $auto);
         $o = $this->am90Output($l);
         $rev = (int)$o['info']['revision'];
         [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'am90' . ($rev > 1 ? '_r' . $rev : '') . '_' . $id);

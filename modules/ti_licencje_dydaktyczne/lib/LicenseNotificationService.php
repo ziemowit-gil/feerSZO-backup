@@ -90,6 +90,12 @@ final class LicenseNotificationService
         return [['path' => ltrim($rel, '/'), 'name' => ldFileName($name) . '.pdf', 'mime' => 'application/pdf', 'size' => (int)filesize($p)]];
     }
 
+    /** Załącznik e-mail: archiwum ZIP z hasłem (LicenseStorage::putZip). */
+    public static function zipAttachment(string $rel, string $name, int $size): array
+    {
+        return [['path' => ltrim($rel, '/'), 'name' => ldFileName($name) . '.zip', 'mime' => 'application/zip', 'size' => $size]];
+    }
+
     public static function statusLabel(string $s): string
     {
         return match ($s) {

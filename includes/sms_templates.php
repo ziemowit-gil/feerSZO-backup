@@ -266,6 +266,31 @@ function sms_tpl_registry(): array
                 'password' => ['label' => 'Hasło tymczasowe', 'sample' => 'Kx7!mQ2wRt9p'],
             ],
         ],
+        'ti_am7_docs_zip_password' => [
+            'label'       => 'AM: hasło do archiwum ZIP z zaktualizowanymi formularzami (SMS)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-file-earmark-lock',
+            'auto'        => true,
+            'description' => 'Po korekcie w sprawie AM (np. zmiana loginu UPN) zaktualizowane formularze AM idą e-mailem w archiwum ZIP z hasłem; hasło — tym SMS-em.',
+            'message'     => 'FEER: haslo do archiwum ZIP z formularzami AM (sprawa {{case}}): {{password}}. Archiwum jest w e-mailu.',
+            'vars'        => [
+                'case'     => ['label' => 'Numer sprawy', 'sample' => '4021-MS_AM/000002/JU'],
+                'password' => ['label' => 'Hasło do archiwum', 'sample' => 'K7mQ2wRt9p'],
+            ],
+        ],
+        'ti_am7_docs_zip_password_mgr' => [
+            'label'       => 'AM: hasło do archiwum ZIP — kopia dla kierownika (SMS)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-file-earmark-lock',
+            'auto'        => true,
+            'description' => 'To samo hasło, które dostaje osoba, której dotyczy sprawa — wysyłane także do kierownika (rola „kierownik” panelu TI) z numerem telefonu w koncie.',
+            'message'     => 'FEER (kopia dla kierownika): haslo do archiwum ZIP z formularzami AM, sprawa {{case}}, osoba {{person}}: {{password}}.',
+            'vars'        => [
+                'case'     => ['label' => 'Numer sprawy', 'sample' => '4021-MS_AM/000002/JU'],
+                'person'   => ['label' => 'Osoba, której dotyczy sprawa', 'sample' => 'Jutyna Nowak'],
+                'password' => ['label' => 'Hasło do archiwum', 'sample' => 'K7mQ2wRt9p'],
+            ],
+        ],
         'ti_license_assigned' => [
             'label'       => 'Nowa licencja przypisana (do kursanta)',
             'group'       => 'TI — Zajęcia',
