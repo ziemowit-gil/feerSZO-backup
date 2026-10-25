@@ -120,6 +120,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $flash_type = $verify['problems'] ? 'danger' : 'success';
     }
 
+    if ($act === 'purge_month') {
+        $pm  = (string)($_POST['month'] ?? '');
+        $res = backup_month_purge($pm);
+        if ($res['ok']) {
+            $mb = round($res['size'] / 1048576, 1);
+            $flash = 'Usunięto kopie z miesiąca ' . h($pm) . ': ' . (int)$res['deleted'] . ' plików (' . $mb . ' MB)'
+                   . ($res['kept'] ? '; zachowano ' . (int)$res['kept'] . ' (najnowsze kopie każdego typu).' : '.');
+            $flash_type = 'success';
+            admin_audit('backup_purge_month', 'backups', 'Usunięto kopie z miesiąca ' . $pm . ': ' . (int)$res['deleted'] . ' plików, ' . $mb . ' MB.', 0, $pm);
+        } else {
+            $flash = 'Nie usunięto: ' . h($res['error']); $flash_type = 'danger';
+        }
+    }
+
     if ($act === 'delete') {
         $rel  = trim($_POST['file'] ?? '', '/');
         $full = realpath($bak_root . '/' . $rel);
@@ -188,6 +202,9 @@ $total_h = $total_size > 1048576
     ? round($total_size / 1048576, 1) . ' MB'
     : round($total_size / 1024) . ' KB';
 
+$purge_month = (isset($_GET['purge']) && preg_match('/^\d{4}-\d{2}$/', (string)$_GET['purge'])) ? (string)$_GET['purge'] : backup_prev_month();
+$purge_plan  = backup_month_plan($purge_month);
+
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 
@@ -228,6 +245,38 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
   </div>
 </div>
 <div id="sp-backup-result" class="mb-3" style="display:none"></div>
+
+<!-- Czyszczenie kopii z poprzedniego miesiąca -->
+<div class="card shadow-sm mb-3">
+  <div class="card-header py-2 fw-semibold"><i class="bi bi-trash3 me-1 text-danger"></i>Usuń kopie z poprzedniego miesiąca</div>
+  <div class="card-body small">
+    <form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-2">
+      <div><label class="form-label mb-0" for="purgeMonth">Miesiąc</label>
+        <select id="purgeMonth" name="purge" class="form-select form-select-sm" onchange="this.form.submit()">
+          <?php foreach (array_keys($months) as $mm): if ($mm >= date('Y-m')) continue; ?>
+          <option value="<?= h($mm) ?>"<?= $mm === $purge_month ? ' selected' : '' ?>><?= h($mm) ?><?= $mm === backup_prev_month() ? ' (poprzedni)' : '' ?></option>
+          <?php endforeach; ?>
+          <?php if (!isset($months[$purge_month]) && $purge_month < date('Y-m')): ?><option value="<?= h($purge_month) ?>" selected><?= h($purge_month) ?></option><?php endif; ?>
+        </select></div>
+    </form>
+    <?php if (!$purge_plan['ok']): ?>
+      <div class="text-muted"><?= h($purge_plan['error'] ?? '') ?></div>
+    <?php elseif (!$purge_plan['delete']): ?>
+      <div class="text-muted">Brak plików do usunięcia z <?= h($purge_month) ?><?= $purge_plan['keep'] ? ' (' . count($purge_plan['keep']) . ' chronionych jako najnowsze kopie)' : '' ?>.</div>
+    <?php else: ?>
+      <div class="mb-2">Do usunięcia: <strong><?= count($purge_plan['delete']) ?></strong> plików, <strong><?= round($purge_plan['size'] / 1048576, 1) ?> MB</strong>.
+        <?php if ($purge_plan['keep']): ?> Zostanie zachowanych <?= count($purge_plan['keep']) ?> (min. 3 najnowsze kopie każdego typu zawsze zostają).<?php endif; ?>
+        Dotyczy tylko kopii lokalnych na serwerze — kopie w SharePoint zostają. Operacja jest nieodwracalna.</div>
+      <details class="mb-2"><summary class="text-muted" style="cursor:pointer">Pokaż pliki</summary>
+        <ul class="mb-0 mt-1" style="max-height:160px;overflow:auto"><?php foreach ($purge_plan['delete'] as $pf): ?><li class="font-monospace"><?= h($pf['rel']) ?></li><?php endforeach; ?></ul></details>
+      <form method="post" onsubmit="return confirm('Trwale usunąć <?= count($purge_plan['delete']) ?> plików kopii z miesiąca <?= h($purge_month) ?>?')">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="purge_month"><input type="hidden" name="month" value="<?= h($purge_month) ?>">
+        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash3 me-1"></i>Usuń kopie z <?= h($purge_month) ?></button>
+      </form>
+    <?php endif; ?>
+  </div>
+</div>
+
 
 <?php if ($flash): ?>
 <div class="alert alert-<?= h($flash_type) ?> py-2 small"><?= $flash ?></div>

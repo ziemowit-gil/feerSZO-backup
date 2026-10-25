@@ -234,6 +234,62 @@ function backup_manifest_prune(): int {
     return $before - count($m);
 }
 
+/** Poprzedni miesiąc w formacie RRRR-MM. */
+function backup_prev_month(?int $ts = null): string {
+    return date('Y-m', strtotime('first day of last month', $ts ?? time()));
+}
+
+/**
+ * Plan usunięcia kopii z miesiąca $month (katalog backups/RRRR-MM). Nic nie usuwa.
+ * Zabezpieczenia: tylko miesiące wcześniejsze niż bieżący; nigdy nie ruszamy $keepNewest najnowszych kopii każdego typu
+ * (db / uploads / certs) z całego katalogu — jak w retencji agenta backup.
+ * @return array{ok:bool,error?:string,month:string,delete:array<int,array{rel:string,size:int}>,keep:array<int,array{rel:string,size:int}>,size:int}
+ */
+function backup_month_plan(string $month, int $keepNewest = 3): array {
+    $plan = ['ok' => false, 'month' => $month, 'delete' => [], 'keep' => [], 'size' => 0];
+    if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) return $plan + ['error' => 'Nieprawidłowy miesiąc (oczekiwano RRRR-MM).'];
+    if ($month >= date('Y-m')) return $plan + ['error' => 'Można czyścić tylko miesiące wcześniejsze niż bieżący.'];
+    $root = rtrim(backup_root(), '/');
+    $dir  = $root . '/' . $month;
+    if (!is_dir($dir)) return $plan + ['error' => 'Brak katalogu kopii dla miesiąca ' . $month . '.'];
+    // najnowsze N kopii każdego typu w całym katalogu — chronione
+    $all = [];
+    foreach (glob($root . '/????-??/*') ?: [] as $fp) {
+        if (!is_file($fp)) continue;
+        $k = backup_kind(basename($fp));
+        if ($k) $all[$k][] = ['path' => $fp, 'mtime' => filemtime($fp) ?: 0];
+    }
+    $protected = [];
+    foreach ($all as $list) {
+        usort($list, fn($a, $b) => $b['mtime'] <=> $a['mtime']);
+        foreach (array_slice($list, 0, $keepNewest) as $x) $protected[$x['path']] = true;
+    }
+    foreach (glob($dir . '/*') ?: [] as $fp) {
+        if (!is_file($fp) || !backup_kind(basename($fp))) continue;   // ruszamy tylko rozpoznane kopie (baza / uploads / certyfikaty)
+        $row = ['rel' => $month . '/' . basename($fp), 'size' => (int)filesize($fp)];
+        if (isset($protected[$fp])) { $plan['keep'][] = $row; continue; }
+        $plan['delete'][] = $row; $plan['size'] += $row['size'];
+    }
+    $plan['ok'] = true;
+    return $plan;
+}
+
+/** Wykonuje plan z backup_month_plan(): usuwa pliki, pusty katalog miesiąca i wpisy manifestu. Zwraca liczbę usuniętych plików. */
+function backup_month_purge(string $month): array {
+    $plan = backup_month_plan($month);
+    if (!$plan['ok']) return ['ok' => false, 'error' => $plan['error'] ?? 'Błąd planu.', 'deleted' => 0, 'size' => 0];
+    $root = rtrim(backup_root(), '/');
+    $deleted = 0; $size = 0;
+    foreach ($plan['delete'] as $f) {
+        $full = $root . '/' . $f['rel'];
+        if (is_file($full) && @unlink($full)) { $deleted++; $size += $f['size']; }
+    }
+    $dir = $root . '/' . $month;
+    if (is_dir($dir) && count(scandir($dir)) === 2) @rmdir($dir);
+    backup_manifest_prune();
+    return ['ok' => true, 'deleted' => $deleted, 'size' => $size, 'kept' => count($plan['keep'])];
+}
+
 /**
  * Weryfikuje kopie: porównuje SHA-256 z manifestem; dla baz (gdy $deep i jest
  * możliwość odczytu) uruchamia PRAGMA integrity_check.
