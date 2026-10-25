@@ -4,6 +4,7 @@
  */
 
 require_once dirname(__DIR__) . '/modules/helpdeskEmail/lib/helpdeskEmail.php';
+require_once dirname(__DIR__) . '/modules/helpdeskNotify/lib/helpdeskNotify.php';
 
 const HD_STATUSES = [
     'nowe'            => ['label' => 'Nowe',                            'class' => 'primary',   'icon' => 'bi-inbox-fill',         'text' => 'white'],
@@ -308,6 +309,7 @@ function helpdesk_migrate(): void {
  */
 function hd_admin_items(): array {
     $items = [
+        ['key' => 'notify',    'label' => 'Moje powiadomienia',   'icon' => 'bi-bell',           'url' => APP_URL . '/modules/helpdeskNotify/router.php',  'admin' => false],
         ['key' => 'reports',   'label' => 'Raporty',              'icon' => 'bi-graph-up',       'url' => APP_URL . '/modules/helpdeskReports/router.php', 'admin' => false],
         ['key' => 'macros',    'label' => 'Gotowe odpowiedzi',    'icon' => 'bi-card-text',      'url' => APP_URL . '/helpdesk/admin_macros.php',          'admin' => false],
         ['key' => 'templates', 'label' => 'Szablony e-mail',      'icon' => 'bi-envelope-gear',  'url' => APP_URL . '/helpdesk/admin_email_templates.php', 'admin' => true],
@@ -884,12 +886,12 @@ function hd_notify_escalation(array $ticket, string $number, string $reason, int
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
         if (!empty($ticket['assigned_to'])) {
             $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
-            if ($op && !empty($op['email'])) mail_queue_add($op['email'], $op['name'] ?? '', $subject, $html);
+            if ($op && !empty($op['email']) && hdNotifyAllows($op['email'], 'escalation', $ticket)) mail_queue_add($op['email'], $op['name'] ?? '', $subject, $html);
         } else {
             $ops = db_all(
                 "SELECT email, name FROM users WHERE (helpdesk_operator=1 OR role='admin') AND is_active=1 AND email IS NOT NULL AND email != ''", []
             );
-            foreach ($ops as $op) mail_queue_add($op['email'], $op['name'] ?? '', $subject, $html);
+            foreach ($ops as $op) { if (hdNotifyAllows($op['email'], 'escalation', $ticket)) mail_queue_add($op['email'], $op['name'] ?? '', $subject, $html); }
         }
     } catch (\Throwable $e) {}
 }
@@ -1364,7 +1366,7 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
     if (!empty($ticket['assigned_to'])) {
         try {
             $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
-            if ($op && !empty($op['email']) && $op['email'] !== $email) {
+            if ($op && !empty($op['email']) && $op['email'] !== $email && hdNotifyAllows($op['email'], 'status', $ticket)) {
                 require_once dirname(__DIR__) . '/includes/mail_queue.php';
                 $_sc_op_data = ['requester_name' => $ticket['requester_name'],
                                 'agent_name' => $op['name'] ?? '', 'number' => $num,
@@ -1446,7 +1448,7 @@ function hd_notify_new_message(array $ticket, array $message): void {
             if (!empty($ticket['assigned_to'])) {
                 // Powiadom przypisanego operatora
                 $op = db_one("SELECT email, name FROM users WHERE id=?", [(int)$ticket['assigned_to']]);
-                if ($op && !empty($op['email'])) {
+                if ($op && !empty($op['email']) && hdNotifyAllows($op['email'], 'reply', $ticket)) {
                     mail_queue_add($op['email'], $op['name'] ?? '', $subject, $body_html);
                 }
             } else {
@@ -1455,6 +1457,7 @@ function hd_notify_new_message(array $ticket, array $message): void {
                     "SELECT email, name FROM users WHERE (helpdesk_operator=1 OR role='admin') AND is_active=1 AND email IS NOT NULL AND email != ''", []
                 );
                 foreach ($ops as $op) {
+                    if (!hdNotifyAllows($op['email'], 'reply', $ticket)) continue;
                     mail_queue_add($op['email'], $op['name'] ?? '', $subject, $body_html);
                 }
             }
@@ -1464,6 +1467,7 @@ function hd_notify_new_message(array $ticket, array $message): void {
 
 function hd_notify_assigned(array $ticket, array $operator): void {
     if (empty($operator['email'])) return;
+    if (!hdNotifyAllows($operator['email'], 'assigned', $ticket)) return;
     $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
     $url   = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
     $num   = $ticket['number'];
@@ -1808,7 +1812,7 @@ function hd_ticket_quick_create(array $requester, string $title, string $descrip
         }
         $ops = db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL AND email != ''");
         foreach ($ops as $op) {
-            if (empty($op['email'])) continue;
+            if (empty($op['email']) || !hdNotifyAllows((string)$op['email'], 'new_ticket')) continue;
             mail_queue_add(
                 (string)$op['email'], (string)($op['name'] ?? ''),
                 "[{$number}] Nowe zgłoszenie: {$title}",

@@ -146,7 +146,7 @@ function hdRulesNotifyAssignee(int $ticketId, int $uid): void
     try {
         $op = db_one("SELECT email, name FROM users WHERE id=?", [$uid]);
         $t = db_one("SELECT number, title FROM helpdesk_tickets WHERE id=?", [$ticketId]);
-        if (!$op || empty($op['email']) || !$t) return;
+        if (!$op || empty($op['email']) || !$t || !hdNotifyAllows($op['email'], 'assigned')) return;
         require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
         mail_queue_add((string)$op['email'], (string)$op['name'], "[{$t['number']}] Przypisano Ci zgłoszenie: {$t['title']}",
             hd_mail_layout(['title' => 'Przypisano Ci zgłoszenie', 'preheader' => $t['number'] . ' — ' . $t['title'],

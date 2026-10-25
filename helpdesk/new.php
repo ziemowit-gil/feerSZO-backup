@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $org = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
             $url = APP_URL . '/helpdesk/view.php?id=' . $ticket_id;
             foreach ($ops as $op) {
-                if (empty($op['email'])) continue;
+                if (empty($op['email']) || !hdNotifyAllows($op['email'], 'new_ticket')) continue;
                 require_once dirname(__DIR__) . '/includes/mail_queue.php';
                 $opname = h($op['name'] ?? '');
                 $num_h  = h($number);

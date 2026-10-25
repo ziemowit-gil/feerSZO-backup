@@ -244,6 +244,7 @@ function hdMailNotifyOperators(int $ticketId, string $number, string $title): vo
         require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
         $url = APP_URL . '/helpdesk/view.php?id=' . $ticketId;
         foreach (db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL AND email != ''") as $op) {
+            if (!hdNotifyAllows((string)$op['email'], 'new_ticket')) continue;
             mail_queue_add((string)$op['email'], (string)($op['name'] ?? ''), "[{$number}] Nowe zgłoszenie (e-mail): {$title}",
                 hd_mail_layout(['title' => 'Nowe zgłoszenie z e-maila', 'preheader' => $number . ' — ' . $title,
                     'facts' => [['Numer', $number], ['Temat', $title]], 'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => $url]]));
