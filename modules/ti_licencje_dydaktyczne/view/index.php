@@ -1,11 +1,12 @@
 <?php
 /**
  * modules/ti_licencje_dydaktyczne/view/index.php — pulpit „Licencje dydaktyczne (AM5)”: kafle Metro (pula, wnioski, terminy 7 dni),
- * zakładki: Sprawy (lista z filtrem), Do działania (weryfikacja, po terminie), Wzory do druku, Alerty i przypomnienia.
+ * zakładki: Sprawy (lista z filtrem), Operacje AM11–AM24, Korekty AMSK, Do działania (jedna skrzynka: weryfikacja, po terminie, operacje do decyzji, korekty do podpisu), Wzory do druku, Alerty i przypomnienia.
  * Zmienne: $rows, $f, $counts, $toVerify, $overdueAsg, $alertEmails, $alertSetting, $agentOn, $actor.
  */
 require __DIR__ . '/_parts.php';
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
+require_once dirname(__DIR__) . '/lib/LicenseOperationService.php';
 $title = 'Licencje AM5 / AM7 i zarządzanie';
 include __DIR__ . '/_head.php';
 $u = fn(array $q) => h(route('ld.index', $q));
@@ -17,34 +18,39 @@ $tiles = [
     ['Przydzielone', $counts['assigned'], '#008a00', ['status' => 'assigned']],
     ['Zawieszone', $counts['suspended'], '#fa6800', ['status' => 'suspended']],
     ['Wygasłe', $counts['expired'], '#76608a', ['status' => 'expired']],
-    ['Oświadczenia do weryfikacji', $counts['toVerify'], '#0050ef', null],
 ];
 ?>
-<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<?php
+$opSvc = new LicenseOperationService();
+$opCounts = $opSvc->counts();
+$opOpen = array_merge($opSvc->search(['status' => 'pending']), $opSvc->search(['status' => 'signing']), $opSvc->search(['status' => 'approved']));
+usort($opOpen, fn($a, $b) => (int)$b['id'] <=> (int)$a['id']);
+$opN = (int)$opCounts['pending'] + (int)($opCounts['signing'] ?? 0) + (int)$opCounts['approved'];
+$corrPending = LicenseCorrection::pendingCount();
+$corrRows = LicenseCorrection::search('', 15);
+$actN = count($toVerify) + count($overdueAsg) + (int)$opCounts['pending'] + $corrPending;
+?>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h1 class="me-auto mb-0"><span class="sym">AM5</span> <span class="sym" style="background:#0050ef">AM7</span> Licencje dydaktyczne i oprogramowanie</h1>
-  <a class="btn btn-metro green" href="<?= h(route('ld.am20')) ?>"><i class="bi bi-cash-coin" aria-hidden="true"></i> AM20 + AM20-1 — zmiana płatnika (formularz elektroniczny)</a>
-  <a class="btn btn-metro green" href="<?= h(route('ld.accounts')) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Operacje na licencjach (AM11–AM24)</a>
-  <a class="btn btn-metro" style="background:#7c2d12" href="<?= h(route('ld.corr.index')) ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i> Korekty AMSK<?php $_np = LicenseCorrection::pendingCount(); if ($_np > 0): ?> <span class="badge text-bg-light"><?= $_np ?></span><span class="visually-hidden"> czeka na podpis</span><?php endif; ?></a>
+  <form class="d-flex" method="get" action="<?= h(route('ld.scan')) ?>" role="search" aria-label="Skanuj kod formularza AM (Code128 w stopce: LD…, OP…, AMSK-…)">
+    <label class="visually-hidden" for="kod">Skanuj kod formularza AM (Code128 w stopce: LD…, OP…, AMSK-…)</label>
+    <div class="input-group input-group-sm"><span class="input-group-text"><i class="bi bi-upc-scan" aria-hidden="true"></i></span>
+      <input class="form-control" id="kod" name="kod" autocomplete="off" autocapitalize="characters" placeholder="Skanuj kod formularza" style="min-width:13rem"><button class="btn btn-metro dark">Otwórz</button></div></form>
   <a class="btn btn-metro" href="<?= h(route('ld.new')) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i> Wniosek AM5 — materiały</a>
   <a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.new7')) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Wniosek AM7 — oprogramowanie</a>
 </div>
-<form class="d-flex gap-2 align-items-end mb-2" method="get" action="<?= h(route('ld.scan')) ?>" role="search" aria-label="Skanuj kod formularza">
-  <div class="flex-grow-1" style="max-width:30rem"><label class="form-label small mb-0" for="kod">Skanuj kod formularza AM (Code128 w stopce: LD…/OP…/AMSK-…)</label>
-    <input class="form-control form-control-sm" id="kod" name="kod" autocomplete="off" autocapitalize="characters" placeholder="zeskanuj lub wpisz kod"></div>
-  <button class="btn btn-sm btn-metro dark">Otwórz</button></form>
-<details class="mb-2 text-secondary"><summary class="fw-semibold">Jak to działa (AM5, AM7, numer sprawy, termin 7 dni)</summary><p class="mt-1 mb-0"><b>AM5</b> — licencje na materiały dydaktyczne: wniosek do licencjodawcy (AM5/1), oświadczenia kursanta (AM5/2, AM5/3).
-  <b>AM7</b> — licencja / dostęp do oprogramowania i usług cyfrowych (dowolny dostawca; konto w tenancie ośrodka lub inna aktywacja): wniosek podpisywany przez kursanta (AM7/1), decyzja placówki zatwierdzana przez kierownika i wysyłana w PDF (AM7/2 / AM7/3), zlecenie Helpdesku IT, oświadczenia (AM7/4, AM7/5).
-  Każda sprawa ma numer <b><?= h(LD_CASE_PREFIX) ?>/NNNNNN/AB</b>, każdy etap — termin <b>do <?= LD_REALIZATION_DAYS ?> dni</b>; wszczęcie wysyła e-mail i SMS do osoby zainteresowanej.</p></details>
 
 <nav class="tiles" aria-label="Podsumowanie">
   <?php foreach ($tiles as [$label, $n, $color, $q]): ?>
-    <a class="tile" style="background:<?= $color ?>" href="<?= $q === null ? '#dzialania' : $u($q) ?>"<?= $q === null ? ' data-ld-goto="dzialania"' : '' ?>><span class="n"><?= (int)$n ?></span><span class="l"><?= h($label) ?></span></a>
+    <a class="tile" style="background:<?= $color ?>" href="<?= $u($q) ?>"><span class="n"><?= (int)$n ?></span><span class="l"><?= h($label) ?></span></a>
   <?php endforeach; ?>
 </nav>
 
 <?php $_tabs = [
     'sprawy'     => ['Sprawy', count($rows), false],
-    'dzialania'  => ['Do działania', count($toVerify) + count($overdueAsg), true],
+    'operacje'   => ['Operacje AM11–AM24', $opN, false],
+    'korekty'    => ['Korekty AMSK', $corrPending, true],
+    'dzialania'  => ['Do działania', $actN, true],
     'wzory'      => ['Wzory do druku', null, false],
     'ustawienia' => ['Alerty i przypomnienia', null, false],
 ]; $_tabDefault = 'sprawy'; $_tabsLabel = 'Sekcje pulpitu licencji';
@@ -81,6 +87,46 @@ include __DIR__ . '/_tabs.php'; ?>
 </table>
 </div>
 
+<details class="mt-3 text-secondary"><summary class="fw-semibold">Jak to działa (AM5, AM7, numer sprawy, termin 7 dni)</summary><p class="mt-1 mb-0"><b>AM5</b> — licencje na materiały dydaktyczne: wniosek do licencjodawcy (AM5/1), oświadczenia kursanta (AM5/2, AM5/3).
+  <b>AM7</b> — licencja / dostęp do oprogramowania i usług cyfrowych (dowolny dostawca; konto w tenancie ośrodka lub inna aktywacja): wniosek podpisywany przez kursanta (AM7/1), decyzja placówki zatwierdzana przez kierownika i wysyłana w PDF (AM7/2 / AM7/3), zlecenie Helpdesku IT, oświadczenia (AM7/4, AM7/5).
+  Każda sprawa ma numer <b><?= h(LD_CASE_PREFIX) ?>/NNNNNN/AB</b>, każdy etap — termin <b>do <?= LD_REALIZATION_DAYS ?> dni</b>; wszczęcie wysyła e-mail i SMS do osoby zainteresowanej. Kod Code128 w stopce każdego formularza łączy go ze sprawą (pole „Skanuj kod”).</p></details>
+</div>
+
+<div class="ld-tabpanel" id="ldp-operacje" data-ld-panel="operacje" role="tabpanel" aria-labelledby="ldt-operacje" hidden>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <p class="text-secondary mb-0 me-auto">Zmiana płatnika (AM20), planu, zawieszenie, cofnięcie, przedłużenie oraz wnioski AM11–AM13. Otwarte operacje: do decyzji, czekające na potwierdzenie osoby, w realizacji.</p>
+    <a class="btn btn-metro green" href="<?= h(route('ld.am20')) ?>"><i class="bi bi-cash-coin" aria-hidden="true"></i> AM20 + AM20-1 — zmiana płatnika</a>
+    <a class="btn btn-metro dark" href="<?= h(route('ld.accounts')) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Wszystkie operacje i konta</a>
+  </div>
+  <div class="d-flex flex-wrap gap-2 mb-2" aria-label="Kolejka operacji">
+    <?= ldChip('Czeka na decyzję: ' . (int)$opCounts['pending'], '#f0a30a') ?> <?= ldChip('Czeka na potwierdzenie osoby: ' . (int)($opCounts['signing'] ?? 0), '#fa6800') ?> <?= ldChip('W realizacji: ' . (int)$opCounts['approved'], '#1ba1e2') ?>
+  </div>
+  <div class="table-responsive panel p-0"><table class="table table-hover mb-0">
+    <thead><tr><th>Nr sprawy</th><th>Operacja</th><th>Osoba</th><th>Stan</th><th>Termin</th></tr></thead><tbody>
+    <?php if (!$opOpen): ?><tr><td colspan="5" class="text-secondary p-3">Brak otwartych operacji.</td></tr><?php endif; ?>
+    <?php foreach (array_slice($opOpen, 0, 15) as $o): $of = $o['formEnum']; ?>
+      <tr><td class="text-nowrap"><a href="<?= h(route('ld.op', ['id' => $o['id']])) ?>"><?= h($o['number']) ?></a></td>
+        <td><span class="sym" style="background:<?= h($of->color()) ?>"><?= h($of->value) ?></span> <?= h($of->short()) ?></td>
+        <td><?= h($o['account_name']) ?></td><td><?= ldChip($o['statusEnum']->label(), $o['statusEnum']->color()) ?></td><td class="small text-nowrap"><?= h(ldDate($o['due_on'])) ?></td></tr>
+    <?php endforeach; ?></tbody></table></div>
+  <?php if (count($opOpen) > 15): ?><p class="small text-secondary mt-1">Pokazano 15 z <?= count($opOpen) ?> — pozostałe w „Wszystkie operacje i konta”.</p><?php endif; ?>
+</div>
+
+<div class="ld-tabpanel" id="ldp-korekty" data-ld-panel="korekty" role="tabpanel" aria-labelledby="ldt-korekty" hidden>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <p class="text-secondary mb-0 me-auto">Korekta danych w dokumentach AM czeka na <b>odręczny podpis kierownika</b> na druku kontrolnym AMSK/1 (QR + Code128). Wystawisz ją z karty sprawy lub operacji (zakładka / sekcja Korekty AMSK).</p>
+    <a class="btn btn-metro" style="background:#7c2d12" href="<?= h(route('ld.corr.index')) ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i> Wszystkie korekty i wyszukiwarka</a>
+  </div>
+  <div class="table-responsive panel p-0"><table class="table table-hover mb-0">
+    <thead><tr><th>Kod</th><th>Sprawa / dokument</th><th>Zakres</th><th>Stan</th><th>Wystawiono</th></tr></thead><tbody>
+    <?php if (!$corrRows): ?><tr><td colspan="5" class="text-secondary p-3">Brak korekt.</td></tr><?php endif; ?>
+    <?php foreach ($corrRows as $c): ?>
+      <tr><td class="text-nowrap"><a href="<?= h(route('ld.corr', ['id' => $c['id']])) ?>"><?= h(LicenseCorrection::code((int)$c['id'])) ?></a></td>
+        <td><?= h($c['target_number']) ?> <span class="small text-secondary"><?= $c['scope'] === 'operation' ? '(operacja)' : '(sprawa)' ?></span></td>
+        <td class="small"><?= h(implode(', ', array_map(fn($i) => $i['label'], $c['itemsList']))) ?></td>
+        <td><?= ldChip(LicenseCorrection::statusLabel($c['status']), LicenseCorrection::statusColor($c['status'])) ?></td>
+        <td class="small text-nowrap"><?= h(ldDt($c['created_at'])) ?> · <?= h($c['created_name']) ?></td></tr>
+    <?php endforeach; ?></tbody></table></div>
 </div>
 
 <div class="ld-tabpanel" id="ldp-dzialania" data-ld-panel="dzialania" role="tabpanel" aria-labelledby="ldt-dzialania" hidden>
@@ -105,7 +151,20 @@ include __DIR__ . '/_tabs.php'; ?>
 </section>
 <?php endif; ?>
 
-<?php if (!$toVerify && !$overdueAsg): ?><p class="panel text-secondary">Nic nie czeka na działanie: brak oświadczeń do weryfikacji i brak spraw po terminie 7 dni.</p><?php endif; ?>
+<?php $opPend = array_values(array_filter($opOpen, fn($o) => $o['status'] === 'pending')); $corrPend = array_values(array_filter($corrRows, fn($c) => $c['status'] === LicenseCorrection::PENDING)); ?>
+<?php if ($opPend): ?>
+<section class="panel accent">
+  <h2 class="mt-0">Operacje czekające na decyzję (<?= count($opPend) ?>)</h2>
+  <ul class="mb-0"><?php foreach ($opPend as $o): ?><li><a href="<?= h(route('ld.op', ['id' => $o['id']])) ?>"><?= h($o['number']) ?></a> — <?= h($o['formEnum']->short()) ?>, <?= h($o['account_name']) ?>, termin <?= h(ldDate($o['due_on'])) ?></li><?php endforeach; ?></ul>
+</section>
+<?php endif; ?>
+<?php if ($corrPend): ?>
+<section class="panel warn">
+  <h2 class="mt-0">Korekty AMSK czekające na podpis kierownika (<?= count($corrPend) ?>)</h2>
+  <ul class="mb-0"><?php foreach ($corrPend as $c): ?><li><a href="<?= h(route('ld.corr', ['id' => $c['id']])) ?>"><?= h(LicenseCorrection::code((int)$c['id'])) ?></a> — <?= h($c['target_number']) ?>, <?= h(implode(', ', array_map(fn($i) => $i['label'], $c['itemsList']))) ?></li><?php endforeach; ?></ul>
+</section>
+<?php endif; ?>
+<?php if (!$toVerify && !$overdueAsg && !$opPend && !$corrPend): ?><p class="panel text-secondary">Nic nie czeka na działanie: brak oświadczeń do weryfikacji, spraw po terminie 7 dni, operacji do decyzji i korekt do podpisu.</p><?php endif; ?>
 </div>
 
 <div class="ld-tabpanel" id="ldp-wzory" data-ld-panel="wzory" role="tabpanel" aria-labelledby="ldt-wzory" hidden>
