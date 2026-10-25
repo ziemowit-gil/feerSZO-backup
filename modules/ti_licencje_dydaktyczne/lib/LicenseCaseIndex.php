@@ -77,7 +77,7 @@ final class LicenseCaseIndex
                 $add('Konto w tenancie', 'Potwierdzenie wykonania operacji (AM90)', $n90, $codeOf($n90, 'AM90'), 'Obowiązuje', '#008a00', (string)$row['tenant_created_at']);
                 foreach (Am7TenantAccount::upnChanges($id) as $k => $ch) {
                     $n91 = LicenseDocument::am91Number($t, $k + 1);
-                    $add('Konto w tenancie', 'Zmiana loginu (UPN) — AM91: ' . $ch['old'] . ' → ' . $ch['new'], $n91, $codeOf($n91, 'AM91'), 'Obowiązuje', (string)$ch['at']);
+                    $add('Konto w tenancie', 'Zmiana loginu (UPN) — AM91: ' . $ch['old'] . ' → ' . $ch['new'], $n91, $codeOf($n91, 'AM91'), 'Obowiązuje', '#008a00', (string)$ch['at']);
                 }
             }
         } else {
