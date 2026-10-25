@@ -15,6 +15,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/LicenseCorrection.php';
 require_once __DIR__ . '/LicenseZipDelivery.php';
 require_once __DIR__ . '/Am7TenantAccount.php';
+require_once __DIR__ . '/LicenseCaseIndex.php';
 
 final class LicenseDocPackage
 {
@@ -149,6 +150,7 @@ final class LicenseDocPackage
         $pk = self::get($packageId);
         if (!$pk) throw new DomainException('Nie ma takiego pakietu.');
         $scope = (string)$pk['scope']; $tid = (int)$pk['target_id'];
+        if (!empty($pk['locked_at'])) throw new DomainException('Pakiet jest zablokowany (' . $pk['locked_at'] . ') — nie można go regenerować. Zmiany wymagają nowej korekty AMSK.');
         if ((int)$pk['revision'] !== LicenseCodes::revision($scope, $tid)) throw new DomainException('To pakiet nieaktualnej rewizji (R' . $pk['revision'] . ') — regenerować można tylko pakiet bieżącej rewizji R' . LicenseCodes::revision($scope, $tid) . '.');
         [$t] = LicenseCorrection::target($scope, $tid);
         $caseCode = LicenseCodes::caseCode($scope, $tid);
@@ -172,6 +174,101 @@ final class LicenseDocPackage
     }
 
     // ── ZIP i wysyłka ─────────────────────────────────────────────────────────────
+
+    /**
+     * Blokada pakietu: zamraża zawartość (brak regeneracji) i generuje JEDEN scalony PDF: spis AM56 (z QR do spisu elektronicznego) + wszystkie druki pakietu
+     * (wnioski, decyzje, AM90/AM91, druk operacji) — BEZ druków AMSK (korekta, AMSK/1). @return string ścieżka względna PDF
+     */
+    public function lock(int $packageId, array $actor): string
+    {
+        ldMigrate();
+        $pk = self::get($packageId);
+        if (!$pk) throw new DomainException('Nie ma takiego pakietu.');
+        if (!empty($pk['locked_at'])) throw new DomainException('Pakiet jest już zablokowany.');
+        $bytes = $this->buildMerged($pk);
+        [$rel, $sha] = LicenseStorage::put($bytes, 'pdf', 'pakiet_scalony_' . $packageId);
+        $now = ldNow();
+        db_exec("UPDATE license_doc_packages SET locked_at = ?, locked_by = ?, locked_name = ?, merged_path = ?, merged_sha256 = ? WHERE id = ?", [$now, ($actor['id'] ?? 0) ?: null, (string)($actor['name'] ?? ''), $rel, $sha, $packageId]);
+        $ev = ['action' => 'amsk.package_lock', 'note' => 'Zablokowano pakiet R' . $pk['revision'] . ' i wygenerowano scalony PDF (spis AM56 + ' . count(self::packageIssues($packageId)) . ' druków, bez AMSK); SHA-256 ' . substr($sha, 0, 16) . '.',
+               'actor_id' => ($actor['id'] ?? 0) ?: null, 'actor_name' => (string)($actor['name'] ?? ''), 'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64), 'created_at' => $now];
+        db_insert('license_events', ($pk['scope'] === 'operation' ? ['license_id' => 0, 'operation_id' => (int)$pk['target_id']] : ['license_id' => (int)$pk['target_id']]) + $ev);
+        return $rel;
+    }
+
+    /** Scalony PDF: AM56 + druki pakietu (tylko PDF; bez AMSK). */
+    private function buildMerged(array $pk): string
+    {
+        $tmp = []; $paths = [];
+        try {
+            $a56 = LicenseCaseIndex::output((string)$pk['scope'], (int)$pk['target_id']);
+            if ($a56['out']['ext'] !== 'pdf') throw new DomainException('Scalanie wymaga PDF (mPDF niedostępny).');
+            $f = tempnam(sys_get_temp_dir(), 'am56'); file_put_contents($f, $a56['out']['bytes']); $tmp[] = $f; $paths[] = $f;
+            $n = 0;
+            foreach (self::packageIssues((int)$pk['id']) as $i) {
+                $p = LicenseStorage::fullPath((string)$i['file_path']);
+                if (!$p || !str_ends_with($p, '.pdf')) throw new DomainException('Druk „' . $i['label'] . '” nie jest plikiem PDF — nie można scalić pakietu.');
+                $paths[] = $p; $n++;
+            }
+            if ($n === 0) throw new DomainException('Pakiet nie zawiera druków do scalenia.');
+            return self::mergePdf($paths);
+        } finally { foreach ($tmp as $f) @unlink($f); }
+    }
+
+    /** Scala pliki PDF w jeden (mPDF + FPDI). @param list<string> $paths @return string bajty PDF */
+    private static function mergePdf(array $paths): string
+    {
+        require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+        $tmpDir = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
+        if (!is_dir($tmpDir)) @mkdir($tmpDir, 0755, true);
+        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'tempDir' => $tmpDir]);
+        $pdf->SetAuthor(ldOrgName());
+        $pdf->SetTitle('Pakiet druków AM (scalony)');
+        foreach ($paths as $path) {
+            $cnt = $pdf->setSourceFile($path);
+            for ($p = 1; $p <= $cnt; $p++) {
+                $tpl = $pdf->importPage($p);
+                $pdf->AddPage();
+                $pdf->useTemplate($tpl);
+            }
+        }
+        return $pdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+    }
+
+    /** Bajty scalonego PDF zablokowanego pakietu. */
+    public static function mergedBytes(array $pk): string
+    {
+        $p = LicenseStorage::fullPath((string)$pk['merged_path']);
+        if (!$p) throw new DomainException('Brak scalonego PDF — pakiet nie został zablokowany.');
+        return (string)file_get_contents($p);
+    }
+
+    /** Kontekst rejestru przekazań haseł (PP). */
+    private static function handoverCtx(array $pk, string $number, string $kind): array
+    {
+        return ['package_id' => (int)$pk['id'], 'scope' => (string)$pk['scope'], 'target_id' => (int)$pk['target_id'], 'target_number' => $number, 'kind' => $kind];
+    }
+
+    public static function ppCode(int $packageId): string
+    {
+        return 'PP-' . str_pad((string)$packageId, 6, '0', STR_PAD_LEFT);
+    }
+
+    /** Przekazania haseł pakietu (najstarsze pierwsze). */
+    public static function handovers(int $packageId): array
+    {
+        ldMigrate();
+        return db_all("SELECT * FROM license_pwd_handovers WHERE package_id = ? ORDER BY id", [$packageId]);
+    }
+
+    /** Druk PP (AM Pre-shared Protocol): protokół przekazania hasła do pakietu. @return array{out:array,number:string} */
+    public function ppOutput(array $pk): array
+    {
+        $c = LicenseCorrection::get((int)$pk['correction_id']);
+        if (!$c) throw new DomainException('Brak korekty pakietu.');
+        $number = (string)$c['target_number'] . ' · ' . self::ppCode((int)$pk['id']) . ' · PP';
+        $html = (new LicenseDocument())->ppHtml($pk, $c, self::handovers((int)$pk['id']), self::packageIssues((int)$pk['id']));
+        return ['out' => LicenseDocument::render($html, 'Protokół przekazania hasła do pakietu (PP) — ' . $c['target_number'], $number, 'PP'), 'number' => $number];
+    }
 
     /** Wpisy ZIP-a: [nazwa pliku => bajty] — poprawione druki pakietu + druk AMSK (korekta) + SPIS.txt (kody, rewizja, lista unieważnionych). */
     public function entries(int $packageId, bool $withAmsg = false): array
@@ -203,6 +300,8 @@ final class LicenseDocPackage
             $a = $this->amsgOutput($pk);
             $out[ldFileName($a['number']) . '.' . $a['out']['ext']] = $a['out']['bytes'];
         }
+        try { $a56 = LicenseCaseIndex::output((string)$pk['scope'], (int)$pk['target_id']); $out[ldFileName($a56['number']) . '.' . $a56['out']['ext']] = $a56['out']['bytes']; }
+        catch (\Throwable $e) { error_log('ld am56: ' . $e->getMessage()); }
         $out['SPIS.txt'] = $txt;
         return $out;
     }
@@ -254,7 +353,7 @@ final class LicenseDocPackage
         $svc = new LicenseManagementService();
         $r = LicenseZipDelivery::deliver($svc, $contact, $number, ['type' => $pk['scope'] === 'operation' ? 'operation' : 'license', 'id' => (int)$pk['target_id']], $this->entries($packageId),
             'Pakiet poprawionych dokumentów AM (R' . $rev . ') — przepraszamy za pomyłkę, sprawa ' . $number, 'Pakiet poprawionych dokumentów AM', $body, $actor,
-            'pakiet_am_' . $packageId, 'Pakiet_poprawionych_dokumentow_AM_R' . $rev . '_' . $number, true);
+            'pakiet_am_' . $packageId, 'Pakiet_poprawionych_dokumentow_AM_R' . $rev . '_' . $number, true, self::handoverCtx($pk, $number, 'initial'));
         if ($r['mailed']) db()->prepare("UPDATE license_doc_packages SET sent_at = ? WHERE id = ?")->execute([ldNow(), $packageId]);
         $ev = ['action' => 'amsk.package_sent', 'note' => 'Pakiet R' . $rev . ': ' . $r['report'], 'actor_id' => ($actor['id'] ?? 0) ?: null, 'actor_name' => (string)($actor['name'] ?? ''),
                'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64), 'created_at' => ldNow()];
@@ -279,7 +378,7 @@ final class LicenseDocPackage
               . '<p>Osoba, której dotyczy sprawa, otrzyma pakiet po jego wysłaniu z karty korekty' . ($pk['sent_at'] ? ' (<b>już wysłano ' . $e(ldDate(substr((string)$pk['sent_at'], 0, 10))) . '</b>)' : ' (<b>jeszcze nie wysłano</b>)') . '.</p>';
         $r = LicenseZipDelivery::deliverManagers(new LicenseManagementService(), $number, $person, ['type' => $pk['scope'] === 'operation' ? 'operation' : 'license', 'id' => (int)$pk['target_id']],
             $this->entries($packageId, true), '[dla kierownika] Pakiet poprawionych dokumentów AM (R' . $rev . ', AMSG/' . (int)$pk['gen_no'] . ') — sprawa ' . $number, 'Pakiet poprawionych dokumentów AM — dla kierownika', $body, $actor,
-            'pakiet_am_kier_' . $packageId, 'Pakiet_AM_R' . $rev . '_AMSG' . (int)$pk['gen_no'] . '_' . $number);
+            'pakiet_am_kier_' . $packageId, 'Pakiet_AM_R' . $rev . '_AMSG' . (int)$pk['gen_no'] . '_' . $number, self::handoverCtx($pk, $number, 'initial'));
         if ($r['mailed'] > 0) db()->prepare("UPDATE license_doc_packages SET manager_sent_at = ? WHERE id = ?")->execute([ldNow(), $packageId]);
         $ev = ['action' => 'amsk.package_mgr', 'note' => 'Pakiet R' . $rev . ' (AMSG/' . (int)$pk['gen_no'] . ') do kierownika: ' . $r['report'], 'actor_id' => ($actor['id'] ?? 0) ?: null, 'actor_name' => (string)($actor['name'] ?? ''),
                'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64), 'created_at' => ldNow()];
@@ -307,7 +406,7 @@ final class LicenseDocPackage
         $r = LicenseZipDelivery::regeneratePassword(new LicenseManagementService(), ['name' => (string)$me['name'], 'email' => (string)$me['email']], $phone, $number, $person,
             ['type' => $pk['scope'] === 'operation' ? 'operation' : 'license', 'id' => (int)$pk['target_id']], $this->entries($packageId, true),
             '[nowe hasło] Pakiet poprawionych dokumentów AM (R' . $rev . ') — sprawa ' . $number, 'Pakiet poprawionych dokumentów AM — nowe hasło', $body, $actor,
-            'pakiet_am_haslo_' . $packageId, 'Pakiet_AM_R' . $rev . '_nowe_haslo_' . $number);
+            'pakiet_am_haslo_' . $packageId, 'Pakiet_AM_R' . $rev . '_nowe_haslo_' . $number, self::handoverCtx($pk, $number, 'regenerated'));
         $ev = ['action' => 'amsk.package_pwd', 'note' => 'Regeneracja hasła do pakietu R' . $rev . ' (kierownik ' . ($actor['name'] ?? '') . '): ' . $r['report'], 'actor_id' => ($actor['id'] ?? 0) ?: null, 'actor_name' => (string)($actor['name'] ?? ''),
                'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64), 'created_at' => ldNow()];
         db_insert('license_events', ($pk['scope'] === 'operation' ? ['license_id' => 0, 'operation_id' => (int)$pk['target_id']] : ['license_id' => (int)$pk['target_id']]) + $ev);

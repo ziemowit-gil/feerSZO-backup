@@ -69,8 +69,16 @@ $targetUrl = $isOp ? route('ld.op', ['id' => $c['target_id']]) : route('ld.show'
         <tr class="text-secondary"><td style="text-decoration:line-through"><?= h($i['label']) ?></td><td class="small"><?= h($i['doc_number']) ?></td><td><code><?= h($i['code']) ?></code></td><td><?= ldChip('UNIEWAŻNIONY', '#a20025') ?></td></tr><?php endforeach; ?>
     </tbody></table></div>
     <?php if (!str_starts_with((string)$pk['gen_reason'], 'Automatycznie')): ?><a class="btn btn-sm btn-metro" style="background:#334155" href="<?= h(route('ld.pack.amsg', ['pid' => $pk['id']])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> AMSG/<?= (int)$pk['gen_no'] ?> — Regeneracja pakietu</a><?php endif; ?>
+    <a class="btn btn-sm btn-metro" style="background:#1e3a8a" href="<?= h(route('ld.pack.pp', ['pid' => $pk['id']])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PP — protokół przekazania hasła</a>
+    <a class="btn btn-sm btn-metro" style="background:#0f4c5c" href="<?= h(route('ld.am56' . ($c['scope'] === 'operation' ? '.op' : ''), ['id' => $c['target_id']])) ?>" target="_blank" rel="noopener"><i class="bi bi-list-check" aria-hidden="true"></i> AM56 — spis dokumentów</a>
     <a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.pack.zip', ['pid' => $pk['id']])) ?>"><i class="bi bi-file-earmark-zip" aria-hidden="true"></i> Pobierz ZIP (jawny)</a>
-    <?php if ((int)$pk['revision'] === LicenseCodes::revision($c['scope'], (int)$c['target_id'])): ?>
+    <?php if (!empty($pk['locked_at'])): ?>
+      <?= ldChip('Pakiet zablokowany ' . ldDt($pk['locked_at']) . ' (' . $pk['locked_name'] . ')', '#1e3a8a') ?>
+      <a class="btn btn-sm btn-metro" style="background:#1e3a8a" href="<?= h(route('ld.pack.merged', ['pid' => $pk['id']])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Scalony PDF (AM56 + wszystkie druki, bez AMSK)</a>
+    <?php else: ?>
+      <?= ldPost(route('ld.pack.lock', ['pid' => $pk['id']]), 'Zablokuj pakiet i drukuj 1 PDF', 'btn-metro red', [], 'Zablokować pakiet? Zawartość zostanie zamrożona (bez regeneracji), a SZO wygeneruje JEDEN PDF: spis AM56 z QR do spisu elektronicznego + wszystkie druki pakietu bez AMSK.') ?>
+    <?php endif; ?>
+    <?php if (empty($pk['locked_at']) && (int)$pk['revision'] === LicenseCodes::revision($c['scope'], (int)$c['target_id'])): ?>
       <?= ldPost(route('ld.pack.regen', ['pid' => $pk['id']]), 'Regeneruj pakiet', 'btn-metro orange', [], 'Wygenerować druki pakietu ponownie z aktualnych danych (ta sama rewizja R' . (int)$pk['revision'] . ', kody bez zmian)? Powstanie druk AMSG, ten sam pakiet trafi do kierownika, a do osoby zostanie oznaczony jako niewysłany.') ?>
     <?php endif; ?>
     <?= ldPost(route('ld.pack.send', ['pid' => $pk['id']]), $pk['sent_at'] ? 'Wyślij pakiet ponownie (ZIP z hasłem + SMS)' : 'Wyślij pakiet do osoby i kierownika (ZIP z hasłem + SMS)', 'btn-metro green', [], 'Wysłać pakiet jako ZIP z hasłem do osoby i kierownika? Hasło pójdzie osobnym SMS-em.') ?>

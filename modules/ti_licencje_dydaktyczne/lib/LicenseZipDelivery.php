@@ -13,6 +13,31 @@ require_once __DIR__ . '/LicenseNotificationService.php';
 
 final class LicenseZipDelivery
 {
+    /**
+     * Zapis przekazania hasła do rejestru PP (bez hasła). $ctx: package_id, scope, target_id, target_number, kind (initial|regenerated); pusty → brak zapisu.
+     * @param array $row recipient_kind, recipient_name, phone, result (sent|failed|deferred|skipped), error, zip_rel, actor_name
+     */
+    private static function record(array $ctx, array $row): void
+    {
+        if (!$ctx) return;
+        try {
+            ldMigrate();
+            $sha = '';
+            if (!empty($row['zip_rel']) && preg_match('#^[a-z0-9_]+/[a-z0-9_]+\.zip$#', (string)$row['zip_rel']) && is_file($p = rtrim(UPLOAD_DIR, '/') . '/' . $row['zip_rel'])) $sha = (string)@hash_file('sha256', $p);
+            $d = preg_replace('/\D/', '', (string)($row['phone'] ?? ''));
+            db_insert('license_pwd_handovers', ['package_id' => $ctx['package_id'] ?? null, 'scope' => (string)($ctx['scope'] ?? 'license'), 'target_id' => (int)($ctx['target_id'] ?? 0),
+                'target_number' => (string)($ctx['target_number'] ?? ''), 'recipient_kind' => (string)$row['recipient_kind'], 'recipient_name' => mb_substr((string)$row['recipient_name'], 0, 190),
+                'phone_masked' => $d !== '' ? '***' . substr($d, -3) : '', 'channel' => 'SMS', 'kind' => (string)($ctx['kind'] ?? 'initial'), 'result' => (string)$row['result'],
+                'error' => mb_substr((string)($row['error'] ?? ''), 0, 255), 'zip_sha256' => $sha, 'actor_name' => (string)($row['actor_name'] ?? ''), 'created_at' => ldNow()]);
+        } catch (\Throwable $e) { error_log('ld handover log: ' . $e->getMessage()); }
+    }
+
+    /** Wynik sms_send(): '' = zablokowany (kursant wirtualny), „odlozony” = cisza nocna, inaczej wysłany. */
+    private static function smsResult(string $r): string
+    {
+        return $r === '' ? 'skipped' : ($r === 'odlozony' ? 'deferred' : 'sent');
+    }
+
     /** Hasło do archiwum: 10 znaków bez mylących (0/O, 1/l/I) — przepisywane z SMS-a. */
     public static function password(int $len = 10): string
     {
@@ -31,7 +56,7 @@ final class LicenseZipDelivery
      * @return array{report:string, mailed:bool, sms:bool, digits:string, describe:string}
      */
     public static function deliver(LicenseManagementService $svc, array $contact, string $caseNumber, array $ref, array $entries, string $subject, string $heading,
-                                   string $bodyHtml, array $actor, string $zipPrefix, string $zipTitle, bool $managerCopies = false): array
+                                   string $bodyHtml, array $actor, string $zipPrefix, string $zipTitle, bool $managerCopies = false, array $ctx = []): array
     {
         $digits = preg_replace('/\D/', '', (string)($contact['phone'] ?? ''));
         require_once dirname(__DIR__, 3) . '/includes/sms.php';
@@ -59,13 +84,15 @@ final class LicenseZipDelivery
         try {
             require_once dirname(__DIR__, 3) . '/includes/sms_templates.php';
             $m = sms_tpl_render('ti_am7_docs_zip_password', ['case' => $caseNumber, 'password' => $pass]);
-            sms_send((string)$contact['phone'], trim((string)$m['message']), 'ti_am7_docs_zip_password');
+            $sr = sms_send((string)$contact['phone'], trim((string)$m['message']), 'ti_am7_docs_zip_password');
             $out['sms'] = true;
             $report .= '; hasło do archiwum wysłane SMS-em';
+            self::record($ctx, ['recipient_kind' => 'person', 'recipient_name' => (string)($contact['name'] ?? ''), 'phone' => (string)$contact['phone'], 'result' => self::smsResult((string)$sr), 'zip_rel' => $rel, 'actor_name' => (string)($actor['name'] ?? '')]);
         } catch (\Throwable $e) {
             $report .= '; UWAGA: SMS z hasłem NIE wysłany (' . $e->getMessage() . ') — wyślij ponownie (nowe archiwum i hasło)';
+            self::record($ctx, ['recipient_kind' => 'person', 'recipient_name' => (string)($contact['name'] ?? ''), 'phone' => (string)$contact['phone'], 'result' => 'failed', 'error' => $e->getMessage(), 'zip_rel' => $rel, 'actor_name' => (string)($actor['name'] ?? '')]);
         }
-        $out['report'] = $report . self::notifyManagers($caseNumber, (string)($contact['name'] ?? ''), $pass);
+        $out['report'] = $report . self::notifyManagers($caseNumber, (string)($contact['name'] ?? ''), $pass, $ctx, $rel, (string)($actor['name'] ?? ''));
         return $out;
     }
 
@@ -74,7 +101,7 @@ final class LicenseZipDelivery
      * @return array{report:string, mailed:int, sms:int}
      */
     public static function deliverManagers(LicenseManagementService $svc, string $caseNumber, string $personName, array $ref, array $entries, string $subject, string $heading,
-                                           string $bodyHtml, array $actor, string $zipPrefix, string $zipTitle): array
+                                           string $bodyHtml, array $actor, string $zipPrefix, string $zipTitle, array $ctx = []): array
     {
         $mgrs = db_all("SELECT DISTINCT u.id, u.name, u.email, u.phone_number FROM k30_ti_panel_roles r JOIN users u ON u.id = r.user_id
                          WHERE r.role = 'kierownik' AND u.is_active = 1 AND COALESCE(u.email, '') <> ''");
@@ -91,7 +118,7 @@ final class LicenseZipDelivery
         $report = 'ZIP e-mailem do kierownika: ' . $mailed . '/' . count($mgrs);
         $sms = 0;
         if ($mailed > 0) {
-            $m = self::notifyManagers($caseNumber, $personName, $pass);
+            $m = self::notifyManagers($caseNumber, $personName, $pass, $ctx, $rel, (string)($actor['name'] ?? ''));
             $sms = preg_match('/\((\d+)\)/', $m, $mm) ? (int)$mm[1] : 0;
             $report .= $m;
         } else { $report .= ' — SMS z hasłem nie został wysłany (e-mail nie wyszedł)'; }
@@ -104,7 +131,7 @@ final class LicenseZipDelivery
      * @param array $to ['name','email'] @return array{report:string, mailed:bool, sms:bool, digits:string}
      */
     public static function regeneratePassword(LicenseManagementService $svc, array $to, string $phone, string $caseNumber, string $personName, array $ref, array $entries,
-                                              string $subject, string $heading, string $bodyHtml, array $actor, string $zipPrefix, string $zipTitle): array
+                                              string $subject, string $heading, string $bodyHtml, array $actor, string $zipPrefix, string $zipTitle, array $ctx = []): array
     {
         require_once dirname(__DIR__, 3) . '/includes/sms.php';
         $digits = preg_replace('/\D/', '', $phone);
@@ -122,17 +149,19 @@ final class LicenseZipDelivery
         try {
             require_once dirname(__DIR__, 3) . '/includes/sms_templates.php';
             $m = sms_tpl_render('ti_am7_docs_zip_password_mgr', ['case' => $caseNumber, 'person' => $personName, 'password' => $pass]);
-            sms_send($phone, trim((string)$m['message']), 'ti_am7_docs_zip_password_mgr');
+            $sr = sms_send($phone, trim((string)$m['message']), 'ti_am7_docs_zip_password_mgr');
             $out['sms'] = true;
             $out['report'] .= '; nowe hasło wysłane SMS-em na numer ***' . substr($digits, -3);
+            self::record($ctx, ['recipient_kind' => 'manager', 'recipient_name' => (string)($to['name'] ?? ''), 'phone' => $phone, 'result' => self::smsResult((string)$sr), 'zip_rel' => $rel, 'actor_name' => (string)($actor['name'] ?? '')]);
         } catch (\Throwable $e) {
             $out['report'] .= '; UWAGA: SMS z nowym hasłem NIE wysłany (' . $e->getMessage() . ') — spróbuj ponownie (powstanie kolejne archiwum i hasło)';
+            self::record($ctx, ['recipient_kind' => 'manager', 'recipient_name' => (string)($to['name'] ?? ''), 'phone' => $phone, 'result' => 'failed', 'error' => $e->getMessage(), 'zip_rel' => $rel, 'actor_name' => (string)($actor['name'] ?? '')]);
         }
         return $out;
     }
 
     /** SMS z hasłem do archiwum do kierowników panelu TI (telefon w koncie). @return string fragment raportu */
-    public static function notifyManagers(string $caseNumber, string $person, string $pass): string
+    public static function notifyManagers(string $caseNumber, string $person, string $pass, array $ctx = [], string $zipRel = '', string $actorName = ''): string
     {
         $sent = 0;
         try {
@@ -140,9 +169,14 @@ final class LicenseZipDelivery
             require_once dirname(__DIR__, 3) . '/includes/sms_templates.php';
             $m = sms_tpl_render('ti_am7_docs_zip_password_mgr', ['case' => $caseNumber, 'person' => $person, 'password' => $pass]);
             if (empty($m['enabled']) || trim((string)$m['message']) === '') return '; SMS do kierownika wyłączony w szablonach';
-            foreach (db_all("SELECT DISTINCT u.id, u.phone_number FROM k30_ti_panel_roles r JOIN users u ON u.id = r.user_id
+            foreach (db_all("SELECT DISTINCT u.id, u.name, u.phone_number FROM k30_ti_panel_roles r JOIN users u ON u.id = r.user_id
                               WHERE r.role = 'kierownik' AND u.is_active = 1 AND COALESCE(u.phone_number, '') <> ''") as $u) {
-                try { sms_send((string)$u['phone_number'], trim((string)$m['message']), 'ti_am7_docs_zip_password_mgr'); $sent++; } catch (\Throwable $e) { /* jeden błąd nie blokuje reszty */ }
+                try {
+                    $sr = sms_send((string)$u['phone_number'], trim((string)$m['message']), 'ti_am7_docs_zip_password_mgr'); $sent++;
+                    self::record($ctx, ['recipient_kind' => 'manager', 'recipient_name' => (string)($u['name'] ?? ''), 'phone' => (string)$u['phone_number'], 'result' => self::smsResult((string)$sr), 'zip_rel' => $zipRel, 'actor_name' => $actorName]);
+                } catch (\Throwable $e) {   // jeden błąd nie blokuje reszty
+                    self::record($ctx, ['recipient_kind' => 'manager', 'recipient_name' => (string)($u['name'] ?? ''), 'phone' => (string)$u['phone_number'], 'result' => 'failed', 'error' => $e->getMessage(), 'zip_rel' => $zipRel, 'actor_name' => $actorName]);
+                }
             }
         } catch (\Throwable $e) { return '; SMS do kierownika NIE wysłany (' . $e->getMessage() . ')'; }
         return $sent > 0 ? '; hasło wysłane SMS-em także do kierownika (' . $sent . ')' : '; brak kierownika z numerem telefonu w koncie — SMS dla kierownika pominięty';

@@ -8,6 +8,7 @@
 require __DIR__ . '/_parts.php';
 require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
+require_once dirname(__DIR__) . '/lib/LicenseCaseIndex.php';
 $title = $l['case_number'] ?: ('Licencja #' . $l['id']);
 $kierLabel = $title;
 include __DIR__ . '/_head.php';
@@ -34,7 +35,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 </div>
 
 <?php $_tabs = ['przeglad' => 'Przegląd'] + ($st === LicenseRequestStatus::Started ? ['decyzja' => 'Decyzja'] : [])
-        + ['przydzialy' => 'Przydziały i oświadczenia (' . count($asg ?? []) . ')', 'wydruki' => 'Wydruki', 'korekty' => 'Korekty AMSK (' . count(LicenseCorrection::forTarget('license', (int)$l['id'])) . ')', 'dziennik' => 'Dziennik i powiadomienia']; ?>
+        + ['przydzialy' => 'Przydziały i oświadczenia (' . count($asg ?? []) . ')', 'wydruki' => 'Wydruki', 'korekty' => 'Korekty AMSK (' . count(LicenseCorrection::forTarget('license', (int)$l['id'])) . ')', 'historia' => 'Historia zmian (' . count(LicenseCaseIndex::changes('license', (int)$l['id'])) . ')', 'dziennik' => 'Dziennik i powiadomienia']; ?>
 <style>
   .ld-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 3px solid #1ba1e2; margin: 0 0 1rem; }
   .ld-tabs button { background: transparent; border: 0; padding: .55rem 1.1rem; font-size: 1rem; font-weight: 600; color: #3f3f3f; cursor: pointer; border-radius: 0; }
@@ -326,6 +327,9 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <td><?= ldChip('wysłano jako AM90/' . Am7TenantAccount::am90Revision($id), '#008a00') ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#9f1239" href="<?= h(route('ld.am91.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
     <?php endif; ?>
+    <tr><td><span class="sym" style="background:#0f4c5c">AM56</span> Spis dokumentów sprawy (z QR do spisu elektronicznego)</td>
+      <td class="text-nowrap"><?= h($l['case_number']) ?> · AM56<?= ldCodeLine($l['case_number'] . ' · AM56', 'AM56') ?></td><td><?= ldChip('generowany na bieżąco', '#647687') ?></td>
+      <td class="text-end"><a class="btn btn-sm btn-metro" style="background:#0f4c5c" href="<?= h(route('ld.am56', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
     </tbody></table></div>
   <?php $regScope = 'license'; $regId = $id; include __DIR__ . '/_rejestrDrukow.php'; ?>
 </section>
@@ -335,6 +339,10 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 <?php $corrScope = 'license'; $corrId = $id; $corrTarget = $l; include __DIR__ . '/_korektaForm.php'; ?>
 <?php include __DIR__ . '/_rotacjaForm.php'; ?>
 </div><!-- /korekty -->
+
+<div class="ld-tabpanel" id="ldp-historia" data-ld-panel="historia" role="tabpanel" aria-labelledby="ldt-historia" hidden>
+<?php $histScope = 'license'; $histId = $id; include __DIR__ . '/_historiaZmian.php'; ?>
+</div><!-- /historia -->
 
 <div class="ld-tabpanel" id="ldp-dziennik" data-ld-panel="dziennik" role="tabpanel" aria-labelledby="ldt-dziennik" hidden>
 <div class="row g-3">
@@ -359,7 +367,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 <script>
 (function () {
   var tabs = document.querySelectorAll('[data-ld-tab]'), panels = document.querySelectorAll('[data-ld-panel]');
-  var alias = { decyzja: 'decyzja', przydzialy: 'przydzialy', wydruki: 'wydruki', korekty: 'korekty', dziennik: 'dziennik', przeglad: 'przeglad' };
+  var alias = { decyzja: 'decyzja', przydzialy: 'przydzialy', wydruki: 'wydruki', korekty: 'korekty', historia: 'historia', dziennik: 'dziennik', przeglad: 'przeglad' };
   function show(name, push) {
     if (!document.querySelector('[data-ld-panel="' + name + '"]')) name = 'przeglad';
     tabs.forEach(function (b) { var on = b.getAttribute('data-ld-tab') === name; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });

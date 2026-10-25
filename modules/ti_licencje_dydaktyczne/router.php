@@ -43,6 +43,7 @@ if (defined('LD_PUBLIC')) {
         $r->get('/gotowe',                   [LicensePublicController::class, 'done'])->name('ld.pub.done');
         $r->get('/amsk/{token}',             [LicensePublicController::class, 'amskVerify'])->name('ld.pub.amsk');
         $r->get('/up1/{token}',              [LicensePublicController::class, 'rotationVerify'])->name('ld.pub.up1');
+        $r->get('/spis/{token}',             [LicensePublicController::class, 'indexView'])->name('ld.pub.spis');
     });
     $r->dispatch();
     return;
@@ -110,6 +111,11 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/pakiet/{pid}/regeneruj',          [LicenseCorrectionController::class, 'packRegen'])->name('ld.pack.regen');
     $r->post('/pakiet/{pid}/haslo',              [LicenseCorrectionController::class, 'packPwd'])->name('ld.pack.pwd');
     $r->get('/pakiet/{pid}/amsg.pdf',            [LicenseCorrectionController::class, 'packAmsg'])->name('ld.pack.amsg');
+    $r->get('/pakiet/{pid}/pp.pdf',              [LicenseCorrectionController::class, 'packPp'])->name('ld.pack.pp');
+    $r->post('/pakiet/{pid}/zablokuj',           [LicenseCorrectionController::class, 'packLock'])->name('ld.pack.lock');
+    $r->get('/pakiet/{pid}/scalony.pdf',         [LicenseCorrectionController::class, 'packMerged'])->name('ld.pack.merged');
+    $r->get('/licencje/{id}/am56.pdf',           [LicenseCorrectionController::class, 'am56License'])->name('ld.am56');
+    $r->get('/operacje/{id}/am56.pdf',           [LicenseCorrectionController::class, 'am56Operation'])->name('ld.am56.op');
     // ASK-UP1: uzasadnienie rotacji licencji (druk z QR i Code128, podpis odręczny kierownika)
     $r->post('/rotacje/nowa',                    [LicenseCorrectionController::class, 'rotCreate'])->name('ld.rot.new');
     $r->get('/rotacje/{id}',                     [LicenseCorrectionController::class, 'rotShow'])->name('ld.rot');

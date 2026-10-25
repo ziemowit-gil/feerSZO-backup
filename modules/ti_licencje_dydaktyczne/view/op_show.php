@@ -116,6 +116,7 @@ $opVal = function (array $def, string $v): string {
 </section>
 <?php endif; ?>
 
+<?php $histScope = 'operation'; $histId = $id; include __DIR__ . '/_historiaZmian.php'; ?>
 <section class="panel"><h2 class="mt-0">Kod druku</h2><p class="mb-0">Wniosek / decyzja <?= h($op['number']) ?> <?= ldCodeLine((string)$op['number'], $f->value) ?></p>
   <?php $regScope = 'operation'; $regId = $id; include __DIR__ . '/_rejestrDrukow.php'; ?></section>
 <?php $corrScope = 'operation'; $corrId = $id; $corrTarget = $op; include __DIR__ . '/_korektaForm.php'; ?>

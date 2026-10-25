@@ -18,6 +18,7 @@ declare(strict_types=1);
  *   license_corrections     — AMSK: korekty danych w dokumentach AM (czekają na odręczny podpis kierownika, potem zapis zmian)
  *   license_doc_issues      — rejestr wydanych druków AM (kod z rewizją R1, R2…, obowiązuje | unieważniony); license_doc_packages — pakiety po AMSK
  *   license_rotations       — ASK-UP1: uzasadnienie rotacji licencji (druk z QR/Code128, odręczny podpis kierownika)
+ *   license_pwd_handovers   — PP: rejestr przekazań haseł do ZIP-ów z pakietami druków (kto, komu, kiedy, kanał, wynik; bez hasła)
  *   license_funding         — historia płatników / finansowania posiadanych licencji (resource_key ti:N | am:N | m365:N)
  *   notification_logs       — każda próba powiadomienia (kanał, rodzaj, adresat zamaskowany, sent|failed|skipped, błąd, fallback)
  */
@@ -348,7 +349,8 @@ function ldMigrate(): void
         sent_at VARCHAR(19)
     )");
     $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_pkg_corr ON license_doc_packages(correction_id)");
-    foreach (["gen_no INTEGER NOT NULL DEFAULT 1", "gen_reason VARCHAR(255) NOT NULL DEFAULT ''", "manager_sent_at VARCHAR(19)"] as $col) {   // AMSG: numer generowania, powód, wysyłka do kierownika
+    foreach (["gen_no INTEGER NOT NULL DEFAULT 1", "gen_reason VARCHAR(255) NOT NULL DEFAULT ''", "manager_sent_at VARCHAR(19)",
+              "locked_at VARCHAR(19)", "locked_by INTEGER", "locked_name VARCHAR(190) NOT NULL DEFAULT ''", "merged_path VARCHAR(255) NOT NULL DEFAULT ''", "merged_sha256 VARCHAR(64) NOT NULL DEFAULT ''"] as $col) {   // AMSG: numer generowania, powód, wysyłka do kierownika
         try { $db->exec("ALTER TABLE license_doc_packages ADD COLUMN {$col}"); } catch (\Throwable $e) {}
     }
     $db->exec("CREATE TABLE IF NOT EXISTS license_doc_issues (
@@ -398,6 +400,26 @@ function ldMigrate(): void
         cancel_reason TEXT
     )");
     $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_rot_token ON license_rotations(token)");
+
+    // PP (AM Pre-shared Protocol) — rejestr przekazań haseł do archiwów ZIP z pakietem druków AM: komu, kiedy, jakim kanałem, wynik; BEZ hasła
+    $db->exec("CREATE TABLE IF NOT EXISTS license_pwd_handovers (
+        id {$pk},
+        package_id INTEGER,
+        scope VARCHAR(10) NOT NULL DEFAULT 'license',
+        target_id INTEGER NOT NULL DEFAULT 0,
+        target_number VARCHAR(80) NOT NULL DEFAULT '',
+        recipient_kind VARCHAR(10) NOT NULL DEFAULT 'person',
+        recipient_name VARCHAR(190) NOT NULL DEFAULT '',
+        phone_masked VARCHAR(20) NOT NULL DEFAULT '',
+        channel VARCHAR(10) NOT NULL DEFAULT 'SMS',
+        kind VARCHAR(12) NOT NULL DEFAULT 'initial',
+        result VARCHAR(10) NOT NULL DEFAULT 'sent',
+        error VARCHAR(255) NOT NULL DEFAULT '',
+        zip_sha256 VARCHAR(64) NOT NULL DEFAULT '',
+        actor_name VARCHAR(190) NOT NULL DEFAULT '',
+        created_at VARCHAR(19)
+    )");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_pwd_pkg ON license_pwd_handovers(package_id)");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_rot_target ON license_rotations(scope, target_id)");
     $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_corr_token ON license_corrections(token)");
 

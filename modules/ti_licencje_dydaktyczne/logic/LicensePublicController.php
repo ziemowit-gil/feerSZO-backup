@@ -14,6 +14,7 @@ require_once dirname(__DIR__) . '/lib/LicenseManagementService.php';
 require_once dirname(__DIR__) . '/lib/LicenseOperationService.php';
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
 require_once dirname(__DIR__) . '/lib/LicenseRotation.php';
+require_once dirname(__DIR__) . '/lib/LicenseCaseIndex.php';
 
 final class LicensePublicController
 {
@@ -245,6 +246,16 @@ final class LicensePublicController
               . ($st === LicenseRotation::SIGNED ? ', podpis potwierdzony ' . $dt($r['confirmed_at']) . '.' : '.');
         return $this->view('message.php', ['title' => 'Status uzasadnienia ASK-UP1', 'tone' => $st === LicenseRotation::SIGNED ? 'success' : ($st === LicenseRotation::CANCELLED ? 'danger' : 'info'), 'text' => $text,
             'numbers' => [LicenseRotation::code((int)$r['id'])]]);
+    }
+
+    /** QR z druku AM56: spis elektroniczny dokumentów sprawy po tokenie HMAC — bez danych osobowych. */
+    public function indexView(string $token): string
+    {
+        $p = LicenseCaseIndex::parseToken($token);
+        if (!$p) { http_response_code(404); return $this->view('message.php', ['title' => 'Nie znaleziono spisu', 'tone' => 'danger', 'text' => 'Nie znaleziono spisu dokumentów o tym kodzie. Sprawdź, czy kod QR jest czytelny.']); }
+        try { [$t, $tn] = LicenseCorrection::target($p[0], $p[1]); }
+        catch (\Throwable $e) { http_response_code(404); return $this->view('message.php', ['title' => 'Nie znaleziono spisu', 'tone' => 'danger', 'text' => 'Sprawa nie istnieje.']); }
+        return $this->view('spis.php', ['title' => 'Spis elektroniczny dokumentów sprawy', 'number' => $tn, 'rows' => LicenseCaseIndex::documents($p[0], $p[1]), 'rev' => LicenseCodes::revision($p[0], $p[1])]);
     }
 
     public function done(): string

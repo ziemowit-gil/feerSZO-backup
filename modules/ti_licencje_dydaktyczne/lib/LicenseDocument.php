@@ -608,6 +608,93 @@ final class LicenseDocument
         return self::css() . $h;
     }
 
+    // ── PP (AM Pre-shared Protocol): protokół przekazania hasła do pakietu druków AM ───────────────────────────────
+
+    /** $pk — pakiet, $c — korekta, $hand — przekazania haseł (license_pwd_handovers), $issues — druki pakietu. Dokument NIE zawiera hasła. */
+    public function ppHtml(array $pk, array $c, array $hand, array $issues): string
+    {
+        $this->n = 0;
+        $code = LicenseDocPackage::ppCode((int)$pk['id']);
+        $number = (string)$c['target_number'] . ' · ' . $code . ' · PP';
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer dokumentu', '<span class="big">' . self::e($number) . '</span>', ' width="45%"')
+           . $this->fld('Dotyczy sprawy', self::e((string)$c['target_number']), ' width="35%"')
+           . '<td class="sym" width="20%" style="background:#1e3a8a"><div class="symb">PP</div><div class="symp">&nbsp;</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '</tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">PROTOKÓŁ PRZEKAZANIA HASŁA DO PAKIETU DRUKÓW AM</div>'
+           . '<div class="ttl2">AM Pre-shared Protocol (PP) — hasło do archiwum ZIP przekazane osobnym kanałem (SMS); dokument nie zawiera hasła</div></td></tr>'
+           . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Protokół:</b> ' . self::e($code) . '.&nbsp; <b>Korekta:</b> ' . self::e(LicenseCorrection::code((int)$c['id'])) . '.</td></tr></table>';
+        $h .= '<table class="t">' . self::sec('A', 'PAKIET', 4) . '<tr>'
+            . $this->fld('Rewizja druków', '<b>R' . (int)$pk['revision'] . '</b>', ' width="20%"')
+            . $this->fld('Generowanie nr', (string)(int)$pk['gen_no'], ' width="20%"')
+            . $this->fld('Wygenerowano', self::e(ldDate(substr((string)$pk['created_at'], 0, 10)) . ' ' . substr((string)$pk['created_at'], 11, 5)), ' width="30%"')
+            . $this->fld('Wygenerował(a)', self::val((string)$pk['created_name'], 'osoba'), ' width="30%"') . '</tr></table>';
+        $rows = '';
+        foreach ($hand as $i => $r) {
+            $res = ['sent' => 'wysłano', 'deferred' => 'odłożono (cisza nocna)', 'failed' => 'BŁĄD', 'skipped' => 'pominięto'][$r['result']] ?? $r['result'];
+            $rows .= '<tr><td class="f" style="width:4%">' . ($i + 1) . '</td><td class="f" style="width:24%"><b>' . self::e($r['recipient_kind'] === 'manager' ? 'kierownik' : 'osoba') . '</b><br>' . self::e((string)$r['recipient_name'])
+                  . '</td><td class="f" style="width:12%">' . self::e((string)$r['channel']) . ' ' . self::e((string)$r['phone_masked']) . '</td><td class="f" style="width:14%">' . self::e($r['kind'] === 'regenerated' ? 'nowe hasło (regeneracja)' : 'hasło do pakietu')
+                  . '</td><td class="f" style="width:12%">' . self::e($res) . ($r['error'] !== '' ? '<div class="lb">' . self::e((string)$r['error']) . '</div>' : '') . '</td><td class="f" style="width:17%">'
+                  . self::e(ldDate(substr((string)$r['created_at'], 0, 10)) . ' ' . substr((string)$r['created_at'], 11, 5)) . '<div class="lb">zlecił(a): ' . self::e((string)$r['actor_name']) . '</div></td><td class="f" style="width:17%"><span class="lb">SHA-256 ZIP</span><br>'
+                  . self::e(substr((string)$r['zip_sha256'], 0, 16)) . '</td></tr>';
+        }
+        $h .= '<table class="t">' . self::sec('B', 'PRZEKAZANIA HASŁA (rejestr)', 7)
+            . '<tr><td class="lb" style="padding:1mm"><b>Lp.</b></td><td class="lb" style="padding:1mm"><b>Odbiorca</b></td><td class="lb" style="padding:1mm"><b>Kanał / numer</b></td><td class="lb" style="padding:1mm"><b>Rodzaj</b></td><td class="lb" style="padding:1mm"><b>Wynik</b></td><td class="lb" style="padding:1mm"><b>Data i godzina</b></td><td class="lb" style="padding:1mm"><b>Archiwum</b></td></tr>'
+            . ($rows ?: '<tr><td class="f" colspan="7">Brak zarejestrowanych przekazań hasła dla tego pakietu.</td></tr>') . '</table>';
+        $ir = '';
+        foreach ($issues as $i => $r) $ir .= '<tr><td class="f" style="width:4%">' . ($i + 1) . '</td><td class="f" style="width:36%">' . self::e((string)$r['label']) . '</td><td class="f" style="width:30%">' . self::e((string)$r['doc_number']) . '</td><td class="f" style="width:30%"><b>' . self::e((string)$r['code']) . '</b></td></tr>';
+        $h .= '<table class="t">' . self::sec('C', 'DOKUMENTY W ARCHIWUM', 4) . ($ir ?: '<tr><td class="f" colspan="4">—</td></tr>') . '</table>';
+        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('D', 'KONTROLA I POWIĄZANIE', 3) . '<tr>'
+            . '<td class="f" style="width:22%;text-align:center"><div class="lb">Kod QR — status korekty w SZO</div><barcode code="' . self::e(LicenseCorrection::verifyUrl($c)) . '" type="QR" class="barcode" size="0.85" error="M" disableborder="1" /></td>'
+            . '<td class="f" style="width:38%;text-align:center"><div class="lb">Code128 — kod protokołu</div><barcode code="' . self::e($code) . '" type="C128B" size="1" height="1.1" /><div class="v">' . self::e($code) . '</div></td>'
+            . '<td class="pc" style="width:40%"><div class="pt">Kod <b>' . self::e($code) . '</b> wpisz (zeskanuj) w polu „Skanuj kod” na pulpicie Licencji — otworzy kartę korekty i pakiet. Hasło nie jest zapisywane w SZO ani w tym dokumencie.</div></td></tr></table>';
+        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('E', 'POTWIERDZENIE ODBIORU HASŁA', 2) . '<tr><td class="pc" colspan="2"><div class="pt">Potwierdzam odbiór hasła do archiwum ZIP z pakietem poprawionych dokumentów AM (rewizja R' . (int)$pk['revision'] . ') osobnym kanałem (SMS) i zobowiązuję się do nieprzekazywania go osobom nieupoważnionym.</div></td></tr><tr>'
+            . $this->fld('Imię i nazwisko odbierającego (czytelnie)', '', ' width="55%" style="height:18mm"') . $this->fld('Data i miejscowość', '', ' width="45%" style="height:18mm"') . '</tr><tr>'
+            . $this->fld('Podpis odbierającego', '', ' colspan="2" style="height:22mm"') . '</tr></table>';
+        return self::css() . $h;
+    }
+
+    // ── AM56: spis dokumentów sprawy z QR do spisu elektronicznego i skrótem historii zmian ───────────────────────
+
+    /** $rows — LicenseCaseIndex::documents, $hist — LicenseCaseIndex::changes (skrót), $scope/$id — cel. */
+    public function am56Html(string $scope, int $id, string $targetNumber, string $person, array $rows, array $hist): string
+    {
+        $this->n = 0;
+        $rev = LicenseCodes::revision($scope, $id);
+        $caseCode = LicenseCodes::caseCode($scope, $id);
+        $number = LicenseCaseIndex::number([], $targetNumber);
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer dokumentu', '<span class="big">' . self::e($number) . '</span>', ' width="45%"')
+           . $this->fld('Dotyczy ' . ($scope === 'operation' ? 'operacji' : 'sprawy'), self::e($targetNumber), ' width="35%"')
+           . '<td class="sym" width="20%" style="background:#0f4c5c"><div class="symb">AM56</div><div class="symp">&nbsp;</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '</tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">SPIS DOKUMENTÓW SPRAWY</div>'
+           . '<div class="ttl2">wykaz dokumentów AM sprawy z kodami, rewizją i stanem — spis elektroniczny pod kodem QR</div></td></tr>'
+           . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Osoba:</b> ' . self::e($person !== '' ? $person : '—') . '.&nbsp; <b>Rewizja druków:</b> R' . $rev . '.&nbsp; <b>Stan na:</b> ' . self::e(ldDate(date('Y-m-d')) . ' ' . date('H:i')) . '.</td></tr></table>';
+        $body = ''; $grp = ''; $i = 0;
+        foreach ($rows as $r) {
+            if ($r['group'] !== $grp) { $grp = $r['group']; $body .= '<tr><td class="lb" colspan="6" style="padding:1mm;background:#eef2f3"><b>' . self::e($grp) . '</b></td></tr>'; }
+            $i++;
+            $body .= '<tr><td class="f" style="width:4%">' . $i . '</td><td class="f" style="width:27%"><b>' . self::e((string)$r['label']) . '</b></td><td class="f" style="width:22%">' . self::e((string)$r['number'])
+                  . '</td><td class="f" style="width:23%">' . self::e((string)$r['code']) . '</td><td class="f" style="width:13%"><b>' . self::e((string)$r['state']) . '</b></td><td class="f" style="width:11%">'
+                  . self::e($r['date'] !== '' ? ldDate(substr((string)$r['date'], 0, 10)) : '—') . '</td></tr>';
+        }
+        $h .= '<table class="t">' . self::sec('A', 'DOKUMENTY SPRAWY', 6)
+            . '<tr><td class="lb" style="padding:1mm"><b>Lp.</b></td><td class="lb" style="padding:1mm"><b>Dokument</b></td><td class="lb" style="padding:1mm"><b>Numer</b></td><td class="lb" style="padding:1mm"><b>Kod</b></td><td class="lb" style="padding:1mm"><b>Stan</b></td><td class="lb" style="padding:1mm"><b>Data</b></td></tr>'
+            . ($body ?: '<tr><td class="f" colspan="6">—</td></tr>') . '</table>';
+        $hr = '';
+        foreach (array_slice($hist, 0, 20) as $k => $e) {
+            $hr .= '<tr><td class="f" style="width:4%">' . ($k + 1) . '</td><td class="f" style="width:14%">' . self::e(ldDate(substr((string)$e['at'], 0, 10)) . ' ' . substr((string)$e['at'], 11, 5)) . '</td><td class="f" style="width:18%"><b>' . self::e((string)$e['kind'])
+                 . '</b></td><td class="f" style="width:46%">' . self::e((string)$e['title']) . '</td><td class="f" style="width:18%">' . self::e((string)$e['by']) . '</td></tr>';
+        }
+        $h .= '<table class="t">' . self::sec('B', 'HISTORIA ZMIAN (skrót: ostatnie 20 pozycji)', 5) . ($hr ?: '<tr><td class="f" colspan="5">Brak zmian — wniosek bez korekt.</td></tr>') . '</table>';
+        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('C', 'SPIS ELEKTRONICZNY', 3) . '<tr>'
+            . '<td class="f" style="width:22%;text-align:center"><div class="lb">Kod QR — spis elektroniczny</div><barcode code="' . self::e(LicenseCaseIndex::url($scope, $id)) . '" type="QR" class="barcode" size="0.85" error="M" disableborder="1" /></td>'
+            . '<td class="f" style="width:38%;text-align:center"><div class="lb">Code128 — kod sprawy i spisu</div><barcode code="' . self::e(LicenseCodes::formCode($caseCode, 'AM56') . '/R' . $rev) . '" type="C128B" size="1" height="1.1" /><div class="v">' . self::e(LicenseCodes::formCode($caseCode, 'AM56') . '/R' . $rev) . '</div></td>'
+            . '<td class="pc" style="width:40%"><div class="pt">Kod QR otwiera <b>spis elektroniczny</b> sprawy: aktualną listę dokumentów z kodami, rewizją i stanem (obowiązuje / unieważniony) — bez danych osobowych. Druk z niższą rewizją niż w spisie jest nieaktualny.</div></td></tr></table>';
+        return self::css() . $h;
+    }
+
     public function blankHtml(LicenseDoc $doc): string
     {
         $l = ['id' => 0, 'case_number' => '', 'created_at' => date('Y'), 'title' => '', 'work_description' => '', 'course_name' => '', 'licensor_name' => '', 'licensor_email' => '',

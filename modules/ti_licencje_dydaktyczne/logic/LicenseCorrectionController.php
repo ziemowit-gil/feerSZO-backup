@@ -9,6 +9,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
 require_once dirname(__DIR__) . '/lib/LicenseDocPackage.php';
 require_once dirname(__DIR__) . '/lib/LicenseRotation.php';
+require_once dirname(__DIR__) . '/lib/LicenseCaseIndex.php';
 
 final class LicenseCorrectionController
 {
@@ -61,6 +62,7 @@ final class LicenseCorrectionController
             try {
                 if ($r['scope'] === 'correction' && LicenseCorrection::get($r['id'])) return Router::redirect(route('ld.corr', ['id' => $r['id']]));
                 if ($r['scope'] === 'rotation' && LicenseRotation::get($r['id'])) return Router::redirect(route('ld.rot', ['id' => $r['id']]));
+                if ($r['scope'] === 'package' && ($pk = LicenseDocPackage::get($r['id']))) return Router::redirect(route('ld.corr', ['id' => (int)$pk['correction_id']]) . '#pakiet');
                 $exists = $r['scope'] === 'license' ? db_one("SELECT 1 FROM licenses WHERE id = ?", [$r['id']]) : ($r['scope'] === 'operation' ? db_one("SELECT 1 FROM license_operations WHERE id = ?", [$r['id']]) : null);
                 if ($exists) {
                     $st = LicenseDocPackage::codeState($r['scope'], (int)$r['id'], $r['symbol'], (int)$r['rev']);
@@ -70,7 +72,7 @@ final class LicenseCorrectionController
                 }
             } catch (\Throwable $e) { error_log('ld scan: ' . $e->getMessage()); }
         }
-        flash_set('warning', $code === '' ? 'Wpisz lub zeskanuj kod z formularza AM.' : 'Nie rozpoznano kodu „' . $code . '” (oczekiwany np. LD000002/AM7-2/R2, OP000005/AM20, AMSK-000012 albo UP1-000003).');
+        flash_set('warning', $code === '' ? 'Wpisz lub zeskanuj kod z formularza AM.' : 'Nie rozpoznano kodu „' . $code . '” (oczekiwany np. LD000002/AM7-2/R2, OP000005/AM20, AMSK-000012, UP1-000003 albo PP-000001).');
         return Router::redirect(route('ld.corr.index'));
     }
 
@@ -153,6 +155,21 @@ final class LicenseCorrectionController
         try { $rep = (new LicenseDocPackage())->regeneratePassword($pid, (string)($_POST['phone'] ?? ''), $this->actor()); flash_set(str_contains($rep, 'UWAGA') ? 'warning' : 'success', $rep . '.'); }
         catch (\Throwable $e) { return $this->fail($e, $back); }
         return Router::redirect($back);
+    }
+
+    /** Druk PP — protokół przekazania hasła do pakietu (AM Pre-shared Protocol). */
+    public function packPp(int $pid): ?string
+    {
+        $pk = LicenseDocPackage::get($pid);
+        if (!$pk) { http_response_code(404); exit('Nie ma takiego pakietu.'); }
+        try { $o = (new LicenseDocPackage())->ppOutput($pk); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.corr', ['id' => (int)$pk['correction_id']])); }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $o['out']['mime'] . ($o['out']['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . ldFileName($o['number']) . '.' . $o['out']['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $o['out']['bytes'];
+        return null;
     }
 
     public function packZip(int $pid): ?string
@@ -249,5 +266,52 @@ final class LicenseCorrectionController
         try { (new LicenseRotation())->cancel($id, (string)($_POST['reason'] ?? ''), $this->actor()); flash_set('success', 'Uzasadnienie anulowano.'); }
         catch (\Throwable $e) { return $this->fail($e, route('ld.rot', ['id' => $id])); }
         return Router::redirect(route('ld.rot', ['id' => $id]));
+    }
+
+    // ── AM56 (spis dokumentów sprawy), blokada pakietu i scalony PDF ─────────────────────────────
+
+    private function pdfOut(array $o): ?string
+    {
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $o['out']['mime'] . ($o['out']['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . ldFileName($o['number']) . '.' . $o['out']['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $o['out']['bytes'];
+        return null;
+    }
+
+    /** Druk AM56 sprawy (scope=license) albo operacji (scope=operation). */
+    public function am56(string $scope, int $id): ?string
+    {
+        try { return $this->pdfOut(LicenseCaseIndex::output($scope, $id)); }
+        catch (\Throwable $e) { return $this->fail($e, $scope === 'operation' ? route('ld.op', ['id' => $id]) : route('ld.show', ['id' => $id])); }
+    }
+
+    public function am56License(int $id): ?string { return $this->am56('license', $id); }
+    public function am56Operation(int $id): ?string { return $this->am56('operation', $id); }
+
+    /** „Zablokuj pakiet”: zamrożenie zawartości + jeden scalony PDF (spis AM56 + wszystkie druki pakietu, bez AMSK) otwierany od razu. */
+    public function packLock(int $pid): ?string
+    {
+        $pk = LicenseDocPackage::get($pid);
+        $back = $pk ? route('ld.corr', ['id' => (int)$pk['correction_id']]) . '#pakiet' : route('ld.corr.index');
+        try { (new LicenseDocPackage())->lock($pid, $this->actor()); }
+        catch (\Throwable $e) { return $this->fail($e, $back); }
+        flash_set('success', 'Pakiet zablokowany. Scalony PDF (spis AM56 + wszystkie druki, bez AMSK) jest zapisany w pakiecie — można go pobrać ponownie przyciskiem.');
+        return Router::redirect(route('ld.pack.merged', ['pid' => $pid]));
+    }
+
+    public function packMerged(int $pid): ?string
+    {
+        $pk = LicenseDocPackage::get($pid);
+        if (!$pk) { http_response_code(404); exit('Nie ma takiego pakietu.'); }
+        try { $bytes = LicenseDocPackage::mergedBytes($pk); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.corr', ['id' => (int)$pk['correction_id']]) . '#pakiet'); }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="pakiet-AM-R' . (int)$pk['revision'] . '-' . LicenseCodes::caseCode((string)$pk['scope'], (int)$pk['target_id']) . '-scalony.pdf"');
+        header('Cache-Control: no-store, private');
+        echo $bytes;
+        return null;
     }
 }
