@@ -52,6 +52,7 @@ if (!empty($KIER_ITEMS)) {
         ['Microsoft 365',             'microsoft365.php',           'microsoft'],
         ['Licencje',                  'licencjeKursantow.php',      'key'],
         ['Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock'],
+        ['Korekty AMSK',              'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square'],
         ['Dokumenty kursantów',       'dokumentyKursanta.php',      'folder2-open'],
         ['Rozliczenia grupy',         'index.php?tab=rozliczenia',  'receipt-cutoff'],
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],
@@ -118,7 +119,7 @@ if (!empty($KIER_ITEMS)) {
 $_kier_grupy = [
     'Grupy i kursy'          => ['index.php?tab=grupy', 'index.php?tab=kursy', 'grupaUproszczona.php', 'rezerwacje.php', 'konsultacje.php', 'index.php?tab=praca_wlasna', 'log_grup.php',
                                  'planLinki.php', 'godziny.php', 'dostepnosci.php', 'urlopy.php', 'noclegi.php'],
-    'Kursanci i konta'       => ['klienci.php', 'konta.php', 'regulaminy.php', 'microsoft365.php', 'licencjeKursantow.php', 'licencjeDydaktyczne.php', 'dokumentyKursanta.php',
+    'Kursanci i konta'       => ['klienci.php', 'konta.php', 'regulaminy.php', 'microsoft365.php', 'licencjeKursantow.php', 'licencjeDydaktyczne.php', 'licencjeDydaktyczne.php?_route=%2Fkorekty', 'dokumentyKursanta.php',
                                  'rekrutacja.php', 'polecenia.php', 'kursanci_onboarding.php'],
     'Finanse'                => ['index.php?tab=rozliczenia', 'billing.php', 'overpayments.php', 'przypomnieniaWplat.php',
                                  'pricing.php', 'index.php?tab=wypłaty'],

@@ -197,12 +197,14 @@ function dydMenuSections(): array
         try { $nLd = (int)(db_one("SELECT (SELECT COUNT(*) FROM license_assignments WHERE status='submitted')
                                         + (SELECT COUNT(*) FROM licenses WHERE form_kind='AM7' AND request_status='started' AND decision_data LIKE '%prepared_at%') AS c")['c'] ?? 0); } catch (\Throwable $e) {}
         try { $nLd += (int)(db_one("SELECT COUNT(*) AS c FROM license_operations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
+        $nAmsk = 0;   // Korekty AMSK czekające na odręczny podpis kierownika (modules/ti_licencje_dydaktyczne, tabela może jeszcze nie istnieć)
+        try { $nAmsk = (int)(db_one("SELECT COUNT(*) AS c FROM license_corrections WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
         $nDop = 0;   // Wnioski DOP1/DOP2 czekające na obsługę (modules/ti_dop, tabela może jeszcze nie istnieć)
         try { $nDop = (int)(db_one("SELECT COUNT(*) AS c FROM dop_requests WHERE status IN ('verify','approve','execute')")['c'] ?? 0); } catch (\Throwable $e) {}
-        return compact('sfPending', 'nNabor', 'nLd', 'nDop');
+        return compact('sfPending', 'nNabor', 'nLd', 'nDop', 'nAmsk');
     };
     $cn = function_exists('szo_cache_remember') ? szo_cache_remember(szo_cache_gkey('menu', 'dyd_staff_counts'), 60, $cnt) : $cnt();
-    [$sfPending, $nNabor, $nLd, $nDop] = [(int)($cn['sfPending'] ?? 0), (int)($cn['nNabor'] ?? 0), (int)($cn['nLd'] ?? 0), (int)($cn['nDop'] ?? 0)];
+    [$sfPending, $nNabor, $nLd, $nDop, $nAmsk] = [(int)($cn['sfPending'] ?? 0), (int)($cn['nNabor'] ?? 0), (int)($cn['nLd'] ?? 0), (int)($cn['nDop'] ?? 0), (int)($cn['nAmsk'] ?? 0)];
     $rozDebt = (int)($g['_sb_roz_debt'] ?? 0);
 
     $sec[] = ['key' => 'k_grupy', 'staff' => true, 'label' => 'Grupy i zajęcia', 'items' => [
@@ -222,6 +224,7 @@ function dydMenuSections(): array
         $it('', 'Umowy szkoleniowe',     'umowaSzkolenia.php',    'file-earmark-text'),
         $it('', 'Licencje',              'licencjeKursantow.php', 'key'),
         $it('', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock', $nLd, 'warning'),
+        $it('', 'Korekty AMSK',                'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square', $nAmsk, 'warning'),
         $it('', 'Microsoft 365',         'microsoft365.php',      'microsoft'),
         $it('', 'Regulaminy',            'regulaminy.php',        'file-earmark-text'),
         $it('', 'Program poleceń',       'polecenia.php',         'gift'),
@@ -296,6 +299,9 @@ function dydMenuIsActive(array $i): bool
     if ($script === 'index.php') return $i['tab'] !== '' && $i['tab'] === (string)($GLOBALS['tab'] ?? '');
     $u = parse_url($i['href']);
     if (basename((string)($u['path'] ?? '')) !== $script || str_contains((string)($u['path'] ?? ''), '/')) return false;
+    if ($script === 'licencjeDydaktyczne.php') {   // jeden plik wejścia, dwie pozycje menu: pulpit AM5/AM7 i Korekty AMSK (_route=/korekty…)
+        return str_starts_with((string)($_GET['_route'] ?? ''), '/korekty') === str_contains((string)($u['query'] ?? ''), 'korekty');
+    }
     parse_str((string)($u['query'] ?? ''), $q);
     foreach ($q as $k => $v) if ((string)($_GET[$k] ?? '') !== (string)$v) return false;
     return true;
