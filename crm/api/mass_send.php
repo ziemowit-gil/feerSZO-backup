@@ -282,6 +282,42 @@ if ($action === 'start') {
     api_ok(['send_id'=>$send_id,'recipients'=>count($ids)]);
 }
 
+// ── Ponów do niedostarczonych: nowa wysyłka z listy błędów poprzedniej (ten sam kanał albo zmiana na SMS/e-mail) ──
+if ($action === 'retry') {
+    $src = db_one("SELECT * FROM crm_mass_sends WHERE id=?", [(int)($body['send_id'] ?? 0)]);
+    if (!$src) api_err('Nie znaleziono wysyłki.', 404);
+    $failed = array_values(array_unique(array_filter(array_map('intval', json_decode((string)($src['failed_ids'] ?? '[]'), true) ?: []))));
+    if (!$failed) api_err('Ta wysyłka nie ma zapisanych niedostarczonych odbiorców.');
+    $new_ch = in_array($body['channel'] ?? '', ['email', 'sms'], true) ? $body['channel'] : $src['channel'];
+    $pl = json_decode((string)$src['body'], true);
+    if (!is_array($pl)) api_err('Brak zapisanej treści oryginalnej wysyłki.');
+    $text = (string)($pl['body'] ?? '');
+    if ($new_ch === 'sms' && $src['channel'] !== 'sms') {
+        // e-mail → SMS: tylko tekst, bez znaczników
+        $text = trim(html_entity_decode(strip_tags(preg_replace('#<br\s*/?>|</p>#i', "\n", $text)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+    if ($text === '') api_err('Brak treści do wysłania.');
+    $pl['ids']  = $failed;
+    $pl['body'] = $text;
+    if ($new_ch !== $src['channel']) { $pl['from_email'] = ''; $pl['persons'] = []; }
+    $new_id = db_insert('crm_mass_sends', [
+        'group_id'      => $src['group_id'],
+        'channel'       => $new_ch,
+        'subject'       => $new_ch === 'email' ? ($src['subject'] ?: ($pl['subject'] ?? null)) : null,
+        'body'          => json_encode($pl),
+        'template_name' => $src['template_name'],
+        'recipients'    => count($failed),
+        'sent_ok'       => 0,
+        'sent_fail'     => 0,
+        'status'        => 'ready',
+        'dw'            => null,
+        'tag_filter'    => $src['tag_filter'],
+        'created_by'    => $uid,
+        'created_at'    => date('Y-m-d H:i:s'),
+    ]);
+    api_ok(['send_id' => $new_id, 'recipients' => count($failed), 'channel' => $new_ch]);
+}
+
 if ($action === 'execute') {
     $send_id = (int)($body['send_id'] ?? 0);
     $ms = db_one("SELECT * FROM crm_mass_sends WHERE id=?", [$send_id]);

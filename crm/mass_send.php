@@ -261,6 +261,7 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-aud-share{font-size:.78rem;color:#374151;margin:0;display:inline-flex;align-items:center;gap:.3rem}
 .ms-aud-msg{font-size:.78rem;color:#0F4C47;font-weight:600}
 .ms-aud-msg.is-err{color:#B91C1C}
+.ms-retry{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}.ms-retry .btn{border-radius:0}.ms-retry-msg{font-size:.76rem;color:#374151}
 </style>
 
 <div class="crm-page-header">
@@ -737,6 +738,17 @@ include __DIR__ . '/includes/header_crm.php';
           <span class="text-muted"><?= h($fc['email'] ?: $fc['telefon'] ?: '—') ?></span>
         </div>
         <?php endforeach; ?>
+        <div class="ms-retry mt-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="MS.retry(<?= (int)$hs['id'] ?>, '', this)">
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Ponów do tych <?= count($failures) ?>
+          </button>
+          <?php if (($hs['channel'] ?? '') === 'email' && $sms_ok): ?>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="MS.retry(<?= (int)$hs['id'] ?>, 'sms', this)">
+            <i class="bi bi-phone" aria-hidden="true"></i> Wyślij im SMS-em
+          </button>
+          <?php endif; ?>
+          <span class="ms-retry-msg" role="status" aria-live="polite"></span>
+        </div>
         <?php if ((int)$hs['sent_fail'] > count($failures)): ?>
         <div class="text-muted mt-1" style="font-size:.72rem">… i <?= (int)$hs['sent_fail'] - count($failures) ?> więcej (bez zapisanego kontaktu)</div>
         <?php endif; ?>
@@ -1175,6 +1187,27 @@ const MS = (function() {
   }
 
 
+
+  // Ponów wysyłkę do niedostarczonych (opcjonalnie innym kanałem)
+  async function retry(sendId, channel, btn) {
+    const box = btn.closest('.ms-retry'), msg = box.querySelector('.ms-retry-msg');
+    const label = channel === 'sms' ? 'SMS-em' : 'ponownie';
+    if (!confirm('Wysłać wiadomość ' + label + ' do osób, które jej nie otrzymały?')) return;
+    box.querySelectorAll('button').forEach(b => b.disabled = true);
+    msg.textContent = 'Przygotowywanie…';
+    try {
+      const r = await audCall({ action:'retry', send_id: sendId, channel });
+      if (!r.ok) throw new Error(r.error);
+      msg.textContent = 'Wysyłanie do ' + r.data.recipients + ' osób…';
+      const x = await audCall({ action:'execute', send_id: r.data.send_id });
+      if (!x.ok) throw new Error(x.error);
+      msg.textContent = 'Gotowe: wysłano ' + (x.data.sent_ok || 0) + ', błędy: ' + (x.data.sent_fail || 0) + '. Odśwież stronę, by zobaczyć historię.';
+    } catch (e) {
+      msg.textContent = 'Błąd: ' + e.message;
+      box.querySelectorAll('button').forEach(b => b.disabled = false);
+    }
+  }
+
   // ── Zapisane listy adresatów ──
   let _auds = [];
   function audMsg(t, err) { const m = document.getElementById('msAudMsg'); m.textContent = t || ''; m.classList.toggle('is-err', !!err); }
@@ -1459,7 +1492,7 @@ recipientRow(c)
 
   wizShow(1);
 
-  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, audLoad, audSave, audDelete,
+  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, audLoad, audSave, audDelete, retry,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
            preview, send, insertVar, loadTemplate, purposeChanged, membersChanged,
