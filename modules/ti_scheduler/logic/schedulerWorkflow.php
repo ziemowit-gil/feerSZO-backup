@@ -38,6 +38,28 @@ function sc_notify_managers(string $subject, string $body, int $request_id): voi
     foreach (sc_manager_recipients() as $m) sc_mail((string)$m['email'], (string)$m['name'], $subject, $body, 'sc_request_mgr', $request_id);
 }
 
+/**
+ * Pilna nieobecność = zaczyna się dziś lub jutro (i trwa co najmniej dziś) oraz ma kolidujące zajęcia.
+ * Wtedy kierownik i zastępca dostają SMS (szablon ti_absence_urgent) — e-mail idzie zawsze osobno.
+ * $exclude_uid = osoba, która sama wpisała nieobecność. Zwraca liczbę wysłanych SMS-ów.
+ */
+function sc_notify_urgent(int $iid, string $from, string $to, string $tf, string $tt, int $n_conflicts, int $exclude_uid = 0): int {
+    if ($n_conflicts <= 0 || $from > date('Y-m-d', strtotime('+1 day')) || $to < date('Y-m-d')) return 0;
+    require_once dirname(__DIR__, 3) . '/includes/sms.php';
+    require_once dirname(__DIR__, 3) . '/includes/sms_templates.php';
+    if (!function_exists('sms_channel_ready') || !sms_channel_ready()) return 0;
+    $when = date('d.m.Y', strtotime($from)) . ($to !== $from ? '-' . date('d.m.Y', strtotime($to)) : '') . ($tf !== '' ? ', ' . $tf . '-' . $tt : '');
+    $t = sms_tpl_render('ti_absence_urgent', ['instructor' => sc_user_name($iid), 'when' => $when, 'n' => (string)$n_conflicts]);
+    if (empty($t['enabled']) || trim((string)$t['message']) === '') return 0;
+    $sent = 0;
+    foreach (db_all("SELECT DISTINCT u.id, u.phone_number FROM k30_ti_panel_roles r JOIN users u ON u.id=r.user_id
+                      WHERE r.role IN ('kierownik','zastepca') AND u.is_active=1 AND COALESCE(u.phone_number,'')!=''") as $m) {
+        if ((int)$m['id'] === $exclude_uid) continue;
+        try { sms_send((string)$m['phone_number'], (string)$t['message'], 'ti_absence_urgent'); $sent++; } catch (\Throwable $e) { /* jeden błąd nie blokuje reszty */ }
+    }
+    return $sent;
+}
+
 function sc_pending_count(): int {
     try { ti_sched_migrate(); return (int)(db_one("SELECT COUNT(*) AS n FROM k30_sc_requests WHERE status='pending'")['n'] ?? 0)
         + (int)(db_one("SELECT COUNT(DISTINCT i.request_id) AS n FROM k30_sc_request_items i JOIN k30_sc_requests r ON r.id=i.request_id
@@ -106,6 +128,7 @@ function sc_request_unavailability(int $iid, string $from, string $to, string $l
     sc_notify_managers('Zgłoszenie niedostępności: ' . sc_user_name($iid),
         'Prowadzący <strong>' . h(sc_user_name($iid)) . '</strong> zgłasza niedostępność (' . h(ti_leave_type_label($leave_type)) . ') w terminie <strong>' . h($from . ' – ' . $to . ($tf !== '' ? ', ' . $tf . '–' . $tt : ''))
         . '</strong>. Lekcji do rozstrzygnięcia: <strong>' . count($items) . '</strong>.' . ($reason !== '' ? '<br>Powód: ' . h($reason) : ''), (int)$id);
+    $urgent = sc_notify_urgent($iid, $from, $to, $tf, $tt, count($items), $iid);
     return ['ok' => true, 'msg' => 'Zgłoszenie wysłane do kierownika. Lekcji dotkniętych: ' . count($items) . '.', 'id' => (int)$id];
 }
 

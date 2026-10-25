@@ -3543,8 +3543,20 @@ if ($cur_course && dyd_is_staff()) {
       <strong><?= $current ? 'Trwa Twoja nieobecność' : 'Masz zaplanowaną nieobecność' ?>
         (<?= h(ti_leave_type_label($lv['type'])) ?>)</strong> — termin <strong><?= h($range) ?></strong>.
       <?php if (!empty($lv['note'])): ?><div class="small mt-1"><?= h($lv['note']) ?></div><?php endif; ?>
-      <div class="small mt-1">W tym czasie zaplanuj odwołanie lub przełożenie lekcji.
-        <a href="urlopy.php">Nieobecności prowadzących</a>.</div>
+      <?php $lvc = ti_leave_conflicts($lv); $lv_staff = dyd_is_staff(); ?>
+      <?php if ($lvc): ?>
+      <div class="small mt-2"><strong>Kolidujące zajęcia: <?= count($lvc) ?></strong>
+        <ul class="mb-1 ps-3">
+          <?php foreach (array_slice($lvc, 0, 5) as $_c): ?><li><?= h(date('d.m.Y', strtotime((string)$_c['lesson_date']))) ?>, <?= h(substr((string)$_c['time_from'], 0, 5)) ?>–<?= h(substr((string)$_c['time_to'], 0, 5)) ?> — <?= h($_c['course_name']) ?></li><?php endforeach; ?>
+          <?php if (count($lvc) > 5): ?><li>…i <?= count($lvc) - 5 ?> kolejnych</li><?php endif; ?>
+        </ul>
+        <?= $lv_staff ? 'Rozstrzygnij je (odwołanie, przełożenie, zastępstwo) na ekranie nieobecności.' : 'Kierownik rozstrzyga je w zgłoszeniach; możesz też sam odwołać lub przełożyć lekcję w zakładce „Lekcje”.' ?></div>
+      <?php else: ?>
+      <div class="small mt-1">Żadne zaplanowane zajęcia nie kolidują z tą nieobecnością.</div>
+      <?php endif; ?>
+      <div class="small mt-1">
+        <?php if ($lv_staff): ?><a href="urlopy.php?conflicts=<?= (int)$lv['id'] ?>#kolidujace">Zajęcia kolidujące i nieobecności prowadzących</a>.
+        <?php else: ?><a href="mojeZgloszenia.php">Moje zgłoszenia (niedostępność, zmiana terminu)</a>.<?php endif; ?></div>
     </div>
   </div>
   <?php endforeach; endif; ?>

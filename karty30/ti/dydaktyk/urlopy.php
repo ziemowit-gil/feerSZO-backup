@@ -65,6 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = sc_open_leave_resolution((int)$saved_id, $uid);
         $conf = count(ti_leave_conflicts((array)ti_leave_get((int)$saved_id)));
         if ($conf > 0) $msg .= " Zajęcia kolidujące z nieobecnością: {$conf} — rozstrzygnij je poniżej.";
+        $urg = sc_notify_urgent((int)$iid, $from, $to, $tf, $tt, $conf, $uid);
+        if ($urg > 0) $msg .= " Pilne (od dziś/jutra) — wysłano SMS do kierownictwa ({$urg}).";
         flash_set($conf > 0 ? 'warning' : 'success', $msg);
         header('Location: urlopy.php' . ($conf > 0 ? '?conflicts=' . (int)$saved_id . '#kolidujace' : '')); exit;
     }

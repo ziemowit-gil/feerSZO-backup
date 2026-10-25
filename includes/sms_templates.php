@@ -75,6 +75,19 @@ function sms_tpl_registry(): array
                 'course'     => ['label' => 'Nazwa kursu', 'sample' => 'Angielski S1'],
             ],
         ],
+        'ti_absence_urgent' => [
+            'label'       => 'Pilna nieobecność prowadzącego — do kierownika',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-exclamation-triangle',
+            'auto'        => true,
+            'description' => 'Wysyłane do kierownika i zastępcy (numer z konta), gdy nieobecność prowadzącego zaczyna się dziś lub jutro i ma kolidujące zajęcia do rozstrzygnięcia — zgłoszenie prowadzącego albo wpis kierownika.',
+            'message'     => 'PILNE: {{instructor}} niedostepny/a {{when}}. Zajec do rozstrzygniecia: {{n}}. Zgloszenia trenerow w panelu dydaktyka.',
+            'vars'        => [
+                'instructor' => ['label' => 'Prowadzący', 'sample' => 'Jan Kowalski'],
+                'when'       => ['label' => 'Termin nieobecności (z godzinami, gdy godzinowa)', 'sample' => '12.09.2026, 10:00-12:00'],
+                'n'          => ['label' => 'Liczba kolidujących zajęć', 'sample' => '3'],
+            ],
+        ],
         'ti_absence_cancelled' => [
             'label'       => 'Odwołane zajęcia — nieobecność prowadzącego',
             'group'       => 'TI — Zajęcia',
