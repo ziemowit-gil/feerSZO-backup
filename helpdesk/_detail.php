@@ -110,6 +110,12 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
   overflow: hidden; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
+.hd-side-card-head[data-hd-fold] { cursor:pointer; user-select:none; }
+.hd-side-card-head[data-hd-fold]::after { content:'\F282'; font-family:'bootstrap-icons'; margin-left:auto; font-size:.75rem; color:#605e5c; transition:transform .15s; }
+.hd-side-card.hd-folded > .hd-side-card-head[data-hd-fold]::after { transform:rotate(-90deg); }
+.hd-side-card.hd-folded > .hd-side-card-body { display:none; }
+.hd-side-card-head .ms-auto { margin-right:.5rem; }
+.dyn-stage > form, .dyn-stage > button { margin:0; }
 .hd-macro-bar { display:flex; flex-wrap:wrap; gap:.4rem; padding:.55rem .85rem; border-bottom:1px solid var(--hd-bd-l); background:#faf9f8; }
 .hd-macro-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .7rem; border:1px solid #8a8886; background:#fff; color:#242424; font-size:.8rem; cursor:pointer; }
 .hd-macro-chip i { color:#0f6cbd; }
@@ -143,6 +149,25 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
   <?php endif; ?>
   <span class="dyn-sep" aria-hidden="true"></span>
   <a href="#hdMsgBody" class="dyn-cmd" onclick="var e=document.getElementById('hdMsgBody');if(e){e.focus&&e.focus();}"><i class="bi bi-reply" aria-hidden="true"></i><span>Odpowiedz</span></a>
+  <?php if ($is_op): ?>
+  <div class="dropdown d-inline-block">
+    <button type="button" class="dyn-cmd dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span>Zmień status</span></button>
+    <ul class="dropdown-menu">
+      <?php foreach (HD_STATUSES as $_sk => $_ss): if ($_sk === $ticket['status']) continue; ?>
+      <li>
+        <?php if ($_sk === 'przekazane_zewn'): ?>
+        <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#hdExtModal"><i class="bi <?= h($_ss['icon']) ?> me-2"></i><?= h($_ss['label']) ?>…</button>
+        <?php else: ?>
+        <form method="post" action="<?= h($view_action) ?>" data-hd-form class="m-0">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_set_status" value="1"><input type="hidden" name="status" value="<?= h($_sk) ?>">
+          <button type="submit" class="dropdown-item"><i class="bi <?= h($_ss['icon']) ?> me-2"></i><?= h($_ss['label']) ?></button>
+        </form>
+        <?php endif; ?>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
   <?php if (!$hd_pane): ?>
   <a href="" class="dyn-cmd" onclick="location.reload();return false;"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i><span>Odśwież</span></a>
   <?php endif; ?>
@@ -163,7 +188,10 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
       ['Utworzono', date_pl(substr($ticket['created_at'], 0, 10))],
   ]) ?>
 </div>
-<?= dynStages($_hd_main, (string)$ticket['status'], ['label' => 'Etapy zgłoszenia', 'off' => $_hd_off]) ?>
+<?= dynStages($_hd_main, (string)$ticket['status'], ['label' => 'Etapy zgłoszenia', 'off' => $_hd_off] + ($is_op ? [
+    'form_attrs' => 'action="' . h($view_action) . '" data-hd-form',
+    'post' => fn(string $k): string => '<input type="hidden" name="_csrf" value="' . csrf_token() . '"><input type="hidden" name="_set_status" value="1"><input type="hidden" name="status" value="' . h($k) . '">',
+] : [])) ?>
 <?php if ($ticket['requester_email']): ?>
 <div class="small text-muted mt-2 mb-2"><i class="bi bi-envelope me-1"></i><span class="font-monospace"><?= h($ticket['requester_email']) ?></span></div>
 <?php else: ?><div class="mb-2"></div><?php endif; ?>
@@ -1001,6 +1029,24 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
       btn.querySelector('i').className='bi bi-'+(open?'chevron-up':'card-text');
     });
   });
+  (function(){
+    var KEY='hdFoldedCards', open={'Status':1,'Operator':1,'Szczegóły':1};
+    var saved={}; try{ saved=JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(e){}
+    document.querySelectorAll('.hd-side-card').forEach(function(card){
+      var head=card.querySelector(':scope > .hd-side-card-head'), body=card.querySelector(':scope > .hd-side-card-body');
+      if(!head||!body) return;
+      var cl=head.cloneNode(true); cl.querySelectorAll('.ms-auto').forEach(function(x){x.remove();}); var name=cl.textContent.replace(/\s+/g,' ').trim();
+      head.setAttribute('data-hd-fold','1'); head.setAttribute('role','button'); head.setAttribute('tabindex','0');
+      var folded = (name in saved) ? saved[name] : !(name in open);
+      card.classList.toggle('hd-folded', !!folded); head.setAttribute('aria-expanded', folded?'false':'true');
+      function toggle(){
+        var f=card.classList.toggle('hd-folded'); head.setAttribute('aria-expanded', f?'false':'true');
+        saved[name]=f; try{ localStorage.setItem(KEY, JSON.stringify(saved)); }catch(e){}
+      }
+      head.addEventListener('click',toggle);
+      head.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } });
+    });
+  })();
   document.querySelectorAll('.hd-macro-chip').forEach(function(chip){
     chip.addEventListener('click',function(){
       var box=chip.closest('.hd-reply-box'); if(!box) return;

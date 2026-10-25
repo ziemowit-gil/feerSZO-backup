@@ -29,6 +29,7 @@ function dynHFields(array $fields): string {
 /**
  * Pasek etapów (procesu biznesowego). $stages klucz => etykieta (kolejność = proces); $current = bieżący klucz.
  * $opts['off'] = [klucz => etykieta] stanów spoza ścieżki (np. odrzucona) — pokazywany jako ostatni, szary.
+ * $opts['form_attrs'] = surowe atrybuty <form> etapów-przycisków (np. action="…" data-hd-form).
  * $opts['post'] = fn(string $klucz): ?string — ukryte pola (z _csrf) formularza przejścia do etapu; null = etap do odczytu.
  *                 Bieżący etap zawsze tylko do odczytu.
  */
@@ -42,7 +43,7 @@ function dynStages(array $stages, string $current, array $opts = []): string {
         $cur = $k === $current; $done = $pos !== false && $i < $pos;
         $post = (!$cur && isset($opts['post'])) ? ($opts['post'])((string)$k) : null;
         if ($post !== null) {
-            $h .= '<form method="post" class="dyn-stage' . ($done ? ' done' : '') . '">' . $post . '<button type="submit" title="Przejdź do etapu: ' . h($l) . '"><span class="dyn-dot" aria-hidden="true">'
+            $h .= '<form method="post"' . (isset($opts['form_attrs']) ? ' ' . $opts['form_attrs'] : '') . ' class="dyn-stage' . ($done ? ' done' : '') . '">' . $post . '<button type="submit" title="Przejdź do etapu: ' . h($l) . '"><span class="dyn-dot" aria-hidden="true">'
                 . ($done ? '✓' : $i + 1) . '</span>' . h($l) . '</button></form>';
             continue;
         }
