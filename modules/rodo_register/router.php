@@ -31,6 +31,7 @@ $r->group(['rodo.access'], function (Router $r) use ($C) {
     $r->get('/czynnosci/{id}',        [$C, 'activityShow'])->name('rodo.activity');
     $r->post('/czynnosci/{id}',       [$C, 'activitySave'])->name('rodo.activity.save');
     $r->get('/raporty',               [$C, 'reports'])->name('rodo.reports');
+    $r->get('/raporty/{typ}/pdf',     [$C, 'reportPdf'])->name('rodo.report.pdf');
     $r->get('/raporty/{typ}',         [$C, 'report'])->name('rodo.report');
     $r->get('/podmioty',              [$C, 'processors'])->name('rodo.processors');
     $r->post('/podmioty/{id}',        [$C, 'processorSave'])->name('rodo.processor.save');

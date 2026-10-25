@@ -3,23 +3,34 @@
  * Wydruk raportu RODO — samodzielna strona A4 (bez menu SZO).
  * Zmienne: $typ, $tytul, $org, $kto, $kiedy, $rows.
  */
+$pdf = $pdf ?? false;   // true = wersja dla mPDF (bez przycisków i skryptów)
 $wide = in_array($typ, ['czynnosci', 'zbiory', 'naruszenia', 'dostep'], true);
 $tak = fn($v) => $v ? 'tak' : 'nie';
 $th = fn(array $c) => '<tr>' . implode('', array_map(fn($x) => '<th scope="col">' . h($x) . '</th>', $c)) . '</tr>';
 ?><!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($tytul) ?></title>
+<?php if ($pdf): /* mPDF: bez @page / @media / flex — marginesy i orientację ustawia kontroler */ ?>
+<style>
+  body { font-family: dejavusans, sans-serif; font-size: 9pt; color: #111; }
+  h1 { font-size: 14pt; margin: 0 0 2pt; } h2 { font-size: 11pt; margin: 10pt 0 3pt; } .meta { color: #444; font-size: 8pt; margin-bottom: 8pt; }
+  table { width: 100%; border-collapse: collapse; } th, td { border: 0.4pt solid #555; padding: 2pt 3pt; vertical-align: top; text-align: left; font-size: 7.5pt; }
+  th { background-color: #e9e9e9; } .group td { background-color: #f3f3f3; font-weight: bold; }
+  table.sign { margin-top: 28pt; border: 0; } table.sign td { border: 0; border-top: 0.5pt solid #000; width: 35%; font-size: 8pt; } table.sign td.gap { border-top: 0; width: 10%; }
+</style>
+<?php else: ?>
 <style>
   @page { size: A4 <?= $wide ? 'landscape' : 'portrait' ?>; margin: 12mm; }
   body { font: 10pt/1.35 Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 16px; background: #fff; }
   h1 { font-size: 14pt; margin: 0 0 2px; } h2 { font-size: 11pt; margin: 14px 0 4px; } .meta { color: #444; font-size: 9pt; margin-bottom: 10px; }
   table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #555; padding: 3px 5px; vertical-align: top; text-align: left; font-size: 8.5pt; }
   th { background: #e9e9e9; } tr { page-break-inside: avoid; } thead { display: table-header-group; }
-  .group td { background: #f3f3f3; font-weight: bold; } .sign { display: flex; gap: 60px; margin-top: 36px; font-size: 9pt; } .sign div { border-top: 1px solid #000; padding-top: 3px; min-width: 220px; }
+  .group td { background: #f3f3f3; font-weight: bold; } .sign { width: 100%; margin-top: 36px; font-size: 9pt; border: 0; } .sign td { border: 0; border-top: 1px solid #000; padding-top: 3px; width: 35%; } .sign td.gap { border-top: 0; width: 10%; }
   .bar { margin-bottom: 12px; } .bar button { font-size: 11pt; padding: 6px 14px; cursor: pointer; }
   @media print { .bar { display: none; } body { padding: 0; } }
-</style></head><body>
-<div class="bar"><button type="button" onclick="window.print()">Drukuj</button> <span style="color:#555;font-size:9pt">— w oknie drukowania wybierz „Zapisz jako PDF”, aby otrzymać plik.</span></div>
+</style>
+<?php endif; ?></head><body>
+<?php if (!$pdf): ?><div class="bar"><button type="button" onclick="window.print()">Drukuj</button> <a href="<?= h(route('rodo.report.pdf', ['typ' => $typ])) ?>" style="margin-left:8px;font-size:11pt">Pobierz PDF</a></div><?php endif; ?>
 <h1><?= h($tytul) ?></h1>
 <div class="meta"><?= h($org) ?> · stan na <?= h($kiedy) ?><?= $kto !== '' ? ' · wygenerował(a): ' . h($kto) : '' ?></div>
 
@@ -81,5 +92,5 @@ $th = fn(array $c) => '<tr>' . implode('', array_map(fn($x) => '<th scope="col">
 </tbody></table>
 <?php endif; ?>
 
-<div class="sign"><div>Sporządził(a)</div><div>Zatwierdził(a) — data i podpis</div></div>
+<table class="sign"><tr><td>Sporządził(a)</td><td class="gap"></td><td>Zatwierdził(a) — data i podpis</td></tr></table>
 </body></html>

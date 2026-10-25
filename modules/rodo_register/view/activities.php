@@ -6,6 +6,7 @@ include __DIR__ . '/_head.php';
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
   <p class="text-muted mb-0">Rejestr z art. 30 RODO. Wpisy startowe pochodzą z analizy kodu — <strong>potwierdź je i zatwierdź</strong> (podstawy prawne i terminy usunięcia to propozycje).</p>
   <div class="d-flex gap-2"><a class="btn btn-outline-secondary btn-sm" href="<?= h(route('rodo.report', ['typ' => 'czynnosci'])) ?>" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> Drukuj rejestr</a>
+  <a class="btn btn-outline-secondary btn-sm" href="<?= h(route('rodo.report.pdf', ['typ' => 'czynnosci'])) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Pobierz PDF</a>
   <a class="btn btn-outline-secondary btn-sm" href="<?= h(route('rodo.activities.csv')) ?>"><i class="bi bi-download" aria-hidden="true"></i> Eksport CSV (dla UODO)</a>
   <a class="btn btn-primary btn-sm" href="<?= h(route('rodo.activity', ['id' => 0])) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i> Nowa czynność</a></div>
 </div>

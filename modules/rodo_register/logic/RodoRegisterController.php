@@ -208,10 +208,9 @@ final class RodoRegisterController
         return Router::view(self::VIEW . 'reports.php', ['reports' => self::REPORTS]);
     }
 
-    /** Wydruk raportu: samodzielna strona A4 (bez menu), przycisk Drukuj / Zapisz jako PDF z przeglądarki. */
-    public function report(string $typ): ?string {
-        rodoMigrate();
-        if (!isset(self::REPORTS[$typ])) { http_response_code(404); return 'Nie ma takiego raportu.'; }
+    /** Dane raportu (wspólne dla wydruku HTML i PDF) albo null, gdy nie ma takiego raportu. */
+    private function reportData(string $typ): ?array {
+        if (!isset(self::REPORTS[$typ])) return null;
         $data = ['typ' => $typ, 'tytul' => self::REPORTS[$typ], 'org' => defined('ORG_NAME') ? ORG_NAME : '', 'kto' => (string)(current_user()['name'] ?? ''), 'kiedy' => date('Y-m-d H:i')];
         match ($typ) {
             'czynnosci', 'zbiory' => $data['rows'] = db_all("SELECT * FROM rodo_activities ORDER BY " . ($typ === 'zbiory' ? "forma, " : "") . "zbior"),
@@ -221,8 +220,41 @@ final class RodoRegisterController
             'retencja'  => $data['rows'] = rodoRetentionReport(),
             'dostep'    => $data['access'] = rodoAccessData(),
         };
+        return $data;
+    }
+
+    /** Wydruk raportu: samodzielna strona A4 (bez menu), przycisk Drukuj / Zapisz jako PDF z przeglądarki. */
+    public function report(string $typ): ?string {
+        rodoMigrate();
+        $data = $this->reportData($typ);
+        if (!$data) { http_response_code(404); return 'Nie ma takiego raportu.'; }
         audit_log('rodo.report.print', ['typ' => $typ]);
         return Router::view(self::VIEW . 'print.php', $data);
+    }
+
+    /** Raport jako plik PDF (mPDF) — pobranie; ?inline=1 otwiera w przeglądarce. */
+    public function reportPdf(string $typ): ?string {
+        rodoMigrate();
+        $data = $this->reportData($typ);
+        if (!$data) { http_response_code(404); return 'Nie ma takiego raportu.'; }
+        $html = Router::view(self::VIEW . 'print.php', $data + ['pdf' => true]);
+        require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+        $tmp = rtrim(defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir(), '/') . '/mpdf_tmp';
+        if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+        $wide = in_array($typ, ['czynnosci', 'zbiory', 'naruszenia', 'dostep'], true);
+        $mpdf = new \Mpdf\Mpdf([
+            'mode' => 'utf-8', 'format' => 'A4', 'orientation' => $wide ? 'L' : 'P', 'default_font' => 'dejavusans', 'tempDir' => $tmp,
+            'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 12, 'margin_bottom' => 14, 'margin_footer' => 6,
+        ]);
+        $mpdf->SetTitle($data['tytul']);
+        $mpdf->SetAuthor($data['org']);
+        $mpdf->SetHTMLFooter('<table width="100%" style="font-size:7pt;color:#555;border-top:0.3pt solid #999"><tr>'
+            . '<td>' . h(trim($data['org'] . ' · ' . $data['tytul'] . ' · stan na ' . $data['kiedy'])) . '</td>'
+            . '<td style="text-align:right;width:12%">{PAGENO} / {nbpg}</td></tr></table>');
+        $mpdf->WriteHTML($html);
+        audit_log('rodo.report.pdf', ['typ' => $typ]);
+        $mpdf->Output('rodo-' . $typ . '-' . date('Y-m-d') . '.pdf', !empty($_GET['inline']) ? \Mpdf\Output\Destination::INLINE : \Mpdf\Output\Destination::DOWNLOAD);
+        return null;
     }
 
     // ── retencja ──
