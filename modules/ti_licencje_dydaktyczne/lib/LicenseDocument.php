@@ -369,10 +369,10 @@ final class LicenseDocument
     /** Pusty wzór (druk do obiegu papierowego) dowolnego dokumentu. */
     // ── AM90: potwierdzenie wykonania operacji (konto w tenancie) — układ CIT ────────────
 
-    /** Numer druku AM90: numer sprawy + symbol. */
-    public static function am90Number(array $l): string
+    /** Numer druku AM90: numer sprawy + symbol; rewizja ≥ 2 (aktualizacja danych po zmianie UPN) → AM90/2, AM90/3… */
+    public static function am90Number(array $l, int $rev = 1): string
     {
-        return (trim((string)($l['case_number'] ?? '')) ?: ldCaseNumber((int)$l['id'], 'XX')) . ' · AM90';
+        return (trim((string)($l['case_number'] ?? '')) ?: ldCaseNumber((int)$l['id'], 'XX')) . ' · AM90' . ($rev > 1 ? '/' . $rev : '');
     }
 
     /**
@@ -383,17 +383,19 @@ final class LicenseDocument
     public function am90Html(array $l, array $info): string
     {
         $this->n = 0;
-        $number = self::am90Number($l);
+        $rev = max(1, (int)($info['revision'] ?? 1));
+        $chg = $rev > 1 ? (array)($info['change'] ?? []) : [];
+        $number = self::am90Number($l, $rev);
         $d = $l['decision'] ?? [];
         $plan = (string)(($d['plan'] ?? '') ?: ($l['request']['plan'] ?? '') ?: $l['title']);
         $when = ldDate(substr((string)$info['created_at'], 0, 10)) . ' ' . substr((string)$info['created_at'], 11, 5);
         $h = '<table class="t"><tr>'
            . $this->fld('Numer sprawy / dokumentu', '<span class="big">' . self::e($number) . '</span>', ' width="40%"')
            . $this->fld('Kurs / zajęcia', self::e((string)($l['course_name'] ?: '—')), ' width="40%"')
-           . '<td class="sym" width="20%" style="background:#0f766e"><div class="symb">AM90</div><div class="symp">&nbsp;</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '<td class="sym" width="20%" style="background:#0f766e"><div class="symb">AM90</div><div class="symp">' . ($rev > 1 ? '/' . $rev : '&nbsp;') . '</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
            . '</tr></table>'
-           . '<table class="t"><tr><td class="ttl"><div class="ttl1">POTWIERDZENIE WYKONANIA OPERACJI</div>'
-           . '<div class="ttl2">licencje do oprogramowania i usług cyfrowych — potwierdzenie warunków udostępnienia</div></td></tr>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">POTWIERDZENIE WYKONANIA OPERACJI' . ($rev > 1 ? ' — AKTUALIZACJA DANYCH' : '') . '</div>'
+           . '<div class="ttl2">' . ($rev > 1 ? 'aktualizacja danych konta po zmianie loginu (UPN) — zastępuje poprzednie potwierdzenie AM90' : 'licencje do oprogramowania i usług cyfrowych — potwierdzenie warunków udostępnienia') . '</div></td></tr>'
            . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Adresat:</b> osoba wskazana we wniosku.&nbsp; <b>Sprawa:</b> ' . self::e((string)$l['case_number'])
            . '.&nbsp; Dokument jedynie potwierdza warunki — <b>nie wymaga podpisu</b>.</td></tr></table>';
         $h .= '<table class="t">' . self::sec('A', 'OSOBA I SPRAWA', 2) . '<tr>'
@@ -401,12 +403,17 @@ final class LicenseDocument
             . $this->fld('Wniosek i decyzja', 'wniosek ' . self::e(LicenseDoc::Am7Request->symbol()) . ' (' . self::e((string)$l['case_number']) . '), decyzja ' . self::e(LicenseDoc::Am7Grant->symbol())
                 . (!empty($d['approved_at']) ? ' z dnia ' . self::e(ldDate(substr((string)$d['approved_at'], 0, 10))) : ''), ' width="50%"')
             . '</tr><tr>' . $this->fld('Usługa / produkt / plan', self::val($plan, 'usługa'), ' colspan="2"') . '</tr></table>';
-        $h .= '<table class="t">' . self::sec('B', 'WYKONANA OPERACJA', 2) . '<tr><td class="pc" colspan="2"><div class="pt">Potwierdza się utworzenie konta użytkownika w tenancie Microsoft 365 na potrzeby usługi wskazanej w części A.</div></td></tr><tr>'
+        $h .= '<table class="t">' . self::sec('B', 'WYKONANA OPERACJA', 2) . '<tr><td class="pc" colspan="2"><div class="pt">' . ($rev > 1
+                ? 'Potwierdza się zaktualizowanie danych konta użytkownika w tenancie Microsoft 365 (zmiana loginu UPN z powodu błędu). Konto, jego hasło, dane i nadane licencje pozostają bez zmian; dokument zastępuje poprzednie potwierdzenie AM90.'
+                : 'Potwierdza się utworzenie konta użytkownika w tenancie Microsoft 365 na potrzeby usługi wskazanej w części A.') . '</div></td></tr><tr>'
             . $this->fld('Tenant', self::e((string)$info['tenant_label']), ' width="50%"')
             . $this->fld('Login (UPN)', '<b>' . self::e((string)$info['upn']) . '</b>', ' width="50%"')
             . '</tr><tr>' . $this->fld('Licencja nadana w tenancie', self::val((string)($info['sku_name'] ?? ''), 'brak — licencja do nadania ręcznie'), ' width="50%"')
-            . $this->fld('Data i godzina wykonania', self::e($when), ' width="50%"') . '</tr></table>';
-        $mail = !empty($info['email_sent']) ? 'login i instrukcja aktywacji wysłane e-mailem na ' . self::e((string)($info['email'] ?? '')) : 'login i instrukcja aktywacji do przekazania osobie';
+            . $this->fld($rev > 1 ? 'Data i godzina aktualizacji' : 'Data i godzina wykonania', self::e($rev > 1 ? ldDate(substr((string)($chg['at'] ?? ''), 0, 10)) . ' ' . substr((string)($chg['at'] ?? ''), 11, 5) : $when), ' width="50%"') . '</tr>'
+            . ($rev > 1 ? '<tr>' . $this->fld('Poprzedni login (UPN)', self::e((string)($chg['old'] ?? '')), ' width="50%"')
+                . $this->fld('Uzasadnienie aktualizacji', self::val((string)($chg['reason'] ?? ''), 'uzasadnienie'), ' width="50%"') . '</tr>' : '')
+            . '</table>';
+        $mail = $rev > 1 ? 'nowy login przekazany e-mailem na ' . self::e((string)($info['email'] ?? '')) . '; hasło bez zmian' : (!empty($info['email_sent']) ? 'login i instrukcja aktywacji wysłane e-mailem na ' . self::e((string)($info['email'] ?? '')) : 'login i instrukcja aktywacji do przekazania osobie');
         $h .= '<table class="t">' . self::sec('C', 'WARUNKI UDOSTĘPNIENIA', 2) . '<tr>'
             . $this->fld('Okres aktywnego dostępu', ($d['period_from'] ?? '') !== '' ? 'od <b>' . self::e(ldDate($d['period_from'])) . '</b> do <b>' . self::e(ldDate($d['period_to'] ?? '')) . '</b>' : self::val('', 'okres dostępu'), ' width="50%"')
             . $this->fld('Dane dostępowe', $mail, ' width="50%"')
@@ -452,7 +459,7 @@ final class LicenseDocument
         $h .= '<table class="t">' . self::sec('B', 'WYKONANA ZMIANA', 2) . '<tr><td class="pc" colspan="2"><div class="pt">Ze względu na błąd w loginie zmieniono login (UPN) konta użytkownika w tenancie Microsoft 365. Konto, jego hasło, dane i nadane licencje pozostają bez zmian.</div></td></tr><tr>'
             . $this->fld('Dotychczasowy login (UPN)', '<b>' . self::e((string)$c['old']) . '</b>', ' width="50%"')
             . $this->fld('Nowy login (UPN)', '<b>' . self::e((string)$c['new']) . '</b>', ' width="50%"')
-            . '</tr><tr>' . $this->fld('Opis błędu / powód zmiany', self::val((string)$c['reason'], 'powód zmiany'), ' colspan="2"')
+            . '</tr><tr>' . $this->fld('Uzasadnienie zmiany (opis błędu)', self::val((string)$c['reason'], 'uzasadnienie zmiany'), ' colspan="2"')
             . '</tr><tr>' . $this->fld('Data i godzina zmiany', self::e($when), ' width="50%"')
             . $this->fld('Zmiany dokonał(a)', self::val((string)($c['by'] ?? ''), 'osoba dokonująca zmiany'), ' width="50%"') . '</tr></table>';
         $h .= '<table class="t">' . self::sec('C', 'CO ZROBIĆ PO ZMIANIE', 1) . '<tr><td class="pc"><div class="pt">'

@@ -79,7 +79,6 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/licencje/{id}/am90-wyslij',       [LicenseAdminController::class, 'am90Send'])->name('ld.am90.send');
     $r->post('/licencje/{id}/zmiana-upn',        [LicenseAdminController::class, 'am91Change'])->name('ld.am91.change');
     $r->get('/licencje/{id}/am91.pdf',           [LicenseAdminController::class, 'am91Pdf'])->name('ld.am91.pdf');
-    $r->post('/licencje/{id}/am91-wyslij',       [LicenseAdminController::class, 'am91Send'])->name('ld.am91.send');
     $r->get('/licencje/{id}/edycja',             [LicenseAdminController::class, 'editForm'])->name('ld.edit');
     $r->post('/licencje/{id}/edycja',            [LicenseAdminController::class, 'update']);
     $r->post('/licencje/{id}/wszczecie',         [LicenseAdminController::class, 'start'])->name('ld.start');

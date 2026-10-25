@@ -251,7 +251,7 @@ final class LicenseAdminController
         try {
             $r = (new Am7TenantAccount($this->svc))->changeUpn($id, $_POST, $this->actor());
             if (!$r['ok']) { flash_set('danger', implode(' ', $r['errors'])); return Router::redirect(route('ld.show', ['id' => $id])); }
-            flash_set('success', 'Login zmieniony: ' . $r['old'] . ' → ' . $r['new'] . ' — ' . implode('; ', $r['report']) . '. Wyślij osobie druk AM91 (zakładka Wydruki).');
+            flash_set('success', 'Login zmieniony: ' . $r['old'] . ' → ' . $r['new'] . ' — ' . implode('; ', $r['report']) . '. AM90/n „Aktualizacja danych” wysłane automatycznie (zakładka Wydruki).');
         } catch (\Throwable $e) { return $this->fail($e, route('ld.show', ['id' => $id])); }
         return Router::redirect(route('ld.show', ['id' => $id]));
     }
@@ -270,15 +270,6 @@ final class LicenseAdminController
         header('Cache-Control: no-store, private');
         echo $o['out']['bytes'];
         return null;
-    }
-
-    /** Ręczna wysyłka AM91 e-mailem. */
-    public function am91Send(int $id): ?string
-    {
-        require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
-        try { flash_set('success', (new Am7TenantAccount($this->svc))->sendAm91($id, $this->actor()) . '.'); }
-        catch (\Throwable $e) { return $this->fail($e, route('ld.show', ['id' => $id])); }
-        return Router::redirect(route('ld.show', ['id' => $id]));
     }
 
     public function editForm(int $id, array $errors = [], array $old = []): string

@@ -253,7 +253,7 @@ final class Am7TenantAccount
         // SZO: sprawa + konto kursanta (login logowania przez Microsoft) — dokładnie rekordy z dotychczasowym UPN
         $info = json_decode((string)($row['tenant_info'] ?? ''), true) ?: [];
         $info['upn_changes'] = array_merge((array)($info['upn_changes'] ?? []), [['old' => $old, 'new' => $new, 'reason' => $reason, 'at' => ldNow(), 'by' => (string)($actor['name'] ?? '')]]);
-        db()->prepare("UPDATE licenses SET tenant_upn = ?, tenant_info = ?, am91_sent_at = NULL WHERE id = ?")->execute([$new, json_encode($info, JSON_UNESCAPED_UNICODE), $id]);
+        db()->prepare("UPDATE licenses SET tenant_upn = ?, tenant_info = ? WHERE id = ?")->execute([$new, json_encode($info, JSON_UNESCAPED_UNICODE), $id]);
         try {
             $n = 0;
             $st = db()->prepare("UPDATE k30_ti_student_accounts SET ms_upn = ?, updated_at = datetime('now') WHERE LOWER(ms_upn) = LOWER(?)");
@@ -266,8 +266,11 @@ final class Am7TenantAccount
             error_log('am91 upn link: ' . $e->getMessage());
             $res['report'][] = 'UWAGA: login zmieniony w Microsoft 365 i w sprawie, ale konta kursanta w SZO nie zaktualizowano (' . $e->getMessage() . ') — popraw ręcznie';
         }
-        $this->svc->licenses->event($id, 'tenant.upn_change', 'Zmieniono UPN ' . $old . ' → ' . $new . ' (AM91). Powód: ' . $reason . '. ' . implode('; ', $res['report']) . '.', $actor);
+        $this->svc->licenses->event($id, 'tenant.upn_change', 'Zmieniono UPN ' . $old . ' → ' . $new . ' (AM91). Uzasadnienie: ' . $reason . '. ' . implode('; ', $res['report']) . '.', $actor);
         $res['ok'] = true; $res['old'] = $old; $res['new'] = $new;
+        // Automatycznie: nowe potwierdzenie AM90/n „Aktualizacja danych” (z uzasadnieniem) e-mailem do osoby
+        try { $res['report'][] = $this->sendAm99($id, $actor, true); }
+        catch (\Throwable $e) { $res['report'][] = 'UWAGA: AM90/' . self::am90Revision($id) . ' NIE wysłane (' . $e->getMessage() . ') — wyślij ręcznie z zakładki Wydruki'; }
         return $res;
     }
 
@@ -284,31 +287,13 @@ final class Am7TenantAccount
         return ['out' => LicenseDocument::render($html, 'Zmiana loginu UPN — ' . $l['interested_name'], $number, 'AM91'), 'number' => $number, 'info' => $info];
     }
 
-    /** Ręczna wysyłka AM91: e-mail z PDF do osoby (kopia UDW do administratora). @return string raport */
-    public function sendAm91(int $id, array $actor): string
-    {
-        $l = $this->svc->licenses->get($id);
-        if (!$l || $l['form'] !== LicenseForm::Am7) throw new DomainException('To nie jest sprawa AM7.');
-        $o = $this->am91Output($l);
-        $ch = $o['info']['change'];
-        [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'am91_' . $id);
-        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>z powodu błędu w loginie zmieniliśmy login (UPN) Twojego konta Microsoft 365.</p>'
-              . '<p>Dotychczasowy login: <b>' . $e($ch['old']) . '</b><br>Nowy login: <b>' . $e($ch['new']) . '</b></p>'
-              . '<p><b>Hasło się nie zmieniło.</b> Od teraz loguj się nowym loginem; w aplikacjach (Teams, Outlook, Office, OneDrive) wyloguj się i zaloguj ponownie. Szczegóły w załączonym dokumencie (AM91). Sprawa: ' . $e($l['case_number']) . '.</p>';
-        $att = LicenseNotificationService::attachment($rel, $o['number']);
-        $c = $this->svc->interestedContact($l);
-        $res = $this->svc->notify->send(LicenseNotificationType::UpnChanged, $c, 'Zmiana loginu konta Microsoft 365 (AM91) — sprawa ' . $l['case_number'],
-            LicenseNotificationService::layout('Zmiana loginu konta Microsoft 365', $body, '', '', 'AM91'), '', ['type' => 'license', 'id' => $id], $actor, true, $att);
-        $report = 'AM91: ' . $this->svc->describe($res) . ($att ? '' : ' (bez PDF — wersja HTML tylko do wglądu w panelu)');
-        $this->svc->licenses->event($id, 'am91.sent', 'Ręcznie wysłano AM91 ' . $o['number'] . ': ' . $this->svc->describe($res), $actor);
-        if (!empty($res['delivered']) || in_array('queued', (array)($res['channels'] ?? []), true)) {
-            db()->prepare("UPDATE licenses SET am91_sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
-        }
-        return $report;
-    }
-
     // ── AM90: Potwierdzenie wykonania operacji (druk w stylu CIT; wysyłka RĘCZNA) ──────────────────
+
+    /** Rewizja AM90: 1 = potwierdzenie utworzenia konta; każda zmiana UPN (AM91) daje kolejną — AM90/2, AM90/3… „Aktualizacja danych”. */
+    public static function am90Revision(int $id): int
+    {
+        return 1 + count(self::upnChanges($id));
+    }
 
     /** @return array{out:array,number:string,info:array} wydruk AM90 (PDF; fallback HTML) albo wyjątek, gdy konta jeszcze nie ma */
     public function am90Output(array $l): array
@@ -317,33 +302,50 @@ final class Am7TenantAccount
         if (empty($row['tenant_upn'])) throw new DomainException('Najpierw utwórz konto w tenancie — druk AM90 potwierdza wykonaną operację.');
         $info = (json_decode((string)$row['tenant_info'], true) ?: []) + ['tenant_label' => ($row['tenant_kind'] === 'feer' ? 'Tenant FEER' : 'Tenant EDU FEER')];
         $info['upn'] = (string)$row['tenant_upn']; $info['created_at'] = (string)$row['tenant_created_at']; $info['tenant_kind'] = (string)$row['tenant_kind'];
-        $number = LicenseDocument::am90Number($l);
+        $ch = self::upnChanges((int)$l['id']);
+        $info['revision'] = 1 + count($ch);
+        if ($ch) $info['change'] = end($ch);
+        $number = LicenseDocument::am90Number($l, $info['revision']);
         $html = (new LicenseDocument())->am90Html($l, $info);
-        return ['out' => LicenseDocument::render($html, 'Potwierdzenie wykonania operacji — ' . $l['interested_name'], $number, 'AM90'), 'number' => $number, 'info' => $info];
+        $title = $info['revision'] > 1 ? 'Potwierdzenie wykonania operacji — aktualizacja danych — ' : 'Potwierdzenie wykonania operacji — ';
+        return ['out' => LicenseDocument::render($html, $title . $l['interested_name'], $number, 'AM90'), 'number' => $number, 'info' => $info];
     }
 
     /**
-     * Ręczna wysyłka AM90: e-mail z PDF do osoby (kopia UDW do administratora), zamknięcie zgłoszenia w Helpdesku.
+     * Wysyłka AM90 (ręczna; po zmianie UPN automatyczna jako AM90/n „Aktualizacja danych”): e-mail z PDF do osoby (kopia UDW do administratora), zamknięcie zgłoszenia w Helpdesku.
      * @return string raport
      */
-    public function sendAm99(int $id, array $actor): string
+    public function sendAm99(int $id, array $actor, bool $auto = false): string
     {
         $l = $this->svc->licenses->get($id);
         if (!$l || $l['form'] !== LicenseForm::Am7) throw new DomainException('To nie jest sprawa AM7.');
         $o = $this->am90Output($l);
-        [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'am90_' . $id);
+        $rev = (int)$o['info']['revision'];
+        [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'am90' . ($rev > 1 ? '_r' . $rev : '') . '_' . $id);
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy <b>potwierdzenie wykonania operacji (AM90)</b> — konto <b>' . $e($o['info']['upn']) . '</b> zostało utworzone, a w dokumencie znajdziesz warunki udostępnienia.</p>'
-              . '<p>Dokument nie wymaga podpisu. Jeżeli licencjodawca zmieni warunki licencji, Fundacja może dokonać zmiany warunków udostępnienia. Sprawa: ' . $e($l['case_number']) . '.</p>';
+        if ($rev > 1) {
+            $ch = (array)$o['info']['change'];
+            $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy <b>aktualizację danych (AM90/' . $rev . ')</b> — zmieniliśmy login (UPN) Twojego konta Microsoft 365.</p>'
+                  . '<p>Dotychczasowy login: <b>' . $e($ch['old']) . '</b><br>Nowy login: <b>' . $e($ch['new']) . '</b></p>'
+                  . '<p><b>Uzasadnienie zmiany:</b> ' . $e($ch['reason']) . '</p>'
+                  . '<p><b>Hasło się nie zmieniło.</b> Od teraz loguj się nowym loginem; w aplikacjach (Teams, Outlook, Office, OneDrive) wyloguj się i zaloguj ponownie. Dokument zastępuje poprzednie potwierdzenie AM90 i nie wymaga podpisu. Sprawa: ' . $e($l['case_number']) . '.</p>';
+            $subject = 'Aktualizacja danych (AM90/' . $rev . ') — zmiana loginu konta Microsoft 365, sprawa ' . $l['case_number'];
+            $heading = 'Aktualizacja danych — zmiana loginu konta';
+        } else {
+            $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy <b>potwierdzenie wykonania operacji (AM90)</b> — konto <b>' . $e($o['info']['upn']) . '</b> zostało utworzone, a w dokumencie znajdziesz warunki udostępnienia.</p>'
+                  . '<p>Dokument nie wymaga podpisu. Jeżeli licencjodawca zmieni warunki licencji, Fundacja może dokonać zmiany warunków udostępnienia. Sprawa: ' . $e($l['case_number']) . '.</p>';
+            $subject = 'Potwierdzenie wykonania operacji (AM90) — ' . $l['title'] . ', sprawa ' . $l['case_number'];
+            $heading = 'Potwierdzenie wykonania operacji';
+        }
         $att = LicenseNotificationService::attachment($rel, $o['number']);
         $c = $this->svc->interestedContact($l);
-        $res = $this->svc->notify->send(LicenseNotificationType::OperationConfirm, $c, 'Potwierdzenie wykonania operacji (AM90) — ' . $l['title'] . ', sprawa ' . $l['case_number'],
-            LicenseNotificationService::layout('Potwierdzenie wykonania operacji', $body, '', '', 'AM90'), '', ['type' => 'license', 'id' => $id], $actor, true, $att);
-        $report = 'AM90: ' . $this->svc->describe($res) . ($att ? '' : ' (bez PDF — wysłano wersję HTML tylko do wglądu w panelu)');
-        $this->svc->licenses->event($id, 'am90.sent', 'Ręcznie wysłano AM90 ' . $o['number'] . ': ' . $this->svc->describe($res), $actor);
+        $res = $this->svc->notify->send(LicenseNotificationType::OperationConfirm, $c, $subject,
+            LicenseNotificationService::layout($heading, $body, '', '', 'AM90'), '', ['type' => 'license', 'id' => $id], $actor, true, $att);
+        $report = 'AM90' . ($rev > 1 ? '/' . $rev : '') . ': ' . $this->svc->describe($res) . ($att ? '' : ' (bez PDF — wysłano wersję HTML tylko do wglądu w panelu)');
+        $this->svc->licenses->event($id, 'am90.sent', ($auto ? 'Automatycznie' : 'Ręcznie') . ' wysłano AM90 ' . $o['number'] . ': ' . $this->svc->describe($res), $actor);
         if (!empty($res['delivered']) || in_array('queued', (array)($res['channels'] ?? []), true)) {
             db()->prepare("UPDATE licenses SET am90_sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
-            $report .= '. ' . $this->closeHelpdesk($l, $actor, $o['number']);
+            if ($rev === 1) $report .= '. ' . $this->closeHelpdesk($l, $actor, $o['number']);   // aktualizacja (AM90/2…) nie rusza zgłoszenia
         }
         return $report;
     }
