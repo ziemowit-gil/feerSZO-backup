@@ -240,7 +240,7 @@ $_cvh_card_li = '<li><a class="dropdown-item" href="' . APP_URL . '/modules/cont
                 data-bs-toggle="dropdown" aria-expanded="false" title="Dokumenty, koperty i wydruki">
           <i class="bi bi-file-earmark-text"></i> <span>Dokumenty i wydruki</span>
         </button>
-        <ul class="dropdown-menu dropdown-menu-end" style="min-width:230px">
+        <ul class="dropdown-menu dropdown-menu-end" style="min-width:230px" data-print-popup>
           <li><h6 class="dropdown-header"><i class="bi bi-folder2-open me-1"></i>Karta do segregatora</h6></li>
           <li class="d-flex align-items-center px-2 gap-1">
             <a class="dropdown-item flex-grow-1" href="<?= $_cvh_burl ?>&typ=wkladka&preview=1" target="_blank">
@@ -318,6 +318,22 @@ $_cvh_card_li = '<li><a class="dropdown-item" href="' . APP_URL . '/modules/cont
           <?php if ($_cvh_doc_frag !== ''): ?><li><hr class="dropdown-divider"></li><?= $_cvh_doc_frag ?><?php endif; ?>
         </ul>
       </div>
+      <script>
+      /* Wydruki z menu „Dokumenty i wydruki” otwierają się w osobnym oknie popup (nie w nowej karcie). */
+      (function () {
+        document.querySelectorAll('[data-print-popup]').forEach(function (menu) {
+          menu.addEventListener('click', function (e) {
+            var a = e.target.closest('a[target="_blank"]');
+            if (!a || !menu.contains(a) || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+            var w = Math.min(1100, screen.availWidth - 80), h = Math.min(900, screen.availHeight - 80);
+            var l = Math.round((screen.availWidth - w) / 2), t = Math.round((screen.availHeight - h) / 2);
+            var win = window.open(a.href, 'szoPrintPopup',
+              'popup=yes,width=' + w + ',height=' + h + ',left=' + l + ',top=' + t + ',resizable=yes,scrollbars=yes');
+            if (win) { e.preventDefault(); win.focus(); }
+          });
+        });
+      })();
+      </script>
       <?php endif; ?>
 
       <?= contract_correction_button($_cvh_type, (int)$_cvh_row['id'], $_cvh_row) ?>
