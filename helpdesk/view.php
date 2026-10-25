@@ -107,6 +107,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_share']) && $is_op) 
     hd_finish($xhr, $id);
 }
 
+// ── Obserwatorzy i tagi ───────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_op && (isset($_POST['_watch_add']) || isset($_POST['_watch_del']) || isset($_POST['_tag_add']) || isset($_POST['_tag_del']))) {
+    csrf_check();
+    require_once dirname(__DIR__) . '/modules/helpdeskCollab/lib/helpdeskCollab.php';
+    $err = null;
+    if (isset($_POST['_watch_add'])) {
+        $err = hdWatchAdd($id, (int)($_POST['watch_user'] ?? 0), (string)($_POST['watch_email'] ?? ''), (string)($_POST['watch_name'] ?? ''), $uid);
+        if (!$err) flash_set('success', 'Dodano obserwatora.');
+    } elseif (isset($_POST['_watch_del'])) {
+        hdWatchRemove($id, (int)$_POST['_watch_del']); flash_set('success', 'Usunięto obserwatora.');
+    } elseif (isset($_POST['_tag_add'])) {
+        $err = hdTagAdd($id, (string)($_POST['tag_input'] ?? ''));
+    } else {
+        hdTagRemove($id, (string)$_POST['_tag_del']);
+    }
+    if ($err) flash_set('danger', $err);
+    hd_finish($xhr, $id);
+}
+
 // ── Rejestr czasu pracy ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_log_time']) && $is_op) {
     csrf_check();

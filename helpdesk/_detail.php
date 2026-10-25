@@ -117,49 +117,46 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
 .hd-macro-toggle:hover, .hd-macro-toggle.open { background: var(--hd-accent-l); border-color: var(--hd-accent-m); color: var(--hd-accent); }
 </style>
 
-<!-- ── Nagłówek zgłoszenia ─────────────────────────────────────────────────── -->
-<div class="hd-det-header">
-  <div class="d-flex align-items-start gap-2 flex-wrap">
-    <?php if ($hd_pane): ?>
-    <button type="button" class="btn btn-sm btn-outline-secondary d-lg-none flex-shrink-0" data-hd-back aria-label="Wróć do listy">
-      <i class="bi bi-arrow-left"></i>
-    </button>
-    <?php else: ?>
-    <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-sm btn-outline-secondary flex-shrink-0" aria-label="Wróć">
-      <i class="bi bi-arrow-left"></i>
-    </a>
-    <?php endif; ?>
-    <div class="flex-grow-1 min-w-0">
-      <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-        <span class="hd-det-num"><?= h($ticket['number']) ?></span>
-        <?= hd_status_badge($ticket['status']) ?>
-        <?= hd_priority_badge($ticket['priority']) ?>
-        <span class="badge bg-light text-secondary border" style="font-size:.7rem">
-          <?= h(hd_categories()[$ticket['category']] ?? $ticket['category']) ?>
-        </span>
-      </div>
-      <div class="hd-det-title"><?= h($ticket['title']) ?></div>
-      <div class="hd-det-meta">
-        <span><i class="bi bi-person me-1"></i><?= h($ticket['requester_name']) ?></span>
-        <?php if ($hd_on_behalf): ?>
-        <span class="badge bg-secondary-subtle text-secondary-emphasis border" style="font-size:.7rem"
-              title="Dodane przez admin <?= h($req_acct_name) ?>">
-          <i class="bi bi-person-badge me-1"></i>W imieniu
-        </span>
-        <?php endif; ?>
-        <?php if ($ticket['requester_email']): ?>
-        <span class="font-monospace" style="font-size:.74rem"><?= h($ticket['requester_email']) ?></span>
-        <?php endif; ?>
-        <span><i class="bi bi-calendar3 me-1"></i><?= date_pl(substr($ticket['created_at'], 0, 10)) ?></span>
-        <?php if ($ticket['assigned_name']): ?>
-        <span style="color:#10b981"><i class="bi bi-person-check me-1"></i><?= h($ticket['assigned_name']) ?></span>
-        <?php else: ?>
-        <span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Nieprzypisane</span>
-        <?php endif; ?>
-      </div>
-    </div>
-  </div>
+<!-- ── Nagłówek zgłoszenia (układ Dynamics 365) ───────────────────────────── -->
+<?php
+require_once dirname(__DIR__) . '/includes/dynRecord.php';
+$_hd_main = ['nowe' => 'Nowe', 'otwarte' => 'Otwarte', 'rozwiązane' => 'Rozwiązane', 'zamknięte' => 'Zamknięte'];
+$_hd_off  = [];
+foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = $_s['label'];
+?>
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/dynamics.css?v=<?= (int)@filemtime(dirname(__DIR__) . '/assets/css/dynamics.css') ?>">
+<div class="dyn-cmdbar" role="toolbar" aria-label="Polecenia zgłoszenia">
+  <?php if ($hd_pane): ?>
+  <button type="button" class="dyn-cmd d-lg-none" data-hd-back><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Wróć do listy</span></button>
+  <?php else: ?>
+  <a href="<?= APP_URL ?>/helpdesk/index.php" class="dyn-cmd"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Wróć do listy</span></a>
+  <?php endif; ?>
+  <span class="dyn-sep" aria-hidden="true"></span>
+  <a href="#hdMsgBody" class="dyn-cmd" onclick="var e=document.getElementById('hdMsgBody');if(e){e.focus&&e.focus();}"><i class="bi bi-reply" aria-hidden="true"></i><span>Odpowiedz</span></a>
+  <?php if (!$hd_pane): ?>
+  <a href="" class="dyn-cmd" onclick="location.reload();return false;"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i><span>Odśwież</span></a>
+  <?php endif; ?>
 </div>
+
+<div class="dyn-head hd-det-header">
+  <div class="dyn-head__main">
+    <?= dynEntity('Zgłoszenie', hd_categories()[$ticket['category']] ?? (string)$ticket['category']) ?>
+    <h1 class="dyn-title hd-det-title"><?= h($ticket['title']) ?> <span class="hd-det-num"><?= h($ticket['number']) ?></span>
+      <?php if ($hd_on_behalf): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1" style="font-size:.7rem" title="Dodane przez admin <?= h($req_acct_name) ?>"><i class="bi bi-person-badge me-1"></i>W imieniu</span><?php endif; ?>
+    </h1>
+  </div>
+  <?= dynHFields([
+      ['Status', ['html' => hd_status_badge($ticket['status'])]],
+      ['Priorytet', ['html' => hd_priority_badge($ticket['priority'])]],
+      ['Zgłaszający', (string)$ticket['requester_name']],
+      ['Przypisane do', $ticket['assigned_name'] ? (string)$ticket['assigned_name'] : ['html' => '<span class="text-danger">Nieprzypisane</span>']],
+      ['Utworzono', date_pl(substr($ticket['created_at'], 0, 10))],
+  ]) ?>
+</div>
+<?= dynStages($_hd_main, (string)$ticket['status'], ['label' => 'Etapy zgłoszenia', 'off' => $_hd_off]) ?>
+<?php if ($ticket['requester_email']): ?>
+<div class="small text-muted mt-2 mb-2"><i class="bi bi-envelope me-1"></i><span class="font-monospace"><?= h($ticket['requester_email']) ?></span></div>
+<?php else: ?><div class="mb-2"></div><?php endif; ?>
 
 <?php if (!$hd_pane) echo flash_html(); ?>
 
@@ -448,6 +445,56 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
     </div>
   </div>
   <?php endif; ?>
+
+  <!-- Tagi -->
+  <?php require_once dirname(__DIR__) . '/modules/helpdeskCollab/lib/helpdeskCollab.php'; $hd_tags = hdTagsOf((int)$ticket['id']); $hd_watch = hdWatchList((int)$ticket['id']); ?>
+  <div class="hd-side-card">
+    <div class="hd-side-card-head"><i class="bi bi-tags"></i>Tagi</div>
+    <div class="hd-side-card-body">
+      <div class="d-flex flex-wrap gap-1 mb-2">
+        <?php foreach ($hd_tags as $tg): ?>
+        <form method="post" action="<?= h($view_action) ?>" data-hd-form class="d-inline">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <button type="submit" name="_tag_del" value="<?= h($tg) ?>" class="badge border-0" style="background:var(--hd-accent-l);color:var(--hd-accent);font-weight:600" title="Usuń tag"><?= h($tg) ?> <i class="bi bi-x"></i></button>
+        </form>
+        <?php endforeach; if (!$hd_tags): ?><span class="text-muted" style="font-size:.78rem">Brak tagów</span><?php endif; ?>
+      </div>
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form>
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_tag_add" value="1">
+        <div class="input-group input-group-sm">
+          <input type="text" name="tag_input" class="form-control" placeholder="np. vpn, licencja" maxlength="120" aria-label="Nowe tagi" required>
+          <button class="btn btn-outline-secondary">Dodaj</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Obserwatorzy -->
+  <div class="hd-side-card">
+    <div class="hd-side-card-head"><i class="bi bi-eye"></i>Obserwatorzy<span class="ms-auto fw-normal"><?= count($hd_watch) ?: '' ?></span></div>
+    <div class="hd-side-card-body">
+      <?php foreach ($hd_watch as $w): ?>
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form class="d-flex align-items-center gap-1 mb-1" style="font-size:.78rem">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <span class="text-truncate" title="<?= h($w['email']) ?>"><?= h($w['name'] !== '' ? $w['name'] : $w['email']) ?></span>
+        <button type="submit" name="_watch_del" value="<?= (int)$w['id'] ?>" class="btn btn-sm btn-link text-danger p-0 ms-auto" title="Usuń obserwatora"><i class="bi bi-x-lg"></i></button>
+      </form>
+      <?php endforeach; ?>
+      <form method="post" action="<?= h($view_action) ?>" data-hd-form class="mt-2">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_watch_add" value="1">
+        <?php if ($operators): ?>
+        <select name="watch_user" class="form-select form-select-sm mb-1" aria-label="Operator jako obserwator">
+          <option value="">— operator SZO —</option>
+          <?php foreach ($operators as $op): ?><option value="<?= (int)$op['id'] ?>"><?= h($op['name']) ?></option><?php endforeach; ?>
+        </select>
+        <?php endif; ?>
+        <div class="input-group input-group-sm">
+          <input type="email" name="watch_email" class="form-control" placeholder="…albo e-mail spoza SZO" aria-label="E-mail obserwatora">
+          <button class="btn btn-outline-secondary">Dodaj</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Czas pracy -->
   <?php require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php'; $hd_time = hdTimeList((int)$ticket['id']); $hd_time_sum = array_sum(array_column($hd_time, 'minutes')); ?>

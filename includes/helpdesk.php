@@ -1247,6 +1247,27 @@ html body .hd-bulk-bar .btn{border-radius:0}
 html body .hd-bulk-bar .btn-outline-secondary{border-color:#8a8a8a;color:#fff}
 html body .hd-bulk-bar .btn-outline-secondary:hover{background:var(--hd-accent)}
 html body .hd-bulk-bar .btn-link{color:#fff}
+
+/* ── Szata Dynamics 365 (karta zgłoszenia) ── */
+:root{--hd-accent:#0f6cbd;--hd-accent-h:#115ea3;--hd-accent-l:#eff6fc;--hd-accent-m:#c7e0f4;--hd-bg:#faf9f8;--hd-bd:#e1dfdd;--hd-bd-l:#edebe9;--hd-tx:#242424;--hd-tx2:#605e5c;--hd-tx3:#8a8886}
+html body .hd-det-header{background:#fff;border:1px solid #e1dfdd;padding:.9rem 1.1rem;margin-bottom:.6rem}
+html body .hd-det-title{font-weight:600;font-size:1.35rem;letter-spacing:0;color:#242424}
+html body .hd-det-num{background:transparent;color:#605e5c;padding:0;font-weight:400;font-size:.95rem;margin-left:.4rem}
+html body .dyn-cmdbar{border-radius:0}
+html body .hd-side-card{background:#fff;border:1px solid #e1dfdd}
+html body .hd-side-card-head{background:#fff;border-bottom:1px solid #edebe9;text-transform:none;letter-spacing:0;font-size:.85rem;font-weight:600;color:#242424}
+html body .hd-side-stat-btn{border:1px solid #8a8886;background:#fff;color:#242424}
+html body .hd-side-stat-btn:hover{background:#f3f2f1;border-color:#605e5c;color:#242424}
+html body .hd-reply-box{border:1px solid #e1dfdd}
+html body .hd-reply-hd{background:#fff;border-bottom:1px solid #edebe9;font-weight:600}
+html body .hd-msg-user{background:#eff6fc;border:1px solid #c7e0f4}
+html body .hd-msg-op{background:#faf9f8;border:1px solid #e1dfdd}
+html body .hd-msg-intern{background:#fff4ce;border:1px solid #f2e0a0}
+html body .hd-msg-av-req{background:#038387}html body .hd-msg-av-op{background:#0f6cbd}
+html body .hd-macro-toggle:hover,html body .hd-macro-toggle.open{background:#eff6fc;border-color:#0f6cbd;color:#0f6cbd}
+html body .hd-macro-toggle,html body .hd-macro-card{border-width:1px}
+html body .btn-primary{background:#0f6cbd;border-color:#0f6cbd}
+html body .btn-primary:hover{background:#115ea3;border-color:#115ea3}
 </style>
 CSS;
 }
@@ -1254,6 +1275,13 @@ CSS;
 // ── Powiadomienia ─────────────────────────────────────────────────────────────
 
 function hd_notify_status_change(array $ticket, string $old_status, string $new_status, string $note = ''): void {
+    try {
+        require_once dirname(__DIR__) . '/modules/helpdeskCollab/lib/helpdeskCollab.php';
+        hdWatchNotify($ticket, '[' . $ticket['number'] . '] Status: ' . (HD_STATUSES[$new_status]['label'] ?? $new_status) . ' — ' . $ticket['title'],
+            '<p>Zmiana statusu zgłoszenia <strong>' . h($ticket['number']) . '</strong>: ' . h(HD_STATUSES[$old_status]['label'] ?? $old_status)
+            . ' → <strong>' . h(HD_STATUSES[$new_status]['label'] ?? $new_status) . '</strong>.</p>' . ($note !== '' ? '<p>' . nl2br(h($note)) . '</p>' : ''),
+            [(string)($ticket['requester_email'] ?? '')]);
+    } catch (\Throwable $e) {}
     // Ankieta zadowolenia po zakończeniu zgłoszenia (jeśli włączona w ustawieniach)
     try { require_once dirname(__DIR__) . '/modules/helpdeskCsat/lib/helpdeskCsat.php'; hdCsatMaybeSend($ticket, $new_status); } catch (\Throwable $e) {}
     $old_label = HD_STATUSES[$old_status]['label'] ?? $old_status;
@@ -1314,6 +1342,15 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
 
 function hd_notify_new_message(array $ticket, array $message): void {
     if ($message['is_internal']) return;
+    // Kopia dla obserwatorów (CC) — poza autorem wiadomości i zgłaszającym (oni mają własne powiadomienia)
+    try {
+        require_once dirname(__DIR__) . '/modules/helpdeskCollab/lib/helpdeskCollab.php';
+        $_w_author = !empty($message['user_id']) ? (string)(db_one("SELECT email FROM users WHERE id=?", [(int)$message['user_id']])['email'] ?? '') : '';
+        hdWatchNotify($ticket, '[' . $ticket['number'] . '] Nowa wiadomość: ' . $ticket['title'],
+            '<p><strong>' . h((string)($message['user_name'] ?? '')) . '</strong> napisał(a):</p><blockquote style="border-left:3px solid #cbd5e1;margin:0;padding:.3rem .8rem;color:#334155">'
+            . nl2br(h(mb_substr(strip_tags((string)$message['body']), 0, 2000))) . '</blockquote>',
+            [$_w_author, (string)($ticket['requester_email'] ?? '')]);
+    } catch (\Throwable $e) {}
     $org       = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
     $view_url  = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
     $track_url = hd_track_url($ticket);   // link bez logowania — umożliwia kontynuację
