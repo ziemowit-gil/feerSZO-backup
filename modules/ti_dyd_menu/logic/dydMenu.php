@@ -65,6 +65,9 @@ function dydMenuSections(): array
         if ($staff) $nLcQueue = tiLcAuditorQueueCount();
     } catch (\Throwable $e) {}
 
+    // Brak aktywnego certyfikatu do podpisu protokołów — czerwona odznaka (dawniej w górnym pasku sekcji)
+    $nCert = 0;
+    try { if (function_exists('dyd_cert_missing') && dyd_cert_missing()) $nCert = 1; } catch (\Throwable $e) {}
     $sec = [];
 
     if ($mode === 'konsultacje') {
@@ -88,7 +91,7 @@ function dydMenuSections(): array
             $it('komunikaty', 'Komunikaty', $gt('komunikaty'), 'megaphone', $nNot, 'warning'),
         ]];
         $sec[] = ['key' => 'moje', 'label' => 'Moje', 'items' => [
-            $it('', 'Mój certyfikat', 'moj_certyfikat.php', 'shield-check'),
+            $it('', 'Mój certyfikat', 'moj_certyfikat.php', 'shield-check', $nCert, 'danger'),
             $it('', 'Moje godziny',   'godziny.php',        'hourglass-split'),
             $it('', 'Login zastępczy', 'kontoZastepcze.php', 'key'),
         ]];
@@ -108,7 +111,7 @@ function dydMenuSections(): array
             $it('',                'Moje zgłoszenia',   'mojeZgloszenia.php',   'inbox'),
             $it('',                'Hospitacje',        'hospitacje.php',       'clipboard2-pulse'),
             $it('',                'Umowa',             'index.php?tab=formalnosci#umowa', 'file-earmark-text', $nContr, 'success'),
-            $it('',                'Mój certyfikat',    'moj_certyfikat.php',   'shield-check'),
+            $it('',                'Mój certyfikat',    'moj_certyfikat.php',   'shield-check', $nCert, 'danger'),
         ];
         if (function_exists('dyd_plan_cykliczny_enabled') && dyd_plan_cykliczny_enabled()) $start[] = $it('cykliczne', 'Plan cykliczny', $gt('cykliczne'), 'arrow-repeat');
         if ($canAn && !$staff) $start[] = $it('', 'Analityka TI', 'analityka.php', 'speedometer2');

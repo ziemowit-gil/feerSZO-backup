@@ -203,6 +203,8 @@ register_shutdown_function(function () use ($pmode, $expect, $flashRe) {
     $out = ob_get_clean(); $flash = json_encode($_SESSION['flash'] ?? null, JSON_UNESCAPED_UNICODE);
     $good = ($flashRe === null || preg_match($flashRe, (string)$flash)) && ($expect === '' || str_contains($out, $expect)) && !preg_match('/Warning|Fatal error|Notice|Deprecated/', $out);
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && strlen($out) < 2000) $good = false;
+    // Menu jest tylko boczne: strona ma menu boczne i nie ma górnego rzędu sekcji
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && (!str_contains($out, 'dyd-side-sec') || str_contains($out, 'class="dyd-topnav"'))) $good = false;
     echo ($good ? "mode=$pmode OK" : "FAIL mode=$pmode bytes=" . strlen($out) . " flash=$flash") . "\n";
 });
 include $root . '/karty30/ti/dydaktyk/' . $script;
