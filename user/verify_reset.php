@@ -210,6 +210,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email        = trim($_POST['email']         ?? '');
             $numer_umowy  = trim($_POST['numer_umowy']   ?? '');
             $pesel_or_doc = trim($_POST['pesel_or_doc']  ?? '');
+            [$l5w, $l5wp]  = fcMatchLast5('umowy_wolontariat', 'pesel', $pesel_or_doc, 'c');   // ostatnie 5 cyfr PESEL (alias c)
+            [$l5w0, $l5w0p] = fcMatchLast5('umowy_wolontariat', 'pesel', $pesel_or_doc);        // bez aliasu
             $no_numer     = !empty($_POST['no_numer_umowy']);   // ścieżka "bez numeru"
             $data_ur      = trim($_POST['data_urodzenia'] ?? '');
 
@@ -233,15 +235,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        AND (c.numer_umowy IS NULL OR c.numer_umowy = '')
                        AND (c.data_zawarcia IS NULL OR c.data_zawarcia < '2026-06-01')
                        AND c.recovery_code_hash IS NOT NULL
-                       AND (SUBSTR(c.pesel,-5) = ? OR c.id_document_number = ?)
+                       AND ({$l5w} OR c.id_document_number = ?)
                      LIMIT 5"
                 );
-                $stmt->execute([$email, $pesel_or_doc, $pesel_or_doc]);
+                $stmt->execute([$email, ...$l5wp, $pesel_or_doc]);
                 $candidates = array_merge($candidates, $stmt->fetchAll(\PDO::FETCH_ASSOC));
 
                 // Pozostałe typy (jeśli mają kolumnę recovery_code_hash)
                 foreach (['umowy_zlecenie','umowy_dzielo','umowy_praca'] as $_tbl) {
                     try {
+                        [$l5t, $l5tp] = fcMatchLast5($_tbl, 'pesel', $pesel_or_doc, 'c');
                         $stmt = $pdo->prepare(
                             "SELECT u.id, u.email, u.phone_number, u.twofa_phone,
                                     u.is_minor, u.guardian_phone, u.guardian_email,
@@ -252,10 +255,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                AND (c.numer_umowy IS NULL OR c.numer_umowy = '')
                                AND (c.data_zawarcia IS NULL OR c.data_zawarcia < '2026-06-01')
                                AND c.recovery_code_hash IS NOT NULL
-                               AND SUBSTR(c.pesel,-5) = ?
+                               AND {$l5t}
                              LIMIT 5"
                         );
-                        $stmt->execute([$email, $pesel_or_doc]);
+                        $stmt->execute([$email, ...$l5tp]);
                         $candidates = array_merge($candidates, $stmt->fetchAll(\PDO::FETCH_ASSOC));
                     } catch (\Throwable $e) {}
                 }
@@ -278,12 +281,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      WHERE email = ?
                        AND numer_umowy = ?
                        AND (
-                           SUBSTR(pesel, -5) = ?
+                           {$l5w0}
                            OR id_document_number = ?
                        )
                      LIMIT 1"
                 );
-                $stmt->execute([$email, $numer_umowy, $pesel_or_doc, $pesel_or_doc]);
+                $stmt->execute([$email, $numer_umowy, ...$l5w0p, $pesel_or_doc]);
                 $contract_row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
                 if ($contract_row) {
@@ -313,6 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach (['umowy_zlecenie','umowy_dzielo','umowy_praca'] as $_tbl) {
                     if ($found_user) break;
                     try {
+                        [$l5t, $l5tp] = fcMatchLast5($_tbl, 'pesel', $pesel_or_doc, 'c');
                         $stmt = $pdo->prepare(
                             "SELECT u.id, u.email, u.phone_number, u.twofa_phone,
                                     u.is_minor, u.guardian_phone, u.guardian_email
@@ -320,10 +324,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                              JOIN users u ON u.email = c.email
                              WHERE c.email = ?
                                AND c.numer_umowy = ?
-                               AND SUBSTR(c.pesel, -5) = ?
+                               AND {$l5t}
                              LIMIT 1"
                         );
-                        $stmt->execute([$email, $numer_umowy, $pesel_or_doc]);
+                        $stmt->execute([$email, $numer_umowy, ...$l5tp]);
                         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
                         if ($row) $found_user = $row;
                     } catch (\Throwable $e) {}

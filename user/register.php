@@ -71,13 +71,14 @@ const REG_ERR_PIN        = 'Nieprawidłowy PIN rejestracji. Poproś administrato
  * Zwraca ['contract' => row, 'phone' => string] lub null/string (kod błędu).
  */
 function _reg_find_contract(string $email, string $pesel_or_doc): array|null|string {
+    [$l5, $l5p] = fcMatchLast5('umowy_wolontariat', 'pesel', $pesel_or_doc);   // ostatnie 5 cyfr PESEL (kolumna bywa zaszyfrowana)
     $stmt = db()->prepare(
         "SELECT * FROM umowy_wolontariat
          WHERE LOWER(email) = LOWER(?)
-           AND (SUBSTR(pesel, -5) = ? OR id_document_number = ?)
+           AND ({$l5} OR id_document_number = ?)
          ORDER BY id DESC LIMIT 1"
     );
-    $stmt->execute([$email, $pesel_or_doc, $pesel_or_doc]);
+    $stmt->execute([$email, ...$l5p, $pesel_or_doc]);
     $contract = $stmt->fetch(\PDO::FETCH_ASSOC);
 
     if (!$contract) return null;

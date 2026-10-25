@@ -409,18 +409,18 @@ function crm_contact_contracts(array $contact): array
     $person_id = (int)($contact['person_id'] ?? 0);
     $pesel     = preg_replace('/\D+/', '', (string)($contact['pesel'] ?? '')) ?? '';
     if ($person_id > 0 || strlen($pesel) === 11) {
-        $where  = [];
-        $params = [];
-        if ($person_id > 0)          { $where[] = 'person_id = ?';                              $params[] = $person_id; }
-        if (strlen($pesel) === 11)   { $where[] = "REPLACE(COALESCE(pesel,''),' ','') = ?";      $params[] = $pesel; }
-        $where_sql = implode(' OR ', $where);
-
         foreach ([
             'zlecenie'    => 'Umowa zlecenie',
             'wolontariat' => 'Porozumienie wolontariackie',
             'dzielo'      => 'Umowa o dzieło',
             'praca'       => 'Umowa o pracę',
         ] as $type => $label) {
+            // warunek budowany per tabela: PESEL w umowie może być zaszyfrowany (field_crypto → fcMatchPesel)
+            $where  = [];
+            $params = [];
+            if ($person_id > 0)        { $where[] = 'person_id = ?'; $params[] = $person_id; }
+            if (strlen($pesel) === 11) { [$ps, $pp] = fcMatchPesel("umowy_{$type}", 'pesel', $pesel); $where[] = $ps; array_push($params, ...$pp); }
+            $where_sql = implode(' OR ', $where);
             try {
                 foreach (db_all(
                     "SELECT id, numer_umowy, status, data_zawarcia

@@ -225,9 +225,9 @@ function fcMatchPesel(string $table, string $col, ?string $value, string $alias 
 
 /** Warunek „ostatnie 5 cyfr PESEL-u” (weryfikacja tożsamości); kolumna musi mieć 'l5' => true. */
 function fcMatchLast5(string $table, string $col, ?string $last5, string $alias = ''): array {
-    $d = preg_replace('/\D/', '', (string)$last5);
+    $d = trim((string)$last5);
     $p = $alias !== '' ? $alias . '.' : '';
-    if (strlen($d) !== 5) return ['0=1', []];
+    if (!preg_match('/^\d{5}$/', $d)) return ['0=1', []];
     $plain = "SUBSTR({$p}`{$col}`, -5) = ?";
     $e = fcAutoEntry($table, $col);
     if (!$e || !fcAutoEnabled() || empty($e['l5'])) return [$plain, [$d]];

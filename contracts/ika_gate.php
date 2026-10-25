@@ -140,7 +140,7 @@ function _ika_find_pesel(int $uid): ?string {
         if (!$val) continue;
         try {
             $row = db_one("SELECT pesel FROM {$tbl}
-                           WHERE LOWER({$col})=? AND pesel IS NOT NULL AND LENGTH(pesel)=11
+                           WHERE LOWER({$col})=? AND pesel IS NOT NULL AND (LENGTH(pesel)=11 OR pesel LIKE 'enc1:%')
                            LIMIT 1", [$val]);
             if ($row && strlen($row['pesel']) === 11) return $row['pesel'];
         } catch (\Throwable $e) {}

@@ -78,7 +78,7 @@ $check = static function (array $c) use ($ACTIVE_STATUSES, $cutoff): array {
     $params = [];
     if (trim((string)$c['email']) !== '') { $where[] = 'LOWER(email)=LOWER(?)'; $params[] = trim((string)$c['email']); }
     $pesel = preg_replace('/\D/', '', (string)($c['pesel'] ?? ''));
-    if (strlen($pesel) === 11) { $where[] = "REPLACE(COALESCE(pesel,''),' ','')=?"; $params[] = $pesel; }
+    if (strlen($pesel) === 11) { [$ps, $pp] = fcMatchPesel('umowy_wolontariat', 'pesel', $pesel); $where[] = $ps; array_push($params, ...$pp); }
     if (!$where) return ['keep' => true, 'why' => 'brak e-maila i PESEL-u — nie da się dopasować umowy'];
 
     try {

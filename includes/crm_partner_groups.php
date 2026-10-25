@@ -117,7 +117,7 @@ function crm_partner_contacts_for_type(string $slug): array {
         $where  = [];
         $params = [];
         if ($email !== '')            { $where[] = 'LOWER(email)=?';                              $params[] = $email; }
-        if (strlen($ident) === 11)    { $where[] = "REPLACE(COALESCE(pesel,''),' ','')=?";        $params[] = $ident; }
+        if (strlen($ident) === 11)    { [$ps, $pp] = fcMatchPesel('crm_contacts', 'pesel', $ident); $where[] = $ps; array_push($params, ...$pp); }
         if (strlen($ident) === 10)    { $where[] = "REPLACE(REPLACE(COALESCE(nip,''),'-',''),' ','')=?"; $params[] = $ident; }
         if (!$where) continue;
 
