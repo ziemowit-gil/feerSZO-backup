@@ -278,7 +278,7 @@ switch ($pmode) {
     case 'post_delete':   $_SERVER['REQUEST_METHOD'] = 'POST'; $_POST = ['_op' => 'delete_leave', 'leave_id' => (int)$last['id'], 'notify_withdrawn' => '1', 'notify_sms' => '1', 'notify_email' => '1',
         'session_ids' => array_map('intval', array_column(ti_leave_cancelled_sessions((int)$last['id']), 'id'))]; $flashRe = '/Nieobecność usunięta/u'; break;
     case 'get_rebook':    $script = 'nowyTermin.php'; $expect = 'Nowe terminy po odwołaniu'; break;
-    case 'get_pulpit':    $script = 'index.php'; $_GET['tab'] = 'pulpit'; $_GET['view'] = 'week'; $expect = 'id="dyd-dayweek"'; break;
+    case 'get_pulpit':    $script = 'index.php'; $_GET['tab'] = 'pulpit'; $_GET['view'] = 'week'; $expect = 'aria-label="Zestawienia"'; break;   // duże kafle funkcji i zestawień
     case 'get_pulpit_wk': $script = 'index.php'; $_GET['tab'] = 'pulpit'; $_GET['wk'] = '1'; $expect = 'Grupa A P'; break;   // lekcje testowe są za 6 dni — w następnym tygodniu
     case 'get_hours':     $script = 'raportGodzin.php'; $expect = 'export=csv'; break;   // strona z linkiem eksportu (sam plik CSV zrzuca się poza buforem testu)
     case 'get_hours_m':   $script = 'raportGodzin.php'; $_GET['m'] = date('Y-m', strtotime('+8 day')); $_GET['by'] = 'grupa'; $expect = 'Grupa A H'; break;

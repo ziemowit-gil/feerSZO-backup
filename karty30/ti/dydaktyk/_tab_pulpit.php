@@ -239,6 +239,69 @@ if (!empty($_kp_counts)) $_tl[] = ['#1d1d1d', 'building', (int)$_kp_counts['grou
 @media (prefers-reduced-motion: reduce) { .dyd-tile { transition: none; } }
 </style>
 
+<?php
+// ── Duże kafle: najważniejsze funkcje i zestawienia (Metro) — kierownik widzi dodatkowo pozycje zarządcze ──
+$_stf = dyd_is_staff();
+$_dydroot = __DIR__;
+$_fn = [   // [kolor, ikona, etykieta, adres]
+    ['#0b5582', 'calendar3',        'Plan zajęć',            'index.php?tab=plan'],
+    ['#006064', 'calendar-week',    'Lekcje',                'index.php?tab=lekcje'],
+    ['#2e7d32', 'journal-check',    'Protokoły',             'protokoly_moje.php'],
+    ['#6a1b9a', 'calendar-check',   'Moja dostępność',       'index.php?tab=dostepnosc'],
+    ['#ad1457', 'inbox',            'Moje zgłoszenia',       'mojeZgloszenia.php'],
+    ['#bf360c', 'chat-dots',        'Wiadomości',            'index.php?tab=wiadomosci'],
+    ['#5d4037', 'hdd',              'Mój dysk',              'index.php?tab=dysk'],
+];
+$_rp = [
+    ['#303f9f', 'hourglass-split',  'Moje godziny',          'godziny.php'],
+    ['#00695c', 'people',           'Godziny wg grup',       'godziny.php?r=grupy'],
+    ['#0b5582', 'calendar-week',    'Godziny wg tygodni',    'godziny.php?r=tygodnie'],
+    ['#c25100', 'graph-up',         'Trend 12 miesięcy',     'godziny.php?r=trend'],
+    ['#a20025', 'calendar-x',       'Odwołania i zmiany',    'godziny.php?r=odwolania'],
+    ['#00807e', 'graph-up-arrow',   'Frekwencja grup',       'index.php?tab=frekwencja_grup'],
+    ['#6a00ff', 'printer',          'Wydruki',               'index.php?tab=wydruki'],
+];
+if ($_stf) {
+    array_unshift($_fn,
+        ['#1d1d1d', 'people',       'Przegląd grup',         'index.php?tab=grupy'],
+        ['#7b1fa2', 'calendar3-range', 'Planista zajęć',     'planista.php'],
+        ['#c25100', 'inbox-fill',   'Zgłoszenia trenerów',   'zgloszenia.php'],
+        ['#b71c1c', 'calendar-plus', 'Nowe terminy po odwołaniu', 'nowyTermin.php'],
+        ['#00838f', 'airplane',     'Nieobecności prowadzących', 'urlopy.php'],
+        ['#455a64', 'calendar-week', 'Wysyłka tygodniowa',   'tygodniowaWysylka.php']);
+    array_unshift($_rp,
+        ['#0d47a1', 'calendar3',    'Godziny TI w miesiącach', 'raportGodzin.php']);
+    if (is_file($_dydroot . '/raportPrzychodu.php')) array_splice($_rp, 1, 0, [['#2e7d32', 'cash-coin', 'Przychód i prognozy', 'raportPrzychodu.php']]);
+    $_rp[] = ['#880e4f', 'calendar-x', 'Raport odwołanych', 'raport_odwolanych.php'];
+    $_rp[] = ['#37474f', 'receipt', 'Rozliczenia kursantów', 'billing.php'];
+    if (function_exists('dyd_can_analytics') && dyd_can_analytics()) $_rp[] = ['#1b5e20', 'speedometer2', 'Analityka TI', 'analityka.php'];
+}
+?>
+<h2 class="dyd-bt-h">Najważniejsze funkcje</h2>
+<nav class="dyd-bigtiles" aria-label="Najważniejsze funkcje">
+  <?php foreach ($_fn as [$_c, $_i, $_l, $_u]): ?>
+  <a class="dyd-bt" href="<?= h($_u) ?>" style="--k:<?= h($_c) ?>"><i class="bi bi-<?= h($_i) ?>" aria-hidden="true"></i><span><?= h($_l) ?></span></a>
+  <?php endforeach; ?>
+</nav>
+<h2 class="dyd-bt-h">Zestawienia</h2>
+<nav class="dyd-bigtiles" aria-label="Zestawienia">
+  <?php foreach ($_rp as [$_c, $_i, $_l, $_u]): ?>
+  <a class="dyd-bt" href="<?= h($_u) ?>" style="--k:<?= h($_c) ?>"><i class="bi bi-<?= h($_i) ?>" aria-hidden="true"></i><span><?= h($_l) ?></span></a>
+  <?php endforeach; ?>
+</nav>
+<style>
+/* Duże kafle skrótów (Metro): pełny kolor, biały tekst (wszystkie kolory ≥ 4,5:1), zero zaokrągleń, ikona u góry, nazwa u dołu */
+.dyd-bt-h { font-size: .74rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #3a3a3a; margin: 0 0 .5rem; }
+.dyd-bigtiles { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); margin: 0 0 1.25rem; }
+.dyd-bt { display: flex; flex-direction: column; justify-content: space-between; min-height: 112px; padding: .85rem 1rem; background: var(--k); color: #fff !important;
+  text-decoration: none !important; border-radius: 0 !important; transition: filter .12s; }
+.dyd-bt .bi { font-size: 2rem; line-height: 1; }
+.dyd-bt span { font-size: .95rem; font-weight: 600; line-height: 1.2; margin-top: .6rem; }
+.dyd-bt:hover, .dyd-bt:focus-visible { color: #fff !important; filter: brightness(1.12); outline: 3px solid #1d1d1d; outline-offset: 2px; }
+@media (max-width: 575.98px) { .dyd-bigtiles { grid-template-columns: repeat(2, 1fr); } .dyd-bt { min-height: 96px; } }
+@media (prefers-reduced-motion: reduce) { .dyd-bt { transition: none; } }
+</style>
+
 <div class="row g-3 dyd-pulpit-cols">
 <div class="col-xl-7">
 <?php /* ── Dziś ──────────────────────────────────────────────────────────── */ ?>
