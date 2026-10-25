@@ -478,6 +478,8 @@ function _menu_editor(): array {
     $kanc[] = _mi('Uchwały','/resolutions/index.php','bi-file-ruled',['match'=>'/resolutions/','kw'=>'uchwały zarząd']);
     if (in_array(current_user()['role'] ?? '', ['admin','editor'], true))
         $kanc[] = _mi('Klauzule RODO','/modules/gdpr_clauses/index.php','bi-shield-lock',['match'=>'/modules/gdpr_clauses/','kw'=>'klauzule rodo gdpr klauzula informacyjna ochrona danych iod']);
+    if (is_admin())
+        $kanc[] = _mi('Obsługa RODO','/modules/rodo_register/router.php','bi-shield-check',['match'=>'/modules/rodo_register/','kw'=>'rodo gdpr rejestr czynności przetwarzania wnioski osób naruszenia retencja podmioty przetwarzające dpia iod art 30']);
 
     $forms = [];
     if (module_enabled('dostepnosc_ngo_enabled') && !is_viewer()) {
