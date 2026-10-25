@@ -1336,6 +1336,9 @@ CSS;
 // ── Powiadomienia ─────────────────────────────────────────────────────────────
 
 function hd_notify_status_change(array $ticket, string $old_status, string $new_status, string $note = ''): void {
+    if (($ticket['category'] ?? '') === 'it_licencje_am' && empty($GLOBALS['_hdAmLogged']) && $old_status !== $new_status) {
+        try { require_once dirname(__DIR__) . '/modules/helpdeskExtras/lib/helpdeskExtras.php'; hdAmEvent((int)$ticket['id'], 'status → ' . (HD_STATUSES[$new_status]['label'] ?? $new_status)); } catch (\Throwable $e) {}
+    }
     if ($old_status !== $new_status) { try { db()->prepare("UPDATE helpdesk_tickets SET substatus=NULL WHERE id=? AND substatus IS NOT NULL")->execute([(int)$ticket['id']]); } catch (\Throwable $e) {} }
     hd_rules_event((int)$ticket['id'], 'status', ['to_status' => $new_status]);
     try {

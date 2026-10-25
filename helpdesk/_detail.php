@@ -583,6 +583,23 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
     </div>
   </div>
 
+  <!-- Wniosek AM (licencje) -->
+  <?php require_once dirname(__DIR__) . '/modules/helpdeskExtras/lib/helpdeskExtras.php'; $hd_am = hdAmFor((int)$ticket['id']); ?>
+  <?php if ($hd_am): ?>
+  <div class="hd-side-card">
+    <div class="hd-side-card-head"><i class="bi bi-patch-check"></i>Wniosek AM</div>
+    <div class="hd-side-card-body" style="font-size:.8rem">
+      <div class="fw-semibold"><?= h($hd_am['label']) ?></div>
+      <div class="font-monospace text-muted mb-1" style="font-size:.74rem"><?= h($hd_am['number']) ?></div>
+      <?php if ($hd_am['title'] !== '' && $hd_am['kind'] === 'license'): ?><div><?= h($hd_am['title']) ?></div><?php endif; ?>
+      <div class="text-muted">Osoba: <?= h($hd_am['person'] !== '' ? $hd_am['person'] : '—') ?></div>
+      <div class="text-muted">Status wniosku: <?= h($hd_am['status']) ?><?= $hd_am['due'] !== '' ? ' · termin ' . h($hd_am['due']) : '' ?></div>
+      <a href="<?= h($hd_am['url']) ?>" class="btn btn-sm btn-outline-secondary mt-2" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>Otwórz wniosek w panelu licencji</a>
+      <div class="text-muted mt-2" style="font-size:.72rem">Zmiany statusu zgłoszenia zapisują się w historii wniosku.</div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- Problem nadrzędny -->
   <?php require_once dirname(__DIR__) . '/modules/helpdeskExtras/lib/helpdeskExtras.php';
     $hd_parent = !empty($ticket['problem_id']) ? db_one("SELECT id, number, title, status FROM helpdesk_tickets WHERE id=?", [(int)$ticket['problem_id']]) : null;

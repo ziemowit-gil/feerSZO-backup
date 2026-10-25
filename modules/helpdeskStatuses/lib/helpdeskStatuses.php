@@ -103,10 +103,16 @@ function hdSubstatusSet(int $ticketId, string $code, int $uid = 0, string $uname
     db_update('helpdesk_tickets', $upd, $ticketId);
     db_insert('helpdesk_messages', ['ticket_id' => $ticketId, 'user_id' => $uid ?: null, 'user_name' => $uname !== '' ? $uname : 'System', 'is_internal' => 1,
         'body' => 'Status: ' . $sub['label'] . ($new !== $old ? ' (' . (HD_STATUSES[$new]['label'] ?? $new) . ')' : '')]);
+    $GLOBALS['_hdAmLogged'] = true;   // zdarzenie dla wniosku AM zapisujemy raz — z nazwą podstatusu (nie ponownie w hd_notify_status_change)
     if ($new !== $old) {
         $fresh = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticketId]);
         if ($fresh) hd_notify_status_change($fresh, $old, $new, '');   // czyści podstatus — ustawiamy go ponownie poniżej
         db_update('helpdesk_tickets', ['substatus' => $code], $ticketId);
+    }
+    $GLOBALS['_hdAmLogged'] = false;
+    if (in_array('it_licencje_am', hdCategoryLineage((string)$t['category']), true)) {
+        require_once dirname(__DIR__, 2) . '/helpdeskExtras/lib/helpdeskExtras.php';
+        hdAmEvent($ticketId, $sub['label'] . ($new !== $old ? ' (' . (HD_STATUSES[$new]['label'] ?? $new) . ')' : ''), $uname);
     }
     return null;
 }

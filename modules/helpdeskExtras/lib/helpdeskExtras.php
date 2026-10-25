@@ -5,7 +5,8 @@
  *   2. @wzmianki operatorów w notatkach wewnętrznych (powiadomienie e-mail),
  *   3. problemy nadrzędne (powiązane zgłoszenia, zbiorcze rozwiązanie),
  *   4. powiązanie zgłoszenia ze sprzętem / zasobem (rejestr Zasoby) lub wpisem ręcznym (np. nr inwentarzowy),
- *   5. baza wiedzy: podpowiedzi artykułów Portalu Usług IT i wstawianie linku do odpowiedzi.
+ *   5. baza wiedzy: podpowiedzi artykułów Portalu Usług IT i wstawianie linku do odpowiedzi,
+ *   6. obsługa licencji AM: karta wniosku na zgłoszeniu i zapis zmian statusu w historii wniosku (modules/ti_licencje_dydaktyczne).
  */
 require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
 
@@ -240,4 +241,44 @@ function hdKbSearch(string $q, int $limit = 5, bool $publicOnly = false): array
                   'excerpt' => mb_substr($plain, 0, 140) . (mb_strlen($plain) > 140 ? '…' : '')];
     }
     return $out;
+}
+
+
+// ── 6. Obsługa licencji AM ───────────────────────────────────────────────────
+
+const HD_AM_PANEL = '/karty30/ti/dydaktyk/licencjeDydaktyczne.php';
+
+/**
+ * Wniosek AM powiązany ze zgłoszeniem: decyzja AM5/AM7 (tabela licenses) albo operacja AM11–AM24 (license_operations).
+ * @return array{kind:string,id:int,number:string,title:string,person:string,status:string,due:string,url:string,label:string}|null
+ */
+function hdAmFor(int $ticketId): ?array
+{
+    try {
+        $l = db_one("SELECT id, case_number, title, interested_name, request_status, due_on, license_kind FROM licenses WHERE helpdesk_ticket_id=?", [$ticketId]);
+        if ($l) return ['kind' => 'license', 'id' => (int)$l['id'], 'number' => (string)$l['case_number'], 'title' => (string)$l['title'], 'person' => (string)$l['interested_name'],
+            'status' => (string)$l['request_status'], 'due' => (string)$l['due_on'], 'label' => 'Decyzja AM' . ($l['license_kind'] !== '' ? ' (' . $l['license_kind'] . ')' : ''),
+            'url' => APP_URL . HD_AM_PANEL . '?_route=' . rawurlencode('/licencje/' . (int)$l['id'])];
+        $o = db_one("SELECT id, number, form, status, account_name, due_on FROM license_operations WHERE helpdesk_ticket_id=?", [$ticketId]);
+        if ($o) return ['kind' => 'operation', 'id' => (int)$o['id'], 'number' => (string)$o['number'], 'title' => (string)$o['form'], 'person' => (string)$o['account_name'],
+            'status' => (string)$o['status'], 'due' => (string)$o['due_on'], 'label' => 'Operacja ' . $o['form'],
+            'url' => APP_URL . HD_AM_PANEL . '?_route=' . rawurlencode('/operacje/' . (int)$o['id'])];
+    } catch (\Throwable $e) { /* brak modułu licencji — zgłoszenie jak każde inne */ }
+    return null;
+}
+
+/** Zapis zmiany po stronie Helpdesku w historii wniosku AM (license_events). Nigdy nie rzuca wyjątku. */
+function hdAmEvent(int $ticketId, string $note, string $actorName = ''): void
+{
+    try {
+        $am = hdAmFor($ticketId);
+        if (!$am) return;
+        $t = db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [$ticketId]);
+        db_insert('license_events', [
+            'license_id' => $am['kind'] === 'license' ? $am['id'] : 0, 'operation_id' => $am['kind'] === 'operation' ? $am['id'] : null,
+            'action' => 'helpdesk.status', 'note' => mb_substr('Helpdesk ' . ($t['number'] ?? '#' . $ticketId) . ': ' . $note, 0, 2000),
+            'actor_id' => null, 'actor_name' => $actorName !== '' ? $actorName : 'Helpdesk', 'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+    } catch (\Throwable $e) { error_log('[helpdeskExtras] AM: ' . $e->getMessage()); }
 }
