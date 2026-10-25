@@ -304,6 +304,20 @@ return [
         },
     ],
 
+    // Helpdesk: kategoria „Wnioski AM (licencje)” i własne statusy (podstatusy) zależne od kategorii.
+    '2026-10_dictionary_helpdesk_substatuses' => [
+        'desc' => 'Słownik Centralny: kategoria wniosków AM i podstatusy Helpdesku',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/helpdesk.php';
+            require_once $ROOT . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            foreach ([hd_categories_dict_seed(), hdSubstatusSeed()] as $seed) {
+                $res = dictTransfer()->import($seed, 'json');
+                foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+            }
+        },
+    ],
+
     // TERYT: województwa → powiaty → gminy jako słownik systemowy (drzewo, kody TERYT) z tabeli teryt_units
     // (import GUS); bez niej — 16 województw. Kolejne importy TERC (admin/teryt_import.php) aktualizują słownik.
     '2026-10_dictionary_teryt' => [

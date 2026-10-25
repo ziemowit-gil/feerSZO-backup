@@ -91,6 +91,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status']) && $is
     hd_finish($xhr, $id);
 }
 
+// ── Własny status kategorii (podstatus) ───────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_substatus']) && $is_op) {
+    csrf_check();
+    require_once dirname(__DIR__) . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php';
+    $err = hdSubstatusSet($id, (string)$_POST['_set_substatus'], $uid, (string)($u['name'] ?? ''));
+    flash_set($err ? 'danger' : 'success', $err ?: 'Status zmieniony: ' . hdSubstatusLabel((string)$_POST['_set_substatus']));
+    hd_finish($xhr, $id);
+}
+
 // ── Udostępnienie podglądu innej osobie ───────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_share']) && $is_op) {
     csrf_check();

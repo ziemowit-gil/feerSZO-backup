@@ -25,10 +25,10 @@ function hdCatItems(): array
             $items[$code] = ['label' => (string)$it['label'], 'parent' => (string)($it['parent'] ?? ''),
                              'prefix' => strtoupper(trim((string)($a['prefix'] ?? ''))), 'pattern' => trim((string)($a['pattern'] ?? ''))];
         }
-    } else {
-        foreach (HD_CATEGORIES as $code => $label) {
-            $items[$code] = ['label' => $label, 'parent' => '', 'prefix' => HD_CATEGORY_PREFIXES[$code] ?? '', 'pattern' => ''];
-        }
+    }
+    // kategorie ze stałej, których słownik jeszcze nie ma (np. nowa kategoria przed migracją słownika) — dopisujemy płasko
+    foreach (HD_CATEGORIES as $code => $label) {
+        if (!isset($items[$code])) $items[$code] = ['label' => $label, 'parent' => '', 'prefix' => HD_CATEGORY_PREFIXES[$code] ?? '', 'pattern' => ''];
     }
     foreach ($items as $code => &$it) {
         $path = [$it['label']]; $p = $it['parent']; $guard = 0;

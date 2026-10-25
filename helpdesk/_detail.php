@@ -136,6 +136,8 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
 <!-- ── Nagłówek zgłoszenia (układ Dynamics 365) ───────────────────────────── -->
 <?php
 require_once dirname(__DIR__) . '/includes/dynRecord.php';
+require_once dirname(__DIR__) . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php';
+$_hd_subs = hdSubstatusesFor((string)$ticket['category']);   // własne statusy kategorii (np. wnioski AM)
 $_hd_main = ['nowe' => 'Nowe', 'otwarte' => 'Otwarte', 'rozwiązane' => 'Rozwiązane', 'zamknięte' => 'Zamknięte'];
 $_hd_off  = [];
 foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = $_s['label'];
@@ -153,6 +155,16 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
   <div class="dropdown d-inline-block">
     <button type="button" class="dyn-cmd dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span>Zmień status</span></button>
     <ul class="dropdown-menu">
+      <?php if ($_hd_subs): ?>
+      <li><h6 class="dropdown-header">Statusy kategorii</h6></li>
+      <?php foreach ($_hd_subs as $_sc => $_ssub): if ($_sc === ($ticket['substatus'] ?? '')) continue; ?>
+      <li><form method="post" action="<?= h($view_action) ?>" data-hd-form class="m-0">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_set_substatus" value="<?= h($_sc) ?>">
+        <button type="submit" class="dropdown-item"><i class="bi bi-record-circle me-2"<?= $_ssub['color'] !== '' ? ' style="color:' . h($_ssub['color']) . '"' : '' ?>></i><?= h($_ssub['label']) ?></button></form></li>
+      <?php endforeach; ?>
+      <li><hr class="dropdown-divider"></li>
+      <li><h6 class="dropdown-header">Statusy ogólne</h6></li>
+      <?php endif; ?>
       <?php foreach (HD_STATUSES as $_sk => $_ss): if ($_sk === $ticket['status']) continue; ?>
       <li>
         <?php if ($_sk === 'przekazane_zewn'): ?>
@@ -181,17 +193,24 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
     </h1>
   </div>
   <?= dynHFields([
-      ['Status', ['html' => hd_status_badge($ticket['status'])]],
+      ['Status', ['html' => hd_status_badge($ticket['status']) . (!empty($ticket['substatus']) ? ' <span style="font-size:.8rem;color:#605e5c">· ' . h(hdSubstatusLabel($ticket['substatus'])) . '</span>' : '')]],
       ['Priorytet', ['html' => hd_priority_badge($ticket['priority'])]],
       ['Zgłaszający', (string)$ticket['requester_name']],
       ['Przypisane do', $ticket['assigned_name'] ? (string)$ticket['assigned_name'] : ['html' => '<span class="text-danger">Nieprzypisane</span>']],
       ['Utworzono', date_pl(substr($ticket['created_at'], 0, 10))],
   ]) ?>
 </div>
+<?php if ($_hd_subs): ?>
+<?= dynStages(array_map(fn($x) => $x['label'], $_hd_subs), (string)($ticket['substatus'] ?? ''), ['label' => 'Etapy: ' . (hd_categories()[$ticket['category']] ?? '')] + ($is_op ? [
+    'form_attrs' => 'action="' . h($view_action) . '" data-hd-form',
+    'post' => fn(string $k): string => '<input type="hidden" name="_csrf" value="' . csrf_token() . '"><input type="hidden" name="_set_substatus" value="' . h($k) . '">',
+] : [])) ?>
+<?php else: ?>
 <?= dynStages($_hd_main, (string)$ticket['status'], ['label' => 'Etapy zgłoszenia', 'off' => $_hd_off] + ($is_op ? [
     'form_attrs' => 'action="' . h($view_action) . '" data-hd-form',
     'post' => fn(string $k): string => '<input type="hidden" name="_csrf" value="' . csrf_token() . '"><input type="hidden" name="_set_status" value="1"><input type="hidden" name="status" value="' . h($k) . '">',
 ] : [])) ?>
+<?php endif; ?>
 <?php if ($ticket['requester_email']): ?>
 <div class="small text-muted mt-2 mb-2"><i class="bi bi-envelope me-1"></i><span class="font-monospace"><?= h($ticket['requester_email']) ?></span></div>
 <?php else: ?><div class="mb-2"></div><?php endif; ?>

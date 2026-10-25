@@ -278,7 +278,8 @@ final class Am7Workflow
             require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
             $me = $actor['id'] ? db_one("SELECT id, name, email FROM users WHERE id = ?", [(int)$actor['id']]) : null;
             $tid = hd_ticket_quick_create(['id' => $me['id'] ?? null, 'name' => $me['name'] ?? (string)$actor['name'], 'email' => $me['email'] ?? ''],
-                'Licencja ' . $l['title'] . ' dla kursanta: ' . $l['interested_name'] . ' (' . $l['case_number'] . ')', $desc, preg_match('/microsoft|office|m365|365/i', (string)$l['title'] . ' ' . ($d['plan'] ?? '')) ? 'it_m365' : 'it_oprogramowanie', 'wysoki', 'licencje_am7');
+                'Licencja ' . $l['title'] . ' dla kursanta: ' . $l['interested_name'] . ' (' . $l['case_number'] . ')', $desc, 'it_licencje_am', 'wysoki', 'licencje_am7');
+            try { require_once dirname(__DIR__, 3) . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php'; hdSubstatusSet($tid, 'am_do_realizacji', 0, 'Wniosek AM'); require_once dirname(__DIR__, 3) . '/modules/helpdeskCollab/lib/helpdeskCollab.php'; hdTagAdd($tid, preg_match('/microsoft|office|m365|365/i', (string)$l['title'] . ' ' . ($d['plan'] ?? '')) ? 'm365' : 'oprogramowanie'); hdTagAdd($tid, 'am7'); } catch (\Throwable $e) {}
             $num = (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id = ?", [$tid])['number'] ?? '');
             $this->svc->licenses->update($id, ['helpdesk_ticket_id' => $tid, 'helpdesk_number' => $num]);
             $this->svc->licenses->event($id, 'helpdesk.create', 'Utworzono zlecenie Helpdesku IT ' . $num . '.', $actor);

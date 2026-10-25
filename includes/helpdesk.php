@@ -28,6 +28,7 @@ const HD_CATEGORIES = [
     'it_printer'        => 'Drukarki / Urządzenia',
     'it_backup'         => 'Kopia zapasowa / Dane',
     'it_inne'           => 'Inne IT',
+    'it_licencje_am'    => 'Wnioski AM (licencje)',
     'inne'              => 'Inne (spoza IT)',
     'zgl_blad'          => 'Błąd w systemie',
     'zgl_sugestia'      => 'Sugestia dot. obecnej funkcji',
@@ -41,6 +42,7 @@ const HD_CATEGORY_PREFIXES = [
     'zgl_sugestia'     => 'SUG',
     'zgl_nowa_funkcja' => 'HNF',
     'bug_report'       => 'HER',
+    'it_licencje_am'   => 'AM',
 ];
 
 /**
@@ -180,6 +182,7 @@ function helpdesk_migrate(): void {
         "ALTER TABLE helpdesk_tickets ADD COLUMN access_token  TEXT",
         "ALTER TABLE helpdesk_tickets ADD COLUMN first_response_at DATETIME", // SLA: pierwsza odpowiedź operatora
         "ALTER TABLE helpdesk_tickets ADD COLUMN merged_into INTEGER",        // łączenie: id zgłoszenia głównego
+        "ALTER TABLE helpdesk_tickets ADD COLUMN substatus TEXT",              // podstatus zależny od kategorii (modules/helpdeskStatuses)
         "ALTER TABLE helpdesk_tickets ADD COLUMN legacy_number TEXT",          // dawny numer po migracji do wzorca {PREFIX}-{YYYY}-{NNNNN}
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_issue_id INTEGER",   // integracja Redmine: numer issue
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_last_journal_id INTEGER NOT NULL DEFAULT 0", // ost. zaimportowana notatka
@@ -1328,6 +1331,7 @@ CSS;
 // ── Powiadomienia ─────────────────────────────────────────────────────────────
 
 function hd_notify_status_change(array $ticket, string $old_status, string $new_status, string $note = ''): void {
+    if ($old_status !== $new_status) { try { db()->prepare("UPDATE helpdesk_tickets SET substatus=NULL WHERE id=? AND substatus IS NOT NULL")->execute([(int)$ticket['id']]); } catch (\Throwable $e) {} }
     hd_rules_event((int)$ticket['id'], 'status', ['to_status' => $new_status]);
     try {
         require_once dirname(__DIR__) . '/modules/helpdeskCollab/lib/helpdeskCollab.php';

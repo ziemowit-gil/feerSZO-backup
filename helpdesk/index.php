@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/helpdesk.php';
 helpdesk_migrate();
 require_once dirname(__DIR__) . '/modules/helpdeskCollab/lib/helpdeskCollab.php';
+require_once dirname(__DIR__) . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php';
 require_login();
 
 $u     = current_user();
@@ -144,7 +145,7 @@ function _hd_list_html(
     <div class="hd-c-sub"><?= h($req) ?><?php foreach ($row_tags[(int)$t['id']] ?? [] as $_tg): ?><span class="hd-tag-chip"><?= h($_tg) ?></span><?php endforeach; ?></div>
   </div>
   <div class="hd-c hd-c-cat"><?= h(hd_categories()[$t['category']] ?? $t['category']) ?></div>
-  <div class="hd-c hd-c-st"><?= hd_status_badge($t['status']) ?></div>
+  <div class="hd-c hd-c-st"><?= hd_status_badge($t['status']) ?><?php if (!empty($t['substatus'])): ?><div class="hd-c-sub"><?= h(hdSubstatusLabel($t['substatus'])) ?></div><?php endif; ?></div>
   <div class="hd-c hd-c-pri"><?= hd_priority_badge($t['priority']) ?></div>
   <?php if ($is_op): ?>
   <div class="hd-c hd-c-sla"><?= $has_sla ? $sla_ind : '<span class="text-muted">—</span>' ?></div>

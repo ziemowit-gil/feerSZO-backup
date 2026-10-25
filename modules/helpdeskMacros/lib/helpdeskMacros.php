@@ -9,6 +9,7 @@
  */
 require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
 require_once dirname(__DIR__, 3) . '/modules/helpdeskCollab/lib/helpdeskCollab.php';
+require_once dirname(__DIR__, 2) . '/helpdeskStatuses/lib/helpdeskStatuses.php';
 
 function hdMacrosMigrate(): void
 {
@@ -42,7 +43,7 @@ function hdMacroButtons(array $macros): array
 
 /** Typy kroków przebiegu (makra i reguły automatyczne): kod => etykieta. */
 const HD_MACRO_STEP_TYPES = [
-    'status' => 'Ustaw status', 'priority' => 'Ustaw priorytet', 'category' => 'Zmień kategorię',
+    'status' => 'Ustaw status', 'substatus' => 'Ustaw status kategorii', 'priority' => 'Ustaw priorytet', 'category' => 'Zmień kategorię',
     'assign_me' => 'Przypisz do wykonującego', 'assign_user' => 'Przypisz do operatora',
     'tag' => 'Dodaj tag', 'untag' => 'Usuń tag', 'note' => 'Dodaj notatkę wewnętrzną', 'watch' => 'Dodaj obserwatora (operator)',
     'notify' => 'Powiadom operatora e-mailem', 'reply' => 'Odpowiedz zgłaszającemu (wiadomość publiczna)', 'macro' => 'Wykonaj inne makro',
@@ -74,6 +75,7 @@ function hdMacroStepLabel(array $st): string
         'assign_user' => 'przypisz: ' . (db_one("SELECT name FROM users WHERE id=?", [(int)$v])['name'] ?? '#' . $v),
         'tag' => 'tag: ' . $v, 'untag' => 'usuń tag: ' . $v,
         'note' => 'notatka',
+        'substatus' => 'status kategorii → ' . hdSubstatusLabel($v),
         'category' => 'kategoria → ' . (hd_categories()[$v] ?? $v),
         'notify' => 'powiadom: ' . (db_one("SELECT name FROM users WHERE id=?", [(int)$v])['name'] ?? '#' . $v),
         'reply' => 'odpowiedź do zgłaszającego',
@@ -108,6 +110,7 @@ function hdMacroActionFields(array $in): array
             'priority' => (string)($in['sv_priority'][$i] ?? ''),
             'assign_user', 'watch', 'notify' => (string)(int)($in['sv_user'][$i] ?? 0),
             'category' => (string)($in['sv_category'][$i] ?? ''),
+            'substatus' => (string)($in['sv_substatus'][$i] ?? ''),
             'macro' => (string)(int)($in['sv_macro'][$i] ?? 0),
             'reply' => mb_substr(trim((string)($in['sv_text'][$i] ?? '')), 0, 3000),
             'tag', 'untag' => mb_substr(hdTagNormalize((string)($in['sv_text'][$i] ?? '')), 0, 30),
@@ -118,6 +121,7 @@ function hdMacroActionFields(array $in): array
         if ($type === 'priority' && !isset(HD_PRIORITIES[$val])) continue;
         if (in_array($type, ['assign_user', 'watch', 'notify'], true) && !db_one("SELECT id FROM users WHERE id=? AND is_active=1", [(int)$val])) continue;
         if ($type === 'category' && !isset(hd_categories()[$val])) continue;
+        if ($type === 'substatus' && !isset(hdSubstatuses()[$val])) continue;
         if ($type === 'macro' && !db_one("SELECT id FROM helpdesk_macros WHERE id=?", [(int)$val])) continue;
         if (in_array($type, ['tag', 'untag', 'note', 'reply'], true) && $val === '') continue;
         $steps[] = ['type' => $type, 'value' => $val];
@@ -156,6 +160,12 @@ function hdStepsRun(int $ticketId, array $steps, int $uid, string $uname, int $d
                     if ($v === 'zamknięte') $upd['closed_at'] = $now;
                     db_update('helpdesk_tickets', $upd, $ticketId); $done[] = hdMacroStepLabel($st);
                     $GLOBALS['_hdStepsStatus'][$ticketId] = [$GLOBALS['_hdStepsStatus'][$ticketId][0] ?? $cur['status'], $v];
+                }
+                break;
+            case 'substatus':
+                if (($cur['substatus'] ?? '') !== $v && isset(hdSubstatusesFor((string)$cur['category'])[$v])) {
+                    $oldS = $cur['status']; hdSubstatusSet($ticketId, $v, $uid, $uname);
+                    $done[] = hdMacroStepLabel($st);
                 }
                 break;
             case 'priority':
@@ -270,6 +280,8 @@ function hdStepsBuilder(array $steps, int $excludeMacroId = 0): string
         foreach (HD_STATUSES as $k => $x) $h .= '<option value="' . h($k) . '"' . $sel($t === 'status' && $v === $k) . '>' . h($x['label']) . '</option>';
         $h .= '</select><select name="sv_priority[]" class="form-select form-select-sm" data-sv="priority">';
         foreach (HD_PRIORITIES as $k => $x) $h .= '<option value="' . h($k) . '"' . $sel($t === 'priority' && $v === $k) . '>' . h($x['label']) . '</option>';
+        $h .= '</select><select name="sv_substatus[]" class="form-select form-select-sm" data-sv="substatus">';
+        foreach (hdSubstatuses() as $k => $x) $h .= '<option value="' . h($k) . '"' . $sel($t === 'substatus' && $v === $k) . '>' . h($x['label']) . '</option>';
         $h .= '</select><select name="sv_category[]" class="form-select form-select-sm" data-sv="category">';
         foreach (hd_categories() as $k => $l) $h .= '<option value="' . h($k) . '"' . $sel($t === 'category' && $v === $k) . '>' . h($l) . '</option>';
         $h .= '</select><select name="sv_user[]" class="form-select form-select-sm" data-sv="assign_user watch notify">';

@@ -486,7 +486,8 @@ final class LicenseOperationService
             $me = $actor['id'] ? db_one("SELECT id, name, email FROM users WHERE id = ?", [(int)$actor['id']]) : null;
             $isMs = preg_match('/microsoft|office|m365|365/i', ($op['state']['vendor'] ?? '') . ' ' . ($op['state']['sku'] ?? '') . ' ' . ($op['request']['produkt'] ?? ''));
             $tid = hd_ticket_quick_create(['id' => $me['id'] ?? null, 'name' => $me['name'] ?? (string)$actor['name'], 'email' => $me['email'] ?? ''],
-                $op['formEnum']->value . ' ' . $op['formEnum']->short() . ': ' . $op['account_name'] . ' (' . $op['number'] . ')', $desc, $isMs ? 'it_m365' : 'it_oprogramowanie', 'normalny', 'licencje_' . strtolower($op['formEnum']->value));
+                $op['formEnum']->value . ' ' . $op['formEnum']->short() . ': ' . $op['account_name'] . ' (' . $op['number'] . ')', $desc, 'it_licencje_am', 'normalny', 'licencje_' . strtolower($op['formEnum']->value));
+            try { require_once dirname(__DIR__, 3) . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php'; hdSubstatusSet($tid, 'am_do_realizacji', 0, 'Operacja AM'); require_once dirname(__DIR__, 3) . '/modules/helpdeskCollab/lib/helpdeskCollab.php'; hdTagAdd($tid, $isMs ? 'm365' : 'oprogramowanie'); hdTagAdd($tid, strtolower($op['formEnum']->value)); } catch (\Throwable $e) {}
             $num = (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id = ?", [$tid])['number'] ?? '');
             db_exec("UPDATE license_operations SET helpdesk_ticket_id = ?, helpdesk_number = ? WHERE id = ?", [$tid, $num, $id]);
             $this->event($id, 'op.helpdesk', 'Zadanie dla IT: zgłoszenie ' . $num . '.', $actor);
