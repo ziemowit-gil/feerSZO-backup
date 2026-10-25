@@ -261,7 +261,8 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-aud-share{font-size:.78rem;color:#374151;margin:0;display:inline-flex;align-items:center;gap:.3rem}
 .ms-aud-msg{font-size:.78rem;color:#0F4C47;font-weight:600}
 .ms-aud-msg.is-err{color:#B91C1C}
-.ms-retry{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}.ms-retry .btn{border-radius:0}.ms-retry-msg{font-size:.76rem;color:#374151}
+.ms-retry{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}.ms-retry .btn{border-radius:0}.ms-test{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem}.ms-test .btn{border-radius:0}.ms-test-msg{font-size:.76rem;color:#374151}
+.ms-retry-msg{font-size:.76rem;color:#374151}
 </style>
 
 <div class="crm-page-header">
@@ -674,6 +675,12 @@ include __DIR__ . '/includes/header_crm.php';
     <button type="button" id="previewBtn" class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="MS.preview()">
       <i class="bi bi-eye me-1"></i>Podgląd odbiorców
     </button>
+    <div class="ms-test mb-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="MS.testSend(this)">
+        <i class="bi bi-envelope-check" aria-hidden="true"></i> Wyślij test do mnie
+      </button>
+      <span class="ms-test-msg" id="msTestMsg" role="status" aria-live="polite">Zmienne zostaną podstawione danymi pierwszego odbiorcy; wiadomość trafi tylko do ciebie.</span>
+    </div>
     <button type="button" id="sendBtn" class="btn btn-success w-100" onclick="MS.send()" disabled>
       <i class="bi bi-send-fill me-1"></i>Wyślij do <span id="sendBtnCount">0</span> odbiorców
     </button>
@@ -1208,6 +1215,26 @@ const MS = (function() {
     }
   }
 
+
+  // Wiadomość próbna do zalogowanego użytkownika
+  async function testSend(btn) {
+    const msg = document.getElementById('msTestMsg');
+    const set = (t, err) => { msg.textContent = t; msg.style.color = err ? '#B91C1C' : '#0F4C47'; };
+    const body = getBody();
+    if (!body) { set('Wpisz treść wiadomości.', true); return; }
+    btn.disabled = true; set('Wysyłanie testu…');
+    try {
+      const r = await audCall(Object.assign(purposePayload(), {
+        action: 'test_send', channel: _channel, body,
+        subject: document.getElementById('ms_subject').value.trim(),
+        group_ids: [..._group_ids], tag_filter: [..._tag_filters].join(','), contact_ids: [..._contact_ids.keys()]
+      }));
+      if (!r.ok) throw new Error(r.error);
+      set('Test wysłano na ' + r.data.to + (r.data.sample ? ' (dane wzorcowe: ' + r.data.sample + ')' : '') + '.');
+    } catch (e) { set(e.message, true); }
+    btn.disabled = false;
+  }
+
   // ── Zapisane listy adresatów ──
   let _auds = [];
   function audMsg(t, err) { const m = document.getElementById('msAudMsg'); m.textContent = t || ''; m.classList.toggle('is-err', !!err); }
@@ -1492,7 +1519,7 @@ recipientRow(c)
 
   wizShow(1);
 
-  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, audLoad, audSave, audDelete, retry,
+  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, audLoad, audSave, audDelete, retry, testSend,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
            preview, send, insertVar, loadTemplate, purposeChanged, membersChanged,

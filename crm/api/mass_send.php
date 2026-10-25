@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
+require_once dirname(dirname(__DIR__)) . '/includes/mime_text.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -280,6 +281,37 @@ if ($action === 'start') {
         ]), $send_id]);
 
     api_ok(['send_id'=>$send_id,'recipients'=>count($ids)]);
+}
+
+// ── Wiadomość próbna: tylko do zalogowanego użytkownika, z danymi pierwszego odbiorcy jako wzorem zmiennych ──
+if ($action === 'test_send') {
+    $channel = in_array($body['channel'] ?? '', ['email', 'sms'], true) ? $body['channel'] : 'email';
+    $msg  = trim((string)($body['body'] ?? ''));
+    $subj = trim((string)($body['subject'] ?? ''));
+    if ($msg === '') api_err('Wpisz treść wiadomości.');
+    if ($channel === 'email' && $subj === '') api_err('Podaj temat e-maila.');
+    $me = current_user();
+    $me_row = db_one("SELECT email, name, phone_number FROM users WHERE id=?", [$uid]) ?: [];
+    $sample = null;
+    $ids = collect_recipients($body);
+    if ($ids) $sample = db_one("SELECT * FROM crm_contacts WHERE id=? AND crm_active=1", [(int)$ids[0]]);
+    if (!$sample) $sample = ['imie_nazwisko' => (string)($me_row['name'] ?? 'Jan Kowalski'), 'email' => (string)($me_row['email'] ?? ''),
+                             'telefon' => (string)($me_row['phone_number'] ?? ''), 'organizacja' => '', 'stanowisko' => ''];
+    $r_body = CrmManager::renderTemplate($msg, $sample);
+    $r_subj = CrmManager::renderTemplate($subj, $sample);
+    if ($channel === 'email') {
+        $to = trim((string)($me_row['email'] ?? ''));
+        if ($to === '') api_err('Twoje konto nie ma adresu e-mail.');
+        $html = crm_mail_looks_html($r_body) ? $r_body : nl2br(htmlspecialchars($r_body, ENT_QUOTES, 'UTF-8'));
+        mail_queue_add($to, (string)($me_row['name'] ?? ''), '[TEST] ' . $r_subj, $html, trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8')), 'crm_test', 0, '', true);
+        api_ok(['to' => $to, 'sample' => $sample['imie_nazwisko'] ?? '']);
+    }
+    $ph = trim((string)($me_row['phone_number'] ?? ''));
+    if ($ph === '') api_err('Twoje konto nie ma numeru telefonu (uzupełnij w ustawieniach konta).');
+    require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
+    $txt = trim(html_entity_decode(strip_tags($r_body), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    try { sms_send($ph, '[TEST] ' . $txt, 'crm_message'); } catch (\Throwable $e) { api_err('SMS nie został wysłany: ' . $e->getMessage()); }
+    api_ok(['to' => $ph, 'sample' => $sample['imie_nazwisko'] ?? '']);
 }
 
 // ── Ponów do niedostarczonych: nowa wysyłka z listy błędów poprzedniej (ten sam kanał albo zmiana na SMS/e-mail) ──
