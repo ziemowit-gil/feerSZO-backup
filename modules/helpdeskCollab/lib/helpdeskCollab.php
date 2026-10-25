@@ -9,7 +9,7 @@
  */
 require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
 
-const HD_VIEW_KEYS = ['view', 'status', 'category', 'priority', 'q', 'tag'];
+const HD_VIEW_KEYS = ['view', 'status', 'category', 'priority', 'q', 'tag', 'group'];
 
 function hdCollabMigrate(): void
 {

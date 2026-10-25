@@ -36,6 +36,7 @@ $f_q        = trim($_GET['q'] ?? '');
 $f_status   = $_GET['status'] ?? '';
 $f_category = $_GET['category'] ?? '';
 $f_priority = $_GET['priority'] ?? '';
+$f_group    = (($_GET['group'] ?? '') === 'status') ? 'status' : '';
 $f_tag      = $is_op ? hdTagNormalize((string)($_GET['tag'] ?? '')) : '';
 $f_view     = ($is_op && in_array($_GET['view'] ?? '', ['all','unassigned','mine'], true))
             ? $_GET['view'] : ($is_op ? 'all' : 'mine');
@@ -63,19 +64,30 @@ if ($f_q !== '') {
 $where_sql = implode(' AND ', $where);
 
 $total_all = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets t WHERE {$where_sql}", $params)['c'] ?? 0);
+// Układ „wg statusu”: sortowanie po kolejności statusów (jak w HD_STATUSES) i liczniki do nagłówków grup
+$grp_info = [];
+if ($f_group === 'status') {
+    $rank = 'CASE t.status'; $i = 0;
+    foreach (array_keys(HD_STATUSES) as $sk) $rank .= " WHEN '" . str_replace("'", "''", $sk) . "' THEN " . $i++;
+    $order_sql = $rank . ' ELSE ' . $i . " END,\n       ";
+    foreach (db_all("SELECT t.status, COUNT(*) AS c FROM helpdesk_tickets t WHERE {$where_sql} GROUP BY t.status", $params) as $gr) $grp_info['counts'][$gr['status']] = (int)$gr['c'];
+    $grp_info['mode'] = 'status';
+} else {
+    $order_sql = "CASE t.status WHEN 'nowe' THEN 0 WHEN 'krytyczne' THEN 1 WHEN 'otwarte' THEN 2 WHEN 'oczekuje' THEN 3 ELSE 4 END,\n       ";
+}
 $offset    = ($page - 1) * $per_page;
 $tickets   = db_all(
     "SELECT t.*, u.name AS assigned_name
      FROM helpdesk_tickets t LEFT JOIN users u ON u.id = t.assigned_to
      WHERE {$where_sql}
      ORDER BY
-       CASE t.status WHEN 'nowe' THEN 0 WHEN 'krytyczne' THEN 1 WHEN 'otwarte' THEN 2 WHEN 'oczekuje' THEN 3 ELSE 4 END,
+       {$order_sql}
        t.updated_at DESC
      LIMIT {$per_page} OFFSET {$offset}", $params);
 
 $paging     = paginate($total_all, $per_page, $page,
     APP_URL.'/helpdesk/index.php?'.http_build_query(array_filter([
-        'q'=>$f_q,'status'=>$f_status,'category'=>$f_category,'priority'=>$f_priority,'view'=>$f_view,'tag'=>$f_tag,
+        'q'=>$f_q,'status'=>$f_status,'category'=>$f_category,'priority'=>$f_priority,'view'=>$f_view,'tag'=>$f_tag,'group'=>$f_group,
     ])));
 $unread_ids = $is_op ? hd_unread_ids($uid) : [];
 $unread_set = array_flip($unread_ids);
@@ -110,12 +122,18 @@ function hd_av_color(string $name): string {
 
 // ── Renderer listy ────────────────────────────────────────────────────────────
 function _hd_list_html(
-    array $tickets, int $total, array $paging, int $per_page, bool $is_op, array $unread_set
+    array $tickets, int $total, array $paging, int $per_page, bool $is_op, array $unread_set, array $grp = []
 ): string {
     ob_start();
     $row_tags = $is_op ? hdTagsForTickets(array_column($tickets, 'id')) : [];
     if ($tickets):
+        $prev_status = null;
         foreach ($tickets as $t):
+            if (($grp['mode'] ?? '') === 'status' && $t['status'] !== $prev_status):
+                $prev_status = $t['status'];
+                $gl = HD_STATUSES[$t['status']]['label'] ?? $t['status']; ?>
+<div class="hd-grp-head" data-status="<?= h($t['status']) ?>" role="heading" aria-level="3"><span class="hd-grp-dot" aria-hidden="true"></span><?= h($gl) ?><b><?= (int)($grp['counts'][$t['status']] ?? 0) ?></b></div>
+            <?php endif;
             $unread  = isset($unread_set[(int)$t['id']]);
             $age     = max(0, time() - strtotime($t['updated_at'] ?? 'now'));
             $ago     = $age < 3600 ? max(1,(int)($age/60)).'min'
@@ -179,7 +197,7 @@ if (isset($_GET['_ajax'])) {
     echo json_encode([
         'ok'           => true,
         'total'        => $total_all,
-        'list_html'    => _hd_list_html($tickets, $total_all, $paging, $per_page, $is_op, $unread_set),
+        'list_html'    => _hd_list_html($tickets, $total_all, $paging, $per_page, $is_op, $unread_set, $grp_info),
         'unread_count' => $cnt_unread,
     ], JSON_UNESCAPED_UNICODE);
     exit;
@@ -584,6 +602,21 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
 
 .hd-close-breached{margin-left:auto;display:inline-flex;align-items:center;gap:.35rem;background:#fff;border:1px solid #a4262c;color:#a4262c;padding:.15rem .6rem;font-size:.75rem;cursor:pointer}
 .hd-close-breached:hover,.hd-close-breached:focus-visible{background:#a4262c;color:#fff;outline:none}
+/* Szybkie ustawienia listy + nagłówki grup statusów */
+.hd-quick{display:flex;gap:0;margin:0}
+.hd-qbtn{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border:1px solid #8a8886;background:#fff;color:#242424;font-size:.8rem;cursor:pointer;margin-left:-1px}
+.hd-qbtn:first-child{margin-left:0}
+.hd-qbtn i{color:#0f6cbd}
+.hd-qbtn:hover,.hd-qbtn:focus-visible{background:#f3f2f1;outline:none}
+.hd-qbtn[aria-pressed=true]{background:#0f6cbd;border-color:#0f6cbd;color:#fff;position:relative;z-index:1}
+.hd-qbtn[aria-pressed=true] i{color:#fff}
+.hd-grp-head{display:flex;align-items:center;gap:.5rem;padding:.4rem 1rem;background:#f3f2f1;border-top:1px solid #e1dfdd;border-bottom:1px solid #e1dfdd;font-size:.8rem;font-weight:600;color:#242424}
+.hd-grp-head b{font-weight:400;color:#605e5c;background:#fff;border:1px solid #e1dfdd;padding:0 .45rem;font-size:.74rem}
+.hd-grp-dot{width:8px;height:8px;border-radius:50%;background:#8a8886;flex-shrink:0}
+.hd-grp-head[data-status=nowe] .hd-grp-dot{background:#1ba1e2}.hd-grp-head[data-status=otwarte] .hd-grp-dot{background:#fa6800}
+.hd-grp-head[data-status=krytyczne] .hd-grp-dot{background:#e51400}.hd-grp-head[data-status=rozwiązane] .hd-grp-dot{background:#60a917}
+.hd-grp-head[data-status=zamknięte] .hd-grp-dot{background:#008a00}.hd-grp-head[data-status=przekazane_zewn] .hd-grp-dot{background:#6a00ff}
+.hd-grp-head[data-status=wymaga_prac] .hd-grp-dot{background:#0050ef}
 /* Podmenu Administracja w menu bocznym */
 .hdSb-sub-toggle{display:flex;align-items:center;gap:.5rem;width:100%;background:none;border:0;padding:.45rem .9rem;font-size:.78rem;font-weight:600;color:#605e5c;cursor:pointer;text-align:left}
 .hdSb-sub-toggle:hover{background:#f3f2f1;color:#242424}
@@ -772,12 +805,17 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
         <input type="hidden" name="status"   id="hdStatusInput"   value="<?= h($f_status) ?>">
         <input type="hidden" name="category" id="hdCategoryInput" value="<?= h($f_category) ?>">
         <input type="hidden" name="priority" id="hdPriorityInput" value="<?= h($f_priority) ?>">
+        <input type="hidden" name="group" id="hdGroupInput" value="<?= h($f_group) ?>">
 
         <div class="hdList-search-wrap">
           <i class="bi bi-search" aria-hidden="true"></i>
           <input type="text" id="hdSearchInput" name="q" value="<?= h($f_q) ?>"
                  placeholder="Szukaj numeru, tytułu… (/)"
                  autocomplete="off" aria-label="Szukaj zgłoszeń">
+        </div>
+        <div class="hd-quick" role="group" aria-label="Szybkie ustawienia listy">
+          <button type="button" id="hdOnlyNew" class="hd-qbtn" aria-pressed="<?= $f_status === 'nowe' ? 'true' : 'false' ?>" title="Pokaż tylko zgłoszenia o statusie Nowe"><i class="bi bi-inbox-fill" aria-hidden="true"></i>Tylko nowe</button>
+          <button type="button" id="hdGroupToggle" class="hd-qbtn" aria-pressed="<?= $f_group === 'status' ? 'true' : 'false' ?>" title="Pogrupuj listę według statusu"><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>Wg statusu</button>
         </div>
         <select id="hdCatSelect" class="hd-cat-select mt-1" aria-label="Kategoria">
           <option value="">Wszystkie kategorie</option>
@@ -826,7 +864,7 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
 
     <!-- Lista AJAX -->
     <div id="hdListBody" aria-label="Lista zgłoszeń" aria-live="polite">
-      <?= _hd_list_html($tickets, $total_all, $paging, $per_page, $is_op, $unread_set) ?>
+      <?= _hd_list_html($tickets, $total_all, $paging, $per_page, $is_op, $unread_set, $grp_info) ?>
     </div>
   </div>
 
@@ -1131,7 +1169,7 @@ var HdApp = {
     this.priInput    = document.getElementById('hdPriorityInput');
     this.searchInput = document.getElementById('hdSearchInput');
     this.bindSidebar(); this.bindSearch(); this.bindList();
-    this.bindFilterPills(); this.bindPopstate();
+    this.bindFilterPills(); this.bindQuick(); this.bindPopstate();
     /* Klonuj sidebar do offcanvas (mobile) */
     var oc = document.getElementById('hdOffcanvasBody');
     if (oc) oc.innerHTML = document.getElementById('hdSidebar').innerHTML;
@@ -1227,6 +1265,36 @@ var HdApp = {
     });
   },
 
+  syncQuick: function () {
+    var n = document.getElementById('hdOnlyNew'), g = document.getElementById('hdGroupToggle'), gi = document.getElementById('hdGroupInput');
+    if (n && this.statusInput) n.setAttribute('aria-pressed', this.statusInput.value === 'nowe' ? 'true' : 'false');
+    if (g && gi) g.setAttribute('aria-pressed', gi.value === 'status' ? 'true' : 'false');
+    document.querySelectorAll('[data-sb-status]').forEach(function (el) {
+      if (HdApp.statusInput && HdApp.statusInput.value) el.classList.toggle('active', el.dataset.sbStatus === HdApp.statusInput.value);
+    });
+  },
+
+  bindQuick: function () {
+    var self = this, n = document.getElementById('hdOnlyNew'), g = document.getElementById('hdGroupToggle'), gi = document.getElementById('hdGroupInput');
+    if (n) n.addEventListener('click', function () {
+      self.statusInput.value = self.statusInput.value === 'nowe' ? '' : 'nowe';
+      self.loadList(self.formParams(), true);
+    });
+    if (g && gi) {
+      g.addEventListener('click', function () {
+        gi.value = gi.value === 'status' ? '' : 'status';
+        try { localStorage.setItem('hdGroup', gi.value); } catch (e) {}
+        self.loadList(self.formParams(), true);
+      });
+      // zapamiętany układ (gdy adres nie ustawia go jawnie)
+      try {
+        if (!new URLSearchParams(window.location.search).has('group') && localStorage.getItem('hdGroup') === 'status') {
+          gi.value = 'status'; self.loadList(self.formParams(), false);
+        }
+      } catch (e) {}
+    }
+  },
+
   bindFilterPills: function () {
     var self = this, sel = document.getElementById('hdCatSelect'), tagSel = document.getElementById('hdTagSelect');
     if (tagSel) tagSel.addEventListener('change', function () { self.loadList(self.formParams(), true); });
@@ -1288,6 +1356,7 @@ var HdApp = {
       if (self.catInput)    self.catInput.value    = p.get('category') || '';
       var cs = document.getElementById('hdCatSelect'); if (cs) cs.value = p.get('category') || '';
       var ts = document.getElementById('hdTagSelect'); if (ts) ts.value = p.get('tag') || '';
+      var gi2 = document.getElementById('hdGroupInput'); if (gi2) gi2.value = p.get('group') || '';
       if (self.priInput)    self.priInput.value    = p.get('priority') || '';
       if (self.searchInput) self.searchInput.value = p.get('q')        || '';
       self.loadList(p, false);
@@ -1361,6 +1430,10 @@ var HdBulk = {
   var KEY = 'hdAdminSubOpen';
   try { set(localStorage.getItem(KEY) !== '0'); } catch (e) {}
   t.addEventListener('click', function () { var open = box.classList.contains('d-none'); set(open); try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {} });
+})();
+(function () {
+  var _ll = HdApp.loadList;
+  HdApp.loadList = function () { var r = _ll.apply(this, arguments); HdApp.syncQuick(); return r; };
 })();
 HdApp.init();
 })();
