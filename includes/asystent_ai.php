@@ -28,6 +28,7 @@
 
 require_once __DIR__ . '/szo_features.php';
 require_once __DIR__ . '/modules_catalog.php';
+require_once dirname(__DIR__) . '/modules/ai_anonymizer/lib/aiAnonymizer.php';
 
 // ── Konfiguracja (współdzielona z resztą integracji AI) ──────────────────────
 function asai_api_key(): string {
@@ -40,6 +41,41 @@ function asai_enabled(): bool {
 function asai_model(): string {
     $m = db_one("SELECT value FROM settings WHERE key_='anthropic_model'")['value'] ?? '';
     return $m !== '' ? $m : 'claude-opus-4-8';
+}
+
+// ── Anonimizacja przed wysyłką do dostawcy AI ────────────────────────────────
+/**
+ * Co do zasady asystent NIE przetwarza danych osobowych: przed wysyłką do Anthropic wartości identyfikujące osoby
+ * (e-mail, PESEL, NIP, rachunek, telefon, dokument, imię i nazwisko ze słownika) są zamieniane na znaczniki, a w odpowiedzi
+ * pokazywanej użytkownikowi podstawiane z powrotem (modules/ai_anonymizer). Włączone domyślnie; wyłączenie tylko świadomie
+ * ustawieniem asai_anonymize = 0 (wymaga umowy powierzenia z dostawcą i wpisu w rejestrze czynności RODO).
+ */
+function asai_anonymize_enabled(): bool {
+    return (db_one("SELECT value FROM settings WHERE key_='asai_anonymize'")['value'] ?? '1') !== '0';
+}
+
+/** Imiona i nazwiska znane systemowi (konta, osoby, kontakty CRM) — słownik do pseudonimizacji w treściach. */
+function asai_known_names(): array {
+    static $names = null;
+    if ($names !== null) return $names;
+    $names = [];
+    $q = [
+        "SELECT TRIM(COALESCE(first_name,'') || ' ' || COALESCE(last_name,'')) n FROM users",
+        "SELECT name n FROM users",
+        "SELECT imie_nazwisko n FROM persons",
+        "SELECT imie_nazwisko n FROM crm_contacts WHERE COALESCE(imie_nazwisko,'') <> '' LIMIT 4000",
+    ];
+    foreach ($q as $sql) {
+        try { foreach (db_all($sql) as $r) if (($r['n'] ?? '') !== '') $names[] = (string)$r['n']; } catch (\Throwable $e) {}
+    }
+    return $names = array_slice(array_values(array_unique($names)), 0, 6000);
+}
+
+/** Ostatnia linia obrony: nieodwracalne zamiecenie wzorców w całym ładunku wysyłanym do API (stringi, rekurencyjnie). */
+function asai_scrub_payload(mixed $v): mixed {
+    if (is_string($v)) return AiAnonymizer::scrub($v);
+    if (is_array($v)) { foreach ($v as $k => $x) $v[$k] = asai_scrub_payload($x); }
+    return $v;
 }
 
 // ── Publiczny asystent (link /chatbot/{token} do udostępnienia w intranecie) ──
@@ -653,6 +689,7 @@ function asai_call(array $payload): array {
     $api_key = asai_api_key();
     if ($api_key === '') return ['error' => 'Brak klucza Anthropic API. Skonfiguruj w: Admin → Ustawienia AI.'];
 
+    if (asai_anonymize_enabled()) $payload = asai_scrub_payload($payload);   // nic z danymi osobowymi nie wychodzi poza serwer
     $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
     $ctx = stream_context_create([
         'http' => [
@@ -741,6 +778,13 @@ function asai_tools(array $ctx = []): array {
     return $tools;
 }
 
+/** Dopisek do instrukcji systemowej, gdy działa anonimizacja. */
+function asai_anonymize_prompt_note(): string {
+    return "\n9. Dane osobowe w rozmowie są zastąpione znacznikami, np. [E-MAIL-1], [PESEL-1], [OSOBA-2], [TELEFON-1]. "
+         . "Używaj ich dokładnie w tej postaci (z nawiasami) i nigdy nie próbuj zgadywać ani odtwarzać prawdziwych wartości — "
+         . "system podstawi je w odpowiedzi widocznej dla użytkownika. Nie proś o podanie danych osobowych innych osób.";
+}
+
 function asai_system_prompt(array $ctx = []): string {
     $org   = defined('ORG_NAME') ? ORG_NAME : (function_exists('org_setting') ? (org_setting('org_name') ?: 'organizacja') : 'organizacja');
     $today = date('Y-m-d');
@@ -803,13 +847,16 @@ function asai_run(array $history, int $max_iter = 6, array $opts = []): array {
         return ['ok' => false, 'error' => 'Brak klucza Anthropic API. Skonfiguruj w: Admin → Ustawienia AI.'];
     }
 
+    // Anonimizator tej rozmowy: mapa znacznik → dane żyje tylko w pamięci tego żądania.
+    $anon = asai_anonymize_enabled() ? new AiAnonymizer(asai_known_names()) : null;
+
     // Zbuduj wiadomości startowe z historii (tylko tekst).
     $messages = [];
     foreach ($history as $m) {
         $role = ($m['role'] ?? '') === 'assistant' ? 'assistant' : 'user';
         $txt  = trim((string)($m['text'] ?? ''));
         if ($txt === '') continue;
-        $messages[] = ['role' => $role, 'content' => $txt];
+        $messages[] = ['role' => $role, 'content' => $anon ? $anon->anonymize($txt) : $txt];
     }
     if (!$messages) return ['ok' => false, 'error' => 'Puste pytanie.'];
 
@@ -824,7 +871,7 @@ function asai_run(array $history, int $max_iter = 6, array $opts = []): array {
         $data = asai_call([
             'model'      => $model,
             'max_tokens' => 2048,
-            'system'     => asai_system_prompt($actx),
+            'system'     => $anon ? $anon->anonymize(asai_system_prompt($actx)) . asai_anonymize_prompt_note() : asai_system_prompt($actx),
             'tools'      => $tools,
             'messages'   => $messages,
         ]);
@@ -844,7 +891,8 @@ function asai_run(array $history, int $max_iter = 6, array $opts = []): array {
             }
             return [
                 'ok' => true,
-                'answer' => trim($answer),
+                'answer' => $anon ? $anon->restore(trim($answer)) : trim($answer),
+                'anonymized' => $anon ? $anon->stats() : null,
                 'sources' => array_values($sources),
                 'trace' => $trace,
                 'model' => $model,
@@ -857,6 +905,7 @@ function asai_run(array $history, int $max_iter = 6, array $opts = []): array {
             if (($b['type'] ?? '') !== 'tool_use') continue;
             $name = $b['name'] ?? '';
             $in   = (array)($b['input'] ?? []);
+            if ($anon) $in = (array)$anon->restoreDeep($in);   // model widzi znaczniki — narzędzia dostają prawdziwe wartości
             $out  = '';
 
             if ($name === 'szukaj_w_bazie_wiedzy') {
@@ -927,7 +976,7 @@ function asai_run(array $history, int $max_iter = 6, array $opts = []): array {
             $results[] = [
                 'type'        => 'tool_result',
                 'tool_use_id' => $b['id'] ?? '',
-                'content'     => $out,
+                'content'     => $anon ? $anon->anonymize($out) : $out,   // wynik narzędzia → do modelu tylko po anonimizacji
             ];
         }
 
