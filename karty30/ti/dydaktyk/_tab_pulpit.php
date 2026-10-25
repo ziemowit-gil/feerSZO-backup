@@ -242,8 +242,21 @@ if (!empty($_kp_counts)) $_tl[] = ['#1d1d1d', 'building', (int)$_kp_counts['grou
 <div class="row g-3 dyd-pulpit-cols">
 <div class="col-xl-7">
 <?php /* ── Dziś ──────────────────────────────────────────────────────────── */ ?>
-<div class="card">
-  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-calendar-day me-1" style="color:#0f6fa8" aria-hidden="true"></i>Dziś — <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?></h2></div>
+<?php
+$_view = (($_GET['view'] ?? '') === 'week' || $dash_wk !== 0) ? 'week' : 'day';   // bez ?view=week przeglądarka może przywrócić zapamiętany wybór (JS niżej)
+$_wk_q = function (int $wk) { $q = $_GET; $q['tab'] = 'pulpit'; $q['view'] = 'week'; if ($wk === 0) unset($q['wk']); else $q['wk'] = $wk; return 'index.php?' . http_build_query($q); };
+$_wk_label = date('j.m', strtotime($dash_week_from)) . '–' . date('j.m.Y', strtotime($dash_week_to));
+?>
+<div class="card" id="dyd-dayweek" data-view="<?= h($_view) ?>">
+  <div class="card-header d-flex flex-wrap align-items-center gap-2">
+    <h2 class="h6 mb-0 fw-semibold dyd-dw-t-day"<?= $_view === 'week' ? ' hidden' : '' ?>><i class="bi bi-calendar-day me-1" style="color:#0f6fa8" aria-hidden="true"></i>Dziś — <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?></h2>
+    <h2 class="h6 mb-0 fw-semibold dyd-dw-t-week"<?= $_view === 'week' ? '' : ' hidden' ?>><i class="bi bi-calendar-week me-1" style="color:#0f6fa8" aria-hidden="true"></i>Tydzień <?= h($_wk_label) ?></h2>
+    <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Zakres widoku zajęć">
+      <button type="button" class="btn btn-outline-primary<?= $_view === 'day' ? ' active' : '' ?>" data-dw="day" aria-pressed="<?= $_view === 'day' ? 'true' : 'false' ?>">Dziś</button>
+      <button type="button" class="btn btn-outline-primary<?= $_view === 'week' ? ' active' : '' ?>" data-dw="week" aria-pressed="<?= $_view === 'week' ? 'true' : 'false' ?>">Tydzień</button>
+    </div>
+  </div>
+  <div class="dyd-dw-day"<?= $_view === 'week' ? ' hidden' : '' ?>>
   <?php if (!$dash_today): ?>
   <div class="card-body small text-body-secondary">Brak zaplanowanych zajęć na dziś.</div>
   <?php else: ?>
@@ -306,8 +319,73 @@ if (!empty($_kp_counts)) $_tl[] = ['#1d1d1d', 'building', (int)$_kp_counts['grou
     </table>
   </div>
   <?php endif; ?>
+  </div><?php /* /dyd-dw-day */ ?>
+
+  <div class="dyd-dw-week"<?= $_view === 'week' ? '' : ' hidden' ?>>
+    <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom small">
+      <a class="btn btn-sm btn-outline-secondary" href="<?= h($_wk_q($dash_wk - 1)) ?>" aria-label="Poprzedni tydzień"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
+      <a class="btn btn-sm btn-outline-secondary" href="<?= h($_wk_q(0)) ?>"<?= $dash_wk === 0 ? ' aria-current="true"' : '' ?>>Ten tydzień</a>
+      <a class="btn btn-sm btn-outline-secondary" href="<?= h($_wk_q($dash_wk + 1)) ?>" aria-label="Następny tydzień"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+      <span class="ms-auto text-body-secondary"><?= count($dash_week) ?> <?= count($dash_week) === 1 ? 'zajęcia' : 'zajęć' ?></span>
+    </div>
+    <?php
+    $_wk_by = [];
+    foreach ($dash_week as $_ws) $_wk_by[(string)$_ws['lesson_date']][] = $_ws;
+    $_today_d = date('Y-m-d');
+    ?>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Zajęcia w tygodniu <?= h($_wk_label) ?></caption>
+      <thead class="visually-hidden"><tr><th scope="col">Dzień</th><th scope="col">Godziny</th><th scope="col">Grupa</th><th scope="col">Temat</th><th scope="col">Status</th><th scope="col">Akcje</th></tr></thead>
+      <tbody>
+      <?php for ($_i = 0; $_i < 7; $_i++):
+        $_d = date('Y-m-d', strtotime($dash_week_from . " +$_i days"));
+        $_isT = $_d === $_today_d;
+        $_rows = $_wk_by[$_d] ?? [];
+        $_dn = $_day_pl[date('D', strtotime($_d))] ?? '';
+      ?>
+        <tr class="<?= $_isT ? 'table-warning' : 'table-light' ?>">
+          <th scope="rowgroup" colspan="6" class="small fw-semibold py-1"><?= h($_dn) ?>, <?= h(date('j.m', strtotime($_d))) ?><?= $_isT ? ' <span class="badge text-bg-warning ms-1">dziś</span>' : '' ?>
+            <?php if (!$_rows): ?><span class="fw-normal text-body-secondary ms-2">— brak zajęć</span><?php endif; ?></th>
+        </tr>
+        <?php foreach ($_rows as $_ws):
+          $_wtf = substr((string)($_ws['time_from'] ?? ''), 0, 5) ?: '—'; $_wtt = substr((string)($_ws['time_to'] ?? ''), 0, 5);
+          $_wc  = (string)$_ws['status'] === 'cancelled';
+          $_wurl = 'index.php?course=' . (int)$_ws['course_id'] . '&tab=lekcje';
+        ?>
+        <tr class="<?= $_wc ? 'text-body-secondary' : '' ?>">
+          <td></td>
+          <td class="text-nowrap small"><strong><?= h($_wtf) ?><?= $_wtt !== '' ? '–' . h($_wtt) : '' ?></strong></td>
+          <td class="small"><a href="<?= h($_wurl) ?>"><?= h($_ws['course_name']) ?></a></td>
+          <td class="small"><?= trim((string)($_ws['topic'] ?? '')) !== '' ? h($_ws['topic']) : '<span class="text-muted">—</span>' ?></td>
+          <td class="small"><span class="badge text-bg-<?= h($_pulpit_status_badge((string)$_ws['status'])) ?>"><?= h($_pulpit_status_label((string)$_ws['status'])) ?></span></td>
+          <td class="text-end"><a href="<?= h($_wurl) ?>" class="btn btn-sm btn-outline-secondary">Zajęcia</a></td>
+        </tr>
+        <?php endforeach; ?>
+      <?php endfor; ?>
+      </tbody>
+    </table>
+    </div>
+  </div><?php /* /dyd-dw-week */ ?>
 </div>
-</div><?php /* /Dziś */ ?>
+<script>
+// Przełącznik „Dziś / Tydzień” — bez przeładowania; wybór pamiętany w tej przeglądarce (poza jawnym ?view= / ?wk= w adresie)
+(function () {
+  var box = document.getElementById('dyd-dayweek'); if (!box) return;
+  var KEY = 'dydDayWeek';
+  function set(v, save) {
+    box.setAttribute('data-view', v);
+    box.querySelector('.dyd-dw-day').hidden = v !== 'day';  box.querySelector('.dyd-dw-week').hidden = v !== 'week';
+    box.querySelector('.dyd-dw-t-day').hidden = v !== 'day'; box.querySelector('.dyd-dw-t-week').hidden = v !== 'week';
+    box.querySelectorAll('[data-dw]').forEach(function (b) { var on = b.getAttribute('data-dw') === v; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    if (save) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+  }
+  box.querySelectorAll('[data-dw]').forEach(function (b) { b.addEventListener('click', function () { set(b.getAttribute('data-dw'), true); }); });
+  var explicit = /[?&](view|wk)=/.test(location.search), saved = '';
+  try { saved = localStorage.getItem(KEY) || ''; } catch (e) {}
+  if (!explicit && (saved === 'week' || saved === 'day')) set(saved, false);
+})();
+</script><?php /* /Dziś + Tydzień */ ?>
 <div class="col-xl-5">
 <?php include __DIR__ . '/_widget_zalegle_wpisy.php'; /* Kontrola Lekcji i Wpisów */ ?>
 <?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>

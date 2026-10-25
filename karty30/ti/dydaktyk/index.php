@@ -2041,6 +2041,11 @@ $STATUS = K30_TI_SESSION_STATUSES;
 
 // ── Dashboard (pulpit) ────────────────────────────────────────────────────────
 $dash_today          = [];
+$dash_week           = [];
+// Tydzień na pulpicie (przełącznik „Dziś / Tydzień”): poniedziałek–niedziela, przesunięcie ?wk= tygodni (−12…+12)
+$dash_wk             = max(-12, min(12, (int)($_GET['wk'] ?? 0)));
+$dash_week_from      = date('Y-m-d', strtotime('monday this week ' . ($dash_wk >= 0 ? '+' : '') . $dash_wk . ' weeks'));
+$dash_week_to        = date('Y-m-d', strtotime($dash_week_from . ' +6 days'));
 $dash_upcoming       = [];
 $dash_pending_cancel = 0;
 if ($course_ids) {
@@ -2054,6 +2059,14 @@ if ($course_ids) {
          WHERE s.course_id IN ($ph) AND s.lesson_date = date('now','localtime')
          ORDER BY s.time_from",
         $course_ids
+    );
+    $dash_week = db_all(
+        "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.status, s.topic, s.meeting_url,
+                c.name AS course_name, c.id AS course_id, c.default_meeting_url
+         FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+         WHERE s.course_id IN ($ph) AND s.lesson_date BETWEEN ? AND ?
+         ORDER BY s.lesson_date, s.time_from",
+        array_merge($course_ids, [$dash_week_from, $dash_week_to])
     );
     $dash_upcoming = db_all(
         "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic,
