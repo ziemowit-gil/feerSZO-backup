@@ -244,6 +244,43 @@ final class LicenseAdminController
         return Router::redirect(route('ld.show', ['id' => $id]));
     }
 
+    /** AM91: faktyczna zmiana UPN konta w tenancie (Microsoft 365) + aktualizacja loginu w SZO. */
+    public function am91Change(int $id): ?string
+    {
+        require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
+        try {
+            $r = (new Am7TenantAccount($this->svc))->changeUpn($id, $_POST, $this->actor());
+            if (!$r['ok']) { flash_set('danger', implode(' ', $r['errors'])); return Router::redirect(route('ld.show', ['id' => $id])); }
+            flash_set('success', 'Login zmieniony: ' . $r['old'] . ' → ' . $r['new'] . ' — ' . implode('; ', $r['report']) . '. Wyślij osobie druk AM91 (zakładka Wydruki).');
+        } catch (\Throwable $e) { return $this->fail($e, route('ld.show', ['id' => $id])); }
+        return Router::redirect(route('ld.show', ['id' => $id]));
+    }
+
+    /** Druk AM91 (podgląd / pobranie PDF). */
+    public function am91Pdf(int $id): ?string
+    {
+        require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
+        $l = $this->svc->licenses->get($id);
+        if (!$l || $l['form'] !== LicenseForm::Am7) return $this->show404('wniosek AM7');
+        try { $o = (new Am7TenantAccount($this->svc))->am91Output($l); }
+        catch (DomainException $e) { flash_set('warning', $e->getMessage()); return Router::redirect(route('ld.show', ['id' => $id])); }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $o['out']['mime'] . ($o['out']['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . ldFileName($o['number']) . '.' . $o['out']['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $o['out']['bytes'];
+        return null;
+    }
+
+    /** Ręczna wysyłka AM91 e-mailem. */
+    public function am91Send(int $id): ?string
+    {
+        require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
+        try { flash_set('success', (new Am7TenantAccount($this->svc))->sendAm91($id, $this->actor()) . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.show', ['id' => $id])); }
+        return Router::redirect(route('ld.show', ['id' => $id]));
+    }
+
     public function editForm(int $id, array $errors = [], array $old = []): string
     {
         $l = $this->svc->licenses->get($id);

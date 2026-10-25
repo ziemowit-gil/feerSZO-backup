@@ -240,6 +240,28 @@ class M365Graph {
         ]);
     }
 
+    /**
+     * Zmienia login (UPN) istniejącego konta; $current = aktualny UPN albo id konta. Hasło i licencje zostają bez zmian.
+     * Graph: PATCH /users/{id|upn} {userPrincipalName}. Sukces = 204; w innym przypadku wyjątek z treścią błędu Graph.
+     * @throws \RuntimeException
+     */
+    public function change_upn(string $current, string $new_upn): void {
+        $ctx = stream_context_create(['http' => [
+            'method'  => 'PATCH',
+            'header'  => "Content-Type: application/json\r\nAuthorization: Bearer {$this->token()}\r\n",
+            'content' => json_encode(['userPrincipalName' => $new_upn]),
+            'ignore_errors' => true,
+        ]]);
+        $resp = @file_get_contents("https://graph.microsoft.com/v1.0/users/" . rawurlencode($current), false, $ctx);
+        $this->capture_status($http_response_header ?? []);
+        $decoded = json_decode($resp ?: '{}', true) ?? [];
+        $this->capture_error($decoded);
+        if ($this->last_status < 200 || $this->last_status >= 300) {
+            $msg = (string)($decoded['error']['message'] ?? '');
+            throw new \RuntimeException('Microsoft 365 odrzucił zmianę loginu (HTTP ' . $this->last_status . ')' . ($msg !== '' ? ': ' . $msg : '.'));
+        }
+    }
+
     // ── Szczegóły konta (podgląd administratora) ───────────────────────────
 
     /** Profil konta (pola podstawowe); przy braku konta zwraca tablicę z kluczem 'error'. */

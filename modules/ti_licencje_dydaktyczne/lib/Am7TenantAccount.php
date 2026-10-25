@@ -190,6 +190,124 @@ final class Am7TenantAccount
         return $res;
     }
 
+    // ── AM91: zmiana loginu (UPN) konta w tenancie po błędzie — faktyczna zmiana w Microsoft 365 + aktualizacja loginu w SZO ──
+
+    /** Poprawna część lokalna UPN (przed „@”): małe litery, cyfry, kropka, myślnik, podkreślenie. */
+    public static function validLocalPart(string $v): bool
+    {
+        return (bool)preg_match('/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/', $v) && !str_contains($v, '..');
+    }
+
+    /** Zmiany UPN zapisane w sprawie (od najstarszej): [{old,new,reason,at,by}]. */
+    public static function upnChanges(int $id): array
+    {
+        $row = db_one("SELECT tenant_info FROM licenses WHERE id = ?", [$id]);
+        $info = json_decode((string)($row['tenant_info'] ?? ''), true) ?: [];
+        return array_values((array)($info['upn_changes'] ?? []));
+    }
+
+    /**
+     * Zmienia UPN konta utworzonego ze sprawy AM7. $in: login (część przed „@”; domena zostaje bez zmian), reason (opis błędu — wymagany).
+     * Kolejność: walidacja → sprawdzenie, że nowy login jest wolny → PATCH w Microsoft 365 → dopiero potem aktualizacja SZO
+     * (sprawa, konto kursanta k30_ti_student_accounts.ms_upn / feer_ms_upn — po tym login logowania kursanta przez Microsoft).
+     * Hasło i licencje konta nie zmieniają się. Błąd po stronie Microsoftu = zero zmian w SZO.
+     * @return array{ok:bool, errors:list<string>, old:string, new:string, report:list<string>}
+     */
+    public function changeUpn(int $id, array $in, array $actor): array
+    {
+        $res = ['ok' => false, 'errors' => [], 'old' => '', 'new' => '', 'report' => []];
+        $l = $this->svc->licenses->get($id);
+        if (!$l || $l['form'] !== LicenseForm::Am7) { $res['errors'][] = 'To nie jest sprawa AM7.'; return $res; }
+        $row = db_one("SELECT tenant_kind, tenant_upn, tenant_info FROM licenses WHERE id = ?", [$id]);
+        $old = trim((string)($row['tenant_upn'] ?? ''));
+        if ($old === '' || !in_array((string)$row['tenant_kind'], ['feer', 'edu'], true)) { $res['errors'][] = 'Konto w tenancie nie zostało jeszcze utworzone — nie ma czego zmieniać.'; return $res; }
+        $tenant = (string)$row['tenant_kind'];
+        // AM91 dotyczy wyłącznie kont licencyjnych (założonych ze sprawy AM7) — nigdy kont pracowników / wolontariuszy SZO
+        if (db_one("SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1", [$old])) { $res['errors'][] = 'To login konta pracownika SZO — AM91 zmienia tylko konta licencyjne.'; return $res; }
+        [$oldLocal, $domain] = array_pad(explode('@', $old, 2), 2, '');
+        $local = strtolower(trim((string)($in['login'] ?? '')));
+        if (str_contains($local, '@')) $local = explode('@', $local, 2)[0];   // ktoś wkleił cały adres — domena i tak zostaje
+        $reason = trim((string)($in['reason'] ?? ''));
+        if (!self::validLocalPart($local)) $res['errors'][] = 'Login może zawierać tylko małe litery a–z (bez polskich znaków), cyfry, kropkę, myślnik i podkreślenie.';
+        if ($reason === '') $res['errors'][] = 'Opisz błąd, który powoduje zmianę (np. literówka w nazwisku) — trafi do druku AM91.';
+        $new = $local . '@' . $domain;
+        if ($domain === '') $res['errors'][] = 'Bieżący UPN nie ma domeny — zmień go ręcznie w Microsoft 365.';
+        if (strcasecmp($new, $old) === 0) $res['errors'][] = 'Nowy login jest taki sam jak obecny.';
+        if ($res['errors']) return $res;
+
+        $tenants = self::tenants();
+        if (empty($tenants[$tenant]['ready'])) { $res['errors'][] = 'Tenant „' . ($tenants[$tenant]['label'] ?? $tenant) . '” nie jest skonfigurowany (Microsoft 365 → ustawienia).'; return $res; }
+
+        // Microsoft 365: nowy login nie może być zajęty; potem właściwa zmiana
+        try {
+            $g = $this->graph($tenant);
+            if ($g->login_exists($new)) { $res['errors'][] = 'Login ' . $new . ' jest już zajęty w tenancie — wybierz inny.'; return $res; }
+            $g->change_upn($old, $new);
+        } catch (\Throwable $e) {
+            $res['errors'][] = 'Nie zmieniono loginu: ' . $e->getMessage();
+            $this->svc->licenses->event($id, 'tenant.upn_fail', 'Nieudana zmiana UPN ' . $old . ' → ' . $new . ': ' . $e->getMessage(), $actor);
+            return $res;
+        }
+        $res['report'][] = 'login zmieniony w Microsoft 365 (hasło i licencje bez zmian)';
+
+        // SZO: sprawa + konto kursanta (login logowania przez Microsoft) — dokładnie rekordy z dotychczasowym UPN
+        $info = json_decode((string)($row['tenant_info'] ?? ''), true) ?: [];
+        $info['upn_changes'] = array_merge((array)($info['upn_changes'] ?? []), [['old' => $old, 'new' => $new, 'reason' => $reason, 'at' => ldNow(), 'by' => (string)($actor['name'] ?? '')]]);
+        db()->prepare("UPDATE licenses SET tenant_upn = ?, tenant_info = ?, am91_sent_at = NULL WHERE id = ?")->execute([$new, json_encode($info, JSON_UNESCAPED_UNICODE), $id]);
+        try {
+            $n = 0;
+            $st = db()->prepare("UPDATE k30_ti_student_accounts SET ms_upn = ?, updated_at = datetime('now') WHERE LOWER(ms_upn) = LOWER(?)");
+            $st->execute([$new, $old]); $n += $st->rowCount();
+            require_once dirname(__DIR__, 2) . '/ti_m365_feer/logic/tiM365Feer.php'; TiM365Feer::migrate();
+            $st = db()->prepare("UPDATE k30_ti_student_accounts SET feer_ms_upn = ?, updated_at = datetime('now') WHERE LOWER(feer_ms_upn) = LOWER(?)");
+            $st->execute([$new, $old]); $n += $st->rowCount();
+            $res['report'][] = $n > 0 ? 'login zaktualizowany w koncie kursanta w SZO (' . $n . ')' : 'brak powiązanego konta kursanta w SZO do aktualizacji';
+        } catch (\Throwable $e) {
+            error_log('am91 upn link: ' . $e->getMessage());
+            $res['report'][] = 'UWAGA: login zmieniony w Microsoft 365 i w sprawie, ale konta kursanta w SZO nie zaktualizowano (' . $e->getMessage() . ') — popraw ręcznie';
+        }
+        $this->svc->licenses->event($id, 'tenant.upn_change', 'Zmieniono UPN ' . $old . ' → ' . $new . ' (AM91). Powód: ' . $reason . '. ' . implode('; ', $res['report']) . '.', $actor);
+        $res['ok'] = true; $res['old'] = $old; $res['new'] = $new;
+        return $res;
+    }
+
+    /** @return array{out:array,number:string,info:array} wydruk AM91 ostatniej zmiany UPN albo wyjątek, gdy zmiany jeszcze nie było */
+    public function am91Output(array $l): array
+    {
+        $ch = self::upnChanges((int)$l['id']);
+        if (!$ch) throw new DomainException('Nie było jeszcze zmiany UPN — druk AM91 dokumentuje wykonaną zmianę.');
+        $row = db_one("SELECT tenant_kind, tenant_info FROM licenses WHERE id = ?", [(int)$l['id']]);
+        $info = (json_decode((string)$row['tenant_info'], true) ?: []) + ['tenant_label' => ($row['tenant_kind'] === 'feer' ? 'Tenant FEER' : 'Tenant EDU FEER')];
+        $info['change'] = end($ch); $info['change_no'] = count($ch);
+        $number = LicenseDocument::am91Number($l, count($ch));
+        $html = (new LicenseDocument())->am91Html($l, $info);
+        return ['out' => LicenseDocument::render($html, 'Zmiana loginu UPN — ' . $l['interested_name'], $number, 'AM91'), 'number' => $number, 'info' => $info];
+    }
+
+    /** Ręczna wysyłka AM91: e-mail z PDF do osoby (kopia UDW do administratora). @return string raport */
+    public function sendAm91(int $id, array $actor): string
+    {
+        $l = $this->svc->licenses->get($id);
+        if (!$l || $l['form'] !== LicenseForm::Am7) throw new DomainException('To nie jest sprawa AM7.');
+        $o = $this->am91Output($l);
+        $ch = $o['info']['change'];
+        [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'am91_' . $id);
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>z powodu błędu w loginie zmieniliśmy login (UPN) Twojego konta Microsoft 365.</p>'
+              . '<p>Dotychczasowy login: <b>' . $e($ch['old']) . '</b><br>Nowy login: <b>' . $e($ch['new']) . '</b></p>'
+              . '<p><b>Hasło się nie zmieniło.</b> Od teraz loguj się nowym loginem; w aplikacjach (Teams, Outlook, Office, OneDrive) wyloguj się i zaloguj ponownie. Szczegóły w załączonym dokumencie (AM91). Sprawa: ' . $e($l['case_number']) . '.</p>';
+        $att = LicenseNotificationService::attachment($rel, $o['number']);
+        $c = $this->svc->interestedContact($l);
+        $res = $this->svc->notify->send(LicenseNotificationType::UpnChanged, $c, 'Zmiana loginu konta Microsoft 365 (AM91) — sprawa ' . $l['case_number'],
+            LicenseNotificationService::layout('Zmiana loginu konta Microsoft 365', $body, '', '', 'AM91'), '', ['type' => 'license', 'id' => $id], $actor, true, $att);
+        $report = 'AM91: ' . $this->svc->describe($res) . ($att ? '' : ' (bez PDF — wersja HTML tylko do wglądu w panelu)');
+        $this->svc->licenses->event($id, 'am91.sent', 'Ręcznie wysłano AM91 ' . $o['number'] . ': ' . $this->svc->describe($res), $actor);
+        if (!empty($res['delivered']) || in_array('queued', (array)($res['channels'] ?? []), true)) {
+            db()->prepare("UPDATE licenses SET am91_sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
+        }
+        return $report;
+    }
+
     // ── AM90: Potwierdzenie wykonania operacji (druk w stylu CIT; wysyłka RĘCZNA) ──────────────────
 
     /** @return array{out:array,number:string,info:array} wydruk AM90 (PDF; fallback HTML) albo wyjątek, gdy konta jeszcze nie ma */

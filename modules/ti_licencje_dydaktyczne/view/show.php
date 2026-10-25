@@ -137,6 +137,16 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <div class="ld-note" style="margin:0 0 .2rem">Konto: <b><?= h($_tn) ?></b></div>
       <a class="btn btn-sm btn-metro" href="#wydruki" data-ld-goto="wydruki">Potwierdzenie AM90 — zakładka Wydruki</a>
       <?php if ($_am90 !== ''): ?><div class="ld-note">AM90 wysłano <?= h(ldDt($_am90)) ?>; zgłoszenie w Helpdesku zamknięte.</div><?php endif; ?>
+      <details class="ld-note" style="margin:.4rem 0 0"><summary class="fw-semibold">Błąd w loginie? Zmień UPN (AM91)</summary>
+        <form method="post" action="<?= h(route('ld.am91.change', ['id' => $id])) ?>" class="mt-1" onsubmit="return confirm('Zmienić login konta w Microsoft 365 i w SZO? Hasło się nie zmieni; stary login przestanie działać.')"><?= Router::csrfField() ?>
+          <label class="form-label small mb-0" for="am91-login">Nowy login (przed „@”)</label>
+          <div class="input-group input-group-sm mb-1"><input class="form-control" id="am91-login" name="login" required maxlength="64" pattern="[a-z0-9._-]+" value="<?= h(explode('@', $_tn)[0]) ?>" autocomplete="off"><span class="input-group-text">@<?= h(explode('@', $_tn, 2)[1] ?? '') ?></span></div>
+          <label class="form-label small mb-0" for="am91-reason">Opis błędu</label>
+          <input class="form-control form-control-sm mb-1" id="am91-reason" name="reason" required placeholder="np. literówka w nazwisku">
+          <button class="btn btn-sm btn-metro red">Zmień UPN</button>
+        </form>
+        <span class="small">Zmienia login w Microsoft 365 i w koncie kursanta w SZO; potem wyślij osobie druk AM91 (zakładka Wydruki).</span>
+      </details>
     <?php endif; ?>
     <?php endif; ?>
     <?php if ($am7 && empty($l['helpdesk_ticket_id'])): ?>
@@ -307,6 +317,13 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <td><?= $_am90w !== '' ? ldChip('wysłano ' . ldDt($_am90w), '#008a00') : ldChip('nie wysłano', '#f0a30a') ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#0f766e" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
         <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90w !== '' ? 'Wyślij AM90 ponownie' : 'Wyślij AM90', 'btn-metro green', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?></td></tr>
+    <?php endif; ?>
+    <?php if ($am7 && $_tnHead !== '' && ($_ch = (require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php') ? Am7TenantAccount::upnChanges($id) : [])): $_am91w = (string)(db_one("SELECT am91_sent_at FROM licenses WHERE id = ?", [$id])['am91_sent_at'] ?? ''); ?>
+    <tr><td><span class="sym" style="background:#9f1239">AM91</span> Zmiana loginu (UPN) — <?= h(end($_ch)['old']) ?> → <?= h(end($_ch)['new']) ?></td>
+      <td class="text-nowrap"><?= h(LicenseDocument::am91Number($l, count($_ch))) ?></td>
+      <td><?= $_am91w !== '' ? ldChip('wysłano ' . ldDt($_am91w), '#008a00') : ldChip('nie wysłano', '#f0a30a') ?></td>
+      <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#9f1239" href="<?= h(route('ld.am91.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
+        <?= ldPost(route('ld.am91.send', ['id' => $id]), $_am91w !== '' ? 'Wyślij AM91 ponownie' : 'Wyślij AM91', 'btn-metro green', [], 'Wysłać AM91 e-mailem w PDF (kopia do administratora)?') ?></td></tr>
     <?php endif; ?>
     </tbody></table></div>
 </section>

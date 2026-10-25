@@ -419,6 +419,52 @@ final class LicenseDocument
         return self::css() . $h;
     }
 
+    // ── AM91: zmiana loginu (UPN) konta w tenancie po błędzie — układ CIT ────────────
+
+    /** Numer druku AM91: numer sprawy + symbol + numer kolejnej zmiany. */
+    public static function am91Number(array $l, int $n = 1): string
+    {
+        return (trim((string)($l['case_number'] ?? '')) ?: ldCaseNumber((int)$l['id'], 'XX')) . ' · AM91/' . $n;
+    }
+
+    /**
+     * Druk AM91 „Zmiana loginu (UPN)” — dokumentuje wykonaną zmianę: poprzedni i nowy login, powód (błąd), kto i kiedy zmienił.
+     * Bez podpisów i bez haseł (hasło konta się nie zmienia). $info: tenant_label, name, email, change{old,new,reason,at,by}, change_no.
+     */
+    public function am91Html(array $l, array $info): string
+    {
+        $this->n = 0;
+        $c = (array)$info['change'];
+        $number = self::am91Number($l, (int)($info['change_no'] ?? 1));
+        $when = ldDate(substr((string)$c['at'], 0, 10)) . ' ' . substr((string)$c['at'], 11, 5);
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer sprawy / dokumentu', '<span class="big">' . self::e($number) . '</span>', ' width="40%"')
+           . $this->fld('Kurs / zajęcia', self::e((string)($l['course_name'] ?: '—')), ' width="40%"')
+           . '<td class="sym" width="20%" style="background:#9f1239"><div class="symb">AM91</div><div class="symp">&nbsp;</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '</tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">ZMIANA LOGINU (UPN) KONTA</div>'
+           . '<div class="ttl2">korekta błędu w loginie konta Microsoft 365 utworzonego w ramach licencji</div></td></tr>'
+           . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Adresat:</b> osoba, której dotyczy konto.&nbsp; <b>Sprawa:</b> ' . self::e((string)$l['case_number'])
+           . '.&nbsp; Dokument jedynie potwierdza wykonaną zmianę — <b>nie wymaga podpisu</b>.</td></tr></table>';
+        $h .= '<table class="t">' . self::sec('A', 'OSOBA I SPRAWA', 2) . '<tr>'
+            . $this->fld('Imię i nazwisko', self::e((string)($info['name'] ?? $l['interested_name'])), ' width="50%"')
+            . $this->fld('Tenant', self::e((string)$info['tenant_label']), ' width="50%"') . '</tr></table>';
+        $h .= '<table class="t">' . self::sec('B', 'WYKONANA ZMIANA', 2) . '<tr><td class="pc" colspan="2"><div class="pt">Ze względu na błąd w loginie zmieniono login (UPN) konta użytkownika w tenancie Microsoft 365. Konto, jego hasło, dane i nadane licencje pozostają bez zmian.</div></td></tr><tr>'
+            . $this->fld('Dotychczasowy login (UPN)', '<b>' . self::e((string)$c['old']) . '</b>', ' width="50%"')
+            . $this->fld('Nowy login (UPN)', '<b>' . self::e((string)$c['new']) . '</b>', ' width="50%"')
+            . '</tr><tr>' . $this->fld('Opis błędu / powód zmiany', self::val((string)$c['reason'], 'powód zmiany'), ' colspan="2"')
+            . '</tr><tr>' . $this->fld('Data i godzina zmiany', self::e($when), ' width="50%"')
+            . $this->fld('Zmiany dokonał(a)', self::val((string)($c['by'] ?? ''), 'osoba dokonująca zmiany'), ' width="50%"') . '</tr></table>';
+        $h .= '<table class="t">' . self::sec('C', 'CO ZROBIĆ PO ZMIANIE', 1) . '<tr><td class="pc"><div class="pt">'
+            . '1. Od teraz loguj się wyłącznie <b>nowym loginem</b> (' . self::e((string)$c['new']) . '); dotychczasowy login przestaje działać.<br>'
+            . '2. <b>Hasło pozostaje takie samo.</b><br>'
+            . '3. W aplikacjach Microsoft (Teams, Outlook, Office, OneDrive) wyloguj się i zaloguj ponownie nowym loginem; w razie potrzeby usuń zapamiętane konto przeglądarki.<br>'
+            . '4. W razie trudności zgłoś sprawę do Helpdesku IT, podając numer sprawy ' . self::e((string)$l['case_number']) . '.</div></td></tr></table>';
+        $h .= '<table class="t">' . self::sec('D', 'INFORMACJA', 1) . '<tr><td class="pc"><div class="pt">Dokument został wygenerowany elektronicznie w SZO (' . self::e($when) . ') i nie wymaga podpisu. '
+            . 'Zmiana dotyczy wyłącznie loginu konta i nie zmienia warunków udostępnienia licencji potwierdzonych dokumentem AM90.</div></td></tr></table>';
+        return self::css() . $h;
+    }
+
     public function blankHtml(LicenseDoc $doc): string
     {
         $l = ['id' => 0, 'case_number' => '', 'created_at' => date('Y'), 'title' => '', 'work_description' => '', 'course_name' => '', 'licensor_name' => '', 'licensor_email' => '',

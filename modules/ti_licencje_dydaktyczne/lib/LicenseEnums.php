@@ -269,6 +269,7 @@ enum LicenseNotificationType: string
     case HelpdeskTicket       = 'helpdesk_ticket';        // zlecenie dla Helpdesku IT po decyzji AM7 (log)
     case Statement            = 'statement';              // AMZ — zestawienie licencji i usług wysłane kursantowi
     case OperationConfirm     = 'operation_confirm';      // AM90 — potwierdzenie wykonania operacji (konto w tenancie), wysyłka ręczna
+    case UpnChanged           = 'upn_changed';            // AM91 — zmiana loginu (UPN) konta w tenancie po błędzie, wysyłka ręczna
 
     public function label(): string
     {
@@ -286,6 +287,7 @@ enum LicenseNotificationType: string
             self::HelpdeskTicket     => 'Zlecenie Helpdesku IT',
             self::Statement          => 'Zestawienie AMZ',
             self::OperationConfirm   => 'Potwierdzenie wykonania operacji (AM90)',
+            self::UpnChanged         => 'Zmiana loginu UPN (AM91)',
         };
     }
 }

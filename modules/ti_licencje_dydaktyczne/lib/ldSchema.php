@@ -150,7 +150,9 @@ function ldMigrate(): void
               // konto utworzone w tenancie z poziomu sprawy AM7 (Am7TenantAccount)
               "tenant_kind VARCHAR(8) NOT NULL DEFAULT ''", "tenant_upn VARCHAR(190) NOT NULL DEFAULT ''", "tenant_created_at VARCHAR(19)",
               // szczegóły wykonanej operacji do druku AM90 (JSON, bez hasła) i znacznik wysyłki ręcznej
-              "tenant_info TEXT", "am90_sent_at VARCHAR(19)"] as $col) {
+              "tenant_info TEXT", "am90_sent_at VARCHAR(19)",
+              // AM91: ostatnia zmiana UPN (historia zmian w tenant_info.upn_changes) i znacznik wysyłki ręcznej
+              "am91_sent_at VARCHAR(19)"] as $col) {
         try { $db->exec("ALTER TABLE licenses ADD COLUMN {$col}"); } catch (\Throwable $e) {}
     }
     $db->exec("CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(request_status)");
