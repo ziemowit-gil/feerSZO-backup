@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/helpdesk.php';
 require_once dirname(__DIR__) . '/modules/helpdeskMail/lib/helpdeskMail.php';
 require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php';
+require_once dirname(__DIR__) . '/modules/helpdeskCsat/lib/helpdeskCsat.php';
 require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
 helpdesk_migrate();
 require_login();
@@ -46,6 +47,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pat = trim((string)($_POST['hd_number_pattern'] ?? ''));
         if ($pat === '' || hdNumberPatternValid($pat)) { org_setting_set('hd_number_pattern', $pat); flash_set('success', 'Wzorzec numeru zapisany.'); }
         else flash_set('danger', 'Nieprawidłowy wzorzec: licznik {NNNNN} (3–8 liter N) musi być na końcu; dozwolone znaczniki {PREFIX} {YYYY} {YY} {MM}.');
+    }
+    if ($op === 'csat_toggle') {
+        $new = hdCsatEnabled() ? '0' : '1';
+        org_setting_set('hd_csat_enabled', $new);
+        flash_set('success', $new === '1' ? 'Ankieta zadowolenia włączona — zgłaszający dostaną link po rozwiązaniu zgłoszenia.' : 'Ankieta zadowolenia wyłączona.');
     }
     if ($op === 'hours_save') {
         $err = hdWorkConfigSave($_POST);
@@ -232,6 +238,20 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php endforeach; ?>
       </ul>
       <?php endif; ?>
+    </div>
+  </div>
+</div>
+
+<!-- Ankieta CSAT -->
+<div class="col-12">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem"><i class="bi bi-emoji-smile me-1"></i>Ankieta zadowolenia (CSAT)</div>
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+      <p class="text-muted small mb-0 flex-grow-1">Po rozwiązaniu lub zamknięciu zgłoszenia zgłaszający dostaje e-mail z linkiem do oceny 1–5 (raz na zgłoszenie). Wyniki: pulpit Helpdesku i karta zgłoszenia. Domyślnie wyłączona — włączenie powoduje wysyłkę e-maili.</p>
+      <?php $cs = hdCsatSummary(); ?>
+      <span class="small">Odpowiedzi: <strong><?= $cs['answered'] ?></strong> / <?= $cs['sent'] ?><?= $cs['avg'] !== null ? ' · średnia <strong>' . h(number_format($cs['avg'], 2, ',', '')) . '</strong>' : '' ?></span>
+      <form method="post"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="csat_toggle">
+        <button class="btn btn-sm <?= hdCsatEnabled() ? 'btn-outline-danger' : 'btn-success' ?>"><?= hdCsatEnabled() ? 'Wyłącz' : 'Włącz' ?></button></form>
     </div>
   </div>
 </div>

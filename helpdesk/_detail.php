@@ -435,6 +435,20 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
     </div>
   </div>
 
+  <!-- Ocena zgłaszającego (CSAT) -->
+  <?php require_once dirname(__DIR__) . '/modules/helpdeskCsat/lib/helpdeskCsat.php'; $hd_csat = hdCsatFor((int)$ticket['id']); ?>
+  <?php if ($hd_csat): ?>
+  <div class="hd-side-card">
+    <div class="hd-side-card-head"><i class="bi bi-emoji-smile"></i>Ocena zgłaszającego</div>
+    <div class="hd-side-card-body">
+      <?php if ($hd_csat['answered_at']): ?>
+      <strong><?= (int)$hd_csat['rating'] ?>/5</strong> <span class="text-muted"><?= h(date('d.m.Y', strtotime($hd_csat['answered_at']))) ?></span>
+      <?= $hd_csat['comment'] !== '' ? '<div class="mt-1">' . h($hd_csat['comment']) . '</div>' : '' ?>
+      <?php else: ?><span class="text-muted">Ankieta wysłana <?= h(date('d.m.Y', strtotime($hd_csat['sent_at']))) ?> — brak odpowiedzi.</span><?php endif; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- Czas pracy -->
   <?php require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php'; $hd_time = hdTimeList((int)$ticket['id']); $hd_time_sum = array_sum(array_column($hd_time, 'minutes')); ?>
   <div class="hd-side-card">

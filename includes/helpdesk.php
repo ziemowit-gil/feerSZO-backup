@@ -1254,6 +1254,8 @@ CSS;
 // ── Powiadomienia ─────────────────────────────────────────────────────────────
 
 function hd_notify_status_change(array $ticket, string $old_status, string $new_status, string $note = ''): void {
+    // Ankieta zadowolenia po zakończeniu zgłoszenia (jeśli włączona w ustawieniach)
+    try { require_once dirname(__DIR__) . '/modules/helpdeskCsat/lib/helpdeskCsat.php'; hdCsatMaybeSend($ticket, $new_status); } catch (\Throwable $e) {}
     $old_label = HD_STATUSES[$old_status]['label'] ?? $old_status;
     $new_label = HD_STATUSES[$new_status]['label'] ?? $new_status;
     $org       = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';

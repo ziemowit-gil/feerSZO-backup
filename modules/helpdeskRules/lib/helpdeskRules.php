@@ -173,6 +173,11 @@ function hdRulesRunIdle(bool $dryRun = false): array
                 db()->prepare("UPDATE helpdesk_tickets SET status=?, updated_at=?" . ($close ? ", closed_at=COALESCE(closed_at, ?)" : '') . " WHERE id=?")
                     ->execute($close ? [$r['act_status'], $now, $now, (int)$row['id']] : [$r['act_status'], $now, (int)$row['id']]);
             }
+            if ($r['act_status'] !== '') {
+                require_once dirname(__DIR__, 2) . '/helpdeskCsat/lib/helpdeskCsat.php';
+                $tk = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [(int)$row['id']]);
+                if ($tk) hdCsatMaybeSend($tk, $r['act_status']);
+            }
             hdRulesNote((int)$row['id'], 'Reguła „' . $r['name'] . '”: brak aktywności od ' . (int)$r['cond_idle_days'] . ' dni'
                 . ($r['act_status'] !== '' ? ' — status → ' . (HD_STATUSES[$r['act_status']]['label'] ?? $r['act_status']) : '') . '.' . ($r['act_note'] !== '' ? "\n" . $r['act_note'] : ''));
         }
