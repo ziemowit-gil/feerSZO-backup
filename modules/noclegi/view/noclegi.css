@@ -1,44 +1,53 @@
-/* Noclegi — styl METRO: płasko, bez zaokrągleń, grafit #1d1d1d + cyjan #1ba1e2. Kontrasty ≥ 4.5:1. */
-.ncl { max-width: 1180px; margin: 0 auto; padding: 0 .5rem 2rem; color: #1d1d1d; }
-.ncl h1 { font-size: 1.7rem; font-weight: 300; margin: .2rem 0 .3rem; letter-spacing: -.01em; }
-.ncl h2 { font-size: 1.15rem; font-weight: 600; margin: 1.4rem 0 .6rem; }
-.ncl .ncl-eyebrow { margin: 0; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #4b5563; }
+/* Noclegi — układ Dynamics 365 (wspólny z CRM/EZD: assets/css/dynamics.css): białe karty, szare krawędzie, błękit #2563EB / granat #1E40AF. Kontrasty ≥ 4.5:1. */
+.ncl { max-width: 1180px; margin: 0 auto; padding: .75rem .5rem 2rem; color: #111827; }
+.ncl h1 { font-size: 1.35rem; font-weight: 600; margin: .2rem 0 .3rem; }
+.ncl h2 { font-size: 1rem; font-weight: 600; margin: 1.3rem 0 .6rem; color: #111827; }
 .ncl .ncl-lead { color: #374151; max-width: 60rem; }
-.ncl-nav { display: flex; flex-wrap: wrap; gap: 0; margin: .8rem 0 1.2rem; border-bottom: 3px solid #1ba1e2; background: #1d1d1d; }
-.ncl-nav a { color: #fff; text-decoration: none; padding: .6rem 1rem; font-weight: 600; font-size: .92rem; border-right: 1px solid #3a3a3a; }
-.ncl-nav a:hover { background: #333; }
-.ncl-nav a[aria-current="page"] { background: #1ba1e2; color: #00212f; }
+.ncl .dyn-entity { margin-bottom: .25rem; }
+.ncl-head { background: #fff; border: 1px solid #E5E7EB; padding: .8rem 1rem; margin-bottom: .75rem; }
+.ncl-head .dyn-title { margin: 0; }
+.ncl-head + .dyn-bpf { margin: -.25rem 0 1rem; padding: .6rem 1rem; background: #fff; border: 1px solid #E5E7EB; }
+/* zakładki sekcji (pasek jak mapa witryny Dynamics) */
+.ncl-nav { display: flex; flex-wrap: wrap; gap: 0; margin: .5rem 0 1rem; background: #fff; border: 1px solid #E5E7EB; border-bottom: 0; overflow-x: auto; }
+.ncl-nav a { color: #374151; text-decoration: none; padding: .6rem 1rem; font-weight: 500; font-size: .88rem; border-bottom: 3px solid transparent; white-space: nowrap; }
+.ncl-nav a:hover { background: #F3F4F6; color: #111827; }
+.ncl-nav a[aria-current="page"] { color: #1E40AF; font-weight: 600; border-bottom-color: #1E40AF; }
 .ncl a:focus-visible, .ncl button:focus-visible, .ncl input:focus-visible, .ncl select:focus-visible, .ncl textarea:focus-visible, .ncl summary:focus-visible { outline: 3px solid #a20025; outline-offset: 2px; }
-.ncl-card { background: #fff; border: 1px solid #d1d5db; border-left: 4px solid #1ba1e2; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+.ncl-card { background: #fff; border: 1px solid #E5E7EB; padding: 1rem 1.1rem; margin-bottom: .75rem; }
+.ncl-card > h2:first-child, .ncl-card > h2.mt-0 { font-size: .95rem; padding-bottom: .5rem; margin-bottom: .75rem !important; border-bottom: 1px solid #E5E7EB; }
 .ncl-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; margin: .6rem 0 1rem; }
-.ncl-tile { background: #1d1d1d; color: #fff; padding: .7rem .9rem; text-decoration: none; display: block; border-bottom: 3px solid #1ba1e2; }
-.ncl-tile b { display: block; font-size: 1.8rem; font-weight: 300; line-height: 1.1; }
-.ncl-tile span { font-size: .8rem; }
-.ncl-tile:hover { background: #333; color: #fff; }
-.ncl-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-.ncl-table caption { text-align: left; font-size: .8rem; color: #4b5563; padding-bottom: .3rem; }
-.ncl-table th { background: #f3f4f6; text-align: left; padding: .45rem .6rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #374151; border-bottom: 2px solid #d1d5db; }
-.ncl-table td { padding: .5rem .6rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-.ncl-table tr:nth-child(even) td { background: #f9fafb; }
+.ncl-tile { background: #fff; color: #111827; padding: .7rem .9rem; text-decoration: none; display: block; border: 1px solid #E5E7EB; border-top: 3px solid #2563EB; }
+.ncl-tile b { display: block; font-size: 1.6rem; font-weight: 600; line-height: 1.1; color: #1E40AF; }
+.ncl-tile span { font-size: .8rem; color: #374151; }
+.ncl-tile:hover { background: #F3F4F6; color: #111827; }
+.ncl-table { width: 100%; border-collapse: collapse; font-size: .9rem; background: #fff; border: 1px solid #E5E7EB; }
+.ncl-table caption { text-align: left; font-size: .8rem; color: #4b5563; padding-bottom: .3rem; caption-side: top; }
+.ncl-table th { background: #F9FAFB; text-align: left; padding: .5rem .7rem; font-size: .75rem; font-weight: 600; color: #374151; border-bottom: 1px solid #E5E7EB; }
+.ncl-table td { padding: .55rem .7rem; border-bottom: 1px solid #F3F4F6; vertical-align: top; }
+.ncl-table tbody tr:hover td { background: #F5F8FF; }
 .ncl-scroll { overflow-x: auto; }
-.ncl .badge { border-radius: 0; font-weight: 600; }
-.ncl .btn, .ncl .form-control, .ncl .form-select { border-radius: 0; }
-.ncl .btn-primary { background: #1ba1e2; border-color: #1ba1e2; color: #00212f; font-weight: 600; }
-.ncl .btn-primary:hover { background: #0f7fb5; border-color: #0f7fb5; color: #fff; }
-.ncl .form-label { font-weight: 600; font-size: .88rem; margin-bottom: .2rem; }
+.ncl a { color: #1E40AF; }
+.ncl .badge { border-radius: 2px; font-weight: 600; }
+.ncl .btn, .ncl .form-control, .ncl .form-select { border-radius: 2px; }
+.ncl .btn-primary { background: #1E40AF; border-color: #1E40AF; color: #fff; font-weight: 600; }
+.ncl .btn-primary:hover { background: #1E3A8A; border-color: #1E3A8A; color: #fff; }
+.ncl .btn-outline-primary { color: #1E40AF; border-color: #1E40AF; }
+.ncl .btn-outline-primary:hover { background: #1E40AF; color: #fff; }
+.ncl .form-label { font-weight: 600; font-size: .85rem; margin-bottom: .2rem; color: #374151; }
+.ncl .form-control, .ncl .form-select { border-color: #9CA3AF; }
 .ncl .form-text { color: #4b5563; }
 .ncl .is-invalid ~ .invalid-feedback, .ncl .invalid-feedback.d-block { color: #a20025; font-weight: 600; }
-.ncl fieldset { border: 1px solid #d1d5db; padding: .6rem .9rem; margin-bottom: 1rem; }
+.ncl fieldset { border: 1px solid #E5E7EB; background: #fff; padding: .6rem .9rem; margin-bottom: 1rem; }
 .ncl legend { font-size: .9rem; font-weight: 600; width: auto; padding: 0 .4rem; float: none; margin: 0; }
-.ncl-kv { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; margin: 0; }
-.ncl-kv dt { font-weight: 600; color: #374151; }
-.ncl-kv dd { margin: 0; }
-.ncl-code { font-family: ui-monospace, Menlo, monospace; font-size: 1.15rem; background: #f3f4f6; padding: .1rem .5rem; border: 1px solid #d1d5db; }
-.ncl-bar { height: .7rem; background: #e5e7eb; }
-.ncl-bar > i { display: block; height: 100%; background: #1ba1e2; }
+.ncl-kv { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1.2rem; margin: 0; }
+.ncl-kv dt { font-weight: 400; font-size: .85rem; color: #4b5563; }
+.ncl-kv dd { margin: 0; font-weight: 500; }
+.ncl-code { font-family: ui-monospace, Menlo, monospace; font-size: 1.1rem; background: #F3F4F6; padding: .1rem .5rem; border: 1px solid #E5E7EB; }
+.ncl-bar { height: .6rem; background: #E5E7EB; border-radius: 3px; overflow: hidden; }
+.ncl-bar > i { display: block; height: 100%; background: #2563EB; }
 .ncl-bar.over > i { background: #a20025; }
-.ncl-room { border: 1px solid #d1d5db; margin-bottom: .6rem; }
-.ncl-room > header { background: #f3f4f6; padding: .4rem .7rem; font-weight: 600; display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.ncl-room { border: 1px solid #E5E7EB; background: #fff; margin-bottom: .6rem; }
+.ncl-room > header { background: #F9FAFB; padding: .45rem .8rem; font-weight: 600; display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; border-bottom: 1px solid #E5E7EB; }
 .ncl-room ul { margin: 0; padding: .4rem .7rem .5rem 1.8rem; }
 .ncl-muted { color: #4b5563; }
-@media (max-width: 640px) { .ncl-nav a { flex: 1 1 45%; border-right: 0; border-bottom: 1px solid #3a3a3a; } .ncl-kv { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .ncl-kv { grid-template-columns: 1fr; } }

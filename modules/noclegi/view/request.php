@@ -9,8 +9,20 @@ $d = fn($x) => date('d.m.Y', strtotime($x));
 $nights = noclNights($r['date_from'], $r['date_to']);
 $tlabels = ['w_trakcie' => 'Przejmij / w trakcie', 'potwierdzone' => 'Potwierdź rezerwację', 'zrealizowane' => 'Oznacz jako zrealizowane', 'anulowane' => 'Anuluj zgłoszenie', 'wniosek' => 'Cofnij do wniosku'];
 ?>
-<h1>Zgłoszenie #<?= (int)$r['id'] ?> <span class="badge <?= h(noclStatusBadge($r['status'])) ?>"><?= h(noclStatusLabel($r['status'])) ?></span></h1>
-<p class="ncl-lead"><?= h($r['person_name']) ?> · <?= h(noclRoleOsoby()[$r['person_role']] ?? $r['person_role']) ?> · <?= h($d($r['date_from'])) ?> – <?= h($d($r['date_to'])) ?> (<?= $nights ?> <?= $nights === 1 ? 'noc' : 'noce/nocy' ?>)<?= $r['source'] === 'ti' ? ' · z modułu TI (Noclegi kadry)' : '' ?></p>
+<div class="dyn-head ncl-head">
+  <div class="dyn-head__main">
+    <?= dynEntity('Zgłoszenie noclegu', '#' . (int)$r['id']) ?>
+    <h1 class="dyn-title"><?= h($r['person_name']) ?></h1>
+    <p class="ncl-lead mb-0"><?= h(noclRoleOsoby()[$r['person_role']] ?? $r['person_role']) ?><?= $r['source'] === 'ti' ? ' · z modułu TI (Noclegi kadry)' : '' ?></p>
+  </div>
+  <?= dynHFields([
+      ['Termin', $d($r['date_from']) . ' – ' . $d($r['date_to'])],
+      ['Noce', (string)$nights],
+      ['Status', ['html' => '<span class="badge ' . h(noclStatusBadge($r['status'])) . '">' . h(noclStatusLabel($r['status'])) . '</span>']],
+  ]) ?>
+</div>
+<?php $_st = noclStatusy(); $_flow = array_intersect_key($_st, array_flip(['wniosek', 'w_trakcie', 'potwierdzone', 'zrealizowane'])); ?>
+<?= dynStages($_flow, (string)$r['status'], ['off' => isset($_st['anulowane']) ? ['anulowane' => $_st['anulowane']] : [], 'label' => 'Etapy zgłoszenia']) ?>
 
 <?php if ($transitions): ?>
 <section class="ncl-card" aria-labelledby="h-akcje">
