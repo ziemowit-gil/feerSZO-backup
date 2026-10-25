@@ -191,10 +191,14 @@ final class TiLicencjeBilling
     }
 
     /** W dniu przypisania: kwota, forma, dzień miesiąca, rabat; pierwsza opłata dzisiaj. $type: 'license' | 'product'. */
-    public static function sendStart(int $assignmentId, array $channels = ['email', 'sms'], ?int $by = null, string $type = 'license'): array
+    public static function sendStart(int $assignmentId, array $channels = ['email', 'sms'], ?int $by = null, string $type = 'license', bool $force = false): array
     {
         $a = self::assignment($assignmentId, $type);
         $issued = $a ? (string)($a['issued_at'] ?: substr((string)$a['assigned_at'], 0, 10)) : date('Y-m-d');
+        if ($force) {   // ponowna wysyłka: poprzednie wpisy „start” przestają blokować (zostają w dzienniku jako 'superseded')
+            db()->prepare("UPDATE k30_ti_license_billing_msgs SET status='superseded' WHERE item_type=? AND assignment_id=? AND kind='start' AND status IN ('sent','pending')")
+                ->execute([$type, $assignmentId]);
+        }
         $res = self::send($type, $assignmentId, 'start', substr($issued, 0, 7), date('Y-m-d'), array_values(array_intersect(['email', 'sms'], $channels)));
         if ($res['ok'] && $type === 'license') db_exec("UPDATE k30_ti_client_licenses SET notified_at = ? WHERE id = ?", [date('Y-m-d H:i:s'), $assignmentId]);
         return $res;

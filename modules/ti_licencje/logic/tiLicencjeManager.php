@@ -486,6 +486,12 @@ final class TiLicencjeManager
     public static function notifyAssigned(int $id, ?int $by = null, bool $force = true, array $channels = ['email', 'sms']): array
     {
         self::ready();
+        // Licencja z rozliczeniem miesięcznym: wiadomość rozliczeniowa (kwota, forma, dzień, rabat) — nie zwykłe powiadomienie
+        $a = db_one("SELECT monthly_amount FROM k30_ti_client_licenses WHERE id = ?", [$id]);
+        if ($a && $a['monthly_amount'] !== null && $a['monthly_amount'] !== '') {
+            require_once __DIR__ . '/tiLicencjeBilling.php';
+            return TiLicencjeBilling::sendStart($id, $channels, $by, 'license', $force);
+        }
         return TiLicencjeNotifier::send($id, $channels, $by, $force);
     }
 

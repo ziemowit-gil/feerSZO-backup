@@ -632,6 +632,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
     }
 
+    // Ponowna wysyłka informacji o przypisaniu licencji (przy rozliczeniu miesięcznym: e-mail + SMS z kwotą, formą i dniem)
+    if ($op === 'license_notify') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $res = TiLicencjeManager::notifyAssigned((int)($_POST['assignment_id'] ?? 0), $uid, true);
+        flash_set($res['ok'] ? 'success' : 'warning', 'Powiadomienie o licencji — ' . $res['msg']);
+        header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
+    }
+
     if ($op === 'license_revoke') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $res = TiLicencjeManager::revoke((int)($_POST['assignment_id'] ?? 0), '', $uid);
@@ -1852,7 +1860,14 @@ function printBulk(){
           <span class="badge text-bg-light border" title="Rozliczenie miesięczne: kwota do zapłaty, dzień miesiąca<?= $sl_am[0] !== $sl_am[1] ? ', po rabacie (cena ' . number_format($sl_am[0], 2, ',', ' ') . ' zł)' : '' ?>">
             <?= number_format($sl_am[1], 2, ',', ' ') ?> zł · <?= (int)$sl['billing_day'] ?>. dnia<?= $sl_am[0] !== $sl_am[1] ? ' · rabat' : '' ?></span>
           <?php endif; ?>
-          <form method="post" class="ms-auto" onsubmit="return confirm('Cofnąć przypisanie licencji „<?= h(addslashes($sl['license_name'])) ?>”?')">
+          <form method="post" class="ms-auto d-inline-flex gap-1" onsubmit="return confirm('Wysłać ponownie informację o tej licencji (e-mail i SMS)?')">
+            <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op" value="license_notify">
+            <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+            <input type="hidden" name="assignment_id" value="<?= (int)$sl['id'] ?>">
+            <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Wyślij informację o przypisaniu ponownie" aria-label="Wyślij ponownie informację o licencji <?= h($sl['license_name']) ?>"><i class="bi bi-envelope-arrow-up" aria-hidden="true"></i></button>
+          </form>
+          <form method="post" class="" onsubmit="return confirm('Cofnąć przypisanie licencji „<?= h(addslashes($sl['license_name'])) ?>”?')">
             <input type="hidden" name="_token"       value="<?= h(dyd_token()) ?>">
             <input type="hidden" name="_op"          value="license_revoke">
             <input type="hidden" name="account_id"   value="<?= (int)$sa['id'] ?>">
