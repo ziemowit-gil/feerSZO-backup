@@ -668,6 +668,9 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
       <a href="<?= APP_URL ?>/helpdesk/admin_macros.php">
         <i class="bi bi-card-text"></i>Gotowe odpowiedzi
       </a>
+      <a href="<?= APP_URL ?>/modules/helpdeskReports/router.php">
+        <i class="bi bi-graph-up"></i>Raporty
+      </a>
       <?php if (is_admin()): ?>
       <a href="<?= APP_URL ?>/helpdesk/admin_email_templates.php">
         <i class="bi bi-envelope-gear"></i>Szablony e-mail
