@@ -274,6 +274,14 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-cat-name{flex:1;font-weight:600;color:#111827}.ms-cat.is-empty .ms-cat-name{color:#4B5563}
 .ms-cat-n{font-variant-numeric:tabular-nums;color:#374151;font-weight:700}
 .ms-cat-dot{display:none}
+
+.ms-st{border:1px solid #D1D5DB;background:#F9FAFB;padding:.6rem .9rem;margin:0 0 1rem}
+.ms-st legend{float:none;width:auto;font-size:.8rem;font-weight:700;color:#111827;padding:0 .4rem;margin:0}
+.ms-st-help{font-size:.76rem;color:#4B5563;margin-bottom:.5rem}
+.ms-st-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.5rem 1.5rem}
+.ms-st-l{font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#374151;margin-bottom:.2rem}
+.ms-st-o{display:flex;align-items:center;gap:.4rem;margin:0;font-size:.82rem;color:#111827;cursor:pointer}
+.ms-st-o input{accent-color:#0F766E}.ms-st-inact{color:#4B5563;margin-top:.3rem}
 </style>
 
 <div class="crm-page-header">
@@ -582,6 +590,19 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     </div>
+
+    <!-- ─── Sprawdzanie obu statusów: kategoria główna + status relacji ─── -->
+    <fieldset class="ms-st">
+      <legend>Zawęź według statusów kontaktu</legend>
+      <div class="ms-st-help">Wysyłka sprawdza oba statusy: <strong>kategorię główną</strong> (np. Urząd) i <strong>status relacji</strong> (np. aktywny) — np. „Urząd + aktywny”. Puste pole = bez zawężania. Automaty (no-reply, powiadomienia systemowe) są zawsze pomijane.</div>
+      <div class="ms-st-cols">
+        <div><div class="ms-st-l">Kategoria główna</div>
+          <?php foreach ($cat_list as $cl): ?><label class="ms-st-o"><input type="checkbox" data-pri="<?= h($cl['slug']) ?>" onchange="MS.toggleStatusFilter()"> <?= h($cl['label']) ?></label><?php endforeach; ?></div>
+        <div><div class="ms-st-l">Status relacji</div>
+          <?php foreach (crm_statuses() as $sk => $sv): ?><label class="ms-st-o"><input type="checkbox" data-st="<?= h($sk) ?>" onchange="MS.toggleStatusFilter()"> <?= h($sv['label']) ?></label><?php endforeach; ?>
+          <label class="ms-st-o ms-st-inact"><input type="checkbox" id="ms_incl_inactive" onchange="MS.toggleStatusFilter()"> uwzględnij też „nieaktywny” (gdy nie wybrano statusów)</label></div>
+      </div>
+    </fieldset>
 
     <!-- ─── Podgląd odbiorców ─── -->
     <div id="recipientPreviewBox" style="display:none">
@@ -1185,7 +1206,10 @@ const MS = (function() {
       ignore_opt_out: !!document.getElementById('ms_ignore_optout')?.checked,
       members_basis:  !!document.getElementById('ms_members')?.checked,
       contract_sets:  [..._contract_sets],
-      category_slugs: [..._category_slugs]
+      category_slugs: [..._category_slugs],
+      status_in:      [...document.querySelectorAll('[data-st]:checked')].map(x => x.dataset.st),
+      primary_in:     [...document.querySelectorAll('[data-pri]:checked')].map(x => x.dataset.pri),
+      include_inactive: !!document.getElementById('ms_incl_inactive')?.checked
     };
   }
 
@@ -1197,6 +1221,9 @@ const MS = (function() {
     const parts = [];
     if (d && d.no_consent > 0) parts.push(d.no_consent + ' bez zgody na wybrany cel');
     if (d && d.opt_out    > 0) parts.push(d.opt_out + ' wypisanych z wysyłek');
+    if (d && d.automat    > 0) parts.push(d.automat + ' automatów (no-reply)');
+    if (d && d.status     > 0) parts.push(d.status + ' o niewybranym statusie relacji');
+    if (d && d.primary    > 0) parts.push(d.primary + ' o niewybranej kategorii głównej');
     if (!parts.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
     box.style.display = '';
     box.innerHTML = '<span class="text-muted"><i class="bi bi-funnel me-1"></i>Pominięto: '
@@ -1222,6 +1249,7 @@ const MS = (function() {
     const t = e.target.closest('.ms-rp-tab');
     if (t) rpTab(t.dataset.rpTab);
   });
+  function toggleStatusFilter() { preview(); }
   function toggleCategory(cb) {
     if (cb.checked) _category_slugs.add(cb.dataset.cat); else _category_slugs.delete(cb.dataset.cat);
     preview();
@@ -1560,7 +1588,7 @@ recipientRow(c)
 
   wizShow(1);
 
-  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, toggleCategory, audLoad, audSave, audDelete, retry, testSend,
+  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, toggleCategory, toggleStatusFilter, audLoad, audSave, audDelete, retry, testSend,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
            preview, send, insertVar, loadTemplate, purposeChanged, membersChanged,

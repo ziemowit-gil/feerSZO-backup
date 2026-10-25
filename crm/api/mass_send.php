@@ -88,6 +88,40 @@ function collect_recipients(array $body): array {
 }
 
 /**
+ * Sprawdza OBA statusy kontaktu przed wysyłką: kategorię główną (np. Urząd) i status relacji (np. aktywny).
+ *  • automaty (kategoria główna „Automat” albo adres no-reply) — zawsze pomijane: nikt tam nie odpisze,
+ *  • status relacji: gdy operator wskazał statusy (status_in) — tylko one; w przeciwnym razie pomijamy „nieaktywny”
+ *    (chyba że include_inactive),
+ *  • kategoria główna: gdy operator wskazał kategorie (primary_in) — tylko kontakty z taką kategorią główną.
+ *
+ * @return array{0:array<int>,1:array{automat:int,status:int,primary:int}}
+ */
+function filter_by_statuses(array $ids, array $body): array
+{
+    $dropped = ['automat' => 0, 'status' => 0, 'primary' => 0];
+    if (!$ids) return [$ids, $dropped];
+    require_once dirname(dirname(__DIR__)) . '/includes/crmAutomat.php';
+    require_once dirname(dirname(__DIR__)) . '/includes/crmCategories.php';
+    $status_in  = array_values(array_filter(array_map('strval', (array)($body['status_in'] ?? []))));
+    $primary_in = array_values(array_filter(array_map(fn($c) => preg_replace('/[^a-z0-9_]/', '', (string)$c), (array)($body['primary_in'] ?? []))));
+    $with_inactive = !empty($body['include_inactive']);
+    $ph   = implode(',', array_fill(0, count($ids), '?'));
+    $rows = db_all("SELECT id, email, imie_nazwisko, status FROM crm_contacts WHERE id IN ($ph)", array_map('intval', $ids));
+    $pm   = crm_primary_map(array_map(fn($r) => (int)$r['id'], $rows));
+    $keep = [];
+    foreach ($rows as $r) {
+        $id = (int)$r['id'];
+        $slug = $pm[$id]['slug'] ?? '';
+        if ($slug === 'automat' || crm_is_automat($r['email'], $r['imie_nazwisko'])) { $dropped['automat']++; continue; }
+        if ($status_in) { if (!in_array((string)$r['status'], $status_in, true)) { $dropped['status']++; continue; } }
+        elseif (!$with_inactive && (string)$r['status'] === 'nieaktywny') { $dropped['status']++; continue; }
+        if ($primary_in && !in_array($slug, $primary_in, true)) { $dropped['primary']++; continue; }
+        $keep[] = $id;
+    }
+    return [$keep, $dropped];
+}
+
+/**
  * Odsiewa odbiorców, do których nie wolno (albo nie należy) pisać.
  *
  * Ta ścieżka wysyłki dotąd NIE respektowała nawet globalnego wypisania —
@@ -101,6 +135,9 @@ function collect_recipients(array $body): array {
 function filter_by_consent(array $ids, array $body, string $channel): array
 {
     $dropped = ['opt_out' => 0, 'no_consent' => 0];
+    // Najpierw oba statusy kontaktu (kategoria główna + status relacji) i automaty
+    [$ids, $d_st] = filter_by_statuses($ids, $body);
+    $dropped += $d_st;
 
     // Wiadomość członkowska: podstawą jest relacja z organizacją (członkostwo,
     // umowa, wolontariat), a nie zgoda marketingowa — filtr celu wtedy nie działa.
