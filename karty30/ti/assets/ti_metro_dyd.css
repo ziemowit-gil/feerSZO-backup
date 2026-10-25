@@ -73,7 +73,10 @@ html body.ti-metro .dropdown-header { font-size:.66rem; letter-spacing:.14em; te
    (kontrast ≥ 4,9:1). Aktywna pozycja: biała, z tekstem w kolorze grupy. Hover przyciemnia kolor grupy
    (nie rozjaśnia go do szarości). Tło poza grupami jest białe — w menu nie ma szarości. */
 html body.ti-metro .dyd-side { background:#fff !important; border-top:0 !important; border-right:1px solid #d4d4d4; color:#fff; scrollbar-color:rgba(0,0,0,.3) transparent; }
-html body.ti-metro .dyd-side .dyd-side-in { padding:0 0 1rem; }
+/* Menu na całą wysokość: grupy rozciągają się, by wypełnić kolumnę (bez białej pustki pod ostatnią); gdy się nie mieszczą — przewijanie */
+html body.ti-metro .dyd-side .dyd-side-in { padding:0; display:flex; flex-direction:column; min-height:100%; }
+html body.ti-metro .dyd-side .dyd-side-in > .dyd-side-sec { flex:1 0 auto; }
+html body.ti-metro .dyd-side .dyd-side-in > .dyd-side-band { flex:0 0 auto; }
 html body.ti-metro .dyd-side .dyd-side-sec { --sec:#0b5582; background:var(--sec); border-bottom:1px solid rgba(255,255,255,.25); padding:0 .4rem; }
 html body.ti-metro .dyd-side .dyd-side-sec.is-open { padding-bottom:.35rem; }
 html body.ti-metro .dyd-side .dyd-side-grp { color:#fff !important; font-size:.68rem; letter-spacing:.14em; min-height:38px; }
