@@ -367,6 +367,55 @@ final class LicenseDocument
     }
 
     /** Pusty wzór (druk do obiegu papierowego) dowolnego dokumentu. */
+    // ── AM99: potwierdzenie wykonania operacji (konto w tenancie) — układ CIT ────────────
+
+    /** Numer druku AM99: numer sprawy + symbol. */
+    public static function am99Number(array $l): string
+    {
+        return (trim((string)($l['case_number'] ?? '')) ?: ldCaseNumber((int)$l['id'], 'XX')) . ' · AM99';
+    }
+
+    /**
+     * Druk AM99 „Potwierdzenie wykonania operacji” — utworzenie konta w tenancie dla przyznanego wniosku AM7.
+     * $info: tenant_label, tenant_kind, upn, created_at, sku_name, by, no_sms, email, phone_masked, email_sent, sms_sent (bez hasła).
+     */
+    public function am99Html(array $l, array $info): string
+    {
+        $this->n = 0;
+        $number = self::am99Number($l);
+        $d = $l['decision'] ?? [];
+        $plan = (string)(($d['plan'] ?? '') ?: ($l['request']['plan'] ?? '') ?: $l['title']);
+        $when = ldDate(substr((string)$info['created_at'], 0, 10)) . ' ' . substr((string)$info['created_at'], 11, 5);
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer sprawy / dokumentu', '<span class="big">' . self::e($number) . '</span>', ' width="40%"')
+           . $this->fld('Kurs / zajęcia', self::e((string)($l['course_name'] ?: '—')), ' width="40%"')
+           . '<td class="sym" width="20%" style="background:#0f766e"><div class="symb">AM99</div><div class="symp">&nbsp;</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td>'
+           . '</tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">POTWIERDZENIE WYKONANIA OPERACJI</div>'
+           . '<div class="ttl2">licencje do oprogramowania i usług cyfrowych — założenie konta w tenancie</div></td></tr>'
+           . '<tr><td class="lgd"><b>Wystawia:</b> ' . self::e(ldOrgName()) . '.&nbsp; <b>Adresat:</b> osoba wskazana we wniosku.&nbsp; <b>Sprawa:</b> ' . self::e((string)$l['case_number'])
+           . '.&nbsp; <b>Dokument nie zawiera hasła</b> — hasło tymczasowe przekazano osobnym kanałem.</td></tr></table>';
+        $h .= '<table class="t">' . self::sec('A', 'OSOBA I SPRAWA', 2) . '<tr>'
+            . $this->fld('Imię i nazwisko', self::e((string)($info['name'] ?? $l['interested_name'])), ' width="50%"')
+            . $this->fld('Wniosek i decyzja', 'wniosek ' . self::e(LicenseDoc::Am7Request->symbol()) . ' (' . self::e((string)$l['case_number']) . '), decyzja ' . self::e(LicenseDoc::Am7Grant->symbol())
+                . (!empty($d['approved_at']) ? ' z dnia ' . self::e(ldDate(substr((string)$d['approved_at'], 0, 10))) : ''), ' width="50%"')
+            . '</tr><tr>' . $this->fld('Usługa / produkt / plan', self::val($plan, 'usługa'), ' colspan="2"') . '</tr></table>';
+        $h .= '<table class="t">' . self::sec('B', 'WYKONANA OPERACJA', 2) . '<tr><td class="pc" colspan="2"><div class="pt">Potwierdza się utworzenie konta użytkownika w tenancie Microsoft 365 na potrzeby usługi wskazanej w części A.</div></td></tr><tr>'
+            . $this->fld('Tenant', self::e((string)$info['tenant_label']), ' width="50%"')
+            . $this->fld('Login (UPN)', '<b>' . self::e((string)$info['upn']) . '</b>', ' width="50%"')
+            . '</tr><tr>' . $this->fld('Licencja nadana w tenancie', self::val((string)($info['sku_name'] ?? ''), 'brak — licencja do nadania ręcznie'), ' width="50%"')
+            . $this->fld('Data i godzina wykonania', self::e($when), ' width="50%"') . '</tr></table>';
+        $mail = !empty($info['email_sent']) ? ' — wysłano e-mailem na ' . self::e((string)($info['email'] ?? '')) : ' — do przekazania (e-mail nie został wysłany)';
+        $pass = !empty($info['no_sms']) ? 'przekazane osobie bezpośrednio przez wykonującego' : (!empty($info['sms_sent']) ? 'wysłane SMS-em na numer ' . self::e((string)($info['phone_masked'] ?? '')) : 'do przekazania (SMS nie został wysłany)');
+        $h .= '<table class="t">' . self::sec('C', 'PRZEKAZANIE DANYCH DOSTĘPOWYCH', 2) . '<tr>'
+            . $this->fld('Login i instrukcja aktywacji', 'login' . $mail, ' width="50%"')
+            . $this->fld('Hasło tymczasowe', $pass, ' width="50%"') . '</tr><tr><td class="pc" colspan="2"><div class="pt">Hasło jest tymczasowe — zmiana przy pierwszym logowaniu. Dane dostępowe są osobiste i nie wolno ich udostępniać (zob. oświadczenia AM7/4 i AM7/5).</div></td></tr></table>';
+        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('D', 'POTWIERDZENIE', 2) . '<tr>'
+            . $this->fld('Operację wykonał(a)', self::e((string)($info['by'] ?? '')) . self::eSign(['at' => $info['created_at'], 'ip' => '', 'by' => '', 'label' => 'Wygenerowano elektronicznie w SZO']), ' width="50%"')
+            . $this->fld('Odbiór — osoba, której dotyczy konto (data, podpis)', '<div class="dots">&nbsp;</div>', ' width="50%"') . '</tr></table>';
+        return self::css() . $h;
+    }
+
     public function blankHtml(LicenseDoc $doc): string
     {
         $l = ['id' => 0, 'case_number' => '', 'created_at' => date('Y'), 'title' => '', 'work_description' => '', 'course_name' => '', 'licensor_name' => '', 'licensor_email' => '',

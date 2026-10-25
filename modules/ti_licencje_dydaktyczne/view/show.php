@@ -102,6 +102,10 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
     <?php if ($am7 && empty($l['helpdesk_ticket_id'])): ?><?= ldPost(route('ld.am7.helpdesk', ['id' => $id]), 'Utwórz zlecenie Helpdesku IT', 'btn-metro dark') ?><?php endif; ?>
     <?php $_tn = $am7 ? (string)(db_one("SELECT tenant_upn FROM licenses WHERE id = ?", [$id])['tenant_upn'] ?? '') : ''; if ($am7 && ($d['access'] ?? ($rq['access'] ?? 'tenant')) !== 'other' && $_tn === ''): ?>
     <a class="btn btn-sm btn-metro green" href="<?= h(route('ld.am7.tenant', ['id' => $id])) ?>">Utwórz konto w tenancie</a><?php endif; ?>
+    <?php if ($am7 && $_tn !== ''): $_am99 = (string)(db_one("SELECT am99_sent_at FROM licenses WHERE id = ?", [$id])['am99_sent_at'] ?? ''); ?>
+    <a class="btn btn-sm btn-metro dark" href="<?= h(route('ld.am99.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener">Druk AM99 — potwierdzenie wykonania operacji</a>
+    <?= ldPost(route('ld.am99.send', ['id' => $id]), $_am99 !== '' ? 'Wyślij AM99 ponownie (ręcznie)' : 'Wyślij AM99 ręcznie', 'btn-metro', [], 'Wysłać AM99 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?>
+    <?php if ($_am99 !== ''): ?><span class="small text-secondary align-self-center">wysłano <?= h(ldDt($_am99)) ?></span><?php endif; ?><?php endif; ?>
     <form method="post" action="<?= h(route('ld.suspend', ['id' => $id])) ?>" class="d-flex gap-1"><?= Router::csrfField() ?>
       <?php if (empty($l['suspended'])): ?><input type="hidden" name="on" value="1"><label class="visually-hidden" for="sr">Powód zawieszenia</label>
         <input class="form-control form-control-sm" id="sr" name="reason" placeholder="powód zawieszenia" required><button class="btn btn-sm btn-metro orange">Zawieś</button>

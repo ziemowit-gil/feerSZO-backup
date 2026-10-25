@@ -35,7 +35,8 @@ final class LicenseNotificationService
             LicenseNotificationType::DecisionInterested, LicenseNotificationType::Reminder => ['email', 'sms'],
             LicenseNotificationType::DeclarationConfirm, LicenseNotificationType::DeclarationDecided => ['email'],
             LicenseNotificationType::LicensorRequest, LicenseNotificationType::DecisionAdmin, LicenseNotificationType::DeclarationAdmin,
-            LicenseNotificationType::RequestSigned, LicenseNotificationType::HelpdeskTicket, LicenseNotificationType::Statement => ['email'],
+            LicenseNotificationType::RequestSigned, LicenseNotificationType::HelpdeskTicket, LicenseNotificationType::Statement,
+            LicenseNotificationType::OperationConfirm => ['email'],
         };
     }
 

@@ -219,6 +219,31 @@ final class LicenseAdminController
         } catch (\Throwable $e) { return $this->fail($e, route('ld.show', ['id' => $id])); }
     }
 
+    /** Druk AM99 (podgląd / pobranie PDF). */
+    public function am99Pdf(int $id): ?string
+    {
+        require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
+        $l = $this->svc->licenses->get($id);
+        if (!$l || $l['form'] !== LicenseForm::Am7) return $this->show404('wniosek AM7');
+        try { $o = (new Am7TenantAccount($this->svc))->am99Output($l); }
+        catch (DomainException $e) { flash_set('warning', $e->getMessage()); return Router::redirect(route('ld.show', ['id' => $id])); }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $o['out']['mime'] . ($o['out']['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . ldFileName($o['number']) . '.' . $o['out']['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $o['out']['bytes'];
+        return null;
+    }
+
+    /** Ręczna wysyłka AM99 + zamknięcie zgłoszenia w Helpdesku. */
+    public function am99Send(int $id): ?string
+    {
+        require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
+        try { flash_set('success', (new Am7TenantAccount($this->svc))->sendAm99($id, $this->actor()) . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.show', ['id' => $id])); }
+        return Router::redirect(route('ld.show', ['id' => $id]));
+    }
+
     public function editForm(int $id, array $errors = [], array $old = []): string
     {
         $l = $this->svc->licenses->get($id);

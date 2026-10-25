@@ -132,7 +132,9 @@ final class Am7TenantAccount
             if (empty($u['id'])) throw new RuntimeException('Graph nie zwrócił identyfikatora konta.');
             $res['upn'] = $upn; $res['password'] = $pass;
             $sku = trim((string)($in['sku'] ?? ''));
+            $skuName = '';
             if (preg_match('/^[0-9a-f-]{36}$/i', $sku)) {
+                foreach ($this->skus($tenant) as $sx) if (strcasecmp($sx['id'], $sku) === 0) $skuName = $sx['name'];
                 try { $g->assign_license((string)$u['id'], $sku); $res['report'][] = 'licencja nadana'; }
                 catch (\Throwable $e) { $res['report'][] = 'konto założone, licencji nie nadano: ' . $e->getMessage(); }
             } else { $res['report'][] = 'licencji w tenancie nie wybrano — nadaj ją ręcznie'; }
@@ -141,7 +143,9 @@ final class Am7TenantAccount
             $this->svc->licenses->event($id, 'tenant.fail', 'Nie utworzono konta w tenancie ' . $tenant . ': ' . $e->getMessage(), $actor);
             return $res;
         }
-        db()->prepare("UPDATE licenses SET tenant_kind = ?, tenant_upn = ?, tenant_created_at = ? WHERE id = ?")->execute([$tenant, $res['upn'], ldNow(), $id]);
+        db()->prepare("UPDATE licenses SET tenant_kind = ?, tenant_upn = ?, tenant_created_at = ?, tenant_info = ? WHERE id = ?")
+            ->execute([$tenant, $res['upn'], ldNow(), json_encode(['tenant_label' => $tenants[$tenant]['label'], 'sku_name' => $skuName, 'name' => $c['name'], 'by' => (string)$actor['name'],
+                'no_sms' => $noSms ? 1 : 0], JSON_UNESCAPED_UNICODE), $id]);
 
         // Powiązanie z kontem kursanta w SZO
         if ($l['interested_kind'] === 'client' && $l['interested_id']) {
@@ -167,6 +171,10 @@ final class Am7TenantAccount
 
         // Dane dostępowe: e-mail z loginem + SMS z hasłem
         $sent = $this->deliver($l, $tenant, $c, $res['upn'], $res['password'], $noSms, $res);
+        $row = db_one("SELECT tenant_info FROM licenses WHERE id = ?", [$id]);
+        $info = json_decode((string)($row['tenant_info'] ?? ''), true) ?: [];
+        $info += ['email' => $c['email'], 'phone_masked' => '***' . substr(preg_replace('/\D/', '', $c['phone']), -3), 'email_sent' => !empty($res['email_sent']), 'sms_sent' => !empty($res['sms_sent'])];
+        db()->prepare("UPDATE licenses SET tenant_info = ? WHERE id = ?")->execute([json_encode($info, JSON_UNESCAPED_UNICODE), $id]);
         $this->svc->licenses->event($id, 'tenant.account', 'Utworzono konto ' . $res['upn'] . ' w tenancie ' . ($tenant === 'feer' ? 'FEER' : 'EDU FEER') . '; ' . implode('; ', $res['report']) . '.', $actor);
 
         // Helpdesk: etap „Utworzono konto / zasób”, po wysłaniu danych „Dane przekazane”
@@ -180,6 +188,67 @@ final class Am7TenantAccount
         $res['ok'] = true;
         if ($noSms) $res['report'][] = 'hasło do przekazania ręcznie';
         return $res;
+    }
+
+    // ── AM99: Potwierdzenie wykonania operacji (druk w stylu CIT; wysyłka RĘCZNA) ──────────────────
+
+    /** @return array{out:array,number:string,info:array} wydruk AM99 (PDF; fallback HTML) albo wyjątek, gdy konta jeszcze nie ma */
+    public function am99Output(array $l): array
+    {
+        $row = db_one("SELECT tenant_kind, tenant_upn, tenant_created_at, tenant_info FROM licenses WHERE id = ?", [(int)$l['id']]);
+        if (empty($row['tenant_upn'])) throw new DomainException('Najpierw utwórz konto w tenancie — druk AM99 potwierdza wykonaną operację.');
+        $info = (json_decode((string)$row['tenant_info'], true) ?: []) + ['tenant_label' => ($row['tenant_kind'] === 'feer' ? 'Tenant FEER' : 'Tenant EDU FEER')];
+        $info['upn'] = (string)$row['tenant_upn']; $info['created_at'] = (string)$row['tenant_created_at']; $info['tenant_kind'] = (string)$row['tenant_kind'];
+        $number = LicenseDocument::am99Number($l);
+        $html = (new LicenseDocument())->am99Html($l, $info);
+        return ['out' => LicenseDocument::render($html, 'Potwierdzenie wykonania operacji — ' . $l['interested_name'], $number, 'AM99'), 'number' => $number, 'info' => $info];
+    }
+
+    /**
+     * Ręczna wysyłka AM99: e-mail z PDF do osoby (kopia UDW do administratora), zamknięcie zgłoszenia w Helpdesku.
+     * @return string raport
+     */
+    public function sendAm99(int $id, array $actor): string
+    {
+        $l = $this->svc->licenses->get($id);
+        if (!$l || $l['form'] !== LicenseForm::Am7) throw new DomainException('To nie jest sprawa AM7.');
+        $o = $this->am99Output($l);
+        [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'am99_' . $id);
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy <b>potwierdzenie wykonania operacji (AM99)</b> — konto <b>' . $e($o['info']['upn']) . '</b> zostało utworzone i przekazane do użytku.</p>'
+              . '<p>Dokument nie zawiera hasła. Sprawa: ' . $e($l['case_number']) . '.</p>';
+        $att = LicenseNotificationService::attachment($rel, $o['number']);
+        $c = $this->svc->interestedContact($l);
+        $res = $this->svc->notify->send(LicenseNotificationType::OperationConfirm, $c, 'Potwierdzenie wykonania operacji (AM99) — ' . $l['title'] . ', sprawa ' . $l['case_number'],
+            LicenseNotificationService::layout('Potwierdzenie wykonania operacji', $body, '', '', 'AM99'), '', ['type' => 'license', 'id' => $id], $actor, true, $att);
+        $report = 'AM99: ' . $this->svc->describe($res) . ($att ? '' : ' (bez PDF — wysłano wersję HTML tylko do wglądu w panelu)');
+        $this->svc->licenses->event($id, 'am99.sent', 'Ręcznie wysłano AM99 ' . $o['number'] . ': ' . $this->svc->describe($res), $actor);
+        if (!empty($res['delivered']) || in_array('queued', (array)($res['channels'] ?? []), true)) {
+            db()->prepare("UPDATE licenses SET am99_sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
+            $report .= '. ' . $this->closeHelpdesk($l, $actor, $o['number']);
+        }
+        return $report;
+    }
+
+    /** AM99 zamyka zgłoszenie Helpdesku IT sprawy (etap „Dane przekazane”, status zamknięte, wpis w historii zgłoszenia). */
+    private function closeHelpdesk(array $l, array $actor, string $number): string
+    {
+        $hid = (int)($l['helpdesk_ticket_id'] ?? 0);
+        if (!$hid) return 'brak zgłoszenia w Helpdesku do zamknięcia';
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
+            require_once dirname(__DIR__, 3) . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php';
+            $t = db_one("SELECT * FROM helpdesk_tickets WHERE id = ?", [$hid]);
+            if (!$t) return 'zgłoszenie Helpdesku nie istnieje';
+            if ($t['status'] === 'zamknięte') return 'zgłoszenie Helpdesku ' . $t['number'] . ' już zamknięte';
+            hdSubstatusSet($hid, 'am_dane_przekazane', (int)$actor['id'], (string)$actor['name']);
+            $now = date('Y-m-d H:i:s');
+            db_update('helpdesk_tickets', ['status' => 'zamknięte', 'closed_at' => $now, 'updated_at' => $now], $hid);
+            db_insert('helpdesk_messages', ['ticket_id' => $hid, 'user_id' => (int)$actor['id'] ?: null, 'user_name' => (string)$actor['name'],
+                'body' => 'Zgłoszenie zamknięte — wysłano potwierdzenie wykonania operacji ' . $number . '.', 'is_internal' => 1]);
+            try { hd_notify_status_change($t, (string)$t['status'], 'zamknięte'); } catch (\Throwable $e) {}
+            return 'zgłoszenie Helpdesku ' . $t['number'] . ' zamknięte';
+        } catch (\Throwable $e) { return 'nie zamknięto zgłoszenia Helpdesku: ' . $e->getMessage(); }
     }
 
     /** @return bool czy e-mail z loginem został wysłany (hasło: SMS albo ręcznie) */
@@ -196,6 +265,7 @@ final class Am7TenantAccount
             if (!empty($r['enabled'])) {
                 $mailOk = mail_queue_add($c['email'], $c['name'], $r['subject'], $r['html'], '', 'ti_am7_account', (int)$l['id'], '', true, [], '', [], LicenseNotificationService::adminCopy($c['email'])) > 0;
                 $res['report'][] = $mailOk ? 'e-mail z loginem wysłany' : 'e-mail z loginem NIE wysłany (adres zablokowany)';
+                $res['email_sent'] = $mailOk;
             } else { $res['report'][] = 'szablon e-maila wyłączony'; }
         } catch (\Throwable $e) { $res['report'][] = 'e-mail: ' . $e->getMessage(); }
         if (!$noSms) {
@@ -205,6 +275,7 @@ final class Am7TenantAccount
                 $m = sms_tpl_render('ti_am7_account_password', ['login' => $upn, 'password' => $pass]);
                 sms_send($c['phone'], trim((string)$m['message']), 'ti_am7_account_password');
                 $res['report'][] = 'hasło wysłane SMS-em';
+                $res['sms_sent'] = true;
             } catch (\Throwable $e) {
                 $res['report'][] = 'SMS z hasłem NIE wysłany (' . $e->getMessage() . ') — przekaż hasło ręcznie';
                 $res['sms_failed'] = true;

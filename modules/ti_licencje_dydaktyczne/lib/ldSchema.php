@@ -138,7 +138,9 @@ function ldMigrate(): void
               "decision_pdf VARCHAR(255) NOT NULL DEFAULT ''", "decision_pdf_sha256 VARCHAR(64) NOT NULL DEFAULT ''", "decided_by INTEGER",
               "helpdesk_ticket_id INTEGER", "helpdesk_number VARCHAR(40) NOT NULL DEFAULT ''",
               // konto utworzone w tenancie z poziomu sprawy AM7 (Am7TenantAccount)
-              "tenant_kind VARCHAR(8) NOT NULL DEFAULT ''", "tenant_upn VARCHAR(190) NOT NULL DEFAULT ''", "tenant_created_at VARCHAR(19)"] as $col) {
+              "tenant_kind VARCHAR(8) NOT NULL DEFAULT ''", "tenant_upn VARCHAR(190) NOT NULL DEFAULT ''", "tenant_created_at VARCHAR(19)",
+              // szczegóły wykonanej operacji do druku AM99 (JSON, bez hasła) i znacznik wysyłki ręcznej
+              "tenant_info TEXT", "am99_sent_at VARCHAR(19)"] as $col) {
         try { $db->exec("ALTER TABLE licenses ADD COLUMN {$col}"); } catch (\Throwable $e) {}
     }
     $db->exec("CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(request_status)");
