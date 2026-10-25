@@ -200,6 +200,22 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-group-row .group-select-count { font-size:.72rem;color:#5E6470;margin-left:auto }
 .hist-row { display:flex;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid #F3F4F6;font-size:.82rem }
 .hist-row:last-child { border-bottom:none }
+
+/* ══ Układ Dynamics 365 — sekcje formularza (kroki 1–4), kontrast ≥ 4,5:1 ════ */
+.ms-section, .ms-wizard .card { border:1px solid #D1D5DB !important; border-radius:0 !important; background:#fff; box-shadow:none !important }
+.ms-step { margin:-1.35rem -1.5rem 1.1rem; padding:.6rem 1.1rem; background:#F3F4F6; border-bottom:1px solid #D1D5DB; align-items:center; gap:.65rem }
+.ms-step__num { display:inline-flex; align-items:center; justify-content:center; width:1.6rem; height:1.6rem; border-radius:0;
+  background:#0F766E; color:#fff; font-size:.82rem; font-weight:700; letter-spacing:0 }
+.ms-step__num::after { content:'' }
+.ms-step__t { font-size:.95rem; font-weight:600; color:#111827 }
+.ms-step__h { font-size:.78rem; color:#4B5563; margin-top:0 }
+.ms-wizard .form-control, .ms-wizard .form-select { border-radius:0; border:1px solid #9CA3AF; min-height:36px }
+.ms-wizard .form-control:focus, .ms-wizard .form-select:focus { border-color:#0F766E; box-shadow:inset 0 0 0 1px #0F766E }
+.ms-wizard .form-label { color:#111827; font-weight:600 }
+.ms-wizard .input-group-text { border-radius:0 !important; border-color:#9CA3AF }
+.ms-wizard .btn { border-radius:0 }
+.channel-btn, .comm-flags .badge { border-radius:0 }
+.channel-btn { border:1px solid #9CA3AF; border-left-width:4px }
 </style>
 
 <div class="crm-page-header">

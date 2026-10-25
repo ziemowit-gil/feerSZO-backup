@@ -343,6 +343,22 @@ include __DIR__ . '/includes/header_crm.php';
 
 /* Nagłówek obiektu — lżejszy, bez cienia */
 .crm-object-header.comm-head { box-shadow: none !important; border: 1px solid #E5E7EB; border-radius: 12px; }
+
+/* ══ Układ Dynamics 365 — sekcje formularza (kroki 1–4), kontrast ≥ 4,5:1 ════ */
+.comm-card { border:1px solid #D1D5DB !important; border-radius:0 !important; background:#fff; box-shadow:none !important }
+.comm-card .comm-step { margin:-1.15rem -1.25rem 1.1rem; padding:.6rem 1.1rem; background:#F3F4F6; border-bottom:1px solid #D1D5DB; align-items:center; gap:.65rem }
+.comm-step__num { display:inline-flex; align-items:center; justify-content:center; width:1.6rem; height:1.6rem; border-radius:0;
+  background:#0F766E; color:#fff; font-size:.82rem; font-weight:700; letter-spacing:0 }
+.comm-step__num::after { content:'' }
+.comm-step__t { font-size:.95rem; font-weight:600; color:#111827 }
+.comm-step__h { font-size:.78rem; color:#4B5563; margin-top:0 }
+#communicateForm .form-control, #communicateForm .form-select { border-radius:0; border:1px solid #9CA3AF; min-height:36px }
+#communicateForm .form-control:focus, #communicateForm .form-select:focus { border-color:#0F766E; box-shadow:inset 0 0 0 1px #0F766E }
+#communicateForm .form-label { color:#111827; font-weight:600 }
+#communicateForm .input-group-text { border-radius:0 !important; border-color:#9CA3AF }
+#communicateForm .btn { border-radius:0 }
+.channel-btn, .comm-flags .badge { border-radius:0 }
+.channel-btn { border:1px solid #9CA3AF; border-left-width:4px }
 </style>
 
 <div class="row g-3">
