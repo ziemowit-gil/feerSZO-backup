@@ -77,6 +77,8 @@ $per_page = 25;
 // ── Dane ──────────────────────────────────────────────────────────────────────
 $result  = CrmManager::getContacts($filters, $page, $per_page);
 $rows    = $result['rows'];
+require_once dirname(__DIR__) . '/includes/crmCategories.php';
+$primary_map = crm_primary_map(array_map(fn($r) => (int)$r['id'], $rows));   // pierwszy z dwóch statusów: kategoria główna
 $total   = $result['total'];
 $paging  = paginate($total, $per_page, $page, APP_URL . '/crm/index.php?' . http_build_query(array_filter($filters)));
 // Bez kafli statystyk nad listą (prośba użytkownika) — liczba rekordów jest w nagłówku listy, liczby statusów na pulpicie CRM.
@@ -255,8 +257,11 @@ function _crm_table_html(
                 </div>
               </td>
 
-              <!-- Status -->
+              <!-- Status: kategoria główna + status relacji (np. „Urząd + aktywny”) -->
               <td>
+                <?php $_pc = $primary_map[(int)$row['id']] ?? null; if ($_pc): ?>
+                <span class="d-inline-block me-1 mb-1" style="background:<?= h($_pc['color']) ?>;color:#fff;padding:.1rem .45rem;font-size:.72rem;font-weight:700" title="Kategoria główna"><?= h($_pc['label']) ?></span><span class="text-muted me-1" aria-hidden="true">+</span>
+                <?php endif; ?>
                 <?php if ($can_w): ?>
                 <div class="dropdown">
                   <button type="button"

@@ -679,6 +679,9 @@ include __DIR__ . '/includes/header_crm.php';
             <?php if ($unread): ?><span class="visually-hidden ib-sr-unread">Nieprzeczytana.</span><?php endif; ?>
             <span class="ib-who" title="<?= h($who . (!$outgoing && $r['from_email'] && $r['from_name'] ? ' <' . $r['from_email'] . '>' : '')) ?>"><?= h($who) ?></span>
             <?= crm_sender_trust_badge($trust_of($r['from_email'] ?? ''), 'sm') ?>
+            <?php require_once dirname(__DIR__) . '/includes/crmAutomat.php'; if (!$outgoing && crm_is_automat($r['from_email'] ?? '', $r['from_name'] ?? '')): ?>
+            <span class="ib-tag" style="background:#E5E7EB;color:#374151" title="Nadawca rozpoznany jako automat (no-reply, powiadomienia systemowe)"><i class="bi bi-robot" aria-hidden="true"></i> automat</span>
+            <?php endif; ?>
             <?php if ((int)$r['has_attachments']): ?>
             <i class="bi bi-paperclip ib-ico" title="Wiadomość ma załącznik" aria-hidden="true"></i><span class="visually-hidden">Ma załącznik.</span>
             <?php endif; ?>

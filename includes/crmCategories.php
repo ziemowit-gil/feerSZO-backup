@@ -19,7 +19,8 @@ const CRM_CATEGORY_SEED = [
     ['klient',            'Klient',                '#7F2B8B', 'client'],
     ['partner',           'Partner',               '#0F766E', 'partner'],
     ['beneficjent',       'Beneficjent',           '#B45309', 'beneficiary'],
-    ['instytucja',        'Urząd / instytucja',    '#374151', null],
+    ['urzad',             'Urząd',                 '#374151', null],
+    ['automat',           'Automat',               '#706E6B', 'automat'],
     ['media',             'Media',                 '#9333EA', null],
     ['dostawca',          'Dostawca',              '#4B5563', null],
 ];
@@ -45,13 +46,45 @@ function crm_categories_schema(): void {
         PRIMARY KEY (contact_id, category_id)
     )");
     db()->exec("CREATE INDEX IF NOT EXISTS idx_ccc_cat ON crm_contact_categories(category_id)");
+    // Dwa statusy kontaktu: kategoria GŁÓWNA (np. Urząd) + status relacji (np. aktywny) → „Urząd + aktywny”
+    $have = array_column(db()->query("PRAGMA table_info(crm_contacts)")->fetchAll(), 'name');
+    if ($have && !in_array('primary_category', $have, true)) {
+        try { db()->exec("ALTER TABLE crm_contacts ADD COLUMN primary_category TEXT"); } catch (\Throwable $e) {}
+    }
+    // instalacje sprzed zmiany: „Urząd / instytucja” → „Urząd”
+    db()->exec("UPDATE crm_categories SET slug='urzad', label='Urząd' WHERE slug='instytucja' AND label='Urząd / instytucja'
+                AND NOT EXISTS (SELECT 1 FROM crm_categories WHERE slug='urzad')");
     if ((int)(db_one("SELECT COUNT(*) AS n FROM crm_categories")['n'] ?? 0) === 0) {
         $i = 0;
         foreach (CRM_CATEGORY_SEED as [$slug, $label, $color, $rule]) {
             db()->prepare("INSERT OR IGNORE INTO crm_categories (slug,label,color,sort_order,auto_rule) VALUES (?,?,?,?,?)")
                 ->execute([$slug, $label, $color, ++$i, $rule]);
         }
+    } else {
+        // dosiej kategorie dodane w nowszych wersjach (nie nadpisuje zmian administratora)
+        $max = (int)(db_one("SELECT COALESCE(MAX(sort_order),0) AS n FROM crm_categories")['n'] ?? 0);
+        foreach (['urzad', 'automat'] as $must) {
+            foreach (CRM_CATEGORY_SEED as [$slug, $label, $color, $rule]) {
+                if ($slug === $must) db()->prepare("INSERT OR IGNORE INTO crm_categories (slug,label,color,sort_order,auto_rule) VALUES (?,?,?,?,?)")
+                    ->execute([$slug, $label, $color, ++$max, $rule]);
+            }
+        }
     }
+    crm_ensure_group_urzad();
+}
+
+/** Grupa „Urząd” (auto_source='urzad') — członkostwo w kategorii Urząd = członkostwo w grupie. */
+function crm_ensure_group_urzad(): int {
+    $g = db_one("SELECT id FROM crm_groups WHERE auto_source='urzad'");
+    if ($g) return (int)$g['id'];
+    // grupa o tej nazwie założona ręcznie — przejmujemy ją zamiast tworzyć duplikat (nazwa grupy jest unikalna)
+    $g = db_one("SELECT id FROM crm_groups WHERE LOWER(name)='urząd' OR LOWER(name)='urzad'");
+    if ($g) { db()->prepare("UPDATE crm_groups SET auto_source='urzad' WHERE id=?")->execute([(int)$g['id']]); return (int)$g['id']; }
+    try {
+        return (int)db_insert('crm_groups', ['name' => 'Urząd', 'description' => 'Urzędy i urzędnicy — dodawani z kategorii kontaktu „Urząd”',
+            'color' => '#374151', 'icon' => 'bi-bank', 'auto_source' => 'urzad', 'sort_order' => 0, 'created_by' => null,
+            'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+    } catch (\Throwable $e) { error_log('[crm_categories] grupa Urząd: ' . $e->getMessage()); return 0; }
 }
 
 function crm_categories(bool $only_active = true): array {
@@ -89,10 +122,15 @@ function crm_categories_recalc(): array {
     $out = [];
     $now = date('Y-m-d H:i:s');
     foreach (db_all("SELECT id, slug, auto_rule FROM crm_categories WHERE auto_rule IS NOT NULL AND auto_rule<>''") as $cat) {
-        $sql = crm_category_rule_sql((string)$cat['auto_rule']);
-        if (!$sql) continue;
         try {
-            $ids = array_map('intval', array_filter(array_column(db_all($sql), 'id')));
+            if ($cat['auto_rule'] === 'automat') {
+                require_once __DIR__ . '/crmAutomat.php';
+                $ids = crm_automat_contact_ids();
+            } else {
+                $sql = crm_category_rule_sql((string)$cat['auto_rule']);
+                if (!$sql) continue;
+                $ids = array_map('intval', array_filter(array_column(db_all($sql), 'id')));
+            }
         } catch (\Throwable $e) { continue; }   // brak tabeli w tej instalacji
         $have = array_map('intval', array_column(db_all("SELECT contact_id FROM crm_contact_categories WHERE category_id=? AND source='auto'", [(int)$cat['id']]), 'contact_id'));
         $add = array_diff($ids, $have);
@@ -122,6 +160,14 @@ function crm_contact_category_set(int $contact_id, string $slug, bool $on): bool
                        ON CONFLICT(contact_id, category_id) DO UPDATE SET source='manual'")->execute([$contact_id, (int)$c['id'], date('Y-m-d H:i:s')]);
     } else {
         db()->prepare("DELETE FROM crm_contact_categories WHERE contact_id=? AND category_id=?")->execute([$contact_id, (int)$c['id']]);
+        db()->prepare("UPDATE crm_contacts SET primary_category=NULL WHERE id=? AND primary_category=?")->execute([$contact_id, $slug]);
+    }
+    if ($slug === 'urzad') {   // Urząd = także grupa „Urząd”
+        $gid = crm_ensure_group_urzad();
+        if ($gid) {
+            if ($on) db()->prepare("INSERT OR IGNORE INTO crm_group_members (group_id, contact_id, added_by, added_at) VALUES (?,?,?,?)")->execute([$gid, $contact_id, (function_exists('current_user') ? (int)(current_user()['id'] ?? 0) : 0) ?: null, date('Y-m-d H:i:s')]);
+            else     db()->prepare("DELETE FROM crm_group_members WHERE group_id=? AND contact_id=?")->execute([$gid, $contact_id]);
+        }
     }
     return true;
 }
@@ -135,4 +181,42 @@ function crm_category_contact_ids(array $slugs): array {
     return array_map('intval', array_column(db_all(
         "SELECT DISTINCT x.contact_id AS id FROM crm_contact_categories x JOIN crm_categories c ON c.id=x.category_id
          JOIN crm_contacts k ON k.id=x.contact_id AND k.crm_active=1 WHERE c.slug IN ($ph)", $slugs), 'id'));
+}
+
+
+/** Ustawia kategorię główną kontaktu (musi być jedną z jego kategorii; '' = automatyczna). */
+function crm_contact_primary_set(int $contact_id, string $slug): bool {
+    crm_categories_schema();
+    if ($slug !== '') {
+        $has = db_one("SELECT 1 FROM crm_contact_categories x JOIN crm_categories c ON c.id=x.category_id WHERE x.contact_id=? AND c.slug=?", [$contact_id, $slug]);
+        if (!$has) return false;
+    }
+    db()->prepare("UPDATE crm_contacts SET primary_category=? WHERE id=?")->execute([$slug !== '' ? $slug : null, $contact_id]);
+    return true;
+}
+
+/**
+ * Kategoria GŁÓWNA kontaktów (pierwszy z dwóch statusów): ustawiona jawnie, a gdy brak — Automat (jeśli ma),
+ * inaczej pierwsza wg kolejności. @param list<int> $ids  @return array<int,array{slug:string,label:string,color:string}>
+ */
+function crm_primary_map(array $ids): array {
+    crm_categories_schema();
+    $ids = array_values(array_unique(array_map('intval', $ids)));
+    if (!$ids) return [];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $explicit = [];
+    foreach (db_all("SELECT id, primary_category FROM crm_contacts WHERE id IN ($ph)", $ids) as $r) $explicit[(int)$r['id']] = (string)($r['primary_category'] ?? '');
+    $by = [];
+    foreach (db_all("SELECT x.contact_id, c.slug, c.label, c.color FROM crm_contact_categories x JOIN crm_categories c ON c.id=x.category_id
+                     WHERE x.contact_id IN ($ph) AND c.is_active=1 ORDER BY c.sort_order, c.id", $ids) as $r) {
+        $by[(int)$r['contact_id']][] = ['slug' => $r['slug'], 'label' => $r['label'], 'color' => $r['color']];
+    }
+    $out = [];
+    foreach ($by as $cid => $list) {
+        $pick = null;
+        if (($explicit[$cid] ?? '') !== '') foreach ($list as $c) if ($c['slug'] === $explicit[$cid]) $pick = $c;
+        if (!$pick) foreach ($list as $c) if ($c['slug'] === 'automat') $pick = $c;
+        $out[$cid] = $pick ?: $list[0];
+    }
+    return $out;
 }
