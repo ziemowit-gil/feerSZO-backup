@@ -226,6 +226,9 @@ try {
 }
 .hd-info-card-body { padding: .75rem .9rem; font-size: .82rem; }
 .hd-info-card .badge { border-radius: 0; }
+.hd-new-wrap { padding-bottom: 6rem; }
+.hd-new-wrap .hd-pri-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: .5rem; margin-top: .25rem; }
+.hd-new-wrap .hd-pri-grid .hd-pri-btn { justify-content: center; white-space: nowrap; }
 </style>
 
 <div class="hd-new-wrap">
@@ -265,7 +268,7 @@ try {
 
       <!-- Kategoria + Priorytet -->
       <div class="row g-3 mb-3">
-        <div class="col-sm-6">
+        <div class="col-sm-12 col-xl-6">
           <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Kategoria</label>
           <select name="category" class="form-select">
             <?php foreach (HD_CATEGORIES as $k => $v): ?>
@@ -273,9 +276,9 @@ try {
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-sm-6">
+        <div class="col-sm-12 col-xl-6">
           <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Pilność</label>
-          <div class="d-flex gap-2 flex-wrap mt-1">
+          <div class="hd-pri-grid">
             <?php foreach (HD_PRIORITIES as $k => $p): $checked = ($_POST['priority'] ?? 'normalny') === $k; ?>
             <label class="hd-pri-btn <?= $checked ? 'active-pri' : '' ?>">
               <input type="radio" name="priority" value="<?= h($k) ?>" class="visually-hidden hd-pri-radio" <?= $checked ? 'checked' : '' ?>>

@@ -455,6 +455,19 @@ body.hd-console-page { overflow: hidden; }
 
 /* Panel szczegółów */
 #hdPane{border-radius:0;background:#fff}
+/* Układ: bez zaokrągleń/cieni, filtry zawijane, panel boczny pod wiadomościami w wąskim panelu, brak zasłaniania przez FAB */
+#hdApp{border-radius:0;box-shadow:none}
+.hdList-filters{flex-wrap:wrap;overflow:visible;row-gap:.25rem}
+#hdPane{container-type:inline-size}
+#hdPaneContent{padding-bottom:6rem;padding-right:5rem}
+.hd-side-dd,.hd-side-card-body{overflow-wrap:anywhere;min-width:0}
+.hd-side-card-body table{table-layout:fixed;width:100%}
+.hd-side-dt{width:6.2rem}
+@container (max-width:1100px){
+  #hdPaneContent .row>.col-lg-8,#hdPaneContent .row>.col-lg-4{flex:0 0 100%;width:100%;max-width:100%}
+  #hdPaneContent .row>.col-lg-4{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.65rem;align-items:start}
+  #hdPaneContent .row>.col-lg-4>.hd-side-card{margin-bottom:0}
+}
 #hdApp .hd-det-title{font-weight:300;font-size:1.45rem;line-height:1.25;color:var(--m-dark)}
 #hdApp .hd-side-card{border:1px solid var(--hd-bd);background:#fff}
 #hdApp .hd-side-card-head{background:#f2f2f2;border-bottom:0;text-transform:uppercase;letter-spacing:.06em;font-size:.7rem;font-weight:600}
