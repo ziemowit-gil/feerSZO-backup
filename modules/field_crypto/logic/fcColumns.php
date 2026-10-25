@@ -27,6 +27,7 @@ function fcColumns(): array {
         ['table' => 'rodo_breaches', 'column' => 'opis',         'kind' => 'text',   'blind' => null],
         ['table' => 'rodo_breaches', 'column' => 'skutki',       'kind' => 'text',   'blind' => null],
         // — przezroczyste (warstwa db()): PESEL; dopisywane tabela po tabeli —
+        ['table' => 'donations', 'column' => 'donor_pesel', 'kind' => 'digits', 'blind' => 'donor_pesel_idx', 'auto' => true],
     ];
 }
 
