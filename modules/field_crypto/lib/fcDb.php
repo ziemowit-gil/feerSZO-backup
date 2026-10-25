@@ -177,6 +177,10 @@ function fcSweep(?array $tables = null, int $limit = 2000): int {
             fcEnsureIdx($c);
             $col = $c['column'];
             $idx = $c['blind'] ?? null;
+            // wyczyszczona wartość (anonimizacja, retencja) nie może zostawić po sobie indeksu — to ślad skasowanego PESEL-u
+            foreach (array_filter([$idx, !empty($c['l5']) ? $col . '_l5' : null]) as $ix) {
+                db_exec("UPDATE `{$c['table']}` SET `{$ix}` = '' WHERE (`{$col}` IS NULL OR `{$col}` = '') AND `{$ix}` <> ''");
+            }
             $need = "`{$col}` NOT LIKE 'enc1:%'" . ($idx ? " OR `{$idx}` = ''" : '') . (!empty($c['l5']) ? " OR `{$col}_l5` = ''" : '');
             $rows = db_all("SELECT id, `{$col}` AS v FROM `{$c['table']}` WHERE `{$col}` IS NOT NULL AND `{$col}` <> '' AND ({$need}) LIMIT {$limit}");
             foreach ($rows as $r) {
