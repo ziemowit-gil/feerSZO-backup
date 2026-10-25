@@ -87,18 +87,20 @@ $opt = function (string $name, string $value, bool $checked, string $icon, strin
 <?php panelMetroAssets(panelMetroColor('orange')); ?>
 <style>
 .pvm.cm{max-width:960px;padding:0 16px}
-.pvm .cm-sets{display:grid;gap:1.5rem;grid-template-columns:1fr;border:0;margin:0}
-@media(min-width:768px){.pvm .cm-sets--2{grid-template-columns:1fr 1fr}}
+/* Układ: każdy wybór (Rola, Tryb pracy) to osobny wiersz na całą szerokość, a kafle w wierszu obok siebie */
+.pvm .cm-sets{display:grid;gap:1.75rem;grid-template-columns:1fr;border:0;margin:0}
 .pvm fieldset.cm-set{border:0;margin:0;padding:0;min-width:0}
 .pvm .cm-set legend{float:none;width:auto;margin:0 0 .5rem;padding:0;font-size:1.05rem;font-weight:300;color:var(--pvm-muted);letter-spacing:.01em}
-.pvm .cm-opts{display:grid;gap:8px}
-.pvm .cm-opt{position:relative;display:flex;gap:14px;align-items:flex-start;min-height:120px;padding:16px 44px 16px 16px;background:var(--pvm-light);color:var(--pvm-ink);cursor:pointer;margin:0;transition:background .12s}
-.pvm .cm-opt:hover{background:var(--pvm-light-h)}
+.pvm .cm-opts{display:grid;gap:10px;grid-template-columns:1fr}
+@media(min-width:768px){.pvm .cm-opts{grid-template-columns:1fr 1fr}}
+/* Kafel niezaznaczony: jasny odcień własnego koloru z grubą krawędzią (żadnej szarości); zaznaczony: pełny kolor */
+.pvm .cm-opt{position:relative;display:flex;gap:14px;align-items:flex-start;min-height:104px;padding:16px 44px 16px 16px;background:color-mix(in srgb,var(--c) 11%,#fff);border-left:8px solid var(--c);color:var(--pvm-ink);cursor:pointer;margin:0;transition:background .12s}
+.pvm .cm-opt:hover{background:color-mix(in srgb,var(--c) 20%,#fff)}
 .pvm .cm-opt input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
 .pvm .cm-opt .ic{font-size:2rem;line-height:1;color:var(--c);flex-shrink:0}
 .pvm .cm-opt .ok{position:absolute;top:10px;right:12px;font-size:1.4rem;line-height:1;display:none}
 .pvm .cm-opt .lbl{display:block;font-size:1.15rem;font-weight:600;line-height:1.2}
-.pvm .cm-opt .sub{display:block;font-size:.86rem;margin-top:.3rem;color:var(--pvm-muted);line-height:1.4}
+.pvm .cm-opt .sub{display:block;font-size:.86rem;margin-top:.3rem;color:#333;line-height:1.4}
 .pvm .cm-opt:has(input:checked){background:var(--c);color:#fff}
 .pvm .cm-opt:has(input:checked) .ic,.pvm .cm-opt:has(input:checked) .sub{color:#fff}
 .pvm .cm-opt:has(input:checked) .ok{display:block}

@@ -44,13 +44,6 @@ html body.ti-metro header .navbar .dyd-topnav a {
 }
 html body.ti-metro header .navbar .dyd-topnav a:hover { color:#fff !important; background:rgba(255,255,255,.1) !important; }
 html body.ti-metro header .navbar .dyd-topnav a[aria-current="page"] { color:#fff !important; font-weight:600; border-bottom-color:var(--dm-acc) !important; background:none !important; }
-/* „Kurs” — najważniejsza sekcja: stałe tło akcentu, żeby wyróżniała się w pasku */
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs { color:#fff !important; font-weight:600; background:var(--dm-acc) !important; }
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs:hover { background:var(--dm-acc-d) !important; }
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs[aria-current="page"] { border-bottom-color:#fff !important; background:var(--dm-acc) !important; }
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie { color:#fff !important; font-weight:600; background:#ad1457 !important; }
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie:hover { background:#880e4f !important; }
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie[aria-current="page"] { border-bottom-color:#fff !important; background:#ad1457 !important; }
 html body.ti-metro header .navbar .dyd-topnav .badge { background:var(--dm-red) !important; color:#fff !important; }
 /* Przyciski paska: płaskie, na pełną wysokość */
 html body.ti-metro header .navbar .btn,
