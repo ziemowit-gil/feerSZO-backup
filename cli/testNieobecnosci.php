@@ -319,7 +319,7 @@ ob_start();
 register_shutdown_function(function () use ($pmode, $expect, $flashRe, $script) {   // $_GET widoczne też tu
     $out = ob_get_clean(); $flash = json_encode($_SESSION['flash'] ?? null, JSON_UNESCAPED_UNICODE);
     $good = ($flashRe === null || preg_match($flashRe, (string)$flash)) && ($expect === '' || str_contains($out, $expect)) && !preg_match('/Warning|Fatal error|Notice|Deprecated/', $out);
-    if ($script === 'planPubliczny.php' && (str_contains($out, 'Widok klasyczny') || str_contains($out, 'skin-classic'))) $good = false;   // kursanci/niezalogowani: bez wyglądu klasycznego
+    if ($script === 'planPubliczny.php' && (str_contains($out, 'class="skin-btn"') || str_contains($out, 'skin-klasyczny'))) $good = false;   // kursanci/niezalogowani: bez wyglądu klasycznego
     $isExport = isset($_GET['export']) || $script === 'planPubliczny.php';   // plan publiczny ma własny układ (bez menu panelu)   // CSV — sam plik, bez układu strony
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isExport && strlen($out) < 2000) $good = false;
     // Układ menu: domyślnie górny pasek sekcji (bez menu bocznego); z ?menu=side — menu boczne zamiast górnego rzędu
