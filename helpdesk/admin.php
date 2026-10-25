@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/helpdesk.php';
+require_once dirname(__DIR__) . '/modules/helpdeskMail/lib/helpdeskMail.php';
 helpdesk_migrate();
 require_login();
 require_role('admin');
@@ -39,6 +40,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', $new === '1' ? 'Helpdesk włączony.' : 'Helpdesk wyłączony.');
     }
 
+    // Skrzynki Helpdesku (e-mail → zgłoszenia)
+    if ($op === 'mail_save') {
+        try { hdMailIntakeSave($_POST, (int)(current_user()['id'] ?? 0)); flash_set('success', 'Skrzynka zapisana.'); }
+        catch (\Throwable $e) { flash_set('danger', $e->getMessage()); }
+    }
+    if ($op === 'mail_delete') {
+        hdMailIntakeDelete((int)($_POST['mailbox_id'] ?? 0));
+        flash_set('success', 'Skrzynka odpięta od Helpdesku.');
+    }
+
     // Włącz/wyłącz formularz zgłoszenia błędu
     if ($op === 'toggle_bug_report') {
         $cur = db_one("SELECT value FROM settings WHERE key_='bug_report_enabled'");
@@ -57,6 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Dane ─────────────────────────────────────────────────────────────────────
 $hd_enabled         = (db_one("SELECT value FROM settings WHERE key_='helpdesk_enabled'")['value'] ?? '1') === '1';
 $bug_report_enabled = (db_one("SELECT value FROM settings WHERE key_='bug_report_enabled'")['value'] ?? '1') === '1';
+$mail_intakes = hdMailIntakes();
+$mail_free    = hdMailAvailableMailboxes();
 $operators   = db_all("SELECT id, name, email, role FROM users WHERE helpdesk_operator=1 AND is_active=1 ORDER BY name");
 $all_users   = db_all("SELECT id, name, email, role FROM users WHERE is_active=1 ORDER BY name");
 
@@ -205,6 +218,65 @@ include dirname(__DIR__) . '/includes/header.php';
         </li>
         <?php endforeach; ?>
       </ul>
+      <?php endif; ?>
+    </div>
+  </div>
+</div>
+
+<!-- Skrzynki e-mail → zgłoszenia -->
+<div class="col-12">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
+      <i class="bi bi-envelope-arrow-down me-1"></i>Zgłoszenia z e-maila
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Wiadomość przychodząca na podpiętą skrzynkę (z modułu Poczta) staje się zgłoszeniem; zgłaszający dostaje potwierdzenie z linkiem.
+        Odpowiedź z numerem w temacie, np. <code>[HD00042]</code>, dopisuje się do wątku. Przetwarzane są tylko wiadomości od chwili podpięcia
+        (sprawdzanie co 5 min). Autorespondery i adresy systemowe są pomijane.
+      </p>
+      <?php foreach ($mail_intakes as $mi): ?>
+      <form method="post" class="row g-2 align-items-end mb-2 pb-2 border-bottom">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_op" value="mail_save">
+        <input type="hidden" name="mailbox_id" value="<?= (int)$mi['mailbox_id'] ?>">
+        <div class="col-md-3"><div class="small text-muted">Skrzynka</div><strong><?= h($mi['mailbox']) ?></strong>
+          <div class="small text-muted">od <?= h(date('d.m.Y H:i', strtotime($mi['since_at']))) ?><?= $mi['last_run_at'] ? ', ostatnio ' . h(date('H:i', strtotime($mi['last_run_at']))) : '' ?></div></div>
+        <div class="col-md-3"><label class="form-label small mb-0">Kategoria</label>
+          <select name="category" class="form-select form-select-sm">
+            <?php foreach (HD_CATEGORIES as $k => $v): ?><option value="<?= h($k) ?>"<?= $mi['category'] === $k ? ' selected' : '' ?>><?= h($v) ?></option><?php endforeach; ?>
+          </select></div>
+        <div class="col-md-2"><label class="form-label small mb-0">Priorytet</label>
+          <select name="priority" class="form-select form-select-sm">
+            <?php foreach (HD_PRIORITIES as $k => $p): ?><option value="<?= h($k) ?>"<?= $mi['priority'] === $k ? ' selected' : '' ?>><?= h($p['label']) ?></option><?php endforeach; ?>
+          </select></div>
+        <div class="col-md-2">
+          <div class="form-check small"><input class="form-check-input" type="checkbox" name="ack_enabled" value="1" id="ack<?= (int)$mi['id'] ?>"<?= $mi['ack_enabled'] ? ' checked' : '' ?>><label class="form-check-label" for="ack<?= (int)$mi['id'] ?>">Potwierdzenie</label></div>
+          <div class="form-check small"><input class="form-check-input" type="checkbox" name="is_active" value="1" id="act<?= (int)$mi['id'] ?>"<?= $mi['is_active'] ? ' checked' : '' ?>><label class="form-check-label" for="act<?= (int)$mi['id'] ?>">Aktywna</label></div>
+        </div>
+        <div class="col-md-2 text-end">
+          <button class="btn btn-sm btn-primary">Zapisz</button>
+          <button class="btn btn-sm btn-outline-danger" name="_op" value="mail_delete" onclick="return confirm('Odpiąć skrzynkę od Helpdesku?')">Odepnij</button>
+        </div>
+      </form>
+      <?php endforeach; ?>
+      <?php if ($mail_free): ?>
+      <form method="post" class="row g-2 align-items-end mt-1">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_op" value="mail_save">
+        <input type="hidden" name="ack_enabled" value="1"><input type="hidden" name="is_active" value="1">
+        <div class="col-md-3"><label class="form-label small mb-0">Podepnij skrzynkę</label>
+          <select name="mailbox_id" class="form-select form-select-sm">
+            <?php foreach ($mail_free as $m): ?><option value="<?= (int)$m['id'] ?>"><?= h($m['mailbox']) ?></option><?php endforeach; ?>
+          </select></div>
+        <div class="col-md-3"><label class="form-label small mb-0">Kategoria</label>
+          <select name="category" class="form-select form-select-sm"><?php foreach (HD_CATEGORIES as $k => $v): ?><option value="<?= h($k) ?>"<?= $k === 'it_inne' ? ' selected' : '' ?>><?= h($v) ?></option><?php endforeach; ?></select></div>
+        <div class="col-md-2"><label class="form-label small mb-0">Priorytet</label>
+          <select name="priority" class="form-select form-select-sm"><?php foreach (HD_PRIORITIES as $k => $p): ?><option value="<?= h($k) ?>"<?= $k === 'normalny' ? ' selected' : '' ?>><?= h($p['label']) ?></option><?php endforeach; ?></select></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-success">Podepnij</button></div>
+      </form>
+      <?php elseif (!$mail_intakes): ?>
+      <p class="small text-muted mb-0">Brak skonfigurowanych skrzynek w module Poczta.</p>
       <?php endif; ?>
     </div>
   </div>
