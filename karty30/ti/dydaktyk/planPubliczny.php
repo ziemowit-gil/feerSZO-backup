@@ -105,11 +105,11 @@ $allI = $full ? tiPlanPublicInstructors() : [];
 $side = $full ? [
     'grupy'      => array_map(fn($g) => [(string)$g['name'], tiPlanPortalUrl($self, ['c' => $g['id']])], $allG),
     'prowadzacy' => array_map(fn($u) => [(string)$u['name'], tiPlanPortalUrl($self, ['u' => $u['id']])], $allI),
-    'sale'       => array_map(fn($r) => [$roomName($r), tiPlanPortalUrl($self, ['s' => $r['id']])], $dirR),
+    'sale'       => array_map(fn($r) => [$roomName($r), tiPlanPortalUrl($self, ['s' => $r['id']]), (string)$r['id'] === 'online'], $dirR),
 ] : [
     'grupy'      => array_map(fn($g) => [(string)$g['name'], tiPlanPortalUrl($self, ['g' => $g['token']])], $dirG),
     'prowadzacy' => $dirI ? array_map(fn($i) => [(string)$i['initials'], tiPlanPortalUrl($self, ['p' => $i['token']])], $dirI) : null,
-    'sale'       => $rooms ? array_map(fn($r) => [$roomName($r), tiPlanPortalUrl($self, ['s' => $r['id']])], $dirR) : null,
+    'sale'       => $rooms ? array_map(fn($r) => [$roomName($r), tiPlanPortalUrl($self, ['s' => $r['id']]), (string)$r['id'] === 'online'], $dirR) : null,
 ];
 // DK — dyżury kierownika / Zarządu (publikacja: przełącznik w planLinki.php; w widoku pełnym zawsze)
 $dutyOn = tiDutyPublic() || $full;

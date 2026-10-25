@@ -100,11 +100,18 @@ function tiPlanPortalOpen(array $o): void {
       <?php foreach (['grupy' => 'Grupy', 'prowadzacy' => 'Prowadzący', 'sale' => 'Sale', 'dk' => 'DK — dyżury'] as $k => $lbl): if (!isset($side[$k]) || $side[$k] === null) continue; ?>
       <h2><a href="<?= tiPlanPortalUrl($self, ['k' => $k]) ?>" style="color:inherit;text-decoration:none"><?= $lbl ?></a></h2>
       <?php if (!$side[$k]): ?><p class="none">brak</p><?php else: ?>
-      <ul>
-        <?php foreach ($side[$k] as $it): ?>
+      <?php // Sale: podział na stacjonarne i online (3. element pozycji = „zajęcia online”)
+      $parts = $k === 'sale'
+          ? ['Stacjonarnie' => array_filter($side[$k], fn($i) => empty($i[2])), 'Online' => array_filter($side[$k], fn($i) => !empty($i[2]))]
+          : ['' => $side[$k]];
+      foreach ($parts as $pn => $pitems): if (!$pitems) continue; ?>
+      <?php if ($pn !== ''): ?><h3 class="side-sub" id="side-sale-<?= mb_strtolower($pn) ?>" style="font-size:.85em;margin:.5em 0 .1em;font-weight:600"><?= h($pn) ?></h3><?php endif; ?>
+      <ul<?= $pn !== '' ? ' aria-labelledby="side-sale-' . mb_strtolower($pn) . '"' : '' ?>>
+        <?php foreach ($pitems as $it): ?>
         <li data-side-item><a href="<?= $it[1] ?>"<?= $it[1] === $cur ? ' aria-current="page"' : '' ?>><?= h($it[0]) ?></a></li>
         <?php endforeach; ?>
       </ul>
+      <?php endforeach; ?>
       <?php endif; ?>
       <?php endforeach; ?>
     </div>
