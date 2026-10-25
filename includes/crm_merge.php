@@ -317,9 +317,39 @@ function crm_norm_phone(?string $phone): string
  * Rozwoju FEER” to ten sam podmiot — bez tej normalizacji nigdy by się nie
  * spotkały.
  */
+/** Cyrylica (ukraińska/rosyjska) → łacina, żeby „Катерина Сидоренко” i „Kateryna Sydorenko” się spotkały. */
+function crm_translit_cyr(string $s): string
+{
+    static $map = ['а'=>'a','б'=>'b','в'=>'v','г'=>'h','ґ'=>'g','д'=>'d','е'=>'e','є'=>'ie','ж'=>'zh','з'=>'z','и'=>'y','і'=>'i','ї'=>'i',
+        'й'=>'j','к'=>'k','л'=>'l','м'=>'m','н'=>'n','о'=>'o','п'=>'p','р'=>'r','с'=>'s','т'=>'t','у'=>'u','ф'=>'f','х'=>'kh','ц'=>'ts',
+        'ч'=>'ch','ш'=>'sh','щ'=>'shch','ъ'=>'','ы'=>'y','ь'=>'','э'=>'e','ю'=>'iu','я'=>'ia','ё'=>'e'];
+    return strtr(mb_strtolower($s), $map);
+}
+
+/** Czy tekst zawiera cyrylicę. */
+function crm_has_cyrillic(?string $s): bool { return (bool)preg_match('/\p{Cyrillic}/u', (string)$s); }
+
+/**
+ * Klucz osoby: bez diakrytyków i cyrylicy, z ujednoliconą wymową (y/j→i, ie→e, kh→h, powtórzone litery),
+ * słowa posortowane — „Kowalski Jan” = „Jan Kowalski”, „Kateryna Sydorenko” = „Катерина Сидоренко”.
+ */
+function crm_norm_person_key(?string $name): string
+{
+    $n = crm_translit_cyr(trim((string)$name));
+    $n = strtr($n, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z']);
+    $n = preg_replace('~[^a-z ]~u', ' ', $n) ?? $n;
+    $n = strtr($n, ['kh'=>'h','ie'=>'e','w'=>'v']);
+    $n = strtr($n, ['y'=>'i','j'=>'i']);
+    $n = preg_replace('~(.)\1+~u', '$1', $n) ?? $n;
+    $w = array_values(array_filter(explode(' ', $n), fn($x) => $x !== ''));
+    if (count($w) < 2) return '';
+    sort($w);
+    return implode(' ', $w);
+}
+
 function crm_norm_name(?string $name): string
 {
-    $n = mb_strtolower(trim((string)$name));
+    $n = crm_translit_cyr(trim((string)$name));
     $n = strtr($n, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z']);
     $n = preg_replace('~[„”"\'`.,()\[\]]~u', ' ', $n) ?? $n;
     $n = preg_replace('~\b(sp\s*z\s*o\s*o|spolka|z\s*o\s*o|s\s*a|sp\s*j|fundacja|stowarzyszenie)\b~u', ' ', $n) ?? $n;
@@ -347,6 +377,7 @@ function crm_find_duplicates(int $limit_contacts = 5000): array
     );
 
     $buckets = [];   // klucz => [powód, siła, [id,...]]
+    $person_scripts = [];
     $add = function (string $key, string $reason, string $strength, array $row) use (&$buckets) {
         $buckets[$key]['reason']     = $reason;
         $buckets[$key]['strength']   = $strength;
@@ -365,12 +396,34 @@ function crm_find_duplicates(int $limit_contacts = 5000): array
 
         $name = crm_norm_name($r['imie_nazwisko'] ?? '');
         if ($name !== '' && mb_strlen($name) >= 5) $add('name:' . $name, 'ta sama nazwa', 'słabe', $r);
+
+        // Osoby: to samo imię i nazwisko mimo innej kolejności, zapisu cyrylicą albo wariantu wymowy
+        if (($r['type'] ?? 'osoba') === 'osoba') {
+            $pk = crm_norm_person_key($r['imie_nazwisko'] ?? '');
+            if ($pk !== '' && mb_strlen($pk) >= 7) {
+                $person_scripts[$pk][crm_has_cyrillic($r['imie_nazwisko']) ? 'cyr' : 'lat'] = true;
+                $add('person:' . $pk, 'to samo imię i nazwisko (inna kolejność / pisownia)', 'słabe', $r);
+            }
+        }
     }
 
-    // Grupa to dopiero co najmniej dwie kartoteki.
+    // Ta sama osoba zapisana łaciną i cyrylicą to mocniejszy sygnał niż sama zbieżność nazwy.
+    foreach ($buckets as $key => &$b) {
+        if (str_starts_with($key, 'person:') && count($person_scripts[substr($key, 7)] ?? []) > 1) {
+            $b['reason'] = 'ta sama osoba zapisana łaciną i cyrylicą'; $b['strength'] = 'mocne';
+        }
+    }
+    unset($b);
+
+    // Grupa to dopiero co najmniej dwie kartoteki; ten sam zestaw kartotek zgłaszamy raz (najpewniejszy powód).
     $out = [];
+    $seen_sets = [];
+    uasort($buckets, fn($a, $b) => ['pewne' => 0, 'mocne' => 1, 'słabe' => 2][$a['strength']] <=> ['pewne' => 0, 'mocne' => 1, 'słabe' => 2][$b['strength']]);
     foreach ($buckets as $key => $b) {
         if (count($b['contacts']) < 2) continue;
+        $ids_key = implode(',', array_unique(array_map(fn($c) => (int)$c['id'], $b['contacts'])));
+        if (isset($seen_sets[$ids_key])) continue;
+        $seen_sets[$ids_key] = true;
         $out[] = [
             'key'      => $key,
             'reason'   => $b['reason'],
