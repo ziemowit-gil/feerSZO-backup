@@ -100,6 +100,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_substatus']) && 
     hd_finish($xhr, $id);
 }
 
+// ── Zmiana rodzaju zgłoszenia (kategorii) ─────────────────────────────────────
+// Numer zgłoszenia zostaje bez zmian (nadany przy zgłoszeniu; maile i linki go używają). Podstatus należał do starej kategorii — czyścimy go.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_category']) && $is_op) {
+    csrf_check();
+    $new_cat = (string)$_POST['_set_category'];
+    $cats = hd_categories();
+    if (!isset($cats[$new_cat])) {
+        flash_set('danger', 'Nieprawidłowy rodzaj zgłoszenia.');
+    } elseif ($new_cat === (string)$ticket['category']) {
+        flash_set('info', 'To zgłoszenie ma już taki rodzaj.');
+    } else {
+        $old_label = $cats[$ticket['category']] ?? (string)$ticket['category'];
+        $now_c = date('Y-m-d H:i:s');
+        db_update('helpdesk_tickets', ['category' => $new_cat, 'substatus' => '', 'updated_at' => $now_c], $id);
+        db_insert('helpdesk_messages', [
+            'ticket_id' => $id, 'user_id' => $uid, 'user_name' => $u['name'] ?? '',
+            'body' => 'Rodzaj zgłoszenia zmieniony: ' . $old_label . ' → ' . $cats[$new_cat] . ' (numer ' . $ticket['number'] . ' bez zmian).',
+            'is_internal' => 1,
+        ]);
+        flash_set('success', 'Rodzaj zgłoszenia zmieniony na: ' . $cats[$new_cat] . '.');
+    }
+    hd_finish($xhr, $id);
+}
+
 // ── Udostępnienie podglądu innej osobie ───────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_share']) && $is_op) {
     csrf_check();

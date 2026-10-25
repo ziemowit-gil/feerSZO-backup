@@ -874,7 +874,13 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
       <table class="w-100" style="border-collapse:collapse">
         <?php foreach ([
           ['Numer',        '<span class="font-monospace hd-det-num" style="font-size:.7rem">' . h($ticket['number']) . '</span>'],
-          ['Kategoria',    h(hd_categories()[$ticket['category']] ?? $ticket['category'])],
+          ['Rodzaj',       h(hd_categories()[$ticket['category']] ?? $ticket['category']) . ($is_op
+              ? '<form method="post" action="' . h($view_action) . '" data-hd-form class="d-flex gap-1 mt-1">'
+                . '<input type="hidden" name="_csrf" value="' . csrf_token() . '">'
+                . '<select name="_set_category" class="form-select form-select-sm" style="font-size:.75rem;border-radius:0" aria-label="Zmień rodzaj zgłoszenia">'
+                . implode('', array_map(fn($k, $l) => '<option value="' . h($k) . '"' . ($k === $ticket['category'] ? ' selected' : '') . '>' . h($l) . '</option>', array_keys(hd_categories()), hd_categories()))
+                . '</select><button class="btn btn-sm btn-outline-secondary py-0 px-2" style="border-radius:0;font-size:.75rem" title="Zmień rodzaj (numer zostaje)">Zmień</button></form>'
+              : '')],
           ['Priorytet',    hd_priority_badge($ticket['priority'])],
           ['Zgłaszający',  h($ticket['requester_name'])],
           ['E-mail',       $ticket['requester_email'] ? '<a href="mailto:'.h($ticket['requester_email']).'" style="font-size:.78rem">'.h($ticket['requester_email']).'</a>' : '—'],
