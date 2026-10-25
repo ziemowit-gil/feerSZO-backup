@@ -353,8 +353,11 @@ function hd_email_tpl(string $key, array $data = []): ?array {
 
 /** Zamienia {{klucz}} na wartości z $data (HTML-escaped). */
 function hd_tpl_replace(string $tpl, array $data): string {
+    // Pola z treścią pisaną w edytorze (HTML) wstawiamy jako bezpieczny, sformatowany HTML; resztę escapujemy.
+    static $rich = ['message_body', 'note', 'reason', 'description', 'status_note'];
     foreach ($data as $k => $v) {
-        $tpl = str_replace('{{' . $k . '}}', htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'), $tpl);
+        $val = in_array($k, $rich, true) ? hdMailHtml((string)$v) : htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $tpl = str_replace('{{' . $k . '}}', $val, $tpl);
     }
     return $tpl;
 }

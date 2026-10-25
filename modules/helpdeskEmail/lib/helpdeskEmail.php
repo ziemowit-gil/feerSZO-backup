@@ -66,8 +66,51 @@ function hdMailLayout(array $o): string
         . '</table></td></tr></table></body></html>';
 }
 
-/** Akapit z tekstem użytkownika: escapowany, z zachowaniem podziałów linii. */
+/** HTML → tekst z zachowaniem akapitów, podziałów linii i punktów listy. */
+function hdMailHtmlToText(string $html): string
+{
+    $html = preg_replace('~<(script|style)\b.*?</\1\s*>~is', '', $html);
+    $t = preg_replace('~<\s*br\s*/?\s*>~i', "\n", $html);
+    $t = preg_replace('~<\s*li\b[^>]*>~i', "\n- ", $t);
+    $t = preg_replace('~</\s*(p|div|li|ul|ol|h[1-6]|blockquote|tr|table)\s*>~i', "\n", $t);
+    $t = html_entity_decode(strip_tags($t), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $t = preg_replace("/[ \t]+\n/", "\n", str_replace("\r", '', $t));
+    $t = preg_replace("/\n{2,}- /", "\n- ", $t);          // punkty listy bez pustych linii między nimi
+    return trim(preg_replace("/\n{3,}/", "\n\n", $t));
+}
+
+/**
+ * Treść wiadomości do e-maila: HTML z edytora zostaje czytelny (akapity, listy, pogrubienia, bezpieczne linki),
+ * zwykły tekst dostaje łamanie linii; zbyt długie treści skracamy do tekstu. Wynik jest bezpiecznym HTML-em.
+ */
+function hdMailHtml(string $in, int $max = 3000): string
+{
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    if (!preg_match('~<\s*/?\s*[a-z][^>]*>~i', $in)) {                     // zwykły tekst
+        $txt = trim(str_replace("\r", '', $in));
+        return nl2br($e(mb_substr($txt, 0, $max))) . (mb_strlen($txt) > $max ? '…' : '');
+    }
+    $plain = hdMailHtmlToText($in);
+    if (mb_strlen($plain) > $max) return nl2br($e(mb_substr($plain, 0, $max))) . '…';
+    $in = preg_replace('~<(script|style)\b.*?</\1\s*>~is', '', $in);
+    $h = strip_tags($in, '<p><br><strong><b><em><i><u><ul><ol><li><a><blockquote>');
+    $h = preg_replace('/&(?!#?\w+;)/', '&amp;', $h);                  // goły „&” jako encja
+    // linki: tylko http(s)/mailto, bez pozostałych atrybutów
+    $h = preg_replace_callback('~<a\b[^>]*>~i', function ($m) {
+        if (preg_match('~href\s*=\s*(["\'])\s*((?:https?:|mailto:)[^"\']+)\1~i', $m[0], $mm)) {
+            return '<a href="' . htmlspecialchars(html_entity_decode($mm[2], ENT_QUOTES | ENT_HTML5), ENT_QUOTES, 'UTF-8') . '" style="color:#0f6cbd">';
+        }
+        return '<a>';
+    }, $h);
+    $h = preg_replace('~<(strong|b|em|i|u|ul|ol|li|blockquote|br)\b[^>]*?(/?)>~i', '<$1$2>', $h);
+    $h = preg_replace('~<p\b[^>]*>~i', '<p style="margin:0 0 10px">', $h);
+    $h = preg_replace('~<(ul|ol)>~i', '<$1 style="margin:0 0 10px;padding-left:20px">', $h);
+    $h = preg_replace('~<blockquote>~i', '<blockquote style="margin:0 0 10px;padding-left:12px;border-left:3px solid #c8c6c4;color:#605e5c">', $h);
+    return trim($h);
+}
+
+/** Tekst użytkownika do wstawienia w e-mail (zachowuje akapity i formatowanie — zob. hdMailHtml). */
 function hdMailText(string $text, int $max = 3000): string
 {
-    return nl2br(htmlspecialchars(mb_substr(trim(strip_tags($text)), 0, $max), ENT_QUOTES, 'UTF-8'));
+    return hdMailHtml($text, $max);
 }
