@@ -1307,7 +1307,7 @@ html body .btn-primary:hover{background:#115ea3;border-color:#115ea3}
 body.hd-shell-collapsed #navbar, body.hd-shell-collapsed #page-title-bar, body.hd-shell-collapsed .nb-ptitle-m,
 body.hd-shell-collapsed #saas-bar, body.hd-shell-collapsed .saas-tenant-bar { display:none !important; }
 body.hd-shell-collapsed #hdApp { height:calc(100dvh - 24px); }
-#hd-shell-toggle { position:fixed; left:.6rem; bottom:.6rem; z-index:1075; display:inline-flex; align-items:center; gap:.4rem; background:#fff; color:#242424;
+#hd-shell-toggle { position:fixed; left:.6rem; bottom:3rem; z-index:1075; display:inline-flex; align-items:center; gap:.4rem; background:#fff; color:#242424;
   border:1px solid #8a8886; padding:.3rem .7rem; font-size:.78rem; cursor:pointer; opacity:.85; }
 #hd-shell-toggle:hover, #hd-shell-toggle:focus-visible { opacity:1; background:#f3f2f1; outline:2px solid #0f6cbd; outline-offset:1px; }
 </style>

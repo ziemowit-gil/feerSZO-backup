@@ -37,6 +37,7 @@ $f_status   = $_GET['status'] ?? '';
 $f_category = $_GET['category'] ?? '';
 $f_priority = $_GET['priority'] ?? '';
 $f_group    = (($_GET['group'] ?? '') === 'status') ? 'status' : '';
+$f_closed   = (($_GET['closed'] ?? '') === '1');   // „z zamkniętymi” — domyślnie lista pokazuje tylko otwarte
 $f_tag      = $is_op ? hdTagNormalize((string)($_GET['tag'] ?? '')) : '';
 $f_view     = ($is_op && in_array($_GET['view'] ?? '', ['all','unassigned','mine'], true))
             ? $_GET['view'] : ($is_op ? 'all' : 'mine');
@@ -54,6 +55,9 @@ if (!$is_op) {
     $where[] = "t.status NOT IN ('zamknięte')";
 }
 if ($f_status && isset(HD_STATUSES[$f_status]))       { $where[] = 't.status = ?';   $params[] = $f_status; }
+// Domyślnie tylko otwarte (bez rozwiązanych i zamkniętych) — chyba że wybrano status, wyszukiwanie albo „z zamkniętymi”
+$hide_closed = !$f_closed && $f_status === '' && $f_q === '';
+if ($hide_closed) $where[] = "t.status NOT IN ('rozwiązane','zamknięte')";
 if ($f_category && isset(hd_categories()[$f_category])) { $where[] = 't.category = ?'; $params[] = $f_category; }
 if ($f_priority && isset(HD_PRIORITIES[$f_priority])) { $where[] = 't.priority = ?'; $params[] = $f_priority; }
 if ($f_tag !== '') { $where[] = 'EXISTS (SELECT 1 FROM helpdesk_tags g WHERE g.ticket_id = t.id AND g.tag = ?)'; $params[] = $f_tag; }
@@ -87,7 +91,7 @@ $tickets   = db_all(
 
 $paging     = paginate($total_all, $per_page, $page,
     APP_URL.'/helpdesk/index.php?'.http_build_query(array_filter([
-        'q'=>$f_q,'status'=>$f_status,'category'=>$f_category,'priority'=>$f_priority,'view'=>$f_view,'tag'=>$f_tag,'group'=>$f_group,
+        'q'=>$f_q,'status'=>$f_status,'category'=>$f_category,'priority'=>$f_priority,'view'=>$f_view,'tag'=>$f_tag,'group'=>$f_group,'closed'=>$f_closed ? '1' : '',
     ])));
 $unread_ids = $is_op ? hd_unread_ids($uid) : [];
 $unread_set = array_flip($unread_ids);
@@ -617,6 +621,16 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
 .hd-grp-head[data-status=krytyczne] .hd-grp-dot{background:#e51400}.hd-grp-head[data-status=rozwiązane] .hd-grp-dot{background:#60a917}
 .hd-grp-head[data-status=zamknięte] .hd-grp-dot{background:#008a00}.hd-grp-head[data-status=przekazane_zewn] .hd-grp-dot{background:#6a00ff}
 .hd-grp-head[data-status=wymaga_prac] .hd-grp-dot{background:#0050ef}
+.hdSb-nav{scrollbar-width:thin;scrollbar-color:#c8c6c4 transparent;padding-bottom:.75rem}
+.hdSb-nav::-webkit-scrollbar{display:block;width:6px}.hdSb-nav::-webkit-scrollbar-thumb{background:#c8c6c4}
+.hdSb-save{margin:.1rem 0 .3rem}
+.hdSb-save summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.5rem;padding:.35rem .9rem;font-size:.78rem;color:#605e5c}
+.hdSb-save summary::-webkit-details-marker{display:none}
+.hdSb-save summary:hover{background:#f3f2f1;color:#242424}
+.hdSb-save[open] summary{color:#242424;font-weight:600}
+@media (max-width:1280px){
+  .hd-grid-head,#hdApp .hd-row{grid-template-columns:28px 150px minmax(0,1fr) 120px 110px 90px 160px 130px 50px}
+}
 /* Podmenu Administracja w menu bocznym */
 .hdSb-sub-toggle{display:flex;align-items:center;gap:.5rem;width:100%;background:none;border:0;padding:.45rem .9rem;font-size:.78rem;font-weight:600;color:#605e5c;cursor:pointer;text-align:left}
 .hdSb-sub-toggle:hover{background:#f3f2f1;color:#242424}
@@ -674,6 +688,20 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
   #hdApp .hd-row .hd-c-st{grid-column:3;grid-row:1}
   #hdApp .hd-row .hd-c-pri,#hdApp .hd-row .hd-c-age{display:none}
 }
+
+/* Szersze kolumny (numer w nowym formacie, SLA) — po regułach siatki, więc wygrywa kolejnością i specyficznością */
+@media (min-width:1201px){
+  html body .hd-grid-head, html body #hdApp .hd-row{grid-template-columns:28px 128px minmax(210px,1fr) minmax(90px,135px) 112px 90px 165px minmax(90px,135px) 50px}
+  html body #hdApp .hd-row.hd-np, html body .hd-grid-head.hd-np{grid-template-columns:128px minmax(210px,1fr) minmax(90px,135px) 112px 90px 50px}
+}
+html body #hdApp .hd-row .hd-c-num{overflow:visible;text-overflow:clip}
+/* Węższe okna (do ~1560 px): kolumna Kategoria znika, tytuł dostaje miejsce */
+@media (min-width:1201px) and (max-width:1560px){
+  html body .hd-grid-head, html body #hdApp .hd-row{grid-template-columns:28px 128px minmax(220px,1fr) 112px 90px 165px minmax(90px,135px) 50px}
+  html body #hdApp .hd-row.hd-np, html body .hd-grid-head.hd-np{grid-template-columns:128px minmax(220px,1fr) 112px 90px 50px}
+  html body #hdApp .hd-row .hd-c-cat{display:none}
+  html body .hd-grid-head:not(.hd-np)>span:nth-child(4), html body .hd-grid-head.hd-np>span:nth-child(3){display:none}
+}
 </style>
 
 <!-- ══ LAYOUT ══════════════════════════════════════════════════════════════════ -->
@@ -723,12 +751,14 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
         <?php endif; ?>
       </div>
       <?php endforeach; ?>
+      <details class="hdSb-save"><summary><i class="bi bi-bookmark-plus"></i>Zapisz bieżący filtr</summary>
       <form method="post" action="<?= APP_URL ?>/helpdesk/index.php" class="hdSb-view-save" id="hdViewSaveForm">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_view_op" value="save"><input type="hidden" name="view_qs" id="hdViewQs" value="">
         <input type="text" name="view_name" maxlength="60" placeholder="Zapisz bieżący filtr jako…" aria-label="Nazwa nowego widoku" required>
         <label><input type="checkbox" name="view_shared" value="1"> wspólny</label>
         <button type="submit">Zapisz</button>
       </form>
+      </details>
       <?php endif; ?>
 
       <div class="hdSb-sep" style="margin-top:.5rem">Statusy</div>
@@ -765,8 +795,8 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
       </a>
       <?php endif; ?>
       <?php if ($is_op): ?>
-      <button type="button" class="hdSb-sub-toggle" id="hdAdminToggle" aria-expanded="true" aria-controls="hdAdminSub"><i class="bi bi-sliders"></i><span>Administracja</span><i class="bi bi-chevron-down hdSb-sub-chev"></i></button>
-      <div class="hdSb-sub" id="hdAdminSub">
+      <button type="button" class="hdSb-sub-toggle" id="hdAdminToggle" aria-expanded="false" aria-controls="hdAdminSub"><i class="bi bi-sliders"></i><span>Administracja</span><i class="bi bi-chevron-down hdSb-sub-chev"></i></button>
+      <div class="hdSb-sub d-none" id="hdAdminSub">
         <?php foreach (hd_admin_items() as $_ai): ?>
         <a href="<?= h($_ai['url']) ?>"><i class="bi <?= h($_ai['icon']) ?>"></i><?= h($_ai['label']) ?></a>
         <?php endforeach; ?>
@@ -806,6 +836,7 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
         <input type="hidden" name="category" id="hdCategoryInput" value="<?= h($f_category) ?>">
         <input type="hidden" name="priority" id="hdPriorityInput" value="<?= h($f_priority) ?>">
         <input type="hidden" name="group" id="hdGroupInput" value="<?= h($f_group) ?>">
+        <input type="hidden" name="closed" id="hdClosedInput" value="<?= $f_closed ? '1' : '' ?>">
 
         <div class="hdList-search-wrap">
           <i class="bi bi-search" aria-hidden="true"></i>
@@ -815,6 +846,7 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
         </div>
         <div class="hd-quick" role="group" aria-label="Szybkie ustawienia listy">
           <button type="button" id="hdOnlyNew" class="hd-qbtn" aria-pressed="<?= $f_status === 'nowe' ? 'true' : 'false' ?>" title="Pokaż tylko zgłoszenia o statusie Nowe"><i class="bi bi-inbox-fill" aria-hidden="true"></i>Tylko nowe</button>
+          <button type="button" id="hdShowClosed" class="hd-qbtn" aria-pressed="<?= $f_closed ? 'true' : 'false' ?>" title="Domyślnie lista pokazuje tylko otwarte zgłoszenia — włącz, by dodać rozwiązane i zamknięte"><i class="bi bi-archive" aria-hidden="true"></i>Z zamkniętymi</button>
           <button type="button" id="hdGroupToggle" class="hd-qbtn" aria-pressed="<?= $f_group === 'status' ? 'true' : 'false' ?>" title="Pogrupuj listę według statusu"><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>Wg statusu</button>
         </div>
         <select id="hdCatSelect" class="hd-cat-select mt-1" aria-label="Kategoria">
@@ -1267,6 +1299,8 @@ var HdApp = {
 
   syncQuick: function () {
     var n = document.getElementById('hdOnlyNew'), g = document.getElementById('hdGroupToggle'), gi = document.getElementById('hdGroupInput');
+    var c = document.getElementById('hdShowClosed'), ci = document.getElementById('hdClosedInput');
+    if (c && ci) c.setAttribute('aria-pressed', ci.value === '1' ? 'true' : 'false');
     if (n && this.statusInput) n.setAttribute('aria-pressed', this.statusInput.value === 'nowe' ? 'true' : 'false');
     if (g && gi) g.setAttribute('aria-pressed', gi.value === 'status' ? 'true' : 'false');
     document.querySelectorAll('[data-sb-status]').forEach(function (el) {
@@ -1276,6 +1310,11 @@ var HdApp = {
 
   bindQuick: function () {
     var self = this, n = document.getElementById('hdOnlyNew'), g = document.getElementById('hdGroupToggle'), gi = document.getElementById('hdGroupInput');
+    var c = document.getElementById('hdShowClosed'), ci = document.getElementById('hdClosedInput');
+    if (c && ci) c.addEventListener('click', function () {
+      ci.value = ci.value === '1' ? '' : '1';
+      self.loadList(self.formParams(), true);
+    });
     if (n) n.addEventListener('click', function () {
       self.statusInput.value = self.statusInput.value === 'nowe' ? '' : 'nowe';
       self.loadList(self.formParams(), true);
@@ -1357,6 +1396,7 @@ var HdApp = {
       var cs = document.getElementById('hdCatSelect'); if (cs) cs.value = p.get('category') || '';
       var ts = document.getElementById('hdTagSelect'); if (ts) ts.value = p.get('tag') || '';
       var gi2 = document.getElementById('hdGroupInput'); if (gi2) gi2.value = p.get('group') || '';
+      var ci2 = document.getElementById('hdClosedInput'); if (ci2) ci2.value = p.get('closed') || '';
       if (self.priInput)    self.priInput.value    = p.get('priority') || '';
       if (self.searchInput) self.searchInput.value = p.get('q')        || '';
       self.loadList(p, false);
@@ -1428,7 +1468,7 @@ var HdBulk = {
   var t = document.getElementById('hdAdminToggle'), box = document.getElementById('hdAdminSub'); if (!t || !box) return;
   function set(open) { box.classList.toggle('d-none', !open); t.setAttribute('aria-expanded', open ? 'true' : 'false'); }
   var KEY = 'hdAdminSubOpen';
-  try { set(localStorage.getItem(KEY) !== '0'); } catch (e) {}
+  try { set(localStorage.getItem(KEY) === '1'); } catch (e) {}   // domyślnie zwinięte
   t.addEventListener('click', function () { var open = box.classList.contains('d-none'); set(open); try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {} });
 })();
 (function () {
