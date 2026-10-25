@@ -2082,6 +2082,12 @@ class CrmManager
             $where[]  = "EXISTS (SELECT 1 FROM crm_tags t WHERE t.contact_id=c.id AND t.tag=?)";
             $params[] = $filters['tag'];
         }
+        if (!empty($filters['category'])) {
+            require_once __DIR__ . '/crmCategories.php';
+            crm_categories_schema();
+            $where[]  = "EXISTS (SELECT 1 FROM crm_contact_categories cx JOIN crm_categories cy ON cy.id=cx.category_id WHERE cx.contact_id=c.id AND cy.slug=?)";
+            $params[] = (string)$filters['category'];
+        }
         if (!empty($filters['group'])) {
             $where[]  = "EXISTS (SELECT 1 FROM crm_group_members gm WHERE gm.contact_id=c.id AND gm.group_id=?)";
             $params[] = (int)$filters['group'];

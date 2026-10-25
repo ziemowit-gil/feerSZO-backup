@@ -90,6 +90,9 @@ $_sn_root = preg_match('|/crm/settings/(index\.php)?$|', strtok($_sn_uri, '?'));
   <a href="<?= APP_URL ?>/crm/settings/statuses.php" class="csn-link<?= $_sn_a('settings/statuses') ?>">
     <i class="bi bi-bookmark-fill"></i> Statusy
   </a>
+  <a href="<?= APP_URL ?>/crm/settings/categories.php" class="csn-link<?= $_sn_a('settings/categories') ?>">
+    <i class="bi bi-diagram-2" aria-hidden="true"></i> Kategorie kontaktów
+  </a>
   <a href="<?= APP_URL ?>/crm/settings/services.php" class="csn-link<?= $_sn_a('settings/services') ?>">
     <i class="bi bi-tools"></i> Rodzaje usług
   </a>

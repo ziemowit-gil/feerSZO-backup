@@ -72,6 +72,13 @@ function collect_recipients(array $body): array {
         foreach (crm_contract_segment_resolve($csets) as $cid) $ids[] = $cid;
     }
 
+    // Z kategorii kontaktów (includes/crmCategories.php)
+    $cats = array_filter(array_map(fn($c) => preg_replace('/[^a-z0-9_]/', '', (string)$c), (array)($body['category_slugs'] ?? [])));
+    if ($cats) {
+        require_once dirname(dirname(__DIR__)) . '/includes/crmCategories.php';
+        foreach (crm_category_contact_ids($cats) as $cid) $ids[] = $cid;
+    }
+
     // Z listy ID (indywidualne kontakty)
     foreach ((array)($body['contact_ids'] ?? []) as $cid) {
         $ids[] = (int)$cid;
@@ -154,7 +161,7 @@ if (in_array($action, ['audience_list', 'audience_save', 'audience_delete'], tru
         $nm = trim((string)($body['name'] ?? ''));
         if ($nm === '' || mb_strlen($nm) > 80) api_err('Podaj nazwę listy (do 80 znaków).');
         $crit = crm_audience_criteria($body);
-        if (!$crit['group_ids'] && !$crit['tags'] && !$crit['contract_sets']) api_err('Wybierz grupy, tagi lub umowy — lista nie może być pusta.');
+        if (!$crit['group_ids'] && !$crit['tags'] && !$crit['contract_sets'] && !$crit['categories']) api_err('Wybierz grupy, kategorie, tagi lub umowy — lista nie może być pusta.');
         crm_audience_save($uid, $nm, $crit, !empty($body['shared']));
     } elseif ($action === 'audience_delete') {
         if (!crm_audience_delete($uid, (int)($body['id'] ?? 0), is_admin())) api_err('Nie można usunąć tej listy.', 403);

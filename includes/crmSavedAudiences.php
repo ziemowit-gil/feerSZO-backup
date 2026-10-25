@@ -36,7 +36,8 @@ function crm_audience_criteria(array $in): array {
     $tags   = array_values(array_unique(array_filter(array_map('trim', is_array($in['tags'] ?? null) ? $in['tags'] : explode(',', (string)($in['tags'] ?? ''))))));
     $sets   = array_values(array_unique(array_filter(array_map('strval', (array)($in['contract_sets'] ?? [])),
                 fn($s) => (bool)preg_match('/^[a-z_]+:(active|expired)$/', $s))));
-    return ['group_ids' => $groups, 'tags' => $tags, 'contract_sets' => $sets];
+    $cats   = array_values(array_unique(array_filter(array_map(fn($c) => preg_replace('/[^a-z0-9_]/', '', (string)$c), (array)($in['categories'] ?? [])))));
+    return ['group_ids' => $groups, 'tags' => $tags, 'contract_sets' => $sets, 'categories' => $cats];
 }
 
 function crm_audience_save(int $uid, string $name, array $criteria, bool $shared): int {

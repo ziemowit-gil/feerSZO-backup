@@ -33,6 +33,7 @@ $filters = [
     'status'       => trim($_GET['status']       ?? ''),
     'type'         => trim($_GET['type']         ?? ''),
     'tag'          => trim($_GET['tag']          ?? ''),
+    'category'     => preg_replace('/[^a-z0-9_]/', '', (string)($_GET['category'] ?? '')),
     'group'        => (int)($_GET['group']       ?? 0) ?: '',
     'wojewodztwo'  => trim($_GET['wojewodztwo']  ?? ''),
     'action_id'    => (int)($_GET['action_id']   ?? 0) ?: '',
@@ -922,8 +923,30 @@ include __DIR__ . '/includes/header_crm.php';
 </form>
 
 <!-- Filtry Tagi / Grupy — kompaktowe rozwijane (zamiast długich rzędów chipów) -->
-<?php if ($all_tags || $all_groups): ?>
-<div class="d-flex flex-wrap align-items-center gap-2 mb-2" aria-label="Filtry tagów i grup">
+<?php if ($all_tags || $all_groups || true): ?>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2" aria-label="Filtry kategorii, tagów i grup">
+
+  <?php require_once dirname(__DIR__) . '/includes/crmCategories.php'; $_cats = crm_categories(); $_cat_on = ($filters['category'] ?? '') !== '';
+        if ($_cats): ?>
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle<?= $_cat_on ? ' active' : '' ?>" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-diagram-2 me-1" aria-hidden="true"></i>Kategorie<?php foreach ($_cats as $_c) if ($_c['slug'] === ($filters['category'] ?? '')) echo ': ' . h($_c['label']); ?>
+    </button>
+    <ul class="dropdown-menu" style="max-height:340px;overflow:auto;min-width:248px">
+      <?php if ($_cat_on): ?>
+      <li><a class="dropdown-item text-muted" href="<?= h(APP_URL.'/crm/index.php?'.http_build_query(array_filter(array_merge($filters,['category'=>'','page'=>1])))) ?>"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Wyczyść filtr kategorii</a></li>
+      <li><hr class="dropdown-divider"></li>
+      <?php endif; ?>
+      <?php foreach ($_cats as $_c): $_a = ($filters['category'] ?? '') === $_c['slug']; ?>
+      <li><a class="dropdown-item d-flex justify-content-between align-items-center<?= $_a ? ' active' : '' ?>" href="<?= h(APP_URL.'/crm/index.php?'.http_build_query(array_filter(array_merge($filters,['category'=>$_a ? '' : $_c['slug'],'page'=>1])))) ?>">
+        <span><span style="display:inline-block;width:.6rem;height:.6rem;background:<?= h($_c['color']) ?>;margin-right:.4rem" aria-hidden="true"></span><?= h($_c['label']) ?></span>
+        <span class="badge bg-light text-muted border ms-2"><?= (int)$_c['cnt'] ?></span></a></li>
+      <?php endforeach; ?>
+      <li><hr class="dropdown-divider"></li>
+      <li><a class="dropdown-item small text-muted" href="<?= APP_URL ?>/crm/settings/categories.php"><i class="bi bi-gear me-2" aria-hidden="true"></i>Zarządzaj kategoriami</a></li>
+    </ul>
+  </div>
+  <?php endif; ?>
 
   <?php if ($all_tags): $_tag_on = ($filters['tag'] ?? '') !== ''; ?>
   <div class="dropdown">

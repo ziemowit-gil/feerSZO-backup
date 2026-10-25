@@ -86,6 +86,8 @@ $consent_counts   = crm_consent_counts();
 // Adresaci wg umów (typ × aktywne/wygasłe)
 require_once dirname(__DIR__) . '/includes/crm_contract_segments.php';
 $contract_counts = crm_contract_segment_counts();
+require_once dirname(__DIR__) . '/includes/crmCategories.php';
+$cat_list = crm_categories();
 
 // Wysyłka z konta M365 zalogowanego użytkownika (do wyboru)
 $_cu_now        = current_user();
@@ -264,6 +266,14 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-retry{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}.ms-retry .btn{border-radius:0}.ms-track{display:flex;gap:.6rem;align-items:flex-start;margin:0 0 .75rem;padding:.6rem .75rem;border:1px solid #D1D5DB;background:#F9FAFB;font-size:.8rem;color:#374151;cursor:pointer}.ms-track input{margin-top:.2rem;width:1rem;height:1rem;accent-color:#0F766E}
 .ms-test{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem}.ms-test .btn{border-radius:0}.ms-test-msg{font-size:.76rem;color:#374151}
 .ms-retry-msg{font-size:.76rem;color:#374151}
+
+.ms-cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(14rem,1fr));gap:.5rem}
+.ms-cat{display:flex;align-items:center;gap:.5rem;margin:0;padding:.5rem .7rem;border:1px solid #9CA3AF;border-left:4px solid var(--c,#6B7280);background:#fff;cursor:pointer;font-size:.86rem}
+.ms-cat:hover{background:#F9FAFB}.ms-cat.is-empty{cursor:default;color:#6B7280;background:#F3F4F6}
+.ms-cat input{width:1.05rem;height:1.05rem;accent-color:#0F766E}
+.ms-cat-name{flex:1;font-weight:600;color:#111827}.ms-cat.is-empty .ms-cat-name{color:#4B5563}
+.ms-cat-n{font-variant-numeric:tabular-nums;color:#374151;font-weight:700}
+.ms-cat-dot{display:none}
 </style>
 
 <div class="crm-page-header">
@@ -438,6 +448,7 @@ include __DIR__ . '/includes/header_crm.php';
     <!-- ─── Wybór adresatów: zakładki (zaznaczenia ze wszystkich zakładek się sumują) ─── -->
     <div class="ms-rp-tabs" role="tablist" aria-label="Sposób wyboru adresatów">
       <button type="button" class="ms-rp-tab is-on" role="tab" aria-selected="true" data-rp-tab="groups"><i class="bi bi-people-fill" aria-hidden="true"></i> Grupy <span class="ms-rp-n" data-rp-n="groups" hidden></span></button>
+      <button type="button" class="ms-rp-tab" role="tab" aria-selected="false" data-rp-tab="categories"><i class="bi bi-diagram-2" aria-hidden="true"></i> Kategorie <span class="ms-rp-n" data-rp-n="categories" hidden></span></button>
       <button type="button" class="ms-rp-tab" role="tab" aria-selected="false" data-rp-tab="contracts"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Umowy <span class="ms-rp-n" data-rp-n="contracts" hidden></span></button>
       <button type="button" class="ms-rp-tab" role="tab" aria-selected="false" data-rp-tab="tags"><i class="bi bi-tags" aria-hidden="true"></i> Tagi <span class="ms-rp-n" data-rp-n="tags" hidden></span></button>
       <button type="button" class="ms-rp-tab" role="tab" aria-selected="false" data-rp-tab="contacts"><i class="bi bi-person-plus" aria-hidden="true"></i> Kontakty <span class="ms-rp-n" data-rp-n="contacts" hidden></span></button>
@@ -489,6 +500,19 @@ include __DIR__ . '/includes/header_crm.php';
       <div id="selectedGroupPills" class="mt-2 d-flex flex-wrap gap-1"></div>
     </div>
 
+    </div>
+
+    <!-- ─── Kategorie kontaktów ─── -->
+    <div class="ms-rp-panel" data-rp="categories" hidden>
+      <div class="small mb-2" style="color:#374151">Podział „kim jest dla organizacji”. Zaznacz jedną lub kilka kategorii — adresaci z każdej z nich się sumują. Zarządzanie: <a href="<?= APP_URL ?>/crm/settings/categories.php">Kategorie kontaktów</a>.</div>
+      <div class="ms-cat-grid">
+        <?php foreach ($cat_list as $cl): ?>
+        <label class="ms-cat<?= (int)$cl['cnt'] ? '' : ' is-empty' ?>" style="--c:<?= h($cl['color']) ?>">
+          <input type="checkbox" data-cat="<?= h($cl['slug']) ?>" onchange="MS.toggleCategory(this)"<?= (int)$cl['cnt'] ? '' : ' disabled' ?>>
+          <span class="ms-cat-dot" aria-hidden="true"></span><span class="ms-cat-name"><?= h($cl['label']) ?></span><span class="ms-cat-n"><?= (int)$cl['cnt'] ?></span>
+        </label>
+        <?php endforeach; ?>
+      </div>
     </div>
 
     <!-- ─── Umowy: typ × stan ─── -->
@@ -798,6 +822,7 @@ const MS = (function() {
   let _tag_filters  = new Set();
   let _contact_ids  = new Map(); // id → {name, email}
   let _contract_sets = new Set(); // "typ:stan" (active|expired)
+  let _category_slugs = new Set(); // kategorie kontaktów
   // Wybór osoby kontaktowej per podmiot: { contact_id: person_id }. Pusty = adresat
   // domyślny (osoba oznaczona jako adresat → osoba główna → adres podmiotu).
   let _person_over  = {};
@@ -1159,7 +1184,8 @@ const MS = (function() {
       purpose_id:     parseInt(document.getElementById('ms_purpose')?.value, 10) || 0,
       ignore_opt_out: !!document.getElementById('ms_ignore_optout')?.checked,
       members_basis:  !!document.getElementById('ms_members')?.checked,
-      contract_sets:  [..._contract_sets]
+      contract_sets:  [..._contract_sets],
+      category_slugs: [..._category_slugs]
     };
   }
 
@@ -1186,7 +1212,7 @@ const MS = (function() {
     document.querySelectorAll('.ms-rp-panel').forEach(p => { p.hidden = p.dataset.rp !== name; });
   }
   function rpBadges() {
-    const n = { groups: _group_ids.size, contracts: _contract_sets.size, tags: _tag_filters.size, contacts: _contact_ids.size };
+    const n = { groups: _group_ids.size, categories: _category_slugs.size, contracts: _contract_sets.size, tags: _tag_filters.size, contacts: _contact_ids.size };
     Object.keys(n).forEach(k => {
       const el = document.querySelector('[data-rp-n="' + k + '"]');
       if (el) { el.textContent = n[k]; el.hidden = !n[k]; }
@@ -1196,6 +1222,10 @@ const MS = (function() {
     const t = e.target.closest('.ms-rp-tab');
     if (t) rpTab(t.dataset.rpTab);
   });
+  function toggleCategory(cb) {
+    if (cb.checked) _category_slugs.add(cb.dataset.cat); else _category_slugs.delete(cb.dataset.cat);
+    preview();
+  }
   function toggleContractSet(cb) {
     if (cb.checked) _contract_sets.add(cb.dataset.cset); else _contract_sets.delete(cb.dataset.cset);
     preview();
@@ -1273,6 +1303,8 @@ const MS = (function() {
     document.querySelectorAll('#tagChips .tag-chip').forEach(ch => ch.classList.toggle('selected', _tag_filters.has(ch.dataset.tag)));
     _contract_sets = new Set(c.contract_sets || []);
     document.querySelectorAll('[data-cset]').forEach(cb => { cb.checked = _contract_sets.has(cb.dataset.cset); });
+    _category_slugs = new Set(c.categories || []);
+    document.querySelectorAll('[data-cat]').forEach(cb => { cb.checked = _category_slugs.has(cb.dataset.cat); });
     audMsg('Wczytano listę „' + a.name + '”.');
     preview();
   }
@@ -1280,7 +1312,7 @@ const MS = (function() {
     const name = document.getElementById('msAudName').value.trim();
     if (!name) { audMsg('Podaj nazwę listy.', true); return; }
     audCall({ action:'audience_save', name, shared: document.getElementById('msAudShared').checked,
-              group_ids: [..._group_ids], tags: [..._tag_filters], contract_sets: [..._contract_sets] }).then(r => {
+              group_ids: [..._group_ids], tags: [..._tag_filters], contract_sets: [..._contract_sets], categories: [..._category_slugs] }).then(r => {
       if (!r.ok) { audMsg(r.error, true); return; }
       _auds = r.data;
       const saved = _auds.find(x => x.name.toLowerCase() === name.toLowerCase() && x.mine);
@@ -1306,7 +1338,7 @@ const MS = (function() {
     const groups  = [..._group_ids];
     const tags    = [..._tag_filters].join(',');
     const c_ids   = [..._contact_ids.keys()];
-    if (!groups.length && !tags && !c_ids.length && !_contract_sets.size) {
+    if (!groups.length && !tags && !c_ids.length && !_contract_sets.size && !_category_slugs.size) {
       _total = 0;
       document.getElementById('recipientPreviewBox').style.display='none';
       document.getElementById('recipientCount').textContent='0';
@@ -1430,7 +1462,7 @@ recipientRow(c)
 
     if (!msgBody) { alert('Wpisz treść wiadomości.'); return; }
     if (_channel==='email'&&!subject) { alert('Podaj temat e-maila.'); return; }
-    if (!groups.length&&!tags&&!c_ids.length&&!_contract_sets.size) { alert('Wybierz grupę, umowy, tag lub dodaj kontakty.'); return; }
+    if (!groups.length&&!tags&&!c_ids.length&&!_contract_sets.size&&!_category_slugs.size) { alert('Wybierz grupę, kategorię, umowy, tag lub dodaj kontakty.'); return; }
     if (_total===0) { alert('Brak odbiorców dla wybranego kanału.'); return; }
 
     const dwNote = dw.length ? `\nDW: ${dw.join(', ')}` : '';
@@ -1528,7 +1560,7 @@ recipientRow(c)
 
   wizShow(1);
 
-  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, audLoad, audSave, audDelete, retry, testSend,
+  return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, toggleCategory, audLoad, audSave, audDelete, retry, testSend,
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
            preview, send, insertVar, loadTemplate, purposeChanged, membersChanged,

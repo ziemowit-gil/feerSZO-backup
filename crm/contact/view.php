@@ -71,8 +71,36 @@ function _cv_activity_cfg(): array {
 // ── Renderery sekcji (używane zarówno przez pełną stronę jak i AJAX) ──────────
 
 function _cv_tags_html(array $contact, int $id, bool $can_w, bool $can_d): string {
+    require_once dirname(__DIR__, 2) . '/includes/crmCategories.php';
+    $cats = crm_contact_categories($id);
+    $have = array_column($cats, 'slug');
+    $avail = array_values(array_filter(crm_categories(), fn($c) => !in_array($c['slug'], $have, true)));
     ob_start(); ?>
     <div id="crm-section-tags">
+      <div class="mb-2" aria-label="Kategorie kontaktu">
+        <div class="small fw-semibold mb-1" style="color:#374151">Kategorie</div>
+        <?php if ($cats): foreach ($cats as $c): ?>
+        <span class="d-inline-flex align-items-center gap-1 me-1 mb-1" style="background:<?= h($c['color']) ?>;color:#fff;padding:.1rem .5rem;font-size:.76rem;font-weight:600"
+              title="<?= $c['source'] === 'auto' ? 'Nadana automatycznie z danych (umowy, darowizny, faktury…)' : 'Nadana ręcznie' ?>">
+          <?= h($c['label']) ?><?= $c['source'] === 'auto' ? ' <i class="bi bi-magic" style="font-size:.65rem" aria-hidden="true"></i>' : '' ?>
+          <?php if ($can_w && $c['source'] === 'manual'): ?>
+          <form method="post" class="d-inline" data-ajax-section="tags">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="unset_category"><input type="hidden" name="category" value="<?= h($c['slug']) ?>">
+            <button type="submit" class="border-0 p-0 bg-transparent text-white" style="line-height:1;cursor:pointer" aria-label="Zdejmij kategorię <?= h($c['label']) ?>">&times;</button>
+          </form>
+          <?php endif; ?>
+        </span>
+        <?php endforeach; else: ?><span class="text-muted small">Brak kategorii.</span><?php endif; ?>
+        <?php if ($can_w && $avail): ?>
+        <form method="post" class="d-flex gap-2 mt-1" data-ajax-section="tags">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_action" value="set_category">
+          <select name="category" class="form-select form-select-sm" aria-label="Dodaj kategorię" style="border-radius:0">
+            <?php foreach ($avail as $c): ?><option value="<?= h($c['slug']) ?>"><?= h($c['label']) ?></option><?php endforeach; ?>
+          </select>
+          <button class="btn btn-sm btn-crm-outline flex-shrink-0" type="submit" aria-label="Dodaj kategorię"><i class="bi bi-plus" aria-hidden="true"></i></button>
+        </form>
+        <?php endif; ?>
+      </div>
       <?php if ($contact['tags']): ?>
       <div class="crm-tags-list mb-2" aria-label="Tagi kontaktu">
         <?php foreach ($contact['tags'] as $t): ?>
@@ -1377,6 +1405,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
     }
     if ($action === 'remove_tag') {
         CrmManager::removeTag($id, trim($_POST['tag'] ?? ''));
+        $affected_section = 'tags';
+    }
+    if ($action === 'set_category' || $action === 'unset_category') {
+        require_once dirname(__DIR__, 2) . '/includes/crmCategories.php';
+        crm_contact_category_set($id, trim($_POST['category'] ?? ''), $action === 'set_category');
         $affected_section = 'tags';
     }
     if ($action === 'add_relation') {

@@ -125,6 +125,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/helpdesk_autoescalate.php',
             'interval' => 3600,         // co godzinę — automatyczne podbicia po przekroczeniu SLA (modules/helpdeskEscalation)
         ],
+        'crm_categories' => [
+            'file'     => $cronDir . '/crm_categories.php',
+            'interval' => 21600,        // co 6 godzin — kategorie kontaktów CRM wyliczane z umów, darowizn, faktur (includes/crmCategories.php)
+        ],
         'tasks_sla' => [
             'file'     => $cronDir . '/tasks_sla.php',
             'interval' => 3600,         // co godzinę — eskalacje SLA zadań (tasks/lib/tasksSla.php)
