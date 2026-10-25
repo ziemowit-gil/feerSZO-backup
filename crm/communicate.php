@@ -63,7 +63,7 @@ $sms_available   = false;
 $email_available = true;
 try {
     require_once dirname(__DIR__) . '/includes/sms.php';
-    $sms_available = sms_is_enabled();
+    $sms_available = sms_channel_ready();
 } catch (\Throwable $e) {}
 
 require_once dirname(__DIR__) . '/includes/mail_queue.php';

@@ -96,10 +96,10 @@ try {
     // SMS ma sens tylko wtedy, gdy jest gdzie go wysłać. Kanał proponowany przy
     // kontakcie bez numeru albo z numerem stacjonarnym kończył się wysyłką,
     // która nie dochodzi (a bywa naliczana) — i wnioskiem, że „SMS-y nie działają".
-    $sms_available = sms_is_enabled()
+    $sms_available = sms_channel_ready()
         && $contact !== null && sms_is_mobile($contact['telefon'] ?? '');
     $sms_why = '';
-    if (sms_is_enabled() && !$sms_available && $contact !== null) {
+    if (sms_channel_ready() && !$sms_available && $contact !== null) {
         $sms_why = trim((string)($contact['telefon'] ?? '')) === ''
             ? 'kontakt nie ma numeru telefonu'
             : 'numer ' . sms_format_phone($contact['telefon']) . ' nie jest komórkowy';
