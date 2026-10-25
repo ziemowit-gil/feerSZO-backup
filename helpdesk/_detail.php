@@ -468,7 +468,7 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
         <?php foreach ($escalations as $e): ?>
         <li class="d-flex justify-content-between align-items-center py-1 border-bottom" style="border-color:var(--hd-bd-l)!important;font-size:.78rem">
           <div>
-            <span class="font-monospace" style="font-size:.74rem"><?= h($e['number']) ?></span>
+            <span class="font-monospace" style="font-size:.74rem"><?= h($e['number']) ?></span><?= !empty($e['is_auto']) ? ' <span class="badge bg-light text-secondary border" style="font-size:.62rem">auto · poz. ' . (int)$e['level'] . '</span>' : '' ?>
             <div style="color:var(--hd-tx3);font-size:.7rem"><?= date('d.m.Y H:i', strtotime($e['created_at'])) ?></div>
           </div>
           <a href="<?= APP_URL ?>/helpdesk/escalation_pdf.php?id=<?= (int)$e['id'] ?>" target="_blank"
@@ -481,12 +481,13 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
       <?php else: ?>
       <p style="font-size:.77rem;color:var(--hd-tx3)" class="mb-2">Brak podbić tego zgłoszenia.</p>
       <?php endif; ?>
-      <?php if ($ticket['status'] !== 'zamknięte'): ?>
+      <?php if ($is_op && $ticket['status'] !== 'zamknięte'): ?>
       <button class="w-100 hd-side-stat-btn" type="button"
               data-bs-toggle="modal" data-bs-target="#hdEscalateModal">
-        <i class="bi bi-megaphone" style="color:#f59e0b"></i>Podbij — brak reakcji
+        <i class="bi bi-megaphone" style="color:#f59e0b"></i>Podbij ręcznie
       </button>
       <?php endif; ?>
+      <?php if (!$is_op): ?><p style="font-size:.74rem;color:var(--hd-tx3)" class="mb-0">Podbijanie jest automatyczne po przekroczeniu terminu SLA.</p><?php endif; ?>
     </div>
   </div>
 

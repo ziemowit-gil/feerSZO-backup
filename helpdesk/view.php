@@ -266,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_merge']) && $is_op) 
 }
 
 // ── Podbij zgłoszenie — brak reakcji ──────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_escalate'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_escalate']) && $is_op) {   // zgłaszający nie podbija — robi to automat po SLA
     csrf_check();
     if ($ticket['status'] === 'zamknięte') {
         flash_set('warning', 'Zgłoszenie jest zamknięte — nie można go podbić.');

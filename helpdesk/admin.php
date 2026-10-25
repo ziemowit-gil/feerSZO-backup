@@ -9,6 +9,7 @@ require_once dirname(__DIR__) . '/modules/helpdeskTime/lib/helpdeskTime.php';
 require_once dirname(__DIR__) . '/modules/helpdeskCsat/lib/helpdeskCsat.php';
 require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
 require_once dirname(__DIR__) . '/modules/helpdeskMigrate/lib/helpdeskMigrate.php';
+require_once dirname(__DIR__) . '/modules/helpdeskEscalation/lib/helpdeskEscalation.php';
 helpdesk_migrate();
 require_login();
 require_role('admin');
@@ -44,6 +45,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', $new === '1' ? 'Helpdesk włączony.' : 'Helpdesk wyłączony.');
     }
 
+    if ($op === 'autoesc_save') {
+        $mails = array_filter(preg_split('/[\s,;]+/', trim((string)($_POST['hd_autoesc_notify'] ?? ''))));
+        $bad = array_filter($mails, fn($e) => !filter_var($e, FILTER_VALIDATE_EMAIL));
+        if ($bad) flash_set('danger', 'Niepoprawny adres e-mail: ' . implode(', ', $bad));
+        else {
+            org_setting_set('hd_autoesc_enabled', !empty($_POST['hd_autoesc_enabled']) ? '1' : '0');
+            org_setting_set('hd_autoesc_l2_hours', (string)max(1, min(720, (int)($_POST['hd_autoesc_l2_hours'] ?? 24))));
+            org_setting_set('hd_autoesc_raise', !empty($_POST['hd_autoesc_raise']) ? '1' : '0');
+            org_setting_set('hd_autoesc_notify', implode(', ', $mails));
+            flash_set('success', 'Ustawienia automatycznego podbijania zapisane.');
+        }
+    }
+    if ($op === 'autoesc_run') {
+        $r = hdAutoEscRun();
+        flash_set(!empty($r['disabled']) ? 'warning' : 'success', !empty($r['disabled']) ? 'Automatyczne podbijanie jest wyłączone — włącz je i zapisz ustawienia.'
+            : 'Podbito: poziom 1 — ' . (int)$r['l1'] . ', poziom 2 — ' . (int)$r['l2'] . '.');
+    }
     if ($op === 'migrate_numbers') {
         $r = hdMigrateRun((int)(current_user()['id'] ?? 0));
         flash_set(isset($r['error']) ? 'danger' : 'success', $r['error'] ?? ('Zmigrowano numery zgłoszeń: ' . (int)$r['migrated'] . '. Stare numery zostają w polu „dawny numer” i nadal działają w wyszukiwarce oraz w odpowiedziach na stare e-maile.'));
@@ -271,6 +289,31 @@ include dirname(__DIR__) . '/includes/header.php';
       <span class="small">Odpowiedzi: <strong><?= $cs['answered'] ?></strong> / <?= $cs['sent'] ?><?= $cs['avg'] !== null ? ' · średnia <strong>' . h(number_format($cs['avg'], 2, ',', '')) . '</strong>' : '' ?></span>
       <form method="post"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="csat_toggle">
         <button class="btn btn-sm <?= hdCsatEnabled() ? 'btn-outline-danger' : 'btn-success' ?>"><?= hdCsatEnabled() ? 'Wyłącz' : 'Włącz' ?></button></form>
+    </div>
+  </div>
+</div>
+
+<!-- Automatyczne podbijanie -->
+<?php $ae = hdAutoEscSettings(); $ae_now = hdAutoEscCandidates(); ?>
+<div class="col-12">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2 fw-semibold" style="font-size:.85rem"><i class="bi bi-megaphone me-1"></i>Automatyczne podbijanie po przekroczeniu SLA</div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">Zgłaszający nie podbija zgłoszeń ręcznie — robi to system (sprawdzanie co godzinę). <strong>Poziom 1:</strong> po przekroczeniu terminu reakcji lub rozwiązania zgłoszenie dostaje numer podbicia (z PDF), operatorzy są powiadamiani priorytetowo, a zgłaszający dostaje informację. <strong>Poziom 2:</strong> jeśli po podanym czasie SLA nadal jest przekroczone, powiadamiani są administratorzy i wskazane adresy, a priorytet może wzrosnąć o stopień. Najwyżej 2 podbicia na zgłoszenie; wstrzymane, rozwiązane i zamknięte są pomijane. Domyślnie wyłączone — włączenie powoduje wysyłkę e-maili.</p>
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="autoesc_save">
+        <div class="col-md-2"><div class="form-check"><input class="form-check-input" type="checkbox" name="hd_autoesc_enabled" value="1" id="aeOn"<?= $ae['enabled'] ? ' checked' : '' ?>><label class="form-check-label small" for="aeOn">Włączone</label></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" name="hd_autoesc_raise" value="1" id="aeRaise"<?= $ae['raise'] ? ' checked' : '' ?>><label class="form-check-label small" for="aeRaise">Podnieś priorytet na poz. 2</label></div></div>
+        <div class="col-md-2"><label class="form-label small mb-0">Poziom 2 po (godz.)</label><input type="number" min="1" max="720" name="hd_autoesc_l2_hours" class="form-control form-control-sm" value="<?= (int)$ae['l2_hours'] ?>"></div>
+        <div class="col-md-5"><label class="form-label small mb-0">Dodatkowe adresy przełożonych (po przecinku)</label><input name="hd_autoesc_notify" class="form-control form-control-sm" value="<?= h($ae['notify']) ?>" placeholder="kierownik@feer.org.pl, zarzad@feer.org.pl"></div>
+        <div class="col-md-3 d-flex gap-2"><button class="btn btn-sm btn-primary">Zapisz</button></div>
+      </form>
+      <div class="d-flex flex-wrap align-items-center gap-3 mt-3 small">
+        <span>Do podbicia w tej chwili: <strong><?= count($ae_now) ?></strong><?php if ($ae_now): ?> (<?= h(implode(', ', array_map(fn($x) => $x['ticket']['number'] . ' · poz. ' . $x['level'], array_slice($ae_now, 0, 5)))) ?><?= count($ae_now) > 5 ? '…' : '' ?>)<?php endif; ?></span>
+        <form method="post" onsubmit="return confirm('Podbić teraz <?= count($ae_now) ?> zgłoszeń? Zostaną wysłane powiadomienia.')"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="autoesc_run">
+          <button class="btn btn-sm btn-outline-secondary"<?= !$ae['enabled'] || !$ae_now ? ' disabled' : '' ?>>Uruchom teraz</button></form>
+        <span class="text-muted">Z konsoli: <code>php cron/helpdesk_autoescalate.php --dry-run</code></span>
+      </div>
     </div>
   </div>
 </div>

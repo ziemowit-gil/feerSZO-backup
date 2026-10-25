@@ -227,6 +227,7 @@ function helpdesk_migrate(): void {
         created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_hd_esc_ticket ON helpdesk_escalations(ticket_id)");
+    foreach (['ALTER TABLE helpdesk_escalations ADD COLUMN level INTEGER NOT NULL DEFAULT 1', 'ALTER TABLE helpdesk_escalations ADD COLUMN is_auto INTEGER NOT NULL DEFAULT 0'] as $_sql) { try { $pdo->exec($_sql); } catch (\Throwable $e) {} }
 
     // Seed makr domyślnych — tylko jeśli tabela dopiero co powstała (pusta)
     try {
@@ -636,7 +637,7 @@ function hd_escalations_for_ticket(int $ticket_id): array {
  * $who = ['id'=>?int, 'name'=>string] — osoba zgłaszająca podbicie.
  * Zwraca ['id'=>int, 'number'=>string].
  */
-function hd_escalate(array $ticket, string $reason, array $who): array {
+function hd_escalate(array $ticket, string $reason, array $who, array $opts = []): array {
     $number = hd_escalation_number($ticket['number']);
     $days   = max(0, (int)floor((time() - strtotime($ticket['updated_at'])) / 86400));
 
@@ -649,10 +650,10 @@ function hd_escalate(array $ticket, string $reason, array $who): array {
         'requester_phone' => $ticket['requester_phone'] ?? null,
         'days_waiting'    => $days,
         'created_by'      => $who['id'] ?? null,
-    ]);
+    ] + (!empty($opts['auto']) ? ['level' => (int)($opts['level'] ?? 1), 'is_auto' => 1] : []));
 
-    $note = "Zgłoszenie podbite z powodu braku reakcji (nr podbicia: {$number}).";
-    if (trim($reason) !== '') $note .= "\n\nUzasadnienie zgłaszającego:\n" . $reason;
+    $note = !empty($opts['auto']) ? "Automatyczne podbicie zgłoszenia (nr podbicia: {$number})." : "Zgłoszenie podbite z powodu braku reakcji (nr podbicia: {$number}).";
+    if (trim($reason) !== '') $note .= "\n\n" . (!empty($opts['auto']) ? 'Powód:' : 'Uzasadnienie zgłaszającego:') . "\n" . $reason;
     db_insert('helpdesk_messages', [
         'ticket_id'   => (int)$ticket['id'],
         'user_id'     => $who['id'] ?? null,
@@ -663,7 +664,7 @@ function hd_escalate(array $ticket, string $reason, array $who): array {
     db_update('helpdesk_tickets', ['updated_at' => date('Y-m-d H:i:s')], (int)$ticket['id']);
 
     hd_notify_escalation($ticket, $number, $reason, $days);
-    hd_notify_escalation_requester($ticket, $number);
+    if (empty($opts['skip_requester'])) hd_notify_escalation_requester($ticket, $number);   // poziom 2 nie powtarza informacji do zgłaszającego
 
     return ['id' => $esc_id, 'number' => $number];
 }

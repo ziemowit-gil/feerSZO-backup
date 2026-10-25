@@ -64,22 +64,7 @@ if ($ticket && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_reply']))
     exit;
 }
 
-// ── Podbij zgłoszenie — brak reakcji ─────────────────────────────────────────
-if ($ticket && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_escalate'])) {
-    csrf_check();
-    if ($ticket['status'] === 'zamknięte') {
-        flash_set('warning', 'Zgłoszenie jest zamknięte — nie można go podbić.');
-    } else {
-        $reason = trim($_POST['escalate_reason'] ?? '');
-        $esc = hd_escalate($ticket, $reason, [
-            'id'   => $ticket['requester_id'] ?: null,
-            'name' => $ticket['requester_name'] ?: 'Zgłaszający',
-        ]);
-        flash_set('success', 'Zgłoszenie podbite — brak reakcji, sprawa przechodzi na 3. linię wsparcia. Nr podbicia: ' . $esc['number'] . '. Potwierdzenie PDF poniżej.');
-    }
-    header('Location: track.php?t=' . urlencode($token));
-    exit;
-}
+// Podbijanie zgłoszeń jest automatyczne (po przekroczeniu SLA) — zgłaszający nie ma już przycisku; zob. modules/helpdeskEscalation.
 
 $messages = $atts = $escalations = [];
 if ($ticket) {
@@ -252,10 +237,7 @@ a { color:var(--tr-accent); }
           <?php else: ?>
             <p class="mb-2" style="color:var(--tr-muted);font-size:.95rem">Zgłoszenie nie było podbijane.</p>
           <?php endif; ?>
-          <?php if (!$closed): ?>
-          <p class="mt-2 mb-2" style="font-size:.9rem;color:var(--tr-muted)">Brak odpowiedzi od dłuższego czasu? Podbicie powiadamia operatorów priorytetowo.</p>
-          <button class="tr-btn-ghost" type="button" data-bs-toggle="modal" data-bs-target="#hdEscalateModal"><i class="bi bi-megaphone me-1" aria-hidden="true"></i>Podbij zgłoszenie</button>
-          <?php endif; ?>
+          <p class="mt-2 mb-0" style="font-size:.9rem;color:var(--tr-muted)">Zgłoszenia są podbijane automatycznie, gdy minie przewidziany czas reakcji lub rozwiązania — nie musisz nic robić.</p>
         </div>
       </section>
     </aside>
@@ -320,31 +302,6 @@ a { color:var(--tr-accent); }
   </div>
 
   <?php if (!$closed): ?>
-  <div class="modal fade" id="hdEscalateModal" tabindex="-1" aria-labelledby="hdEscTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <form method="post">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="t" value="<?= h($token) ?>">
-          <input type="hidden" name="_escalate" value="1">
-          <div class="modal-header">
-            <h2 class="modal-title h5 fw-bold" id="hdEscTitle">Podbij zgłoszenie <?= h($ticket['number']) ?></h2>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
-          </div>
-          <div class="modal-body">
-            <p>Podbicie priorytetowo powiadamia operatorów, a Ty dostaniesz PDF z potwierdzeniem.</p>
-            <label for="tr-esc-reason" class="form-label fw-bold">Opisz sytuację <span class="fw-normal" style="color:var(--tr-muted)">(nieobowiązkowo)</span></label>
-            <textarea id="tr-esc-reason" name="escalate_reason" class="form-control" rows="3" aria-describedby="tr-esc-help"></textarea>
-            <p id="tr-esc-help" class="mt-1 mb-0" style="font-size:.9rem;color:var(--tr-muted)">Np. od kiedy czekasz i jak pilna jest sprawa.</p>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Anuluj</button>
-            <button type="submit" class="tr-btn">Podbij zgłoszenie</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
   <?php endif; ?>
 
 <?php endif; ?>

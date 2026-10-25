@@ -121,6 +121,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/helpdesk_rules.php',
             'interval' => 3600,         // co godzinę — reguły czasowe Helpdesku (modules/helpdeskRules)
         ],
+        'helpdesk_autoescalate' => [
+            'file'     => $cronDir . '/helpdesk_autoescalate.php',
+            'interval' => 3600,         // co godzinę — automatyczne podbicia po przekroczeniu SLA (modules/helpdeskEscalation)
+        ],
         'tasks_sla' => [
             'file'     => $cronDir . '/tasks_sla.php',
             'interval' => 3600,         // co godzinę — eskalacje SLA zadań (tasks/lib/tasksSla.php)
