@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lid  = (int)($_POST['leave_id'] ?? 0);
         $leave = $lid ? ti_leave_get($lid) : null;
         $ids  = array_values(array_filter(array_map('intval', (array)($_POST['session_ids'] ?? []))));
-        $back = 'urlopy.php?conflicts=' . $lid . '#kolidujace';
+        $back = 'urlopy.php?conflicts=' . $lid . ((int)($_POST['group'] ?? 0) ? '&group=' . (int)$_POST['group'] : '') . '#kolidujace';
         if (!$leave || !$ids) { flash_set('danger', 'Zaznacz zajęcia do odwołania.'); header('Location: ' . $back); exit; }
         // Tylko zajęcia, które faktycznie kolidują z tą nieobecnością (nie ufamy identyfikatorom z formularza)
         $valid = array_map('intval', array_column(ti_leave_conflicts($leave), 'id'));
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$ids) { flash_set('danger', 'Zaznaczone zajęcia nie kolidują już z tą nieobecnością.'); header('Location: ' . $back); exit; }
         $reason = trim($_POST['reason'] ?? '');
         if ($reason === '') $reason = 'Nieobecność prowadzącego (' . mb_strtolower(ti_leave_type_label((string)$leave['type'])) . ')';
-        $r = ti_absence_cancel_sessions($ids, $reason, (string)($me['name'] ?? ''), (int)$leave['instructor_id'], !empty($_POST['notify_email']), !empty($_POST['notify_sms']));
+        $r = ti_absence_cancel_sessions($ids, $reason, (string)($me['name'] ?? ''), (int)$leave['instructor_id'], !empty($_POST['notify_email']), !empty($_POST['notify_sms']), !empty($_POST['ask_contact']));
         // Pozycje zgłoszenia oznaczamy jako odwołane
         db()->prepare("UPDATE k30_sc_request_items SET resolution='cancel', resolved_by=?, resolved_at=datetime('now')
                         WHERE resolution='pending' AND session_id IN (" . implode(',', $ids) . ")
@@ -105,7 +105,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $conf_id    = (int)($_GET['conflicts'] ?? 0);
 $conf_leave = $conf_id ? ti_leave_get($conf_id) : null;
-$conf_rows  = $conf_leave ? ti_leave_conflicts($conf_leave) : [];
+$conf_all   = $conf_leave ? ti_leave_conflicts($conf_leave) : [];
+// Grupy (kursy) z kolidującymi zajęciami; ?group=ID zawęża listę i odwołanie do jednej grupy
+$conf_groups = [];
+foreach ($conf_all as $c) { $conf_groups[(int)$c['course_id']]['name'] = (string)$c['course_name']; $conf_groups[(int)$c['course_id']]['n'] = ($conf_groups[(int)$c['course_id']]['n'] ?? 0) + 1; }
+$conf_group = (int)($_GET['group'] ?? 0);
+if (!isset($conf_groups[$conf_group])) $conf_group = 0;
+$conf_rows  = $conf_group ? array_values(array_filter($conf_all, fn($c) => (int)$c['course_id'] === $conf_group)) : $conf_all;
 $instructors = k30_get_consultants();
 $current  = ti_leaves_current();
 $upcoming = ti_leaves_upcoming(30);
@@ -153,10 +159,23 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="card-header fw-semibold d-flex flex-wrap align-items-center gap-2">
     <i class="bi bi-exclamation-triangle text-warning" aria-hidden="true"></i>
     <span id="conf-h">Zajęcia kolidujące z nieobecnością: <?= h(sc_user_name((int)$conf_leave['instructor_id'])) ?>, <?= h(_urlopy_range($conf_leave)) ?></span>
-    <span class="badge bg-warning text-dark"><?= count($conf_rows) ?></span>
+    <span class="badge bg-warning text-dark"><?= count($conf_all) ?></span>
     <a class="btn btn-sm btn-outline-secondary ms-auto" href="urlopy.php">Zamknij</a>
   </div>
   <div class="card-body">
+  <?php if (count($conf_groups) > 1): ?>
+    <form method="get" class="row g-2 align-items-end mb-3">
+      <input type="hidden" name="conflicts" value="<?= (int)$conf_leave['id'] ?>">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold" for="conf_group">Grupa</label>
+        <select class="form-select" id="conf_group" name="group" onchange="this.form.submit()">
+          <option value="0">Wszystkie grupy (<?= count($conf_all) ?>)</option>
+          <?php foreach ($conf_groups as $gid => $g): ?><option value="<?= (int)$gid ?>" <?= $conf_group === $gid ? 'selected' : '' ?>><?= h($g['name']) ?> (<?= (int)$g['n'] ?>)</option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-auto"><button class="btn btn-outline-primary">Pokaż grupę</button></div>
+    </form>
+  <?php endif; ?>
   <?php if (!$conf_rows): ?>
     <p class="mb-0 text-body-secondary"><i class="bi bi-check-circle text-success me-1" aria-hidden="true"></i>Żadne zaplanowane zajęcia nie kolidują już z tą nieobecnością.</p>
   <?php else: ?>
@@ -165,6 +184,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
       <input type="hidden" name="_op" value="cancel_conflicts">
       <input type="hidden" name="leave_id" value="<?= (int)$conf_leave['id'] ?>">
+      <input type="hidden" name="group" value="<?= (int)$conf_group ?>">
       <div class="table-responsive mb-3">
         <table class="table table-sm align-middle mb-0">
           <caption class="visually-hidden">Zajęcia kolidujące z nieobecnością prowadzącego</caption>
@@ -191,7 +211,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="col-md-6 d-flex flex-wrap gap-3 pb-1">
           <div class="form-check"><input class="form-check-input" type="checkbox" name="notify_email" id="conf_mail" value="1" checked><label class="form-check-label" for="conf_mail">E-mail do uczestników</label></div>
           <div class="form-check"><input class="form-check-input" type="checkbox" name="notify_sms" id="conf_sms" value="1" checked><label class="form-check-label" for="conf_sms">SMS do uczestników</label></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" name="ask_contact" id="conf_contact" value="1" checked aria-describedby="conf_contact_h"><label class="form-check-label" for="conf_contact">Poproś o kontakt w sprawie nowego terminu</label></div>
         </div>
+        <div class="col-12 form-text mt-0" id="conf_contact_h">Wiadomość (e-mail i SMS) dostanie dopisek z prośbą o kontakt; w e-mailu — odnośnik do zakładki Wiadomości w panelu kursanta.</div>
       </div>
       <div class="mt-3"><button type="submit" class="btn btn-danger"><i class="bi bi-calendar-x me-1" aria-hidden="true"></i>Odwołaj zaznaczone zajęcia</button></div>
     </form>

@@ -81,10 +81,11 @@ function sms_tpl_registry(): array
             'icon'        => 'bi-calendar-x',
             'auto'        => true,
             'description' => 'Wysyłane do uczestników kursu, gdy zajęcia zostaną odwołane z powodu nieobecności prowadzącego (odwołanie z listy kolidujących zajęć albo z rozstrzygania zgłoszenia). Jeden SMS na kurs — z listą terminów (do 3, reszta „+N”).',
-            'message'     => 'Odwolane zajecia: {{course}} - {{when}} (nieobecnosc prowadzacego). Szczegoly w panelu kursanta.',
+            'message'     => 'Odwolane zajecia: {{course}} - {{when}} (nieobecnosc prowadzacego).{{contact}} Szczegoly w panelu kursanta.',
             'vars'        => [
-                'course' => ['label' => 'Nazwa kursu', 'sample' => 'Angielski S1'],
-                'when'   => ['label' => 'Terminy odwołanych zajęć', 'sample' => '12.09 10:00, 13.09 10:00'],
+                'course'  => ['label' => 'Nazwa kursu', 'sample' => 'Angielski S1'],
+                'when'    => ['label' => 'Terminy odwołanych zajęć', 'sample' => '12.09 10:00, 13.09 10:00'],
+                'contact' => ['label' => 'Prośba o kontakt w sprawie nowego terminu (z wiodącą spacją albo puste, gdy kierownik jej nie zaznaczył)', 'sample' => ' Prosimy o kontakt w sprawie nowego terminu.'],
             ],
         ],
         'ti_substitute_notify' => [

@@ -103,6 +103,7 @@ $tok = '<input type="hidden" name="_token" value="' . h(dyd_token()) . '">';
             <input type="time" name="time_from" class="form-control form-control-sm" style="width:auto" value="<?= h(substr($it['time_from'], 0, 5)) ?>" aria-label="Od">
             <input type="time" name="time_to" class="form-control form-control-sm" style="width:auto" value="<?= h(substr($it['time_to'], 0, 5)) ?>" aria-label="Do">
             <label class="small"><input type="checkbox" name="force" value="1" class="form-check-input me-1">mimo ostrzeżeń</label>
+            <label class="small" title="Dotyczy akcji „Odwołaj”: e-mail i SMS do uczestników zawierają prośbę o kontakt"><input type="checkbox" name="ask_contact" value="1" class="form-check-input me-1" checked>poproś o kontakt (nowy termin)</label>
             <button class="btn btn-primary btn-sm">Zastosuj</button>
           </form>
         <?php else: ?><span class="text-body-secondary small">—</span><?php endif; ?>

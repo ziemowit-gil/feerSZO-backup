@@ -246,6 +246,10 @@ function ti_leave_sms_course(int $course_id, string $tpl_key, array $vars): int 
     if (!function_exists('sms_tpl_render')) require_once __DIR__ . '/sms_templates.php';
     $t = sms_tpl_render($tpl_key, $vars);
     if (empty($t['enabled']) || trim((string)$t['message']) === '') return 0;
+    // Własna treść szablonu może nie mieć {{contact}} — prośbę o kontakt dopisujemy wtedy na końcu
+    if (!empty($vars['contact']) && function_exists('sms_tpl_get') && strpos((string)(sms_tpl_get($tpl_key)['message'] ?? ''), '{{contact}}') === false) {
+        $t['message'] = rtrim((string)$t['message']) . $vars['contact'];
+    }
     // Rodzaj SMS musi być literałem z katalogu (cli/smsKindsLint.php) — stąd switch zamiast zmiennej
     try {
         switch ($tpl_key) {
@@ -271,10 +275,11 @@ function _ti_leave_course_emails(int $course_id): array {
  * Odwołuje lekcje z powodu nieobecności prowadzącego i powiadamia uczestników: e-mail (kursant + opiekun)
  * oraz SMS z szablonu ti_absence_cancelled (tylko ci, którzy włączyli SMS o lekcjach). Powiadomienia są
  * zbiorcze per kurs — kursant z kilkoma odwołanymi lekcjami dostaje jeden e-mail i jeden SMS.
+ * $ask_contact = prośba do uczestników o kontakt w sprawie ustalenia nowego terminu (e-mail + SMS).
  * Lekcje już odbyte / odwołane są pomijane. Pozostali prowadzący lekcji dostają e-mail (bez $exclude_uid).
  * @return array{cancelled:int, emails:int, sms:int, skipped:int}
  */
-function ti_absence_cancel_sessions(array $session_ids, string $reason, string $by_label, int $exclude_uid = 0, bool $email = true, bool $sms = true): array {
+function ti_absence_cancel_sessions(array $session_ids, string $reason, string $by_label, int $exclude_uid = 0, bool $email = true, bool $sms = true, bool $ask_contact = false): array {
     $res = ['cancelled' => 0, 'emails' => 0, 'sms' => 0, 'skipped' => 0];
     $reason = trim($reason) !== '' ? trim($reason) : 'Nieobecność prowadzącego';
     $by_course = []; $done = [];
@@ -293,6 +298,7 @@ function ti_absence_cancel_sessions(array $session_ids, string $reason, string $
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     $org = defined('ORG_NAME') ? ORG_NAME : 'TI';
     $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=lekcje';
+    $msg_url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/karty30/ti/kursant/index.php?tab=wiadomosci';
     foreach ($by_course as $cid => $c) {
         $crs = htmlspecialchars($c['name'], ENT_QUOTES);
         if ($email && function_exists('mail_queue_add')) {
@@ -301,7 +307,10 @@ function ti_absence_cancel_sessions(array $session_ids, string $reason, string $
             $html = '<p>Dzień dobry,</p><p>Z powodu nieobecności prowadzącego odwołano ' . (count($items) === 1 ? 'zajęcia' : 'zajęcia w terminach') . ' <strong>' . $crs . '</strong>:</p>'
                   . '<ul><li>' . implode('</li><li>', $items) . '</li></ul>'
                   . '<p style="color:#555">Powód: ' . htmlspecialchars($reason, ENT_QUOTES) . '</p>'
-                  . '<p>Odwołane zajęcia nie są wliczane do rozliczenia. O nowym terminie poinformujemy osobno.</p>'
+                  . '<p>Odwołane zajęcia nie są wliczane do rozliczenia. '
+                  . ($ask_contact
+                      ? '<strong>Prosimy o kontakt w celu ustalenia nowego terminu</strong> — napisz do nas w panelu kursanta (<a href="' . htmlspecialchars($msg_url, ENT_QUOTES) . '">zakładka Wiadomości</a>) lub odpowiedz na tę wiadomość.</p>'
+                      : 'O nowym terminie poinformujemy osobno.</p>')
                   . '<p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Otwórz panel kursanta</a></p>'
                   . '<p style="color:#888;font-size:12px">Wiadomość automatyczna z systemu ' . htmlspecialchars($org, ENT_QUOTES) . '.</p>';
             foreach (_ti_leave_course_emails($cid) as $addr => $nm) {
@@ -309,7 +318,8 @@ function ti_absence_cancel_sessions(array $session_ids, string $reason, string $
                 catch (\Throwable $e) {}
             }
         }
-        if ($sms) $res['sms'] += ti_leave_sms_course($cid, 'ti_absence_cancelled', ['course' => $c['name'], 'when' => _ti_leave_whens($c['sessions'])]);
+        if ($sms) $res['sms'] += ti_leave_sms_course($cid, 'ti_absence_cancelled', ['course' => $c['name'], 'when' => _ti_leave_whens($c['sessions']),
+            'contact' => $ask_contact ? ' Prosimy o kontakt w sprawie nowego terminu.' : '']);
     }
     return $res;
 }
