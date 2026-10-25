@@ -282,6 +282,17 @@ return [
         },
     ],
 
+    // Helpdesk: kategorie zgłoszeń jako słownik systemowy; atrybut prefix = przedrostek numeru zgłoszenia per kategoria.
+    '2026-10_dictionary_helpdesk_categories' => [
+        'desc' => 'Słownik Centralny: kategorie Helpdesku i prefiksy numeracji',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/helpdesk.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import(hd_categories_dict_seed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
     // TERYT: województwa → powiaty → gminy jako słownik systemowy (drzewo, kody TERYT) z tabeli teryt_units
     // (import GUS); bez niej — 16 województw. Kolejne importy TERC (admin/teryt_import.php) aktualizują słownik.
     '2026-10_dictionary_teryt' => [

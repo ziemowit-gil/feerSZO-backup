@@ -40,7 +40,40 @@ const HD_CATEGORY_PREFIXES = [
     'bug_report'       => 'HER',
 ];
 
+/**
+ * Prefiks numeru zgłoszenia dla kategorii — atrybut `prefix` wpisu słownika HD_CATEGORY_DICT (Admin › Słownik Centralny).
+ * Brak słownika/wpisu/poprawnego prefiksu (2–5 wielkich liter) → HD_CATEGORY_PREFIXES, a dalej 'HD'.
+ */
+const HD_CATEGORY_DICT = 'helpdesk_kategorie';
+
 function hd_number_prefix_for(string $category): string {
+    static $map = null;
+    if ($map === null) {
+        $map = [];
+        require_once dirname(__DIR__) . '/modules/dictionary/lib/dictionaryApi.php';
+        foreach (dictItems(HD_CATEGORY_DICT) as $code => $it) {
+            $p = strtoupper(trim((string)($it['attributes']['prefix'] ?? '')));
+            if (preg_match('/^[A-Z]{2,5}$/', $p)) $map[$code] = $p;
+        }
+    }
+    return $map[$category] ?? HD_CATEGORY_PREFIXES[$category] ?? 'HD';
+}
+
+function hd_categories_dict_seed(): string {
+    $entries = [];
+    $i = 0;
+    foreach (HD_CATEGORIES as $code => $label)
+        $entries[] = ['code' => $code, 'label' => $label, 'parent_code' => null, 'sort_order' => (++$i) * 10, 'is_active' => true,
+                      'description' => null, 'attributes' => ['prefix' => hd_number_prefix_for_default($code)]];
+    return json_encode(['format' => 'szo-dictionary', 'version' => 1, 'dictionaries' => [
+        ['code' => HD_CATEGORY_DICT, 'name' => 'Helpdesk — kategorie zgłoszeń', 'kind' => 'system', 'parent_code' => null,
+         'is_protected' => false, 'sort_order' => 70,
+         'description' => 'Kategorie zgłoszeń Helpdesku. Atrybut prefix (2–5 wielkich liter) = przedrostek numeru zgłoszenia nadawanego w tej kategorii (np. HER00042); numeracja jest osobna dla każdego prefiksu. Brak prefiksu = HD. Kody kategorii są używane w kodzie i w zgłoszeniach.',
+         'entries' => $entries],
+    ]], JSON_UNESCAPED_UNICODE);
+}
+
+function hd_number_prefix_for_default(string $category): string {
     return HD_CATEGORY_PREFIXES[$category] ?? 'HD';
 }
 
