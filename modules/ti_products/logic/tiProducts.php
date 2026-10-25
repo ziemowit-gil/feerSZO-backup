@@ -244,7 +244,7 @@ final class TiProducts
         $p = self::get($id);
         if (!$p) return 'nie znaleziono produktu';
         $student = (string)(db_one("SELECT name FROM k30_clients WHERE id = ?", [(int)$p['client_id']])['name'] ?? '');
-        $td = fn($k, $v) => '<tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>' . h($k) . '</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">' . h($v) . '</td></tr>';
+        $td = fn($k, $v) => '<tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">' . h($k) . '</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">' . h($v) . '</td></tr>';
         $vars = [
             'org'         => defined('ORG_NAME') ? (string)ORG_NAME : 'Dydaktyka TI',
             'student'     => h($student),
@@ -264,7 +264,7 @@ final class TiProducts
             $first = trim(explode(' ', trim((string)$rc['name']))[0] ?? '');
             $r = email_tpl_render('ti_product_started', $vars + ['greeting' => $rc['kind'] === 'opiekun' ? ($rc['name'] !== '' ? ' ' . h($rc['name']) : '') : ($first !== '' ? ' ' . h($first) : '')]);
             if (empty($r['enabled'])) { $skip[] = 'szablon e-mail jest wyłączony'; break; }
-            try { if (mail_queue_add($to, (string)$rc['name'], $r['subject'], $r['html'], '', 'ti_product', $id) > 0) $sent[] = TiLicencjeNotifier::maskEmail($to); }
+            try { if (mail_queue_add($to, (string)$rc['name'], $r['subject'], $r['html'], '', 'ti_product', $id) > 0) $sent[] = TiLicencjeNotifier::maskEmail($to); else $skip[] = 'adres zablokowany (kursant wirtualny)'; }
             catch (\Throwable $e) { $skip[] = 'błąd kolejki: ' . $e->getMessage(); }
         }
         $admins = self::adminEmails(); $adminN = 0;

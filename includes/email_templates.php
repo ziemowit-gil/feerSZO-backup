@@ -459,11 +459,11 @@ HTML;
     $ti_license_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>W panelu kursanta przypisano Ci licencję na oprogramowanie:</p>
-<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Oprogramowanie</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{software}}</td></tr>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Oprogramowanie</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
   {{vendor_row}}
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Data wydania</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{issued}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Ważna do</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Data wydania</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{issued}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ważna do</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{expires}}</td></tr>
 </table>
 <p>Szczegóły licencji znajdziesz w zakładce <strong>Licencje</strong> po zalogowaniu do panelu kursanta. {{secret_note}}</p>
 <div style="margin:20px 0;text-align:center">
@@ -496,11 +496,11 @@ HTML;
     $ti_license_guardian_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>Kursantowi <strong>{{student}}</strong> przypisano licencję na oprogramowanie:</p>
-<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Oprogramowanie</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{software}}</td></tr>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Oprogramowanie</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
   {{vendor_row}}
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Data wydania</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{issued}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Ważna do</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Data wydania</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{issued}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ważna do</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{expires}}</td></tr>
 </table>
 <p>Szczegóły licencji są w zakładce <strong>Licencje</strong> w panelu (po zalogowaniu jako opiekun). {{secret_note}}</p>
 <div style="margin:20px 0;text-align:center">
@@ -623,12 +623,12 @@ HTML;
     $ti_license_billing_start_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>{{lead}}</p>
-<table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:12px 0">
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Oprogramowanie</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{software}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Opłata miesięczna</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Forma rozliczenia</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{form}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Termin rozliczenia</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{day}}. dnia każdego miesiąca</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Pierwsza opłata</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">dzisiaj ({{date}})</td></tr>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Oprogramowanie</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Opłata miesięczna</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Forma rozliczenia</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{form}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Termin rozliczenia</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{day}}. dnia każdego miesiąca</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Pierwsza opłata</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">dzisiaj ({{date}})</td></tr>
 </table>
 <p>Płatność prosimy wykonać na rachunek <strong>{{account}}</strong>, w tytule: <strong>„{{title}}”</strong>.
    Dzień przed każdym kolejnym terminem wyślemy przypomnienie. Szczegóły w panelu: <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
@@ -639,9 +639,9 @@ HTML;
     $ti_license_billing_reminder_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>przypominamy, że <strong>jutro ({{date}})</strong> przypada rozliczenie licencji <strong>{{software}}</strong>{{for_student}}.</p>
-<table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:12px 0">
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Do zapłaty</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Forma rozliczenia</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{form}}</td></tr>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Do zapłaty</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Forma rozliczenia</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{form}}</td></tr>
 </table>
 <p>Rachunek: <strong>{{account}}</strong>, tytuł: <strong>„{{title}}”</strong>. Jeśli wpłata została już dokonana, prosimy zignorować tę wiadomość.
    Panel: <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
@@ -1247,7 +1247,7 @@ HTML,
                 'greeting'    => ['label' => 'Zwrot (spacja + imię albo puste)', 'sample' => ' Anna'],
                 'student'     => ['label' => 'Kursant',                  'sample' => 'Anna Nowak'],
                 'software'    => ['label' => 'Nazwa oprogramowania',     'sample' => 'Adobe Creative Cloud'],
-                'vendor_row'  => ['label' => 'Wiersz „Producent” (HTML lub pusty)', 'sample' => '<tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Producent</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">Adobe</td></tr>'],
+                'vendor_row'  => ['label' => 'Wiersz „Producent” (HTML lub pusty)', 'sample' => '<tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Producent</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">Adobe</td></tr>'],
                 'issued'      => ['label' => 'Data wydania',             'sample' => '03.10.2026'],
                 'expires'     => ['label' => 'Ważna do (albo „bezterminowo”)', 'sample' => '31.12.2026'],
                 'secret_note' => ['label' => 'Uwaga o loginie i kluczu (lub pusta)', 'sample' => 'Login i klucz licencyjny są dostępne wyłącznie w panelu — ze względów bezpieczeństwa nie przesyłamy ich e-mailem.'],
@@ -1268,7 +1268,7 @@ HTML,
                 'greeting'    => ['label' => 'Zwrot (spacja + imię i nazwisko opiekuna albo puste)', 'sample' => ' Maria Nowak'],
                 'student'     => ['label' => 'Kursant',                  'sample' => 'Anna Nowak'],
                 'software'    => ['label' => 'Nazwa oprogramowania',     'sample' => 'Adobe Creative Cloud'],
-                'vendor_row'  => ['label' => 'Wiersz „Producent” (HTML lub pusty)', 'sample' => '<tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Producent</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">Adobe</td></tr>'],
+                'vendor_row'  => ['label' => 'Wiersz „Producent” (HTML lub pusty)', 'sample' => '<tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Producent</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">Adobe</td></tr>'],
                 'issued'      => ['label' => 'Data wydania',             'sample' => '03.10.2026'],
                 'expires'     => ['label' => 'Ważna do (albo „bezterminowo”)', 'sample' => '31.12.2026'],
                 'secret_note' => ['label' => 'Uwaga o loginie i kluczu (lub pusta)', 'sample' => 'Login i klucz licencyjny są dostępne wyłącznie w panelu — ze względów bezpieczeństwa nie przesyłamy ich e-mailem.'],
@@ -1286,12 +1286,12 @@ HTML,
             'body'        => <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>Informujemy, że w imieniu <strong>{{student}}</strong> uruchomiliśmy nową usługę:</p>
-<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Usługa</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{type}}: {{name}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Dostawca</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{provider}}</td></tr>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Usługa</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{type}}: {{name}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Dostawca</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{provider}}</td></tr>
   {{details_row}}
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Ważna / opłacona do</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Status</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{status}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ważna / opłacona do</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{expires}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Status</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{status}}</td></tr>
 </table>
 <p>Dane dostępowe przekażemy osobno — nie wysyłamy ich e-mailem. W razie pytań odpowiedz na tę wiadomość albo napisz w panelu kursanta.</p>
 <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość automatyczna z systemu {{org}}.</p>
@@ -1315,20 +1315,20 @@ HTML,
             'icon'        => 'bi-globe2',
             'auto'        => true,
             'description' => 'Kopia informacji o nowej usłudze/produkcie kursanta (domena, hosting, inne) dla administratora: adres z ustawienia w zakładce „Usługi i produkty”, a gdy puste — konta z rolą admin. Zawiera numery faktur.',
-            'subject'     => '{{org}}: nowa usługa kursanta {{student}} — {{name}}',
+            'subject'     => 'Nowa usługa kursanta: {{student}} — {{name}}',
             'body'        => <<<'HTML'
 <p>Kopia powiadomienia: dla kursanta <strong>{{student}}</strong> uruchomiono nową usługę (dodał(a): {{by}}).</p>
-<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Usługa</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{type}}: {{name}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Dostawca</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{provider}}</td></tr>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Usługa</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{type}}: {{name}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Dostawca</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{provider}}</td></tr>
   {{details_row}}
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Ważna / opłacona do</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Status</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{status}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ważna / opłacona do</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{expires}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Status</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{status}}</td></tr>
 </table>
-<table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-size:.95em">
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Faktura nasza</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{invoice_own}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Faktura obca</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{invoice_vendor}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Powiadomiono</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{recipients}}</td></tr>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Faktura nasza</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{invoice_own}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Faktura obca</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{invoice_vendor}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Powiadomiono</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{recipients}}</td></tr>
 </table>
 <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość automatyczna z systemu {{org}}.</p>
 HTML,
@@ -1358,11 +1358,11 @@ HTML,
             'body'        => <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>przypominamy, że usługa uruchomiona w imieniu <strong>{{student}}</strong> wygasa <strong>{{days_text}}</strong>:</p>
-<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Usługa</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{type}}: {{name}}</td></tr>
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Dostawca</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{provider}}</td></tr>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Usługa</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{type}}: {{name}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Dostawca</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{provider}}</td></tr>
   {{details_row}}
-  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Wygasa</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Wygasa</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{expires}}</td></tr>
 </table>
 <p>Jeśli usługa ma działać dalej, skontaktuj się z nami — przedłużymy ją. Po terminie domena lub hosting mogą przestać działać, a dane mogą zostać usunięte przez dostawcę.</p>
 <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość automatyczna z systemu {{org}}.</p>

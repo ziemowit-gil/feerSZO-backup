@@ -228,14 +228,15 @@ final class TiLicencjeNotifier
         $guardian = $rc['kind'] === 'opiekun';
         $name     = $guardian ? $rc['name'] : (string)(explode(' ', trim($rc['name']))[0] ?? '');
         $base     = defined('APP_URL') ? rtrim((string)APP_URL, '/') : '';
-        $td       = 'padding:8px 12px;border:1px solid #e2e8f0';
+        $tdK      = 'padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top';
+        $tdV      = 'padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600';
         return [
             'org'         => h($c['org']),
             'greeting'    => $name !== '' ? ' ' . h($name) : '',
             'student'     => h($c['student']),
             'software'    => h($c['software']),
             'vendor_row'  => $c['vendor'] !== ''
-                ? '<tr><td style="' . $td . ';background:#f8fafc"><strong>Producent</strong></td><td style="' . $td . '">' . h($c['vendor']) . '</td></tr>'
+                ? '<tr><td style="' . $tdK . '">Producent</td><td style="' . $tdV . '">' . h($c['vendor']) . '</td></tr>'
                 : '',
             'issued'      => h($c['issued']),
             'expires'     => h($c['expires'] !== '' ? $c['expires'] : 'bezterminowo'),
