@@ -302,6 +302,36 @@ function helpdesk_migrate(): void {
  * Zwraca niestandardowy szablon e-mail (jeśli aktywny), lub null.
  * $data = ['requester_name' => ..., 'number' => ..., ...] — podstawiane do {{klucz}}.
  */
+/**
+ * Podmenu administracji Helpdesku — jedno źródło pozycji dla menu bocznego konsoli i paska zakładek na stronach admina.
+ * @return list<array{key:string,label:string,icon:string,url:string,admin:bool}>
+ */
+function hd_admin_items(): array {
+    $items = [
+        ['key' => 'reports',   'label' => 'Raporty',              'icon' => 'bi-graph-up',       'url' => APP_URL . '/modules/helpdeskReports/router.php', 'admin' => false],
+        ['key' => 'macros',    'label' => 'Gotowe odpowiedzi',    'icon' => 'bi-card-text',      'url' => APP_URL . '/helpdesk/admin_macros.php',          'admin' => false],
+        ['key' => 'templates', 'label' => 'Szablony e-mail',      'icon' => 'bi-envelope-gear',  'url' => APP_URL . '/helpdesk/admin_email_templates.php', 'admin' => true],
+        ['key' => 'rules',     'label' => 'Reguły automatyczne',  'icon' => 'bi-diagram-3',      'url' => APP_URL . '/modules/helpdeskRules/router.php',   'admin' => true],
+        ['key' => 'settings',  'label' => 'Ustawienia',           'icon' => 'bi-gear',           'url' => APP_URL . '/helpdesk/admin.php',                 'admin' => true],
+    ];
+    return array_values(array_filter($items, fn($i) => !$i['admin'] || is_admin()));
+}
+
+/** Mały pasek zakładek administracji (Dynamics) nad treścią stron administracyjnych Helpdesku. */
+function hd_admin_nav(string $active = ''): string {
+    if (!hd_is_operator()) return '';
+    $h = '<nav class="hd-admin-nav" aria-label="Administracja Helpdesku"><a class="hd-an-home" href="' . APP_URL . '/helpdesk/index.php"><i class="bi bi-arrow-left"></i>Zgłoszenia</a>';
+    foreach (hd_admin_items() as $i) {
+        $h .= '<a href="' . h($i['url']) . '"' . ($i['key'] === $active ? ' class="active" aria-current="page"' : '') . '><i class="bi ' . h($i['icon']) . '"></i>' . h($i['label']) . '</a>';
+    }
+    return $h . '</nav><style>'
+        . '.hd-admin-nav{display:flex;flex-wrap:wrap;gap:0;margin:0 0 1rem;border-bottom:1px solid #e1dfdd;background:#fff}'
+        . '.hd-admin-nav a{display:inline-flex;align-items:center;gap:.4rem;padding:.55rem .9rem;font-size:.85rem;color:#242424;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}'
+        . '.hd-admin-nav a i{color:#0f6cbd}.hd-admin-nav a:hover,.hd-admin-nav a:focus-visible{background:#f3f2f1;outline:none}'
+        . '.hd-admin-nav a.active{font-weight:600;border-bottom-color:#0f6cbd}.hd-admin-nav .hd-an-home{margin-right:.6rem;border-right:1px solid #e1dfdd;color:#605e5c}'
+        . '</style>';
+}
+
 /** Wspólny układ e-maili Helpdesku (modules/helpdeskEmail). */
 function hd_mail_layout(array $o): string {
     require_once dirname(__DIR__) . '/modules/helpdeskEmail/lib/helpdeskEmail.php';

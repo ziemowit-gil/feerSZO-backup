@@ -140,6 +140,7 @@ function _hd_default_tpl_preview(string $key): string {
 $PAGE_TITLE = 'Szablony e-mail — Helpdesk IT';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
+<?= hd_admin_nav('templates') ?>
 <style>
 .hd-tpl-layout { display: grid; grid-template-columns: 260px 1fr; gap: 1.25rem; align-items: start; }
 @media (max-width: 768px) { .hd-tpl-layout { grid-template-columns: 1fr; } }

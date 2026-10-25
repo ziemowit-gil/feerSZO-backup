@@ -4,6 +4,7 @@
  */
 $PAGE_TITLE = 'Helpdesk — Raporty';
 include dirname(__DIR__, 3) . '/includes/header.php';
+echo hd_admin_nav('reports');
 $fmt = fn(?int $m) => $m === null ? '—' : hdTimeFmt($m);
 $pct = fn(?int $p) => $p === null ? '—' : $p . '%';
 $maxTrend = max(1, ...array_map(fn($t) => max($t['created'], $t['closed']), $trend));

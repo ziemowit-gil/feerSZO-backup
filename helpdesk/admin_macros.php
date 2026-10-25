@@ -71,6 +71,7 @@ $macros  = db_all("SELECT m.*, u.name AS author FROM helpdesk_macros m LEFT JOIN
 $PAGE_TITLE = 'Gotowe odpowiedzi — Helpdesk';
 include dirname(__DIR__) . '/includes/header.php';
 echo hd_ui_css();
+echo hd_admin_nav('macros');
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
 <style>

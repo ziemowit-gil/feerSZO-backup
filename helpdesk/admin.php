@@ -104,16 +104,21 @@ $PAGE_TITLE = 'Helpdesk — Ustawienia';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 <style>
-/* Szata Metro: płasko, zero zaokrągleń/cieni/gradientów, akcent grupy menu */
+/* Szata Dynamics 365: białe karty z cienką ramką, nagłówek bez tła, akcent #0f6cbd */
 .hd-metro-admin .card, .hd-metro-admin .btn, .hd-metro-admin .badge, .hd-metro-admin .form-control, .hd-metro-admin .form-select,
-.hd-metro-admin .alert, .hd-metro-admin .list-group-item, .hd-metro-admin .input-group-text { border-radius:0 !important; box-shadow:none !important; }
-.hd-metro-admin .card { border:1px solid var(--sm-line,#d4d4d4); border-top:3px solid var(--sm-acc,#1ba1e2); }
-.hd-metro-admin .card-header { background:#1d1d1d; color:#fff; text-transform:uppercase; letter-spacing:.06em; font-size:.74rem; font-weight:600; border-bottom:0; }
-.hd-metro-admin .card-header .text-primary, .hd-metro-admin .card-header i { color:var(--sm-acc,#1ba1e2) !important; }
-.hd-metro-admin .form-control, .hd-metro-admin .form-select { border:2px solid #bdbdbd; }
-.hd-metro-admin .form-control:focus, .hd-metro-admin .form-select:focus { border-color:var(--sm-acc,#1ba1e2); }
-.hd-metro-admin h4 { font-weight:300; font-size:1.7rem; }
+.hd-metro-admin .alert, .hd-metro-admin .list-group-item, .hd-metro-admin .input-group-text { border-radius:2px !important; box-shadow:none !important; }
+.hd-metro-admin .card { border:1px solid #e1dfdd !important; background:#fff; }
+.hd-metro-admin .card-header { background:#fff !important; color:#242424 !important; text-transform:none !important; letter-spacing:0 !important;
+  font-size:.9rem !important; font-weight:600 !important; border-bottom:1px solid #edebe9 !important; }
+.hd-metro-admin .card-header i, .hd-metro-admin .card-header .text-primary { color:#0f6cbd !important; }
+.hd-metro-admin .form-control, .hd-metro-admin .form-select { border:1px solid #8a8886; }
+.hd-metro-admin .form-control:focus, .hd-metro-admin .form-select:focus { border-color:#0f6cbd; box-shadow:none; }
+.hd-metro-admin .btn-primary { background:#0f6cbd; border-color:#0f6cbd; }
+.hd-metro-admin .btn-primary:hover { background:#115ea3; border-color:#115ea3; }
+.hd-metro-admin h4 { font-weight:600; font-size:1.4rem; }
+.hd-metro-admin h4 .text-primary { color:#0f6cbd !important; }
 </style>
+<?= hd_admin_nav('settings') ?>
 <div class="hd-metro-admin">
 
 <div class="d-flex justify-content-between align-items-center mb-3">

@@ -42,8 +42,11 @@ $page       = max(1, (int)($_GET['page'] ?? 1));
 $per_page   = 30;
 
 $where = ['1=1']; $params = [];
-if (!$is_op || $f_view === 'mine') {
+if (!$is_op) {
     $where[] = 't.requester_id = ?'; $params[] = $uid;
+} elseif ($f_view === 'mine') {
+    // operator: zgłoszenia przypisane do mnie albo zgłoszone przeze mnie (jak licznik w menu)
+    $where[] = '(t.assigned_to = ? OR t.requester_id = ?)'; $params[] = $uid; $params[] = $uid;
 } elseif ($f_view === 'unassigned') {
     $where[] = 't.assigned_to IS NULL';
     $where[] = "t.status NOT IN ('zamknięte')";
@@ -53,8 +56,8 @@ if ($f_category && isset(hd_categories()[$f_category])) { $where[] = 't.category
 if ($f_priority && isset(HD_PRIORITIES[$f_priority])) { $where[] = 't.priority = ?'; $params[] = $f_priority; }
 if ($f_tag !== '') { $where[] = 'EXISTS (SELECT 1 FROM helpdesk_tags g WHERE g.ticket_id = t.id AND g.tag = ?)'; $params[] = $f_tag; }
 if ($f_q !== '') {
-    $where[] = '(t.number LIKE ? OR t.title LIKE ? OR t.requester_name LIKE ?)';
-    $like = '%'.$f_q.'%'; $params[] = $like; $params[] = $like; $params[] = $like;
+    $where[] = '(t.number LIKE ? OR t.title LIKE ? OR t.requester_name LIKE ? OR t.requester_email LIKE ? OR t.description LIKE ?)';
+    $like = '%'.$f_q.'%'; array_push($params, $like, $like, $like, $like, $like);
 }
 $where_sql = implode(' AND ', $where);
 
@@ -89,7 +92,7 @@ $cnt_unassigned = $is_op ? (int)(db_one(
     "SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE assigned_to IS NULL AND status NOT IN ('zamknięte')", []
 )['c'] ?? 0) : 0;
 $cnt_mine       = $is_op ? (int)(db_one(
-    "SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE assigned_to=? AND status NOT IN ('zamknięte','rozwiązane')", [$uid]
+    "SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE (assigned_to=? OR requester_id=?) AND status NOT IN ('zamknięte','rozwiązane')", [$uid, $uid]
 )['c'] ?? 0) : 0;
 
 // ── Initials helper ───────────────────────────────────────────────────────────
@@ -578,6 +581,15 @@ html body .hd-bulk-bar .btn-outline-secondary{border-color:#8a8886;color:#242424
 html body .hd-bulk-bar .btn-outline-secondary:hover{background:#f3f2f1;color:#242424}
 html body .hd-bulk-bar .btn-link{color:#0f6cbd}
 
+/* Podmenu Administracja w menu bocznym */
+.hdSb-sub-toggle{display:flex;align-items:center;gap:.5rem;width:100%;background:none;border:0;padding:.45rem .9rem;font-size:.78rem;font-weight:600;color:#605e5c;cursor:pointer;text-align:left}
+.hdSb-sub-toggle:hover{background:#f3f2f1;color:#242424}
+.hdSb-sub-toggle .hdSb-sub-chev{margin-left:auto;font-size:.7rem;transition:transform .15s}
+.hdSb-sub-toggle[aria-expanded=false] .hdSb-sub-chev{transform:rotate(-90deg)}
+.hdSb-sub{padding:0 0 .3rem}
+.hdSb-sub.d-none{display:none}
+.hdSb-sub a{padding-left:1.7rem !important;font-size:.78rem}
+
 /* Tagi i zapisane widoki */
 .hd-tag-chip{display:inline-block;margin-left:.4rem;padding:0 .4rem;font-size:.68rem;line-height:1.5;background:#eff6fc;color:#0f6cbd;border:1px solid #c7e0f4}
 .hdSb-view{display:flex;align-items:center}
@@ -660,9 +672,6 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
       </button>
       <?php endforeach; ?>
 
-      <div class="hdSb-sep" style="margin-top:.5rem">Statusy</div>
-      <?php endif; ?>
-
       <?php if ($is_op): $saved_views = hdViewsFor($uid); ?>
       <div class="hdSb-sep" style="margin-top:.5rem">Zapisane widoki</div>
       <?php foreach ($saved_views as $sv): ?>
@@ -684,6 +693,9 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
         <label><input type="checkbox" name="view_shared" value="1"> wspólny</label>
         <button type="submit">Zapisz</button>
       </form>
+      <?php endif; ?>
+
+      <div class="hdSb-sep" style="margin-top:.5rem">Statusy</div>
       <?php endif; ?>
 
       <?php
@@ -717,23 +729,12 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
       </a>
       <?php endif; ?>
       <?php if ($is_op): ?>
-      <a href="<?= APP_URL ?>/helpdesk/admin_macros.php">
-        <i class="bi bi-card-text"></i>Gotowe odpowiedzi
-      </a>
-      <a href="<?= APP_URL ?>/modules/helpdeskReports/router.php">
-        <i class="bi bi-graph-up"></i>Raporty
-      </a>
-      <?php if (is_admin()): ?>
-      <a href="<?= APP_URL ?>/helpdesk/admin_email_templates.php">
-        <i class="bi bi-envelope-gear"></i>Szablony e-mail
-      </a>
-      <a href="<?= APP_URL ?>/modules/helpdeskRules/router.php">
-        <i class="bi bi-diagram-3"></i>Reguły automatyczne
-      </a>
-      <a href="<?= APP_URL ?>/helpdesk/admin.php">
-        <i class="bi bi-gear"></i>Ustawienia
-      </a>
-      <?php endif; ?>
+      <button type="button" class="hdSb-sub-toggle" id="hdAdminToggle" aria-expanded="true" aria-controls="hdAdminSub"><i class="bi bi-sliders"></i><span>Administracja</span><i class="bi bi-chevron-down hdSb-sub-chev"></i></button>
+      <div class="hdSb-sub" id="hdAdminSub">
+        <?php foreach (hd_admin_items() as $_ai): ?>
+        <a href="<?= h($_ai['url']) ?>"><i class="bi <?= h($_ai['icon']) ?>"></i><?= h($_ai['label']) ?></a>
+        <?php endforeach; ?>
+      </div>
       <?php else: ?>
       <a href="<?= APP_URL ?>/helpdesk/new.php">
         <i class="bi bi-plus-circle"></i>Nowe zgłoszenie
@@ -1335,6 +1336,13 @@ var HdBulk = {
   }
 };
 
+(function () {
+  var t = document.getElementById('hdAdminToggle'), box = document.getElementById('hdAdminSub'); if (!t || !box) return;
+  function set(open) { box.classList.toggle('d-none', !open); t.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  var KEY = 'hdAdminSubOpen';
+  try { set(localStorage.getItem(KEY) !== '0'); } catch (e) {}
+  t.addEventListener('click', function () { var open = box.classList.contains('d-none'); set(open); try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {} });
+})();
 HdApp.init();
 })();
 </script>

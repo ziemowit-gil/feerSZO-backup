@@ -4,6 +4,7 @@
  */
 $PAGE_TITLE = 'Helpdesk — Reguły automatyczne';
 include dirname(__DIR__, 3) . '/includes/header.php';
+echo hd_admin_nav('rules');
 $v = fn(string $k, $d = '') => $row[$k] ?? $d;
 $sel = fn($a, $b) => (string)$a === (string)$b ? ' selected' : '';
 ?>
