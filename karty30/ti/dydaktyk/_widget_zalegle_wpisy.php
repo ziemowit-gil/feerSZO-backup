@@ -15,7 +15,7 @@ if ($_lcw_items || !(function_exists('dyd_is_staff') && dyd_is_staff())):
 ?>
 <div class="card dyd-card-accent mb-3 <?= $_lcw_total ? 'border-danger' : '' ?>">
   <div class="card-header d-flex align-items-center gap-2">
-    <h2 class="h6 mb-0 fw-semibold"><i class="bi bi-journal-x text-danger me-1" aria-hidden="true"></i>Moje zaległe wpisy</h2>
+    <h2 class="h6 mb-0 fw-semibold"><i class="bi bi-journal-x me-1" style="color:#a20025" aria-hidden="true"></i>Moje zaległe wpisy</h2>
     <span class="badge <?= $_lcw_total ? 'text-bg-danger' : 'text-bg-success' ?> ms-auto"><?= $_lcw_total ?></span>
   </div>
   <?php if (!$_lcw_items): ?>

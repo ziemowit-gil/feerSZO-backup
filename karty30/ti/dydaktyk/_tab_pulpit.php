@@ -202,30 +202,18 @@ $_tl = [
         $_tl_lc ? 'do uzupełnienia' : 'wpisy w terminie', 'kontrolaWpisow.php'],
     [$_tl_prot ? '#6a00ff' : '#6d6d6d', 'journal-check', $_tl_prot, 'Protokoły',
         $_tl_prot ? 'miesiące do zamknięcia' : 'zamknięte', 'protokoly_moje.php'],
-    ['#00807e', 'graph-up', $_tl_freq === null ? '—' : $_tl_freq . '%', 'Frekwencja',
-        'w tym miesiącu', 'index.php?tab=frekwencja_grup'],
 ];
 if (!empty($_kp_counts)) $_tl[] = ['#1d1d1d', 'building', (int)$_kp_counts['groups'], 'Grup w instytucji',
     (int)$_kp_counts['students'] . ' kursantów', 'index.php?tab=grupy'];
 ?>
 <?php require_once dirname(__DIR__, 3) . '/modules/it_portal/lib/itPortalLink.php'; ?>
-<aside class="dyd-itp" aria-label="Usługi IT — nowy adres">
-  <i class="bi bi-life-preserver dyd-itp-ic" aria-hidden="true"></i>
-  <div class="dyd-itp-t">
-    <strong>Usługi IT mają nowy adres: <a href="<?= h(itPortalPublicUrl()) ?>" target="_blank" rel="noopener"><?= h(itPortalPublicLabel()) ?></a></strong>
-    <span>Instrukcje (poczta, Teams, Zoom, konta), komunikaty o awariach i kontakt do IT — w jednym miejscu, także bez logowania.</span>
-  </div>
-  <a class="dyd-itp-btn" href="<?= h(itPortalPublicUrl()) ?>" target="_blank" rel="noopener">Otwórz Portal Usług IT<span class="visually-hidden"> (nowa karta)</span> <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
-</aside>
+<p class="dyd-itp"><i class="bi bi-life-preserver" aria-hidden="true"></i>
+  <a href="<?= h(itPortalPublicUrl()) ?>" target="_blank" rel="noopener">Portal Usług IT: <?= h(itPortalPublicLabel()) ?><span class="visually-hidden"> (nowa karta)</span> <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+  <span>— instrukcje, awarie i kontakt do IT</span></p>
 <style>
-.dyd-itp { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem 1rem; background:#f2f2f2; border-left:6px solid #0f6fa8; padding:.8rem 1rem; margin:0 0 1rem; }
-.dyd-itp-ic { width:44px; height:44px; flex:0 0 44px; display:flex; align-items:center; justify-content:center; background:#0f6fa8; color:#fff; font-size:1.3rem; }
-.dyd-itp-t { flex:1 1 320px; min-width:0; display:flex; flex-direction:column; gap:.15rem; font-size:.9rem; color:#1d1d1d; }
-.dyd-itp-t strong { font-weight:600; }
-.dyd-itp-t a { color:#0b5582; }
-.dyd-itp-t span { color:#4b4b4b; font-size:.84rem; }
-.dyd-itp-btn { display:inline-flex; align-items:center; gap:.4rem; background:#1d1d1d; color:#fff !important; font-weight:600; font-size:.88rem; padding:.5rem .9rem; text-decoration:none !important; border:2px solid #1d1d1d; }
-.dyd-itp-btn:hover, .dyd-itp-btn:focus-visible { background:#fff; color:#1d1d1d !important; }
+.dyd-itp { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .6rem; margin:0 0 .75rem; font-size:.88rem; color:#4b4b4b; }
+.dyd-itp > i { color:#0f6fa8; font-size:1.1rem; }
+.dyd-itp a { color:#0b5582; font-weight:600; }
 </style>
 <nav class="dyd-tiles" aria-label="Skróty pulpitu">
   <?php foreach ($_tl as [$_tc, $_ti, $_tn, $_tlb, $_tsub, $_th]): ?>
@@ -255,7 +243,7 @@ if (!empty($_kp_counts)) $_tl[] = ['#1d1d1d', 'building', (int)$_kp_counts['grou
 <div class="col-xl-7">
 <?php /* ── Dziś ──────────────────────────────────────────────────────────── */ ?>
 <div class="card">
-  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-calendar-day text-primary me-1" aria-hidden="true"></i>Dziś — <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?></h2></div>
+  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-calendar-day me-1" style="color:#0f6fa8" aria-hidden="true"></i>Dziś — <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?></h2></div>
   <?php if (!$dash_today): ?>
   <div class="card-body small text-body-secondary">Brak zaplanowanych zajęć na dziś.</div>
   <?php else: ?>
@@ -325,7 +313,7 @@ if (!empty($_kp_counts)) $_tl[] = ['#1d1d1d', 'building', (int)$_kp_counts['grou
 <?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>
 <div id="dyd-todo" class="card dyd-card-accent <?= $_todo_n ? 'border-warning' : '' ?>">
   <div class="card-header d-flex align-items-center gap-2">
-    <h2 class="h6 mb-0 fw-semibold"><i class="bi bi-list-check text-warning me-1" aria-hidden="true"></i>Do zrobienia</h2>
+    <h2 class="h6 mb-0 fw-semibold"><i class="bi bi-list-check me-1" style="color:#c25100" aria-hidden="true"></i>Do zrobienia</h2>
     <span class="badge <?= $_todo_n ? 'text-bg-warning' : 'text-bg-success' ?> ms-auto"><?= $_todo_n ?></span>
   </div>
   <?php if (!$_todo && !$_kp_attn): ?>
@@ -439,15 +427,12 @@ function dydBulkOverdue(n) {
 
 <?php if (!empty($_kp_counts) || !empty($_kp_ok) || isset($_kp_leaves)): ?>
 <div class="card">
-  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>Instytucja — stan na <?= h(date('d.m.Y')) ?>, <?= h($_kp_at ?? date('H:i')) ?></h2></div>
+  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-shield-fill-check me-1" style="color:#00807e" aria-hidden="true"></i>Instytucja — stan na <?= h(date('d.m.Y')) ?>, <?= h($_kp_at ?? date('H:i')) ?></h2></div>
   <div class="card-body small">
-    <?php if (!empty($_kp_counts)): ?>
-    <p class="mb-2"><?= (int)$_kp_counts['groups'] ?> aktywnych grup · <?= (int)$_kp_counts['students'] ?> kursantów · dziś prowadzi <?= (int)$_kp_counts['instr_today'] ?> os.</p>
-    <?php endif; ?>
     <?php if (!empty($_kp_ok)): ?>
     <p class="mb-2 text-body-secondary"><i class="bi bi-check2 text-success me-1" aria-hidden="true"></i>W porządku: <?= h(implode(' · ', array_map(fn($r) => $r[0], $_kp_ok))) ?></p>
     <?php endif; ?>
-    <p class="fw-semibold mb-1"><i class="bi bi-airplane text-secondary me-1" aria-hidden="true"></i>Dziś nieobecni prowadzący</p>
+    <p class="fw-semibold mb-1"><i class="bi bi-airplane me-1" style="color:#6a1b9a" aria-hidden="true"></i>Dziś nieobecni prowadzący</p>
     <?php if (empty($_kp_leaves)): ?>
     <p class="text-body-secondary mb-0">Wszyscy prowadzący są dziś dostępni.</p>
     <?php else: ?>
@@ -461,27 +446,14 @@ function dydBulkOverdue(n) {
 <?php endif; ?>
   </div>
   <div class="col-lg-5">
-<?php if (isset($_kp_leaves)): ?>
-<div class="card">
-  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-lightning-charge text-warning me-1" aria-hidden="true"></i>Skróty kierownika</h2></div>
-  <div class="card-body d-flex flex-wrap gap-1">
-    <?php foreach ([
-        ['Przegląd grup', 'index.php?tab=grupy', 'people'], ['Rozliczenia kursantów', 'billing.php', 'receipt'],
-        ['Wydruki i raporty', 'wydruki.php', 'printer'], ['Wypłaty', 'index.php?tab=wypłaty', 'cash-stack'],
-        ['Zespół i role', 'zespol.php', 'person-gear'], ['Testy', 'testy.php', 'bug'],
-    ] as [$_l, $_h, $_i]): ?>
-    <a href="<?= h($_h) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-<?= h($_i) ?> me-1" aria-hidden="true"></i><?= h($_l) ?></a>
-    <?php endforeach; ?>
-  </div>
-</div>
-<?php endif; ?>
+
 
 <?php /* ── Ostatnie komunikaty ───────────────────────────────────────────── */ ?>
 <?php $_notices = array_slice($dyd_notices ?? [], 0, 5); ?>
 <?php if ($_notices): ?>
 <div class="card">
   <div class="card-header d-flex align-items-center">
-    <span><i class="bi bi-megaphone text-warning me-1" aria-hidden="true"></i>Komunikaty placówki</span>
+    <span><i class="bi bi-megaphone me-1" style="color:#ad1457" aria-hidden="true"></i>Komunikaty placówki</span>
     <a href="index.php?tab=komunikaty" class="btn btn-sm btn-outline-secondary ms-auto">Wszystkie</a>
   </div>
   <div class="table-responsive">
