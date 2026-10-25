@@ -115,6 +115,12 @@ echo hd_ui_css();
 }
 .hd-macro-preview-pane.active { display: block; }
 .hd-macro-preview-pane p { margin: 0; }
+/* Szata Metro */
+.hd-am-card, .hd-macro-quill-wrap .ql-container, .hd-macro-quill-wrap .ql-toolbar, .hd-macro-preview-pane { border-radius:0 !important; }
+.hd-am-card { border-left:4px solid var(--hd-accent); }
+.hd-am-card-head { background:#1d1d1d; color:#fff; text-transform:uppercase; letter-spacing:.06em; font-size:.72rem; font-weight:600; border-bottom:0; }
+.hd-am-header-left h4 { font-weight:300; font-size:1.7rem; }
+.hd-macro-row:hover { background:var(--hd-accent-l); }
 </style>
 
 <!-- Header -->

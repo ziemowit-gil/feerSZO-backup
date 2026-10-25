@@ -71,6 +71,18 @@ $total = array_sum($stats);
 $PAGE_TITLE = 'Helpdesk — Ustawienia';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
+<style>
+/* Szata Metro: płasko, zero zaokrągleń/cieni/gradientów, akcent grupy menu */
+.hd-metro-admin .card, .hd-metro-admin .btn, .hd-metro-admin .badge, .hd-metro-admin .form-control, .hd-metro-admin .form-select,
+.hd-metro-admin .alert, .hd-metro-admin .list-group-item, .hd-metro-admin .input-group-text { border-radius:0 !important; box-shadow:none !important; }
+.hd-metro-admin .card { border:1px solid var(--sm-line,#d4d4d4); border-top:3px solid var(--sm-acc,#1ba1e2); }
+.hd-metro-admin .card-header { background:#1d1d1d; color:#fff; text-transform:uppercase; letter-spacing:.06em; font-size:.74rem; font-weight:600; border-bottom:0; }
+.hd-metro-admin .card-header .text-primary, .hd-metro-admin .card-header i { color:var(--sm-acc,#1ba1e2) !important; }
+.hd-metro-admin .form-control, .hd-metro-admin .form-select { border:2px solid #bdbdbd; }
+.hd-metro-admin .form-control:focus, .hd-metro-admin .form-select:focus { border-color:var(--sm-acc,#1ba1e2); }
+.hd-metro-admin h4 { font-weight:300; font-size:1.7rem; }
+</style>
+<div class="hd-metro-admin">
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
@@ -249,4 +261,5 @@ include dirname(__DIR__) . '/includes/header.php';
 
 </div><!-- /row -->
 
+</div>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

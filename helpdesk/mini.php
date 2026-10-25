@@ -121,6 +121,17 @@ if ($enabled && $_SERVER['REQUEST_METHOD'] === 'POST') {
     :root { --bg:#0f172a; --card:#1e293b; --border:#334155; --text:#e2e8f0; --muted:#94a3b8; }
     input, textarea { background:#0f172a; }
   }
+  /* Szata Metro: płasko, Segoe UI, zero zaokrągleń/cieni */
+  :root { --brand:#1ba1e2; }
+  body { font-family:'Segoe UI','Segoe UI Web',Roboto,Arial,sans-serif; }
+  .card { border-radius:0; box-shadow:none; border:0; border-top:4px solid var(--brand); }
+  h1 { font-weight:300; font-size:1.9rem; }
+  input[type=text], input[type=email], textarea, select { border-radius:0 !important; border:2px solid #bdbdbd !important; }
+  input:focus, textarea:focus, select:focus { outline:none; border-color:var(--brand) !important; }
+  button { border-radius:0; background:var(--brand); color:#000; text-transform:uppercase; letter-spacing:.06em; }
+  .alert { border-radius:0; border-width:0 0 0 4px; }
+  .alert-ok { background:#e6f4e6; color:#004d00; border-color:#008a00; }
+  .alert-err { background:#fbe6ea; color:#6e0019; border-color:#a20025; }
 </style>
 </head>
 <body>

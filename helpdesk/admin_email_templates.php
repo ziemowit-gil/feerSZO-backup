@@ -175,6 +175,15 @@ include dirname(__DIR__) . '/includes/header.php';
 }
 .hd-preview-header { background: #1e40af; padding: 14px 20px; color: #fff; font-weight: 600; font-size: .9rem; }
 .hd-preview-body { padding: 20px 24px; font-size: .9rem; color: #212529; }
+/* Szata Metro: zero zaokrągleń, płaskie kolory Metro */
+.hd-tpl-list, .hd-editor-card, .hd-ph-chip, .hd-preview-box, .hd-tpl-badge, .ql-toolbar.ql-snow, .ql-container.ql-snow { border-radius: 0 !important; }
+.hd-tpl-list, .hd-editor-card { border-color: #d4d4d4; border-top: 3px solid var(--sm-acc, #1ba1e2); }
+.hd-tpl-item.active { background: var(--sm-acc, #1ba1e2); color: #fff; font-weight: 600; }
+.hd-tpl-item:hover:not(.active) { background: #f2f2f2; }
+.hd-tpl-badge-on { background: #008a00; color: #fff; border-color: #008a00; }
+.hd-tpl-badge-off { background: #647687; color: #fff; border-color: #647687; }
+.hd-ph-chip:hover { background: var(--sm-acc, #1ba1e2); border-color: var(--sm-acc, #1ba1e2); color: #fff; }
+.hd-preview-header { background: #1d1d1d; border-bottom: 3px solid var(--sm-acc, #1ba1e2); }
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
 
