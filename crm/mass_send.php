@@ -22,7 +22,10 @@ $PAGE_TITLE = 'Wysyłka masowa';
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
 
-$sms_ok   = sms_is_enabled();
+$sms_chain = sms_provider_chain();            // domyślny + zapasowy dostawca SMS (Ustawienia SMS)
+$sms_ok    = $sms_chain !== [];
+$sms_label = $sms_ok ? sms_provider_label($sms_chain[0]) : '';
+$sms_fb    = count($sms_chain) > 1 ? sms_provider_label($sms_chain[1]) : '';
 $m365_ok  = _mail_m365_configured();
 $smtp_ok  = (bool)_mail_setting('smtp_host');
 
@@ -248,7 +251,7 @@ include __DIR__ . '/includes/header_crm.php';
         <div class="ch-text">
           <span>E-mail</span>
           <?php if ($m365_ok): ?>
-          <small style="color:#0078d4;font-size:.68rem;font-weight:600"><i class="bi bi-microsoft"></i> Microsoft 365</small>
+          <small style="color:#0078d4;font-size:.68rem;font-weight:600"><i class="bi bi-microsoft"></i> Microsoft 365<?= $smtp_ok ? ' · zapas: SMTP' : '' ?></small>
           <?php elseif ($smtp_ok): ?>
           <small style="color:#059669;font-size:.68rem;font-weight:600"><i class="bi bi-server"></i> SMTP</small>
           <?php else: ?>
@@ -262,7 +265,7 @@ include __DIR__ . '/includes/header_crm.php';
         <i class="bi bi-phone-fill" style="color:#D97706"></i>
         <div class="ch-text">
           <span>SMS</span>
-          <small class="text-muted" style="font-size:.68rem">SMSAPI.pl</small>
+          <small style="color:#B45309;font-size:.68rem;font-weight:600"><i class="bi bi-broadcast"></i> <?= h($sms_label) ?><?= $sms_fb !== '' ? ' · zapas: ' . h($sms_fb) : '' ?></small>
         </div>
       </div>
       <?php else: ?>
@@ -270,7 +273,7 @@ include __DIR__ . '/includes/header_crm.php';
         <i class="bi bi-phone" style="color:#9CA3AF"></i>
         <div class="ch-text">
           <span style="color:#5E6470">SMS</span>
-          <small style="font-size:.68rem;color:#5E6470">Niekonfigurowany</small>
+          <small style="font-size:.68rem;color:#5E6470">Brak dostawcy — <a href="<?= APP_URL ?>/admin/sms_settings.php">skonfiguruj</a></small>
         </div>
       </div>
       <?php endif; ?>
