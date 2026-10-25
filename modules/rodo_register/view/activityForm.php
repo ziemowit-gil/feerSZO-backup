@@ -17,7 +17,8 @@ $sel = fn(string $k, string $label, array $opts) => print('<div class="mb-3"><la
           $f('srodki', 'Środki bezpieczeństwa (opis ogólny)', true); ?>
   </div>
   <div class="col-lg-4">
-    <?php $f('wlasciciel', 'Właściciel merytoryczny'); $f('moduly', 'Moduły / tabele w SZO', true); $sel('rola', 'Rola', ['administrator', 'procesor', 'wspoladministrator']); $sel('dpia', 'DPIA', ['nie_dotyczy', 'wymagane', 'wykonana']); $sel('status', 'Status', ['szkic', 'zatwierdzone']); ?>
+    <div class="mb-3"><label class="form-label" for="a-forma">Forma zbioru</label><select class="form-select" id="a-forma" name="forma"><?php foreach (RODO_FORMY as $k => $l): ?><option value="<?= $k ?>" <?= ($a['forma'] ?? 'elektroniczna') === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+    <?php $f('lokalizacja', 'Miejsce przechowywania (system, szafa, pomieszczenie)'); $f('wlasciciel', 'Właściciel merytoryczny'); $f('moduly', 'Moduły / tabele w SZO', true); $sel('rola', 'Rola', ['administrator', 'procesor', 'wspoladministrator']); $sel('dpia', 'DPIA', ['nie_dotyczy', 'wymagane', 'wykonana']); $sel('status', 'Status', ['szkic', 'zatwierdzone']); ?>
     <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="a-sz" name="szczegolne" value="1" <?= !empty($a['szczegolne']) ? 'checked' : '' ?>><label class="form-check-label" for="a-sz">Dane szczególnych kategorii (art. 9) lub o karalności (art. 10)</label></div>
     <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="a-pr" name="przeglad" value="1"><label class="form-check-label" for="a-pr">Oznacz jako przejrzane dzisiaj</label></div>
     <button class="btn btn-primary" type="submit">Zapisz</button> <a class="btn btn-link" href="<?= h(route('rodo.activities')) ?>">Wróć</a>

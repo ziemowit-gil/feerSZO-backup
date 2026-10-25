@@ -89,21 +89,31 @@ function rodoMigrate(): void {
         id INTEGER PRIMARY KEY AUTOINCREMENT, zbior TEXT NOT NULL, tabela TEXT NOT NULL, kolumna_daty TEXT NOT NULL,
         miesiecy INTEGER NOT NULL, uwagi TEXT NOT NULL DEFAULT '', aktywna INTEGER NOT NULL DEFAULT 1,
         UNIQUE(tabela, kolumna_daty))");
+    // forma zbioru (papierowa / elektroniczna / mieszana) i miejsce przechowywania — dopisane po pierwszej wersji tabeli
+    $have = array_column($db->query("PRAGMA table_info(rodo_activities)")->fetchAll(), 'name');
+    if (!in_array('forma', $have, true))       $db->exec("ALTER TABLE rodo_activities ADD COLUMN forma TEXT NOT NULL DEFAULT 'elektroniczna'");
+    if (!in_array('lokalizacja', $have, true)) $db->exec("ALTER TABLE rodo_activities ADD COLUMN lokalizacja TEXT NOT NULL DEFAULT ''");
     rodoSeed();
 }
 
+const RODO_FORMY = [
+    'elektroniczna' => 'Elektroniczna (system informatyczny)',
+    'papierowa'     => 'Papierowa (teczki, segregatory)',
+    'mieszana'      => 'Mieszana (papier + system)',
+];
+
 /** Zasiew: zbiory z analizy docs/rejestr-danych-osobowych-szo.md, podmioty z integracji, domyślne reguły retencji. */
 function rodoSeed(): void {
-    if ((int)(db_one("SELECT COUNT(*) c FROM rodo_activities")['c'] ?? 0) === 0) {
-        foreach (rodoDefaultActivities() as $a) {
-            db_insert('rodo_activities', $a + ['status' => 'szkic']);
-        }
+    // Uzupełnia brakujące zbiory po nazwie (nie nadpisuje edycji) — nowe zbiory z kolejnych wersji dochodzą same.
+    foreach (rodoDefaultActivities() as $a) {
+        if (!db_one("SELECT 1 FROM rodo_activities WHERE zbior = ?", [$a['zbior']])) db_insert('rodo_activities', $a + ['status' => 'szkic']);
     }
     if ((int)(db_one("SELECT COUNT(*) c FROM rodo_processors")['c'] ?? 0) === 0) {
         foreach (rodoDefaultProcessors() as [$n, $z, $k, $t]) {
             db_insert('rodo_processors', ['nazwa' => $n, 'zakres' => $z, 'kraj' => $k, 'transfer_podstawa' => $t]);
         }
     }
+    rodoBackfillForma();
     foreach ([
         ['Rekrutacja', 'rekr_applications', 'created_at', 12, 'Po zakończeniu naboru, chyba że zgoda na kolejne'],
         ['Wydarzenia', 'ev_registrations', 'created_at', 12, 'Po wydarzeniu'],
@@ -123,7 +133,7 @@ function rodoDefaultActivities(): array {
         'odbiorcy' => $odb, 'retencja' => $ret, 'moduly' => $mod, 'dpia' => $dpia,
         'srodki' => 'Kontrola dostępu wg ról, 2FA/WebAuthn, logi audytu, kopie zapasowe, szyfrowanie pól wrażliwych (field_crypto), transmisja HTTPS',
     ];
-    return [
+    $list = [
         $m('Konta użytkowników i uwierzytelnianie', 'Zapewnienie dostępu do systemu i jego bezpieczeństwa', '6.1.b, 6.1.f', 'Pracownicy, współpracownicy, wolontariusze, administratorzy', 'Imię, nazwisko, e-mail, telefon, hash hasła, TOTP/WebAuthn, adres IP, zdjęcie', 0, 'Microsoft 365, dostawcy SMS', 'Czas posiadania konta + 12 mies. (logi)', 'users, login_log, user_sessions, webauthn_credentials'),
         $m('Umowy cywilnoprawne i kadry', 'Zawarcie i rozliczenie umów, obowiązki podatkowe i ubezpieczeniowe', '6.1.b, 6.1.c', 'Zleceniobiorcy, wykonawcy, pracownicy, wolontariusze', 'Imię, nazwisko, PESEL, adres, seria i nr dowodu, rachunek bankowy, wynagrodzenie, US', 0, 'ZUS, urząd skarbowy, banki, SharePoint, DocuSign/Autenti', 'Wg przepisów (ZUS/podatki — do 5 lat od końca roku; dokumentacja pracownicza 10 lat)', 'umowy_*, persons, zlecenie_*, timesheets'),
         $m('Wolontariat — nabór, onboarding, RPTS', 'Organizacja wolontariatu, ochrona małoletnich', '6.1.b, 6.1.c, 9.2.b', 'Kandydaci i wolontariusze (także małoletni), opiekunowie', 'Dane identyfikacyjne, PESEL, rachunek, RPTS (dane o karalności), skierowania na badania', 1, 'Placówki, w których wolontariusz działa', 'Do końca współpracy + okres przedawnienia roszczeń', 'onboarding_volunteers, volunteer_applications, skierowania_badania', 'wymagane'),
@@ -142,7 +152,39 @@ function rodoDefaultActivities(): array {
         $m('Bezpieczeństwo i audyt', 'Wykrywanie nadużyć i dowody zdarzeń', '6.1.c, 6.1.f', 'Wszyscy użytkownicy', 'IP, e-mail, akcje, znaczniki czasu', 0, '—', '12–24 mies.', 'admin_audit_log, audit_logs, *_access_log'),
         $m('Asystent AI', 'Pomoc w wyszukiwaniu informacji w systemie', '6.1.f', 'Pracownicy; osoby, których dane są w wynikach', 'Treść zapytań i fragmenty danych SZO wysyłane do dostawcy AI', 0, 'Anthropic', 'Brak trwałego zapisu po stronie dostawcy wg umowy — zweryfikować', 'asystent_ai, chatbot', 'wymagane'),
         $m('Integracje zewnętrzne (MSUES, SAML, API)', 'Udostępnianie kont i wiadomości aplikacjom organizacji', '6.1.b, 6.1.f', 'Użytkownicy, koordynatorzy', 'Lista kont, e-maile', 0, 'Aplikacje organizacji', 'Czas współpracy', 'api/v1/msues_*, saml_idp'),
+        $m('Pełnomocnictwa i upoważnienia', 'Rejestr pełnomocnictw i upoważnień do przetwarzania danych', '6.1.c, 6.1.f', 'Pełnomocnicy, mocodawcy, osoby upoważnione', 'Imię, nazwisko, PESEL pełnomocnika, e-mail, zakres umocowania', 0, 'Instytucje, wobec których udzielono pełnomocnictwa', 'Czas obowiązywania + 5 lat', 'pelnomocnictwa, rodo_authorizations'),
+        $m('Karty NFC i kontrola dostępu', 'Kontrola dostępu do pomieszczeń i systemów', '6.1.f', 'Pracownicy, współpracownicy', 'Identyfikator karty, imię i nazwisko, zdarzenia użycia karty', 0, '—', 'Czas posiadania karty + 12 mies. (zdarzenia)', 'smart_cards, audit_logs'),
+        $m('VPN i dostęp zdalny', 'Bezpieczny zdalny dostęp do zasobów', '6.1.f', 'Użytkownicy VPN', 'Identyfikator konta, adres IP, czas połączeń, klucze/certyfikaty', 0, '—', '12 mies. (logi połączeń)', 'vpn'),
+        $m('Certyfikaty X.509 (SzoCert)', 'Logowanie certyfikatem i podpisy lokalne', '6.1.b, 6.1.f', 'Użytkownicy, kontrahenci', 'Imię, nazwisko, e-mail, numer seryjny i odcisk certyfikatu', 0, '—', 'Okres ważności certyfikatu + 5 lat', 'certificates, certs, auth/x509'),
+        $m('Portal Kontrahenta (EODoK)', 'Akceptacja dokumentów księgowych przez kontrahentów', '6.1.b, 6.1.c', 'Kontrahenci i ich przedstawiciele', 'NIP, e-mail, hasło (hash), historia akceptacji, IP', 0, '—', 'Czas współpracy + 5 lat', 'portal_kontrahenta, edok_kontrahent_accounts'),
+        $m('Konsultacje TI', 'Karty konsultacji i rezerwacje', '6.1.b', 'Uczestnicy konsultacji, konsultanci', 'Imię, kontakt, opis problemu, termin', 0, 'Zoom', 'Wg zasad projektu finansującego', 'szo_consultation_cards, ti_bookings', 'wymagane'),
+        $m('Obiegi i zadania', 'Obieg dokumentów i zadań wewnętrznych', '6.1.f', 'Pracownicy, współpracownicy', 'Imię, nazwisko, e-mail, treść zadań i komentarzy, pliki', 0, 'Microsoft 365, Nozbe (import)', 'Czas trwania zadania + 24 mies.', 'obiegi, tasks, task_*'),
+        $m('Kopie zapasowe', 'Zapewnienie ciągłości działania i odtwarzania danych', '6.1.c, 6.1.f', 'Wszystkie osoby w systemie', 'Pełna kopia bazy i plików (wszystkie kategorie danych)', 1, 'SharePoint (Microsoft 365), hosting', 'Rotacja kopii; usunięcie osoby wygasa z kopii wg cyklu rotacji', 'cron/agents/backup, sp_backup_full', 'wymagane'),
+        $m('Dokumentacja papierowa i archiwum zakładowe', 'Przechowywanie oryginałów umów, zgód i dokumentów podpisanych odręcznie', '6.1.b, 6.1.c', 'Zleceniobiorcy, wolontariusze, uczestnicy, rodzice, kontrahenci', 'Oryginały umów, zgód, oświadczeń, skierowań, protokołów (PESEL, adres, dowód, dane o zdrowiu)', 1, 'Archiwum zewnętrzne (jeśli dotyczy)', 'Wg JRWA i przepisów (5–10 lat; dokumentacja pracownicza 10 lat)', 'ezd (Koszulki/Segregatory), ezd_archiwum', 'wymagane'),
     ];
+    // Forma zbioru i miejsce przechowywania: domyślnie elektroniczna; papier tylko tam, gdzie system sam tworzy lub wymaga oryginałów.
+    $forma = [
+        'Umowy cywilnoprawne i kadry' => ['mieszana', 'Baza SZO + SharePoint + teczki papierowe w archiwum zakładowym'],
+        'Wolontariat — nabór, onboarding, RPTS' => ['mieszana', 'Baza SZO + oryginały zgód i zaświadczeń w teczkach'],
+        'TI — uczestnicy szkoleń' => ['mieszana', 'Baza SZO + dokumenty podpisane odręcznie (protokoły, zgody)'],
+        'Darowizny' => ['mieszana', 'Baza SZO + potwierdzenia papierowe'],
+        'EZD — dokumentacja i korespondencja' => ['mieszana', 'Baza EZD + akta papierowe (Koszulki w Segregatorach)'],
+        'Rekrutacja' => ['mieszana', 'Baza SZO + dokumenty aplikacyjne (e-mail, papier)'],
+        'Pełnomocnictwa i upoważnienia' => ['mieszana', 'Baza SZO + oryginały pełnomocnictw'],
+        'Dokumentacja papierowa i archiwum zakładowe' => ['papierowa', 'Archiwum zakładowe / szafy zamykane — wpisać lokalizację'],
+        'Kopie zapasowe' => ['elektroniczna', 'SharePoint (Microsoft 365) i serwer hostingu'],
+    ];
+    foreach ($list as &$a) {
+        [$a['forma'], $a['lokalizacja']] = $forma[$a['zbior']] ?? ['elektroniczna', 'Baza danych SZO (hosting)'];
+    }
+    return $list;
+}
+
+/** Uzupełnia formę i lokalizację w wpisach z pierwszej wersji (tylko puste wartości domyślne — bez nadpisywania edycji). */
+function rodoBackfillForma(): void {
+    foreach (rodoDefaultActivities() as $a) {
+        db_exec("UPDATE rodo_activities SET forma = ?, lokalizacja = ? WHERE zbior = ? AND lokalizacja = ''", [$a['forma'], $a['lokalizacja'], $a['zbior']]);
+    }
 }
 
 function rodoDefaultProcessors(): array {

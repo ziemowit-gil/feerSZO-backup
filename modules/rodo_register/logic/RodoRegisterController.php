@@ -32,9 +32,10 @@ final class RodoRegisterController
 
     public function activitySave(int $id): ?string {
         rodoMigrate();
-        $f = ['zbior', 'cel', 'podstawa', 'kategorie_osob', 'kategorie_danych', 'odbiorcy', 'transfer_poza_eog', 'retencja', 'srodki', 'wlasciciel', 'moduly'];
+        $f = ['zbior', 'cel', 'podstawa', 'kategorie_osob', 'kategorie_danych', 'odbiorcy', 'transfer_poza_eog', 'retencja', 'srodki', 'wlasciciel', 'moduly', 'lokalizacja'];
         $d = [];
         foreach ($f as $k) $d[$k] = trim((string)($_POST[$k] ?? ''));
+        $d['forma'] = isset(RODO_FORMY[$_POST['forma'] ?? '']) ? $_POST['forma'] : 'elektroniczna';
         $d['szczegolne'] = empty($_POST['szczegolne']) ? 0 : 1;
         $d['rola'] = in_array($_POST['rola'] ?? '', ['administrator', 'procesor', 'wspoladministrator'], true) ? $_POST['rola'] : 'administrator';
         $d['dpia'] = in_array($_POST['dpia'] ?? '', ['nie_dotyczy', 'wymagane', 'wykonana'], true) ? $_POST['dpia'] : 'nie_dotyczy';
@@ -54,7 +55,7 @@ final class RodoRegisterController
         header('Content-Disposition: attachment; filename="rejestr-czynnosci-przetwarzania-' . date('Y-m-d') . '.csv"');
         $o = fopen('php://output', 'w');
         fwrite($o, "\xEF\xBB\xBF");
-        $cols = ['zbior' => 'Zbiór / czynność', 'rola' => 'Rola', 'cel' => 'Cel', 'podstawa' => 'Podstawa prawna', 'kategorie_osob' => 'Kategorie osób', 'kategorie_danych' => 'Kategorie danych',
+        $cols = ['zbior' => 'Zbiór / czynność', 'forma' => 'Forma zbioru', 'lokalizacja' => 'Miejsce przechowywania', 'rola' => 'Rola', 'cel' => 'Cel', 'podstawa' => 'Podstawa prawna', 'kategorie_osob' => 'Kategorie osób', 'kategorie_danych' => 'Kategorie danych',
             'szczegolne' => 'Dane szczególne', 'odbiorcy' => 'Odbiorcy', 'transfer_poza_eog' => 'Transfer poza EOG', 'retencja' => 'Termin usunięcia', 'srodki' => 'Środki bezpieczeństwa', 'dpia' => 'DPIA', 'status' => 'Status'];
         fputcsv($o, array_values($cols), ';');
         foreach (db_all("SELECT * FROM rodo_activities ORDER BY zbior") as $r) {
@@ -189,6 +190,37 @@ final class RodoRegisterController
         $id = rodoBreachSave($_POST, $id ?: null, $this->uid());
         flash_set('success', 'Zapisano naruszenie. Termin zgłoszenia do UODO: ' . rodoBreachDecode(db_one("SELECT * FROM rodo_breaches WHERE id = ?", [$id]))['uodo_do'] . '.');
         return $this->back('rodo.breach', ['id' => $id]);
+    }
+
+    // ── wydruki raportów ──
+    private const REPORTS = [
+        'czynnosci' => 'Rejestr czynności przetwarzania danych osobowych (art. 30 RODO)',
+        'zbiory'    => 'Wykaz zbiorów danych osobowych wg formy zbioru',
+        'podmioty'  => 'Wykaz podmiotów przetwarzających i odbiorców danych (art. 28 RODO)',
+        'naruszenia' => 'Rejestr naruszeń ochrony danych osobowych (art. 33 ust. 5 RODO)',
+        'wnioski'   => 'Rejestr wniosków osób, których dane dotyczą (art. 15–21 RODO)',
+        'retencja'  => 'Reguły i raport retencji danych osobowych',
+    ];
+
+    public function reports(): string {
+        rodoMigrate();
+        return Router::view(self::VIEW . 'reports.php', ['reports' => self::REPORTS]);
+    }
+
+    /** Wydruk raportu: samodzielna strona A4 (bez menu), przycisk Drukuj / Zapisz jako PDF z przeglądarki. */
+    public function report(string $typ): ?string {
+        rodoMigrate();
+        if (!isset(self::REPORTS[$typ])) { http_response_code(404); return 'Nie ma takiego raportu.'; }
+        $data = ['typ' => $typ, 'tytul' => self::REPORTS[$typ], 'org' => defined('ORG_NAME') ? ORG_NAME : '', 'kto' => (string)(current_user()['name'] ?? ''), 'kiedy' => date('Y-m-d H:i')];
+        match ($typ) {
+            'czynnosci', 'zbiory' => $data['rows'] = db_all("SELECT * FROM rodo_activities ORDER BY " . ($typ === 'zbiory' ? "forma, " : "") . "zbior"),
+            'podmioty'  => $data['rows'] = db_all("SELECT * FROM rodo_processors ORDER BY nazwa"),
+            'naruszenia' => $data['rows'] = array_map('rodoBreachDecode', db_all("SELECT * FROM rodo_breaches ORDER BY wykryto_at")),
+            'wnioski'   => $data['rows'] = array_map('rodoReqDecode', db_all("SELECT * FROM rodo_requests ORDER BY id")),
+            'retencja'  => $data['rows'] = rodoRetentionReport(),
+        };
+        audit_log('rodo.report.print', ['typ' => $typ]);
+        return Router::view(self::VIEW . 'print.php', $data);
     }
 
     // ── retencja ──
