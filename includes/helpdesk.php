@@ -454,9 +454,26 @@ function hd_ticket_token(array $ticket): string {
     return $tok;
 }
 
-/** Pełny URL do mikropanelu podglądu/odpowiedzi (link dołączany do maili do zgłaszającego). */
+/**
+ * Adres bazowy Helpdesku w LINKACH z maili i SMS: zawsze host SZO (szo.feer.org.pl), niezależnie od domeny, na której powstało zgłoszenie
+ * (kursant.feer.org.pl, ti.…). Pierwszą etykietę hosta zaczynającą się od „ti” / „kurs” podmieniamy na „szo”; ustawienie helpdesk_public_url
+ * (np. https://szo.feer.org.pl) ma pierwszeństwo. $app — adres do przekształcenia (domyślnie APP_URL; parametr dla testów).
+ */
+function hd_base_url(?string $app = null): string {
+    $cfg = trim((string)org_setting('helpdesk_public_url'));
+    if ($app === null && $cfg !== '' && preg_match('~^https?://[^\s"<>]+$~i', $cfg)) return rtrim($cfg, '/');
+    $base = rtrim($app ?? (defined('APP_URL') ? APP_URL : ''), '/');
+    $p = parse_url($base);
+    $host = (string)($p['host'] ?? '');
+    if ($host !== '' && preg_match('/^(ti|kurs)[^.]*\.(.+)$/i', $host, $m)) {
+        $base = ($p['scheme'] ?? 'https') . '://szo.' . $m[2] . (isset($p['port']) ? ':' . $p['port'] : '') . (isset($p['path']) ? rtrim($p['path'], '/') : '');
+    }
+    return $base;
+}
+
+/** Pełny URL do mikropanelu podglądu/odpowiedzi (link dołączany do maili do zgłaszającego) — zawsze na hoście SZO. */
 function hd_track_url(array $ticket): string {
-    return APP_URL . '/helpdesk/track.php?t=' . hd_ticket_token($ticket);
+    return hd_base_url() . '/helpdesk/track.php?t=' . hd_ticket_token($ticket);
 }
 
 /**
@@ -877,7 +894,7 @@ function hd_vendor_substitute_resolution(array $ticket, string $description, arr
 /** Powiadamia priorytetowo operatora (lub wszystkich, gdy brak przypisania) o podbiciu. */
 function hd_notify_escalation(array $ticket, string $number, string $reason, int $days): void {
     $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-    $url   = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $url   = hd_base_url() . '/helpdesk/view.php?id=' . $ticket['id'];
     $num   = h($ticket['number']);
     $title = h($ticket['title']);
     $_eo_data = ['number' => $num, 'title' => $ticket['title'], 'escalation_number' => $number,
@@ -1354,7 +1371,7 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
     $old_label = HD_STATUSES[$old_status]['label'] ?? $old_status;
     $new_label = HD_STATUSES[$new_status]['label'] ?? $new_status;
     $org       = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-    $view_url  = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $view_url  = hd_base_url() . '/helpdesk/view.php?id=' . $ticket['id'];
     $track_url = hd_track_url($ticket);   // link bez logowania — umożliwia kontynuację
     $num       = $ticket['number'];
 
@@ -1419,7 +1436,7 @@ function hd_notify_new_message(array $ticket, array $message): void {
             [$_w_author, (string)($ticket['requester_email'] ?? '')]);
     } catch (\Throwable $e) {}
     $org       = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-    $view_url  = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $view_url  = hd_base_url() . '/helpdesk/view.php?id=' . $ticket['id'];
     $track_url = hd_track_url($ticket);   // link bez logowania — umożliwia kontynuację
     $num       = $ticket['number'];
 
@@ -1493,7 +1510,7 @@ function hd_notify_assigned(array $ticket, array $operator): void {
     if (empty($operator['email'])) return;
     if (!hdNotifyAllows($operator['email'], 'assigned', $ticket)) return;
     $org   = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-    $url   = APP_URL . '/helpdesk/view.php?id=' . $ticket['id'];
+    $url   = hd_base_url() . '/helpdesk/view.php?id=' . $ticket['id'];
     $num   = $ticket['number'];
     $name  = h($operator['name'] ?? $operator['email']);
     $title = h($ticket['title']);
@@ -1817,7 +1834,7 @@ function hd_ticket_quick_create(array $requester, string $title, string $descrip
     // zablokować utworzenia zgłoszenia).
     try {
         require_once __DIR__ . '/mail_queue.php';
-        $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/helpdesk/view.php?id=' . $ticket_id;
+        $url = hd_base_url() . '/helpdesk/view.php?id=' . $ticket_id;
         $num_h = h($number);
         $title_h = h($title);
         if (!empty($requester['email']) && filter_var($requester['email'], FILTER_VALIDATE_EMAIL)) {

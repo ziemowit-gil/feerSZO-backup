@@ -246,7 +246,7 @@ HTML
     try {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
         $ops = db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL");
-        $url_op = APP_URL . '/helpdesk/view.php?id=' . $ticket_id;
+        $url_op = hd_base_url() . '/helpdesk/view.php?id=' . $ticket_id;
         foreach ($ops as $opx) {
             if (empty($opx['email'])) continue;
             mail_queue_add($opx['email'], $opx['name'] ?? '', "[{$number}] Problem z logowaniem: " . ($name ?: $email),

@@ -107,7 +107,7 @@ function hdAutoEscNotifySupervisors(array $t, string $escNumber, string $reason,
     foreach (db_all("SELECT email, name FROM users WHERE role='admin' AND is_active=1 AND email IS NOT NULL AND email<>''") as $u)
         if (hdNotifyAllows($u['email'], 'escalation', $t)) $to[strtolower($u['email'])] = $u['name'];
     foreach (preg_split('/[\s,;]+/', $s['notify']) as $e) if (filter_var($e, FILTER_VALIDATE_EMAIL)) $to[strtolower($e)] = '';
-    $url = APP_URL . '/helpdesk/view.php?id=' . (int)$t['id'];
+    $url = hd_base_url() . '/helpdesk/view.php?id=' . (int)$t['id'];
     $html = hd_mail_layout(['title' => 'Eskalacja zgłoszenia — poziom 2', 'preheader' => $t['number'] . ' — termin SLA nadal przekroczony',
         'intro' => '<p style="margin:0">Zgłoszenie było już podbite, a termin SLA jest nadal przekroczony. Wymaga decyzji przełożonego.</p>',
         'facts' => [['Zgłoszenie', $t['number']], ['Temat', $t['title']], ['Priorytet', HD_PRIORITIES[$t['priority']]['label'] ?? $t['priority']],

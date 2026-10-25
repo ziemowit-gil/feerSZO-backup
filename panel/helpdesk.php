@@ -137,7 +137,7 @@ HTML
         try {
             $ops = db_all("SELECT email, name FROM users WHERE helpdesk_operator=1 AND is_active=1 AND email IS NOT NULL");
             $org = defined('ORG_NAME') ? ORG_NAME : 'Helpdesk';
-            $url_op = APP_URL . '/helpdesk/view.php?id=' . $ticket_id;
+            $url_op = hd_base_url() . '/helpdesk/view.php?id=' . $ticket_id;
             foreach ($ops as $op) {
                 if (empty($op['email'])) continue;
                 require_once dirname(__DIR__) . '/includes/mail_queue.php';

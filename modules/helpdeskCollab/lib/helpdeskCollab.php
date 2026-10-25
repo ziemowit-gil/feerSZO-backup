@@ -87,7 +87,7 @@ function hdWatchNotify(array $ticket, string $subject, string $htmlBody, array $
         $n = 0;
         foreach ($watchers as $w) {
             if (in_array(strtolower($w['email']), $exclude, true)) continue;
-            $url = $w['user_id'] ? APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'] : hd_track_url($ticket);
+            $url = $w['user_id'] ? hd_base_url() . '/helpdesk/view.php?id=' . (int)$ticket['id'] : hd_track_url($ticket);
             mail_queue_add($w['email'], (string)$w['name'], $subject, hd_mail_layout([
                 'title' => 'Kopia dla obserwatora', 'preheader' => $ticket['number'] . ' — ' . $ticket['title'],
                 'intro' => $htmlBody, 'facts' => [['Numer', $ticket['number']], ['Temat', $ticket['title']]],

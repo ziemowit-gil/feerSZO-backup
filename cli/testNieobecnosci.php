@@ -171,6 +171,13 @@ if ($mode === 'logic') {
     t('tydzień: plan SMS po ASCII, 3 zajęcia, ≤ 240 znaków', [(bool)preg_match('/^[\x20-\x7e]+$/', $plan), substr_count($plan, ';') + 1, strlen($plan) <= 240], [true, 3, true]);
     TiWeekDigest::saveSettings(['enabled' => 0, 'sms' => 1, 'email' => 1]);   // przywróć domyślne (inne testy nie powinny nic wysyłać)
 
+    // — linki Helpdesku w mailach zawsze na hoście SZO
+    require_once $root . '/includes/helpdesk.php';
+    t('helpdesk: kursant.* → szo.*', hd_base_url('https://kursant.feer.org.pl'), 'https://szo.feer.org.pl');
+    t('helpdesk: ti.* z portem → szo.* z portem', hd_base_url('https://ti.feer.org.pl:8443'), 'https://szo.feer.org.pl:8443');
+    t('helpdesk: szo.* i localhost bez zmian', [hd_base_url('https://szo.feer.org.pl/'), hd_base_url('http://localhost')], ['https://szo.feer.org.pl', 'http://localhost']);
+    t('helpdesk: link śledzenia z hd_track_url na bazie hosta', str_starts_with(hd_track_url(['id' => 1, 'access_token' => 'abc']), hd_base_url() . '/helpdesk/track.php?t='), true);
+
     // — nadawca wiadomości Helpdesku: „FEER | Helpdesk”; inne maile bez zmian
     t('helpdesk: nazwa nadawcy domyślna', _mail_apply_system_sender(['context_type' => 'helpdesk_reply', 'subject' => 'x'])['_from_name'] ?? '', 'FEER | Helpdesk');
     t('helpdesk: inne maile bez nazwy helpdesku', ($m2 = _mail_apply_system_sender(['context_type' => 'ti_leave', 'subject' => 'x']))['_from_name'] ?? '', $m2['_from_name'] ?? '' === 'FEER | Helpdesk' ? 'x' : ($m2['_from_name'] ?? ''));

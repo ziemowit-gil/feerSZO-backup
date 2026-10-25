@@ -209,7 +209,7 @@ function hdStepsRun(int $ticketId, array $steps, int $uid, string $uname, int $d
                                 'intro' => '<p style="margin:0">Powiadomienie z automatyzacji Helpdesku (' . h($uname !== '' ? $uname : 'reguła') . ').</p>',
                                 'facts' => [['Numer', $cur['number']], ['Temat', $cur['title']], ['Status', HD_STATUSES[$cur['status']]['label'] ?? $cur['status']],
                                             ['Priorytet', HD_PRIORITIES[$cur['priority']]['label'] ?? $cur['priority']]],
-                                'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => APP_URL . '/helpdesk/view.php?id=' . $ticketId]]));
+                                'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => hd_base_url() . '/helpdesk/view.php?id=' . $ticketId]]));
                         $done[] = hdMacroStepLabel($st);
                     } catch (\Throwable $e) { error_log('[helpdeskMacros] notify: ' . $e->getMessage()); }
                 }

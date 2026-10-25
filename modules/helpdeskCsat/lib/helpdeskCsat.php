@@ -41,7 +41,7 @@ function hdCsatMaybeSend(array $ticket, string $newStatus): bool
     db()->prepare("INSERT INTO helpdesk_csat (ticket_id, token, sent_at) VALUES (?,?,?)")->execute([(int)$ticket['id'], $token, date('Y-m-d H:i:s')]);
     try {
         require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
-        $url = APP_URL . '/helpdesk/csat.php?t=' . $token;
+        $url = hd_base_url() . '/helpdesk/csat.php?t=' . $token;
         $html = hd_mail_layout([
             'title' => 'Jak oceniasz obsługę zgłoszenia?', 'preheader' => 'Oceń obsługę zgłoszenia ' . $ticket['number'] . ' — zajmie to kilka sekund.',
             'greeting' => 'Dzień dobry' . (!empty($ticket['requester_name']) ? ', ' . $ticket['requester_name'] : '') . ',',

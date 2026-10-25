@@ -80,7 +80,7 @@ function hdMentionsNotify(array $ticket, string $body, int $authorUid, string $a
                 hd_mail_layout(['title' => 'Wzmianka w notatce', 'preheader' => $authorName . ' oznaczył(a) Cię w zgłoszeniu ' . $ticket['number'],
                     'facts' => [['Zgłoszenie', $ticket['number']], ['Temat', $ticket['title']]],
                     'quote' => ['label' => $authorName, 'html' => hdMailText($body)],
-                    'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id']]]));
+                    'cta' => ['label' => 'Otwórz zgłoszenie', 'url' => hd_base_url() . '/helpdesk/view.php?id=' . (int)$ticket['id']]]));
             $sent[] = $u['name'];
         }
     } catch (\Throwable $e) { error_log('[helpdeskExtras] wzmianki: ' . $e->getMessage()); }
