@@ -75,8 +75,8 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/licencje/{id}/helpdesk',          [LicenseAdminController::class, 'am7Helpdesk'])->name('ld.am7.helpdesk');
     $r->get('/licencje/{id}/konto-w-tenancie',   [LicenseAdminController::class, 'am7TenantForm'])->name('ld.am7.tenant');
     $r->post('/licencje/{id}/konto-w-tenancie',  [LicenseAdminController::class, 'am7TenantCreate']);
-    $r->get('/licencje/{id}/am99.pdf',           [LicenseAdminController::class, 'am99Pdf'])->name('ld.am99.pdf');
-    $r->post('/licencje/{id}/am99-wyslij',       [LicenseAdminController::class, 'am99Send'])->name('ld.am99.send');
+    $r->get('/licencje/{id}/am90.pdf',           [LicenseAdminController::class, 'am90Pdf'])->name('ld.am90.pdf');
+    $r->post('/licencje/{id}/am90-wyslij',       [LicenseAdminController::class, 'am90Send'])->name('ld.am90.send');
     $r->get('/licencje/{id}/edycja',             [LicenseAdminController::class, 'editForm'])->name('ld.edit');
     $r->post('/licencje/{id}/edycja',            [LicenseAdminController::class, 'update']);
     $r->post('/licencje/{id}/wszczecie',         [LicenseAdminController::class, 'start'])->name('ld.start');

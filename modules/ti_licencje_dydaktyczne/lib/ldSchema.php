@@ -73,6 +73,16 @@ function ldFileName(string $number): string
     return trim(preg_replace('/[^A-Za-z0-9_-]+/', '-', $number) ?? '', '-') ?: 'dokument-am5';
 }
 
+/**
+ * Adres ogólny SZO (Helpdesk, EZD i reszta systemu żyją tam, a ekrany tego modułu otwierają się na hoście panelu TI):
+ * ustawienie szo_general_url, domyślnie https://szo.feer.org.pl. Bez końcowego ukośnika.
+ */
+function ldSzoUrl(): string
+{
+    $u = trim((string)(db_one("SELECT value FROM settings WHERE key_ = 'szo_general_url'")['value'] ?? ''));
+    return preg_match('~^https://[^\s"<>]+$~', $u) ? rtrim($u, '/') : 'https://szo.feer.org.pl';
+}
+
 function ldOrgName(): string
 {
     return trim((string)org_setting('org_name')) ?: (defined('ORG_NAME') ? (string)ORG_NAME : 'Fundacja FEER');
@@ -139,8 +149,8 @@ function ldMigrate(): void
               "helpdesk_ticket_id INTEGER", "helpdesk_number VARCHAR(40) NOT NULL DEFAULT ''",
               // konto utworzone w tenancie z poziomu sprawy AM7 (Am7TenantAccount)
               "tenant_kind VARCHAR(8) NOT NULL DEFAULT ''", "tenant_upn VARCHAR(190) NOT NULL DEFAULT ''", "tenant_created_at VARCHAR(19)",
-              // szczegóły wykonanej operacji do druku AM99 (JSON, bez hasła) i znacznik wysyłki ręcznej
-              "tenant_info TEXT", "am99_sent_at VARCHAR(19)"] as $col) {
+              // szczegóły wykonanej operacji do druku AM90 (JSON, bez hasła) i znacznik wysyłki ręcznej
+              "tenant_info TEXT", "am90_sent_at VARCHAR(19)"] as $col) {
         try { $db->exec("ALTER TABLE licenses ADD COLUMN {$col}"); } catch (\Throwable $e) {}
     }
     $db->exec("CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(request_status)");

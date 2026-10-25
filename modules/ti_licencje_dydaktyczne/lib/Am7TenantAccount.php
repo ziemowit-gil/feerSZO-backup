@@ -190,47 +190,47 @@ final class Am7TenantAccount
         return $res;
     }
 
-    // ── AM99: Potwierdzenie wykonania operacji (druk w stylu CIT; wysyłka RĘCZNA) ──────────────────
+    // ── AM90: Potwierdzenie wykonania operacji (druk w stylu CIT; wysyłka RĘCZNA) ──────────────────
 
-    /** @return array{out:array,number:string,info:array} wydruk AM99 (PDF; fallback HTML) albo wyjątek, gdy konta jeszcze nie ma */
-    public function am99Output(array $l): array
+    /** @return array{out:array,number:string,info:array} wydruk AM90 (PDF; fallback HTML) albo wyjątek, gdy konta jeszcze nie ma */
+    public function am90Output(array $l): array
     {
         $row = db_one("SELECT tenant_kind, tenant_upn, tenant_created_at, tenant_info FROM licenses WHERE id = ?", [(int)$l['id']]);
-        if (empty($row['tenant_upn'])) throw new DomainException('Najpierw utwórz konto w tenancie — druk AM99 potwierdza wykonaną operację.');
+        if (empty($row['tenant_upn'])) throw new DomainException('Najpierw utwórz konto w tenancie — druk AM90 potwierdza wykonaną operację.');
         $info = (json_decode((string)$row['tenant_info'], true) ?: []) + ['tenant_label' => ($row['tenant_kind'] === 'feer' ? 'Tenant FEER' : 'Tenant EDU FEER')];
         $info['upn'] = (string)$row['tenant_upn']; $info['created_at'] = (string)$row['tenant_created_at']; $info['tenant_kind'] = (string)$row['tenant_kind'];
-        $number = LicenseDocument::am99Number($l);
-        $html = (new LicenseDocument())->am99Html($l, $info);
-        return ['out' => LicenseDocument::render($html, 'Potwierdzenie wykonania operacji — ' . $l['interested_name'], $number, 'AM99'), 'number' => $number, 'info' => $info];
+        $number = LicenseDocument::am90Number($l);
+        $html = (new LicenseDocument())->am90Html($l, $info);
+        return ['out' => LicenseDocument::render($html, 'Potwierdzenie wykonania operacji — ' . $l['interested_name'], $number, 'AM90'), 'number' => $number, 'info' => $info];
     }
 
     /**
-     * Ręczna wysyłka AM99: e-mail z PDF do osoby (kopia UDW do administratora), zamknięcie zgłoszenia w Helpdesku.
+     * Ręczna wysyłka AM90: e-mail z PDF do osoby (kopia UDW do administratora), zamknięcie zgłoszenia w Helpdesku.
      * @return string raport
      */
     public function sendAm99(int $id, array $actor): string
     {
         $l = $this->svc->licenses->get($id);
         if (!$l || $l['form'] !== LicenseForm::Am7) throw new DomainException('To nie jest sprawa AM7.');
-        $o = $this->am99Output($l);
-        [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'am99_' . $id);
+        $o = $this->am90Output($l);
+        [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'am90_' . $id);
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy <b>potwierdzenie wykonania operacji (AM99)</b> — konto <b>' . $e($o['info']['upn']) . '</b> zostało utworzone i przekazane do użytku.</p>'
-              . '<p>Dokument nie zawiera hasła. Sprawa: ' . $e($l['case_number']) . '.</p>';
+        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy <b>potwierdzenie wykonania operacji (AM90)</b> — konto <b>' . $e($o['info']['upn']) . '</b> zostało utworzone, a w dokumencie znajdziesz warunki udostępnienia.</p>'
+              . '<p>Dokument nie wymaga podpisu. Jeżeli licencjodawca zmieni warunki licencji, Fundacja może dokonać zmiany warunków udostępnienia. Sprawa: ' . $e($l['case_number']) . '.</p>';
         $att = LicenseNotificationService::attachment($rel, $o['number']);
         $c = $this->svc->interestedContact($l);
-        $res = $this->svc->notify->send(LicenseNotificationType::OperationConfirm, $c, 'Potwierdzenie wykonania operacji (AM99) — ' . $l['title'] . ', sprawa ' . $l['case_number'],
-            LicenseNotificationService::layout('Potwierdzenie wykonania operacji', $body, '', '', 'AM99'), '', ['type' => 'license', 'id' => $id], $actor, true, $att);
-        $report = 'AM99: ' . $this->svc->describe($res) . ($att ? '' : ' (bez PDF — wysłano wersję HTML tylko do wglądu w panelu)');
-        $this->svc->licenses->event($id, 'am99.sent', 'Ręcznie wysłano AM99 ' . $o['number'] . ': ' . $this->svc->describe($res), $actor);
+        $res = $this->svc->notify->send(LicenseNotificationType::OperationConfirm, $c, 'Potwierdzenie wykonania operacji (AM90) — ' . $l['title'] . ', sprawa ' . $l['case_number'],
+            LicenseNotificationService::layout('Potwierdzenie wykonania operacji', $body, '', '', 'AM90'), '', ['type' => 'license', 'id' => $id], $actor, true, $att);
+        $report = 'AM90: ' . $this->svc->describe($res) . ($att ? '' : ' (bez PDF — wysłano wersję HTML tylko do wglądu w panelu)');
+        $this->svc->licenses->event($id, 'am90.sent', 'Ręcznie wysłano AM90 ' . $o['number'] . ': ' . $this->svc->describe($res), $actor);
         if (!empty($res['delivered']) || in_array('queued', (array)($res['channels'] ?? []), true)) {
-            db()->prepare("UPDATE licenses SET am99_sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
+            db()->prepare("UPDATE licenses SET am90_sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
             $report .= '. ' . $this->closeHelpdesk($l, $actor, $o['number']);
         }
         return $report;
     }
 
-    /** AM99 zamyka zgłoszenie Helpdesku IT sprawy (etap „Dane przekazane”, status zamknięte, wpis w historii zgłoszenia). */
+    /** AM90 zamyka zgłoszenie Helpdesku IT sprawy (etap „Dane przekazane”, status zamknięte, wpis w historii zgłoszenia). */
     private function closeHelpdesk(array $l, array $actor, string $number): string
     {
         $hid = (int)($l['helpdesk_ticket_id'] ?? 0);

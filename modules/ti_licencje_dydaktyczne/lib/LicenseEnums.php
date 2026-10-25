@@ -268,7 +268,7 @@ enum LicenseNotificationType: string
     case RequestSigned        = 'request_signed';         // alert: kursant podpisał wniosek AM7 — do decyzji
     case HelpdeskTicket       = 'helpdesk_ticket';        // zlecenie dla Helpdesku IT po decyzji AM7 (log)
     case Statement            = 'statement';              // AMZ — zestawienie licencji i usług wysłane kursantowi
-    case OperationConfirm     = 'operation_confirm';      // AM99 — potwierdzenie wykonania operacji (konto w tenancie), wysyłka ręczna
+    case OperationConfirm     = 'operation_confirm';      // AM90 — potwierdzenie wykonania operacji (konto w tenancie), wysyłka ręczna
 
     public function label(): string
     {
@@ -285,7 +285,7 @@ enum LicenseNotificationType: string
             self::RequestSigned      => 'Wniosek podpisany — alert',
             self::HelpdeskTicket     => 'Zlecenie Helpdesku IT',
             self::Statement          => 'Zestawienie AMZ',
-            self::OperationConfirm   => 'Potwierdzenie wykonania operacji (AM99)',
+            self::OperationConfirm   => 'Potwierdzenie wykonania operacji (AM90)',
         };
     }
 }
