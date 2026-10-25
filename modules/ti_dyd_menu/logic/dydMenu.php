@@ -245,6 +245,7 @@ function dydMenuSections(): array
         $it('', 'Kontrola wpisów',    'kontrolaWpisow.php',    'journal-check', $nLcQueue, 'warning'),
         $it('', 'Hospitacje i wizytacje', 'hospitacje.php',    'clipboard2-pulse'),
         $it('', 'Wydruki i raporty',  'wydruki.php',           'printer'),
+        $it('', 'Godziny w miesiącach', 'raportGodzin.php',    'calendar3'),
         $it('', 'Raport odwołanych',  'raport_odwolanych.php', 'calendar-x'),
         $canAn ? $it('', 'Analityka TI', 'analityka.php', 'speedometer2') : null,
     ]))];

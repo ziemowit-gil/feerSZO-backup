@@ -353,4 +353,82 @@ final class TiHoursInsights
         return ['subtitle' => 'od ' . self::monthLabel(substr($start, 0, 7)) . ' do ' . self::monthLabel($end), 'headers' => ['Miesiąc', 'Odbyte (h)', 'Lekcje odbyte', 'Zaplanowane (h)', 'Razem (h)', 'Odwołane (h)', 'Grupy', 'Wypłata BB (zł)'],
                 'rows' => $out, 'num' => [1, 2, 3, 4, 5, 6, 7], 'dec' => [1 => 1, 3 => 1, 4 => 1, 5 => 1, 7 => 2], 'sheet' => 'Trend', 'notes' => $notes];
     }
+
+    /* ── Raport instytucji: godziny w miesiącach (wszystkie grupy i prowadzący; ekran raportGodzin.php) ───────── */
+
+    /** Lata, w których są jakiekolwiek lekcje (malejąco); zawsze zawiera bieżący rok. */
+    public static function orgYears(): array
+    {
+        $y = array_map('intval', array_column(db_all(
+            "SELECT DISTINCT substr(s.lesson_date,1,4) AS y FROM k30_ti_sessions s WHERE " . self::BASE_EXCL . " AND s.lesson_date GLOB '[0-9][0-9][0-9][0-9]-*' AND " . ti_test_course_sql('s.course_id')
+        ), 'y'));
+        $y[] = (int)date('Y');
+        $y = array_values(array_unique($y)); rsort($y);
+        return $y;
+    }
+
+    /** Agregat godzin per $groupExpr (SQL) w zakresie dat: odbyte (lekcje, godziny), zaplanowane, odwołane. */
+    private static function orgAgg(string $from, string $to, string $groupExpr, string $join = ''): array
+    {
+        return db_all(
+            "SELECT $groupExpr AS k,
+                    SUM(CASE WHEN s.status IN (" . self::HELD . ") THEN 1 ELSE 0 END)                 AS held_n,
+                    SUM(CASE WHEN s.status IN (" . self::HELD . ") THEN " . self::HOURS . " ELSE 0 END) AS held_h,
+                    SUM(CASE WHEN s.status = 'planned'   THEN " . self::HOURS . " ELSE 0 END)           AS planned_h,
+                    SUM(CASE WHEN s.status = 'cancelled' THEN " . self::HOURS . " ELSE 0 END)           AS cancelled_h
+               FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id $join
+              WHERE s.lesson_date BETWEEN ? AND ? AND " . self::BASE_EXCL . " AND " . ti_test_course_sql('s.course_id') . "
+              GROUP BY k",
+            [$from, $to]
+        );
+    }
+
+    private const ORG_HEADERS = ['Lekcje odbyte', 'Godziny odbyte', 'Godziny zaplanowane', 'Godziny odwołane', 'Godziny razem (odbyte + zaplanowane)'];
+
+    /** Wiersz zestawu: [etykieta, lekcje odbyte, godz. odbyte, zaplanowane, odwołane, razem]. */
+    private static function orgRow(string $label, ?array $a): array
+    {
+        $held = round((float)($a['held_h'] ?? 0), 1); $pl = round((float)($a['planned_h'] ?? 0), 1);
+        return [$label, (int)($a['held_n'] ?? 0), $held, $pl, round((float)($a['cancelled_h'] ?? 0), 1), round($held + $pl, 1)];
+    }
+
+    private static function orgTotal(array $rows): array
+    {
+        $t = ['Razem', 0, 0.0, 0.0, 0.0, 0.0];
+        foreach ($rows as $r) for ($i = 1; $i <= 5; $i++) $t[$i] += $r[$i];
+        for ($i = 2; $i <= 5; $i++) $t[$i] = round($t[$i], 1);
+        return $t;
+    }
+
+    /** Zestaw: godziny w poszczególnych miesiącach roku (12 wierszy + Razem). */
+    public static function orgYear(int $year): array
+    {
+        $by = [];
+        foreach (self::orgAgg($year . '-01-01', $year . '-12-31', "substr(s.lesson_date,1,7)") as $a) $by[(string)$a['k']] = $a;
+        $rows = [];
+        for ($m = 1; $m <= 12; $m++) { $k = sprintf('%04d-%02d', $year, $m); $rows[] = self::orgRow(self::monthLabel($k), $by[$k] ?? null); }
+        $rows[] = self::orgTotal($rows);
+        return ['title' => 'Godziny TI w miesiącach — ' . $year, 'subtitle' => 'wszystkie grupy i prowadzący, rok ' . $year,
+            'headers' => array_merge(['Miesiąc'], self::ORG_HEADERS), 'rows' => $rows, 'num' => [1, 2, 3, 4, 5], 'dec' => [2 => 1, 3 => 1, 4 => 1, 5 => 1], 'sheet' => 'Godziny ' . $year,
+            'notes' => ['Odbyte = lekcje zakończone (w tym zajęcia indywidualne i praca prowadzącego); zaplanowane = jeszcze nieodbyte; odwołane nie wchodzą do sumy „razem”. Bez wersji roboczych, rezerwacji i kont testowych.']];
+    }
+
+    /** Zestaw: godziny jednego miesiąca z podziałem na prowadzących ('prowadzacy') albo grupy ('grupa'). */
+    public static function orgMonthBy(string $m, string $by): array
+    {
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $m)) $m = date('Y-m');
+        $from = $m . '-01'; $to = date('Y-m-t', strtotime($from));
+        if ($by === 'grupa') {
+            $agg = self::orgAgg($from, $to, "c.name"); $label = 'Grupa';
+        } else {
+            $by = 'prowadzacy'; $label = 'Prowadzący';
+            $agg = self::orgAgg($from, $to, "COALESCE(NULLIF(TRIM(COALESCE(u.first_name,'')||' '||COALESCE(u.last_name,'')),''), u.name, '— bez prowadzącego —')",
+                "LEFT JOIN users u ON u.id = COALESCE(s.instructor_id, c.instructor_id)");
+        }
+        usort($agg, fn($a, $b) => ((float)$b['held_h'] + (float)$b['planned_h']) <=> ((float)$a['held_h'] + (float)$a['planned_h']) ?: strcmp((string)$a['k'], (string)$b['k']));
+        $rows = array_map(fn($a) => self::orgRow((string)$a['k'], $a), $agg);
+        if ($rows) $rows[] = self::orgTotal($rows);
+        return ['title' => 'Godziny TI — ' . self::monthLabel($m) . ' wg ' . ($by === 'grupa' ? 'grup' : 'prowadzących'), 'subtitle' => self::monthLabel($m),
+            'headers' => array_merge([$label], self::ORG_HEADERS), 'rows' => $rows, 'num' => [1, 2, 3, 4, 5], 'dec' => [2 => 1, 3 => 1, 4 => 1, 5 => 1], 'sheet' => mb_substr(self::monthLabel($m), 0, 31), 'notes' => []];
+    }
 }

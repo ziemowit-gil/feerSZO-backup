@@ -44,7 +44,7 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
     $run('logic');
     $run('redis');
     $run('seed');
-    foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook', 'get_pulpit', 'get_pulpit_wk', 'get_side'] as $m) $run('page', $m);
+    foreach (['post_badhours', 'post_save', 'get_conf', 'post_cancel', 'get_conf', 'get_delete', 'post_delete', 'get_rebook', 'get_pulpit', 'get_pulpit_wk', 'get_hours', 'get_hours_m', 'get_side'] as $m) $run('page', $m);
 
     // Strażnik wycieków: tylko adresaci i numery testowe
     foreach (is_file($events) ? file($events, FILE_IGNORE_NEW_LINES) : [] as $l) {
@@ -63,9 +63,9 @@ if (!isset($argv[1]) || !str_starts_with($argv[1], '--child=')) {
     }
     if ($hd_from !== 'FEER | Helpdesk') { echo "FAIL nagłówek From wiadomości Helpdesku: " . json_encode($hd_from) . "\n"; $fail++; } else echo str_pad('[helpdesk From]', 22) . "FEER | Helpdesk\n";
     $n_mail = $n_sms = 0; foreach (is_file($events) ? file($events) : [] as $l) { $o = json_decode($l, true); if (isset($o['mail'])) $n_mail++; elseif (isset($o['sms'])) $n_sms++; }
-    echo "Atrapy: e-maile=$n_mail, SMS=$n_sms\n";
+    echo "Atrapy: e-maile=$n_mail, SMS=$n_sms" . ((int)date('G') >= 22 || (int)date('G') < 7 ? ' (cisza nocna 22–7: SMS z CRON-a idą do kolejki sms_deferred)' : '') . "\n";
     proc_terminate($gw); proc_close($gw);
-    array_map('unlink', glob($tmp . '/*')); rmdir($tmp);
+    if (getenv('KEEP')) echo "Zdarzenia atrap zostawione w: $events\n"; else { array_map('unlink', glob($tmp . '/*')); rmdir($tmp); }   // KEEP=1 — do debugowania
     clearstatcache(); if ([filesize($src), filemtime($src)] !== $before) { echo "FAIL baza wzorcowa została zmieniona!\n"; $fail++; }
     echo $fail ? "\nWYNIK: BŁĘDY ($fail)\n" : "\nWYNIK: OK\n";
     exit($fail ? 1 : 0);
@@ -100,7 +100,7 @@ function seed(string $tag, int $off): array {
 
 if ($mode === 'logic') {
     require $root . '/includes/db.php'; require $root . '/includes/functions.php'; require $root . '/includes/karty30.php';
-    require $root . '/includes/ti_leaves.php'; require $root . '/modules/ti_scheduler/logic/schedulerWorkflow.php';
+    require $root . '/includes/ti_leaves.php'; require $root . '/modules/ti_scheduler/logic/schedulerWorkflow.php'; require $root . '/modules/ti_hours_insights/logic/hoursInsights.php';
     karty30_migrate(); ti_leaves_migrate(); ti_sched_migrate();
     $m = db_insert('users', ['name' => 'Kierownik T', 'email' => 'kier@example.invalid', 'role' => 'editor', 'is_active' => 1, 'phone_number' => '600999888']);
     db()->exec("INSERT INTO k30_ti_panel_roles(user_id,role) VALUES ($m,'kierownik')");
@@ -158,6 +158,23 @@ if ($mode === 'logic') {
     t('helpdesk: inne maile bez nazwy helpdesku', ($m2 = _mail_apply_system_sender(['context_type' => 'ti_leave', 'subject' => 'x']))['_from_name'] ?? '', $m2['_from_name'] ?? '' === 'FEER | Helpdesk' ? 'x' : ($m2['_from_name'] ?? ''));
     t('helpdesk: nie nadpisuje jawnej nazwy', _mail_apply_system_sender(['context_type' => 'helpdesk_reply', 'subject' => 'x', '_from_name' => 'Inna'])['_from_name'], 'Inna');
     mail_queue_add('hd@example.invalid', 'Zgłaszający', 'HDTEST zgłoszenie', '<p>x</p>', '', 'helpdesk_test');   // e2e: nagłówek From sprawdza proces nadrzędny
+
+    // — raport godzin w miesiącach: przyrosty po dodaniu 4 lekcji po 60 min (planowana → odwołana / odbyta)
+    $dH = date('Y-m-d', strtotime('+8 day')); $rowOf = function () use ($dH) { foreach (TiHoursInsights::orgYear((int)substr($dH, 0, 4))['rows'] as $r) if ($r[0] === TiHoursInsights::monthLabel(substr($dH, 0, 7))) return $r; return null; };
+    $b = $rowOf(); $XH = seed('H', 8);
+    $a = $rowOf();
+    t('raport: +4 godziny zaplanowane (razem też)', [round($a[3] - $b[3], 1), round($a[5] - $b[5], 1)], [4.0, 4.0]);
+    db()->prepare("UPDATE k30_ti_sessions SET status='cancelled' WHERE id=?")->execute([$XH['s'][0]]);
+    db()->prepare("UPDATE k30_ti_sessions SET status='held' WHERE id=?")->execute([$XH['s'][1]]);
+    $c = $rowOf();
+    t('raport: odbyta +1 lekcja/+1 h, odwołana +1 h, zaplanowane +2 h', [$c[1] - $b[1], round($c[2] - $b[2], 1), round($c[4] - $b[4], 1), round($c[3] - $b[3], 1)], [1, 1.0, 1.0, 2.0]);
+    $tot = array_pop(TiHoursInsights::orgYear((int)substr($dH, 0, 4))['rows']);
+    $sum = 0.0; foreach (TiHoursInsights::orgYear((int)substr($dH, 0, 4))['rows'] as $r) if ($r[0] !== 'Razem') $sum += $r[2];
+    t('raport: wiersz Razem = suma miesięcy (godziny odbyte)', round($sum, 1), $tot[2]);
+    $byI = TiHoursInsights::orgMonthBy(substr($dH, 0, 7), 'prowadzacy'); $byG = TiHoursInsights::orgMonthBy(substr($dH, 0, 7), 'grupa');
+    $names = array_column($byG['rows'], 0);
+    t('raport: podział wg grup zawiera grupy testowe', in_array('Grupa A H', $names, true) && in_array('Grupa B H', $names, true), true);
+    t('raport: podział wg prowadzących — suma = suma wg grup', end($byI['rows']), end($byG['rows']));
 
     // — pilne SMS do kierownictwa
     $d1 = date('Y-m-d', strtotime('+1 day'));
@@ -238,17 +255,20 @@ switch ($pmode) {
     case 'get_rebook':    $script = 'nowyTermin.php'; $expect = 'Nowe terminy po odwołaniu'; break;
     case 'get_pulpit':    $script = 'index.php'; $_GET['tab'] = 'pulpit'; $_GET['view'] = 'week'; $expect = 'id="dyd-dayweek"'; break;
     case 'get_pulpit_wk': $script = 'index.php'; $_GET['tab'] = 'pulpit'; $_GET['wk'] = '1'; $expect = 'Grupa A P'; break;   // lekcje testowe są za 6 dni — w następnym tygodniu
+    case 'get_hours':     $script = 'raportGodzin.php'; $expect = 'export=csv'; break;   // strona z linkiem eksportu (sam plik CSV zrzuca się poza buforem testu)
+    case 'get_hours_m':   $script = 'raportGodzin.php'; $_GET['m'] = date('Y-m', strtotime('+8 day')); $_GET['by'] = 'grupa'; $expect = 'Grupa A H'; break;
     case 'get_side':      $_GET['menu'] = 'side'; $expect = 'dostępność prowadzących'; break;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') $_POST['_token'] = dyd_token();
 $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] = '/karty30/ti/dydaktyk/' . $script;
 ob_start();
-register_shutdown_function(function () use ($pmode, $expect, $flashRe) {
+register_shutdown_function(function () use ($pmode, $expect, $flashRe) {   // $_GET widoczne też tu
     $out = ob_get_clean(); $flash = json_encode($_SESSION['flash'] ?? null, JSON_UNESCAPED_UNICODE);
     $good = ($flashRe === null || preg_match($flashRe, (string)$flash)) && ($expect === '' || str_contains($out, $expect)) && !preg_match('/Warning|Fatal error|Notice|Deprecated/', $out);
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && strlen($out) < 2000) $good = false;
+    $isExport = isset($_GET['export']);   // CSV — sam plik, bez układu strony
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isExport && strlen($out) < 2000) $good = false;
     // Układ menu: domyślnie górny pasek sekcji (bez menu bocznego); z ?menu=side — menu boczne zamiast górnego rzędu
-    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isExport) {
         $side = $pmode === 'get_side';
         if ($side ? (!str_contains($out, 'dyd-side-sec') || str_contains($out, 'class="dyd-topnav"')) : (str_contains($out, 'dyd-side-sec') || !str_contains($out, 'class="dyd-topnav"'))) $good = false;
     }
