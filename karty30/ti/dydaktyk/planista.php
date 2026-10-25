@@ -43,6 +43,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   .sc-row.sc-over .sc-track, .sc-row.sc-over .sc-cell { outline:2px solid #2563eb; outline-offset:-2px; }
   .sc-row.sc-over-bad .sc-track { outline:2px solid #b91c1c; outline-offset:-2px; }
   .sc-track { position:relative; flex:0 0 auto; background:repeating-linear-gradient(90deg, transparent 0, transparent calc(var(--hw) - 1px), #eef0f3 calc(var(--hw) - 1px), #eef0f3 var(--hw)); }
+  .sc-leave-h { position:absolute; top:0; bottom:0; pointer-events:none; background-color:rgba(220,38,38,.22); background-image:repeating-linear-gradient(45deg, rgba(185,28,28,.35) 0 4px, transparent 4px 9px); border-left:2px solid #b91c1c; border-right:2px solid #b91c1c; }
   .sc-track.sc-hatch { background-color:#e5e7eb; background-image:repeating-linear-gradient(45deg, rgba(0,0,0,.06) 0 6px, transparent 6px 12px); }
   .sc-win { position:absolute; top:0; bottom:0; background:#fff; border-left:1px dashed #86efac; border-right:1px dashed #86efac; }
   .sc-hour { flex:0 0 auto; text-align:left; font-size:.72rem; color:#6b7280; border-left:1px solid #e5e7eb; padding:.25rem .3rem; box-sizing:border-box; }
@@ -332,13 +333,16 @@ function renderDay(list) {
     const H = Math.max(1, lanes.length) * LANE_H + 4;
     let bg = '', wins = '';
     if (st.rows === 'instructor' && r.key) {
-      const lv = (st.data.leaves[r.key] || []).find(l => l.from <= st.date && l.to >= st.date);
+      const lvAll = (st.data.leaves[r.key] || []).filter(l => l.from <= st.date && l.to >= st.date);
+      const lv = lvAll.find(l => !l.tf || !l.tt);                      // nieobecność całodniowa
+      const lvH = lvAll.filter(l => l.tf && l.tt);                     // nieobecności godzinowe — paski w osi czasu
       const aw = (st.data.avail[r.key] || []).filter(w => w.dow === dow(st.date) && (!w.vf || w.vf <= st.date) && (!w.vt || w.vt >= st.date));
       if (lv) bg = ' sc-hatch" title="Nieobecność: ' + esc(lv.type) + '';
       else if (st.data.avail[r.key]) {
         bg = ' sc-hatch';
         wins = aw.map(w => '<div class="sc-win" style="left:' + (h2m(w.from)-a)*PPM + 'px;width:' + (h2m(w.to)-h2m(w.from))*PPM + 'px"></div>').join('');
       }
+      if (!lv) wins += lvH.map(l => '<div class="sc-leave-h" title="Nieobecność ' + esc(l.tf + '–' + l.tt) + ' (' + esc(l.type) + ')" style="left:' + (h2m(l.tf)-a)*PPM + 'px;width:' + (h2m(l.tt)-h2m(l.tf))*PPM + 'px"></div>').join('');
     }
     html += '<div class="sc-row" data-key="' + r.key + '"><div class="sc-label" title="' + esc(r.label) + '">' + esc(r.label) + (r.sub ? ' <small class="text-body-secondary fw-normal">' + esc(r.sub) + '</small>' : '') + '</div>'
       + '<div class="sc-track' + bg + '" data-key="' + r.key + '" style="width:' + W + 'px;height:' + H + 'px;--hw:' + hw + 'px">' + wins

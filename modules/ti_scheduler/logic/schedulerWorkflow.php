@@ -45,29 +45,66 @@ function sc_pending_count(): int {
     catch (\Throwable $e) { return 0; }
 }
 
-/** Lekcje trenera (nieodbyte, nieodwołane) w zakresie dat. */
-function sc_instructor_sessions(int $iid, string $from, string $to): array {
-    return db_all(
+/** Lekcje trenera (nieodbyte, nieodwołane) w zakresie dat; z $tf/$tt tylko nakładające się na okno godzin. */
+function sc_instructor_sessions(int $iid, string $from, string $to, string $tf = '', string $tt = ''): array {
+    $rows = db_all(
         "SELECT s.id, s.course_id, s.lesson_date, s.time_from, s.time_to, s.status, c.name AS course_name
            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
           WHERE COALESCE(s.instructor_id,c.instructor_id)=CAST(? AS INTEGER) AND s.lesson_date BETWEEN ? AND ?
             AND s.draft_id IS NULL AND s.status IN ('planned','reserved')
           ORDER BY s.lesson_date, s.time_from", [$iid, $from, $to]);
+    if ($tf === '' || $tt === '') return $rows;
+    $win = ['date_from' => $from, 'date_to' => $to, 'time_from' => $tf, 'time_to' => $tt];
+    return array_values(array_filter($rows, fn($r) => ti_leave_covers($win, (string)$r['lesson_date'], (string)$r['time_from'], (string)$r['time_to'])));
+}
+
+/**
+ * Nieobecność wpisana bezpośrednio (urlopy.php) → zatwierdzone zgłoszenie z pozycjami „lekcja do rozstrzygnięcia”.
+ * Rozstrzyga się je na zgloszenia.php (zastępstwo / przełożenie / odwołanie / bez zmian), tak samo jak
+ * zgłoszenie prowadzącego. Idempotentne: ponowny zapis (np. zmiana godzin) dokłada brakujące lekcje.
+ * @return array{request_id:int, items:int, open:int}
+ */
+function sc_open_leave_resolution(int $leave_id, int $by): array {
+    ti_sched_migrate();
+    $l = ti_leave_get($leave_id);
+    if (!$l) return ['request_id' => 0, 'items' => 0, 'open' => 0];
+    $req = db_one("SELECT id FROM k30_sc_requests WHERE leave_id=? AND type='unavailability'", [$leave_id]);
+    $fields = ['instructor_id' => (int)$l['instructor_id'], 'date_from' => (string)$l['date_from'], 'date_to' => (string)$l['date_to'],
+               'time_from' => (string)($l['time_from'] ?? ''), 'time_to' => (string)($l['time_to'] ?? ''),
+               'leave_type' => (string)$l['type'], 'reason' => (string)$l['note']];
+    if ($req) {
+        $rid = (int)$req['id'];
+        db()->prepare("UPDATE k30_sc_requests SET instructor_id=?, date_from=?, date_to=?, time_from=?, time_to=?, leave_type=?, reason=? WHERE id=?")
+            ->execute([...array_values($fields), $rid]);
+    } else {
+        $rid = (int)db_insert('k30_sc_requests', $fields + ['type' => 'unavailability', 'status' => 'approved', 'leave_id' => $leave_id,
+            'decided_by' => $by, 'decided_at' => date('Y-m-d H:i:s'), 'decision_note' => 'Wpisane bezpośrednio przez kierownika']);
+    }
+    $conf = ti_leave_conflicts($l);
+    foreach ($conf as $c) db_exec("INSERT OR IGNORE INTO k30_sc_request_items (request_id, session_id) VALUES (?,?)", [$rid, (int)$c['id']]);
+    $open = (int)(db_one("SELECT COUNT(*) AS n FROM k30_sc_request_items WHERE request_id=? AND resolution='pending'", [$rid])['n'] ?? 0);
+    return ['request_id' => $rid, 'items' => count($conf), 'open' => $open];
 }
 
 /** @return array{ok:bool,msg:string,id:int} */
-function sc_request_unavailability(int $iid, string $from, string $to, string $leave_type, string $reason): array {
+function sc_request_unavailability(int $iid, string $from, string $to, string $leave_type, string $reason, string $tf = '', string $tt = ''): array {
     ti_sched_migrate();
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) return ['ok' => false, 'msg' => 'Podaj poprawny zakres dat.', 'id' => 0];
     if ($to < $from) [$from, $to] = [$to, $from];
     if ($to < date('Y-m-d')) return ['ok' => false, 'msg' => 'Zakres dat jest w przeszłości.', 'id' => 0];
     if (!array_key_exists($leave_type, TI_LEAVE_TYPES)) $leave_type = 'inne';
+    // Godziny: oba pola albo żadne (puste = cały dzień)
+    $tf = trim($tf); $tt = trim($tt);
+    if ($tf !== '' || $tt !== '') {
+        if (!preg_match('/^\d{2}:\d{2}$/', $tf) || !preg_match('/^\d{2}:\d{2}$/', $tt) || $tt <= $tf)
+            return ['ok' => false, 'msg' => 'Podaj poprawne godziny nieobecności (od wcześniejszej do późniejszej) albo zostaw oba pola puste.', 'id' => 0];
+    }
     $id = db_insert('k30_sc_requests', ['type' => 'unavailability', 'instructor_id' => $iid, 'date_from' => $from, 'date_to' => $to,
-        'leave_type' => $leave_type, 'reason' => substr(trim($reason), 0, 500)]);
-    $items = sc_instructor_sessions($iid, $from, $to);
+        'time_from' => $tf, 'time_to' => $tt, 'leave_type' => $leave_type, 'reason' => substr(trim($reason), 0, 500)]);
+    $items = sc_instructor_sessions($iid, $from, $to, $tf, $tt);
     foreach ($items as $it) db_exec("INSERT OR IGNORE INTO k30_sc_request_items (request_id, session_id) VALUES (?,?)", [$id, (int)$it['id']]);
     sc_notify_managers('Zgłoszenie niedostępności: ' . sc_user_name($iid),
-        'Prowadzący <strong>' . h(sc_user_name($iid)) . '</strong> zgłasza niedostępność (' . h(ti_leave_type_label($leave_type)) . ') w terminie <strong>' . h($from . ' – ' . $to)
+        'Prowadzący <strong>' . h(sc_user_name($iid)) . '</strong> zgłasza niedostępność (' . h(ti_leave_type_label($leave_type)) . ') w terminie <strong>' . h($from . ' – ' . $to . ($tf !== '' ? ', ' . $tf . '–' . $tt : ''))
         . '</strong>. Lekcji do rozstrzygnięcia: <strong>' . count($items) . '</strong>.' . ($reason !== '' ? '<br>Powód: ' . h($reason) : ''), (int)$id);
     return ['ok' => true, 'msg' => 'Zgłoszenie wysłane do kierownika. Lekcji dotkniętych: ' . count($items) . '.', 'id' => (int)$id];
 }
@@ -137,11 +174,17 @@ function sc_apply_item(int $item_id, string $action, array $p, int $by, bool $fo
         sc_mail((string)($u['email'] ?? ''), sc_user_name($sub), 'Zastępstwo: ' . ($c['name'] ?? ''),
             'Przypisano Ci zastępstwo: <strong>' . h((string)($c['name'] ?? '')) . '</strong>, ' . h($s['lesson_date'] . ' ' . substr((string)$s['time_from'], 0, 5) . '–' . substr((string)$s['time_to'], 0, 5)) . '.', 'sc_request_instr', (int)$it['request_id']);
         pl_audit('session', $sid, 'sc_substitute', ['instructor_id' => $s['instructor_id']], ['instructor_id' => $sub], $by);
+        if (function_exists('ti_substitute_notify_students')) { try { ti_substitute_notify_students($sid, $sub); } catch (\Throwable $e) {} }
         db_exec("UPDATE k30_sc_request_items SET resolution='substitute', substitute_id=?, resolved_by=?, resolved_at=datetime('now') WHERE id=?", [$sub, $by, $item_id]);
         return ['ok' => true, 'msg' => 'Przypisano zastępcę: ' . sc_user_name($sub) . '.'];
     }
     if ($action === 'cancel') {
-        k30_ti_cancel_session($sid, trim((string)($p['reason'] ?? '')) ?: 'Niedostępność prowadzącego', 'doradca', sc_user_name($by));
+        $cancel_reason = trim((string)($p['reason'] ?? '')) ?: 'Niedostępność prowadzącego';
+        if (function_exists('ti_absence_cancel_sessions')) {
+            ti_absence_cancel_sessions([$sid], $cancel_reason, sc_user_name($by), $by);   // e-mail + SMS do uczestników
+        } else {
+            k30_ti_cancel_session($sid, $cancel_reason, 'doradca', sc_user_name($by));
+        }
         pl_audit('session', $sid, 'sc_cancel', [], [], $by);
         db_exec("UPDATE k30_sc_request_items SET resolution='cancel', resolved_by=?, resolved_at=datetime('now') WHERE id=?", [$by, $item_id]);
         return ['ok' => true, 'msg' => 'Lekcja odwołana.'];
@@ -156,7 +199,7 @@ function sc_apply_item(int $item_id, string $action, array $p, int $by, bool $fo
             'issues' => array_merge(array_column($r['hard'], 'msg'), array_column($r['soft'], 'msg'))];
         $old = k30_ti_do_reschedule($sid, $date, $tf, $tt);
         db_exec("DELETE FROM k30_sc_session_state WHERE session_id=?", [$sid]);
-        if ($old) { try { k30_ti_reschedule_notify_parties($sid, $old, false); } catch (\Throwable $e) {} }
+        if ($old) { try { k30_ti_reschedule_notify_parties($sid, $old, true); } catch (\Throwable $e) {} }
         pl_audit('session', $sid, 'sc_reschedule', $old ?: [], ['date' => $date, 'from' => $tf, 'to' => $tt], $by);
         db_exec("UPDATE k30_sc_request_items SET resolution='reschedule', resolved_by=?, resolved_at=datetime('now') WHERE id=?", [$by, $item_id]);
         return ['ok' => true, 'msg' => 'Lekcja przełożona.'];
@@ -183,7 +226,7 @@ function sc_request_decide(int $id, string $decision, string $note, int $by, boo
 
     if ($decision === 'reject') {
         db_exec("UPDATE k30_sc_requests SET status='rejected', decided_by=?, decided_at=datetime('now'), decision_note=? WHERE id=?", [$by, trim($note), $id]);
-        $mailto('Zgłoszenie odrzucone', 'Twoje zgłoszenie (' . ($r['type'] === 'reschedule' ? 'zmiana terminu lekcji' : 'niedostępność ' . h($r['date_from'] . ' – ' . $r['date_to'])) . ') zostało <strong>odrzucone</strong>.' . $nt);
+        $mailto('Zgłoszenie odrzucone', 'Twoje zgłoszenie (' . ($r['type'] === 'reschedule' ? 'zmiana terminu lekcji' : 'niedostępność ' . h($r['date_from'] . ' – ' . $r['date_to'] . (($r['time_from'] ?? '') !== '' ? ', ' . $r['time_from'] . '–' . $r['time_to'] : ''))) . ') zostało <strong>odrzucone</strong>.' . $nt);
         return ['ok' => true, 'msg' => 'Zgłoszenie odrzucone.'];
     }
     if ($decision !== 'approve') return ['ok' => false, 'msg' => 'Nieznana decyzja.'];
@@ -202,6 +245,7 @@ function sc_request_decide(int $id, string $decision, string $note, int $by, boo
     // niedostępność
     ti_leaves_migrate();
     $lid = (int)db_insert('k30_ti_instructor_leaves', ['instructor_id' => $iid, 'date_from' => $r['date_from'], 'date_to' => $r['date_to'],
+        'time_from' => (string)($r['time_from'] ?? ''), 'time_to' => (string)($r['time_to'] ?? ''),
         'type' => $r['leave_type'], 'note' => (string)$r['reason'], 'created_by' => $by]);
     db_exec("UPDATE k30_sc_requests SET status='approved', leave_id=?, decided_by=?, decided_at=datetime('now'), decision_note=? WHERE id=?", [$lid, $by, trim($note), $id]);
     try { ti_leaves_notify($lid); } catch (\Throwable $e) {}
@@ -211,7 +255,7 @@ function sc_request_decide(int $id, string $decision, string $note, int $by, boo
         if ($best && empty($best['soft']) && sc_apply_item((int)$it['id'], 'substitute', ['substitute_id' => $best['id']], $by, false)['ok']) $done++;
         else $left++;
     }
-    $mailto('Niedostępność zatwierdzona', 'Zgłoszona niedostępność ' . h($r['date_from'] . ' – ' . $r['date_to']) . ' została <strong>zatwierdzona</strong>. Lekcje, które wymagają zastępstwa lub zmiany, kierownik rozstrzyga osobno.' . $nt);
+    $mailto('Niedostępność zatwierdzona', 'Zgłoszona niedostępność ' . h($r['date_from'] . ' – ' . $r['date_to'] . (($r['time_from'] ?? '') !== '' ? ', ' . $r['time_from'] . '–' . $r['time_to'] : '')) . ' została <strong>zatwierdzona</strong>. Lekcje, które wymagają zastępstwa lub zmiany, kierownik rozstrzyga osobno.' . $nt);
     return ['ok' => true, 'msg' => 'Zatwierdzono.' . ($auto ? " Automatycznie przypisano zastępstwa: $done." : '') . ($left ? " Do rozstrzygnięcia ręcznie: $left." : '')];
 }
 

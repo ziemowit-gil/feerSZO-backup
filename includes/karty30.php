@@ -5646,7 +5646,7 @@ function k30_ti_notify_grade(int $course_id, int $client_id, string $valueText, 
  * Odwołuje całą lekcję (Doradca / admin) — status='cancelled', z powodem i autorem.
  * Odwołana lekcja nie jest liczona do ceny (rozliczenie bierze tylko status='held').
  */
-function k30_ti_cancel_session(int $session_id, string $reason, string $role, string $by_label): int {
+function k30_ti_cancel_session(int $session_id, string $reason, string $role, string $by_label, array $opts = []): int {
     $role = array_key_exists($role, K30_TI_CANCEL_ROLES) ? $role : 'doradca';
     db()->prepare(
         "UPDATE k30_ti_sessions
@@ -5654,6 +5654,9 @@ function k30_ti_cancel_session(int $session_id, string $reason, string $role, st
              updated_at=datetime('now')
          WHERE id=?"
     )->execute([$reason, $role, $by_label, $session_id]);
+
+    // $opts['sms'] = false — wywołujący sam powiadamia uczestników (np. odwołanie z powodu nieobecności prowadzącego).
+    if (array_key_exists('sms', $opts) && !$opts['sms']) return 0;
 
     // Powiadomienie SMS o odwołaniu — tylko do kursantów, którzy włączyli SMS o lekcjach.
     // Zwraca liczbę wysłanych SMS-ów (0 gdy SMS wyłączony / brak odbiorców).
@@ -7236,10 +7239,11 @@ function ti_instructor_available_at(int $instructor_id, string $date, string $ti
 
     // Kolizja z nieobecnością (urlop/chorobowe) — jeśli moduł urlopów dostępny
     if (function_exists('ti_instructor_on_leave')) {
-        $lv = ti_instructor_on_leave($instructor_id, $date);
+        $lv = ti_instructor_on_leave($instructor_id, $date, $time_from, $time_to);
         if ($lv) {
-            $t = trim((string)($lv['type'] ?? '')) ?: 'nieobecność';
-            return ['ok' => false, 'configured' => true, 'reason' => 'Prowadzący ma w tym dniu nieobecność (' . $t . ').'];
+            $t = function_exists('ti_leave_type_label') ? ti_leave_type_label((string)($lv['type'] ?? '')) : (trim((string)($lv['type'] ?? '')) ?: 'nieobecność');
+            $h = function_exists('ti_leave_is_hourly') && ti_leave_is_hourly($lv) ? ' w godzinach ' . ti_leave_hours_label($lv) : '';
+            return ['ok' => false, 'configured' => true, 'reason' => 'Prowadzący ma w tym dniu nieobecność' . $h . ' (' . $t . ').'];
         }
     }
 

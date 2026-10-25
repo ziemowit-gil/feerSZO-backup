@@ -3532,6 +3532,7 @@ if ($cur_course && dyd_is_staff()) {
       $current = $lv['date_from'] <= $today;
       $range   = date('d.m.Y', strtotime($lv['date_from']));
       if ($lv['date_to'] !== $lv['date_from']) $range .= ' – ' . date('d.m.Y', strtotime($lv['date_to']));
+      if (ti_leave_is_hourly($lv)) $range .= ', ' . ti_leave_hours_label($lv);
   ?>
   <div class="alert <?= $current ? 'alert-warning' : 'alert-info' ?> d-flex align-items-start gap-2" role="alert">
     <i class="bi bi-airplane-fill fs-5 mt-1 flex-shrink-0" aria-hidden="true"></i>

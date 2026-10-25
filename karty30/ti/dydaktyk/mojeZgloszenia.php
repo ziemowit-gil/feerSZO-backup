@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = (string)($_POST['_op'] ?? '');
     if ($op === 'unavail') {
-        $r = sc_request_unavailability($uid, trim((string)($_POST['date_from'] ?? '')), trim((string)($_POST['date_to'] ?? '')), (string)($_POST['leave_type'] ?? 'urlop'), (string)($_POST['reason'] ?? ''));
+        $r = sc_request_unavailability($uid, trim((string)($_POST['date_from'] ?? '')), trim((string)($_POST['date_to'] ?? '')), (string)($_POST['leave_type'] ?? 'urlop'), (string)($_POST['reason'] ?? ''), trim((string)($_POST['time_from'] ?? '')), trim((string)($_POST['time_to'] ?? '')));
         flash_set($r['ok'] ? 'success' : 'danger', $r['msg']);
     } elseif ($op === 'resched') {
         $r = sc_request_reschedule($uid, (int)($_POST['session_id'] ?? 0), trim((string)($_POST['date'] ?? '')), trim((string)($_POST['time_from'] ?? '')), trim((string)($_POST['time_to'] ?? '')), (string)($_POST['reason'] ?? ''));
@@ -54,6 +54,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <form method="post" class="card-body row g-2"><input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="unavail">
       <div class="col-6"><label class="form-label small mb-0" for="uf">Od</label><input type="date" class="form-control form-control-sm" id="uf" name="date_from" required min="<?= date('Y-m-d') ?>"></div>
       <div class="col-6"><label class="form-label small mb-0" for="ut">Do</label><input type="date" class="form-control form-control-sm" id="ut" name="date_to" required min="<?= date('Y-m-d') ?>"></div>
+      <div class="col-6"><label class="form-label small mb-0" for="utf">Godzina od <span class="text-body-secondary">(opcjonalnie)</span></label><input type="time" class="form-control form-control-sm" id="utf" name="time_from" aria-describedby="uth"></div>
+      <div class="col-6"><label class="form-label small mb-0" for="utt">Godzina do</label><input type="time" class="form-control form-control-sm" id="utt" name="time_to" aria-describedby="uth"></div>
+      <div class="col-12"><div class="form-text mt-0" id="uth">Zostaw godziny puste, jeśli jesteś nieobecny/a przez cały dzień. Dla kilku dni okno godzin dotyczy każdego z nich.</div></div>
       <div class="col-12"><label class="form-label small mb-0" for="ul">Rodzaj</label><select class="form-select form-select-sm" id="ul" name="leave_type"><?php foreach (TI_LEAVE_TYPES as $k => $l): ?><option value="<?= h($k) ?>"><?= h($l) ?></option><?php endforeach; ?></select></div>
       <div class="col-12"><label class="form-label small mb-0" for="ur">Powód / uwagi</label><textarea class="form-control form-control-sm" id="ur" name="reason" rows="2" maxlength="500"></textarea></div>
       <div class="col-12"><button class="btn btn-primary btn-sm">Wyślij do kierownika</button></div>

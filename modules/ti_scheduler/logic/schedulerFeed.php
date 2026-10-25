@@ -138,8 +138,9 @@ function sc_feed(string $from, string $to, int $scenario = 0): array {
         if ($w) $avail[$u['id']] = $w;
     }
     ti_leaves_migrate();
-    foreach (db_all("SELECT instructor_id, date_from, date_to, type FROM k30_ti_instructor_leaves WHERE date_to>=? AND date_from<=?", [$from, $to]) as $l) {
-        $leaves[(int)$l['instructor_id']][] = ['from' => (string)$l['date_from'], 'to' => (string)$l['date_to'], 'type' => (string)$l['type']];
+    foreach (db_all("SELECT instructor_id, date_from, date_to, time_from, time_to, type FROM k30_ti_instructor_leaves WHERE date_to>=? AND date_from<=?", [$from, $to]) as $l) {
+        $leaves[(int)$l['instructor_id']][] = ['from' => (string)$l['date_from'], 'to' => (string)$l['date_to'], 'type' => (string)$l['type'],
+            'tf' => substr((string)($l['time_from'] ?? ''), 0, 5), 'tt' => substr((string)($l['time_to'] ?? ''), 0, 5)];
     }
     $hol = [];
     try { foreach (db_all("SELECT date_from, date_to, name FROM k30_ti_holidays WHERE date_to>=? AND date_from<=?", [$from, $to]) as $h) $hol[] = ['from' => (string)$h['date_from'], 'to' => (string)$h['date_to'], 'name' => (string)$h['name']]; } catch (\Throwable $e) {}

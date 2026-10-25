@@ -69,7 +69,7 @@ $tok = '<input type="hidden" name="_token" value="' . h(dyd_token()) . '">';
     <?php if ($r['type'] === 'reschedule'): ?>
       <p class="mb-1"><?= h((string)$r['course_name']) ?>: <?= h($r['s_date'] . ' ' . substr((string)$r['s_from'], 0, 5) . '–' . substr((string)$r['s_to'], 0, 5)) ?> → <strong><?= h($r['proposed_date'] . ' ' . $r['proposed_from'] . '–' . $r['proposed_to']) ?></strong></p>
     <?php else: ?>
-      <p class="mb-1">Termin: <strong><?= h($r['date_from'] . ' – ' . $r['date_to']) ?></strong> · lekcji dotkniętych: <?= count($items) ?></p>
+      <p class="mb-1">Termin: <strong><?= h($r['date_from'] . ' – ' . $r['date_to'] . (($r['time_from'] ?? '') !== '' ? ', ' . $r['time_from'] . '–' . $r['time_to'] : '')) ?></strong> · lekcji dotkniętych: <?= count($items) ?></p>
     <?php endif; ?>
     <?php if ($r['reason'] !== ''): ?><p class="small text-body-secondary mb-2">Powód: <?= h($r['reason']) ?></p><?php endif; ?>
     <?php if ($r['decision_note'] !== ''): ?><p class="small mb-2">Uwagi kierownika: <?= h($r['decision_note']) ?></p><?php endif; ?>

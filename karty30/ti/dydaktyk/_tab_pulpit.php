@@ -452,7 +452,7 @@ function dydBulkOverdue(n) {
     <p class="text-body-secondary mb-0">Wszyscy prowadzący są dziś dostępni.</p>
     <?php else: ?>
     <ul class="mb-1 ps-3">
-      <?php foreach ($_kp_leaves as $_lv): ?><li><?= h((string)$_lv['instructor_name']) ?> <span class="text-body-secondary">— do <?= h(date('d.m', strtotime((string)$_lv['date_to']))) ?></span></li><?php endforeach; ?>
+      <?php foreach ($_kp_leaves as $_lv): ?><li><?= h((string)$_lv['instructor_name']) ?> <span class="text-body-secondary">— <?= ti_leave_is_hourly($_lv) ? h(ti_leave_hours_label($_lv)) : 'do ' . h(date('d.m', strtotime((string)$_lv['date_to']))) ?></span></li><?php endforeach; ?>
     </ul>
     <a href="urlopy.php">Urlopy prowadzących</a>
     <?php endif; ?>

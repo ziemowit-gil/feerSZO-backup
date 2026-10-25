@@ -1665,6 +1665,7 @@ if ($ti_vac): ?>
         $df = date('d.m.Y', strtotime($lv['date_from']));
         $dt = date('d.m.Y', strtotime($lv['date_to']));
         $range = $df === $dt ? $df : ($df . ' – ' . $dt);
+        if (ti_leave_is_hourly($lv)) $range .= ', ' . ti_leave_hours_label($lv);
         $lvcourses = trim((string)($lv['course_names'] ?? ''));
       ?>
       <li>
@@ -1704,6 +1705,7 @@ if ($ti_vac): ?>
         $df        = date('d.m.Y', strtotime($lv['date_from']));
         $dt        = date('d.m.Y', strtotime($lv['date_to']));
         $range     = $df === $dt ? $df : ($df . ' – ' . $dt);
+        if (ti_leave_is_hourly($lv)) $range .= ', ' . ti_leave_hours_label($lv);
         $lvcourses = trim((string)($lv['course_names'] ?? ''));
       ?>
       <li style="border:1px solid #334155;border-radius:.4rem;padding:.5rem .75rem;font-size:.875rem">

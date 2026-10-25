@@ -126,7 +126,7 @@ function sc_validate(array $p): array {
     if ($iid) {
         $av = ti_instructor_available_at($iid, $date, $tf, $tt);
         if (!$av['ok']) {
-            $is_leave = function_exists('ti_instructor_on_leave') && ti_instructor_on_leave($iid, $date);
+            $is_leave = function_exists('ti_instructor_on_leave') && ti_instructor_on_leave($iid, $date, $tf, $tt);
             $add_h($is_leave ? 'LEAVE' : 'AVAILABILITY', $av['reason'], !$is_leave);
         }
         // Nakładanie z innymi lekcjami trenera
