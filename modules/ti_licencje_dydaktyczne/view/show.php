@@ -31,6 +31,21 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
   <div class="tile" style="background:#008a00"><span class="n"><?= (int)$l['activeAssignments'] ?><?= (int)$l['seats'] > 0 ? '<small>/' . (int)$l['seats'] . '</small>' : '' ?></span><span class="l">Przydziały</span></div>
 </div>
 
+<?php $_tabs = ['przeglad' => 'Przegląd'] + ($st === LicenseRequestStatus::Started ? ['decyzja' => 'Decyzja'] : [])
+        + ['przydzialy' => 'Przydziały i oświadczenia (' . count($asg ?? []) . ')', 'dziennik' => 'Dziennik i powiadomienia']; ?>
+<style>
+  .ld-tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 3px solid #1ba1e2; margin: 0 0 1rem; }
+  .ld-tabs button { background: transparent; border: 0; padding: .55rem 1.1rem; font-size: 1rem; font-weight: 600; color: #3f3f3f; cursor: pointer; border-radius: 0; }
+  .ld-tabs button:hover { background: #eef7fc; }
+  .ld-tabs button:focus-visible { outline: 3px solid #0050ef; outline-offset: -3px; }
+  .ld-tabs button[aria-selected="true"] { background: #1ba1e2; color: #fff; }
+  .ld-tabpanel[hidden] { display: none; }
+</style>
+<div class="ld-tabs" role="tablist" aria-label="Sekcje sprawy">
+  <?php foreach ($_tabs as $k => $lbl): ?><button type="button" role="tab" id="ldt-<?= h($k) ?>" data-ld-tab="<?= h($k) ?>" aria-controls="ldp-<?= h($k) ?>" aria-selected="<?= $k === 'przeglad' ? 'true' : 'false' ?>"><?= h($lbl) ?></button><?php endforeach; ?>
+</div>
+
+<div class="ld-tabpanel" id="ldp-przeglad" data-ld-panel="przeglad" role="tabpanel" aria-labelledby="ldt-przeglad">
 <div class="row g-3">
 <section class="col-lg-7"><div class="panel accent h-100">
   <h2 class="mt-0">Wniosek <?= h($l['form']->requestDoc()->symbol()) ?> <small class="text-secondary"><?= h($l['form']->label()) ?></small></h2>
@@ -79,8 +94,8 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
     .ld-acts .ld-gh:first-child { margin-top: 0; }
     .ld-acts form.d-inline, .ld-acts > a.btn, .ld-acts .ld-grp > a.btn { display: block; }
     .ld-acts .btn { width: 100%; text-align: left; }
-    .ld-acts .btn-metro.dark.ld-out { background: #fff; color: #1d1d1d; box-shadow: inset 0 0 0 2px #1d1d1d; }
-    .ld-acts .btn-metro.dark.ld-out:hover { background: #1d1d1d; color: #fff; }
+    .ldm .ld-acts .btn-metro.dark.ld-out { background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; }
+    .ldm .ld-acts .btn-metro.dark.ld-out:hover { background: #1d1d1d !important; color: #fff !important; }
     .ld-acts .ld-note { font-size: .78rem; color: #5f5f5f; margin: .15rem 0 0; }
     .ld-acts .ld-susp { display: grid; grid-template-columns: 1fr auto; gap: 4px; }
     .ld-acts .ld-susp .btn { width: auto; }
@@ -140,7 +155,9 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
   </div>
 </div></section>
 </div>
+</div><!-- /przeglad -->
 
+<?php if ($st === LicenseRequestStatus::Started): ?><div class="ld-tabpanel" id="ldp-decyzja" data-ld-panel="decyzja" role="tabpanel" aria-labelledby="ldt-decyzja" hidden><?php endif; ?>
 <?php if ($st === LicenseRequestStatus::Started && $am7):
   $o = $am7Old ?: ($d ?: ['grant' => true, 'access' => $l['request']['access'] ?? 'tenant', 'access_other' => $l['request']['access_other'] ?? '', 'account' => $l['request']['account'] ?? '',
         'plan' => $l['request']['plan'] ?? '', 'period_from' => $l['period_from'], 'period_to' => $l['period_to'], 'signer_name' => $actor['name']]);
@@ -188,7 +205,9 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
   </form>
 </section>
 <?php endif; ?>
+<?php if ($st === LicenseRequestStatus::Started): ?></div><!-- /decyzja --><?php endif; ?>
 
+<div class="ld-tabpanel" id="ldp-przydzialy" data-ld-panel="przydzialy" role="tabpanel" aria-labelledby="ldt-przydzialy" hidden>
 <section class="panel" id="przydzialy">
   <h2 class="mt-0">Przydziały i oświadczenia <?= h(implode(' / ', array_map(fn($x) => $x->symbol(), $l['form']->declarationDocs()))) ?></h2>
   <?php if (!$asg): ?><p class="text-secondary">Brak przydziałów.</p><?php endif; ?>
@@ -258,7 +277,9 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
   </script>
   <?php endif; ?>
 </section>
+</div><!-- /przydzialy -->
 
+<div class="ld-tabpanel" id="ldp-dziennik" data-ld-panel="dziennik" role="tabpanel" aria-labelledby="ldt-dziennik" hidden>
 <div class="row g-3">
 <section class="col-lg-6"><div class="panel h-100">
   <h2 class="mt-0">Dziennik sprawy</h2>
@@ -277,4 +298,27 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
   <?php endif; ?>
 </div></section>
 </div>
+</div><!-- /dziennik -->
+<script>
+(function () {
+  var tabs = document.querySelectorAll('[data-ld-tab]'), panels = document.querySelectorAll('[data-ld-panel]');
+  var alias = { decyzja: 'decyzja', przydzialy: 'przydzialy', dziennik: 'dziennik', przeglad: 'przeglad' };
+  function show(name, push) {
+    if (!document.querySelector('[data-ld-panel="' + name + '"]')) name = 'przeglad';
+    tabs.forEach(function (b) { var on = b.getAttribute('data-ld-tab') === name; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
+    panels.forEach(function (p) { p.hidden = p.getAttribute('data-ld-panel') !== name; });
+    if (push && history.replaceState) history.replaceState(null, '', '#' + name);
+  }
+  tabs.forEach(function (b, i) {
+    b.addEventListener('click', function () { show(b.getAttribute('data-ld-tab'), true); });
+    b.addEventListener('keydown', function (e) {   // strzałki przełączają zakładki (wzorzec WAI-ARIA tabs)
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      var n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; n.focus(); show(n.getAttribute('data-ld-tab'), true); e.preventDefault();
+    });
+  });
+  var h = (location.hash || '').replace('#', '');
+  show(alias[h] || 'przeglad', false);
+  window.addEventListener('hashchange', function () { var x = (location.hash || '').replace('#', ''); if (alias[x]) show(x, false); });
+})();
+</script>
 <?php include __DIR__ . '/_foot.php'; ?>
