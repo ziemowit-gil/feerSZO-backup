@@ -874,6 +874,41 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
         <button class="btn btn-outline-secondary btn-sm"
                 onclick="HdBulk.doAction('assign',document.getElementById('hdBulkAssign').value)">OK</button>
       </div>
+      <div class="input-group input-group-sm">
+        <label class="input-group-text" for="hdBulkPriority">Priorytet</label>
+        <select class="form-select" id="hdBulkPriority" style="min-width:110px">
+          <option value="">— wybierz —</option>
+          <?php foreach (HD_PRIORITIES as $k => $pr): ?><option value="<?= h($k) ?>"><?= h($pr['label']) ?></option><?php endforeach; ?>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="HdBulk.doAction('set_priority',document.getElementById('hdBulkPriority').value)">OK</button>
+      </div>
+      <div class="input-group input-group-sm">
+        <label class="input-group-text" for="hdBulkCategory">Kategoria</label>
+        <select class="form-select" id="hdBulkCategory" style="min-width:140px;max-width:200px">
+          <option value="">— wybierz —</option>
+          <?php foreach (hd_categories() as $k => $lbl): ?><option value="<?= h($k) ?>"><?= h($lbl) ?></option><?php endforeach; ?>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="HdBulk.doAction('set_category',document.getElementById('hdBulkCategory').value)">OK</button>
+      </div>
+      <div class="input-group input-group-sm">
+        <label class="input-group-text" for="hdBulkTag">Tag</label>
+        <input type="text" class="form-control" id="hdBulkTag" maxlength="30" style="max-width:120px" placeholder="np. vpn">
+        <button class="btn btn-outline-secondary btn-sm" onclick="HdBulk.doAction('add_tag',document.getElementById('hdBulkTag').value)" title="Dodaj tag do zaznaczonych">+</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="HdBulk.doAction('remove_tag',document.getElementById('hdBulkTag').value)" title="Usuń tag z zaznaczonych">−</button>
+      </div>
+      <?php
+        require_once dirname(__DIR__) . '/modules/helpdeskMacros/lib/helpdeskMacros.php';
+        $bulk_macros = array_values(array_filter(hdMacrosActive(), 'hdMacroHasActions'));
+      if ($bulk_macros): ?>
+      <div class="input-group input-group-sm">
+        <label class="input-group-text" for="hdBulkMacro">Makro</label>
+        <select class="form-select" id="hdBulkMacro" style="min-width:140px;max-width:200px">
+          <option value="">— wybierz —</option>
+          <?php foreach ($bulk_macros as $bm): ?><option value="<?= (int)$bm['id'] ?>" title="<?= h(implode(', ', hdMacroActionLabels($bm))) ?>"><?= h($bm['title']) ?></option><?php endforeach; ?>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="HdBulk.doAction('apply_macro',document.getElementById('hdBulkMacro').value)" title="Wykonaj kroki makra na zaznaczonych (bez wysyłania odpowiedzi)">Wykonaj</button>
+      </div>
+      <?php endif; ?>
       <button class="btn btn-sm btn-outline-danger" onclick="HdBulk.doAction('close')">
         <i class="bi bi-x-circle me-1"></i>Zamknij zaznaczone
       </button>
@@ -1282,6 +1317,8 @@ var HdBulk = {
     var ids = this.getChecked();
     if (!ids.length) { HdApp.toast('Zaznacz przynajmniej jedno zgłoszenie.','err'); return; }
     if (action==='set_status' && !value) { HdApp.toast('Wybierz status.','err'); return; }
+    if ((action==='set_priority'||action==='set_category'||action==='apply_macro') && !value) { HdApp.toast('Wybierz wartość.','err'); return; }
+    if ((action==='add_tag'||action==='remove_tag') && !String(value||'').trim()) { HdApp.toast('Wpisz tag.','err'); return; }
     if (action==='close' && !confirm('Zamknąć ' + ids.length + ' zgłoszeń?')) return;
     var payload = { _csrf:CSRF, action:action, ids:ids };
     if (value !== undefined) payload.value = String(value);

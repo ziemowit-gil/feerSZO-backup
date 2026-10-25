@@ -1245,7 +1245,29 @@ html body .hd-macro-toggle:hover,html body .hd-macro-toggle.open{background:#eff
 html body .hd-macro-toggle,html body .hd-macro-card{border-width:1px}
 html body .btn-primary{background:#0f6cbd;border-color:#0f6cbd}
 html body .btn-primary:hover{background:#115ea3;border-color:#115ea3}
+
+/* Tryb Helpdesk: menu SZO zwinięte (przełącznik pamiętany w przeglądarce) */
+body.hd-shell-collapsed #navbar, body.hd-shell-collapsed #page-title-bar, body.hd-shell-collapsed .nb-ptitle-m,
+body.hd-shell-collapsed #saas-bar, body.hd-shell-collapsed .saas-tenant-bar { display:none !important; }
+body.hd-shell-collapsed #hdApp { height:calc(100dvh - 24px); }
+#hd-shell-toggle { position:fixed; left:.6rem; bottom:.6rem; z-index:1075; display:inline-flex; align-items:center; gap:.4rem; background:#fff; color:#242424;
+  border:1px solid #8a8886; padding:.3rem .7rem; font-size:.78rem; cursor:pointer; opacity:.85; }
+#hd-shell-toggle:hover, #hd-shell-toggle:focus-visible { opacity:1; background:#f3f2f1; outline:2px solid #0f6cbd; outline-offset:1px; }
 </style>
+<button type="button" id="hd-shell-toggle" aria-pressed="true" title="Pokaż lub ukryj menu SZO"><i class="bi bi-layout-sidebar-inset"></i><span>Pokaż menu SZO</span></button>
+<script>
+(function () {
+  var KEY = 'feerHdShellCollapsed', b = document.getElementById('hd-shell-toggle'); if (!b) return;
+  function get() { try { return localStorage.getItem(KEY) !== '0'; } catch (e) { return true; } }   // domyślnie zwinięte
+  function apply(on) {
+    document.body.classList.toggle('hd-shell-collapsed', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.querySelector('span').textContent = on ? 'Pokaż menu SZO' : 'Zwiń menu SZO';
+  }
+  b.addEventListener('click', function () { var on = !document.body.classList.contains('hd-shell-collapsed'); try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {} apply(on); });
+  apply(get());
+})();
+</script>
 CSS;
 }
 
