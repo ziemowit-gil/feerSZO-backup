@@ -10,17 +10,32 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/helpdesk.php';
 helpdesk_migrate();
+require_once dirname(__DIR__) . '/modules/helpdeskCollab/lib/helpdeskCollab.php';
 require_login();
 
 $u     = current_user();
 $uid   = (int)$u['id'];
 $is_op = hd_is_operator();
 
+// ── Zapisane widoki (zapis / usunięcie) ──────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_op && isset($_POST['_view_op'])) {
+    csrf_check();
+    if ($_POST['_view_op'] === 'save') {
+        $err = hdViewSave($uid, (string)($_POST['view_name'] ?? ''), (string)($_POST['view_qs'] ?? ''), !empty($_POST['view_shared']));
+        flash_set($err ? 'danger' : 'success', $err ?: 'Widok zapisany.');
+    } elseif ($_POST['_view_op'] === 'delete') {
+        hdViewDelete($uid, (int)($_POST['view_id'] ?? 0), is_admin());
+        flash_set('success', 'Widok usunięty.');
+    }
+    header('Location: ' . APP_URL . '/helpdesk/index.php'); exit;
+}
+
 // ── Filtry ────────────────────────────────────────────────────────────────────
 $f_q        = trim($_GET['q'] ?? '');
 $f_status   = $_GET['status'] ?? '';
 $f_category = $_GET['category'] ?? '';
 $f_priority = $_GET['priority'] ?? '';
+$f_tag      = $is_op ? hdTagNormalize((string)($_GET['tag'] ?? '')) : '';
 $f_view     = ($is_op && in_array($_GET['view'] ?? '', ['all','unassigned','mine'], true))
             ? $_GET['view'] : ($is_op ? 'all' : 'mine');
 $page       = max(1, (int)($_GET['page'] ?? 1));
@@ -36,6 +51,7 @@ if (!$is_op || $f_view === 'mine') {
 if ($f_status && isset(HD_STATUSES[$f_status]))       { $where[] = 't.status = ?';   $params[] = $f_status; }
 if ($f_category && isset(hd_categories()[$f_category])) { $where[] = 't.category = ?'; $params[] = $f_category; }
 if ($f_priority && isset(HD_PRIORITIES[$f_priority])) { $where[] = 't.priority = ?'; $params[] = $f_priority; }
+if ($f_tag !== '') { $where[] = 'EXISTS (SELECT 1 FROM helpdesk_tags g WHERE g.ticket_id = t.id AND g.tag = ?)'; $params[] = $f_tag; }
 if ($f_q !== '') {
     $where[] = '(t.number LIKE ? OR t.title LIKE ? OR t.requester_name LIKE ?)';
     $like = '%'.$f_q.'%'; $params[] = $like; $params[] = $like; $params[] = $like;
@@ -55,7 +71,7 @@ $tickets   = db_all(
 
 $paging     = paginate($total_all, $per_page, $page,
     APP_URL.'/helpdesk/index.php?'.http_build_query(array_filter([
-        'q'=>$f_q,'status'=>$f_status,'category'=>$f_category,'priority'=>$f_priority,'view'=>$f_view,
+        'q'=>$f_q,'status'=>$f_status,'category'=>$f_category,'priority'=>$f_priority,'view'=>$f_view,'tag'=>$f_tag,
     ])));
 $unread_ids = $is_op ? hd_unread_ids($uid) : [];
 $unread_set = array_flip($unread_ids);
@@ -93,6 +109,7 @@ function _hd_list_html(
     array $tickets, int $total, array $paging, int $per_page, bool $is_op, array $unread_set
 ): string {
     ob_start();
+    $row_tags = $is_op ? hdTagsForTickets(array_column($tickets, 'id')) : [];
     if ($tickets):
         foreach ($tickets as $t):
             $unread  = isset($unread_set[(int)$t['id']]);
@@ -121,7 +138,7 @@ function _hd_list_html(
   <div class="hd-c hd-c-num"><code class="hd-row-num"><?= h($t['number']) ?></code><?php if ($unread): ?><span class="hd-unread-dot" title="Nowe wiadomości"></span><?php endif; ?></div>
   <div class="hd-c hd-c-title">
     <div class="hd-row-title"><?= h($t['title']) ?></div>
-    <div class="hd-c-sub"><?= h($req) ?></div>
+    <div class="hd-c-sub"><?= h($req) ?><?php foreach ($row_tags[(int)$t['id']] ?? [] as $_tg): ?><span class="hd-tag-chip"><?= h($_tg) ?></span><?php endforeach; ?></div>
   </div>
   <div class="hd-c hd-c-cat"><?= h(hd_categories()[$t['category']] ?? $t['category']) ?></div>
   <div class="hd-c hd-c-st"><?= hd_status_badge($t['status']) ?></div>
@@ -561,6 +578,18 @@ html body .hd-bulk-bar .btn-outline-secondary{border-color:#8a8886;color:#242424
 html body .hd-bulk-bar .btn-outline-secondary:hover{background:#f3f2f1;color:#242424}
 html body .hd-bulk-bar .btn-link{color:#0f6cbd}
 
+/* Tagi i zapisane widoki */
+.hd-tag-chip{display:inline-block;margin-left:.4rem;padding:0 .4rem;font-size:.68rem;line-height:1.5;background:#eff6fc;color:#0f6cbd;border:1px solid #c7e0f4}
+.hdSb-view{display:flex;align-items:center}
+.hdSb-view .hdSb-item{flex:1;min-width:0;text-decoration:none;display:flex;align-items:center;gap:.5rem;overflow:hidden;white-space:nowrap}
+.hdSb-view .hdSb-item span{overflow:hidden;text-overflow:ellipsis}
+.hdSb-view-del button{background:none;border:0;color:#8a8886;padding:.2rem .5rem;cursor:pointer}
+.hdSb-view-del button:hover{color:#a4262c}
+.hdSb-view-save{padding:.4rem .9rem;display:flex;flex-direction:column;gap:.3rem;font-size:.75rem;color:#605e5c}
+.hdSb-view-save input[type=text]{border:1px solid #8a8886;padding:.25rem .4rem;font-size:.78rem;border-radius:0;width:100%}
+.hdSb-view-save button{align-self:flex-start;border:1px solid #8a8886;background:#fff;padding:.15rem .7rem;font-size:.78rem;cursor:pointer}
+.hdSb-view-save button:hover{background:#f3f2f1}
+
 /* ══ Widok listy jak w Dynamics: nawigacja + siatka na całą szerokość; zgłoszenie otwiera się na całej stronie ══ */
 #hdApp{grid-template-columns:230px 1fr}
 #hdPane{display:none !important}
@@ -632,6 +661,29 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
       <?php endforeach; ?>
 
       <div class="hdSb-sep" style="margin-top:.5rem">Statusy</div>
+      <?php endif; ?>
+
+      <?php if ($is_op): $saved_views = hdViewsFor($uid); ?>
+      <div class="hdSb-sep" style="margin-top:.5rem">Zapisane widoki</div>
+      <?php foreach ($saved_views as $sv): ?>
+      <div class="hdSb-view">
+        <a class="hdSb-item" href="<?= APP_URL ?>/helpdesk/index.php?<?= h($sv['query']) ?>" title="<?= (int)$sv['user_id'] !== $uid ? 'Widok wspólny — ' . h($sv['owner']) : 'Twój widok' ?>">
+          <i class="bi <?= $sv['is_shared'] ? 'bi-people' : 'bi-bookmark' ?>"></i><span><?= h($sv['name']) ?></span>
+        </a>
+        <?php if ((int)$sv['user_id'] === $uid || is_admin()): ?>
+        <form method="post" action="<?= APP_URL ?>/helpdesk/index.php" class="hdSb-view-del">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_view_op" value="delete"><input type="hidden" name="view_id" value="<?= (int)$sv['id'] ?>">
+          <button type="submit" aria-label="Usuń widok <?= h($sv['name']) ?>" title="Usuń widok"><i class="bi bi-x"></i></button>
+        </form>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+      <form method="post" action="<?= APP_URL ?>/helpdesk/index.php" class="hdSb-view-save" id="hdViewSaveForm">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_view_op" value="save"><input type="hidden" name="view_qs" id="hdViewQs" value="">
+        <input type="text" name="view_name" maxlength="60" placeholder="Zapisz bieżący filtr jako…" aria-label="Nazwa nowego widoku" required>
+        <label><input type="checkbox" name="view_shared" value="1"> wspólny</label>
+        <button type="submit">Zapisz</button>
+      </form>
       <?php endif; ?>
 
       <?php
@@ -729,6 +781,14 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
           <option value="<?= h($ckey) ?>"<?= $f_category === $ckey ? ' selected' : '' ?>><?= h($clbl) ?></option>
           <?php endforeach; ?>
         </select>
+        <?php if ($is_op && ($tags_in_use = hdTagsInUse())): ?>
+        <select id="hdTagSelect" name="tag" class="hd-cat-select mt-1" aria-label="Tag">
+          <option value="">Wszystkie tagi</option>
+          <?php foreach ($tags_in_use as $tg): ?>
+          <option value="<?= h($tg['tag']) ?>"<?= $f_tag === $tg['tag'] ? ' selected' : '' ?>><?= h($tg['tag']) ?> (<?= (int)$tg['n'] ?>)</option>
+          <?php endforeach; ?>
+        </select>
+        <?php endif; ?>
       </form>
     </div>
 
@@ -736,7 +796,7 @@ html body .hd-bulk-bar .btn-link{color:#0f6cbd}
     <div class="hdList-count-bar">
       <span id="hdTotalCount" aria-live="polite">
         <?= $total_all ?> <?= $total_all === 1 ? 'zgłoszenie' : ($total_all < 5 ? 'zgłoszenia' : 'zgłoszeń') ?>
-        <?php if ($f_q !== '' || $f_status !== '' || $f_category !== '' || $f_priority !== ''): ?>
+        <?php if ($f_q !== '' || $f_status !== '' || $f_category !== '' || $f_priority !== '' || $f_tag !== ''): ?>
         <a href="<?= APP_URL ?>/helpdesk/index.php?view=<?= h($f_view) ?>"
            class="ms-1 text-danger text-decoration-none" style="font-size:.7rem"
            title="Wyczyść filtry"><i class="bi bi-x-circle"></i></a>
@@ -1124,7 +1184,12 @@ var HdApp = {
   },
 
   bindFilterPills: function () {
-    var self = this, sel = document.getElementById('hdCatSelect');
+    var self = this, sel = document.getElementById('hdCatSelect'), tagSel = document.getElementById('hdTagSelect');
+    if (tagSel) tagSel.addEventListener('change', function () { self.loadList(self.formParams(), true); });
+    var vf = document.getElementById('hdViewSaveForm');
+    if (vf) vf.addEventListener('submit', function () {
+      document.getElementById('hdViewQs').value = self.formParams().toString();
+    });
     if (!sel) return;
     sel.addEventListener('change', function () {
       self.catInput.value = sel.value;
@@ -1178,6 +1243,7 @@ var HdApp = {
       if (self.statusInput) self.statusInput.value = p.get('status')   || '';
       if (self.catInput)    self.catInput.value    = p.get('category') || '';
       var cs = document.getElementById('hdCatSelect'); if (cs) cs.value = p.get('category') || '';
+      var ts = document.getElementById('hdTagSelect'); if (ts) ts.value = p.get('tag') || '';
       if (self.priInput)    self.priInput.value    = p.get('priority') || '';
       if (self.searchInput) self.searchInput.value = p.get('q')        || '';
       self.loadList(p, false);

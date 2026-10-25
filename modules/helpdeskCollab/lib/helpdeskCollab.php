@@ -115,17 +115,17 @@ function hdTagNormalize(string $tag): string
 function hdTagAdd(int $ticketId, string $input): ?string
 {
     hdCollabMigrate();
-    $added = 0;
+    $added = 0; $problem = null;
     foreach (preg_split('/[,;\n]+/', $input) as $raw) {
         $tag = hdTagNormalize($raw);
         if ($tag === '') continue;
-        if (mb_strlen($tag) < 2 || mb_strlen($tag) > 30) return 'Tag musi mieć 2–30 znaków.';
+        if (mb_strlen($tag) < 2 || mb_strlen($tag) > 30) { $problem = 'Tag musi mieć 2–30 znaków.'; continue; }
         if ((int)db_one("SELECT COUNT(*) AS n FROM helpdesk_tags WHERE ticket_id=?", [$ticketId])['n'] >= 15) return 'Zgłoszenie może mieć najwyżej 15 tagów.';
         $before = (int)db_one("SELECT COUNT(*) AS n FROM helpdesk_tags WHERE ticket_id=?", [$ticketId])['n'];
         db()->prepare("INSERT OR IGNORE INTO helpdesk_tags (ticket_id, tag) VALUES (?,?)")->execute([$ticketId, $tag]);
         $added += (int)db_one("SELECT COUNT(*) AS n FROM helpdesk_tags WHERE ticket_id=?", [$ticketId])['n'] - $before;
     }
-    return $added ? null : 'Podaj tag (litery, cyfry, myślnik).';
+    return $added ? null : ($problem ?? 'Podaj tag (litery, cyfry, myślnik).');
 }
 
 function hdTagRemove(int $ticketId, string $tag): void
