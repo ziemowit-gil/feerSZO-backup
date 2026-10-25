@@ -230,19 +230,54 @@ try {
 .hd-new-wrap { padding-bottom: 6rem; }
 .hd-new-wrap .hd-pri-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: .5rem; margin-top: .25rem; }
 .hd-new-wrap .hd-pri-grid .hd-pri-btn { justify-content: center; white-space: nowrap; }
+
+/* ══ Szata Dynamics 365: pasek poleceń, nagłówek rekordu, białe karty, akcent #0f6cbd ══ */
+.hd-new-wrap { --hdn-acc:#0f6cbd; --hdn-acc-d:#115ea3; --hdn-acc-50:#eff6fc; background:#faf9f8; padding:.75rem 1rem 6rem; margin:-.5rem -.5rem 0; }
+.hd-dyn-cmd { display:flex; align-items:center; gap:.15rem; background:#fff; border:1px solid #e1dfdd; padding:.25rem .4rem; margin-bottom:.9rem; }
+.hd-dyn-btn { display:inline-flex; align-items:center; gap:.4rem; background:none; border:0; padding:.4rem .7rem; font-size:.85rem; color:#242424; text-decoration:none; cursor:pointer; }
+.hd-dyn-btn i { color:#0f6cbd; }
+.hd-dyn-btn:hover, .hd-dyn-btn:focus-visible { background:#f3f2f1; color:#242424; outline:none; box-shadow:inset 0 0 0 2px #0f6cbd; }
+.hd-dyn-btn-pri { background:#0f6cbd; color:#fff; font-weight:600; }
+.hd-dyn-btn-pri i { color:#fff; }
+.hd-dyn-btn-pri:hover, .hd-dyn-btn-pri:focus-visible { background:#115ea3; color:#fff; }
+.hd-dyn-sep { width:1px; height:1.4rem; background:#e1dfdd; margin:0 .25rem; }
+.hd-dyn-head { margin:0 0 1rem; padding:0 .2rem; }
+.hd-dyn-entity { font-size:.78rem; color:#605e5c; letter-spacing:.02em; }
+.hd-dyn-title { font-size:1.4rem; font-weight:600; margin:0; line-height:1.3; color:#242424; }
+.hd-dyn-sub { font-size:.85rem; color:#605e5c; }
+.hd-new-card { border:1px solid #e1dfdd; border-radius:2px; }
+.hd-new-card-body { padding:1.25rem 1.5rem; }
+.hd-new-wrap .form-label { font-weight:600; font-size:.85rem; color:#242424; }
+.hd-new-wrap .form-control, .hd-new-wrap .form-select { border:1px solid #8a8886; border-bottom-color:#616161; border-radius:2px; }
+.hd-new-wrap .form-control:focus, .hd-new-wrap .form-select:focus { border-color:#0f6cbd; border-bottom:2px solid #0f6cbd; box-shadow:none; }
+.hd-new-wrap .form-text, .hd-new-wrap .text-muted { color:#605e5c !important; }
+.hd-new-sec-head { text-transform:none; letter-spacing:0; font-size:.95rem; font-weight:600; color:#242424; padding-bottom:.4rem; border-bottom:1px solid #edebe9; margin-bottom:.8rem; }
+.hd-pri-grid { gap:0 !important; }
+.hd-pri-btn { border:1px solid #8a8886; margin-left:-1px; background:#fff; color:#242424; font-size:.85rem; padding:.4rem .5rem; }
+.hd-pri-btn:hover { background:#f3f2f1; }
+.hd-pri-btn.active-pri { background:#0f6cbd; border-color:#0f6cbd; color:#fff; position:relative; z-index:1; }
+.hd-pri-btn:focus-within { outline:2px solid #0f6cbd; outline-offset:1px; }
+.hd-new-submit, .hd-new-submit:hover, .hd-new-submit:focus { background:#0f6cbd; border:1px solid #0f6cbd; color:#fff; border-radius:2px; }
+.hd-new-submit:hover { background:#115ea3; border-color:#115ea3; }
+.hd-new-cancel { border:1px solid #8a8886; color:#242424; border-radius:2px; }
+.hd-new-cancel:hover { background:#f3f2f1; color:#242424; }
+.hd-info-card { background:#fff; border:1px solid #e1dfdd; border-radius:2px; }
+.hd-info-card-head { text-transform:none; letter-spacing:0; font-size:.88rem; font-weight:600; color:#242424; border-bottom:1px solid #edebe9; }
+.hd-info-card-head i { color:#0f6cbd !important; }
+.hd-info-card-body { color:#242424; }
 </style>
 
 <div class="hd-new-wrap">
 <!-- Hero -->
-<div class="hd-new-hero">
-  <a href="<?= APP_URL ?>/helpdesk/index.php" class="hd-new-hero-back" aria-label="Wróć do konsoli">
-    <i class="bi bi-arrow-left" aria-hidden="true"></i>
-  </a>
-  <div class="hd-new-hero-icon" aria-hidden="true"><i class="bi bi-headset"></i></div>
-  <div class="hd-new-hero-text">
-    <h1 class="hd-new-hero-title m-0">Nowe zgłoszenie IT</h1>
-    <div class="hd-new-hero-sub">Opisz problem — zajmiemy się nim zgodnie z priorytetem SLA.</div>
-  </div>
+<div class="hd-dyn-cmd" role="toolbar" aria-label="Polecenia">
+  <a href="<?= APP_URL ?>/helpdesk/index.php" class="hd-dyn-btn"><i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć do listy</a>
+  <span class="hd-dyn-sep" aria-hidden="true"></span>
+  <button type="submit" form="hdNewForm" class="hd-dyn-btn hd-dyn-btn-pri"><i class="bi bi-send" aria-hidden="true"></i>Wyślij zgłoszenie</button>
+</div>
+<div class="hd-dyn-head">
+  <div class="hd-dyn-entity">Zgłoszenie · Helpdesk IT</div>
+  <h1 class="hd-dyn-title">Nowe zgłoszenie IT</h1>
+  <div class="hd-dyn-sub">Opisz problem — zajmiemy się nim zgodnie z priorytetem SLA.</div>
 </div>
 
 <?php if ($errors): ?>
@@ -256,7 +291,7 @@ try {
 
 <div class="hd-new-card">
   <div class="hd-new-card-body">
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" id="hdNewForm">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
       <!-- Temat -->
