@@ -450,7 +450,7 @@ $_wk_label = date('j.m', strtotime($dash_week_from)) . '–' . date('j.m.Y', str
 })();
 </script><?php /* /Dziś + Tydzień */ ?>
 <div class="col-xl-5">
-<?php include __DIR__ . '/_widget_zalegle_wpisy.php'; /* Kontrola Lekcji i Wpisów */ ?>
+<?php /* Lista zaległych wpisów nie jest tu powtarzana: licznik to kafel „Zaległe wpisy” (→ Kontrola wpisów), a zadania do wykonania — karta „Do zrobienia” poniżej. */ ?>
 <?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>
 <div id="dyd-todo" class="card dyd-card-accent <?= $_todo_n ? 'border-warning' : '' ?>">
   <div class="card-header d-flex align-items-center gap-2">
