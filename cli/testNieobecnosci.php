@@ -309,7 +309,7 @@ switch ($pmode) {
     case 'get_hours_m':   $script = 'raportGodzin.php'; $_GET['m'] = date('Y-m', strtotime('+8 day')); $_GET['by'] = 'grupa'; $expect = 'Grupa A H'; break;
     case 'get_godziny':   $script = 'godziny.php'; $_GET['r'] = 'podsumowanie'; $expect = 'gh-nav'; break;
     case 'get_revenue':   $script = 'raportPrzychodu.php'; $expect = 'Scenariusze frekwencji'; break;
-    case 'get_raporty':   $script = 'raporty.php'; $expect = 'Przychód i prognozy'; break;
+    case 'get_raporty':   $script = 'wydruki.php'; $expect = 'Przychód i prognozy'; break;   // zestawienia w sekcji „Raporty” strony Wydruki i raporty
     case 'get_side':      $_GET['menu'] = 'side'; $expect = 'dostępność prowadzących'; break;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') $_POST['_token'] = dyd_token();

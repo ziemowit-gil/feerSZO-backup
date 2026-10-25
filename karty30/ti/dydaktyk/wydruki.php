@@ -536,7 +536,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </div>
   </div>
 
-  <h2 class="h6 fw-semibold text-uppercase text-body-secondary mb-2">Raporty</h2>
+  <h2 class="h6 fw-semibold text-uppercase text-body-secondary mb-2" id="raporty">Raporty</h2>
+
+  <?php // Zestawienia (godziny, przychód i prognozy, odwołania, rozliczenia, analityka) — kafle Metro; wspólny kod z pulpitem
+  require_once __DIR__ . '/_bigtiles.php'; dydBigTilesCss();
+  foreach (dydReportGroups(true) as $_zt => $_zk): ?>
+  <h3 class="dyd-bt-h"><?= h($_zt) ?></h3>
+  <?php dydBigTiles($_zk, $_zt); endforeach; ?>
 
   <div class="card border-0 shadow-sm mb-3 border-primary-subtle">
     <div class="card-body d-flex align-items-center gap-3 py-3 flex-wrap">

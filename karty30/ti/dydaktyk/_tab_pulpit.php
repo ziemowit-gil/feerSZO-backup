@@ -261,7 +261,7 @@ if ($_stf) {
         ['#00838f', 'airplane',     'Nieobecności prowadzących', 'urlopy.php'],
         ['#455a64', 'calendar-week', 'Wysyłka tygodniowa',   'tygodniowaWysylka.php']);
 }
-$_fn[] = ['#0f6fa8', 'bar-chart-line', 'Raporty i zestawienia', 'raporty.php'];
+$_fn[] = ['#0f6fa8', 'bar-chart-line', 'Raporty i zestawienia', $_stf ? 'wydruki.php#raporty' : 'godziny.php'];
 ?>
 <h2 class="dyd-bt-h">Najważniejsze funkcje</h2>
 <?php require_once __DIR__ . '/_bigtiles.php'; dydBigTilesCss(); dydBigTiles($_fn, 'Najważniejsze funkcje'); ?>
