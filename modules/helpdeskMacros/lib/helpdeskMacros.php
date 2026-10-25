@@ -22,6 +22,7 @@ function hdMacrosMigrate(): void
         "ALTER TABLE helpdesk_macros ADD COLUMN act_assign_me INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE helpdesk_macros ADD COLUMN act_tag TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE helpdesk_macros ADD COLUMN show_button INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE helpdesk_macros ADD COLUMN act_steps TEXT NOT NULL DEFAULT ''",
     ] as $sql) { try { db()->exec($sql); } catch (\Throwable $e) {} }
 }
 
@@ -39,39 +40,88 @@ function hdMacroButtons(array $macros): array
     return $pinned ?: array_slice($macros, 0, 5);
 }
 
-/** Czytelny opis akcji makra (do podpowiedzi na przycisku i do notatki). */
+/** Typy kroków przebiegu makra: kod => etykieta. */
+const HD_MACRO_STEP_TYPES = [
+    'status' => 'Ustaw status', 'priority' => 'Ustaw priorytet', 'assign_me' => 'Przypisz do wykonującego', 'assign_user' => 'Przypisz do operatora',
+    'tag' => 'Dodaj tag', 'untag' => 'Usuń tag', 'note' => 'Dodaj notatkę wewnętrzną', 'watch' => 'Dodaj obserwatora (operator)',
+];
+
+/** Kroki przebiegu: z act_steps (JSON) albo — dla starszych makr — z pojedynczych pól act_*. @return list<array{type:string,value:string}> */
+function hdMacroSteps(array $m): array
+{
+    $json = trim((string)($m['act_steps'] ?? ''));
+    if ($json !== '') {
+        $d = json_decode($json, true);
+        if (is_array($d)) return array_values(array_filter(array_map(fn($x) => isset($x['type']) && isset(HD_MACRO_STEP_TYPES[$x['type']]) ? ['type' => (string)$x['type'], 'value' => (string)($x['value'] ?? '')] : null, $d)));
+    }
+    $out = [];
+    if (($m['act_status'] ?? '') !== '') $out[] = ['type' => 'status', 'value' => (string)$m['act_status']];
+    if (($m['act_priority'] ?? '') !== '') $out[] = ['type' => 'priority', 'value' => (string)$m['act_priority']];
+    if (!empty($m['act_assign_me'])) $out[] = ['type' => 'assign_me', 'value' => ''];
+    if (($m['act_tag'] ?? '') !== '') $out[] = ['type' => 'tag', 'value' => (string)$m['act_tag']];
+    return $out;
+}
+
+function hdMacroStepLabel(array $st): string
+{
+    $v = $st['value'];
+    return match ($st['type']) {
+        'status' => 'status → ' . (HD_STATUSES[$v]['label'] ?? $v),
+        'priority' => 'priorytet → ' . (HD_PRIORITIES[$v]['label'] ?? $v),
+        'assign_me' => 'przypisz do mnie',
+        'assign_user' => 'przypisz: ' . (db_one("SELECT name FROM users WHERE id=?", [(int)$v])['name'] ?? '#' . $v),
+        'tag' => 'tag: ' . $v, 'untag' => 'usuń tag: ' . $v,
+        'note' => 'notatka',
+        'watch' => 'obserwator: ' . (db_one("SELECT name FROM users WHERE id=?", [(int)$v])['name'] ?? '#' . $v),
+        default => $st['type'],
+    };
+}
+
+/** Czytelny opis przebiegu makra (do podpowiedzi na przycisku). */
 function hdMacroActionLabels(array $m): array
 {
-    $out = [];
-    if (($m['act_status'] ?? '') !== '' && isset(HD_STATUSES[$m['act_status']])) $out[] = 'status → ' . HD_STATUSES[$m['act_status']]['label'];
-    if (($m['act_priority'] ?? '') !== '' && isset(HD_PRIORITIES[$m['act_priority']])) $out[] = 'priorytet → ' . HD_PRIORITIES[$m['act_priority']]['label'];
-    if (!empty($m['act_assign_me'])) $out[] = 'przypisz do mnie';
-    if (($m['act_tag'] ?? '') !== '') $out[] = 'tag: ' . $m['act_tag'];
-    return $out;
+    return array_map('hdMacroStepLabel', hdMacroSteps($m));
 }
 
 function hdMacroHasActions(array $m): bool
 {
-    return (bool)hdMacroActionLabels($m);
+    return (bool)hdMacroSteps($m);
 }
 
-/** Walidacja pól akcji z formularza administracyjnego → tablica do zapisu. */
+/**
+ * Pola zapisu makra z formularza administracyjnego. Kroki przychodzą jako równoległe tablice
+ * (step_type[], sv_status[], sv_priority[], sv_user[], sv_text[]) — wiersz i = jeden krok. Starsze pola act_* zerujemy.
+ */
 function hdMacroActionFields(array $in): array
 {
-    $st = (string)($in['act_status'] ?? '');
-    $pr = (string)($in['act_priority'] ?? '');
+    $steps = [];
+    foreach ((array)($in['step_type'] ?? []) as $i => $type) {
+        if (!isset(HD_MACRO_STEP_TYPES[$type])) continue;
+        $val = match ($type) {
+            'status' => (string)($in['sv_status'][$i] ?? ''),
+            'priority' => (string)($in['sv_priority'][$i] ?? ''),
+            'assign_user', 'watch' => (string)(int)($in['sv_user'][$i] ?? 0),
+            'tag', 'untag' => mb_substr(hdTagNormalize((string)($in['sv_text'][$i] ?? '')), 0, 30),
+            'note' => mb_substr(trim((string)($in['sv_text'][$i] ?? '')), 0, 1000),
+            default => '',
+        };
+        if ($type === 'status' && !isset(HD_STATUSES[$val])) continue;
+        if ($type === 'priority' && !isset(HD_PRIORITIES[$val])) continue;
+        if (in_array($type, ['assign_user', 'watch'], true) && !db_one("SELECT id FROM users WHERE id=? AND is_active=1", [(int)$val])) continue;
+        if (in_array($type, ['tag', 'untag', 'note'], true) && $val === '') continue;
+        $steps[] = ['type' => $type, 'value' => $val];
+        if (count($steps) >= 12) break;
+    }
     return [
-        'act_status' => isset(HD_STATUSES[$st]) ? $st : '',
-        'act_priority' => isset(HD_PRIORITIES[$pr]) ? $pr : '',
-        'act_assign_me' => !empty($in['act_assign_me']) ? 1 : 0,
-        'act_tag' => mb_substr(hdTagNormalize((string)($in['act_tag'] ?? '')), 0, 30),
+        'act_steps' => $steps ? json_encode($steps, JSON_UNESCAPED_UNICODE) : '',
+        'act_status' => '', 'act_priority' => '', 'act_assign_me' => 0, 'act_tag' => '',
         'show_button' => !empty($in['show_button']) ? 1 : 0,
     ];
 }
 
 /**
- * Wykonuje akcje makra na zgłoszeniu (operator $uid). Zwraca listę wykonanych zmian (pusta = nic nie zmieniono).
- * Zmiana statusu wysyła powiadomienia jak zwykła zmiana; całość zapisuje się notatką wewnętrzną.
+ * Wykonuje przebieg makra na zgłoszeniu (operator $uid) — kroki po kolei. Zwraca listę wykonanych zmian
+ * (pusta = nic nie zmieniono). Zmiana statusu wysyła powiadomienia jak zwykła zmiana; całość zapisuje się notatką wewnętrzną.
  */
 function hdMacroApply(int $ticketId, int $macroId, int $uid, string $uname): array
 {
@@ -79,32 +129,53 @@ function hdMacroApply(int $ticketId, int $macroId, int $uid, string $uname): arr
     $m = db_one("SELECT * FROM helpdesk_macros WHERE id=? AND is_active=1", [$macroId]);
     $t = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticketId]);
     if (!$m || !$t) return [];
-    $done = []; $upd = []; $now = date('Y-m-d H:i:s');
-    $oldStatus = $t['status']; $newStatus = $oldStatus;
-    if ($m['act_status'] !== '' && isset(HD_STATUSES[$m['act_status']]) && $m['act_status'] !== $oldStatus) {
-        $newStatus = $m['act_status']; $upd['status'] = $newStatus;
-        if ($newStatus === 'rozwiązane') $upd['resolved_at'] = $now;
-        if ($newStatus === 'zamknięte') $upd['closed_at'] = $now;
-        $done[] = 'status → ' . HD_STATUSES[$newStatus]['label'];
-    }
-    if ($m['act_priority'] !== '' && isset(HD_PRIORITIES[$m['act_priority']]) && $m['act_priority'] !== $t['priority']) {
-        $upd['priority'] = $m['act_priority']; $done[] = 'priorytet → ' . HD_PRIORITIES[$m['act_priority']]['label'];
-    }
-    if (!empty($m['act_assign_me']) && (int)$t['assigned_to'] !== $uid) {
-        $upd['assigned_to'] = $uid; $done[] = 'przypisano do ' . $uname;
-        if ($newStatus === 'nowe') { $newStatus = 'otwarte'; $upd['status'] = 'otwarte'; }
-    }
-    if ($upd) { $upd['updated_at'] = $now; db_update('helpdesk_tickets', $upd, $ticketId); }
-    if ($m['act_tag'] !== '' && !in_array($m['act_tag'], hdTagsOf($ticketId), true)) {
-        hdTagAdd($ticketId, $m['act_tag']); $done[] = 'tag: ' . $m['act_tag'];
+    $done = []; $now = date('Y-m-d H:i:s');
+    $oldStatus = $t['status'];
+    foreach (hdMacroSteps($m) as $st) {
+        $v = $st['value'];
+        $cur = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticketId]) ?: $t;
+        switch ($st['type']) {
+            case 'status':
+                if (isset(HD_STATUSES[$v]) && $v !== $cur['status']) {
+                    $upd = ['status' => $v, 'updated_at' => $now];
+                    if ($v === 'rozwiązane') $upd['resolved_at'] = $now;
+                    if ($v === 'zamknięte') $upd['closed_at'] = $now;
+                    db_update('helpdesk_tickets', $upd, $ticketId); $done[] = hdMacroStepLabel($st);
+                }
+                break;
+            case 'priority':
+                if (isset(HD_PRIORITIES[$v]) && $v !== $cur['priority']) { db_update('helpdesk_tickets', ['priority' => $v, 'updated_at' => $now], $ticketId); $done[] = hdMacroStepLabel($st); }
+                break;
+            case 'assign_me':
+            case 'assign_user':
+                $to = $st['type'] === 'assign_me' ? $uid : (int)$v;
+                if ($to > 0 && (int)$cur['assigned_to'] !== $to) {
+                    $upd = ['assigned_to' => $to, 'updated_at' => $now];
+                    if ($cur['status'] === 'nowe') $upd['status'] = 'otwarte';
+                    db_update('helpdesk_tickets', $upd, $ticketId);
+                    $done[] = $st['type'] === 'assign_me' ? 'przypisano do ' . $uname : hdMacroStepLabel($st);
+                }
+                break;
+            case 'tag':
+                if (!in_array($v, hdTagsOf($ticketId), true)) { hdTagAdd($ticketId, $v); $done[] = hdMacroStepLabel($st); }
+                break;
+            case 'untag':
+                if (in_array($v, hdTagsOf($ticketId), true)) { hdTagRemove($ticketId, $v); $done[] = hdMacroStepLabel($st); }
+                break;
+            case 'note':
+                db_insert('helpdesk_messages', ['ticket_id' => $ticketId, 'user_id' => $uid, 'user_name' => $uname, 'body' => $v, 'is_internal' => 1]);
+                $done[] = 'notatka';
+                break;
+            case 'watch':
+                if (hdWatchAdd($ticketId, (int)$v, '', '', $uid) === null) $done[] = hdMacroStepLabel($st);
+                break;
+        }
     }
     if ($done) {
         db_insert('helpdesk_messages', ['ticket_id' => $ticketId, 'user_id' => $uid, 'user_name' => $uname,
             'body' => 'Makro „' . $m['title'] . '”: ' . implode(', ', $done), 'is_internal' => 1]);
-        if ($newStatus !== $oldStatus) {
-            $fresh = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticketId]);
-            if ($fresh) hd_notify_status_change($fresh, $oldStatus, $newStatus, '');
-        }
+        $fresh = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticketId]);
+        if ($fresh && $fresh['status'] !== $oldStatus) hd_notify_status_change($fresh, $oldStatus, $fresh['status'], '');
     }
     return $done;
 }
