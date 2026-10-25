@@ -135,7 +135,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <div class="ld-note">Wybierasz tenant (FEER / EDU FEER); braki w danych uzupełnisz przed wysyłką.</div>
     <?php elseif ($_tn !== ''): ?>
       <div class="ld-note" style="margin:0 0 .2rem">Konto: <b><?= h($_tn) ?></b></div>
-      <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90 !== '' ? 'Wyślij AM90 ponownie (ręcznie)' : 'Wyślij AM90 ręcznie', 'btn-metro', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?>
+      <a class="btn btn-sm btn-metro" href="#wydruki" data-ld-goto="wydruki">Potwierdzenie AM90 — zakładka Wydruki</a>
       <?php if ($_am90 !== ''): ?><div class="ld-note">AM90 wysłano <?= h(ldDt($_am90)) ?>; zgłoszenie w Helpdesku zamknięte.</div><?php endif; ?>
     <?php endif; ?>
     <?php endif; ?>
@@ -306,7 +306,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <td class="text-nowrap"><?= h(LicenseDocument::am90Number($l)) ?></td>
       <td><?= $_am90w !== '' ? ldChip('wysłano ' . ldDt($_am90w), '#008a00') : ldChip('nie wysłano', '#f0a30a') ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#0f766e" href="<?= h(route('ld.am90.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
-        <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90w !== '' ? 'Wyślij ponownie' : 'Wyślij ręcznie', 'btn-metro', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?></td></tr>
+        <?= ldPost(route('ld.am90.send', ['id' => $id]), $_am90w !== '' ? 'Wyślij AM90 ponownie' : 'Wyślij AM90', 'btn-metro green', [], 'Wysłać AM90 e-mailem w PDF (kopia do administratora)? Zgłoszenie w Helpdesku zostanie zamknięte.') ?></td></tr>
     <?php endif; ?>
     </tbody></table></div>
 </section>
