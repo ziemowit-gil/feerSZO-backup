@@ -30,6 +30,7 @@ function fcColumns(): array {
         ['table' => 'pelnomocnictwa', 'column' => 'pelnomocnik_pesel', 'kind' => 'digits', 'blind' => 'pelnomocnik_pesel_idx', 'auto' => true],
         ['table' => 'skierowania_badania', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'auto' => true],
         ['table' => 'rodo_authorizations', 'column' => 'person_pesel', 'kind' => 'digits', 'blind' => 'person_pesel_idx', 'auto' => true],
+        ['table' => 'rodo_deletion_log', 'column' => 'auth_pesel', 'kind' => 'digits', 'blind' => 'auth_pesel_idx', 'auto' => true],
     ];
 }
 
