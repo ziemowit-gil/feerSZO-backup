@@ -506,7 +506,7 @@ final class LicenseDocument
             $rows .= '<tr><td class="f" style="width:4%">' . ($i + 1) . '</td><td class="f" style="width:19%"><div class="lb">' . self::e((string)$it['doc']) . '</div><b>' . self::e((string)$it['label']) . '</b></td>'
                   . '<td class="f" style="width:38.5%">' . nl2br(self::e((string)$it['old_disp'])) . '</td><td class="f" style="width:38.5%"><b>' . nl2br(self::e((string)$it['new_disp'])) . '</b></td></tr>';
         }
-        $h .= '<table class="t">' . self::sec('B', 'ZAKRES KORECTY', 4)
+        $h .= '<table class="t">' . self::sec('B', 'ZAKRES KOREKTY', 4)
             . '<tr><td class="lb" style="padding:1mm"><b>Lp.</b></td><td class="lb" style="padding:1mm"><b>Dokument i pole</b></td><td class="lb" style="padding:1mm"><b>Było (błędnie)</b></td><td class="lb" style="padding:1mm"><b>Jest po korekcie</b></td></tr>'
             . $rows . '</table>';
         $h .= '<table class="t">' . self::sec('C', 'UZASADNIENIE KOREKTY', 1) . '<tr><td class="pc"><div class="pt">' . nl2br(self::e((string)$c['reason'])) . '</div></td></tr></table>';
