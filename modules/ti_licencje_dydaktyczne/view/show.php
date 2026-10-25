@@ -47,6 +47,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
     <dt class="col-sm-4">Podpis kursanta</dt><dd class="col-sm-8"><?= $l['requester_signed_at'] ? ldChip('podpisany ' . ldDt($l['requester_signed_at']), '#008a00') . ' IP ' . h($l['requester_signed_ip']) : (!empty($d['paper_signed']) ? ldChip('podpis odręczny', '#647687') : ldChip('czeka na podpis', '#f0a30a')) ?></dd>
     <?php if ($d): ?><dt class="col-sm-4">Decyzja</dt><dd class="col-sm-8"><?= !empty($d['grant']) ? ldChip('przyznanie (AM7/2)', '#008a00') : ldChip('odmowa (AM7/3)', '#a20025') ?>
       projekt: <?= h($d['prepared_name'] ?? '') ?>, <?= h(ldDt($d['prepared_at'] ?? '')) ?><?= !empty($d['approved_at']) ? '; <b>zatwierdził(a): ' . h($d['approved_name'] ?? '') . ', ' . h(ldDt($d['approved_at'])) . '</b>' : ' — <b>czeka na zatwierdzenie kierownika</b>' ?></dd><?php endif; ?>
+    <?php $_tu = db_one("SELECT tenant_kind, tenant_upn, tenant_created_at FROM licenses WHERE id = ?", [$id]); if (!empty($_tu['tenant_upn'])): ?><dt class="col-sm-4">Konto w tenancie</dt><dd class="col-sm-8"><?= h($_tu['tenant_upn']) ?> <?= ldChip($_tu['tenant_kind'] === 'feer' ? 'FEER' : 'EDU FEER', '#0050ef') ?> <?= h(ldDt($_tu['tenant_created_at'])) ?></dd><?php endif; ?>
     <?php if (!empty($l['helpdesk_ticket_id'])): ?><dt class="col-sm-4">Helpdesk IT</dt><dd class="col-sm-8"><a href="<?= h(rtrim(APP_URL, '/') . '/helpdesk/view.php?id=' . (int)$l['helpdesk_ticket_id']) ?>"><?= h($l['helpdesk_number']) ?></a></dd><?php endif; ?>
   </dl>
   <?php else: ?>
@@ -99,6 +100,8 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <button class="btn btn-sm btn-metro red">Wycofaj</button></form>
   <?php elseif ($st === LicenseRequestStatus::Granted): ?>
     <?php if ($am7 && empty($l['helpdesk_ticket_id'])): ?><?= ldPost(route('ld.am7.helpdesk', ['id' => $id]), 'Utwórz zlecenie Helpdesku IT', 'btn-metro dark') ?><?php endif; ?>
+    <?php $_tn = $am7 ? (string)(db_one("SELECT tenant_upn FROM licenses WHERE id = ?", [$id])['tenant_upn'] ?? '') : ''; if ($am7 && ($d['access'] ?? ($rq['access'] ?? 'tenant')) !== 'other' && $_tn === ''): ?>
+    <a class="btn btn-sm btn-metro green" href="<?= h(route('ld.am7.tenant', ['id' => $id])) ?>">Utwórz konto w tenancie</a><?php endif; ?>
     <form method="post" action="<?= h(route('ld.suspend', ['id' => $id])) ?>" class="d-flex gap-1"><?= Router::csrfField() ?>
       <?php if (empty($l['suspended'])): ?><input type="hidden" name="on" value="1"><label class="visually-hidden" for="sr">Powód zawieszenia</label>
         <input class="form-control form-control-sm" id="sr" name="reason" placeholder="powód zawieszenia" required><button class="btn btn-sm btn-metro orange">Zawieś</button>

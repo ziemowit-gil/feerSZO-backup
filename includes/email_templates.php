@@ -1234,6 +1234,41 @@ HTML,
             ],
         ],
 
+        'ti_am7_account_activated' => [
+            'label'       => 'AM7: konto w tenancie aktywowane — dane do logowania',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-person-check',
+            'auto'        => true,
+            'description' => 'Wysyłany po kliknięciu „Utwórz konto w tenancie” przy przyznanym wniosku AM7: usługa, login i instrukcja aktywacji; hasło idzie osobnym SMS-em. Kopia (UDW) trafia do administratora.',
+            'subject'     => 'Twoja usługa została aktywowana – dane do logowania',
+            'body'        => <<<'HTML'
+<p>Dzień dobry{{greeting}}!</p>
+<p>Z przyjemnością informujemy, że Twoje konto zostało aktywowane. Poniżej znajdziesz szczegóły dotyczące dostępu:</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:30%;vertical-align:top">Usługa</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{service}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;vertical-align:top">Login</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{login}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;vertical-align:top">Hasło</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px">wysłane w osobnej wiadomości SMS na Twój numer telefonu</td></tr>
+</table>
+<p style="margin:18px 0 6px"><strong>Jak aktywować i zainstalować produkt?</strong></p>
+<ol style="margin:0 0 14px;padding-left:20px">
+  <li>Wejdź na stronę <a href="https://office.com" style="color:#0f766e">office.com</a>.</li>
+  <li>Zaloguj się, używając powyższego loginu oraz hasła z wiadomości SMS.</li>
+  <li>Postępuj zgodnie z instrukcjami na ekranie, aby dokończyć konfigurację i pobrać aplikacje.</li>
+</ol>
+<p style="margin:18px 0 6px"><strong>Potrzebujesz pomocy?</strong></p>
+<p>Jeśli napotkasz jakiekolwiek trudności przy logowaniu lub instalacji, nie musisz się martwić. Umów się z nami na krótkie spotkanie online – chętnie pomożemy Ci we wszystkim krok po kroku!</p>
+<p style="margin:16px 0"><a href="{{tidycal_url}}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:600;padding:11px 20px">Kliknij tutaj, aby umówić spotkanie online</a></p>
+<p style="margin-top:18px">Pozdrawiamy,<br>Zespół Fundacji FEER</p>
+HTML,
+            'vars'        => [
+                'org'         => ['label' => 'Nazwa organizacji', 'sample' => 'Fundacja Edukacji Empatii Rozwoju FEER'],
+                'greeting'    => ['label' => 'Zwrot (spacja + imię albo puste)', 'sample' => ' Anna'],
+                'service'     => ['label' => 'Usługa (produkt, licencja, plan)', 'sample' => 'Microsoft 365 Apps for business'],
+                'login'       => ['label' => 'Login (UPN) w tenancie', 'sample' => 'anna.nowak@edu.feer.org.pl'],
+                'tidycal_url' => ['label' => 'Link do umówienia spotkania online (TidyCal)', 'sample' => 'https://tidycal.com/feer-ziemowit/'],
+            ],
+        ],
+
         'ti_license_assigned' => [
             'label'       => 'TI: nowa licencja przypisana (do kursanta)',
             'group'       => 'TI — Zajęcia',

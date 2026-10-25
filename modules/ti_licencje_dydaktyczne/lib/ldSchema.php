@@ -136,7 +136,9 @@ function ldMigrate(): void
               "requester_token_hash VARCHAR(64) NOT NULL DEFAULT ''", "requester_token_expires VARCHAR(19)", "requester_signed_at VARCHAR(19)",
               "requester_signed_ip VARCHAR(64) NOT NULL DEFAULT ''", "requester_signed_name VARCHAR(190) NOT NULL DEFAULT ''",
               "decision_pdf VARCHAR(255) NOT NULL DEFAULT ''", "decision_pdf_sha256 VARCHAR(64) NOT NULL DEFAULT ''", "decided_by INTEGER",
-              "helpdesk_ticket_id INTEGER", "helpdesk_number VARCHAR(40) NOT NULL DEFAULT ''"] as $col) {
+              "helpdesk_ticket_id INTEGER", "helpdesk_number VARCHAR(40) NOT NULL DEFAULT ''",
+              // konto utworzone w tenancie z poziomu sprawy AM7 (Am7TenantAccount)
+              "tenant_kind VARCHAR(8) NOT NULL DEFAULT ''", "tenant_upn VARCHAR(190) NOT NULL DEFAULT ''", "tenant_created_at VARCHAR(19)"] as $col) {
         try { $db->exec("ALTER TABLE licenses ADD COLUMN {$col}"); } catch (\Throwable $e) {}
     }
     $db->exec("CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(request_status)");

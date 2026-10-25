@@ -165,6 +165,18 @@ function sms_tpl_registry(): array
                 'date'     => ['label' => 'Termin rozliczenia', 'sample' => '25.11.2026'],
             ],
         ],
+        'ti_am7_account_password' => [
+            'label'       => 'AM7: hasło do nowego konta w tenancie (SMS)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-key',
+            'auto'        => true,
+            'description' => 'Hasło tymczasowe do konta utworzonego z wniosku AM7 („Utwórz konto w tenancie”). Login wysyłany jest osobno e-mailem. Zmiana hasła przy pierwszym logowaniu.',
+            'message'     => 'FEER: haslo tymczasowe do konta {{login}}: {{password}} (zmienisz je przy pierwszym logowaniu). Login i instrukcja - w e-mailu.',
+            'vars'        => [
+                'login'    => ['label' => 'Login (UPN)', 'sample' => 'anna.nowak@edu.feer.org.pl'],
+                'password' => ['label' => 'Hasło tymczasowe', 'sample' => 'Kx7!mQ2wRt9p'],
+            ],
+        ],
         'ti_license_assigned' => [
             'label'       => 'Nowa licencja przypisana (do kursanta)',
             'group'       => 'TI — Zajęcia',

@@ -191,6 +191,34 @@ final class LicenseAdminController
         return Router::redirect(route('ld.show', ['id' => $id]));
     }
 
+    // ── Konto w tenancie (AM7) ──────────────────────────────────────────────────
+
+    public function am7TenantForm(int $id, array $errors = [], array $old = []): string
+    {
+        require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
+        $l = $this->svc->licenses->get($id);
+        if (!$l || $l['form'] !== LicenseForm::Am7) return $this->show404('wniosek AM7');
+        $svc = new Am7TenantAccount($this->svc);
+        $c = $svc->contact($l);
+        $tenants = Am7TenantAccount::tenants();
+        $skus = [];
+        foreach ($tenants as $k => $t) $skus[$k] = $t['ready'] ? $svc->skus($k) : [];
+        return $this->view('am7_tenant.php', ['l' => $l, 'c' => $c, 'missing' => $svc->missing($c), 'tenants' => $tenants, 'skus' => $skus, 'errors' => $errors, 'old' => $old]);
+    }
+
+    public function am7TenantCreate(int $id): ?string
+    {
+        require_once dirname(__DIR__) . '/lib/Am7TenantAccount.php';
+        try {
+            $r = (new Am7TenantAccount($this->svc))->create($id, $_POST, $this->actor());
+            if (!$r['ok']) { echo $this->am7TenantForm($id, $r['errors'], $_POST); return null; }
+            $msg = 'Konto ' . $r['upn'] . ' utworzone — ' . implode('; ', $r['report']) . '.';
+            if (!empty($_POST['no_sms']) || !empty($r['sms_failed'])) $msg .= ' HASŁO TYMCZASOWE (pokazane raz, przekaż osobie bezpiecznym kanałem): ' . $r['password'];
+            flash_set(!empty($r['sms_failed']) ? 'warning' : 'success', $msg);
+            return Router::redirect(route('ld.show', ['id' => $id]));
+        } catch (\Throwable $e) { return $this->fail($e, route('ld.show', ['id' => $id])); }
+    }
+
     public function editForm(int $id, array $errors = [], array $old = []): string
     {
         $l = $this->svc->licenses->get($id);
