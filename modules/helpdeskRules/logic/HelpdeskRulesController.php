@@ -11,11 +11,9 @@ final class HelpdeskRulesController
     public function index(): string
     {
         $edit = (int)($_GET['edit'] ?? 0);
+        hdRulesMigrate();
         $row = $edit ? (db_one("SELECT * FROM helpdesk_rules WHERE id=?", [$edit]) ?: null) : null;
-        return Router::view(self::VIEW . 'index.php', [
-            'rules' => hdRulesList(), 'row' => $row,
-            'operators' => db_all("SELECT id, name FROM users WHERE helpdesk_operator=1 AND is_active=1 ORDER BY name"),
-        ]);
+        return Router::view(self::VIEW . 'index.php', ['rules' => hdRulesList(), 'row' => $row]);
     }
 
     public function save(): ?string

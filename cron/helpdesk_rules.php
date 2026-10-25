@@ -16,7 +16,7 @@ require_once $base_dir . '/modules/helpdeskRules/lib/helpdeskRules.php';
 $dry = in_array('--dry-run', $argv, true);
 echo "[" . date('Y-m-d H:i:s') . "] Start: helpdesk_rules" . ($dry ? ' (dry-run)' : '') . "\n";
 try {
-    foreach (hdRulesRunIdle($dry) as $name => $n) echo "  {$name}: {$n}\n";
+    foreach (hdRulesRunTime($dry) as $name => $n) echo "  {$name}: {$n}\n";
 } catch (\Throwable $e) {
     echo "  ✗ " . $e->getMessage() . "\n";
 }

@@ -190,55 +190,12 @@ echo hd_admin_nav('macros');
         </div>
       </div>
 
-      <?php
-        $steps = $edit ? hdMacroSteps($edit) : [];
-        $ops = db_all("SELECT id, name FROM users WHERE helpdesk_operator=1 AND is_active=1 ORDER BY name");
-        $renderRow = function (array $st) use ($ops): string {
-            ob_start(); ?>
-        <div class="hd-step row g-2 align-items-center mb-1" data-step>
-          <div class="col-sm-4"><select name="step_type[]" class="form-select form-select-sm" data-step-type aria-label="Rodzaj kroku">
-            <?php foreach (HD_MACRO_STEP_TYPES as $k => $l): ?><option value="<?= h($k) ?>"<?= $st['type'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
-          <div class="col-sm-6">
-            <select name="sv_status[]" class="form-select form-select-sm" data-sv="status"><?php foreach (HD_STATUSES as $k => $x): ?><option value="<?= h($k) ?>"<?= $st['type'] === 'status' && $st['value'] === $k ? ' selected' : '' ?>><?= h($x['label']) ?></option><?php endforeach; ?></select>
-            <select name="sv_priority[]" class="form-select form-select-sm" data-sv="priority"><?php foreach (HD_PRIORITIES as $k => $x): ?><option value="<?= h($k) ?>"<?= $st['type'] === 'priority' && $st['value'] === $k ? ' selected' : '' ?>><?= h($x['label']) ?></option><?php endforeach; ?></select>
-            <select name="sv_user[]" class="form-select form-select-sm" data-sv="assign_user watch"><?php foreach ($ops as $o): ?><option value="<?= (int)$o['id'] ?>"<?= in_array($st['type'], ['assign_user', 'watch'], true) && (int)$st['value'] === (int)$o['id'] ? ' selected' : '' ?>><?= h($o['name']) ?></option><?php endforeach; ?></select>
-            <input name="sv_text[]" class="form-control form-control-sm" data-sv="tag untag note" maxlength="1000" placeholder="tag lub treść notatki" value="<?= in_array($st['type'], ['tag', 'untag', 'note'], true) ? h($st['value']) : '' ?>">
-          </div>
-          <div class="col-sm-2 text-end"><button type="button" class="btn btn-sm btn-outline-danger py-0" data-step-del aria-label="Usuń krok"><i class="bi bi-x-lg"></i></button></div>
-        </div>
-        <?php return ob_get_clean();
-        };
-      ?>
       <div class="mb-3 p-3" style="background:var(--hd-bg);border:1px solid var(--hd-bd)">
         <div class="fw-semibold mb-1" style="font-size:.85rem"><i class="bi bi-lightning-charge me-1"></i>Przebieg makra — kroki</div>
         <div class="text-muted mb-2" style="font-size:.78rem">Kroki wykonują się po kolei po wysłaniu odpowiedzi (makro bez treści działa od razu). Zmiana statusu wysyła powiadomienia jak zwykle; całość trafia do notatki wewnętrznej.</div>
-        <div id="hdSteps"><?php foreach ($steps as $st) echo $renderRow($st); ?></div>
-        <template id="hdStepTpl"><?= $renderRow(['type' => 'status', 'value' => 'otwarte']) ?></template>
-        <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="hdStepAdd"><i class="bi bi-plus-lg me-1"></i>Dodaj krok</button>
+        <?= hdStepsBuilder($edit ? hdMacroSteps($edit) : [], (int)($edit['id'] ?? 0)) ?>
         <label class="small d-flex align-items-center gap-2 mt-3"><input class="form-check-input mt-0" type="checkbox" name="show_button" value="1"<?= !empty($edit['show_button']) ? ' checked' : '' ?>>Przycisk nad polem odpowiedzi (przypięte)</label>
       </div>
-      <script>
-      (function(){
-        var box=document.getElementById('hdSteps'), tpl=document.getElementById('hdStepTpl'), add=document.getElementById('hdStepAdd');
-        if(!box||!tpl||!add) return;
-        function sync(row){
-          var t=row.querySelector('[data-step-type]').value;
-          row.querySelectorAll('[data-sv]').forEach(function(el){
-            var on=el.dataset.sv.split(' ').indexOf(t)>-1;
-            el.style.display=on?'':'none'; /* nie wyłączamy pól: tablice sv_*[] muszą mieć po jednym elemencie na krok */
-          });
-        }
-        function bind(row){
-          row.querySelector('[data-step-type]').addEventListener('change',function(){sync(row);});
-          row.querySelector('[data-step-del]').addEventListener('click',function(){row.remove();});
-          sync(row);
-        }
-        box.querySelectorAll('[data-step]').forEach(bind);
-        add.addEventListener('click',function(){
-          var f=tpl.content.cloneNode(true), row=f.querySelector('[data-step]'); box.appendChild(f); bind(box.lastElementChild);
-        });
-      })();
-      </script>
 
       <div class="row g-3 mb-4">
         <div class="col-sm-3">

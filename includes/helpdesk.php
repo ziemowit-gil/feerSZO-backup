@@ -57,6 +57,14 @@ function hd_after_create(int $ticketId): void {
     } catch (\Throwable $e) { error_log('[helpdesk] reguły: ' . $e->getMessage()); }
 }
 
+/** Zdarzenie dla reguł automatycznych (status / message). Nigdy nie przerywa wołającego. */
+function hd_rules_event(int $ticketId, string $trigger, array $ctx = []): void {
+    try {
+        require_once dirname(__DIR__) . '/modules/helpdeskRules/lib/helpdeskRules.php';
+        hdRulesFire($ticketId, $trigger, $ctx);
+    } catch (\Throwable $e) { error_log('[helpdesk] reguły (' . $trigger . '): ' . $e->getMessage()); }
+}
+
 function hd_number_prefix_for(string $category): string {
     require_once dirname(__DIR__) . '/modules/helpdeskCategories/lib/helpdeskCategories.php';
     return hdNumberPrefix($category);
@@ -1319,6 +1327,7 @@ CSS;
 // ── Powiadomienia ─────────────────────────────────────────────────────────────
 
 function hd_notify_status_change(array $ticket, string $old_status, string $new_status, string $note = ''): void {
+    hd_rules_event((int)$ticket['id'], 'status', ['to_status' => $new_status]);
     try {
         require_once dirname(__DIR__) . '/modules/helpdeskCollab/lib/helpdeskCollab.php';
         hdWatchNotify($ticket, '[' . $ticket['number'] . '] Status: ' . (HD_STATUSES[$new_status]['label'] ?? $new_status) . ' — ' . $ticket['title'],
@@ -1437,6 +1446,7 @@ function hd_notify_new_message(array $ticket, array $message): void {
         || ($msg_uid === 0 && !empty($message['user_name']));
 
     if ($is_from_requester) {
+        hd_rules_event((int)$ticket['id'], 'message');
         try {
             require_once dirname(__DIR__) . '/includes/mail_queue.php';
             $_nm_a_data = ['requester_name' => $ticket['requester_name'], 'number' => $num,
