@@ -9,6 +9,7 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_hours_insights/logic/hoursInsights.php';
 require_once dirname(__DIR__, 3) . '/modules/analytics/logic/analyticsExport.php';
+require_once dirname(__DIR__, 3) . '/modules/pivot_table/lib/pivotTable.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: godziny.php'); exit; }
@@ -93,6 +94,9 @@ $tbl = function (array $ds, ?callable $link = null): void { ?>
   <h2 class="h5 fw-bold"><?= h($dsYear['title']) ?></h2>
   <?php $tbl($dsYear, fn($i) => $q(['m' => sprintf('%04d-%02d', $y, $i + 1), 'by' => $by]) . '#szczegoly'); ?>
   <?php foreach ($dsYear['notes'] as $n): ?><p class="small text-body-secondary mb-1"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= h($n) ?></p><?php endforeach; ?>
+
+  <?php $pv = TiHoursInsights::orgFacts($y);
+        pivotTableWidget('pv-godz', $pv['dims'], $pv['measures'], $pv['facts'], ['row' => 'miesiac', 'col' => 'status', 'measure' => 'godz', 'agg' => 'sum', 'title' => 'Tabela przestawna — lekcje roku ' . $y, 'file' => 'godziny-ti-' . $y . '-przestawna']); ?>
 
   <?php if ($dsMonth): ?>
   <section id="szczegoly" class="mt-4" aria-labelledby="rg-det">

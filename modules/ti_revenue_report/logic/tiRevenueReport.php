@@ -66,7 +66,7 @@ final class TiRevenueReport
               ORDER BY c.name"
         );
         $rows = []; $tot = ['n' => 0, 'held_h' => 0.0, 'plan_h' => 0.0, 'accrued' => 0.0, 'potential' => 0.0, 'planned_full' => 0.0, 'cur' => 0.0];
-        $scn = array_fill_keys(self::SCENARIOS, 0.0); $attP = 0; $attN = 0;
+        $scn = array_fill_keys(self::SCENARIOS, 0.0); $attP = 0; $attN = 0; $facts = [];
         foreach ($courses as $c) {
             $cid = (int)$c['id'];
             if (ti_course_hours_only($cid, $m)) continue;   // bez kwot
@@ -86,7 +86,8 @@ final class TiRevenueReport
                 "SELECT e.*, c.billing_model AS course_billing_model, c.billing_amount AS course_billing_amount
                    FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id WHERE e.course_id=? AND e.status='active'", [$cid]
             );
-            $accrued = 0.0; $potential = 0.0; $plannedFull = 0.0; $n = 0;
+            $accrued = 0.0; $potential = 0.0; $plannedFull = 0.0; $n = 0; $efacts = [];
+            $instrName = (string)(db_one("SELECT COALESCE(NULLIF(TRIM(COALESCE(first_name,'')||' '||COALESCE(last_name,'')),''), name) AS n FROM users WHERE id=?", [(int)$c['instructor_id']])['n'] ?? '— bez prowadzącego —');
             foreach ($enrs as $e) {
                 $client = (int)$e['client_id'];
                 if (ti_client_no_billing($client)) continue;
@@ -96,18 +97,27 @@ final class TiRevenueReport
                 $act = 0.0;
                 foreach ($calc['courses'] as $cc) if ((int)$cc['course_id'] === $cid) $act = (float)$cc['amount'];
                 $accrued += $act;
-                if (in_array((int)$eff['model'], [1, 3], true)) {   // ryczałt: kwota niezależna od lekcji i frekwencji
-                    $potential += $act;
-                } else {
+                $potE = $act; $planE = 0.0;
+                if (!in_array((int)$eff['model'], [1, 3], true)) {   // ryczałt: kwota niezależna od lekcji i frekwencji
                     $all = array_merge($held, $plan);
-                    $potential   += $all  ? (float)ti_price_hourly_breakdown($eff, $cid, $client, $all)['amount']  : 0.0;
-                    $plannedFull += $plan ? (float)ti_price_hourly_breakdown($eff, $cid, $client, $plan)['amount'] : 0.0;
+                    $potE  = $all  ? (float)ti_price_hourly_breakdown($eff, $cid, $client, $all)['amount']  : 0.0;
+                    $planE = $plan ? (float)ti_price_hourly_breakdown($eff, $cid, $client, $plan)['amount'] : 0.0;
                 }
+                $potential += $potE; $plannedFull += $planE;
+                $efacts[] = ['uczestnik' => (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [$client])['name'] ?? '#' . $client), 'model' => k30_ti_billing_model_label((int)$eff['model']),
+                             'act' => $act, 'pot' => $potE, 'plan' => $planE];
             }
             if ($n === 0) continue;
             $pct = self::attendancePct($cid, $from, $to) ?? self::attendancePct($cid, date('Y-m-d', strtotime($today . ' -90 days')), $today);
             $fc = []; foreach (self::SCENARIOS as $p) $fc[$p] = $accrued + $plannedFull * $p / 100;
             $cur = $pct === null ? null : $accrued + $plannedFull * $pct / 100;
+            foreach ($efacts as $ef) {
+                $f = ['grupa' => (string)$c['name'], 'prowadzacy' => $instrName, 'model' => $ef['model'], 'uczestnik' => $ef['uczestnik'],
+                      'naliczone' => round($ef['act'], 2), 'sugerowane' => round($ef['pot'], 2), 'utracone' => round($ef['pot'] - $ef['act'], 2)];
+                foreach (self::SCENARIOS as $p) $f['p' . $p] = round($ef['act'] + $ef['plan'] * $p / 100, 2);
+                $f['pbiez'] = round($ef['act'] + $ef['plan'] * ($pct ?? 100) / 100, 2);
+                $facts[] = $f;
+            }
             $row = [(string)$c['name'], $n, $pct, round($heldH, 1), round($planH, 1), round($accrued, 2), round($potential, 2), round($potential - $accrued, 2)];
             foreach (self::SCENARIOS as $p) $row[] = round($fc[$p], 2);
             $row[] = $cur === null ? null : round($cur, 2);
@@ -133,6 +143,12 @@ final class TiRevenueReport
                 'Naliczone dotąd = kwota z rozliczenia miesięcznego (godziny obecności i no-show po stawkach z dnia lekcji; ryczałty w pełnej kwocie).',
                 'Sugerowane = przychód przy pełnej frekwencji: wszystkie lekcje miesiąca (odbyte i zaplanowane, bez odwołanych) × wszyscy aktywni uczestnicy × ich stawki. „Utracone” to różnica sugerowane − naliczone.',
                 'Prognoza przy p% = naliczone dotąd + zaplanowane lekcje × stawki × p%. Frekwencja bieżąca = obecni / wszyscy zapisani na odbytych lekcjach miesiąca (bez nich — z ostatnich 90 dni). Ryczałty i grupy „tylko godziny” nie zależą od frekwencji.',
+            ],
+            'pivot' => [
+                'dims' => [['k' => 'grupa', 'l' => 'Grupa'], ['k' => 'prowadzacy', 'l' => 'Prowadzący'], ['k' => 'model', 'l' => 'Model rozliczenia'], ['k' => 'uczestnik', 'l' => 'Uczestnik']],
+                'measures' => array_merge([['k' => 'naliczone', 'l' => 'Naliczone dotąd (zł)', 'd' => 2], ['k' => 'sugerowane', 'l' => 'Sugerowane — pełna frekwencja (zł)', 'd' => 2], ['k' => 'utracone', 'l' => 'Utracone (zł)', 'd' => 2]],
+                    array_map(fn($p) => ['k' => 'p' . $p, 'l' => 'Prognoza przy ' . $p . '% (zł)', 'd' => 2], self::SCENARIOS), [['k' => 'pbiez', 'l' => 'Prognoza przy bieżącej frekwencji (zł)', 'd' => 2]]),
+                'facts' => $facts,
             ],
             'summary' => ['month' => $m, 'groups' => count($rows) - ($rows ? 1 : 0), 'accrued' => round($tot['accrued'], 2), 'potential' => round($tot['potential'], 2),
                 'lost' => round($tot['potential'] - $tot['accrued'], 2), 'planned_full' => round($tot['planned_full'], 2),

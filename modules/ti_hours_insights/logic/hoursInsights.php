@@ -431,4 +431,40 @@ final class TiHoursInsights
         return ['title' => 'Godziny TI — ' . self::monthLabel($m) . ' wg ' . ($by === 'grupa' ? 'grup' : 'prowadzących'), 'subtitle' => self::monthLabel($m),
             'headers' => array_merge([$label], self::ORG_HEADERS), 'rows' => $rows, 'num' => [1, 2, 3, 4, 5], 'dec' => [2 => 1, 3 => 1, 4 => 1, 5 => 1], 'sheet' => mb_substr(self::monthLabel($m), 0, 31), 'notes' => []];
     }
+
+    /**
+     * Fakty do tabeli przestawnej raportu godzin: jedna lekcja roku = jeden wiersz (miesiąc, dzień tygodnia, status, forma, prowadzący, grupa)
+     * + miary: godziny i liczba lekcji. Bez wersji roboczych, rezerwacji i kont testowych; statusy: odbyte / zaplanowane / odwołane.
+     * @return array{dims:list<array>, measures:list<array>, facts:list<array>}
+     */
+    public static function orgFacts(int $year): array
+    {
+        $rows = db_all(
+            "SELECT substr(s.lesson_date,1,7) AS m, CAST(strftime('%w', s.lesson_date) AS INTEGER) AS dow, s.status, s.lesson_method, c.is_online, c.name AS course,
+                    COALESCE(NULLIF(TRIM(COALESCE(u.first_name,'')||' '||COALESCE(u.last_name,'')),''), u.name, '— bez prowadzącego —') AS instr,
+                    " . self::HOURS . " AS h
+               FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
+               LEFT JOIN users u ON u.id = COALESCE(s.instructor_id, c.instructor_id)
+              WHERE s.lesson_date BETWEEN ? AND ? AND " . self::BASE_EXCL . " AND " . ti_test_course_sql('s.course_id') . "
+                AND s.status IN (" . self::HELD . ", 'planned', 'cancelled')",
+            [$year . '-01-01', $year . '-12-31']
+        );
+        $dn = [1 => '1 poniedziałek', 2 => '2 wtorek', 3 => '3 środa', 4 => '4 czwartek', 5 => '5 piątek', 6 => '6 sobota', 0 => '7 niedziela'];
+        $facts = [];
+        foreach ($rows as $r) {
+            $online = in_array((string)$r['lesson_method'], ['zdalna_zoom', 'zdalna_inne'], true) || ((string)$r['lesson_method'] === '' && !empty($r['is_online']));
+            $facts[] = [
+                'miesiac' => (string)$r['m'], 'dzien' => $dn[(int)$r['dow']] ?? '?',
+                'status'  => in_array((string)$r['status'], K30_TI_HELD_STATUSES, true) ? 'odbyte' : ($r['status'] === 'planned' ? 'zaplanowane' : 'odwołane'),
+                'forma'   => $online ? 'online' : 'stacjonarnie', 'prowadzacy' => (string)$r['instr'], 'grupa' => (string)$r['course'],
+                'godz' => round((float)$r['h'], 2), 'lekcje' => 1,
+            ];
+        }
+        return [
+            'dims' => [['k' => 'miesiac', 'l' => 'Miesiąc'], ['k' => 'status', 'l' => 'Status lekcji'], ['k' => 'prowadzacy', 'l' => 'Prowadzący'], ['k' => 'grupa', 'l' => 'Grupa'],
+                       ['k' => 'forma', 'l' => 'Forma zajęć'], ['k' => 'dzien', 'l' => 'Dzień tygodnia']],
+            'measures' => [['k' => 'godz', 'l' => 'Godziny', 'd' => 1], ['k' => 'lekcje', 'l' => 'Lekcje', 'd' => 0]],
+            'facts' => $facts,
+        ];
+    }
 }

@@ -188,6 +188,14 @@ if ($mode === 'logic') {
     $rowB = null; foreach ($rep['rows'] as $rw) if ($rw[0] === 'Grupa B V') $rowB = $rw;
     t('przychód: grupa B (tylko zaplanowana) — naliczone 0, sugerowane 50, prognoza 60% = 30', [$rowB[5] ?? null, $rowB[6] ?? null, $rowB[12] ?? null], [0.0, 50.0, 30.0]);
 
+    // — tabele przestawne: fakty zgodne z raportami
+    $of = TiHoursInsights::orgFacts((int)date('Y')); $oy = TiHoursInsights::orgYear((int)date('Y')); $oyTot = end($oy['rows']);
+    $hHeld = 0.0; $hPlan = 0.0; foreach ($of['facts'] as $f) { if ($f['status'] === 'odbyte') $hHeld += $f['godz']; elseif ($f['status'] === 'zaplanowane') $hPlan += $f['godz']; }
+    t('pivot godziny: fakty odbyte/zaplanowane = wiersz Razem raportu', [round($hHeld, 1), round($hPlan, 1)], [$oyTot[2], $oyTot[3]]);
+    $pf = $rep['pivot']['facts']; $sa = 0.0; $sp = 0.0; foreach ($pf as $f) { $sa += $f['naliczone']; $sp += $f['sugerowane']; }
+    t('pivot przychód: suma faktów = Razem raportu (naliczone, sugerowane)', [round($sa, 2), round($sp, 2)], [$sumRow[5], $sumRow[6]]);
+    t('pivot przychód: wymiary i miary opisane', [count($rep['pivot']['dims']) >= 4, count($rep['pivot']['measures'])], [true, 10]);
+
     // — linki Helpdesku w mailach zawsze na hoście SZO
     require_once $root . '/includes/helpdesk.php';
     t('helpdesk: kursant.* → szo.*', hd_base_url('https://kursant.feer.org.pl'), 'https://szo.feer.org.pl');

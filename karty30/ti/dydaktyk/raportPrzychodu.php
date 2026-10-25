@@ -9,6 +9,7 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_revenue_report/logic/tiRevenueReport.php';
 require_once dirname(__DIR__, 3) . '/modules/analytics/logic/analyticsExport.php';
+require_once dirname(__DIR__, 3) . '/modules/pivot_table/lib/pivotTable.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -107,6 +108,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </table>
   </div>
   <?php foreach ($ds['notes'] as $n): ?><p class="small text-body-secondary mb-1"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= h($n) ?></p><?php endforeach; ?>
+  <div class="mt-4"><?php pivotTableWidget('pv-przychod', $ds['pivot']['dims'], $ds['pivot']['measures'], $ds['pivot']['facts'], ['row' => 'grupa', 'col' => 'model', 'measure' => 'naliczone', 'agg' => 'sum', 'title' => 'Tabela przestawna — przychód uczestników', 'file' => 'przychod-ti-' . $m . '-przestawna']); ?></div>
 <?php endif; ?>
 </div>
 </main>
