@@ -12,7 +12,9 @@
 $hd_pane       = !empty($GLOBALS['hd_pane_mode']);
 $view_action   = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
 $hd_editor_id  = 'hdQuill_' . (int)$ticket['id'];
-$db_macros     = $is_op ? hd_macros_active() : [];
+require_once dirname(__DIR__) . '/modules/helpdeskMacros/lib/helpdeskMacros.php';
+$db_macros     = $is_op ? hdMacrosActive() : [];
+$db_macro_btns = $is_op ? hdMacroButtons($db_macros) : [];
 
 function _hd_det_initials(string $name): string {
     $words = array_values(array_filter(explode(' ', trim($name))));
@@ -108,6 +110,14 @@ $merged_children = $is_op ? db_all("SELECT id, number FROM helpdesk_tickets WHER
   overflow: hidden; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
+.hd-macro-bar { display:flex; flex-wrap:wrap; gap:.4rem; padding:.55rem .85rem; border-bottom:1px solid var(--hd-bd-l); background:#faf9f8; }
+.hd-macro-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .7rem; border:1px solid #8a8886; background:#fff; color:#242424; font-size:.8rem; cursor:pointer; }
+.hd-macro-chip i { color:#0f6cbd; }
+.hd-macro-chip:hover, .hd-macro-chip:focus-visible { background:#eff6fc; border-color:#0f6cbd; outline:none; }
+.hd-macro-chip.active { background:#0f6cbd; border-color:#0f6cbd; color:#fff; }
+.hd-macro-chip.active i { color:#fff; }
+.hd-macro-applied { display:flex; align-items:center; gap:.5rem; padding:.4rem .85rem; background:#fff4ce; border-bottom:1px solid #f2e0a0; font-size:.8rem; color:#242424; }
+.hd-macro-applied.d-none { display:none !important; }
 .hd-macro-toggle {
   display: inline-flex; align-items: center; gap: .3rem;
   padding: .28rem .65rem; border-radius: 7px; border: 1px solid var(--hd-bd);
@@ -275,6 +285,19 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
       <?php endif; ?>
     </div>
 
+    <?php if ($is_op && $db_macro_btns): ?>
+    <div class="hd-macro-bar" role="group" aria-label="Makra — szybkie odpowiedzi">
+      <?php foreach ($db_macro_btns as $mac): $acts = hdMacroActionLabels($mac); ?>
+      <button type="button" class="hd-macro-chip" data-macro-id="<?= (int)$mac['id'] ?>" data-body="<?= h($mac['body']) ?>"
+              data-acts="<?= h(implode(', ', $acts)) ?>" data-title="<?= h($mac['title']) ?>"
+              title="<?= h($acts ? 'Akcje: ' . implode(', ', $acts) : 'Wstawia gotową odpowiedź') ?>">
+        <i class="bi <?= $acts ? 'bi-lightning-charge-fill' : 'bi-chat-left-text' ?>" aria-hidden="true"></i><?= h($mac['title']) ?>
+      </button>
+      <?php endforeach; ?>
+    </div>
+    <div class="hd-macro-applied d-none" id="hdMacroApplied_<?= (int)$ticket['id'] ?>" role="status"></div>
+    <?php endif; ?>
+
     <?php if ($is_op && $db_macros): ?>
     <div class="hd-macro-panel px-3 py-2 border-bottom" id="hd_macro_panel_<?= (int)$ticket['id'] ?>" style="border-color:var(--hd-bd-l)!important">
       <div class="hd-macro-grid">
@@ -296,6 +319,7 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
     <div class="hd-reply-body">
       <form method="post" action="<?= h($view_action) ?>" enctype="multipart/form-data" data-hd-form>
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="macro_id" value="" data-hd-macro-id>
 
         <!-- Ukryte pole z HTML z Quilla -->
         <input type="hidden" name="msg_body" id="<?= $hd_editor_id ?>_hidden">
@@ -975,6 +999,32 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
       var open=panel.classList.toggle('open');
       btn.classList.toggle('open',open);
       btn.querySelector('i').className='bi bi-'+(open?'chevron-up':'card-text');
+    });
+  });
+  document.querySelectorAll('.hd-macro-chip').forEach(function(chip){
+    chip.addEventListener('click',function(){
+      var box=chip.closest('.hd-reply-box'); if(!box) return;
+      var form=box.querySelector('form[data-hd-form]'); if(!form) return;
+      var wrap=form.querySelector('.hd-quill-wrap'), q=wrap&&wrap._quill;
+      var body=chip.dataset.body||'', acts=chip.dataset.acts||'';
+      var idInp=form.querySelector('[data-hd-macro-id]');
+      var banner=box.querySelector('.hd-macro-applied');
+      box.querySelectorAll('.hd-macro-chip').forEach(function(c){c.classList.remove('active');});
+      if(q&&body!==''){
+        var html=body.replace(/\n/g,'<br>');
+        if(q.getText().trim()==='') q.root.innerHTML=html; else q.root.innerHTML+= '<p><br></p>'+html;
+        q.focus();
+      }
+      if(idInp) idInp.value=chip.dataset.macroId||'';
+      chip.classList.add('active');
+      if(banner){
+        banner.classList.remove('d-none');
+        banner.innerHTML='<i class="bi bi-lightning-charge-fill" style="color:#d83b01"></i><span>Makro „'+chip.dataset.title.replace(/</g,'&lt;')+'”'
+          +(acts?' — po wysłaniu: '+acts.replace(/</g,'&lt;'):' — wstawiono treść')+'</span><button type="button" class="btn btn-sm btn-link ms-auto p-0" data-hd-macro-clear>Anuluj makro</button>';
+        banner.querySelector('[data-hd-macro-clear]').addEventListener('click',function(){
+          if(idInp) idInp.value=''; chip.classList.remove('active'); banner.classList.add('d-none');
+        });
+      }
     });
   });
   document.querySelectorAll('.hd-macro-card').forEach(function(card){

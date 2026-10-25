@@ -193,6 +193,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
             }
         }
 
+        if ($is_op && !empty($_POST['macro_id'])) {
+            require_once dirname(__DIR__) . '/modules/helpdeskMacros/lib/helpdeskMacros.php';
+            hdMacroApply($id, (int)$_POST['macro_id'], $uid, (string)($u['name'] ?? ''));
+        }
         if (!$is_op && $ticket['status'] === 'oczekuje') {
             db_update('helpdesk_tickets', ['status' => 'otwarte', 'updated_at' => date('Y-m-d H:i:s')], $id);
         }

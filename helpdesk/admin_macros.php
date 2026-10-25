@@ -8,6 +8,8 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/helpdesk.php';
+require_once dirname(__DIR__) . '/modules/helpdeskMacros/lib/helpdeskMacros.php';
+hdMacrosMigrate();
 helpdesk_migrate();
 require_login();
 if (!is_admin() && !hd_is_operator()) { http_response_code(403); die('Brak dostępu.'); }
@@ -33,14 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'title' => $title, 'body' => $body,
                     'sort_order' => $sort, 'is_active' => $active,
                     'updated_at' => date('Y-m-d H:i:s'),
-                ], $id);
+                ] + hdMacroActionFields($_POST), $id);
                 flash_set('success', 'Makro zaktualizowane.');
             } else {
                 db_insert('helpdesk_macros', [
                     'title' => $title, 'body' => $body,
                     'sort_order' => $sort, 'is_active' => $active,
                     'created_by' => $uid, 'updated_at' => date('Y-m-d H:i:s'),
-                ]);
+                ] + hdMacroActionFields($_POST));
                 flash_set('success', 'Makro dodane.');
             }
             header('Location: admin_macros.php'); exit;
@@ -184,6 +186,24 @@ echo hd_ui_css();
         </div>
         <div class="form-text mt-1" style="font-size:.77rem">
           Obsługuje formatowanie HTML (pogrubienie, listy, linki) — renderowane w formularzu odpowiedzi Helpdesk.
+        </div>
+      </div>
+
+      <div class="mb-3 p-3" style="background:var(--hd-bg);border:1px solid var(--hd-bd)">
+        <div class="fw-semibold mb-2" style="font-size:.85rem"><i class="bi bi-lightning-charge me-1"></i>Akcje makra <span class="fw-normal text-muted">(wykonują się po wysłaniu odpowiedzi; makro bez treści działa od razu)</span></div>
+        <div class="row g-2">
+          <div class="col-sm-3"><label class="form-label mb-0 small">Ustaw status</label>
+            <select name="act_status" class="form-select form-select-sm"><option value="">— bez zmiany —</option>
+              <?php foreach (HD_STATUSES as $k => $st): ?><option value="<?= h($k) ?>"<?= ($edit['act_status'] ?? '') === $k ? ' selected' : '' ?>><?= h($st['label']) ?></option><?php endforeach; ?></select></div>
+          <div class="col-sm-3"><label class="form-label mb-0 small">Ustaw priorytet</label>
+            <select name="act_priority" class="form-select form-select-sm"><option value="">— bez zmiany —</option>
+              <?php foreach (HD_PRIORITIES as $k => $pr): ?><option value="<?= h($k) ?>"<?= ($edit['act_priority'] ?? '') === $k ? ' selected' : '' ?>><?= h($pr['label']) ?></option><?php endforeach; ?></select></div>
+          <div class="col-sm-3"><label class="form-label mb-0 small">Dodaj tag</label>
+            <input name="act_tag" class="form-control form-control-sm" maxlength="30" value="<?= h($edit['act_tag'] ?? '') ?>" placeholder="np. licencja"></div>
+          <div class="col-sm-3 d-flex flex-column justify-content-end gap-1">
+            <label class="small d-flex align-items-center gap-2"><input class="form-check-input mt-0" type="checkbox" name="act_assign_me" value="1"<?= !empty($edit['act_assign_me']) ? ' checked' : '' ?>>Przypisz do wykonującego</label>
+            <label class="small d-flex align-items-center gap-2"><input class="form-check-input mt-0" type="checkbox" name="show_button" value="1"<?= !empty($edit['show_button']) ? ' checked' : '' ?>>Przycisk nad polem odpowiedzi</label>
+          </div>
         </div>
       </div>
 
