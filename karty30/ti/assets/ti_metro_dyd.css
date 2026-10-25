@@ -115,21 +115,38 @@ html body.ti-metro .dyd-side .dyd-side-sec--k_plan         { --sec:#ad1457; }  /
 html body.ti-metro .dyd-side .dyd-side-sec--k_kadra        { --sec:#bf360c; }  /* ceglasty   5,6:1 */
 html body.ti-metro .dyd-side .dyd-side-sec--k_komunikacja  { --sec:#5d4037; }  /* brąz       9,3:1 */
 html body.ti-metro .dyd-side .dyd-side-sec--k_system       { --sec:#37474f; }  /* grafit     9,7:1 */
-/* ── Panel „Menu: …” w treści (kier-sidenav, _kierownik_bar.php) — czytelny, na całą wysokość ──────────
-   Ogólna reguła linków skórki Metro robiła z nich niebieskie napisy na ciemnym tle (kontrast < 3:1).
-   Tło: niebieski Metro #0b5582 z białym tekstem (8:1), aktywna pozycja biała z niebieskim napisem;
-   na desktopie kolumna przyklejona do lewej, od dolnej krawędzi paska górnego do dołu okna. */
-html body.ti-metro .kier-sidenav { background:#0b5582 !important; border-top:0 !important; color:#fff; }
-html body.ti-metro .kier-sidenav a:not(.btn) { color:#fff !important; text-decoration:none !important; }
-html body.ti-metro .kier-sidenav a:not(.btn) .bi { color:#fff !important; opacity:1; }
-html body.ti-metro .kier-sidenav a:not(.btn):hover { background:rgba(0,0,0,.2) !important; text-decoration:none !important; }
-html body.ti-metro .kier-sidenav a.active:not(.btn) { background:#fff !important; color:#0b5582 !important; }
-html body.ti-metro .kier-sidenav a.active:not(.btn) .bi { color:#0b5582 !important; }
-html body.ti-metro .kier-sidenav a .badge.text-bg-secondary { background:#fff !important; color:#0b5582 !important; }
-html body.ti-metro .kier-sidenav a.active .badge { background:#0b5582 !important; color:#fff !important; }
-html body.ti-metro .kier-sidenav a:focus-visible, html body.ti-metro .kier-sidenav summary:focus-visible, html body.ti-metro .kier-side-hide:focus-visible { outline:3px solid #fbbf24 !important; outline-offset:-2px; }
+/* ── Menu boczne w treści (kier-sidenav, _kierownik_bar.php) — styl Metro ─────────────────────────────
+   Płasko, bez zaokrągleń i obramowań. Nagłówek grupy = pełnokolorowy kafel (kolor --g), pozycje = białe wiersze
+   z kwadratowym kafelkiem ikony w kolorze grupy; hover = jasny odcień koloru grupy, aktywna = pełny kolor grupy.
+   Biały tekst na kolorach ≥ 5:1, ciemny tekst #1d1d1d na bieli / jasnym odcieniu ≥ 12:1. Desktop: kolumna
+   przyklejona do lewej, od dolnej krawędzi paska górnego do dołu okna. */
+html body.ti-metro .kier-sidenav { --g:#0b5582; background:#fff !important; border:0 !important; border-right:1px solid #d4d4d4 !important; border-radius:0 !important; color:#1d1d1d; padding:0 0 1rem; }
+html body.ti-metro .kier-sidenav .kier-side-hide { margin:0; width:100%; padding:.5rem .85rem; background:#fff; color:#1d1d1d !important; border:0; border-bottom:1px solid #d4d4d4; border-radius:0; font-size:.78rem; font-weight:600; justify-content:flex-start; }
+html body.ti-metro .kier-sidenav .kier-side-hide:hover { background:color-mix(in srgb,var(--g) 12%,#fff); }
+/* Nagłówki: grupa (details.kier-grp > summary) i tytuł listy płaskiej (h2) — kafle w kolorze grupy */
+html body.ti-metro .kier-sidenav h2,
+html body.ti-metro .kier-sidenav details.kier-grp > summary { display:flex; align-items:center; margin:0; padding:.7rem .85rem; min-height:42px; background:var(--g); color:#fff !important; border:0; border-bottom:1px solid rgba(255,255,255,.28); border-radius:0;
+  font-size:.7rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+html body.ti-metro .kier-sidenav details.kier-grp { margin:0; }
+html body.ti-metro .kier-sidenav details.kier-grp > summary:hover { background:color-mix(in srgb,var(--g) 82%,#000); }
+html body.ti-metro .kier-sidenav details.kier-grp > summary::after { color:#fff; }
+html body.ti-metro .kier-sidenav details.kier-grp > div { padding:0; }
+/* Pozycje */
+html body.ti-metro .kier-sidenav a:not(.btn) { display:flex; align-items:center; gap:.7rem; padding:.28rem .85rem .28rem .5rem; min-height:40px; background:#fff; color:#1d1d1d !important; border:0 !important; border-bottom:1px solid #eee !important; border-radius:0 !important; font-size:.88rem; font-weight:400; text-decoration:none !important; }
+html body.ti-metro .kier-sidenav a:not(.btn) .bi { display:inline-flex; align-items:center; justify-content:center; width:1.9rem; height:1.9rem; flex-shrink:0; background:var(--g); color:#fff !important; border-radius:0; font-size:.95rem; opacity:1; }
+html body.ti-metro .kier-sidenav a:not(.btn):hover { background:color-mix(in srgb,var(--g) 12%,#fff) !important; text-decoration:none !important; }
+html body.ti-metro .kier-sidenav a.active:not(.btn) { background:var(--g) !important; color:#fff !important; font-weight:600; }
+html body.ti-metro .kier-sidenav a.active:not(.btn) .bi { background:#fff; color:var(--g) !important; }
+html body.ti-metro .kier-sidenav a .badge { margin-left:auto; border-radius:0; font-weight:700; }
+html body.ti-metro .kier-sidenav a .badge.text-bg-secondary { background:var(--g) !important; color:#fff !important; }
+html body.ti-metro .kier-sidenav a.active .badge { background:#fff !important; color:var(--g) !important; }
+html body.ti-metro .kier-sidenav .kier-ext { color:#1d1d1d !important; background:none !important; width:auto; height:auto; }
+html body.ti-metro .kier-sidenav a.active .kier-ext { color:#fff !important; }
+html body.ti-metro .kier-sidenav .kier-crumbs { margin:.9rem .85rem 0; border-top:1px solid #d4d4d4; color:#3a3a3a; }
+html body.ti-metro .kier-sidenav .kier-crumbs a { display:inline; min-height:0; padding:0; border:0 !important; background:none !important; color:#0b5582 !important; text-decoration:underline !important; }
+html body.ti-metro .kier-sidenav a:focus-visible, html body.ti-metro .kier-sidenav summary:focus-visible, html body.ti-metro .kier-side-hide:focus-visible { outline:3px solid #fbbf24 !important; outline-offset:-3px; }
 @media (min-width: 992px) {
-  html body.ti-metro .kier-sidenav { position:fixed; top:var(--kier-top, 66px); bottom:0; left:0; width:264px; margin:0; padding:.6rem .6rem 1rem; overflow-y:auto; overscroll-behavior:contain; z-index:1030; }
+  html body.ti-metro .kier-sidenav { position:fixed; top:var(--kier-top, 66px); bottom:0; left:0; width:264px; margin:0; overflow-y:auto; overscroll-behavior:contain; z-index:1030; }
   html body.ti-metro .kier-sidenav.kier-embed { top:var(--kier-top, 66px); }
 }
 html body.ti-metro .dyd-side-toggle { background:var(--dm-dark) !important; }

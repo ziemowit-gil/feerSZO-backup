@@ -133,6 +133,11 @@ foreach ($_kier_norm as $_i) {
     $_kier_by_grp[$_kier_map[$_i['href']] ?? 'Inne'][] = $_i;
 }
 $_kier_order = array_merge(array_keys($_kier_grupy), ['Inne']);
+// Kolor kafla każdej grupy (styl Metro; biały tekst, kontrast ≥ 5:1) — te same barwy co grupy menu bocznego dydaktyka
+$_kier_pal = ['Grupy i kursy' => '#0b5582', 'Kursanci i konta' => '#006064', 'Finanse' => '#2e7d32', 'Protokoły i raporty' => '#6a1b9a',
+              'Planowanie' => '#ad1457', 'Komunikacja' => '#5d4037', 'Ustawienia i narzędzia' => '#37474f', 'Inne' => '#bf360c'];
+$_kier_cyc = array_values($_kier_pal);   // własne mapy grup (np. Konsultacje) — kolory po kolei
+$_kier_col = fn(string $g, int $i) => $_kier_pal[$g] ?? $_kier_cyc[$i % count($_kier_cyc)];
 
 $_kier_sections = [
     ['Mój panel',    'index.php?tab=pulpit'],
@@ -219,7 +224,7 @@ $_kier_sections = [
 <button type="button" class="kier-side-show" aria-controls="kierSidenav" aria-expanded="false" onclick="kierMenu(true)">
   <i class="bi bi-layout-sidebar" aria-hidden="true"></i>Pokaż menu: <?= h(mb_strtolower($KIER_TITLE)) ?>
 </button>
-<nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" id="kierSidenav" aria-label="Menu: <?= h($KIER_TITLE) ?>">
+<nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" id="kierSidenav" style="--g:#0b5582" aria-label="Menu: <?= h($KIER_TITLE) ?>">
   <button type="button" class="kier-side-hide" aria-controls="kierSidenav" aria-expanded="true" onclick="kierMenu(false)">
     <i class="bi bi-chevron-double-left" aria-hidden="true"></i>Ukryj menu
   </button>
@@ -237,11 +242,11 @@ $_kier_sections = [
         <?php endforeach; ?>
         <?= $KIER_EXTRA_HTML ?>
       <?php else: ?>
-      <?php foreach ($_kier_order as $_g):
+      <?php foreach ($_kier_order as $_gi => $_g):
         if (empty($_kier_by_grp[$_g])) continue;
         $_grp_open = array_filter($_kier_by_grp[$_g], fn($x) => !empty($x['active'])) ? ' open' : '';
       ?>
-      <details class="kier-grp"<?= $_grp_open ?>>
+      <details class="kier-grp"<?= $_grp_open ?> style="--g:<?= h($_kier_col((string)$_g, (int)$_gi)) ?>">
         <summary><?= h($_g) ?></summary>
         <div>
         <?php foreach ($_kier_by_grp[$_g] as $_i): ?>
