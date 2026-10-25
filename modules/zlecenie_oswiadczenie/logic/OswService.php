@@ -323,9 +323,10 @@ final class OswService
     {
         $pesel = (string)($a['pesel'] ?? '');
         $name = OswForm::nameFirst((string)($a['nazwisko_imiona'] ?? ''));
+        [$peselSql, $peselParams] = fcMatchPesel('umowy_zlecenie', 'pesel', $pesel);   // PESEL bywa zaszyfrowany (field_crypto)
         return db_all("SELECT id, numer_umowy, imie_nazwisko, status, data_zawarcia FROM umowy_zlecenie
-                        WHERE (? <> '' AND pesel = ?) OR (? <> '' AND LOWER(imie_nazwisko) = LOWER(?)) ORDER BY id DESC LIMIT 20",
-            [$pesel, $pesel, $name, $name]);
+                        WHERE {$peselSql} OR (? <> '' AND LOWER(imie_nazwisko) = LOWER(?)) ORDER BY id DESC LIMIT 20",
+            [...$peselParams, $name, $name]);
     }
 
     private static function nextZlbNumber(): string
