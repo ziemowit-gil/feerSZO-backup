@@ -142,3 +142,4 @@ a.view-opt:hover, a.view-opt:focus-visible { background: rgba(255,255,255,.2); }
 .lesson.is-cancelled { border-left: 4px solid var(--bad); padding-left: 6px; }
 .lesson.is-cancelled, .lesson.is-cancelled .p, .lesson.is-cancelled a, .lesson.is-cancelled .n, .lesson.is-cancelled .s, .lesson.is-cancelled .k { color: var(--bad); }
 .g.is-cancelled, .g.is-cancelled s { color: var(--bad); }
+.lesson .none { font-style: italic; }

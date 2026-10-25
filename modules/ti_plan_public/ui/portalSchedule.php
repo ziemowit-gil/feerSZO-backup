@@ -31,6 +31,10 @@ function tiPlanPortalCard(array $l, array $o, bool $withTime = false): string {
             ? '<a class="n" href="' . tiPlanPortalUrl($self, $full ? ['u' => $l['instr_id']] : ['p' => $tok]) . '" title="Plan prowadzącego">' . h($l['instr']) . '</a>'
             : '<span class="n">' . h($l['instr']) . '</span>';
     }
+    // Brak danych: wyraźnie „Nie wskazano” zamiast pustego miejsca
+    if ($mode !== 'instr' && trim($l['instr']) === '') $parts[] = '<span class="n none">prowadzący: Nie wskazano</span>';
+    if ($mode !== 'room' && $l['method'] !== 'online' && $l['room'] === '' && !($l['room_id'] && in_array((int)$l['room_id'], tiPlanPublicOnlineRoomIds(), true)))
+        $parts[] = '<span class="s none">sala: Nie wskazano</span>';
     if ($mode !== 'room') {
         if ($l['method'] === 'online') $parts[] = !empty($o['roomLinks'])
             ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => 'online']) . '" title="Zajęcia online — bez rezerwacji sali">zdalnie (online)</a>'

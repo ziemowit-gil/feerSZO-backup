@@ -356,11 +356,11 @@ if (isset($_GET['s'])) {
     $sub  = implode(' · ', array_filter([$name !== (string)$room['name'] ? (string)$room['name'] : '', (string)$room['location'], (string)($room['building'] ?? ''), (string)($room['building_address'] ?? ''), (int)$room['capacity'] ? 'miejsc: ' . (int)$room['capacity'] : '']));
     $roomT = $isOnline ? $name : $roomTitle($name);
     tiPlanPortalOpen($base + ['title' => $roomT, 'heading' => $roomT, 'sub' => h($sub), 'current' => tiPlanPortalUrl($self, ['s' => $room['id']])]);
-    if (!$isOnline && (trim((string)($room['open_hours'] ?? '')) !== '' || trim((string)($room['reserve_hours'] ?? '')) !== '')) {
-        echo '<div class="box note" role="note">';
-        if (trim((string)($room['open_hours'] ?? '')) !== '') echo '<strong>Godziny otwarcia:</strong> ' . h(trim((string)$room['open_hours'])) . '<br>';
-        if (trim((string)($room['reserve_hours'] ?? '')) !== '') echo '<strong>Godziny rezerwacji:</strong> ' . h(trim((string)$room['reserve_hours'])) . '<br>';
-        echo '<small>' . h(TI_PLAN_HOURS_NOTE) . (trim((string)($room['reserve_hours'] ?? '')) !== '' ? ' ' . h(TI_PLAN_RESERVE_NOTE) : '') . '</small></div>';
+    if (!$isOnline) {   // godziny sali; brak danych = „Nie wskazano”
+        $oh = trim((string)($room['open_hours'] ?? '')); $rh = trim((string)($room['reserve_hours'] ?? ''));
+        echo '<div class="box note" role="note"><strong>Godziny otwarcia:</strong> ' . ($oh !== '' ? h($oh) : '<em>Nie wskazano</em>') . '<br>'
+           . '<strong>Godziny rezerwacji:</strong> ' . ($rh !== '' ? h($rh) : '<em>Nie wskazano</em>') . '<br>'
+           . '<small>' . h(TI_PLAN_HOURS_NOTE) . ($rh !== '' ? ' ' . h(TI_PLAN_RESERVE_NOTE) : '') . '</small></div>';
     }
     if ($isOnline) echo '<div class="box note" role="note"><strong>Zajęcia zdalne</strong> — odbywają się online (Zoom / Teams), nie wymagają rezerwacji sali. Link do spotkania uczestnicy dostają od prowadzącego lub w panelu kursanta.</div>';
     if ($isOnline) {   // chipy-filtry: metody (platformy) i grupy, z liczbą nieodwołanych terminów
