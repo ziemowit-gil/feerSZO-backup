@@ -94,11 +94,13 @@ function collect_recipients(array $body): array {
  *    (chyba że include_inactive),
  *  • kategoria główna: gdy operator wskazał kategorie (primary_in) — tylko kontakty z taką kategorią główną.
  *
- * @return array{0:array<int>,1:array{automat:int,status:int,primary:int}}
+ *  • uczestnicy TI z opcją „tylko rozliczenie licencji” — niedostępni do wysyłek CRM (mają tylko komunikację rozliczeniową z modułu licencji).
+ *
+ * @return array{0:array<int>,1:array{automat:int,status:int,primary:int,licenses_only:int}}
  */
 function filter_by_statuses(array $ids, array $body): array
 {
-    $dropped = ['automat' => 0, 'status' => 0, 'primary' => 0];
+    $dropped = ['automat' => 0, 'status' => 0, 'primary' => 0, 'licenses_only' => 0];
     if (!$ids) return [$ids, $dropped];
     require_once dirname(dirname(__DIR__)) . '/includes/crmAutomat.php';
     require_once dirname(dirname(__DIR__)) . '/includes/crmCategories.php';
@@ -108,9 +110,16 @@ function filter_by_statuses(array $ids, array $body): array
     $ph   = implode(',', array_fill(0, count($ids), '?'));
     $rows = db_all("SELECT id, email, imie_nazwisko, status FROM crm_contacts WHERE id IN ($ph)", array_map('intval', $ids));
     $pm   = crm_primary_map(array_map(fn($r) => (int)$r['id'], $rows));
+    // Uczestnicy TI z opcją „tylko rozliczenie licencji” (dopasowanie po e-mailu): nie są adresatami wysyłek CRM
+    $lic_only = [];
+    try {
+        foreach (db_all("SELECT LOWER(TRIM(cl.email)) AS e FROM k30_ti_student_accounts a JOIN k30_clients cl ON cl.id=a.client_id
+                          WHERE a.licenses_only=1 AND COALESCE(TRIM(cl.email),'')<>''") as $x) $lic_only[$x['e']] = true;
+    } catch (\Throwable $e) {}   // kolumna pojawia się z modułem licencji TI
     $keep = [];
     foreach ($rows as $r) {
         $id = (int)$r['id'];
+        if ($lic_only && isset($lic_only[strtolower(trim((string)$r['email']))])) { $dropped['licenses_only']++; continue; }
         $slug = $pm[$id]['slug'] ?? '';
         if ($slug === 'automat' || crm_is_automat($r['email'], $r['imie_nazwisko'])) { $dropped['automat']++; continue; }
         if ($status_in) { if (!in_array((string)$r['status'], $status_in, true)) { $dropped['status']++; continue; } }
