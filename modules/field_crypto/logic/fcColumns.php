@@ -4,6 +4,7 @@
  *
  * Dwa rodzaje wpisów:
  *   • jawne (bez 'auto')  — kod sam woła fcEncrypt/fcDecrypt (moduł rodo_register);
+ *   • przezroczyste ('auto' => true) — szyfruje je warstwa db() (modules/field_crypto/lib/fcDb.php): kod zapisuje i czyta
  *     jawnie, a SZUKANIE po nich musi iść przez fcMatchPesel()/fcMatchLast5() zamiast WHERE pesel = ? / LIKE / SUBSTR.
  *
  * Kolumnę przezroczystą dopisujemy DOPIERO po przejrzeniu wszystkich zapytań SQL, które jej używają w warunkach
