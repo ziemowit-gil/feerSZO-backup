@@ -135,6 +135,10 @@ final class TiLicencjeBilling
         if ($a['status'] === 'revoked')   { $res['msg'] = 'Licencja jest unieważniona.'; return $res; }
         $am = TiLicencjeManager::amounts($a);
         if (!$am || empty($a['billing_day'])) { $res['msg'] = 'Licencja nie ma rozliczenia cyklicznego.'; return $res; }
+        // „Bez rozliczeń i powiadomień” wyłącza także wiadomości o licencjach — chyba że konto ma opcję „tylko rozliczenie licencji”
+        // (ona jest szczegółowsza: lekcji nie naliczamy, licencje tak).
+        $flags = db_one("SELECT MAX(COALESCE(no_billing,0)) AS nb, MAX(COALESCE(licenses_only,0)) AS lo FROM k30_ti_student_accounts WHERE client_id = ?", [(int)$a['client_id']]);
+        if ($flags && (int)$flags['nb'] === 1 && (int)$flags['lo'] === 0) { $res['msg'] = 'Konto ma „Bez rozliczeń i powiadomień” — wiadomości rozliczeniowej nie wysłano.'; return $res; }
         $c = self::contact((int)$a['client_id']);
         $tplBase = 'ti_license_billing_' . $kind;
         $amount = $am[1];
