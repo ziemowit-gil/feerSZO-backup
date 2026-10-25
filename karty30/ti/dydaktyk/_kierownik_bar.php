@@ -201,33 +201,10 @@ $_kier_sections = [
        margines selektorem body.dyd-usos .dyd-content !important — przebijamy
        silniejszym selektorem, inaczej sidebar wjeżdża na treść. */
     body.dyd-usos main.dyd-content.dyd-wrap { margin-left: 264px !important; width: auto !important; }
-    /* Menu schowane (przycisk „Ukryj menu”, pamiętane w przeglądarce): treść na całą szerokość. */
-    html.kier-side-off .kier-sidenav { display: none; }
-    html.kier-side-off main.dyd-wrap, html.kier-side-off body.dyd-usos main.dyd-content.dyd-wrap { margin-left: 0 !important; }
-    html.kier-side-off .skin-crumbs { margin-left: 0; }
-    .kier-side-show { display: none; }
-    html.kier-side-off .kier-side-show { display: inline-flex; }
   }
-  .kier-side-hide, body.ti-skin .kier-side-hide { display: none; }
-  @media (min-width: 992px) {
-    .kier-side-hide, body.ti-skin .kier-side-hide { display: flex; align-items: center; gap: .35rem; width: 100%; margin: 0 0 .25rem;
-      padding: .3rem .6rem; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 2px;
-      font-size: .78rem; font-weight: 600; cursor: pointer; }
-    .kier-side-hide:hover { background: rgba(255,255,255,.1); }
-  }
-  .kier-side-show { align-items: center; gap: .35rem; margin: .5rem 0 0 1rem; padding: .3rem .7rem; background: var(--ti-navy, #10335c);
-    color: #fff; border: 0; border-radius: 2px; font-size: .8rem; font-weight: 600; cursor: pointer; }
-  .kier-side-hide:focus-visible, .kier-side-show:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
 </style>
 
-<script>try{if(localStorage.getItem('kierSideOff')==='1')document.documentElement.classList.add('kier-side-off');}catch(e){}</script>
-<button type="button" class="kier-side-show" aria-controls="kierSidenav" aria-expanded="false" onclick="kierMenu(true)">
-  <i class="bi bi-layout-sidebar" aria-hidden="true"></i>Pokaż menu: <?= h(mb_strtolower($KIER_TITLE)) ?>
-</button>
 <nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" id="kierSidenav" style="--g:#0b5582" aria-label="Menu: <?= h($KIER_TITLE) ?>">
-  <button type="button" class="kier-side-hide" aria-controls="kierSidenav" aria-expanded="true" onclick="kierMenu(false)">
-    <i class="bi bi-chevron-double-left" aria-hidden="true"></i>Ukryj menu
-  </button>
   <details open>
     <summary><i class="bi bi-list" aria-hidden="true"></i> Menu: <?= h(mb_strtolower($KIER_TITLE)) ?></summary>
     <div>
@@ -279,13 +256,6 @@ $_kier_sections = [
   </details>
 </nav>
 <script>
-// Chowanie menu (pamiętane w przeglądarce); fokus wraca na przycisk drugiego stanu.
-function kierMenu(pokaz) {
-  document.documentElement.classList.toggle('kier-side-off', !pokaz);
-  try { localStorage.setItem('kierSideOff', pokaz ? '0' : '1'); } catch (e) {}
-  var b = document.querySelector(pokaz ? '.kier-side-hide' : '.kier-side-show'); if (b) b.focus();
-  window.dispatchEvent(new Event('resize'));
-}
 // Skórka Metro: kolumna menu jest przyklejona do ekranu (CSS), startuje pod paskiem górnym — śledzimy jego dolną krawędź przy przewijaniu.
 (function () {
   var hdr = document.querySelector('body > header'), ticking = false;
@@ -301,9 +271,12 @@ function kierMenu(pokaz) {
   if (nav && window.matchMedia && !window.matchMedia('(min-width: 992px)').matches) {
     var zew = nav.querySelector(':scope > details'); if (zew) zew.open = false;
   }
+  // Menu dopasowane do strony: aktywna pozycja (jej grupa jest otwarta po stronie serwera) przewinięta do widoku
+  var act = nav && nav.querySelector('a.active');
+  if (act && nav.scrollHeight > nav.clientHeight) { try { act.scrollIntoView({ block: 'center' }); } catch (e) { act.scrollIntoView(); } window.scrollTo(0, 0); }
   if (!nav || !main || !window.matchMedia) return;
   function wyrownaj() {
-    main.style.minHeight = (window.matchMedia('(min-width: 992px)').matches && !document.documentElement.classList.contains('kier-side-off'))
+    main.style.minHeight = (window.matchMedia('(min-width: 992px)').matches)
       ? Math.max(0, nav.getBoundingClientRect().bottom - main.getBoundingClientRect().top) + 'px' : '';
   }
   window.addEventListener('load', wyrownaj); window.addEventListener('resize', wyrownaj);
