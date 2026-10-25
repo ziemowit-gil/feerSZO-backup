@@ -44,19 +44,13 @@ html body.ti-metro header .navbar .dyd-topnav a {
 }
 html body.ti-metro header .navbar .dyd-topnav a:hover { color:#fff !important; background:rgba(255,255,255,.1) !important; }
 html body.ti-metro header .navbar .dyd-topnav a[aria-current="page"] { color:#fff !important; font-weight:600; border-bottom-color:var(--dm-acc) !important; background:none !important; }
-/* Każda sekcja paska ma własny kolor (te same co grupy menu bocznego); biały tekst, kontrast ≥ 4,9:1.
-   Aktywna: pogrubiona, z białym spodem. Hover przyciemnia kolor sekcji. */
-html body.ti-metro header .navbar .dyd-topnav a { --nv:#0f6fa8; white-space:nowrap; color:#fff !important; font-weight:500; background:var(--nv) !important; border-right:1px solid rgba(255,255,255,.22) !important; }
-html body.ti-metro header .navbar .dyd-topnav a:hover { color:#fff !important; background:var(--nv) !important; box-shadow:inset 0 0 0 99px rgba(0,0,0,.2); }
-html body.ti-metro header .navbar .dyd-topnav a[aria-current="page"] { font-weight:700; border-bottom-color:#fff !important; background:var(--nv) !important; }
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-start       { --nv:#303f9f; }  /* indygo      9,0:1 */
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs        { --nv:#00695c; }  /* zielona toń 6,6:1 */
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-komunikacja { --nv:#7a5c00; }  /* złoty brąz  6,3:1 */
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-zasoby      { --nv:#0d47a1; }  /* granat      8,6:1 */
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-certyfikat  { --nv:#1b5e20; }  /* ciemna zieleń 7,9:1 */
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-konsultacje { --nv:#4527a0; }  /* fiolet     10,2:1 */
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie  { --nv:#ad1457; }  /* róż         7,0:1 */
-html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kierownik   { --nv:#0b5582; }  /* niebieski   8,0:1 */
+/* „Kurs” — najważniejsza sekcja: stałe tło akcentu, żeby wyróżniała się w pasku */
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs { color:#fff !important; font-weight:600; background:var(--dm-acc) !important; }
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs:hover { background:var(--dm-acc-d) !important; }
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs[aria-current="page"] { border-bottom-color:#fff !important; background:var(--dm-acc) !important; }
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie { color:#fff !important; font-weight:600; background:#ad1457 !important; }
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie:hover { background:#880e4f !important; }
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie[aria-current="page"] { border-bottom-color:#fff !important; background:#ad1457 !important; }
 html body.ti-metro header .navbar .dyd-topnav .badge { background:var(--dm-red) !important; color:#fff !important; }
 /* Przyciski paska: płaskie, na pełną wysokość */
 html body.ti-metro header .navbar .btn,
