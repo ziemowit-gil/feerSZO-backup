@@ -20,14 +20,15 @@ if ($q !== '' && mb_strlen($q) < 2) {
 if ($q !== '' && $error === '') {
     $like = '%' . $q . '%';
 
-    // 1. umowy_wolontariat
+    // 1. umowy_wolontariat  (PESEL bywa zaszyfrowany — pełny numer przez indeks ślepy, field_crypto)
     try {
+        [$peselSql, $peselParams] = fcMatchPesel('umowy_wolontariat', 'pesel', $q);
         $rows = db_all(
             "SELECT id, imie_nazwisko, email, numer_umowy, data_od
              FROM umowy_wolontariat
-             WHERE imie_nazwisko LIKE ? OR email LIKE ? OR numer_umowy LIKE ? OR pesel LIKE ?
+             WHERE imie_nazwisko LIKE ? OR email LIKE ? OR numer_umowy LIKE ? OR pesel LIKE ? OR {$peselSql}
              LIMIT 10",
-            [$like, $like, $like, $like]
+            [$like, $like, $like, $like, ...$peselParams]
         );
         if ($rows) {
             $results[] = [

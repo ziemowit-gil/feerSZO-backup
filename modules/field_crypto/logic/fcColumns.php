@@ -33,6 +33,7 @@ function fcColumns(): array {
         ['table' => 'rodo_authorizations', 'column' => 'person_pesel', 'kind' => 'digits', 'blind' => 'person_pesel_idx', 'auto' => true],
         ['table' => 'k30_clients', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'auto' => true],
         ['table' => 'crm_contacts', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'auto' => true],
+        ['table' => 'umowy_wolontariat', 'column' => 'pesel', 'kind' => 'digits', 'blind' => 'pesel_idx', 'l5' => true, 'auto' => true],
         ['table' => 'rodo_deletion_log', 'column' => 'auth_pesel', 'kind' => 'digits', 'blind' => 'auth_pesel_idx', 'auto' => true],
     ];
 }
