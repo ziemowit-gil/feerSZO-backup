@@ -172,6 +172,23 @@ include __DIR__ . '/includes/header_crm.php';
 #tpl-quill-wrapper .ql-editor{min-height:160px;font-size:.85rem}
 #tpl-quill-wrapper .ql-editor.ql-blank::before{color:#9CA3AF;font-style:normal}
 #tpl-quill-wrapper.is-invalid .ql-toolbar,#tpl-quill-wrapper.is-invalid .ql-container{border-color:#dc3545}
+
+/* ══ Układ Dynamics 365: lista jak widok siatki, proste krawędzie, kontrast ≥ 4,5:1 ══ */
+.tpl-list{border:1px solid #D1D5DB;background:#fff}
+.tpl-row{border:0;border-bottom:1px solid #E5E7EB;border-radius:0;box-shadow:none;padding:.8rem 1rem;gap:.85rem;border-left:4px solid transparent}
+.tpl-row:last-child{border-bottom:0}
+.tpl-row:hover{background:#F9FAFB;border-left-color:#0F766E}
+.tpl-row.is-off{opacity:1;background:#F3F4F6}
+.tpl-row.is-off .tpl-name{color:#4B5563;text-decoration:line-through}
+.tpl-icon{width:34px;height:34px;border-radius:0;font-size:1rem}
+.tpl-name{font-weight:600}
+.tpl-meta{color:#4B5563}
+.tpl-badge{border-radius:0;padding:.1rem .5rem}
+.tpl-preview{color:#374151;font-size:.8rem}
+.tpl-actions .btn{border-radius:0}
+.var-chip{border-radius:0;background:#fff;border:1px solid #9CA3AF;color:#0F4C47}
+.var-chip:hover,.var-chip:focus-visible{background:#E6F4F1;border-color:#0F766E;outline:2px solid #0F766E;outline-offset:1px}
+.crm-page-header + .alert, .cv-panel{border-radius:0}
 </style>
 
 <div class="crm-page-header mb-4">
@@ -242,7 +259,7 @@ include __DIR__ . '/includes/header_crm.php';
 </div>
 <?php else: ?>
 
-<div class="d-flex flex-column gap-2 mt-3">
+<div class="tpl-list d-flex flex-column mt-3">
   <?php foreach ($templates as $t):
     $ch     = $CHANNELS[$t['channel']] ?? $CHANNELS['email'];
     $off    = (int)$t['is_active'] !== 1;
