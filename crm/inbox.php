@@ -238,6 +238,9 @@ $explicit = $sel_id > 0;
 // jednej wizyty. ?threads=0/1 przestawia, brak parametru czyta ostatni wybór.
 if (isset($_GET['threads'])) user_pref_set('crm_inbox_threads', $_GET['threads'] === '1' ? '1' : '0');
 $threads = user_pref('crm_inbox_threads', '1') === '1';
+// Widok rozmowy: cały wątek w panelu czytania, bez przełączania się między wiadomościami
+if (isset($_GET['conv'])) user_pref_set('crm_inbox_conv', $_GET['conv'] === '1' ? '1' : '0');
+$conv_on = user_pref('crm_inbox_conv', '1') === '1';
 
 $inbox  = crm_mailbox_inbox(['view' => $view, 'mailbox_id' => $mbox_f, 'q' => $search,
                              'unread' => $f_unread, 'att' => $f_att,
@@ -771,6 +774,38 @@ include __DIR__ . '/includes/header_crm.php';
     $rail_thread = count($msg['ctx']['thread'] ?? []) > 1 ? $msg['ctx']['thread'] : [];
     $msg_no  = crm_msg_no((int)$msg['id'], $msg['msg_no'] ?? null);
     $msg_out = ($msg['direction'] ?? 'in') === 'out';
+    // Pozostałe wiadomości wątku (z treścią), podział na wcześniejsze i późniejsze względem otwartej
+    $conv_before = $conv_after = [];
+    if ($conv_on && $rail_thread) {
+        $seen_cur = false;
+        foreach ($rail_thread as $tr) {
+            if ((int)$tr['id'] === (int)$msg['id']) { $seen_cur = true; continue; }
+            $full = crm_mailbox_message((int)$tr['id']);
+            if (!$full) continue;
+            if ($seen_cur) $conv_after[] = $full; else $conv_before[] = $full;
+        }
+    }
+    $conv_card = static function (array $m) use ($ib_avatar): void {
+        $out = ($m['direction'] ?? 'in') === 'out';
+        $who = $out ? 'Ty → ' . ($m['contact_name'] ?: ($m['from_email'] ?: '—'))
+                    : ($m['from_name'] ?: ($m['from_email'] ?: '—'));
+        [$ini, $hue] = $ib_avatar($out ? 'Ty' : (string)$who);
+        $plain = trim(preg_replace('/\s+/u', ' ', strip_tags((string)($m['body'] ?: $m['body_html'] ?? ''))));
+        $open  = empty($m['is_read']) && !$out;
+        ?>
+        <details class="ib-conv-item<?= $out ? ' is-out' : '' ?>"<?= $open ? ' open' : '' ?>>
+          <summary>
+            <span class="ib-av<?= $out ? ' ib-av--out' : '' ?>" style="--h:<?= (int)$hue ?>" aria-hidden="true"><?= h($ini) ?></span>
+            <span class="ib-conv-who"><?= h($who) ?></span>
+            <span class="ib-conv-snip"><?= h(mb_substr($plain, 0, 140)) ?></span>
+            <time datetime="<?= h(date('c', strtotime((string)$m['sent_at']))) ?>"><?= h(date('d.m.Y H:i', strtotime((string)$m['sent_at']))) ?></time>
+          </summary>
+          <iframe class="ib-frame" title="Wiadomość: <?= h($who) ?>, <?= h(date('d.m.Y H:i', strtotime((string)$m['sent_at']))) ?>"
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                  referrerpolicy="no-referrer" srcdoc="<?= h(crmInboxFrameDoc($m)) ?>"></iframe>
+        </details>
+        <?php
+    };
   ?>
     <article class="ib-pane" id="ibPane" data-msg="<?= (int)$msg['id'] ?>" aria-labelledby="ibMsgTitle">
 
@@ -1162,9 +1197,19 @@ include __DIR__ . '/includes/header_crm.php';
         <label><input type="checkbox" data-ib-imgs-always> zawsze pokazuj</label>
       </div>
       <?php endif; ?>
+      <?php if ($rail_thread): ?>
+      <div class="ib-conv-bar">
+        <i class="bi bi-chat-left-text" aria-hidden="true"></i>
+        <strong>Rozmowa</strong> · <?= count($rail_thread) ?> wiad.
+        <a class="ms-auto" href="?<?= $qs(['conv' => $conv_on ? '0' : '1']) ?>"><?= $conv_on ? 'Tylko ta wiadomość' : 'Pokaż całą rozmowę' ?></a>
+      </div>
+      <?php endif; ?>
+      <?php foreach ($conv_before as $cm) $conv_card($cm); ?>
+      <?php if ($conv_before): ?><div class="ib-conv-cur"><i class="bi bi-arrow-down-short" aria-hidden="true"></i> Otwarta wiadomość</div><?php endif; ?>
       <iframe class="ib-frame" id="ibFrame" title="Treść wiadomości: <?= h($msg['subject'] ?: '(bez tematu)') ?>"
               sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
               referrerpolicy="no-referrer" srcdoc="<?= h($frame_doc) ?>"></iframe>
+      <?php foreach ($conv_after as $cm) $conv_card($cm); ?>
       </div><!-- /.ib-content -->
 
       <?php /* Sprawy, oferty i wątek — obok treści, gdy panel jest szeroki
