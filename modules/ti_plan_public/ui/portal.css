@@ -143,3 +143,4 @@ a.view-opt:hover, a.view-opt:focus-visible { background: rgba(255,255,255,.2); }
 .lesson.is-cancelled, .lesson.is-cancelled .p, .lesson.is-cancelled a, .lesson.is-cancelled .n, .lesson.is-cancelled .s, .lesson.is-cancelled .k { color: var(--bad); }
 .g.is-cancelled, .g.is-cancelled s { color: var(--bad); }
 .lesson .none { font-style: italic; }
+.side-sub { font-size: .8em; margin: .6em 0 .1em; font-weight: 600; font-style: italic; }

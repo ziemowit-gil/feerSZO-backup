@@ -105,7 +105,7 @@ function tiPlanPortalOpen(array $o): void {
           ? ['Stacjonarnie' => array_filter($side[$k], fn($i) => empty($i[2])), 'Online' => array_filter($side[$k], fn($i) => !empty($i[2]))]
           : ['' => $side[$k]];
       foreach ($parts as $pn => $pitems): if (!$pitems) continue; ?>
-      <?php if ($pn !== ''): ?><h3 class="side-sub" id="side-sale-<?= mb_strtolower($pn) ?>" style="font-size:.85em;margin:.5em 0 .1em;font-weight:600"><?= h($pn) ?></h3><?php endif; ?>
+      <?php if ($pn !== ''): ?><h3 class="side-sub" id="side-sale-<?= mb_strtolower($pn) ?>" ><?= h($pn) ?></h3><?php endif; ?>
       <ul<?= $pn !== '' ? ' aria-labelledby="side-sale-' . mb_strtolower($pn) . '"' : '' ?>>
         <?php foreach ($pitems as $it): ?>
         <li data-side-item><a href="<?= $it[1] ?>"<?= $it[1] === $cur ? ' aria-current="page"' : '' ?>><?= h($it[0]) ?></a></li>
@@ -119,7 +119,6 @@ function tiPlanPortalOpen(array $o): void {
   <main class="page" id="tresc">
     <div class="titlebar">
       <h1 class="title"><?= h($o['heading'] ?? $o['title']) ?></h1>
-      <?php if ($allowClassic): ?><a class="skin-btn" href="<?= tiPlanPortalSkinUrl($skin === 'metro' ? 'klasyczny' : 'metro') ?>" title="Przełącz wygląd planu (zapamiętany w tej przeglądarce)"><?= $skin === 'metro' ? 'Widok klasyczny' : 'Widok nowoczesny' ?></a><?php endif; ?>
       <?php $isFull = !empty($o['full']); $canFull = !empty($o['canFull']) || $isFull;
         $vu = fn(string $v) => htmlspecialchars(preg_replace('/([?&])widok=[^&]*&?/', '$1', (string)($_SERVER['REQUEST_URI'] ?? '/')), ENT_QUOTES) . ((str_contains((string)($_SERVER['REQUEST_URI'] ?? ''), '?') ? '&amp;' : '?')) . 'widok=' . $v; // zostajemy na bieżącej stronie planu ?>
       <span class="view-switch" role="group" aria-label="Rodzaj widoku">
@@ -129,6 +128,13 @@ function tiPlanPortalOpen(array $o): void {
         <?php if (!$isFull): ?><span class="view-opt is-on" aria-current="true">Uproszczony</span><?php else: ?>
         <a class="view-opt" href="<?= $vu('uproszczony') ?>" title="Pokaż plan tak, jak widzą go osoby bez logowania">Uproszczony</a><?php endif; ?>
       </span>
+      <?php if ($allowClassic): // Skórka = sam wygląd (Nowoczesny / Klasyczna); osobno od „Widok” = zakres danych (Pełny / Uproszczony) ?>
+      <span class="view-switch" role="group" aria-label="Skórka (wygląd planu)">
+        <span class="view-switch-l">Skórka:</span>
+        <?php if ($skin === 'metro'): ?><span class="view-opt is-on" aria-current="true">Nowoczesny</span><?php else: ?><a class="view-opt" href="<?= tiPlanPortalSkinUrl('metro') ?>" title="Wygląd nowoczesny (zapamiętany w tej przeglądarce)">Nowoczesny</a><?php endif; ?>
+        <?php if ($skin === 'klasyczny'): ?><span class="view-opt is-on" aria-current="true">Klasyczna</span><?php else: ?><a class="view-opt" href="<?= tiPlanPortalSkinUrl('klasyczny') ?>" title="Wygląd klasyczny (zapamiętany w tej przeglądarce)">Klasyczna</a><?php endif; ?>
+      </span>
+      <?php endif; ?>
       <?php // Stan zalogowania — osobno od rodzaju widoku: zalogowany może oglądać plan także w widoku uproszczonym ?>
       <span class="login-state <?= $canFull ? 'is-in' : 'is-out' ?>" role="status"><i class="<?= $canFull ? 'fa-solid fa-user-check' : 'fa-regular fa-user' ?>" aria-hidden="true"></i><?php if ($canFull): $la = trim((string)($o['loggedAs'] ?? '')); ?>Zalogowano<?= $la !== '' ? ' jako ' . ($la === 'hasłem kierownika' ? h($la) : '<strong>' . h($la) . '</strong>') : '' ?><?php else: ?>Niezalogowany<?php endif; ?></span>
       <?php if ($canFull): ?><a class="login-btn" href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a>
@@ -142,7 +148,7 @@ function tiPlanPortalOpen(array $o): void {
     <?php endif; ?>
     <div class="content">
     <?php if (!empty($o['full'])): ?>
-    <div class="box note" role="note"><strong>Widok pełny</strong> (zalogowano hasłem kierownika): widoczne wszystkie grupy, pełne nazwiska i linki do zajęć online.
+    <div class="box note" role="note"><strong>Widok pełny</strong> (zalogowano <?= !empty($o['loggedAs']) ? ($o['loggedAs'] === 'hasłem kierownika' ? 'hasłem kierownika' : 'jako ' . h($o['loggedAs'])) : 'hasłem kierownika' ?>): widoczne wszystkie grupy, pełne nazwiska i linki do zajęć online.
       Nie udostępniaj tego ekranu osobom postronnym. <a href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a></div>
     <?php endif; ?>
     <?php

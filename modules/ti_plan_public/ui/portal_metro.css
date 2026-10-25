@@ -132,3 +132,4 @@ body.skin-metro .lesson.is-cancelled { border-left: 4px solid var(--m-red); padd
 body.skin-metro .lesson.is-cancelled, body.skin-metro .lesson.is-cancelled .p, body.skin-metro .lesson.is-cancelled a,
 body.skin-metro .lesson.is-cancelled .n, body.skin-metro .lesson.is-cancelled .s, body.skin-metro .lesson.is-cancelled .k { color: var(--m-red); }
 body.skin-metro .g.is-cancelled, body.skin-metro .g.is-cancelled s { color: var(--m-red); }
+body.skin-metro .side-sub { padding: 0 18px; font-style: normal; text-transform: none; opacity: 1; }
