@@ -1999,9 +1999,13 @@ class CrmManager
                      'c.nip', 'c.krs', 'c.regon', 'c.pesel', 'c.branza', 'c.adres',
                      'c.stanowisko', 'c.osoba_kontaktowa', 'c.strona_www', 'c.notatka',
                      'c.wojewodztwo', 'c.powiat', 'c.gmina'];
-            $where[]   = '(' . implode(' OR ', array_map(fn($col) => "$col LIKE ?", $cols)) . ')';
+            $like      = array_map(fn($col) => "$col LIKE ?", $cols);
             $qa        = '%' . $filters['q_all'] . '%';
             $params    = array_merge($params, array_fill(0, count($cols), $qa));
+            // PESEL bywa zaszyfrowany (field_crypto): pełny numer (11 cyfr) szukamy przez indeks ślepy; LIKE po fragmencie działa tylko na jawnych wierszach
+            [$peselSql, $peselParams] = fcMatchPesel('crm_contacts', 'pesel', (string)$filters['q_all'], 'c');
+            if ($peselParams) { $like[] = $peselSql; $params = array_merge($params, $peselParams); }
+            $where[]   = '(' . implode(' OR ', $like) . ')';
         }
         if (!empty($filters['source'])) {
             $where[]  = "c.source = ?";
