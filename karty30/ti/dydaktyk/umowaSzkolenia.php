@@ -7,6 +7,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_training_contract/logic/trainingContractStore.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_training_contract/logic/trainingContractBilling.php';
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
 TiTrainingContractStore::migrate();
@@ -49,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $back('ok=purge&n=' . $n);
     }
     if ($act === 'status' && $id) {
-        TiTrainingContractStore::setStatus($id, (string)($_POST['status'] ?? ''));
+        if (TiTrainingContractStore::setStatus($id, (string)($_POST['status'] ?? ''))) TiSzkBilling::onStatusChange($id, (string)$_POST['status']);
         $back('id=' . $id . '&ok=status');
     }
     if ($act === 'delete' && $id) {

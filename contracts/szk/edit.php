@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractStore.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractBilling.php';
 
 require_login();
 if (is_viewer()) { header('Location: ' . APP_URL . '/panel/index.php'); exit; }
@@ -48,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'status' && $cur) {
         $new = (string)($_POST['status'] ?? '');
         if (TiTrainingContractStore::setStatus($id, $new)) {
+            TiSzkBilling::onStatusChange($id, $new);
             log_contract_action($TYPE, $id, $uid, 'status_change', 'Zmiana statusu: ' . $cur['_row']['status'] . ' → ' . $new);
             flash_set('success', 'Zmieniono status.');
         }

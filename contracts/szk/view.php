@@ -12,6 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractFees.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractBilling.php';
 require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractConsents.php';
 require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractReports.php';
 
@@ -38,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
             try {
                 ContractStatusTransitionValidator::assertAllowed($row['status'], $new, $row, $TYPE);
                 db_update($TABLE, ['status' => $new], $id);
+                TiSzkBilling::onStatusChange($id, $new);   // naliczenie należności (podpisana) / wycofanie (anulowana)
                 log_contract_action($TYPE, $id, (int)current_user()['id'], 'status_change', 'Zmiana statusu: ' . $row['status'] . ' → ' . $new);
             } catch (ContractTransitionException $e) { flash_set('error', $e->getMessage()); }
         }
@@ -68,7 +70,7 @@ $_fd = fn(string $k) => trim((string)($d[$k] ?? '')) !== '' ? h((string)$d[$k]) 
 
 <div class="card shadow-sm mb-3"><div class="card-header fw-semibold">Uczestnik</div><div class="card-body"><div class="row g-3">
   <div class="col-md-6"><div class="detail-label">Imię i nazwisko</div><div class="detail-value"><?= h($row['imie_nazwisko']) ?: '—' ?>
-    <?php if ((int)$row['client_id'] > 0): ?><a class="small ms-1" href="<?= APP_URL ?>/karty30/ti/dydaktyk/office_enter.php?next=<?= urlencode('kursant.php?id=' . (int)$row['client_id']) ?>">karta uczestnika</a><?php endif; ?></div></div>
+    <?php if ((int)$row['client_id'] > 0): ?><a class="small ms-1" href="<?= APP_URL ?>/karty30/ti/dydaktyk/office_enter.php?next=<?= urlencode('kartaKursanta.php?client=' . (int)$row['client_id']) ?>">karta uczestnika</a><?php endif; ?></div></div>
   <div class="col-md-3"><div class="detail-label">PESEL</div><div class="detail-value"><?= $_fd('pesel') ?></div></div>
   <div class="col-md-3"><div class="detail-label">Telefon</div><div class="detail-value"><?= $_fd('telefon') ?></div></div>
   <div class="col-md-6"><div class="detail-label">Adres</div><div class="detail-value"><?= $_fd('adres') ?></div></div>
@@ -130,6 +132,42 @@ $_money = fn($gr) => number_format(((int)$gr) / 100, 2, ',', ' ') . ' zł';
     <span class="small text-muted ms-2">Kwota po promocji trafia do wynagrodzenia w umowie (DOCX).</span></div>
 </form>
 <?php elseif (can_edit()): ?><p class="small text-muted mb-0">Umowa jest podpisana — opłat nie zmieniamy.</p><?php endif; ?>
+</div></div>
+
+<?php
+$_bp = TiSzkBilling::posted($id);
+$_bplan = TiSzkBilling::plan($d);
+$_bbal = TiSzkBilling::balance((int)$row['client_id']);
+$_bm = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
+?>
+<div class="card shadow-sm mb-3" id="szk-billing"><div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-receipt-cutoff"></i> Rozliczenia</span>
+  <?php if ((int)$row['client_id'] > 0): ?><a class="small" href="<?= APP_URL ?>/karty30/ti/dydaktyk/office_enter.php?next=<?= urlencode('kartaKursanta.php?client=' . (int)$row['client_id']) ?>">Karta uczestnika</a><?php endif; ?></div>
+<div class="card-body">
+<?php if ((int)$row['client_id'] <= 0): ?><p class="text-muted small mb-0">Umowa nie jest powiązana z uczestnikiem z karty TI — wybierz uczestnika w formularzu umowy, aby księgować należności.</p>
+<?php else: ?>
+  <?php if ($_bbal): ?><div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div class="detail-label">Należności (całość)</div><div class="detail-value"><?= $_bm($_bbal['charges']) ?></div></div>
+    <div class="col-6 col-md-3"><div class="detail-label">Wpłaty</div><div class="detail-value"><?= $_bm($_bbal['payments']) ?></div></div>
+    <div class="col-6 col-md-3"><div class="detail-label">Nadpłata</div><div class="detail-value <?= $_bbal['credit'] > 0 ? 'text-success fw-bold' : '' ?>"><?= $_bm($_bbal['credit']) ?></div></div>
+    <div class="col-6 col-md-3"><div class="detail-label">Niedopłata</div><div class="detail-value <?= $_bbal['debt'] > 0 ? 'text-danger fw-bold' : '' ?>"><?= $_bm($_bbal['debt']) ?></div></div>
+  </div><p class="small text-muted">Saldo dotyczy całego konta rozliczeń uczestnika (nie tylko tej umowy).</p><?php endif; ?>
+  <?php if ($_bplan): ?>
+  <div class="table-responsive mb-2"><table class="table table-sm mb-0"><caption class="visually-hidden">Należności z umowy</caption>
+    <thead><tr><th scope="col">Lp.</th><th scope="col">Termin</th><th scope="col" class="text-end">Kwota uczestnika</th><th scope="col">Księga rozliczeń</th></tr></thead><tbody>
+    <?php foreach ($_bplan as [$_lp, $_dt, $_gr]): $_ph = $_bp[$_lp] ?? null; $_same = $_ph && abs((float)$_ph['amount'] - $_gr / 100) < 0.004 && (int)$_ph['month'] === (int)date('n', strtotime($_dt)) && (int)$_ph['year'] === (int)date('Y', strtotime($_dt)); ?>
+    <tr><td><?= (int)$_lp ?></td><td><?= h(date('d.m.Y', strtotime($_dt))) ?></td><td class="text-end"><?= $_bm($_gr / 100) ?></td>
+      <td><?= $_same ? '<span class="badge text-bg-success">zaksięgowano</span>' : ($_ph ? '<span class="badge text-bg-warning">do korekty</span>' : '<span class="badge text-bg-secondary">nie zaksięgowano</span>') ?></td></tr>
+    <?php endforeach; ?></tbody></table></div>
+  <?php else: ?><p class="text-muted small">Brak kwoty uczestnika w umowie — uzupełnij wynagrodzenie / kwotę uczestnika.</p><?php endif; ?>
+  <?php if (can_edit() && $_bplan && (int)$row['is_test'] === 0): ?>
+  <form method="post" action="<?= APP_URL ?>/contracts/szk/billing.php" class="no-print d-flex flex-wrap gap-2 align-items-center">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="id" value="<?= $id ?>">
+    <button class="btn btn-outline-primary btn-sm" name="act" value="sync"><i class="bi bi-arrow-repeat me-1"></i>Zaksięguj / zsynchronizuj należności</button>
+    <?php if ($_bp): ?><button class="btn btn-outline-danger btn-sm" name="act" value="clear" onclick="return confirm('Wycofać zaksięgowane należności tej umowy z rozliczeń?')">Wycofaj należności</button><?php endif; ?>
+    <span class="small text-muted"><?= TiSzkBilling::autoEnabled() ? 'Automatycznie po zmianie statusu na „podpisana”.' : 'Automatyczne naliczanie wyłączone w ustawieniach.' ?></span>
+  </form><?php endif; ?>
+<?php endif; ?>
 </div></div>
 
 <?php
