@@ -121,6 +121,9 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS contacts_audit (
     ai_model       TEXT    NOT NULL DEFAULT '',
     ai_raw         TEXT    NOT NULL DEFAULT ''
 )");
+foreach (['handled_at TEXT', "handled_action TEXT NOT NULL DEFAULT ''", 'handled_contact_id INTEGER'] as $__col) {
+    try { $pdo->exec("ALTER TABLE contacts_audit ADD COLUMN " . $__col); } catch (\Throwable $e) {}   // już istnieje
+}
 $pdo->exec("CREATE INDEX IF NOT EXISTS idx_audit_cat  ON contacts_audit(category, created_at)");
 $pdo->exec("CREATE INDEX IF NOT EXISTS idx_audit_gov  ON contacts_audit(is_government)");
 
@@ -447,10 +450,12 @@ if ($api !== '') {
     if ($api === 'list') {
         $cat  = (string)($_GET['category'] ?? '');
         $sql  = "SELECT id, created_at, sender_name, sender_email, subject, category,
-                        is_government, needs_human, confidence, audit_notes, ai_status, ai_model
+                        is_government, needs_human, confidence, audit_notes, ai_status, ai_model,
+                        handled_at, handled_action, handled_contact_id
                    FROM contacts_audit";
         $par  = [];
         if (in_array($cat, TRIAGE_CATEGORIES, true)) { $sql .= " WHERE category=?"; $par[] = $cat; }
+        elseif ($cat === 'TODO') { $sql .= " WHERE handled_at IS NULL AND needs_human=1"; }
         $sql .= " ORDER BY is_government DESC, created_at DESC, id DESC LIMIT 200";
 
         $st = $pdo->prepare($sql); $st->execute($par);
@@ -462,6 +467,7 @@ if ($api !== '') {
             $counts['ALL'] += (int)$r['n'];
         }
         $counts['NEEDS_HUMAN'] = (int)($pdo->query("SELECT COUNT(*) n FROM contacts_audit WHERE needs_human=1")->fetch()['n'] ?? 0);
+        $counts['TODO'] = (int)($pdo->query("SELECT COUNT(*) n FROM contacts_audit WHERE handled_at IS NULL AND needs_human=1")->fetch()['n'] ?? 0);
 
         echo json_encode(['ok' => true, 'rows' => $rows, 'counts' => $counts], JSON_UNESCAPED_UNICODE);
         exit;
@@ -548,6 +554,47 @@ if ($api !== '') {
         exit;
     }
 
+    // ── Akcje na wpisie: dodaj do kontaktów / wyklucz z wysyłek / załatwione ───────────────────────────
+    if ($api === 'act') {
+        $in = json_decode(file_get_contents('php://input'), true) ?? [];
+        if (!hash_equals($CSRF, (string)($in['_csrf'] ?? ''))) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Nieprawidłowy token CSRF.']); exit; }
+        if (!$TRIAGE_EMBEDDED) { echo json_encode(['ok' => false, 'error' => 'Akcje są dostępne tylko w systemie SZO.']); exit; }
+        crm_require_json('inbox', 'write');
+        $st = $pdo->prepare("SELECT * FROM contacts_audit WHERE id=?"); $st->execute([(int)($in['id'] ?? 0)]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) { echo json_encode(['ok' => false, 'error' => 'Nie znaleziono wpisu.']); exit; }
+        $action = (string)($in['action'] ?? '');
+        $msg = ''; $cid = null;
+        require_once dirname(__DIR__) . '/includes/crm.php';
+        $email = strtolower(trim((string)$row['sender_email']));
+        if ($action === 'add_contact') {
+            $ex = db_one("SELECT id FROM crm_contacts WHERE LOWER(COALESCE(email,''))=? AND crm_active=1 LIMIT 1", [$email]);
+            if ($ex) { $cid = (int)$ex['id']; $msg = 'Kontakt już istnieje — oznaczono jako załatwione.'; }
+            else {
+                $gov = (int)$row['is_government'] === 1;
+                $name = trim((string)$row['sender_name']) ?: ucwords(str_replace(['.', '_', '-'], ' ', substr($email, 0, (int)strpos($email, '@'))));
+                $has_st = db_one("SELECT 1 AS x FROM crm_statuses WHERE slug='instytucja-publiczna' AND is_active=1");
+                $cid = CrmManager::createContact([
+                    'type' => $gov ? 'organizacja' : 'osoba', 'status' => ($gov && $has_st) ? 'instytucja-publiczna' : 'prospect',
+                    'imie_nazwisko' => $name, 'email' => $email, 'source' => 'segregacja',
+                    'created_by' => (int)(current_user()['id'] ?? 0) ?: null,
+                ]);
+                $msg = 'Dodano do kontaktów.';
+            }
+            try { require_once dirname(__DIR__) . '/includes/crm_mailbox.php'; crm_mailbox_link_sender_to_contact($email, (int)$cid); } catch (\Throwable $e) {}
+        } elseif ($action === 'suppress') {
+            require_once dirname(__DIR__) . '/includes/crm_campaign.php';
+            crm_suppression_add($email, 'manual', null, 'Segregacja kontaktów — spam komercyjny');
+            $msg = 'Adres wykluczony z wysyłek.';
+        } elseif ($action === 'done') {
+            $msg = 'Oznaczono jako załatwione.';
+        } else { echo json_encode(['ok' => false, 'error' => 'Nieznana akcja.']); exit; }
+        $pdo->prepare("UPDATE contacts_audit SET handled_at=datetime('now','localtime'), handled_action=?, handled_contact_id=? WHERE id=?")
+            ->execute([$action, $cid, (int)$row['id']]);
+        echo json_encode(['ok' => true, 'message' => $msg, 'contact_id' => $cid], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     // ── Szczegóły jednego wpisu ────────────────────────────────────────────
     if ($api === 'detail') {
         $st = $pdo->prepare("SELECT * FROM contacts_audit WHERE id=?");
@@ -579,7 +626,12 @@ $SELF = htmlspecialchars(strtok($_SERVER['REQUEST_URI'] ?? 'triage.php', '?'), E
 
 <div x-data="triage()" x-init="load()" x-cloak class="max-w-6xl mx-auto p-4 sm:p-6">
 
-  <header class="mb-5">
+  <header class="mb-4">
+    <div class="flex flex-wrap items-center gap-2 mb-2 text-sm">
+      <a href="<?= $TRIAGE_EMBEDDED ? htmlspecialchars(APP_URL, ENT_QUOTES) . '/crm/dashboard.php' : '#' ?>" class="text-sky-700 hover:underline">← CRM</a>
+      <span class="text-slate-300">/</span>
+      <a href="<?= $TRIAGE_EMBEDDED ? htmlspecialchars(APP_URL, ENT_QUOTES) . '/crm/inbox.php' : '#' ?>" class="text-sky-700 hover:underline">Skrzynka</a>
+    </div>
     <h1 class="text-xl font-bold text-slate-900">Segregacja kontaktów przez AI</h1>
     <p class="text-sm text-slate-500 mt-1 max-w-3xl">
       Model klasyfikuje nadawcę i treść, ale <strong>korespondencja urzędowa jest chroniona regułą
@@ -589,8 +641,9 @@ $SELF = htmlspecialchars(strtok($_SERVER['REQUEST_URI'] ?? 'triage.php', '?'), E
   </header>
 
   <!-- ── Formularz testowy ─────────────────────────────────────────────── -->
-  <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-5">
-    <h2 class="text-sm font-semibold text-slate-700 mb-3">Nowa wiadomość do sprawdzenia</h2>
+  <details class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4" :open="!rows.length">
+    <summary class="text-sm font-semibold text-slate-700 cursor-pointer">Sprawdź wiadomość ręcznie</summary>
+    <div class="mt-3">
 
     <form @submit.prevent="submit()" class="grid gap-3 sm:grid-cols-2">
       <label class="block">
@@ -636,7 +689,8 @@ $SELF = htmlspecialchars(strtok($_SERVER['REQUEST_URI'] ?? 'triage.php', '?'), E
       <p x-show="msg" x-text="msg" :class="msgOk ? 'text-emerald-700' : 'text-rose-700'"
          class="sm:col-span-2 text-sm font-medium"></p>
     </form>
-  </section>
+    </div>
+  </details>
 
   <!-- ── Filtry ────────────────────────────────────────────────────────── -->
   <nav class="flex flex-wrap gap-2 mb-3" aria-label="Filtry kategorii">
@@ -666,7 +720,7 @@ $SELF = htmlspecialchars(strtok($_SERVER['REQUEST_URI'] ?? 'triage.php', '?'), E
             <th scope="col" class="px-4 py-2.5 text-left font-semibold">Temat</th>
             <th scope="col" class="px-4 py-2.5 text-left font-semibold">Kategoria</th>
             <th scope="col" class="px-4 py-2.5 text-left font-semibold">Pewność</th>
-            <th scope="col" class="px-4 py-2.5 text-left font-semibold">Notatki audytu</th>
+            <th scope="col" class="px-4 py-2.5 text-left font-semibold">Akcja</th>
             <th scope="col" class="px-4 py-2.5 text-right font-semibold">Kiedy</th>
           </tr>
         </thead>
@@ -692,7 +746,19 @@ $SELF = htmlspecialchars(strtok($_SERVER['REQUEST_URI'] ?? 'triage.php', '?'), E
               </td>
               <td class="px-4 py-3 whitespace-nowrap text-slate-600"
                   x-text="r.ai_status === 'ok' ? Math.round(r.confidence * 100) + '%' : '—'"></td>
-              <td class="px-4 py-3 text-xs text-slate-500 max-w-sm" x-text="r.audit_notes || '—'"></td>
+              <td class="px-4 py-3 text-xs whitespace-nowrap">
+                <template x-if="r.handled_at">
+                  <span class="text-emerald-700 font-semibold" x-text="'✓ ' + ({add_contact:'dodano do kontaktów',suppress:'wykluczono z wysyłek',done:'załatwione'}[r.handled_action] || 'załatwione')"></span>
+                </template>
+                <template x-if="!r.handled_at">
+                  <span class="inline-flex flex-wrap gap-1">
+                    <button type="button" @click="act(r, 'add_contact')" class="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50 text-slate-700">Dodaj do kontaktów</button>
+                    <button type="button" x-show="r.category === 'COMMERCIAL_SPAM'" @click="act(r, 'suppress')" class="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50 text-slate-700">Wyklucz z wysyłek</button>
+                    <button type="button" @click="act(r, 'done')" class="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50 text-slate-500">Załatwione</button>
+                  </span>
+                </template>
+                <div class="mt-1 text-slate-400 max-w-xs truncate" :title="r.audit_notes" x-text="r.audit_notes || ''"></div>
+              </td>
               <td class="px-4 py-3 text-right text-xs text-slate-400 whitespace-nowrap" x-text="r.created_at"></td>
             </tr>
           </template>
@@ -717,15 +783,16 @@ function triage() {
   return {
     csrf: <?= json_encode($CSRF) ?>,
     api:  <?= json_encode($SELF) ?>,
-    rows: [], counts: {}, filter: 'ALL', busy: false, msg: '', msgOk: true,
+    rows: [], counts: {}, filter: 'TODO', busy: false, msg: '', msgOk: true,
 
     form: { sender_name: '', sender_email: '', subject: '', body: '' },
 
     tabs: [
-      { key: 'ALL',             label: 'Wszystkie',           count: 'ALL',             chip: 'bg-slate-100 text-slate-600' },
-      { key: 'GOV_REVIEW',      label: 'Do pilnego przejrzenia — Gov', count: 'GOV_REVIEW', chip: 'bg-amber-100 text-amber-800' },
-      { key: 'COMMERCIAL_SPAM', label: 'Spam komercyjny',     count: 'COMMERCIAL_SPAM', chip: 'bg-slate-100 text-slate-600' },
+      { key: 'TODO',            label: 'Do zrobienia',        count: 'TODO',            chip: 'bg-sky-100 text-sky-800' },
+      { key: 'GOV_REVIEW',      label: 'Urzędowe',            count: 'GOV_REVIEW',      chip: 'bg-amber-100 text-amber-800' },
       { key: 'VALUABLE',        label: 'Wartościowe',         count: 'VALUABLE',        chip: 'bg-emerald-100 text-emerald-800' },
+      { key: 'COMMERCIAL_SPAM', label: 'Spam',                count: 'COMMERCIAL_SPAM', chip: 'bg-slate-100 text-slate-600' },
+      { key: 'ALL',             label: 'Wszystkie',           count: 'ALL',             chip: 'bg-slate-100 text-slate-600' },
     ],
 
     // Trzy przypadki graniczne, na których widać, czy reguła twarda działa.
@@ -753,6 +820,14 @@ function triage() {
         COMMERCIAL_SPAM: 'bg-slate-200 text-slate-600',
         VALUABLE:        'bg-emerald-100 text-emerald-800',
       }[c] || 'bg-slate-100 text-slate-600';
+    },
+
+    async act(r, action) {
+      const res = await fetch(this.api + '?api=act', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _csrf: this.csrf, id: r.id, action }) });
+      const d = await res.json();
+      this.msg = d.ok ? d.message : (d.error || 'Nie udało się.'); this.msgOk = !!d.ok;
+      if (d.ok) await this.load();
     },
 
     async load() {

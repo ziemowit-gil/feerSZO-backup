@@ -617,3 +617,21 @@ a.ib-ct-name:hover { color:var(--crm-primary-dark); text-decoration:underline }
 }
 @media (max-width:1099.98px) { .ib-shell .ib-tabs2 .ib-tabgrp--views, .ib-shell .ib-tabs2 [aria-label="Filtry"], .ib-shell .ib-tabs2 [aria-label="Skrzynki"] { display:none } }
 .ib-shell .ib-pill--sub .ib-mbox-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }
+
+/* ══ Czytelność listy (2026-10-26): wiersz dwuliniowy — nadawca i godzina, pod spodem temat i znaczniki ═══════════ */
+.ib-shell .ib-item { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:.6rem; row-gap:.12rem; padding:.5rem .8rem .5rem .4rem }
+.ib-shell .ib-item .ib-l1 { display:flex; align-items:baseline; gap:.4rem; grid-column:1 / -1; grid-row:1; min-width:0 }
+.ib-shell .ib-item .ib-who { order:0; flex:1 1 auto; max-width:none; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.88rem }
+.ib-shell .ib-item .ib-time { order:9; margin-left:auto; min-width:0; font-size:.74rem }
+.ib-shell .ib-item .ib-tcount { order:2; margin-left:0 }
+.ib-shell .ib-item .ib-ico { order:3 }
+.ib-shell .ib-item > .ib-subj { grid-column:1; grid-row:2; order:0; max-width:none; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.84rem; color:#323130 }
+.ib-shell .ib-item > .ib-snip { display:none }
+.ib-shell .ib-item > .ib-tags { grid-column:2; grid-row:2; order:0; justify-self:end; max-width:9rem; gap:.25rem }
+.ib-shell .ib-item .ib-tag--mb { display:none }              /* adres skrzynki widać już w lewym panelu i pasku boku (kolor paska) */
+.ib-shell .ib-item .ib-tag--q { border:0; background:transparent; padding:0; font-size:.7rem; font-weight:600; color:var(--c) }
+.ib-shell .ib-item .ib-tag--q .bi { display:none }
+.ib-shell .ib-item .ib-tag--q::before { content:''; display:inline-block; width:.5rem; height:.5rem; background:var(--c); margin-right:.3rem }
+.ib-shell .ib-row.unread .ib-item > .ib-subj { color:var(--ib-text) }
+.ib-shell .ib-row:hover .ib-time, .ib-shell .ib-row:focus-within .ib-time { visibility:visible }
+.ib-shell .ib-quick { top:.4rem; transform:none }
