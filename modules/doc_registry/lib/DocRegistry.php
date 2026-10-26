@@ -263,10 +263,10 @@ final class DocRegistry
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $base = rtrim(APP_URL, '/') . '/docreg/';
         $seq = (self::SOURCES[$row['source_type']][4] ?? 'rand') === 'seq';
-        return '<button type="button" class="docreg-badge" data-docreg-code="' . $e($row['code']) . '" data-docreg-number="' . $e($row['doc_number']) . '"'
+        return '<a href="' . $e($base . '?view=' . rawurlencode((string)$row['code'])) . '" target="_blank" rel="noopener" class="docreg-badge" data-docreg-code="' . $e($row['code']) . '" data-docreg-number="' . $e($row['doc_number']) . '"'
             . ' data-docreg-qr="' . $e($base . '?qr=' . rawurlencode((string)$row['code'])) . '" data-docreg-label="' . ($seq ? '' : $e($base . '?label=' . rawurlencode((string)$row['code']))) . '"'
-            . ' data-docreg-url="' . $e(self::url((string)$row['code'])) . '" aria-haspopup="dialog" title="Numer i kod QR dokumentu">'
-            . '<span aria-hidden="true">▦</span> ' . $e($seq ? $row['doc_number'] : $row['code']) . '<span class="visually-hidden"> — numer ' . $e($row['doc_number']) . ', pokaż kod QR</span></button>';
+            . ' data-docreg-url="' . $e(self::url((string)$row['code'])) . '" title="Numer i kod QR dokumentu (otwiera się w nowej karcie)">'
+            . '<span aria-hidden="true">▦</span> ' . $e($seq ? $row['doc_number'] : $row['code']) . '<span class="visually-hidden"> — numer ' . $e($row['doc_number']) . ', pokaż kod QR</span></a>';
     }
 
     /** Okno z QR + style + skrypt (raz na stronę, POZA zakładkami — modal Bootstrap). */
@@ -277,7 +277,7 @@ final class DocRegistry
         $done = true;
         return <<<'HTML'
 <style>
-.docreg-badge{font:600 .68rem/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef4ff;color:#0b3d91;border:1px solid #9db7e8;border-radius:3px;padding:.1rem .4rem;cursor:pointer}
+.docreg-badge{display:inline-block;text-decoration:none;font:600 .68rem/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef4ff;color:#0b3d91;border:1px solid #9db7e8;border-radius:3px;padding:.1rem .4rem;cursor:pointer}
 .docreg-badge:hover{background:#dce8ff}.docreg-badge:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
 </style>
 <div class="modal fade" id="docregModal" tabindex="-1" aria-labelledby="docregTitle" aria-hidden="true"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content">
@@ -291,8 +291,8 @@ final class DocRegistry
   <div class="modal-footer justify-content-between"><a id="docregLabel" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">Etykieta do druku (PDF)</a><a id="docregOpen" class="btn btn-sm btn-primary" target="_blank" rel="noopener">Strona weryfikacji</a></div>
 </div></div></div>
 <script>
-document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('.docreg-badge');if(!b)return;ev.preventDefault();ev.stopPropagation();
-  var m=document.getElementById('docregModal');if(!m||!window.bootstrap){window.open(b.dataset.docregLabel,'_blank','noopener');return;}
+document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('.docreg-badge');if(!b)return;
+  var m=document.getElementById('docregModal');if(!m||!window.bootstrap)return;ev.preventDefault();ev.stopPropagation();
   document.getElementById('docregQr').src=b.dataset.docregQr;document.getElementById('docregNumber').textContent=b.dataset.docregNumber;
   document.getElementById('docregCode').textContent=b.dataset.docregCode;var lb=document.getElementById('docregLabel');lb.hidden=!b.dataset.docregLabel;lb.href=b.dataset.docregLabel||'#';
   document.getElementById('docregCodeWrap').hidden=b.dataset.docregCode===b.dataset.docregNumber;document.getElementById('docregOpen').href=b.dataset.docregUrl;

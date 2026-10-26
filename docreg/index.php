@@ -1,6 +1,7 @@
 <?php
 /**
  * docreg/index.php — rejestr numerów i kodów plików (modules/doc_registry):
+ *   ?view=KOD   — strona z QR, numerem i kodem (działa bez JS i bez okna modalnego),
  *   ?qr=KOD     — PNG z kodem QR (adres weryfikacji /espis/?c=KOD),
  *   ?label=KOD  — etykieta do druku (PDF 70×38 mm): Code128 + QR + numer; do naklejenia na papierowy odpowiednik,
  *   ?o=KOD      — „Otwórz dokument online”: po zalogowaniu przekierowanie do pliku w systemie źródłowym (EZD / CRM / Zadania),
@@ -50,6 +51,28 @@ if (isset($_GET['label'])) {
     $pdf->Output('', \Mpdf\Output\Destination::INLINE); exit;
 }
 
+if (isset($_GET['view'])) {
+    $row = DocRegistry::find((string)$_GET['view']) ?: docreg_fail(404, 'Nie znaleziono kodu.');
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $def = DocRegistry::SOURCES[$row['source_type']] ?? ['', 'Plik w systemie'];
+    $seq = ($def[4] ?? 'rand') === 'seq';
+    $code = (string)$row['code'];
+    header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-store, private');
+    echo '<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Identyfikator dokumentu ' . $e($row['doc_number']) . '</title>'
+        . '<style>body{font-family:"Segoe UI",system-ui,sans-serif;margin:0;background:#f4f4f4;color:#1d1d1d;text-align:center;padding:1.5rem}main{max-width:22rem;margin:0 auto;background:#fff;border:1px solid #c9c9c9;padding:1.2rem}'
+        . 'img{width:220px;height:220px}code{font-size:1.05rem}.s{font-size:.85rem;color:#4b5b6b}a.b{display:inline-block;margin:.3rem .2rem;padding:.45rem .9rem;background:#0050ef;color:#fff;text-decoration:none;font-weight:600}a.o{background:#4b5b6b}:focus-visible{outline:3px solid #ff9800;outline-offset:2px}'
+        . '@media (prefers-color-scheme:dark){body{background:#1b1b1b;color:#f2f2f2}main{background:#262626;border-color:#4a4a4a}.s{color:#aebccb}}@media print{a.b{display:none}}</style></head><body><main id="tresc">'
+        . '<h1 style="font-size:1.1rem;font-weight:600;margin:.2rem 0 .8rem">' . $e($def[1]) . '</h1>'
+        . '<img src="?qr=' . $e(rawurlencode($code)) . '" alt="Kod QR do weryfikacji i otwarcia dokumentu online">'
+        . '<p class="s" style="margin:.6rem 0 0">Numer</p><p style="margin:0 0 .5rem;font-weight:600">' . $e($row['doc_number']) . '</p>'
+        . ($seq ? '' : '<p class="s" style="margin:0">Kod (Code128)</p><p style="margin:0 0 .5rem"><code>' . $e($code) . '</code></p>')
+        . '<p class="s">Kod QR otwiera stronę weryfikacji; po zalogowaniu — dokument online.</p>'
+        . '<a class="b" href="' . $e(DocRegistry::url($code)) . '">Strona weryfikacji</a>'
+        . ($seq ? '' : '<a class="b o" href="?label=' . $e(rawurlencode($code)) . '">Etykieta do druku (PDF)</a>')
+        . '</main></body></html>';
+    exit;
+}
+
 if (isset($_GET['o'])) {
     $row = DocRegistry::find((string)$_GET['o']) ?: docreg_fail(404, 'Nie znaleziono dokumentu o tym kodzie.');
     $st = DocRegistry::state($row);
@@ -57,4 +80,4 @@ if (isset($_GET['o'])) {
     header('Location: ' . DocRegistry::openUrl((string)$row['source_type'], (int)$row['source_id'])); exit;
 }
 
-docreg_fail(400, 'Brak parametru (qr, label albo o).');
+docreg_fail(400, 'Brak parametru (qr, view, label albo o).');
