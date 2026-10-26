@@ -220,6 +220,28 @@ class TiTrainingContract
         return $w . 'em';                                              // Jan → Janem, Piotr → Piotrem
     }
 
+    /**
+     * Stopka umowy zarejestrowanej: Code128 + QR + numer (DocRegistry, typ contract_szk). Umowa bez id/numeru (podgląd, projekt) — bez kodów.
+     * @return list<string> pliki tymczasowe do usunięcia po zapisie DOCX
+     */
+    private static function footerCodes($footer, array $d): array
+    {
+        $id = (int)($d['_row']['id'] ?? 0);
+        if ($id <= 0 || trim((string)($d['_row']['numer_umowy'] ?? '')) === '') return [];
+        try {
+            require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+            $f = DocRegistry::footerCodes('contract_szk', $id);
+            if (!$f) return [];
+            $files = [];
+            $tmp = fn(?string $png) => $png && ($p = tempnam(sys_get_temp_dir(), 'szkimg')) && file_put_contents($p, $png) !== false ? ($files[] = $p) : null;
+            $run = $footer->addTextRun(['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER]);
+            if ($p = $tmp($f['bar'])) $run->addImage($p, ['width' => 130, 'height' => 17, 'wrappingStyle' => 'inline']);
+            if ($p = $tmp($f['qr'])) $run->addImage($p, ['width' => 26, 'height' => 26, 'wrappingStyle' => 'inline']);
+            $footer->addText($f['code'] . ' · ' . $f['doc_number'] . ' · weryfikacja: ' . $f['url'], ['size' => 6.5, 'name' => 'Consolas'], ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER]);
+            return $files;
+        } catch (\Throwable $e) { error_log('[SZK docx footer] ' . $e->getMessage()); return []; }
+    }
+
     /** Rozwija znaczniki szablonu. */
     public static function render(string $tpl, array $d): string
     {
@@ -500,7 +522,9 @@ class TiTrainingContract
         $ctr  = ['alignment' => $J::CENTER, 'spaceAfter' => 80, 'keepNext' => true];
         $sec  = ['marginLeft' => 1250, 'marginRight' => 1250, 'marginTop' => 1100, 'marginBottom' => 1100];
         $s = $w->addSection($sec);
-        $s->addFooter()->addPreserveText('{PAGE} / {NUMPAGES}', ['size' => 8], ['alignment' => $J::CENTER]);
+        $footer = $s->addFooter();
+        $footer->addPreserveText('{PAGE} / {NUMPAGES}', ['size' => 8], ['alignment' => $J::CENTER]);
+        $tmpImgs = self::footerCodes($footer, $d);   // kod Code128 + QR umowy zarejestrowanej (rejestr dokumentów)
 
         $s->addText('UMOWA O ŚWIADCZENIE USŁUG SZKOLENIOWYCH', ['bold' => true, 'size' => 12], $ctr);
         $s->addText($r('Nr {nr}'), ['bold' => true], $ctr);
@@ -542,6 +566,7 @@ class TiTrainingContract
         \PhpOffice\PhpWord\IOFactory::createWriter($w, 'Word2007')->save($tmp);
         $bytes = (string)file_get_contents($tmp);
         @unlink($tmp);
+        foreach ($tmpImgs as $f) @unlink($f);
         error_reporting($er);
         return $bytes;
     }

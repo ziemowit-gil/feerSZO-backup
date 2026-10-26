@@ -30,6 +30,16 @@ final class DocRegistry
         'helpdesk_attachment' => ['HD', 'Załącznik zgłoszenia helpdesk', '/helpdesk/attachment.php?id={id}', 'helpdesk_attachments', 'seq'],
         'correspondence_file' => ['KOR', 'Załącznik korespondencji', '/correspondence/download.php?id={id}', 'correspondence', 'seq'],
         'rekr_file'           => ['REK', 'Dokument kandydata (nabór)', '/rekrutacja/attachment.php?id={id}', 'rekr_files', 'seq'],
+        // Umowy (kody w stopce wydruków i DOCX): jeden rodzaj źródła na typ umowy; „plikiem” jest sama umowa, stan = status umowy.
+        'contract_zlecenie'    => ['UZL', 'Umowa zlecenie', '/contracts/zlecenie/view.php?id={id}', 'umowy_zlecenie', 'rand'],
+        'contract_uslugi'      => ['UUS', 'Umowa o świadczenie usług', '/contracts/uslugi/view.php?id={id}', 'umowy_uslugi', 'rand'],
+        'contract_wolontariat' => ['UWL', 'Umowa wolontariacka', '/contracts/wolontariat/view.php?id={id}', 'umowy_wolontariat', 'rand'],
+        'contract_dzielo'      => ['UDZ', 'Umowa o dzieło', '/contracts/dzielo/view.php?id={id}', 'umowy_dzielo', 'rand'],
+        'contract_praca'       => ['UPR', 'Umowa o pracę', '/contracts/praca/view.php?id={id}', 'umowy_praca', 'rand'],
+        'contract_powierzenie' => ['UPW', 'Umowa powierzenia zadania publicznego', '/contracts/powierzenie/view.php?id={id}', 'umowy_powierzenie', 'rand'],
+        'contract_inne'        => ['UIN', 'Inna umowa', '/contracts/inne/view.php?id={id}', 'umowy_inne', 'rand'],
+        'contract_szk'         => ['USZ', 'Umowa szkoleniowa (SZK)', '/contracts/szk/view.php?id={id}', 'umowy_szk', 'rand'],
+        'gen_doc'              => ['DOG', 'Dokument z generatora wzorów', '/generator/view.php?id={id}', 'gen_documents', 'rand'],
     ];
     /** Litery kodu bez I i O (mylą się z 1 i 0 na wydruku). */
     private const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -84,6 +94,17 @@ final class DocRegistry
     /** @return array{name:string,path:string,size:int,uploader:?int,at:string,exists:bool,superseded:bool}|null  null = brak rekordu źródłowego */
     private static function source(string $type, int $id): ?array
     {
+        if (str_starts_with($type, 'contract_') || $type === 'gen_doc') {
+            $isGen = $type === 'gen_doc';
+            $table = self::SOURCES[$type][3] ?? '';
+            if ($table === '' || !isset(self::SOURCES[$type])) return null;
+            try { $z = db_one("SELECT * FROM {$table} WHERE id = ?", [$id]); } catch (\Throwable $e) { return null; }
+            if (!$z) return null;
+            $cancelled = !$isGen && in_array((string)($z['status'] ?? ''), ['anulowana', 'aneks'], true);
+            return ['name' => (string)($isGen ? ($z['title'] ?? '') : ($z['numer_umowy'] ?? '')), 'path' => '', 'size' => 0, 'uploader' => null,
+                    'at' => (string)($z['created_at'] ?? ''), 'exists' => true, 'superseded' => $cancelled,
+                    'note' => $cancelled ? ((string)($z['status'] ?? '') === 'aneks' ? 'Umowa została zmieniona aneksem — obowiązuje wersja z aneksem.' : 'Umowa została anulowana.') : ''];
+        }
         switch ($type) {
             case 'ezd_zalacznik':
                 $z = db_one("SELECT * FROM ezd_zalaczniki WHERE id = ?", [$id]);
@@ -154,7 +175,7 @@ final class DocRegistry
             if ($row = self::get($type, $id)) return $row;
             $src = self::source($type, $id);
             if (!$src) return null;
-            $sha = ($src['exists'] && $src['size'] <= 100 * 1024 * 1024) ? (string)@hash_file('sha256', $src['path']) : '';
+            $sha = ($src['exists'] && $src['path'] !== '' && $src['size'] <= 100 * 1024 * 1024) ? (string)@hash_file('sha256', $src['path']) : '';
             $now = date('Y-m-d H:i:s');
             for ($try = 0; $try < 8; $try++) {
                 $seq = (self::SOURCES[$type][4] ?? 'rand') === 'seq';
@@ -310,6 +331,46 @@ final class DocRegistry
         require_once dirname(__DIR__, 3) . '/includes/qr.php';
         $uri = qr_data_uri(self::url($code), 300);
         return $uri && str_contains($uri, ',') ? (string)base64_decode(substr($uri, strpos($uri, ',') + 1), true) : null;
+    }
+
+    // ── Kody w stopkach dokumentów (umowy, dokumenty z generatora) ───────────────────
+
+    /** Kod Code128 jako PNG (bajty) — lokalnie, picqer/php-barcode-generator. null gdy biblioteka niedostępna. */
+    public static function barcodePng(string $code, int $widthFactor = 2, int $height = 40): ?string
+    {
+        try {
+            if (!class_exists(\Picqer\Barcode\BarcodeGeneratorPNG::class)) return null;
+            $g = new \Picqer\Barcode\BarcodeGeneratorPNG();
+            return $g->getBarcode($code, $g::TYPE_CODE_128, $widthFactor, $height);
+        } catch (\Throwable $e) { return null; }
+    }
+
+    /**
+     * Dane do stopki dokumentu: nadaje numer i kod (idempotentnie) i zwraca ['code','doc_number','url','qr'=>PNG,'bar'=>PNG] albo null
+     * (nieznany typ / brak rekordu / błąd — generowanie dokumentu NIGDY nie jest przez to blokowane).
+     */
+    public static function footerCodes(string $type, int $id): ?array
+    {
+        try {
+            $row = self::assign($type, $id);
+            if (!$row) return null;
+            $code = (string)$row['code'];
+            return ['code' => $code, 'doc_number' => (string)$row['doc_number'], 'url' => self::url($code),
+                    'qr' => self::qrPng($code), 'bar' => self::barcodePng($code)];
+        } catch (\Throwable $e) { error_log('doc_registry footerCodes ' . $type . '#' . $id . ': ' . $e->getMessage()); return null; }
+    }
+
+    /** Stopka HTML z kodami (obrazy inline data:) — do stron wydruku. '' gdy brak kodów. */
+    public static function footerHtml(string $type, int $id): string
+    {
+        $f = self::footerCodes($type, $id);
+        if (!$f) return '';
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $img = fn(?string $png, string $alt, string $style) => $png ? '<img alt="' . $e($alt) . '" style="' . $style . '" src="data:image/png;base64,' . base64_encode($png) . '">' : '';
+        return '<div class="doc-codes" style="display:flex;align-items:center;gap:8pt;font-size:6.5pt;color:#555">'
+             . $img($f['qr'], 'Kod QR — weryfikacja dokumentu online', 'height:26pt;width:26pt')
+             . '<div>' . $img($f['bar'], 'Kod kreskowy ' . $f['code'], 'height:16pt;max-width:130pt;display:block')
+             . '<span style="font-family:monospace">' . $e($f['code']) . '</span> · ' . $e($f['doc_number']) . '</div></div>';
     }
 
     // ── Interfejs ─────────────────────────────────────────────────────────────────

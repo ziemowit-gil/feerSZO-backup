@@ -675,6 +675,7 @@ table.data tr:nth-child(even) td { background: #f7f7f7; }
       <?php if ($numer): ?>· Nr <?= htmlspecialchars($numer, ENT_QUOTES) ?><?php endif; ?>
       · Wygenerowano: <?= date('d.m.Y H:i') ?>
     </span>
+    <?php require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::footerHtml('contract_wolontariat', $id); ?>
   </div>
 
 </div><!-- /page -->

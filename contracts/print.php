@@ -414,6 +414,7 @@ table.data tr td{border-bottom:1pt solid #eee}
   <div class="page-footer">
     <span><?= h($org_name) ?></span>
     <span>Dok. nr: <?= h($numer) ?> · Wygenerowano: <?= date('d.m.Y H:i') ?></span>
+    <?php require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::footerHtml('contract_' . $type, $id); ?>
   </div>
 
 </div><!-- /page -->
