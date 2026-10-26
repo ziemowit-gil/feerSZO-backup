@@ -11,7 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
-require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractStore.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractFees.php';
 
 require_login();
 $TYPE  = 'szk';
@@ -84,6 +84,51 @@ $_fd = fn(string $k) => trim((string)($d[$k] ?? '')) !== '' ? h((string)$d[$k]) 
   <div class="col-md-4"><div class="detail-label">Kwota uczestnika</div><div class="detail-value"><?= $_fd('kwota_kursant') ?></div></div>
   <div class="col-md-4"><div class="detail-label">Opiekun</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
 </div></div></div>
+
+<?php
+$_op = (array)($d['oplaty'] ?? []);
+$_set = TiSzkFees::settings();
+$_opModel = (string)($_op['model'] ?? $_set['model']);
+$_canFees = can_edit() && !TiTrainingContractStore::isSigned($row['status']);
+$_promos = TiSzkFees::promotions();
+$_pid = (int)($_op['promocja']['id'] ?? $row['promocja_id'] ?? 0);
+$_money = fn($gr) => number_format(((int)$gr) / 100, 2, ',', ' ') . ' zł';
+?>
+<div class="card shadow-sm mb-3" id="szk-fees"><div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-percent"></i> Promocje i opłaty</span>
+  <a class="small" href="<?= APP_URL ?>/contracts/szk/promocje.php">Promocje</a></div>
+<div class="card-body">
+<?php if ($_op): ?>
+  <div class="row g-3 mb-3">
+    <div class="col-md-4"><div class="detail-label">Model</div><div class="detail-value"><?= h(TiSzkFees::MODELS[$_opModel] ?? $_opModel) ?></div></div>
+    <div class="col-md-4"><div class="detail-label">Kwota bazowa</div><div class="detail-value"><?= $_money($_op['kwota_bazowa'] ?? 0) ?></div></div>
+    <div class="col-md-4"><div class="detail-label">Do zapłaty po promocji</div><div class="detail-value fw-bold"><?= $_money($_op['kwota_po'] ?? 0) ?></div></div>
+    <?php if (!empty($_op['promocja'])): ?><div class="col-12"><div class="detail-label">Promocja</div><div class="detail-value"><?= h($_op['promocja']['nazwa']) ?> — rabat <?= $_money($_op['promocja']['rabat']) ?></div></div><?php endif; ?>
+  </div>
+  <?php if (!empty($_op['harmonogram'])): ?>
+  <div class="table-responsive mb-3"><table class="table table-sm mb-0"><caption class="visually-hidden">Harmonogram płatności</caption>
+    <thead><tr><th scope="col">Lp.</th><th scope="col">Termin</th><th scope="col" class="text-end">Kwota</th></tr></thead><tbody>
+    <?php foreach ($_op['harmonogram'] as $_h): ?><tr><td><?= (int)$_h['lp'] ?></td><td><?= h(date('d.m.Y', strtotime($_h['termin']))) ?></td><td class="text-end"><?= $_money($_h['kwota']) ?></td></tr><?php endforeach; ?>
+    </tbody></table></div>
+  <?php endif; ?>
+<?php else: ?><p class="text-muted small">Nie ustawiono jeszcze modelu opłat — kwota umowy to wynagrodzenie z formularza.</p><?php endif; ?>
+<?php if ($_canFees): ?>
+<form method="post" action="<?= APP_URL ?>/contracts/szk/fees.php" class="row g-2 no-print border-top pt-3">
+  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="id" value="<?= $id ?>">
+  <div class="col-md-6"><label class="form-label small mb-1" for="f-model">Model naliczania opłat</label>
+    <select class="form-select form-select-sm" id="f-model" name="model"><?php foreach (TiSzkFees::MODELS as $k => $l): ?><option value="<?= h($k) ?>" <?= $_opModel === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+  <div class="col-md-6"><label class="form-label small mb-1" for="f-promo">Promocja</label>
+    <select class="form-select form-select-sm" id="f-promo" name="promocja_id"><option value="">— bez promocji —</option><?php foreach ($_promos as $_p): ?><option value="<?= (int)$_p['id'] ?>" <?= $_pid === (int)$_p['id'] ? 'selected' : '' ?>><?= h(TiSzkFees::promotionLabel($_p)) ?></option><?php endforeach; ?></select></div>
+  <div class="col-md-3"><label class="form-label small mb-1" for="f-kw">Kwota bazowa (zł)</label><input class="form-control form-control-sm" id="f-kw" name="kwota_bazowa" inputmode="decimal" value="<?= isset($_op['kwota_bazowa']) ? h(TiSzkFees::fmt((int)$_op['kwota_bazowa'])) : h((string)($d['wynagrodzenie'] ?? '')) ?>"></div>
+  <div class="col-md-3"><label class="form-label small mb-1" for="f-h">Godziny (model godzinowy)</label><input class="form-control form-control-sm" id="f-h" name="godziny" inputmode="decimal" value="<?= h((string)($_op['godziny'] ?? '')) ?>"></div>
+  <div class="col-md-3"><label class="form-label small mb-1" for="f-s">Stawka za godzinę (zł)</label><input class="form-control form-control-sm" id="f-s" name="stawka" inputmode="decimal" value="<?= isset($_op['stawka']) && $_op['stawka'] !== null ? h(TiSzkFees::fmt((int)$_op['stawka'])) : '' ?>"></div>
+  <div class="col-md-3"><label class="form-label small mb-1" for="f-r">Liczba rat / miesięcy</label><input class="form-control form-control-sm" id="f-r" type="number" min="1" max="60" name="raty" value="<?= (int)($_op['raty'] ?? $_set['raty']) ?>"></div>
+  <div class="col-md-4"><label class="form-label small mb-1" for="f-t">Pierwsza płatność</label><input class="form-control form-control-sm" id="f-t" type="date" name="termin" value="<?= h((string)($_op['termin'] ?? ($row['data_zawarcia'] !== '' ? date('Y-m-d', strtotime($row['data_zawarcia'] . ' +' . (int)$_set['dni'] . ' days')) : ''))) ?>"></div>
+  <div class="col-12"><button class="btn btn-primary btn-sm"><i class="bi bi-calculator me-1"></i>Przelicz i zapisz</button>
+    <span class="small text-muted ms-2">Kwota po promocji trafia do wynagrodzenia w umowie (DOCX).</span></div>
+</form>
+<?php elseif (can_edit()): ?><p class="small text-muted mb-0">Umowa jest podpisana — opłat nie zmieniamy.</p><?php endif; ?>
+</div></div>
 
 <?php
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';

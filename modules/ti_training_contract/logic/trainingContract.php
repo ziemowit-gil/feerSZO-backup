@@ -452,7 +452,12 @@ class TiTrainingContract
     {
         $slug = fn(string $s) => trim(preg_replace('/[^A-Za-z0-9]+/', '_', (string)(iconv('UTF-8', 'ASCII//TRANSLIT', $s) ?: '')), '_');
         $nr = ($d['nr'] ?? '') !== '' ? $slug($d['nr']) : 'projekt';
-        $who = $slug((string)($d['imie_nazwisko'] ?? ''));
-        return 'umowa_szkoleniowa_' . $nr . ($who !== '' ? '_' . $who : '') . '.docx';
+        // Wzorzec nazwy pliku z Ustawień umów SZK (szk_filename_pattern): {nr}, {nazwisko}, {data}, {temat}.
+        $pat = function_exists('org_setting') ? org_setting('szk_filename_pattern') : '';
+        if ($pat === '') $pat = 'umowa_szkoleniowa_{nr}_{nazwisko}';
+        $map = ['{nr}' => $nr, '{nazwisko}' => $slug((string)($d['imie_nazwisko'] ?? '')), '{data}' => $slug((string)($d['data'] ?? '')),
+                '{temat}' => mb_substr($slug((string)($d['temat'] ?? '')), 0, 40)];
+        $name = trim(preg_replace('/_+/', '_', strtr($pat, $map)), '_');
+        return ($name !== '' ? $name : 'umowa_szkoleniowa') . '.docx';
     }
 }
