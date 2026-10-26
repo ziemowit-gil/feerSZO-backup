@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $back = 'inbox.php?' . http_build_query(array_filter([
             'view'       => $_POST['view'] ?? null,
             'mailbox_id' => $_POST['mailbox_id'] ?? null,
+            'queue_id'   => $_POST['queue_f'] ?? null,
             'q'          => $_POST['q'] ?? null,
             'unread'     => $_POST['unread'] ?? null,
             'att'        => $_POST['att'] ?? null,
@@ -138,6 +139,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]));
                 break;
 
+            case 'queue':
+                if (crm_mailbox_message($mid) === null) { flash_set('danger', 'Brak dostępu do wiadomości.'); break; }
+                $qid = (int)($_POST['queue_id'] ?? 0) ?: null;
+                if (crm_mq_move($mid, $qid) > 0) {
+                    $qn = $qid ? (db_one("SELECT name FROM crm_mail_queues WHERE id=?", [$qid])['name'] ?? '') : 'domyślnej';
+                    flash_set('success', 'Przeniesiono do kolejki: ' . $qn . '.');
+                } else flash_set('warning', 'Nie udało się przenieść do kolejki.');
+                break;
+
+            case 'bulk_queue':
+                $ids = array_slice(array_unique(array_map('intval', (array)($_POST['msg_ids'] ?? []))), 0, 500);
+                $qid = (int)($_POST['bulk_queue_id'] ?? 0) ?: null;
+                $n = 0;
+                foreach ($ids as $bid) { if ($bid > 0 && crm_mailbox_message($bid) !== null && crm_mq_move($bid, $qid) > 0) $n++; }
+                flash_set($n ? 'success' : 'warning', $n ? 'Przeniesiono do kolejki: ' . $n . ' wiad. (z wątkami).' : 'Nie zaznaczono żadnej wiadomości.');
+                $back = 'inbox.php?' . http_build_query(array_filter([
+                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null, 'queue_id' => $_POST['queue_f'] ?? null,
+                    'q'    => $_POST['q'] ?? null,
+                ]));
+                break;
+
             case 'assign':
                 crm_mailbox_assign($mid, (int)($_POST['user_id'] ?? 0) ?: null);
                 flash_set('success', 'Przypisanie zmienione.');
@@ -225,6 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── Filtry i dane ───────────────────────────────────────────────────────────
 $view   = isset(CRM_MAILBOX_VIEWS[$_GET['view'] ?? '']) ? (string)$_GET['view'] : 'new';
 $mbox_f = (int)($_GET['mailbox_id'] ?? 0);
+$queue_f = (int)($_GET['queue_id'] ?? 0);   // kolejka wiadomości (crm_mail_queues); 0 = wszystkie
 $search = trim((string)($_GET['q'] ?? ''));
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $sel_id = (int)($_GET['msg'] ?? 0);
@@ -242,11 +265,14 @@ $threads = user_pref('crm_inbox_threads', '1') === '1';
 if (isset($_GET['conv'])) user_pref_set('crm_inbox_conv', $_GET['conv'] === '1' ? '1' : '0');
 $conv_on = user_pref('crm_inbox_conv', '1') === '1';
 
-$inbox  = crm_mailbox_inbox(['view' => $view, 'mailbox_id' => $mbox_f, 'q' => $search,
+$inbox  = crm_mailbox_inbox(['view' => $view, 'mailbox_id' => $mbox_f, 'queue_id' => $queue_f, 'q' => $search,
                              'unread' => $f_unread, 'att' => $f_att,
                              'page' => $page, 'per_page' => 30, 'group_threads' => $threads]);
 $counts = crm_mailbox_counts();
 $boxes  = crm_mailbox_list(false);
+$queues = crm_mq_list();                                   // aktywne kolejki
+$q_counts = $queues ? crm_mq_counts($view, $mbox_f) : []; // liczby w bieżącym widoku i skrzynce (bez filtra kolejki)
+$msg_queue = null;
 $users  = [];
 try { $users = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name"); } catch (\Throwable $e) {}
 
@@ -256,6 +282,7 @@ if ($msg && !(int)$msg['is_read'] && $can_write) {
     crm_mailbox_mark_read($sel_id, true);   // otwarcie = przeczytanie
     $msg['is_read'] = 1;
 }
+if ($msg && $queues) $msg_queue = crm_mq_of((int)$msg['id']);
 
 // Sąsiedzi otwartej wiadomości na bieżącej stronie listy — „Poprzednia/Następna”
 // działają też bez JS-a, a skróty j/k korzystają z tych samych linków.
@@ -285,9 +312,9 @@ $ezd_on     = crm_mailbox_ezd_available();
 $ezd_sprawy = $msg ? crm_mailbox_ezd_sprawy('', 30) : [];
 $ezd_teczki = $msg ? crm_mailbox_ezd_teczki() : [];
 
-$qs = static function (array $over = []) use ($view, $mbox_f, $search, $sel_id, $f_unread, $f_att): string {
+$qs = static function (array $over = []) use ($view, $mbox_f, $queue_f, $search, $sel_id, $f_unread, $f_att): string {
     return http_build_query(array_filter(array_merge([
-        'view' => $view, 'mailbox_id' => $mbox_f ?: null, 'q' => $search ?: null,
+        'view' => $view, 'mailbox_id' => $mbox_f ?: null, 'queue_id' => $queue_f ?: null, 'q' => $search ?: null,
         'unread' => $f_unread ? 1 : null, 'att' => $f_att ? 1 : null, 'msg' => $sel_id ?: null,
     ], $over), static fn($v) => $v !== null && $v !== ''));
 };
@@ -590,6 +617,19 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- ══ LISTA ═══════════════════════════════════════════════════════════ -->
   <section class="ib-col-list" aria-label="Lista wiadomości">
+    <?php if (count($queues) > 1): ?>
+    <nav class="ib-queues" aria-label="Kolejki wiadomości">
+      <a class="ib-q<?= $queue_f ? '' : ' is-on' ?>" href="?<?= $qs(['queue_id' => null, 'msg' => null, 'page' => null]) ?>"<?= $queue_f ? '' : ' aria-current="true"' ?>>
+        Wszystkie <span class="ib-q-n"><?= (int)array_sum($q_counts) ?></span></a>
+      <?php foreach ($queues as $qq): $qn = (int)($q_counts[(int)$qq['id']] ?? 0); ?>
+      <a class="ib-q<?= $queue_f === (int)$qq['id'] ? ' is-on' : '' ?>" style="--c:<?= h($qq['color']) ?>"
+         href="?<?= $qs(['queue_id' => (int)$qq['id'], 'msg' => null, 'page' => null]) ?>"<?= $queue_f === (int)$qq['id'] ? ' aria-current="true"' : '' ?>
+         title="<?= h($qq['mailbox_name'] ? 'Domyślna kolejka skrzynki ' . $qq['mailbox_name'] : 'Kolejka ogólna') ?>">
+        <span class="ib-q-dot" aria-hidden="true"></span><?= h($qq['name']) ?> <span class="ib-q-n"><?= $qn ?></span></a>
+      <?php endforeach; ?>
+      <?php if (is_admin()): ?><a class="ib-q ib-q--cfg" href="<?= APP_URL ?>/crm/mail_queues.php" title="Zarządzaj kolejkami" aria-label="Zarządzaj kolejkami"><i class="bi bi-gear" aria-hidden="true"></i></a><?php endif; ?>
+    </nav>
+    <?php endif; ?>
     <?php $bulk_view = $view === 'hidden';
           $abandon_days = (int)(crm_setting('crm_inbox_abandon_days') ?: 90); ?>
     <?php if ($bulk_view && $abandon_days > 0): ?>
@@ -612,6 +652,7 @@ include __DIR__ . '/includes/header_crm.php';
       <input type="hidden" name="_op" id="ibBulkOp" value="<?= $bulk_view ? 'bulk_unhide' : 'bulk_hide' ?>">
       <input type="hidden" name="view" value="<?= h($view) ?>">
       <input type="hidden" name="mailbox_id" value="<?= $mbox_f ?: '' ?>">
+      <input type="hidden" name="queue_f" value="<?= $queue_f ?: '' ?>">
       <input type="hidden" name="q" value="<?= h($search) ?>">
       <div class="ib-bulk<?= $bulk_view ? ' ib-bulk--restore' : '' ?>" id="ibBulkBar">
         <label>
@@ -620,6 +661,15 @@ include __DIR__ . '/includes/header_crm.php';
           <span>Zaznacz widoczne (<?= count($inbox['rows']) ?>)</span>
         </label>
         <span id="ibBulkInfo" hidden>· <span class="ib-bulk-n" id="ibBulkN">0</span> zazn.</span>
+        <?php if (count($queues) > 1 && !$bulk_view): ?>
+        <span class="ib-bulk-q">
+          <label class="visually-hidden" for="ibBulkQueue">Kolejka docelowa dla zaznaczonych</label>
+          <select name="bulk_queue_id" id="ibBulkQueue" class="ib-field">
+            <?php foreach ($queues as $qq): ?><option value="<?= (int)$qq['id'] ?>"><?= h($qq['name']) ?></option><?php endforeach; ?>
+          </select>
+          <button type="submit" name="_op" value="bulk_queue" class="ib-bulk-act" title="Przenieś zaznaczone wiadomości (z wątkami) do wybranej kolejki"><i class="bi bi-collection" aria-hidden="true"></i>Przenieś do kolejki</button>
+        </span>
+        <?php endif; ?>
         <button class="ib-bulk-act" id="ibBulkReadBtn" disabled title="Oznacz zaznaczone wiadomości jako przeczytane">
           <i class="bi bi-envelope-open" aria-hidden="true"></i>Oznacz przeczytane
         </button>
@@ -696,8 +746,12 @@ include __DIR__ . '/includes/header_crm.php';
                 if ($snip !== ''): ?>
           <span class="ib-snip"><?= h($snip) ?></span>
           <?php endif; ?>
-          <?php if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || (!$mbox_f && count($boxes) > 1 && !empty($r['mailbox_name']))): ?>
+          <?php $show_q = count($queues) > 1 && !$queue_f && !empty($r['queue_name']);
+                if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || $show_q || (!$mbox_f && count($boxes) > 1 && !empty($r['mailbox_name']))): ?>
           <span class="ib-tags">
+            <?php if ($show_q): ?>
+            <span class="ib-tag ib-tag--q" style="--c:<?= h($r['queue_color'] ?: '#6B7280') ?>" title="Kolejka: <?= h($r['queue_name']) ?>"><i class="bi bi-collection" aria-hidden="true"></i> <?= h($r['queue_name']) ?></span>
+            <?php endif; ?>
             <?php if (!empty($r['assigned_name'])): ?>
             <span class="ib-tag ib-tag--who" title="Prowadzi: <?= h($r['assigned_name']) ?>"><i class="bi bi-person-check" aria-hidden="true"></i> <?= h($r['assigned_name']) ?></span>
             <?php endif; ?>
@@ -718,6 +772,7 @@ include __DIR__ . '/includes/header_crm.php';
           <?php $qh = '<input type="hidden" name="_csrf" value="' . csrf_token() . '"><input type="hidden" name="msg_id" value="' . $rid . '">'
                     . '<input type="hidden" name="view" value="' . h($view) . '"><input type="hidden" name="q" value="' . h($search) . '">'
                     . ($mbox_f ? '<input type="hidden" name="mailbox_id" value="' . $mbox_f . '">' : '')
+                    . ($queue_f ? '<input type="hidden" name="queue_f" value="' . $queue_f . '">' : '')
                     . ($f_unread ? '<input type="hidden" name="unread" value="1">' : '')
                     . ($f_att ? '<input type="hidden" name="att" value="1">' : ''); ?>
           <?php if (($r['inbox_status'] ?? 'active') === 'active'): ?>
@@ -795,6 +850,7 @@ include __DIR__ . '/includes/header_crm.php';
             . '<input type="hidden" name="view" value="' . h($view) . '">'
             . '<input type="hidden" name="q" value="' . h($search) . '">'
             . ($mbox_f ? '<input type="hidden" name="mailbox_id" value="' . $mbox_f . '">' : '')
+            . ($queue_f ? '<input type="hidden" name="queue_f" value="' . $queue_f . '">' : '')
             . ($f_unread ? '<input type="hidden" name="unread" value="1">' : '')
             . ($f_att ? '<input type="hidden" name="att" value="1">' : '');
     $rail_cases  = $msg['ctx']['cases']  ?? [];
@@ -1107,6 +1163,16 @@ include __DIR__ . '/includes/header_crm.php';
           </ul>
         </div>
 
+        <?php if (count($queues) > 1): ?>
+        <form method="post" class="ib-assign"><?= $hidden ?><input type="hidden" name="_op" value="queue">
+          <select name="queue_id" class="ib-field" aria-label="Kolejka wiadomości" title="Przenieś wiadomość (z całym wątkiem) do kolejki"
+                  onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
+            <?php foreach ($queues as $qq): ?>
+            <option value="<?= (int)$qq['id'] ?>" <?= (int)($msg_queue['id'] ?? 0) === (int)$qq['id'] ? 'selected' : '' ?>>Kolejka: <?= h($qq['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </form>
+        <?php endif; ?>
         <form method="post" class="ib-assign" data-ib-xhr="assign"><?= $hidden ?><input type="hidden" name="_op" value="assign">
           <select name="user_id" class="ib-field" aria-label="Przypisz wiadomość osobie"
                   title="Wskaż osobę, która poprowadzi tę wiadomość" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">

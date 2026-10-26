@@ -381,3 +381,18 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
 .ib-quick button { background:none; border:0; padding:.3rem .5rem; color:#374151; cursor:pointer; font-size:.95rem; line-height:1 }
 .ib-quick button:hover, .ib-quick button:focus-visible { background:#E6F4F1; color:#0F4C47; outline:2px solid #0F766E; outline-offset:-2px }
 .ib-row:hover .ib-time, .ib-row:focus-within .ib-time { visibility:hidden }
+
+/* Kolejki wiadomości (pasek nad listą, znacznik w wierszu, przenoszenie zbiorcze) */
+.ib-queues { display:flex; flex-wrap:wrap; gap:.35rem; padding:.45rem .6rem; border-bottom:1px solid #e1e1e1; background:#fafafa }
+.ib-q { display:inline-flex; align-items:center; gap:.35rem; height:30px; padding:0 .65rem; font-size:.8rem; font-weight:600; white-space:nowrap; text-decoration:none;
+  color:#3f3f3f; background:#fff; border:2px solid #c6c6c6; --c:#6B7280 }
+.ib-q:hover { border-color:#8a8a8a; color:var(--ib-text) }
+.ib-q.is-on { background:var(--crm-primary); border-color:var(--crm-primary); color:#fff }
+.ib-q:focus-visible { outline:3px solid #ff9800; outline-offset:2px }
+.ib-q-dot { width:.6rem; height:.6rem; border-radius:50%; background:var(--c) }
+.ib-q.is-on .ib-q-dot { box-shadow:0 0 0 2px #fff }
+.ib-q-n { font-weight:700; opacity:.8; font-size:.74rem }
+.ib-q--cfg { margin-left:auto; padding:0 .55rem }
+.ib-tag--q { background:transparent; color:var(--c); border:1px solid var(--c); font-weight:600 }
+.ib-bulk-q { display:inline-flex; align-items:center; gap:.35rem }
+.ib-bulk-q select { height:28px; font-size:.78rem }
