@@ -275,6 +275,38 @@ final class Espis
                                'approved' => 'Karta zatwierdzona przez kierownika.', 'cancelled' => 'Karta anulowana.'][$st]]);
             }
         }
+        // 4) pozostałe dokumenty uczestnika KD{kursant}/{TYP}/{id}: DOP1–DOP4 (wnioski), ROP, DOP5, RM / RR / RKS / SUB1 / PFR1 (dokumenty rozliczeniowe) —
+        //    istnienie i stan z samego dokumentu (bez danych osobowych); kod musi zgadzać się z numerem uczestnika zapisanym w dokumencie.
+        if (preg_match('~^KD(\d{1,9})/([A-Z0-9-]{1,30})/(\d{1,9})$~', $c, $m)) {
+            [$cid, $typ, $did] = [(int)$m[1], $m[2], (int)$m[3]];
+            try {
+                $row = null; $label = ''; $state = 'unknown'; $note = '';
+                if ($typ === 'ROP' || $typ === 'DOP5') {
+                    $tbl = $typ === 'ROP' ? 'rop_statements' : 'dop5_statements';
+                    $x = db_one("SELECT * FROM {$tbl} WHERE id = ?", [$did]);
+                    if ($x && (int)($x['client_id'] ?? 0) === $cid) {
+                        $row = $x; $label = $typ === 'ROP' ? 'Oświadczenie ROP' : 'Oświadczenie DOP5';
+                        $note = 'Dokument istnieje w systemie; szczegółowy stan jest dostępny po zalogowaniu.';
+                    }
+                } elseif (str_starts_with($typ, 'DOP')) {
+                    $x = db_one("SELECT id, form, number, status, client_id, created_at FROM dop_requests WHERE id = ?", [$did]);
+                    if ($x && (int)$x['client_id'] === $cid) {
+                        $row = $x; $label = 'Dokument ' . $x['form'];
+                        $state = ['signed' => 'valid', 'cancelled' => 'void', 'rejected' => 'void'][$x['status']] ?? 'pending';
+                        $note = ['signing' => 'Dokument czeka na podpis uczestnika.', 'cancelled' => 'Dokument anulowany.', 'rejected' => 'Dokument odrzucony.'][$x['status']] ?? '';
+                    }
+                } else {
+                    $x = db_one("SELECT id, kind, number, status, client_id, created_at FROM settlement_docs WHERE id = ?", [$did]);
+                    if ($x && (int)$x['client_id'] === $cid) {
+                        $row = $x; $label = 'Dokument rozliczeniowy ' . $x['kind'];
+                        $state = ['applied' => 'valid', 'rejected' => 'void', 'cancelled' => 'void'][$x['status']] ?? 'pending';
+                        $note = ['pending' => 'Dokument czeka na zatwierdzenie kierownika.', 'rejected' => 'Dokument odrzucony.', 'cancelled' => 'Dokument anulowany.'][$x['status']] ?? '';
+                    }
+                }
+                if ($row) return array_merge($r, ['found' => true, 'kind' => 'kd', 'label' => $label, 'number' => (string)($row['number'] ?? ''), 'state' => $state,
+                    'date' => substr((string)($row['created_at'] ?? ''), 0, 10), 'note' => $note]);
+            } catch (\Throwable $e) { /* brak tabeli (moduł niewdrożony) — wynik „nie znaleziono” poniżej */ }
+        }
         $r['note'] = preg_match('~^KD\d~', $c) ? 'Dokumentu uczestnika o tym kodzie nie ma w eSpisie (nie został wpisany do koszulki EZD albo kod jest błędny).' : 'Nie znaleziono dokumentu o tym kodzie. Sprawdź przepisanie kodu.';
         return $r;
     }
