@@ -42,13 +42,14 @@ $_dis = $locked ? ' disabled' : '';
 <?php endif; ?>
 <?php if ($locked): ?><div class="alert alert-info">Umowa ma status „<?= h($row['status']) ?>” — treść jest zablokowana. Aby poprawić dane, zmień status na „projekt” albo „do podpisu”.</div><?php endif; ?>
 
-<form method="post" class="card border-0 shadow-sm"><div class="card-body">
+<form method="post" class="card border-0 shadow-sm" id="szk-form"><div class="card-body">
   <?= $SZK_TOKEN ?>
   <input type="hidden" name="id" value="<?= (int)$id ?>">
   <input type="hidden" name="client_id" value="<?= (int)($data['client_id'] ?? 0) ?>">
   <p class="small text-body-secondary">Puste pola zostaną w dokumencie jako linie do ręcznego uzupełnienia.</p>
+  <nav aria-label="Kroki umowy" id="szk-stepper" hidden><ol class="list-unstyled d-flex flex-wrap gap-2 mb-3 p-0"></ol></nav>
   <?php foreach (TiTrainingContract::SECTIONS as $_sk => $_sl): ?>
-  <fieldset class="mb-4"<?= $_dis ?>>
+  <fieldset class="mb-4" data-szk-step="<?= h($_sl) ?>" data-szk-key="<?= h($_sk) ?>"<?= $_dis ?>>
     <legend class="h6 fw-bold border-bottom pb-1"><?= h($_sl) ?></legend>
     <?php if ($_sk === 'strony'): ?>
     <div class="mb-2"><span class="form-label d-block mb-1" id="u-plec-l">Forma w umowie</span>
@@ -86,6 +87,9 @@ $_dis = $locked ? ' disabled' : '';
     </div>
   </fieldset>
   <?php endforeach; ?>
+  <section data-szk-step="Podsumowanie" data-szk-key="summary" aria-labelledby="szk-sum-h">
+  <h2 class="h6 fw-bold border-bottom pb-1" id="szk-sum-h">Podsumowanie</h2>
+  <dl class="row small mb-3" id="szk-summary"></dl>
   <?php if (!$locked): ?>
   <div class="d-flex flex-wrap gap-2">
     <button class="btn btn-primary" name="act" value="save"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
@@ -95,4 +99,54 @@ $_dis = $locked ? ' disabled' : '';
     <button class="btn btn-outline-secondary" name="act" value="preview"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Podgląd DOCX bez zapisu</button>
   </div>
   <?php endif; ?>
+  </section>
+  <div class="d-flex justify-content-between mt-3 border-top pt-3" id="szk-nav" hidden>
+    <button type="button" class="btn btn-outline-secondary" id="szk-prev"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wstecz</button>
+    <span class="small text-body-secondary align-self-center" id="szk-pos" role="status"></span>
+    <button type="button" class="btn btn-primary" id="szk-next">Dalej <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+  </div>
 </div></form>
+<script>
+(function () {
+  var form = document.getElementById('szk-form'); if (!form) return;
+  var steps = Array.prototype.slice.call(form.querySelectorAll('[data-szk-step]'));
+  if (steps.length < 2) return;
+  var stepper = document.getElementById('szk-stepper'), list = stepper.querySelector('ol'),
+      nav = document.getElementById('szk-nav'), prev = document.getElementById('szk-prev'), next = document.getElementById('szk-next'),
+      pos = document.getElementById('szk-pos'), sum = document.getElementById('szk-summary'), cur = 0, btns = [];
+  var fields = [['imie_nazwisko', 'Uczestnik'], ['pesel', 'PESEL'], ['temat', 'Szkolenie'], ['wymiar', 'Wymiar'], ['prowadzacy', 'Prowadzący'],
+                ['wynagrodzenie', 'Wynagrodzenie (zł)'], ['kwota_platnik', 'Kwota płatnika (zł)'], ['kwota_kursant', 'Kwota uczestnika (zł)'], ['platnik', 'Płatnik'], ['data', 'Data zawarcia']];
+  function label(s) { return s.getAttribute('data-szk-step'); }
+  steps.forEach(function (s, i) {
+    var li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn btn-sm btn-outline-secondary'; b.textContent = (i + 1) + '. ' + label(s).replace(/\s*\(.*$/, '');
+    b.addEventListener('click', function () { go(i, true); });
+    li.appendChild(b); list.appendChild(li); btns.push(b);
+    if (!s.hasAttribute('tabindex')) s.setAttribute('tabindex', '-1');
+  });
+  function summarize() {
+    sum.innerHTML = '';
+    fields.forEach(function (f) {
+      var el = document.getElementById('u-' + f[0]); if (!el) return;
+      var v = el.value.trim(), dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.className = 'col-sm-4'; dd.className = 'col-sm-8'; dt.textContent = f[1]; dd.textContent = v || '— (linia do uzupełnienia)';
+      sum.appendChild(dt); sum.appendChild(dd);
+    });
+  }
+  function go(i, focus) {
+    cur = Math.max(0, Math.min(steps.length - 1, i));
+    steps.forEach(function (s, k) { s.hidden = k !== cur; btns[k].className = 'btn btn-sm ' + (k === cur ? 'btn-primary' : 'btn-outline-secondary'); if (k === cur) btns[k].setAttribute('aria-current', 'step'); else btns[k].removeAttribute('aria-current'); });
+    if (steps[cur].getAttribute('data-szk-key') === 'summary') summarize();
+    prev.disabled = cur === 0; next.hidden = cur === steps.length - 1;
+    pos.textContent = 'Krok ' + (cur + 1) + ' z ' + steps.length + ': ' + label(steps[cur]);
+    if (focus) { steps[cur].focus(); steps[cur].scrollIntoView({block: 'start'}); }
+  }
+  prev.addEventListener('click', function () { go(cur - 1, true); });
+  next.addEventListener('click', function () { go(cur + 1, true); });
+  stepper.hidden = false; nav.hidden = false;
+  var start = 0;
+  if (location.hash.indexOf('#krok-') === 0) start = parseInt(location.hash.slice(6), 10) - 1 || 0;
+  go(start, false);
+  form.addEventListener('submit', function () { steps.forEach(function (s) { s.hidden = false; }); });   // wszystkie pola idą w POST (ukryte też)
+})();
+</script>
