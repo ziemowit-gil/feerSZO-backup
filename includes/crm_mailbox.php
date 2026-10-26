@@ -21,6 +21,7 @@
 require_once __DIR__ . '/crm.php';
 require_once __DIR__ . '/poczta_acl.php';
 require_once __DIR__ . '/mime_text.php';
+require_once __DIR__ . '/crm_mail_queues.php';
 
 /** Ładuje moduł poczty (tworzy tabele i kolumny). Zwraca false, gdy niedostępny. */
 function crm_mailbox_ready(): bool {
@@ -57,6 +58,7 @@ function crm_mailbox_schema_heal(): void {
     ] as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
     }
+    crm_mq_migrate();   // kolejki wiadomości + domyślna skrzynka faktur@ (jednorazowo)
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_comm_msgno ON crm_communications(msg_no)"); }
     catch (\Throwable $e) {}
 }
@@ -268,6 +270,8 @@ function crm_mailbox_inbox(array $f = []): array {
     $params = $struct_params;
     if (!empty($f['assigned_to'])) { $where[] = 'c.assigned_to=?'; $params[] = (int)$f['assigned_to']; }
     if (!empty($f['contact_id']))  { $where[] = 'c.contact_id=?';  $params[] = (int)$f['contact_id']; }
+    // Kolejka (liczona: jawna → domyślna skrzynki → ogólna) — zawęża wynik, nie zakres widoku
+    if (!empty($f['queue_id']))    { $where[] = crm_mq_expr('c') . ' = CAST(? AS INTEGER)'; $params[] = (int)$f['queue_id']; }   // CAST: COALESCE nie ma afiniczności, a PDO wiąże tekst
     // Szybkie filtry z paska skrzynki — zawężają wynik, nie zakres widoku,
     // dlatego nie trafiają do $struct (reprezentant wątku liczy się jak dotąd).
     if (!empty($f['unread']))      $where[] = 'c.is_read=0';
@@ -312,6 +316,7 @@ function crm_mailbox_inbox(array $f = []): array {
                 c.msg_no, COALESCE(c.crm_hidden,0) AS crm_hidden, c.direction, c.status,
                 ct.imie_nazwisko AS contact_name, ct.type AS contact_type, ct.email AS contact_email,
                 u.name AS assigned_name, m.mailbox AS mailbox_name,
+                qq.id AS queue_eff, qq.name AS queue_name, qq.color AS queue_color,
                 CASE WHEN c.thread_key IS NULL OR c.thread_key='' THEN 1 ELSE (
                      SELECT COUNT(*) FROM crm_communications c3 WHERE c3.thread_key = c.thread_key
                 ) END AS thread_count
@@ -319,6 +324,7 @@ function crm_mailbox_inbox(array $f = []): array {
          LEFT JOIN crm_contacts ct       ON ct.id = c.contact_id
          LEFT JOIN users u               ON u.id  = c.assigned_to
          LEFT JOIN poczta_mailboxes m    ON m.id  = c.mailbox_id
+         LEFT JOIN crm_mail_queues qq    ON qq.id = " . crm_mq_expr('c') . "
          $where_sql
          ORDER BY c.sent_at DESC, c.id DESC
          LIMIT $per OFFSET $off", $params
