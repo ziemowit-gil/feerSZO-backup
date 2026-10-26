@@ -742,14 +742,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
 <?php include dirname(__DIR__) . '/includes/case/aside.php'; /* zbiera panele do $_cvp, nic nie wypisuje */ ?>
 <div class="row g-3 dyn-form">
 
-<!-- ══ LEWA: szczegóły — prowadzenie i aktywność ═════════════════════════════════ -->
-<div class="col-xl-3 col-lg-4 order-2 order-lg-1 dyn-col" aria-label="Szczegóły sprawy">
-  <?php include dirname(__DIR__) . '/includes/case/parties.php'; ?>
-  <?= ($_cvp['prowadzenie'][2] ?? '') . ($_cvp['aktywnosc'][2] ?? '') ?>
-</div>
-
 <!-- ══ ŚRODEK: notatki / pisma / zadania / historia / wiadomości / pliki ══════════ -->
-<div class="col-xl-6 col-lg-8 order-1 order-lg-2">
+<div class="col-xl-8 col-lg-12 order-1">
 
   <ul class="nav cv-tabs mb-3" id="caseTabs" role="tablist">
     <li class="nav-item" role="presentation">
@@ -814,9 +808,11 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   </div><!-- /tab-content -->
 </div><!-- /środek -->
 
-<!-- ══ PRAWA: status, współdzielenie, EZD, skróty ═════════════════════════════════ -->
-<div class="col-xl-3 col-lg-12 order-3 dyn-col dyn-col-right">
-  <?= ($_cvp['status'][2] ?? '') . ($_cvp['share'][2] ?? '') . ($_cvp['ezd'][2] ?? '') . $_cvp_links ?>
+<!-- ══ BOK: status, podmioty, prowadzenie, współdzielenie, EZD, aktywność ═════════ -->
+<div class="col-xl-4 col-lg-12 order-2 dyn-col dyn-col-right" aria-label="Szczegóły sprawy">
+  <?= $_cvp['status'][2] ?? '' ?>
+  <?php include dirname(__DIR__) . '/includes/case/parties.php'; ?>
+  <?= ($_cvp['prowadzenie'][2] ?? '') . ($_cvp['share'][2] ?? '') . ($_cvp['ezd'][2] ?? '') . ($_cvp['aktywnosc'][2] ?? '') . $_cvp_links ?>
 </div>
 </div><!-- /row -->
 

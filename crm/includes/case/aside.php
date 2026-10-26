@@ -22,29 +22,55 @@ if (!isset($case)) { http_response_code(400); exit; }
         <i class="bi bi-flag cv-shead__icon" aria-hidden="true"></i>
         <h2 class="cv-shead__title">Zmień status</h2>
       </div>
-      <form method="post" class="d-flex flex-column gap-2">
+      <form method="post" class="cv-status-form" id="cvStatusForm">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_action" value="set_status">
-        <?php /* Zamknięcie i anulowanie wymagają powodu — inaczej z historii nie
-                 wyczytasz, czy sprawa się udała, czy odpadła. */ ?>
-        <select name="reason" class="form-select form-select-sm" aria-label="Powód (przy zamknięciu lub anulowaniu)">
-          <option value="">— powód (wymagany przy zamknięciu) —</option>
-          <?php foreach (crm_case_close_reasons() as $rk => $rl): ?>
-          <option value="<?= h($rk) ?>"><?= h($rl) ?></option>
-          <?php endforeach; ?>
-        </select>
-        <?php if (function_exists('can_write') && can_write('slowniki')): ?>
-        <a href="<?= APP_URL ?>/modules/dictionary/router.php?_route=/d/<?= CRM_CLOSE_REASONS_DICT ?>" class="small text-muted text-decoration-none" style="margin-top:-.25rem"><i class="bi bi-journal-bookmark" aria-hidden="true"></i> Lista powodów w Słowniku Centralnym</a>
-        <?php endif; ?>
-        <?php foreach ($status_cfg as $sv=>$sd): ?>
-        <button type="submit" name="status" value="<?= $sv ?>"
-                class="btn btn-sm text-start d-flex align-items-center gap-2 <?= $case['status']===$sv?'fw-bold':'' ?>"
-                style="background:<?= $sd['bg'] ?>;color:<?= $sd['color'] ?>;border:1.5px solid <?= $case['status']===$sv?$sd['color']:'transparent' ?>">
-          <i class="bi <?= $sd['icon'] ?>"></i><?= $sd['label'] ?>
-          <?php if ($case['status']===$sv): ?><i class="bi bi-check-lg ms-auto"></i><?php endif; ?>
-        </button>
+        <div class="cv-status-grid" role="group" aria-label="Wybierz nowy status sprawy">
+        <?php foreach ($status_cfg as $sv=>$sd): $cur = $case['status']===$sv; ?>
+          <button type="submit" name="status" value="<?= h($sv) ?>" data-closes="<?= crm_case_is_closed($sv) ? '1' : '0' ?>"
+                  class="btn btn-sm text-start d-flex align-items-center gap-2 <?= $cur?'fw-bold':'' ?>"<?= $cur ? ' aria-current="true"' : '' ?>
+                  style="background:<?= $sd['bg'] ?>;color:<?= $sd['color'] ?>;border:1.5px solid <?= $cur?$sd['color']:'transparent' ?>">
+            <i class="bi <?= $sd['icon'] ?>" aria-hidden="true"></i><?= h($sd['label']) ?>
+            <?php if ($cur): ?><i class="bi bi-check-lg ms-auto" aria-hidden="true"></i><?php endif; ?>
+          </button>
         <?php endforeach; ?>
+        </div>
+        <?php /* Zamknięcie i anulowanie wymagają powodu — inaczej z historii nie wyczytasz, czy sprawa się udała, czy odpadła.
+                 Pole pojawia się dopiero po wybraniu takiego statusu (bez JS jest widoczne od razu). */ ?>
+        <div class="cv-status-reason" id="cvReasonBox">
+          <label class="form-label small mb-1" for="cvReason">Powód zamknięcia <span class="text-danger" aria-hidden="true">*</span></label>
+          <select name="reason" id="cvReason" class="form-select form-select-sm">
+            <option value="">— wybierz powód —</option>
+            <?php foreach (crm_case_close_reasons() as $rk => $rl): ?>
+            <option value="<?= h($rk) ?>"><?= h($rl) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="small text-danger mt-1" id="cvReasonMsg" role="alert" hidden>Wybierz powód, aby zamknąć lub anulować sprawę.</div>
+          <?php if (function_exists('can_write') && can_write('slowniki')): ?>
+          <a href="<?= APP_URL ?>/modules/dictionary/router.php?_route=/d/<?= CRM_CLOSE_REASONS_DICT ?>" class="small text-muted text-decoration-none"><i class="bi bi-journal-bookmark" aria-hidden="true"></i> Lista powodów w Słowniku Centralnym</a>
+          <?php endif; ?>
+        </div>
       </form>
+      <style>
+        .cv-status-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}
+        .cv-status-reason{margin-top:.6rem}
+        .cv-status-form.js .cv-status-reason{display:none}
+        .cv-status-form.js.need-reason .cv-status-reason{display:block}
+      </style>
+      <script>
+      (function(){
+        var f=document.getElementById('cvStatusForm'); if(!f) return;
+        f.classList.add('js');
+        var sel=document.getElementById('cvReason'), msg=document.getElementById('cvReasonMsg');
+        f.addEventListener('click',function(e){
+          var b=e.target.closest('button[name=status]'); if(!b) return;
+          if(b.dataset.closes==='1' && !sel.value){
+            e.preventDefault(); f.classList.add('need-reason'); msg.hidden=false; sel.focus();
+          }
+        });
+        sel.addEventListener('change',function(){ if(sel.value) msg.hidden=true; });
+      })();
+      </script>
     </div>
   </div>
   <?php $_cvp['status'] = ['Status', 'bi-flag', ob_get_clean()]; ?>
