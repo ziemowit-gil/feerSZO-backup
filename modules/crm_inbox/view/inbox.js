@@ -276,7 +276,7 @@
     var b = e.target.closest('[data-reply]');
     if (!b || typeof window.openCommModal !== 'function') return;
     e.preventDefault();
-    var opts = { subject: b.dataset.subject || '' };
+    var opts = { subject: b.dataset.subject || '', reply_to: parseInt(b.dataset.msg, 10) || 0 };
     if (b.dataset.tpl) opts.tpl = parseInt(b.dataset.tpl, 10) || 0;
     window.openCommModal(parseInt(b.dataset.contact, 10) || 0, 'email', opts);
   });

@@ -1140,7 +1140,7 @@ include __DIR__ . '/includes/header_crm.php';
                  zwraca tekst w cudzysłowach, które kończyły atrybut onclick. */ ?>
         <div class="ib-split">
           <button type="button" class="ib-act" data-reply data-ib-key="r"
-                  data-contact="<?= (int)$msg['contact_id'] ?>"
+                  data-contact="<?= (int)$msg['contact_id'] ?>" data-msg="<?= (int)$msg['id'] ?>"
                   data-subject="<?= h($reply_subject) ?>"
                   title="Napisz odpowiedź do nadawcy — wyśle się z CRM i zapisze w historii kontaktu (r)">
             <i class="bi bi-reply" aria-hidden="true"></i>Odpowiedz
@@ -1156,7 +1156,7 @@ include __DIR__ . '/includes/header_crm.php';
               <?php foreach ($reply_tpls as $t): ?>
               <li>
                 <button type="button" class="dropdown-item" data-reply
-                        data-contact="<?= (int)$msg['contact_id'] ?>"
+                        data-contact="<?= (int)$msg['contact_id'] ?>" data-msg="<?= (int)$msg['id'] ?>"
                         data-tpl="<?= (int)$t['id'] ?>"
                         data-subject="<?= h($reply_subject) ?>"
                         title="<?= h($t['subject'] ?: $t['name']) ?>">
@@ -1174,7 +1174,7 @@ include __DIR__ . '/includes/header_crm.php';
               <?php /* Asystent NIE odpowiada za nas — przygotowuje PROPOZYCJĘ do przeczytania. */ ?>
               <li>
                 <button type="button" class="dropdown-item" id="ibAssistBtn" data-msg="<?= (int)$msg['id'] ?>"
-                        data-contact="<?= (int)$msg['contact_id'] ?>" data-subject="<?= h((string)($msg['subject'] ?? '')) ?>"
+                        data-contact="<?= (int)$msg['contact_id'] ?>" data-msg="<?= (int)$msg['id'] ?>" data-subject="<?= h((string)($msg['subject'] ?? '')) ?>"
                         title="Kwalifikacja zgłoszenia i propozycja odpowiedzi — do przeczytania przed wysłaniem">
                   <i class="bi bi-stars" style="color:#6a00ff" aria-hidden="true"></i>Asystent AI
                 </button>

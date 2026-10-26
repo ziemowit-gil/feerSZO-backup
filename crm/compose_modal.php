@@ -81,6 +81,27 @@ $channel    = in_array($_GET['channel'] ?? '', ['email','sms'], true) ? $_GET['c
 // Wtedy treść i temat są już wpisane, a użytkownik tylko poprawia i wysyła.
 $pre_tpl_id  = (int)($_GET['tpl'] ?? 0);
 $pre_subject = trim((string)($_GET['subject'] ?? ''));
+// Odpowiedź na wiadomość ze Skrzynki: ?reply_to=<id wiadomości> — cytat oryginału pod kursorem i konto nadawcy
+// zgodne ze skrzynką, na którą wiadomość przyszła (dostęp sprawdza crm_mailbox_message()).
+$pre_quote = ''; $pre_send_as = '';
+$reply_to = (int)($_GET['reply_to'] ?? 0);
+if ($reply_to) {
+    try {
+        require_once dirname(__DIR__) . '/includes/crm_mailbox.php';
+        require_once dirname(__DIR__) . '/includes/mime_text.php';
+        $rm = crm_mailbox_message($reply_to);
+        if ($rm) {
+            $txt = trim((string)($rm['body'] ?? ''));
+            if ($txt === '' || crm_mail_looks_html($txt)) $txt = crm_mail_html_to_text((string)($rm['body_html'] ?: $txt));
+            $txt = preg_replace('/(?:\r?\n[ \t]*){3,}/', "\n\n", $txt) ?? $txt;
+            if (mb_strlen($txt) > 2500) $txt = mb_substr($txt, 0, 2500) . '…';
+            $who = trim((string)($rm['from_name'] ?: $rm['from_email']));
+            $pre_quote = '<p><br></p><blockquote><p>' . h(date('d.m.Y H:i', strtotime((string)$rm['sent_at']))) . ', ' . h($who)
+                       . ' napisał(a):</p><p>' . nl2br(h($txt)) . '</p></blockquote>';
+            if (!empty($rm['mailbox_id'])) $pre_send_as = 'mbox:' . (int)$rm['mailbox_id'];
+        }
+    } catch (\Throwable $e) { error_log('[compose_modal] reply_to: ' . $e->getMessage()); }
+}
 
 $contact = $contact_id
     ? db_one("SELECT id, imie_nazwisko, email, telefon FROM crm_contacts WHERE id=? AND crm_active=1", [$contact_id])
@@ -222,6 +243,10 @@ $csrf      = csrf_token();
   </button>
 </div>
 
+<div id="cm-draft-note" class="alert alert-info py-1 px-2 small d-none align-items-center gap-2 mb-1" role="status">
+  <i class="bi bi-clock-history" aria-hidden="true"></i><span id="cm-draft-txt"></span>
+  <button type="button" class="btn btn-link btn-sm p-0 ms-auto" onclick="CM.discardDraft()">Odrzuć szkic</button>
+</div>
 <div id="cm-quill-wrapper">
   <div id="cm-quill-editor"></div>
 </div>
@@ -270,7 +295,8 @@ $csrf      = csrf_token();
   </div>
 </div>
 
-<?php $cm_accounts = crm_sender_accounts(); $cm_default = crm_sender_default($cm_accounts); ?>
+<?php $cm_accounts = crm_sender_accounts(); $cm_default = crm_sender_default($cm_accounts);
+      if ($pre_send_as !== '' && in_array($pre_send_as, array_column($cm_accounts, 'key'), true)) $cm_default = $pre_send_as; ?>
 <?php if (count($cm_accounts) > 1): ?>
 <!-- Konto nadawcy (tylko e-mail) -->
 <div id="cm-sender-row" class="mb-2" style="display:<?= $channel === 'email' ? '' : 'none' ?>">
@@ -323,7 +349,7 @@ $csrf      = csrf_token();
 <!-- Przycisk Wyślij — wstrzyknięty do modal-footer przez JS -->
 <template id="cm-footer-tpl">
   <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
-  <button type="button" class="btn btn-crm-primary btn-sm" id="cm-submit-btn" onclick="CM.send()">
+  <button type="button" class="btn btn-crm-primary btn-sm" id="cm-submit-btn" onclick="CM.send()" title="Wyślij (Ctrl+Enter)">
     <i class="bi bi-send-fill me-1"></i>Wyślij
   </button>
 </template>
@@ -398,6 +424,7 @@ var _mode  = 'rich';
 var _aiHtml = '', _aiPlain = '';
 
 window.CM = {};
+CM.sent = false;
 
 /* ── Init ─────────────────────────────────────────────────────────────── */
 CM.init = function() {
@@ -471,10 +498,83 @@ CM.init = function() {
         }
     }
 
+    // Odpowiedź ze Skrzynki: cytat oryginału pod kursorem
+    var preQuote = <?= json_encode($pre_quote) ?>;
+    if (preQuote && _quill) {
+        _quill.clipboard.dangerouslyPasteHTML(0, preQuote);
+        _quill.setSelection(0, 0);
+    }
+
     CM.updateChar();
 
     if (!CONTACT_ID) CM.initPicker();
     CM.syncSubmit();
+
+    // Stan początkowy (do wykrywania zmian), szkic roboczy, skróty i ochrona przed zamknięciem
+    CM.base = CM.snapshot();
+    CM.draftKey = 'crmDraft:' + (CONTACT_ID || 0) + ':' + <?= json_encode($reply_to ?: 0) ?>;
+    CM.restoreDraft();
+    _quill.on('text-change', CM.saveDraftSoon);
+    var subjEl = document.getElementById('cm-subject');
+    if (subjEl) subjEl.addEventListener('input', CM.saveDraftSoon);
+    CM.bindGuards();
+    if (preQuote && _quill) setTimeout(function () { _quill.focus(); _quill.setSelection(0, 0); }, 150);
+    else if (CONTACT_ID && subjEl && !subjEl.value) setTimeout(function () { subjEl.focus(); }, 150);
+    else if (CONTACT_ID && _quill) setTimeout(function () { _quill.focus(); }, 150);
+};
+
+/* ── Szkic roboczy, ochrona przed utratą treści, skróty ─────────────────── */
+CM.snapshot = function() {
+    var b = _mode === 'rich' && _quill ? _quill.getText().trim() : (document.getElementById('cm-plain') || {}).value || '';
+    return (document.getElementById('cm-subject') ? document.getElementById('cm-subject').value : '') + '\u0001' + b;
+};
+CM.dirty = function() { return !CM.sent && CM.snapshot() !== CM.base; };
+CM.saveDraftSoon = function() {
+    clearTimeout(CM._dt);
+    CM._dt = setTimeout(function () {
+        try {
+            if (!CM.dirty()) { localStorage.removeItem(CM.draftKey); return; }
+            localStorage.setItem(CM.draftKey, JSON.stringify({
+                t: Date.now(), subject: (document.getElementById('cm-subject') || {}).value || '',
+                html: _mode === 'rich' && _quill ? _quill.root.innerHTML : '', plain: (document.getElementById('cm-plain') || {}).value || '', mode: _mode }));
+        } catch (e) {}
+    }, 600);
+};
+CM.restoreDraft = function() {
+    try {
+        var raw = localStorage.getItem(CM.draftKey); if (!raw) return;
+        var d = JSON.parse(raw);
+        if (!d || Date.now() - d.t > 7 * 864e5) { localStorage.removeItem(CM.draftKey); return; }
+        var subj = document.getElementById('cm-subject'); if (subj && d.subject) subj.value = d.subject;
+        if (d.mode === 'plain') { CM.setMode('plain'); document.getElementById('cm-plain').value = d.plain || ''; }
+        else if (_quill && d.html) _quill.root.innerHTML = d.html;
+        var n = document.getElementById('cm-draft-note'), tx = document.getElementById('cm-draft-txt');
+        if (n && tx) { tx.textContent = 'Przywrócono niewysłany szkic z ' + new Date(d.t).toLocaleString('pl-PL', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) + '.'; n.classList.remove('d-none'); n.classList.add('d-flex'); }
+        CM.updateChar();
+    } catch (e) {}
+};
+CM.discardDraft = function() {
+    try { localStorage.removeItem(CM.draftKey); } catch (e) {}
+    if (_quill) _quill.setText(''); var p = document.getElementById('cm-plain'); if (p) p.value = '';
+    var subj = document.getElementById('cm-subject'); if (subj) subj.value = <?= json_encode($pre_subject) ?>;
+    var n = document.getElementById('cm-draft-note'); if (n) { n.classList.add('d-none'); n.classList.remove('d-flex'); }
+    CM.updateChar();
+};
+CM.bindGuards = function() {
+    var modalEl = document.getElementById('crmComposeModal'); if (!modalEl) return;
+    // Uchwyty na elemencie modala żyją między otwarciami — rejestrujemy raz i czytamy bieżący stan CM
+    if (!modalEl.dataset.cmGuard) {
+        modalEl.dataset.cmGuard = '1';
+        modalEl.addEventListener('hide.bs.modal', function (e) {
+            if (window.CM && CM.dirty && CM.dirty() && !CM._forceClose) {
+                if (!confirm('Wiadomość nie została wysłana. Zamknąć okno? Szkic zostanie zapisany na tym urządzeniu.')) e.preventDefault();
+            }
+            CM._forceClose = false;
+        });
+        modalEl.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && window.CM && CM.send) { e.preventDefault(); CM.send(); }
+        });
+    }
 };
 
 /* ── Wybór odbiorcy — tylko gdy modal otwarto bez kontaktu ────────────── */
@@ -669,6 +769,11 @@ CM.send = function() {
         return;
     }
 
+    var plainTxt = _mode === 'rich' && _quill ? _quill.getText().trim() : (document.getElementById('cm-plain').value || '').trim();
+    if (!plainTxt) { err.textContent = 'Treść wiadomości jest pusta.'; err.classList.remove('d-none'); (_mode === 'rich' && _quill ? _quill.focus() : document.getElementById('cm-plain').focus()); return; }
+    var subjV = (document.getElementById('cm-subject')?.value || '').trim();
+    if (ch === 'email' && !subjV && !confirm('Wiadomość nie ma tematu. Wysłać mimo to?')) { document.getElementById('cm-subject')?.focus(); return; }
+
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Wysyłam…'; }
 
     fetch(BASE + '/crm/compose_modal.php', {
@@ -690,6 +795,7 @@ CM.send = function() {
     .then(function(data) {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Wyślij'; }
         if (data.ok) {
+            CM.sent = true; try { localStorage.removeItem(CM.draftKey); } catch (e) {}
             // Zamknij modal i pokaż toast
             var modal = bootstrap.Modal.getInstance(document.getElementById('crmComposeModal'));
             if (modal) modal.hide();

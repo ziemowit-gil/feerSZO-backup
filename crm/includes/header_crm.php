@@ -480,7 +480,8 @@ window.openCommModal = function(contactId, channel, opts) {
     var _url = '<?= APP_URL ?>/crm/compose_modal.php?contact_id=' + encodeURIComponent(contactId)
              + '&channel=' + encodeURIComponent(channel)
              + (opts.tpl ? '&tpl=' + encodeURIComponent(opts.tpl) : '')
-             + (opts.subject ? '&subject=' + encodeURIComponent(opts.subject) : '');
+             + (opts.subject ? '&subject=' + encodeURIComponent(opts.subject) : '')
+             + (opts.reply_to ? '&reply_to=' + encodeURIComponent(opts.reply_to) : '');
     fetch(_url)
         .then(function(r) { return r.text(); })
         .then(function(html) {
