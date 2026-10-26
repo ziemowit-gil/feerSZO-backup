@@ -424,6 +424,9 @@ include __DIR__ . '/_layout_head.php';
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link" href="zgody.php?as=parent"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Zgody</a>
+      </li>
+      <li class="nav-item">
         <?php require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_student_folder/logic/studentFolder.php';
               $_sf_p = TiStudentFolder::pendingRequestCount((int)$parent['student_id']); ?>
         <a class="nav-link" href="dokumenty.php?as=parent">

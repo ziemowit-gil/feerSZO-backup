@@ -1341,7 +1341,7 @@ include __DIR__ . '/_layout_head.php';
                       ['oceny','table','Oceny'], ['plan','list-check','Plan nauczania'], ['egzaminy','card-checklist','Testy'], ['testy','clock-history','Testy (starsze)']],
       'Komunikacja' => [['komunikaty','megaphone','Komunikaty'], ['wiadomosci','envelope','Wiadomości']],
       'Konto' => array_merge($is_minor ? [] : [['platnosci','cash-coin','Płatności'], ['rozliczenia','receipt','Rozliczenia'],
-                      ['portfel','wallet2','Portfel'], ['upowaznieni','person-check','Upoważnieni']], [['dokumenty','folder2-open','Dokumenty','dokumenty.php'], ['ustawienia','gear','Ustawienia']]),
+                      ['portfel','wallet2','Portfel'], ['upowaznieni','person-check','Upoważnieni']], [['dokumenty','folder2-open','Dokumenty','dokumenty.php'], ['zgody','shield-check','Zgody','zgody.php'], ['ustawienia','gear','Ustawienia']]),
       'Dostępy' => [['licencje','key','Licencje i usługi'], ['pfron','shield-lock','PFRON (konsultacje)']],
       'Inne' => [['problem','life-preserver','Pomoc'], ['aktywnosc','clock-history','Aktywność konta'], ['regulaminy','file-earmark-text','Regulaminy']],
   ];
@@ -1429,6 +1429,7 @@ include __DIR__ . '/_layout_head.php';
       <ul class="dropdown-menu">
         <li><a class="dropdown-item <?= $mc() ?>" href="dokumenty.php">
           <i class="bi bi-folder2-open me-2" aria-hidden="true"></i>Dokumenty<?php if ($sf_pending): ?> <span class="badge text-bg-warning ms-1"><?= $sf_pending ?><span class="visually-hidden"> do akceptacji</span></span><?php endif; ?></a></li>
+        <li><a class="dropdown-item <?= $mc() ?>" href="zgody.php"><i class="bi bi-shield-check me-2" aria-hidden="true"></i>Zgody</a></li>
         <?php if (!$is_minor): ?>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='platnosci'?'active':'' ?>" href="?tab=platnosci" <?= $tab==='platnosci'?'aria-current="page"':'' ?>>
           <i class="bi bi-cash-coin me-2" aria-hidden="true"></i>Płatności</a></li>

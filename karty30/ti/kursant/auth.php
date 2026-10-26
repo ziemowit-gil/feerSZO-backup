@@ -153,10 +153,10 @@ function student_require(): array {
  */
 const STUDENT_SIMPLE_MODES = [0 => 'Pełny panel', 1 => 'Uproszczony — tylko terminy', 2 => 'Uproszczony — terminy + płatności', 3 => 'Uproszczony — terminy + płatności uproszczone', 4 => 'Beneficjent konsultacji — konsultacje i rozliczenia'];
 /** Tryb 4 (beneficjent konsultacji, konto „k1234”): tylko „Moje konsultacje” (terminy, karty z etapem, PDF) i rozliczenia. */
-const STUDENT_SIMPLE_KONS_PAGES = ['index.php', 'regulaminyStart.php', 'dokumenty.php', 'konsultacjaPdf.php', 'platnosci.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
+const STUDENT_SIMPLE_KONS_PAGES = ['index.php', 'regulaminyStart.php', 'dokumenty.php', 'zgody.php', 'konsultacjaPdf.php', 'platnosci.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
 const STUDENT_SIMPLE_KONS_TABS  = ['konsultacje', 'rozliczenia', 'regulaminy'];
 const STUDENT_SIMPLE_KONS_OPS   = ['accept_term', 'change_password'];
-const STUDENT_SIMPLE_PAGES = ['index.php', 'regulaminyStart.php', 'dokumenty.php', 'choose_group.php', 'lessons_pdf.php', 'lessons_export.php', 'plan_librus.php',
+const STUDENT_SIMPLE_PAGES = ['index.php', 'regulaminyStart.php', 'dokumenty.php', 'zgody.php', 'choose_group.php', 'lessons_pdf.php', 'lessons_export.php', 'plan_librus.php',
                               'plan_librus_pdf.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
 /** Zakładki index.php dostępne w trybie uproszczonym. */
 const STUDENT_SIMPLE_TABS  = ['lekcje', 'regulaminy'];

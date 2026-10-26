@@ -35,6 +35,7 @@ if (!$_minor) {
 }
 $_sprawy_items[] = $_it('regulaminy', 'Regulaminy', $_g('regulaminy'), $_n_terms, 'danger');
 $_sprawy_items[] = $_it('dokumenty', 'Dokumenty', 'dokumenty.php', (int)($sf_pending ?? 0), 'warning');
+$_sprawy_items[] = $_it('zgody', 'Zgody', 'zgody.php');
 
 /** Ikony kafli (Bootstrap Icons) wg zakładki; nieznana zakładka dostaje kółko. */
 $_ikony = [
