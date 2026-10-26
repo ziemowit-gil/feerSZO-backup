@@ -87,9 +87,19 @@ function skbPdf(array $s): string {
     $tmp = UPLOAD_DIR . 'mpdf_tmp';
     if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
     $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 18, 'margin_right' => 16,
-                            'margin_top' => 12, 'margin_bottom' => 12, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+                            'margin_top' => 12, 'margin_bottom' => 22, 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
     $mpdf->SetTitle('Skierowanie na badania lekarskie ' . $s['numer'] . ' — ' . $s['imie_nazwisko']);
     $mpdf->SetAuthor((string)org_setting('org_name'));
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) — poza treścią wzoru; oba egzemplarze mają ten sam kod; błąd kodów nie blokuje PDF
+    try {
+        require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+        $fc = DocRegistry::printCodes('skierowanie_badania', (string)($s['id'] ?? $s['numer']), 'Skierowanie na badania lekarskie ' . $s['numer'], 'modules/skierowania_badania/router.php?_route=/' . (int)($s['id'] ?? 0));
+        $fimg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+        if ($fc) $mpdf->SetHTMLFooter('<table style="border-collapse:collapse;font-family:dejavusans;font-size:6.5pt;color:#555"><tr>'
+            . '<td style="border:none;padding:0 2mm 0 0;width:11mm">' . $fimg($fc['qr'], 'height:9mm;width:9mm') . '</td>'
+            . '<td style="border:none;padding:0">' . $fimg($fc['bar'], 'height:5mm') . '<br>' . htmlspecialchars($fc['code'] . ' · ' . $fc['doc_number'], ENT_QUOTES) . '</td>'
+            . '</tr></table>');
+    } catch (\Throwable $e) { error_log('[skierowanie pdf] kody w stopce: ' . $e->getMessage()); }
     $mpdf->WriteHTML(skbPdfHtml($s, 'egzemplarz dla osoby kierowanej'));
     $mpdf->AddPage();
     $mpdf->WriteHTML(skbPdfHtml($s, 'egzemplarz dla ' . (string)org_setting('org_name')));

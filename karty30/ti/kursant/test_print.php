@@ -164,5 +164,6 @@ h2 { font-size: 11pt; font-weight: 600; margin: 1.2rem 0 .3rem; border-bottom: 1
 </div>
 <?php endforeach; ?>
 
+<?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo '<div style="margin-top:8mm">' . DocRegistry::printFooterHtml('ti_test_wydruk', (string)$attempt_id, 'Wydruk testu — podejście #' . $attempt_id, 'karty30/ti/kursant/test_print.php?attempt=' . $attempt_id) . '</div>'; ?>
 </body>
 </html>

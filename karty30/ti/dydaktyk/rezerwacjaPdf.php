@@ -46,5 +46,6 @@ th { width: 42mm; background: #eef2f7; } .sig { display: flex; gap: 20mm; margin
 </tbody></table>
 <div class="sig"><div>podpis beneficjenta</div><div>podpis konsultanta</div></div>
 <p style="font-size:8pt;color:#555;margin-top:8mm">Wydruk: <?= date('d.m.Y H:i') ?>, rezerwacja #<?= $id ?></p>
+<?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::printFooterHtml('ti_rezerwacja', (string)$id, 'Karta terminu konsultacji #' . $id, 'karty30/ti/dydaktyk/rezerwacja.php?id=' . $id); ?>
 <?php if (!empty($_GET['auto'])): ?><script>window.addEventListener('load', function () { window.print(); });</script><?php endif; ?>
 </body></html>

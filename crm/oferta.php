@@ -196,7 +196,7 @@ h1, h2, .top { font-family:'Montserrat','Lato','Segoe UI',sans-serif; }
 
   <div class="sheet"><div class="of-doc">
     <?= crm_offer_document_html($full, ['internal' => false]) ?>
-  </div></div>
+  </div><div style="margin-top:14px"><?= crm_offer_doc_codes_html($full) ?></div></div>
 
   <?php if ($decided): ?>
     <div class="panel">

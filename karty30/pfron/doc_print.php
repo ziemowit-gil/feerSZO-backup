@@ -877,12 +877,29 @@ try {
         'margin_left'   => 25,
         'margin_right'  => 20,
         'margin_top'    => 15,
-        'margin_bottom' => 18,
+        'margin_bottom' => 24,
         'margin_header' => 0,
-        'margin_footer' => 0,
+        'margin_footer' => 6,
         'default_font'  => 'dejavuserif',
     ]);
     $mpdf->showImageErrors = false;
+    // Stopka z kodami Code128 + QR (rejestr dokumentów): jeden kod na umowę PFRON i rodzaj dokumentu; szkic bez zapisanej umowy — po beneficjencie
+    $foot_ref = $pfron_id ? 'pfron#' . $pfron_id : ((int)($d['client_id'] ?? 0) ? 'klient#' . (int)$d['client_id'] : '');
+    if ($foot_ref !== '') {
+        try {
+            require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+            $fc = DocRegistry::printCodes('pfron_' . $type, $foot_ref . ($pfron_id ? '' : '/szkic'),
+                ['umowa' => 'Umowa uczestnictwa PFRON', 'umowa2' => 'Umowa uczestnictwa PFRON (egz. 2)', 'regulamin' => 'Regulamin PFRON'][$type] . ' (' . $foot_ref . ')',
+                'karty30/pfron/doc_print.php?type=' . $type . ($pfron_id ? '&pfron_id=' . $pfron_id : ''));
+            if ($fc) {
+                $fimg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+                $mpdf->SetHTMLFooter('<table style="border-collapse:collapse;font-family:dejavusans;font-size:6.5pt;color:#555"><tr>'
+                    . '<td style="border:none;padding:0 2mm 0 0;width:11mm">' . $fimg($fc['qr'], 'height:9mm;width:9mm') . '</td>'
+                    . '<td style="border:none;padding:0">' . $fimg($fc['bar'], 'height:5mm') . '<br>' . htmlspecialchars($fc['code'] . ' · ' . $fc['doc_number'], ENT_QUOTES) . '</td>'
+                    . '</tr></table>');
+            }
+        } catch (\Throwable $e) { error_log('[pfron doc_print] kody w stopce: ' . $e->getMessage()); }
+    }
     $mpdf->SetTitle($type === 'umowa' ? 'Umowa PFRON' : 'Regulamin PFRON');
     $mpdf->SetAuthor('FEER');
     $mpdf->SetCreator('FEER SZO');

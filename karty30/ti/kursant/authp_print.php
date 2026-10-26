@@ -177,6 +177,7 @@ $by_admin   = !empty($ap['added_by_name']); // true = upoważnienie wystawione p
   </div>
   <?php endif; ?>
 
+  <?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo '<div style="margin-top:8mm">' . DocRegistry::printFooterHtml('ti_authp', (string)$id, 'Upoważnienie do wglądu w panel kursanta #' . $id, 'karty30/ti/kursant/authp_print.php?id=' . $id) . '</div>'; ?>
 </div>
 </body>
 </html>

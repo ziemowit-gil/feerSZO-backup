@@ -139,6 +139,8 @@ ti_print_log_add('plan_print', 'Plan zajęć — ' . ($instructor['name'] ?? '')
   </table>
 <?php endforeach; ?>
 </div>
-<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?></div>
+<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?>
+  <?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::printFooterHtml('ti_plan_prowadzacego', $target_uid . '|' . $weeks . '|' . (int)$PD['unbounded'], 'Plan zajęć prowadzącego #' . $target_uid, 'karty30/ti/dydaktyk/plan_print.php?instructor_id=' . $target_uid); ?>
+</div>
 </body>
 </html>

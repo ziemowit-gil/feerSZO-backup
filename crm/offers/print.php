@@ -59,6 +59,6 @@ body { margin:0; background:#F3F4F6; font-family:'Lato','Segoe UI',-apple-system
 </div>
 <div class="sheet"><div class="of-doc">
 <?= crm_offer_document_html($offer, ['internal' => $internal]) ?>
-</div></div>
+</div><div style="margin-top:14px"><?= crm_offer_doc_codes_html($offer) ?></div></div>
 </body>
 </html>

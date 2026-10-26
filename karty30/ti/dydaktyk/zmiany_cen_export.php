@@ -91,12 +91,23 @@ try {
     if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
     $mpdf = new \Mpdf\Mpdf([
         'mode' => 'utf-8', 'format' => 'A4-L', 'tempDir' => $tmp,
-        'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 12, 'margin_bottom' => 12,
+        'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 12, 'margin_bottom' => 24,
         'default_font' => 'dejavusans',
     ]);
     $mpdf->SetTitle('Wyciąg zmian cen zajęć TI');
     require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/tiMetroCss.php';
-    $mpdf->SetHTMLFooter(ti_metro_pdf_footer('Wyciąg zmian cen zajęć TI · ' . date('d.m.Y H:i')));
+    // Stopka: numer strony + kody Code128 + QR (rejestr dokumentów) — jeden stały kod na wyciąg z danymi filtrami
+    $foot_codes = '';
+    try {
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/doc_registry/lib/DocRegistry.php';
+        $fc = DocRegistry::printCodes('ti_zmiany_cen', implode('|', [$F['status'], $F['course_id'], $F['from'], $F['to']]), 'Wyciąg zmian cen zajęć TI — ' . $course_name, 'karty30/ti/dydaktyk/zmiany_cen_export.php');
+        $fimg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+        if ($fc) $foot_codes = '<table style="border-collapse:collapse;font-family:dejavusans;font-size:6.5pt;color:#555;margin-top:1mm"><tr>'
+            . '<td style="border:none;padding:0 2mm 0 0;width:11mm">' . $fimg($fc['qr'], 'height:9mm;width:9mm') . '</td>'
+            . '<td style="border:none;padding:0">' . $fimg($fc['bar'], 'height:5mm') . '<br>' . h($fc['code'] . ' · ' . $fc['doc_number']) . '</td>'
+            . '</tr></table>';
+    } catch (\Throwable $e) { error_log('[zmiany_cen_export] kody w stopce: ' . $e->getMessage()); }
+    $mpdf->SetHTMLFooter(ti_metro_pdf_footer('Wyciąg zmian cen zajęć TI · ' . date('d.m.Y H:i')) . $foot_codes);
     $mpdf->WriteHTML(
         ti_metro_pdf_css() . '
          body { font-size:8pt; } h1 { font-size:13pt; margin:0 0 2mm; }

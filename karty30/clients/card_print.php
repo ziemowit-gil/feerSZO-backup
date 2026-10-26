@@ -71,6 +71,9 @@ $status_labels = [
     'completed' => 'Ukończono', 'graduated' => 'Absolwent', 'resigned' => 'Zrezygnował',
 ];
 $day_labels = ['mon'=>'Pn','tue'=>'Wt','wed'=>'Śr','thu'=>'Cz','fri'=>'Pt','sat'=>'So','sun'=>'Nd'];
+// Kody Code128 + QR w stopce (rejestr dokumentów) — wspólne dla obu wariantów wydruku
+require_once dirname(__DIR__, 2) . '/modules/doc_registry/lib/DocRegistry.php';
+$doc_codes = DocRegistry::printFooterHtml('k30_karta_beneficjenta', (string)$client_id, 'Karta beneficjenta #' . $client_id, 'karty30/clients/card_print.php?id=' . $client_id);
 // Wariant w układzie formularza urzędowego (jak upoważnienia RODO): ?styl=formularz
 if (($_GET['styl'] ?? '') === 'formularz') { require __DIR__ . '/card_print_form.php'; exit; }
 $_form_url = '?' . http_build_query(array_filter(['id' => $is_kursant_mode ? null : $client_id, 'kursant' => $is_kursant_mode ? 1 : null, 'styl' => 'formularz']));
@@ -368,6 +371,7 @@ html,body{margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;font-size:1
       <div class="k-sign">Podpis operatora</div>
     </div>
   </div>
+  <?php if ($doc_codes !== ''): ?><div class="k-codes" style="margin-top:.5rem"><?= $doc_codes ?></div><?php endif; ?>
 
 </div><!-- /karta -->
 

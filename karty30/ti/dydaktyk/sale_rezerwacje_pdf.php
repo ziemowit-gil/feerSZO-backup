@@ -55,7 +55,7 @@ try {
         'margin_left'   => 14,
         'margin_right'  => 14,
         'margin_top'    => 14,
-        'margin_bottom' => 16,
+        'margin_bottom' => 24,
         'default_font'  => 'dejavusans',
         'tempDir'       => $mpdf_tmp,
     ]);
@@ -65,7 +65,18 @@ try {
     $mpdf->SetAuthor($org !== '' ? $org : 'FEER');
 
     require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/tiMetroCss.php';
-    $mpdf->SetHTMLFooter(ti_metro_pdf_footer('Wykaz sal do rezerwacji · ' . date('d.m.Y H:i')));
+    // Stopka: numer strony + kody Code128 + QR (rejestr dokumentów) — jeden stały kod na ten wykaz (zakres, widok, operator, status)
+    $foot_codes = '';
+    try {
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/doc_registry/lib/DocRegistry.php';
+        $fc = DocRegistry::printCodes('ti_sale_rezerwacje', implode('|', [$from, $to, $view, $status, $operator === '' ? '' : md5($operator)]), 'Wykaz sal do rezerwacji — ' . $range_label . ($view === 'operator' ? ' (wg operatora)' : ''), 'karty30/ti/dydaktyk/sale_rezerwacje.php');
+        $fimg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+        if ($fc) $foot_codes = '<table style="border-collapse:collapse;font-family:dejavusans;font-size:6.5pt;color:#555;margin-top:1mm"><tr>'
+            . '<td style="border:none;padding:0 2mm 0 0;width:11mm">' . $fimg($fc['qr'], 'height:9mm;width:9mm') . '</td>'
+            . '<td style="border:none;padding:0">' . $fimg($fc['bar'], 'height:5mm') . '<br>' . _h($fc['code'] . ' · ' . $fc['doc_number']) . '</td>'
+            . '</tr></table>';
+    } catch (\Throwable $e) { error_log('[sale_rezerwacje_pdf] kody w stopce: ' . $e->getMessage()); }
+    $mpdf->SetHTMLFooter(ti_metro_pdf_footer('Wykaz sal do rezerwacji · ' . date('d.m.Y H:i')) . $foot_codes);
     $mpdf->WriteHTML(
         ti_metro_pdf_css() . '
          h1 { margin: 0 0 1mm; }

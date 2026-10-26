@@ -193,6 +193,8 @@ $org = ti_org_contact_info();
   </div>
 </div>
 </div>
-<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?></div>
+<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?>
+  <?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::printFooterHtml('ti_plan_librus_wszystko', (string)$weeks, 'Plan zajęć — cała instytucja (siatka)', 'karty30/ti/dydaktyk/plan_librus_all.php'); ?>
+</div>
 </body>
 </html>

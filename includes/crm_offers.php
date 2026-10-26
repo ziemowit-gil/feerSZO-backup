@@ -1829,6 +1829,27 @@ function crm_offer_document_css(bool $for_pdf = false): string {
 CSS;
 }
 
+/**
+ * Kody Code128 + QR oferty (rejestr dokumentów) — jeden stały kod na ofertę, także dla wersji wewnętrznej i wydruku ze strony publicznej.
+ * @return array|null ['code','doc_number','url','qr','bar'] albo null, gdy kodów nie udało się zbudować (nie blokuje dokumentu)
+ */
+function crm_offer_doc_codes(array $full): ?array {
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $id = (int)$full['id'];
+        return DocRegistry::printCodes('crm_oferta', (string)$id, 'Oferta ' . (string)$full['offer_number'], 'crm/offers/view.php?id=' . $id);
+    } catch (\Throwable $e) { error_log('[crm_offer_doc_codes] ' . $e->getMessage()); return null; }
+}
+
+/** Stopka HTML z kodami oferty (strony wydruku) — '' przy braku kodów. */
+function crm_offer_doc_codes_html(array $full): string {
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $id = (int)$full['id'];
+        return DocRegistry::printFooterHtml('crm_oferta', (string)$id, 'Oferta ' . (string)$full['offer_number'], 'crm/offers/view.php?id=' . $id);
+    } catch (\Throwable $e) { error_log('[crm_offer_doc_codes_html] ' . $e->getMessage()); return ''; }
+}
+
 /** PDF oferty jako string (mpdf) lub null przy błędzie. */
 function crm_offer_pdf(int $offer_id, bool $internal = false): ?string {
     $full = crm_offer_full($offer_id);
@@ -1844,7 +1865,7 @@ function crm_offer_pdf(int $offer_id, bool $internal = false): ?string {
         $stack = crm_offer_font_stacks(true);
         $cfg = [
             'mode' => 'utf-8', 'format' => 'A4',
-            'margin_left' => 16, 'margin_right' => 14, 'margin_top' => 14, 'margin_bottom' => 16,
+            'margin_left' => 16, 'margin_right' => 14, 'margin_top' => 14, 'margin_bottom' => 26,
             'default_font' => $stack['body'], 'tempDir' => $tmp,
         ];
         if ($fonts['data']) {
@@ -1856,10 +1877,17 @@ function crm_offer_pdf(int $offer_id, bool $internal = false): ?string {
         $brand = crm_offer_brand();
         $mpdf->SetTitle('Oferta ' . $full['offer_number']);
         $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
+        // Stopka: numer strony + kody Code128 + QR oferty (mPDF nie zna flexa — tabela i obrazy data:)
+        $fc = crm_offer_doc_codes($full);
+        $fimg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
         $mpdf->SetHTMLFooter(
             '<table width="100%" style="font-size:7.5pt;color:#9CA3AF;border-top:1px solid ' . $brand['primary'] . ';padding-top:3px">'
             . '<tr><td>' . h($brand['org_name']) . '</td>'
             . '<td style="text-align:right">' . h($full['offer_number']) . ' · strona {PAGENO}/{nbpg}</td></tr></table>'
+            . ($fc ? '<table style="border-collapse:collapse;font-size:6.5pt;color:#6B7280;margin-top:1mm"><tr>'
+                . '<td style="padding:0 2mm 0 0;width:11mm">' . $fimg($fc['qr'], 'height:9mm;width:9mm') . '</td>'
+                . '<td style="padding:0">' . $fimg($fc['bar'], 'height:5mm') . '<br>' . h($fc['code'] . ' · ' . $fc['doc_number']) . '</td>'
+                . '</tr></table>' : '')
         );
         $mpdf->WriteHTML('body{font-family:' . $stack['body'] . ';} ' . crm_offer_document_css(true), \Mpdf\HTMLParserMode::HEADER_CSS);
         $mpdf->WriteHTML('<div class="of-doc">' . crm_offer_document_html($full, ['pdf' => true, 'internal' => $internal]) . '</div>',

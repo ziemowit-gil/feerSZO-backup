@@ -44,6 +44,24 @@ final class OswiadczeniePdf
                                'margin_left' => $l, 'margin_footer' => 6, 'default_font' => 'dejavusanscondensed', 'tempDir' => $tmp]);
     }
 
+    /**
+     * Kody Code128 + QR (rejestr dokumentów) jako HTML dla stopki mPDF (tabela + obrazy data:). '' przy braku kodów — wydruk nigdy nie jest przez to blokowany.
+     * Stopka jest poza treścią oświadczenia (osobny element strony), więc tekst wzoru pozostaje bez zmian.
+     */
+    private static function codesHtml(string $kind, string $ref, string $title): string
+    {
+        try {
+            require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+            $f = DocRegistry::printCodes($kind, $ref, $title, 'modules/zlecenie_oswiadczenie/router.php');
+            if (!$f) return '';
+            $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            return '<table style="border-collapse:collapse;font-family:dejavusans;font-size:6.5pt;color:#555;margin-top:1mm"><tr>'
+                . '<td style="border:none;padding:0 2mm 0 0;width:11mm">' . $img($f['qr'], 'height:9mm;width:9mm') . '</td>'
+                . '<td style="border:none;padding:0">' . $img($f['bar'], 'height:5mm') . '<br>' . self::e($f['code'] . ' · ' . $f['doc_number']) . '</td>'
+                . '</tr></table>';
+        } catch (\Throwable $e) { error_log('[zlecenie_oswiadczenie] kody w stopce: ' . $e->getMessage()); return ''; }
+    }
+
     // ── ZUS ───────────────────────────────────────────────────────────────────
 
     /** PDF: instrukcja + oświadczenie ZUS w niezmienionej formie. $meta: uploadUrl, numer, data, kto */
@@ -57,6 +75,9 @@ final class OswiadczeniePdf
             'Wpisz datę i podpisz się w miejscu „podpis wykonawcy” na dole oświadczenia.'));
         // Strona wzoru: marginesy 2,5 cm, Arial 11 pt, interlinia 16 pt (jak w pliku DOCX)
         $m->AddPageByArray(['margin-left' => 25, 'margin-right' => 25, 'margin-top' => 25, 'margin-bottom' => 25]);
+        // Kody w stopce tylko na stronie oświadczenia (instrukcja nie jest składana) — w marginesie dolnym, układ treści wzoru bez zmian
+        [$ref, $title] = OswiadczenieDocx::footerRef($a, $umowa);
+        if (($codes = self::codesHtml('zlecenie_osw', $ref, $title)) !== '') $m->SetHTMLFooter($codes);
         // FreeSans ma metrykę zgodną z Arialem (czcionka wzoru) — linie łamią się jak w Wordzie; kratki z DejaVu (pełny zestaw znaków)
         $h = '<style>p{margin:0;font-family:freesans;font-size:11pt;line-height:16pt}s{text-decoration:line-through}.bx{font-family:dejavusans}</style>';
         $prevRow = null;
@@ -142,12 +163,14 @@ final class OswiadczeniePdf
 
     public static function zlb(array $a, array $meta): string
     {
-        $m = self::mpdf([8, 12, 13, 12]);
+        $m = self::mpdf([8, 12, 24, 12]);   // dolny margines zwiększony o miejsce na kody Code128 + QR w stopce
         $m->SetTitle('ZLB — ' . self::ZLB_TITLE . ' — ' . ($a['nazwisko_imiona'] ?? ''));
         $m->SetAuthor((string)org_setting('org_name'));
+        $zlbId = trim((string)($meta['numer'] ?? '')) !== '' ? (string)$meta['numer'] : (string)($meta['umowa'] ?? '');
         $m->SetHTMLFooter('<table width="100%" style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #000"><tr>'
             . '<td width="33%"><b>ZLB</b> (' . self::ZLB_VERSION . ')</td><td width="34%" style="text-align:center">' . self::e($meta['numer'] ?? '') . '</td>'
-            . '<td width="33%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr></table>');
+            . '<td width="33%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr></table>'
+            . ($zlbId !== '' ? self::codesHtml('zlecenie_osw', 'zlb|' . $zlbId, 'Oświadczenie o numerze rachunku bankowego (ZLB) ' . ($meta['numer'] ?? '')) : ''));
         $m->WriteHTML(self::zlbHtml($a, $meta));
         $m->AddPage();
         $m->WriteHTML(self::instructionHtml(self::ZLB_TITLE . ' (ZLB)', $meta, 'Podpisz się czytelnie w polu „Czytelny podpis Zleceniobiorcy” (sekcja D).', 1));

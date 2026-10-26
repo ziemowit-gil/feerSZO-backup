@@ -92,7 +92,9 @@ $org = defined('APP_ORG') ? APP_ORG : '';
   </tbody>
 </table>
 </div>
-<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?></div>
+<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?> przez <?= h($me['name'] ?? '') ?>
+  <?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::printFooterHtml('ti_harmonogram_lokalizacje', (string)$weeks, 'Harmonogram grup — dzień, godziny, lokalizacja', 'karty30/ti/dydaktyk/harmonogram_lokalizacje.php'); ?>
+</div>
 
 <script>
 function toggleMd() {

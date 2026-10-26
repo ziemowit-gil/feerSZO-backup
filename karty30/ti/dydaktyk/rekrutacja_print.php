@@ -429,6 +429,21 @@ if ($what === 'plakat') {
   <span>sporządził(a)</span>
   <span>zatwierdził(a) — kierownik</span>
 </div>
+<?php
+/* Kody Code128 + QR w stopce (rejestr dokumentów) — wydruki z rubryką podpisu; jeden stały kod na zestawienie (rodzaj + parametry) */
+$_dc_ref = match ($what) {
+    'siatka'      => (int)($round['id'] ?? 0) . '|' . ($is_staff ? 'wszyscy' : 'prow' . $uid),
+    'dostepnosci' => $av_instr_id . '|' . $av_mode,
+    default       => 'kalendarz',
+};
+$_dc_title = match ($what) {
+    'siatka'      => 'Siatka godzin tury #' . (int)($round['id'] ?? 0),
+    'dostepnosci' => 'Zestawienie dostępności prowadzących' . ($av_mode !== '' ? ' (' . $av_mode . ')' : ''),
+    default       => 'Kalendarz naborów',
+};
+require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php';
+echo '<div style="margin-top:6mm">' . DocRegistry::printFooterHtml('ti_nabor_' . $what, $_dc_ref, $_dc_title, 'karty30/ti/dydaktyk/rekrutacja_print.php?what=' . $what . ($av_instr_id ? '&instr=' . $av_instr_id : '') . ($what === 'siatka' ? '&round=' . (int)($round['id'] ?? 0) : '')) . '</div>';
+?>
 <?php endif; ?>
 
 </body>

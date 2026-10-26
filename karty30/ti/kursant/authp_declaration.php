@@ -166,6 +166,7 @@ $changes = [
     Upoważnienie może zostać cofnięte przez administratora w dowolnym momencie w panelu zarządzania kontami.
   </p>
 
+  <?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo '<div style="margin-top:8mm">' . DocRegistry::printFooterHtml('ti_authp_oswiadczenie', (string)$id, 'Oświadczenie administratora o upoważnieniu #' . $id, 'karty30/ti/kursant/authp_declaration.php?id=' . $id) . '</div>'; ?>
 </div>
 </body>
 </html>

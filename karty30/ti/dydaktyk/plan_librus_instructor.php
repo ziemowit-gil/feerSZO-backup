@@ -216,6 +216,8 @@ $org = ti_org_contact_info();
 </div>
 <?php endif; ?>
 </div>
-<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?></div>
+<div class="page-footer">Wygenerowano: <?= date('d.m.Y H:i') ?>
+  <?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo ($target_uid && $L['instructor']) ? DocRegistry::printFooterHtml('ti_plan_librus_prowadzacy', $target_uid . '|' . $weeks, 'Plan zajęć prowadzącego (siatka) #' . $target_uid, 'karty30/ti/dydaktyk/plan_librus_instructor.php?instructor_id=' . $target_uid) : ''; ?>
+</div>
 </body>
 </html>

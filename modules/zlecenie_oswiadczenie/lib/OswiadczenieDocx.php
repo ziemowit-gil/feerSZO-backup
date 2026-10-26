@@ -35,7 +35,8 @@ final class OswiadczenieDocx
     public static function fill(array $a, array $umowa): string
     {
         [$dom, $paras, $orig] = self::build($a, $umowa);
-        self::assertTemplateIntact($orig, $paras);
+        self::assertTemplateIntact($orig, $paras);   // strażnik treści — PRZED dodaniem stopki; stopka to osobna część pliku, poza treścią wzoru
+        $foot = self::footerParts($dom, $a, $umowa);
         $zipIn = new ZipArchive();
         if ($zipIn->open(self::TEMPLATE) !== true) throw new RuntimeException('Nie można otworzyć wzoru oświadczenia.');
         $tmp = tempnam(sys_get_temp_dir(), 'osw');
@@ -44,13 +45,79 @@ final class OswiadczenieDocx
         for ($i = 0; $i < $zipIn->numFiles; $i++) {
             $name = (string)$zipIn->getNameIndex($i);
             $data = $name === 'word/document.xml' ? $dom->saveXML() : (string)$zipIn->getFromIndex($i);
+            if ($foot) {
+                if ($name === '[Content_Types].xml') $data = str_replace('</Types>', $foot['types'] . '</Types>', $data);
+                if ($name === 'word/_rels/document.xml.rels') $data = str_replace('</Relationships>', $foot['rels'] . '</Relationships>', $data);
+            }
             $zipOut->addFromString($name, $data);
         }
+        if ($foot) foreach ($foot['files'] as $fn => $bytes) $zipOut->addFromString($fn, $bytes);
         $zipIn->close();
         $zipOut->close();
         $bytes = (string)file_get_contents($tmp);
         @unlink($tmp);
         return $bytes;
+    }
+
+    /**
+     * Identyfikacja dokumentu do kodów w stopce (rejestr dokumentów) — wspólna dla DOCX i PDF: jeden kod na oświadczenie ZUS/PIT do umowy.
+     * Tytuł bez danych osobowych; bez numeru umowy tożsamość pochodzi z skrótu nazwiska (nie jest zapisywane jawnie).
+     * @return array{0: string, 1: string} [ref, title]
+     */
+    public static function footerRef(array $a, array $umowa): array
+    {
+        $nr = trim((string)($umowa['numer'] ?? ''));
+        $id = $nr !== '' ? $nr : 'h' . substr(sha1((string)($a['nazwisko_imiona'] ?? '')), 0, 12);
+        return ['zus|' . $id, 'Oświadczenie dla celów podatkowych i ubezpieczenia ZUS' . ($nr !== '' ? ' — umowa ' . $nr : '')];
+    }
+
+    /**
+     * Stopka z kodami Code128 + QR w pliku DOCX: osobna część word/footer1.xml + obrazy + powiązania; do document.xml dopisywany jest tylko
+     * <w:footerReference> w sectPr — żaden akapit treści wzoru nie jest ruszany. Pusta tablica, gdy kodów nie udało się zbudować
+     * (brak stopki nie blokuje wydruku).
+     * @return array{files: array<string,string>, rels: string, types: string}|array{}
+     */
+    private static function footerParts(DOMDocument $dom, array $a, array $umowa): array
+    {
+        try {
+            require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+            [$ref, $title] = self::footerRef($a, $umowa);
+            $f = DocRegistry::printCodes('zlecenie_osw', $ref, $title, 'modules/zlecenie_oswiadczenie/router.php');
+            if (!$f) return [];
+            $xp = new DOMXPath($dom);
+            $xp->registerNamespace('w', self::W);
+            $sect = $xp->query('//w:body/w:sectPr')->item(0);
+            if (!$sect instanceof DOMElement) return [];
+            $R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+            $files = []; $rels = ''; $runs = ''; $n = 0;
+            foreach (['bar' => ['Kod kreskowy', 0.19], 'qr' => ['Kod QR', 0.34]] as $k => [$alt, $hMm]) {
+                if (empty($f[$k]) || !($sz = @getimagesizefromstring($f[$k]))) continue;
+                $n++;
+                $cy = (int)round($hMm * 1000 * 36); $cx = (int)round($cy * $sz[0] / max(1, $sz[1]));   // wysokość w EMU (1 mm = 36000), proporcje obrazu
+                $files['word/media/kod' . $n . '.png'] = $f[$k];
+                $rels .= '<Relationship Id="rIdKod' . $n . '" Type="' . $R . '/image" Target="media/kod' . $n . '.png"/>';
+                $runs .= '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="72000"><wp:extent cx="' . $cx . '" cy="' . $cy . '"/>'
+                       . '<wp:docPr id="' . (900 + $n) . '" name="' . $alt . '" descr="' . $alt . ' ' . htmlspecialchars($f['code'], ENT_QUOTES) . '"/>'
+                       . '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+                       . '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="' . (900 + $n) . '" name="kod' . $n . '.png"/><pic:cNvPicPr/></pic:nvPicPr>'
+                       . '<pic:blipFill><a:blip r:embed="rIdKod' . $n . '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+                       . '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . $cx . '" cy="' . $cy . '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'
+                       . '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+            }
+            if (!$n) return [];
+            $txt = htmlspecialchars($f['code'] . ' · ' . $f['doc_number'], ENT_XML1, 'UTF-8');
+            $files['word/footer1.xml'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                . '<w:ftr xmlns:w="' . self::W . '" xmlns:r="' . $R . '" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+                . '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="left"/></w:pPr>' . $runs
+                . '<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:color w:val="555555"/><w:sz w:val="13"/></w:rPr><w:t xml:space="preserve">' . $txt . '</w:t></w:r></w:p></w:ftr>';
+            $rels .= '<Relationship Id="rIdKodFooter" Type="' . $R . '/footer" Target="footer1.xml"/>';
+            $fr = $dom->createElementNS(self::W, 'w:footerReference');
+            $fr->setAttributeNS(self::W, 'w:type', 'default');
+            $fr->setAttributeNS($R, 'r:id', 'rIdKodFooter');
+            $sect->insertBefore($fr, $sect->firstChild);
+            return ['files' => $files, 'rels' => $rels,
+                    'types' => '<Default Extension="png" ContentType="image/png"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'];
+        } catch (\Throwable $e) { error_log('[zlecenie_oswiadczenie] stopka DOCX: ' . $e->getMessage()); return []; }
     }
 
     /**

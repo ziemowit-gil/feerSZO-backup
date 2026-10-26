@@ -110,6 +110,7 @@ $cssV = (int)@filemtime(dirname(__DIR__, 2) . '/assets/css/drukFormularz.css');
 </table>
 
 <div class="df-foot"><span>Karta beneficjenta · <?= h($org) ?> · dokument wygenerowany elektronicznie</span><span>#<?= (int)$client_id ?> · <?= h($generated) ?></span></div>
+<?php if (($doc_codes ?? '') !== ''): ?><div style="margin-top:1.5mm"><?= $doc_codes ?></div><?php endif; ?>
 
 <script>if (new URLSearchParams(location.search).get('autoprint') === '1') window.print();</script>
 </body>

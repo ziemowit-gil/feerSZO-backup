@@ -173,6 +173,7 @@ $today      = date('d.m.Y');
     <?= !empty($ap['revoke_scan_path']) ? 'Do dokumentu dołączony skan odwołania.' : 'Skan podpisanego odwołania należy dołączyć po podpisaniu.' ?>
   </p>
 
+  <?php require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; echo '<div style="margin-top:8mm">' . DocRegistry::printFooterHtml('ti_authp_odwolanie', (string)$id, 'Odwołanie upoważnienia do wglądu w panel kursanta #' . $id, 'karty30/ti/kursant/authp_revoke_print.php?id=' . $id) . '</div>'; ?>
 </div>
 </body>
 </html>
