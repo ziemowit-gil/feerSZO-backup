@@ -1363,8 +1363,9 @@ include __DIR__ . '/includes/header_crm.php';
           </ul>
         </div>
 
+        <div class="ib-handle" role="group" aria-label="Obsługa wiadomości">
         <?php if (count($queues) > 1): ?>
-        <form method="post" class="ib-assign"><?= $hidden ?><input type="hidden" name="_op" value="queue">
+        <form method="post" class="ib-assign"><?= $hidden ?><span class="ib-hl">Kolejka</span><input type="hidden" name="_op" value="queue">
           <select name="queue_id" class="ib-field" aria-label="Kolejka wiadomości" title="Przenieś wiadomość (z całym wątkiem) do kolejki"
                   onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
             <?php foreach ($queues as $qq): ?>
@@ -1373,7 +1374,7 @@ include __DIR__ . '/includes/header_crm.php';
           </select>
         </form>
         <?php endif; ?>
-        <form method="post" class="ib-assign" data-ib-xhr="assign"><?= $hidden ?><input type="hidden" name="_op" value="assign">
+        <form method="post" class="ib-assign" data-ib-xhr="assign"><?= $hidden ?><span class="ib-hl">Opiekun</span><input type="hidden" name="_op" value="assign">
           <select name="user_id" class="ib-field" aria-label="Przypisz wiadomość osobie"
                   title="Wskaż osobę, która poprowadzi tę wiadomość" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
             <option value="">— przypisz osobę —</option>
@@ -1386,6 +1387,7 @@ include __DIR__ . '/includes/header_crm.php';
         </form>
         <?php $mtags = ($row_tags[(int)$msg['id']] ?? null) ?? (crm_mt_for_rows([['id' => (int)$msg['id'], 'thread_key' => $msg['thread_key'] ?? '']])[(int)$msg['id']] ?? []); ?>
         <div class="ib-tagbar" role="group" aria-label="Tagi rozmowy">
+          <span class="ib-hl">Tagi</span>
           <?php foreach ($mtags as $tg): ?>
           <span class="ib-tagchip"><a href="?<?= $qs(['tag' => $tg, 'msg' => null, 'page' => null]) ?>" title="Pokaż rozmowy z tagiem <?= h($tg) ?>"><i class="bi bi-tag" aria-hidden="true"></i> <?= h($tg) ?></a>
             <form method="post" class="d-inline"><?= $hidden ?><input type="hidden" name="_op" value="tag_remove"><input type="hidden" name="tag" value="<?= h($tg) ?>">
@@ -1399,7 +1401,7 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
         <?php $fols = crm_fol_list((int)$msg['id']); $fol_ids = array_map('intval', array_column($fols, 'id')); $i_follow = in_array($uid, $fol_ids, true); ?>
         <div class="ib-tagbar ib-fol" role="group" aria-label="Obserwujący rozmowę">
-          <span class="ib-fol-lbl"><i class="bi bi-eye" aria-hidden="true"></i> Obserwują:</span>
+          <span class="ib-hl"><i class="bi bi-eye" aria-hidden="true"></i> Obserwujący</span>
           <?php foreach ($fols as $fw): ?>
           <span class="ib-tagchip ib-fchip"><?= h($fw['name']) ?>
             <form method="post" class="d-inline"><?= $hidden ?><input type="hidden" name="_op" value="fol_remove"><input type="hidden" name="follower_id" value="<?= (int)$fw['id'] ?>">
@@ -1416,6 +1418,7 @@ include __DIR__ . '/includes/header_crm.php';
             </select>
           </form>
         </div>
+        </div><!-- /.ib-handle -->
       </div>
       <?php endif; ?>
 

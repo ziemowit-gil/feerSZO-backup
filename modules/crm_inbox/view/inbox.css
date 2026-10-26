@@ -635,3 +635,17 @@ a.ib-ct-name:hover { color:var(--crm-primary-dark); text-decoration:underline }
 .ib-shell .ib-row.unread .ib-item > .ib-subj { color:var(--ib-text) }
 .ib-shell .ib-row:hover .ib-time, .ib-shell .ib-row:focus-within .ib-time { visibility:visible }
 .ib-shell .ib-quick { top:.4rem; transform:none }
+
+/* ══ Okno odczytu: opcje obsługi uporządkowane — górny rząd to polecenia, pod spodem podpisane pola ═════════════ */
+.ib-shell .ib-bar .ib-handle { flex-basis:100%; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:.35rem .9rem; margin-top:.3rem; padding:.45rem 0 .15rem; border-top:1px solid var(--ib-line) }
+.ib-shell .ib-handle > * { display:flex; flex-direction:column; align-items:stretch; gap:.15rem; min-width:0; margin:0 }
+.ib-shell .ib-handle .ib-hl, .ib-shell .ib-handle .ib-fol-lbl { font-size:.66rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ib-muted) }
+.ib-shell .ib-handle .ib-assign { margin-left:0 !important; flex-basis:auto }
+.ib-shell .ib-handle .ib-assign .ib-field { width:100%; max-width:none; height:28px; font-size:.8rem }
+.ib-shell .ib-handle .ib-tagbar { flex-direction:row; flex-wrap:wrap; align-items:center; margin:0; padding:0; border:0; gap:.25rem }
+.ib-shell .ib-handle .ib-tagbar > .ib-hl { flex:0 0 100% }
+.ib-shell .ib-handle .ib-tagadd { display:block }
+.ib-shell .ib-handle .ib-tagadd input, .ib-shell .ib-handle .ib-tagadd select { width:100%; max-width:11rem; height:28px; font-size:.8rem }
+.ib-shell .ib-handle .ib-fol { margin-left:0 }
+@container ibpane (max-width:780px) { .ib-shell .ib-bar .ib-handle { grid-template-columns:repeat(2, minmax(0,1fr)) } }
+@container ibpane (max-width:420px) { .ib-shell .ib-bar .ib-handle { grid-template-columns:minmax(0,1fr) } }
