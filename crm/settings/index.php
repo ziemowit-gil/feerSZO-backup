@@ -63,7 +63,10 @@ include __DIR__ . '/../includes/header_crm.php';
 
 <?= flash_html() ?>
 
-<div class="card mb-4" style="max-width:680px">
+<?php /* Układ dwukolumnowy: stopka (szeroka) i Roundcube obok siebie — treść nie zajmuje już tylko lewej połowy ekranu */ ?>
+<div class="row g-3 align-items-start">
+<div class="col-xl-7">
+<div class="card mb-0">
   <div class="card-body">
     <div class="crm-section-title">Stopka e-mail (globalna)</div>
     <p class="text-muted small mb-3">
@@ -100,7 +103,9 @@ include __DIR__ . '/../includes/header_crm.php';
   </div>
 </div>
 
-<div class="card mb-4" style="max-width:680px">
+</div><!-- /.col-xl-7 -->
+<div class="col-xl-5">
+<div class="card mb-0">
   <div class="card-body">
     <div class="crm-section-title">
       <i class="bi bi-envelope-at me-1" aria-hidden="true"></i>Roundcube Webmail
@@ -134,6 +139,9 @@ include __DIR__ . '/../includes/header_crm.php';
     </form>
   </div>
 </div>
+
+</div><!-- /.col-xl-5 -->
+</div><!-- /.row -->
 
 <?php require_once __DIR__ . '/_nav_end.php'; ?>
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>
