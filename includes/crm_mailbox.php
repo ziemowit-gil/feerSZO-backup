@@ -22,6 +22,7 @@ require_once __DIR__ . '/crm.php';
 require_once __DIR__ . '/poczta_acl.php';
 require_once __DIR__ . '/mime_text.php';
 require_once __DIR__ . '/crm_mail_queues.php';
+require_once __DIR__ . '/crm_mail_folders.php';
 
 /** Ładuje moduł poczty (tworzy tabele i kolumny). Zwraca false, gdy niedostępny. */
 function crm_mailbox_ready(): bool {
@@ -59,6 +60,7 @@ function crm_mailbox_schema_heal(): void {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
     }
     crm_mq_migrate();   // kolejki wiadomości + domyślna skrzynka faktur@ (jednorazowo)
+    crm_mf_migrate();   // tagi wiadomości + własne foldery (zapisane widoki)
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_comm_msgno ON crm_communications(msg_no)"); }
     catch (\Throwable $e) {}
 }
@@ -193,7 +195,8 @@ function _crm_mailbox_view_sql(string $view, int $uid, array &$params): string {
  * @return string[]|null null, gdy użytkownik nie ma dostępu do wskazanej skrzynki
  */
 function _crm_mailbox_scope_where(string $view, int $uid, array $f, array &$params): ?array {
-    $out = [_crm_mailbox_view_sql($view, $uid, $params)];
+    // Folder własny (zapisany widok) zastępuje warunek widoku — wiadomość jest w folderze i dalej w widokach domyślnych
+    $out = [!empty($f['folder_rules']) && is_array($f['folder_rules']) ? crm_mf_sql($f['folder_rules'], $uid, $params) : _crm_mailbox_view_sql($view, $uid, $params)];
 
     // „Nie pokazuj więcej w CRM Inbox" — poza widokiem „Ukryte" te wiadomości znikają
     if ($view !== 'hidden') $out[] = 'COALESCE(c.crm_hidden,0)=0';
@@ -270,6 +273,8 @@ function crm_mailbox_inbox(array $f = []): array {
     $params = $struct_params;
     if (!empty($f['assigned_to'])) { $where[] = 'c.assigned_to=?'; $params[] = (int)$f['assigned_to']; }
     if (!empty($f['contact_id']))  { $where[] = 'c.contact_id=?';  $params[] = (int)$f['contact_id']; }
+    // Szybki filtr po tagu (tag na którejkolwiek wiadomości rozmowy)
+    if (!empty($f['tag']) && ($tsql = crm_mt_filter_sql((string)$f['tag'], $params))) $where[] = $tsql;
     // Kolejka (liczona: jawna → domyślna skrzynki → ogólna) — zawęża wynik, nie zakres widoku
     if (!empty($f['queue_id']))    { $where[] = crm_mq_expr('c') . ' = CAST(? AS INTEGER)'; $params[] = (int)$f['queue_id']; }   // CAST: COALESCE nie ma afiniczności, a PDO wiąże tekst
     // Szybkie filtry z paska skrzynki — zawężają wynik, nie zakres widoku,

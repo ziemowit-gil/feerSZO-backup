@@ -104,13 +104,13 @@ function crm_mq_list(bool $onlyActive = true): array
 }
 
 /** Liczba wiadomości w bieżącym widoku i zakresie skrzynek w rozbiciu na kolejki: [queue_id => n]. Bez filtra kolejki — to jest filtr do wyboru. */
-function crm_mq_counts(string $view, int $mailbox_id = 0): array
+function crm_mq_counts(string $view, int $mailbox_id = 0, ?array $folderRules = null): array
 {
     crm_mq_migrate();
     $uid = (int)(current_user()['id'] ?? 0);
     $view = isset(CRM_MAILBOX_VIEWS[$view]) ? $view : 'new';
     $params = [];
-    $where = _crm_mailbox_scope_where($view, $uid, ['mailbox_id' => $mailbox_id], $params);
+    $where = _crm_mailbox_scope_where($view, $uid, ['mailbox_id' => $mailbox_id, 'folder_rules' => $folderRules], $params);
     if ($where === null) return [];
     try {
         $rows = db_all("SELECT " . crm_mq_expr('c') . " AS qid, COUNT(*) AS n FROM crm_communications c WHERE " . implode(' AND ', $where) . " GROUP BY qid", $params);
