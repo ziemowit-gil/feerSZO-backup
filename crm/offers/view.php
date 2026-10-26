@@ -341,7 +341,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
         widok wewnętrzny (z notatkami)
       </span>
     </div>
-    <div class="bd"><div class="of-doc"><?= crm_offer_document_html($offer, ['internal' => true]) ?></div></div>
+    <div class="bd"><div class="of-doc"><?= crm_offer_document_html($offer, ['internal' => true]) ?></div>
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid #E5E7EB"><?= crm_offer_doc_codes_html($offer) ?></div></div>
   </div>
 
   <?php if ($can_write): ?>
