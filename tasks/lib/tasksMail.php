@@ -315,6 +315,8 @@ function tasksMailAck(int $taskId, array $c, string $wsName): bool
 {
     $to = strtolower(trim((string)$c['from_email']));
     if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+    require_once dirname(__DIR__, 2) . '/includes/office_hours.php';
+    if (!oh_acks_allowed()) return false;   // bramka Godzin pracy: potwierdzenia tylko poza godzinami pracy (gdy włączona)
     $recent = (int)(db_one("SELECT COUNT(*) AS n FROM task_mail_sources WHERE lower(from_email)=? AND ack_sent_at >= ?",
         [$to, date('Y-m-d H:i:s', strtotime('-1 hour'))])['n'] ?? 0);
     if ($recent >= TASKS_MAIL_ACK_PER_HOUR) return false;

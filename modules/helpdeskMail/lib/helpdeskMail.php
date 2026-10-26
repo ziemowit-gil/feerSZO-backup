@@ -260,6 +260,8 @@ function hdMailNotifyOperators(int $ticketId, string $number, string $title): vo
 function hdMailAck(int $ticketId, string $number, string $title, string $name, string $to): bool
 {
     if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+    require_once dirname(__DIR__, 3) . '/includes/office_hours.php';
+    if (!oh_acks_allowed()) return false;   // bramka Godzin pracy: potwierdzenia tylko poza godzinami pracy (gdy włączona)
     $recent = (int)(db_one("SELECT COUNT(*) AS n FROM helpdesk_mail_sources WHERE lower(from_email)=? AND ack_sent_at >= ?",
         [$to, date('Y-m-d H:i:s', strtotime('-1 hour'))])['n'] ?? 0);
     if ($recent >= HD_MAIL_ACK_PER_HOUR) return false;
