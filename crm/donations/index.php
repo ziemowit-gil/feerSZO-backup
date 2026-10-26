@@ -43,7 +43,7 @@ $f = [
 ];
 $rows  = donations_list($f);
 $stats = donations_stats($year);
-$m     = fn(float $v) => number_format($v, 2, ',', ' ');
+$dmoney = fn(float $v) => number_format($v, 2, ',', ' ');
 
 include dirname(__DIR__) . '/includes/header_crm.php';
 ?>
@@ -65,9 +65,9 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <div class="row g-2 mb-3">
     <?php foreach ([
       ['Wpłat w roku ' . $year, (string)$stats['count'],                  'bi-list-ol',      '#0176D3'],
-      ['Suma',                  $m($stats['total']) . ' zł',              'bi-cash-coin',    '#16A34A'],
+      ['Suma',                  $dmoney($stats['total']) . ' zł',              'bi-cash-coin',    '#16A34A'],
       ['Darczyńców',            (string)$stats['donors'],                 'bi-people',       '#7C3AED'],
-      ['W tym rzeczowe',        $m($stats['total_rzeczowa']) . ' zł',     'bi-box-seam',     '#D97706'],
+      ['W tym rzeczowe',        $dmoney($stats['total_rzeczowa']) . ' zł',     'bi-box-seam',     '#D97706'],
     ] as [$lbl, $val, $ico, $col]): ?>
     <div class="col-6 col-lg-3">
       <div class="card h-100">
@@ -84,7 +84,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   <div class="alert alert-warning py-2 px-3 small d-flex gap-2">
     <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
     <div>
-      W <?= (int)$year ?> r. przyjęto <strong><?= h($m($stats['total_gotowka'])) ?> zł</strong> darowizn
+      W <?= (int)$year ?> r. przyjęto <strong><?= h($dmoney($stats['total_gotowka'])) ?> zł</strong> darowizn
       pieniężnych w gotówce. Gotówka nie jest wpłatą na rachunek płatniczy, więc darczyńca
       nie ma dowodu wymaganego przez art. 26 ust. 7 pkt 1 ustawy o PIT — potwierdzenie
       wystawimy, ale z jawnym zastrzeżeniem.
@@ -175,7 +175,7 @@ include dirname(__DIR__) . '/includes/header_crm.php';
               <?php endif; ?>
             </td>
             <td class="small text-muted"><?= h($rzecz ? 'przekazanie rzeczy' : donation_channel_label((string)$d['channel'])) ?></td>
-            <td class="text-end"><?= h($m((float)$d['amount'])) ?> <?= h((string)$d['currency']) ?></td>
+            <td class="text-end"><?= h($dmoney((float)$d['amount'])) ?> <?= h((string)$d['currency']) ?></td>
             <td class="text-end">
               <div class="d-flex gap-1 justify-content-end">
                 <?php if ($rzecz): ?>
