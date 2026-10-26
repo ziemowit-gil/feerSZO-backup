@@ -105,13 +105,9 @@ try {
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'     => 'Logowanie do CRM',
-    'side_title'=> 'CRM',
-    'side_sub'  => 'Jak się zalogować:',
-    'side_steps'=> [
-        'Wybierz „Zaloguj przez Microsoft 365”.',
-        'Zaloguj się kontem służbowym @feer.org.pl.',
-    ],
     'tab'       => '',            // CRM nie ma rejestracji — zakładki byłyby ślepą uliczką
+    'light'     => true,          // prosta, jednokolumnowa karta: bez panelu bocznego z kafelkami innych systemów
+    'account_buttons' => [],      // bez „Zaloguj się / Załóż konto / Nie pamiętasz hasła” — CRM wpuszcza tylko Microsoft 365
     'bootstrap' => true,
     'main_id'   => 'crm-login-main',
 ]);
@@ -130,9 +126,7 @@ auth_screen_head([
     <?php /* Pierwsze zdanie musi odpowiedzieć „gdzie ja jestem", bo część osób
              trafia tu przypadkiem. Dopiero drugie mówi, dla kogo to narzędzie. */ ?>
     <p class="ks-lead">
-      Wewnętrzne narzędzie zespołu Fundacji: kontakty, sprawy, oferty i korespondencja.
-      <br><span class="crm-lead-note">Dostęp mają wyłącznie osoby z kontem służbowym
-      w domenie <strong>@<?= h($org_domain) ?></strong>.</span>
+      Wewnętrzne narzędzie zespołu Fundacji. Wejście kontem służbowym <strong>@<?= h($org_domain) ?></strong>.
     </p>
 
     <?php if ($ms_available): ?>
@@ -169,34 +163,16 @@ auth_screen_head([
     </a>
     <?php endif; ?>
 
-    <hr class="ks-sep">
-
-    <?php /* Rozjazd. Świadomie POD przyciskiem logowania i wizualnie spokojniejszy:
-             osoba z kontem ma tu nie zgubić swojej ścieżki, a zabłąkana ma znaleźć
-             swoją bez pytania kogokolwiek. */ ?>
-    <h2 class="crm-lost-h">Szukasz czegoś innego?</h2>
-    <p class="crm-lost-sub">
-      Ten adres to narzędzie do pracy zespołu. Jeśli trafiłeś tu z wyszukiwarki
-      albo starego odnośnika, prawdopodobnie chodziło o jedno z tych miejsc:
-    </p>
-    <ul class="crm-lost">
-      <?php foreach ($_lost_links as $l): ?>
-      <li>
-        <a href="<?= h($l['url']) ?>">
-          <i class="bi <?= h($l['icon']) ?>" aria-hidden="true"></i>
-          <span>
-            <strong><?= h($l['label']) ?></strong>
-            <span class="crm-lost-desc"><?= h($l['desc']) ?></span>
-          </span>
-          <i class="bi bi-chevron-right crm-lost-arr" aria-hidden="true"></i>
-        </a>
-      </li>
-      <?php endforeach; ?>
-    </ul>
-
-    <?php /* Bez adresu e-mail w tym miejscu: biuro@ w tej domenie nie istnieje,
-             a odsyłanie pod nieistniejący adres jest gorsze niż nieodesłanie
-             nigdzie. Kontakt jest na stronie fundacji, pierwszej na liście. */ ?>
+    <?php /* „To nie tutaj” — schowane w rozwijanym bloku, żeby ekran miał jedną czynność. Zabłąkana osoba nadal ma
+             wyjście (strona Fundacji, panele, poczta), a zalogowany pracownik nie widzi listy, której nie potrzebuje. */ ?>
+    <details class="crm-lost-box">
+      <summary>Trafiłeś tu przez pomyłkę?</summary>
+      <ul class="crm-lost">
+        <?php foreach ($_lost_links as $l): ?>
+        <li><a href="<?= h($l['url']) ?>"><i class="bi <?= h($l['icon']) ?>" aria-hidden="true"></i><span><strong><?= h($l['label']) ?></strong></span><i class="bi bi-chevron-right crm-lost-arr" aria-hidden="true"></i></a></li>
+        <?php endforeach; ?>
+      </ul>
+    </details>
 
 <style>
 /* Rozjazd „to nie tutaj" — utrzymany w języku powłoki logowania (ks-*), ale
@@ -204,7 +180,10 @@ auth_screen_head([
 .crm-lead-note{display:inline-block;margin-top:.35rem;font-size:.85rem;color:var(--ks-muted)}
 .crm-lost-h{font-size:1rem;font-weight:700;text-align:center;margin:0 0 .35rem;color:var(--ks-ink)}
 .crm-lost-sub{text-align:center;font-size:.85rem;color:var(--ks-muted);line-height:1.55;margin:0 0 1.1rem}
-.crm-lost{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem}
+.crm-lost{list-style:none;margin:.6rem 0 0;padding:0;display:flex;flex-direction:column;gap:.3rem}
+.crm-lost-box{margin-top:1.4rem;font-size:.88rem}
+.crm-lost-box summary{cursor:pointer;text-align:center;color:var(--ks-muted);padding:.3rem}
+.crm-lost-box summary:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
 .crm-lost a{
   display:flex;align-items:center;gap:.7rem;padding:.65rem .8rem;border:1px solid var(--ks-line);
   border-radius:10px;text-decoration:none;color:var(--ks-ink);background:#fff;transition:border-color .12s,background .12s;
@@ -227,4 +206,4 @@ $_crm_links = [
 if (!CRM_STANDALONE) {
     $_crm_links[] = ['url' => APP_URL . '/auth/login.php', 'label' => 'Logowanie systemowe', 'icon' => 'bi-box-arrow-in-right'];
 }
-auth_screen_foot(['links' => $_crm_links]);
+auth_screen_foot(['links' => $_crm_links, 'no_new_tiles' => true]);   // bez kafli „Nowy wolontariusz / zleceniobiorca” — tu nie dotyczą

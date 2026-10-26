@@ -908,7 +908,7 @@ function auth_screen_foot_light(array $o, bool $bs, string $org): void {
     }
     ?>
     </div><!-- /.ks-shell -->
-    <?= auth_screen_new_tiles() ?>
+    <?php if (empty($o['no_new_tiles'])) echo auth_screen_new_tiles(); ?>
     <?php if ($links !== ''): ?><div class="lg-links"><?= $links ?></div><?php endif; ?>
   </div>
 </main>
