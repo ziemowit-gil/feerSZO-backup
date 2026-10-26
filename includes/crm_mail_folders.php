@@ -7,7 +7,7 @@
  *   tags[] + tag_mode (any|all) — tagi wiadomości; dopasowanie na poziomie WĄTKU (tag na którejkolwiek wiadomości wątku),
  *   status  (any = aktywne+załatwione | active | archived | spam),
  *   assignee (any | me | none | id użytkownika),
- *   queue_id (kolejka wiadomości — crm_mail_queues), mailbox_id (skrzynka Poczty).
+ *   queue_id (kolejka wiadomości — crm_mail_queues), mailbox_id (skrzynka Poczty), following (tylko rozmowy obserwowane przez zalogowanego).
  * Folder osobisty widzi tylko właściciel; wspólny (is_shared=1, zakłada administrator) widzą wszyscy z dostępem do Skrzynki — i tak w zakresie
  * skrzynek z ACL, bo listę buduje crm_mailbox_inbox (poczta_scope_sql). Licznik (counter_mode): all = rozmowy spełniające reguły, active = tylko aktywne.
  * Rozmowa = wątek (thread_key) albo pojedyncza wiadomość bez wątku.
@@ -157,6 +157,7 @@ function crm_mf_rules(array $in): array
         'assignee'   => $assignee,
         'queue_id'   => max(0, (int)($in['queue_id'] ?? 0)),
         'mailbox_id' => max(0, (int)($in['mailbox_id'] ?? 0)),
+        'following'  => !empty($in['following']),   // tylko rozmowy, które obserwuje zalogowany
     ];
 }
 
@@ -173,6 +174,10 @@ function crm_mf_sql(array $rules, int $uid, array &$params): string
     elseif ($r['assignee'] === 'none') $w[] = '(c.assigned_to IS NULL OR c.assigned_to = 0)';
     elseif ($r['assignee'] !== 'any') { $w[] = 'c.assigned_to = CAST(? AS INTEGER)'; $params[] = (int)$r['assignee']; }
     if ($r['mailbox_id']) { $w[] = 'c.mailbox_id = CAST(? AS INTEGER)'; $params[] = $r['mailbox_id']; }
+    if ($r['following']) {
+        $w[] = "EXISTS (SELECT 1 FROM crm_comm_followers fw WHERE fw.user_id = CAST(? AS INTEGER) AND fw.conv_key = CASE WHEN c.thread_key IS NULL OR c.thread_key = '' THEN 'm' || c.id ELSE c.thread_key END)";
+        $params[] = $uid;
+    }
     if ($r['queue_id'] && function_exists('crm_mq_expr')) { $w[] = crm_mq_expr('c') . ' = CAST(? AS INTEGER)'; $params[] = $r['queue_id']; }
     $keys = array_map(fn($t) => mb_strtolower($t), $r['tags']);
     if ($keys) {

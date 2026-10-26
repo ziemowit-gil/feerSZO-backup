@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
         if ($op === 'save') {
             $id = (int)($_POST['id'] ?? 0) ?: null;
             $rules = ['tags' => $_POST['tags'] ?? '', 'tag_mode' => $_POST['tag_mode'] ?? 'any', 'status' => $_POST['status'] ?? 'any', 'assignee' => $_POST['assignee'] ?? 'any',
-                      'queue_id' => $_POST['queue_id'] ?? 0, 'mailbox_id' => $_POST['mailbox_id'] ?? 0];
+                      'queue_id' => $_POST['queue_id'] ?? 0, 'mailbox_id' => $_POST['mailbox_id'] ?? 0, 'following' => $_POST['following'] ?? ''];
             crm_mf_save(['name' => $_POST['name'] ?? '', 'color' => $_POST['color'] ?? '', 'counter_mode' => $_POST['counter_mode'] ?? 'active', 'is_shared' => $_POST['is_shared'] ?? 0,
                          'sort_order' => $_POST['sort_order'] ?? 50, 'rules' => $rules], $id);
             flash_set('success', $id ? 'Folder zapisany.' : 'Folder dodany.');
@@ -82,6 +82,7 @@ include __DIR__ . '/includes/header_crm.php';
           if ($r['assignee'] !== 'any') $bits[] = 'opiekun: ' . (['me' => 'ja', 'none' => 'brak'][$r['assignee']] ?? ('#' . $r['assignee']));
           if ($r['queue_id']) { foreach ($queues as $q) if ((int)$q['id'] === $r['queue_id']) $bits[] = 'kolejka: ' . $q['name']; }
           if ($r['mailbox_id']) { foreach ($boxes as $b) if ((int)$b['id'] === $r['mailbox_id']) $bits[] = 'skrzynka: ' . $b['mailbox']; }
+          if ($r['following']) $bits[] = 'tylko obserwowane przeze mnie';
           echo $bits ? h(implode(' · ', $bits)) : '<span class="text-muted">wszystkie rozmowy (aktywne i załatwione)</span>'; ?>
         <div class="text-muted">licznik: <?= $f['counter_mode'] === 'all' ? 'wszystkie' : 'tylko aktywne' ?></div>
       </td>
@@ -135,6 +136,8 @@ include __DIR__ . '/includes/header_crm.php';
         <div class="col-12 col-md-4"><label for="mf-m" class="form-label small mb-1">Skrzynka</label>
           <select id="mf-m" name="mailbox_id" class="form-select form-select-sm"><option value="">— dowolna —</option>
             <?php foreach ($boxes as $b): ?><option value="<?= (int)$b['id'] ?>"<?= (int)$er['mailbox_id'] === (int)$b['id'] ? ' selected' : '' ?>><?= h($b['mailbox']) ?></option><?php endforeach; ?></select></div>
+        <div class="col-12"><div class="form-check"><input id="mf-fo" class="form-check-input" type="checkbox" name="following" value="1"<?= !empty($er['following']) ? ' checked' : '' ?>>
+          <label for="mf-fo" class="form-check-label small">Tylko rozmowy, które obserwuję (dla każdego użytkownika folderu — jego własne obserwowane)</label></div></div>
       </div>
     </fieldset>
     <?php if ($isAdmin): ?>
