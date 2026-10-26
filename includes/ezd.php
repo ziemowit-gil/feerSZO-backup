@@ -3186,8 +3186,8 @@ function ezd_attach_path(string $srcPath, string $origName, int $sprawa_id, ?int
         "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,umowa_id,dokument_id,grupa_id,filename,original_name,mime_type,file_size,wersja,prev_id,uploaded_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([$sprawa_id, $pismo_id, null, null, null, $stored, mb_substr($origName, 0, 255), $mime, $size, 1, null, $user_id]);
+    $new_id = (int)db()->lastInsertId();   // PRZED ezd_log() — log też wstawia wiersz i nadpisałby lastInsertId (zwracało id wpisu logu, nie załącznika)
     ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'upload', 'Wgrano plik: ' . $origName);
-    $new_id = (int)db()->lastInsertId();
     try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $new_id); } catch (\Throwable $e) {}
     try { ezd_sp_sync_attachment($new_id); } catch (\Throwable $e) {}
     return $new_id;
