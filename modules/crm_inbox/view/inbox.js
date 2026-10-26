@@ -24,10 +24,19 @@
   function fitHeight() {
     if (window.matchMedia('(max-width:1099.98px)').matches) return;
     var top = wrap.getBoundingClientRect().top + window.scrollY;
-    var h = Math.max(window.innerHeight - top - 12, 420);
+    // Wysokość = okno − położenie paneli − wszystko, co leży pod nimi (stopka): strona się nie przewija, a panele
+    // wypełniają całe pozostałe miejsce.
+    var cur = wrap.getBoundingClientRect().height;
+    var below = Math.max(document.documentElement.scrollHeight - (top + cur), 0);
+    var h = Math.max(window.innerHeight - top - below - 4, 420);
     shell.style.setProperty('--ib-avail', h + 'px');
+    // Przyklejenie dokładnie tam, gdzie panele leżą naturalnie: po przewinięciu strony (stopka) nie „wskakują” wyżej,
+    // więc nie zostaje pusty pas pod nimi — wypełniają całe pozostałe miejsce do dołu okna.
+    shell.style.setProperty('--ib-stick', Math.max(top - window.scrollY, 0) + 'px');
   }
   fitHeight();
+  window.requestAnimationFrame(fitHeight);          // drugi przebieg — pomiar stopki po pierwszym ułożeniu
+  window.addEventListener('load', function () { fitHeight(); setTimeout(fitHeight, 250); });
   window.addEventListener('resize', fitHeight);
 
   /* ── Regulowana szerokość listy ──────────────────────────────────────── */
