@@ -8,6 +8,7 @@
  *   {{#if pole}}…{{#else}}…{{/if}}    fragment warunkowy: pole niepuste albo {{#if pole=wartość}}; można zagnieżdżać,
  *   # Tytuł                           tytuł (środek, pogrubiony), ## Nagłówek (środek, pogrubiony), ### Podtytuł (pogrubiony),
  *   1. Ustęp                          akapit numerowany (wcięcie wiszące),  a) Punkt   podpunkt (głębsze wcięcie),  ☐ Pole wyboru,
+ *   ☐?pole=TAK Tekst                  pole wyboru ZAZNACZANE AUTOMATYCZNIE (☒), gdy pole ma wartość TAK; ☐?pole — gdy pole jest niepuste,
  *   [[podpisy: wiersz~wiersz || wiersz~wiersz]]   tabela podpisów (kolumny rozdziela ||, wiersze ~),
  *   [[strona]]                        podział strony,  **tekst**  pogrubienie,  pozostałe wiersze — akapity wyjustowane.
  * Dane NIE są interpretowane jako składnia (wartości pól są wstawiane po rozwinięciu warunków), a HTML jest zawsze escapowany.
@@ -35,7 +36,11 @@ final class DocGenEngine
             $type = isset(self::TYPES[$f['type'] ?? '']) ? $f['type'] : 'text';
             $out[$k] = ['key' => $k, 'label' => (string)($f['label'] ?? $k) ?: $k, 'type' => $type, 'required' => !empty($f['required']),
                         'default' => (string)($f['default'] ?? ''), 'group' => (string)($f['group'] ?? 'Dane'), 'hint' => (string)($f['hint'] ?? ''),
-                        'options' => is_array($f['options'] ?? null) ? $f['options'] : (is_string($f['options'] ?? null) && $f['options'] !== '' ? array_map('trim', explode(',', $f['options'])) : [])];
+                        'options' => is_array($f['options'] ?? null) ? $f['options'] : (is_string($f['options'] ?? null) && $f['options'] !== '' ? array_map('trim', explode(',', $f['options'])) : []),
+                        // podpowiedzi wpisywane w polu (datalist) — z wzoru; do nich dochodzi historia dokumentów i dane systemu
+                        'suggest' => is_array($f['suggest'] ?? null) ? array_values(array_filter(array_map('strval', $f['suggest']))) : (is_string($f['suggest'] ?? null) && $f['suggest'] !== '' ? array_values(array_filter(array_map('trim', explode('|', $f['suggest'])))) : []),
+                        // pole uzupełniane z karty uczestnika TI (k30_clients): name | pesel | adres | email | telefon | plec
+                        'client' => in_array($f['client'] ?? '', ['name', 'pesel', 'adres', 'email', 'telefon', 'plec'], true) ? (string)$f['client'] : ''];
         }
         return $out;
     }
@@ -64,7 +69,13 @@ final class DocGenEngine
         }
         // 2) odmiana płciowa
         $t = preg_replace_callback('/\[([^\[\]|@]*)\|([^\[\]|@]*)@([a-z0-9_]+)\]/u', fn($m) => (($values[$m[3]] ?? 'K') === 'M') ? $m[2] : $m[1], $t);
-        // 3) pola
+        // 3) automatyczne zaznaczanie pól wyboru: „☐?pole=wartość tekst” → ☒ gdy pole ma tę wartość, inaczej ☐; „☐?pole” → ☒ gdy niepuste
+        $t = preg_replace_callback('/☐\?([a-z0-9_]+)(?:=([^\s]+))?[ \t]+/u', function ($m) use ($values) {
+            $raw = trim((string)($values[$m[1]] ?? ''));
+            $on = isset($m[2]) && $m[2] !== '' ? mb_strtolower($raw) === mb_strtolower($m[2]) : $raw !== '';
+            return ($on ? '☒' : '☐') . ' ';
+        }, $t);
+        // 4) pola
         return preg_replace_callback('/\{\{([a-z0-9_]+)\}\}/', function ($m) use ($values, $fields) {
             $v = self::val($values, $fields, $m[1]);
             return $v !== '' ? $v : '________________';
@@ -86,7 +97,7 @@ final class DocGenEngine
             if (preg_match('/^###\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'h3', 'text' => $m[1]]; continue; }
             if (preg_match('/^##\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'h2', 'text' => $m[1]]; continue; }
             if (preg_match('/^#\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'title', 'text' => $m[1]]; continue; }
-            if (preg_match('/^☐\s*(.*)$/u', $l, $m)) { $out[] = ['t' => 'box', 'text' => $m[1]]; continue; }
+            if (preg_match('/^([☐☒])\s*(.*)$/u', $l, $m)) { $out[] = ['t' => 'box', 'mark' => $m[1], 'text' => $m[2]]; continue; }
             if (preg_match('/^([a-z])\)\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'sub', 'n' => $m[1] . ')', 'text' => $m[2]]; continue; }
             if (preg_match('/^(\d{1,3})\.\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'num', 'n' => $m[1] . '.', 'text' => $m[2]]; continue; }
             $out[] = ['t' => 'p', 'text' => $l];
@@ -119,7 +130,7 @@ final class DocGenEngine
                 case 'h3': $h .= '<h3 class="dg-h3">' . self::inlineHtml($b['text']) . '</h3>'; break;
                 case 'num': $h .= '<p class="dg-num"><span>' . htmlspecialchars($b['n']) . '</span><span>' . self::inlineHtml($b['text']) . '</span></p>'; break;
                 case 'sub': $h .= '<p class="dg-num dg-sub"><span>' . htmlspecialchars($b['n']) . '</span><span>' . self::inlineHtml($b['text']) . '</span></p>'; break;
-                case 'box': $h .= '<p class="dg-num"><span>☐</span><span>' . self::inlineHtml($b['text']) . '</span></p>'; break;
+                case 'box': $h .= '<p class="dg-num"><span>' . $b['mark'] . '</span><span>' . self::inlineHtml($b['text']) . '</span></p>'; break;
                 case 'pagebreak': $h .= '<div style="page-break-after:always"></div>'; break;
                 case 'signs':
                     $h .= '<table class="dg-signs"><tr>';
@@ -177,7 +188,7 @@ final class DocGenEngine
                 case 'h3': $runs($s, $b['text'], $just + ['keepNext' => true], ['bold' => true]); break;
                 case 'num': $runs($s, $b['n'] . "\t" . $b['text'], $num + ['tabs' => [new \PhpOffice\PhpWord\Style\Tab('left', 400)]]); break;
                 case 'sub': $runs($s, $b['n'] . "\t" . $b['text'], $just + ['indentation' => ['left' => 850, 'hanging' => 400], 'tabs' => [new \PhpOffice\PhpWord\Style\Tab('left', 850)]]); break;
-                case 'box': $runs($s, "☐\t" . $b['text'], $num + ['tabs' => [new \PhpOffice\PhpWord\Style\Tab('left', 400)]]); break;
+                case 'box': $runs($s, $b['mark'] . "\t" . $b['text'], $num + ['tabs' => [new \PhpOffice\PhpWord\Style\Tab('left', 400)]]); break;
                 case 'pagebreak': $s->addPageBreak(); break;
                 case 'signs':
                     $s->addTextBreak(2);

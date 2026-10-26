@@ -38,8 +38,15 @@ final class DocGenStore
         foreach (glob(dirname(__DIR__) . '/templates/*.php') ?: [] as $f) {
             $t = require $f;
             if (!is_array($t) || empty($t['slug'])) continue;
-            if (db_one("SELECT 1 FROM gen_templates WHERE slug = ?", [$t['slug']])) continue;
-            self::insertBuiltin($t);
+            $row = db_one("SELECT id, body, fields, builtin, created_at, updated_at FROM gen_templates WHERE slug = ?", [$t['slug']]);
+            if (!$row) { self::insertBuiltin($t); continue; }
+            // wzór wbudowany, którego nikt nie edytował (updated_at = created_at), odświeżamy do wersji z pliku (nowe pola, podpowiedzi)
+            if ((int)$row['builtin'] === 1 && (string)$row['created_at'] === (string)$row['updated_at']) {
+                $fields = json_encode(array_values(DocGenEngine::normalizeFields($t['fields'] ?? [])), JSON_UNESCAPED_UNICODE);
+                if ($fields !== (string)$row['fields'] || (string)$t['body'] !== (string)$row['body']) {
+                    db()->prepare("UPDATE gen_templates SET body = ?, fields = ? WHERE id = ?")->execute([$t['body'], $fields, (int)$row['id']]);   // updated_at celowo bez zmian
+                }
+            }
         }
     }
 
@@ -94,7 +101,8 @@ final class DocGenStore
             $k = (string)($row['key'] ?? '');
             if ($k === '') continue;
             $defs[$k] = ['key' => $k, 'label' => trim((string)($row['label'] ?? '')) ?: $k, 'type' => (string)($row['type'] ?? 'text'), 'required' => !empty($row['required']),
-                         'default' => (string)($row['default'] ?? ''), 'group' => trim((string)($row['group'] ?? '')) ?: 'Dane', 'hint' => (string)($row['hint'] ?? ''), 'options' => (string)($row['options'] ?? '')];
+                         'default' => (string)($row['default'] ?? ''), 'group' => trim((string)($row['group'] ?? '')) ?: 'Dane', 'hint' => (string)($row['hint'] ?? ''), 'options' => (string)($row['options'] ?? ''),
+                         'suggest' => (string)($row['suggest'] ?? ''), 'client' => (string)($row['client'] ?? '')];
         }
         foreach (DocGenEngine::fieldKeys($body) as $k) if (!isset($defs[$k])) $defs[$k] = ['key' => $k, 'label' => $k, 'type' => 'text', 'group' => 'Dane'];
         $defs = DocGenEngine::normalizeFields($defs);
@@ -139,6 +147,35 @@ final class DocGenStore
         return db_all("SELECT d.*, t.name AS template_name FROM gen_documents d LEFT JOIN gen_templates t ON t.id = d.template_id WHERE " . implode(' AND ', $w) . " ORDER BY d.id DESC LIMIT " . (int)$limit, $p);
     }
 
+    /**
+     * Podpowiedzi do pól tekstowych: z wzoru + najczęstsze wartości z poprzednich dokumentów tego wzoru + dane systemu
+     * (reprezentanci Fundacji dla pól „reprezentant”). @return array<string,list<string>> klucz pola => lista
+     */
+    public static function suggestions(int $templateId, array $fields): array
+    {
+        $count = [];
+        foreach (db_all("SELECT data FROM gen_documents WHERE template_id = ? ORDER BY id DESC LIMIT 200", [$templateId]) as $r) {
+            foreach ((array)(json_decode((string)$r['data'], true) ?: []) as $k => $v) {
+                $v = trim((string)$v);
+                if ($v === '' || mb_strlen($v) > 200 || !isset($fields[$k]) || in_array($fields[$k]['type'], ['date', 'gender', 'select'], true)) continue;
+                $count[$k][$v] = ($count[$k][$v] ?? 0) + 1;
+            }
+        }
+        $out = [];
+        foreach ($fields as $k => $f) {
+            if (in_array($f['type'], ['date', 'gender', 'select'], true)) continue;
+            $list = $f['suggest'];
+            if ($f['default'] !== '' && $f['default'][0] !== '@') $list[] = $f['default'];
+            if (!empty($count[$k])) { arsort($count[$k]); $list = array_merge($list, array_slice(array_keys($count[$k]), 0, 12)); }
+            if (str_contains($k, 'reprezentant')) {
+                try { foreach (db_all("SELECT name, title FROM org_representatives WHERE is_active = 1 ORDER BY sort_order, id") as $rep) $list[] = trim($rep['name'] . ($rep['title'] ? ' – ' . $rep['title'] : '')); } catch (\Throwable $e) {}
+            }
+            $list = array_values(array_unique(array_filter($list, fn($x) => trim((string)$x) !== '')));
+            if ($list) $out[$k] = array_slice($list, 0, 20);
+        }
+        return $out;
+    }
+
     /** Wartość domyślna pola przy nowym dokumencie; daty: „@dzisiaj”, „@+3” (dzisiaj + 3 dni), „@-1”. Pole „data_zawarcia” bez domyślnej = dzisiaj. */
     public static function defaultValue(array $f): string
     {
@@ -158,7 +195,7 @@ final class DocGenStore
             $v = trim(str_replace("\r", '', (string)($post['v'][$k] ?? '')));
             if ($f['type'] === 'date' && $v !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) { $err[] = $f['label'] . ': zły format daty.'; $v = ''; }
             if ($f['type'] === 'gender') $v = $v === 'M' ? 'M' : 'K';
-            if ($f['type'] === 'select' && $f['options'] && !in_array($v, $f['options'], true)) $v = $f['default'] !== '' ? $f['default'] : (string)($f['options'][0] ?? '');
+            if ($f['type'] === 'select' && $f['options'] && !($v === '' && !$f['required']) && !in_array($v, $f['options'], true)) $v = $f['default'] !== '' ? $f['default'] : (string)($f['options'][0] ?? '');
             if ($f['required'] && $v === '') $err[] = $f['label'] . ' jest wymagane.';
             $vals[$k] = mb_substr($v, 0, 4000);
         }

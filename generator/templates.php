@@ -50,7 +50,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <code># Tytuł</code>, <code>## Nagłówek</code>, <code>### Podtytuł</code>, <code>1. Ustęp</code>, <code>☐ Pole wyboru</code>, <code>**pogrubienie**</code>, <code>[[strona]]</code>, <code>[[podpisy: wiersz~wiersz || wiersz~wiersz]]</code>. Po zapisie pola z treści dołączą się do tabeli poniżej.</div></div>
   <h5 class="h6 fw-bold mt-3">Pola wzoru</h5>
   <div class="table-responsive"><table class="table table-sm align-middle"><caption class="visually-hidden">Definicje pól</caption>
-    <thead><tr><th scope="col">Klucz</th><th scope="col">Etykieta</th><th scope="col">Typ</th><th scope="col">Grupa</th><th scope="col">Domyślnie</th><th scope="col">Opcje (po przecinku)</th><th scope="col">Podpowiedź</th><th scope="col">Wym.</th></tr></thead><tbody>
+    <thead><tr><th scope="col">Klucz</th><th scope="col">Etykieta</th><th scope="col">Typ</th><th scope="col">Grupa</th><th scope="col">Domyślnie</th><th scope="col">Opcje (po przecinku)</th><th scope="col">Podpowiedź</th><th scope="col">Podpowiedzi (a|b)</th><th scope="col">Z karty TI</th><th scope="col">Wym.</th></tr></thead><tbody>
     <?php $i = 0; foreach ($defs as $k => $f): ?>
     <tr><td><input type="hidden" name="f[<?= $i ?>][key]" value="<?= h($k) ?>"><code><?= h($k) ?></code></td>
       <td><input class="form-control form-control-sm" aria-label="Etykieta <?= h($k) ?>" name="f[<?= $i ?>][label]" value="<?= h($f['label'] ?? $k) ?>"></td>
@@ -59,6 +59,8 @@ include dirname(__DIR__) . '/includes/header.php';
       <td><input class="form-control form-control-sm" placeholder="data: @dzisiaj, @+3" aria-label="Domyślna wartość <?= h($k) ?>" name="f[<?= $i ?>][default]" value="<?= h($f['default'] ?? '') ?>"></td>
       <td><input class="form-control form-control-sm" aria-label="Opcje <?= h($k) ?>" name="f[<?= $i ?>][options]" value="<?= h(is_array($f['options'] ?? '') ? implode(',', $f['options']) : ($f['options'] ?? '')) ?>"></td>
       <td><input class="form-control form-control-sm" aria-label="Podpowiedź <?= h($k) ?>" name="f[<?= $i ?>][hint]" value="<?= h($f['hint'] ?? '') ?>"></td>
+      <td><input class="form-control form-control-sm" aria-label="Lista podpowiedzi <?= h($k) ?>" name="f[<?= $i ?>][suggest]" value="<?= h(is_array($f['suggest'] ?? '') ? implode('|', $f['suggest']) : ($f['suggest'] ?? '')) ?>"></td>
+      <td><select class="form-select form-select-sm" aria-label="Pole z karty TI <?= h($k) ?>" name="f[<?= $i ?>][client]"><option value="">—</option><?php foreach (['name' => 'nazwisko', 'pesel' => 'PESEL', 'adres' => 'adres', 'email' => 'e-mail', 'telefon' => 'telefon', 'plec' => 'płeć K/M'] as $ck => $cl): ?><option value="<?= h($ck) ?>" <?= ($f['client'] ?? '') === $ck ? 'selected' : '' ?>><?= h($cl) ?></option><?php endforeach; ?></select></td>
       <td class="text-center"><input class="form-check-input" type="checkbox" aria-label="Wymagane: <?= h($k) ?>" name="f[<?= $i ?>][required]" value="1" <?= !empty($f['required']) ? 'checked' : '' ?>></td></tr>
     <?php $i++; endforeach; ?></tbody></table></div>
   <div class="d-flex flex-wrap gap-2"><button class="btn btn-primary"><i class="bi bi-save me-1"></i>Zapisz wzór</button><a class="btn btn-link" href="templates.php">Anuluj</a>
