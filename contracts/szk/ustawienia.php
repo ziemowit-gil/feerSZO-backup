@@ -27,6 +27,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="col-md-6"><label class="form-label" for="s-raty">Domyślna liczba rat</label><input class="form-control" id="s-raty" type="number" min="1" max="60" name="raty" value="<?= (int)$S['raty'] ?>"></div>
     <div class="col-md-6"><label class="form-label" for="s-dni">Termin płatności (dni od zawarcia)</label><input class="form-control" id="s-dni" type="number" min="0" max="365" name="dni" value="<?= (int)$S['dni'] ?>"></div>
   </div>
+  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="s-auto" name="auto" value="1" <?= $S['auto'] ? 'checked' : '' ?> aria-describedby="s-auto-h">
+    <label class="form-check-label" for="s-auto">Automatycznie księguj należności w rozliczeniach TI po zmianie statusu umowy na „podpisana”</label>
+    <div class="form-text" id="s-auto-h">Wyłączone: należności księguje się ręcznie przyciskiem na ekranie rozliczeń umowy. Anulowanie umowy zawsze wycofuje zaksięgowane należności.</div></div>
   <div class="mb-3"><label class="form-label" for="s-fn">Nazwa pliku DOCX umowy</label>
     <input class="form-control font-monospace" id="s-fn" name="filename" value="<?= h($S['filename']) ?>" aria-describedby="s-fn-h">
     <div class="form-text" id="s-fn-h">Litery bez polskich znaków, cyfry, _ i -. Zmienne: {nr} numer umowy, {nazwisko} uczestnik, {data} data zawarcia, {temat} temat szkolenia. Rozszerzenie .docx dodawane automatycznie.</div></div>

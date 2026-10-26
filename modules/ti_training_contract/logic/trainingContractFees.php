@@ -28,6 +28,7 @@ final class TiSzkFees
             'raty'     => max(1, min(60, (int)(org_setting('szk_default_raty') ?: 3))),
             'dni'      => max(0, min(365, (int)(org_setting('szk_payment_days') ?: 14))),
             'filename' => org_setting('szk_filename_pattern') ?: 'umowa_szkoleniowa_{nr}_{nazwisko}',
+            'auto'     => org_setting('szk_auto_charges') !== '0',
         ];
     }
 
@@ -37,6 +38,7 @@ final class TiSzkFees
         org_setting_set('szk_default_model', isset(self::MODELS[$model]) ? $model : 'ryczalt');
         org_setting_set('szk_default_raty', (string)max(1, min(60, (int)($in['raty'] ?? 3))));
         org_setting_set('szk_payment_days', (string)max(0, min(365, (int)($in['dni'] ?? 14))));
+        org_setting_set('szk_auto_charges', !empty($in['auto']) ? '1' : '0');
         $pat = trim((string)($in['filename'] ?? ''));
         org_setting_set('szk_filename_pattern', preg_match('/^[A-Za-z0-9_{}\-]{3,80}$/', $pat) ? $pat : 'umowa_szkoleniowa_{nr}_{nazwisko}');
     }

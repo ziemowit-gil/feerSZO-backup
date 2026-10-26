@@ -64,6 +64,11 @@ $_dis = $locked ? ' disabled' : '';
       <div class="form-check"><input class="form-check-input" type="radio" name="finansowanie" id="u-f-<?= h($_k) ?>" value="<?= h($_k) ?>" <?= ($data['finansowanie'] ?? 'publiczne') === $_k ? 'checked' : '' ?>><label class="form-check-label" for="u-f-<?= h($_k) ?>"><?= h($_l) ?></label></div>
       <?php endforeach; ?>
     </div></div>
+    <div class="mb-2"><label class="form-label small mb-1" for="u-grupa_id">Grupa zajęć (subkonto rozliczeń)</label>
+      <select class="form-select form-select-sm" id="u-grupa_id" name="grupa_id" aria-describedby="u-grupa-h"><option value="0">— bez grupy —</option>
+        <?php foreach (db_all("SELECT id, COALESCE(NULLIF(display_name,''), name) AS n FROM k30_ti_courses WHERE is_active = 1 OR id = " . (int)($data['grupa_id'] ?? 0) . " ORDER BY n") as $_g): ?>
+        <option value="<?= (int)$_g['id'] ?>" <?= (int)($data['grupa_id'] ?? 0) === (int)$_g['id'] ? 'selected' : '' ?>><?= h($_g['n']) ?></option><?php endforeach; ?></select>
+      <div class="form-text" id="u-grupa-h">Wpłaty znaczone na tę grupę trafiają na jej subkonto; lista zapisów sprawdza zapis uczestnika w tej grupie.</div></div>
     <?php elseif ($_sk === 'fundacja' && ($_org = array_filter(TiTrainingContract::orgDefaults(), fn($v) => $v !== ''))): ?>
     <p class="small mb-2"><button type="button" class="btn btn-sm btn-outline-primary" id="u-org-fill" data-org="<?= h(json_encode($_org, JSON_UNESCAPED_UNICODE)) ?>"><i class="bi bi-building-down" aria-hidden="true"></i> Uzupełnij z danych Fundacji</button>
       <span class="text-body-secondary ms-1" role="status">z ustawień organizacji: <?= h(implode(', ', array_map(fn($k) => mb_strtolower($_f[$k][0]), array_keys($_org)))) ?></span></p>

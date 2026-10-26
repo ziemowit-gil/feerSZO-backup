@@ -126,6 +126,10 @@ final class TiTrainingContractStore
         $now = date('Y-m-d H:i:s');
         $dane = $d;
         unset($dane['nr'], $dane['_row']);
+        if ($id > 0) {   // klucze spoza formularza (opłaty, wypowiedzenie…) zostają przy zapisie z formularza
+            $old = json_decode((string)(db_one("SELECT dane FROM " . self::TABLE . " WHERE id = ?", [$id])['dane'] ?? ''), true) ?: [];
+            $dane += array_diff_key($old, $dane);
+        }
         $row = [
             'data_zawarcia' => (string)$d['data'],
             'client_id'     => (int)$d['client_id'] ?: null,
@@ -135,6 +139,7 @@ final class TiTrainingContractStore
             'adres'         => (string)($d['adres'] ?? ''),
             'email'         => mb_substr((string)($d['email'] ?? ''), 0, 190),
             'telefon'       => mb_substr((string)($d['telefon'] ?? ''), 0, 64),
+            'grupa_id'      => (int)($d['grupa_id'] ?? 0) ?: null,
             'platnik_nazwa' => mb_substr((string)($d['platnik'] ?? ''), 0, 190),
             'kwota_umowy'   => mb_substr((string)($d['wynagrodzenie'] ?? ''), 0, 32),
             'dane'          => json_encode($dane, JSON_UNESCAPED_UNICODE),

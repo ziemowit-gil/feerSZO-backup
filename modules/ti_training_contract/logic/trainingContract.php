@@ -107,7 +107,7 @@ class TiTrainingContract
     /** Dane domyślne nowej umowy. */
     public static function defaults(): array
     {
-        $d = ['plec' => 'K', 'finansowanie' => 'publiczne', 'client_id' => 0];
+        $d = ['plec' => 'K', 'finansowanie' => 'publiczne', 'client_id' => 0, 'grupa_id' => 0];
         foreach (self::fields() as $k => $f) $d[$k] = $f[1];
         foreach (self::orgDefaults() as $k => $v) if ($v !== '') $d[$k] = $v;
         return $d;
@@ -163,6 +163,7 @@ class TiTrainingContract
         $d['plec'] = ($in['plec'] ?? 'K') === 'M' ? 'M' : 'K';
         $d['finansowanie'] = isset(self::FUNDING[$in['finansowanie'] ?? '']) ? $in['finansowanie'] : 'publiczne';
         $d['client_id'] = max(0, (int)($in['client_id'] ?? 0));
+        $d['grupa_id'] = max(0, (int)($in['grupa_id'] ?? 0));
         $d['pesel'] = preg_replace('/\s+/', '', $d['pesel']);
         $err = [];
         if ($d['pesel'] !== '' && !self::peselOk($d['pesel'])) $err[] = 'PESEL ma nieprawidłową sumę kontrolną albo długość.';
