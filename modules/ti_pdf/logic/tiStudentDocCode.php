@@ -39,18 +39,14 @@ function ti_student_doc_parse(string $code): ?array
     return ['client_id' => (int)$m[1], 'type' => $m[2] ?? '', 'doc' => $m[3] ?? ''];
 }
 
-/** QR do publicznego eSpisu koszulki EZD dokumentu (gdy koszulka istnieje); '' gdy brak modułu eSpis / koszulki. */
+/** QR eSpisu koszulki EZD dokumentu; bez koszulki — QR do publicznej weryfikacji kodu; '' gdy brak modułu eSpis. */
 function ti_student_doc_qr(string $code): string
 {
-    static $cache = [];
     if ($code === '') return '';
-    if (isset($cache[$code])) return $cache[$code];
     $f = dirname(__DIR__, 2) . '/espis/lib/Espis.php';
     if (!is_file($f)) return '';
     require_once $f;
-    try { $qr = Espis::qrForStudentCode($code); } catch (\Throwable $e) { return ''; }
-    if ($qr !== '') $cache[$code] = $qr;   // tylko trafienia — koszulka może powstać w trakcie żądania
-    return $qr;
+    try { return Espis::qrForStudentCode($code); } catch (\Throwable $e) { return ''; }   // bez cache: koszulka może powstać w trakcie żądania
 }
 
 /** Margines dolny strony z miejscem na wiersz z kodem (gdy kod jest); z QR eSpisu — więcej. */
@@ -66,5 +62,5 @@ function ti_student_doc_footer(string $footerHtml, string $code): string
     $c = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
     $qr = ti_student_doc_qr($code);
     return $footerHtml . '<table align="right" style="border:0;font-family:dejavusans;font-size:6pt"><tr><td style="text-align:right;vertical-align:bottom"><barcode code="' . $c . '" type="C128B" size="0.75" height="0.55" /><br>' . $c . '<br><span style="font-size:5pt">Sprawdź dokument: ' . htmlspecialchars(preg_replace('#^https?://#', '', rtrim(defined('APP_URL') ? APP_URL : '', '/')), ENT_QUOTES, 'UTF-8') . '/espis/</span></td>'
-        . ($qr !== '' ? '<td style="vertical-align:bottom;padding-left:2mm">' . $qr . '<div style="font-size:5pt;text-align:center">eSpis</div></td>' : '') . '</tr></table>';
+        . ($qr !== '' ? '<td style="vertical-align:bottom;padding-left:2mm">' . $qr . '</td>' : '') . '</tr></table>';
 }

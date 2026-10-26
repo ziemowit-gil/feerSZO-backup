@@ -255,6 +255,18 @@ final class Espis
                 }
             }
         }
+        // 3) karta konsultacji KT1: KD{kursant}/KONS/{id} — stan z samej karty (robocza / podpisana / zatwierdzona / anulowana)
+        if (preg_match('~^KD(\d{1,9})/KONS/(\d{1,9})$~', $c, $m)) {
+            $k = db_one("SELECT id, client_id, card_no, status, mgr_approved_at, consultation_datetime FROM k30_consultations WHERE id = ?", [(int)$m[2]]);
+            if ($k && (int)$k['client_id'] === (int)$m[1]) {
+                $st = ($k['status'] ?? '') === 'cancelled' ? 'cancelled' : (($k['status'] ?? '') !== 'completed' ? 'draft' : (!empty($k['mgr_approved_at']) ? 'approved' : 'signed'));
+                $sid = self::sprawaId('ti_konsultacja', (int)$k['id']);
+                return array_merge($r, ['found' => true, 'kind' => 'kt1', 'label' => 'Karta konsultacji (KT1)', 'number' => (string)($k['card_no'] ?: '#' . $k['id']),
+                    'state' => ['approved' => 'valid', 'cancelled' => 'void'][$st] ?? 'pending', 'date' => substr((string)$k['consultation_datetime'], 0, 10), 'espis_url' => $sid ? self::url($sid) : '',
+                    'note' => ['draft' => 'Karta robocza — bez podpisu elektronicznego (dokument do podpisu odręcznego).', 'signed' => 'Karta podpisana przez konsultanta — czeka na zatwierdzenie kierownika.',
+                               'approved' => 'Karta zatwierdzona przez kierownika.', 'cancelled' => 'Karta anulowana.'][$st]]);
+            }
+        }
         $r['note'] = preg_match('~^KD\d~', $c) ? 'Dokumentu uczestnika o tym kodzie nie ma w eSpisie (nie został wpisany do koszulki EZD albo kod jest błędny).' : 'Nie znaleziono dokumentu o tym kodzie. Sprawdź przepisanie kodu.';
         return $r;
     }
@@ -263,7 +275,14 @@ final class Espis
 
     private static function qr(int $sprawaId): string
     {
-        return '<barcode code="' . htmlspecialchars(self::url($sprawaId), ENT_QUOTES, 'UTF-8') . '" type="QR" class="barcode" size="0.42" error="L" disableborder="1" />';
+        return '<barcode code="' . htmlspecialchars(self::url($sprawaId), ENT_QUOTES, 'UTF-8') . '" type="QR" class="barcode" size="0.42" error="L" disableborder="1" /><div style="font-size:5pt;text-align:center">eSpis</div>';
+    }
+
+    /** QR do publicznej weryfikacji kodu dokumentu (gdy dokument nie ma jeszcze koszulki EZD): /espis/?c=KOD. */
+    private static function qrVerify(string $code): string
+    {
+        $u = rtrim(APP_URL, '/') . '/espis/?c=' . rawurlencode($code);
+        return '<barcode code="' . htmlspecialchars($u, ENT_QUOTES, 'UTF-8') . '" type="QR" class="barcode" size="0.42" error="L" disableborder="1" /><div style="font-size:5pt;text-align:center">sprawdź</div>';
     }
 
     /** QR eSpisu dla kodu AM (LD…/OP…); '' gdy koszulka jeszcze nie istnieje. */
@@ -271,7 +290,7 @@ final class Espis
     {
         if (!preg_match('~^(LD|OP)(\d{1,9})~', $code, $m)) return '';
         $sid = self::sprawaId($m[1] === 'OP' ? 'operacja_am' : 'licencja_am', (int)$m[2]);
-        return $sid ? self::qr($sid) : '';
+        return $sid ? self::qr($sid) : self::qrVerify($code);   // bez koszulki — QR do weryfikacji kodu
     }
 
     /** QR eSpisu dla kodu dokumentu kursanta KD…: karta konsultacji (KONS) → jej koszulka; inne → koszulka uczestnika. */
@@ -279,6 +298,6 @@ final class Espis
     {
         if (!preg_match('~^KD(\d{1,9})(?:/([A-Z0-9-]+))?(?:/([A-Z0-9-]+))?~', $code, $m)) return '';
         $sid = (($m[2] ?? '') === 'KONS' && ($m[3] ?? '') !== '') ? self::sprawaId('ti_konsultacja', (int)$m[3]) : self::sprawaId('ti_kursant', (int)$m[1]);
-        return $sid ? self::qr($sid) : '';
+        return $sid ? self::qr($sid) : self::qrVerify($code);   // bez koszulki — QR do weryfikacji kodu
     }
 }
