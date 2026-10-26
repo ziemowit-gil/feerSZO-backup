@@ -37,8 +37,8 @@ $actN = count($toVerify) + count($overdueAsg) + (int)$opCounts['pending'] + $cor
 ?>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h1 class="me-auto mb-0"><span class="sym">AM5</span> <span class="sym" style="background:#0050ef">AM7</span> Licencje dydaktyczne i oprogramowanie</h1>
-  <form class="d-flex" method="get" action="<?= h(route('ld.scan')) ?>" role="search" aria-label="Skanuj kod formularza AM (Code128 w stopce: LD…, OP…, AMSK-…)">
-    <label class="visually-hidden" for="kod">Skanuj kod formularza AM (Code128 w stopce: LD…, OP…, AMSK-…)</label>
+  <form class="d-flex" method="get" action="<?= h(route('ld.scan')) ?>" role="search" aria-label="Skanuj kod formularza AM (Code128 w stopce: LD…, OP…, AMSK-…, KD… dokument kursanta)">
+    <label class="visually-hidden" for="kod">Skanuj kod formularza AM (Code128 w stopce: LD…, OP…, AMSK-…, KD… dokument kursanta)</label>
     <div class="input-group input-group-sm"><span class="input-group-text"><i class="bi bi-upc-scan" aria-hidden="true"></i></span>
       <input class="form-control" id="kod" name="kod" autocomplete="off" autocapitalize="characters" placeholder="Skanuj kod formularza" style="min-width:13rem"><button class="btn btn-metro dark">Otwórz</button></div></form>
   <a class="btn btn-metro" href="<?= h(route('ld.new')) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i> Wniosek AM5 — materiały</a>

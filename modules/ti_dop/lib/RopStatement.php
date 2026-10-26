@@ -254,10 +254,12 @@ final class RopStatement
             require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
             $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
             if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-            $m = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 14, 'margin_right' => 14, 'margin_top' => 10, 'margin_bottom' => 13, 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp, 'shrink_tables_to_fit' => 1]);
+            require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiStudentDocCode.php';
+            $_kd = ti_student_doc_code((int)($r['client_id'] ?? 0), 'ROP', (int)($r['id'] ?? 0));
+            $m = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 14, 'margin_right' => 14, 'margin_top' => 10, 'margin_bottom' => ti_student_doc_margin($_kd, 13), 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp, 'shrink_tables_to_fit' => 1]);
             $m->SetTitle('ROP — stan subkonta — ' . ($r['snap']['client']['name'] ?? ''));
             $m->SetAuthor(ldOrgName());
-            $m->SetHTMLFooter('<table width="100%" style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #000"><tr><td width="40%"><b>ROP</b> — stan subkonta na dzień wpłaty</td><td width="40%" style="text-align:center">' . htmlspecialchars((string)$r['number']) . '</td><td width="20%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr></table>');
+            $m->SetHTMLFooter(ti_student_doc_footer('<table width="100%" style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #000"><tr><td width="40%"><b>ROP</b> — stan subkonta na dzień wpłaty</td><td width="40%" style="text-align:center">' . htmlspecialchars((string)$r['number']) . '</td><td width="20%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr></table>', $_kd));
             $m->WriteHTML($html);
             return ['bytes' => $m->Output('', \Mpdf\Output\Destination::STRING_RETURN), 'mime' => 'application/pdf', 'ext' => 'pdf'];
         } catch (\Throwable $e) {

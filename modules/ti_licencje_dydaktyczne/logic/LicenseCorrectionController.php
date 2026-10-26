@@ -64,6 +64,17 @@ final class LicenseCorrectionController
     public function scan(): ?string
     {
         $code = trim((string)($_GET['kod'] ?? ''));
+        // KD… — dokument kursanta TI (stopka dokumentów DOP/ROP/RM/KONS/POTW…): otwiera kartę uczestnika w panelu dydaktyka
+        require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiStudentDocCode.php';
+        if (($kd = ti_student_doc_parse($code)) !== null) {
+            $acc = db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id = ? ORDER BY id LIMIT 1", [$kd['client_id']]);
+            if ($acc) {
+                flash_set('info', 'Kod dokumentu kursanta ' . strtoupper($code) . ' — karta uczestnika' . ($kd['type'] !== '' ? ' (dokument ' . $kd['type'] . ($kd['doc'] !== '' ? ' nr ' . $kd['doc'] : '') . ')' : '') . '.');
+                return Router::redirect(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/konta.php?selected=' . (int)$acc['id']);
+            }
+            flash_set('warning', 'Uczestnik z kodu ' . strtoupper($code) . ' nie ma konta w panelu kursanta — wyszukaj go w „Podgląd klientów” (nr kursanta ' . $kd['client_id'] . ').');
+            return Router::redirect(route('ld.corr.index'));
+        }
         $r = LicenseCodes::resolve($code);
         if ($r) {
             try {
@@ -79,7 +90,7 @@ final class LicenseCorrectionController
                 }
             } catch (\Throwable $e) { error_log('ld scan: ' . $e->getMessage()); }
         }
-        flash_set('warning', $code === '' ? 'Wpisz lub zeskanuj kod z formularza AM.' : 'Nie rozpoznano kodu „' . $code . '” (oczekiwany np. LD000002/AM7-2/R2, OP000005/AM20, AMSK-000012, UP1-000003 albo PP-000001).');
+        flash_set('warning', $code === '' ? 'Wpisz lub zeskanuj kod z formularza AM.' : 'Nie rozpoznano kodu „' . $code . '” (oczekiwany np. LD000002/AM7-2/R2, OP000005/AM20, AMSK-000012, UP1-000003, PP-000001 albo KD000123/DOP1/45).');
         return Router::redirect(route('ld.corr.index'));
     }
 

@@ -746,19 +746,24 @@ final class TiConsultations
                 .mono{font-family:dejavusansmono;font-size:8pt}.muted{color:#555}
                 table.sig{width:100%;margin-top:14mm;border-collapse:separate;border-spacing:8mm 0}table.sig td{height:14mm}
                 table.sig th{border-top:0.3mm solid #333;font-weight:normal;font-size:8.5pt;text-align:center;padding-top:1.5mm;width:50%}</style>';
-        $parts = []; $marks = [];
-        foreach ($ids as $id) if ($k = self::get((int)$id)) { $parts[] = self::cardHtml($k); $marks[] = self::watermark($k); }
+        $parts = []; $marks = []; $kds = [];
+        require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiStudentDocCode.php';
+        foreach ($ids as $id) if ($k = self::get((int)$id)) {
+            $parts[] = self::cardHtml($k); $marks[] = self::watermark($k);
+            $kds[] = ti_student_doc_code((int)($k['client_id'] ?? 0), 'KONS', (int)$k['id']);   // kod dokumentu kursanta w stopce karty
+        }
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
         $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 18, 'margin_right' => 18, 'margin_top' => 16, 'margin_bottom' => 16,
+        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 18, 'margin_right' => 18, 'margin_top' => 16, 'margin_bottom' => $kds && array_filter($kds) ? 24 : 16,
                                 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $pdf->SetTitle('Karta konsultacji');
-        $pdf->SetFooter((defined('ORG_NAME') ? ORG_NAME : '') . '||{PAGENO}/{nbpg}');
+        $_footerBase = '<table width="100%" style="font-family:dejavusans;font-size:8pt;border-top:0.25mm solid #666"><tr><td>' . htmlspecialchars(defined('ORG_NAME') ? ORG_NAME : '') . '</td><td style="text-align:right">{PAGENO}/{nbpg}</td></tr></table>';
+        $pdf->SetHTMLFooter(ti_student_doc_footer($_footerBase, $kds[0] ?? ''));
         // Znak wodny per karta: ROBOCZA / NIEPODPISANA (podpisana, bez zatwierdzenia kierownika); zatwierdzona — bez znaku
         $pdf->WriteHTML($css);
         foreach ($parts as $i => $html) {
-            if ($i > 0) $pdf->AddPage();
+            if ($i > 0) { $pdf->AddPage(); $pdf->SetHTMLFooter(ti_student_doc_footer($_footerBase, $kds[$i] ?? '')); }   // stopka NOWEJ strony ustawiana po AddPage (inaczej psuje stopkę poprzedniej)
             $pdf->SetWatermarkText($marks[$i], $marks[$i] !== '' ? 0.13 : 0);
             $pdf->showWatermarkText = $marks[$i] !== '';
             $pdf->WriteHTML($html);

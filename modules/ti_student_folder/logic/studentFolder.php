@@ -347,9 +347,12 @@ final class TiStudentFolder
             require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
             $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
             if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 20, 'margin_right' => 20, 'margin_top' => 18, 'margin_bottom' => 18,
+            require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiStudentDocCode.php';
+            $_kd = ti_student_doc_code((int)($acc['client_id'] ?? 0), 'POTW', (int)($r['id'] ?? 0));   // kod dokumentu kursanta w stopce
+            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 20, 'margin_right' => 20, 'margin_top' => 18, 'margin_bottom' => ti_student_doc_margin($_kd, 18),
                                     'default_font' => 'dejavusans', 'tempDir' => $tmp]);
             $mpdf->SetTitle('Potwierdzenie akceptacji — ' . $r['title']);
+            if ($_kd !== '') $mpdf->SetHTMLFooter(ti_student_doc_footer('<div style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #999;text-align:right">Strona {PAGENO}/{nbpg}</div>', $_kd));
             $mpdf->WriteHTML(self::confirmationHtml($r, $acc), \Mpdf\HTMLParserMode::DEFAULT_MODE);
             $pdf = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
             $tmpFile = tempnam(sys_get_temp_dir(), 'sfold');

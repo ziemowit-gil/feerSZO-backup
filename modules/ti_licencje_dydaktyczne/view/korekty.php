@@ -15,7 +15,7 @@ include __DIR__ . '/_head.php';
 <p class="text-secondary">Korekta danych w dokumentach AM czeka na <b>odręczny podpis kierownika</b> na druku kontrolnym <b>AMSK/1</b> (dane osobowe). Po podpisaniu potwierdź go w SZO — dopiero wtedy zmiany wchodzą do danych sprawy.</p>
 <div class="row g-3 mb-3">
   <form class="col-md-6" method="get" action="<?= h(route('ld.scan')) ?>" role="search" aria-label="Skanuj kod formularza">
-    <label class="form-label small" for="kod">Skanuj kod z formularza AM (Code128 w stopce, np. LD000002/AM7-2, OP000005/AM20, AMSK-000012)</label>
+    <label class="form-label small" for="kod">Skanuj kod z formularza AM (Code128 w stopce, np. LD000002/AM7-2, OP000005/AM20, AMSK-000012, KD000123/DOP1/45)</label>
     <div class="input-group"><input class="form-control" id="kod" name="kod" autocomplete="off" autocapitalize="characters" placeholder="zeskanuj lub wpisz kod"><button class="btn btn-metro dark">Otwórz</button></div></form>
   <form class="col-md-6" method="get" action="<?= h(route('ld.corr.index')) ?>" role="search" aria-label="Szukaj korekt">
     <label class="form-label small" for="q">Szukaj korekty (kod, numer sprawy, uzasadnienie, wystawiający)</label>
