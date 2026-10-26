@@ -2519,7 +2519,9 @@ function ezd_rpw_assign(int $id, array $d, int $user_id): int {
                     "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,filename,original_name,mime_type,file_size,uploaded_by)
                      VALUES (?,?,?,?,?,?,?)"
                 )->execute([$sprawa_id, $pismo_id, $stored, $r['scan_name'] ?: $r['scan_file'], $r['scan_mime'] ?: 'application/octet-stream', (int)$r['scan_size'], $user_id]);
-                try { ezd_sp_sync_attachment((int)db()->lastInsertId()); } catch (\Throwable $e) {}
+                $_nzid = (int)db()->lastInsertId();
+                try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $_nzid); } catch (\Throwable $e) {}   // numer + kod + QR skanu po przeniesieniu do koszulki
+                try { ezd_sp_sync_attachment($_nzid); } catch (\Throwable $e) {}
             }
         }
     }
@@ -3548,6 +3550,7 @@ function ezd_new_office_file(int $sprawa_id, int $user_id, string $type, string 
          VALUES (?,?,?,?,?,?,?)"
     )->execute([$sprawa_id, $grupa_id ?: null, $stored, $orig_name, $tpl['mime'], filesize($dir . $stored), $user_id]);
     $new_id = (int)db()->lastInsertId();
+    try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $new_id); } catch (\Throwable $e) {}
 
     ezd_log(null, $sprawa_id, null, null, $user_id, 'new_file', 'Utworzono nowy plik: ' . $orig_name);
 
@@ -3746,6 +3749,7 @@ function ezd_office_online_pull(int $zal_id, int $user_id, string $mode = 'versi
         $stored, $z['original_name'], $z['mime_type'], strlen($content), (int)$z['wersja'] + 1, $zal_id, $user_id,
     ]);
     $new_id = (int)db()->lastInsertId();
+    try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $new_id); } catch (\Throwable $e) {}
 
     ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online_pull',
         'Zapisano zmiany z Office Online jako nową wersję: ' . $z['original_name'] . " (v" . ((int)$z['wersja'] + 1) . ")");
@@ -3799,6 +3803,7 @@ function ezd_convert_to_pdf(int $zal_id, int $user_id): array {
         $stored, $pdf_name, 'application/pdf', strlen($content), 1, null, $zal_id, $user_id,
     ]);
     $new_id = (int)db()->lastInsertId();
+    try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $new_id); } catch (\Throwable $e) {}
 
     ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'convert_pdf',
         'Przekonwertowano na PDF: ' . $z['original_name'] . ' → ' . $pdf_name);
@@ -3993,6 +3998,7 @@ function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?s
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([$sprawa_id, null, null, null, $grupa_id ?: null, $stored, $final_name, 'application/pdf', filesize($dest), 1, null, $user_id]);
     $merged_id = (int)db()->lastInsertId();
+    try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $merged_id); } catch (\Throwable $e) {}
 
     ezd_log(null, $sprawa_id, null, null, $user_id, 'spinacz',
         'Spinacz: połączono ' . count($merge_ids) . ' plik(ów) w „' . $final_name . '": ' . implode(', ', $names));
