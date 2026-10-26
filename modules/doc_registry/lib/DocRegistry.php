@@ -39,6 +39,7 @@ final class DocRegistry
         'contract_powierzenie' => ['UPW', 'Umowa powierzenia zadania publicznego', '/contracts/powierzenie/view.php?id={id}', 'umowy_powierzenie', 'rand'],
         'contract_inne'        => ['UIN', 'Inna umowa', '/contracts/inne/view.php?id={id}', 'umowy_inne', 'rand'],
         'contract_szk'         => ['USZ', 'Umowa szkoleniowa (SZK)', '/contracts/szk/view.php?id={id}', 'umowy_szk', 'rand'],
+        'print_doc'            => ['WYD', 'Wydruk dokumentu', '/', 'doc_prints', 'rand'],
         'gen_doc'              => ['DOG', 'Dokument z generatora wzorów', '/generator/view.php?id={id}', 'gen_documents', 'rand'],
     ];
     /** Litery kodu bez I i O (mylą się z 1 i 0 na wydruku). */
@@ -62,6 +63,15 @@ final class DocRegistry
         )");
         db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_doc_registry_code ON doc_registry(code)");
         db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_doc_registry_src ON doc_registry(source_type, source_id)");
+        // Odpowiednik papierowy: '' = nie rozstrzygnięto, none = brak papieru, label = etykieta (naklejka), manual = numer nanoszony ręcznie
+        foreach (['paper_mode' => "VARCHAR(10) NOT NULL DEFAULT ''", 'paper_at' => 'VARCHAR(19)', 'paper_by' => 'INTEGER', 'paper_done_at' => 'VARCHAR(19)'] as $col => $def) {
+            try { db()->exec("ALTER TABLE doc_registry ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) { /* istnieje */ }
+        }
+        db()->exec("CREATE TABLE IF NOT EXISTS doc_prints (
+            id {$pk}, kind VARCHAR(40) NOT NULL, ref VARCHAR(120) NOT NULL DEFAULT '', title VARCHAR(255) NOT NULL DEFAULT '', open_path VARCHAR(255) NOT NULL DEFAULT '',
+            created_by INTEGER, created_at VARCHAR(19)
+        )");
+        db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_doc_prints_ref ON doc_prints(kind, ref)");
     }
 
     // ── Kod ───────────────────────────────────────────────────────────────────────
@@ -94,6 +104,11 @@ final class DocRegistry
     /** @return array{name:string,path:string,size:int,uploader:?int,at:string,exists:bool,superseded:bool}|null  null = brak rekordu źródłowego */
     private static function source(string $type, int $id): ?array
     {
+        if ($type === 'print_doc') {
+            $z = db_one("SELECT * FROM doc_prints WHERE id = ?", [$id]);
+            if (!$z) return null;
+            return ['name' => (string)$z['title'], 'path' => '', 'size' => 0, 'uploader' => $z['created_by'] !== null ? (int)$z['created_by'] : null, 'at' => (string)$z['created_at'], 'exists' => true, 'superseded' => false];
+        }
         if (str_starts_with($type, 'contract_') || $type === 'gen_doc') {
             $isGen = $type === 'gen_doc';
             $table = self::SOURCES[$type][3] ?? '';
@@ -109,7 +124,7 @@ final class DocRegistry
             case 'ezd_zalacznik':
                 $z = db_one("SELECT * FROM ezd_zalaczniki WHERE id = ?", [$id]);
                 if (!$z) return null;
-                $p = (defined('UPLOAD_DIR') && defined('EZD_UPLOAD_SUBDIR')) ? UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/' . $z['filename'] : '';
+                $p = defined('UPLOAD_DIR') ? UPLOAD_DIR . (defined('EZD_UPLOAD_SUBDIR') ? EZD_UPLOAD_SUBDIR : 'ezd/') . (int)$z['sprawa_id'] . '/' . $z['filename'] : '';   // stała z includes/ezd.php bywa niezaładowana (strony rejestru) — wtedy ta sama wartość wprost
                 $sup = (bool)db_one("SELECT 1 AS x FROM ezd_zalaczniki WHERE prev_id = ? LIMIT 1", [$id]);
                 return ['name' => (string)$z['original_name'], 'path' => $p, 'size' => (int)$z['file_size'], 'uploader' => $z['uploaded_by'] !== null ? (int)$z['uploaded_by'] : null,
                         'at' => (string)$z['uploaded_at'], 'exists' => $p !== '' && is_file($p), 'superseded' => $sup];
@@ -133,7 +148,7 @@ final class DocRegistry
                     return ['name' => (string)$z['scan_name'], 'path' => '', 'size' => (int)$z['scan_size'], 'uploader' => null, 'at' => (string)$z['created_at'], 'exists' => false,
                             'superseded' => true, 'note' => 'Skan został przeniesiony do koszulki — obowiązuje plik w koszulce (jego własny numer).'];
                 }
-                $p = (defined('UPLOAD_DIR') && defined('EZD_RPW_SUBDIR')) ? UPLOAD_DIR . EZD_RPW_SUBDIR . $id . '/' . $z['scan_file'] : '';
+                $p = defined('UPLOAD_DIR') ? UPLOAD_DIR . (defined('EZD_RPW_SUBDIR') ? EZD_RPW_SUBDIR : 'ezd/rpw/') . $id . '/' . $z['scan_file'] : '';
                 return ['name' => (string)($z['scan_name'] ?: $z['scan_file']), 'path' => $p, 'size' => (int)$z['scan_size'], 'uploader' => $z['created_by'] !== null ? (int)$z['created_by'] : null,
                         'at' => (string)$z['created_at'], 'exists' => $p !== '' && is_file($p), 'superseded' => false];
             case 'helpdesk_attachment':
@@ -286,6 +301,11 @@ final class DocRegistry
     /** Adres otwarcia dokumentu online (wymaga logowania; uprawnienia sprawdza system źródłowy). */
     public static function openUrl(string $type, int $id): string
     {
+        if ($type === 'print_doc') {
+            $z = db_one("SELECT open_path FROM doc_prints WHERE id = ?", [$id]);
+            $path = (string)($z['open_path'] ?? '');
+            return rtrim(APP_URL, '/') . ($path !== '' && $path[0] === '/' ? $path : '/');
+        }
         return rtrim(APP_URL, '/') . str_replace('{id}', (string)$id, self::SOURCES[$type][2] ?? '/');
     }
 
@@ -364,11 +384,70 @@ final class DocRegistry
         } catch (\Throwable $e) { error_log('doc_registry footerCodes ' . $type . '#' . $id . ': ' . $e->getMessage()); return null; }
     }
 
+    /**
+     * Kody dla WYDRUKU, który nie jest umową ani wgranym plikiem (pismo, oświadczenie, zaświadczenie…): jeden stały kod na parę
+     * ($kind, $ref) — ponowny wydruk tego samego dokumentu ma ten sam kod. QR prowadzi do weryfikacji, „Otwórz” do $openPath.
+     * @return array|null jak footerCodes()
+     */
+    public static function printCodes(string $kind, string $ref, string $title, string $openPath = ''): ?array
+    {
+        try {
+            self::migrate();
+            $kind = mb_substr($kind, 0, 40); $ref = mb_substr($ref, 0, 120);
+            $row = db_one("SELECT id FROM doc_prints WHERE kind = ? AND ref = ?", [$kind, $ref]);
+            $uid = function_exists('current_user') ? ((current_user()['id'] ?? null) ?: null) : null;
+            if (!$row) {
+                try { $id = db_insert('doc_prints', ['kind' => $kind, 'ref' => $ref, 'title' => mb_substr($title, 0, 255), 'open_path' => mb_substr($openPath, 0, 255), 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s')]); }
+                catch (\Throwable $e) { $row = db_one("SELECT id FROM doc_prints WHERE kind = ? AND ref = ?", [$kind, $ref]); $id = $row ? (int)$row['id'] : 0; }
+            } else $id = (int)$row['id'];
+            return $id > 0 ? self::footerCodes('print_doc', (int)$id) : null;
+        } catch (\Throwable $e) { error_log('doc_registry printCodes: ' . $e->getMessage()); return null; }
+    }
+
+    /** Stopka HTML z kodami dla wydruku (patrz printCodes). '' gdy brak kodów. */
+    public static function printFooterHtml(string $kind, string $ref, string $title, string $openPath = ''): string
+    {
+        $f = self::printCodes($kind, $ref, $title, $openPath);
+        return $f ? self::renderFooterHtml($f) : '';
+    }
+
+    // ── Odpowiednik papierowy ─────────────────────────────────────────────────────
+
+    public const PAPER = ['' => 'Do rozstrzygnięcia', 'none' => 'Brak odpowiednika papierowego', 'label' => 'Papier — etykieta (naklejka)', 'manual' => 'Papier — numer nanoszony ręcznie'];
+
+    /** Zapisuje decyzję o papierze. Zwraca '' albo komunikat błędu. */
+    public static function setPaper(string $code, string $mode, int $uid): string
+    {
+        if (!array_key_exists($mode, self::PAPER) || $mode === '') return 'Wybierz jedną z opcji.';
+        $row = self::find($code);
+        if (!$row) return 'Nie znaleziono kodu.';
+        db()->prepare("UPDATE doc_registry SET paper_mode = ?, paper_at = ?, paper_by = ?, paper_done_at = NULL WHERE id = ?")->execute([$mode, date('Y-m-d H:i:s'), $uid ?: null, (int)$row['id']]);
+        return '';
+    }
+
+    /** Oznacza, że etykietę wydrukowano / numer naniesiono ręcznie. */
+    public static function paperDone(string $code): void
+    {
+        $row = self::find($code);
+        if ($row) db()->prepare("UPDATE doc_registry SET paper_done_at = ? WHERE id = ?")->execute([date('Y-m-d H:i:s'), (int)$row['id']]);
+    }
+
+    /** Ile pozycji czeka na decyzję o papierze (bez numerów kolejnych HD/KOR/REK — one nie mają etykiet). */
+    public static function paperPending(): int
+    {
+        self::migrate();
+        return (int)(db_one("SELECT COUNT(*) c FROM doc_registry WHERE paper_mode = '' AND source_type NOT LIKE 'contract\_%' ESCAPE '\\' AND source_type NOT IN ('print_doc','gen_doc')")['c'] ?? 0);
+    }
+
     /** Stopka HTML z kodami (obrazy inline data:) — do stron wydruku. '' gdy brak kodów. */
     public static function footerHtml(string $type, int $id): string
     {
         $f = self::footerCodes($type, $id);
-        if (!$f) return '';
+        return $f ? self::renderFooterHtml($f) : '';
+    }
+
+    private static function renderFooterHtml(array $f): string
+    {
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $img = fn(?string $png, string $alt, string $style) => $png ? '<img alt="' . $e($alt) . '" style="' . $style . '" src="data:image/png;base64,' . base64_encode($png) . '">' : '';
         return '<div class="doc-codes" style="display:flex;align-items:center;gap:8pt;font-size:6.5pt;color:#555">'
