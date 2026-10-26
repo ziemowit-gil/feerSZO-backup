@@ -70,13 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         org_setting_set('edok_queue_mailbox', trim($_POST['mailbox'] ?? ''));
         org_setting_set('edok_queue_mail_enabled', !empty($_POST['enabled']) ? '1' : '0');
         org_setting_set('edok_queue_mail_allowed', trim($_POST['allowed'] ?? ''));
+        org_setting_set('edok_queue_mail_any_sender', !empty($_POST['any_sender']) ? '1' : '0');
+        org_setting_set('edok_queue_mail_autodoc', !empty($_POST['autodoc']) ? '1' : '0');
         flash_set('success', 'Zapisano ustawienia przyjmowania plików z e-maila.');
         header('Location: ' . APP_URL . '/edok/queue.php');
         exit;
     } elseif ($action === 'mail_run' && is_admin()) {
         $r = edok_queue_mail_ingest();
         flash_set($r['errors'] ? 'warning' : 'success',
-            "Sprawdzono skrzynkę: wiadomości {$r['messages']}, dodano plików {$r['added']}, pominięto nadawców " . count($r['skipped_senders'])
+            "Sprawdzono skrzynkę: wiadomości {$r['messages']}, dodano plików {$r['added']}, dokumentów z XML {$r['docs']}, duplikatów {$r['dups']}, pominięto nadawców " . count($r['skipped_senders'])
             . ($r['errors'] ? '. Błędy: ' . implode(' | ', array_slice($r['errors'], 0, 3)) : '.'));
         header('Location: ' . APP_URL . '/edok/queue.php');
         exit;
@@ -140,6 +142,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="small text-muted mb-1">Przyjmowanie plików z e-maila jest wyłączone<?= is_admin() ? ' — ustaw skrzynkę poniżej.' : '.' ?></p>
     <?php endif; ?>
     <?php if (org_setting('edok_queue_mail_last_run') !== ''): ?><p class="small text-muted mb-1">Ostatnie sprawdzenie: <?= h(org_setting('edok_queue_mail_last_run')) ?></p><?php endif; ?>
+    <p class="small mb-1"><a href="<?= APP_URL ?>/edok/mailbox.php"><i class="bi bi-envelope-paper"></i> Pulpit skrzynki faktur — co przyszło i co z tym zrobiono</a></p>
     <?php if (is_admin()): ?>
     <details class="mt-2"><summary class="small">Ustawienia (admin)</summary>
       <form method="post" class="mt-2">
@@ -151,6 +154,12 @@ require_once __DIR__ . '/../includes/header.php';
           <input type="text" name="allowed" id="al" class="form-control form-control-sm" value="<?= h(org_setting('edok_queue_mail_allowed')) ?>" placeholder="ksiegowa@biuro.pl, @biuro.pl"></div>
         <div class="form-check mb-2"><input type="checkbox" class="form-check-input" name="enabled" id="en" value="1" <?= org_setting('edok_queue_mail_enabled') === '1' ? 'checked' : '' ?>>
           <label class="form-check-label small" for="en">Przyjmuj pliki z e-maila</label></div>
+        <div class="form-check mb-1"><input type="checkbox" class="form-check-input" name="any_sender" id="as" value="1" <?= org_setting('edok_queue_mail_any_sender') === '1' ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="as">Przyjmuj od każdego nadawcy (dostawcy faktur) — poza odbiciami i autoodpowiedziami</label></div>
+        <div class="form-text small mb-2 ms-4">Bez tego przyjmujemy tylko użytkowników z uprawnieniem i adresy z listy powyżej; reszta jest pomijana.</div>
+        <div class="form-check mb-1"><input type="checkbox" class="form-check-input" name="autodoc" id="ad" value="1" <?= org_setting('edok_queue_mail_autodoc') === '1' ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ad">Faktury XML (KSeF FA) od razu zakładaj jako dokumenty EODoK</label></div>
+        <div class="form-text small mb-2 ms-4">Zakup lub sprzedaż rozpoznawane po NIP organizacji; duplikaty (numer KSeF albo numer faktury + NIP) są pomijane. PDF-y i inne pliki trafiają do kolejki „do opisu”.</div>
         <div class="small text-muted mb-2">Wymaga uprawnienia Mail.Read (aplikacja) w Entra ID; z Mail.ReadWrite wiadomości są dodatkowo oznaczane jako przeczytane.</div>
         <button class="btn btn-sm btn-primary">Zapisz</button>
       </form>

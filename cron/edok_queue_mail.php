@@ -16,6 +16,7 @@ require_once $base . '/includes/edok_queue.php';
 if (org_setting('edok_queue_mail_enabled') !== '1') { echo "Wyłączone.\n"; return; }
 $r = edok_queue_mail_ingest();
 org_setting_set('edok_queue_mail_last_run', date('Y-m-d H:i:s') . ' — wiadomości: ' . $r['messages'] . ', dodano plików: ' . $r['added']
+    . ($r['docs'] ? ', dokumentów z XML: ' . $r['docs'] : '') . ($r['dups'] ? ', duplikatów: ' . $r['dups'] : '')
     . ($r['errors'] ? ', błędy: ' . count($r['errors']) : '') . ($r['skipped_senders'] ? ', pominięci nadawcy: ' . count($r['skipped_senders']) : ''));
-echo '[' . date('Y-m-d H:i:s') . "] wiadomości={$r['messages']} dodano={$r['added']} pominięci=" . count($r['skipped_senders']) . " błędy=" . count($r['errors']) . "\n";
+echo '[' . date('Y-m-d H:i:s') . "] wiadomości={$r['messages']} dodano={$r['added']} dokumenty={$r['docs']} duplikaty={$r['dups']} pominięci=" . count($r['skipped_senders']) . " błędy=" . count($r['errors']) . "\n";
 foreach ($r['errors'] as $e) echo "  BŁĄD: {$e}\n";
