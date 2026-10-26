@@ -92,11 +92,12 @@ function tasksCreateAttachBytes(int $taskId, string $name, string $bytes, int $b
         if (!is_dir(TASKS_FILES_DIR)) mkdir(TASKS_FILES_DIR, 0755, true);
         $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.' . $chk['ext'];
         if (!copy($tmp, rtrim(TASKS_FILES_DIR, '/') . '/' . $stored)) return $name . ': nie udało się zapisać pliku.';
-        db_insert('task_files', [
+        $_tfid = db_insert('task_files', [
             'task_id' => $taskId, 'original_name' => mb_substr($name, 0, 255), 'stored_name' => $stored,
             'file_size' => strlen($bytes), 'mime_type' => $chk['mime'], 'uploaded_by' => $byUid,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
+        try { require_once dirname(__DIR__, 2) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('task_file', $_tfid); } catch (\Throwable $e) {}
         task_log($taskId, $byUid, 'uploaded_file', null, $name);
         return null;
     } finally {

@@ -48,7 +48,7 @@ $nValid = count(array_filter($docs, fn($d) => $d['status'] === 'valid')); $nVoid
 $stateInfo = ['valid' => ['OBOWIĄZUJE', '#008a00'], 'void' => ['NIEAKTUALNY / UNIEWAŻNIONY', '#a20025'], 'pending' => ['CZEKA NA PODPIS', '#b45309'], 'unknown' => ['NIEZNANY', '#475569']];
 $form = function (string $val = '') use ($e) { ?>
   <form method="get" action="" role="search" aria-label="Sprawdź dokument po kodzie">
-    <label for="kod"><b>Kod dokumentu</b> (spod kodu kreskowego w stopce, np. <code>LD000002/AM7-1/R2</code>, <code>KD000123/DOP1/45</code>, <code>AMSK-000012</code>)</label>
+    <label for="kod"><b>Kod dokumentu</b> (spod kodu kreskowego w stopce, np. <code>LD000002/AM7-1/R2</code>, <code>KD000123/DOP1/45</code>, <code>AMSK-000012</code>, <code>EZD/483920KP</code>)</label>
     <div class="row"><input id="kod" name="c" value="<?= $e($val) ?>" required maxlength="100" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" aria-describedby="kodhelp">
       <button type="submit">Sprawdź</button></div>
     <p id="kodhelp" class="small">Kod z QR otwiera eSpis całej sprawy. Wynik nie zawiera danych osobowych.</p>
@@ -106,6 +106,7 @@ $form = function (string $val = '') use ($e) { ?>
       </dl>
       <?php if ($res['state'] === 'void'): ?><p role="alert"><b>Ten dokument jest nieaktualny.</b> Nie korzystaj z niego — poproś o aktualną wersję.</p><?php endif; ?>
       <?php if ($res['note'] !== ''): ?><p class="small"><?= $e($res['note']) ?></p><?php endif; ?>
+      <?php if ($res['open_url'] !== ''): ?><p><a class="btn" href="<?= $e($res['open_url']) ?>">Otwórz dokument online</a> <span class="small">— wymaga zalogowania i uprawnień do dokumentu.</span></p><?php endif; ?>
       <?php if ($res['espis_url'] !== ''): ?><p><a class="btn" href="<?= $e($res['espis_url']) ?>">Otwórz eSpis sprawy</a></p><?php endif; ?>
     <?php else: ?>
       <p><span class="state" style="background:#475569">NIE ZNALEZIONO</span></p><p><?= $e($res['note']) ?></p>

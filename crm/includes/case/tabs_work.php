@@ -255,6 +255,8 @@ if (!isset($case)) { http_response_code(400); exit; }
         'txt'=>'bi-file-earmark-text text-muted',
         'csv'=>'bi-file-earmark-spreadsheet text-success',
       ];
+      require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php';
+      $_dr = DocRegistry::forMany('crm_case_file', array_column($files, 'id'));   // numer + kod Code128 + QR każdego pliku
       foreach ($files as $f):
         $ext = strtolower(pathinfo($f['original_name'], PATHINFO_EXTENSION));
         $ic  = $ext_icons[$ext] ?? 'bi-file-earmark text-muted';
@@ -276,6 +278,7 @@ if (!isset($case)) { http_response_code(400); exit; }
             <?= h($f['original_name']) ?> <?= $size ? "· $size" : '' ?>
             · <?= date('d.m.Y H:i', strtotime($f['created_at'])) ?>
           </div>
+          <?= DocRegistry::badge($_dr[(int)$f['id']] ?? null) ?>
         </div>
         <div class="d-flex gap-1 flex-shrink-0">
           <a href="<?= APP_URL ?>/crm/cases/download.php?id=<?= (int)$f['id'] ?>"

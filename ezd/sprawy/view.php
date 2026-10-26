@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_rpwy.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_zal_menu.php';
+require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 if (module_enabled('org_enabled')) {
@@ -752,7 +753,7 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
               <?php if(!empty($sig['signed'])): ?><span class="badge bg-success bg-opacity-15 text-success border border-success ms-1" style="font-size:.6rem"><i class="bi bi-patch-check-fill me-1"></i>Podpis el.</span><?php endif; ?>
               <?php if($z['wersja']>1): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.6rem">v<?= $z['wersja'] ?></span><?php endif; ?>
             </a>
-            <div class="text-muted" style="font-size:.68rem"><?= ezd_filesize($z['file_size']) ?> · <?= h($z['uploader'] ?? '—') ?></div>
+            <div class="text-muted" style="font-size:.68rem"><?= ezd_filesize($z['file_size']) ?> · <?= h($z['uploader'] ?? '—') ?> <?= DocRegistry::badge(DocRegistry::get('ezd_zalacznik', (int)$z['id']) ?: DocRegistry::assign('ezd_zalacznik', (int)$z['id'])) ?></div>
           </div>
           <div class="text-nowrap text-muted" style="font-size:.72rem"><?= date('d.m.Y', strtotime($z['uploaded_at'])) ?></div>
           <?php ezd_zal_menu($z, [
@@ -2766,4 +2767,5 @@ document.querySelectorAll('[data-bs-target="#pismoFromZalModal"]').forEach(funct
 </script>
 <?php endif; ?>
 
+<?= DocRegistry::assets() ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

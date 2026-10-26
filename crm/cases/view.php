@@ -210,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 $disp     = trim($_POST['file_display_name'] ?? '') ?: $f['name'];
                 $file_desc= trim($_POST['file_description'] ?? '');
                 move_uploaded_file($f['tmp_name'], $dir . $stored);
-                db_insert('crm_case_files', [
+                $_nf = db_insert('crm_case_files', [
                     'case_id'       => $id,
                     'original_name' => $f['name'],
                     'stored_path'   => 'crm_cases/' . $stored,
@@ -221,6 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                     'created_by'    => $uid,
                     'created_at'    => date('Y-m-d H:i:s'),
                 ]);
+                try { require_once dirname(__DIR__, 2) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('crm_case_file', $_nf); } catch (\Throwable $e) {}
                 db()->prepare("UPDATE crm_cases SET updated_at=? WHERE id=?")->execute([date('Y-m-d H:i:s'), $id]);
                 flash_set('success', 'Plik „' . h($disp) . '" dodany.');
             }
@@ -855,4 +856,5 @@ include dirname(__DIR__) . '/includes/header_crm.php';
   });
 })();
 </script>
+<?php require_once dirname(__DIR__, 2) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::assets(); ?>
 <?php include dirname(__DIR__) . '/includes/footer_crm.php'; ?>

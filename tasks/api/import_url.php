@@ -136,6 +136,7 @@ $fid = db_insert('task_files', [
     'created_at'    => date('Y-m-d H:i:s'),
 ]);
 
+try { require_once dirname(__DIR__, 2) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('task_file', $fid); } catch (\Throwable $e) {}
 task_log($task_id, $uid, 'uploaded_file', null, $clean_name . ' (OneDrive)');
 try {
     require_once dirname(__DIR__, 2) . '/includes/task_notify.php';

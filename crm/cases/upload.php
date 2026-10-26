@@ -75,6 +75,8 @@ $new_id = db_insert('crm_case_files', [
     'created_at'    => date('Y-m-d H:i:s'),
 ]);
 
+try { require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('crm_case_file', $new_id); } catch (\Throwable $e) {}
+
 echo json_encode([
     'ok'   => true,
     'file' => [

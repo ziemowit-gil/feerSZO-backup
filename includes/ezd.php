@@ -3186,6 +3186,7 @@ function ezd_attach_path(string $srcPath, string $origName, int $sprawa_id, ?int
     )->execute([$sprawa_id, $pismo_id, null, null, null, $stored, mb_substr($origName, 0, 255), $mime, $size, 1, null, $user_id]);
     ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'upload', 'Wgrano plik: ' . $origName);
     $new_id = (int)db()->lastInsertId();
+    try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $new_id); } catch (\Throwable $e) {}
     try { ezd_sp_sync_attachment($new_id); } catch (\Throwable $e) {}
     return $new_id;
 }
@@ -3418,6 +3419,7 @@ function _ezd_upload_process(array $f, int $sprawa_id, int $user_id, ?int $pismo
     )->execute([$sprawa_id, $pismo_id, $umowa_id, $dokument_id, $grupa_id ?: null, $stored, $orig_name, $f['type'] ?: 'application/octet-stream', $f['size'], $wersja, $replace_id ?: null, $user_id]);
     $new_zal_id = (int)db()->lastInsertId();
     $out_id     = $new_zal_id;
+    try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $new_zal_id); } catch (\Throwable $e) {}   // numer + kod Code128 + QR
 
     ezd_log(null, $sprawa_id, $pismo_id, $umowa_id, $user_id, 'upload', 'Wgrano plik: ' . $orig_name . " (v$wersja)");
 

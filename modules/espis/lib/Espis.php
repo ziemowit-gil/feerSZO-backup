@@ -212,7 +212,7 @@ final class Espis
     public static function verify(string $code): array
     {
         $c = strtoupper(trim($code));
-        $r = ['found' => false, 'code' => $c, 'kind' => '', 'label' => '', 'number' => '', 'revision' => 0, 'current' => 0, 'state' => 'unknown', 'date' => '', 'espis_url' => '', 'note' => ''];
+        $r = ['found' => false, 'code' => $c, 'kind' => '', 'label' => '', 'number' => '', 'revision' => 0, 'current' => 0, 'state' => 'unknown', 'date' => '', 'espis_url' => '', 'open_url' => '', 'note' => ''];
         if ($c === '' || strlen($c) > 100 || !preg_match('~^[A-Z0-9/#.-]+$~', $c)) { $r['note'] = 'Nieprawidłowy format kodu. Przepisz go dokładnie spod kodu kreskowego w stopce dokumentu.'; return $r; }
         self::migrate();
         // 1) rejestr eSpisu (dokument wpisany do koszulki EZD)
@@ -221,6 +221,14 @@ final class Espis
             $cur = db_one("SELECT revision FROM espis_documents WHERE sprawa_id = ? AND doc_key = ? AND status = 'valid' ORDER BY id DESC LIMIT 1", [(int)$d['sprawa_id'], $d['doc_key']]);
             return array_merge($r, ['found' => true, 'kind' => 'espis', 'label' => (string)$d['label'], 'number' => (string)$d['doc_number'], 'revision' => (int)$d['revision'], 'current' => (int)($cur['revision'] ?? $d['revision']),
                 'state' => $d['status'] === 'valid' ? 'valid' : 'void', 'date' => substr((string)$d['created_at'], 0, 10), 'espis_url' => self::url((int)$d['sprawa_id'])]);
+        }
+        // 1b) rejestr plików wgranych do systemu (EZD/CRM/ZAD…): kod TYP/6 cyfr+2 litery; stan liczony na żywo ze źródła
+        if (preg_match('~^[A-Z]{2,5}/\d{6}[A-Z]{2}$~', $c)) {
+            $f = dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+            if (is_file($f)) {
+                require_once $f;
+                if ($v = DocRegistry::verify($c)) return array_merge($r, ['found' => true, 'kind' => 'docreg', 'label' => $v['label'], 'number' => $v['number'], 'state' => $v['state'], 'date' => $v['date'], 'note' => $v['note'], 'open_url' => $v['open_url']]);
+            }
         }
         // 2) kody AM (LD…/OP… z symbolem i rewizją) — druki sprzed eSpisu i poza koszulką
         $f = dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/lib/LicenseCodes.php';

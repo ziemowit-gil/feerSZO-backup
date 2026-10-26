@@ -13,6 +13,8 @@ $tfm_filters = [
     'sort' => in_array($_GET['sort'] ?? '', ['new', 'old', 'name', 'size'], true) ? $_GET['sort'] : 'new',
 ];
 $tfm       = task_files_manager($ws_id, $tfm_filters);
+require_once dirname(__DIR__, 2) . '/modules/doc_registry/lib/DocRegistry.php';
+$tfm_dr    = DocRegistry::forMany('task_file', array_map(fn($r) => $r['id'], array_filter($tfm['rows'], fn($r) => $r['source'] === 'attach')));   // numer + kod + QR
 $tfm_tasks = $tfm['tasks'];
 
 // Wybrane zadanie (także bez plików — żeby dało się do niego wgrać pierwszy)
@@ -145,6 +147,7 @@ $tfm_kinds  = task_file_kinds();
           <a href="<?= h($tf['pv_url']) ?>" target="_blank" rel="noopener" class="text-decoration-none text-body">
             <?= h($tf['name']) ?>
           </a>
+          <?= $tf['source'] === 'attach' ? DocRegistry::badge($tfm_dr[(int)$tf['id']] ?? null) : '' ?>
         </td>
         <?php if (!$tfm_task): ?>
         <td class="text-truncate" style="max-width:180px">
@@ -191,6 +194,7 @@ $tfm_kinds  = task_file_kinds();
   <?php endif; ?>
 </div>
 
+<?= DocRegistry::assets() ?>
 <?php if ($tfm_can_attach): ?>
 <script>
 (function () {
