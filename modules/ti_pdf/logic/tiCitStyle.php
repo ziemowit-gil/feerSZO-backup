@@ -75,7 +75,7 @@ final class TiCit
     /** Tytuł dokumentu z podtytułem i legendą (kto wystawia, etap). */
     public static function title(string $t1, string $t2, string $legendHtml): string
     {
-        return '<table class="t"><tr><td class="ttl"><div class="ttl1">' . self::e($t1) . '</div><div class="ttl2">' . self::e($t2) . '</div></td></tr>'
+        return '<table class="t"><tr><td class="ttl"><div class="ttl1">' . self::e($t1) . '</div>' . ($t2 !== '' ? '<div class="ttl2">' . self::e($t2) . '</div>' : '') . '</td></tr>'
             . '<tr><td class="lgd">' . $legendHtml . '</td></tr></table>';
     }
 

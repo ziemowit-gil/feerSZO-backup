@@ -714,7 +714,7 @@ final class TiConsultations
         $stage = self::STAGES[self::stage($k)][0];
         $completed = $k['status'] === 'completed';
         $h = $c->header('Numer karty', self::docNumber($k), 'Konsultant', '<b>' . $e($k['consultant_name'] ?? '—') . '</b>', 'KT1', '#6d28d9')
-           . TiCit::title('KARTA KONSULTACJI', 'dokumentacja konsultacji — dokument KT1 w układzie formularza AM',
+           . TiCit::title('KARTA KONSULTACJI', '',
                 '<b>Wystawia:</b> ' . $e(defined('ORG_NAME') ? ORG_NAME : '') . '.&nbsp; <b>Etap:</b> ' . $e($stage) . '.&nbsp; <b>Karta:</b> ' . $e(self::docNumber($k)) . '.');
         // Dane karty
         $h .= '<table class="t"><tr>'
