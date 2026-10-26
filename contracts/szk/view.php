@@ -12,6 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractFees.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractConsents.php';
 
 require_login();
 $TYPE  = 'szk';
@@ -129,6 +130,45 @@ $_money = fn($gr) => number_format(((int)$gr) / 100, 2, ',', ' ') . ' zł';
 </form>
 <?php elseif (can_edit()): ?><p class="small text-muted mb-0">Umowa jest podpisana — opłat nie zmieniamy.</p><?php endif; ?>
 </div></div>
+
+<?php
+$_zg = TiSzkConsents::list($id);
+[$_zgReq, $_zgOk] = TiSzkConsents::summary($id);
+$_zgBadge = ['pending' => 'text-bg-secondary', 'granted' => 'text-bg-success', 'declined' => 'text-bg-danger'];
+?>
+<div class="card shadow-sm mb-3" id="szk-consents"><div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-patch-check"></i> Zgody i dokumenty</span>
+  <?php if ($_zg): ?><span class="badge <?= $_zgOk === $_zgReq ? 'text-bg-success' : 'text-bg-warning' ?>"><?= (int)$_zgOk ?> / <?= (int)$_zgReq ?> wymaganych</span><?php endif; ?></div>
+<?php if (!$_zg): ?>
+  <div class="card-body"><p class="text-muted small mb-2">Brak listy zgód i dokumentów dla tej umowy.</p>
+  <?php if (can_edit()): ?><form method="post" action="<?= APP_URL ?>/contracts/szk/consents.php"><input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="act" value="init">
+    <button class="btn btn-outline-primary btn-sm"><i class="bi bi-list-check me-1"></i>Utwórz listę wymaganych zgód</button></form><?php endif; ?></div>
+<?php else: ?>
+  <ul class="list-group list-group-flush">
+  <?php foreach ($_zg as $_z): ?>
+    <li class="list-group-item"><div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div><strong><?= h($_z['title']) ?></strong><?= (int)$_z['required'] ? '' : ' <span class="badge text-bg-light border">dobrowolna</span>' ?>
+        <div class="small text-muted"><?= h(TiSzkConsents::KINDS[$_z['kind']][2] ?? '') ?></div>
+        <?php if ($_z['decided_at']): ?><div class="small">Decyzja: <?= h(date('d.m.Y H:i', strtotime($_z['decided_at']))) ?> · <?= h($_z['decided_by']) ?><?= $_z['note'] !== '' ? ' · ' . h($_z['note']) : '' ?></div><?php endif; ?>
+        <?php if ($_z['file_path'] !== ''): ?><div class="small"><i class="bi bi-paperclip"></i> <a href="<?= APP_URL ?>/contracts/szk/consents.php?dl=<?= (int)$_z['id'] ?>" target="_blank" rel="noopener"><?= h($_z['file_name']) ?></a></div><?php endif; ?></div>
+      <span class="badge <?= $_zgBadge[$_z['state']] ?? 'text-bg-secondary' ?>"><?= h(TiSzkConsents::STATES[$_z['state']] ?? $_z['state']) ?></span>
+    </div>
+    <?php if (can_edit()): ?>
+    <form method="post" action="<?= APP_URL ?>/contracts/szk/consents.php" enctype="multipart/form-data" class="row g-2 mt-1 no-print align-items-end">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="item" value="<?= (int)$_z['id'] ?>">
+      <div class="col-auto"><label class="visually-hidden" for="zs-<?= (int)$_z['id'] ?>">Stan: <?= h($_z['title']) ?></label>
+        <select class="form-select form-select-sm" id="zs-<?= (int)$_z['id'] ?>" name="state"><?php foreach (TiSzkConsents::STATES as $k => $l): ?><option value="<?= h($k) ?>" <?= $_z['state'] === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+      <div class="col"><label class="visually-hidden" for="zn-<?= (int)$_z['id'] ?>">Notatka</label><input class="form-control form-control-sm" id="zn-<?= (int)$_z['id'] ?>" name="note" maxlength="500" placeholder="Notatka (widoczna dla uczestnika)" value="<?= h($_z['note']) ?>"></div>
+      <div class="col-auto"><button class="btn btn-outline-primary btn-sm" name="act" value="decide">Zapisz stan</button></div>
+      <div class="col-12 d-flex flex-wrap gap-2 align-items-center"><label class="visually-hidden" for="zf-<?= (int)$_z['id'] ?>">Skan: <?= h($_z['title']) ?></label>
+        <input class="form-control form-control-sm w-auto" id="zf-<?= (int)$_z['id'] ?>" type="file" name="skan" accept=".pdf,.jpg,.jpeg,.png">
+        <button class="btn btn-outline-secondary btn-sm" name="act" value="attach"><i class="bi bi-upload me-1"></i>Wgraj skan</button></div>
+    </form>
+    <?php endif; ?></li>
+  <?php endforeach; ?>
+  </ul>
+<?php endif; ?>
+</div>
 
 <?php
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';

@@ -84,6 +84,7 @@ final class TiConsents
     private static function contracts(int $clientId, ?int $accountId): array
     {
         require_once dirname(__DIR__, 2) . '/ti_training_contract/logic/trainingContractStore.php';
+        require_once dirname(__DIR__, 2) . '/ti_training_contract/logic/trainingContractConsents.php';
         TiTrainingContractStore::migrate();   // UMSZ → SZK: zmiana nazwy tabeli przy pierwszym użyciu
         $rows = db_all("SELECT * FROM umowy_szk WHERE client_id = ? AND COALESCE(is_test, 0) = 0 AND status NOT IN ('projekt', 'anulowana') ORDER BY id DESC", [$clientId]);
         $out = [];
@@ -91,8 +92,13 @@ final class TiConsents
             $signed = in_array((string)$r['status'], ['podpisana', 'w realizacji', 'zakończona'], true);
             $state = $signed ? 'granted' : ((string)$r['status'] === 'rozwiązana' ? 'declined' : 'pending');
             $hint = ['do podpisu' => 'Umowa czeka na podpis.', 'rozwiązana' => 'Umowa została rozwiązana.', 'zakończona' => 'Umowa zakończona.'][(string)$r['status']] ?? '';
-            $out[] = ['title' => 'Umowa ' . ($r['numer_umowy'] ?: ('#' . $r['id'])), 'subtitle' => trim((string)$r['imie_nazwisko'] . ' · ' . (string)$r['temat'], ' ·'), 'icon' => 'file-earmark-text',
-                      'items' => [['text' => 'Zawarcie umowy o świadczenie usług szkoleniowych.', 'state' => $state, 'date' => self::fmt((string)($r['data_zawarcia'] ?: '')), 'by' => '', 'hint' => $hint]]];
+            $items = [['text' => 'Zawarcie umowy o świadczenie usług szkoleniowych.', 'state' => $state, 'date' => self::fmt((string)($r['data_zawarcia'] ?: '')), 'by' => '', 'hint' => $hint]];
+            // „Zgody i dokumenty” umowy SZK (lista prowadzona przez kadrę w karcie umowy) — stan każdej pozycji.
+            foreach (TiSzkConsents::list((int)$r['id']) as $z) {
+                $items[] = ['text' => (string)$z['title'] . ((int)$z['required'] ? '' : ' (dobrowolna)'), 'state' => $z['state'] === 'granted' ? 'granted' : ($z['state'] === 'declined' ? 'declined' : 'pending'),
+                            'date' => self::fmt((string)($z['decided_at'] ?? '')), 'by' => $z['decided_at'] ? 'organizator' : '', 'hint' => (string)$z['note']];
+            }
+            $out[] = ['title' => 'Umowa ' . ($r['numer_umowy'] ?: ('#' . $r['id'])), 'subtitle' => trim((string)$r['imie_nazwisko'] . ' · ' . (string)$r['temat'], ' ·'), 'icon' => 'file-earmark-text', 'items' => $items];
         }
         return $out;
     }
