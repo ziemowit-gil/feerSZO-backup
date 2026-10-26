@@ -17,6 +17,7 @@ require_once __DIR__ . '/crmStatusRules.php';
 require_once __DIR__ . '/crm_segment.php';
 require_once __DIR__ . '/crm_segments_ui.php';
 require_once __DIR__ . '/asystent_ai.php';
+require_once __DIR__ . '/crmAutomat.php';
 
 /** Gotowe propozycje (bez AI). rule = [cond, param, from(csv)] albo null. */
 function crm_ai_builder_catalog(): array {
@@ -310,4 +311,38 @@ function crm_ai_assistant_exec(string $name, array $in, array $ctx): array {
         return ['out' => $r['statuses'] ? "Dodano status „{$label}”." : 'Status już istnieje.', 'summary' => 'status: ' . $label];
     }
     return ['out' => 'Nieznane narzędzie CRM.', 'summary' => '—'];
+}
+
+// ── Gotowe listy (segmenty) bez AI ───────────────────────────────────────────────────────────────────────────────────
+
+/** Katalog gotowych list: key, name, desc, filter (drzewo segmentu). */
+function crm_ai_builder_segment_catalog(): array {
+    $orgs = ['organizacja', 'kontrahent', 'partner'];
+    return [
+        ['key' => 'firmy', 'name' => 'Firmy i organizacje', 'desc' => 'Wszystkie kartoteki firm, organizacji, kontrahentów i partnerów.',
+         'filter' => ['op' => 'and', 'rules' => [['field' => 'type', 'op' => 'in', 'value' => $orgs]]]],
+        ['key' => 'techniczne', 'name' => 'Adresy techniczne', 'desc' => 'Typ „Kontakt techniczny” albo status Techniczny / Powiadomienia — do przeglądu i czyszczenia.',
+         'filter' => ['op' => 'or', 'rules' => [['field' => 'type', 'op' => 'in', 'value' => ['kontakt_techniczny']], ['field' => 'status', 'op' => 'in', 'value' => CRM_TECHNICAL_STATUSES]]]],
+        ['key' => 'do-weryfikacji', 'name' => 'Firmy do weryfikacji', 'desc' => 'Firmy ze statusem „Firma do weryfikacji” (np. bez NIP) — do uzupełnienia.',
+         'filter' => ['op' => 'and', 'rules' => [['field' => 'status', 'op' => 'in', 'value' => ['firma-do-weryfikacji']]]]],
+        ['key' => 'partnerzy-darczyncy', 'name' => 'Partnerzy i darczyńcy', 'desc' => 'Status Partner, Darczyńca lub Sponsor — do podziękowań i sprawozdań.',
+         'filter' => ['op' => 'and', 'rules' => [['field' => 'status', 'op' => 'in', 'value' => ['partner', 'darczyńca', 'sponsor']]]]],
+        ['key' => 'nowe-30', 'name' => 'Nowe kontakty (30 dni)', 'desc' => 'Dodane w ostatnich 30 dniach — do powitania i przypisania opiekuna.',
+         'filter' => ['op' => 'and', 'rules' => [['field' => 'created', 'op' => 'within_days', 'value' => '30']]]],
+        ['key' => 'uspione', 'name' => 'Obiecujące bez ruchu (rok)', 'desc' => 'Status „Obiecujący”, dodani ponad rok temu — do podjęcia kontaktu albo zamknięcia.',
+         'filter' => ['op' => 'and', 'rules' => [['field' => 'status', 'op' => 'in', 'value' => ['prospect']], ['field' => 'created', 'op' => 'older_than_days', 'value' => '365']]]],
+    ];
+}
+
+/** Zakłada zaznaczone gotowe listy. @return array{created:int,errors:string[]} */
+function crm_ai_builder_apply_segments(array $keys): array {
+    $by = []; foreach (crm_ai_builder_segment_catalog() as $c) $by[$c['key']] = $c;
+    $created = 0; $errors = [];
+    foreach ($keys as $k) {
+        $c = $by[(string)$k] ?? null;
+        if (!$c) continue;
+        $r = crm_segment_save($c['name'], crm_segment_sanitize($c['filter']), $c['desc']);
+        if ($r['ok']) $created++; else $errors[] = $c['name'] . ': ' . $r['error'];
+    }
+    return ['created' => $created, 'errors' => $errors];
 }

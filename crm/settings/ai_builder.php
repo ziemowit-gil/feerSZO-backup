@@ -31,6 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $r = crm_ai_builder_apply_catalog((array)($_POST['keys'] ?? []));
         flash_set('success', "Dodano statusów: {$r['statuses']}, reguł (wyłączonych): {$r['rules']}.");
         header('Location: ' . $here); exit;
+    } elseif ($op === 'segments') {
+        $r = crm_ai_builder_apply_segments((array)($_POST['seg'] ?? []));
+        flash_set($r['errors'] ? 'warning' : 'success', "Utworzono list: {$r['created']}." . ($r['errors'] ? ' Pominięto: ' . implode('; ', $r['errors']) : ''));
+        header('Location: ' . $here); exit;
     } elseif ($op === 'ask') {
         $res = crm_ai_builder_ask($goal);
         if (!empty($res['error'])) $ai_error = $res['error'];
@@ -51,6 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $existing = array_column(db_all("SELECT slug FROM crm_statuses"), 'slug');
 $catalog = crm_ai_builder_catalog();
 $token = $_SESSION['crm_ai_proposal']['token'] ?? '';
+$seg_have = array_map('mb_strtolower', array_column(db_all("SELECT name FROM crm_segments"), 'name'));
+$seg_cat = array_map(function ($c) use ($seg_have) {
+    $c['have']  = in_array(mb_strtolower($c['name']), $seg_have, true);
+    $c['count'] = count(crm_segment_resolve_ids(crm_segment_sanitize($c['filter'])));
+    return $c;
+}, crm_ai_builder_segment_catalog());
 
 include dirname(__DIR__) . '/includes/header_crm.php';
 include __DIR__ . '/_nav.php';
@@ -68,8 +78,8 @@ include __DIR__ . '/_nav.php';
 </style>
 
 <div class="crm-page-header mb-3">
-  <div><h1 class="crm-page-title"><i class="bi bi-stars" style="color:var(--crm-primary)" aria-hidden="true"></i> Statusy i listy z AI</h1>
-    <div class="crm-page-subtitle">Gotowe statusy dla firm i adresów technicznych oraz propozycje modelu na podstawie statystyk Twojej bazy</div></div>
+  <div><h1 class="crm-page-title"><i class="bi bi-stars" style="color:var(--crm-primary)" aria-hidden="true"></i> Statusy i listy</h1>
+    <div class="crm-page-subtitle">Gotowe statusy i listy (bez AI) oraz — opcjonalnie — propozycje modelu na podstawie statystyk Twojej bazy</div></div>
   <div class="crm-page-actions">
     <a class="btn btn-crm-outline btn-sm" href="<?= APP_URL ?>/crm/settings/statuses.php"><i class="bi bi-bookmark-fill me-1" aria-hidden="true"></i>Statusy</a>
     <a class="btn btn-crm-outline btn-sm" href="<?= APP_URL ?>/crm/settings/status_rules.php"><i class="bi bi-magic me-1" aria-hidden="true"></i>Reguły</a>
@@ -91,6 +101,21 @@ include __DIR__ . '/_nav.php';
     </label>
     <?php endforeach; ?>
     <button class="btn btn-crm-primary btn-sm mt-2"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj zaznaczone</button>
+  </form>
+</div>
+
+<div class="ab-card"><h2><i class="bi bi-funnel" aria-hidden="true"></i> Gotowe listy (bez AI)</h2>
+  <form method="post" class="ab-body"><?= csrf_field() ?><input type="hidden" name="_op" value="segments">
+    <p class="ab-help mb-2">Listy dynamiczne — liczą się na bieżąco i nadają się do kampanii oraz wysyłek. Liczba obok to stan w tej chwili.</p>
+    <?php foreach ($seg_cat as $c): ?>
+    <label class="ab-item">
+      <input type="checkbox" name="seg[]" value="<?= h($c['key']) ?>" <?= $c['have'] ? 'disabled' : '' ?>>
+      <span><strong><?= h($c['name']) ?></strong> <span class="ab-chip"><?= (int)$c['count'] ?> kontaktów</span>
+        <?= $c['have'] ? '<span class="ab-done"> — już istnieje</span>' : '' ?>
+        <div class="ab-help"><?= h($c['desc']) ?></div></span>
+    </label>
+    <?php endforeach; ?>
+    <button class="btn btn-crm-primary btn-sm mt-2"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz zaznaczone listy</button>
   </form>
 </div>
 
