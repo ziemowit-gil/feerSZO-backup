@@ -13,6 +13,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractFees.php';
 require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractConsents.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ti_training_contract/logic/trainingContractReports.php';
 
 require_login();
 $TYPE  = 'szk';
@@ -168,6 +169,26 @@ $_zgBadge = ['pending' => 'text-bg-secondary', 'granted' => 'text-bg-success', '
   <?php endforeach; ?>
   </ul>
 <?php endif; ?>
+</div>
+
+<?php $_notes = TiSzkReports::notesFor($id); $_meName = (string)(current_user()['name'] ?? ''); ?>
+<div class="card shadow-sm mb-3 no-print" id="szk-notes"><div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-sticky"></i> Notatki do umowy</span><a class="small" href="<?= APP_URL ?>/contracts/szk/zestawienia.php?v=notatki">Wszystkie notatki</a></div>
+<?php if ($_notes): ?><ul class="list-group list-group-flush">
+  <?php foreach ($_notes as $_n): ?><li class="list-group-item small d-flex justify-content-between gap-2"><div>
+    <?= (int)$_n['pinned'] ? '<i class="bi bi-pin-angle-fill text-warning" title="przypięta"></i> ' : '' ?><?= nl2br(h($_n['body'])) ?>
+    <div class="text-muted"><?= h($_n['author']) ?> · <?= h(date('d.m.Y H:i', strtotime($_n['created_at']))) ?></div></div>
+    <?php if (can_edit() && ((string)$_n['author'] === $_meName || is_admin())): ?>
+    <form method="post" action="<?= APP_URL ?>/contracts/szk/zestawienia.php" onsubmit="return confirm('Usunąć notatkę?')"><input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="act" value="note_del"><input type="hidden" name="note" value="<?= (int)$_n['id'] ?>"><input type="hidden" name="contract_id" value="<?= $id ?>"><input type="hidden" name="back" value="view">
+      <button class="btn btn-sm btn-outline-danger" aria-label="Usuń notatkę"><i class="bi bi-trash3" aria-hidden="true"></i></button></form><?php endif; ?></li><?php endforeach; ?>
+</ul><?php endif; ?>
+<?php if (can_edit()): ?><form method="post" action="<?= APP_URL ?>/contracts/szk/zestawienia.php" class="card-body d-flex flex-wrap gap-2 align-items-end">
+  <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="act" value="note_add"><input type="hidden" name="contract_id" value="<?= $id ?>"><input type="hidden" name="back" value="view">
+  <div class="flex-grow-1"><label class="form-label small mb-1" for="nv-b">Nowa notatka</label><textarea class="form-control form-control-sm" id="nv-b" name="body" rows="2" maxlength="4000" required></textarea></div>
+  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="nv-p" name="pinned" value="1"><label class="form-check-label small" for="nv-p">Przypnij</label></div>
+  <button class="btn btn-outline-primary btn-sm mb-1">Dodaj</button></form>
+<?php elseif (!$_notes): ?><div class="card-body text-muted small">Brak notatek.</div><?php endif; ?>
 </div>
 
 <?php

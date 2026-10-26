@@ -292,6 +292,21 @@ function _menu_viewer(): array {
     ]];
 }
 
+/** Pozycje podmenu Umowy SZK: [etykieta, adres, ikona, słowa kluczowe]. */
+function TiSzkReports_menu(): array {
+    $o = [
+        ['Zmiany w umowach SZK',   '/contracts/szk/zestawienia.php?v=zmiany',        'bi-clock-history',  'szk zmiany aneks historia'],
+        ['SZK: umowy z nadpłatami','/contracts/szk/zestawienia.php?v=nadplaty',      'bi-cash-coin',      'szk nadpłata saldo'],
+        ['SZK: lista zapisów',     '/contracts/szk/zestawienia.php?v=zapisy',        'bi-people',         'szk zapisy grupy'],
+        ['SZK: lista wypowiedzeń', '/contracts/szk/zestawienia.php?v=wypowiedzenia', 'bi-file-earmark-x', 'szk wypowiedzenie rozwiązanie'],
+        ['SZK: notatki do umów',   '/contracts/szk/zestawienia.php?v=notatki',       'bi-sticky',         'szk notatki'],
+        ['SZK: płatnicy',          '/contracts/szk/zestawienia.php?v=platnicy',      'bi-bank',           'szk płatnicy pfron'],
+        ['SZK: promocje',          '/contracts/szk/promocje.php',                    'bi-percent',        'szk promocje rabaty'],
+    ];
+    if (function_exists('is_admin') && is_admin()) $o[] = ['SZK: ustawienia umów', '/contracts/szk/ustawienia.php', 'bi-gear', 'szk ustawienia model opłat nazwa pliku'];
+    return $o;
+}
+
 // ── Widok edytora / admina ───────────────────────────────────────────────────
 function _menu_editor(): array {
     $cnt  = _menu_counts();
@@ -314,6 +329,9 @@ function _menu_editor(): array {
         $items = [];
         foreach ($vis as $s)
             $items[] = _mi($ct_label($s), "/contracts/$s/list.php", $ct_icon($s), ['match'=>"/contracts/$s/", 'kw'=>"umowa $s"]);
+        if (in_array('szk', $vis, true)) {   // podmenu Umowy SZK (zestawienia, promocje, ustawienia)
+            foreach (TiSzkReports_menu() as [$_l, $_u, $_i, $_kw]) $items[] = _mi($_l, $_u, $_i, ['match'=>$_u, 'kw'=>$_kw]);
+        }
         $um_g[] = ['label'=>$glabel,'items'=>$items];
     }
     $obs = [ _mi('Rejestr umów (RU)','/contracts/rejestr.php','bi-journal-text',['match'=>'/contracts/rejestr','kw'=>'rejestr ru numer']) ];
