@@ -96,6 +96,7 @@ require_once __DIR__ . '/_nav.php';
     <div class="crm-object-count">Etapy lejka CRM — edytuj etykiety, kolory i kolejność</div>
   </div>
   <div class="crm-object-actions">
+    <a class="btn btn-crm-outline btn-sm" href="<?= APP_URL ?>/crm/settings/ai_builder.php"><i class="bi bi-stars me-1" aria-hidden="true"></i>Statusy i listy z AI</a>
     <button class="btn btn-crm-primary btn-sm" onclick="document.getElementById('add-form').classList.toggle('d-none')">
       <i class="bi bi-plus-lg me-1"></i>Dodaj status
     </button>

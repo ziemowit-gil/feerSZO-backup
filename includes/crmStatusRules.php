@@ -16,6 +16,9 @@ const CRM_STATUS_RULE_CONDITIONS = [
     'active_contract' => 'ma aktywną umowę',
     'category'        => 'ma kategorię',
     'inactive_days'   => 'brak aktywności od (dni)',
+    'type'            => 'typ kontaktu to',
+    'email_kind'      => 'rodzaj adresu e-mail to',
+    'org_no_nip'      => 'firma bez NIP',
 ];
 
 function crm_status_rules_schema(): void {
@@ -66,6 +69,16 @@ function crm_status_rule_candidates(array $rule): array {
             return array_map('intval', array_keys($ids));
         case 'category':
             return crm_category_contact_ids([(string)$rule['param']]);
+        case 'type':
+            if (!isset(CRM_CONTACT_TYPES[(string)$rule['param']])) return [];
+            return array_map('intval', array_column(db_all("SELECT id FROM crm_contacts WHERE crm_active=1 AND type=?", [(string)$rule['param']]), 'id'));
+        case 'email_kind':
+            if (!in_array((string)$rule['param'], ['personal', 'generic', 'unknown'], true)) return [];
+            return array_map('intval', array_column(db_all("SELECT id FROM crm_contacts WHERE crm_active=1 AND email_kind=?", [(string)$rule['param']]), 'id'));
+        case 'org_no_nip':
+            $orgs = array_keys(array_filter(CRM_CONTACT_TYPES, fn($t) => !empty($t['org_like'])));
+            $ph = implode(',', array_fill(0, count($orgs), '?'));
+            return array_map('intval', array_column(db_all("SELECT id FROM crm_contacts WHERE crm_active=1 AND type IN ($ph) AND TRIM(COALESCE(nip,''))=''", $orgs), 'id'));
         case 'inactive_days':
             $n = max(30, (int)$rule['param']);
             $cut = date('Y-m-d H:i:s', strtotime("-{$n} days"));

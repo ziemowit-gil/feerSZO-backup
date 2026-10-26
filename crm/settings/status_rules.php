@@ -37,8 +37,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($name === '' || !isset(CRM_STATUS_RULE_CONDITIONS[$cond]) || !isset($statuses[$to])) flash_set('danger', 'Podaj nazwę, warunek i status docelowy.');
         elseif ($cond === 'inactive_days' && (int)$param < 30) flash_set('danger', 'Liczba dni nieaktywności: co najmniej 30.');
         elseif ($cond === 'category' && $param === '') flash_set('danger', 'Wybierz kategorię.');
+        elseif ($cond === 'type' && !isset(CRM_CONTACT_TYPES[$param])) flash_set('danger', 'Podaj typ kontaktu: ' . implode(', ', array_keys(CRM_CONTACT_TYPES)) . '.');
+        elseif ($cond === 'email_kind' && !in_array($param, ['personal', 'generic', 'unknown'], true)) flash_set('danger', 'Podaj rodzaj adresu: personal (imienny), generic (ogólny) lub unknown.');
         else {
-            $data = [$name, $cond, $cond === 'active_contract' ? '' : $param, implode(',', $from), $to];
+            $data = [$name, $cond, in_array($cond, ['active_contract', 'org_no_nip'], true) ? '' : $param, implode(',', $from), $to];
             if ($id) db()->prepare("UPDATE crm_status_rules SET name=?, cond=?, param=?, from_statuses=?, to_status=? WHERE id=?")->execute([...$data, $id]);
             else {
                 $max = (int)(db_one("SELECT COALESCE(MAX(sort_order),0) AS n FROM crm_status_rules")['n'] ?? 0);
@@ -98,9 +100,9 @@ include __DIR__ . '/_nav.php';
     <div class="row g-3">
       <div class="col-md-4"><label class="form-label small fw-semibold" for="srName">Nazwa</label><input id="srName" name="name" class="form-control form-control-sm" required maxlength="80" value="<?= h($f['name']) ?>"></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="srCond">Warunek</label>
-        <select id="srCond" name="cond" class="form-select form-select-sm" onchange="document.getElementById('srParamBox').hidden = this.value==='active_contract'">
+        <select id="srCond" name="cond" class="form-select form-select-sm" onchange="document.getElementById('srParamBox').hidden = ['active_contract','org_no_nip'].includes(this.value)">
           <?php foreach (CRM_STATUS_RULE_CONDITIONS as $k => $l): ?><option value="<?= h($k) ?>"<?= $f['cond'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
-      <div class="col-md-2" id="srParamBox"<?= $f['cond'] === 'active_contract' ? ' hidden' : '' ?>><label class="form-label small fw-semibold" for="srParam">Parametr</label>
+      <div class="col-md-2" id="srParamBox"<?= in_array($f['cond'], ['active_contract','org_no_nip'], true) ? ' hidden' : '' ?>><label class="form-label small fw-semibold" for="srParam">Parametr</label>
         <input id="srParam" name="param" class="form-control form-control-sm" list="srCats" value="<?= h($f['param']) ?>" placeholder="dni lub kategoria"><datalist id="srCats"><?php foreach ($cats as $c): ?><option value="<?= h($c['slug']) ?>"><?= h($c['label']) ?></option><?php endforeach; ?></datalist></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="srTo">Nadaj status</label>
         <select id="srTo" name="to_status" class="form-select form-select-sm"><?php foreach ($statuses as $k => $v): ?><option value="<?= h($k) ?>"<?= $f['to_status'] === $k ? ' selected' : '' ?>><?= h($v['label']) ?></option><?php endforeach; ?></select></div>

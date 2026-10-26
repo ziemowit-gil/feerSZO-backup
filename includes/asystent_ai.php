@@ -775,6 +775,10 @@ function asai_tools(array $ctx = []): array {
             ],
         ];
     }
+    if (function_exists('crm_ai_assistant_allowed') || is_file(__DIR__ . '/crmAiBuilder.php')) {
+        require_once __DIR__ . '/crmAiBuilder.php';
+        if (crm_ai_assistant_allowed($ctx)) foreach (crm_ai_assistant_tools() as $t) $tools[] = $t;   // CRM: statystyki, listy, statusy
+    }
     return $tools;
 }
 
@@ -818,6 +822,7 @@ Jesteś asystentem organizacji pozarządowej ({$org}) wewnątrz systemu SZO — 
 Odpowiadasz na dwa różne rodzaje pytań i masz do nich różne narzędzia:
 A) „Co u nas obowiązuje" (procedura, uchwała, zasada, dokument, komunikat) → „szukaj_w_bazie_wiedzy" i „otworz_dokument".
 B) „Jak/gdzie to zrobić w systemie" (ekran, kroki, przycisk, moduł) → „funkcje_systemu".
+C) CRM (tylko edytor/administrator z prawem zapisu): „crm_przeglad_bazy" (zbiorcze statystyki), „crm_utworz_liste" (lista/segment kontaktów), „crm_utworz_status". Najpierw przejrzyj bazę, zaproponuj użytkownikowi konkretne statusy/listy i twórz je dopiero po jego zgodzie; reguły automatyczne i szersze propozycje wskaż na ekranie {$app}/crm/settings/ai_builder.php.
 Wiele pytań to jedno i drugie — wtedy użyj obu: najpierw sprawdź, co mówi dokument, potem wskaż ekran, na którym to się załatwia.
 
 Zasady:
@@ -969,6 +974,11 @@ function asai_run(array $history, int $max_iter = 6, array $opts = []): array {
                     $trace[] = ['tool' => 'moje', 'input' => $sec ? implode(', ', $sec) : 'wszystko',
                                 'summary' => 'dane konta odczytane'];
                 }
+            } elseif (str_starts_with($name, 'crm_')) {
+                require_once __DIR__ . '/crmAiBuilder.php';
+                $cr = crm_ai_assistant_exec($name, $in, $actx);
+                $trace[] = ['tool' => $name, 'input' => '—', 'summary' => $cr['summary']];
+                $out = $cr['out'];
             } else {
                 $out = 'Nieznane narzędzie.';
             }
