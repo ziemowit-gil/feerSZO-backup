@@ -551,44 +551,19 @@ body.tzl{background:#faf9f8}
 .tzl #ika-main .tz-card{box-shadow:none;border:1px solid #e1dfdd;background:#fff}
 .tzl #ika-main .tz-btn{background:#0f6cbd}
 .tzl #ika-main .tz-btn:hover:not(:disabled){background:#115ea3;box-shadow:none;transform:none}
+/* ── Uproszczenie: bez panelu bocznego, zwarta linia użytkownika ── */
+.tz-side,.tz-side-show,.tz-side-hide{display:none!important}
+.ika-who-line{font-size:.95rem;color:#323130;margin:0 0 1rem;overflow-wrap:anywhere}
+.ika-who-line a{color:#0f6cbd;text-decoration:underline;white-space:nowrap}
+.ika-who-line a:focus-visible{outline:3px solid #0f6cbd;outline-offset:2px}
 </style>
 
-<!-- ── Nagłówek strony ───────────────────────────────────────────────────────── -->
-<div class="tz-h">
-  <h1><i class="bi bi-shield-check me-2" style="color:#1E6DFF" aria-hidden="true"></i>Weryfikacja IKA</h1>
-  <p>Potwierdzenie tożsamości wymagane przez system</p>
-</div>
-
-<!-- ── Kontekst: cel + użytkownik ──────────────────────────────────────────── -->
-<div class="tz-card mb-3">
-  <div class="tz-card__bd" style="padding:.85rem 1.25rem">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-      <div class="ika-mod-icon" style="width:42px;height:42px;flex-shrink:0;
-                  background:<?= h($dest_ctx['color']) ?>1a;color:<?= h($dest_ctx['color']) ?>;
-                  display:flex;align-items:center;justify-content:center;font-size:1.25rem"
-           aria-hidden="true">
-        <i class="bi <?= h($dest_ctx['icon']) ?>"></i>
-      </div>
-      <div class="flex-grow-1">
-        <div class="fw-bold" style="color:var(--tz-strong)"><?= h($dest_ctx['module']) ?></div>
-        <div class="text-muted small"><?= h($dest_ctx['resource']) ?></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Na kogo się logujesz — duże, wyraźne potwierdzenie ──────────────────── -->
-<section class="ika-who" aria-labelledby="ika-who-h">
-  <span class="ika-who__av" aria-hidden="true"><?= h($initials) ?></span>
-  <div class="ika-who__txt">
-    <h2 class="ika-who__h" id="ika-who-h">Logujesz się jako</h2>
-    <p class="ika-who__name"><?= h($display_name) ?></p>
-    <?php if ($user_email !== '' && $user_email !== $display_name): ?>
-    <p class="ika-who__mail"><?= h($user_email) ?></p>
-    <?php endif; ?>
-    <a class="ika-who__out" href="<?= h(APP_URL) ?>/auth/logout.php">To nie Ty? Wyloguj się</a>
-  </div>
-</section>
+<?php /* Uproszczony ekran: bez osobnego nagłówka strony, bez karty „moduł/zasób” i bez dużego bloku użytkownika — jedna zwarta
+         linia mówi, na kogo się logujesz (z wyjściem „To nie Ty?”), a poniżej jest sama weryfikacja. */ ?>
+<p class="ika-who-line">
+  Logujesz się jako <strong><?= h($display_name) ?></strong><?php if ($user_email !== '' && $user_email !== $display_name): ?> (<?= h($user_email) ?>)<?php endif; ?>
+  · <a href="<?= h(APP_URL) ?>/auth/logout.php">To nie Ty? Wyloguj się</a>
+</p>
 
 <!-- ── Zakładki metod (gdy aktywna) ─────────────────────────────────────────── -->
 <?php if ($show_method_tabs): ?>
@@ -631,16 +606,14 @@ $head_title = match(true) {
     $page_mode === 'pesel'        => 'Weryfikacja PESEL',
     $show_method_tabs             => 'Weryfikacja dwuetapowa',
     $page_mode === 'email_verify' => 'Kod e-mail',
-    default                       => 'Weryfikacja IKA',
+    default                       => 'Podaj kod IKA',
 };
 ?>
 <section class="tz-card" id="gate-main">
   <div class="tz-card__hd">
     <i class="bi <?= $head_icon ?>" aria-hidden="true"></i>
     <span><?= h($head_title) ?></span>
-    <?php if (!$show_method_tabs && $page_mode === 'ika'): ?>
-    <span class="lbl-en" style="display:inline;font-size:.72rem;color:var(--tz-muted);margin-left:.4rem">Indywidualny Kod Autoryzacyjny</span>
-    <?php endif; ?>
+
   </div>
   <div class="tz-card__bd">
 
@@ -817,7 +790,7 @@ $head_title = match(true) {
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
         <div class="ika-field">
           <label for="ikaCode" class="ika-field__label">Kod IKA</label>
-          <p class="ika-field__hint" id="ikaCodeHint">6 cyfr. Kod ustawiasz i sprawdzasz w Systemie Tożsamości.</p>
+          <p class="ika-field__hint" id="ikaCodeHint">6 cyfr</p>
           <input type="password" class="form-control ika-code" id="ikaCode" name="ika_code"
                  inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" required
                  autocomplete="off" data-1p-ignore data-lpignore="true"
