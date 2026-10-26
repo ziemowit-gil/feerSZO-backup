@@ -45,6 +45,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <p class="text-muted small mb-3"><?= h($desc) ?></p>
 <ul class="nav nav-pills mb-3 flex-wrap" aria-label="Zestawienia umów szkoleniowych">
   <?php foreach (TiSzkReports::VIEWS as $k => [$l]): ?><li class="nav-item"><a class="nav-link py-1 <?= $view === $k ? 'active' : '' ?>" <?= $view === $k ? 'aria-current="page"' : '' ?> href="?v=<?= h($k) ?>"><?= h($l) ?></a></li><?php endforeach; ?>
+  <li class="nav-item ms-md-auto"><a class="nav-link py-1" href="promocje.php"><i class="bi bi-percent" aria-hidden="true"></i> Promocje</a></li>
+  <?php if (is_admin()): ?><li class="nav-item"><a class="nav-link py-1" href="ustawienia.php"><i class="bi bi-gear" aria-hidden="true"></i> Ustawienia</a></li><?php endif; ?>
 </ul>
 <?php if ($data['note'] !== ''): ?><div class="alert alert-warning"><?= $data['note'] ?></div><?php endif; ?>
 

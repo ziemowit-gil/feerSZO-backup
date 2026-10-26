@@ -292,19 +292,11 @@ function _menu_viewer(): array {
     ]];
 }
 
-/** Pozycje podmenu Umowy SZK: [etykieta, adres, ikona, słowa kluczowe]. */
+/** Pozycje podmenu Umowy SZK: [etykieta, adres, ikona, słowa kluczowe]. Jedna pozycja — zestawienia, promocje i ustawienia są zakładkami w środku. */
 function TiSzkReports_menu(): array {
-    $o = [
-        ['Zmiany w umowach SZK',   '/contracts/szk/zestawienia.php?v=zmiany',        'bi-clock-history',  'szk zmiany aneks historia'],
-        ['SZK: umowy z nadpłatami','/contracts/szk/zestawienia.php?v=nadplaty',      'bi-cash-coin',      'szk nadpłata saldo'],
-        ['SZK: lista zapisów',     '/contracts/szk/zestawienia.php?v=zapisy',        'bi-people',         'szk zapisy grupy'],
-        ['SZK: lista wypowiedzeń', '/contracts/szk/zestawienia.php?v=wypowiedzenia', 'bi-file-earmark-x', 'szk wypowiedzenie rozwiązanie'],
-        ['SZK: notatki do umów',   '/contracts/szk/zestawienia.php?v=notatki',       'bi-sticky',         'szk notatki'],
-        ['SZK: płatnicy',          '/contracts/szk/zestawienia.php?v=platnicy',      'bi-bank',           'szk płatnicy pfron'],
-        ['SZK: promocje',          '/contracts/szk/promocje.php',                    'bi-percent',        'szk promocje rabaty'],
+    return [
+        ['Zestawienia SZK', '/contracts/szk/zestawienia.php', 'bi-bar-chart-steps', 'szk zestawienia zmiany nadpłaty zapisy wypowiedzenia notatki płatnicy promocje ustawienia'],
     ];
-    if (function_exists('is_admin') && is_admin()) $o[] = ['SZK: ustawienia umów', '/contracts/szk/ustawienia.php', 'bi-gear', 'szk ustawienia model opłat nazwa pliku'];
-    return $o;
 }
 
 // ── Widok edytora / admina ───────────────────────────────────────────────────

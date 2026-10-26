@@ -67,9 +67,12 @@ require_once dirname(__DIR__) . '/includes/status_tiles.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-mortarboard text-primary"></i> Umowy szkoleniowe (SZK)
     <span class="badge bg-secondary ms-1"><?= (int)$total ?></span></h4>
-  <?php if (can_edit()): ?>
-  <a href="<?= APP_URL ?>/contracts/szk/edit.php" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowa umowa</a>
-  <?php endif; ?>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="<?= APP_URL ?>/contracts/szk/zestawienia.php" class="btn btn-outline-secondary"><i class="bi bi-bar-chart-steps"></i> Zestawienia</a>
+    <a href="<?= APP_URL ?>/contracts/szk/promocje.php" class="btn btn-outline-secondary"><i class="bi bi-percent"></i> Promocje</a>
+    <?php if (is_admin()): ?><a href="<?= APP_URL ?>/contracts/szk/ustawienia.php" class="btn btn-outline-secondary"><i class="bi bi-gear"></i> Ustawienia</a><?php endif; ?>
+    <?php if (can_edit()): ?><a href="<?= APP_URL ?>/contracts/szk/edit.php" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nowa umowa</a><?php endif; ?>
+  </div>
 </div>
 
 <?= contract_status_tiles($TYPE, $TABLE, $status) ?>
