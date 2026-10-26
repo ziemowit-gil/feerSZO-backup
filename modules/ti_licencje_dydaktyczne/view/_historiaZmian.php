@@ -9,6 +9,7 @@ $_hist = LicenseCaseIndex::changes($histScope, (int)$histId);
 <section class="panel" id="historia">
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
     <h2 class="mt-0 mb-0 me-auto">Historia zmian wniosku</h2>
+    <a class="btn btn-sm btn-metro" style="background:#3f3f46" href="<?= h(route($histScope === 'operation' ? 'ld.cover.op' : 'ld.cover', ['id' => $histId])) ?>" target="_blank" rel="noopener"><i class="bi bi-folder2-open" aria-hidden="true"></i> Okładka sprawy AM</a>
     <a class="btn btn-sm btn-metro" style="background:#0f4c5c" href="<?= h(route($histScope === 'operation' ? 'ld.am56.op' : 'ld.am56', ['id' => $histId])) ?>" target="_blank" rel="noopener"><i class="bi bi-list-check" aria-hidden="true"></i> AM56 — spis dokumentów (QR)</a>
   </div>
   <p class="small text-secondary">Wszystkie zmiany danych i dokumentów tej sprawy w jednym miejscu — od najnowszej. Pełny dziennik zdarzeń i powiadomień jest w zakładce „Dziennik”.</p>

@@ -115,6 +115,8 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/pakiet/{pid}/zablokuj',           [LicenseCorrectionController::class, 'packLock'])->name('ld.pack.lock');
     $r->get('/pakiet/{pid}/scalony.pdf',         [LicenseCorrectionController::class, 'packMerged'])->name('ld.pack.merged');
     $r->get('/licencje/{id}/am56.pdf',           [LicenseCorrectionController::class, 'am56License'])->name('ld.am56');
+    $r->get('/licencje/{id}/okladka.pdf',        [LicenseCorrectionController::class, 'coverLicense'])->name('ld.cover');
+    $r->get('/operacje/{id}/okladka.pdf',        [LicenseCorrectionController::class, 'coverOperation'])->name('ld.cover.op');
     $r->get('/operacje/{id}/am56.pdf',           [LicenseCorrectionController::class, 'am56Operation'])->name('ld.am56.op');
     // ASK-UP1: uzasadnienie rotacji licencji (druk z QR i Code128, podpis odręczny kierownika)
     $r->post('/rotacje/nowa',                    [LicenseCorrectionController::class, 'rotCreate'])->name('ld.rot.new');

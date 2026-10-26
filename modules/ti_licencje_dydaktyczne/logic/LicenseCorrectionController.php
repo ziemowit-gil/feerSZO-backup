@@ -287,6 +287,16 @@ final class LicenseCorrectionController
         catch (\Throwable $e) { return $this->fail($e, $scope === 'operation' ? route('ld.op', ['id' => $id]) : route('ld.show', ['id' => $id])); }
     }
 
+    /** Okładka sprawy AM (teczka). */
+    private function cover(string $scope, int $id): ?string
+    {
+        try { return $this->pdfOut(LicenseCaseIndex::coverOutput($scope, $id)); }
+        catch (\Throwable $e) { return $this->fail($e, $scope === 'operation' ? route('ld.op', ['id' => $id]) : route('ld.show', ['id' => $id])); }
+    }
+
+    public function coverLicense(int $id): ?string { return $this->cover('license', $id); }
+    public function coverOperation(int $id): ?string { return $this->cover('operation', $id); }
+
     public function am56License(int $id): ?string { return $this->am56('license', $id); }
     public function am56Operation(int $id): ?string { return $this->am56('operation', $id); }
 

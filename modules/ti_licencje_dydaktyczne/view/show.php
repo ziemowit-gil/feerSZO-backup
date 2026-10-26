@@ -327,6 +327,9 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
       <td><?= ldChip('wysłano jako AM90/' . Am7TenantAccount::am90Revision($id), '#008a00') ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#9f1239" href="<?= h(route('ld.am91.pdf', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
     <?php endif; ?>
+    <tr><td><span class="sym" style="background:#3f3f46">AM-OK</span> Okładka sprawy AM (teczka)</td>
+      <td class="text-nowrap"><?= h($l['case_number']) ?> · AM-OK<?= ldCodeLine($l['case_number'] . ' · AM-OK', 'AM-OK') ?></td><td><?= ldChip('generowana na bieżąco', '#647687') ?></td>
+      <td class="text-end"><a class="btn btn-sm btn-metro" style="background:#3f3f46" href="<?= h(route('ld.cover', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>
     <tr><td><span class="sym" style="background:#0f4c5c">AM56</span> Spis dokumentów sprawy (z QR do spisu elektronicznego)</td>
       <td class="text-nowrap"><?= h($l['case_number']) ?> · AM56<?= ldCodeLine($l['case_number'] . ' · AM56', 'AM56') ?></td><td><?= ldChip('generowany na bieżąco', '#647687') ?></td>
       <td class="text-end"><a class="btn btn-sm btn-metro" style="background:#0f4c5c" href="<?= h(route('ld.am56', ['id' => $id])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a></td></tr>

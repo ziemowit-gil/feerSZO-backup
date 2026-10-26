@@ -112,6 +112,15 @@ final class LicenseCaseIndex
         return ['out' => LicenseDocument::render($html, 'Spis dokumentów sprawy (AM56) — ' . $tn, $number, 'AM56'), 'number' => $number];
     }
 
+    /** Okładka sprawy AM (PDF): numer sprawy, osoba, licencja, zawartość teczki, QR do spisu elektronicznego i Code128. @return array{out:array,number:string} */
+    public static function coverOutput(string $scope, int $id): array
+    {
+        [$t, $tn] = LicenseCorrection::target($scope, $id);
+        $html = (new LicenseDocument())->coverHtml($scope, $id, $tn, $t, self::documents($scope, $id));
+        $number = $tn . ' · AM-OK';
+        return ['out' => LicenseDocument::render($html, 'Okładka sprawy AM — ' . $tn, $number, 'AM-OK'), 'number' => $number];
+    }
+
     // ── Historia zmian ────────────────────────────────────────────────────────────
 
     /**
