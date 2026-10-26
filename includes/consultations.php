@@ -496,6 +496,11 @@ function cc_pdf_add_card(\setasign\Fpdi\Fpdi $pdf, array $c): void {
     $pdf->SetFont('Helvetica', '', 8); $pdf->SetTextColor(120, 120, 120);
     $pdf->Cell($W, 5, $rp($org), 0, 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
+
+    // Kody z rejestru dokumentów (QR + Code128 + kod) w prawym dolnym rogu — jeden stały kod na kartę; błąd nie blokuje PDF
+    require_once __DIR__ . '/ti_terms.php';
+    ti_pdf_draw_codes($pdf, ti_pdf_print_codes('karta_doradztwa', (string)(int)$c['id'], 'Karta doradztwa ' . cc_card_number($c), 'konsultacje/pdf.php?id=' . (int)$c['id']), 20 + $W - 50, $pdf->GetPageHeight() - 13);
+    $pdf->SetTextColor(0, 0, 0);
 }
 
 /**

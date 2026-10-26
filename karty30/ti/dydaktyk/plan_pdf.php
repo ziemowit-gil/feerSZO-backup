@@ -28,8 +28,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.p
 $pl = fn(string $s): string => TiPdf::pl($s);
 
 try {
-    $pdf = new TiPdf('P', 'mm', 'A4');
-    $pdf->SetAutoPageBreak(true, 15);
+    // Kody w stopce (rejestr dokumentów: QR + Code128 + kod) — ten sam ref co plan_print.php / plan_docx.php; błąd kodów nie blokuje PDF
+    require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
+    $_codes = ti_pdf_print_codes('ti_plan_prowadzacego', $target_uid . '|' . $PD['weeks'] . '|' . (int)$PD['unbounded'], 'Plan zajęć prowadzącego #' . $target_uid, 'karty30/ti/dydaktyk/plan_print.php?instructor_id=' . $target_uid);
+    $pdf = ti_pdf_tipdf_new($_codes, 'P', 'A4');
+    $pdf->SetAutoPageBreak(true, $_codes ? 30 : 15);   // z kodami margines dolny mieści je nad stopką
     $pdf->SetMargins(12, 12, 12);
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 24;

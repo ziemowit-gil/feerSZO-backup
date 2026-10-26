@@ -52,7 +52,23 @@ function ti_curr_export_docx(string $course_name, array $rows, bool $show_active
     $pw->getDocInfo()->setTitle('Plan nauczania — ' . $course_name);
     $pw->addTitleStyle(1, ['bold' => true, 'size' => 16]);
     $sec = $pw->addSection(['orientation' => 'landscape']);
-    $sec->addFooter()->addText('Wygenerowano: ' . date('d.m.Y H:i') . ($author !== '' ? ' przez ' . $author : ''), ['size' => 8]);
+    $footer = $sec->addFooter();
+    $footer->addText('Wygenerowano: ' . date('d.m.Y H:i') . ($author !== '' ? ' przez ' . $author : ''), ['size' => 8]);
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) — pliki tymczasowe z PNG usuwane po zapisie; błąd kodów nie blokuje DOCX
+    $tmp_imgs = [];
+    try {
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/doc_registry/lib/DocRegistry.php';
+        if ($fc = DocRegistry::printCodes('ti_plan_nauczania', md5($course_name) . '|' . (int)$show_active, 'Plan nauczania — ' . $course_name)) {
+            $tmp_png = function (?string $png) use (&$tmp_imgs) {
+                if (!$png || !($p = tempnam(sys_get_temp_dir(), 'dcimg')) || file_put_contents($p, $png) === false) return null;
+                return $tmp_imgs[] = $p;
+            };
+            $run = $footer->addTextRun(['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER]);
+            if ($p = $tmp_png($fc['bar'])) $run->addImage($p, ['width' => 130, 'height' => 17, 'wrappingStyle' => 'inline']);
+            if ($p = $tmp_png($fc['qr'])) $run->addImage($p, ['width' => 26, 'height' => 26, 'wrappingStyle' => 'inline']);
+            $footer->addText($fc['code'] . ' · ' . $fc['doc_number'] . ' · weryfikacja: ' . $fc['url'], ['size' => 6.5, 'name' => 'Consolas'], ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER]);
+        }
+    } catch (\Throwable $e) { error_log('[docx kody w stopce] ' . $e->getMessage()); }
     $sec->addTitle('Plan nauczania — ' . $course_name, 1);
 
     $total = array_sum(array_column($rows, 'minutes'));
@@ -83,6 +99,7 @@ function ti_curr_export_docx(string $course_name, array $rows, bool $show_active
     header('Content-Disposition: attachment; filename="' . $fn . '"');
     header('Cache-Control: no-cache');
     $pw->save('php://output', 'Word2007');
+    foreach ($tmp_imgs as $p) @unlink($p);
     exit;
 }
 

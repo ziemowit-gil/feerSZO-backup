@@ -66,8 +66,11 @@ function _att_txt(string $s): string {
 // (błąd fontu FPDF, brak biblioteki itp.) i zaloguj.
 try {
 
-$pdf = new TiPdf('L', 'mm', 'A4'); // landscape — więcej kolumn
-$pdf->SetAutoPageBreak(true, 15);
+// Kody w stopce (rejestr dokumentów: QR + Code128 + kod) — jeden stały kod na kurs i wariant listy; błąd kodów nie blokuje PDF
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
+$_codes = ti_pdf_print_codes('ti_lista_obecnosci_kursu', $course_id . '|' . (int)$show_cancelled, 'Lista obecności — ' . ($course['name'] ?? ''), 'karty30/ti/dydaktyk/attendance_pdf.php?course_id=' . $course_id);
+$pdf = ti_pdf_tipdf_new($_codes, 'L', 'A4'); // landscape — więcej kolumn
+$pdf->SetAutoPageBreak(true, $_codes ? 30 : 15);   // z kodami margines dolny mieści je nad stopką
 $pdf->SetMargins(10, 10, 10);
 $pdf->AddPage();
 

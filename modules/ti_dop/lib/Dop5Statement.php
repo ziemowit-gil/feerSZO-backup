@@ -260,9 +260,16 @@ final class Dop5Statement
             if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
             require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiStudentDocCode.php';
             $_kd = ti_student_doc_code((int)($r['client_id'] ?? 0), 'DOP5', (int)($r['id'] ?? 0));
-            $m = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 14, 'margin_right' => 14, 'margin_top' => 10, 'margin_bottom' => ti_student_doc_margin($_kd, 13), 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp, 'shrink_tables_to_fit' => 1]);
+            // DOP5 dotyczy organizacji, nie uczestnika — nie ma kodu KD, więc zapisany dokument dostaje kody z rejestru dokumentów
+            // (QR + Code128 + kod); pusty wzór do druku (bez id) bez kodów. Błąd kodów nie blokuje PDF.
+            require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';   // ti_pdf_print_codes(), ti_mpdf_codes_html()
+            $_dc = null;
+            if ($_kd === '' && (int)($r['id'] ?? 0) > 0) {
+                $_dc = ti_pdf_print_codes('ti_dop5', (string)(int)$r['id'], 'DOP5 — oświadczenie o stanie środków ' . (string)($r['number'] ?? ''));
+            }
+            $m = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 14, 'margin_right' => 14, 'margin_top' => 10, 'margin_bottom' => $_dc ? 27 : ti_student_doc_margin($_kd, 13), 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp, 'shrink_tables_to_fit' => 1]);
             $m->SetTitle('DOP5 — oświadczenie o stanie środków');
-            $m->SetHTMLFooter(ti_student_doc_footer('<table width="100%" style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #000"><tr><td width="50%"><b>DOP5</b> — oświadczenie o stanie środków finansowych</td><td width="30%" style="text-align:center">' . htmlspecialchars((string)$r['number']) . '</td><td width="20%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr></table>', $_kd));
+            $m->SetHTMLFooter(ti_student_doc_footer(ti_mpdf_codes_html($_dc, false, '<table width="100%" style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #000"><tr><td width="50%"><b>DOP5</b> — oświadczenie o stanie środków finansowych</td><td width="30%" style="text-align:center">' . htmlspecialchars((string)$r['number']) . '</td><td width="20%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr></table>'), $_kd));
             $m->WriteHTML($html);
             return ['bytes' => $m->Output('', \Mpdf\Output\Destination::STRING_RETURN), 'mime' => 'application/pdf', 'ext' => 'pdf'];
         } catch (\Throwable $e) {

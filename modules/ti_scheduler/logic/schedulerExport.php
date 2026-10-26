@@ -58,7 +58,10 @@ function sc_export_pdf(array $ds, string $by): string {
     require_once dirname(__DIR__, 3) . '/includes/fpdf/fpdf.php';
     require_once dirname(__DIR__, 3) . '/modules/ti_pdf/logic/TiPdf.php';
     $pl = fn(string $s): string => TiPdf::pl($s);
-    $pdf = new TiPdf('L', 'mm', 'A4'); $pdf->SetAutoPageBreak(true, 15); $pdf->SetMargins(12, 12, 12); $pdf->AddPage();
+    // Kody w stopce (rejestr dokumentów: QR + Code128 + kod) — jeden stały kod na raport i okres; błąd kodów nie blokuje PDF
+    require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';
+    $codes = ti_pdf_print_codes('ti_planista_raport', md5($ds['title'] . '|' . $ds['subtitle']), 'Raport planisty — ' . $ds['title'] . ' (' . $ds['subtitle'] . ')');
+    $pdf = ti_pdf_tipdf_new($codes, 'L', 'A4'); $pdf->SetAutoPageBreak(true, $codes ? 30 : 15); $pdf->SetMargins(12, 12, 12); $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 24; $sumw = array_sum($ds['w']) ?: 1; $cw = array_map(fn($x) => $x / $sumw * $W, $ds['w']);
     $pdf->SetFillColor(15, 80, 150); $pdf->SetTextColor(255, 255, 255); $pdf->SetFont('Helvetica', 'B', 13);
     $pdf->Cell($W, 9, $pl(mb_strimwidth($ds['title'], 0, 140, '…')), 0, 1, 'L', true);
@@ -97,7 +100,23 @@ function sc_export_docx(array $ds, string $by, string $filename = 'raport_planis
     $w = new \PhpOffice\PhpWord\PhpWord();
     $w->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-PL'));
     $sec = $w->addSection(['orientation' => 'landscape']);
-    $sec->addFooter()->addText('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . $by, ['size' => 7, 'color' => '828282']);
+    $footer = $sec->addFooter();
+    $footer->addText('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . $by, ['size' => 7, 'color' => '828282']);
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) — pliki tymczasowe z PNG usuwane po zapisie; błąd kodów nie blokuje DOCX
+    $tmp_imgs = [];
+    try {
+        require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php';
+        if ($fc = DocRegistry::printCodes('ti_planista_raport', md5($ds['title'] . '|' . $ds['subtitle']), 'Raport planisty — ' . $ds['title'] . ' (' . $ds['subtitle'] . ')')) {
+            $tmp_png = function (?string $png) use (&$tmp_imgs) {
+                if (!$png || !($p = tempnam(sys_get_temp_dir(), 'dcimg')) || file_put_contents($p, $png) === false) return null;
+                return $tmp_imgs[] = $p;
+            };
+            $run = $footer->addTextRun(['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER]);
+            if ($p = $tmp_png($fc['bar'])) $run->addImage($p, ['width' => 130, 'height' => 17, 'wrappingStyle' => 'inline']);
+            if ($p = $tmp_png($fc['qr'])) $run->addImage($p, ['width' => 26, 'height' => 26, 'wrappingStyle' => 'inline']);
+            $footer->addText($fc['code'] . ' · ' . $fc['doc_number'] . ' · weryfikacja: ' . $fc['url'], ['size' => 6.5, 'name' => 'Consolas'], ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER]);
+        }
+    } catch (\Throwable $e) { error_log('[docx kody w stopce] ' . $e->getMessage()); }
     $sec->addText($ds['title'], ['bold' => true, 'size' => 15, 'color' => '0F5096']);
     $sec->addText($ds['subtitle'], ['size' => 9, 'color' => '555555']);
     $sumw = array_sum($ds['w']) ?: 1; $tw = 14000; $any = false;
@@ -118,6 +137,7 @@ function sc_export_docx(array $ds, string $by, string $filename = 'raport_planis
     header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     \PhpOffice\PhpWord\IOFactory::createWriter($w, 'Word2007')->save('php://output');
+    foreach ($tmp_imgs as $p) @unlink($p);
 }
 
 function sc_export_csv(array $ds, string $name): void {

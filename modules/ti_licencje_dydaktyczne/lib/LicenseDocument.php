@@ -1009,9 +1009,9 @@ final class LicenseDocument
             $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
             if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
             $code = LicenseCodes::forNumber($number, $symbol);   // Code128 łączący formularze jednej sprawy (skan → sprawa)
-            $qr = '';   // QR do publicznego eSpisu koszulki EZD sprawy (gdy koszulka już istnieje)
-            if ($code !== '' && is_file(dirname(__DIR__, 2) . '/espis/lib/Espis.php')) { require_once dirname(__DIR__, 2) . '/espis/lib/Espis.php'; $qr = Espis::qrForAmCode($code); }
-            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => $code !== '' ? ($qr !== '' ? 25 : 21) : 13,
+            // Publiczna weryfikacja kodu: QR i widoczny adres (do przepisania) → /espis/?c=KOD (nie rejestrujemy druków AM w rejestrze dokumentów — mają własną numerację)
+            $verify = $code !== '' ? rtrim(APP_URL, '/') . '/espis/?c=' . rawurlencode($code) : '';
+            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => $code !== '' ? 25 : 13,
                                     'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp, 'shrink_tables_to_fit' => 1]);
             $mpdf->SetTitle($title);
             $mpdf->SetAuthor(ldOrgName());
@@ -1019,8 +1019,8 @@ final class LicenseDocument
                 . '<td width="33%"><b>' . htmlspecialchars($symbol) . '</b> (' . self::VERSION . ')</td>'
                 . '<td width="34%" style="text-align:center">' . htmlspecialchars($number) . '</td>'
                 . '<td width="33%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr>'
-                . ($code !== '' ? '<tr><td colspan="3" style="text-align:right;font-size:6pt"><table align="right" style="border:0"><tr><td style="text-align:right;vertical-align:bottom;font-size:6pt"><barcode code="' . htmlspecialchars($code) . '" type="C128B" size="0.75" height="0.55" /><br>' . htmlspecialchars($code) . '<br><span style="font-size:5pt">Sprawdź dokument: ' . htmlspecialchars(preg_replace('#^https?://#', '', rtrim(APP_URL, '/'))) . '/espis/</span></td>'
-                    . ($qr !== '' ? '<td style="vertical-align:bottom;padding-left:2mm">' . $qr . '</td>' : '') . '</tr></table></td></tr>' : '')
+                . ($code !== '' ? '<tr><td colspan="3" style="text-align:right;font-size:6pt"><table align="right" style="border:0"><tr><td style="text-align:right;vertical-align:bottom;font-size:6pt"><barcode code="' . htmlspecialchars($code) . '" type="C128B" size="0.75" height="0.55" /><br>' . htmlspecialchars($code) . '<br><span style="font-size:5pt">Sprawdź dokument: ' . htmlspecialchars((string)preg_replace('#^https?://#', '', str_replace('%2F', '/', $verify))) . '</span></td>'   // tekst do przepisania — „/” bez kodowania
+                    . '<td style="vertical-align:bottom;padding-left:2mm"><barcode code="' . htmlspecialchars($verify) . '" type="QR" class="barcode" size="0.42" error="L" disableborder="1" /><div style="font-size:5pt;text-align:center">sprawdź</div></td></tr></table></td></tr>' : '')
                 . '</table>');
             $mpdf->WriteHTML($html);
             return ['bytes' => $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN), 'mime' => 'application/pdf', 'ext' => 'pdf'];

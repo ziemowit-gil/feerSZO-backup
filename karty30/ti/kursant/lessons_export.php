@@ -64,7 +64,23 @@ $pw->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-P
 $pw->getDocInfo()->setTitle('Harmonogram zajęć — ' . $name);
 $pw->addTitleStyle(1, ['bold' => true, 'size' => 16]);
 $sec = $pw->addSection(['orientation' => 'landscape']);
-$sec->addFooter()->addText('Wygenerowano: ' . date('d.m.Y H:i'), ['size' => 8]);
+$footer = $sec->addFooter();
+$footer->addText('Wygenerowano: ' . date('d.m.Y H:i'), ['size' => 8]);
+// Stopka z kodami Code128 + QR (rejestr dokumentów) — pliki tymczasowe z PNG usuwane po zapisie; błąd kodów nie blokuje DOCX
+$tmp_imgs = [];
+try {
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/doc_registry/lib/DocRegistry.php';
+    if ($fc = DocRegistry::printCodes('ti_harmonogram_kursanta', (int)$student['client_id'] . '|' . (int)$all, 'Harmonogram zajęć uczestnika #' . (int)$student['client_id'] . ' (' . $scope . ')')) {
+        $tmp_png = function (?string $png) use (&$tmp_imgs) {
+            if (!$png || !($p = tempnam(sys_get_temp_dir(), 'dcimg')) || file_put_contents($p, $png) === false) return null;
+            return $tmp_imgs[] = $p;
+        };
+        $run = $footer->addTextRun(['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER]);
+        if ($p = $tmp_png($fc['bar'])) $run->addImage($p, ['width' => 130, 'height' => 17, 'wrappingStyle' => 'inline']);
+        if ($p = $tmp_png($fc['qr'])) $run->addImage($p, ['width' => 26, 'height' => 26, 'wrappingStyle' => 'inline']);
+        $footer->addText($fc['code'] . ' · ' . $fc['doc_number'] . ' · weryfikacja: ' . $fc['url'], ['size' => 6.5, 'name' => 'Consolas'], ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER]);
+    }
+} catch (\Throwable $e) { error_log('[docx kody w stopce] ' . $e->getMessage()); }
 $sec->addTitle('Harmonogram zajęć — ' . htmlspecialchars($name, ENT_XML1), 1);
 $sec->addText('Zakres: ' . $scope . '. Liczba zajęć: ' . count($rows) . '.', ['size' => 10]);
 if (!$rows) {
@@ -83,4 +99,5 @@ header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessi
 header('Content-Disposition: attachment; filename="' . $fname . '.docx"');
 header('Cache-Control: no-cache');
 $pw->save('php://output', 'Word2007');
+foreach ($tmp_imgs as $p) @unlink($p);
 exit;

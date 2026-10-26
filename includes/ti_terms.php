@@ -358,12 +358,109 @@ function ti_term_save(string $type, string $title, string $body_html, int $is_ac
     )->execute([$title, $body_html, $is_active ? 1 : 0, $new_version, $user_id, $type]);
 }
 
+/**
+ * Kody wydruku (rejestr dokumentów: QR + Code128 + kod i numer) dla dokumentu FPDF (wspólne dla PDF-ów TI: regulaminy, oceny, karty konsultacji, plany) — jeden stały kod na parę ($kind, $ref).
+ * null, gdy kodów nie da się zbudować (błąd nigdy nie blokuje generowania dokumentu).
+ */
+function ti_pdf_print_codes(string $kind, string $ref, string $title, string $open_path = ''): ?array {
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        return DocRegistry::printCodes($kind, $ref, $title, $open_path);
+    } catch (\Throwable $e) { error_log('[ti_pdf_print_codes] ' . $e->getMessage()); return null; }
+}
+
+/**
+ * Rysuje w dokumencie FPDF kody z rejestru dokumentów (QR 10 mm + Code128 38×5 mm + kod i numer drukiem; razem ok. 50×10 mm)
+ * w lewym górnym rogu bloku $x,$y. Pliki tymczasowe z PNG (FPDF czyta obrazy z plików) są wspólne dla całego żądania
+ * i usuwane przy jego końcu, więc ten sam kod na kolejnych stronach nie jest osadzany drugi raz. Błąd nie przerywa dokumentu.
+ */
+function ti_pdf_draw_codes(\FPDF $pdf, ?array $f, float $x, float $y): void {
+    static $tmp = [];
+    if (!$f) return;
+    try {
+        $png = function (?string $bytes) use (&$tmp): ?string {
+            if (!$bytes) return null;
+            $k = md5($bytes);
+            if (!isset($tmp[$k])) {
+                $p = tempnam(sys_get_temp_dir(), 'dcpdf');
+                if (!$p || file_put_contents($p, $bytes) === false) return null;
+                $tmp[$k] = $p;
+                register_shutdown_function(static function () use ($p) { @unlink($p); });
+            }
+            return $tmp[$k];
+        };
+        if (($p = $png($f['qr'] ?? null))) $pdf->Image($p, $x, $y, 10, 10, 'PNG');
+        if (($p = $png($f['bar'] ?? null))) $pdf->Image($p, $x + 12, $y, 38, 5, 'PNG');
+        $pdf->SetFont('Courier', '', 6);
+        $pdf->SetTextColor(85, 85, 85);
+        $pdf->SetXY($x + 12, $y + 5.5);
+        $pdf->Cell(60, 3.5, (string)$f['code'] . '  ' . (string)$f['doc_number'], 0, 0, 'L');
+        $pdf->SetTextColor(0, 0, 0);
+    } catch (\Throwable $e) { error_log('[ti_pdf_draw_codes] ' . $e->getMessage()); }
+}
+
+/**
+ * Fpdi ze stopką z kodami (patrz ti_pdf_draw_codes) na KAŻDEJ stronie — w dolnym marginesie (od 13 mm nad krawędzią),
+ * więc margines automatycznego łamania stron musi mieć co najmniej 15 mm. Bez $codes — zwykły Fpdi.
+ */
+function ti_pdf_codes_new(?array $codes, string $orient = 'P', string $size = 'A4'): \setasign\Fpdi\Fpdi {
+    require_once __DIR__ . '/fpdf/fpdf.php';
+    require_once __DIR__ . '/fpdi/autoload_fpdi.php';
+    if (!class_exists('TiCodesFpdi', false)) {
+        class TiCodesFpdi extends \setasign\Fpdi\Fpdi {
+            public ?array $docCodes = null;
+            public function Footer() { ti_pdf_draw_codes($this, $this->docCodes, $this->lMargin, $this->h - 13); }
+        }
+    }
+    $pdf = new TiCodesFpdi($orient, 'mm', $size);
+    $pdf->docCodes = $codes;
+    return $pdf;
+}
+
+/**
+ * TiPdf (wydruki TI: DejaVu + stopka „organizacja · Strona X z Y”) z kodami z rejestru dokumentów na każdej stronie — nad tą stopką
+ * (od 27 mm nad dolną krawędzią do 17 mm), więc margines łamania stron musi mieć co najmniej 30 mm: $pdf->SetAutoPageBreak(true, 30).
+ * Bez $codes — zwykły TiPdf. Wiersz „Wygenerowano…” na −15 mm, dostawiany przez wydruki, zostaje pod kodami.
+ */
+function ti_pdf_tipdf_new(?array $codes, string $orient = 'P', string $size = 'A4'): \TiPdf {
+    require_once dirname(__DIR__) . '/modules/ti_pdf/logic/TiPdf.php';
+    if (!class_exists('TiPdfCodes', false)) {
+        class TiPdfCodes extends \TiPdf {
+            public ?array $docCodes = null;
+            public function Footer() {
+                parent::Footer();
+                ti_pdf_draw_codes($this, $this->docCodes, $this->lMargin, $this->h - 27);
+            }
+        }
+    }
+    $pdf = new TiPdfCodes($orient, 'mm', $size);
+    $pdf->docCodes = $codes;
+    return $pdf;
+}
+
+/**
+ * Stopka mPDF z kodami z rejestru dokumentów (patrz ti_pdf_print_codes): QR 9 mm + Code128 + kod i numer drukiem (tabela z obrazami
+ * data: — display:flex nie działa w mPDF). Do SetHTMLFooter(); potrzebuje ok. 16 mm dolnego marginesu (margin_bottom ≥ 18, margin_footer 4).
+ * $pages — dodaje „Strona X z Y” po prawej. $extra — HTML wstawiany nad kodami (np. dotychczasowa stopka). '' gdy brak kodów i $extra.
+ */
+function ti_mpdf_codes_html(?array $f, bool $pages = false, string $extra = ''): string {
+    if (!$f) return $extra;
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+    return $extra . '<table style="width:100%;border-collapse:collapse;font-family:dejavusans;font-size:6.5pt;color:#555"><tr>'
+        . '<td style="width:11mm;border:none;padding:0 2mm 0 0">' . $img($f['qr'] ?? null, 'height:9mm;width:9mm') . '</td>'
+        . '<td style="border:none;padding:0">' . $img($f['bar'] ?? null, 'height:5mm;width:40mm') . '<br><span style="font-family:dejavusansmono">' . $e($f['code']) . '</span> · ' . $e($f['doc_number']) . '</td>'
+        . ($pages ? '<td style="border:none;padding:0;text-align:right;vertical-align:bottom">Strona {PAGENO} z {nbpg}</td>' : '')
+        . '</tr></table>';
+}
+
 /** Generuj i wyślij PDF potwierdzenia akceptacji. Kończy skrypt. */
 function ti_term_pdf(array $accept, array $client): void {
     require_once __DIR__ . '/fpdf/fpdf.php';
     require_once __DIR__ . '/fpdi/autoload_fpdi.php';
 
-    $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
+    // Stopka z kodami (rejestr dokumentów) — jeden stały kod na akceptację; błąd kodów nie blokuje PDF
+    $pdf = ti_pdf_codes_new(ti_pdf_print_codes('ti_regulamin_akceptacja', (string)($accept['id'] ?? ''), 'Potwierdzenie akceptacji regulaminu: ' . (string)($accept['title'] ?? '')), 'P', 'A4');
     _ti_pdf_fonts($pdf);   // DejaVu — pełne polskie znaki (ISO-8859-2); Helvetica gubiła ogonki
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);
@@ -451,7 +548,8 @@ function ti_term_admin_pdf(array $accept, array $client, ?array $admin): void {
         ? (trim(($admin['first_name'] ?? '') . ' ' . ($admin['last_name'] ?? '')) ?: ($admin['name'] ?? ''))
         : '—';
 
-    $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
+    // Stopka z kodami (rejestr dokumentów) — jeden stały kod na czynność; błąd kodów nie blokuje PDF
+    $pdf = ti_pdf_codes_new(ti_pdf_print_codes('ti_regulamin_oswiadczenie_adm', (string)($accept['id'] ?? ''), 'Oświadczenie administratora — regulamin: ' . (string)($accept['title'] ?? '')), 'P', 'A4');
     _ti_pdf_fonts($pdf);   // DejaVu — pełne polskie znaki (ISO-8859-2); Helvetica gubiła ogonki
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);

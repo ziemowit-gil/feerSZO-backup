@@ -325,9 +325,13 @@ final class TiSimpleGroups
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
         $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 15, 'margin_right' => 15, 'margin_top' => 15, 'margin_bottom' => 15,
+        // Stopka z kodami (rejestr dokumentów: QR + Code128 + kod) — kod na grupę, zestaw loginów i dzień wydruku (bez haseł); błąd kodów nie blokuje PDF
+        require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';
+        $codes = ti_pdf_print_codes('ti_szk_dane_logowania', $courseId . '|' . substr(md5(json_encode(array_column($rows, 'login'))), 0, 10) . '|' . date('Ymd'), 'Dane logowania — grupa ' . (string)$c['name']);
+        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 15, 'margin_right' => 15, 'margin_top' => 15, 'margin_bottom' => $codes ? 26 : 15, 'margin_footer' => 5,
                                 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $pdf->SetTitle('Dane logowania — ' . $c['name']);
+        $pdf->SetHTMLFooter(ti_mpdf_codes_html($codes));
         $pdf->WriteHTML($html);
         return $pdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     }

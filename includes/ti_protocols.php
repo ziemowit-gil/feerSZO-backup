@@ -1775,7 +1775,7 @@ function ti_protocol_obecnosc_html(array $prot, ?array $umowa): string {
 function ti_protocol_obecnosc_pdf(array $prot, ?array $umowa, bool $podglad = false): ?string {
     try {
         $mpdf = ti_pdf_new('Lista obecności — ' . (string)($prot['course_name'] ?? '') . ', ' . (string)($prot['year_month'] ?? ''),
-                           'E-lista obecności do umowy zlecenie');
+                           'E-lista obecności do umowy zlecenie', ti_pdf_prot_codes('ti_protokol_obecnosc', $prot, 'E-lista obecności', $podglad));
         if ($podglad) {
             $mpdf->SetWatermarkText('PODGLĄD', 0.12);
             $mpdf->showWatermarkText = true;
@@ -1793,24 +1793,38 @@ function ti_protocol_obecnosc_pdf(array $prot, ?array $umowa, bool $podglad = fa
  * e-ewidencja): czcionka bezszeryfowa, pasek nagłówka z organizacją i rodzajem dokumentu,
  * stopka z datą wydruku i „Strona X z Y”, granatowe nagłówki tabel z paskami, ramki podpisów.
  */
-function ti_pdf_new(string $title, string $doc_label): \Mpdf\Mpdf {
+function ti_pdf_new(string $title, string $doc_label, ?array $codes = null): \Mpdf\Mpdf {
     require_once dirname(__DIR__) . '/vendor/autoload.php';
     require_once dirname(__DIR__) . '/modules/ti_pdf/logic/tiMetroCss.php';
+    require_once __DIR__ . '/ti_terms.php';   // ti_mpdf_codes_html()
     $tmp = UPLOAD_DIR . 'mpdf_tmp';
     if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
     $mpdf = new \Mpdf\Mpdf([
         'mode' => 'utf-8', 'format' => 'A4', 'default_font' => 'dejavusans', 'tempDir' => $tmp,
-        'margin_left' => 16, 'margin_right' => 16, 'margin_top' => 26, 'margin_bottom' => 20,
-        'margin_header' => 9, 'margin_footer' => 8,
+        'margin_left' => 16, 'margin_right' => 16, 'margin_top' => 26, 'margin_bottom' => $codes ? 27 : 20,
+        'margin_header' => 9, 'margin_footer' => $codes ? 6 : 8,   // z kodami stopka jest wyższa (QR + Code128)
     ]);
     $org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'));
     $e   = fn($x) => htmlspecialchars((string)$x, ENT_QUOTES, 'UTF-8');
     $mpdf->SetTitle($title);
     $mpdf->SetAuthor($org);
     $mpdf->SetHTMLHeader(ti_metro_pdf_header($org, $doc_label));
-    $mpdf->SetHTMLFooter(ti_metro_pdf_footer('Dokument wygenerowany w systemie SZO · ' . date('d.m.Y H:i')));
+    $mpdf->SetHTMLFooter(ti_mpdf_codes_html($codes, false, ti_metro_pdf_footer('Dokument wygenerowany w systemie SZO · ' . date('d.m.Y H:i'))));
     $mpdf->WriteHTML(ti_pdf_css(), \Mpdf\HTMLParserMode::HEADER_CSS);
     return $mpdf;
+}
+
+/**
+ * Kody wydruku dokumentu protokołowego (rejestr dokumentów: QR + Code128 + kod) — jeden stały kod na protokół i rodzaj dokumentu.
+ * Bez kodów (null) przy podglądzie przed zatwierdzeniem (znak wodny) oraz przy błędzie — generowanie PDF nigdy się przez to nie psuje.
+ */
+function ti_pdf_prot_codes(string $kind, array $prot, string $label, bool $podglad = false): ?array {
+    if ($podglad) return null;
+    require_once __DIR__ . '/ti_terms.php';
+    $id = (int)($prot['id'] ?? 0);
+    $ref = $id > 0 ? (string)$id : 'k' . (int)($prot['course_id'] ?? 0) . '|' . (string)($prot['year_month'] ?? '');   // miesiąc bez założonego protokołu
+    $open = $id > 0 ? 'karty30/ti/dydaktyk/protokol_pdf.php?id=' . $id : '';
+    return ti_pdf_print_codes($kind, $ref, $label . ' — ' . (string)($prot['course_name'] ?? '') . ((string)($prot['period_name'] ?? '') !== '' ? ', ' . (string)$prot['period_name'] : ''), $open);
 }
 
 /** „2026-07” → „lipiec 2026”. */
@@ -1881,7 +1895,7 @@ function ti_pdf_css(): string {
 function ti_protocol_ewidencja_pdf(array $prot, ?array $umowa, bool $podglad = false): ?string {
     try {
         $mpdf = ti_pdf_new('E-ewidencja godzin — ' . (string)($umowa['imie_nazwisko'] ?? '') . ', ' . (string)($prot['year_month'] ?? ''),
-                           'E-ewidencja godzin wykonania zlecenia');
+                           'E-ewidencja godzin wykonania zlecenia', ti_pdf_prot_codes('ti_protokol_ewidencja', $prot, 'E-ewidencja godzin', $podglad));
         // Przed zgodą na przepisanie godzin — znak wodny „PODGLĄD” (jak podgląd protokołu).
         if ($podglad) {
             $mpdf->SetWatermarkText('PODGLĄD', 0.12);
@@ -1904,7 +1918,8 @@ function ti_protocol_pdf(array $prot, bool $podglad = false): ?string {
         $zero = ti_protocol_is_zero($prot);
         $mpdf = ti_pdf_new(($zero ? 'Informacja o braku zajęć (0 godzin) — ' : 'Protokół zajęć kursu — ') . (string)($prot['course_name'] ?? '')
                 . ((string)($prot['period_name'] ?? '') !== '' ? ', ' . (string)$prot['period_name'] : ''),
-            $zero ? 'Informacja o braku zajęć' : 'Protokół zajęć');
+            $zero ? 'Informacja o braku zajęć' : 'Protokół zajęć',
+            ti_pdf_prot_codes($zero ? 'ti_protokol_zero' : 'ti_protokol', $prot, $zero ? 'Informacja o braku zajęć' : 'Protokół zajęć', $podglad));
         if ($podglad) {
             $mpdf->SetWatermarkText('PODGLĄD', 0.12);
             $mpdf->showWatermarkText = true;
@@ -2074,7 +2089,8 @@ function ti_protocol_hours_check_modal(string $modal_id, array $prot, string $pd
 /** Lista godzin jako PDF (mPDF) albo null przy błędzie. */
 function ti_protocol_hours_list_pdf(array $prot): ?string {
     try {
-        $mpdf = ti_pdf_new('Lista godzin — ' . (string)($prot['course_name'] ?? '') . ', ' . (string)($prot['period_name'] ?? ''), 'Lista godzin zajęć');
+        $mpdf = ti_pdf_new('Lista godzin — ' . (string)($prot['course_name'] ?? '') . ', ' . (string)($prot['period_name'] ?? ''), 'Lista godzin zajęć',
+                           ti_pdf_prot_codes('ti_protokol_godziny', $prot, 'Lista godzin zajęć'));
         $mpdf->WriteHTML(ti_protocol_hours_list_html($prot), \Mpdf\HTMLParserMode::HTML_BODY);
         ti_pdf_write_sign_note($mpdf, $prot);   // tylko podpisany protokół (funkcja sama sprawdza status)
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);

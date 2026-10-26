@@ -236,8 +236,12 @@ final class TiConsultReports
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
         $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => count($sess) > 3 ? 'A4-L' : 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 12, 'margin_bottom' => 12, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+        // Stopka z kodami (rejestr dokumentów: QR + Code128 + kod) — jeden stały kod na grupę i układ terminów; błąd kodów nie blokuje PDF
+        require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';
+        $codes = ti_pdf_print_codes('ti_szk_lista_obecnosci', $courseId . '|' . substr(md5(json_encode($sess)), 0, 10), 'Lista obecności — szkolenie krótkie ' . (string)$c['name']);
+        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => count($sess) > 3 ? 'A4-L' : 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 12, 'margin_bottom' => $codes ? 26 : 12, 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $pdf->SetTitle('Lista obecności — ' . $c['name']);
+        $pdf->SetHTMLFooter(ti_mpdf_codes_html($codes));
         $pdf->WriteHTML($h);
         return $pdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     }

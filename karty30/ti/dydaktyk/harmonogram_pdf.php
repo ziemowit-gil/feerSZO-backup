@@ -39,8 +39,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/lessonL
 $LL = ti_course_lesson_list($course_id);
 
 try {
-    $pdf = new TiPdf('L', 'mm', 'A4');
-    $pdf->SetAutoPageBreak(true, 15);
+    // Kody w stopce (rejestr dokumentów: QR + Code128 + kod) — ten sam ref co harmonogram_docx.php; błąd kodów nie blokuje PDF
+    require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
+    $_codes = ti_pdf_print_codes('ti_harmonogram_grupy', (string)$course_id, 'Plan zajęć grupy #' . $course_id, 'karty30/ti/dydaktyk/kurs.php?id=' . $course_id);
+    $pdf = ti_pdf_tipdf_new($_codes, 'L', 'A4');
+    $pdf->SetAutoPageBreak(true, $_codes ? 30 : 15);   // z kodami margines dolny mieści je nad stopką
     $pdf->SetMargins(12, 12, 12);
     $pdf->AddPage();
     $W = $pdf->GetPageWidth() - 24;

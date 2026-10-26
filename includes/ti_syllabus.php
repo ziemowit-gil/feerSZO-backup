@@ -467,7 +467,8 @@ function ti_syllabus_pdf(array $syl): ?string {
             'margin_left'   => 20,
             'margin_right'  => 18,
             'margin_top'    => 18,
-            'margin_bottom' => 18,
+            'margin_bottom' => 22,
+            'margin_footer' => 4,
             'default_font'  => 'dejavusans',
             'tempDir'       => $mpdf_tmp,
         ]);
@@ -475,6 +476,9 @@ function ti_syllabus_pdf(array $syl): ?string {
         $mpdf->SetTitle('Sylabus — ' . ($name !== '' ? $name : 'przedmiot'));
         $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
         require_once __DIR__ . '/../modules/ti_pdf/logic/tiMetroCss.php';
+        // Stopka z kodami (rejestr dokumentów: QR + Code128 + kod) i numerem strony — jeden stały kod na sylabus; błąd kodów nie blokuje PDF
+        require_once __DIR__ . '/ti_terms.php';
+        $mpdf->SetHTMLFooter(ti_mpdf_codes_html(ti_pdf_print_codes('ti_sylabus', (string)$syl['id'], 'Sylabus przedmiotu' . ($name !== '' ? ' — ' . $name : ''), 'karty30/ti/syllabi.php?id=' . (int)$syl['id']), true));
         $mpdf->WriteHTML(
             ti_metro_pdf_css() . '
              body { font-size: 10pt; line-height: 1.45; }

@@ -193,12 +193,15 @@ function ti_appr_files_from_rows(array $course, array $head, array $rows, string
     try {
         require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
         $tmpd = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp'; if (!is_dir($tmpd)) @mkdir($tmpd, 0755, true);
+        // Kody w stopce (rejestr dokumentów: QR + Code128 + kod) — ten sam harmonogram (kurs + treść wierszy) ma ten sam kod; błąd kodów nie blokuje PDF
+        require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';
+        $codes = ti_pdf_print_codes('ti_harmonogram_mail', (int)($course['id'] ?? 0) . '|' . substr(md5($title_prefix . json_encode($rows)), 0, 12), $title);
         $m = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4-L', 'default_font' => 'dejavusans', 'tempDir' => $tmpd,
-                             'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 12, 'margin_bottom' => 12]);
+                             'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 12, 'margin_bottom' => $codes ? 26 : 12, 'margin_footer' => 5]);
         $m->SetTitle($title);
         $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         require_once dirname(__DIR__, 3) . '/modules/ti_pdf/logic/tiMetroCss.php';
-        $m->SetHTMLFooter(ti_metro_pdf_footer('Harmonogram · ' . date('d.m.Y H:i')));
+        $m->SetHTMLFooter(ti_mpdf_codes_html($codes, false, ti_metro_pdf_footer('Harmonogram · ' . date('d.m.Y H:i'))));
         $m->WriteHTML(ti_metro_pdf_css(), \Mpdf\HTMLParserMode::HEADER_CSS);
         $html = '<h2>' . $h($title) . '</h2><table class="zebra"><thead><tr>';
         foreach ($head as $c) $html .= '<th>' . $h($c) . '</th>';

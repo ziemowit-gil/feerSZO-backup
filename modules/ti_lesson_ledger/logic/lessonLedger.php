@@ -149,10 +149,13 @@ function ti_lesson_ledger_pdf(int $client_id, string $from = '', string $to = ''
     $pl  = [TiPdf::class, 'pl'];
     $zl  = fn(float $v) => number_format($v, 2, ',', ' ') . ' zł';
     $org = (string)org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
-    $pdf = new TiPdf('P', 'mm', 'A4');
+    // Kody w stopce (rejestr dokumentów: QR + Code128 + kod) — jeden stały kod na uczestnika i zakres dat; błąd kodów nie blokuje PDF
+    require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';
+    $codes = ti_pdf_print_codes('ti_historia_pobran', $client_id . '|' . $from . '|' . $to, 'Historia pobrań za lekcje — uczestnik #' . $client_id);
+    $pdf = ti_pdf_tipdf_new($codes, 'P', 'A4');
     $pdf->tiOrg = $org;
     $pdf->SetMargins(12, 12, 12);
-    $pdf->SetAutoPageBreak(true, 20);
+    $pdf->SetAutoPageBreak(true, $codes ? 30 : 20);
     $pdf->AliasNbPages();
     $pdf->AddPage();
     $pdf->SetFillColor(15, 80, 150); $pdf->SetTextColor(255, 255, 255); $pdf->SetFont('Helvetica', 'B', 13);

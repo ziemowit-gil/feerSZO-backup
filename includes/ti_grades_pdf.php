@@ -4,6 +4,7 @@
  * Wykorzystuje FPDF/FPDI + fonty DejaVu (jak includes/ksiegowosc.php).
  */
 require_once __DIR__ . '/karty30.php';
+require_once __DIR__ . '/ti_terms.php';   // ti_pdf_codes_new() / ti_pdf_print_codes() — stopka z kodami rejestru dokumentów
 
 /** Konwersja UTF-8 → ISO-8859-2 (fonty FPDF). */
 function ti_pdf_txt(string $s): string {
@@ -11,10 +12,10 @@ function ti_pdf_txt(string $s): string {
 }
 
 /** Tworzy obiekt PDF z fontem DejaVu. */
-function ti_pdf_new(string $orient = 'P'): \setasign\Fpdi\Fpdi {
+function ti_pdf_new(string $orient = 'P', ?array $codes = null): \setasign\Fpdi\Fpdi {
     require_once __DIR__ . '/fpdf/fpdf.php';
     require_once __DIR__ . '/fpdi/autoload_fpdi.php';
-    $pdf = new \setasign\Fpdi\Fpdi($orient, 'mm', 'A4');
+    $pdf = ti_pdf_codes_new($codes, $orient, 'A4');   // $codes — kody w stopce każdej strony (margines dolny 15 mm je mieści)
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(15, 15, 15);
     return $pdf;
@@ -74,7 +75,7 @@ function ti_grades_pdf_course(int $course_id): void {
     $by = [];
     foreach ($grades as $g) { $by[(int)$g['client_id']][] = $g; }
 
-    $pdf = ti_pdf_new('L');
+    $pdf = ti_pdf_new('L', ti_pdf_print_codes('ti_dziennik_ocen', (string)$course_id, 'Dziennik ocen — kurs #' . $course_id, 'karty30/ti/grades.php?course=' . $course_id));
     $W   = 267;
     $pdf->AddPage();
     ti_pdf_header($pdf, 'Dziennik ocen', $course['name'], $W);
@@ -115,7 +116,7 @@ function ti_grades_pdf_student(int $client_id, string $student_name = ''): void 
         $student_name = $cl['name'] ?? ('Kursant #' . $client_id);
     }
 
-    $pdf = ti_pdf_new('P');
+    $pdf = ti_pdf_new('P', ti_pdf_print_codes('ti_wykaz_ocen', (string)$client_id, 'Wykaz ocen — uczestnik #' . $client_id));
     $W   = 180;
     $pdf->AddPage();
     ti_pdf_header($pdf, 'Wykaz ocen', $student_name, $W);

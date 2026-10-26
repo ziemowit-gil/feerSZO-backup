@@ -230,8 +230,12 @@ final class TiTestAccounts
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
         $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4-L', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 12, 'margin_bottom' => 12, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+        // Stopka z kodami (rejestr dokumentów: QR + Code128 + kod) — kod na zestaw loginów i dzień wydruku (bez haseł); błąd kodów nie blokuje PDF
+        require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';
+        $codes = ti_pdf_print_codes('ti_konta_testowe', substr(md5(json_encode(array_column($rows, 'login'))), 0, 10) . '|' . date('Ymd'), 'Konta testowe — konsultacje i szkolenia krótkie');
+        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4-L', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 12, 'margin_bottom' => $codes ? 26 : 12, 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $pdf->SetTitle('Konta testowe');
+        $pdf->SetHTMLFooter(ti_mpdf_codes_html($codes));
         $pdf->WriteHTML($h);
         return $pdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     }
