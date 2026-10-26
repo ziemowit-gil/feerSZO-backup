@@ -199,6 +199,10 @@ function decide_termination(int $req_id, int $admin_id, string $decision, string
                 ->execute([$req['contract_id']]);
         } catch (\Throwable $e) {}
 
+        if ($req['contract_type'] === 'szk') {   // umowa szkoleniowa: raty po dacie skutku znikają z rozliczeń
+            try { require_once dirname(__DIR__) . '/modules/ti_training_contract/logic/trainingContractBilling.php'; TiSzkBilling::onStatusChange((int)$req['contract_id'], 'rozwiązana'); }
+            catch (\Throwable $e) { error_log('[SZK termination] ' . $e->getMessage()); }
+        }
         log_contract_action($req['contract_type'], $req['contract_id'], $admin_id,
             'termination_approved',
             'Zaakceptowano wniosek o rozwiązanie. Umowa rozwiązana. Konto M365/SZO zostanie wyłączone za 4h.' . ($note ? ' ' . $note : '')

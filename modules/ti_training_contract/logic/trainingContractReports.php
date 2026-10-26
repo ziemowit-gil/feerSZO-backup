@@ -107,7 +107,11 @@ final class TiSzkReports
         $rows = [];
         foreach ($cs as $c) {
             $cl = (int)$c['client_id'];
+            $gid = (int)($c['grupa_id'] ?? 0);
             $en = $cl > 0 ? db_all("SELECT e.*, COALESCE(NULLIF(k.display_name,''), k.name) AS gname, k.group_code FROM k30_ti_enrollments e LEFT JOIN k30_ti_courses k ON k.id = e.course_id WHERE e.client_id = ? ORDER BY e.id DESC", [$cl]) : [];
+            if ($gid > 0 && $en && !array_filter($en, fn($e) => (int)$e['course_id'] === $gid)) {
+                $rows[] = [self::link($c), self::e($c['imie_nazwisko']), '<span class="text-warning">brak zapisu w grupie z umowy</span>', '', '', ''];
+            }
             if (!$en) { $rows[] = [self::link($c), self::e($c['imie_nazwisko']), '<span class="text-warning">brak zapisu' . ($cl > 0 ? '' : ' (uczestnik niepowiązany z kartą TI)') . '</span>', '', '', '']; continue; }
             foreach ($en as $e) $rows[] = [self::link($c), self::e($c['imie_nazwisko']), self::e((string)$e['gname']) . ($e['group_code'] ? ' <span class="text-muted small">' . self::e($e['group_code']) . '</span>' : ''), self::e((string)$e['status']), self::d($e['start_date']), self::d($e['end_date'])];
         }
@@ -153,15 +157,16 @@ final class TiSzkReports
             $name = trim((string)($c['platnik_nazwa'] ?: ($d['platnik'] ?? '')));
             if ($name === '') continue;
             $k = mb_strtolower($name);
-            $g[$k] ??= ['name' => $name, 'n' => 0, 'active' => 0, 'sum' => 0.0, 'payer' => 0.0];
+            $g[$k] ??= ['name' => $name, 'n' => 0, 'active' => 0, 'sum' => 0.0, 'payer' => 0.0, 'paid' => 0.0];
             $g[$k]['n']++;
             if (in_array((string)$c['status'], ['podpisana', 'w realizacji'], true)) $g[$k]['active']++;
             $g[$k]['sum'] += self::num((string)($c['kwota_umowy'] ?: ($d['wynagrodzenie'] ?? '')));
             $g[$k]['payer'] += self::num((string)($d['kwota_platnik'] ?? ''));
+            try { foreach (db_all("SELECT amount FROM szk_payer_entries WHERE contract_id = ?", [(int)$c['id']]) as $e) $g[$k]['paid'] += (float)$e['amount']; } catch (\Throwable $e) {}
         }
         uasort($g, fn($a, $b) => $b['n'] <=> $a['n']);
-        $rows = array_map(fn($x) => [self::e($x['name']), (string)$x['n'], (string)$x['active'], self::money($x['sum']), self::money($x['payer']), self::money($x['sum'] - $x['payer'])], array_values($g));
-        return ['cols' => ['Płatnik', 'Umowy', 'w realizacji', 'Wartość umów', 'Kwota płatnika', 'Dopłata uczestników'], 'rows' => $rows, 'note' => ''];
+        $rows = array_map(fn($x) => [self::e($x['name']), (string)$x['n'], (string)$x['active'], self::money($x['sum']), self::money($x['payer']), self::money($x['paid']), self::money($x['payer'] - $x['paid']), self::money($x['sum'] - $x['payer'])], array_values($g));
+        return ['cols' => ['Płatnik', 'Umowy', 'w realizacji', 'Wartość umów', 'Kwota płatnika', 'Wpłacił płatnik', 'Płatnik winien', 'Dopłata uczestników'], 'rows' => $rows, 'note' => ''];
     }
 
     public static function addNote(int $contractId, string $body, string $by, bool $pinned = false): string

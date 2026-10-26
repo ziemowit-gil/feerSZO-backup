@@ -136,13 +136,14 @@ $_money = fn($gr) => number_format(((int)$gr) / 100, 2, ',', ' ') . ' zł';
 
 <?php
 $_bp = TiSzkBilling::posted($id);
-$_bplan = TiSzkBilling::plan($d);
+$_bplan = TiSzkBilling::plan($d + ['_row' => $row]);
 $_bbal = TiSzkBilling::balance((int)$row['client_id']);
 $_bm = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
 ?>
 <div class="card shadow-sm mb-3" id="szk-billing"><div class="card-header fw-semibold d-flex justify-content-between align-items-center">
   <span><i class="bi bi-receipt-cutoff"></i> Rozliczenia</span>
-  <?php if ((int)$row['client_id'] > 0): ?><a class="small" href="<?= APP_URL ?>/karty30/ti/dydaktyk/office_enter.php?next=<?= urlencode('kartaKursanta.php?client=' . (int)$row['client_id']) ?>">Karta uczestnika</a><?php endif; ?></div>
+  <span><a class="btn btn-sm btn-primary" href="<?= APP_URL ?>/contracts/szk/rozliczenia.php?id=<?= $id ?>"><i class="bi bi-receipt-cutoff me-1"></i>Otwórz rozliczenia</a>
+  <?php if ((int)$row['client_id'] > 0): ?><a class="small ms-2" href="<?= APP_URL ?>/karty30/ti/dydaktyk/office_enter.php?next=<?= urlencode('kartaKursanta.php?client=' . (int)$row['client_id']) ?>">Karta uczestnika</a><?php endif; ?></span></div>
 <div class="card-body">
 <?php if ((int)$row['client_id'] <= 0): ?><p class="text-muted small mb-0">Umowa nie jest powiązana z uczestnikiem z karty TI — wybierz uczestnika w formularzu umowy, aby księgować należności.</p>
 <?php else: ?>
