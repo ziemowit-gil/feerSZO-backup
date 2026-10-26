@@ -9,6 +9,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/rekrutacja.php';
+require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
 
 rekr_migrate();
 require_module_enabled('rekrutacja_enabled', 'Moduł naboru');
@@ -220,6 +221,7 @@ include dirname(__DIR__) . '/includes/header.php';
               <span class="badge text-bg-light border me-1"><?= h(REKR_FILE_KINDS[$f['kind']] ?? $f['kind']) ?></span>
               <?= h($f['original_name']) ?>
               <span class="text-muted small">(<?= number_format($f['size'] / 1024, 0, ',', ' ') ?> KB)</span>
+              <?= DocRegistry::badge(DocRegistry::get('rekr_file', (int)$f['id']) ?: DocRegistry::assign('rekr_file', (int)$f['id'])) ?>
             </div>
             <div class="btn-group btn-group-sm">
               <?php if ($f['mime'] === 'application/pdf'): ?>
@@ -510,4 +512,5 @@ include dirname(__DIR__) . '/includes/header.php';
 })();
 </script>
 
+<?= DocRegistry::assets() ?>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

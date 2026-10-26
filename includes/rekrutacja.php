@@ -473,6 +473,8 @@ function rekr_store_upload(array $file, int $app_id, string $kind, ?int $uploade
         'extracted_text' => rekr_extract_text(UPLOAD_DIR . $stored_rel, $mime),
         'uploaded_by'    => $uploaded_by,
     ]);
+    // numer REK/NNNN/ROK + QR dokumentu kandydata (błąd rejestru nie blokuje zapisu)
+    try { require_once __DIR__ . '/../modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('rekr_file', (int)$file_id); } catch (\Throwable $e) {}
     return ['ok' => true, 'file_id' => $file_id];
 }
 
