@@ -135,7 +135,16 @@ function asai_widget_enabled(): bool {
  * Podpowiedzi startowe (chipsy) dopasowane do roli rozmówcy — żeby pierwsze
  * pytanie było trafne, a nie „a co ty właściwie umiesz".
  */
-function asai_suggestions(string $role = 'viewer', bool $personal = true): array {
+function asai_suggestions(string $role = 'viewer', bool $personal = true, string $scope = ''): array {
+    if ($scope === 'crm' && in_array($role, ['editor', 'admin'], true)) {
+        return [
+            'Przejrzyj bazę CRM i zaproponuj statusy dla firm',
+            'Zaproponuj listy do kampanii',
+            'Ile firm jest bez NIP?',
+            'Jak oznaczyć adresy techniczne (noreply)?',
+            'Co mam dziś do zrobienia w CRM?',
+        ];
+    }
     $base = [
         'Jak wpisać godziny za ten miesiąc?',
         'Jak złożyć wniosek o zaświadczenie?',

@@ -36,7 +36,7 @@ $_asaiw_bottom = $ASAI_WIDGET_BOTTOM ?? '1.5rem';
 $_asaiw_scope  = (string)($ASAI_WIDGET_SCOPE ?? '');
 $_asaiw_role   = (function_exists('is_admin') && is_admin()) ? 'admin'
                : ((function_exists('can_edit') && can_edit()) ? 'editor' : 'viewer');
-$_asaiw_chips  = asai_suggestions($_asaiw_role, true);
+$_asaiw_chips  = asai_suggestions($_asaiw_role, true, $_asaiw_scope);
 ?>
 <style>
 :root { --asaiw-accent: #6d28d9; }
