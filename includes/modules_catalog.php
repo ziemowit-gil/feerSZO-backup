@@ -63,6 +63,7 @@ function modules_catalog(): array {
         'contract_dzielo'      => ['label' => 'Umowa o dzieło',                'icon' => 'bi-palette',          'desc' => 'Umowy o dzieło — jednorazowe projekty twórcze lub techniczne.'],
         'contract_praca'       => ['label' => 'Umowa o pracę',                 'icon' => 'bi-building',         'desc' => 'Umowy o pracę i dokumenty kadrowe (Kodeks pracy).'],
         'contract_powierzenie' => ['label' => 'Umowa powierzenia zadania publicznego', 'icon' => 'bi-bank',     'desc' => 'Umowy o powierzenie / wsparcie realizacji zadania publicznego z dotacją (ustawa o działalności pożytku publicznego, art. 16).'],
+        'contract_szk'         => ['label' => 'Umowa szkoleniowa (SZK)',       'icon' => 'bi-mortarboard',      'desc' => 'Umowy o świadczenie usług szkoleniowych z uczestnikami TI (dawne TI/UMSZ), z numeracją SZK i Rejestrem Umów.'],
         'contract_inne'        => ['label' => 'Inna umowa',                    'icon' => 'bi-file-text',        'desc' => 'Niestandardowe umowy i dokumenty nieujęte w pozostałych typach.'],
     ],
     ];

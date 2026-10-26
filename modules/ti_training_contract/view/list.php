@@ -10,7 +10,7 @@ $_clients = TiTrainingContractStore::clients();
   <h1 class="h4 fw-bold mb-0 me-auto"><i class="bi bi-file-earmark-text text-primary me-2" aria-hidden="true"></i>Umowy o świadczenie usług szkoleniowych</h1>
   <a class="btn btn-primary btn-sm" href="umowaSzkolenia.php?nowa=1"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowa umowa</a>
 </div>
-<p class="small text-body-secondary">Umowa TI/UMSZ/NNN/RRRR z uczestnikiem (Załączniki 1–3: program, klauzula RODO, wzór odstąpienia).
+<p class="small text-body-secondary">Umowa SZK/NNN/RRRR z uczestnikiem (to samo co typ „Szkolenie” w Menu Umowy; dawne numery TI/UMSZ zostają) (Załączniki 1–3: program, klauzula RODO, wzór odstąpienia).
   „Zarejestruj” nadaje numer umowy i numer w Rejestrze Umów (RU). Do tego czasu umowa jest projektem z numerem „XXX”.</p>
 
 <?php if ($_clients): ?>
@@ -59,6 +59,6 @@ $_clients = TiTrainingContractStore::clients();
     <a class="btn btn-link btn-sm" href="umowaSzkolenia.php?nowa=1&amp;przyklad=K">Formularz z danymi przykładowymi (Pani)</a>
     <a class="btn btn-link btn-sm" href="umowaSzkolenia.php?nowa=1&amp;przyklad=M">(Pan)</a>
   </div>
-  <p class="small text-body-secondary mt-2 mb-0">Umowy testowe dostają numery z „TEST” (TI/UMSZ/TEST-…, RU/TEST-…) i nie zajmują numerów w prawdziwym Rejestrze Umów.
+  <p class="small text-body-secondary mt-2 mb-0">Umowy testowe dostają numery z „TEST” (SZK/TEST-…, RU/TEST-…) i nie zajmują numerów w prawdziwym Rejestrze Umów.
     Z wiersza poleceń: <code>php cli/seedUmowaSzkolenia.php</code>.</p>
 </details>

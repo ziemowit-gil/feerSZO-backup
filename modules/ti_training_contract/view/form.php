@@ -2,11 +2,17 @@
 /**
  * modules/ti_training_contract/view/form.php — formularz umowy szkoleniowej TI (dołączane z dydaktyk/umowaSzkolenia.php).
  * Wejście: $data (dane umowy), $row (wiersz z bazy albo null), $id, $locked.
+ * Kontekst: panel dydaktyka (domyślnie, umowaSzkolenia.php + dyd_token) albo Menu Umowy SZO (contracts/szk/edit.php):
+ * $SZK_URL — adres strony formularza, $SZK_LIST — adres listy, $SZK_TOKEN — gotowe pole ukryte z tokenem CSRF.
  */
+$SZK_URL   = $SZK_URL   ?? 'umowaSzkolenia.php';
+$SZK_LIST  = $SZK_LIST  ?? $SZK_URL;
+$SZK_TOKEN = $SZK_TOKEN ?? '<input type="hidden" name="_token" value="' . h(dyd_token()) . '">';
+$_sep = strpos($SZK_URL, '?') === false ? '?' : '&amp;';
 $_f = TiTrainingContract::fields();
 $_dis = $locked ? ' disabled' : '';
 ?>
-<p class="mb-2"><a href="umowaSzkolenia.php"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wszystkie umowy</a></p>
+<p class="mb-2"><a href="<?= h($SZK_LIST) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wszystkie umowy</a></p>
 <h1 class="h4 fw-bold mb-1"><i class="bi bi-file-earmark-text text-primary me-2" aria-hidden="true"></i>Umowa o świadczenie usług szkoleniowych</h1>
 <p class="mb-3">
   <?php if ($row && $row['numer_umowy'] !== ''): ?>
@@ -17,9 +23,9 @@ $_dis = $locked ? ' disabled' : '';
 
 <?php if ($row): ?>
 <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
-  <a class="btn btn-outline-primary btn-sm" href="umowaSzkolenia.php?id=<?= (int)$id ?>&amp;docx=1"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz DOCX</a>
+  <a class="btn btn-outline-primary btn-sm" href="<?= h($SZK_URL) ?><?= $_sep ?>id=<?= (int)$id ?>&amp;docx=1"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz DOCX</a>
   <form method="post" class="d-flex align-items-end gap-2">
-    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="act" value="status"><input type="hidden" name="id" value="<?= (int)$id ?>">
+    <?= $SZK_TOKEN ?><input type="hidden" name="act" value="status"><input type="hidden" name="id" value="<?= (int)$id ?>">
     <div><label class="form-label small mb-1" for="u-status">Status</label>
       <select class="form-select form-select-sm" id="u-status" name="status">
         <?php foreach (TiTrainingContractStore::statuses($row['status']) as $_s => $_sl): ?><option value="<?= h($_s) ?>" <?= $row['status'] === $_s ? 'selected' : '' ?>><?= h($_sl) ?></option><?php endforeach; ?>
@@ -28,7 +34,7 @@ $_dis = $locked ? ' disabled' : '';
   </form>
   <?php if ((int)$row['is_test'] === 1 || $row['nr_rejestru'] === ''): ?>
   <form method="post" onsubmit="return confirm('Usunąć tę umowę?')">
-    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="act" value="delete"><input type="hidden" name="id" value="<?= (int)$id ?>">
+    <?= $SZK_TOKEN ?><input type="hidden" name="act" value="delete"><input type="hidden" name="id" value="<?= (int)$id ?>">
     <button class="btn btn-outline-danger btn-sm">Usuń</button>
   </form>
   <?php endif; ?>
@@ -37,7 +43,7 @@ $_dis = $locked ? ' disabled' : '';
 <?php if ($locked): ?><div class="alert alert-info">Umowa ma status „<?= h($row['status']) ?>” — treść jest zablokowana. Aby poprawić dane, zmień status na „projekt” albo „do podpisu”.</div><?php endif; ?>
 
 <form method="post" class="card border-0 shadow-sm"><div class="card-body">
-  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+  <?= $SZK_TOKEN ?>
   <input type="hidden" name="id" value="<?= (int)$id ?>">
   <input type="hidden" name="client_id" value="<?= (int)($data['client_id'] ?? 0) ?>">
   <p class="small text-body-secondary">Puste pola zostaną w dokumencie jako linie do ręcznego uzupełnienia.</p>
@@ -84,7 +90,7 @@ $_dis = $locked ? ' disabled' : '';
   <div class="d-flex flex-wrap gap-2">
     <button class="btn btn-primary" name="act" value="save"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
     <?php if (!$row || $row['nr_rejestru'] === ''): ?>
-    <button class="btn btn-success" name="act" value="register" onclick="return confirm('Zarejestrować umowę? Zostanie nadany numer TI/UMSZ i numer w Rejestrze Umów (RU) — tego nie da się cofnąć.')"><i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zapisz i zarejestruj</button>
+    <button class="btn btn-success" name="act" value="register" onclick="return confirm('Zarejestrować umowę? Zostanie nadany numer SZK i numer w Rejestrze Umów (RU) — tego nie da się cofnąć.')"><i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zapisz i zarejestruj</button>
     <?php endif; ?>
     <button class="btn btn-outline-secondary" name="act" value="preview"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Podgląd DOCX bez zapisu</button>
   </div>

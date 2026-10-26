@@ -25,7 +25,7 @@
 const CONTRACT_STATUS_DICT = 'umowy_statusy';
 
 /** Typy umów cywilnoprawnych — wspólny zestaw statusów. */
-const CONTRACT_STATUS_CIVIL = ['zlecenie', 'dzielo', 'uslugi', 'inne', 'wolontariat', 'szkolenie_ti'];
+const CONTRACT_STATUS_CIVIL = ['zlecenie', 'dzielo', 'uslugi', 'inne', 'wolontariat', 'szkolenie_ti', 'szk'];
 
 const CONTRACT_STATUS_GROUPS = [
     'draft'     => 'Robocza',
@@ -79,6 +79,13 @@ function contractStatusSlug(string $value): string
     return trim((string)preg_replace('/[^a-z0-9.-]+/', '_', $v), '_');
 }
 
+/** Typ „szk” (umowa szkoleniowa) dziedziczy statusy dawnego „szkolenie_ti” zapisane w słowniku. */
+function _contractStatusTypesAlias(array $types): array
+{
+    if (in_array('szkolenie_ti', $types, true) && !in_array('szk', $types, true)) $types[] = 'szk';
+    return $types;
+}
+
 function _contractStatusNorm(string $code, array $src, array $def): array
 {
     $hex  = fn($v, $d) => is_string($v) && preg_match('/^#[0-9A-Fa-f]{3,8}$/', $v) ? $v : $d;
@@ -92,7 +99,7 @@ function _contractStatusNorm(string $code, array $src, array $def): array
         'bg'     => $hex($src['bg'] ?? null, $def['bg'] ?? '#F3F4F6'),
         'icon'   => is_string($src['icon'] ?? null) && preg_match('/^bi-[a-z0-9-]+$/', $src['icon']) ? $src['icon'] : ($def['icon'] ?? 'bi-circle'),
         'group'  => isset(CONTRACT_STATUS_GROUPS[$group]) ? $group : '',
-        'types'  => $list($src['typy'] ?? null, $def['typy'] ?? []),
+        'types'  => _contractStatusTypesAlias($list($src['typy'] ?? null, $def['typy'] ?? [])),
         'next'   => $list($src['next'] ?? null, $def['next'] ?? []),
         'system' => (bool)($src['systemowy'] ?? $def['systemowy'] ?? false),
     ];

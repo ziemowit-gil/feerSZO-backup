@@ -1,18 +1,21 @@
 <?php
 /**
- * modules/ti_training_contract/logic/trainingContractStore.php — zapis umów szkoleniowych TI (tabela umowy_szkolenie_ti),
- * rejestracja (numer TI/UMSZ/NNN/RRRR + numer Rejestru Umów RU/NNNN/RRRR/INI), dane przykładowe i ich czyszczenie.
+ * modules/ti_training_contract/logic/trainingContractStore.php — zapis umów szkoleniowych SZK (tabela umowy_szk),
+ * rejestracja (numer SZK/NNN/RRRR + numer Rejestru Umów RU/NNNN/RRRR/INI), dane przykładowe i ich czyszczenie.
  *
- * Rejestr Umów: tabela jest źródłem w CONTRACT_REGISTRY_EXTRA (includes/functions.php), więc zarejestrowane umowy widać
- * w contracts/rejestr.php i liczą się do globalnego licznika RU. Umowy testowe (is_test=1) dostają numery z „TEST”
- * (TI/UMSZ/TEST-NNN/RRRR, RU/TEST-NNNN/RRRR/INI) i NIE są liczone w liczniku RU — ich usunięcie nie robi dziur
- * ani duplikatów w prawdziwej numeracji.
+ * SZK to zwykły typ umowy (CONTRACT_TYPES['szk'], Menu Umowy) i zastępuje dawne UMSZ: migrate() zmienia nazwę tabeli
+ * umowy_szkolenie_ti → umowy_szk (id, numery TI/UMSZ i RU zostają) i dokłada kolumny wspólne dla typów umów, żeby
+ * pętle po CONTRACT_TYPES (pulpit, raporty, wygasanie, rejestr RU) działały bez wyjątków.
+ * Umowy testowe (is_test=1) dostają numery z „TEST” (SZK/TEST-NNN/RRRR, RU/TEST-NNNN/RRRR/INI) i NIE są liczone
+ * w liczniku RU — ich usunięcie nie robi dziur ani duplikatów w prawdziwej numeracji.
  */
 require_once __DIR__ . '/trainingContract.php';
 
 final class TiTrainingContractStore
 {
-    public const TABLE = 'umowy_szkolenie_ti';
+    public const TABLE = 'umowy_szk';
+    public const LEGACY_TABLE = 'umowy_szkolenie_ti';
+    public const PREFIX = 'SZK/';
 
     /** Zapas — statusy są w słowniku umowy_statusy (statuses()). */
     public const STATUSES = ['projekt', 'do podpisu', 'podpisana', 'w realizacji', 'zakończona', 'rozwiązana', 'anulowana'];
@@ -20,17 +23,48 @@ final class TiTrainingContractStore
     /** Statusy umowy szkoleniowej ze słownika umowy_statusy: ['kod' => 'Etykieta']. */
     public static function statuses(?string $current = null): array
     {
-        return function_exists('contractStatusOptions') ? contractStatusOptions('szkolenie_ti', $current) : array_combine(self::STATUSES, self::STATUSES);
+        return function_exists('contractStatusOptions') ? contractStatusOptions('szk', $current) : array_combine(self::STATUSES, self::STATUSES);
     }
+
+    /** Kolumny wspólne dla typów umów (pętle po CONTRACT_TYPES) + pola SZK: nazwa => definicja SQL. */
+    private const EXTRA_COLUMNS = [
+        'pesel' => "VARCHAR(32) NOT NULL DEFAULT ''", 'adres' => "TEXT", 'telefon' => "VARCHAR(64) NOT NULL DEFAULT ''",
+        'email' => "VARCHAR(190) NOT NULL DEFAULT ''",
+        'data_rozpoczecia' => "VARCHAR(10)", 'data_zakonczenia' => "VARCHAR(10)", 'bezterminowa' => "INTEGER NOT NULL DEFAULT 0",
+        'numer_projektu' => "VARCHAR(190) NOT NULL DEFAULT ''", 'uwagi' => "TEXT",
+        'nr_roboczy' => "VARCHAR(64) NOT NULL DEFAULT ''", 'nr_system' => "VARCHAR(64) NOT NULL DEFAULT ''",
+        'forma_podpisania' => "VARCHAR(64) NOT NULL DEFAULT ''", 'platforma_el' => "VARCHAR(64) NOT NULL DEFAULT ''",
+        'id_dokumentu_el' => "VARCHAR(190) NOT NULL DEFAULT ''", 'plik_potwierdzenia' => "VARCHAR(255) NOT NULL DEFAULT ''",
+        'plik_umowy' => "VARCHAR(255) NOT NULL DEFAULT ''",
+        'epodpis_dostawca' => "VARCHAR(64) NOT NULL DEFAULT ''", 'epodpis_nr_certyfikatu' => "VARCHAR(190) NOT NULL DEFAULT ''",
+        'epodpis_data_waznosci' => "VARCHAR(10)",
+        'docusign_status' => "VARCHAR(64) NOT NULL DEFAULT ''", 'docusign_signer_email' => "VARCHAR(190) NOT NULL DEFAULT ''",
+        'docusign_signer_name' => "VARCHAR(190) NOT NULL DEFAULT ''",
+        'autenti_document_id' => "VARCHAR(190) NOT NULL DEFAULT ''", 'autenti_status' => "VARCHAR(64) NOT NULL DEFAULT ''",
+        'autenti_signer_email' => "VARCHAR(190) NOT NULL DEFAULT ''", 'autenti_signer_name' => "VARCHAR(190) NOT NULL DEFAULT ''",
+        'guardian_editor_id' => "INTEGER", 'person_id' => "INTEGER", 'access_level' => "VARCHAR(32) NOT NULL DEFAULT ''",
+        'ezd_sprawa_id' => "INTEGER",
+        'podpisujacy_fundacja' => "VARCHAR(190) NOT NULL DEFAULT ''", 'podpisujacy_stanowisko' => "VARCHAR(190) NOT NULL DEFAULT ''",
+        // SZK
+        'grupa_id' => "INTEGER", 'platnik_nazwa' => "VARCHAR(190) NOT NULL DEFAULT ''", 'kwota_umowy' => "VARCHAR(32) NOT NULL DEFAULT ''",
+        'model_naliczania' => "VARCHAR(64) NOT NULL DEFAULT ''", 'promocja_id' => "INTEGER",
+        'data_wypowiedzenia' => "VARCHAR(10)", 'powod_wypowiedzenia' => "TEXT",
+    ];
 
     public static function migrate(): void
     {
         static $done = false;
         if ($done) return;
         $done = true;
-        if (function_exists('szo_schema_current') && szo_schema_current('ti_training_contract_migrate', __FILE__)) return;
+        if (function_exists('szo_schema_current') && szo_schema_current('szk_migrate', __FILE__)) return;
+        $pdo = db();
+        $has = function (string $t) use ($pdo): bool {
+            try { $pdo->query("SELECT 1 FROM {$t} LIMIT 1"); return true; } catch (\Throwable $e) { return false; }
+        };
+        // UMSZ → SZK: zmiana nazwy tabeli (dane, id i numery zostają); tylko gdy nowej jeszcze nie ma.
+        if (!$has(self::TABLE) && $has(self::LEGACY_TABLE)) $pdo->exec("ALTER TABLE " . self::LEGACY_TABLE . " RENAME TO " . self::TABLE);
         $pk = DB_TYPE === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
-        db()->exec("CREATE TABLE IF NOT EXISTS " . self::TABLE . " (
+        $pdo->exec("CREATE TABLE IF NOT EXISTS " . self::TABLE . " (
             id {$pk},
             numer_umowy VARCHAR(64) NOT NULL DEFAULT '',
             nr_rejestru VARCHAR(64) NOT NULL DEFAULT '',
@@ -47,7 +81,13 @@ final class TiTrainingContractStore
             updated_at VARCHAR(19),
             registered_at VARCHAR(19)
         )");
-        db()->exec("CREATE INDEX IF NOT EXISTS idx_umowy_szkolenie_ti_client ON " . self::TABLE . "(client_id)");
+        $cols = [];
+        if (DB_TYPE === 'sqlite') foreach (db_all("PRAGMA table_info(" . self::TABLE . ")") as $c) $cols[strtolower((string)$c['name'])] = true;
+        else foreach (db_all("SHOW COLUMNS FROM " . self::TABLE) as $c) $cols[strtolower((string)$c['Field'])] = true;
+        foreach (self::EXTRA_COLUMNS as $name => $def) {
+            if (!isset($cols[$name])) $pdo->exec("ALTER TABLE " . self::TABLE . " ADD COLUMN {$name} {$def}");
+        }
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_umowy_szk_client ON " . self::TABLE . "(client_id)");
     }
 
     public static function get(int $id): ?array
@@ -91,6 +131,12 @@ final class TiTrainingContractStore
             'client_id'     => (int)$d['client_id'] ?: null,
             'imie_nazwisko' => mb_substr((string)$d['imie_nazwisko'], 0, 190),
             'temat'         => mb_substr((string)$d['temat'], 0, 255),
+            'pesel'         => mb_substr((string)($d['pesel'] ?? ''), 0, 32),
+            'adres'         => (string)($d['adres'] ?? ''),
+            'email'         => mb_substr((string)($d['email'] ?? ''), 0, 190),
+            'telefon'       => mb_substr((string)($d['telefon'] ?? ''), 0, 64),
+            'platnik_nazwa' => mb_substr((string)($d['platnik'] ?? ''), 0, 190),
+            'kwota_umowy'   => mb_substr((string)($d['wynagrodzenie'] ?? ''), 0, 32),
             'dane'          => json_encode($dane, JSON_UNESCAPED_UNICODE),
             'updated_at'    => $now,
         ];
@@ -102,7 +148,7 @@ final class TiTrainingContractStore
                                               'created_by' => $uid ?: null, 'created_at' => $now]);
     }
 
-    /** Nadaje numer TI/UMSZ i numer RU (jednorazowo). Zwraca [numer_umowy, nr_rejestru]. */
+    /** Nadaje numer SZK i numer RU (jednorazowo). Zwraca [numer_umowy, nr_rejestru]. */
     public static function register(int $id): array
     {
         $c = self::get($id);
@@ -129,13 +175,16 @@ final class TiTrainingContractStore
         return [$nr, $ru];
     }
 
-    /** Kolejny numer TI/UMSZ/NNN/RRRR (licznik w obrębie roku; testowe mają własny licznik TEST-NNN). */
+    /** Kolejny numer SZK/NNN/RRRR (licznik w obrębie roku; testowe mają własny licznik TEST-NNN; stare TI/UMSZ/… liczą się razem). */
     private static function nextNumber(string $year, bool $test): string
     {
-        $prefix = $test ? 'TI/UMSZ/TEST-' : 'TI/UMSZ/';
+        $prefix = $test ? 'SZK/TEST-' : self::PREFIX;
+        $legacy = $test ? 'TI/UMSZ/TEST-' : 'TI/UMSZ/';
         $max = 0;
-        foreach (db_all("SELECT numer_umowy FROM " . self::TABLE . " WHERE numer_umowy LIKE ?", [$prefix . '%/' . $year]) as $r) {
-            if (preg_match('#^' . preg_quote($prefix, '#') . '(\d+)/\d{4}$#', $r['numer_umowy'], $m)) $max = max($max, (int)$m[1]);
+        foreach ([$prefix, $legacy] as $pf) {
+            foreach (db_all("SELECT numer_umowy FROM " . self::TABLE . " WHERE numer_umowy LIKE ?", [$pf . '%/' . $year]) as $r) {
+                if (preg_match('#^' . preg_quote($pf, '#') . '(\d+)/\d{4}$#', $r['numer_umowy'], $m)) $max = max($max, (int)$m[1]);
+            }
         }
         return sprintf('%s%03d/%s', $prefix, $max + 1, $year);
     }

@@ -427,7 +427,7 @@ return [
                 'do_podpisu' => 'do podpisu', 'do_rozliczenia' => 'do rozliczenia', 'w_podpisie_w_instytucji' => 'w podpisie w instytucji',
             ];
             $known = array_keys(CONTRACT_STATUS_DEFAULTS);
-            $tables = ['zlecenie', 'dzielo', 'uslugi', 'wolontariat', 'inne', 'praca', 'powierzenie', 'szkolenie_ti'];
+            $tables = ['zlecenie', 'dzielo', 'uslugi', 'wolontariat', 'inne', 'praca', 'powierzenie', 'szk'];
             foreach ($tables as $type) {
                 $table = 'umowy_' . $type;
                 try { $rows = db_all("SELECT id, status FROM {$table}"); } catch (\Throwable $e) { continue; } // brak tabeli

@@ -83,7 +83,9 @@ final class TiConsents
     /** Umowy szkoleniowe TI kursanta (bez projektów i anulowanych). */
     private static function contracts(int $clientId, ?int $accountId): array
     {
-        $rows = db_all("SELECT * FROM umowy_szkolenie_ti WHERE client_id = ? AND COALESCE(is_test, 0) = 0 AND status NOT IN ('projekt', 'anulowana') ORDER BY id DESC", [$clientId]);
+        require_once dirname(__DIR__, 2) . '/ti_training_contract/logic/trainingContractStore.php';
+        TiTrainingContractStore::migrate();   // UMSZ → SZK: zmiana nazwy tabeli przy pierwszym użyciu
+        $rows = db_all("SELECT * FROM umowy_szk WHERE client_id = ? AND COALESCE(is_test, 0) = 0 AND status NOT IN ('projekt', 'anulowana') ORDER BY id DESC", [$clientId]);
         $out = [];
         foreach ($rows as $r) {
             $signed = in_array((string)$r['status'], ['podpisana', 'w realizacji', 'zakończona'], true);

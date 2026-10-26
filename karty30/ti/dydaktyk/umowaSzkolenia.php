@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/ti/dydaktyk/umowaSzkolenia.php — „Umowy o świadczenie usług szkoleniowych” (TI/UMSZ/NNN/RRRR):
+ * karty30/ti/dydaktyk/umowaSzkolenia.php — „Umowy o świadczenie usług szkoleniowych” (SZK/NNN/RRRR):
  * lista, generowanie z formularza (dane z karty uczestnika), DOCX, rejestracja z numerem w Rejestrze Umów (RU),
  * statusy, umowy przykładowe (testowe) i ich czyszczenie. Dostęp: kierownik (dyd_is_staff).
  * Logika i treść wzoru: modules/ti_training_contract (logic/, view/).

@@ -10,6 +10,7 @@ const CONTRACT_TYPES = [
     'praca'       => 'Umowa o pracę',
     'powierzenie' => 'Umowa powierzenia zadania publicznego',
     'inne'        => 'Inna umowa',
+    'szk'         => 'Umowa szkoleniowa (SZK)',
 ];
 
 /** Zapas, gdy brak słownika umowy_statusy — w kodzie używaj contractStatus*() (modules/contract_status). */
@@ -315,6 +316,11 @@ function table_for_type(string $type): string {
     // Virtual types — mapuj na prawdziwą tabelę
     if ($type === 'canva_request') return 'umowy_wolontariat';
     if ($type === 'crm_case')      return 'crm_cases';
+    if ($type === 'szk') {
+        // Umowy szkoleniowe: pierwsze użycie zmienia nazwę dawnej tabeli umowy_szkolenie_ti (UMSZ) i dokłada kolumny.
+        require_once dirname(__DIR__) . '/modules/ti_training_contract/logic/trainingContractStore.php';
+        TiTrainingContractStore::migrate();
+    }
     return 'umowy_' . $type;
 }
 
@@ -738,17 +744,12 @@ const CONTRACT_REGISTRY_FIELDS = [
     'praca'       => ['name_col' => 'imie_nazwisko',   'opiekun_col' => 'opiekun_przelozony'],
     'powierzenie' => ['name_col' => 'nazwa_zadania',   'opiekun_col' => 'opiekun'],
     'inne'        => ['name_col' => 'strona_umowy',    'opiekun_col' => 'opiekun'],
+    'szk'         => ['name_col' => 'imie_nazwisko',   'opiekun_col' => 'opiekun'],
 ];
 
 // Dodatkowe źródła Rejestru Umów spoza CONTRACT_TYPES (własne moduły, własny widok umowy). Liczą się do globalnego
 // licznika RU (count_where — np. bez umów testowych) i pokazują się w contracts/rejestr.php; {id} w url = id umowy.
-const CONTRACT_REGISTRY_EXTRA = [
-    'szkolenie_ti' => [
-        'table' => 'umowy_szkolenie_ti', 'label' => 'Umowa szkoleniowa TI',
-        'name_col' => 'imie_nazwisko', 'opiekun_col' => 'opiekun', 'count_where' => 'is_test = 0',
-        'url' => '/karty30/ti/dydaktyk/office_enter.php?next=umowaSzkolenia.php%3Fid%3D{id}',
-    ],
-];
+const CONTRACT_REGISTRY_EXTRA = [];
 
 /**
  * Rejestr Umów (RU) — wszystkie umowy z przydzielonym numerem rejestru (nr_rejestru),

@@ -1,7 +1,7 @@
 <?php
 /**
  * modules/ti_training_contract/logic/trainingContract.php — treść i DOCX „Umowy o świadczenie usług szkoleniowych”
- * (nr TI/UMSZ/NNN/RRRR) między Fundacją a Kursantem/Kursantką, z Załącznikami nr 1–3 (program, klauzula RODO,
+ * (nr SZK/NNN/RRRR) między Fundacją a Kursantem/Kursantką, z Załącznikami nr 1–3 (program, klauzula RODO,
  * wzór odstąpienia). Zapis, numeracja i Rejestr Umów (RU): trainingContractStore.php.
  *
  * Szablon treści (paragraphs()/annexes()) — znaczniki rozwijane w render():
@@ -223,7 +223,7 @@ class TiTrainingContract
             $k = $m[1];
             if (isset(self::NOUN[$k])) return self::NOUN[$k][$fem ? 0 : 1];
             if ($k === 'data_pl') return ($d['data'] ?? '') !== '' ? date('d.m.Y', strtotime($d['data'])) : self::blank(12);
-            if ($k === 'nr') return ($d['nr'] ?? '') !== '' ? $d['nr'] : 'TI/UMSZ/XXX/' . date('Y');
+            if ($k === 'nr') return ($d['nr'] ?? '') !== '' ? $d['nr'] : 'SZK/XXX/' . date('Y');
             if ($k === 'imie_narz') {
                 $v = trim((string)($d['imie_narz'] ?? ''));
                 if ($v === '' && trim((string)($d['imie_nazwisko'] ?? '')) !== '') $v = self::instrumental($d['imie_nazwisko'], $d['plec'] ?? 'K');
@@ -383,7 +383,7 @@ class TiTrainingContract
         ];
     }
 
-    /** Buduje DOCX i zwraca jego zawartość (bajty). $d — dane umowy z polami 'nr' (numer TI/UMSZ, puste = XXX). */
+    /** Buduje DOCX i zwraca jego zawartość (bajty). $d — dane umowy z polami 'nr' (numer SZK, puste = XXX). */
     public static function docx(array $d): string
     {
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';

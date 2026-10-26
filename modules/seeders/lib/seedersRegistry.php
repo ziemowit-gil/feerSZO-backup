@@ -124,7 +124,7 @@ function seedersRegistry(): array
         ],
         'umowa_szkolenia' => [
             'group' => 'Dydaktyka TI', 'title' => 'Umowy szkoleniowe TI (testowe)', 'script' => 'seedUmowaSzkolenia.php',
-            'desc'  => 'Dwie umowy TI/UMSZ/TEST (projekt i zarejestrowana) — poza prawdziwą numeracją RU.',
+            'desc'  => 'Dwie umowy SZK/TEST (projekt i zarejestrowana) — poza prawdziwą numeracją RU.',
             'fields'  => [],
             'actions' => [
                 ['id' => 'state',   'label' => 'Stan',              'kind' => 'preview'],

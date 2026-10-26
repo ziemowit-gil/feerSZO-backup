@@ -8,7 +8,7 @@
  *   php cli/seedUmowaSzkolenia.php --delete             # lista umów testowych do usunięcia (podgląd)
  *   php cli/seedUmowaSzkolenia.php --delete --apply     # usuwa wszystkie umowy testowe (is_test=1)
  *
- * Umowy testowe mają numery TI/UMSZ/TEST-NNN/RRRR i RU/TEST-NNNN/RRRR/INI — nie zajmują prawdziwej numeracji RU.
+ * Umowy testowe mają numery SZK/TEST-NNN/RRRR i RU/TEST-NNNN/RRRR/INI — nie zajmują prawdziwej numeracji RU.
  * To samo jest w panelu dydaktyka › Uczestnicy › Umowy szkoleniowe › „Dane przykładowe”.
  */
 require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit(), cli_getopt() — także uruchamianie z Admin › Seedery

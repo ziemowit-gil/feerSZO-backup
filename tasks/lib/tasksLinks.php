@@ -19,7 +19,7 @@ const TASKS_LINK_TYPES = [
     'ti_client'   => 'Uczestnik TI',
     'contract'    => 'Umowa',
 ];
-const TASKS_LINK_CONTRACT_TYPES = ['wolontariat', 'zlecenie', 'dzielo', 'praca', 'inne', 'powierzenie', 'uslugi'];
+const TASKS_LINK_CONTRACT_TYPES = ['wolontariat', 'zlecenie', 'dzielo', 'praca', 'inne', 'powierzenie', 'uslugi', 'szk'];
 
 function tasksLinksMigrate(): void
 {

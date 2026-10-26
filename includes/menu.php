@@ -154,7 +154,7 @@ function _menu_counts_compute(): array {
 function _menu_contract_icons(): array {
     return [
         'zlecenie'=>'bi-person-lines-fill','uslugi'=>'bi-briefcase','wolontariat'=>'bi-heart',
-        'dzielo'=>'bi-palette','praca'=>'bi-building','powierzenie'=>'bi-bank','inne'=>'bi-file-text',
+        'dzielo'=>'bi-palette','praca'=>'bi-building','powierzenie'=>'bi-bank','inne'=>'bi-file-text','szk'=>'bi-mortarboard',
     ];
 }
 
@@ -304,6 +304,7 @@ function _menu_editor(): array {
     $um_groups = [
         ['Wolontariat',                ['wolontariat']],
         ['Zlecenie / Praca / Dzieło',  ['zlecenie','praca','dzielo']],
+        ['Szkolenia',                  ['szk']],
         ['Inne umowy',                 ['uslugi','powierzenie','inne']],
     ];
     $um_g = [];
