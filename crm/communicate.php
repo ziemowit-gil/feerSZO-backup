@@ -359,12 +359,21 @@ include __DIR__ . '/includes/header_crm.php';
 #communicateForm .btn { border-radius:0 }
 .channel-btn, .comm-flags .badge { border-radius:0 }
 .channel-btn { border:1px solid #9CA3AF; border-left-width:4px }
+/* ══ Wersja uproszczona: mniej elementów ═══════════════════════════════════════════════════════════════════════════
+   Nagłówki kroków bez szarych pasów i numerów, jedna kolumna (szablony i zmienne — na żądanie), jeden wiersz ustawień. */
+.comm-card .comm-step { margin:0 0 .75rem; padding:0; background:none; border:0 }
+.comm-step__num, .comm-step__h { display:none }
+.comm-step__t { font-size:.82rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#374151 }
+.comm-wrap { max-width:960px }
+.comm-opts { border:0; margin:0 0 1rem }
+.comm-opts>summary { cursor:pointer; font-size:.85rem; color:#374151; padding:.35rem 0 }
+.comm-opts>summary:focus-visible { outline:2px solid #0F766E; outline-offset:2px }
 </style>
 
-<div class="row g-3">
+<div class="row g-3 comm-wrap">
 
   <!-- Formularz -->
-  <div class="col-lg-8">
+  <div class="col-12">
     <form method="post" enctype="multipart/form-data" id="communicateForm" novalidate aria-label="Formularz wysyłania wiadomości CRM">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
@@ -486,16 +495,8 @@ include __DIR__ . '/includes/header_crm.php';
     <!-- Kanał + szablon -->
     <div class="card comm-card mb-3">
       <div class="card-body">
-        <div class="comm-step">
-          <span class="comm-step__num" aria-hidden="true">2</span>
-          <div>
-            <div class="comm-step__t">Kanał i szablon</div>
-            <div class="comm-step__h">Jak wyślesz i z którego konta</div>
-          </div>
-        </div>
-
         <div class="row g-3 mb-3">
-          <div class="col-sm-4">
+          <div class="col-sm-3">
             <label class="form-label" for="channel">Kanał komunikacji</label>
             <select name="channel" id="channel" class="form-select" aria-label="Kanał komunikacji">
               <option value="email"    <?= $preselect_channel === 'email'    ? 'selected' : '' ?>>E-mail</option>
@@ -513,7 +514,7 @@ include __DIR__ . '/includes/header_crm.php';
               Odbiorcy bez numeru komórkowego zostaną pominięci.
             </div>
           </div>
-          <div class="col-sm-8">
+          <div class="col-sm-4">
             <label class="form-label" for="template_select">Użyj szablonu</label>
             <select id="template_select" class="form-select" aria-label="Wybierz szablon wiadomości">
               <option value="">— Bez szablonu —</option>
@@ -528,28 +529,28 @@ include __DIR__ . '/includes/header_crm.php';
               <?php endforeach; ?>
             </select>
           </div>
+          <?php if (count($sender_accounts) > 1): ?>
+          <div class="col-sm-5" id="senderRow" style="display:<?= $preselect_channel === 'email' ? '' : 'none' ?>">
+            <label class="form-label" for="send_as">Konto nadawcy</label>
+            <select name="send_as" id="send_as" class="form-select" aria-describedby="senderHelp">
+              <?php foreach ($sender_accounts as $acc): ?>
+              <option value="<?= h($acc['key']) ?>" data-hint="<?= h($acc['hint']) ?>"
+                      <?= $acc['key'] === $sender_default ? 'selected' : '' ?>><?= h($acc['label']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <details class="mt-1">
+              <summary class="small text-muted" style="cursor:pointer">Szczegóły konta</summary>
+              <div id="senderHelp" class="form-text" style="font-size:.74rem"><?= h($sender_accounts[0]['hint']) ?></div>
+              <div class="form-check mt-1">
+                <input class="form-check-input" type="checkbox" name="send_as_remember" id="send_as_remember" value="1">
+                <label class="form-check-label" for="send_as_remember" style="font-size:.76rem">Zapamiętaj jako moje domyślne konto wysyłki</label>
+              </div>
+            </details>
+          </div>
+          <?php endif; ?>
         </div>
 
-        <?php if (count($sender_accounts) > 1): ?>
-        <div id="senderRow" class="mb-1" style="display:<?= $preselect_channel === 'email' ? '' : 'none' ?>">
-          <label class="form-label" for="send_as"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>Konto nadawcy (e-mail)</label>
-          <select name="send_as" id="send_as" class="form-select" aria-describedby="senderHelp">
-            <?php foreach ($sender_accounts as $acc): ?>
-            <option value="<?= h($acc['key']) ?>" data-hint="<?= h($acc['hint']) ?>"
-                    <?= $acc['key'] === $sender_default ? 'selected' : '' ?>><?= h($acc['label']) ?></option>
-            <?php endforeach; ?>
-          </select>
-          <div class="form-check mt-1">
-            <input class="form-check-input" type="checkbox" name="send_as_remember" id="send_as_remember" value="1">
-            <label class="form-check-label" for="send_as_remember" style="font-size:.76rem">
-              Zapamiętaj jako moje domyślne konto wysyłki
-            </label>
-          </div>
-          <div id="senderHelp" class="form-text" style="font-size:.74rem">
-            <?= h($sender_accounts[0]['hint']) ?>
-          </div>
-        </div>
-        <?php endif; ?>
+
 
         <input type="hidden" name="template_name" id="template_name_hidden" value="">
       </div>
@@ -562,11 +563,15 @@ include __DIR__ . '/includes/header_crm.php';
           <div class="comm-step mb-0">
             <span class="comm-step__num" aria-hidden="true">3</span>
             <div>
-              <div class="comm-step__t">Treść wiadomości</div>
+              <div class="comm-step__t">Wiadomość</div>
               <div class="comm-step__h">Wpisz treść lub użyj szablonu / AI</div>
             </div>
           </div>
           <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.78rem;padding:.2rem .65rem"
+                    data-bs-toggle="collapse" data-bs-target="#commSide" aria-expanded="false" aria-controls="commSide">
+              <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Szablony i zmienne
+            </button>
             <!-- AI -->
             <button type="button" class="btn btn-sm btn-outline-primary"
                     style="font-size:.78rem;padding:.2rem .65rem"
@@ -654,14 +659,7 @@ include __DIR__ . '/includes/header_crm.php';
           </button>
         </div>
         <div class="comm-flags">
-          <?php if ($m365_mail_configured): ?>
-          <div class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:.75rem">
-            <i class="bi bi-microsoft me-1"></i>E-mail przez Microsoft 365 (<?= h(_mail_setting('m365_send_from_email')) ?>)
-          </div>
-          <?php elseif (_mail_setting('smtp_host')): ?>
-          <div class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:.75rem">
-            <i class="bi bi-envelope me-1"></i>E-mail przez SMTP (<?= h(_mail_setting('smtp_host')) ?>)
-          </div>
+          <?php if ($m365_mail_configured || _mail_setting('smtp_host')): /* poprawna konfiguracja — bez znaczka, nie ma o czym informować */ ?>
           <?php else: ?>
           <div class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:.75rem">
             <i class="bi bi-exclamation-triangle me-1"></i>E-mail przez PHP mail() —
@@ -680,7 +678,8 @@ include __DIR__ . '/includes/header_crm.php';
 
     <?php if (nozbe_setting('nozbe_enabled') === '1' && nozbe_setting('nozbe_api_token')): ?>
     <!-- Nozbe follow-up -->
-    <div class="card comm-card">
+    <details class="comm-opts mt-3"><summary><i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Więcej opcji (zadanie follow-up w Nozbe)</summary>
+    <div class="card comm-card mt-2">
       <div class="card-body py-2">
         <div class="form-check mb-2">
           <input type="checkbox" class="form-check-input" name="nozbe_task" id="nozbeTaskChk"
@@ -725,13 +724,14 @@ include __DIR__ . '/includes/header_crm.php';
         </div>
       </div>
     </div>
+    </details>
     <?php endif; ?>
 
     </form>
   </div><!-- /col-8 -->
 
   <!-- Prawa: szablony + pomoc -->
-  <div class="col-lg-4 comm-side">
+  <div class="col-12 comm-side collapse" id="commSide">
 
     <!-- Szablony istniejące -->
     <div class="card comm-card mb-3">
