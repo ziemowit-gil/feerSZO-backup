@@ -338,11 +338,15 @@ final class DocRegistry
     /** Kod Code128 jako PNG (bajty) — lokalnie, picqer/php-barcode-generator. null gdy biblioteka niedostępna. */
     public static function barcodePng(string $code, int $widthFactor = 2, int $height = 40): ?string
     {
+        $er = error_reporting();
+        error_reporting($er & ~E_DEPRECATED & ~E_USER_DEPRECATED);   // biblioteka emituje deprecacje pod PHP 8.5 — nie mogą uszkodzić pobieranego pliku
+        ob_start();
         try {
             if (!class_exists(\Picqer\Barcode\BarcodeGeneratorPNG::class)) return null;
             $g = new \Picqer\Barcode\BarcodeGeneratorPNG();
             return $g->getBarcode($code, $g::TYPE_CODE_128, $widthFactor, $height);
         } catch (\Throwable $e) { return null; }
+        finally { ob_end_clean(); error_reporting($er); }
     }
 
     /**

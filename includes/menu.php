@@ -335,6 +335,7 @@ function _menu_editor(): array {
         $um_g[] = ['label'=>$glabel,'items'=>$items];
     }
     $obs = [ _mi('Rejestr umów (RU)','/contracts/rejestr.php','bi-journal-text',['match'=>'/contracts/rejestr','kw'=>'rejestr ru numer']) ];
+    $obs[] = _mi('Generator dokumentów','/generator/index.php','bi-file-earmark-richtext',['match'=>'/generator/','kw'=>'generator dokumentów wzór umowa szablon pismo']);
     if (module_enabled('approvals_enabled'))
         $obs[] = _mi('Akceptacje','/contracts/approvals/index.php','bi-check2-square',['match'=>'/contracts/approvals/','badge'=>$cnt['pending'],'kw'=>'akceptacja workflow']);
     if (module_enabled('letters_enabled'))
