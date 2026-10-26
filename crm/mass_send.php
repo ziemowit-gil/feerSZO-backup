@@ -1222,6 +1222,7 @@ const MS = (function() {
     if (d && d.no_consent > 0) parts.push(d.no_consent + ' bez zgody na wybrany cel');
     if (d && d.opt_out    > 0) parts.push(d.opt_out + ' wypisanych z wysyłek');
     if (d && d.automat    > 0) parts.push(d.automat + ' automatów (no-reply)');
+    if (d && d.technical  > 0) parts.push(d.technical + ' adresów technicznych');
     if (d && d.licenses_only > 0) parts.push(d.licenses_only + ' z opcją „tylko rozliczenie licencji”');
     if (d && d.status     > 0) parts.push(d.status + ' o niewybranym statusie relacji');
     if (d && d.primary    > 0) parts.push(d.primary + ' o niewybranej kategorii głównej');

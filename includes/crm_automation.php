@@ -106,7 +106,8 @@ function crm_automation_run_action(array $rule, int $contact_id, array $context)
             if (!empty($contact['email_opt_out']) || empty($contact['email'])) return;
             // Kontakt techniczny to adres noreply/system — wysyłka tam nic nie da,
             // a często odbija się jako niedostarczona.
-            if (($contact['type'] ?? '') === 'kontakt_techniczny') return;
+            require_once __DIR__ . '/crmAutomat.php';
+            if (crm_contact_is_technical($contact)) return;
             $tpl = db_one("SELECT * FROM crm_templates WHERE id=? AND is_active=1", [(int)($cfg['template_id'] ?? 0)]);
             if (!$tpl) return;
             require_once __DIR__ . '/mail_queue.php';

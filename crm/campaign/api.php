@@ -160,6 +160,7 @@ switch ($action) {
             'opt_out'       => 'wypisani z wysyłek',
             'invalid_email' => 'bez poprawnego adresu e-mail',
             'suppressed'    => 'na liście wykluczeń (odbicia, skargi)',
+            'technical'     => 'adresy techniczne (noreply, powiadomienia)',
         ];
         $skipped = [];
         foreach ($by_reason as $k => $n) $skipped[] = ['label' => $labels[$k] ?? $k, 'n' => $n];

@@ -58,3 +58,12 @@ function crm_drop_automats(array $ids): array {
     }
     return $keep;
 }
+
+
+/** Statusy relacji oznaczające adres techniczny — poza wysyłkami (nadawane regułą lub ręcznie, zob. crmAiBuilder.php). */
+const CRM_TECHNICAL_STATUSES = ['techniczny', 'powiadomienia'];
+
+/** Czy kontakt to adres techniczny/systemowy (typ „Kontakt techniczny” albo status techniczny) — nie dostaje wysyłek. */
+function crm_contact_is_technical(array $c): bool {
+    return ($c['type'] ?? '') === 'kontakt_techniczny' || in_array((string)($c['status'] ?? ''), CRM_TECHNICAL_STATUSES, true);
+}

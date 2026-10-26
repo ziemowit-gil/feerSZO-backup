@@ -174,6 +174,11 @@ function crm_campaign_partition_recipients(string $segment_type, array $segment_
         );
         foreach ($rows as $r) {
             $email = trim((string)($r['email'] ?? ''));
+            require_once __DIR__ . '/crmAutomat.php';
+            if (crm_contact_is_technical($r)) {
+                $skipped[] = ['contact_id' => (int)$r['id'], 'email' => $email, 'reason' => 'technical'];
+                continue;
+            }
             if ($email === '' || !str_contains($email, '@')) {
                 $skipped[] = ['contact_id' => (int)$r['id'], 'email' => $email, 'reason' => 'invalid_email'];
                 continue;
@@ -668,6 +673,7 @@ function crm_campaign_skip_breakdown(int $campaign_id): array {
         'no_consent'    => 'brak zgody na cel wysyłki',
         'opt_out'       => 'wypisani (opt-out)',
         'invalid_email' => 'brak / błędny adres e-mail',
+        'technical'     => 'adresy techniczne (noreply, powiadomienia)',
     ];
     return array_map(function (array $r) use ($labels): array {
         $code = (string)$r['skip_reason'];

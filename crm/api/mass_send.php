@@ -100,7 +100,7 @@ function collect_recipients(array $body): array {
  */
 function filter_by_statuses(array $ids, array $body): array
 {
-    $dropped = ['automat' => 0, 'status' => 0, 'primary' => 0, 'licenses_only' => 0];
+    $dropped = ['automat' => 0, 'technical' => 0, 'status' => 0, 'primary' => 0, 'licenses_only' => 0];
     if (!$ids) return [$ids, $dropped];
     require_once dirname(dirname(__DIR__)) . '/includes/crmAutomat.php';
     require_once dirname(dirname(__DIR__)) . '/includes/crmCategories.php';
@@ -108,7 +108,7 @@ function filter_by_statuses(array $ids, array $body): array
     $primary_in = array_values(array_filter(array_map(fn($c) => preg_replace('/[^a-z0-9_]/', '', (string)$c), (array)($body['primary_in'] ?? []))));
     $with_inactive = !empty($body['include_inactive']);
     $ph   = implode(',', array_fill(0, count($ids), '?'));
-    $rows = db_all("SELECT id, email, imie_nazwisko, status FROM crm_contacts WHERE id IN ($ph)", array_map('intval', $ids));
+    $rows = db_all("SELECT id, email, imie_nazwisko, status, type FROM crm_contacts WHERE id IN ($ph)", array_map('intval', $ids));
     $pm   = crm_primary_map(array_map(fn($r) => (int)$r['id'], $rows));
     // Uczestnicy TI z opcją „tylko rozliczenie licencji” (dopasowanie po e-mailu): nie są adresatami wysyłek CRM
     $lic_only = [];
@@ -120,6 +120,7 @@ function filter_by_statuses(array $ids, array $body): array
     foreach ($rows as $r) {
         $id = (int)$r['id'];
         if ($lic_only && isset($lic_only[strtolower(trim((string)$r['email']))])) { $dropped['licenses_only']++; continue; }
+        if (crm_contact_is_technical($r)) { $dropped['technical']++; continue; }
         $slug = $pm[$id]['slug'] ?? '';
         if ($slug === 'automat' || crm_is_automat($r['email'], $r['imie_nazwisko'])) { $dropped['automat']++; continue; }
         if ($status_in) { if (!in_array((string)$r['status'], $status_in, true)) { $dropped['status']++; continue; } }
