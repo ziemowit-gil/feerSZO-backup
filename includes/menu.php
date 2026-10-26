@@ -292,20 +292,10 @@ function _menu_viewer(): array {
     ]];
 }
 
-/** Narzędzia obsługi umów spoza głównego menu (strona /contracts/obsluga.php + wyszukiwarka menu): pozycje _mi() z opisem w 'desc'. */
+/** Pozycje SZK spoza paska menu (zestawienia, promocje, ustawienia) — tylko w wyszukiwarce menu (Ctrl+K); na stronach SZK są też przyciski. */
 function _menu_contract_more(array $cnt): array {
     $o = [];
     $add = function (string $label, string $path, string $icon, array $opts, string $desc) use (&$o) { $it = _mi($label, $path, $icon, $opts); $it['desc'] = $desc; $o[] = $it; };
-    if (module_enabled('letters_enabled'))
-        $add('Pisma', '/contracts/letters/index.php', 'bi-envelope-paper', ['match'=>'/contracts/letters/','kw'=>'pisma korespondencja'], 'Pisma przychodzące i wychodzące powiązane z umowami.');
-    if (can_read('admin') || can_read('pisma'))
-        $add('Workflow wniosków', '/modules/app_workflow/router.php', 'bi-diagram-3', ['match'=>'/modules/app_workflow/','kw'=>'workflow etapy wnioski obieg'], 'Etapy i ścieżki obiegu wniosków.');
-    if (module_enabled('pelnomocnictwa_enabled'))
-        $add('Rejestr pełnomocnictw', '/pelnomocnictwa/index.php', 'bi-person-badge', ['match'=>'/pelnomocnictwa/','kw'=>'pełnomocnictwo upoważnienie mocodawca 013'], 'Jedyne źródło prawdy o pełnomocnictwach.');
-    if (module_enabled('contract_wolontariat') || module_enabled('contract_zlecenie'))
-        $add('Skierowania na badania', '/modules/skierowania_badania/router.php', 'bi-heart-pulse', ['match'=>'/modules/skierowania_badania/','kw'=>'skierowanie badania lekarskie medycyna pracy'], 'Skierowania na badania lekarskie dla wolontariuszy i zleceniobiorców.');
-    if (module_enabled('contract_zlecenie') && can_edit())
-        $add('Oświadczenia zleceniobiorców', '/zlecenie/obsluga', 'bi-file-earmark-check', ['match'=>'/zlecenie/obsluga','kw'=>'oświadczenie zus pit podatkowe ubezpieczenie rachunek bankowy zleceniobiorca kreator'], 'Oświadczenia ZUS/PIT i dane do rozliczeń zleceniobiorców.');
     if (module_enabled('contract_szk')) {
         $add('SZK: zestawienia', '/contracts/szk/zestawienia.php', 'bi-bar-chart-steps', ['match'=>'/contracts/szk/zestawienia','kw'=>'szk zestawienia zmiany nadpłaty zapisy wypowiedzenia notatki płatnicy'], 'Zmiany, nadpłaty, zapisy, wypowiedzenia, notatki i płatnicy umów szkoleniowych.');
         $add('SZK: promocje', '/contracts/szk/promocje.php', 'bi-percent', ['match'=>'/contracts/szk/promocje','kw'=>'szk promocje rabaty'], 'Promocje stosowane w opłatach umów szkoleniowych.');
@@ -323,34 +313,53 @@ function _menu_editor(): array {
     $nodes = [];
 
     // ══ UMOWY ══════════════════════════════════════════════════════════════════
-    // Rodzaje umów — jedna płaska lista (bez nagłówków grup); reszta narzędzi w jednej pozycji „Więcej narzędzi” + wyszukiwarka (Ctrl+K).
-    $um_types = [];
-    foreach (['wolontariat', 'zlecenie', 'praca', 'dzielo', 'uslugi', 'powierzenie', 'inne', 'szk'] as $s) {
+    // Umowy — dwie kolumny wg strony umowy; obsługa dokumentów ma własną zakładkę „Dokumenty”.
+    $um_osoby = []; $um_inne = [];
+    foreach (['wolontariat' => 'o', 'zlecenie' => 'o', 'praca' => 'o', 'dzielo' => 'o', 'szk' => 'o', 'uslugi' => 'i', 'powierzenie' => 'i', 'inne' => 'i'] as $s => $col) {
         if (!module_enabled('contract_' . $s)) continue;
-        $um_types[] = _mi($ct_label($s), "/contracts/$s/list.php", $ct_icon($s), ['match'=>"/contracts/$s/", 'kw'=>"umowa $s"]);
+        $it = _mi($ct_label($s), "/contracts/$s/list.php", $ct_icon($s), ['match'=>"/contracts/$s/", 'kw'=>"umowa $s"]);
+        if ($col === 'o') $um_osoby[] = $it; else $um_inne[] = $it;
     }
-    $obs = [ _mi('Rejestr umów (RU)','/contracts/rejestr.php','bi-journal-text',['match'=>'/contracts/rejestr','kw'=>'rejestr ru numer']),
-             _mi('Generator dokumentów','/generator/index.php','bi-file-earmark-richtext',['match'=>'/generator/','kw'=>'generator dokumentów wzór umowa szablon pismo']) ];
-    if (module_enabled('approvals_enabled'))
-        $obs[] = _mi('Akceptacje','/contracts/approvals/index.php','bi-check2-square',['match'=>'/contracts/approvals/','badge'=>$cnt['pending'],'kw'=>'akceptacja workflow']);
-    if (module_enabled('terminations_enabled'))
-        $obs[] = _mi('Rozwiązania','/admin/terminations.php','bi-file-earmark-x',['match'=>'/admin/terminations','badge'=>$cnt['term'],'kw'=>'rozwiązanie umowy']);
-    if (can_read('admin') || can_read('pisma'))
-        $obs[] = _mi('Pisma i wnioski','/admin/applications.php','bi-inbox',['match'=>'/admin/applications.php','badge'=>$cnt['app'] ?? 0,'kw'=>'wnioski pisma użytkowników zsw dok upz']);
-    $more = _menu_contract_more($cnt);
-    if ($more) $obs[] = _mi('Więcej narzędzi…','/contracts/obsluga.php','bi-grid-3x3-gap',['match'=>'/contracts/obsluga','kw'=>'obsługa umów narzędzia']);
     $um_g = [];
-    if ($um_types) $um_g[] = ['label'=>'Rodzaje umów','items'=>$um_types];
-    $um_g[] = ['label'=>'Obsługa','items'=>$obs];
+    if ($um_osoby) $um_g[] = ['label'=>'Osoby fizyczne i szkolenia','items'=>$um_osoby];
+    if ($um_inne)  $um_g[] = ['label'=>'Podmioty i inne','items'=>$um_inne];
+    $doc_hit = _menu_hit('/contracts/approvals') || _menu_hit('/contracts/letters') || _menu_hit('/contracts/rejestr') || _menu_hit('/admin/terminations')
+             || _menu_hit('/pelnomocnictwa/') || _menu_hit('/modules/skierowania_badania/') || _menu_hit('/zlecenie/obsluga')
+             || _menu_hit('/admin/applications.php') || _menu_hit('/admin/application.php') || _menu_hit('/modules/app_workflow/') || _menu_hit('/generator/');
     $nodes[] = [
-        'id'=>'umowy','label'=>'Umowy','icon'=>'bi-file-text','badge'=>$cnt['pending']+$cnt['term'],
-        'active'=>(_menu_hit('/contracts/') && !_menu_hit('/contracts/wolontariat') && !_menu_hit('/contracts/rekrutacja'))
-                 || _menu_hit('/contracts/approvals') || _menu_hit('/contracts/letters') || _menu_hit('/contracts/rejestr') || _menu_hit('/admin/terminations')
-                 || _menu_hit('/pelnomocnictwa/') || _menu_hit('/modules/skierowania_badania/') || _menu_hit('/zlecenie/obsluga')
-                 || _menu_hit('/admin/applications.php') || _menu_hit('/admin/application.php') || _menu_hit('/modules/app_workflow/'),
+        'id'=>'umowy','label'=>'Umowy','icon'=>'bi-file-text',
+        'active'=>_menu_hit('/contracts/') && !$doc_hit && !_menu_hit('/contracts/wolontariat') && !_menu_hit('/contracts/rekrutacja'),
         'groups'=>$um_g,
-        'search'=>$more,   // pozycje z „Więcej narzędzi” — tylko w wyszukiwarce menu (Ctrl+K)
-        'compact'=>false,  // Umowy mają własny, ręcznie zbudowany układ
+        'search'=>_menu_contract_more($cnt),   // zestawienia / promocje / ustawienia SZK — tylko w wyszukiwarce (Ctrl+K) i na stronach SZK
+        'compact'=>false,
+    ];
+
+    // ══ DOKUMENTY ══════════════════════════════════════════════════════════════
+    $dk_rej = [ _mi('Rejestr umów (RU)','/contracts/rejestr.php','bi-journal-text',['match'=>'/contracts/rejestr','kw'=>'rejestr ru numer']) ];
+    if (module_enabled('pelnomocnictwa_enabled'))
+        $dk_rej[] = _mi('Rejestr pełnomocnictw','/pelnomocnictwa/index.php','bi-person-badge',['match'=>'/pelnomocnictwa/','kw'=>'pełnomocnictwo upoważnienie mocodawca 013']);
+    $dk_obieg = [];
+    if (module_enabled('approvals_enabled'))
+        $dk_obieg[] = _mi('Akceptacje','/contracts/approvals/index.php','bi-check2-square',['match'=>'/contracts/approvals/','badge'=>$cnt['pending'],'kw'=>'akceptacja workflow']);
+    if (can_read('admin') || can_read('pisma')) {
+        $dk_obieg[] = _mi('Pisma i wnioski','/admin/applications.php','bi-inbox',['match'=>'/admin/applications.php','badge'=>$cnt['app'] ?? 0,'kw'=>'wnioski pisma użytkowników zsw dok upz']);
+        $dk_obieg[] = _mi('Workflow wniosków','/modules/app_workflow/router.php','bi-diagram-3',['match'=>'/modules/app_workflow/','kw'=>'workflow etapy wnioski obieg']);
+    }
+    if (module_enabled('terminations_enabled'))
+        $dk_obieg[] = _mi('Rozwiązania','/admin/terminations.php','bi-file-earmark-x',['match'=>'/admin/terminations','badge'=>$cnt['term'],'kw'=>'rozwiązanie umowy']);
+    if (module_enabled('letters_enabled'))
+        $dk_obieg[] = _mi('Pisma do umów','/contracts/letters/index.php','bi-envelope-paper',['match'=>'/contracts/letters/','kw'=>'pisma korespondencja']);
+    $dk_wzory = [ _mi('Generator dokumentów','/generator/index.php','bi-file-earmark-richtext',['match'=>'/generator/','kw'=>'generator dokumentów wzór umowa szablon pismo']) ];
+    if (module_enabled('contract_wolontariat') || module_enabled('contract_zlecenie'))
+        $dk_wzory[] = _mi('Skierowania na badania','/modules/skierowania_badania/router.php','bi-heart-pulse',['match'=>'/modules/skierowania_badania/','kw'=>'skierowanie badania lekarskie medycyna pracy wstępne okresowe kontrolne']);
+    if (module_enabled('contract_zlecenie') && can_edit())
+        $dk_wzory[] = _mi('Oświadczenia zleceniobiorców','/zlecenie/obsluga','bi-file-earmark-check',['match'=>'/zlecenie/obsluga','kw'=>'oświadczenie zus pit podatkowe ubezpieczenie rachunek bankowy nrb zlb zleceniobiorca kreator']);
+    $dk_g = [['label'=>'Rejestry','items'=>$dk_rej]];
+    if ($dk_obieg) $dk_g[] = ['label'=>'Obieg i wnioski','items'=>$dk_obieg];
+    $dk_g[] = ['label'=>'Wzory i druki','items'=>$dk_wzory];
+    $nodes[] = [
+        'id'=>'dokumenty','label'=>'Dokumenty','icon'=>'bi-folder2-open','badge'=>$cnt['pending']+$cnt['term'],
+        'active'=>$doc_hit, 'groups'=>$dk_g, 'compact'=>false,
     ];
 
     // ══ WOLONTARIAT ════════════════════════════════════════════════════════════
