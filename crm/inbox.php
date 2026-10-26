@@ -295,6 +295,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Filtry i dane ───────────────────────────────────────────────────────────
 $view   = isset(CRM_MAILBOX_VIEWS[$_GET['view'] ?? '']) ? (string)$_GET['view'] : 'new';
+// Wejście bez wybranego widoku, gdy nie ma nowych, a w skrzynce coś leży: od razu „Wszystkie” zamiast pustego ekranu
+$auto_all = false;
+if (!isset($_GET['view']) && $view === 'new' && $ready && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $c0 = crm_mailbox_counts();
+    if (empty($c0['new']) && !empty($c0['all'])) { $view = 'all'; $auto_all = true; }
+}
 $mbox_f = (int)($_GET['mailbox_id'] ?? 0);
 $queue_f = (int)($_GET['queue_id'] ?? 0);   // kolejka wiadomości (crm_mail_queues); 0 = wszystkie
 $tag_f   = trim((string)($_GET['tag'] ?? ''));   // szybki filtr po tagu wiadomości
@@ -742,6 +748,9 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- ══ LISTA ═══════════════════════════════════════════════════════════ -->
   <section class="ib-col-list" aria-label="Lista wiadomości">
+    <?php if ($auto_all): ?>
+    <div class="ib-note ib-note--auto" role="status"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak nowych wiadomości — pokazuję <b>wszystkie</b>. Widok „Nowe” wybierzesz u góry.</div>
+    <?php endif; ?>
     <?php $bulk_view = $view === 'hidden';
           $abandon_days = (int)(crm_setting('crm_inbox_abandon_days') ?: 90); ?>
     <?php if ($bulk_view && $abandon_days > 0): ?>
@@ -813,6 +822,18 @@ include __DIR__ . '/includes/header_crm.php';
         <i class="bi bi-inbox" aria-hidden="true"></i>
         <strong>Brak wiadomości w tym widoku</strong>
         <span><?= ($search !== '' || $f_unread || $f_att) ? 'Nic nie pasuje do wyszukiwania i filtrów.' : 'Zmień widok albo sprawdź skrzynkę ponownie.' ?></span>
+        <?php $alts = [];
+              if ($search === '' && !$f_unread && !$f_att && !$queue_f && !$folder_f && $tag_f === '')
+                  foreach (['new', 'mine', 'unassigned', 'all'] as $avk) if ($avk !== $view && !empty($counts[$avk])) $alts[$avk] = (int)$counts[$avk]; ?>
+        <?php if ($alts): ?>
+        <div class="ib-empty-alt" role="group" aria-label="Wiadomości w innych widokach">
+          <?php foreach ($alts as $avk => $an): ?>
+          <a href="?<?= $qs(['view' => $avk, 'folder' => null, 'tag' => null, 'queue_id' => null, 'msg' => null, 'page' => null]) ?>"><i class="bi <?= h(CRM_MAILBOX_VIEWS[$avk]['icon']) ?>" aria-hidden="true"></i><?= h(CRM_MAILBOX_VIEWS[$avk]['label']) ?> <b><?= $an ?></b></a>
+          <?php endforeach; ?>
+        </div>
+        <?php elseif ($search !== '' || $f_unread || $f_att || $queue_f || $folder_f || $tag_f !== ''): ?>
+        <a class="ib-empty-clear" href="?<?= http_build_query(['view' => $view]) ?>"><i class="bi bi-x-circle" aria-hidden="true"></i>Wyczyść filtry</a>
+        <?php endif; ?>
       </div>
       <?php else: $last_day = ''; $outgoing = in_array($view, ['sent', 'drafts'], true);
         foreach ($inbox['rows'] as $r):
