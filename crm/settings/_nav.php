@@ -19,7 +19,7 @@ $_sn_groups = [
         ['Kategorie kontaktów',  '/crm/settings/categories.php',    'bi-diagram-2',          'settings/categories'],
         ['Statusy',              '/crm/settings/statuses.php',      'bi-bookmark-fill',      'settings/statuses'],
         ['Statusy automatyczne', '/crm/settings/status_rules.php',  'bi-magic',              'settings/status_rules'],
-        ['Statusy i listy z AI', '/crm/settings/ai_builder.php',    'bi-stars',              'settings/ai_builder'],
+        ['Statusy i listy',       '/crm/settings/ai_builder.php',    'bi-stars',              'settings/ai_builder'],
         ['Rodzaje usług',        '/crm/settings/services.php',      'bi-tools',              'settings/services'],
         ['Grupy pól',            '/crm/settings/field_groups.php',  'bi-layers',             'settings/field_groups'],
         ['Pola niestandardowe',  '/crm/settings/fields.php',        'bi-layout-text-sidebar-reverse', 'settings/fields.php'],

@@ -16,7 +16,7 @@ if (!can_write('crm_ustawienia') && !is_admin()) { flash_set('danger', 'Brak upr
 crm_migrate();
 crm_require('settings', 'write');
 crm_status_rules_schema();
-$PAGE_TITLE = 'CRM — Statusy i listy z AI';
+$PAGE_TITLE = 'CRM — Statusy i listy';
 
 $here = APP_URL . '/crm/settings/ai_builder.php';
 $ai_ok = asai_enabled();
