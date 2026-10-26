@@ -415,7 +415,7 @@ $ib_avatar = static function (string $name): array {
 };
 
 // Widoki: cztery codzienne na wierzchu, rzadsze w menu „Więcej”
-$views_main = ['new', 'mine', 'unassigned', 'all'];
+$views_main = ['new', 'mine', 'all'];   // trzy codzienne widoki; „Bez opiekuna”, załatwione, spam… w „Więcej”
 $views_more = array_values(array_diff(array_keys(CRM_MAILBOX_VIEWS), $views_main));
 
 include __DIR__ . '/includes/header_crm.php';
@@ -514,23 +514,30 @@ include __DIR__ . '/includes/header_crm.php';
     </button>
     <?php endif; ?>
     <?php if (is_admin()): ?>
-    <form method="post" class="d-flex gap-1 align-items-center">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="_op" value="scan">
-      <input type="hidden" name="view" value="<?= h($view) ?>">
-      <?php if (count($boxes) > 1): ?>
-      <select name="scan_mailbox" class="ib-field" style="max-width:180px" aria-label="Skrzynka do sprawdzenia">
-        <option value="">wszystkie skrzynki</option>
-        <?php foreach ($boxes as $b): ?>
-        <option value="<?= (int)$b['id'] ?>"><?= h($b['mailbox']) ?></option>
-        <?php endforeach; ?>
-      </select>
-      <?php endif; ?>
-      <button class="ib-tbtn" <?= $ready && $boxes ? '' : 'disabled' ?> title="Pobierz nowe wiadomości ze skrzynek teraz">
-        <i class="bi bi-arrow-repeat" aria-hidden="true"></i>Sprawdź teraz
+    <div class="dropdown">
+      <button type="button" class="ib-tbtn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Więcej: sprawdź skrzynki, konfiguracja" title="Sprawdź skrzynki, konfiguracja">
+        <i class="bi bi-three-dots" aria-hidden="true"></i>
       </button>
-    </form>
-    <a href="<?= APP_URL ?>/poczta/index.php" class="ib-tbtn" title="Konfiguracja skrzynek" aria-label="Konfiguracja skrzynek"><i class="bi bi-gear" aria-hidden="true"></i></a>
+      <div class="dropdown-menu dropdown-menu-end ib-menu p-2" style="min-width:280px">
+        <form method="post" class="d-flex gap-1 align-items-center">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_op" value="scan">
+          <input type="hidden" name="view" value="<?= h($view) ?>">
+          <?php if (count($boxes) > 1): ?>
+          <select name="scan_mailbox" class="ib-field" style="max-width:170px" aria-label="Skrzynka do sprawdzenia">
+            <option value="">wszystkie skrzynki</option>
+            <?php foreach ($boxes as $b): ?>
+            <option value="<?= (int)$b['id'] ?>"><?= h($b['mailbox']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <?php endif; ?>
+          <button class="ib-tbtn" <?= $ready && $boxes ? '' : 'disabled' ?> title="Pobierz nowe wiadomości ze skrzynek teraz">
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>Sprawdź teraz
+          </button>
+        </form>
+        <a href="<?= APP_URL ?>/poczta/index.php" class="dropdown-item mt-1"><i class="bi bi-gear" aria-hidden="true"></i>Konfiguracja skrzynek</a>
+      </div>
+    </div>
     <?php endif; ?>
   </div>
 </div>
@@ -582,7 +589,7 @@ include __DIR__ . '/includes/header_crm.php';
         $mbox_counts = crm_mailbox_counts_by_mailbox($view);
         $mbox_cur    = null;
         foreach ($boxes as $b) { if ((int)$b['id'] === $mbox_f) { $mbox_cur = $b; break; } } ?>
-  <div class="dropdown">
+  <div class="dropdown ib-mbox-dd">
     <button type="button" class="ib-tbtn<?= $mbox_cur ? ' ib-tbtn--on' : '' ?>" data-bs-toggle="dropdown" aria-expanded="false"
             aria-label="Skrzynka: <?= h($mbox_cur['mailbox'] ?? 'wszystkie') ?>"
             style="--c:<?= h($mbox_cur ? crm_mailbox_color($mbox_f) : '#8a8a8a') ?>">
@@ -628,7 +635,7 @@ include __DIR__ . '/includes/header_crm.php';
     <input type="hidden" name="_op" value="mark_all_read">
     <input type="hidden" name="view" value="<?= h($view) ?>">
     <input type="hidden" name="mailbox_id" value="<?= $mbox_f ?: '' ?>">
-    <button class="ib-tbtn" id="ibReadAll" title="Oznacz jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?> (Shift+I)"
+    <button class="ib-tbtn" id="ibReadAll" aria-label="Odczytaj wszystko (<?= (int)$unread_scope ?>)" title="Oznacz jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?> (Shift+I)"
             onclick="return confirm('Oznaczyć jako przeczytane wszystkie nieprzeczytane <?= h($scope_txt) ?>? Dotyczy <?= (int)$unread_scope ?> wiad.')">
       <i class="bi bi-envelope-open" aria-hidden="true"></i>Odczytaj wszystko
       <span class="ib-menu-note"><?= (int)$unread_scope ?></span>
@@ -711,9 +718,42 @@ include __DIR__ . '/includes/header_crm.php';
 </div>
 
 <?php /* Kolejki i foldery jako zakładki na pełną szerokość — pod paskiem narzędzi, nad listą i podglądem (wcześniej chipsy w wąskiej kolumnie listy). */
-      $show_qtabs = count($queues) > 1 || $folders || $tag_f !== '' || $can_write; ?>
+      $show_qtabs = true;   // lewy panel zawsze: widoki, filtry, skrzynki, kolejki i foldery w jednej kolumnie ?>
 <?php if ($show_qtabs): ?>
-<nav class="ib-tabs2" aria-label="Kolejki i foldery">
+<nav class="ib-tabs2" aria-label="Widoki, filtry, kolejki i foldery">
+  <?php /* Jedna kolumna zamiast trzech rzędów u góry: widoki, filtry, skrzynki, kolejki i foldery. Na szerokim ekranie górne
+           odpowiedniki są ukryte (inbox.css); na wąskim zostają górne, a ten panel układa się poziomo. */ ?>
+  <div class="ib-tabgrp ib-tabgrp--views" role="group" aria-label="Widoki">
+    <span class="ib-tabgrp-lbl"><i class="bi bi-inbox" aria-hidden="true"></i> Widoki</span>
+    <?php foreach (array_merge($views_main, $views_more) as $vk): $vv = CRM_MAILBOX_VIEWS[$vk]; $n = (int)($counts[$vk] ?? 0);
+          if (in_array($vk, ['hidden', 'drafts'], true) && !$n && $view !== $vk) continue; ?>
+    <a class="ib-pill ib-pill--sub<?= $view === $vk ? ' is-on' : '' ?>" href="?<?= $qs(['view' => $vk, 'folder' => null, 'tag' => null, 'msg' => null, 'page' => null, 'unread' => null]) ?>"<?= $view === $vk ? ' aria-current="page"' : '' ?>>
+      <i class="bi <?= h($vv['icon']) ?>" aria-hidden="true"></i><?= h($vv['label']) ?>
+      <span class="ib-cnt<?= $n ? '' : ' is-zero' ?>" data-ib-cnt="<?= h($vk) ?>"><?= $n ?></span></a>
+    <?php endforeach; ?>
+  </div>
+  <?php if (!in_array($view, ['new', 'sent', 'drafts'], true)): ?>
+  <div class="ib-tabgrp" role="group" aria-label="Filtry">
+    <span class="ib-tabgrp-lbl"><i class="bi bi-funnel" aria-hidden="true"></i> Filtry</span>
+    <a class="ib-pill ib-pill--sub<?= $f_unread ? ' is-on' : '' ?>" role="button" aria-pressed="<?= $f_unread ? 'true' : 'false' ?>"
+       href="?<?= $qs(['unread' => $f_unread ? null : 1, 'msg' => null, 'page' => null]) ?>"><i class="bi bi-envelope<?= $f_unread ? '-fill' : '' ?>" aria-hidden="true"></i>Nieprzeczytane</a>
+    <a class="ib-pill ib-pill--sub<?= $f_att ? ' is-on' : '' ?>" role="button" aria-pressed="<?= $f_att ? 'true' : 'false' ?>"
+       href="?<?= $qs(['att' => $f_att ? null : 1, 'msg' => null, 'page' => null]) ?>"><i class="bi bi-paperclip" aria-hidden="true"></i>Z załącznikiem</a>
+  </div>
+  <?php endif; ?>
+  <?php if (count($boxes) > 1): $mbc = $mbox_counts ?? crm_mailbox_counts_by_mailbox($view); ?>
+  <div class="ib-tabgrp" role="group" aria-label="Skrzynki">
+    <span class="ib-tabgrp-lbl"><i class="bi bi-collection" aria-hidden="true"></i> Skrzynki</span>
+    <a class="ib-pill ib-pill--sub<?= $mbox_f ? '' : ' is-on' ?>" href="?<?= $qs(['mailbox_id' => null, 'msg' => null, 'page' => null]) ?>"<?= $mbox_f ? '' : ' aria-current="page"' ?>>
+      Wszystkie <span class="ib-cnt"><?= (int)array_sum($mbc) ?></span></a>
+    <?php foreach ($boxes as $b): $bid = (int)$b['id']; ?>
+    <a class="ib-pill ib-pill--sub<?= $mbox_f === $bid ? ' is-on' : '' ?>" style="--c:<?= h(crm_mailbox_color($bid)) ?>" title="<?= h($b['mailbox']) ?>"
+       href="?<?= $qs(['mailbox_id' => $bid, 'msg' => null, 'page' => null]) ?>"<?= $mbox_f === $bid ? ' aria-current="page"' : '' ?>>
+      <span class="ib-q-dot" aria-hidden="true"></span><span class="ib-mbox-name"><?= h($b['mailbox']) ?></span>
+      <span class="ib-cnt<?= ($mbc[$bid] ?? 0) ? '' : ' is-zero' ?>"><?= (int)($mbc[$bid] ?? 0) ?></span></a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
   <?php if (count($queues) > 1): ?>
   <div class="ib-tabgrp" role="group" aria-label="Kolejki wiadomości">
     <span class="ib-tabgrp-lbl"><i class="bi bi-collection" aria-hidden="true"></i> Kolejki</span>
