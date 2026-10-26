@@ -232,6 +232,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('danger', $r['error'] ?? 'Nie udało się utworzyć sprawy.');
                 break;
 
+            case 'add_contact':
+                $r = crm_mailbox_add_contact_from_message($mid, $uid);
+                if (!empty($r['ok'])) { flash_set('success', 'Kontakt gotowy — przypięto ' . (int)$r['linked'] . ' wiad. od tego nadawcy.'); header('Location: ' . APP_URL . '/crm/inbox.php?' . http_build_query(array_filter(['view' => $_POST['view'] ?? null, 'msg' => $mid]))); exit; }
+                flash_set('danger', $r['error'] ?? 'Nie udało się dodać kontaktu.');
+                break;
+
+            case 'link_contact':
+                $m0 = crm_mailbox_message($mid);
+                $cid0 = (int)($_POST['contact_id'] ?? 0);
+                if ($m0 && $cid0) { $n0 = crm_mailbox_link_sender_to_contact(crm_mailbox_peer_email($m0), $cid0); flash_set('success', 'Przypięto do kontaktu: ' . $n0 . ' wiad. od tego nadawcy.'); }
+                else flash_set('danger', 'Wybierz kontakt.');
+                break;
+
             case 'ezd':
                 $r = crm_mailbox_to_ezd(
                     $mid,
@@ -1084,12 +1097,6 @@ include __DIR__ . '/includes/header_crm.php';
              aria-label="Następna wiadomość" title="Następna wiadomość (j)"><i class="bi bi-chevron-down" aria-hidden="true"></i></a>
         </nav>
         <div class="ib-chips">
-          <?php if (!empty($msg['contact_id'])): ?>
-          <a class="ib-chip" href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$msg['contact_id'] ?>" title="Kartoteka kontaktu">
-            <i class="bi <?= h(CRM_CONTACT_TYPES[$msg['contact_type']]['icon'] ?? 'bi-person') ?>" aria-hidden="true"></i>
-            <?= h($msg['contact_name']) ?>
-          </a>
-          <?php endif; ?>
           <?php if (!empty($msg['assigned_name'])): ?>
           <span class="ib-chip ib-chip--who"><i class="bi bi-person-check-fill" aria-hidden="true"></i>Prowadzi: <?= h($msg['assigned_name']) ?></span>
           <?php endif; ?>
@@ -1110,6 +1117,8 @@ include __DIR__ . '/includes/header_crm.php';
           <?php endif; ?>
         </div>
       </div>
+
+      <?php include __DIR__ . '/includes/inbox_contact.php'; ?>
 
       <?php if ($can_write && !$msg_out): ?>
       <?php /* Pasek akcji: na wierzchu czynności, od których zaczyna się obsługa;

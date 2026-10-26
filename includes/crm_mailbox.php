@@ -605,6 +605,8 @@ function crm_mailbox_message(int $id): ?array {
             );
         } catch (\Throwable $e) {}
     }
+    $m['ctx']['contact'] = null; $m['ctx']['candidates'] = [];
+    try { $m['ctx'] = array_merge($m['ctx'], crm_mailbox_contact_context($m)); } catch (\Throwable $e) { error_log('[crm_mailbox_message] contact ctx: ' . $e->getMessage()); }
     if (!empty($m['thread_key'])) {
         try {
             $m['ctx']['thread'] = db_all(
@@ -878,4 +880,76 @@ function crm_mailbox_scan(?int $mailbox_id = null): array {
         }
     }
     return ['ok' => true] + $sum;
+}
+
+
+// ── Skrzynka „kontaktowa”: kto pisze, co o nim wiemy, jak go przypiąć ───────────────────────────────────────────────
+
+/** Adres nadawcy/odbiorcy wiadomości (dla wychodzących — adres kontaktu). */
+function crm_mailbox_peer_email(array $m): string {
+    $e = ($m['direction'] ?? 'in') === 'out' ? (string)($m['contact_email'] ?? '') : (string)($m['from_email'] ?? '');
+    return strtolower(trim($e));
+}
+
+/**
+ * Kontekst kontaktu do karty w skrzynce: dane kartoteki, liczniki (wiadomości, sprawy otwarte, oferty) i opiekun;
+ * dla nieznanego nadawcy — kandydaci (kontakty z tej samej domeny firmowej albo o tym samym e-mailu w osobach kontaktowych).
+ * @return array{contact:?array,candidates:array}
+ */
+function crm_mailbox_contact_context(array $m): array {
+    $out = ['contact' => null, 'candidates' => []];
+    $cid = (int)($m['contact_id'] ?? 0);
+    if ($cid) {
+        $c = db_one("SELECT c.id, c.imie_nazwisko, c.type, c.status, c.organizacja, c.stanowisko, c.email, c.telefon, c.nip, c.email_opt_out, c.is_critical,
+                            u.name AS owner_name
+                       FROM crm_contacts c LEFT JOIN users u ON u.id = c.owner_id WHERE c.id=? AND c.crm_active=1", [$cid]);
+        if ($c) {
+            $c['n_msgs']   = (int)(db_one("SELECT COUNT(*) AS n FROM crm_communications WHERE contact_id=? AND channel='email'", [$cid])['n'] ?? 0);
+            $c['n_cases']  = (int)(db_one("SELECT COUNT(*) AS n FROM crm_cases WHERE contact_id=? AND " . crm_case_active_sql(), [$cid])['n'] ?? 0);
+            $c['n_offers'] = (int)(db_one("SELECT COUNT(*) AS n FROM crm_offers WHERE contact_id=? AND deleted_at IS NULL", [$cid])['n'] ?? 0);
+            $c['last_at']  = (string)(db_one("SELECT MAX(sent_at) AS d FROM crm_communications WHERE contact_id=?", [$cid])['d'] ?? '');
+            $out['contact'] = $c;
+        }
+        return $out;
+    }
+    $email = crm_mailbox_peer_email($m);
+    if ($email === '' || !str_contains($email, '@')) return $out;
+    require_once __DIR__ . '/crm_contact_analyzer.php';
+    $dom = substr($email, strrpos($email, '@') + 1);
+    $cand = [];
+    foreach (db_all("SELECT id, imie_nazwisko, type, organizacja FROM crm_contacts WHERE crm_active=1 AND LOWER(COALESCE(email,''))=? LIMIT 3", [$email]) as $r) $cand[(int)$r['id']] = $r + ['why' => 'ten sam adres e-mail'];
+    if ($dom !== '' && !crm_is_free_mail($dom)) {
+        foreach (db_all("SELECT id, imie_nazwisko, type, organizacja FROM crm_contacts WHERE crm_active=1 AND LOWER(COALESCE(email,'')) LIKE ? ORDER BY type='organizacja' DESC, id LIMIT 4", ['%@' . $dom]) as $r)
+            $cand[(int)$r['id']] ??= $r + ['why' => 'domena @' . $dom];
+    }
+    $out['candidates'] = array_slice(array_values($cand), 0, 4);
+    return $out;
+}
+
+/** Zakłada kontakt z nadawcy wiadomości i przypina do niego wszystkie jego dotąd nieprzypisane wiadomości. @return array{ok:bool,id?:int,error?:string,linked?:int} */
+function crm_mailbox_add_contact_from_message(int $msg_id, ?int $uid): array {
+    $m = crm_mailbox_message($msg_id);
+    if (!$m) return ['ok' => false, 'error' => 'Nie znaleziono wiadomości.'];
+    if (!empty($m['contact_id'])) return ['ok' => false, 'error' => 'Wiadomość ma już kontakt.'];
+    $email = crm_mailbox_peer_email($m);
+    if ($email === '' || !str_contains($email, '@')) return ['ok' => false, 'error' => 'Wiadomość nie ma adresu nadawcy.'];
+    $ex = db_one("SELECT id FROM crm_contacts WHERE LOWER(COALESCE(email,''))=? AND crm_active=1 LIMIT 1", [$email]);
+    if ($ex) { $id = (int)$ex['id']; }
+    else {
+        $name = trim((string)($m['from_name'] ?? ''));
+        if ($name === '' || str_contains($name, '@')) $name = ucwords(str_replace(['.', '_', '-'], ' ', substr($email, 0, strpos($email, '@'))));
+        require_once __DIR__ . '/crm.php';
+        $id = CrmManager::createContact(['type' => 'osoba', 'status' => 'prospect', 'imie_nazwisko' => $name, 'email' => $email, 'source' => 'skrzynka', 'created_by' => $uid ?: null]);
+    }
+    $linked = crm_mailbox_link_sender_to_contact($email, $id);
+    return ['ok' => true, 'id' => $id, 'linked' => $linked];
+}
+
+/** Przypina do kontaktu wszystkie nieprzypisane wiadomości od danego adresu. @return int liczba wiadomości */
+function crm_mailbox_link_sender_to_contact(string $email, int $contact_id): int {
+    $email = strtolower(trim($email));
+    if ($email === '' || !db_one("SELECT id FROM crm_contacts WHERE id=? AND crm_active=1", [$contact_id])) return 0;
+    $st = db()->prepare("UPDATE crm_communications SET contact_id=? WHERE (contact_id IS NULL OR contact_id=0) AND LOWER(COALESCE(from_email,''))=?");
+    $st->execute([$contact_id, $email]);
+    return (int)$st->rowCount();
 }

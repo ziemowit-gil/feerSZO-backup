@@ -459,3 +459,124 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
 .ib-empty-clear { margin-top:1rem }
 .ib-empty-alt a:focus-visible, .ib-empty-clear:focus-visible { outline:3px solid #ff9800; outline-offset:2px }
 .ib-note--auto { background:#E8F4FD; border:1px solid #9CCBF0; color:#0b3d66; padding:.5rem .8rem; font-size:.85rem; margin:0 }
+
+/* ══ Skrzynka — Metro + Dynamics 365 (2026-10-26) ═══════════════════════════════════════════════════════════════════
+   Warstwa wizualna na wierzchu układu powyżej, bez zmian w znaczniku i skryptach:
+   • Metro: płasko, zero zaokrągleń i cieni, kwadratowe znaczniki, kolor tylko jako akcent,
+   • Dynamics 365: pasek poleceń (przyciski bez obramowań, hover jako jasne tło, główne polecenie wypełnione), zakładki
+     jako pivot z podkreśleniem, lista jak kanał aktywności (nieprzeczytane pogrubione + akcent z lewej, wybrana
+     pozycja podświetlona), nagłówek wiadomości z wyraźną hierarchią (temat → nadawca/data → polecenia).
+   Kontrast tekstu ≥ 4,5:1 (najjaśniejszy tekst #605e5c na #fff = 6,3:1). */
+.ib-shell { --ib-line:#edebe9; --ib-soft:#faf9f8; --ib-hover:#f3f2f1; --ib-muted:#605e5c; --ib-text:#201f1e }
+
+/* Nagłówek i zakładki */
+.ib-shell .ib-top { padding:.15rem 0 .35rem; gap:.35rem 1rem; border-bottom:1px solid var(--ib-line); margin-bottom:.5rem }
+.ib-shell .ib-title { font-size:1.1rem; font-weight:600; letter-spacing:0 }
+.ib-shell .ib-title-ic { width:1.65rem; height:1.65rem; font-size:.9rem }
+.ib-shell .ib-pill { padding:.5rem .7rem .4rem; font-size:.84rem; font-weight:600; border-bottom-width:2px }
+.ib-shell .ib-pill:hover { background:var(--ib-hover) }
+.ib-shell .ib-cnt { min-width:0; padding:0 .3rem; font-size:.74rem; line-height:1.45; background:transparent; color:var(--ib-muted); font-weight:600 }
+.ib-shell .ib-cnt.is-zero { outline:0; color:#8a8886; font-weight:400 }
+.ib-shell .ib-pill.is-on .ib-cnt:not(.is-zero), .ib-shell .ib-cnt:not(.is-zero) { background:var(--crm-primary); color:#fff; font-weight:700 }
+
+/* Pasek poleceń */
+.ib-shell .ib-tbtn, .ib-shell .ib-act, .ib-shell .ib-chip-f, .ib-shell .ib-nav a {
+  height:32px; border:1px solid transparent; background:transparent; color:var(--ib-text); font-weight:600; font-size:.82rem }
+.ib-shell .ib-tbtn > .bi, .ib-shell .ib-act > .bi, .ib-shell .ib-chip-f > .bi { color:var(--crm-primary) }
+.ib-shell .ib-tbtn:hover, .ib-shell .ib-act:hover, .ib-shell .ib-chip-f:hover, .ib-shell .ib-nav a:hover { background:var(--ib-hover); border-color:transparent; color:var(--ib-text) }
+.ib-shell .ib-tbtn--cta, .ib-shell .ib-act--primary, .ib-shell .ib-chip-f.is-on { background:var(--crm-primary); border-color:var(--crm-primary); color:#fff }
+.ib-shell .ib-tbtn--cta > .bi, .ib-shell .ib-act--primary > .bi, .ib-shell .ib-chip-f.is-on > .bi { color:#fff }
+.ib-shell .ib-tbtn--cta:hover, .ib-shell .ib-act--primary:hover { background:var(--crm-primary-dark); border-color:var(--crm-primary-dark); color:#fff }
+.ib-shell .ib-tbtn--on { background:var(--crm-primary-bg); color:var(--crm-primary-dark) }
+.ib-shell .ib-toolbar { background:#fff; padding:.25rem 0 .5rem; margin-bottom:.5rem; border-bottom:1px solid var(--ib-line) }
+.ib-shell .ib-search input, .ib-shell .ib-field { height:32px; border:1px solid #8a8886; border-bottom-width:1px; font-size:.84rem }
+.ib-shell .ib-search input:focus, .ib-shell .ib-field:focus { border-color:var(--crm-primary); box-shadow:inset 0 -2px 0 var(--crm-primary) }
+
+/* Lista — kanał aktywności */
+.ib-shell .ib-list, .ib-shell .ib-pane { border:1px solid var(--ib-line); border-top:2px solid var(--crm-primary) }
+.ib-shell .ib-day { background:var(--ib-soft); border-bottom:1px solid var(--ib-line); font-size:.66rem; letter-spacing:.12em; padding:.4rem .85rem; color:var(--ib-muted) }
+.ib-shell .ib-row { background:var(--ib-soft); border-bottom:1px solid #f3f2f1 }
+.ib-shell .ib-row.unread { background:#fff }
+.ib-shell .ib-row:hover { background:var(--ib-hover); box-shadow:none }
+.ib-shell .ib-row.is-checked { background:var(--crm-primary-bg) }
+.ib-shell .ib-row.is-active { background:var(--crm-primary-bg) }
+.ib-shell .ib-row.is-active::after { width:3px }
+.ib-shell .ib-row.unread .ib-who, .ib-shell .ib-row.unread .ib-subj { font-weight:700; color:var(--ib-text) }
+.ib-shell .ib-row:not(.unread) .ib-who { font-weight:400 }
+.ib-shell .ib-row:not(.unread) .ib-subj { color:#323130 }
+.ib-shell .ib-time { font-size:.72rem }
+.ib-shell .ib-tag, .ib-shell .ib-chip, .ib-shell .ib-tcount { font-weight:600 }
+.ib-shell .ib-bulk { padding:.35rem .5rem; background:#fff; border-bottom:1px solid var(--ib-line) }
+
+/* Wiadomość — hierarchia nagłówka i pasek poleceń */
+.ib-shell .ib-head { padding:.9rem 1.15rem .6rem }
+.ib-shell .ib-h1 { font-size:1.2rem; font-weight:600; line-height:1.3 }
+.ib-shell .ib-h1-no, .ib-shell .ib-no { background:transparent; padding:0; color:var(--ib-muted); letter-spacing:.08em }
+.ib-shell .ib-chip { background:var(--ib-hover) }
+.ib-shell .ib-bar { background:#fff; padding:.3rem 1.15rem; border-top:1px solid var(--ib-line); border-bottom:1px solid var(--ib-line); gap:.15rem }
+.ib-shell .ib-bar .ib-act { padding:0 .6rem }
+.ib-shell .ib-sep { background:var(--ib-line); margin:.3rem .35rem }
+.ib-shell .ib-split > .ib-act + .dropdown > .ib-act { border-left:1px solid var(--ib-line) }
+.ib-shell .ib-card, .ib-shell .ib-att { border:1px solid var(--ib-line) }
+.ib-shell .ib-card > summary { background:var(--ib-soft); font-size:.74rem; letter-spacing:.08em }
+.ib-shell .ib-conv-item.is-out { border-left-color:var(--crm-primary) }
+@media (prefers-reduced-motion: reduce) { .ib-shell * { transition:none !important } }
+
+/* ── Układ jak Outlook: panel kolejek i folderów po lewej, lista i podgląd obok (od 1100 px) ───────────────────── */
+@media (min-width:1100px) {
+  .ib-shell { display:grid; grid-template-columns:200px minmax(0,1fr); column-gap:.75rem; align-items:start }
+  .ib-shell > * { grid-column:1 / -1 }
+  .ib-shell > .ib-tabs2 { grid-column:1; position:sticky; top:calc(var(--crm-topbar-h, 52px) + var(--crm-navbar-h, 48px) + .5rem);
+    flex-direction:column; align-items:stretch; gap:.15rem; margin:0; padding:.35rem 0; overflow-x:visible; overflow-y:auto;
+    max-height:calc(100vh - var(--crm-topbar-h, 52px) - var(--crm-navbar-h, 48px) - 1.25rem); border:1px solid var(--ib-line); border-top:2px solid var(--crm-primary); box-shadow:none }
+  .ib-shell > .ib-tabs2 + .ib-wrap { grid-column:2 }
+  .ib-shell .ib-tabgrp { flex-direction:column; gap:0; padding:0 }
+  .ib-shell .ib-tabgrp + .ib-tabgrp { padding-left:0; border-left:0; border-top:1px solid var(--ib-line); margin-top:.35rem; padding-top:.35rem }
+  .ib-shell .ib-tabgrp-lbl { padding:.3rem .85rem .2rem; font-size:.66rem; letter-spacing:.12em }
+  .ib-shell .ib-pill--sub { display:flex; align-items:center; gap:.5rem; min-height:34px; padding:.3rem .85rem; font-size:.84rem; font-weight:400; color:var(--ib-text);
+    border:0; border-left:3px solid transparent; background:transparent; justify-content:flex-start }
+  .ib-shell .ib-pill--sub:hover { background:var(--ib-hover) }
+  .ib-shell .ib-pill--sub.is-on { background:var(--crm-primary-bg); border-left-color:var(--c); font-weight:700 }
+  .ib-shell .ib-pill--sub .ib-cnt { margin-left:auto; font-size:.76rem; min-width:0; background:transparent; color:var(--ib-muted); font-weight:600 }
+  .ib-shell .ib-pill--sub .ib-cnt:not(.is-zero) { background:transparent; color:var(--c); font-weight:700 }
+  .ib-shell .ib-pill--sub.is-on .ib-cnt:not(.is-zero) { background:transparent; color:var(--c) }
+  .ib-shell .ib-tab-cfg { display:flex; padding:.3rem .85rem; border:0; font-size:.78rem }
+}
+
+/* Znaczniki w wierszu listy — jedna linia, bez łamania (kolejka i adres skrzynki nie rozpychają wiersza) */
+.ib-shell .ib-item .ib-tag { display:inline-flex; align-items:center; gap:.25rem; white-space:nowrap; max-width:11rem; overflow:hidden; text-overflow:ellipsis; flex-shrink:0 }
+.ib-shell .ib-item .ib-tag--mb { flex-shrink:1; min-width:0; max-width:9rem; display:block }
+.ib-shell .ib-item .ib-tag--q { padding:.02rem .4rem }
+
+/* ── Karta kontaktu w szpalcie (skrzynka kontaktowa), zwarta ───────────────────────────────────────────────────── */
+.ib-contact { padding:.55rem .7rem; border-left:3px solid var(--crm-primary) }
+.ib-ct-top { display:flex; align-items:flex-start; gap:.5rem }
+.ib-ct-ico { font-size:1.15rem; line-height:1.2; color:var(--ib-muted) }
+.ib-ct-main { min-width:0; flex:1 }
+.ib-ct-name { display:block; font-weight:700; font-size:.92rem; color:var(--ib-text); text-decoration:none; overflow-wrap:anywhere }
+a.ib-ct-name:hover { color:var(--crm-primary-dark); text-decoration:underline }
+.ib-ct-sub { font-size:.76rem; color:var(--ib-muted); overflow-wrap:anywhere }
+.ib-ct-st { font-size:.68rem; font-weight:700; padding:.05rem .4rem; background:var(--crm-primary-bg); color:var(--crm-primary-dark); white-space:nowrap }
+.ib-ct-lines { display:flex; flex-direction:column; gap:.1rem; margin:.4rem 0 .3rem; font-size:.8rem }
+.ib-ct-lines a, .ib-ct-lines span { color:var(--ib-text); text-decoration:none; overflow-wrap:anywhere }
+.ib-ct-lines a:hover { text-decoration:underline }
+.ib-ct-lines .bi { width:1.1rem; color:var(--ib-muted); margin-right:.2rem }
+.ib-ct-stats { display:flex; flex-wrap:wrap; gap:.15rem .7rem; font-size:.76rem; color:var(--ib-muted); padding:.3rem 0; border-top:1px solid var(--ib-line) }
+.ib-ct-stats b { color:var(--ib-text) }
+.ib-ct-warn { color:#a20025; font-weight:700 }
+.ib-ct-act { display:flex; flex-wrap:wrap; gap:.15rem; margin-top:.2rem }
+.ib-ct-act a, .ib-ct-act button { height:28px; display:inline-flex; align-items:center; gap:.3rem; padding:0 .5rem; font-size:.78rem; font-weight:600; color:var(--ib-text); text-decoration:none; border:0; background:transparent }
+.ib-ct-act a:hover, .ib-ct-act button:hover { background:var(--ib-hover) }
+.ib-ct-act .bi { color:var(--crm-primary) }
+.ib-ct-act .ib-act--primary { background:var(--crm-primary); color:#fff } .ib-ct-act .ib-act--primary .bi { color:#fff } .ib-ct-act .ib-act--primary:hover { background:var(--crm-primary-dark) }
+.ib-ct-cand { display:flex; align-items:center; gap:.4rem; margin-top:.35rem; padding-top:.35rem; border-top:1px solid var(--ib-line) }
+.ib-ct-cname { flex:1; min-width:0; font-size:.8rem; font-weight:600; overflow-wrap:anywhere }
+.ib-ct-cname small { display:block; font-weight:400; color:var(--ib-muted); font-size:.7rem }
+
+/* Karta kontaktu jako pasek pod nagłówkiem wiadomości (zwarty, zawija się) */
+.ib-pane > .ib-contact { display:flex; flex-wrap:wrap; align-items:center; gap:.25rem 1.1rem; margin:0; padding:.5rem 1.15rem; background:var(--ib-soft); border:0; border-top:1px solid var(--ib-line); border-left:3px solid var(--crm-primary) }
+.ib-pane > .ib-contact .ib-ct-top { flex:1 1 230px; min-width:0 }
+.ib-pane > .ib-contact .ib-ct-lines { flex-direction:row; flex-wrap:wrap; gap:.1rem .8rem; margin:0 }
+.ib-pane > .ib-contact .ib-ct-stats { border-top:0; padding:0 }
+.ib-pane > .ib-contact .ib-ct-act { margin:0; margin-left:auto }
+.ib-pane > .ib-contact .ib-ct-cand { flex:1 1 100%; margin:0; padding:.3rem 0 0; border-top:1px dashed var(--ib-line) }
