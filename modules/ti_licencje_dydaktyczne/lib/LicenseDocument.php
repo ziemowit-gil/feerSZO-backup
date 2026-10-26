@@ -1019,7 +1019,7 @@ final class LicenseDocument
                 . '<td width="33%"><b>' . htmlspecialchars($symbol) . '</b> (' . self::VERSION . ')</td>'
                 . '<td width="34%" style="text-align:center">' . htmlspecialchars($number) . '</td>'
                 . '<td width="33%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr>'
-                . ($code !== '' ? '<tr><td colspan="3" style="text-align:right;font-size:6pt"><table align="right" style="border:0"><tr><td style="text-align:right;vertical-align:bottom;font-size:6pt"><barcode code="' . htmlspecialchars($code) . '" type="C128B" size="0.75" height="0.55" /><br>' . htmlspecialchars($code) . '</td>'
+                . ($code !== '' ? '<tr><td colspan="3" style="text-align:right;font-size:6pt"><table align="right" style="border:0"><tr><td style="text-align:right;vertical-align:bottom;font-size:6pt"><barcode code="' . htmlspecialchars($code) . '" type="C128B" size="0.75" height="0.55" /><br>' . htmlspecialchars($code) . '<br><span style="font-size:5pt">Sprawdź dokument: ' . htmlspecialchars(preg_replace('#^https?://#', '', rtrim(APP_URL, '/'))) . '/espis/</span></td>'
                     . ($qr !== '' ? '<td style="vertical-align:bottom;padding-left:2mm">' . $qr . '<div style="font-size:5pt;text-align:center">eSpis</div></td>' : '') . '</tr></table></td></tr>' : '')
                 . '</table>');
             $mpdf->WriteHTML($html);

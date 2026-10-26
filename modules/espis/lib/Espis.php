@@ -45,6 +45,13 @@ final class Espis
             voided_at VARCHAR(19)
         )");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_espis_sprawa ON espis_documents(sprawa_id, doc_key, status)");
+        db()->exec("CREATE TABLE IF NOT EXISTS espis_lookups (
+            id {$pk},
+            ip_hash VARCHAR(64) NOT NULL DEFAULT '',
+            ok INTEGER NOT NULL DEFAULT 0,
+            created_at VARCHAR(19)
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_espis_lookups ON espis_lookups(ip_hash, created_at)");
     }
 
     public static function available(): bool
@@ -177,6 +184,79 @@ final class Espis
     {
         self::migrate();
         return db_all("SELECT * FROM espis_documents WHERE sprawa_id = ? ORDER BY CASE status WHEN 'valid' THEN 0 ELSE 1 END, id DESC", [$sprawaId]);
+    }
+
+    // ── Część publiczna: weryfikacja kodu dokumentu ──────────────────────────────
+
+    /** Limit zapytań o kody z jednego IP (ochrona przed przeszukiwaniem): max $max w ciągu $minutes minut; zapytanie jest zapisywane. */
+    public static function throttled(string $ip, int $max = 30, int $minutes = 10): bool
+    {
+        self::migrate();
+        $h = hash('sha256', $ip . (string)APP_KEY);
+        $n = (int)(db_one("SELECT COUNT(*) AS n FROM espis_lookups WHERE ip_hash = ? AND created_at >= ?", [$h, date('Y-m-d H:i:s', time() - $minutes * 60)])['n'] ?? 0);
+        return $n >= $max;
+    }
+
+    public static function logLookup(string $ip, bool $found): void
+    {
+        self::migrate();
+        db_insert('espis_lookups', ['ip_hash' => hash('sha256', $ip . (string)APP_KEY), 'ok' => $found ? 1 : 0, 'created_at' => date('Y-m-d H:i:s')]);
+        if (random_int(1, 50) === 1) db()->prepare("DELETE FROM espis_lookups WHERE created_at < ?")->execute([date('Y-m-d H:i:s', time() - 86400)]);   // porządki
+    }
+
+    /**
+     * Weryfikacja kodu ze stopki dokumentu (Code128): stan dokumentu BEZ danych osobowych.
+     * @return array{found:bool,code:string,kind:string,label:string,number:string,revision:int,current:int,state:string,date:string,espis_url:string,note:string}
+     *         state: valid | void | pending | unknown
+     */
+    public static function verify(string $code): array
+    {
+        $c = strtoupper(trim($code));
+        $r = ['found' => false, 'code' => $c, 'kind' => '', 'label' => '', 'number' => '', 'revision' => 0, 'current' => 0, 'state' => 'unknown', 'date' => '', 'espis_url' => '', 'note' => ''];
+        if ($c === '' || strlen($c) > 100 || !preg_match('~^[A-Z0-9/#.-]+$~', $c)) { $r['note'] = 'Nieprawidłowy format kodu. Przepisz go dokładnie spod kodu kreskowego w stopce dokumentu.'; return $r; }
+        self::migrate();
+        // 1) rejestr eSpisu (dokument wpisany do koszulki EZD)
+        $d = db_one("SELECT * FROM espis_documents WHERE UPPER(code) = ? ORDER BY id DESC LIMIT 1", [$c]);
+        if ($d) {
+            $cur = db_one("SELECT revision FROM espis_documents WHERE sprawa_id = ? AND doc_key = ? AND status = 'valid' ORDER BY id DESC LIMIT 1", [(int)$d['sprawa_id'], $d['doc_key']]);
+            return array_merge($r, ['found' => true, 'kind' => 'espis', 'label' => (string)$d['label'], 'number' => (string)$d['doc_number'], 'revision' => (int)$d['revision'], 'current' => (int)($cur['revision'] ?? $d['revision']),
+                'state' => $d['status'] === 'valid' ? 'valid' : 'void', 'date' => substr((string)$d['created_at'], 0, 10), 'espis_url' => self::url((int)$d['sprawa_id'])]);
+        }
+        // 2) kody AM (LD…/OP… z symbolem i rewizją) — druki sprzed eSpisu i poza koszulką
+        $f = dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/lib/LicenseCodes.php';
+        if (is_file($f) && preg_match('~^(LD|OP|AMSK-|UP1-|PP-)\d~', $c)) {
+            require_once $f;
+            $p = LicenseCodes::resolve($c);
+            if ($p) {
+                switch ($p['scope']) {
+                    case 'license': case 'operation':
+                        $row = $p['scope'] === 'license' ? db_one("SELECT case_number AS n, created_at FROM licenses WHERE id = ?", [$p['id']]) : db_one("SELECT number AS n, created_at FROM license_operations WHERE id = ?", [$p['id']]);
+                        if (!$row) break;
+                        $cur = LicenseCodes::revision($p['scope'], $p['id']); $rev = (int)$p['rev'];
+                        $state = $rev === 0 ? ($cur > 1 ? 'void' : 'valid') : ($rev < $cur ? 'void' : ($rev > $cur ? 'unknown' : 'valid'));
+                        $sid = self::sprawaId($p['scope'] === 'operation' ? 'operacja_am' : 'licencja_am', $p['id']);
+                        return array_merge($r, ['found' => true, 'kind' => 'am', 'label' => 'Druk sprawy AM' . ($p['symbol'] !== '' ? ' — ' . $p['symbol'] : ''), 'number' => (string)$row['n'], 'revision' => $rev, 'current' => $cur,
+                            'state' => $state, 'date' => substr((string)$row['created_at'], 0, 10), 'espis_url' => $sid ? self::url($sid) : '',
+                            'note' => $rev === 0 ? 'Druk bez oznaczenia wersji (wydany przed wprowadzeniem rewizji) — po korekcie AMSK uznaje się go za nieaktualny.' : '']);
+                    case 'correction':
+                        $x = db_one("SELECT target_number, status, created_at FROM license_corrections WHERE id = ?", [$p['id']]);
+                        if ($x) return array_merge($r, ['found' => true, 'kind' => 'amsk', 'label' => 'Korekta dokumentów AM (AMSK)', 'number' => (string)$x['target_number'], 'state' => $x['status'] === 'applied' ? 'valid' : ($x['status'] === 'pending' ? 'pending' : 'void'),
+                            'date' => substr((string)$x['created_at'], 0, 10), 'note' => ['applied' => 'Korekta zatwierdzona podpisem kierownika.', 'pending' => 'Korekta czeka na podpis kierownika — zmiany nie weszły w życie.', 'cancelled' => 'Korekta anulowana.'][$x['status']] ?? '']);
+                        break;
+                    case 'rotation':
+                        $x = db_one("SELECT target_number, status, created_at FROM license_rotations WHERE id = ?", [$p['id']]);
+                        if ($x) return array_merge($r, ['found' => true, 'kind' => 'up1', 'label' => 'Uzasadnienie rotacji licencji (ASK-UP1)', 'number' => (string)$x['target_number'], 'state' => $x['status'] === 'signed' ? 'valid' : ($x['status'] === 'pending' ? 'pending' : 'void'),
+                            'date' => substr((string)$x['created_at'], 0, 10), 'note' => ['signed' => 'Podpis kierownika potwierdzony.', 'pending' => 'Czeka na podpis kierownika.', 'cancelled' => 'Anulowane.'][$x['status']] ?? '']);
+                        break;
+                    case 'package':
+                        $x = db_one("SELECT scope, target_id, revision, created_at FROM license_doc_packages WHERE id = ?", [$p['id']]);
+                        if ($x) return array_merge($r, ['found' => true, 'kind' => 'pp', 'label' => 'Protokół przekazania hasła do pakietu (PP)', 'revision' => (int)$x['revision'], 'state' => 'valid', 'date' => substr((string)$x['created_at'], 0, 10)]);
+                        break;
+                }
+            }
+        }
+        $r['note'] = preg_match('~^KD\d~', $c) ? 'Dokumentu uczestnika o tym kodzie nie ma w eSpisie (nie został wpisany do koszulki EZD albo kod jest błędny).' : 'Nie znaleziono dokumentu o tym kodzie. Sprawdź przepisanie kodu.';
+        return $r;
     }
 
     // ── QR w stopce ───────────────────────────────────────────────────────────────

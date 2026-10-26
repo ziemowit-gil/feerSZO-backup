@@ -65,6 +65,6 @@ function ti_student_doc_footer(string $footerHtml, string $code): string
     if ($code === '') return $footerHtml;
     $c = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
     $qr = ti_student_doc_qr($code);
-    return $footerHtml . '<table align="right" style="border:0;font-family:dejavusans;font-size:6pt"><tr><td style="text-align:right;vertical-align:bottom"><barcode code="' . $c . '" type="C128B" size="0.75" height="0.55" /><br>' . $c . '</td>'
+    return $footerHtml . '<table align="right" style="border:0;font-family:dejavusans;font-size:6pt"><tr><td style="text-align:right;vertical-align:bottom"><barcode code="' . $c . '" type="C128B" size="0.75" height="0.55" /><br>' . $c . '<br><span style="font-size:5pt">Sprawdź dokument: ' . htmlspecialchars(preg_replace('#^https?://#', '', rtrim(defined('APP_URL') ? APP_URL : '', '/')), ENT_QUOTES, 'UTF-8') . '/espis/</span></td>'
         . ($qr !== '' ? '<td style="vertical-align:bottom;padding-left:2mm">' . $qr . '<div style="font-size:5pt;text-align:center">eSpis</div></td>' : '') . '</tr></table>';
 }
