@@ -396,3 +396,20 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
 .ib-tag--q { background:transparent; color:var(--c); border:1px solid var(--c); font-weight:600 }
 .ib-bulk-q { display:inline-flex; align-items:center; gap:.35rem }
 .ib-bulk-q select { height:28px; font-size:.78rem }
+
+/* Własne foldery (zapisane widoki) i tagi wiadomości */
+.ib-folders { display:flex; flex-wrap:wrap; gap:.35rem; padding:.45rem .6rem; border-bottom:1px solid #e1e1e1; background:#f3f7fb }
+.ib-fo { display:inline-flex; align-items:center; gap:.35rem; height:30px; padding:0 .65rem; font-size:.8rem; font-weight:600; white-space:nowrap; text-decoration:none;
+  color:#3f3f3f; background:#fff; border:2px solid var(--c,#c6c6c6); }
+.ib-fo:hover { filter:brightness(.97) }
+.ib-fo.is-on { background:var(--c,var(--crm-primary)); border-color:var(--c,var(--crm-primary)); color:#fff }
+.ib-fo:focus-visible { outline:3px solid #ff9800; outline-offset:2px }
+.ib-fo .bi { color:var(--c,#555) } .ib-fo.is-on .bi { color:#fff }
+.ib-q-n.is-unread { font-weight:800; opacity:1 }
+.ib-tag--t { background:#EEF2FF; color:#3730A3; border:1px solid #C7D2FE }
+.ib-tagbar { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem; flex-basis:100%; margin-top:.35rem }
+.ib-tagchip { display:inline-flex; align-items:center; gap:.2rem; background:#EEF2FF; color:#3730A3; border:1px solid #C7D2FE; padding:0 .15rem 0 .45rem; font-size:.78rem; font-weight:600; height:26px }
+.ib-tagchip a { color:inherit; text-decoration:none } .ib-tagchip a:hover { text-decoration:underline }
+.ib-tagchip button { border:0; background:transparent; color:inherit; padding:0 .25rem; line-height:1; cursor:pointer }
+.ib-tagchip button:focus-visible { outline:3px solid #ff9800 }
+.ib-tagadd input { height:26px; width:7rem; font-size:.78rem }

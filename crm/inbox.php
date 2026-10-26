@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'view'       => $_POST['view'] ?? null,
             'mailbox_id' => $_POST['mailbox_id'] ?? null,
             'queue_id'   => $_POST['queue_f'] ?? null,
+            'folder'     => $_POST['folder_f'] ?? null,
             'q'          => $_POST['q'] ?? null,
             'unread'     => $_POST['unread'] ?? null,
             'att'        => $_POST['att'] ?? null,
@@ -99,12 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $n = crm_mailbox_mark_all_read([
                     'view'       => $_POST['view'] ?? null,
                     'mailbox_id' => $_POST['mailbox_id'] ?? null,
+                    'folder_rules' => ($fo = crm_mf_get((int)($_POST['folder_f'] ?? 0))) ? $fo['rules_arr'] : null,
                 ]);
                 flash_set($n ? 'success' : 'info', $n
                     ? 'Oznaczono jako przeczytane: ' . $n . ' wiad.'
                     : 'W tym widoku nie ma nieprzeczytanych wiadomości.');
                 $back = 'inbox.php?' . http_build_query(array_filter([
-                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null,
+                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null, 'folder' => $_POST['folder_f'] ?? null,
                     'q'    => $_POST['q'] ?? null,
                 ]));
                 break;
@@ -139,6 +141,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]));
                 break;
 
+            case 'tag_add':
+                if (crm_mailbox_message($mid) === null) { flash_set('danger', 'Brak dostępu do wiadomości.'); break; }
+                $added = 0;
+                foreach (preg_split('/[,;]+/', (string)($_POST['tag'] ?? '')) ?: [] as $tg) { if (crm_mt_add($mid, $tg)) $added++; }
+                flash_set($added ? 'success' : 'warning', $added ? 'Dodano tag.' : 'Tag nie został dodany (pusty, już jest albo limit tagów).');
+                break;
+
+            case 'tag_remove':
+                if (crm_mailbox_message($mid) === null) { flash_set('danger', 'Brak dostępu do wiadomości.'); break; }
+                flash_set('success', crm_mt_remove($mid, (string)($_POST['tag'] ?? '')) ? 'Usunięto tag z rozmowy.' : 'Nie znaleziono tagu.');
+                break;
+
+            case 'bulk_tag':
+                $ids = array_slice(array_unique(array_map('intval', (array)($_POST['msg_ids'] ?? []))), 0, 500);
+                $tags = array_filter(preg_split('/[,;]+/', (string)($_POST['bulk_tag'] ?? '')) ?: [], fn($t) => trim($t) !== '');
+                $n = 0;
+                if ($tags) foreach ($ids as $bid) { if ($bid > 0 && crm_mailbox_message($bid) !== null) { $ok = false; foreach ($tags as $tg) $ok = crm_mt_add($bid, $tg) || $ok; if ($ok) $n++; } }
+                flash_set($n ? 'success' : 'warning', $n ? 'Dodano tag do ' . $n . ' wiad.' : ($tags ? 'Nie zaznaczono żadnej wiadomości.' : 'Wpisz tag.'));
+                $back = 'inbox.php?' . http_build_query(array_filter([
+                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null, 'queue_id' => $_POST['queue_f'] ?? null, 'folder' => $_POST['folder_f'] ?? null,
+                    'q'    => $_POST['q'] ?? null,
+                ]));
+                break;
+
             case 'queue':
                 if (crm_mailbox_message($mid) === null) { flash_set('danger', 'Brak dostępu do wiadomości.'); break; }
                 $qid = (int)($_POST['queue_id'] ?? 0) ?: null;
@@ -155,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach ($ids as $bid) { if ($bid > 0 && crm_mailbox_message($bid) !== null && crm_mq_move($bid, $qid) > 0) $n++; }
                 flash_set($n ? 'success' : 'warning', $n ? 'Przeniesiono do kolejki: ' . $n . ' wiad. (z wątkami).' : 'Nie zaznaczono żadnej wiadomości.');
                 $back = 'inbox.php?' . http_build_query(array_filter([
-                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null, 'queue_id' => $_POST['queue_f'] ?? null,
+                    'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null, 'queue_id' => $_POST['queue_f'] ?? null, 'folder' => $_POST['folder_f'] ?? null,
                     'q'    => $_POST['q'] ?? null,
                 ]));
                 break;
@@ -248,6 +274,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $view   = isset(CRM_MAILBOX_VIEWS[$_GET['view'] ?? '']) ? (string)$_GET['view'] : 'new';
 $mbox_f = (int)($_GET['mailbox_id'] ?? 0);
 $queue_f = (int)($_GET['queue_id'] ?? 0);   // kolejka wiadomości (crm_mail_queues); 0 = wszystkie
+$tag_f   = trim((string)($_GET['tag'] ?? ''));   // szybki filtr po tagu wiadomości
+// Własne foldery (zapisane widoki): folder zastępuje widok, wiadomość jest też w widokach domyślnych
+$folder_f = (int)($_GET['folder'] ?? 0);
+$folders  = crm_mf_list();
+$folder_cur = null;
+foreach ($folders as $_fo) { if ((int)$_fo['id'] === $folder_f) { $folder_cur = $_fo; break; } }
+if (!$folder_cur) $folder_f = 0;
+$folder_rules = $folder_cur['rules_arr'] ?? null;
+$tab_view = $folder_cur ? '' : $view;   // zakładki widoków nie świecą się, gdy otwarty jest folder
 $search = trim((string)($_GET['q'] ?? ''));
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $sel_id = (int)($_GET['msg'] ?? 0);
@@ -266,12 +301,16 @@ if (isset($_GET['conv'])) user_pref_set('crm_inbox_conv', $_GET['conv'] === '1' 
 $conv_on = user_pref('crm_inbox_conv', '1') === '1';
 
 $inbox  = crm_mailbox_inbox(['view' => $view, 'mailbox_id' => $mbox_f, 'queue_id' => $queue_f, 'q' => $search,
+                             'folder_rules' => $folder_rules, 'tag' => $tag_f,
                              'unread' => $f_unread, 'att' => $f_att,
                              'page' => $page, 'per_page' => 30, 'group_threads' => $threads]);
 $counts = crm_mailbox_counts();
 $boxes  = crm_mailbox_list(false);
 $queues = crm_mq_list();                                   // aktywne kolejki
-$q_counts = $queues ? crm_mq_counts($view, $mbox_f) : []; // liczby w bieżącym widoku i skrzynce (bez filtra kolejki)
+$q_counts = $queues ? crm_mq_counts($view, $mbox_f, $folder_rules) : []; // liczby w bieżącym widoku/folderze i skrzynce (bez filtra kolejki)
+$f_counts = $folders ? crm_mf_counts($folders) : [];       // liczniki folderów (rozmowy)
+$row_tags = crm_mt_for_rows($inbox['rows']);                // tagi wątków widocznych wierszy
+$tag_suggest = crm_mt_suggest();
 $msg_queue = null;
 $users  = [];
 try { $users = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name"); } catch (\Throwable $e) {}
@@ -312,9 +351,9 @@ $ezd_on     = crm_mailbox_ezd_available();
 $ezd_sprawy = $msg ? crm_mailbox_ezd_sprawy('', 30) : [];
 $ezd_teczki = $msg ? crm_mailbox_ezd_teczki() : [];
 
-$qs = static function (array $over = []) use ($view, $mbox_f, $queue_f, $search, $sel_id, $f_unread, $f_att): string {
+$qs = static function (array $over = []) use ($view, $mbox_f, $queue_f, $folder_f, $tag_f, $search, $sel_id, $f_unread, $f_att): string {
     return http_build_query(array_filter(array_merge([
-        'view' => $view, 'mailbox_id' => $mbox_f ?: null, 'queue_id' => $queue_f ?: null, 'q' => $search ?: null,
+        'view' => $view, 'mailbox_id' => $mbox_f ?: null, 'queue_id' => $queue_f ?: null, 'folder' => $folder_f ?: null, 'tag' => $tag_f ?: null, 'q' => $search ?: null,
         'unread' => $f_unread ? 1 : null, 'att' => $f_att ? 1 : null, 'msg' => $sel_id ?: null,
     ], $over), static fn($v) => $v !== null && $v !== ''));
 };
@@ -387,14 +426,14 @@ include __DIR__ . '/includes/header_crm.php';
 
   <nav class="ib-views" aria-label="Widoki skrzynki">
     <?php foreach ($views_main as $vk): $vv = CRM_MAILBOX_VIEWS[$vk]; $n = (int)($counts[$vk] ?? 0); ?>
-    <a href="?<?= $qs(['view' => $vk, 'msg' => null, 'page' => null, 'unread' => null]) ?>" class="ib-pill<?= $view === $vk ? ' is-on' : '' ?>"
-       <?= $view === $vk ? 'aria-current="page"' : '' ?>>
+    <a href="?<?= $qs(['view' => $vk, 'folder' => null, 'tag' => null, 'msg' => null, 'page' => null, 'unread' => null]) ?>" class="ib-pill<?= $tab_view === $vk ? ' is-on' : '' ?>"
+       <?= $tab_view === $vk ? 'aria-current="page"' : '' ?>>
       <i class="bi <?= $vv['icon'] ?>" aria-hidden="true"></i><?= h($vv['label']) ?>
       <span class="ib-cnt<?= $n ? '' : ' is-zero' ?>" data-ib-cnt="<?= h($vk) ?>"><?= $n ?></span>
     </a>
     <?php endforeach; ?>
     <?php // Bieżący widok z „Więcej” pokazujemy też na wierzchu — stan nie może się chować w menu
-          if (in_array($view, $views_more, true)): $vv = CRM_MAILBOX_VIEWS[$view]; $n = (int)($counts[$view] ?? 0); ?>
+          if (in_array($tab_view, $views_more, true)): $vv = CRM_MAILBOX_VIEWS[$view]; $n = (int)($counts[$view] ?? 0); ?>
     <a href="?<?= $qs(['msg' => null, 'page' => null]) ?>" class="ib-pill is-on" aria-current="page">
       <i class="bi <?= $vv['icon'] ?>" aria-hidden="true"></i><?= h($vv['label']) ?>
       <span class="ib-cnt<?= $n ? '' : ' is-zero' ?>" data-ib-cnt="<?= h($view) ?>"><?= $n ?></span>
@@ -519,7 +558,7 @@ include __DIR__ . '/includes/header_crm.php';
 
   <?php /* Rzadsze narzędzia w jednym menu — wcześniej pięć przycisków w rzędzie. */
         $tg_on = $inbox['grouped'] ?? false;
-        $unread_scope = $can_write ? crm_mailbox_unread_in_scope(['view' => $view, 'mailbox_id' => $mbox_f]) : 0; ?>
+        $unread_scope = $can_write ? crm_mailbox_unread_in_scope(['view' => $view, 'mailbox_id' => $mbox_f, 'folder_rules' => $folder_rules]) : 0; ?>
   <?php /* Odczytaj wszystko — na wierzchu (po urlopie, po zalewie newsletterów). Zakres to bieżący widok
            i wybrana skrzynka — dokładnie to, co widać; wyszukiwarka go nie zawęża. Skrót: Shift+I. */
   if ($unread_scope > 0):
@@ -617,6 +656,20 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- ══ LISTA ═══════════════════════════════════════════════════════════ -->
   <section class="ib-col-list" aria-label="Lista wiadomości">
+    <?php if ($folders || $tag_f !== '' || $can_write): ?>
+    <nav class="ib-folders" aria-label="Własne foldery">
+      <?php foreach ($folders as $fo): $fc = $f_counts[(int)$fo['id']] ?? ['n' => 0, 'unread' => 0]; $fon = $folder_f === (int)$fo['id']; ?>
+      <a class="ib-fo<?= $fon ? ' is-on' : '' ?>" style="--c:<?= h($fo['color']) ?>" href="?<?= $qs(['folder' => $fon ? null : (int)$fo['id'], 'queue_id' => null, 'msg' => null, 'page' => null]) ?>"
+         <?= $fon ? 'aria-current="true"' : '' ?> title="<?= h(($fo['is_shared'] ? 'Folder wspólny' : 'Folder osobisty') . ' · licznik: ' . ($fo['counter_mode'] === 'all' ? 'wszystkie rozmowy' : 'tylko aktywne')) ?>">
+        <i class="bi <?= $fo['is_shared'] ? 'bi-folder-symlink' : 'bi-folder' ?>" aria-hidden="true"></i><?= h($fo['name']) ?>
+        <span class="ib-q-n<?= $fc['unread'] ? ' is-unread' : '' ?>"><?= (int)$fc['n'] ?><?php if ($fc['unread']): ?><span class="visually-hidden">, nieprzeczytane: <?= (int)$fc['unread'] ?></span><?php endif; ?></span></a>
+      <?php endforeach; ?>
+      <?php if ($tag_f !== ''): ?>
+      <a class="ib-fo is-on" href="?<?= $qs(['tag' => null, 'msg' => null, 'page' => null]) ?>" title="Usuń filtr tagu" aria-label="Usuń filtr tagu <?= h($tag_f) ?>"><i class="bi bi-tag-fill" aria-hidden="true"></i><?= h($tag_f) ?> <i class="bi bi-x-lg" aria-hidden="true"></i></a>
+      <?php endif; ?>
+      <a class="ib-fo ib-q--cfg" href="<?= APP_URL ?>/crm/mail_folders.php" title="Zarządzaj folderami" aria-label="Zarządzaj folderami"><i class="bi bi-folder-plus" aria-hidden="true"></i><?= $folders ? '' : ' Nowy folder' ?></a>
+    </nav>
+    <?php endif; ?>
     <?php if (count($queues) > 1): ?>
     <nav class="ib-queues" aria-label="Kolejki wiadomości">
       <a class="ib-q<?= $queue_f ? '' : ' is-on' ?>" href="?<?= $qs(['queue_id' => null, 'msg' => null, 'page' => null]) ?>"<?= $queue_f ? '' : ' aria-current="true"' ?>>
@@ -653,6 +706,7 @@ include __DIR__ . '/includes/header_crm.php';
       <input type="hidden" name="view" value="<?= h($view) ?>">
       <input type="hidden" name="mailbox_id" value="<?= $mbox_f ?: '' ?>">
       <input type="hidden" name="queue_f" value="<?= $queue_f ?: '' ?>">
+      <input type="hidden" name="folder_f" value="<?= $folder_f ?: '' ?>">
       <input type="hidden" name="q" value="<?= h($search) ?>">
       <div class="ib-bulk<?= $bulk_view ? ' ib-bulk--restore' : '' ?>" id="ibBulkBar">
         <label>
@@ -661,6 +715,14 @@ include __DIR__ . '/includes/header_crm.php';
           <span>Zaznacz widoczne (<?= count($inbox['rows']) ?>)</span>
         </label>
         <span id="ibBulkInfo" hidden>· <span class="ib-bulk-n" id="ibBulkN">0</span> zazn.</span>
+        <?php if (!$bulk_view): ?>
+        <span class="ib-bulk-q">
+          <label class="visually-hidden" for="ibBulkTag">Tag dla zaznaczonych</label>
+          <input id="ibBulkTag" name="bulk_tag" list="ibTagListB" maxlength="30" placeholder="tag…" autocomplete="off" class="ib-field" style="width:7rem;height:28px;font-size:.78rem">
+          <datalist id="ibTagListB"><?php foreach ($tag_suggest as $ts): ?><option value="<?= h($ts) ?>"><?php endforeach; ?></datalist>
+          <button type="submit" name="_op" value="bulk_tag" class="ib-bulk-act" title="Dodaj tag do zaznaczonych wiadomości"><i class="bi bi-tag" aria-hidden="true"></i>Taguj</button>
+        </span>
+        <?php endif; ?>
         <?php if (count($queues) > 1 && !$bulk_view): ?>
         <span class="ib-bulk-q">
           <label class="visually-hidden" for="ibBulkQueue">Kolejka docelowa dla zaznaczonych</label>
@@ -746,12 +808,16 @@ include __DIR__ . '/includes/header_crm.php';
                 if ($snip !== ''): ?>
           <span class="ib-snip"><?= h($snip) ?></span>
           <?php endif; ?>
-          <?php $show_q = count($queues) > 1 && !$queue_f && !empty($r['queue_name']);
-                if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || $show_q || (!$mbox_f && count($boxes) > 1 && !empty($r['mailbox_name']))): ?>
+          <?php $show_q = count($queues) > 1 && !$queue_f && !empty($r['queue_name']); $rtags = $row_tags[$rid] ?? [];
+                if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || $show_q || $rtags || (!$mbox_f && count($boxes) > 1 && !empty($r['mailbox_name']))): ?>
           <span class="ib-tags">
             <?php if ($show_q): ?>
             <span class="ib-tag ib-tag--q" style="--c:<?= h($r['queue_color'] ?: '#6B7280') ?>" title="Kolejka: <?= h($r['queue_name']) ?>"><i class="bi bi-collection" aria-hidden="true"></i> <?= h($r['queue_name']) ?></span>
             <?php endif; ?>
+ <?php foreach (array_slice($rtags, 0, 3) as $tg): ?>
+            <span class="ib-tag ib-tag--t" title="Tag: <?= h($tg) ?>"><i class="bi bi-tag" aria-hidden="true"></i> <?= h($tg) ?></span>
+            <?php endforeach; ?>
+            <?php if (count($rtags) > 3): ?><span class="ib-tag ib-tag--t" title="<?= h(implode(', ', array_slice($rtags, 3))) ?>">+<?= count($rtags) - 3 ?></span><?php endif; ?>
             <?php if (!empty($r['assigned_name'])): ?>
             <span class="ib-tag ib-tag--who" title="Prowadzi: <?= h($r['assigned_name']) ?>"><i class="bi bi-person-check" aria-hidden="true"></i> <?= h($r['assigned_name']) ?></span>
             <?php endif; ?>
@@ -773,6 +839,7 @@ include __DIR__ . '/includes/header_crm.php';
                     . '<input type="hidden" name="view" value="' . h($view) . '"><input type="hidden" name="q" value="' . h($search) . '">'
                     . ($mbox_f ? '<input type="hidden" name="mailbox_id" value="' . $mbox_f . '">' : '')
                     . ($queue_f ? '<input type="hidden" name="queue_f" value="' . $queue_f . '">' : '')
+                    . ($folder_f ? '<input type="hidden" name="folder_f" value="' . $folder_f . '">' : '')
                     . ($f_unread ? '<input type="hidden" name="unread" value="1">' : '')
                     . ($f_att ? '<input type="hidden" name="att" value="1">' : ''); ?>
           <?php if (($r['inbox_status'] ?? 'active') === 'active'): ?>
@@ -851,6 +918,7 @@ include __DIR__ . '/includes/header_crm.php';
             . '<input type="hidden" name="q" value="' . h($search) . '">'
             . ($mbox_f ? '<input type="hidden" name="mailbox_id" value="' . $mbox_f . '">' : '')
             . ($queue_f ? '<input type="hidden" name="queue_f" value="' . $queue_f . '">' : '')
+            . ($folder_f ? '<input type="hidden" name="folder_f" value="' . $folder_f . '">' : '')
             . ($f_unread ? '<input type="hidden" name="unread" value="1">' : '')
             . ($f_att ? '<input type="hidden" name="att" value="1">' : '');
     $rail_cases  = $msg['ctx']['cases']  ?? [];
@@ -1184,6 +1252,19 @@ include __DIR__ . '/includes/header_crm.php';
             <?php endforeach; ?>
           </select>
         </form>
+        <?php $mtags = ($row_tags[(int)$msg['id']] ?? null) ?? (crm_mt_for_rows([['id' => (int)$msg['id'], 'thread_key' => $msg['thread_key'] ?? '']])[(int)$msg['id']] ?? []); ?>
+        <div class="ib-tagbar" role="group" aria-label="Tagi rozmowy">
+          <?php foreach ($mtags as $tg): ?>
+          <span class="ib-tagchip"><a href="?<?= $qs(['tag' => $tg, 'msg' => null, 'page' => null]) ?>" title="Pokaż rozmowy z tagiem <?= h($tg) ?>"><i class="bi bi-tag" aria-hidden="true"></i> <?= h($tg) ?></a>
+            <form method="post" class="d-inline"><?= $hidden ?><input type="hidden" name="_op" value="tag_remove"><input type="hidden" name="tag" value="<?= h($tg) ?>">
+              <button type="submit" aria-label="Usuń tag <?= h($tg) ?> z rozmowy" title="Usuń tag z całej rozmowy"><i class="bi bi-x" aria-hidden="true"></i></button></form></span>
+          <?php endforeach; ?>
+          <form method="post" class="ib-tagadd"><?= $hidden ?><input type="hidden" name="_op" value="tag_add">
+            <label class="visually-hidden" for="ibTagIn">Dodaj tag</label>
+            <input id="ibTagIn" name="tag" list="ibTagList" maxlength="30" placeholder="+ tag" autocomplete="off" class="ib-field">
+            <datalist id="ibTagList"><?php foreach ($tag_suggest as $ts): ?><option value="<?= h($ts) ?>"><?php endforeach; ?></datalist>
+          </form>
+        </div>
       </div>
       <?php endif; ?>
 
