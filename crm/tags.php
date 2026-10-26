@@ -124,37 +124,20 @@ include __DIR__ . '/includes/header_crm.php';
 </div>
 <?php else: ?>
 
-<div class="row g-3">
+<style>
+.tg-wrap{max-width:960px}
+.tg-wrap .crm-tag{max-width:560px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle}
+.tg-merge{border:1px solid #D1D5DB;background:#fff;margin-bottom:1rem}
+.tg-merge .tag-cloud-item{cursor:pointer}
+</style>
+<div class="tg-wrap">
 
-  <!-- ── Lewa: chmura tagów ──────────────────────────────────── -->
-  <div class="col-lg-4">
-    <div class="card mb-3">
-      <div class="card-body">
-        <div class="crm-section-title">Chmura tagów</div>
-        <div class="d-flex flex-wrap gap-2 mb-1" role="list" aria-label="Lista wszystkich tagów">
-          <?php foreach ($tags as $t): ?>
-          <span class="tag-cloud-item" role="listitem"
-                onclick="selectTag(<?= json_encode($t['tag']) ?>)"
-                data-tag="<?= h($t['tag']) ?>"
-                title="<?= (int)$t['cnt'] ?> kontaktów"
-                aria-label="Tag: <?= h($t['tag']) ?>, <?= (int)$t['cnt'] ?> kontaktów"
-                style="font-size: <?= min(1.1, .75 + (int)$t['cnt'] * .06) ?>rem">
-            <?= h($t['tag']) ?>
-            <span style="font-size:.72em;opacity:.6"><?= (int)$t['cnt'] ?></span>
-          </span>
-          <?php endforeach; ?>
-        </div>
-      </div>
-    </div>
-
-    <!-- Panel scalania -->
-    <?php if ($crm_can_write && count($tags) >= 2): ?>
-    <div class="card">
-      <div class="card-body">
-        <div class="crm-section-title">Scal tagi</div>
-        <p class="text-muted small mb-3">
-          Przenosi wszystkie kontakty z wybranych tagów źródłowych do jednego tagu docelowego.
-        </p>
+<?php if ($crm_can_write && count($tags) >= 2): ?>
+  <!-- Scalanie tagów — na żądanie (przycisk w pasku listy) -->
+  <div class="collapse tg-merge" id="tgMerge">
+    <div class="p-3">
+      <div class="crm-section-title">Scal tagi</div>
+      <p class="text-muted small mb-3">Przenosi wszystkie kontakty z wybranych tagów źródłowych do jednego tagu docelowego.</p>
         <form method="post" onsubmit="return confirmMerge()">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="_action" value="merge">
@@ -174,29 +157,48 @@ include __DIR__ . '/includes/header_crm.php';
                    placeholder="np. wolontariusz,wolontariusze"
                    autocomplete="off">
             <div class="text-muted" style="font-size:.72rem;margin-top:.2rem">
-              Lub kliknij tagi w chmurze powyżej, aby je wybrać
+              Lub kliknij tagi poniżej, aby je wybrać
             </div>
           </div>
           <button type="submit" class="btn btn-crm-outline btn-sm w-100">
             <i class="bi bi-node-plus me-1"></i>Scal tagi
           </button>
         </form>
-      </div>
+      <div class="mt-3 small text-muted">Kliknij tag, aby dodać go do źródłowych:</div>
+        <div class="d-flex flex-wrap gap-2 mb-1" role="list" aria-label="Lista wszystkich tagów">
+          <?php foreach ($tags as $t): ?>
+          <span class="tag-cloud-item" role="listitem"
+                onclick="selectTag(<?= json_encode($t['tag']) ?>)"
+                data-tag="<?= h($t['tag']) ?>"
+                title="<?= (int)$t['cnt'] ?> kontaktów"
+                aria-label="Tag: <?= h($t['tag']) ?>, <?= (int)$t['cnt'] ?> kontaktów"
+                style="font-size: <?= min(1.1, .75 + (int)$t['cnt'] * .06) ?>rem">
+            <?= h($t['tag']) ?>
+            <span style="font-size:.72em;opacity:.6"><?= (int)$t['cnt'] ?></span>
+          </span>
+          <?php endforeach; ?>
+        </div>
     </div>
-    <?php endif; ?>
   </div>
+<?php endif; ?>
 
   <!-- ── Prawa: tabela tagów z akcjami ──────────────────────── -->
-  <div class="col-lg-8">
+  <div>
     <div class="crm-list-card">
       <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
         <span class="fw-semibold" style="font-size:.88rem">
           <i class="bi bi-table me-1 text-muted"></i>Wszystkie tagi
         </span>
-        <input type="text" id="tagSearch" class="form-control form-control-sm"
-               style="max-width:200px" placeholder="Szukaj tagu…"
-               oninput="filterTagRows(this.value)"
-               aria-label="Szukaj tagu w tabeli">
+        <div class="d-flex gap-2 align-items-center">
+          <input type="text" id="tagSearch" class="form-control form-control-sm"
+                 style="width:220px" placeholder="Szukaj tagu…"
+                 oninput="filterTagRows(this.value)"
+                 aria-label="Szukaj tagu w tabeli">
+          <?php if ($crm_can_write && count($tags) >= 2): ?>
+          <button type="button" class="btn btn-crm-outline btn-sm text-nowrap" data-bs-toggle="collapse" data-bs-target="#tgMerge"
+                  aria-expanded="false" aria-controls="tgMerge"><i class="bi bi-node-plus me-1" aria-hidden="true"></i>Scal tagi</button>
+          <?php endif; ?>
+        </div>
       </div>
       <div class="table-responsive">
         <table class="crm-table" id="tagTable" aria-label="Tabela tagów CRM">
@@ -282,7 +284,7 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
   </div>
 
-</div><!-- /row -->
+</div><!-- /tg-wrap -->
 <?php endif; ?>
 
 <script>
