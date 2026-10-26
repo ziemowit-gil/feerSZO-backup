@@ -23,6 +23,7 @@ require_once __DIR__ . '/poczta_acl.php';
 require_once __DIR__ . '/mime_text.php';
 require_once __DIR__ . '/crm_mail_queues.php';
 require_once __DIR__ . '/crm_mail_folders.php';
+require_once __DIR__ . '/user_availability.php';
 
 /** Ładuje moduł poczty (tworzy tabele i kolumny). Zwraca false, gdy niedostępny. */
 function crm_mailbox_ready(): bool {
@@ -61,6 +62,7 @@ function crm_mailbox_schema_heal(): void {
     }
     crm_mq_migrate();   // kolejki wiadomości + domyślna skrzynka faktur@ (jednorazowo)
     crm_mf_migrate();   // tagi wiadomości + własne foldery (zapisane widoki)
+    uav_migrate();      // „Poza biurem” — nieobecni opiekunowie
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_comm_msgno ON crm_communications(msg_no)"); }
     catch (\Throwable $e) {}
 }
@@ -624,8 +626,11 @@ function crm_mailbox_set_status(int $id, string $status): bool {
     return true;
 }
 
-function crm_mailbox_assign(int $id, ?int $user_id): void {
+/** Przypisuje opiekuna. Osoby „poza biurem” nie da się wskazać (false) — odpięcie (null) zawsze działa. */
+function crm_mailbox_assign(int $id, ?int $user_id): bool {
+    if ($user_id && uav_is_away($user_id)) return false;
     db()->prepare("UPDATE crm_communications SET assigned_to=? WHERE id=?")->execute([$user_id ?: null, $id]);
+    return true;
 }
 
 /**
