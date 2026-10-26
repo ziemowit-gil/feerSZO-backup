@@ -276,7 +276,13 @@ html body .cs-item .cs-flag{border-radius:0;background:var(--cm-red);color:#fff}
 /* ── Okno wysyłki wiadomości (#crmComposeModal + treść z compose_modal.php) ──
    Treść przychodzi fetch-em, więc tylko zwykły CSS z nagłówka; style inline
    z fragmentu (tła odbiorcy, przycisk AI) wymagają !important. */
-html body #crmComposeModal .modal-dialog{max-width:860px}
+html body #crmComposeModal .modal-dialog{max-width:min(1180px,96vw)}
+html body #crmComposeModal.cm-full .modal-dialog{max-width:98vw}
+html body #crmComposeModal .ql-editor{min-height:300px}
+html body #crmComposeModal.cm-full .ql-editor{min-height:48vh}
+html body #crmComposeModal .cm-wide-btn{background:transparent;border:0;color:#fff;opacity:.85;font-size:1.05rem;padding:.25rem .5rem;margin-left:auto;margin-right:.35rem;cursor:pointer}
+html body #crmComposeModal .cm-wide-btn:hover{opacity:1}
+html body #crmComposeModal .cm-wide-btn:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
 html body #crmComposeModal .modal-header,html body #cm-ai-modal .modal-header,html body #cattOdModal .modal-header{
   background:var(--cm-dark);color:#fff;border-bottom:0;padding:.85rem 1.25rem!important}
 html body #crmComposeModal .modal-title,html body #cm-ai-modal .modal-title,html body #cattOdModal .modal-title{font-weight:300!important;font-size:1.4rem;color:#fff}

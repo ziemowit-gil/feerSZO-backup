@@ -398,6 +398,7 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
           <i class="bi bi-send-fill text-primary me-2" aria-hidden="true"></i>
           <span id="crmComposeModalTitle">Wyślij wiadomość</span>
         </h5>
+        <button type="button" class="cm-wide-btn" id="crmComposeWide" aria-pressed="false" aria-label="Rozszerz okno na całą szerokość" title="Rozszerz / zwęź okno"><i class="bi bi-arrows-angle-expand" aria-hidden="true"></i></button>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body" id="crmComposeModalBody">
@@ -412,6 +413,24 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
     </div>
   </div>
 </div>
+<script>
+// Okno wiadomości: domyślnie szerokie; przycisk w nagłówku rozszerza na całą szerokość (wybór zapamiętany w przeglądarce)
+(function () {
+  var m = document.getElementById('crmComposeModal'), b = document.getElementById('crmComposeWide');
+  if (!m || !b) return;
+  function apply(on) {
+    m.classList.toggle('cm-full', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.setAttribute('aria-label', on ? 'Zwęź okno' : 'Rozszerz okno na całą szerokość');
+    b.firstElementChild.className = on ? 'bi bi-arrows-angle-contract' : 'bi bi-arrows-angle-expand';
+  }
+  try { apply(localStorage.getItem('crmComposeFull') === '1'); } catch (e) {}
+  b.addEventListener('click', function () {
+    var on = !m.classList.contains('cm-full'); apply(on);
+    try { localStorage.setItem('crmComposeFull', on ? '1' : '0'); } catch (e) {}
+  });
+})();
+</script>
 <script>
 /**
  * openCommModal(contactId, channel) — otwiera modalny composer wiadomości.
