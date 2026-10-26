@@ -635,6 +635,7 @@ function ezd_zas_wydaj_plik(int $zas_id, int $user_id, string $plik_path, string
                     "INSERT INTO ezd_zalaczniki (sprawa_id,pismo_id,filename,original_name,mime_type,file_size,uploaded_by)
                      VALUES (?,?,?,?,?,?,?)"
                 )->execute([$sprawa_id, $pismo_id, $fname, $nr . '.' . $ext, $plik_mime, filesize($plik_path), $user_id]);
+                try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', (int)db()->lastInsertId()); } catch (\Throwable $e) {}   // numer + kod + QR zaświadczenia (plik własny)
             }
         } catch (\Throwable $e) {
             error_log('[ezd_zas_attach_plik] ' . $e->getMessage());
@@ -759,6 +760,7 @@ function ezd_zas_attach_pdf_to_sprawa(int $zas_id, int $sprawa_id, int $user_id)
             strlen($pdf_string),
             $user_id,
         ]);
+        try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', (int)db()->lastInsertId()); } catch (\Throwable $e) {}   // numer + kod + QR zaświadczenia (PDF)
     } catch (\Throwable $e) {
         error_log('[ezd_zas_attach_pdf] ' . $e->getMessage());
     }
