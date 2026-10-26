@@ -25,6 +25,7 @@ require_once __DIR__ . '/crm_mail_queues.php';
 require_once __DIR__ . '/crm_mail_folders.php';
 require_once __DIR__ . '/user_availability.php';
 require_once __DIR__ . '/crm_mail_followers.php';
+require_once __DIR__ . '/crm_mail_rules.php';
 
 /** Ładuje moduł poczty (tworzy tabele i kolumny). Zwraca false, gdy niedostępny. */
 function crm_mailbox_ready(): bool {
@@ -65,6 +66,7 @@ function crm_mailbox_schema_heal(): void {
     crm_mf_migrate();   // tagi wiadomości + własne foldery (zapisane widoki)
     uav_migrate();      // „Poza biurem” — nieobecni opiekunowie
     crm_fol_migrate();  // obserwatorzy rozmów
+    crm_mr_migrate();   // reguły automatyczne
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_comm_msgno ON crm_communications(msg_no)"); }
     catch (\Throwable $e) {}
 }
