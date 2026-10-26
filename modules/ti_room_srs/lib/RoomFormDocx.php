@@ -34,10 +34,49 @@ final class RoomFormDocx
         if ($zip->open($tmp) !== true) throw new RuntimeException('Nie można otworzyć wzoru formularza.');
         $xml = $zip->getFromName('word/document.xml');
         $zip->addFromString('word/document.xml', self::fillXml($xml, $d));
+        self::addFooterCodes($zip, $d['_codes'] ?? null);
         $zip->close();
         $out = (string)file_get_contents($tmp);
         @unlink($tmp);
         return $out;
+    }
+
+    /**
+     * Kody Code128 + QR w stopce wzoru operatora: do ISTNIEJĄCEJ części word/footer1.xml dopisywany jest jeden akapit z obrazami
+     * (obrazy i powiązania w word/media i footer1.xml.rels) — reszta stopki i układ wzoru zostają bez zmian. Brak kodów = bez zmian.
+     */
+    private static function addFooterCodes(ZipArchive $zip, ?array $f): void
+    {
+        if (!$f) return;
+        try {
+            $ftr = $zip->getFromName('word/footer1.xml');
+            $rels = $zip->getFromName('word/_rels/footer1.xml.rels');
+            if ($ftr === false || $rels === false || !str_contains($ftr, '</w:ftr>')) return;
+            $R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+            $runs = ''; $relAdd = ''; $n = 0;
+            foreach (['bar' => ['Kod kreskowy', 0.17], 'qr' => ['Kod QR', 0.30]] as $k => [$alt, $hMm]) {
+                if (empty($f[$k]) || !($sz = @getimagesizefromstring($f[$k]))) continue;
+                $n++;
+                $cy = (int)round($hMm * 1000 * 36); $cx = (int)round($cy * $sz[0] / max(1, $sz[1]));
+                $zip->addFromString('word/media/kodrsrs' . $n . '.png', $f[$k]);
+                $relAdd .= '<Relationship Id="rIdKodRs' . $n . '" Type="' . $R . '/image" Target="media/kodrsrs' . $n . '.png"/>';
+                $runs .= '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="72000"><wp:extent cx="' . $cx . '" cy="' . $cy . '"/>'
+                       . '<wp:docPr id="' . (950 + $n) . '" name="' . $alt . '" descr="' . $alt . ' ' . htmlspecialchars($f['code'], ENT_QUOTES) . '"/>'
+                       . '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+                       . '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="' . (950 + $n) . '" name="kodrsrs' . $n . '.png"/><pic:cNvPicPr/></pic:nvPicPr>'
+                       . '<pic:blipFill><a:blip r:embed="rIdKodRs' . $n . '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+                       . '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . $cx . '" cy="' . $cy . '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'
+                       . '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+            }
+            if (!$n) return;
+            $txt = htmlspecialchars($f['code'] . ' · ' . $f['doc_number'], ENT_XML1, 'UTF-8');
+            $para = '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="left"/></w:pPr>' . $runs
+                  . '<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:color w:val="555555"/><w:sz w:val="13"/></w:rPr><w:t xml:space="preserve">' . $txt . '</w:t></w:r></w:p>';
+            // namespace wp bywa niezadeklarowany w stopce wzoru — deklarujemy lokalnie na elemencie drawing
+            $para = str_replace('<wp:inline ', '<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ', $para);
+            $zip->addFromString('word/footer1.xml', str_replace('</w:ftr>', $para . '</w:ftr>', $ftr));
+            $zip->addFromString('word/_rels/footer1.xml.rels', str_replace('</Relationships>', $relAdd . '</Relationships>', $rels));
+        } catch (\Throwable $e) { error_log('[ti_room_srs] stopka DOCX: ' . $e->getMessage()); }
     }
 
     public static function fillXml(string $xml, array $d): string

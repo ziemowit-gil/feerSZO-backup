@@ -59,6 +59,7 @@ final class RoomFormC10Pdf
             $pdf->useTemplate($pdf->importPage($p));
             $pdf->SetTextColor(20, 40, 120);
             $pdf->SetDrawColor(20, 40, 120);
+            self::codes($pdf, $d['_codes'] ?? null);
             if ($p === 1) {
                 foreach (self::CELLS as $k => [$top, $bottom]) {
                     $val = $k === 'terms' ? implode("\n", (array)($d['terms'] ?? [])) : (string)($d[$k] ?? '');
@@ -71,6 +72,19 @@ final class RoomFormC10Pdf
             }
         }
         return $pdf->Output('', 'S');
+    }
+
+    /** Kody Code128 + QR w dolnym lewym rogu każdej strony (nakładka — układ wzoru operatora bez zmian). */
+    private static function codes(\Mpdf\Mpdf $pdf, ?array $f): void
+    {
+        if (!$f) return;
+        try {
+            $img = fn(?string $png, string $style) => $png ? '<img style="' . $style . '" src="data:image/png;base64,' . base64_encode($png) . '">' : '';
+            $html = '<table style="border-collapse:collapse"><tr><td style="padding:0 2mm 0 0">' . $img($f['qr'] ?? null, 'width:10mm;height:10mm') . '</td>'
+                  . '<td style="padding:0">' . $img($f['bar'] ?? null, 'width:34mm;height:5mm')
+                  . '<div style="font-family:dejavusansmono;font-size:6pt;color:#444">' . htmlspecialchars($f['code'] . ' · ' . $f['doc_number']) . '</div></td></tr></table>';
+            $pdf->WriteFixedPosHTML($html, 12, 284, 90, 12);
+        } catch (\Throwable $e) { error_log('[ti_room_srs] kody PDF: ' . $e->getMessage()); }
     }
 
     private static function mm(float $pt): float { return $pt * 25.4 / 72; }

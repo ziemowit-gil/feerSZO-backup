@@ -526,6 +526,12 @@ function tiRoomSrsDataFromPost(array $p, string $template): array
 function tiRoomSrsRender(string $template, array $data): array
 {
     $data['terms'] = preg_split('/\R/u', (string)$data['terms']);
+    // Kody Code128 + QR w stopce formularza: kod stały dla tych samych danych formularza (bez danych osobowych w tytule rejestru)
+    try {
+        require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+        $data['_codes'] = DocRegistry::printCodes('room_form', substr(sha1($template . '|' . json_encode($data, JSON_UNESCAPED_UNICODE)), 0, 20),
+            'Formularz rezerwacji sali (' . ($template === 'c10' ? 'Centrum C10' : 'Reymonta 20') . ')', 'karty30/ti/dydaktyk/saleFormularz.php');
+    } catch (\Throwable $e) { $data['_codes'] = null; }
     if ($template === 'c10') {
         return ['bin' => RoomFormC10Pdf::render($data), 'mime' => 'application/pdf', 'ext' => 'pdf'];
     }
