@@ -350,6 +350,7 @@ function _menu_editor(): array {
                  || _menu_hit('/admin/applications.php') || _menu_hit('/admin/application.php') || _menu_hit('/modules/app_workflow/'),
         'groups'=>$um_g,
         'search'=>$more,   // pozycje z „Więcej narzędzi” — tylko w wyszukiwarce menu (Ctrl+K)
+        'compact'=>false,  // Umowy mają własny, ręcznie zbudowany układ
     ];
 
     // ══ WOLONTARIAT ════════════════════════════════════════════════════════════
@@ -655,7 +656,7 @@ function _menu_admin_search(array $extra): array {
  * Zbuduj drzewo menu dla bieżącego użytkownika.
  * Zwraca ['mode'=>'ezd|viewer|editor|guest','tree'=>[…]].
  */
-function menu_build(): array {
+function menu_build(bool $compact = true): array {
     $u = current_user();
     if (!$u)                                                   return ['mode'=>'guest','tree'=>[]];
     if (function_exists('is_ezd_only') && is_ezd_only()) {
@@ -663,7 +664,34 @@ function menu_build(): array {
         return ['mode'=>'ezd','tree'=>_menu_prune($ezd_tree)];
     }
     if (!can_edit())                                           return ['mode'=>'viewer','tree'=>_menu_prune(_menu_viewer())];
-    return ['mode'=>'editor','tree'=>_menu_editor()];
+    $tree = _menu_editor();
+    return ['mode'=>'editor','tree'=>$compact ? menu_compact($tree) : $tree];
+}
+
+/**
+ * Odchudza zakładki rozwijane: w grupie zostaje kilka pierwszych pozycji (5; w zakładce z jedną grupą 7), reszta trafia do
+ * wyszukiwarki menu (klucz `search`) i na stronę „Więcej” (/menu_more.php?tab=ID) — jedna pozycja „Więcej…” z sumą odznak.
+ * Kolejność pozycji w _menu_editor() jest kolejnością ważności. Zakładka z `compact => false` (np. Umowy) zostaje bez zmian.
+ */
+function menu_compact(array $tree): array {
+    foreach ($tree as $i => $node) {
+        if (empty($node['groups']) || ($node['compact'] ?? true) === false) continue;
+        $cap = count($node['groups']) === 1 ? 7 : 5;
+        $hidden = [];
+        foreach ($node['groups'] as $gi => $g) {
+            if (count($g['items']) <= $cap + (count($node['groups']) === 1 ? 1 : 0)) continue;   // pojedyncza grupa: 8 pozycji jeszcze mieści się bez „Więcej”
+            foreach (array_slice($g['items'], $cap) as $h) $hidden[] = $h;
+            $node['groups'][$gi]['items'] = array_slice($g['items'], 0, $cap);
+        }
+        if (!$hidden) continue;
+        $badge = 0;
+        foreach ($hidden as $h) $badge += (int)($h['badge'] ?? 0);
+        $last = count($node['groups']) - 1;
+        $node['groups'][$last]['items'][] = _mi('Więcej (' . count($hidden) . ')…', '/menu_more.php?tab=' . rawurlencode((string)($node['id'] ?? '')), 'bi-three-dots', ['match'=>'/menu_more.php?tab=' . ($node['id'] ?? ''), 'badge'=>$badge, 'kw'=>'więcej wszystkie pozycje ' . $node['label']]);
+        $node['search'] = array_merge($node['search'] ?? [], $hidden);
+        $tree[$i] = $node;
+    }
+    return $tree;
 }
 
 /**
