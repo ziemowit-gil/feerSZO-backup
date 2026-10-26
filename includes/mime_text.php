@@ -185,6 +185,7 @@ function crm_mail_display_body(array $row): string
     if (crm_mail_looks_html($body)) return crm_mail_safe_html($body);
 
     if (trim($body) === '') return '';
+    $body = preg_replace('/(?:\r?\n[ \t\xc2\xa0]*){3,}/u', "\n\n", trim($body)) ?? $body;   // serie pustych linii → jedna
     return nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'));
 }
 

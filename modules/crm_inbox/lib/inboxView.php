@@ -68,6 +68,20 @@ function crmInboxFrameHtml(string $html): string
 }
 
 /**
+ * Zbija nadmiarowe odstępy w treści HTML wiadomości: serie <br>, puste akapity i puste <div> (typowe dla Worda/Outlooka —
+ * „<p>&nbsp;</p>” po każdym wierszu) dawały w podglądzie wielocentymetrowe dziury. Zostaje najwyżej jedna pusta linia.
+ */
+function crmInboxCollapseBlank(string $html): string
+{
+    $empty = '(?:&nbsp;|&#160;|\xc2\xa0|<br\s*/?>|<span\b[^>]*>\s*</span>|\s)*';
+    // kilka pustych bloków pod rząd → jeden
+    $html = preg_replace('~(?:<(p|div)\b[^>]*>' . $empty . '</\1>\s*){2,}~iu', '<p class="sp">&nbsp;</p>', $html) ?? $html;
+    // serie <br> (z białymi znakami pomiędzy) → najwyżej dwa
+    $html = preg_replace('#(?:<br\s*/?>\s*){3,}#i', '<br><br>', $html) ?? $html;
+    return $html;
+}
+
+/**
  * Pełny dokument do <iframe srcdoc> z treścią wiadomości.
  *
  * Obrazy z zewnątrz są domyślnie zablokowane polityką CSP (piksele śledzące
@@ -81,17 +95,22 @@ function crmInboxFrameDoc(array $msg): string
     if ($html === '' && crm_mail_looks_html($body)) $html = $body;
 
     if ($html !== '') {
-        $content = crmInboxFrameHtml($html);
+        $content = crmInboxCollapseBlank(crmInboxFrameHtml($html));
     } elseif (trim($body) !== '') {
-        // Zwykły tekst: zachowujemy łamanie wierszy, cytaty „> ” wyszarzamy,
-        // adresy WWW zamieniamy na linki — w tekście nie da się ich kliknąć.
-        $lines = [];
-        foreach (preg_split('/\r\n|\r|\n/', $body) as $ln) {
-            $e = htmlspecialchars($ln, ENT_QUOTES, 'UTF-8');
-            $e = preg_replace('~\bhttps?://[^\s<>"\']+~i', '<a href="$0">$0</a>', $e) ?? $e;
-            $lines[] = str_starts_with(ltrim($ln), '>') ? '<span class="q">' . $e . '</span>' : $e;
+        // Zwykły tekst: akapity rozdzielone pustą linią → <p>, łamanie wierszy wewnątrz akapitu → <br>; serie pustych linii
+        // zbijamy do jednej, cytaty „> ” wyszarzamy, adresy WWW zamieniamy na linki — w tekście nie da się ich kliknąć.
+        $paras = preg_split('/(?:\r\n|\r|\n)[ \t\xc2\xa0]*(?:(?:\r\n|\r|\n)[ \t\xc2\xa0]*)+/u', trim($body)) ?: [];
+        $out = [];
+        foreach ($paras as $para) {
+            $lines = [];
+            foreach (preg_split('/\r\n|\r|\n/', rtrim($para)) as $ln) {
+                $e = htmlspecialchars($ln, ENT_QUOTES, 'UTF-8');
+                $e = preg_replace('~\bhttps?://[^\s<>"\']+~i', '<a href="$0">$0</a>', $e) ?? $e;
+                $lines[] = str_starts_with(ltrim($ln), '>') ? '<span class="q">' . $e . '</span>' : $e;
+            }
+            $out[] = '<p>' . implode("<br>\n", $lines) . '</p>';
         }
-        $content = '<div class="plain">' . implode("<br>\n", $lines) . '</div>';
+        $content = '<div class="plain">' . implode("\n", $out) . '</div>';
     } else {
         $content = '<p class="empty">Wiadomość bez treści.</p>';
     }
@@ -103,11 +122,11 @@ function crmInboxFrameDoc(array $msg): string
         . '<base target="_blank">'
         . '<style>'
         . 'html{color-scheme:light}'
-        . 'body{margin:0;padding:18px 22px 26px;font:15px/1.6 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;'
+        . 'body{margin:0;padding:18px 22px 26px;font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;'
         . 'color:#1d1d1d;background:#fff;overflow-wrap:anywhere;word-break:normal}'
         . 'img{max-width:100%;height:auto}table{max-width:100%!important}'
         . 'a{color:#005e5c}blockquote{margin:.6rem 0;padding:.2rem .9rem;border-left:3px solid #d0d0d0;color:#4a4a4a}'
-        . 'pre{white-space:pre-wrap}.plain{white-space:normal}.q{color:#5f5f5f}.empty{color:#5f5f5f;font-style:italic}'
+        . 'p{margin:0 0 .7em}p.MsoNormal{margin:0 0 .5em}p:empty{display:none}p.sp{margin:0;height:.7em;line-height:0;overflow:hidden}.plain p:last-child{margin-bottom:0}pre{white-space:pre-wrap}.plain{white-space:normal}.q{color:#5f5f5f}.empty{color:#5f5f5f;font-style:italic}'
         . '</style></head><body>' . $content . '</body></html>';
 }
 
