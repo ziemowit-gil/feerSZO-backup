@@ -427,6 +427,7 @@ const CRM_CLOSE_REASONS_DEFAULT = [
     'odrzucona'    => 'Odrzucona — odmowa / poza zakresem',
     'brak_kontaktu'=> 'Bez odpowiedzi klienta',
     'duplikat'     => 'Duplikat innej sprawy',
+    'umowa_zakonczona' => 'Załatwiona — umowa zakończona',
     'inny'         => 'Inny powód (opisany w notatce)',
 ];
 

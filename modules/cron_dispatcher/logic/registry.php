@@ -451,6 +451,10 @@ function cron_dispatcher_registry(): array
             'interval' => 604800,       // raz w tygodniu — zgody z ograniczoną ważnością
             'schedule' => [6, 8],
         ],
+        'crm_cases_contract_close' => [
+            'file'     => $cronDir . '/crm_cases_contract_close.php',
+            'interval' => 3600,         // co godzinę — zamyka sprawy umów zakończonych (zmiana statusu mogła nastąpić z różnych miejsc)
+        ],
         'crm_cases_due' => [
             'file'     => $cronDir . '/crm_cases_due.php',
             'interval' => 86400,        // raz dziennie — terminy spraw i naruszenia SLA

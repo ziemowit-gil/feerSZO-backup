@@ -260,6 +260,11 @@ function contract_status_change_error(string $type, array $row, string $to): ?st
 /** Po zapisie nowego statusu: wyjście z grupy „zablokowana” zdejmuje flagę is_blocked (jak api/ajax.php). */
 function contract_status_after_change(string $type, int $id, string $from, string $to): void
 {
+    // Sprawa CRM przypisana do umowy kończy się razem z nią (includes/crmContractCases.php)
+    try {
+        require_once __DIR__ . '/crmContractCases.php';
+        crm_cases_close_for_ended_contracts($type, $id);
+    } catch (\Throwable $e) { error_log('[contract_status_after_change] crm cases: ' . $e->getMessage()); }
     if (!ContractStatusTransitionValidator::isBlockedGroupExit($from, $to)) return;
     $uid = (int)(current_user()['id'] ?? 0);
     db_update(table_for_type($type), ['is_blocked' => 0, 'unblocked_by' => $uid, 'unblocked_at' => date('Y-m-d H:i:s')], $id);
