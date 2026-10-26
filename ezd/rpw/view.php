@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
 require_login();
 require_module_enabled('ezd_enabled', 'Moduł EZD Wirtualne biurko'); ezd_require_access();
 
@@ -162,7 +163,7 @@ $_rp_color = ['info' => 'var(--m-teal)', 'primary' => 'var(--m-blue)', 'success'
           <i class="bi <?= ezd_file_icon($rpw['scan_name']) ?> fs-4"></i>
           <div class="flex-grow-1">
             <a href="<?= APP_URL ?>/ezd/rpw/scan.php?id=<?= $id ?>" target="_blank" class="fw-semibold text-decoration-none"><?= h($rpw['scan_name']) ?></a>
-            <div class="text-muted" style="font-size:.72rem"><?= ezd_filesize((int)$rpw['scan_size']) ?></div>
+            <div class="text-muted" style="font-size:.72rem"><?= ezd_filesize((int)$rpw['scan_size']) ?> <?= DocRegistry::badge(DocRegistry::get('ezd_rpw_scan', $id) ?: DocRegistry::assign('ezd_rpw_scan', $id)) ?></div>
           </div>
           <a href="<?= APP_URL ?>/ezd/rpw/scan.php?id=<?= $id ?>&dl=1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i></a>
         </div>
@@ -309,4 +310,5 @@ $_rp_color = ['info' => 'var(--m-teal)', 'primary' => 'var(--m-blue)', 'success'
   </div>
 </div>
 
+<?= DocRegistry::assets() ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

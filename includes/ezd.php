@@ -2459,6 +2459,7 @@ function ezd_rpw_scan_upload(int $id, string $field, int $user_id): ?string {
 
     db()->prepare("UPDATE ezd_rpw SET scan_file=?,scan_name=?,scan_mime=?,scan_size=? WHERE id=?")
         ->execute([$stored, $f['name'], $f['type'] ?: 'application/octet-stream', $f['size'], $id]);
+    try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_rpw_scan', $id); } catch (\Throwable $e) {}   // numer + kod + QR skanu (przy wymianie skanu numer zostaje przy wpisie RPW)
     ezd_log(null, null, null, null, $user_id, 'rpw_scan', 'Dodano skan do ' . ezd_rpw_label($r ?? ['rpw_nr'=>'?','rok'=>'']));
     return null;
 }

@@ -26,6 +26,7 @@ final class DocRegistry
         'ezd_zalacznik' => ['EZD', 'Plik w koszulce EZD', '/ezd/serve.php?id={id}', 'ezd_zalaczniki', 'rand'],
         'crm_case_file' => ['CRM', 'Plik sprawy CRM', '/crm/cases/download.php?id={id}', 'crm_case_files', 'rand'],
         'task_file'     => ['ZAD', 'Plik zadania', '/tasks/api/file.php?id={id}', 'task_files', 'rand'],
+        'ezd_rpw_scan'  => ['RPW', 'Skan w dzienniku podawczym EZD (RPW)', '/ezd/rpw/scan.php?id={id}', 'ezd_rpw', 'rand'],
         'helpdesk_attachment' => ['HD', 'Załącznik zgłoszenia helpdesk', '/helpdesk/attachment.php?id={id}', 'helpdesk_attachments', 'seq'],
         'correspondence_file' => ['KOR', 'Załącznik korespondencji', '/correspondence/download.php?id={id}', 'correspondence', 'seq'],
         'rekr_file'           => ['REK', 'Dokument kandydata (nabór)', '/rekrutacja/attachment.php?id={id}', 'rekr_files', 'seq'],
@@ -103,6 +104,17 @@ final class DocRegistry
                 $p = dirname(__DIR__, 3) . '/uploads/tasks/' . basename((string)$z['stored_name']);
                 return ['name' => (string)$z['original_name'], 'path' => $p, 'size' => (int)$z['file_size'], 'uploader' => $z['uploaded_by'] !== null ? (int)$z['uploaded_by'] : null,
                         'at' => (string)$z['created_at'], 'exists' => is_file($p), 'superseded' => false];
+            case 'ezd_rpw_scan':
+                $z = db_one("SELECT * FROM ezd_rpw WHERE id = ?", [$id]);
+                if (!$z) return null;
+                if ((string)$z['scan_file'] === '') {   // brak skanu: pominięty przy nadawaniu; zarejestrowany wcześniej → przeniesiony do koszulki
+                    if (!self::get('ezd_rpw_scan', $id)) return null;
+                    return ['name' => (string)$z['scan_name'], 'path' => '', 'size' => (int)$z['scan_size'], 'uploader' => null, 'at' => (string)$z['created_at'], 'exists' => false,
+                            'superseded' => true, 'note' => 'Skan został przeniesiony do koszulki — obowiązuje plik w koszulce (jego własny numer).'];
+                }
+                $p = (defined('UPLOAD_DIR') && defined('EZD_RPW_SUBDIR')) ? UPLOAD_DIR . EZD_RPW_SUBDIR . $id . '/' . $z['scan_file'] : '';
+                return ['name' => (string)($z['scan_name'] ?: $z['scan_file']), 'path' => $p, 'size' => (int)$z['scan_size'], 'uploader' => $z['created_by'] !== null ? (int)$z['created_by'] : null,
+                        'at' => (string)$z['created_at'], 'exists' => $p !== '' && is_file($p), 'superseded' => false];
             case 'helpdesk_attachment':
                 $z = db_one("SELECT * FROM helpdesk_attachments WHERE id = ?", [$id]);
                 if (!$z) return null;
@@ -275,7 +287,7 @@ final class DocRegistry
     {
         $src = self::source((string)$row['source_type'], (int)$row['source_id']);
         if (!$src) return ['state' => 'void', 'note' => 'Plik został usunięty z systemu.', 'src' => null];
-        if ($src['superseded']) return ['state' => 'void', 'note' => 'Plik został zastąpiony nowszą wersją.', 'src' => $src];
+        if ($src['superseded']) return ['state' => 'void', 'note' => $src['note'] ?? 'Plik został zastąpiony nowszą wersją.', 'src' => $src];
         if (!$src['exists']) return ['state' => 'void', 'note' => 'Plik nie jest już dostępny na serwerze.', 'src' => $src];
         return ['state' => 'valid', 'note' => '', 'src' => $src];
     }
