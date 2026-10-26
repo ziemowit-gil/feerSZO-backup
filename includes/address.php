@@ -259,23 +259,23 @@ function address_widget(array $row, array $opts = []): string {
   </div>
   <?php endif; ?>
   <div class="row g-2">
-    <div class="col-6 col-sm-7 fgroup" style="position:relative">
+    <div class="col-12 col-sm-6 fgroup" style="position:relative">
       <label class="form-label mb-1 small fw-semibold">Ulica<?= $req_mark ?></label>
       <input name="addr_street" class="form-control<?= $sz ?> addr-street"
              placeholder="ul. Kwiatowa" value="<?= $street_val ?>"
              <?= $required ? 'required' : '' ?> autocomplete="address-line1">
     </div>
-    <div class="col-3 fgroup">
+    <div class="col-6 col-sm-3 fgroup">
       <label class="form-label mb-1 small fw-semibold">Nr domu</label>
       <input name="addr_house" class="form-control<?= $sz ?> addr-house"
              placeholder="5" value="<?= $house_val ?>" maxlength="10" autocomplete="off">
     </div>
-    <div class="col-3 fgroup">
+    <div class="col-6 col-sm-3 fgroup">
       <label class="form-label mb-1 small fw-semibold">Nr lok.</label>
       <input name="addr_flat" class="form-control<?= $sz ?> addr-flat"
              placeholder="12" value="<?= $flat_val ?>" maxlength="10" autocomplete="off">
     </div>
-    <div class="col-4 col-sm-3 fgroup" style="position:relative">
+    <div class="col-5 col-sm-3 fgroup" style="position:relative">
       <label class="form-label mb-1 small fw-semibold">
         Kod pocztowy
         <?php if ($autocomplete): ?>
@@ -288,7 +288,7 @@ function address_widget(array $row, array $opts = []): string {
              placeholder="00-001" value="<?= $postal_val ?>" maxlength="10"
              pattern="\d{2}-\d{3}" title="Format: XX-XXX" autocomplete="postal-code">
     </div>
-    <div class="col-8 col-sm-5 fgroup" style="position:relative">
+    <div class="col-7 col-sm-6 fgroup" style="position:relative">
       <label class="form-label mb-1 small fw-semibold">Miasto
         <?php if ($autocomplete): ?>
         <span class="addr-city-spinner text-muted ms-1" style="display:none;font-size:.7rem">
@@ -299,7 +299,7 @@ function address_widget(array $row, array $opts = []): string {
       <input name="addr_city" class="form-control<?= $sz ?> addr-city"
              placeholder="Warszawa" value="<?= $city_val ?>" autocomplete="address-level2">
     </div>
-    <div class="col-12 col-sm-4 fgroup">
+    <div class="col-12 col-sm-3 fgroup">
       <label class="form-label mb-1 small fw-semibold">Kraj</label>
       <select name="addr_country" class="form-select<?= $sz_sel ?> addr-country">
         <?= $country_opts ?>

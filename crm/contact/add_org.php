@@ -460,7 +460,7 @@ include __DIR__ . '/../includes/header_crm.php';
                  autocomplete="tel">
         </div>
       </div>
-      <?php echo address_widget($row, ['label'=>'Adres siedziby', 'autocomplete'=>true]); ?>
+      <div class="mt-3"><?php echo address_widget($row, ['label'=>'Adres siedziby', 'autocomplete'=>true]); ?></div>
       <div class="row g-3 mt-2">
         <div class="col-sm-6">
           <label class="form-label" for="strona_www">Strona www</label>
@@ -694,7 +694,7 @@ include __DIR__ . '/../includes/header_crm.php';
     <div class="card-body">
       <div class="sec-label">Status w CRM</div>
       <div class="d-flex flex-column gap-2" role="radiogroup" aria-label="Wybierz status kontaktu">
-        <?php foreach (crm_statuses() as $sk => $sv): ?>
+        <?php foreach (crm_statuses() as $sk => $sv): if (trim((string)$sv['label']) === '' && ($row['status'] ?? 'prospect') !== $sk) continue;   // statusy bez nazwy (puste wpisy słownika) nie są opcjami ?>
         <label class="d-flex align-items-center gap-2 p-2 border rounded"
                style="cursor:pointer;font-size:.84rem;border-radius:.4rem!important;
                       <?= ($row['status'] ?? 'prospect') === $sk ? 'background:var(--crm-primary-bg);border-color:var(--crm-primary)!important;font-weight:600' : '' ?>">
