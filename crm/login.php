@@ -54,6 +54,15 @@ $ms_url       = $ms_available ? ms_auth_url($redirect) : '';
 
 $error = (string)($_GET['e'] ?? '');   // komunikat z powrotu z /auth/ms365.php
 
+/* Od razu do Microsoft 365: jedyna droga logowania do CRM to MS365, więc ekran z jednym przyciskiem był zbędnym krokiem.
+   Strona zostaje wyświetlona tylko gdy: wróciliśmy z błędem (?e=), integracja MS365 nie jest skonfigurowana albo ktoś świadomie
+   otworzył ją bez przekierowania (?bez_przekierowania=1 — np. po to, by zobaczyć odnośniki dla osoby, która trafiła tu przez pomyłkę).
+   Błąd w adresie zatrzymuje przekierowanie, więc nie ma pętli logowania. */
+if ($ms_available && $ms_url !== '' && $error === '' && empty($_GET['bez_przekierowania'])) {
+    header('Location: ' . $ms_url);
+    exit;
+}
+
 /* Rozjazd dla kogoś, kto tu zabłądził.
    crm.feer.org.pl łatwo trafić z wyszukiwarki, ze starego odnośnika albo przez
    pomyłkę z adresem strony fundacji. Taka osoba widziała dotąd wyłącznie przycisk
@@ -126,7 +135,7 @@ auth_screen_head([
     <?php /* Pierwsze zdanie musi odpowiedzieć „gdzie ja jestem", bo część osób
              trafia tu przypadkiem. Dopiero drugie mówi, dla kogo to narzędzie. */ ?>
     <p class="ks-lead">
-      Wewnętrzne narzędzie zespołu Fundacji. Wejście kontem służbowym <strong>@<?= h($org_domain) ?></strong>.
+      Wewnętrzne narzędzie zespołu Fundacji. Zaloguj się kontem służbowym <strong>@<?= h($org_domain) ?></strong> (Microsoft 365).
     </p>
 
     <?php if ($ms_available): ?>
