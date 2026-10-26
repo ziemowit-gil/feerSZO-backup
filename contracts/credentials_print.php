@@ -134,6 +134,10 @@ if (!$creds) {
 
 // ── Wydruk ──────────────────────────────────────────────────────────────────
 header('Content-Type: text/html; charset=utf-8');
+// Stopka z kodami (Code128 + QR). Każdy wydruk to osobne wydanie (nowe hasła) — własny kod, bez danych osobowych w opisie.
+require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+$codes_html = DocRegistry::printFooterHtml('cred_print', $type . '#' . $id . '@' . date('YmdHis') . '#' . (int)($me['id'] ?? 0),
+    'Wydruk danych logowania (umowa ' . $type . ' #' . $id . ')', '/contracts/' . $type . '/view.php?id=' . $id . '&tab=m365');
 ?>
 <!doctype html>
 <html lang="pl">
@@ -169,7 +173,9 @@ header('Content-Type: text/html; charset=utf-8');
   .sign2 .line { border-top: 1px solid #1a1a1a; padding-top: 6px; text-align: center; color: #555; font-size: 12px; }
   .stamp { width: 210px; height: 130px; border: 1px dashed #999; border-radius: 6px;
            display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 12px; text-align: center; }
-  @media print { .noprint { display: none; } body { padding: 0; } }
+  .doc-foot { margin-top: 24px; padding-top: 6px; border-top: 1px solid #bbb; }
+  @media print { .noprint { display: none; } body { padding: 0; }
+    .doc-foot { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; background: #fff; } }
 </style>
 </head>
 <body>
@@ -277,6 +283,8 @@ header('Content-Type: text/html; charset=utf-8');
     </div>
   </div>
   </div><!-- /sheet 2 -->
+
+  <?php if ($codes_html !== ''): ?><div class="doc-foot"><?= $codes_html ?></div><?php endif; ?>
 
   <script>window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 350); });</script>
 </body>

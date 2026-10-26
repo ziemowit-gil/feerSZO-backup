@@ -59,6 +59,13 @@ function tpl_date(?string $d): string {
     return $t ? date('d.m.Y', $t) : $d;
 }
 
+// Stopka z kodami (Code128 + QR) — tylko dla teczki konkretnej umowy (pusty wzorzec do ręcznego wypełnienia go nie ma)
+$codes_html = '';
+if ($row) {
+    require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+    $codes_html = DocRegistry::printFooterHtml('teczka', $type . '#' . $id, 'Teczka umowy ' . $type . ' #' . $id, '/contracts/' . $type . '/view.php?id=' . $id);
+}
+
 $rok_od = $data_od ? date('Y', strtotime($data_od)) : date('Y');
 
 ?><!doctype html>
@@ -300,6 +307,7 @@ body{font-family:'Times New Roman',serif;background:#e5e7eb;display:flex;
       <div>
         <div style="font-size:8pt;color:#888;margin-bottom:3pt">Wygenerowano <?= date('d.m.Y') ?></div>
         <div style="color:#bbb">Rejestr Umów · <?= h($org_name) ?></div>
+        <?php if ($codes_html !== ''): ?><div style="margin-top:6pt"><?= $codes_html ?></div><?php endif; ?>
       </div>
       <div class="seal-area">Pieczęć<br>organizacji</div>
     </div>

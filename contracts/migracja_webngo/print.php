@@ -42,6 +42,10 @@ $data_migr     = $row['data_migracji'] ? date('d.m.Y', strtotime($row['data_migr
 $data_druku    = date('d.m.Y');
 $osoba         = $row['osoba_migrujaca'] ?: (current_user()['name'] ?? '');
 
+// Stopka z kodami (Code128 + QR) — jeden stały kod protokołu migracji w rejestrze dokumentów
+require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+$codes_html = DocRegistry::printFooterHtml('migracja_webngo', (string)$id, 'Protokół migracji umowy z webNGO #' . $id, '/contracts/migracja_webngo/view.php?id=' . $id);
+
 function e(mixed $v): string {
     return htmlspecialchars((string)($v ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
@@ -203,7 +207,10 @@ function dat(string $s): string {
       color: #666;
       display: flex;
       justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6pt 0;
     }
+    .doc-footer .doc-codes-wrap { flex: 0 0 100%; }
 
     /* ── Pieczęć QR ── */
     .stamp-area {
@@ -395,6 +402,7 @@ function dat(string $s): string {
   <div class="doc-footer">
     <span>Dokument wygenerowany: <?= $data_druku ?> | FEER SZO v<?= defined('APP_VERSION') ? APP_VERSION : '1.0' ?></span>
     <span>Nr migracji: <?= e($row['numer_umowy']) ?></span>
+    <?php if ($codes_html !== ''): ?><div class="doc-codes-wrap"><?= $codes_html ?></div><?php endif; ?>
   </div>
 
 </div><!-- /.page -->

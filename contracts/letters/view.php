@@ -21,6 +21,10 @@ $org         = defined('ORG_NAME') ? ORG_NAME : 'Nasza Firma';
 $verify_code = strtoupper(substr(md5($letter['id'] . $letter['created_at']), 0, 12));
 $issue_date  = date('d.m.Y', strtotime($letter['created_at']));
 
+// Stopka z kodami (Code128 + QR) — jeden stały kod pisma w rejestrze dokumentów
+require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+$codes_html = DocRegistry::printFooterHtml('letter', (string)$letter_id, 'Pismo do umowy #' . (int)$cid . ' (' . $type . ')', '/contracts/letters/view.php?id=' . $letter_id);
+
 // Rejestracja odbioru w systemie (pierwsze otwarcie pisma przychodzącego przez pracownika).
 // Uwaga: NOW() to składnia MySQL — używamy związanego znacznika czasu z PHP (SQLite/MySQL).
 if (can_edit() && empty($letter['data_odbioru']) && $letter['kierunek'] === 'przychodzące') {
@@ -61,7 +65,7 @@ if (can_edit() && empty($letter['data_odbioru']) && $letter['kierunek'] === 'prz
         .page {
             width: 210mm;
             min-height: 297mm;
-            padding: 25mm 20mm;
+            padding: 25mm 20mm 40mm;
             margin: 30px auto;
             background: white;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -140,14 +144,17 @@ if (can_edit() && empty($letter['data_odbioru']) && $letter['kierunek'] === 'prz
         /* Stopka */
         .page-footer {
             position: absolute;
-            bottom: 15mm;
+            bottom: 12mm;
             left: 20mm;
             right: 20mm;
             font-size: 8pt;
             color: #cbd5e1;
             border-top: 1px solid #f8fafc;
             padding-top: 10px;
+            flex-wrap: wrap;
+            gap: 6px 0;
         }
+        .page-footer .doc-codes-wrap { flex: 0 0 100%; }
 
         @media print {
             body { background: white; }
@@ -156,7 +163,7 @@ if (can_edit() && empty($letter['data_odbioru']) && $letter['kierunek'] === 'prz
                 margin: 0;
                 box-shadow: none;
                 width: 100%;
-                padding: 15mm;
+                padding: 15mm 15mm 38mm;
             }
         }
     </style>
@@ -240,6 +247,7 @@ if (can_edit() && empty($letter['data_odbioru']) && $letter['kierunek'] === 'prz
     <div class="page-footer d-flex justify-content-between">
         <div>Numer umowy: <?= h($row['numer_umowy']) ?></div>
         <div>Kod weryfikacyjny: <?= $verify_code ?></div>
+        <?php if ($codes_html !== ''): ?><div class="doc-codes-wrap"><?= $codes_html ?></div><?php endif; ?>
     </div>
 </div>
 

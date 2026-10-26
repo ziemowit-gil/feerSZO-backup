@@ -120,6 +120,12 @@ if ($corr_id && str_starts_with($typ, 'koperta')) {
     }
 }
 
+// ── Kody do stopki (Code128 + QR) — karta wolontariusza i potwierdzenie; koperty ich nie mają (mają kod S10 przesyłki) ──
+require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+$_pt_kind  = $typ === 'wkladka' ? 'wol_karta' : 'wol_potwierdzenie';
+$_pt_title = ($typ === 'wkladka' ? 'Karta wolontariusza do segregatora' : 'Potwierdzenie wolontariatu') . ' (porozumienie #' . $id . ')';
+$_pt_path  = '/contracts/wolontariat/view.php?id=' . $id;
+
 // ── DOCX helpers ──────────────────────────────────────────────────────────────
 function _pw(string $t): string { return htmlspecialchars($t, ENT_XML1 | ENT_QUOTES, 'UTF-8'); }
 function _pp(string $text, bool $bold = false, string $align = 'both', int $sz = 24): string {
@@ -150,15 +156,44 @@ function _psec(string $title, int $sz = 22): string {
          . "<w:r><w:rPr><w:b/><w:sz w:val=\"{$sz}\"/><w:szCs w:val=\"{$sz}\"/></w:rPr>"
          . "<w:t>" . _pw($title) . "</w:t></w:r></w:p>";
 }
-function _docx_pack(string $body_content, string $pg_w = '11906', string $pg_h = '16838'): string {
+/** Obraz PNG jako <w:drawing> inline (wymiary w punktach) — do stopki DOCX składanej ręcznie. */
+function _img_inline(string $rid, int $n, int $wpt, int $hpt, string $name): string {
+    $cx = $wpt * 12700; $cy = $hpt * 12700;
+    return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="' . $cx . '" cy="' . $cy . '"/>'
+         . '<wp:docPr id="' . $n . '" name="' . _pw($name) . '"/>'
+         . '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+         . '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="' . $n . '" name="' . _pw($name) . '"/><pic:cNvPicPr/></pic:nvPicPr>'
+         . '<pic:blipFill><a:blip r:embed="' . $rid . '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+         . '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . $cx . '" cy="' . $cy . '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+         . '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+}
+/** Stopka DOCX z kodami (Code128 + QR + kod · numer · adres weryfikacji). $codes z DocRegistry::printCodes() albo null. */
+function _docx_footer(?array $codes): array {
+    if (!$codes || empty($codes['bar']) || empty($codes['qr'])) return ['', ''];
+    $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+        . ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+        . '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>'
+        . _img_inline('rId1', 1, 130, 17, 'Kod kreskowy') . _img_inline('rId2', 2, 26, 26, 'Kod QR') . '</w:p>'
+        . '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="13"/></w:rPr>'
+        . '<w:t xml:space="preserve">' . _pw($codes['code'] . ' · ' . $codes['doc_number'] . ' · weryfikacja: ' . $codes['url']) . '</w:t></w:r></w:p></w:ftr>';
+    $rels = '<?xml version="1.0" encoding="UTF-8"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bar.png"/>'
+        . '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/qr.png"/>'
+        . '</Relationships>';
+    return [$xml, $rels];
+}
+function _docx_pack(string $body_content, string $pg_w = '11906', string $pg_h = '16838', bool $footer = false): string {
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        . '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        . '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
         . '<w:body>' . $body_content
-        . '<w:sectPr><w:pgSz w:w="' . $pg_w . '" w:h="' . $pg_h . '"/>'
+        . '<w:sectPr>' . ($footer ? '<w:footerReference w:type="default" r:id="rId2"/>' : '') . '<w:pgSz w:w="' . $pg_w . '" w:h="' . $pg_h . '"/>'
         . '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1800" w:header="708" w:footer="708"/>'
         . '</w:sectPr></w:body></w:document>';
 }
-function _docx_zip(string $tmp, string $doc_xml): void {
+function _docx_zip(string $tmp, string $doc_xml, ?array $codes = null): void {
+    [$footer_xml, $footer_rels] = _docx_footer($codes);
     $rels = '<?xml version="1.0" encoding="UTF-8"?>'
         . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
         . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
@@ -166,6 +201,7 @@ function _docx_zip(string $tmp, string $doc_xml): void {
     $word_rels = '<?xml version="1.0" encoding="UTF-8"?>'
         . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
         . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        . ($footer_xml !== '' ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' : '')
         . '</Relationships>';
     $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         . '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
@@ -177,6 +213,8 @@ function _docx_zip(string $tmp, string $doc_xml): void {
         . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
         . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
         . '<Default Extension="xml" ContentType="application/xml"/>'
+        . '<Default Extension="png" ContentType="image/png"/>'
+        . ($footer_xml !== '' ? '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' : '')
         . '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
         . '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
         . '</Types>';
@@ -187,6 +225,12 @@ function _docx_zip(string $tmp, string $doc_xml): void {
     $zip->addFromString('word/document.xml',            $doc_xml);
     $zip->addFromString('word/_rels/document.xml.rels', $word_rels);
     $zip->addFromString('word/styles.xml',              $styles);
+    if ($footer_xml !== '') {
+        $zip->addFromString('word/footer1.xml',            $footer_xml);
+        $zip->addFromString('word/_rels/footer1.xml.rels', $footer_rels);
+        $zip->addFromString('word/media/bar.png',          $codes['bar']);
+        $zip->addFromString('word/media/qr.png',           $codes['qr']);
+    }
     $zip->close();
 }
 
@@ -288,8 +332,10 @@ if ($format === 'docx') {
         ];
     }
 
-    $doc_xml = _docx_pack(implode("\n", array_filter($parts)));
-    _docx_zip($tmp, $doc_xml);
+    $codes   = DocRegistry::printCodes($_pt_kind, (string)$id, $_pt_title, $_pt_path);
+    if ($codes && (empty($codes['bar']) || empty($codes['qr']))) $codes = null;
+    $doc_xml = _docx_pack(implode("\n", array_filter($parts)), '11906', '16838', (bool)$codes);
+    _docx_zip($tmp, $doc_xml, $codes);
     header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     header('Content-Disposition: attachment; filename="' . $typ . '_' . $fn_safe . '.docx"');
     header('Content-Length: ' . filesize($tmp));
@@ -298,6 +344,8 @@ if ($format === 'docx') {
 
 // ── HTML / PDF ─────────────────────────────────────────────────────────────────
 $is_preview = isset($_GET['preview']);
+
+$codes_html = str_starts_with($typ, 'koperta') ? '' : DocRegistry::printFooterHtml($_pt_kind, (string)$id, $_pt_title, $_pt_path);   // stopka z kodami
 
 // Tytuły dla paska narzędzi
 $typ_labels = [
@@ -337,6 +385,9 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
 
 /* ── Strona druku ── */
 .page { max-width:210mm; min-height:297mm; margin:1.2rem auto; background:#fff; padding:2.5cm 2.5cm 2.5cm 3cm; box-shadow:0 2px 16px rgba(0,0,0,.12); }
+
+/* ── Stopka z kodami (Code128 + QR) ── */
+.doc-foot { margin-top:18pt; padding-top:6pt; border-top:1px solid #bbb; }
 
 /* ── WKŁADKA ── */
 .karta .org-header { text-align:center; border-bottom:2px solid #000; padding-bottom:9pt; margin-bottom:14pt; }
@@ -590,6 +641,8 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
     </div>
   </div>
 
+  <?php if ($codes_html !== ''): ?><div class="doc-foot"><?= $codes_html ?></div><?php endif; ?>
+
 </div>
 
 <?php elseif ($typ === 'wolontariusz'): ?>
@@ -628,6 +681,8 @@ body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #00
       <div class="sig-sub"><?= h($org_repr ?: $org_name) ?><br><?= h($org_stanow) ?><br><em><?= h($org_name) ?></em></div>
     </div>
   </div>
+
+  <?php if ($codes_html !== ''): ?><div class="doc-foot"><?= $codes_html ?></div><?php endif; ?>
 
 </div>
 

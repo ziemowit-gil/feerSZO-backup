@@ -65,6 +65,12 @@ if ($_logo_file) {
     }
 }
 
+// Stopka z kodami (Code128 + QR) — jeden stały kod dla pary wzór + umowa; w druku powtarza się na każdej stronie
+require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+$codes_html = DocRegistry::printFooterHtml('contract_tpl_doc', $template_id . '/' . $type . '/' . $contract_id,
+    'Dokument ze wzoru „' . $tpl['name'] . '”' . ($contract_id ? ' (umowa ' . $type . ' #' . $contract_id . ')' : ' (podgląd wzoru)'),
+    $contract_id ? '/contracts/' . $type . '/view.php?id=' . $contract_id : '/admin/contract_templates.php');
+
 $doc_date = date('d.m.Y');
 $doc_ref  = !empty($row['numer_umowy']) ? $row['numer_umowy'] : ($org_city ? $org_city . ', ' . $doc_date : $doc_date);
 ?>
@@ -153,10 +159,14 @@ body {
     .page-wrap { padding-top: 0 !important; }
     .page {
         width: 100%; min-height: auto;
-        padding: 15mm 18mm 15mm;
+        padding: 15mm 18mm 28mm;
         box-shadow: none; border-radius: 0; margin: 0;
         border: none;
     }
+    .doc-foot { position: fixed; left: 18mm; right: 18mm; bottom: 8mm; background: #fff; padding-top: 4pt; border-top: 1px solid #bbb; }
+}
+@media screen {
+    .doc-foot { margin-top: 24px; padding-top: 6px; border-top: 1px solid #bbb; }
 }
 
 /* ── Typografia dokumentu ── */
@@ -242,6 +252,8 @@ body {
 
   <!-- Treść z podstawionymi zmiennymi -->
   <?= $html ?>
+
+  <?php if ($codes_html !== ''): ?><div class="doc-foot"><?= $codes_html ?></div><?php endif; ?>
 
 </div>
 </div>

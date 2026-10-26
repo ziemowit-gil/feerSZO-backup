@@ -106,6 +106,23 @@ $section = $phpWord->addSection([
     'marginRight'  => Converter::cmToTwip(2.0),
 ]);
 
+// Stopka z kodami (Code128 + QR + kod · numer) — ten sam kod co w wydruku i pobraniu DOCX z wzoru
+$tmpImgs = [];
+try {
+    require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+    $codes = DocRegistry::printCodes('contract_tpl_doc', $template_id . '/' . $type . '/' . $contract_id,
+        'Dokument ze wzoru „' . $tpl['name'] . '”' . ($contract_id ? ' (umowa ' . $type . ' #' . $contract_id . ')' : ' (podgląd wzoru)'),
+        $contract_id ? '/contracts/' . $type . '/view.php?id=' . $contract_id : '/admin/contract_templates.php');
+    if ($codes && !empty($codes['bar']) && !empty($codes['qr'])) {
+        $footer = $section->addFooter();
+        $tmp = function (string $png) use (&$tmpImgs) { $p = tempnam(sys_get_temp_dir(), 'tplimg'); file_put_contents($p, $png); return $tmpImgs[] = $p; };
+        $run = $footer->addTextRun(['alignment' => Jc::CENTER]);
+        $run->addImage($tmp($codes['bar']), ['width' => 130, 'height' => 17, 'wrappingStyle' => 'inline']);
+        $run->addImage($tmp($codes['qr']),  ['width' => 26,  'height' => 26, 'wrappingStyle' => 'inline']);
+        $footer->addText($codes['code'] . ' · ' . $codes['doc_number'] . ' · weryfikacja: ' . $codes['url'], ['size' => 6.5, 'name' => 'Consolas'], ['alignment' => Jc::CENTER]);
+    }
+} catch (\Throwable $e) { error_log('[template email docx footer] ' . $e->getMessage()); }
+
 // Nagłówek org
 $hdrTable = $section->addTable(['borderSize' => 0, 'cellMargin' => 0]);
 $hdrTable->addRow();
@@ -162,6 +179,7 @@ $tmp_dir     = UPLOAD_DIR . 'temp_docs/';
 if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
 $docx_path   = $tmp_dir . $docx_name;
 IOFactory::createWriter($phpWord, 'Word2007')->save($docx_path);
+foreach ($tmpImgs as $f) @unlink($f);
 
 // ── Zaszyfruj w ZIP (AES-256) ─────────────────────────────────────────────────
 $zip_path = zip_encrypt_file($docx_path, $docx_name, $zip_password);

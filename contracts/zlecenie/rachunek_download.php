@@ -45,6 +45,10 @@ $kwota_brutto = ($rozl['kwota_brutto'] !== null && $rozl['kwota_brutto'] !== '')
               ? money((float)$rozl['kwota_brutto']) : '';
 $godziny      = h($rozl['liczba_godzin'] ?? '');
 $powod        = h($rozl['powod'] ?? '');
+
+// Stopka z kodami (Code128 + QR) — jeden stały kod rachunku; strona publiczna, więc bez ścieżki „Otwórz”
+require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+$codes_html = DocRegistry::printFooterHtml('zlec_rachunek', (string)(int)$rozl['id'], 'Rachunek do umowy zlecenie' . ($numer ? ' ' . $numer : '') . ' (rachunek #' . (int)$rozl['id'] . ')', '/contracts/zlecenie/view.php?id=' . (int)$contract['id']);
 ?><!doctype html>
 <html lang="pl">
 <head>
@@ -54,7 +58,7 @@ $powod        = h($rozl['powod'] ?? '');
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Times New Roman',Times,serif;font-size:12pt;color:#111;background:#fff;line-height:1.6}
-.page{width:210mm;min-height:297mm;margin:0 auto;padding:22mm 22mm 18mm 25mm;position:relative}
+.page{width:210mm;min-height:297mm;margin:0 auto;padding:22mm 22mm 36mm 25mm;position:relative}
 .org-header{display:flex;justify-content:space-between;align-items:flex-start;
             border-bottom:2.5pt solid #000;padding-bottom:6pt;margin-bottom:14pt}
 .org-logo img{max-height:52pt;max-width:100pt}
@@ -73,10 +77,11 @@ body{font-family:'Times New Roman',Times,serif;font-size:12pt;color:#111;backgro
 .info-box strong{font-size:11pt}
 .page-footer{position:absolute;bottom:10mm;left:25mm;right:22mm;
              border-top:1pt solid #ccc;padding-top:4pt;
-             display:flex;justify-content:space-between;font-size:7pt;color:#888}
+             display:flex;justify-content:space-between;flex-wrap:wrap;gap:4pt 0;font-size:7pt;color:#888}
+.page-footer .doc-codes-wrap{flex:0 0 100%}
 @media print{
   body{font-size:11.5pt}
-  .page{padding:15mm 18mm 16mm 22mm;width:100%}
+  .page{padding:15mm 18mm 34mm 22mm;width:100%}
   .no-print{display:none!important}
   @page{size:A4;margin:0}
 }
@@ -166,6 +171,7 @@ body{font-family:'Times New Roman',Times,serif;font-size:12pt;color:#111;backgro
   <div class="page-footer">
     <span><?= h($org_name) ?></span>
     <span>Wygenerowano: <?= date('d.m.Y H:i') ?></span>
+    <?php if ($codes_html !== ''): ?><div class="doc-codes-wrap"><?= $codes_html ?></div><?php endif; ?>
   </div>
 
 </div>

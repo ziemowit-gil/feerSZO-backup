@@ -34,6 +34,11 @@ $filter_desc = array_filter([
 ]);
 
 $org = defined('ORG_NAME') ? ORG_NAME : '';
+
+// Stopka z kodami (Code128 + QR) — zestawienie jest migawką: kod stały dla tych samych filtrów w obrębie dnia; w druku na każdej stronie
+require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+$codes_html = DocRegistry::printFooterHtml('ru_print', date('Y-m-d') . '#' . md5(json_encode($filters)),
+    'Wydruk rejestru umów (RU) z dnia ' . date('d.m.Y') . ($filter_desc ? ' — z filtrami' : ''), '/contracts/rejestr.php');
 ?>
 <!DOCTYPE html>
 <html lang="pl">
@@ -48,7 +53,10 @@ $org = defined('ORG_NAME') ? ORG_NAME : '';
   th{background:#0d6efd;color:#fff;padding:4px 6px;text-align:left;white-space:nowrap}
   td{padding:3px 6px;border-bottom:1px solid #e0e0e0;vertical-align:top}
   tr:nth-child(even) td{background:#f8f9ff}
+  .doc-foot{margin-top:18px;padding-top:6px;border-top:1px solid #bbb}
   @media print{
+    .doc-foot{position:fixed;left:0;right:0;bottom:0;margin:0;background:#fff}
+    body{margin-bottom:22mm}
     .no-print{display:none}
     @page{margin:1.5cm;size:A4 landscape}
   }
@@ -90,6 +98,8 @@ $org = defined('ORG_NAME') ? ORG_NAME : '';
   <?php endforeach; ?>
   </tbody>
 </table>
+
+<?php if ($codes_html !== ''): ?><div class="doc-foot"><?= $codes_html ?></div><?php endif; ?>
 
 <script>
 if (location.hash !== '#noPrint') window.onload = () => window.print();

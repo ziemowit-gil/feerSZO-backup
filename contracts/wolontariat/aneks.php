@@ -118,6 +118,23 @@ function _section(string $title, int $sz = 24): string {
          . "<w:t>" . _w($title) . "</w:t></w:r></w:p>";
 }
 
+/** Obraz PNG jako <w:drawing> inline (wymiary w punktach) — do stopki DOCX składanej ręcznie. */
+function _img_inline(string $rid, int $n, int $wpt, int $hpt, string $name): string {
+    $cx = $wpt * 12700; $cy = $hpt * 12700;
+    return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="' . $cx . '" cy="' . $cy . '"/>'
+         . '<wp:docPr id="' . $n . '" name="' . _w($name) . '"/>'
+         . '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+         . '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="' . $n . '" name="' . _w($name) . '"/><pic:cNvPicPr/></pic:nvPicPr>'
+         . '<pic:blipFill><a:blip r:embed="' . $rid . '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+         . '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . $cx . '" cy="' . $cy . '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+         . '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+}
+
+// ── Kody do stopki (Code128 + QR + numer) — jeden stały kod aneksu w rejestrze dokumentów ─────────────────────────
+require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+$_an_title = 'Aneks do porozumienia wolontariackiego #' . $id;
+$_an_path  = '/contracts/wolontariat/view.php?id=' . $id;
+
 // ── DOCX ──────────────────────────────────────────────────────────────────────
 if ($format === 'docx') {
     if (!class_exists('ZipArchive')) {
@@ -217,10 +234,13 @@ if ($format === 'docx') {
 
     $body_content = implode("\n", array_filter($parts));
 
+    $codes = DocRegistry::printCodes('wol_aneks', (string)$id, $_an_title, $_an_path);
+    if ($codes && (empty($codes['bar']) || empty($codes['qr']))) $codes = null;
+
     $doc_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        . '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        . '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
         . '<w:body>' . $body_content
-        . '<w:sectPr>'
+        . '<w:sectPr>' . ($codes ? '<w:footerReference w:type="default" r:id="rId2"/>' : '')
         . '<w:pgSz w:w="11906" w:h="16838"/>'
         . '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1800" w:header="708" w:footer="708"/>'
         . '</w:sectPr></w:body></w:document>';
@@ -233,7 +253,25 @@ if ($format === 'docx') {
     $word_rels = '<?xml version="1.0" encoding="UTF-8"?>'
         . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
         . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        . ($codes ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' : '')
         . '</Relationships>';
+
+    // Stopka z kodami: Code128 + QR w jednym wierszu, pod spodem kod · numer · adres weryfikacji
+    $footer_xml = $footer_rels = '';
+    if ($codes) {
+        $footer_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+            . ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+            . '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>'
+            . _img_inline('rId1', 1, 130, 17, 'Kod kreskowy') . _img_inline('rId2', 2, 26, 26, 'Kod QR') . '</w:p>'
+            . '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="13"/></w:rPr>'
+            . '<w:t xml:space="preserve">' . _w($codes['code'] . ' · ' . $codes['doc_number'] . ' · weryfikacja: ' . $codes['url']) . '</w:t></w:r></w:p></w:ftr>';
+        $footer_rels = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bar.png"/>'
+            . '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/qr.png"/>'
+            . '</Relationships>';
+    }
 
     $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         . '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
@@ -246,6 +284,8 @@ if ($format === 'docx') {
         . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
         . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
         . '<Default Extension="xml" ContentType="application/xml"/>'
+        . '<Default Extension="png" ContentType="image/png"/>'
+        . ($codes ? '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' : '')
         . '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
         . '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
         . '</Types>';
@@ -257,6 +297,12 @@ if ($format === 'docx') {
     $zip->addFromString('word/document.xml',            $doc_xml);
     $zip->addFromString('word/_rels/document.xml.rels', $word_rels);
     $zip->addFromString('word/styles.xml',              $styles);
+    if ($codes) {
+        $zip->addFromString('word/footer1.xml',              $footer_xml);
+        $zip->addFromString('word/_rels/footer1.xml.rels',   $footer_rels);
+        $zip->addFromString('word/media/bar.png',            $codes['bar']);
+        $zip->addFromString('word/media/qr.png',             $codes['qr']);
+    }
     $zip->close();
 
     $fn = 'aneks_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $numer_aneksu) . '.docx';
@@ -270,6 +316,7 @@ if ($format === 'docx') {
 
 // ── HTML / PDF ─────────────────────────────────────────────────────────────────
 $is_preview = isset($_GET['preview']);
+$codes_html = DocRegistry::printFooterHtml('wol_aneks', (string)$id, $_an_title, $_an_path);   // stopka z kodami (Code128 + QR)
 ?>
 <!DOCTYPE html>
 <html lang="pl">
@@ -299,6 +346,7 @@ table.dt td { border:1px solid #bbb; padding:4pt 7pt; vertical-align:top; }
 table.dt td:first-child { font-weight:bold; width:40%; background:#f8fafc; }
 table.dt tr.changed td { background:#fffde7; }
 table.dt tr.changed td:first-child { background:#fff9c4; }
+.doc-foot { margin-top:26pt; padding-top:6pt; border-top:1px solid #bbb; }
 .signatures { display:flex; justify-content:space-between; margin-top:44pt; gap:32pt; }
 .sig-block { flex:1; text-align:center; }
 .sig-line { border-top:1px solid #000; margin-bottom:3pt; padding-top:2pt; }
@@ -397,6 +445,8 @@ table.dt tr.changed td:first-child { background:#fff9c4; }
       <div class="sig-sub"><?= h($vol_name) ?><?= $vol_pesel ? '<br>PESEL: ' . h($vol_pesel) : '' ?></div>
     </div>
   </div>
+
+  <?php if ($codes_html !== ''): ?><div class="doc-foot"><?= $codes_html ?></div><?php endif; ?>
 
 </div>
 </body>

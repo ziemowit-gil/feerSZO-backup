@@ -41,12 +41,24 @@ $mpdf = new \Mpdf\Mpdf([
     'margin_left'   => 25,
     'margin_right'  => 20,
     'margin_top'    => 20,
-    'margin_bottom' => 18,
+    'margin_bottom' => 24,
+    'margin_footer' => 6,
     'default_font'  => 'dejavusans',
     'tempDir'       => $mpdf_tmp,
 ]);
 $mpdf->SetTitle($doc_name);
 $mpdf->SetAuthor($org_name);
+
+// Stopka na każdej stronie: QR + Code128 + kod · numer (rejestr dokumentów; błąd kodów nie blokuje PDF)
+require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+$codes = DocRegistry::printCodes('contract_doc', (string)$id, 'Dokument do umowy: ' . $doc_name . ' (#' . $id . ')', '/contracts/dokumenty/edytuj.php?id=' . $id);
+if ($codes && !empty($codes['bar']) && !empty($codes['qr'])) {
+    $mpdf->SetHTMLFooter('<table width="100%" style="border-top:0.3pt solid #bbb;font-size:6.5pt;color:#555"><tr>'
+        . '<td width="9%" style="padding-top:1mm"><img src="data:image/png;base64,' . base64_encode($codes['qr']) . '" style="width:9mm;height:9mm"></td>'
+        . '<td style="padding-top:1mm"><img src="data:image/png;base64,' . base64_encode($codes['bar']) . '" style="width:46mm;height:6mm"><br>'
+        . '<span style="font-family:dejavusansmono">' . htmlspecialchars((string)$codes['code'], ENT_QUOTES, 'UTF-8') . '</span> · ' . htmlspecialchars((string)$codes['doc_number'], ENT_QUOTES, 'UTF-8') . '</td>'
+        . '<td width="14%" align="right" style="padding-top:1mm">{PAGENO} / {nbpg}</td></tr></table>');
+}
 $mpdf->WriteHTML($html);
 
 $safe_name = preg_replace('/[^A-Za-z0-9_-]/', '_', $doc_name);
