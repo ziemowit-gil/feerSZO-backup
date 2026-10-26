@@ -113,6 +113,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/tasks_mail_intake.php',
             'interval' => 300,          // co 5 min — skrzynki obszarów: e-maile → zadania (tasks/lib/tasksMail.php)
         ],
+        'crm_mail_sweep' => [
+            'file'     => $cronDir . '/crm_mail_sweep.php',
+            'interval' => 300,          // co 5 min — Skrzynka CRM: „poza biurem” (odpinanie), autoodpowiedzi z godzinami pracy, powiadomienia obserwatorów
+        ],
         'helpdesk_mail_intake' => [
             'file'     => $cronDir . '/helpdesk_mail_intake.php',
             'interval' => 300,          // co 5 min — skrzynki Helpdesku: e-maile → zgłoszenia (modules/helpdeskMail)
