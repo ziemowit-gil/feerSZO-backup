@@ -698,6 +698,7 @@ $_hit = fn(string ...$frags) => (bool)array_filter($frags, fn($f) => str_contain
 $_crm_nav = [];
 
 $_crm_nav[] = ['label'=>'Pulpit', 'icon'=>'bi-grid-1x2-fill', 'path'=>'/crm/dashboard.php', 'active'=>$_hit('/crm/dashboard')];
+if (function_exists('crm_can') ? crm_can('inbox', 'read') : true)   // uprawnienie „CRM — Skrzynka”
 $_crm_nav[] = ['label'=>'Skrzynka', 'icon'=>'bi-inbox-fill', 'path'=>'/crm/inbox.php', 'active'=>$_hit('/crm/inbox'),
                'badge'=>(int)$_crm_inbox_unread, 'badge_hot'=>true, 'title'=>'Nieprzeczytane wiadomości w skrzynce'];
 

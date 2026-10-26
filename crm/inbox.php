@@ -33,7 +33,7 @@ crm_require('inbox', 'read');
 crm_migrate();
 
 $PAGE_TITLE = 'Skrzynka CRM';
-$can_write  = can_write('crm') || is_admin();
+$can_write  = crm_can('inbox', 'write');   // uprawnienie „CRM — Skrzynka” (crm_skrzynka) + obszar Skrzynka; admin zawsze
 $uid        = (int)(current_user()['id'] ?? 0);
 $ready      = crm_mailbox_ready();
 

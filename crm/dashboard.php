@@ -335,6 +335,7 @@ include __DIR__ . '/includes/header_crm.php';
   crm_dash_tile(APP_URL . '/crm/activities.php?view=dzis', 'bi-calendar-check-fill', '#2563EB', '#EEF4FF',
       $acts_today, 'Działania na dziś');
 
+  if (crm_can('inbox', 'read'))   // uprawnienie „CRM — Skrzynka”
   crm_dash_tile(APP_URL . '/crm/inbox.php', 'bi-inbox-fill', '#0176D3', '#E8F4FD',
       $inbox_unread, 'Nieprzeczytane w skrzynce',
       $inbox_mine ? $inbox_mine . ' przypisane mnie' : '');

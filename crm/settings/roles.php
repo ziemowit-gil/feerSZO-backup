@@ -24,6 +24,7 @@ const CRM_SUB_MODULES = [
     'crm_eksport'    => ['label' => 'Eksport',    'flag' => 'can_read',  'icon' => 'bi-download'],
     'crm_import'     => ['label' => 'Import',     'flag' => 'can_write', 'icon' => 'bi-upload'],
     'crm_mailing'    => ['label' => 'Mailing',    'flag' => 'can_write', 'icon' => 'bi-send-fill'],
+    'crm_skrzynka'   => ['label' => 'Skrzynka',   'flag' => 'can_write', 'icon' => 'bi-inbox-fill'],
     'crm_ustawienia' => ['label' => 'Ustawienia', 'flag' => 'can_write', 'icon' => 'bi-gear-fill'],
 ];
 
@@ -37,6 +38,7 @@ function _crm_roles_all(): array {
             (SELECT can_read   FROM role_permissions WHERE role_id=r.id AND module='crm_eksport')    AS crm_eksport,
             (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_import')     AS crm_import,
             (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_mailing')    AS crm_mailing,
+            (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_skrzynka')   AS crm_skrzynka,
             (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_ustawienia') AS crm_ustawienia
          FROM roles r WHERE r.crm_only=1 ORDER BY r.sort_order, r.id"
     );
@@ -80,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'crm_eksport'    => isset($_POST['sub_eksport'])    ? 1 : 0,
             'crm_import'     => isset($_POST['sub_import'])     ? 1 : 0,
             'crm_mailing'    => isset($_POST['sub_mailing'])    ? 1 : 0,
+            'crm_skrzynka'   => isset($_POST['sub_skrzynka'])   ? 1 : 0,
             'crm_ustawienia' => isset($_POST['sub_ustawienia']) ? 1 : 0,
         ];
 
@@ -99,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             _crm_role_upsert($id, 'crm_eksport',    $sub['crm_eksport'],    $sub['crm_eksport'],    0);
             _crm_role_upsert($id, 'crm_import',     $sub['crm_import'],     $sub['crm_import'],     0);
             _crm_role_upsert($id, 'crm_mailing',    $sub['crm_mailing'],    $sub['crm_mailing'],    0);
+            _crm_role_upsert($id, 'crm_skrzynka',   $sub['crm_skrzynka'],   $sub['crm_skrzynka'],   0);
             _crm_role_upsert($id, 'crm_ustawienia', $sub['crm_ustawienia'], $sub['crm_ustawienia'], 0);
             flash_set('success', 'Rola zaktualizowana.');
         } else {
@@ -113,6 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             _crm_role_upsert($new_id, 'crm_eksport',    $sub['crm_eksport'],    $sub['crm_eksport'],    0);
             _crm_role_upsert($new_id, 'crm_import',     $sub['crm_import'],     $sub['crm_import'],     0);
             _crm_role_upsert($new_id, 'crm_mailing',    $sub['crm_mailing'],    $sub['crm_mailing'],    0);
+            _crm_role_upsert($new_id, 'crm_skrzynka',   $sub['crm_skrzynka'],   $sub['crm_skrzynka'],   0);
             _crm_role_upsert($new_id, 'crm_ustawienia', $sub['crm_ustawienia'], $sub['crm_ustawienia'], 0);
             flash_set('success', 'Rola "' . h($display_name) . '" utworzona (nazwa techniczna: <code>' . h($name) . '</code>).');
         }
@@ -142,6 +147,7 @@ $edit_row = $edit_id ? db_one(
         (SELECT can_read   FROM role_permissions WHERE role_id=r.id AND module='crm_eksport')    AS sub_eksport,
         (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_import')     AS sub_import,
         (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_mailing')    AS sub_mailing,
+        (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_skrzynka')   AS sub_skrzynka,
         (SELECT can_write  FROM role_permissions WHERE role_id=r.id AND module='crm_ustawienia') AS sub_ustawienia
      FROM roles r WHERE r.id=? AND r.crm_only=1", [$edit_id]
 ) : null;
@@ -190,7 +196,7 @@ require_once __DIR__ . '/_nav.php';
 </div>
 
 <?php if ($show_new || $edit_row):
-  $f = $edit_row ?? ['display_name'=>'','description'=>'','sort_order'=>10,'crm_write'=>1,'crm_delete'=>0,'sub_eksport'=>0,'sub_import'=>0,'sub_mailing'=>1,'sub_ustawienia'=>0];
+  $f = $edit_row ?? ['display_name'=>'','description'=>'','sort_order'=>10,'crm_write'=>1,'crm_delete'=>0,'sub_eksport'=>0,'sub_import'=>0,'sub_mailing'=>1,'sub_skrzynka'=>1,'sub_ustawienia'=>0];
 ?>
 <div class="card mb-4" style="max-width:580px">
   <div class="card-header fw-semibold">
@@ -269,6 +275,12 @@ require_once __DIR__ . '/_nav.php';
               <i class="bi bi-send-fill text-muted me-1"></i>Mailing masowy i komunikacja grupowa
             </label>
           </div>
+          <div class="form-check ms-2 mb-0">
+            <input class="form-check-input" type="checkbox" id="r_skrzynka" name="sub_skrzynka" <?= !empty($f['sub_skrzynka']) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="r_skrzynka">
+              <i class="bi bi-inbox-fill text-muted me-1"></i>Skrzynka CRM (poczta współdzielona, kolejki, foldery)
+            </label>
+          </div>
           <div class="form-check ms-2">
             <input class="form-check-input" type="checkbox" id="r_ustaw" name="sub_ustawienia" <?= !empty($f['sub_ustawienia']) ? 'checked' : '' ?>>
             <label class="form-check-label small" for="r_ustaw">
@@ -315,6 +327,7 @@ require_once __DIR__ . '/_nav.php';
           <th class="text-center" title="Eksport do CSV/XLSX"><i class="bi bi-download"></i></th>
           <th class="text-center" title="Import z CSV"><i class="bi bi-upload"></i></th>
           <th class="text-center" title="Mailing masowy"><i class="bi bi-send-fill"></i></th>
+          <th class="text-center" title="Skrzynka CRM"><i class="bi bi-inbox-fill"></i></th>
           <th class="text-center" title="Ustawienia CRM"><i class="bi bi-gear-fill"></i></th>
           <th class="text-center">Użytkownicy</th>
           <th class="text-end">Akcje</th>
@@ -339,6 +352,7 @@ require_once __DIR__ . '/_nav.php';
           <td class="text-center"><?= $r['crm_eksport']    ? $yes : $no ?></td>
           <td class="text-center"><?= $r['crm_import']     ? $yes : $no ?></td>
           <td class="text-center"><?= $r['crm_mailing']    ? $yes : $no ?></td>
+          <td class="text-center"><?= $r['crm_skrzynka']   ? $yes : $no ?></td>
           <td class="text-center"><?= $r['crm_ustawienia'] ? $yes : $no ?></td>
           <td class="text-center">
             <?php if ($r['user_count'] > 0): ?>
