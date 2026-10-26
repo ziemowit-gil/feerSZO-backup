@@ -22,6 +22,7 @@ $f = [
     'state' => (string)($_GET['state'] ?? ''),
     'from'  => (string)($_GET['from'] ?? ''),
     'to'    => (string)($_GET['to'] ?? ''),
+    'paper' => (string)($_GET['paper'] ?? ''),
 ];
 $page = max(1, (int)($_GET['p'] ?? 1));
 $res  = DocRegistry::search($f, $page, 50);
@@ -71,6 +72,13 @@ include dirname(__DIR__) . '/includes/header.php';
       </select>
     </div>
     <div class="col-6 col-md-2">
+      <label for="dr-paper" class="form-label small mb-1">Papier</label>
+      <select id="dr-paper" name="paper" class="form-select form-select-sm">
+        <option value="">Wszystkie</option>
+        <?php foreach (['pending' => 'Do rozstrzygnięcia', 'todo' => 'Do zrobienia (etykieta / numer)', 'label' => 'Etykieta', 'manual' => 'Numer ręcznie', 'none' => 'Bez papieru'] as $pk => $pl): ?><option value="<?= h($pk) ?>"<?= $f['paper'] === $pk ? ' selected' : '' ?>><?= h($pl) ?></option><?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
       <label for="dr-from" class="form-label small mb-1">Nadano od</label>
       <input id="dr-from" type="date" name="from" value="<?= h($f['from']) ?>" class="form-control form-control-sm">
     </div>
@@ -84,6 +92,15 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </form>
 
+  <?php $pend = DocRegistry::paperPending(); ?>
+  <?php if ($pend > 0): ?><div class="alert alert-warning py-2 small d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
+    <span><strong><?= (int)$pend ?></strong> dokumentów czeka na decyzję: czy mają odpowiednik papierowy (etykieta albo numer ręcznie).</span>
+    <a class="btn btn-sm btn-outline-dark" href="<?= h($qs(['paper' => 'pending'])) ?>">Pokaż do rozstrzygnięcia</a></div><?php endif; ?>
+  <form id="sheetForm" method="get" action="<?= h($base) ?>" target="_blank" class="d-flex flex-wrap align-items-end gap-2 mb-2">
+    <div><label class="form-label small mb-1" for="dr-start">Arkusz etykiet A4 (3×8): pierwsze wolne pole</label><input id="dr-start" class="form-control form-control-sm" type="number" name="start" min="1" max="24" value="1" style="width:6rem"></div>
+    <button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-printer me-1"></i>Drukuj etykiety zaznaczonych</button>
+    <span class="small text-muted">Zaznacz pozycje w kolumnie „Etykieta”.</span>
+  </form>
   <p class="small text-muted mb-2" role="status">Znaleziono: <b><?= (int)$res['total'] ?></b><?= $f['state'] !== '' ? ' (stan liczony na żywo; przeszukano do 5000 najnowszych pasujących)' : '' ?></p>
 
   <div class="table-responsive">
@@ -91,27 +108,33 @@ include dirname(__DIR__) . '/includes/header.php';
       <caption class="visually-hidden">Numery i kody dokumentów, od najnowszych</caption>
       <thead class="table-light">
         <tr>
+          <th scope="col"><span class="visually-hidden">Etykieta</span></th>
           <th scope="col">Numer</th>
           <th scope="col">Kod (Code128 / QR)</th>
           <th scope="col">Rodzaj</th>
           <th scope="col">Plik</th>
           <th scope="col">Nadano</th>
           <th scope="col">Stan</th>
+          <th scope="col">Papier</th>
           <th scope="col" class="text-end">Akcje</th>
         </tr>
       </thead>
       <tbody>
       <?php if (!$res['rows']): ?>
-        <tr><td colspan="7" class="text-center text-muted py-4">Brak pozycji dla wybranych kryteriów.</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-4">Brak pozycji dla wybranych kryteriów.</td></tr>
       <?php endif; ?>
       <?php foreach ($res['rows'] as $r): $code = (string)$r['code']; $void = $r['state'] === 'void'; ?>
         <tr class="<?= $void ? 'dr-void-row' : '' ?>">
+          <td><?php if (!$r['seq']): ?><input type="checkbox" form="sheetForm" name="sheet[]" value="<?= h($code) ?>" aria-label="Etykieta: <?= h($r['doc_number']) ?>"><?php endif; ?></td>
           <td class="dr-code fw-semibold"><?= h($r['doc_number']) ?></td>
           <td class="dr-code"><?= $r['seq'] ? '<span class="text-muted" title="Numer jest zarazem kodem w QR">= numer</span>' : h($code) ?></td>
           <td><?= h($r['label']) ?></td>
           <td class="text-truncate" style="max-width:260px" title="<?= h($r['file_name']) ?>"><?= $r['file_name'] !== '' ? h($r['file_name']) : '<span class="text-muted">—</span>' ?></td>
           <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$r['created_at']))) ?></td>
           <td><span class="dr-chip <?= $void ? 'dr-void' : 'dr-valid' ?>"><?= $void ? 'Nieaktualny' : 'Obowiązuje' ?></span><?php if ($r['note'] !== ''): ?><div class="small text-muted"><?= h(preg_replace('~\s*Skrót SHA-256.*$~u', '', $r['note'])) ?></div><?php endif; ?></td>
+          <td class="small"><?php $pm = (string)($r['paper_mode'] ?? ''); if ($r['seq'] || str_starts_with((string)$r['source_type'], 'contract_') || in_array($r['source_type'], ['print_doc', 'gen_doc'], true)): ?><span class="text-muted">—</span>
+            <?php elseif ($pm === ''): ?><a href="<?= h($base . '?view=' . rawurlencode($code)) ?>" target="_blank" rel="noopener" class="text-warning-emphasis">do rozstrzygnięcia</a>
+            <?php else: ?><?= h(['none' => 'bez papieru', 'label' => 'etykieta', 'manual' => 'numer ręcznie'][$pm] ?? $pm) ?><?php if ($pm !== 'none'): ?> <?= !empty($r['paper_done_at']) ? '<span class="text-success" title="Zrobione ' . h(date('d.m.Y H:i', strtotime((string)$r['paper_done_at']))) . '">✓</span>' : '<span class="text-danger" title="Do zrobienia">●</span>' ?><?php endif; ?><?php endif; ?></td>
           <td class="text-end text-nowrap dr-act">
             <?php if (!$void): ?><a class="btn btn-sm btn-outline-primary py-0 px-2" href="<?= h(DocRegistry::openByCodeUrl($code)) ?>" target="_blank" rel="noopener" aria-label="Otwórz dokument <?= h($r['doc_number']) ?>">Otwórz</a><?php endif; ?>
             <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="<?= h($base . '?view=' . rawurlencode($code)) ?>" target="_blank" rel="noopener" aria-label="Kod QR dokumentu <?= h($r['doc_number']) ?>">QR</a>

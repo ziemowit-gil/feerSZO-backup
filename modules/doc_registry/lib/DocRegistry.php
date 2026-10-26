@@ -264,6 +264,10 @@ final class DocRegistry
         if ($type !== '' && isset(self::SOURCES[$type])) { $w[] = 'source_type = ?'; $p[] = $type; }
         if (preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)($f['from'] ?? ''))) { $w[] = 'created_at >= ?'; $p[] = $f['from'] . ' 00:00:00'; }
         if (preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)($f['to'] ?? '')))   { $w[] = 'created_at <= ?'; $p[] = $f['to'] . ' 23:59:59'; }
+        $paper = (string)($f['paper'] ?? '');
+        if ($paper === 'pending') { $w[] = "paper_mode = '' AND source_type NOT LIKE 'contract\\_%' ESCAPE '\\' AND source_type NOT IN ('print_doc','gen_doc','helpdesk_attachment','correspondence_file','rekr_file')"; }
+        elseif (in_array($paper, ['none', 'label', 'manual'], true)) { $w[] = 'paper_mode = ?'; $p[] = $paper; }
+        elseif ($paper === 'todo') { $w[] = "paper_mode IN ('label','manual') AND paper_done_at IS NULL"; }
         $where = implode(' AND ', $w);
         $state = in_array($f['state'] ?? '', ['valid', 'void'], true) ? (string)$f['state'] : '';
         $page = max(1, $page);
@@ -436,7 +440,7 @@ final class DocRegistry
     public static function paperPending(): int
     {
         self::migrate();
-        return (int)(db_one("SELECT COUNT(*) c FROM doc_registry WHERE paper_mode = '' AND source_type NOT LIKE 'contract\_%' ESCAPE '\\' AND source_type NOT IN ('print_doc','gen_doc')")['c'] ?? 0);
+        return (int)(db_one("SELECT COUNT(*) c FROM doc_registry WHERE paper_mode = '' AND source_type NOT LIKE 'contract\_%' ESCAPE '\\' AND source_type NOT IN ('print_doc','gen_doc','helpdesk_attachment','correspondence_file','rekr_file')")['c'] ?? 0);
     }
 
     /** Stopka HTML z kodami (obrazy inline data:) — do stron wydruku. '' gdy brak kodów. */
@@ -456,6 +460,63 @@ final class DocRegistry
              . '<span style="font-family:monospace">' . $e($f['code']) . '</span> · ' . $e($f['doc_number']) . '</div></div>';
     }
 
+    // ── Etykiety do druku (70×37 mm) ───────────────────────────────────────────────
+
+    /** Treść jednej etykiety (HTML dla mPDF): organizacja i data, rodzaj, Code128 na całą szerokość, kod i numer drukiem, QR. */
+    public static function labelHtml(array $row): string
+    {
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $code = (string)$row['code'];
+        $kind = mb_strtoupper(mb_strimwidth((string)(self::SOURCES[$row['source_type']][1] ?? 'Dokument'), 0, 34, '…'));
+        $date = !empty($row['created_at']) ? date('d.m.Y', strtotime((string)$row['created_at'])) : '';
+        return '<table style="width:100%;border-collapse:collapse;font-family:dejavusans">'
+            . '<tr><td style="font-size:5.5pt;color:#444">' . $e(defined('ORG_NAME') ? ORG_NAME : '') . '</td><td style="font-size:5.5pt;color:#444;text-align:right">' . $e($date) . '</td></tr>'
+            . '<tr><td colspan="2" style="font-size:6.5pt;font-weight:bold;padding-bottom:.6mm">' . $e($kind) . '</td></tr>'
+            . '<tr><td style="vertical-align:top;width:66%">'
+            . '<barcode code="' . $e($code) . '" type="C128B" size="0.60" height="1.05" />'
+            . '<div style="font-size:9.5pt;font-family:dejavusansmono;font-weight:bold;padding-top:.8mm">' . $e($code) . '</div>'
+            . '<div style="font-size:8pt;font-weight:bold">' . $e($row['doc_number']) . '</div></td>'
+            . '<td style="vertical-align:top;text-align:center"><barcode code="' . $e(self::url($code)) . '" type="QR" class="barcode" size="0.54" error="M" disableborder="1" />'
+            . '</td></tr></table>';
+    }
+
+    /**
+     * PDF z etykietami. Jedna etykieta → strona 70×37 mm; kilka (lub $sheet) → arkusz A4 3×8 (70×37 mm, bez marginesów),
+     * $start = numer pierwszego wolnego pola (1–24), żeby dokończyć częściowo zużyty arkusz. Zwraca bajty PDF albo null.
+     */
+    public static function labelsPdf(array $rows, bool $sheet = false, int $start = 1): ?string
+    {
+        if (!class_exists(\Mpdf\Mpdf::class)) { $a = dirname(__DIR__, 3) . '/vendor/autoload.php'; if (is_file($a)) require_once $a; }
+        if (!class_exists(\Mpdf\Mpdf::class) || !$rows) return null;
+        $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
+        if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+        $er = error_reporting();
+        error_reporting($er & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+        try {
+            if (!$sheet && count($rows) === 1) {
+                $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => [70, 37], 'margin_left' => 2.5, 'margin_right' => 2.5, 'margin_top' => 2, 'margin_bottom' => 1.5, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+                $pdf->SetTitle('Etykieta ' . $rows[0]['code']);
+                $pdf->WriteHTML(self::labelHtml($rows[0]));
+            } else {
+                $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 0, 'margin_right' => 0, 'margin_top' => 0, 'margin_bottom' => 0, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+                $pdf->SetTitle('Arkusz etykiet');
+                $cells = array_fill(0, max(0, min(23, $start - 1)), '');
+                foreach ($rows as $r) $cells[] = self::labelHtml($r);
+                $html = '';
+                foreach (array_chunk($cells, 24) as $pi => $page) {
+                    if ($pi > 0) $html .= '<pagebreak />';
+                    // pozycjonowanie bezwzględne: komórka (kolumna, wiersz) → dokładnie 70×37 mm od lewego górnego rogu arkusza
+                    foreach ($page as $n => $cell) {
+                        if ($cell === '') continue;
+                        $html .= '<div style="position:absolute;left:' . (($n % 3) * 70) . 'mm;top:' . (intdiv($n, 3) * 37) . 'mm;width:62mm;height:32mm;padding:2.5mm 4mm 0 4mm;overflow:hidden">' . $cell . '</div>';
+                    }
+                }
+                $pdf->WriteHTML($html);
+            }
+            return $pdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+        } finally { error_reporting($er); }
+    }
+
     // ── Interfejs ─────────────────────────────────────────────────────────────────
 
     /**
@@ -470,7 +531,7 @@ final class DocRegistry
         $seq = (self::SOURCES[$row['source_type']][4] ?? 'rand') === 'seq';
         return '<a href="' . $e($base . '?view=' . rawurlencode((string)$row['code'])) . '" target="_blank" rel="noopener" class="docreg-badge" data-docreg-code="' . $e($row['code']) . '" data-docreg-number="' . $e($row['doc_number']) . '"'
             . ' data-docreg-qr="' . $e($base . '?qr=' . rawurlencode((string)$row['code'])) . '" data-docreg-label="' . ($seq ? '' : $e($base . '?label=' . rawurlencode((string)$row['code']))) . '"'
-            . ' data-docreg-url="' . $e(self::url((string)$row['code'])) . '" title="Numer i kod QR dokumentu (otwiera się w nowej karcie)">'
+            . ' data-docreg-url="' . $e(self::url((string)$row['code'])) . '" data-docreg-paper="' . $e($row['paper_mode'] ?? '') . '" data-docreg-csrf="' . $e(function_exists('csrf_token') ? csrf_token() : '') . '" data-docreg-ask="' . ((in_array($row['source_type'], ['helpdesk_attachment', 'correspondence_file', 'rekr_file', 'print_doc', 'gen_doc'], true) || str_starts_with((string)$row['source_type'], 'contract_')) ? '0' : '1') . '" title="Numer i kod QR dokumentu (otwiera się w nowej karcie)">'
             . '<span aria-hidden="true">▦</span> ' . $e($seq ? $row['doc_number'] : $row['code']) . '<span class="visually-hidden"> — numer ' . $e($row['doc_number']) . ', pokaż kod QR</span></a>';
     }
 
@@ -495,6 +556,15 @@ HTML;
     <div class="small text-muted">Numer</div><div id="docregNumber" class="fw-semibold mb-1"></div>
     <div id="docregCodeWrap"><div class="small text-muted">Kod (Code128)</div><code id="docregCode" class="fs-6 d-block mb-2"></code></div>
     <p class="small text-muted mb-0">Kod QR otwiera stronę weryfikacji; po zalogowaniu — dokument online.</p>
+    <div id="docregPaper" class="text-start border-top mt-3 pt-2" hidden>
+      <div class="small fw-semibold mb-1" id="docregPaperQ">Czy dokument ma odpowiednik papierowy?</div>
+      <div class="d-grid gap-1" role="group" aria-labelledby="docregPaperQ">
+        <button type="button" class="btn btn-sm btn-outline-secondary text-start" data-paper="none">Nie — tylko elektroniczny</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-start" data-paper="label">Tak — drukuję etykietę</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-start" data-paper="manual">Tak — numer nanoszę ręcznie</button>
+      </div>
+      <div class="small mt-1" id="docregPaperMsg" role="status"></div>
+    </div>
   </div>
   <div class="modal-footer justify-content-between"><a id="docregLabel" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">Etykieta do druku (PDF)</a><a id="docregOpen" class="btn btn-sm btn-primary" target="_blank" rel="noopener">Strona weryfikacji</a></div>
 </div></div></div>
@@ -504,7 +574,16 @@ document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.targe
   document.getElementById('docregQr').src=b.dataset.docregQr;document.getElementById('docregNumber').textContent=b.dataset.docregNumber;
   document.getElementById('docregCode').textContent=b.dataset.docregCode;var lb=document.getElementById('docregLabel');lb.hidden=!b.dataset.docregLabel;lb.href=b.dataset.docregLabel||'#';
   document.getElementById('docregCodeWrap').hidden=b.dataset.docregCode===b.dataset.docregNumber;document.getElementById('docregOpen').href=b.dataset.docregUrl;
+  var pp=document.getElementById('docregPaper');pp.hidden=b.dataset.docregAsk!=='1';window._docregBtn=b;paperMark(b.dataset.docregPaper||'');
   window.bootstrap.Modal.getOrCreateInstance(m).show();},true);
+function paperMark(mode){document.querySelectorAll('#docregPaper [data-paper]').forEach(function(x){var on=x.dataset.paper===mode;x.classList.toggle('btn-primary',on);x.classList.toggle('btn-outline-secondary',!on);});
+  var msg=document.getElementById('docregPaperMsg'),b=window._docregBtn;if(!msg||!b)return;
+  msg.textContent=mode===''?'Nie rozstrzygnięto — wybierz jedną z opcji.':mode==='manual'?'Nanieś ręcznie numer: '+b.dataset.docregNumber+(b.dataset.docregCode!==b.dataset.docregNumber?' / '+b.dataset.docregCode:''):mode==='label'?'Wydrukuj etykietę (przycisk poniżej).':'Zapisano: brak odpowiednika papierowego.';}
+document.addEventListener('click',function(ev){var x=ev.target.closest&&ev.target.closest('#docregPaper [data-paper]');if(!x||!window._docregBtn)return;var b=window._docregBtn;
+  var fd=new FormData();fd.append('mode',x.dataset.paper);fd.append('_csrf',b.dataset.docregCsrf||'');
+  fetch(b.dataset.docregQr.replace(/\?qr=.*/,'?paper='+encodeURIComponent(b.dataset.docregCode)),{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}})
+   .then(function(r){return r.json();}).then(function(j){if(j.ok){b.dataset.docregPaper=j.mode;paperMark(j.mode);if(j.mode==='label'&&b.dataset.docregLabel)window.open(b.dataset.docregLabel,'_blank');}else{document.getElementById('docregPaperMsg').textContent=j.error||'Nie udało się zapisać.';}})
+   .catch(function(){document.getElementById('docregPaperMsg').textContent='Nie udało się zapisać.';});});
 </script>
 HTML;
     }

@@ -28,27 +28,33 @@ if (isset($_GET['qr'])) {
     echo $png; exit;
 }
 
-if (isset($_GET['label'])) {
-    $row = DocRegistry::find((string)$_GET['label']) ?: docreg_fail(404, 'Nie znaleziono kodu.');
-    if ((DocRegistry::SOURCES[$row['source_type']][4] ?? 'rand') === 'seq') docreg_fail(404, 'Ten rodzaj dokumentu nie ma etykiety — tylko numer i kod QR.');
-    require_once dirname(__DIR__) . '/vendor/autoload.php';
-    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-    $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
-    if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-    $code = (string)$row['code'];
-    $html = '<table style="width:100%;border:0;font-family:dejavusans"><tr>'
-        . '<td style="vertical-align:middle;width:64%"><div style="font-size:6pt">' . $e(defined('ORG_NAME') ? ORG_NAME : '') . '</div>'
-        . '<div style="font-size:8pt;font-weight:bold">' . $e($row['doc_number']) . '</div>'
-        . '<div style="padding-top:1.5mm"><barcode code="' . $e($code) . '" type="C128B" size="0.7" height="0.9" /></div>'
-        . '<div style="font-size:8pt;font-family:dejavusansmono">' . $e($code) . '</div></td>'
-        . '<td style="vertical-align:middle;text-align:center"><barcode code="' . $e(DocRegistry::url($code)) . '" type="QR" class="barcode" size="0.6" error="M" disableborder="1" />'
-        . '<div style="font-size:5pt">sprawdź / otwórz online</div></td></tr></table>';
-    $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => [70, 38], 'margin_left' => 2.5, 'margin_right' => 2.5, 'margin_top' => 2.5, 'margin_bottom' => 2, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
-    $pdf->SetTitle('Etykieta ' . $code);
-    $pdf->WriteHTML($html);
+// Decyzja o odpowiedniku papierowym (POST: paper=KOD, mode=none|label|manual | done=1) — JSON dla okna, przekierowanie dla formularza.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['paper'])) {
+    csrf_check();
+    $code = (string)$_GET['paper'];
+    $json = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) || str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json');
+    $err = '';
+    if (!empty($_POST['done'])) DocRegistry::paperDone($code);
+    else $err = DocRegistry::setPaper($code, (string)($_POST['mode'] ?? ''), (int)(current_user()['id'] ?? 0));
+    if ($json) { header('Content-Type: application/json; charset=utf-8'); $r = DocRegistry::find($code); echo json_encode(['ok' => $err === '', 'error' => $err, 'mode' => (string)($r['paper_mode'] ?? '')]); exit; }
+    header('Location: ?view=' . rawurlencode($code) . ($err !== '' ? '&err=' . rawurlencode($err) : '')); exit;
+}
+
+// Etykieta (?label=KOD) albo arkusz A4 3×8 (?sheet=KOD1,KOD2…&start=N — numer pierwszego wolnego pola) — PDF.
+if (isset($_GET['label']) || isset($_GET['sheet'])) {
+    $codes = isset($_GET['sheet']) ? array_values(array_filter(array_map('trim', is_array($_GET['sheet']) ? $_GET['sheet'] : explode(',', (string)$_GET['sheet'])))) : [(string)$_GET['label']];
+    $rows = [];
+    foreach (array_slice($codes, 0, 120) as $c) {
+        $r = DocRegistry::find($c);
+        if ($r && !DocRegistry::isSeq((string)$r['source_type'])) $rows[] = $r;
+    }
+    if (!$rows) docreg_fail(404, 'Nie znaleziono dokumentów z etykietą (numery kolejne HD/KOR/REK mają tylko numer i QR).');
+    $pdf = DocRegistry::labelsPdf($rows, isset($_GET['sheet']), (int)($_GET['start'] ?? 1)) ?? docreg_fail(503, 'Generator PDF jest niedostępny.');
+    foreach ($rows as $r) if (($r['paper_mode'] ?? '') === 'label' && empty($r['paper_done_at'])) DocRegistry::paperDone((string)$r['code']);   // etykieta wydrukowana
     while (ob_get_level()) ob_end_clean();
-    header('Content-Type: application/pdf'); header('Content-Disposition: inline; filename="etykieta-' . preg_replace('~[^A-Z0-9]+~', '-', $code) . '.pdf"');
-    $pdf->Output('', \Mpdf\Output\Destination::INLINE); exit;
+    header('Content-Type: application/pdf'); header('Content-Disposition: inline; filename="' . (isset($_GET['sheet']) ? 'arkusz-etykiet' : 'etykieta-' . preg_replace('~[^A-Z0-9]+~', '-', (string)$rows[0]['code'])) . '.pdf"');
+    header('Content-Length: ' . strlen($pdf)); header('Cache-Control: private, no-store');
+    echo $pdf; exit;
 }
 
 if (isset($_GET['view'])) {
@@ -69,6 +75,29 @@ if (isset($_GET['view'])) {
         . '<p class="s">Kod QR otwiera stronę weryfikacji; po zalogowaniu — dokument online.</p>'
         . '<a class="b" href="' . $e(DocRegistry::url($code)) . '">Strona weryfikacji</a>'
         . ($seq ? '' : '<a class="b o" href="?label=' . $e(rawurlencode($code)) . '">Etykieta do druku (PDF)</a>')
+        . (function () use ($row, $code, $seq, $e) {
+            if ($seq || str_starts_with((string)$row['source_type'], 'contract_') || in_array($row['source_type'], ['print_doc', 'gen_doc'], true)) return '';
+            $mode = (string)($row['paper_mode'] ?? '');
+            $h = '<hr style="border:0;border-top:1px solid #c9c9c9;margin:1rem 0"><h2 style="font-size:1rem;margin:.2rem 0 .5rem">Odpowiednik papierowy</h2>';
+            if (!empty($_GET['err'])) $h .= '<p role="alert" style="color:#a20025">' . $e($_GET['err']) . '</p>';
+            $h .= '<p class="s" style="margin:0 0 .5rem">Czy ten dokument ma odpowiednik papierowy?</p>'
+                . '<form method="post" action="?paper=' . $e(rawurlencode($code)) . '" style="text-align:left"><input type="hidden" name="_csrf" value="' . $e(csrf_token()) . '">';
+            foreach (['none' => 'Nie — dokument tylko elektroniczny', 'label' => 'Tak — wydrukuję etykietę (naklejka)', 'manual' => 'Tak — numer naniosę ręcznie'] as $k => $l)
+                $h .= '<label style="display:block;margin:.3rem 0"><input type="radio" name="mode" value="' . $k . '"' . ($mode === $k ? ' checked' : '') . '> ' . $e($l) . '</label>';
+            $h .= '<button class="b" style="border:0;cursor:pointer;font:inherit" type="submit">Zapisz</button></form>';
+            if ($mode === 'label') {
+                $h .= '<p style="margin:.6rem 0 0"><a class="b o" href="?label=' . $e(rawurlencode($code)) . '">Drukuj etykietę (PDF 70×37 mm)</a></p>'
+                    . '<p class="s" style="margin:.3rem 0 0">' . (!empty($row['paper_done_at']) ? 'Etykieta wydrukowana ' . $e(date('d.m.Y H:i', strtotime((string)$row['paper_done_at']))) . '.' : 'Etykieta jeszcze nie była drukowana — po otwarciu PDF zostanie oznaczona jako wydrukowana.') . '</p>';
+            } elseif ($mode === 'manual') {
+                $h .= '<div style="margin:.7rem 0 0;padding:.7rem;border:2px solid #0050ef;text-align:center"><div class="s">Nanieś na dokument ręcznie (czytelnie, w prawym górnym rogu):</div>'
+                    . '<div style="font-size:1.25rem;font-weight:700;margin-top:.2rem">' . $e($row['doc_number']) . '</div><div style="font-family:ui-monospace,monospace;font-size:1.05rem">' . $e($code) . '</div></div>'
+                    . (!empty($row['paper_done_at']) ? '<p class="s" style="margin:.3rem 0 0">Numer naniesiono ' . $e(date('d.m.Y H:i', strtotime((string)$row['paper_done_at']))) . '.</p>'
+                       : '<form method="post" action="?paper=' . $e(rawurlencode($code)) . '"><input type="hidden" name="_csrf" value="' . $e(csrf_token()) . '"><input type="hidden" name="done" value="1"><button class="b o" style="border:0;cursor:pointer;font:inherit" type="submit">Numer naniesiony na papier</button></form>');
+            } elseif ($mode === '') {
+                $h .= '<p class="s" style="margin:.5rem 0 0">Nie rozstrzygnięto — wybierz jedną z opcji.</p>';
+            }
+            return $h;
+        })()
         . '</main></body></html>';
     exit;
 }
