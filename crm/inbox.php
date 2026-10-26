@@ -657,6 +657,7 @@ include __DIR__ . '/includes/header_crm.php';
       <?php if (is_admin()): ?>
       <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/mail_queues.php"><i class="bi bi-collection" aria-hidden="true"></i>Kolejki i skrzynka faktur</a></li>
       <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/office_hours.php"><i class="bi bi-clock" aria-hidden="true"></i>Godziny pracy i autoodpowiedzi</a></li>
+      <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/mail_rules.php"><i class="bi bi-diagram-3" aria-hidden="true"></i>Reguły automatyczne</a></li>
       <?php endif; ?>
       <li><hr class="dropdown-divider my-1"></li>
       <li><h6 class="dropdown-header">Działania</h6></li>
