@@ -238,7 +238,7 @@ html body .modal-title{font-weight:300!important;font-size:1.35rem}
 
 /* ── Pulpit: kafle „Wymaga reakcji” jako żywe kafle Metro ───────────────── */
 html body .crm-sect-hd+.row{--bs-gutter-x:.5rem;--bs-gutter-y:.5rem}
-html body .crm-content .crm-tile{--k:var(--cm-dark);display:flex;flex-direction:column;min-height:78px;padding:.5rem .7rem .45rem;
+html body .crm-content .crm-tile{--k:var(--cm-dark);display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;align-content:center;column-gap:.5rem;min-height:46px;padding:.35rem .6rem;
   background:var(--k);border:0;color:#fff;transition:filter .12s;opacity:1}
 html body .crm-sect-hd+.row>:nth-child(1) .crm-tile{--k:var(--cm-red)}
 html body .crm-sect-hd+.row>:nth-child(2) .crm-tile{--k:var(--cm-blue)}
@@ -248,10 +248,10 @@ html body .crm-sect-hd+.row>:nth-child(5) .crm-tile{--k:var(--cm-orange)}
 html body .crm-sect-hd+.row>:nth-child(6) .crm-tile{--k:var(--crm-primary)}
 html body .crm-sect-hd+.row>* .crm-tile.crm-tile--zero{--k:#6d6d6d}
 html body .crm-content .crm-tile:hover,html body .crm-content .crm-tile:focus-visible{color:#fff;filter:brightness(1.12);outline:3px solid var(--cm-dark);outline-offset:2px}
-html body .crm-content .crm-tile-ico{width:auto;height:auto;margin:0 0 .15rem;background:none!important;color:#fff!important;font-size:.95rem;justify-content:flex-start;opacity:.9}
-html body .crm-content .crm-tile-val{margin-top:auto;font-size:1.65rem;font-weight:300;line-height:1;color:#fff}
-html body .crm-content .crm-tile-lbl{font-size:.72rem;font-weight:600;color:rgba(255,255,255,.92);margin-top:.15rem;line-height:1.2}
-html body .crm-content .crm-tile-note{color:rgba(255,255,255,.85)!important;font-size:.66rem!important;margin-top:.1rem!important}
+html body .crm-content .crm-tile-ico{grid-row:1/3;width:auto;height:auto;margin:0;background:none!important;color:#fff!important;font-size:.9rem;justify-content:flex-start;opacity:.9}
+html body .crm-content .crm-tile-val{grid-row:1/3;margin:0;font-size:1.3rem;font-weight:300;line-height:1;color:#fff}
+html body .crm-content .crm-tile-lbl{grid-column:3;grid-row:1;font-size:.7rem;font-weight:600;color:rgba(255,255,255,.92);margin:0;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body .crm-content .crm-tile-note{grid-column:3;grid-row:2;color:rgba(255,255,255,.85)!important;font-size:.64rem!important;margin:0!important;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html body .crm-quick-action:hover{background:var(--cm-light);border-color:transparent}
 html body .crm-count-chip,html body .crm-hyg-n{border-radius:0}
 html body .crm-count-chip{background:var(--cm-dark);color:#fff}
