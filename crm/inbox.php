@@ -690,6 +690,45 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
+<?php /* Kolejki i foldery jako zakładki na pełną szerokość — pod paskiem narzędzi, nad listą i podglądem (wcześniej chipsy w wąskiej kolumnie listy). */
+      $show_qtabs = count($queues) > 1 || $folders || $tag_f !== '' || $can_write; ?>
+<?php if ($show_qtabs): ?>
+<nav class="ib-tabs2" aria-label="Kolejki i foldery">
+  <?php if (count($queues) > 1): ?>
+  <div class="ib-tabgrp" role="group" aria-label="Kolejki wiadomości">
+    <span class="ib-tabgrp-lbl"><i class="bi bi-collection" aria-hidden="true"></i> Kolejki</span>
+    <a class="ib-pill ib-pill--sub<?= $queue_f ? '' : ' is-on' ?>" href="?<?= $qs(['queue_id' => null, 'msg' => null, 'page' => null]) ?>"<?= $queue_f ? '' : ' aria-current="page"' ?>>
+      Wszystkie <?php $qa = (int)array_sum($q_counts); ?><span class="ib-cnt<?= $qa ? '' : ' is-zero' ?>"><?= $qa ?></span></a>
+    <?php foreach ($queues as $qq): $qn = (int)($q_counts[(int)$qq['id']] ?? 0); $qon = $queue_f === (int)$qq['id']; ?>
+    <a class="ib-pill ib-pill--sub<?= $qon ? ' is-on' : '' ?>" style="--c:<?= h($qq['color']) ?>"
+       href="?<?= $qs(['queue_id' => $qon ? null : (int)$qq['id'], 'msg' => null, 'page' => null]) ?>"<?= $qon ? ' aria-current="page"' : '' ?>
+       title="<?= h($qq['mailbox_name'] ? 'Domyślna kolejka skrzynki ' . $qq['mailbox_name'] : 'Kolejka ogólna') ?>">
+      <span class="ib-q-dot" aria-hidden="true"></span><?= h($qq['name']) ?> <span class="ib-cnt<?= $qn ? '' : ' is-zero' ?>"><?= $qn ?></span></a>
+    <?php endforeach; ?>
+    <?php if (is_admin()): ?><a class="ib-tab-cfg" href="<?= APP_URL ?>/crm/mail_queues.php" title="Zarządzaj kolejkami" aria-label="Zarządzaj kolejkami"><i class="bi bi-gear" aria-hidden="true"></i></a><?php endif; ?>
+  </div>
+  <?php endif; ?>
+  <?php if ($folders || $can_write): ?>
+  <div class="ib-tabgrp" role="group" aria-label="Własne foldery">
+    <span class="ib-tabgrp-lbl"><i class="bi bi-folder2-open" aria-hidden="true"></i> Foldery</span>
+    <?php foreach ($folders as $fo): $fc = $f_counts[(int)$fo['id']] ?? ['n' => 0, 'unread' => 0]; $fon = $folder_f === (int)$fo['id']; ?>
+    <a class="ib-pill ib-pill--sub<?= $fon ? ' is-on' : '' ?>" style="--c:<?= h($fo['color']) ?>"
+       href="?<?= $qs(['folder' => $fon ? null : (int)$fo['id'], 'queue_id' => null, 'msg' => null, 'page' => null]) ?>"<?= $fon ? ' aria-current="page"' : '' ?>
+       title="<?= h(($fo['is_shared'] ? 'Folder wspólny' : 'Folder osobisty') . ' · licznik: ' . ($fo['counter_mode'] === 'all' ? 'wszystkie rozmowy' : 'tylko aktywne')) ?>">
+      <i class="bi <?= $fo['is_shared'] ? 'bi-folder-symlink' : 'bi-folder' ?>" aria-hidden="true"></i><?= h($fo['name']) ?>
+      <span class="ib-cnt<?= $fc['n'] ? '' : ' is-zero' ?><?= $fc['unread'] ? ' is-unread' : '' ?>"><?= (int)$fc['n'] ?><?php if ($fc['unread']): ?><span class="visually-hidden">, nieprzeczytane: <?= (int)$fc['unread'] ?></span><?php endif; ?></span></a>
+    <?php endforeach; ?>
+    <a class="ib-tab-cfg" href="<?= APP_URL ?>/crm/mail_folders.php" title="<?= $folders ? 'Zarządzaj folderami' : 'Utwórz pierwszy folder' ?>" aria-label="<?= $folders ? 'Zarządzaj folderami' : 'Utwórz pierwszy folder' ?>"><i class="bi bi-folder-plus" aria-hidden="true"></i><?= $folders ? '' : ' Nowy folder' ?></a>
+  </div>
+  <?php endif; ?>
+  <?php if ($tag_f !== ''): ?>
+  <div class="ib-tabgrp" role="group" aria-label="Filtr tagu">
+    <a class="ib-pill ib-pill--sub is-on" href="?<?= $qs(['tag' => null, 'msg' => null, 'page' => null]) ?>" title="Usuń filtr tagu" aria-label="Usuń filtr tagu <?= h($tag_f) ?>"><i class="bi bi-tag-fill" aria-hidden="true"></i><?= h($tag_f) ?> <i class="bi bi-x-lg" aria-hidden="true"></i></a>
+  </div>
+  <?php endif; ?>
+</nav>
+<?php endif; ?>
+
 <div class="ib-wrap<?= $explicit ? ' is-reading' : '' ?>" id="ibWrap">
   <script>
   // Zapamiętana szerokość listy i tryb zwarty — przed pierwszym malowaniem, bez mrugnięcia
@@ -702,33 +741,6 @@ include __DIR__ . '/includes/header_crm.php';
 
   <!-- ══ LISTA ═══════════════════════════════════════════════════════════ -->
   <section class="ib-col-list" aria-label="Lista wiadomości">
-    <?php if ($folders || $tag_f !== '' || $can_write): ?>
-    <nav class="ib-folders" aria-label="Własne foldery">
-      <?php foreach ($folders as $fo): $fc = $f_counts[(int)$fo['id']] ?? ['n' => 0, 'unread' => 0]; $fon = $folder_f === (int)$fo['id']; ?>
-      <a class="ib-fo<?= $fon ? ' is-on' : '' ?>" style="--c:<?= h($fo['color']) ?>" href="?<?= $qs(['folder' => $fon ? null : (int)$fo['id'], 'queue_id' => null, 'msg' => null, 'page' => null]) ?>"
-         <?= $fon ? 'aria-current="true"' : '' ?> title="<?= h(($fo['is_shared'] ? 'Folder wspólny' : 'Folder osobisty') . ' · licznik: ' . ($fo['counter_mode'] === 'all' ? 'wszystkie rozmowy' : 'tylko aktywne')) ?>">
-        <i class="bi <?= $fo['is_shared'] ? 'bi-folder-symlink' : 'bi-folder' ?>" aria-hidden="true"></i><?= h($fo['name']) ?>
-        <span class="ib-q-n<?= $fc['unread'] ? ' is-unread' : '' ?>"><?= (int)$fc['n'] ?><?php if ($fc['unread']): ?><span class="visually-hidden">, nieprzeczytane: <?= (int)$fc['unread'] ?></span><?php endif; ?></span></a>
-      <?php endforeach; ?>
-      <?php if ($tag_f !== ''): ?>
-      <a class="ib-fo is-on" href="?<?= $qs(['tag' => null, 'msg' => null, 'page' => null]) ?>" title="Usuń filtr tagu" aria-label="Usuń filtr tagu <?= h($tag_f) ?>"><i class="bi bi-tag-fill" aria-hidden="true"></i><?= h($tag_f) ?> <i class="bi bi-x-lg" aria-hidden="true"></i></a>
-      <?php endif; ?>
-      <a class="ib-fo ib-q--cfg" href="<?= APP_URL ?>/crm/mail_folders.php" title="Zarządzaj folderami" aria-label="Zarządzaj folderami"><i class="bi bi-folder-plus" aria-hidden="true"></i><?= $folders ? '' : ' Nowy folder' ?></a>
-    </nav>
-    <?php endif; ?>
-    <?php if (count($queues) > 1): ?>
-    <nav class="ib-queues" aria-label="Kolejki wiadomości">
-      <a class="ib-q<?= $queue_f ? '' : ' is-on' ?>" href="?<?= $qs(['queue_id' => null, 'msg' => null, 'page' => null]) ?>"<?= $queue_f ? '' : ' aria-current="true"' ?>>
-        Wszystkie <span class="ib-q-n"><?= (int)array_sum($q_counts) ?></span></a>
-      <?php foreach ($queues as $qq): $qn = (int)($q_counts[(int)$qq['id']] ?? 0); ?>
-      <a class="ib-q<?= $queue_f === (int)$qq['id'] ? ' is-on' : '' ?>" style="--c:<?= h($qq['color']) ?>"
-         href="?<?= $qs(['queue_id' => (int)$qq['id'], 'msg' => null, 'page' => null]) ?>"<?= $queue_f === (int)$qq['id'] ? ' aria-current="true"' : '' ?>
-         title="<?= h($qq['mailbox_name'] ? 'Domyślna kolejka skrzynki ' . $qq['mailbox_name'] : 'Kolejka ogólna') ?>">
-        <span class="ib-q-dot" aria-hidden="true"></span><?= h($qq['name']) ?> <span class="ib-q-n"><?= $qn ?></span></a>
-      <?php endforeach; ?>
-      <?php if (is_admin()): ?><a class="ib-q ib-q--cfg" href="<?= APP_URL ?>/crm/mail_queues.php" title="Zarządzaj kolejkami" aria-label="Zarządzaj kolejkami"><i class="bi bi-gear" aria-hidden="true"></i></a><?php endif; ?>
-    </nav>
-    <?php endif; ?>
     <?php $bulk_view = $view === 'hidden';
           $abandon_days = (int)(crm_setting('crm_inbox_abandon_days') ?: 90); ?>
     <?php if ($bulk_view && $abandon_days > 0): ?>

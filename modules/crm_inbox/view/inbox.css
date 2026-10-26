@@ -383,29 +383,11 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
 .ib-row:hover .ib-time, .ib-row:focus-within .ib-time { visibility:hidden }
 
 /* Kolejki wiadomości (pasek nad listą, znacznik w wierszu, przenoszenie zbiorcze) */
-.ib-queues { display:flex; flex-wrap:wrap; gap:.35rem; padding:.45rem .6rem; border-bottom:1px solid #e1e1e1; background:#fafafa }
-.ib-q { display:inline-flex; align-items:center; gap:.35rem; height:30px; padding:0 .65rem; font-size:.8rem; font-weight:600; white-space:nowrap; text-decoration:none;
-  color:#3f3f3f; background:#fff; border:2px solid #c6c6c6; --c:#6B7280 }
-.ib-q:hover { border-color:#8a8a8a; color:var(--ib-text) }
-.ib-q.is-on { background:var(--crm-primary); border-color:var(--crm-primary); color:#fff }
-.ib-q:focus-visible { outline:3px solid #ff9800; outline-offset:2px }
-.ib-q-dot { width:.6rem; height:.6rem; border-radius:50%; background:var(--c) }
-.ib-q.is-on .ib-q-dot { box-shadow:0 0 0 2px #fff }
-.ib-q-n { font-weight:700; opacity:.8; font-size:.74rem }
-.ib-q--cfg { margin-left:auto; padding:0 .55rem }
 .ib-tag--q { background:transparent; color:var(--c); border:1px solid var(--c); font-weight:600 }
 .ib-bulk-q { display:inline-flex; align-items:center; gap:.35rem }
 .ib-bulk-q select { height:28px; font-size:.78rem }
 
 /* Własne foldery (zapisane widoki) i tagi wiadomości */
-.ib-folders { display:flex; flex-wrap:wrap; gap:.35rem; padding:.45rem .6rem; border-bottom:1px solid #e1e1e1; background:#f3f7fb }
-.ib-fo { display:inline-flex; align-items:center; gap:.35rem; height:30px; padding:0 .65rem; font-size:.8rem; font-weight:600; white-space:nowrap; text-decoration:none;
-  color:#3f3f3f; background:#fff; border:2px solid var(--c,#c6c6c6); }
-.ib-fo:hover { filter:brightness(.97) }
-.ib-fo.is-on { background:var(--c,var(--crm-primary)); border-color:var(--c,var(--crm-primary)); color:#fff }
-.ib-fo:focus-visible { outline:3px solid #ff9800; outline-offset:2px }
-.ib-fo .bi { color:var(--c,#555) } .ib-fo.is-on .bi { color:#fff }
-.ib-q-n.is-unread { font-weight:800; opacity:1 }
 .ib-tag--t { background:#EEF2FF; color:#3730A3; border:1px solid #C7D2FE }
 .ib-tagbar { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem; flex-basis:100%; margin-top:.35rem }
 .ib-tagchip { display:inline-flex; align-items:center; gap:.2rem; background:#EEF2FF; color:#3730A3; border:1px solid #C7D2FE; padding:0 .15rem 0 .45rem; font-size:.78rem; font-weight:600; height:26px }
@@ -425,3 +407,20 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
 .ib-fol { padding-top:.2rem; border-top:1px dashed #d4d4d4 }
 .ib-fol-lbl { font-size:.78rem; font-weight:600; color:var(--ib-muted) }
 .ib-fchip { background:#ECFDF5; color:#065F46; border-color:#A7F3D0 }
+
+/* Kolejki i foldery jako zakładki (pivot jak widoki): druga linia pod paskiem narzędzi, na pełną szerokość, przewijana poziomo na wąskich ekranach */
+.ib-tabs2 { display:flex; align-items:stretch; gap:.4rem 1.4rem; margin:-.25rem 0 .75rem; padding:0 .25rem; border-bottom:1px solid #e1e1e1; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:thin }
+.ib-tabgrp { display:flex; align-items:stretch; gap:.1rem; flex:0 0 auto }
+.ib-tabgrp + .ib-tabgrp { padding-left:1.4rem; border-left:1px solid #e1e1e1 }
+.ib-tabgrp-lbl { display:inline-flex; align-items:center; gap:.35rem; padding-right:.5rem; font-size:.68rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ib-muted); white-space:nowrap }
+.ib-pill--sub { --c:var(--crm-primary); padding:.45rem .75rem; font-size:.84rem }
+.ib-pill--sub.is-on { border-bottom-color:var(--c); color:var(--ib-text) }
+.ib-pill--sub.is-on > .bi { color:var(--c) }
+.ib-pill--sub .bi { color:var(--c) }
+.ib-pill--sub:focus-visible, .ib-tab-cfg:focus-visible { outline:3px solid #ff9800; outline-offset:-3px }
+.ib-pill--sub.is-on .ib-cnt:not(.is-zero) { background:var(--c); color:#fff }
+.ib-cnt.is-unread { font-weight:800; box-shadow:inset 0 0 0 2px var(--crm-primary) }
+.ib-q-dot { width:.6rem; height:.6rem; border-radius:50%; background:var(--c) }
+.ib-tab-cfg { display:inline-flex; align-items:center; gap:.3rem; padding:0 .55rem; color:var(--ib-muted); text-decoration:none; font-size:.8rem; white-space:nowrap; border-bottom:3px solid transparent }
+.ib-tab-cfg:hover { color:var(--ib-text); background:var(--ib-soft) }
+@media (max-width:760px) { .ib-tabgrp-lbl { display:none } .ib-tabgrp + .ib-tabgrp { padding-left:.8rem } .ib-tabs2 { gap:.4rem .8rem } }
