@@ -141,6 +141,22 @@ include __DIR__ . '/includes/header_crm.php';
 .cal-ol-st{color:#6b7280;font-size:.72rem}
 .cal-ol-set{color:#6b7280}
 .cal-ol-set:focus-visible,.cal-ol input:focus-visible,.cal-ol button:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
+.cal-done-tgl{cursor:pointer;font-weight:600;margin:0}
+.cal-agenda{background:#fff;border:1px solid #e5e7eb;padding:.4rem 1rem 1rem}
+.cal-ag-day{padding:.55rem 0;border-bottom:1px solid #f1f5f9}
+.cal-ag-day:last-child{border-bottom:0}
+.cal-ag-h{font-size:.82rem;font-weight:700;color:#374151;margin:0 0 .35rem;text-transform:capitalize}
+.cal-ag-h .n{display:inline-block;min-width:1.7rem;font-size:1rem;color:#111827}
+.cal-ag-h em{font-style:normal;font-size:.66rem;font-weight:700;color:#fff;background:#2E844A;padding:.05rem .4rem;margin-left:.3rem;text-transform:uppercase;letter-spacing:.04em}
+.cal-ag-day.is-today{background:#f3faf5;margin:0 -1rem;padding-left:1rem;padding-right:1rem}
+.cal-ag-empty{font-size:.78rem;color:#9ca3af;padding-left:1.7rem}
+.cal-ag-ev{display:flex;align-items:stretch;gap:.6rem;padding:.3rem 0 .3rem 1.7rem;font-size:.84rem}
+.cal-ag-ev:hover{background:#f8fafc}
+.cal-ag-ev .t{flex:0 0 5.2rem;color:#6b7280;font-size:.76rem;padding-top:.1rem}
+.cal-ag-ev .bar{flex:0 0 4px;border-radius:0}
+.cal-ag-ev .b{min-width:0;display:block;overflow-wrap:anywhere}
+.cal-ag-ev .s{display:block;font-size:.74rem;color:#6b7280}
+.cal-ag-ev.done strong{text-decoration:line-through;opacity:.6}
 .legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:.4rem; flex-shrink:0; }
 .upcoming-item { display:flex; align-items:flex-start; gap:.5rem; padding:.45rem 0; border-bottom:1px solid #F9FAFB; font-size:.8rem; }
 .upcoming-item:last-child { border-bottom:none; }
@@ -218,6 +234,7 @@ include __DIR__ . '/includes/header_crm.php';
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <?php /* Integracja z Outlookiem: stan połączenia, filtr zdarzeń z Outlooka, synchronizacja na żądanie, ustawienia */ ?>
+        <label class="cal-ol cal-done-tgl" title="Pokaż także zadania i zdarzenia oznaczone jako wykonane"><input type="checkbox" id="showDone"> Wykonane</label>
         <span class="cal-ol" id="calOl" hidden>
           <i class="bi bi-microsoft" aria-hidden="true"></i>
           <label class="cal-ol-tgl"><input type="checkbox" id="olShow" checked> Outlook</label>
@@ -227,6 +244,7 @@ include __DIR__ . '/includes/header_crm.php';
         </span>
         <button class="cal-view-btn active" id="btnMonth" onclick="Cal.setView('month')">Miesiąc</button>
         <button class="cal-view-btn"        id="btnWeek"  onclick="Cal.setView('week')">Tydzień</button>
+        <button class="cal-view-btn"        id="btnAgenda" onclick="Cal.setView('agenda')" title="Najbliższe 14 dni — zwarta lista dzień po dniu">Agenda</button>
         <button class="cal-view-btn"        id="btnList"  onclick="Cal.setView('list')">Lista</button>
       </div>
     </div>
@@ -499,6 +517,9 @@ const Cal = (function() {
       const startDow = (first.getDay()+6)%7;
       from = new Date(first); from.setDate(from.getDate() - startDow);
       to   = new Date(from);  to.setDate(to.getDate() + 41);
+    } else if (_view === 'agenda') {
+      from = new Date(_date.getFullYear(), _date.getMonth(), _date.getDate());
+      to   = new Date(from); to.setDate(to.getDate() + 13);
     } else if (_view === 'week') {
       const dow = (_date.getDay()+6)%7;
       from = new Date(_date); from.setDate(from.getDate()-dow);
@@ -513,6 +534,7 @@ const Cal = (function() {
   // Ikona zdarzenia: z Outlooka → logo Microsoft, reszta wg typu
   function evIcon(e) { return e.outlook ? 'bi-microsoft' : (TYPE_CFG[e.event_type]?.icon || 'bi-circle'); }
   let _showOutlook = true;
+  let _showDone = false;   // domyślnie wykonane zadania są ukryte (zasłaniały kalendarz); przełącznik „Wykonane”
 
   function load() {
     const { from, to } = getRangeDates();
@@ -520,7 +542,7 @@ const Cal = (function() {
       .then(r => r.json())
       .then(res => {
         if (res.ok) {
-          _events = (res.data || []).filter(e => _showOutlook || !e.outlook);
+          _events = (res.data || []).filter(e => (_showOutlook || !e.outlook) && (_showDone || e.status !== 'done'));
           render();
           renderUpcoming();
         }
@@ -817,16 +839,54 @@ const Cal = (function() {
       .catch(()=>{});
   }
 
+  // ── RENDER: agenda — najbliższe 14 dni, dzień po dniu (jak widok agendy w Outlooku) ─────────────
+  function renderAgenda() {
+    const from = new Date(_date.getFullYear(), _date.getMonth(), _date.getDate());
+    const to = new Date(from); to.setDate(to.getDate() + 13);
+    const fmt = (d) => d.getDate() + ' ' + PL_MONTHS[d.getMonth()].substring(0,3).toLowerCase();
+    document.getElementById('calTitle').textContent = 'Agenda: ' + fmt(from) + ' – ' + fmt(to);
+    document.getElementById('miniCalTitle').textContent = PL_MONTHS[from.getMonth()].substring(0,3) + ' ' + from.getFullYear();
+    renderMiniCal(from.getFullYear(), from.getMonth());
+    const todayIso = toISO(_today);
+    let html = '<div class="cal-agenda">', any = false;
+    for (let i = 0; i < 14; i++) {
+      const cur = new Date(from); cur.setDate(from.getDate() + i);
+      const iso = toISO(cur);
+      const evs = eventsFor(iso).filter(e => e.type !== 'comm')
+        .sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
+      if (!evs.length && iso !== todayIso) continue;
+      any = any || evs.length > 0;
+      const dow = PL_DAYS[(cur.getDay()+6)%7];
+      html += `<section class="cal-ag-day${iso===todayIso?' is-today':''}" aria-label="${dow} ${cur.getDate()}">
+        <h3 class="cal-ag-h"><span class="n">${cur.getDate()}</span> ${dow}, ${PL_MONTHS[cur.getMonth()].substring(0,3).toLowerCase()}${iso===todayIso?' <em>dziś</em>':''}</h3>`;
+      if (!evs.length) html += '<div class="cal-ag-empty">Brak zdarzeń</div>';
+      evs.forEach(e => {
+        const c = e.color || '#9CA3AF', done = e.status === 'done';
+        const click = e.type === 'event' ? ` onclick="Cal.showPopup(event,'${e.id}')" style="cursor:pointer"` : '';
+        html += `<div class="cal-ag-ev${done?' done':''}"${click}>
+          <span class="t">${e.all_day||!e.time ? 'cały dzień' : esc(e.time)}</span>
+          <span class="bar" style="background:${c}"></span>
+          <span class="b"><i class="bi ${evIcon(e)}" aria-hidden="true"></i> <strong>${esc(e.title)}</strong>
+            <span class="s">${esc(e.contact_name||'')}${e.contact_name?' · ':''}${esc(TYPE_CFG[e.event_type]?.label||'')}${e.outlook?' · Outlook':''}</span></span>
+        </div>`;
+      });
+      html += '</section>';
+    }
+    if (!any) html += '<div class="text-center py-4" style="color:#9CA3AF;font-size:.85rem">Brak zdarzeń w najbliższych 14 dniach' + (_showDone ? '' : ' (wykonane są ukryte)') + '.</div>';
+    document.getElementById('calGrid').innerHTML = html + '</div>';
+  }
+
   // ── Render dispatcher ─────────────────────────────────────────────────────
   function render() {
-    ['btnMonth','btnWeek','btnList'].forEach(id=>{
+    ['btnMonth','btnWeek','btnList','btnAgenda'].forEach(id=>{
       document.getElementById(id)?.classList.remove('active');
     });
-    const map = {month:'btnMonth',week:'btnWeek',list:'btnList'};
+    const map = {month:'btnMonth',week:'btnWeek',list:'btnList',agenda:'btnAgenda'};
     document.getElementById(map[_view])?.classList.add('active');
 
     if (_view==='month')      renderMonth();
     else if (_view==='week')  renderWeek();
+    else if (_view==='agenda') renderAgenda();
     else                      renderList();
   }
 
@@ -834,12 +894,14 @@ const Cal = (function() {
   function prev() {
     if (_view==='month')     _date = new Date(_date.getFullYear(), _date.getMonth()-1, 1);
     else if (_view==='week') { _date = new Date(_date); _date.setDate(_date.getDate()-7); }
+    else if (_view==='agenda') { _date = new Date(_date); _date.setDate(_date.getDate()-14); }
     else                     _date = new Date(_date.getFullYear(), _date.getMonth()-1, 1);
     load();
   }
   function next() {
     if (_view==='month')     _date = new Date(_date.getFullYear(), _date.getMonth()+1, 1);
     else if (_view==='week') { _date = new Date(_date); _date.setDate(_date.getDate()+7); }
+    else if (_view==='agenda') { _date = new Date(_date); _date.setDate(_date.getDate()+14); }
     else                     _date = new Date(_date.getFullYear(), _date.getMonth()+1, 1);
     load();
   }
@@ -1156,6 +1218,8 @@ const Cal = (function() {
         }).catch(() => { st.textContent = 'błąd połączenia'; }).finally(() => { btn.disabled = false; });
     });
   })();
+
+  document.getElementById('showDone')?.addEventListener('change', (ev) => { _showDone = ev.target.checked; load(); });
 
   // Inicjalizacja
   load();
