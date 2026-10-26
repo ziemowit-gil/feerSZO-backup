@@ -413,3 +413,9 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
 .ib-tagchip button { border:0; background:transparent; color:inherit; padding:0 .25rem; line-height:1; cursor:pointer }
 .ib-tagchip button:focus-visible { outline:3px solid #ff9800 }
 .ib-tagadd input { height:26px; width:7rem; font-size:.78rem }
+
+/* Poza biurem — przypomnienie o własnej nieobecności */
+.ib-ooo { display:flex; align-items:center; flex-wrap:wrap; gap:.6rem; padding:.55rem .8rem; margin-bottom:.5rem; background:#FFF7E6; border:1px solid #F5C26B; color:#5C3B00; font-size:.85rem }
+.ib-ooo .bi { font-size:1.1rem }
+.ib-ooo-btn { display:inline-block; padding:.2rem .7rem; border:2px solid #5C3B00; background:#fff; color:#5C3B00; font-weight:600; font-size:.8rem; text-decoration:none; cursor:pointer }
+.ib-ooo-btn:hover { background:#5C3B00; color:#fff } .ib-ooo-btn:focus-visible { outline:3px solid #ff9800; outline-offset:2px }

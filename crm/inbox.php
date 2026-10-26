@@ -61,7 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'archive':   crm_mailbox_set_status($mid, 'archived'); flash_set('success', 'Wiadomość załatwiona.'); break;
             case 'spam':      crm_mailbox_set_status($mid, 'spam');     flash_set('success', 'Oznaczono jako spam.'); break;
             case 'restore':   crm_mailbox_set_status($mid, 'active');   flash_set('success', 'Przywrócono do skrzynki.'); break;
-            case 'assign_me': crm_mailbox_assign($mid, $uid);           flash_set('success', 'Przypisano Tobie.'); break;
+            case 'assign_me': crm_mailbox_assign($mid, $uid)
+                                  ? flash_set('success', 'Przypisano Tobie.')
+                                  : flash_set('warning', 'Jesteś poza biurem — nie możesz przypisać rozmowy sobie. Wyłącz nieobecność, aby ją prowadzić.'); break;
+            case 'ooo_back':  uav_set($uid, false); flash_set('success', 'Witaj z powrotem — nieobecność wyłączona.'); break;
             case 'hide':      crm_mailbox_set_hidden($mid, true);
                               flash_set('success', 'Wiadomość nie będzie już pokazywana w Skrzynce CRM (widok „Ukryte").');
                               $back = 'inbox.php?' . http_build_query(array_filter([
@@ -187,8 +190,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
 
             case 'assign':
-                crm_mailbox_assign($mid, (int)($_POST['user_id'] ?? 0) ?: null);
-                flash_set('success', 'Przypisanie zmienione.');
+                if (crm_mailbox_assign($mid, (int)($_POST['user_id'] ?? 0) ?: null)) flash_set('success', 'Przypisanie zmienione.');
+                else flash_set('warning', 'Ta osoba jest poza biurem — wybierz kogoś innego.');
                 break;
 
             case 'case':
@@ -300,6 +303,8 @@ $threads = user_pref('crm_inbox_threads', '1') === '1';
 if (isset($_GET['conv'])) user_pref_set('crm_inbox_conv', $_GET['conv'] === '1' ? '1' : '0');
 $conv_on = user_pref('crm_inbox_conv', '1') === '1';
 
+$uav_away = uav_away_map();                                // osoby „poza biurem” dziś
+if ($uav_away) crm_ooo_sweep();                            // rozmowy nieobecnych opiekunów, w których odpisał nadawca → bez opiekuna (przed listą)
 $inbox  = crm_mailbox_inbox(['view' => $view, 'mailbox_id' => $mbox_f, 'queue_id' => $queue_f, 'q' => $search,
                              'folder_rules' => $folder_rules, 'tag' => $tag_f,
                              'unread' => $f_unread, 'att' => $f_att,
@@ -491,6 +496,18 @@ include __DIR__ . '/includes/header_crm.php';
 </div>
 
 <!-- ══ Jeden pasek: szukaj, szybkie filtry, skrzynka, narzędzia ═════════════ -->
+<?php if (isset($uav_away[$uid])): $my_away = $uav_away[$uid]; ?>
+<div class="ib-ooo" role="status">
+  <i class="bi bi-airplane" aria-hidden="true"></i>
+  <span><b>Jesteś poza biurem</b> (<?= h(uav_period_label($my_away)) ?><?= $my_away['note'] !== '' ? ' — ' . h($my_away['note']) : '' ?>).
+    Nie można przypisać Ci rozmów, a rozmowy, w których odpisze nadawca, wracają do „bez opiekuna”.</span>
+  <?php if ($can_write): ?>
+  <form method="post" class="d-inline"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="ooo_back">
+    <input type="hidden" name="view" value="<?= h($view) ?>"><button type="submit" class="ib-ooo-btn">Wróciłem</button></form>
+  <?php endif; ?>
+  <a class="ib-ooo-btn" href="<?= APP_URL ?>/crm/ooo.php">Zmień</a>
+</div>
+<?php endif; ?>
 <div class="ib-toolbar">
   <form method="get" class="ib-search" role="search">
     <input type="hidden" name="view" value="<?= h($view) ?>">
@@ -1245,9 +1262,9 @@ include __DIR__ . '/includes/header_crm.php';
           <select name="user_id" class="ib-field" aria-label="Przypisz wiadomość osobie"
                   title="Wskaż osobę, która poprowadzi tę wiadomość" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
             <option value="">— przypisz osobę —</option>
-            <?php foreach ($users as $u): ?>
-            <option value="<?= (int)$u['id'] ?>" <?= (int)($msg['assigned_to'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
-              <?= h($u['name']) ?>
+            <?php foreach ($users as $u): $u_away = isset($uav_away[(int)$u['id']]); ?>
+            <option value="<?= (int)$u['id'] ?>" <?= (int)($msg['assigned_to'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?><?= $u_away && (int)($msg['assigned_to'] ?? 0) !== (int)$u['id'] ? ' disabled' : '' ?>>
+              <?= h($u['name']) ?><?= $u_away ? ' — poza biurem' : '' ?>
             </option>
             <?php endforeach; ?>
           </select>
