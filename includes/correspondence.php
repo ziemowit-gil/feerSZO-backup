@@ -333,18 +333,8 @@ function corr_unlink_ezd(int $corr_id): void {
  * Pomocnicza do przeniesienia pliku do EZD bez $_FILES.
  */
 function ezd_upload_from_file(string $src_path, string $original_name, int $sprawa_id, int $user_id, ?int $pismo_id = null): void {
-    $ext = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-    $dir = dirname(__DIR__) . '/uploads/ezd/' . $sprawa_id . '/';
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
-
-    $stored = time() . '_' . $original_name;
-    if (!copy($src_path, $dir . $stored)) return;
-
-    $mime = mime_content_type($src_path) ?: 'application/octet-stream';
-    $size = filesize($src_path);
-
-    db()->prepare(
-        "INSERT INTO ezd_zalaczniki (sprawa_id, pismo_id, original_name, stored_name, mime_type, file_size, uploaded_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)"
-    )->execute([$sprawa_id, $pismo_id, $original_name, $stored, $mime, $size, $user_id]);
+    // Wcześniej wpisywało do nieistniejącej kolumny (stored_name) — załącznik nie trafiał do EZD. ezd_attach_path robi to poprawnie
+    // (katalog sprawy, log, synchronizacja SharePoint) i nadaje numer + kod + QR (rejestr dokumentów).
+    require_once __DIR__ . '/ezd.php';
+    ezd_attach_path($src_path, $original_name, $sprawa_id, $pismo_id, $user_id);
 }
