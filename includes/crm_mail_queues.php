@@ -139,7 +139,12 @@ function crm_mq_move(int $comm_id, ?int $queue_id): int
     $st = db()->prepare("UPDATE crm_communications SET queue_id = ?, updated_at = datetime('now') WHERE id = ? OR (? <> '' AND thread_key = ?)");
     $tk = (string)($row['thread_key'] ?? '');
     $st->execute([$queue_id, $comm_id, $tk, $tk]);
-    return (int)$st->rowCount();
+    $moved = (int)$st->rowCount();
+    if ($moved && function_exists('crm_fol_on_change')) {
+        $qn = $queue_id ? (db_one("SELECT name FROM crm_mail_queues WHERE id = ?", [$queue_id])['name'] ?? '') : ((crm_mq_of($comm_id)['name'] ?? '') ?: 'domyślnej');
+        crm_fol_on_change($comm_id, 'Rozmowa przeniesiona do kolejki: ' . $qn);
+    }
+    return $moved;
 }
 
 /** Zapis kolejki (nowa: $id = null). Zwraca id. Jedna kolejka domyślna na skrzynkę (oraz jedna ogólna). */

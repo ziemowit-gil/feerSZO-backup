@@ -24,6 +24,7 @@ require_once __DIR__ . '/mime_text.php';
 require_once __DIR__ . '/crm_mail_queues.php';
 require_once __DIR__ . '/crm_mail_folders.php';
 require_once __DIR__ . '/user_availability.php';
+require_once __DIR__ . '/crm_mail_followers.php';
 
 /** Ładuje moduł poczty (tworzy tabele i kolumny). Zwraca false, gdy niedostępny. */
 function crm_mailbox_ready(): bool {
@@ -63,6 +64,7 @@ function crm_mailbox_schema_heal(): void {
     crm_mq_migrate();   // kolejki wiadomości + domyślna skrzynka faktur@ (jednorazowo)
     crm_mf_migrate();   // tagi wiadomości + własne foldery (zapisane widoki)
     uav_migrate();      // „Poza biurem” — nieobecni opiekunowie
+    crm_fol_migrate();  // obserwatorzy rozmów
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_comm_msgno ON crm_communications(msg_no)"); }
     catch (\Throwable $e) {}
 }
@@ -623,6 +625,7 @@ function crm_mailbox_mark_read(int $id, bool $read = true): void {
 function crm_mailbox_set_status(int $id, string $status): bool {
     if (!in_array($status, ['active', 'archived', 'spam', 'deleted'], true)) return false;
     db()->prepare("UPDATE crm_communications SET inbox_status=? WHERE id=?")->execute([$status, $id]);
+    crm_fol_on_change($id, ['archived' => 'Rozmowa oznaczona jako załatwiona', 'spam' => 'Rozmowa oznaczona jako spam', 'active' => 'Rozmowa przywrócona do skrzynki', 'deleted' => 'Rozmowa usunięta'][$status] ?? 'Zmieniono status rozmowy');
     return true;
 }
 
@@ -630,6 +633,8 @@ function crm_mailbox_set_status(int $id, string $status): bool {
 function crm_mailbox_assign(int $id, ?int $user_id): bool {
     if ($user_id && uav_is_away($user_id)) return false;
     db()->prepare("UPDATE crm_communications SET assigned_to=? WHERE id=?")->execute([$user_id ?: null, $id]);
+    $an = $user_id ? (db_one("SELECT name FROM users WHERE id = ?", [$user_id])['name'] ?? ('#' . $user_id)) : '';
+    crm_fol_on_change($id, $user_id ? 'Zmieniono opiekuna rozmowy na: ' . $an : 'Odpięto opiekuna rozmowy');
     return true;
 }
 
