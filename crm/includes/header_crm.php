@@ -264,6 +264,9 @@ body {
 @media (max-width: 1199.98px) { .crm-navlink > i { display: none; } }
 
 /* Tytuł strony — prawy koniec paska zakładek */
+.crm-szo-link{display:inline-flex;align-items:center;gap:.3rem;align-self:center;margin-right:.6rem;padding:.15rem .5rem;font-size:.72rem;font-weight:600;letter-spacing:.04em;color:#6b7280;text-decoration:none;border:1px solid transparent}
+.crm-szo-link:hover{color:#111827;border-color:#d1d5db}
+.crm-szo-link:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
 .crm-navbar-title {
   margin-left: auto; min-width: 0; flex: 0 1 auto;
   display: flex; align-items: center; gap: .4rem;
@@ -502,7 +505,7 @@ window.openCommModal = function(contactId, channel, opts) {
     <div class="crm-topbar-brand-txt">
       <div>CRM</div>
       <?php if ($_org_name): ?>
-      <div class="crm-topbar-brand-org" title="<?= h($_org_name) ?>"><?= h($_org_name) ?></div>
+      <div class="crm-topbar-brand-org" title="<?= h($_org_name) ?> — moduł SZO">SZO · <?= h($_org_name) ?></div>
       <?php endif; ?>
     </div>
   </a>
@@ -524,7 +527,7 @@ window.openCommModal = function(contactId, channel, opts) {
              wybiera sobie KAŻDY UŻYTKOWNIK (includes/crm_macros.php). */
       require_once dirname(dirname(__DIR__)) . '/includes/crm_macros.php';
       $_macro_cat    = crm_macros_catalog();
-      $_macro_pinned = crm_macros_user();
+      $_macro_pinned = array_slice(crm_macros_user(), 0, 3);   // w pasku tylko 3 przypięte akcje — pełny zestaw jest w menu „Nowe”
     ?>
     <?php if ($_cu && $_macro_cat): ?>
     <div class="crm-macros">
@@ -564,6 +567,7 @@ window.openCommModal = function(contactId, channel, opts) {
             <?php endif; ?>
           </li>
           <?php endforeach; ?>
+          <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= APP_URL ?>/crm/contact/add_org.php"><i class="bi bi-building-add" style="color:#0F766E"></i>Nowa firma / organizacja</a></li>
           <li>
             <button type="button" class="dropdown-item d-flex align-items-center gap-2"
                     title="Uruchom szablon akcji — kilka wpisów jednym kliknięciem"
@@ -852,17 +856,10 @@ $_crm_item = function (array $it) {
     <span class="crm-topbar-page" title="<?= h($_crm_title) ?>"><?= h($_crm_title) ?></span>
   </div>
 
-  <?php if ($_crm_can_write): ?>
-  <!-- Szybkie akcje -->
-  <div class="crm-navbar-actions">
-    <a href="<?= APP_URL ?>/crm/contact/add_person.php" class="btn btn-crm-primary btn-sm" title="Dodaj nową osobę">
-      <i class="bi bi-person-plus"></i> <span class="crm-act-label">Dodaj osobę</span>
-    </a>
-    <a href="<?= APP_URL ?>/crm/contact/add_org.php" class="btn btn-crm-outline btn-sm" title="Dodaj nową firmę / organizację">
-      <i class="bi bi-building-add"></i> <span class="crm-act-label">Dodaj firmę</span>
-    </a>
-  </div>
-  <?php endif; ?>
+  <!-- Subtelna informacja, że CRM jest częścią SZO — wejście z powrotem do systemu -->
+  <a class="crm-szo-link ms-auto" href="<?= APP_URL ?>/index.php" title="CRM jest modułem Systemu Wspomagania Zarządzania Organizacją (SZO) — wróć do systemu">
+    <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i><span>SZO</span>
+  </a>
 
 </nav>
 <script>

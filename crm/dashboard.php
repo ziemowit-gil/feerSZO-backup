@@ -210,32 +210,7 @@ include __DIR__ . '/includes/header_crm.php';
       CRM · <?= h(org_setting('org_name') ?: ORG_NAME) ?> · <?= date('d.m.Y') ?>
     </div>
   </div>
-  <?php if ($can_write || $can_mailing): ?>
-  <div class="crm-page-actions">
-    <?php if ($can_write): ?>
-    <div class="btn-group btn-group-sm">
-      <a href="<?= APP_URL ?>/crm/contact/add_person.php" class="btn btn-crm-primary">
-        <i class="bi bi-person-plus me-1"></i>Nowy kontakt
-      </a>
-      <button type="button" class="btn btn-crm-primary dropdown-toggle dropdown-toggle-split"
-              data-bs-toggle="dropdown" aria-expanded="false">
-        <span class="visually-hidden">Więcej opcji</span>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_person.php"><i class="bi bi-person me-2"></i>Osoba fizyczna</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_org.php?type=organizacja"><i class="bi bi-building me-2"></i>Organizacja</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_org.php?type=kontrahent"><i class="bi bi-briefcase me-2"></i>Kontrahent</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_org.php?type=partner"><i class="bi bi-handshake me-2"></i>Partner</a></li>
-      </ul>
-    </div>
-    <?php endif; ?>
-    <?php if ($can_mailing): ?>
-    <a href="<?= APP_URL ?>/crm/communicate.php" class="btn btn-crm-outline btn-sm">
-      <i class="bi bi-send me-1"></i>Wyślij wiadomość
-    </a>
-    <?php endif; ?>
-  </div>
-  <?php endif; ?>
+  <?php /* Przyciski „Nowy kontakt” i „Wyślij wiadomość” były tu zdublowane z paskiem u góry (menu „Nowe”) — usunięte. */ ?>
 </div>
 
 <!-- ══ WYSZUKIWARKA ═════════════════════════════════════════════════════════ -->

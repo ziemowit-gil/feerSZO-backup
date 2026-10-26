@@ -238,7 +238,7 @@ html body .modal-title{font-weight:300!important;font-size:1.35rem}
 
 /* ── Pulpit: kafle „Wymaga reakcji” jako żywe kafle Metro ───────────────── */
 html body .crm-sect-hd+.row{--bs-gutter-x:.5rem;--bs-gutter-y:.5rem}
-html body .crm-content .crm-tile{--k:var(--cm-dark);display:flex;flex-direction:column;min-height:128px;padding:.9rem 1rem .8rem;
+html body .crm-content .crm-tile{--k:var(--cm-dark);display:flex;flex-direction:column;min-height:78px;padding:.5rem .7rem .45rem;
   background:var(--k);border:0;color:#fff;transition:filter .12s;opacity:1}
 html body .crm-sect-hd+.row>:nth-child(1) .crm-tile{--k:var(--cm-red)}
 html body .crm-sect-hd+.row>:nth-child(2) .crm-tile{--k:var(--cm-blue)}
@@ -248,10 +248,10 @@ html body .crm-sect-hd+.row>:nth-child(5) .crm-tile{--k:var(--cm-orange)}
 html body .crm-sect-hd+.row>:nth-child(6) .crm-tile{--k:var(--crm-primary)}
 html body .crm-sect-hd+.row>* .crm-tile.crm-tile--zero{--k:#6d6d6d}
 html body .crm-content .crm-tile:hover,html body .crm-content .crm-tile:focus-visible{color:#fff;filter:brightness(1.12);outline:3px solid var(--cm-dark);outline-offset:2px}
-html body .crm-content .crm-tile-ico{width:auto;height:auto;margin:0 0 .5rem;background:none!important;color:#fff!important;font-size:1.5rem;justify-content:flex-start}
-html body .crm-content .crm-tile-val{margin-top:auto;font-size:2.4rem;font-weight:300;line-height:1;color:#fff}
-html body .crm-content .crm-tile-lbl{font-size:.8rem;font-weight:600;color:rgba(255,255,255,.92);margin-top:.3rem}
-html body .crm-content .crm-tile-note{color:rgba(255,255,255,.85)!important}
+html body .crm-content .crm-tile-ico{width:auto;height:auto;margin:0 0 .15rem;background:none!important;color:#fff!important;font-size:.95rem;justify-content:flex-start;opacity:.9}
+html body .crm-content .crm-tile-val{margin-top:auto;font-size:1.65rem;font-weight:300;line-height:1;color:#fff}
+html body .crm-content .crm-tile-lbl{font-size:.72rem;font-weight:600;color:rgba(255,255,255,.92);margin-top:.15rem;line-height:1.2}
+html body .crm-content .crm-tile-note{color:rgba(255,255,255,.85)!important;font-size:.66rem!important;margin-top:.1rem!important}
 html body .crm-quick-action:hover{background:var(--cm-light);border-color:transparent}
 html body .crm-count-chip,html body .crm-hyg-n{border-radius:0}
 html body .crm-count-chip{background:var(--cm-dark);color:#fff}
