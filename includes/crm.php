@@ -13,6 +13,8 @@
 // Uprawnienia per rola (obszary + pola) — ładowane tu, żeby każde wejście do CRM
 // miało je pod ręką; bez skonfigurowanych reguł nic nie zmieniają.
 require_once __DIR__ . '/crm_perms.php';
+// Czytelne komunikaty błędów na stronach /crm/ (kod zgłoszenia, JSON dla AJAX) — zob. includes/crmErrors.php
+require_once __DIR__ . '/crmErrors.php';
 
 // ── Typy kontaktów ────────────────────────────────────────────────────────────
 const CRM_CONTACT_TYPES = [
