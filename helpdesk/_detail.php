@@ -13,6 +13,8 @@ $hd_pane       = !empty($GLOBALS['hd_pane_mode']);
 $view_action   = APP_URL . '/helpdesk/view.php?id=' . (int)$ticket['id'];
 $hd_editor_id  = 'hdQuill_' . (int)$ticket['id'];
 require_once dirname(__DIR__) . '/modules/helpdeskMacros/lib/helpdeskMacros.php';
+require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+echo DocRegistry::assets(!$hd_pane);   // numer + QR załączników (w trybie pane — sam styl, link bez okna)
 $db_macros     = $is_op ? hdMacrosActive() : [];
 $db_macro_btns = $is_op ? hdMacroButtons($db_macros) : [];
 
@@ -304,6 +306,7 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
                class="badge bg-light text-dark border text-decoration-none" style="font-size:.75rem">
               <i class="bi bi-paperclip me-1"></i><?= h($a['original_name']) ?>
             </a>
+            <?= DocRegistry::badge(DocRegistry::get('helpdesk_attachment', (int)$a['id']) ?: DocRegistry::assign('helpdesk_attachment', (int)$a['id'])) ?>
             <?php endforeach; ?>
           </div>
           <?php endif; ?>
@@ -322,6 +325,7 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
            class="badge bg-light text-dark border text-decoration-none">
           <?= h($a['original_name']) ?><span class="text-muted ms-1">(<?= round($a['file_size'] / 1024) ?> KB)</span>
         </a>
+        <?= DocRegistry::badge(DocRegistry::get('helpdesk_attachment', (int)$a['id']) ?: DocRegistry::assign('helpdesk_attachment', (int)$a['id'])) ?>
         <?php endforeach; ?>
       </div>
     </div>

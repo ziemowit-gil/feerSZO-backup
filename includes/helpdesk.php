@@ -1887,13 +1887,14 @@ function hd_save_attachments(int $ticketId, array $filesField, ?int $uploadedBy 
         if ((int)($filesField['size'][$i] ?? 0) > 10 * 1024 * 1024) continue; // 10 MB / plik
         $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
         if (@move_uploaded_file($filesField['tmp_name'][$i], $dir . $stored)) {
-            db_insert('helpdesk_attachments', [
+            $_att = db_insert('helpdesk_attachments', [
                 'ticket_id'     => $ticketId,
                 'original_name' => $origName,
                 'stored_path'   => 'helpdesk/' . $stored,
                 'file_size'     => $filesField['size'][$i],
                 'uploaded_by'   => $uploadedBy,
             ]);
+            try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('helpdesk_attachment', $_att); } catch (\Throwable $e) {}
         }
     }
 }

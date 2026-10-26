@@ -68,13 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!in_array($ext, $allow, true)) continue;
                 $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                 if (@move_uploaded_file($_FILES['attachments']['tmp_name'][$i], $dir . $stored)) {
-                    db_insert('helpdesk_attachments', [
+                    $_att = db_insert('helpdesk_attachments', [
                         'ticket_id'     => $ticket_id,
                         'original_name' => $orig_name,
                         'stored_path'   => 'helpdesk/' . $stored,
                         'file_size'     => $_FILES['attachments']['size'][$i],
                         'uploaded_by'   => $uid,
                     ]);
+                    try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('helpdesk_attachment', $_att); } catch (\Throwable $e) {}
                 }
             }
         }

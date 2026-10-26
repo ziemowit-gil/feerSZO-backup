@@ -270,16 +270,19 @@ final class DocRegistry
     }
 
     /** Okno z QR + style + skrypt (raz na stronę, POZA zakładkami — modal Bootstrap). */
-    public static function assets(): string
+    public static function assets(bool $withModal = true): string
     {
         static $done = false;
         if ($done) return '';
         $done = true;
-        return <<<'HTML'
+        $style = <<<'HTML'
 <style>
 .docreg-badge{display:inline-block;text-decoration:none;font:600 .68rem/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef4ff;color:#0b3d91;border:1px solid #9db7e8;border-radius:3px;padding:.1rem .4rem;cursor:pointer}
 .docreg-badge:hover{background:#dce8ff}.docreg-badge:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
 </style>
+HTML;
+        if (!$withModal) return $style;   // fragmenty ładowane AJAX: sam styl, znacznik działa jako zwykły link
+        return $style . <<<'HTML'
 <div class="modal fade" id="docregModal" tabindex="-1" aria-labelledby="docregTitle" aria-hidden="true"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content">
   <div class="modal-header"><h2 class="modal-title fs-6" id="docregTitle">Identyfikator dokumentu</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
   <div class="modal-body text-center">

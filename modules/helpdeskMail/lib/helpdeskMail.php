@@ -236,8 +236,9 @@ function hdMailSaveAttachments(int $ticketId, int $msgId, array $c): void
         if (!is_dir($dir)) @mkdir($dir, 0755, true);
         $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
         if (file_put_contents($dir . $stored, $bytes) === false) continue;
-        db_insert('helpdesk_attachments', ['ticket_id' => $ticketId, 'message_id' => $msgId, 'original_name' => (string)$a['original_name'],
+        $_att = db_insert('helpdesk_attachments', ['ticket_id' => $ticketId, 'message_id' => $msgId, 'original_name' => (string)$a['original_name'],
             'stored_path' => 'helpdesk/' . $stored, 'file_size' => strlen($bytes), 'uploaded_by' => null]);
+        try { require_once dirname(__DIR__, 3) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('helpdesk_attachment', $_att); } catch (\Throwable $e) {}
     }
 }
 
