@@ -193,6 +193,55 @@ final class DocRegistry
         return $res;
     }
 
+    // ── Lista i wyszukiwanie (strona Rejestr dokumentów) ─────────────────────────
+
+    /** Czy rodzaj ma numerację kolejną (HD/0001/2026) — bez losowego kodu i etykiety. */
+    public static function isSeq(string $type): bool
+    {
+        return (self::SOURCES[$type][4] ?? 'rand') === 'seq';
+    }
+
+    /**
+     * Wyszukiwanie w rejestrze. $f: q (numer/kod, fragment), type (klucz źródła), from/to (Y-m-d, data nadania), state (valid|void).
+     * Stan liczony na żywo ze źródła; filtr stanu wymaga przeliczenia wszystkich pasujących (limit 5000), bez niego — tylko bieżącej strony.
+     * @return array{rows:array,total:int,pages:int,page:int,per:int,counts:array<string,int>}
+     */
+    public static function search(array $f, int $page = 1, int $per = 50): array
+    {
+        self::migrate();
+        $w = ['1=1']; $p = [];
+        $q = trim((string)($f['q'] ?? ''));
+        if ($q !== '') { $w[] = '(UPPER(code) LIKE ? OR UPPER(doc_number) LIKE ?)'; $like = '%' . strtoupper(str_replace(['%', '_'], ['', ''], $q)) . '%'; $p[] = $like; $p[] = $like; }
+        $type = (string)($f['type'] ?? '');
+        if ($type !== '' && isset(self::SOURCES[$type])) { $w[] = 'source_type = ?'; $p[] = $type; }
+        if (preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)($f['from'] ?? ''))) { $w[] = 'created_at >= ?'; $p[] = $f['from'] . ' 00:00:00'; }
+        if (preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)($f['to'] ?? '')))   { $w[] = 'created_at <= ?'; $p[] = $f['to'] . ' 23:59:59'; }
+        $where = implode(' AND ', $w);
+        $state = in_array($f['state'] ?? '', ['valid', 'void'], true) ? (string)$f['state'] : '';
+        $page = max(1, $page);
+
+        $counts = [];
+        foreach (db_all("SELECT source_type, COUNT(*) AS n FROM doc_registry GROUP BY source_type") as $r) $counts[(string)$r['source_type']] = (int)$r['n'];
+
+        $decorate = function (array $r): array {
+            $st = self::state($r);
+            $r['state'] = $st['state']; $r['note'] = $st['note']; $r['file_name'] = $st['src']['name'] ?? '';
+            $r['seq'] = self::isSeq((string)$r['source_type']);
+            $r['label'] = self::SOURCES[$r['source_type']][1] ?? $r['source_type'];
+            return $r;
+        };
+
+        if ($state === '') {
+            $total = (int)(db_one("SELECT COUNT(*) AS n FROM doc_registry WHERE $where", $p)['n'] ?? 0);
+            $rows = array_map($decorate, db_all("SELECT * FROM doc_registry WHERE $where ORDER BY id DESC LIMIT " . (int)$per . " OFFSET " . (int)(($page - 1) * $per), $p));
+        } else {
+            $all = array_values(array_filter(array_map($decorate, db_all("SELECT * FROM doc_registry WHERE $where ORDER BY id DESC LIMIT 5000", $p)), fn($r) => $r['state'] === $state));
+            $total = count($all);
+            $rows = array_slice($all, ($page - 1) * $per, $per);
+        }
+        return ['rows' => $rows, 'total' => $total, 'pages' => max(1, (int)ceil($total / $per)), 'page' => $page, 'per' => $per, 'counts' => $counts];
+    }
+
     // ── Adresy i QR ───────────────────────────────────────────────────────────────
 
     /** Adres z QR: publiczna weryfikacja kodu (z przyciskiem „Otwórz dokument online”). */
