@@ -655,3 +655,24 @@ a.ib-ct-name:hover { color:var(--crm-primary-dark); text-decoration:underline }
 @media (min-width:1100px) {
   .ib-shell > .ib-tabs2 { top:var(--ib-stick, calc(var(--crm-topbar-h, 52px) + var(--crm-navbar-h, 48px) + .5rem)); max-height:var(--ib-avail) }
 }
+
+/* Obsługa wiadomości — wyrównanie: jednakowa wysokość pól (30 px), etykiety w jednej linii bazowej, przycisk „Obserwuj” równo z listami */
+.ib-shell .ib-handle { align-items:start; row-gap:.5rem }
+.ib-shell .ib-handle .ib-hl, .ib-shell .ib-handle .ib-fol-lbl { display:flex; align-items:center; gap:.3rem; line-height:1; min-height:14px; margin:0 }
+.ib-shell .ib-handle .ib-assign .ib-field, .ib-shell .ib-handle .ib-tagadd input, .ib-shell .ib-handle .ib-tagadd select { height:30px !important; font-size:.82rem !important }
+.ib-shell .ib-handle .ib-tagbar { min-height:0; align-content:flex-start }
+.ib-shell .ib-handle .ib-fol { gap:.35rem; align-items:center }
+.ib-shell .ib-handle .ib-fol .ib-ooo-btn { height:30px !important; padding:0 .7rem !important; font-size:.8rem }
+.ib-shell .ib-handle .ib-fol > .small { font-size:.78rem; color:var(--ib-muted) }
+.ib-shell .ib-handle .ib-fol .ib-tagadd select { max-width:12rem }
+
+/* ── Ułożenie: tytuł na całą szerokość, pod nim lewa kolumna (od góry paska) i prawa strona: wyszukiwarka nad panelami ── */
+@media (min-width:1100px) {
+  .ib-shell > .ib-top { order:-2; border-bottom:1px solid var(--ib-line); margin-bottom:.5rem }
+  .ib-shell > .ib-tabs2 { order:-1; grid-column:1; grid-row:span 2; align-self:start; border:0; border-right:1px solid var(--ib-line); padding:.1rem 0 .4rem;
+    max-height:calc(var(--ib-avail) + 3rem); top:calc(var(--crm-topbar-h, 52px) + var(--crm-navbar-h, 48px) + .5rem) }
+  .ib-shell > .ib-ooo, .ib-shell > .ib-toolbar { grid-column:2 }
+  .ib-shell > .ib-toolbar { border-bottom:0; padding:0 0 .5rem; margin-bottom:0 }
+  .ib-shell > .ib-tabs2 + .ib-wrap, .ib-shell > .ib-wrap { grid-column:2 }
+  .ib-shell .ib-search { max-width:none; flex:1 1 320px }
+}
