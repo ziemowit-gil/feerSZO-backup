@@ -301,6 +301,10 @@ $qa = [
     ['href' => APP_URL . '/ezd/terminarz.php',           'icon' => 'bi-calendar-check',    'tone' => 'teal',    'lbl' => 'Terminarz'],
     ['href' => APP_URL . '/ezd/podpis/index.php',        'icon' => 'bi-pen',               'tone' => 'amber',   'lbl' => 'Do podpisu', 'badge' => count($my_sign_pending)],
 ];
+// Rejestr numerów i kodów QR plików — tylko administrator i zarząd (docreg/list.php sprawdza to samo)
+if (is_admin() || (function_exists('is_zarzad') && is_zarzad())) {
+    $qa[] = ['href' => APP_URL . '/docreg/list.php', 'icon' => 'bi-qr-code', 'tone' => 'slate', 'lbl' => 'Rejestr dokumentów'];
+}
 $alpine_cfg = [
     'serve'  => APP_URL . '/ezd/serve.php?id=',
     'sign'   => APP_URL . '/ezd/sign.php',

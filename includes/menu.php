@@ -191,7 +191,8 @@ function _menu_ezd(): array {
     ]];
 }
 function _menu_ezd_items(): array {
-    return [
+    if (!function_exists('is_zarzad') && is_file(__DIR__ . '/byli.php')) require_once __DIR__ . '/byli.php';
+    $items = [
         _mi('Pulpit EZD','/ezd/index.php','bi-building-gear',['match'=>'/ezd/index.php','kw'=>'ezd biurko']),
         _mi('Poczta EZD','/ezd/poczta/index.php','bi-envelope-fill',['match'=>'/ezd/poczta/','kw'=>'poczta email korespondencja inbox']),
         _mi('Dziennik podawczy','/ezd/rpw/index.php','bi-mailbox2',['match'=>'/ezd/rpw/','kw'=>'rpw korespondencja wpływ']),
@@ -204,6 +205,10 @@ function _menu_ezd_items(): array {
         _mi('Terminarz','/ezd/terminarz.php','bi-calendar3',['match'=>'/ezd/terminarz','kw'=>'terminarz kalendarz terminy']),
         _mi('Do podpisu','/ezd/podpis/index.php','bi-pen',['match'=>'/ezd/podpis/','kw'=>'podpis dokumenty']),
     ];
+    // Rejestr numerów i kodów QR plików (admin + zarząd) — ten sam, co w „Kancelaria i rejestry”
+    if (is_admin() || (function_exists('is_zarzad') && is_zarzad()))
+        $items[] = _mi('Rejestr dokumentów','/docreg/list.php','bi-qr-code',['match'=>'/docreg/','kw'=>'rejestr dokumentów numery kody qr code128 identyfikacja plików załączniki eSpis']);
+    return $items;
 }
 
 // ── Widok EZD-only zawężony do RPW (rola ezd_biuro) ──────────────────────────
