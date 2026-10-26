@@ -699,71 +699,77 @@ final class TiConsultations
     // ── PDF ──────────────────────────────────────────────────────────────────
 
     /** HTML jednej karty (do PDF; kilka kart = kilka stron). */
+    /** Numer dokumentu karty (nagłówek i stopka). */
+    private static function docNumber(array $k): string
+    {
+        return (string)($k['card_no'] ?: '#' . $k['id']);
+    }
+
+    /** Karta konsultacji w układzie formularza AM — dokument KT1: nagłówek z symbolem i numerowane pola, BEZ nagłówków sekcji. */
     private static function cardHtml(array $k): string
     {
-        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $rows = [
-            ['Numer karty', $k['card_no'] ?: '#' . $k['id']],
-            ['Beneficjent', $k['client_name'] ?? ''],
-            ['Data i godzina', date('d.m.Y H:i', strtotime((string)$k['consultation_datetime']))],
-            ['Czas trwania', $k['duration_minutes'] ? (int)$k['duration_minutes'] . ' min' : '—'],
-            ['Konsultant', $k['consultant_name'] ?? '—'],
-            ['Etap', self::STAGES[self::stage($k)][0]],
-        ];
-        if (!empty($k['course_name'])) $rows[] = ['Szkolenie krótkie', $k['course_name']];
-        $h = '<h1>Karta konsultacji</h1><table class="t">';
-        foreach ($rows as [$a, $b]) $h .= '<tr><th>' . $e($a) . '</th><td>' . $e($b) . '</td></tr>';
-        $h .= '</table>';
-        if ($ir = self::intakeRows($k)) {
-            $h .= '<h2>Zgłoszenie</h2><table class="t">';
-            foreach ($ir as [$a, $b]) $h .= '<tr><th>' . $e($a) . '</th><td>' . nl2br($e($b)) . '</td></tr>';
-            $h .= '</table>';
+        require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiCitStyle.php';
+        $c = new TiCit();
+        $e = fn($v) => TiCit::e($v);
+        $stage = self::STAGES[self::stage($k)][0];
+        $completed = $k['status'] === 'completed';
+        $h = $c->header('Numer karty', self::docNumber($k), 'Konsultant', '<b>' . $e($k['consultant_name'] ?? '—') . '</b>', 'KT1', '#6d28d9')
+           . TiCit::title('KARTA KONSULTACJI', 'dokumentacja konsultacji — dokument KT1 w układzie formularza AM',
+                '<b>Wystawia:</b> ' . $e(defined('ORG_NAME') ? ORG_NAME : '') . '.&nbsp; <b>Etap:</b> ' . $e($stage) . '.&nbsp; <b>Karta:</b> ' . $e(self::docNumber($k)) . '.');
+        // Dane karty
+        $h .= '<table class="t"><tr>'
+            . $c->fld('Beneficjent', TiCit::val((string)($k['client_name'] ?? ''), 'beneficjent'), ' width="50%"')
+            . $c->fld('Data i godzina', $e(date('d.m.Y H:i', strtotime((string)$k['consultation_datetime']))), ' width="50%"') . '</tr><tr>'
+            . $c->fld('Czas trwania', $k['duration_minutes'] ? (int)$k['duration_minutes'] . ' min' : '—', ' width="50%"')
+            . $c->fld('Etap karty', $e($stage), ' width="50%"') . '</tr>'
+            . (!empty($k['course_name']) ? '<tr>' . $c->fld('Szkolenie krótkie', $e($k['course_name']), ' colspan="2"') . '</tr>' : '');
+        // Zgłoszenie (z formularza zgłoszeniowego) — pola parami
+        foreach (array_chunk(self::intakeRows($k), 2) as $pair) {
+            $h .= '<tr>';
+            foreach ($pair as [$a, $b]) $h .= $c->fld($e($a), nl2br($e($b)), count($pair) === 1 ? ' colspan="2"' : ' width="50%"');
+            $h .= '</tr>';
         }
-        $h .= '<h2>Opis konsultacji</h2><div class="box">' . nl2br($e($k['description'] ?: '—')) . '</div>'
-            . '<h2>Następne działania</h2><div class="box">' . nl2br($e($k['next_action'] ?: '—')) . '</div>';
-        if ($k['status'] === 'completed') {
-            $h .= '<h2>Zatwierdzenie</h2><table class="t">'
-                . '<tr><th>Zatwierdził(a)</th><td>' . $e($k['approved_by_name']) . '</td></tr>'
-                . '<tr><th>Weryfikacja IKA</th><td>' . $e($k['ika_verified_at'] ? date('d.m.Y H:i:s', strtotime((string)$k['ika_verified_at'])) : '—') . '</td></tr>'
-                . '<tr><th>Certyfikat x509</th><td>' . $e($k['cert_subject']) . '<br><span class="mono">' . $e($k['cert_fingerprint']) . '</span></td></tr>'
-                . '<tr><th>SHA1 danych karty</th><td class="mono">' . $e($k['sha1sum']) . '</td></tr>'
-                . '<tr><th>Zatwierdzenie kierownika</th><td>' . (!empty($k['mgr_approved_at']) ? $e($k['mgr_approved_name']) . ', ' . $e(date('d.m.Y H:i', strtotime((string)$k['mgr_approved_at']))) : 'oczekuje') . '</td></tr></table>';
+        $h .= '<tr>' . $c->fld('Opis konsultacji', '<div class="pt" style="font-weight:normal">' . nl2br($e($k['description'] ?: '—')) . '</div>', ' colspan="2" style="height:60mm"') . '</tr>'
+            . '<tr>' . $c->fld('Następne działania', '<div class="pt" style="font-weight:normal">' . nl2br($e($k['next_action'] ?: '—')) . '</div>', ' colspan="2" style="height:35mm"') . '</tr>';
+        if ($completed) {
+            $mgr = !empty($k['mgr_approved_at']) ? $e($k['mgr_approved_name']) . ', ' . $e(date('d.m.Y H:i', strtotime((string)$k['mgr_approved_at']))) : 'oczekuje';
+            $h .= '<tr>' . $c->fld('Zatwierdził(a) elektronicznie', $e($k['approved_by_name']), ' width="50%"')
+                . $c->fld('Weryfikacja IKA', $e($k['ika_verified_at'] ? date('d.m.Y H:i:s', strtotime((string)$k['ika_verified_at'])) : '—'), ' width="50%"') . '</tr><tr>'
+                . $c->fld('Certyfikat x509', $e($k['cert_subject']) . '<br><span class="mono">' . $e($k['cert_fingerprint']) . '</span>', ' colspan="2"') . '</tr><tr>'
+                . $c->fld('SHA1 danych karty', '<span class="mono">' . $e($k['sha1sum']) . '</span>', ' width="50%"')
+                . $c->fld('Zatwierdzenie kierownika', $mgr, ' width="50%"') . '</tr>';
         } else {
-            $h .= '<p class="muted">Karta robocza — bez podpisu elektronicznego; dokument do podpisu odręcznego.</p>';
+            $h .= '<tr><td class="lgd" colspan="2">Karta robocza — bez podpisu elektronicznego; dokument do podpisu odręcznego.</td></tr>';
         }
         // Podpisy odręczne: beneficjent zawsze; konsultant — gdy karta nie jest podpisana elektronicznie (IKA + x509)
-        $h .= '<table class="sig"><tr><td>' . "\n\n" . '</td><td></td></tr><tr><th>data i podpis beneficjenta / opiekuna</th>'
-            . ($k['status'] === 'completed' ? '<th>podpisano elektronicznie — ' . $e($k['approved_by_name']) . '</th>' : '<th>data i podpis konsultanta</th>') . '</tr></table>';
+        $h .= '<tr>' . $c->fld('Data i podpis beneficjenta / opiekuna', '', ' width="50%" style="height:22mm"')
+            . ($completed ? $c->fld('Podpisano elektronicznie', $e($k['approved_by_name']), ' width="50%" style="height:22mm"') : $c->fld('Data i podpis konsultanta', '', ' width="50%" style="height:22mm"'))
+            . '</tr></table>';
         return $h;
     }
 
     /** PDF jednej lub wielu kart (ids w kolejności). */
     public static function pdf(array $ids): string
     {
-        $css = '<style>body{font-family:dejavusans;font-size:10pt;color:#111}h1{font-size:15pt;margin:0 0 3mm}h2{font-size:11pt;margin:5mm 0 1.5mm}
-                table.t{border-collapse:collapse;width:100%}table.t th,table.t td{border:0.3mm solid #666;padding:1.8mm;text-align:left;vertical-align:top}
-                table.t th{background:#eef2f7;width:42mm}.box{border:0.3mm solid #666;padding:2.5mm;min-height:18mm}
-                .mono{font-family:dejavusansmono;font-size:8pt}.muted{color:#555}
-                table.sig{width:100%;margin-top:14mm;border-collapse:separate;border-spacing:8mm 0}table.sig td{height:14mm}
-                table.sig th{border-top:0.3mm solid #333;font-weight:normal;font-size:8.5pt;text-align:center;padding-top:1.5mm;width:50%}</style>';
-        $parts = []; $marks = []; $kds = [];
+        require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiCitStyle.php';
+        $css = TiCit::css();
+        $parts = []; $marks = []; $kds = []; $nums = [];
         require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiStudentDocCode.php';
         foreach ($ids as $id) if ($k = self::get((int)$id)) {
-            $parts[] = self::cardHtml($k); $marks[] = self::watermark($k);
+            $parts[] = self::cardHtml($k); $marks[] = self::watermark($k); $nums[] = self::docNumber($k);
             $kds[] = ti_student_doc_code((int)($k['client_id'] ?? 0), 'KONS', (int)$k['id']);   // kod dokumentu kursanta w stopce karty
         }
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
         $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 18, 'margin_right' => 18, 'margin_top' => 16, 'margin_bottom' => $kds && array_filter($kds) ? 24 : 16,
+        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => $kds && array_filter($kds) ? 21 : 13, 'margin_footer' => 5, 'shrink_tables_to_fit' => 1,
                                 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $pdf->SetTitle('Karta konsultacji');
-        $_footerBase = '<table width="100%" style="font-family:dejavusans;font-size:8pt;border-top:0.25mm solid #666"><tr><td>' . htmlspecialchars(defined('ORG_NAME') ? ORG_NAME : '') . '</td><td style="text-align:right">{PAGENO}/{nbpg}</td></tr></table>';
-        $pdf->SetHTMLFooter(ti_student_doc_footer($_footerBase, $kds[0] ?? ''));
+        $pdf->SetHTMLFooter(ti_student_doc_footer(TiCit::footer('KT1', $nums[0] ?? ''), $kds[0] ?? ''));
         // Znak wodny per karta: ROBOCZA / NIEPODPISANA (podpisana, bez zatwierdzenia kierownika); zatwierdzona — bez znaku
         $pdf->WriteHTML($css);
         foreach ($parts as $i => $html) {
-            if ($i > 0) { $pdf->AddPage(); $pdf->SetHTMLFooter(ti_student_doc_footer($_footerBase, $kds[$i] ?? '')); }   // stopka NOWEJ strony ustawiana po AddPage (inaczej psuje stopkę poprzedniej)
+            if ($i > 0) { $pdf->AddPage(); $pdf->SetHTMLFooter(ti_student_doc_footer(TiCit::footer('KT1', $nums[$i] ?? ''), $kds[$i] ?? '')); }   // stopka NOWEJ strony ustawiana po AddPage (inaczej psuje stopkę poprzedniej)
             $pdf->SetWatermarkText($marks[$i], $marks[$i] !== '' ? 0.13 : 0);
             $pdf->showWatermarkText = $marks[$i] !== '';
             $pdf->WriteHTML($html);
