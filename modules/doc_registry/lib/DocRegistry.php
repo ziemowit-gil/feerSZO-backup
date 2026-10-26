@@ -17,11 +17,18 @@ declare(strict_types=1);
  */
 final class DocRegistry
 {
-    /** Źródła: typ => [prefiks kodu, etykieta, adres otwarcia ({id}), tabela]. */
+    /**
+     * Źródła: typ => [prefiks, etykieta, adres otwarcia ({id}), tabela, tryb numeracji].
+     * Tryb 'rand': kod Code128 TYP/6 cyfr+2 litery (losowy) + numer DOK/rok/id + etykieta do druku.
+     * Tryb 'seq' : tylko numer w stylu KDOK/EODoK — PREFIKS/NNNN/ROK (kolejny w roku) i QR; numer jest zarazem kodem w QR (bez Code128 i etykiety).
+     */
     public const SOURCES = [
-        'ezd_zalacznik' => ['EZD', 'Plik w koszulce EZD', '/ezd/serve.php?id={id}', 'ezd_zalaczniki'],
-        'crm_case_file' => ['CRM', 'Plik sprawy CRM', '/crm/cases/download.php?id={id}', 'crm_case_files'],
-        'task_file'     => ['ZAD', 'Plik zadania', '/tasks/api/file.php?id={id}', 'task_files'],
+        'ezd_zalacznik' => ['EZD', 'Plik w koszulce EZD', '/ezd/serve.php?id={id}', 'ezd_zalaczniki', 'rand'],
+        'crm_case_file' => ['CRM', 'Plik sprawy CRM', '/crm/cases/download.php?id={id}', 'crm_case_files', 'rand'],
+        'task_file'     => ['ZAD', 'Plik zadania', '/tasks/api/file.php?id={id}', 'task_files', 'rand'],
+        'helpdesk_attachment' => ['HD', 'Załącznik zgłoszenia helpdesk', '/helpdesk/attachment.php?id={id}', 'helpdesk_attachments', 'seq'],
+        'correspondence_file' => ['KOR', 'Załącznik korespondencji', '/correspondence/download.php?id={id}', 'correspondence', 'seq'],
+        'rekr_file'           => ['REK', 'Dokument kandydata (nabór)', '/rekrutacja/attachment.php?id={id}', 'rekr_files', 'seq'],
     ];
     /** Litery kodu bez I i O (mylą się z 1 i 0 na wydruku). */
     private const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -54,10 +61,21 @@ final class DocRegistry
         return $prefix . '/' . str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT) . $l[random_int(0, strlen($l) - 1)] . $l[random_int(0, strlen($l) - 1)];
     }
 
+    /** Kolejny numer w roku w stylu KDOK/EODoK: PREFIKS/NNNN/ROK (np. HD/0012/2026). */
+    private static function seqNumber(string $prefix): string
+    {
+        $year = date('Y');
+        $max = 0;
+        foreach (db_all("SELECT code FROM doc_registry WHERE code LIKE ?", [$prefix . '/%/' . $year]) as $r) {
+            if (preg_match('~^' . preg_quote($prefix, '~') . '/(\d+)/' . $year . '$~', (string)$r['code'], $m)) $max = max($max, (int)$m[1]);
+        }
+        return sprintf('%s/%04d/%s', $prefix, $max + 1, $year);
+    }
+
     /** Czy tekst ma format kodu rejestru (TYP/6 cyfr + 2 litery). */
     public static function isCode(string $c): bool
     {
-        return (bool)preg_match('~^[A-Z]{2,5}/\d{6}[A-Z]{2}$~', $c);
+        return (bool)preg_match('~^[A-Z]{2,5}/(?:\d{6}[A-Z]{2}|\d{4}/\d{4})$~', $c);
     }
 
     // ── Źródło (plik na dysku + dane) ────────────────────────────────────────────
@@ -85,6 +103,24 @@ final class DocRegistry
                 $p = dirname(__DIR__, 3) . '/uploads/tasks/' . basename((string)$z['stored_name']);
                 return ['name' => (string)$z['original_name'], 'path' => $p, 'size' => (int)$z['file_size'], 'uploader' => $z['uploaded_by'] !== null ? (int)$z['uploaded_by'] : null,
                         'at' => (string)$z['created_at'], 'exists' => is_file($p), 'superseded' => false];
+            case 'helpdesk_attachment':
+                $z = db_one("SELECT * FROM helpdesk_attachments WHERE id = ?", [$id]);
+                if (!$z) return null;
+                $p = (defined('UPLOAD_DIR') ? UPLOAD_DIR : dirname(__DIR__, 3) . '/uploads/') . $z['stored_path'];
+                return ['name' => (string)$z['original_name'], 'path' => $p, 'size' => (int)$z['file_size'], 'uploader' => $z['uploaded_by'] !== null ? (int)$z['uploaded_by'] : null,
+                        'at' => (string)$z['uploaded_at'], 'exists' => is_file($p), 'superseded' => false];
+            case 'correspondence_file':
+                $z = db_one("SELECT id, attachment, created_by, created_at FROM correspondence WHERE id = ?", [$id]);
+                if (!$z || (string)$z['attachment'] === '') return null;
+                $p = dirname(__DIR__, 3) . '/uploads/correspondence/' . basename((string)$z['attachment']);
+                return ['name' => (string)$z['attachment'], 'path' => $p, 'size' => is_file($p) ? (int)filesize($p) : 0, 'uploader' => $z['created_by'] !== null ? (int)$z['created_by'] : null,
+                        'at' => (string)$z['created_at'], 'exists' => is_file($p), 'superseded' => false];
+            case 'rekr_file':
+                $z = db_one("SELECT * FROM rekr_files WHERE id = ?", [$id]);
+                if (!$z) return null;
+                $p = (defined('UPLOAD_DIR') ? UPLOAD_DIR : dirname(__DIR__, 3) . '/uploads/') . $z['stored_path'];
+                return ['name' => (string)$z['original_name'], 'path' => $p, 'size' => (int)$z['size'], 'uploader' => $z['uploaded_by'] !== null ? (int)$z['uploaded_by'] : null,
+                        'at' => (string)$z['created_at'], 'exists' => is_file($p), 'superseded' => false];
         }
         return null;
     }
@@ -109,11 +145,12 @@ final class DocRegistry
             $sha = ($src['exists'] && $src['size'] <= 100 * 1024 * 1024) ? (string)@hash_file('sha256', $src['path']) : '';
             $now = date('Y-m-d H:i:s');
             for ($try = 0; $try < 8; $try++) {
-                $code = self::randomCode(self::SOURCES[$type][0]);
+                $seq = (self::SOURCES[$type][4] ?? 'rand') === 'seq';
+                $code = $seq ? self::seqNumber(self::SOURCES[$type][0]) : self::randomCode(self::SOURCES[$type][0]);
                 try {
-                    $rid = db_insert('doc_registry', ['code' => $code, 'doc_number' => '', 'source_type' => $type, 'source_id' => $id, 'sha256' => $sha,
+                    $rid = db_insert('doc_registry', ['code' => $code, 'doc_number' => $seq ? $code : '', 'source_type' => $type, 'source_id' => $id, 'sha256' => $sha,
                         'created_by' => $src['uploader'], 'created_at' => $now]);
-                    db()->prepare("UPDATE doc_registry SET doc_number = ? WHERE id = ?")->execute([sprintf('DOK/%s/%06d', date('Y'), $rid), $rid]);
+                    if (!$seq) db()->prepare("UPDATE doc_registry SET doc_number = ? WHERE id = ?")->execute([sprintf('DOK/%s/%06d', date('Y'), $rid), $rid]);
                     return self::get($type, $id);
                 } catch (\PDOException $e) {
                     if ($r = self::get($type, $id)) return $r;   // wyścig: ktoś nadał w międzyczasie
@@ -225,10 +262,11 @@ final class DocRegistry
         if (!$row) return '';
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $base = rtrim(APP_URL, '/') . '/docreg/';
+        $seq = (self::SOURCES[$row['source_type']][4] ?? 'rand') === 'seq';
         return '<button type="button" class="docreg-badge" data-docreg-code="' . $e($row['code']) . '" data-docreg-number="' . $e($row['doc_number']) . '"'
-            . ' data-docreg-qr="' . $e($base . '?qr=' . rawurlencode((string)$row['code'])) . '" data-docreg-label="' . $e($base . '?label=' . rawurlencode((string)$row['code'])) . '"'
+            . ' data-docreg-qr="' . $e($base . '?qr=' . rawurlencode((string)$row['code'])) . '" data-docreg-label="' . ($seq ? '' : $e($base . '?label=' . rawurlencode((string)$row['code']))) . '"'
             . ' data-docreg-url="' . $e(self::url((string)$row['code'])) . '" aria-haspopup="dialog" title="Numer i kod QR dokumentu">'
-            . '<span aria-hidden="true">▦</span> ' . $e($row['code']) . '<span class="visually-hidden"> — numer ' . $e($row['doc_number']) . ', pokaż kod QR</span></button>';
+            . '<span aria-hidden="true">▦</span> ' . $e($seq ? $row['doc_number'] : $row['code']) . '<span class="visually-hidden"> — numer ' . $e($row['doc_number']) . ', pokaż kod QR</span></button>';
     }
 
     /** Okno z QR + style + skrypt (raz na stronę, POZA zakładkami — modal Bootstrap). */
@@ -247,7 +285,7 @@ final class DocRegistry
   <div class="modal-body text-center">
     <img id="docregQr" alt="Kod QR do weryfikacji i otwarcia dokumentu online" width="200" height="200" class="mb-2">
     <div class="small text-muted">Numer</div><div id="docregNumber" class="fw-semibold mb-1"></div>
-    <div class="small text-muted">Kod (Code128)</div><code id="docregCode" class="fs-6 d-block mb-2"></code>
+    <div id="docregCodeWrap"><div class="small text-muted">Kod (Code128)</div><code id="docregCode" class="fs-6 d-block mb-2"></code></div>
     <p class="small text-muted mb-0">Kod QR otwiera stronę weryfikacji; po zalogowaniu — dokument online.</p>
   </div>
   <div class="modal-footer justify-content-between"><a id="docregLabel" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">Etykieta do druku (PDF)</a><a id="docregOpen" class="btn btn-sm btn-primary" target="_blank" rel="noopener">Strona weryfikacji</a></div>
@@ -256,7 +294,8 @@ final class DocRegistry
 document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('.docreg-badge');if(!b)return;ev.preventDefault();ev.stopPropagation();
   var m=document.getElementById('docregModal');if(!m||!window.bootstrap){window.open(b.dataset.docregLabel,'_blank','noopener');return;}
   document.getElementById('docregQr').src=b.dataset.docregQr;document.getElementById('docregNumber').textContent=b.dataset.docregNumber;
-  document.getElementById('docregCode').textContent=b.dataset.docregCode;document.getElementById('docregLabel').href=b.dataset.docregLabel;document.getElementById('docregOpen').href=b.dataset.docregUrl;
+  document.getElementById('docregCode').textContent=b.dataset.docregCode;var lb=document.getElementById('docregLabel');lb.hidden=!b.dataset.docregLabel;lb.href=b.dataset.docregLabel||'#';
+  document.getElementById('docregCodeWrap').hidden=b.dataset.docregCode===b.dataset.docregNumber;document.getElementById('docregOpen').href=b.dataset.docregUrl;
   window.bootstrap.Modal.getOrCreateInstance(m).show();},true);
 </script>
 HTML;

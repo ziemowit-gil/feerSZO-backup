@@ -29,6 +29,7 @@ if (isset($_GET['qr'])) {
 
 if (isset($_GET['label'])) {
     $row = DocRegistry::find((string)$_GET['label']) ?: docreg_fail(404, 'Nie znaleziono kodu.');
+    if ((DocRegistry::SOURCES[$row['source_type']][4] ?? 'rand') === 'seq') docreg_fail(404, 'Ten rodzaj dokumentu nie ma etykiety — tylko numer i kod QR.');
     require_once dirname(__DIR__) . '/vendor/autoload.php';
     $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
