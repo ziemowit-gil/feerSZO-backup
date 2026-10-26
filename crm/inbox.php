@@ -144,6 +144,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]));
                 break;
 
+            case 'fol_me':
+                if (crm_mailbox_message($mid) === null) { flash_set('danger', 'Brak dostępu do wiadomości.'); break; }
+                if (in_array($uid, array_column(crm_fol_list($mid), 'id'))) { crm_fol_remove($mid, $uid); flash_set('success', 'Przestałeś obserwować tę rozmowę.'); }
+                else { $okf = crm_fol_add($mid, $uid, $uid);
+                       flash_set($okf ? 'success' : 'warning', $okf ? 'Obserwujesz tę rozmowę — dostaniesz powiadomienia o odpowiedziach i zmianach.' : 'Nie możesz obserwować tej rozmowy (brak dostępu do skrzynki).'); }
+                break;
+
+            case 'fol_add':
+                if (crm_mailbox_message($mid) === null) { flash_set('danger', 'Brak dostępu do wiadomości.'); break; }
+                $fu = (int)($_POST['follower_id'] ?? 0);
+                if (crm_fol_add($mid, $fu, $uid)) flash_set('success', 'Dodano obserwującego.');
+                else flash_set('warning', 'Nie dodano: osoba już obserwuje albo nie ma dostępu do tej skrzynki.');
+                break;
+
+            case 'fol_remove':
+                if (crm_mailbox_message($mid) === null) { flash_set('danger', 'Brak dostępu do wiadomości.'); break; }
+                crm_fol_remove($mid, (int)($_POST['follower_id'] ?? 0));
+                flash_set('success', 'Usunięto obserwującego.');
+                break;
+
             case 'tag_add':
                 if (crm_mailbox_message($mid) === null) { flash_set('danger', 'Brak dostępu do wiadomości.'); break; }
                 $added = 0;
@@ -315,6 +335,7 @@ $queues = crm_mq_list();                                   // aktywne kolejki
 $q_counts = $queues ? crm_mq_counts($view, $mbox_f, $folder_rules) : []; // liczby w bieżącym widoku/folderze i skrzynce (bez filtra kolejki)
 $f_counts = $folders ? crm_mf_counts($folders) : [];       // liczniki folderów (rozmowy)
 $row_tags = crm_mt_for_rows($inbox['rows']);                // tagi wątków widocznych wierszy
+$fol_flags = crm_fol_flags_for_rows($inbox['rows'], $uid);  // rozmowy, które obserwuję
 $tag_suggest = crm_mt_suggest();
 $msg_queue = null;
 $users  = [];
@@ -825,9 +846,12 @@ include __DIR__ . '/includes/header_crm.php';
                 if ($snip !== ''): ?>
           <span class="ib-snip"><?= h($snip) ?></span>
           <?php endif; ?>
-          <?php $show_q = count($queues) > 1 && !$queue_f && !empty($r['queue_name']); $rtags = $row_tags[$rid] ?? [];
-                if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || $show_q || $rtags || (!$mbox_f && count($boxes) > 1 && !empty($r['mailbox_name']))): ?>
+          <?php $show_q = count($queues) > 1 && !$queue_f && !empty($r['queue_name']); $rtags = $row_tags[$rid] ?? []; $r_fol = !empty($fol_flags[$rid]);
+                if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || $show_q || $rtags || $r_fol || (!$mbox_f && count($boxes) > 1 && !empty($r['mailbox_name']))): ?>
           <span class="ib-tags">
+ <?php if ($r_fol): ?>
+            <span class="ib-tag ib-tag--fol" title="Obserwujesz tę rozmowę"><i class="bi bi-eye-fill" aria-hidden="true"></i><span class="visually-hidden">Obserwujesz</span></span>
+            <?php endif; ?>
             <?php if ($show_q): ?>
             <span class="ib-tag ib-tag--q" style="--c:<?= h($r['queue_color'] ?: '#6B7280') ?>" title="Kolejka: <?= h($r['queue_name']) ?>"><i class="bi bi-collection" aria-hidden="true"></i> <?= h($r['queue_name']) ?></span>
             <?php endif; ?>
@@ -1280,6 +1304,25 @@ include __DIR__ . '/includes/header_crm.php';
             <label class="visually-hidden" for="ibTagIn">Dodaj tag</label>
             <input id="ibTagIn" name="tag" list="ibTagList" maxlength="30" placeholder="+ tag" autocomplete="off" class="ib-field">
             <datalist id="ibTagList"><?php foreach ($tag_suggest as $ts): ?><option value="<?= h($ts) ?>"><?php endforeach; ?></datalist>
+          </form>
+        </div>
+        <?php $fols = crm_fol_list((int)$msg['id']); $fol_ids = array_map('intval', array_column($fols, 'id')); $i_follow = in_array($uid, $fol_ids, true); ?>
+        <div class="ib-tagbar ib-fol" role="group" aria-label="Obserwujący rozmowę">
+          <span class="ib-fol-lbl"><i class="bi bi-eye" aria-hidden="true"></i> Obserwują:</span>
+          <?php foreach ($fols as $fw): ?>
+          <span class="ib-tagchip ib-fchip"><?= h($fw['name']) ?>
+            <form method="post" class="d-inline"><?= $hidden ?><input type="hidden" name="_op" value="fol_remove"><input type="hidden" name="follower_id" value="<?= (int)$fw['id'] ?>">
+              <button type="submit" aria-label="Usuń obserwującego <?= h($fw['name']) ?>" title="Przestań powiadamiać tę osobę"><i class="bi bi-x" aria-hidden="true"></i></button></form></span>
+          <?php endforeach; ?>
+          <?php if (!$fols): ?><span class="small text-muted">nikt</span><?php endif; ?>
+          <form method="post" class="d-inline"><?= $hidden ?><input type="hidden" name="_op" value="fol_me">
+            <button type="submit" class="ib-ooo-btn" style="height:26px;padding:0 .6rem"><?= $i_follow ? 'Przestań obserwować' : 'Obserwuj' ?></button></form>
+          <form method="post" class="ib-tagadd"><?= $hidden ?><input type="hidden" name="_op" value="fol_add">
+            <label class="visually-hidden" for="ibFolAdd">Dodaj obserwującego</label>
+            <select id="ibFolAdd" name="follower_id" class="ib-field" style="height:26px;font-size:.78rem" onchange="if(this.value)this.form.submit()">
+              <option value="">+ dodaj osobę</option>
+              <?php foreach ($users as $fu): if (in_array((int)$fu['id'], $fol_ids, true)) continue; ?><option value="<?= (int)$fu['id'] ?>"><?= h($fu['name']) ?></option><?php endforeach; ?>
+            </select>
           </form>
         </div>
       </div>

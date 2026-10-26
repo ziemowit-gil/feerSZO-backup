@@ -419,3 +419,9 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
 .ib-ooo .bi { font-size:1.1rem }
 .ib-ooo-btn { display:inline-block; padding:.2rem .7rem; border:2px solid #5C3B00; background:#fff; color:#5C3B00; font-weight:600; font-size:.8rem; text-decoration:none; cursor:pointer }
 .ib-ooo-btn:hover { background:#5C3B00; color:#fff } .ib-ooo-btn:focus-visible { outline:3px solid #ff9800; outline-offset:2px }
+
+/* Obserwatorzy rozmów */
+.ib-tag--fol { background:transparent; color:#0F766E; border:1px solid #0F766E }
+.ib-fol { padding-top:.2rem; border-top:1px dashed #d4d4d4 }
+.ib-fol-lbl { font-size:.78rem; font-weight:600; color:var(--ib-muted) }
+.ib-fchip { background:#ECFDF5; color:#065F46; border-color:#A7F3D0 }
