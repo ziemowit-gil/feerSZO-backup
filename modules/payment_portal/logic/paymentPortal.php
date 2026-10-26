@@ -820,6 +820,25 @@ function pp_vnrb_report_rows(string $scope = 'all'): array {
                                 'grp' => (string)$r['grp'], 'assigned_at' => (string)$r['assigned_at']], $rows);
 }
 
+/**
+ * Kody Code128 + QR (rejestr dokumentów) do wydruków portalu płatności — kod stały dla pary ($kind, $ref).
+ * Zwraca ['qr','bar','code','doc_number', …] albo null. Błąd kodów nie blokuje wydruku.
+ */
+function pp_print_codes(string $kind, string $ref, string $title): ?array {
+    try {
+        require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+        return DocRegistry::printCodes($kind, $ref, $title, '');
+    } catch (\Throwable $e) { error_log('[payment_portal] kody w stopce: ' . $e->getMessage()); return null; }
+}
+
+/** Stopka HTML z kodami do wydruku (pusta, gdy kodów nie udało się zbudować). */
+function pp_print_codes_html(string $kind, string $ref, string $title): string {
+    try {
+        require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+        return DocRegistry::printFooterHtml($kind, $ref, $title, '');
+    } catch (\Throwable $e) { error_log('[payment_portal] kody w stopce: ' . $e->getMessage()); return ''; }
+}
+
 /** Samodzielny dokument HTML do wydruku raportu (oba ekrany: płatności i kierownik TI). Kończy skrypt. */
 function pp_vnrb_report_print(string $scope, string $by): never {
     $rows = pp_vnrb_report_rows($scope);
@@ -835,7 +854,8 @@ function pp_vnrb_report_print(string $scope, string $by): never {
   h1{font-size:16px;margin:0 0 2px} .meta{color:#444;margin-bottom:10px}
   table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:3px 6px;text-align:left} thead th{background:#eee}
   td.n{font-family:monospace;white-space:nowrap} tr{break-inside:avoid} .no{color:#666}
-  .pbtn{margin-bottom:10px;padding:6px 12px;font-size:13px} @media print{.pbtn{display:none}}
+  .pbtn{margin-bottom:10px;padding:6px 12px;font-size:13px} .doc-foot{margin-top:18px;padding-top:6px;border-top:1px solid #bbb}
+  @media print{.pbtn{display:none} .doc-foot{position:fixed;left:0;right:0;bottom:0;margin:0;background:#fff} body{margin-bottom:22mm}}
 </style></head><body>
 <button class="pbtn" onclick="window.print()">Drukuj</button>
 <h1><?= h($title) ?></h1>
@@ -846,7 +866,9 @@ function pp_vnrb_report_print(string $scope, string $by): never {
 <td class="n"><?= $r['nrb'] !== '' ? h(pp_nrb_format($r['nrb'])) : '<span class="no">brak</span>' ?></td>
 <td><?= h($r['grp']) ?></td><td><?= h($r['assigned_at']) ?></td></tr>
 <?php endforeach; if (!$rows): ?><tr><td colspan="6">Brak danych.</td></tr><?php endif; ?>
-</tbody></table></body></html><?php
+</tbody></table>
+<?php $_dc = pp_print_codes_html('pp_vnrb_raport', $scope . '#' . date('Y-m-d'), $title); if ($_dc !== ''): ?><div class="doc-foot"><?= $_dc ?></div><?php endif; ?>
+</body></html><?php
     exit;
 }
 
@@ -968,7 +990,8 @@ function pp_vnrb_status_print(string $cat, string $by): never {
   body{font:12px/1.4 Arial,sans-serif;color:#000;margin:16px} h1{font-size:16px;margin:0 0 2px} .meta{color:#444;margin-bottom:8px}
   .chips span{display:inline-block;border:1px solid #999;border-radius:10px;padding:1px 8px;margin:0 4px 4px 0}
   table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:3px 6px;text-align:left} thead th{background:#eee}
-  td.n{font-family:monospace;white-space:nowrap} tr{break-inside:avoid} .pbtn{margin-bottom:10px;padding:6px 12px;font-size:13px} @media print{.pbtn{display:none}}
+  td.n{font-family:monospace;white-space:nowrap} tr{break-inside:avoid} .pbtn{margin-bottom:10px;padding:6px 12px;font-size:13px} .doc-foot{margin-top:18px;padding-top:6px;border-top:1px solid #bbb}
+  @media print{.pbtn{display:none} .doc-foot{position:fixed;left:0;right:0;bottom:0;margin:0;background:#fff} body{margin-bottom:22mm}}
 </style></head><body>
 <button class="pbtn" onclick="window.print()">Drukuj</button>
 <h1><?= h($title) ?></h1>
@@ -979,7 +1002,9 @@ function pp_vnrb_status_print(string $cat, string $by): never {
 <tr><td><?= $i + 1 ?></td><td><?= h($r['name']) ?></td><td><?= $r['client_id'] ?></td><td><?= h(PP_VSTATUS[$r['cat']]) ?></td>
 <td class="n"><?= $r['nrb'] !== '' ? h(pp_nrb_format($r['nrb'])) : '—' ?></td><td><?= h($r['assigned_at'] ?: '—') ?></td><td><?= h($r['notified_at'] ?: '—') ?></td><td><?= h($r['flags']) ?></td></tr>
 <?php endforeach; if (!$rows): ?><tr><td colspan="8">Brak pozycji.</td></tr><?php endif; ?>
-</tbody></table></body></html><?php
+</tbody></table>
+<?php $_dc = pp_print_codes_html('pp_vnrb_stan', ($cat !== '' ? $cat : 'all') . '#' . date('Y-m-d'), $title); if ($_dc !== ''): ?><div class="doc-foot"><?= $_dc ?></div><?php endif; ?>
+</body></html><?php
     exit;
 }
 
@@ -1099,14 +1124,29 @@ function pp_vnrb_notice_html(int $client_id): ?string {
 
 /** PDF z informacjami (jedna strona na kursanta z nadanym numerem). Zwraca bajty PDF albo null, gdy nikt nie ma numeru. */
 function pp_vnrb_notice_pdf(array $client_ids): ?string {
-    $pages = [];
-    foreach (array_unique(array_map('intval', $client_ids)) as $cid) { $h = pp_vnrb_notice_html($cid); if ($h !== null) $pages[] = $h; }
+    $pages = []; $pageIds = [];
+    foreach (array_unique(array_map('intval', $client_ids)) as $cid) { $h = pp_vnrb_notice_html($cid); if ($h !== null) { $pages[] = $h; $pageIds[] = $cid; } }
     if (!$pages) return null;
     require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
     $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp'; if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-    $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 22, 'margin_right' => 22, 'margin_top' => 18, 'margin_bottom' => 18, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+    $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 22, 'margin_right' => 22, 'margin_top' => 18, 'margin_bottom' => 26, 'margin_footer' => 7, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
     $mpdf->SetTitle('Informacja o numerze rachunku do wpłat');
-    foreach ($pages as $i => $h) { if ($i) $mpdf->AddPage(); $mpdf->WriteHTML($h); }
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) — osobny kod dla każdej strony (kursanta); stały dla kursanta. Każda strona ma własną stopkę
+    // (<htmlpagefooter> + <sethtmlpagefooter> na początku strony); błąd kodów nie blokuje PDF-a
+    foreach ($pages as $i => $h) {
+        $foot = '';
+        try {
+            $dc = pp_print_codes('pp_vnrb_info', (string)$pageIds[$i], 'Informacja o numerze rachunku do wpłat');
+            if ($dc) {
+                $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+                $foot = '<htmlpagefooter name="pf' . $i . '"><table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $img($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                    . '</td><td>' . $img($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . htmlspecialchars($dc['code']) . '</span> · ' . htmlspecialchars($dc['doc_number'])
+                    . '</td></tr></table></htmlpagefooter><sethtmlpagefooter name="pf' . $i . '" value="on" />';
+            }
+        } catch (\Throwable $e) { error_log('[payment_portal] kody w stopce: ' . $e->getMessage()); }
+        if ($i) $mpdf->AddPage();
+        $mpdf->WriteHTML($foot . $h);
+    }
     return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
 }
 

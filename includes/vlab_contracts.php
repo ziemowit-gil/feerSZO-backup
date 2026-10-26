@@ -158,7 +158,33 @@ function vlab_contract_pdf(array $contract): void {
     require_once __DIR__ . '/fpdf/fpdf.php';
     require_once __DIR__ . '/fpdi/autoload_fpdi.php';
 
-    $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) na każdej stronie — kod stały dla umowy; błąd kodów nie blokuje PDF-a
+    $pdf = new class('P', 'mm', 'A4') extends \setasign\Fpdi\Fpdi {
+        public array $codeTmps = [];   // pliki tymczasowe PNG (FPDF nie czyta danych z pamięci) — sprzątane po Output()
+        public ?string $codeQr = null, $codeBar = null;
+        public string $codeTxt = '';
+        public function Footer(): void
+        {
+            try {
+                if ($this->codeQr)  $this->Image($this->codeQr, 20, 278, 11, 11, 'PNG');
+                if ($this->codeBar) $this->Image($this->codeBar, 34, 278, 42, 5.5, 'PNG');
+                if ($this->codeTxt !== '') { $this->SetFont('Courier', '', 6.5); $this->SetTextColor(85, 85, 85); $this->Text(34, 287.5, $this->codeTxt); $this->SetTextColor(0, 0, 0); }
+            } catch (\Throwable $e) { /* bez kodów */ }
+        }
+    };
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $dc = DocRegistry::printCodes('vlab_umowa', (string)($contract['id'] ?? $contract['numer_umowy']), 'Umowa o dostęp do VLab ' . $contract['numer_umowy'], '');
+        if ($dc) {
+            $put = function (?string $png) use ($pdf) {
+                $p = $png ? tempnam(sys_get_temp_dir(), 'dck') : false;
+                if ($p === false || file_put_contents($p, $png) === false) return null;
+                return $pdf->codeTmps[] = $p;
+            };
+            $pdf->codeQr = $put($dc['qr'] ?? null); $pdf->codeBar = $put($dc['bar'] ?? null);
+            $pdf->codeTxt = _vc_txt($dc['code'] . ' · ' . $dc['doc_number']);
+        }
+    } catch (\Throwable $e) { error_log('[vlab_contract_pdf] kody w stopce: ' . $e->getMessage()); }
     $pdf->SetAutoPageBreak(true, 20);
     $pdf->SetMargins(20, 20, 20);
     $pdf->AddPage();
@@ -249,6 +275,7 @@ function vlab_contract_pdf(array $contract): void {
 
     $fname = 'umowa_vlab_' . preg_replace('/[^a-z0-9_]/i', '_', $contract['numer_umowy']) . '.pdf';
     $pdf->Output('D', $fname);
+    foreach ($pdf->codeTmps as $t) @unlink($t);
     exit;
 }
 

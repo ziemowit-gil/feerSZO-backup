@@ -99,6 +99,33 @@ if ($out === 'pdf') {
         $pdf->SetTextColor(0, 0, 0);
     };
 
+    // Kody Code128 + QR (rejestr dokumentów) w stopce stron WŁASNYCH wydruku (okładka, uwierzytelnienie) — rysowane Text()/Image(),
+    // więc bez złamania strony. Strony dołączonych dokumentów (cudze pliki PDF/obrazy) zostają nietknięte. Brak kodów nie blokuje wydruku.
+    $codesFooter = function () use ($pdf, $id, $zalId) {
+        $tmps = [];
+        try {
+            require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+            $f = DocRegistry::printCodes('ezd_sprawa_wydruk', 'sprawa-' . $id . ($zalId ? '-zal-' . $zalId : ''),
+                                         'Wydruk koszulki EZD' . ($zalId ? ' (pojedynczy dokument)' : ''), 'ezd/sprawy/view.php?id=' . $id);
+            if (!$f) return;
+            $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $id . '/';
+            if (!is_dir($dir) || !is_writable($dir)) $dir = sys_get_temp_dir() . '/';
+            $put = function (?string $png) use ($dir, &$tmps) {
+                if (!$png) return null;
+                $p = $dir . '_kod_' . uniqid('', true) . '.png';
+                if (@file_put_contents($p, $png) === false) return null;
+                return $tmps[] = $p;
+            };
+            $y = 280;
+            if ($q = $put($f['qr'] ?? null))  $pdf->Image($q, 15, $y, 11, 11);
+            if ($b = $put($f['bar'] ?? null)) $pdf->Image($b, 29, $y, 42, 5.5);
+            $pdf->SetFont('Courier', '', 6.5); $pdf->SetTextColor(85, 85, 85);
+            $pdf->Text(29, $y + 9.5, iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $f['code'] . ' · ' . $f['doc_number']) ?: $f['code']);
+            $pdf->SetTextColor(0, 0, 0);
+        } catch (\Throwable $e) { error_log('[ezd_print] kody w stopce: ' . $e->getMessage()); }
+        finally { foreach ($tmps as $t) @unlink($t); }
+    };
+
     // ── Okładka (tylko dla całej sprawy) ─────────────────────────────────────
     if ($with_cover) {
         $pdf->AddPage('P', 'A4');
@@ -168,6 +195,7 @@ if ($out === 'pdf') {
         }
 
         $pdf->SetY(max($pdf->GetY() + 4, $blockY + $qrSize + ($qrFile ? 10 : 0)));
+        $codesFooter();
     }
 
     // ── Scalanie dokumentów ──────────────────────────────────────────────────
@@ -348,6 +376,7 @@ if ($out === 'pdf') {
         $pdf->Cell(10, 4, '', 0, 0);
         $pdf->Cell($_colW - 5, 4, $pl('(własnoręczny podpis osoby poświadczającej)'), 0, 1, 'C');
         $pdf->SetTextColor(0, 0, 0);
+        $codesFooter();
     }
 
     $base = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $sprawa['znak_sprawy'] ?: ('koszulka_' . $id));

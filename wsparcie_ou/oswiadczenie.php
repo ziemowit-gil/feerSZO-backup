@@ -50,7 +50,33 @@ $FD = dirname(__DIR__) . '/includes/fpdf/font/';
 $pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
 
 try {
-    $pdf = new FPDF('P', 'mm', 'A4');
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) na każdej stronie — kod stały dla oświadczenia danego wpisu; błąd kodów nie blokuje PDF-a
+    $pdf = new class('P', 'mm', 'A4') extends FPDF {
+        public array $codeTmps = [];   // pliki tymczasowe PNG (FPDF nie czyta danych z pamięci) — sprzątane po Output()
+        public ?string $codeQr = null, $codeBar = null;
+        public string $codeTxt = '';
+        public function Footer(): void
+        {
+            try {
+                if ($this->codeQr)  $this->Image($this->codeQr, 18, 280, 11, 11, 'PNG');
+                if ($this->codeBar) $this->Image($this->codeBar, 32, 280, 42, 5.5, 'PNG');
+                if ($this->codeTxt !== '') { $this->SetFont('Courier', '', 6.5); $this->SetTextColor(85, 85, 85); $this->Text(32, 289.5, $this->codeTxt); $this->SetTextColor(0, 0, 0); }
+            } catch (\Throwable $e) { /* bez kodów */ }
+        }
+    };
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $dc = DocRegistry::printCodes('wsparcie_ou_osw', $id . '|' . $w['status'], 'Oświadczenie Zarządu — wsparcie zewnętrzne OU #' . $id . ' (' . $mies . ')', 'wsparcie_ou/index.php');
+        if ($dc) {
+            $put = function (?string $png) use ($pdf) {
+                $p = $png ? tempnam(sys_get_temp_dir(), 'dck') : false;
+                if ($p === false || file_put_contents($p, $png) === false) return null;
+                return $pdf->codeTmps[] = $p;
+            };
+            $pdf->codeQr = $put($dc['qr'] ?? null); $pdf->codeBar = $put($dc['bar'] ?? null);
+            $pdf->codeTxt = $pl($dc['code'] . ' · ' . $dc['doc_number']);
+        }
+    } catch (\Throwable $e) { error_log('[wsparcie_ou/oswiadczenie] kody w stopce: ' . $e->getMessage()); }
     $pdf->SetAutoPageBreak(true, 18);
     $pdf->SetMargins(18, 18, 18);
     $pdf->AddPage();
@@ -186,6 +212,7 @@ try {
     while (ob_get_level() > 0) ob_end_clean();
     $disp = !empty($_GET['dl']) ? 'D' : 'I';
     $pdf->Output($disp, 'oswiadczenie_zarzadu_OU_' . $id . '_' . $mies . '.pdf');
+    foreach ($pdf->codeTmps as $t) @unlink($t);
     exit;
 } catch (\Throwable $e) {
     error_log('[wsparcie_ou/oswiadczenie] #' . $id . ': ' . $e->getMessage());

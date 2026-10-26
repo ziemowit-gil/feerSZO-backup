@@ -132,10 +132,22 @@ try {
         'margin_left'   => 22,
         'margin_right'  => 20,
         'margin_top'    => 18,
-        'margin_bottom' => 18,
+        'margin_bottom' => 24,
+        'margin_footer' => 7,
         'default_font'  => 'dejavusans',
     ]);
     $mpdf->showImageErrors = false;
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) na każdej stronie — kod stały dla zaświadczenia; błąd kodów nie blokuje PDF-a
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $dc = DocRegistry::printCodes('zaswiadczenie', (string)$req_id, 'Zaświadczenie ' . $c_cert_number, 'certificates/print.php?id=' . $req_id);
+        if ($dc) {
+            $dcImg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            $mpdf->SetHTMLFooter('<table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $dcImg($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                . '</td><td>' . $dcImg($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . htmlspecialchars($dc['code']) . '</span> · ' . htmlspecialchars($dc['doc_number'])
+                . '</td><td align="right">{PAGENO}/{nbpg}</td></tr></table>');
+        }
+    } catch (\Throwable $e) { error_log('[certificates/download_pdf] kody w stopce: ' . $e->getMessage()); }
     $mpdf->SetTitle($c_cert_type_label . ' — ' . $c_cert_number);
     $mpdf->SetAuthor($c_org);
     $mpdf->SetCreator('FEER SZO');

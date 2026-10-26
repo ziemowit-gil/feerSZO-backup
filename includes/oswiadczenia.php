@@ -574,11 +574,23 @@ if (!function_exists('osw_generuj_pdf_potwierdzenia')) {
                 'margin_left'   => 25,
                 'margin_right'  => 20,
                 'margin_top'    => 18,
-                'margin_bottom' => 18,
+                'margin_bottom' => 24,
+                'margin_footer' => 7,
                 'default_font'  => 'dejavusans',
                 'tempDir'       => $mpdf_tmp,
             ]);
             $mpdf->SetTitle('Potwierdzenie podpisania oświadczenia — ' . $osw['tytul']);
+            // Stopka z kodami Code128 + QR (rejestr dokumentów) — kod stały dla potwierdzenia danego podpisu; błąd kodów nie blokuje PDF-a
+            try {
+                require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+                $dc = DocRegistry::printCodes('osw_potwierdzenie', (string)$osw['id'], 'Potwierdzenie podpisania oświadczenia #' . (int)$osw['id'], '');
+                if ($dc) {
+                    $dcImg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+                    $mpdf->SetHTMLFooter('<table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $dcImg($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                        . '</td><td>' . $dcImg($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . htmlspecialchars($dc['code']) . '</span> · ' . htmlspecialchars($dc['doc_number'])
+                        . '</td><td align="right">{PAGENO}/{nbpg}</td></tr></table>');
+                }
+            } catch (\Throwable $e) { error_log('[oswiadczenia_pdf] kody w stopce: ' . $e->getMessage()); }
             $mpdf->WriteHTML(osw_pdf_potwierdzenia_html($osw, $user));
             $pdf = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
 

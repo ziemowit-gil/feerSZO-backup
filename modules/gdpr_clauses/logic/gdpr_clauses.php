@@ -1101,11 +1101,24 @@ function gdpr_clauses_send_pdf(string $title, string $html, array $meta, string 
 
     $mpdf = new \Mpdf\Mpdf([
         'mode' => 'utf-8', 'format' => 'A4', 'default_font' => 'dejavusans', 'tempDir' => $tmp,
-        'margin_left' => 22, 'margin_right' => 22, 'margin_top' => 22, 'margin_bottom' => 22,
+        'margin_left' => 22, 'margin_right' => 22, 'margin_top' => 22, 'margin_bottom' => 30, 'margin_footer' => 8,
     ]);
     $mpdf->SetTitle($title);
     $mpdf->SetAuthor((string)($meta['org'] ?? ''));
-    $mpdf->SetHTMLFooter('<table width="100%" style="font-size:7.5pt;color:#64748b;border-top:0.3pt solid #cbd5e1"><tr>'
+    // Kody Code128 + QR (rejestr dokumentów) nad stopką — kod stały dla danego dokumentu (nazwa pliku + skrót treści: nowa wersja klauzuli = nowy kod);
+    // błąd kodów nie blokuje PDF-a
+    $codes = '';
+    try {
+        require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+        $dc = DocRegistry::printCodes('klauzula_rodo', $filename . '|' . substr(sha1($html), 0, 12), 'Klauzula informacyjna RODO — ' . $title, '');
+        if ($dc) {
+            $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            $codes = '<table width="100%" style="font-size:6.5pt;color:#555;margin-bottom:3pt"><tr><td width="12mm">' . $img($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                . '</td><td>' . $img($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . $e($dc['code']) . '</span> · ' . $e($dc['doc_number'])
+                . '</td></tr></table>';
+        }
+    } catch (\Throwable $ex) { error_log('[gdpr_clauses_pdf] kody w stopce: ' . $ex->getMessage()); }
+    $mpdf->SetHTMLFooter($codes . '<table width="100%" style="font-size:7.5pt;color:#64748b;border-top:0.3pt solid #cbd5e1"><tr>'
         . '<td style="padding-top:3pt">' . $e($meta['footer'] ?? '') . '</td>'
         . '<td style="padding-top:3pt;text-align:right;width:15%">{PAGENO} / {nbpg}</td></tr></table>');
     $css = 'body{font-size:10pt;line-height:1.55;color:#1e293b}h1{font-size:15pt;margin:0 0 4pt}'

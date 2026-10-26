@@ -179,11 +179,22 @@ function scardApplicationPdf(SmartCardService $svc, array $a): string {
     $tmp = UPLOAD_DIR . 'mpdf_tmp';
     if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
     $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12,
-                            'margin_top' => 8, 'margin_bottom' => 13, 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp,
+                            'margin_top' => 8, 'margin_bottom' => 24, 'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp,
                             'shrink_tables_to_fit' => 1]);   // sekcje z page-break-inside:avoid przechodzą na następną stronę zamiast się kurczyć
     $mpdf->SetTitle('Wniosek o wydanie karty dostępu ' . $a['number'] . ' — ' . $a['user_name']);
     $mpdf->SetAuthor(function_exists('org_setting') ? (string)org_setting('org_name') : '');
-    $mpdf->SetHTMLFooter('<table width="100%" style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #000"><tr>'
+    // Kody Code128 + QR (rejestr dokumentów) nad stopką formularza — kod stały dla wniosku; błąd kodów nie blokuje PDF-a
+    $codes = '';
+    try {
+        require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+        $dc = DocRegistry::printCodes('karta_wniosek', (string)($a['id'] ?? $a['number']), 'Wniosek o wydanie karty dostępu ' . $a['number'], '');
+        if ($dc) {
+            $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            $codes = '<table width="100%" style="font-size:6.5pt;color:#555;margin-bottom:1mm"><tr><td width="12mm">' . $img($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                . '</td><td>' . $img($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . htmlspecialchars($dc['code']) . '</span> · ' . htmlspecialchars($dc['doc_number']) . '</td></tr></table>';
+        }
+    } catch (\Throwable $e) { error_log('[smart_cards] kody w stopce: ' . $e->getMessage()); }
+    $mpdf->SetHTMLFooter($codes . '<table width="100%" style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #000"><tr>'
         . '<td width="33%"><b>' . SCARD_FORM_SYMBOL . '</b> (' . SCARD_FORM_VERSION . ')</td>'
         . '<td width="34%" style="text-align:center">Wniosek nr ' . htmlspecialchars($a['number']) . '</td>'
         . '<td width="33%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr></table>');

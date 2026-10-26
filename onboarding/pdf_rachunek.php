@@ -73,7 +73,33 @@ $with_sig   = (bool)($_GET['signed'] ?? $signed_at);
 require_once dirname(__DIR__) . '/includes/fpdf/fpdf.php';
 require_once dirname(__DIR__) . '/includes/fpdi/autoload_fpdi.php';
 
-$pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
+// Stopka z kodami Code128 + QR (rejestr dokumentów) na każdej stronie — kod stały dla oświadczenia (osobny dla wersji z e-podpisem); błąd kodów nie blokuje PDF-a
+$pdf = new class('P', 'mm', 'A4') extends \setasign\Fpdi\Fpdi {
+    public array $codeTmps = [];   // pliki tymczasowe PNG (FPDF nie czyta danych z pamięci) — sprzątane po Output()
+    public ?string $codeQr = null, $codeBar = null;
+    public string $codeTxt = '';
+    public function Footer(): void
+    {
+        try {
+            if ($this->codeQr)  $this->Image($this->codeQr, 25, 278, 11, 11, 'PNG');
+            if ($this->codeBar) $this->Image($this->codeBar, 39, 278, 42, 5.5, 'PNG');
+            if ($this->codeTxt !== '') { $this->SetFont('Courier', '', 6.5); $this->SetTextColor(85, 85, 85); $this->Text(39, 287.5, $this->codeTxt); $this->SetTextColor(0, 0, 0); }
+        } catch (\Throwable $e) { /* bez kodów */ }
+    }
+};
+try {
+    require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+    $dc = DocRegistry::printCodes('onb_rachunek', $ob_id . '|' . ($with_sig && $signed_at ? 'epodpis' : 'wzor'), 'Oświadczenie o numerze rachunku bankowego (zgłoszenie #' . $ob_id . ')', '');
+    if ($dc) {
+        $put = function (?string $png) use ($pdf) {
+            $p = $png ? tempnam(sys_get_temp_dir(), 'dck') : false;
+            if ($p === false || file_put_contents($p, $png) === false) return null;
+            return $pdf->codeTmps[] = $p;
+        };
+        $pdf->codeQr = $put($dc['qr'] ?? null); $pdf->codeBar = $put($dc['bar'] ?? null);
+        $pdf->codeTxt = _rp($dc['code'] . ' · ' . $dc['doc_number']);
+    }
+} catch (\Throwable $e) { error_log('[onboarding/pdf_rachunek] kody w stopce: ' . $e->getMessage()); }
 $pdf->SetAutoPageBreak(true, 20);
 $pdf->SetMargins(25, 20, 25);
 
@@ -201,3 +227,4 @@ if ($with_sig && $signed_at) {
 // ── Output ────────────────────────────────────────────────────────────────────
 $filename = 'oswiadczenie_rachunek_' . preg_replace('/\s+/', '_', strtolower($imie ?: $ob_id)) . '.pdf';
 $pdf->Output('D', $filename);
+foreach ($pdf->codeTmps as $t) @unlink($t);

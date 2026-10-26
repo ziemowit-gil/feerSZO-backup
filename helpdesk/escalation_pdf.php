@@ -92,13 +92,25 @@ try {
         'margin_left'   => 22,
         'margin_right'  => 20,
         'margin_top'    => 18,
-        'margin_bottom' => 18,
+        'margin_bottom' => 24,
+        'margin_footer' => 7,
         'default_font'  => 'dejavuserif',
         'tempDir'       => $mpdf_tmp,
     ]);
     $mpdf->SetTitle('Podbicie zgłoszenia ' . $ticket['number']);
     $mpdf->SetAuthor($org);
     $mpdf->SetCreator('FEER SZO');
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) — kod stały dla podbicia; błąd kodów nie blokuje PDF-a
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $dc = DocRegistry::printCodes('hd_podbicie', (string)$esc_id, 'Podbicie zgłoszenia helpdesku ' . $esc['number'], '');
+        if ($dc) {
+            $dcImg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            $mpdf->SetHTMLFooter('<table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $dcImg($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                . '</td><td>' . $dcImg($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . $h($dc['code']) . '</span> · ' . $h($dc['doc_number'])
+                . '</td><td align="right">{PAGENO}/{nbpg}</td></tr></table>');
+        }
+    } catch (\Throwable $e) { error_log('[helpdesk/escalation_pdf] kody w stopce: ' . $e->getMessage()); }
     $mpdf->WriteHTML($base_css, \Mpdf\HTMLParserMode::HEADER_CSS);
     $mpdf->WriteHTML($body_html, \Mpdf\HTMLParserMode::HTML_BODY);
 

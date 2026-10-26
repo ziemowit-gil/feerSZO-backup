@@ -644,11 +644,23 @@ function pelnomocnictwo_pdf_render(array $row, string $typ = 'pelnomocnictwo'): 
     try {
         $mpdf = new \Mpdf\Mpdf([
             'mode' => 'utf-8', 'format' => 'A4',
-            'margin_left' => 25, 'margin_right' => 25, 'margin_top' => 20, 'margin_bottom' => 18,
+            'margin_left' => 25, 'margin_right' => 25, 'margin_top' => 20, 'margin_bottom' => 24, 'margin_footer' => 7,
             'default_font' => 'dejavuserif', 'tempDir' => $tmp,
         ]);
         $tytul = ($typ === 'odwolanie' ? 'Odwolanie pelnomocnictwa ' : 'Pelnomocnictwo ') . ($row['numer'] ?? '');
         $mpdf->SetTitle($tytul);
+        // Stopka z kodami Code128 + QR (rejestr dokumentów) — kod stały dla danego dokumentu (pełnomocnictwo / odwołanie); błąd kodów nie blokuje PDF-a
+        try {
+            require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+            $rid = (int)($row['id'] ?? 0);
+            $dc = DocRegistry::printCodes('pelnomocnictwo_' . $typ, (string)($rid ?: ($row['numer'] ?? '')), ($typ === 'odwolanie' ? 'Odwołanie pełnomocnictwa ' : 'Pełnomocnictwo ') . ($row['numer'] ?? ''), $rid ? 'pelnomocnictwa/dokument.php?id=' . $rid : '');
+            if ($dc) {
+                $dcImg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+                $mpdf->SetHTMLFooter('<table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $dcImg($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                    . '</td><td>' . $dcImg($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . h($dc['code']) . '</span> · ' . h($dc['doc_number'])
+                    . '</td><td align="right">{PAGENO}/{nbpg}</td></tr></table>');
+            }
+        } catch (\Throwable $e) { error_log('[pelnomocnictwa_pdf] kody w stopce: ' . $e->getMessage()); }
         $mpdf->WriteHTML(pelnomocnictwo_pdf_html($row, $typ));
         $slug = preg_replace('/[^A-Za-z0-9\-_]/', '_', ($typ === 'odwolanie' ? 'Odwolanie_' : 'Pelnomocnictwo_') . ($row['numer'] ?? $row['id'] ?? ''));
         return [$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN), $slug . '.pdf'];

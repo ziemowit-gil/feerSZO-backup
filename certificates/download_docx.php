@@ -85,6 +85,21 @@ $section = $phpWord->addSection([
     'marginRight'  => \PhpOffice\PhpWord\Shared\Converter::cmToTwip(2.0),
 ]);
 
+// ── Stopka strony z kodami Code128 + QR (rejestr dokumentów) — kod stały dla zaświadczenia; błąd kodów nie blokuje DOCX-a ──
+$codeTmps = [];
+try {
+    require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+    $dc = DocRegistry::printCodes('zaswiadczenie', (string)$req_id, 'Zaświadczenie ' . $cert_number, 'certificates/print.php?id=' . $req_id);
+    if ($dc) {
+        $footer = $section->addFooter();
+        $tmp = function (?string $png) use (&$codeTmps) { if (!$png) return null; $p = tempnam(sys_get_temp_dir(), 'zasimg'); file_put_contents($p, $png); return $codeTmps[] = $p; };
+        $run = $footer->addTextRun(['alignment' => Jc::CENTER]);
+        if ($p = $tmp($dc['bar'] ?? null)) $run->addImage($p, ['width' => 130, 'height' => 17, 'wrappingStyle' => 'inline']);
+        if ($p = $tmp($dc['qr'] ?? null))  $run->addImage($p, ['width' => 26, 'height' => 26, 'wrappingStyle' => 'inline']);
+        $footer->addText($dc['code'] . ' · ' . $dc['doc_number'] . ' · weryfikacja: ' . $dc['url'], ['size' => 6.5, 'name' => 'Consolas'], ['alignment' => Jc::CENTER]);
+    }
+} catch (\Throwable $e) { error_log('[certificates/download_docx] kody w stopce: ' . $e->getMessage()); }
+
 // ── Logo + nagłówek org ───────────────────────────────────────────────────────
 $logo_path = '';
 $_logo_file = org_setting('org_logo');
@@ -190,4 +205,5 @@ header('Cache-Control: no-cache, no-store');
 
 $writer = IOFactory::createWriter($phpWord, 'Word2007');
 $writer->save('php://output');
+foreach ($codeTmps as $f) @unlink($f);
 exit;

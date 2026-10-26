@@ -161,8 +161,8 @@ function _donation_pdf_signature(?int $user_id = null): string
     <?php return (string)ob_get_clean();
 }
 
-/** Wspólna obudowa mPDF. */
-function _donation_pdf_render(string $html, string $title): string
+/** Wspólna obudowa mPDF. $codeKind/$codeRef — tożsamość dokumentu do kodów w stopce (puste = bez kodów). */
+function _donation_pdf_render(string $html, string $title, string $codeKind = '', string $codeRef = ''): string
 {
     require_once dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -175,14 +175,30 @@ function _donation_pdf_render(string $html, string $title): string
         'margin_left'   => 15,
         'margin_right'  => 15,
         'margin_top'    => 13,
-        'margin_bottom' => 14,
+        'margin_bottom' => 22,
+        'margin_footer' => 6,
         'default_font'  => 'dejavusans',
         'tempDir'       => $tmp,
     ]);
     $mpdf->SetTitle($title);
     $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''));
     $mpdf->SetCreator('SZO');
-    $mpdf->SetFooter('{PAGENO} / {nbpg}');
+    // Stopka z kodami Code128 + QR (rejestr dokumentów) — kod stały dla danego dokumentu; błąd kodów nie blokuje PDF-a
+    $footerSet = false;
+    if ($codeKind !== '') {
+        try {
+            require_once __DIR__ . '/../modules/doc_registry/lib/DocRegistry.php';
+            $dc = DocRegistry::printCodes($codeKind, $codeRef, $title, '');
+            if ($dc) {
+                $dcImg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+                $mpdf->SetHTMLFooter('<table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $dcImg($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                    . '</td><td>' . $dcImg($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . h($dc['code']) . '</span> · ' . h($dc['doc_number'])
+                    . '</td><td align="right">{PAGENO} / {nbpg}</td></tr></table>');
+                $footerSet = true;
+            }
+        } catch (\Throwable $e) { error_log('[donation_pdf] kody w stopce: ' . $e->getMessage()); }
+    }
+    if (!$footerSet) $mpdf->SetFooter('{PAGENO} / {nbpg}');
     $mpdf->WriteHTML($html);
 
     return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
@@ -294,7 +310,7 @@ function donation_pdf_annual(int $contact_id, int $year, ?int $user_id = null): 
     $slug = preg_replace('/[^a-zA-Z0-9]+/', '-', $donor['name'] !== '' ? $donor['name'] : 'darczynca') ?? '';
     $file = 'potwierdzenie-darowizn-' . $year . '-' . trim(strtolower($slug), '-') . '.pdf';
 
-    return [_donation_pdf_render($html, 'Potwierdzenie darowizn ' . $year), $file];
+    return [_donation_pdf_render($html, 'Potwierdzenie darowizn ' . $year, 'donacja_roczne', $contact_id . '-' . $year), $file];
 }
 
 /**
@@ -377,5 +393,5 @@ function donation_pdf_acceptance(int $donation_id, ?int $user_id = null): ?array
     $slug = preg_replace('/[^a-zA-Z0-9]+/', '-', $donor['name'] !== '' ? $donor['name'] : 'darczynca') ?? '';
     $file = 'oswiadczenie-przyjecia-darowizny-' . (int)$d['id'] . '-' . trim(strtolower($slug), '-') . '.pdf';
 
-    return [_donation_pdf_render($html, 'Oświadczenie o przyjęciu darowizny'), $file];
+    return [_donation_pdf_render($html, 'Oświadczenie o przyjęciu darowizny', 'donacja_przyjecie', (string)(int)$d['id']), $file];
 }

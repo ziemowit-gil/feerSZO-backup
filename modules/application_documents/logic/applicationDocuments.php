@@ -580,6 +580,25 @@ function appDocsCss(): string {
         . '.ad-line{margin-top:22pt;font-size:9pt}.ad-line-s{border-bottom:.8pt solid #111;width:60%;height:18pt}';
 }
 
+/**
+ * Stopka mPDF z kodami Code128 + QR (rejestr dokumentów) i numerem strony — kod stały dla pary ($kind, $ref).
+ * Błąd budowy kodów nie blokuje PDF-a: zostaje stopka zastępcza $fallback (sam numer dokumentu i strona).
+ */
+function appDocsCodesFooter(\Mpdf\Mpdf $mpdf, string $kind, string $ref, string $title, string $fallback): void {
+    try {
+        require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+        $dc = DocRegistry::printCodes($kind, $ref, $title, '');
+        if ($dc) {
+            $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            $mpdf->SetHTMLFooter('<table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $img($dc['qr'] ?? null, 'height:10mm;width:10mm')
+                . '</td><td>' . $img($dc['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . h($dc['code']) . '</span> · ' . h($dc['doc_number'])
+                . '</td><td align="right">' . h($fallback) . ' · strona {PAGENO}/{nbpg}</td></tr></table>');
+            return;
+        }
+    } catch (\Throwable $e) { error_log('[application_documents] kody w stopce: ' . $e->getMessage()); }
+    $mpdf->SetHTMLFooter('<div style="font-size:7.5pt;color:#777;text-align:right">' . h($fallback) . ' · strona {PAGENO}/{nbpg}</div>');
+}
+
 /** PDF wniosku jako string albo null przy błędzie. */
 function appDocsPdf(array $app, array $tpl): ?string {
     try {
@@ -587,10 +606,10 @@ function appDocsPdf(array $app, array $tpl): ?string {
         $tmp = UPLOAD_DIR . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
         $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 20, 'margin_right' => 18,
-                                'margin_top' => 18, 'margin_bottom' => 18, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+                                'margin_top' => 18, 'margin_bottom' => 24, 'margin_footer' => 7, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $mpdf->SetTitle($tpl['title'] . ' ' . appDocsNumber($app, $tpl));
         $mpdf->SetAuthor((string)($app['user_name'] ?? ''));
-        $mpdf->SetHTMLFooter('<div style="font-size:7.5pt;color:#777;text-align:right">' . h(appDocsNumber($app, $tpl)) . ' · strona {PAGENO}/{nbpg}</div>');
+        appDocsCodesFooter($mpdf, 'wniosek', (string)(int)$app['id'], $tpl['title'] . ' ' . appDocsNumber($app, $tpl), appDocsNumber($app, $tpl));
         $mpdf->WriteHTML(appDocsCss(), \Mpdf\HTMLParserMode::HEADER_CSS);
         $mpdf->WriteHTML(appDocsHtml($app, $tpl), \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
@@ -830,8 +849,9 @@ function appDocsReceiptPdf(array $app, array $tpl): ?string {
         $tmp = UPLOAD_DIR . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
         $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 14, 'margin_right' => 14,
-                                'margin_top' => 14, 'margin_bottom' => 14, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+                                'margin_top' => 14, 'margin_bottom' => 22, 'margin_footer' => 6, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $mpdf->SetTitle('Potwierdzenie złożenia ' . ($app['doc_number'] ?: appDocsNumber($app, $tpl)));
+        appDocsCodesFooter($mpdf, 'wniosek_upz', (string)(int)$app['id'], 'Potwierdzenie złożenia wniosku ' . ($app['doc_number'] ?: appDocsNumber($app, $tpl)), (string)($app['doc_number'] ?: appDocsNumber($app, $tpl)));
         $mpdf->WriteHTML(appDocsReceiptCss(), \Mpdf\HTMLParserMode::HEADER_CSS);
         $mpdf->WriteHTML(appDocsReceiptHtml($app, $tpl), \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);

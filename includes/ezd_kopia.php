@@ -564,7 +564,28 @@ function ezd_kopia_cert_html(array $meta, int $user_id, bool $manual = false): s
 
     if ($manual) $html .= _ezd_kopia_sig_block();
 
+    // Kody Code128 + QR — kod stały dla poświadczenia danego dokumentu w danym trybie (elektroniczne / do podpisu odręcznego)
+    $html .= _ezd_kopia_codes_html('ezd_kopia', (string)$meta['identyfikator'] . '|' . ($manual ? 'reczny' : 'el'),
+                                   'Kopia z poświadczeniem ' . ($manual ? '(do podpisu) ' : '') . 'dokumentu EZD', '');
+
     return $html . '</div>';
+}
+
+/**
+ * Blok z kodami Code128 + QR (rejestr dokumentów) dla stron WŁASNYCH wydruku (poświadczenie, metryka) — tabela z obrazami data:
+ * (mPDF nie obsługuje flexa). Kod stały dla pary ($kind, $ref). '' gdy kodów nie udało się zbudować — wydruk nie jest przez to blokowany.
+ */
+function _ezd_kopia_codes_html(string $kind, string $ref, string $title, string $open_path = ''): string {
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $f = DocRegistry::printCodes($kind, $ref, $title, $open_path);
+        if (!$f) return '';
+        $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+        return '<table style="width:100%;border-collapse:collapse;margin-top:14pt;font-size:6.5pt;color:#555"><tr>'
+            . '<td style="width:12mm;border:0;padding:0">' . $img($f['qr'] ?? null, 'height:10mm;width:10mm') . '</td>'
+            . '<td style="border:0;padding:0">' . $img($f['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . h($f['code']) . '</span> · ' . h($f['doc_number']) . '</td>'
+            . '</tr></table>';
+    } catch (\Throwable $e) { error_log('[ezd_kopia] kody: ' . $e->getMessage()); return ''; }
 }
 
 /** Blok podpisu odręcznego pod metryką — miejscowość i data, dane osoby, podpis. */

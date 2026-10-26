@@ -689,7 +689,10 @@ function ezd_rpwy_dispatch_cert_pdf(int $rpwy_id, int $user_id): string {
         . '<tr><td class="lbl"></td><td class="val sys">' . h(_ezd_kopia_system_label()) . '</td></tr>'
         . $row('Data wystawienia poświadczenia', date('Y-m-d H:i'))
         . $row('Autor', ezd_kopia_autor($user_id))
-        . '</table></div>';
+        . '</table>'
+        // Kody Code128 + QR (rejestr dokumentów) — kod stały dla poświadczenia nadania danego wpisu RPW-W
+        . _ezd_kopia_codes_html('ezd_rpwy_nadanie', (string)$rpwy_id, 'Poświadczenie nadania przesyłki ' . ezd_rpwy_label($r), 'ezd/rpwy/view.php?id=' . $rpwy_id)
+        . '</div>';
 
     $tmp = UPLOAD_DIR . 'mpdf_tmp';
     if (!is_dir($tmp)) @mkdir($tmp, 0755, true);

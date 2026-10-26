@@ -229,7 +229,33 @@ final class RodoRegisterController
         $data = $this->reportData($typ);
         if (!$data) { http_response_code(404); return 'Nie ma takiego raportu.'; }
         audit_log('rodo.report.print', ['typ' => $typ]);
-        return Router::view(self::VIEW . 'print.php', $data);
+        $html = Router::view(self::VIEW . 'print.php', $data);
+        // Stopka z kodami Code128 + QR (rejestr dokumentów): na ekranie na końcu strony, w druku stała na dole każdej kartki (jak contracts/rejestr_print.php)
+        $codes = $this->codes($typ, (string)$data['tytul'], false);
+        if ($codes !== '') {
+            $inj = '<style>.doc-foot{margin-top:18px;padding-top:6px;border-top:1px solid #bbb}@media print{.doc-foot{position:fixed;left:0;right:0;bottom:0;margin:0;background:#fff}body{margin-bottom:22mm}}</style>'
+                 . '<div class="doc-foot">' . $codes . '</div>';
+            $pos = strripos($html, '</body>');
+            $html = $pos !== false ? substr($html, 0, $pos) . $inj . substr($html, $pos) : $html . $inj;
+        }
+        return $html;
+    }
+
+    /**
+     * Kody Code128 + QR dla wydruku raportu — kod stały dla raportu danego dnia (typ + data). '' gdy się nie udało (nie blokuje wydruku).
+     * $pdf = true: tabela z obrazami (mPDF nie obsługuje flexa) do SetHTMLFooter, false: gotowa stopka HTML.
+     */
+    private function codes(string $typ, string $tytul, bool $pdf): string {
+        try {
+            require_once dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
+            $ref = $typ . '#' . date('Y-m-d');
+            if (!$pdf) return DocRegistry::printFooterHtml('rodo_raport', $ref, $tytul, 'modules/rodo_register/router.php');
+            $f = DocRegistry::printCodes('rodo_raport', $ref, $tytul, 'modules/rodo_register/router.php');
+            if (!$f) return '';
+            $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            return '<table width="100%" style="font-size:6.5pt;color:#555;margin-bottom:2pt"><tr><td width="12mm">' . $img($f['qr'] ?? null, 'height:10mm;width:10mm')
+                . '</td><td>' . $img($f['bar'] ?? null, 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . h($f['code']) . '</span> · ' . h($f['doc_number']) . '</td></tr></table>';
+        } catch (\Throwable $e) { error_log('[rodo_register] kody w stopce: ' . $e->getMessage()); return ''; }
     }
 
     /** Raport jako plik PDF (mPDF) — pobranie; ?inline=1 otwiera w przeglądarce. */
@@ -244,11 +270,11 @@ final class RodoRegisterController
         $wide = in_array($typ, ['czynnosci', 'zbiory', 'naruszenia', 'dostep'], true);
         $mpdf = new \Mpdf\Mpdf([
             'mode' => 'utf-8', 'format' => 'A4', 'orientation' => $wide ? 'L' : 'P', 'default_font' => 'dejavusans', 'tempDir' => $tmp,
-            'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 12, 'margin_bottom' => 14, 'margin_footer' => 6,
+            'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 12, 'margin_bottom' => 26, 'margin_footer' => 5,
         ]);
         $mpdf->SetTitle($data['tytul']);
         $mpdf->SetAuthor($data['org']);
-        $mpdf->SetHTMLFooter('<table width="100%" style="font-size:7pt;color:#555;border-top:0.3pt solid #999"><tr>'
+        $mpdf->SetHTMLFooter($this->codes($typ, (string)$data['tytul'], true) . '<table width="100%" style="font-size:7pt;color:#555;border-top:0.3pt solid #999"><tr>'
             . '<td>' . h(trim($data['org'] . ' · ' . $data['tytul'] . ' · stan na ' . $data['kiedy'])) . '</td>'
             . '<td style="text-align:right;width:12%">{PAGENO} / {nbpg}</td></tr></table>');
         $mpdf->WriteHTML($html);
