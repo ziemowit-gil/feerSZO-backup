@@ -414,7 +414,7 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
   </div>
 </div>
 <script>
-// Okno wiadomości: domyślnie szerokie; przycisk w nagłówku rozszerza na całą szerokość (wybór zapamiętany w przeglądarce)
+// Okno wiadomości: zawsze otwiera się w zwykłej szerokości (dwie kolumny); przycisk w nagłówku rozszerza je na całą szerokość tylko na czas tego otwarcia — nic nie rozszerza się samo i wybór nie jest zapamiętywany
 (function () {
   var m = document.getElementById('crmComposeModal'), b = document.getElementById('crmComposeWide');
   if (!m || !b) return;
@@ -424,11 +424,9 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
     b.setAttribute('aria-label', on ? 'Zwęź okno' : 'Rozszerz okno na całą szerokość');
     b.firstElementChild.className = on ? 'bi bi-arrows-angle-contract' : 'bi bi-arrows-angle-expand';
   }
-  try { apply(localStorage.getItem('crmComposeFull') === '1'); } catch (e) {}
-  b.addEventListener('click', function () {
-    var on = !m.classList.contains('cm-full'); apply(on);
-    try { localStorage.setItem('crmComposeFull', on ? '1' : '0'); } catch (e) {}
-  });
+  apply(false);
+  m.addEventListener('show.bs.modal', function () { apply(false); });   // każde otwarcie zaczyna od zwykłej szerokości
+  b.addEventListener('click', function () { apply(!m.classList.contains('cm-full')); });
 })();
 </script>
 <script>

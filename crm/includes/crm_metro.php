@@ -276,7 +276,7 @@ html body .cs-item .cs-flag{border-radius:0;background:var(--cm-red);color:#fff}
 /* ── Okno wysyłki wiadomości (#crmComposeModal + treść z compose_modal.php) ──
    Treść przychodzi fetch-em, więc tylko zwykły CSS z nagłówka; style inline
    z fragmentu (tła odbiorcy, przycisk AI) wymagają !important. */
-html body #crmComposeModal .modal-dialog{max-width:min(1180px,96vw)}
+html body #crmComposeModal .modal-dialog{max-width:min(1000px,96vw)}
 html body #crmComposeModal.cm-full .modal-dialog{max-width:98vw}
 html body #crmComposeModal .ql-editor{min-height:300px}
 html body #crmComposeModal.cm-full .ql-editor{min-height:48vh}

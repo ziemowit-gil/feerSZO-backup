@@ -133,6 +133,19 @@ $csrf      = csrf_token();
 
 <div id="cm-root" data-contact-id="<?= $contact_id ?>" data-channel="<?= h($channel) ?>">
 
+<style>
+/* Okno wiadomości w dwóch kolumnach: po lewej treść (odbiorca, temat, edytor), po prawej ustawienia wysyłki
+   (kanał, szablon, konto nadawcy, załączniki, opcje). Poniżej 992 px kolumny układają się jedna pod drugą. */
+.cm-two{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1.1rem;align-items:start}
+.cm-col-main{min-width:0}
+.cm-col-side{background:#f8fafc;border:1px solid #e5e7eb;padding:.8rem .85rem .4rem;min-width:0}
+.cm-col-side .form-check{margin-bottom:.6rem}
+@media (max-width:991.98px){.cm-two{grid-template-columns:minmax(0,1fr)}}
+</style>
+
+<div class="cm-two">
+<div class="cm-col-main">
+
 <!-- Odbiorca -->
 <div class="mb-3">
   <?php if ($contact): ?>
@@ -179,40 +192,6 @@ $csrf      = csrf_token();
   <?php endif; ?>
 </div>
 
-<!-- Kanał + szablon -->
-<div class="row g-2 mb-3">
-  <div class="col-5">
-    <label class="form-label small fw-semibold" for="cm-channel">Kanał</label>
-    <select id="cm-channel" class="form-select form-select-sm">
-      <option value="email"    <?= $channel === 'email'    ? 'selected' : '' ?>>E-mail</option>
-      <?php if ($sms_available): ?>
-      <option value="sms"      <?= $channel === 'sms'      ? 'selected' : '' ?>>SMS</option>
-      <?php elseif (!empty($sms_why)): ?>
-      <?php /* Pozycja zostaje, ale wyłączona — zniknięcie kanału bez słowa
-               wygląda jak awaria, a tak widać, czego brakuje. */ ?>
-      <option value="sms" disabled>SMS — <?= h($sms_why) ?></option>
-      <?php endif; ?>
-      <option value="telefon"  <?= $channel === 'telefon'  ? 'selected' : '' ?>>Telefon (zaloguj)</option>
-      <option value="osobisty">Spotkanie</option>
-    </select>
-  </div>
-  <div class="col-7">
-    <label class="form-label small fw-semibold" for="cm-tpl">Szablon</label>
-    <select id="cm-tpl" class="form-select form-select-sm">
-      <option value="">— Bez szablonu —</option>
-      <?php foreach ($templates as $t): ?>
-      <option value="<?= $t['id'] ?>"
-              data-ch="<?= h($t['channel']) ?>"
-              data-subj="<?= h($t['subject'] ?? '') ?>"
-              data-body="<?= h($t['body']) ?>"
-              data-name="<?= h($t['name']) ?>">
-        [<?= strtoupper(h($t['channel'])) ?>] <?= h($t['name']) ?>
-      </option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-</div>
-
 <!-- Temat -->
 <div id="cm-subject-row" class="mb-2" style="display:<?= $channel === 'email' ? '' : 'none' ?>">
   <label class="form-label small fw-semibold" for="cm-subject">Temat</label>
@@ -251,6 +230,44 @@ $csrf      = csrf_token();
 </div>
 <div class="d-flex justify-content-between mt-1 mb-3">
   <span id="cm-char" class="text-muted" style="font-size:.72rem"></span>
+</div>
+
+</div><!-- /.cm-col-main -->
+
+<aside class="cm-col-side" aria-label="Ustawienia wysyłki">
+
+<!-- Kanał + szablon -->
+<div class="row g-2 mb-3">
+  <div class="col-12">
+    <label class="form-label small fw-semibold" for="cm-channel">Kanał</label>
+    <select id="cm-channel" class="form-select form-select-sm">
+      <option value="email"    <?= $channel === 'email'    ? 'selected' : '' ?>>E-mail</option>
+      <?php if ($sms_available): ?>
+      <option value="sms"      <?= $channel === 'sms'      ? 'selected' : '' ?>>SMS</option>
+      <?php elseif (!empty($sms_why)): ?>
+      <?php /* Pozycja zostaje, ale wyłączona — zniknięcie kanału bez słowa
+               wygląda jak awaria, a tak widać, czego brakuje. */ ?>
+      <option value="sms" disabled>SMS — <?= h($sms_why) ?></option>
+      <?php endif; ?>
+      <option value="telefon"  <?= $channel === 'telefon'  ? 'selected' : '' ?>>Telefon (zaloguj)</option>
+      <option value="osobisty">Spotkanie</option>
+    </select>
+  </div>
+  <div class="col-12">
+    <label class="form-label small fw-semibold" for="cm-tpl">Szablon</label>
+    <select id="cm-tpl" class="form-select form-select-sm">
+      <option value="">— Bez szablonu —</option>
+      <?php foreach ($templates as $t): ?>
+      <option value="<?= $t['id'] ?>"
+              data-ch="<?= h($t['channel']) ?>"
+              data-subj="<?= h($t['subject'] ?? '') ?>"
+              data-body="<?= h($t['body']) ?>"
+              data-name="<?= h($t['name']) ?>">
+        [<?= strtoupper(h($t['channel'])) ?>] <?= h($t['name']) ?>
+      </option>
+      <?php endforeach; ?>
+    </select>
+  </div>
 </div>
 
 <?php $cm_accounts = crm_sender_accounts(); $cm_default = crm_sender_default($cm_accounts); ?>
@@ -295,6 +312,9 @@ $csrf      = csrf_token();
   </span>
   <?php endif; ?>
 </div>
+
+</aside><!-- /.cm-col-side -->
+</div><!-- /.cm-two -->
 
 <!-- Błąd -->
 <div id="cm-error" class="alert alert-danger py-2 small d-none"></div>
