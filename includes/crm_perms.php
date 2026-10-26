@@ -132,8 +132,34 @@ function _crm_perm_rank(string $level): int {
  * @param string $area obszar z crm_perm_areas()
  * @param string $op   read | write | delete
  */
+/**
+ * Uprawnienie modułowe „CRM — Skrzynka” (crm_skrzynka): odczyt = widzi Skrzynkę CRM, zapis = działa na wiadomościach (przypisuje, taguje, przenosi, pisze).
+ * Suma uprawnień roli i indywidualnych konta (jak can_read/can_write). Administrator zawsze. Działa RAZEM z obszarem „Skrzynka” (crm_role_perms) — oba muszą pozwalać.
+ */
+function crm_skrzynka_allowed(string $op = 'read', ?array $user = null): bool {
+    if (function_exists('is_admin') && is_admin()) return true;
+    if ($user === null) {
+        return match ($op) {
+            'delete' => function_exists('can_delete') && can_delete('crm_skrzynka'),
+            'write'  => function_exists('can_write') && can_write('crm_skrzynka'),
+            default  => (function_exists('can_read') && can_read('crm_skrzynka')) || (function_exists('can_write') && can_write('crm_skrzynka')),
+        };
+    }
+    // jawnie wskazany użytkownik: rola + uprawnienia indywidualne
+    if (($user['role'] ?? '') === 'admin') return true;
+    $col = match ($op) { 'delete' => 'can_delete', 'write' => 'can_write', default => 'can_read' };
+    $rp = function_exists('role_permissions') ? role_permissions((string)($user['role'] ?? '')) : [];
+    $up = function_exists('user_permissions') ? user_permissions((int)($user['id'] ?? 0)) : [];
+    foreach ([$rp['crm_skrzynka'] ?? [], $up['crm_skrzynka'] ?? []] as $row) {
+        if (!empty($row[$col]) || ($op === 'read' && !empty($row['can_write']))) return true;
+    }
+    return false;
+}
+
 function crm_can(string $area, string $op = 'read', ?array $user = null): bool {
     if (function_exists('is_admin') && is_admin()) return true;
+    // Skrzynka CRM ma własne uprawnienie modułowe (crm_skrzynka) — wszystkie strażniki sekcji „inbox” przechodzą przez tę funkcję
+    if ($area === 'inbox' && !crm_skrzynka_allowed($op, $user)) return false;
 
     $role = crm_perm_role($user);
     if ($role === '') return false;

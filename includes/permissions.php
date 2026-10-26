@@ -24,6 +24,7 @@ const PERMISSION_MODULES = [
     'crm_eksport'      => 'CRM — Eksport kontaktów',
     'crm_import'       => 'CRM — Import kontaktów',
     'crm_mailing'      => 'CRM — Mailing masowy i komunikacja',
+    'crm_skrzynka'     => 'CRM — Skrzynka (poczta współdzielona, kolejki, foldery, obserwowanie)',
     'crm_ustawienia'   => 'CRM — Ustawienia (statusy, pola, role)',
     'karty30'          => 'Dydaktyka 3 — Dydaktyka',
     'wydarzenia'    => 'Moduł Wydarzeń',
@@ -282,6 +283,18 @@ function _permissions_init(): void {
             } catch (\Throwable $e) {}
         }
     }
+
+    // „CRM — Skrzynka” (crm_skrzynka): JEDNORAZOWO każda rola z dostępem do CRM dostaje Skrzynkę z tymi samymi prawami odczytu/zapisu co w 'crm',
+    // więc nic się nie zmienia, dopóki administrator świadomie nie odbierze Skrzynki (Role i uprawnienia / CRM — Role użytkowników / uprawnienia konta).
+    // Flaga zamiast INSERT OR IGNORE przy każdym żądaniu: odebranie uprawnienia nie może być cofnięte przy następnym wejściu.
+    try {
+        $seeded = $pdo->query("SELECT value FROM settings WHERE key_='perm_crm_skrzynka_seeded'")->fetchColumn();
+        if ($seeded !== '1') {
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete)
+                        SELECT role_id, 'crm_skrzynka', can_read, can_write, 0 FROM role_permissions WHERE module = 'crm'");
+            $pdo->prepare("INSERT OR REPLACE INTO settings (key_, value) VALUES ('perm_crm_skrzynka_seeded', '1')")->execute();
+        }
+    } catch (\Throwable $e) { error_log('[permissions] seed crm_skrzynka: ' . $e->getMessage()); }
 }
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
