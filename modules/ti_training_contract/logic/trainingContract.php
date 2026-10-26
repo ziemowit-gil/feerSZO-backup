@@ -15,7 +15,7 @@ class TiTrainingContract
     /** Źródła finansowania (wpływają na § 1 ust. 2 i § 2 ust. 2). */
     public const FUNDING = [
         'publiczne' => 'Ze środków publicznych (np. PFRON) z dopłatą uczestnika lub bez',
-        'wlasne'    => 'W całości ze środków własnych uczestnika',
+        'wlasne'    => 'Uczestnik płaci sam — w całości ze środków własnych (bez dofinansowania i płatnika)',
     ];
 
     /** Odmiana „Kursantka / Kursant”. */
@@ -164,6 +164,11 @@ class TiTrainingContract
         $d['finansowanie'] = isset(self::FUNDING[$in['finansowanie'] ?? '']) ? $in['finansowanie'] : 'publiczne';
         $d['client_id'] = max(0, (int)($in['client_id'] ?? 0));
         $d['grupa_id'] = max(0, (int)($in['grupa_id'] ?? 0));
+        if ($d['finansowanie'] === 'wlasne') {   // pola RODO z domyślnymi zapisami o dofinansowaniu — bez nich w wariancie „płaci sam”
+            foreach (['rodo_art9', 'rodo_odbiorcy', 'rodo_okresy'] as $k) $d[$k] = trim(strtr($d[$k], [
+                ', instytucja rozliczająca dofinansowanie' => '', ' i rozliczenia dofinansowania' => '', 'dokumentacja dofinansowania — przez okres wskazany w umowie o dofinansowanie; ' => '']));
+        }
+        if ($d['finansowanie'] === 'wlasne') { $d['platnik'] = ''; $d['kwota_platnik'] = ''; $d['zrodlo_publ'] = ''; $d['kwota_kursant'] = $d['wynagrodzenie']; }
         $d['pesel'] = preg_replace('/\s+/', '', $d['pesel']);
         $err = [];
         if ($d['pesel'] !== '' && !self::peselOk($d['pesel'])) $err[] = 'PESEL ma nieprawidłową sumę kontrolną albo długość.';
@@ -223,6 +228,7 @@ class TiTrainingContract
         return preg_replace_callback('/\{([A-Za-z0-9_]+)\}/', function ($m) use ($d, $fem) {
             $k = $m[1];
             if (isset(self::NOUN[$k])) return self::NOUN[$k][$fem ? 0 : 1];
+            if ($k === 'harmonogram_tekst') return self::scheduleText($d) ?: self::blank(24);
             if ($k === 'data_pl') return ($d['data'] ?? '') !== '' ? date('d.m.Y', strtotime($d['data'])) : self::blank(12);
             if ($k === 'nr') return ($d['nr'] ?? '') !== '' ? $d['nr'] : 'SZK/XXX/' . date('Y');
             if ($k === 'imie_narz') {
@@ -255,6 +261,82 @@ class TiTrainingContract
 
     /** Paragrafy umowy: [[tytuł paragrafu, [ustęp, …]], …]. */
     public static function paragraphs(array $d): array
+    {
+        $out = self::paragraphsRaw($d);
+        if (($d['finansowanie'] ?? 'publiczne') === 'publiczne') return self::withPromotion($out, $d);
+        foreach ($out as $i => [$title, $items]) $out[$i] = [$title, self::ownItems($items)];
+        // § 2 — wariant „uczestnik płaci sam”: płatność wg harmonogramu opłat umowy (raty), konsekwencje zwłoki
+        $items = $out[1][1];
+        $sched = self::scheduleText($d);
+        if ($sched !== '') {
+            foreach ($items as $k => $t) if (str_starts_with($t, 'Fundacja wystawia rozliczenie za szkolenie miesięcznie.')) {
+                $items[$k] = 'Wynagrodzenie jest płatne w następujących terminach: {harmonogram_tekst}. Zapłata następuje przelewem na rachunek bankowy Fundacji nr {rachunek}; w tytule przelewu należy podać numer Umowy {nr}. Faktura lub inny właściwy dokument księgowy zostanie wystawiony na {faktura_na}.';
+            }
+        }
+        $items[] = 'W razie opóźnienia w płatności Fundacja wezwie {K_acc} do zapłaty, wyznaczając dodatkowy termin nie krótszy niż 7 dni. Po bezskutecznym upływie tego terminu Fundacja może wstrzymać udział w kolejnych zajęciach do czasu uregulowania zaległości, o czym poinformuje {K_acc} z wyprzedzeniem. Wstrzymanie nie wyłącza uprawnień {K_gen} wynikających z przepisów o ochronie konsumentów, a Fundacji przysługują odsetki ustawowe za opóźnienie.';
+        $out[1][1] = $items;
+        return self::withPromotion($out, $d);
+    }
+
+    /** Wzmianka o promocji (jeśli umowa ma ją w opłatach) — na końcu § 2. */
+    private static function withPromotion(array $out, array $d): array
+    {
+        $p = $d['oplaty']['promocja'] ?? null;
+        if (is_array($p) && !empty($p['nazwa']) && isset($out[1])) {
+            $out[1][1][] = 'Wynagrodzenie uwzględnia promocję „' . $p['nazwa'] . '”' . (!empty($p['rabat']) ? ' (obniżenie ceny o ' . number_format(((int)$p['rabat']) / 100, 2, ',', ' ') . ' zł)' : '') . '.';
+        }
+        return $out;
+    }
+
+    /** Harmonogram płatności z opłat umowy jako tekst („1) 100,00 zł do 15.11.2026; …”); '' gdy jedna płatność / brak harmonogramu. */
+    public static function scheduleText(array $d): string
+    {
+        $h = (array)($d['oplaty']['harmonogram'] ?? []);
+        if (count($h) < 2) return '';
+        $parts = [];
+        foreach ($h as $r) $parts[] = ((int)$r['lp']) . ') ' . number_format(((int)$r['kwota']) / 100, 2, ',', ' ') . ' zł do ' . date('d.m.Y', strtotime((string)$r['termin']));
+        return implode('; ', $parts);
+    }
+
+    /** Wariant „uczestnik płaci sam”: usuwa/przepisuje fragmenty o dofinansowaniu, płatniku publicznym i instytucjach rozliczających. */
+    private static function ownText(string $t): ?string
+    {
+        // pozycje w całości dotyczące dofinansowania / płatnika — wypadają
+        foreach (['Fundacja będzie współdziałać przy potwierdzaniu udziału, wykonania i rozliczenia Szkolenia oraz', 'Samo nieprzyznanie, obniżenie albo opóźnienie wypłaty dofinansowania',
+                  'Jeżeli płatnikiem ma być podmiot niebędący Stroną Umowy', 'Dane związane z udziałem w Szkoleniu i rozliczeniem dofinansowania',
+                  'Jeżeli w odrębnym wariancie Umowy podmiot instytucjonalny', 'Jeżeli do rozliczenia szkolenia wymagane są dodatkowe dokumenty dofinansowania',
+                  'W zakresie dokumentowania lub rozliczania dofinansowania PFRON'] as $drop) {
+            if (str_starts_with($t, $drop)) {
+                return $drop === 'Samo nieprzyznanie, obniżenie albo opóźnienie wypłaty dofinansowania'
+                    ? 'Zmiana wysokości odpłatności {K_gen} lub zasad płatności wymaga uprzedniego uzgodnienia przez Strony na piśmie, w tym w postaci dokumentowej.'
+                    : ($drop === 'Fundacja będzie współdziałać przy potwierdzaniu udziału, wykonania i rozliczenia Szkolenia oraz'
+                        ? 'Fundacja będzie współdziałać z {K_ins} przy potwierdzaniu udziału i wykonania Szkolenia.' : null);
+            }
+        }
+        $rep = [
+            ', z uwzględnieniem zasad właściwych dla dofinansowania' => '',
+            ' oraz zgodności z warunkami dofinansowania' => '',
+            ' oraz dokumentami właściwymi dla dofinansowania' => '',
+            ' oraz być zgodna z warunkami dofinansowania' => '',
+            ', instytucjom finansującym lub kontrolującym dofinansowanie — w zakresie właściwych przepisów i dokumentów finansowania — oraz' => ' oraz',
+            'zwróci właściwemu płatnikowi opłatę' => 'zwróci {K_dat} opłatę',
+            ' Jeżeli do rozliczenia szkolenia wymagane są dodatkowe dokumenty dofinansowania, stosuje się dokumenty właściwe dla przyznanego dofinansowania po ich udostępnieniu {K_dat} przed zawarciem Umowy.' => '',
+            ' i dofinansowania oraz przez okres przedawnienia' => ' oraz przez okres przedawnienia',
+            ' i rozliczenia dofinansowania' => '',
+            'Podanie danych wymaganych do rozliczenia dofinansowania może być konieczne, jeżeli wynika to z właściwych przepisów lub dokumentów finansowania: {rodo_wymagane}.' => '',
+        ];
+        $t = rtrim(strtr($t, $rep));
+        return $t === '' ? null : $t;
+    }
+
+    private static function ownItems(array $items): array
+    {
+        $out = [];
+        foreach ($items as $t) { $x = self::ownText($t); if ($x !== null) $out[] = $x; }
+        return $out;
+    }
+
+    private static function paragraphsRaw(array $d): array
     {
         $publ = ($d['finansowanie'] ?? 'publiczne') === 'publiczne';
         return [
@@ -330,7 +412,23 @@ class TiTrainingContract
      * Załączniki: [[nagłówek, podtytuł, [blok, …]], …]. Blok: ['p' => tekst] | ['n' => [punkty numerowane]] |
      * ['box' => tekst] (pole wyboru ☐) | ['h' => śródtytuł].
      */
-    public static function annexes(): array
+    public static function annexes(array $d = []): array
+    {
+        $out = self::annexesRaw();
+        if (($d['finansowanie'] ?? 'publiczne') === 'publiczne') return $out;
+        foreach ($out as $i => [$head, $sub, $blocks]) {
+            $nb = [];
+            foreach ($blocks as $b) {
+                if (isset($b['n'])) { $b['n'] = self::ownItems($b['n']); }
+                elseif (isset($b['p'])) { $x = self::ownText($b['p']); if ($x === null) continue; $b['p'] = $x; }
+                $nb[] = $b;
+            }
+            $out[$i] = [$head, $sub, $nb];
+        }
+        return $out;
+    }
+
+    private static function annexesRaw(): array
     {
         return [
             ['Załącznik nr 1', 'Program i harmonogram Szkolenia', [
@@ -426,7 +524,7 @@ class TiTrainingContract
             if ($name !== '') $c->addText($name, ['size' => 9], $ctr);
         }
 
-        foreach (self::annexes() as [$head, $sub, $blocks]) {
+        foreach (self::annexes($d) as [$head, $sub, $blocks]) {
             $s->addPageBreak();
             $s->addText($head, ['bold' => true], ['alignment' => $J::RIGHT, 'spaceAfter' => 120]);
             foreach (explode("\n", $sub) as $line) $s->addText($line, ['bold' => true], $ctr);

@@ -155,3 +155,19 @@ $_dis = $locked ? ' disabled' : '';
   form.addEventListener('submit', function () { steps.forEach(function (s) { s.hidden = false; }); });   // wszystkie pola idą w POST (ukryte też)
 })();
 </script>
+<script>
+// Wariant „uczestnik płaci sam”: pola o dofinansowaniu i płatniku publicznym są zbędne (ukryte; normalize() je czyści).
+(function () {
+  var radios = document.querySelectorAll('input[name="finansowanie"]'); if (!radios.length) return;
+  var ids = ['zrodlo_publ', 'platnik', 'kwota_platnik', 'kwota_kursant'];
+  function apply() {
+    var own = document.querySelector('input[name="finansowanie"]:checked'); own = own && own.value === 'wlasne';
+    ids.forEach(function (k) { var el = document.getElementById('u-' + k); if (el && el.parentNode) el.parentNode.hidden = own; });
+    var w = document.getElementById('u-wynagrodzenie'), ku = document.getElementById('u-kwota_kursant');
+    if (own && w && ku) ku.value = w.value;
+  }
+  radios.forEach(function (r) { r.addEventListener('change', apply); });
+  var w = document.getElementById('u-wynagrodzenie'); if (w) w.addEventListener('input', apply);
+  apply();
+})();
+</script>
