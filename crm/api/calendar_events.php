@@ -62,6 +62,31 @@ $uid       = (int)(current_user()['id'] ?? 0);
 $method    = $_SERVER['REQUEST_METHOD'];
 $action    = $_GET['action'] ?? ($_POST['action'] ?? '');
 
+// ── Outlook: stan połączenia (GET ?action=outlook_status) i synchronizacja własnego kalendarza (POST action=outlook_sync) ──
+if ($action === 'outlook_status' || $action === 'outlook_sync') {
+    require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
+    require_once dirname(dirname(__DIR__)) . '/includes/outlook_sync.php';
+    $u = current_user();
+    $connected = trim((string)($u['microsoft_id'] ?? '')) !== '';
+    $pref = $connected ? OutlookSync::get_user_pref($uid) : null;
+    $status = static function () use ($uid, $connected, $pref): array {
+        $r = db_one("SELECT COUNT(*) AS n, MAX(outlook_synced_at) AS last FROM crm_events WHERE created_by = ? AND outlook_id IS NOT NULL AND outlook_id != ''", [$uid]);
+        return ['connected' => $connected, 'enabled' => (bool)($pref['sync_enabled'] ?? false), 'calendar' => (string)($pref['calendar_name'] ?? ''),
+                'count' => (int)($r['n'] ?? 0), 'last' => $r['last'] ?: null];
+    };
+    if ($action === 'outlook_status') api_ok($status());
+    if ($method !== 'POST') api_err('Metoda niedozwolona.', 405);
+    if (!$connected) api_err('Konto nie jest połączone z Microsoft 365.', 400);
+    if (empty($pref['sync_enabled'])) api_err('Synchronizacja kalendarza jest wyłączona — włącz ją w ustawieniach Outlook.', 400);
+    $lastTry = (int)($_SESSION['crm_outlook_sync_at'] ?? 0);
+    if (time() - $lastTry < 30) api_err('Synchronizacja była uruchomiona przed chwilą — spróbuj za kilkanaście sekund.', 429);
+    $_SESSION['crm_outlook_sync_at'] = time();
+    try {
+        $rep = (new OutlookSync())->sync_user_calendar($uid);
+    } catch (\Throwable $e) { api_err('Synchronizacja nie powiodła się: ' . $e->getMessage(), 502); }
+    api_ok(['report' => $rep, 'status' => $status()]);
+}
+
 // ── GET: lista zdarzeń ────────────────────────────────────────────────────────
 if ($method === 'GET' && $action === 'list') {
     $from = $_GET['from'] ?? date('Y-m-01');
@@ -131,6 +156,7 @@ if ($method === 'GET' && $action === 'list') {
             'contact_id'   => $e['contact_id'],
             'contact_name' => $e['contact_name'],
             'created_by'   => (int)$e['created_by'],
+            'outlook'      => !empty($e['outlook_id']),   // zdarzenie z kalendarza Outlook (synchronizacja M365)
             'participants' => $part_map[(int)$e['id']] ?? [],
         ];
     }

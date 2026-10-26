@@ -135,6 +135,12 @@ include __DIR__ . '/includes/header_crm.php';
 .cal-mini td.has-events { font-weight:700; color:#0176D3; }
 .cal-mini td.selected { outline:2px solid #2E844A; border-radius:50%; }
 
+.cal-ol{display:inline-flex;align-items:center;gap:.45rem;font-size:.76rem;color:#374151;padding:.1rem .55rem;border:1px solid #e5e7eb;background:#fff}
+.cal-ol .bi-microsoft{color:#0078d4}
+.cal-ol-tgl{display:inline-flex;align-items:center;gap:.25rem;margin:0;cursor:pointer;font-weight:600}
+.cal-ol-st{color:#6b7280;font-size:.72rem}
+.cal-ol-set{color:#6b7280}
+.cal-ol-set:focus-visible,.cal-ol input:focus-visible,.cal-ol button:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
 .legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:.4rem; flex-shrink:0; }
 .upcoming-item { display:flex; align-items:flex-start; gap:.5rem; padding:.45rem 0; border-bottom:1px solid #F9FAFB; font-size:.8rem; }
 .upcoming-item:last-child { border-bottom:none; }
@@ -210,7 +216,15 @@ include __DIR__ . '/includes/header_crm.php';
         </button>
         <span class="cal-title" id="calTitle"></span>
       </div>
-      <div class="d-flex align-items-center gap-1">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <?php /* Integracja z Outlookiem: stan połączenia, filtr zdarzeń z Outlooka, synchronizacja na żądanie, ustawienia */ ?>
+        <span class="cal-ol" id="calOl" hidden>
+          <i class="bi bi-microsoft" aria-hidden="true"></i>
+          <label class="cal-ol-tgl"><input type="checkbox" id="olShow" checked> Outlook</label>
+          <span class="cal-ol-st" id="olStatus" role="status"></span>
+          <button type="button" class="cal-nav-btn" id="olSync" style="width:auto;padding:0 .55rem;font-size:.75rem" title="Pobierz teraz zdarzenia z Outlooka"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Synchronizuj</button>
+          <a class="cal-ol-set" href="<?= APP_URL ?>/crm/calendar_settings.php" title="Wybór kalendarza i ustawienia synchronizacji"><i class="bi bi-gear" aria-hidden="true"></i><span class="visually-hidden">Ustawienia Outlook</span></a>
+        </span>
         <button class="cal-view-btn active" id="btnMonth" onclick="Cal.setView('month')">Miesiąc</button>
         <button class="cal-view-btn"        id="btnWeek"  onclick="Cal.setView('week')">Tydzień</button>
         <button class="cal-view-btn"        id="btnList"  onclick="Cal.setView('list')">Lista</button>
@@ -245,6 +259,7 @@ include __DIR__ . '/includes/header_crm.php';
         ['deadline', '#DC2626', 'bi-flag-fill',           'Termin'],
         ['reminder', '#D97706', 'bi-bell-fill',           'Przypomnienie'],
         ['call',     '#7C3AED', 'bi-telephone-fill',      'Rozmowa'],
+        ['outlook',  '#0078D4', 'bi-microsoft',           'Outlook (synchronizacja)'],
         ['case',     '#6B7280', 'bi-briefcase-fill',      'Sprawa (auto)'],
         ['comm',     '#9CA3AF', 'bi-chat-dots-fill',      'Komunikacja (auto)'],
       ];
@@ -495,13 +510,17 @@ const Cal = (function() {
     return { from: toISO(from), to: toISO(to) };
   }
 
+  // Ikona zdarzenia: z Outlooka → logo Microsoft, reszta wg typu
+  function evIcon(e) { return e.outlook ? 'bi-microsoft' : (TYPE_CFG[e.event_type]?.icon || 'bi-circle'); }
+  let _showOutlook = true;
+
   function load() {
     const { from, to } = getRangeDates();
     fetch(API + '?action=list&from=' + from + '&to=' + to)
       .then(r => r.json())
       .then(res => {
         if (res.ok) {
-          _events = res.data || [];
+          _events = (res.data || []).filter(e => _showOutlook || !e.outlook);
           render();
           renderUpcoming();
         }
@@ -566,14 +585,14 @@ const Cal = (function() {
             return `<a href="${e.link||'#'}" class="cal-event"
                       style="background:${c}18;color:${c};${done}"
                       onclick="event.stopPropagation()" title="${esc(e.title)}">
-                      <i class="bi ${TYPE_CFG[e.event_type]?.icon||'bi-circle'}" style="font-size:.65rem"></i>
+                      <i class="bi ${evIcon(e)}" style="font-size:.65rem"></i>
                       ${esc(e.title)}
                     </a>`;
           }
           return `<span class="cal-event" style="background:${c}18;color:${c};${done}"
                        data-id="${e.id}" onclick="event.stopPropagation();Cal.showPopup(event,'${e.id}')"
                        title="${esc(e.title)}">
-                    <i class="bi ${TYPE_CFG[e.event_type]?.icon||'bi-circle'}" style="font-size:.65rem"></i>
+                    <i class="bi ${evIcon(e)}" style="font-size:.65rem"></i>
                     ${esc(e.title)}
                   </span>`;
         }).join('');
@@ -1109,6 +1128,34 @@ const Cal = (function() {
     }
     if ((e.key==='n'||e.key==='N') && CAN_EDIT) { openNewModal(); return; }
   });
+
+  // ── Outlook: stan, filtr, synchronizacja na żądanie ───────────────────────────
+  (function outlookInit() {
+    const box = document.getElementById('calOl'); if (!box) return;
+    const st = document.getElementById('olStatus'), btn = document.getElementById('olSync'), chk = document.getElementById('olShow');
+    const ago = (iso) => {
+      if (!iso) return 'jeszcze nie synchronizowano';
+      const d = new Date(iso.replace(' ', 'T') + 'Z'); const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+      return m < 1 ? 'przed chwilą' : m < 60 ? m + ' min temu' : m < 1440 ? Math.round(m / 60) + ' godz. temu' : Math.round(m / 1440) + ' dn. temu';
+    };
+    function paint(s) {
+      box.hidden = false;
+      if (!s.connected) { st.textContent = 'konto bez Microsoft 365'; btn.hidden = true; chk.disabled = true; return; }
+      if (!s.enabled) { st.textContent = 'synchronizacja wyłączona'; btn.hidden = true; return; }
+      btn.hidden = false;
+      st.textContent = (s.calendar ? s.calendar + ' · ' : '') + s.count + ' zdarzeń · ' + ago(s.last);
+    }
+    fetch(API + '?action=outlook_status', {credentials: 'same-origin'}).then(r => r.json()).then(r => { if (r.ok) paint(r.data); }).catch(() => {});
+    chk.addEventListener('change', () => { _showOutlook = chk.checked; load(); });
+    btn.addEventListener('click', () => {
+      btn.disabled = true; st.textContent = 'synchronizuję…';
+      fetch(API, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action: 'outlook_sync'})})
+        .then(r => r.json()).then(r => {
+          if (r.ok) { paint(r.data.status); load(); const x = r.data.report || {}; st.textContent += ' · +' + (x.created || 0) + ' / ~' + (x.updated || 0); }
+          else st.textContent = r.error || 'nie udało się zsynchronizować';
+        }).catch(() => { st.textContent = 'błąd połączenia'; }).finally(() => { btn.disabled = false; });
+    });
+  })();
 
   // Inicjalizacja
   load();
