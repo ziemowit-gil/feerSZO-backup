@@ -308,6 +308,27 @@ function ezd_zas_compute_derived_tokens_osw_st(array $dane): array {
 }
 
 /**
+ * Stopka mPDF z kodami (QR + Code128 + kod i numer z rejestru dokumentów) — znaczniki <htmlpagefooter> do wstawienia w HTML.
+ * Powtarza się na każdej stronie; $extra to dodatkowy tekst nad kodami. Brak kodów (błąd) nie blokuje PDF-a — zostaje sam $extra.
+ */
+function ezd_zas_codes_footer(string $kind, string $ref, string $title, string $open_path = '', string $extra = ''): string {
+    $codes = '';
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $f = DocRegistry::printCodes($kind, $ref, $title, $open_path);
+        if ($f) {
+            $img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            $codes = '<table style="width:100%;border-collapse:collapse;font-size:6.5pt;color:#555"><tr>'
+                . '<td style="width:12mm;border:0">' . $img($f['qr'], 'height:10mm;width:10mm') . '</td>'
+                . '<td style="border:0">' . $img($f['bar'], 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . h($f['code']) . '</span> · ' . h($f['doc_number']) . '</td>'
+                . '<td style="border:0;text-align:right">{PAGENO}/{nbpg}</td></tr></table>';
+        }
+    } catch (\Throwable $e) { error_log('[ezd_zas_codes_footer] ' . $e->getMessage()); }
+    if ($codes === '' && $extra === '') return '';
+    return '<htmlpagefooter name="szoCodes">' . $extra . $codes . '</htmlpagefooter><sethtmlpagefooter name="szoCodes" value="on" />';
+}
+
+/**
  * Generuje HTML dokumentu zaświadczenia do wydruku/PDF.
  * @param bool $preview Tryb podglądu — numer zastąpiony placeholderem, watermark PROJEKT
  */
@@ -442,6 +463,13 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false, array $copy_info = 
         }
     }
 
+    // Stopka każdej strony: adnotacja o podpisie kwalifikowanym (jeśli dotyczy) + kody z rejestru dokumentów (QR + Code128)
+    $eidas = (!$preview && empty($zas['plik_path']) && !empty($zas['wymaga_akceptacji']))
+        ? '<div style="font-size:6.5pt;color:#aaa;font-style:italic;line-height:1.3;text-align:center;margin-bottom:2mm">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</div>'
+        : '';
+    $codes_footer = ezd_zas_codes_footer($preview ? 'ezd_zaswiadczenie_projekt' : 'ezd_zaswiadczenie', (string)(int)($zas['id'] ?? 0),
+        ($preview ? 'Projekt zaświadczenia EZD #' : 'Zaświadczenie EZD #') . (int)($zas['id'] ?? 0), 'ezd/zaswiadczenia/view.php?id=' . (int)($zas['id'] ?? 0), $eidas);
+
     $watermark = $preview
         ? '<p style="text-align:center;color:#ccc;font-size:28pt;font-weight:bold;margin:4pt 0 10pt;letter-spacing:8pt">PROJEKT</p>'
         : '';
@@ -495,7 +523,7 @@ function ezd_zas_pdf_html(array $zas, bool $preview = false, array $copy_info = 
       . $qr_html . '</div>'
     : '') . '
 
-' . (!$preview && empty($zas['plik_path']) && !empty($zas['wymaga_akceptacji']) ? '<div style="position:fixed;bottom:10mm;left:0;right:0;font-size:7pt;color:#aaa;font-style:italic;line-height:1.4;text-align:center">Dokument wygenerowany przez system teleinformatyczny. Oryginał opatrzony kwalifikowanym podpisem elektronicznym w rozumieniu art.&nbsp;3 pkt&nbsp;12 rozporządzenia Parlamentu Europejskiego i Rady (UE) nr&nbsp;910/2014 z dnia 23&nbsp;lipca 2014&nbsp;r. w sprawie identyfikacji elektronicznej i usług zaufania w odniesieniu do transakcji elektronicznych na rynku wewnętrznym (eIDAS). Kwalifikowany podpis elektroniczny wywołuje skutki prawne równoważne podpisowi własnoręcznemu (art.&nbsp;25 ust.&nbsp;2 rozporządzenia eIDAS).</div>' : '') . '
+' . $codes_footer . '
 
 </body>
 </html>';

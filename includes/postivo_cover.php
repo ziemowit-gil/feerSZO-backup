@@ -55,6 +55,21 @@ function postivo_build_cover_pdf(string|array $original_pdf_paths, array $cover)
     $data_wysylki = date('d.m.Y');
     $referent    = h($cover['referent']    ?? '');
 
+    // Kody (QR + Code128) na stronie tytułowej — stały kod dla tej samej kombinacji sygnatury, tytułu i odbiorcy (bez danych osobowych w rejestrze)
+    $codes_html = '';
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $c_ref = substr(sha1(($cover['sygnatura'] ?? '') . '|' . ($cover['doc_title'] ?? '') . '|' . ($cover['recipient'] ?? '')), 0, 20);
+        $c = DocRegistry::printCodes('postivo_cover', $c_ref, 'Strona tytułowa wysyłki Postivo ' . ($cover['sygnatura'] ?? ''), '');
+        if ($c) {
+            $c_img = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            $codes_html = '<div class="codes"><table style="width:100%;border-collapse:collapse;font-size:6.5pt;color:#555"><tr>'
+                . '<td style="width:12mm;border:0">' . $c_img($c['qr'], 'height:10mm;width:10mm') . '</td>'
+                . '<td style="border:0">' . $c_img($c['bar'], 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . h($c['code']) . '</span> · ' . h($c['doc_number']) . '</td>'
+                . '</tr></table></div>';
+        }
+    } catch (\Throwable $e) { error_log('[postivo_cover codes] ' . $e->getMessage()); }
+
     $html = <<<HTML
 <!DOCTYPE html>
 <html>
@@ -83,7 +98,8 @@ function postivo_build_cover_pdf(string|array $original_pdf_paths, array $cover)
     background:#F8FAFC;border-left:2.5pt solid #1E6DFF;border-radius:2pt}
   .divider{border:none;border-top:0.5pt solid #E2E8F0;margin:9pt 0}
   .footer-note{font-size:8pt;color:#666;line-height:1.5}
-  .page-footer{position:fixed;bottom:12mm;left:20mm;right:20mm;
+  .codes{position:fixed;bottom:5mm;left:20mm;right:20mm}
+  .page-footer{position:fixed;bottom:20mm;left:20mm;right:20mm;
     border-top:0.5pt solid #E2E8F0;padding-top:5pt;
     display:flex;justify-content:space-between;font-size:7.5pt;color:#999}
   .postivo-mark{color:#0052CC}
@@ -138,6 +154,7 @@ function postivo_build_cover_pdf(string|array $original_pdf_paths, array $cover)
   <span class="postivo-mark">&#9679; Wysłano przez Postivo.pl</span>
   <span>strona 1 z N</span>
 </div>
+{$codes_html}
 </body>
 </html>
 HTML;

@@ -335,6 +335,18 @@ if (!function_exists('guardian_consent_generate_pdf')) {
             $osoba = $contract['imie_nazwisko'] ?? '';
             $mpdf->SetTitle('Pismo przewodnie — zgoda na wolontariat ' . $osoba);
             $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
+            // Stopka z kodami (QR + Code128) — kod stały dla pisma w danej sprawie; błąd kodów nie blokuje PDF-a
+            try {
+                require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+                $cid = (int)($contract['id'] ?? 0);
+                $dc = DocRegistry::printCodes('guardian_pismo', $cid . '-' . $znak_sprawy, 'Pismo przewodnie — zgoda przedstawiciela ustawowego, umowa wolontariacka #' . $cid, '');
+                if ($dc) {
+                    $dcImg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+                    $mpdf->SetHTMLFooter('<table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $dcImg($dc['qr'], 'height:10mm;width:10mm')
+                        . '</td><td>' . $dcImg($dc['bar'], 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . h($dc['code']) . '</span> · ' . h($dc['doc_number'])
+                        . '</td><td align="right">{PAGENO}/{nbpg}</td></tr></table>');
+                }
+            } catch (\Throwable $e) { /* bez stopki z kodem */ }
             $mpdf->WriteHTML(
                 'body { font-family: "DejaVu Serif", serif; font-size: 11pt; line-height: 1.5; color: #000; }
                  table { border-collapse: collapse; } td { vertical-align: top; }',

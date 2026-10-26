@@ -76,5 +76,7 @@ po dostarczeniu niniejszego oświadczenia podpisanego przez Operatora.</p>
   <div><div class="line">Podpis Operatora</div></div>
 </div>
 
+<?php require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::printFooterHtml('reassign_oswiadczenie', (string)$req_id, 'Oświadczenie o przyjęciu zgłoszenia ' . $req['doc_number'], 'auth/reassign_print.php?req=' . $req_id . '&preview=1'); ?>
+
 </body>
 </html>

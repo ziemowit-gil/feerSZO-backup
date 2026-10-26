@@ -42,7 +42,8 @@ $sumTecz = array_sum(array_map(fn($p)=>(int)($p['liczba_teczek'] ?: 1), $pozycje
   .sig div{flex:1;text-align:center;border-top:1px solid #000;padding-top:4px;font-size:10pt}
   .toolbar{max-width:800px;margin:0 auto 16px;text-align:right}
   .btn{font-family:sans-serif;font-size:11pt;padding:6px 14px;border:1px solid #666;background:#f5f5f5;border-radius:4px;cursor:pointer;text-decoration:none;color:#000}
-  @media print{.toolbar{display:none}body{padding:0}}
+  .codes{margin-top:24px}
+  @media print{.toolbar{display:none}body{padding:0 0 16mm}.codes{position:fixed;bottom:0;left:0;right:0;background:#fff;margin:0;padding-top:1.5mm;border-top:.25mm solid #999}}   /* stopka z kodami powtarza się na każdej stronie */
 </style>
 </head><body>
 <div class="toolbar">
@@ -105,5 +106,8 @@ $sumTecz = array_sum(array_map(fn($p)=>(int)($p['liczba_teczek'] ?: 1), $pozycje
     <div><?= $brak ? 'Komisja / Archiwista' : 'Przyjmujący (archiwista)' ?><br>(imię, nazwisko, podpis)</div>
     <div>Zatwierdził<br>(kierownik jednostki)</div>
   </div>
+  <?php require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+  $spisCodes = DocRegistry::printFooterHtml($brak ? 'ezd_arch_brakowanie' : 'ezd_arch_spis', (string)$id, $naglowek . ' ' . ezd_arch_spis_sygnatura($spis), 'ezd/archiwum/spis_view.php?id=' . $id);
+  if ($spisCodes !== ''): ?><div class="codes"><?= $spisCodes ?></div><?php endif; ?>
 </div>
 </body></html>

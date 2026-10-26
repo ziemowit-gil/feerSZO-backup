@@ -110,6 +110,7 @@ $cssV = (int)@filemtime(dirname(__DIR__) . '/assets/css/drukFormularz.css');
 </table>
 
 <div class="df-foot"><span>Rejestr upoważnień RODO · <?= h($row['org_name']) ?></span><span><?= h($row['number']) ?> · wygenerowano <?= date('d.m.Y') ?></span></div>
+<?php require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; echo DocRegistry::printFooterHtml('rodo_upowaznienie', (string)$id, 'Upoważnienie RODO ' . $row['number'], 'rodo/view.php?id=' . $id); ?>
 
 </body>
 </html>

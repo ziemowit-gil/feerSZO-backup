@@ -130,6 +130,27 @@ $sec = $pw->addSection([
     'marginRight'  => Converter::cmToTwip(2.0),
 ]);
 
+// ── Stopka: Code128 + QR + kod (rejestr dokumentów); błąd kodów nie blokuje pliku ──────────
+$tmpImgs = [];
+try {
+    require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+    $dcRef = $pismo_id ? (string)$pismo_id : 'szablon-' . $szablon_id . '-' . $sprawa_id . '-' . date('Ymd');
+    $dc = DocRegistry::printCodes('ezd_pismo', $dcRef,
+        $pismo_id ? 'Pismo EZD ' . $sygnatura : 'Pismo EZD z szablonu #' . $szablon_id,
+        $pismo_id ? 'ezd/pisma/view.php?id=' . $pismo_id : '');
+    if ($dc) {
+        $footer = $sec->addFooter();
+        $tmp = function (?string $png) use (&$tmpImgs) {
+            if (!$png || !($f = tempnam(sys_get_temp_dir(), 'ezdimg')) || file_put_contents($f, $png) === false) return null;
+            return $tmpImgs[] = $f;
+        };
+        $run = $footer->addTextRun(['alignment' => Jc::CENTER]);
+        if ($f = $tmp($dc['bar'])) $run->addImage($f, ['width' => 130, 'height' => 17, 'wrappingStyle' => 'inline']);
+        if ($f = $tmp($dc['qr']))  $run->addImage($f, ['width' => 26, 'height' => 26, 'wrappingStyle' => 'inline']);
+        $footer->addText($dc['code'] . ' · ' . $dc['doc_number'] . ' · weryfikacja: ' . $dc['url'], ['size' => 6.5, 'name' => 'Consolas'], ['alignment' => Jc::CENTER]);
+    }
+} catch (\Throwable $e) { error_log('[EZD docx footer] ' . $e->getMessage()); }
+
 // ── Nagłówek: org | sygnatura + data ─────────────────────────────────────────
 $hdr = $sec->addTable(['borderSize' => 0, 'cellMargin' => 0]);
 $hdr->addRow();
@@ -218,4 +239,5 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 
 IOFactory::createWriter($pw, 'Word2007')->save('php://output');
+foreach ($tmpImgs as $f) @unlink($f);   // pliki obrazów stopki są potrzebne do końca zapisu
 exit;

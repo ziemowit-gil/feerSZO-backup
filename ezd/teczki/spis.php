@@ -33,9 +33,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   .no-print{display:none!important}
   .breadcrumb{display:none}
   body{background:#fff}
-  .spis-print-area{box-shadow:none!important;border:none!important}
+  .spis-print-area{box-shadow:none!important;border:none!important;padding-bottom:14mm}
+  .spis-codes{position:fixed;bottom:0;left:0;right:0;background:#fff;padding-top:1.5mm;border-top:.25mm solid #999}   /* stopka z kodami powtarza się na każdej stronie */
   a[href]:after{content:none!important}
 }
+.spis-codes{margin-top:1rem}
 </style>
 
 <nav aria-label="breadcrumb" class="mb-3 no-print"><ol class="breadcrumb" style="font-size:.8rem">
@@ -98,6 +100,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </table>
 
   <div class="spis-meta mt-3">Liczba koszulek: <strong><?= count($sprawy) ?></strong> · Wydrukowano: <?= date('d.m.Y H:i') ?></div>
+  <?php require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+  $spisCodes = DocRegistry::printFooterHtml('ezd_teczka_spis', (string)$id, 'Spis koszulek segregatora ' . $teczka['symbol'], 'ezd/teczki/spis.php?id=' . $id);
+  if ($spisCodes !== ''): ?><div class="spis-codes"><?= $spisCodes ?></div><?php endif; ?>
 </div></div>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

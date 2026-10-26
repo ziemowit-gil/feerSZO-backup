@@ -63,8 +63,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   .no-print{display:none!important}
   .breadcrumb{display:none}
   body{background:#fff}
-  .mtr-print-area{box-shadow:none!important;border:none!important}
+  .mtr-print-area{box-shadow:none!important;border:none!important;padding-bottom:14mm}
+  .mtr-codes{position:fixed;bottom:0;left:0;right:0;background:#fff;padding-top:1.5mm;border-top:.25mm solid #999}   /* stopka z kodami powtarza się na każdej stronie */
 }
+.mtr-codes{margin-top:1rem}
 </style>
 
 <nav aria-label="breadcrumb" class="mb-3 no-print"><ol class="breadcrumb" style="font-size:.8rem">
@@ -126,6 +128,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </table>
 
   <div class="mtr-meta mt-3">Liczba czynności: <strong><?= count($log) ?></strong> · Wygenerowano: <?= date('d.m.Y H:i') ?></div>
+  <?php require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+  $mtrCodes = DocRegistry::printFooterHtml('ezd_metryka', (string)$id, 'Metryka koszulki EZD ' . $sprawa['znak_sprawy'], 'ezd/sprawy/metryka.php?id=' . $id);
+  if ($mtrCodes !== ''): ?><div class="mtr-codes"><?= $mtrCodes ?></div><?php endif; ?>
 </div></div>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

@@ -122,6 +122,8 @@ table.grid td.lbl { width: 42%; background: #f5f5f5; color: #333; font-weight: b
            . '</tr></table>';
 
     $html .= '<div class="footer">Wydrukowano: ' . $printed . ' &nbsp;·&nbsp; Dokument wygenerowany automatycznie przez system SZO FEER</div>';
+    // Stopka z kodami (QR + Code128) — jedno stałe oznaczenie potwierdzenia odbioru danego zaświadczenia
+    $html .= ezd_zas_codes_footer('ezd_zas_odbior', (string)$id, 'Potwierdzenie odbioru zaświadczenia EZD #' . $id, 'ezd/zaswiadczenia/view.php?id=' . $id);
     $html .= '</body></html>';
 
     $mpdf->WriteHTML($html);

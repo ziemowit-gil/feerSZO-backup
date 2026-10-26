@@ -97,6 +97,10 @@ $who      = trim((string)($user['name'] ?? '')) ?: (string)($user['email'] ?? ''
            lub przetwarzam w ramach wykonywanych obowiązków oraz metody ich zabezpieczeń,
            także po ustaniu wykonywania obowiązku lub świadczeniu pracy.</li>
       </ol>
+      <?php if ($already_signed): // kod z wydruku (tylko na papierze) — jedno stałe oznaczenie oświadczenia danego użytkownika
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $gdCodes = DocRegistry::printFooterHtml('gdpr_oswiadczenie', (string)$uid, 'Oświadczenie o ochronie danych osobowych (użytkownik #' . $uid . ')', 'panel/gdpr_statement.php');
+        if ($gdCodes !== ''): ?><div class="gd-codes"><?= $gdCodes ?></div><?php endif; endif; ?>
     </article>
 
     <!-- Podpis -->
@@ -172,8 +176,10 @@ $who      = trim((string)($user['name'] ?? '')) ?: (string)($user['email'] ?? ''
 .gd-seal{display:flex;gap:.75rem;align-items:flex-start;background:var(--m-green,#007a00);color:#fff;padding:.9rem 1rem;margin-bottom:1rem}
 .gd-seal > i{font-size:1.6rem;line-height:1}
 .gd-seal strong{display:block} .gd-seal span{font-size:.82rem;opacity:.92}
+.gd-codes{display:none}
 .gd-actions{display:flex;flex-wrap:wrap;gap:.5rem}
 @media print{
+  .gd-codes{display:block!important;margin-top:1.25rem;padding-top:.5rem;border-top:1px solid #999}
   .pv-navbar,.pv-page-back,.gd-tiles,.gd-actions,.pv-alert,footer,.pv-footer{display:none!important}
   .gd-grid{grid-template-columns:1fr} .gd-sign{position:static;background:#fff;border:1px solid #000}
   .gd-seal{background:#fff;color:#000;border:1px solid #000}

@@ -340,7 +340,7 @@ try {
         'margin_left'   => 22,
         'margin_right'  => 20,
         'margin_top'    => 16,
-        'margin_bottom' => 16,
+        'margin_bottom' => 24,   // miejsce na stopkę z kodami
         'default_font'  => 'dejavusans',
         'tempDir'       => $mpdf_tmp,
     ]);
@@ -348,6 +348,17 @@ try {
     $mpdf->SetSubject('Informacja o przetwarzaniu danych osobowych (art. 15 i 20 RODO)');
     $mpdf->SetAuthor($rodo_org['name'] ?: $org);
     $mpdf->SetCreator('FEER SZO — System Tożsamości');
+    // Stopka z kodami (QR + Code128) — kod stały dla eksportu danego użytkownika z danego dnia; błąd kodów nie blokuje PDF-a
+    try {
+        require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+        $dc = DocRegistry::printCodes('rodo_eksport', $uid . '-' . date('Y-m-d'), 'Eksport danych osobowych RODO (konto #' . $uid . ')', 'tozsamosc/rodo_export.php');
+        if ($dc) {
+            $dcImg = fn(?string $png, string $st) => $png ? '<img src="data:image/png;base64,' . base64_encode($png) . '" style="' . $st . '">' : '';
+            $mpdf->SetHTMLFooter('<table width="100%" style="font-size:6.5pt;color:#555"><tr><td width="12mm">' . $dcImg($dc['qr'], 'height:10mm;width:10mm')
+                . '</td><td>' . $dcImg($dc['bar'], 'height:6mm;width:42mm') . '<br><span style="font-family:dejavusansmono">' . $h($dc['code']) . '</span> · ' . $h($dc['doc_number'])
+                . '</td><td align="right">{PAGENO}/{nbpg}</td></tr></table>');
+        }
+    } catch (\Throwable $e) { /* bez stopki z kodem */ }
     $mpdf->WriteHTML($base_css, \Mpdf\HTMLParserMode::HEADER_CSS);
     $mpdf->WriteHTML($body_html, \Mpdf\HTMLParserMode::HTML_BODY);
     $mpdf->Output($filename, \Mpdf\Output\Destination::INLINE);

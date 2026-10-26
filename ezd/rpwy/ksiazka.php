@@ -48,7 +48,8 @@ $okres  = ($od === $do) ? date_pl($od) : date_pl($od) . ' – ' . date_pl($do);
   .toolbar{max-width:1000px;margin:0 auto 16px;display:flex;gap:8px;justify-content:flex-end;align-items:center;font-family:sans-serif;font-size:11pt}
   .btn{font-family:sans-serif;font-size:11pt;padding:6px 14px;border:1px solid #666;background:#f5f5f5;border-radius:4px;cursor:pointer;text-decoration:none;color:#000}
   .empty{text-align:center;padding:24px;font-style:italic}
-  @media print{.toolbar{display:none}body{padding:0}}
+  .codes{margin-top:24px}
+  @media print{.toolbar{display:none}body{padding:0 0 16mm}.codes{position:fixed;bottom:0;left:0;right:0;background:#fff;margin:0;padding-top:1.5mm;border-top:.25mm solid #999}}   /* stopka z kodami powtarza się na każdej stronie */
 </style>
 </head><body>
 <div class="toolbar">
@@ -114,5 +115,9 @@ $okres  = ($od === $do) ? date_pl($od) : date_pl($od) . ' – ' . date_pl($do);
     <div>podpis pracownika kancelarii</div>
     <div>podpis operatora / potwierdzenie przyjęcia</div>
   </div>
+  <?php require_once dirname(dirname(__DIR__)) . '/modules/doc_registry/lib/DocRegistry.php';
+  // kod stały dla zestawienia za dany okres (ten sam okres = ten sam kod)
+  $ksCodes = DocRegistry::printFooterHtml('ezd_ksiazka_nadawcza', $od . '_' . $do, 'Książka nadawcza za okres ' . $okres, 'ezd/rpwy/ksiazka.php?od=' . $od . '&do=' . $do);
+  if ($ksCodes !== ''): ?><div class="codes"><?= $ksCodes ?></div><?php endif; ?>
 </div>
 </body></html>
