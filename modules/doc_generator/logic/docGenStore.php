@@ -139,6 +139,17 @@ final class DocGenStore
         return db_all("SELECT d.*, t.name AS template_name FROM gen_documents d LEFT JOIN gen_templates t ON t.id = d.template_id WHERE " . implode(' AND ', $w) . " ORDER BY d.id DESC LIMIT " . (int)$limit, $p);
     }
 
+    /** Wartość domyślna pola przy nowym dokumencie; daty: „@dzisiaj”, „@+3” (dzisiaj + 3 dni), „@-1”. Pole „data_zawarcia” bez domyślnej = dzisiaj. */
+    public static function defaultValue(array $f): string
+    {
+        $d = (string)$f['default'];
+        if ($f['type'] === 'date') {
+            if ($d === '@dzisiaj' || ($d === '' && $f['key'] === 'data_zawarcia')) return date('Y-m-d');
+            if (preg_match('/^@([+-]\d{1,3})$/', $d, $m)) return date('Y-m-d', strtotime($m[1] . ' days'));
+        }
+        return $d;
+    }
+
     /** Waliduje wartości wg definicji pól; zwraca [wartości, błędy]. */
     public static function collect(array $fields, array $post): array
     {

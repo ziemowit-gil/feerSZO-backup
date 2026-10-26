@@ -56,7 +56,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <td><input class="form-control form-control-sm" aria-label="Etykieta <?= h($k) ?>" name="f[<?= $i ?>][label]" value="<?= h($f['label'] ?? $k) ?>"></td>
       <td><select class="form-select form-select-sm" aria-label="Typ <?= h($k) ?>" name="f[<?= $i ?>][type]"><?php foreach (DocGenEngine::TYPES as $tk => $tl): ?><option value="<?= h($tk) ?>" <?= ($f['type'] ?? 'text') === $tk ? 'selected' : '' ?>><?= h($tl) ?></option><?php endforeach; ?></select></td>
       <td><input class="form-control form-control-sm" aria-label="Grupa <?= h($k) ?>" name="f[<?= $i ?>][group]" value="<?= h($f['group'] ?? 'Dane') ?>"></td>
-      <td><input class="form-control form-control-sm" aria-label="Domyślna wartość <?= h($k) ?>" name="f[<?= $i ?>][default]" value="<?= h($f['default'] ?? '') ?>"></td>
+      <td><input class="form-control form-control-sm" placeholder="data: @dzisiaj, @+3" aria-label="Domyślna wartość <?= h($k) ?>" name="f[<?= $i ?>][default]" value="<?= h($f['default'] ?? '') ?>"></td>
       <td><input class="form-control form-control-sm" aria-label="Opcje <?= h($k) ?>" name="f[<?= $i ?>][options]" value="<?= h(is_array($f['options'] ?? '') ? implode(',', $f['options']) : ($f['options'] ?? '')) ?>"></td>
       <td><input class="form-control form-control-sm" aria-label="Podpowiedź <?= h($k) ?>" name="f[<?= $i ?>][hint]" value="<?= h($f['hint'] ?? '') ?>"></td>
       <td class="text-center"><input class="form-check-input" type="checkbox" aria-label="Wymagane: <?= h($k) ?>" name="f[<?= $i ?>][required]" value="1" <?= !empty($f['required']) ? 'checked' : '' ?>></td></tr>

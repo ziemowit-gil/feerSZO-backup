@@ -14,7 +14,7 @@ return [
     'description' => 'Fundacja koordynuje kontakt z Wydawnictwem; rodzic jest stroną; § 12 — odrębna zgoda na dane o zdrowiu ucznia; podpis elektroniczny w Autenti.',
     'fields' => [
         $F('miejscowosc', 'Miejscowość zawarcia', 'Zawarcie umowy', 'text', ['default' => 'Kraków', 'required' => true]),
-        $F('data_zawarcia', 'Data zawarcia umowy', 'Zawarcie umowy', 'date', ['required' => true]),
+        $F('data_zawarcia', 'Data zawarcia umowy', 'Zawarcie umowy', 'date', ['required' => true, 'default' => '@dzisiaj']),
         $F('reprezentant', 'Członek Zarządu Fundacji (samodzielna reprezentacja)', 'Zawarcie umowy', 'text', ['required' => true]),
         $F('plec_rodzica', 'Rodzic / opiekun — forma w umowie', 'Rodzic / opiekun prawny', 'gender', ['default' => 'K', 'hint' => 'K = Pani, M = Pan']),
         $F('rodzic_nazwa', 'Imię i nazwisko rodzica lub opiekuna prawnego', 'Rodzic / opiekun prawny', 'text', ['required' => true]),

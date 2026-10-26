@@ -14,7 +14,7 @@ return [
     'description' => 'Zasady uczestnictwa w szkoleniu skierowanym przez MOPS/PFRON: okres próbny, zmiana terminów, kara umowna, informowanie instytucji finansujących.',
     'fields' => [
         $F('miejscowosc', 'Miejscowość zawarcia', 'Zawarcie umowy', 'text', ['default' => 'Krakowie', 'required' => true, 'hint' => 'w miejscowniku: „w Krakowie”']),
-        $F('data_zawarcia', 'Data zawarcia umowy', 'Zawarcie umowy', 'date', ['required' => true]),
+        $F('data_zawarcia', 'Data zawarcia umowy', 'Zawarcie umowy', 'date', ['required' => true, 'default' => '@dzisiaj']),
         $F('reprezentant', 'Reprezentant Fundacji', 'Zawarcie umowy', 'text', ['default' => 'Ziemowita Gila – Prezesa Zarządu', 'required' => true, 'hint' => 'w bierniku, np. „Ziemowita Gila – Prezesa Zarządu”']),
         $F('plec', 'Uczestnik — forma w umowie', 'Uczestnik', 'gender', ['default' => 'K', 'hint' => 'K = Pani, M = Pan']),
         $F('uczestnik_nazwa', 'Imię i nazwisko uczestnika', 'Uczestnik', 'text', ['required' => true]),

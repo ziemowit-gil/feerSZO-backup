@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: view.php?id=' . $id); exit;
     }
 } elseif ($doc) { $values = $doc['values']; }
-else { foreach ($fields as $k => $f) $values[$k] = $f['default']; }
+else { foreach ($fields as $k => $f) $values[$k] = DocGenStore::defaultValue($f); }
 $title = $title ?? ($doc['title'] ?? '');
 $groups = [];
 foreach ($fields as $k => $f) $groups[$f['group']][] = $f;
@@ -49,7 +49,11 @@ include dirname(__DIR__) . '/includes/header.php';
       <?php if ($f['type'] === 'textarea'): ?><textarea class="form-control form-control-sm" id="<?= h($fid) ?>" name="v[<?= h($f['key']) ?>]" rows="2"<?= $f['hint'] !== '' ? ' aria-describedby="' . h($fid) . '-h"' : '' ?>><?= h($val) ?></textarea>
       <?php elseif ($f['type'] === 'select'): ?><select class="form-select form-select-sm" id="<?= h($fid) ?>" name="v[<?= h($f['key']) ?>]"><?php foreach ($f['options'] as $o): ?><option value="<?= h($o) ?>" <?= $val === $o ? 'selected' : '' ?>><?= h($o) ?></option><?php endforeach; ?></select>
       <?php elseif ($f['type'] === 'gender'): ?><select class="form-select form-select-sm" id="<?= h($fid) ?>" name="v[<?= h($f['key']) ?>]"><option value="K" <?= $val !== 'M' ? 'selected' : '' ?>>K — forma żeńska</option><option value="M" <?= $val === 'M' ? 'selected' : '' ?>>M — forma męska</option></select>
-      <?php else: ?><input class="form-control form-control-sm" id="<?= h($fid) ?>" name="v[<?= h($f['key']) ?>]" type="<?= $f['type'] === 'date' ? 'date' : 'text' ?>" value="<?= h($val) ?>"<?= $f['hint'] !== '' ? ' aria-describedby="' . h($fid) . '-h"' : '' ?>><?php endif; ?>
+      <?php elseif ($f['type'] === 'date'): ?>
+        <div class="input-group input-group-sm"><input class="form-control" id="<?= h($fid) ?>" name="v[<?= h($f['key']) ?>]" type="date" value="<?= h($val) ?>"<?= $f['hint'] !== '' ? ' aria-describedby="' . h($fid) . '-h"' : '' ?>>
+          <button type="button" class="btn btn-outline-secondary" data-dg-date="0" data-target="<?= h($fid) ?>">Dzisiaj</button>
+          <button type="button" class="btn btn-outline-secondary" data-dg-date="3" data-target="<?= h($fid) ?>">+3 dni</button></div>
+      <?php else: ?><input class="form-control form-control-sm" id="<?= h($fid) ?>" name="v[<?= h($f['key']) ?>]" type="text" value="<?= h($val) ?>"<?= $f['hint'] !== '' ? ' aria-describedby="' . h($fid) . '-h"' : '' ?>><?php endif; ?>
       <?php if ($f['hint'] !== ''): ?><div class="form-text" id="<?= h($fid) ?>-h"><?= h($f['hint']) ?></div><?php endif; ?>
     </div>
     <?php endforeach; ?></div></fieldset>
@@ -59,4 +63,14 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="form-text">Status inny niż „szkic” wymaga uzupełnienia wymaganych pól.</div></div>
     <div class="col-auto"><button class="btn btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button></div></div>
 </div></form>
+<script>
+// Szybkie daty: „Dzisiaj” i „+3 dni” (od dzisiaj) wstawiają wartość do pola daty.
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('[data-dg-date]'); if (!b) return;
+  var el = document.getElementById(b.dataset.target); if (!el) return;
+  var d = new Date(); d.setDate(d.getDate() + parseInt(b.dataset.dgDate, 10));
+  el.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  el.dispatchEvent(new Event('change', {bubbles: true}));
+});
+</script>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
