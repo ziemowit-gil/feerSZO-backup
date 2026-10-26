@@ -175,6 +175,7 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if ($can_upload): ?>
     <a href="<?= APP_URL ?>/edok/queue.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-inboxes"></i> Kolejka do opisu
       <?php if ($queue_count): ?><span class="badge bg-primary ms-1"><?= $queue_count ?></span><?php endif; ?></a>
+    <a href="<?= APP_URL ?>/edok/mailbox.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope-paper"></i> Skrzynka faktur</a>
     <?php endif; ?>
 
     <?php if ($can_upload): ?>
