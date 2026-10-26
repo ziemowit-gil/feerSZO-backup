@@ -716,32 +716,37 @@ final class LicenseDocument
             $period = trim(ldDate((string)$t['period_from']) . ' — ' . ldDate((string)$t['period_to']), ' —');
             $course = (string)$t['course_name']; $licensor = (string)$t['licensor_name'];
         }
+        $qr = '<barcode code="' . self::e(LicenseCaseIndex::url($scope, $id)) . '" type="QR" class="barcode" size="1.15" error="M" disableborder="1" />';
+        // Wiersz 1: tytuł + numer sprawy + osoba (lewa kolumna), QR (prawa); symbol dokumentu w rogu
         $h = '<table class="t"><tr>'
-           . $this->fld('Dokument', '<b>OKŁADKA SPRAWY AM</b>', ' width="45%"')
-           . $this->fld('Rewizja druków', '<b>R' . $rev . '</b>', ' width="35%"')
-           . '<td class="sym" width="20%" style="background:#3f3f46"><div class="symb">AM-OK</div><div class="symp">&nbsp;</div><div class="symv">wersja wzoru ' . self::VERSION . '</div></td></tr></table>'
-           . '<table class="t"><tr><td class="ttl" style="padding:8mm 4mm"><div class="ttl2">' . ($isOp ? 'OPERACJA NA LICENCJI' : 'SPRAWA — LICENCJE I OPROGRAMOWANIE') . '</div>'
-           . '<div style="font-size:22pt;font-weight:bold;text-align:center;margin:3mm 0">' . self::e($targetNumber) . '</div>'
-           . '<div class="ttl2" style="font-size:12pt">' . self::e($person !== '' ? $person : '—') . '</div></td></tr></table>';
-        $h .= '<table class="t">' . self::sec('A', 'DANE SPRAWY', 2) . '<tr>'
-            . $this->fld('Licencja / usługa', self::val($what, 'licencja'), ' width="60%"') . $this->fld('Stan', self::e($status), ' width="40%"') . '</tr><tr>'
-            . $this->fld('Okres', $period !== '' ? self::e($period) : self::val('', 'okres'), ' width="60%"') . $this->fld('Kurs / zajęcia', self::val($course, 'kurs'), ' width="40%"') . '</tr>'
-            . ($licensor !== '' ? '<tr>' . $this->fld('Licencjodawca / podmiot', self::e($licensor), ' colspan="2"') . '</tr>' : '') . '</table>';
-        $body = ''; $i = 0;
+           . '<td class="f" style="width:72%;padding:4mm 5mm"><div class="lb">' . ($isOp ? 'OPERACJA NA LICENCJI' : 'SPRAWA — LICENCJE I OPROGRAMOWANIE') . ' · OKŁADKA TECZKI AM · rewizja druków R' . $rev . '</div>'
+           . '<div style="font-size:21pt;font-weight:bold;margin:2mm 0 1mm">' . self::e($targetNumber) . '</div>'
+           . '<div style="font-size:13pt">' . self::e($person !== '' ? $person : '—') . '</div>'
+           . '<div class="lb" style="margin-top:2mm">Stan: <b>' . self::e($status) . '</b></div></td>'
+           . '<td class="f" style="width:28%;text-align:center;padding:3mm"><div class="lb">QR — spis elektroniczny</div>' . $qr . '</td></tr></table>';
+        // Wiersz 2: Code128 na całą szerokość (czytelny z biurka)
+        $h .= '<table class="t"><tr><td class="f" style="text-align:center;padding:3mm"><barcode code="' . self::e($code) . '" type="C128B" size="1.4" height="1.5" />'
+            . '<div class="v" style="letter-spacing:1px">' . self::e($code) . '</div></td></tr></table>';
+        // Wiersz 3: dwie kolumny — dane sprawy | zawartość teczki
+        $left = '<div class="lb"><b>A. DANE SPRAWY</b></div>'
+            . '<div class="lb" style="margin-top:2mm">Licencja / usługa</div><div class="v">' . self::val($what, 'licencja') . '</div>'
+            . '<div class="lb" style="margin-top:2mm">Okres</div><div class="v">' . ($period !== '' ? self::e($period) : self::val('', 'okres')) . '</div>'
+            . '<div class="lb" style="margin-top:2mm">Kurs / zajęcia</div><div class="v">' . self::val($course, 'kurs') . '</div>'
+            . ($licensor !== '' ? '<div class="lb" style="margin-top:2mm">Licencjodawca / podmiot</div><div class="v">' . self::e($licensor) . '</div>' : '')
+            . '<div class="lb" style="margin-top:3mm">Kod wpisz (zeskanuj) w „Skanuj kod” na pulpicie Licencji. Druki z rewizją niższą niż R' . $rev . ' są nieaktualne.</div>';
+        $right = '<div class="lb"><b>B. ZAWARTOŚĆ TECZKI (obowiązujące dokumenty)</b></div><table class="t" style="margin-top:1mm">'; $i = 0;
         foreach ($rows as $r) {
-            if ($r['state'] === 'UNIEWAŻNIONY') continue;   // na okładce tylko obowiązujące
+            if ($r['state'] === 'UNIEWAŻNIONY') continue;
             $i++;
-            $body .= '<tr><td class="f" style="width:5%">' . $i . '</td><td class="f" style="width:40%"><b>' . self::e((string)$r['label']) . '</b></td><td class="f" style="width:35%">' . self::e((string)$r['number'])
-                  . '</td><td class="f" style="width:20%">' . self::e((string)$r['state']) . '</td></tr>';
+            $right .= '<tr><td class="f" style="width:6%">' . $i . '</td><td class="f" style="width:94%"><b>' . self::e((string)$r['label']) . '</b><div class="lb">' . self::e((string)$r['number']) . ' · ' . self::e((string)$r['state']) . '</div></td></tr>';
         }
-        $h .= '<table class="t">' . self::sec('B', 'ZAWARTOŚĆ TECZKI (obowiązujące dokumenty)', 4) . ($body ?: '<tr><td class="f" colspan="4">—</td></tr>') . '</table>';
-        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('C', 'KODY I SPIS ELEKTRONICZNY', 3) . '<tr>'
-            . '<td class="f" style="width:26%;text-align:center"><div class="lb">QR — spis elektroniczny sprawy</div><barcode code="' . self::e(LicenseCaseIndex::url($scope, $id)) . '" type="QR" class="barcode" size="1.1" error="M" disableborder="1" /></td>'
-            . '<td class="f" style="width:44%;text-align:center"><div class="lb">Code128 — kod teczki sprawy</div><barcode code="' . self::e($code) . '" type="C128B" size="1.1" height="1.4" /><div class="v">' . self::e($code) . '</div></td>'
-            . '<td class="pc" style="width:30%"><div class="pt">Kod wpisz (zeskanuj) w polu „Skanuj kod” na pulpicie Licencji. QR otwiera spis elektroniczny bez danych osobowych; druki z niższą rewizją niż R' . $rev . ' są nieaktualne.</div></td></tr></table>';
-        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('D', 'UWAGI I ODBIÓR', 2) . '<tr>'
-            . $this->fld('Uwagi', '', ' colspan="2" style="height:30mm"') . '</tr><tr>'
-            . $this->fld('Teczkę założył(a) — imię i nazwisko, data', '', ' width="50%" style="height:16mm"') . $this->fld('Miejsce przechowywania / sygnatura teczki', '', ' width="50%" style="height:16mm"') . '</tr></table>';
+        $right .= ($i === 0 ? '<tr><td class="f" colspan="2">—</td></tr>' : '') . '</table>';
+        $h .= '<table class="t"><tr><td class="f" style="width:38%;vertical-align:top;padding:3mm 4mm">' . $left . '</td><td class="f" style="width:62%;vertical-align:top;padding:3mm 4mm">' . $right . '</td></tr></table>';
+        // Wiersz 4: uwagi | założenie teczki
+        $h .= '<table class="t" style="page-break-inside:avoid"><tr>'
+            . $this->fld('Uwagi', '', ' style="width:62%;height:34mm"')
+            . '<td class="f" style="width:38%;padding:0"><table class="t" style="border:0"><tr>' . $this->fld('Teczkę założył(a) — imię, nazwisko, data', '', ' style="height:17mm;border-left:0;border-top:0;border-right:0"') . '</tr><tr>'
+            . $this->fld('Miejsce przechowywania / sygnatura teczki', '', ' style="height:17mm;border-left:0;border-bottom:0;border-right:0"') . '</tr></table></td></tr></table>';
         return self::css() . $h;
     }
 

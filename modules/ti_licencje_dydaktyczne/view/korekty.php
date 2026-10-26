@@ -28,7 +28,7 @@ include __DIR__ . '/_head.php';
     <tr><td class="text-nowrap"><a href="<?= h(route('ld.corr', ['id' => $c['id']])) ?>"><?= h(LicenseCorrection::code((int)$c['id'])) ?></a></td>
       <td><?= h($c['target_number']) ?> <span class="small text-secondary"><?= $c['scope'] === 'operation' ? '(operacja)' : '(sprawa)' ?></span></td>
       <td class="small"><?= h(implode(', ', array_map(fn($i) => $i['label'], $c['itemsList']))) ?></td>
-      <td><?= ldChip(LicenseCorrection::statusLabel($c['status']), LicenseCorrection::statusColor($c['status'])) ?><?php if ($c['status'] === LicenseCorrection::APPLIED && !LicenseCorrection::hasPackage((int)$c['id'])): ?> <?= ldChip('brak pakietu — ręczne generowanie', '#fa6800') ?><?php endif; ?></td>
+      <td><?= ldChip(LicenseCorrection::statusLabel($c['status']), LicenseCorrection::statusColor($c['status'])) ?><?php if ($c['status'] === LicenseCorrection::APPLIED): $_ps = LicenseCorrection::packageState($c); if ($_ps === 'manual'): ?> <?= ldChip('brak pakietu — ręczne generowanie', '#fa6800') ?><?php elseif ($_ps === 'scheduled'): ?> <?= ldChip('pakiet automatycznie o ' . substr((string)$c['package_due_at'], 11, 5), '#1ba1e2') ?><?php endif; endif; ?></td>
       <td class="small text-nowrap"><?= h(ldDt($c['created_at'])) ?> · <?= h($c['created_name']) ?></td></tr>
   <?php endforeach; ?></tbody></table></div>
 <?php $_rots = db_all("SELECT * FROM license_rotations ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, id DESC LIMIT 30"); ?>

@@ -227,8 +227,27 @@ final class LicenseCorrection
     public static function withoutPackage(): array
     {
         ldMigrate();
-        return array_map([self::class, 'hydrate'], db_all("SELECT c.* FROM license_corrections c WHERE c.status = 'applied'
-            AND NOT EXISTS (SELECT 1 FROM license_doc_packages p WHERE p.correction_id = c.id) ORDER BY c.id DESC"));
+        return array_map([self::class, 'hydrate'], db_all("SELECT c.* FROM license_corrections c WHERE c.status = 'applied' AND COALESCE(c.package_skipped, 0) = 0
+            AND (c.package_due_at IS NULL OR c.package_due_at <= ?)
+            AND NOT EXISTS (SELECT 1 FROM license_doc_packages p WHERE p.correction_id = c.id) ORDER BY c.id DESC", [ldNow()]));
+    }
+
+    /** Zatwierdzone korekty czekające na automatyczne wygenerowanie pakietu (termin jeszcze nie minął). */
+    public static function packageScheduled(): array
+    {
+        ldMigrate();
+        return array_map([self::class, 'hydrate'], db_all("SELECT c.* FROM license_corrections c WHERE c.status = 'applied' AND COALESCE(c.package_skipped, 0) = 0
+            AND c.package_due_at IS NOT NULL AND c.package_due_at > ?
+            AND NOT EXISTS (SELECT 1 FROM license_doc_packages p WHERE p.correction_id = c.id) ORDER BY c.id", [ldNow()]));
+    }
+
+    /** Stan pakietu zatwierdzonej korekty: package (jest) | scheduled (automat o package_due_at) | skipped (obejmuje go nowszy pakiet) | manual (brak — ręczne generowanie). */
+    public static function packageState(array $c): string
+    {
+        if (self::hasPackage((int)$c['id'])) return 'package';
+        if (!empty($c['package_skipped'])) return 'skipped';
+        if (!empty($c['package_due_at']) && (string)$c['package_due_at'] > ldNow()) return 'scheduled';
+        return 'manual';
     }
 
     public static function hasPackage(int $id): bool
@@ -316,9 +335,12 @@ final class LicenseCorrection
         } catch (\Throwable $e) { $db->rollBack(); throw $e; }
         if ($c['scope'] === 'operation') (new LicenseOperationService())->saveRecord((int)$c['target_id']);
         self::event($c, 'amsk.apply', 'Potwierdzono podpis kierownika na druku AMSK/1 — korekta ' . self::code($id) . ' wprowadzona (' . count($c['itemsList']) . ' pól).', $actor);
-        // Wdrożona korekta → pakiet poprawionych druków AM (stare unieważnione) i ZIP z hasłem do osoby i kierownika (hasło SMS-em)
-        require_once __DIR__ . '/LicenseDocPackage.php';
-        return (new LicenseDocPackage())->run($id, $actor);
+        // Wdrożona korekta → po LD_PACKAGE_DELAY_MIN minutach pakiet poprawionych druków AM (stare unieważnione) i ZIP z hasłem do osoby i kierownika
+        // (agent CRON ti_licencje_packages; awaryjnie „leniwy” start przy otwarciu pulpitu / karty korekty — LicenseDocPackage::runDue)
+        $due = date('Y-m-d H:i:s', time() + LD_PACKAGE_DELAY_MIN * 60);
+        db()->prepare("UPDATE license_corrections SET package_due_at = ?, package_skipped = 0 WHERE id = ?")->execute([$due, $id]);
+        self::event($c, 'amsk.package_due', 'Pakiet poprawionych druków AM zostanie wygenerowany automatycznie o ' . substr($due, 11, 5) . ' (' . LD_PACKAGE_DELAY_MIN . ' min po zatwierdzeniu).', $actor);
+        return 'pakiet poprawionych druków AM zostanie wygenerowany automatycznie o ' . substr($due, 11, 5) . ' (' . LD_PACKAGE_DELAY_MIN . ' min po zatwierdzeniu): stare druki zostaną wtedy unieważnione, a ZIP z hasłem trafi do osoby i kierownika';
     }
 
     public function cancel(int $id, string $reason, array $actor): void

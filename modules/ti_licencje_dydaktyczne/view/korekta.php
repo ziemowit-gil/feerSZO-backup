@@ -56,7 +56,13 @@ $targetUrl = $isOp ? route('ld.op', ['id' => $c['target_id']]) : route('ld.show'
 <?php if ($st === LicenseCorrection::APPLIED): $pk = LicenseDocPackage::forCorrection($id); ?>
 <section class="panel <?= $pk ? '' : 'warn' ?>" id="pakiet">
   <h2 class="mt-0">Pakiet poprawionych druków AM</h2>
-  <?php if (!$pk): ?>
+  <?php if (!$pk && ($_ps = LicenseCorrection::packageState($c)) === 'scheduled'): ?>
+    <div class="alert alert-info" role="status"><b>Pakiet poprawionych druków AM zostanie wygenerowany automatycznie o <?= h(substr((string)$c['package_due_at'], 11, 5)) ?></b> (<?= (int)LD_PACKAGE_DELAY_MIN ?> min po zatwierdzeniu). Stare druki zostaną wtedy unieważnione, a ZIP z hasłem trafi do osoby i kierownika (hasło SMS-em).
+      Nie chcesz czekać? Wygeneruj pakiet teraz:</div>
+    <?= ldPost(route('ld.corr.pack', ['id' => $id]), 'Wygeneruj pakiet teraz (ręcznie)', 'btn-metro dark', [], 'Wygenerować pakiet teraz, bez czekania na automat? Dotychczasowe druki zostaną unieważnione, powstanie druk AMSG, a ten sam pakiet trafi do kierownika.') ?>
+  <?php elseif (!$pk && ($_ps ?? '') === 'skipped'): ?>
+    <p class="mb-0 text-secondary">Pakiet dla tej korekty nie był generowany osobno — obejmuje ją pakiet nowszej korekty tej sprawy (seria korekt = jeden pakiet).</p>
+  <?php elseif (!$pk): ?>
     <div class="alert alert-warning" role="alert"><b>Korekta jest zatwierdzona, ale nie ma pakietu poprawionych druków AM — wymagane ręczne generowanie.</b>
       Automatyczne wygenerowanie i wysyłka nie powiodły się albo korekta powstała wcześniej. Wygenerowanie pakietu odtworzy druki sprawy z poprawionych danych (kod z nową rewizją R<?= (int)LicenseCodes::revision($c['scope'], (int)$c['target_id']) ?>)
       i <b>unieważni dotychczasowe druki</b>; potem wyślesz ZIP z hasłem do osoby i kierownika.</div>

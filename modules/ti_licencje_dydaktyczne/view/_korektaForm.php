@@ -16,7 +16,7 @@ $_rows = 3;
     <?php foreach ($_cl as $c): ?>
     <tr><td class="text-nowrap"><a href="<?= h(route('ld.corr', ['id' => $c['id']])) ?>"><?= h(LicenseCorrection::code((int)$c['id'])) ?></a></td>
       <td class="small"><?= h(implode(', ', array_map(fn($i) => $i['label'], $c['itemsList']))) ?></td>
-      <td><?= ldChip(LicenseCorrection::statusLabel($c['status']), LicenseCorrection::statusColor($c['status'])) ?><?php if ($c['status'] === LicenseCorrection::APPLIED && !LicenseCorrection::hasPackage((int)$c['id'])): ?> <?= ldChip('brak pakietu — ręczne generowanie', '#fa6800') ?><?php endif; ?></td>
+      <td><?= ldChip(LicenseCorrection::statusLabel($c['status']), LicenseCorrection::statusColor($c['status'])) ?><?php if ($c['status'] === LicenseCorrection::APPLIED): $_ps = LicenseCorrection::packageState($c); if ($_ps === 'manual'): ?> <?= ldChip('brak pakietu — ręczne generowanie', '#fa6800') ?><?php elseif ($_ps === 'scheduled'): ?> <?= ldChip('pakiet automatycznie o ' . substr((string)$c['package_due_at'], 11, 5), '#1ba1e2') ?><?php endif; endif; ?></td>
       <td class="small text-nowrap"><?= h(ldDt($c['created_at'])) ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-metro" style="background:#7c2d12" href="<?= h(route('ld.corr.pdf', ['id' => $c['id']])) ?>" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> AMSK/1</a></td></tr>
     <?php endforeach; ?></tbody></table>

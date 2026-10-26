@@ -47,8 +47,15 @@ final class LicenseCorrectionController
         return $c;
     }
 
+    /** Awaryjny start zaległych pakietów (gdy agent CRON nie działa): przy otwarciu listy / karty korekty. */
+    private function lazyDue(): void
+    {
+        try { (new LicenseDocPackage())->runDue(2); } catch (\Throwable $e) { error_log('ld runDue: ' . $e->getMessage()); }
+    }
+
     public function index(): string
     {
+        $this->lazyDue();
         $q = trim((string)($_GET['q'] ?? ''));
         return $this->view('korekty.php', ['q' => $q, 'rows' => LicenseCorrection::search($q)]);
     }
@@ -78,6 +85,7 @@ final class LicenseCorrectionController
 
     public function show(int $id): string
     {
+        $this->lazyDue();
         $c = $this->one($id);
         [$t] = LicenseCorrection::target($c['scope'], (int)$c['target_id']);
         return $this->view('korekta.php', ['c' => $c, 't' => $t]);

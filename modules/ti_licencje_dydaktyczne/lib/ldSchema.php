@@ -23,6 +23,7 @@ declare(strict_types=1);
  *   notification_logs       — każda próba powiadomienia (kanał, rodzaj, adresat zamaskowany, sent|failed|skipped, błąd, fallback)
  */
 const LD_REALIZATION_DAYS = 7;          // realizacja wniosku AM5/1 i oświadczeń — do 7 dni od wszczęcia / przydziału
+const LD_PACKAGE_DELAY_MIN = 5;         // pakiet druków AM po zatwierdzeniu AMSK powstaje automatycznie po tylu minutach (agent CRON ti_licencje_packages)
 const LD_TOKEN_DAYS = 30;               // ważność linku portalu (licencjodawca, licencjobiorca)
 const LD_SYMBOL = 'AM5';
 const LD_CASE_PREFIX = '4021-MS_AM';   // numer sprawy: 4021-MS_AM/000123/AB (6 cyfr kolejnych + 2 litery)
@@ -333,6 +334,9 @@ function ldMigrate(): void
         cancel_reason TEXT,
         sent_at VARCHAR(19)
     )");
+    foreach (["package_due_at VARCHAR(19)", "package_skipped INTEGER NOT NULL DEFAULT 0"] as $col) {   // pakiet po LD_PACKAGE_DELAY_MIN min od zatwierdzenia
+        try { $db->exec("ALTER TABLE license_corrections ADD COLUMN {$col}"); } catch (\Throwable $e) {}
+    }
     $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_corr_target ON license_corrections(scope, target_id)");
 
     // Rejestr wydanych druków AM (kod z rewizją R1, R2… w stopce) i pakiety po korekcie AMSK: nowa rewizja unieważnia poprzednią

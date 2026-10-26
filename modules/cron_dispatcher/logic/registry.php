@@ -331,6 +331,10 @@ function cron_dispatcher_registry(): array
             'interval' => 82800,        // 23 h: start o 7:00 bez dryfu
             'schedule' => [7, 8],       // okno 7:00–8:00 — terminy 7 dni w sprawach licencji AM5/AM7 (oświadczenia, podpis AM7, alert dla biura); wyłączone, póki nie włączy kierownik
         ],
+        'ti_licencje_packages' => [
+            'file'     => $cronDir . '/agents/tiLicensePackages.php',
+            'interval' => 120,          // co 2 min — pakiety poprawionych druków AM po zatwierdzonych korektach AMSK (5 min od zatwierdzenia), ZIP z hasłem do osoby i kierownika
+        ],
         'noclegi_instructions' => [
             'file'     => $cronDir . '/agents/noclegiInstructions.php',
             'interval' => 21600,        // co 6 h — instrukcja zameldowania z kodami N dni przed przyjazdem (e-mail przez kolejkę); wyłączone ustawieniem nocl_mail_instruction = 0

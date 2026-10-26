@@ -8,6 +8,7 @@ require __DIR__ . '/_parts.php';
 require_once dirname(__DIR__) . '/lib/LicenseCorrection.php';
 require_once dirname(__DIR__) . '/lib/LicenseOperationService.php';
 require_once dirname(__DIR__) . '/lib/LicenseRotation.php';
+require_once dirname(__DIR__) . '/lib/LicenseDocPackage.php';
 $title = 'Licencje AM5 / AM7 i zarządzanie';
 include __DIR__ . '/_head.php';
 $u = fn(array $q) => h(route('ld.index', $q));
@@ -29,6 +30,7 @@ usort($opOpen, fn($a, $b) => (int)$b['id'] <=> (int)$a['id']);
 $opN = (int)$opCounts['pending'] + (int)($opCounts['signing'] ?? 0) + (int)$opCounts['approved'];
 $corrPending = LicenseCorrection::pendingCount();
 $corrRows = LicenseCorrection::search('', 15);
+try { (new LicenseDocPackage())->runDue(2); } catch (\Throwable $e) { error_log('ld runDue: ' . $e->getMessage()); }   // awaryjnie, gdy agent CRON nie działa
 $corrNoPkg = LicenseCorrection::withoutPackage();
 $rotPending = LicenseRotation::pendingCount();
 $actN = count($toVerify) + count($overdueAsg) + (int)$opCounts['pending'] + $corrPending + count($corrNoPkg) + $rotPending;

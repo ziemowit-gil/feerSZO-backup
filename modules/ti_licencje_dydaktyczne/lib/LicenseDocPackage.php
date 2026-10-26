@@ -432,6 +432,36 @@ final class LicenseDocPackage
     }
 
     /**
+     * Wykonuje zaległe, automatyczne pakiety (termin package_due_at minął): dla każdego celu NAJNOWSZA zatwierdzona korekta bez pakietu;
+     * starsze niespakietowane korekty tego samego celu są oznaczane jako pominięte (pakiet obejmuje już ich zmiany). Jeżeli najnowsza korekta
+     * celu jeszcze czeka na swój termin — wstrzymujemy też starsze (jeden pakiet na serię korekt).
+     * @return list<string> linie raportu
+     */
+    public function runDue(int $limit = 10): array
+    {
+        ldMigrate();
+        $now = ldNow(); $lines = [];
+        $all = db_all("SELECT c.* FROM license_corrections c WHERE c.status = 'applied' AND COALESCE(c.package_skipped, 0) = 0 AND c.package_due_at IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM license_doc_packages p WHERE p.correction_id = c.id) ORDER BY c.id");
+        $byTarget = [];
+        foreach ($all as $c) $byTarget[$c['scope'] . ':' . $c['target_id']][] = $c;
+        foreach ($byTarget as $list) {
+            if ($limit <= 0) break;
+            $newest = end($list);
+            if ((string)$newest['package_due_at'] > $now) continue;   // najnowsza jeszcze nie ma terminu — czekamy na całą serię
+            $actor = ['id' => (int)($newest['applied_by'] ?? 0), 'name' => trim((string)$newest['applied_name']) . ' (automat)'];
+            foreach ($list as $c) {
+                if ((int)$c['id'] === (int)$newest['id']) continue;
+                db_exec("UPDATE license_corrections SET package_skipped = 1 WHERE id = ?", [(int)$c['id']]);
+                $lines[] = LicenseCorrection::code((int)$c['id']) . ': pominięta — pakiet obejmuje nowszą korektę ' . LicenseCorrection::code((int)$newest['id']);
+            }
+            $lines[] = LicenseCorrection::code((int)$newest['id']) . ': ' . $this->run((int)$newest['id'], $actor);
+            $limit--;
+        }
+        return $lines;
+    }
+
+    /**
      * Całość po zatwierdzeniu korekty: pakiet + unieważnienie + wysyłka. Błąd wysyłki NIE cofa korekty (zostaje przycisk ręczny).
      * @return string raport
      */
