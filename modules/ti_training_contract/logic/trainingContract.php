@@ -16,6 +16,7 @@ class TiTrainingContract
     public const FUNDING = [
         'publiczne' => 'Ze środków publicznych (np. PFRON) z dopłatą uczestnika lub bez',
         'wlasne'    => 'Uczestnik płaci sam — w całości ze środków własnych (bez dofinansowania i płatnika)',
+        'osoba_trzecia' => 'Płaci osoba trzecia (np. rodzic lub opiekun) — w całości, jako Płatnik przystępujący do umowy',
     ];
 
     /** Odmiana „Kursantka / Kursant”. */
@@ -72,6 +73,11 @@ class TiTrainingContract
             // § 2
             'wynagrodzenie'  => ['Łączne wynagrodzenie (zł)', '', 'platnosci', 'text'],
             'kwota_platnik'  => ['Kwota pokrywana przez płatnika publicznego (zł)', '', 'platnosci', 'text'],
+            'platnik_osoba'  => ['Płatnik — osoba (np. rodzic): imię i nazwisko', '', 'platnosci', 'text'],
+            'platnik_adres'  => ['Płatnik — adres', '', 'platnosci', 'text'],
+            'platnik_email'  => ['Płatnik — e-mail', '', 'platnosci', 'text'],
+            'platnik_telefon' => ['Płatnik — telefon', '', 'platnosci', 'text'],
+            'platnik_relacja' => ['Płatnik — kim jest dla uczestnika (np. rodzic, opiekun prawny, pracodawca)', 'rodzic', 'platnosci', 'text'],
             'platnik'        => ['Płatnik publiczny (np. Miejski Ośrodek Pomocy Społecznej w Krakowie)', '', 'platnosci', 'text'],
             'kwota_kursant'  => ['Kwota pokrywana przez uczestnika (zł)', '', 'platnosci', 'text'],
             'rachunek'       => ['Nr rachunku bankowego Fundacji', '', 'platnosci', 'text'],
@@ -164,13 +170,19 @@ class TiTrainingContract
         $d['finansowanie'] = isset(self::FUNDING[$in['finansowanie'] ?? '']) ? $in['finansowanie'] : 'publiczne';
         $d['client_id'] = max(0, (int)($in['client_id'] ?? 0));
         $d['grupa_id'] = max(0, (int)($in['grupa_id'] ?? 0));
-        if ($d['finansowanie'] === 'wlasne') {   // pola RODO z domyślnymi zapisami o dofinansowaniu — bez nich w wariancie „płaci sam”
+        if ($d['finansowanie'] === 'osoba_trzecia') {   // płaci Płatnik (osoba trzecia): bez dofinansowania, kwota uczestnika = 0, faktura na Płatnika
+            if (trim($d['faktura_na']) === '' || preg_match('/^Kursant/u', $d['faktura_na'])) $d['faktura_na'] = $d['platnik_osoba'];
+            if (trim($d['platnik_osoba']) === '') $err0 = 'Podaj imię i nazwisko Płatnika (osoby trzeciej).';
+        }
+        if ($d['finansowanie'] !== 'osoba_trzecia') foreach (['platnik_osoba', 'platnik_adres', 'platnik_email', 'platnik_telefon'] as $k) $d[$k] = '';
+        if ($d['finansowanie'] !== 'publiczne') {   // „płaci sam” i „płaci osoba trzecia”: pola RODO bez dofinansowania
             foreach (['rodo_art9', 'rodo_odbiorcy', 'rodo_okresy'] as $k) $d[$k] = trim(strtr($d[$k], [
                 ', instytucja rozliczająca dofinansowanie' => '', ' i rozliczenia dofinansowania' => '', 'dokumentacja dofinansowania — przez okres wskazany w umowie o dofinansowanie; ' => '']));
         }
         if ($d['finansowanie'] === 'wlasne') { $d['platnik'] = ''; $d['kwota_platnik'] = ''; $d['zrodlo_publ'] = ''; $d['kwota_kursant'] = $d['wynagrodzenie']; }
         $d['pesel'] = preg_replace('/\s+/', '', $d['pesel']);
-        $err = [];
+        $err = isset($err0) ? [$err0] : [];
+        if ($d['finansowanie'] === 'osoba_trzecia') { $d['platnik'] = ''; $d['kwota_platnik'] = ''; $d['zrodlo_publ'] = ''; $d['kwota_kursant'] = '0,00'; }
         if ($d['pesel'] !== '' && !self::peselOk($d['pesel'])) $err[] = 'PESEL ma nieprawidłową sumę kontrolną albo długość.';
         if ($d['data'] !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d['data'])) $err[] = 'Data zawarcia ma zły format.';
         if ($d['email'] !== '' && !filter_var($d['email'], FILTER_VALIDATE_EMAIL)) $err[] = 'Adres e-mail jest nieprawidłowy.';
@@ -269,9 +281,10 @@ class TiTrainingContract
     }
 
     /** Nagłówek (strony umowy) — lista akapitów. */
-    public static function preamble(): array
+    public static function preamble(array $d = []): array
     {
-        return [
+        $third = ($d['finansowanie'] ?? '') === 'osoba_trzecia';
+        $out = [
             'Zawarta dnia {data_pl} r. w {miejsce}',
             'pomiędzy:',
             'Fundacją Edukacji Empatii Rozwoju „FEER” z siedzibą w Krakowie przy ul. Zamkniętej 10/1.5, 30-554 Kraków, wpisaną do rejestru stowarzyszeń Krajowego Rejestru Sądowego pod numerem 0000779281, NIP 7343570539, REGON {regon}, reprezentowaną przez {reprezentant}, kontakt: {fund_email}, {fund_tel}, zwaną dalej „Fundacją”,',
@@ -279,14 +292,20 @@ class TiTrainingContract
             '{imie_narz}, zamieszkał[ą|ym] pod adresem: {adres}, PESEL {pesel}, e-mail: {email}, telefon: {telefon}, zwan[ą|ym] dalej „{K_ins}”,',
             'łącznie zwanymi dalej „Stronami”.',
         ];
+        if ($third) {   // Płatnik (osoba trzecia) przystępuje do Umowy w zakresie płatności — przed zdaniem o Stronach
+            array_splice($out, count($out) - 1, 0, ['oraz {platnik_osoba}, adres: {platnik_adres}, e-mail: {platnik_email}, telefon: {platnik_telefon}, zwanym(-ą) dalej „Płatnikiem” ({platnik_relacja} {K_gen}), który przystępuje do Umowy wyłącznie w zakresie zobowiązania do zapłaty wynagrodzenia (§ 2),']);
+        }
+        return $out;
     }
 
     /** Paragrafy umowy: [[tytuł paragrafu, [ustęp, …]], …]. */
     public static function paragraphs(array $d): array
     {
         $out = self::paragraphsRaw($d);
-        if (($d['finansowanie'] ?? 'publiczne') === 'publiczne') return self::withPromotion($out, $d);
-        foreach ($out as $i => [$title, $items]) $out[$i] = [$title, self::ownItems($items)];
+        $fin = (string)($d['finansowanie'] ?? 'publiczne');
+        if ($fin === 'publiczne') return self::withPromotion($out, $d);
+        $third = $fin === 'osoba_trzecia';
+        foreach ($out as $i => [$title, $items]) $out[$i] = [$title, self::ownItems($items, $third)];
         // § 2 — wariant „uczestnik płaci sam”: płatność wg harmonogramu opłat umowy (raty), konsekwencje zwłoki
         $items = $out[1][1];
         $sched = self::scheduleText($d);
@@ -294,6 +313,12 @@ class TiTrainingContract
             foreach ($items as $k => $t) if (str_starts_with($t, 'Fundacja wystawia rozliczenie za szkolenie miesięcznie.')) {
                 $items[$k] = 'Wynagrodzenie jest płatne w następujących terminach: {harmonogram_tekst}. Zapłata następuje przelewem na rachunek bankowy Fundacji nr {rachunek}; w tytule przelewu należy podać numer Umowy {nr}. Faktura lub inny właściwy dokument księgowy zostanie wystawiony na {faktura_na}.';
             }
+        }
+        if ($third) {
+            $items[] = 'Płatnik przystępuje do Umowy wyłącznie w zakresie zobowiązania do zapłaty wynagrodzenia i innych należności z Umowy; nie nabywa uprawnień do zmiany treści Szkolenia ani do reprezentowania {K_gen}. Oświadczenia o rezygnacji lub odstąpieniu od Umowy składa {K} albo, za jego zgodą wyrażoną w formie dokumentowej, Płatnik; zwrot opłat za niewykonaną część Szkolenia następuje na rachunek Płatnika. Dokumenty księgowe i potwierdzenia płatności Fundacja przekazuje Płatnikowi na adres e-mail wskazany w Umowie.';
+            $items[] = 'W razie opóźnienia w płatności Fundacja wezwie Płatnika do zapłaty, wyznaczając dodatkowy termin nie krótszy niż 7 dni. Po bezskutecznym upływie tego terminu Fundacja może wstrzymać udział {K_gen} w kolejnych zajęciach do czasu uregulowania zaległości, o czym poinformuje Płatnika i {K_acc} z wyprzedzeniem. Wstrzymanie nie wyłącza uprawnień {K_gen} wynikających z przepisów o ochronie konsumentów, a Fundacji przysługują odsetki ustawowe za opóźnienie.';
+            $out[1][1] = $items;
+            return self::withPromotion($out, $d);
         }
         $items[] = 'W razie opóźnienia w płatności Fundacja wezwie {K_acc} do zapłaty, wyznaczając dodatkowy termin nie krótszy niż 7 dni. Po bezskutecznym upływie tego terminu Fundacja może wstrzymać udział w kolejnych zajęciach do czasu uregulowania zaległości, o czym poinformuje {K_acc} z wyprzedzeniem. Wstrzymanie nie wyłącza uprawnień {K_gen} wynikających z przepisów o ochronie konsumentów, a Fundacji przysługują odsetki ustawowe za opóźnienie.';
         $out[1][1] = $items;
@@ -321,7 +346,7 @@ class TiTrainingContract
     }
 
     /** Wariant „uczestnik płaci sam”: usuwa/przepisuje fragmenty o dofinansowaniu, płatniku publicznym i instytucjach rozliczających. */
-    private static function ownText(string $t): ?string
+    private static function ownText(string $t, bool $third = false): ?string
     {
         // pozycje w całości dotyczące dofinansowania / płatnika — wypadają
         foreach (['Fundacja będzie współdziałać przy potwierdzaniu udziału, wykonania i rozliczenia Szkolenia oraz', 'Samo nieprzyznanie, obniżenie albo opóźnienie wypłaty dofinansowania',
@@ -330,7 +355,8 @@ class TiTrainingContract
                   'W zakresie dokumentowania lub rozliczania dofinansowania PFRON'] as $drop) {
             if (str_starts_with($t, $drop)) {
                 return $drop === 'Samo nieprzyznanie, obniżenie albo opóźnienie wypłaty dofinansowania'
-                    ? 'Zmiana wysokości odpłatności {K_gen} lub zasad płatności wymaga uprzedniego uzgodnienia przez Strony na piśmie, w tym w postaci dokumentowej.'
+                    ? ($third ? 'Zmiana wysokości odpłatności lub zasad płatności wymaga uprzedniego uzgodnienia przez Strony i Płatnika na piśmie, w tym w postaci dokumentowej.'
+                              : 'Zmiana wysokości odpłatności {K_gen} lub zasad płatności wymaga uprzedniego uzgodnienia przez Strony na piśmie, w tym w postaci dokumentowej.')
                     : ($drop === 'Fundacja będzie współdziałać przy potwierdzaniu udziału, wykonania i rozliczenia Szkolenia oraz'
                         ? 'Fundacja będzie współdziałać z {K_ins} przy potwierdzaniu udziału i wykonania Szkolenia.' : null);
             }
@@ -347,14 +373,20 @@ class TiTrainingContract
             ' i rozliczenia dofinansowania' => '',
             'Podanie danych wymaganych do rozliczenia dofinansowania może być konieczne, jeżeli wynika to z właściwych przepisów lub dokumentów finansowania: {rodo_wymagane}.' => '',
         ];
+        if ($third) $rep = array_merge($rep, ['zwróci właściwemu płatnikowi opłatę' => 'zwróci Płatnikowi opłatę']) + [
+            'jest finansowane ze środków własnych {K_gen}' => 'jest finansowane ze środków Płatnika wskazanego w Umowie',
+            'Wynagrodzenie zostanie pokryte w całości przez {K_acc}.' => 'Wynagrodzenie zostanie pokryte w całości przez Płatnika — {platnik_osoba} ({platnik_relacja} {K_gen}), który zobowiązuje się je zapłacić; {K} nie ponosi odpłatności ze środków własnych.',
+            'Zapłata wynagrodzenia należnego od {K_gen} następuje' => 'Zapłata wynagrodzenia następuje',
+            'Zmiana wysokości odpłatności {K_gen} lub zasad płatności' => 'Zmiana wysokości odpłatności lub zasad płatności',
+        ];
         $t = rtrim(strtr($t, $rep));
         return $t === '' ? null : $t;
     }
 
-    private static function ownItems(array $items): array
+    private static function ownItems(array $items, bool $third = false): array
     {
         $out = [];
-        foreach ($items as $t) { $x = self::ownText($t); if ($x !== null) $out[] = $x; }
+        foreach ($items as $t) { $x = self::ownText($t, $third); if ($x !== null) $out[] = $x; }
         return $out;
     }
 
@@ -437,12 +469,19 @@ class TiTrainingContract
     public static function annexes(array $d = []): array
     {
         $out = self::annexesRaw();
-        if (($d['finansowanie'] ?? 'publiczne') === 'publiczne') return $out;
+        $fin = (string)($d['finansowanie'] ?? 'publiczne');
+        if ($fin === 'publiczne') return $out;
+        $third = $fin === 'osoba_trzecia';
         foreach ($out as $i => [$head, $sub, $blocks]) {
             $nb = [];
             foreach ($blocks as $b) {
-                if (isset($b['n'])) { $b['n'] = self::ownItems($b['n']); }
-                elseif (isset($b['p'])) { $x = self::ownText($b['p']); if ($x === null) continue; $b['p'] = $x; }
+                if (isset($b['n'])) {
+                    $b['n'] = self::ownItems($b['n'], $third);
+                    if ($third && count($b['n']) > 3 && str_starts_with($b['n'][0], 'Administratorem danych')) {   // Załącznik 2: dane Płatnika
+                        array_splice($b['n'], 3, 0, ['Dane osobowe Płatnika {platnik_osoba} (imię i nazwisko, adres, e-mail, telefon) będą przetwarzane w celu zawarcia i wykonania Umowy w zakresie płatności, wystawienia dokumentów księgowych oraz kontaktu w sprawach rozliczeń — na podstawie art. 6 ust. 1 lit. b RODO, a w zakresie obowiązków księgowych i podatkowych — art. 6 ust. 1 lit. c RODO. Płatnikowi przysługują prawa opisane poniżej w odniesieniu do jego danych; dane Płatnika nie są wykorzystywane do marketingu.']);
+                    }
+                }
+                elseif (isset($b['p'])) { $x = self::ownText($b['p'], $third); if ($x === null) continue; $b['p'] = $x; }
                 $nb[] = $b;
             }
             $out[$i] = [$head, $sub, $nb];
@@ -529,7 +568,7 @@ class TiTrainingContract
         $s->addText('UMOWA O ŚWIADCZENIE USŁUG SZKOLENIOWYCH', ['bold' => true, 'size' => 12], $ctr);
         $s->addText($r('Nr {nr}'), ['bold' => true], $ctr);
         $s->addTextBreak(1);
-        foreach (self::preamble() as $p) $s->addText($r($p), [], $just);
+        foreach (self::preamble($d) as $p) $s->addText($r($p), [], $just);
 
         foreach (self::paragraphs($d) as $i => [$title, $items]) {
             $s->addTextBreak(1);
@@ -541,8 +580,10 @@ class TiTrainingContract
         $s->addTextBreak(3);
         $t = $s->addTable(['alignment' => \PhpOffice\PhpWord\SimpleType\JcTable::CENTER]);
         $t->addRow();
-        foreach ([['Fundacja', ''], [$r('{K}'), (string)($d['imie_nazwisko'] ?? '')]] as [$who, $name]) {
-            $c = $t->addCell(4500);
+        $signers = [['Fundacja', ''], [$r('{K}'), (string)($d['imie_nazwisko'] ?? '')]];
+        if (($d['finansowanie'] ?? '') === 'osoba_trzecia') $signers[] = ['Płatnik', (string)($d['platnik_osoba'] ?? '')];
+        foreach ($signers as [$who, $name]) {
+            $c = $t->addCell(count($signers) > 2 ? 3000 : 4500);
             $c->addText('____________________________', [], $ctr);
             $c->addText($who, ['size' => 9], $ctr);
             if ($name !== '') $c->addText($name, ['size' => 9], $ctr);

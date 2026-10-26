@@ -39,7 +39,7 @@ final class TiSzkBilling
     public static function participantTotalGr(array $c): int
     {
         $d = $c;
-        $own = ($d['finansowanie'] ?? '') === 'wlasne';
+        $own = ($d['finansowanie'] ?? 'publiczne') !== 'publiczne';   // płaci sam / płaci osoba trzecia — całość na koncie uczestnika
         $kw = (string)($own ? ($d['wynagrodzenie'] ?? '') : (($d['kwota_kursant'] ?? '') !== '' ? $d['kwota_kursant'] : ($d['wynagrodzenie'] ?? '')));
         return TiSzkFees::gr($kw) ?? 0;
     }
@@ -244,7 +244,7 @@ final class TiSzkBilling
     /** Należność płatnika w groszach (kwota płatnika z umowy przy finansowaniu publicznym; przy własnym — 0). */
     public static function payerDueGr(array $c): int
     {
-        if (($c['finansowanie'] ?? '') === 'wlasne') return 0;
+        if (($c['finansowanie'] ?? 'publiczne') !== 'publiczne') return 0;
         return TiSzkFees::gr((string)($c['kwota_platnik'] ?? '')) ?? 0;
     }
 

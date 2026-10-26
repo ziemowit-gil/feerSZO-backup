@@ -138,7 +138,7 @@ final class TiSzkFees
             'kwota_po' => $calc['po'], 'harmonogram' => self::schedule($model, $calc['po'], $n, $first),
         ];
         $d['wynagrodzenie'] = self::fmt($calc['po']);
-        if (($d['finansowanie'] ?? '') === 'wlasne') $d['kwota_kursant'] = $d['wynagrodzenie'];
+        if (in_array($d['finansowanie'] ?? '', ['wlasne', 'osoba_trzecia'], true)) $d['kwota_kursant'] = $d['finansowanie'] === 'wlasne' ? $d['wynagrodzenie'] : '0,00';
         db_update(TiTrainingContractStore::TABLE, [
             'dane' => json_encode($d, JSON_UNESCAPED_UNICODE), 'kwota_umowy' => $d['wynagrodzenie'], 'model_naliczania' => $model,
             'promocja_id' => $pid > 0 ? $pid : null, 'updated_at' => date('Y-m-d H:i:s'),

@@ -140,7 +140,7 @@ final class TiTrainingContractStore
             'email'         => mb_substr((string)($d['email'] ?? ''), 0, 190),
             'telefon'       => mb_substr((string)($d['telefon'] ?? ''), 0, 64),
             'grupa_id'      => (int)($d['grupa_id'] ?? 0) ?: null,
-            'platnik_nazwa' => mb_substr((string)($d['platnik'] ?? ''), 0, 190),
+            'platnik_nazwa' => mb_substr((string)(($d['finansowanie'] ?? '') === 'osoba_trzecia' ? ($d['platnik_osoba'] ?? '') : ($d['platnik'] ?? '')), 0, 190),
             'kwota_umowy'   => mb_substr((string)($d['wynagrodzenie'] ?? ''), 0, 32),
             'dane'          => json_encode($dane, JSON_UNESCAPED_UNICODE),
             'updated_at'    => $now,

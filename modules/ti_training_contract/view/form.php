@@ -156,15 +156,18 @@ $_dis = $locked ? ' disabled' : '';
 })();
 </script>
 <script>
-// Wariant „uczestnik płaci sam”: pola o dofinansowaniu i płatniku publicznym są zbędne (ukryte; normalize() je czyści).
+// Warianty finansowania: publiczne (płatnik publiczny), płaci sam, płaci osoba trzecia (Płatnik, np. rodzic) — widoczność pól.
 (function () {
   var radios = document.querySelectorAll('input[name="finansowanie"]'); if (!radios.length) return;
-  var ids = ['zrodlo_publ', 'platnik', 'kwota_platnik', 'kwota_kursant'];
+  var publicIds = ['zrodlo_publ', 'platnik', 'kwota_platnik', 'kwota_kursant'];
+  var payerIds = ['platnik_osoba', 'platnik_adres', 'platnik_email', 'platnik_telefon', 'platnik_relacja'];
+  function show(ids, on) { ids.forEach(function (k) { var el = document.getElementById('u-' + k); if (el && el.parentNode) el.parentNode.hidden = !on; }); }
   function apply() {
-    var own = document.querySelector('input[name="finansowanie"]:checked'); own = own && own.value === 'wlasne';
-    ids.forEach(function (k) { var el = document.getElementById('u-' + k); if (el && el.parentNode) el.parentNode.hidden = own; });
+    var r = document.querySelector('input[name="finansowanie"]:checked'), v = r ? r.value : 'publiczne';
+    show(publicIds, v === 'publiczne'); show(payerIds, v === 'osoba_trzecia');
     var w = document.getElementById('u-wynagrodzenie'), ku = document.getElementById('u-kwota_kursant');
-    if (own && w && ku) ku.value = w.value;
+    if (w && ku && v === 'wlasne') ku.value = w.value;
+    if (ku && v === 'osoba_trzecia') ku.value = '0,00';
   }
   radios.forEach(function (r) { r.addEventListener('change', apply); });
   var w = document.getElementById('u-wynagrodzenie'); if (w) w.addEventListener('input', apply);

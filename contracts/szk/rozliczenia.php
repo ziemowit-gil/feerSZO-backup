@@ -84,13 +84,16 @@ $sumDue = array_sum(array_column($inst, 'kwota'));
 $sumPaid = array_sum(array_column($inst, 'wplacono'));
 $zl = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
 $groupId = (int)($row['grupa_id'] ?? 0);
-$platnikName = (string)($c['platnik'] ?: 'płatnik');   // header.php nadpisuje krótkie zmienne ($m, $c…) — wartości liczymy przed jego dołączeniem
+$platnikName = (string)($c['platnik'] ?: 'płatnik');
+$platnikOsoba = (string)($c['platnik_osoba'] ?? '');
+$platnikRelacja = (string)($c['platnik_relacja'] ?? '');   // header.php nadpisuje krótkie zmienne ($m, $c…) — wartości liczymy przed jego dołączeniem
 $PAGE_TITLE = 'Rozliczenia umowy ' . ($row['numer_umowy'] ?: 'SZK');
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 <p class="mb-2"><a href="view.php?id=<?= $id ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Karta umowy</a></p>
 <h4 class="mb-1"><i class="bi bi-receipt-cutoff text-primary"></i> Rozliczenia umowy <span class="font-monospace"><?= h($row['numer_umowy'] ?: 'projekt') ?></span></h4>
 <p class="text-muted mb-3"><?= h($row['imie_nazwisko']) ?> · <?= h($row['temat']) ?> · <?= contractStatusBadge($row['status']) ?></p>
+<?php if (($c['finansowanie'] ?? '') === 'osoba_trzecia'): ?><div class="alert alert-info py-2">Płatnikiem jest <strong><?= h($platnikOsoba) ?></strong> (<?= h($platnikRelacja) ?>). Jego wpłaty księguj na konto uczestnika (formularz „Zaksięguj wpłatę” poniżej) — cała kwota z umowy jest należnością uczestnika wobec Fundacji.</div><?php endif; ?>
 <?php if ((int)$row['client_id'] <= 0): ?><div class="alert alert-warning">Umowa nie jest powiązana z uczestnikiem z karty TI — wybierz uczestnika w formularzu umowy, aby księgować należności i wpłaty.</div><?php endif; ?>
 
 <div class="row g-3 mb-3">

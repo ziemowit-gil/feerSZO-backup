@@ -84,7 +84,11 @@ $_fd = fn(string $k) => trim((string)($d[$k] ?? '')) !== '' ? h((string)$d[$k]) 
   <div class="col-md-4"><div class="detail-label">Data zawarcia</div><div class="detail-value"><?= date_pl($row['data_zawarcia']) ?></div></div>
   <div class="col-md-4"><div class="detail-label">Finansowanie</div><div class="detail-value"><?= h($_fund) ?: '—' ?></div></div>
   <div class="col-md-4"><div class="detail-label">Wynagrodzenie</div><div class="detail-value"><?= $_fd('wynagrodzenie') ?></div></div>
+  <?php if (($d['finansowanie'] ?? '') === 'osoba_trzecia'): ?>
+  <div class="col-md-8"><div class="detail-label">Płatnik (osoba trzecia)</div><div class="detail-value"><?= $_fd('platnik_osoba') ?> <span class="text-muted">(<?= $_fd('platnik_relacja') ?>)</span><?= trim((string)($d['platnik_email'] ?? '')) !== '' ? ' · ' . h($d['platnik_email']) : '' ?><?= trim((string)($d['platnik_telefon'] ?? '')) !== '' ? ' · ' . h($d['platnik_telefon']) : '' ?></div></div>
+  <?php else: ?>
   <div class="col-md-4"><div class="detail-label">Płatnik</div><div class="detail-value"><?= $_fd('platnik') ?><?= trim((string)($d['kwota_platnik'] ?? '')) !== '' ? ' · ' . h($d['kwota_platnik']) : '' ?></div></div>
+  <?php endif; ?>
   <div class="col-md-4"><div class="detail-label">Kwota uczestnika</div><div class="detail-value"><?= $_fd('kwota_kursant') ?></div></div>
   <div class="col-md-4"><div class="detail-label">Opiekun</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
 </div></div></div>

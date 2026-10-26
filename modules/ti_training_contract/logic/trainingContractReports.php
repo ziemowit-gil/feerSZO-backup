@@ -154,6 +154,7 @@ final class TiSzkReports
         $g = [];
         foreach ($cs as $c) {
             $d = json_decode((string)$c['dane'], true) ?: [];
+            if (($d['finansowanie'] ?? '') === 'osoba_trzecia') continue;   // rodzic / osoba prywatna — nie podmiot finansujący
             $name = trim((string)($c['platnik_nazwa'] ?: ($d['platnik'] ?? '')));
             if ($name === '') continue;
             $k = mb_strtolower($name);
