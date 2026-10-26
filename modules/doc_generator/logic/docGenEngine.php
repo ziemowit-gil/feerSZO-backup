@@ -7,7 +7,7 @@
  *   [forma żeńska|forma męska@pole]   odmiana wg pola z wartością K (żeńska) albo M (męska),
  *   {{#if pole}}…{{#else}}…{{/if}}    fragment warunkowy: pole niepuste albo {{#if pole=wartość}}; można zagnieżdżać,
  *   # Tytuł                           tytuł (środek, pogrubiony), ## Nagłówek (środek, pogrubiony), ### Podtytuł (pogrubiony),
- *   1. Ustęp                          akapit numerowany (wcięcie wiszące),  ☐ Pole wyboru,
+ *   1. Ustęp                          akapit numerowany (wcięcie wiszące),  a) Punkt   podpunkt (głębsze wcięcie),  ☐ Pole wyboru,
  *   [[podpisy: wiersz~wiersz || wiersz~wiersz]]   tabela podpisów (kolumny rozdziela ||, wiersze ~),
  *   [[strona]]                        podział strony,  **tekst**  pogrubienie,  pozostałe wiersze — akapity wyjustowane.
  * Dane NIE są interpretowane jako składnia (wartości pól są wstawiane po rozwinięciu warunków), a HTML jest zawsze escapowany.
@@ -87,6 +87,7 @@ final class DocGenEngine
             if (preg_match('/^##\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'h2', 'text' => $m[1]]; continue; }
             if (preg_match('/^#\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'title', 'text' => $m[1]]; continue; }
             if (preg_match('/^☐\s*(.*)$/u', $l, $m)) { $out[] = ['t' => 'box', 'text' => $m[1]]; continue; }
+            if (preg_match('/^([a-z])\)\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'sub', 'n' => $m[1] . ')', 'text' => $m[2]]; continue; }
             if (preg_match('/^(\d{1,3})\.\s+(.*)$/u', $l, $m)) { $out[] = ['t' => 'num', 'n' => $m[1] . '.', 'text' => $m[2]]; continue; }
             $out[] = ['t' => 'p', 'text' => $l];
         }
@@ -117,6 +118,7 @@ final class DocGenEngine
                 case 'h2': $h .= '<h2 class="dg-h2">' . self::inlineHtml($b['text']) . '</h2>'; break;
                 case 'h3': $h .= '<h3 class="dg-h3">' . self::inlineHtml($b['text']) . '</h3>'; break;
                 case 'num': $h .= '<p class="dg-num"><span>' . htmlspecialchars($b['n']) . '</span><span>' . self::inlineHtml($b['text']) . '</span></p>'; break;
+                case 'sub': $h .= '<p class="dg-num dg-sub"><span>' . htmlspecialchars($b['n']) . '</span><span>' . self::inlineHtml($b['text']) . '</span></p>'; break;
                 case 'box': $h .= '<p class="dg-num"><span>☐</span><span>' . self::inlineHtml($b['text']) . '</span></p>'; break;
                 case 'pagebreak': $h .= '<div style="page-break-after:always"></div>'; break;
                 case 'signs':
@@ -133,7 +135,7 @@ final class DocGenEngine
     {
         return 'body{font:11pt/1.35 "Times New Roman",serif;margin:0;color:#111}.dg-page{max-width:190mm;margin:10mm auto;padding:0 12mm}'
              . '.dg-title{font-size:13pt;text-align:center;margin:10pt 0 8pt}.dg-h2{font-size:11pt;text-align:center;margin:12pt 0 4pt}.dg-h3{font-size:11pt;margin:8pt 0 3pt}'
-             . '.dg-p{text-align:justify;margin:0 0 6pt}.dg-num{display:flex;gap:8pt;text-align:justify;margin:0 0 6pt}.dg-num span:first-child{flex:0 0 20pt}'
+             . '.dg-p{text-align:justify;margin:0 0 6pt}.dg-num{display:flex;gap:8pt;text-align:justify;margin:0 0 6pt}.dg-num span:first-child{flex:0 0 20pt}.dg-sub{margin-left:22pt}'
              . '.dg-signs{width:100%;margin-top:28pt;border-collapse:collapse}.dg-signs td{width:50%;text-align:center;vertical-align:bottom;padding:0 8pt}.dg-line{border-top:1px solid #000;margin:34pt 10pt 2pt}.dg-sl{font-size:9pt}.dg-sc{font-size:9pt}'
              . '.dg-foot{margin-top:18pt;padding-top:6pt;border-top:1px solid #bbb}@media print{.dg-page{margin:0;padding:0 5mm}.dg-bar{display:none}}';
     }
@@ -174,6 +176,7 @@ final class DocGenEngine
                 case 'h2': $runs($s, $b['text'], $ctr, ['bold' => true]); break;
                 case 'h3': $runs($s, $b['text'], $just + ['keepNext' => true], ['bold' => true]); break;
                 case 'num': $runs($s, $b['n'] . "\t" . $b['text'], $num + ['tabs' => [new \PhpOffice\PhpWord\Style\Tab('left', 400)]]); break;
+                case 'sub': $runs($s, $b['n'] . "\t" . $b['text'], $just + ['indentation' => ['left' => 850, 'hanging' => 400], 'tabs' => [new \PhpOffice\PhpWord\Style\Tab('left', 850)]]); break;
                 case 'box': $runs($s, "☐\t" . $b['text'], $num + ['tabs' => [new \PhpOffice\PhpWord\Style\Tab('left', 400)]]); break;
                 case 'pagebreak': $s->addPageBreak(); break;
                 case 'signs':
