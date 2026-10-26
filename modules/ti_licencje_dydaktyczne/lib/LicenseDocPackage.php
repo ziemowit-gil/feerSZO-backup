@@ -16,6 +16,7 @@ require_once __DIR__ . '/LicenseCorrection.php';
 require_once __DIR__ . '/LicenseZipDelivery.php';
 require_once __DIR__ . '/Am7TenantAccount.php';
 require_once __DIR__ . '/LicenseCaseIndex.php';
+require_once dirname(__DIR__, 2) . '/espis/lib/Espis.php';
 
 final class LicenseDocPackage
 {
@@ -69,6 +70,7 @@ final class LicenseDocPackage
         [$t, $number] = LicenseCorrection::target($scope, $tid);
         $rev = LicenseCodes::revision($scope, $tid);
         $caseCode = LicenseCodes::caseCode($scope, $tid);
+        $this->espisPrepare($scope, $tid, $number, $actor);   // koszulka EZD przed renderem — druki dostają QR eSpisu w stopce
         $docs = $this->collect($scope, $tid, $t);
 
         $now = ldNow(); $by = (string)($actor['name'] ?? '');
@@ -89,6 +91,7 @@ final class LicenseDocPackage
             db_insert('license_doc_issues', ['scope' => $scope, 'target_id' => $tid, 'symbol' => $token, 'label' => $label, 'doc_number' => $num, 'code' => $code, 'revision' => $rev,
                 'status' => 'valid', 'file_path' => $rel, 'sha256' => $sha, 'package_id' => $pid, 'correction_id' => $correctionId, 'created_name' => $by, 'created_at' => $now]);
         }
+        $this->espisFile($scope, $tid, $number, $rev, $docs, $c, $actor);
         $ev = ['action' => 'amsk.package', 'note' => 'Wygenerowano pakiet druków AM (rewizja R' . $rev . ', ' . count($docs) . ' dok.), unieważniono poprzednie (' . $voided . ') po korekcie ' . LicenseCorrection::code($correctionId) . '.',
                'actor_id' => ($actor['id'] ?? 0) ?: null, 'actor_name' => $by, 'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64), 'created_at' => $now];
         db_insert('license_events', ($scope === 'operation' ? ['license_id' => 0, 'operation_id' => $tid] : ['license_id' => $tid]) + $ev);
@@ -155,6 +158,7 @@ final class LicenseDocPackage
         [$t] = LicenseCorrection::target($scope, $tid);
         $caseCode = LicenseCodes::caseCode($scope, $tid);
         $rev = (int)$pk['revision'];
+        $this->espisPrepare($scope, $tid, (string)(LicenseCorrection::target($scope, $tid)[1]), $actor);
         $docs = $this->collect($scope, $tid, $t);
         $now = ldNow(); $by = (string)($actor['name'] ?? '');
         foreach ($docs as [$token, $label, $num, $rel, $sha]) {
@@ -166,6 +170,8 @@ final class LicenseDocPackage
                     'revision' => $rev, 'status' => 'valid', 'file_path' => $rel, 'sha256' => $sha, 'package_id' => $packageId, 'correction_id' => (int)$pk['correction_id'], 'created_name' => $by, 'created_at' => $now]);
             }
         }
+        $cReg = LicenseCorrection::get((int)$pk['correction_id']);
+        $this->espisFile($scope, $tid, (string)(LicenseCorrection::target($scope, $tid)[1]), $rev, $docs, $cReg, $actor);
         db_exec("UPDATE license_doc_packages SET doc_count = ?, created_at = ?, created_name = ?, created_by = ?, sent_at = NULL, manager_sent_at = NULL, gen_no = gen_no + 1, gen_reason = ? WHERE id = ?", [count($docs), $now, $by, ($actor['id'] ?? 0) ?: null, $reason, $packageId]);
         $ev = ['action' => 'amsk.package_regen', 'note' => 'Zregenerowano pakiet druków AM (rewizja R' . $rev . ', ' . count($docs) . ' dok.) z aktualnych danych — wymaga ponownej wysyłki.',
                'actor_id' => ($actor['id'] ?? 0) ?: null, 'actor_name' => $by, 'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64), 'created_at' => $now];
@@ -240,6 +246,39 @@ final class LicenseDocPackage
         $p = LicenseStorage::fullPath((string)$pk['merged_path']);
         if (!$p) throw new DomainException('Brak scalonego PDF — pakiet nie został zablokowany.');
         return (string)file_get_contents($p);
+    }
+
+    private static function espisRef(string $scope): string
+    {
+        return $scope === 'operation' ? 'operacja_am' : 'licencja_am';
+    }
+
+    /** Koszulka EZD sprawy AM istnieje PRZED renderem druków (QR eSpisu w stopce). Bez EZD — po cichu pomijane. */
+    private function espisPrepare(string $scope, int $tid, string $number, array $actor): void
+    {
+        try { Espis::ensureSprawa(self::espisRef($scope), $tid, ($scope === 'operation' ? 'Operacja AM ' : 'Sprawa AM ') . $number, 'Dokumenty licencji AM: wnioski, decyzje, AM90/AM91, korekty AMSK, pakiety.', (int)($actor['id'] ?? 0)); }
+        catch (\Throwable $e) { error_log('ld espisPrepare: ' . $e->getMessage()); }
+    }
+
+    /** Wpisuje druki pakietu (i druk AMSK korekty) do koszulki EZD i rejestru eSpisu. Błąd nie przerywa generowania pakietu. */
+    private function espisFile(string $scope, int $tid, string $number, int $rev, array $docs, ?array $c, array $actor): void
+    {
+        try {
+            $caseCode = LicenseCodes::caseCode($scope, $tid);
+            $common = ['ref_type' => self::espisRef($scope), 'ref_id' => $tid, 'sprawa_title' => ($scope === 'operation' ? 'Operacja AM ' : 'Sprawa AM ') . $number,
+                       'sprawa_desc' => 'Dokumenty licencji AM.', 'uid' => (int)($actor['id'] ?? 0), 'user_name' => (string)($actor['name'] ?? '')];
+            foreach ($docs as [$token, $label, $num, $rel]) {
+                $p = LicenseStorage::fullPath((string)$rel);
+                if (!$p) continue;
+                Espis::file($common + ['doc_key' => $token, 'label' => $label, 'number' => $num, 'code' => LicenseCodes::formCode($caseCode, $token) . '/R' . $rev, 'revision' => $rev,
+                    'bytes' => (string)file_get_contents($p), 'file_name' => ldFileName($num) . '.' . pathinfo($p, PATHINFO_EXTENSION)]);
+            }
+            if ($c) {   // korekta AMSK (druk dla osoby) — dokument sprawy, bez rewizji (jedno wystawienie)
+                $a = (new LicenseCorrection())->document($c, false);
+                Espis::file($common + ['doc_key' => 'AMSK-' . (int)$c['id'], 'label' => 'Korekta ' . LicenseCorrection::code((int)$c['id']) . ' (AMSK)', 'number' => $a['number'], 'code' => LicenseCorrection::code((int)$c['id']),
+                    'revision' => 1, 'bytes' => $a['out']['bytes'], 'file_name' => ldFileName($a['number']) . '.' . $a['out']['ext']]);
+            }
+        } catch (\Throwable $e) { error_log('ld espisFile: ' . $e->getMessage()); }
     }
 
     /** Kontekst rejestru przekazań haseł (PP). */

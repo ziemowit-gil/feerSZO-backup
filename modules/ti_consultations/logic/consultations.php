@@ -762,7 +762,7 @@ final class TiConsultations
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
         $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
-        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => $kds && array_filter($kds) ? 21 : 13, 'margin_footer' => 5, 'shrink_tables_to_fit' => 1,
+        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => max(array_merge([13], array_map(fn($x) => ti_student_doc_margin($x, 13), $kds))), 'margin_footer' => 5, 'shrink_tables_to_fit' => 1,
                                 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $pdf->SetTitle('Karta konsultacji');
         $pdf->SetHTMLFooter(ti_student_doc_footer(TiCit::footer('KT1', $nums[0] ?? ''), $kds[0] ?? ''));
@@ -836,8 +836,20 @@ final class TiConsultations
     {
         $k = self::get($id);
         if (!$k || self::stage($k) !== 'approved') return null;
-        return self::ezdFile('ti_konsultacja', $id, 'Karta konsultacji ' . ($k['card_no'] ?: '#' . $id) . ' — ' . $k['client_name'],
-            'Zatwierdzona karta konsultacji (IKA + x509), SHA1 ' . $k['sha1sum'], self::pdf([$id]), self::pdfName($k), $uid);
+        $title = 'Karta konsultacji ' . ($k['card_no'] ?: '#' . $id) . ' — ' . $k['client_name'];
+        $desc  = 'Zatwierdzona karta konsultacji (IKA + x509), SHA1 ' . $k['sha1sum'];
+        // eSpis: koszulka istnieje przed renderem (QR w stopce KT1), karta wpisana do rejestru eSpisu z kodem KD…/KONS/…
+        try {
+            require_once dirname(__DIR__, 2) . '/espis/lib/Espis.php';
+            require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiStudentDocCode.php';
+            if (self::ezdActive() && Espis::ensureSprawa('ti_konsultacja', $id, $title, $desc, $uid)) {
+                $r = Espis::file(['ref_type' => 'ti_konsultacja', 'ref_id' => $id, 'sprawa_title' => $title, 'sprawa_desc' => $desc, 'doc_key' => 'KT1', 'label' => 'Karta konsultacji ' . ($k['card_no'] ?: '#' . $id),
+                    'number' => self::docNumber($k), 'code' => ti_student_doc_code((int)($k['client_id'] ?? 0), 'KONS', $id), 'revision' => 1, 'bytes' => self::pdf([$id]), 'file_name' => self::pdfName($k),
+                    'uid' => $uid, 'user_name' => '']);
+                if ($r) return (int)$r['sprawa_id'];
+            }
+        } catch (\Throwable $e) { error_log('ti_consultations eSpis #' . $id . ': ' . $e->getMessage()); }
+        return self::ezdFile('ti_konsultacja', $id, $title, $desc, self::pdf([$id]), self::pdfName($k), $uid);
     }
 
     public static function ezdGroup(int $courseId, int $uid): ?int

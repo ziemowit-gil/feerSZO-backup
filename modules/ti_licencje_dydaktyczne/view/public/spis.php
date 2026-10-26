@@ -24,6 +24,7 @@ include __DIR__ . '/_top.php';
     <?php endforeach; ?>
     </tbody>
   </table></div>
+  <?php if (!empty($espisUrl)): ?><p class="tw-mt-3"><a class="tw-inline-block tw-bg-m-cobalt tw-text-white tw-px-3 tw-py-1 tw-font-semibold" href="<?= h($espisUrl) ?>">Otwórz eSpis w EZD — podgląd wersji elektronicznej (po zalogowaniu)</a></p><?php endif; ?>
   <p class="tw-mt-3 tw-text-sm tw-text-m-steel">Druk z niższą rewizją niż R<?= (int)$rev ?> albo oznaczony „UNIEWAŻNIONY” jest nieaktualny. Spis nie zawiera danych osobowych.</p>
 </section>
 <?php include __DIR__ . '/_bottom.php'; ?>

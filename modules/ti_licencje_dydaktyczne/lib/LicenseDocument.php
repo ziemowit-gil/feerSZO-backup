@@ -1009,7 +1009,9 @@ final class LicenseDocument
             $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
             if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
             $code = LicenseCodes::forNumber($number, $symbol);   // Code128 łączący formularze jednej sprawy (skan → sprawa)
-            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => $code !== '' ? 21 : 13,
+            $qr = '';   // QR do publicznego eSpisu koszulki EZD sprawy (gdy koszulka już istnieje)
+            if ($code !== '' && is_file(dirname(__DIR__, 2) . '/espis/lib/Espis.php')) { require_once dirname(__DIR__, 2) . '/espis/lib/Espis.php'; $qr = Espis::qrForAmCode($code); }
+            $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 8, 'margin_bottom' => $code !== '' ? ($qr !== '' ? 25 : 21) : 13,
                                     'margin_footer' => 5, 'default_font' => 'dejavusans', 'tempDir' => $tmp, 'shrink_tables_to_fit' => 1]);
             $mpdf->SetTitle($title);
             $mpdf->SetAuthor(ldOrgName());
@@ -1017,7 +1019,8 @@ final class LicenseDocument
                 . '<td width="33%"><b>' . htmlspecialchars($symbol) . '</b> (' . self::VERSION . ')</td>'
                 . '<td width="34%" style="text-align:center">' . htmlspecialchars($number) . '</td>'
                 . '<td width="33%" style="text-align:right">Strona {PAGENO}/{nbpg}</td></tr>'
-                . ($code !== '' ? '<tr><td colspan="3" style="text-align:right;font-size:6pt"><barcode code="' . htmlspecialchars($code) . '" type="C128B" size="0.75" height="0.55" /><br>' . htmlspecialchars($code) . '</td></tr>' : '')
+                . ($code !== '' ? '<tr><td colspan="3" style="text-align:right;font-size:6pt"><table align="right" style="border:0"><tr><td style="text-align:right;vertical-align:bottom;font-size:6pt"><barcode code="' . htmlspecialchars($code) . '" type="C128B" size="0.75" height="0.55" /><br>' . htmlspecialchars($code) . '</td>'
+                    . ($qr !== '' ? '<td style="vertical-align:bottom;padding-left:2mm">' . $qr . '<div style="font-size:5pt;text-align:center">eSpis</div></td>' : '') . '</tr></table></td></tr>' : '')
                 . '</table>');
             $mpdf->WriteHTML($html);
             return ['bytes' => $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN), 'mime' => 'application/pdf', 'ext' => 'pdf'];

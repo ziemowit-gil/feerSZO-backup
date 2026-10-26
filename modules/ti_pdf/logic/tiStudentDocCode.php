@@ -39,10 +39,24 @@ function ti_student_doc_parse(string $code): ?array
     return ['client_id' => (int)$m[1], 'type' => $m[2] ?? '', 'doc' => $m[3] ?? ''];
 }
 
-/** Margines dolny strony z miejscem na wiersz z kodem (gdy kod jest). */
+/** QR do publicznego eSpisu koszulki EZD dokumentu (gdy koszulka istnieje); '' gdy brak modułu eSpis / koszulki. */
+function ti_student_doc_qr(string $code): string
+{
+    static $cache = [];
+    if ($code === '') return '';
+    if (isset($cache[$code])) return $cache[$code];
+    $f = dirname(__DIR__, 2) . '/espis/lib/Espis.php';
+    if (!is_file($f)) return '';
+    require_once $f;
+    try { $qr = Espis::qrForStudentCode($code); } catch (\Throwable $e) { return ''; }
+    if ($qr !== '') $cache[$code] = $qr;   // tylko trafienia — koszulka może powstać w trakcie żądania
+    return $qr;
+}
+
+/** Margines dolny strony z miejscem na wiersz z kodem (gdy kod jest); z QR eSpisu — więcej. */
 function ti_student_doc_margin(string $code, int $base = 13): int
 {
-    return $code !== '' ? $base + 8 : $base;
+    return $code === '' ? $base : $base + (ti_student_doc_qr($code) !== '' ? 12 : 8);
 }
 
 /** Stopka mPDF: istniejąca stopka + wiersz z Code128 i kodem tekstem (wyrównany do prawej). Bez kodu zwraca stopkę bez zmian. */
@@ -50,5 +64,7 @@ function ti_student_doc_footer(string $footerHtml, string $code): string
 {
     if ($code === '') return $footerHtml;
     $c = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
-    return $footerHtml . '<div style="text-align:right;font-family:dejavusans;font-size:6pt"><barcode code="' . $c . '" type="C128B" size="0.75" height="0.55" /><br>' . $c . '</div>';
+    $qr = ti_student_doc_qr($code);
+    return $footerHtml . '<table align="right" style="border:0;font-family:dejavusans;font-size:6pt"><tr><td style="text-align:right;vertical-align:bottom"><barcode code="' . $c . '" type="C128B" size="0.75" height="0.55" /><br>' . $c . '</td>'
+        . ($qr !== '' ? '<td style="vertical-align:bottom;padding-left:2mm">' . $qr . '<div style="font-size:5pt;text-align:center">eSpis</div></td>' : '') . '</tr></table>';
 }

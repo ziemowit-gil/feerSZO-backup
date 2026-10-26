@@ -348,6 +348,9 @@ final class TiStudentFolder
             $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
             if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
             require_once dirname(__DIR__, 2) . '/ti_pdf/logic/tiStudentDocCode.php';
+            require_once dirname(__DIR__, 2) . '/espis/lib/Espis.php';
+            $_clientId = (int)($acc['client_id'] ?? 0);
+            if ($_clientId > 0) { try { Espis::ensureSprawa('ti_kursant', $_clientId, 'Dokumenty uczestnika nr ' . $_clientId, 'Dokumenty TI uczestnika (potwierdzenia akceptacji, dokumenty rozliczeniowe).', 0); } catch (\Throwable $_e) {} }   // QR eSpisu w stopce
             $_kd = ti_student_doc_code((int)($acc['client_id'] ?? 0), 'POTW', (int)($r['id'] ?? 0));   // kod dokumentu kursanta w stopce
             $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 20, 'margin_right' => 20, 'margin_top' => 18, 'margin_bottom' => ti_student_doc_margin($_kd, 18),
                                     'default_font' => 'dejavusans', 'tempDir' => $tmp]);
@@ -355,6 +358,11 @@ final class TiStudentFolder
             if ($_kd !== '') $mpdf->SetHTMLFooter(ti_student_doc_footer('<div style="font-family:dejavusans;font-size:7pt;border-top:0.25mm solid #999;text-align:right">Strona {PAGENO}/{nbpg}</div>', $_kd));
             $mpdf->WriteHTML(self::confirmationHtml($r, $acc), \Mpdf\HTMLParserMode::DEFAULT_MODE);
             $pdf = $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+            if ($_clientId > 0 && $_kd !== '') {   // wpis do koszulki EZD uczestnika i rejestru eSpisu
+                try { Espis::file(['ref_type' => 'ti_kursant', 'ref_id' => $_clientId, 'sprawa_title' => 'Dokumenty uczestnika nr ' . $_clientId, 'sprawa_desc' => 'Dokumenty TI uczestnika.', 'doc_key' => 'POTW-' . (int)$r['id'],
+                    'label' => 'Potwierdzenie akceptacji dokumentu', 'number' => 'POTW/' . (int)$r['id'], 'code' => $_kd, 'revision' => 1, 'bytes' => $pdf, 'file_name' => 'potwierdzenie-akceptacji-' . (int)$r['id'] . '.pdf', 'uid' => 0, 'user_name' => 'system']); }
+                catch (\Throwable $_e) { error_log('eSpis POTW: ' . $_e->getMessage()); }
+            }
             $tmpFile = tempnam(sys_get_temp_dir(), 'sfold');
             file_put_contents($tmpFile, $pdf);
             $path = self::store($tmpFile, (int)$r['account_id'], 'pdf', false);

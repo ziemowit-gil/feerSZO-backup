@@ -255,7 +255,12 @@ final class LicensePublicController
         if (!$p) { http_response_code(404); return $this->view('message.php', ['title' => 'Nie znaleziono spisu', 'tone' => 'danger', 'text' => 'Nie znaleziono spisu dokumentów o tym kodzie. Sprawdź, czy kod QR jest czytelny.']); }
         try { [$t, $tn] = LicenseCorrection::target($p[0], $p[1]); }
         catch (\Throwable $e) { http_response_code(404); return $this->view('message.php', ['title' => 'Nie znaleziono spisu', 'tone' => 'danger', 'text' => 'Sprawa nie istnieje.']); }
-        return $this->view('spis.php', ['title' => 'Spis elektroniczny dokumentów sprawy', 'number' => $tn, 'rows' => LicenseCaseIndex::documents($p[0], $p[1]), 'rev' => LicenseCodes::revision($p[0], $p[1])]);
+        $espisUrl = '';
+        try {   // koszulka EZD sprawy → eSpis z podglądem wersji elektronicznej (po zalogowaniu)
+            require_once dirname(__DIR__, 2) . '/espis/lib/Espis.php';
+            if ($sid = Espis::sprawaId($p[0] === 'operation' ? 'operacja_am' : 'licencja_am', $p[1])) $espisUrl = Espis::url($sid);
+        } catch (\Throwable $e) {}
+        return $this->view('spis.php', ['title' => 'Spis elektroniczny dokumentów sprawy', 'number' => $tn, 'rows' => LicenseCaseIndex::documents($p[0], $p[1]), 'rev' => LicenseCodes::revision($p[0], $p[1]), 'espisUrl' => $espisUrl]);
     }
 
     public function done(): string
