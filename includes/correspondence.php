@@ -161,6 +161,8 @@ function corr_upload(int $id, string $field, int $user_id): ?string {
     if (!move_uploaded_file($f['tmp_name'], $dir . $stored)) return 'Błąd zapisu pliku.';
 
     db()->prepare("UPDATE correspondence SET attachment=? WHERE id=?")->execute([$stored, $id]);
+    // numer KOR/NNNN/ROK + QR załącznika (przy wymianie pliku numer pozostaje przy pozycji korespondencji)
+    try { require_once __DIR__ . '/../modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('correspondence_file', $id); } catch (\Throwable $e) {}
     return null;
 }
 

@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/correspondence.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
+require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
 
 require_login();
 $ezd_enabled = module_enabled('ezd_enabled');
@@ -299,6 +300,7 @@ include dirname(__DIR__) . '/includes/header.php';
            class="btn btn-outline-primary btn-sm w-100">
           <i class="bi bi-download me-1"></i>Pobierz plik
         </a>
+        <div class="mt-2 text-center"><?= DocRegistry::badge(DocRegistry::get('correspondence_file', $id) ?: DocRegistry::assign('correspondence_file', $id)) ?></div>
       </div>
     </div>
     <?php endif; ?>
@@ -388,4 +390,5 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 
+<?= DocRegistry::assets() ?>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
