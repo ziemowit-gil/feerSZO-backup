@@ -278,7 +278,7 @@ include __DIR__ . '/includes/header_crm.php';
               ? APP_URL . '/crm/contact/merge.php?a=' . (int)$pl['ids'][0] . '&b=' . (int)$pl['ids'][1]
               : APP_URL . '/crm/contact/merge.php',
           'domain_attach' => APP_URL . '/crm/contact/domains.php?domain=' . urlencode((string)($pl['domain'] ?? '')),
-          'empty_contact' => APP_URL . '/crm/contact/view.php?id=' . (int)($pl['id'] ?? 0),
+          'empty_contact', 'robot_contact' => APP_URL . '/crm/contact/view.php?id=' . (int)($pl['id'] ?? 0),
           default         => APP_URL . ($cfg['link'] ?? '/crm/index.php'),
       };
     ?>

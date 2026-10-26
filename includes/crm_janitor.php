@@ -81,6 +81,11 @@ function crm_janitor_rules(): array
             'label' => 'Kartoteka bez treści',
             'desc'  => 'Brak e-maila i telefonu, zero historii, wpis starszy niż 30 dni.',
         ],
+        'robot_contact' => [
+            'mode' => 'propose', 'severity' => 'high',
+            'label' => 'Adres techniczny jako zwykły kontakt',
+            'desc'  => 'Adres typu noreply / powiadomienia leży jako osoba lub firma — dostaje wysyłki. Oznacz jako techniczny.',
+        ],
         'no_owner' => [
             'mode' => 'propose', 'severity' => 'low',
             'label' => 'Kontakty bez opiekuna',
@@ -358,6 +363,27 @@ function crm_janitor_run(bool $dry_run = false): array
         }
     }
 
+    // ── 4b. Adresy techniczne udające zwykłe kontakty ─────────────────────
+    if (crm_janitor_rule_enabled('robot_contact')) {
+        require_once __DIR__ . '/crm_contact_analyzer.php';
+        $cands = db_all("SELECT id, imie_nazwisko, email FROM crm_contacts
+                          WHERE crm_active=1 AND type <> 'kontakt_techniczny' AND COALESCE(status,'') NOT IN ('techniczny','powiadomienia')
+                            AND COALESCE(email,'') LIKE '%@%' LIMIT 3000");
+        $n_robot = 0;
+        foreach ($cands as $e) {
+            if (!crm_is_robot_sender($e['email'])) continue;
+            if (++$n_robot > 200) break;
+            $found++; $bump('robot_contact');
+            if ($dry_run) continue;
+            crm_janitor_add('robot_contact', 'c:' . (int)$e['id'], [
+                'contact_id' => (int)$e['id'],
+                'title'      => 'Adres techniczny: ' . $e['email'],
+                'detail'     => 'Kartoteka „' . $e['imie_nazwisko'] . '” ma adres automatu — nie powinna dostawać wysyłek.',
+                'payload'    => ['id' => (int)$e['id']],
+            ]);
+        }
+    }
+
     // ── 5. Zbiorcze: bez opiekuna, sprawy bez ruchu ───────────────────────
     $aggregates = [];
     if (crm_janitor_rule_enabled('no_owner')) {
@@ -465,6 +491,11 @@ function crm_janitor_bulk_actions(): array
             'desc'  => 'Zachowuje kartotekę STARSZĄ (niższe ID) i przenosi na nią historię młodszej.',
             'rules' => ['duplicates'],
         ],
+        'mark_technical' => [
+            'label' => 'Oznacz jako techniczne', 'icon' => 'bi-robot', 'confirm' => false,
+            'desc'  => 'Zmienia typ kontaktu na „Kontakt techniczny” (i status „Techniczny”, jeśli jest w słowniku) — wypada z wysyłek.',
+            'rules' => ['robot_contact'],
+        ],
         'delete_empty' => [
             'label' => 'Usuń puste kartoteki', 'icon' => 'bi-trash', 'confirm' => true,
             'desc'  => 'Usunięcie miękkie — kartoteki znikają z list, dane zostają w bazie.',
@@ -534,6 +565,16 @@ function crm_janitor_bulk(string $action, array $ids, ?int $uid): array
                     }
                     if ($ok) { crm_janitor_close($fid, 'done', $uid); $done++; }
                     else     { $failed++; }
+                    break;
+
+                case 'mark_technical':
+                    $cid = (int)($payload['id'] ?? $f['contact_id'] ?? 0);
+                    if (!$cid || !db_one("SELECT id FROM crm_contacts WHERE id=? AND crm_active=1", [$cid])) { $failed++; break; }
+                    $has_st = db_one("SELECT 1 AS x FROM crm_statuses WHERE slug='techniczny' AND is_active=1");
+                    db_exec("UPDATE crm_contacts SET type='kontakt_techniczny'" . ($has_st ? ", status='techniczny'" : '') . ", updated_at=? WHERE id=?", [date('Y-m-d H:i:s'), $cid]);
+                    CrmManager::addNote($cid, 'Oznaczono jako kontakt techniczny (adres automatu) przez bota sprzątającego. ' . date('Y-m-d H:i') . '.', $uid);
+                    crm_janitor_close($fid, 'done', $uid);
+                    $done++;
                     break;
 
                 case 'delete_empty':
