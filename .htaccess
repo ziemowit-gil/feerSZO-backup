@@ -104,6 +104,8 @@ RewriteRule ^plan/s/online/?$ /karty30/ti/dydaktyk/planPubliczny.php?s=online [Q
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^dyzury/?$ /karty30/ti/dydaktyk/dyzury.php [QSA,L]
 
+# /espis/ (publiczna weryfikacja kodów ze stopek dokumentów — QR) działa na każdym hoście, także ti*. i kurs*. (kursant.feer.org.pl):
+# jest wyłączony z przepisywania na panel kursanta poniżej.
 # ── Czyste adresy paneli TI na ti*. i kurs*.: bez /karty30/ti/ w pasku adresu ──
 # Panel uczestnika jest w korzeniu (ti.feer.org.pl/index.php?tab=lekcje), panel
 # dydaktyka pod /dydaktyk/, logowanie pod /login.php. Stare pełne adresy (linki
@@ -183,7 +185,7 @@ RewriteRule ^(.+)$ /karty30/ti/$1 [L]
 # auth/ms365_prowadzacy.php, callback auth/microsoft.php).
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|newUI|tozsamosc)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|newUI|tozsamosc|espis)/ [NC]
 # Moduł Rozliczenia (kierownik/dydaktyk) — własny katalog, nie ścieżka panelu kursanta
 RewriteCond %{REQUEST_URI} !^/rozliczenia(/|$) [NC]
 # Portal płatności (/platnosci) — wejście z panelu kursanta/rodzica jednym kliknięciem
@@ -197,7 +199,7 @@ RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 # 365); przekierowania, /dydaktyk, /kursant i login.php — wspólne reguły wyżej.
 RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|tozsamosc)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|tozsamosc|espis)/ [NC]
 RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
 # Router modułu TI (nabór do grup: /nabor → modules/ti/router.php) — publiczny, nie ścieżka panelu kursanta
 RewriteCond %{REQUEST_URI} !^/modules/ti/router\.php [NC]
