@@ -191,7 +191,18 @@ include dirname(__DIR__) . '/includes/header.php';
 .srch-row:hover{background:#f8fafc;}
 .srch-sign{font-family:monospace;font-size:.74rem;font-weight:700;color:#2563eb;white-space:nowrap;flex-shrink:0;}
 .srch-meta{font-size:.71rem;color:#94a3b8;white-space:nowrap;flex-shrink:0;}
-.scope-cb label{cursor:pointer;font-size:.78rem;}
+.srch-panel{background:#fff;border:1px solid #cbd5e1;}
+.srch-panel .srch-main{padding:1rem 1.25rem;border-bottom:1px solid #e2e8f0;}
+.srch-panel .srch-scope{padding:.9rem 1.25rem;border-bottom:1px solid #e2e8f0;}
+.srch-panel .srch-opts{padding:.7rem 1.25rem;background:#f8fafc;}
+.srch-panel legend{float:none;width:auto;font-size:.8rem;font-weight:700;margin:0;padding:0;}
+.scope-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.5rem;}
+.scope-tile{display:flex;align-items:center;gap:.5rem;margin:0;padding:.45rem .7rem;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:.82rem;min-height:2.4rem;}
+.scope-tile:hover{border-color:#2563eb;}
+.scope-tile:has(input:checked){background:#eff6ff;border-color:#2563eb;}
+.scope-tile:has(input:focus-visible){outline:3px solid #1d4ed8;outline-offset:2px;}
+.scope-tile input{margin:0;flex-shrink:0;}
+.scope-tile .bi{color:#475569;}
 </style>
 
 <nav aria-label="breadcrumb" class="mb-3"><ol class="breadcrumb" style="font-size:.8rem">
@@ -202,33 +213,44 @@ include dirname(__DIR__) . '/includes/header.php';
 <h4 class="fw-bold mb-3"><i class="bi bi-search text-primary me-2"></i>Wyszukiwanie w EZD</h4>
 
 <form method="get" role="search" aria-label="Wyszukiwanie w EZD" class="mb-4">
-  <div class="d-flex gap-2 flex-wrap align-items-start">
-    <!-- Pole tekstowe -->
-    <div class="flex-grow-1" style="min-width:280px;max-width:680px">
-      <div class="input-group">
-        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-        <input type="search" name="q" class="form-control form-control-lg" value="<?= h($q) ?>"
-               minlength="2" autofocus placeholder="Numer, znak, tytuł, nadawca…" autocomplete="off">
-        <button type="submit" class="btn btn-primary px-4">Szukaj</button>
+  <div class="srch-panel shadow-sm">
+
+    <!-- Wiersz główny: fraza, rok, przycisk -->
+    <div class="srch-main">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md">
+          <label for="srch-q" class="form-label fw-semibold mb-1" style="font-size:.8rem">Czego szukasz?</label>
+          <div class="input-group">
+            <span class="input-group-text bg-white" aria-hidden="true"><i class="bi bi-search text-muted"></i></span>
+            <input type="search" id="srch-q" name="q" class="form-control form-control-lg" value="<?= h($q) ?>"
+                   minlength="2" autofocus placeholder="Numer, znak, tytuł, nadawca…" autocomplete="off">
+          </div>
+        </div>
+        <div class="col-7 col-md-auto">
+          <label for="srch-rok" class="form-label fw-semibold mb-1" style="font-size:.8rem">Rok</label>
+          <select id="srch-rok" name="rok" class="form-select form-select-lg" style="min-width:9rem">
+            <option value="">Wszystkie</option>
+            <?php for($y=date('Y');$y>=2020;$y--): ?>
+            <option value="<?= $y ?>" <?= $rok===$y?'selected':'' ?>><?= $y ?></option>
+            <?php endfor; ?>
+          </select>
+        </div>
+        <div class="col-5 col-md-auto">
+          <button type="submit" class="btn btn-primary btn-lg w-100 px-4"><i class="bi bi-search me-1" aria-hidden="true"></i>Szukaj</button>
+        </div>
       </div>
     </div>
-    <!-- Rok -->
-    <div style="min-width:100px">
-      <label class="form-label fw-semibold mb-1" style="font-size:.76rem">Rok</label>
-      <select name="rok" class="form-select form-select-sm">
-        <option value="">Wszystkie</option>
-        <?php for($y=date('Y');$y>=2020;$y--): ?>
-        <option value="<?= $y ?>" <?= $rok===$y?'selected':'' ?>><?= $y ?></option>
-        <?php endfor; ?>
-      </select>
-    </div>
-  </div>
 
-  <!-- Filtry typów i opcje -->
-  <div class="mt-3 d-flex flex-wrap gap-4 align-items-start">
-    <div>
-      <div class="fw-semibold mb-1" style="font-size:.76rem">Szukaj w:</div>
-      <div class="d-flex flex-wrap gap-2 scope-cb">
+    <!-- Typy wyników -->
+    <fieldset class="srch-scope">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <legend>Szukaj w:</legend>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-scope-all="1">Zaznacz wszystko</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-scope-all="0">Odznacz wszystko</button>
+        </div>
+      </div>
+      <div class="scope-grid">
         <?php
         $scope_labels = [
           'teczki'        => ['Segregatory',          'bi-archive'],
@@ -244,22 +266,35 @@ include dirname(__DIR__) . '/includes/header.php';
         foreach ($scope_labels as $sv => [$sl, $si]):
             $checked = (!$scopes || in_array($sv, $scopes, true)) ? 'checked' : '';
         ?>
-        <div class="form-check form-check-inline me-0">
+        <label class="scope-tile" for="sc-<?= $sv ?>">
           <input class="form-check-input" type="checkbox" name="scope[]" value="<?= $sv ?>" id="sc-<?= $sv ?>" <?= $checked ?>>
-          <label class="form-check-label" for="sc-<?= $sv ?>"><i class="bi <?= $si ?> me-1"></i><?= h($sl) ?></label>
-        </div>
+          <i class="bi <?= $si ?>" aria-hidden="true"></i><span><?= h($sl) ?></span>
+        </label>
         <?php endforeach; ?>
       </div>
-    </div>
-    <div>
-      <div class="fw-semibold mb-1" style="font-size:.76rem">Opcje:</div>
-      <div class="form-check">
+    </fieldset>
+
+    <!-- Opcje -->
+    <div class="srch-opts">
+      <div class="form-check mb-0">
         <input class="form-check-input" type="checkbox" name="tresc" value="1" id="chk-tresc" <?= $tresc?'checked':'' ?>>
-        <label class="form-check-label" for="chk-tresc" style="font-size:.78rem">Szukaj w treści pism <span class="badge bg-secondary" style="font-size:.62rem">wolniej</span></label>
+        <label class="form-check-label" for="chk-tresc" style="font-size:.82rem">
+          Szukaj także w treści pism
+          <span class="badge bg-secondary ms-1" style="font-size:.64rem">wolniej</span>
+        </label>
       </div>
     </div>
+
   </div>
 </form>
+<script>
+document.querySelectorAll('[data-scope-all]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var on = b.getAttribute('data-scope-all') === '1';
+    document.querySelectorAll('input[name="scope[]"]').forEach(function (c) { c.checked = on; });
+  });
+});
+</script>
 
 <?php if ($q !== '' && mb_strlen($q) < 2): ?>
 <div class="alert alert-warning py-2">Wpisz co najmniej 2 znaki.</div>
