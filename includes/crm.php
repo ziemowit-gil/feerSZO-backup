@@ -3801,7 +3801,7 @@ class SyncService
             // Sprawdź czy ma INNĄ aktywną umowę — jeśli tak, zostaje w grupie "Wolontariusze"
             $ph    = implode(',', array_fill(0, count($active), '?'));
             $other = db_one(
-                "SELECT id FROM umowy_wolontariat WHERE LOWER(email)=LOWER(?) AND status IN ({$ph}) LIMIT 1",
+                "SELECT id FROM umowy_wolontariat WHERE LOWER(email)=LOWER(?) AND status IN ({$ph})" . contractHiddenSql('umowy_wolontariat') . " LIMIT 1",
                 array_merge([$email], $active)
             );
             if (!$other) {
@@ -3861,7 +3861,7 @@ class SyncService
         $active_emails = db_all(
             "SELECT DISTINCT LOWER(TRIM(email)) AS email
              FROM umowy_wolontariat
-             WHERE status IN ({$ph}) AND email IS NOT NULL AND TRIM(email) != ''",
+             WHERE status IN ({$ph}) AND email IS NOT NULL AND TRIM(email) != ''" . contractHiddenSql('umowy_wolontariat') . "",
             $active
         );
         foreach ($active_emails as $row) {
@@ -3894,7 +3894,7 @@ class SyncService
         foreach ($members as $m) {
             if (!$m['email']) continue;
             $has_active = db_one(
-                "SELECT id FROM umowy_wolontariat WHERE LOWER(TRIM(email))=? AND status IN ({$ph}) LIMIT 1",
+                "SELECT id FROM umowy_wolontariat WHERE LOWER(TRIM(email))=? AND status IN ({$ph})" . contractHiddenSql('umowy_wolontariat') . " LIMIT 1",
                 array_merge([$m['email']], $active)
             );
             if (!$has_active) {
@@ -3923,7 +3923,7 @@ class SyncService
         foreach ($former_members as $m) {
             if (!$m['email']) continue;
             $has_active = db_one(
-                "SELECT id FROM umowy_wolontariat WHERE LOWER(TRIM(email))=? AND status IN ({$ph}) LIMIT 1",
+                "SELECT id FROM umowy_wolontariat WHERE LOWER(TRIM(email))=? AND status IN ({$ph})" . contractHiddenSql('umowy_wolontariat') . " LIMIT 1",
                 array_merge([$m['email']], $active)
             );
             if ($has_active) {

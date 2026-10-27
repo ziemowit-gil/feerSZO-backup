@@ -38,6 +38,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'xls') {
     $hourly_rate = (float)(org_setting('volunteer_hourly_rate') ?: '30');
 
     $where_parts = ["strftime('%Y', data_rozpoczecia) = ?"];
+    if (contractHiddenHasColumn('umowy_wolontariat')) $where_parts[] = 'COALESCE(ukryta,0)=0';   // umowy ukryte poza raportem
     $params      = [(string)$sel_year];
     if ($sel_status !== '') {
         $where_parts[] = "status = ?";
@@ -109,6 +110,7 @@ if ($hourly_rate <= 0) $hourly_rate = 30.0;
 
 // ── Pomocnicze WHERE ──────────────────────────────────────────────────────────
 $where_year_parts = ["strftime('%Y', data_rozpoczecia) = ?"];
+if (contractHiddenHasColumn('umowy_wolontariat')) $where_year_parts[] = 'COALESCE(ukryta,0)=0';
 $params_year      = [(string)$sel_year];
 if ($sel_status !== '') {
     $where_year_parts[] = "status = ?";
@@ -131,7 +133,7 @@ $total_last_year = (int)(db_one(
 
 // Aktywne umowy (status w realizacji lub podpisana, niezależnie od roku)
 $active_contracts = (int)(db_one(
-    "SELECT COUNT(*) AS c FROM umowy_wolontariat WHERE " . contractStatusSqlIn(['active'])
+    "SELECT COUNT(*) AS c FROM umowy_wolontariat WHERE " . contractStatusSqlIn(['active']) . contractHiddenSql('umowy_wolontariat')
 )['c'] ?? 0);
 
 // Suma godzin (wybrany rok + filtr statusu)
@@ -147,7 +149,7 @@ for ($m = 1; $m <= 12; $m++) {
     $month_str = sprintf('%04d-%02d', $sel_year, $m);
     $cnt = db_one(
         "SELECT COUNT(*) AS c FROM umowy_wolontariat
-         WHERE strftime('%Y-%m', data_rozpoczecia) = ?
+         WHERE strftime('%Y-%m', data_rozpoczecia) = ?" . contractHiddenSql('umowy_wolontariat') . "
          " . ($sel_status !== '' ? "AND status = ?" : ""),
         $sel_status !== '' ? [$month_str, $sel_status] : [$month_str]
     );
@@ -203,7 +205,7 @@ foreach ($all_dob as $r) {
 // ── Lata do selektora ────────────────────────────────────────────────────────
 $year_range_row = db_one("SELECT MIN(strftime('%Y',data_rozpoczecia)) AS mn,
                                   MAX(strftime('%Y',data_rozpoczecia)) AS mx
-                           FROM umowy_wolontariat WHERE data_rozpoczecia IS NOT NULL");
+                           FROM umowy_wolontariat WHERE data_rozpoczecia IS NOT NULL" . contractHiddenSql('umowy_wolontariat'));
 $year_min = (int)($year_range_row['mn'] ?? $current_year);
 $year_max = (int)($year_range_row['mx'] ?? $current_year);
 $year_max = max($year_max, $current_year);
@@ -211,7 +213,7 @@ $year_max = max($year_max, $current_year);
 // ── Statystyki statusów w wybranym roku ───────────────────────────────────────
 $status_breakdown = db_all(
     "SELECT status, COUNT(*) AS cnt FROM umowy_wolontariat
-     WHERE strftime('%Y', data_rozpoczecia) = ?
+     WHERE strftime('%Y', data_rozpoczecia) = ?" . contractHiddenSql('umowy_wolontariat') . "
      GROUP BY status ORDER BY cnt DESC",
     [(string)$sel_year]
 );

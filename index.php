@@ -34,11 +34,11 @@ foreach (CONTRACT_TYPES as $slug => $label) {
     $table = table_for_type($slug);
     $col   = $end_col_map[$slug] ?? 'data_zakonczenia';
     try {
-        $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table}")['c'] ?? 0);
-        $active = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE " . contractStatusSqlIn(['active']))['c'] ?? 0);
-        $new_m  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE DATE(created_at) >= ?", [$month_start])['c'] ?? 0);
-        $exp7   = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+7 days') AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")", [$today, $today])['c'] ?? 0);
-        $exp30  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+30 days') AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")", [$today, $today])['c'] ?? 0);
+        $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE 1=1" . contractHiddenSql($table))['c'] ?? 0);
+        $active = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE " . contractStatusSqlIn(['active']) . contractHiddenSql($table))['c'] ?? 0);
+        $new_m  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE DATE(created_at) >= ?" . contractHiddenSql($table), [$month_start])['c'] ?? 0);
+        $exp7   = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+7 days') AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")" . contractHiddenSql($table), [$today, $today])['c'] ?? 0);
+        $exp30  = (int)(db_one("SELECT COUNT(*) AS c FROM {$table} WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+30 days') AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")" . contractHiddenSql($table), [$today, $today])['c'] ?? 0);
         $kpi['total']       += $total;
         $kpi['active']      += $active;
         $kpi['new_month']   += $new_m;
@@ -63,7 +63,7 @@ foreach (CONTRACT_TYPES as $slug => $label) {
             "SELECT id, numer_umowy, imie_nazwisko, {$col} AS end_date, '{$slug}' AS type, '{$label}' AS type_label
              FROM {$table}
              WHERE bezterminowa=0 AND {$col} BETWEEN ? AND DATE(?,'+30 days')
-               AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")
+               AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")" . contractHiddenSql($table) . "
              ORDER BY {$col} LIMIT 8",
             [$today, $today]
         );
@@ -158,7 +158,7 @@ foreach (CONTRACT_TYPES as $slug => $label) {
     if (!module_enabled('contract_' . $slug)) continue;
     try {
         $rows = db_all("SELECT id, '{$slug}' AS type, '{$label}' AS type_label, numer_umowy, imie_nazwisko, status, created_at
-                        FROM " . table_for_type($slug) . " ORDER BY created_at DESC LIMIT 3");
+                        FROM " . table_for_type($slug) . " WHERE 1=1" . contractHiddenSql(table_for_type($slug)) . " ORDER BY created_at DESC LIMIT 3");
         $recent = array_merge($recent, $rows);
     } catch (\Throwable $e) {}
 }

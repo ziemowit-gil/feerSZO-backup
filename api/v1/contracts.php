@@ -95,7 +95,7 @@ foreach ($types as $t) {
 
     // Count for this type
     $cnt_row = db_one(
-        "SELECT COUNT(*) AS cnt FROM {$table} WHERE 1=1 $sql_filter",
+        "SELECT COUNT(*) AS cnt FROM {$table} WHERE 1=1 $sql_filter" . contractHiddenSql($table),
         $filter_params
     );
     $total += (int)($cnt_row['cnt'] ?? 0);
@@ -116,7 +116,7 @@ foreach ($types as $t) {
 
     // Count for this type (reuse from above would need caching; simpler to re-query)
     $cnt_row   = db_one(
-        "SELECT COUNT(*) AS cnt FROM {$table} WHERE 1=1 $sql_filter",
+        "SELECT COUNT(*) AS cnt FROM {$table} WHERE 1=1 $sql_filter" . contractHiddenSql($table),
         $filter_params
     );
     $type_count = (int)($cnt_row['cnt'] ?? 0);
@@ -132,7 +132,7 @@ foreach ($types as $t) {
         "SELECT id, numer_umowy, imie_nazwisko, email, status,
                 data_zawarcia, data_zakonczenia, created_at
            FROM {$table}
-          WHERE 1=1 $sql_filter
+          WHERE 1=1 $sql_filter" . contractHiddenSql($table) . "
           ORDER BY id DESC
           LIMIT ? OFFSET ?",
         array_merge($filter_params, [$remaining_limit, $remaining_offset])

@@ -102,7 +102,7 @@ function crm_category_rule_sql(string $rule): ?string {
     $act = _crm_cat_in(contractStatusesInGroup('draft', 'active', 'blocked'));
     $cls = _crm_cat_in(contractStatusesInGroup('closed', 'cancelled'));
     $byMail = fn(string $t, string $in) => "SELECT DISTINCT cc.id FROM {$t} u JOIN crm_contacts cc ON LOWER(TRIM(cc.email))=LOWER(TRIM(u.email)) AND cc.crm_active=1
-                                             WHERE COALESCE(TRIM(u.email),'')<>'' AND u.status IN ({$in})";
+                                             WHERE COALESCE(TRIM(u.email),'')<>'' AND u.status IN ({$in})" . contractHiddenSql($t, 'u');
     return match ($rule) {
         'vol_active'   => $byMail('umowy_wolontariat', $act),
         'vol_former'   => $byMail('umowy_wolontariat', $cls) . " AND cc.id NOT IN (" . $byMail('umowy_wolontariat', $act) . ")",

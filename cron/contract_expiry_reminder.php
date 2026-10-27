@@ -62,7 +62,7 @@ foreach ($contract_tables as $type => $cfg) {
             "SELECT id, numer_umowy, {$cfg['name_col']} AS imie_nazwisko, {$date_col} AS data_zakonczenia, opiekun, email, {$guardian_select}
              FROM {$table}
              WHERE {$date_col} IS NOT NULL
-               AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")
+               AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")" . contractHiddenSql($table) . "
                {$flag_filter}
                {$keep_filter}",
             []

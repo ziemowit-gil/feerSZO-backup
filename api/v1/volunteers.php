@@ -52,6 +52,7 @@ if (!empty($_GET['date_to'])) {
     $params[] = $_GET['date_to'];
 }
 
+if (contractHiddenHasColumn('umowy_wolontariat')) $where[] = 'COALESCE(ukryta,0)=0';   // umowy ukryte poza API
 $sql_where = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
 // ── Count ────────────────────────────────────────────────────────────────────

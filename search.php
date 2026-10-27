@@ -26,7 +26,7 @@ if ($q !== '' && $error === '') {
         $rows = db_all(
             "SELECT id, imie_nazwisko, email, numer_umowy, data_od
              FROM umowy_wolontariat
-             WHERE imie_nazwisko LIKE ? OR email LIKE ? OR numer_umowy LIKE ? OR pesel LIKE ? OR {$peselSql}
+             WHERE (imie_nazwisko LIKE ? OR email LIKE ? OR numer_umowy LIKE ? OR pesel LIKE ? OR {$peselSql})" . contractHiddenSql('umowy_wolontariat') . "
              LIMIT 10",
             [$like, $like, $like, $like, ...$peselParams]
         );

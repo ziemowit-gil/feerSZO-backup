@@ -32,7 +32,7 @@ $data_results = [];
 try {
     $rows = db_all(
         "SELECT id, imie_nazwisko, numer_umowy, email FROM umowy_wolontariat
-         WHERE (imie_nazwisko LIKE ? OR numer_umowy LIKE ? OR email LIKE ?) LIMIT 4",
+         WHERE (imie_nazwisko LIKE ? OR numer_umowy LIKE ? OR email LIKE ?)" . contractHiddenSql('umowy_wolontariat') . " LIMIT 4",
         [$like, $like, $like]
     );
     foreach ($rows as $r) {

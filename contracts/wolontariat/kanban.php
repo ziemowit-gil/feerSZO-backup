@@ -113,7 +113,7 @@ foreach (array_keys($COLUMNS) as $status_key) {
     $board[$status_key] = db_all(
         "SELECT id, numer_umowy, imie_nazwisko, data_zakonczenia, opiekun, guardian_initials, projekt_program
          FROM umowy_wolontariat
-         WHERE status = ? {$where_sql}
+         WHERE status = ? {$where_sql}" . contractHiddenSql('umowy_wolontariat') . "
          ORDER BY created_at DESC
          LIMIT 50",
         $params

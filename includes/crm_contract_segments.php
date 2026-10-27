@@ -39,11 +39,11 @@ function crm_contract_segment_ids(string $type, string $state): array {
     try {
         if ($state === 'active') {
             $sql = "SELECT DISTINCT cc.id FROM {$table} u {$join}
-                    WHERE COALESCE(TRIM(u.email),'')<>'' AND u.status IN ({$active})";
+                    WHERE COALESCE(TRIM(u.email),'')<>'' AND u.status IN ({$active})" . contractHiddenSql($table, 'u');
         } else {
             $sql = "SELECT DISTINCT cc.id FROM {$table} u {$join}
                     WHERE COALESCE(TRIM(u.email),'')<>'' AND u.status IN ({$closed})
-                      AND NOT EXISTS (SELECT 1 FROM {$table} a WHERE LOWER(TRIM(a.email))=LOWER(TRIM(u.email)) AND a.status IN ({$active}))";
+                      AND NOT EXISTS (SELECT 1 FROM {$table} a WHERE LOWER(TRIM(a.email))=LOWER(TRIM(u.email)) AND a.status IN ({$active})" . contractHiddenSql($table, 'a') . ")" . contractHiddenSql($table, 'u');
         }
         return array_map('intval', array_column(db_all($sql), 'id'));
     } catch (\Throwable $e) {

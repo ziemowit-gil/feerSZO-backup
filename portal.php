@@ -43,7 +43,7 @@ $_org = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 // ── Statystyki ─────────────────────────────────────────────────────────────
 $stats = ['umowy'=>0,'osoby'=>0,'granty'=>0,'dzialania'=>0,'approvals'=>0,'crm'=>0,'k30'=>0];
 foreach (['zlecenie','uslugi','wolontariat','dzielo','praca','inne'] as $ct) {
-    try { $stats['umowy'] += (int)(db_one("SELECT COUNT(*) AS c FROM umowy_{$ct} WHERE " . contractStatusSqlIn(['active']))['c'] ?? 0); } catch(\Throwable $e) {}
+    try { $stats['umowy'] += (int)(db_one("SELECT COUNT(*) AS c FROM umowy_{$ct} WHERE " . contractStatusSqlIn(['active']) . contractHiddenSql("umowy_{$ct}"))['c'] ?? 0); } catch(\Throwable $e) {}
 }
 try { $stats['osoby']    = (int)(db_one("SELECT COUNT(*) AS c FROM persons")['c'] ?? 0); } catch(\Throwable $e) {}
 try { $stats['granty']   = (int)(db_one("SELECT COUNT(*) AS c FROM grants WHERE status NOT IN ('zakończony','anulowany')")['c'] ?? 0); } catch(\Throwable $e) {}
@@ -97,7 +97,7 @@ $_ini  = mb_substr($_ini,0,2,'UTF-8') ?: '?';
 $_recent = [];
 foreach (['wolontariat','zlecenie','dzielo','praca','uslugi','inne'] as $slug) {
     try {
-        $rows = db_all("SELECT id,'{$slug}' AS type, numer_umowy, imie_nazwisko, status, created_at FROM umowy_{$slug} ORDER BY created_at DESC LIMIT 3");
+        $rows = db_all("SELECT id,'{$slug}' AS type, numer_umowy, imie_nazwisko, status, created_at FROM umowy_{$slug} WHERE 1=1" . contractHiddenSql("umowy_{$slug}") . " ORDER BY created_at DESC LIMIT 3");
         $_recent = array_merge($_recent, $rows);
     } catch(\Throwable $e) {}
 }

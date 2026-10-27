@@ -1,5 +1,7 @@
 <?php
 require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
+// Flaga „ukryta” na umowie: contractHiddenSql() wyklucza umowy ukryte z list/liczników/raportów personelu (modules/contract_hidden)
+require_once dirname(__DIR__) . '/modules/contract_hidden/logic/contractHidden.php';
 // Samonaprawa bazy: bramka schematu + migracje jednorazowe (szo_schema_current, szo_selfrepair_run)
 require_once dirname(__DIR__) . '/modules/selfrepairDB/logic/selfRepairDB.php';
 // Opcjonalny cache Redis (szo_cache_remember…) — połączenie dopiero przy pierwszym użyciu

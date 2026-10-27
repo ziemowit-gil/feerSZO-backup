@@ -16,7 +16,7 @@ $PAGE_TITLE = 'Raporty umów';
 $summary = [];
 foreach (CONTRACT_TYPES as $slug => $label) {
     $table = table_for_type($slug);
-    $rows  = db_all("SELECT status, COUNT(*) AS cnt FROM {$table} GROUP BY status");
+    $rows  = db_all("SELECT status, COUNT(*) AS cnt FROM {$table} WHERE 1=1" . contractHiddenSql($table) . " GROUP BY status");
     $summary[$slug] = ['label' => $label, 'statuses' => [], 'total' => 0];
     foreach ($rows as $r) {
         $summary[$slug]['statuses'][$r['status']] = $r['cnt'];

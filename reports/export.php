@@ -109,7 +109,7 @@ function fetch_rows(string $slug, array $cols, string $status, string $df, strin
     // Pobierz tylko kolumny z tabeli (niektóre jak m365_login mogą nie istnieć)
     try {
         $select = implode(', ', array_map(fn($c) => "`{$c}`", $db_cols));
-        $w = '1=1'; $p = [];
+        $w = '1=1' . contractHiddenSql($table); $p = [];
         if ($status) { $w .= ' AND status = ?'; $p[] = $status; }
         if ($df)     { $w .= ' AND data_zawarcia >= ?'; $p[] = $df; }
         if ($dt)     { $w .= ' AND data_zawarcia <= ?'; $p[] = $dt; }
@@ -118,7 +118,7 @@ function fetch_rows(string $slug, array $cols, string $status, string $df, strin
         // Fallback bez kolumn m365
         $db_cols2 = array_filter($db_cols, fn($c) => !str_starts_with($c, 'm365'));
         $select2 = implode(', ', array_map(fn($c) => "`{$c}`", $db_cols2));
-        $w = '1=1'; $p = [];
+        $w = '1=1' . contractHiddenSql($table); $p = [];
         if ($status) { $w .= ' AND status = ?'; $p[] = $status; }
         if ($df)     { $w .= ' AND data_zawarcia >= ?'; $p[] = $df; }
         if ($dt)     { $w .= ' AND data_zawarcia <= ?'; $p[] = $dt; }

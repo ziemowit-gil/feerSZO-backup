@@ -96,7 +96,7 @@ function crm_partner_contacts_for_type(string $slug): array {
     }
 
     try {
-        $rows = db_all("SELECT " . implode(',', $sel) . " FROM {$table}");
+        $rows = db_all("SELECT " . implode(',', $sel) . " FROM {$table} WHERE 1=1" . contractHiddenSql($table));
     } catch (\Throwable $e) { return []; }
 
     $cutoff = date('Y-m-d', strtotime('-' . CRM_PARTNER_GRACE_DAYS . ' days'));

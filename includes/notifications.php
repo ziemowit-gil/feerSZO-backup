@@ -346,7 +346,7 @@ function ann_active_contract_users(): array {
                   JOIN {$table} c ON (" . implode(' OR ', $match) . ")
                  WHERE u.is_active = 1
                    AND u.email <> ''
-                   AND c.status IN ({$st_ph})
+                   AND c.status IN ({$st_ph})" . contractHiddenSql($table, 'c') . "
                    AND (c.{$end_col} IS NULL OR c.{$end_col} = ''
                         OR date(c.{$end_col}) >= date('now'))";
         try {

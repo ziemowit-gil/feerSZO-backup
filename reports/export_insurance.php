@@ -98,7 +98,7 @@ foreach ($sources as $slug => $src) {
                 status,
                 '{$slug}' AS typ
              FROM {$table}
-             WHERE {$cpsel} IS NOT NULL AND {$cpsel} != ''
+             WHERE 1=1" . contractHiddenSql($table) . " AND {$cpsel} IS NOT NULL AND {$cpsel} != ''
                AND {$cs} IS NOT NULL AND {$cs} != ''
                AND {$ce} IS NOT NULL AND {$ce} != ''
                AND {$cs} <= ?

@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_
              FROM {$table}
              WHERE bezterminowa = 0
                AND data_zakonczenia IS NOT NULL
-               AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")",
+               AND status NOT IN (" . contractStatusSqlList('closed', 'cancelled') . ")" . contractHiddenSql($table),
             []
         );
 

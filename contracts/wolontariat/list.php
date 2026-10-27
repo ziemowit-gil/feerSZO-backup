@@ -103,7 +103,7 @@ if ($f['oc'])       { $where .= " AND ubezpieczenie_oc = 1"; }
 if ($f['niep'])     { $where .= " AND niepelnoletni = 1"; }
 if ($f['bezterm'])  { $where .= " AND bezterminowa = 1"; }
 if ($f['uwagi'])    { $where .= " AND needs_correction = 1"; }
-$where .= ' AND ' . contract_access_where($TYPE);
+$where .= ' AND ' . contract_access_where($TYPE) . contractHiddenSql($TABLE);   // umowy ukryte — poza listą personelu
 
 $adv_count = (int)!!$f['forma'] + (int)!!$f['data_od'] + (int)!!$f['data_do']
            + (int)!!$f['koniec_od'] + (int)!!$f['koniec_do']
@@ -138,7 +138,7 @@ $status_counts = [];
 $all_statuses  = array_keys(contractStatusOptions('wolontariat', null, true)); // słownik umowy_statusy (z systemowymi: zablokowana, aneks)
 $all_total     = 0;
 foreach ($all_statuses as $s) {
-    $c = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status=?", [$s])['c'] ?? 0);
+    $c = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status=?" . contractHiddenSql($TABLE), [$s])['c'] ?? 0);
     $status_counts[$s] = $c;
     $all_total += $c;
 }

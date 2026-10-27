@@ -113,7 +113,7 @@ function crm_sender_trust_bulk(array $emails): array {
         try {
             $rows = db_all(
                 "SELECT {$sel} FROM {$table}
-                 WHERE email IS NOT NULL AND email <> '' AND lower(email) IN ({$ph})", $rest
+                 WHERE email IS NOT NULL AND email <> '' AND lower(email) IN ({$ph})" . contractHiddenSql($table), $rest
             );
         } catch (\Throwable $e) { continue; }
 

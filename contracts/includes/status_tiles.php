@@ -10,7 +10,7 @@
 function contract_status_tiles(string $type, string $table, string $current = ''): string {
     $where = function_exists('contract_access_where') ? contract_access_where($type) : '1=1';
     try {
-        $rows = db_all("SELECT COALESCE(status,'') AS s, COUNT(*) AS n FROM {$table} WHERE {$where} GROUP BY COALESCE(status,'')");
+        $rows = db_all("SELECT COALESCE(status,'') AS s, COUNT(*) AS n FROM {$table} WHERE {$where}" . contractHiddenSql($table) . " GROUP BY COALESCE(status,'')");
     } catch (\Throwable $e) { return ''; }
     $cnt = [];
     foreach ($rows as $r) $cnt[(string)$r['s']] = (int)$r['n'];

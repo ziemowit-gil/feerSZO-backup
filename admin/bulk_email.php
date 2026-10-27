@@ -70,7 +70,7 @@ function bulk_build_query(array $f): array {
         $unions[] = "SELECT id, " . $table . ".email, {$name_col} AS imie_nazwisko,
                             numer_umowy, opiekun, '{$type}' AS contract_type
                      FROM {$table}
-                     WHERE {$w_sql}";
+                     WHERE {$w_sql}" . contractHiddenSql($table);
         $params   = array_merge($params, $tparams);
     }
 
