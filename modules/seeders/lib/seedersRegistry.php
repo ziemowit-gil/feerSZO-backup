@@ -68,6 +68,19 @@ function seedersRegistry(): array
                 ['id' => 'delete', 'label' => 'Usuń',        'kind' => 'danger',  'args' => ['delete'], 'use' => ['domain']],
             ],
         ],
+        'panel_test' => [
+            'group' => 'Konta testowe', 'title' => 'Panel z ukrytą umową (test@local)', 'script' => 'seedPanelTest.php',
+            'desc'  => 'Konto test@local (viewer) z umową wolontariacką oznaczoną jako UKRYTA: właściciel widzi ją w swoim panelu, a dla personelu i systemu jest niewidoczna (listy, rejestr, liczniki, raporty, wyszukiwarki, wysyłki, API). Istniejące konto o tym adresie zostaje — hasło zmienia się tylko po wpisaniu go poniżej. Puste hasło przy nowym koncie = losowe, wypisane raz.',
+            'fields'  => [
+                'haslo' => ['label' => 'Hasło konta', 'type' => 'password', 'opt' => '--haslo', 'help' => 'min. 8 znaków; nie jest nigdzie zapisywane poza kontem'],
+                'email' => ['label' => 'E-mail konta', 'type' => 'text', 'default' => 'test@local', 'opt' => '--email', 'help' => 'nie @feer.org.pl (te logują się przez Microsoft)'],
+            ],
+            'actions' => [
+                ['id' => 'status', 'label' => 'Stan',   'kind' => 'preview', 'args' => ['status'], 'use' => ['email']],
+                ['id' => 'create', 'label' => 'Załóż',  'kind' => 'apply',   'args' => ['create'], 'use' => ['haslo', 'email']],
+                ['id' => 'delete', 'label' => 'Usuń',   'kind' => 'danger',  'args' => ['delete'], 'use' => ['email']],
+            ],
+        ],
         'dok_dydaktyk' => [
             'group' => 'Konta testowe', 'title' => 'Dydaktyk + zleceniobiorca do dokumentacji', 'script' => 'seedDokumentacjaDydaktyk.php',
             'desc'  => '„Anna Przykładowa” — dydaktyk w panelu TI i jednocześnie osoba na umowie zlecenie DOK/TEST/1 (w realizacji), z kartą w rejestrze Osób i „Kursem przykładowym (DOK)”. Dane fikcyjne, bez SMS i e-maili. Do zrzutów ekranu.',
