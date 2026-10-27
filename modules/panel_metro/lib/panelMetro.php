@@ -153,10 +153,19 @@ function panelMetroTileGroupKey(array $t): string {
     return isset(panelMetroTileGroups()[$g]) ? $g : 'inne';
 }
 
-/** Czy użytkownik wybrał widok kafli „Grupuj wg funkcji” (preferencja w user_prefs; domyślnie nie). */
+/**
+ * Czy kafle są grupowane wg funkcji (preferencja w user_prefs). Domyślnie TAK — kto nie wybrał inaczej, widzi uporządkowane sekcje;
+ * zapisane „Bez grupowania” ('0') zostaje respektowane.
+ */
 function panelMetroGroupingOn(int $userId): bool {
     require_once dirname(__DIR__, 3) . '/includes/crm_sender.php'; // user_pref()/user_prefs
-    return user_pref('panel_tiles_grouped', '0', $userId) === '1';
+    return user_pref('panel_tiles_grouped', '1', $userId) !== '0';
+}
+
+/** Kolor kafla wg grupy funkcji — spójny wygląd sekcji; kafel z 'keep_color' (kolor niesie stan, np. „masz zadania”) go zachowuje. */
+function panelMetroGroupColors(): array
+{
+    return ['praca' => 'green', 'komunikacja' => 'blue', 'konto' => 'teal', 'pomoc' => 'magenta', 'admin' => 'dark', 'inne' => 'grey'];
 }
 
 function panelMetroGroupingSet(int $userId, bool $on): void {
@@ -179,9 +188,19 @@ function panelMetroGroupingToggle(bool $grouped, string $boardId = 'pvmBoard'): 
  */
 function panelMetroTileBoard(array $tiles, bool $grouped, string $boardId = 'pvmBoard'): void {
     $tiles = array_values(array_filter($tiles));
-    foreach ($tiles as $i => &$t) { $t['ord'] = $i; $t['group'] = panelMetroTileGroupKey($t); }
-    unset($t);
     $groups   = panelMetroTileGroups();
+    $gOrder   = array_flip(array_keys($groups));
+    $gColor   = panelMetroGroupColors();
+    foreach ($tiles as $i => &$t) {
+        $t['_i'] = $i; $t['group'] = panelMetroTileGroupKey($t);
+        if (empty($t['keep_color']) && ($t['color'] ?? '') !== 'acc') $t['color'] = $gColor[$t['group']] ?? ($t['color'] ?? 'blue');
+    }
+    unset($t);
+    // Kolejność: kafel profilu (kolor 'acc') pierwszy, dalej grupami w kolejności sekcji, w grupie wg definicji — także bez grupowania.
+    usort($tiles, static fn($a, $b) => [($a['color'] ?? '') === 'acc' ? 0 : 1, $gOrder[$a['group']], $a['_i']]
+                                    <=> [($b['color'] ?? '') === 'acc' ? 0 : 1, $gOrder[$b['group']], $b['_i']]);
+    foreach ($tiles as $i => &$t) $t['ord'] = $i;   // ord = pozycja w widoku płaskim (JS przełącznika układa wg niej)
+    unset($t);
     $sections = [];
     foreach ($groups as $key => $_) {
         $in = array_values(array_filter($tiles, fn($t) => $t['group'] === $key));
