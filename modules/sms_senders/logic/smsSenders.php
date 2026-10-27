@@ -71,6 +71,7 @@ final class SmsSenders
         'crm_message'            => [self::G_MODULES, 'CRM — SMS do kontaktu', 'Wiadomość wysłana z karty kontaktu CRM (z podpisem).'],
         'assistance'             => [self::G_MODULES, 'Asysta — zgłoszenia i przydziały', 'Status zgłoszenia i przydział asysty.'],
         'admin_message'          => [self::G_MODULES, 'Wiadomość od administratora', 'SMS wysyłane ręcznie z panelu administratora: przypomnienie o aktywacji konta, założenie konta wolontariusza.'],
+        'whatsapp_fallback'      => [self::G_MODULES, 'WhatsApp — zapasowy SMS', 'Ta sama treść co szablon WhatsApp, gdy bramka WhatsApp zawiedzie albo jest wyłączona (modules/whatsapp).'],
     ];
 
     /**

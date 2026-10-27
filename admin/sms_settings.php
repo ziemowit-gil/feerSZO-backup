@@ -278,6 +278,7 @@ html,body{background:#fff;color:var(--m-ink);font-family:"Segoe UI","Segoe UI We
 <header class="sbar"><div class="in">
   <span class="mark" aria-hidden="true"><i class="bi bi-phone-fill"></i></span>
   <span><b><?= h(defined('ORG_NAME') ? ORG_NAME : 'SZO') ?></b><small>Administracja · Bramka SMS</small></span>
+  <a href="<?= APP_URL ?>/modules/whatsapp/router.php"><i class="bi bi-whatsapp" aria-hidden="true"></i>WhatsApp</a>
   <a href="<?= APP_URL ?>/admin/index.php"><i class="bi bi-arrow-left" aria-hidden="true"></i>Panel admina</a>
 </div></header>
 
