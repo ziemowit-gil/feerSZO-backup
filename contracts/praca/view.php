@@ -231,6 +231,30 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
   </div>
 </div>
 
+<!-- PPK -->
+<?php
+require_once dirname(dirname(__DIR__)) . '/modules/ppk/logic/PpkService.php';
+PpkService::migrate();
+$_ppk_cur = PpkService::current((int)$row['id']);
+$_ppk_lbl = ['uczestnik' => 'Uczestnik PPK', 'rezygnacja' => 'Rezygnacja z wpłat', 'niepodlegajacy' => 'Niepodlegający'];
+?>
+<div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>PPK</span>
+    <a class="btn btn-sm btn-outline-primary" href="<?= APP_URL ?>/modules/ppk/router.php?_route=%2Fumowa%2F<?= (int)$row['id'] ?>">Stawki, druki PPKR/PPKP</a>
+  </div>
+  <div class="card-body">
+    <?php if ($_ppk_cur): ?>
+      <div class="detail-value"><?= h($_ppk_lbl[$_ppk_cur['status']] ?? $_ppk_cur['status']) ?> <span class="text-muted small">od <?= h(date('d.m.Y', strtotime($_ppk_cur['effective_from']))) ?></span></div>
+      <?php if ($_ppk_cur['status'] === 'uczestnik'): ?>
+      <div class="small text-muted">Pracownik <?= h(PpkRates::bpToPercent((int)$_ppk_cur['employee_base_bp'] + (int)$_ppk_cur['employee_add_bp'])) ?>% · pracodawca <?= h(PpkRates::bpToPercent((int)$_ppk_cur['employer_base_bp'] + (int)$_ppk_cur['employer_add_bp'])) ?>% wynagrodzenia</div>
+      <?php endif; ?>
+    <?php else: ?>
+      <div class="text-muted">Brak ustawień PPK<?= !empty($row['ppk']) ? ' (w umowie zaznaczono PPK — uzupełnij stawki)' : '' ?>.</div>
+    <?php endif; ?>
+  </div>
+</div>
+
 <!-- FORMALNOŚCI -->
 <div class="card shadow-sm mb-3">
   <div class="card-header fw-semibold">Formalności</div>
