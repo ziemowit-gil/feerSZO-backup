@@ -46,6 +46,7 @@ if (is_admin()) $_sn_groups[] = ['Zaawansowane', 'bi-sliders2', [
     ['Śledzenie skrzynki',   '/crm/settings/inbox.php',         'bi-inbox',              'settings/inbox'],
     ['Microsoft 365',        '/crm/settings/office.php',        'bi-microsoft',          'settings/office'],
     ['Nozbe',                '/crm/settings/nozbe.php',         'bi-check2-circle',      'settings/nozbe'],
+    ['Telefonia Spikon',     '/modules/spikon/router.php',      'bi-telephone-outbound', 'modules/spikon'],
     ['Import TERYT',         '/admin/teryt_import.php',         'bi-geo-alt',            ''],
     ['Baza danych CRM',      '/admin/crm_database.php',         'bi-database-gear',      ''],
 ]];
