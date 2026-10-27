@@ -2036,6 +2036,33 @@ require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
       </span>
       <?php endif; ?>
     </a>
+    <?php
+    // Spikon: „Zadzwoń” — Spikon dzwoni na konto telefoniczne użytkownika, po odebraniu łączy z kontaktem.
+    require_once dirname(dirname(__DIR__)) . '/modules/spikon/logic/SpikonService.php';
+    if (SpikonService::isEnabled() && SpikonService::accountFor((int)current_user()['id']) && SpikonService::normalizeNumber((string)$contact['telefon']) !== null): ?>
+    <button type="button" class="cv-chip border-0" data-spikon-call="<?= (int)$contact['id'] ?>"
+            style="background:#EFF6FF;color:#1D4ED8;cursor:pointer"
+            title="Spikon zadzwoni najpierw do Ciebie, a po odebraniu połączy z tym numerem">
+      <i class="bi bi-telephone-outbound-fill" aria-hidden="true"></i><span>Zadzwoń przez Spikon</span>
+    </button>
+    <span id="spikon-call-status" class="small" role="status" aria-live="polite"></span>
+    <script>
+    document.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('[data-spikon-call]');
+      if (!btn || btn.disabled) return;
+      var out = document.getElementById('spikon-call-status');
+      var fd = new FormData();
+      fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
+      fd.append('contact_id', btn.getAttribute('data-spikon-call'));
+      btn.disabled = true; out.className = 'small text-muted'; out.textContent = 'Łączenie…';
+      fetch('<?= APP_URL ?>/modules/spikon/router.php?_route=%2Fzadzwon', {method: 'POST', body: fd, credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+        .then(function (r) { return r.json().catch(function () { return {ok: false, error: 'Nieczytelna odpowiedź serwera.'}; }); })
+        .then(function (j) { out.className = 'small ' + (j.ok ? 'text-success' : 'text-danger'); out.textContent = j.ok ? j.message : (j.error || 'Nie udało się zestawić połączenia.'); })
+        .catch(function () { out.className = 'small text-danger'; out.textContent = 'Brak połączenia z serwerem.'; })
+        .then(function () { setTimeout(function () { btn.disabled = false; }, 4000); });
+    });
+    </script>
+    <?php endif; ?>
     <?php endif; ?>
     <?php $addr_display = address_format($contact); if ($_sfv['adres'] && $addr_display): ?>
     <span class="cv-chip">
