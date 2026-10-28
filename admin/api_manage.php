@@ -35,6 +35,7 @@ const AM_API_PERMISSIONS = [
     'msues:read'       => 'Wdrożenie MSUES — odczyt (aplikacja zewnętrzna, logowanie SSO)',
     'msues:write'      => 'Wdrożenie MSUES — zapis (aplikacja zewnętrzna, logowanie SSO)',
     'audytor:users'    => 'Tajemniczy Klient — lista użytkowników z uprawnieniem (import osób; api/v1/audytor_users.php)',
+    'audytor:sms'      => 'Tajemniczy Klient — wysyłka kodów logowania SMS (wyłącznie sztywny szablon; api/v1/audytor_sms.php)',
     'audytor:mail'     => 'Tajemniczy Klient — wysyłka powiadomień e-mail (czysty tekst, Microsoft Graph; api/v1/audytor_mail.php)',
     'ezd:upload'       => 'EZD Wirtualne biurko — dołączanie plików/skanów (api/v1/ezd_upload.php, bez odczytu)',
     'pelnomocnictwa:read'  => 'Rejestr pełnomocnictw — odczyt',

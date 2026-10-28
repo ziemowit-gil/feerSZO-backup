@@ -4,10 +4,12 @@
  *
  *   POST /api/v1/audytor_mail.php   (Bearer, scope audytor:mail)
  *        {"recipients":[{"email":"…","name":"…"}],"subject":"…","message":"…"}
- *        → 200 {"ok":true,"queued":N,"skipped":[{"email":"…","reason":"…"}]}
+ *        → 200 {"ok":true,"sent":N,"queued":N,"skipped":[{"email":"…","reason":"…"}]}   (queued = sent, nazwa zostaje dla zgodności)
  *
- * Wiadomości są CZYSTYM TEKSTEM (bez HTML): `message` trafia jako gotowa treść text/plain (kolejka poczty wysyła ją
- * z contentType Text, gdy wersja HTML jest pusta). Nadawca = systemowy (context_type audytor_notify).
+ * Wiadomości są CZYSTYM TEKSTEM (bez HTML): `message` trafia jako gotowa treść text/plain (Graph: contentType Text, gdy
+ * wersja HTML jest pusta). Wysyłka jest BEZPOŚREDNIA, bez kolejki SZO: odpowiedź 200 oznacza, że Graph/SMTP przyjął
+ * wiadomość, a błąd wysyłki zwraca 502 (ponawia aplikacja Tajemniczy Klient ze swojej kolejki). Nadawca = systemowy
+ * (context_type audytor_notify).
  *
  * To powiadomienia, nie dowolna korespondencja — zabezpieczenia: adresaci muszą być aktywnymi kontami SZO z uprawnieniem
  * do aplikacji (te same reguły co scope audytor:access), więc wyciek klucza nie pozwala wysyłać poczty na obce adresy;
@@ -65,14 +67,32 @@ foreach ($rcpts as $r) {
 }
 if (!$valid) api_error('Brak adresatów uprawnionych do powiadomień.', 422);
 
-$sentHour = (int)(db_one("SELECT COUNT(*) AS c FROM mail_queue WHERE context_type=? AND created_at >= datetime('now','-1 hour')", [AUDYTOR_MAIL_CONTEXT])['c'] ?? 0);
+// Licznik wysyłek (osobna tabela, bo wiadomości nie trafiają do kolejki poczty).
+db()->exec("CREATE TABLE IF NOT EXISTS audytor_send_log (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, target TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')))");
+db()->exec("CREATE INDEX IF NOT EXISTS idx_audytor_send_log ON audytor_send_log(kind, created_at)");
+$sentHour = (int)(db_one("SELECT COUNT(*) AS c FROM audytor_send_log WHERE kind='mail' AND created_at >= datetime('now','-1 hour')")['c'] ?? 0);
 if ($sentHour + count($valid) > AUDYTOR_MAIL_MAX_PER_HOUR) api_error('Przekroczono limit wysyłek na godzinę. Spróbuj później.', 429);
 
-$queued = 0;
+$sent = 0; $errors = [];
 foreach ($valid as $email => $name) {
-    // Pusta wersja HTML = kolejka wysyła czysty text/plain (Graph: contentType Text).
-    if (mail_queue_add($email, $name, $subject, '', $message, AUDYTOR_MAIL_CONTEXT) > 0) $queued++;
-    else $skipped[] = ['email' => $email, 'reason' => 'adres wyłączony z wysyłek'];
+    // Wysyłka bezpośrednia (bez mail_queue); pusta wersja HTML = czysty text/plain.
+    $msg = [
+        'id' => 0, 'to_email' => $email, 'to_name' => $name, 'subject' => $subject, 'body_html' => '', 'body_text' => $message,
+        'context_type' => AUDYTOR_MAIL_CONTEXT, 'context_id' => null, 'attachments' => '[]', 'from_email' => '',
+        'cc_emails' => '[]', 'bcc_emails' => '[]', 'headers' => null, 'retry_count' => 0,
+    ];
+    try {
+        if (_mail_send($msg)) {
+            $sent++;
+            db()->prepare("INSERT INTO audytor_send_log (kind, target) VALUES ('mail', ?)")->execute([hash('sha256', $email)]);
+        } else {
+            $errors[] = ['email' => $email, 'reason' => 'serwer poczty nie przyjął wiadomości'];
+        }
+    } catch (\Throwable $e) {
+        error_log('[audytor_mail] ' . $e->getMessage());
+        $errors[] = ['email' => $email, 'reason' => 'błąd wysyłki'];
+    }
 }
-api_audit('send', 'audytor_mail', null, ['recipients=' . count($valid), 'queued=' . $queued]);
-api_json(['ok' => true, 'queued' => $queued, 'skipped' => $skipped]);
+api_audit('send', 'audytor_mail', null, ['recipients=' . count($valid), 'sent=' . $sent, 'errors=' . count($errors)]);
+if ($sent === 0 && $errors) api_error('Nie udało się wysłać wiadomości (błąd poczty SZO). Spróbuj ponownie.', 502);
+api_json(['ok' => true, 'sent' => $sent, 'queued' => $sent, 'skipped' => array_merge($skipped, $errors)]);
