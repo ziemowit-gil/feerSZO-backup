@@ -13,7 +13,6 @@ require_once dirname(__DIR__) . '/includes/byli.php';   // is_zarzad()
 require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
 require_once dirname(__DIR__) . '/includes/ezd.php';
 require_once dirname(__DIR__) . '/includes/ezd_rpwy.php';
-require_once dirname(__DIR__) . '/includes/postivo.php';
 
 require_login();
 if (!is_zarzad()) { http_response_code(403); die('Kody partnerskie są dostępne dla administratorów i zarządu.'); }
@@ -77,6 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
         [$carrierId, $serviceId] = array_map('intval', explode(':', (string)($_POST['service'] ?? '0:0')) + [0, 0]);
         if ($carrierId <= 0 || $serviceId <= 0) throw new \RuntimeException('Wybierz usługę kurierską Postivo — kody nie zostały wygenerowane.');
         if (!in_array($qty, [10, 20, 30], true)) throw new \RuntimeException('Wybierz 10, 20 albo 30 kodów.');
+        require_once dirname(__DIR__) . '/includes/postivo.php';   // tylko nadanie przez Postivo; wydruk samodzielny go nie dotyka
         if (postivo_setting('postivo_enabled') !== '1') throw new \RuntimeException('Wysyłka przez Postivo.pl jest wyłączona (Administracja → Postivo) — kody nie zostały wygenerowane.');
         $orgName = trim(org_setting('org_name'));
         $adres   = trim(org_setting('org_adres'));
@@ -157,12 +157,30 @@ include dirname(__DIR__) . '/includes/header.php';
   .dr-itsm .btn{border-radius:0}
   .dr-itsm :focus-visible{outline:3px solid #d90429;outline-offset:2px}
   </style>
-  <section class="dr-tools" aria-label="Generowanie kodów partnerskich">
+  <section class="dr-tools" aria-label="Wydruk samodzielny kodów partnerskich">
+  <div class="dr-tools-body" style="padding-top:.9rem">
+  <form method="post" class="dr-itsm" target="_blank" aria-labelledby="dr-print-h" onsubmit="return confirm('Wygenerować pulę kodów i otworzyć arkusz do wydruku?')">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="action" value="itsm_print">
+    <h2 id="dr-print-h">Wydruk samodzielny</h2>
+    <p>Generuje pulę kodów i od razu otwiera arkusz etykiet A4 (3×8) do wydruku na własnej drukarce. Nic nie jest wysyłane.</p>
+    <div class="row2">
+      <div><label for="dr-pqty">Liczba etykiet</label>
+        <select id="dr-pqty" name="qty" class="form-select form-select-sm"><?php foreach ([10, 20, 30] as $q): ?><option value="<?= $q ?>"<?= $q === 30 ? ' selected' : '' ?>><?= $q ?></option><?php endforeach; ?></select></div>
+      <div><label for="dr-punit">Napis jednostki na etykiecie</label>
+        <select id="dr-punit" name="unit_id" class="form-select form-select-sm"><option value="0">— bez jednostki (nazwa organizacji) —</option><?php foreach (ezd_org_units() as $u): ?><option value="<?= (int)$u['id'] ?>"><?= h(ezd_unit_label($u)) ?></option><?php endforeach; ?></select></div>
+      <div><label for="dr-pstart">Pierwsze wolne pole</label>
+        <input id="dr-pstart" type="number" name="start" min="1" max="24" value="1" class="form-control form-control-sm" style="width:6rem"></div>
+      <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-printer me-1" aria-hidden="true"></i>Generuj i drukuj</button>
+    </div>
+  </form>
+  </div></section>
+  <section class="dr-tools" aria-label="Nadanie kodów partnerskich przez Postivo">
   <div class="dr-tools-body" style="padding-top:.9rem">
   <form method="post" class="dr-itsm" aria-labelledby="dr-itsm-h" onsubmit="return confirm('Wygenerować kody i zlecić nadanie arkusza kurierem przez Postivo (płatna wysyłka)?')">
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="action" value="itsm_batch">
-    <h2 id="dr-itsm-h" class="visually-hidden">Kody partnerskie (ITSM)</h2>
+    <h2 id="dr-itsm-h">Nadanie przez Postivo</h2>
     <p>Generuje pulę kodów partnerskich i wysyła arkusz etykiet A4 kurierem Postivo na adres organizacji, z dopiskiem „ITSM” na kopercie.</p>
     <div class="row2">
       <div><label for="dr-qty">Liczba etykiet</label>
@@ -171,7 +189,6 @@ include dirname(__DIR__) . '/includes/header.php';
         <select id="dr-unit" name="unit_id" class="form-select form-select-sm"><option value="0">— bez jednostki (nazwa organizacji) —</option><?php foreach (ezd_org_units() as $u): ?><option value="<?= (int)$u['id'] ?>"><?= h(ezd_unit_label($u)) ?></option><?php endforeach; ?></select></div>
       <div><label for="dr-svc">Usługa kurierska Postivo</label>
         <select id="dr-svc" name="service" class="form-select form-select-sm" required><option value="">Ładowanie usług…</option></select></div>
-      <button class="btn btn-sm btn-outline-primary" type="submit" name="action" value="itsm_print" formtarget="_blank" formnovalidate onclick="return confirm('Wygenerować pulę kodów i otworzyć arkusz do samodzielnego wydruku (bez wysyłki Postivo)?')"><i class="bi bi-printer me-1" aria-hidden="true"></i>Generuj i drukuj samodzielnie</button>
       <button class="btn btn-sm btn-primary" type="submit" id="dr-itsm-go" disabled><i class="bi bi-truck me-1" aria-hidden="true"></i>Generuj i nadaj kurierem</button>
     </div>
     <div class="small text-muted mt-2" id="dr-svc-msg" role="status" aria-live="polite"></div>
