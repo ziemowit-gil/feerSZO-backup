@@ -558,6 +558,13 @@ function karty30_migrate(): void {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
 
+    // Przedmioty przypisane do grupy (dodatkowe); domyślny = k30_ti_courses.subject_type_id
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_course_subjects (
+        course_id       INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        subject_type_id INTEGER NOT NULL REFERENCES k30_ti_subject_types(id) ON DELETE CASCADE,
+        PRIMARY KEY (course_id, subject_type_id)
+    )");
+
     // ── Moduł wiadomości kursant ↔ prowadzący ─────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_messages (
         id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3584,6 +3591,23 @@ function ti_instructor_plan_grouped(int $target_uid, int $weeks): array {
     uasort($groups, fn($a, $b) => [$a['dow'], $a['time_from']] <=> [$b['dow'], $b['time_from']]);
 
     return ['instructor' => $instructor, 'from' => $from, 'to' => $to, 'weeks' => $weeks, 'unbounded' => $unbounded, 'groups' => array_values($groups)];
+}
+
+/** ID przedmiotów dodatkowych grupy (bez domyślnego). */
+function k30_ti_course_extra_subject_ids(int $course_id): array {
+    return array_map('intval', array_column(
+        db_all("SELECT subject_type_id FROM k30_ti_course_subjects WHERE course_id=CAST(? AS INTEGER)", [$course_id]),
+        'subject_type_id'));
+}
+
+/** Zapisuje przedmioty dodatkowe grupy; domyślny jest pomijany (żyje w kolumnie kursu). */
+function k30_ti_course_set_subjects(int $course_id, array $ids, int $default_id = 0): void {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids),
+        fn($i) => $i > 0 && $i !== $default_id)));
+    db_exec("DELETE FROM k30_ti_course_subjects WHERE course_id=CAST(? AS INTEGER)", [$course_id]);
+    foreach ($ids as $i) {
+        db_exec("INSERT OR IGNORE INTO k30_ti_course_subjects (course_id, subject_type_id) VALUES (CAST(? AS INTEGER), CAST(? AS INTEGER))", [$course_id, $i]);
+    }
 }
 
 function k30_ti_subject_types(bool $active_only = true): array {

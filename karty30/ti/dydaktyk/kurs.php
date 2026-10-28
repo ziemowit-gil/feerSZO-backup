@@ -318,6 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($data as $k => $v) { $set[] = "$k=?"; $par[] = $v; }
         $par[] = $id;
         db()->prepare("UPDATE k30_ti_courses SET " . implode(',', $set) . " WHERE id=?")->execute($par);
+        k30_ti_course_set_subjects($id, (array)($_POST['extra_subjects'] ?? []), (int)($data['subject_type_id'] ?? 0));
 
         // Betterfly: ProductId dla pozycji tego kursu (nadpisuje domyślny produkt TI).
         $bf_pid = (int)($_POST['betterfly_product_id'] ?? 0);
@@ -380,7 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'no_invoice'          => 'Bez fakturowania',
             'hours_only_from'     => 'Tylko godziny (bez kwot) od miesiąca',
             'wup_exclude'         => 'Poza raportem WUP',
-            'subject_type_id'     => 'Rodzaj zajęć',
+            'subject_type_id'     => 'Przedmiot domyślny',
             'is_oneoff'           => 'Kurs jednorazowy',
             'oneoff_date'         => 'Termin realizacji',
             'plan_status'         => 'Status planowania',
@@ -1206,7 +1207,7 @@ $_ct_enr = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE cour
       </div>
 
       <div class="col-sm-4">
-        <label class="form-label small fw-semibold mb-1" for="ed_subject">Rodzaj zajęć</label>
+        <label class="form-label small fw-semibold mb-1" for="ed_subject">Przedmiot domyślny</label>
         <select id="ed_subject" name="subject_type_id" class="form-select form-select-sm">
           <option value="">— nie określono —</option>
           <?php foreach ($ed_subjects as $st):
@@ -1215,6 +1216,21 @@ $_ct_enr = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE cour
             <?= h($st['abbreviation']) ?> — <?= h($st['name']) ?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="col-12">
+        <fieldset>
+          <legend class="form-label small fw-semibold mb-1">Dodatkowe przedmioty grupy</legend>
+          <?php $ed_extra = k30_ti_course_extra_subject_ids((int)$course['id']);
+          foreach ($ed_subjects as $st):
+            if (empty($st['is_active']) && !in_array((int)$st['id'], $ed_extra, true)) continue; ?>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" name="extra_subjects[]" id="ed_xs<?= (int)$st['id'] ?>"
+                   value="<?= (int)$st['id'] ?>" <?= in_array((int)$st['id'], $ed_extra, true) ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="ed_xs<?= (int)$st['id'] ?>"><?= h($st['abbreviation']) ?></label>
+          </div>
+          <?php endforeach; ?>
+          <div class="form-text mt-0">Przedmiot domyślny jest zawsze przypisany do grupy; tu zaznacz pozostałe.</div>
+        </fieldset>
       </div>
       <div class="col-sm-4">
         <label class="form-label small fw-semibold mb-1" for="ed_instr">Prowadzący</label>
