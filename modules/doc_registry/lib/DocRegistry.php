@@ -148,6 +148,27 @@ final class DocRegistry
         return '';
     }
 
+    /**
+     * Kody z zakresu „od–do” (włącznie) w kolejności nadania w rejestrze. Końce można podać kodem (ITSM/123456AB) albo numerem (DOK/2026/000012).
+     * @return array{codes:string[],error:string}
+     */
+    public static function codesInRange(string $from, string $to): array
+    {
+        self::migrate();
+        $resolve = function (string $v): ?int {
+            $v = strtoupper(trim($v));
+            if ($v === '') return null;
+            $r = db_one("SELECT id FROM doc_registry WHERE code = ? OR doc_number = ? ORDER BY id LIMIT 1", [$v, $v]);
+            return $r ? (int)$r['id'] : null;
+        };
+        $a = $resolve($from); $b = $resolve($to);
+        if ($a === null || $b === null) return ['codes' => [], 'error' => 'Nie znaleziono ' . ($a === null ? 'początku' : 'końca') . ' zakresu w rejestrze.'];
+        if ($a > $b) [$a, $b] = [$b, $a];
+        $rows = db_all("SELECT code FROM doc_registry WHERE id BETWEEN ? AND ? ORDER BY id LIMIT 501", [$a, $b]);
+        if (count($rows) > 500) return ['codes' => [], 'error' => 'Zakres obejmuje ponad 500 kodów — zawęź go.'];
+        return ['codes' => array_map(fn($r) => (string)$r['code'], $rows), 'error' => ''];
+    }
+
     /** Usuwa całą pulę (wiersze rejestru i puli). Nie sprawdza stanu przesyłki — robi to wywołujący. */
     public static function reservedDelete(string $batch): int
     {

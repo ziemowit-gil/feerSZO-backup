@@ -25,6 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     csrf_check();
     $back = rtrim(APP_URL, '/') . '/ezd/rejestrDokumentow.php' . (($_POST['back'] ?? '') !== '' ? '?' . ltrim((string)$_POST['back'], '?') : '');
     if (!is_admin()) { flash_set('error', 'Kody z rejestru może usuwać tylko administrator.'); header('Location: ' . $back); exit; }
+    if (($_POST['mode'] ?? '') === 'range') {
+        $rg = DocRegistry::codesInRange((string)($_POST['from_code'] ?? ''), (string)($_POST['to_code'] ?? ''));
+        if ($rg['error'] !== '') { flash_set('error', $rg['error']); header('Location: ' . $back); exit; }
+        $_POST['sheet'] = $rg['codes'];
+    }
     $codes = array_values(array_unique(array_filter(array_map('trim', (array)($_POST['sheet'] ?? [])))));
     if (!$codes) { flash_set('error', 'Zaznacz kody do usunięcia w kolumnie „Etykieta”.'); header('Location: ' . $back); exit; }
     $ok = 0; $refused = [];
@@ -343,6 +348,20 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
     <?php endif; ?>
     <span class="small text-muted">Zaznacz pozycje w kolumnie „Etykieta” (<label class="d-inline"><input type="checkbox" onchange="document.querySelectorAll('input[name=&quot;sheet[]&quot;]').forEach(function(c){c.checked=this.checked}.bind(this))"> zaznacz wszystkie na stronie</label>).</span>
   </form>
+  <?php if (is_admin()): ?>
+  <details class="dr-more" style="margin-bottom:.8rem"><summary>Usuń zakres kodów od–do</summary>
+    <form method="post" class="dr-sheet mt-2" onsubmit="return confirm('Usunąć kody z podanego zakresu (włącznie)? Usunięte zostaną tylko kody ITSM przed nadaniem i wpisy nieaktualne — pozostałe są pomijane. Tej operacji nie da się cofnąć.')">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="action" value="delete_codes">
+      <input type="hidden" name="mode" value="range">
+      <input type="hidden" name="back" value="<?= h((string)($_SERVER['QUERY_STRING'] ?? '')) ?>">
+      <div><label for="dr-rf">Od (kod lub numer)</label><input id="dr-rf" name="from_code" class="form-control form-control-sm" required placeholder="np. ITSM/123456AB" autocomplete="off" spellcheck="false" style="width:14rem"></div>
+      <div><label for="dr-rt">Do (kod lub numer)</label><input id="dr-rt" name="to_code" class="form-control form-control-sm" required placeholder="np. DOK/2026/000030" autocomplete="off" spellcheck="false" style="width:14rem"></div>
+      <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń zakres</button>
+      <span class="small text-muted">Zakres wg kolejności nadania w rejestrze, do 500 kodów.</span>
+    </form>
+  </details>
+  <?php endif; ?>
   <p class="small text-muted mb-2" role="status">Znaleziono: <b><?= (int)$res['total'] ?></b><?= $f['state'] !== '' ? ' (stan liczony na żywo; przeszukano do 5000 najnowszych pasujących)' : '' ?></p>
 
   <div class="table-responsive">
