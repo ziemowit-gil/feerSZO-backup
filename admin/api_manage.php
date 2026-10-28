@@ -72,6 +72,7 @@ const AM_WEBHOOK_EVENTS = [
 
 $errors    = [];
 $new_plain = null;
+$edit_id   = (int)($_GET['edit'] ?? 0);
 
 // ════════════════════════════════════════════════════════════════════════════════
 // POST — Klucze API
@@ -107,6 +108,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_section'] ?? '') === 'api
             $new_plain = $plain;
             flash_set('success', 'Klucz API "' . $name . '" został utworzony. Skopiuj go teraz!');
         }
+        $tab = 'api';
+    }
+
+    if ($action === 'update_key') {
+        $id  = (int)($_POST['key_id'] ?? 0);
+        $key = $id > 0 ? db_one("SELECT id, name, permissions, rate_limit FROM api_keys WHERE id = ?", [$id]) : null;
+        if (!$key) {
+            $errors[] = 'Nie znaleziono klucza.';
+        } else {
+            $name = trim($_POST['key_name'] ?? '');
+            if ($name === '') $errors[] = 'Podaj nazwę klucza.';
+            $old   = json_decode($key['permissions'] ?? '[]', true) ?: [];
+            $perms = [];
+            foreach (array_keys(AM_API_PERMISSIONS) as $p) {
+                if (!empty($_POST['ep_' . str_replace(':', '_', $p)])) $perms[] = $p;
+            }
+            foreach ($old as $p) {                       // uprawnienia spoza listy (starsze/usunięte z formularza) zostają bez zmian
+                if (!isset(AM_API_PERMISSIONS[$p]) && !in_array($p, $perms, true)) $perms[] = $p;
+            }
+            if (empty($perms)) $errors[] = 'Wybierz co najmniej jedno uprawnienie.';
+            if (!$errors) {
+                $rate = max(0, (int)($_POST['rate_limit'] ?? 0));
+                db()->prepare("UPDATE api_keys SET name = ?, permissions = ?, rate_limit = ? WHERE id = ?")
+                    ->execute([$name, json_encode($perms, JSON_UNESCAPED_UNICODE), $rate ?: null, $id]);
+                if (!function_exists('audit_log')) require_once dirname(__DIR__) . '/modules/audit_logs/logic/audit_logs.php';
+                audit_log('api_key.update', ['key_id' => $id, 'name' => $name,
+                    'added' => array_values(array_diff($perms, $old)), 'removed' => array_values(array_diff($old, $perms))]);
+                flash_set('success', 'Zapisano zmiany klucza API "' . $name . '". Sam klucz (token) się nie zmienia.');
+                header('Location: ' . APP_URL . '/admin/api_manage.php?tab=api'); exit;
+            }
+        }
+        $edit_id = $id;
         $tab = 'api';
     }
 
@@ -303,6 +336,67 @@ function switchTab(name) {
   </div>
   <?php endif; ?>
 
+  <?php
+  $edit_key = null;
+  if ($edit_id > 0) {
+      foreach ($api_keys as $k) if ((int)$k['id'] === $edit_id && $k['is_active']) { $edit_key = $k; break; }
+  }
+  if ($edit_key):
+      $is_post_edit = $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_key';
+      $cur = json_decode($edit_key['permissions'] ?? '[]', true) ?: [];
+      $unknown = array_values(array_filter($cur, fn($p) => !isset(AM_API_PERMISSIONS[$p])));
+  ?>
+  <div class="card border-primary shadow-sm mb-4" id="edytuj-klucz">
+    <div class="card-header py-2 fw-semibold" style="font-size:.875rem">
+      <i class="bi bi-pencil me-1 text-primary"></i>Edytuj klucz: <?= h($edit_key['name']) ?>
+    </div>
+    <div class="card-body">
+      <form method="post" class="row g-3">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_section" value="api">
+        <input type="hidden" name="action" value="update_key">
+        <input type="hidden" name="key_id" value="<?= (int)$edit_key['id'] ?>">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" for="ek_name">Nazwa klucza <span class="text-danger">*</span></label>
+          <input type="text" id="ek_name" name="key_name" class="form-control" required maxlength="200"
+                 value="<?= h($is_post_edit ? ($_POST['key_name'] ?? '') : $edit_key['name']) ?>">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold" for="ek_rate">Limit zapytań / min</label>
+          <input type="number" id="ek_rate" name="rate_limit" class="form-control" min="0" step="1" placeholder="domyślny (120)"
+                 value="<?= h($is_post_edit ? ($_POST['rate_limit'] ?? '') : (string)($edit_key['rate_limit'] ?? '')) ?>">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Uprawnienia <span class="text-danger">*</span></label>
+          <div class="row g-2">
+            <?php foreach (AM_API_PERMISSIONS as $perm => $label):
+              $field = 'ep_' . str_replace(':', '_', $perm);
+              $on = $is_post_edit ? !empty($_POST[$field]) : in_array($perm, $cur, true); ?>
+            <div class="col-sm-6 col-md-4 col-lg-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="<?= h($field) ?>" name="<?= h($field) ?>" value="1" <?= $on ? 'checked' : '' ?>>
+                <label class="form-check-label" for="<?= h($field) ?>">
+                  <code class="small"><?= h($perm) ?></code><br>
+                  <span class="text-muted small"><?= h($label) ?></span>
+                </label>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <?php if ($unknown): ?>
+          <div class="form-text">Uprawnienia spoza listy (zostają bez zmian): <?php foreach ($unknown as $u): ?><code><?= h($u) ?></code> <?php endforeach; ?></div>
+          <?php endif; ?>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Zapisz zmiany</button>
+          <a href="?tab=api" class="btn btn-outline-secondary">Anuluj</a>
+        </div>
+        <div class="col-12 form-text">Token klucza się nie zmienia — aplikacja nadal używa tego samego klucza, a nowy zakres działa od następnego żądania.</div>
+      </form>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- Lista kluczy -->
   <?php if ($api_keys): ?>
   <div class="card border-0 shadow-sm mb-4">
@@ -334,6 +428,10 @@ function switchTab(name) {
               </span>
             </td>
             <td class="text-end">
+              <?php if ($k['is_active']): ?>
+              <a href="?tab=api&amp;edit=<?= (int)$k['id'] ?>#edytuj-klucz" class="btn btn-sm btn-outline-primary py-0 px-2" title="Edytuj uprawnienia"
+                 aria-label="Edytuj uprawnienia klucza <?= h($k['name']) ?>"><i class="bi bi-pencil"></i></a>
+              <?php endif; ?>
               <?php if ($k['is_active']): ?>
               <form method="post" class="d-inline" onsubmit="return confirm('Unieważnić klucz?')">
                 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -385,13 +483,13 @@ function switchTab(name) {
           <label class="form-label fw-semibold">Nazwa klucza <span class="text-danger">*</span></label>
           <input type="text" name="key_name" class="form-control"
                  placeholder="np. Aplikacja mobilna, Integracja n8n"
-                 value="<?= h($_POST['key_name'] ?? '') ?>" required maxlength="200">
+                 value="<?= h(($_POST['action'] ?? '') === 'create' ? ($_POST['key_name'] ?? '') : '') ?>" required maxlength="200">
         </div>
 
         <div class="col-md-3">
           <label class="form-label fw-semibold">Limit zapytań / min</label>
           <input type="number" name="rate_limit" class="form-control" min="0" step="1"
-                 placeholder="domyślny (120)" value="<?= h($_POST['rate_limit'] ?? '') ?>">
+                 placeholder="domyślny (120)" value="<?= h(($_POST['action'] ?? '') === 'create' ? ($_POST['rate_limit'] ?? '') : '') ?>">
           <div class="form-text">0 / puste = domyślny. Po przekroczeniu API zwraca 429.</div>
         </div>
 
@@ -404,7 +502,7 @@ function switchTab(name) {
               <div class="form-check">
                 <input class="form-check-input" type="checkbox"
                        id="<?= h($field) ?>" name="<?= h($field) ?>" value="1"
-                       <?= !empty($_POST[$field]) ? 'checked' : '' ?>>
+                       <?= (($_POST['action'] ?? '') === 'create' && !empty($_POST[$field])) ? 'checked' : '' ?>>
                 <label class="form-check-label" for="<?= h($field) ?>">
                   <code class="small"><?= h($perm) ?></code><br>
                   <span class="text-muted small"><?= h($label) ?></span>
