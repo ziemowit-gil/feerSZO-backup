@@ -11,11 +11,60 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/byli.php';   // is_zarzad()
 require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php';
+require_once dirname(__DIR__) . '/includes/ezd.php';
+require_once dirname(__DIR__) . '/includes/ezd_rpwy.php';
+require_once dirname(__DIR__) . '/includes/postivo.php';
 
 require_login();
 if (!is_zarzad()) { http_response_code(403); die('Rejestr dokumentów jest dostępny dla administratorów i zarządu.'); }
 
 $PAGE_TITLE = 'Rejestr dokumentów';
+
+// Pula kodów do dołączenia: admin generuje 10/20/30 etykiet kodowych i nadaje je przez Postivo na adres organizacji (na kopercie dopisek ITSM).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_batch') {
+    csrf_check();
+    $back = rtrim(APP_URL, '/') . '/ezd/rejestrDokumentow.php?type=reserved_code';
+    $qty = (int)($_POST['qty'] ?? 0);
+    $uid = (int)(current_user()['id'] ?? 0);
+    $pdfTmp = null;
+    try {
+        if (!is_admin()) throw new \RuntimeException('Generować i nadawać kody może tylko administrator.');
+        if (!in_array($qty, [10, 20, 30], true)) throw new \RuntimeException('Wybierz 10, 20 albo 30 kodów.');
+        if (postivo_setting('postivo_enabled') !== '1') throw new \RuntimeException('Wysyłka przez Postivo.pl jest wyłączona (Administracja → Postivo) — kody nie zostały wygenerowane.');
+        $orgName = trim(org_setting('org_name'));
+        $adres   = trim(org_setting('org_adres'));
+        if ($orgName === '' || !preg_match('~^(.*?)[,\s]+(\d{2}-\d{3})\s+(.+)$~u', $adres, $m)) throw new \RuntimeException('Uzupełnij adres organizacji w formacie „ulica nr, 00-000 Miasto” (ustawienie org_adres) — kody nie zostały wygenerowane.');
+        [$street, $postcode, $city] = [trim($m[1], " ,"), $m[2], trim($m[3])];
+
+        $rows = DocRegistry::reserveBatch($qty, $uid);
+        $pdf = DocRegistry::labelsPdf($rows, true, 1) ?? throw new \RuntimeException('Generator PDF jest niedostępny.');
+        $pdfTmp = sys_get_temp_dir() . '/itsm_kody_' . bin2hex(random_bytes(6)) . '.pdf';
+        file_put_contents($pdfTmp, $pdf);
+
+        $res = ezd_rpwy_create([
+            'sposob'   => 'polecony',
+            'odbiorca' => $orgName . ' (ITSM)',
+            'adres'    => $street . "\n" . $postcode . ' ' . $city,
+            'uwagi'    => 'ITSM — arkusz ' . $qty . ' kodów do dołączenia: ' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'],
+        ], $uid);
+        DocRegistry::reservedAttach($rows, (int)$res['id']);
+        ezd_rpwy_postivo_queue((int)$res['id'], $pdfTmp, [
+            'recipient_name' => $orgName,
+            'address_line1'  => $street,
+            'address_line2'  => 'ITSM',          // dopisek na kopercie
+            'city'           => $city,
+            'postcode'       => $postcode,
+            'country'        => 'PL',
+        ], $uid);
+        foreach ($rows as $r) DocRegistry::paperDone((string)$r['code']);   // etykiety drukuje Postivo
+        flash_set('success', 'Wygenerowano ' . $qty . ' kodów (' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'] . '). Arkusz zakolejkowano do Postivo.pl — wyjdzie dziś o 16:30 na adres organizacji z dopiskiem ITSM (' . ezd_rpwy_label($res) . ').');
+    } catch (\Throwable $e) {
+        flash_set('error', 'Nie wygenerowano / nie nadano kodów: ' . $e->getMessage());
+    } finally {
+        if ($pdfTmp && is_file($pdfTmp)) @unlink($pdfTmp);
+    }
+    header('Location: ' . $back); exit;
+}
 $f = [
     'q'     => trim((string)($_GET['q'] ?? '')),
     'type'  => (string)($_GET['type'] ?? ''),
@@ -92,6 +141,16 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </form>
 
+  <?php if (is_admin()): ?>
+  <form method="post" class="card card-body py-2 mb-3 d-flex flex-row flex-wrap align-items-end gap-2" onsubmit="return confirm('Wygenerować kody i zlecić nadanie arkusza przez Postivo (płatna wysyłka)?')">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="action" value="itsm_batch">
+    <div><label class="form-label small mb-1" for="dr-qty">Kody do dołączenia (pula ITSM)</label>
+      <select id="dr-qty" name="qty" class="form-select form-select-sm" style="width:auto"><?php foreach ([10, 20, 30] as $q): ?><option value="<?= $q ?>"<?= $q === 30 ? ' selected' : '' ?>><?= $q ?> etykiet</option><?php endforeach; ?></select></div>
+    <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-qr-code me-1" aria-hidden="true"></i>Generuj etykiety kodowe i nadaj przez Postivo</button>
+    <span class="small text-muted">Arkusz A4 (3×8) trafia na adres organizacji; na kopercie dopisek „ITSM”.</span>
+  </form>
+  <?php endif; ?>
   <?php $pend = DocRegistry::paperPending(); ?>
   <?php if ($pend > 0): ?><div class="alert alert-warning py-2 small d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
     <span><strong><?= (int)$pend ?></strong> dokumentów czeka na decyzję: czy mają odpowiednik papierowy (etykieta albo numer ręcznie).</span>
@@ -132,7 +191,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <td class="text-truncate" style="max-width:260px" title="<?= h($r['file_name']) ?>"><?= $r['file_name'] !== '' ? h($r['file_name']) : '<span class="text-muted">—</span>' ?></td>
           <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$r['created_at']))) ?></td>
           <td><span class="dr-chip <?= $void ? 'dr-void' : 'dr-valid' ?>"><?= $void ? 'Nieaktualny' : 'Obowiązuje' ?></span><?php if ($r['note'] !== ''): ?><div class="small text-muted"><?= h(preg_replace('~\s*Skrót SHA-256.*$~u', '', $r['note'])) ?></div><?php endif; ?></td>
-          <td class="small"><?php $pm = (string)($r['paper_mode'] ?? ''); if ($r['seq'] || str_starts_with((string)$r['source_type'], 'contract_') || in_array($r['source_type'], ['print_doc', 'gen_doc'], true)): ?><span class="text-muted">—</span>
+          <td class="small"><?php $pm = (string)($r['paper_mode'] ?? ''); if ($r['seq'] || str_starts_with((string)$r['source_type'], 'contract_') || in_array($r['source_type'], ['print_doc', 'gen_doc', 'reserved_code'], true)): ?><span class="text-muted">—</span>
             <?php elseif ($pm === ''): ?><a href="<?= h($base . '?view=' . rawurlencode($code)) ?>" target="_blank" rel="noopener" class="text-warning-emphasis">do rozstrzygnięcia</a>
             <?php else: ?><?= h(['none' => 'bez papieru', 'label' => 'etykieta', 'manual' => 'numer ręcznie'][$pm] ?? $pm) ?><?php if ($pm !== 'none'): ?> <?= !empty($r['paper_done_at']) ? '<span class="text-success" title="Zrobione ' . h(date('d.m.Y H:i', strtotime((string)$r['paper_done_at']))) . '">✓</span>' : '<span class="text-danger" title="Do zrobienia">●</span>' ?><?php endif; ?><?php endif; ?></td>
           <td class="text-end text-nowrap dr-act">

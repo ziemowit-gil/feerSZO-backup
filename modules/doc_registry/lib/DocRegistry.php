@@ -41,6 +41,8 @@ final class DocRegistry
         'contract_szk'         => ['USZ', 'Umowa szkoleniowa (SZK)', '/contracts/szk/view.php?id={id}', 'umowy_szk', 'rand'],
         'print_doc'            => ['WYD', 'Wydruk dokumentu', '/', 'doc_prints', 'rand'],
         'gen_doc'              => ['DOG', 'Dokument z generatora wzorów', '/generator/view.php?id={id}', 'gen_documents', 'rand'],
+        // Pula kodów do dołączania do dokumentów papierowych (arkusz etykiet nadawany przez Postivo; koperta z dopiskiem ITSM).
+        'reserved_code'        => ['ITSM', 'Kod do dołączenia (ITSM)', '/', 'doc_reserved', 'rand'],
     ];
     /** Litery kodu bez I i O (mylą się z 1 i 0 na wydruku). */
     private const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -72,6 +74,36 @@ final class DocRegistry
             created_by INTEGER, created_at VARCHAR(19)
         )");
         db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_doc_prints_ref ON doc_prints(kind, ref)");
+        // Pula kodów do dołączenia: batch = jedno generowanie, attached_rpwy = przesyłka RPW-W (Postivo), w której kody wysłano
+        db()->exec("CREATE TABLE IF NOT EXISTS doc_reserved (
+            id {$pk}, batch VARCHAR(30) NOT NULL DEFAULT '', attached_rpwy INTEGER,
+            created_by INTEGER, created_at VARCHAR(19)
+        )");
+    }
+
+    /**
+     * Rezerwuje $n nowych kodów (pula „do dołączenia”), wszystkie z odpowiednikiem papierowym = etykieta.
+     * @return array<int,array> wiersze rejestru, w kolejności nadania
+     */
+    public static function reserveBatch(int $n, int $uid = 0): array
+    {
+        self::migrate();
+        $batch = date('YmdHis') . '-' . substr(bin2hex(random_bytes(2)), 0, 4);
+        $rows = [];
+        for ($i = 0; $i < $n; $i++) {
+            $id = db_insert('doc_reserved', ['batch' => $batch, 'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s')]);
+            $row = self::assign('reserved_code', (int)$id);
+            if (!$row) throw new \RuntimeException('Nie udało się nadać kodu z puli.');
+            db()->prepare("UPDATE doc_registry SET paper_mode = 'label', paper_at = ?, paper_by = ? WHERE id = ?")->execute([date('Y-m-d H:i:s'), $uid ?: null, (int)$row['id']]);
+            $rows[] = self::get('reserved_code', (int)$id);
+        }
+        return $rows;
+    }
+
+    /** Oznacza kody z puli jako wysłane w danej przesyłce RPW-W. */
+    public static function reservedAttach(array $rows, int $rpwyId): void
+    {
+        foreach ($rows as $r) db()->prepare("UPDATE doc_reserved SET attached_rpwy = ? WHERE id = ?")->execute([$rpwyId, (int)$r['source_id']]);
     }
 
     // ── Kod ───────────────────────────────────────────────────────────────────────
@@ -108,6 +140,11 @@ final class DocRegistry
             $z = db_one("SELECT * FROM doc_prints WHERE id = ?", [$id]);
             if (!$z) return null;
             return ['name' => (string)$z['title'], 'path' => '', 'size' => 0, 'uploader' => $z['created_by'] !== null ? (int)$z['created_by'] : null, 'at' => (string)$z['created_at'], 'exists' => true, 'superseded' => false];
+        }
+        if ($type === 'reserved_code') {
+            $z = db_one("SELECT * FROM doc_reserved WHERE id = ?", [$id]);
+            if (!$z) return null;
+            return ['name' => 'Kod do dołączenia (pula ' . $z['batch'] . ')', 'path' => '', 'size' => 0, 'uploader' => $z['created_by'] !== null ? (int)$z['created_by'] : null, 'at' => (string)$z['created_at'], 'exists' => true, 'superseded' => false];
         }
         if (str_starts_with($type, 'contract_') || $type === 'gen_doc') {
             $isGen = $type === 'gen_doc';
@@ -265,7 +302,7 @@ final class DocRegistry
         if (preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)($f['from'] ?? ''))) { $w[] = 'created_at >= ?'; $p[] = $f['from'] . ' 00:00:00'; }
         if (preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)($f['to'] ?? '')))   { $w[] = 'created_at <= ?'; $p[] = $f['to'] . ' 23:59:59'; }
         $paper = (string)($f['paper'] ?? '');
-        if ($paper === 'pending') { $w[] = "paper_mode = '' AND source_type NOT LIKE 'contract\\_%' ESCAPE '\\' AND source_type NOT IN ('print_doc','gen_doc','helpdesk_attachment','correspondence_file','rekr_file')"; }
+        if ($paper === 'pending') { $w[] = "paper_mode = '' AND source_type NOT LIKE 'contract\\_%' ESCAPE '\\' AND source_type NOT IN ('print_doc','gen_doc','reserved_code','helpdesk_attachment','correspondence_file','rekr_file')"; }
         elseif (in_array($paper, ['none', 'label', 'manual'], true)) { $w[] = 'paper_mode = ?'; $p[] = $paper; }
         elseif ($paper === 'todo') { $w[] = "paper_mode IN ('label','manual') AND paper_done_at IS NULL"; }
         $where = implode(' AND ', $w);
