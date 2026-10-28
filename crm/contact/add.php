@@ -428,7 +428,7 @@ include __DIR__ . '/../includes/header_crm.php';
         <div class="crm-section-title">Status i widoczność</div>
         <label class="form-label" for="status">Status kontaktu</label>
         <select name="status" id="status" class="form-select" aria-label="Status kontaktu">
-          <?php foreach (crm_statuses() as $sk => $sv): ?>
+          <?php foreach (crm_statuses_with((string)($row["status"] ?? crm_status_default())) as $sk => $sv): ?>
           <option value="<?= h($sk) ?>" <?= ($row['status'] ?? 'prospect') === $sk ? 'selected' : '' ?>>
             <?= h($sv['label']) ?>
           </option>

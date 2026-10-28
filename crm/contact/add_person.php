@@ -8,6 +8,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(__DIR__) . '/includes/statusPicker.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_login();
@@ -366,18 +367,8 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- Status -->
   <div class="card">
     <div class="card-body">
-      <div class="sec-label">Status w CRM</div>
-      <div class="d-flex flex-column gap-2" role="radiogroup">
-        <?php foreach (crm_statuses() as $sk => $sv): ?>
-        <label class="d-flex align-items-center gap-2 p-2 border rounded status-option"
-               style="cursor:pointer;font-size:.84rem;<?= ($row['status'] ?? 'prospect') === $sk ? 'background:var(--crm-primary-bg);border-color:var(--crm-primary)!important;font-weight:600' : '' ?>">
-          <input type="radio" name="status" value="<?= h($sk) ?>"
-                 <?= ($row['status'] ?? 'prospect') === $sk ? 'checked' : '' ?>
-                 class="form-check-input mt-0">
-          <span class="crm-badge crm-badge-<?= h($sk) ?>"><?= h($sv['label']) ?></span>
-        </label>
-        <?php endforeach; ?>
-      </div>
+      <div class="sec-label" id="sp-label">Status w CRM</div>
+      <?= crmStatusPicker((string)($row['status'] ?? crm_status_default()), 'status', 'sp-label') ?>
     </div>
   </div>
 
@@ -497,19 +488,6 @@ function toggleFormal() {
   chev.className = open ? 'bi bi-chevron-down' : 'bi bi-chevron-right';
 }
 
-// Podświetlenie wybranego statusu
-document.querySelectorAll('[name="status"]').forEach(function(r) {
-  r.addEventListener('change', function() {
-    document.querySelectorAll('.status-option').forEach(function(x) {
-      x.style.background = '';
-      x.style.borderColor = '';
-      x.style.fontWeight = '';
-    });
-    this.closest('.status-option').style.background   = 'var(--crm-primary-bg)';
-    this.closest('.status-option').style.borderColor  = 'var(--crm-primary)';
-    this.closest('.status-option').style.fontWeight   = '600';
-  });
-});
 </script>
 
 <?php include __DIR__ . '/../includes/footer_crm.php'; ?>

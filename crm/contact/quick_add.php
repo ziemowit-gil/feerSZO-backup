@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(__DIR__) . '/includes/statusPicker.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_automation.php';
 
 require_login();
@@ -219,20 +220,8 @@ include __DIR__ . '/../includes/header_crm.php';
         </div>
 
         <div class="mt-3">
-          <label class="form-label small fw-semibold">Status</label>
-          <div class="d-flex flex-wrap gap-1">
-            <?php foreach (crm_statuses() as $sk => $sv): ?>
-            <label class="badge fw-normal border" style="cursor:pointer;padding:.35em .75em;
-                   background:<?= ($_POST['status']??'prospect')===$sk ? $sv['color'] : '#f8fafc' ?>;
-                   color:<?= ($_POST['status']??'prospect')===$sk ? '#fff' : '#374151' ?>;
-                   border-color:<?= $sv['color'] ?>!important">
-              <input type="radio" name="status" value="<?= h($sk) ?>" class="d-none"
-                     <?= ($_POST['status']??'prospect')===$sk ? 'checked' : '' ?>
-                     onchange="this.closest('.d-flex').querySelectorAll('label').forEach(l=>{l.style.background=l.querySelector('input').value===this.value?'<?= $sv['color'] ?>':'#f8fafc';l.style.color=l.querySelector('input').value===this.value?'#fff':'#374151'})">
-              <?= h($sv['label']) ?>
-            </label>
-            <?php endforeach; ?>
-          </div>
+          <div class="form-label small fw-semibold" id="sp-label">Status</div>
+          <?= crmStatusPicker((string)($_POST['status'] ?? crm_status_default()), 'status', 'sp-label') ?>
         </div>
       </div>
     </div>

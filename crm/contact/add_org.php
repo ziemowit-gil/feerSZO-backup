@@ -12,6 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
+require_once dirname(__DIR__) . '/includes/statusPicker.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 
 require_login();
@@ -692,21 +693,8 @@ include __DIR__ . '/../includes/header_crm.php';
   <!-- Status -->
   <div class="card mb-3">
     <div class="card-body">
-      <div class="sec-label">Status w CRM</div>
-      <div class="d-flex flex-column gap-2" role="radiogroup" aria-label="Wybierz status kontaktu">
-        <?php foreach (crm_statuses() as $sk => $sv): if (trim((string)$sv['label']) === '' && ($row['status'] ?? 'prospect') !== $sk) continue;   // statusy bez nazwy (puste wpisy słownika) nie są opcjami ?>
-        <label class="d-flex align-items-center gap-2 p-2 border rounded"
-               style="cursor:pointer;font-size:.84rem;border-radius:.4rem!important;
-                      <?= ($row['status'] ?? 'prospect') === $sk ? 'background:var(--crm-primary-bg);border-color:var(--crm-primary)!important;font-weight:600' : '' ?>">
-          <input type="radio" name="status" value="<?= h($sk) ?>"
-                 <?= ($row['status'] ?? 'prospect') === $sk ? 'checked' : '' ?>
-                 class="form-check-input mt-0" style="flex-shrink:0">
-          <span class="crm-badge crm-badge-<?= h($sk) ?>" style="pointer-events:none">
-            <?= h($sv['label']) ?>
-          </span>
-        </label>
-        <?php endforeach; ?>
-      </div>
+      <div class="sec-label" id="sp-label">Status w CRM</div>
+      <?= crmStatusPicker((string)($row['status'] ?? crm_status_default()), 'status', 'sp-label') ?>
     </div>
   </div>
 
@@ -883,19 +871,9 @@ function openGUS() {
   return false;
 }
 
-// Podświetl wybrany status radio
+// Zmiana statusu przełącza sekcję usług (podświetlenie robi CSS komponentu statusPicker)
 document.querySelectorAll('[name="status"]').forEach(function(r) {
-  r.addEventListener('change', function() {
-    document.querySelectorAll('[name="status"]').forEach(function(x) {
-      x.closest('label').style.background   = '';
-      x.closest('label').style.borderColor  = '';
-      x.closest('label').style.fontWeight   = '';
-    });
-    this.closest('label').style.background  = 'var(--crm-primary-bg)';
-    this.closest('label').style.borderColor = 'var(--crm-primary)';
-    this.closest('label').style.fontWeight  = '600';
-    syncServicesSection();
-  });
+  r.addEventListener('change', syncServicesSection);
 });
 
 // Sekcja „Usługi na rzecz FEER" istnieje tylko dla statusu partnera. Status wybiera
