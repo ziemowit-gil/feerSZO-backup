@@ -110,6 +110,28 @@ final class DocRegistry
         return $rows;
     }
 
+    /** Pule kodów (jedno generowanie = jedna pula), od najnowszych. @return array<int,array{batch:string,unit:string,n:int,at:string,rpwy:int}> */
+    public static function reservedBatches(): array
+    {
+        self::migrate();
+        try {
+            return db_all("SELECT d.batch, COALESCE(MAX(u.name), '') AS unit, COUNT(*) AS n, MIN(d.created_at) AS at, COALESCE(MAX(d.attached_rpwy), 0) AS rpwy
+                           FROM doc_reserved d LEFT JOIN org_units u ON u.id = d.unit_id GROUP BY d.batch ORDER BY MIN(d.id) DESC");
+        } catch (\Throwable $e) { return []; }
+    }
+
+    /** Usuwa całą pulę (wiersze rejestru i puli). Nie sprawdza stanu przesyłki — robi to wywołujący. */
+    public static function reservedDelete(string $batch): int
+    {
+        self::migrate();
+        $ids = array_map(fn($r) => (int)$r['id'], db_all("SELECT id FROM doc_reserved WHERE batch = ?", [$batch]));
+        if (!$ids) return 0;
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        db()->prepare("DELETE FROM doc_registry WHERE source_type = 'reserved_code' AND source_id IN ($in)")->execute($ids);
+        db()->prepare("DELETE FROM doc_reserved WHERE id IN ($in)")->execute($ids);
+        return count($ids);
+    }
+
     /** Oznacza kody z puli jako wysłane w danej przesyłce RPW-W. */
     public static function reservedAttach(array $rows, int $rpwyId): void
     {

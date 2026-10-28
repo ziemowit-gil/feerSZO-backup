@@ -20,6 +20,30 @@ if (!is_zarzad()) { http_response_code(403); die('Rejestr dokumentów jest dost�
 
 $PAGE_TITLE = 'Rejestr dokumentów';
 
+// Kasowanie puli ITSM — tak jak wpisu książki nadawczej: do nadania wolno, po nadaniu nie (wtedy kody mogły zostać naklejone).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_delete') {
+    csrf_check();
+    $back = rtrim(APP_URL, '/') . '/ezd/rejestrDokumentow.php?type=reserved_code';
+    try {
+        if (!is_admin()) throw new \RuntimeException('Pule kodów może usuwać tylko administrator.');
+        $batch = (string)($_POST['batch'] ?? '');
+        $b = null;
+        foreach (DocRegistry::reservedBatches() as $x) if ($x['batch'] === $batch) $b = $x;
+        if (!$b) throw new \RuntimeException('Nie znaleziono puli kodów.');
+        if ($b['rpwy'] > 0 && ($r = ezd_rpwy_get((int)$b['rpwy']))) {
+            if (in_array($r['status'], ['nadana', 'doreczona', 'zwrocona'], true))
+                throw new \RuntimeException('Arkusz z tą pulą został już nadany przez Postivo — kody mogą być naklejone na dokumentach, więc puli nie można usunąć.');
+            if ($r['postivo_pending_pdf']) { $f = UPLOAD_DIR . EZD_RPWY_SUBDIR . (int)$r['id'] . '/' . $r['postivo_pending_pdf']; if (is_file($f)) @unlink($f); }
+            ezd_rpwy_delete((int)$r['id'], (int)(current_user()['id'] ?? 0));
+        }
+        $n = DocRegistry::reservedDelete($batch);
+        flash_set('success', 'Usunięto pulę ' . $n . ' kodów' . ($b['rpwy'] > 0 ? ' razem z niewysłanym wpisem w książce nadawczej (zlecenie Postivo wycofane z kolejki).' : '.'));
+    } catch (\Throwable $e) {
+        flash_set('error', 'Nie usunięto puli: ' . $e->getMessage());
+    }
+    header('Location: ' . $back); exit;
+}
+
 // Pula kodów do dołączenia: admin generuje 10/20/30 etykiet kodowych i nadaje je przez Postivo na adres organizacji (na kopercie dopisek ITSM).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_batch') {
     csrf_check();
@@ -223,6 +247,33 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
     }).catch(function (e) { sel.innerHTML = '<option value="">Niedostępne</option>'; msg.textContent = 'Nie pobrano usług Postivo: ' + e.message; });
   })();
   </script>
+  <?php $pools = DocRegistry::reservedBatches(); if ($pools): ?>
+  <table class="table table-sm align-middle mt-3 mb-0" style="font-size:.84rem">
+    <caption class="visually-hidden">Wygenerowane pule kodów ITSM</caption>
+    <thead><tr><th scope="col">Wygenerowano</th><th scope="col">Jednostka</th><th scope="col">Kodów</th><th scope="col">Przesyłka</th><th scope="col" class="text-end">Akcje</th></tr></thead>
+    <tbody>
+    <?php foreach ($pools as $pl): $rp = $pl['rpwy'] > 0 ? ezd_rpwy_get((int)$pl['rpwy']) : null; $sent = $rp && in_array($rp['status'], ['nadana', 'doreczona', 'zwrocona'], true); ?>
+      <tr>
+        <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$pl['at']))) ?></td>
+        <td><?= h($pl['unit'] !== '' ? $pl['unit'] : '—') ?></td>
+        <td><?= (int)$pl['n'] ?></td>
+        <td><?php if ($rp): ?><a href="<?= APP_URL ?>/ezd/rpwy/view.php?id=<?= (int)$rp['id'] ?>"><?= h(ezd_rpwy_label($rp)) ?></a> · <?= h(EZD_RPWY_STATUSY[$rp['status']]['label'] ?? $rp['status']) ?><?php else: ?>—<?php endif; ?></td>
+        <td class="text-end">
+          <?php if ($sent): ?><span class="text-muted small">nadana — nie można usunąć</span>
+          <?php else: ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć pulę <?= (int)$pl['n'] ?> kodów<?= $rp ? ' i wycofać zlecenie z kolejki Postivo' : '' ?>? Tej operacji nie da się cofnąć.')">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="action" value="itsm_delete">
+            <input type="hidden" name="batch" value="<?= h($pl['batch']) ?>">
+            <button class="btn btn-sm btn-outline-danger py-0 px-2" type="submit" aria-label="Usuń pulę <?= (int)$pl['n'] ?> kodów z <?= h(date('d.m.Y H:i', strtotime((string)$pl['at']))) ?>">Usuń pulę</button>
+          </form>
+          <?php endif; ?>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  <?php endif; ?>
   </div></details>
   <?php endif; ?>
   <?php $pend = DocRegistry::paperPending(); ?>
