@@ -440,6 +440,11 @@ function cron_dispatcher_registry(): array
             'interval' => 604800,       // raz w tygodniu — przegląd retencji danych osobowych
             'schedule' => [5, 7],       // agent tylko OZNACZA, anonimizuje człowiek
         ],
+        'crm_weekly_tidy' => [
+            'file'     => $cronDir . '/crm_weekly_tidy.php',
+            'interval' => 601200,       // raz w tygodniu (6 d 23 h — z zapasem na dryf harmonogramu)
+            'schedule' => [3, 5],       // w nocy — przelicza całą kartotekę i pyta model o niejednoznaczne adresy
+        ],
         'crm_email_kinds' => [
             'file'     => $cronDir . '/crm_email_kinds.php',
             'interval' => 86400,        // raz dziennie — nowe adresy z importów i skrzynki
