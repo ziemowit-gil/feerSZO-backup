@@ -44,6 +44,7 @@ final class SmsSenders
         'authorization_code'     => [self::G_CODES, 'Kod autoryzacji czynności', 'Podpisanie oświadczenia, zgoda na wejście administratora na konto.'],
         'document_code'          => [self::G_CODES, 'Kod i hasło do bezpiecznych dokumentów', 'EZD (udostępnianie z kodem), poczta z hasłem do pliku ZIP.'],
         'ika_code'               => [self::G_CODES, 'Kod IKA', 'Wysłanie kodu IKA z panelu administratora.'],
+        'audytor_login_code'     => [self::G_CODES, 'Kod logowania — Tajemniczy Klient', 'Aplikacja zewnętrzna audytor.feer.org.pl (api/v1/audytor_sms.php): kod logowania SMS dla użytkowników zewnętrznych.'],
 
         'access_data'            => [self::G_ACCESS, 'Login i hasło do konta', 'Panel kursanta i rodzica, konto MS 365, ownCloud, VLab, reset hasła panelu.'],
         'account_activation'     => [self::G_ACCESS, 'Aktywacja konta — przypomnienia automatyczne', 'Codzienne przypomnienie o braku pierwszego logowania (cron).'],

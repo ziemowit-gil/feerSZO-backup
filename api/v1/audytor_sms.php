@@ -51,7 +51,7 @@ if ($count("SELECT COUNT(*) AS c FROM audytor_send_log WHERE kind='sms' AND crea
 
 $GLOBALS['__sms_quiet_bypass'] = true;   // kody jednorazowe wychodzą także w nocy
 try {
-    $provider = sms_send($phone, $message, '');
+    $provider = sms_send($phone, $message, 'audytor_login_code');
 } catch (\Throwable $e) {
     error_log('[audytor_sms] ' . sms_scrub($e->getMessage()));
     api_audit('send_failed', 'audytor_sms', null, ['phone=' . substr($hash, 0, 12)]);
