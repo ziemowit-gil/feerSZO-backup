@@ -383,6 +383,13 @@ if ($KP_TOPBAR && empty($KP_TOPBAR['no_enrich']) && function_exists('dyd_current
               <?php if (!empty($_um['note'])): ?><div class="small text-warning-emphasis"><?= h($_um['note']) ?></div><?php endif; ?>
             </li>
             <li><hr class="dropdown-divider my-1"></li>
+            <?php foreach (($_um['switches'] ?? []) as $_sw): ?>
+            <li><div class="dropdown-header small text-uppercase fw-semibold pb-0"><?= h($_sw['title']) ?></div></li>
+            <?php foreach ($_sw['options'] as [$_ol, $_oh, $_oa]): ?>
+            <li><a class="dropdown-item d-flex align-items-center gap-2<?= $_oa ? ' fw-semibold' : '' ?>" href="<?= h($_oh) ?>"<?= $_oa ? ' aria-current="true"' : '' ?>><i class="bi bi-<?= $_oa ? 'check-circle-fill' : 'circle' ?>" aria-hidden="true"></i><?= h($_ol) ?></a></li>
+            <?php endforeach; ?>
+            <li><hr class="dropdown-divider my-1"></li>
+            <?php endforeach; ?>
             <?php foreach (($_um['items'] ?? []) as [$_l, $_h, $_i]): ?>
             <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= h($_h) ?>"><i class="bi bi-<?= h($_i) ?>" aria-hidden="true"></i><?= h($_l) ?></a></li>
             <?php endforeach; ?>

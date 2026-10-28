@@ -187,7 +187,22 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
             $items[] = ['Komunikaty', 'index.php?tab=komunikaty', 'megaphone'];
             $items[] = ['Gdzie co jest', 'index.php?tab=pomoc', 'signpost-split'];
         }
+        // Przełączniki wprost w menu (jedno kliknięcie, bez ekranu wyboru): rola i tryb pracy
+        $switches = [];
+        if (!$acting && !empty($s['is_staff']) && $own) {
+            $switches[] = ['title' => 'Rola', 'options' => [
+                ['Kierownik Instytucji', 'choose_mode.php?role=staff', $ctx !== 'instructor'],
+                ['Prowadzący', 'choose_mode.php?role=instructor', $ctx === 'instructor'],
+            ]];
+        }
+        if (!$acting && function_exists('dyd_modes_available') && count(dyd_modes_available($s)) > 1) {
+            $switches[] = ['title' => 'Tryb pracy', 'options' => [
+                ['Szkolenia', 'choose_mode.php?mode=kursy', dyd_mode() !== 'konsultacje'],
+                ['Konsultacje', 'choose_mode.php?mode=konsultacje', dyd_mode() === 'konsultacje'],
+            ]];
+        }
         $tb['user_menu'] = [
+            'switches' => $switches,
             'name'  => (string)($tb['user'] ?? ($s['name'] ?? '')),
             'role'  => $role,
             'icon'  => $icon,
