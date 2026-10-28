@@ -42,7 +42,7 @@ final class DocRegistry
         'print_doc'            => ['WYD', 'Wydruk dokumentu', '/', 'doc_prints', 'rand'],
         'gen_doc'              => ['DOG', 'Dokument z generatora wzorów', '/generator/view.php?id={id}', 'gen_documents', 'rand'],
         // Pula kodów do dołączania do dokumentów papierowych (arkusz etykiet nadawany przez Postivo; koperta z dopiskiem ITSM).
-        'reserved_code'        => ['ITSM', 'Kod do dołączenia (ITSM)', '/', 'doc_reserved', 'rand'],
+        'reserved_code'        => ['ITSM', 'Kod partnerski (ITSM)', '/', 'doc_reserved', 'rand'],
     ];
     /** Litery kodu bez I i O (mylą się z 1 i 0 na wydruku). */
     private const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';

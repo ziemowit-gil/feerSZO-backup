@@ -100,6 +100,7 @@ $_esb_recent = array_slice((array)($_SESSION['ezd_recent'] ?? []), 0, 5);
     <?= _esb_link('/ezd/teczki/index.php', 'bi-archive', 'Segregatory aktowe', _esb_a('/ezd/teczki/')) ?>
     <?php if (is_admin() || (function_exists('is_zarzad') && is_zarzad())): ?>
     <?= _esb_link('/ezd/rejestrDokumentow.php', 'bi-qr-code', 'Rejestr dokumentów', _esb_a('/ezd/rejestrDokumentow')) ?>
+    <?= _esb_link('/ezd/kodyPartnerskie.php', 'bi-upc-scan', 'Kody partnerskie (ITSM)', _esb_a('/ezd/kodyPartnerskie')) ?>
     <?php endif; ?>
 
     <div class="ezd-sb-section" role="presentation">Archiwistyka</div>
