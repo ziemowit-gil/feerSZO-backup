@@ -79,19 +79,29 @@ final class DocRegistry
             id {$pk}, batch VARCHAR(30) NOT NULL DEFAULT '', attached_rpwy INTEGER,
             created_by INTEGER, created_at VARCHAR(19)
         )");
+        try { db()->exec("ALTER TABLE doc_reserved ADD COLUMN unit_id INTEGER"); } catch (\Throwable $e) { /* istnieje */ }
+    }
+
+    /** Nazwa jednostki organizacyjnej, do której przypisano kod z puli (napis na etykiecie); '' gdy brak. */
+    public static function reservedUnitName(int $reservedId): string
+    {
+        try {
+            $r = db_one("SELECT u.name FROM doc_reserved d JOIN org_units u ON u.id = d.unit_id WHERE d.id = ?", [$reservedId]);
+            return trim((string)($r['name'] ?? ''));
+        } catch (\Throwable $e) { return ''; }
     }
 
     /**
      * Rezerwuje $n nowych kodów (pula „do dołączenia”), wszystkie z odpowiednikiem papierowym = etykieta.
      * @return array<int,array> wiersze rejestru, w kolejności nadania
      */
-    public static function reserveBatch(int $n, int $uid = 0): array
+    public static function reserveBatch(int $n, int $uid = 0, int $unitId = 0): array
     {
         self::migrate();
         $batch = date('YmdHis') . '-' . substr(bin2hex(random_bytes(2)), 0, 4);
         $rows = [];
         for ($i = 0; $i < $n; $i++) {
-            $id = db_insert('doc_reserved', ['batch' => $batch, 'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s')]);
+            $id = db_insert('doc_reserved', ['batch' => $batch, 'unit_id' => $unitId ?: null, 'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s')]);
             $row = self::assign('reserved_code', (int)$id);
             if (!$row) throw new \RuntimeException('Nie udało się nadać kodu z puli.');
             db()->prepare("UPDATE doc_registry SET paper_mode = 'label', paper_at = ?, paper_by = ? WHERE id = ?")->execute([date('Y-m-d H:i:s'), $uid ?: null, (int)$row['id']]);
@@ -505,9 +515,11 @@ final class DocRegistry
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $code = (string)$row['code'];
         $kind = mb_strtoupper(mb_strimwidth((string)(self::SOURCES[$row['source_type']][1] ?? 'Dokument'), 0, 34, '…'));
+        $unit = $row['source_type'] === 'reserved_code' ? self::reservedUnitName((int)$row['source_id']) : '';
+        $head = $unit !== '' ? mb_strimwidth($unit, 0, 40, '…') : (defined('ORG_NAME') ? ORG_NAME : '');
         $date = !empty($row['created_at']) ? date('d.m.Y', strtotime((string)$row['created_at'])) : '';
         return '<table style="width:100%;border-collapse:collapse;font-family:dejavusans">'
-            . '<tr><td style="font-size:5.5pt;color:#444">' . $e(defined('ORG_NAME') ? ORG_NAME : '') . '</td><td style="font-size:5.5pt;color:#444;text-align:right">' . $e($date) . '</td></tr>'
+            . '<tr><td style="font-size:' . ($unit !== '' ? '7' : '5.5') . 'pt;color:#' . ($unit !== '' ? '111;font-weight:bold' : '444') . '">' . $e($head) . '</td><td style="font-size:5.5pt;color:#444;text-align:right">' . $e($date) . '</td></tr>'
             . '<tr><td colspan="2" style="font-size:6.5pt;font-weight:bold;padding-bottom:.6mm">' . $e($kind) . '</td></tr>'
             . '<tr><td style="vertical-align:top;width:66%">'
             . '<barcode code="' . $e($code) . '" type="C128B" size="0.60" height="1.05" />'

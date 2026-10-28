@@ -38,7 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
         if ($orgName === '' || !preg_match('~^(.*?)[,\s]+(\d{2}-\d{3})\s+(.+)$~u', $adres, $m)) throw new \RuntimeException('Uzupełnij adres organizacji w formacie „ulica nr, 00-000 Miasto” (ustawienie org_adres) — kody nie zostały wygenerowane.');
         [$street, $postcode, $city] = [trim($m[1], " ,"), $m[2], trim($m[3])];
 
-        $rows = DocRegistry::reserveBatch($qty, $uid);
+        $unitId = (int)($_POST['unit_id'] ?? 0);
+        $unitName = $unitId ? (string)(db_one("SELECT name FROM org_units WHERE id = ?", [$unitId])['name'] ?? '') : '';
+        if ($unitId && $unitName === '') throw new \RuntimeException('Nie znaleziono wybranej jednostki.');
+        $rows = DocRegistry::reserveBatch($qty, $uid, $unitId);
         $pdf = DocRegistry::labelsPdf($rows, true, 1) ?? throw new \RuntimeException('Generator PDF jest niedostępny.');
         $pdfTmp = sys_get_temp_dir() . '/itsm_kody_' . bin2hex(random_bytes(6)) . '.pdf';
         file_put_contents($pdfTmp, $pdf);
@@ -47,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
             'sposob'   => 'kurier',
             'odbiorca' => $orgName . ' (ITSM)',
             'adres'    => $street . "\n" . $postcode . ' ' . $city,
-            'uwagi'    => 'ITSM — arkusz ' . $qty . ' kodów do dołączenia: ' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'],
+            'uwagi'    => 'ITSM' . ($unitName !== '' ? ' (' . $unitName . ')' : '') . ' — arkusz ' . $qty . ' kodów do dołączenia: ' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'],
         ], $uid);
         DocRegistry::reservedAttach($rows, (int)$res['id']);
         ezd_rpwy_postivo_queue((int)$res['id'], $pdfTmp, [
@@ -166,6 +169,8 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="row2">
       <div><label for="dr-qty">Liczba etykiet</label>
         <select id="dr-qty" name="qty" class="form-select form-select-sm"><?php foreach ([10, 20, 30] as $q): ?><option value="<?= $q ?>"<?= $q === 30 ? ' selected' : '' ?>><?= $q ?></option><?php endforeach; ?></select></div>
+      <div><label for="dr-unit">Napis jednostki na etykiecie</label>
+        <select id="dr-unit" name="unit_id" class="form-select form-select-sm"><option value="0">— bez jednostki (nazwa organizacji) —</option><?php foreach (ezd_org_units() as $u): ?><option value="<?= (int)$u['id'] ?>"><?= h(ezd_unit_label($u)) ?></option><?php endforeach; ?></select></div>
       <div><label for="dr-svc">Usługa kurierska Postivo</label>
         <select id="dr-svc" name="service" class="form-select form-select-sm" required><option value="">Ładowanie usług…</option></select></div>
       <button class="btn btn-sm btn-primary" type="submit" id="dr-itsm-go" disabled><i class="bi bi-truck me-1" aria-hidden="true"></i>Generuj i nadaj kurierem</button>
