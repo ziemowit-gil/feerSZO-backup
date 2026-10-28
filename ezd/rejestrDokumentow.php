@@ -97,53 +97,76 @@ include dirname(__DIR__) . '/includes/header.php';
 .dr-chip{display:inline-block;padding:.12rem .55rem;font-size:.78rem;font-weight:700;color:#fff}
 .dr-valid{background:#006b00}.dr-void{background:#a20025}
 .dr-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;white-space:nowrap}
-.dr-tabs a{display:inline-block;padding:.3rem .7rem;border:1px solid #adb5bd;margin:0 .25rem .35rem 0;text-decoration:none;color:#1d1d1d;font-size:.88rem;background:#fff}
-.dr-tabs a[aria-current="true"]{background:#0050ef;border-color:#0050ef;color:#fff;font-weight:600}
-.dr-tabs a:focus-visible,.dr-act a:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
 .dr-void-row td{color:#6b7280}
+/* układ strony — własny flex zamiast siatki Bootstrapa (skórka EZD dorysowywała ramki wokół kolumn) */
+.dr-page .dr-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem 1rem;margin-bottom:1rem}
+.dr-page .dr-head h1{margin:0}
+.dr-page .dr-head p{margin:0;color:#4b5563;font-size:.86rem}
+.dr-page .dr-tabs{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.35rem}
+html body .dr-page .dr-tabs a{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .75rem;border:1px solid #9aa3ad;background:#fff;color:#1f2937;text-decoration:none;font-size:.86rem;line-height:1.3}
+html body .dr-page .dr-tabs a:hover{background:#eef3f7}
+html body .dr-page .dr-tabs a b{font-weight:700;color:#4b5563}
+html body .dr-page .dr-tabs a[aria-current="true"]{background:#0f6fa8;border-color:#0f6fa8;color:#fff;font-weight:600}
+html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
+.dr-page .dr-more{margin:0 0 1rem;font-size:.84rem}
+.dr-page .dr-more summary{cursor:pointer;color:#0f6fa8;padding:.15rem 0;width:max-content}
+.dr-page .dr-more .dr-tabs{margin-top:.4rem}
+.dr-page .dr-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.6rem .9rem;padding:.8rem 1rem;margin:0 0 1rem;background:#f3f4f6;border:1px solid #d1d5db}
+.dr-page .dr-filters .f{display:flex;flex-direction:column;gap:.2rem;min-width:9rem}
+.dr-page .dr-filters .f.grow{flex:1 1 16rem}
+.dr-page .dr-filters label{font-size:.78rem;font-weight:600;color:#374151;margin:0}
+.dr-page .dr-filters .btns{display:flex;gap:.5rem;margin-left:auto}
+.dr-page .dr-tools{margin:0 0 1rem;border:1px solid #d1d5db;border-left:4px solid #0f6fa8;background:#f4f8fb}
+.dr-page .dr-tools>summary{cursor:pointer;padding:.6rem 1rem;font-weight:600;list-style:none;display:flex;align-items:center;gap:.5rem}
+.dr-page .dr-tools>summary::-webkit-details-marker{display:none}
+.dr-page .dr-tools>summary::after{content:"▾";margin-left:auto;color:#4b5563}
+.dr-page .dr-tools[open]>summary::after{content:"▴"}
+.dr-page .dr-tools .dr-tools-body{padding:0 1rem .9rem}
+.dr-page .dr-note{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem;padding:.55rem 1rem;margin:0 0 .8rem;background:#fff7e6;border-left:4px solid #b45309;font-size:.86rem}
+.dr-page .dr-sheet{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.5rem .75rem;margin:0 0 .6rem}
+.dr-page .dr-sheet label{font-size:.78rem;font-weight:600;display:block;margin-bottom:.15rem}
+.dr-page :focus-visible{outline:3px solid #d90429;outline-offset:2px}
 </style>
 
-<div class="container-fluid py-3" style="max-width:1300px">
-  <h1 class="h4 mb-1"><i class="bi bi-qr-code me-2" aria-hidden="true"></i>Rejestr dokumentów</h1>
-  <p class="text-muted small mb-3">Numery i kody QR nadane plikom wgranym do EZD, CRM, zadań, helpdesku, korespondencji i naboru. Razem: <b><?= (int)$total_all ?></b>. EODoK i KDOK mają własną numerację i nie są tu ujęte.</p>
+<div class="container-fluid py-3 dr-page" style="max-width:1300px">
+  <div class="dr-head">
+    <h1 class="h4"><i class="bi bi-qr-code me-2" aria-hidden="true"></i>Rejestr dokumentów</h1>
+    <p>Numery i kody QR plików z EZD, CRM, zadań, helpdesku, korespondencji i naboru · razem <b><?= (int)$total_all ?></b> · EODoK i KDOK mają własną numerację.</p>
+  </div>
 
-  <nav class="dr-tabs" aria-label="Filtr po systemie">
-    <a href="<?= h($qs(['type' => ''])) ?>"<?= $f['type'] === '' ? ' aria-current="true"' : '' ?>>Wszystkie (<?= (int)$total_all ?>)</a>
-    <?php foreach (DocRegistry::SOURCES as $key => $def): $n = $res['counts'][$key] ?? 0; ?>
-      <a href="<?= h($qs(['type' => $key])) ?>"<?= $f['type'] === $key ? ' aria-current="true"' : '' ?>><?= h($def[1]) ?> (<?= (int)$n ?>)</a>
-    <?php endforeach; ?>
+  <?php
+    $kinds_on = []; $kinds_off = [];
+    foreach (DocRegistry::SOURCES as $key => $def) { $n = (int)($res['counts'][$key] ?? 0); if ($n > 0 || $f['type'] === $key) $kinds_on[$key] = [$def[1], $n]; else $kinds_off[$key] = [$def[1], 0]; }
+    $tabLink = fn($key, $label, $n) => '<a href="' . h($qs(['type' => $key])) . '"' . ($f['type'] === $key ? ' aria-current="true"' : '') . '>' . h($label) . ' <b>' . (int)$n . '</b></a>';
+  ?>
+  <nav class="dr-tabs" aria-label="Filtr po rodzaju dokumentu">
+    <?= $tabLink('', 'Wszystkie', $total_all) ?>
+    <?php foreach ($kinds_on as $key => [$lbl, $n]) echo $tabLink($key, $lbl, $n); ?>
   </nav>
+  <?php if ($kinds_off): ?>
+  <details class="dr-more"><summary>Rodzaje bez pozycji (<?= count($kinds_off) ?>)</summary>
+    <nav class="dr-tabs" aria-label="Rodzaje bez pozycji"><?php foreach ($kinds_off as $key => [$lbl, $n]) echo $tabLink($key, $lbl, 0); ?></nav>
+  </details>
+  <?php else: ?><div class="mb-3"></div><?php endif; ?>
 
-  <form method="get" class="row g-2 align-items-end mb-3" role="search" aria-label="Szukaj w rejestrze dokumentów">
+  <form method="get" class="dr-filters" role="search" aria-label="Szukaj w rejestrze dokumentów">
     <?php if ($f['type'] !== ''): ?><input type="hidden" name="type" value="<?= h($f['type']) ?>"><?php endif; ?>
-    <div class="col-12 col-md-4">
-      <label for="dr-q" class="form-label small mb-1">Numer lub kod</label>
-      <input id="dr-q" type="search" name="q" value="<?= h($f['q']) ?>" class="form-control form-control-sm" placeholder="np. HD/0012/2026 albo EZD/4839" autocomplete="off" spellcheck="false">
-    </div>
-    <div class="col-6 col-md-2">
-      <label for="dr-state" class="form-label small mb-1">Stan</label>
+    <div class="f grow"><label for="dr-q">Numer lub kod</label>
+      <input id="dr-q" type="search" name="q" value="<?= h($f['q']) ?>" class="form-control form-control-sm" placeholder="np. HD/0012/2026 albo EZD/4839" autocomplete="off" spellcheck="false"></div>
+    <div class="f"><label for="dr-state">Stan</label>
       <select id="dr-state" name="state" class="form-select form-select-sm">
         <option value="">Wszystkie</option>
         <option value="valid"<?= $f['state'] === 'valid' ? ' selected' : '' ?>>Obowiązuje</option>
         <option value="void"<?= $f['state'] === 'void' ? ' selected' : '' ?>>Nieaktualny / usunięty</option>
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label for="dr-paper" class="form-label small mb-1">Papier</label>
+      </select></div>
+    <div class="f"><label for="dr-paper">Papier</label>
       <select id="dr-paper" name="paper" class="form-select form-select-sm">
         <option value="">Wszystkie</option>
         <?php foreach (['pending' => 'Do rozstrzygnięcia', 'todo' => 'Do zrobienia (etykieta / numer)', 'label' => 'Etykieta', 'manual' => 'Numer ręcznie', 'none' => 'Bez papieru'] as $pk => $pl): ?><option value="<?= h($pk) ?>"<?= $f['paper'] === $pk ? ' selected' : '' ?>><?= h($pl) ?></option><?php endforeach; ?>
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label for="dr-from" class="form-label small mb-1">Nadano od</label>
-      <input id="dr-from" type="date" name="from" value="<?= h($f['from']) ?>" class="form-control form-control-sm">
-    </div>
-    <div class="col-6 col-md-2">
-      <label for="dr-to" class="form-label small mb-1">Nadano do</label>
-      <input id="dr-to" type="date" name="to" value="<?= h($f['to']) ?>" class="form-control form-control-sm">
-    </div>
-    <div class="col-6 col-md-2 d-flex gap-2">
+      </select></div>
+    <div class="f"><label for="dr-from">Nadano od</label><input id="dr-from" type="date" name="from" value="<?= h($f['from']) ?>" class="form-control form-control-sm"></div>
+    <div class="f"><label for="dr-to">Nadano do</label><input id="dr-to" type="date" name="to" value="<?= h($f['to']) ?>" class="form-control form-control-sm"></div>
+    <div class="btns">
       <button type="submit" class="btn btn-primary btn-sm">Szukaj</button>
       <a href="<?= h($base . 'list.php') ?>" class="btn btn-outline-secondary btn-sm">Wyczyść</a>
     </div>
@@ -151,7 +174,7 @@ include dirname(__DIR__) . '/includes/header.php';
 
   <?php if (is_admin()): ?>
   <style>
-  .dr-itsm{border:1px solid #c3c8cf;border-left:4px solid #0f6fa8;background:#f4f8fb;padding:.75rem 1rem;margin:0 0 1rem}
+  .dr-itsm{margin:0}
   .dr-itsm h2{font-size:1rem;font-weight:600;margin:0 0 .15rem}
   .dr-itsm p{margin:0 0 .6rem;font-size:.84rem;color:#4b5563}
   .dr-itsm .row2{display:flex;flex-wrap:wrap;gap:.5rem .75rem;align-items:flex-end}
@@ -161,10 +184,13 @@ include dirname(__DIR__) . '/includes/header.php';
   .dr-itsm .btn{border-radius:0}
   .dr-itsm :focus-visible{outline:3px solid #d90429;outline-offset:2px}
   </style>
+  <details class="dr-tools"<?= $f['type'] === 'reserved_code' ? ' open' : '' ?>>
+  <summary><i class="bi bi-truck" aria-hidden="true"></i>Kody do dołączenia (ITSM) — generuj i nadaj kurierem</summary>
+  <div class="dr-tools-body">
   <form method="post" class="dr-itsm" aria-labelledby="dr-itsm-h" onsubmit="return confirm('Wygenerować kody i zlecić nadanie arkusza kurierem przez Postivo (płatna wysyłka)?')">
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="action" value="itsm_batch">
-    <h2 id="dr-itsm-h">Kody do dołączenia (ITSM)</h2>
+    <h2 id="dr-itsm-h" class="visually-hidden">Kody do dołączenia (ITSM)</h2>
     <p>Generuje pulę kodów i wysyła arkusz etykiet A4 kurierem Postivo na adres organizacji, z dopiskiem „ITSM” na kopercie.</p>
     <div class="row2">
       <div><label for="dr-qty">Liczba etykiet</label>
@@ -197,12 +223,13 @@ include dirname(__DIR__) . '/includes/header.php';
     }).catch(function (e) { sel.innerHTML = '<option value="">Niedostępne</option>'; msg.textContent = 'Nie pobrano usług Postivo: ' + e.message; });
   })();
   </script>
+  </div></details>
   <?php endif; ?>
   <?php $pend = DocRegistry::paperPending(); ?>
-  <?php if ($pend > 0): ?><div class="alert alert-warning py-2 small d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
+  <?php if ($pend > 0): ?><div class="dr-note" role="status">
     <span><strong><?= (int)$pend ?></strong> dokumentów czeka na decyzję: czy mają odpowiednik papierowy (etykieta albo numer ręcznie).</span>
     <a class="btn btn-sm btn-outline-dark" href="<?= h($qs(['paper' => 'pending'])) ?>">Pokaż do rozstrzygnięcia</a></div><?php endif; ?>
-  <form id="sheetForm" method="get" action="<?= h($base) ?>" target="_blank" class="d-flex flex-wrap align-items-end gap-2 mb-2">
+  <form id="sheetForm" method="get" action="<?= h($base) ?>" target="_blank" class="dr-sheet">
     <div><label class="form-label small mb-1" for="dr-start">Arkusz etykiet A4 (3×8): pierwsze wolne pole</label><input id="dr-start" class="form-control form-control-sm" type="number" name="start" min="1" max="24" value="1" style="width:6rem"></div>
     <button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-printer me-1"></i>Drukuj etykiety zaznaczonych</button>
     <span class="small text-muted">Zaznacz pozycje w kolumnie „Etykieta”.</span>
