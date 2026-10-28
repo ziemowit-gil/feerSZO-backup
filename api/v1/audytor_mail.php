@@ -11,6 +11,11 @@
  * wiadomość, a błąd wysyłki zwraca 502 (ponawia aplikacja Tajemniczy Klient ze swojej kolejki). Nadawca = systemowy
  * (context_type audytor_notify).
  *
+ * Wyjątek dla użytkowników ZEWNĘTRZNYCH aplikacji (konta tylko w Tajemniczym Kliencie, bez konta SZO): adresat spoza SZO jest
+ * dopuszczony wyłącznie dla dwóch tematów (ustawienie hasła: pierwsze konto / nowy link) i treści zgodnej ze sztywnym szablonem
+ * z jednym linkiem https://audytor.feer.org.pl/ext/set-password?token=… (patrz audytor_mail_external_ok()); tylko 1 adresat
+ * na żądanie, do 3 wiadomości na adres na godzinę i 30 na godzinę łącznie, w dzienniku tylko skrót adresu.
+ *
  * To powiadomienia, nie dowolna korespondencja — zabezpieczenia: adresaci muszą być aktywnymi kontami SZO z uprawnieniem
  * do aplikacji (te same reguły co scope audytor:access), więc wyciek klucza nie pozwala wysyłać poczty na obce adresy;
  * do 50 adresatów na żądanie, do 200 wiadomości na godzinę (łącznie), adresy walidowane i bez duplikatów, każdy adresat
@@ -36,6 +41,38 @@ api_require('audytor:mail');
 const AUDYTOR_MAIL_MAX_RECIPIENTS = 50;
 const AUDYTOR_MAIL_MAX_PER_HOUR   = 200;
 const AUDYTOR_MAIL_CONTEXT        = 'audytor_notify';
+const AUDYTOR_EXT_PER_ADDR_HOUR   = 3;
+const AUDYTOR_EXT_PER_HOUR        = 30;
+const AUDYTOR_EXT_APP_URL         = 'https://audytor.feer.org.pl';
+const AUDYTOR_EXT_SUBJECTS        = ['Konto w aplikacji Tajemniczy Klient: ustaw hasło', 'Nowy link do ustawienia hasła: Tajemniczy Klient'];
+
+/**
+ * Czy wiadomość do adresata spoza SZO jest dozwolonym mailem „ustaw hasło” (sztywny szablon, bez wolnego tekstu z linkami).
+ * Warunki: jeden z dwóch tematów; treść zaczyna się od „Dzień dobry,” a kończy podpisem Fundacji; do 20 linii i 2000 znaków;
+ * dokładnie jeden link …/ext/set-password?token=[A-Za-z0-9_-]{40,60}; linia „Adres aplikacji: <adres aplikacji>”;
+ * linia „Login: <adres adresata>”; poza tymi elementami brak jakichkolwiek URL-i, adresów e-mail i nazw domen.
+ */
+function audytor_mail_external_ok(string $subject, string $message, string $email): bool
+{
+    if (!in_array($subject, AUDYTOR_EXT_SUBJECTS, true)) return false;
+    if (mb_strlen($message) > 2000 || substr_count($message, "\n") > 20) return false;
+    $lines = explode("\n", $message);
+    if (($lines[0] ?? '') !== 'Dzień dobry,') return false;
+    if (!preg_match('/^Fundacja Edukacji Empatii Rozwoju [„"]FEER[”"]$/u', rtrim((string)end($lines)))) return false;
+
+    $linkRe = '~' . preg_quote(AUDYTOR_EXT_APP_URL, '~') . '/ext/set-password\?token=[A-Za-z0-9_-]{40,60}~';
+    if (preg_match_all($linkRe, $message) !== 1) return false;
+    if (substr_count($message, 'Adres aplikacji: ' . AUDYTOR_EXT_APP_URL . "\n") !== 1) return false;
+    if (preg_match_all('/^Login: (\S+)$/mu', $message, $lm) !== 1 || strtolower($lm[1][0]) !== $email) return false;
+    $loginLine = 'Login: ' . $lm[1][0];
+
+    // Po usunięciu dozwolonych elementów nie może zostać żaden URL, adres e-mail ani nazwa domeny.
+    $rest = preg_replace($linkRe, '', $message) ?? '';
+    $rest = str_replace(['Adres aplikacji: ' . AUDYTOR_EXT_APP_URL, $loginLine], '', $rest);
+    if (preg_match('~(?:https?:|www\.|@)~i', $rest)) return false;
+    if (preg_match('/[\p{L}\p{N}-]+\.\p{L}{2,}/u', $rest)) return false;
+    return true;
+}
 
 $in = json_decode((string)file_get_contents('php://input'), true);
 if (!is_array($in)) api_error('Wymagane ciało JSON.', 400);
@@ -57,24 +94,36 @@ foreach (db_all("SELECT name, first_name, last_name, email, role FROM users WHER
     $allowed[$e] = $n !== '' ? $n : trim((string)$u['name']);
 }
 
-$valid = []; $skipped = [];
+$valid = []; $external = []; $skipped = [];
 foreach ($rcpts as $r) {
     $email = strtolower(trim((string)(is_array($r) ? ($r['email'] ?? '') : $r)));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 200) { $skipped[] = ['email' => $email, 'reason' => 'nieprawidłowy adres']; continue; }
     if (isset($valid[$email])) continue;
-    if (!isset($allowed[$email])) { $skipped[] = ['email' => $email, 'reason' => 'adres spoza uprawnionych użytkowników']; continue; }
+    if (!isset($allowed[$email])) {
+        // Użytkownik zewnętrzny (bez konta SZO): tylko mail „ustaw hasło” z sztywnego szablonu, pojedynczo.
+        if (count($rcpts) === 1 && audytor_mail_external_ok($subject, $message, $email)) { $external[$email] = ''; continue; }
+        $skipped[] = ['email' => $email, 'reason' => 'adres spoza uprawnionych użytkowników']; continue;
+    }
     $valid[$email] = mb_substr($allowed[$email], 0, 100);
 }
-if (!$valid) api_error('Brak adresatów uprawnionych do powiadomień.', 422);
+if (!$valid && !$external) api_error('Brak adresatów uprawnionych do powiadomień.', 422);
 
 // Licznik wysyłek (osobna tabela, bo wiadomości nie trafiają do kolejki poczty).
 db()->exec("CREATE TABLE IF NOT EXISTS audytor_send_log (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, target TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')))");
 db()->exec("CREATE INDEX IF NOT EXISTS idx_audytor_send_log ON audytor_send_log(kind, created_at)");
 $sentHour = (int)(db_one("SELECT COUNT(*) AS c FROM audytor_send_log WHERE kind='mail' AND created_at >= datetime('now','-1 hour')")['c'] ?? 0);
 if ($sentHour + count($valid) > AUDYTOR_MAIL_MAX_PER_HOUR) api_error('Przekroczono limit wysyłek na godzinę. Spróbuj później.', 429);
+if ($external) {
+    $extHash = hash('sha256', (string)array_key_first($external));
+    $extAddr = (int)(db_one("SELECT COUNT(*) AS c FROM audytor_send_log WHERE kind='mail_ext' AND target=? AND created_at >= datetime('now','-1 hour')", [$extHash])['c'] ?? 0);
+    $extHour = (int)(db_one("SELECT COUNT(*) AS c FROM audytor_send_log WHERE kind='mail_ext' AND created_at >= datetime('now','-1 hour')")['c'] ?? 0);
+    if ($extAddr >= AUDYTOR_EXT_PER_ADDR_HOUR) api_error('Limit wiadomości dla tego adresu. Spróbuj później.', 429);
+    if ($extHour >= AUDYTOR_EXT_PER_HOUR) api_error('Przekroczono limit wiadomości do użytkowników zewnętrznych na godzinę.', 429);
+}
 
 $sent = 0; $errors = [];
-foreach ($valid as $email => $name) {
+foreach ($valid + $external as $email => $name) {
+    $kind = isset($external[$email]) ? 'mail_ext' : 'mail';
     // Wysyłka bezpośrednia (bez mail_queue); pusta wersja HTML = czysty text/plain.
     $msg = [
         'id' => 0, 'to_email' => $email, 'to_name' => $name, 'subject' => $subject, 'body_html' => '', 'body_text' => $message,
@@ -84,7 +133,7 @@ foreach ($valid as $email => $name) {
     try {
         if (_mail_send($msg)) {
             $sent++;
-            db()->prepare("INSERT INTO audytor_send_log (kind, target) VALUES ('mail', ?)")->execute([hash('sha256', $email)]);
+            db()->prepare("INSERT INTO audytor_send_log (kind, target) VALUES (?, ?)")->execute([$kind, hash('sha256', $email)]);
         } else {
             $errors[] = ['email' => $email, 'reason' => 'serwer poczty nie przyjął wiadomości'];
         }
@@ -93,6 +142,6 @@ foreach ($valid as $email => $name) {
         $errors[] = ['email' => $email, 'reason' => 'błąd wysyłki'];
     }
 }
-api_audit('send', 'audytor_mail', null, ['recipients=' . count($valid), 'sent=' . $sent, 'errors=' . count($errors)]);
+api_audit('send', 'audytor_mail', null, ['recipients=' . count($valid), 'external=' . count($external), 'sent=' . $sent, 'errors=' . count($errors)]);
 if ($sent === 0 && $errors) api_error('Nie udało się wysłać wiadomości (błąd poczty SZO). Spróbuj ponownie.', 502);
 api_json(['ok' => true, 'sent' => $sent, 'queued' => $sent, 'skipped' => array_merge($skipped, $errors)]);
