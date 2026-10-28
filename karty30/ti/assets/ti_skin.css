@@ -862,3 +862,6 @@ body.dyd-usos.ti-skin .dyd-more-sum{color:var(--m-dark);font-size:1.1rem;font-we
   body.dyd-usos.ti-skin main h1:not(.mt-title):not(.dw-h),body.dyd-usos.ti-skin main .h1{font-size:1.45rem}
 }
 @media print{body.dyd-usos.ti-skin .card{background:#fff;border:1px solid #999!important}}
+
+/* Panel dydaktyka: podkreślenie aktywnej zakładki górnego menu — jasny cyjan (kontrast ~11:1 na czarnym pasku; wcześniej ciemny granat był nieczytelny) */
+html body.dyd-usos.ti-skin header .navbar .dyd-topnav a[aria-current="page"]{border-bottom-color:#4fc3f7!important;box-shadow:inset 0 -4px 0 #4fc3f7!important}
