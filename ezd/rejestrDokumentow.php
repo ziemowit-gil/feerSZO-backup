@@ -108,6 +108,19 @@ $f = [
 $page = max(1, (int)($_GET['p'] ?? 1));
 $res  = DocRegistry::search($f, $page, 50);
 $total_all = array_sum($res['counts']);
+// Status kodu z puli ITSM: partnerskie = arkusz wydrukowany i nadany przez Postivo (nadana/doręczona); inaczej wygenerowany / w kolejce
+$itsmStatus = function (?string $rpwyStatus): array {
+    if (in_array($rpwyStatus, ['nadana', 'doreczona'], true)) return ['partnerskie', 'dr-valid'];
+    if ($rpwyStatus === 'postivo_queued') return ['w kolejce Postivo', 'dr-wait'];
+    if ($rpwyStatus === 'zwrocona') return ['zwrócone przez Postivo', 'dr-void'];
+    return ['wygenerowane', 'dr-new'];
+};
+$itsmById = [];
+foreach ($res['rows'] as $rr) if ($rr['source_type'] === 'reserved_code') $itsmById[(int)$rr['source_id']] = null;
+if ($itsmById) {
+    $in = implode(',', array_fill(0, count($itsmById), '?'));
+    foreach (db_all("SELECT d.id, r.status FROM doc_reserved d LEFT JOIN ezd_rpwy r ON r.id = d.attached_rpwy WHERE d.id IN ($in)", array_keys($itsmById)) as $x) $itsmById[(int)$x['id']] = $x['status'];
+}
 $base = rtrim(APP_URL, '/') . '/docreg/';
 $qs = function (array $over = []) use ($f) {
     $q = array_filter(array_merge($f, ['p' => 1], $over), fn($v) => $v !== '' && $v !== null);
@@ -119,7 +132,7 @@ include dirname(__DIR__) . '/includes/header.php';
 ?>
 <style>
 .dr-chip{display:inline-block;padding:.12rem .55rem;font-size:.78rem;font-weight:700;color:#fff}
-.dr-valid{background:#006b00}.dr-void{background:#a20025}
+.dr-valid{background:#006b00}.dr-void{background:#a20025}.dr-wait{background:#9a4000}.dr-new{background:#525252}
 .dr-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;white-space:nowrap}
 .dr-void-row td{color:#6b7280}
 /* układ strony — własny flex zamiast siatki Bootstrapa (skórka EZD dorysowywała ramki wokół kolumn) */
@@ -250,13 +263,14 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
   <?php $pools = DocRegistry::reservedBatches(); if ($pools): ?>
   <table class="table table-sm align-middle mt-3 mb-0" style="font-size:.84rem">
     <caption class="visually-hidden">Wygenerowane pule kodów ITSM</caption>
-    <thead><tr><th scope="col">Wygenerowano</th><th scope="col">Jednostka</th><th scope="col">Kodów</th><th scope="col">Przesyłka</th><th scope="col" class="text-end">Akcje</th></tr></thead>
+    <thead><tr><th scope="col">Wygenerowano</th><th scope="col">Jednostka</th><th scope="col">Kodów</th><th scope="col">Status</th><th scope="col">Przesyłka</th><th scope="col" class="text-end">Akcje</th></tr></thead>
     <tbody>
     <?php foreach ($pools as $pl): $rp = $pl['rpwy'] > 0 ? ezd_rpwy_get((int)$pl['rpwy']) : null; $sent = $rp && in_array($rp['status'], ['nadana', 'doreczona', 'zwrocona'], true); ?>
       <tr>
         <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$pl['at']))) ?></td>
         <td><?= h($pl['unit'] !== '' ? $pl['unit'] : '—') ?></td>
         <td><?= (int)$pl['n'] ?></td>
+        <td><?php [$itl, $itc] = $itsmStatus($rp['status'] ?? null); ?><span class="dr-chip <?= $itc ?>"><?= h($itl) ?></span></td>
         <td><?php if ($rp): ?><a href="<?= APP_URL ?>/ezd/rpwy/view.php?id=<?= (int)$rp['id'] ?>"><?= h(ezd_rpwy_label($rp)) ?></a> · <?= h(EZD_RPWY_STATUSY[$rp['status']]['label'] ?? $rp['status']) ?><?php else: ?>—<?php endif; ?></td>
         <td class="text-end">
           <?php if ($sent): ?><span class="text-muted small">nadana — nie można usunąć</span>
@@ -316,7 +330,8 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
           <td class="text-truncate" style="max-width:260px" title="<?= h($r['file_name']) ?>"><?= $r['file_name'] !== '' ? h($r['file_name']) : '<span class="text-muted">—</span>' ?></td>
           <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$r['created_at']))) ?></td>
           <td><span class="dr-chip <?= $void ? 'dr-void' : 'dr-valid' ?>"><?= $void ? 'Nieaktualny' : 'Obowiązuje' ?></span><?php if ($r['note'] !== ''): ?><div class="small text-muted"><?= h(preg_replace('~\s*Skrót SHA-256.*$~u', '', $r['note'])) ?></div><?php endif; ?></td>
-          <td class="small"><?php $pm = (string)($r['paper_mode'] ?? ''); if ($r['seq'] || str_starts_with((string)$r['source_type'], 'contract_') || in_array($r['source_type'], ['print_doc', 'gen_doc', 'reserved_code'], true)): ?><span class="text-muted">—</span>
+          <td class="small"><?php $pm = (string)($r['paper_mode'] ?? ''); if ($r['source_type'] === 'reserved_code'): [$itl, $itc] = $itsmStatus($itsmById[(int)$r['source_id']] ?? null); ?><span class="dr-chip <?= $itc ?>"><?= h($itl) ?></span>
+          <?php elseif ($r['seq'] || str_starts_with((string)$r['source_type'], 'contract_') || in_array($r['source_type'], ['print_doc', 'gen_doc'], true)): ?><span class="text-muted">—</span>
             <?php elseif ($pm === ''): ?><a href="<?= h($base . '?view=' . rawurlencode($code)) ?>" target="_blank" rel="noopener" class="text-warning-emphasis">do rozstrzygnięcia</a>
             <?php else: ?><?= h(['none' => 'bez papieru', 'label' => 'etykieta', 'manual' => 'numer ręcznie'][$pm] ?? $pm) ?><?php if ($pm !== 'none'): ?> <?= !empty($r['paper_done_at']) ? '<span class="text-success" title="Zrobione ' . h(date('d.m.Y H:i', strtotime((string)$r['paper_done_at']))) . '">✓</span>' : '<span class="text-danger" title="Do zrobienia">●</span>' ?><?php endif; ?><?php endif; ?></td>
           <td class="text-end text-nowrap dr-act">
