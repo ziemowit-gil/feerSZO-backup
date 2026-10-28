@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
     $pdfTmp = null;
     try {
         if (!is_admin()) throw new \RuntimeException('Generować i nadawać kody może tylko administrator.');
+        [$carrierId, $serviceId] = array_map('intval', explode(':', (string)($_POST['service'] ?? '0:0')) + [0, 0]);
+        if ($carrierId <= 0 || $serviceId <= 0) throw new \RuntimeException('Wybierz usługę kurierską Postivo — kody nie zostały wygenerowane.');
         if (!in_array($qty, [10, 20, 30], true)) throw new \RuntimeException('Wybierz 10, 20 albo 30 kodów.');
         if (postivo_setting('postivo_enabled') !== '1') throw new \RuntimeException('Wysyłka przez Postivo.pl jest wyłączona (Administracja → Postivo) — kody nie zostały wygenerowane.');
         $orgName = trim(org_setting('org_name'));
@@ -42,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
         file_put_contents($pdfTmp, $pdf);
 
         $res = ezd_rpwy_create([
-            'sposob'   => 'polecony',
+            'sposob'   => 'kurier',
             'odbiorca' => $orgName . ' (ITSM)',
             'adres'    => $street . "\n" . $postcode . ' ' . $city,
             'uwagi'    => 'ITSM — arkusz ' . $qty . ' kodów do dołączenia: ' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'],
@@ -55,9 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
             'city'           => $city,
             'postcode'       => $postcode,
             'country'        => 'PL',
+            'phone_number'   => trim(org_setting('org_telefon')) ?: null,   // kurier zwykle wymaga telefonu odbiorcy
+            'carrier_id'     => $carrierId,
+            'service_id'     => $serviceId,
         ], $uid);
         foreach ($rows as $r) DocRegistry::paperDone((string)$r['code']);   // etykiety drukuje Postivo
-        flash_set('success', 'Wygenerowano ' . $qty . ' kodów (' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'] . '). Arkusz zakolejkowano do Postivo.pl — wyjdzie dziś o 16:30 na adres organizacji z dopiskiem ITSM (' . ezd_rpwy_label($res) . ').');
+        flash_set('success', 'Wygenerowano ' . $qty . ' kodów (' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'] . '). Arkusz zakolejkowano do Postivo.pl (kurier) — wyjdzie dziś o 16:30 na adres organizacji z dopiskiem ITSM (' . ezd_rpwy_label($res) . ').');
     } catch (\Throwable $e) {
         flash_set('error', 'Nie wygenerowano / nie nadano kodów: ' . $e->getMessage());
     } finally {
@@ -142,14 +147,51 @@ include dirname(__DIR__) . '/includes/header.php';
   </form>
 
   <?php if (is_admin()): ?>
-  <form method="post" class="card card-body py-2 mb-3 d-flex flex-row flex-wrap align-items-end gap-2" onsubmit="return confirm('Wygenerować kody i zlecić nadanie arkusza przez Postivo (płatna wysyłka)?')">
+  <style>
+  .dr-itsm{border:1px solid #c3c8cf;border-left:4px solid #0f6fa8;background:#f4f8fb;padding:.75rem 1rem;margin:0 0 1rem}
+  .dr-itsm h2{font-size:1rem;font-weight:600;margin:0 0 .15rem}
+  .dr-itsm p{margin:0 0 .6rem;font-size:.84rem;color:#4b5563}
+  .dr-itsm .row2{display:flex;flex-wrap:wrap;gap:.5rem .75rem;align-items:flex-end}
+  .dr-itsm label{display:block;font-size:.78rem;font-weight:600;margin-bottom:.15rem}
+  .dr-itsm select{min-width:7rem}
+  .dr-itsm #dr-svc{min-width:18rem;max-width:100%}
+  .dr-itsm .btn{border-radius:0}
+  .dr-itsm :focus-visible{outline:3px solid #d90429;outline-offset:2px}
+  </style>
+  <form method="post" class="dr-itsm" aria-labelledby="dr-itsm-h" onsubmit="return confirm('Wygenerować kody i zlecić nadanie arkusza kurierem przez Postivo (płatna wysyłka)?')">
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="action" value="itsm_batch">
-    <div><label class="form-label small mb-1" for="dr-qty">Kody do dołączenia (pula ITSM)</label>
-      <select id="dr-qty" name="qty" class="form-select form-select-sm" style="width:auto"><?php foreach ([10, 20, 30] as $q): ?><option value="<?= $q ?>"<?= $q === 30 ? ' selected' : '' ?>><?= $q ?> etykiet</option><?php endforeach; ?></select></div>
-    <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-qr-code me-1" aria-hidden="true"></i>Generuj etykiety kodowe i nadaj przez Postivo</button>
-    <span class="small text-muted">Arkusz A4 (3×8) trafia na adres organizacji; na kopercie dopisek „ITSM”.</span>
+    <h2 id="dr-itsm-h">Kody do dołączenia (ITSM)</h2>
+    <p>Generuje pulę kodów i wysyła arkusz etykiet A4 kurierem Postivo na adres organizacji, z dopiskiem „ITSM” na kopercie.</p>
+    <div class="row2">
+      <div><label for="dr-qty">Liczba etykiet</label>
+        <select id="dr-qty" name="qty" class="form-select form-select-sm"><?php foreach ([10, 20, 30] as $q): ?><option value="<?= $q ?>"<?= $q === 30 ? ' selected' : '' ?>><?= $q ?></option><?php endforeach; ?></select></div>
+      <div><label for="dr-svc">Usługa kurierska Postivo</label>
+        <select id="dr-svc" name="service" class="form-select form-select-sm" required><option value="">Ładowanie usług…</option></select></div>
+      <button class="btn btn-sm btn-primary" type="submit" id="dr-itsm-go" disabled><i class="bi bi-truck me-1" aria-hidden="true"></i>Generuj i nadaj kurierem</button>
+    </div>
+    <div class="small text-muted mt-2" id="dr-svc-msg" role="status" aria-live="polite"></div>
   </form>
+  <script>
+  (function () {
+    var sel = document.getElementById('dr-svc'), go = document.getElementById('dr-itsm-go'), msg = document.getElementById('dr-svc-msg');
+    fetch('<?= APP_URL ?>/ezd/sprawy/postivo_services.php', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Brak danych z Postivo.');
+      var pick = '', n = 0; sel.innerHTML = '';
+      (d.carriers || []).forEach(function (c) {
+        var kur = /kurier/i.test(c.carrier_name);
+        (c.services || []).forEach(function (s) {
+          var o = document.createElement('option'); o.value = c.carrier_id + ':' + s.service_id;
+          o.textContent = c.carrier_name + ' — ' + s.service_name; sel.appendChild(o); n++;
+          if (!pick && (kur || /kurier/i.test(s.service_name))) pick = o.value;
+        });
+      });
+      if (!n) throw new Error('Postivo nie zwróciło żadnych usług.');
+      if (pick) sel.value = pick; else { sel.insertBefore(new Option('— wybierz usługę kurierską —', ''), sel.firstChild); sel.value = ''; msg.textContent = 'Nie rozpoznano usługi kurierskiej po nazwie — wybierz ją z listy.'; }
+      go.disabled = false;
+    }).catch(function (e) { sel.innerHTML = '<option value="">Niedostępne</option>'; msg.textContent = 'Nie pobrano usług Postivo: ' + e.message; });
+  })();
+  </script>
   <?php endif; ?>
   <?php $pend = DocRegistry::paperPending(); ?>
   <?php if ($pend > 0): ?><div class="alert alert-warning py-2 small d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
