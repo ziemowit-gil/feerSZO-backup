@@ -108,6 +108,12 @@ function crm_email_kind_local(string $email, ?string $contact_name = null): arra
     $local = _cek_local($email);
     if ($local === '') return ['kind' => 'unknown', 'why' => 'pusta nazwa skrzynki', 'sure' => true];
 
+    // 00. Domena platformy mailingowej/powiadomień (Substack, Mailchimp, SendGrid…) — zawsze automat
+    require_once __DIR__ . '/crm_contact_analyzer.php';
+    if (crm_is_robot_domain($email)) {
+        return ['kind' => 'technical', 'why' => 'domena platformy mailingowej: ' . substr($email, strrpos($email, '@') + 1), 'sure' => true];
+    }
+
     // 0. Skrzynka systemowa/automatyczna — techniczny (wcześniej wpadała do „ogólnych”)
     $head0 = preg_split('/[._-]/', $local)[0] ?? $local;
     if (in_array($local, CRM_EMAIL_TECH_LOCALS, true) || in_array($head0, CRM_EMAIL_TECH_LOCALS, true)) {
@@ -188,7 +194,7 @@ function crm_email_kind_ai(array $items): array
         . "Zasady:\n"
         . "1. Oceniaj po nazwie skrzynki, domenie i nazwie kontaktu z bazy.\n"
         . "2. Polskie imiona i nazwiska (także skrócone: jkowalski, a.nowak) to adres imienny.\n"
-        . "3. Nazwy komórek, funkcji, projektów i ról to adresy ogólne; adresy systemowe i automatyczne (noreply, powiadomienia, alerty, bounce, adresy z identyfikatorami i losowymi ciągami wysyłek masowych) to techniczne.\n"
+        . "3. Nazwy komórek, funkcji, projektów i ról to adresy ogólne; adresy systemowe i automatyczne (noreply, powiadomienia, alerty, bounce, adresy z identyfikatorami i losowymi ciągami wysyłek masowych, platformy newsletterowe i mailingowe typu Substack, Mailchimp, SendGrid, powiadomienia serwisów społecznościowych i narzędzi) to techniczne.\n"
         . "4. Gdy naprawdę nie da się rozstrzygnąć, zwróć \"unknown\" — zgadywanie jest gorsze "
         . "od przyznania się, bo na tej podstawie system dobiera zwrot grzecznościowy.\n"
         . "5. Uzasadnienie: maksymalnie 8 słów, po polsku.";

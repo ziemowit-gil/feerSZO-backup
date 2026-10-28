@@ -34,6 +34,40 @@ const CRM_ROBOT_LOCALPARTS = [
     'info-noreply', 'support-noreply',
 ];
 
+/**
+ * Domeny platform newsletterowych, mailingowych i powiadomień — poczta z nich jest zawsze automatyczna
+ * (Substack, Mailchimp, SendGrid…). Dopasowanie: domena dokładna albo jej subdomena (em123.substack.com).
+ * Dopisując platformę, nie dodawaj domen, na których ludzie mają zwykłe skrzynki (google.com, microsoft.com, gmail.com).
+ */
+const CRM_ROBOT_DOMAINS = [
+    // newslettery i publikacje
+    'substack.com', 'beehiiv.com', 'ghost.io', 'medium.com', 'convertkit.com', 'kit.com', 'buttondown.email', 'revue.email', 'tinyletter.com',
+    // platformy mailingowe i transakcyjne
+    'mailchimp.com', 'mailchimpapp.net', 'mcsv.net', 'mcdlv.net', 'rsgsv.net', 'list-manage.com', 'campaign-archive.com',
+    'sendgrid.net', 'sendgrid.com', 'mailgun.org', 'mailgun.net', 'amazonses.com', 'sendinblue.com', 'brevo.com', 'sib.email',
+    'mandrillapp.com', 'postmarkapp.com', 'sparkpostmail.com', 'klaviyo.com', 'klaviyomail.com', 'mailerlite.com', 'mailersend.net',
+    'getresponse.com', 'constantcontact.com', 'campaignmonitor.com', 'cmail19.com', 'cmail20.com', 'createsend.com', 'freshmail.com',
+    'smsapi.pl', 'serwersms.pl', 'edrone.me', 'mailjet.com', 'sendpulse.com', 'activecampaign.com', 'omnisend.com', 'drip.com',
+    // powiadomienia serwisów i narzędzi
+    'facebookmail.com', 'linkedin.com', 'twitter.com', 'instagram.com', 'youtube.com', 'pinterest.com', 'slack.com', 'zoom.us',
+    'calendly.com', 'notion.so', 'atlassian.net', 'trello.com', 'asana.com', 'dropbox.com', 'wetransfer.com', 'canva.com',
+    'docusign.net', 'paypal.com', 'stripe.com', 'intercom.io', 'intercom-mail.com', 'zendesk.com', 'freshdesk.com', 'helpscoutemail.com',
+    'typeform.com', 'eventbrite.com', 'meetup.com', 'surveymonkey.com', 'hubspot.com', 'hubspotemail.net', 'hs-send.com',
+];
+
+/** Czy domena adresu należy do platformy mailingowej/powiadomień (CRM_ROBOT_DOMAINS), z subdomenami. */
+function crm_is_robot_domain(?string $email): bool
+{
+    $at = strrpos((string)$email, '@');
+    if ($at === false) return false;
+    $d = strtolower(trim(substr((string)$email, $at + 1)));
+    if ($d === '') return false;
+    foreach (CRM_ROBOT_DOMAINS as $dom) {
+        if ($d === $dom || str_ends_with($d, '.' . $dom)) return true;
+    }
+    return false;
+}
+
 // ── Filtr nadawców ───────────────────────────────────────────────────────────
 
 function crm_sender_blocklist_migrate(): void
@@ -110,9 +144,10 @@ function crm_is_free_mail(string $domain): bool
     return $domain !== '' && crm_domain_is_public($domain);
 }
 
-/** Czy lokalna część adresu wskazuje na nadawcę automatycznego. */
+/** Czy adres wskazuje na nadawcę automatycznego: domena platformy mailingowej (Substack…) albo lokalna część (noreply…). */
 function crm_is_robot_sender(?string $email): bool
 {
+    if (crm_is_robot_domain($email)) return true;
     $local = strtolower((string)strtok(strtolower(trim((string)$email)), '@'));
     if ($local === '') return false;
     foreach (CRM_ROBOT_LOCALPARTS as $needle) {
