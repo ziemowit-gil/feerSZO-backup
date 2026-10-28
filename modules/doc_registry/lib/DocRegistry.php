@@ -110,14 +110,42 @@ final class DocRegistry
         return $rows;
     }
 
-    /** Pule kodów (jedno generowanie = jedna pula), od najnowszych. @return array<int,array{batch:string,unit:string,n:int,at:string,rpwy:int}> */
+    /** Pule kodów (jedno generowanie = jedna pula), od najnowszych. @return array<int,array{batch:string,unit:string,n:int,at:string,rpwy:int,printed:int}> */
     public static function reservedBatches(): array
     {
         self::migrate();
         try {
-            return db_all("SELECT d.batch, COALESCE(MAX(u.name), '') AS unit, COUNT(*) AS n, MIN(d.created_at) AS at, COALESCE(MAX(d.attached_rpwy), 0) AS rpwy
-                           FROM doc_reserved d LEFT JOIN org_units u ON u.id = d.unit_id GROUP BY d.batch ORDER BY MIN(d.id) DESC");
+            return db_all("SELECT d.batch, COALESCE(MAX(u.name), '') AS unit, COUNT(*) AS n, MIN(d.created_at) AS at, COALESCE(MAX(d.attached_rpwy), 0) AS rpwy, COUNT(g.paper_done_at) AS printed
+                           FROM doc_reserved d LEFT JOIN org_units u ON u.id = d.unit_id
+                           LEFT JOIN doc_registry g ON g.source_type = 'reserved_code' AND g.source_id = d.id GROUP BY d.batch ORDER BY MIN(d.id) DESC");
         } catch (\Throwable $e) { return []; }
+    }
+
+    /** Kody (teksty) z puli, w kolejności nadania — do ponownego wydruku arkusza. @return string[] */
+    public static function reservedCodes(string $batch): array
+    {
+        self::migrate();
+        return array_map(fn($r) => (string)$r['code'], db_all("SELECT g.code FROM doc_reserved d JOIN doc_registry g ON g.source_type = 'reserved_code' AND g.source_id = d.id WHERE d.batch = ? ORDER BY d.id", [$batch]));
+    }
+
+    /**
+     * Usuwa pojedynczy kod z rejestru. Wolno tylko: kod z puli ITSM, którego arkusz nie został nadany przez Postivo,
+     * albo wpis nieaktualny (plik źródłowy już nie istnieje). Kod żywego dokumentu zostaje — rejestr jest dowodem numeracji.
+     * @return string '' = usunięto, w przeciwnym razie powód odmowy
+     */
+    public static function deleteCode(string $code): string
+    {
+        $row = self::find($code);
+        if (!$row) return 'nie znaleziono kodu';
+        if ($row['source_type'] === 'reserved_code') {
+            $z = db_one("SELECT d.attached_rpwy, r.status FROM doc_reserved d LEFT JOIN ezd_rpwy r ON r.id = d.attached_rpwy WHERE d.id = ?", [(int)$row['source_id']]);
+            if ($z && in_array((string)($z['status'] ?? ''), ['nadana', 'doreczona', 'zwrocona'], true)) return 'arkusz z tym kodem został już nadany przez Postivo';
+            db()->prepare("DELETE FROM doc_reserved WHERE id = ?")->execute([(int)$row['source_id']]);
+        } elseif (self::state($row)['state'] !== 'void') {
+            return 'kod należy do dokumentu, który nadal istnieje';
+        }
+        db()->prepare("DELETE FROM doc_registry WHERE id = ?")->execute([(int)$row['id']]);
+        return '';
     }
 
     /** Usuwa całą pulę (wiersze rejestru i puli). Nie sprawdza stanu przesyłki — robi to wywołujący. */

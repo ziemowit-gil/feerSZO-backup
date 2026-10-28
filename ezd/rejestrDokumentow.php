@@ -20,6 +20,42 @@ if (!is_zarzad()) { http_response_code(403); die('Rejestr dokumentów jest dost�
 
 $PAGE_TITLE = 'Rejestr dokumentów';
 
+// Zbiorcze usuwanie kodów z rejestru (zaznaczone w liście): tylko kody ITSM przed nadaniem i wpisy nieaktualne.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_codes') {
+    csrf_check();
+    $back = rtrim(APP_URL, '/') . '/ezd/rejestrDokumentow.php' . (($_POST['back'] ?? '') !== '' ? '?' . ltrim((string)$_POST['back'], '?') : '');
+    if (!is_admin()) { flash_set('error', 'Kody z rejestru może usuwać tylko administrator.'); header('Location: ' . $back); exit; }
+    $codes = array_values(array_unique(array_filter(array_map('trim', (array)($_POST['sheet'] ?? [])))));
+    if (!$codes) { flash_set('error', 'Zaznacz kody do usunięcia w kolumnie „Etykieta”.'); header('Location: ' . $back); exit; }
+    $ok = 0; $refused = [];
+    foreach (array_slice($codes, 0, 500) as $c) { $why = DocRegistry::deleteCode($c); if ($why === '') $ok++; else $refused[$why] = ($refused[$why] ?? 0) + 1; }
+    $msg = 'Usunięto kodów: ' . $ok . '.';
+    foreach ($refused as $why => $n) $msg .= ' Pominięto ' . $n . ' — ' . $why . '.';
+    flash_set($ok > 0 ? 'success' : 'error', $msg);
+    header('Location: ' . $back); exit;
+}
+
+// Samodzielny wydruk: generuje pulę kodów ITSM bez wysyłki Postivo i od razu zwraca PDF (arkusz A4 3×8).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_print') {
+    csrf_check();
+    try {
+        if (!is_admin()) throw new \RuntimeException('Generować kody może tylko administrator.');
+        $qty = (int)($_POST['qty'] ?? 0);
+        if (!in_array($qty, [10, 20, 30], true)) throw new \RuntimeException('Wybierz 10, 20 albo 30 kodów.');
+        $unitId = (int)($_POST['unit_id'] ?? 0);
+        if ($unitId && !db_one("SELECT 1 AS x FROM org_units WHERE id = ?", [$unitId])) throw new \RuntimeException('Nie znaleziono wybranej jednostki.');
+        $rows = DocRegistry::reserveBatch($qty, (int)(current_user()['id'] ?? 0), $unitId);
+        $pdf = DocRegistry::labelsPdf($rows, true, max(1, min(24, (int)($_POST['start'] ?? 1)))) ?? throw new \RuntimeException('Generator PDF jest niedostępny.');
+        foreach ($rows as $r) DocRegistry::paperDone((string)$r['code']);   // wydrukowane samodzielnie
+        while (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/pdf'); header('Content-Disposition: inline; filename="kody-itsm.pdf"'); header('Content-Length: ' . strlen($pdf)); header('Cache-Control: private, no-store');
+        echo $pdf; exit;
+    } catch (\Throwable $e) {
+        flash_set('error', 'Nie wygenerowano kodów: ' . $e->getMessage());
+        header('Location: ' . rtrim(APP_URL, '/') . '/ezd/rejestrDokumentow.php?type=reserved_code'); exit;
+    }
+}
+
 // Kasowanie puli ITSM — tak jak wpisu książki nadawczej: do nadania wolno, po nadaniu nie (wtedy kody mogły zostać naklejone).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_delete') {
     csrf_check();
@@ -109,17 +145,17 @@ $page = max(1, (int)($_GET['p'] ?? 1));
 $res  = DocRegistry::search($f, $page, 50);
 $total_all = array_sum($res['counts']);
 // Status kodu z puli ITSM: partnerskie = arkusz wydrukowany i nadany przez Postivo (nadana/doręczona); inaczej wygenerowany / w kolejce
-$itsmStatus = function (?string $rpwyStatus): array {
+$itsmStatus = function (?string $rpwyStatus, bool $printed = false): array {
     if (in_array($rpwyStatus, ['nadana', 'doreczona'], true)) return ['partnerskie', 'dr-valid'];
     if ($rpwyStatus === 'postivo_queued') return ['w kolejce Postivo', 'dr-wait'];
     if ($rpwyStatus === 'zwrocona') return ['zwrócone przez Postivo', 'dr-void'];
-    return ['wygenerowane', 'dr-new'];
+    return $printed ? ['wydrukowane samodzielnie', 'dr-valid'] : ['wygenerowane', 'dr-new'];
 };
 $itsmById = [];
 foreach ($res['rows'] as $rr) if ($rr['source_type'] === 'reserved_code') $itsmById[(int)$rr['source_id']] = null;
 if ($itsmById) {
     $in = implode(',', array_fill(0, count($itsmById), '?'));
-    foreach (db_all("SELECT d.id, r.status FROM doc_reserved d LEFT JOIN ezd_rpwy r ON r.id = d.attached_rpwy WHERE d.id IN ($in)", array_keys($itsmById)) as $x) $itsmById[(int)$x['id']] = $x['status'];
+    foreach (db_all("SELECT d.id, r.status, g.paper_done_at FROM doc_reserved d LEFT JOIN ezd_rpwy r ON r.id = d.attached_rpwy LEFT JOIN doc_registry g ON g.source_type = 'reserved_code' AND g.source_id = d.id WHERE d.id IN ($in)", array_keys($itsmById)) as $x) $itsmById[(int)$x['id']] = $x['status'] ?? ((string)($x['paper_done_at'] ?? '') !== '' ? '_printed' : null);
 }
 $base = rtrim(APP_URL, '/') . '/docreg/';
 $qs = function (array $over = []) use ($f) {
@@ -236,6 +272,7 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
         <select id="dr-unit" name="unit_id" class="form-select form-select-sm"><option value="0">— bez jednostki (nazwa organizacji) —</option><?php foreach (ezd_org_units() as $u): ?><option value="<?= (int)$u['id'] ?>"><?= h(ezd_unit_label($u)) ?></option><?php endforeach; ?></select></div>
       <div><label for="dr-svc">Usługa kurierska Postivo</label>
         <select id="dr-svc" name="service" class="form-select form-select-sm" required><option value="">Ładowanie usług…</option></select></div>
+      <button class="btn btn-sm btn-outline-primary" type="submit" name="action" value="itsm_print" formtarget="_blank" formnovalidate onclick="return confirm('Wygenerować pulę kodów i otworzyć arkusz do samodzielnego wydruku (bez wysyłki Postivo)?')"><i class="bi bi-printer me-1" aria-hidden="true"></i>Generuj i drukuj samodzielnie</button>
       <button class="btn btn-sm btn-primary" type="submit" id="dr-itsm-go" disabled><i class="bi bi-truck me-1" aria-hidden="true"></i>Generuj i nadaj kurierem</button>
     </div>
     <div class="small text-muted mt-2" id="dr-svc-msg" role="status" aria-live="polite"></div>
@@ -270,11 +307,12 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
         <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$pl['at']))) ?></td>
         <td><?= h($pl['unit'] !== '' ? $pl['unit'] : '—') ?></td>
         <td><?= (int)$pl['n'] ?></td>
-        <td><?php [$itl, $itc] = $itsmStatus($rp['status'] ?? null); ?><span class="dr-chip <?= $itc ?>"><?= h($itl) ?></span></td>
+        <td><?php [$itl, $itc] = $itsmStatus($rp['status'] ?? null, (int)$pl['printed'] > 0); ?><span class="dr-chip <?= $itc ?>"><?= h($itl) ?></span></td>
         <td><?php if ($rp): ?><a href="<?= APP_URL ?>/ezd/rpwy/view.php?id=<?= (int)$rp['id'] ?>"><?= h(ezd_rpwy_label($rp)) ?></a> · <?= h(EZD_RPWY_STATUSY[$rp['status']]['label'] ?? $rp['status']) ?><?php else: ?>—<?php endif; ?></td>
         <td class="text-end">
-          <?php if ($sent): ?><span class="text-muted small">nadana — nie można usunąć</span>
+          <?php if ($sent): ?><a class="btn btn-sm btn-outline-secondary py-0 px-2" href="<?= h($base . '?sheet=' . rawurlencode(implode(',', DocRegistry::reservedCodes($pl['batch'])))) ?>" target="_blank" rel="noopener" aria-label="Wydrukuj ponownie arkusz <?= (int)$pl['n'] ?> kodów">Drukuj</a> <span class="text-muted small">nadana — nie można usunąć</span>
           <?php else: ?>
+          <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="<?= h($base . '?sheet=' . rawurlencode(implode(',', DocRegistry::reservedCodes($pl['batch'])))) ?>" target="_blank" rel="noopener" aria-label="Wydrukuj ponownie arkusz <?= (int)$pl['n'] ?> kodów">Drukuj</a>
           <form method="post" class="d-inline" onsubmit="return confirm('Usunąć pulę <?= (int)$pl['n'] ?> kodów<?= $rp ? ' i wycofać zlecenie z kolejki Postivo' : '' ?>? Tej operacji nie da się cofnąć.')">
             <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
             <input type="hidden" name="action" value="itsm_delete">
@@ -297,7 +335,13 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
   <form id="sheetForm" method="get" action="<?= h($base) ?>" target="_blank" class="dr-sheet">
     <div><label class="form-label small mb-1" for="dr-start">Arkusz etykiet A4 (3×8): pierwsze wolne pole</label><input id="dr-start" class="form-control form-control-sm" type="number" name="start" min="1" max="24" value="1" style="width:6rem"></div>
     <button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-printer me-1"></i>Drukuj etykiety zaznaczonych</button>
-    <span class="small text-muted">Zaznacz pozycje w kolumnie „Etykieta”.</span>
+    <?php if (is_admin()): ?>
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="back" value="<?= h((string)($_SERVER['QUERY_STRING'] ?? '')) ?>">
+    <button class="btn btn-sm btn-outline-danger" type="submit" name="action" value="delete_codes" formmethod="post" formaction="<?= h(rtrim(APP_URL, '/') . '/ezd/rejestrDokumentow.php') ?>" formtarget="_self"
+            onclick="var n=document.querySelectorAll('input[name=&quot;sheet[]&quot;]:checked').length; if(!n){alert('Zaznacz kody do usunięcia.');return false;} return confirm('Usunąć zaznaczone kody ('+n+') z rejestru? Usunięte zostaną tylko kody ITSM przed nadaniem i wpisy nieaktualne — pozostałe są pomijane. Tej operacji nie da się cofnąć.')"><i class="bi bi-trash me-1"></i>Usuń zaznaczone</button>
+    <?php endif; ?>
+    <span class="small text-muted">Zaznacz pozycje w kolumnie „Etykieta” (<label class="d-inline"><input type="checkbox" onchange="document.querySelectorAll('input[name=&quot;sheet[]&quot;]').forEach(function(c){c.checked=this.checked}.bind(this))"> zaznacz wszystkie na stronie</label>).</span>
   </form>
   <p class="small text-muted mb-2" role="status">Znaleziono: <b><?= (int)$res['total'] ?></b><?= $f['state'] !== '' ? ' (stan liczony na żywo; przeszukano do 5000 najnowszych pasujących)' : '' ?></p>
 
@@ -330,7 +374,7 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
           <td class="text-truncate" style="max-width:260px" title="<?= h($r['file_name']) ?>"><?= $r['file_name'] !== '' ? h($r['file_name']) : '<span class="text-muted">—</span>' ?></td>
           <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$r['created_at']))) ?></td>
           <td><span class="dr-chip <?= $void ? 'dr-void' : 'dr-valid' ?>"><?= $void ? 'Nieaktualny' : 'Obowiązuje' ?></span><?php if ($r['note'] !== ''): ?><div class="small text-muted"><?= h(preg_replace('~\s*Skrót SHA-256.*$~u', '', $r['note'])) ?></div><?php endif; ?></td>
-          <td class="small"><?php $pm = (string)($r['paper_mode'] ?? ''); if ($r['source_type'] === 'reserved_code'): [$itl, $itc] = $itsmStatus($itsmById[(int)$r['source_id']] ?? null); ?><span class="dr-chip <?= $itc ?>"><?= h($itl) ?></span>
+          <td class="small"><?php $pm = (string)($r['paper_mode'] ?? ''); if ($r['source_type'] === 'reserved_code'): $iv = $itsmById[(int)$r['source_id']] ?? null; [$itl, $itc] = $itsmStatus($iv === '_printed' ? null : $iv, $iv === '_printed'); ?><span class="dr-chip <?= $itc ?>"><?= h($itl) ?></span>
           <?php elseif ($r['seq'] || str_starts_with((string)$r['source_type'], 'contract_') || in_array($r['source_type'], ['print_doc', 'gen_doc'], true)): ?><span class="text-muted">—</span>
             <?php elseif ($pm === ''): ?><a href="<?= h($base . '?view=' . rawurlencode($code)) ?>" target="_blank" rel="noopener" class="text-warning-emphasis">do rozstrzygnięcia</a>
             <?php else: ?><?= h(['none' => 'bez papieru', 'label' => 'etykieta', 'manual' => 'numer ręcznie'][$pm] ?? $pm) ?><?php if ($pm !== 'none'): ?> <?= !empty($r['paper_done_at']) ? '<span class="text-success" title="Zrobione ' . h(date('d.m.Y H:i', strtotime((string)$r['paper_done_at']))) . '">✓</span>' : '<span class="text-danger" title="Do zrobienia">●</span>' ?><?php endif; ?><?php endif; ?></td>
