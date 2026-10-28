@@ -84,7 +84,7 @@ function crm_janitor_rules(): array
         'robot_contact' => [
             'mode' => 'propose', 'severity' => 'high',
             'label' => 'Adres techniczny jako zwykły kontakt',
-            'desc'  => 'Adres typu noreply / powiadomienia leży jako osoba lub firma — dostaje wysyłki. Oznacz jako techniczny.',
+            'desc'  => 'Adres typu noreply / powiadomienia leży jako osoba lub firma — dostaje wysyłki. Wzorce łapią oczywiste przypadki, pozostałe rozpoznaje AI (porcja 40 adresów na przebieg, wymaga klucza Anthropic). Oznacz jako techniczny.',
         ],
         'no_owner' => [
             'mode' => 'propose', 'severity' => 'low',
@@ -380,6 +380,21 @@ function crm_janitor_run(bool $dry_run = false): array
                 'title'      => 'Adres techniczny: ' . $e['email'],
                 'detail'     => 'Kartoteka „' . $e['imie_nazwisko'] . '” ma adres automatu — nie powinna dostawać wysyłek.',
                 'payload'    => ['id' => (int)$e['id']],
+            ]);
+        }
+    }
+
+    // ── 4c. Adresy techniczne wykryte przez AI (te, których wzorce nie łapią) ─
+    // Płatne wywołanie — tylko przy prawdziwym przebiegu (nie w podglądzie) i z kluczem API; jedna porcja (40 adresów) na przebieg.
+    if (!$dry_run && crm_janitor_rule_enabled('robot_contact')) {
+        require_once __DIR__ . '/crm_email_kind.php';
+        foreach (crm_technical_ai_scan(40) as $t) {
+            $found++; $bump('robot_contact');
+            crm_janitor_add('robot_contact', 'c:' . $t['id'], [
+                'contact_id' => $t['id'],
+                'title'      => 'Adres techniczny (AI): ' . $t['email'],
+                'detail'     => 'Kartoteka „' . $t['name'] . '” — ' . ($t['why'] ?: 'AI uznało adres za systemowy') . '. Nie powinna dostawać wysyłek.',
+                'payload'    => ['id' => $t['id']],
             ]);
         }
     }

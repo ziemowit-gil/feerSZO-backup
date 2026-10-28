@@ -29,6 +29,7 @@ require_once __DIR__ . '/db.php';
 const CRM_EMAIL_KINDS = [
     'personal' => ['label' => 'imienny', 'icon' => 'bi-person-fill',   'color' => '#2E844A'],
     'generic'  => ['label' => 'ogólny',  'icon' => 'bi-buildings-fill', 'color' => '#B45309'],
+    'technical'=> ['label' => 'techniczny', 'icon' => 'bi-robot',          'color' => '#7C3AED'],
     'unknown'  => ['label' => 'nierozpoznany', 'icon' => 'bi-question-circle', 'color' => '#6B7280'],
 ];
 
@@ -48,6 +49,13 @@ const CRM_EMAIL_ROLE_LOCALS = [
     'inwestycje', 'oswiata', 'oświata', 'kultura', 'sport', 'ochrona', 'iod', 'rodo',
 ];
 
+/** Skrzynki systemowe/automatyczne — nikt ich nie czyta, więc nie dostają wysyłek (patrz crm_contact_is_technical). */
+const CRM_EMAIL_TECH_LOCALS = [
+    'noreply', 'no-reply', 'donotreply', 'do-not-reply', 'mailer-daemon', 'postmaster', 'bounce', 'bounces',
+    'notifications', 'notification', 'notify', 'alerts', 'alert', 'system', 'daemon', 'robot', 'bot',
+    'automailer', 'autoresponder', 'auto-reply', 'powiadomienia', 'monitoring', 'nagios', 'zabbix',
+];
+
 /** Samonaprawa: kolumny rozpoznania przy kartotece. */
 function crm_email_kind_migrate(): void
 {
@@ -58,6 +66,7 @@ function crm_email_kind_migrate(): void
         "ALTER TABLE crm_contacts ADD COLUMN email_kind TEXT",
         "ALTER TABLE crm_contacts ADD COLUMN email_kind_why TEXT",
         "ALTER TABLE crm_contacts ADD COLUMN email_kind_at DATETIME",
+        "ALTER TABLE crm_contacts ADD COLUMN tech_ai_at DATETIME",
     ] as $sql) {
         try { db()->exec($sql); } catch (\Throwable $e) {}
     }
@@ -98,6 +107,12 @@ function crm_email_kind_local(string $email, ?string $contact_name = null): arra
 
     $local = _cek_local($email);
     if ($local === '') return ['kind' => 'unknown', 'why' => 'pusta nazwa skrzynki', 'sure' => true];
+
+    // 0. Skrzynka systemowa/automatyczna — techniczny (wcześniej wpadała do „ogólnych”)
+    $head0 = preg_split('/[._-]/', $local)[0] ?? $local;
+    if (in_array($local, CRM_EMAIL_TECH_LOCALS, true) || in_array($head0, CRM_EMAIL_TECH_LOCALS, true)) {
+        return ['kind' => 'technical', 'why' => 'skrzynka systemowa: ' . $local, 'sure' => true];
+    }
 
     // 1. Dokładna nazwa funkcyjna albo funkcyjna z dopiskiem działu (biuro.gdansk)
     $head = preg_split('/[._-]/', $local)[0] ?? $local;
@@ -167,11 +182,13 @@ function crm_email_kind_ai(array $items): array
 
     $system = "Rozpoznajesz, czy adres e-mail jest IMIENNY (należy do konkretnego człowieka, "
         . "np. a.kowalska@, jan.nowak@, anna@kancelaria.pl) czy OGÓLNY (skrzynka instytucji, działu "
-        . "lub funkcji, np. biuro@, sekretariat@, rekrutacja@, urzad@).\n\n"
+        . "lub funkcji, np. biuro@, sekretariat@, rekrutacja@, urzad@) albo TECHNICZNY (adres systemu, "
+        . "automatu lub aplikacji, którego nikt nie czyta: noreply@, notifications@, alerts@, mailer-daemon@, "
+        . "powiadomienia@, adresy wysyłkowe usług, np. bounce.xyz@mail.firma.com).\n\n"
         . "Zasady:\n"
         . "1. Oceniaj po nazwie skrzynki, domenie i nazwie kontaktu z bazy.\n"
         . "2. Polskie imiona i nazwiska (także skrócone: jkowalski, a.nowak) to adres imienny.\n"
-        . "3. Nazwy komórek, funkcji, projektów, ról i adresy typu noreply to adresy ogólne.\n"
+        . "3. Nazwy komórek, funkcji, projektów i ról to adresy ogólne; adresy systemowe i automatyczne (noreply, powiadomienia, alerty, bounce, adresy z identyfikatorami i losowymi ciągami wysyłek masowych) to techniczne.\n"
         . "4. Gdy naprawdę nie da się rozstrzygnąć, zwróć \"unknown\" — zgadywanie jest gorsze "
         . "od przyznania się, bo na tej podstawie system dobiera zwrot grzecznościowy.\n"
         . "5. Uzasadnienie: maksymalnie 8 słów, po polsku.";
@@ -185,7 +202,7 @@ function crm_email_kind_ai(array $items): array
                     'type' => 'object',
                     'properties' => [
                         'email' => ['type' => 'string'],
-                        'kind'  => ['type' => 'string', 'enum' => ['personal', 'generic', 'unknown']],
+                        'kind'  => ['type' => 'string', 'enum' => ['personal', 'generic', 'technical', 'unknown']],
                         'why'   => ['type' => 'string'],
                     ],
                     'required' => ['email', 'kind', 'why'],
@@ -276,6 +293,53 @@ function crm_contact_email_kind(array $contact, bool $allow_ai = false): array
 
     if (!empty($contact['id'])) crm_email_kind_save((int)$contact['id'], $r['kind'], $r['why']);
     return ['kind' => $r['kind'], 'why' => $r['why']];
+}
+
+/**
+ * AI szuka adresów technicznych wśród kartotek, których wzorce nie wykryły (porcja do $limit, domyślnie 40 = jedno zapytanie).
+ * Każdy zapytany kontakt dostaje znacznik tech_ai_at, więc adres pyta się raz; techniczne dostają email_kind=technical.
+ * Model widzi tylko adres i nazwę kontaktu. Nie zmienia typu/statusu kontaktu — to robi decyzja człowieka (bot sprzątający → „Oznacz jako techniczne”).
+ *
+ * @param callable|null $caller atrapa do testów: fn(array $items): array (jak crm_email_kind_ai)
+ * @return array<int,array{id:int,email:string,name:string,why:string}> kontakty uznane za techniczne
+ */
+function crm_technical_ai_scan(int $limit = 40, ?callable $caller = null): array
+{
+    crm_email_kind_migrate();
+    $caller ??= 'crm_email_kind_ai';
+    if ($caller === 'crm_email_kind_ai' && !crm_email_kind_ai_available()) return [];
+    require_once __DIR__ . '/crm_contact_analyzer.php';
+
+    $rows = db_all("SELECT id, imie_nazwisko, email FROM crm_contacts
+                     WHERE crm_active = 1 AND tech_ai_at IS NULL AND type <> 'kontakt_techniczny'
+                       AND COALESCE(status,'') NOT IN ('techniczny','powiadomienia') AND COALESCE(email,'') LIKE '%@%'
+                     ORDER BY id LIMIT 2000");
+    $ask = [];
+    foreach ($rows as $c) {
+        if (crm_is_robot_sender($c['email'])) continue;   // wzorce już to łapią
+        $loc = crm_email_kind_local($c['email'], $c['imie_nazwisko']);
+        if ($loc['sure'] && $loc['kind'] === 'personal') continue;   // wyraźnie człowiek — nie pytamy
+        $ask[mb_strtolower(trim($c['email']))][] = $c;
+        if (count($ask) >= $limit) break;
+    }
+    if (!$ask) return [];
+
+    $items = [];
+    foreach ($ask as $email => $list) $items[] = ['email' => $email, 'name' => (string)$list[0]['imie_nazwisko']];
+    $ai = $caller($items);
+    if (!is_array($ai) || !$ai) return [];   // błąd API: znaczniki nie są ustawiane, spróbujemy przy następnym przebiegu
+
+    $found = [];
+    $now = date('Y-m-d H:i:s');
+    foreach ($ask as $email => $list) {
+        foreach ($list as $c) {
+            db()->prepare("UPDATE crm_contacts SET tech_ai_at = ? WHERE id = ?")->execute([$now, (int)$c['id']]);
+            if (($ai[$email]['kind'] ?? '') !== 'technical') continue;
+            crm_email_kind_save((int)$c['id'], 'technical', (string)$ai[$email]['why']);
+            $found[] = ['id' => (int)$c['id'], 'email' => (string)$c['email'], 'name' => (string)$c['imie_nazwisko'], 'why' => (string)$ai[$email]['why']];
+        }
+    }
+    return $found;
 }
 
 /** Zapis rozpoznania przy kartotece. */
