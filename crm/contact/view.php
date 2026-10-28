@@ -2037,30 +2037,82 @@ require_once dirname(__DIR__, 2) . '/includes/dynRecord.php';
       <?php endif; ?>
     </a>
     <?php
-    // Spikon: „Zadzwoń” — Spikon dzwoni na konto telefoniczne użytkownika, po odebraniu łączy z kontaktem.
+    // „Zadzwoń”: jeden przycisk z rozwijaną listą numerów VoIP, z których można dzwonić (telefonia: modules/spikon).
+    // Dzwoni wybrany numer VoIP, po odebraniu łączy z kontaktem; połączenie ląduje w historii komunikacji.
     require_once dirname(dirname(__DIR__)) . '/modules/spikon/logic/SpikonService.php';
-    if (SpikonService::isEnabled() && SpikonService::accountFor((int)current_user()['id']) && SpikonService::normalizeNumber((string)$contact['telefon']) !== null): ?>
-    <button type="button" class="cv-chip border-0" data-spikon-call="<?= (int)$contact['id'] ?>"
-            style="background:#EFF6FF;color:#1D4ED8;cursor:pointer"
-            title="Spikon zadzwoni najpierw do Ciebie, a po odebraniu połączy z tym numerem">
-      <i class="bi bi-telephone-outbound-fill" aria-hidden="true"></i><span>Zadzwoń przez Spikon</span>
-    </button>
-    <span id="spikon-call-status" class="small" role="status" aria-live="polite"></span>
+    $_voip = []; $_voipDef = 0;
+    if (SpikonService::isEnabled() && SpikonService::normalizeNumber((string)$contact['telefon']) !== null) {
+        $_voip    = SpikonService::accounts();
+        $_voipDef = (int)SpikonService::accountFor((int)current_user()['id']);
+    }
+    if ($_voip):
+        $_voipDefNum = '';
+        foreach ($_voip as $_a) if ((int)$_a['id'] === $_voipDef) $_voipDefNum = SpikonService::accountNumber($_a);
+    ?>
+    <div class="btn-group" id="voip-call" data-contact="<?= (int)$contact['id'] ?>" data-default="<?= $_voipDef ?>">
+      <button type="button" class="cv-chip border-0 rounded-end-0" id="voip-call-main"
+              style="background:#EFF6FF;color:#1D4ED8;cursor:pointer"
+              title="<?= $_voipDefNum !== '' ? 'Zadzwoń z numeru ' . h($_voipDefNum) : 'Wybierz numer, z którego zadzwonić' ?>">
+        <i class="bi bi-telephone-outbound-fill" aria-hidden="true"></i><span>Zadzwoń</span>
+      </button>
+      <button type="button" class="cv-chip border-0 rounded-start-0 dropdown-toggle dropdown-toggle-split" id="voip-call-toggle"
+              data-bs-toggle="dropdown" aria-expanded="false"
+              style="background:#EFF6FF;color:#1D4ED8;cursor:pointer;border-left:1px solid #BFDBFE !important">
+        <span class="visually-hidden">Wybierz numer, z którego zadzwonić</span>
+      </button>
+      <ul class="dropdown-menu" aria-label="Zadzwoń z numeru">
+        <li><h6 class="dropdown-header">Zadzwoń z numeru</h6></li>
+        <?php foreach ($_voip as $_a): $_n = SpikonService::accountNumber($_a); ?>
+        <li>
+          <button type="button" class="dropdown-item font-monospace" data-voip-account="<?= (int)$_a['id'] ?>" data-voip-number="<?= h($_n) ?>">
+            <?= h($_n) ?><?php if ((int)$_a['id'] === $_voipDef): ?> <span class="small text-body-secondary font-sans-serif" style="font-family:inherit">(domyślny)</span><?php endif; ?>
+          </button>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <span id="voip-call-status" class="small" role="status" aria-live="polite"></span>
     <script>
-    document.addEventListener('click', function (ev) {
-      var btn = ev.target.closest('[data-spikon-call]');
-      if (!btn || btn.disabled) return;
-      var out = document.getElementById('spikon-call-status');
-      var fd = new FormData();
-      fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
-      fd.append('contact_id', btn.getAttribute('data-spikon-call'));
-      btn.disabled = true; out.className = 'small text-muted'; out.textContent = 'Łączenie…';
-      fetch('<?= APP_URL ?>/modules/spikon/router.php?_route=%2Fzadzwon', {method: 'POST', body: fd, credentials: 'same-origin', headers: {'Accept': 'application/json'}})
-        .then(function (r) { return r.json().catch(function () { return {ok: false, error: 'Nieczytelna odpowiedź serwera.'}; }); })
-        .then(function (j) { out.className = 'small ' + (j.ok ? 'text-success' : 'text-danger'); out.textContent = j.ok ? j.message : (j.error || 'Nie udało się zestawić połączenia.'); })
-        .catch(function () { out.className = 'small text-danger'; out.textContent = 'Brak połączenia z serwerem.'; })
-        .then(function () { setTimeout(function () { btn.disabled = false; }, 4000); });
-    });
+    (function () {
+      var box = document.getElementById('voip-call'), out = document.getElementById('voip-call-status');
+      var main = document.getElementById('voip-call-main'), toggle = document.getElementById('voip-call-toggle');
+      function addToHistory(msg) {
+        var wrap = document.getElementById('crm-section-comms');
+        if (!wrap) return;
+        var empty = wrap.querySelector('p.text-muted'); if (empty) empty.remove();
+        var d = document.createElement('div'); d.className = 'crm-comm-item';
+        d.innerHTML = '<div class="crm-comm-icon telefon" aria-hidden="true"><i class="bi bi-telephone-fill"></i></div>' +
+          '<div class="flex-grow-1"><div style="font-size:.82rem"><i class="bi bi-arrow-up-right text-primary me-1" aria-hidden="true"></i>' +
+          '<span class="fw-semibold">Telefon</span> — <span class="text-muted">Połączenie wychodzące</span></div>' +
+          '<div class="text-muted" style="font-size:.78rem;margin-top:2px"></div><div class="crm-note-meta">Przed chwilą</div></div>';
+        d.querySelector('.text-muted[style]').textContent = msg;
+        wrap.insertBefore(d, wrap.firstChild);
+      }
+      function call(accountId) {
+        var fd = new FormData();
+        fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
+        fd.append('contact_id', box.getAttribute('data-contact'));
+        if (accountId) fd.append('account_id', accountId);
+        main.disabled = toggle.disabled = true; out.className = 'small text-muted'; out.textContent = 'Łączenie…';
+        fetch('<?= APP_URL ?>/modules/spikon/router.php?_route=%2Fzadzwon', {method: 'POST', body: fd, credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+          .then(function (r) { return r.json().catch(function () { return {ok: false, error: 'Nieczytelna odpowiedź serwera.'}; }); })
+          .then(function (j) {
+            out.className = 'small ' + (j.ok ? 'text-success' : 'text-danger');
+            out.textContent = j.ok ? j.message : (j.error || 'Nie udało się zestawić połączenia.');
+            if (j.ok && j.history) addToHistory(j.history);
+          })
+          .catch(function () { out.className = 'small text-danger'; out.textContent = 'Brak połączenia z serwerem.'; })
+          .then(function () { setTimeout(function () { main.disabled = toggle.disabled = false; }, 4000); });
+      }
+      main.addEventListener('click', function () {
+        var def = parseInt(box.getAttribute('data-default'), 10);
+        if (def) call(def); else bootstrap.Dropdown.getOrCreateInstance(toggle).show();   // brak numeru domyślnego — wybór z listy
+      });
+      box.addEventListener('click', function (ev) {
+        var it = ev.target.closest('[data-voip-account]');
+        if (it) call(parseInt(it.getAttribute('data-voip-account'), 10));
+      });
+    })();
     </script>
     <?php endif; ?>
     <?php endif; ?>

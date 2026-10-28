@@ -87,6 +87,7 @@ final class SpikonService
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_spikon_calls_user ON spikon_calls(user_id, created_at)");
+        try { $pdo->exec("ALTER TABLE spikon_calls ADD COLUMN from_number TEXT"); } catch (\Throwable $e) {}
     }
 
     // ── numery ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -296,34 +297,89 @@ final class SpikonService
         foreach ($map as $uid => $acc) if ((int)$uid > 0 && (int)$acc > 0) $ins->execute([(int)$uid, (int)$acc]);
     }
 
+    // ── numery VoIP (konta telefoniczne), z których można dzwonić ───────────────────────────────────────────────────
+    private const ACCOUNTS_TTL = 43200;   // 12 h — lista numerów zmienia się rzadko, a karta kontaktu nie może czekać na API
+
+    /** Zapamiętuje listę kont pobraną ze Spikon (ustawienia odświeżają ją przy każdym wejściu). */
+    public static function cacheAccounts(array $accounts): void
+    {
+        self::settingSet('spikon_accounts_cache', json_encode(['at' => time(), 'items' => array_values($accounts)], JSON_UNESCAPED_UNICODE));
+    }
+
     /**
-     * Zestawia połączenie użytkownika z kontaktem CRM: dzwoni jego konto Spikon, po odebraniu — numer kontaktu.
+     * Numery VoIP do listy „Zadzwoń z”. Z pamięci podręcznej; gdy pusta lub starsza niż 12 h — odświeżana ze Spikon
+     * (przy błędzie API zostaje poprzednia lista).
+     * @return list<array{id:int,number:string,internal:string,login:string,description:string,state:string,recording:bool}>
+     */
+    public static function accounts(): array
+    {
+        $c = json_decode(self::setting('spikon_accounts_cache'), true);
+        $items = is_array($c['items'] ?? null) ? $c['items'] : [];
+        if (!$items || time() - (int)($c['at'] ?? 0) > self::ACCOUNTS_TTL) {
+            try {
+                $fresh = self::client()->phoneAccounts();
+                self::cacheAccounts($fresh);
+                $items = $fresh;
+            } catch (\Throwable $e) {
+                // zostaje to, co było
+            }
+        }
+        return $items;
+    }
+
+    /** Numer VoIP do pokazania na liście: sam numer (bez nazwy dostawcy), a gdy konto go nie ma — wewnętrzny albo login. */
+    public static function accountNumber(array $a): string
+    {
+        foreach (['number', 'internal', 'login'] as $k) {
+            $v = trim((string)($a[$k] ?? ''));
+            if ($v !== '' && $v !== '-') return $k === 'internal' ? 'wew. ' . $v : $v;
+        }
+        return 'konto #' . (int)($a['id'] ?? 0);
+    }
+
+    /**
+     * Zestawia połączenie użytkownika z kontaktem CRM: dzwoni wybrany numer VoIP (domyślnie przypisany użytkownikowi),
+     * po odebraniu — numer kontaktu. Połączenie trafia do historii komunikacji kontaktu (z numeru i na numer).
      * Wywołujący sprawdza uprawnienia do kontaktu (crm_can_access_contact). @return string stan od Spikon („initiated”)
      */
-    public static function dial(int $userId, int $contactId): string
+    public static function dial(int $userId, int $contactId, ?int $accountId = null): string
     {
         self::migrate();
-        if (!self::isEnabled()) throw new \RuntimeException('Telefonia Spikon jest wyłączona.');
+        if (!self::isEnabled()) throw new \RuntimeException('Telefonia jest wyłączona.');
         $c = crm_one("SELECT id, telefon FROM crm_contacts WHERE id=?", [$contactId]);
         if (!$c) throw new \InvalidArgumentException('Nie ma takiego kontaktu.');
         $number = self::normalizeNumber((string)($c['telefon'] ?? ''));
         if ($number === null) throw new \InvalidArgumentException('Kontakt nie ma poprawnego numeru telefonu.');
-        $acc = self::accountFor($userId);
-        if (!$acc) throw new \RuntimeException('Nie masz przypisanego konta telefonicznego Spikon — poproś administratora CRM.');
+        $acc = $accountId ?: self::accountFor($userId);
+        if (!$acc) throw new \RuntimeException('Nie masz przypisanego numeru VoIP — wybierz numer z listy albo poproś administratora CRM.');
+        $from = null;
+        foreach (self::accounts() as $a) if ((int)$a['id'] === $acc) { $from = self::accountNumber($a); break; }
+        if ($accountId && $from === null) throw new \InvalidArgumentException('Nieznany numer VoIP.');
+        $from ??= 'konto #' . $acc;
         try {
             $state = self::client()->callInitiate($acc, $number);
         } catch (SpikonException $e) {
-            self::logCall($userId, $contactId, $acc, $number, '', $e->getMessage());
+            self::logCall($userId, $contactId, $acc, $number, $from, '', $e->getMessage());
             throw $e;
         }
-        self::logCall($userId, $contactId, $acc, $number, $state, null);
-        audit_log('spikon.call', ['contact_id' => $contactId, 'to' => self::numberTail($number)], $userId);
-        return $state;
+        self::logCall($userId, $contactId, $acc, $number, $from, $state, null);
+        db_insert('crm_communications', [
+            'contact_id' => $contactId,
+            'channel'    => 'telefon',
+            'direction'  => 'out',
+            'subject'    => 'Połączenie wychodzące',
+            'body'       => 'Z numeru: ' . $from . "\nNa numer: " . trim((string)$c['telefon']),
+            'status'     => 'wysłana',
+            'sent_by'    => $userId,
+            'sent_at'    => date('Y-m-d H:i:s'),
+        ]);
+        audit_log('spikon.call', ['contact_id' => $contactId, 'from' => $from, 'to' => self::numberTail($number)], $userId);
+        return $from;
     }
 
-    private static function logCall(int $userId, int $contactId, int $acc, string $number, string $state, ?string $error): void
+    private static function logCall(int $userId, int $contactId, int $acc, string $number, string $from, string $state, ?string $error): void
     {
-        db()->prepare("INSERT INTO spikon_calls (user_id, contact_id, phone_account_id, number_tail, state, error) VALUES (?,?,?,?,?,?)")
-            ->execute([$userId, $contactId, $acc, self::numberTail($number), $state, $error]);
+        db()->prepare("INSERT INTO spikon_calls (user_id, contact_id, phone_account_id, from_number, number_tail, state, error) VALUES (?,?,?,?,?,?,?)")
+            ->execute([$userId, $contactId, $acc, $from, self::numberTail($number), $state, $error]);
     }
 }

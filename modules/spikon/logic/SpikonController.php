@@ -19,6 +19,7 @@ final class SpikonController
         if ($configured) {
             try {
                 $accounts = SpikonService::client()->phoneAccounts();
+                SpikonService::cacheAccounts($accounts);
             } catch (\Throwable $e) {
                 $remoteError = $e->getMessage();
             }
@@ -115,14 +116,15 @@ final class SpikonController
         return Router::redirect(route('spikon.index'));
     }
 
-    /** POST /zadzwon (JSON): contact_id → Spikon dzwoni na konto użytkownika, po odebraniu łączy z kontaktem. */
+    /** POST /zadzwon (JSON): contact_id [+ account_id = numer VoIP] → dzwoni numer VoIP, po odebraniu łączy z kontaktem. */
     public function call(): array
     {
         $cid = (int)($_POST['contact_id'] ?? 0);
         if (!$cid || !crm_can_access_contact($cid)) { http_response_code(403); return ['ok' => false, 'error' => 'Brak dostępu do tego kontaktu.']; }
         try {
-            SpikonService::dial((int)current_user()['id'], $cid);
-            return ['ok' => true, 'message' => 'Spikon dzwoni na Twoje konto telefoniczne — odbierz, a połączy Cię z kontaktem.'];
+            $from = SpikonService::dial((int)current_user()['id'], $cid, ((int)($_POST['account_id'] ?? 0)) ?: null);
+            return ['ok' => true, 'message' => 'Dzwonię z numeru ' . $from . ' — odbierz, a połączę Cię z kontaktem. Połączenie zapisano w historii.',
+                    'history' => 'Z numeru: ' . $from . "\nNa numer: " . trim((string)(crm_one("SELECT telefon FROM crm_contacts WHERE id=?", [$cid])['telefon'] ?? ''))];
         } catch (\Throwable $e) {
             http_response_code($e instanceof SpikonException ? 502 : 422);   // 502 = zawiódł Spikon, 422 = brak numeru / konta / telefonii
             return ['ok' => false, 'error' => $e->getMessage()];
