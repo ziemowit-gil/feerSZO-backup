@@ -407,6 +407,7 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_sessions ADD COLUMN topic            TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_sessions ADD COLUMN instructor_notes TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_sessions ADD COLUMN has_homework     INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE k30_ti_sessions ADD COLUMN subject_type_id  INTEGER REFERENCES k30_ti_subject_types(id) ON DELETE SET NULL",
         // Praca własna prowadzącego — przygotowanie materiału do wykonania zdalnie
         "ALTER TABLE k30_ti_sessions ADD COLUMN self_prep_remote INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_sessions ADD COLUMN updated_at       DATETIME",
@@ -3591,6 +3592,28 @@ function ti_instructor_plan_grouped(int $target_uid, int $weeks): array {
     uasort($groups, fn($a, $b) => [$a['dow'], $a['time_from']] <=> [$b['dow'], $b['time_from']]);
 
     return ['instructor' => $instructor, 'from' => $from, 'to' => $to, 'weeks' => $weeks, 'unbounded' => $unbounded, 'groups' => array_values($groups)];
+}
+
+/** Przedmioty dostępne dla lekcji grupy: domyślny + dodatkowe (wiersze k30_ti_subject_types, domyślny pierwszy). */
+function k30_ti_course_subject_options(int $course_id): array {
+    return db_all(
+        "SELECT st.*, CASE WHEN st.id = c.subject_type_id THEN 1 ELSE 0 END AS is_default
+           FROM k30_ti_courses c
+           JOIN k30_ti_subject_types st
+             ON st.id = c.subject_type_id
+             OR st.id IN (SELECT subject_type_id FROM k30_ti_course_subjects WHERE course_id = c.id)
+          WHERE c.id = CAST(? AS INTEGER)
+          ORDER BY is_default DESC, st.sort_order, st.abbreviation", [$course_id]);
+}
+
+/** Wartość z formularza lekcji → ID przedmiotu dozwolonego w grupie albo NULL (= przedmiot domyślny). */
+function k30_ti_session_subject_value(int $course_id, $posted): ?int {
+    $id = (int)$posted;
+    if ($id <= 0) return null;
+    foreach (k30_ti_course_subject_options($course_id) as $o) {
+        if ((int)$o['id'] === $id) return ((int)$o['is_default'] === 1) ? null : $id;
+    }
+    return null;
 }
 
 /** ID przedmiotów dodatkowych grupy (bez domyślnego). */

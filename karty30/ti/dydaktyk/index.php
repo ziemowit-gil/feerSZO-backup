@@ -834,9 +834,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mat_url = trim($_POST['material_url'] ?? '');
             db()->prepare(
                 "UPDATE k30_ti_sessions
-                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, lesson_method=?, meeting_url=?, room_id=?, date_flag=?, updated_at=datetime('now')
+                 SET lesson_date=?, time_from=?, time_to=?, duration_min=?, subject_type_id=?, topic=?, notes=?, has_homework=?, self_prep_remote=?, status=?, material_url=?, lesson_method=?, meeting_url=?, room_id=?, date_flag=?, updated_at=datetime('now')
                  WHERE id=?"
-            )->execute([$date, $tf, $tt, $dur, $topic, $notes, $hw, $spr, $st, $mat_url, $lm, $meet_url, $room_id ?: null, $dflag, $sid]);
+            )->execute([$date, $tf, $tt, $dur, k30_ti_session_subject_value((int)$course_id, $_POST['subject_type_id'] ?? 0), $topic, $notes, $hw, $spr, $st, $mat_url, $lm, $meet_url, $room_id ?: null, $dflag, $sid]);
             // Prowadzący edytowalny tylko przez kierownika — nie dotykamy pola,
             // gdy edytuje zwykły prowadzący (formularz mu go nawet nie pokazuje).
             if (dyd_is_staff()) {
@@ -857,6 +857,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'course_id'       => $course_id, 'lesson_date' => $date,
                 'time_from'       => $tf, 'time_to' => $tt, 'duration_min' => $dur,
                 'status'          => $is_reservation ? 'reserved' : ($is_draft ? 'draft' : 'planned'), 'topic' => $topic, 'notes' => $notes,
+                'subject_type_id' => k30_ti_session_subject_value((int)$course_id, $_POST['subject_type_id'] ?? 0),
                 'has_homework'    => $hw, 'self_prep_remote' => $spr,
                 'lesson_method'   => $lm, 'meeting_url' => $meet_url, 'instructor_id' => $sess_instr ?: null,
                 'room_id'         => $room_id ?: null, 'date_flag' => $dflag,
@@ -2376,6 +2377,18 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         <div class="col-12 col-xl-4">
           <section class="dyd-tile p-3 mb-3">
             <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>Treść zajęć</h6>
+      <?php $_subj_opts = k30_ti_course_subject_options((int)$cur_course);
+      if (count($_subj_opts) > 1): ?>
+      <div class="mb-2">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_subject">Przedmiot lekcji</label>
+        <select class="form-select" id="<?= $pfx ?>_subject" name="subject_type_id">
+          <?php foreach ($_subj_opts as $_so): $_sel = (int)($r['subject_type_id'] ?? 0) === (int)$_so['id']; ?>
+          <option value="<?= $_so['is_default'] ? 0 : (int)$_so['id'] ?>" <?= $_sel ? 'selected' : '' ?>>
+            <?= h($_so['abbreviation']) ?> — <?= h($_so['name']) ?><?= $_so['is_default'] ? ' (domyślny)' : '' ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endif; ?>
       <div class="mb-2">
         <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
         <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" list="ti_topic_options"
