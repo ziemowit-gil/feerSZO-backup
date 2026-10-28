@@ -98,6 +98,9 @@ $_esb_recent = array_slice((array)($_SESSION['ezd_recent'] ?? []), 0, 5);
     <?= _esb_link('/ezd/rpw/index.php', 'bi-mailbox2', 'Dziennik podawczy', _esb_a('/ezd/rpw/'), $_esb_rpw) ?>
     <?= _esb_link('/ezd/rpwy/index.php', 'bi-send', 'Książka nadawcza', _esb_a('/ezd/rpwy/'), $_esb_rpwy) ?>
     <?= _esb_link('/ezd/teczki/index.php', 'bi-archive', 'Segregatory aktowe', _esb_a('/ezd/teczki/')) ?>
+    <?php if (is_admin() || (function_exists('is_zarzad') && is_zarzad())): ?>
+    <?= _esb_link('/ezd/rejestrDokumentow.php', 'bi-qr-code', 'Rejestr dokumentów', _esb_a('/ezd/rejestrDokumentow')) ?>
+    <?php endif; ?>
 
     <div class="ezd-sb-section" role="presentation">Archiwistyka</div>
     <?= _esb_link('/ezd/jrwa/index.php', 'bi-tags', 'Wykaz akt (JRWA)', _esb_a('/ezd/jrwa/')) ?>

@@ -207,7 +207,7 @@ function _menu_ezd_items(): array {
     ];
     // Rejestr numerów i kodów QR plików (admin + zarząd) — ten sam, co w „Kancelaria i rejestry”
     if (is_admin() || (function_exists('is_zarzad') && is_zarzad()))
-        $items[] = _mi('Rejestr dokumentów','/docreg/list.php','bi-qr-code',['match'=>'/docreg/','kw'=>'rejestr dokumentów numery kody qr code128 identyfikacja plików załączniki eSpis']);
+        $items[] = _mi('Rejestr dokumentów','/ezd/rejestrDokumentow.php','bi-qr-code',['match'=>'/ezd/rejestrDokumentow','kw'=>'rejestr dokumentów numery kody qr code128 identyfikacja plików załączniki eSpis']);
     return $items;
 }
 
@@ -519,7 +519,7 @@ function _menu_editor(): array {
     $kanc[] = _mi('Uchwały','/resolutions/index.php','bi-file-ruled',['match'=>'/resolutions/','kw'=>'uchwały zarząd']);
     // Rejestr numerów i kodów QR plików wgranych do systemu (admin + zarząd)
     if (is_admin() || (function_exists('is_zarzad') ? is_zarzad() : in_array((int)(current_user()['id'] ?? 0), array_filter(array_map('intval', explode(',', (string)org_setting('zarzad_user_ids')))), true)))
-        $kanc[] = _mi('Rejestr dokumentów','/docreg/list.php','bi-qr-code',['match'=>'/docreg/','kw'=>'rejestr dokumentów numery kody qr code128 identyfikacja plików załączniki']);
+        $kanc[] = _mi('Rejestr dokumentów','/ezd/rejestrDokumentow.php','bi-qr-code',['match'=>'/ezd/rejestrDokumentow','kw'=>'rejestr dokumentów numery kody qr code128 identyfikacja plików załączniki']);
     if (in_array(current_user()['role'] ?? '', ['admin','editor'], true))
         $kanc[] = _mi('Klauzule RODO','/modules/gdpr_clauses/index.php','bi-shield-lock',['match'=>'/modules/gdpr_clauses/','kw'=>'klauzule rodo gdpr klauzula informacyjna ochrona danych iod']);
     if (is_admin())
