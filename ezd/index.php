@@ -304,7 +304,7 @@ $qa = [
 // Rejestr numerów i kodów QR plików — tylko administrator i zarząd (ezd/rejestrDokumentow.php sprawdza to samo)
 if (is_admin() || (function_exists('is_zarzad') && is_zarzad())) {
     $qa[] = ['href' => APP_URL . '/ezd/rejestrDokumentow.php', 'icon' => 'bi-qr-code', 'tone' => 'slate', 'lbl' => 'Rejestr dokumentów'];
-    $qa[] = ['href' => APP_URL . '/ezd/kodyPartnerskie.php', 'icon' => 'bi-upc-scan', 'tone' => 'slate', 'lbl' => 'Kody partnerskie (ITSM)'];
+    $qa[] = ['href' => APP_URL . '/ezd/kodyPartnerskie.php', 'icon' => 'bi-upc-scan', 'tone' => 'slate', 'lbl' => 'Kody partnerskie (PartnerReg)'];
 }
 $alpine_cfg = [
     'serve'  => APP_URL . '/ezd/serve.php?id=',

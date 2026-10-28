@@ -20,7 +20,7 @@ if (!is_zarzad()) { http_response_code(403); die('Rejestr dokumentów jest dost�
 
 $PAGE_TITLE = 'Rejestr dokumentów';
 
-// Zbiorcze usuwanie kodów z rejestru (zaznaczone w liście): tylko kody ITSM przed nadaniem i wpisy nieaktualne.
+// Zbiorcze usuwanie kodów z rejestru (zaznaczone w liście): tylko kody PartnerReg przed nadaniem i wpisy nieaktualne.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_codes') {
     csrf_check();
     $back = rtrim(APP_URL, '/') . '/ezd/rejestrDokumentow.php' . (($_POST['back'] ?? '') !== '' ? '?' . ltrim((string)$_POST['back'], '?') : '');
@@ -51,7 +51,7 @@ $f = [
 $page = max(1, (int)($_GET['p'] ?? 1));
 $res  = DocRegistry::search($f, $page, 50);
 $total_all = array_sum($res['counts']);
-// Status kodu z puli ITSM: partnerskie = arkusz wydrukowany i nadany przez Postivo (nadana/doręczona); inaczej wygenerowany / w kolejce
+// Status kodu z puli PartnerReg: partnerskie = arkusz wydrukowany i nadany przez Postivo (nadana/doręczona); inaczej wygenerowany / w kolejce
 $itsmStatus = function (?string $rpwyStatus, bool $printed = false): array {
     if (in_array($rpwyStatus, ['nadana', 'doreczona'], true)) return ['partnerskie', 'dr-valid'];
     if ($rpwyStatus === 'postivo_queued') return ['w kolejce Postivo', 'dr-wait'];
@@ -153,7 +153,7 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
   </form>
 
   <?php if (is_admin()): ?>
-  <p class="small mb-3"><a href="<?= APP_URL ?>/ezd/kodyPartnerskie.php"><i class="bi bi-qr-code me-1" aria-hidden="true"></i>Kody partnerskie (ITSM) — generowanie, wydruk i nadanie przez Postivo</a></p>
+  <p class="small mb-3"><a href="<?= APP_URL ?>/ezd/kodyPartnerskie.php"><i class="bi bi-qr-code me-1" aria-hidden="true"></i>Kody partnerskie (PartnerReg) — generowanie, wydruk i nadanie przez Postivo</a></p>
   <?php endif; ?>
   <?php $pend = DocRegistry::paperPending(); ?>
   <?php if ($pend > 0): ?><div class="dr-note" role="status">
@@ -166,18 +166,18 @@ html body .dr-page .dr-tabs a[aria-current="true"] b{color:#fff}
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="back" value="<?= h((string)($_SERVER['QUERY_STRING'] ?? '')) ?>">
     <button class="btn btn-sm btn-outline-danger" type="submit" name="action" value="delete_codes" formmethod="post" formaction="<?= h(rtrim(APP_URL, '/') . '/ezd/rejestrDokumentow.php') ?>" formtarget="_self"
-            onclick="var n=document.querySelectorAll('input[name=&quot;sheet[]&quot;]:checked').length; if(!n){alert('Zaznacz kody do usunięcia.');return false;} return confirm('Usunąć zaznaczone kody ('+n+') z rejestru? Usunięte zostaną tylko kody ITSM przed nadaniem i wpisy nieaktualne — pozostałe są pomijane. Tej operacji nie da się cofnąć.')"><i class="bi bi-trash me-1"></i>Usuń zaznaczone</button>
+            onclick="var n=document.querySelectorAll('input[name=&quot;sheet[]&quot;]:checked').length; if(!n){alert('Zaznacz kody do usunięcia.');return false;} return confirm('Usunąć zaznaczone kody ('+n+') z rejestru? Usunięte zostaną tylko kody PartnerReg przed nadaniem i wpisy nieaktualne — pozostałe są pomijane. Tej operacji nie da się cofnąć.')"><i class="bi bi-trash me-1"></i>Usuń zaznaczone</button>
     <?php endif; ?>
     <span class="small text-muted">Zaznacz pozycje w kolumnie „Etykieta” (<label class="d-inline"><input type="checkbox" onchange="document.querySelectorAll('input[name=&quot;sheet[]&quot;]').forEach(function(c){c.checked=this.checked}.bind(this))"> zaznacz wszystkie na stronie</label>).</span>
   </form>
   <?php if (is_admin()): ?>
   <details class="dr-more" style="margin-bottom:.8rem"><summary>Usuń zakres kodów od–do</summary>
-    <form method="post" class="dr-sheet mt-2" onsubmit="return confirm('Usunąć kody z podanego zakresu (włącznie)? Usunięte zostaną tylko kody ITSM przed nadaniem i wpisy nieaktualne — pozostałe są pomijane. Tej operacji nie da się cofnąć.')">
+    <form method="post" class="dr-sheet mt-2" onsubmit="return confirm('Usunąć kody z podanego zakresu (włącznie)? Usunięte zostaną tylko kody PartnerReg przed nadaniem i wpisy nieaktualne — pozostałe są pomijane. Tej operacji nie da się cofnąć.')">
       <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="action" value="delete_codes">
       <input type="hidden" name="mode" value="range">
       <input type="hidden" name="back" value="<?= h((string)($_SERVER['QUERY_STRING'] ?? '')) ?>">
-      <div><label for="dr-rf">Od (kod lub numer)</label><input id="dr-rf" name="from_code" class="form-control form-control-sm" required placeholder="np. ITSM/123456AB" autocomplete="off" spellcheck="false" style="width:14rem"></div>
+      <div><label for="dr-rf">Od (kod lub numer)</label><input id="dr-rf" name="from_code" class="form-control form-control-sm" required placeholder="np. PARTNERREG/123456AB" autocomplete="off" spellcheck="false" style="width:14rem"></div>
       <div><label for="dr-rt">Do (kod lub numer)</label><input id="dr-rt" name="to_code" class="form-control form-control-sm" required placeholder="np. DOK/2026/000030" autocomplete="off" spellcheck="false" style="width:14rem"></div>
       <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń zakres</button>
       <span class="small text-muted">Zakres wg kolejności nadania w rejestrze, do 500 kodów.</span>

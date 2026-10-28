@@ -41,8 +41,8 @@ final class DocRegistry
         'contract_szk'         => ['USZ', 'Umowa szkoleniowa (SZK)', '/contracts/szk/view.php?id={id}', 'umowy_szk', 'rand'],
         'print_doc'            => ['WYD', 'Wydruk dokumentu', '/', 'doc_prints', 'rand'],
         'gen_doc'              => ['DOG', 'Dokument z generatora wzorów', '/generator/view.php?id={id}', 'gen_documents', 'rand'],
-        // Pula kodów do dołączania do dokumentów papierowych (arkusz etykiet nadawany przez Postivo; koperta z dopiskiem ITSM).
-        'reserved_code'        => ['ITSM', 'Kod partnerski (ITSM)', '/', 'doc_reserved', 'rand'],
+        // Pula kodów do dołączania do dokumentów papierowych (arkusz etykiet nadawany przez Postivo; koperta z dopiskiem PartnerReg).
+        'reserved_code'        => ['PARTNERREG', 'Kod PartnerReg', '/', 'doc_reserved', 'rand'],
     ];
     /** Litery kodu bez I i O (mylą się z 1 i 0 na wydruku). */
     private const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -129,7 +129,7 @@ final class DocRegistry
     }
 
     /**
-     * Usuwa pojedynczy kod z rejestru. Wolno tylko: kod z puli ITSM, którego arkusz nie został nadany przez Postivo,
+     * Usuwa pojedynczy kod z rejestru. Wolno tylko: kod z puli PartnerReg, którego arkusz nie został nadany przez Postivo,
      * albo wpis nieaktualny (plik źródłowy już nie istnieje). Kod żywego dokumentu zostaje — rejestr jest dowodem numeracji.
      * @return string '' = usunięto, w przeciwnym razie powód odmowy
      */
@@ -149,7 +149,7 @@ final class DocRegistry
     }
 
     /**
-     * Kody z zakresu „od–do” (włącznie) w kolejności nadania w rejestrze. Końce można podać kodem (ITSM/123456AB) albo numerem (DOK/2026/000012).
+     * Kody z zakresu „od–do” (włącznie) w kolejności nadania w rejestrze. Końce można podać kodem (PARTNERREG/123456AB) albo numerem (DOK/2026/000012).
      * @return array{codes:string[],error:string}
      */
     public static function codesInRange(string $from, string $to): array
@@ -209,7 +209,7 @@ final class DocRegistry
     /** Czy tekst ma format kodu rejestru (TYP/6 cyfr + 2 litery). */
     public static function isCode(string $c): bool
     {
-        return (bool)preg_match('~^[A-Z]{2,5}/(?:\d{6}[A-Z]{2}|\d{4}/\d{4})$~', $c);
+        return (bool)preg_match('~^[A-Z]{2,10}/(?:\d{6}[A-Z]{2}|\d{4}/\d{4})$~', $c);
     }
 
     // ── Źródło (plik na dysku + dane) ────────────────────────────────────────────

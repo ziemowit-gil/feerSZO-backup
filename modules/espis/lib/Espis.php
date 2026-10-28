@@ -223,7 +223,7 @@ final class Espis
                 'state' => $d['status'] === 'valid' ? 'valid' : 'void', 'date' => substr((string)$d['created_at'], 0, 10), 'espis_url' => self::url((int)$d['sprawa_id'])]);
         }
         // 1b) rejestr plików wgranych do systemu (EZD/CRM/ZAD…): kod TYP/6 cyfr+2 litery; stan liczony na żywo ze źródła
-        if (preg_match('~^[A-Z]{2,5}/(?:\d{6}[A-Z]{2}|\d{4}/\d{4})$~', $c)) {   // TYP/483920KP albo PREFIKS/0012/2026
+        if (preg_match('~^[A-Z]{2,10}/(?:\d{6}[A-Z]{2}|\d{4}/\d{4})$~', $c)) {   // TYP/483920KP albo PREFIKS/0012/2026
             $f = dirname(__DIR__, 2) . '/doc_registry/lib/DocRegistry.php';
             if (is_file($f)) {
                 require_once $f;

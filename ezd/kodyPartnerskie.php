@@ -1,8 +1,8 @@
 <?php
 /**
- * ezd/kodyPartnerskie.php — Kody partnerskie (ITSM): pula kodów do dołączania do dokumentów papierowych.
+ * ezd/kodyPartnerskie.php — Kody partnerskie (PartnerReg): pula kodów do dołączania do dokumentów papierowych.
  * Admin generuje 10/20/30 etykiet (z napisem jednostki), nadaje arkusz kurierem przez Postivo na adres organizacji
- * (dopisek ITSM na kopercie) albo drukuje samodzielnie; usuwa pule przed nadaniem. Kody żyją w rejestrze dokumentów
+ * (dopisek PartnerReg na kopercie) albo drukuje samodzielnie; usuwa pule przed nadaniem. Kody żyją w rejestrze dokumentów
  * (source_type reserved_code) — tu jest ich własny ekran. Dostęp: administrator i zarząd (generowanie: administrator).
  */
 require_once dirname(__DIR__) . '/config.php';
@@ -19,7 +19,7 @@ if (!is_zarzad()) { http_response_code(403); die('Kody partnerskie są dostępne
 
 $PAGE_TITLE = 'Kody partnerskie';
 
-// Samodzielny wydruk: generuje pulę kodów ITSM bez wysyłki Postivo i od razu zwraca PDF (arkusz A4 3×8).
+// Samodzielny wydruk: generuje pulę kodów PartnerReg bez wysyłki Postivo i od razu zwraca PDF (arkusz A4 3×8).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_print') {
     csrf_check();
     try {
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
     }
 }
 
-// Kasowanie puli ITSM — tak jak wpisu książki nadawczej: do nadania wolno, po nadaniu nie (wtedy kody mogły zostać naklejone).
+// Kasowanie puli PartnerReg — tak jak wpisu książki nadawczej: do nadania wolno, po nadaniu nie (wtedy kody mogły zostać naklejone).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_delete') {
     csrf_check();
     $back = rtrim(APP_URL, '/') . '/ezd/kodyPartnerskie.php';
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
     header('Location: ' . $back); exit;
 }
 
-// Pula kodów do dołączenia: admin generuje 10/20/30 etykiet kodowych i nadaje je przez Postivo na adres organizacji (na kopercie dopisek ITSM).
+// Pula kodów do dołączenia: admin generuje 10/20/30 etykiet kodowych i nadaje je przez Postivo na adres organizacji (na kopercie dopisek PartnerReg).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_batch') {
     csrf_check();
     $back = rtrim(APP_URL, '/') . '/ezd/kodyPartnerskie.php';
@@ -93,15 +93,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
 
         $res = ezd_rpwy_create([
             'sposob'   => 'kurier',
-            'odbiorca' => $orgName . ' (ITSM)',
+            'odbiorca' => $orgName . ' (PartnerReg)',
             'adres'    => $street . "\n" . $postcode . ' ' . $city,
-            'uwagi'    => 'ITSM' . ($unitName !== '' ? ' (' . $unitName . ')' : '') . ' — arkusz ' . $qty . ' kodów do dołączenia: ' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'],
+            'uwagi'    => 'PartnerReg' . ($unitName !== '' ? ' (' . $unitName . ')' : '') . ' — arkusz ' . $qty . ' kodów do dołączenia: ' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'],
         ], $uid);
         DocRegistry::reservedAttach($rows, (int)$res['id']);
         ezd_rpwy_postivo_queue((int)$res['id'], $pdfTmp, [
             'recipient_name' => $orgName,
             'address_line1'  => $street,
-            'address_line2'  => 'ITSM',          // dopisek na kopercie
+            'address_line2'  => 'PartnerReg',          // dopisek na kopercie
             'city'           => $city,
             'postcode'       => $postcode,
             'country'        => 'PL',
@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'itsm_
             'service_id'     => $serviceId,
         ], $uid);
         foreach ($rows as $r) DocRegistry::paperDone((string)$r['code']);   // etykiety drukuje Postivo
-        flash_set('success', 'Wygenerowano ' . $qty . ' kodów (' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'] . '). Arkusz zakolejkowano do Postivo.pl (kurier) — wyjdzie dziś o 16:30 na adres organizacji z dopiskiem ITSM (' . ezd_rpwy_label($res) . ').');
+        flash_set('success', 'Wygenerowano ' . $qty . ' kodów (' . $rows[0]['code'] . ' … ' . $rows[count($rows) - 1]['code'] . '). Arkusz zakolejkowano do Postivo.pl (kurier) — wyjdzie dziś o 16:30 na adres organizacji z dopiskiem PartnerReg (' . ezd_rpwy_label($res) . ').');
     } catch (\Throwable $e) {
         flash_set('error', 'Nie wygenerowano / nie nadano kodów: ' . $e->getMessage());
     } finally {
@@ -142,7 +142,7 @@ include dirname(__DIR__) . '/includes/header.php';
 </style>
 <div class="container-fluid py-3 dr-page" style="max-width:1300px">
   <div class="dr-head">
-    <h1 class="h4"><i class="bi bi-qr-code me-2" aria-hidden="true"></i>Kody partnerskie (ITSM)</h1>
+    <h1 class="h4"><i class="bi bi-qr-code me-2" aria-hidden="true"></i>Kody partnerskie (PartnerReg)</h1>
     <p>Pula kodów do dołączania do dokumentów papierowych · pojedyncze kody w <a href="<?= APP_URL ?>/ezd/rejestrDokumentow.php?type=reserved_code">Rejestrze dokumentów</a>.</p>
   </div>
   <?php if (is_admin()): ?>
@@ -181,7 +181,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="action" value="itsm_batch">
     <h2 id="dr-itsm-h">Nadanie przez Postivo</h2>
-    <p>Generuje pulę kodów partnerskich i wysyła arkusz etykiet A4 kurierem Postivo na adres organizacji, z dopiskiem „ITSM” na kopercie.</p>
+    <p>Generuje pulę kodów partnerskich i wysyła arkusz etykiet A4 kurierem Postivo na adres organizacji, z dopiskiem „PartnerReg” na kopercie.</p>
     <div class="row2">
       <div><label for="dr-qty">Liczba etykiet</label>
         <select id="dr-qty" name="qty" class="form-select form-select-sm"><?php foreach ([10, 20, 30] as $q): ?><option value="<?= $q ?>"<?= $q === 30 ? ' selected' : '' ?>><?= $q ?></option><?php endforeach; ?></select></div>
@@ -215,7 +215,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </script>
   <?php $pools = DocRegistry::reservedBatches(); if ($pools): ?>
   <table class="table table-sm align-middle mt-3 mb-0" style="font-size:.84rem">
-    <caption class="visually-hidden">Wygenerowane pule kodów ITSM</caption>
+    <caption class="visually-hidden">Wygenerowane pule kodów PartnerReg</caption>
     <thead><tr><th scope="col">Wygenerowano</th><th scope="col">Jednostka</th><th scope="col">Kodów</th><th scope="col">Status</th><th scope="col">Przesyłka</th><th scope="col" class="text-end">Akcje</th></tr></thead>
     <tbody>
     <?php foreach ($pools as $pl): $rp = $pl['rpwy'] > 0 ? ezd_rpwy_get((int)$pl['rpwy']) : null; $sent = $rp && in_array($rp['status'], ['nadana', 'doreczona', 'zwrocona'], true); ?>
