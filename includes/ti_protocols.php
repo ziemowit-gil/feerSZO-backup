@@ -843,10 +843,15 @@ function ti_protocol_approve_signed(int $protocol_id, int $uid, string $by_name,
 
     // Najpierw certyfikat (bez zużywania czegokolwiek), dopiero potem kod SMS — zły plik albo hasło
     // nie zużywa kodu, więc prowadzący nie musi prosić o nowy SMS.
-    $sig = x509_sign_payload_p12($uid, $p12, $password, ti_protocol_sign_payload($prot, $uid));
+    $why = null;
+    $sig = x509_sign_payload_p12($uid, $p12, $password, ti_protocol_sign_payload($prot, $uid), $why);
     if (!$sig) {
-        throw new \RuntimeException('Nie udało się podpisać protokołu: sprawdź plik certyfikatu (.p12) i hasło. '
-            . 'Jeśli nie masz certyfikatu, poproś administratora o jego wystawienie.');
+        error_log('[ti_protocol_approve_signed] podpis nieudany: ' . ($why ?? '?') . ' (user ' . $uid . ', protokół ' . $protocol_id . ')');
+        throw new \RuntimeException(match ($why) {
+            'p12_read'    => 'Nie udało się otworzyć certyfikatu: złe hasło do certyfikatu albo uszkodzony plik .p12. Sprawdź hasło i spróbuj ponownie.',
+            'not_active'  => 'Ten certyfikat nie jest już aktywny na Twoim koncie (odwołany, wygasły albo wystawiono Ci nowy). Wygeneruj certyfikat w „Mój certyfikat”.',
+            default       => 'Nie udało się podpisać protokołu certyfikatem (błąd odczytu klucza). Wygeneruj certyfikat ponownie w „Mój certyfikat”.',
+        });
     }
 
     // Kod SMS: jednorazowy, ważny 5 minut, wysłany na telefon tego prowadzącego.

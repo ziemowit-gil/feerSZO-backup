@@ -147,27 +147,28 @@ function x509_verify_login(string $p12_data, string $cert_password): ?array {
  * użytkownikowi, aktywny (nie odwołany, nie wygasły). Klucz prywatny istnieje tylko w pamięci
  * żądania. Zwraca dane podpisu albo null.
  */
-function x509_sign_payload_p12(int $user_id, string $p12_data, string $password, string $payload): ?array {
+function x509_sign_payload_p12(int $user_id, string $p12_data, string $password, string $payload, ?string &$why = null): ?array {
     x509_init();
+    $why = null;
 
     $certs = [];
-    if (!@openssl_pkcs12_read($p12_data, $certs, $password)) return null;
+    if (!@openssl_pkcs12_read($p12_data, $certs, $password)) { $why = 'p12_read'; return null; }   // złe hasło albo plik nie do odczytu
 
     $cert = @openssl_x509_read($certs['cert'] ?? '');
     $pkey = @openssl_pkey_get_private($certs['pkey'] ?? '');
-    if (!$cert || !$pkey) return null;
+    if (!$cert || !$pkey) { $why = 'p12_content'; return null; }
 
     $fp = openssl_x509_fingerprint($cert, 'sha256');
-    if (!$fp) return null;
+    if (!$fp) { $why = 'p12_content'; return null; }
 
     $owned = db_one(
         "SELECT id FROM admin_x509_certs
           WHERE fingerprint = ? AND user_id = ? AND revoked_at IS NULL AND valid_to > datetime('now')",
         [$fp, $user_id]
     );
-    if (!$owned) return null;
+    if (!$owned) { $why = 'not_active'; return null; }   // odwołany, wygasły albo cudzy
 
-    if (!openssl_sign($payload, $signature, $pkey, OPENSSL_ALGO_SHA256)) return null;
+    if (!openssl_sign($payload, $signature, $pkey, OPENSSL_ALGO_SHA256)) { $why = 'sign'; return null; }
 
     $parsed = openssl_x509_parse($cert);
     return [

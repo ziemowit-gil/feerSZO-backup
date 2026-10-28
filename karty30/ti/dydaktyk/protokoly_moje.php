@@ -91,7 +91,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $p12 = '';
             if (!empty($_POST['cert_z_serwera'])) {
                 $zapisany = tiCertStoreActive($uid, true);
-                if (!$zapisany) throw new \RuntimeException('Nie znaleziono certyfikatu zapisanego w systemie. Wygeneruj go w „Mój certyfikat”.');
+                if (!$zapisany) {
+                    // Certyfikat jest na liście (formularz go pokazał), ale pliku nie da się odczytać z magazynu —
+                    // wcześniej wyglądało to jak „brak certyfikatu”. Najczęściej: zmienił się klucz szyfrujący.
+                    $_jest = tiCertStoreActive($uid);
+                    error_log('[protokoly_moje] cert_z_serwera: ' . ($_jest ? 'wpis jest, odszyfrowanie nieudane' : 'brak wpisu w magazynie') . ' (user ' . $uid . ')');
+                    throw new \RuntimeException($_jest
+                        ? 'Certyfikat jest zapisany w systemie, ale nie udało się go odczytać z magazynu. Wygeneruj certyfikat ponownie w „Mój certyfikat” albo zgłoś to administratorowi.'
+                        : 'Nie znaleziono aktywnego certyfikatu zapisanego w systemie. Wygeneruj go w „Mój certyfikat”.');
+                }
                 $p12 = (string)$zapisany['p12'];
             } elseif (!empty($_FILES['p12']['tmp_name']) && is_uploaded_file($_FILES['p12']['tmp_name']) && (int)$_FILES['p12']['size'] <= 1048576) {
                 $p12 = (string)file_get_contents($_FILES['p12']['tmp_name']);
