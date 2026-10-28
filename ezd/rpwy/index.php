@@ -146,11 +146,16 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div></form>
 
 <!-- Tabela -->
+<form id="etykietyForm" method="get" action="<?= APP_URL ?>/ezd/rpwy/etykiety.php" target="_blank" class="d-flex align-items-center gap-2 mb-2">
+  <button type="submit" class="btn btn-outline-primary btn-sm" id="etykietyBtn" disabled><i class="bi bi-printer me-1"></i>Drukuj etykiety adresowe (A4)</button>
+  <span class="small text-muted" id="etykietyCnt" role="status" aria-live="polite">Zaznacz przesyłki w pierwszej kolumnie.</span>
+</form>
 <div class="card shadow-sm">
   <div class="table-responsive">
     <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.82rem">
       <thead class="table-light">
         <tr>
+          <th scope="col" style="width:2rem"><input type="checkbox" id="etykietyAll" class="form-check-input" aria-label="Zaznacz wszystkie przesyłki do etykiet"></th>
           <th style="white-space:nowrap">Nr RPW-W</th>
           <th>Data nadania</th>
           <th>Sposób</th>
@@ -166,6 +171,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         $sp  = EZD_RPWY_SPOSOBY[$r['sposob']] ?? ['label'=>$r['sposob'],'icon'=>'bi-envelope'];
         $trm = ezd_rpwy_termin($r); ?>
         <tr onclick="location='<?= APP_URL ?>/ezd/rpwy/view.php?id=<?= $r['id'] ?>'" style="cursor:pointer<?= $r['status']==='anulowana'?';opacity:.55':'' ?>">
+          <td onclick="event.stopPropagation()"><input type="checkbox" form="etykietyForm" name="ids[]" value="<?= (int)$r['id'] ?>" class="form-check-input etykietyChk" aria-label="Etykieta: <?= h(ezd_rpwy_label($r)) ?>"></td>
           <td class="font-monospace fw-bold text-primary" style="white-space:nowrap"><?= h(ezd_rpwy_label($r)) ?>
             <?php if($r['epo_file']): ?><i class="bi bi-paperclip text-muted ms-1" title="Dowód doręczenia"></i><?php endif; ?>
           </td>
@@ -197,7 +203,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </tr>
       <?php endforeach; ?>
       <?php if(!$rows): ?>
-        <tr><td colspan="8" class="text-center text-muted py-5">
+        <tr><td colspan="9" class="text-center text-muted py-5">
           <i class="bi bi-send" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
           Brak przesyłek dla wybranych filtrów.
           <?php if(can_edit()): ?><br><a href="<?= APP_URL ?>/ezd/rpwy/add.php">Zarejestruj pierwszą wysyłkę</a><?php endif; ?>
@@ -208,4 +214,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 </div>
 
+<script>
+(function () {
+  var chks = document.querySelectorAll('.etykietyChk'), all = document.getElementById('etykietyAll'),
+      btn = document.getElementById('etykietyBtn'), cnt = document.getElementById('etykietyCnt');
+  function upd() {
+    var n = document.querySelectorAll('.etykietyChk:checked').length;
+    btn.disabled = n === 0;
+    cnt.textContent = n ? 'Zaznaczono: ' + n : 'Zaznacz przesyłki w pierwszej kolumnie.';
+    all.checked = n > 0 && n === chks.length; all.indeterminate = n > 0 && n < chks.length;
+  }
+  chks.forEach(function (c) { c.addEventListener('change', upd); });
+  all.addEventListener('change', function () { chks.forEach(function (c) { c.checked = all.checked; }); upd(); });
+})();
+</script>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
