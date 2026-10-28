@@ -31,6 +31,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/crm.php';
 require_once __DIR__ . '/crm_merge.php';
 require_once __DIR__ . '/crm_domains.php';
+require_once __DIR__ . '/crmTechRules.php';
 
 /**
  * Katalog reguł.
@@ -262,6 +263,25 @@ function crm_janitor_cosmetic_fixes(array $c): array
  *                      pierwszym uruchomieniem na prawdziwej bazie)
  * @return array{fixed:int,found:int,per_rule:array<string,int>,samples:array}
  */
+/**
+ * Co zrobić z kontaktem o adresie technicznym — jedno miejsce dla bota (4b/4c) i skryptu tygodniowego.
+ *  · wyjątek „to nie techniczny” → nic;
+ *  · reguła domenowa „zawsze oznaczaj” → oznacz od razu;
+ *  · rozpoznanie PEWNE + włączony tryb automatyczny → oznacz od razu (do cofnięcia w Regułach);
+ *  · reszta (m.in. wszystko od AI) → zgłoszenie do decyzji.
+ * @return string marked|proposed|skipped
+ */
+function crm_janitor_tech_handle(array $c, bool $sure, string $title, string $detail, ?int $uid = null): string
+{
+    if (crm_tech_is_exception($c['email'])) return 'skipped';
+    if (crm_tech_domain_rule_hit($c['email'])) return crm_tech_mark((int)$c['id'], 'domain', $uid) ? 'marked' : 'skipped';
+    if ($sure && crm_tech_auto_enabled())      return crm_tech_mark((int)$c['id'], 'auto', $uid) ? 'marked' : 'skipped';
+    crm_janitor_add('robot_contact', 'c:' . (int)$c['id'], [
+        'contact_id' => (int)$c['id'], 'title' => $title, 'detail' => $detail, 'payload' => ['id' => (int)$c['id']],
+    ]);
+    return 'proposed';
+}
+
 function crm_janitor_run(bool $dry_run = false): array
 {
     crm_migrate();
@@ -371,16 +391,13 @@ function crm_janitor_run(bool $dry_run = false): array
                             AND COALESCE(email,'') LIKE '%@%' LIMIT 3000");
         $n_robot = 0;
         foreach ($cands as $e) {
-            if (!crm_is_robot_sender($e['email'])) continue;
+            if (!crm_is_robot_sender($e['email']) && !crm_tech_domain_rule_hit($e['email'])) continue;
             if (++$n_robot > 200) break;
-            $found++; $bump('robot_contact');
-            if ($dry_run) continue;
-            crm_janitor_add('robot_contact', 'c:' . (int)$e['id'], [
-                'contact_id' => (int)$e['id'],
-                'title'      => 'Adres techniczny: ' . $e['email'],
-                'detail'     => 'Kartoteka „' . $e['imie_nazwisko'] . '” ma adres automatu — nie powinna dostawać wysyłek.',
-                'payload'    => ['id' => (int)$e['id']],
-            ]);
+            if ($dry_run) { $found++; $bump('robot_contact'); continue; }
+            $res = crm_janitor_tech_handle($e, true, 'Adres techniczny: ' . $e['email'],
+                'Kartoteka „' . $e['imie_nazwisko'] . '” ma adres automatu — nie powinna dostawać wysyłek.');
+            if ($res === 'proposed') { $found++; $bump('robot_contact'); }
+            elseif ($res === 'marked') { $fixed++; }
         }
     }
 
@@ -389,13 +406,11 @@ function crm_janitor_run(bool $dry_run = false): array
     if (!$dry_run && crm_janitor_rule_enabled('robot_contact')) {
         require_once __DIR__ . '/crm_email_kind.php';
         foreach (crm_technical_ai_scan(40) as $t) {
-            $found++; $bump('robot_contact');
-            crm_janitor_add('robot_contact', 'c:' . $t['id'], [
-                'contact_id' => $t['id'],
-                'title'      => 'Adres techniczny (AI): ' . $t['email'],
-                'detail'     => 'Kartoteka „' . $t['name'] . '” — ' . ($t['why'] ?: 'AI uznało adres za systemowy') . '. Nie powinna dostawać wysyłek.',
-                'payload'    => ['id' => $t['id']],
-            ]);
+            // AI nigdy nie oznacza samo (sure=false) — chyba że człowiek ma regułę domenową
+            $res = crm_janitor_tech_handle(['id' => $t['id'], 'email' => $t['email']], false, 'Adres techniczny (AI): ' . $t['email'],
+                'Kartoteka „' . $t['name'] . '” — ' . ($t['why'] ?: 'AI uznało adres za systemowy') . '. Nie powinna dostawać wysyłek.');
+            if ($res === 'proposed') { $found++; $bump('robot_contact'); }
+            elseif ($res === 'marked') { $fixed++; }
         }
     }
 
@@ -584,10 +599,7 @@ function crm_janitor_bulk(string $action, array $ids, ?int $uid): array
 
                 case 'mark_technical':
                     $cid = (int)($payload['id'] ?? $f['contact_id'] ?? 0);
-                    if (!$cid || !db_one("SELECT id FROM crm_contacts WHERE id=? AND crm_active=1", [$cid])) { $failed++; break; }
-                    $has_st = db_one("SELECT 1 AS x FROM crm_statuses WHERE slug='techniczny' AND is_active=1");
-                    db_exec("UPDATE crm_contacts SET type='kontakt_techniczny'" . ($has_st ? ", status='techniczny'" : '') . ", updated_at=? WHERE id=?", [date('Y-m-d H:i:s'), $cid]);
-                    CrmManager::addNote($cid, 'Oznaczono jako kontakt techniczny (adres automatu) przez bota sprzątającego. ' . date('Y-m-d H:i') . '.', $uid);
+                    if (!$cid || !crm_tech_mark($cid, 'manual', $uid)) { $failed++; break; }
                     crm_janitor_close($fid, 'done', $uid);
                     $done++;
                     break;

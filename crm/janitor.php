@@ -17,6 +17,8 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/includes/crm_janitor.php';
+require_once dirname(__DIR__) . '/includes/crmTechRules.php';
+require_once dirname(__DIR__) . '/includes/crm_contact_analyzer.php';   // CRM_ROBOT_DOMAINS (grupowanie po platformie)
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
@@ -81,6 +83,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($res['errors'])  $msg .= ' ' . implode(' ', array_slice($res['errors'], 0, 3));
         flash_set($res['failed'] && !$res['done'] ? 'danger' : ($res['failed'] ? 'warning' : 'success'), $msg);
 
+    } elseif ($op === 'tech_domain_mark' || $op === 'tech_domain_rule') {
+        // Decyzja na całą domenę: oznacz wszystkie kontakty z domeny; „reguła” dodatkowo zapamiętuje wybór na przyszłość.
+        $dom = strtolower(trim((string)($_POST['domain'] ?? '')));
+        if ($dom === '') { flash_set('danger', 'Brak domeny.'); }
+        else {
+            if ($op === 'tech_domain_rule') crm_tech_rule_add('domain', $dom, 'technical', $uid);
+            $n = crm_tech_mark_domain($dom, $uid, $op === 'tech_domain_rule' ? 'domain' : 'manual');
+            flash_set('success', "Oznaczono jako techniczne: {$n} (domena {$dom})." . ($op === 'tech_domain_rule' ? ' Zapamiętano regułę — kolejne adresy z tej domeny będą oznaczane od razu.' : ''));
+        }
+    } elseif ($op === 'tech_not') {
+        // „To nie jest techniczny” — adres albo domena; zgłoszenie znika, a adres nie wraca (wzorce, AI i skrypt tygodniowy go pomijają).
+        $kind = ($_POST['kind'] ?? '') === 'domain' ? 'domain' : 'email';
+        $val  = strtolower(trim((string)($_POST['value'] ?? '')));
+        if ($val !== '' && crm_tech_rule_add($kind, $val, 'not_technical', $uid)) {
+            $n = crm_tech_exception_apply($kind, $val, $uid);
+            flash_set('success', 'Zapamiętano: „' . $val . '” nie jest techniczny' . ($n ? " (zdjęto zgłoszeń: {$n})." : '.'));
+        } else { flash_set('danger', 'Nie zapisano wyjątku.'); }
+    } elseif ($op === 'tech_undo') {
+        flash_set(crm_tech_undo((int)($_POST['id'] ?? 0), $uid) ? 'success' : 'danger', 'Cofnięto oznaczenie — kontakt wrócił do poprzedniego typu i statusu.');
+    } elseif ($op === 'tech_rule_remove') {
+        crm_tech_rule_remove((int)($_POST['id'] ?? 0));
+        flash_set('success', 'Usunięto regułę.');
+    } elseif ($op === 'tech_rule_add') {
+        $act = ($_POST['action'] ?? '') === 'technical' ? 'technical' : 'not_technical';
+        $val = strtolower(trim((string)($_POST['value'] ?? '')));
+        $kind = str_contains($val, '@') ? 'email' : 'domain';
+        if (crm_tech_rule_add($kind, $val, $act, $uid)) {
+            if ($act === 'not_technical') crm_tech_exception_apply($kind, $val, $uid);
+            flash_set('success', 'Dodano regułę.');
+        } else { flash_set('danger', 'Podaj domenę (np. substack.com) albo adres e-mail.'); }
+    } elseif ($op === 'tech_auto') {
+        crm_tech_auto_set(!empty($_POST['auto']));
+        flash_set('success', !empty($_POST['auto']) ? 'Tryb automatyczny włączony: pewne adresy techniczne bot oznacza sam.' : 'Tryb automatyczny wyłączony: wszystko czeka na decyzję.');
     } elseif ($op === 'dismiss_rule') {
         // Hurtowe odrzucenie całej kategorii: przydatne, gdy ktoś świadomie
         // godzi się na stan rzeczy (np. kontakty bez opiekuna w małym zespole).
@@ -226,6 +261,40 @@ include __DIR__ . '/includes/header_crm.php';
     <?php endforeach; ?>
   </div>
 
+  <?php if ($rule === 'robot_contact' && $findings):
+    // Grupy po domenie: jedna decyzja na wszystkie adresy z domeny (Substack, Mailchimp…)
+    $emails = [];
+    foreach ($findings as $ff) { $pp = json_decode((string)$ff['payload'], true) ?: []; if (!empty($pp['id'])) $emails[(int)$pp['id']] = true; }
+    $groups = [];
+    if ($emails) {
+        $in = implode(',', array_map('intval', array_keys($emails)));
+        foreach (db_all("SELECT email FROM crm_contacts WHERE id IN ($in)") as $er) { $d = crm_tech_group_domain($er['email']); if ($d !== '') $groups[$d] = ($groups[$d] ?? 0) + 1; }
+    }
+    $groups = array_filter($groups, fn($n) => $n >= 2); arsort($groups);
+    if ($groups): ?>
+  <div class="card mb-3" style="border-left:4px solid #7C3AED !important">
+    <div class="card-body py-2">
+      <div class="fw-semibold small mb-2"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Decyzja na całą domenę</div>
+      <?php foreach ($groups as $dom => $n): ?>
+      <div class="d-flex flex-wrap align-items-center gap-2 py-1 border-top" style="font-size:.84rem">
+        <span class="me-auto"><strong><?= h($dom) ?></strong> <span class="text-muted">· <?= (int)$n ?> kontaktów</span></span>
+        <?php foreach ([['tech_domain_mark', 'Oznacz wszystkie (' . (int)$n . ')', 'btn-crm-outline', 'Oznaczyć wszystkie kontakty z domeny ' . $dom . ' jako techniczne?'],
+                        ['tech_domain_rule', 'Zawsze oznaczaj z tej domeny', 'btn-crm-primary', 'Oznaczyć wszystkie z ' . $dom . ' i zapamiętać regułę na przyszłość?']] as [$opn, $lbl, $cls, $cf]): ?>
+        <form method="post" class="m-0">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="<?= $opn ?>"><input type="hidden" name="domain" value="<?= h($dom) ?>">
+          <button class="btn btn-sm <?= $cls ?> py-0 px-2" onclick="return confirm('<?= h($cf) ?>')"><?= h($lbl) ?></button>
+        </form>
+        <?php endforeach; ?>
+        <form method="post" class="m-0">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="tech_not"><input type="hidden" name="kind" value="domain"><input type="hidden" name="value" value="<?= h($dom) ?>">
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Cała domena zostaje zwykłym kontaktem i nie będzie więcej zgłaszana">To nie techniczne</button>
+        </form>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; endif; ?>
+
   <!-- Lista znalezisk -->
   <form method="post" id="jnBulkForm">
   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -300,6 +369,12 @@ include __DIR__ . '/includes/header_crm.php';
         <a href="<?= h($link) ?>" class="btn btn-sm btn-crm-outline py-0 px-2" title="Otwórz narzędzie, które to rozwiązuje">
           <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Zajmę się
         </a>
+        <?php if ($f['rule'] === 'robot_contact'): $te = (string)(db_one("SELECT email FROM crm_contacts WHERE id=?", [(int)($pl['id'] ?? 0)])['email'] ?? ''); if ($te !== ''): ?>
+        <form method="post" class="m-0">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="tech_not"><input type="hidden" name="kind" value="email"><input type="hidden" name="value" value="<?= h($te) ?>">
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="To nie jest adres techniczny — zapamiętaj i nie zgłaszaj więcej"><i class="bi bi-person-check" aria-hidden="true"></i> Nie techniczny</button>
+        </form>
+        <?php endif; endif; ?>
         <form method="post" class="m-0">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="id" value="<?= (int)$f['id'] ?>">
@@ -414,6 +489,60 @@ include __DIR__ . '/includes/header_crm.php';
       </span>
     </div>
   </form>
+
+  <!-- ── Adresy techniczne: tryb automatyczny, reguły domenowe, wyjątki, cofanie ── -->
+  <?php $trules = crm_tech_rules(true); $tmarks = crm_tech_marks_recent(30); ?>
+  <div class="card mt-3">
+    <div class="card-body">
+      <div class="crm-section-title mb-1"><i class="bi bi-robot me-1" aria-hidden="true"></i>Adresy techniczne</div>
+      <form method="post" class="mb-3">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="tech_auto">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="auto" value="1" id="techAuto" <?= crm_tech_auto_enabled() ? 'checked' : '' ?>>
+          <label class="form-check-label" for="techAuto"><span class="fw-semibold" style="font-size:.86rem">Oznaczaj automatycznie pewne adresy techniczne</span>
+            <span class="d-block text-muted" style="font-size:.76rem">Adresy rozpoznane po wzorcu (noreply…) albo domenie platformy (Substack…) bot oznacza sam, z notatką w kartotece i możliwością cofnięcia poniżej. Adresy wskazane tylko przez AI zawsze czekają na decyzję. Domyślnie wyłączone.</span></label>
+        </div>
+        <button class="btn btn-crm-primary btn-sm mt-2">Zapisz</button>
+      </form>
+
+      <div class="fw-semibold small mb-1">Reguły i wyjątki</div>
+      <?php if (!$trules): ?><p class="text-muted small">Brak. Powstają z przycisków „Zawsze oznaczaj z tej domeny” i „Nie techniczny” na liście zgłoszeń.</p>
+      <?php else: ?>
+      <table class="table table-sm align-middle" style="font-size:.82rem"><caption class="visually-hidden">Reguły adresów technicznych</caption>
+        <thead class="table-light"><tr><th scope="col">Wartość</th><th scope="col">Decyzja</th><th scope="col">Dodano</th><th scope="col" class="text-end">Akcje</th></tr></thead>
+        <tbody><?php foreach ($trules as $tr): ?>
+          <tr><td><code><?= h($tr['value']) ?></code> <span class="text-muted">(<?= $tr['kind'] === 'domain' ? 'domena' : 'adres' ?>)</span></td>
+            <td><?= $tr['action'] === 'technical' ? 'zawsze techniczny' : 'nie techniczny' ?></td>
+            <td class="text-muted"><?= h(substr((string)$tr['created_at'], 0, 10)) ?></td>
+            <td class="text-end"><form method="post" class="d-inline"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="tech_rule_remove"><input type="hidden" name="id" value="<?= (int)$tr['id'] ?>">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="return confirm('Usunąć regułę?')">Usuń</button></form></td></tr>
+        <?php endforeach; ?></tbody>
+      </table>
+      <?php endif; ?>
+      <form method="post" class="d-flex flex-wrap gap-2 align-items-end mb-3">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="tech_rule_add">
+        <div><label class="form-label small mb-1" for="trVal">Domena lub adres</label><input id="trVal" name="value" class="form-control form-control-sm" required placeholder="substack.com albo kontakt@firma.pl" style="width:18rem"></div>
+        <div><label class="form-label small mb-1" for="trAct">Decyzja</label><select id="trAct" name="action" class="form-select form-select-sm"><option value="technical">zawsze techniczny</option><option value="not_technical">nie techniczny</option></select></div>
+        <button class="btn btn-sm btn-crm-outline">Dodaj</button>
+      </form>
+
+      <div class="fw-semibold small mb-1">Ostatnio oznaczone automatycznie lub regułą</div>
+      <?php if (!$tmarks): ?><p class="text-muted small mb-0">Nic jeszcze nie oznaczono bez Twojego kliknięcia.</p>
+      <?php else: ?>
+      <table class="table table-sm align-middle mb-0" style="font-size:.82rem"><caption class="visually-hidden">Ostatnie oznaczenia automatyczne</caption>
+        <thead class="table-light"><tr><th scope="col">Kiedy</th><th scope="col">Kontakt</th><th scope="col">Skąd</th><th scope="col" class="text-end">Akcje</th></tr></thead>
+        <tbody><?php foreach ($tmarks as $tm): ?>
+          <tr><td class="text-muted text-nowrap"><?= h(date_pl($tm['marked_at'])) ?></td>
+            <td><a href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$tm['contact_id'] ?>"><?= h($tm['imie_nazwisko'] ?: '#' . $tm['contact_id']) ?></a> <span class="text-muted"><?= h($tm['email']) ?></span></td>
+            <td><?= $tm['source'] === 'domain' ? 'reguła domenowa' : 'automat' ?></td>
+            <td class="text-end"><?php if ($tm['undone_at']): ?><span class="text-muted">cofnięto</span><?php else: ?>
+              <form method="post" class="d-inline"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_op" value="tech_undo"><input type="hidden" name="id" value="<?= (int)$tm['id'] ?>">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2">Cofnij</button></form><?php endif; ?></td></tr>
+        <?php endforeach; ?></tbody>
+      </table>
+      <?php endif; ?>
+    </div>
+  </div>
 
 <?php else: ?>
 

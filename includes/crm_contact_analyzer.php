@@ -147,6 +147,8 @@ function crm_is_free_mail(string $domain): bool
 /** Czy adres wskazuje na nadawcę automatycznego: domena platformy mailingowej (Substack…) albo lokalna część (noreply…). */
 function crm_is_robot_sender(?string $email): bool
 {
+    require_once __DIR__ . '/crmTechRules.php';
+    if (crm_tech_is_exception($email)) return false;   // człowiek zdecydował: to nie jest techniczny
     if (crm_is_robot_domain($email)) return true;
     $local = strtolower((string)strtok(strtolower(trim((string)$email)), '@'));
     if ($local === '') return false;

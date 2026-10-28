@@ -108,15 +108,19 @@ function crm_email_kind_local(string $email, ?string $contact_name = null): arra
     $local = _cek_local($email);
     if ($local === '') return ['kind' => 'unknown', 'why' => 'pusta nazwa skrzynki', 'sure' => true];
 
+    // Wyjątek „to nie jest techniczny” (CRM → Bot sprzątający → Reguły) wyłącza obie gałęzie techniczne poniżej
+    require_once __DIR__ . '/crmTechRules.php';
+    $tech_exc = crm_tech_is_exception($email);
+
     // 00. Domena platformy mailingowej/powiadomień (Substack, Mailchimp, SendGrid…) — zawsze automat
     require_once __DIR__ . '/crm_contact_analyzer.php';
-    if (crm_is_robot_domain($email)) {
+    if (!$tech_exc && crm_is_robot_domain($email)) {
         return ['kind' => 'technical', 'why' => 'domena platformy mailingowej: ' . substr($email, strrpos($email, '@') + 1), 'sure' => true];
     }
 
     // 0. Skrzynka systemowa/automatyczna — techniczny (wcześniej wpadała do „ogólnych”)
     $head0 = preg_split('/[._-]/', $local)[0] ?? $local;
-    if (in_array($local, CRM_EMAIL_TECH_LOCALS, true) || in_array($head0, CRM_EMAIL_TECH_LOCALS, true)) {
+    if (!$tech_exc && (in_array($local, CRM_EMAIL_TECH_LOCALS, true) || in_array($head0, CRM_EMAIL_TECH_LOCALS, true))) {
         return ['kind' => 'technical', 'why' => 'skrzynka systemowa: ' . $local, 'sure' => true];
     }
 
@@ -323,6 +327,7 @@ function crm_technical_ai_scan(int $limit = 40, ?callable $caller = null): array
     $ask = [];
     foreach ($rows as $c) {
         if (crm_is_robot_sender($c['email'])) continue;   // wzorce już to łapią
+        if (crm_tech_is_exception($c['email'])) continue; // człowiek zdecydował: nie techniczny
         $loc = crm_email_kind_local($c['email'], $c['imie_nazwisko']);
         if ($loc['sure'] && $loc['kind'] === 'personal') continue;   // wyraźnie człowiek — nie pytamy
         $ask[mb_strtolower(trim($c['email']))][] = $c;

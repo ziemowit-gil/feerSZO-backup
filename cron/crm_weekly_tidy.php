@@ -101,29 +101,25 @@ if ($ask && !$dry && $ai_limit > 0 && crm_email_kind_ai_available()) {
 }
 
 // ── 3. Techniczne leżące jako zwykłe kontakty → bot sprzątający (albo od razu) ──
-$tech = db_all("SELECT id, imie_nazwisko, email FROM crm_contacts
+$tech = db_all("SELECT id, imie_nazwisko, email, email_kind_why FROM crm_contacts
                  WHERE crm_active=1 AND email_kind='technical' AND type <> 'kontakt_techniczny'
                    AND COALESCE(status,'') NOT IN ('techniczny','powiadomienia')");
-$proposed = 0; $marked = 0;
-if ($tech) {
-    $has_st = db_one("SELECT 1 AS x FROM crm_statuses WHERE slug='techniczny' AND is_active=1");
-    foreach ($tech as $t) {
-        if ($apply && !$dry) {
-            db_exec("UPDATE crm_contacts SET type='kontakt_techniczny'" . ($has_st ? ", status='techniczny'" : '') . ", updated_at=? WHERE id=?", [date('Y-m-d H:i:s'), (int)$t['id']]);
-            $marked++;
-        } elseif (!$apply && !$dry && crm_janitor_rule_enabled('robot_contact')) {
-            crm_janitor_add('robot_contact', 'c:' . (int)$t['id'], [
-                'contact_id' => (int)$t['id'],
-                'title'      => 'Adres techniczny: ' . $t['email'],
-                'detail'     => 'Kartoteka „' . $t['imie_nazwisko'] . '” — adres rozpoznany jako systemowy w tygodniowym przeglądzie. Nie powinna dostawać wysyłek.',
-                'payload'    => ['id' => (int)$t['id']],
-            ]);
-            $proposed++;
-        }
+$proposed = 0; $marked = 0; $skipped = 0;
+foreach ($tech as $t) {
+    if ($dry) continue;
+    if ($apply) {   // --apply-technical: oznacz od razu, z pominięciem decyzji (wyjątki nadal wygrywają)
+        if (crm_tech_is_exception($t['email'])) { $skipped++; continue; }
+        if (crm_tech_mark((int)$t['id'], 'auto', null)) $marked++;
+        continue;
     }
+    if (!crm_janitor_rule_enabled('robot_contact')) continue;
+    // pewne (wzorce/domena) mogą iść automatem, jeśli włączono tryb; rozpoznanie z AI zawsze czeka na człowieka
+    $res = crm_janitor_tech_handle($t, !str_starts_with((string)$t['email_kind_why'], 'AI:'), 'Adres techniczny: ' . $t['email'],
+        'Kartoteka „' . $t['imie_nazwisko'] . '” — adres rozpoznany jako systemowy w tygodniowym przeglądzie. Nie powinna dostawać wysyłek.');
+    if ($res === 'proposed') $proposed++; elseif ($res === 'marked') $marked++; else $skipped++;
 }
 echo '  Techniczne wśród zwykłych kontaktów: ' . count($tech)
-   . ($apply ? ", oznaczono jako techniczne: $marked" : ", zgłoszono do decyzji w bocie sprzątającym: $proposed") . "\n";
+   . ", oznaczono: $marked, zgłoszono do decyzji: $proposed" . ($skipped ? ", pominięto (wyjątki): $skipped" : '') . "\n";
 
 $print_balance('Po   ', $balance());
 echo '[' . date('Y-m-d H:i:s') . "] Koniec: crm_weekly_tidy\n";
