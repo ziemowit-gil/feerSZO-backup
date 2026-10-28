@@ -30,7 +30,7 @@ api_require('audytor:sms');
 const AUDYTOR_SMS_PER_PHONE_HOUR = 5;
 const AUDYTOR_SMS_PER_HOUR       = 60;
 const AUDYTOR_SMS_PER_DAY        = 300;
-const AUDYTOR_SMS_TEMPLATE       = '/^Tajemniczy Klient: kod logowania [0-9]{6}\. Wazny [0-9]{1,2} min\. Nie podawaj go nikomu\.$/';
+const AUDYTOR_SMS_TEMPLATE       = '/^Tajemniczy Klient: kod logowania [0-9]{6}\. Wazny [0-9]{1,2} min\. Nie podawaj go nikomu\.$/D';   // D: bez przepuszczania końcowego \n
 
 $in = json_decode((string)file_get_contents('php://input'), true);
 if (!is_array($in)) api_error('Wymagane ciało JSON.', 400);
