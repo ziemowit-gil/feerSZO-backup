@@ -47,7 +47,7 @@ function desktop_auth_migrate(): void {
 
 /** Wszystkie scope'y, o które może prosić aplikacja zewnętrzna. */
 function desktop_known_scopes(): array {
-    return ['ezd:read', 'ezd:upload', 'ezd:write', 'crm:read', 'crm:write', 'msues:read', 'msues:write'];
+    return ['ezd:read', 'ezd:upload', 'ezd:write', 'crm:read', 'crm:write', 'msues:read', 'msues:write', 'audytor:access'];
 }
 
 /**
@@ -75,6 +75,7 @@ function desktop_parse_scope(string $raw): array|false|null {
 function desktop_known_apps(): array {
     return [
         'msues.feer.org.pl' => ['name' => 'Wdrożenie MSUES', 'scopes' => ['msues:read', 'msues:write']],
+        'audytor.feer.org.pl' => ['name' => 'Tajemniczy Klient', 'scopes' => ['audytor:access']],
     ];
 }
 
@@ -106,6 +107,7 @@ function desktop_scopes_for_user(array $user): array {
     if ($has('crm', 'can_write')) $scopes[] = 'crm:write';
     if ($has('msues_wdrozenie', 'can_read'))  $scopes[] = 'msues:read';
     if ($has('msues_wdrozenie', 'can_write')) $scopes[] = 'msues:write';
+    if ($has('audytor', 'can_read'))          $scopes[] = 'audytor:access';
     return $scopes;
 }
 
