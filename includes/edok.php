@@ -1244,7 +1244,8 @@ function edok_print_html(array $doc): string {
     $html .= '<h1>' . h($org ?: 'EODoK') . ' — Karta akceptacji dokumentu' . ($jest_przychod ? ' przychodowego' : '') . '</h1>';
     $html .= '<div class="sub">Dokument <strong>' . h($doc['number']) . '</strong> · '
         . h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) . ' · nr ' . h($doc['nr_faktury'])
-        . ' · status: ' . h(edok_status_label($doc)) . '</div>';
+        // Na wydruku bez dopisku „zapłacony przed akceptacją” — to informacja robocza z listy, nie treść karty.
+        . ' · status: ' . h(!empty($doc['zaplacono_przed']) && ($doc['status'] ?? '') === 'zaakceptowany' && !edok_zaplata_do_zwrotu($doc) && ($doc['typ_dokumentu'] ?? '') !== 'proforma' ? (EDOK_STATUSES[$doc['status']]['label'] ?? $doc['status']) : edok_status_label($doc)) . '</div>';
 
     // Adnotacja o sposobie akceptacji — drukowana na stronie po dokumencie źródłowym (np. rachunku).
     if (edok_is_papierowy($doc)) {
@@ -1261,8 +1262,8 @@ function edok_print_html(array $doc): string {
 
     $html .= '<table class="head-table"><tr><td class="l">' . ($jest_przychod ? 'Kontrahent / darczyńca' : 'Kontrahent') . '</td><td>' . h($doc['kontrahent_nazwa'])
         . '</td><td class="l">NIP</td><td>' . h($doc['kontrahent_nip'] ?: '—') . '</td></tr>'
-        . (!empty($doc['zaplacono_przed']) ? '<tr><td class="l">Zapłacono przed akceptacją</td><td colspan="3">' . h(edok_zaplata_opis($doc))
-            . (($doc['forma_zaplaty'] ?? '') !== EDOK_FORMA_PROFORMA ? ' · dowód zapłaty: ' . (!empty($doc['dowod_zaplaty_path']) ? 'dołączony' : 'brak') : '') . '</td></tr>' : '')
+        . (!empty($doc['zaplacono_przed']) ? '<tr><td class="l">Zapłacono</td><td colspan="3">' . h(edok_zaplata_opis($doc))
+            . (($doc['forma_zaplaty'] ?? '') !== EDOK_FORMA_PROFORMA && !empty($doc['dowod_zaplaty_path']) ? ' · dowód zapłaty dołączony' : '') . '</td></tr>' : '')
         . '</table>';
 
     $html .= '<table class="kwoty"><tr>'
