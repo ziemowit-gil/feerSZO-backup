@@ -1464,16 +1464,21 @@ function zl_ew_log(int $contract_id, string $action, string $note, ?int $user_id
 }
 
 /**
- * Miesiące objęte umową (od rozpoczęcia do min(zakończenie, dziś)), najnowszy pierwszy.
- * Dla umów bez dat — bieżący miesiąc. Uwzględnia też miesiące, w których są wpisy/przesunięcia/rachunki.
+ * Miesiące objęte umową (od rozpoczęcia do min(zakończenie, horyzont)), najnowszy pierwszy.
+ * Horyzont domyślnie = POPRZEDNI miesiąc (rachunek_target_month()): saldo i rachunki zawsze
+ * liczą się względem minionego miesiąca, bieżący (trwający) nie wchodzi do tabeli. Miesiące
+ * ze stanem salda / korektami / przesunięciami / rachunkami są zawsze dołączane; wpisy
+ * ewidencji po horyzoncie nie dokładają miesiąca (e-dziennik dopisuje bieżący na bieżąco).
+ * Godziny bieżącego miesiąca: $horizon = date('Y-m') (selektor ewidencji).
  *
  * @return string[] YYYY-MM
  */
-function zl_ew_months(array $contract): array {
+function zl_ew_months(array $contract, ?string $horizon = null): array {
+    $horizon = ($horizon && zl_ew_ym_valid($horizon)) ? $horizon : rachunek_target_month();
     $start = substr((string)($contract['data_rozpoczecia'] ?: ($contract['data_zawarcia'] ?: date('Y-m-d'))), 0, 7);
     $end   = (string)($contract['data_zakonczenia'] ?? '');
-    $end   = ($end !== '' && !$contract['bezterminowa'] && $end < date('Y-m-d')) ? substr($end, 0, 7) : date('Y-m');
-    if (!zl_ew_ym_valid($start)) $start = date('Y-m');
+    $end   = ($end !== '' && !$contract['bezterminowa'] && substr($end, 0, 7) < $horizon) ? substr($end, 0, 7) : $horizon;
+    if (!zl_ew_ym_valid($start)) $start = $horizon;
     if ($end < $start) $end = $start;
 
     $set = [];
@@ -1483,7 +1488,7 @@ function zl_ew_months(array $contract): array {
     $cid = (int)($contract['id'] ?? 0);
     if ($cid) {
         try {
-            foreach (db_all("SELECT DISTINCT substr(data,1,7) AS ym FROM zlecenie_ewidencja_wpisy WHERE contract_id=?", [$cid]) as $r) $set[$r['ym']] = true;
+            foreach (db_all("SELECT DISTINCT substr(data,1,7) AS ym FROM zlecenie_ewidencja_wpisy WHERE contract_id=?", [$cid]) as $r) if ($r['ym'] <= $horizon) $set[$r['ym']] = true;
             foreach (db_all("SELECT z_ym, do_ym FROM zlecenie_ewidencja_przesuniecia WHERE contract_id=?", [$cid]) as $r) { $set[$r['z_ym']] = true; $set[$r['do_ym']] = true; }
             foreach (db_all("SELECT ym FROM zlecenie_rozliczenie_miesiace WHERE contract_id=?", [$cid]) as $r) $set[$r['ym']] = true;
             foreach (db_all("SELECT ym FROM zlecenie_rozliczenie_korekty WHERE contract_id=?", [$cid]) as $r) $set[$r['ym']] = true;
@@ -2279,7 +2284,10 @@ function zl_rozl_ledger(array $contract): array {
             'pozostalo' => $poz,
             'status' => $stan['status'] ?? 'otwarty', 'uwagi' => $stan['uwagi'] ?? null,
             'zamkniety_at' => $stan['zamkniety_at'] ?? null,
-            'is_current' => $ym === date('Y-m'),
+            'is_current' => $ym === rachunek_target_month(),   // miesiąc rachunku = poprzedni
+            // Miesiące sprzed startu salda w systemie (zl_okres_od, domyślnie 2026-10) były rozliczane
+            // częściowo poza systemem — oznaczane ikoną, nie wchodzą do automatyki „okres do rozliczenia”.
+            'poza_systemem' => $ym < zl_okres_od(),
             'is_first'   => $i === 0,
         ];
         $saldo_prev = $poz;

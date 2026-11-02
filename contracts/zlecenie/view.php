@@ -538,8 +538,9 @@ $_ts_pending_tab = count(array_filter($_ts_rows, fn($r) => $r['status'] === 'zł
 $_ts_approved    = ts_total_approved($id, 'zlecenie');
 $_ts_total_h     = ts_total_all($id, 'zlecenie');
 // ── Ewidencja dzienna / e-dziennik / przesunięcia / saldo ─────────────────────
-$_zl_months   = zl_ew_months($row);
-$_zl_ym       = (isset($_GET['ym']) && zl_ew_ym_valid((string)$_GET['ym'])) ? (string)$_GET['ym'] : ($_zl_months[0] ?? date('Y-m'));
+$_zl_months   = zl_ew_months($row);                 // do poprzedniego miesiąca (saldo, rachunki)
+$_zl_months_h = zl_ew_months($row, date('Y-m'));    // + bieżący (selektor ewidencji godzin)
+$_zl_ym       = (isset($_GET['ym']) && zl_ew_ym_valid((string)$_GET['ym'])) ? (string)$_GET['ym'] : ($_zl_months[0] ?? rachunek_target_month());
 $_zl_zrodlo   = zl_ew_zrodlo($row);
 $_zl_k30      = zl_ew_uses_karty30($row);
 $_zl_k30_ok   = $_zl_k30 && zl_ew_karty30_available() && (int)($row['ti_instructor_user_id'] ?? 0) > 0;
@@ -1233,6 +1234,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
           <td class="text-nowrap fw-semibold">
             <a href="?id=<?= $id ?>&tab=godziny&ym=<?= h($_m['ym']) ?>" class="text-decoration-none"><?= h($_m['label']) ?></a>
             <?php if ($_m['godziny_zrodlo'] === 'karta'): ?><i class="bi bi-calendar-check text-muted" title="godziny z ręcznej karty miesięcznej"></i><?php endif; ?>
+            <?php if (!empty($_m['poza_systemem'])): ?>
+              <span class="badge rounded-pill text-bg-warning ms-1" title="Miesiąc sprzed uruchomienia salda w systemie (<?= h(zl_ew_ym_label(zl_okres_od())) ?>) — część rozliczeń była prowadzona poza systemem; dane mogą być niepełne." style="font-size:.68rem"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Rozliczany częściowo poza systemem</span>
+            <?php endif; ?>
           </td>
           <td class="text-end"><?= number_format($_m['godziny_ewid'], 2, ',', ' ') ?></td>
           <td class="text-end text-nowrap small">
@@ -1395,7 +1399,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
     <div class="card-body">
       <form method="post" class="row g-2 align-items-end">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="korekta">
-        <div class="col-md-2"><label class="form-label small fw-semibold" for="zlk-ym">Księguj w</label><input id="zlk-ym" type="month" name="ym" class="form-control form-control-sm" value="<?= h(date('Y-m')) ?>" required></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold" for="zlk-ym">Księguj w</label><input id="zlk-ym" type="month" name="ym" class="form-control form-control-sm" value="<?= h(rachunek_target_month()) ?>" required></div>
         <div class="col-md-2"><label class="form-label small fw-semibold" for="zlk-dot">Dotyczy miesiąca</label><input id="zlk-dot" type="month" name="dotyczy_ym" class="form-control form-control-sm"></div>
         <div class="col-md-2"><label class="form-label small fw-semibold" for="zlk-kw">Kwota (±)</label><input id="zlk-kw" type="number" step="0.01" name="kwota" class="form-control form-control-sm" placeholder="np. -120.00"></div>
         <div class="col-md-1"><label class="form-label small fw-semibold" for="zlk-g">Godz. (±)</label><input id="zlk-g" type="number" step="0.25" name="godziny" class="form-control form-control-sm" placeholder="0"></div>
@@ -3258,7 +3262,7 @@ try {
   <?php
     $_zl_ym_prev = zl_ew_ym_add($_zl_ym, -1);
     $_zl_ym_next = zl_ew_ym_add($_zl_ym, 1);
-    $_zl_ym_opts = $_zl_months;
+    $_zl_ym_opts = $_zl_months_h;
     if (!in_array($_zl_ym, $_zl_ym_opts, true)) { $_zl_ym_opts[] = $_zl_ym; rsort($_zl_ym_opts); }
   ?>
   <div class="cv-section">
