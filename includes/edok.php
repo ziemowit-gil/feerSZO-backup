@@ -56,6 +56,29 @@ const EDOK_TYPES = [
 /** Typy dokumentów klasyfikowane jako przychodowe (edok_documents.kierunek = 'przychod'). */
 const EDOK_TYPES_PRZYCHOD = ['wyciag_bankowy', 'potwierdzenie_wplaty', 'faktura_sprzedazy', 'korekta_sprzedazy', 'darowizna', 'dotacja_grant', 'inny_przychod'];
 
+/** Przychody z rozbiciem VAT (nasza sprzedaż) — tylko one potrzebują netto/stawki/VAT i daty sprzedaży. */
+const EDOK_TYPES_PRZYCHOD_VAT = ['faktura_sprzedazy', 'korekta_sprzedazy'];
+
+/**
+ * „Prosty wpływ” — przychód bez faktury sprzedaży (wyciąg, wpłata, darowizna, grant…):
+ * liczy się tylko kwota, waluta i data wpływu; netto/VAT/data sprzedaży nie mają sensu.
+ */
+function edok_przychod_prosty(array $doc): bool {
+    return ($doc['kierunek'] ?? 'wydatek') === 'przychod' && !in_array((string)($doc['typ_dokumentu'] ?? ''), EDOK_TYPES_PRZYCHOD_VAT, true);
+}
+
+/**
+ * Normalizuje kwoty prostego wpływu: gdy podano tylko kwotę (brutto), netto = kwota,
+ * VAT = 0 — dzięki temu kontrola rachunkowa (netto + VAT = brutto) przechodzi bez
+ * sztucznego wpisywania zer. Zwraca [netto, vat, brutto].
+ */
+function edok_przychod_prosty_kwoty(array $doc, string $netto, string $vat, string $brutto): array {
+    if (!edok_przychod_prosty($doc)) return [$netto, $vat, $brutto];
+    if (trim($netto) === '' && trim($brutto) !== '') $netto = $brutto;
+    if (trim($vat) === '') $vat = '0,00';
+    return [$netto, $vat, $brutto];
+}
+
 /** Faktura korygująca (kosztowa lub sprzedaży) — kwoty mogą być ujemne. */
 function edok_typ_korekta(string $typ): bool { return in_array($typ, ['faktura_korygujaca', 'korekta_sprzedazy'], true); }
 
@@ -1267,9 +1290,11 @@ function edok_print_html(array $doc): string {
         . '</table>';
 
     $html .= '<table class="kwoty"><tr>'
-        . '<td class="lbl">Netto</td><td>' . h($doc['kwota_netto'] ?: '—') . '</td>'
-        . '<td class="lbl">VAT</td><td>' . h($doc['kwota_vat'] ?: '—') . '</td>'
-        . '<td class="lbl">Brutto</td><td>' . h($doc['kwota_brutto'] ?: '—') . ' ' . h($doc['waluta']) . '</td>'
+        . (edok_przychod_prosty($doc)
+            ? '<td class="lbl">Kwota</td><td>' . h($doc['kwota_brutto'] ?: '—') . ' ' . h($doc['waluta']) . '</td>'
+            : '<td class="lbl">Netto</td><td>' . h($doc['kwota_netto'] ?: '—') . '</td>'
+            . '<td class="lbl">VAT</td><td>' . h($doc['kwota_vat'] ?: '—') . '</td>'
+            . '<td class="lbl">Brutto</td><td>' . h($doc['kwota_brutto'] ?: '—') . ' ' . h($doc['waluta']) . '</td>')
         . '</tr></table>';
 
     $html .= '<h2>' . ($jest_przychod ? 'Opis przychodu' : 'Opis wydatku') . '</h2><div class="desc">' . (trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '—') . '</div>';

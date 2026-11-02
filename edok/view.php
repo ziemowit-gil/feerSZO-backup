@@ -103,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $kwota_netto      = $locked_rachunkowa  ? $doc['kwota_netto']      : trim($_POST['kwota_netto'] ?? '');
         $kwota_vat        = $locked_rachunkowa  ? $doc['kwota_vat']        : trim($_POST['kwota_vat'] ?? '');
         $kwota_brutto     = $locked_rachunkowa  ? $doc['kwota_brutto']     : trim($_POST['kwota_brutto'] ?? '');
+        if (!$locked_rachunkowa) [$kwota_netto, $kwota_vat, $kwota_brutto] = edok_przychod_prosty_kwoty($doc, $kwota_netto, $kwota_vat, $kwota_brutto);
         $rodzaj           = $locked_dekretacja  ? $doc['rodzaj_dzialalnosci'] : ($_POST['rodzaj_dzialalnosci'] ?? '');
         if (!isset(EDOK_RODZAJ_DZIALALNOSCI[$rodzaj])) $rodzaj = $locked_dekretacja ? $doc['rodzaj_dzialalnosci'] : '';
         $projekt          = $locked_dekretacja  ? $doc['projekt']         : trim($_POST['projekt'] ?? '');
@@ -720,9 +721,11 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <div class="edok-amounts">
           <table class="edok-kv">
             <tbody>
+              <?php if (!edok_przychod_prosty($doc)): ?>
               <tr><td>Netto</td><td class="tw-text-right tw-font-mono"><?= h($doc['kwota_netto']) ?></td></tr>
               <tr><td>VAT</td><td class="tw-text-right tw-font-mono"><?= h($doc['kwota_vat']) ?></td></tr>
-              <tr class="total"><td>Brutto</td><td class="tw-text-right tw-font-mono"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td></tr>
+              <?php endif; ?>
+              <tr class="total"><td><?= edok_przychod_prosty($doc) ? 'Kwota' : 'Brutto' ?></td><td class="tw-text-right tw-font-mono"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td></tr>
             </tbody>
           </table>
         </div>
@@ -795,17 +798,18 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
           <input type="text" name="zrodlo_przychodu" class="form-control form-control-sm" value="<?= h($doc['zrodlo_przychodu']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
         </div>
         <?php endif; ?>
+        <?php $prosty_wplyw = edok_przychod_prosty($doc); ?>
         <div class="row g-2 mb-2">
-          <div class="col-sm-4">
+          <div class="col-sm-4"<?= $prosty_wplyw ? ' style="display:none"' : '' ?>>
             <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Netto <?= $locked_rachunkowa ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
             <input type="text" id="e_netto" name="kwota_netto" class="form-control form-control-sm font-monospace text-end" value="<?= h($doc['kwota_netto']) ?>" <?= $locked_rachunkowa ? 'readonly' : 'oninput="edokViewRecalc()"' ?>>
           </div>
-          <div class="col-sm-4">
+          <div class="col-sm-4"<?= $prosty_wplyw ? ' style="display:none"' : '' ?>>
             <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">VAT</label>
             <input type="text" id="e_vat" name="kwota_vat" class="form-control form-control-sm font-monospace text-end" value="<?= h($doc['kwota_vat']) ?>" <?= $locked_rachunkowa ? 'readonly' : 'oninput="edokViewRecalc()"' ?>>
           </div>
           <div class="col-sm-4">
-            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Brutto</label>
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1"><?= $prosty_wplyw ? 'Kwota' : 'Brutto' ?></label>
             <input type="text" id="e_brutto" name="kwota_brutto" class="form-control form-control-sm font-monospace text-end fw-semibold" value="<?= h($doc['kwota_brutto']) ?>" <?= $locked_rachunkowa ? 'readonly' : '' ?>>
           </div>
         </div>

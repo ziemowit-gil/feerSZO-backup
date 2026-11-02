@@ -73,6 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
     $kwota_netto      = trim($_POST['kwota_netto'] ?? '');
     $stawka_vat       = trim($_POST['stawka_vat'] ?? '');
     $kwota_vat        = trim($_POST['kwota_vat'] ?? '');
+    $kwota_brutto_in  = trim($_POST['kwota_brutto'] ?? '');
+    // Prosty wpływ (darowizna, wpłata, grant…): wystarczy sama kwota — netto = kwota, VAT = 0.
+    if ($kierunek === 'przychod' && !in_array($typ_dokumentu, EDOK_TYPES_PRZYCHOD_VAT, true)) {
+        [$kwota_netto, $kwota_vat, $kwota_brutto_in] = edok_przychod_prosty_kwoty(['kierunek' => $kierunek, 'typ_dokumentu' => $typ_dokumentu], $kwota_netto, $kwota_vat, $kwota_brutto_in);
+        $_POST['kwota_netto'] = $kwota_netto; $_POST['kwota_vat'] = $kwota_vat;
+        $data_sprzedazy = ''; $stawka_vat = '';
+    }
     $kwota_brutto     = trim($_POST['kwota_brutto'] ?? '');
     $waluta           = $_POST['waluta'] ?? 'PLN';
     $rodzaj           = $_POST['rodzaj_dzialalnosci'] ?? '';
@@ -397,11 +404,11 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="row g-3 mb-3">
         <div class="col-sm-4">
-          <label class="form-label">Data wystawienia</label>
+          <label class="form-label" id="data_wystawienia_label">Data wystawienia</label>
           <input type="date" name="data_wystawienia" id="data_wystawienia" class="form-control" value="<?= h($_POST['data_wystawienia'] ?? '') ?>" onchange="edokSuggestTytul(); edokCheckDataGraniczna()">
           <div class="form-text text-danger d-none" id="data_graniczna_hint"></div>
         </div>
-        <div class="col-sm-4">
+        <div class="col-sm-4" id="data_sprzedazy_wrap">
           <label class="form-label">Data sprzedaży / wykonania</label>
           <input type="date" name="data_sprzedazy" class="form-control" value="<?= h($_POST['data_sprzedazy'] ?? '') ?>">
         </div>
@@ -413,12 +420,12 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
 
       <div class="row g-3 mb-2">
-        <div class="col-sm-3">
+        <div class="col-sm-3 edok-vat-only">
           <label class="form-label">Kwota netto</label>
           <input type="text" id="kwota_netto" name="kwota_netto" class="form-control text-end font-monospace"
             value="<?= h($_POST['kwota_netto'] ?? '') ?>" placeholder="0,00" oninput="edokRecalc()">
         </div>
-        <div class="col-sm-3">
+        <div class="col-sm-3 edok-vat-only">
           <label class="form-label">Stawka VAT</label>
           <select id="stawka_vat" name="stawka_vat" class="form-select" onchange="edokRecalc()">
             <option value="">— podaj VAT ręcznie —</option>
@@ -427,13 +434,13 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-sm-3">
+        <div class="col-sm-3 edok-vat-only">
           <label class="form-label">Kwota VAT</label>
           <input type="text" id="kwota_vat" name="kwota_vat" class="form-control text-end font-monospace"
             value="<?= h($_POST['kwota_vat'] ?? '') ?>" placeholder="0,00" oninput="edokRecalc()">
         </div>
-        <div class="col-sm-3">
-          <label class="form-label fw-semibold">Kwota brutto</label>
+        <div class="col-sm-3" id="kwota_brutto_col">
+          <label class="form-label fw-semibold" id="kwota_brutto_label">Kwota brutto</label>
           <div class="input-group">
             <input type="text" id="kwota_brutto" name="kwota_brutto" class="form-control text-end font-monospace fw-semibold"
               value="<?= h($_POST['kwota_brutto'] ?? '') ?>" placeholder="0,00">
@@ -445,7 +452,7 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
         </div>
       </div>
-      <div class="form-text mb-3"><i class="bi bi-magic"></i> Stawka VAT liczy VAT z netto; brutto liczy się automatycznie z netto + VAT (każdą wartość można nadpisać ręcznie).</div>
+      <div class="form-text mb-3 edok-vat-only"><i class="bi bi-magic"></i> Stawka VAT liczy VAT z netto; brutto liczy się automatycznie z netto + VAT (każdą wartość można nadpisać ręcznie).</div>
 
       <div class="row g-3 mb-2">
         <div class="col-sm-4">
@@ -649,8 +656,23 @@ function edokToggleKierunek() {
   document.getElementById('zrodlo_przychodu_wrap').style.display = kierunek === 'przychod' ? '' : 'none';
   document.getElementById('zaplacono_wrap').style.display = kierunek === 'przychod' ? 'none' : '';
   document.getElementById('tytul_przelewu_label').textContent = kierunek === 'przychod' ? 'Sugerowana referencja wpłaty' : 'Tytuł przelewu';
+  edokToggleProstyWplyw();
   edokCheckDataGraniczna();
 }
+// Prosty wpływ (przychód bez faktury sprzedaży): bez netto/stawki/VAT i daty sprzedaży —
+// zostaje „Kwota”, waluta i daty dokumentu/wpływu. Serwer dopełnia netto=kwota, VAT=0.
+var EDOK_TYPES_PRZYCHOD_VAT = <?= json_encode(EDOK_TYPES_PRZYCHOD_VAT) ?>;
+function edokToggleProstyWplyw() {
+  var kierunek = (document.querySelector('input[name="kierunek"]:checked') || {}).value || 'wydatek';
+  var typ = document.getElementById('typ_dokumentu').value;
+  var prosty = kierunek === 'przychod' && EDOK_TYPES_PRZYCHOD_VAT.indexOf(typ) === -1;
+  document.querySelectorAll('.edok-vat-only').forEach(function (el) { el.style.display = prosty ? 'none' : ''; });
+  document.getElementById('data_sprzedazy_wrap').style.display = prosty ? 'none' : '';
+  document.getElementById('kwota_brutto_label').textContent = prosty ? 'Kwota' : 'Kwota brutto';
+  document.getElementById('data_wystawienia_label').textContent = prosty ? 'Data dokumentu' : 'Data wystawienia';
+  document.getElementById('kwota_brutto_col').className = prosty ? 'col-sm-6' : 'col-sm-3';
+}
+document.getElementById('typ_dokumentu').addEventListener('change', edokToggleProstyWplyw);
 edokToggleKierunek();
 
 // Faktury/rachunki wystawione przed datą graniczną nie są przyjmowane w EODoK
