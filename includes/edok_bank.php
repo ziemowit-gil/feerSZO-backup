@@ -266,7 +266,7 @@ const EDOK_BANK_KATEGORIE = [
  * Dopasowanie: tytuł zaczyna się od prefiksu (bez rozróżniania wielkości liter i spacji wokół kropek).
  */
 const EDOK_BANK_WZORCE_WBUDOWANE = [
-    'oplata_bankowa'  => ['OPŁ.', 'OPL.', 'OPŁATA', 'OPLATA', 'PROWIZJA', 'OPŁ.PRZ.ZEW.DO', 'OPŁ. WYC. OKR.', 'OPŁ.MOD.PEŁN.', 'OPŁATA ZA PROWADZENIE RACHUNKU', 'KAPIT.ODS.K.OB'],
+    'oplata_bankowa'  => ['OPŁ.', 'OPL.', 'OPŁATA', 'OPLATA', 'PROWIZJA', 'OPŁ.PRZ.ZEW.DO', 'OPŁ. WYC. OKR.', 'OPŁ.MOD.PEŁN.', 'OPŁ.ZA OP.SWRK', 'OPŁATA ZA PROWADZENIE RACHUNKU', 'KAPIT.ODS.K.OB'],
     'odsetki_bankowe' => ['KAPIT.ODS.', 'KAPITALIZACJA ODSETEK', 'ODSETKI'],
 ];
 
