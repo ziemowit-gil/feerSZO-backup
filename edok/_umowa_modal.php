@@ -16,7 +16,7 @@
       <div class="modal-body">
         <label class="form-label small fw-semibold" for="edokUmowaQ">Szukaj w Rejestrze Umów</label>
         <input type="search" id="edokUmowaQ" class="form-control" autocomplete="off" placeholder="nr RU, numer umowy albo strona (np. NIW, Urząd Miasta, Kowalski)">
-        <div class="form-text mb-2">Wszystkie typy umów z numerem w Rejestrze Umów. Wybrana umowa trafia do dokumentu jako „Umowa nr” z linkiem do karty.</div>
+        <div class="form-text mb-2">Wszystkie umowy wszystkich typów (także bez numeru w Rejestrze Umów), najnowsze pierwsze. Wybrana umowa trafia do dokumentu jako „Umowa nr” z linkiem do karty.</div>
         <div id="edokUmowaRes" class="list-group" aria-live="polite"></div>
       </div>
     </div>

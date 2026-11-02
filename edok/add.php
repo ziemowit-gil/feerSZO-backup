@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
     if ($kierunek === 'przychod' && !empty($_POST['wplyw_umowa']) ) {
         $u = edok_umowa_find((string)($_POST['wplyw_umowa_type'] ?? ''), (int)($_POST['wplyw_umowa_id'] ?? 0));
         if (!$u) $errors[] = 'Zaznaczono „Wpływ na podstawie umowy” — wskaż umowę z Rejestru Umów.';
-        else { $umowa_ref = $u; $umowa_numer = (string)$u['nr_rejestru']; if ($zrodlo_przychodu === '') $zrodlo_przychodu = trim((string)$u['strona']) ?: (string)$u['nr_rejestru']; }
+        else { $umowa_ref = $u; $umowa_numer = (string)$u['numer']; if ($zrodlo_przychodu === '') $zrodlo_przychodu = trim((string)$u['strona']) ?: (string)$u['numer']; }
     }
     [$proforma_id, $proforma_errors] = $kierunek === 'wydatek' ? edok_proforma_from_post($_POST, $typ_dokumentu) : [null, []];
     [$zaplata, $zaplata_errors]      = $kierunek === 'wydatek' ? edok_zaplata_from_post($_POST, $proforma_id) : edok_zaplata_from_post([]);
@@ -145,7 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
         $base = realpath(UPLOAD_DIR . 'edok_docs');
         if (!$abs || !$base || !str_starts_with($abs, $base)) $ksef_file_path = '';
     }
-    if ($ksef_file_path === '' && empty($_FILES['file']['tmp_name']) && !in_array($typ_dokumentu, EDOK_TYPY_BEZ_SKANU, true)) {
+    // Przychód: skan nieobowiązkowy (dowodem jest wpływ na rachunek / wyciąg) — decyzja użytkownika 2026-11-02.
+    if ($ksef_file_path === '' && empty($_FILES['file']['tmp_name']) && !in_array($typ_dokumentu, EDOK_TYPY_BEZ_SKANU, true) && $kierunek !== 'przychod') {
         $errors[] = 'Skan dokumentu źródłowego jest wymagany — bez niego kontrola merytoryczna nie może się rozpocząć.';
     }
     if (!isset(EDOK_RODZAJ_DZIALALNOSCI[$rodzaj]))          $errors[] = 'Wybierz rodzaj działalności (projekt/działanie, statutowa odpłatna lub nieodpłatna).';
@@ -387,7 +388,7 @@ require_once __DIR__ . '/../includes/header.php';
           <label class="form-check-label" for="wu_check">Wpływ na podstawie umowy <span class="text-muted">(dotacja, usługa, zadanie publiczne — umowa z Rejestru Umów)</span></label>
         </div>
         <input type="hidden" name="wplyw_umowa_type" id="wu_type" value="<?= h($_POST['wplyw_umowa_type'] ?? '') ?>"><input type="hidden" name="wplyw_umowa_id" id="wu_id" value="<?= h($_POST['wplyw_umowa_id'] ?? '') ?>">
-        <div class="small mt-1"><span id="wu_label" class="fw-semibold"><?= $wu_ref ? h($wu_ref['nr_rejestru'] . ' — ' . ($wu_ref['strona'] ?: $wu_ref['numer_umowy']) . ' (' . $wu_ref['contract_type_label'] . ')') : '' ?></span>
+        <div class="small mt-1"><span id="wu_label" class="fw-semibold"><?= $wu_ref ? h($wu_ref['numer'] . ' — ' . ($wu_ref['strona'] ?: $wu_ref['numer_umowy']) . ' (' . $wu_ref['contract_type_label'] . ')') : '' ?></span>
           <button type="button" class="btn btn-sm btn-link p-0 ms-1" onclick="edokUmowaOpen('wu')">wskaż / zmień umowę</button></div>
       </div>
 
@@ -570,7 +571,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <?php endif; ?>
       <div class="mb-3" id="file_upload_wrap"<?= $queue_item ? ' style="display:none"' : '' ?>>
-        <label class="form-label" for="file_input">Skan dokumentu źródłowego <span class="text-muted fw-normal" id="file_opt_hint" style="display:none">(opcjonalnie — darowizna nie wymaga dokumentu źródłowego)</span></label>
+        <label class="form-label" for="file_input">Skan dokumentu źródłowego <span class="text-muted fw-normal" id="file_opt_hint" style="display:none">(opcjonalnie — przychód nie wymaga dokumentu źródłowego, dowodem jest wpływ)</span></label>
         <input type="file" name="file" id="file_input" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx"<?= $queue_item ? '' : ' required' ?>>
         <div class="form-text">PDF, JPG, PNG lub DOCX, max 20 MB.</div>
         <script>
@@ -578,8 +579,8 @@ require_once __DIR__ . '/../includes/header.php';
         (function () {
           var bez = <?= json_encode(EDOK_TYPY_BEZ_SKANU) ?>, typ = document.getElementById('typ_dokumentu'), fi = document.getElementById('file_input'), hint = document.getElementById('file_opt_hint');
           if (!typ || !fi) return;
-          function sync() { var opt = bez.indexOf(typ.value) !== -1; if (opt) fi.required = false; else if (!document.getElementById('ksef_file_path').value) fi.required = <?= $queue_item ? 'false' : 'true' ?>; if (hint) hint.style.display = opt ? '' : 'none'; }
-          typ.addEventListener('change', sync); sync();
+          function sync() { var kier = (document.querySelector('input[name="kierunek"]:checked') || {}).value || 'wydatek'; var opt = kier === 'przychod' || bez.indexOf(typ.value) !== -1; if (opt) fi.required = false; else if (!document.getElementById('ksef_file_path').value) fi.required = <?= $queue_item ? 'false' : 'true' ?>; if (hint) hint.style.display = opt ? '' : 'none'; }
+          typ.addEventListener('change', sync); document.querySelectorAll('input[name="kierunek"]').forEach(function (r) { r.addEventListener('change', sync); }); sync();
         })();
         </script>
       </div>

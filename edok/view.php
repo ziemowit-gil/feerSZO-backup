@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($_POST['wplyw_umowa'])) {
                 $u = edok_umowa_find((string)($_POST['wplyw_umowa_type'] ?? ''), (int)($_POST['wplyw_umowa_id'] ?? 0));
                 if (!$u) { flash_set('danger', 'Zaznaczono „Wpływ na podstawie umowy” — wskaż umowę z Rejestru Umów.'); header('Location: ' . APP_URL . '/edok/view.php?id=' . $id); exit; }
-                else { $umowa_numer = (string)$u['nr_rejestru']; db_exec("UPDATE edok_documents SET contract_type=?, contract_id=? WHERE id=?", [$u['contract_type'], (int)$u['id'], $id]); if ($zrodlo_przychodu === '') $zrodlo_przychodu = trim((string)$u['strona']) ?: $umowa_numer; }
+                else { $umowa_numer = (string)$u['numer']; db_exec("UPDATE edok_documents SET contract_type=?, contract_id=? WHERE id=?", [$u['contract_type'], (int)$u['id'], $id]); if ($zrodlo_przychodu === '') $zrodlo_przychodu = trim((string)$u['strona']) ?: $umowa_numer; }
             } elseif (isset($_POST['wplyw_umowa_present'])) {
                 $umowa_numer = ''; db_exec("UPDATE edok_documents SET contract_type=NULL, contract_id=NULL WHERE id=?", [$id]);
             }
@@ -833,7 +833,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <label class="form-check-label tw-text-xs tw-font-semibold tw-text-slate-600" for="wu_check">Wpływ na podstawie umowy <?= $locked_formal ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
           </div>
           <input type="hidden" name="wplyw_umowa_type" id="wu_type" value="<?= h($wu_ref ? $doc['contract_type'] : '') ?>"><input type="hidden" name="wplyw_umowa_id" id="wu_id" value="<?= h($wu_ref ? (string)$doc['contract_id'] : '') ?>">
-          <div class="small"><span id="wu_label" class="fw-semibold"><?= $wu_ref ? h($wu_ref['nr_rejestru'] . ' — ' . ($wu_ref['strona'] ?: $wu_ref['numer_umowy']) . ' (' . $wu_ref['contract_type_label'] . ')') : '' ?></span>
+          <div class="small"><span id="wu_label" class="fw-semibold"><?= $wu_ref ? h($wu_ref['numer'] . ' — ' . ($wu_ref['strona'] ?: $wu_ref['numer_umowy']) . ' (' . $wu_ref['contract_type_label'] . ')') : '' ?></span>
             <?php if (!$locked_formal): ?><button type="button" class="btn btn-sm btn-link p-0 ms-1" onclick="edokUmowaOpen('wu')">wskaż / zmień umowę</button><?php endif; ?></div>
         </div>
         <?php endif; ?>

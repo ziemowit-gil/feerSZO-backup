@@ -2811,6 +2811,7 @@ const EDOK_TYPY_BEZ_SKANU = ['darowizna', 'wyciag_bankowy', 'oplata_bankowa'];
  */
 function edok_doc_wymaga_skanu(array $doc): bool {
     if (in_array((string)($doc['typ_dokumentu'] ?? ''), EDOK_TYPY_BEZ_SKANU, true)) return false;
+    if (($doc['kierunek'] ?? 'wydatek') === 'przychod') return false;   // dowodem wpływu jest wyciąg
     if (edok_doc_bankowy($doc)) return false;
     if (!empty($doc['id'])) { try { if (db_one("SELECT id FROM edok_bank_tx WHERE doc_id = ?", [(int)$doc['id']])) return false; } catch (\Throwable $e) {} }
     return true;
@@ -3046,11 +3047,39 @@ function edok_bank_tx_rozlicz_rejestr(array $tx): ?string {
     return null;
 }
 
-/** Umowa z Rejestru Umów po typie i id (wszystkie typy, patrz all_contracts_registry()); null = brak. */
+/**
+ * WSZYSTKIE umowy (także bez numeru w Rejestrze Umów) — do popupu „Wpływ na podstawie umowy”. Pola jak w
+ * all_contracts_registry() + 'numer' (nr RU, a gdy go nie ma — numer umowy albo #id). Umowy ukryte pomijane.
+ */
+function edok_umowy_wszystkie(): array {
+    $rows = [];
+    $hidden = function_exists('contractHiddenSql') ? contractHiddenSql() : '';
+    foreach (CONTRACT_TYPES as $slug => $label) {
+        $table  = table_for_type($slug);
+        $fields = CONTRACT_REGISTRY_FIELDS[$slug] ?? ['name_col' => 'numer_umowy', 'opiekun_col' => 'opiekun'];
+        try {
+            $r = db_all("SELECT id, nr_rejestru, numer_umowy, status, data_zawarcia, {$fields['name_col']} AS strona FROM {$table}" . ($hidden ? " WHERE {$hidden}" : '') . " ORDER BY id DESC");
+        } catch (\Throwable $e) {
+            try { $r = db_all("SELECT id, nr_rejestru, numer_umowy, status, data_zawarcia, {$fields['name_col']} AS strona FROM {$table} ORDER BY id DESC"); } catch (\Throwable $e2) { continue; }
+        }
+        foreach ($r as $row) {
+            $row['contract_type'] = $slug; $row['contract_type_label'] = $label;
+            $row['numer'] = trim((string)$row['nr_rejestru']) ?: (trim((string)$row['numer_umowy']) ?: ('#' . (int)$row['id']));
+            $rows[] = $row;
+        }
+    }
+    return $rows;
+}
+
+/** Umowa po typie i id (wszystkie umowy, patrz edok_umowy_wszystkie()); null = brak. */
 function edok_umowa_find(string $type, int $id): ?array {
-    if ($type === '' || $id <= 0) return null;
-    foreach (all_contracts_registry() as $r) if ($r['contract_type'] === $type && (int)$r['id'] === $id) return $r;
-    return null;
+    if ($type === '' || $id <= 0 || !isset(CONTRACT_TYPES[$type])) return null;
+    $fields = CONTRACT_REGISTRY_FIELDS[$type] ?? ['name_col' => 'numer_umowy'];
+    try { $row = db_one("SELECT id, nr_rejestru, numer_umowy, status, data_zawarcia, {$fields['name_col']} AS strona FROM " . table_for_type($type) . " WHERE id = ?", [$id]); } catch (\Throwable $e) { return null; }
+    if (!$row) return null;
+    $row['contract_type'] = $type; $row['contract_type_label'] = CONTRACT_TYPES[$type];
+    $row['numer'] = trim((string)$row['nr_rejestru']) ?: (trim((string)$row['numer_umowy']) ?: ('#' . $id));
+    return $row;
 }
 
 /** Przelewy ZUS wygenerowane za dany okres (albo ostatnie 12). */

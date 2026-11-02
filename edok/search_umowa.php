@@ -2,7 +2,7 @@
 /**
  * AJAX — wyszukiwanie umów z Rejestru Umów dla „Wpływ na podstawie umowy” (edok/add.php, edok/view.php).
  * GET ?q=fraza → JSON [{contract_type, id, nr_rejestru, numer_umowy, strona, typ_label, status}]
- * Przeszukuje all_contracts_registry() (wszystkie typy umów z nr RU) po numerze rejestru, numerze umowy i stronie.
+ * Przeszukuje WSZYSTKIE umowy (edok_umowy_wszystkie(), także bez nr RU) po numerze rejestru, numerze umowy i stronie.
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once __DIR__ . '/../includes/db.php';
@@ -17,12 +17,12 @@ edok_require_access();
 
 $q = mb_strtoupper(trim((string)($_GET['q'] ?? '')));
 $out = [];
-foreach (all_contracts_registry() as $r) {
-    $hay = mb_strtoupper(implode(' ', [(string)$r['nr_rejestru'], (string)$r['numer_umowy'], (string)$r['strona']]));
+foreach (edok_umowy_wszystkie() as $r) {
+    $hay = mb_strtoupper(implode(' ', [(string)$r['nr_rejestru'], (string)$r['numer_umowy'], (string)$r['strona'], (string)$r['contract_type_label']]));
     if ($q !== '' && !str_contains($hay, $q)) continue;
-    $out[] = ['contract_type' => $r['contract_type'], 'id' => (int)$r['id'], 'nr_rejestru' => (string)$r['nr_rejestru'], 'numer_umowy' => (string)$r['numer_umowy'],
+    $out[] = ['contract_type' => $r['contract_type'], 'id' => (int)$r['id'], 'nr_rejestru' => (string)$r['numer'], 'numer_umowy' => (string)$r['numer_umowy'],
               'strona' => (string)$r['strona'], 'typ_label' => (string)$r['contract_type_label'], 'status' => (string)$r['status'], 'data' => (string)($r['data_zawarcia'] ?? '')];
-    if (count($out) >= 25) break;
+    if (count($out) >= 500) break;
 }
-usort($out, fn($a, $b) => strcmp($b['nr_rejestru'], $a['nr_rejestru']));
+usort($out, fn($a, $b) => strcmp((string)$b['data'], (string)$a['data']) ?: strcmp($b['nr_rejestru'], $a['nr_rejestru']));
 echo json_encode(['results' => $out], JSON_UNESCAPED_UNICODE);
