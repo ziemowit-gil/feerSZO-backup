@@ -45,19 +45,25 @@ $rv_lic_term_ok = $rv_lic_term_ok ?? true;
         </div>
 
         <?php
-          // Claude: Fundacja kończy rozliczanie licencji 7 dni od 10.10.2026 (komunikat dla kursanta)
-          $kp_claude_koniec = '2026-10-17';
-          $kp_is_claude = stripos((string)$lic['license_name'] . ' ' . (string)$lic['vendor'], 'claude') !== false
-                       || stripos((string)$lic['vendor'], 'anthropic') !== false || stripos((string)$lic['vendor'], 'antropic') !== false;
+          // Claude: od 17.10.2026 dostęp objęty zryczałtowaną opłatą — wymagane oświadczenie (regulamin typu claude_oplata, odbiorca „claude”)
+          $kp_is_claude = function_exists('ti_term_is_claude_license') ? ti_term_is_claude_license($lic)
+                        : stripos((string)$lic['license_name'] . ' ' . (string)$lic['vendor'], 'claude') !== false;
+          $kp_claude_term = $kp_is_claude && function_exists('ti_term_get') ? ti_term_get('claude_oplata') : null;
+          $kp_claude_ok   = !$kp_claude_term || empty($kp_claude_term['is_active']) || ti_term_accepted((int)$rv_client_id, 'claude_oplata');
         ?>
-        <?php if ($kp_is_claude): ?>
+        <?php if ($kp_is_claude && !$kp_claude_ok): ?>
         <div class="alert alert-warning py-2 small mb-2 kp-lic-uwaga" role="note">
           <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-          <?php if ($rv_lic_today < $kp_claude_koniec): ?>
-            <strong>Uwaga:</strong> od <?= h(date('d.m.Y', strtotime($kp_claude_koniec))) ?> licencja Claude nie będzie już rozliczana przez Fundację.
+          <strong>Wymagane oświadczenie:</strong> dostęp do Claude jest objęty zryczałtowaną opłatą 25 zł.
+          <?php if (basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'parent.php'): ?>
+            Zaakceptuj <a href="?tab=regulaminy" class="alert-link">oświadczenie o opłacie w zakładce Regulaminy</a>.
           <?php else: ?>
-            <strong>Uwaga:</strong> od <?= h(date('d.m.Y', strtotime($kp_claude_koniec))) ?> licencja Claude nie jest już rozliczana przez Fundację.
+            Uczestnik akceptuje oświadczenie o opłacie w swoim panelu, w zakładce Regulaminy.
           <?php endif; ?>
+        </div>
+        <?php elseif ($kp_is_claude && $kp_claude_term && !empty($kp_claude_term['is_active'])): ?>
+        <div class="text-body-secondary small mb-2 kp-lic-uwaga">
+          <i class="bi bi-check2-circle text-success me-1" aria-hidden="true"></i>Oświadczenie o zryczałtowanej opłacie 25 zł za dostęp do Claude — zaakceptowane.
         </div>
         <?php endif; ?>
 

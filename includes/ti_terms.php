@@ -11,6 +11,7 @@ const TI_TERM_TYPES = [
     'szkolenia' => 'Regulamin szkoleń',
     'vlab'      => 'Regulamin vLAB',
     'licencje'  => 'Oświadczenie o poufności — Licencje',
+    'claude_oplata' => 'Oświadczenie o opłacie za dostęp do Claude',
 ];
 
 /** Kto ma zatwierdzić regulamin (k30_ti_terms.audience, lista po przecinku; pusta = wszyscy). */
@@ -18,7 +19,27 @@ const TI_TERM_AUDIENCES = [
     'kursanci'    => 'Kursanci szkoleń (zwykłe grupy)',
     'szk'         => 'Uczestnicy szkoleń krótkich (SzK)',
     'konsultacje' => 'Beneficjenci konsultacji',
+    'claude'      => 'Osoby z licencją Claude (aktywne przypisanie w module Licencje)',
 ];
+
+/** Czy przypisana licencja (wiersz z k30_ti_client_licenses + nazwa/dostawca) to Claude (Anthropic)? */
+function ti_term_is_claude_license(array $lic): bool {
+    $hay = mb_strtolower((string)($lic['license_name'] ?? $lic['name'] ?? '') . ' ' . (string)($lic['vendor'] ?? ''));
+    return str_contains($hay, 'claude') || str_contains($hay, 'anthropic') || str_contains($hay, 'antropic');
+}
+
+/** Czy beneficjent ma aktywną (niewygasłą) licencję Claude — odbiorca „claude”. */
+function ti_term_client_has_claude(int $client_id): bool {
+    static $c = [];
+    if (isset($c[$client_id])) return $c[$client_id];
+    $has = false;
+    try {
+        $rows = db_all("SELECT l.name AS license_name, l.vendor, cl.expires_at FROM k30_ti_client_licenses cl JOIN k30_ti_licenses l ON l.id = cl.license_id
+                         WHERE cl.client_id = ? AND cl.status = 'active' AND (cl.expires_at IS NULL OR cl.expires_at = '' OR cl.expires_at >= date('now'))", [$client_id]);
+        foreach ($rows as $r) if (ti_term_is_claude_license($r)) { $has = true; break; }
+    } catch (\Throwable $e) {}
+    return $c[$client_id] = $has;
+}
 
 function ti_terms_migrate(): void {
     static $done = false;
@@ -86,11 +107,29 @@ function ti_terms_migrate(): void {
                     . '<p>Naruszenie poufności może skutkować odebraniem dostępu do licencji.</p>';
                 $is_active = 1;
             }
+            $audience = '';
+            if ($type === 'claude_oplata') {
+                // Oświadczenie o zryczałtowanej opłacie za dostęp do Claude — tylko osoby z aktywną licencją Claude (odbiorca „claude”)
+                $body_html = '<p>Ja, niżej podpisany/a, wyrażam zgodę na obciążenie mnie zryczałtowaną opłatą w wysokości 25 zł '
+                    . 'za dostęp do narzędzia Claude (licencja Claude Team) udostępnionego mi przez Fundację.</p>'
+                    . '<p>Oświadczam, że zostałem/am poinformowany/a, że:</p>'
+                    . '<ol>'
+                    . '<li>Opłata ryczałtowa w wysokości 25 zł jest uśredniona i obowiązuje do końca grudnia 2026 r., niezależnie od kursu dolara amerykańskiego.</li>'
+                    . '<li>Koszt licencji Claude Team dla organizacji non-profit wynosi 8 USD za miejsce miesięcznie (rozliczenie miesięczne). '
+                    . 'Różnicę między opłatą ryczałtową a kosztem licencji pokrywa Fundacja Edukacji Empatii Rozwoju „FEER”.</li>'
+                    . '<li>Zniżka dla organizacji non-profit nie obejmuje użycia API, a dotyczy wyłącznie planów Team i Enterprise.</li>'
+                    . '<li>Ceny i warunki licencji mogą ulec zmianie po stronie dostawcy. Zmiana taka nie wpływa na wysokość opłaty ryczałtowej '
+                    . 'określonej w pkt 1 do końca grudnia 2026 r.</li>'
+                    . '</ol>';
+                $is_active = 1;
+                $audience  = 'claude';
+            }
             db_insert('k30_ti_terms', [
                 'type'      => $type,
                 'title'     => $title,
                 'body_html' => $body_html,
                 'is_active' => $is_active,
+                'audience'  => $audience,
             ]);
         }
     }
@@ -173,6 +212,7 @@ function ti_term_client_groups(int $client_id): array {
             || db_one("SELECT 1 FROM k30_schedules WHERE client_id=? LIMIT 1", [$client_id])
             || db_one("SELECT 1 FROM k30_consultations WHERE client_id=? LIMIT 1", [$client_id])) $g[] = 'konsultacje';
     } catch (\Throwable $ex) {}
+    if (ti_term_client_has_claude($client_id)) $g[] = 'claude';
     return $c[$client_id] = $g;
 }
 
