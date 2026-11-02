@@ -24,7 +24,9 @@ final class UsPrzelewyController
         $code = (string)($_GET['formularz'] ?? array_key_first($forms));
         $form = $forms[$code] ?? reset($forms);
         [$rok, $nr] = uspOkresDomyslny($form['okres']);
-        $z = ['id' => 0, 'formularz' => $code, 'okres_rok' => $rok, 'okres_nr' => $nr, 'kwota' => '', 'termin' => uspTerminDomyslny($form, $rok, $nr),
+        // Prefill z Preliminarza EODoK (kontrola ZUS/PIT): ?okres_rok=&okres_nr=&kwota=
+        if ((int)($_GET['okres_rok'] ?? 0) >= 2000) { $rok = (int)$_GET['okres_rok']; $nr = (int)($_GET['okres_nr'] ?? $nr); }
+        $z = ['id' => 0, 'formularz' => $code, 'okres_rok' => $rok, 'okres_nr' => $nr, 'kwota' => (string)($_GET['kwota'] ?? ''), 'termin' => uspTerminDomyslny($form, $rok, $nr),
               'rachunek' => uspRachunek(), 'txt' => '', 'edok_doc_id' => null, 'uwagi' => '', 'status' => 'do_zaplaty'];
         return $this->form($z, []);
     }

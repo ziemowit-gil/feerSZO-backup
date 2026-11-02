@@ -11,6 +11,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/edok.php';
+require_once dirname(__DIR__) . '/modules/us_przelewy/logic/usPrzelewy.php';
 
 edok_require_access();
 edok_migrate();
@@ -197,6 +198,51 @@ require_once __DIR__ . '/../includes/header.php';
 <p class="text-muted small">Zaakceptowane dokumenty z EODoK oraz archiwalnego KDOK — jedna lista płatności niezależnie od modułu pochodzenia.</p>
 
 <?= flash_html() ?>
+
+<?php
+// ── Składki ZUS i zaliczki PIT za minione miesiące: szacunek z rachunków vs rejestr vs wyciąg ──
+$_zu_okresy = [];
+for ($i = 1; $i <= 3; $i++) $_zu_okresy[] = date('Y-m', strtotime(date('Y-m-01') . " -{$i} month"));
+$_zu_rows = array_map('edok_zus_us_kontrola', $_zu_okresy);
+$_zu_alert = array_filter($_zu_rows, fn($r) => in_array($r['zus']['stan'], ['brak', 'roznica'], true) || in_array($r['us']['stan'], ['brak', 'roznica'], true));
+$_zu_badge = fn(string $st) => '<span class="badge rounded-pill ' . (EDOK_ZUS_US_STANY[$st]['class'] ?? 'text-bg-light') . '">' . h(EDOK_ZUS_US_STANY[$st]['label'] ?? $st) . '</span>';
+$_zu_kw = fn(float $v) => $v > 0.005 ? number_format($v, 2, ',', ' ') : '—';
+?>
+<div class="card shadow-sm mb-3 <?= $_zu_alert ? 'border-danger' : '' ?>">
+  <div class="card-header <?= $_zu_alert ? 'bg-danger-subtle' : 'bg-light' ?> fw-semibold d-flex flex-wrap align-items-center gap-2">
+    <i class="bi bi-shield-check"></i> Składki ZUS i zaliczki PIT z rachunków
+    <?php if ($_zu_alert): ?><span class="badge text-bg-danger">brakuje przelewów: <?= count($_zu_alert) ?> okr.</span><?php endif; ?>
+    <span class="small fw-normal text-muted ms-auto">szacunek z rachunków umów zlecenie (stawki jak w kalkulatorze opłacalności) — porównany z rejestrem przelewów i operacjami na wyciągu</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0 small">
+      <thead class="table-light"><tr><th>Okres</th><th class="text-end">Rachunki</th><th class="text-end">Brutto</th><th class="text-end">ZUS szac.</th><th class="text-end">ZUS zlecone</th><th class="text-end">ZUS na wyciągu</th><th>Stan ZUS</th><th class="text-end">PIT szac.</th><th class="text-end">PIT w rejestrze US</th><th class="text-end">US na wyciągu</th><th>Stan US</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($_zu_rows as $r): $e = $r['szacunek']; ?>
+        <tr>
+          <td class="fw-semibold text-nowrap"><?= h($r['label']) ?></td>
+          <td class="text-end"><?= (int)$e['rachunki'] ?></td>
+          <td class="text-end font-monospace"><?= $_zu_kw($e['brutto']) ?></td>
+          <td class="text-end font-monospace"><?= $_zu_kw($r['zus']['oczekiwane']) ?></td>
+          <td class="text-end font-monospace"><?= $_zu_kw($r['zus']['rejestr_suma']) ?></td>
+          <td class="text-end font-monospace"><?= $_zu_kw($r['zus']['bank']['suma']) ?></td>
+          <td><?= $_zu_badge($r['zus']['stan']) ?></td>
+          <td class="text-end font-monospace"><?= $_zu_kw($r['us']['oczekiwane']) ?></td>
+          <td class="text-end font-monospace"><?= $_zu_kw($r['us']['rejestr_suma']) ?><?php foreach ($r['us']['rejestr'] as $z): ?> <span class="badge <?= h(USP_STATUSY[$z['status']]['badge'] ?? 'text-bg-light') ?>" title="<?= h($z['sfp']) ?>"><?= h(USP_STATUSY[$z['status']]['label'] ?? $z['status']) ?></span><?php endforeach; ?></td>
+          <td class="text-end font-monospace"><?= $_zu_kw($r['us']['bank']['suma']) ?></td>
+          <td><?= $_zu_badge($r['us']['stan']) ?></td>
+          <td class="text-nowrap">
+            <?php if ($r['zus']['stan'] === 'brak' && $r['zus']['oczekiwane'] > 0.005): ?><a class="btn btn-sm btn-outline-primary py-0" href="<?= APP_URL ?>/edok/add.php?tryb=zus&okres=<?= h($r['okres']) ?>&kwota=<?= h(number_format($r['zus']['oczekiwane'], 2, ',', '')) ?>">Przelew ZUS</a><?php endif; ?>
+            <?php if (in_array($r['us']['stan'], ['brak', 'brak_rachunkow'], true) && $r['us']['oczekiwane'] > 0.005 && !$r['us']['rejestr']): ?><a class="btn btn-sm btn-outline-primary py-0" href="<?= APP_URL ?>/modules/us_przelewy/router.php?_route=/nowe&formularz=pit4r&okres_rok=<?= (int)substr($r['okres'], 0, 4) ?>&okres_nr=<?= (int)substr($r['okres'], 5, 2) ?>&kwota=<?= h(number_format($r['us']['oczekiwane'], 2, ',', '')) ?>">PIT-4R do US</a><?php endif; ?>
+            <?php if ($e['rachunki']): ?><details class="d-inline"><summary class="small text-muted" style="cursor:pointer">rachunki</summary><ul class="small mb-0 ps-3"><?php foreach ($e['pozycje'] as $p): ?><li><?= h($p['rachunek'] ?: '—') ?> · <?= h($p['osoba']) ?> · <?= number_format($p['brutto'], 2, ',', ' ') ?> brutto → ZUS <?= number_format($p['zus'], 2, ',', ' ') ?><?= $p['zus_on'] ? '' : ' (bez ZUS)' ?>, PIT <?= number_format($p['pit'], 2, ',', ' ') ?><?= $p['ulga'] ? ' (ulga dla młodych)' : '' ?></li><?php endforeach; ?></ul></details><?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer small text-muted">Przelewy ZUS i US rozpoznane na wyciągu (import MT940) potwierdzają wpisy rejestrów automatycznie: przelew ZUS dostaje datę zapłaty, zobowiązanie w „Przelewach do US” przechodzi na „zapłacony”. Operacje te nie wymagają zatwierdzania — wynikają z rachunków.</div>
+</div>
 
 
 <?php if ($pakiet_tytul !== null): ?>

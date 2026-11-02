@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
         $base = realpath(UPLOAD_DIR . 'edok_docs');
         if (!$abs || !$base || !str_starts_with($abs, $base)) $ksef_file_path = '';
     }
-    if ($ksef_file_path === '' && empty($_FILES['file']['tmp_name'])) {
+    if ($ksef_file_path === '' && empty($_FILES['file']['tmp_name']) && !in_array($typ_dokumentu, EDOK_TYPY_BEZ_SKANU, true)) {
         $errors[] = 'Skan dokumentu źródłowego jest wymagany — bez niego kontrola merytoryczna nie może się rozpocząć.';
     }
     if (!isset(EDOK_RODZAJ_DZIALALNOSCI[$rodzaj]))          $errors[] = 'Wybierz rodzaj działalności (projekt/działanie, statutowa odpłatna lub nieodpłatna).';
@@ -556,9 +556,18 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <?php endif; ?>
       <div class="mb-3" id="file_upload_wrap"<?= $queue_item ? ' style="display:none"' : '' ?>>
-        <label class="form-label">Skan dokumentu źródłowego</label>
+        <label class="form-label" for="file_input">Skan dokumentu źródłowego <span class="text-muted fw-normal" id="file_opt_hint" style="display:none">(opcjonalnie — darowizna nie wymaga dokumentu źródłowego)</span></label>
         <input type="file" name="file" id="file_input" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx"<?= $queue_item ? '' : ' required' ?>>
         <div class="form-text">PDF, JPG, PNG lub DOCX, max 20 MB.</div>
+        <script>
+        // Darowizna (i inne typy z EDOK_TYPY_BEZ_SKANU): skan nieobowiązkowy — dowodem jest wpływ na rachunek.
+        (function () {
+          var bez = <?= json_encode(EDOK_TYPY_BEZ_SKANU) ?>, typ = document.getElementById('typ_dokumentu'), fi = document.getElementById('file_input'), hint = document.getElementById('file_opt_hint');
+          if (!typ || !fi) return;
+          function sync() { var opt = bez.indexOf(typ.value) !== -1; if (opt) fi.required = false; else if (!document.getElementById('ksef_file_path').value) fi.required = <?= $queue_item ? 'false' : 'true' ?>; if (hint) hint.style.display = opt ? '' : 'none'; }
+          typ.addEventListener('change', sync); sync();
+        })();
+        </script>
       </div>
       <?php $ocr_ok = !$queue_item || in_array(strtolower(pathinfo($queue_item['file_path'], PATHINFO_EXTENSION)), ['pdf', 'jpg', 'jpeg', 'png'], true); ?>
       <?php if ($ocr_ok && trim((string)(db_one("SELECT value FROM settings WHERE key_='anthropic_api_key'")['value'] ?? '')) !== ''): ?>

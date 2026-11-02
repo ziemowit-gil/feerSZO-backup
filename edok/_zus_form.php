@@ -6,7 +6,8 @@
  */
 ?>
 <?php if ($rachunki_org):
-  $zf        = $zus_form ?? ['okres' => edok_zus_okres_domyslny(), 'mieszana' => false, 'format' => 'auto', 'czesci' => [], 'kwota' => '', 'rachunek' => '', 'zus_nrs' => '', 'dup' => []];
+  // Prefill z Preliminarza (kontrola ZUS/PIT): ?okres=RRRR-MM&kwota=…
+  $zf        = $zus_form ?? ['okres' => preg_match('/^\d{4}-\d{2}$/', (string)($_GET['okres'] ?? '')) ? (string)$_GET['okres'] : edok_zus_okres_domyslny(), 'mieszana' => false, 'format' => 'auto', 'czesci' => [], 'kwota' => (string)($_GET['kwota'] ?? ''), 'rachunek' => '', 'zus_nrs' => '', 'dup' => []];
   $nrs_cfg   = edok_zus_nrs_config();
   $zus_hist  = edok_zus_przelewy();
   $m_rows    = $zf['czesci'] && $zf['mieszana'] ? $zf['czesci'] : [['nrb' => '', 'kwota' => ''], ['nrb' => '', 'kwota' => '']];

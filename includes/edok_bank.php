@@ -398,9 +398,12 @@ function edok_bank_apply_kategoria(int $tx_id): void {
     if (!$kat) return;
     switch ($kat['kod']) {
         case 'zus':
-            db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=?", ['ZUS — składki (wynikają z rachunków i umów, bez zatwierdzania)', $tx_id]); break;
         case 'podatek_us':
-            db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=?", ['Urząd Skarbowy — podatek od rachunków (bez zatwierdzania)', $tx_id]); break;
+            $tx['kategoria'] = $kat['kod'];
+            $rej = null; try { $rej = edok_bank_tx_rozlicz_rejestr($tx); } catch (\Throwable $e) { error_log('[edok bank rejestr] ' . $e->getMessage()); }
+            $okr = edok_bank_okres_z_tytulu((string)$tx['tytul']);
+            $note = ($kat['kod'] === 'zus' ? 'ZUS — składki' : 'Urząd Skarbowy — podatek') . ($okr ? ' za ' . edok_okres_label($okr) : '') . ' (wynikają z rachunków i umów, bez zatwierdzania)' . ($rej ? '; ' . $rej : '');
+            db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=?", [$note, $tx_id]); break;
         case 'wynagrodzenie':
             $doc = edok_bank_wynagrodzenie_doc($tx, $kat);
             if ($doc) edok_bank_assign($tx_id, $doc, 'auto');

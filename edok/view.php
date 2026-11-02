@@ -773,7 +773,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
           </tbody>
         </table>
         <?php else: ?>
-        <p class="tw-text-sm tw-text-slate-500 tw-mb-0">Nie uzupełniono — wymagane przed zaakceptowaniem etapu „Dekretacja i alokacja kosztów”.</p>
+        <p class="tw-text-sm tw-text-slate-500 tw-mb-0">Nie uzupełniono — wymagane przed zaakceptowaniem etapu „Dekretacja i alokacja kosztów lub przychodu”.</p>
         <?php endif; ?>
       </div>
     </div>

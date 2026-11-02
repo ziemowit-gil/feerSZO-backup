@@ -110,7 +110,7 @@ const EDOK_STEPS = [
     'meryt'      => 'Zaakceptowano pod względem merytorycznym',
     'formal'     => 'Zaakceptowano pod względem formalnym',
     'rachunkowa' => 'Zaakceptowano pod względem rachunkowym',
-    'dekretacja' => 'Dekretacja i alokacja kosztów',
+    'dekretacja' => 'Dekretacja i alokacja kosztów lub przychodu',
     'zatwierdza' => 'Zatwierdzam do zapłaty / wypłaty',
 ];
 
@@ -119,7 +119,7 @@ const EDOK_ROLES = [
     'meryt'      => 'Kontrola merytoryczna (etap 1)',
     'formal'     => 'Kontrola formalno-prawna (etap 2)',
     'rachunkowa' => 'Kontrola rachunkowa (etap 3)',
-    'dekretacja' => 'Dekretacja i alokacja kosztów (etap 4)',
+    'dekretacja' => 'Dekretacja i alokacja kosztów lub przychodu (etap 4)',
     'zatwierdza' => 'Zatwierdzenie końcowe do wypłaty i księgowania (etap 5)',
     'ksiegowy'   => 'Główny Księgowy – cofanie decyzji (odblokowanie obiegu)',
 ];
@@ -234,6 +234,7 @@ function edok_migrate(): void {
         user_name   TEXT    NOT NULL DEFAULT '',
         created_at  TEXT
     )");
+    _edok_add_columns($db, 'edok_zus_przelewy', ['bank_tx_id' => 'INTEGER', 'zaplacono_at' => 'TEXT']);   // potwierdzenie wyciągiem
 
     // Pozycje listy płac — każda to osobny przelew (osoba, rachunek, kwota do wypłaty).
     $db->exec("CREATE TABLE IF NOT EXISTS edok_wyplaty (
@@ -861,7 +862,7 @@ function edok_step_validation_errors(array $doc, string $step_key): array {
         if (trim((string)($doc['description'] ?? '')) === '') $errors[] = 'Kontrola merytoryczna: uzupełnij opis wydatku (cel, powiązanie z zamówieniem/umową).';
         // Operacje banku (opłaty, odsetki) nie mają osobnego dokumentu źródłowego — źródłem jest wyciąg (operacja
         // przypisana w edok_bank_tx), więc skanu nie wymagamy (decyzja użytkownika 2026-11-02).
-        if (trim((string)($doc['file_path']   ?? '')) === '' && !(function_exists('edok_doc_bankowy') && edok_doc_bankowy($doc))) $errors[] = 'Kontrola merytoryczna: dołącz skan dokumentu źródłowego.';
+        if (trim((string)($doc['file_path']   ?? '')) === '' && edok_doc_wymaga_skanu($doc)) $errors[] = 'Kontrola merytoryczna: dołącz skan dokumentu źródłowego.';
         $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)($doc['kwota_brutto'] ?? '')));
         // Faktura korygująca może mieć kwotę ujemną (obniżenie) — wymagamy tylko, by była niezerowa.
         if (edok_typ_korekta((string)($doc['typ_dokumentu'] ?? '')) ? abs($brutto) < 0.005 : $brutto <= 0) {
@@ -2801,6 +2802,15 @@ function edok_zus_handle_post(): array {
 
 const EDOK_TYPY_BANKOWE = ['oplata_bankowa'];
 
+/** Typy, dla których skan dokumentu źródłowego NIE jest wymagany: darowizna (dowodem jest wpływ na rachunek) i operacje banku. */
+const EDOK_TYPY_BEZ_SKANU = ['darowizna', 'oplata_bankowa'];
+
+/** Czy dokument wymaga skanu dokumentu źródłowego (decyzje użytkownika 2026-11-02: darowizny i operacje banku — nie). */
+function edok_doc_wymaga_skanu(array $doc): bool {
+    if (in_array((string)($doc['typ_dokumentu'] ?? ''), EDOK_TYPY_BEZ_SKANU, true)) return false;
+    return !edok_doc_bankowy($doc);
+}
+
 function edok_doc_bankowy(array $doc): bool {
     return in_array((string)($doc['typ_dokumentu'] ?? ''), EDOK_TYPY_BANKOWE, true)
         || (($doc['kierunek'] ?? 'wydatek') === 'przychod' && str_starts_with((string)($doc['description'] ?? ''), 'Odsetki bankowe'));
@@ -2886,6 +2896,149 @@ function edok_bank_quick_accept_all(int $user_id, string $rodzaj, string $projek
         if ($res['stopped']) $out['stopped'][$d['number']] = $res['stopped']; else $out['ok'][] = $d['number'];
     }
     return $out;
+}
+
+// ── Kontrola składek ZUS i zaliczek PIT per okres (Preliminarz) ───────────────
+// Oczekiwane kwoty to SZACUNEK z rachunków umów zlecenie za okres (zlecenie_rachunki.okres_od/do):
+//   ZUS = część organizacji 23,14 % + część zleceniobiorcy 13,71 % + zdrowotna 9 % od (brutto − 13,71 %), gdy umowa
+//         ma zus_skladki; bez ZUS — 0 (umowa bez tytułu do ubezpieczeń, np. student do 26 lat);
+//   PIT = zaliczka_podatek z umowy (gdy wpisana), inaczej 12 % od (brutto − składki społeczne − 20 % KUP);
+//         zwolnienie_wiek (ulga dla młodych) → 0.
+// Stawki jak w includes/oplacalnosc.php (OPLACALNOSC_TAX_MODELS['zlecenie']). To podpowiedź do porównania
+// z przelewem, nie deklaracja — DRA/PIT-4R liczy księgowość.
+
+function edok_zus_us_stawki(): array {
+    if (!defined('OPLACALNOSC_TAX_MODELS')) { $f = __DIR__ . '/oplacalnosc.php'; if (is_file($f)) require_once $f; }
+    $t = defined('OPLACALNOSC_TAX_MODELS') ? (OPLACALNOSC_TAX_MODELS['zlecenie'] ?? []) : [];
+    return ['org_zus' => (float)($t['org_zus'] ?? 0.2314), 'emp_social' => (float)($t['emp_social'] ?? 0.1371), 'emp_health' => (float)($t['emp_health'] ?? 0.09), 'emp_kup' => (float)($t['emp_kup'] ?? 0.20), 'emp_it' => (float)($t['emp_it'] ?? 0.12)];
+}
+
+/**
+ * Szacunek ZUS i PIT z rachunków za okres RRRR-MM.
+ * @return array{okres: string, rachunki: int, brutto: float, zus: float, pit: float, pozycje: list<array>}
+ */
+function edok_zus_us_oczekiwane(string $okres): array {
+    require_once __DIR__ . '/zlecenie_rachunki.php';
+    $st  = edok_zus_us_stawki();
+    $out = ['okres' => $okres, 'rachunki' => 0, 'brutto' => 0.0, 'zus' => 0.0, 'pit' => 0.0, 'pozycje' => []];
+    if (!preg_match('/^\d{4}-\d{2}$/', $okres)) return $out;
+    $rows = db_all("SELECT r.*, c.numer_umowy, c.imie_nazwisko, c.zus_skladki, c.zwolnienie_wiek, c.zaliczka_podatek, c.tytul_ubezpieczenia
+                    FROM zlecenie_rachunki r JOIN umowy_zlecenie c ON c.id = r.contract_id
+                    WHERE r.contract_type = 'zlecenie' AND COALESCE(r.status,'') NOT IN ('odrzucony') AND COALESCE(r.test_mode,0) = 0");
+    foreach ($rows as $r) {
+        $months = rachunek_okres_months($r);
+        if (!in_array($okres, $months, true)) continue;
+        $brutto = _edok_kwota_float((string)$r['kwota_brutto']) / max(1, count($months));   // rachunek za kilka miesięcy: po równo
+        $zus = 0.0; $social = 0.0;
+        if (!empty($r['zus_skladki'])) {
+            $social = round($brutto * $st['emp_social'], 2);
+            $zus = round($brutto * $st['org_zus'] + $social + ($brutto - $social) * $st['emp_health'], 2);
+        }
+        $pit = 0.0;
+        if (empty($r['zwolnienie_wiek'])) {
+            $pit = (float)str_replace(',', '.', (string)($r['zaliczka_podatek'] ?? '')) > 0 && count($months) === 1
+                 ? round((float)str_replace(',', '.', (string)$r['zaliczka_podatek']), 2)
+                 : round(max(0.0, $brutto - $social - round($brutto * $st['emp_kup'], 2)) * $st['emp_it'], 2);
+        }
+        $out['rachunki']++; $out['brutto'] += $brutto; $out['zus'] += $zus; $out['pit'] += $pit;
+        $out['pozycje'][] = ['rachunek' => (string)$r['numer'], 'umowa' => (string)$r['numer_umowy'], 'osoba' => (string)$r['imie_nazwisko'], 'brutto' => round($brutto, 2), 'zus' => $zus, 'pit' => $pit, 'zus_on' => !empty($r['zus_skladki']), 'ulga' => !empty($r['zwolnienie_wiek'])];
+    }
+    foreach (['brutto', 'zus', 'pit'] as $k) $out[$k] = round($out[$k], 2);
+    return $out;
+}
+
+/** Okres (RRRR-MM) z tytułu/adnotacji operacji: „za MM/RRRR”, „MM/RRRR”, „RRRR-MM”; null = brak. */
+function edok_bank_okres_z_tytulu(string $tytul): ?string {
+    if (preg_match('/(\d{2})\/(\d{4})/', $tytul, $m)) return $m[2] . '-' . $m[1];
+    if (preg_match('/(\d{4})-(\d{2})\b/', $tytul, $m)) return $m[1] . '-' . $m[2];
+    return null;
+}
+
+/**
+ * Operacje z wyciągu kategorii zus / podatek_us dla okresu: po okresie w tytule, a gdy go nie ma — po dacie
+ * (przelew za okres idzie zwykle w następnym miesiącu, do 15./20.). @return array{suma: float, tx: list<array>}
+ */
+function edok_bank_tx_dla_okresu(string $kod, string $okres): array {
+    $out = ['suma' => 0.0, 'tx' => []];
+    try { $rows = db_all("SELECT * FROM edok_bank_tx WHERE kategoria = ? AND znak = 'D' ORDER BY data_waluty", [$kod]); } catch (\Throwable $e) { return $out; }
+    $next = date('Y-m', strtotime($okres . '-01 +1 month'));
+    foreach ($rows as $t) {
+        $ot = edok_bank_okres_z_tytulu((string)$t['tytul']);
+        $hit = $ot !== null ? $ot === $okres : (substr((string)$t['data_waluty'], 0, 7) === $next);
+        if (!$hit) continue;
+        $out['suma'] += (float)$t['kwota']; $out['tx'][] = $t;
+    }
+    $out['suma'] = round($out['suma'], 2);
+    return $out;
+}
+
+/**
+ * Pełna kontrola okresu: szacunek z rachunków, przelewy ZUS z rejestru (edok_zus_przelewy), zobowiązania US
+ * (us_zobowiazania PIT-4R), operacje z wyciągu i wynik: 'ok' / 'brak' / 'roznica' / 'brak_rachunkow'.
+ */
+function edok_zus_us_kontrola(string $okres): array {
+    $exp = edok_zus_us_oczekiwane($okres);
+    $zus_reg = db_all("SELECT * FROM edok_zus_przelewy WHERE okres = ? ORDER BY id", [$okres]);
+    $zus_reg_suma = round(array_sum(array_map(fn($r) => _edok_kwota_float((string)$r['kwota']), $zus_reg)), 2);
+    $zus_bank = edok_bank_tx_dla_okresu('zus', $okres);
+    $us_zob = []; $us_zob_suma = 0.0;
+    try {
+        [$y, $m] = array_map('intval', explode('-', $okres));
+        $us_zob = db_all("SELECT * FROM us_zobowiazania WHERE formularz IN ('pit4r','pit8ar') AND okres_typ = 'M' AND okres_rok = ? AND okres_nr = ? AND status <> 'anulowany' ORDER BY id", [$y, $m]);
+        $us_zob_suma = round(array_sum(array_map(fn($z) => _edok_kwota_float((string)$z['kwota']), $us_zob)), 2);
+    } catch (\Throwable $e) {}
+    $us_bank = edok_bank_tx_dla_okresu('podatek_us', $okres);
+    $ocena = function (float $exp, float $bank, float $reg) {
+        if ($exp < 0.005 && $bank < 0.005 && $reg < 0.005) return 'nd';
+        if ($bank < 0.005) return $reg > 0.005 ? 'zlecony' : 'brak';
+        return abs($bank - ($reg > 0.005 ? $reg : $exp)) <= max(1.0, 0.02 * max($exp, $reg)) ? 'ok' : 'roznica';
+    };
+    return [
+        'okres' => $okres, 'label' => edok_okres_label($okres), 'szacunek' => $exp,
+        'zus' => ['oczekiwane' => $exp['zus'], 'rejestr' => $zus_reg, 'rejestr_suma' => $zus_reg_suma, 'bank' => $zus_bank, 'stan' => $exp['rachunki'] ? $ocena($exp['zus'], $zus_bank['suma'], $zus_reg_suma) : ($zus_bank['suma'] > 0.005 ? 'ok' : 'brak_rachunkow')],
+        'us'  => ['oczekiwane' => $exp['pit'], 'rejestr' => $us_zob, 'rejestr_suma' => $us_zob_suma, 'bank' => $us_bank, 'stan' => $exp['rachunki'] ? $ocena($exp['pit'], $us_bank['suma'], $us_zob_suma) : ($us_bank['suma'] > 0.005 ? 'ok' : 'brak_rachunkow')],
+    ];
+}
+
+const EDOK_ZUS_US_STANY = [
+    'ok'             => ['label' => 'zgodne z wyciągiem',      'class' => 'text-bg-success'],
+    'zlecony'        => ['label' => 'zlecony, brak na wyciągu', 'class' => 'text-bg-info'],
+    'brak'           => ['label' => 'BRAK przelewu',            'class' => 'text-bg-danger'],
+    'roznica'        => ['label' => 'różnica kwot',             'class' => 'text-bg-warning'],
+    'brak_rachunkow' => ['label' => 'brak rachunków',           'class' => 'text-bg-secondary'],
+    'nd'             => ['label' => 'nie dotyczy',              'class' => 'text-bg-light border'],
+];
+
+/**
+ * Operacja z wyciągu (zus / podatek_us) → rejestr: przelew ZUS za okres dostaje bank_tx_id i zaplacono_at,
+ * zobowiązanie US (ta sama kwota, otwarte) przechodzi na „zapłacony” z datą operacji. Zwraca opis albo null.
+ */
+function edok_bank_tx_rozlicz_rejestr(array $tx): ?string {
+    $kw = abs((float)$tx['kwota']);
+    $okres = edok_bank_okres_z_tytulu((string)$tx['tytul']);
+    if (($tx['kategoria'] ?? '') === 'zus') {
+        $cand = db_all("SELECT * FROM edok_zus_przelewy WHERE COALESCE(bank_tx_id,0) = 0 ORDER BY id DESC LIMIT 50");
+        foreach ($cand as $z) {
+            if (abs(_edok_kwota_float((string)$z['kwota']) - $kw) > 0.01) continue;
+            if ($okres !== null && $z['okres'] !== $okres) continue;
+            db_update('edok_zus_przelewy', ['bank_tx_id' => (int)$tx['id'], 'zaplacono_at' => (string)$tx['data_waluty']], (int)$z['id']);
+            return 'ZUS za ' . edok_okres_label($z['okres']) . ' — przelew z rejestru potwierdzony wyciągiem';
+        }
+        return null;
+    }
+    if (($tx['kategoria'] ?? '') === 'podatek_us') {
+        try {
+            $cand = db_all("SELECT * FROM us_zobowiazania WHERE status IN ('do_zaplaty','zlecony') ORDER BY termin, id");
+        } catch (\Throwable $e) { return null; }
+        foreach ($cand as $z) {
+            if (abs(_edok_kwota_float((string)$z['kwota']) - $kw) > 0.01) continue;
+            if ($okres !== null && (string)$z['okres_typ'] === 'M' && sprintf('%04d-%02d', (int)$z['okres_rok'], (int)$z['okres_nr']) !== $okres) continue;
+            $f = dirname(__DIR__) . '/modules/us_przelewy/logic/usPrzelewy.php';
+            if (is_file($f)) { require_once $f; $e = uspSetStatus((int)$z['id'], 'zaplacony', (string)$tx['data_waluty']); if ($e === null) { try { uspLog((int)$z['id'], 'bank', 'Zapłata potwierdzona wyciągiem (operacja ' . $tx['numer_operacji'] . ')'); } catch (\Throwable $x) {} return 'US ' . strtoupper((string)$z['sfp']) . ' — zobowiązanie oznaczone jako zapłacone'; } }
+            return null;
+        }
+    }
+    return null;
 }
 
 /** Przelewy ZUS wygenerowane za dany okres (albo ostatnie 12). */
