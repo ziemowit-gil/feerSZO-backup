@@ -121,6 +121,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
         }
+        // Wpływ na podstawie umowy (przychód): umowa z popupu; odznaczenie zdejmuje powiązanie.
+        if ($doc['kierunek'] === 'przychod' && !$locked_formal) {
+            if (!empty($_POST['wplyw_umowa'])) {
+                $u = edok_umowa_find((string)($_POST['wplyw_umowa_type'] ?? ''), (int)($_POST['wplyw_umowa_id'] ?? 0));
+                if (!$u) { flash_set('danger', 'Zaznaczono „Wpływ na podstawie umowy” — wskaż umowę z Rejestru Umów.'); header('Location: ' . APP_URL . '/edok/view.php?id=' . $id); exit; }
+                else { $umowa_numer = (string)$u['nr_rejestru']; db_exec("UPDATE edok_documents SET contract_type=?, contract_id=? WHERE id=?", [$u['contract_type'], (int)$u['id'], $id]); if ($zrodlo_przychodu === '') $zrodlo_przychodu = trim((string)$u['strona']) ?: $umowa_numer; }
+            } elseif (isset($_POST['wplyw_umowa_present'])) {
+                $umowa_numer = ''; db_exec("UPDATE edok_documents SET contract_type=NULL, contract_id=NULL WHERE id=?", [$id]);
+            }
+        }
         // Tytuł niezmieniony ręcznie (= zapisany wcześniej) przeliczamy dla wynagrodzeń na bieżąco.
         if ($jest_wynagrodzenie && $tytul_przelewu === $doc['tytul_przelewu']) $tytul_przelewu = '';
         // Zapłata / proforma blokują się razem z kwotami (po etapie „rachunkowa”).
@@ -678,7 +688,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <?php if ($doc['data_wplywu']): ?><tr><td>Data wpływu</td><td><?= date_pl($doc['data_wplywu']) ?></td></tr><?php endif; ?>
             <?php if ($doc['okres'] !== ''): ?><tr><td>Okres wynagrodzenia</td><td><?= h(edok_okres_label($doc['okres'])) ?></td></tr><?php endif; ?>
             <?php if ($doc['umowa_numer'] !== ''): ?>
-            <tr><td>Umowa nr</td><td class="tw-font-mono">
+            <tr><td><?= $doc['kierunek'] === 'przychod' ? 'Wpływ na podstawie umowy' : 'Umowa nr' ?></td><td class="tw-font-mono">
               <?php if ($doc['contract_type'] && $doc['contract_id']): ?><a href="<?= APP_URL ?>/contracts/<?= h($doc['contract_type']) ?>/view.php?id=<?= (int)$doc['contract_id'] ?>"><?= h($doc['umowa_numer']) ?></a><?php else: ?><?= h($doc['umowa_numer']) ?><?php endif; ?>
             </td></tr>
             <?php endif; ?>
@@ -814,6 +824,17 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <div class="tw-mb-2">
           <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Źródło przychodu <?= $locked_formal ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
           <input type="text" name="zrodlo_przychodu" class="form-control form-control-sm" value="<?= h($doc['zrodlo_przychodu']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
+        </div>
+        <?php $wu_ref = ($doc['contract_type'] && $doc['contract_id']) ? edok_umowa_find((string)$doc['contract_type'], (int)$doc['contract_id']) : null; ?>
+        <div class="tw-mb-2">
+          <input type="hidden" name="wplyw_umowa_present" value="1">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="wplyw_umowa" value="1" id="wu_check" <?= $wu_ref ? 'checked' : '' ?> <?= $locked_formal ? 'disabled' : '' ?> onchange="if (this.checked) edokUmowaOpen('wu'); else edokUmowaClear('wu');">
+            <label class="form-check-label tw-text-xs tw-font-semibold tw-text-slate-600" for="wu_check">Wpływ na podstawie umowy <?= $locked_formal ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
+          </div>
+          <input type="hidden" name="wplyw_umowa_type" id="wu_type" value="<?= h($wu_ref ? $doc['contract_type'] : '') ?>"><input type="hidden" name="wplyw_umowa_id" id="wu_id" value="<?= h($wu_ref ? (string)$doc['contract_id'] : '') ?>">
+          <div class="small"><span id="wu_label" class="fw-semibold"><?= $wu_ref ? h($wu_ref['nr_rejestru'] . ' — ' . ($wu_ref['strona'] ?: $wu_ref['numer_umowy']) . ' (' . $wu_ref['contract_type_label'] . ')') : '' ?></span>
+            <?php if (!$locked_formal): ?><button type="button" class="btn btn-sm btn-link p-0 ms-1" onclick="edokUmowaOpen('wu')">wskaż / zmień umowę</button><?php endif; ?></div>
         </div>
         <?php endif; ?>
         <?php $prosty_wplyw = edok_przychod_prosty($doc); ?>
@@ -1590,4 +1611,5 @@ function edokViewSuggestTytul() {
 }
 </script>
 
+<?php if (can_edit() && ($doc['kierunek'] ?? '') === 'przychod') include __DIR__ . '/_umowa_modal.php'; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -3041,6 +3041,13 @@ function edok_bank_tx_rozlicz_rejestr(array $tx): ?string {
     return null;
 }
 
+/** Umowa z Rejestru Umów po typie i id (wszystkie typy, patrz all_contracts_registry()); null = brak. */
+function edok_umowa_find(string $type, int $id): ?array {
+    if ($type === '' || $id <= 0) return null;
+    foreach (all_contracts_registry() as $r) if ($r['contract_type'] === $type && (int)$r['id'] === $id) return $r;
+    return null;
+}
+
 /** Przelewy ZUS wygenerowane za dany okres (albo ostatnie 12). */
 function edok_zus_przelewy(string $okres = ''): array {
     return $okres !== ''

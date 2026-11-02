@@ -95,6 +95,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
     // Powiązanie z umową z rejestru (link na karcie dokumentu).
     $umowa_ref = null;
     if ($umowa_numer !== '') foreach (edok_umowy_do_wyplat() as $u) if ($u['nr_rejestru'] === $umowa_numer) { $umowa_ref = $u; break; }
+    // Wpływ na podstawie umowy (przychód): umowa wskazana w popupie (edok/_umowa_modal.php) — dowolny typ z Rejestru Umów.
+    if ($kierunek === 'przychod' && !empty($_POST['wplyw_umowa']) ) {
+        $u = edok_umowa_find((string)($_POST['wplyw_umowa_type'] ?? ''), (int)($_POST['wplyw_umowa_id'] ?? 0));
+        if (!$u) $errors[] = 'Zaznaczono „Wpływ na podstawie umowy” — wskaż umowę z Rejestru Umów.';
+        else { $umowa_ref = $u; $umowa_numer = (string)$u['nr_rejestru']; if ($zrodlo_przychodu === '') $zrodlo_przychodu = trim((string)$u['strona']) ?: (string)$u['nr_rejestru']; }
+    }
     [$proforma_id, $proforma_errors] = $kierunek === 'wydatek' ? edok_proforma_from_post($_POST, $typ_dokumentu) : [null, []];
     [$zaplata, $zaplata_errors]      = $kierunek === 'wydatek' ? edok_zaplata_from_post($_POST, $proforma_id) : edok_zaplata_from_post([]);
     $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
@@ -375,6 +381,14 @@ require_once __DIR__ . '/../includes/header.php';
         <label class="form-label">Źródło przychodu <span class="text-muted fw-normal">(darczyńca, kontrahent albo tytuł wpływu)</span></label>
         <input type="text" name="zrodlo_przychodu" id="zrodlo_przychodu" class="form-control" maxlength="255"
           value="<?= h($_POST['zrodlo_przychodu'] ?? '') ?>" placeholder="np. Darowizna od Jan Kowalski / Grant NIW-CRSO nr …">
+        <?php $wu_ref = !empty($_POST['wplyw_umowa_id']) ? edok_umowa_find((string)($_POST['wplyw_umowa_type'] ?? ''), (int)$_POST['wplyw_umowa_id']) : null; ?>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" name="wplyw_umowa" value="1" id="wu_check" <?= !empty($_POST['wplyw_umowa']) ? 'checked' : '' ?> onchange="if (this.checked) edokUmowaOpen('wu'); else edokUmowaClear('wu');">
+          <label class="form-check-label" for="wu_check">Wpływ na podstawie umowy <span class="text-muted">(dotacja, usługa, zadanie publiczne — umowa z Rejestru Umów)</span></label>
+        </div>
+        <input type="hidden" name="wplyw_umowa_type" id="wu_type" value="<?= h($_POST['wplyw_umowa_type'] ?? '') ?>"><input type="hidden" name="wplyw_umowa_id" id="wu_id" value="<?= h($_POST['wplyw_umowa_id'] ?? '') ?>">
+        <div class="small mt-1"><span id="wu_label" class="fw-semibold"><?= $wu_ref ? h($wu_ref['nr_rejestru'] . ' — ' . ($wu_ref['strona'] ?: $wu_ref['numer_umowy']) . ' (' . $wu_ref['contract_type_label'] . ')') : '' ?></span>
+          <button type="button" class="btn btn-sm btn-link p-0 ms-1" onclick="edokUmowaOpen('wu')">wskaż / zmień umowę</button></div>
       </div>
 
       <div class="mb-2">
@@ -919,4 +933,12 @@ function edokKsefFetch() {
 }
 </script>
 
+<?php include __DIR__ . '/_umowa_modal.php'; ?>
+<script>
+// Po wskazaniu umowy: podpowiedz źródło przychodu (strona umowy), jeśli puste.
+window.edokUmowaPicked = function (prefix, u) {
+  var z = document.getElementById('zrodlo_przychodu');
+  if (z && !z.value.trim()) z.value = (u.strona || u.nr_rejestru);
+};
+</script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
