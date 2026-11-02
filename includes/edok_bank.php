@@ -300,7 +300,7 @@ function edok_bank_wzorzec_learn(string $kod, string $tytul): ?string {
     $t = _edok_bank_norm_tytul($tytul);
     if ($t === '') return null;
     // prefiks: skrót z kropkami (OPŁ.MOD.PEŁN.) albo pierwsze 3 słowa
-    $p = preg_match('/^([A-ZĄĆĘŁŃÓŚŹŻ0-9]+(?:\.[A-ZĄĆĘŁŃÓŚŹŻ0-9]*)+\.?)/u', $t, $m) ? $m[1] : implode(' ', array_slice(explode(' ', $t), 0, 3));
+    $p = preg_match('/^([A-ZĄĆĘŁŃÓŚŹŻ]+(?:\.[A-ZĄĆĘŁŃÓŚŹŻ]+)+\.?)/u', $t, $m) ? $m[1] : implode(' ', array_slice(explode(' ', $t), 0, 3));
     $p = mb_substr($p, 0, 40);
     $learned = json_decode((string)org_setting('edok_bank_wzorce'), true); if (!is_array($learned)) $learned = [];
     $learned[$kod] = array_values(array_unique(array_merge((array)($learned[$kod] ?? []), [$p])));
