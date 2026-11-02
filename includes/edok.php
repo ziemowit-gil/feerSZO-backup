@@ -3053,12 +3053,12 @@ function edok_bank_tx_rozlicz_rejestr(array $tx): ?string {
  */
 function edok_umowy_wszystkie(): array {
     $rows = [];
-    $hidden = function_exists('contractHiddenSql') ? contractHiddenSql() : '';
     foreach (CONTRACT_TYPES as $slug => $label) {
         $table  = table_for_type($slug);
         $fields = CONTRACT_REGISTRY_FIELDS[$slug] ?? ['name_col' => 'numer_umowy', 'opiekun_col' => 'opiekun'];
+        $hidden = function_exists('contractHiddenSql') ? contractHiddenSql($table) : '';   // zaczyna się od „ AND”
         try {
-            $r = db_all("SELECT id, nr_rejestru, numer_umowy, status, data_zawarcia, {$fields['name_col']} AS strona FROM {$table}" . ($hidden ? " WHERE {$hidden}" : '') . " ORDER BY id DESC");
+            $r = db_all("SELECT id, nr_rejestru, numer_umowy, status, data_zawarcia, {$fields['name_col']} AS strona FROM {$table} WHERE 1=1{$hidden} ORDER BY id DESC");
         } catch (\Throwable $e) {
             try { $r = db_all("SELECT id, nr_rejestru, numer_umowy, status, data_zawarcia, {$fields['name_col']} AS strona FROM {$table} ORDER BY id DESC"); } catch (\Throwable $e2) { continue; }
         }
