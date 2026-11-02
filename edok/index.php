@@ -50,7 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
 // Zbiorcze zatwierdzenie operacji banku (opłaty, odsetki z wyciągu): jeden rodzaj działalności, jeden PIN.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bank_quick_all') {
     csrf_check();
-    $res = edok_bank_quick_accept_all((int)current_user()['id'], (string)($_POST['bq_rodzaj'] ?? ''), (string)($_POST['bq_projekt'] ?? ''), trim((string)($_POST['bq_pin'] ?? '')));
+    $bq_ids = array_filter(array_map('intval', explode(',', (string)($_POST['doc_ids'] ?? ''))));
+    $res = edok_bank_quick_accept_all((int)current_user()['id'], (string)($_POST['bq_rodzaj'] ?? ''), (string)($_POST['bq_projekt'] ?? ''), trim((string)($_POST['bq_pin'] ?? '')), $bq_ids);
     if ($res['error'] !== null) flash_set('danger', $res['error']);
     else {
         $msg = 'Zatwierdzono operacje banku: ' . (count($res['ok']) ? implode(', ', $res['ok']) : 'brak') . '.';
@@ -147,6 +148,8 @@ if ($pf_ids) {
 // (POST export_przelewy na edok/preliminarz.php: potwierdzenie NIP/NRB, pliki ELIXIR-O).
 $przelew_rachunki = edok_rachunki_list();
 $can_export = $przelew_rachunki && (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')));
+$bank_pin_ok = edok_pin_is_set((int)current_user()['id']);   // zaznaczanie z listy do „Zatwierdź operacje bankowe”
+$sel_col     = $can_export || $bank_pin_ok;
 
 if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
@@ -186,9 +189,9 @@ require_once __DIR__ . '/../includes/header.php';
       <i class="bi bi-check2-all"></i> Do akceptacji
       <?php if ($pending_count): ?><span class="badge bg-primary ms-1"><?= $pending_count ?></span><?php endif; ?>
     </a>
-    <?php $bank_docs_pending = edok_pin_is_set((int)current_user()['id']) ? edok_bank_docs_pending() : []; if ($bank_docs_pending): ?>
-    <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bankQuickModal">
-      <i class="bi bi-bank"></i> Zatwierdź operacje bankowe <span class="badge bg-dark ms-1"><?= count($bank_docs_pending) ?></span>
+    <?php $bank_docs_pending = $bank_pin_ok ? edok_bank_docs_pending() : []; if ($bank_pin_ok): ?>
+    <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bankQuickModal" id="bankQuickBtn" title="Rozpoznane operacje banku w obiegu albo dokumenty zaznaczone na liście">
+      <i class="bi bi-bank"></i> Zatwierdź operacje bankowe <span class="badge bg-dark ms-1" id="bankQuickCount"><?= count($bank_docs_pending) ?></span>
     </button>
     <?php endif; ?>
     <?php if ($can_upload): ?>
@@ -350,8 +353,8 @@ require_once __DIR__ . '/../includes/header.php';
   <table class="table table-sm table-hover align-middle">
     <thead class="table-light">
       <tr>
-        <?php if ($can_export): ?>
-        <th style="width:2rem"><input type="checkbox" class="form-check-input" id="edokExportAll" title="Zaznacz wszystkie do eksportu" aria-label="Zaznacz wszystkie do eksportu"></th>
+        <?php if ($sel_col): ?>
+        <th style="width:2rem"><input type="checkbox" class="form-check-input" id="edokExportAll" title="Zaznacz wszystkie" aria-label="Zaznacz wszystkie"></th>
         <?php endif; ?>
         <th title="Numer dokumentu nadany w EODoK (EODoK/nr/rok). Oznaczenie TEST = dokument testowy.">Numer</th>
         <th title="Wydatek = koszt do zapłaty; Przychód = wpływ / sprzedaż.">Kierunek</th>
@@ -368,7 +371,7 @@ require_once __DIR__ . '/../includes/header.php';
         <th></th>
       </tr>
       <tr class="edok-colfilter">
-        <?php if ($can_export): ?><th></th><?php endif; ?>
+        <?php if ($sel_col): ?><th></th><?php endif; ?>
         <th><input form="colFilters" name="c_numer" value="<?= h($cf['c_numer']) ?>" class="form-control form-control-sm" placeholder="Filtruj…" aria-label="Filtr: numer" style="min-width:90px"></th>
         <th><select form="colFilters" name="kierunek" class="form-select form-select-sm" aria-label="Filtr: kierunek" onchange="this.form.submit()">
           <option value="">Wszystkie</option><option value="wydatek"<?= $filter_kierunek === 'wydatek' ? ' selected' : '' ?>>Wydatek</option><option value="przychod"<?= $filter_kierunek === 'przychod' ? ' selected' : '' ?>>Przychód</option></select></th>
@@ -391,12 +394,13 @@ require_once __DIR__ . '/../includes/header.php';
     </thead>
     <tbody>
       <?php if (!$docs): ?>
-      <tr><td colspan="<?= $can_export ? 15 : 14 ?>" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
+      <tr><td colspan="<?= $sel_col ? 15 : 14 ?>" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
       <?php endif; ?>
       <?php foreach ($docs as $doc): ?>
       <tr>
-        <?php if ($can_export): ?>
-        <td><?php if (edok_przelew_exportable($doc)): ?><input type="checkbox" class="form-check-input edok-export-check" value="<?= (int)$doc['id'] ?>" aria-label="Zaznacz <?= h($doc['number']) ?> do eksportu"><?php endif; ?></td>
+        <?php if ($sel_col): ?>
+        <td><?php if ($can_export && edok_przelew_exportable($doc)): ?><input type="checkbox" class="form-check-input edok-export-check" value="<?= (int)$doc['id'] ?>" aria-label="Zaznacz <?= h($doc['number']) ?> do eksportu">
+            <?php elseif (!empty($bank_pin_ok) && $doc['status'] === 'w_obiegu'): ?><input type="checkbox" class="form-check-input edok-bank-check" value="<?= (int)$doc['id'] ?>" title="Zaznacz do zatwierdzenia jako operację banku" aria-label="Zaznacz <?= h($doc['number']) ?> do zatwierdzenia jako operację banku"><?php endif; ?></td>
         <?php endif; ?>
         <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?>
           <?php if (edok_zaplata_do_zwrotu($doc)): ?> <span class="badge bg-warning text-dark" title="<?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-person-check"></i> do zwrotu</span>
@@ -449,9 +453,29 @@ require_once __DIR__ . '/../includes/header.php';
 </nav>
 <?php endif; ?>
 
-<?php if ($can_export): ?>
+<?php if ($sel_col): ?>
 <script>
 (function () {
+  // Zaznaczanie z listy do „Zatwierdź operacje bankowe”: dokumenty w obiegu bez przelewu do eksportu.
+  var bank = Array.from(document.querySelectorAll('.edok-bank-check'));
+  var bankBtn = document.getElementById('bankQuickBtn'), bankCount = document.getElementById('bankQuickCount');
+  var bankIds = document.getElementById('bankQuickIds'), bankNote = document.getElementById('bankQuickNote');
+  var pendingCount = bankCount ? parseInt(bankCount.textContent, 10) || 0 : 0;
+  function syncBank() {
+    var ids = bank.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+    if (bankIds) bankIds.value = ids.join(',');
+    if (bankCount) bankCount.textContent = ids.length ? ids.length : pendingCount;
+    if (bankBtn) { bankBtn.classList.toggle('btn-warning', !ids.length); bankBtn.classList.toggle('btn-danger', ids.length > 0); }
+    if (bankNote) { bankNote.textContent = ids.length ? 'Zaznaczone z listy: ' + ids.length + ' — zostaną oznaczone jako operacje banku (system zapamięta wzorzec tytułu) i zatwierdzone.' : ''; bankNote.style.display = ids.length ? '' : 'none'; }
+    var list = document.getElementById('bankQuickPendingList'); if (list) list.style.display = ids.length ? 'none' : '';
+  }
+  bank.forEach(function (b) { b.addEventListener('change', syncBank); });
+  syncBank();
+  <?php if (!$can_export): ?>
+  var allB = document.getElementById('edokExportAll');
+  if (allB) { allB.disabled = !bank.length; allB.addEventListener('change', function () { bank.forEach(function (b) { b.checked = allB.checked; }); syncBank(); }); }
+  return;
+  <?php endif; ?>
   var boxes = Array.from(document.querySelectorAll('.edok-export-check'));
   var all   = document.getElementById('edokExportAll');
   var form  = document.getElementById('edokExportForm');
@@ -465,7 +489,7 @@ require_once __DIR__ . '/../includes/header.php';
     all.indeterminate = ids.length > 0 && ids.length < boxes.length;
   }
   all.disabled = !boxes.length;
-  all.addEventListener('change', function () { boxes.forEach(function (b) { b.checked = all.checked; }); sync(); });
+  all.addEventListener('change', function () { boxes.forEach(function (b) { b.checked = all.checked; }); bank.forEach(function (b) { b.checked = all.checked; }); sync(); syncBank(); });
   boxes.forEach(function (b) { b.addEventListener('change', sync); });
   sync();
 })();
@@ -504,21 +528,27 @@ require_once __DIR__ . '/../includes/header.php';
   </form></div>
 </div>
 <?php endif; ?>
-<?php if (!empty($bank_docs_pending)): ?>
+<?php if ($bank_pin_ok): ?>
 <!-- ═══ MODAL — zbiorcze zatwierdzenie operacji banku (jeden rodzaj działalności, jeden PIN) ═══ -->
 <div class="modal fade" id="bankQuickModal" tabindex="-1" aria-labelledby="bankQuickLabel">
   <div class="modal-dialog">
     <form method="post" class="modal-content">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="bank_quick_all">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="bank_quick_all"><input type="hidden" name="doc_ids" id="bankQuickIds" value="">
       <div class="modal-header" style="background:#b45309;color:#fff">
-        <h5 class="modal-title" id="bankQuickLabel"><i class="bi bi-bank me-2"></i>Zatwierdź operacje bankowe (<?= count($bank_docs_pending) ?>)</h5>
+        <h5 class="modal-title" id="bankQuickLabel"><i class="bi bi-bank me-2"></i>Zatwierdź operacje bankowe</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body">
         <p class="small text-muted mb-2">Opłaty i odsetki banku z wyciągu. Wskaż tylko rodzaj działalności — kwoty i opis dopełni system, wszystkie etapy podpiszą się jednym PIN-em.</p>
-        <ul class="small mb-3">
-          <?php foreach ($bank_docs_pending as $d): ?><li><?= h($d['number']) ?> · <?= h($d['kontrahent_nazwa']) ?> · <?= h($d['kwota_brutto']) ?> PLN — <?= h($d['title']) ?></li><?php endforeach; ?>
-        </ul>
+        <div id="bankQuickNote" class="alert alert-danger py-2 small" style="display:none"></div>
+        <div id="bankQuickPendingList">
+          <?php if ($bank_docs_pending): ?>
+          <div class="small fw-semibold mb-1">Rozpoznane operacje banku w obiegu (<?= count($bank_docs_pending) ?>):</div>
+          <ul class="small mb-3">
+            <?php foreach ($bank_docs_pending as $d): ?><li><?= h($d['number']) ?> · <?= h($d['kontrahent_nazwa']) ?> · <?= h($d['kwota_brutto']) ?> PLN — <?= h($d['title']) ?></li><?php endforeach; ?>
+          </ul>
+          <?php else: ?><p class="small text-muted">Brak rozpoznanych operacji banku w obiegu. Zaznacz dokumenty na liście (kolumna z polami wyboru), żeby zatwierdzić je jako operacje banku.</p><?php endif; ?>
+        </div>
         <div class="mb-2"><label class="form-label small fw-semibold" for="bqa_rodzaj">Rodzaj działalności</label>
           <select id="bqa_rodzaj" name="bq_rodzaj" class="form-select form-select-sm" required onchange="document.getElementById('bqa_projekt_wrap').style.display = this.value === 'projekt' ? '' : 'none'">
             <option value="">— wybierz —</option>

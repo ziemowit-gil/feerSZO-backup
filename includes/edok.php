@@ -2833,13 +2833,49 @@ function edok_bank_docs_pending(): array {
 }
 
 /**
- * Zbiorcza akceptacja wszystkich operacji banku w obiegu jednym PIN-em (albo sesją PIN): ten sam rodzaj
- * działalności dla wszystkich. @return array{ok: string[], stopped: array<string,string>, error: ?string}
+ * Oznacza dokument z listy jako operację banku (zaznaczenie ręczne): wydatek → typ „Opłata bankowa”,
+ * przychód → „Odsetki bankowe”; nieznany kontrahent → PKO Bank Polski S.A. Uczy wzorzec tytułu
+ * (edok_bank_wzorzec_learn), żeby następny import rozpoznał taką operację sam. Zwraca true, gdy zmieniono.
  */
-function edok_bank_quick_accept_all(int $user_id, string $rodzaj, string $projekt, string $pin): array {
+function edok_doc_make_bankowy(array $doc, int $user_id): bool {
+    if (edok_doc_bankowy($doc)) return false;
+    $jest_przychod = ($doc['kierunek'] ?? 'wydatek') === 'przychod';
+    $tytul = trim((string)($doc['title'] ?? ''));
+    $upd = ['updated_at' => date('Y-m-d H:i:s')];
+    if ($jest_przychod) { $upd['typ_dokumentu'] = 'inny_przychod'; $upd['description'] = 'Odsetki bankowe — ' . (trim((string)$doc['description']) !== '' ? trim((string)$doc['description']) : $tytul); }
+    else { $upd['typ_dokumentu'] = 'oplata_bankowa'; if (!str_starts_with((string)$doc['description'], 'Opłata bankowa')) $upd['description'] = 'Opłata bankowa PKO — ' . (trim((string)$doc['description']) !== '' ? trim((string)$doc['description']) : $tytul); }
+    $k = trim((string)($doc['kontrahent_nazwa'] ?? ''));
+    if ($k === '' || str_starts_with($k, '(nieznany')) $upd['kontrahent_nazwa'] = 'PKO Bank Polski S.A.';
+    db_update('edok_documents', $upd, (int)$doc['id']);
+    $wz = null;
+    if (function_exists('edok_bank_wzorzec_learn')) {
+        // tytuł operacji = część przed „ — wpłacający/odbiorca” (edok_mt940_create_doc)
+        $op = trim((string)preg_split('/\s+—\s+(wpłacający|odbiorca):/u', $tytul)[0]);
+        $wz = edok_bank_wzorzec_learn($jest_przychod ? 'odsetki_bankowe' : 'oplata_bankowa', $op);
+        $tx = db_one("SELECT id FROM edok_bank_tx WHERE doc_id = ?", [(int)$doc['id']]);
+        if ($tx) db_exec("UPDATE edok_bank_tx SET kategoria=? WHERE id=?", [$jest_przychod ? 'odsetki_bankowe' : 'oplata_bankowa', (int)$tx['id']]);
+    }
+    edok_log((int)$doc['id'], 'bank_mark', '', '', '', 'Oznaczono ręcznie jako operację banku (' . ($jest_przychod ? 'odsetki' : 'opłata bankowa') . ')' . ($wz ? '; zapamiętano wzorzec „' . $wz . '”' : '') . '.');
+    return true;
+}
+
+/**
+ * Zbiorcza akceptacja operacji banku jednym PIN-em (albo sesją PIN): ten sam rodzaj działalności dla wszystkich.
+ * Bez $ids — wszystkie rozpoznane operacje banku w obiegu; z $ids — zaznaczone na liście dokumenty w obiegu,
+ * które najpierw są oznaczane jako operacje banku (edok_doc_make_bankowy), nawet gdy import ich nie rozpoznał.
+ * @return array{ok: string[], stopped: array<string,string>, error: ?string}
+ */
+function edok_bank_quick_accept_all(int $user_id, string $rodzaj, string $projekt, string $pin, array $ids = []): array {
     $out = ['ok' => [], 'stopped' => [], 'error' => null];
-    $docs = edok_bank_docs_pending();
-    if (!$docs) { $out['error'] = 'Brak operacji banku do zatwierdzenia.'; return $out; }
+    $ids = array_values(array_filter(array_map('intval', $ids)));
+    if ($ids) {
+        $docs = db_all("SELECT * FROM edok_documents WHERE status = 'w_obiegu' AND id IN (" . implode(',', array_fill(0, count($ids), '?')) . ") ORDER BY id", $ids);
+        foreach ($docs as $d) edok_doc_make_bankowy($d, $user_id);
+        $docs = $docs ? db_all("SELECT * FROM edok_documents WHERE id IN (" . implode(',', array_fill(0, count($docs), '?')) . ") ORDER BY id", array_map(fn($d) => (int)$d['id'], $docs)) : [];
+    } else {
+        $docs = edok_bank_docs_pending();
+    }
+    if (!$docs) { $out['error'] = $ids ? 'Żaden z zaznaczonych dokumentów nie jest w obiegu.' : 'Brak operacji banku do zatwierdzenia.'; return $out; }
     foreach ($docs as $i => $d) {
         // pierwszy dokument weryfikuje PIN i otwiera sesję PIN (edok_sign_all), kolejne idą na sesji
         $res = edok_bank_quick_accept((int)$d['id'], $user_id, $rodzaj, $projekt, $i === 0 ? $pin : '');
