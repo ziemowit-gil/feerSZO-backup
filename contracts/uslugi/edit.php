@@ -92,32 +92,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <i class="bi bi-pencil tw-text-blue-600"></i> Edycja: <?= h($row['numer_umowy']) ?>
   </h1>
   <div class="tw-flex tw-gap-2">
-    <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
+    <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
       <i class="bi bi-eye"></i> Podgląd
     </a>
-    <a href="list.php" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
+    <a href="list.php" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
       <i class="bi bi-arrow-left"></i> Lista
     </a>
   </div>
 </div>
 
 <?php if ($errors): ?>
-<div class="tw-rounded-lg tw-border tw-border-red-200 tw-bg-red-50 tw-text-red-800 tw-px-4 tw-py-3 tw-mb-4 tw-text-sm">
+<div class="tw-rounded-lg tw-border tw-border-solid tw-border-red-200 tw-bg-red-50 tw-text-red-800 tw-px-4 tw-py-3 tw-mb-4 tw-text-sm">
   <ul class="tw-mb-0 tw-pl-4 tw-list-disc"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
 </div>
 <?php endif; ?>
 
 <form method="post" enctype="multipart/form-data" novalidate x-data="tabbedContractForm(4)" @submit="onSubmit($event)"
-      class="tw-bg-white tw-rounded-2xl tw-border tw-border-slate-200 tw-shadow-sm tw-overflow-hidden">
+      class="tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm tw-overflow-hidden">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
 <!-- Zakładki -->
-<div class="tw-flex tw-gap-1 tw-overflow-x-auto tw-border-b tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-pt-2" role="tablist" aria-label="Sekcje formularza umowy">
+<div class="tw-flex tw-gap-1 tw-overflow-x-auto tw-border-b tw-border-solid tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-pt-2" role="tablist" aria-label="Sekcje formularza umowy">
   <?php $_tabs = ['Umowa', 'Wykonawca', 'Finanse', 'Podpisanie i pliki']; ?>
   <?php foreach ($_tabs as $_ti => $_tlabel): $_tn = $_ti + 1; ?>
   <button type="button" role="tab" :aria-selected="(tab===<?= $_tn ?>).toString()" @click="goTab(<?= $_tn ?>)"
-          class="tw-inline-flex tw-items-center tw-whitespace-nowrap tw-rounded-t-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-transition"
-          :class="tab===<?= $_tn ?> ? 'tw-bg-white tw-text-blue-600 tw-border tw-border-b-0 tw-border-slate-200' : 'tw-text-slate-500 hover:tw-text-slate-700'">
+          class="tw-inline-flex tw-items-center tw-whitespace-nowrap tw-rounded-t-lg tw-border tw-border-solid tw-border-b-0 tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-transition tw-cursor-pointer"
+          :class="tab===<?= $_tn ?> ? 'tw-bg-white tw-text-blue-600 tw-border-slate-200' : 'tw-bg-transparent tw-border-transparent tw-text-slate-500 hover:tw-text-slate-700'">
     <?= h($_tlabel) ?>
   </button>
   <?php endforeach; ?>
@@ -130,18 +130,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-6">
     <div>
       <label for="nr_roboczy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr roboczy umowy</label>
-      <input id="nr_roboczy" name="nr_roboczy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="nr_roboczy" name="nr_roboczy" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['nr_roboczy']??'') ?>" placeholder="np. PR-2026-001">
       <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Numer roboczy w projekcie.</p>
     </div>
     <div>
       <label for="nr_system" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr ogólny <span class="tw-text-slate-400 tw-font-normal">(webNGO, opcjonalne)</span></label>
-      <input id="nr_system" name="nr_system" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="nr_system" name="nr_system" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['nr_system']??'') ?>">
     </div>
     <div>
       <label for="nr_rejestru" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr rejestru <span class="tw-text-slate-400 tw-font-normal">RU/{nr}/{rok}/{inicjały}</span></label>
-      <input id="nr_rejestru" name="nr_rejestru" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="nr_rejestru" name="nr_rejestru" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['nr_rejestru']??'') ?>"
              placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
       <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Zostaw puste — zostanie nadany automatycznie.</p>
@@ -152,12 +152,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4">
     <div>
       <label for="numer_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer umowy <span class="tw-text-red-500">*</span></label>
-      <input id="numer_umowy" name="numer_umowy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-semibold focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="numer_umowy" name="numer_umowy" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-semibold focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['numer_umowy']) ?>" required>
     </div>
     <div>
       <label for="status" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Status <span class="tw-text-red-500">*</span></label>
-      <select id="status" name="status" required class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+      <select id="status" name="status" required class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
         <?php foreach (contractStatusOptions('uslugi', $row['status']) as $s => $_sl):
           $sel = $row['status'] === $s ? 'selected' : ''; ?>
         <option value="<?= h($s) ?>" <?= $sel ?>><?= h($_sl) ?></option>
@@ -166,22 +166,22 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div>
       <label for="opiekun" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Opiekun umowy</label>
-      <input id="opiekun" name="opiekun" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="opiekun" name="opiekun" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['opiekun']) ?>">
     </div>
     <div>
       <label for="data_zawarcia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data zawarcia</label>
-      <input id="data_zawarcia" name="data_zawarcia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="data_zawarcia" name="data_zawarcia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['data_zawarcia']) ?>">
     </div>
     <div>
       <label for="data_rozpoczecia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data rozpoczęcia</label>
-      <input id="data_rozpoczecia" name="data_rozpoczecia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="data_rozpoczecia" name="data_rozpoczecia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['data_rozpoczecia']) ?>">
     </div>
     <div>
       <label for="data_zakonczenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data zakończenia</label>
-      <input name="data_zakonczenia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none disabled:tw-bg-slate-100" id="data_zakonczenia" value="<?= h($row['data_zakonczenia']) ?>"
+      <input name="data_zakonczenia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none disabled:tw-bg-slate-100" id="data_zakonczenia" value="<?= h($row['data_zakonczenia']) ?>"
         <?= $row['czas_nieokreslony'] ? 'disabled' : '' ?>>
     </div>
     <div class="tw-flex tw-items-end tw-pb-2">
@@ -193,22 +193,22 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div>
       <label for="okres_wypowiedzenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Okres wypowiedzenia</label>
-      <input id="okres_wypowiedzenia" name="okres_wypowiedzenia" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="okres_wypowiedzenia" name="okres_wypowiedzenia" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['okres_wypowiedzenia']) ?>">
     </div>
     <div>
       <label for="numer_projektu" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer projektu</label>
-      <input id="numer_projektu" name="numer_projektu" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="numer_projektu" name="numer_projektu" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['numer_projektu']) ?>">
     </div>
   </div>
   <div class="tw-mt-4">
     <label for="przedmiot_uslugi" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Przedmiot usługi</label>
-    <textarea id="przedmiot_uslugi" name="przedmiot_uslugi" rows="2" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['przedmiot_uslugi']) ?></textarea>
+    <textarea id="przedmiot_uslugi" name="przedmiot_uslugi" rows="2" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['przedmiot_uslugi']) ?></textarea>
   </div>
   <div class="tw-mt-4">
     <label for="zakres_uslug" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Zakres usług</label>
-    <textarea id="zakres_uslug" name="zakres_uslug" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['zakres_uslug']) ?></textarea>
+    <textarea id="zakres_uslug" name="zakres_uslug" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['zakres_uslug']) ?></textarea>
   </div>
 </div>
 
@@ -217,12 +217,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
   <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-building"></i> Wykonawca</h2>
 
-  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4 tw-mb-4 tw-pb-4 tw-border-b tw-border-slate-200">
+  <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4 tw-mb-4 tw-pb-4 tw-border-b tw-border-solid tw-border-slate-200">
     <div>
       <label class="tw-block tw-text-xs tw-font-medium tw-text-slate-500 tw-mb-1">JDG — szukaj po NIP w CEIDG</label>
       <div class="tw-flex tw-gap-2">
-        <input type="text" id="ceidgNipInput" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none" placeholder="NIP (10 cyfr)" maxlength="13">
-        <button type="button" class="tw-inline-flex tw-items-center tw-gap-1 tw-whitespace-nowrap tw-rounded-lg tw-border tw-border-blue-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm tw-font-medium tw-text-blue-700 hover:tw-bg-blue-50" id="ceidgBtn" onclick="ceidgSearch()">
+        <input type="text" id="ceidgNipInput" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none" placeholder="NIP (10 cyfr)" maxlength="13">
+        <button type="button" class="tw-inline-flex tw-items-center tw-gap-1 tw-whitespace-nowrap tw-rounded-lg tw-border tw-border-solid tw-border-blue-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm tw-font-medium tw-text-blue-700 hover:tw-bg-blue-50" id="ceidgBtn" onclick="ceidgSearch()">
           <i class="bi bi-search"></i> CEIDG
         </button>
       </div>
@@ -231,8 +231,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div>
       <label class="tw-block tw-text-xs tw-font-medium tw-text-slate-500 tw-mb-1">Spółka / org. — szukaj po nr KRS</label>
       <div class="tw-flex tw-gap-2">
-        <input type="text" id="krsInput" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none" placeholder="Nr KRS (10 cyfr)" maxlength="10">
-        <button type="button" class="tw-inline-flex tw-items-center tw-gap-1 tw-whitespace-nowrap tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50" id="krsBtn" onclick="krsSearch()">
+        <input type="text" id="krsInput" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none" placeholder="Nr KRS (10 cyfr)" maxlength="10">
+        <button type="button" class="tw-inline-flex tw-items-center tw-gap-1 tw-whitespace-nowrap tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50" id="krsBtn" onclick="krsSearch()">
           <i class="bi bi-search"></i> KRS
         </button>
       </div>
@@ -243,35 +243,35 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4">
     <div>
       <label for="nazwa_wykonawcy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nazwa wykonawcy</label>
-      <input id="nazwa_wykonawcy" name="nazwa_wykonawcy" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="nazwa_wykonawcy" name="nazwa_wykonawcy" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['nazwa_wykonawcy']) ?>"><?= byli_check_field('nazwa_wykonawcy') ?>
     </div>
     <div>
       <label for="nip_pesel" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">NIP / PESEL</label>
-      <input id="nip_pesel" name="nip_pesel" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="nip_pesel" name="nip_pesel" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['nip_pesel']) ?>">
     </div>
   </div>
   <div class="tw-mt-4">
     <label for="adres" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Adres</label>
-    <input id="adres" name="adres" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+    <input id="adres" name="adres" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
            value="<?= h($row['adres']) ?>">
   </div>
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-4 tw-mt-4">
     <div>
       <label for="email" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Adres e-mail kontrahenta</label>
-      <input id="email" type="email" name="email" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="email" type="email" name="email" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              placeholder="np. jan.kowalski@email.pl" value="<?= h($row['email'])?>">
     </div>
     <div>
       <label for="telefon" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Telefon kontaktowy</label>
-      <input id="telefon" name="telefon" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="telefon" name="telefon" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              placeholder="np. +48 600 100 200" value="<?= h($row['telefon'] ?? '')?>">
     </div>
   </div>
   <div class="tw-mt-4">
     <label for="rachunek_lub_faktura" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Rachunek bankowy / dane do faktury</label>
-    <input id="rachunek_lub_faktura" name="rachunek_lub_faktura" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+    <input id="rachunek_lub_faktura" name="rachunek_lub_faktura" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
            value="<?= h($row['rachunek_lub_faktura']) ?>">
   </div>
 </div>
@@ -283,29 +283,29 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="tw-grid tw-grid-cols-2 sm:tw-grid-cols-4 tw-gap-4 tw-mb-4">
     <div>
       <label for="wartosc_netto" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Wartość netto (PLN)</label>
-      <input id="wartosc_netto" name="wartosc_netto" type="number" step="0.01" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="wartosc_netto" name="wartosc_netto" type="number" step="0.01" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['wartosc_netto']) ?>">
     </div>
     <div>
       <label for="stawka_vat" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">VAT (%)</label>
-      <input id="stawka_vat" name="stawka_vat" type="number" step="0.01" min="0" max="100" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="stawka_vat" name="stawka_vat" type="number" step="0.01" min="0" max="100" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['stawka_vat']) ?>">
     </div>
     <div>
       <label for="wartosc_brutto" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Wartość brutto (PLN)</label>
-      <input id="wartosc_brutto" name="wartosc_brutto" type="number" step="0.01" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="wartosc_brutto" name="wartosc_brutto" type="number" step="0.01" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['wartosc_brutto']) ?>">
     </div>
     <div>
       <label for="waluta" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Waluta</label>
-      <input id="waluta" name="waluta" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="waluta" name="waluta" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              maxlength="3" value="<?= h($row['waluta'] ?: 'PLN') ?>">
     </div>
   </div>
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4">
     <div>
       <label for="harmonogram_platnosci" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Harmonogram płatności</label>
-      <select id="harmonogram_platnosci" name="harmonogram_platnosci" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+      <select id="harmonogram_platnosci" name="harmonogram_platnosci" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
         <option value="">—</option>
         <option value="jednorazowo" <?= $row['harmonogram_platnosci']==='jednorazowo'?'selected':'' ?>>Jednorazowo</option>
         <option value="miesięcznie" <?= $row['harmonogram_platnosci']==='miesięcznie'?'selected':'' ?>>Miesięcznie</option>
@@ -314,7 +314,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div>
       <label for="termin_platnosci_dni" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Termin płatności (dni)</label>
-      <input id="termin_platnosci_dni" name="termin_platnosci_dni" type="number" min="0" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="termin_platnosci_dni" name="termin_platnosci_dni" type="number" min="0" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['termin_platnosci_dni']) ?>">
     </div>
     <div class="tw-flex tw-items-end tw-pb-2">
@@ -333,7 +333,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div>
       <label for="data_odbioru" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data odbioru</label>
-      <input id="data_odbioru" name="data_odbioru" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="data_odbioru" name="data_odbioru" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['data_odbioru']) ?>">
     </div>
   </div>
@@ -342,7 +342,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4">
     <div>
       <label for="status_rozliczenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Stan rozliczenia</label>
-      <select id="status_rozliczenia" name="status_rozliczenia" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+      <select id="status_rozliczenia" name="status_rozliczenia" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
         <?php foreach(['nierozliczone'=>'Nierozliczone','częściowo'=>'Częściowo rozliczone','rozliczone'=>'Rozliczone'] as $k=>$v):
           $sel = ($row['status_rozliczenia'] ?? 'nierozliczone')===$k?'selected':''; ?>
         <option value="<?= h($k) ?>" <?= $sel ?>><?= h($v) ?></option>
@@ -351,12 +351,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <div>
       <label for="kwota_rozliczona" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Kwota rozliczona</label>
-      <input id="kwota_rozliczona" name="kwota_rozliczona" type="number" step="0.01" min="0" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="kwota_rozliczona" name="kwota_rozliczona" type="number" step="0.01" min="0" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['kwota_rozliczona'] ?? '') ?>">
     </div>
     <div>
       <label for="data_rozliczenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data rozliczenia</label>
-      <input id="data_rozliczenia" name="data_rozliczenia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+      <input id="data_rozliczenia" name="data_rozliczenia" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              value="<?= h($row['data_rozliczenia'] ?? '') ?>">
     </div>
   </div>
@@ -370,7 +370,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-pen"></i> Podpisanie</h2>
       <div class="tw-mb-4 sm:tw-w-1/2">
         <label for="forma_podpisania" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Forma podpisania</label>
-        <select name="forma_podpisania" id="forma_podpisania" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+        <select name="forma_podpisania" id="forma_podpisania" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
           <option value="">—</option>
           <option value="papierowa" <?= $row['forma_podpisania']==='papierowa'?'selected':'' ?>>Papierowa</option>
           <option value="elektroniczna" <?= $row['forma_podpisania']==='elektroniczna'?'selected':'' ?>>Elektroniczna</option>
@@ -381,12 +381,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div id="el_fields" class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4" style="display:<?= $row['forma_podpisania']==='elektroniczna'?'':'none' ?>">
         <div>
           <label for="platforma_el" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Platforma</label>
-          <input id="platforma_el" name="platforma_el" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+          <input id="platforma_el" name="platforma_el" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
                  value="<?= h($row['platforma_el']) ?>">
         </div>
         <div>
           <label for="id_dokumentu_el" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">ID dokumentu</label>
-          <input id="id_dokumentu_el" name="id_dokumentu_el" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+          <input id="id_dokumentu_el" name="id_dokumentu_el" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
                  value="<?= h($row['id_dokumentu_el']) ?>">
         </div>
         <div>
@@ -402,29 +402,29 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div id="epodpis_fields" class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4" style="display:none">
         <div>
           <label for="epodpis_dostawca" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Dostawca podpisu (TSP)</label>
-          <input id="epodpis_dostawca" name="epodpis_dostawca" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+          <input id="epodpis_dostawca" name="epodpis_dostawca" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
                  placeholder="Certum, SimplySign, mSzafir, Autenti…" value="<?= h($row['epodpis_dostawca'] ?? '') ?>">
         </div>
         <div>
           <label for="epodpis_nr_certyfikatu" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer seryjny certyfikatu</label>
-          <input id="epodpis_nr_certyfikatu" name="epodpis_nr_certyfikatu" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+          <input id="epodpis_nr_certyfikatu" name="epodpis_nr_certyfikatu" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
                  value="<?= h($row['epodpis_nr_certyfikatu'] ?? '') ?>">
         </div>
         <div>
           <label for="epodpis_data_waznosci" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Ważność certyfikatu</label>
-          <input id="epodpis_data_waznosci" name="epodpis_data_waznosci" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+          <input id="epodpis_data_waznosci" name="epodpis_data_waznosci" type="date" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
                  value="<?= h($row['epodpis_data_waznosci'] ?? '') ?>">
         </div>
       </div>
 
       <div>
         <label for="uwagi" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Uwagi</label>
-        <textarea id="uwagi" name="uwagi" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['uwagi']) ?></textarea>
+        <textarea id="uwagi" name="uwagi" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['uwagi']) ?></textarea>
       </div>
     </div>
 
     <div class="lg:tw-col-span-1 tw-space-y-4">
-      <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
+      <div class="tw-rounded-xl tw-border tw-border-solid tw-border-slate-200 tw-p-4">
         <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-paperclip"></i> Plik umowy</h2>
         <?php if ($row['plik_umowy']): ?>
         <div class="tw-mb-2 tw-text-sm"><?= upload_link($row['plik_umowy']) ?></div>
@@ -435,7 +435,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
                class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
       </div>
-      <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
+      <div class="tw-rounded-xl tw-border tw-border-solid tw-border-slate-200 tw-p-4">
         <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-files"></i> Załączniki</h2>
         <?php if ($row['zalaczniki']): ?>
         <div class="tw-mb-2 tw-text-sm"><?= upload_link($row['zalaczniki']) ?></div>
@@ -446,7 +446,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <input id="zalaczniki" name="zalaczniki" type="file" accept=".pdf,.docx,.xlsx,.zip"
                class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
       </div>
-      <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
+      <div class="tw-rounded-xl tw-border tw-border-solid tw-border-slate-200 tw-p-4">
         <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-shield-lock"></i> Dostęp</h2>
         <?= contract_access_field_html(contract_access_user_ids($TYPE, $id)) ?>
       </div>
@@ -455,13 +455,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 
 <!-- Pasek akcji — zawsze widoczny, niezależnie od aktywnej zakładki -->
-<div class="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3 tw-border-t tw-border-slate-200 tw-bg-slate-50 tw-px-6 tw-py-4">
+<div class="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3 tw-border-t tw-border-solid tw-border-slate-200 tw-bg-slate-50 tw-px-6 tw-py-4">
   <div></div>
   <div class="tw-flex tw-gap-2">
-    <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">Anuluj</a>
+    <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">Anuluj</a>
     <button type="submit" :disabled="submitting"
-            class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-bg-blue-600 tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-blue-700 disabled:tw-opacity-60">
-      <span x-show="submitting" x-cloak class="tw-inline-block tw-h-3.5 tw-w-3.5 tw-animate-spin tw-rounded-full tw-border-2 tw-border-white/40 tw-border-t-white" aria-hidden="true"></span>
+            class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-solid tw-border-blue-600 tw-bg-blue-600 tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-blue-700 disabled:tw-opacity-60">
+      <span x-show="submitting" x-cloak class="tw-inline-block tw-h-3.5 tw-w-3.5 tw-animate-spin tw-rounded-full tw-border-2 tw-border-solid tw-border-white/40 tw-border-t-white" aria-hidden="true"></span>
       <i x-show="!submitting" x-cloak class="bi bi-check-lg"></i>
       <span x-text="submitting ? 'Zapisywanie…' : 'Zapisz zmiany'"></span>
     </button>
