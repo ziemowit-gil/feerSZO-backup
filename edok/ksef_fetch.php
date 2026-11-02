@@ -77,6 +77,7 @@ try {
             'kwota_brutto'     => $data['gross_value']    ?? '',
             'waluta'           => $data['currency']       ?: 'PLN',
             'data_wystawienia' => $data['issue_date']     ?? '',
+            'data_wplywu'      => edok_ksef_data_doreczenia($ref) ?? '',
             'description'      => 'Faktura pobrana z KSeF, nr referencyjny: ' . $ref,
         ],
     ]);

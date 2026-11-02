@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$zaplata, $e2] = edok_zaplata_from_post($_POST, $proforma_id);
             $zaplata_errors = array_merge($zaplata_errors, $e2);
             if (!$zaplata_errors) {
-                [$dowod, $e3] = edok_dowod_zaplaty_upload($zaplata, (string)$doc['dowod_zaplaty_path']);
+                [$dowod, $e3] = edok_dowod_zaplaty_upload($zaplata, (string)$doc['dowod_zaplaty_path'], trim((string)($doc['ksef_reference'] ?? '')) !== '');
                 $zaplata['dowod_zaplaty_path'] = $dowod;
                 $zaplata_errors = array_merge($zaplata_errors, $e3);
             }
@@ -826,7 +826,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
           </div>
         </div>
         <?php if ($doc['kierunek'] === 'wydatek'): ?>
-        <?php $zp_vals = $doc; $zp_locked = $locked_rachunkowa; $zp_doc_id = $id; $zp_typ = $doc['typ_dokumentu']; include __DIR__ . '/_zaplata_fields.php'; ?>
+        <?php $zp_vals = $doc; $zp_locked = $locked_rachunkowa; $zp_doc_id = $id; $zp_typ = $doc['typ_dokumentu']; $zp_ksef = trim((string)($doc['ksef_reference'] ?? '')) !== ''; include __DIR__ . '/_zaplata_fields.php'; ?>
         <?php endif; ?>
         <?php if (in_array($doc['typ_dokumentu'], ['rachunek', 'lista_plac'], true) && $doc['kierunek'] === 'wydatek'): ?>
         <div class="row g-2 mb-2">

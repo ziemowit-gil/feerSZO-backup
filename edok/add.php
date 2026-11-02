@@ -39,7 +39,10 @@ if ($queue_item && $_SERVER['REQUEST_METHOD'] !== 'POST') {
             $xml_data['typ_dokumentu'] = $sales['typ_dokumentu'] === 'faktura_korygujaca' ? 'korekta_sprzedazy' : 'faktura_sprzedazy';
             $xml_data['zaplacono_przed'] = ''; // dla przychodu pola zapłaty kosztów nie dotyczą
         }
-        $_POST = $xml_data + ['data_wplywu' => date('Y-m-d')];
+        // Faktura z KSeF (plik nazwany numerem KSeF): data doręczenia = data nadania numeru KSeF.
+        $queue_ksef = preg_match('/^\d{10}-\d{8}-[0-9A-Fa-f]{12}-[0-9A-Fa-f]{2}$/', pathinfo((string)$queue_item['orig_name'], PATHINFO_FILENAME)) ? strtoupper(pathinfo((string)$queue_item['orig_name'], PATHINFO_FILENAME)) : '';
+        $queue_doreczenie = ($xml_data['kierunek'] ?? 'wydatek') === 'wydatek' ? edok_ksef_data_doreczenia($queue_ksef) : null;
+        $_POST = $xml_data + ['data_wplywu' => $queue_doreczenie ?? date('Y-m-d')];
         $queue_xml = true;
     }
 }
@@ -139,7 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
     $file_path = null;
     $dowod_zaplaty_path = '';
     if (!$errors && $kierunek === 'wydatek') {
-        [$dowod_zaplaty_path, $dowod_errors] = edok_dowod_zaplaty_upload($zaplata);
+        $is_ksef = $ksef_file_path !== '' || edok_ksef_data_doreczenia($_POST['ksef_number'] ?? '') !== null;
+        [$dowod_zaplaty_path, $dowod_errors] = edok_dowod_zaplaty_upload($zaplata, '', $is_ksef);
         array_push($errors, ...$dowod_errors);
     }
     if (!$errors) {
@@ -402,8 +406,9 @@ require_once __DIR__ . '/../includes/header.php';
           <input type="date" name="data_sprzedazy" class="form-control" value="<?= h($_POST['data_sprzedazy'] ?? '') ?>">
         </div>
         <div class="col-sm-4">
-          <label class="form-label">Data wpływu</label>
-          <input type="date" name="data_wplywu" class="form-control" value="<?= h($_POST['data_wplywu'] ?? date('Y-m-d')) ?>">
+          <label class="form-label" for="data_wplywu">Data wpływu (doręczenia)</label>
+          <input type="date" name="data_wplywu" id="data_wplywu" class="form-control" value="<?= h($_POST['data_wplywu'] ?? date('Y-m-d')) ?>">
+          <div class="form-text">Dla faktury z KSeF = data nadania numeru KSeF (uzupełniana automatycznie).</div>
         </div>
       </div>
 
@@ -816,6 +821,7 @@ function edokXmlLoad(input) {
         var el = document.querySelector('[name="' + k + '"]');
         if (el && d[k] !== undefined && d[k] !== '') el.value = d[k];
       });
+      if (d.data_wplywu) document.querySelector('[name="data_wplywu"]').value = d.data_wplywu;
       document.getElementById('ksef_file_path').value = res.file_path || '';
       document.getElementById('ksef_number').value = res.ksef_number || '';
       document.getElementById('file_input').required = false;
@@ -861,6 +867,7 @@ function edokKsefFetch() {
       document.querySelector('[name="kontrahent_nip"]').value = d.kontrahent_nip || '';
       document.querySelector('[name="waluta"]').value = d.waluta || 'PLN';
       document.querySelector('[name="data_wystawienia"]').value = d.data_wystawienia || '';
+      if (d.data_wplywu) document.querySelector('[name="data_wplywu"]').value = d.data_wplywu;
       document.querySelector('[name="description"]').value = d.description || '';
 
       document.getElementById('ksef_file_path').value = res.file_path || '';

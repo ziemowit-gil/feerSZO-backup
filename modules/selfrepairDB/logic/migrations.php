@@ -460,4 +460,18 @@ return [
         },
     ],
 
+    // EODoK: faktury z KSeF — data doręczenia (data_wplywu) = data nadania numeru KSeF
+    // (drugi człon numeru). Uzupełnia tylko dokumenty zakupowe bez daty wpływu.
+    '2026-11_edok_ksef_data_doreczenia' => [
+        'desc' => 'EODoK: data wpływu faktur z KSeF = data nadania numeru KSeF (uzupełnienie wstecz)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/edok.php';
+            $rows = db_all("SELECT id, ksef_reference FROM edok_documents WHERE COALESCE(ksef_reference,'')<>'' AND COALESCE(data_wplywu,'')='' AND COALESCE(kierunek,'wydatek')='wydatek'");
+            foreach ($rows as $r) {
+                $d = edok_ksef_data_doreczenia($r['ksef_reference']);
+                if ($d) db_exec("UPDATE edok_documents SET data_wplywu=? WHERE id=?", [$d, (int)$r['id']]);
+            }
+        },
+    ],
+
 ];

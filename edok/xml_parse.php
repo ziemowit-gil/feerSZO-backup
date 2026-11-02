@@ -31,4 +31,8 @@ edok_migrate();
 // Pliki pobrane z KSeF są nazwane numerem KSeF (NIP-RRRRMMDD-…-CRC) — zachowujemy go dla wizualizacji faktur zakupu.
 $base = pathinfo($f['name'], PATHINFO_FILENAME);
 $ksef_no = preg_match('/^\d{10}-\d{8}-[0-9A-Fa-f]{12}-[0-9A-Fa-f]{2}$/', $base) ? strtoupper($base) : '';
+// Data doręczenia faktury z KSeF = data nadania numeru KSeF (z nazwy pliku); tylko dla zakupu — sprzedaż nie ma „wpływu”.
+if ($ksef_no !== '' && !in_array(preg_replace('/\D/', '', (string)($data['kontrahent_nip'] ?? '')), edok_org_nips(), true)) {
+    $data['data_wplywu'] = edok_ksef_data_doreczenia($ksef_no) ?? '';
+}
 echo json_encode(['ok' => true, 'data' => $data, 'file_path' => edok_queue_save_bytes($xml, 'xml'), 'ksef_number' => $ksef_no]);

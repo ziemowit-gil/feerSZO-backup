@@ -11,12 +11,15 @@
  *   $zp_doc_id  — id edytowanego dokumentu (null w add.php)
  *   $zp_typ_el  — id selecta typu dokumentu (add.php) albo null, gdy typ stały ($zp_typ)
  *   $zp_typ     — typ dokumentu, gdy nie ma selecta
+ *   $zp_ksef    — true = faktura z KSeF (dowód zapłaty nigdy nie jest wymagany);
+ *                 w add.php nieznane z góry — JS czyta ukryte pole #ksef_number
  */
 $zp_vals   = $zp_vals ?? [];
 $zp_locked = !empty($zp_locked);
 $zp_doc_id = $zp_doc_id ?? null;
 $zp_typ_el = $zp_typ_el ?? null;
 $zp_typ    = $zp_typ ?? '';
+$zp_ksef   = !empty($zp_ksef);
 $zp_dis    = $zp_locked ? 'disabled' : '';
 $zp_on     = !empty($zp_vals['zaplacono_przed']) && ($zp_vals['forma_zaplaty'] ?? '') !== EDOK_FORMA_PROFORMA;
 $zp_osoba  = ($zp_vals['zaplacil'] ?? '') === 'osoba';
@@ -138,7 +141,9 @@ function edokZpSync(fromProforma) {
   document.getElementById('zp_zwrot_fields').style.display = osoba ? '' : 'none';
   document.getElementById('zp_hint_org').style.display = osoba ? 'none' : '';
   document.getElementById('zp_hint_osoba').style.display = osoba ? '' : 'none';
-  document.getElementById('zp_dowod_req').textContent = osoba ? '(wymagany przy zwrocie kosztów)' : '(opcjonalnie)';
+  var ksefEl = document.getElementById('ksef_number');
+  var zKsef = <?= $zp_ksef ? 'true' : 'false' ?> || !!(ksefEl && ksefEl.value);
+  document.getElementById('zp_dowod_req').textContent = zKsef ? '(opcjonalnie — faktura z KSeF)' : (osoba ? '(wymagany przy zwrocie kosztów)' : '(opcjonalnie)');
   // Wybór proformy podpowiada kontrahenta, jeśli pola są jeszcze puste.
   if (fromProforma && zProformy && pfSel.value) {
     var o = pfSel.selectedOptions[0];

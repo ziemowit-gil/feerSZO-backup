@@ -2162,18 +2162,31 @@ function edok_nrb_valid(string $nrb): bool {
 }
 
 /**
+ * Data doręczenia faktury z KSeF = data nadania numeru KSeF (art. 106na ust. 1 i 3
+ * ustawy o VAT: faktura ustrukturyzowana jest otrzymana w dniu przydzielenia numeru).
+ * Numer KSeF ma postać NIP-RRRRMMDD-XXXXXXXXXXXX-XX — data siedzi w drugim członie,
+ * więc nie trzeba osobnego zapytania o metadane. Zwraca YYYY-MM-DD albo null.
+ */
+function edok_ksef_data_doreczenia(?string $ksef_reference): ?string {
+    if (!preg_match('/^\d{10}-(\d{4})(\d{2})(\d{2})-[0-9A-Fa-f]{12}-[0-9A-Fa-f]{2}$/', trim((string)$ksef_reference), $m)) return null;
+    return checkdate((int)$m[2], (int)$m[3], (int)$m[1]) ? "{$m[1]}-{$m[2]}-{$m[3]}" : null;
+}
+
+/**
  * Obsługa pliku „dowód zapłaty” z formularza (pole dowod_zaplaty). Zwraca
  * [ścieżka|'' , błędy]. $obecna — już zapisany plik (edycja); zwrot kosztów
  * wymaga dowodu, zapłata przez organizację — nie. Proforma go nie potrzebuje.
+ * $ksef — faktura ustrukturyzowana z KSeF: sama jest dowodem w systemie
+ * MF, więc dowód zapłaty jest tylko opcjonalny (także przy zwrocie kosztów).
  */
-function edok_dowod_zaplaty_upload(array $zaplata, string $obecna = ''): array {
+function edok_dowod_zaplaty_upload(array $zaplata, string $obecna = '', bool $ksef = false): array {
     if (empty($zaplata['zaplacono_przed']) || $zaplata['forma_zaplaty'] === EDOK_FORMA_PROFORMA) return ['', []];
     if (!empty($_FILES['dowod_zaplaty']['tmp_name'])) {
         $path = handle_upload('dowod_zaplaty', 'edok_docs');
         if (!$path) return [$obecna, ['Nie udało się zapisać dowodu zapłaty (dozwolone: PDF, JPG, PNG, DOCX, max 20 MB).']];
         return [$path, []];
     }
-    if ($obecna === '' && ($zaplata['zaplacil'] ?? '') === 'osoba') {
+    if ($obecna === '' && ($zaplata['zaplacil'] ?? '') === 'osoba' && !$ksef) {
         return ['', ['Dołącz dowód zapłaty — przy zwrocie kosztów jest wymagany (potwierdzenie z terminala, paragon, wyciąg).']];
     }
     return [$obecna, []];
@@ -3222,6 +3235,7 @@ function edok_ksef_create_doc(array $invoice_data): int {
         'kontrahent_nip'      => $invoice_data['seller_nip']  ?? '',
         'nr_faktury'          => $invoice_data['invoice_number'] ?? '',
         'data_wystawienia'    => $invoice_data['issue_date'] ?: null,
+        'data_wplywu'         => edok_ksef_data_doreczenia($invoice_data['ksef_reference'] ?? null),
         'kwota_brutto'        => $invoice_data['gross_value'] ?? '',
         'waluta'              => $invoice_data['currency'] ?: 'PLN',
         'ksef_reference'      => $invoice_data['ksef_reference'] ?? '',
