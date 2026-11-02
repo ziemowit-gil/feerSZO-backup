@@ -1062,6 +1062,82 @@ function rachunek_month_label(?string $ym = null): string {
     return ($months[$m - 1] ?? $ym) . ' ' . $y;
 }
 
+// ── „Przygotuj dane do rachunku” (zakładka Godziny) ───────────────────────────
+
+/**
+ * Domyślne dane do rachunku za miesiąc rachunku (poprzedni): zleceniobiorca, adres, data umowy,
+ * dzisiejsza data prośby, okres słownie, kwota brutto z salda (należność miesiąca) i godziny rozliczane.
+ * Wszystko do ręcznej poprawki w modalu — to tylko podpowiedź z systemu.
+ */
+function rachunek_dane_defaults(array $contract, ?array $ledger = null): array {
+    $ym  = rachunek_target_month();
+    $row = null;
+    foreach (($ledger['miesiace'] ?? []) as $m) if (($m['ym'] ?? '') === $ym) { $row = $m; break; }
+    $adres = trim((string)($contract['adres'] ?? ''));
+    if ($adres === '') {
+        $ul = trim((string)($contract['addr_street'] ?? '') . ' ' . (string)($contract['addr_house'] ?? '') . (trim((string)($contract['addr_flat'] ?? '')) !== '' ? '/' . trim((string)$contract['addr_flat']) : ''));
+        $adres = trim($ul . ', ' . trim((string)($contract['addr_postal'] ?? '') . ' ' . (string)($contract['addr_city'] ?? '')), ', ');
+    }
+    return [
+        'dla'        => trim((string)($contract['imie_nazwisko'] ?? '')),
+        'adres'      => $adres,
+        'data_umowy' => (string)($contract['data_zawarcia'] ?: ($contract['data_rozpoczecia'] ?? '')),
+        'data'       => date('Y-m-d'),
+        'okres'      => rachunek_month_label($ym),
+        'okres_ym'   => $ym,
+        'kwota'      => $row && (float)$row['naleznosc'] > 0.004 ? number_format((float)$row['naleznosc'], 2, ',', '') : '',
+        'kwota_typ'  => 'brutto',
+        'godziny'    => $row && (float)$row['godziny_rozl'] > 0.004 ? number_format((float)$row['godziny_rozl'], 2, ',', '') : '',
+        'uwagi'      => '',
+    ];
+}
+
+/** Treść e-maila z danymi do rachunku (tekst, wzór ustalony z użytkownikiem 2026-11-02). */
+function rachunek_dane_body(array $d): string {
+    $dp = fn($s) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$s) ? date('d.m.Y', strtotime((string)$s)) : (string)$s;
+    $lines = [
+        'Dzień dobry,',
+        'poniżej przesyłam dane do wystawienia rachunku:',
+        '',
+        'Dla kogo rachunek: ' . trim((string)$d['dla']),
+        'Adres: ' . trim((string)$d['adres']),
+        'Data umowy: ' . $dp($d['data_umowy'] ?? ''),
+        'Data rachunku: ' . $dp($d['data'] ?? ''),
+        'Za jaki okres jest rachunek: ' . trim((string)$d['okres']),
+        'Kwota ' . (($d['kwota_typ'] ?? 'brutto') === 'netto' ? 'netto' : 'brutto') . ': ' . trim((string)$d['kwota']) . (trim((string)$d['kwota']) !== '' ? ' PLN' : ''),
+        'Ilość przepracowanych godzin: ' . trim((string)$d['godziny']),
+    ];
+    if (trim((string)($d['uwagi'] ?? '')) !== '') $lines[] = 'Uwagi: ' . trim((string)$d['uwagi']);
+    if (!empty($d['numer_umowy'])) { $lines[] = ''; $lines[] = 'Umowa: ' . $d['numer_umowy']; }
+    return implode("\n", $lines);
+}
+
+/** Adresy administratorów (users.role = admin, aktywni) — odbiorcy danych do rachunku. @return string[] */
+function rachunek_dane_recipients(): array {
+    $out = [];
+    foreach (db_all("SELECT email FROM users WHERE role='admin' AND is_active=1 AND COALESCE(email,'')<>''") as $u) $out[strtolower(trim((string)$u['email']))] = true;
+    return array_keys($out);
+}
+
+/**
+ * Wysyła dane do rachunku do administratorów. Zwraca listę adresów, do których poszło;
+ * wyjątek, gdy brak odbiorców albo nie udało się wysłać do nikogo.
+ */
+function rachunek_dane_send(array $contract, array $d, ?int $user_id): array {
+    require_once __DIR__ . '/approval.php';
+    $to = rachunek_dane_recipients();
+    if (!$to) throw new RuntimeException('Brak aktywnego administratora z adresem e-mail — nie ma do kogo wysłać.');
+    $d['numer_umowy'] = (string)($contract['numer_umowy'] ?? '');
+    $body = rachunek_dane_body($d);
+    $subject = 'Dane do rachunku — ' . ($contract['numer_umowy'] ?: ('umowa #' . $contract['id'])) . ' — ' . trim((string)$d['okres']);
+    $html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;white-space:pre-line">' . h($body) . '</div>';
+    $sent = [];
+    foreach ($to as $email) { $via = ''; if (approval_send_email($email, $subject, $html, 'zlecenie_rachunek_dane', (int)$contract['id'], 30, $via)) $sent[] = $email; }
+    if (!$sent) throw new RuntimeException('Nie udało się wysłać wiadomości (' . implode(', ', $to) . ').');
+    try { log_contract_action('zlecenie', (int)$contract['id'], (int)$user_id, 'rachunek_dane', 'Wysłano dane do rachunku za ' . trim((string)$d['okres']) . ' do: ' . implode(', ', $sent)); } catch (\Throwable $e) {}
+    return $sent;
+}
+
 // ── Przekazanie do EOD Dokumentów Księgowych (KDOK) ────────────────────────────
 
 /**
@@ -2248,10 +2324,16 @@ function zl_rozl_ledger(array $contract): array {
     sort($months);
 
     $is_ryczalt = (string)($contract['typ_stawki'] ?? '') === 'ryczalt';
-    $saldo_prev = $is_ryczalt ? round((float)($contract['wynagrodzenie_brutto'] ?? 0), 2) : 0.0;
+    $saldo_start = $is_ryczalt ? round((float)($contract['wynagrodzenie_brutto'] ?? 0), 2) : 0.0;
+    $saldo_prev  = $saldo_start;
+    // Saldo liczy się OD startu salda w systemie (zl_okres_od, domyślnie październik 2026): miesiące wcześniejsze
+    // (rozliczane częściowo poza systemem) są pokazywane informacyjnie — nie przenoszą salda i nie wchodzą do sum.
+    $od = zl_okres_od();
 
     $rows = []; $sum = ['godziny_ewid' => 0.0, 'godziny_rozl' => 0.0, 'naleznosc' => 0.0, 'wyplata' => 0.0];
     foreach ($months as $i => $ym) {
+        $poza = $ym < $od;
+        if ($poza) $saldo_prev = $saldo_start;   // bez przeniesienia; pierwszy miesiąc w systemie startuje od $saldo_start
         $ewid  = zl_ew_month_hours($cid, $ym);
         $przes = zl_przes_month($cid, $ym);
         $kor   = zl_korekta_month($cid, $ym);
@@ -2287,18 +2369,21 @@ function zl_rozl_ledger(array $contract): array {
             'is_current' => $ym === rachunek_target_month(),   // miesiąc rachunku = poprzedni
             // Miesiące sprzed startu salda w systemie (zl_okres_od, domyślnie 2026-10) były rozliczane
             // częściowo poza systemem — oznaczane ikoną, nie wchodzą do automatyki „okres do rozliczenia”.
-            'poza_systemem' => $ym < zl_okres_od(),
+            'poza_systemem' => $poza,
             'is_first'   => $i === 0,
         ];
+        if ($poza) continue;   // informacyjnie: bez przeniesienia salda i bez udziału w sumach
         $saldo_prev = $poz;
         $sum['godziny_ewid'] += $ewid; $sum['godziny_rozl'] += $rozl; $sum['naleznosc'] += $nal; $sum['wyplata'] += $wyp;
     }
     $sum = array_map(fn($v) => round($v, 2), $sum);
+    $w_sys = array_values(array_filter($rows, fn($r) => empty($r['poza_systemem'])));
     $sum['ryczalt']   = $is_ryczalt ? round((float)($contract['wynagrodzenie_brutto'] ?? 0), 2) : null;
-    $sum['pozostalo'] = $rows ? end($rows)['pozostalo'] : ($is_ryczalt ? $sum['ryczalt'] : 0.0);
+    $sum['pozostalo'] = $w_sys ? end($w_sys)['pozostalo'] : ($is_ryczalt ? $sum['ryczalt'] : 0.0);
     $sum['roznica']   = round($sum['wyplata'] - $sum['naleznosc'], 2);
-    $sum['brakuje_godzin'] = round(array_sum(array_column($rows, 'brakuje_godzin')), 2);
-    $sum['nadmiar_godzin'] = round(array_sum(array_column($rows, 'nadmiar_godzin')), 2);
+    $sum['brakuje_godzin'] = round(array_sum(array_column($w_sys, 'brakuje_godzin')), 2);
+    $sum['nadmiar_godzin'] = round(array_sum(array_column($w_sys, 'nadmiar_godzin')), 2);
+    $sum['saldo_od']  = $od;
     $sum['typ_stawki'] = (string)($contract['typ_stawki'] ?? '');
     $sum['stawka']     = (float)($contract['stawka_kwota'] ?? 0);
     return ['miesiace' => array_reverse($rows), 'suma' => $sum];
