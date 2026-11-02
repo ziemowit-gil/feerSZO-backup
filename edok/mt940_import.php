@@ -22,18 +22,23 @@ $raw_b64 = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'parse') {
     csrf_check();
-    if (empty($_FILES['file']['tmp_name']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
+    // Kilka plików naraz (input multiple): każdy osobno sprawdzany i parsowany, wynik scalony.
+    $raws = [];
+    $tmp_names = (array)($_FILES['file']['tmp_name'] ?? []);
+    foreach ($tmp_names as $k => $tmp) {
+        if ($tmp === '' || !is_uploaded_file($tmp)) continue;
+        if ((int)($_FILES['file']['size'][$k] ?? 0) > 5 * 1024 * 1024) { $errors[] = 'Plik ' . h((string)($_FILES['file']['name'][$k] ?? '')) . ' jest za duży (max 5 MB).'; continue; }
+        $raws[] = file_get_contents($tmp);
+    }
+    if (!$raws && !$errors) {
         $errors[] = 'Wybierz plik wyciągu (MT940 lub Elixir, .txt/.sta) do wgrania.';
-    } elseif ($_FILES['file']['size'] > 5 * 1024 * 1024) {
-        $errors[] = 'Plik jest za duży (max 5 MB).';
-    } else {
-        $raw = file_get_contents($_FILES['file']['tmp_name']);
-        $parsed = edok_bank_parse_any($raw);
+    } elseif ($raws) {
+        $parsed = edok_bank_parse_files($raws);
         if (!$parsed['transactions']) {
-            $errors[] = 'Nie znaleziono żadnych operacji (:61:) w pliku — sprawdź, czy to prawidłowy plik MT940 albo Elixir-0.';
+            $errors[] = 'Nie znaleziono żadnych operacji (:61:) w plikach — sprawdź, czy to prawidłowe pliki MT940 albo Elixir-0.';
             $parsed = null;
         } else {
-            $raw_b64 = base64_encode($raw);
+            $raw_b64 = base64_encode(json_encode(array_map('base64_encode', $raws)));
         }
     }
 }
@@ -41,10 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'parse
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'import') {
     csrf_check();
     $raw = base64_decode((string)($_POST['raw_b64'] ?? ''), true);
+    // raw_b64 = JSON listy plików (base64 każdy) — odtwarzamy tę samą scaloną strukturę co w podglądzie
+    $raws = $raw !== false ? json_decode($raw, true) : null;
+    $raws = is_array($raws) ? array_map(fn($x) => (string)base64_decode((string)$x, true), $raws) : null;
+    if ($raws === null) $raw = false;
     $selected = array_map('intval', $_POST['idx'] ?? []);
     if ($raw !== false && ($_POST['do'] ?? '') === 'save') {
         // Zapis WSZYSTKICH operacji (wpływy i wypływy) do przypisywania do dokumentów — bez tworzenia dokumentów.
-        $saved = edok_bank_import(edok_bank_parse_any($raw), (int)$user['id']);
+        $saved = edok_bank_import(edok_bank_parse_files($raws), (int)$user['id']);
         // Powiązania z dokumentami wybrane w podglądzie (idx → id dokumentu albo numer EODoK)
         $lnk_n = 0; $lnk_err = [];
         foreach ((array)($_POST['link'] ?? []) as $i => $docref) {
@@ -76,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
     if ($raw === false || !$selected) {
         flash_set('warning', 'Nie zaznaczono żadnych operacji do importu.');
     } else {
-        $parsed_import = edok_bank_parse_any($raw);
+        $parsed_import = edok_bank_parse_files($raws);
         $saved_ids = edok_bank_import($parsed_import, (int)$user['id'])['ids']; // transakcje trafiają też na ekran przypisywania
         $n = 0;
         foreach ($selected as $idx) {
@@ -101,7 +110,7 @@ require_once __DIR__ . '/../includes/header.php';
   <a href="<?= APP_URL ?>/edok/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   <h4 class="mb-0"><i class="bi bi-bank2"></i> Import wyciągu bankowego (MT940)</h4>
 </div>
-<p class="text-muted small">Wgraj plik MT940 lub Elixir-0 wyeksportowany z iPKO biznes (PKO BP); format jest rozpoznawany automatycznie, a ta sama operacja z obu formatów nie zostanie zapisana dwa razy. Możesz zapisać cały wyciąg i przypisać każdą transakcję do dokumentu EODoK (<a href="<?= APP_URL ?>/edok/wyciag.php">ekran przypisywania</a>) albo — z operacji uznaniowych (wpływów) można od razu utworzyć dokumenty przychodowe EODoK. Każdy z nich trzeba potem uzupełnić o skan wyciągu i dekretację, zanim przejdzie kontrolę merytoryczną.</p>
+<p class="text-muted small">Wgraj plik MT940 lub Elixir-0 wyeksportowany z iPKO biznes (PKO BP) — pojedynczy wyciąg albo <strong>raport zbiorczy</strong> (wiele wyciągów za kilka dni lub z kilku rachunków w jednym pliku; każda operacja zachowuje swój rachunek i numer wyciągu). Format jest rozpoznawany automatycznie, a ta sama operacja z obu formatów nie zostanie zapisana dwa razy. Możesz zapisać cały wyciąg i przypisać każdą transakcję do dokumentu EODoK (<a href="<?= APP_URL ?>/edok/wyciag.php">ekran przypisywania</a>) albo — z operacji uznaniowych (wpływów) można od razu utworzyć dokumenty przychodowe EODoK. Każdy z nich trzeba potem uzupełnić o skan wyciągu i dekretację, zanim przejdzie kontrolę merytoryczną.</p>
 
 <?php if ($errors): ?>
 <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
@@ -114,8 +123,9 @@ require_once __DIR__ . '/../includes/header.php';
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="action" value="parse">
       <div class="mb-3">
-        <label class="form-label">Plik wyciągu (MT940 lub Elixir-0)</label>
-        <input type="file" name="file" class="form-control" accept=".txt,.sta" required>
+        <label class="form-label" for="bank_files">Pliki wyciągu / raportu (MT940 lub Elixir-0)</label>
+        <input type="file" name="file[]" id="bank_files" class="form-control" accept=".txt,.sta" multiple required>
+        <div class="form-text">Można zaznaczyć kilka plików naraz (raport zbiorczy w częściach, wyciągi z kilku rachunków, różne formaty) — zostaną scalone w jeden podgląd.</div>
       </div>
       <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i> Wczytaj i pokaż operacje</button>
     </form>
@@ -123,12 +133,24 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php else: ?>
 
+<?php $stmts = $parsed['statements'] ?? []; $wiele_rachunkow = count(edok_bank_parsed_accounts($parsed)) > 1; ?>
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2 small text-muted">
+    <?php if (count($stmts) > 1): ?>
+    <div class="mb-1"><strong>Raport zbiorczy:</strong> plików: <?= (int)($parsed['files'] ?? 1) ?>, wyciągów: <?= count($stmts) ?>, rachunków: <?= count(edok_bank_parsed_accounts($parsed)) ?>, operacji: <?= count($parsed['transactions']) ?>. Każda operacja jest zapisywana z rachunkiem i numerem wyciągu, z którego pochodzi.</div>
+    <ul class="mb-0 ps-3">
+      <?php foreach ($stmts as $s): ?>
+      <li>Rachunek <span class="font-monospace"><?= h($s['account_nrb'] ?: '—') ?></span> · wyciąg nr <?= h($s['statement_no'] ?: '—') ?> · operacji: <?= (int)$s['count'] ?>
+        <?php if ($s['opening']): ?> · saldo pocz. <?= h($s['opening']['kwota']) ?> <?= h($s['opening']['waluta']) ?><?php endif; ?>
+        <?php if ($s['closing']): ?> · saldo końc. <?= h($s['closing']['kwota']) ?> <?= h($s['closing']['waluta']) ?><?php endif; ?></li>
+      <?php endforeach; ?>
+    </ul>
+    <?php else: ?>
     Rachunek: <span class="font-monospace"><?= h($parsed['account_nrb'] ?: '—') ?></span>
     · Wyciąg nr <?= h($parsed['statement_no'] ?: '—') ?>
     <?php if ($parsed['opening']): ?> · Saldo początkowe: <?= h($parsed['opening']['kwota']) ?> <?= h($parsed['opening']['waluta']) ?><?php endif; ?>
     <?php if ($parsed['closing']): ?> · Saldo końcowe: <?= h($parsed['closing']['kwota']) ?> <?= h($parsed['closing']['waluta']) ?><?php endif; ?>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -143,6 +165,7 @@ require_once __DIR__ . '/../includes/header.php';
         <tr>
           <th style="width:2rem"><input type="checkbox" id="mt940-select-all"></th>
           <th>Data waluty</th>
+          <?php if ($wiele_rachunkow): ?><th>Rachunek</th><?php endif; ?>
           <th>Typ</th>
           <th class="text-end">Kwota</th>
           <th>Kontrahent</th>
@@ -157,6 +180,8 @@ require_once __DIR__ . '/../includes/header.php';
         <tr class="<?= $jest_wplyw ? '' : 'text-muted' ?>">
           <td><?php if ($jest_wplyw): ?><input type="checkbox" name="idx[]" value="<?= $i ?>" class="mt940-check" checked><?php endif; ?></td>
           <td><?= h(date_pl($t['data_waluty'])) ?></td>
+          <?php $t_acc = (string)($t['account_nrb'] ?? '') !== '' ? (string)$t['account_nrb'] : (string)$parsed['account_nrb']; ?>
+          <?php if ($wiele_rachunkow): ?><td class="font-monospace small">…<?= h(substr(_edok_nrb_digits($t_acc), -4)) ?><?= ($t['statement_no'] ?? '') !== '' ? ' <span class="text-muted">/ ' . h($t['statement_no']) . '</span>' : '' ?></td><?php endif; ?>
           <td><?= $jest_wplyw ? '<span class="badge bg-success">Wpływ</span>' : '<span class="badge bg-secondary">Wypływ</span>' ?></td>
           <td class="text-end font-monospace"><?= h(number_format((float)$t['kwota'], 2, ',', ' ')) ?></td>
           <td><?= h($t['kontrahent_nazwa'] ?: '—') ?></td>
@@ -173,10 +198,10 @@ require_once __DIR__ . '/../includes/header.php';
             <input name="link_num[<?= $i ?>]" class="form-control form-control-sm mt-1" placeholder="lub nr EODoK" aria-label="Numer dokumentu EODoK">
           </td>
           <td>
-            <?php $det = edok_bank_detect_own_counter($t + ['account_nrb' => $parsed['account_nrb']]); ?>
+            <?php $det = edok_bank_detect_own_counter(['account_nrb' => $t_acc] + $t); ?>
             <select name="own[<?= $i ?>]" class="form-select form-select-sm" style="min-width:210px" aria-label="Przelew własny — rachunek drugiej strony">
               <option value="">— nie —</option>
-              <?php foreach ($own_accounts as $r): if (_edok_nrb_digits((string)$r['nrb']) === _edok_nrb_digits($parsed['account_nrb'])) continue; ?>
+              <?php foreach ($own_accounts as $r): if (_edok_nrb_digits((string)$r['nrb']) === _edok_nrb_digits($t_acc)) continue; ?>
               <option value="<?= h($r['nrb']) ?>"<?= $det === $r['nrb'] ? ' selected' : '' ?>><?= $jest_wplyw ? 'z: ' : 'na: ' ?><?= h(($r['nazwa'] ?: $r['bank']) . ' …' . substr(_edok_nrb_digits((string)$r['nrb']), -4)) ?></option>
               <?php endforeach; ?>
             </select>

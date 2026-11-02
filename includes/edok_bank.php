@@ -22,16 +22,19 @@ function edok_bank_import(array $parsed, int $user_id): array {
     edok_migrate();
     $out = ['added' => 0, 'duplicates' => 0, 'ids' => [], 'new_ids' => []];
     foreach ($parsed['transactions'] as $i => $t) {
-        $key = sha1(implode('|', [$parsed['account_nrb'], $t['numer_operacji'], $t['data_waluty'], $t['znak'], $t['kwota'], $t['tytul']]));
+        // raport zbiorczy: rachunek i numer wyciągu z bloku, w którym operacja wystąpiła
+        $acc  = (string)($t['account_nrb'] ?? '') !== '' ? (string)$t['account_nrb'] : (string)$parsed['account_nrb'];
+        $stmt = (string)($t['statement_no'] ?? '') !== '' ? (string)$t['statement_no'] : (string)$parsed['statement_no'];
+        $key = sha1(implode('|', [$acc, $t['numer_operacji'], $t['data_waluty'], $t['znak'], $t['kwota'], $t['tytul']]));
         $ex = db_one("SELECT id FROM edok_bank_tx WHERE dedup_key = ?", [$key]);
         // ta sama operacja wgrana w innym formacie (MT940 ↔ Elixir): rachunek + data + znak + kwota + numer operacji
         if (!$ex && $t['numer_operacji'] !== '') {
             $ex = db_one("SELECT id FROM edok_bank_tx WHERE replace(account_nrb,'PL','')=? AND data_waluty=? AND znak=? AND kwota=? AND numer_operacji=?",
-                         [preg_replace('/^PL/i', '', (string)$parsed['account_nrb']), $t['data_waluty'], $t['znak'], (float)$t['kwota'], $t['numer_operacji']]);
+                         [preg_replace('/^PL/i', '', $acc), $t['data_waluty'], $t['znak'], (float)$t['kwota'], $t['numer_operacji']]);
         }
         if ($ex) { $out['duplicates']++; $out['ids'][$i] = (int)$ex['id']; continue; }
         $out['ids'][$i] = db_insert('edok_bank_tx', [
-            'dedup_key' => $key, 'account_nrb' => $parsed['account_nrb'], 'statement_no' => $parsed['statement_no'],
+            'dedup_key' => $key, 'account_nrb' => $acc, 'statement_no' => $stmt,
             'data_waluty' => $t['data_waluty'], 'znak' => $t['znak'], 'kwota' => (float)$t['kwota'],
             'kontrahent_nazwa' => $t['kontrahent_nazwa'], 'kontrahent_konto' => preg_replace('/\D/', '', (string)$t['kontrahent_konto']),
             'tytul' => $t['tytul'], 'referencja' => (string)($t['referencja'] ?? ''), 'numer_operacji' => $t['numer_operacji'],
@@ -54,7 +57,7 @@ function edok_elixir_parse(string $raw): array {
         $conv = @iconv('CP1250', 'UTF-8//TRANSLIT', $raw);
         if ($conv !== false) $raw = $conv;
     }
-    $out = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'transactions' => []];
+    $out = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'statements' => [], 'transactions' => []];
     foreach (preg_split('/\r\n|\r|\n/', $raw) as $line) {
         if (trim($line) === '') continue;
         $f = str_getcsv($line, ',', '"', '');
@@ -66,6 +69,8 @@ function edok_elixir_parse(string $raw): array {
         $title = trim(preg_replace('/\s+/', ' ', str_replace('|', '', (string)($f[11] ?? ''))));
         $opnr  = preg_replace('/\D/', '', (string)($f[13] ?? ''));
         $out['transactions'][] = [
+            'account_nrb'    => $own !== '' ? $own : $out['account_nrb'],   // raport zbiorczy: każda linia niesie własny rachunek
+            'statement_no'   => '',
             'data_waluty'    => substr($f[1], 0, 4) . '-' . substr($f[1], 4, 2) . '-' . substr($f[1], 6, 2),
             'znak'           => $f[0][0] === '2' ? 'D' : 'C',
             'kwota'          => number_format(((int)$f[2]) / 100, 2, '.', ''),
@@ -80,6 +85,35 @@ function edok_elixir_parse(string $raw): array {
             'data_dokumentu' => '',
             'swrk'           => '',
         ];
+    }
+    foreach (edok_bank_parsed_accounts($out) as $a) {
+        $out['statements'][] = ['account_nrb' => $a, 'statement_no' => '', 'opening' => null, 'closing' => null,
+            'count' => count(array_filter($out['transactions'], fn($t) => $t['account_nrb'] === $a))];
+    }
+    return $out;
+}
+
+/**
+ * Kilka plików raportu naraz (np. raport zbiorczy podzielony na pliki albo osobne wyciągi
+ * z kilku rachunków): każdy plik parsowany osobno (mogą być w różnych formatach), wynik
+ * scalony do jednej struktury; operacje przenumerowane od zera (indeksy z podglądu).
+ */
+function edok_bank_parse_files(array $raws): array {
+    $out = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'statements' => [], 'transactions' => [], 'files' => 0];
+    foreach ($raws as $raw) {
+        if (trim((string)$raw) === '') continue;
+        $p = edok_bank_parse_any((string)$raw);
+        $out['files']++;
+        if ($out['account_nrb'] === '' && $out['opening'] === null) {
+            $out['account_nrb'] = $p['account_nrb']; $out['statement_no'] = $p['statement_no'];
+            $out['opening'] = $p['opening']; $out['closing'] = $p['closing'];
+        }
+        foreach ($p['statements'] ?? [] as $s) $out['statements'][] = $s;
+        foreach ($p['transactions'] as $t) {
+            if (($t['account_nrb'] ?? '') === '') $t['account_nrb'] = $p['account_nrb'];
+            if (($t['statement_no'] ?? '') === '') $t['statement_no'] = $p['statement_no'];
+            $out['transactions'][] = $t;
+        }
     }
     return $out;
 }

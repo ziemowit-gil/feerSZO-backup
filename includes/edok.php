@@ -2942,25 +2942,44 @@ function edok_mt940_parse_61(string $line): ?array {
 }
 
 /**
- * Parsuje cały plik MT940 (jeden wyciąg, może zawierać wiele operacji :61:/:86:).
- * Zwraca ['account_nrb', 'statement_no', 'opening', 'closing', 'transactions' => [...]]
- * gdzie każda transakcja ma: data_waluty, znak (C/D), kwota, referencja, numer_operacji,
- * tytul (złożony z podpól ~20-~25), kontrahent_bank (~30), kontrahent_konto (~31),
- * kontrahent_nazwa (~32+~33), kontrahent_iban (~38), data_dokumentu (~60), swrk (~63).
+ * Parsuje cały plik MT940. Plik może być RAPORTEM ZBIORCZYM z iPKO biznes — wiele
+ * wyciągów (bloków :20:…:62F:) za kilka dni i/lub z kilku rachunków w jednym pliku.
+ * Zwraca ['account_nrb', 'statement_no', 'opening', 'closing' (= pierwszy wyciąg,
+ * zgodność wsteczna), 'statements' => [[account_nrb, statement_no, opening, closing,
+ * count], …], 'transactions' => [...]]; każda transakcja niesie własne account_nrb
+ * i statement_no (z bloku, w którym wystąpiła) oraz: data_waluty, znak (C/D), kwota,
+ * referencja, numer_operacji, tytul (podpola ~20-~25), kontrahent_bank (~30),
+ * kontrahent_konto (~31), kontrahent_nazwa (~32+~33), kontrahent_iban (~38),
+ * data_dokumentu (~60), swrk (~63).
  */
 function edok_mt940_parse(string $raw): array {
     $content = edok_mt940_normalize($raw);
     $lines   = preg_split('/\r\n|\r|\n/', $content);
 
-    $out = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'transactions' => []];
+    $out = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'statements' => [], 'transactions' => []];
     $tx  = null;
     $sub = [];
+    // bieżący wyciąg (blok) — nowy zaczyna się od :20: albo od :25:/:28C: po zamkniętym :62F:
+    $cur = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'count' => 0];
+    $cur_open = false;
+    $close_stmt = function () use (&$cur, &$cur_open, &$out) {
+        if (!$cur_open) return;
+        $out['statements'][] = $cur;
+        if ($out['account_nrb'] === '' && $out['statement_no'] === '' && $out['opening'] === null) {
+            $out['account_nrb']  = $cur['account_nrb'];
+            $out['statement_no'] = $cur['statement_no'];
+            $out['opening']      = $cur['opening'];
+            $out['closing']      = $cur['closing'];
+        }
+        $cur = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'count' => 0];
+        $cur_open = false;
+    };
 
     $get = function (int $n) use (&$sub): string {
         $v = trim($sub[$n] ?? '');
         return $v === EDOK_MT940_EMPTY ? '' : $v;
     };
-    $flush = function () use (&$tx, &$sub, &$out, $get) {
+    $flush = function () use (&$tx, &$sub, &$out, &$cur, $get) {
         if ($tx === null) return;
         $tx['tytul']            = trim(implode(' ', array_filter([$get(20), $get(21), $get(22), $get(23), $get(24), $get(25)], fn($s) => $s !== '')));
         $tx['kontrahent_bank']  = $get(30);
@@ -2969,25 +2988,37 @@ function edok_mt940_parse(string $raw): array {
         $tx['kontrahent_iban']  = $get(38);
         $tx['data_dokumentu']   = $get(60);
         $tx['swrk']             = $get(63);
+        $tx['account_nrb']      = $cur['account_nrb'];
+        $tx['statement_no']     = $cur['statement_no'];
         $out['transactions'][]  = $tx;
+        $cur['count']++;
         $tx = null; $sub = [];
     };
 
     foreach ($lines as $line) {
         $line = rtrim($line, "\r\n");
         if ($line === '') continue;
-        if (str_starts_with($line, ':25:')) { $out['account_nrb'] = ltrim(substr($line, 4), '/'); continue; }
-        if (str_starts_with($line, ':28C:')) { $out['statement_no'] = trim(substr($line, 5)); continue; }
-        if (str_starts_with($line, ':60F:')) { $out['opening'] = edok_mt940_parse_saldo(substr($line, 5)); continue; }
-        if (str_starts_with($line, ':61:')) { $flush(); $parsed = edok_mt940_parse_61(substr($line, 4)); if ($parsed) $tx = $parsed; continue; }
-        if (str_starts_with($line, ':62F:')) { $flush(); $out['closing'] = edok_mt940_parse_saldo(substr($line, 5)); continue; }
-        if (str_starts_with($line, ':64:') || str_starts_with($line, ':20:') || $line === '-') continue;
+        if (str_starts_with($line, ':20:')) { $flush(); $close_stmt(); $cur_open = true; continue; }
+        if (str_starts_with($line, ':25:')) { $flush(); if ($cur['closing'] !== null) $close_stmt(); $cur_open = true; $cur['account_nrb'] = ltrim(substr($line, 4), '/'); continue; }
+        if (str_starts_with($line, ':28C:')) { $cur_open = true; $cur['statement_no'] = trim(substr($line, 5)); continue; }
+        if (str_starts_with($line, ':60F:')) { $cur_open = true; $cur['opening'] = edok_mt940_parse_saldo(substr($line, 5)); continue; }
+        if (str_starts_with($line, ':61:')) { $flush(); $cur_open = true; $parsed = edok_mt940_parse_61(substr($line, 4)); if ($parsed) $tx = $parsed; continue; }
+        if (str_starts_with($line, ':62F:')) { $flush(); $cur['closing'] = edok_mt940_parse_saldo(substr($line, 5)); continue; }
+        if (str_starts_with($line, ':64:') || $line === '-') continue;
         if (preg_match('/^~(\d{2})(.*)$/', $line, $m)) { $sub[(int)$m[1]] = $m[2]; continue; }
         // inne linie (np. druga linia :61: z kodem O-ZSI, albo pierwsza linia :86:) — nieistotne dla importu
     }
     $flush();
+    $close_stmt();
 
     return $out;
+}
+
+/** Rachunki występujące w sparsowanym pliku (raport zbiorczy może mieć kilka). */
+function edok_bank_parsed_accounts(array $parsed): array {
+    $acc = [];   // klucz = same cyfry (MT940 daje „PL…”, Elixir bez prefiksu — to ten sam rachunek)
+    foreach ($parsed['transactions'] as $t) { $a = (string)($t['account_nrb'] ?? $parsed['account_nrb'] ?? ''); $d = _edok_nrb_digits($a); if ($d !== '' && !isset($acc[$d])) $acc[$d] = $a; }
+    return array_values($acc);
 }
 
 /**
@@ -2999,17 +3030,23 @@ function edok_mt940_parse(string $raw): array {
 function edok_mt940_create_doc(array $tx, int $user_id): int {
     $user  = current_user();
     $number = edok_next_number();
-    $opis   = $tx['tytul'] !== '' ? $tx['tytul'] : ($tx['znak'] === 'D' ? 'Wypływ z rachunku bankowego' : 'Wpływ na rachunek bankowy');
+    $tytul  = trim((string)($tx['tytul'] ?? ''));
+    $nazwa  = trim((string)($tx['kontrahent_nazwa'] ?? ''));
+    $iban   = trim((string)($tx['kontrahent_iban'] ?? ''));
+    // Tytuł i opis dokumentu: tytuł operacji + nazwa wpłacającego (odbiorcy) — żeby na liście
+    // i w karcie od razu było widać, OD KOGO wpływ, nie tylko „darowizna”.
+    $opis   = ($tytul !== '' ? $tytul : ($tx['znak'] === 'D' ? 'Wypływ z rachunku bankowego' : 'Wpływ na rachunek bankowy'))
+            . ($nazwa !== '' ? ' — ' . ($tx['znak'] === 'D' ? 'odbiorca: ' : 'wpłacający: ') . $nazwa : '');
     $doc = [
         'number'              => $number,
         'title'               => $opis,
         'kierunek'            => $tx['znak'] === 'D' ? 'wydatek' : 'przychod',
         'typ_dokumentu'       => $tx['znak'] === 'D' ? 'inny' : 'wyciag_bankowy',
         'description'         => $opis,
-        'kontrahent_nazwa'    => $tx['kontrahent_nazwa'] !== '' ? $tx['kontrahent_nazwa'] : ($tx['znak'] === 'D' ? '(nieznany odbiorca)' : '(nieznany wpłacający)'),
+        'kontrahent_nazwa'    => $nazwa !== '' ? $nazwa : ($tx['znak'] === 'D' ? '(nieznany odbiorca)' : '(nieznany wpłacający)'),
         'kontrahent_nip'      => '',
-        'nr_faktury'          => $tx['referencja'] ?: $tx['numer_operacji'],
-        'zrodlo_przychodu'    => trim($tx['kontrahent_nazwa'] . ($tx['kontrahent_iban'] !== '' ? ' (' . $tx['kontrahent_iban'] . ')' : '')),
+        'nr_faktury'          => ($tx['referencja'] ?? '') ?: $tx['numer_operacji'],
+        'zrodlo_przychodu'    => trim($nazwa . ($iban !== '' ? ' (' . $iban . ')' : '')),
         'data_wystawienia'    => $tx['data_waluty'],
         'data_wplywu'         => $tx['data_waluty'],
         'kwota_netto'         => number_format((float)$tx['kwota'], 2, ',', ''),
