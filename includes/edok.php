@@ -2802,13 +2802,18 @@ function edok_zus_handle_post(): array {
 
 const EDOK_TYPY_BANKOWE = ['oplata_bankowa'];
 
-/** Typy, dla których skan dokumentu źródłowego NIE jest wymagany: darowizna (dowodem jest wpływ na rachunek) i operacje banku. */
-const EDOK_TYPY_BEZ_SKANU = ['darowizna', 'oplata_bankowa'];
+/** Typy, dla których skan dokumentu źródłowego NIE jest wymagany: darowizna i wyciąg (dowodem jest wpływ na rachunek), operacje banku. */
+const EDOK_TYPY_BEZ_SKANU = ['darowizna', 'wyciag_bankowy', 'oplata_bankowa'];
 
-/** Czy dokument wymaga skanu dokumentu źródłowego (decyzje użytkownika 2026-11-02: darowizny i operacje banku — nie). */
+/**
+ * Czy dokument wymaga skanu dokumentu źródłowego (decyzje użytkownika 2026-11-02): nie dla darowizn, wyciągów,
+ * operacji banku ani dokumentów powstałych z operacji na wyciągu (operacja w edok_bank_tx jest dowodem źródłowym).
+ */
 function edok_doc_wymaga_skanu(array $doc): bool {
     if (in_array((string)($doc['typ_dokumentu'] ?? ''), EDOK_TYPY_BEZ_SKANU, true)) return false;
-    return !edok_doc_bankowy($doc);
+    if (edok_doc_bankowy($doc)) return false;
+    if (!empty($doc['id'])) { try { if (db_one("SELECT id FROM edok_bank_tx WHERE doc_id = ?", [(int)$doc['id']])) return false; } catch (\Throwable $e) {} }
+    return true;
 }
 
 function edok_doc_bankowy(array $doc): bool {
@@ -3297,7 +3302,7 @@ function edok_mt940_create_doc(array $tx, int $user_id): int {
     // i w karcie od razu było widać, OD KOGO wpływ, nie tylko „darowizna”.
     $opis   = ($tytul !== '' ? $tytul : ($tx['znak'] === 'D' ? 'Wypływ z rachunku bankowego' : 'Wpływ na rachunek bankowy'))
             . ($nazwa !== '' ? ' — ' . ($tx['znak'] === 'D' ? 'odbiorca: ' : 'wpłacający: ') . $nazwa : '');
-    $typ    = $tx['znak'] === 'D' ? 'inny' : 'wyciag_bankowy';
+    $typ    = $tx['znak'] === 'D' ? 'inny' : (preg_match('/DAROWIZN/iu', $tytul) ? 'darowizna' : 'wyciag_bankowy');
     $nr_dok = ($tx['referencja'] ?? '') ?: $tx['numer_operacji'];
     // Kategorie rozpoznane na wyciągu (edok_bank_kategoria): dokument od razu z właściwym typem i kontrahentem.
     $kat = function_exists('edok_bank_kategoria') ? edok_bank_kategoria($tx) : null;
