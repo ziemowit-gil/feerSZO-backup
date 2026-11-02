@@ -506,6 +506,18 @@ return [
         },
     ],
 
+    // EODoK: kategorie operacji bankowych (ZUS, Urząd Skarbowy, wynagrodzenia, opłaty banku, faktury FSP) dla
+    // operacji zapisanych przed 2026-11-02, które nie mają jeszcze dokumentu ani oznaczenia.
+    '2026-11_edok_bank_kategorie_backfill' => [
+        'desc' => 'EODoK: rozpoznanie kategorii zapisanych operacji bankowych bez dokumentu',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/edok_bank.php';
+            foreach (db_all("SELECT id FROM edok_bank_tx WHERE doc_id IS NULL AND ignored=0 AND COALESCE(transfer_id,0)=0 AND COALESCE(kategoria,'')=''") as $r) {
+                try { edok_bank_apply_kategoria((int)$r['id']); } catch (\Throwable $e) { error_log('[edok bank backfill] ' . $e->getMessage()); }
+            }
+        },
+    ],
+
     // EODoK: faktury z KSeF — data doręczenia (data_wplywu) = data nadania numeru KSeF
     // (drugi człon numeru). Uzupełnia tylko dokumenty zakupowe bez daty wpływu.
     '2026-11_edok_ksef_data_doreczenia' => [

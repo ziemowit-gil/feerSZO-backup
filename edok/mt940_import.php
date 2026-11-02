@@ -172,7 +172,7 @@ require_once __DIR__ . '/../includes/header.php';
           <th>Tytuł</th>
           <th>Referencja / nr operacji</th>
           <th>Powiąż z dokumentem</th>
-          <th>Przelew własny</th>
+          <th>Przelew własny fundacji</th>
         </tr>
       </thead>
       <tbody>
@@ -182,7 +182,7 @@ require_once __DIR__ . '/../includes/header.php';
           <td><?= h(date_pl($t['data_waluty'])) ?></td>
           <?php $t_acc = (string)($t['account_nrb'] ?? '') !== '' ? (string)$t['account_nrb'] : (string)$parsed['account_nrb']; ?>
           <?php if ($wiele_rachunkow): ?><td class="font-monospace small">…<?= h(substr(_edok_nrb_digits($t_acc), -4)) ?><?= ($t['statement_no'] ?? '') !== '' ? ' <span class="text-muted">/ ' . h($t['statement_no']) . '</span>' : '' ?></td><?php endif; ?>
-          <td><?= $jest_wplyw ? '<span class="badge bg-success">Wpływ</span>' : '<span class="badge bg-secondary">Wypływ</span>' ?></td>
+          <td><?= $jest_wplyw ? '<span class="badge bg-success">Wpływ</span>' : '<span class="badge bg-secondary">Wypływ</span>' ?><?php $kat_p = edok_bank_kategoria($t); ?><?= $kat_p ? ' ' . edok_bank_kategoria_badge($kat_p['kod']) : '' ?></td>
           <td class="text-end font-monospace"><?= h(number_format((float)$t['kwota'], 2, ',', ' ')) ?></td>
           <td><?= h($t['kontrahent_nazwa'] ?: '—') ?></td>
           <td class="small"><?= h($t['tytul'] ?: '—') ?></td>
@@ -199,7 +199,7 @@ require_once __DIR__ . '/../includes/header.php';
           </td>
           <td>
             <?php $det = edok_bank_detect_own_counter(['account_nrb' => $t_acc] + $t); ?>
-            <select name="own[<?= $i ?>]" class="form-select form-select-sm" style="min-width:210px" aria-label="Przelew własny — rachunek drugiej strony">
+            <select name="own[<?= $i ?>]" class="form-select form-select-sm" style="min-width:210px" aria-label="Przelew własny fundacji — rachunek drugiej strony">
               <option value="">— nie —</option>
               <?php foreach ($own_accounts as $r): if (_edok_nrb_digits((string)$r['nrb']) === _edok_nrb_digits($t_acc)) continue; ?>
               <option value="<?= h($r['nrb']) ?>"<?= $det === $r['nrb'] ? ' selected' : '' ?>><?= $jest_wplyw ? 'z: ' : 'na: ' ?><?= h(($r['nazwa'] ?: $r['bank']) . ' …' . substr(_edok_nrb_digits((string)$r['nrb']), -4)) ?></option>
@@ -212,13 +212,14 @@ require_once __DIR__ . '/../includes/header.php';
     </table>
   </div>
   <div class="mb-3" style="max-width:640px">
-    <label class="form-label small mb-1" for="own_reason">Uzasadnienie przelewów własnych (dla operacji oznaczonych w ostatniej kolumnie)</label>
-    <input id="own_reason" name="own_reason" class="form-control form-control-sm" value="Przelew własny między rachunkami organizacji (import wyciągu)">
-    <div class="form-text">Oznaczona operacja trafia do rejestru „Przelewy własne" (jedna para wypływ+wpływ = jeden wpis) i nie wymaga przypisania do dokumentu. Rozpoznane automatycznie po rachunku kontrahenta są już zaznaczone.</div>
+    <label class="form-label small mb-1" for="own_reason">Uzasadnienie przelewów własnych fundacji (dla operacji oznaczonych w ostatniej kolumnie)</label>
+    <input id="own_reason" name="own_reason" class="form-control form-control-sm" value="Przelew własny fundacji między rachunkami organizacji (import wyciągu)">
+    <div class="form-text">Oznaczona operacja trafia do rejestru „Przelewy własne fundacji" (jedna para wypływ+wpływ = jeden wpis) i nie wymaga przypisania do dokumentu. Rozpoznane automatycznie po rachunku kontrahenta są już zaznaczone.</div>
+    <div class="form-text">Plakietki przy typie (ZUS, Urząd Skarbowy, Wynagrodzenie, PKO Bankowa, Przychód — faktura) to kategorie rozpoznane automatycznie: ZUS, podatek i wynagrodzenia wynikają z rachunków i umów — nie wymagają zatwierdzania; opłaty bankowe i wpłaty za faktury dostają dokument do zatwierdzenia.</div>
   </div>
   <div class="form-check mb-3">
     <input class="form-check-input" type="checkbox" name="auto_docs" value="1" id="auto_docs" checked>
-    <label class="form-check-label" for="auto_docs">Nierozpoznane operacje (bez dokumentu, nie pominięte, nie przelew własny) dodaj automatycznie do EODoK jako dokumenty <strong>do opisania</strong></label>
+    <label class="form-check-label" for="auto_docs">Nierozpoznane operacje (bez dokumentu, nie pominięte, nie przelew własny fundacji) dodaj automatycznie do EODoK jako dokumenty <strong>do opisania</strong></label>
     <div class="form-text">Wpływ → dokument przychodowy, wypływ → dokument wydatkowy „Inny". Każdy trafia do obiegu z przypisaną operacją i wymaga uzupełnienia opisu, skanu i dekretacji. Odznacz, jeśli chcesz przypisać część operacji ręcznie (np. opłaty bankowe → „Pomiń").</div>
   </div>
   <p class="text-muted small">Tylko operacje uznaniowe (wpływy) można zaimportować jako dokumenty przychodowe — wypływy nie są zaznaczalne (EODoK dla wydatków zaczyna się od faktury/rachunku, nie od wyciągu).</p>

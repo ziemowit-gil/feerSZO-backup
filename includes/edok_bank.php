@@ -42,6 +42,7 @@ function edok_bank_import(array $parsed, int $user_id): array {
         ]);
         $out['new_ids'][] = $out['ids'][$i];
         $out['added']++;
+        try { edok_bank_apply_kategoria((int)$out['ids'][$i]); } catch (\Throwable $e) { error_log('[edok bank kategoria] ' . $e->getMessage()); }
     }
     return $out;
 }
@@ -238,7 +239,181 @@ function edok_bank_unassign(int $tx_id): ?string {
 /** Cyfry rachunku (bez PL i spacji). */
 function _edok_nrb_digits(string $s): string { return preg_replace('/^PL/i', '', preg_replace('/\s+/', '', $s)); }
 
-/** Rachunek własny organizacji (z listy rachunków) rozpoznany po rachunku kontrahenta operacji; null = to nie przelew własny. */
+// ── Kategorie operacji rozpoznawane automatycznie ─────────────────────────────
+// Reguły ustalone z użytkownikiem 2026-11-02:
+//   zus               — składki ZUS (rachunek składkowy NRS albo nazwa „Zakład Ubezpieczeń Społecznych”): BEZ dokumentu
+//                       i bez zatwierdzania — wynikają z rachunków i umów; operacja oznaczana „ZUS”, pomijana automatycznie.
+//   podatek_us        — Urząd Skarbowy / Centrum Rozliczeniowe (PIT od rachunków): jak ZUS — bez zatwierdzania.
+//   wynagrodzenie     — tytuł „WYNAGRODZENIE MM/RRRR - umowa nr …”: wynika z rachunku — przypisywana do dokumentu
+//                       rachunku/listy płac (umowa + okres + kwota), a gdy go nie ma: pomijana z adnotacją, bez nowego dokumentu.
+//   oplata_bankowa    — „OPŁ.PRZ.ZEW.DO…”, prowizje PKO: oznaczana „PKO Bankowa”, WYMAGA zatwierdzenia — dokument
+//                       kosztowy typu oplata_bankowa tworzony automatycznie, przechodzi obieg.
+//   faktura_sprzedazy — wpływ z „FAKTURA FSP…” w tytule: zawsze przychód — przypisywany do faktury sprzedaży
+//                       po numerze, a gdy jej nie ma: dokument przychodowy faktura_sprzedazy z numerem z tytułu.
+
+const EDOK_BANK_KATEGORIE = [
+    'zus'               => ['label' => 'ZUS',                 'class' => 'text-bg-dark',    'zatwierdzanie' => false],
+    'podatek_us'        => ['label' => 'Urząd Skarbowy',      'class' => 'text-bg-dark',    'zatwierdzanie' => false],
+    'wynagrodzenie'     => ['label' => 'Wynagrodzenie',       'class' => 'text-bg-primary', 'zatwierdzanie' => false],
+    'oplata_bankowa'    => ['label' => 'PKO Bankowa',         'class' => 'text-bg-warning', 'zatwierdzanie' => true],
+    'odsetki_bankowe'   => ['label' => 'Bank — odsetki',      'class' => 'text-bg-success', 'zatwierdzanie' => true],
+    'faktura_sprzedazy' => ['label' => 'Przychód — faktura',  'class' => 'text-bg-success', 'zatwierdzanie' => true],
+];
+
+/**
+ * Wzorce tytułów operacji bankowych (opłaty, prowizje, odsetki) — wbudowane skróty PKO BP podane przez użytkownika
+ * 2026-11-02 + wyuczone z ręcznych oznaczeń (org_setting 'edok_bank_wzorce', JSON: kod kategorii → lista prefiksów).
+ * Dopasowanie: tytuł zaczyna się od prefiksu (bez rozróżniania wielkości liter i spacji wokół kropek).
+ */
+const EDOK_BANK_WZORCE_WBUDOWANE = [
+    'oplata_bankowa'  => ['OPŁ.', 'OPL.', 'OPŁATA', 'OPLATA', 'PROWIZJA', 'OPŁ.PRZ.ZEW.DO', 'OPŁ. WYC. OKR.', 'OPŁ.MOD.PEŁN.', 'OPŁATA ZA PROWADZENIE RACHUNKU', 'KAPIT.ODS.K.OB'],
+    'odsetki_bankowe' => ['KAPIT.ODS.', 'KAPITALIZACJA ODSETEK', 'ODSETKI'],
+];
+
+function _edok_bank_norm_tytul(string $s): string {
+    $s = mb_strtoupper(trim($s));
+    return preg_replace('/\s*\.\s*/u', '.', preg_replace('/\s+/u', ' ', $s));
+}
+
+/** Wzorce wbudowane + wyuczone. @return array<string, string[]> kod → prefiksy */
+function edok_bank_wzorce(): array {
+    $out = EDOK_BANK_WZORCE_WBUDOWANE;
+    $learned = json_decode((string)org_setting('edok_bank_wzorce'), true);
+    if (is_array($learned)) foreach ($learned as $kod => $list) if (isset(EDOK_BANK_KATEGORIE[$kod]) && is_array($list)) foreach ($list as $p) if (is_string($p) && trim($p) !== '') $out[$kod][] = $p;
+    return $out;
+}
+
+/** Czy tytuł pasuje do wzorców kategorii. */
+function edok_bank_wzorzec_match(string $kod, string $tytul): bool {
+    $t = _edok_bank_norm_tytul($tytul);
+    if ($t === '') return false;
+    foreach (edok_bank_wzorce()[$kod] ?? [] as $p) { $p = _edok_bank_norm_tytul($p); if ($p !== '' && str_starts_with($t, $p)) return true; }
+    return false;
+}
+
+/**
+ * Uczenie: zapamiętuje prefiks tytułu (do pierwszej spacji po skrócie, np. „OPŁ.MOD.PEŁN.”, albo cały tytuł do 40 znaków)
+ * jako wzorzec kategorii. Następny import rozpozna takie operacje sam.
+ */
+function edok_bank_wzorzec_learn(string $kod, string $tytul): ?string {
+    if (!isset(EDOK_BANK_KATEGORIE[$kod])) return null;
+    $t = _edok_bank_norm_tytul($tytul);
+    if ($t === '') return null;
+    // prefiks: skrót z kropkami (OPŁ.MOD.PEŁN.) albo pierwsze 3 słowa
+    $p = preg_match('/^([A-ZĄĆĘŁŃÓŚŹŻ0-9]+(?:\.[A-ZĄĆĘŁŃÓŚŹŻ0-9]*)+\.?)/u', $t, $m) ? $m[1] : implode(' ', array_slice(explode(' ', $t), 0, 3));
+    $p = mb_substr($p, 0, 40);
+    $learned = json_decode((string)org_setting('edok_bank_wzorce'), true); if (!is_array($learned)) $learned = [];
+    $learned[$kod] = array_values(array_unique(array_merge((array)($learned[$kod] ?? []), [$p])));
+    org_setting_set('edok_bank_wzorce', json_encode($learned, JSON_UNESCAPED_UNICODE));
+    return $p;
+}
+
+/**
+ * Rozpoznaje kategorię operacji (patrz EDOK_BANK_KATEGORIE). Zwraca ['kod', 'label', ...dodatki] albo null.
+ * Dodatki: wynagrodzenie → okres_od/okres_do (RRRR-MM), umowa; faktura_sprzedazy → nr_faktury.
+ */
+function edok_bank_kategoria(array $tx): ?array {
+    $tytul = trim((string)($tx['tytul'] ?? ''));
+    $nazwa = mb_strtoupper(trim((string)($tx['kontrahent_nazwa'] ?? '')));
+    $konto = _edok_nrb_digits((string)($tx['kontrahent_konto'] ?? ''));
+    $znak  = (string)($tx['znak'] ?? 'D');
+    $up    = mb_strtoupper($tytul);
+    $nrs   = function_exists('edok_zus_nrs') ? edok_zus_nrs() : '';
+    if ($znak === 'D' && (($nrs !== '' && $konto !== '' && str_ends_with($konto, $nrs)) || preg_match('/ZAK[LŁ]AD\s+UBEZPIECZE|^ZUS\b|\bZUS\s+(SK[LŁ]ADK|DRA)/u', $nazwa . ' ' . $up))) {
+        return ['kod' => 'zus'] + EDOK_BANK_KATEGORIE['zus'];
+    }
+    if ($znak === 'D' && preg_match('/URZ[AĄ]D\s+SKARBOW|CENTRUM\s+ROZLICZENIOW|\bPIT-?\d|\bPIT\s*4R?\b|MIKRORACHUN/u', $nazwa . ' ' . $up)) {
+        return ['kod' => 'podatek_us'] + EDOK_BANK_KATEGORIE['podatek_us'];
+    }
+    if ($znak === 'D' && preg_match('/WYNAGRODZENI[AE]\s+(\d{2})\/(\d{4})(?:\s*-\s*(\d{2})\/(\d{4}))?(?:.*?UMOWA\s+NR\s*([A-Z0-9\/._-]+))?/iu', $tytul, $m)) {
+        return ['kod' => 'wynagrodzenie', 'okres_od' => $m[2] . '-' . $m[1], 'okres_do' => !empty($m[3]) ? $m[4] . '-' . $m[3] : '', 'umowa' => trim((string)($m[5] ?? ''))] + EDOK_BANK_KATEGORIE['wynagrodzenie'];
+    }
+    // Operacje banku (opłaty, prowizje, kapitalizacja odsetek): wzorce wbudowane + wyuczone; wypływ = opłata, wpływ = odsetki.
+    // Wszystkie operacje własne banku opisujemy z automatu jako opłata bankowa (decyzja użytkownika 2026-11-02).
+    if ($znak === 'D' && (edok_bank_wzorzec_match('oplata_bankowa', $tytul) || ($konto === '' && $nazwa !== '' && preg_match('/^PKO\b|\bPKO BP\b|BANK POLSKI/u', $nazwa)))) {
+        return ['kod' => 'oplata_bankowa'] + EDOK_BANK_KATEGORIE['oplata_bankowa'];
+    }
+    if ($znak === 'C' && (edok_bank_wzorzec_match('odsetki_bankowe', $tytul) || edok_bank_wzorzec_match('oplata_bankowa', $tytul))) {
+        return ['kod' => 'odsetki_bankowe'] + EDOK_BANK_KATEGORIE['odsetki_bankowe'];
+    }
+    if ($znak === 'C' && preg_match('/\bFSP[\s\/-]*([0-9][0-9\/.\-]*)/u', $up, $m)) {
+        return ['kod' => 'faktura_sprzedazy', 'nr_faktury' => 'FSP/' . ltrim(str_replace(' ', '', $m[1]), '/')] + EDOK_BANK_KATEGORIE['faktura_sprzedazy'];
+    }
+    return null;
+}
+
+/** Plakietka kategorii do list (HTML) albo ''. */
+function edok_bank_kategoria_badge(?string $kod): string {
+    if (!$kod || !isset(EDOK_BANK_KATEGORIE[$kod])) return '';
+    $k = EDOK_BANK_KATEGORIE[$kod];
+    return '<span class="badge rounded-pill ' . $k['class'] . '" title="Rozpoznane automatycznie' . ($k['zatwierdzanie'] ? ' — wymaga zatwierdzenia w obiegu' : ' — bez zatwierdzania (wynika z rachunków i umów)') . '">' . h($k['label']) . '</span>';
+}
+
+/**
+ * Dokument EODoK dla rozpoznanego wynagrodzenia: rachunek do umowy (umowa_numer + okres) albo lista płac
+ * z pozycją dla tej umowy/okresu; kwota musi się zgadzać z kwotą do wypłaty/pozycji (±0,01) albo brutto.
+ */
+function edok_bank_wynagrodzenie_doc(array $tx, array $kat): ?int {
+    $kw = abs((float)$tx['kwota']);
+    $umowa = _edok_bank_norm((string)($kat['umowa'] ?? ''));
+    $okres = (string)($kat['okres_od'] ?? '');
+    $ok = fn($v) => $v !== '' && abs(abs(_edok_kwota_float((string)$v)) - $kw) < 0.01;
+    foreach (db_all("SELECT id, kwota_brutto, kwota_do_wyplaty, umowa_numer, okres, typ_dokumentu FROM edok_documents WHERE COALESCE(kierunek,'wydatek')='wydatek' AND typ_dokumentu IN ('rachunek','lista_plac') AND status IN ('zaakceptowany','w_obiegu') ORDER BY id DESC LIMIT 600") as $d) {
+        if ($d['typ_dokumentu'] === 'rachunek') {
+            $um_ok = $umowa !== '' && _edok_bank_norm((string)$d['umowa_numer']) === $umowa;
+            $ok_ok = $okres !== '' && (string)$d['okres'] === $okres;
+            if (($um_ok && ($ok_ok || $ok($d['kwota_do_wyplaty']) || $ok($d['kwota_brutto']))) || ($ok_ok && ($ok($d['kwota_do_wyplaty']) || $ok($d['kwota_brutto'])))) return (int)$d['id'];
+        } else {
+            foreach (db_all("SELECT kwota, umowa_numer, okres_od FROM edok_wyplaty WHERE doc_id=?", [(int)$d['id']]) as $w) {
+                $um_ok = $umowa !== '' && _edok_bank_norm((string)$w['umowa_numer']) === $umowa;
+                $ok_ok = $okres !== '' && ((string)($w['okres_od'] ?? '') === $okres || (string)$d['okres'] === $okres);
+                if ($ok($w['kwota']) && ($um_ok || $ok_ok)) return (int)$d['id'];
+            }
+        }
+    }
+    return null;
+}
+
+/** Faktura sprzedaży (przychód) po numerze z tytułu wpływu — bez przypisanej już operacji. */
+function edok_bank_faktura_sprzedazy_doc(array $tx, array $kat): ?int {
+    $nr = _edok_bank_norm((string)($kat['nr_faktury'] ?? ''));
+    if (strlen($nr) < 4) return null;
+    foreach (db_all("SELECT d.id, d.nr_faktury FROM edok_documents d WHERE COALESCE(d.kierunek,'wydatek')='przychod' AND d.typ_dokumentu IN ('faktura_sprzedazy','korekta_sprzedazy') AND NOT EXISTS (SELECT 1 FROM edok_bank_tx b WHERE b.doc_id=d.id) ORDER BY d.id DESC LIMIT 400") as $d) {
+        $dn = _edok_bank_norm((string)$d['nr_faktury']);
+        if ($dn !== '' && ($dn === $nr || str_contains($nr, $dn) || str_contains($dn, $nr))) return (int)$d['id'];
+    }
+    return null;
+}
+
+/**
+ * Stosuje kategorię do zapisanej operacji: ZUS / Urząd Skarbowy → pominięta (bez dokumentu); wynagrodzenie →
+ * przypisanie do rachunku/listy płac albo pominięta z adnotacją; faktura sprzedaży → przypisanie po numerze.
+ * Opłata bankowa i nieznaleziona faktura zostają nieprzypisane (dokument tworzy edok_bank_auto_create_docs).
+ */
+function edok_bank_apply_kategoria(int $tx_id): void {
+    $tx = db_one("SELECT * FROM edok_bank_tx WHERE id=?", [$tx_id]);
+    if (!$tx || $tx['doc_id'] || $tx['ignored'] || !empty($tx['transfer_id'])) return;
+    $kat = edok_bank_kategoria($tx);
+    db_exec("UPDATE edok_bank_tx SET kategoria=? WHERE id=?", [$kat['kod'] ?? '', $tx_id]);
+    if (!$kat) return;
+    switch ($kat['kod']) {
+        case 'zus':
+            db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=?", ['ZUS — składki (wynikają z rachunków i umów, bez zatwierdzania)', $tx_id]); break;
+        case 'podatek_us':
+            db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=?", ['Urząd Skarbowy — podatek od rachunków (bez zatwierdzania)', $tx_id]); break;
+        case 'wynagrodzenie':
+            $doc = edok_bank_wynagrodzenie_doc($tx, $kat);
+            if ($doc) edok_bank_assign($tx_id, $doc, 'auto');
+            else db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=?", ['Wynagrodzenie — wynika z rachunku' . (!empty($kat['umowa']) ? ' (umowa ' . $kat['umowa'] : ' (') . ($kat['okres_od'] !== '' ? ', ' . edok_okres_label($kat['okres_od']) : '') . '); brak dokumentu w EODoK', $tx_id]);
+            break;
+        case 'faktura_sprzedazy':
+            $doc = edok_bank_faktura_sprzedazy_doc($tx, $kat);
+            if ($doc) edok_bank_assign($tx_id, $doc, 'auto');
+            break;
+    }
+}
+
+/** Rachunek własny organizacji (z listy rachunków) rozpoznany po rachunku kontrahenta operacji; null = to nie przelew własny fundacji. */
 function edok_bank_detect_own_counter(array $tx): ?string {
     $k = _edok_nrb_digits((string)($tx['kontrahent_konto'] ?? ''));
     if (strlen($k) < 26) return null;
@@ -272,10 +447,10 @@ function edok_bank_register_own_transfer(int $tx_id, string $counter_nrb, string
         'data_przelewu' => $tx['data_waluty'], 'rachunek_z_nrb' => $z, 'rachunek_z_nazwa' => $nazwa($z),
         'rachunek_do_nrb' => $do, 'rachunek_do_nazwa' => $nazwa($do), 'kwota' => $kw, 'waluta' => $tx['waluta'] ?: 'PLN',
         'rodzaj_dzialalnosci_z' => '', 'projekt_z' => '', 'rodzaj_dzialalnosci_do' => '', 'projekt_do' => '',
-        'uzasadnienie' => $uzasadnienie !== '' ? $uzasadnienie : 'Przelew własny między rachunkami organizacji (import wyciągu)',
+        'uzasadnienie' => $uzasadnienie !== '' ? $uzasadnienie : 'Przelew własny fundacji między rachunkami organizacji (import wyciągu)',
     ], $user_id);
     db()->prepare("UPDATE edok_bank_tx SET transfer_id=?, ignored=1, ignore_note=? WHERE id=?")
-        ->execute([$tid, 'Przelew własny #' . $tid, $tx_id]);
+        ->execute([$tid, 'Przelew własny fundacji #' . $tid, $tx_id]);
     return null;
 }
 

@@ -199,6 +199,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Szybka akceptacja operacji banku: tylko rodzaj działalności (+ projekt) i PIN / sesja PIN — wszystkie etapy naraz.
+    if ($action === 'bank_quick') {
+        if ($is_terminal) {
+            $errors[] = 'Dokument jest już zamknięty — decyzja jest zablokowana.';
+        } else {
+            $res = edok_bank_quick_accept($id, (int)$user['id'], (string)($_POST['bq_rodzaj'] ?? ''), (string)($_POST['bq_projekt'] ?? ''), trim($_POST['bq_pin'] ?? ''));
+            if ($res['error'] !== null) {
+                $errors[] = $res['error'];
+            } else {
+                $msg = 'Operacja banku zaakceptowana: ' . implode(' → ', $res['signed']) . '.';
+                if ($res['stopped']) $msg .= ' Zatrzymano: ' . $res['stopped'];
+                flash_set($res['stopped'] ? 'warning' : 'success', $msg);
+                header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
+                exit;
+            }
+        }
+    }
+
     if ($action === 'sign_all') {
         if ($is_terminal) {
             $errors[] = 'Dokument jest już zamknięty — decyzja jest zablokowana.';
@@ -1130,6 +1148,27 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
           </div>
           <?php elseif ($pin_session_min > 0): ?>
           <p class="tw-text-xs tw-text-slate-500 tw-mb-2"><i class="bi bi-info-circle"></i> Po wpisaniu PIN-u kolejne akceptacje przez <?= $pin_session_min ?> min nie będą go wymagać.</p>
+          <?php endif; ?>
+          <?php if (edok_doc_bankowy($doc) && edok_pin_is_set((int)$user['id'])): ?>
+          <form method="post" class="tw-mb-3 tw-p-3 tw-rounded tw-border tw-border-solid tw-border-amber-300 tw-bg-amber-50">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="bank_quick">
+            <div class="tw-text-sm tw-font-semibold tw-mb-2"><i class="bi bi-bank"></i> Operacja banku — szybka akceptacja wszystkich etapów</div>
+            <div class="tw-text-xs tw-text-slate-600 tw-mb-2">Wskaż tylko rodzaj działalności. Kwoty (netto = brutto, VAT 0) i opis dopełni system, a etapy podpiszą się jednym PIN-em<?= edok_pin_session_until((int)$user['id']) > 0 ? ' (sesja PIN aktywna — PIN niepotrzebny)' : '' ?>.</div>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-4"><label class="form-label small mb-1" for="bq_rodzaj">Rodzaj działalności</label>
+                <select id="bq_rodzaj" name="bq_rodzaj" class="form-select form-select-sm" required onchange="document.getElementById('bq_projekt_wrap').style.display = this.value === 'projekt' ? '' : 'none'">
+                  <option value="">— wybierz —</option>
+                  <?php foreach (EDOK_RODZAJ_DZIALALNOSCI as $k => $l): ?><option value="<?= h($k) ?>"<?= ($doc['rodzaj_dzialalnosci'] ?? '') === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?>
+                </select></div>
+              <div class="col-md-3" id="bq_projekt_wrap" style="<?= ($doc['rodzaj_dzialalnosci'] ?? '') === 'projekt' ? '' : 'display:none' ?>"><label class="form-label small mb-1" for="bq_projekt">Projekt</label>
+                <input id="bq_projekt" name="bq_projekt" class="form-control form-control-sm" value="<?= h($doc['projekt'] ?? '') ?>"></div>
+              <?php if (edok_pin_session_until((int)$user['id']) <= 0): ?>
+              <div class="col-md-2"><label class="form-label small mb-1" for="bq_pin">PIN EODoK</label>
+                <input id="bq_pin" name="bq_pin" type="password" class="form-control form-control-sm" inputmode="numeric" autocomplete="one-time-code" required></div>
+              <?php endif; ?>
+              <div class="col-md-3"><button type="submit" class="btn btn-sm btn-warning w-100"><i class="bi bi-check2-all"></i> Zatwierdź opłatę bankową</button></div>
+            </div>
+          </form>
           <?php endif; ?>
           <div class="tw-flex tw-flex-wrap tw-gap-2">
             <button type="button" class="edok-btn edok-btn-primary tw-px-4 tw-py-2 tw-text-base" data-bs-toggle="modal" data-bs-target="#stepWizardModal">

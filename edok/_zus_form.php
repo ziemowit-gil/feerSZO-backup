@@ -51,20 +51,13 @@
       <?php endif; ?>
     </div>
     <?php if ($nrs_cfg === ''): ?>
-    <div class="alert alert-warning py-2 small">
-      <strong>Pierwszy przelew do ZUS — potwierdź numer rachunku składkowego.</strong>
-      Numer nie jest jeszcze zapisany w konfiguracji organizacji. Sprawdź go w PUE ZUS / eZUS — po potwierdzeniu zostanie zapisany i nie trzeba będzie go powtarzać.
+    <div class="alert alert-info py-2 small">
+      <strong>Pierwszy przelew do ZUS.</strong> Numer rachunku składkowego organizacji zostanie zapisany w konfiguracji przy tym przelewie — bez osobnego potwierdzania (składki wynikają z rozliczonych rachunków i umów). Popraw go tylko, jeśli jest inny niż w PUE ZUS.
       <div class="row g-2 mt-1 align-items-center">
         <div class="col-md-6">
           <label class="visually-hidden" for="zus_nrs">Numer rachunku składkowego</label>
-          <input type="text" name="zus_nrs" id="zus_nrs" class="form-control form-control-sm font-monospace" required
+          <input type="text" name="zus_nrs" id="zus_nrs" class="form-control form-control-sm font-monospace"
                  value="<?= h(edok_nrb_format($zf['zus_nrs'] !== '' ? preg_replace('/\D/', '', $zf['zus_nrs']) : EDOK_ZUS_NRS_DOMYSLNY)) ?>">
-        </div>
-        <div class="col-md-6">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" name="nrs_confirm" value="1" id="nrs_confirm" required>
-            <label class="form-check-label" for="nrs_confirm">Potwierdzam — to nasz numer rachunku składkowego ZUS</label>
-          </div>
         </div>
       </div>
     </div>
@@ -106,13 +99,10 @@
     </div>
 
     <?php if ($zf['dup']): ?>
-    <div class="alert alert-danger py-2 small mt-2">
+    <div class="alert alert-warning py-2 small mt-2">
       <strong>Przelew składek za <?= h(edok_okres_label($zf['okres'])) ?> był już generowany:</strong>
       <?php foreach ($zf['dup'] as $d): ?> <?= h($d['kwota']) ?> PLN (<?= h(date('d.m.Y H:i', strtotime($d['created_at']))) ?>, <?= h($d['user_name']) ?>);<?php endforeach; ?>
-      <div class="form-check mt-1">
-        <input type="checkbox" class="form-check-input" name="confirm_dup" value="1" id="zus_confirm_dup">
-        <label class="form-check-label" for="zus_confirm_dup">Sprawdziłem — to kolejna wpłata za ten okres</label>
-      </div>
+      — kolejny plik (np. wyrównanie) nie wymaga potwierdzania.
     </div>
     <?php endif; ?>
 

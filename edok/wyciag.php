@@ -36,9 +36,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=? AND doc_id IS NULL", [trim($_POST['note'] ?? ''), $tx_id]);
         flash_set('success', 'Transakcja pominięta (nie wymaga dokumentu).');
     } elseif ($action === 'own') {
-        // operacja, której nie da się rozpoznać automatycznie → ręcznie jako przelew własny (rejestr „Przelewy własne")
+        // operacja, której nie da się rozpoznać automatycznie → ręcznie jako przelew własny fundacji (rejestr „Przelewy własne fundacji")
         $err = edok_bank_register_own_transfer($tx_id, trim((string)($_POST['counter_nrb'] ?? '')), trim((string)($_POST['reason'] ?? '')), (int)(current_user()['id'] ?? 0));
-        flash_set($err ? 'danger' : 'success', $err ?: 'Zarejestrowano jako przelew własny.');
+        flash_set($err ? 'danger' : 'success', $err ?: 'Zarejestrowano jako przelew własny fundacji.');
+    } elseif ($action === 'kategoria') {
+        // Ręczne oznaczenie kategorii — system uczy się wzorca tytułu i stosuje regułę od razu.
+        $kod = (string)($_POST['kod'] ?? '');
+        $tx  = db_one("SELECT * FROM edok_bank_tx WHERE id=?", [$tx_id]);
+        if (!$tx || !isset(EDOK_BANK_KATEGORIE[$kod])) { $err = 'Nieznana kategoria.'; }
+        else {
+            $wz = in_array($kod, ['oplata_bankowa', 'odsetki_bankowe'], true) ? edok_bank_wzorzec_learn($kod, (string)$tx['tytul']) : null;
+            db_exec("UPDATE edok_bank_tx SET kategoria=?, ignored=0, ignore_note='' WHERE id=? AND doc_id IS NULL", [$kod, $tx_id]);
+            edok_bank_apply_kategoria($tx_id);
+            $t2 = db_one("SELECT doc_id, ignored FROM edok_bank_tx WHERE id=?", [$tx_id]);
+            $auto = 0;
+            if ($t2 && !$t2['doc_id'] && !$t2['ignored'] && EDOK_BANK_KATEGORIE[$kod]['zatwierdzanie']) $auto = edok_bank_auto_create_docs([$tx_id], (int)(current_user()['id'] ?? 0));
+        }
+        flash_set($err ? 'danger' : 'success', $err ?: 'Oznaczono jako „' . EDOK_BANK_KATEGORIE[$kod]['label'] . '”' . (!empty($wz) ? ', zapamiętano wzorzec „' . $wz . '”' : '') . (!empty($auto) ? ', utworzono dokument do zatwierdzenia' : '') . '.');
     } elseif ($action === 'unignore') {
         db_exec("UPDATE edok_bank_tx SET ignored=0, ignore_note='', transfer_id=NULL WHERE id=?", [$tx_id]);
     } elseif ($action === 'auto') {
@@ -105,7 +119,7 @@ require_once __DIR__ . '/../includes/header.php';
     <tr>
       <td class="text-nowrap small"><?= h(date_pl($t['data_waluty'])) ?></td>
       <td class="text-end font-monospace text-nowrap <?= $wplyw ? 'text-success' : '' ?>"><?= $wplyw ? '+' : '−' ?><?= h(number_format((float)$t['kwota'], 2, ',', ' ')) ?></td>
-      <td class="small"><div class="fw-semibold"><?= h($t['kontrahent_nazwa'] ?: '—') ?></div><div class="text-muted"><?= h($t['tytul'] ?: '—') ?></div>
+      <td class="small"><div class="fw-semibold"><?= h($t['kontrahent_nazwa'] ?: '—') ?> <?= edok_bank_kategoria_badge((string)($t['kategoria'] ?? '')) ?></div><div class="text-muted"><?= h($t['tytul'] ?: '—') ?></div>
         <div class="text-muted font-monospace" style="font-size:.75rem">wyciąg <?= h($t['statement_no'] ?: '—') ?> · <?= h($t['numer_operacji']) ?></div></td>
       <td>
       <?php if ($t['doc_id']): ?>
@@ -137,14 +151,24 @@ require_once __DIR__ . '/../includes/header.php';
         </form>
         <form method="post" class="d-flex gap-1 mt-1 flex-wrap"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="action" value="own"><input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>">
-          <select name="counter_nrb" class="form-select form-select-sm" style="max-width:220px" required aria-label="Przelew własny — rachunek drugiej strony">
-            <option value=""><?= $wplyw ? 'Przelew własny z rachunku…' : 'Przelew własny na rachunek…' ?></option>
+          <select name="counter_nrb" class="form-select form-select-sm" style="max-width:220px" required aria-label="Przelew własny fundacji — rachunek drugiej strony">
+            <option value=""><?= $wplyw ? 'Przelew własny fundacji z rachunku…' : 'Przelew własny fundacji na rachunek…' ?></option>
             <?php foreach (edok_rachunki_list() as $r): if (_edok_nrb_digits((string)$r['nrb']) === _edok_nrb_digits((string)$t['account_nrb'])) continue; ?>
             <option value="<?= h($r['nrb']) ?>"><?= h(($r['nazwa'] ?: $r['bank']) . ' …' . substr(_edok_nrb_digits((string)$r['nrb']), -4)) ?></option>
             <?php endforeach; ?>
           </select>
           <input type="text" name="reason" class="form-control form-control-sm" placeholder="Uzasadnienie (opcjonalnie)" style="max-width:200px">
-          <button class="btn btn-sm btn-outline-info">Jako przelew własny</button>
+          <button class="btn btn-sm btn-outline-info">Jako przelew własny fundacji</button>
+        </form>
+        <form method="post" class="d-flex gap-1 mt-1 flex-wrap"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="kategoria"><input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>">
+          <select name="kod" class="form-select form-select-sm" style="max-width:220px" required aria-label="Oznacz kategorię operacji (system zapamięta wzorzec)">
+            <option value="">Oznacz jako…</option>
+            <?php foreach (EDOK_BANK_KATEGORIE as $kk => $kv): if ($wplyw ? !in_array($kk, ['odsetki_bankowe', 'faktura_sprzedazy'], true) : in_array($kk, ['odsetki_bankowe', 'faktura_sprzedazy'], true)) continue; ?>
+            <option value="<?= h($kk) ?>"><?= h($kv['label']) ?><?= $kv['zatwierdzanie'] ? ' (do zatwierdzenia)' : ' (bez zatwierdzania)' ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button class="btn btn-sm btn-outline-dark" title="System zapamięta wzorzec tytułu i następnym razem rozpozna sam">Oznacz i naucz</button>
         </form>
         <form method="post" class="d-flex gap-1 mt-1" onsubmit="return confirm('Pominąć tę transakcję (np. opłata bankowa)?');"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="action" value="ignore"><input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>">

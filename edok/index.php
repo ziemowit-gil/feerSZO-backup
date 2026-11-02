@@ -200,7 +200,7 @@ require_once __DIR__ . '/../includes/header.php';
         <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/wyciag.php"><i class="bi bi-bank2"></i> Wyciągi bankowe<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></a></li>
         <?php endif; ?>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/preliminarz.php"><i class="bi bi-calendar-check"></i> Preliminarz płatności</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/transfers.php"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/transfers.php"><i class="bi bi-arrow-left-right"></i> Przelewy własne fundacji</a></li>
         <?php if ($can_fin): ?>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/zaplacone_przed.php"><i class="bi bi-cash-coin"></i> Zapłacone przed akceptacją</a></li>
         <?php endif; ?>

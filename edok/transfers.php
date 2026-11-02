@@ -69,13 +69,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $transfers = db_all("SELECT * FROM edok_transfers ORDER BY id DESC LIMIT 300");
 
-$PAGE_TITLE = 'Przelewy własne / przesunięcia po kontach — EODoK';
+$PAGE_TITLE = 'Przelewy własne fundacji / przesunięcia po kontach — EODoK';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <div class="d-flex align-items-center gap-2">
     <a href="<?= APP_URL ?>/edok/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
-    <h4 class="mb-0"><i class="bi bi-arrow-left-right"></i> Przelewy własne / przesunięcia po kontach</h4>
+    <h4 class="mb-0"><i class="bi bi-arrow-left-right"></i> Przelewy własne fundacji / przesunięcia po kontach</h4>
   </div>
 </div>
 <p class="text-muted small">Zestawienie przesunięć środków między rachunkami bankowymi organizacji — z jakiego na jaki rachunek, jaka klasyfikacja źródłowa i docelowa (projekt / statutowa odpłatna / nieodpłatna) oraz uzasadnienie.</p>

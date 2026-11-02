@@ -42,6 +42,9 @@ const EDOK_TYPES = [
     'rachunek'           => 'Rachunek',
     'nota_ksiegowa'      => 'Nota księgowa',
     'lista_plac'         => 'Lista płac',
+    'skladki_zus'        => 'ZUS — składki',
+    'podatek_us'         => 'Urząd Skarbowy — podatek',
+    'oplata_bankowa'     => 'Opłata bankowa',
     'inny'               => 'Inny dokument księgowy',
     // Przychody (Uchwała 5/2026 §1 pkt 2 — obowiązkowo od 1.10.2026, patrz EDOK_TYPES_PRZYCHOD)
     'wyciag_bankowy'      => 'Wyciąg bankowy',
@@ -333,7 +336,9 @@ function edok_migrate(): void {
         imported_at      TEXT    NOT NULL DEFAULT ''
     )");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_edok_bank_tx_doc ON edok_bank_tx(doc_id)");
-    _edok_add_columns($db, 'edok_bank_tx', ['transfer_id' => 'INTEGER']);   // przelew własny (edok_transfers.id)
+    _edok_add_columns($db, 'edok_bank_tx', ['transfer_id' => 'INTEGER']);   // przelew własny fundacji (edok_transfers.id)
+    // Kategoria rozpoznana automatycznie (edok_bank_kategoria): zus / podatek_us / oplata_bankowa / wynagrodzenie / faktura_sprzedazy
+    _edok_add_columns($db, 'edok_bank_tx', ['kategoria' => "TEXT NOT NULL DEFAULT ''"]);
 
     // Kolejka do opisu — pliki wgrane zbiorczo (edok/bulk_upload.php), czekające na opisanie
     // i złożenie do obiegu (edok/add.php?queue=ID). To NIE są dokumenty EODoK: numer dostają
@@ -2744,17 +2749,15 @@ function edok_zus_handle_post(): array {
         if (!isset($rachunki_ok[$c['nrb']]))   $errors[] = 'Wybierz rachunek organizacji dla każdej części płatności.';
         if (_edok_kwota_float($c['kwota']) <= 0) $errors[] = 'Każda część płatności musi mieć kwotę większą od zera.';
     }
-    // NRS: z konfiguracji albo potwierdzony w formularzu (i wtedy zapisywany).
+    // NRS: z konfiguracji, a przy pierwszym przelewie z formularza (domyślnie numer organizacji) — zapisywany bez
+    // osobnego potwierdzania: składki wynikają z rozliczonych rachunków i umów (decyzja użytkownika 2026-11-02).
     $nrs = edok_zus_nrs_config();
     if ($nrs === '') {
-        $nrs = preg_replace('/\D/', '', (string)($_POST['zus_nrs'] ?? ''));
-        if (!edok_nrb_valid($nrs))           $errors[] = 'Podaj prawidłowy numer rachunku składkowego ZUS.';
-        elseif (empty($_POST['nrs_confirm'])) $errors[] = 'Potwierdź numer rachunku składkowego ZUS przed pierwszym przelewem.';
+        $nrs = preg_replace('/\D/', '', (string)($_POST['zus_nrs'] ?? '')) ?: EDOK_ZUS_NRS_DOMYSLNY;
+        if (!edok_nrb_valid($nrs)) $errors[] = 'Podaj prawidłowy numer rachunku składkowego ZUS.';
     }
+    // Drugi przelew za ten sam okres: tylko informacja na formularzu (np. wyrównanie), nie blokada.
     $zus_form['dup'] = edok_okres_label($okres) !== '' ? edok_zus_przelewy($okres) : [];
-    if (!$errors && $zus_form['dup'] && empty($_POST['confirm_dup'])) {
-        $errors[] = 'Przelew składek za ten okres był już generowany — sprawdź w banku i potwierdź, że to kolejna (np. wyrównująca) wpłata.';
-    }
     if ($errors) {
         flash_set('warning', implode(' ', array_unique($errors)));
     } else {
@@ -2786,6 +2789,38 @@ function edok_zus_handle_post(): array {
         }
     }
     return $zus_form;
+}
+
+// ── Szybka akceptacja operacji banku (opłaty, odsetki) ─────────────────────────
+// Decyzja użytkownika 2026-11-02: dokumenty z wyciągu rozpoznane jako operacje banku zatwierdza się
+// JEDNYM przyciskiem — użytkownik wskazuje tylko rodzaj działalności (i projekt, gdy „projekt”);
+// kwoty dopełnia system (netto = brutto, VAT 0), a wszystkie etapy podpisuje edok_sign_all()
+// (PIN albo aktywna sesja PIN). ZUS i podatek nie trafiają do obiegu w ogóle (pomijane na wyciągu).
+
+const EDOK_TYPY_BANKOWE = ['oplata_bankowa'];
+
+function edok_doc_bankowy(array $doc): bool {
+    return in_array((string)($doc['typ_dokumentu'] ?? ''), EDOK_TYPY_BANKOWE, true)
+        || (($doc['kierunek'] ?? 'wydatek') === 'przychod' && str_starts_with((string)($doc['description'] ?? ''), 'Odsetki bankowe'));
+}
+
+/** @return array{signed: string[], stopped: ?string, error: ?string} */
+function edok_bank_quick_accept(int $doc_id, int $user_id, string $rodzaj, string $projekt, string $pin): array {
+    $doc = edok_get($doc_id);
+    if (!$doc) return ['signed' => [], 'stopped' => null, 'error' => 'Nie znaleziono dokumentu.'];
+    if (!edok_doc_bankowy($doc)) return ['signed' => [], 'stopped' => null, 'error' => 'Szybka akceptacja dotyczy tylko operacji banku (opłaty, odsetki).'];
+    if (!isset(EDOK_RODZAJ_DZIALALNOSCI[$rodzaj])) return ['signed' => [], 'stopped' => null, 'error' => 'Wskaż rodzaj działalności.'];
+    if ($rodzaj === 'projekt' && trim($projekt) === '') return ['signed' => [], 'stopped' => null, 'error' => 'Przy rodzaju „Projekt / działanie” podaj nazwę projektu.'];
+    $brutto = trim((string)$doc['kwota_brutto']);
+    $upd = ['rodzaj_dzialalnosci' => $rodzaj, 'projekt' => $rodzaj === 'projekt' ? trim($projekt) : '', 'updated_at' => date('Y-m-d H:i:s')];
+    if (trim((string)$doc['kwota_netto']) === '' && $brutto !== '') $upd['kwota_netto'] = $brutto;
+    if (trim((string)$doc['kwota_vat']) === '')   $upd['kwota_vat'] = '0,00';
+    if (trim((string)$doc['description']) === '') $upd['description'] = 'Operacja banku (' . ($doc['title'] ?? '') . ')';
+    if (trim((string)$doc['nr_faktury']) === '')  $upd['nr_faktury'] = 'wyciąg';
+    if (trim((string)$doc['data_wplywu'] ?? '') === '' && !empty($doc['data_wystawienia'])) $upd['data_wplywu'] = $doc['data_wystawienia'];
+    db_update('edok_documents', $upd, $doc_id);
+    edok_log($doc_id, 'bank_quick', '', '', '', 'Szybka akceptacja operacji banku: rodzaj działalności „' . EDOK_RODZAJ_DZIALALNOSCI[$rodzaj] . '”' . ($rodzaj === 'projekt' ? ' (' . trim($projekt) . ')' : '') . '; kwoty dopełnione automatycznie.');
+    return edok_sign_all($doc_id, $user_id, $pin, 'Operacja banku — szybka akceptacja.');
 }
 
 /** Przelewy ZUS wygenerowane za dany okres (albo ostatnie 12). */
@@ -3037,16 +3072,30 @@ function edok_mt940_create_doc(array $tx, int $user_id): int {
     // i w karcie od razu było widać, OD KOGO wpływ, nie tylko „darowizna”.
     $opis   = ($tytul !== '' ? $tytul : ($tx['znak'] === 'D' ? 'Wypływ z rachunku bankowego' : 'Wpływ na rachunek bankowy'))
             . ($nazwa !== '' ? ' — ' . ($tx['znak'] === 'D' ? 'odbiorca: ' : 'wpłacający: ') . $nazwa : '');
+    $typ    = $tx['znak'] === 'D' ? 'inny' : 'wyciag_bankowy';
+    $nr_dok = ($tx['referencja'] ?? '') ?: $tx['numer_operacji'];
+    // Kategorie rozpoznane na wyciągu (edok_bank_kategoria): dokument od razu z właściwym typem i kontrahentem.
+    $kat = function_exists('edok_bank_kategoria') ? edok_bank_kategoria($tx) : null;
+    if ($kat) {
+        switch ($kat['kod']) {
+            case 'oplata_bankowa':   $typ = 'oplata_bankowa'; $nazwa = $nazwa !== '' ? $nazwa : 'PKO Bank Polski S.A.'; $opis = 'Opłata bankowa PKO — ' . ($tytul !== '' ? $tytul : 'prowizja'); break;
+            case 'odsetki_bankowe':  if ($tx['znak'] === 'C') { $typ = 'inny_przychod'; $nazwa = $nazwa !== '' ? $nazwa : 'PKO Bank Polski S.A.'; $opis = 'Odsetki bankowe — ' . ($tytul !== '' ? $tytul : 'kapitalizacja'); } break;
+            case 'zus':              $typ = 'skladki_zus';    $nazwa = EDOK_ZUS_ODBIORCA; break;
+            case 'podatek_us':       $typ = 'podatek_us';     $nazwa = $nazwa !== '' ? $nazwa : 'Urząd Skarbowy'; break;
+            case 'faktura_sprzedazy':
+                if ($tx['znak'] === 'C') { $typ = 'faktura_sprzedazy'; if (!empty($kat['nr_faktury'])) $nr_dok = $kat['nr_faktury']; $opis = 'Wpłata za fakturę sprzedaży ' . ($kat['nr_faktury'] ?? '') . ($nazwa !== '' ? ' — wpłacający: ' . $nazwa : ''); }
+                break;
+        }
+    }
     $doc = [
         'number'              => $number,
         'title'               => $opis,
         'kierunek'            => $tx['znak'] === 'D' ? 'wydatek' : 'przychod',
-        'typ_dokumentu'       => $tx['znak'] === 'D' ? 'inny' : 'wyciag_bankowy',
+        'typ_dokumentu'       => $typ,
         'description'         => $opis,
         'kontrahent_nazwa'    => $nazwa !== '' ? $nazwa : ($tx['znak'] === 'D' ? '(nieznany odbiorca)' : '(nieznany wpłacający)'),
         'kontrahent_nip'      => '',
-        'nr_faktury'          => ($tx['referencja'] ?? '') ?: $tx['numer_operacji'],
-        'zrodlo_przychodu'    => trim($nazwa . ($iban !== '' ? ' (' . $iban . ')' : '')),
+        'nr_faktury'          => $nr_dok,
         'data_wystawienia'    => $tx['data_waluty'],
         'data_wplywu'         => $tx['data_waluty'],
         'kwota_netto'         => number_format((float)$tx['kwota'], 2, ',', ''),
@@ -3054,6 +3103,7 @@ function edok_mt940_create_doc(array $tx, int $user_id): int {
         'kwota_brutto'        => number_format((float)$tx['kwota'], 2, ',', ''),
         'waluta'              => 'PLN',
         'rodzaj_dzialalnosci' => '',
+        'zrodlo_przychodu'    => $tx['znak'] === 'C' ? trim($nazwa . ($iban !== '' ? ' (' . $iban . ')' : '')) : '',
         'status'              => 'w_obiegu',
         'created_by'          => $user_id,
         'creator_name'        => ($user['name'] ?? ('uid:' . $user_id)) . ' (import MT940)',
