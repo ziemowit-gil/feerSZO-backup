@@ -476,6 +476,26 @@ HTML;
 </p>
 HTML;
 
+    $ti_claude_statement_body = <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>W związku z przypisaną licencją <strong>{{software}}</strong> w panelu kursanta czeka na akceptację <strong>oświadczenie o zryczałtowanej opłacie za dostęp do Claude</strong>.</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Uczestnik</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{student}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Licencja</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Opłata ryczałtowa</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">25 zł — za sam dostęp do narzędzia Claude, do końca grudnia 2026 r.</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Gdzie zaakceptować</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">panel kursanta → zakładka Regulaminy</td></tr>
+</table>
+<p>Oświadczenie zawiera pełną informację o zasadach opłaty (m.in. że różnicę między opłatą ryczałtową a kosztem licencji Claude Team pokrywa Fundacja). Po jego zaakceptowaniu możesz w pełni korzystać z dostępu do Claude. {{minor_note}}</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Przejdź do oświadczenia →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
+HTML;
+
     $ti_plan_link_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>Plan zajęć grupy <strong>{{group}}</strong> (prowadzący: {{instructor}}) jest dostępny pod stałym adresem — bez logowania, zawsze w aktualnej wersji. Zapisz go w zakładkach albo na telefonie:</p>
@@ -1287,6 +1307,24 @@ HTML,
                 'expires'     => ['label' => 'Ważna do (albo „bezterminowo”)', 'sample' => '31.12.2026'],
                 'secret_note' => ['label' => 'Uwaga o loginie i kluczu (lub pusta)', 'sample' => 'Login i klucz licencyjny są dostępne wyłącznie w panelu — ze względów bezpieczeństwa nie przesyłamy ich e-mailem.'],
                 'url'         => ['label' => 'Link do panelu kursanta',  'sample' => $base . '/karty30/ti/kursant/index.php?tab=licencje'],
+            ],
+        ],
+
+        'ti_claude_statement' => [
+            'label'       => 'TI: oświadczenie Claude do akceptacji w panelu',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-stars',
+            'auto'        => true,
+            'description' => 'Po przypisaniu licencji Claude (i z przycisku w Regulaminach): w panelu kursanta czeka oświadczenie o zryczałtowanej opłacie 25 zł za dostęp do Claude. Do kursanta i — u małoletnich — do opiekuna.',
+            'subject'     => '{{org}}: oświadczenie o opłacie za dostęp do Claude czeka na akceptację',
+            'body'        => $ti_claude_statement_body,
+            'vars'        => [
+                'org'        => ['label' => 'Nazwa organizacji',        'sample' => 'Dydaktyka TI'],
+                'greeting'   => ['label' => 'Zwrot (spacja + imię albo puste)', 'sample' => ' Anna'],
+                'student'    => ['label' => 'Kursant',                  'sample' => 'Anna Nowak'],
+                'software'   => ['label' => 'Nazwa licencji Claude',    'sample' => 'Claude Team'],
+                'minor_note' => ['label' => 'Dopisek dla opiekuna (lub pusty)', 'sample' => 'Jako opiekun otrzymujesz tę wiadomość do wiadomości — oświadczenie akceptuje uczestnik we własnym panelu.'],
+                'url'        => ['label' => 'Link do zakładki Regulaminy', 'sample' => $base . '/karty30/ti/kursant/index.php?tab=regulaminy'],
             ],
         ],
 

@@ -305,6 +305,20 @@ function sms_tpl_registry(): array
                 'org'      => ['label' => 'Nazwa organizacji', 'sample' => 'Dydaktyka TI'],
             ],
         ],
+        'ti_claude_statement' => [
+            'label'       => 'Oświadczenie Claude do akceptacji (do kursanta / opiekuna)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-stars',
+            'auto'        => true,
+            'description' => 'Wysyłane po przypisaniu licencji Claude (i z przycisku w Regulaminach): w panelu kursanta czeka oświadczenie o zryczałtowanej opłacie 25 zł za dostęp do Claude. Do opiekuna małoletniego — ten sam szablon.',
+            'message'     => '{{org}}: w panelu kursanta czeka oswiadczenie o oplacie 25 zl za dostep do Claude (licencja {{software}}). Zaakceptuj je w zakladce Regulaminy: {{url}}',
+            'vars'        => [
+                'org'      => ['label' => 'Nazwa organizacji', 'sample' => 'FEER'],
+                'student'  => ['label' => 'Kursant', 'sample' => 'Jan Kowalski'],
+                'software' => ['label' => 'Nazwa licencji Claude', 'sample' => 'Claude Team'],
+                'url'      => ['label' => 'Link do panelu (zakładka Regulaminy)', 'sample' => 'https://szo.feer.org.pl/karty30/ti/kursant/index.php?tab=regulaminy'],
+            ],
+        ],
         'ti_license_assigned_guardian' => [
             'label'       => 'Nowa licencja przypisana (do opiekuna)',
             'group'       => 'TI — Zajęcia',

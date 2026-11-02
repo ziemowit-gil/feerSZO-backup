@@ -63,6 +63,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $aid = (int)($_POST['accept_id'] ?? 0);
         flash_set($aid && ti_term_accept_revoke($aid) ? 'success' : 'danger', $aid ? 'Akceptacja cofnięta — kursant zaakceptuje regulamin ponownie przy następnym wejściu.' : 'Nie udało się cofnąć akceptacji.');
         header('Location: ' . $back); exit;
+    } elseif ($op === 'notify_claude' && $type === 'claude_oplata') {
+        // Oświadczenie o opłacie za dostęp do Claude: e-mail + SMS do osób z licencją Claude bez akceptacji
+        require_once dirname(__DIR__, 3) . '/modules/ti_licencje/logic/tiClaudeStatement.php';
+        $ch = array_values(array_intersect(['email', 'sms'], (array)($_POST['ch'] ?? ['email', 'sms'])));
+        $n = 0; $lines = [];
+        foreach (TiClaudeStatement::pendingClients() as $pc) {
+            $r = TiClaudeStatement::send((int)$pc['client_id'], $uid, $ch);
+            if ($r['ok']) $n++;
+            $lines[] = $pc['name'] . ' — ' . $r['msg'];
+        }
+        flash_set($n > 0 ? 'success' : 'warning', ($n > 0 ? "Wysłano powiadomienie do $n os." : 'Nic nie wysłano.') . ($lines ? ' ' . implode(' · ', array_slice($lines, 0, 8)) . (count($lines) > 8 ? ' …' : '') : ''));
+        header('Location: ' . $back); exit;
     } elseif ($op === 'upload_signed') {
         $aid = (int)($_POST['accept_id'] ?? 0);
         $acc = $aid ? db_one("SELECT * FROM k30_ti_terms_accepts WHERE id=?", [$aid]) : null;
@@ -158,6 +170,22 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </div></form>
   </div>
   <div class="col-xl-5">
+    <?php if ($active === 'claude_oplata'): require_once dirname(__DIR__, 3) . '/modules/ti_licencje/logic/tiClaudeStatement.php'; $clPending = TiClaudeStatement::pendingClients(); ?>
+    <section class="card border-0 shadow-sm mb-3" aria-labelledby="cl-h"><div class="card-header fw-semibold d-flex" id="cl-h"><i class="bi bi-stars me-2" aria-hidden="true"></i>Osoby z licencją Claude bez akceptacji <span class="badge <?= $clPending ? 'text-bg-warning' : 'text-bg-success' ?> ms-auto"><?= count($clPending) ?></span></div>
+      <div class="card-body small">
+        <?php if (!$clPending): ?><p class="text-body-secondary mb-0">Wszystkie osoby z aktywną licencją Claude zaakceptowały oświadczenie (albo nikt jeszcze nie ma licencji Claude).</p>
+        <?php else: ?>
+        <ul class="mb-2 ps-3"><?php foreach (array_slice($clPending, 0, 25) as $pc): ?><li><?= h($pc['name']) ?> <span class="text-body-secondary">(<?= h($pc['software']) ?>)</span></li><?php endforeach; ?><?php if (count($clPending) > 25): ?><li>… i <?= count($clPending) - 25 ?> więcej</li><?php endif; ?></ul>
+        <form method="post" onsubmit="return confirm('Wysłać powiadomienie e-mail / SMS do wszystkich wymienionych osób (oraz opiekunów małoletnich)?')">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="notify_claude"><input type="hidden" name="type" value="claude_oplata">
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="ch[]" value="email" id="clc-e" checked><label class="form-check-label" for="clc-e">E-mail</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="ch[]" value="sms" id="clc-s" checked><label class="form-check-label" for="clc-s">SMS</label></div>
+          <button class="btn btn-sm btn-primary ms-2"><i class="bi bi-send me-1" aria-hidden="true"></i>Powiadom o oświadczeniu</button>
+          <div class="form-text">Treść: szablony „TI: oświadczenie Claude do akceptacji w panelu” (e-mail i SMS). Powiadomienie wysyła się też automatycznie przy przypisaniu licencji Claude.</div>
+        </form>
+        <?php endif; ?>
+      </div></section>
+    <?php endif; ?>
     <section class="card border-0 shadow-sm" aria-labelledby="acc-h"><div class="card-header fw-semibold d-flex" id="acc-h">Ostatnie akceptacje <span class="badge text-bg-secondary ms-auto"><?= count($accepts) ?></span></div>
       <?php if (!$accepts): ?><div class="card-body small text-body-secondary">Brak akceptacji dla tego regulaminu.</div><?php else: ?>
       <div class="table-responsive" style="max-height:520px;overflow-y:auto"><table class="table table-sm mb-0 small">

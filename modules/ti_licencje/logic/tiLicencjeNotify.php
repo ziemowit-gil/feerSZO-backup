@@ -172,6 +172,14 @@ final class TiLicencjeNotifier
         if ($total > 0) db_exec("UPDATE k30_ti_client_licenses SET notified_at = ? WHERE id = ?", [date('Y-m-d H:i:s'), $assignmentId]);
         $res['ok']  = $total > 0;
         $res['msg'] = self::summary($res, $channels);
+        // Licencja Claude → dodatkowo: „w panelu czeka oświadczenie o opłacie 25 zł za dostęp do Claude” (te same kanały i zgody)
+        try {
+            require_once __DIR__ . '/tiClaudeStatement.php';
+            if (ti_term_is_claude_license(['license_name' => $a['software'], 'vendor' => $a['vendor']])) {
+                $cs = TiClaudeStatement::send((int)$a['client_id'], $by, $channels);
+                if ($cs['msg'] !== '') $res['msg'] = trim($res['msg'] . ' Oświadczenie Claude — ' . $cs['msg']);
+            }
+        } catch (\Throwable $e) { error_log('ti_claude_statement: ' . $e->getMessage()); }
         return $res;
     }
 
