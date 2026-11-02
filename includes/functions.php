@@ -20,7 +20,7 @@ const STATUS_LABELS = [
     'jednostronnie'  => ['label' => 'Podpisana jednostronnie', 'class' => 'teal'],     // powierzenie: podpis Fundacji
     'w podpisie w instytucji' => ['label' => 'W podpisie w instytucji', 'class' => 'orange'], // powierzenie: czeka na podpis organu
     'podpisana'      => ['label' => 'Podpisana',      'class' => 'primary'],
-    'w realizacji'   => ['label' => 'W realizacji',   'class' => 'info'],
+    'w realizacji'   => ['label' => 'Aktywna',        'class' => 'info'],
     'zawieszona'     => ['label' => 'Zawieszona',     'class' => 'orange'],
     'do rozliczenia' => ['label' => 'Do rozliczenia', 'class' => 'indigo'],
     'zakończona'     => ['label' => 'Zakończona',     'class' => 'success'],

@@ -875,7 +875,7 @@ HTML;
   {{lista}}
 </table>
 <p style="margin:0 0 8px;"><a href="{{url}}" style="background:#A16207;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">Lista umów do rozliczenia</a></p>
-<p style="margin:16px 0 0;font-size:12px;color:#6c757d;">Po zamknięciu wszystkich minionych miesięcy umowa wróci do statusu „W realizacji” automatycznie.</p>
+<p style="margin:16px 0 0;font-size:12px;color:#6c757d;">Po zamknięciu wszystkich minionych miesięcy umowa wróci do statusu „Aktywna” automatycznie.</p>
 HTML,
             'vars'        => [
                 'greeting' => ['label' => 'Zwrot (np. ", Anna Nowak")', 'sample' => ', <strong>Anna Nowak</strong>'],

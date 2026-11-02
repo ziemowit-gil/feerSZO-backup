@@ -135,7 +135,7 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
     <span class="pw-tile-sub">czekają na podpis organu</span>
   </a>
   <a href="?status=<?= urlencode('w realizacji') ?>" class="pw-tile is-acc<?= $status === 'w realizacji' ? ' is-on' : '' ?>">
-    <span class="pw-tile-lbl"><i class="bi bi-play-circle"></i>W realizacji</span>
+    <span class="pw-tile-lbl"><i class="bi bi-play-circle"></i>Aktywne</span>
     <span class="pw-tile-val"><?= (int)($_st['realizacja'] ?? 0) ?></span>
     <span class="pw-tile-sub">podpisane i realizowane</span>
   </a>

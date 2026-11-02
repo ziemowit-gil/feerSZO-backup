@@ -391,7 +391,7 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
   <div class="col-6 col-md-3">
     <div class="card shadow-sm h-100"><div class="card-body py-2">
       <div class="h4 mb-0"><?= number_format($stats['real'],0,',',' ') ?></div>
-      <div class="text-muted small"><i class="bi bi-gear me-1" style="color:#0dcaf0"></i>W realizacji</div>
+      <div class="text-muted small"><i class="bi bi-gear me-1" style="color:#0dcaf0"></i>Aktywne</div>
       <?php if ($_zl_cnt_konczy): ?>
       <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?konczy=1" class="small text-decoration-none" style="color:#b45309" title="Umowy kończące się w ciągu 14 dni">
         <i class="bi bi-hourglass-split me-1"></i><?= $_zl_cnt_konczy ?> kończy się w ciągu 14 dni

@@ -1165,7 +1165,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   <div class="alert alert-warning d-flex gap-2 align-items-start" role="status">
     <i class="bi bi-calendar2-check fs-5" aria-hidden="true"></i>
     <div><strong>Okres do rozliczenia:</strong> niezamknięte w saldzie <?= h(implode(', ', array_map('zl_ew_ym_label', $_zl_okres_open))) ?>.
-      Sprawdź godziny i rachunki, a potem zamknij miesiąc poniżej — po zamknięciu wszystkich minionych miesięcy umowa wróci do statusu „W realizacji”.</div>
+      Sprawdź godziny i rachunki, a potem zamknij miesiąc poniżej — po zamknięciu wszystkich minionych miesięcy umowa wróci do statusu „Aktywna”.</div>
   </div>
   <?php endif; ?>
   <!-- ═══ SALDO ROZLICZEŃ — należność / wypłata z rachunków / pozostało (przenoszone na kolejny miesiąc) ═══ -->

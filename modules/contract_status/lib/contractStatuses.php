@@ -48,7 +48,7 @@ const CONTRACT_STATUS_DEFAULTS = [
                                   'next' => ['w realizacji', 'rozliczanie miesięczne', 'zakończona', 'rozwiązana', 'anulowana']],
     'obowiązująca'            => ['label' => 'Obowiązująca',            'class' => 'success',   'color' => '#15803D', 'bg' => '#F0FDF4', 'icon' => 'bi-shield-check',     'grupa' => 'active',    'typy' => ['praca'],
                                   'next' => ['zakończona', 'rozwiązana', 'wygasła']],
-    'w realizacji'            => ['label' => 'W realizacji',            'class' => 'info',      'color' => '#0369A1', 'bg' => '#F0F9FF', 'icon' => 'bi-play-circle',      'grupa' => 'active',    'typy' => [...CONTRACT_STATUS_CIVIL, 'powierzenie'],
+    'w realizacji'            => ['label' => 'Aktywna',                 'class' => 'info',      'color' => '#0369A1', 'bg' => '#F0F9FF', 'icon' => 'bi-play-circle',      'grupa' => 'active',    'typy' => [...CONTRACT_STATUS_CIVIL, 'powierzenie'],
                                   'next' => ['rozliczanie miesięczne', 'zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana']],
     // Zlecenie rozliczane co miesiąc (rachunek za każdy miniony miesiąc) — status ręczny, aktywny; zlecenie w tym
     // statusie dostaje baner „Wyślij rachunek” i wchodzi do liczników aktywnych umów jak „w realizacji”.

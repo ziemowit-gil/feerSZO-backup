@@ -171,7 +171,7 @@ if ($_is_volunteer_only) {
       <?php if (!$contracts): ?>
       <div class="tz-empty">
         <i class="bi bi-info-circle" aria-hidden="true"></i>
-        <p>Brak aktywnych umów, które można rozwiązać (status: Podpisana, W realizacji lub Obowiązująca).</p>
+        <p>Brak aktywnych umów, które można rozwiązać (status: Podpisana, Aktywna lub Obowiązująca).</p>
       </div>
       <?php else: ?>
 
@@ -297,7 +297,7 @@ if ($_is_volunteer_only) {
         <div class="tz-note mb-0">
           <i class="bi bi-info-circle" aria-hidden="true"></i>
           <span>Brak aktywnych umów powiązanych z Twoim kontem, które można rozwiązać
-          (status: Podpisana, W realizacji lub Obowiązująca).</span>
+          (status: Podpisana, Aktywna lub Obowiązująca).</span>
         </div>
 
         <?php else: ?>

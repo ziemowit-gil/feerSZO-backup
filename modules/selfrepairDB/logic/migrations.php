@@ -487,6 +487,25 @@ return [
         },
     ],
 
+    // Umowy: status o wartości `w realizacji` („W trakcie”) nazywa się „Aktywna” — zmiana TYLKO etykiety wpisu słownika;
+    // wartość w danych i w regułach zostaje. Nie rusza etykiety zmienionej już ręcznie przez administratora na coś innego niż „W realizacji”.
+    '2026-11_dictionary_umowy_statusy_w_realizacji_aktywna' => [
+        'desc' => 'Słownik Centralny: etykieta statusu umowy „W realizacji” → „Aktywna”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/contract_status/lib/contractStatuses.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $repo = dictRepository();
+            $dict = $repo->findDictionaryByCode(CONTRACT_STATUS_DICT);
+            if (!$dict) return;
+            $e = $repo->findEntryByCode((int)$dict->id, 'w_realizacji');
+            if (!$e || !in_array(trim($e->label), ['W realizacji', 'W trakcie'], true)) return;
+            $repo->updateEntry((int)$e->id, ['label' => 'Aktywna', 'updated_at' => date('Y-m-d H:i:s')]);
+            $labels = [];
+            foreach ($repo->labelsFor([(int)$e->id])[(int)$e->id] ?? [] as $loc => $lab) $labels[$loc] = in_array(trim($lab), ['W realizacji', 'W trakcie'], true) ? 'Aktywna' : $lab;
+            if ($labels) $repo->replaceLabels((int)$e->id, $labels);
+        },
+    ],
+
     // EODoK: faktury z KSeF — data doręczenia (data_wplywu) = data nadania numeru KSeF
     // (drugi człon numeru). Uzupełnia tylko dokumenty zakupowe bez daty wpływu.
     '2026-11_edok_ksef_data_doreczenia' => [
