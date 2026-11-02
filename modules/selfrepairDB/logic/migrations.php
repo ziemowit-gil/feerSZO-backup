@@ -518,6 +518,30 @@ return [
         },
     ],
 
+    // EODoK: dokumenty „Inny” założone z wyciągu PRZED rozpoznawaniem kategorii (2026-11-02), których operacja to
+    // opłata/odsetki banku → przerobione na operacje banku (typ, kontrahent PKO), żeby łapał je przycisk
+    // „Zatwierdź operacje bankowe”. Tylko dokumenty w obiegu bez żadnej decyzji na etapach.
+    '2026-11_edok_bank_docs_backfill' => [
+        'desc' => 'EODoK: dokumenty z wyciągu rozpoznane jako operacje banku → typ „Opłata bankowa” / „Odsetki bankowe”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/edok_bank.php';
+            $rows = db_all("SELECT b.id AS tx_id, b.doc_id FROM edok_bank_tx b JOIN edok_documents d ON d.id = b.doc_id
+                            WHERE d.status = 'w_obiegu' AND d.typ_dokumentu IN ('inny','wyciag_bankowy','inny_przychod')
+                              AND NOT EXISTS (SELECT 1 FROM edok_steps s WHERE s.doc_id = d.id AND s.status IN ('ok','uwagi','odrzucono'))");
+            foreach ($rows as $r) {
+                try {
+                    $tx = db_one("SELECT * FROM edok_bank_tx WHERE id=?", [(int)$r['tx_id']]);
+                    $kat = $tx ? edok_bank_kategoria($tx) : null;
+                    if (!$kat) continue;
+                    db_exec("UPDATE edok_bank_tx SET kategoria=? WHERE id=?", [$kat['kod'], (int)$r['tx_id']]);
+                    if (!in_array($kat['kod'], ['oplata_bankowa', 'odsetki_bankowe'], true)) continue;
+                    $doc = db_one("SELECT * FROM edok_documents WHERE id=?", [(int)$r['doc_id']]);
+                    if ($doc) edok_doc_make_bankowy($doc, 0);
+                } catch (\Throwable $e) { error_log('[edok bank docs backfill] ' . $e->getMessage()); }
+            }
+        },
+    ],
+
     // EODoK: faktury z KSeF — data doręczenia (data_wplywu) = data nadania numeru KSeF
     // (drugi człon numeru). Uzupełnia tylko dokumenty zakupowe bez daty wpływu.
     '2026-11_edok_ksef_data_doreczenia' => [
