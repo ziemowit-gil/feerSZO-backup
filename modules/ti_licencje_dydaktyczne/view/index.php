@@ -101,6 +101,7 @@ include __DIR__ . '/_tabs.php'; ?>
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
     <p class="text-secondary mb-0 me-auto">Zmiana płatnika (AM20), planu, zawieszenie, cofnięcie, przedłużenie oraz wnioski AM11–AM13. Otwarte operacje: do decyzji, czekające na potwierdzenie osoby, w realizacji.</p>
     <a class="btn btn-metro green" href="<?= h(route('ld.am20')) ?>"><i class="bi bi-cash-coin" aria-hidden="true"></i> AM20 + AM20-1 — zmiana płatnika</a>
+    <a class="btn btn-metro" style="background:#da532c;color:#fff" href="<?= h(route('ld.ant1')) ?>"><i class="bi bi-stars" aria-hidden="true"></i> ANT1 — dostęp do Claude</a>
     <a class="btn btn-metro dark" href="<?= h(route('ld.accounts')) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Wszystkie operacje i konta</a>
   </div>
   <div class="d-flex flex-wrap gap-2 mb-2" aria-label="Kolejka operacji">

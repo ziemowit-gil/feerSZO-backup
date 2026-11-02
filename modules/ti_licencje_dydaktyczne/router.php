@@ -40,6 +40,10 @@ if (defined('LD_PUBLIC')) {
         $r->get('/zmiana-platnika/{token}',     [LicensePublicController::class, 'paymentForm'])->name('ld.pub.payment');
         $r->post('/zmiana-platnika/{token}',    [LicensePublicController::class, 'paymentSubmit']);
         $r->get('/zmiana-platnika/{token}/pdf', [LicensePublicController::class, 'paymentPdf'])->name('ld.pub.payment.pdf');
+        // ANT1: potwierdzenie wniosku o dostęp do Claude, oświadczenia o opłacie i RODO przez osobę
+        $r->get('/wniosek-claude/{token}',      [LicensePublicController::class, 'ant1Form'])->name('ld.pub.ant1');
+        $r->post('/wniosek-claude/{token}',     [LicensePublicController::class, 'ant1Submit']);
+        $r->get('/wniosek-claude/{token}/pdf',  [LicensePublicController::class, 'ant1Pdf'])->name('ld.pub.ant1.pdf');
         $r->get('/gotowe',                   [LicensePublicController::class, 'done'])->name('ld.pub.done');
         $r->get('/amsk/{token}',             [LicensePublicController::class, 'amskVerify'])->name('ld.pub.amsk');
         $r->get('/up1/{token}',              [LicensePublicController::class, 'rotationVerify'])->name('ld.pub.up1');
@@ -132,6 +136,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/zestawienie/{id}/pdf',             [LicenseOperationController::class, 'amzPdf'])->name('ld.amz.pdf');
     $r->post('/zestawienie/{id}/wyslij',         [LicenseOperationController::class, 'amzSend'])->name('ld.amz.send');
     $r->get('/am20',                             [LicenseOperationController::class, 'am20Wizard'])->name('ld.am20');
+    $r->get('/ant1',                             [LicenseOperationController::class, 'ant1Wizard'])->name('ld.ant1');
     $r->post('/operacje/{id}/am20-1',            [LicenseOperationController::class, 'am20AnnexSave'])->name('ld.op.am20annex');
     $r->get('/konto/{kind}/{id}',                [LicenseOperationController::class, 'account'])->name('ld.account');
     $r->get('/operacje/nowa',                    [LicenseOperationController::class, 'createForm'])->name('ld.op.new');

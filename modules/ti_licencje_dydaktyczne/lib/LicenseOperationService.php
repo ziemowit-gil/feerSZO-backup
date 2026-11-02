@@ -100,6 +100,7 @@ final class LicenseOperationService
                    'licencjobiorca' => ldOrgName(), 'wlasciciel' => ldOrgName() . ' (administrator konta / tenantu)', 'licencja' => $res['sku']];
             if ($res['expires_at'] !== '') $d['do_dnia'] = date('Y-m-d', strtotime($res['expires_at'] . ' +1 year'));
         }
+        if ($form === OperationForm::Ant1) $d = Ant1Form::defaults($acc) + $d;
         if ($form === OperationForm::Am20) {
             $d['tryb'] = $acc['kind'] === 'client' ? 'zajecia' : 'rachunek';
             $d['am20_1'] = LicenseResources::accountingDocs($acc, $res);   // AM20-1: podpowiedź z rejestru faktur i rozliczeń TI
@@ -161,6 +162,13 @@ final class LicenseOperationService
             }
             if (in_array($form, [OperationForm::Am11], true) && ($data['okres_do'] ?? '') !== '' && $data['okres_do'] < ($data['okres_od'] ?? '')) $err['okres_do'] = 'Koniec okresu jest przed początkiem.';
             if ($form === OperationForm::Am13 && ($data['zrodlo'] ?? '') === 'inne' && ($data['zrodlo_inne'] ?? '') === '') $err['zrodlo_inne'] = 'Opisz inne źródło finansowania.';
+            if ($form === OperationForm::Ant1) {
+                if (($data['email_edu'] ?? '') !== '' && !Ant1Form::emailOk($data['email_edu'], (string)($acc['kind'] ?? ''))) $err['email_edu'] = 'Adres e-mail musi być w domenie ' . Ant1Form::EMAIL_DOMAIN . ($acc['kind'] === 'user' ? ' albo feer.org.pl' : '') . '.';
+                if (($data['rodzaj'] ?? '') === 'dydaktyk' && ($acc['kind'] ?? '') === 'client') $err['rodzaj'] = 'Dydaktyk / trener to konto pracownika — wybierz je w wyszukiwarce osób.';
+                if (($data['rodzaj'] ?? '') !== 'dydaktyk' && ($acc['kind'] ?? '') === 'user') $err['rodzaj'] = 'Konto pracownika — wybierz „dydaktyka / trenera”.';
+            }
+        } elseif ($form === OperationForm::Ant1) {
+            if (($data['okres_do'] ?? '') !== '' && ($data['okres_od'] ?? '') !== '' && $data['okres_do'] < $data['okres_od']) $err['okres_do'] = 'Koniec okresu uczestnictwa jest przed początkiem.';
         }
         return [$data, $err];
     }
@@ -205,8 +213,8 @@ final class LicenseOperationService
         }
         $op = $this->get($id);
         $this->event($id, 'op.create', 'Złożono ' . $form->value . ' — ' . $form->title() . ($res ? ' (' . $res['sku'] . ')' : '') . '. Stempel składającego: ' . $actor['name'] . ', ' . $now . ', IP ' . self::ip() . '.', $actor);
-        if (!$form->needsApproval()) {
-            // AM20 — bez akceptacji kierownika: osoba potwierdza wniosek przez link (e-mail + SMS); wykonanie po potwierdzeniu
+        if ($form->needsSignature()) {
+            // AM20 (bez akceptacji) i ANT1 (przed oświadczeniem kierownika): osoba potwierdza wniosek przez link (e-mail + SMS)
             db_exec("UPDATE license_operations SET status = ? WHERE id = ?", [OperationStatus::Signing->value, $id]);
             $report = ['Link do potwierdzenia: ' . $this->sendSignLink($id, $actor)];
             $this->saveRecord($id);
@@ -223,9 +231,9 @@ final class LicenseOperationService
 
     // ── AM20: potwierdzenie wniosku przez osobę (link) ──────────────────────────
 
-    public static function signUrl(string $token): string
+    public static function signUrl(string $token, string $form = 'AM20'): string
     {
-        return rtrim(APP_URL, '/') . '/karty30/ti/licencja.php?' . http_build_query(['_route' => '/zmiana-platnika/' . $token]);
+        return rtrim(APP_URL, '/') . '/karty30/ti/licencja.php?' . http_build_query(['_route' => ($form === 'ANT1' ? '/wniosek-claude/' : '/zmiana-platnika/') . $token]);
     }
 
     /** Operacja czekająca na potwierdzenie po tokenie z linku (null = zły / wygasły / zużyty). */
@@ -244,9 +252,25 @@ final class LicenseOperationService
         if (!$op || $op['statusEnum'] !== OperationStatus::Signing) throw new DomainException('Wniosek nie czeka na potwierdzenie.');
         $token = bin2hex(random_bytes(24));
         db_exec("UPDATE license_operations SET sign_token_hash = ?, sign_token_expires = ? WHERE id = ?", [hash('sha256', $token), date('Y-m-d H:i:s', time() + LD_TOKEN_DAYS * 86400), $id]);
-        $link = self::signUrl($token);
+        $link = self::signUrl($token, (string)$op['form']);
         $r = $op['request'];
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        if ($op['formEnum'] === OperationForm::Ant1) {
+            // ANT1 — potwierdzenie wniosku o dostęp do Claude, oświadczenia o opłacie 25 zł i zapoznania z RODO
+            $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Potwierdź wniosek o dostęp do Claude (ANT1) — ' . $op['number'];
+            $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($op['created_name']) . '</b> przygotował(a) w Twoim imieniu wniosek <b>ANT1</b> o nadanie dostępu do <b>'
+                . $e(Ant1Form::PRODUCT) . '</b> na potrzeby dydaktyczne.</p><table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
+                . '<tr><td style="background:#f2f2f2;width:170px">Numer sprawy</td><td><b>' . $e($op['number']) . '</b></td></tr>'
+                . '<tr><td style="background:#f2f2f2">Wniosek dotyczy</td><td>' . $e(Ant1Form::TYPES[$r['rodzaj'] ?? ''] ?? '') . '</td></tr>'
+                . '<tr><td style="background:#f2f2f2">Konto (e-mail)</td><td>' . $e($r['email_edu'] ?? '') . '</td></tr>'
+                . (($r['nazwa_grupy'] ?? '') !== '' ? '<tr><td style="background:#f2f2f2">Kurs / grupa</td><td>' . $e(trim(($r['nr_kursu'] ?? '') . ' ' . $r['nazwa_grupy'])) . '</td></tr>' : '')
+                . '<tr><td style="background:#f2f2f2">Opłata ryczałtowa</td><td><b>' . $e(Ant1Form::FEE) . '</b> za dostęp do narzędzia Claude (do końca grudnia 2026 r.)</td></tr>'
+                . '<tr><td style="background:#f2f2f2">Termin potwierdzenia</td><td><b>do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e(ldDate($op['due_on'])) . '</b></td></tr></table>'
+                . '<p>Pod linkiem przeczytasz wniosek, <b>oświadczenie o zryczałtowanej opłacie 25 zł</b> i <b>klauzulę informacyjną RODO</b>; potwierdzasz je wpisując imię i nazwisko. '
+                . 'Dopiero po Twoim potwierdzeniu kierownik składa oświadczenie i Dział IT nadaje dostęp. Link jest osobisty i ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
+            $sms = 'FEER: potwierdz wniosek o dostep do Claude (ANT1, ' . $op['number'] . ') i oswiadczenie o oplacie 25 zl do ' . ldDate($op['due_on']) . ': ' . $link;
+            $html = LicenseNotificationService::layout('Dostęp do Claude — potwierdzenie wniosku', $body, $link, 'Przeczytaj i potwierdź wniosek', 'ANT1');
+        } else {
         $pay = $r['tryb'] === 'zajecia' ? 'doliczenie <b>' . $e(self::money((float)$r['kwota'])) . '</b> do opłaty za zajęcia' : 'wpłata <b>' . $e(self::money((float)$r['kwota'])) . '</b> na rachunek ' . $e(self::nrb((string)$r['rachunek']));
         $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Potwierdź zmianę płatnika licencji (AM20) — ' . $op['number'];
         $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($op['created_name']) . '</b> złożył(a) w Twoim imieniu wniosek <b>AM20</b> o zmianę płatnika licencji <b>'
@@ -259,6 +283,7 @@ final class LicenseOperationService
             . '<p>Zmiana wejdzie w życie dopiero po Twoim <b>potwierdzeniu wniosku</b> (przycisk poniżej). Link jest osobisty i ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
         $sms = 'FEER: potwierdz zmiane platnika licencji (AM20, ' . $op['number'] . ') do ' . ldDate($op['due_on']) . ': ' . $link;
         $html = LicenseNotificationService::layout('Zmiana płatnika — potwierdzenie', $body, $link, 'Sprawdź i potwierdź wniosek', 'AM20');
+        }
         $res = $this->notify->send($reminder ? LicenseNotificationType::Reminder : LicenseNotificationType::RequestStarted,
             ['name' => $op['account_name'], 'email' => $op['account_email'], 'phone' => $op['account_phone']], $subject, $html, $sms, ['type' => 'operation', 'id' => $id], $actor);
         $out = (new LicenseManagementService($this->notify))->describe($res);
@@ -268,7 +293,7 @@ final class LicenseOperationService
                 str_replace('Dzień dobry ' . $e($op['account_name']), 'Dzień dobry', $html), '', ['type' => 'operation', 'id' => $id], $actor, false);
             $out .= '; płatnik: ' . (new LicenseManagementService($this->notify))->describe($r2);
         }
-        $this->event($id, $reminder ? 'op.sign_remind' : 'op.sign_link', 'Link do potwierdzenia AM20: ' . $out, $actor);
+        $this->event($id, $reminder ? 'op.sign_remind' : 'op.sign_link', 'Link do potwierdzenia ' . $op['form'] . ': ' . $out, $actor);
         return $out;
     }
 
@@ -286,14 +311,47 @@ final class LicenseOperationService
         $now = ldNow();
         $req = $op['request'];
         $req['potwierdzenie'] = '1';
+        if ($op['formEnum'] === OperationForm::Ant1) { $req['oplata_zgoda'] = '1'; $req['rodo_zgoda'] = '1'; }
         db_exec("UPDATE license_operations SET request_data = ?, signed_at = ?, signed_ip = ?, signed_name = ?, signed_ua = ?, sign_token_hash = '', updated_at = ? WHERE id = ? AND status = ?",
             [json_encode($req, JSON_UNESCAPED_UNICODE), $now, self::ip(), mb_substr(trim($name), 0, 190), mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255), $now, $id, OperationStatus::Signing->value]);
         $actor = ['id' => 0, 'name' => trim($name) . ' (potwierdzenie przez link)'];
-        $this->event($id, 'op.signed', 'Osoba potwierdziła wniosek AM20: ' . trim($name) . ', ' . $now . ', IP ' . self::ip() . '.', $actor);
+        $this->event($id, 'op.signed', 'Osoba potwierdziła wniosek ' . $op['form'] . ': ' . trim($name) . ', ' . $now . ', IP ' . self::ip() . '.', $actor);
+        if ($op['formEnum'] === OperationForm::Ant1) {
+            // ANT1: po potwierdzeniu (wniosek + oświadczenie o opłacie + RODO) sprawa czeka na oświadczenie kierownika; akceptacja = też regulamin TI „claude_oplata”
+            db_exec("UPDATE license_operations SET status = ?, updated_at = ? WHERE id = ?", [OperationStatus::Pending->value, $now, $id]);
+            $this->event($id, 'op.signed', 'Potwierdzono oświadczenie o zryczałtowanej opłacie ' . Ant1Form::FEE . ' za dostęp do Claude i zapoznanie z klauzulą RODO.', $actor);
+            $this->recordClaudeTerm($op, $actor);
+            $this->notify->alertOffice('ANT1 potwierdzony — do oświadczenia kierownika — ' . $op['number'], '<p><b>' . htmlspecialchars(trim($name)) . '</b> potwierdził(a) wniosek o dostęp do Claude, oświadczenie o opłacie '
+                . htmlspecialchars(Ant1Form::FEE) . ' i RODO. Oświadczenie kierownika (decyzja cyfrowa) w panelu dydaktyka › Licencje › Operacje — termin do ' . htmlspecialchars(ldDate($op['due_on'])) . '.</p>',
+                ['type' => 'operation', 'id' => $id], $actor, LicenseNotificationType::DecisionAdmin);
+            $this->saveRecord($id);
+            return [];
+        }
         $report = $this->execute($id, $actor);
         $this->notify->alertOffice('AM20 potwierdzony — ' . $op['number'], '<p><b>' . htmlspecialchars(trim($name)) . '</b> potwierdził(a) zmianę płatnika licencji <b>'
             . htmlspecialchars((string)($op['state']['sku'] ?? '')) . '</b>. ' . htmlspecialchars(implode(' · ', $report)) . '</p>', ['type' => 'operation', 'id' => $id], $actor, LicenseNotificationType::DeclarationAdmin);
         return [];
+    }
+
+    /** ANT1: potwierdzenie przez link = akceptacja regulaminu TI „claude_oplata” (oświadczenie o opłacie w panelu uczestnika), gdy osoba ma konto uczestnika. */
+    private function recordClaudeTerm(array $op, array $actor): void
+    {
+        if ($op['account_kind'] !== 'client') return;
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';
+            ti_terms_migrate();
+            $term = ti_term_get('claude_oplata');
+            $acc = db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id = ? ORDER BY id LIMIT 1", [(int)$op['account_id']]);
+            if (!$term || !$acc) return;
+            if (!ti_term_accepted((int)$op['account_id'], 'claude_oplata')) ti_term_accept((int)$op['account_id'], (int)$term['id'], (int)$acc['id']);
+            $this->event((int)$op['id'], 'op.term', 'Zapisano akceptację oświadczenia o opłacie za dostęp do Claude w regulaminach TI (claude_oplata).', $actor);
+        } catch (\Throwable $e) { error_log('ant1 claude_oplata: ' . $e->getMessage()); }
+    }
+
+    /** Domyślne wartości pól decyzji (ANT1: oświadczenie kierownika z wniosku, konta i zapisu na kurs). */
+    public static function decisionDefaults(array $op, array $actor): array
+    {
+        return $op['formEnum'] === OperationForm::Ant1 ? Ant1Form::decisionDefaults($op, $actor) : [];
     }
 
     /** Wszczęcie: e-mail + SMS do osoby, której dotyczy operacja (kto, numer, termin 7 dni). */
@@ -407,6 +465,7 @@ final class LicenseOperationService
                 case OperationForm::Am11: $manual[] = 'zakup / przypisanie licencji ' . ($r['produkt'] ?? '') . ' (' . ldDate($r['okres_od'] ?? '') . ' — ' . ldDate($r['okres_do'] ?? '') . ')'; break;
                 case OperationForm::Am12: $manual[] = 'finanse: ' . ($r['sposob'] === 'refaktura' ? 'refaktura' : 'zwrot kosztu') . ' ' . self::money((float)($r['kwota'] ?? 0)); break;
                 case OperationForm::Am13: $manual[] = 'aktywacja licencji ' . ($r['licencja'] ?? '') . ' (' . ($r['aktywacja'] ?? '') . ')'; break;
+                case OperationForm::Ant1: $manual[] = 'nadanie dostępu ' . Ant1Form::PRODUCT . ' — konto ' . ($r['email_edu'] ?? '') . ' (' . (Ant1Form::TYPES[$r['rodzaj'] ?? ''] ?? '') . '); opłata ryczałtowa ' . Ant1Form::FEE . ' potwierdzona przez osobę'; break;
                 case OperationForm::Am21: $manual[] = 'zmiana planu u dostawcy na: ' . ($r['nowy_produkt'] ?? ''); break;
                 case OperationForm::Am22: $manual[] = ($r['rodzaj'] === 'reasygnacja' ? 'przekazanie licencji: ' . $r['nowy_uzytkownik'] : 'zawieszenie do ' . ldDate($r['do_dnia'] ?? '')) . '; dane: ' . ($r['wytyczne'] ?? ''); break;
             }
@@ -487,9 +546,13 @@ final class LicenseOperationService
             $isMs = preg_match('/microsoft|office|m365|365/i', ($op['state']['vendor'] ?? '') . ' ' . ($op['state']['sku'] ?? '') . ' ' . ($op['request']['produkt'] ?? ''));
             $tid = hd_ticket_quick_create(['id' => $me['id'] ?? null, 'name' => $me['name'] ?? (string)$actor['name'], 'email' => $me['email'] ?? ''],
                 $op['formEnum']->value . ' ' . $op['formEnum']->short() . ': ' . $op['account_name'] . ' (' . $op['number'] . ')', $desc, 'it_licencje_am', 'normalny', 'licencje_' . strtolower($op['formEnum']->value));
-            try { require_once dirname(__DIR__, 3) . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php'; hdSubstatusSet($tid, 'am_do_realizacji', 0, 'Operacja AM'); require_once dirname(__DIR__, 3) . '/modules/helpdeskCollab/lib/helpdeskCollab.php'; hdTagAdd($tid, $isMs ? 'm365' : 'oprogramowanie'); hdTagAdd($tid, strtolower($op['formEnum']->value)); } catch (\Throwable $e) {}
+            try { require_once dirname(__DIR__, 3) . '/modules/helpdeskStatuses/lib/helpdeskStatuses.php'; hdSubstatusSet($tid, 'am_do_realizacji', 0, 'Operacja AM'); require_once dirname(__DIR__, 3) . '/modules/helpdeskCollab/lib/helpdeskCollab.php'; hdTagAdd($tid, $op['formEnum'] === OperationForm::Ant1 ? 'claude' : ($isMs ? 'm365' : 'oprogramowanie')); hdTagAdd($tid, strtolower($op['formEnum']->value)); } catch (\Throwable $e) {}
             $num = (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id = ?", [$tid])['number'] ?? '');
             db_exec("UPDATE license_operations SET helpdesk_ticket_id = ?, helpdesk_number = ? WHERE id = ?", [$tid, $num, $id]);
+            if ($op['formEnum'] === OperationForm::Ant1 && trim((string)($op['decision']['helpdesk'] ?? '')) === '') {   // numer zgłoszenia trafia do oświadczenia kierownika
+                $dd = $op['decision']; $dd['helpdesk'] = $num;
+                db_exec("UPDATE license_operations SET decision_data = ? WHERE id = ?", [json_encode($dd, JSON_UNESCAPED_UNICODE), $id]);
+            }
             $this->event($id, 'op.helpdesk', 'Zadanie dla IT: zgłoszenie ' . $num . '.', $actor);
             return 'utworzono zgłoszenie ' . $num;
         } catch (\Throwable $e) {
@@ -592,7 +655,7 @@ final class LicenseOperationService
         };
         $rec = [
             'operation_meta' => ['account_id' => (int)$op['account_id'], 'case_number' => $op['number'], 'vendor' => (string)($s['vendor'] ?? ''),
-                'target_license_sku' => (string)($r['nowy_produkt'] ?? ($s['sku'] ?? ($r['produkt'] ?? ($r['licencja'] ?? '')))), 'action_type' => $f->actionType(),
+                'target_license_sku' => $f === OperationForm::Ant1 ? Ant1Form::PRODUCT : (string)($r['nowy_produkt'] ?? ($s['sku'] ?? ($r['produkt'] ?? ($r['licencja'] ?? '')))), 'action_type' => $f->actionType(),
                 'requested_at' => (string)$op['created_at'], 'status' => $st->jsonStatus()],
             'user_context' => ['account_id' => (int)$op['account_id'], 'account_kind' => $op['account_kind'], 'full_name' => $op['account_name'], 'login' => $op['account_login'],
                 'role' => $op['account_role'], 'course_or_project' => $op['course_name'], 'sub_id' => implode('/', array_slice(explode('/', (string)$op['number']), -2))],

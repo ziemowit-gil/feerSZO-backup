@@ -16,6 +16,7 @@ declare(strict_types=1);
  * Pola formularzy (wniosek i weryfikacja) są danymi — ten sam opis rysuje formularz w panelu i druk w układzie CIT.
  */
 require_once __DIR__ . '/ldSchema.php';
+require_once __DIR__ . '/Ant1Form.php';
 
 const LD_OP_PREFIX = '4000';
 const LD_OP_ORG_ID = '734350539';
@@ -30,6 +31,7 @@ enum OperationForm: string
     case Am22 = 'AM22';
     case Am23 = 'AM23';
     case Am24 = 'AM24';
+    case Ant1 = 'ANT1';   // dostęp do Claude for Nonprofit — osoba potwierdza przez link, potem oświadczenie kierownika (lib/Ant1Form.php)
 
     /** Kod operacji w rekordzie JSON (AM20-GEN … AM24-GEN; wnioski AM11–13 bez sufiksu). */
     public function actionType(): string
@@ -54,6 +56,12 @@ enum OperationForm: string
         return $this !== self::Am20;
     }
 
+    /** Osoba potwierdza wniosek przez link (e-mail + SMS): AM20 zamiast akceptacji, ANT1 przed oświadczeniem kierownika. */
+    public function needsSignature(): bool
+    {
+        return in_array($this, [self::Am20, self::Ant1], true);
+    }
+
     public function title(): string
     {
         return match ($this) {
@@ -65,6 +73,7 @@ enum OperationForm: string
             self::Am22 => 'Zawieszenie lub reasygnacja licencji',
             self::Am23 => 'Cofnięcie licencji (deprovisioning)',
             self::Am24 => 'Przedłużenie / odnowienie licencji',
+            self::Ant1 => 'Wniosek o nadanie uprawnień w ramach dostępu do subskrypcji Claude for Nonprofit',
         };
     }
 
@@ -79,6 +88,7 @@ enum OperationForm: string
             self::Am22 => 'Zawieszenie / reasygnacja',
             self::Am23 => 'Cofnięcie licencji',
             self::Am24 => 'Przedłużenie',
+            self::Ant1 => 'Dostęp do Claude',
         };
     }
 
@@ -91,6 +101,7 @@ enum OperationForm: string
             self::Am22 => '#f0a30a',
             self::Am23 => '#a20025',
             self::Am24 => '#6a00ff',
+            self::Ant1 => '#da532c',
         };
     }
 
@@ -106,6 +117,7 @@ enum OperationForm: string
             self::Am22 => 'Wnoszę o czasowe odebranie lub przekazanie wskazanej licencji. Przyjmuję do wiadomości, że w okresie zawieszenia dostęp do usług może być ograniczony zgodnie z warunkami dostawcy i wskazanymi wytycznymi dotyczącymi danych.',
             self::Am23 => 'Wnoszę o całkowite wycofanie wskazanej licencji. Przyjmuję do wiadomości, że po wycofaniu dostęp do produktu, konta i zapisanych danych może zostać utracony; dane zostaną potraktowane zgodnie ze wskazaną polityką.',
             self::Am24 => 'Wnoszę o przedłużenie okresu ważności wskazanej licencji na kolejny cykl dydaktyczny lub projektowy.',
+            self::Ant1 => Ant1Form::TEXT_REQUEST,
         };
     }
 
@@ -186,6 +198,7 @@ enum OperationForm: string
                 'do_dnia' => ['Przedłużenie do dnia', 'date', true, null], 'nowe_zrodlo' => ['Źródło finansowania', 'select', false, $src],
                 'pozycja' => ['Pozycja budżetowa / projekt', 'text', false, null], 'uzasadnienie' => ['Uzasadnienie (kolejny cykl dydaktyczny / projekt)', 'textarea', true, null],
             ],
+            self::Ant1 => Ant1Form::requestFields(),
         };
     }
 
@@ -200,6 +213,7 @@ enum OperationForm: string
             self::Am13 => ['wynik_zrodla' => ['Wynik weryfikacji źródła, uprawnienia lub kodu', 'textarea', true, null], 'wynik_aktywacji' => ['Wynik weryfikacji sposobu aktywacji', 'textarea', true, null],
                            'warunki' => ['Zakres i warunki aktywacji / uzasadnienie odmowy', 'textarea', false, null], 'odpowiedzialny' => ['Aktywacja — osoba odpowiedzialna', 'text', false, null]],
             self::Am20 => [],
+            self::Ant1 => Ant1Form::decisionFields(),
             default    => ['vendor_check' => ['Weryfikacja dostępności miejsc / licencji u dostawcy', 'textarea', false, null],
                            'warunki' => ['Uwagi i warunki realizacji', 'textarea', false, null], 'odpowiedzialny' => ['Osoba lub jednostka realizująca', 'text', false, null]],
         };

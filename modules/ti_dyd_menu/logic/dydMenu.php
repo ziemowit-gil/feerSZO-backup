@@ -224,6 +224,7 @@ function dydMenuSections(): array
         $it('', 'Umowy szkoleniowe',     'umowaSzkolenia.php',    'file-earmark-text'),
         $it('', 'Licencje',              'licencjeKursantow.php', 'key'),
         $it('', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock', $nLd, 'warning'),
+        $it('', 'Dostęp do Claude (ANT1)',       'licencjeDydaktyczne.php?_route=%2Fant1', 'stars'),
         $it('', 'Korekty AMSK',                'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square', $nAmsk, 'warning'),
         $it('', 'Microsoft 365',         'microsoft365.php',      'microsoft'),
         $it('', 'Regulaminy',            'regulaminy.php',        'file-earmark-text'),
@@ -299,8 +300,10 @@ function dydMenuIsActive(array $i): bool
     if ($script === 'index.php') return $i['tab'] !== '' && $i['tab'] === (string)($GLOBALS['tab'] ?? '');
     $u = parse_url($i['href']);
     if (basename((string)($u['path'] ?? '')) !== $script || str_contains((string)($u['path'] ?? ''), '/')) return false;
-    if ($script === 'licencjeDydaktyczne.php') {   // jeden plik wejścia, dwie pozycje menu: pulpit AM5/AM7 i Korekty AMSK (_route=/korekty…)
-        return str_starts_with((string)($_GET['_route'] ?? ''), '/korekty') === str_contains((string)($u['query'] ?? ''), 'korekty');
+    if ($script === 'licencjeDydaktyczne.php') {   // jeden plik wejścia, kilka pozycji menu: pulpit AM5/AM7, Korekty AMSK (_route=/korekty…), ANT1 (_route=/ant1)
+        $route = (string)($_GET['_route'] ?? '');
+        foreach (['korekty', 'ant1'] as $sub) if (str_contains((string)($u['query'] ?? ''), $sub)) return str_starts_with($route, '/' . $sub);
+        return !str_starts_with($route, '/korekty') && !str_starts_with($route, '/ant1');
     }
     parse_str((string)($u['query'] ?? ''), $q);
     foreach ($q as $k => $v) if ((string)($_GET[$k] ?? '') !== (string)$v) return false;

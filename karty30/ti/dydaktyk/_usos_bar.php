@@ -118,6 +118,7 @@ if (dyd_is_staff()) {
             $_it('',             'Podgląd klientów',      'klienci.php'),
             $_it('',             'Ewidencja Uczestników',  'konta.php'),
             $_it('',             'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php'),
+            $_it('',             'Dostęp do Claude (ANT1)', 'licencjeDydaktyczne.php?_route=%2Fant1'),
             $_it('',             'Korekty AMSK',          'licencjeDydaktyczne.php?_route=%2Fkorekty', (function () { try { return (int)(db_one("SELECT COUNT(*) AS c FROM license_corrections WHERE status = 'pending'")['c'] ?? 0); } catch (\Throwable $e) { return 0; } })(), 'warning'),
             $_it('rozliczenia',  'Rozliczenia grupy',     $_ct('rozliczenia'), (int)($_sb_roz_debt ?? 0), 'danger'),
             $_it('',             'Rozliczenia kursantów', 'billing.php'),

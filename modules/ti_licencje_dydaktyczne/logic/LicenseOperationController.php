@@ -141,6 +141,14 @@ final class LicenseOperationController
         return $this->view('am20_wizard.php', ['q' => $q, 'found' => LicenseResources::searchAccounts($q), 'acc' => $acc, 'res' => $res]);
     }
 
+    /** Kreator ANT1 (dostęp do Claude for Nonprofit): wybór osoby → formularz (/operacje/nowa?form=ANT1). */
+    public function ant1Wizard(): string
+    {
+        $q = (string)($_GET['q'] ?? '');
+        return $this->view('ant1_wizard.php', ['q' => $q, 'found' => LicenseResources::searchAccounts($q),
+            'recent' => array_filter($this->ops->search(['form' => 'ANT1']), fn($o) => true)]);
+    }
+
     /** Elektroniczna poprawka AM20-1 przed potwierdzeniem wniosku przez osobę. */
     public function am20AnnexSave(int $id): ?string
     {

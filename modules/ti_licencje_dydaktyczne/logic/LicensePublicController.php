@@ -143,6 +143,55 @@ final class LicensePublicController
         return Router::redirect(route('ld.pub.done'));
     }
 
+    // ── ANT1: potwierdzenie wniosku o dostęp do Claude, oświadczenia o opłacie i RODO ──
+
+    public function ant1Form(string $token, array $errors = [], array $old = []): string
+    {
+        if ($this->throttled()) return $this->blocked();
+        $op = (new LicenseOperationService())->bySignToken((string)$token);
+        if (!$op || $op['formEnum'] !== OperationForm::Ant1) return $this->failToken();
+        return $this->view('ant1.php', ['op' => $op, 'token' => $token, 'errors' => $errors, 'old' => $old ?: ['name' => $op['account_name']], 'sym' => 'ANT1']);
+    }
+
+    public function ant1Pdf(string $token): ?string
+    {
+        if ($this->throttled()) return $this->blocked();
+        $ops = new LicenseOperationService();
+        $op = $ops->bySignToken((string)$token);
+        if (!$op || $op['formEnum'] !== OperationForm::Ant1) return $this->failToken();
+        $out = $ops->document($op);
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $out['mime'] . ($out['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . ldFileName((string)$op['number']) . '.' . $out['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $out['bytes'];
+        return null;
+    }
+
+    public function ant1Submit(string $token): ?string
+    {
+        if ($this->throttled()) return $this->blocked();
+        $ops = new LicenseOperationService();
+        $op = $ops->bySignToken((string)$token);
+        if (!$op || $op['formEnum'] !== OperationForm::Ant1) return $this->failToken();
+        if (trim((string)($_POST['www'] ?? '')) !== '') return Router::redirect(route('ld.pub.done'));
+        $errors = [];
+        if (!LdInput::bool($_POST, 'confirm_fee')) $errors['confirm_fee'] = 'Zaznacz oświadczenie o zryczałtowanej opłacie.';
+        if (!LdInput::bool($_POST, 'confirm_rodo')) $errors['confirm_rodo'] = 'Zaznacz zapoznanie z klauzulą RODO i oświadczenie o danych.';
+        if (!LdInput::bool($_POST, 'confirm')) $errors['confirm'] = 'Zaznacz potwierdzenie wniosku.';
+        if (mb_strlen(trim(LdInput::str($_POST, 'name', 190))) < 3) $errors['name'] = 'Wpisz imię i nazwisko — to Twój podpis.';
+        if ($errors) return $this->ant1Form($token, $errors, $_POST);
+        try {
+            $errors = $ops->confirm($op, LdInput::str($_POST, 'name', 190), true);
+        } catch (\Throwable $e) {
+            error_log('ant1 confirm: ' . $e);
+            return $this->view('message.php', ['title' => 'Coś poszło nie tak', 'tone' => 'danger', 'text' => 'Nie zapisaliśmy potwierdzenia. Spróbuj ponownie za chwilę — link nadal działa.', 'sym' => 'ANT1']);
+        }
+        if ($errors) return $this->ant1Form($token, $errors, $_POST);
+        $_SESSION['ld_done'] = ['kind' => 'ant1', 'numbers' => [(string)$op['number']]];
+        return Router::redirect(route('ld.pub.done'));
+    }
+
     // ── Kursant: podpis wniosku AM7 ─────────────────────────────────────────────
 
     public function requesterForm(string $token, array $errors = [], array $old = []): string
@@ -271,6 +320,10 @@ final class LicensePublicController
         if ($d['kind'] === 'payment') {
             return $this->view('message.php', ['title' => 'Wniosek potwierdzony', 'tone' => 'success', 'numbers' => $d['numbers'], 'sym' => 'AM20',
                 'text' => 'Dziękujemy. Zmiana płatnika weszła w życie — potwierdzenie z dokumentem AM20 (PDF) wysłaliśmy e-mailem.']);
+        }
+        if ($d['kind'] === 'ant1') {
+            return $this->view('message.php', ['title' => 'Wniosek potwierdzony', 'tone' => 'success', 'numbers' => $d['numbers'], 'sym' => 'ANT1',
+                'text' => 'Dziękujemy. Wniosek o dostęp do Claude, oświadczenie o opłacie i RODO są potwierdzone. Teraz oświadczenie składa kierownik, a Dział IT nadaje dostęp — dokument ANT1 (PDF) dostaniesz e-mailem.']);
         }
         if ($d['kind'] === 'request') {
             return $this->view('message.php', ['title' => 'Wniosek podpisany', 'tone' => 'success', 'numbers' => $d['numbers'],

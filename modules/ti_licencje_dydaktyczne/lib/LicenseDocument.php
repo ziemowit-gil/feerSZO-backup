@@ -834,15 +834,48 @@ final class LicenseDocument
             $L = 'C';
         }
         // Wniosek
-        $h .= '<table class="t">' . self::sec($L, $f->lifecycle() ? 'DYSPOZYCJA' : 'WNIOSEK', 2) . $this->opRows($f->requestFields(), $r, false, $f === OperationForm::Am20 && ($r['tryb'] ?? '') === 'zajecia' ? ['rachunek'] : [])
+        $ant1 = $f === OperationForm::Ant1;
+        $skipReq = $f === OperationForm::Am20 && ($r['tryb'] ?? '') === 'zajecia' ? ['rachunek'] : ($ant1 ? ['rodzaj'] : []);
+        $ant1Boxes = '';
+        if ($ant1) {
+            foreach (Ant1Form::TYPES as $tk => $tl) $ant1Boxes .= self::box(($r['rodzaj'] ?? '') === $tk) . ' ' . self::e($tl) . ' &nbsp;&nbsp; ';
+            $ant1Boxes = '<tr>' . $this->fld('Wniosek o nadanie uprawnień w ramach dostępu do subskrypcji Claude for Nonprofit dla', '<span class="st">' . $ant1Boxes . '</span>', ' colspan="2"') . '</tr>';
+        }
+        $h .= '<table class="t">' . self::sec($L, $f->lifecycle() ? 'DYSPOZYCJA' : 'WNIOSEK', 2) . $ant1Boxes . $this->opRows($f->requestFields(), $r, false, $skipReq)
             . ($f === OperationForm::Am11 ? '<tr><td class="pc" colspan="2"><div class="pt"><b>Źródło finansowania:</b> Fundacja FEER — płatność wymaga potwierdzenia dostępności budżetu.</div></td></tr>' : '')
             . ($f === OperationForm::Am12 && $op['proof_name'] !== '' ? '<tr>' . $this->fld('Załączony plik dowodu', self::e($op['proof_name']), ' colspan="2"') . '</tr>' : '')
             . '<tr><td class="pc" colspan="2"><div class="pt">' . self::e($f->statement()) . '</div></td></tr><tr>'
             . $this->fld('Podpis wnioskodawcy (decyzja cyfrowa)', self::e($op['created_name']) . $stampBox($op['created_name'], $op['created_at'], $op['created_ip'], 'Złożono elektronicznie w SZO'), ' colspan="2" style="height:12mm"')
             . '</tr></table>';
         $L = chr(ord($L) + 1);
+        if ($ant1) {
+            // ANT1: oświadczenie o zryczałtowanej opłacie za dostęp do Claude + klauzula RODO — potwierdzane przez osobę przez link
+            $sign = !empty($op['signed_at']) ? self::e($op['signed_name']) . $stampBox($op['signed_name'], $op['signed_at'], $op['signed_ip'], 'Potwierdzono elektronicznie przez link') : '<span class="ph">czeka na potwierdzenie przez link</span>';
+            $pts = ''; $i = 0;
+            foreach (Ant1Form::FEE_POINTS as $pt) $pts .= '<div class="pt">' . (++$i) . '. ' . self::e($pt) . '</div>';
+            $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec($L, 'OŚWIADCZENIE O ZRYCZAŁTOWANEJ OPŁACIE ZA DOSTĘP DO CLAUDE', 2)
+                . '<tr><td class="pc" colspan="2"><div class="pt">' . self::e(Ant1Form::FEE_INTRO) . '</div><div class="pt" style="margin-top:1mm">' . self::e(Ant1Form::FEE_LEAD) . '</div>' . $pts . '</td></tr>'
+                . '<tr>' . $this->fld('Data i podpis (potwierdzenie elektroniczne)', $sign, ' colspan="2" style="height:12mm"') . '</tr></table>';
+            $L = chr(ord($L) + 1);
+            $rodo = '';
+            foreach (Ant1Form::RODO as $pt) $rodo .= '<div class="pt">' . self::e($pt) . '</div>';
+            $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec($L, 'KLAUZULA INFORMACYJNA (RODO)', 2)
+                . '<tr><td class="pc" colspan="2">' . $rodo . '<div class="pt" style="margin-top:1mm"><b>' . self::e(Ant1Form::RODO_DECL) . '</b></div></td></tr>'
+                . '<tr>' . $this->fld('Data i podpis (potwierdzenie elektroniczne)', $sign, ' colspan="2" style="height:12mm"') . '</tr></table>';
+            $L = chr(ord($L) + 1);
+        }
         // Weryfikacja i decyzja (pola ciemne)
-        if ($f->needsApproval()) {
+        if ($ant1) {
+            $decided = in_array($st, [OperationStatus::Approved, OperationStatus::Executed, OperationStatus::Rejected], true);
+            $grant = $decided && !empty($d['grant']);
+            $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec($L, 'OŚWIADCZENIE KIEROWNIKA', 2, '(wypełnia kierownik — decyzja cyfrowa)')
+                . '<tr><td class="pc" colspan="2" style="background:#e6e6e6"><div class="pt">' . self::e(Ant1Form::kierownikStatement($op, $d)) . '</div><div class="pt" style="margin-top:1mm">' . self::e(Ant1Form::KIEROWNIK_DECL) . '</div></td></tr>'
+                . $this->opRows($f->decisionFields(), $d, true)
+                . '<tr>' . $this->fld('Decyzja', self::box($grant) . ' nadano dostęp &nbsp;&nbsp; ' . self::box($decided && !$grant) . ' odmowa', ' colspan="2"', true) . '</tr>'
+                . '<tr>' . $this->fld('Data i podpis kierownika (decyzja cyfrowa)', $decided ? self::e($op['decided_name']) . $stampBox($op['decided_name'], $op['decided_at'], $op['decided_ip'], 'Złożono elektronicznie w SZO') : '', ' width="60%" style="height:14mm"', true)
+                . $this->fld('Realizacja (Dział IT)', self::e(($op['helpdesk_number'] !== '' ? 'zgłoszenie ' . $op['helpdesk_number'] : ($op['execution_mode'] !== '' ? 'zadanie dla IT' : '—')) . (!empty($op['executed_at']) ? ' · wykonano ' . ldDate(substr((string)$op['executed_at'], 0, 10)) : '')), ' width="40%"', true)
+                . '</tr></table>';
+        } elseif ($f->needsApproval()) {
             $decided = in_array($st, [OperationStatus::Approved, OperationStatus::Executed, OperationStatus::Rejected], true);
             $grant = $decided && !empty($d['grant']);
             $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec($L, 'WERYFIKACJA I DECYZJA ' . $f->value, 2, '(wypełnia zatwierdzający)')

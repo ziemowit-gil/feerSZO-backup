@@ -11,11 +11,12 @@ $v = fn(string $k) => h((string)($old[$k] ?? ''));
 $err = fn(string $k) => isset($errors[$k]) ? '<div id="e-' . h($k) . '" class="invalid-feedback d-block">' . h($errors[$k]) . '</div>' : '';
 $inv = fn(string $k) => isset($errors[$k]) ? ' is-invalid" aria-invalid="true" aria-describedby="e-' . h($k) : '';
 $am20 = $form === OperationForm::Am20;
+$ant1 = $form === OperationForm::Ant1;
 ?>
 <div class="pivot"><a href="<?= h(route('ld.accounts')) ?>">Operacje na licencjach</a><a href="<?= h(route('ld.account', ['kind' => $acc['kind'], 'id' => $acc['id']])) ?>"><?= h($acc['name']) ?></a><a href="#" aria-current="page"><?= h($form->value) ?></a></div>
-<h1><span class="sym" style="background:<?= h($form->color()) ?>"><?= h($form->value) ?></span> <?= h($form->title()) ?><?= $am20 ? ' <small class="text-secondary fs-6">formularz elektroniczny AM20 + AM20-1</small>' : '' ?></h1>
+<h1><span class="sym" style="background:<?= h($form->color()) ?>"><?= h($form->value) ?></span> <?= h($form->title()) ?><?= $am20 ? ' <small class="text-secondary fs-6">formularz elektroniczny AM20 + AM20-1</small>' : ($ant1 ? ' <small class="text-secondary fs-6">formularz elektroniczny ANT1</small>' : '') ?></h1>
 <p class="text-secondary"><?= h($acc['name']) ?> · <?= h($acc['role']) ?> · numer sprawy: <b><?= h(LD_OP_PREFIX . '-' . $form->value . '/' . LD_OP_ORG_ID . '/NNNNNNXX/' . date('Y') . '/' . $acc['sub_id']) ?></b> ·
-  <?= $form->needsApproval() ? 'decyzję podejmuje kierownik (decyzja cyfrowa)' : '<b>bez akceptacji kierownika</b> — osoba potwierdza wniosek przez link (e-mail + SMS), zmiana wchodzi po potwierdzeniu' ?> · realizacja do <?= LD_REALIZATION_DAYS ?> dni.</p>
+  <?= $ant1 ? 'osoba <b>potwierdza przez link</b> (e-mail + SMS) wniosek, oświadczenie o opłacie ' . h(Ant1Form::FEE) . ' i RODO, potem <b>oświadczenie kierownika</b> (decyzja cyfrowa) i zadanie dla Działu IT' : ($form->needsApproval() ? 'decyzję podejmuje kierownik (decyzja cyfrowa)' : '<b>bez akceptacji kierownika</b> — osoba potwierdza wniosek przez link (e-mail + SMS), zmiana wchodzi po potwierdzeniu') ?> · realizacja do <?= LD_REALIZATION_DAYS ?> dni.</p>
 <?php if ($errors): ?><div class="alert alert-danger" role="alert">Popraw zaznaczone pola (<?= count($errors) ?>).</div><?php endif; ?>
 
 <form method="post" action="<?= h(route('ld.op.new')) ?>" enctype="multipart/form-data" novalidate>
@@ -44,6 +45,7 @@ $am20 = $form === OperationForm::Am20;
   <div class="row g-3">
   <?php foreach ($form->requestFields() as $k => [$label, $type, $req, $opts]):
       if ($am20 && in_array($k, ['rachunek', 'potwierdzenie'], true)) continue;
+      if ($ant1 && $type === 'check') continue;   // zgody potwierdza osoba przez link
       $id = 'f-' . $k; $lab = h($label) . ($req ? ' *' : '');
       $wide = $type === 'textarea' ? 'col-12' : 'col-md-6'; ?>
     <div class="<?= $wide ?>"<?= $am20 && $k === 'kwota' ? ' id="kwotaBox"' : '' ?>>
@@ -88,6 +90,18 @@ $am20 = $form === OperationForm::Am20;
   t.addEventListener('change', sync); sync();
 })();
 </script>
+<?php elseif ($ant1): ?>
+<section class="panel"><p class="small mb-0"><?= h($form->statement()) ?></p></section>
+<section class="panel warn">
+  <h2 class="mt-0">Oświadczenie o zryczałtowanej opłacie <?= h(Ant1Form::FEE) ?> za dostęp do Claude</h2>
+  <p class="small"><?= h(Ant1Form::FEE_INTRO) ?></p>
+  <p class="small mb-1"><?= h(Ant1Form::FEE_LEAD) ?></p>
+  <ol class="small"><?php foreach (Ant1Form::FEE_POINTS as $pt): ?><li><?= h($pt) ?></li><?php endforeach; ?></ol>
+  <h2>Klauzula informacyjna (RODO)</h2>
+  <?php foreach (Ant1Form::RODO as $pt): ?><p class="small mb-1"><?= h($pt) ?></p><?php endforeach; ?>
+  <p class="small fw-semibold"><?= h(Ant1Form::RODO_DECL) ?></p>
+  <p class="small mb-0"><b>Potwierdzenie</b> wniosku, oświadczenia o opłacie i RODO składa osoba przez link (e-mail + SMS) — dopiero wtedy sprawa trafia do oświadczenia kierownika. Treść oświadczenia o opłacie jest też w panelu uczestnika (Regulaminy); potwierdzenie przez link zapisuje tam akceptację.</p>
+</section>
 <?php else: ?>
 <section class="panel"><p class="small mb-0"><?= h($form->statement()) ?></p></section>
 <?php endif; ?>
@@ -109,7 +123,7 @@ $am20 = $form === OperationForm::Am20;
 <?php endif; ?>
 
 <div class="d-flex gap-2 mb-4">
-  <button class="btn btn-metro" type="submit"><?= $am20 ? 'Zapisz i wyślij osobie do potwierdzenia (e-mail + SMS)' : 'Złóż — do decyzji kierownika' ?></button>
+  <button class="btn btn-metro" type="submit"><?= $am20 || $ant1 ? 'Zapisz i wyślij osobie do potwierdzenia (e-mail + SMS)' : 'Złóż — do decyzji kierownika' ?></button>
   <a class="btn btn-outline-secondary" href="<?= h(route('ld.account', ['kind' => $acc['kind'], 'id' => $acc['id']])) ?>">Anuluj</a>
 </div>
 </form>

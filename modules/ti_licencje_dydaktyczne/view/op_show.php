@@ -42,7 +42,9 @@ $opVal = function (array $def, string $v): string {
       <dt class="col-sm-4">AM20-1 — dokumenty księgowe</dt><dd class="col-sm-8"><?php if (!$am): ?><?= !empty($op['request']['am20_1_brak']) ? 'FEER nie wystawiała dokumentów' : '—' ?><?php else: ?>
         <ul class="mb-1 ps-3"><?php foreach ($am as $dd): ?><li><?= h($dd['typ']) ?> <b><?= h($dd['numer']) ?></b>, <?= h(ldDate($dd['data'])) ?><?= $dd['kwota'] !== '' ? ', ' . h(LicenseOperationService::money((float)$dd['kwota'])) : '' ?></li><?php endforeach; ?></ul>
         razem <?= h(LicenseOperationService::money($sm['sum'])) ?> · pierwsza faktura <?= h(ldDate($sm['first_invoice']) ?: '—') ?> · ostatnia <?= h(ldDate($sm['last_invoice']) ?: '—') ?><?php endif; ?></dd>
-      <dt class="col-sm-4">Potwierdzenie osoby</dt><dd class="col-sm-8"><?= $op['signed_at'] ? ldChip('potwierdzono', '#008a00') . ' ' . h($op['signed_name']) . ', ' . h(ldDt($op['signed_at'])) . ', IP ' . h($op['signed_ip']) : ldChip('czeka na potwierdzenie', '#fa6800') ?></dd>
+    <?php endif; ?>
+    <?php if ($f->needsSignature()): ?>
+      <dt class="col-sm-4">Potwierdzenie osoby<?= $f === OperationForm::Ant1 ? ' (wniosek, opłata ' . h(Ant1Form::FEE) . ', RODO)' : '' ?></dt><dd class="col-sm-8"><?= $op['signed_at'] ? ldChip('potwierdzono', '#008a00') . ' ' . h($op['signed_name']) . ', ' . h(ldDt($op['signed_at'])) . ', IP ' . h($op['signed_ip']) : ldChip('czeka na potwierdzenie', '#fa6800') ?></dd>
     <?php endif; ?>
     <dt class="col-sm-4">Złożył(a)</dt><dd class="col-sm-8"><?= h($op['created_name']) ?>, <?= h(ldDt($op['created_at'])) ?>, IP <?= h($op['created_ip']) ?></dd>
     <?php if ($op['decided_at']): ?><dt class="col-sm-4">Decyzja</dt><dd class="col-sm-8"><?= !empty($op['decision']['grant']) ? ldChip('zatwierdzono', '#008a00') : ldChip('odmowa', '#a20025') ?> <?= h($op['decided_name']) ?>, <?= h(ldDt($op['decided_at'])) ?>, IP <?= h($op['decided_ip']) ?>
@@ -57,11 +59,14 @@ $opVal = function (array $def, string $v): string {
   <?php if ($st === OperationStatus::Pending && $f->needsApproval()): ?>
     <?php if ($canApprove): ?>
     <form method="post" action="<?= h(route('ld.op.decide', ['id' => $id])) ?>" class="d-grid gap-2"><?= Router::csrfField() ?>
-      <div class="small text-secondary"><?= h(LicenseResources::vendorCheck((string)$op['resource_key'])) ?></div>
-      <?php foreach ($f->decisionFields() as $k => [$label, $type]): ?>
-        <div><label class="form-label small mb-0" for="d-<?= h($k) ?>"><?= h($label) ?></label>
-          <?php if ($type === 'textarea'): ?><textarea class="form-control form-control-sm" id="d-<?= h($k) ?>" name="<?= h($k) ?>" rows="2"></textarea>
-          <?php else: ?><input class="form-control form-control-sm" id="d-<?= h($k) ?>" name="<?= h($k) ?>"><?php endif; ?></div>
+      <?php $dDef = LicenseOperationService::decisionDefaults($op, $actor); ?>
+      <?php if ($f === OperationForm::Ant1): ?><p class="small mb-0"><b>Oświadczenie kierownika</b> — po zatwierdzeniu: zgłoszenie dla Działu IT (nadanie dostępu; jego numer wpisze się do oświadczenia, gdy pole HELPDESK zostawisz puste) i PDF ANT1 e-mailem do osoby.</p>
+      <?php else: ?><div class="small text-secondary"><?= h(LicenseResources::vendorCheck((string)$op['resource_key'])) ?></div><?php endif; ?>
+      <?php foreach ($f->decisionFields() as $k => [$label, $type, $dreq, $dopts]): ?>
+        <div><label class="form-label small mb-0" for="d-<?= h($k) ?>"><?= h($label) ?><?= $dreq ? ' *' : '' ?></label>
+          <?php if ($type === 'textarea'): ?><textarea class="form-control form-control-sm" id="d-<?= h($k) ?>" name="<?= h($k) ?>" rows="2"><?= h((string)($dDef[$k] ?? '')) ?></textarea>
+          <?php elseif ($type === 'select'): ?><select class="form-select form-select-sm" id="d-<?= h($k) ?>" name="<?= h($k) ?>"><option value="">— wybierz —</option><?php foreach ((array)$dopts as $ov => $ol): ?><option value="<?= h($ov) ?>"<?= (string)($dDef[$k] ?? '') === (string)$ov ? ' selected' : '' ?>><?= h($ol) ?></option><?php endforeach; ?></select>
+          <?php else: ?><input class="form-control form-control-sm" id="d-<?= h($k) ?>" name="<?= h($k) ?>" value="<?= h((string)($dDef[$k] ?? '')) ?>"<?= $type === 'date' ? ' type="date"' : '' ?>><?php endif; ?></div>
       <?php endforeach; ?>
       <div class="d-flex gap-2">
         <button class="btn btn-metro green flex-fill" name="decision" value="grant">Zatwierdź</button>
@@ -73,7 +78,7 @@ $opVal = function (array $def, string $v): string {
     <form method="post" action="<?= h(route('ld.op.cancel', ['id' => $id])) ?>" class="d-flex gap-1 mt-3" onsubmit="return confirm('Wycofać operację?')"><?= Router::csrfField() ?>
       <label class="visually-hidden" for="cr">Powód</label><input class="form-control form-control-sm" id="cr" name="reason" placeholder="powód wycofania"><button class="btn btn-sm btn-outline-danger">Wycofaj</button></form>
   <?php elseif ($st === OperationStatus::Signing): ?>
-    <p class="small">Czeka na potwierdzenie wniosku przez <b><?= h($op['account_name']) ?></b> (link e-mail + SMS, ważny <?= LD_TOKEN_DAYS ?> dni). Zmiana wejdzie w życie po potwierdzeniu.</p>
+    <p class="small">Czeka na potwierdzenie wniosku przez <b><?= h($op['account_name']) ?></b> (link e-mail + SMS, ważny <?= LD_TOKEN_DAYS ?> dni). <?= $f === OperationForm::Ant1 ? 'Osoba potwierdza wniosek, oświadczenie o opłacie ' . h(Ant1Form::FEE) . ' i RODO — potem oświadczenie kierownika.' : 'Zmiana wejdzie w życie po potwierdzeniu.' ?></p>
     <?= ldPost(route('ld.op.signlink', ['id' => $id]), 'Wyślij link do potwierdzenia ponownie', 'btn-metro') ?>
     <form method="post" action="<?= h(route('ld.op.cancel', ['id' => $id])) ?>" class="d-flex gap-1 mt-3" onsubmit="return confirm('Wycofać wniosek?')"><?= Router::csrfField() ?>
       <label class="visually-hidden" for="cr2">Powód</label><input class="form-control form-control-sm" id="cr2" name="reason" placeholder="powód wycofania"><button class="btn btn-sm btn-outline-danger">Wycofaj</button></form>
