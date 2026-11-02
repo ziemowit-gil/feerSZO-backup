@@ -1062,11 +1062,12 @@ function rachunek_month_label(?string $ym = null): string {
     return ($months[$m - 1] ?? $ym) . ' ' . $y;
 }
 
-// ── „Przygotuj dane do rachunku” (zakładka Godziny) ───────────────────────────
+// ── Dane do rachunku z umowy i salda (modal „Zlecenie wystawienia rachunku”) ──
 
 /**
  * Domyślne dane do rachunku za miesiąc rachunku (poprzedni): zleceniobiorca, adres, data umowy,
- * dzisiejsza data prośby, okres słownie, kwota brutto z salda (należność miesiąca) i godziny rozliczane.
+ * dzisiejsza data, okres słownie, kwota brutto z salda (należność miesiąca) i godziny rozliczane.
+ * Jedno źródło dla ROZL_DEFAULTS (karta umowy) i prefill po zmianie statusu (api/ajax.php).
  * Wszystko do ręcznej poprawki w modalu — to tylko podpowiedź z systemu.
  */
 function rachunek_dane_defaults(array $contract, ?array $ledger = null): array {
@@ -1090,52 +1091,6 @@ function rachunek_dane_defaults(array $contract, ?array $ledger = null): array {
         'godziny'    => $row && (float)$row['godziny_rozl'] > 0.004 ? number_format((float)$row['godziny_rozl'], 2, ',', '') : '',
         'uwagi'      => '',
     ];
-}
-
-/** Treść e-maila z danymi do rachunku (tekst, wzór ustalony z użytkownikiem 2026-11-02). */
-function rachunek_dane_body(array $d): string {
-    $dp = fn($s) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$s) ? date('d.m.Y', strtotime((string)$s)) : (string)$s;
-    $lines = [
-        'Dzień dobry,',
-        'poniżej przesyłam dane do wystawienia rachunku:',
-        '',
-        'Dla kogo rachunek: ' . trim((string)$d['dla']),
-        'Adres: ' . trim((string)$d['adres']),
-        'Data umowy: ' . $dp($d['data_umowy'] ?? ''),
-        'Data rachunku: ' . $dp($d['data'] ?? ''),
-        'Za jaki okres jest rachunek: ' . trim((string)$d['okres']),
-        'Kwota ' . (($d['kwota_typ'] ?? 'brutto') === 'netto' ? 'netto' : 'brutto') . ': ' . trim((string)$d['kwota']) . (trim((string)$d['kwota']) !== '' ? ' PLN' : ''),
-        'Ilość przepracowanych godzin: ' . trim((string)$d['godziny']),
-    ];
-    if (trim((string)($d['uwagi'] ?? '')) !== '') $lines[] = 'Uwagi: ' . trim((string)$d['uwagi']);
-    if (!empty($d['numer_umowy'])) { $lines[] = ''; $lines[] = 'Umowa: ' . $d['numer_umowy']; }
-    return implode("\n", $lines);
-}
-
-/** Adresy administratorów (users.role = admin, aktywni) — odbiorcy danych do rachunku. @return string[] */
-function rachunek_dane_recipients(): array {
-    $out = [];
-    foreach (db_all("SELECT email FROM users WHERE role='admin' AND is_active=1 AND COALESCE(email,'')<>''") as $u) $out[strtolower(trim((string)$u['email']))] = true;
-    return array_keys($out);
-}
-
-/**
- * Wysyła dane do rachunku do administratorów. Zwraca listę adresów, do których poszło;
- * wyjątek, gdy brak odbiorców albo nie udało się wysłać do nikogo.
- */
-function rachunek_dane_send(array $contract, array $d, ?int $user_id): array {
-    require_once __DIR__ . '/approval.php';
-    $to = rachunek_dane_recipients();
-    if (!$to) throw new RuntimeException('Brak aktywnego administratora z adresem e-mail — nie ma do kogo wysłać.');
-    $d['numer_umowy'] = (string)($contract['numer_umowy'] ?? '');
-    $body = rachunek_dane_body($d);
-    $subject = 'Dane do rachunku — ' . ($contract['numer_umowy'] ?: ('umowa #' . $contract['id'])) . ' — ' . trim((string)$d['okres']);
-    $html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;white-space:pre-line">' . h($body) . '</div>';
-    $sent = [];
-    foreach ($to as $email) { $via = ''; if (approval_send_email($email, $subject, $html, 'zlecenie_rachunek_dane', (int)$contract['id'], 30, $via)) $sent[] = $email; }
-    if (!$sent) throw new RuntimeException('Nie udało się wysłać wiadomości (' . implode(', ', $to) . ').');
-    try { log_contract_action('zlecenie', (int)$contract['id'], (int)$user_id, 'rachunek_dane', 'Wysłano dane do rachunku za ' . trim((string)$d['okres']) . ' do: ' . implode(', ', $sent)); } catch (\Throwable $e) {}
-    return $sent;
 }
 
 // ── Przekazanie do EOD Dokumentów Księgowych (KDOK) ────────────────────────────

@@ -260,14 +260,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit() && isset($_POST['_zl_ew'
                 zl_ew_delete($row, (int)($_POST['wpis_id'] ?? 0), $_zl_uid);
                 flash_set('success', 'Wpis usunięty.');
                 break;
-            case 'rachunek_dane':
-                $_rd = [];
-                foreach (['dla', 'adres', 'data_umowy', 'data', 'okres', 'kwota', 'kwota_typ', 'godziny', 'uwagi'] as $k) $_rd[$k] = trim((string)($_POST['rd_' . $k] ?? ''));
-                if ($_rd['dla'] === '' || $_rd['okres'] === '') throw new RuntimeException('Podaj, dla kogo rachunek i za jaki okres.');
-                $_sent = rachunek_dane_send($row, $_rd, $_zl_uid);
-                flash_set('success', 'Dane do rachunku za ' . $_rd['okres'] . ' wysłane do: ' . implode(', ', $_sent) . '.');
-                $_zl_ym = rachunek_target_month();
-                break;
             case 'miesiac':
                 zl_ew_month_set_hours($row, $_zl_ym, $_zl_num('godziny'), trim((string)($_POST['opis'] ?? '')), $_zl_uid);
                 flash_set('success', 'Ręczna ewidencja miesięczna zapisana.');
@@ -2375,14 +2367,17 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 </div>
 
 <script>
+<?php // Dane z umowy i z salda za poprzedni miesiąc (rachunek_dane_defaults): kwota = należność miesiąca, godziny = rozliczane.
+      $_rozl_def = rachunek_dane_defaults($row, $_zl_ledger ?? null); ?>
 window.ROZL_DEFAULTS = {
-  imie_nazwisko: <?= json_encode($row['imie_nazwisko'] ?? '') ?>,
-  adres:         <?= json_encode(trim(address_format($row))) ?>,
-  data_umowy:    <?= json_encode(!empty($row['data_zawarcia']) ? date_pl($row['data_zawarcia']) : '') ?>,
-  kwota_brutto:  <?= json_encode($row['wynagrodzenie_brutto'] ?? '') ?>,
-  liczba_godzin: <?= json_encode($row['liczba_godzin_planowana'] ?? '') ?>,
-  data_rachunku: <?= json_encode($row['data_rachunku'] ?? '') ?>,
-  okres:         <?= json_encode($row['okres_rachunku'] ?? '') ?>
+  imie_nazwisko: <?= json_encode($_rozl_def['dla']) ?>,
+  adres:         <?= json_encode(trim(address_format($row)) ?: $_rozl_def['adres']) ?>,
+  data_umowy:    <?= json_encode($_rozl_def['data_umowy'] !== '' ? date_pl($_rozl_def['data_umowy']) : '') ?>,
+  kwota_brutto:  <?= json_encode($_rozl_def['kwota'] !== '' ? str_replace(',', '.', $_rozl_def['kwota']) : (string)($row['wynagrodzenie_brutto'] ?? '')) ?>,
+  liczba_godzin: <?= json_encode($_rozl_def['godziny'] !== '' ? $_rozl_def['godziny'] : (string)($row['liczba_godzin_planowana'] ?? '')) ?>,
+  data_rachunku: <?= json_encode($_rozl_def['data']) ?>,
+  okres:         <?= json_encode($_rozl_def['okres']) ?>,
+  powod:         <?= json_encode('wynagrodzenie za realizację zlecenia — ' . $_rozl_def['okres']) ?>
 };
 window.ROZL_CTX = {
   id:            <?= (int)$id ?>,
@@ -2980,16 +2975,10 @@ try {
     setVal('rozlDataUmowy',    d.data_umowy || '');
     setVal('rozlGodziny',      d.liczba_godzin || '');
     setVal('rozlKwota',        d.kwota_brutto || '');
-    setVal('rozlPowod',        '');
-    // Przy kolejnym rachunku (ręczny klik, już są rozliczenia) — wyczyść okres/datę,
-    // żeby użytkownik świadomie wybrał nowy okres zamiast przypadkowo duplikować.
-    if (isManual && hasExisting) {
-      setVal('rozlDataRachunku', '');
-      setVal('rozlOkres',        '');
-    } else {
-      setVal('rozlDataRachunku', d.data_rachunku || '');
-      setVal('rozlOkres',        d.okres || '');
-    }
+    setVal('rozlPowod',        d.powod || '');
+    // Zawsze z systemu: data rachunku = dziś, okres = poprzedni miesiąc (do poprawki w polu).
+    setVal('rozlDataRachunku', d.data_rachunku || '');
+    setVal('rozlOkres',        d.okres || '');
     // Licznik rachunków w tytule
     var numBadge = document.getElementById('rozlPeriodNum');
     if (hasExisting) {
@@ -3068,7 +3057,6 @@ try {
 
   window.rozlNextPeriod = function () {
     document.getElementById('rozlId').value = '';
-    setVal('rozlDataRachunku', '');
     setVal('rozlOkres',        '');
     setVal('rozlPowod',        '');
     var info = document.getElementById('rozlInfo'); if (info) { info.textContent = ''; info.className = 'small mt-1'; }
@@ -3310,10 +3298,10 @@ try {
     </div>
     <?php if (can_edit()): $_rd_def = rachunek_dane_defaults($row, $_zl_ledger); ?>
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rachDaneModal">
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="cvhOpenRozliczenie(null)">
         <i class="bi bi-envelope-paper me-1" aria-hidden="true"></i>Przygotuj dane do rachunku
       </button>
-      <span class="small text-muted">za <?= h($_rd_def['okres']) ?> — podpowiedź z salda, do poprawki; wysyłka e-mailem do administratora.</span>
+      <span class="small text-muted">za <?= h($_rd_def['okres']) ?> — dane z umowy i salda (<?= h($_rd_def['kwota'] !== '' ? $_rd_def['kwota'] . ' PLN' : 'brak należności') ?>, <?= h($_rd_def['godziny'] !== '' ? $_rd_def['godziny'] . ' h' : 'brak godzin') ?>), do poprawki przed wysłaniem.</span>
     </div>
     <?php endif; ?>
 
@@ -3715,62 +3703,7 @@ try {
 
 </div><!-- /tab-content -->
 
-<?php if (can_edit() && isset($_rd_def)): ?>
-<!-- ═══ MODAL — dane do rachunku (e-mail do administratora) — poza zakładkami ═══ -->
-<div class="modal fade" id="rachDaneModal" tabindex="-1" aria-labelledby="rachDaneLabel">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <form method="post" class="modal-content" id="rachDaneForm">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="rachunek_dane">
-      <div class="modal-header" style="background:#2563eb;color:#fff">
-        <h5 class="modal-title" id="rachDaneLabel"><i class="bi bi-envelope-paper me-2" aria-hidden="true"></i>Przygotuj dane do rachunku</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
-      </div>
-      <div class="modal-body">
-        <p class="small text-muted mb-3">Pola są wypełnione danymi z systemu (umowa i saldo za <?= h($_rd_def['okres']) ?>) — każde można poprawić. Wiadomość trafi do administratorów: <b><?= h(implode(', ', rachunek_dane_recipients()) ?: 'brak adresu — ustaw e-mail konta administratora') ?></b>.</p>
-        <div class="row g-2">
-          <div class="col-md-6"><label class="form-label small fw-semibold" for="rd_dla">Dla kogo rachunek</label><input id="rd_dla" name="rd_dla" class="form-control form-control-sm rd-f" value="<?= h($_rd_def['dla']) ?>" required></div>
-          <div class="col-md-6"><label class="form-label small fw-semibold" for="rd_adres">Adres</label><input id="rd_adres" name="rd_adres" class="form-control form-control-sm rd-f" value="<?= h($_rd_def['adres']) ?>"></div>
-          <div class="col-md-3"><label class="form-label small fw-semibold" for="rd_data_umowy">Data umowy</label><input id="rd_data_umowy" name="rd_data_umowy" type="date" class="form-control form-control-sm rd-f" value="<?= h($_rd_def['data_umowy']) ?>"></div>
-          <div class="col-md-3"><label class="form-label small fw-semibold" for="rd_data">Data rachunku</label><input id="rd_data" name="rd_data" type="date" class="form-control form-control-sm rd-f" value="<?= h($_rd_def['data']) ?>"></div>
-          <div class="col-md-6"><label class="form-label small fw-semibold" for="rd_okres">Za jaki okres</label><input id="rd_okres" name="rd_okres" class="form-control form-control-sm rd-f" value="<?= h($_rd_def['okres']) ?>" required><div class="form-text">Domyślnie poprzedni miesiąc; wpisz inny okres, jeśli trzeba.</div></div>
-          <div class="col-md-4"><label class="form-label small fw-semibold" for="rd_kwota">Kwota</label><input id="rd_kwota" name="rd_kwota" class="form-control form-control-sm rd-f text-end font-monospace" value="<?= h($_rd_def['kwota']) ?>" placeholder="0,00" inputmode="decimal"></div>
-          <div class="col-md-4"><span class="form-label small fw-semibold d-block">Rodzaj kwoty</span>
-            <div class="btn-group btn-group-sm" role="group" aria-label="Rodzaj kwoty">
-              <input type="radio" class="btn-check rd-f" name="rd_kwota_typ" id="rd_kt_brutto" value="brutto" checked><label class="btn btn-outline-secondary" for="rd_kt_brutto">brutto</label>
-              <input type="radio" class="btn-check rd-f" name="rd_kwota_typ" id="rd_kt_netto" value="netto"><label class="btn btn-outline-secondary" for="rd_kt_netto">netto</label>
-            </div></div>
-          <div class="col-md-4"><label class="form-label small fw-semibold" for="rd_godziny">Ilość przepracowanych godzin</label><input id="rd_godziny" name="rd_godziny" class="form-control form-control-sm rd-f text-end font-monospace" value="<?= h($_rd_def['godziny']) ?>" placeholder="np. 13,00" inputmode="decimal"></div>
-          <div class="col-12"><label class="form-label small fw-semibold" for="rd_uwagi">Uwagi (opcjonalnie)</label><input id="rd_uwagi" name="rd_uwagi" class="form-control form-control-sm rd-f" maxlength="300"></div>
-          <div class="col-12"><label class="form-label small fw-semibold" for="rd_preview">Podgląd wiadomości</label><textarea id="rd_preview" class="form-control form-control-sm font-monospace" rows="11" readonly aria-live="polite"></textarea></div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-        <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij do administratora</button>
-      </div>
-    </form>
-  </div>
-</div>
-<script>
-(function () {
-  var f = document.getElementById('rachDaneForm'); if (!f) return;
-  var dp = function (s) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? m[3] + '.' + m[2] + '.' + m[1] : (s || ''); };
-  var v = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
-  function render() {
-    var typ = (f.querySelector('input[name="rd_kwota_typ"]:checked') || {}).value || 'brutto';
-    var kw = v('rd_kwota');
-    var lines = ['Dzień dobry,', 'poniżej przesyłam dane do wystawienia rachunku:', '',
-      'Dla kogo rachunek: ' + v('rd_dla'), 'Adres: ' + v('rd_adres'), 'Data umowy: ' + dp(v('rd_data_umowy')), 'Data rachunku: ' + dp(v('rd_data')),
-      'Za jaki okres jest rachunek: ' + v('rd_okres'), 'Kwota ' + typ + ': ' + kw + (kw ? ' PLN' : ''), 'Ilość przepracowanych godzin: ' + v('rd_godziny')];
-    if (v('rd_uwagi')) lines.push('Uwagi: ' + v('rd_uwagi'));
-    lines.push('', 'Umowa: ' + <?= json_encode((string)($row['numer_umowy'] ?? ''), JSON_UNESCAPED_UNICODE) ?>);
-    document.getElementById('rd_preview').value = lines.join('\n');
-  }
-  f.querySelectorAll('.rd-f').forEach(function (el) { el.addEventListener('input', render); el.addEventListener('change', render); });
-  render();
-})();
-</script>
-<?php endif; ?>
+
 </div><!-- /cv-tabs-layout -->
 
 <script>

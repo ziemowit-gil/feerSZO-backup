@@ -151,17 +151,19 @@ switch ($action) {
 
         // Proces „Umowa do rozliczenia” — sygnał do otwarcia okienka rozliczenia
         if ($type === 'zlecenie' && $value === 'do rozliczenia') {
-            $full = db_one("SELECT imie_nazwisko, data_zawarcia, wynagrodzenie_brutto,
-                                   liczba_godzin_planowana, data_rachunku, okres_rachunku
-                            FROM umowy_zlecenie WHERE id=?", [$id]) ?: [];
+            // Dane z umowy i salda za poprzedni miesiąc — to samo źródło co ROZL_DEFAULTS na karcie umowy.
+            $full = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [$id]) ?: [];
+            $def  = rachunek_dane_defaults($full, $full ? zl_rozl_ledger($full) : null);
             $extra['open_rozliczenie'] = true;
             $extra['prefill'] = [
-                'imie_nazwisko'  => $full['imie_nazwisko'] ?? '',
-                'data_umowy'     => !empty($full['data_zawarcia']) ? date_pl($full['data_zawarcia']) : '',
-                'kwota_brutto'   => $full['wynagrodzenie_brutto'] ?? '',
-                'liczba_godzin'  => $full['liczba_godzin_planowana'] ?? '',
-                'data_rachunku'  => $full['data_rachunku'] ?? '',
-                'okres'          => $full['okres_rachunku'] ?? '',
+                'imie_nazwisko'  => $def['dla'],
+                'adres'          => function_exists('address_format') ? (trim(address_format($full)) ?: $def['adres']) : $def['adres'],
+                'data_umowy'     => $def['data_umowy'] !== '' ? date_pl($def['data_umowy']) : '',
+                'kwota_brutto'   => $def['kwota'] !== '' ? str_replace(',', '.', $def['kwota']) : ($full['wynagrodzenie_brutto'] ?? ''),
+                'liczba_godzin'  => $def['godziny'] !== '' ? $def['godziny'] : ($full['liczba_godzin_planowana'] ?? ''),
+                'data_rachunku'  => $def['data'],
+                'okres'          => $def['okres'],
+                'powod'          => 'wynagrodzenie za realizację zlecenia — ' . $def['okres'],
             ];
         }
         ajax_ok($extra, 'Status zaktualizowany');
