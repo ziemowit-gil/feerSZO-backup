@@ -44,6 +44,11 @@ function edok_bank_import(array $parsed, int $user_id): array {
         $out['added']++;
         try { edok_bank_apply_kategoria((int)$out['ids'][$i]); } catch (\Throwable $e) { error_log('[edok bank kategoria] ' . $e->getMessage()); }
     }
+    // PDF-y z banku wgrane PRZED tymi transakcjami (potwierdzenia, wyciągi) — dopasowanie zaległych plików (modules/edok_bank_files)
+    if ($out['added'] > 0) {
+        try { require_once dirname(__DIR__) . '/modules/edok_bank_files/logic/EdokBankFiles.php'; EdokBankFiles::rematchPending(); }
+        catch (\Throwable $e) { error_log('[edok bank pdf] ' . $e->getMessage()); }
+    }
     return $out;
 }
 

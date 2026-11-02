@@ -77,6 +77,10 @@ if ($q !== '') { $where[] = '(tytul LIKE ? OR kontrahent_nazwa LIKE ? OR numer_o
 $rows = db_all("SELECT b.*, d.number AS doc_number, d.kontrahent_nazwa AS doc_kontrahent FROM edok_bank_tx b LEFT JOIN edok_documents d ON d.id = b.doc_id"
     . ($where ? ' WHERE ' . implode(' AND ', array_map(fn($w) => preg_replace('/\b(doc_id|ignored|znak|tytul|kontrahent_nazwa|numer_operacji)\b/', 'b.$1', $w), $where)) : '')
     . " ORDER BY b.data_waluty DESC, b.id DESC LIMIT 300", $params);
+require_once dirname(__DIR__) . '/modules/edok_bank_files/logic/EdokBankFiles.php';
+$bfUrl = fn(string $route) => APP_URL . '/modules/edok_bank_files/router.php?_route=' . rawurlencode($route);
+$bank_files = EdokBankFiles::forTxs(array_column($rows, 'id'));   // PDF-y z banku dołączone do wyświetlanych transakcji
+$pending_pdf = EdokBankFiles::pending();                           // PDF-y bez transakcji / wyciągi z niedopasowanymi operacjami
 $tab = fn($k, $l) => '<a class="nav-link' . ($f === $k ? ' active' : '') . '" href="?f=' . $k . '">' . $l . '</a>';
 
 $PAGE_TITLE = 'Wyciągi bankowe — EODoK';
@@ -95,6 +99,48 @@ require_once __DIR__ . '/../includes/header.php';
     <?php endif; ?>
   </div>
 </div>
+
+<?php if ($can_edit): ?>
+<section class="card shadow-sm mb-3" aria-labelledby="bankpdf-h">
+  <div class="card-body py-3">
+    <h2 class="h6 fw-bold mb-1" id="bankpdf-h"><i class="bi bi-file-earmark-pdf"></i> PDF-y z banku (potwierdzenia przelewów, wyciągi)</h2>
+    <p class="small text-muted mb-2">Wgraj PDF-y z iPKO biznes — system sam dołączy każdy do właściwej transakcji (kwota, rachunek, data, identyfikator operacji). Wyciąg dołącza się do wszystkich swoich operacji naraz.
+      PDF wgrany przed transakcjami dopasuje się przy imporcie MT940.</p>
+    <form method="post" action="<?= h($bfUrl('/wgraj')) ?>" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-end">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div><label for="bankpdf-files" class="form-label small mb-1">Pliki PDF (można kilka naraz)</label>
+        <input type="file" name="pdf[]" id="bankpdf-files" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required></div>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Wgraj i dopasuj</button>
+    </form>
+    <?php if ($pending_pdf): ?>
+    <div class="mt-3"><div class="fw-semibold small mb-1">Do dopasowania ręcznego (<?= count($pending_pdf) ?>)</div>
+    <?php foreach ($pending_pdf as $pf): $pm = $pf['meta_arr']; ?>
+      <div class="border rounded p-2 mb-2 small">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <a href="<?= h($bfUrl('/plik/' . (int)$pf['id'])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> <?= h($pf['orig_name']) ?></a>
+          <span class="badge bg-secondary"><?= h(EdokBankFiles::KINDS[$pf['kind']] ?? $pf['kind']) ?></span>
+          <?php if ($pf['kind'] === 'potwierdzenie'): ?>
+            <span class="text-muted"><?= h(number_format((float)($pm['kwota'] ?? 0), 2, ',', ' ')) ?> <?= h($pm['waluta'] ?? '') ?> · <?= h($pm['data'] ?? '') ?> · <?= h($pm['nazwa'] ?? '') ?></span>
+          <?php elseif ($pf['kind'] === 'wyciag'): ?>
+            <span class="text-muted">wyciąg <?= h($pm['statement_no'] ?? '') ?> · operacji bez transakcji: <?= (int)$pf['unmatched_ops'] ?> z <?= count((array)($pm['ops'] ?? [])) ?> (dołączą się po imporcie MT940)</span>
+          <?php elseif ($pf['error']): ?><span class="text-danger"><?= h($pf['error']) ?></span><?php endif; ?>
+          <form method="post" action="<?= h($bfUrl('/usun')) ?>" class="ms-auto" onsubmit="return confirm('Usunąć ten PDF?');"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="file_id" value="<?= (int)$pf['id'] ?>"><button class="btn btn-sm btn-link text-danger p-0">usuń</button></form>
+        </div>
+        <?php foreach (($pf['kind'] === 'potwierdzenie' ? EdokBankFiles::candidates($pf, 3) : []) as $cd): $ct = $cd['tx']; ?>
+          <form method="post" action="<?= h($bfUrl('/przypisz')) ?>" class="d-flex align-items-center gap-2 mt-1"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="file_id" value="<?= (int)$pf['id'] ?>"><input type="hidden" name="tx_id" value="<?= (int)$ct['id'] ?>">
+            <button class="btn btn-sm btn-outline-success py-0" title="Dołącz do tej transakcji"><i class="bi bi-link-45deg"></i> Dołącz</button>
+            <span><?= h(date_pl($ct['data_waluty'])) ?> · −<?= h(number_format((float)$ct['kwota'], 2, ',', ' ')) ?> · <?= h($ct['kontrahent_nazwa']) ?> · <?= h(mb_substr((string)$ct['tytul'], 0, 60)) ?>
+              <span class="text-muted">(<?= h(implode(', ', $cd['reasons'])) ?>)</span></span>
+          </form>
+        <?php endforeach; ?>
+      </div>
+    <?php endforeach; ?></div>
+    <?php endif; ?>
+  </div>
+</section>
+<?php endif; ?>
 
 <ul class="nav nav-tabs mb-3">
   <li class="nav-item"><?= $tab('nieprzypisane', 'Do przypisania <span class="badge bg-warning text-dark">' . edok_bank_unassigned_count() . '</span>') ?></li>
@@ -120,7 +166,14 @@ require_once __DIR__ . '/../includes/header.php';
       <td class="text-nowrap small"><?= h(date_pl($t['data_waluty'])) ?></td>
       <td class="text-end font-monospace text-nowrap <?= $wplyw ? 'text-success' : '' ?>"><?= $wplyw ? '+' : '−' ?><?= h(number_format((float)$t['kwota'], 2, ',', ' ')) ?></td>
       <td class="small"><div class="fw-semibold"><?= h($t['kontrahent_nazwa'] ?: '—') ?> <?= edok_bank_kategoria_badge((string)($t['kategoria'] ?? '')) ?></div><div class="text-muted"><?= h($t['tytul'] ?: '—') ?></div>
-        <div class="text-muted font-monospace" style="font-size:.75rem">wyciąg <?= h($t['statement_no'] ?: '—') ?> · <?= h($t['numer_operacji']) ?></div></td>
+        <div class="text-muted font-monospace" style="font-size:.75rem">wyciąg <?= h($t['statement_no'] ?: '—') ?> · <?= h($t['numer_operacji']) ?></div>
+        <?php foreach (($bank_files[(int)$t['id']] ?? []) as $bf): ?>
+          <span class="d-inline-flex align-items-center gap-1 me-2">
+            <a href="<?= h($bfUrl('/plik/' . (int)$bf['id'])) ?>" target="_blank" rel="noopener" class="badge text-bg-light border text-decoration-none" title="<?= h($bf['orig_name']) ?>"><i class="bi bi-file-earmark-pdf text-danger" aria-hidden="true"></i> <?= h($bf['label']) ?><span class="visually-hidden"> (PDF z banku, otwiera się w nowej karcie)</span></a>
+            <?php if ($can_edit): ?><form method="post" action="<?= h($bfUrl('/odepnij')) ?>" class="d-inline" onsubmit="return confirm('Odpiąć PDF od tej transakcji?');"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>"><input type="hidden" name="file_id" value="<?= (int)$bf['id'] ?>"><button class="btn btn-sm btn-link text-danger p-0" style="font-size:.7rem" aria-label="Odepnij PDF <?= h($bf['label']) ?> od tej transakcji">×</button></form><?php endif; ?>
+          </span>
+        <?php endforeach; ?></td>
       <td>
       <?php if ($t['doc_id']): ?>
         <a href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$t['doc_id'] ?>" class="fw-semibold"><?= h($t['doc_number']) ?></a>
