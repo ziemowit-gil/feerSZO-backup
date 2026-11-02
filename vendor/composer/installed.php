@@ -1,9 +1,9 @@
 <?php return array(
     'root' => array(
-        'name' => 'feer/szo',
+        'name' => 'feer/szo-feer',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'd4e2a23d367e5b74c848b187b2dea93b459980b0',
+        'reference' => '962ba56f8e94fb19de10e893366a97e923defd9a',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -109,10 +109,10 @@
             'aliases' => array(),
             'dev_requirement' => false,
         ),
-        'feer/szo' => array(
+        'feer/szo-feer' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'd4e2a23d367e5b74c848b187b2dea93b459980b0',
+            'reference' => '962ba56f8e94fb19de10e893366a97e923defd9a',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -528,6 +528,15 @@
             'aliases' => array(),
             'dev_requirement' => false,
         ),
+        'smalot/pdfparser' => array(
+            'pretty_version' => 'v2.13.1',
+            'version' => '2.13.1.0',
+            'reference' => 'a71c6dd38e60a995fdb4d36e4433b8b3557c65dc',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../smalot/pdfparser',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
         'smsapi/php-client' => array(
             'pretty_version' => 'v4.0.0',
             'version' => '4.0.0.0',
@@ -585,6 +594,15 @@
             'reference' => '88f9c561f678a02d54b897014049fa839e33ff82',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/options-resolver',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'symfony/polyfill-mbstring' => array(
+            'pretty_version' => 'v1.43.3',
+            'version' => '1.43.3.0',
+            'reference' => '122889ed24dc000165bcbfd77ec412f15cbdfc6a',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../symfony/polyfill-mbstring',
             'aliases' => array(),
             'dev_requirement' => false,
         ),
