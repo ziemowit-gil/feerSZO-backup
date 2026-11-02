@@ -47,6 +47,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     exit;
 }
 
+// Zbiorcze zatwierdzenie operacji banku (opłaty, odsetki z wyciągu): jeden rodzaj działalności, jeden PIN.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bank_quick_all') {
+    csrf_check();
+    $res = edok_bank_quick_accept_all((int)current_user()['id'], (string)($_POST['bq_rodzaj'] ?? ''), (string)($_POST['bq_projekt'] ?? ''), trim((string)($_POST['bq_pin'] ?? '')));
+    if ($res['error'] !== null) flash_set('danger', $res['error']);
+    else {
+        $msg = 'Zatwierdzono operacje banku: ' . (count($res['ok']) ? implode(', ', $res['ok']) : 'brak') . '.';
+        foreach ($res['stopped'] as $num => $why) $msg .= ' ' . $num . ': ' . $why;
+        flash_set($res['stopped'] ? 'warning' : 'success', $msg);
+    }
+    header('Location: ' . APP_URL . '/edok/index.php');
+    exit;
+}
+
 $filter_status   = $_GET['status'] ?? '';
 $filter_kierunek = $_GET['kierunek'] ?? '';
 $filter_q        = trim($_GET['q'] ?? '');
@@ -172,6 +186,11 @@ require_once __DIR__ . '/../includes/header.php';
       <i class="bi bi-check2-all"></i> Do akceptacji
       <?php if ($pending_count): ?><span class="badge bg-primary ms-1"><?= $pending_count ?></span><?php endif; ?>
     </a>
+    <?php $bank_docs_pending = edok_pin_is_set((int)current_user()['id']) ? edok_bank_docs_pending() : []; if ($bank_docs_pending): ?>
+    <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bankQuickModal">
+      <i class="bi bi-bank"></i> Zatwierdź operacje bankowe <span class="badge bg-dark ms-1"><?= count($bank_docs_pending) ?></span>
+    </button>
+    <?php endif; ?>
     <?php if ($can_upload): ?>
     <a href="<?= APP_URL ?>/edok/queue.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-inboxes"></i> Kolejka do opisu
       <?php if ($queue_count): ?><span class="badge bg-primary ms-1"><?= $queue_count ?></span><?php endif; ?></a>
@@ -483,6 +502,41 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button><button class="btn btn-primary"><i class="bi bi-upload"></i> Importuj</button></div>
   </form></div>
+</div>
+<?php endif; ?>
+<?php if (!empty($bank_docs_pending)): ?>
+<!-- ═══ MODAL — zbiorcze zatwierdzenie operacji banku (jeden rodzaj działalności, jeden PIN) ═══ -->
+<div class="modal fade" id="bankQuickModal" tabindex="-1" aria-labelledby="bankQuickLabel">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="bank_quick_all">
+      <div class="modal-header" style="background:#b45309;color:#fff">
+        <h5 class="modal-title" id="bankQuickLabel"><i class="bi bi-bank me-2"></i>Zatwierdź operacje bankowe (<?= count($bank_docs_pending) ?>)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">Opłaty i odsetki banku z wyciągu. Wskaż tylko rodzaj działalności — kwoty i opis dopełni system, wszystkie etapy podpiszą się jednym PIN-em.</p>
+        <ul class="small mb-3">
+          <?php foreach ($bank_docs_pending as $d): ?><li><?= h($d['number']) ?> · <?= h($d['kontrahent_nazwa']) ?> · <?= h($d['kwota_brutto']) ?> PLN — <?= h($d['title']) ?></li><?php endforeach; ?>
+        </ul>
+        <div class="mb-2"><label class="form-label small fw-semibold" for="bqa_rodzaj">Rodzaj działalności</label>
+          <select id="bqa_rodzaj" name="bq_rodzaj" class="form-select form-select-sm" required onchange="document.getElementById('bqa_projekt_wrap').style.display = this.value === 'projekt' ? '' : 'none'">
+            <option value="">— wybierz —</option>
+            <?php foreach (EDOK_RODZAJ_DZIALALNOSCI as $k => $l): ?><option value="<?= h($k) ?>"><?= h($l) ?></option><?php endforeach; ?>
+          </select></div>
+        <div class="mb-2" id="bqa_projekt_wrap" style="display:none"><label class="form-label small fw-semibold" for="bqa_projekt">Projekt</label>
+          <input id="bqa_projekt" name="bq_projekt" class="form-control form-control-sm"></div>
+        <?php if (edok_pin_session_until((int)current_user()['id']) <= 0): ?>
+        <div class="mb-2"><label class="form-label small fw-semibold" for="bqa_pin">PIN EODoK</label>
+          <input id="bqa_pin" name="bq_pin" type="password" class="form-control form-control-sm" inputmode="numeric" autocomplete="one-time-code" required></div>
+        <?php else: ?><p class="small text-success mb-0"><i class="bi bi-shield-check"></i> Sesja PIN aktywna — PIN niepotrzebny.</p><?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-warning"><i class="bi bi-check2-all"></i> Zatwierdź wszystkie</button>
+      </div>
+    </form>
+  </div>
 </div>
 <?php endif; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

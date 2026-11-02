@@ -2823,6 +2823,32 @@ function edok_bank_quick_accept(int $doc_id, int $user_id, string $rodzaj, strin
     return edok_sign_all($doc_id, $user_id, $pin, 'Operacja banku — szybka akceptacja.');
 }
 
+/** Operacje banku czekające w obiegu (opłaty, odsetki) — do zbiorczego przycisku „Zatwierdź operacje bankowe”. */
+function edok_bank_docs_pending(): array {
+    $out = [];
+    foreach (db_all("SELECT * FROM edok_documents WHERE status = 'w_obiegu' AND (typ_dokumentu IN ('" . implode("','", EDOK_TYPY_BANKOWE) . "') OR description LIKE 'Odsetki bankowe%') ORDER BY id") as $d) {
+        if (edok_doc_bankowy($d)) $out[] = $d;
+    }
+    return $out;
+}
+
+/**
+ * Zbiorcza akceptacja wszystkich operacji banku w obiegu jednym PIN-em (albo sesją PIN): ten sam rodzaj
+ * działalności dla wszystkich. @return array{ok: string[], stopped: array<string,string>, error: ?string}
+ */
+function edok_bank_quick_accept_all(int $user_id, string $rodzaj, string $projekt, string $pin): array {
+    $out = ['ok' => [], 'stopped' => [], 'error' => null];
+    $docs = edok_bank_docs_pending();
+    if (!$docs) { $out['error'] = 'Brak operacji banku do zatwierdzenia.'; return $out; }
+    foreach ($docs as $i => $d) {
+        // pierwszy dokument weryfikuje PIN i otwiera sesję PIN (edok_sign_all), kolejne idą na sesji
+        $res = edok_bank_quick_accept((int)$d['id'], $user_id, $rodzaj, $projekt, $i === 0 ? $pin : '');
+        if ($res['error'] !== null) { if ($i === 0) { $out['error'] = $res['error']; return $out; } $out['stopped'][$d['number']] = $res['error']; continue; }
+        if ($res['stopped']) $out['stopped'][$d['number']] = $res['stopped']; else $out['ok'][] = $d['number'];
+    }
+    return $out;
+}
+
 /** Przelewy ZUS wygenerowane za dany okres (albo ostatnie 12). */
 function edok_zus_przelewy(string $okres = ''): array {
     return $okres !== ''
