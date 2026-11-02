@@ -45,16 +45,20 @@ const CONTRACT_STATUS_DEFAULTS = [
     'w podpisie w instytucji' => ['label' => 'W podpisie w instytucji', 'class' => 'orange',    'color' => '#C2410C', 'bg' => '#FFF7ED', 'icon' => 'bi-building',         'grupa' => 'draft',     'typy' => ['powierzenie'],
                                   'next' => ['podpisana', 'anulowana']],
     'podpisana'               => ['label' => 'Podpisana',               'class' => 'primary',   'color' => '#1D4ED8', 'bg' => '#EFF6FF', 'icon' => 'bi-check2-square',    'grupa' => 'active',    'typy' => [...CONTRACT_STATUS_CIVIL, 'powierzenie'],
-                                  'next' => ['w realizacji', 'zakończona', 'rozwiązana', 'anulowana']],
+                                  'next' => ['w realizacji', 'rozliczanie miesięczne', 'zakończona', 'rozwiązana', 'anulowana']],
     'obowiązująca'            => ['label' => 'Obowiązująca',            'class' => 'success',   'color' => '#15803D', 'bg' => '#F0FDF4', 'icon' => 'bi-shield-check',     'grupa' => 'active',    'typy' => ['praca'],
                                   'next' => ['zakończona', 'rozwiązana', 'wygasła']],
     'w realizacji'            => ['label' => 'W realizacji',            'class' => 'info',      'color' => '#0369A1', 'bg' => '#F0F9FF', 'icon' => 'bi-play-circle',      'grupa' => 'active',    'typy' => [...CONTRACT_STATUS_CIVIL, 'powierzenie'],
-                                  'next' => ['zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana']],
+                                  'next' => ['rozliczanie miesięczne', 'zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana']],
+    // Zlecenie rozliczane co miesiąc (rachunek za każdy miniony miesiąc) — status ręczny, aktywny; zlecenie w tym
+    // statusie dostaje baner „Wyślij rachunek” i wchodzi do liczników aktywnych umów jak „w realizacji”.
+    'rozliczanie miesięczne'  => ['label' => 'Aktywna — z rozliczaniem miesięcznym', 'class' => 'teal', 'color' => '#0F766E', 'bg' => '#F0FDFA', 'icon' => 'bi-calendar-month', 'grupa' => 'active', 'typy' => ['zlecenie'],
+                                  'next' => ['w realizacji', 'zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana']],
     // Zlecenie wielomiesięczne z niezamkniętym minionym miesiącem w saldzie — nadaje i zdejmuje system (zl_okres_sync()).
     'okres do rozliczenia'    => ['label' => 'Okres do rozliczenia',    'class' => 'orange',    'color' => '#A16207', 'bg' => '#FEFCE8', 'icon' => 'bi-calendar2-check', 'grupa' => 'active',    'typy' => ['zlecenie'],
                                   'next' => ['w realizacji', 'zawieszona', 'do rozliczenia', 'zakończona', 'rozwiązana'], 'systemowy' => true],
     'zawieszona'              => ['label' => 'Zawieszona',              'class' => 'orange',    'color' => '#C2410C', 'bg' => '#FFF7ED', 'icon' => 'bi-pause-circle',     'grupa' => 'active',    'typy' => CONTRACT_STATUS_CIVIL,
-                                  'next' => ['w realizacji', 'do rozliczenia', 'zakończona', 'rozwiązana']],
+                                  'next' => ['w realizacji', 'rozliczanie miesięczne', 'do rozliczenia', 'zakończona', 'rozwiązana']],
     'do rozliczenia'          => ['label' => 'Do rozliczenia',          'class' => 'indigo',    'color' => '#4F46E5', 'bg' => '#EEF2FF', 'icon' => 'bi-calculator',       'grupa' => 'active',    'typy' => [...CONTRACT_STATUS_CIVIL, 'powierzenie'],
                                   'next' => ['zakończona', 'rozwiązana']],
     'zakończona'              => ['label' => 'Zakończona',              'class' => 'success',   'color' => '#15803D', 'bg' => '#F0FDF4', 'icon' => 'bi-flag',             'grupa' => 'closed',    'typy' => [...CONTRACT_STATUS_CIVIL, 'powierzenie'],

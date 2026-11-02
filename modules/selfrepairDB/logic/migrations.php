@@ -460,6 +460,33 @@ return [
         },
     ],
 
+    // Umowy zlecenie: status „Aktywna — z rozliczaniem miesięcznym” (wartość `rozliczanie miesięczne`, grupa active, tylko zlecenie).
+    // Dokłada wpis i DOPISUJE go do przejść `next` wpisów podpisana / w_realizacji / zawieszona (inne atrybuty tych wpisów bez zmian).
+    '2026-11_dictionary_umowy_statusy_rozliczanie_miesieczne' => [
+        'desc' => 'Słownik Centralny: status zlecenia „Aktywna — z rozliczaniem miesięcznym” + przejścia',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/contract_status/lib/contractStatuses.php';
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $seed = json_decode(contractStatusesSeed(), true);
+            $seed['dictionaries'][0]['entries'] = array_values(array_filter($seed['dictionaries'][0]['entries'], fn($e) => $e['code'] === 'rozliczanie_miesieczne'));
+            $res = dictTransfer()->import(json_encode($seed, JSON_UNESCAPED_UNICODE), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+            $repo = dictRepository();
+            $dict = $repo->findDictionaryByCode(CONTRACT_STATUS_DICT);
+            if (!$dict) return;
+            foreach (['podpisana', 'w_realizacji', 'zawieszona'] as $code) {
+                $e = $repo->findEntryByCode((int)$dict->id, $code);
+                if (!$e) continue;
+                $attr = (array)$e->attributes;
+                $next = is_array($attr['next'] ?? null) ? $attr['next'] : (is_string($attr['next'] ?? null) && $attr['next'] !== '' ? array_map('trim', explode(',', $attr['next'])) : []);
+                if (in_array('rozliczanie miesięczne', $next, true)) continue;
+                $next[] = 'rozliczanie miesięczne';
+                $attr['next'] = array_values($next);
+                $repo->updateEntry((int)$e->id, ['attributes' => json_encode($attr, JSON_UNESCAPED_UNICODE)]);
+            }
+        },
+    ],
+
     // EODoK: faktury z KSeF — data doręczenia (data_wplywu) = data nadania numeru KSeF
     // (drugi człon numeru). Uzupełnia tylko dokumenty zakupowe bez daty wpływu.
     '2026-11_edok_ksef_data_doreczenia' => [
