@@ -258,6 +258,7 @@ const EDOK_BANK_KATEGORIE = [
     'oplata_bankowa'    => ['label' => 'PKO Bankowa',         'class' => 'text-bg-warning', 'zatwierdzanie' => true],
     'odsetki_bankowe'   => ['label' => 'Bank — odsetki',      'class' => 'text-bg-success', 'zatwierdzanie' => true],
     'faktura_sprzedazy' => ['label' => 'Przychód — faktura',  'class' => 'text-bg-success', 'zatwierdzanie' => true],
+    'przelew_wlasny'    => ['label' => 'Przelew własny fundacji', 'class' => 'text-bg-info', 'zatwierdzanie' => false],
 ];
 
 /**
@@ -319,6 +320,11 @@ function edok_bank_kategoria(array $tx): ?array {
     $znak  = (string)($tx['znak'] ?? 'D');
     $up    = mb_strtoupper($tytul);
     $nrs   = function_exists('edok_zus_nrs') ? edok_zus_nrs() : '';
+    // „PRZELEW WŁASNY” w tytule (tak PKO opisuje przelewy między rachunkami organizacji) → przelew własny fundacji,
+    // bez dokumentu; rachunek drugiej strony z listy rachunków organizacji (edok_bank_detect_own_counter).
+    if (preg_match('/PRZELEW\s*\.?\s*W[LŁ]ASNY/u', $up)) {
+        return ['kod' => 'przelew_wlasny'] + EDOK_BANK_KATEGORIE['przelew_wlasny'];
+    }
     if ($znak === 'D' && (($nrs !== '' && $konto !== '' && str_ends_with($konto, $nrs)) || preg_match('/ZAK[LŁ]AD\s+UBEZPIECZE|^ZUS\b|\bZUS\s+(SK[LŁ]ADK|DRA)/u', $nazwa . ' ' . $up))) {
         return ['kod' => 'zus'] + EDOK_BANK_KATEGORIE['zus'];
     }
@@ -412,6 +418,13 @@ function edok_bank_apply_kategoria(int $tx_id): void {
         case 'faktura_sprzedazy':
             $doc = edok_bank_faktura_sprzedazy_doc($tx, $kat);
             if ($doc) edok_bank_assign($tx_id, $doc, 'auto');
+            break;
+        case 'przelew_wlasny':
+            // Rachunek drugiej strony znany (rachunek organizacji) → wpis w rejestrze przelewów własnych;
+            // nieznany → pominięta z adnotacją (bez dokumentu), do ręcznego wskazania rachunku na ekranie wyciągów.
+            $cnt = edok_bank_detect_own_counter($tx);
+            $err = $cnt ? edok_bank_register_own_transfer($tx_id, $cnt, 'Przelew własny fundacji (rozpoznany z tytułu operacji na wyciągu)', (int)(current_user()['id'] ?? 0)) : 'brak rachunku drugiej strony';
+            if ($err !== null) db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=? AND doc_id IS NULL", ['Przelew własny fundacji (z tytułu operacji) — ' . $err . '; wskaż rachunek drugiej strony, jeśli ma trafić do rejestru', $tx_id]);
             break;
     }
 }

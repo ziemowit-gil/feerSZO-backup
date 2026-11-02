@@ -164,7 +164,7 @@ require_once __DIR__ . '/../includes/header.php';
           <input type="hidden" name="action" value="kategoria"><input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>">
           <select name="kod" class="form-select form-select-sm" style="max-width:220px" required aria-label="Oznacz kategorię operacji (system zapamięta wzorzec)">
             <option value="">Oznacz jako…</option>
-            <?php foreach (EDOK_BANK_KATEGORIE as $kk => $kv): if ($wplyw ? !in_array($kk, ['odsetki_bankowe', 'faktura_sprzedazy'], true) : in_array($kk, ['odsetki_bankowe', 'faktura_sprzedazy'], true)) continue; ?>
+            <?php foreach (EDOK_BANK_KATEGORIE as $kk => $kv): if ($kk === 'przelew_wlasny') continue; if ($wplyw ? !in_array($kk, ['odsetki_bankowe', 'faktura_sprzedazy'], true) : in_array($kk, ['odsetki_bankowe', 'faktura_sprzedazy'], true)) continue; ?>
             <option value="<?= h($kk) ?>"><?= h($kv['label']) ?><?= $kv['zatwierdzanie'] ? ' (do zatwierdzenia)' : ' (bez zatwierdzania)' ?></option>
             <?php endforeach; ?>
           </select>

@@ -54,18 +54,20 @@ function edok_ksiegowy_platnosc(array $d, array $bank): string {
     return match ($d['status_platnosci'] ?: 'nowy') { 'oplacony' => 'opłacona', 'zlecony' => 'przekazana do banku', 'anulowany' => 'anulowana', default => 'do zapłaty' };
 }
 
-/** Do którego rejestru wpisać dokument (wg typu i obecności VAT). */
+/**
+ * Klasyfikacja dokumentu dla księgowego. Organizacja NIE prowadzi rejestrów VAT (decyzja użytkownika 2026-11-02:
+ * „nie mamy rejestrów VAT, a klasyfikację odpłatna / nieodpłatna itd.”) — zamiast rejestru podajemy rodzaj
+ * dokumentu i rodzaj działalności (projekt / statutowa odpłatna / nieodpłatna), bez wzmianek o rejestrach.
+ */
 function edok_ksiegowy_rejestr(array $d, string $kierunek): string {
-    $vat = abs(_edok_kwota_float((string)$d['kwota_vat'])) >= 0.005 || in_array((string)$d['stawka_vat'], ['23', '8', '5', '0', 'zw', 'np'], true);
-    if ($kierunek === 'przychod') {
-        return in_array($d['typ_dokumentu'], ['faktura_sprzedazy', 'korekta_sprzedazy'], true) ? 'Rejestr sprzedaży VAT' : 'Przychód bez rejestru VAT';
-    }
     return match ($d['typ_dokumentu']) {
-        'faktura_vat', 'faktura_korygujaca' => $vat ? 'Rejestr zakupów VAT' : 'Zakup bez VAT',
-        'rachunek'      => 'Rachunek (bez rejestru VAT)',
-        'lista_plac'    => 'Lista płac / wynagrodzenia',
-        'nota_ksiegowa' => 'Nota księgowa',
-        default         => 'Ewidencja pozostałych kosztów',
+        'rachunek'       => 'Rachunek do umowy',
+        'lista_plac'     => 'Lista płac / wynagrodzenia',
+        'nota_ksiegowa'  => 'Nota księgowa',
+        'oplata_bankowa' => 'Opłata bankowa',
+        'skladki_zus'    => 'Składki ZUS',
+        'podatek_us'     => 'Podatek (US)',
+        default          => $kierunek === 'przychod' ? 'Przychód' : 'Koszt',
     };
 }
 
@@ -88,7 +90,7 @@ const EDOK_KSIEGOWY_COLS = [
     'number' => 'Nr EODoK', 'data' => 'Data', 'typ' => 'Typ', 'nr' => 'Nr dokumentu', 'kontr' => 'Kontrahent', 'nip' => 'NIP',
     'netto' => 'Netto', 'vat' => 'VAT', 'brutto' => 'Brutto', 'waluta' => 'Waluta', 'klasyf' => 'Klasyfikacja', 'mpk' => 'MPK',
     'opis' => 'Opis', 'platnosc' => 'Płatność', 'bank' => 'Transakcja bankowa',
-    'rejestr' => 'Rejestr', 'sprzedaz' => 'Data sprzedaży', 'termin' => 'Termin płatności', 'rachunek' => 'Rachunek do zapłaty/zwrotu',
+    'rejestr' => 'Rodzaj', 'sprzedaz' => 'Data sprzedaży', 'termin' => 'Termin płatności', 'rachunek' => 'Rachunek do zapłaty/zwrotu',
     'wskazowka' => 'Jak zaksięgować',
 ];
 
@@ -165,7 +167,7 @@ function edok_ksiegowy_pdf(string $od, string $do, array $wydatki, array $przych
     $table = function (string $title, array $rows, bool $wydatek) use ($fmt) {
         $h = '<h2>' . h($title) . ' (' . count($rows) . ')</h2>';
         if (!$rows) return $h . '<p>Brak dokumentów w okresie.</p>';
-        $h .= '<table><thead><tr><th>Nr EODoK</th><th>Data</th><th>Dokument</th><th>Kontrahent</th><th class="r">Netto</th><th class="r">VAT</th><th class="r">Brutto</th><th>Rejestr / klasyfikacja</th>'
+        $h .= '<table><thead><tr><th>Nr EODoK</th><th>Data</th><th>Dokument</th><th>Kontrahent</th><th class="r">Netto</th><th class="r">VAT</th><th class="r">Brutto</th><th>Rodzaj / klasyfikacja działalności</th>'
             . '<th>Jak zaksięgować</th>' . ($wydatek ? '<th>Płatność</th>' : '') . '</tr></thead><tbody>';
         $sn = $sv = $sb = 0;
         foreach ($rows as $r) {

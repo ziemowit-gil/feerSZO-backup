@@ -1239,7 +1239,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
       $bank_cand = $can_bank && $doc['status'] !== 'odrzucony' && $doc['status'] !== 'wycofany' ? edok_bank_for_doc_candidates($doc) : []; ?>
     <?php if ($bank_tx || $bank_cand): ?>
     <div class="edok-card">
-      <div class="edok-card__hd"><i class="bi bi-bank2"></i> Powiązanie z wyciągiem bankowym</div>
+      <div class="edok-card__hd"><i class="bi bi-bank2"></i> <?= ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? 'Wpłata z wyciągu bankowego — powiązanie z fakturą / wpływem' : 'Powiązanie z wyciągiem bankowym' ?></div>
       <div class="edok-card__bd small">
         <?php foreach ($bank_tx as $bt): ?>
         <div class="d-flex align-items-center gap-2 mb-1"><span><?= h(date_pl($bt['data_waluty'])) ?> · <strong><?= $bt['znak'] === 'C' ? '+' : '−' ?><?= h(number_format((float)$bt['kwota'], 2, ',', ' ')) ?> <?= h($bt['waluta']) ?></strong>
