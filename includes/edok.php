@@ -859,7 +859,9 @@ function edok_step_validation_errors(array $doc, string $step_key): array {
 
     if ($step_key === 'meryt') {
         if (trim((string)($doc['description'] ?? '')) === '') $errors[] = 'Kontrola merytoryczna: uzupełnij opis wydatku (cel, powiązanie z zamówieniem/umową).';
-        if (trim((string)($doc['file_path']   ?? '')) === '') $errors[] = 'Kontrola merytoryczna: dołącz skan dokumentu źródłowego.';
+        // Operacje banku (opłaty, odsetki) nie mają osobnego dokumentu źródłowego — źródłem jest wyciąg (operacja
+        // przypisana w edok_bank_tx), więc skanu nie wymagamy (decyzja użytkownika 2026-11-02).
+        if (trim((string)($doc['file_path']   ?? '')) === '' && !(function_exists('edok_doc_bankowy') && edok_doc_bankowy($doc))) $errors[] = 'Kontrola merytoryczna: dołącz skan dokumentu źródłowego.';
         $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)($doc['kwota_brutto'] ?? '')));
         // Faktura korygująca może mieć kwotę ujemną (obniżenie) — wymagamy tylko, by była niezerowa.
         if (edok_typ_korekta((string)($doc['typ_dokumentu'] ?? '')) ? abs($brutto) < 0.005 : $brutto <= 0) {
@@ -2817,6 +2819,7 @@ function edok_bank_quick_accept(int $doc_id, int $user_id, string $rodzaj, strin
     if (trim((string)$doc['kwota_vat']) === '')   $upd['kwota_vat'] = '0,00';
     if (trim((string)$doc['description']) === '') $upd['description'] = 'Operacja banku (' . ($doc['title'] ?? '') . ')';
     if (trim((string)$doc['nr_faktury']) === '')  $upd['nr_faktury'] = 'wyciąg';
+    if (($doc['kierunek'] ?? 'wydatek') === 'przychod' && trim((string)($doc['zrodlo_przychodu'] ?? '')) === '') $upd['zrodlo_przychodu'] = 'PKO Bank Polski S.A. — odsetki';
     if (trim((string)$doc['data_wplywu'] ?? '') === '' && !empty($doc['data_wystawienia'])) $upd['data_wplywu'] = $doc['data_wystawienia'];
     db_update('edok_documents', $upd, $doc_id);
     edok_log($doc_id, 'bank_quick', '', '', '', 'Szybka akceptacja operacji banku: rodzaj działalności „' . EDOK_RODZAJ_DZIALALNOSCI[$rodzaj] . '”' . ($rodzaj === 'projekt' ? ' (' . trim($projekt) . ')' : '') . '; kwoty dopełnione automatycznie.');
