@@ -922,11 +922,23 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
       // Wynagrodzenia wypłacane ręcznie (poza bankowością online): po akceptacji listy zatwierdzający
       // odnotowuje każdą wypłatę, a tytuł przelewu jest do skopiowania przy pozycji.
       $can_pay_wyplata = $doc['status'] === 'zaakceptowany' && (is_admin() || edok_has_role('zatwierdza'));
+      // Alarm: pozycja wynagrodzenia jest, a skanu podpisanego rachunku do umowy zlecenie nie ma.
+      $alarmy_skanu = [];
+      foreach ($wyplaty as $w) if ($a = edok_wyplata_alarm_skanu($w, (string)$doc['okres'])) $alarmy_skanu[(int)$w['id']] = $a;
     ?>
     <div class="edok-card tw-mt-4" id="wyplaty">
-      <div class="edok-card__hd"><i class="bi bi-people"></i> Wypłaty z listy płac (<?= count($wyplaty) ?>)</div>
+      <div class="edok-card__hd"><i class="bi bi-people"></i> Wypłaty z listy płac (<?= count($wyplaty) ?>)
+        <?php if ($alarmy_skanu): ?><span class="badge bg-danger ms-2"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i> bez skanu rachunku: <?= count($alarmy_skanu) ?></span><?php endif; ?>
+      </div>
       <div class="edok-card__bd">
         <p class="tw-text-xs tw-text-slate-500 tw-mb-2">Wypłaty wykonujesz ręcznie w bankowości — skopiuj tytuł przelewu przy pozycji i po wypłacie oznacz ją jako „Wypłacono”. Kwota = do wypłaty (po potrąceniach).</p>
+        <?php if ($alarmy_skanu): ?>
+        <div class="alert alert-danger py-2 tw-text-sm" role="alert">
+          <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+          <strong>Alarm:</strong> pozycje wynagrodzenia bez skanu podpisanego rachunku: <?= count($alarmy_skanu) ?> z <?= count($wyplaty) ?>.
+          Zleceniobiorca wgrywa skan przez link z powiadomienia o rachunku (zakładka Rachunki umowy). Pozycje oznaczone czerwoną etykietą.
+        </div>
+        <?php endif; ?>
         <?php if ($wyplaty): ?>
         <div class="table-responsive">
         <table class="table table-sm align-middle mb-2" style="font-size:.82rem">
@@ -934,7 +946,8 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
           <tbody>
           <?php foreach ($wyplaty as $w): $wyplacona = !empty($w['paid_at']); $tytul = edok_wyplata_tytul($doc, $w); ?>
             <tr<?= $wyplacona ? ' class="tw-text-slate-500"' : '' ?>>
-              <td><?= h($w['osoba']) ?><?php if ($w['opis']): ?><div class="tw-text-xs tw-text-slate-500"><?= h($w['opis']) ?></div><?php endif; ?></td>
+              <td><?= h($w['osoba']) ?><?php if ($w['opis']): ?><div class="tw-text-xs tw-text-slate-500"><?= h($w['opis']) ?></div><?php endif; ?>
+                <?php if (isset($alarmy_skanu[(int)$w['id']])): ?><div class="tw-mt-1"><?= edok_wyplata_alarm_badge($alarmy_skanu[(int)$w['id']]) ?></div><?php endif; ?></td>
               <td class="tw-font-mono tw-text-xs">
                 <?php if ($w['contract_type'] && $w['contract_id']): ?><a href="<?= APP_URL ?>/contracts/<?= h($w['contract_type']) ?>/view.php?id=<?= (int)$w['contract_id'] ?>"><?= h($w['umowa_numer'] ?: '—') ?></a><?php else: ?><?= h($w['umowa_numer'] ?: '—') ?><?php endif; ?>
               </td>

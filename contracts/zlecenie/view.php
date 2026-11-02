@@ -1549,17 +1549,29 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   require_once dirname(__DIR__, 2) . '/includes/edok.php';
   $_edok_w   = edok_wyplaty_umowy($id);
   $_edok_can = is_admin() || edok_has_role('zatwierdza');
+  // Alarm: pozycja wynagrodzenia na liście płac jest, a skanu podpisanego rachunku nie ma.
+  $_edok_alarm = [];
+  foreach ($_edok_w as $_w) if ($_a = edok_wyplata_alarm_skanu($_w, (string)$_w['doc_okres'])) $_edok_alarm[(int)$_w['id']] = $_a;
   ?>
   <?php if ($_edok_w): ?>
-  <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-cash-coin"></i> Wypłaty z list płac (EODoK)</div>
+  <div class="card shadow-sm mb-3<?= $_edok_alarm ? ' border-danger' : '' ?>">
+    <div class="card-header fw-semibold"><i class="bi bi-cash-coin"></i> Wypłaty z list płac (EODoK)
+      <?php if ($_edok_alarm): ?><span class="badge bg-danger ms-2"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i> bez skanu rachunku: <?= count($_edok_alarm) ?></span><?php endif; ?>
+    </div>
     <div class="card-body pb-0">
       <p class="text-muted small mb-2">Wypłaty wykonywane ręcznie w bankowości. Skopiuj tytuł przelewu i po wypłacie odnotuj ją przy pozycji.</p>
+      <?php if ($_edok_alarm): ?>
+      <div class="alert alert-danger small py-2" role="alert">
+        <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i> <strong>Alarm:</strong>
+        pozycje wynagrodzenia na listach płac bez skanu podpisanego rachunku: <?= count($_edok_alarm) ?>.
+        Powiadom zleceniobiorcę ponownie — skan wgrywa przez link z powiadomienia.
+      </div>
+      <?php endif; ?>
     </div>
     <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
-        <tr><th>Lista</th><th>Okres</th><th>Rachunek</th><th class="text-end">Kwota</th><th>Tytuł przelewu</th><th>Wypłata</th></tr>
+        <tr><th>Lista</th><th>Okres</th><th>Rachunek</th><th class="text-end">Kwota</th><th>Tytuł przelewu</th><th>Wypłata</th><th>Skan rachunku</th></tr>
       </thead>
       <tbody>
       <?php foreach ($_edok_w as $_w):
@@ -1603,6 +1615,10 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             <?php else: ?>
               <span class="badge bg-secondary">Do wypłaty</span>
             <?php endif; ?>
+          </td>
+          <td class="small">
+            <?php if (isset($_edok_alarm[(int)$_w['id']])): ?><?= edok_wyplata_alarm_badge($_edok_alarm[(int)$_w['id']]) ?>
+            <?php else: ?><span class="text-success"><i class="bi bi-file-earmark-check" aria-hidden="true"></i> jest</span><?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>

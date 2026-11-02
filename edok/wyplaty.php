@@ -46,7 +46,16 @@ $rows = db_all(
     $params
 );
 
-$suma = 0.0; $suma_paid = 0.0; $n_paid = 0;
+$f_alarm = !empty($_GET['alarm']);   // tylko pozycje bez skanu rachunku
+
+$suma = 0.0; $suma_paid = 0.0; $n_paid = 0; $n_alarm = 0;
+foreach ($rows as $i => $r) {
+    // Alarm: pozycja jest, a skanu podpisanego rachunku do umowy zlecenie nie ma.
+    $rows[$i]['_alarm'] = edok_wyplata_alarm_skanu($r, (string)$r['doc_okres']);
+    if ($rows[$i]['_alarm']) $n_alarm++;
+    elseif ($f_alarm) unset($rows[$i]);
+}
+$rows = array_values($rows);
 foreach ($rows as &$r) {
     $r['_kwota'] = _edok_kwota_float((string)$r['kwota']);
     $r['_tytul'] = edok_wyplata_tytul(['okres' => $r['doc_okres']], $r);
@@ -64,12 +73,13 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="EODoK_wyplaty_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Lista', 'Okres', 'Osoba', 'Umowa nr', 'Rachunek', 'Kwota', 'Tytuł przelewu', 'Status', 'Data wypłaty', 'Uwagi'], ';', '"', '\\');
+    fputcsv($out, ['Lista', 'Okres', 'Osoba', 'Umowa nr', 'Rachunek', 'Kwota', 'Tytuł przelewu', 'Status', 'Data wypłaty', 'Uwagi', 'Alarm'], ';', '"', '\\');
     foreach ($rows as $r) {
         fputcsv($out, [
             $r['doc_number'], $r['_okres'], $r['osoba'], $r['umowa_numer'], edok_nrb_format($r['rachunek']),
             $r['kwota'], $r['_tytul'], !empty($r['paid_at']) ? 'Wypłacono' : 'Do wypłaty',
             !empty($r['paid_at']) ? date('d.m.Y', strtotime($r['paid_at'])) : '', $r['paid_comment'],
+            $r['_alarm'] ? $r['_alarm']['tekst'] : '',
         ], ';', '"', '\\');
     }
     fclose($out);
@@ -110,6 +120,10 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="search" name="q" id="f_q" class="form-control form-control-sm" value="<?= h($f_q) ?>">
       </div>
       <div class="col-12 col-md-2">
+        <div class="form-check mb-1">
+          <input type="checkbox" class="form-check-input" name="alarm" value="1" id="f_alarm" <?= $f_alarm ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="f_alarm">Tylko bez skanu rachunku</label>
+        </div>
         <button type="submit" class="btn btn-sm btn-primary w-100">Pokaż</button>
       </div>
     </div>
@@ -121,16 +135,23 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-6 col-md-3"><div class="card card-body py-2"><div class="small text-muted">Wypłacone (<?= $n_paid ?>)</div><div class="fw-semibold font-monospace text-success"><?= number_format($suma_paid, 2, ',', ' ') ?> PLN</div></div></div>
     <div class="col-6 col-md-3"><div class="card card-body py-2"><div class="small text-muted">Do wypłaty</div><div class="fw-semibold font-monospace"><?= number_format($suma_do, 2, ',', ' ') ?> PLN</div></div></div>
   </div>
+  <?php if ($n_alarm): ?>
+  <div class="alert alert-danger py-2 small" role="alert">
+    <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+    <strong>Alarm:</strong> pozycje wynagrodzenia bez skanu podpisanego rachunku do umowy: <?= $n_alarm ?>
+    (<?= $f_alarm ? 'pokazane tylko one' : '<a href="' . h(APP_URL . '/edok/wyplaty.php?' . http_build_query(array_merge($_GET, ['alarm' => 1]))) . '" class="alert-link">pokaż tylko je</a>' ?>).
+  </div>
+  <?php endif; ?>
 
   <div class="card">
     <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0" style="font-size:.85rem">
       <thead class="table-light">
-        <tr><th>Lista</th><th>Okres</th><th>Osoba</th><th>Umowa nr</th><th>Rachunek</th><th class="text-end">Kwota</th><th>Tytuł przelewu</th><th>Status</th></tr>
+        <tr><th>Lista</th><th>Okres</th><th>Osoba</th><th>Umowa nr</th><th>Rachunek</th><th class="text-end">Kwota</th><th>Tytuł przelewu</th><th>Status</th><th>Skan rachunku</th></tr>
       </thead>
       <tbody>
       <?php if (!$rows): ?>
-        <tr><td colspan="8" class="text-center text-muted py-4">Brak wypłat dla wybranych filtrów.</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-4">Brak wypłat dla wybranych filtrów.</td></tr>
       <?php endif; ?>
       <?php foreach ($rows as $r): $paid = !empty($r['paid_at']); ?>
         <tr<?= $paid ? ' class="text-muted"' : '' ?>>
@@ -147,6 +168,11 @@ require_once __DIR__ . '/../includes/header.php';
             <?php else: ?>
               <span class="badge bg-secondary">Do wypłaty</span>
             <?php endif; ?>
+          </td>
+          <td class="small">
+            <?php if ($r['_alarm']): ?><?= edok_wyplata_alarm_badge($r['_alarm']) ?>
+            <?php elseif (($r['contract_type'] ?? '') === 'zlecenie' && !empty($r['contract_id'])): ?><span class="text-success"><i class="bi bi-file-earmark-check" aria-hidden="true"></i> jest</span>
+            <?php else: ?><span class="text-muted">—</span><?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>

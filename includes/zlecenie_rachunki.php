@@ -796,6 +796,16 @@ function rachunek_is_signed(array $rach): bool {
 }
 
 /**
+ * Czy jest skan podpisanego rachunku: plik wgrany przez zleceniobiorcę (albo ręczne oznaczenie
+ * „Podpisany — wgrany”, gdy skan przyszedł e-mailem). W odróżnieniu od rachunek_is_signed()
+ * status „Zaakceptowany/Zapłacony” nadany przez EODoK NIE jest dowodem skanu — lista płac
+ * może być zaakceptowana, choć skanu rachunku nigdy nie było.
+ */
+function rachunek_ma_skan(array $rach): bool {
+    return !empty($rach['plik_podpisany']) || !empty($rach['signed_at']) || ($rach['status'] ?? '') === 'podpisany';
+}
+
+/**
  * Braki w dokumentach rachunku: brak skanu podpisanego od zleceniobiorcy i brak oryginału
  * papierowego (oznaczenie „w koszulce”). Odrzucone i testowe pomijane.
  */

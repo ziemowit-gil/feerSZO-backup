@@ -2455,6 +2455,59 @@ function edok_wyplaty_umowy(int $contract_id): array {
 }
 
 /**
+ * Alarm pozycji listy płac: pozycja wynagrodzenia jest, a skanu podpisanego rachunku nie ma.
+ * Sprawdzane tylko pozycje umów zlecenie (rejestr rachunków): po powiązanym rachunku
+ * (zlec_rachunek_id), a bez powiązania — po rachunkach umowy za okres pozycji.
+ * null = w porządku albo nie ma czego sprawdzać (pozycja bez umowy zlecenie).
+ *
+ * @return ?array{kod:string, tekst:string, rachunek_id:?int, contract_id:?int}
+ */
+function edok_wyplata_alarm_skanu(array $w, string $doc_okres = ''): ?array {
+    if (!function_exists('rachunek_ma_skan')) require_once __DIR__ . '/zlecenie_rachunki.php';
+    $cid = (int)($w['contract_id'] ?? 0) ?: null;
+    $rid = (int)($w['zlec_rachunek_id'] ?? 0);
+    if ($rid > 0) {
+        $r = db_one("SELECT * FROM zlecenie_rachunki WHERE id = ?", [$rid]);
+        if (!$r) return ['kod' => 'brak_rachunku', 'tekst' => 'Rachunek #' . $rid . ' nie istnieje w rejestrze rachunków', 'rachunek_id' => null, 'contract_id' => $cid];
+        if (rachunek_ma_skan($r)) return null;
+        return ['kod' => 'brak_skanu', 'tekst' => 'Brak skanu podpisanego rachunku ' . ($r['numer'] ?: '#' . $rid), 'rachunek_id' => $rid, 'contract_id' => $cid ?: (int)$r['contract_id']];
+    }
+    if (($w['contract_type'] ?? '') !== 'zlecenie' || !$cid) return null;
+    $od = (string)($w['okres_od'] ?? '') ?: $doc_okres;
+    $do = (string)($w['okres_do'] ?? '') ?: $od;
+    try {
+        $rach = db_all("SELECT * FROM zlecenie_rachunki WHERE contract_type = 'zlecenie' AND contract_id = ?
+                          AND COALESCE(test_mode,0) = 0 AND status <> 'odrzucony' ORDER BY id", [$cid]);
+    } catch (\Throwable $e) { return null; }
+    if ($od !== '') {
+        // Rachunek za okres pozycji: jego okres od–do (bez okresu — miesiąc wystawienia) zachodzi na okres pozycji.
+        $rach = array_values(array_filter($rach, function (array $r) use ($od, $do): bool {
+            $rod = (string)($r['okres_od'] ?? '') ?: substr((string)($r['data_wystawienia'] ?? ''), 0, 7);
+            $rdo = (string)($r['okres_do'] ?? '') ?: $rod;
+            if ($rod === '') return true;
+            return $rod <= $do && $od <= $rdo;
+        }));
+    }
+    $okres_lbl = $od !== '' ? ' za ' . edok_okres_label($od) . ($do !== $od ? '–' . edok_okres_label($do) : '') : '';
+    if (!$rach) return ['kod' => 'brak_rachunku', 'tekst' => 'Brak rachunku do umowy' . $okres_lbl, 'rachunek_id' => null, 'contract_id' => $cid];
+    foreach ($rach as $r) if (rachunek_ma_skan($r)) return null;
+    $nr = $rach[0]['numer'] ?: '#' . $rach[0]['id'];
+    return ['kod' => 'brak_skanu', 'tekst' => 'Brak skanu podpisanego rachunku ' . $nr . $okres_lbl, 'rachunek_id' => (int)$rach[0]['id'], 'contract_id' => $cid];
+}
+
+/** Czerwona etykieta alarmu pozycji (link do zakładki Rachunki umowy); '' gdy brak alarmu. */
+function edok_wyplata_alarm_badge(?array $alarm): string {
+    if (!$alarm) return '';
+    $txt = h($alarm['tekst']);
+    $ico = '<i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i> ';
+    if (!empty($alarm['contract_id'])) {
+        $url = APP_URL . '/contracts/zlecenie/view.php?id=' . (int)$alarm['contract_id'] . '&tab=rachunki' . (!empty($alarm['rachunek_id']) ? '#rach-row-' . (int)$alarm['rachunek_id'] : '');
+        return '<a class="badge bg-danger text-decoration-none" href="' . h($url) . '" title="Otwórz rachunki umowy">' . $ico . $txt . '</a>';
+    }
+    return '<span class="badge bg-danger">' . $ico . $txt . '</span>';
+}
+
+/**
  * Odnotowuje ręczną wypłatę pozycji listy płac (wypłata poza bankowością online). Powiązany
  * rachunek umowy → „Zapłacony”; gdy wypłacone są wszystkie pozycje, lista → „Opłacony”.
  * Zwraca komunikat błędu albo null.
