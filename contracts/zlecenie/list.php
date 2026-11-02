@@ -117,14 +117,14 @@ if ($f['wyna_od'] !== '') { $where .= " AND CAST(wynagrodzenie_brutto AS REAL) >
 if ($f['wyna_do'] !== '') { $where .= " AND CAST(wynagrodzenie_brutto AS REAL) <= ?"; $params[] = (float)$f['wyna_do']; }
 if ($f['zus'])     { $where .= " AND zus_skladki = 1"; }
 if ($f['bez_rach']) {
-    // Aktywne umowy bez rachunku za bieżący miesiąc — źródło banera „Wyślij rachunek”.
+    // Aktywne umowy bez rachunku za miniony miesiąc (rachunek_target_month) — źródło banera „Wyślij rachunek”.
     $_ph_act = implode(',', array_fill(0, count(zl_rachunek_active_statuses()), '?'));
     $where  .= " AND status IN ({$_ph_act})"
              . " AND (data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)"
              . " AND id NOT IN (SELECT contract_id FROM zlecenie_rachunki"
              . "                WHERE contract_type = 'zlecenie'"
              . "                  AND substr(COALESCE(data_wystawienia, created_at), 1, 7) = ?)";
-    $params  = array_merge($params, zl_rachunek_active_statuses(), [date('Y-m-01'), date('Y-m')]);
+    $params  = array_merge($params, zl_rachunek_active_statuses(), [rachunek_target_month() . '-01', rachunek_target_month()]);
 }
 $_ph_open = implode(',', array_fill(0, count(zl_rachunek_active_statuses()), '?'));
 if ($f['konczy']) {
@@ -155,7 +155,7 @@ try {
 
 $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE {$where}", $params)['c'] ?? 0);
 
-// ── Ile aktywnych umów nie ma jeszcze rachunku za bieżący miesiąc (baner) ─────
+// ── Ile aktywnych umów nie ma jeszcze rachunku za miniony miesiąc (baner) ─────
 $_rach_missing = 0;
 try {
     $_pha = implode(',', array_fill(0, count(zl_rachunek_active_statuses()), '?'));
@@ -167,7 +167,7 @@ try {
                           WHERE contract_type = 'zlecenie'
                             AND substr(COALESCE(data_wystawienia, created_at), 1, 7) = ?)
            AND " . contract_access_where($TYPE),
-        array_merge(zl_rachunek_active_statuses(), [date('Y-m-01'), date('Y-m')])
+        array_merge(zl_rachunek_active_statuses(), [rachunek_target_month() . '-01', rachunek_target_month()])
     )['c'] ?? 0);
 } catch (\Throwable $e) {}
 

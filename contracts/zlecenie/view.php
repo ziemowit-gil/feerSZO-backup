@@ -623,7 +623,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <?php endif; ?>
 
 <?php if (rachunek_banner_needed($row)): ?>
-<!-- ═══ BANER — brak rachunku za bieżący miesiąc ═══ -->
+<!-- ═══ BANER — brak rachunku za miniony miesiąc (rachunek_target_month) ═══ -->
 <div class="alert cv-banner d-flex flex-wrap align-items-center gap-3 no-print mb-3">
   <div class="cv-banner-ico flex-shrink-0 d-flex align-items-center justify-content-center">
     <i class="bi bi-receipt"></i>
@@ -631,7 +631,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   <div class="flex-grow-1" style="min-width:220px">
     <div class="cv-banner-title">Wyślij rachunek za <?= h(rachunek_month_label()) ?></div>
     <div class="small text-secondary">
-      Umowa jest aktywna, a w rejestrze nie ma jeszcze rachunku za ten miesiąc.
+      Umowa jest aktywna, a w rejestrze nie ma jeszcze rachunku za miniony miesiąc.
       <?php if (trim((string)($row['email'] ?? ''))): ?>
       Po dodaniu dokumentu zleceniobiorca dostanie e-mail z linkiem do pobrania i podpisania.
       <?php else: ?>
@@ -2577,10 +2577,10 @@ document.addEventListener('DOMContentLoaded', function () {
             <label class="form-label small fw-semibold" for="rachOkresOd">Za jaki okres</label>
             <div class="d-flex flex-wrap align-items-center gap-2">
               <input id="rachOkresOd" name="rach_okres_od" type="month" class="form-control" style="max-width:170px"
-                     value="<?= h(date('Y-m')) ?>" aria-label="Okres od (miesiąc)">
+                     value="<?= h(rachunek_target_month()) ?>" aria-label="Okres od (miesiąc)">
               <span id="rachOkresSep" class="text-muted small d-none">do</span>
               <input id="rachOkresDo" name="rach_okres_do" type="month" class="form-control d-none" style="max-width:170px"
-                     value="<?= h(date('Y-m')) ?>" aria-label="Okres do (miesiąc)">
+                     value="<?= h(rachunek_target_month()) ?>" aria-label="Okres do (miesiąc)">
             </div>
             <div class="form-check mt-1">
               <input class="form-check-input" type="checkbox" id="rachOkresMulti" name="rach_okres_multi" value="1">

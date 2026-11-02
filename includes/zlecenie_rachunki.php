@@ -959,7 +959,17 @@ function rachunek_comment_delete(int $comment_id): void {
 
 // ── Baner „wyślij rachunek” ────────────────────────────────────────────────────
 
-/** Statusy umowy, przy których oczekujemy rachunku za bieżący miesiąc. */
+/**
+ * Miesiąc, za który oczekujemy rachunku = POPRZEDNI miesiąc kalendarzowy (rachunek wystawia się
+ * po zakończeniu miesiąca pracy, nie w jego trakcie). Jedno źródło dla banerów, modalu dodawania,
+ * filtrów listy i panelu zleceniobiorcy. Opcjonalny $now (YYYY-MM-DD) do testów.
+ */
+function rachunek_target_month(?string $now = null): string {
+    $t = $now ? strtotime($now) : time();
+    return date('Y-m', strtotime(date('Y-m-01', $t) . ' -1 month'));
+}
+
+/** Statusy umowy, przy których oczekujemy rachunku za miniony miesiąc. */
 /** Zapas — umowy „otwarte” do rachunków = grupa active słownika umowy_statusy, zob. zl_rachunek_active_statuses(). */
 const ZLEC_RACHUNEK_ACTIVE_STATUSES = ['podpisana', 'w realizacji', 'do rozliczenia', 'obowiązująca'];
 
@@ -969,12 +979,12 @@ function zl_rachunek_active_statuses(): array {
 }
 
 /**
- * Czy w rejestrze jest rachunek za wskazany miesiąc (domyślnie bieżący).
+ * Czy w rejestrze jest rachunek za wskazany miesiąc (domyślnie miesiąc rachunku = poprzedni).
  * Rachunki testowe są POMIJANE — baner „Wyślij rachunek” to przypomnienie
  * operacyjne i nie może go wyciszyć dokument dodany na próbę.
  */
 function rachunek_exists_for_month(int $contract_id, ?string $ym = null, string $type = 'zlecenie'): bool {
-    $ym = $ym ?: date('Y-m');
+    $ym = $ym ?: rachunek_target_month();
     foreach (get_rachunki($type, $contract_id) as $r) {
         if (rachunek_is_test($r)) continue;
         if (in_array($ym, rachunek_okres_months($r), true)) return true;
@@ -1035,18 +1045,19 @@ function rachunek_okres_label(string $od, string $do = ''): string {
  */
 function rachunek_banner_needed(array $contract, string $type = 'zlecenie'): bool {
     if (!in_array((string)($contract['status'] ?? ''), zl_rachunek_active_statuses(), true)) return false;
+    $ym     = rachunek_target_month();
     $koniec = (string)($contract['data_zakonczenia'] ?? '');
-    if ($koniec !== '' && $koniec < date('Y-m-01')) return false;   // umowa skończyła się przed tym miesiącem
+    if ($koniec !== '' && $koniec < $ym . '-01') return false;                         // umowa skończyła się przed tym miesiącem
     $start = (string)($contract['data_rozpoczecia'] ?? '');
-    if ($start !== '' && $start > date('Y-m-t')) return false;      // jeszcze się nie zaczęła
-    return !rachunek_exists_for_month((int)($contract['id'] ?? 0), null, $type);
+    if ($start !== '' && $start > date('Y-m-t', strtotime($ym . '-01'))) return false; // jeszcze się nie zaczęła
+    return !rachunek_exists_for_month((int)($contract['id'] ?? 0), $ym, $type);
 }
 
-/** Nazwa bieżącego miesiąca po polsku, np. „sierpień 2026”. */
+/** Nazwa miesiąca po polsku, np. „sierpień 2026”; bez argumentu = miesiąc rachunku (poprzedni). */
 function rachunek_month_label(?string $ym = null): string {
     $months = ['styczeń','luty','marzec','kwiecień','maj','czerwiec',
                'lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
-    $ym = $ym ?: date('Y-m');
+    $ym = $ym ?: rachunek_target_month();
     [$y, $m] = array_map('intval', explode('-', $ym) + [1 => 1]);
     return ($months[$m - 1] ?? $ym) . ' ' . $y;
 }

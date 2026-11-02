@@ -298,7 +298,7 @@ $msg_unread  = $_active_contract ? msg_unread_thread('contract', (int)$_active_c
 
 // ── Rachunki do umów zlecenie: rachunek czekający na podpis / brak za ten miesiąc
 $_rach_pending = [];   // rachunki udostępnione, jeszcze niepodpisane
-$_rach_todo    = [];   // aktywne umowy bez rachunku za bieżący miesiąc
+$_rach_todo    = [];   // aktywne umowy bez rachunku za miniony miesiąc (rachunek_target_month)
 foreach ($contracts as $_c) {
     if (($_c['contract_type'] ?? '') !== 'zlecenie') continue;
     foreach (get_rachunki('zlecenie', (int)$_c['id']) as $_r) {
@@ -408,7 +408,7 @@ if (count($contracts) > 1 && (empty($_SESSION['panel_contract_chosen']) || isset
     <div class="small text-secondary">
       Do Twojej aktywnej umowy zlecenie
       <?= count($_rach_todo) === 1 ? h($_rach_todo[0]['numer_umowy'] ?? '') : '(' . count($_rach_todo) . ' umowy)' ?>
-      nie ma jeszcze rachunku za ten miesiąc. Podpisany rachunek prześlij na
+      nie ma jeszcze rachunku za miniony miesiąc. Podpisany rachunek prześlij na
       <strong><?= h(rachunek_skan_email()) ?></strong>, a oryginał dostarcz w ciągu
       <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni<?= rachunek_org_address() ? ' na adres: ' . h(rachunek_org_address()) : '' ?>.
     </div>
