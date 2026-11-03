@@ -31,6 +31,10 @@ try {
 require_once dirname(__DIR__) . '/modules/first_run/lib/firstRun.php';
 firstLoginGate($user, true, true);
 
+// Wymóg ustawienia własnej stopki (panel ms365webpanel) — w trybie „require” przenosi na panel/poczta.php
+require_once dirname(__DIR__) . '/modules/mail_footer/lib/mailFooter.php';
+mailFooterEnforce($user);
+
 $_b    = branding_load();
 $_org  = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 $_h    = (int)date('G');

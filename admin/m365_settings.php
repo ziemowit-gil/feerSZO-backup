@@ -519,6 +519,8 @@ document.getElementById('m365_enabled')?.addEventListener('change', function() {
 });
 </script>
 
+<?php require_once dirname(__DIR__) . '/modules/mail_footer/lib/mailFooter.php'; include dirname(__DIR__) . '/modules/mail_footer/view/settingsCard.php'; ?>
+
 <!-- ══ SEKCJA: ROUNDCUBE / IMAP OAuth2 ═══════════════════════════════════════ -->
 <?php
 $_rc_tenant  = m365_setting('m365_tenant_id') ?: '&lt;tenant-id&gt;';

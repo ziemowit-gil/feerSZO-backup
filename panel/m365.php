@@ -388,6 +388,8 @@ $m365_apps = [
     </section>
   </div>
 
+  <?php if ($has_m365) { require_once dirname(__DIR__) . '/modules/mail_footer/lib/mailFooter.php'; include dirname(__DIR__) . '/modules/mail_footer/view/manageCard.php'; } ?>
+
   <?php if ($m3_active): ?>
   <!-- Alias e-mail -->
   <section class="mt-group" aria-labelledby="m3-alias-h">

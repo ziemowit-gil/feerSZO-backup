@@ -233,6 +233,9 @@ $tone_css = [
 require_once __DIR__ . '/includes/directory.php';
 require_once __DIR__ . '/modules/directory_profile/lib/directoryProfile.php';
 $dpStatus = directoryProfileEnforce($_user) ?? directoryProfileStatus((int)$_user['id']);
+// Wymóg ustawienia własnej stopki (panel ms365webpanel) — w trybie „require” przekierowuje przed wysłaniem strony
+require_once __DIR__ . '/modules/mail_footer/lib/mailFooter.php';
+$mfStatus = mailFooterEnforce($_user);
 
 include __DIR__ . '/includes/header.php';
 ?>
@@ -375,6 +378,7 @@ a.dash-row:hover,button.dash-row:hover{background:#f2f2f2;color:inherit}
   </header>
 
   <?php include __DIR__ . '/modules/directory_profile/view/pulpitNotice.php'; ?>
+  <?php include __DIR__ . '/modules/mail_footer/view/pulpitNotice.php'; ?>
 
   <!-- ── KPI ──────────────────────────────────────────────────────────────── -->
   <section class="dash-kpi" aria-label="Wskaźniki">
