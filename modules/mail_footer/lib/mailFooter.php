@@ -7,7 +7,7 @@
  * skrzynką (aliasy, hasło, 2FA, stopka, autoresponder, przekierowanie). SZO nie ma jak sprawdzić, czy
  * stopka tam została ustawiona, więc wymóg opiera się na potwierdzeniu osoby (tabela mail_footer_confirm).
  *
- * Ustawienie (tabela settings): mail_footer_mode = off | remind | require (domyślnie require).
+ * Ustawienie (tabela settings): mail_footer_mode = off | remind | require (domyślnie remind).
  *   off     — nic nie wymuszamy (tekst o zarządzaniu pocztą i tak jest na stronie panel/poczta.php),
  *   remind  — na pulpicie stały pas „Ustaw swoją stopkę” do czasu potwierdzenia,
  *   require — pulpit przenosi na panel/poczta.php?wymagane=1, dopóki osoba nie potwierdzi.
@@ -39,12 +39,11 @@ function mailFooterUrl(string $slug = ''): string {
 
 function mailFooterMode(): string {
     $mode = function_exists('org_setting') ? org_setting('mail_footer_mode') : '';
-    if ($mode === '') return 'require';
-    return isset(MAIL_FOOTER_MODES[$mode]) ? $mode : 'require';
+    return isset(MAIL_FOOTER_MODES[$mode]) ? $mode : 'remind';
 }
 
 function mailFooterSaveMode(string $mode): void {
-    org_setting_set('mail_footer_mode', isset(MAIL_FOOTER_MODES[$mode]) ? $mode : 'require');
+    org_setting_set('mail_footer_mode', isset(MAIL_FOOTER_MODES[$mode]) ? $mode : 'remind');
 }
 
 function mailFooterMigrate(): void {
