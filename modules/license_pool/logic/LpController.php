@@ -34,7 +34,7 @@ final class LpController
     public function saveProduct(): ?string
     {
         $id = (int)($_POST['id'] ?? 0);
-        $r = LpPool::saveProduct($_POST, $id, $this->actor()['id']);
+        $r = LpPool::saveProduct($_POST, $id, $this->actor()['id'], $_FILES['attachment'] ?? null);
         if (!$r['ok']) { flash_set('danger', implode(' ', $r['errors'])); return Router::redirect($id ? route('lp.product', ['id' => $id]) : route('lp.index')); }
         flash_set('success', 'Produkt zapisany.');
         return Router::redirect(route('lp.product', ['id' => $r['id']]));

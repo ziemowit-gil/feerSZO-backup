@@ -127,7 +127,7 @@ $typeLabel = ['user' => 'Pracownik', 'client' => 'Uczestnik TI', 'other' => 'Inn
 </div>
 
 <details class="mt-4"><summary>Edytuj dane produktu</summary>
-  <form method="post" action="<?= h(route('lp.product.save')) ?>" class="border p-3 mt-2">
+  <form method="post" action="<?= h(route('lp.product.save')) ?>" class="border p-3 mt-2" enctype="multipart/form-data">
     <?= Router::csrfField() ?><input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
     <div class="row g-2">
       <div class="col-md-6"><label class="form-label" for="en">Nazwa</label><input id="en" name="name" class="form-control" value="<?= h($p['name']) ?>" required maxlength="190"></div>
@@ -135,7 +135,11 @@ $typeLabel = ['user' => 'Pracownik', 'client' => 'Uczestnik TI', 'other' => 'Inn
       <div class="col-md-3"><label class="form-label" for="ec">Kategoria</label><input id="ec" name="category" class="form-control" value="<?= h($p['category']) ?>" maxlength="190"></div>
       <div class="col-md-8"><label class="form-label" for="eu">Link</label><input id="eu" name="vendor_url" class="form-control" value="<?= h($p['vendor_url']) ?>" maxlength="500"></div>
       <div class="col-md-4 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" id="ea" name="is_active" value="1"<?= $p['is_active'] ? ' checked' : '' ?>><label class="form-check-label" for="ea">Produkt aktywny</label></div></div>
-      <div class="col-12"><label class="form-label" for="ei">Instrukcja aktywacji (trafia do e-maila z kluczem)</label><textarea id="ei" name="instructions" rows="3" class="form-control" maxlength="2000"><?= h($p['instructions']) ?></textarea></div>
+      <div class="col-12"><label class="form-label" for="eac">Adres aktywacji (trafia do e-maila, np. https://my.nordaccount.com/activate/)</label><input id="eac" name="activation_url" class="form-control" value="<?= h($p['activation_url']) ?>" maxlength="500" placeholder="https://"></div>
+      <div class="col-md-4"><label class="form-label" for="evm">Ważność od dnia aktywacji (miesiące, 0 = wg daty licencji)</label><input id="evm" type="number" min="0" max="120" name="validity_months" class="form-control" value="<?= (int)$p['validity_months'] ?>"></div>
+      <div class="col-12"><label class="form-label" for="eat">Załącznik do e-maila z kluczem (PDF itp., maks. 15 MB)</label><input id="eat" type="file" name="attachment" class="form-control">
+        <?php if ($p['attachment_name'] !== ''): ?><div class="form-check mt-1"><input class="form-check-input" type="checkbox" id="rat" name="remove_attachment" value="1"><label class="form-check-label" for="rat">Usuń obecny załącznik: <?= h($p['attachment_name']) ?> (<?= round($p['attachment_size'] / 1048576, 1) ?> MB)</label></div><?php endif; ?></div>
+      <div class="col-12"><label class="form-label" for="ei">Instrukcja aktywacji (trafia do e-maila z kluczem, czysty tekst)</label><textarea id="ei" name="instructions" rows="3" class="form-control" maxlength="2000"><?= h($p['instructions']) ?></textarea></div>
       <div class="col-12"><label class="form-label" for="eo">Uwagi</label><input id="eo" name="notes" class="form-control" value="<?= h($p['notes']) ?>" maxlength="500"></div>
     </div>
     <button class="btn btn-primary mt-3">Zapisz</button>

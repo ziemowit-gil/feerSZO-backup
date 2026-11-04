@@ -1310,33 +1310,6 @@ HTML,
             ],
         ],
 
-        'lp_license_assigned' => [
-            'label'       => 'Pula licencji: przydział licencji z kluczem',
-            'group'       => 'IT — Licencje',
-            'icon'        => 'bi-key-fill',
-            'auto'        => true,
-            'description' => 'Wiadomość do odbiorcy bezpłatnego przydziału licencji z puli Fundacji (moduł license_pool, wspólny dla TI i IT SZO): produkt, ważność, klucz i instrukcja aktywacji.',
-            'subject'     => 'Bezpłatny przydział licencji na produkt {{product}} – klucz aktywacyjny',
-            'body'        => '<p>Dzień dobry{{greeting}},</p>'
-                . '<p>Z przyjemnością informujemy, że otrzymujesz bezpłatny przydział licencji na produkt <strong>{{product}}</strong>.</p>'
-                . '<p><strong>Szczegóły Twojej subskrypcji:</strong></p>'
-                . '<ul><li>Produkt: {{product}}</li><li>Okres ważności licencji: do {{expires}}</li>'
-                . '<li>Klucz licencyjny: <code style="font-size:15px;background:#f1f5f9;padding:2px 6px">{{key}}</code></li></ul>'
-                . '{{instructions_block}}'
-                . '<ol><li>Pobierz i zainstaluj oprogramowanie z oficjalnego źródła.</li>'
-                . '<li>Podczas pierwszego uruchomienia lub w sekcji zarządzania licencją wprowadź powyższy klucz.</li>'
-                . '<li>W razie problemów zapoznaj się z sekcją pomocy lub skontaktuj się z naszym zespołem wsparcia.</li></ol>'
-                . '<p>Pozdrawiamy,<br>Zespół {{org}}</p>',
-            'vars'        => [
-                'org'                => ['label' => 'Nazwa firmy / systemu',          'sample' => 'Fundacja FEER'],
-                'greeting'           => ['label' => 'Zwrot (spacja + imię albo puste)', 'sample' => ' Anna'],
-                'product'            => ['label' => 'Nazwa produktu',                  'sample' => 'Adobe Creative Cloud'],
-                'expires'            => ['label' => 'Data wygaśnięcia (albo „bezterminowo”)', 'sample' => '31.12.2027'],
-                'key'                => ['label' => 'Klucz licencyjny',                'sample' => 'AAAA-BBBB-CCCC-DDDD'],
-                'instructions_block' => ['label' => 'Instrukcja aktywacji produktu (HTML lub pusta)', 'sample' => '<p><strong>Instrukcja aktywacji i instalacji:</strong> zaloguj się na stronę producenta i wpisz klucz w sekcji licencji.</p>'],
-            ],
-        ],
-
         'ti_claude_statement' => [
             'label'       => 'TI: oświadczenie Claude do akceptacji w panelu',
             'group'       => 'TI — Zajęcia',

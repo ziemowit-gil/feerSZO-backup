@@ -84,6 +84,16 @@ function lp_migrate(): void {
     // dodatki: instrukcja aktywacji produktu, ślad wysłanej wiadomości z kluczem
     $has = fn(string $t) => array_column($pdo->query("PRAGMA table_info($t)")->fetchAll(), 'name');
     if (!in_array('instructions', $has('lp_products'), true)) $pdo->exec("ALTER TABLE lp_products ADD COLUMN instructions TEXT NOT NULL DEFAULT ''");
+    foreach (['activation_url' => "TEXT NOT NULL DEFAULT ''", 'attachment_path' => "TEXT NOT NULL DEFAULT ''", 'attachment_name' => "TEXT NOT NULL DEFAULT ''",
+              'attachment_mime' => "TEXT NOT NULL DEFAULT ''", 'attachment_size' => 'INTEGER NOT NULL DEFAULT 0'] as $c => $ddl) {
+        if (!in_array($c, $has('lp_products'), true)) $pdo->exec("ALTER TABLE lp_products ADD COLUMN $c $ddl");
+    }
+    // ważność liczona od dnia aktywacji (miesiące; 0 = wg daty ważności licencji). Jednorazowo: wszystkie produkty Nord = 12 mies. + adres aktywacji NordVPN.
+    if (!in_array('validity_months', $has('lp_products'), true)) {
+        $pdo->exec("ALTER TABLE lp_products ADD COLUMN validity_months INTEGER NOT NULL DEFAULT 0");
+        $pdo->exec("UPDATE lp_products SET validity_months = 12 WHERE name LIKE '%nord%' COLLATE NOCASE");
+        $pdo->exec("UPDATE lp_products SET activation_url = 'https://my.nordaccount.com/activate/' WHERE name LIKE '%nordvpn%' COLLATE NOCASE AND activation_url = ''");
+    }
     foreach (['mailed_at' => 'DATETIME', 'mailed_to' => "TEXT NOT NULL DEFAULT ''", 'mail_status' => "TEXT NOT NULL DEFAULT ''"] as $c => $ddl) {
         if (!in_array($c, $has('lp_assignments'), true)) $pdo->exec("ALTER TABLE lp_assignments ADD COLUMN $c $ddl");
     }

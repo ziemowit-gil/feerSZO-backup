@@ -50,26 +50,41 @@ final class LpPool
     }
 
     /** @return array{ok:bool,errors:list<string>,id:int} */
-    public static function saveProduct(array $in, int $id = 0, ?int $by = null): array
+    public static function saveProduct(array $in, int $id = 0, ?int $by = null, ?array $file = null): array
     {
         self::ready();
         $d = [];
         $errors = [];
-        foreach (['name' => ['Nazwa', 190], 'vendor' => ['Producent', 190], 'category' => ['Kategoria', 190], 'vendor_url' => ['Link', 500], 'notes' => ['Uwagi', 500], 'instructions' => ['Instrukcja aktywacji', 2000]] as $k => [$label, $max]) {
+        foreach (['name' => ['Nazwa', 190], 'vendor' => ['Producent', 190], 'category' => ['Kategoria', 190], 'vendor_url' => ['Link', 500], 'notes' => ['Uwagi', 500], 'instructions' => ['Instrukcja aktywacji', 2000], 'activation_url' => ['Adres aktywacji', 500]] as $k => [$label, $max]) {
             $d[$k] = trim((string)($in[$k] ?? ''));
             if (mb_strlen($d[$k]) > $max) $errors[] = "Pole „{$label}” jest za długie (maks. {$max}).";
         }
         if ($d['name'] === '') $errors[] = 'Podaj nazwę produktu.';
-        if ($d['vendor_url'] !== '' && !preg_match('~^https?://[^\s]+$~i', $d['vendor_url'])) $errors[] = 'Link musi zaczynać się od http:// lub https://.';
+        foreach (['vendor_url' => 'Link', 'activation_url' => 'Adres aktywacji'] as $k => $lbl)
+            if ($d[$k] !== '' && !preg_match('~^https?://[^\s]+$~i', $d[$k])) $errors[] = $lbl . ' musi zaczynać się od http:// lub https://.';
         $dup = db_one("SELECT id FROM lp_products WHERE name = ? COLLATE NOCASE AND id <> ?", [$d['name'], $id]);
         if ($dup) $errors[] = 'Produkt o tej nazwie już istnieje.';
         if ($errors) return ['ok' => false, 'errors' => $errors, 'id' => $id];
         $d['is_active'] = $id > 0 ? (!empty($in['is_active']) ? 1 : 0) : 1;
+        // załącznik do e-maila (np. PDF z planem): nowy plik zastępuje stary; „usuń” czyści
+        $att = null;
+        if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $att = mail_queue_save_attachment($file);
+            if (!$att) return ['ok' => false, 'errors' => ['Załącznik odrzucony (dozwolone: PDF, DOC(X), XLS(X), TXT, PNG, JPG, ZIP; maks. 15 MB).'], 'id' => $id];
+        }
         if ($id > 0) {
-            db_exec("UPDATE lp_products SET name=?, vendor=?, category=?, vendor_url=?, notes=?, instructions=?, is_active=? WHERE id=?",
-                [$d['name'], $d['vendor'], $d['category'], $d['vendor_url'], $d['notes'], $d['instructions'], $d['is_active'], $id]);
+            db_exec("UPDATE lp_products SET name=?, vendor=?, category=?, vendor_url=?, notes=?, instructions=?, activation_url=?, validity_months=?, is_active=? WHERE id=?",
+                [$d['name'], $d['vendor'], $d['category'], $d['vendor_url'], $d['notes'], $d['instructions'], $d['activation_url'], max(0, min(120, (int)($in['validity_months'] ?? 0))), $d['is_active'], $id]);
+            if ($att || !empty($in['remove_attachment'])) {
+                $old = (string)(db_one("SELECT attachment_path FROM lp_products WHERE id = ?", [$id])['attachment_path'] ?? '');
+                if ($old !== '' && is_file(UPLOAD_DIR . $old)) @unlink(UPLOAD_DIR . $old);
+                db_exec("UPDATE lp_products SET attachment_path=?, attachment_name=?, attachment_mime=?, attachment_size=? WHERE id=?",
+                    [$att['path'] ?? '', $att['name'] ?? '', $att['mime'] ?? '', $att['size'] ?? 0, $id]);
+            }
         } else {
             $id = db_insert('lp_products', $d + ['created_by' => $by]);
+            db_exec("UPDATE lp_products SET activation_url=?, validity_months=? WHERE id=?", [$d['activation_url'], max(0, min(120, (int)($in['validity_months'] ?? 0))), $id]);
+            if ($att) db_exec("UPDATE lp_products SET attachment_path=?, attachment_name=?, attachment_mime=?, attachment_size=? WHERE id=?", [$att['path'], $att['name'], $att['mime'], $att['size'], $id]);
         }
         audit_log('license_pool.product_saved', ['product_id' => $id, 'name' => $d['name']], $by);
         return ['ok' => true, 'errors' => [], 'id' => $id];
@@ -343,7 +358,7 @@ final class LpPool
     public static function sendKeyMail(int $assignmentId, string $emailOverride = '', ?int $by = null): array
     {
         self::ready();
-        $a = db_one("SELECT a.*, l.id AS lid, l.valid_until, p.name AS product, p.instructions FROM lp_assignments a
+        $a = db_one("SELECT a.*, l.id AS lid, l.valid_until, p.name AS product, p.instructions, p.activation_url, p.validity_months, p.attachment_path, p.attachment_name, p.attachment_mime, p.attachment_size FROM lp_assignments a
                        JOIN lp_licenses l ON l.id = a.license_id JOIN lp_products p ON p.id = l.product_id WHERE a.id = ?", [$assignmentId]);
         if (!$a) return self::mailNote($assignmentId, 'failed', '', 'nie znaleziono przydziału');
         $to = $emailOverride; $name = (string)$a['holder_label'];
@@ -355,23 +370,53 @@ final class LpPool
         }
         if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) return self::mailNote($assignmentId, 'skipped', '', 'brak poprawnego adresu e-mail odbiorcy');
         $code = (string)self::revealCodeSilent((int)$a['lid']);
-        $first = trim(explode(' ', $name)[0] ?? '');
-        $ins = trim((string)$a['instructions']);
-        $r = email_tpl_render('lp_license_assigned', [
-            'org' => 'Fundacja FEER',
-            'greeting' => $first !== '' && $a['holder_type'] !== 'other' ? ' ' . htmlspecialchars($first, ENT_QUOTES, 'UTF-8') : '',
-            'product' => htmlspecialchars((string)$a['product'], ENT_QUOTES, 'UTF-8'),
-            'expires' => $a['valid_until'] ? date('d.m.Y', strtotime((string)$a['valid_until'])) : 'bezterminowo',
-            'key' => htmlspecialchars($code, ENT_QUOTES, 'UTF-8'),
-            'instructions_block' => $ins !== '' ? '<p><strong>Instrukcja aktywacji i instalacji:</strong><br>' . nl2br(htmlspecialchars($ins, ENT_QUOTES, 'UTF-8')) . '</p>' : '',
-        ]);
-        if (empty($r['enabled'])) return self::mailNote($assignmentId, 'skipped', $to, 'szablon e-mail jest wyłączony');
+        $subject = 'Bezpłatny przydział licencji na produkt ' . $a['product'] . ' – klucz aktywacyjny';
+        $text = self::keyMailText($a + ['code' => $code]);
+        $att = self::productAttachments($a);
         try {
-            $mid = mail_queue_add($to, $name, $r['subject'], $r['html'], '', 'lp_license_assigned', $assignmentId, '', false);
+            // Brak wersji HTML = czysty tekst (text/plain)
+            $mid = mail_queue_add($to, $name, $subject, '', $text, 'lp_license_assigned', $assignmentId, '', false, $att);
             return self::mailNote($assignmentId, $mid > 0 ? 'sent' : 'skipped', $to, $mid > 0 ? '' : 'zablokowane (kontakt wirtualny)');
         } catch (\Throwable $e) {
             return self::mailNote($assignmentId, 'failed', $to, $e->getMessage());
         }
+    }
+
+    /** Treść wiadomości z kluczem — czysty tekst. $a: przydział + product, instructions, activation_url, valid_until, holder_label/type, code. */
+    public static function keyMailText(array $a): string
+    {
+        $first = trim(explode(' ', (string)$a['holder_label'])[0] ?? '');
+        $vm = (int)($a['validity_months'] ?? 0);
+        if ($vm > 0) $exp = null;   // ważność liczona od dnia aktywacji
+        else $exp = !empty($a['valid_until']) ? 'do ' . date('d.m.Y', strtotime((string)$a['valid_until'])) : 'bezterminowo';
+        $L = [];
+        $L[] = 'Dzień dobry' . ($first !== '' && ($a['holder_type'] ?? '') !== 'other' ? ' ' . $first : '') . ',';
+        $L[] = '';
+        $L[] = 'Z przyjemnością informujemy, że otrzymujesz bezpłatny przydział licencji na produkt ' . $a['product'] . '.';
+        $L[] = '';
+        $L[] = 'Szczegóły Twojej subskrypcji:';
+        $L[] = '* Produkt: ' . $a['product'];
+        $L[] = '* Okres ważności licencji: ' . ($exp ?? (($vm % 12 === 0 ? ($vm === 12 ? '1 rok' : ($vm / 12) . ' lata/lat') : $vm . ' mies.') . ' od dnia aktywacji'));
+        $L[] = '* Klucz licencyjny: ' . $a['code'];
+        if (trim((string)($a['activation_url'] ?? '')) !== '') $L[] = '* Adres do aktywacji: ' . trim((string)$a['activation_url']);
+        if (trim((string)($a['instructions'] ?? '')) !== '') { $L[] = ''; $L[] = 'Instrukcja aktywacji i instalacji: ' . trim((string)$a['instructions']); }
+        if (!empty($a['attachment_path'])) { $L[] = ''; $L[] = 'W załączniku: ' . ($a['attachment_name'] ?: 'dokument produktu') . '.'; }
+        $L[] = '';
+        $L[] = '1. Pobierz i zainstaluj oprogramowanie z oficjalnego źródła.';
+        $L[] = '2. Podczas pierwszego uruchomienia lub w sekcji zarządzania licencją wprowadź powyższy klucz.';
+        $L[] = '3. W razie problemów zapoznaj się z sekcją pomocy lub skontaktuj się z naszym zespołem wsparcia.';
+        $L[] = '';
+        $L[] = 'Pozdrawiamy,';
+        $L[] = 'Zespół Fundacja FEER';
+        return implode("\n", $L);
+    }
+
+    /** Załącznik produktu w formacie kolejki poczty (pusta lista, gdy brak pliku). */
+    public static function productAttachments(array $p): array
+    {
+        $path = (string)($p['attachment_path'] ?? '');
+        if ($path === '' || !is_file(UPLOAD_DIR . $path)) return [];
+        return [['path' => $path, 'name' => (string)($p['attachment_name'] ?: basename($path)), 'mime' => (string)($p['attachment_mime'] ?: 'application/octet-stream'), 'size' => (int)$p['attachment_size']]];
     }
 
     private static function mailNote(int $id, string $status, string $to, string $detail): array
