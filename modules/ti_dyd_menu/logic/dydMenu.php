@@ -223,6 +223,7 @@ function dydMenuSections(): array
         $it('', 'Dokumenty kursantów',   'dokumentyKursanta.php', 'folder2-open', $sfPending, 'warning'),
         $it('', 'Umowy szkoleniowe',     'umowaSzkolenia.php',    'file-earmark-text'),
         $it('', 'Licencje',              'licencjeKursantow.php', 'key'),
+        $it('', 'Pula licencji Fundacji', 'licencjeFundacji.php', 'key-fill'),
         $it('', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock', $nLd, 'warning'),
         $it('', 'Dostęp do Claude (ANT1)',       'licencjeDydaktyczne.php?_route=%2Fant1', 'stars'),
         $it('', 'Korekty AMSK',                'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square', $nAmsk, 'warning'),

@@ -554,6 +554,7 @@ function _menu_editor(): array {
         _mi('Dashboard IT','/it/index.php','bi-grid-1x2',['match'=>'/it/index','kw'=>'it dashboard']),
         _mi('Konta','/it/accounts.php','bi-person-badge',['match'=>'/it/accounts','kw'=>'konta it']),
         _mi('Hasła','/it/passwords.php','bi-key',['match'=>'/it/passwords','kw'=>'hasła sejf']),
+        _mi('Pula licencji','/it/licencje.php','bi-key-fill',['match'=>'/it/licencje','kw'=>'licencje pula klucze produkty']),
         _mi('Upload do R2','/tools/r2_upload.php','bi-cloud-arrow-up',['match'=>'/tools/r2_upload','kw'=>'r2 upload pliki']),
     ];
     if (module_enabled('vpn_enabled'))
