@@ -112,17 +112,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
         }
         if (!$missing && !$reexport_missing) try {
             $grupy = [];
-            foreach ($docs as $doc) $grupy[$rachunek_map[(int) $doc['id']] ?? $rachunek_zlecen][] = $doc;
+            // Paczki wynagrodzeń (lista płac / rachunek do umowy) idą osobnymi plikami — każda z własnym
+            // tytułem paczki (patrz edok_paczka_tytul()); reszta dokumentów jedną wspólną paczką na rachunek.
+            foreach ($docs as $doc) $grupy[($rachunek_map[(int) $doc['id']] ?? $rachunek_zlecen) . '#' . edok_paczka_klucz($doc)][] = $doc;
             $stamp = date('Y-m-d_His');
             $pliki = [];
             $wyeksportowane = [];
-            foreach ($grupy as $nrb => $grupa) {
-                $plik = edok_przelewy_export($grupa, (string) $nrb, $przelewy_format);
+            foreach ($grupy as $gkey => $grupa) {
+                $nrb = (string) strstr($gkey, '#', true);
+                $paczka = edok_paczka_tytul($grupa);
+                $plik = edok_przelewy_export($grupa, $nrb, $przelewy_format);
                 if ($plik['content'] === '') continue;
                 foreach ($grupa as $d) $wyeksportowane[] = ['doc' => $d, 'nrb' => (string) $nrb, 'format' => $plik['prefix']];
                 $nazwa = $rachunki_ok[$nrb]['nazwa'] ?? '' ?: ($rachunki_ok[$nrb]['bank'] ?? '');
                 $slug  = trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $nazwa) ?: ''), '_');
-                $pliki[$plik['prefix'] . '_' . ($slug !== '' ? $slug . '_' : '') . substr((string) $nrb, -4) . '_' . $stamp . '.' . $plik['ext']] = $plik['content'];
+                $pslug = $paczka !== '' ? trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $paczka) ?: ''), '_') : '';
+                $pliki[$plik['prefix'] . '_' . ($slug !== '' ? $slug . '_' : '') . substr((string) $nrb, -4) . ($pslug !== '' ? '_' . mb_substr($pslug, 0, 60) : '') . '_' . $stamp . '.' . $plik['ext']] = $plik['content'];
             }
             if ($pliki) {
                 // Po wygenerowaniu pliku status płatności = „Zlecony do banku” (zapis w audycie).

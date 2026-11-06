@@ -756,6 +756,37 @@ function edok_generate_tytul_przelewu(array $doc): string {
 }
 
 /**
+ * Klucz „paczki” wynagrodzeń dla dokumentu (do rozdzielania eksportu na osobne paczki):
+ *  - pozycja listy płac → „LP:{id listy}” (paczka „WYNAGRODZENIA MM/RRRR”),
+ *  - rachunek do umowy z numerem z Rejestru Umów → „UM:{RU}|{okres}”
+ *    (paczka „WYNAGRODZENIE Z TYT. UMOWY NR {RU} MM/RRRR”),
+ *  - pozostałe dokumenty → '' (bez własnej paczki).
+ */
+function edok_paczka_klucz(array $doc): string {
+    if (!empty($doc['_zwrot']) || ($doc['kierunek'] ?? 'wydatek') !== 'wydatek') return '';
+    if (!empty($doc['_wyplata'])) return 'LP:' . (int)($doc['id'] ?? 0);
+    $umowa = trim((string)($doc['umowa_numer'] ?? ''));
+    if (($doc['typ_dokumentu'] ?? '') === 'rachunek' && $umowa !== '') return 'UM:' . $umowa . '|' . (string)($doc['okres'] ?? '');
+    return '';
+}
+
+/**
+ * Tytuł paczki przelewów (nazwa folderu/paczki w bankowości) dla zestawu dokumentów jednej paczki:
+ *  - lista płac: „WYNAGRODZENIA MM/RRRR”,
+ *  - rachunek do umowy: „WYNAGRODZENIE Z TYT. UMOWY NR {nr RU} MM/RRRR”.
+ * Zestaw mieszany albo bez wynagrodzeń → '' (eksport użyje nazwy domyślnej).
+ */
+function edok_paczka_tytul(array $docs): string {
+    $klucze = array_values(array_unique(array_map('edok_paczka_klucz', $docs)));
+    if (count($klucze) !== 1 || $klucze[0] === '') return '';
+    $d = $docs[0];
+    $okres = edok_okres_label((string)($d['okres'] ?? ''));
+    if (str_starts_with($klucze[0], 'LP:')) $t = 'WYNAGRODZENIA ' . $okres;
+    else $t = 'WYNAGRODZENIE Z TYT. UMOWY NR ' . trim((string)$d['umowa_numer']) . ' ' . $okres;
+    return trim(preg_replace('/\s+/', ' ', $t));
+}
+
+/**
  * Tytuł zbiorczy dla płatności obejmującej kilka dokumentów jednym przelewem
  * (§2 pkt 10-11). Gdy pełna lista numerów faktur/dokumentów nie mieści się
  * w limicie 140 znaków, używa oznaczenia PAKIET — pełna lista pozostaje
@@ -1968,7 +1999,7 @@ function edok_iso20022_export(array $docs, string $rachunek_zlecen_nrb): string 
         $w->startElement('InitgPty'); $w->writeElement('Nm', $t($nazwa_zlec, 70)); $w->endElement();
       $w->endElement();
       $w->startElement('PmtInf');
-        $w->writeElement('PmtInfId', $msg . '-1'); $w->writeElement('PmtMtd', 'TRF'); $w->writeElement('BtchBookg', 'true');
+        $w->writeElement('PmtInfId', ($paczka = edok_paczka_tytul($docs)) !== '' ? $t($paczka, 35) : $msg . '-1'); $w->writeElement('PmtMtd', 'TRF'); $w->writeElement('BtchBookg', 'true');
         $w->writeElement('NbOfTxs', (string)count($tx)); $w->writeElement('CtrlSum', $fmt($sum));
         $w->writeElement('ReqdExctnDt', date('Y-m-d'));
         $w->startElement('Dbtr'); $w->writeElement('Nm', $t($nazwa_zlec, 70));
@@ -2052,7 +2083,7 @@ function edok_millennium_iso20022_export(array $docs, string $rachunek_zlecen_nr
         $w->startElement('BmOptionsFile'); $w->writeElement('ExecutionDate', $today); $w->endElement();
       $w->endElement();
       $w->startElement('PmtInf');
-        $w->writeElement('PmtInfId', $t('EODoK ' . $today, 45)); // nazwa folderu w Millenet
+        $w->writeElement('PmtInfId', ($paczka = edok_paczka_tytul($docs)) !== '' ? $t($paczka, 45) : $t('EODoK ' . $today, 45)); // nazwa folderu w Millenet
         $w->writeElement('PmtMtd', 'TRF');
         $w->writeElement('ReqdExctnDt', $today);
         $w->startElement('Dbtr'); $w->writeElement('Nm', $t($nazwa_zlec, 78));
@@ -2144,7 +2175,7 @@ function edok_ipko_iso20022_export(array $docs, string $rachunek_zlecen_nrb): st
         $w->startElement('InitgPty'); $w->writeElement('Nm', $t($nazwa_zlec, 140)); $w->endElement();
       $w->endElement();
       $w->startElement('PmtInf');
-        $w->writeElement('PmtInfId', $msg . '-1'); $w->writeElement('PmtMtd', 'TRF'); $w->writeElement('BtchBookg', 'true');
+        $w->writeElement('PmtInfId', ($paczka = edok_paczka_tytul($docs)) !== '' ? $t($paczka, 35) : $msg . '-1'); $w->writeElement('PmtMtd', 'TRF'); $w->writeElement('BtchBookg', 'true');
         $w->writeElement('NbOfTxs', (string)count($tx)); $w->writeElement('CtrlSum', $fmt($sum));
         $w->startElement('ReqdExctnDt'); $w->writeElement('Dt', $today); $w->endElement();
         $w->startElement('Dbtr'); $w->writeElement('Nm', $t($nazwa_zlec, 140));
