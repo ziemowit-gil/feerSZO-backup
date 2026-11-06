@@ -1640,13 +1640,15 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   </div>
 
   <div class="card-body pb-0">
-    <p class="text-muted small mb-2">
+    <details class="mb-2"><summary class="small text-muted" style="cursor:pointer">Jak działa rejestr rachunków</summary>
+    <p class="text-muted small mb-2 mt-2">
       Rejestr rachunków wgranych do systemu przez księgowego lub opiekuna umowy. Po dodaniu rachunku
       zleceniobiorca dostaje e-mail z linkiem do pobrania dokumentu, a system odnotowuje, kiedy plik został pobrany.
       Podpisany rachunek zleceniobiorca <strong>wgrywa przez ten sam link</strong> albo wysyła skanem
       na <?= h(rachunek_skan_email()) ?> w ciągu <?= ZLEC_RACHUNEK_SKAN_DAYS ?> dni — oryginał dostarcza
       w ciągu <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni.
     </p>
+    </details>
     <?php
     // Braki w dokumentach: brak skanu od zleceniobiorcy albo oryginału w koszulce.
     $_braki_rach = array_filter($rachunki, fn($x) => rachunek_braki_dokumentow($x));
@@ -1670,24 +1672,27 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   <style>
   /* Rejestr rachunków — karty zamiast tabeli w .table-responsive (tam menu akcji było przycinane
      i zasłaniało wiersze). Netto (do wypłaty) na pierwszym planie, ścieżka obiegu jako etykiety. */
-  .rach-list { display: flex; flex-direction: column; gap: .75rem; padding: 0 1rem 1rem; }
-  .rach-card { border: 1px solid #e2e8f0; border-radius: .6rem; background: #fff; }
-  .rach-card.is-test { background: #fffbeb; border-color: #fcd34d; }
-  .rach-main { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: flex-start; justify-content: space-between; padding: .85rem 1rem .6rem; }
-  .rach-title { font-weight: 700; font-size: 1.02rem; }
-  .rach-meta { font-size: .8rem; color: #64748b; }
+  /* Metro UI: płasko, bez zaokrągleń; kroki obiegu jako prostokątne kafle */
+  .rach-list, .rach-list * { border-radius: 0 !important; }
+  .rach-list { display: flex; flex-direction: column; gap: .5rem; padding: 0 1rem 1rem; }
+  .rach-card { border: 0; border-left: 6px solid #0072c6; background: #f3f3f3; }
+  .rach-card.is-test { background: #fff4d6; border-left-color: #b45f06; }
+  .rach-main { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: flex-start; justify-content: space-between; padding: .85rem 1rem .5rem; }
+  .rach-title { font-weight: 300; font-size: 1.35rem; line-height: 1.2; }
+  .rach-meta { font-size: .8rem; color: #595959; }
   .rach-amount { text-align: right; min-width: 9rem; }
-  .rach-amount .net { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
-  .rach-amount .lbl { font-size: .72rem; color: #64748b; font-weight: 500; }
-  .rach-flow { display: flex; flex-wrap: wrap; gap: .35rem; padding: 0 1rem .75rem; }
-  .rach-step { display: inline-flex; align-items: center; gap: .3rem; padding: .18rem .55rem; border-radius: 999px; font-size: .75rem; border: 1px solid #e2e8f0; color: #64748b; background: #f8fafc; text-decoration: none; }
-  .rach-step.ok   { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
-  .rach-step.warn { color: #92400e; background: #fffbeb; border-color: #fde68a; }
-  .rach-step.bad  { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
-  .rach-step.edok { color: #1e3a8a; background: #eff6ff; border-color: #bfdbfe; }
-  .rach-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; justify-content: space-between; padding: .55rem 1rem; border-top: 1px solid #f1f5f9; background: #fbfcfe; border-radius: 0 0 .6rem .6rem; }
+  .rach-amount .net { font-size: 1.7rem; font-weight: 300; line-height: 1.1; }
+  .rach-amount .lbl { font-size: .72rem; color: #595959; }
+  .rach-flow { display: flex; flex-wrap: wrap; gap: 3px; padding: 0 1rem .75rem; }
+  .rach-step { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .6rem; font-size: .76rem; background: #d9d9d9; color: #1d1d1d; text-decoration: none; }
+  .rach-step.ok   { background: #128a3f; color: #fff; }
+  .rach-step.warn { background: #b45f06; color: #fff; }
+  .rach-step.bad  { background: #c4262e; color: #fff; }
+  .rach-step.edok { background: #0072c6; color: #fff; }
+  a.rach-step:hover { filter: brightness(.9); color: #fff; }
+  .rach-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; justify-content: space-between; padding: .5rem 1rem; background: #e6e6e6; }
   .rach-actions .btn { font-size: .8rem; }
-  .rach-com { border-top: 1px solid #e2e8f0; background: #f8fafc; border-radius: 0 0 .6rem .6rem; }
+  .rach-com { background: #fff; }
   </style>
   <div class="rach-list">
     <?php foreach ($rachunki as $rr):
