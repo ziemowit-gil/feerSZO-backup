@@ -1321,7 +1321,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
 </div><!-- /.edok-page -->
 
 <?php if (edok_has_unlock_perm()): ?>
-<div class="modal fade" id="unlockModal" tabindex="-1">
+<div class="modal fade edok-wizard" id="unlockModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <form method="post">
@@ -1343,7 +1343,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
 <?php endif; ?>
 
 <?php if ($can_export_przelew): ?>
-<div class="modal fade" id="przelewExportModal" tabindex="-1">
+<div class="modal fade edok-wizard" id="przelewExportModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <form method="post" action="<?= APP_URL ?>/edok/preliminarz.php">
