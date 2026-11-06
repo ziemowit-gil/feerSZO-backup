@@ -137,12 +137,38 @@ function prz_rach_generuj(array $rids, string $nrb_z, string $format, bool $ozna
             . ' były już w pliku przelewów — zaznacz „Potwierdzam ponowne ujęcie”, jeśli to nie podwójna płatność.'];
     }
 
-    $docs = array_map('prz_rach_doc', $rows);
-    $plik = edok_przelewy_export($docs, $nrb_z, $format);
-    if ($plik['content'] === '') return ['ok' => false, 'msg' => 'Eksporter nie zwrócił żadnego przelewu — sprawdź numery kont.'];
+    // Każda paczka (umowa + miesiąc) osobnym plikiem z własnym tytułem paczki (edok_paczka_tytul());
+    // przy kilku paczkach pliki lecą razem w ZIP-ie.
+    $grupy = [];
+    foreach ($rows as $r) { $d = prz_rach_doc($r); $grupy[edok_paczka_klucz($d)][] = $d; }
+    $pliki = [];
+    $prefix = '';
+    foreach ($grupy as $gdocs) {
+        $pl = edok_przelewy_export($gdocs, $nrb_z, $format);
+        if ($pl['content'] === '') continue;
+        $prefix = $prefix ?: $pl['prefix'];
+        $pt = edok_paczka_tytul($gdocs);
+        $ps = $pt !== '' ? '_' . mb_substr(trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $pt) ?: ''), '_'), 0, 60) : '';
+        $pliki[] = ['nazwa' => 'Przelewy_rachunki_' . ($ym !== '' ? $ym . '_' : '') . $pl['prefix'] . '_' . substr($nrb_z, -4) . $ps . '_' . date('Y-m-d_His') . '.' . $pl['ext'],
+                    'content' => $pl['content'], 'ext' => $pl['ext'], 'paczka' => $pt];
+    }
+    if (!$pliki) return ['ok' => false, 'msg' => 'Eksporter nie zwrócił żadnego przelewu — sprawdź numery kont.'];
+    $plik = ['prefix' => $prefix, 'ext' => $pliki[0]['ext'], 'content' => $pliki[0]['content']];
+    if (count($pliki) > 1) {
+        $tmp = tempnam(sys_get_temp_dir(), 'prz');
+        $zip = new ZipArchive();
+        if ($zip->open($tmp, ZipArchive::OVERWRITE) !== true) return ['ok' => false, 'msg' => 'Nie udało się utworzyć archiwum ZIP.'];
+        foreach ($pliki as $pf) $zip->addFromString($pf['nazwa'], $pf['content']);
+        $zip->close();
+        $plik = ['prefix' => $prefix, 'ext' => 'zip', 'content' => (string) file_get_contents($tmp)];
+        @unlink($tmp);
+    }
+    $paczki_opis = implode('; ', array_filter(array_column($pliki, 'paczka')));
 
     $suma  = array_sum(array_map(fn($r) => round((float)$r['kwota_netto'], 2), $rows));
-    $nazwa = 'Przelewy_rachunki_' . ($ym !== '' ? $ym . '_' : '') . $plik['prefix'] . '_' . substr($nrb_z, -4) . '_' . date('Y-m-d_His') . '.' . $plik['ext'];
+    $nazwa = count($pliki) > 1
+        ? 'Przelewy_rachunki_' . ($ym !== '' ? $ym . '_' : '') . count($pliki) . '_paczki_' . date('Y-m-d_His') . '.zip'
+        : $pliki[0]['nazwa'];
     $dir   = rtrim(UPLOAD_DIR, '/') . '/przelewy_rachunki/';
     if (!is_dir($dir)) @mkdir($dir, 0750, true);
     $rel   = is_dir($dir) && file_put_contents($dir . $nazwa, $plik['content']) !== false ? 'przelewy_rachunki/' . $nazwa : null;
@@ -173,7 +199,7 @@ function prz_rach_generuj(array $rids, string $nrb_z, string $format, bool $ozna
             if ($prev !== $nowy) {
                 db_exec("UPDATE edok_documents SET status_platnosci = ?, updated_at = datetime('now') WHERE id = ?", [$nowy, (int)$r['edok']['id']]);
                 edok_log((int)$r['edok']['id'], 'status_platnosci', '', $prev, $nowy,
-                    'Przelew w pliku „Przelewy za rachunki” #' . $pid . ' (netto ' . number_format((float)$r['kwota_netto'], 2, ',', ' ') . ' zł) — status płatności: '
+                    'Przelew w pliku „Przelewy za rachunki” #' . $pid . ($paczki_opis !== '' ? ' (paczka: ' . $paczki_opis . ')' : '') . ' (netto ' . number_format((float)$r['kwota_netto'], 2, ',', ' ') . ' zł) — status płatności: '
                     . ($nowy === 'oplacony' ? 'Opłacony' : 'Zlecony do banku') . '.');
             }
         }
@@ -190,6 +216,29 @@ function prz_rach_generuj(array $rids, string $nrb_z, string $format, bool $ozna
         'plik' => ['nazwa' => $nazwa, 'content' => $plik['content']],
         'przelew_id' => $pid,
     ];
+}
+
+/**
+ * Masowe przekazanie rachunków do EODoK (obieg papierowy — dokument od razu do zapłaty).
+ * Pomija rachunki, które już są w EODoK/KDOK albo mają problem inny niż „brak w EODoK”.
+ *
+ * @return array{ok:int, bledy:string[]}
+ */
+function prz_rach_do_edok(array $rids, ?int $user_id): array {
+    prz_rach_migrate();
+    $ok = 0; $bledy = [];
+    foreach (array_values(array_unique(array_map('intval', $rids))) as $rid) {
+        if ($rid <= 0) continue;
+        $r = get_rachunek($rid);
+        $etykieta = $r ? (($r['numer'] ?: '#' . $rid)) : '#' . $rid;
+        try {
+            $res = rachunek_push_to_edok($rid, $user_id, true);
+        } catch (\Throwable $e) {
+            $res = ['ok' => false, 'msg' => 'Błąd: ' . $e->getMessage()];
+        }
+        if (!empty($res['ok'])) $ok++; else $bledy[] = $etykieta . ': ' . $res['msg'];
+    }
+    return ['ok' => $ok, 'bledy' => $bledy];
 }
 
 /** „1 przelew”, „3 przelewy”, „5 przelewów”. */

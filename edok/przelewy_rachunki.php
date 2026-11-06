@@ -38,6 +38,20 @@ $_okres_in = (string)($_POST['okres'] ?? $_GET['okres'] ?? '');
 // Domyślnie wszystkie niezapłacone — filtr miesiąca ukrywał rachunki wystawione za inny okres.
 $ym = preg_match('/^\d{4}-\d{2}$/', $_okres_in) ? $_okres_in : '';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'do_edok') {
+    csrf_check();
+    $rids = (array)($_POST['rid'] ?? []);
+    if (!$rids) {
+        flash_set('warning', 'Zaznacz co najmniej jeden rachunek do przekazania.');
+    } else {
+        $w = prz_rach_do_edok($rids, (int)(current_user()['id'] ?? 0) ?: null);
+        if ($w['ok']) flash_set('success', 'Przekazano do EODoK: ' . $w['ok'] . ' ' . ($w['ok'] === 1 ? 'rachunek' : 'rachunków') . ' (obieg papierowy — dokumenty są do zapłaty).');
+        if ($w['bledy']) flash_set('warning', 'Nie przekazano: ' . implode(' · ', $w['bledy']));
+    }
+    header('Location: przelewy_rachunki.php?okres=' . urlencode($ym === '' ? 'wszystkie' : $ym));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'generuj') {
     csrf_check();
     $res = prz_rach_generuj(
@@ -100,12 +114,38 @@ require_once __DIR__ . '/../includes/header.php';
 
   <form method="post" id="przForm" class="prz-card">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <input type="hidden" name="action" value="generuj">
     <input type="hidden" name="okres" value="<?= h($ym === '' ? 'wszystkie' : $ym) ?>">
 
     <?php if (!$rows): ?>
       <p class="tw-m-0 tw-text-sm tw-text-slate-600">Brak rachunków <?= $ym ? 'za ' . h(edok_okres_label($ym)) : 'do zapłaty' ?>.</p>
     <?php else: ?>
+    <div class="tw-mb-3 tw-grid tw-gap-3 md:tw-grid-cols-4" role="search" aria-label="Filtrowanie listy rachunków">
+      <div class="md:tw-col-span-2">
+        <label for="przQ" class="prz-label">Szukaj (osoba, umowa RU, numer rachunku)</label>
+        <input id="przQ" type="search" class="prz-input tw-w-full" autocomplete="off">
+      </div>
+      <div>
+        <label for="przStan" class="prz-label">Stan</label>
+        <select id="przStan" class="prz-input tw-w-full">
+          <option value="">Wszystkie</option>
+          <option value="brak">Nie ma w EODoK</option>
+          <option value="edok">Jest w EODoK</option>
+          <option value="plik">Już w pliku przelewów</option>
+          <option value="problem">Z problemem</option>
+          <option value="gotowe">Gotowe do wyboru</option>
+        </select>
+      </div>
+      <div>
+        <label for="przRu" class="prz-label">Umowa (RU)</label>
+        <select id="przRu" class="prz-input tw-w-full">
+          <option value="">Wszystkie</option>
+          <?php $_rus = []; foreach ($rows as $r) if ($r['umowa_ref'] !== '') $_rus[$r['umowa_ref']] = true; ksort($_rus); foreach (array_keys($_rus) as $ru): ?>
+          <option value="<?= h(mb_strtolower($ru)) ?>"><?= h($ru) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+    <p class="tw-m-0 tw-mb-2 tw-text-xs tw-text-slate-500" aria-live="polite">Widoczne: <strong id="przWidoczne"><?= count($rows) ?></strong> z <?= count($rows) ?>. Zaznaczenie „wszystkie” i suma dotyczą tylko widocznych wierszy.</p>
     <div class="tw-overflow-x-auto">
       <table class="prz-table tw-w-full">
         <thead><tr>
@@ -120,7 +160,9 @@ require_once __DIR__ . '/../includes/header.php';
         </tr></thead>
         <tbody>
         <?php foreach ($rows as $r): $ok = $r['problem'] === null; ?>
-          <tr class="<?= $ok ? '' : 'tw-text-slate-400' ?>">
+          <?php $_stan = [!empty($r['edok']) ? 'edok' : 'brak', !empty($r['przelew_id']) ? 'plik' : '', $ok ? 'gotowe' : 'problem'];
+                $_hay = mb_strtolower($r['imie_nazwisko'] . ' ' . $r['umowa_ref'] . ' ' . $r['numer'] . ' ' . ($r['edok']['number'] ?? '')); ?>
+          <tr class="prz-row <?= $ok ? '' : 'tw-text-slate-400' ?>" data-hay="<?= h($_hay) ?>" data-stan="<?= h(implode(' ', array_filter($_stan))) ?>" data-ru="<?= h(mb_strtolower($r['umowa_ref'])) ?>">
             <td><input type="checkbox" class="form-check-input prz-cb" name="rid[]" value="<?= (int)$r['id'] ?>"
                    data-kwota="<?= h((string)(float)($r['kwota_netto'] ?? 0)) ?>" <?= $ok ? (empty($r['ponowny']) ? 'checked' : '') : 'disabled' ?>
                    aria-label="<?= h($r['imie_nazwisko'] . ' ' . $r['numer']) ?>"></td>
@@ -170,7 +212,10 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="tw-mt-4 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3">
       <p class="tw-m-0 tw-text-sm" aria-live="polite">Zaznaczone: <strong id="przIle">0</strong> · suma netto <strong id="przSuma">0,00</strong> zł</p>
-      <button type="submit" class="btn btn-primary" <?= $do_wyboru && $konta ? '' : 'disabled' ?>><i class="bi bi-download me-1" aria-hidden="true"></i> Generuj plik przelewów</button>
+      <div class="tw-flex tw-flex-wrap tw-gap-2">
+      <button type="submit" name="action" value="do_edok" class="btn btn-outline-primary" <?= $do_wyboru ? '' : 'disabled' ?> title="Przekazuje zaznaczone rachunki (bez dokumentu EODoK) do EODoK jako dokumenty do zapłaty — obieg papierowy"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Przekaż zaznaczone do EODoK</button>
+      <button type="submit" name="action" value="generuj" class="btn btn-primary" <?= $do_wyboru && $konta ? '' : 'disabled' ?>><i class="bi bi-download me-1" aria-hidden="true"></i> Generuj plik przelewów</button>
+      </div>
     </div>
     <?php endif; ?>
   </form>
@@ -202,16 +247,29 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script>
 (function () {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('.prz-row'));
   var cbs = Array.prototype.slice.call(document.querySelectorAll('.prz-cb'));
   var all = document.getElementById('przAll');
+  var q = document.getElementById('przQ'), stan = document.getElementById('przStan'), ru = document.getElementById('przRu');
   function upd() {
     var n = 0, s = 0;
     cbs.forEach(function (c) { if (c.checked) { n++; s += parseFloat(c.dataset.kwota || '0'); } });
     document.getElementById('przIle').textContent = n;
     document.getElementById('przSuma').textContent = s.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  function filtruj() {
+    var t = q ? q.value.trim().toLowerCase() : '', st = stan ? stan.value : '', r = ru ? ru.value : '', vis = 0;
+    rows.forEach(function (tr) {
+      var ok = (!t || tr.dataset.hay.indexOf(t) !== -1) && (!st || (' ' + tr.dataset.stan + ' ').indexOf(' ' + st + ' ') !== -1) && (!r || tr.dataset.ru === r);
+      tr.hidden = !ok;
+      if (ok) vis++; else { var c = tr.querySelector('.prz-cb'); if (c) c.checked = false; } // ukryty wiersz nie wchodzi do wysyłki
+    });
+    var w = document.getElementById('przWidoczne'); if (w) w.textContent = vis;
+    upd();
+  }
   cbs.forEach(function (c) { c.addEventListener('change', upd); });
-  if (all) all.addEventListener('change', function () { cbs.forEach(function (c) { if (!c.disabled) c.checked = all.checked; }); upd(); });
+  if (all) all.addEventListener('change', function () { cbs.forEach(function (c) { if (!c.disabled && !c.closest('tr').hidden) c.checked = all.checked; }); upd(); });
+  [q, stan, ru].forEach(function (el) { if (el) el.addEventListener('input', filtruj); });
   if (cbs.length) upd();
 })();
 </script>
