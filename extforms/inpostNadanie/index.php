@@ -98,20 +98,31 @@ $field = function (string $f, string $label, string $extra = '') use ($old, $err
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Nadaj przesyłkę InPost</title>
 <style>
-body{font:16px/1.5 system-ui,sans-serif;margin:0;background:#f4f6f8;color:#1a1a1a}
+:root{--c:#00758f;--cd:#005a6e;--ink:#1d1d1d;--bd:#6b6b6b}
+*{border-radius:0!important}
+body{font:16px/1.5 "Segoe UI","Helvetica Neue",Arial,sans-serif;margin:0;background:#fff;color:var(--ink)}
+header.top{background:var(--c);color:#fff;padding:28px 16px 20px}
+header.top div{max-width:640px;margin:0 auto}
+header.top h1{font-size:2.4rem;font-weight:300;margin:0;letter-spacing:-.5px}
+header.top p{margin:4px 0 0;font-weight:300;opacity:.95}
 main{max-width:640px;margin:0 auto;padding:16px}
-.card{background:#fff;border:1px solid #c9d1d9;border-radius:6px;padding:20px;margin-bottom:16px}
-h1{font-size:1.5rem;margin:0 0 8px} fieldset{border:1px solid #c9d1d9;border-radius:6px;margin:0 0 16px;padding:12px 16px} legend{font-weight:600;padding:0 6px}
+.card{background:#f3f3f3;border:0;border-left:8px solid var(--c);padding:20px;margin-bottom:16px}
+fieldset{border:0;border-top:2px solid var(--c);margin:0 0 20px;padding:12px 0 0}
+legend{font-size:1.25rem;font-weight:300;color:var(--c);padding:0 8px 0 0}
 .f{margin-bottom:12px} label{display:block;font-weight:600;margin-bottom:4px}
-input,select{width:100%;box-sizing:border-box;padding:8px;font:inherit;border:2px solid #6b7785;border-radius:4px;background:#fff;color:#1a1a1a}
-input:focus,select:focus,button:focus,a:focus{outline:3px solid #0b5fff;outline-offset:2px}
-[aria-invalid=true]{border-color:#b00020}.err{color:#b00020;font-weight:600;margin-top:4px}
-button,.btn{display:inline-block;background:#0b5fff;color:#fff;border:0;border-radius:4px;padding:10px 20px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
-.sum{border:2px solid #b00020;background:#fdecee;padding:12px;border-radius:6px;margin-bottom:16px}
-.ok{border:2px solid #1b7a3a;background:#e8f6ec}.code{font:700 1.6rem/1.3 ui-monospace,monospace;word-break:break-all}
-.hp{position:absolute;left:-9999px}.sb{background:#fff3cd;border:1px solid #c9a400;padding:6px 10px;border-radius:4px;margin-bottom:12px}
-</style></head><body><main>
-<h1>Nadaj przesyłkę InPost</h1>
+input,select{width:100%;box-sizing:border-box;padding:10px;font:inherit;border:2px solid var(--bd);background:#fff;color:var(--ink)}
+input:hover,select:hover{border-color:var(--c)}
+input:focus,select:focus,button:focus,a:focus{outline:3px solid #000;outline-offset:2px;border-color:var(--c)}
+[aria-invalid=true]{border-color:#a4001c}.err{color:#a4001c;font-weight:600;margin-top:4px}
+button,.btn{display:inline-block;background:var(--c);color:#fff;border:0;padding:12px 28px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
+button:hover,.btn:hover{background:var(--cd)}
+.sum{border-left:8px solid #a4001c;background:#fbe9ec;padding:12px 16px;margin-bottom:16px}
+.ok{background:var(--c);color:#fff;border-left:0;padding:24px}.ok h2{font-weight:300;font-size:1.8rem}
+.code{font:700 2.2rem/1.2 "Segoe UI",ui-monospace,monospace;word-break:break-all;margin:8px 0}
+.hp{position:absolute;left:-9999px}.sb{background:#ffd9a0;color:#1d1d1d;border-left:8px solid #c25400;padding:8px 12px;margin-bottom:12px}
+.ok .sb{margin-top:12px}
+</style></head><body><header class="top"><div><h1>Nadaj przesyłkę InPost</h1><p>Wygeneruj numer nadania do Paczkomatu</p></div></header>
+<main>
 <?php if (!$enabled || !$keyOk): ?>
   <div class="card" role="alert">Formularz jest obecnie niedostępny.</div>
 <?php elseif ($done): ?>
