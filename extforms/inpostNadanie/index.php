@@ -27,22 +27,34 @@ $old = ['name'=>'','email'=>'','phone'=>'','street'=>'','building'=>'','post_cod
 $done = null;
 $cu = current_user();
 
-// Zalogowany w Panelu Współpracownika → uzupełnij dane nadawcy (imię i nazwisko, e-mail, telefon, adres z umowy wolontariackiej)
-if ($cu && $_SERVER['REQUEST_METHOD'] !== 'POST') {
-    $old['name']  = trim((string)(($cu['first_name'] ?? '') . ' ' . ($cu['last_name'] ?? ''))) ?: (string)($cu['name'] ?? '');
-    $old['email'] = (string)($cu['email'] ?? '');
-    $old['phone'] = preg_replace('/\D/', '', (string)($cu['phone_number'] ?? ''));
-    if (strlen($old['phone']) === 11 && str_starts_with($old['phone'], '48')) $old['phone'] = substr($old['phone'], 2);
+// Zalogowany w Panelu Współpracownika → uzupełnij dane nadawcy. Źródło do wyboru: konto (ustawienia) albo najnowsza umowa.
+$src = in_array($_GET['src'] ?? '', ['konto', 'umowa'], true) ? $_GET['src'] : '';
+$contract = null;
+if ($cu) {
     try {
-        $a = db_one("SELECT addr_street, addr_house, addr_flat, addr_postal, addr_city FROM umowy_wolontariat
-                     WHERE lower(email)=lower(?) AND COALESCE(addr_street,'')<>'' ORDER BY id DESC LIMIT 1", [$old['email']]);
-        if ($a) {
-            $old['street'] = (string)$a['addr_street'];
-            $old['building'] = trim($a['addr_house'] . ($a['addr_flat'] !== '' && $a['addr_flat'] !== null ? '/' . $a['addr_flat'] : ''));
-            $old['post_code'] = (string)$a['addr_postal']; $old['city'] = (string)$a['addr_city'];
-        }
+        $contract = db_one("SELECT imie_nazwisko, email, telefon, addr_street, addr_house, addr_flat, addr_postal, addr_city FROM umowy_wolontariat
+                            WHERE lower(email)=lower(?) ORDER BY id DESC LIMIT 1", [(string)($cu['email'] ?? '')]);
     } catch (Throwable $e) {}
+    if ($src === '') $src = $contract ? 'umowa' : 'konto';
 }
+$normPhone = function (string $v): string {
+    $d = preg_replace('/\D/', '', $v);
+    return (strlen($d) === 11 && str_starts_with($d, '48')) ? substr($d, 2) : $d;
+};
+if ($cu && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    if ($src === 'umowa' && $contract) {
+        $old['name'] = (string)$contract['imie_nazwisko']; $old['email'] = (string)$contract['email'];
+        $old['phone'] = $normPhone((string)$contract['telefon']);
+        $old['street'] = (string)$contract['addr_street'];
+        $old['building'] = trim($contract['addr_house'] . (($contract['addr_flat'] ?? '') !== '' ? '/' . $contract['addr_flat'] : ''));
+        $old['post_code'] = (string)$contract['addr_postal']; $old['city'] = (string)$contract['addr_city'];
+    } else {
+        $old['name']  = trim((string)(($cu['first_name'] ?? '') . ' ' . ($cu['last_name'] ?? ''))) ?: (string)($cu['name'] ?? '');
+        $old['email'] = (string)($cu['email'] ?? '');
+        $old['phone'] = $normPhone((string)($cu['phone_number'] ?? ''));
+    }
+}
+$srcUrl = fn(string $v) => $self . '?src=' . $v . ($key !== '' ? '&k=' . rawurlencode($key) : '');
 $loginUrl = APP_URL . '/auth/login.php?redirect=' . urlencode($self . $keyQ);
 $enabled = inpostSetting('public_enabled', '0') === '1' && inpostConfigured();
 $allowCustom = inpostSetting('allow_locker_custom', '1') === '1';
@@ -173,7 +185,7 @@ button:hover,.btn:hover{background:var(--cd)}
     <?php foreach ($errors as $f => $m): ?><li><?= $f === '_' ? h($m) : '<a href="#' . h($f) . '">' . h($m) . '</a>' ?></li><?php endforeach; ?></ul></div>
     <script>document.getElementById('sum').focus()</script><?php endif; ?>
   <p class="card" style="margin-bottom:12px">FEER ma umowę z InPost, dlatego opłatę za przesyłkę pokrywa Fundacja.</p>
-  <?php if ($cu): ?><p class="sb" style="background:#e1f1f4;border-left-color:#00758f">Zalogowano jako <?= h($cu['name'] ?? $cu['email'] ?? '') ?> — dane zostały uzupełnione automatycznie. Sprawdź je przed wysłaniem.</p>
+  <?php if ($cu): ?><p class="sb" style="background:#e1f1f4;border-left-color:#00758f">Zalogowano jako <?= h($cu['name'] ?? $cu['email'] ?? '') ?> — dane uzupełniono automatycznie. Źródło danych: <?php if ($src === 'umowa'): ?><strong>z umowy</strong> · <a href="<?= h($srcUrl('konto')) ?>">użyj danych z konta</a><?php else: ?><strong>z konta (ustawień)</strong><?php if ($contract): ?> · <a href="<?= h($srcUrl('umowa')) ?>">użyj danych z umowy</a><?php endif; ?><?php endif; ?>. Sprawdź je przed wysłaniem.</p>
   <?php else: ?><p class="card" style="margin-bottom:12px">Masz konto w Panelu Współpracownika? <a href="<?= h($loginUrl) ?>">Zaloguj się</a> — dane uzupełnią się automatycznie.</p><?php endif; ?>
   <form method="post" action="<?= h($self . $keyQ) ?>" novalidate class="card">
     <?= csrf_field() ?><input type="hidden" name="k" value="<?= h($key !== '' ? (string)($_GET['k'] ?? $_POST['k'] ?? '') : '') ?>">
