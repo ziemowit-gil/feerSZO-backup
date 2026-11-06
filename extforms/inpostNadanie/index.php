@@ -28,31 +28,46 @@ $done = null;
 $cu = current_user();
 
 // Zalogowany w Panelu Współpracownika → uzupełnij dane nadawcy. Źródło do wyboru: konto (ustawienia) albo najnowsza umowa.
-$src = in_array($_GET['src'] ?? '', ['konto', 'umowa'], true) ? $_GET['src'] : '';
-$contract = null;
+$srcLabels = ['konto' => 'z konta (ustawień)', 'wolontariat' => 'z umowy wolontariackiej', 'zlecenie' => 'z umowy zlecenia'];
+$src = isset($srcLabels[$_GET['src'] ?? '']) ? $_GET['src'] : '';
+$contracts = [];
 if ($cu) {
+    $em = (string)($cu['email'] ?? '');
     try {
-        $contract = db_one("SELECT imie_nazwisko, email, telefon, addr_street, addr_house, addr_flat, addr_postal, addr_city FROM umowy_wolontariat
-                            WHERE lower(email)=lower(?) ORDER BY id DESC LIMIT 1", [(string)($cu['email'] ?? '')]);
+        $r = db_one("SELECT imie_nazwisko, email, telefon, addr_street, addr_house, addr_flat, addr_postal, addr_city, created_at FROM umowy_wolontariat
+                     WHERE lower(email)=lower(?) ORDER BY id DESC LIMIT 1", [$em]);
+        if ($r) $contracts['wolontariat'] = $r;
     } catch (Throwable $e) {}
-    if ($src === '') $src = $contract ? 'umowa' : 'konto';
+    try {
+        $r = db_one("SELECT imie_nazwisko, email, '' AS telefon, addr_street, addr_house, addr_flat, addr_postal, addr_city, created_at FROM umowy_zlecenie
+                     WHERE lower(email)=lower(?) ORDER BY id DESC LIMIT 1", [$em]);
+        if ($r) $contracts['zlecenie'] = $r;
+    } catch (Throwable $e) {}
+    if ($src === '' || ($src !== 'konto' && !isset($contracts[$src]))) {
+        $src = 'konto'; $newest = '';
+        foreach ($contracts as $k => $c) if ((string)$c['created_at'] >= $newest) { $newest = (string)$c['created_at']; $src = $k; }
+    }
 }
 $normPhone = function (string $v): string {
     $d = preg_replace('/\D/', '', $v);
     return (strlen($d) === 11 && str_starts_with($d, '48')) ? substr($d, 2) : $d;
 };
+$missing = [];
 if ($cu && $_SERVER['REQUEST_METHOD'] !== 'POST') {
-    if ($src === 'umowa' && $contract) {
-        $old['name'] = (string)$contract['imie_nazwisko']; $old['email'] = (string)$contract['email'];
-        $old['phone'] = $normPhone((string)$contract['telefon']);
-        $old['street'] = (string)$contract['addr_street'];
-        $old['building'] = trim($contract['addr_house'] . (($contract['addr_flat'] ?? '') !== '' ? '/' . $contract['addr_flat'] : ''));
-        $old['post_code'] = (string)$contract['addr_postal']; $old['city'] = (string)$contract['addr_city'];
-    } else {
-        $old['name']  = trim((string)(($cu['first_name'] ?? '') . ' ' . ($cu['last_name'] ?? ''))) ?: (string)($cu['name'] ?? '');
-        $old['email'] = (string)($cu['email'] ?? '');
-        $old['phone'] = $normPhone((string)($cu['phone_number'] ?? ''));
+    $acc = ['name' => trim((string)(($cu['first_name'] ?? '') . ' ' . ($cu['last_name'] ?? ''))) ?: (string)($cu['name'] ?? ''),
+            'email' => (string)($cu['email'] ?? ''), 'phone' => $normPhone((string)($cu['phone_number'] ?? ''))];
+    $old['name'] = $acc['name']; $old['email'] = $acc['email']; $old['phone'] = $acc['phone'];
+    if ($src !== 'konto' && isset($contracts[$src])) {
+        $c = $contracts[$src];
+        if (trim((string)$c['imie_nazwisko']) !== '') $old['name'] = (string)$c['imie_nazwisko'];
+        if (trim((string)$c['email']) !== '') $old['email'] = (string)$c['email'];
+        if ($normPhone((string)$c['telefon']) !== '') $old['phone'] = $normPhone((string)$c['telefon']);
+        $old['street'] = (string)$c['addr_street'];
+        $old['building'] = trim($c['addr_house'] . (($c['addr_flat'] ?? '') !== '' ? '/' . $c['addr_flat'] : ''));
+        $old['post_code'] = (string)$c['addr_postal']; $old['city'] = (string)$c['addr_city'];
     }
+    $lbl = ['name' => 'imię i nazwisko', 'email' => 'e-mail', 'phone' => 'telefon', 'street' => 'ulica', 'building' => 'numer budynku', 'post_code' => 'kod pocztowy', 'city' => 'miejscowość'];
+    foreach ($lbl as $f => $l) if (trim((string)$old[$f]) === '') $missing[$f] = $l;
 }
 $srcUrl = fn(string $v) => $self . '?src=' . $v . ($key !== '' ? '&k=' . rawurlencode($key) : '');
 $loginUrl = APP_URL . '/auth/login.php?redirect=' . urlencode($self . $keyQ);
@@ -134,7 +149,7 @@ if ($enabled && $keyOk && $_SERVER['REQUEST_METHOD'] === 'POST') {
 $_SESSION['inpost_ts'] = $_SESSION['inpost_ts'] ?? time();
 
 $err = fn(string $f) => isset($errors[$f]) ? '<div id="e_' . $f . '" class="err" role="alert">' . h($errors[$f]) . '</div>' : '';
-$aria = fn(string $f) => isset($errors[$f]) ? ' aria-invalid="true" aria-describedby="e_' . $f . '"' : '';
+$aria = fn(string $f) => (isset($errors[$f]) || isset($missing[$f])) ? ' aria-invalid="true"' . (isset($errors[$f]) ? ' aria-describedby="e_' . $f . '"' : '') : '';
 $field = function (string $f, string $label, string $extra = '') use ($old, $err, $aria) {
     return '<div class="f"><label for="' . $f . '">' . $label . '</label><input id="' . $f . '" name="' . $f . '" value="' . h($old[$f]) . '" required ' . $extra . $aria($f) . '>' . $err($f) . '</div>';
 };
@@ -185,8 +200,10 @@ button:hover,.btn:hover{background:var(--cd)}
     <?php foreach ($errors as $f => $m): ?><li><?= $f === '_' ? h($m) : '<a href="#' . h($f) . '">' . h($m) . '</a>' ?></li><?php endforeach; ?></ul></div>
     <script>document.getElementById('sum').focus()</script><?php endif; ?>
   <p class="card" style="margin-bottom:12px">FEER ma umowę z InPost, dlatego opłatę za przesyłkę pokrywa Fundacja.</p>
-  <?php if ($cu): ?><p class="sb" style="background:#e1f1f4;border-left-color:#00758f">Zalogowano jako <?= h($cu['name'] ?? $cu['email'] ?? '') ?> — dane uzupełniono automatycznie. Źródło danych: <?php if ($src === 'umowa'): ?><strong>z umowy</strong> · <a href="<?= h($srcUrl('konto')) ?>">użyj danych z konta</a><?php else: ?><strong>z konta (ustawień)</strong><?php if ($contract): ?> · <a href="<?= h($srcUrl('umowa')) ?>">użyj danych z umowy</a><?php endif; ?><?php endif; ?>. Sprawdź je przed wysłaniem.</p>
+  <?php if ($cu): ?><p class="sb" style="background:#e1f1f4;border-left-color:#00758f">Zalogowano jako <?= h($cu['name'] ?? $cu['email'] ?? '') ?> — dane uzupełniono automatycznie. Źródło danych: <strong><?= h($srcLabels[$src]) ?></strong><?php foreach (array_merge(['konto'], array_keys($contracts)) as $o): if ($o !== $src): ?> · <a href="<?= h($srcUrl($o)) ?>">użyj danych <?= h($srcLabels[$o]) ?></a><?php endif; endforeach; ?>. Sprawdź je przed wysłaniem.</p>
   <?php else: ?><p class="card" style="margin-bottom:12px">Masz konto w Panelu Współpracownika? <a href="<?= h($loginUrl) ?>">Zaloguj się</a> — dane uzupełnią się automatycznie.</p><?php endif; ?>
+  <?php if ($missing): ?><div class="sum" role="alert" id="miss"><strong>Uzupełnij brakujące dane — formularz ich wymaga:</strong><ul>
+    <?php foreach ($missing as $f => $l): ?><li><a href="#<?= h($f) ?>"><?= h(ucfirst($l)) ?></a></li><?php endforeach; ?></ul></div><?php endif; ?>
   <form method="post" action="<?= h($self . $keyQ) ?>" novalidate class="card">
     <?= csrf_field() ?><input type="hidden" name="k" value="<?= h($key !== '' ? (string)($_GET['k'] ?? $_POST['k'] ?? '') : '') ?>">
     <div class="hp" aria-hidden="true"><label>Strona www<input name="website" tabindex="-1" autocomplete="off"></label></div>
@@ -201,19 +218,23 @@ button:hover,.btn:hover{background:var(--cd)}
     </fieldset>
     <fieldset><legend>Przesyłka</legend>
       <div class="f"><label for="service">Rodzaj usługi</label><select id="service" name="service"<?= $aria('service') ?>>
-        <option value="inpost_locker_standard"<?= ($old['service']==='inpost_locker_standard' && empty($custom))?' selected':'' ?>>Paczkomat (nadanie w Paczkomacie)</option>
-        <?php if ($allowCustom): ?><option value="locker_custom"<?= !empty($custom) ? ' selected' : '' ?>>Paczkomat → Paczkomat (wskażę odbiorcę i Paczkomat)</option><?php endif; ?>
-        <option value="inpost_courier_standard"<?= $old['service']==='inpost_courier_standard'?' selected':'' ?>>Kurier (odbiór spod adresu)</option></select><?= $err('service') ?></div>
+        <option value="inpost_locker_standard"<?= ($old['service']==='inpost_locker_standard' && empty($custom))?' selected':'' ?>>Nadaj do Fundacji — w Paczkomacie</option>
+        <?php if ($allowCustom): ?><option value="locker_custom"<?= !empty($custom) ? ' selected' : '' ?>>Paczkomat → Paczkomat (inny odbiorca, wskażę go)</option><?php endif; ?>
+        <option value="inpost_courier_standard"<?= $old['service']==='inpost_courier_standard'?' selected':'' ?>>Nadaj do Fundacji — kurier odbierze spod adresu</option></select><?= $err('service') ?></div>
       <div class="f"><label for="size">Rozmiar paczki</label><select id="size" name="size"<?= $aria('size') ?>>
         <?php foreach ($sizes as $k => $l): ?><option value="<?= h($k) ?>"<?= $old['size']===$k?' selected':'' ?>><?= h($l) ?></option><?php endforeach; ?></select><?= $err('size') ?></div>
     </fieldset>
+    <div id="fnd" class="f" aria-live="polite"><strong>Odbiorca (uzupełniony automatycznie):</strong>
+      <div><?= h(inpostSetting('receiver_name', ORG_NAME)) ?><?php if (inpostSetting('receiver_email') !== ''): ?> · <?= h(inpostSetting('receiver_email')) ?><?php endif; ?></div>
+      <div id="fnd_l"><?php if (inpostSetting('receiver_point') !== ''): ?>Paczkomat docelowy: <?= h(strtoupper(inpostSetting('receiver_point'))) ?><?php endif; ?></div>
+      <div id="fnd_c" hidden><?= h(trim(inpostSetting('receiver_street') . ' ' . inpostSetting('receiver_building') . ', ' . inpostSetting('receiver_post_code') . ' ' . inpostSetting('receiver_city'), ' ,')) ?></div></div>
     <?php if ($allowCustom): ?><fieldset id="rcpt"><legend>Odbiorca (Paczkomat → Paczkomat)</legend>
       <?= $field('r_name', 'Imię i nazwisko odbiorcy', 'autocomplete="off"') ?>
       <?= $field('r_email', 'E-mail odbiorcy', 'type="email" autocomplete="off"') ?>
       <?= $field('r_phone', 'Telefon odbiorcy (9 cyfr)', 'type="tel" inputmode="numeric" autocomplete="off"') ?>
       <?= $field('target_point', 'Kod Paczkomatu odbiorcy (np. KRA010)', 'autocomplete="off"') ?>
-    </fieldset>
-    <script>(function(){var s=document.getElementById('service'),f=document.getElementById('rcpt');function u(){var on=s.value==='locker_custom';f.hidden=!on;f.querySelectorAll('input').forEach(function(i){i.required=on;i.disabled=!on})}s.addEventListener('change',u);u()})()</script><?php endif; ?>
+    </fieldset><?php endif; ?>
+    <script>(function(){var s=document.getElementById('service'),f=document.getElementById('rcpt');function u(){var on=s.value==='locker_custom';if(f){f.hidden=!on;f.querySelectorAll('input').forEach(function(i){i.required=on;i.disabled=!on})}document.getElementById('fnd').hidden=on;document.getElementById('fnd_l').hidden=s.value!=='inpost_locker_standard';document.getElementById('fnd_c').hidden=s.value!=='inpost_courier_standard';}s.addEventListener('change',u);u()})()</script>
     <button type="submit">Utwórz przesyłkę</button>
   </form>
 <?php endif; ?>
