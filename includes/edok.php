@@ -783,7 +783,8 @@ function edok_paczka_tytul(array $docs): string {
     $okres = edok_okres_label((string)($d['okres'] ?? ''));
     if (str_starts_with($klucze[0], 'LP:')) $t = 'WYNAGRODZENIA ' . $okres;
     else $t = 'WYNAGRODZENIE Z TYT. UMOWY NR ' . trim((string)$d['umowa_numer']) . ' ' . $okres;
-    return trim(preg_replace('/\s+/', ' ', $t));
+    // Nazwa paczki nie może zawierać „/” (bank) — zamiast niego podwójny podkreślnik: 10__2026, RU__12__2026.
+    return str_replace('/', '__', trim(preg_replace('/\s+/', ' ', $t)));
 }
 
 /**
