@@ -51,6 +51,22 @@ if (module_enabled('dostepnosc_ngo_enabled')) {
         'count_label' => 'nowych',
     ];
 }
+// InPost — niezależny od modułu przesyłek (własne ustawienia i tabela)
+require_once $_root . '/modules/inpost_shipx/logic/inpostShipx.php';
+inpostMigrate();
+$_ipKey = inpostSetting('public_key');
+$forms[] = [
+    'key'         => 'inpostNadanie',
+    'icon'        => 'bi-box-seam',
+    'color'       => 'warning',
+    'title'       => 'Nadanie przesyłki InPost',
+    'subtitle'    => 'FEER — formularz zewnętrzny',
+    'desc'        => 'Publiczne generowanie numeru nadania w Paczkomacie (ShipX).',
+    'admin_url'   => APP_URL . '/admin/inpostSettings.php',
+    'public_url'  => APP_URL . '/extforms/inpostNadanie/' . ($_ipKey !== '' ? '?k=' . rawurlencode($_ipKey) : ''),
+    'count'       => (int)(db_one("SELECT COUNT(*) AS c FROM inpost_shipments")['c'] ?? 0),
+    'count_label' => 'przesyłek',
+];
 ?>
 <div class="container-fluid px-3 px-md-4 py-3">
 
