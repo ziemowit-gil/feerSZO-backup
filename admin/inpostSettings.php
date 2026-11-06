@@ -23,6 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', 'Ustawienia InPost zapisane.');
         header('Location: ' . APP_URL . '/admin/inpostSettings.php'); exit;
     }
+    if (($_POST['_action'] ?? '') === 'webhook_secret') {
+        inpostSettingSave('webhook_secret', bin2hex(random_bytes(16)));
+        flash_set('success', 'Wygenerowano nowy sekret webhooka.');
+        header('Location: ' . APP_URL . '/admin/inpostSettings.php'); exit;
+    }
     if (($_POST['_action'] ?? '') === 'test') {
         try {
             [$c, $r] = inpostRequest('GET', '/v1/organizations/' . rawurlencode(inpostSetting('org_id')));
@@ -60,6 +65,10 @@ $in = fn($k, $l, $t = 'text') => '<div class="mb-3"><label class="form-label" fo
     <button class="btn btn-primary">Zapisz</button>
   </form>
   <form method="post" class="mt-3"><?= csrf_field() ?><input type="hidden" name="_action" value="test"><button class="btn btn-outline-secondary">Testuj połączenie</button></form>
+  <h2 class="h6 mt-4">Webhook statusów (opcjonalnie)</h2>
+  <?php $ws = inpostSetting('webhook_secret'); ?>
+  <p>Adres do wpisania w panelu InPost: <?= $ws !== '' ? '<code>' . h(APP_URL . '/extforms/inpostNadanie/webhook.php?s=' . $ws) . '</code>' : 'wygeneruj sekret, aby uzyskać adres.' ?></p>
+  <form method="post"><?= csrf_field() ?><input type="hidden" name="_action" value="webhook_secret"><button class="btn btn-outline-secondary btn-sm"><?= $ws !== '' ? 'Wygeneruj nowy sekret' : 'Wygeneruj sekret' ?></button></form>
   <?php $rows = db_all("SELECT * FROM inpost_shipments ORDER BY id DESC LIMIT 30"); ?>
   <h2 class="h6 mt-4">Ostatnie przesyłki</h2>
   <div class="table-responsive"><table class="table table-sm"><caption class="visually-hidden">Ostatnie przesyłki InPost</caption>
