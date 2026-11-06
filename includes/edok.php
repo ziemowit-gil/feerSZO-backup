@@ -764,7 +764,8 @@ function edok_generate_tytul_przelewu(array $doc): string {
  */
 function edok_paczka_klucz(array $doc): string {
     if (!empty($doc['_zwrot']) || ($doc['kierunek'] ?? 'wydatek') !== 'wydatek') return '';
-    if (!empty($doc['_wyplata'])) return 'LP:' . (int)($doc['id'] ?? 0);
+    // _wyplata jako tablica = pozycja listy płac; _wyplata === true = rachunek do umowy z rejestru (Przelewy za rachunki).
+    if (!empty($doc['_wyplata']) && is_array($doc['_wyplata'])) return 'LP:' . (int)($doc['id'] ?? 0);
     $umowa = trim((string)($doc['umowa_numer'] ?? ''));
     if (($doc['typ_dokumentu'] ?? '') === 'rachunek' && $umowa !== '') return 'UM:' . $umowa . '|' . (string)($doc['okres'] ?? '');
     return '';
