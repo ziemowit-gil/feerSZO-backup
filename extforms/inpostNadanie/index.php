@@ -25,6 +25,25 @@ $sizes = inpostParcelSizes();
 $errors = [];
 $old = ['name'=>'','email'=>'','phone'=>'','street'=>'','building'=>'','post_code'=>'','city'=>'','size'=>'small','service'=>'inpost_locker_standard','target_point'=>'','r_name'=>'','r_email'=>'','r_phone'=>'','reference'=>''];
 $done = null;
+$cu = current_user();
+
+// Zalogowany w Panelu Współpracownika → uzupełnij dane nadawcy (imię i nazwisko, e-mail, telefon, adres z umowy wolontariackiej)
+if ($cu && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $old['name']  = trim((string)(($cu['first_name'] ?? '') . ' ' . ($cu['last_name'] ?? ''))) ?: (string)($cu['name'] ?? '');
+    $old['email'] = (string)($cu['email'] ?? '');
+    $old['phone'] = preg_replace('/\D/', '', (string)($cu['phone_number'] ?? ''));
+    if (strlen($old['phone']) === 11 && str_starts_with($old['phone'], '48')) $old['phone'] = substr($old['phone'], 2);
+    try {
+        $a = db_one("SELECT addr_street, addr_house, addr_flat, addr_postal, addr_city FROM umowy_wolontariat
+                     WHERE lower(email)=lower(?) AND COALESCE(addr_street,'')<>'' ORDER BY id DESC LIMIT 1", [$old['email']]);
+        if ($a) {
+            $old['street'] = (string)$a['addr_street'];
+            $old['building'] = trim($a['addr_house'] . ($a['addr_flat'] !== '' && $a['addr_flat'] !== null ? '/' . $a['addr_flat'] : ''));
+            $old['post_code'] = (string)$a['addr_postal']; $old['city'] = (string)$a['addr_city'];
+        }
+    } catch (Throwable $e) {}
+}
+$loginUrl = APP_URL . '/auth/login.php?redirect=' . urlencode($self . $keyQ);
 $enabled = inpostSetting('public_enabled', '0') === '1' && inpostConfigured();
 $allowCustom = inpostSetting('allow_locker_custom', '1') === '1';
 
@@ -124,6 +143,7 @@ fieldset{border:0;border-top:2px solid var(--c);margin:0 0 20px;padding:12px 0 0
 legend{font-size:1.25rem;font-weight:300;color:var(--c);padding:0 8px 0 0}
 .f{margin-bottom:12px} label{display:block;font-weight:600;margin-bottom:4px}
 input,select{width:100%;box-sizing:border-box;padding:10px;font:inherit;border:2px solid var(--bd);background:#fff;color:var(--ink)}
+a{color:var(--c);font-weight:600}
 input:hover,select:hover{border-color:var(--c)}
 input:focus,select:focus,button:focus,a:focus{outline:3px solid #000;outline-offset:2px;border-color:var(--c)}
 [aria-invalid=true]{border-color:#a4001c}.err{color:#a4001c;font-weight:600;margin-top:4px}
@@ -152,6 +172,9 @@ button:hover,.btn:hover{background:var(--cd)}
   <?php if ($errors): ?><div class="sum" role="alert" tabindex="-1" id="sum"><strong>Formularz zawiera błędy:</strong><ul>
     <?php foreach ($errors as $f => $m): ?><li><?= $f === '_' ? h($m) : '<a href="#' . h($f) . '">' . h($m) . '</a>' ?></li><?php endforeach; ?></ul></div>
     <script>document.getElementById('sum').focus()</script><?php endif; ?>
+  <p class="card" style="margin-bottom:12px">FEER ma umowę z InPost, dlatego opłatę za przesyłkę pokrywa Fundacja.</p>
+  <?php if ($cu): ?><p class="sb" style="background:#e1f1f4;border-left-color:#00758f">Zalogowano jako <?= h($cu['name'] ?? $cu['email'] ?? '') ?> — dane zostały uzupełnione automatycznie. Sprawdź je przed wysłaniem.</p>
+  <?php else: ?><p class="card" style="margin-bottom:12px">Masz konto w Panelu Współpracownika? <a href="<?= h($loginUrl) ?>">Zaloguj się</a> — dane uzupełnią się automatycznie.</p><?php endif; ?>
   <form method="post" action="<?= h($self . $keyQ) ?>" novalidate class="card">
     <?= csrf_field() ?><input type="hidden" name="k" value="<?= h($key !== '' ? (string)($_GET['k'] ?? $_POST['k'] ?? '') : '') ?>">
     <div class="hp" aria-hidden="true"><label>Strona www<input name="website" tabindex="-1" autocomplete="off"></label></div>
