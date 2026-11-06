@@ -102,15 +102,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
         foreach ($docs as $d) if (($d['status_platnosci'] ?: 'nowy') === 'zlecony') $reexport[(int)$d['id']] = $d;
         $reexport = array_values($reexport);
         $reexport_missing = $reexport && empty($_POST['confirm_reexport']);
-        if ($missing || $reexport_missing) {
-            $ipko_confirm = ['pairs' => $missing ? $unverified : [], 'reexport' => $reexport_missing ? $reexport : [],
+        // Paczki wynagrodzeń (lista płac / rachunek do umowy): podgląd przed eksportem (nazwa, liczba, suma)
+        // i ostrzeżenie, gdy paczka o tej nazwie była już eksportowana (innymi dokumentami).
+        $paczki = [];
+        foreach ($docs as $d) if (($k = edok_paczka_klucz($d)) !== '') $paczki[$k][] = $d;
+        foreach ($paczki as $k => $pd) {
+            $tyt  = edok_paczka_tytul($pd);
+            $dids = array_values(array_unique(array_map(fn($x) => (int)$x['id'], $pd)));
+            $prev = $tyt !== '' ? db_one(
+                "SELECT created_at FROM edok_events WHERE event_type='status_platnosci' AND instr(comment, ?) > 0"
+                . ($dids ? " AND doc_id NOT IN (" . implode(',', $dids) . ")" : '') . " ORDER BY id DESC LIMIT 1",
+                ['paczka: ' . $tyt]) : null;
+            $paczki[$k] = ['tytul' => $tyt, 'n' => count($pd), 'dok' => count($dids),
+                'suma' => array_sum(array_map(fn($x) => _edok_kwota_float((string)($x['kwota_brutto'] ?? '0')), $pd)),
+                'dup' => $prev['created_at'] ?? null];
+        }
+        $paczki = array_values($paczki);
+        $paczki_dup_missing = (bool) array_filter($paczki, fn($p) => $p['dup']) && empty($_POST['confirm_paczki']);
+        $paczki_preview     = $paczki && empty($_POST['confirm_step']);
+        if ($missing || $reexport_missing || $paczki_dup_missing || $paczki_preview) {
+            $ipko_confirm = ['pairs' => $missing ? $unverified : [], 'reexport' => $reexport_missing ? $reexport : [], 'paczki' => $paczki,
                 'ids' => $ids, 'rachunek' => $rachunek_zlecen, 'map' => $rachunek_map, 'format' => $przelewy_format];
             if (!empty($_POST['confirm_step'])) flash_set('warning', 'Zaznacz wszystkie wymagane potwierdzenia.');
         }
         if (!$missing) {
             foreach ($unverified as $p) edok_kontrahent_verify($p['nip'], $p['nrb'], $p['nazwa']);
         }
-        if (!$missing && !$reexport_missing) try {
+        if (!$missing && !$reexport_missing && !$paczki_dup_missing && !$paczki_preview) try {
             $grupy = [];
             // Paczki wynagrodzeń (lista płac / rachunek do umowy) idą osobnymi plikami — każda z własnym
             // tytułem paczki (patrz edok_paczka_tytul()); reszta dokumentów jedną wspólną paczką na rachunek.
@@ -141,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
                     edok_log((int)$d['id'], 'status_platnosci', '', $prev, 'zlecony',
                         ($prev === 'zlecony' ? 'Ponowny eksport' : 'Eksport') . ' do pliku przelewów (' . str_replace('_', ' ', $w['format'])
                         . ', z rachunku …' . substr($w['nrb'], -4) . (!empty($d['_zwrot']) ? ', zwrot kosztów' : '')
+                        . (($pt = edok_paczka_tytul([$d])) !== '' ? ', paczka: ' . $pt : '')
                         . (!empty($d['_wyplata']) ? ', lista płac: ' . count(array_filter($wyeksportowane, fn($x) => (int)$x['doc']['id'] === (int)$d['id'])) . ' przelewów' : '')
                         . ') — status płatności: Zlecony do banku.');
                 }
@@ -275,6 +294,27 @@ $_zu_kw = fn(float $v) => $v > 0.005 ? number_format($v, 2, ',', ' ') : '—';
     <i class="bi bi-shield-exclamation"></i> Potwierdź przed eksportem przelewów
   </div>
   <div class="card-body">
+    <?php if (!empty($ipko_confirm['paczki'])): $_pdup = (bool) array_filter($ipko_confirm['paczki'], fn($p) => $p['dup']); ?>
+    <p class="small mb-1 fw-semibold">Paczki wynagrodzeń w tym eksporcie (każda osobny plik)</p>
+    <div class="table-responsive mb-2">
+      <table class="table table-sm align-middle mb-1" style="font-size:.85rem">
+        <thead><tr><th>Nazwa paczki</th><th class="text-end">Przelewy</th><th class="text-end">Suma</th><th>Uwaga</th></tr></thead>
+        <tbody>
+        <?php foreach ($ipko_confirm['paczki'] as $p): ?>
+          <tr><td class="font-monospace"><?= h($p['tytul']) ?></td><td class="text-end"><?= (int)$p['n'] ?></td>
+            <td class="text-end font-monospace"><?= number_format($p['suma'], 2, ',', ' ') ?></td>
+            <td><?= $p['dup'] ? '<span class="badge bg-danger">Paczka o tej nazwie była już eksportowana ' . h(date('d.m.Y H:i', strtotime((string)$p['dup']))) . '</span>' : '' ?></td></tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php if ($_pdup): ?>
+    <div class="form-check mb-3">
+      <input type="checkbox" class="form-check-input" name="confirm_paczki" value="1" id="confirm_paczki" required>
+      <label class="form-check-label fw-semibold" for="confirm_paczki">Sprawdziłem w banku — to nie jest podwójna paczka wynagrodzeń</label>
+    </div>
+    <?php else: ?><input type="hidden" name="confirm_paczki" value="<?= !empty($_POST['confirm_paczki']) ? '1' : '' ?>"><?php endif; ?>
+    <?php endif; ?>
     <?php if ($ipko_confirm['reexport']): ?>
     <div class="alert alert-danger py-2 small">
       <strong><i class="bi bi-exclamation-octagon"></i> Te dokumenty były już przekazane do banku:</strong>
