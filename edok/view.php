@@ -480,77 +480,82 @@ function edok_step_review_fields(string $step_key, array $doc): array {
 $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [];
 ?>
 <style type="text/tailwindcss">
+/* Metro UI: płasko, bez zaokrągleń i cieni, kafle, Segoe UI Light, akcent #0072c6 (kontrast ≥ 4.5:1 z bielą) */
+.edok-page, .edok-wizard { font-family: 'Segoe UI', 'Segoe UI Web', system-ui, sans-serif; }
+.edok-page *, .edok-wizard * { border-radius: 0 !important; box-shadow: none; }
 .edok-page { @apply tw-max-w-6xl tw-mx-auto; }
 .edok-topbar { @apply tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-3 tw-mb-4; }
-.edok-topbar__title { @apply tw-flex tw-items-center tw-gap-2 tw-text-lg tw-font-bold tw-text-slate-800; }
-.edok-actions { @apply tw-flex tw-items-center tw-gap-2 tw-flex-wrap; }
+.edok-topbar__title { @apply tw-flex tw-items-center tw-gap-2 tw-text-3xl tw-font-light tw-text-neutral-900; }
+.edok-topbar__title code { @apply tw-text-neutral-900 tw-bg-transparent tw-text-3xl; }
+.edok-actions { @apply tw-flex tw-items-center tw-gap-1 tw-flex-wrap; }
 
-.edok-btn { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-px-3 tw-py-1.5 tw-text-sm tw-font-semibold tw-border tw-border-solid tw-transition-colors tw-no-underline tw-cursor-pointer; }
-.edok-btn-ghost   { @apply tw-bg-white tw-border-slate-200 tw-text-slate-600 hover:tw-bg-slate-50; }
-.edok-btn-primary { @apply tw-bg-blue-600 tw-border-blue-600 tw-text-white hover:tw-bg-blue-700; }
-.edok-btn-success { @apply tw-bg-emerald-600 tw-border-emerald-600 tw-text-white hover:tw-bg-emerald-700; }
-.edok-btn-warning { @apply tw-bg-amber-500 tw-border-amber-500 tw-text-white hover:tw-bg-amber-600; }
-.edok-btn-danger  { @apply tw-bg-white tw-border-red-200 tw-text-red-600 hover:tw-bg-red-50; }
+.edok-btn { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-px-3 tw-py-2 tw-text-sm tw-font-semibold tw-border-2 tw-border-solid tw-no-underline tw-cursor-pointer; }
+.edok-btn-ghost   { @apply tw-bg-neutral-200 tw-border-neutral-200 tw-text-neutral-900 hover:tw-bg-neutral-300 hover:tw-border-neutral-300; }
+.edok-btn-primary { @apply tw-bg-[#0072c6] tw-border-[#0072c6] tw-text-white hover:tw-bg-[#005a9e] hover:tw-border-[#005a9e]; }
+.edok-btn-success { @apply tw-bg-[#128a3f] tw-border-[#128a3f] tw-text-white hover:tw-bg-[#0d6b30] hover:tw-border-[#0d6b30]; }
+.edok-btn-warning { @apply tw-bg-[#b45f06] tw-border-[#b45f06] tw-text-white hover:tw-bg-[#8f4a05]; }
+.edok-btn-danger  { @apply tw-bg-white tw-border-[#c4262e] tw-text-[#c4262e] hover:tw-bg-[#c4262e] hover:tw-text-white; }
 .edok-btn-sm      { @apply tw-px-2 tw-py-1 tw-text-xs; }
 .edok-btn:disabled { @apply tw-opacity-50 tw-cursor-not-allowed; }
+.edok-page :focus-visible, .edok-wizard :focus-visible { outline: 3px solid #1d1d1d; outline-offset: 2px; }
 
-.edok-badge { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-full tw-px-2.5 tw-py-0.5 tw-text-xs tw-font-semibold; }
-.edok-badge-secondary { @apply tw-bg-slate-100 tw-text-slate-600; }
-.edok-badge-warning   { @apply tw-bg-amber-100 tw-text-amber-700; }
-.edok-badge-success   { @apply tw-bg-emerald-100 tw-text-emerald-700; }
-.edok-badge-danger    { @apply tw-bg-red-100 tw-text-red-700; }
-.edok-badge-dark      { @apply tw-bg-slate-800 tw-text-white; }
+.edok-badge { @apply tw-inline-flex tw-items-center tw-gap-1 tw-px-2 tw-py-0.5 tw-text-xs tw-font-semibold; }
+.edok-badge-secondary { @apply tw-bg-neutral-300 tw-text-neutral-900; }
+.edok-badge-warning   { @apply tw-bg-[#b45f06] tw-text-white; }
+.edok-badge-success   { @apply tw-bg-[#128a3f] tw-text-white; }
+.edok-badge-danger    { @apply tw-bg-[#c4262e] tw-text-white; }
+.edok-badge-dark      { @apply tw-bg-neutral-900 tw-text-white; }
 
-.edok-alert { @apply tw-rounded-lg tw-border tw-border-solid tw-px-3 tw-py-2 tw-text-sm tw-flex tw-items-start tw-gap-2; }
-.edok-alert-danger  { @apply tw-bg-red-50 tw-border-red-200 tw-text-red-700; }
-.edok-alert-warning { @apply tw-bg-amber-50 tw-border-amber-200 tw-text-amber-700; }
+.edok-alert { @apply tw-bg-white tw-border-0 tw-border-l-[6px] tw-border-solid tw-px-4 tw-py-3 tw-text-sm tw-flex tw-items-start tw-gap-2 tw-text-neutral-900; }
+.edok-alert-danger  { @apply tw-border-[#c4262e]; }
+.edok-alert-warning { @apply tw-border-[#b45f06]; }
 
-.edok-card { @apply tw-bg-white tw-rounded-xl tw-border tw-border-solid tw-border-slate-300 tw-shadow-sm tw-mb-4 tw-overflow-hidden; }
-.edok-card__hd { @apply tw-flex tw-items-center tw-gap-2 tw-px-4 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-200 tw-font-semibold tw-text-slate-800 tw-text-sm; }
-.edok-card__bd { @apply tw-p-4; }
+.edok-card { @apply tw-bg-neutral-100 tw-border-0 tw-border-l-[6px] tw-border-solid tw-border-[#0072c6] tw-mb-3; }
+.edok-card__hd { @apply tw-flex tw-items-center tw-gap-2 tw-px-4 tw-pt-3 tw-pb-1 tw-font-light tw-text-neutral-900 tw-text-xl; }
+.edok-card__bd { @apply tw-px-4 tw-pb-4 tw-pt-3; }
 
 .edok-kv { @apply tw-w-full tw-text-sm; }
 .edok-kv tr + tr td { @apply tw-pt-1.5; }
-.edok-kv td:first-child { @apply tw-text-slate-600 tw-pr-3 tw-align-top tw-w-[42%]; }
-.edok-kv td:last-child { @apply tw-font-medium tw-text-slate-900; }
-.edok-amounts { @apply tw-rounded-lg tw-bg-slate-100 tw-p-3 tw-mb-3; }
-.edok-amounts .total { @apply tw-border-t tw-border-solid tw-border-slate-300 tw-pt-1.5 tw-mt-1.5 tw-font-bold; }
+.edok-kv td:first-child { @apply tw-text-neutral-600 tw-pr-3 tw-align-top tw-w-[42%]; }
+.edok-kv td:last-child { @apply tw-font-medium tw-text-neutral-900; }
+.edok-amounts { @apply tw-bg-white tw-p-3 tw-mb-3; }
+.edok-amounts .total { @apply tw-border-t tw-border-solid tw-border-neutral-300 tw-pt-1.5 tw-mt-1.5 tw-text-xl tw-font-light; }
 
-/* Przebieg obiegu: pionowy stepper — stan każdego etapu zapisany słowami, nie samym kolorem */
-.edok-stepper { @apply tw-list-none tw-p-0 tw-m-0 tw-mb-4 tw-bg-white tw-rounded-xl tw-border tw-border-solid tw-border-slate-300 tw-shadow-sm tw-px-4 tw-py-3; }
-.edok-stepper__item { @apply tw-relative tw-flex tw-gap-3 tw-pb-4 last:tw-pb-0; }
-.edok-stepper__item:not(:last-child)::before { content: ""; @apply tw-absolute tw-left-[.95rem] tw-top-8 tw-bottom-0 tw-w-0.5 tw-bg-slate-200; }
-.edok-stepper__item.is-done:not(:last-child)::before { @apply tw-bg-emerald-300; }
-.edok-stepper__dot { @apply tw-flex-none tw-flex tw-items-center tw-justify-center tw-w-8 tw-h-8 tw-rounded-full tw-border-2 tw-border-solid tw-border-slate-300 tw-bg-white tw-text-slate-400 tw-text-base tw-z-10; }
-.is-done .edok-stepper__dot     { @apply tw-bg-emerald-500 tw-border-emerald-500 tw-text-white; }
-.is-uwagi .edok-stepper__dot    { @apply tw-bg-amber-400 tw-border-amber-400 tw-text-white; }
-.is-rejected .edok-stepper__dot { @apply tw-bg-red-500 tw-border-red-500 tw-text-white; }
-.is-current .edok-stepper__dot  { @apply tw-border-blue-500 tw-text-blue-600 tw-ring-4 tw-ring-blue-100; }
-.edok-stepper__name  { @apply tw-block tw-text-sm tw-font-semibold tw-text-slate-800 tw-leading-snug; }
-.is-blocked .edok-stepper__name { @apply tw-text-slate-500 tw-font-medium; }
-.edok-stepper__state { @apply tw-block tw-text-xs tw-text-slate-600 tw-mt-0.5; }
-.edok-stepper__note  { @apply tw-block tw-text-xs tw-text-slate-700 tw-mt-1 tw-bg-slate-50 tw-rounded tw-px-2 tw-py-1; }
-.is-current .edok-stepper__state { @apply tw-text-blue-700 tw-font-semibold; }
-.edok-progress { @apply tw-h-1.5 tw-rounded-full tw-bg-slate-200 tw-overflow-hidden; }
-.edok-progress > span { @apply tw-block tw-h-full tw-bg-blue-500; }
-.edok-review { @apply tw-rounded-lg tw-bg-slate-50 tw-border tw-border-solid tw-border-slate-200 tw-p-3 tw-mb-3; }
-.edok-review__hd { @apply tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-slate-500 tw-mb-1.5; }
+/* Przebieg obiegu: poziomy pas pięciu kafli — stan zapisany słowami, nie samym kolorem */
+.edok-stepper { @apply tw-list-none tw-p-0 tw-m-0 tw-mb-4 tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 lg:tw-grid-cols-5 tw-gap-1; }
+.edok-stepper__item { @apply tw-flex tw-flex-col tw-gap-1 tw-bg-neutral-300 tw-text-neutral-900 tw-p-3 tw-min-h-[7.5rem]; }
+.edok-stepper__dot { @apply tw-text-3xl tw-font-light tw-leading-none; }
+.is-done      { @apply tw-bg-[#128a3f] tw-text-white; }
+.is-uwagi     { @apply tw-bg-[#b45f06] tw-text-white; }
+.is-rejected  { @apply tw-bg-[#c4262e] tw-text-white; }
+.is-current   { @apply tw-bg-[#0072c6] tw-text-white; }
+.edok-stepper__name  { @apply tw-block tw-text-sm tw-font-semibold tw-leading-snug; }
+.edok-stepper__state { @apply tw-block tw-text-xs tw-opacity-90; }
+.edok-stepper__note  { @apply tw-block tw-text-xs tw-mt-1 tw-bg-black/20 tw-px-2 tw-py-1; }
+.edok-progress { @apply tw-h-1.5 tw-bg-neutral-300 tw-overflow-hidden; }
+.edok-progress > span { @apply tw-block tw-h-full tw-bg-[#0072c6]; }
+.edok-review { @apply tw-bg-white tw-p-3 tw-mb-3; }
+.edok-review__hd { @apply tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-neutral-600 tw-mb-1.5; }
 
-.edok-history-item { @apply tw-flex tw-items-start tw-gap-2 tw-py-2 tw-border-b tw-border-solid tw-border-slate-200 last:tw-border-0 tw-text-sm; }
+.edok-history-item { @apply tw-flex tw-items-start tw-gap-2 tw-py-2 tw-border-b tw-border-solid tw-border-neutral-300 last:tw-border-0 tw-text-sm; }
 
-.edok-wizard .modal-content { @apply tw-rounded-xl tw-border-0 tw-shadow-lg; }
-.edok-wizard-hd { @apply tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-200; }
+.edok-wizard .modal-content { @apply tw-border-0 tw-border-t-[6px] tw-border-solid tw-border-[#0072c6]; }
+.edok-wizard-hd { @apply tw-px-4 tw-py-3; }
 .edok-wizard-pane { @apply tw-p-4; }
-.edok-choice { @apply tw-flex-1 tw-flex tw-flex-col tw-items-center tw-gap-1 tw-rounded-lg tw-border-2 tw-border-solid tw-border-slate-300 tw-px-2 tw-py-3 tw-cursor-pointer tw-transition-colors tw-text-sm tw-font-semibold tw-text-slate-700 tw-text-center hover:tw-bg-slate-50 focus-within:tw-ring-2 focus-within:tw-ring-blue-300; }
-.edok-choice small { @apply tw-block tw-text-[.7rem] tw-font-normal tw-text-slate-500 tw-leading-tight; }
-.edok-wizard-steps { @apply tw-flex tw-items-center tw-gap-2 tw-text-xs tw-text-slate-500 tw-px-4 tw-pt-3; }
-.edok-wizard-steps .is-active { @apply tw-text-blue-700 tw-font-bold; }
+.edok-choice { @apply tw-flex-1 tw-flex tw-flex-col tw-items-center tw-gap-1 tw-bg-neutral-200 tw-border-2 tw-border-solid tw-border-neutral-200 tw-px-2 tw-py-3 tw-cursor-pointer tw-text-sm tw-font-semibold tw-text-neutral-900 tw-text-center hover:tw-bg-neutral-300 focus-within:tw-outline focus-within:tw-outline-2; }
+.edok-choice small { @apply tw-block tw-text-[.7rem] tw-font-normal tw-text-neutral-700 tw-leading-tight; }
+.edok-wizard-steps { @apply tw-flex tw-items-center tw-gap-2 tw-text-xs tw-text-neutral-600 tw-px-4 tw-pt-3; }
+.edok-wizard-steps .is-active { @apply tw-bg-transparent tw-text-[#005a9e] tw-font-bold; }
 .edok-choice input { @apply tw-sr-only; }
-.edok-choice:has(input:checked).choice-ok      { @apply tw-border-emerald-500 tw-bg-emerald-50 tw-text-emerald-700; }
-.edok-choice:has(input:checked).choice-uwagi   { @apply tw-border-amber-500 tw-bg-amber-50 tw-text-amber-700; }
-.edok-choice:has(input:checked).choice-odrzuc  { @apply tw-border-red-500 tw-bg-red-50 tw-text-red-700; }
-.edok-pin-input { @apply tw-w-full tw-text-center tw-text-2xl tw-tracking-[.5em] tw-font-mono tw-rounded-lg tw-border tw-border-solid tw-border-slate-400 tw-py-2 focus:tw-border-blue-400 focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-blue-100; }
-.edok-pin-input.is-invalid { @apply tw-border-red-400 tw-ring-2 tw-ring-red-100; }
+.edok-choice:has(input:checked).choice-ok      { @apply tw-bg-[#128a3f] tw-border-[#128a3f] tw-text-white; }
+.edok-choice:has(input:checked).choice-uwagi   { @apply tw-bg-[#b45f06] tw-border-[#b45f06] tw-text-white; }
+.edok-choice:has(input:checked).choice-odrzuc  { @apply tw-bg-[#c4262e] tw-border-[#c4262e] tw-text-white; }
+.edok-choice:has(input:checked) small { @apply tw-text-white; }
+.edok-pin-input { @apply tw-w-full tw-text-center tw-text-2xl tw-tracking-[.5em] tw-font-mono tw-border-2 tw-border-solid tw-border-neutral-500 tw-py-2 focus:tw-outline-none focus:tw-border-[#0072c6]; }
+.edok-pin-input.is-invalid { @apply tw-border-[#c4262e]; }
+/* Pola Bootstrapa wewnątrz strony: kwadratowe, grube obramowanie */
+.edok-page .form-control, .edok-page .form-select, .edok-wizard .form-control, .edok-wizard .form-select { border: 2px solid #8a8a8a; background-color: #fff; }
+.edok-page .form-control:focus, .edok-page .form-select:focus { border-color: #0072c6; box-shadow: none; }
 </style>
 
 <div class="edok-page">
@@ -671,6 +676,30 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
   </div>
 </div>
 <?php endif; ?>
+
+    <!-- Przebieg obiegu (pas kafli) -->
+<ol class="edok-stepper" aria-label="Przebieg obiegu akceptacji">
+  <?php $n = 0; foreach ($steps_config as $sk => $cfg): $n++;
+    $s = $doc['steps'][$sk] ?? null;
+    $decided = $s && in_array($s['status'], ['ok', 'uwagi', 'odrzucono'], true);
+    if (edok_is_papierowy($doc))                { $cls = 'is-done';     $icon = 'bi-file-earmark-text';  $state = 'Akceptacja papierowa — na oryginale rachunku'; }
+    elseif ($s && $s['status'] === 'ok')        { $cls = 'is-done';     $icon = 'bi-check-lg';           $state = 'Zaakceptowano'; }
+    elseif ($s && $s['status'] === 'odrzucono') { $cls = 'is-rejected'; $icon = 'bi-x-lg';               $state = 'Odrzucono — obieg zatrzymany'; }
+    elseif ($s && $s['status'] === 'uwagi')     { $cls = 'is-uwagi';    $icon = 'bi-exclamation-lg';     $state = 'Zaakceptowano z uwagami'; }
+    elseif ($sk === $current_key && !$is_terminal) { $cls = 'is-current'; $icon = (string)$n;            $state = 'Bieżący etap — oczekuje na decyzję'; }
+    else                                        { $cls = 'is-blocked';  $icon = (string)$n;              $state = $is_terminal ? 'Nie dotyczy' : 'Czeka na poprzednie etapy'; }
+    $who = $decided ? trim(($s['user_name'] ?? '') . ($s['decided_at'] ? ' · ' . date('d.m.Y H:i', strtotime($s['decided_at'])) : '')) : '';
+  ?>
+  <li class="edok-stepper__item <?= $cls ?>"<?= $cls === 'is-current' ? ' aria-current="step"' : '' ?>>
+    <span class="edok-stepper__dot" aria-hidden="true"><?php if (str_starts_with($icon, 'bi-')): ?><i class="bi <?= $icon ?>"></i><?php else: ?><?= h($icon) ?><?php endif; ?></span>
+    <span>
+      <span class="edok-stepper__name">Etap <?= $n ?>: <?= h(edok_step_label($sk, $doc)) ?></span>
+      <span class="edok-stepper__state"><?= h($state) ?><?= $who !== '' ? ' — ' . h($who) : '' ?></span>
+      <?php if ($decided && trim((string)($s['notes'] ?? '')) !== ''): ?><span class="edok-stepper__note"><?= nl2br(h($s['notes'])) ?></span><?php endif; ?>
+    </span>
+  </li>
+  <?php endforeach; ?>
+</ol>
 
 <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-12 tw-gap-4">
   <div class="lg:tw-col-span-5">
@@ -1088,29 +1117,6 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
   </div>
 
   <div class="lg:tw-col-span-7">
-    <!-- Przebieg obiegu (stepper pionowy) -->
-    <ol class="edok-stepper" aria-label="Przebieg obiegu akceptacji">
-      <?php $n = 0; foreach ($steps_config as $sk => $cfg): $n++;
-        $s = $doc['steps'][$sk] ?? null;
-        $decided = $s && in_array($s['status'], ['ok', 'uwagi', 'odrzucono'], true);
-        if (edok_is_papierowy($doc))                { $cls = 'is-done';     $icon = 'bi-file-earmark-text';  $state = 'Akceptacja papierowa — na oryginale rachunku'; }
-        elseif ($s && $s['status'] === 'ok')        { $cls = 'is-done';     $icon = 'bi-check-lg';           $state = 'Zaakceptowano'; }
-        elseif ($s && $s['status'] === 'odrzucono') { $cls = 'is-rejected'; $icon = 'bi-x-lg';               $state = 'Odrzucono — obieg zatrzymany'; }
-        elseif ($s && $s['status'] === 'uwagi')     { $cls = 'is-uwagi';    $icon = 'bi-exclamation-lg';     $state = 'Zaakceptowano z uwagami'; }
-        elseif ($sk === $current_key && !$is_terminal) { $cls = 'is-current'; $icon = (string)$n;            $state = 'Bieżący etap — oczekuje na decyzję'; }
-        else                                        { $cls = 'is-blocked';  $icon = (string)$n;              $state = $is_terminal ? 'Nie dotyczy' : 'Czeka na poprzednie etapy'; }
-        $who = $decided ? trim(($s['user_name'] ?? '') . ($s['decided_at'] ? ' · ' . date('d.m.Y H:i', strtotime($s['decided_at'])) : '')) : '';
-      ?>
-      <li class="edok-stepper__item <?= $cls ?>"<?= $cls === 'is-current' ? ' aria-current="step"' : '' ?>>
-        <span class="edok-stepper__dot" aria-hidden="true"><?php if (str_starts_with($icon, 'bi-')): ?><i class="bi <?= $icon ?>"></i><?php else: ?><?= h($icon) ?><?php endif; ?></span>
-        <span>
-          <span class="edok-stepper__name">Etap <?= $n ?>: <?= h(edok_step_label($sk, $doc)) ?></span>
-          <span class="edok-stepper__state"><?= h($state) ?><?= $who !== '' ? ' — ' . h($who) : '' ?></span>
-          <?php if ($decided && trim((string)($s['notes'] ?? '')) !== ''): ?><span class="edok-stepper__note"><?= nl2br(h($s['notes'])) ?></span><?php endif; ?>
-        </span>
-      </li>
-      <?php endforeach; ?>
-    </ol>
 
     <!-- Bieżący etap -->
     <?php if ($is_terminal): ?>
