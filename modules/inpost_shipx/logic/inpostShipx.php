@@ -95,8 +95,12 @@ function inpostErrorText(int $code, array $r): string {
     $det = '';
     if (!empty($r['details'])) {
         $flat = [];
-        array_walk_recursive($r['details'], function ($v, $k) use (&$flat) { $flat[] = $k . ': ' . $v; });
-        $det = ' (' . implode('; ', $flat) . ')';
+        $walk = function ($v, string $path) use (&$walk, &$flat) {
+            if (is_array($v)) { foreach ($v as $k => $x) $walk($x, is_int($k) ? $path : ($path === '' ? (string)$k : $path . '.' . $k)); }
+            else $flat[] = ($path !== '' ? $path . ': ' : '') . $v;
+        };
+        $walk($r['details'], '');
+        $det = ' (' . implode('; ', array_unique($flat)) . ')';
     }
     if ($code === 401 || $code === 403) return 'InPost odrzucił token lub brak uprawnień (HTTP ' . $code . ').';
     return 'InPost: ' . ($msg ?: ($r['raw'] ?? 'błąd HTTP ' . $code)) . $det;
