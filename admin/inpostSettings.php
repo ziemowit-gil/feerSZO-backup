@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // Token: pusty = bez zmian (nie wyświetlamy zapisanego tokenu)
         if (trim((string)($_POST['token'] ?? '')) !== '') inpostSettingSave('token', trim($_POST['token']));
-        foreach (['sandbox','public_enabled'] as $k) inpostSettingSave($k, isset($_POST[$k]) ? '1' : '0');
+        foreach (['sandbox','public_enabled','allow_locker_custom'] as $k) inpostSettingSave($k, isset($_POST[$k]) ? '1' : '0');
         flash_set('success', 'Ustawienia InPost zapisane.');
         header('Location: ' . APP_URL . '/admin/inpostSettings.php'); exit;
     }
@@ -52,6 +52,7 @@ $in = fn($k, $l, $t = 'text') => '<div class="mb-3"><label class="form-label" fo
     <?= $in('receiver_street','Ulica') ?><?= $in('receiver_building','Nr budynku') ?><?= $in('receiver_post_code','Kod pocztowy') ?><?= $in('receiver_city','Miejscowość') ?>
     <h2 class="h6 mt-4">Formularz publiczny</h2>
     <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="i_pe" name="public_enabled" <?= inpostSetting('public_enabled')==='1'?'checked':'' ?>><label class="form-check-label" for="i_pe">Włącz formularz publiczny</label></div>
+    <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="i_lc" name="allow_locker_custom" <?= inpostSetting('allow_locker_custom','1')==='1'?'checked':'' ?>><label class="form-check-label" for="i_lc">Pozwól na nadanie Paczkomat → Paczkomat (nadawca wskazuje odbiorcę i Paczkomat)</label></div>
     <?= $in('public_key','Klucz w linku (puste = link bez klucza)') ?>
     <?= $in('limit_ip_hour','Limit nadań z jednego IP na godzinę (domyślnie 5)','number') ?>
     <?= $in('limit_day','Limit nadań na dobę łącznie (domyślnie 100)','number') ?>

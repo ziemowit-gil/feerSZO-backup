@@ -23,14 +23,18 @@ $keyOk = $key === '' || hash_equals($key, (string)($_GET['k'] ?? $_POST['k'] ?? 
 
 $sizes = inpostParcelSizes();
 $errors = [];
-$old = ['name'=>'','email'=>'','phone'=>'','street'=>'','building'=>'','post_code'=>'','city'=>'','size'=>'small','service'=>'inpost_locker_standard','target_point'=>'','reference'=>''];
+$old = ['name'=>'','email'=>'','phone'=>'','street'=>'','building'=>'','post_code'=>'','city'=>'','size'=>'small','service'=>'inpost_locker_standard','target_point'=>'','r_name'=>'','r_email'=>'','r_phone'=>'','reference'=>''];
 $done = null;
 $enabled = inpostSetting('public_enabled', '0') === '1' && inpostConfigured();
+$allowCustom = inpostSetting('allow_locker_custom', '1') === '1';
 
 if ($enabled && $keyOk && $_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     foreach ($old as $k => $_) $old[$k] = trim((string)($_POST[$k] ?? $old[$k]));
     $old['phone'] = preg_replace('/[\s-]/', '', preg_replace('/^\+48/', '', $old['phone']));
+    $old['r_phone'] = preg_replace('/[\s-]/', '', preg_replace('/^\+48/', '', $old['r_phone']));
+    $custom = $allowCustom && $old['service'] === 'locker_custom';
+    if ($custom) $old['service'] = 'inpost_locker_standard'; else $old['service'] = $old['service'] === 'locker_custom' ? 'inpost_locker_standard' : $old['service'];
     $spam = trim((string)($_POST['website'] ?? '')) !== '' || (time() - (int)($_SESSION['inpost_ts'] ?? time())) < 3;
     if ($spam) { http_response_code(429); exit('Nie można przetworzyć formularza.'); }
 
@@ -44,9 +48,15 @@ if ($enabled && $keyOk && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($sizes[$old['size']])) $errors['size'] = 'Wybierz rozmiar paczki.';
     if (!in_array($old['service'], ['inpost_locker_standard', 'inpost_courier_standard'], true)) $errors['service'] = 'Wybierz rodzaj usługi.';
 
-    $point = strtoupper(inpostSetting('receiver_point')); // odbiorca definiowany wyłącznie przez admina
+    $point = $custom ? strtoupper($old['target_point']) : strtoupper(inpostSetting('receiver_point')); // domyślnie odbiorca z ustawień admina
+    if ($custom) {
+        if (mb_strlen($old['r_name']) < 3 || !str_contains($old['r_name'], ' ')) $errors['r_name'] = 'Podaj imię i nazwisko odbiorcy.';
+        if (!filter_var($old['r_email'], FILTER_VALIDATE_EMAIL)) $errors['r_email'] = 'Podaj poprawny e-mail odbiorcy.';
+        if (!preg_match('/^[1-9]\d{8}$/', $old['r_phone'])) $errors['r_phone'] = 'Podaj 9-cyfrowy telefon odbiorcy.';
+    }
     if ($old['service'] === 'inpost_locker_standard') {
-        if (!preg_match('/^[A-Z]{3}\d{2,3}[A-Z]{0,2}$/', $point)) $errors['_'] = 'Formularz nie jest skonfigurowany (brak Paczkomatu odbiorcy). Skontaktuj się z organizacją.';
+        if ($custom && !preg_match('/^[A-Z]{3}\d{2,3}[A-Z]{0,2}$/', $point)) $errors['target_point'] = 'Podaj kod Paczkomatu odbiorcy, np. KRA010.';
+        elseif (!preg_match('/^[A-Z]{3}\d{2,3}[A-Z]{0,2}$/', $point)) $errors['_'] = 'Formularz nie jest skonfigurowany (brak Paczkomatu odbiorcy). Skontaktuj się z organizacją.';
         elseif (inpostPointExists($point) === false) $errors['target_point'] = 'Nie znaleziono Paczkomatu o kodzie ' . $point . '.';
     }
 
@@ -65,7 +75,7 @@ if ($enabled && $keyOk && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'service' => $old['service'], 'size' => $old['size'], 'client_ip' => $ip,
                 'reference' => $old['reference'] ?: 'Formularz publiczny',
                 'sender' => ['name'=>$old['name'],'email'=>$old['email'],'phone'=>$old['phone'],'street'=>$old['street'],'building'=>$old['building'],'city'=>$old['city'],'post_code'=>$old['post_code']],
-                'receiver' => ['name'=>inpostSetting('receiver_name', ORG_NAME ?? 'Odbiorca'),'email'=>inpostSetting('receiver_email'),'phone'=>inpostSetting('receiver_phone'),
+                'receiver' => ['name'=>$custom ? $old['r_name'] : inpostSetting('receiver_name', ORG_NAME ?? 'Odbiorca'),'email'=>$custom ? $old['r_email'] : inpostSetting('receiver_email'),'phone'=>$custom ? $old['r_phone'] : inpostSetting('receiver_phone'),
                     'target_point'=>$point,'street'=>inpostSetting('receiver_street'),'building'=>inpostSetting('receiver_building'),
                     'city'=>inpostSetting('receiver_city'),'post_code'=>inpostSetting('receiver_post_code')],
             ]);
@@ -132,11 +142,19 @@ button,.btn{display:inline-block;background:#0b5fff;color:#fff;border:0;border-r
     </fieldset>
     <fieldset><legend>Przesyłka</legend>
       <div class="f"><label for="service">Rodzaj usługi</label><select id="service" name="service"<?= $aria('service') ?>>
-        <option value="inpost_locker_standard"<?= $old['service']==='inpost_locker_standard'?' selected':'' ?>>Paczkomat (nadanie w Paczkomacie)</option>
+        <option value="inpost_locker_standard"<?= ($old['service']==='inpost_locker_standard' && empty($custom))?' selected':'' ?>>Paczkomat (nadanie w Paczkomacie)</option>
+        <?php if ($allowCustom): ?><option value="locker_custom"<?= !empty($custom) ? ' selected' : '' ?>>Paczkomat → Paczkomat (wskażę odbiorcę i Paczkomat)</option><?php endif; ?>
         <option value="inpost_courier_standard"<?= $old['service']==='inpost_courier_standard'?' selected':'' ?>>Kurier (odbiór spod adresu)</option></select><?= $err('service') ?></div>
       <div class="f"><label for="size">Rozmiar paczki</label><select id="size" name="size"<?= $aria('size') ?>>
         <?php foreach ($sizes as $k => $l): ?><option value="<?= h($k) ?>"<?= $old['size']===$k?' selected':'' ?>><?= h($l) ?></option><?php endforeach; ?></select><?= $err('size') ?></div>
     </fieldset>
+    <?php if ($allowCustom): ?><fieldset id="rcpt"><legend>Odbiorca (Paczkomat → Paczkomat)</legend>
+      <?= $field('r_name', 'Imię i nazwisko odbiorcy', 'autocomplete="off"') ?>
+      <?= $field('r_email', 'E-mail odbiorcy', 'type="email" autocomplete="off"') ?>
+      <?= $field('r_phone', 'Telefon odbiorcy (9 cyfr)', 'type="tel" inputmode="numeric" autocomplete="off"') ?>
+      <?= $field('target_point', 'Kod Paczkomatu odbiorcy (np. KRA010)', 'autocomplete="off"') ?>
+    </fieldset>
+    <script>(function(){var s=document.getElementById('service'),f=document.getElementById('rcpt');function u(){var on=s.value==='locker_custom';f.hidden=!on;f.querySelectorAll('input').forEach(function(i){i.required=on;i.disabled=!on})}s.addEventListener('change',u);u()})()</script><?php endif; ?>
     <button type="submit">Utwórz przesyłkę</button>
   </form>
 <?php endif; ?>
