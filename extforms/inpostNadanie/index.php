@@ -80,6 +80,19 @@ if ($enabled && $keyOk && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'city'=>inpostSetting('receiver_city'),'post_code'=>inpostSetting('receiver_post_code')],
             ]);
             $done = db_one("SELECT * FROM inpost_shipments WHERE id=?", [$id]);
+            // SMS do nadawcy z numerem nadania (błąd SMS nie przerywa — numer i tak widać na stronie)
+            if ($done['tracking_number'] !== '') {
+                try {
+                    require_once $_root . '/includes/sms.php';
+                    $txt = $done['service'] === 'inpost_locker_standard'
+                        ? 'Przesylka zamowiona. Nadasz ja w Paczkomacie, numer nadania: ' . $done['tracking_number'] . '. Oplate pokryla Fundacja.'
+                        : 'Przesylka zamowiona. Kurier odbierze paczke, numer przesylki: ' . $done['tracking_number'] . '. Oplate pokryla Fundacja.';
+                    sms_send($old['phone'], $txt, 'inpost_shipment');
+                    db()->prepare("UPDATE inpost_shipments SET error=NULL WHERE id=?")->execute([$id]);
+                } catch (Throwable $e) {
+                    db()->prepare("UPDATE inpost_shipments SET error=? WHERE id=?")->execute(['SMS: ' . mb_substr($e->getMessage(), 0, 300), $id]);
+                }
+            }
         } catch (Throwable $e) {
             $errors['_'] = $e->getMessage();
         }

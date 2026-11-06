@@ -18,7 +18,7 @@ const SMS_QUIET_TO   = 7;    // …do 7:00 — cisza
 
 /** Rodzaje SMS wysyłane zawsze (kody jednorazowe) — grupa „Kody jednorazowe i weryfikacja” w modules/sms_senders. */
 const SMS_ALWAYS_KINDS = ['login_code', 'twofa_code', 'phone_verify_code', 'register_code', 'recovery_code',
-                          'parent_access_code', 'authorization_code', 'document_code', 'ika_code'];
+                          'parent_access_code', 'authorization_code', 'document_code', 'ika_code', 'inpost_shipment'];
 
 /** Czy teraz trwa cisza nocna (22:00–7:00, czas Europe/Warsaw). */
 function smsQuietNow(?int $ts = null): bool {
