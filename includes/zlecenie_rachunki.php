@@ -1231,7 +1231,12 @@ function rachunek_umowa_ref(array $contract): string {
     return preg_match('/\d/', $ru) ? $ru : '';
 }
 
-function rachunek_push_to_edok(int $rid, ?int $user_id, bool $papierowy = true): array {
+/**
+ * Przekazanie rachunku do EODoK. Rachunek już ZAPŁACONY też można przekazać (do ewidencji księgowej),
+ * ale wymaga opisu, dlaczego — $powod_zaplacony; dokument dostaje wtedy status płatności „Opłacony”
+ * (nie trafi do przelewów) i obieg papierowy, a powód ląduje w opisie dokumentu i w historii.
+ */
+function rachunek_push_to_edok(int $rid, ?int $user_id, bool $papierowy = true, string $powod_zaplacony = ''): array {
     require_once __DIR__ . '/edok.php';
     edok_migrate();
     $rach = get_rachunek($rid);
@@ -1240,6 +1245,12 @@ function rachunek_push_to_edok(int $rid, ?int $user_id, bool $papierowy = true):
     if (!empty($rach['edok_doc_id'])) return ['ok' => false, 'msg' => 'Ten rachunek jest już w EODoK jako ' . ($rach['edok_number'] ?: '#' . (int)$rach['edok_doc_id']) . '.'];
     if (!empty($rach['kdok_doc_id'])) return ['ok' => false, 'msg' => 'Ten rachunek jest już w obiegu KDOK jako ' . ($rach['kdok_number'] ?: '#' . (int)$rach['kdok_doc_id']) . '.'];
     if (($rach['status'] ?? '') === 'odrzucony') return ['ok' => false, 'msg' => 'Rachunek jest odrzucony — popraw go albo zmień status przed przekazaniem do obiegu.'];
+    $byl_zaplacony = ($rach['status'] ?? '') === 'zaplacony';
+    $powod_zaplacony = trim(preg_replace('/\s+/', ' ', $powod_zaplacony));
+    if ($byl_zaplacony) {
+        if (mb_strlen($powod_zaplacony) < 5) return ['ok' => false, 'msg' => 'Rachunek jest już zapłacony — podaj opis, dlaczego trafia do EODoK (min. 5 znaków).'];
+        $papierowy = true; // zapłacony poza obiegiem — nie ma czego akceptować elektronicznie
+    }
     $src = rachunek_file_abs($rach['plik_podpisany'] ?? null) ?: rachunek_file_abs($rach['plik'] ?? null);
     if (!$src) return ['ok' => false, 'msg' => 'Rachunek nie ma pliku — dodaj skan przed przekazaniem do EODoK.'];
 
@@ -1271,7 +1282,8 @@ function rachunek_push_to_edok(int $rid, ?int $user_id, bool $papierowy = true):
         'kierunek'         => 'wydatek',
         'typ_dokumentu'    => 'rachunek',
         'description'      => 'Wynagrodzenie z umowy zlecenie ' . $ru . ' — ' . $osoba
-                              . ($rach['okres'] ? ', okres: ' . $rach['okres'] : '') . ($rach['uwagi'] ? '. ' . $rach['uwagi'] : ''),
+                              . ($rach['okres'] ? ', okres: ' . $rach['okres'] : '') . ($rach['uwagi'] ? '. ' . $rach['uwagi'] : '')
+                              . ($byl_zaplacony ? '. Rachunek zapłacony przed przekazaniem do EODoK — powód: ' . $powod_zaplacony : ''),
         'kontrahent_nazwa' => $osoba,
         'nr_faktury'       => (string)($rach['numer'] ?? ''),
         'data_wystawienia' => $data,
@@ -1291,6 +1303,7 @@ function rachunek_push_to_edok(int $rid, ?int $user_id, bool $papierowy = true):
         'file_path'        => 'edok_docs/' . $name,
         'file_size'        => filesize($dir . $name) ?: null,
         'status'           => 'w_obiegu',
+        'status_platnosci' => $byl_zaplacony ? 'oplacony' : 'nowy',
         'created_by'       => $user_id,
         'creator_name'     => (string)($user['name'] ?? ''),
         'created_at'       => date('Y-m-d H:i:s'),
@@ -1311,7 +1324,7 @@ function rachunek_push_to_edok(int $rid, ?int $user_id, bool $papierowy = true):
         @unlink($dir . $name);
         throw $e;
     }
-    edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Dokument ' . $number . ' złożony do obiegu z rejestru rachunków umowy zlecenie ' . $ru . ' (rachunek #' . $rid . ').');
+    edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Dokument ' . $number . ' złożony do obiegu z rejestru rachunków umowy zlecenie ' . $ru . ' (rachunek #' . $rid . ').' . ($byl_zaplacony ? ' Rachunek był już ZAPŁACONY — powód przekazania: ' . $powod_zaplacony : ''));
     update_rachunek($rid, ['edok_doc_id' => $doc_id, 'edok_number' => $number]);
 
     // Domyślnie obieg papierowy: rachunek zatwierdzony na papierze → w EODoK od razu do zapłaty.

@@ -37,6 +37,7 @@ if (isset($_GET['plik'])) {
 $_okres_in = (string)($_POST['okres'] ?? $_GET['okres'] ?? '');
 // Domyślnie wszystkie niezapłacone — filtr miesiąca ukrywał rachunki wystawione za inny okres.
 $ym = preg_match('/^\d{4}-\d{2}$/', $_okres_in) ? $_okres_in : '';
+$zapl = !empty($_POST['zaplacone']) || !empty($_GET['zaplacone']); // pokaż też zapłacone (do przekazania do EODoK z opisem)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'do_edok') {
     csrf_check();
@@ -44,11 +45,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'do_ed
     if (!$rids) {
         flash_set('warning', 'Zaznacz co najmniej jeden rachunek do przekazania.');
     } else {
-        $w = prz_rach_do_edok($rids, (int)(current_user()['id'] ?? 0) ?: null);
+        $w = prz_rach_do_edok($rids, (int)(current_user()['id'] ?? 0) ?: null, (string)($_POST['powod_zaplacony'] ?? ''));
         if ($w['ok']) flash_set('success', 'Przekazano do EODoK: ' . $w['ok'] . ' ' . ($w['ok'] === 1 ? 'rachunek' : 'rachunków') . ' (obieg papierowy — dokumenty są do zapłaty).');
         if ($w['bledy']) flash_set('warning', 'Nie przekazano: ' . implode(' · ', $w['bledy']));
     }
-    header('Location: przelewy_rachunki.php?okres=' . urlencode($ym === '' ? 'wszystkie' : $ym));
+    header('Location: przelewy_rachunki.php?okres=' . urlencode($ym === '' ? 'wszystkie' : $ym) . ($zapl ? '&zaplacone=1' : ''));
     exit;
 }
 
@@ -75,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
     exit;
 }
 
-$rows   = prz_rach_lista($ym);
+$rows   = prz_rach_lista($ym, $zapl);
 $konta  = edok_rachunki_list();
 $hist   = prz_rach_historia();
 $money  = fn($v) => number_format((float)$v, 2, ',', ' ');
@@ -107,6 +108,7 @@ require_once __DIR__ . '/../includes/header.php';
         <label for="okres" class="prz-label">Okres rachunków</label>
         <input id="okres" name="okres" type="month" class="prz-input" value="<?= h($ym) ?>">
       </div>
+      <label class="tw-flex tw-items-center tw-gap-1 tw-pb-2 tw-text-sm"><input type="checkbox" class="form-check-input" name="zaplacone" value="1" <?= $zapl ? 'checked' : '' ?>> pokaż zapłacone</label>
       <button class="btn btn-outline-secondary btn-sm" type="submit">Pokaż</button>
       <a class="btn btn-link btn-sm" href="?okres=wszystkie">Wszystkie niezapłacone</a>
     </form>
@@ -115,6 +117,7 @@ require_once __DIR__ . '/../includes/header.php';
   <form method="post" id="przForm" class="prz-card">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <input type="hidden" name="okres" value="<?= h($ym === '' ? 'wszystkie' : $ym) ?>">
+    <?php if ($zapl): ?><input type="hidden" name="zaplacone" value="1"><?php endif; ?>
 
     <?php if (!$rows): ?>
       <p class="tw-m-0 tw-text-sm tw-text-slate-600">Brak rachunków <?= $ym ? 'za ' . h(edok_okres_label($ym)) : 'do zapłaty' ?>.</p>
@@ -132,6 +135,7 @@ require_once __DIR__ . '/../includes/header.php';
           <option value="edok">Jest w EODoK</option>
           <option value="plik">Już w pliku przelewów</option>
           <option value="problem">Z problemem</option>
+          <option value="zaplacony">Zapłacone</option>
           <option value="gotowe">Gotowe do wyboru</option>
         </select>
       </div>
@@ -160,11 +164,11 @@ require_once __DIR__ . '/../includes/header.php';
         </tr></thead>
         <tbody>
         <?php foreach ($rows as $r): $ok = $r['problem'] === null; ?>
-          <?php $_stan = [!empty($r['edok']) ? 'edok' : 'brak', !empty($r['przelew_id']) ? 'plik' : '', $ok ? 'gotowe' : 'problem'];
+          <?php $_stan = [$r['status'] === 'zaplacony' ? 'zaplacony' : '', !empty($r['edok']) ? 'edok' : 'brak', !empty($r['przelew_id']) ? 'plik' : '', $ok ? 'gotowe' : 'problem'];
                 $_hay = mb_strtolower($r['imie_nazwisko'] . ' ' . $r['umowa_ref'] . ' ' . $r['numer'] . ' ' . ($r['edok']['number'] ?? '')); ?>
           <tr class="prz-row <?= $ok ? '' : 'tw-text-slate-400' ?>" data-hay="<?= h($_hay) ?>" data-stan="<?= h(implode(' ', array_filter($_stan))) ?>" data-ru="<?= h(mb_strtolower($r['umowa_ref'])) ?>">
             <td><input type="checkbox" class="form-check-input prz-cb" name="rid[]" value="<?= (int)$r['id'] ?>"
-                   data-kwota="<?= h((string)(float)($r['kwota_netto'] ?? 0)) ?>" <?= $ok ? (empty($r['ponowny']) ? 'checked' : '') : 'disabled' ?>
+                   data-kwota="<?= h((string)(float)($r['kwota_netto'] ?? 0)) ?>" <?php $_zp = $r['status'] === 'zaplacony' && $r['do_edok_ok']; ?><?= $_zp ? 'data-zapl="1"' : '' ?> <?= $ok ? (empty($r['ponowny']) ? 'checked' : '') : ($_zp ? '' : 'disabled') ?>
                    aria-label="<?= h($r['imie_nazwisko'] . ' ' . $r['numer']) ?>"></td>
             <td><a href="<?= APP_URL ?>/contracts/zlecenie/view.php?id=<?= (int)$r['umowa_id'] ?>&amp;tab=rachunki" class="tw-font-medium"><?= h($r['imie_nazwisko']) ?></a>
                 <div class="tw-text-xs tw-text-slate-500"><?= $r['umowa_ref'] !== '' ? 'umowa ' . h($r['umowa_ref']) : 'umowa techniczna (bez numeru)' ?></div></td>
@@ -210,10 +214,15 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
     </div>
 
+    <div class="tw-mt-4">
+      <label for="powod_zaplacony" class="prz-label">Opis, dlaczego rachunek zapłacony trafia do EODoK <span class="tw-font-normal tw-text-slate-500">(wymagany tylko dla rachunków zapłaconych)</span></label>
+      <textarea id="powod_zaplacony" name="powod_zaplacony" rows="2" class="prz-input tw-w-full" placeholder="np. rachunek opłacony z konta projektowego przed wprowadzeniem do EODoK — dokument do ewidencji"></textarea>
+      <p class="tw-m-0 tw-mt-1 tw-text-xs tw-text-slate-500">Zapłacone rachunki wchodzą do EODoK ze statusem płatności „Opłacony” (nie trafią do przelewów); powód zapisuje się w opisie dokumentu i w historii. Nie da się ich włączyć do pliku przelewów.</p>
+    </div>
     <div class="tw-mt-4 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3">
       <p class="tw-m-0 tw-text-sm" aria-live="polite">Zaznaczone: <strong id="przIle">0</strong> · suma netto <strong id="przSuma">0,00</strong> zł</p>
       <div class="tw-flex tw-flex-wrap tw-gap-2">
-      <button type="submit" name="action" value="do_edok" class="btn btn-outline-primary" <?= $do_wyboru ? '' : 'disabled' ?> title="Przekazuje zaznaczone rachunki (bez dokumentu EODoK) do EODoK jako dokumenty do zapłaty — obieg papierowy"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Przekaż zaznaczone do EODoK</button>
+      <button type="submit" name="action" value="do_edok" class="btn btn-outline-primary" <?= $rows ? '' : 'disabled' ?> title="Przekazuje zaznaczone rachunki (bez dokumentu EODoK) do EODoK jako dokumenty do zapłaty — obieg papierowy"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Przekaż zaznaczone do EODoK</button>
       <button type="submit" name="action" value="generuj" class="btn btn-primary" <?= $do_wyboru && $konta ? '' : 'disabled' ?>><i class="bi bi-download me-1" aria-hidden="true"></i> Generuj plik przelewów</button>
       </div>
     </div>
@@ -268,7 +277,7 @@ require_once __DIR__ . '/../includes/header.php';
     upd();
   }
   cbs.forEach(function (c) { c.addEventListener('change', upd); });
-  if (all) all.addEventListener('change', function () { cbs.forEach(function (c) { if (!c.disabled && !c.closest('tr').hidden) c.checked = all.checked; }); upd(); });
+  if (all) all.addEventListener('change', function () { cbs.forEach(function (c) { if (!c.disabled && !c.dataset.zapl && !c.closest('tr').hidden) c.checked = all.checked; }); upd(); });
   [q, stan, ru].forEach(function (el) { if (el) el.addEventListener('input', filtruj); });
   if (cbs.length) upd();
 })();

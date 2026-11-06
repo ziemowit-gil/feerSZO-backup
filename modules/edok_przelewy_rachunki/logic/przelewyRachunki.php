@@ -56,7 +56,7 @@ function prz_rach_w_okresie(array $r, string $ym): bool {
  * Rachunki do przelewów za miesiąc (pusty $ym = wszystkie niezapłacone).
  * Każdy wiersz ma `problem` (null = można wybrać) i `uwaga` (informacja, np. był już w pliku).
  */
-function prz_rach_lista(string $ym = ''): array {
+function prz_rach_lista(string $ym = '', bool $z_zaplaconymi = false): array {
     prz_rach_migrate();
     $rows = db_all(
         "SELECT r.*, u.imie_nazwisko, u.numer_umowy, u.nr_rejestru, u.rachunek_bankowy AS umowa_nrb, u.id AS umowa_id
@@ -68,7 +68,7 @@ function prz_rach_lista(string $ym = ''): array {
     $out = [];
     foreach ($rows as $r) {
         if ($ym !== '' && !prz_rach_w_okresie($r, $ym)) continue;
-        if ($ym === '' && $r['status'] === 'zaplacony') continue;
+        if ($ym === '' && $r['status'] === 'zaplacony' && !$z_zaplaconymi) continue;
         $nrb = preg_replace('/\D/', '', (string)$r['umowa_nrb']);
         $r['nrb']    = $nrb;
         $r['umowa_ref'] = rachunek_umowa_ref($r);
@@ -87,6 +87,8 @@ function prz_rach_lista(string $ym = ''): array {
         $r['uwaga'] = !empty($r['przelew_id']) ? 'Już w pliku przelewów z ' . date('d.m.Y H:i', strtotime((string)$r['przelew_at']))
             : ($edok_plat === 'zlecony' ? 'Przelew już zlecony z Preliminarza EODoK (' . $doc['number'] . ')'
             : ($doc ? 'EODoK ' . $doc['number'] . (!empty($doc['obieg_papierowy']) ? ' (obieg papierowy)' : '') : null));
+        // Do EODoK (bez przelewu): także zapłacony — wymaga opisu powodu; poza tym nie ma jeszcze dokumentu EODoK ani KDOK.
+        $r['do_edok_ok'] = $doc === null && empty($r['kdok_doc_id']);
         $r['ponowny'] = !empty($r['przelew_id']) || $edok_plat === 'zlecony';
         $out[] = $r;
     }
@@ -224,7 +226,7 @@ function prz_rach_generuj(array $rids, string $nrb_z, string $format, bool $ozna
  *
  * @return array{ok:int, bledy:string[]}
  */
-function prz_rach_do_edok(array $rids, ?int $user_id): array {
+function prz_rach_do_edok(array $rids, ?int $user_id, string $powod_zaplacony = ''): array {
     prz_rach_migrate();
     $ok = 0; $bledy = [];
     foreach (array_values(array_unique(array_map('intval', $rids))) as $rid) {
@@ -232,7 +234,7 @@ function prz_rach_do_edok(array $rids, ?int $user_id): array {
         $r = get_rachunek($rid);
         $etykieta = $r ? (($r['numer'] ?: '#' . $rid)) : '#' . $rid;
         try {
-            $res = rachunek_push_to_edok($rid, $user_id, true);
+            $res = rachunek_push_to_edok($rid, $user_id, true, $powod_zaplacony);
         } catch (\Throwable $e) {
             $res = ['ok' => false, 'msg' => 'Błąd: ' . $e->getMessage()];
         }
