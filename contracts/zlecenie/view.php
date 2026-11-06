@@ -1675,26 +1675,35 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   /* Metro UI: płasko, bez zaokrągleń; kroki obiegu jako prostokątne kafle */
   .rach-list, .rach-list * { border-radius: 0 !important; }
   .rach-list { display: flex; flex-direction: column; gap: .5rem; padding: 0 1rem 1rem; }
-  .rach-card { border: 0; border-left: 6px solid #0072c6; background: #f3f3f3; }
-  .rach-card.is-test { background: #fff4d6; border-left-color: #b45f06; }
-  .rach-main { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: flex-start; justify-content: space-between; padding: .85rem 1rem .5rem; }
-  .rach-title { font-weight: 300; font-size: 1.35rem; line-height: 1.2; }
-  .rach-meta { font-size: .8rem; color: #595959; }
-  .rach-amount { text-align: right; min-width: 9rem; }
-  .rach-amount .net { font-size: 1.7rem; font-weight: 300; line-height: 1.1; }
-  .rach-amount .lbl { font-size: .72rem; color: #595959; }
-  .rach-flow { display: flex; flex-wrap: wrap; gap: 3px; padding: 0 1rem .75rem; }
-  .rach-step { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .6rem; font-size: .76rem; background: #d9d9d9; color: #1d1d1d; text-decoration: none; }
+  .rach-table { width: 100%; border-collapse: separate; border-spacing: 0 3px; }
+  .rach-table thead th { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #595959; padding: 0 .75rem 2px; }
+  .rach-item > tr:first-child > td { background: #f3f3f3; padding: .6rem .75rem; vertical-align: top; }
+  .rach-item > tr:first-child > td:first-child { border-left: 6px solid #0072c6; }
+  .rach-item.is-test > tr:first-child > td { background: #fff4d6; }
+  .rach-item.is-test > tr:first-child > td:first-child { border-left-color: #b45f06; }
+  .rach-title { font-weight: 400; font-size: 1.05rem; line-height: 1.2; }
+  .rach-meta { font-size: .78rem; color: #595959; }
+  .rach-c-sum { text-align: right; white-space: nowrap; }
+  .rach-amount { text-align: right; min-width: 7rem; }
+  .rach-amount .net { font-size: 1.35rem; font-weight: 300; line-height: 1.1; }
+  .rach-amount .lbl { font-size: .7rem; color: #595959; }
+  .rach-c-flow { width: 34%; }
+  .rach-flow { display: flex; flex-wrap: wrap; gap: 3px; padding: 0; }
+  .rach-step { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .5rem; font-size: .72rem; background: #d9d9d9; color: #1d1d1d; text-decoration: none; }
   .rach-step.ok   { background: #128a3f; color: #fff; }
   .rach-step.warn { background: #b45f06; color: #fff; }
   .rach-step.bad  { background: #c4262e; color: #fff; }
   .rach-step.edok { background: #0072c6; color: #fff; }
   a.rach-step:hover { filter: brightness(.9); color: #fff; }
-  .rach-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; justify-content: space-between; padding: .5rem 1rem; background: #e6e6e6; }
-  .rach-actions .btn { font-size: .8rem; }
-  .rach-com { background: #fff; }
+  .rach-c-act { white-space: nowrap; }
+  .rach-item .dropdown-menu form, .rach-item .dropdown-menu .dropdown-item { width: 100%; text-align: left; }
+  @media (max-width: 991px) { .rach-table thead { display: none; } .rach-table, .rach-table tbody, .rach-table tr, .rach-table td { display: block; } .rach-c-flow { width: auto; } .rach-c-sum, .rach-amount { text-align: left; } }
+  .rach-com { background: #fff; border-left: 6px solid #d9d9d9; }
   </style>
   <div class="rach-list">
+    <table class="rach-table">
+    <caption class="visually-hidden">Rachunki do umowy</caption>
+    <thead><tr><th scope="col">Rachunek</th><th scope="col" class="text-end">Kwota</th><th scope="col">Obieg</th><th scope="col" class="text-end">Akcje</th></tr></thead>
     <?php foreach ($rachunki as $rr):
       $_rid  = (int)$rr['id'];
       $_dl   = rachunek_deadlines($rr);
@@ -1704,8 +1713,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
       $_netto = ($rr['kwota_netto'] ?? null) !== null;
       $_mozna_edok = can_edit() && !$_w_obiegu && !empty($rr['plik']) && !$_test && ($rr['status'] ?? '') !== 'odrzucony';
     ?>
-    <article class="rach-card<?= $_test ? ' is-test' : '' ?>" id="rach-row-<?= $_rid ?>" aria-labelledby="rach-t-<?= $_rid ?>">
-      <div class="rach-main">
+    <tbody class="rach-item<?= $_test ? ' is-test' : '' ?>">
+    <tr id="rach-row-<?= $_rid ?>">
+      <td class="rach-c-main">
         <div class="min-w-0">
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <span class="rach-title" id="rach-t-<?= $_rid ?>"><?= $rr['numer'] ? h($rr['numer']) : '<span class="text-muted fw-normal">Rachunek bez numeru</span>' ?></span>
@@ -1732,6 +1742,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             <?php endif; ?>
           </div>
         </div>
+      </td>
+      <td class="rach-c-sum">
         <div class="rach-amount">
           <?php if ($_netto): ?>
             <div class="lbl">do wypłaty (netto)</div>
@@ -1743,9 +1755,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             <?php if (!$_test && $rr['status'] !== 'odrzucony'): ?><div class="lbl" style="color:#b45309">netto do wypłaty: uzupełnij</div><?php endif; ?>
           <?php endif; ?>
         </div>
-      </div>
-
-      <!-- Obieg: powiadomienie → pobranie → podpis → oryginał → EODoK -->
+      </td>
+      <td class="rach-c-flow">
       <div class="rach-flow" id="rach-notif-<?= $_rid ?>" aria-label="Obieg rachunku">
         <?php if (!empty($rr['notified_at'])): ?>
           <span class="rach-step ok" title="Powiadomienie wysłane do: <?= h($rr['notified_to_email'] ?? '') ?>"><i class="bi bi-envelope-check" aria-hidden="true"></i> wysłano <?= date_pl($rr['notified_at']) ?></span>
@@ -1792,9 +1803,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
           <span class="rach-step ok" title="Ujęty w pliku przelewów"><i class="bi bi-bank" aria-hidden="true"></i> w przelewach <?= date_pl($rr['przelew_at']) ?></span>
         <?php endif; ?>
       </div>
-
-      <div class="rach-actions">
-        <div class="d-flex flex-wrap gap-2">
+      </td>
+      <td class="rach-c-act">
+        <div class="d-flex gap-1 justify-content-end align-items-start">
           <?php if ($_mozna_edok):
             $_e_okres = preg_match('/^\d{4}-\d{2}$/', (string)($rr['okres_od'] ?? '')) ? (string)$rr['okres_od'] : substr((string)($rr['data_wystawienia'] ?: date('Y-m-d')), 0, 7);
             $_e_ref   = rachunek_umowa_ref($row);
@@ -1810,35 +1821,32 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Wyślij do EODoK
           </button>
           <?php endif; ?>
+        <div class="dropdown">
+          <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Więcej</button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="max-height:none">
+            <li>
           <?php if (can_edit()): ?>
             <?php if ($_rach_email): ?>
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="rachNotify(<?= $_rid ?>, this)"
+            <button type="button" class="dropdown-item small" onclick="rachNotify(<?= $_rid ?>, this)"
                     title="<?= h($_rach_email) ?>"><i class="bi bi-send" aria-hidden="true"></i> <?= empty($rr['notified_at']) ? 'Powiadom' : 'Powiadom ponownie' ?></button>
             <?php else: ?>
-            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Brak adresu e-mail zleceniobiorcy"><i class="bi bi-send" aria-hidden="true"></i> Powiadom</button>
+            <button type="button" class="dropdown-item small" disabled title="Brak adresu e-mail zleceniobiorcy"><i class="bi bi-send" aria-hidden="true"></i> Powiadom</button>
             <?php endif; ?>
-            <?php if (!$_w_obiegu || is_admin()): ?>
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('rach-edit-<?= $_rid ?>').click()"
-                    <?= $_w_obiegu ? 'title="Korekta administratora — rachunek jest w obiegu"' : '' ?>><i class="bi bi-pencil-square" aria-hidden="true"></i> Edytuj</button>
-            <?php endif; ?>
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="rachCopyLink(<?= $_rid ?>, this)"><i class="bi bi-link-45deg" aria-hidden="true"></i> Link</button>
+            <button type="button" class="dropdown-item small" onclick="rachCopyLink(<?= $_rid ?>, this)"><i class="bi bi-link-45deg" aria-hidden="true"></i> Link</button>
             <?php if (($rr['status'] ?? '') !== 'odrzucony' && !$_test): ?>
-            <form method="post" class="d-inline">
+            <form method="post">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="_rach_oryginal" value="1">
               <input type="hidden" name="rach_id" value="<?= $_rid ?>">
               <input type="hidden" name="oryginal" value="<?= empty($rr['oryginal_at']) ? '1' : '0' ?>">
-              <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-folder<?= empty($rr['oryginal_at']) ? '-plus' : '-minus' ?>" aria-hidden="true"></i> <?= empty($rr['oryginal_at']) ? 'Jest w koszulce' : 'Zdejmij „w koszulce”' ?></button>
+              <button type="submit" class="dropdown-item small"><i class="bi bi-folder<?= empty($rr['oryginal_at']) ? '-plus' : '-minus' ?>" aria-hidden="true"></i> <?= empty($rr['oryginal_at']) ? 'Jest w koszulce' : 'Zdejmij „w koszulce”' ?></button>
             </form>
             <?php endif; ?>
           <?php endif; ?>
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#rach-com-<?= $_rid ?>"
+          <button type="button" class="dropdown-item small" data-bs-toggle="collapse" data-bs-target="#rach-com-<?= $_rid ?>"
                   aria-expanded="false" aria-controls="rach-com-<?= $_rid ?>"><i class="bi bi-chat-left-text" aria-hidden="true"></i> Komentarze<?= $_cc ? ' (' . $_cc . ')' : '' ?></button>
-        </div>
-        <?php if (can_edit() || is_admin()): ?>
-        <div class="dropdown">
-          <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Więcej</button>
-          <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="max-height:none">
+            </li>
+            <li><hr class="dropdown-divider"></li>
             <?php if ($_w_obiegu && is_admin()): ?>
             <li><span class="dropdown-item-text small text-muted" style="max-width:18rem;white-space:normal"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>W obiegu — zmiany jako korekta administratora (kwoty trafią też do EODoK).</span></li>
             <?php endif; ?>
@@ -1875,9 +1883,10 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             <?php endif; ?>
           </ul>
         </div>
-        <?php endif; ?>
-      </div>
-
+        </div>
+      </td>
+    </tr>
+    <tr class="rach-comrow"><td colspan="4" class="p-0">
       <!-- Komentarze -->
       <div class="collapse" id="rach-com-<?= $_rid ?>">
         <div class="rach-com p-3">
@@ -1921,8 +1930,11 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
           </form>
         </div>
       </div>
-    </article>
+
+    </td></tr>
+    </tbody>
     <?php endforeach; ?>
+    </table>
   </div>
   <?php else: ?>
   <div class="card-body text-muted small pt-0">
