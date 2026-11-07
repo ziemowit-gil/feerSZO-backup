@@ -50,6 +50,15 @@ $typeLabel = ['user' => 'Pracownik', 'client' => 'Uczestnik TI', 'other' => 'Inn
   <?php else: ?>
   <form method="post" action="<?= h(route('lp.assign')) ?>" class="border p-3" id="lpAssign">
     <?= Router::csrfField() ?><input type="hidden" name="product_id" value="<?= (int)$p['id'] ?>">
+    <div class="mb-2"><label class="form-label" for="lpLic">Numer licencji z puli</label>
+      <select id="lpLic" name="license_id" class="form-select">
+        <option value="">Automatycznie (najpierw wygasająca najwcześniej)</option>
+        <?php $lpToday = date('Y-m-d'); foreach ($licenses as $l):
+          if (($l['status'] ?? '') !== 'active' || (int)$l['used'] >= (int)$l['seats']) continue;
+          if (!empty($l['valid_until']) && substr((string)$l['valid_until'], 0, 10) < $lpToday) continue; ?>
+        <option value="<?= (int)$l['id'] ?>"><?= h($l['code_hint']) ?> · wolne miejsca: <?= (int)$l['seats'] - (int)$l['used'] ?><?= !empty($l['valid_until']) ? ' · do ' . h(substr((string)$l['valid_until'], 0, 10)) : '' ?></option>
+        <?php endforeach; ?>
+      </select></div>
     <div class="mb-2"><label class="form-label" for="ht">Odbiorca</label>
       <select id="ht" name="holder_type" class="form-select">
         <option value="user"<?= $ctx === 'it' ? ' selected' : '' ?>>Pracownik SZO</option>
@@ -74,7 +83,7 @@ $typeLabel = ['user' => 'Pracownik', 'client' => 'Uczestnik TI', 'other' => 'Inn
     <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="nt" name="notify" value="1" checked><label class="form-check-label" for="nt">Wyślij e-mail z kluczem i instrukcją aktywacji (adres z konta; uczestnik małoletni — opiekun)</label></div>
     <div class="mb-3"><label class="form-label" for="nn">Uwaga (wewnętrzna)</label><input id="nn" name="note" class="form-control" maxlength="300"></div>
     <button class="btn btn-primary">Przydziel</button>
-    <div class="small text-muted mt-2">System wybierze licencję z wolnym miejscem (najpierw wygasającą najwcześniej).</div>
+    <div class="small text-muted mt-2">Bez wyboru numeru system wybierze licencję z wolnym miejscem (najpierw wygasającą najwcześniej).</div>
   </form>
   <script>
   (function(){
