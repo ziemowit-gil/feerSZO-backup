@@ -156,7 +156,7 @@ header('Cache-Control: no-store');
       <span></span>
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
         <?php if ($ms_ok): ?>
-        <label class="chk"><input type="checkbox" id="cpl-domain" aria-describedby="cpl-domain-h"> <span>Logowanie domenowe</span></label>
+        <label class="chk"><input type="checkbox" id="cpl-domain" aria-describedby="cpl-domain-h"<?= $err === '' ? ' checked' : '' ?>> <span>Logowanie domenowe</span></label>
         <?php else: ?><span></span><?php endif; ?>
         <span class="link"><a href="<?= $e($APP . '/user/verify_reset.php') ?>">Zapomniałem hasła</a></span>
       </div>
@@ -226,7 +226,7 @@ header('Cache-Control: no-store');
   if (p) {
     rem.checked = true;
     if (p.profil && URLS[p.profil] && !<?= $want !== '' ? 'true' : 'false' ?>) prof.value = p.profil;
-    if (dom && p.domain && !hasErr) dom.checked = true;
+    if (dom) dom.checked = !hasErr && !!p.domain;   // zapamiętany wybór wygrywa z domyślnym
   }
   apply();
 })();
