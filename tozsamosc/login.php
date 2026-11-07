@@ -9,6 +9,9 @@
  *
  * WCAG 2.1 AA: etykiety pól, błąd w role=alert, widoczny fokus (#facc15), obsługa klawiaturą, cele ≥ 44 px.
  */
+// CPL — Centralny Portal Logowania (układ TETA Web) jest teraz domyślnym oknem logowania Tożsamości.
+// Poprzedni wygląd (METRO) zostaje pod ?stary=1.
+if (!isset($_GET['stary'])) { require __DIR__ . '/cpl.php'; exit; }
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
