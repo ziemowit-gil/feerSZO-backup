@@ -4695,7 +4695,7 @@ function k30_ti_homework_list(int $course_id = 0): array {
     $where = $course_id ? "WHERE h.course_id=?" : "";
     $params = $course_id ? [$course_id] : [];
     return db_all(
-        "SELECT h.*, c.name AS course_name,
+        "SELECT h.*, c.name AS course_name, ls.lesson_date AS lesson_date,
                 (SELECT COUNT(*) FROM k30_ti_homework_submissions s WHERE s.homework_id=h.id) AS sub_count,
                 (SELECT COUNT(*) FROM k30_ti_homework_submissions s WHERE s.homework_id=h.id AND s.status='graded') AS graded_count
          FROM k30_ti_homework h

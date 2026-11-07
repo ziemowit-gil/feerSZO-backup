@@ -1,6 +1,7 @@
 <?php /* ═══════════════════════ TAB: ZADANIA ═══════════════════════ */ ?>
 <?php
   $hw_view = (int)($_GET['hw'] ?? 0);
+  $hw_table = (($_GET['widok'] ?? '') === 'tabela');
   $hw_obj  = $hw_view ? k30_ti_homework_get($hw_view) : null;
   if ($hw_obj && (int)$hw_obj['course_id'] !== $cur_course) $hw_obj = null;
 ?>
@@ -58,15 +59,19 @@
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
     <span class="fw-semibold"><i class="bi bi-journal-check me-2"></i>Zadania domowe</span>
+    <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Widok zadań">
+      <a href="index.php?course=<?= $cur_course ?>&tab=zadania" class="btn btn-outline-secondary<?= $hw_table ? '' : ' active' ?>"<?= $hw_table ? '' : ' aria-current="true"' ?>><i class="bi bi-list-ul me-1"></i>Lista</a>
+      <a href="index.php?course=<?= $cur_course ?>&tab=zadania&widok=tabela" class="btn btn-outline-secondary<?= $hw_table ? ' active' : '' ?>"<?= $hw_table ? ' aria-current="true"' : '' ?>><i class="bi bi-table me-1"></i>Tabela</a>
+    </div>
     <?php if (count($homeworks) > 1): ?>
-    <form method="post" class="ms-auto" onsubmit="return confirm('Ukryć wszystkie zadania poza najnowszym? Kursanci przestaną je widzieć.')">
+    <form method="post" onsubmit="return confirm('Ukryć wszystkie zadania poza najnowszym? Kursanci przestaną je widzieć.')">
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
       <input type="hidden" name="_op" value="archive_previous_homework">
       <input type="hidden" name="course_id" value="<?= $cur_course ?>">
       <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-archive me-1"></i>Archiwizuj poprzednie</button>
     </form>
     <?php endif; ?>
-    <button type="button" class="btn btn-primary btn-sm <?= count($homeworks) > 1 ? '' : 'ms-auto' ?>" data-bs-toggle="modal" data-bs-target="#addH">
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addH">
       <i class="bi bi-plus-lg me-1"></i>Dodaj zadanie
     </button>
     <?php if ($homeworks): ?>
@@ -76,6 +81,48 @@
     </div>
     <?php endif; ?>
   </div>
+  <?php if ($hw_table): ?>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <caption class="visually-hidden">Zadania domowe kursu, od najnowszej daty lekcji</caption>
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Data lekcji</th>
+          <th scope="col">Tytuł</th>
+          <th scope="col">Termin</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end">Oddania</th>
+          <th scope="col" class="text-end">Ocenione</th>
+          <th scope="col"><span class="visually-hidden">Akcje</span></th>
+        </tr>
+      </thead>
+      <tbody id="dyd-list-zadania">
+        <?php if (!$homeworks): ?><tr><td colspan="7" class="text-body-secondary py-3">Brak zadań. Kliknij „Dodaj zadanie", aby utworzyć pierwsze.</td></tr><?php endif; ?>
+        <tr class="dyd-filter-empty" style="display:none"><td colspan="7" class="text-body-secondary py-3">Brak zadań pasujących do wyszukiwania.</td></tr>
+        <?php foreach ($homeworks as $hw): $av = k30_ti_avail_status($hw['open_at']??null, $hw['close_at']??null);
+              $pending = (int)$hw['sub_count'] - (int)$hw['graded_count']; ?>
+        <tr data-filter-item="1" class="<?= $hw['is_active']?'':'text-body-secondary' ?>">
+          <td class="text-nowrap"><?= !empty($hw['lesson_date']) ? h(date('d.m.Y', strtotime($hw['lesson_date']))) : '—' ?></td>
+          <td class="fw-semibold"><?= h($hw['title']) ?><?php if ($hw['attach_path']): ?> <i class="bi bi-paperclip" title="Ma załącznik"></i><span class="visually-hidden">(załącznik)</span><?php endif; ?></td>
+          <td class="text-nowrap"><?= $hw['due_at'] ? h(substr($hw['due_at'],0,16)) : '—' ?></td>
+          <td>
+            <?php if (!$hw['is_active']): ?><span class="badge bg-secondary">ukryte</span><?php endif; ?>
+            <?php if ($av['state']==='upcoming'): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><?= h($av['label']) ?></span><?php endif; ?>
+            <?php if ($av['state']==='closed'): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><?= h($av['label']) ?></span><?php endif; ?>
+            <?php if ($hw['is_active'] && $av['state']!=='upcoming' && $av['state']!=='closed'): ?><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">aktywne</span><?php endif; ?>
+          </td>
+          <td class="text-end"><?= (int)$hw['sub_count'] ?></td>
+          <td class="text-end"><?= (int)$hw['graded_count'] ?><?php if ($pending > 0): ?> <span class="badge text-bg-warning" title="Do oceny"><?= $pending ?><span class="visually-hidden"> do oceny</span></span><?php endif; ?></td>
+          <td class="text-end text-nowrap">
+            <a href="index.php?course=<?= $cur_course ?>&tab=zadania&hw=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2" title="Oddania / oceny"><i class="bi bi-check2-square"></i><span class="visually-hidden">Oddania / oceny: <?= h($hw['title']) ?></span></a>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-bs-toggle="modal" data-bs-target="#edH<?= (int)$hw['id'] ?>" title="Edytuj"><i class="bi bi-pencil"></i><span class="visually-hidden">Edytuj: <?= h($hw['title']) ?></span></button>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php else: ?>
   <div class="list-group list-group-flush" id="dyd-list-zadania">
     <?php if (!$homeworks): ?><div class="list-group-item text-body-secondary py-3">Brak zadań. Kliknij „Dodaj zadanie", aby utworzyć pierwsze.</div><?php endif; ?>
     <div class="list-group-item dyd-filter-empty text-body-secondary py-3" style="display:none">Brak zadań pasujących do wyszukiwania.</div>
@@ -107,6 +154,7 @@
     </div>
     <?php endforeach; ?>
   </div>
+  <?php endif; /* $hw_table */ ?>
 </div>
 <!-- Wyskakujące okienka: dodawanie + edycja zadań -->
 <div class="modal fade" id="addH" tabindex="-1" aria-labelledby="addH_t" aria-hidden="true">
