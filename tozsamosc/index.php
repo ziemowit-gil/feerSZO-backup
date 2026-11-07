@@ -640,6 +640,25 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 .tzx-aside li{ @apply tw-mb-1; }
 .tz-req li.ok{ color:var(--m-green); }
 .tz-meter{ border-radius:0; }
+
+/* ── Wygląd CPL / TETA Web: jasne szarości, Tahoma, niebieski akcent + wstążka ── */
+:root{--m-blue:#0a7fd1;--m-blue-d:#075f9e;--m-line:#c9ced6}
+.tz, .tz *{ font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif; }
+.rb{ background:#eceeef; border:1px solid #c9ced6; margin:0 0 1.25rem; }
+.rb-tabs{ display:flex; gap:2px; background:#fff; border-bottom:1px solid #c9ced6; padding:0 .5rem; overflow-x:auto; scrollbar-width:none; }
+.rb-tabs button{ background:none; border:1px solid transparent; border-bottom:0; padding:.5rem 1rem; font:inherit; font-size:.88rem; font-weight:700; color:#374151; cursor:pointer; margin-bottom:-1px; white-space:nowrap; }
+.rb-tabs button[aria-selected="true"]{ background:#eceeef; border-color:#c9ced6; color:#2e2a7a; }
+.rb-tabs button:hover{ background:#f3f4f6; }
+.rb-tabs button:focus-visible,.rb-cmd:focus-visible{ outline:3px solid #f59e0b; outline-offset:-3px; }
+.rb-groups{ display:flex; flex-wrap:wrap; }
+.rb-group{ display:flex; flex-direction:column; padding:.5rem .75rem .25rem; border-right:1px solid #c9ced6; min-width:0; }
+.rb-group:last-child{ border-right:0; }
+.rb-cmds{ display:flex; gap:.15rem; flex-wrap:wrap; }
+.rb-cmd{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:.25rem; min-width:84px; max-width:120px; min-height:68px; padding:.4rem .5rem; background:none; border:1px solid transparent; color:#1f2937; text-decoration:none; font:inherit; font-size:.76rem; line-height:1.15; text-align:center; cursor:pointer; }
+.rb-cmd .bi{ font-size:1.55rem; color:#0a7fd1; line-height:1; }
+.rb-cmd:hover{ background:#dbeafe; border-color:#93c5fd; color:#1f2937; }
+.rb-glabel{ text-align:center; font-size:.7rem; color:#4b5563; padding:.15rem 0 .2rem; }
+@media (max-width:640px){ .rb-group{ flex:1 1 100%; border-right:0; border-bottom:1px solid #c9ced6; } }
 </style>
 
 <div x-data="tzIdentity(<?= h(json_encode(['tabs' => array_keys($tabs), 'firstVisit' => $first_visit])) ?>)" x-cloak>
@@ -679,78 +698,85 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 <?php endif; ?>
 </div>
 
-<!-- ═══════════ KAFLE (Start) ═══════════ -->
+<!-- ═══════════ RIBBON (wstążka poleceń) ═══════════ -->
 <?php
-$T_OK = 'var(--m-green)'; $T_WARN = 'var(--m-orange)'; $T_OFF = 'var(--m-grey)';
-$sec_tile_c = $sec_pct >= 80 ? $T_OK : ($sec_pct >= 50 ? $T_WARN : 'var(--m-red)');
 $m365_active = $has_m365 && !empty($m365_row['m365_konto_aktywne']);
+$sec_c = $sec_pct >= 80 ? 'var(--m-green)' : ($sec_pct >= 50 ? 'var(--m-orange)' : 'var(--m-red)');
+// Polecenia: [ikona, etykieta, opis (title/aria), href|null, akcja Alpine|null, stan]
+$rb = [
+  'konto' => ['Konto', [
+    ['Dane i tożsamość', [
+      ['bi-person-badge', 'Dane konta', 'Pokaż UID, login i rolę', null, "go('podstawowe')"],
+      ['bi-grid-3x3-gap', 'Usługi', 'Usługi i dostępy konta (' . count($services) . ')', null, "go('uslugi')"],
+      ['bi-microsoft', 'Microsoft 365', $has_m365 ? ($m365_active ? 'Konto M365 aktywne' : 'Konto M365 zawieszone') : 'Brak konta M365', APP_URL . '/panel/m365.php', null],
+    ]],
+    ['Sesja', [
+      ['bi-box-arrow-up-right', 'Wróć do SZO', 'Przejdź do panelu SZO', APP_URL . '/portal.php', null],
+      ['bi-box-arrow-right', 'Wyloguj', 'Zakończ sesję', APP_URL . '/auth/logout.php', null],
+    ]],
+  ]],
+  'bezpieczenstwo' => ['Bezpieczeństwo', [
+    ['Hasło i telefon', [
+      ['bi-key', 'Hasło', $has_local_password ? 'Zmień hasło' : 'Ustaw hasło', null, "go('bezpieczenstwo'); \$dispatch('tz-sec', 'haslo')"],
+      ['bi-phone', 'Telefon SMS', $phone_verified ? 'Telefon zweryfikowany' : 'Dodaj i zweryfikuj telefon', null, "go('bezpieczenstwo'); \$dispatch('tz-sec', 'telefon')"],
+    ]],
+    ['Weryfikacja', [
+      ['bi-shield-check', 'Weryfikacja 2-składnikowa', $mfa_active ? 'Aktywna: ' . $mfa_label : 'Nieskonfigurowana', APP_URL . '/tozsamosc/mfa.php', null],
+      ['bi-fingerprint', 'Klucz / passkey', $has_wk ? 'Zarejestrowane klucze: ' . count($wk_keys_idx) : 'Brak kluczy FIDO2', APP_URL . '/tozsamosc/mfa.php#webauthn', null],
+    ]],
+    ['Stan', [
+      ['bi-shield-lock', 'Stan zabezpieczeń: ' . $sec_pct . '%', $sec_ok . ' z ' . $sec_total . ' elementów', null, "go('bezpieczenstwo')", $sec_c],
+    ]],
+  ]],
+  'dane' => ['Dane i RODO', [
+    ['Twoje dane', [
+      ['bi-clock-history', 'Rejestr czynności', 'Kto i po co przetwarza Twoje dane', null, "go('rejestr')"],
+      ['bi-file-earmark-arrow-down', 'Eksport danych', 'PDF: art. 15 i 20 RODO', APP_URL . '/tozsamosc/rodo_export.php', null],
+    ]],
+  ]],
+  'pomoc' => ['Pomoc', [
+    ['Wsparcie', [
+      ['bi-info-circle', 'O panelu', 'Do czego służy System Tożsamości', null, "go('opanelu')"],
+      ['bi-headset', 'Helpdesk', 'Zgłoś problem', APP_URL . '/helpdesk/index.php', null],
+    ]],
+  ]],
+];
+if ($has_ika) $rb['bezpieczenstwo'][1][0][1][] = ['bi-123', 'Kod IKA', 'Zmień kod IKA', null, "go('ika')"];
+if (is_admin()) $rb['admin'] = ['Administracja', [['Narzędzia', [['bi-shield-fill-gear', 'Administracja', 'Zarządzanie tożsamością', null, "go('administracja')"]]]]];
 ?>
-<div class="mt-grid" aria-label="Skróty">
-  <a href="#podstawowe" class="mt-tile mt-tile--l" style="--c:var(--m-blue)" @click.prevent="go('podstawowe')">
-    <span class="ava" aria-hidden="true"><?= h($initials) ?></span>
-    <span>
-      <span class="val tw-block tw-truncate"><?= h($user['name']) ?></span>
-      <span class="lbl tw-block tw-mt-1"><?= h($role_label) ?> · <?= h($account_type_label) ?></span>
-      <span class="sub">UID <b><?= h($uid) ?></b> · <?= h($panel_login ?: '—') ?></span>
-    </span>
-  </a>
-
-  <a href="#bezpieczenstwo" class="mt-tile mt-tile--w" style="--c:<?= $sec_tile_c ?>" @click.prevent="go('bezpieczenstwo')" aria-label="Stan zabezpieczeń: <?= $sec_pct ?> procent, <?= $sec_ok ?> z <?= $sec_total ?> elementów">
-    <i class="bi bi-shield-lock ic" aria-hidden="true"></i>
-    <span><span class="val"><?= $sec_pct ?>%</span><span class="lbl tw-block tw-mt-1">Stan zabezpieczeń</span><span class="sub"><?= $sec_ok ?> z <?= $sec_total ?> elementów · <?= $sec_pct >= 80 ? 'dobrze zabezpieczone' : ($sec_pct >= 50 ? 'dokończ konfigurację' : 'zabezpiecz konto') ?></span></span>
-  </a>
-
-  <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="mt-tile" style="--c:<?= $mfa_active ? $T_OK : $T_WARN ?>">
-    <span class="tag"><?= $mfa_active ? 'aktywne' : 'brak' ?></span>
-    <i class="bi bi-shield-check ic" aria-hidden="true"></i>
-    <span><span class="lbl tw-block">Weryfikacja dwuskładnikowa</span><span class="sub"><?= $mfa_active ? h($mfa_label) : 'skonfiguruj' ?></span></span>
-  </a>
-
-  <a href="#bezpieczenstwo" class="mt-tile" style="--c:<?= $has_local_password ? $T_OK : $T_WARN ?>" @click.prevent="go('bezpieczenstwo'); $dispatch('tz-sec', 'haslo')">
-    <span class="tag"><?= $has_local_password ? 'ok' : 'ustaw' ?></span>
-    <i class="bi bi-key ic" aria-hidden="true"></i>
-    <span><span class="lbl tw-block">Hasło</span><span class="sub"><?= $has_m365 ? 'SZO + Microsoft 365' : 'konto lokalne' ?></span></span>
-  </a>
-
-  <a href="#bezpieczenstwo" class="mt-tile" style="--c:<?= $phone_verified ? $T_OK : $T_WARN ?>" @click.prevent="go('bezpieczenstwo'); $dispatch('tz-sec', 'telefon')">
-    <span class="tag"><?= $phone_verified ? 'ok' : ($phone_saved ? 'zweryfikuj' : 'brak') ?></span>
-    <i class="bi bi-phone ic" aria-hidden="true"></i>
-    <span><span class="lbl tw-block">Telefon do SMS</span><span class="sub"><?= $phone_verified ? h(tz_mask_phone($phone_saved)) : 'odzyskiwanie dostępu' ?></span></span>
-  </a>
-
-  <a href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn" class="mt-tile" style="--c:<?= $has_wk ? $T_OK : $T_OFF ?>">
-    <span class="tag"><?= $has_wk ? count($wk_keys_idx) . ' szt.' : 'brak' ?></span>
-    <i class="bi bi-fingerprint ic" aria-hidden="true"></i>
-    <span><span class="lbl tw-block">Klucz / passkey</span><span class="sub">FIDO2 · Windows Hello</span></span>
-  </a>
-
-  <a href="<?= APP_URL ?>/panel/m365.php" class="mt-tile mt-tile--w" style="--c:<?= $m365_active ? 'var(--m-indigo)' : $T_OFF ?>">
-    <span class="tag"><?= $m365_active ? 'aktywne' : ($has_m365 ? 'zawieszone' : 'brak konta') ?></span>
-    <i class="bi bi-microsoft ic" aria-hidden="true"></i>
-    <span><span class="lbl tw-block">Microsoft 365 / Entra ID</span><span class="sub"><?= $has_m365 ? h($m365_login ?: $panel_login) : 'konto nie zostało utworzone' ?></span></span>
-  </a>
-
-  <a href="#uslugi" class="mt-tile" style="--c:var(--m-teal)" @click.prevent="go('uslugi')">
-    <i class="bi bi-grid-3x3-gap ic" aria-hidden="true"></i>
-    <span><span class="val"><?= count($services) ?></span><span class="lbl tw-block">Usługi</span></span>
-  </a>
-
-  <a href="<?= APP_URL ?>/tozsamosc/rodo_export.php" target="_blank" rel="noopener" class="mt-tile" style="--c:var(--m-purple)">
-    <i class="bi bi-file-earmark-arrow-down ic" aria-hidden="true"></i>
-    <span><span class="lbl tw-block">Eksport danych</span><span class="sub">PDF · art. 15 i 20 RODO</span></span>
-  </a>
-
-  <a href="<?= APP_URL ?>/helpdesk/index.php" class="mt-tile" style="--c:var(--m-magenta)">
-    <i class="bi bi-headset ic" aria-hidden="true"></i>
-    <span><span class="lbl tw-block">Pomoc</span><span class="sub">helpdesk organizacji</span></span>
-  </a>
-
-  <?php if (is_admin()): ?>
-  <a href="#administracja" class="mt-tile" style="--c:var(--m-dark)" @click.prevent="go('administracja')">
-    <i class="bi bi-shield-fill-gear ic" aria-hidden="true"></i>
-    <span><span class="lbl tw-block">Administracja</span><span class="sub">tożsamością</span></span>
-  </a>
-  <?php endif; ?>
+<div class="rb" x-data="{ rt: 'konto', order: <?= h(json_encode(array_keys($rb))) ?>, mv(j){ var n = this.order.length; this.rt = this.order[(j + n) % n]; this.$nextTick(() => document.getElementById('rb-tab-' + this.rt).focus()); } }" aria-label="Wstążka poleceń">
+  <div class="rb-tabs" role="tablist" aria-label="Zakładki wstążki">
+    <?php $ri = 0; foreach ($rb as $rk => [$rl]): ?>
+    <button type="button" role="tab" id="rb-tab-<?= $rk ?>" aria-controls="rb-pane-<?= $rk ?>"
+            :aria-selected="rt === '<?= $rk ?>' ? 'true' : 'false'" :tabindex="rt === '<?= $rk ?>' ? 0 : -1"
+            @click="rt = '<?= $rk ?>'"
+            @keydown.arrow-right.prevent="mv(<?= $ri + 1 ?>)"
+            @keydown.arrow-left.prevent="mv(<?= $ri - 1 ?>)"
+            @keydown.home.prevent="mv(0)"
+            @keydown.end.prevent="mv(order.length - 1)"
+            ><?= h($rl) ?></button>
+    <?php $ri++; endforeach; ?>
+  </div>
+  <?php foreach ($rb as $rk => [$rl, $groups]): ?>
+  <div class="rb-pane" role="tabpanel" id="rb-pane-<?= $rk ?>" aria-labelledby="rb-tab-<?= $rk ?>" x-show="rt === '<?= $rk ?>'" tabindex="-1">
+    <div class="rb-groups" role="toolbar" aria-label="<?= h($rl) ?>">
+      <?php foreach ($groups as [$gl, $cmds]): ?>
+      <div class="rb-group" role="group" aria-label="<?= h($gl) ?>">
+        <div class="rb-cmds">
+          <?php foreach ($cmds as $c): [$ci, $cl, $cd, $ch, $ca] = $c; $cc = $c[5] ?? ''; ?>
+            <?php if ($ch): ?>
+            <a class="rb-cmd" href="<?= h($ch) ?>" title="<?= h($cd) ?>" aria-label="<?= h($cl . '. ' . $cd) ?>"><i class="bi <?= h($ci) ?>" aria-hidden="true"<?= $cc ? ' style="color:' . $cc . '"' : '' ?>></i><span><?= h($cl) ?></span></a>
+            <?php else: ?>
+            <button type="button" class="rb-cmd" title="<?= h($cd) ?>" aria-label="<?= h($cl . '. ' . $cd) ?>" @click="<?= h($ca) ?>"><i class="bi <?= h($ci) ?>" aria-hidden="true"<?= $cc ? ' style="color:' . $cc . '"' : '' ?>></i><span><?= h($cl) ?></span></button>
+            <?php endif; ?>
+          <?php endforeach; ?>
+        </div>
+        <div class="rb-glabel"><?= h($gl) ?></div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endforeach; ?>
 </div>
 
 <!-- ═══════════ PIVOT ═══════════ -->
