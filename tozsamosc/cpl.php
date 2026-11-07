@@ -69,7 +69,6 @@ foreach ($profiles as $k => $p) {
     ];
 }
 $from_url = $SELF . ($want !== '' ? '?redirect=' . urlencode($want) : '');
-$full_url = $APP . '/auth/login.php?pelne=1&redirect=' . urlencode($profiles[$sel][2]);
 
 // Siatka kropek w nagłówku — stała (ziarno), żeby wygląd nie „migał” między odświeżeniami.
 mt_srand(2610);
@@ -179,11 +178,6 @@ header('Cache-Control: no-store');
     <button type="submit" class="btn" id="cpl-go">Zaloguj</button>
   </form>
 
-  <div class="more">
-    <a href="<?= $e($full_url) ?>" id="cpl-full">Kod SMS, kod jednorazowy lub certyfikat</a>
-    <a href="<?= $e($APP . '/tozsamosc/kursant.php') ?>">Jestem kursantem TI</a>
-  </div>
-
   <p class="vpn" id="cpl-vpn" role="note"<?= $profiles[$sel][3] ? '' : ' hidden' ?>><strong>Niektóre usługi są dostępne wyłącznie z VPN.</strong>
     Wybrany profil wymaga połączenia z VPN Fundacji — jeśli moduł nie otworzy się po zalogowaniu, połącz się z VPN i spróbuj ponownie. <a href="<?= $e($APP . '/vpn/') ?>">Dowiedz się więcej o VPN</a></p>
 
@@ -201,7 +195,7 @@ header('Cache-Control: no-store');
   var form = document.getElementById('cpl-form'), prof = document.getElementById('cpl-profile'),
       dom = document.getElementById('cpl-domain'), user = document.getElementById('cpl-user'),
       pass = document.getElementById('cpl-pass'), rowUser = document.getElementById('row-user'),
-      rowPass = document.getElementById('row-pass'), full = document.getElementById('cpl-full'),
+      rowPass = document.getElementById('row-pass'),
       rem = document.getElementById('cpl-remember'), hasErr = <?= $err !== '' ? 'true' : 'false' ?>;
   var KEY = 'cpl.prefs';
   function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
