@@ -1856,6 +1856,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'zadania')); exit;
     }
 
+    // Archiwizuj poprzednie: ukrywa wszystkie zadania kursu poza najnowszym (wg daty lekcji)
+    if ($op === 'archive_previous_homework') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        if ($cid && dyd_owns_course($uid, $cid)) {
+            $list = k30_ti_homework_list($cid);   // najnowsze pierwsze
+            $dateOf = function (array $hw): string {
+                $d = '';
+                if (!empty($hw['session_id'])) {
+                    $r = db_one("SELECT lesson_date FROM k30_ti_sessions WHERE id=?", [(int)$hw['session_id']]);
+                    $d = (string)($r['lesson_date'] ?? '');
+                }
+                return $d !== '' ? $d : substr((string)($hw['created_at'] ?? ''), 0, 10);
+            };
+            $newest = $list ? $dateOf($list[0]) : '';
+            $n = 0;
+            foreach ($list as $hw) {
+                if ((int)$hw['is_active'] === 1 && $dateOf($hw) < $newest) {
+                    db()->prepare("UPDATE k30_ti_homework SET is_active=0 WHERE id=?")->execute([(int)$hw['id']]);
+                    $n++;
+                }
+            }
+            flash_set('success', $n ? "Zarchiwizowano (ukryto) poprzednie zadania: $n." : 'Brak poprzednich zadań do archiwizacji.');
+        }
+        header('Location: ' . dyd_back($cid, 'zadania')); exit;
+    }
+
     // ── MATERIAŁY / eLEARNING ───────────────────────────────────────────────────
     if ($op === 'save_material') {
         $TYPES     = k30_ti_material_types();

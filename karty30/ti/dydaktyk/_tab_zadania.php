@@ -58,7 +58,15 @@
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
     <span class="fw-semibold"><i class="bi bi-journal-check me-2"></i>Zadania domowe</span>
-    <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addH">
+    <?php if (count($homeworks) > 1): ?>
+    <form method="post" class="ms-auto" onsubmit="return confirm('Ukryć wszystkie zadania poza najnowszym? Kursanci przestaną je widzieć.')">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="archive_previous_homework">
+      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+      <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-archive me-1"></i>Archiwizuj poprzednie</button>
+    </form>
+    <?php endif; ?>
+    <button type="button" class="btn btn-primary btn-sm <?= count($homeworks) > 1 ? '' : 'ms-auto' ?>" data-bs-toggle="modal" data-bs-target="#addH">
       <i class="bi bi-plus-lg me-1"></i>Dodaj zadanie
     </button>
     <?php if ($homeworks): ?>
