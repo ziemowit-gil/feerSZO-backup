@@ -565,6 +565,7 @@ auth_screen_head([
     'title'     => 'Odzyskiwanie dostępu',
     'account_buttons' => ['login', 'register'],
     'light'     => true,
+    'cpl'       => true,   // skórka CPL (Centralny Portal Logowania)
     'width'     => 600,
     'bootstrap' => true,
     'main_id'   => 'reset-main',

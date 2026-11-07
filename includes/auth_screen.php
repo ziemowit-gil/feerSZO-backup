@@ -89,12 +89,14 @@ function auth_screen_head(array $o = []): void {
     $metro     = $o['metro'] ?? true;
     $light     = !empty($o['light']);
     if ($light) { $metro = false; $width = (int)($o['width'] ?? 560); }
+    $cpl       = $light && !empty($o['cpl']);   // skórka CPL (jak tozsamosc/cpl.php): pasek z kropkami, Tahoma, niebieski akcent
     $GLOBALS['__ks_mode']    = $mode;
     $GLOBALS['__ks_bs']      = $bootstrap;
     $GLOBALS['__ks_org']     = $org_name;
     $GLOBALS['__ks_split']   = !$metro && $side_tabs !== null;
     $GLOBALS['__ks_metro']   = $metro;
     $GLOBALS['__ks_light']   = $light;
+    $GLOBALS['__ks_cpl']     = $cpl;
     $GLOBALS['__ks_account'] = $o['account_buttons'] ?? ['login', 'register', 'reset'];
     ?><!DOCTYPE html>
 <html lang="pl" data-fs="m">
@@ -515,6 +517,41 @@ html[data-theme="hc"] body.lgx{background:#fff}
 html[data-theme="hc"] .lgx-card{border:3px solid #000;box-shadow:none}
 html[data-theme="hc"] .lg-foot,html[data-theme="hc"] .lg-foot a{color:#000}
 <?php endif; ?>
+<?php if ($cpl): ?>
+
+/* ── Skórka CPL — Centralny Portal Logowania (jak tozsamosc/cpl.php) ──────── */
+body.lgx{--ks:#0a7fd1;--ks-dark:#075f9e;font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
+.lgx-wrap{align-items:flex-start;padding-top:1.5rem}
+.lgx-card{padding:0;border:1px solid #d6d9de;box-shadow:none;overflow:hidden}
+.cpl-top{position:relative;height:120px;background:linear-gradient(180deg,#fff 0%,#f4f5f6 70%,#eceeef 100%);border-bottom:1px solid #e1e4e8}
+.cpl-top svg{position:absolute;inset:0;width:100%;height:100%}
+.cpl-logo{position:absolute;left:24px;bottom:30px;font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1}
+.cpl-logo b{color:#2e2a7a}
+.cpl-logo span{background:linear-gradient(90deg,#0a7fd1,#2e9b3f);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cpl-sub{position:absolute;left:24px;bottom:10px;font-size:11px;font-weight:700;color:#2e2a7a}
+.lgx-body{padding:1.5rem 2.2rem 1.8rem;background:#eceeef}
+.lgx-brand{display:none}
+.lgx .ks-hero-ico{width:40px;height:40px;background:#0a7fd1;font-size:1.2rem;margin:0 0 .6rem}
+.lgx .ks-hero-h1,.lgx .ks-h1{font-size:1.35rem;font-weight:700;color:#1f2937}
+.lgx .ks-hero-lead,.lgx .ks-lead{font-size:.9rem;margin-bottom:1.2rem}
+.lgx .form-control,.lgx .ks-shell .input-group-text,.lgx .ks-btn,.lgx .ks-shell .btn{border-radius:2px!important}
+.lgx .form-control{min-height:34px;border:1px solid #8d95a1;padding:.3rem .55rem;font-size:.9rem}
+.lgx .form-label,.lgx .ks-field label{font-size:.85rem!important}
+.lgx .ks-btn{min-height:38px}
+.lgx .ks-btn--primary{background:#0a7fd1;border-color:#0a7fd1}
+.lgx .ks-btn--primary:hover,.lgx .ks-btn--primary:focus{background:#075f9e;border-color:#075f9e}
+.lgx .ks-btn--ghost{border:1px solid #0a7fd1;color:#075f9e}
+.lgx .ks-btn--ghost:hover{background:#dbeafe;border-color:#075f9e}
+.lgx .ks-step.is-active .dot{border-color:#0a7fd1;color:#075f9e}
+.lgx .ks-step.is-done .dot,.lgx .ks-line.is-done{background:#0a7fd1;border-color:#0a7fd1}
+.lgx .ks-hero-ico{border-radius:2px}
+.lgx :focus-visible{outline:3px solid #f59e0b!important}
+.lg-new i{background:#0a7fd1}
+.lg-new strong,.lgx-card a:not(.btn):not(.ks-btn):not(.tz-btn):not(.nav-link){color:#075f9e}
+.lgx .ks-shell .card.border-primary{border-left-color:#0a7fd1!important;background:#e6f1fb}
+@media(max-width:480px){.lgx-body{padding:1.2rem}}
+<?php endif; ?>
+
 </style>
 <?php if ($metro): ?>
 <style>
@@ -598,6 +635,19 @@ ob_start(); ?>
 <?php if ($light): ?>
 <main class="lgx-wrap" id="<?= h($main_id) ?>" tabindex="-1">
   <div class="lgx-card">
+    <?php if ($cpl):
+      mt_srand(2610); $dots = ''; $pal = ['#6b2c91', '#0079c2', '#2e9b3f'];
+      for ($cx = 0; $cx < 30; $cx++) for ($cy = 0; $cy < 6; $cy++) {
+          if (mt_rand(0, 99) < 38 - $cy * 3) continue;
+          $dots .= '<circle cx="' . (12 + $cx * 19) . '" cy="' . (10 + $cy * 15) . '" r="3" fill="' . (mt_rand(0, 99) < 22 ? $pal[mt_rand(0, 2)] : '#d4d4d8') . '"/>';
+      } ?>
+    <div class="cpl-top">
+      <svg viewBox="0 0 570 120" preserveAspectRatio="xMidYMin slice" aria-hidden="true" focusable="false"><?= $dots ?></svg>
+      <div class="cpl-logo"><b>CPL</b> <span>Portal</span></div>
+      <div class="cpl-sub">Centralny Portal Logowania · <?= h($org_name ?: 'Fundacja FEER') ?></div>
+    </div>
+    <div class="lgx-body">
+    <?php endif; ?>
     <div class="lgx-brand">
       <?php if (!empty($b['logo_url'])): ?><img src="<?= h($b['logo_url']) ?>" alt="<?= h($org_name) ?>"><?php else: ?><span><?= h($org_name) ?></span><?php endif; ?>
     </div>
@@ -910,6 +960,7 @@ function auth_screen_foot_light(array $o, bool $bs, string $org): void {
     </div><!-- /.ks-shell -->
     <?php if (empty($o['no_new_tiles'])) echo auth_screen_new_tiles(); ?>
     <?php if ($links !== ''): ?><div class="lg-links"><?= $links ?></div><?php endif; ?>
+    <?php if (!empty($GLOBALS['__ks_cpl'])) echo '</div><!-- /.lgx-body -->'; ?>
   </div>
 </main>
 <?= $o['extra_html'] ?? '' ?>
