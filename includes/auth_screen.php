@@ -583,6 +583,18 @@ body.lgx{--ks:#0a7fd1;--ks-dark:#075f9e;font-family:Tahoma,"Segoe UI",Verdana,Ar
   body.tzl .ks-h1 { font-weight: 600; }
   body.tzl :focus-visible { outline: 3px solid #facc15 !important; outline-offset: 2px !important; }
   @media (max-width: 760px) { .szo-top-nav span, .szo-top-link span { display: none; } .szo-title { font-size: 1.05rem; } .szo-brand img { height: 32px; } }
+  /* ── Górna belka w stylu CPL: jasny gradient, niebieska linia, Tahoma, kwadratowe przyciski ── */
+  body.tzl { font-family: Tahoma, "Segoe UI", Verdana, Arial, sans-serif; background: #e9ebee; }
+  .szo-top { background: linear-gradient(180deg, #fff 0%, #f4f5f6 100%); border-bottom: 3px solid #0a7fd1; box-shadow: 0 1px 0 #d6d9de; }
+  .szo-top-in { min-height: 56px; }
+  .szo-brand img { height: 34px; }
+  .szo-sep { background: #c9ced6; height: 24px; }
+  .szo-title { font-size: 1rem; font-weight: 800; color: #2e2a7a; letter-spacing: -.01em; }
+  .szo-top-link, .szo-a11y-menu > summary { color: #1f2937 !important; font-size: .85rem; font-weight: 700; min-height: 40px; border-radius: 2px; }
+  .szo-top-link:hover, .szo-a11y-menu > summary:hover, .szo-a11y-menu[open] > summary { background: #dbeafe; color: #075f9e !important; }
+  .szo-a11y-pop { border: 1px solid #c9ced6; border-radius: 2px; box-shadow: 0 6px 16px -8px rgba(15,23,42,.3); }
+  .szo-a11y-pop .ks-a11y button[aria-pressed="true"] { background: #0a7fd1 !important; border-color: #0a7fd1 !important; }
+  body.tzl :focus-visible { outline: 3px solid #f59e0b !important; }
 </style>
 <?php endif; ?>
 </head>

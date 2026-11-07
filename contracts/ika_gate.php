@@ -560,7 +560,6 @@ body.tzl{background:#faf9f8}
 /* ── Wygląd CPL (Centralny Portal Logowania): szare panele, Tahoma, niebieski akcent, kwadratowe krawędzie ── */
 <?= auth_screen_cpl_band_css() ?>
 body.tzl{background:#e9ebee;font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif}
-.tzl .szo-top{border-bottom:3px solid #0a7fd1}
 #ika-main{max-width:640px;margin-left:auto;margin-right:auto}
 #ika-main .cpl-band{margin-bottom:0}
 #ika-main .tz-card{background:#eceeef!important;border:1px solid #d6d9de!important;border-top:0!important;box-shadow:none!important}
