@@ -470,7 +470,7 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
     <h1 class="lg-h1"><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się' ?></h1>
     <p class="lg-lead"><?= $_login_welcome_is_custom ? nl2br(h($_login_welcome)) : 'System Wspomagania Zarządzania Organizacją' ?></p>
     <div class="lg-alert info lg-cpl" role="note"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Logowanie odbywa się teraz przez CPL — Centralny Portal Logowania.</strong>
-      Logujesz się do <strong>SZO</strong> (<?= h($_sys_name) ?>). Możesz też wybrać profil i sposób wejścia w <a href="<?= h(APP_URL) ?>/tozsamosc/cpl.php">pełnym oknie CPL</a>.</div></div>
+      Logujesz się do <strong>SZO</strong> (Systemu Wspomagania Zarządzania Organizacją). Możesz też wybrać profil i sposób wejścia w <a href="<?= h(APP_URL) ?>/tozsamosc/cpl.php">pełnym oknie CPL</a>.</div></div>
 
     <?php if ($_ln_show): ?><div class="lg-alert info" role="region" aria-label="Komunikat"><i class="bi bi-megaphone" aria-hidden="true"></i><div><strong><?= h($_ln_show['title']) ?></strong><?php if ($_ln_show['body']): ?><br><?= nl2br(h($_ln_show['body'])) ?><?php endif; ?></div></div><?php endif; ?>
     <?php if ($_sso_hint): ?><div class="lg-alert info" role="alert" id="sso-hint"><i class="bi bi-shield-check" aria-hidden="true"></i><div>
