@@ -73,6 +73,15 @@ final class LpController
         exit;
     }
 
+    /** Pełny adres e-mail odbiorcy klucza (JSON) — odsłonięcie zapisywane w audycie. */
+    public function revealMail(int $id): ?string
+    {
+        $to = LpPool::revealMailTo((int)$id, $this->actor()['id']);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($to !== null ? ['ok' => true, 'email' => $to] : ['ok' => false, 'error' => 'Nie ma zapisanego adresu dla tego przydziału.'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     public function revoke(int $id): ?string
     {
         $a = db_one("SELECT l.product_id FROM lp_assignments a JOIN lp_licenses l ON l.id = a.license_id WHERE a.id = ?", [(int)$id]);

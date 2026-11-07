@@ -36,6 +36,7 @@ $r->group(['lp.access'], function (Router $r) {
     $r->post('/przydzial/podglad',      [LpController::class, 'previewMail'])->name('lp.assign.preview');
     $r->post('/przydzialy/{id}/odbierz',[LpController::class, 'revoke'])->name('lp.revoke');
     $r->post('/przydzialy/{id}/wyslij', [LpController::class, 'resend'])->name('lp.resend');
+    $r->post('/przydzialy/{id}/adres',  [LpController::class, 'revealMail'])->name('lp.mail.reveal');
     $r->post('/licencje/{id}/pokaz',    [LpController::class, 'reveal'])->name('lp.reveal');
     $r->post('/licencje/{id}/wycofaj',  [LpController::class, 'retire'])->name('lp.retire');
     $r->get('/import',                  [LpController::class, 'importForm'])->name('lp.import');

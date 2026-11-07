@@ -94,7 +94,7 @@ function lp_migrate(): void {
         $pdo->exec("UPDATE lp_products SET validity_months = 12 WHERE name LIKE '%nord%' COLLATE NOCASE");
         $pdo->exec("UPDATE lp_products SET activation_url = 'https://my.nordaccount.com/activate/' WHERE name LIKE '%nordvpn%' COLLATE NOCASE AND activation_url = ''");
     }
-    foreach (['mailed_at' => 'DATETIME', 'mailed_to' => "TEXT NOT NULL DEFAULT ''", 'mail_status' => "TEXT NOT NULL DEFAULT ''"] as $c => $ddl) {
+    foreach (['mailed_at' => 'DATETIME', 'mailed_to' => "TEXT NOT NULL DEFAULT ''", 'mail_status' => "TEXT NOT NULL DEFAULT ''", 'mailed_to_enc' => "TEXT NOT NULL DEFAULT ''"] as $c => $ddl) {
         if (!in_array($c, $has('lp_assignments'), true)) $pdo->exec("ALTER TABLE lp_assignments ADD COLUMN $c $ddl");
     }
 }

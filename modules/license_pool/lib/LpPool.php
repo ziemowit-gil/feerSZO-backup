@@ -17,6 +17,7 @@ require_once dirname(__DIR__, 3) . '/includes/email_templates.php';
 final class LpPool
 {
     private const CTX = 'lp_licenses.code';
+    private const CTX_MAIL = 'lp_assignments.mailed_to';
 
     private static function ready(): void { lp_migrate(); }
 
@@ -409,6 +410,24 @@ final class LpPool
                 'text' => self::keyMailText($a), 'attachment' => (string)($p['attachment_path'] !== '' ? ($p['attachment_name'] ?: basename((string)$p['attachment_path'])) : '')];
     }
 
+    /** Pełny adres, na który wysłano klucz („odkryj”): zaszyfrowany zapis z wysyłki, a dla starszych przydziałów — adres z konta. Odsłonięcie trafia do audytu. */
+    public static function revealMailTo(int $assignmentId, ?int $by = null): ?string
+    {
+        self::ready();
+        $a = db_one("SELECT holder_type, holder_id, mailed_to_enc FROM lp_assignments WHERE id = ?", [$assignmentId]);
+        if (!$a) return null;
+        $to = '';
+        if ((string)$a['mailed_to_enc'] !== '') $to = (string)fcDecrypt($a['mailed_to_enc'], self::CTX_MAIL);
+        elseif ($a['holder_type'] === 'user') $to = trim((string)(db_one("SELECT email FROM users WHERE id = ?", [(int)$a['holder_id']])['email'] ?? ''));
+        elseif ($a['holder_type'] === 'client') {
+            $c = db_one("SELECT cl.email, ac.is_minor, ac.guardian_email FROM k30_clients cl
+                           LEFT JOIN k30_ti_student_accounts ac ON ac.client_id = cl.id AND ac.is_active = 1 WHERE cl.id = ? LIMIT 1", [(int)$a['holder_id']]);
+            $to = trim((string)(($c['is_minor'] ?? 0) ? ($c['guardian_email'] ?? '') : ($c['email'] ?? '')));
+        }
+        audit_log('license_pool.mail_revealed', ['assignment_id' => $assignmentId], $by);
+        return $to !== '' ? $to : null;
+    }
+
     /** Treść wiadomości z kluczem — czysty tekst. $a: przydział + product, instructions, activation_url, valid_until, holder_label/type, code. */
     public static function keyMailText(array $a): string
     {
@@ -449,8 +468,8 @@ final class LpPool
     private static function mailNote(int $id, string $status, string $to, string $detail): array
     {
         $masked = $to === '' ? '' : preg_replace('/^(.).*(@.*)$/u', '$1***$2', $to);
-        if ($id > 0) db_exec("UPDATE lp_assignments SET mail_status = ?, mailed_to = ?, mailed_at = ? WHERE id = ?",
-            [$status . ($detail !== '' ? ': ' . mb_substr($detail, 0, 150) : ''), $masked, date('Y-m-d H:i:s'), $id]);
+        if ($id > 0) db_exec("UPDATE lp_assignments SET mail_status = ?, mailed_to = ?, mailed_to_enc = ?, mailed_at = ? WHERE id = ?",
+            [$status . ($detail !== '' ? ': ' . mb_substr($detail, 0, 150) : ''), $masked, $to === '' ? '' : fcEncrypt($to, self::CTX_MAIL), date('Y-m-d H:i:s'), $id]);
         return ['status' => $status, 'to' => $masked, 'detail' => $detail];
     }
 

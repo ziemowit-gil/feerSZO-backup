@@ -135,7 +135,7 @@ $typeLabel = ['user' => 'Pracownik', 'client' => 'Uczestnik TI', 'other' => 'Inn
         <td><?= h($a['holder_label']) ?> <span class="badge text-bg-light border"><?= h($typeLabel[$a['holder_type']] ?? '') ?></span></td>
         <td class="font-monospace"><?= h($a['code_hint']) ?></td>
         <td><?= h(substr((string)$a['assigned_at'], 0, 10)) ?><div class="small text-muted"><?= h($a['by_name'] ?? '') ?></div></td>
-        <td><?= $a['mail_status'] !== '' ? '<div class="small text-muted">e-mail: ' . h($a['mail_status']) . ($a['mailed_to'] !== '' ? ' → ' . h($a['mailed_to']) : '') . '</div>' : '' ?>
+        <td><?= $a['mail_status'] !== '' ? '<div class="small text-muted">e-mail: ' . h($a['mail_status']) . ($a['mailed_to'] !== '' ? ' → <span class="lp-mailto">' . h($a['mailed_to']) . '</span> <button type="button" class="btn btn-sm btn-link p-0 align-baseline lp-mail-reveal" data-url="' . h(route('lp.mail.reveal', ['id' => $a['id']])) . '" aria-label="Odkryj pełny adres e-mail">odkryj</button>' : '') . '</div>' : '' ?>
         <?= $rev ? 'odebrana ' . h(substr((string)$a['revoked_at'], 0, 10)) . ($a['revoke_reason'] !== '' ? '<div class="small">' . h($a['revoke_reason']) . '</div>' : '') : 'aktywna' ?></td>
         <td class="text-end">
           <?php if (!$rev): ?>
@@ -174,4 +174,20 @@ $typeLabel = ['user' => 'Pracownik', 'client' => 'Uczestnik TI', 'other' => 'Inn
     <button class="btn btn-primary mt-3">Zapisz</button>
   </form>
 </details>
+<script>
+(function(){
+  var btns=document.querySelectorAll('.lp-mail-reveal'); if(!btns.length) return;
+  var csrf=document.createElement('div'); csrf.innerHTML=<?= json_encode(Router::csrfField()) ?>; csrf=csrf.firstChild;
+  btns.forEach(function(b){
+    b.addEventListener('click',function(){
+      var span=b.parentNode.querySelector('.lp-mailto'), fd=new FormData();
+      if(csrf) fd.append(csrf.name,csrf.value);
+      b.disabled=true;
+      fetch(b.dataset.url,{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+        if(d.ok){ span.textContent=d.email; b.remove(); } else { b.textContent='brak adresu'; }
+      }).catch(function(){ b.disabled=false; b.textContent='błąd — ponów'; });
+    });
+  });
+})();
+</script>
 <?php include __DIR__ . '/_foot.php'; ?>
