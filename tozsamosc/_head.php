@@ -242,4 +242,4 @@ $__admin_active = in_array($TZ_ACTIVE, ['users', 'uzytkownicy', 'administracja']
   </div>
 </header>
 <?php endif; ?>
-<main id="tz-main" class="tz tz-wrap">
+<?php if (empty($TZ_RIBBON)): ?><main id="tz-main" class="tz tz-wrap"><?php endif; ?>
