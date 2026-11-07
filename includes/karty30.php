@@ -4707,6 +4707,46 @@ function k30_ti_homework_list(int $course_id = 0): array {
     );
 }
 
+/** Czy opis zadania jest HTML-em z edytora (a nie starym czystym tekstem). */
+function k30_hw_desc_is_html(string $v): bool {
+    return (bool)preg_match('#</?(p|br|ul|ol|li|strong|em|b|i|u|a|h3|h4|pre|code|blockquote)\b#i', $v);
+}
+
+/** Whitelista HTML opisu zadania (edytor WYSIWYG): bez skryptów, styli i atrybutów poza href linków. */
+function k30_hw_desc_sanitize(string $html): string {
+    $html = trim($html);
+    if ($html === '') return '';
+    $html = preg_replace('#<(script|style|iframe|object|embed)\b[^>]*>.*?</\1>#is', '', $html) ?? '';
+    $html = preg_replace('#<(script|style|iframe|object|embed)\b[^>]*/?>#i', '', $html) ?? '';
+    $clean = strip_tags($html, '<p><br><strong><b><em><i><u><ul><ol><li><a><h3><h4><pre><code><blockquote>');
+    // linki: tylko href http(s)/mailto; inne znaczniki bez atrybutów
+    $clean = preg_replace_callback('#<a\b([^>]*)>#i', function ($m) {
+        if (preg_match('#href\s*=\s*("([^"]*)"|\'([^\']*)\')#i', $m[1], $h)) {
+            $u = html_entity_decode($h[2] !== '' ? $h[2] : ($h[3] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if (preg_match('#^(https?://|mailto:)#i', trim($u))) return '<a href="' . htmlspecialchars(trim($u), ENT_QUOTES) . '" target="_blank" rel="noopener noreferrer">';
+        }
+        return '<a>';
+    }, $clean) ?? '';
+    $clean = preg_replace('#<(?!a\b)(/?)([a-z0-9]+)\b[^>]*?(/?)>#i', '<$1$2$3>', $clean) ?? '';
+    $plain = trim(str_replace("\xc2\xa0", ' ', html_entity_decode(strip_tags($clean), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+    return $plain === '' ? '' : trim($clean);
+}
+
+/** HTML opisu do wyświetlenia (stary tekst → nl2br(h())). */
+function k30_hw_desc_render(?string $v): string {
+    $v = trim((string)$v);
+    if ($v === '') return '';
+    return k30_hw_desc_is_html($v) ? k30_hw_desc_sanitize($v) : nl2br(h($v));
+}
+
+/** Opis jako czysty tekst (API / powiadomienia). */
+function k30_hw_desc_plain(?string $v): string {
+    $v = (string)$v;
+    if (!k30_hw_desc_is_html($v)) return $v;
+    $t = preg_replace('#<br\s*/?>|</(p|li|h3|h4|pre|blockquote)>#i', "\n", $v) ?? $v;
+    return trim(html_entity_decode(strip_tags($t), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+}
+
 function k30_ti_homework_get(int $id): ?array {
     return db_one(
         "SELECT h.*, c.name AS course_name FROM k30_ti_homework h

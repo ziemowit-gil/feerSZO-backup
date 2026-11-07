@@ -136,7 +136,7 @@
         <span class="text-body-secondary small ms-auto"><i class="bi bi-inbox me-1"></i><?= (int)$hw['sub_count'] ?> oddań · <?= (int)$hw['graded_count'] ?> ocen.</span>
       </div>
       <?php if ($hw['due_at']): ?><div class="text-body-secondary small mt-1"><i class="bi bi-calendar-check me-1"></i>termin: <?= h(substr($hw['due_at'],0,16)) ?></div><?php endif; ?>
-      <?php if ($hw['description']): ?><div class="small mt-1" style="white-space:pre-wrap"><?= nl2br(h($hw['description'])) ?></div><?php endif; ?>
+      <?php if ($hw['description']): ?><div class="small mt-1 hw-desc"><?= k30_hw_desc_render($hw['description']) ?></div><?php endif; ?>
       <?php if (trim((string)($hw['hint'] ?? '')) !== ''): ?><div class="small mt-1 text-info-emphasis" style="white-space:pre-wrap"><i class="bi bi-lightbulb me-1" aria-hidden="true"></i><strong>Podpowiedź:</strong> <?= nl2br(h($hw['hint'])) ?></div><?php endif; ?>
       <div class="mt-2 d-flex gap-2 flex-wrap">
         <?php if ($hw['attach_path']): ?><a href="?dl=hw&id=<?= (int)$hw['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-paperclip me-1"></i>załącznik</a><?php endif; ?>
@@ -165,4 +165,45 @@
   <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content"><?php $hwFormHtml($hw, 'edH'.(int)$hw['id']); ?></div></div>
 </div>
 <?php endforeach; ?>
+<style>.hw-desc p{margin:0 0 .4rem}.hw-desc pre{background:var(--bs-tertiary-bg);padding:.4rem .6rem;border-radius:.25rem;white-space:pre-wrap}.hw-desc h3{font-size:1.05rem}.hw-desc h4{font-size:.95rem}</style>
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+(function(){
+  // Edytor WYSIWYG opisu zadania — inicjalizowany dopiero po pokazaniu modala (textarea w display:none łamie TinyMCE)
+  document.addEventListener('shown.bs.modal', function(e){
+    var ta = e.target.querySelector && e.target.querySelector('textarea.hw-desc-editor');
+    if (!ta || !window.tinymce || tinymce.get(ta.id)) return;
+    tinymce.init({
+      target: ta, license_key: 'gpl', promotion: false, branding: false, menubar: false,
+      plugins: 'lists link code', height: 260, entity_encoding: 'raw',
+      toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | blockquote | link | code | removeformat',
+      block_formats: 'Akapit=p; Nagłówek=h3; Podnagłówek=h4; Kod=pre',
+      setup: function(ed){ ed.on('change', function(){ ed.save(); }); }
+    });
+  });
+  // okna TinyMCE (link, kod) w modalu Bootstrapa — bez tego pola nie dostają fokusu
+  document.addEventListener('focusin', function(e){
+    if (e.target.closest && e.target.closest('.tox-tinymce-aux, .tox-dialog, .tox-menu')) e.stopImmediatePropagation();
+  }, true);
+  document.addEventListener('submit', function(){ if (window.tinymce) tinymce.triggerSave(); }, true);
+
+  // Szybkie ustawienie okna dostępności zadania
+  function fmt(d){ function z(n){return (n<10?'0':'')+n;} return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+'T'+z(d.getHours())+':'+z(d.getMinutes()); }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-hwq-act]'); if (!b) return;
+    var box = b.closest('[data-hwq]'), pfx = box.getAttribute('data-hwq');
+    var open = document.getElementById(pfx + '_open'), close = document.getElementById(pfx + '_close');
+    var act = b.getAttribute('data-hwq-act');
+    if (act === 'open-now') { open.value = fmt(new Date()); }
+    else if (act === 'close-days') {
+      var base = open.value ? new Date(open.value) : new Date();
+      if (isNaN(base)) base = new Date();
+      base.setDate(base.getDate() + parseInt(b.getAttribute('data-days'), 10));
+      close.value = fmt(base);
+    }
+    else if (act === 'close-next') { var n = box.getAttribute('data-next'); if (n) close.value = n; }
+    else if (act === 'clear') { open.value = ''; close.value = ''; }
+  });
+})();
+</script>
 <?php endif; /* $hw_obj */ ?>

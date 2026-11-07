@@ -1793,7 +1793,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hid       = (int)($_POST['homework_id'] ?? 0);
         $session_id= (int)($_POST['session_id'] ?? 0) ?: null;
         $title     = trim($_POST['title'] ?? '');
-        $desc      = trim($_POST['description'] ?? '');
+        $desc      = k30_hw_desc_sanitize((string)($_POST['description'] ?? ''));
         $hint      = trim($_POST['hint'] ?? '');
         $due       = trim($_POST['due_at'] ?? '');
         $due_sql   = $due !== '' ? str_replace('T', ' ', $due) . (strlen($due) === 16 ? ':00' : '') : null;
@@ -2728,7 +2728,17 @@ $attFormHtml = function(array $s, array $rows, string $pfx) use ($cur_course) {
   </form>
 <?php };
 
-$hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $dtv, $sessionPicker) {
+// Początek następnych zajęć kursu (do przycisku „zamknij na następnych zajęciach” w formularzu zadania)
+$hwNextLesson = '';
+if ($cur_course) {
+    $nowTs = time();
+    foreach (db_all("SELECT lesson_date, time_from FROM k30_ti_sessions WHERE course_id=? AND COALESCE(status,'planned') NOT IN ('cancelled','canceled') AND lesson_date >= ? ORDER BY lesson_date, time_from", [$cur_course, date('Y-m-d')]) as $_nl) {
+        $tf = preg_match('/^\d{1,2}:\d{2}/', (string)$_nl['time_from']) ? substr((string)$_nl['time_from'], 0, 5) : '00:00';
+        $ts = strtotime($_nl['lesson_date'] . ' ' . $tf);
+        if ($ts && $ts > $nowTs) { $hwNextLesson = date('Y-m-d\TH:i', $ts); break; }
+    }
+}
+$hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $dtv, $sessionPicker, $hwNextLesson) {
     $isEdit = (bool)$r; ?>
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
@@ -2747,7 +2757,7 @@ $hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $dtv, $sessionP
       </div>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_desc">Polecenie / opis</label>
-        <textarea class="form-control" id="<?= $pfx ?>_desc" name="description" rows="3"><?= h($r['description'] ?? '') ?></textarea>
+        <textarea class="form-control hw-desc-editor" id="<?= $pfx ?>_desc" name="description" rows="6"><?= h(($r['description'] ?? '') !== '' && !k30_hw_desc_is_html((string)$r['description']) ? nl2br(h((string)$r['description'])) : (string)($r['description'] ?? '')) ?></textarea>
       </div>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_hint"><i class="bi bi-lightbulb me-1" aria-hidden="true"></i>Podpowiedź <span class="text-body-secondary small">(opc.)</span></label>
@@ -2770,6 +2780,15 @@ $hwFormHtml = function(?array $r, string $pfx) use ($cur_course, $dtv, $sessionP
           <label class="form-label" for="<?= $pfx ?>_close">Zamknięcie <span class="text-body-secondary small">(opc.)</span></label>
           <input type="datetime-local" class="form-control" id="<?= $pfx ?>_close" name="close_at" value="<?= $dtv($r['close_at'] ?? '') ?>">
         </div>
+      </div>
+      <div class="mb-3 d-flex flex-wrap gap-1 align-items-center" role="group" aria-label="Szybkie ustawienie otwarcia i zamknięcia" data-hwq="<?= $pfx ?>" data-next="<?= h($hwNextLesson) ?>">
+        <button type="button" class="btn btn-sm btn-outline-success" data-hwq-act="open-now"><i class="bi bi-unlock me-1"></i>Otwórz teraz</button>
+        <span class="small text-body-secondary ms-2">Zamknij za:</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-hwq-act="close-days" data-days="3">3 dni</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-hwq-act="close-days" data-days="5">5 dni</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-hwq-act="close-days" data-days="7">7 dni</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-hwq-act="close-next"<?= $hwNextLesson === '' ? ' disabled title="Brak zaplanowanych następnych zajęć"' : '' ?>>na następnych zajęciach</button>
+        <button type="button" class="btn btn-sm btn-link text-body-secondary" data-hwq-act="clear">wyczyść</button>
       </div>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_attach">Załącznik <span class="text-body-secondary small">(opc., maks. 25 MB)</span></label>

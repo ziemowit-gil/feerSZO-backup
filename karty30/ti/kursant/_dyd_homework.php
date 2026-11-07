@@ -58,7 +58,7 @@ ob_start(); ?>
 // ── Treść zwijana (opis, materiał, oddanie, formularz) ───────────────────────
 ob_start(); ?>
     <?php if ($h['description']): ?>
-    <p class="small mb-2" style="white-space:pre-wrap"><?= h($h['description']) ?></p>
+    <div class="small mb-2"><?= k30_hw_desc_render($h['description']) ?></div>
     <?php endif; ?>
     <?php if (trim((string)($h['hint'] ?? '')) !== ''): ?>
     <details class="mb-2">

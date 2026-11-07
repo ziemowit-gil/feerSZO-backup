@@ -170,7 +170,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <a href="homework.php" class="btn-close ms-auto" aria-label="Zamknij"></a>
   </div>
   <div class="card-body">
-    <?php if ($view_hw['description']): ?><p class="mb-2" style="white-space:pre-wrap"><?= h($view_hw['description']) ?></p><?php endif; ?>
+    <?php if ($view_hw['description']): ?><div class="mb-2"><?= k30_hw_desc_render($view_hw['description']) ?></div><?php endif; ?>
     <?php if (trim((string)($view_hw['hint'] ?? '')) !== ''): ?>
     <div class="alert alert-info py-2 mb-2"><i class="bi bi-lightbulb me-1" aria-hidden="true"></i><strong>Podpowiedź:</strong> <span style="white-space:pre-wrap"><?= h($view_hw['hint']) ?></span></div>
     <?php endif; ?>
