@@ -49,7 +49,7 @@ if (!$_kurs_items) {   // brak wybranego kursu — same wejścia, bez liczników
         $_kurs_items[] = $_it($_k, $_lbl, $_g($_k));
     }
 }
-$_kurs_items[] = $_it('formalnosci', 'Formalności', $_g('formalnosci'), $_n_contracts, 'success');
+$_kurs_items[] = $_it('formalnosci', 'Formalności', $_g('formalnosci'));
 
 // ── Sekcje: kolejność i zawartość jak w dawnym menu bocznym ──────────────────
 $_usos_sections = [

@@ -3289,17 +3289,21 @@ if ($cur_course && dyd_is_staff()) {
          WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
 }
 // [icon, label, count, badge-variant]
+// Liczniki tylko dla NOWYCH elementów (wymagających reakcji): oddania zadań do oceny, testy do przeglądu, zaległości w rozliczeniach.
+$_sb_hw_new = $cur_course ? (int)(db_one(
+    "SELECT COUNT(*) AS n FROM k30_ti_homework_submissions s JOIN k30_ti_homework h ON h.id=s.homework_id
+     WHERE h.course_id=? AND COALESCE(s.status,'submitted')<>'graded'", [$cur_course])['n'] ?? 0) : 0;
 $_sb_ctabs = $cur_course ? [
-    'lekcje'       => ['calendar-week',   'Lekcje',        count($sessions ?? []), ''],
+    'lekcje'       => ['calendar-week',   'Lekcje',        0, ''],
     'uczestnicy'   => ['people',          'Uczestnicy',    0, ''],
     'plan'         => ['calendar3',       'Plan zajęć',    0, ''],
     'protokol'     => ['card-checklist',  'Protokoły',     0, ''],
-    'zadania'      => ['journal-check',   'Zadania',       count($homeworks ?? []),''],
-    'materialy'    => ['collection-play', 'Materiały',     count($materials ?? []),''],
-    'nieobecnosci' => ['person-x',        'Nieobecności',  $_sb_absent,   $_sb_absent  ? 'danger' : ''],
-    'oceny'        => ['journal-bookmark','Oceny',         $_sb_grades,   ''],
-    'program'      => ['list-check',      'Sylabus',       $_sb_program,  ''],   // dawniej „Program zajęć"
-    'egzaminy'     => ['patch-question',  'Testy i egzaminy', $_sb_egz_rev ?: $_sb_egz, $_sb_egz_rev ? 'warning' : ''],
+    'zadania'      => ['journal-check',   'Zadania',       $_sb_hw_new,   $_sb_hw_new ? 'warning' : ''],
+    'materialy'    => ['collection-play', 'Materiały',     0, ''],
+    'nieobecnosci' => ['person-x',        'Nieobecności',  0, ''],
+    'oceny'        => ['journal-bookmark','Oceny',         0, ''],
+    'program'      => ['list-check',      'Sylabus',       0, ''],   // dawniej „Program zajęć"
+    'egzaminy'     => ['patch-question',  'Testy i egzaminy', $_sb_egz_rev, $_sb_egz_rev ? 'warning' : ''],
 ] : [];
 // Prowadzący: „Protokoły” prowadzą do okna zatwierdzania jego protokołów miesięcznych tej grupy.
 $_sb_chref = ($cur_course && !dyd_is_staff()) ? ['protokol' => 'protokoly_moje.php?course=' . (int)$cur_course] : [];
@@ -3404,7 +3408,7 @@ if ($cur_course && dyd_is_staff()) {
   <a class="dyd-sb-link <?= $tab==='formalnosci'?'active':'' ?>" href="index.php?tab=formalnosci"
      <?= $tab==='formalnosci'?'aria-current="page"':'' ?>>
     <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Formalności
-    <?php $active_cnt = count(array_filter($dyd_contracts, fn($c) => contractStatusGroup($c['status']) === 'active')); ?>
+    <?php $active_cnt = 0; /* licznik tylko dla nowych elementów — suma aktywnych umów go nie spełnia */ ?>
     <?php if ($active_cnt): ?>
     <span class="badge bg-success ms-auto" style="font-size:.6rem"><?= $active_cnt ?></span>
     <?php endif; ?>
