@@ -4700,8 +4700,9 @@ function k30_ti_homework_list(int $course_id = 0): array {
                 (SELECT COUNT(*) FROM k30_ti_homework_submissions s WHERE s.homework_id=h.id AND s.status='graded') AS graded_count
          FROM k30_ti_homework h
          JOIN k30_ti_courses c ON c.id=h.course_id
+         LEFT JOIN k30_ti_sessions ls ON ls.id=h.session_id
          $where
-         ORDER BY h.is_active DESC, COALESCE(h.due_at,'9999') DESC, h.id DESC",
+         ORDER BY COALESCE(ls.lesson_date, substr(h.created_at,1,10), '') DESC, h.id DESC",
         $params
     );
 }
