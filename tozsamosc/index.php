@@ -740,68 +740,63 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 <?php endif; ?>
 </div>
 
-<!-- ═══════════ RIBBON (wstążka poleceń) ═══════════ -->
+<!-- ═══════════ RIBBON: nawigacja po sekcjach + polecenia sekcji ═══════════ -->
 <?php
 $m365_active = $has_m365 && !empty($m365_row['m365_konto_aktywne']);
 $sec_c = $sec_pct >= 80 ? 'var(--m-green)' : ($sec_pct >= 50 ? 'var(--m-orange)' : 'var(--m-red)');
-// Polecenia: [ikona, etykieta, opis (title/aria), href|null, akcja Alpine|null, stan]
+// Polecenia: [ikona, etykieta, opis (title/aria), href|null, akcja Alpine|null, kolor ikony]
+$m365_cmd = ['bi-microsoft', 'Microsoft 365', $has_m365 ? ($m365_active ? 'Konto M365 aktywne' : 'Konto M365 zawieszone') : 'Brak konta M365', APP_URL . '/panel/m365.php', null];
+$session_grp = ['Sesja', [
+    ['bi-box-arrow-up-right', 'Wróć do SZO', 'Przejdź do panelu SZO', APP_URL . '/portal.php', null],
+    ['bi-box-arrow-right', 'Wyloguj', 'Zakończ sesję', APP_URL . '/auth/logout.php', null],
+]];
 $rb = [
-  'konto' => ['Konto', [
-    ['Dane i tożsamość', [
-      ['bi-person-badge', 'Dane konta', 'Pokaż UID, login i rolę', null, "go('podstawowe')"],
-      ['bi-grid-3x3-gap', 'Usługi', 'Usługi i dostępy konta (' . count($services) . ')', null, "go('uslugi')"],
-      ['bi-microsoft', 'Microsoft 365', $has_m365 ? ($m365_active ? 'Konto M365 aktywne' : 'Konto M365 zawieszone') : 'Brak konta M365', APP_URL . '/panel/m365.php', null],
-    ]],
-    ['Sesja', [
-      ['bi-box-arrow-up-right', 'Wróć do SZO', 'Przejdź do panelu SZO', APP_URL . '/portal.php', null],
-      ['bi-box-arrow-right', 'Wyloguj', 'Zakończ sesję', APP_URL . '/auth/logout.php', null],
-    ]],
-  ]],
-  'bezpieczenstwo' => ['Bezpieczeństwo', [
+  'podstawowe' => [['Dane i tożsamość', [
+        ['bi-person-badge', 'Dane tożsamości', 'UID, login i typ konta', null, "go('podstawowe')"],
+        ['bi-diagram-3', 'Rola i uprawnienia', 'Twoja rola i dostępne moduły', null, "go('podstawowe')"],
+        $m365_cmd,
+    ]], $session_grp],
+  'uslugi' => [['Usługi', [
+        ['bi-grid-3x3-gap', 'Lista usług', 'Usługi i dostępy konta (' . count($services) . ')', null, "go('uslugi')"],
+        $m365_cmd,
+    ]], $session_grp],
+  'bezpieczenstwo' => [
     ['Hasło i telefon', [
-      ['bi-key', 'Hasło', $has_local_password ? 'Zmień hasło' : 'Ustaw hasło', null, "go('bezpieczenstwo'); \$dispatch('tz-sec', 'haslo')"],
-      ['bi-phone', 'Telefon SMS', $phone_verified ? 'Telefon zweryfikowany' : 'Dodaj i zweryfikuj telefon', null, "go('bezpieczenstwo'); \$dispatch('tz-sec', 'telefon')"],
+        ['bi-key', 'Hasło', $has_local_password ? 'Zmień hasło' : 'Ustaw hasło', null, "go('bezpieczenstwo'); \$dispatch('tz-sec', 'haslo')"],
+        ['bi-phone', 'Telefon SMS', $phone_verified ? 'Telefon zweryfikowany' : 'Dodaj i zweryfikuj telefon', null, "go('bezpieczenstwo'); \$dispatch('tz-sec', 'telefon')"],
     ]],
     ['Weryfikacja', [
-      ['bi-shield-check', 'Weryfikacja 2-składnikowa', $mfa_active ? 'Aktywna: ' . $mfa_label : 'Nieskonfigurowana', APP_URL . '/tozsamosc/mfa.php', null],
-      ['bi-fingerprint', 'Klucz / passkey', $has_wk ? 'Zarejestrowane klucze: ' . count($wk_keys_idx) : 'Brak kluczy FIDO2', APP_URL . '/tozsamosc/mfa.php#webauthn', null],
+        ['bi-shield-check', 'Weryfikacja 2-składnikowa', $mfa_active ? 'Aktywna: ' . $mfa_label : 'Nieskonfigurowana', APP_URL . '/tozsamosc/mfa.php', null],
+        ['bi-fingerprint', 'Klucz / passkey', $has_wk ? 'Zarejestrowane klucze: ' . count($wk_keys_idx) : 'Brak kluczy FIDO2', APP_URL . '/tozsamosc/mfa.php#webauthn', null],
     ]],
     ['Stan', [
-      ['bi-shield-lock', 'Stan zabezpieczeń: ' . $sec_pct . '%', $sec_ok . ' z ' . $sec_total . ' elementów', null, "go('bezpieczenstwo')", $sec_c],
+        ['bi-shield-lock', 'Stan zabezpieczeń: ' . $sec_pct . '%', $sec_ok . ' z ' . $sec_total . ' elementów', null, "go('bezpieczenstwo')", $sec_c],
     ]],
-  ]],
-  'dane' => ['Dane i RODO', [
-    ['Twoje dane', [
-      ['bi-clock-history', 'Rejestr czynności', 'Kto i po co przetwarza Twoje dane', null, "go('rejestr')"],
-      ['bi-file-earmark-arrow-down', 'Eksport danych', 'PDF: art. 15 i 20 RODO', APP_URL . '/tozsamosc/rodo_export.php', null],
-    ]],
-  ]],
-  'pomoc' => ['Pomoc', [
-    ['Wsparcie', [
-      ['bi-info-circle', 'O panelu', 'Do czego służy System Tożsamości', null, "go('opanelu')"],
-      ['bi-headset', 'Helpdesk', 'Zgłoś problem', APP_URL . '/helpdesk/index.php', null],
-    ]],
-  ]],
+  ],
 ];
-if ($has_ika) $rb['bezpieczenstwo'][1][0][1][] = ['bi-123', 'Kod IKA', 'Zmień kod IKA', null, "go('ika')"];
-if (is_admin()) $rb['admin'] = ['Administracja', [['Narzędzia', [['bi-shield-fill-gear', 'Administracja', 'Zarządzanie tożsamością', null, "go('administracja')"]]]]];
+if ($has_ika) $rb['ika'] = [['Kod IKA', [['bi-123', 'Zmień kod IKA', 'Zmiana kodu IKA', null, "go('ika')"]]], $session_grp];
+$rb['rejestr'] = [['Twoje dane (RODO)', [
+        ['bi-clock-history', 'Rejestr czynności', 'Kto i po co przetwarza Twoje dane', null, "go('rejestr')"],
+        ['bi-file-earmark-arrow-down', 'Eksport danych', 'PDF: art. 15 i 20 RODO', APP_URL . '/tozsamosc/rodo_export.php', null],
+    ]]];
+$rb['opanelu'] = [['Wsparcie', [
+        ['bi-info-circle', 'O panelu', 'Do czego służy System Tożsamości', null, "go('opanelu')"],
+        ['bi-headset', 'Helpdesk', 'Zgłoś problem', APP_URL . '/helpdesk/index.php', null],
+    ]]];
+if (is_admin()) $rb['administracja'] = [['Narzędzia', [['bi-shield-fill-gear', 'Administracja', 'Zarządzanie tożsamością', null, "go('administracja')"]]]];
 ?>
-<div class="rb" x-data="{ rt: 'konto', order: <?= h(json_encode(array_keys($rb))) ?>, mv(j){ var n = this.order.length; this.rt = this.order[(j + n) % n]; this.$nextTick(() => document.getElementById('rb-tab-' + this.rt).focus()); } }" aria-label="Wstążka poleceń">
-  <div class="rb-tabs" role="tablist" aria-label="Zakładki wstążki">
-    <?php $ri = 0; foreach ($rb as $rk => [$rl]): ?>
-    <button type="button" role="tab" id="rb-tab-<?= $rk ?>" aria-controls="rb-pane-<?= $rk ?>"
-            :aria-selected="rt === '<?= $rk ?>' ? 'true' : 'false'" :tabindex="rt === '<?= $rk ?>' ? 0 : -1"
-            @click="rt = '<?= $rk ?>'"
-            @keydown.arrow-right.prevent="mv(<?= $ri + 1 ?>)"
-            @keydown.arrow-left.prevent="mv(<?= $ri - 1 ?>)"
-            @keydown.home.prevent="mv(0)"
-            @keydown.end.prevent="mv(order.length - 1)"
-            ><?= h($rl) ?></button>
-    <?php $ri++; endforeach; ?>
+<div class="rb" aria-label="Wstążka: sekcje i polecenia">
+  <div class="rb-tabs" role="tablist" aria-label="Sekcje tożsamości">
+    <?php $ti = 0; foreach ($tabs as $tk => [$tl, $tic]): ?>
+    <button type="button" role="tab" id="tab-<?= $tk ?>"
+            :aria-selected="tab === '<?= $tk ?>' ? 'true' : 'false'" :tabindex="tab === '<?= $tk ?>' ? 0 : -1"
+            aria-controls="<?= $tk ?>" x-ref="tab-<?= $tk ?>"
+            @click="go('<?= $tk ?>')" @keydown="key($event, <?= $ti ?>)"><i class="bi <?= h($tic) ?>" aria-hidden="true"></i> <?= h($tl) ?></button>
+    <?php $ti++; endforeach; ?>
   </div>
-  <?php foreach ($rb as $rk => [$rl, $groups]): ?>
-  <div class="rb-pane" role="tabpanel" id="rb-pane-<?= $rk ?>" aria-labelledby="rb-tab-<?= $rk ?>" x-show="rt === '<?= $rk ?>'" tabindex="-1">
-    <div class="rb-groups" role="toolbar" aria-label="<?= h($rl) ?>">
+  <?php foreach ($rb as $rk => $groups): ?>
+  <div class="rb-pane" x-show="tab === '<?= $rk ?>'" aria-label="Polecenia: <?= h($tabs[$rk][0] ?? $rk) ?>">
+    <div class="rb-groups" role="toolbar" aria-label="<?= h($tabs[$rk][0] ?? $rk) ?>">
       <?php foreach ($groups as [$gl, $cmds]): ?>
       <div class="rb-group" role="group" aria-label="<?= h($gl) ?>">
         <div class="rb-cmds">
@@ -819,16 +814,6 @@ if (is_admin()) $rb['admin'] = ['Administracja', [['Narzędzia', [['bi-shield-fi
     </div>
   </div>
   <?php endforeach; ?>
-</div>
-
-<!-- ═══════════ PIVOT ═══════════ -->
-<div class="mt-pivot" role="tablist" aria-label="Sekcje tożsamości">
-  <?php $ti = 0; foreach ($tabs as $tk => [$tl, $tic]): ?>
-  <button type="button" role="tab" id="tab-<?= $tk ?>" class="<?= $tk === 'administracja' ? 'adm' : '' ?>"
-          :aria-selected="tab === '<?= $tk ?>' ? 'true' : 'false'" :tabindex="tab === '<?= $tk ?>' ? 0 : -1"
-          aria-controls="<?= $tk ?>" x-ref="tab-<?= $tk ?>"
-          @click="go('<?= $tk ?>')" @keydown="key($event, <?= $ti ?>)"><?= h(mb_strtolower($tl)) ?></button>
-  <?php $ti++; endforeach; ?>
 </div>
 
 <!-- ═══════════ PODSTAWOWE ═══════════ -->
@@ -1477,7 +1462,7 @@ document.addEventListener('alpine:init', function () {
           var p = document.getElementById(t);
           if (p) {
             if (focusPanel !== false) p.focus({ preventScroll: true });
-            var bar = document.querySelector('.mt-pivot');
+            var bar = document.querySelector('.rb');
             var top = (bar ? bar.getBoundingClientRect().top + window.scrollY : 0) - 70;
             window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
           }

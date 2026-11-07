@@ -62,7 +62,7 @@ $__admin_active = in_array($TZ_ACTIVE, ['users', 'uzytkownicy', 'administracja']
     };
   </script>
   <style>
-    :root{--tz:#1ba1e2;--tz-strong:#0e7bb3;--tz-50:#d6effa;--tz-line:#e1e1e1;--tz-muted:#777777;--tz-canvas:#ffffff;}
+    :root{--tz:#0a7fd1;--tz-strong:#075f9e;--tz-50:#dbeafe;--tz-line:#c9ced6;--tz-muted:#4b5563;--tz-canvas:#e9ebee;}
     [x-cloak]{display:none!important}
     html{scroll-behavior:smooth}
     body{background:var(--tz-canvas);color:#111827;min-height:100vh;-webkit-font-smoothing:antialiased;font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif}
@@ -165,6 +165,45 @@ $__admin_active = in_array($TZ_ACTIVE, ['users', 'uzytkownicy', 'administracja']
     .badge.bg-opacity-15.text-success{color:#006b00!important}
     .badge.bg-opacity-15.text-primary{color:#1d4ed8!important}
     .badge.bg-opacity-15.text-danger{color:#a20025!important}
+
+    /* ══ Wygląd CPL (Centralny Portal Logowania) dla całego podsystemu: jasny pasek, szare panele, Tahoma, niebieski akcent ══ */
+    body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee;font-size:14px}
+    .tz-skip:focus{outline:3px solid #f59e0b}
+    .tzbar{background:#fff;color:#1f2937;border-bottom:3px solid #0a7fd1;box-shadow:0 1px 0 #d6d9de}
+    .tzbar .brand,.tzbar .brand b{color:#2e2a7a}
+    .tzbar .brand small{color:#4b5563}
+    .tzbar .brand .mark{border-radius:2px;background:#0a7fd1}
+    .tzbar .lnk{color:#1f2937;border-radius:2px;font-weight:700}
+    .tzbar .lnk:hover{background:#dbeafe;color:#075f9e}
+    .tzbar .lnk:focus-visible{outline:3px solid #f59e0b}
+    .tzbar .lnk.on{background:#0a7fd1;color:#fff}
+    .tzbar .ava{border-radius:2px;background:#2e2a7a}
+    .tzbar .who b{color:#1f2937}.tzbar .who small{color:#4b5563}
+    .tzmenu{border:1px solid #c9ced6;border-radius:2px;box-shadow:0 6px 16px -8px rgba(15,23,42,.3)}
+    .tzmenu a{border-radius:2px;font-weight:600}
+    .tzmenu a:hover,.tzmenu a:focus-visible{background:#dbeafe;color:#075f9e}
+    .tzmenu a.on{background:#0a7fd1}
+    .tz-h h1{font-weight:800;color:#2e2a7a;font-size:1.6rem}
+    .tz-card{border:1px solid #c9ced6;border-radius:2px;background:#fff}
+    .tz-card__hd{background:#eceeef;border-bottom:1px solid #c9ced6;font-weight:700;color:#2e2a7a}
+    .tz-id{background:#eceeef}
+    .tz-uid{color:#2e2a7a}
+    .tz-note{background:#eceeef;border-top:1px solid #d6d9de}
+    .tz-btn{border-radius:2px;border-width:1px;font-weight:700;font-size:.82rem;padding:.45rem 1.1rem}
+    .tz-btn--ghost{background:#fff;color:#075f9e;border:1px solid #0a7fd1}
+    .tz-btn--ghost:hover{background:#dbeafe;border-color:#075f9e;color:#075f9e}
+    .tz-badge{border-radius:2px;text-transform:none;letter-spacing:0}
+    .tz-subnav{background:#e9ebee}
+    .tz-subnav a{color:#1f2937;border-radius:2px;font-weight:700}
+    .tz-subnav a:hover,.tz-subnav a:focus-visible{background:#dbeafe;color:#075f9e}
+    .tz-subnav a.on{background:#0a7fd1;color:#fff}
+    .tz-tile{background:#eceeef;border:1px solid #d6d9de;border-radius:2px}
+    .tz-tile:hover,.tz-tile:focus-visible{background:#dbeafe;border-color:#93c5fd;box-shadow:none;transform:none}
+    .tz-tile__ico,.tz-svc__ico{border-radius:2px}
+    .tz .form-control,.tz .form-select{border:1px solid #8d95a1;border-radius:2px;min-height:34px;font-size:.9rem}
+    .tz .form-control:focus,.tz .form-select:focus{border-color:#0a7fd1;outline:3px solid #f59e0b;outline-offset:1px}
+    .tz .btn{border-radius:2px!important}
+    a:focus-visible,button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
   </style>
 </head>
 <body>
