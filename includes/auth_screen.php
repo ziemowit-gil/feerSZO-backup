@@ -969,6 +969,27 @@ function auth_screen_foot_light(array $o, bool $bs, string $org): void {
     auth_screen_scripts($o, $bs);
 }
 
+/** Pasek nagłówka CPL (siatka kropek + logo „CPL Portal”) — dla ekranów z własnym układem, które dostają wygląd CPL. */
+function auth_screen_cpl_band(string $org = 'Fundacja FEER'): string {
+    mt_srand(2610); $dots = ''; $pal = ['#6b2c91', '#0079c2', '#2e9b3f'];
+    for ($cx = 0; $cx < 30; $cx++) for ($cy = 0; $cy < 6; $cy++) {
+        if (mt_rand(0, 99) < 38 - $cy * 3) continue;
+        $dots .= '<circle cx="' . (12 + $cx * 19) . '" cy="' . (10 + $cy * 15) . '" r="3" fill="' . (mt_rand(0, 99) < 22 ? $pal[mt_rand(0, 2)] : '#d4d4d8') . '"/>';
+    }
+    return '<div class="cpl-top cpl-band"><svg viewBox="0 0 570 120" preserveAspectRatio="xMidYMin slice" aria-hidden="true" focusable="false">' . $dots . '</svg>'
+         . '<div class="cpl-logo"><b>CPL</b> <span>Portal</span></div>'
+         . '<div class="cpl-sub">Centralny Portal Logowania · ' . htmlspecialchars($org, ENT_QUOTES, 'UTF-8') . '</div></div>';
+}
+
+/** CSS paska CPL (do użycia razem z auth_screen_cpl_band()). */
+function auth_screen_cpl_band_css(): string {
+    return '.cpl-top{position:relative;height:120px;background:linear-gradient(180deg,#fff 0%,#f4f5f6 70%,#eceeef 100%);border:1px solid #d6d9de;border-bottom:1px solid #e1e4e8}'
+         . '.cpl-top svg{position:absolute;inset:0;width:100%;height:100%}'
+         . '.cpl-logo{position:absolute;left:24px;bottom:30px;font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1}'
+         . '.cpl-logo b{color:#2e2a7a}.cpl-logo span{background:linear-gradient(90deg,#0a7fd1,#2e9b3f);-webkit-background-clip:text;background-clip:text;color:transparent}'
+         . '.cpl-sub{position:absolute;left:24px;bottom:10px;font-size:11px;font-weight:700;color:#2e2a7a}';
+}
+
 /** Wypisuje komunikat „coś tu się zmieniło" (zamykany, zapamiętywany). */
 function auth_screen_news(): void {
     ?>

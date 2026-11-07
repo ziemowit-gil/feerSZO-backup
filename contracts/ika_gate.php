@@ -556,10 +556,31 @@ body.tzl{background:#faf9f8}
 .ika-who-line{font-size:.95rem;color:#323130;margin:0 0 1rem;overflow-wrap:anywhere}
 .ika-who-line a{color:#0f6cbd;text-decoration:underline;white-space:nowrap}
 .ika-who-line a:focus-visible{outline:3px solid #0f6cbd;outline-offset:2px}
+
+/* ── Wygląd CPL (Centralny Portal Logowania): szare panele, Tahoma, niebieski akcent, kwadratowe krawędzie ── */
+<?= auth_screen_cpl_band_css() ?>
+body.tzl{background:#e9ebee;font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif}
+.tzl .szo-top{border-bottom:3px solid #0a7fd1}
+#ika-main{max-width:640px;margin-left:auto;margin-right:auto}
+#ika-main .cpl-band{margin-bottom:0}
+#ika-main .tz-card{background:#eceeef!important;border:1px solid #d6d9de!important;border-top:0!important;box-shadow:none!important}
+#ika-main .tz-card__hd{background:#fff;border-bottom:1px solid #d6d9de;font-weight:700;color:#2e2a7a}
+#ika-main .tz-card__hd i{background:#e6f1fb;color:#0a7fd1}
+#ika-main .tz-btn,#ika-main .tz-btn--email,#ika-main .tz-btn--setup{background:#0a7fd1!important;border:0;border-radius:2px!important;font-weight:700;min-height:38px}
+#ika-main .tz-btn:hover:not(:disabled){background:#075f9e!important}
+#ika-main .digit-box,#ika-main .pesel-box,#ika-main .ika-code{border:1px solid #8d95a1!important;border-radius:2px!important;background:#fff}
+#ika-main .digit-box:focus,#ika-main .pesel-box:focus,#ika-main .ika-code:focus{border-color:#0a7fd1!important;outline:3px solid #f59e0b;outline-offset:1px}
+#ika-main .recovery-btn{border:1px solid #c9ced6;border-radius:2px!important;background:#fff;color:#1f2937}
+#ika-main .recovery-btn:hover{background:#dbeafe!important;border-color:#93c5fd!important}
+#ika-main .or-sep{color:#4b5563}
+.ika-who-line{background:#fff;border:1px solid #d6d9de;border-bottom:0;padding:.55rem .9rem;margin:0}
+.ika-who-line a,.tzl #ika-main a{color:#075f9e}
+#ika-main :focus-visible{outline:3px solid #f59e0b!important;outline-offset:2px}
 </style>
 
 <?php /* Uproszczony ekran: bez osobnego nagłówka strony, bez karty „moduł/zasób” i bez dużego bloku użytkownika — jedna zwarta
          linia mówi, na kogo się logujesz (z wyjściem „To nie Ty?”), a poniżej jest sama weryfikacja. */ ?>
+<?= auth_screen_cpl_band(defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : 'Fundacja FEER') ?>
 <p class="ika-who-line">
   Logujesz się jako <strong><?= h($display_name) ?></strong><?php if ($user_email !== '' && $user_email !== $display_name): ?> (<?= h($user_email) ?>)<?php endif; ?>
   · <a href="<?= h(APP_URL) ?>/auth/logout.php">To nie Ty? Wyloguj się</a>
