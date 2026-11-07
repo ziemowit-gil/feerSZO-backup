@@ -188,6 +188,11 @@ function require_login(): void {
     if (function_exists('tz_session_timeout_check')) {
         tz_session_timeout_check();
     }
+    // Pierwsze logowanie z nowego urządzenia / adresu IP — najpierw potwierdzenie (auth/nowe_logowanie.php)
+    if (!empty($_SESSION['_new_login_pending']) && function_exists('auth_new_login_gate')) {
+        require_once __DIR__ . '/auth_security.php';
+        auth_new_login_gate();
+    }
 
     // Wymuszenie aktywnej sesji w rejestrze — pozwala zdalnie wylogować użytkownika
     // (admin → admin/users.php, albo samodzielnie → panel/sessions.php). Gdy token
@@ -577,6 +582,8 @@ function login_user(array $user, bool $mobile_scope = false): void {
         $token = session_create_token((int)$user['id']);
         $_SESSION['_session_token'] = $token;
     } catch (\Throwable $e) {}
+    // Nowe urządzenie / adres IP → flaga wymuszająca potwierdzenie przy pierwszym wejściu na stronę
+    try { auth_new_login_check((int)$user['id'], (string)($user['email'] ?? '')); } catch (\Throwable $e) {}
 
     // Wymuś jawny zapis sesji PRZED redirectem.
     // DbSessionHandler::write() jest chroniony busy_timeout=10000 (db.php) —

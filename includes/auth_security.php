@@ -347,3 +347,127 @@ function authlog_action_label(string $action): array {
         default         => [$action,                 'light',   'bi-circle'],
     };
 }
+
+// ── Pierwsze logowanie z nowego urządzenia / adresu IP ───────────────────────
+// Po zalogowaniu (login_user) sprawdzamy, czy konto logowało się już z tego adresu IP i z tego urządzenia
+// (ciasteczko „szo_dev”). Nowy adres lub urządzenie → sesja dostaje flagę _new_login_pending, a require_login()
+// przekierowuje na /auth/nowe_logowanie.php („To ja” / „To nie ja”). Potwierdzenie zapisuje IP i urządzenie jako znane.
+
+function _nl_init(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS trusted_logins (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            kind       TEXT NOT NULL,              -- ip | device
+            value      TEXT NOT NULL,              -- adres IP albo sha256(token urządzenia)
+            label      TEXT NOT NULL DEFAULT '',
+            geo        TEXT NOT NULL DEFAULT '',
+            first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen  DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, kind, value)
+        )");
+        db()->exec("CREATE TABLE IF NOT EXISTS ip_geo_cache (
+            ip         TEXT PRIMARY KEY,
+            country    TEXT NOT NULL DEFAULT '',
+            region     TEXT NOT NULL DEFAULT '',
+            city       TEXT NOT NULL DEFAULT '',
+            fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )");
+    } catch (\Throwable $e) { error_log('[auth_security] trusted_logins: ' . $e->getMessage()); }
+}
+
+/** Lokalizacja adresu IP (serwis ipwho.is po HTTPS, wynik w cache — jedno zapytanie na adres). Adresy prywatne → null. */
+function auth_ip_geo(string $ip): ?array {
+    _nl_init();
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return null;
+    $c = db_one("SELECT * FROM ip_geo_cache WHERE ip=?", [$ip]);
+    if ($c && ($c['country'] !== '' || strtotime((string)$c['fetched_at']) > time() - 86400)) {
+        return $c['country'] !== '' ? ['country' => $c['country'], 'region' => $c['region'], 'city' => $c['city']] : null;
+    }
+    $ctx = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true, 'header' => "Accept: application/json\r\n"]]);
+    $raw = @file_get_contents('https://ipwho.is/' . rawurlencode($ip) . '?fields=success,country,region,city', false, $ctx);
+    $j = $raw ? json_decode($raw, true) : null;
+    $row = (is_array($j) && !empty($j['success']))
+        ? ['country' => (string)($j['country'] ?? ''), 'region' => (string)($j['region'] ?? ''), 'city' => (string)($j['city'] ?? '')]
+        : ['country' => '', 'region' => '', 'city' => ''];
+    try {
+        db()->prepare("INSERT OR REPLACE INTO ip_geo_cache (ip, country, region, city, fetched_at) VALUES (?,?,?,?,?)")
+            ->execute([$ip, $row['country'], $row['region'], $row['city'], date('Y-m-d H:i:s')]);
+    } catch (\Throwable $e) {}
+    return $row['country'] !== '' ? $row : null;
+}
+
+function auth_geo_label(?array $g): string {
+    if (!$g) return 'nieznana lokalizacja';
+    return implode(', ', array_filter([$g['city'] ?? '', $g['region'] ?? '', $g['country'] ?? ''], fn($x) => $x !== ''));
+}
+
+/** Krótki opis urządzenia z User-Agenta (przeglądarka + system). */
+function auth_device_label(string $ua): string {
+    $b = preg_match('/Edg\//', $ua) ? 'Edge' : (preg_match('/OPR\/|Opera/', $ua) ? 'Opera' : (preg_match('/Firefox\//', $ua) ? 'Firefox'
+       : (preg_match('/Chrome\//', $ua) ? 'Chrome' : (preg_match('/Safari\//', $ua) ? 'Safari' : 'przeglądarka'))));
+    $o = preg_match('/Windows/', $ua) ? 'Windows' : (preg_match('/iPhone|iPad/', $ua) ? 'iOS' : (preg_match('/Android/', $ua) ? 'Android'
+       : (preg_match('/Mac OS X/', $ua) ? 'macOS' : (preg_match('/Linux/', $ua) ? 'Linux' : 'nieznany system'))));
+    return $b . ' · ' . $o;
+}
+
+/** Wywoływane z login_user(): ustawia $_SESSION['_new_login_pending'], gdy IP lub urządzenie są nowe dla konta. */
+function auth_new_login_check(int $uid, string $email = ''): void {
+    _nl_init();
+    unset($_SESSION['_new_login_pending']);
+    if ($email === 'serwis@local') return;                 // break-glass nigdy nie jest blokowane
+    $ip  = _auth_ip();
+    $ua  = _auth_ua();
+    // Urządzenie rozpoznajemy po losowym ciasteczku (zapisywane w DB jako skrót)
+    $tok = (string)($_COOKIE['szo_dev'] ?? '');
+    if (!preg_match('/^[a-f0-9]{32}$/', $tok)) $tok = bin2hex(random_bytes(16));
+    if (!headers_sent()) {
+        setcookie('szo_dev', $tok, ['expires' => time() + 86400 * 400, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
+    }
+    $dev = hash('sha256', $tok);
+
+    $hasTrusted = (bool)db_one("SELECT 1 FROM trusted_logins WHERE user_id=? LIMIT 1", [$uid]);
+    $histIp = (bool)db_one(
+        "SELECT 1 FROM login_log WHERE user_id=? AND ip=? AND action LIKE 'login%' AND action NOT LIKE 'login_blocked%' AND action NOT LIKE 'login_fail%' LIMIT 1", [$uid, $ip]);
+    $anyHist = (bool)db_one(
+        "SELECT 1 FROM login_log WHERE user_id=? AND action LIKE 'login%' AND action NOT LIKE 'login_blocked%' AND action NOT LIKE 'login_fail%' LIMIT 1", [$uid]);
+    $ipKnown  = $histIp || (bool)db_one("SELECT 1 FROM trusted_logins WHERE user_id=? AND kind='ip' AND value=?", [$uid, $ip]);
+    $devKnown = (bool)db_one("SELECT 1 FROM trusted_logins WHERE user_id=? AND kind='device' AND value=?", [$uid, $dev]);
+    $hasDev   = (bool)db_one("SELECT 1 FROM trusted_logins WHERE user_id=? AND kind='device' LIMIT 1", [$uid]);
+
+    // Konto bez żadnej historii (pierwsze logowanie w ogóle) → zaufaj od razu. Urządzenie sprawdzamy dopiero, gdy konto
+    // ma już jakieś zaufane urządzenie (przy wdrożeniu nikt nie dostaje komunikatu tylko dlatego, że brak ciasteczka).
+    $isNew = ($hasTrusted || $anyHist) && (!$ipKnown || ($hasDev && !$devKnown));
+    $pend = ['ip' => $ip, 'ua' => $ua, 'dev' => $dev, 'at' => date('Y-m-d H:i:s'), 'new_ip' => !$ipKnown, 'new_dev' => ($hasDev && !$devKnown)];
+    if ($isNew) { $_SESSION['_new_login_pending'] = $pend; return; }
+    auth_trust_login($uid, $pend);
+}
+
+/** Zapisuje IP i urządzenie jako znane dla konta. */
+function auth_trust_login(int $uid, array $p): void {
+    _nl_init();
+    $geo = auth_geo_label(auth_ip_geo((string)$p['ip']));
+    $st = db()->prepare("INSERT INTO trusted_logins (user_id, kind, value, label, geo) VALUES (?,?,?,?,?)
+                         ON CONFLICT(user_id, kind, value) DO UPDATE SET last_seen=CURRENT_TIMESTAMP");
+    $st->execute([$uid, 'ip', (string)$p['ip'], '', $geo]);
+    $st->execute([$uid, 'device', (string)$p['dev'], auth_device_label((string)$p['ua']), $geo]);
+}
+
+/** Bramka: sesja czekająca na potwierdzenie nowego logowania nie wejdzie dalej niż na stronę potwierdzenia. */
+function auth_new_login_gate(): void {
+    if (empty($_SESSION['_new_login_pending'])) return;
+    $script = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    if (in_array($script, ['nowe_logowanie.php', 'logout.php'], true)) return;
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' || strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+        http_response_code(403);
+        exit('Potwierdź nowe logowanie na stronie ' . APP_URL . '/auth/nowe_logowanie.php');
+    }
+    $uri = (string)($_SERVER['REQUEST_URI'] ?? '/');
+    $base = parse_url(APP_URL, PHP_URL_PATH) ?? '';
+    if ($base !== '' && $base !== '/' && str_starts_with($uri, $base . '/')) $uri = substr($uri, strlen($base));
+    header('Location: ' . APP_URL . '/auth/nowe_logowanie.php?redirect=' . urlencode(APP_URL . $uri));
+    exit;
+}
