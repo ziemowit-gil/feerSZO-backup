@@ -24,13 +24,16 @@ $e    = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 // Profile / role: [etykieta, kod, adres docelowy]
 $profiles = [
-    'szo'       => ['SZO — PANEL STARTOWY',        'SZO_ALL',      $APP . '/panel/launcher.php'],
-    'tozsamosc' => ['SYSTEM TOŻSAMOŚCI',           'TOZSAMOSC',    $APP . '/tozsamosc/index.php'],
-    'dydaktyk'  => ['TI — PANEL DYDAKTYKA',        'TI_DYD',       $APP . '/karty30/ti/dydaktyk/index.php'],
-    'ezd'       => ['EZD — ELEKTRONICZNE ZARZĄDZANIE DOKUMENTACJĄ', 'EZD_ALL', $APP . '/ezd/index.php'],
-    'crm'       => ['CRM — KONTAKTY I KAMPANIE',   'CRM_ALL',      $APP . '/crm/index.php'],
-    'helpdesk'  => ['HELPDESK IT',                 'HD_ALL',       $APP . '/helpdesk/index.php'],
-    'it'        => ['IT SZO — ADMINISTRACJA',      'IT_ADM',       $APP . '/it/index.php'],
+    // [etykieta, kod, adres docelowy, wymaga VPN]
+    'szo'       => ['SZO — PANEL STARTOWY',        'SZO_ALL',      $APP . '/panel/launcher.php', false],
+    'tozsamosc' => ['SYSTEM TOŻSAMOŚCI',           'TOZSAMOSC',    $APP . '/tozsamosc/index.php', false],
+    'dydaktyk'  => ['TI — PANEL DYDAKTYKA',        'TI_DYD',       $APP . '/karty30/ti/dydaktyk/index.php', true],
+    'crm'       => ['CRM — KONTAKTY I KAMPANIE',   'CRM_ALL',      $APP . '/crm/index.php', true],
+    'kursant'   => ['TI — PANEL KURSANTA',         'TI_KURSANT',   $APP . '/karty30/ti/kursant/index.php', false],
+    'wspolpr'   => ['PANEL WSPÓŁPRACOWNIKA — ZLECENIOBIORCA', 'ZLECENIE', $APP . '/panel/index.php', false],
+    'ezd'       => ['EZD — ELEKTRONICZNE ZARZĄDZANIE DOKUMENTACJĄ', 'EZD_ALL', $APP . '/ezd/index.php', false],
+    'helpdesk'  => ['HELPDESK IT',                 'HD_ALL',       $APP . '/helpdesk/index.php', false],
+    'it'        => ['IT SZO — ADMINISTRACJA',      'IT_ADM',       $APP . '/it/index.php', false],
 ];
 
 // Wskazany adres (?redirect=) w obrębie aplikacji: dopasuj do profilu albo dodaj jako osobną pozycję.
@@ -40,7 +43,7 @@ $sel = 'szo';
 if ($want !== '') {
     $found = null;
     foreach ($profiles as $k => $p) if ($p[2] === $want) { $found = $k; break; }
-    if ($found === null) { $profiles = ['wskazany' => ['WSKAZANA STRONA', 'REDIRECT', $want]] + $profiles; $found = 'wskazany'; }
+    if ($found === null) { $profiles = ['wskazany' => ['WSKAZANA STRONA', 'REDIRECT', $want, false]] + $profiles; $found = 'wskazany'; }
     $sel = $found;
 } elseif (str_contains((string)($_SERVER['HTTP_REFERER'] ?? ''), '/tozsamosc/')) {
     $sel = 'tozsamosc';
@@ -57,7 +60,9 @@ $urls  = [];   // per profil: formularz (hasło) i Microsoft (domenowe)
 if (isset($_GET['ms']) && $ms_ok && isset($profiles[(string)$_GET['ms']])) {
     header('Location: ' . ms_auth_url($profiles[(string)$_GET['ms']][2])); exit;
 }
+$vpnMap = [];
 foreach ($profiles as $k => $p) {
+    $vpnMap[$k] = (bool)$p[3];
     $urls[$k] = [
         'form' => $APP . '/auth/login.php?redirect=' . urlencode($p[2]),
         'ms'   => $ms_ok ? $SELF . '?ms=' . urlencode($k) . ($want !== '' ? '&redirect=' . urlencode($want) : '') : '',
@@ -179,8 +184,8 @@ header('Cache-Control: no-store');
     <a href="<?= $e($APP . '/tozsamosc/kursant.php') ?>">Jestem kursantem TI</a>
   </div>
 
-  <p class="vpn" role="note"><strong>Niektóre usługi są dostępne wyłącznie z VPN.</strong>
-    Jeśli moduł nie otwiera się po zalogowaniu, połącz się z VPN Fundacji i spróbuj ponownie. <a href="<?= $e($APP . '/vpn/') ?>">Dowiedz się więcej o VPN</a></p>
+  <p class="vpn" id="cpl-vpn" role="note"<?= $profiles[$sel][3] ? '' : ' hidden' ?>><strong>Niektóre usługi są dostępne wyłącznie z VPN.</strong>
+    Wybrany profil wymaga połączenia z VPN Fundacji — jeśli moduł nie otworzy się po zalogowaniu, połącz się z VPN i spróbuj ponownie. <a href="<?= $e($APP . '/vpn/') ?>">Dowiedz się więcej o VPN</a></p>
 
   <div class="foot">
     <label class="chk"><input type="checkbox" id="cpl-remember"> <span>Zapamiętaj profil i sposób logowania</span></label>
@@ -191,6 +196,7 @@ header('Cache-Control: no-store');
 <script>
 (function () {
   var URLS = <?= json_encode($urls, JSON_UNESCAPED_SLASHES) ?>;
+  var VPN = <?= json_encode($vpnMap) ?>;
   var HAS_MS = <?= $ms_ok ? 'true' : 'false' ?>;
   var form = document.getElementById('cpl-form'), prof = document.getElementById('cpl-profile'),
       dom = document.getElementById('cpl-domain'), user = document.getElementById('cpl-user'),
@@ -204,6 +210,7 @@ header('Cache-Control: no-store');
   function apply() {
     var k = prof.value, domain = !!(dom && dom.checked);
     form.action = URLS[k].form;
+    var vn = document.getElementById('cpl-vpn'); if (vn) vn.hidden = !VPN[k];
     rowPass.hidden = domain; rowUser.hidden = domain;
     pass.disabled = domain; user.disabled = domain;
     if (!domain) setTimeout(function () { try { user.focus(); } catch (e) {} }, 0);
