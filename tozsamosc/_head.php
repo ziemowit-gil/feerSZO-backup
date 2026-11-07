@@ -208,6 +208,7 @@ $__admin_active = in_array($TZ_ACTIVE, ['users', 'uzytkownicy', 'administracja']
 </head>
 <body>
 <a href="#tz-main" class="tz-skip">Przejdź do treści</a>
+<?php if (empty($TZ_RIBBON)): /* strona z własną wstążką (index.php) nie rysuje osobnego paska */ ?>
 <header class="tzbar" x-data="{ adm: false }" @keydown.escape.window="adm = false">
   <div class="inner">
     <a href="<?= APP_URL ?>/tozsamosc/index.php" class="brand">
@@ -240,4 +241,5 @@ $__admin_active = in_array($TZ_ACTIVE, ['users', 'uzytkownicy', 'administracja']
     <a class="lnk" href="<?= APP_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span class="d-none d-sm-inline">Wyloguj</span></a>
   </div>
 </header>
+<?php endif; ?>
 <main id="tz-main" class="tz tz-wrap">

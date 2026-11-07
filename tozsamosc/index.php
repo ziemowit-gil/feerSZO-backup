@@ -543,6 +543,7 @@ $sec_items[0]['sec'] = 'haslo'; $sec_items[1]['sec'] = 'telefon'; $sec_items[2][
 
 $PAGE_TITLE = 'Tożsamość';
 $TZ_ACTIVE  = 'konto';
+$TZ_RIBBON = true;   // jedna wstążka (marka + sekcje + polecenia) zamiast osobnego paska górnego
 include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 ?>
 <style type="text/tailwindcss">
@@ -701,6 +702,24 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 .tz .form-control:focus,.tz .form-select:focus{ border-color:#0a7fd1; outline:3px solid #f59e0b; outline-offset:1px; }
 .tz .form-label,.tz .tzx-field label{ font-weight:700; font-size:.82rem; color:#1f2937; }
 .tz .tzx-timeline li{ border-left-color:#c9ced6; }
+
+/* ── Jedna wstążka: marka + sekcje + użytkownik w pasku zakładek ── */
+.rb--top{ margin:0 0 1rem; border-top:3px solid #0a7fd1; }
+.rb--top .rb-tabs{ align-items:flex-end; flex-wrap:wrap; padding:0 .5rem; }
+.rb-brand{ display:flex; align-items:center; gap:.5rem; padding:.35rem .75rem .35rem .25rem; margin-right:.5rem; text-decoration:none; color:#2e2a7a; align-self:center; }
+.rb-brand .mark{ width:30px; height:30px; background:#0a7fd1; color:#fff; display:flex; align-items:center; justify-content:center; border-radius:2px; }
+.rb-brand b{ font-size:.95rem; font-weight:800; letter-spacing:-.01em; }
+.rb-spacer{ flex:1; }
+.rb-user{ display:flex; align-items:center; gap:.45rem; align-self:center; padding:0 .5rem; }
+.rb-user .ava{ width:28px; height:28px; background:#2e2a7a; color:#fff; font-weight:700; font-size:.7rem; display:flex; align-items:center; justify-content:center; border-radius:2px; }
+.rb-user .who{ display:none; flex-direction:column; line-height:1.1; }
+.rb-user .who b{ font-size:.78rem; color:#1f2937; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rb-user .who small{ font-size:.66rem; color:#4b5563; }
+@media (min-width:900px){ .rb-user .who{ display:flex; } }
+.rb-link{ align-self:center; display:inline-flex; align-items:center; gap:.35rem; padding:.4rem .6rem; color:#1f2937; text-decoration:none; font-size:.8rem; font-weight:700; border-radius:2px; }
+.rb-link:hover{ background:#dbeafe; color:#075f9e; }
+.rb-link:focus-visible,.rb-brand:focus-visible{ outline:3px solid #f59e0b; outline-offset:2px; }
+@media (max-width:700px){ .rb-link span{ display:none; } }
 </style>
 
 <div x-data="tzIdentity(<?= h(json_encode(['tabs' => array_keys($tabs), 'firstVisit' => $first_visit])) ?>)" x-cloak>
@@ -783,16 +802,26 @@ $rb['opanelu'] = [['Wsparcie', [
         ['bi-info-circle', 'O panelu', 'Do czego służy System Tożsamości', null, "go('opanelu')"],
         ['bi-headset', 'Helpdesk', 'Zgłoś problem', APP_URL . '/helpdesk/index.php', null],
     ]]];
-if (is_admin()) $rb['administracja'] = [['Narzędzia', [['bi-shield-fill-gear', 'Administracja', 'Zarządzanie tożsamością', null, "go('administracja')"]]]];
+if (is_admin()) {
+    $adm_cmds = [];
+    foreach ($__admin_items as $__f => [$__l, $__i]) $adm_cmds[] = [$__i, $__l, $__l, APP_URL . '/tozsamosc/' . $__f, null];
+    $adm_cmds[] = ['bi-gear', 'Panel SZO', 'Panel administracyjny SZO', APP_URL . '/admin/index.php', null];
+    $rb['administracja'] = [['Przegląd', [['bi-shield-fill-gear', 'Administracja', 'Zarządzanie tożsamością (sekcja)', null, "go('administracja')"]]], ['Narzędzia administratora', $adm_cmds]];
+}
 ?>
-<div class="rb" aria-label="Wstążka: sekcje i polecenia">
+<div class="rb rb--top" aria-label="Wstążka: sekcje i polecenia">
   <div class="rb-tabs" role="tablist" aria-label="Sekcje tożsamości">
+    <a class="rb-brand" href="<?= APP_URL ?>/tozsamosc/index.php" aria-label="System Tożsamości — strona główna"><span class="mark" aria-hidden="true"><i class="bi bi-person-badge"></i></span><b>System Tożsamości</b></a>
     <?php $ti = 0; foreach ($tabs as $tk => [$tl, $tic]): ?>
     <button type="button" role="tab" id="tab-<?= $tk ?>"
             :aria-selected="tab === '<?= $tk ?>' ? 'true' : 'false'" :tabindex="tab === '<?= $tk ?>' ? 0 : -1"
             aria-controls="<?= $tk ?>" x-ref="tab-<?= $tk ?>"
             @click="go('<?= $tk ?>')" @keydown="key($event, <?= $ti ?>)"><i class="bi <?= h($tic) ?>" aria-hidden="true"></i> <?= h($tl) ?></button>
     <?php $ti++; endforeach; ?>
+    <span class="rb-spacer"></span>
+    <span class="rb-user"><span class="ava" aria-hidden="true"><?= h($__init) ?></span><span class="who"><b><?= h($__name) ?></b><small><?= h($__u['email'] ?? '') ?></small></span></span>
+    <a class="rb-link" href="<?= APP_URL ?>/portal.php"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> <span>Wróć do SZO</span></a>
+    <a class="rb-link" href="<?= APP_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> <span>Wyloguj</span></a>
   </div>
   <?php foreach ($rb as $rk => $groups): ?>
   <div class="rb-pane" x-show="tab === '<?= $rk ?>'" aria-label="Polecenia: <?= h($tabs[$rk][0] ?? $rk) ?>">

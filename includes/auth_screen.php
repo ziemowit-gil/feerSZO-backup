@@ -595,6 +595,29 @@ body.lgx{--ks:#0a7fd1;--ks-dark:#075f9e;font-family:Tahoma,"Segoe UI",Verdana,Ar
   .szo-a11y-pop { border: 1px solid #c9ced6; border-radius: 2px; box-shadow: 0 6px 16px -8px rgba(15,23,42,.3); }
   .szo-a11y-pop .ks-a11y button[aria-pressed="true"] { background: #0a7fd1 !important; border-color: #0a7fd1 !important; }
   body.tzl :focus-visible { outline: 3px solid #f59e0b !important; }
+  /* ── Górna belka jako ribbon (CPL): marka + zakładki, pod spodem polecenia ── */
+  .szo-top.arb{background:#eceeef;border-bottom:1px solid #c9ced6;box-shadow:none}
+  .arb-tabs{display:flex;align-items:flex-end;gap:2px;background:#fff;border-bottom:1px solid #c9ced6;border-top:3px solid #0a7fd1;padding:0 .75rem;flex-wrap:wrap}
+  .arb-tabs .szo-brand{margin-right:auto;padding:.4rem 0;min-height:44px}
+  .arb-tabs button{background:none;border:1px solid transparent;border-bottom:0;padding:.5rem 1rem;font:inherit;font-size:.85rem;font-weight:700;color:#374151;cursor:pointer;margin-bottom:-1px;border-radius:0}
+  .arb-tabs button:hover{background:#f3f4f6}
+  .arb-tabs button[aria-selected="true"]{background:#eceeef;border-color:#c9ced6;color:#2e2a7a}
+  .arb-groups{display:flex;flex-wrap:wrap;justify-content:flex-start;max-width:1240px;margin:0 auto;padding:0 .75rem}
+  .szo-top .ks-a11y.arb-groups{background:transparent!important;color:#1f2937!important;border:0!important;display:flex}
+  .arb-group{display:flex;flex-direction:column;padding:.4rem .9rem .2rem;border-right:1px solid #c9ced6}
+  .arb-group:last-child{border-right:0}
+  .arb-cmds{display:flex;gap:.15rem;flex-wrap:wrap}
+  .arb-cmd{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:.2rem;min-width:76px;max-width:120px;min-height:62px;padding:.35rem .5rem;background:none!important;border:1px solid transparent!important;color:#1f2937!important;text-decoration:none;font:inherit;font-size:.75rem;line-height:1.15;text-align:center;cursor:pointer;border-radius:2px!important}
+  .arb-cmd .bi,.arb-cmd b{color:#0a7fd1;line-height:1;font-size:1.5rem}
+  .arb-cmd:hover{background:#dbeafe!important;border-color:#93c5fd!important}
+  .arb-cmd[aria-pressed="true"]{background:#0a7fd1!important;border-color:#0a7fd1!important;color:#fff!important}
+  .arb-cmd[aria-pressed="true"] .bi,.arb-cmd[aria-pressed="true"] b{color:#fff}
+  .arb-glabel{text-align:center;font-size:.7rem;color:#4b5563;padding:.1rem 0 .2rem}
+  .arb-pane[hidden]{display:none}
+  .arb-tabs button:focus-visible,.arb-cmd:focus-visible{outline:3px solid #f59e0b!important;outline-offset:-3px}
+  html[data-theme="hc"] .szo-top.arb,html[data-theme="hc"] .arb-tabs{background:#fff;border-color:#000}
+  html[data-theme="hc"] .arb-cmd .bi,html[data-theme="hc"] .arb-cmd b{color:#000}
+  html[data-theme="hc"] .arb-cmd[aria-pressed="true"]{background:#000!important;color:#fff!important}
 </style>
 <?php endif; ?>
 </head>
@@ -625,20 +648,70 @@ ob_start(); ?>
 </div>
 <?php $__ks_a11y = ob_get_clean(); ?>
 <?php if ($metro): ?>
-<header class="szo-top">
-  <div class="szo-top-in">
+<header class="szo-top arb">
+  <div class="arb-tabs" role="tablist" aria-label="Wstążka: Ułatwienia dostępu i Pomoc">
     <a class="szo-brand" href="<?= h(APP_URL) ?>/auth/login.php">
       <?php if (!empty($b['logo_url'])): ?><img src="<?= h($b['logo_url']) ?>" alt="<?= h($org_name) ?>"><span class="szo-sep" aria-hidden="true"></span><?php endif; ?>
       <span class="szo-title"><?= h($o['top_title'] ?? 'System Tożsamości') ?></span>
     </a>
-    <nav class="szo-top-nav" aria-label="Menu">
-      <details class="szo-a11y-menu">
-        <summary><i class="bi bi-universal-access" aria-hidden="true"></i> <span>Ułatwienia dostępu</span></summary>
-        <div class="szo-a11y-pop"><?= $__ks_a11y ?></div>
-      </details>
-      <a class="szo-top-link" href="<?= h(rtrim(APP_URL, '/')) ?>/karty30/ti/sso.php"><i class="bi bi-question-circle" aria-hidden="true"></i> <span>Czym jest SSO?</span></a>
-    </nav>
+    <button type="button" role="tab" id="arb-t-a11y" aria-controls="arb-p-a11y" aria-selected="true" tabindex="0"><i class="bi bi-universal-access" aria-hidden="true"></i> Ułatwienia dostępu</button>
+    <button type="button" role="tab" id="arb-t-help" aria-controls="arb-p-help" aria-selected="false" tabindex="-1"><i class="bi bi-question-circle" aria-hidden="true"></i> Pomoc</button>
   </div>
+  <div class="arb-pane" id="arb-p-a11y" role="tabpanel" aria-labelledby="arb-t-a11y">
+    <div class="ks-a11y arb-groups" role="toolbar" aria-label="Ułatwienia dostępu">
+      <div class="arb-group" role="group" aria-label="Rozmiar tekstu">
+        <div class="arb-cmds">
+          <button type="button" class="arb-cmd fs-m"  data-fs="m"  aria-pressed="true"  aria-label="Rozmiar tekstu: normalny"><b style="font-size:1.1rem">A</b><span>normalny</span></button>
+          <button type="button" class="arb-cmd fs-l"  data-fs="L"  aria-pressed="false" aria-label="Rozmiar tekstu: duży"><b style="font-size:1.4rem">A</b><span>duży (L)</span></button>
+          <button type="button" class="arb-cmd fs-xl" data-fs="XL" aria-pressed="false" aria-label="Rozmiar tekstu: bardzo duży"><b style="font-size:1.7rem">A</b><span>b. duży (XL)</span></button>
+        </div>
+        <div class="arb-glabel">Rozmiar tekstu</div>
+      </div>
+      <div class="arb-group" role="group" aria-label="Kontrast">
+        <div class="arb-cmds">
+          <button type="button" class="arb-cmd" id="hc-btn" aria-pressed="false" aria-label="Wysoki kontrast — włącz"><i class="bi bi-circle-half" aria-hidden="true"></i><span id="hc-lbl">Wysoki kontrast</span></button>
+        </div>
+        <div class="arb-glabel">Kontrast</div>
+      </div>
+    </div>
+  </div>
+  <div class="arb-pane" id="arb-p-help" role="tabpanel" aria-labelledby="arb-t-help" hidden>
+    <div class="arb-groups" role="toolbar" aria-label="Pomoc">
+      <div class="arb-group" role="group" aria-label="Pomoc">
+        <div class="arb-cmds">
+          <a class="arb-cmd" href="<?= h(rtrim(APP_URL, '/')) ?>/karty30/ti/sso.php"><i class="bi bi-question-circle" aria-hidden="true"></i><span>Czym jest SSO?</span></a>
+          <a class="arb-cmd" href="<?= h(rtrim(APP_URL, '/')) ?>/auth/help.php"><i class="bi bi-life-preserver" aria-hidden="true"></i><span>Pomoc w logowaniu</span></a>
+          <a class="arb-cmd" href="<?= h(rtrim(APP_URL, '/')) ?>/auth/report_login_issue.php"><i class="bi bi-flag" aria-hidden="true"></i><span>Zgłoś problem</span></a>
+          <a class="arb-cmd" href="<?= h(rtrim(APP_URL, '/')) ?>/dostepnosc/"><i class="bi bi-universal-access-circle" aria-hidden="true"></i><span>Deklaracja dostępności</span></a>
+        </div>
+        <div class="arb-glabel">Wsparcie</div>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function(){
+    var bar=document.querySelector('.arb'); if(!bar) return;
+    var tabs=[].slice.call(bar.querySelectorAll('[role=tab]'));
+    function show(t,focus){
+      tabs.forEach(function(x){var on=x===t; x.setAttribute('aria-selected',on?'true':'false'); x.tabIndex=on?0:-1;
+        var p=document.getElementById(x.getAttribute('aria-controls')); if(p) p.hidden=!on;});
+      if(focus) t.focus();
+    }
+    tabs.forEach(function(t,i){
+      t.addEventListener('click',function(){
+        // ponowne kliknięcie aktywnej zakładki zwija / rozwija wstążkę (jak w Office)
+        var p=document.getElementById(t.getAttribute('aria-controls'));
+        if(t.getAttribute('aria-selected')==='true'){ p.hidden=!p.hidden; } else { show(t,false); }
+      });
+      t.addEventListener('keydown',function(e){
+        var j=null;
+        if(e.key==='ArrowRight') j=(i+1)%tabs.length; else if(e.key==='ArrowLeft') j=(i-1+tabs.length)%tabs.length;
+        else if(e.key==='Home') j=0; else if(e.key==='End') j=tabs.length-1;
+        if(j!==null){e.preventDefault(); show(tabs[j],true);}
+      });
+    });
+  })();
+  </script>
 </header>
 <?php elseif (!$light): ?>
 <?= $__ks_a11y ?>
