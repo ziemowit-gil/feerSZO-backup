@@ -351,6 +351,7 @@ $_sys_name = 'Systemie Wspomagania Zarządzania Organizacją';
 ob_start();
 require __DIR__ . '/_login_modals.php';
 $_modals_html = ob_get_clean();
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
 $_b = branding_load();
 $_org = $_b['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : '');
 $_ln_show = null;
@@ -428,17 +429,48 @@ body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;back
 .l-alert-danger{border-color:#a4262c;background:#fde7e9}.l-alert-success{border-color:#107c10;background:#eef7ee}
 .pass-wrap{position:relative}.pass-toggle{position:absolute;right:1px;top:1px;bottom:1px;width:2.6rem;border:0;background:#fff}
 .modal-content{border-radius:0}
+
+/* ── Wygląd CPL (Centralny Portal Logowania) ── */
+body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
+:focus-visible{outline:3px solid #f59e0b!important;outline-offset:2px!important}
+.lg-wrap{align-items:flex-start;padding-top:1.5rem}
+.lg-card{padding:0;border:1px solid #d6d9de;box-shadow:none;overflow:hidden;max-width:480px}
+<?= auth_screen_cpl_band_css() ?>
+.cpl-top{border:0;border-bottom:1px solid #e1e4e8}
+.lg-body{padding:1.4rem 2.2rem 1.8rem;background:#eceeef}
+.lg-brand{display:none}
+.lg-h1{font-size:1.35rem;font-weight:700;color:#1f2937}
+.lg-lead{font-size:.9rem;margin-bottom:1rem}
+.lg-ms{background:#0a7fd1;border-radius:2px;min-height:42px;font-size:.95rem}
+.lg-ms:hover,.lg-ms:focus{background:#075f9e}
+.lg-in{border:1px solid #8d95a1;border-radius:2px;min-height:34px;font-size:.9rem;padding:.3rem .55rem}
+.lg-in:focus{border-color:#0a7fd1}
+.lg-field label{font-size:.85rem}
+.lg-btn{background:#0a7fd1;border-radius:2px;min-height:40px;font-size:.95rem}
+.lg-btn:hover,.lg-btn:focus{background:#075f9e}
+.lg-links a,.lg-more summary,.lg-new strong{color:#075f9e}
+.lg-new i{background:#0a7fd1;border-radius:2px}
+.lg-new a,.lg-new button,.lg-alt button{border-radius:2px;background:#fff;border-color:#c9ced6}
+.lg-new a:hover,.lg-new button:hover,.lg-alt button:hover{background:#dbeafe;border-color:#93c5fd}
+.lg-alert{border-radius:2px}
+.lg-alert.info{background:#e6f1fb;border-color:#0a7fd1}
+.lg-cpl{font-size:.85rem}
+@media(max-width:480px){.lg-body{padding:1.2rem}}
 </style>
 </head>
 <body>
 <a class="lg-skip" href="#f-email">Przejdź do logowania</a>
 <main class="lg-wrap" id="login-main">
   <div class="lg-card">
+    <?= auth_screen_cpl_band($_org ?: 'Fundacja FEER') ?>
+    <div class="lg-body">
     <div class="lg-brand">
       <?php if ($_b['logo_url']): ?><img src="<?= h($_b['logo_url']) ?>" alt="<?= h($_org) ?>"><?php else: ?><span><?= h($_org) ?></span><?php endif; ?>
     </div>
     <h1 class="lg-h1"><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się' ?></h1>
     <p class="lg-lead"><?= $_login_welcome_is_custom ? nl2br(h($_login_welcome)) : 'System Wspomagania Zarządzania Organizacją' ?></p>
+    <div class="lg-alert info lg-cpl" role="note"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Logowanie odbywa się teraz przez CPL — Centralny Portal Logowania.</strong>
+      Logujesz się do <strong>SZO</strong> (<?= h($_sys_name) ?>). Możesz też wybrać profil i sposób wejścia w <a href="<?= h(APP_URL) ?>/tozsamosc/cpl.php">pełnym oknie CPL</a>.</div></div>
 
     <?php if ($_ln_show): ?><div class="lg-alert info" role="region" aria-label="Komunikat"><i class="bi bi-megaphone" aria-hidden="true"></i><div><strong><?= h($_ln_show['title']) ?></strong><?php if ($_ln_show['body']): ?><br><?= nl2br(h($_ln_show['body'])) ?><?php endif; ?></div></div><?php endif; ?>
     <?php if ($_sso_hint): ?><div class="lg-alert info" role="alert" id="sso-hint"><i class="bi bi-shield-check" aria-hidden="true"></i><div>
@@ -486,6 +518,7 @@ body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;back
       </div>
     </details>
     <?php endif; ?>
+    </div><!-- /.lg-body -->
   </div>
 </main>
 <footer class="lg-foot"><?= h($_org) ?> · <a href="<?= APP_URL ?>/auth/help.php">Pomoc w logowaniu</a> · <a href="<?= APP_URL ?>/dostepnosc/">Deklaracja dostępności</a></footer>
