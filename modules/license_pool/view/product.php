@@ -83,6 +83,13 @@ $typeLabel = ['user' => 'Pracownik', 'client' => 'Uczestnik TI', 'other' => 'Inn
     <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="nt" name="notify" value="1" checked><label class="form-check-label" for="nt">Wyślij e-mail z kluczem i instrukcją aktywacji (adres z konta; uczestnik małoletni — opiekun)</label></div>
     <div class="mb-3"><label class="form-label" for="nn">Uwaga (wewnętrzna)</label><input id="nn" name="note" class="form-control" maxlength="300"></div>
     <button class="btn btn-primary">Przydziel</button>
+    <button type="button" class="btn btn-outline-secondary" id="lpPrevBtn" data-url="<?= h(route('lp.assign.preview')) ?>"><i class="bi bi-eye me-1"></i>Podgląd e-maila z kluczem</button>
+    <div id="lpPrev" class="border rounded p-2 mt-3" hidden aria-live="polite">
+      <div class="small text-muted mb-1">Podgląd — nic nie zostało przydzielone ani wysłane. Odsłonięcie klucza zapisano w dzienniku audytu.</div>
+      <div class="fw-semibold small" id="lpPrevSubj"></div>
+      <pre class="small mb-0 mt-2" id="lpPrevText" style="white-space:pre-wrap"></pre>
+      <div class="small text-muted mt-1" id="lpPrevAtt"></div>
+    </div>
     <div class="small text-muted mt-2">Bez wyboru numeru system wybierze licencję z wolnym miejscem (najpierw wygasającą najwcześniej).</div>
   </form>
   <script>
@@ -99,6 +106,19 @@ $typeLabel = ['user' => 'Pracownik', 'client' => 'Uczestnik TI', 'other' => 'Inn
       f.querySelector('#hc').name=(t==='client')?'holder_id':'';
     }
     sel.addEventListener('change',sync); sync();
+    var pb=document.getElementById('lpPrevBtn');
+    pb.addEventListener('click',function(){
+      var box=document.getElementById('lpPrev'), fd=new FormData(f);
+      pb.disabled=true;
+      fetch(pb.dataset.url,{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+        box.hidden=false;
+        if(!d.ok){ document.getElementById('lpPrevSubj').textContent=d.error||'Błąd podglądu.'; document.getElementById('lpPrevText').textContent=''; document.getElementById('lpPrevAtt').textContent=''; return; }
+        document.getElementById('lpPrevSubj').textContent='Temat: '+d.subject+'  (licencja '+d.code_hint+')';
+        document.getElementById('lpPrevText').textContent=d.text;
+        document.getElementById('lpPrevAtt').textContent=d.attachment?('Załącznik: '+d.attachment):'';
+      }).catch(function(){ box.hidden=false; document.getElementById('lpPrevSubj').textContent='Nie udało się pobrać podglądu.'; })
+        .finally(function(){ pb.disabled=false; });
+    });
   })();
   </script>
   <?php endif; ?>

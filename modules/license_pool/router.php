@@ -33,6 +33,7 @@ $r->group(['lp.access'], function (Router $r) {
     $r->post('/produkty',               [LpController::class, 'saveProduct'])->name('lp.product.save');
     $r->get('/produkty/{id}',           [LpController::class, 'product'])->name('lp.product');
     $r->post('/przydzial',              [LpController::class, 'assign'])->name('lp.assign');
+    $r->post('/przydzial/podglad',      [LpController::class, 'previewMail'])->name('lp.assign.preview');
     $r->post('/przydzialy/{id}/odbierz',[LpController::class, 'revoke'])->name('lp.revoke');
     $r->post('/przydzialy/{id}/wyslij', [LpController::class, 'resend'])->name('lp.resend');
     $r->post('/licencje/{id}/pokaz',    [LpController::class, 'reveal'])->name('lp.reveal');

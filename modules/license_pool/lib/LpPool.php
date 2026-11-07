@@ -382,6 +382,33 @@ final class LpPool
         }
     }
 
+    /**
+     * Podgląd e-maila z kluczem BEZ przydzielania i wysyłki. $in jak w assign() (license_id | product_id, holder_type, holder_id/holder_label).
+     * Odsłonięcie klucza trafia do audit_logs (jak „pokaż klucz”).
+     * @return array{ok:bool,error?:string,license_id?:int,code_hint?:string,subject?:string,text?:string,attachment?:string}
+     */
+    public static function previewMail(array $in, ?int $by = null): array
+    {
+        self::ready();
+        $licId = (int)($in['license_id'] ?? 0);
+        if ($licId <= 0 && (int)($in['product_id'] ?? 0) > 0) $licId = (int)self::pickFree((int)$in['product_id']);
+        $lic = $licId > 0 ? self::license($licId) : null;
+        if (!$lic) return ['ok' => false, 'error' => 'Brak wolnej licencji na ten produkt.'];
+        $p = db_one("SELECT * FROM lp_products WHERE id = ?", [(int)$lic['product_id']]);
+        if (!$p) return ['ok' => false, 'error' => 'Nie znaleziono produktu.'];
+        $type = (string)($in['holder_type'] ?? 'other'); $hid = (int)($in['holder_id'] ?? 0); $label = trim((string)($in['holder_label'] ?? ''));
+        if ($type === 'user' && $hid > 0) $label = (string)(db_one("SELECT name FROM users WHERE id = ?", [$hid])['name'] ?? $label);
+        if ($type === 'client' && $hid > 0) $label = (string)(db_one("SELECT name FROM k30_clients WHERE id = ?", [$hid])['name'] ?? $label);
+        if ($label === '') $label = '(odbiorca)';
+        $code = (string)self::revealCode($licId, $by);
+        $a = ['holder_label' => $label, 'holder_type' => $type, 'product' => $p['name'], 'instructions' => $p['instructions'],
+              'activation_url' => $p['activation_url'], 'validity_months' => $p['validity_months'], 'valid_until' => $lic['valid_until'],
+              'attachment_path' => $p['attachment_path'], 'attachment_name' => $p['attachment_name'], 'code' => $code];
+        return ['ok' => true, 'license_id' => $licId, 'code_hint' => (string)$lic['code_hint'],
+                'subject' => 'Bezpłatny przydział licencji na produkt ' . $p['name'] . ' – klucz aktywacyjny',
+                'text' => self::keyMailText($a), 'attachment' => (string)($p['attachment_path'] !== '' ? ($p['attachment_name'] ?: basename((string)$p['attachment_path'])) : '')];
+    }
+
     /** Treść wiadomości z kluczem — czysty tekst. $a: przydział + product, instructions, activation_url, valid_until, holder_label/type, code. */
     public static function keyMailText(array $a): string
     {

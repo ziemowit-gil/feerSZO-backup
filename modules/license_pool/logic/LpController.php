@@ -64,6 +64,15 @@ final class LpController
         return Router::redirect(route('lp.product', ['id' => (int)($_POST['product_id'] ?? 0)]));
     }
 
+    /** Podgląd e-maila z kluczem (JSON) — nic nie przydziela ani nie wysyła. */
+    public function previewMail(): ?string
+    {
+        $r = LpPool::previewMail($_POST, $this->actor()['id']);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($r, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     public function revoke(int $id): ?string
     {
         $a = db_one("SELECT l.product_id FROM lp_assignments a JOIN lp_licenses l ON l.id = a.license_id WHERE a.id = ?", [(int)$id]);
