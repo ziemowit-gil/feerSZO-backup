@@ -863,6 +863,82 @@ if (is_admin()) {
 <?php endif; ?>
 </div>
 
+<!-- ═══════════ KAFLE (Start) — skróty jak w panelu SZO ═══════════ -->
+<?php
+$T_OK = 'var(--m-green)'; $T_WARN = 'var(--m-orange)'; $T_OFF = 'var(--m-grey)';
+$sec_tile_c = $sec_pct >= 80 ? $T_OK : ($sec_pct >= 50 ? $T_WARN : 'var(--m-red)');
+$m365_active = $has_m365 && !empty($m365_row['m365_konto_aktywne']);
+?>
+<div class="mt-grid" aria-label="Skróty">
+  <a href="#podstawowe" class="mt-tile mt-tile--l" style="--c:var(--m-blue)" @click.prevent="go('podstawowe')">
+    <span class="ava" aria-hidden="true"><?= h($initials) ?></span>
+    <span>
+      <span class="val tw-block tw-truncate"><?= h($user['name']) ?></span>
+      <span class="lbl tw-block tw-mt-1"><?= h($role_label) ?> · <?= h($account_type_label) ?></span>
+      <span class="sub">UID <b><?= h($uid) ?></b> · <?= h($panel_login ?: '—') ?></span>
+    </span>
+  </a>
+
+  <a href="#bezpieczenstwo" class="mt-tile mt-tile--w" style="--c:<?= $sec_tile_c ?>" @click.prevent="go('bezpieczenstwo')" aria-label="Stan zabezpieczeń: <?= $sec_pct ?> procent, <?= $sec_ok ?> z <?= $sec_total ?> elementów">
+    <i class="bi bi-shield-lock ic" aria-hidden="true"></i>
+    <span><span class="val"><?= $sec_pct ?>%</span><span class="lbl tw-block tw-mt-1">Stan zabezpieczeń</span><span class="sub"><?= $sec_ok ?> z <?= $sec_total ?> elementów · <?= $sec_pct >= 80 ? 'dobrze zabezpieczone' : ($sec_pct >= 50 ? 'dokończ konfigurację' : 'zabezpiecz konto') ?></span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="mt-tile" style="--c:<?= $mfa_active ? $T_OK : $T_WARN ?>">
+    <span class="tag"><?= $mfa_active ? 'aktywne' : 'brak' ?></span>
+    <i class="bi bi-shield-check ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Weryfikacja dwuskładnikowa</span><span class="sub"><?= $mfa_active ? h($mfa_label) : 'skonfiguruj' ?></span></span>
+  </a>
+
+  <a href="#bezpieczenstwo" class="mt-tile" style="--c:<?= $has_local_password ? $T_OK : $T_WARN ?>" @click.prevent="go('bezpieczenstwo'); $dispatch('tz-sec', 'haslo')">
+    <span class="tag"><?= $has_local_password ? 'ok' : 'ustaw' ?></span>
+    <i class="bi bi-key ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Hasło</span><span class="sub"><?= $has_m365 ? 'SZO + Microsoft 365' : 'konto lokalne' ?></span></span>
+  </a>
+
+  <a href="#bezpieczenstwo" class="mt-tile" style="--c:<?= $phone_verified ? $T_OK : $T_WARN ?>" @click.prevent="go('bezpieczenstwo'); $dispatch('tz-sec', 'telefon')">
+    <span class="tag"><?= $phone_verified ? 'ok' : ($phone_saved ? 'zweryfikuj' : 'brak') ?></span>
+    <i class="bi bi-phone ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Telefon do SMS</span><span class="sub"><?= $phone_verified ? h(tz_mask_phone($phone_saved)) : 'odzyskiwanie dostępu' ?></span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn" class="mt-tile" style="--c:<?= $has_wk ? $T_OK : $T_OFF ?>">
+    <span class="tag"><?= $has_wk ? count($wk_keys_idx) . ' szt.' : 'brak' ?></span>
+    <i class="bi bi-fingerprint ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Klucz / passkey</span><span class="sub">FIDO2 · Windows Hello</span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/panel/m365.php" class="mt-tile mt-tile--w" style="--c:<?= $m365_active ? 'var(--m-indigo)' : $T_OFF ?>">
+    <span class="tag"><?= $m365_active ? 'aktywne' : ($has_m365 ? 'zawieszone' : 'brak konta') ?></span>
+    <i class="bi bi-microsoft ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Microsoft 365 / Entra ID</span><span class="sub"><?= $has_m365 ? h($m365_login ?: $panel_login) : 'konto nie zostało utworzone' ?></span></span>
+  </a>
+
+  <a href="#uslugi" class="mt-tile" style="--c:var(--m-teal)" @click.prevent="go('uslugi')">
+    <i class="bi bi-grid-3x3-gap ic" aria-hidden="true"></i>
+    <span><span class="val"><?= count($services) ?></span><span class="lbl tw-block">Usługi</span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/tozsamosc/rodo_export.php" target="_blank" rel="noopener" class="mt-tile" style="--c:var(--m-purple)">
+    <i class="bi bi-file-earmark-arrow-down ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Eksport danych</span><span class="sub">PDF · art. 15 i 20 RODO</span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/helpdesk/index.php" class="mt-tile" style="--c:var(--m-magenta)">
+    <i class="bi bi-headset ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Pomoc</span><span class="sub">helpdesk organizacji</span></span>
+  </a>
+
+  <?php if (is_admin()): ?>
+  <a href="#administracja" class="mt-tile" style="--c:var(--m-dark)" @click.prevent="go('administracja')">
+    <i class="bi bi-shield-fill-gear ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Administracja</span><span class="sub">tożsamością</span></span>
+  </a>
+  <?php endif; ?>
+</div>
+
+<div class="tw-h-6" aria-hidden="true"></div>
+
 <!-- ═══════════ PODSTAWOWE ═══════════ -->
 <section id="podstawowe" role="tabpanel" aria-labelledby="tab-podstawowe" tabindex="-1" x-show="tab === 'podstawowe'" x-transition.opacity.duration.150ms>
   <h2 class="mt-h2">Dane <b>tożsamości</b> <span class="lbl-en tw-inline tw-font-normal">Identity record</span></h2>
