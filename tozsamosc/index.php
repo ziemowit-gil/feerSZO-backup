@@ -659,6 +659,48 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 .rb-cmd:hover{ background:#dbeafe; border-color:#93c5fd; color:#1f2937; }
 .rb-glabel{ text-align:center; font-size:.7rem; color:#4b5563; padding:.15rem 0 .2rem; }
 @media (max-width:640px){ .rb-group{ flex:1 1 100%; border-right:0; border-bottom:1px solid #c9ced6; } }
+
+/* ── Wnętrza sekcji w stylu CPL: szare panele z cienką ramką, ciemnogranatowe nagłówki, niebieskie przyciski ── */
+.tz .mt-kicker{ color:#4b5563; letter-spacing:.08em; }
+.tz .mt-title{ font-weight:800; color:#2e2a7a; font-size:1.9rem; letter-spacing:-.02em; }
+.tz .mt-lead{ font-weight:400; color:#374151; font-size:.9rem; }
+.tz .mt-pivot{ gap:2px; border-bottom:1px solid #c9ced6; margin:1.25rem 0 1.25rem; }
+.tz .mt-pivot button{ font-size:.9rem; font-weight:700; color:#374151; padding:.5rem 1rem; border:1px solid transparent; border-bottom:0; margin-bottom:-1px; letter-spacing:0; }
+.tz .mt-pivot button:hover{ background:#f3f4f6; color:#1f2937; }
+.tz .mt-pivot button[aria-selected="true"]{ background:#eceeef; border-color:#c9ced6; color:#2e2a7a; font-weight:700; }
+.tz .mt-pivot button:focus-visible{ outline:3px solid #f59e0b; outline-offset:-3px; }
+.tz .mt-h2{ font-size:1.1rem; font-weight:700; color:#2e2a7a; padding-bottom:.35rem; border-bottom:1px solid #c9ced6; letter-spacing:0; }
+.tz .mt-h2 b{ font-weight:700; }
+.tz .mt-h3{ font-size:.95rem; font-weight:700; color:#1f2937; }
+.tz .mt-group,.tz .tzx-acc-bd,.tz .tzx-card-hd{ background:#eceeef; }
+.tz .mt-group{ border:1px solid #c9ced6; padding:1rem 1.25rem; }
+.tz .mt-kv dt,.tz .tzx-kv dt{ font-weight:700; letter-spacing:.03em; text-transform:none; font-size:.76rem; color:#374151; }
+.tz .mt-kv dd,.tz .tzx-kv dd{ font-weight:400; font-size:.95rem; color:#111827; }
+.tz .mt-kv dd.big{ font-size:1.25rem; font-weight:700; }
+.tz .mt-svc,.tz .tzx-kv,.tz .tzx-chip,.tz .tzx-tile,.tz .tzx-link-tile{ background:#eceeef; border:1px solid #d6d9de; }
+.tz .mt-svc{ border-left:6px solid var(--c,var(--m-blue)); }
+.tz .tzx-link-tile:hover,.tz .tzx-tile:hover{ background:#dbeafe; border-color:#93c5fd; }
+.tz .tzx-card{ border:1px solid #c9ced6; background:#fff; }
+.tz .tzx-card-hd{ border-bottom:1px solid #c9ced6; font-weight:700; }
+.tz .tzx-btn{ border-radius:2px; font-weight:700; font-size:.82rem; padding:.4rem 1rem; border-width:1px; }
+.tz .tzx-btn--ghost{ background:#fff; color:#075f9e; border-color:#0a7fd1; }
+.tz .tzx-btn--ghost:hover{ background:#dbeafe; color:#075f9e; border-color:#075f9e; }
+.tz .tzx-btn--danger{ background:#fff; color:#8a1c12; border-color:#b42318; }
+.tz .tzx-btn--danger:hover{ background:#b42318; color:#fff; }
+.tz .tzx-btn:focus-visible,.tz .tzx-acc-btn:focus-visible{ outline:3px solid #f59e0b; outline-offset:2px; }
+.tz .tzx-badge{ border-radius:2px; letter-spacing:0; text-transform:none; font-size:.7rem; }
+.tz .tzx-acc{ border:1px solid #c9ced6; margin-bottom:6px; background:#fff; }
+.tz .tzx-acc-btn{ background:#fff; padding:.55rem .75rem; gap:.75rem; }
+.tz .tzx-acc--open .tzx-acc-btn{ background:#eceeef; }
+.tz .tzx-acc-btn:hover{ background:#f3f4f6; }
+.tz .tzx-acc-ico{ width:2.4rem; height:2.4rem; font-size:1.1rem; border-radius:2px; }
+.tz .tzx-acc-plus{ border-radius:2px; border-width:1px; border-color:#6b7280; color:#374151; width:1.7rem; height:1.7rem; }
+.tz .tzx-acc--open .tzx-acc-plus{ background:#0a7fd1; border-color:#0a7fd1; color:#fff; }
+.tz .tzx-aside{ background:#fff; border:1px solid #c9ced6; border-left:5px solid #0a7fd1; }
+.tz .form-control,.tz .form-select{ border:1px solid #8d95a1; border-radius:2px !important; min-height:34px; font-size:.9rem; }
+.tz .form-control:focus,.tz .form-select:focus{ border-color:#0a7fd1; outline:3px solid #f59e0b; outline-offset:1px; }
+.tz .form-label,.tz .tzx-field label{ font-weight:700; font-size:.82rem; color:#1f2937; }
+.tz .tzx-timeline li{ border-left-color:#c9ced6; }
 </style>
 
 <div x-data="tzIdentity(<?= h(json_encode(['tabs' => array_keys($tabs), 'firstVisit' => $first_visit])) ?>)" x-cloak>
