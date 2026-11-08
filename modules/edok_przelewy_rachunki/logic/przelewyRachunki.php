@@ -243,6 +243,39 @@ function prz_rach_do_edok(array $rids, ?int $user_id, string $powod_zaplacony = 
     return ['ok' => $ok, 'bledy' => $bledy];
 }
 
+/**
+ * Import rachunków do umów zlecenie z systemu (rejestr zlecenie_rachunki) do EODoK jako dokumenty
+ * typu „Rachunek do umowy zlecenie” — okres rachunku od $od_ym (domyślnie 2026-11 = od listopada 2026).
+ * Pomija: testowe, odrzucone, zapłacone (wymagają opisu — ręcznie), już w EODoK/KDOK, bez pliku/kwoty/konta.
+ * Tytuł przelewu nadaje edok_generate_tytul_przelewu(): „WYNAGRODZENIE MM/RRRR - umowa nr {RU}”.
+ *
+ * @return array{kandydaci:int, ok:int, pominiete:array<int,string>, bledy:array<int,string>}
+ */
+function prz_rach_import_edok(?int $user_id, string $od_ym = '', bool $dry = false): array {
+    prz_rach_migrate();
+    $od_ym = preg_match('/^\d{4}-\d{2}$/', $od_ym) ? $od_ym : substr(EDOK_CUTOFF_RACHUNEK_ZLECENIE, 0, 7);
+    $out = ['kandydaci' => 0, 'ok' => 0, 'pominiete' => [], 'bledy' => []];
+    foreach (prz_rach_lista('', true) as $r) {
+        $okres = preg_match('/^\d{4}-\d{2}$/', (string)($r['okres_od'] ?? '')) ? (string)$r['okres_od'] : substr((string)($r['data_wystawienia'] ?: ''), 0, 7);
+        if ($okres === '' || $okres < $od_ym) continue;
+        $et = ($r['imie_nazwisko'] ?? '') . ' ' . ($r['numer'] ?: '#' . $r['id']);
+        if (!empty($r['edok_doc_id']) || !empty($r['kdok_doc_id'])) continue; // już w obiegu
+        if (($r['status'] ?? '') === 'zaplacony') { $out['pominiete'][] = $et . ': zapłacony — przekaż ręcznie z opisem powodu'; continue; }
+        if (!rachunek_file_abs($r['plik_podpisany'] ?? null) && !rachunek_file_abs($r['plik'] ?? null)) { $out['pominiete'][] = $et . ': brak pliku'; continue; }
+        if (($r['kwota_brutto'] ?? null) === null && ($r['kwota_netto'] ?? null) === null) { $out['pominiete'][] = $et . ': brak kwoty'; continue; }
+        if (strlen((string)$r['nrb']) !== 26) { $out['pominiete'][] = $et . ': brak numeru konta w umowie'; continue; }
+        $out['kandydaci']++;
+        if ($dry) continue;
+        try {
+            $res = rachunek_push_to_edok((int)$r['id'], $user_id, true);
+        } catch (\Throwable $e) {
+            $res = ['ok' => false, 'msg' => 'Błąd: ' . $e->getMessage()];
+        }
+        if (!empty($res['ok'])) $out['ok']++; else $out['bledy'][] = $et . ': ' . $res['msg'];
+    }
+    return $out;
+}
+
 /** „1 przelew”, „3 przelewy”, „5 przelewów”. */
 function prz_rach_ile(int $n): string {
     $f = $n === 1 ? 'przelew' : (($n % 10 >= 2 && $n % 10 <= 4 && ($n % 100 < 12 || $n % 100 > 14)) ? 'przelewy' : 'przelewów');

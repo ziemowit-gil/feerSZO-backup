@@ -40,6 +40,8 @@ const EDOK_TYPES = [
     // jako zapłacona przed akceptacją (patrz edok_proforma_*).
     'proforma'           => 'Faktura proforma',
     'rachunek'           => 'Rachunek',
+    // Rachunek do umowy zlecenie importowany z rejestru rachunków umów (zlecenie_rachunki) — od 1.11.2026.
+    'rachunek_zlecenie'  => 'Rachunek do umowy zlecenie',
     'nota_ksiegowa'      => 'Nota księgowa',
     'lista_plac'         => 'Lista płac',
     'skladki_zus'        => 'ZUS — składki',
@@ -90,11 +92,17 @@ function edok_typ_korekta(string $typ): bool { return in_array($typ, ['faktura_k
 // nie przez EODoK (patrz edok_typ_data_graniczna(), sprawdzane w edok/add.php).
 const EDOK_CUTOFF_FAKTURA  = '2026-09-01'; // faktury VAT / korygujące
 const EDOK_CUTOFF_RACHUNEK = '2026-10-01'; // rachunki
+const EDOK_CUTOFF_RACHUNEK_ZLECENIE = '2026-11-01'; // rachunki do umów zlecenie (typ rachunek_zlecenie; import z systemu)
+
+/** Typy „rachunku” (zwykły i do umowy zlecenie) — wspólna logika wynagrodzeń/przelewów. */
+const EDOK_TYPES_RACHUNEK = ['rachunek', 'rachunek_zlecenie'];
+function edok_typ_rachunek(string $typ): bool { return in_array($typ, EDOK_TYPES_RACHUNEK, true); }
 
 /** Data graniczna dla typu dokumentu (faktury/rachunki) — null, jeśli typ nie ma granicy. */
 function edok_typ_data_graniczna(string $typ_dokumentu): ?string {
     if (in_array($typ_dokumentu, ['faktura_vat', 'faktura_korygujaca'], true)) return EDOK_CUTOFF_FAKTURA;
     if ($typ_dokumentu === 'rachunek') return EDOK_CUTOFF_RACHUNEK;
+    if ($typ_dokumentu === 'rachunek_zlecenie') return EDOK_CUTOFF_RACHUNEK_ZLECENIE;
     return null;
 }
 
@@ -720,7 +728,7 @@ function edok_generate_tytul_przelewu(array $doc): string {
     // Wynagrodzenia (pozycja listy płac / rachunek do umowy / lista płac) — format ustalony
     // z użytkownikiem: „WYNAGRODZENIE MM/RRRR - umowa nr {nr z Rejestru Umów}” (umowa_numer = nr_rejestru,
     // awaryjnie numer umowy). Lista płac jako całość (bez pozycji): „WYNAGRODZENIA MM/RRRR”.
-    if (!$jest_przychod && empty($doc['_zwrot']) && (!empty($doc['_wyplata']) || ($typ_dokumentu === 'rachunek' && ($umowa !== '' || ($doc['contract_type'] ?? '') === 'zlecenie')) || $typ_dokumentu === 'lista_plac')) {
+    if (!$jest_przychod && empty($doc['_zwrot']) && (!empty($doc['_wyplata']) || (edok_typ_rachunek($typ_dokumentu) && ($umowa !== '' || ($doc['contract_type'] ?? '') === 'zlecenie')) || $typ_dokumentu === 'lista_plac')) {
         $cala_lista = $typ_dokumentu === 'lista_plac' && empty($doc['_wyplata']);
         $t = trim(($cala_lista ? 'WYNAGRODZENIA' : 'WYNAGRODZENIE') . ' ' . $okres)
             . (!$cala_lista && $umowa !== '' ? ' - umowa nr ' . $umowa : '');
@@ -767,7 +775,7 @@ function edok_paczka_klucz(array $doc): string {
     // _wyplata jako tablica = pozycja listy płac; _wyplata === true = rachunek do umowy z rejestru (Przelewy za rachunki).
     if (!empty($doc['_wyplata']) && is_array($doc['_wyplata'])) return 'LP:' . (int)($doc['id'] ?? 0);
     $umowa = trim((string)($doc['umowa_numer'] ?? ''));
-    if (($doc['typ_dokumentu'] ?? '') === 'rachunek' && $umowa !== '') return 'UM:' . $umowa . '|' . (string)($doc['okres'] ?? '');
+    if (edok_typ_rachunek((string)($doc['typ_dokumentu'] ?? '')) && $umowa !== '') return 'UM:' . $umowa . '|' . (string)($doc['okres'] ?? '');
     return '';
 }
 
@@ -1319,7 +1327,7 @@ function edok_print_html(array $doc): string {
     } elseif (($doc['status'] ?? '') === 'zaakceptowany') {
         $ost = db_one("SELECT MAX(decided_at) AS t FROM edok_steps WHERE doc_id = ? AND status IN ('ok','uwagi')", [(int)$doc['id']]);
         $html .= '<div class="desc" style="font-weight:700">ZAAKCEPTOWANO ELEKTRONICZNIE w systemie EODoK'
-            . (($doc['typ_dokumentu'] ?? '') === 'rachunek' ? ' (eObieg rachunku)' : '')
+            . (edok_typ_rachunek((string)($doc['typ_dokumentu'] ?? '')) ? ' (eObieg rachunku)' : '')
             . (!empty($ost['t']) ? ' — ' . date('d.m.Y H:i', strtotime((string)$ost['t'])) : '')
             . '. Akceptacja wszystkich etapów z weryfikacją tożsamości (PIN / klucz) — wydruk nie wymaga podpisów odręcznych.</div>';
     }

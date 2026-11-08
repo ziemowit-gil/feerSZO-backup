@@ -80,6 +80,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
         $_POST['kwota_netto'] = $kwota_netto; $_POST['kwota_vat'] = $kwota_vat;
         $data_sprzedazy = ''; $stawka_vat = '';
     }
+    // Rachunek do umowy zlecenie: bez VAT (np), bez daty sprzedaży i MPP — netto = brutto.
+    if ($kierunek === 'wydatek' && $typ_dokumentu === 'rachunek_zlecenie') {
+        $kwota_netto = $kwota_brutto_in; $kwota_vat = '0,00'; $stawka_vat = 'np'; $data_sprzedazy = '';
+        $_POST['kwota_netto'] = $kwota_netto; $_POST['kwota_vat'] = $kwota_vat;
+    }
     $kwota_brutto     = trim($_POST['kwota_brutto'] ?? '');
     $waluta           = $_POST['waluta'] ?? 'PLN';
     $rodzaj           = $_POST['rodzaj_dzialalnosci'] ?? '';
@@ -87,11 +92,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
     $mpk              = trim($_POST['mpk'] ?? '');
     $rachunek_bankowy = preg_replace('/\s+/', '', trim($_POST['rachunek_bankowy'] ?? ''));
     $termin_platnosci = trim($_POST['termin_platnosci'] ?? '');
-    $wymaga_mpp       = !empty($_POST['wymaga_mpp']) ? 1 : 0;
+    $wymaga_mpp       = !empty($_POST['wymaga_mpp']) && $typ_dokumentu !== 'rachunek_zlecenie' ? 1 : 0;
     // Wynagrodzenia (rachunek do umowy / lista płac): okres RRRR-MM i nr umowy z Rejestru Umów — do tytułu przelewu.
-    $jest_wynagrodzenie = $kierunek === 'wydatek' && in_array($typ_dokumentu, ['rachunek', 'lista_plac'], true);
+    $jest_wynagrodzenie = $kierunek === 'wydatek' && in_array($typ_dokumentu, ['rachunek', 'rachunek_zlecenie', 'lista_plac'], true);
     $okres       = $jest_wynagrodzenie && preg_match('/^\d{4}-\d{2}$/', $_POST['okres'] ?? '') ? $_POST['okres'] : '';
-    $umowa_numer = $jest_wynagrodzenie && $typ_dokumentu === 'rachunek' ? trim($_POST['umowa_numer'] ?? '') : '';
+    $umowa_numer = $jest_wynagrodzenie && edok_typ_rachunek($typ_dokumentu) ? trim($_POST['umowa_numer'] ?? '') : '';
     // Powiązanie z umową z rejestru (link na karcie dokumentu).
     $umowa_ref = null;
     if ($umowa_numer !== '') foreach (edok_umowy_do_wyplat() as $u) if ($u['nr_rejestru'] === $umowa_numer) { $umowa_ref = $u; break; }
@@ -469,7 +474,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <div class="form-text mb-3 edok-vat-only"><i class="bi bi-magic"></i> Stawka VAT liczy VAT z netto; brutto liczy się automatycznie z netto + VAT (każdą wartość można nadpisać ręcznie).</div>
 
-      <div class="row g-3 mb-2">
+      <div class="row g-3 mb-2" id="termin_mpp_row">
         <div class="col-sm-4">
           <label class="form-label">Termin płatności</label>
           <input type="date" name="termin_platnosci" class="form-control" value="<?= h($_POST['termin_platnosci'] ?? '') ?>">
@@ -509,10 +514,10 @@ require_once __DIR__ . '/../includes/header.php';
         var typ = document.getElementById('typ_dokumentu');
         function sync() {
           var t = typ.value, kier = (document.querySelector('input[name="kierunek"]:checked') || {}).value || 'wydatek';
-          var on = kier === 'wydatek' && (t === 'rachunek' || t === 'lista_plac');
+          var on = kier === 'wydatek' && (t === 'rachunek' || t === 'rachunek_zlecenie' || t === 'lista_plac');
           document.getElementById('wynagrodzenie_wrap').style.display = on ? '' : 'none';
-          document.getElementById('umowa_numer_wrap').style.display = t === 'rachunek' ? '' : 'none';
-          document.getElementById('wynagrodzenie_hint').style.display = t === 'rachunek' ? '' : 'none';
+          document.getElementById('umowa_numer_wrap').style.display = (t === 'rachunek' || t === 'rachunek_zlecenie') ? '' : 'none';
+          document.getElementById('wynagrodzenie_hint').style.display = (t === 'rachunek' || t === 'rachunek_zlecenie') ? '' : 'none';
           document.getElementById('lista_plac_hint').style.display = t === 'lista_plac' ? '' : 'none';
         }
         typ.addEventListener('change', sync);
@@ -689,10 +694,13 @@ var EDOK_TYPES_PRZYCHOD_VAT = <?= json_encode(EDOK_TYPES_PRZYCHOD_VAT) ?>;
 function edokToggleProstyWplyw() {
   var kierunek = (document.querySelector('input[name="kierunek"]:checked') || {}).value || 'wydatek';
   var typ = document.getElementById('typ_dokumentu').value;
-  var prosty = kierunek === 'przychod' && EDOK_TYPES_PRZYCHOD_VAT.indexOf(typ) === -1;
+  var rachZlec = kierunek === 'wydatek' && typ === 'rachunek_zlecenie'; // rachunek do umowy zlecenie: bez VAT/MPP/daty sprzedaży
+  var prosty = (kierunek === 'przychod' && EDOK_TYPES_PRZYCHOD_VAT.indexOf(typ) === -1) || rachZlec;
+  var mppRow = document.getElementById('termin_mpp_row');
+  if (mppRow) mppRow.style.display = rachZlec ? 'none' : '';
   document.querySelectorAll('.edok-vat-only').forEach(function (el) { el.style.display = prosty ? 'none' : ''; });
   document.getElementById('data_sprzedazy_wrap').style.display = prosty ? 'none' : '';
-  document.getElementById('kwota_brutto_label').textContent = prosty ? 'Kwota' : 'Kwota brutto';
+  document.getElementById('kwota_brutto_label').textContent = rachZlec ? 'Kwota brutto rachunku' : (prosty ? 'Kwota' : 'Kwota brutto');
   document.getElementById('data_wystawienia_label').textContent = prosty ? 'Data dokumentu' : 'Data wystawienia';
   document.getElementById('kwota_brutto_col').className = prosty ? 'col-sm-6' : 'col-sm-3';
 }
@@ -704,11 +712,12 @@ edokToggleKierunek();
 // waliduje niezależnie i ostatecznie).
 var EDOK_CUTOFF_FAKTURA  = '2026-09-01';
 var EDOK_CUTOFF_RACHUNEK = '2026-10-01';
+var EDOK_CUTOFF_RACHUNEK_ZLECENIE = '2026-11-01';
 function edokCheckDataGraniczna() {
   var typ  = document.getElementById('typ_dokumentu').value;
   var data = document.getElementById('data_wystawienia').value;
   var hint = document.getElementById('data_graniczna_hint');
-  var granica = EDOK_FAKTURA_TYPES.indexOf(typ) !== -1 ? EDOK_CUTOFF_FAKTURA : (typ === 'rachunek' ? EDOK_CUTOFF_RACHUNEK : null);
+  var granica = EDOK_FAKTURA_TYPES.indexOf(typ) !== -1 ? EDOK_CUTOFF_FAKTURA : (typ === 'rachunek' ? EDOK_CUTOFF_RACHUNEK : (typ === 'rachunek_zlecenie' ? EDOK_CUTOFF_RACHUNEK_ZLECENIE : null));
   if (granica && data && data < granica) {
     hint.textContent = 'Ten typ dokumentu wystawiony przed ' + granica.split('-').reverse().join('.') + ' nie jest przyjmowany w EODoK — użyj dotychczasowego obiegu (KDOK).';
     hint.classList.remove('d-none');
@@ -739,7 +748,7 @@ function edokSuggestTytul(force) {
   var typKey = document.getElementById('typ_dokumentu').value;
   var kierunekW = (document.querySelector('input[name="kierunek"]:checked') || {}).value || 'wydatek';
   var umowaEl = document.getElementById('umowa_numer');
-  if (kierunekW === 'wydatek' && (typKey === 'lista_plac' || (typKey === 'rachunek' && umowaEl && umowaEl.value.trim()))) {
+  if (kierunekW === 'wydatek' && (typKey === 'lista_plac' || ((typKey === 'rachunek' || typKey === 'rachunek_zlecenie') && umowaEl && umowaEl.value.trim()))) {
     var ok = (document.getElementById('okres') || {}).value || '';
     var okres = /^\d{4}-\d{2}$/.test(ok) ? ok.substring(5, 7) + '/' + ok.substring(0, 4) : '';
     field.value = typKey === 'lista_plac' ? ('WYNAGRODZENIA ' + okres).trim() : (('WYNAGRODZENIE ' + okres).trim() + ' - umowa nr ' + umowaEl.value.trim());

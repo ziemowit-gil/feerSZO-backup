@@ -369,8 +369,8 @@ function edok_bank_wynagrodzenie_doc(array $tx, array $kat): ?int {
     $umowa = _edok_bank_norm((string)($kat['umowa'] ?? ''));
     $okres = (string)($kat['okres_od'] ?? '');
     $ok = fn($v) => $v !== '' && abs(abs(_edok_kwota_float((string)$v)) - $kw) < 0.01;
-    foreach (db_all("SELECT id, kwota_brutto, kwota_do_wyplaty, umowa_numer, okres, typ_dokumentu FROM edok_documents WHERE COALESCE(kierunek,'wydatek')='wydatek' AND typ_dokumentu IN ('rachunek','lista_plac') AND status IN ('zaakceptowany','w_obiegu') ORDER BY id DESC LIMIT 600") as $d) {
-        if ($d['typ_dokumentu'] === 'rachunek') {
+    foreach (db_all("SELECT id, kwota_brutto, kwota_do_wyplaty, umowa_numer, okres, typ_dokumentu FROM edok_documents WHERE COALESCE(kierunek,'wydatek')='wydatek' AND typ_dokumentu IN ('rachunek','rachunek_zlecenie','lista_plac') AND status IN ('zaakceptowany','w_obiegu') ORDER BY id DESC LIMIT 600") as $d) {
+        if (edok_typ_rachunek((string)$d['typ_dokumentu'])) {
             $um_ok = $umowa !== '' && _edok_bank_norm((string)$d['umowa_numer']) === $umowa;
             $ok_ok = $okres !== '' && (string)$d['okres'] === $okres;
             if (($um_ok && ($ok_ok || $ok($d['kwota_do_wyplaty']) || $ok($d['kwota_brutto']))) || ($ok_ok && ($ok($d['kwota_do_wyplaty']) || $ok($d['kwota_brutto'])))) return (int)$d['id'];

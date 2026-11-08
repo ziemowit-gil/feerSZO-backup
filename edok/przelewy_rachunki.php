@@ -53,6 +53,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'do_ed
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'import_edok') {
+    csrf_check();
+    $w = prz_rach_import_edok((int)(current_user()['id'] ?? 0) ?: null);
+    $msg = $w['ok'] ? 'Zaimportowano z systemu do EODoK: ' . $w['ok'] . ' ' . ($w['ok'] === 1 ? 'rachunek' : 'rachunków') . ' (typ „Rachunek do umowy zlecenie”, okres od 11/2026, obieg papierowy).' : '';
+    $nie = array_merge($w['bledy'], $w['pominiete']);
+    if ($nie) flash_set('warning', ($msg ? $msg . ' ' : '') . 'Nie zaimportowano: ' . implode(' · ', $nie));
+    else flash_set($w['ok'] ? 'success' : 'info', $msg ?: 'Brak nowych rachunków do zaimportowania (okres od 11/2026).');
+    header('Location: przelewy_rachunki.php?okres=' . urlencode($ym === '' ? 'wszystkie' : $ym) . ($zapl ? '&zaplacone=1' : ''));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'generuj') {
     csrf_check();
     $res = prz_rach_generuj(
@@ -222,6 +233,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="tw-mt-4 tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3">
       <p class="tw-m-0 tw-text-sm" aria-live="polite">Zaznaczone: <strong id="przIle">0</strong> · suma netto <strong id="przSuma">0,00</strong> zł</p>
       <div class="tw-flex tw-flex-wrap tw-gap-2">
+      <button type="submit" name="action" value="import_edok" formnovalidate class="btn btn-outline-primary" title="Importuje z systemu wszystkie rachunki do umów zlecenie z okresem od 11/2026, których nie ma jeszcze w EODoK (typ „Rachunek do umowy zlecenie”, tytuł WYNAGRODZENIE MM/RRRR - umowa nr …)"><i class="bi bi-cloud-download me-1" aria-hidden="true"></i> Importuj rachunki od 11/2026</button>
       <button type="submit" name="action" value="do_edok" class="btn btn-outline-primary" <?= $rows ? '' : 'disabled' ?> title="Przekazuje zaznaczone rachunki (bez dokumentu EODoK) do EODoK jako dokumenty do zapłaty — obieg papierowy"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Przekaż zaznaczone do EODoK</button>
       <button type="submit" name="action" value="generuj" class="btn btn-primary" <?= $do_wyboru && $konta ? '' : 'disabled' ?>><i class="bi bi-download me-1" aria-hidden="true"></i> Generuj plik przelewów</button>
       </div>

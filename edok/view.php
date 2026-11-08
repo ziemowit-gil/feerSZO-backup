@@ -110,10 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mpk              = trim($_POST['mpk'] ?? '');
         $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
         // Wynagrodzenia: okres, nr umowy z Rejestru Umów, kwota do wypłaty (po potrąceniach).
-        $jest_wynagrodzenie = in_array($doc['typ_dokumentu'], ['rachunek', 'lista_plac'], true) && $doc['kierunek'] === 'wydatek';
+        $jest_wynagrodzenie = in_array($doc['typ_dokumentu'], ['rachunek', 'rachunek_zlecenie', 'lista_plac'], true) && $doc['kierunek'] === 'wydatek';
         $okres            = $jest_wynagrodzenie && !$locked_rachunkowa && preg_match('/^\d{4}-\d{2}$/', $_POST['okres'] ?? '') ? $_POST['okres'] : ($jest_wynagrodzenie && !$locked_rachunkowa && ($_POST['okres'] ?? null) === '' ? '' : $doc['okres']);
         $umowa_numer      = $jest_wynagrodzenie && !$locked_rachunkowa ? trim($_POST['umowa_numer'] ?? $doc['umowa_numer']) : $doc['umowa_numer'];
-        $kwota_do_wyplaty = $doc['typ_dokumentu'] === 'rachunek' && !$locked_rachunkowa ? trim($_POST['kwota_do_wyplaty'] ?? '') : $doc['kwota_do_wyplaty'];
+        $kwota_do_wyplaty = edok_typ_rachunek($doc['typ_dokumentu']) && !$locked_rachunkowa ? trim($_POST['kwota_do_wyplaty'] ?? '') : $doc['kwota_do_wyplaty'];
         if ($kwota_do_wyplaty !== '' && _edok_kwota_float($kwota_do_wyplaty) <= 0) $kwota_do_wyplaty = '';
         if ($umowa_numer !== $doc['umowa_numer'] && $umowa_numer !== '') {
             foreach (edok_umowy_do_wyplat() as $u) if ($u['nr_rejestru'] === $umowa_numer) {
@@ -180,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              (int)$zaplata['zaplacono_przed'], $zaplata['data_zaplaty'], $zaplata['forma_zaplaty'], $zaplata['zaplacil'], $zaplata['zwrot_osoba'], $zaplata['zwrot_rachunek'], $proforma_id, $zaplata['dowod_zaplaty_path'], $okres, $umowa_numer, $kwota_do_wyplaty, $id]
         );
         // Rachunek do umowy: numer konta odbiorcy poprawialny do etapu rachunkowego (bez niego dokument nie da się zapłacić przelewem).
-        if ($doc['typ_dokumentu'] === 'rachunek' && !$locked_rachunkowa && isset($_POST['rachunek_bankowy'])) {
+        if (edok_typ_rachunek($doc['typ_dokumentu']) && !$locked_rachunkowa && isset($_POST['rachunek_bankowy'])) {
             $nrb_new = preg_replace('/\D/', '', (string)$_POST['rachunek_bankowy']);
             if ($nrb_new !== preg_replace('/\D/', '', (string)$doc['rachunek_bankowy'])) {
                 if (strlen($nrb_new) === 26 && edok_nrb_valid($nrb_new)) {
@@ -900,14 +900,14 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <?php if ($doc['kierunek'] === 'wydatek'): ?>
         <?php $zp_vals = $doc; $zp_locked = $locked_rachunkowa; $zp_doc_id = $id; $zp_typ = $doc['typ_dokumentu']; $zp_ksef = trim((string)($doc['ksef_reference'] ?? '')) !== ''; include __DIR__ . '/_zaplata_fields.php'; ?>
         <?php endif; ?>
-        <?php if (in_array($doc['typ_dokumentu'], ['rachunek', 'lista_plac'], true) && $doc['kierunek'] === 'wydatek'): ?>
+        <?php if (in_array($doc['typ_dokumentu'], ['rachunek', 'rachunek_zlecenie', 'lista_plac'], true) && $doc['kierunek'] === 'wydatek'): ?>
         <div class="row g-2 mb-2">
           <div class="col-sm-4">
             <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_okres">Okres wynagrodzenia <?= $locked_rachunkowa ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
             <?= edok_okres_select_html('okres', 'e_okres', (string)$doc['okres'], $locked_rachunkowa ? 'disabled' : '') ?>
             <?php if ($locked_rachunkowa): ?><input type="hidden" name="okres" value="<?= h($doc['okres']) ?>"><?php endif; ?>
           </div>
-          <?php if ($doc['typ_dokumentu'] === 'rachunek'): ?>
+          <?php if (edok_typ_rachunek($doc['typ_dokumentu'])): ?>
           <div class="col-sm-4">
             <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_umowa">Umowa nr (Rejestr Umów)</label>
             <?= edok_umowa_select_html('umowa_numer', 'e_umowa', (string)$doc['umowa_numer'], $locked_rachunkowa ? 'disabled' : '') ?>
@@ -918,7 +918,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <input type="text" name="kwota_do_wyplaty" id="e_do_wyplaty" class="form-control form-control-sm font-monospace text-end" value="<?= h($doc['kwota_do_wyplaty']) ?>" placeholder="= brutto" <?= $locked_rachunkowa ? 'readonly' : '' ?>>
           </div>
           <div class="col-12 form-text mt-0">Kwota do wypłaty = brutto rachunku po potrąceniu zaliczki PIT i składek ZUS — na nią pójdzie przelew. Puste = brutto.</div>
-          <?php if ($doc['typ_dokumentu'] === 'rachunek'): ?>
+          <?php if (edok_typ_rachunek($doc['typ_dokumentu'])): ?>
           <div class="col-sm-8">
             <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_nrb">Konto odbiorcy (NRB)</label>
             <input type="text" name="rachunek_bankowy" id="e_nrb" inputmode="numeric" class="form-control form-control-sm font-monospace" value="<?= h(edok_nrb_format((string)$doc['rachunek_bankowy'])) ?>" placeholder="26 cyfr" <?= $locked_rachunkowa ? 'readonly' : '' ?>>
@@ -1605,7 +1605,7 @@ var EDOK_KIERUNEK_VIEW     = <?= json_encode($doc['kierunek'] ?? 'wydatek', JSON
 var EDOK_WALUTA_VIEW       = <?= json_encode($doc['waluta'] ?: 'PLN', JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_FAKTURA_TYPES_VIEW = ['faktura_vat', 'faktura_korygujaca'];
 function edokViewSuggestTytul() {
-  if (EDOK_KIERUNEK_VIEW === 'wydatek' && (EDOK_TYP_KEY_VIEW === 'lista_plac' || (EDOK_TYP_KEY_VIEW === 'rachunek' && document.getElementById('e_umowa') && document.getElementById('e_umowa').value.trim()))) {
+  if (EDOK_KIERUNEK_VIEW === 'wydatek' && (EDOK_TYP_KEY_VIEW === 'lista_plac' || (['rachunek','rachunek_zlecenie'].indexOf(EDOK_TYP_KEY_VIEW) !== -1 && document.getElementById('e_umowa') && document.getElementById('e_umowa').value.trim()))) {
     var ok = (document.getElementById('e_okres') || {}).value || '';
     var okres = /^\d{4}-\d{2}$/.test(ok) ? ok.substring(5, 7) + '/' + ok.substring(0, 4) : '';
     var um = document.getElementById('e_umowa') ? document.getElementById('e_umowa').value.trim() : '';

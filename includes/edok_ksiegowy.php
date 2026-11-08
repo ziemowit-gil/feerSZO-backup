@@ -61,7 +61,7 @@ function edok_ksiegowy_platnosc(array $d, array $bank): string {
  */
 function edok_ksiegowy_rejestr(array $d, string $kierunek): string {
     return match ($d['typ_dokumentu']) {
-        'rachunek'       => 'Rachunek do umowy',
+        'rachunek', 'rachunek_zlecenie' => 'Rachunek do umowy',
         'lista_plac'     => 'Lista płac / wynagrodzenia',
         'nota_ksiegowa'  => 'Nota księgowa',
         'oplata_bankowa' => 'Opłata bankowa',

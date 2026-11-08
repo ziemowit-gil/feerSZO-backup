@@ -1280,7 +1280,8 @@ function rachunek_push_to_edok(int $rid, ?int $user_id, bool $papierowy = true, 
         'number'           => $number,
         'title'            => (string)($rach['numer'] ?: $number),
         'kierunek'         => 'wydatek',
-        'typ_dokumentu'    => 'rachunek',
+        // Od listopada 2026 osobny typ „Rachunek do umowy zlecenie”; wcześniejsze okresy zostają zwykłym „Rachunkiem”.
+        'typ_dokumentu'    => $okres >= substr(EDOK_CUTOFF_RACHUNEK_ZLECENIE, 0, 7) ? 'rachunek_zlecenie' : 'rachunek',
         'description'      => 'Wynagrodzenie z umowy zlecenie ' . $ru . ' — ' . $osoba
                               . ($rach['okres'] ? ', okres: ' . $rach['okres'] : '') . ($rach['uwagi'] ? '. ' . $rach['uwagi'] : '')
                               . ($byl_zaplacony ? '. Rachunek zapłacony przed przekazaniem do EODoK — powód: ' . $powod_zaplacony : ''),
