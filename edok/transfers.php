@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $uzasadnienie = trim($_POST['uzasadnienie'] ?? '');
 
     $find_nazwa = function (string $nrb) use ($rachunki): string {
-        foreach ($rachunki as $r) if ($r['nrb'] === $nrb) return ($r['nazwa'] ?: $r['bank']) . ' (' . substr($r['nrb'], -4) . ')';
+        foreach ($rachunki as $r) if ($r['nrb'] === $nrb) return edok_rachunek_etykieta($r) . ' (' . substr($r['nrb'], -4) . ')';
         return '';
     };
 
@@ -122,7 +122,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="">— wybierz rachunek —</option>
                 <?php foreach ($rachunki as $r): ?>
                 <option value="<?= h($r['nrb']) ?>" data-dla-odplatnej="<?= !empty($r['dla_odplatnej']) ? '1' : '0' ?>">
-                  <?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
+                  <?= hedok_rachunek_etykieta($r) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
                 </option>
                 <?php endforeach; ?>
               </select>
@@ -148,7 +148,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="">— wybierz rachunek —</option>
                 <?php foreach ($rachunki as $r): ?>
                 <option value="<?= h($r['nrb']) ?>" data-dla-odplatnej="<?= !empty($r['dla_odplatnej']) ? '1' : '0' ?>">
-                  <?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
+                  <?= hedok_rachunek_etykieta($r) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
                 </option>
                 <?php endforeach; ?>
               </select>

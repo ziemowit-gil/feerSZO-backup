@@ -365,6 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rachunki_cur[] = [
             'nrb'           => $raw_nrb,
             'waluta'        => mb_substr(trim($_POST['rachunek_waluta'] ?? 'PLN'), 0, 10),
+            'nazwa_wlasna'  => mb_substr(trim($_POST['rachunek_nazwa_wlasna'] ?? ''), 0, 80),
             'nazwa'         => mb_substr(trim($_POST['rachunek_nazwa'] ?? ''), 0, 140),
             'adres'         => mb_substr(normalizePlAddress($_POST['rachunek_adres'] ?? ''), 0, 140),
             'bank'          => mb_substr(trim($_POST['rachunek_bank']  ?? ''), 0, 100),
@@ -374,6 +375,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         org_setting_set('org_rachunki_bankowe', json_encode($rachunki_cur, JSON_UNESCAPED_UNICODE));
         flash_set('success', 'Dodano rachunek ' . format_iban_pl($raw_nrb) . '.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
+
+    } elseif (isset($_POST['set_rachunek_nazwa_wlasna'])) {
+        // Nazwa własna rachunku (etykieta na listach wyboru: Preliminarz, przelewy, wyciągi) — edycja istniejącego rachunku
+        $nrb_e = trim($_POST['ti_nrb'] ?? '');
+        $nazwa_e = mb_substr(trim($_POST['nazwa_wlasna'] ?? ''), 0, 80);
+        $rachunki_cur = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
+        foreach ($rachunki_cur as &$rr) { if ($rr['nrb'] === $nrb_e) $rr['nazwa_wlasna'] = $nazwa_e; } unset($rr);
+        org_setting_set('org_rachunki_bankowe', json_encode($rachunki_cur, JSON_UNESCAPED_UNICODE));
+        flash_set('success', $nazwa_e !== '' ? 'Zapisano nazwę własną rachunku: ' . $nazwa_e . '.' : 'Usunięto nazwę własną rachunku.');
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
 
     } elseif (isset($_POST['set_ti_rachunek'])) {
@@ -1353,6 +1364,16 @@ include dirname(__DIR__) . '/includes/header.php';
       </div>
 
       <div class="row g-3 mb-2">
+        <div class="col-md-12">
+          <label class="form-label small fw-semibold" for="rachunek_nazwa_wlasna">Nazwa własna rachunku</label>
+          <input type="text" name="rachunek_nazwa_wlasna" id="rachunek_nazwa_wlasna" class="form-control form-control-sm"
+                 placeholder="np. Rachunek główny PKO, Konto projektowe, Konto TI" maxlength="80">
+          <div class="form-text">Krótka nazwa, pod którą rachunek widać na listach wyboru (Preliminarz, paczki przelewów, wyciągi) i w tabeli poniżej.</div>
+        </div>
+      </div>
+      <details class="mb-3">
+        <summary class="small text-muted" style="cursor:pointer">Właściciel rachunku: domyślnie organizacja (nazwa i adres z danych rejestrowych) — zmień tylko wyjątkowo</summary>
+      <div class="row g-3 mb-2 mt-1">
         <div class="col-md-6">
           <label class="form-label small fw-semibold">Nazwa właściciela rachunku</label>
           <input type="text" name="rachunek_nazwa" class="form-control form-control-sm"
@@ -1365,12 +1386,13 @@ include dirname(__DIR__) . '/includes/header.php';
                  placeholder="Domyślnie: adres siedziby organizacji" maxlength="140">
         </div>
       </div>
+      </details>
 
       <div class="row g-3 align-items-end">
         <div class="col-md-5">
-          <label class="form-label small fw-semibold">Opis / przeznaczenie rachunku</label>
-          <input type="text" name="rachunek_opis" class="form-control form-control-sm"
-                 placeholder="np. Rachunek bieżący PLN, subkonto projektowe" maxlength="100">
+          <label class="form-label small fw-semibold" for="rachunek_opis">Notatki</label>
+          <input type="text" name="rachunek_opis" id="rachunek_opis" class="form-control form-control-sm"
+                 placeholder="np. rachunek bieżący PLN, subkonto projektowe" maxlength="100">
         </div>
         <div class="col-md-3">
           <div class="form-check form-switch mb-1">
@@ -1407,8 +1429,8 @@ include dirname(__DIR__) . '/includes/header.php';
           <tr>
             <th>Numer IBAN</th>
             <th>Waluta</th>
-            <th>Właściciel / bank</th>
-            <th>Opis</th>
+            <th>Nazwa własna rachunku</th>
+            <th>Notatki</th>
             <th class="text-end"></th>
           </tr>
         </thead>
@@ -1425,12 +1447,16 @@ include dirname(__DIR__) . '/includes/header.php';
               <?php endif; ?>
             </td>
             <td><span class="badge bg-secondary bg-opacity-75"><?= h($r['waluta'] ?: 'PLN') ?></span></td>
-            <td class="text-muted small">
-              <?php if ($r['nazwa'] ?? ''): ?>
-              <div><?= h($r['nazwa']) ?></div>
-              <?php endif; ?>
-              <?php if ($r['bank'] ?? ''): ?>
-              <div class="text-muted"><?= h($r['bank']) ?></div>
+            <td class="small">
+              <form method="post" class="d-flex gap-1 mb-1">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="ti_nrb" value="<?= h($r['nrb']) ?>">
+                <input type="text" name="nazwa_wlasna" value="<?= h($r['nazwa_wlasna'] ?? '') ?>" maxlength="80" class="form-control form-control-sm"
+                       aria-label="Nazwa własna rachunku <?= h(format_iban_pl($r['nrb'])) ?>" placeholder="nadaj nazwę…" style="min-width:12rem">
+                <button type="submit" name="set_rachunek_nazwa_wlasna" class="btn btn-sm btn-outline-secondary" title="Zapisz nazwę własną"><i class="bi bi-check-lg" aria-hidden="true"></i><span class="visually-hidden">Zapisz</span></button>
+              </form>
+              <?php if (($r['bank'] ?? '') || ($r['nazwa'] ?? '')): ?>
+              <div class="text-muted"><?= h(($r['bank'] ?? '') ?: '') ?><?= ($r['nazwa'] ?? '') ? ' · właściciel: ' . h($r['nazwa']) : '' ?></div>
               <?php endif; ?>
             </td>
             <td class="text-muted small"><?= h($r['opis'] ?? '') ?></td>

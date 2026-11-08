@@ -206,7 +206,7 @@ require_once __DIR__ . '/../includes/header.php';
         <select id="rachunek_zlecen" name="rachunek_zlecen" class="prz-input tw-w-full" required aria-describedby="rachunek_zlecen_help">
           <?php if (!$konta): ?><option value="">— brak rachunków w Ustawieniach organizacji —</option><?php endif; ?>
           <?php foreach ($konta as $k): $n = preg_replace('/\D/', '', (string)$k['nrb']); ?>
-          <option value="<?= h($n) ?>" <?= $n === $domyslne_konto ? 'selected' : '' ?>><?= h(trim(($k['nazwa'] ?? '') . ' ' . ($k['bank'] ?? ''))) ?> · …<?= h(substr($n, -4)) ?></option>
+          <option value="<?= h($n) ?>" <?= $n === $domyslne_konto ? 'selected' : '' ?>><?= h(trim(trim((string)($k['nazwa_wlasna'] ?? '')) !== '' ? $k['nazwa_wlasna'] . ' · ' . ($k['bank'] ?? '') : (($k['nazwa'] ?? '') . ' ' . ($k['bank'] ?? '')))) ?> · …<?= h(substr($n, -4)) ?></option>
           <?php endforeach; ?>
         </select>
       </div>

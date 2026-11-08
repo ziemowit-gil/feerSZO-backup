@@ -202,7 +202,7 @@ require_once __DIR__ . '/../includes/header.php';
             <select name="own[<?= $i ?>]" class="form-select form-select-sm" style="min-width:210px" aria-label="Przelew własny fundacji — rachunek drugiej strony">
               <option value="">— nie —</option>
               <?php foreach ($own_accounts as $r): if (_edok_nrb_digits((string)$r['nrb']) === _edok_nrb_digits($t_acc)) continue; ?>
-              <option value="<?= h($r['nrb']) ?>"<?= $det === $r['nrb'] ? ' selected' : '' ?>><?= $jest_wplyw ? 'z: ' : 'na: ' ?><?= h(($r['nazwa'] ?: $r['bank']) . ' …' . substr(_edok_nrb_digits((string)$r['nrb']), -4)) ?></option>
+              <option value="<?= h($r['nrb']) ?>"<?= $det === $r['nrb'] ? ' selected' : '' ?>><?= $jest_wplyw ? 'z: ' : 'na: ' ?><?= h(edok_rachunek_etykieta($r) . ' …' . substr(_edok_nrb_digits((string)$r['nrb']), -4)) ?></option>
               <?php endforeach; ?>
             </select>
           </td>

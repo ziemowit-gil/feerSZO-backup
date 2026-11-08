@@ -326,7 +326,7 @@ require_once __DIR__ . '/../includes/header.php';
   <span class="small"><strong id="edokExportCount">0</strong> zaznaczonych</span>
   <select name="rachunek_zlecen" class="form-select form-select-sm" style="width:auto" title="Rachunek, z którego mają pójść przelewy" required>
     <?php foreach ($przelew_rachunki as $r): ?>
-    <option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr(preg_replace('/\D/', '', $r['nrb']), -4)) ?>)</option>
+    <option value="<?= h($r['nrb']) ?>"><?= hedok_rachunek_etykieta($r) ?> (…<?= h(substr(preg_replace('/\D/', '', $r['nrb']), -4)) ?>)</option>
     <?php endforeach; ?>
   </select>
   <select name="format" class="form-select form-select-sm" style="width:auto" title="Format pliku przelewów">

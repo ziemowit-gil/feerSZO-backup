@@ -1227,6 +1227,11 @@ function edok_withdraw(int $doc_id, string $reason): void {
 // ── Przelewy własne / przesunięcia po rachunkach i klasyfikacjach ─────────────
 
 /** Lista rachunków bankowych organizacji (settings.org_rachunki_bankowe, JSON). */
+/** Etykieta rachunku organizacji na listach wyboru: nazwa własna → nazwa właściciela → bank. */
+function edok_rachunek_etykieta(array $r): string {
+    return trim((string)($r['nazwa_wlasna'] ?? '')) ?: (trim((string)($r['nazwa'] ?? '')) ?: (string)($r['bank'] ?? ''));
+}
+
 function edok_rachunki_list(): array {
     return json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
 }
