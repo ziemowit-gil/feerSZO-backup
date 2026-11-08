@@ -139,17 +139,18 @@ function prz_rach_generuj(array $rids, string $nrb_z, string $format, bool $ozna
             . ' były już w pliku przelewów — zaznacz „Potwierdzam ponowne ujęcie”, jeśli to nie podwójna płatność.'];
     }
 
-    // Każda paczka (umowa + miesiąc) osobnym plikiem z własnym tytułem paczki (edok_paczka_tytul());
-    // przy kilku paczkach pliki lecą razem w ZIP-ie.
+    // Wszystkie zaznaczone rachunki = JEDNA paczka (jeden plik przelewów); tytuł paczki „WYNAGRODZENIA MM/RRRR”
+    // (przy kilku okresach — samo „WYNAGRODZENIA”). Tytuł pojedynczego przelewu: „WYNAGRODZENIE MM/RRRR - umowa nr …”.
     $grupy = [];
-    foreach ($rows as $r) { $d = prz_rach_doc($r); $grupy[edok_paczka_klucz($d)][] = $d; }
+    foreach ($rows as $r) $grupy['wszystkie'][] = prz_rach_doc($r);
     $pliki = [];
     $prefix = '';
     foreach ($grupy as $gdocs) {
         $pl = edok_przelewy_export($gdocs, $nrb_z, $format);
         if ($pl['content'] === '') continue;
         $prefix = $prefix ?: $pl['prefix'];
-        $pt = edok_paczka_tytul($gdocs);
+        $okresy = array_values(array_unique(array_map(fn($d) => (string)$d['okres'], $gdocs)));
+        $pt = count($okresy) === 1 ? edok_paczka_tytul($gdocs) : 'WYNAGRODZENIA';
         $ps = $pt !== '' ? '_' . mb_substr(trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $pt) ?: ''), '_'), 0, 60) : '';
         $pliki[] = ['nazwa' => 'Przelewy_rachunki_' . ($ym !== '' ? $ym . '_' : '') . $pl['prefix'] . '_' . substr($nrb_z, -4) . $ps . '_' . date('Y-m-d_His') . '.' . $pl['ext'],
                     'content' => $pl['content'], 'ext' => $pl['ext'], 'paczka' => $pt];

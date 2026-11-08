@@ -775,7 +775,8 @@ function edok_paczka_klucz(array $doc): string {
     // _wyplata jako tablica = pozycja listy płac; _wyplata === true = rachunek do umowy z rejestru (Przelewy za rachunki).
     if (!empty($doc['_wyplata']) && is_array($doc['_wyplata'])) return 'LP:' . (int)($doc['id'] ?? 0);
     $umowa = trim((string)($doc['umowa_numer'] ?? ''));
-    if (edok_typ_rachunek((string)($doc['typ_dokumentu'] ?? '')) && $umowa !== '') return 'UM:' . $umowa . '|' . (string)($doc['okres'] ?? '');
+    // Rachunki do umów (zlecenie): jedna paczka na miesiąc — „WYNAGRODZENIA MM/RRRR” (nie osobna na każdą umowę).
+    if (edok_typ_rachunek((string)($doc['typ_dokumentu'] ?? '')) && $umowa !== '') return 'RZ:' . (string)($doc['okres'] ?? '');
     return '';
 }
 
@@ -790,7 +791,7 @@ function edok_paczka_tytul(array $docs): string {
     if (count($klucze) !== 1 || $klucze[0] === '') return '';
     $d = $docs[0];
     $okres = edok_okres_label((string)($d['okres'] ?? ''));
-    if (str_starts_with($klucze[0], 'LP:')) $t = 'WYNAGRODZENIA ' . $okres;
+    if (str_starts_with($klucze[0], 'LP:') || str_starts_with($klucze[0], 'RZ:')) $t = 'WYNAGRODZENIA ' . $okres;
     else $t = 'WYNAGRODZENIE Z TYT. UMOWY NR ' . trim((string)$d['umowa_numer']) . ' ' . $okres;
     // Nazwa paczki nie może zawierać „/” (bank) — zamiast niego podwójny podkreślnik: 10__2026, RU__12__2026.
     return str_replace('/', '__', trim(preg_replace('/\s+/', ' ', $t)));
