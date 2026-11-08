@@ -447,6 +447,9 @@ $_zu_kw = fn(float $v) => $v > 0.005 ? number_format($v, 2, ',', ' ') : '—';
   </button>
   <?php endif; ?>
 </div>
+<?php if (!empty($_GET['paczki'])): ?>
+<div class="alert alert-primary py-2 small" role="status"><i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i> <strong>Generuj paczki przelewów — faktury:</strong> zaznacz faktury do zapłaty w tabeli poniżej, wybierz rachunek nadawcy i format, a potem kliknij „Eksportuj przelewy”. Każdy rachunek kontrahenta dostaje osobny plik (kilka plików → ZIP). Przelewy za wynagrodzenia (rachunki do umów zlecenie): Finanse → Generuj paczki przelewów.</div>
+<?php endif; ?>
 <?php if ($rachunki_org): ?>
 <p class="text-muted small">Eksport przelewów: zaznacz dokumenty i pobierz plik przelewów zbiorczych: ELIXIR-O (uniwersalny, iPKO biznes, Millenet) albo XML ISO 20022 (ogólny pain.001.001.03, iPKO biznes pain.001.001.09, Millennium/Millenet) — przy „Automatycznie" format ELIXIR-O dobierany jest wg banku rachunku nadawcy (PKO BP → iPKO, Millennium → Millenet, inne → uniwersalny), a formaty XML ISO 20022 wybierasz ręcznie z listy obok. Przelewy z podzieloną płatnością (MPP) koduje tylko format Millennium XML. Zaimportuj plik w bankowości i zweryfikuj przed skierowaniem do realizacji. Wyeksportowane dokumenty dostają status płatności „Zlecony do banku” — ponowny eksport wymaga potwierdzenia, a „Opłacony” ustaw po realizacji przelewu. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta. Rachunek nadawcy można zmienić przy każdym dokumencie (kolumna „Z rachunku”). Każdy rachunek dostaje osobny plik, a przy kilku rachunkach pliki są spakowane w ZIP.</p>
 <?php endif; ?>

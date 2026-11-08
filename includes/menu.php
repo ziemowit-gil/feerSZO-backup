@@ -399,11 +399,17 @@ function _menu_editor(): array {
         if (is_admin() || edok_has_role('upload') || edok_has_role('ksiegowy'))
             $fin[] = _mi('EODoK — Skrzynka faktur','/edok/mailbox.php','bi-envelope-paper',['match'=>'/edok/mailbox','kw'=>'skrzynka faktur faktury e-mail mailbox odbiór dziennik edok eodok']);
         if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')))
-            $fin[] = _mi('Preliminarz Płatności','/edok/preliminarz.php','bi-calendar-check',['match'=>'/edok/preliminarz','kw'=>'preliminarz płatności przelew']);
+        {
+            $_pre = _mi('Preliminarz Płatności','/edok/preliminarz.php','bi-calendar-check',['match'=>'/edok/preliminarz','kw'=>'preliminarz płatności przelew']);
+            $_pre_paczki = _mi('Generuj paczki przelewów — faktury','/edok/preliminarz.php?paczki=1','bi-file-earmark-arrow-down',['match'=>'/edok/preliminarz.php?paczki=1','kw'=>'generuj paczki przelewów faktur paczka plik przelewów faktury eksport elixir ipko millenet pain.001']);
+            if ($_pre_paczki['active']) $_pre['active'] = false; // podświetl tylko jedną z dwóch pozycji
+            $fin[] = $_pre;
+            $fin[] = $_pre_paczki;
+        }
         if (is_admin() || edok_has_role('zatwierdza'))
             $fin[] = _mi('Zestawienie wypłat','/edok/wyplaty.php','bi-cash-stack',['match'=>'/edok/wyplaty','kw'=>'zestawienie wypłaty listy płac zlecenie eksport csv']);
         if (is_admin() || edok_has_role('zatwierdza'))
-            $fin[] = _mi('Generuj paczki przelewów','/edok/przelewy_rachunki.php','bi-file-earmark-arrow-down',['match'=>'/edok/przelewy_rachunki','kw'=>'generuj paczki przelewów paczka plik przelewów przelewy za rachunki wynagrodzenia umowy zlecenie netto wypłata pko ipko plik bank']);
+            $fin[] = _mi('Generuj paczki przelewów — wynagrodzenia','/edok/przelewy_rachunki.php','bi-file-earmark-arrow-down',['match'=>'/edok/przelewy_rachunki','kw'=>'generuj paczki przelewów paczka plik przelewów przelewy za rachunki wynagrodzenia umowy zlecenie netto wypłata pko ipko plik bank']);
         if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')))
             $fin[] = _mi('Przelewy do US','/modules/us_przelewy/router.php','bi-bank2',['match'=>'/modules/us_przelewy/','kw'=>'urząd skarbowy us podatek pit-4r pit-8ar cit vat mikrorachunek przelew podatkowy zobowiązania podatkowe']);
     }
