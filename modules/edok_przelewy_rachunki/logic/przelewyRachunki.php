@@ -263,7 +263,8 @@ function prz_rach_import_edok(?int $user_id, string $od_ym = '', bool $dry = fal
         if (!empty($r['edok_doc_id']) || !empty($r['kdok_doc_id'])) continue; // już w obiegu
         if (($r['status'] ?? '') === 'zaplacony') { $out['pominiete'][] = $et . ': zapłacony — przekaż ręcznie z opisem powodu'; continue; }
         if (!rachunek_file_abs($r['plik_podpisany'] ?? null) && !rachunek_file_abs($r['plik'] ?? null)) { $out['pominiete'][] = $et . ': brak pliku'; continue; }
-        if (($r['kwota_brutto'] ?? null) === null && ($r['kwota_netto'] ?? null) === null) { $out['pominiete'][] = $et . ': brak kwoty'; continue; }
+        // Kwotą do wypłaty (przelew) jest NETTO — bez niego przelew poszedłby z brutto, więc nie importujemy.
+        if (($r['kwota_netto'] ?? null) === null || (float)$r['kwota_netto'] <= 0) { $out['pominiete'][] = $et . ': brak kwoty netto (do wypłaty) — uzupełnij w rachunku'; continue; }
         if (strlen((string)$r['nrb']) !== 26) { $out['pominiete'][] = $et . ': brak numeru konta w umowie'; continue; }
         $out['kandydaci']++;
         $out['lista'][] = $et . ' · okres ' . $okres . ' · netto ' . (($r['kwota_netto'] ?? null) !== null ? number_format((float)$r['kwota_netto'], 2, ',', ' ') : '—') . ' zł · status: ' . $r['status'];
