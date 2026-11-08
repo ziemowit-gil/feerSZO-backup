@@ -1,8 +1,8 @@
 <?php
 /**
  * cli/import_rachunki_zlecenie_edok.php — import rachunków do umów zlecenie z systemu do EODoK
- * (typ „Rachunek do umowy zlecenie”, okres od 2026-11). Domyślnie TYLKO podgląd.
- *   php cli/import_rachunki_zlecenie_edok.php [--potwierdz] [--od=2026-11]
+ * (typ „Rachunek do umowy zlecenie”, okres od 2026-10). Domyślnie TYLKO podgląd.
+ *   php cli/import_rachunki_zlecenie_edok.php [--potwierdz] [--od=2026-10]
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';

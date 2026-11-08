@@ -1818,7 +1818,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
                   data-netto="<?= $_netto ? h(money((float)$rr['kwota_netto'])) : '' ?>" data-brutto="<?= $rr['kwota_brutto'] !== null ? h(money((float)$rr['kwota_brutto'])) : '' ?>"
                   data-nrb="<?= strlen($_e_nrb) === 26 ? h(edok_nrb_format($_e_nrb)) : '' ?>" data-tytul="<?= h($_e_tytul) ?>"
                   data-kdok="<?= $_e_kdok ? 1 : 0 ?>" data-podpisany="<?= rachunek_is_signed($rr) ? 1 : 0 ?>">
-            <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Wyślij do EODoK
+            <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Przenieś do EODoK
           </button>
           <?php endif; ?>
         <div class="dropdown">
@@ -2767,7 +2767,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <?php if ((current_user()['role'] ?? '') === 'admin'): ?>
 <!-- ═══════════════════ MODAL — usunięcie rachunku (admin + IKA + powód) ═══════════════════ -->
 <?php
-// Okno „Wyślij do EODoK”: jak wygląda akceptacja (5 etapów i osoby z rolami) zanim rachunek trafi do obiegu.
+// Okno „Przenieś do EODoK”: jak wygląda akceptacja (5 etapów i osoby z rolami) zanim rachunek trafi do obiegu.
 if (!function_exists('edok_migrate')) require_once dirname(dirname(__DIR__)) . '/includes/edok.php';
 $_edok_kroki = [];
 try {
@@ -2781,7 +2781,7 @@ try {
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="rachEdokLabel"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Wyślij rachunek do EODoK</h5>
+        <h5 class="modal-title" id="rachEdokLabel"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Przenieś rachunek do EODoK</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body">
@@ -2825,7 +2825,7 @@ try {
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-        <button type="button" class="btn btn-primary" id="rachEdokGo"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Przekaż do EODoK</button>
+        <button type="button" class="btn btn-primary" id="rachEdokGo"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Przenieś do EODoK</button>
       </div>
     </div>
   </div>

@@ -40,7 +40,7 @@ const EDOK_TYPES = [
     // jako zapłacona przed akceptacją (patrz edok_proforma_*).
     'proforma'           => 'Faktura proforma',
     'rachunek'           => 'Rachunek',
-    // Rachunek do umowy zlecenie importowany z rejestru rachunków umów (zlecenie_rachunki) — od 1.11.2026.
+    // Rachunek do umowy zlecenie importowany z rejestru rachunków umów (zlecenie_rachunki) — od 1.10.2026.
     'rachunek_zlecenie'  => 'Rachunek do umowy zlecenie',
     'nota_ksiegowa'      => 'Nota księgowa',
     'lista_plac'         => 'Lista płac',
@@ -92,7 +92,7 @@ function edok_typ_korekta(string $typ): bool { return in_array($typ, ['faktura_k
 // nie przez EODoK (patrz edok_typ_data_graniczna(), sprawdzane w edok/add.php).
 const EDOK_CUTOFF_FAKTURA  = '2026-09-01'; // faktury VAT / korygujące
 const EDOK_CUTOFF_RACHUNEK = '2026-10-01'; // rachunki
-const EDOK_CUTOFF_RACHUNEK_ZLECENIE = '2026-11-01'; // rachunki do umów zlecenie (typ rachunek_zlecenie; import z systemu)
+const EDOK_CUTOFF_RACHUNEK_ZLECENIE = '2026-10-01'; // rachunki do umów zlecenie (typ rachunek_zlecenie; import z systemu od 10/2026)
 
 /** Typy „rachunku” (zwykły i do umowy zlecenie) — wspólna logika wynagrodzeń/przelewów. */
 const EDOK_TYPES_RACHUNEK = ['rachunek', 'rachunek_zlecenie'];

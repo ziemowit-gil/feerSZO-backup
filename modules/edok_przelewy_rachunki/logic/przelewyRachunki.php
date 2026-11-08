@@ -245,8 +245,9 @@ function prz_rach_do_edok(array $rids, ?int $user_id, string $powod_zaplacony = 
 
 /**
  * Import rachunków do umów zlecenie z systemu (rejestr zlecenie_rachunki) do EODoK jako dokumenty
- * typu „Rachunek do umowy zlecenie” — okres rachunku od $od_ym (domyślnie 2026-11 = od listopada 2026).
+ * typu „Rachunek do umowy zlecenie” — okres rachunku od $od_ym (domyślnie 2026-10 = od października 2026).
  * Pomija: testowe, odrzucone, zapłacone (wymagają opisu — ręcznie), już w EODoK/KDOK, bez pliku/kwoty/konta.
+ * Akceptacja ręczna: dokument ląduje „w obiegu” i czeka na decyzje osób z rolami (nie jest zatwierdzany automatycznie).
  * Tytuł przelewu nadaje edok_generate_tytul_przelewu(): „WYNAGRODZENIE MM/RRRR - umowa nr {RU}”.
  *
  * @return array{kandydaci:int, ok:int, pominiete:array<int,string>, bledy:array<int,string>}
@@ -267,7 +268,7 @@ function prz_rach_import_edok(?int $user_id, string $od_ym = '', bool $dry = fal
         $out['kandydaci']++;
         if ($dry) continue;
         try {
-            $res = rachunek_push_to_edok((int)$r['id'], $user_id, true);
+            $res = rachunek_push_to_edok((int)$r['id'], $user_id, false); // akceptacja RĘCZNA w EODoK (bez auto-zatwierdzenia papierowego)
         } catch (\Throwable $e) {
             $res = ['ok' => false, 'msg' => 'Błąd: ' . $e->getMessage()];
         }

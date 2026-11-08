@@ -712,7 +712,7 @@ edokToggleKierunek();
 // waliduje niezależnie i ostatecznie).
 var EDOK_CUTOFF_FAKTURA  = '2026-09-01';
 var EDOK_CUTOFF_RACHUNEK = '2026-10-01';
-var EDOK_CUTOFF_RACHUNEK_ZLECENIE = '2026-11-01';
+var EDOK_CUTOFF_RACHUNEK_ZLECENIE = '2026-10-01';
 function edokCheckDataGraniczna() {
   var typ  = document.getElementById('typ_dokumentu').value;
   var data = document.getElementById('data_wystawienia').value;
