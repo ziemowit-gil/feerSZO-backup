@@ -16,4 +16,5 @@ $od = '';
 foreach ($argv as $a) if (str_starts_with($a, '--od=')) $od = substr($a, 5);
 $w = prz_rach_import_edok(null, $od, !$potwierdz);
 echo ($potwierdz ? 'ZAIMPORTOWANO: ' . $w['ok'] . ' z ' . $w['kandydaci'] : 'PODGLĄD (dodaj --potwierdz): do importu ' . $w['kandydaci']) . "\n";
+foreach ($w['lista'] as $l) echo " + $l\n";
 foreach (array_merge($w['pominiete'], $w['bledy']) as $l) echo " - $l\n";

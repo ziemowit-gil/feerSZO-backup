@@ -255,7 +255,7 @@ function prz_rach_do_edok(array $rids, ?int $user_id, string $powod_zaplacony = 
 function prz_rach_import_edok(?int $user_id, string $od_ym = '', bool $dry = false): array {
     prz_rach_migrate();
     $od_ym = preg_match('/^\d{4}-\d{2}$/', $od_ym) ? $od_ym : substr(EDOK_CUTOFF_RACHUNEK_ZLECENIE, 0, 7);
-    $out = ['kandydaci' => 0, 'ok' => 0, 'pominiete' => [], 'bledy' => []];
+    $out = ['kandydaci' => 0, 'ok' => 0, 'pominiete' => [], 'bledy' => [], 'lista' => []];
     foreach (prz_rach_lista('', true) as $r) {
         $okres = preg_match('/^\d{4}-\d{2}$/', (string)($r['okres_od'] ?? '')) ? (string)$r['okres_od'] : substr((string)($r['data_wystawienia'] ?: ''), 0, 7);
         if ($okres === '' || $okres < $od_ym) continue;
@@ -266,6 +266,7 @@ function prz_rach_import_edok(?int $user_id, string $od_ym = '', bool $dry = fal
         if (($r['kwota_brutto'] ?? null) === null && ($r['kwota_netto'] ?? null) === null) { $out['pominiete'][] = $et . ': brak kwoty'; continue; }
         if (strlen((string)$r['nrb']) !== 26) { $out['pominiete'][] = $et . ': brak numeru konta w umowie'; continue; }
         $out['kandydaci']++;
+        $out['lista'][] = $et . ' · okres ' . $okres . ' · netto ' . (($r['kwota_netto'] ?? null) !== null ? number_format((float)$r['kwota_netto'], 2, ',', ' ') : '—') . ' zł · status: ' . $r['status'];
         if ($dry) continue;
         try {
             $res = rachunek_push_to_edok((int)$r['id'], $user_id, true); // obieg papierowy: rachunek zatwierdzony na papierze → w EODoK od razu zaakceptowany, do zapłaty
