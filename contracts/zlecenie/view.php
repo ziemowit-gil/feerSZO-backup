@@ -2821,7 +2821,7 @@ try {
           <?php endforeach; ?>
         </ol>
         </div>
-        <p class="small text-muted mb-0">Role ustawia się w EODoK → Ustawienia (role użytkowników). Jeśli zatwierdzanie odbywa się na papierze, przelew możesz wygenerować bez obiegu: Finanse → <a href="<?= APP_URL ?>/edok/przelewy_rachunki.php">Przelewy za rachunki</a>.</p>
+        <p class="small text-muted mb-0">Role ustawia się w EODoK → Ustawienia (role użytkowników). Jeśli zatwierdzanie odbywa się na papierze, przelew możesz wygenerować bez obiegu: Finanse → <a href="<?= APP_URL ?>/edok/przelewy_rachunki.php">Generuj paczki przelewów</a>.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>

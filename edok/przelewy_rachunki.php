@@ -96,7 +96,7 @@ foreach ($konta as $k) if (substr(preg_replace('/\D/', '', (string)$k['nrb']), 2
 if ($domyslne_konto === '' && $konta) $domyslne_konto = preg_replace('/\D/', '', (string)$konta[0]['nrb']);
 $do_wyboru = count(array_filter($rows, fn($r) => $r['problem'] === null));
 
-$PAGE_TITLE = 'Przelewy za rachunki do umów';
+$PAGE_TITLE = 'Generuj paczki przelewów — rachunki do umów';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <style type="text/tailwindcss">
@@ -111,7 +111,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="tw-mb-4 tw-flex tw-flex-wrap tw-items-end tw-justify-between tw-gap-3">
     <div>
       <p class="tw-m-0 tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-slate-500">EODoK · Płatności</p>
-      <h1 class="tw-m-0 tw-mt-1 tw-text-2xl tw-font-semibold tw-text-slate-900"><i class="bi bi-bank tw-mr-1 tw-text-blue-600" aria-hidden="true"></i> Przelewy za rachunki do umów</h1>
+      <h1 class="tw-m-0 tw-mt-1 tw-text-2xl tw-font-semibold tw-text-slate-900"><i class="bi bi-bank tw-mr-1 tw-text-blue-600" aria-hidden="true"></i> Generuj paczki przelewów — rachunki do umów</h1>
       <p class="tw-m-0 tw-mt-1 tw-max-w-3xl tw-text-sm tw-text-slate-500">Rachunki zatwierdzane na papierze — tu tylko plik przelewów dla banku. Kwota przelewu = <strong>netto</strong> (do wypłaty). Tytuł: „WYNAGRODZENIE MM/RRRR - umowa nr …”. Przelewy mogą iść z dowolnego konta organizacji — domyślnie z konta w PKO BP.</p>
     </div>
     <form method="get" class="tw-flex tw-items-end tw-gap-2">

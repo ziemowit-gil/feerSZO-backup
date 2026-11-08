@@ -403,7 +403,7 @@ function _menu_editor(): array {
         if (is_admin() || edok_has_role('zatwierdza'))
             $fin[] = _mi('Zestawienie wypłat','/edok/wyplaty.php','bi-cash-stack',['match'=>'/edok/wyplaty','kw'=>'zestawienie wypłaty listy płac zlecenie eksport csv']);
         if (is_admin() || edok_has_role('zatwierdza'))
-            $fin[] = _mi('Przelewy za rachunki','/edok/przelewy_rachunki.php','bi-bank',['match'=>'/edok/przelewy_rachunki','kw'=>'przelewy rachunki umowy zlecenie netto wypłata pko ipko plik bank']);
+            $fin[] = _mi('Generuj paczki przelewów','/edok/przelewy_rachunki.php','bi-file-earmark-arrow-down',['match'=>'/edok/przelewy_rachunki','kw'=>'generuj paczki przelewów paczka plik przelewów przelewy za rachunki wynagrodzenia umowy zlecenie netto wypłata pko ipko plik bank']);
         if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')))
             $fin[] = _mi('Przelewy do US','/modules/us_przelewy/router.php','bi-bank2',['match'=>'/modules/us_przelewy/','kw'=>'urząd skarbowy us podatek pit-4r pit-8ar cit vat mikrorachunek przelew podatkowy zobowiązania podatkowe']);
     }
