@@ -434,7 +434,7 @@ $_zu_kw = fn(float $v) => $v > 0.005 ? number_format($v, 2, ',', ' ') : '—';
   <select id="ipko_rachunek_select" class="form-select form-select-sm" style="width:auto" title="Rachunek, z którego mają pójść przelewy">
     <option value="">— domyślny rachunek nadawcy —</option>
     <?php foreach ($rachunki_org as $r): ?>
-    <option value="<?= h($r['nrb']) ?>"><?= hedok_rachunek_etykieta($r) ?> (…<?= h(substr($r['nrb'], -4)) ?>)</option>
+    <option value="<?= h($r['nrb']) ?>"><?= h(edok_rachunek_etykieta($r)) ?> (…<?= h(substr($r['nrb'], -4)) ?>)</option>
     <?php endforeach; ?>
   </select>
   <select id="ipko_format_select" class="form-select form-select-sm" style="width:auto" title="Format pliku przelewów">
@@ -551,7 +551,7 @@ $_zu_kw = fn(float $v) => $v > 0.005 ? number_format($v, 2, ',', ' ') : '—';
             <select class="form-select form-select-sm ipko-row-rachunek" data-id="<?= (int)$r['id'] ?>" style="width:auto" title="Rachunek nadawcy dla tego dokumentu">
               <option value="">domyślny</option>
               <?php foreach ($rachunki_org as $ro): ?>
-              <option value="<?= h($ro['nrb']) ?>"><?= hedok_rachunek_etykieta($ro) ?> (…<?= h(substr($ro['nrb'], -4)) ?>)</option>
+              <option value="<?= h($ro['nrb']) ?>"><?= h(edok_rachunek_etykieta($ro)) ?> (…<?= h(substr($ro['nrb'], -4)) ?>)</option>
               <?php endforeach; ?>
             </select>
             <?php endif; ?>

@@ -122,7 +122,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="">— wybierz rachunek —</option>
                 <?php foreach ($rachunki as $r): ?>
                 <option value="<?= h($r['nrb']) ?>" data-dla-odplatnej="<?= !empty($r['dla_odplatnej']) ? '1' : '0' ?>">
-                  <?= hedok_rachunek_etykieta($r) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
+                  <?= h(edok_rachunek_etykieta($r)) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
                 </option>
                 <?php endforeach; ?>
               </select>
@@ -148,7 +148,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="">— wybierz rachunek —</option>
                 <?php foreach ($rachunki as $r): ?>
                 <option value="<?= h($r['nrb']) ?>" data-dla-odplatnej="<?= !empty($r['dla_odplatnej']) ? '1' : '0' ?>">
-                  <?= hedok_rachunek_etykieta($r) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
+                  <?= h(edok_rachunek_etykieta($r)) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
                 </option>
                 <?php endforeach; ?>
               </select>

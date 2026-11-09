@@ -85,7 +85,7 @@ $q = fn($fmt) => '?' . http_build_query(['od' => $od, 'do' => $do, 'zakres' => $
     <input type="hidden" name="pakiet_ids" value="<?= h(implode(',', $do_przelewu)) ?>">
     <div class="col-12"><label class="form-label small mb-1" for="ex_rach">Z rachunku</label>
       <select name="rachunek_zlecen" id="ex_rach" class="form-select form-select-sm" required>
-        <?php foreach ($rachunki as $r): ?><option value="<?= h($r['nrb']) ?>"><?= hedok_rachunek_etykieta($r) ?> (…<?= h(substr(preg_replace('/\D/', '', $r['nrb']), -4)) ?>)</option><?php endforeach; ?>
+        <?php foreach ($rachunki as $r): ?><option value="<?= h($r['nrb']) ?>"><?= h(edok_rachunek_etykieta($r)) ?> (…<?= h(substr(preg_replace('/\D/', '', $r['nrb']), -4)) ?>)</option><?php endforeach; ?>
       </select></div>
     <div class="col-12"><label class="form-label small mb-1" for="ex_fmt">Format</label>
       <select name="format" id="ex_fmt" class="form-select form-select-sm">
