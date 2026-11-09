@@ -55,6 +55,8 @@ $r->group(['lp.auth', 'lp.contact'], function (Router $r) {
     $r->post('/potwierdz/ponownie',    [LicencjeKursantController::class, 'confirmResend'])->name('lk.confirm.resend');
     $r->post('/potwierdz/anuluj',      [LicencjeKursantController::class, 'confirmCancel'])->name('lk.confirm.cancel');
     $r->post('/zmiana-ceny-decyzja/{id}', [LicencjeKursantController::class, 'priceDecide'])->name('lk.price.decide');
+    $r->get('/wniosek/{product}',      [LicencjeKursantController::class, 'wizard'])->name('lk.wizard');
+    $r->post('/wniosek/{product}',     [LicencjeKursantController::class, 'wizardPost'])->name('lk.wizard.post');
     $r->post('/wlacz/{product}',       [LicencjeKursantController::class, 'activate'])->name('lk.activate');
     $r->post('/konto-edu',             [LicencjeKursantController::class, 'edu'])->name('lk.edu');
     $r->post('/dane/{product}',        [LicencjeKursantController::class, 'buyer'])->name('lk.buyer');

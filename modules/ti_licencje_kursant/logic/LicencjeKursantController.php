@@ -20,6 +20,7 @@ require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
 require_once __DIR__ . '/LicencjePanelAuth.php';
 require_once __DIR__ . '/LicencjeKod.php';
 require_once __DIR__ . '/LicencjeId.php';
+require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceRequest.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/PriceChange.php';
 
 final class LicencjeKursantController
@@ -79,7 +80,7 @@ final class LicencjeKursantController
     // ── Potwierdzanie operacji kodem ────────────────────────────────────────────
 
     /** Operacje, które można wykonać po kodzie (whitelista metod kontrolera). */
-    private const CONFIRMABLE = ['activate', 'edu', 'buyer', 'cancel', 'password', 'priceDecide'];
+    private const CONFIRMABLE = ['wizardPost', 'edu', 'buyer', 'cancel', 'password', 'priceDecide'];
 
     /**
      * Brama kodu: true — operacja potwierdzona, wykonuj; false — kod wysłany (albo błąd), przekierowanie już ustawione (handler zwraca null).
@@ -347,7 +348,9 @@ final class LicencjeKursantController
             try {
                 $v = ClaudeBilling::participantView($cid, $p);
                 $v['fromPool'] = false;
-                if (!$v['hasLicense'] && !$v['sub']) continue;   // nie dotyczy tej osoby (NordVPN: tylko gdy licencja jest przypisana do uczestnika)
+                if (!$v['sub'] || !in_array($v['sub']['status'], ['requested', 'active', 'suspended'], true)) $v['eligible'] = LicenceRequest::eligibility($cid, $p);   // wniosek z kreatora
+                $v['orderable'] = $v['settings']['enabled'] && $v['settings']['priced'];
+                if (!$v['hasLicense'] && !$v['sub'] && !$v['orderable']) continue;   // pokazujemy, co można zamówić, i to, co już jest   // nie dotyczy tej osoby (NordVPN: tylko gdy licencja jest przypisana do uczestnika)
                 $v['edu'] = !empty(ClaudeBilling::P($p)['requiresEdu']) ? ['account' => ClaudeBilling::eduAccount($cid), 'request' => ClaudeBilling::eduRequest($cid)] : null;
                 $v['priceChange'] = $v['sub'] && in_array($v['sub']['status'], ['active', 'suspended'], true) ? PriceChange::openForSubscription((int)$v['sub']['id']) : null;
                 if ($v['priceChange']) $v['priceCmp'] = PriceChange::compare($v['priceChange']['change']);
@@ -389,31 +392,67 @@ final class LicencjeKursantController
     }
 
 
+    /** Dawne bezpośrednie włączanie — teraz kreator wniosku. */
     public function activate(string $product): ?string
+    {
+        header('Location: ' . route('lk.wizard', ['product' => ClaudeBilling::product($product)]));
+        return null;
+    }
+
+    // ── Kreator wniosku: 1. co dostajesz i za ile → 2. dane do faktury → 3. podsumowanie i zgoda (kod SMS) ──
+
+    public function wizard(string $product): string
+    {
+        $me = $this->me();
+        $p = ClaudeBilling::product($product);
+        $el = LicenceRequest::eligibility($me['cid'], $p);
+        if (!$el['ok']) { $this->flash('err', $el['reason'], $p); exit; }
+        $step = max(1, min(3, (int)($_GET['krok'] ?? 1)));
+        $w = $_SESSION['lk_wiz'][$p] ?? [];
+        if ($step > 1 && empty($w['step1'])) $step = 1;
+        if ($step > 2 && empty($w['buyer'])) $step = 2;
+        $err = $_SESSION['lk_wiz_err'] ?? []; unset($_SESSION['lk_wiz_err']);
+        return Router::view(self::VIEW . 'wizard.php', ['me' => $me, 'p' => $p, 'P' => ClaudeBilling::P($p), 's' => ClaudeBilling::settings($p), 'step' => $step, 'el' => $el,
+            'buyer' => ($w['buyer'] ?? []) + ClaudeBilling::buyerDefaults($me['cid']), 'accept' => !empty($w['accept']), 'err' => $err, 'rate' => ClaudeBilling::lastRate($p),
+            'projection' => ClaudeBilling::projection(null, $p), 'eduProposal' => !empty($el['needEdu']) ? ClaudeBilling::eduProposal($me['cid']) : '',
+            'eduReq' => ClaudeBilling::eduRequest($me['cid']), 'org' => self::org(), 'flash' => $this->takeFlash()]);
+    }
+
+    public function wizardPost(string $product): ?string
     {
         $me = $this->me();
         $p = ClaudeBilling::product($product);
         $L = ClaudeBilling::P($p)['label'];
-        [$buyer, $err] = ClaudeBilling::buyerFromInput($_POST);
-        if (empty($_POST['accept'])) $err['accept'] = 'Zaznacz, że akceptujesz zasady opłat.';
-        if ($err) {
-            $_SESSION['lk_errors'] = [$p => $err]; $_SESSION['lk_old'] = [$p => $buyer + ['accept' => !empty($_POST['accept'])]];
-            return $this->flash('err', 'Popraw zaznaczone pola (' . count($err) . ').', $p);
+        $go = fn(int $k) => header('Location: ' . route('lk.wizard', ['product' => $p]) . '&krok=' . $k);
+        $step = (int)($_POST['krok'] ?? 1);
+        if (($_POST['dir'] ?? '') === 'back') { $go(max(1, $step - 1)); return null; }
+        if ($step === 1) { $_SESSION['lk_wiz'][$p]['step1'] = 1; $go(2); return null; }
+        if ($step === 2) {
+            [$buyer, $err] = ClaudeBilling::buyerFromInput($_POST);
+            $_SESSION['lk_wiz'][$p]['buyer'] = $buyer;
+            if ($err) { $_SESSION['lk_wiz_err'] = $err; $go(2); return null; }
+            $go(3); return null;
         }
-        $el = ClaudeBilling::eligibility($me['cid'], $p);
+        $w = $_SESSION['lk_wiz'][$p] ?? [];
+        if (empty($w['buyer'])) { $go(2); return null; }
+        if (empty($_POST['accept'])) { $_SESSION['lk_wiz_err'] = ['accept' => 'Zaznacz, że akceptujesz zasady opłat.']; $go(3); return null; }
+        $_SESSION['lk_wiz'][$p]['accept'] = 1;
+        $el = LicenceRequest::eligibility($me['cid'], $p);
         if (!$el['ok']) return $this->flash('err', $el['reason'], $p);
-        if (!$this->confirmed('activate', [$p], 'włączenie ' . $L, $p)) return null;
+        if (!$this->confirmed('wizardPost', [$p], 'wniosek o ' . $L, $p)) return null;
         try {
-            $sub = ClaudeBilling::activate($me['cid'], ['name' => $me['name'], 'via' => 'panel licencji', 'ip' => $me['ip']], false, null, true, null, $buyer, $p);
-            $this->log($me, $p . '_activate', 'Włączono ' . $L . ' (#' . (int)$sub['id'] . ').');
-            $first = db_one("SELECT amount_pln, due_on FROM claude_charges WHERE subscription_id=? ORDER BY id LIMIT 1", [(int)$sub['id']]);
-            return $this->flash('ok', $L . ' włączony. Dział IT dostał zgłoszenie' . ($sub['helpdesk_number'] ? ' ' . $sub['helpdesk_number'] : '') . ' i uruchomi konto, zwykle w ciągu dnia roboczego.'
-                . ($first ? ' Pierwsza płatność: ' . ClaudeBilling::zl((float)$first['amount_pln']) . ', do ' . ClaudeBilling::dayMonth($first['due_on']) . '.' : ''), $p);
+            $sub = LicenceRequest::submit($me['cid'], $p, $w['buyer'], ['name' => $me['name'], 'via' => 'panel licencji (kreator)', 'ip' => $me['ip']]);
+            unset($_SESSION['lk_wiz'][$p]);
+            $this->log($me, $p . '_request', 'Wniosek o ' . $L . ' (#' . (int)$sub['id'] . ', zgłoszenie ' . $sub['helpdesk_number'] . ').');
+            $ch = $sub['charge'];
+            return $this->flash('ok', 'Wniosek o ' . $L . ' złożony' . ($sub['helpdesk_number'] ? ' (zgłoszenie ' . $sub['helpdesk_number'] . ')' : '') . '.'
+                . ($ch ? ' Proforma ' . ($ch['proforma_number'] ?: '') . ': ' . ClaudeBilling::zl((float)$ch['amount_pln']) . ', zapłać do ' . ClaudeBilling::dayMonth($ch['due_on']) . '.' : '')
+                . ' Po wpłacie Helpdesk wystawi fakturę VAT i włączy dostęp.', $p);
         } catch (DomainException | InvalidArgumentException $e) {
             return $this->flash('err', $e->getMessage(), $p);
         } catch (\Throwable $e) {
-            error_log('lk activate: ' . $e);
-            return $this->flash('err', 'Nie udało się włączyć ' . $L . '. Spróbuj za chwilę albo napisz do biura.', $p);
+            error_log('lk wniosek: ' . $e);
+            return $this->flash('err', 'Nie udało się złożyć wniosku. Spróbuj za chwilę albo napisz do biura.', $p);
         }
     }
 
@@ -437,7 +476,7 @@ final class LicencjeKursantController
         $me = $this->me();
         $p = ClaudeBilling::product($product);
         $sub = ClaudeBilling::forClient($me['cid'], false, $p);
-        if (!$sub || !in_array($sub['status'], ['active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . ClaudeBilling::P($p)['label'] . '.', $p);
+        if (!$sub || !in_array($sub['status'], ['requested', 'active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . ClaudeBilling::P($p)['label'] . '.', $p);
         [, $pre] = ClaudeBilling::buyerFromInput($_POST);
         if ($pre) { $_SESSION['lk_errors'] = [$p => $pre]; $_SESSION['lk_old'] = [$p => $_POST]; return $this->flash('err', 'Popraw dane do faktury (' . count($pre) . ').', $p); }
         if (!$this->confirmed('buyer', [$p], 'zmiana danych do faktury', $p)) return null;
@@ -453,8 +492,13 @@ final class LicencjeKursantController
         $L = ClaudeBilling::P($p)['label'];
         if (empty($_POST['confirm'])) return $this->flash('err', 'Zaznacz, że rezygnujesz.', $p);
         $sub = ClaudeBilling::forClient($me['cid'], false, $p);
-        if (!$sub || !in_array($sub['status'], ['active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . $L . '.', $p);
-        if (!$this->confirmed('cancel', [$p], 'rezygnacja z ' . $L, $p)) return null;
+        if (!$sub || !in_array($sub['status'], ['requested', 'active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . $L . '.', $p);
+        $req = $sub['status'] === 'requested';
+        if (!$this->confirmed('cancel', [$p], $req ? 'wycofanie wniosku o ' . $L : 'rezygnacja z ' . $L, $p)) return null;
+        if ($req) {
+            try { $msg = LicenceRequest::withdraw((int)$sub['id'], ['name' => $me['name'], 'via' => 'panel licencji']); $this->log($me, $p . '_withdraw', 'Wycofano wniosek o ' . $L . '.'); return $this->flash('ok', $msg, $p); }
+            catch (\Throwable $e) { return $this->flash('err', $e->getMessage(), $p); }
+        }
         try {
             ClaudeBilling::end((int)$sub['id'], 'rezygnacja w panelu licencji', ['name' => $me['name'], 'via' => 'panel licencji']);
             $this->log($me, $p . '_cancel', 'Rezygnacja z ' . $L . ' (#' . (int)$sub['id'] . ').');

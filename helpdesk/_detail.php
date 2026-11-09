@@ -605,6 +605,11 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
   </div>
   <?php endif; ?>
 
+  <!-- Wniosek o płatną licencję (kreator w panelu licencji: proforma → wpłata → faktura VAT → dostęp) -->
+  <?php try { require_once dirname(__DIR__) . '/modules/claude_billing/logic/LicenceRequest.php'; $hd_lr = LicenceRequest::forTicket((int)$ticket['id']); }
+        catch (\Throwable $e) { $hd_lr = null; error_log('helpdesk licencje: ' . $e->getMessage()); }
+        if ($hd_lr) include dirname(__DIR__) . '/modules/claude_billing/view/_hd_card.php'; ?>
+
   <!-- Problem nadrzędny -->
   <?php require_once dirname(__DIR__) . '/modules/helpdeskExtras/lib/helpdeskExtras.php';
     $hd_parent = !empty($ticket['problem_id']) ? db_one("SELECT id, number, title, status FROM helpdesk_tickets WHERE id=?", [(int)$ticket['problem_id']]) : null;

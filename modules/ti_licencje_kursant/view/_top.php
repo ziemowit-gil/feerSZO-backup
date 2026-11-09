@@ -62,6 +62,12 @@ $nav = $nav ?? null;
   .m-tilelink .m-tag { align-self: flex-start; }
   .m-tilelink-sum { font-size: .85rem; color: var(--mt-muted); word-break: break-all; }
   .m-docs { list-style: none; margin: 6px 0 0; padding: 0; font-size: .9rem; }
+  /* kroki kreatora */
+  .m-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 0; margin: 4px 0 18px; padding: 0; border: 1px solid var(--mt-line); background: var(--mt-card); max-width: 760px; }
+  .m-steps li { flex: 1 1 160px; padding: 10px 14px; color: var(--mt-muted); border-bottom: 3px solid transparent; font-size: .92rem; }
+  .m-steps li.cur { color: var(--mt-ink); font-weight: 700; border-bottom-color: var(--mt-accent); }
+  .m-steps li.done { color: var(--mt-ok); }
+  .m-steps-n { display: inline-block; min-width: 1.6em; height: 1.6em; line-height: 1.5em; text-align: center; border: 1px solid currentColor; margin-right: 6px; font-size: .8rem; }
   .m-docs li { padding: 2px 0; }
   .pk-side .pk-badge { font-size: .78rem; color: var(--mt-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .pk-side .pk-badge.due { color: var(--mt-bad); font-weight: 700; }

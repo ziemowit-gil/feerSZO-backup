@@ -32,7 +32,7 @@ final class ClaudeBilling
                       'match' => ['nordvpn', 'nord vpn', 'nordlayer', 'nord security'], 'uniqueEmail' => true, 'color' => '#4687ff', 'requiresEdu' => false, 'pool' => true,
                       'program' => '', 'defaults' => ['enabled' => '0', 'usd' => '0', 'list_usd' => '0']],
     ];
-    public const STATUS = ['active' => 'aktywny', 'suspended' => 'wstrzymany (zaległość)', 'ended' => 'zakończony'];
+    public const STATUS = ['requested' => 'wniosek (czeka na Helpdesk)', 'active' => 'aktywny', 'suspended' => 'wstrzymany (zaległość)', 'ended' => 'zakończony'];
     public const CHARGE_STATUS = ['pending' => 'do zapłaty', 'paid' => 'opłacone', 'cancelled' => 'anulowane'];
     public const DEFAULTS = [
         'enabled' => '1', 'usd' => '8', 'list_usd' => '25', 'due_day' => '1', 'grace_days' => '7',   // dokument zawsze 1. dnia miesiąca (polecenie 2026-11-09)
@@ -121,7 +121,9 @@ final class ClaudeBilling
             try { db()->exec("ALTER TABLE claude_charges ADD COLUMN $col"); } catch (\Throwable $e) {}
         }
         db()->exec("DROP INDEX IF EXISTS uq_claude_sub_open");
-        db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_lic_sub_open ON claude_subscriptions(client_id, product) WHERE status IN ('active','suspended')");
+        try { db()->exec("ALTER TABLE claude_subscriptions ADD COLUMN helpdesk_ticket_id INTEGER"); } catch (\Throwable $e) {}   // wniosek z kreatora → karta w zgłoszeniu Helpdesk
+        db()->exec("DROP INDEX IF EXISTS uq_lic_sub_open");
+        db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_lic_sub_open2 ON claude_subscriptions(client_id, product) WHERE status IN ('requested','active','suspended')");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_claude_ch_status ON claude_charges(status, due_on)");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_claude_ch_item ON claude_charges(pp_item_id)");
         db()->exec("CREATE TABLE IF NOT EXISTS claude_events (
@@ -517,7 +519,7 @@ final class ClaudeBilling
     public static function forClient(int $clientId, bool $test = false, string $product = 'claude'): ?array
     {
         self::migrate();
-        return db_one("SELECT * FROM claude_subscriptions WHERE client_id=? AND is_test=? AND product=? ORDER BY CASE WHEN status IN ('active','suspended') THEN 0 ELSE 1 END, id DESC LIMIT 1",
+        return db_one("SELECT * FROM claude_subscriptions WHERE client_id=? AND is_test=? AND product=? ORDER BY CASE WHEN status IN ('requested','active','suspended') THEN 0 ELSE 1 END, id DESC LIMIT 1",
             [$clientId, $test ? 1 : 0, self::product($product)]) ?: null;
     }
 
@@ -800,8 +802,15 @@ final class ClaudeBilling
         $subs = [];
         foreach ($ids as $id) {
             try {
-                require_once __DIR__ . '/ClaudeInvoice.php';
-                ClaudeInvoice::afterPaid($id);
+                $ch0 = self::charge($id);
+                $sub0 = $ch0 ? self::subscription((int)$ch0['subscription_id']) : null;
+                if ($sub0 && $sub0['status'] === 'requested') {   // wniosek: fakturę VAT wystawia Helpdesk (karta w zgłoszeniu)
+                    require_once __DIR__ . '/LicenceRequest.php';
+                    LicenceRequest::note((int)$sub0['helpdesk_ticket_id'], 'Wpłata ' . self::zl((float)$ch0['amount_pln']) . ' dotarła (' . ($ch0['paid_via'] ?: 'wpłata') . '). Następny krok: Wystaw fakturę VAT, potem Aktywuj dostęp.');
+                } else {
+                    require_once __DIR__ . '/ClaudeInvoice.php';
+                    ClaudeInvoice::afterPaid($id);
+                }
             } catch (\Throwable $e) {
                 db_exec("UPDATE claude_charges SET invoice_error=? WHERE id=?", [mb_substr($e->getMessage(), 0, 500), $id]);
             }
@@ -848,7 +857,7 @@ final class ClaudeBilling
             require_once __DIR__ . '/PriceChange.php';
             try { foreach (PriceChange::applyDue($today) as $l) $rep['log'][] = $l; } catch (\Throwable $e) { $rep['errors'][] = 'zmiana ceny: ' . $e->getMessage(); }
         }
-        $w = ["status IN ('active','suspended')"]; $p = [];
+        $w = ["status IN ('requested','active','suspended')"]; $p = [];
         if ($onlyTest) $w[] = 'is_test=1';
         if ($onlySub) { $w[] = 'id=?'; $p[] = $onlySub; }
         require_once __DIR__ . '/ClaudeInvoice.php';
@@ -858,6 +867,11 @@ final class ClaudeBilling
                 $sub = self::subscription($sid);
                 $s = self::settings(self::productOf($sub));
                 $L = self::P(self::productOf($sub))['label'];
+                if ($sub['status'] === 'requested') {   // wniosek: tylko wpłaty (Szybki przelew w Fakturowni); resztę robi Helpdesk
+                    self::syncFakturownia($sid, $rep);
+                    self::afterPayment();
+                    continue;
+                }
                 if ($sub['status'] === 'suspended') {
                     self::syncFakturownia($sid, $rep);   // może wpłynęło Szybkim przelewem
                     self::afterPayment();
@@ -901,7 +915,7 @@ final class ClaudeBilling
         if (!$onlyTest) {   // faktury, których nie udało się wystawić od razu (Fakturownia nie odpowiadała, brakowało danych)
             require_once __DIR__ . '/ClaudeInvoice.php';
             $simSql = ClaudeInvoice::live() ? " OR proforma_number LIKE 'SYM-%' OR order_number LIKE 'SYM-%' OR invoice_number LIKE 'SYM-%'" : '';   // Fakturownia działa — zastąp symulacje
-            foreach (db_all("SELECT id, product FROM claude_charges WHERE ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL)$simSql) AND status<>'cancelled' AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
+            foreach (db_all("SELECT id, product FROM claude_charges WHERE ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL AND subscription_id NOT IN (SELECT id FROM claude_subscriptions WHERE status='requested'))$simSql) AND status<>'cancelled' AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
                 if (self::settings((string)$r['product'])['invoice'] !== 'auto') continue;
                 try { ClaudeInvoice::issueForCharge((int)$r['id']); } catch (\Throwable $e) { $rep['errors'][] = 'faktura #' . $r['id'] . ': ' . $e->getMessage(); }
             }
@@ -933,8 +947,8 @@ final class ClaudeBilling
         $product = self::productOf($sub);
         $P = self::P($product);
         $s = self::settings($product);
-        if (!$s['helpdesk'] && !(int)$sub['is_test']) return null;
-        $titles = ['aktywacja' => 'Włącz ' . $P['label'], 'dezaktywacja' => 'Wyłącz ' . $P['label'] . ' (rezygnacja)',
+        if (!$s['helpdesk'] && !(int)$sub['is_test'] && $kind !== 'wniosek') return null;   // wniosek z kreatora zawsze idzie do Helpdesku (tam się go załatwia)
+        $titles = ['wniosek' => 'Wniosek: ' . $P['label'], 'aktywacja' => 'Włącz ' . $P['label'], 'dezaktywacja' => 'Wyłącz ' . $P['label'] . ' (rezygnacja)',
                    'wstrzymanie' => 'Wstrzymaj ' . $P['label'] . ' (brak wpłaty)', 'przywrocenie' => 'Przywróć ' . $P['label'] . ' (wpłata dotarła)'];
         $lic = self::assignment((int)$sub['client_id'], $product);
         $acc = db_one("SELECT login, ms_upn FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id DESC LIMIT 1", [(int)$sub['client_id']]) ?: [];
@@ -946,13 +960,16 @@ final class ClaudeBilling
             . ($own ? "\nLogin do licencji (wygenerowany przez uczestnika): " . $own : '')
             . (!empty($lic['login']) ? "\nLogin licencji: " . $lic['login'] : (!empty($acc['ms_upn']) ? "\nKonto edu: " . $acc['ms_upn'] : ''))
             . ($lic ? "\nLicencja: " . $lic['license_name'] . ($lic['expires_at'] ? ' (ważna do ' . self::date($lic['expires_at']) . ')' : '') : '')
-            . "\nWłączony od: " . self::date($sub['activated_on']) . ', faktura co miesiąc ok. ' . self::dueDay($sub, $s) . '. dnia'
-            . ($charge ? "\nPierwsza opłata: " . self::zl((float)$charge['amount_pln']) . ' do ' . self::date($charge['due_on']) : '')
+            . ($kind === 'wniosek' ? "\nWniosek z: " . self::date($sub['activated_on']) : "\nWłączony od: " . self::date($sub['activated_on']) . ', faktura co miesiąc ok. ' . self::dueDay($sub, $s) . '. dnia')
+            . ($charge ? "\nPierwsza opłata: " . self::zl((float)$charge['amount_pln']) . ' do ' . self::date($charge['due_on']) . ($kind === 'wniosek' ? "\nProforma: " . ($charge['proforma_number'] ?: '(w przygotowaniu)') : '') : '')
+            . ($kind === 'wniosek' ? "\nCo zrobić: w karcie „Wniosek o płatną licencję” (po prawej) po wpłacie kliknij „Wystaw fakturę VAT”, a potem „Aktywuj dostęp”. Wpłata przelewem: przycisk „Wpłata dotarła”." : '')
             . ($kind === 'dezaktywacja' ? "\nOpłacone do: " . self::date(self::paidThrough($sub)) . ' — wyłącz miejsce po tej dacie.' : '')
             . ($kind === 'wstrzymanie' ? "\nWyłącz miejsce do czasu wpłaty. Gdy pieniądze dotrą, system sam założy zgłoszenie „Przywróć”." : '')
             . ($why !== '' ? "\nPowód: " . $why : '')
             . "\nZgłosił: " . ($actor['name'] ?? '') . ' (' . ($actor['via'] ?? '') . ')';
-        if (!(int)$sub['is_test'] && self::isVirtual((int)$sub['client_id'])) {   // konto testowe: zgłoszenie tylko w historii
+        $virtual = !(int)$sub['is_test'] && self::isVirtual((int)$sub['client_id']);
+        if ($virtual && $kind === 'wniosek') $title = '[TEST] ' . $title;   // wniosek konta testowego — prawdziwe zgłoszenie do przećwiczenia Helpdesku, bez e-maili
+        if ($virtual && $kind !== 'wniosek') {   // konto testowe: pozostałe zgłoszenia tylko w historii
             self::event((int)$sub['id'], null, 'helpdesk', 'Zgłoszenie (konto testowe, symulacja, nie utworzono): ' . $title, 'system');
             if ($kind === 'aktywacja') db_exec("UPDATE claude_subscriptions SET helpdesk_number='SYMULACJA' WHERE id=?", [(int)$sub['id']]);
             return $kind === 'aktywacja' ? 'SYMULACJA' : null;
@@ -966,7 +983,7 @@ final class ClaudeBilling
             require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
             // aktywacja / rezygnacja — zgłasza uczestnik (dostaje potwierdzenia Helpdesku); wstrzymanie / przywrócenie — system płatności (bez maili do uczestnika)
             $sys = ($actor['via'] ?? '') === 'płatności';
-            $tid = hd_ticket_quick_create(['id' => null, 'name' => $sys ? 'Płatne licencje (system)' : (string)$sub['client_name'], 'email' => $sys ? '' : (string)($sub['client_email'] ?? '')],
+            $tid = hd_ticket_quick_create(['id' => null, 'name' => $sys ? 'Płatne licencje (system)' : (string)$sub['client_name'], 'email' => $sys || $virtual ? '' : (string)($sub['client_email'] ?? '')],
                 $title, $desc, 'it_licencje_am', 'normalny', $product . '_' . $kind);
             try {
                 require_once dirname(__DIR__, 2) . '/helpdeskStatuses/lib/helpdeskStatuses.php'; hdSubstatusSet($tid, 'am_do_realizacji', 0, 'Płatne licencje');
@@ -974,6 +991,7 @@ final class ClaudeBilling
             } catch (\Throwable $e) {}
             $num = (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [$tid])['number'] ?? '');
             if ($kind === 'aktywacja') db_exec("UPDATE claude_subscriptions SET helpdesk_number=? WHERE id=?", [$num, (int)$sub['id']]);
+            if ($kind === 'wniosek') db_exec("UPDATE claude_subscriptions SET helpdesk_number=?, helpdesk_ticket_id=? WHERE id=?", [$num, $tid, (int)$sub['id']]);
             self::event((int)$sub['id'], null, 'helpdesk', 'Zgłoszenie Helpdesk ' . $num . ': ' . $titles[$kind] . '.', (string)($actor['name'] ?? ''));
             if ((int)$sub['is_test']) self::$testTickets[] = ['title' => $title . ' — utworzono ' . $num, 'desc' => $desc];
             return $num;
@@ -1041,6 +1059,11 @@ final class ClaudeBilling
                                 . '<p>Gdy tylko zapłacisz, włączymy go z powrotem — nie musisz nic zgłaszać.</p>' . $how],
             'wznowienie'    => [$L . ' wraca — dziękujemy',
                                 '<p>Dziękujemy za wpłatę. Dział IT włącza Twój dostęp do ' . h($L) . ' z powrotem — zwykle w ciągu jednego dnia roboczego.</p>'],
+            'aktywny'       => [$L . ': dostęp włączony',
+                                '<p>Helpdesk włączył Twój dostęp do ' . h($L) . '. Fakturę znajdziesz w panelu licencji.</p>'
+                                . '<p>Kolejne opłaty: co miesiąc dostaniesz proformę, masz ' . self::TERM_DAYS . ' dni na wpłatę. Zrezygnować możesz w każdej chwili w panelu.</p>'],
+            'odrzucony'     => ['Wniosek o ' . $L . ' odrzucony',
+                                '<p>Twój wniosek o ' . h($L) . ' został odrzucony. Powód: ' . h($extra) . '</p><p>Proforma do tego wniosku jest nieaktualna, nie płać jej.</p>'],
             'dane_fv'       => ['Brakuje danych do faktury za ' . $L,
                                 '<p>Żeby wystawić fakturę za ' . h($L) . ', potrzebujemy jeszcze: <b>' . h($extra) . '</b>. Uzupełnisz to w panelu w minutę — faktura wystawi się sama.</p>'],
             default         => ['', ''],
