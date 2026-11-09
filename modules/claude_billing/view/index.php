@@ -12,6 +12,10 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
 <div class="pivot"><?php foreach (ClaudeBilling::PRODUCTS as $pk => $pp): ?><a href="<?= h(route('cb.index', ['product' => $pk])) ?>"<?= $pk === $product && empty($isTest) ? ' aria-current="page"' : '' ?>><?= h($pp['label']) ?></a><?php endforeach; ?><a href="<?= h(route('cb.test', ['product' => $product])) ?>"<?= !empty($isTest) ? ' aria-current="page"' : '' ?>>Test całego przebiegu (<?= h($P['label']) ?>)</a></div>
 <h1><span class="sym" style="background:<?= h($P['color']) ?>"><?= h(strtoupper(substr($P['label'], 0, 3))) ?></span> <?= h($P['label']) ?> <small class="text-secondary fs-6"><?= $s['priced'] ? h(ClaudeBilling::usd($s['usd'])) . '/mies. po kursie PKO BP' : 'cena nieustawiona — uzupełnij w Ustawieniach' ?><?= $P['uniqueEmail'] ? ' · jedna licencja na adres e-mail' : '' ?></small></h1>
 
+<?php $live = ClaudeInvoice::live($s); if (!$live): ?>
+<div class="panel warn" role="status"><b>Dokumenty są SYMULOWANE</b> — <?= $s['simulate'] ? 'włączony tryb symulacji w Ustawieniach' : 'Fakturownia nie jest podłączona (Administracja › Faktury: konto i token API)' ?>.
+  Proformy, zamówienia i faktury dostają numery SYM-… i <b>nie powstają w Fakturowni</b>; uczestnicy ich nie widzą. Gdy Fakturownia zadziała, CRON wystawi je naprawdę.</div>
+<?php endif; ?>
 <div class="tiles" role="list">
   <a role="listitem" class="tile" style="background:#008a00" href="<?= h(route('cb.index', ['status' => 'active', 'product' => $product])) ?>"><span class="n"><?= $stats['active'] ?></span><span class="l">aktywne</span></a>
   <a role="listitem" class="tile" style="background:#a20025" href="<?= h(route('cb.index', ['status' => 'suspended', 'product' => $product])) ?>"><span class="n"><?= $stats['suspended'] ?></span><span class="l">wstrzymane (zaległość)</span></a>
@@ -55,7 +59,7 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
       <div class="col-md-4"><label class="form-label" for="s-pay">Przycisk „Zapłać” w panelu uczestnika</label><select class="form-select" id="s-pay" name="pay_redirect"><option value="p24"<?= $s['pay_redirect'] === 'p24' ? ' selected' : '' ?>>Przelewy24 od razu (domyślnie)</option><option value="portal"<?= $s['pay_redirect'] === 'portal' ? ' selected' : '' ?>>portal płatności SZO (Przelewy24 / przelew)</option><option value="fakturownia"<?= $s['pay_redirect'] === 'fakturownia' ? ' selected' : '' ?>>Szybki przelew z faktury w Fakturowni</option></select></div>
       <div class="col-md-4"><label class="form-label" for="s-fast">Szybki przelew (Fakturownia)</label><input class="form-control" id="s-fast" name="fast_transfer_url" value="<?= h($s['fast_transfer_url']) ?>"><div class="form-text"><a href="<?= h($s['fast_transfer_url']) ?>" target="_blank" rel="noopener">Konfiguracja w Fakturowni</a></div></div>
       <div class="col-12 d-flex flex-wrap gap-4">
-        <?php foreach (['enabled' => 'Zamawianie (samodzielne włączanie) przez uczestników włączone', 'invoice_email' => 'Wysyłaj faktury e-mailem', 'notify' => 'E-maile do uczestników (naliczenie, przypomnienie, wstrzymanie)', 'helpdesk' => 'Zgłoszenia w Helpdesku IT'] as $k => $l): ?>
+        <?php foreach (['enabled' => 'Zamawianie (samodzielne włączanie) przez uczestników włączone', 'invoice_email' => 'Wysyłaj faktury e-mailem', 'notify' => 'E-maile do uczestników (naliczenie, przypomnienie, wstrzymanie)', 'helpdesk' => 'Zgłoszenia w Helpdesku IT', 'simulate' => 'Symuluj wystawianie dokumentów (nie wysyłaj do Fakturowni)'] as $k => $l): ?>
         <div class="form-check"><input class="form-check-input" type="checkbox" name="<?= h($k) ?>" value="1" id="s-<?= h($k) ?>"<?= $s[$k] ? ' checked' : '' ?>><label class="form-check-label" for="s-<?= h($k) ?>"><?= h($l) ?></label></div>
         <?php endforeach; ?>
       </div>

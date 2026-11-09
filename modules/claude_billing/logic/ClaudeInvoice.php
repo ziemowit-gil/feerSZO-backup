@@ -14,6 +14,9 @@ declare(strict_types=1);
  * Nabywca = dane do faktury z abonamentu; braki → dokument czeka, biuro i uczestnik dostają informację, CRON ponawia.
  * Naliczenia sprzed zmiany (faktura VAT wystawiona od razu, bez proformy) obsługujemy jak dawniej: po wpłacie change_status=paid.
  * Test (is_test=1): proforma i zamówienie powstają naprawdę (nie są dokumentami księgowymi, „Wyczyść test” je usuwa), faktura VAT — tylko podgląd.
+ * SYMULACJA: gdy Fakturownia nie jest podłączona, odrzuci dokument albo w ustawieniach włączono symulację — dokument zapisuje się w SZO
+ * z numerem SYM-PF/… / SYM-ZAM/… / SYM-FV/… (status „symulacja”, powód w last_error) i jest wyraźnie oznaczony w panelach; uczestnik go
+ * nie widzi. Gdy Fakturownia działa, ponowne wystawienie (CRON, przycisk) zastępuje symulację prawdziwym dokumentem.
  */
 require_once __DIR__ . '/claudeBilling.php';
 
@@ -22,10 +25,21 @@ final class ClaudeInvoice
     /** Stawka VAT dokumentów — zawsze zwolnione (polecenie 2026-11-09; 23% VAT od importu usługi jest w cenie). */
     public const TAX = 'zw';
     public const DOCS = [
-        'proforma' => ['kind' => 'proforma',     'source' => 'claude_pf',  'label' => 'Proforma',   'oid' => 'PF/'],
-        'order'    => ['kind' => 'client_order', 'source' => 'claude_zam', 'label' => 'Zamówienie', 'oid' => 'ZAM/'],
-        'invoice'  => ['kind' => 'vat',          'source' => 'claude',     'label' => 'Faktura',    'oid' => ''],
+        'proforma' => ['kind' => 'proforma',     'source' => 'claude_pf',  'label' => 'Proforma',   'oid' => 'PF/',  'sym' => 'SYM-PF/'],
+        'order'    => ['kind' => 'client_order', 'source' => 'claude_zam', 'label' => 'Zamówienie', 'oid' => 'ZAM/', 'sym' => 'SYM-ZAM/'],
+        'invoice'  => ['kind' => 'vat',          'source' => 'claude',     'label' => 'Faktura',    'oid' => '',     'sym' => 'SYM-FV/'],
     ];
+
+    /** Czy numer dokumentu to symulacja (SYM-…). */
+    public static function isSim(?string $number): bool { return str_starts_with((string)$number, 'SYM-'); }
+
+    /** Czy dokumenty idą do Fakturowni naprawdę (konto i token ustawione, symulacja wyłączona). */
+    public static function live(?array $s = null): bool
+    {
+        require_once dirname(__DIR__, 3) . '/includes/invoices.php';
+        $s ??= ClaudeBilling::settings();
+        return invoices_api_ready() && empty($s['simulate']);
+    }
 
     /** Opis przeliczenia i rabatu — na dokumencie (description) i w uwagach w SZO. */
     public static function description(array $ch): string
@@ -124,7 +138,16 @@ final class ClaudeInvoice
         $ch = self::chargeWithDocs($chargeId);
         if (!$D || !$ch) return ['ok' => false, 'error' => 'Nie ma takiego naliczenia.'];
         $col = $doc;   // kolumny naliczenia: proforma_* / order_* / invoice_*
-        if (!empty($ch[$col . '_id'])) return ['ok' => true, 'number' => (string)$ch[$col . '_number'], 'local_id' => (int)$ch[$col . '_id']];
+        $s0 = ClaudeBilling::settings(ClaudeBilling::productOf($ch));
+        if (!empty($ch[$col . '_id'])) {
+            if (!self::isSim((string)$ch[$col . '_number']) || !self::live($s0)) {
+                return ['ok' => true, 'number' => (string)$ch[$col . '_number'], 'local_id' => (int)$ch[$col . '_id'], 'simulated' => self::isSim((string)$ch[$col . '_number'])];
+            }
+            // Fakturownia już działa — symulację zastępujemy prawdziwym dokumentem
+            db_exec("UPDATE invoices SET deleted_at=datetime('now') WHERE id=?", [(int)$ch[$col . '_id']]);
+            db_exec("UPDATE claude_charges SET {$col}_id=NULL, {$col}_number=''" . ($col !== 'order' ? ", {$col}_view_url=''" : '') . " WHERE id=?", [$chargeId]);
+            $ch[$col . '_id'] = null; $ch[$col . '_number'] = '';
+        }
         if ($ch['status'] === 'cancelled') return ['ok' => false, 'error' => 'Naliczenie anulowane — bez dokumentów.'];
         $test = (int)$ch['is_test'] === 1;
         $s = ClaudeBilling::settings(ClaudeBilling::productOf($ch));
@@ -145,7 +168,6 @@ final class ClaudeInvoice
             ClaudeBilling::alertBuyerGaps($sub, $gaps, $ch);
             return self::fail($chargeId, 'Brak danych do faktury: ' . implode(', ', $gaps) . '.', $payload) + ['gaps' => $gaps];
         }
-        if (!invoices_api_ready()) return self::fail($chargeId, 'Fakturownia nie jest skonfigurowana (Administracja › Faktury: konto i token API) — dokumenty czekają.', $payload);
         $uid ??= (int)(db_one("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1")['id'] ?? 0);
         $fee = round((float)($ch['fee_pln'] ?? 0), 2);
         $ex = db_one("SELECT id FROM invoices WHERE source=? AND source_id=? AND is_test=? AND deleted_at IS NULL", [$D['source'], $chargeId, $test ? 1 : 0]);
@@ -157,20 +179,24 @@ final class ClaudeInvoice
                 + ['kind' => $D['kind'], 'source' => $D['source'], 'source_id' => $chargeId, 'notes' => self::description($ch), 'is_test' => $test ? 1 : 0], $items, $uid);
             if ($uid <= 0) db_exec("UPDATE invoices SET created_by=NULL WHERE id=?", [$id]);
         }
+        if (!self::live($s)) {
+            return self::simulate($chargeId, $doc, $ch, $payload, $id, !empty($s['simulate']) ? 'włączony tryb symulacji (Płatne licencje › Ustawienia)'
+                : 'Fakturownia nie jest podłączona (Administracja › Faktury: konto i token API)');
+        }
         $warning = '';
         $inv = invoice_get($id);
         $data = [];
         if (empty($inv['fakturownia_id'])) {
             if ($test) {   // dokument testowy — z pominięciem invoice_push (ta odrzuca dokumenty testowe); numer nadaje Fakturownia
                 $res = fakturownia_create_invoice($cfg['account'], $cfg['token'], $payload['invoice'] + ['positions' => $payload['positions'], 'extra' => $payload['extra']]);
-                if (empty($res['success'])) return self::fail($chargeId, $D['label'] . ' — Fakturownia: ' . (string)($res['error'] ?? 'błąd'), $payload);
+                if (empty($res['success'])) return self::simulate($chargeId, $doc, $ch, $payload, $id, 'Fakturownia odrzuciła dokument: ' . (string)($res['error'] ?? 'błąd połączenia'));
                 db_exec("UPDATE invoices SET status='wystawiona', number=?, fakturownia_id=?, fakturownia_url=?, issued_at=datetime('now'), last_error=NULL, updated_at=datetime('now') WHERE id=?",
                     [(string)($res['number'] ?? ''), (int)$res['invoice_id'], (string)($res['invoice_url'] ?? ''), $id]);
                 invoice_pdf_fetch($id);
                 $data = (array)($res['data'] ?? []);
             } else {
                 $r = invoice_push($id, ['positions' => $payload['positions'], 'extra' => $payload['extra']]);
-                if (empty($r['ok'])) return self::fail($chargeId, $D['label'] . ' — Fakturownia: ' . (string)$r['error'], $payload);
+                if (empty($r['ok'])) return self::simulate($chargeId, $doc, $ch, $payload, $id, 'Fakturownia odrzuciła dokument albo nie odpowiada: ' . (string)$r['error']);
                 $data = (array)($r['fakturownia'] ?? []);
             }
             $got = $data['price_gross'] ?? null;
@@ -226,7 +252,7 @@ final class ClaudeInvoice
         require_once dirname(__DIR__, 3) . '/includes/invoices.php';
         require_once dirname(__DIR__, 3) . '/includes/fakturownia.php';
         $inv = invoice_get($localId);
-        if (!$inv || empty($inv['fakturownia_id']) || !invoices_api_ready()) return false;
+        if (!$inv || empty($inv['fakturownia_id']) || self::isSim((string)$inv['number']) || !self::live()) return false;
         $cfg = invoices_config();
         $r = fakturownia_request($cfg['account'], $cfg['token'], 'invoices/' . (int)$inv['fakturownia_id'] . '/change_status.json?api_token=' . urlencode($cfg['token']) . '&status=paid', 'POST', []);
         $ok = $r['code'] >= 200 && $r['code'] < 300;
@@ -253,7 +279,7 @@ final class ClaudeInvoice
         require_once dirname(__DIR__, 3) . '/includes/invoices.php';
         require_once dirname(__DIR__, 3) . '/includes/fakturownia.php';
         $inv = invoice_get($local);
-        if (!$inv || empty($inv['fakturownia_id']) || !invoices_api_ready()) return false;
+        if (!$inv || empty($inv['fakturownia_id']) || self::isSim((string)$inv['number']) || !self::live()) return false;
         $cfg = invoices_config();
         $r = fakturownia_get_invoice($cfg['account'], $cfg['token'], (int)$inv['fakturownia_id']);
         if (empty($r['ok'])) return false;
@@ -281,6 +307,20 @@ final class ClaudeInvoice
         }
         db_exec("UPDATE claude_charges SET proforma_id=NULL, proforma_number='', order_id=NULL, order_number='', invoice_id=NULL, invoice_number='' WHERE id=?", [$chargeId]);
         return implode('; ', $msg);
+    }
+
+    /** Symulacja wystawienia: dokument w SZO z numerem SYM-…, oznaczony i z powodem; nic nie idzie do Fakturowni ani do uczestnika. */
+    private static function simulate(int $chargeId, string $doc, array $ch, array $payload, int $localId, string $why): array
+    {
+        $D = self::DOCS[$doc];
+        $no = $D['sym'] . (int)$ch['id'];
+        db_exec("UPDATE invoices SET status='symulacja', number=?, last_error=?, fakturownia_id=NULL, updated_at=datetime('now') WHERE id=?", [$no, mb_substr($why, 0, 500), $localId]);
+        $msg = 'SYMULACJA: ' . $D['label'] . ' ' . $no . ' — ' . $why . '. Dokument NIE istnieje w Fakturowni; zostanie wystawiony naprawdę, gdy połączenie zadziała (CRON co godzinę albo przycisk na karcie).';
+        $same = (string)($ch['invoice_error'] ?? '') === mb_substr($msg, 0, 500);
+        db_exec("UPDATE claude_charges SET {$doc}_id=?, {$doc}_number=?, invoice_error=?, invoice_payload=? WHERE id=?",
+            [$localId, $no, mb_substr($msg, 0, 500), json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), $chargeId]);
+        if (!$same) ClaudeBilling::event((int)$ch['subscription_id'], $chargeId, 'simulated', $msg, 'system');
+        return ['ok' => true, 'simulated' => true, 'number' => $no, 'local_id' => $localId, 'warning' => $msg, 'payload' => $payload];
     }
 
     private static function fail(int $chargeId, string $error, array $payload): array

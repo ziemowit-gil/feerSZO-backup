@@ -39,6 +39,7 @@ final class ClaudeBilling
         'available_from' => '', 'available_until' => '',   // okno zamawiania (włączania) przez uczestników: od / do — puste = bez ograniczenia
         'pct' => '23', 'pct_label' => 'VAT', 'fee_pln' => '1.23',   // 23% VAT od importu usługi — doliczany do ceny, płaci uczestnik (faktura FEER wg ustawień Faktur, domyślnie zw) i prowizja za płatność (polecenia 2026-11-09)
         'rate_kind' => 'sale_foreign', 'invoice' => 'auto', 'discount_mode' => 'rabat', 'invoice_email' => '1', 'notify' => '1', 'helpdesk' => '1',
+        'simulate' => '0',   // symulacja wystawiania dokumentów (SYM-…) zamiast Fakturowni — do testów
         'pay_redirect' => 'p24', 'fast_transfer_url' => 'https://fundacjafeer.fakturownia.pl/apps/szybki-przelew',
         'bank_account' => '88102029060000130206617932',   // rachunek do wpłat (polecenie 2026-11-09)
     ];
@@ -162,7 +163,7 @@ final class ClaudeBilling
         if (!preg_match('#^https://#', $s['fast_transfer_url'])) $s['fast_transfer_url'] = self::DEFAULTS['fast_transfer_url'];
         $s['bank_account'] = preg_replace('/\D/', '', preg_replace('/^\s*PL/i', '', (string)$s['bank_account']));
         if (strlen($s['bank_account']) !== 26) $s['bank_account'] = self::DEFAULTS['bank_account'];
-        foreach (['enabled', 'invoice_email', 'notify', 'helpdesk'] as $b) $s[$b] = $s[$b] === '1';
+        foreach (['enabled', 'invoice_email', 'notify', 'helpdesk', 'simulate'] as $b) $s[$b] = $s[$b] === '1';
         $s['priced'] = $s['usd'] > 0;
         return $s;
     }
@@ -181,6 +182,7 @@ final class ClaudeBilling
             'bank_account' => preg_replace('/\D/', '', preg_replace('/^\s*PL/i', '', (string)($in['bank_account'] ?? ''))),
             'rate_kind' => (string)($in['rate_kind'] ?? 'sale_foreign'), 'invoice' => (string)($in['invoice'] ?? 'auto'), 'discount_mode' => (string)($in['discount_mode'] ?? 'rabat'),
             'invoice_email' => !empty($in['invoice_email']) ? '1' : '0', 'notify' => !empty($in['notify']) ? '1' : '0', 'helpdesk' => !empty($in['helpdesk']) ? '1' : '0',
+            'simulate' => !empty($in['simulate']) ? '1' : '0',
         ];
         if ($map['enabled'] === '1' && (float)$map['usd'] <= 0) throw new InvalidArgumentException('Ustaw miesięczną cenę w USD, zanim włączysz samodzielną aktywację ' . $P['label'] . '.');
         if ((float)$map['usd'] < 0) throw new InvalidArgumentException('Cena nie może być ujemna.');
@@ -771,7 +773,9 @@ final class ClaudeBilling
             }
         }
         if (!$onlyTest) {   // faktury, których nie udało się wystawić od razu (Fakturownia nie odpowiadała, brakowało danych)
-            foreach (db_all("SELECT id, product FROM claude_charges WHERE ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL)) AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
+            require_once __DIR__ . '/ClaudeInvoice.php';
+            $simSql = ClaudeInvoice::live() ? " OR proforma_number LIKE 'SYM-%' OR order_number LIKE 'SYM-%' OR invoice_number LIKE 'SYM-%'" : '';   // Fakturownia działa — zastąp symulacje
+            foreach (db_all("SELECT id, product FROM claude_charges WHERE ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL)$simSql) AND status<>'cancelled' AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
                 if (self::settings((string)$r['product'])['invoice'] !== 'auto') continue;
                 try { ClaudeInvoice::issueForCharge((int)$r['id']); } catch (\Throwable $e) { $rep['errors'][] = 'faktura #' . $r['id'] . ': ' . $e->getMessage(); }
             }
@@ -932,7 +936,9 @@ final class ClaudeBilling
     /** Tytuł przelewu tradycyjnego dla naliczenia. */
     public static function transferTitle(array $ch): string
     {
-        return strtoupper(self::P(self::productOf($ch))['label']) . ' ' . (($ch['proforma_number'] ?? '') ?: ($ch['invoice_number'] ?: ('NAL/' . (int)$ch['id']))) . ' ' . self::periodLabel((string)$ch['period']);
+        $no = ($ch['proforma_number'] ?? '') ?: ($ch['invoice_number'] ?? '');
+        if (str_starts_with((string)$no, 'SYM-')) $no = '';   // symulacja — numer nie istnieje w Fakturowni
+        return strtoupper(self::P(self::productOf($ch))['label']) . ' ' . ($no ?: ('NAL/' . (int)$ch['id'])) . ' ' . self::periodLabel((string)$ch['period']);
     }
 
     // ── Dane do widoków ─────────────────────────────────────────────────────────

@@ -59,14 +59,15 @@ include __DIR__ . '/_top.php';
       // przed wpłatą: proforma (z przyciskiem Szybkiego przelewu); po wpłacie: faktura
       $docUrl = $c['status'] === 'paid' ? (string)$c['invoice_view_url'] : ((string)$c['proforma_view_url'] ?: (string)$c['invoice_view_url']);
       $docNo  = $c['status'] === 'paid' ? (string)$c['invoice_number'] : ((string)$c['proforma_number'] ?: (string)$c['invoice_number']);
-      $docLbl = $c['status'] === 'paid' || ($c['proforma_number'] === '' && $c['invoice_number'] !== '') ? 'faktura' : 'proforma'; ?>
+      $docLbl = $c['status'] === 'paid' || ($c['proforma_number'] === '' && $c['invoice_number'] !== '') ? 'faktura' : 'proforma';
+      if (str_starts_with($docNo, 'SYM-')) { $docNo = ''; $docUrl = ''; }   // symulacja (Fakturownia niepodłączona) — uczestnik jej nie widzi ?>
     <div class="m-row">
       <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
         <span class="tw-font-semibold"><?= h(ucfirst(ClaudeBilling::periodLabel((string)$c['period']))) ?></span>
         <span class="tw-text-lg"><?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?></span>
         <?php if ($c['status'] === 'paid'): ?><span class="m-chip tw-bg-m-green">zapłacone <?= h(ClaudeBilling::dayMonth(substr((string)$c['paid_at'], 0, 10))) ?></span>
         <?php else: ?><span class="m-chip <?= $late ? 'tw-bg-m-red' : 'tw-bg-m-amber' ?>"><?= $late ? 'po terminie — było do ' : 'zapłać do ' ?><?= h(ClaudeBilling::dayMonth($c['due_on'])) ?></span><?php endif; ?>
-        <?php if ($docUrl !== ''): ?><a href="<?= h($docUrl) ?>" target="_blank" rel="noopener" class="tw-text-sm"><?= $docLbl ?> <?= h($docNo) ?><span class="tw-sr-only"> (otwiera się w nowej karcie)</span></a><?php elseif ($c['status'] === 'paid'): ?><span class="tw-text-sm tw-text-m-steel">faktura w przygotowaniu</span><?php endif; ?>
+        <?php if ($docUrl !== ''): ?><a href="<?= h($docUrl) ?>" target="_blank" rel="noopener" class="tw-text-sm"><?= $docLbl ?> <?= h($docNo) ?><span class="tw-sr-only"> (otwiera się w nowej karcie)</span></a><?php else: ?><span class="tw-text-sm tw-text-m-steel"><?= $c['status'] === 'paid' ? 'faktura' : 'proforma' ?> w przygotowaniu</span><?php endif; ?>
       </div>
       <p class="tw-text-xs tw-text-m-steel tw-mt-1"><?= h(ClaudeBilling::breakdown($c)) ?> (kurs PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p>
       <?php if ($c['status'] === 'pending'): ?>
