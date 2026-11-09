@@ -66,10 +66,11 @@ final class LicencjeKursantController
             $ops = db_all("SELECT id, number, form, status, created_at, executed_at, due_on, request_data FROM license_operations
                             WHERE account_kind='client' AND account_id=? ORDER BY id DESC LIMIT 20", [$cid]);
         } catch (\Throwable $e) { /* moduł AM jeszcze bez tabel */ }
+        require_once dirname(__DIR__, 3) . '/includes/p24.php';
         $flash = $_SESSION['lk_flash'] ?? null; $err = $_SESSION['lk_errors'] ?? []; $old = $_SESSION['lk_old'] ?? [];
         unset($_SESSION['lk_flash'], $_SESSION['lk_errors'], $_SESSION['lk_old']);
         return Router::view(self::VIEW . 'index.php', ['me' => $me, 'paid' => $paid, 'software' => $software, 'termOk' => $termOk, 'office' => $office, 'am5' => $am5,
-            'ops' => $ops, 'login' => LicenseLogin::get($cid), 'minor' => ClaudeBilling::isMinor($cid), 'flash' => $flash, 'err' => $err, 'old' => $old,
+            'ops' => $ops, 'p24on' => p24_enabled(), 'login' => LicenseLogin::get($cid), 'minor' => ClaudeBilling::isMinor($cid), 'flash' => $flash, 'err' => $err, 'old' => $old,
             'org' => (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'))]);
     }
 

@@ -2,7 +2,7 @@
 /**
  * modules/ti_licencje_kursant/view/index.php — „Moje licencje” (kursant.feer.org.pl/licencje/), szata portalu wniosków (Metro: płaskie kafle, akcent cyan,
  * Tailwind CDN z prefiksem tw-). Wszystko prostym językiem: co masz, do kiedy, ile płacisz, co zrobić.
- * Zmienne: $me, $paid, $software, $termOk, $office, $am5, $ops, $login, $minor, $flash, $err, $old, $org.
+ * Zmienne: $me, $paid, $software, $termOk, $office, $am5, $ops, $p24on, $login, $minor, $flash, $err, $old, $org.
  */
 $C = LicencjeKursantController::class;
 $e = fn(string $p, string $k) => isset($err[$p][$k]) ? '<p id="e-' . h($p . $k) . '" class="m-err">' . h($err[$p][$k]) . '</p>' : '';
@@ -109,7 +109,7 @@ $nLic = count($software) + count(array_filter($office, fn($o) => $o['request_sta
           <a class="m-btn" href="../platnosci.php">Zapłać<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></a>
         <?php elseif ($s['pay_redirect'] === 'fakturownia' && $c['invoice_view_url']): ?>
           <a class="m-btn" href="<?= h($c['invoice_view_url']) ?>" target="_blank" rel="noopener">Zapłać (BLIK / szybki przelew)<span class="tw-sr-only"> — faktura w nowej karcie</span></a>
-        <?php else: ?>
+        <?php elseif (!empty($p24on)): /* Przelewy24 tylko, gdy bramka włączona — inaczej zostaje Szybki przelew i zwykły przelew */ ?>
           <form method="post" action="<?= h(route('lk.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać przez Przelewy24<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></button></form>
         <?php endif; ?>
         <?php if ($c['invoice_view_url'] && $s['pay_redirect'] !== 'fakturownia'): ?><a class="m-btn-ghost" href="<?= h($c['invoice_view_url']) ?>" target="_blank" rel="noopener">BLIK / szybki przelew z faktury<span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
