@@ -106,8 +106,13 @@ include dirname(__DIR__) . '/includes/header.php';
             </div>
           </div>
 
+          <div class="alert alert-info py-2 small" role="note">
+            Konto Fakturowni poniżej służy do dokumentów <b>płatnych licencji</b> (Claude, NordVPN): proforma, zamówienie i faktura VAT,
+            moduł Panel dydaktyka › Płatne licencje i Helpdesk. Licencje zawsze idą przez Fakturownię, niezależnie od „Backendu faktur” wyżej.
+            Pozostałe faktury SZO wystawia backend wybrany wyżej.
+          </div>
           <div class="mb-3">
-            <label class="form-label fw-semibold" for="account">Konto (subdomena)</label>
+            <label class="form-label fw-semibold" for="account">Konto Fakturowni (subdomena), dla faktur z licencji</label>
             <div class="input-group">
               <span class="input-group-text">https://</span>
               <input type="text" class="form-control" id="account" name="account"

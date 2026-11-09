@@ -27,6 +27,14 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
   <div role="listitem" class="tile" style="background:<?= $stats['no_invoice'] ? '#a20025' : '#647687' ?>"><span class="n"><?= $stats['no_invoice'] ?></span><span class="l">opłacone bez faktury</span></div>
 </div>
 
+<?php require_once dirname(__DIR__) . '/logic/ClaudeInvoice.php'; $fkLive = ClaudeInvoice::live($s); $fkAcc = trim((string)org_setting('fakturownia_account')); ?>
+<section class="panel" aria-labelledby="fk-h">
+  <h2 class="mt-0 h6" id="fk-h">Fakturownia: tylko dokumenty płatnych licencji (proforma, zamówienie, faktura VAT)</h2>
+  <p class="mb-1"><?= $fkLive ? 'Podłączona: konto <b>' . h($fkAcc) . '.fakturownia.pl</b>. Dokumenty wystawiają się w Fakturowni.'
+      : (!empty($s['simulate']) ? 'Włączona symulacja (Ustawienia niżej): dokumenty SYM-… tylko w SZO.' : 'Niepodłączona: dokumenty powstają w symulacji (SYM-…) i zostaną wystawione naprawdę, gdy połączenie zadziała.') ?></p>
+  <p class="small mb-0">Konfiguracja: Administracja › <a href="<?= h(APP_URL) ?>/admin/invoices_settings.php">Faktury</a> (tylko administrator): pola „Konto Fakturowni” i „Token API”, stawka zw i podstawa zwolnienia, przycisk „Testuj połączenie”. „Backend faktur” na tej stronie dotyczy innych faktur SZO, nie licencji. Konto testowe uczestnika zawsze zostaje w symulacji.</p>
+</section>
+
 <section class="panel accent">
   <h2 class="mt-0">Kurs i kwota</h2>
   <p class="mb-2"><?php if ($rate): ?>Ostatni kurs <?= h($rate['kind_label']) ?> PKO BP (tabela <?= h(PkoRates::tableLabel($rate)) ?>): <b><?= h(ClaudeBilling::rateFmt((float)$rate['rate'])) ?>/USD</b>
