@@ -526,12 +526,8 @@ final class ClaudeBilling
         $a = self::assignment($clientId, $product);
         $open = db_one("SELECT id FROM claude_subscriptions WHERE client_id=? AND product=? AND status IN ('active','suspended') AND is_test=0", [$clientId, $P['key']]);
         if ($open)                 return ['ok' => false, 'reason' => 'Masz już włączony ' . $P['label'] . '.', 'assignment' => $a];
-        $fromPool = false;
-        if (!$a && !empty($P['pool']) && self::poolProduct($P['key'])) {   // licencję weźmiemy z puli licencji Fundacji przy włączeniu
-            if (!self::poolHasFree($P['key'])) return ['ok' => false, 'reason' => 'Wszystkie licencje ' . $P['label'] . ' z puli Fundacji są teraz zajęte — napisz do biura, damy znać, gdy zwolni się miejsce.', 'assignment' => null];
-            $fromPool = true;
-        }
-        if (!$a && !$fromPool)     return ['ok' => false, 'reason' => 'Nie masz jeszcze przydzielonej licencji ' . $P['label'] . '. Jeśli chcesz z niej korzystać, napisz do prowadzącego albo do biura.', 'assignment' => null];
+        $fromPool = false;   // uczestnik włącza tylko licencję PRZYPISANĄ mu w SZO (NordVPN: przydział z puli robi kadra — polecenie 2026-11-09)
+        if (!$a)                   return ['ok' => false, 'reason' => 'Nie masz przypisanej licencji ' . $P['label'] . '. Jeśli chcesz z niej korzystać, napisz do prowadzącego albo do biura — przypiszą ją z puli licencji Fundacji.', 'assignment' => null];
         if (!$s['enabled'] || !$s['priced']) return ['ok' => false, 'reason' => 'Samodzielne włączenie ' . $P['label'] . ' jest chwilowo niedostępne — napisz do biura.', 'assignment' => $a];
         if ($s['available_until'] !== '' && $s['available_until'] < date('Y-m-d')) return ['ok' => false, 'reason' => 'Zamawianie ' . $P['label'] . ' zakończyło się ' . self::dayMonth($s['available_until']) . '. Jeśli potrzebujesz dostępu, napisz do biura.', 'assignment' => $a];
         if ($s['available_from'] !== '' && $s['available_from'] > date('Y-m-d')) return ['ok' => false, 'reason' => 'Wnioski o ' . $P['label'] . ' przyjmujemy od ' . self::dayMonth($s['available_from']) . ' — wtedy włączysz go tutaj sam(a).', 'assignment' => $a, 'from' => $s['available_from']];
