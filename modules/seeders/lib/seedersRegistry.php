@@ -81,6 +81,19 @@ function seedersRegistry(): array
                 ['id' => 'delete', 'label' => 'Usuń',   'kind' => 'danger',  'args' => ['delete'], 'use' => ['email']],
             ],
         ],
+        'licencje_test' => [
+            'group' => 'Konta testowe', 'title' => 'Uczestnik z licencjami (Claude, NordVPN, Office, usługi)', 'script' => 'seedLicencjeTest.php',
+            'desc'  => '„Uczestnik Licencje (TEST)” z kontem w panelu (kursant wirtualny — bez e-maili i SMS-ów) do testów kursant.feer.org.pl/licencje: licencje Claude Team, NordVPN i program z kluczem, licencja na Office (AM7, przyznana), login „l” + 8 cyfr, domena i hosting refakturowane przez FEER. Abonamentu nie włącza — robi się to w panelu. Hasło serwisowe: puste pole = stałe hasło zapisane w ustawieniach (losowane przy pierwszym „Załóż”, widoczne w „Stan”); wpisane = nowe hasło serwisowe.',
+            'fields'  => [
+                'haslo' => ['label' => 'Hasło serwisowe', 'type' => 'password', 'opt' => '--haslo', 'help' => 'min. 8 znaków; puste = dotychczasowe hasło serwisowe'],
+                'login' => ['label' => 'Login w panelu', 'type' => 'text', 'default' => 'kursant.licencje', 'opt' => '--login'],
+            ],
+            'actions' => [
+                ['id' => 'status', 'label' => 'Stan',   'kind' => 'preview', 'args' => ['status'], 'use' => ['login']],
+                ['id' => 'create', 'label' => 'Załóż',  'kind' => 'apply',   'args' => ['create'], 'use' => ['haslo', 'login']],
+                ['id' => 'delete', 'label' => 'Usuń',   'kind' => 'danger',  'args' => ['delete'], 'use' => ['login']],
+            ],
+        ],
         'dok_dydaktyk' => [
             'group' => 'Konta testowe', 'title' => 'Dydaktyk + zleceniobiorca do dokumentacji', 'script' => 'seedDokumentacjaDydaktyk.php',
             'desc'  => '„Anna Przykładowa” — dydaktyk w panelu TI i jednocześnie osoba na umowie zlecenie DOK/TEST/1 (w realizacji), z kartą w rejestrze Osób i „Kursem przykładowym (DOK)”. Dane fikcyjne, bez SMS i e-maili. Do zrzutów ekranu.',
