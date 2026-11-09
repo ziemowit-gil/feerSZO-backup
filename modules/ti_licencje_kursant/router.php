@@ -17,6 +17,7 @@ $r = new Router($entry, 'query');
 $r->csrfUsing(fn() => student_token_check(), fn() => student_token(), '_token');
 
 $r->get('/',                           [LicencjeKursantController::class, 'index'])->name('lk.index');
+$r->get('/produkty',                   [LicencjeKursantController::class, 'products'])->name('lk.products');
 $r->post('/wlacz/{product}',           [LicencjeKursantController::class, 'activate'])->name('lk.activate');
 $r->post('/dane/{product}',            [LicencjeKursantController::class, 'buyer'])->name('lk.buyer');
 $r->post('/rezygnacja/{product}',      [LicencjeKursantController::class, 'cancel'])->name('lk.cancel');

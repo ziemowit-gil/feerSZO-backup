@@ -74,6 +74,19 @@ final class LicencjeKursantController
             'org' => (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'))]);
     }
 
+    /** Zakładka „Produkty i usługi” — refakturowane przez FEER (modules/ti_products) + konto Microsoft 365 na tenancie FEER. */
+    public function products(): string
+    {
+        $me = $this->me();
+        require_once dirname(__DIR__, 2) . '/ti_products/logic/tiProducts.php';
+        $products = array_values(array_filter(TiProducts::forClient($me['cid']), fn($p) => $p['status'] !== 'archived'));
+        $feerUpn = '';
+        try { $feerUpn = trim((string)(db_one("SELECT feer_ms_upn FROM k30_ti_student_accounts WHERE id=?", [(int)$me['student']['id']])['feer_ms_upn'] ?? '')); } catch (\Throwable $e) {}
+        $flash = $_SESSION['lk_flash'] ?? null; unset($_SESSION['lk_flash']);
+        return Router::view(self::VIEW . 'products.php', ['me' => $me, 'products' => $products, 'feerUpn' => $feerUpn, 'flash' => $flash,
+            'org' => (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'))]);
+    }
+
     public function activate(string $product): ?string
     {
         $me = $this->me();
