@@ -91,6 +91,7 @@ function seedersRegistry(): array
             'actions' => [
                 ['id' => 'status', 'label' => 'Stan',   'kind' => 'preview', 'args' => ['status'], 'use' => ['login']],
                 ['id' => 'create', 'label' => 'Załóż',  'kind' => 'apply',   'args' => ['create'], 'use' => ['haslo', 'login']],
+                ['id' => 'haslo',  'label' => 'Nowe losowe hasło', 'kind' => 'apply', 'args' => ['haslo'], 'use' => ['login']],
                 ['id' => 'delete', 'label' => 'Usuń',   'kind' => 'danger',  'args' => ['delete'], 'use' => ['login']],
             ],
         ],

@@ -12,6 +12,7 @@
  *
  * Użycie:
  *   php cli/seedLicencjeTest.php create [--haslo=…] [--login=kursant.licencje]   # idempotentne; hasło = hasło serwisowe (niżej)
+ *   php cli/seedLicencjeTest.php haslo [--login=…]    # nowe LOSOWE hasło serwisowe (ustawione kontu i wypisane)
  *   php cli/seedLicencjeTest.php status [--login=…]
  *   php cli/seedLicencjeTest.php delete [--login=…]   # usuwa uczestnika, konto, licencje, sprawę AM7, usługi, abonamenty i naliczenia (pozycje portalu → anulowane)
  * Hasło serwisowe: przy pierwszym „create” bez --haslo losowane i zapisywane w ustawieniach (settings: seed_licencje_test_haslo), potem każde
@@ -65,6 +66,7 @@ switch ($cmd) {
         foreach (k30_ti_client_licenses($cid) as $l) echo "  licencja: {$l['license_name']} ({$l['vendor']})" . ($l['login'] ? ", login {$l['login']}" : '') . "\n";
         echo "  login do licencji: " . (LicenseLogin::get($cid) ?: '—') . "\n";
         echo "  hasło serwisowe: " . (org_setting(LT_PASS_KEY) ?: '— (ustawi się przy „Załóż”)') . "\n";
+        echo "  logowanie: https://kursant.feer.org.pl/  login {$login}\n";
         foreach (array_keys(ClaudeBilling::PRODUCTS) as $p) { $s = ClaudeBilling::forClient($cid, false, $p); if ($s) echo "  abonament {$p}: {$s['status']} od {$s['activated_on']}\n"; }
         try { foreach (db_all("SELECT case_number, request_status, tenant_upn FROM licenses WHERE interested_kind='client' AND interested_id=?", [$cid]) as $o) echo "  sprawa {$o['case_number']}: {$o['request_status']} {$o['tenant_upn']}\n"; } catch (\Throwable $e) {}
         try { foreach (db_all("SELECT name, product_type, status FROM k30_ti_client_products WHERE client_id=?", [$cid]) as $p) echo "  usługa: {$p['name']} ({$p['product_type']}, {$p['status']})\n"; } catch (\Throwable $e) {}
@@ -81,12 +83,16 @@ switch ($cmd) {
                 'notes' => LT_MARKER . ' — uczestnik do testów panelu „Moje licencje”. Usuń: php cli/seedLicencjeTest.php delete']);
             $aid = db_insert('k30_ti_student_accounts', ['client_id' => $cid, 'login' => $login, 'password_hash' => password_hash($newPass, PASSWORD_DEFAULT), 'is_active' => 1, 'is_minor' => 0]);
             try { db_exec("UPDATE k30_ti_student_accounts SET is_virtual=1 WHERE id=?", [$aid]); } catch (\Throwable $e) {}   // wirtualny = bez e-maili i SMS-ów
+            $acc = ['id' => $aid];
             echo "OK uczestnik #{$cid} „" . LT_NAME . "”, konto {$login}\n";
         } else {
             $cid = (int)$acc['client_id'];
             db_exec("UPDATE k30_ti_student_accounts SET password_hash=?, is_active=1 WHERE id=?", [password_hash($newPass, PASSWORD_DEFAULT), (int)$acc['id']]);
             echo "Konto {$login} już jest (uczestnik #{$cid}) — uzupełniam brakujące dane.\n";
         }
+        // logowanie hasłem od razu: bez „pierwszego logowania kodem SMS” (ti_student_needs_reauth — brak last_login / sec_chosen), obrazek bezpieczeństwa wybrany
+        try { db_exec("UPDATE k30_ti_student_accounts SET last_login=COALESCE(last_login, datetime('now')), sec_chosen=1, sec_image=COALESCE(sec_image, 3), reauth_at=COALESCE(reauth_at, datetime('now')), must_change_password=0 WHERE id=?", [(int)$acc['id']]); }
+        catch (\Throwable $e) { echo "UWAGA: nie ustawiono pierwszego logowania ({$e->getMessage()}) — konto może prosić o kod SMS.\n"; }
         // licencje w module Licencje
         foreach ($licNames as $n => $v) {
             $lid = $licenseId($n, $v);
@@ -134,6 +140,16 @@ switch ($cmd) {
         if (!$ns['priced'] || !$ns['enabled']) echo "Uwaga: NordVPN ma wyłączone samodzielne włączanie albo brak ceny — ustaw w panelu dydaktyka › Płatne licencje › NordVPN.\n";
         cli_exit(0);
 
+    case 'haslo':
+        if (!$acc) { fwrite(STDERR, "Brak konta {$login} — najpierw „create”.\n"); cli_exit(1); }
+        if (!$ours) { fwrite(STDERR, "Konto {$login} nie zostało założone przez ten seeder.\n"); cli_exit(1); }
+        $newPass = 'Lic-' . substr(strtr(base64_encode(random_bytes(12)), '+/=', 'xyz'), 0, 12);
+        org_setting_set(LT_PASS_KEY, $newPass);
+        db_exec("UPDATE k30_ti_student_accounts SET password_hash=?, is_active=1, last_login=COALESCE(last_login, datetime('now')), sec_chosen=1, sec_image=COALESCE(sec_image, 3), reauth_at=COALESCE(reauth_at, datetime('now')), must_change_password=0 WHERE id=?",
+            [password_hash($newPass, PASSWORD_DEFAULT), (int)$acc['id']]);
+        echo "OK nowe losowe hasło serwisowe.\nLogowanie: {$login} / {$newPass}\n";
+        cli_exit(0);
+
     case 'delete':
         if (!$acc) { echo "Brak konta {$login} — nic do usunięcia.\n"; cli_exit(0); }
         if (!$ours) { fwrite(STDERR, "Konto {$login} nie zostało założone przez ten seeder — nie usuwam.\n"); cli_exit(1); }
@@ -153,6 +169,6 @@ switch ($cmd) {
         cli_exit(0);
 
     default:
-        fwrite(STDERR, "Użycie: php cli/seedLicencjeTest.php create|status|delete [--haslo=…] [--login=kursant.licencje]\n");
+        fwrite(STDERR, "Użycie: php cli/seedLicencjeTest.php create|haslo|status|delete [--haslo=…] [--login=kursant.licencje]\n");
         cli_exit(2);
 }
