@@ -155,10 +155,8 @@ final class ClaudeBillingController
             $new = !LicenseLogin::get($cid);
             $login = LicenseLogin::generate($cid, $this->actor()['name'] . ' (panel dydaktyka)');
             $pass = LicenseLogin::issuePassword($cid);
-            require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjeId.php';
-            $no = LicencjeId::licence($cid);   // numer w panelu licencji — nadawany raz, przy pierwszym założeniu konta
-            ClaudeBilling::event(null, null, 'lic_account', ($new ? 'Założono' : 'Nowe hasło —') . ' konto w panelu licencji: ' . $c['name'] . ' (' . $login . ', numer ' . $no . ').', $this->actor()['name']);
-            return ($new ? 'Założono konto w panelu licencji' : 'Nowe hasło do panelu licencji') . ' dla ' . $c['name'] . ' (numer w panelu licencji ' . $no . '): login ' . $login . ', hasło ' . $pass
+            ClaudeBilling::event(null, null, 'lic_account', ($new ? 'Założono' : 'Nowe hasło —') . ' konto w panelu licencji: ' . $c['name'] . ' (numer ' . $login . ').', $this->actor()['name']);
+            return ($new ? 'Założono konto w panelu licencji' : 'Nowe hasło do panelu licencji') . ' dla ' . $c['name'] . ': numer w panelu licencji (login) ' . $login . ', hasło ' . $pass
                 . ' — przekaż je uczestnikowi (pokazujemy je tylko teraz). Logowanie: https://kursant.feer.org.pl/licencje/';
         }, '', route('cb.index', ['product' => $p, 'q' => (string)($_POST['q'] ?? '')]));
     }
