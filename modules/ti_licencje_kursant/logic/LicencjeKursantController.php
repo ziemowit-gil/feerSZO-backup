@@ -10,12 +10,16 @@ declare(strict_types=1);
  *     propozycja i wniosek, NordVPN — licencja z puli Fundacji), proforma / faktura, płatność Przelewy24 / przelew / Szybki przelew, rezygnacja,
  *   • licencje na Office (AM7), materiały dydaktyczne (AM5), moje sprawy (AM11–24, ANT1), programy i klucze (moduł Licencje),
  *   • produkty i usługi refakturowane przez FEER (modules/ti_products) — liczone osobno od subskrypcji, konto Microsoft 365 FEER,
- *   • moje konto: login, zmiana hasła.
+ *   • moje konto: login, zmiana hasła, dane kontaktowe.
+ * Pierwsze wejście: brakujący e-mail / telefon trzeba podać (telefon potwierdza kod SMS). Każda operacja wymaga kodu jednorazowego
+ * (SMS, gdy nie wyjdzie — e-mail): confirmed() odkłada operację, /potwierdz sprawdza kod i wykonuje ją (LicencjeKod).
  * Wyniki: string = HTML, null = przekierowanie.
  */
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/claudeBilling.php';
 require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
 require_once __DIR__ . '/LicencjePanelAuth.php';
+require_once __DIR__ . '/LicencjeKod.php';
+require_once dirname(__DIR__, 2) . '/claude_billing/logic/PriceChange.php';
 
 final class LicencjeKursantController
 {
@@ -41,9 +45,9 @@ final class LicencjeKursantController
         $u = LicencjePanelAuth::user();
         if (!$u) { header('Location: ' . route('lk.login')); exit; }
         $cid = (int)$u['cid'];
-        $c = db_one("SELECT name, email FROM k30_clients WHERE id=?", [$cid]) ?: ['name' => '', 'email' => ''];
+        $c = db_one("SELECT name, email, phone FROM k30_clients WHERE id=?", [$cid]) ?: ['name' => '', 'email' => '', 'phone' => ''];
         $sid = (int)($u['sid'] ?? 0) ?: (int)(db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id DESC LIMIT 1", [$cid])['id'] ?? 0);
-        return ['cid' => $cid, 'sid' => $sid, 'name' => (string)$c['name'], 'email' => (string)$c['email'], 'ip' => (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+        return ['cid' => $cid, 'sid' => $sid, 'name' => (string)$c['name'], 'email' => (string)$c['email'], 'phone' => (string)($c['phone'] ?? ''), 'ip' => (string)($_SERVER['REMOTE_ADDR'] ?? ''),
                 'via' => (string)$u['via'], 'fromTi' => !empty($u['sid'])];
     }
 
@@ -57,6 +61,183 @@ final class LicencjeKursantController
         $_SESSION['lk_flash'] = [$type, $msg];
         header('Location: ' . route('lk.index') . ($anchor !== '' ? '#' . $anchor : ''));
         return null;
+    }
+
+    // ── Potwierdzanie operacji kodem ────────────────────────────────────────────
+
+    /** Operacje, które można wykonać po kodzie (whitelista metod kontrolera). */
+    private const CONFIRMABLE = ['activate', 'edu', 'buyer', 'cancel', 'password', 'priceDecide'];
+
+    /**
+     * Brama kodu: true — operacja potwierdzona, wykonuj; false — kod wysłany (albo błąd), przekierowanie już ustawione (handler zwraca null).
+     * Wywoływać PO walidacji formularza, żeby kod nie szedł do błędnych danych.
+     */
+    private function confirmed(string $method, array $args, string $what, string $anchor): bool
+    {
+        $sig = $method . '|' . implode('|', $args);
+        if (($_SESSION['lk_op_ok'] ?? '') === $sig) { unset($_SESSION['lk_op_ok']); return true; }
+        $me = $this->me();
+        $post = $_POST; unset($post['_token'], $post['code']);
+        $_SESSION['lk_op'] = ['sig' => $sig, 'method' => $method, 'args' => $args, 'post' => $post, 'what' => $what, 'anchor' => $anchor, 'cid' => $me['cid'], 'at' => time()];
+        $r = LicencjeKod::send('op', $me['cid'], $me['phone'], $me['email'], $what);
+        if (!$r['ok']) { unset($_SESSION['lk_op']); $this->flash('err', $r['error'], $anchor); return false; }
+        header('Location: ' . route('lk.confirm'));
+        return false;
+    }
+
+    public function confirmForm(): string
+    {
+        $me = $this->me();
+        $op = $_SESSION['lk_op'] ?? null;
+        if (!$op || (int)$op['cid'] !== $me['cid']) { header('Location: ' . route('lk.index')); exit; }
+        $err = $_SESSION['lk_code_err'] ?? ''; unset($_SESSION['lk_code_err']);
+        return Router::view(self::VIEW . 'confirm.php', ['me' => $me, 'op' => $op, 'otp' => LicencjeKod::pending('op'), 'err' => $err, 'org' => self::org(),
+            'flash' => $this->takeFlash()]);
+    }
+
+    public function confirmPost(): ?string
+    {
+        $me = $this->me();
+        $op = $_SESSION['lk_op'] ?? null;
+        if (!$op || (int)$op['cid'] !== $me['cid'] || !in_array($op['method'], self::CONFIRMABLE, true)) return $this->flash('err', 'Nie ma operacji do potwierdzenia — zacznij jeszcze raz.');
+        if (time() - (int)$op['at'] > LicencjeKod::TTL) { unset($_SESSION['lk_op']); return $this->flash('err', 'Minęło ponad 10 minut — zacznij operację jeszcze raz.', $op['anchor']); }
+        $e = LicencjeKod::verify('op', (string)($_POST['code'] ?? ''));
+        if ($e !== '') { $_SESSION['lk_code_err'] = $e; header('Location: ' . route('lk.confirm')); return null; }
+        unset($_SESSION['lk_op']);
+        $this->log($me, 'license_panel_code', 'Potwierdzono kodem: ' . $op['what'] . '.');
+        $_SESSION['lk_op_ok'] = $op['sig'];
+        $_POST = $op['post'];
+        return $this->{$op['method']}(...$op['args']);
+    }
+
+    public function confirmResend(): ?string
+    {
+        $me = $this->me();
+        $op = $_SESSION['lk_op'] ?? null;
+        if (!$op) return $this->flash('err', 'Nie ma operacji do potwierdzenia.');
+        $prev = LicencjeKod::pending('op');
+        if ($prev && time() - (int)$prev['sent'] < LicencjeKod::RESEND) {
+            $_SESSION['lk_code_err'] = 'Nowy kod możesz wysłać za ' . (LicencjeKod::RESEND - (time() - (int)$prev['sent'])) . ' s.';
+        } else {
+            unset($_SESSION['lk_otp']['op']);
+            $r = LicencjeKod::send('op', $me['cid'], $me['phone'], $me['email'], $op['what']);
+            $_SESSION[$r['ok'] ? 'lk_flash' : 'lk_code_err'] = $r['ok'] ? ['ok', 'Wysłaliśmy nowy kod.'] : $r['error'];
+        }
+        header('Location: ' . route('lk.confirm'));
+        return null;
+    }
+
+    public function confirmCancel(): ?string
+    {
+        $op = $_SESSION['lk_op'] ?? null;
+        unset($_SESSION['lk_op'], $_SESSION['lk_otp']['op']);
+        return $this->flash('info', 'Anulowano — nic nie zmieniliśmy.', (string)($op['anchor'] ?? ''));
+    }
+
+    private function takeFlash(): ?array
+    {
+        $f = $_SESSION['lk_flash'] ?? null; unset($_SESSION['lk_flash']);
+        return $f;
+    }
+
+    // ── Dane kontaktowe (pierwsze wejście i zmiana w „Moje konto”) ─────────────
+
+    public function contactForm(): string
+    {
+        $me = $this->me();
+        $c = LicencjeKod::contact($me['cid']);
+        $pending = $_SESSION['lk_contact_new'] ?? null;
+        if ($pending && (int)$pending['cid'] !== $me['cid']) $pending = null;
+        $err = $_SESSION['lk_contact_err'] ?? []; unset($_SESSION['lk_contact_err']);
+        return Router::view(self::VIEW . 'contact.php', ['me' => $me, 'c' => $c, 'required' => LicencjeKod::needsContact($me['cid']), 'pending' => $pending,
+            'otp' => LicencjeKod::pending('contact'), 'err' => $err, 'org' => self::org(), 'flash' => $this->takeFlash()]);
+    }
+
+    public function contactPost(): ?string
+    {
+        $me = $this->me();
+        $email = trim((string)($_POST['email'] ?? '')); $phone = trim((string)($_POST['phone'] ?? ''));
+        $err = [];
+        if (!LicencjeKod::validEmail($email)) $err['email'] = 'Wpisz adres e-mail, np. jan.kowalski@gmail.com.';
+        if (!LicencjeKod::validPhone($phone)) $err['phone'] = 'Wpisz numer komórki — 9 cyfr, np. 600 100 200 (numer zagraniczny: z +).';
+        if ($err) { $_SESSION['lk_contact_err'] = $err + ['_old' => ['email' => $email, 'phone' => $phone]]; header('Location: ' . route('lk.contact')); return null; }
+        unset($_SESSION['lk_otp']['contact']);
+        $_SESSION['lk_contact_new'] = ['cid' => $me['cid'], 'email' => $email, 'phone' => LicencjeKod::normPhone($phone)];
+        $r = LicencjeKod::send('contact', $me['cid'], $phone, $email, 'numer telefonu w panelu licencji');
+        if (!$r['ok']) { $_SESSION['lk_contact_err'] = ['_form' => $r['error'], '_old' => ['email' => $email, 'phone' => $phone]]; unset($_SESSION['lk_contact_new']); }
+        header('Location: ' . route('lk.contact'));
+        return null;
+    }
+
+    public function contactCode(): ?string
+    {
+        $me = $this->me();
+        $new = $_SESSION['lk_contact_new'] ?? null;
+        if (!empty($_POST['back'])) { unset($_SESSION['lk_contact_new'], $_SESSION['lk_otp']['contact']); header('Location: ' . route('lk.contact')); return null; }
+        if (!$new || (int)$new['cid'] !== $me['cid']) { header('Location: ' . route('lk.contact')); return null; }
+        $e = LicencjeKod::verify('contact', (string)($_POST['code'] ?? ''));
+        if ($e !== '') { $_SESSION['lk_contact_err'] = ['code' => $e]; header('Location: ' . route('lk.contact')); return null; }
+        $first = LicencjeKod::contact($me['cid'])['confirmed'] === null;
+        LicencjeKod::confirm($me['cid'], $new['email'], $new['phone'], 'panel licencji (kod SMS)');
+        unset($_SESSION['lk_contact_new']);
+        $this->log($me, 'license_panel_contact', 'Dane kontaktowe w panelu licencji: ' . $new['email'] . ', ' . $new['phone'] . ' (potwierdzone kodem).');
+        return $this->flash('ok', $first ? 'Dziękujemy — dane zapisane. Możesz już zarządzać licencjami. Każdą zmianę potwierdzisz kodem z SMS-a.' : 'Zapisaliśmy nowe dane kontaktowe.', $first ? '' : 'konto');
+    }
+
+    // ── Zmiana ceny: decyzja ────────────────────────────────────────────────────
+
+    /** Decyzja w panelu (zalogowany uczestnik, pełnoletni) — po kodzie. */
+    public function priceDecide(string $id): ?string
+    {
+        $me = $this->me();
+        $a = PriceChange::answer((int)$id);
+        if (!$a || (int)$a['client_id'] !== $me['cid'] || $a['recipient'] !== 'uczestnik') return $this->flash('err', 'Nie znaleziono zmiany ceny.');
+        $p = ClaudeBilling::product((string)$a['change']['product']);
+        $d = (string)($_POST['decision'] ?? '');
+        try { PriceChange::validate($a, $d, $me['name']); } catch (\Throwable $e) { return $this->flash('err', $e->getMessage(), $p); }
+        if (!$this->confirmed('priceDecide', [(string)(int)$id], ($d === 'accept' ? 'akceptacja' : 'rezygnacja') . ' — nowa cena ' . ClaudeBilling::P($p)['label'], $p)) return null;
+        PriceChange::decideAnswer($a, $d, $me['name'], $me['ip'], 'panel licencji');
+        $this->log($me, 'license_price_answer', 'Zmiana ceny ' . ClaudeBilling::P($p)['label'] . ': ' . ($d === 'accept' ? 'akceptacja' : 'rezygnacja') . '.');
+        $from = ClaudeBilling::dayMonth((string)$a['change']['effective_from']);
+        return $this->flash('ok', $d === 'accept' ? 'Zapisaliśmy: akceptujesz nową cenę od ' . $from . '.' : 'Zapisaliśmy: rezygnujesz. Dostęp zakończy się przed ' . $from . ' — do tego dnia płacisz po starej cenie.', $p);
+    }
+
+    /** Strona z linku w e-mailu (uczestnik albo opiekun). */
+    public function priceLink(string $token): string
+    {
+        $a = PriceChange::byToken($token);
+        $st = $_SESSION['lk_price'][hash('sha256', $token)] ?? null;
+        $err = $_SESSION['lk_price_err'] ?? ''; unset($_SESSION['lk_price_err']);
+        return Router::view(self::VIEW . 'price.php', ['a' => $a, 'token' => $token, 'st' => $st, 'otp' => $a ? LicencjeKod::pending('price:' . $a['id']) : null,
+            'cmp' => $a ? PriceChange::compare($a['change']) : null, 'err' => $err, 'org' => self::org(), 'flash' => $this->takeFlash()]);
+    }
+
+    public function priceLinkPost(string $token): ?string
+    {
+        $a = PriceChange::byToken($token);
+        $back = function (string $e = '') use ($token) { if ($e !== '') $_SESSION['lk_price_err'] = $e; header('Location: ' . route('lk.price.link', ['token' => $token])); return null; };
+        if (!$a) return $back('Link jest nieważny.');
+        $k = hash('sha256', $token); $purpose = 'price:' . $a['id'];
+        if (($_POST['step'] ?? '') === 'code') {
+            $st = $_SESSION['lk_price'][$k] ?? null;
+            if (!$st) return $back('Wybierz decyzję jeszcze raz.');
+            $e = LicencjeKod::verify($purpose, (string)($_POST['code'] ?? ''));
+            if ($e !== '') return $back($e);
+            try { PriceChange::decide($token, $st['decision'], $st['name'], (string)($_SERVER['REMOTE_ADDR'] ?? '')); }
+            catch (\Throwable $e) { return $back($e->getMessage()); }
+            unset($_SESSION['lk_price'][$k]);
+            $_SESSION['lk_flash'] = ['ok', 'Dziękujemy — zapisaliśmy decyzję.'];
+            return $back();
+        }
+        if (($_POST['step'] ?? '') === 'back') { unset($_SESSION['lk_price'][$k], $_SESSION['lk_otp'][$purpose]); return $back(); }
+        $d = (string)($_POST['decision'] ?? ''); $name = trim((string)($_POST['name'] ?? ''));
+        try { PriceChange::validate($a, $d, $name); } catch (\Throwable $e) { return $back($e->getMessage()); }
+        $t = PriceChange::codeTarget($a);
+        unset($_SESSION['lk_otp'][$purpose]);
+        $r = LicencjeKod::send($purpose, (int)$a['client_id'], $t['phone'], $t['email'], ($d === 'accept' ? 'akceptacja' : 'rezygnacja') . ' — nowa cena');
+        if (!$r['ok']) return $back($r['error']);
+        $_SESSION['lk_price'][$k] = ['decision' => $d, 'name' => $name];
+        return $back();
     }
 
     // ── Logowanie ───────────────────────────────────────────────────────────────
@@ -100,9 +281,11 @@ final class LicencjeKursantController
         foreach (array_keys(ClaudeBilling::PRODUCTS) as $p) {
             try {
                 $v = ClaudeBilling::participantView($cid, $p);
-                $v['fromPool'] = !$v['hasLicense'] && !empty($v['eligible']['fromPool']);
-                if (!$v['hasLicense'] && !$v['sub'] && !$v['fromPool']) continue;   // nie dotyczy tej osoby
+                $v['fromPool'] = false;
+                if (!$v['hasLicense'] && !$v['sub']) continue;   // nie dotyczy tej osoby (NordVPN: tylko gdy licencja jest przypisana do uczestnika)
                 $v['edu'] = !empty(ClaudeBilling::P($p)['requiresEdu']) ? ['account' => ClaudeBilling::eduAccount($cid), 'request' => ClaudeBilling::eduRequest($cid)] : null;
+                $v['priceChange'] = $v['sub'] && in_array($v['sub']['status'], ['active', 'suspended'], true) ? PriceChange::openForSubscription((int)$v['sub']['id']) : null;
+                if ($v['priceChange']) $v['priceCmp'] = PriceChange::compare($v['priceChange']['change']);
                 $paid[$p] = $v;
             } catch (\Throwable $e) { error_log('lk ' . $p . ': ' . $e->getMessage()); }
         }
@@ -136,6 +319,7 @@ final class LicencjeKursantController
         return Router::view(self::VIEW . 'index.php', ['me' => $me, 'paid' => $paid, 'software' => $software, 'termOk' => $termOk, 'office' => $office, 'am5' => $am5,
             'ops' => $ops, 'products' => $products, 'prodMonthly' => round($prodMonthly, 2), 'feerUpn' => $feerUpn, 'p24on' => p24_enabled(),
             'login' => LicenseLogin::get($cid), 'hasPassword' => LicenseLogin::hasPassword($cid), 'minor' => ClaudeBilling::isMinor($cid),
+            'contact' => LicencjeKod::contact($cid), 'eduAccount' => ClaudeBilling::eduAccount($cid),
             'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()]);
     }
 
@@ -157,6 +341,9 @@ final class LicencjeKursantController
             $_SESSION['lk_errors'] = [$p => $err]; $_SESSION['lk_old'] = [$p => $buyer + ['accept' => !empty($_POST['accept'])]];
             return $this->flash('err', 'Popraw zaznaczone pola (' . count($err) . ').', $p);
         }
+        $el = ClaudeBilling::eligibility($me['cid'], $p);
+        if (!$el['ok']) return $this->flash('err', $el['reason'], $p);
+        if (!$this->confirmed('activate', [$p], 'włączenie ' . $L, $p)) return null;
         try {
             $sub = ClaudeBilling::activate($me['cid'], ['name' => $me['name'], 'via' => 'panel licencji', 'ip' => $me['ip']], false, null, true, null, $buyer, $p);
             $this->log($me, $p . '_activate', 'Włączono ' . $L . ' (#' . (int)$sub['id'] . ').');
@@ -175,6 +362,8 @@ final class LicencjeKursantController
     public function edu(): ?string
     {
         $me = $this->me();
+        if (ClaudeBilling::eduRequest($me['cid'])) return $this->flash('info', 'Prośba o konto @' . ClaudeBilling::EDU_DOMAIN . ' już jest u Działu IT.', 'claude');
+        if (!$this->confirmed('edu', [], 'prośba o konto @' . ClaudeBilling::EDU_DOMAIN, 'claude')) return null;
         try {
             $r = ClaudeBilling::requestEdu($me['cid'], ['name' => $me['name'], 'via' => 'panel licencji']);
             $this->log($me, 'edu_request', 'Wniosek o konto @' . ClaudeBilling::EDU_DOMAIN . ': ' . ($r['proposed'] ?? '') . '.');
@@ -190,6 +379,9 @@ final class LicencjeKursantController
         $p = ClaudeBilling::product($product);
         $sub = ClaudeBilling::forClient($me['cid'], false, $p);
         if (!$sub || !in_array($sub['status'], ['active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . ClaudeBilling::P($p)['label'] . '.', $p);
+        [, $pre] = ClaudeBilling::buyerFromInput($_POST);
+        if ($pre) { $_SESSION['lk_errors'] = [$p => $pre]; $_SESSION['lk_old'] = [$p => $_POST]; return $this->flash('err', 'Popraw dane do faktury (' . count($pre) . ').', $p); }
+        if (!$this->confirmed('buyer', [$p], 'zmiana danych do faktury', $p)) return null;
         $err = ClaudeBilling::saveBuyer((int)$sub['id'], $_POST, $me['name'] . ' (panel licencji)');
         if ($err) { $_SESSION['lk_errors'] = [$p => $err]; $_SESSION['lk_old'] = [$p => $_POST]; return $this->flash('err', 'Popraw dane do faktury (' . count($err) . ').', $p); }
         return $this->flash('ok', 'Zapisaliśmy dane do faktury. Jeśli jakiś dokument na nie czekał — właśnie się wystawił.', $p);
@@ -203,6 +395,7 @@ final class LicencjeKursantController
         if (empty($_POST['confirm'])) return $this->flash('err', 'Zaznacz, że na pewno chcesz zrezygnować.', $p);
         $sub = ClaudeBilling::forClient($me['cid'], false, $p);
         if (!$sub || !in_array($sub['status'], ['active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . $L . '.', $p);
+        if (!$this->confirmed('cancel', [$p], 'rezygnacja z ' . $L, $p)) return null;
         try {
             ClaudeBilling::end((int)$sub['id'], 'rezygnacja w panelu licencji', ['name' => $me['name'], 'via' => 'panel licencji']);
             $this->log($me, $p . '_cancel', 'Rezygnacja z ' . $L . ' (#' . (int)$sub['id'] . ').');
@@ -248,6 +441,7 @@ final class LicencjeKursantController
         if (!LicenseLogin::get($me['cid'])) return $this->flash('err', 'Nie masz jeszcze loginu do panelu licencji — zakłada go biuro.', 'konto');
         if (mb_strlen($p1) < 10) return $this->flash('err', 'Hasło musi mieć co najmniej 10 znaków.', 'konto');
         if ($p1 !== $p2) return $this->flash('err', 'Hasła się różnią — wpisz to samo dwa razy.', 'konto');
+        if (!$this->confirmed('password', [], 'zmiana hasła do panelu licencji', 'konto')) return null;
         LicenseLogin::setPassword($me['cid'], $p1);
         $this->log($me, 'license_panel_password', 'Zmiana hasła do panelu licencji.');
         return $this->flash('ok', 'Zapisaliśmy nowe hasło do panelu licencji.', 'konto');
