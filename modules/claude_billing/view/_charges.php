@@ -1,4 +1,5 @@
 <?php
+if (!isset($charges)) { header('Location: /karty30/ti/dydaktyk/claudeAbonament.php', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/claude_billing/view/_charges.php — tabela naliczeń (karta abonamentu i strona testu).
  * Zmienne: $charges, $test (bool), $p24 (opcjonalnie: ['enabled'=>bool,'env'=>string] — test).

@@ -1,4 +1,5 @@
 <?php
+if (!isset($me, $tab)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/ti_licencje_kursant/view/_top.php — nagłówek panelu „Moje licencje” (Metro, Tailwind tw-), zakładki Licencje / Produkty i usługi, komunikat.
  * Zmienne: $org, $me, $flash, $tab ('licencje' | 'produkty').

@@ -1,4 +1,5 @@
 <?php
+if (!isset($P, $actor)) { header('Location: /karty30/ti/dydaktyk/claudeAbonament.php?_route=%2Ftest', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/claude_billing/view/test.php — test całego przebiegu abonamentu Claude na uczestniku testowym:
  * kurs PKO BP → aktywacja (zgłoszenie Helpdesk — podgląd) → naliczenie z proformą w Fakturowni (rabat non-profit, termin 5 dni)

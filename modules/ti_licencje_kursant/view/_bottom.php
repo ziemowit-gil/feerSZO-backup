@@ -1,4 +1,6 @@
-<?php /** modules/ti_licencje_kursant/view/_bottom.php — stopka panelu „Moje licencje” (domyka _top.php) + kopiowanie / odsłanianie kluczy. */ ?>
+<?php
+if (!isset($me)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
+/** modules/ti_licencje_kursant/view/_bottom.php — stopka panelu „Moje licencje” (domyka _top.php) + kopiowanie / odsłanianie kluczy. */ ?>
 </main>
 <footer class="tw-max-w-4xl tw-mx-auto tw-px-4 tw-pb-8 tw-text-xs tw-text-m-steel"><?= h($org) ?> · Moje licencje · pytania: napisz do prowadzącego w panelu</footer>
 <script>

@@ -1,4 +1,5 @@
 <?php
+if (!isset($me, $products)) { header('Location: /karty30/ti/kursant/licencje/?_route=%2Fprodukty', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/ti_licencje_kursant/view/products.php — zakładka „Produkty i usługi”: usługi kupowane przez Fundację FEER i refakturowane na uczestnika
  * (modules/ti_products: domeny, hosting, licencje i inne — z ceną miesięczną i rabatem) oraz konto Microsoft 365 na tenancie FEER. Prostym językiem.

@@ -1,4 +1,5 @@
 <?php
+if (!isset($P, $actor)) { header('Location: /karty30/ti/dydaktyk/claudeAbonament.php', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/claude_billing/view/index.php — pulpit „Abonament Claude” (panel dydaktyka): kafle, kurs PKO BP, ustawienia, aktywacja przez kadrę, lista.
  * Zmienne: $rows, $filter, $stats, $s, $rate, $q, $found, $actor.

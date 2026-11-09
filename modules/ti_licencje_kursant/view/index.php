@@ -1,4 +1,5 @@
 <?php
+if (!isset($me, $paid)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/ti_licencje_kursant/view/index.php — „Moje licencje” (kursant.feer.org.pl/licencje/), szata portalu wniosków (Metro: płaskie kafle, akcent cyan,
  * Tailwind CDN z prefiksem tw-). Wszystko prostym językiem: co masz, do kiedy, ile płacisz, co zrobić.

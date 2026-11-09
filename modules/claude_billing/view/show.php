@@ -1,4 +1,5 @@
 <?php
+if (!isset($P, $actor)) { header('Location: /karty30/ti/dydaktyk/claudeAbonament.php', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/claude_billing/view/show.php — karta abonamentu Claude: stan, dane do faktury VAT, dzień graniczny, naliczenia, dziennik, zakończenie.
  * Zmienne: $sub, $charges, $events, $s, $gaps, $paidThrough, $actor.
