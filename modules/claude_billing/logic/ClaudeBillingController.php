@@ -9,6 +9,7 @@ declare(strict_types=1);
  */
 require_once __DIR__ . '/claudeBilling.php';
 require_once __DIR__ . '/ClaudeInvoice.php';
+require_once __DIR__ . '/PriceChange.php';
 
 final class ClaudeBillingController
 {
@@ -64,8 +65,37 @@ final class ClaudeBillingController
             }
         }
         $p = $this->product();
+        $changes = PriceChange::list($p);
+        $open = array_values(array_filter($changes, fn($c) => in_array($c['status'], ['draft', 'sent'], true)));
         return $this->view('index.php', ['rows' => ClaudeBilling::listAll($filter, false, $p), 'filter' => $filter, 'stats' => ClaudeBilling::stats($p),
-            's' => ClaudeBilling::settings($p), 'rate' => ClaudeBilling::lastRate($p), 'q' => $q, 'found' => $found]);
+            's' => ClaudeBilling::settings($p), 'rate' => ClaudeBilling::lastRate($p), 'q' => $q, 'found' => $found,
+            'changes' => $changes, 'changeAnswers' => $open ? PriceChange::answers((int)$open[0]['id']) : []]);
+    }
+
+    // ── Zmiany cen (z akceptacją abonentów) ─────────────────────────────────────
+
+    public function priceCreate(): ?string
+    {
+        $p = $this->product();
+        return $this->act(fn() => 'Zaplanowano zmianę ceny #' . PriceChange::create($p, $_POST, $this->actor()['name']) . '. Sprawdź podgląd i wyślij powiadomienia do abonentów.',
+            '', route('cb.index') . '?product=' . $p . '#zmiana-ceny');
+    }
+
+    public function priceSend(string $id): ?string
+    {
+        $c = PriceChange::get((int)$id);
+        $p = ClaudeBilling::product((string)($c['product'] ?? 'claude'));
+        return $this->act(function () use ($id) {
+            $r = PriceChange::send((int)$id, $this->actor()['name']);
+            return 'Wysłano powiadomienia o zmianie ceny: ' . $r['sent'] . '.' . ($r['skipped'] ? ' Bez wysyłki (brak e-maila): ' . implode(', ', $r['skipped']) . ' — skontaktuj się z nimi inaczej.' : '');
+        }, '', route('cb.index') . '?product=' . $p . '#zmiana-ceny');
+    }
+
+    public function priceCancel(string $id): ?string
+    {
+        $c = PriceChange::get((int)$id);
+        $p = ClaudeBilling::product((string)($c['product'] ?? 'claude'));
+        return $this->act(fn() => PriceChange::cancel((int)$id, $this->actor()['name']), 'Zmiana ceny wycofana.', route('cb.index') . '?product=' . $p . '#zmiana-ceny');
     }
 
     public function saveSettings(): ?string

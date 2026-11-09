@@ -28,6 +28,9 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/kurs',                         [ClaudeBillingController::class, 'rateCheck'])->name('cb.rate');
     $r->post('/uruchom',                      [ClaudeBillingController::class, 'runNow'])->name('cb.run');
     $r->post('/komunikat',                    [ClaudeBillingController::class, 'notice'])->name('cb.notice');
+    $r->post('/zmiana-ceny',                  [ClaudeBillingController::class, 'priceCreate'])->name('cb.price.create');
+    $r->post('/zmiana-ceny/{id}/wyslij',      [ClaudeBillingController::class, 'priceSend'])->name('cb.price.send');
+    $r->post('/zmiana-ceny/{id}/wycofaj',     [ClaudeBillingController::class, 'priceCancel'])->name('cb.price.cancel');
     $r->post('/aktywuj',                      [ClaudeBillingController::class, 'activate'])->name('cb.activate');
     $r->post('/konto-licencji',               [ClaudeBillingController::class, 'licAccount'])->name('cb.lic.account');
     $r->get('/abonament/{id}',                [ClaudeBillingController::class, 'show'])->name('cb.show');

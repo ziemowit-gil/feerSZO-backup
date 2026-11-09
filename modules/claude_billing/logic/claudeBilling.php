@@ -833,6 +833,10 @@ final class ClaudeBilling
         self::migrate();
         $today ??= date('Y-m-d');
         $rep = ['charges' => 0, 'reminders' => 0, 'suspended' => 0, 'resumed' => 0, 'errors' => [], 'log' => []];
+        if (!$onlyTest && !$onlySub) {   // zmiany cen w dniu wejścia w życie (przed naliczeniami — nowe dokumenty już po nowej cenie)
+            require_once __DIR__ . '/PriceChange.php';
+            try { foreach (PriceChange::applyDue($today) as $l) $rep['log'][] = $l; } catch (\Throwable $e) { $rep['errors'][] = 'zmiana ceny: ' . $e->getMessage(); }
+        }
         $w = ["status IN ('active','suspended')"]; $p = [];
         if ($onlyTest) $w[] = 'is_test=1';
         if ($onlySub) { $w[] = 'id=?'; $p[] = $onlySub; }

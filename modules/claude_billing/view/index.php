@@ -82,6 +82,58 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
   </form>
 </section>
 
+<?php require_once dirname(__DIR__) . '/logic/PriceChange.php';
+      $openChg = null; foreach ($changes as $c) if (in_array($c['status'], ['draft', 'sent'], true)) { $openChg = $c; break; } ?>
+<section class="panel" id="zmiana-ceny" aria-labelledby="zc-h">
+  <h2 class="mt-0" id="zc-h">Zmiana ceny <?= h($P['label']) ?></h2>
+  <p class="small mb-2">Każdy abonent dostaje e-mail prostym językiem (było → będzie, od kiedy) z linkiem: „Akceptuję” albo „Nie akceptuję — rezygnuję”. Za osobę niepełnoletnią decyduje opiekun (link idzie na jego e-mail, uczestnik dostaje informację). W dniu zmiany cena w ustawieniach przestawia się sama, a rezygnujący kończą abonament przed pierwszym dokumentem po nowej cenie.</p>
+  <?php if ($openChg): $cmp = PriceChange::compare($openChg); ?>
+    <div class="border p-3 mb-3">
+      <p class="mb-1"><b>#<?= (int)$openChg['id'] ?> od <?= h(ClaudeBilling::date($openChg['effective_from'])) ?></b> — <?= h(PriceChange::STATUS[$openChg['status']] ?? $openChg['status']) ?></p>
+      <p class="mb-1">Teraz: <?= h($cmp['old']) ?><?= $cmp['oldPln'] !== null ? ' (≈ ' . h(ClaudeBilling::zl($cmp['oldPln'])) . ')' : '' ?> → od zmiany: <b><?= h($cmp['new']) ?></b><?= $cmp['newPln'] !== null ? ' (≈ ' . h(ClaudeBilling::zl($cmp['newPln'])) . ')' : '' ?></p>
+      <?php if ($openChg['reason'] !== ''): ?><p class="small mb-1">Powód: <?= h($openChg['reason']) ?></p><?php endif; ?>
+      <p class="small mb-2">Brak odpowiedzi: <?= h(PriceChange::NO_ANSWER[$openChg['no_answer']] ?? '') ?>.<?php if ($openChg['status'] === 'sent'): ?> Odpowiedzi: <?= (int)$openChg['n_acc'] ?> akceptuje, <?= (int)$openChg['n_rej'] ?> rezygnuje, <?= max(0, (int)$openChg['n'] - (int)$openChg['n_acc'] - (int)$openChg['n_rej']) ?> bez odpowiedzi (z <?= (int)$openChg['n'] ?>).<?php endif; ?></p>
+      <div class="d-flex flex-wrap gap-2">
+        <?php if ($openChg['status'] === 'draft'): ?>
+        <form method="post" action="<?= h(route('cb.price.send', ['id' => (int)$openChg['id']])) ?>"><?= Router::csrfField() ?><button class="btn-metro" type="submit">Wyślij powiadomienia do abonentów</button></form>
+        <?php endif; ?>
+        <form method="post" action="<?= h(route('cb.price.cancel', ['id' => (int)$openChg['id']])) ?>"><?= Router::csrfField() ?><button class="btn-metro red" type="submit">Wycofaj zmianę</button></form>
+      </div>
+      <?php if ($changeAnswers): ?>
+      <div class="table-responsive mt-3"><table class="table table-sm mb-0"><caption class="small">Abonenci i ich decyzje</caption>
+        <thead><tr><th scope="col">Uczestnik</th><th scope="col">Decyduje</th><th scope="col">Decyzja</th><th scope="col">Kiedy / kto</th></tr></thead><tbody>
+        <?php foreach ($changeAnswers as $a): ?>
+          <tr><td><?= h((string)$a['name']) ?></td><td><?= h($a['recipient']) ?><?= $a['recipient_email'] === '' ? ' <span class="text-danger">(brak e-maila)</span>' : '' ?></td>
+            <td><?= $a['decision'] === 'accept' ? 'akceptuje' : ($a['decision'] === 'reject' ? '<b>rezygnuje</b>' : 'brak odpowiedzi') ?></td>
+            <td class="small"><?= $a['decided_at'] ? h(ClaudeBilling::date($a['decided_at']) . ' · ' . $a['decided_name']) : '—' ?></td></tr>
+        <?php endforeach; ?></tbody></table></div>
+      <?php endif; ?>
+    </div>
+  <?php else: ?>
+  <details><summary class="fw-semibold">Zaplanuj zmianę ceny</summary>
+    <form method="post" action="<?= h(route('cb.price.create')) ?>" class="mt-3"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>">
+      <div class="row g-3">
+        <div class="col-md-3"><label class="form-label" for="zc-from">Od kiedy</label><input class="form-control" type="date" id="zc-from" name="effective_from" required min="<?= date('Y-m-d', strtotime('+1 day')) ?>" value="<?= date('Y-m-01', strtotime('first day of +2 month')) ?>" aria-describedby="zc-from-h"><div id="zc-from-h" class="form-text">Najlepiej 1. dzień miesiąca, co najmniej 30 dni naprzód.</div></div>
+        <div class="col-md-3"><label class="form-label" for="zc-usd">Nowa cena (USD)</label><input class="form-control" id="zc-usd" name="usd" required inputmode="decimal" value="<?= h((string)$s['usd']) ?>"></div>
+        <div class="col-md-2"><label class="form-label" for="zc-list">Cena regularna (USD)</label><input class="form-control" id="zc-list" name="list_usd" inputmode="decimal" value="<?= h((string)$s['list_usd']) ?>"></div>
+        <div class="col-md-2"><label class="form-label" for="zc-pct"><?= h($s['pct_label']) ?> (%)</label><input class="form-control" id="zc-pct" name="pct" inputmode="decimal" value="<?= h((string)$s['pct']) ?>"></div>
+        <div class="col-md-2"><label class="form-label" for="zc-fee">Prowizja (zł)</label><input class="form-control" id="zc-fee" name="fee_pln" inputmode="decimal" value="<?= h(number_format($s['fee_pln'], 2, '.', '')) ?>"></div>
+        <div class="col-md-8"><label class="form-label" for="zc-why">Dlaczego (trafi do e-maila)</label><input class="form-control" id="zc-why" name="reason" maxlength="500" placeholder="np. Anthropic podniósł cenę dla organizacji non-profit"></div>
+        <div class="col-md-4"><fieldset><legend class="form-label fs-6">Gdy ktoś nie odpowie</legend>
+          <?php foreach (PriceChange::NO_ANSWER as $k => $l): ?><div class="form-check"><input class="form-check-input" type="radio" name="no_answer" value="<?= h($k) ?>" id="zc-na-<?= h($k) ?>"<?= $k === 'accept' ? ' checked' : '' ?>><label class="form-check-label small" for="zc-na-<?= h($k) ?>"><?= h($l) ?></label></div><?php endforeach; ?>
+        </fieldset></div>
+      </div>
+      <button class="btn-metro mt-3" type="submit">Zaplanuj (powiadomienia wyślesz w następnym kroku)</button>
+    </form>
+  </details>
+  <?php endif; ?>
+  <?php $past = array_filter($changes, fn($c) => !in_array($c['status'], ['draft', 'sent'], true)); if ($past): ?>
+  <details class="mt-2"><summary class="small">Wcześniejsze zmiany (<?= count($past) ?>)</summary><ul class="small mt-2 mb-0">
+    <?php foreach ($past as $c): ?><li>#<?= (int)$c['id'] ?> od <?= h(ClaudeBilling::date($c['effective_from'])) ?>: <?= h(number_format((float)$c['usd'], 2, ',', ' ')) ?> USD — <?= h(PriceChange::STATUS[$c['status']] ?? $c['status']) ?> (akceptacje <?= (int)$c['n_acc'] ?>, rezygnacje <?= (int)$c['n_rej'] ?>)</li><?php endforeach; ?>
+  </ul></details>
+  <?php endif; ?>
+</section>
+
 <details class="panel"<?= $q !== '' ? ' open' : '' ?>>
   <summary class="fw-semibold">Uczestnik: konto w panelu licencji · aktywacja za uczestnika</summary>
   <form method="get" action="claudeAbonament.php" class="d-flex gap-2 mt-3" role="search"><input type="hidden" name="product" value="<?= h($product) ?>">
