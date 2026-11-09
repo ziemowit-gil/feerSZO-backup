@@ -3485,6 +3485,10 @@ if ($cur_course && dyd_is_staff()) {
      <?= $tab==='billing'?'aria-current="page"':'' ?>>
     <i class="bi bi-receipt" aria-hidden="true"></i>Rozliczenia kursantów
   </a>
+  <?php $_nLicReq = 0; try { $_nLicReq = (int)(db_one("SELECT COUNT(*) AS c FROM claude_subscriptions WHERE status='requested' AND is_test=0")['c'] ?? 0); } catch (\Throwable $e) {} ?>
+  <a class="dyd-sb-link" href="claudeAbonament.php">
+    <i class="bi bi-credit-card" aria-hidden="true"></i>Płatne licencje (Claude, NordVPN)<?php if ($_nLicReq): ?> <span class="badge bg-primary ms-1"><?= $_nLicReq ?><span class="visually-hidden"> wniosków do obsługi</span></span><?php endif; ?>
+  </a>
   <a class="dyd-sb-link <?= $tab==='kursy'?'active':'' ?>" href="index.php?tab=kursy"
      <?= $tab==='kursy'?'aria-current="page"':'' ?>>
     <i class="bi bi-mortarboard" aria-hidden="true"></i>Zarządzanie kursami
