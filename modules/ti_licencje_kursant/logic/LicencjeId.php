@@ -4,9 +4,10 @@ declare(strict_types=1);
 /**
  * modules/ti_licencje_kursant/logic/LicencjeId.php — identyfikatory osoby w panelu licencji (polecenie 2026-11-09).
  *
- * Dwa numery do kontaktu z biurem i do dokumentów, NIGDZIE nie są loginami:
- *   • identyfikator w systemie licencji: LIC-XXXX-XXXX (losowy, stały, bez liter mylących się z cyframi; tabela license_identities),
- *   • numer beneficjenta: BEN-000123 (numer osoby w kartotece uczestników, k30_clients.id).
+ * Dwa numery do kontaktu z biurem i do dokumentów:
+ *   • numer w panelu licencji: LIC-XXXX-XXXX — nadawany RAZ (przy założeniu konta przez kadrę albo pierwszym wejściu), potem się nie zmienia;
+ *     losowy, bez liter mylących się z cyframi, tabela license_identities; nie jest loginem,
+ *   • nr beneficjenta: „Nr kursanta” z Ewidencji Uczestników (k30_ti_student_accounts.student_no, 12 cyfr) — nadaje go Ewidencja, tu tylko pokazujemy.
  * Login do panelu licencji (l + 8 cyfr) to osobna rzecz (modules/license_login).
  */
 final class LicencjeId
@@ -41,9 +42,12 @@ final class LicencjeId
         throw new RuntimeException('Nie udało się nadać identyfikatora w systemie licencji.');
     }
 
-    /** Numer beneficjenta: numer w kartotece uczestników. */
+    /** Nr beneficjenta = numer z Ewidencji Uczestników (student_no najnowszego aktywnego konta TI); '' gdy osoba nie ma konta w Ewidencji. */
     public static function beneficiary(int $cid): string
     {
-        return 'BEN-' . str_pad((string)$cid, 6, '0', STR_PAD_LEFT);
+        try {
+            $r = db_one("SELECT student_no FROM k30_ti_student_accounts WHERE client_id=? AND COALESCE(student_no,'')<>'' ORDER BY is_active DESC, id DESC LIMIT 1", [$cid]);
+            return trim((string)($r['student_no'] ?? ''));
+        } catch (\Throwable $e) { return ''; }
     }
 }

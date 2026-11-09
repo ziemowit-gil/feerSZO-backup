@@ -93,6 +93,8 @@ switch ($cmd) {
                 'notes' => LT_MARKER . ' — uczestnik do testów panelu „Moje licencje”. Usuń: php cli/seedLicencjeTest.php delete']);
             $aid = db_insert('k30_ti_student_accounts', ['client_id' => $cid, 'login' => $login, 'password_hash' => password_hash($newPass, PASSWORD_DEFAULT), 'is_active' => 1, 'is_minor' => 0]);
             try { db_exec("UPDATE k30_ti_student_accounts SET is_virtual=1 WHERE id=?", [$aid]); } catch (\Throwable $e) {}   // wirtualny = bez e-maili i SMS-ów
+            do { $no = (string)random_int(100000000000, 999999999999); } while (db_one("SELECT 1 FROM k30_ti_student_accounts WHERE student_no=?", [$no]));
+            try { db_exec("UPDATE k30_ti_student_accounts SET student_no=? WHERE id=?", [$no, $aid]); } catch (\Throwable $e) {}   // nr beneficjenta jak w Ewidencji Uczestników
             $acc = ['id' => $aid];
             echo "OK uczestnik #{$cid} „" . LT_NAME . "”, konto {$login}\n";
         } else {

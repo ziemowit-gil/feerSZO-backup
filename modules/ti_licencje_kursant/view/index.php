@@ -5,7 +5,7 @@ if (!isset($me, $paid)) { header('Location: /karty30/ti/kursant/licencje/', true
  * $page: 'start' (kafle) · 'claude' / 'nordvpn' (subskrypcja, /licencja/{produkt}) · 'office' · 'programy' · 'materialy' · 'sprawy' · 'produkty' · 'konto'.
  * Menu po lewej prowadzi do podstron. Wygląd Metro: znaczniki stanu m-tag (ok / due / bad / off). Office: konto @edu.feer.org.pl = Office aktywny.
  * Każdą operację potwierdza kod jednorazowy (SMS). Konto testowe ($virtual): dokumenty w symulacji (SYM, PDF do pobrania) i symulowana wpłata.
- * Identyfikatory ($ids): w systemie licencji (LIC-…) i numer beneficjenta (BEN-…) — nie są loginami.
+ * Identyfikatory ($ids): numer w panelu licencji (LIC-…, nadany raz) i nr beneficjenta (student_no z Ewidencji Uczestników).
  * Zmienne: $page, $ids, $virtual, $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $flash, $err, $old, $org.
  */
 $C = LicencjeKursantController::class;
@@ -34,7 +34,7 @@ foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $d
 $PAGE_TITLE = $page === 'start' ? 'Moje licencje' : ($tiles[$page][0] ?? 'Moje licencje');
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
-$idsLine = '<p class="m-note tw-mb-4">Identyfikator w systemie licencji: <b class="m-mono">' . h($ids['lic']) . '</b> · Nr beneficjenta: <b class="m-mono">' . h($ids['ben']) . '</b></p>';
+$idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono">' . h($ids['lic']) . '</b> · Nr beneficjenta: <b class="m-mono">' . h($ids['ben'] !== '' ? $ids['ben'] : 'nie nadano') . '</b></p>';
 ?>
 <?php if ($page === 'start'): ?>
 <h1 class="m-title">Moje licencje</h1>
@@ -353,10 +353,10 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
   <div class="m-row tw-mt-4">
     <h2 class="m-sect">Identyfikatory</h2>
     <dl class="m-kv tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
-      <div><dt>Identyfikator w systemie licencji</dt><dd class="m-mono"><?= h($ids['lic']) ?></dd></div>
-      <div><dt>Nr beneficjenta</dt><dd class="m-mono"><?= h($ids['ben']) ?></dd></div>
+      <div><dt>Numer w panelu licencji</dt><dd class="m-mono"><?= h($ids['lic']) ?></dd></div>
+      <div><dt>Nr beneficjenta</dt><dd class="m-mono"><?= h($ids['ben'] !== '' ? $ids['ben'] : 'nie nadano') ?></dd></div>
     </dl>
-    <p class="m-note">Podawaj je w kontakcie z biurem. To nie są loginy, nigdzie się nimi nie logujesz.</p>
+    <p class="m-note">Numer w panelu licencji jest nadany raz i się nie zmienia. Nr beneficjenta pochodzi z Ewidencji Uczestników. Podawaj je w kontakcie z biurem. To nie są loginy do panelu licencji.</p>
   </div>
   <div class="m-row">
     <h2 class="m-sect">Dane kontaktowe</h2>
