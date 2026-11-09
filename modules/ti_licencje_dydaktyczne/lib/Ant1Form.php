@@ -102,6 +102,10 @@ final class Ant1Form
         }
         $login = (string)$acc['login'];
         $email = str_ends_with(strtolower($login), '@' . self::EMAIL_DOMAIN) ? $login : (str_ends_with(strtolower((string)$acc['email']), '@' . self::EMAIL_DOMAIN) ? (string)$acc['email'] : ($acc['kind'] === 'user' ? (string)$acc['email'] : ''));
+        if ($email === '' && $acc['kind'] === 'client' && (int)($acc['id'] ?? 0) > 0) {   // login „l” + 8 cyfr z panelu /licencje (modules/license_login)
+            require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
+            if ($own = LicenseLogin::get((int)$acc['id'])) $email = $own . '@' . self::EMAIL_DOMAIN;
+        }
         return ['rodzaj' => $rodzaj, 'imie' => $imie, 'nazwisko' => $nazwisko, 'email_edu' => $email,
                 'nr_kursu' => $acc['course_id'] ? (string)$acc['course_id'] : '', 'nazwa_grupy' => (string)$acc['course_name'], 'uwagi' => ''];
     }

@@ -128,6 +128,11 @@ final class Am7TenantAccount
         try {
             $g = $this->graph($tenant);
             $upn = $g->unique_login($c['name']);
+            // login „l” + 8 cyfr wygenerowany przez uczestnika w panelu /licencje (modules/license_login) — ma pierwszeństwo, gdy wolny w tenancie
+            if ($l['interested_kind'] === 'client' && (int)$l['interested_id'] > 0) {
+                require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
+                if (($own = LicenseLogin::get((int)$l['interested_id'])) && !$g->login_exists($try = $own . '@' . explode('@', $upn, 2)[1])) $upn = $try;
+            }
             $pass = M365Graph::generate_password();
             $u = $g->create_user($upn, $c['name'], $pass, true);
             if (empty($u['id'])) throw new RuntimeException('Graph nie zwrócił identyfikatora konta.');
