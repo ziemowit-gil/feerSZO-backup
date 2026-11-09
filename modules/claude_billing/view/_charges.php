@@ -9,7 +9,7 @@ $cst = ['pending' => '#f0a30a', 'paid' => '#008a00', 'cancelled' => '#647687'];
 ?>
 <div class="table-responsive"><table class="table table-sm align-middle">
   <caption class="visually-hidden">Naliczenia</caption>
-  <thead><tr><th scope="col">Okres</th><th scope="col">Naliczono</th><th scope="col" class="text-end">Kwota</th><th scope="col">Termin</th><th scope="col">Stan</th><th scope="col"><?= $test ? 'Proforma' : 'Faktura' ?> (Fakturownia)</th><th scope="col">Akcje</th></tr></thead>
+  <thead><tr><th scope="col">Okres</th><th scope="col">Naliczono</th><th scope="col" class="text-end">Kwota</th><th scope="col">Termin</th><th scope="col">Stan</th><th scope="col">Dokumenty (Fakturownia, zw)</th><th scope="col">Akcje</th></tr></thead>
   <tbody>
   <?php foreach ($charges as $c): $late = $c['status'] === 'pending' && $c['due_on'] < date('Y-m-d'); ?>
     <tr>
@@ -20,7 +20,10 @@ $cst = ['pending' => '#f0a30a', 'paid' => '#008a00', 'cancelled' => '#647687'];
       <td><span class="chip" style="background:<?= $cst[$c['status']] ?? '#647687' ?>"><?= h(ClaudeBilling::CHARGE_STATUS[$c['status']] ?? $c['status']) ?></span>
         <?php if ($c['status'] === 'paid'): ?><br><small><?= h(ClaudeBilling::date($c['paid_at'])) ?> · <?= h($c['paid_via']) ?></small><?php endif; ?>
         <?php if ($c['note']): ?><br><small class="text-secondary"><?= h($c['note']) ?></small><?php endif; ?></td>
-      <td><?php if ($c['invoice_number']): ?><?= $c['invoice_view_url'] ? '<a href="' . h($c['invoice_view_url']) . '" target="_blank" rel="noopener">' . h($c['invoice_number']) . '</a>' : h($c['invoice_number']) ?><?php endif; ?>
+      <td><?php foreach (['proforma' => 'Proforma', 'order' => 'Zamówienie', 'invoice' => 'Faktura'] as $dk => $dl):
+              $no = (string)($c[$dk . '_number'] ?? ''); if ($no === '') continue; $u = (string)($c[$dk . '_view_url'] ?? ''); ?>
+          <div class="small"><span class="text-secondary"><?= $dl ?>:</span> <?= $u !== '' ? '<a href="' . h($u) . '" target="_blank" rel="noopener">' . h($no) . '</a>' : h($no) ?></div>
+        <?php endforeach; ?>
         <?php if ($c['invoice_error']): ?><div class="text-danger small"><?= h($c['invoice_error']) ?></div><?php endif; ?>
         <?php if ($c['invoice_payload']): ?><details><summary class="small">dane wysłane do Fakturowni</summary><pre class="small bg-light p-2" style="white-space:pre-wrap;max-width:520px"><?= h((string)$c['invoice_payload']) ?></pre></details><?php endif; ?></td>
       <td class="text-nowrap">
@@ -36,8 +39,8 @@ $cst = ['pending' => '#f0a30a', 'paid' => '#008a00', 'cancelled' => '#647687'];
             <label class="visually-hidden" for="rs<?= (int)$c['id'] ?>">Powód</label><input class="form-control form-control-sm" id="rs<?= (int)$c['id'] ?>" name="reason" placeholder="powód anulowania" style="width:200px">
             <button class="btn-metro red btn-sm" type="submit">Anuluj</button></form>
         <?php endif; ?>
-        <?php if (!$test && !$c['invoice_number'] && $c['status'] !== 'cancelled'): ?>
-          <form method="post" action="<?= h(route('cb.charge.invoice', ['id' => (int)$c['id']])) ?>" class="mt-1"><?= Router::csrfField() ?><button class="btn-metro btn-sm" type="submit">Wystaw fakturę w Fakturowni</button></form>
+        <?php if (!$test && $c['status'] !== 'cancelled' && (($c['status'] === 'pending' && !$c['proforma_number'] && !$c['invoice_number']) || ($c['status'] === 'paid' && !$c['invoice_number']))): ?>
+          <form method="post" action="<?= h(route('cb.charge.invoice', ['id' => (int)$c['id']])) ?>" class="mt-1"><?= Router::csrfField() ?><button class="btn-metro btn-sm" type="submit"><?= $c['status'] === 'paid' ? 'Wystaw zamówienie i fakturę (zw)' : 'Wystaw proformę (zw)' ?></button></form>
         <?php endif; ?>
       </td>
     </tr>

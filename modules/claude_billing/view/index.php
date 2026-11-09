@@ -42,6 +42,8 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
       <div class="col-md-3"><label class="form-label" for="s-usd">Opłata miesięczna (USD<?= $product === 'claude' ? ', cena non-profit' : '' ?>)</label><input class="form-control" id="s-usd" name="usd" value="<?= h((string)$s['usd']) ?>" inputmode="decimal"></div>
       <div class="col-md-3"><label class="form-label" for="s-list">Cena regularna (USD) — rabat na fakturze</label><input class="form-control" id="s-list" name="list_usd" value="<?= h((string)$s['list_usd']) ?>" inputmode="decimal" aria-describedby="s-list-h"><div id="s-list-h" class="form-text">0 = bez rabatu na fakturze.</div></div>
       <div class="col-md-3"><label class="form-label" for="s-day">Dzień graniczny naliczenia</label><input class="form-control" id="s-day" name="due_day" type="number" min="1" max="28" value="<?= (int)$s['due_day'] ?>" aria-describedby="s-day-h"><div id="s-day-h" class="form-text">Co miesiąc w dniu aktywacji, nie później niż ten dzień. Termin płatności: zawsze <?= ClaudeBilling::TERM_DAYS ?> dni.</div></div>
+      <div class="col-md-3"><label class="form-label" for="s-from">Zamawianie od</label><input class="form-control" type="date" id="s-from" name="available_from" value="<?= h($s['available_from']) ?>" aria-describedby="s-win-h"></div>
+      <div class="col-md-3"><label class="form-label" for="s-until">Zamawianie do</label><input class="form-control" type="date" id="s-until" name="available_until" value="<?= h($s['available_until']) ?>" aria-describedby="s-win-h"><div id="s-win-h" class="form-text">Puste = bez ograniczenia. Poza tym oknem uczestnik nie włączy licencji; działające abonamenty trwają dalej.</div></div>
       <div class="col-md-3"><label class="form-label" for="s-pct">Doliczany podatek / narzut (%)</label><input class="form-control" id="s-pct" name="pct" value="<?= h((string)$s['pct']) ?>" inputmode="decimal" aria-describedby="s-pct-h"><div id="s-pct-h" class="form-text">Domyślnie 23 (VAT od importu usługi, płaci uczestnik). 0 = bez narzutu.</div></div>
       <div class="col-md-3"><label class="form-label" for="s-pctl">Nazwa narzutu</label><input class="form-control" id="s-pctl" name="pct_label" value="<?= h($s['pct_label']) ?>" maxlength="30"></div>
       <div class="col-md-3"><label class="form-label" for="s-fee">Prowizja za płatność (zł)</label><input class="form-control" id="s-fee" name="fee_pln" value="<?= h(number_format($s['fee_pln'], 2, '.', '')) ?>" inputmode="decimal" aria-describedby="s-fee-h"><div id="s-fee-h" class="form-text">Osobna pozycja faktury. 0 = bez prowizji.</div></div>
@@ -53,7 +55,7 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
       <div class="col-md-4"><label class="form-label" for="s-pay">Przycisk „Zapłać” w panelu uczestnika</label><select class="form-select" id="s-pay" name="pay_redirect"><option value="p24"<?= $s['pay_redirect'] === 'p24' ? ' selected' : '' ?>>Przelewy24 od razu (domyślnie)</option><option value="portal"<?= $s['pay_redirect'] === 'portal' ? ' selected' : '' ?>>portal płatności SZO (Przelewy24 / przelew)</option><option value="fakturownia"<?= $s['pay_redirect'] === 'fakturownia' ? ' selected' : '' ?>>Szybki przelew z faktury w Fakturowni</option></select></div>
       <div class="col-md-4"><label class="form-label" for="s-fast">Szybki przelew (Fakturownia)</label><input class="form-control" id="s-fast" name="fast_transfer_url" value="<?= h($s['fast_transfer_url']) ?>"><div class="form-text"><a href="<?= h($s['fast_transfer_url']) ?>" target="_blank" rel="noopener">Konfiguracja w Fakturowni</a></div></div>
       <div class="col-12 d-flex flex-wrap gap-4">
-        <?php foreach (['enabled' => 'Uczestnicy mogą sami aktywować', 'invoice_email' => 'Wysyłaj faktury e-mailem', 'notify' => 'E-maile do uczestników (naliczenie, przypomnienie, wstrzymanie)', 'helpdesk' => 'Zgłoszenia w Helpdesku IT'] as $k => $l): ?>
+        <?php foreach (['enabled' => 'Zamawianie (samodzielne włączanie) przez uczestników włączone', 'invoice_email' => 'Wysyłaj faktury e-mailem', 'notify' => 'E-maile do uczestników (naliczenie, przypomnienie, wstrzymanie)', 'helpdesk' => 'Zgłoszenia w Helpdesku IT'] as $k => $l): ?>
         <div class="form-check"><input class="form-check-input" type="checkbox" name="<?= h($k) ?>" value="1" id="s-<?= h($k) ?>"<?= $s[$k] ? ' checked' : '' ?>><label class="form-check-label" for="s-<?= h($k) ?>"><?= h($l) ?></label></div>
         <?php endforeach; ?>
       </div>
@@ -61,6 +63,19 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
     <button class="btn-metro mt-3" type="submit">Zapisz ustawienia</button>
   </form>
 </details>
+
+<?php $win = !$s['enabled'] ? ['wyłączone', '#a20025'] : (($s['available_until'] !== '' && $s['available_until'] < date('Y-m-d')) ? ['zamknięte (do ' . ClaudeBilling::date($s['available_until']) . ')', '#a20025']
+      : (($s['available_from'] !== '' && $s['available_from'] > date('Y-m-d')) ? ['od ' . ClaudeBilling::date($s['available_from']), '#f0a30a'] : ['otwarte' . ($s['available_until'] !== '' ? ' do ' . ClaudeBilling::date($s['available_until']) : ''), '#008a00']));
+      $nt = ClaudeBilling::noticeText($product); ?>
+<section class="panel">
+  <h2 class="mt-0">Zamawianie przez uczestników <span class="chip" style="background:<?= $win[1] ?>"><?= h($win[0]) ?></span></h2>
+  <p class="small mb-2">Przełącznik i daty „od / do” — w Ustawieniach. Komunikat trafia do panelu uczestników (Komunikaty TI, przypięty, 30 dni).</p>
+  <details><summary class="small">Podgląd komunikatu</summary><p class="fw-semibold mt-2 mb-1"><?= h($nt['title']) ?></p><p class="small" style="white-space:pre-line"><?= h($nt['body']) ?></p></details>
+  <form method="post" action="<?= h(route('cb.notice')) ?>" class="d-flex flex-wrap gap-3 align-items-center mt-2"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>">
+    <div class="form-check"><input class="form-check-input" type="checkbox" name="email" value="1" id="n-email"><label class="form-check-label" for="n-email">wyślij też e-mailem do wszystkich uczestników</label></div>
+    <button class="btn-metro orange" type="submit">Opublikuj komunikat dla uczestników</button>
+  </form>
+</section>
 
 <details class="panel"<?= $q !== '' ? ' open' : '' ?>>
   <summary class="fw-semibold">Aktywuj za uczestnika (np. małoletni, decyzja kierownika)</summary>

@@ -55,26 +55,30 @@ include __DIR__ . '/_top.php';
     <?php if ($sub['status'] === 'suspended'): ?><p class="tw-bg-m-red tw-text-white tw-p-3 tw-mb-3" role="alert">Dostęp jest wstrzymany, bo nie dotarła wpłata. Zapłać zaległą fakturę poniżej — włączymy go z powrotem sami, nie musisz nic zgłaszać.</p><?php endif; ?>
     <?php if ($v['gaps']): ?><p class="tw-bg-m-amber tw-text-m-dark tw-p-3 tw-mb-3" role="alert"><b>Brakuje danych do faktury:</b> <?= h(implode(', ', $v['gaps'])) ?>. Uzupełnij je niżej — bez nich nie wystawimy faktury.</p><?php endif; ?>
 
-    <?php foreach ($v['charges'] as $c): if ($c['status'] === 'cancelled') continue; $late = $c['status'] === 'pending' && $c['due_on'] < $today; ?>
+    <?php foreach ($v['charges'] as $c): if ($c['status'] === 'cancelled') continue; $late = $c['status'] === 'pending' && $c['due_on'] < $today;
+      // przed wpłatą: proforma (z przyciskiem Szybkiego przelewu); po wpłacie: faktura
+      $docUrl = $c['status'] === 'paid' ? (string)$c['invoice_view_url'] : ((string)$c['proforma_view_url'] ?: (string)$c['invoice_view_url']);
+      $docNo  = $c['status'] === 'paid' ? (string)$c['invoice_number'] : ((string)$c['proforma_number'] ?: (string)$c['invoice_number']);
+      $docLbl = $c['status'] === 'paid' || ($c['proforma_number'] === '' && $c['invoice_number'] !== '') ? 'faktura' : 'proforma'; ?>
     <div class="m-row">
       <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
         <span class="tw-font-semibold"><?= h(ucfirst(ClaudeBilling::periodLabel((string)$c['period']))) ?></span>
         <span class="tw-text-lg"><?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?></span>
         <?php if ($c['status'] === 'paid'): ?><span class="m-chip tw-bg-m-green">zapłacone <?= h(ClaudeBilling::dayMonth(substr((string)$c['paid_at'], 0, 10))) ?></span>
         <?php else: ?><span class="m-chip <?= $late ? 'tw-bg-m-red' : 'tw-bg-m-amber' ?>"><?= $late ? 'po terminie — było do ' : 'zapłać do ' ?><?= h(ClaudeBilling::dayMonth($c['due_on'])) ?></span><?php endif; ?>
-        <?php if ($c['invoice_view_url']): ?><a href="<?= h($c['invoice_view_url']) ?>" target="_blank" rel="noopener" class="tw-text-sm">faktura <?= h($c['invoice_number']) ?><span class="tw-sr-only"> (otwiera się w nowej karcie)</span></a><?php endif; ?>
+        <?php if ($docUrl !== ''): ?><a href="<?= h($docUrl) ?>" target="_blank" rel="noopener" class="tw-text-sm"><?= $docLbl ?> <?= h($docNo) ?><span class="tw-sr-only"> (otwiera się w nowej karcie)</span></a><?php elseif ($c['status'] === 'paid'): ?><span class="tw-text-sm tw-text-m-steel">faktura w przygotowaniu</span><?php endif; ?>
       </div>
       <p class="tw-text-xs tw-text-m-steel tw-mt-1"><?= h(ClaudeBilling::breakdown($c)) ?> (kurs PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p>
       <?php if ($c['status'] === 'pending'): ?>
       <div class="tw-flex tw-flex-wrap tw-gap-2 tw-mt-2">
         <?php if ($s['pay_redirect'] === 'portal'): ?>
           <a class="m-btn" href="../platnosci.php">Zapłać<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></a>
-        <?php elseif ($s['pay_redirect'] === 'fakturownia' && $c['invoice_view_url']): ?>
-          <a class="m-btn" href="<?= h($c['invoice_view_url']) ?>" target="_blank" rel="noopener">Zapłać (BLIK / szybki przelew)<span class="tw-sr-only"> — faktura w nowej karcie</span></a>
+        <?php elseif ($s['pay_redirect'] === 'fakturownia' && $docUrl !== ''): ?>
+          <a class="m-btn" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">Zapłać (BLIK / szybki przelew)<span class="tw-sr-only"> — <?= $docLbl ?> w nowej karcie</span></a>
         <?php elseif (!empty($p24on)): /* Przelewy24 tylko, gdy bramka włączona — inaczej zostaje Szybki przelew i zwykły przelew */ ?>
           <form method="post" action="<?= h(route('lk.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać przez Przelewy24<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></button></form>
         <?php endif; ?>
-        <?php if ($c['invoice_view_url'] && $s['pay_redirect'] !== 'fakturownia'): ?><a class="m-btn-ghost" href="<?= h($c['invoice_view_url']) ?>" target="_blank" rel="noopener">BLIK / szybki przelew z faktury<span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
+        <?php if ($docUrl !== '' && $s['pay_redirect'] !== 'fakturownia'): ?><a class="m-btn-ghost" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">BLIK / szybki przelew z <?= $docLbl === 'proforma' ? 'proformy' : 'faktury' ?><span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
       </div>
       <?php if ($v['account']): ?><p class="tw-text-sm tw-mt-2">Albo zwykły przelew: konto <span class="tw-font-mono tw-font-semibold"><?= h($v['account']['nrb_fmt']) ?></span>, tytuł <span class="tw-font-semibold"><?= h(ClaudeBilling::transferTitle($c)) ?></span>, kwota <?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?>.</p><?php endif; ?>
       <?php endif; ?>

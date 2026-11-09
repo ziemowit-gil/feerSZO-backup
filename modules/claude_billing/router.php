@@ -27,6 +27,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/ustawienia',                   [ClaudeBillingController::class, 'saveSettings'])->name('cb.settings');
     $r->post('/kurs',                         [ClaudeBillingController::class, 'rateCheck'])->name('cb.rate');
     $r->post('/uruchom',                      [ClaudeBillingController::class, 'runNow'])->name('cb.run');
+    $r->post('/komunikat',                    [ClaudeBillingController::class, 'notice'])->name('cb.notice');
     $r->post('/aktywuj',                      [ClaudeBillingController::class, 'activate'])->name('cb.activate');
     $r->get('/abonament/{id}',                [ClaudeBillingController::class, 'show'])->name('cb.show');
     $r->post('/abonament/{id}/dane',          [ClaudeBillingController::class, 'buyer'])->name('cb.buyer');

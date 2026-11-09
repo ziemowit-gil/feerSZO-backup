@@ -36,6 +36,7 @@ final class ClaudeBilling
     public const CHARGE_STATUS = ['pending' => 'do zapłaty', 'paid' => 'opłacone', 'cancelled' => 'anulowane'];
     public const DEFAULTS = [
         'enabled' => '1', 'usd' => '8', 'list_usd' => '25', 'due_day' => '8', 'grace_days' => '7',
+        'available_from' => '', 'available_until' => '',   // okno zamawiania (włączania) przez uczestników: od / do — puste = bez ograniczenia
         'pct' => '23', 'pct_label' => 'VAT', 'fee_pln' => '1.23',   // 23% VAT od importu usługi — doliczany do ceny, płaci uczestnik (faktura FEER wg ustawień Faktur, domyślnie zw) i prowizja za płatność (polecenia 2026-11-09)
         'rate_kind' => 'sale_foreign', 'invoice' => 'auto', 'discount_mode' => 'rabat', 'invoice_email' => '1', 'notify' => '1', 'helpdesk' => '1',
         'pay_redirect' => 'p24', 'fast_transfer_url' => 'https://fundacjafeer.fakturownia.pl/apps/szybki-przelew',
@@ -101,6 +102,7 @@ final class ClaudeBilling
             amount_pln REAL NOT NULL, list_pln REAL NOT NULL DEFAULT 0,
             pct REAL NOT NULL DEFAULT 0, pct_label TEXT NOT NULL DEFAULT '', fee_pln REAL NOT NULL DEFAULT 0, base_pln REAL,
             issue_on DATE, invoice_view_url TEXT NOT NULL DEFAULT '',
+            proforma_id INTEGER, proforma_number TEXT NOT NULL DEFAULT '', proforma_view_url TEXT NOT NULL DEFAULT '', order_id INTEGER, order_number TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'pending',
             pp_item_id INTEGER,
             paid_at DATETIME, paid_via TEXT NOT NULL DEFAULT '', paid_ref TEXT NOT NULL DEFAULT '',
@@ -112,7 +114,8 @@ final class ClaudeBilling
             UNIQUE(subscription_id, period))");
         // tabele z pierwszej wersji (tylko Claude) — kolumna produktu
         foreach (['claude_subscriptions', 'claude_charges'] as $t) { try { db()->exec("ALTER TABLE $t ADD COLUMN product TEXT NOT NULL DEFAULT 'claude'"); } catch (\Throwable $e) {} }
-        foreach (["pct REAL NOT NULL DEFAULT 0", "pct_label TEXT NOT NULL DEFAULT ''", "fee_pln REAL NOT NULL DEFAULT 0", "base_pln REAL"] as $col) {   // narzut % i prowizja (2026-11-09)
+        foreach (["pct REAL NOT NULL DEFAULT 0", "pct_label TEXT NOT NULL DEFAULT ''", "fee_pln REAL NOT NULL DEFAULT 0", "base_pln REAL",   // narzut % i prowizja (2026-11-09)
+                  "proforma_id INTEGER", "proforma_number TEXT NOT NULL DEFAULT ''", "proforma_view_url TEXT NOT NULL DEFAULT ''", "order_id INTEGER", "order_number TEXT NOT NULL DEFAULT ''"] as $col) {   // proforma → zamówienie → faktura
             try { db()->exec("ALTER TABLE claude_charges ADD COLUMN $col"); } catch (\Throwable $e) {}
         }
         db()->exec("DROP INDEX IF EXISTS uq_claude_sub_open");
@@ -151,6 +154,7 @@ final class ClaudeBilling
         $s['pct'] = min(50.0, max(0.0, (float)str_replace(',', '.', (string)$s['pct'])));
         $s['fee_pln'] = round(min(100.0, max(0.0, (float)str_replace(',', '.', (string)$s['fee_pln']))), 2);
         $s['pct_label'] = mb_substr(trim((string)$s['pct_label']), 0, 30);
+        foreach (['available_from', 'available_until'] as $dk) if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$s[$dk])) $s[$dk] = '';
         if (!isset(PkoRates::KINDS[$s['rate_kind']])) $s['rate_kind'] = 'sale_foreign';
         if (!in_array($s['invoice'], ['auto', 'manual', 'off'], true)) $s['invoice'] = 'auto';
         if (!in_array($s['discount_mode'], ['rabat', 'opis'], true)) $s['discount_mode'] = 'rabat';
@@ -170,6 +174,8 @@ final class ClaudeBilling
         $map = [
             'enabled' => !empty($in['enabled']) ? '1' : '0', 'usd' => $num($in['usd'] ?? ''), 'list_usd' => $num($in['list_usd'] ?? '') ?: '0',
             'due_day' => (string)(int)($in['due_day'] ?? 8), 'grace_days' => (string)(int)($in['grace_days'] ?? 7),
+            'available_from' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['available_from'] ?? '')) ? (string)$in['available_from'] : '',
+            'available_until' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['available_until'] ?? '')) ? (string)$in['available_until'] : '',
             'pct' => $num($in['pct'] ?? '0') ?: '0', 'pct_label' => mb_substr(trim((string)($in['pct_label'] ?? '')), 0, 30), 'fee_pln' => $num($in['fee_pln'] ?? '0') ?: '0',
             'pay_redirect' => (string)($in['pay_redirect'] ?? 'p24'), 'fast_transfer_url' => trim((string)($in['fast_transfer_url'] ?? '')),
             'bank_account' => preg_replace('/\D/', '', preg_replace('/^\s*PL/i', '', (string)($in['bank_account'] ?? ''))),
@@ -181,6 +187,7 @@ final class ClaudeBilling
         if ((float)$map['pct'] < 0 || (float)$map['pct'] > 50) throw new InvalidArgumentException('Narzut procentowy: 0–50%.');
         if ((float)$map['fee_pln'] < 0 || (float)$map['fee_pln'] > 100) throw new InvalidArgumentException('Prowizja za płatność: 0–100 zł.');
         if ((int)$map['due_day'] < 1 || (int)$map['due_day'] > 28) throw new InvalidArgumentException('Dzień graniczny: 1–28.');
+        if ($map['available_from'] !== '' && $map['available_until'] !== '' && $map['available_until'] < $map['available_from']) throw new InvalidArgumentException('Data „zamawianie do” nie może być wcześniejsza niż „od”.');
         if ((float)$map['list_usd'] > 0 && (float)$map['list_usd'] < (float)$map['usd']) throw new InvalidArgumentException('Cena regularna nie może być niższa od ceny po rabacie.');
         require_once dirname(__DIR__, 2) . '/payment_portal/logic/paymentPortal.php';
         if ($map['bank_account'] !== '' && !pp_nrb_valid($map['bank_account'])) throw new InvalidArgumentException('Numer rachunku do wpłat jest nieprawidłowy (26 cyfr, suma kontrolna IBAN).');
@@ -380,7 +387,7 @@ final class ClaudeBilling
         db_exec("UPDATE claude_subscriptions SET $sets, buyer_gap_alert_at=NULL, updated_at=datetime('now') WHERE id=?", [...array_values($d), $subId]);
         self::event($subId, null, 'buyer', 'Uzupełniono dane do faktury: ' . $d['buyer_name'] . ', ' . $d['buyer_street'] . ', ' . $d['buyer_post_code'] . ' ' . $d['buyer_city'] . ($d['buyer_tax_no'] !== '' ? ', NIP ' . $d['buyer_tax_no'] : '') . '.', $by);
         require_once __DIR__ . '/ClaudeInvoice.php';
-        foreach (db_all("SELECT id FROM claude_charges WHERE subscription_id=? AND status IN ('pending','paid') AND invoice_id IS NULL", [$subId]) as $r) {
+        foreach (db_all("SELECT id FROM claude_charges WHERE subscription_id=? AND ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL))", [$subId]) as $r) {
             try { ClaudeInvoice::issueForCharge((int)$r['id']); } catch (\Throwable $e) {}
         }
         return [];
@@ -437,6 +444,8 @@ final class ClaudeBilling
         if ($open)                 return ['ok' => false, 'reason' => 'Masz już włączony ' . $P['label'] . '.', 'assignment' => $a];
         if (!$a)                   return ['ok' => false, 'reason' => 'Nie masz jeszcze przydzielonej licencji ' . $P['label'] . '. Jeśli chcesz z niej korzystać, napisz do prowadzącego albo do biura.', 'assignment' => null];
         if (!$s['enabled'] || !$s['priced']) return ['ok' => false, 'reason' => 'Samodzielne włączenie ' . $P['label'] . ' jest chwilowo niedostępne — napisz do biura.', 'assignment' => $a];
+        if ($s['available_until'] !== '' && $s['available_until'] < date('Y-m-d')) return ['ok' => false, 'reason' => 'Zamawianie ' . $P['label'] . ' zakończyło się ' . self::dayMonth($s['available_until']) . '. Jeśli potrzebujesz dostępu, napisz do biura.', 'assignment' => $a];
+        if ($s['available_from'] !== '' && $s['available_from'] > date('Y-m-d')) return ['ok' => false, 'reason' => 'Wnioski o ' . $P['label'] . ' przyjmujemy od ' . self::dayMonth($s['available_from']) . ' — wtedy włączysz go tutaj sam(a).', 'assignment' => $a, 'from' => $s['available_from']];
         if (self::isMinor($clientId)) return ['ok' => false, 'reason' => 'Dostęp osoby niepełnoletniej włącza biuro na prośbę opiekuna.', 'assignment' => $a];
         if ($P['uniqueEmail']) {
             $email = trim((string)(self::client($clientId)['email'] ?? ''));
@@ -762,7 +771,7 @@ final class ClaudeBilling
             }
         }
         if (!$onlyTest) {   // faktury, których nie udało się wystawić od razu (Fakturownia nie odpowiadała, brakowało danych)
-            foreach (db_all("SELECT id, product FROM claude_charges WHERE status IN ('pending','paid') AND invoice_id IS NULL AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
+            foreach (db_all("SELECT id, product FROM claude_charges WHERE ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL)) AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
                 if (self::settings((string)$r['product'])['invoice'] !== 'auto') continue;
                 try { ClaudeInvoice::issueForCharge((int)$r['id']); } catch (\Throwable $e) { $rep['errors'][] = 'faktura #' . $r['id'] . ': ' . $e->getMessage(); }
             }
@@ -773,7 +782,7 @@ final class ClaudeBilling
     /** Wpłaty Szybkim przelewem (albo oznaczone w Fakturowni) — faktura „opłacona” zamyka naliczenie. */
     private static function syncFakturownia(int $sid, array &$rep): void
     {
-        foreach (db_all("SELECT id FROM claude_charges WHERE subscription_id=? AND status='pending' AND invoice_id IS NOT NULL AND is_test=0", [$sid]) as $r) {
+        foreach (db_all("SELECT id FROM claude_charges WHERE subscription_id=? AND status='pending' AND (proforma_id IS NOT NULL OR invoice_id IS NOT NULL) AND is_test=0", [$sid]) as $r) {
             if (!ClaudeInvoice::paidInFakturownia((int)$r['id'])) continue;
             $ch = self::charge((int)$r['id']);
             if ($ch['pp_item_id']) {
@@ -781,7 +790,7 @@ final class ClaudeBilling
                 if ($it && $it['status'] === 'processing') continue;   // równolegle trwa płatność w portalu — rozstrzygnie się w kolejnym przebiegu
                 db_exec("UPDATE payable_items SET status='paid', paid_at=datetime('now') WHERE id=? AND status='pending'", [(int)$ch['pp_item_id']]);
             }
-            self::settleCharges([(int)$r['id']], 'Szybki przelew (Fakturownia)', 'faktura ' . $ch['invoice_number'], 'Fakturownia');
+            self::settleCharges([(int)$r['id']], 'Szybki przelew (Fakturownia)', ($ch['proforma_number'] ? 'proforma ' . $ch['proforma_number'] : 'faktura ' . $ch['invoice_number']), 'Fakturownia');
             $rep['log'][] = $ch['client_name'] . ': wpłata w Fakturowni za ' . self::periodLabel($ch['period']);
         }
     }
@@ -875,16 +884,17 @@ final class ClaudeBilling
         $in = $ch ? self::periodIn((string)$ch['period']) : '';
         $due = $ch ? self::dayMonth((string)$ch['due_on']) : '';
         $acc = self::payAccount(0, $product);
+        $docUrl = $ch ? (string)(($ch['status'] ?? '') === 'paid' ? ($ch['invoice_view_url'] ?? '') : (($ch['proforma_view_url'] ?? '') ?: ($ch['invoice_view_url'] ?? ''))) : '';
         $why = $ch ? '<p style="color:#555;font-size:13px">Skąd ta kwota? ' . h(self::breakdown($ch)) . ' (kurs PKO BP z ' . h(self::dayMonth(substr((string)$ch['rate_at'], 0, 10))) . ')'
             . ((float)$ch['list_pln'] > (float)$ch['amount_pln'] ? '. Normalnie ' . h($L) . ' kosztuje ' . h(self::usdWords((float)$ch['list_usd'])) . ' — jako organizacja non-profit płacimy mniej i tę zniżkę przekazujemy Tobie.' : '.') . '</p>' : '';
         $how = $ch ? '<p><b>Jak zapłacić</b> (wybierz jedno):</p><ul>'
             . '<li>Przelewy24 — w panelu, przycisk „Zapłać”,</li>'
-            . (!empty($ch['invoice_view_url']) ? '<li>BLIK albo szybki przelew — przycisk na <a href="' . h((string)$ch['invoice_view_url']) . '">fakturze</a>,</li>' : '')
+            . ($docUrl !== '' ? '<li>BLIK albo szybki przelew — przycisk na <a href="' . h($docUrl) . '">' . ($ch['proforma_view_url'] ? 'proformie' : 'fakturze') . '</a>,</li>' : '')
             . ($acc ? '<li>zwykły przelew na konto <b>' . h($acc['nrb_fmt']) . '</b>, w tytule: <b>' . h(self::transferTitle($ch)) . '</b>.</li>' : '') . '</ul>' : '';
         [$subject, $body] = match ($kind) {
             'naliczenie'    => [$L . ': opłata ' . $in . ' — ' . $amt . ' do ' . $due,
-                                '<p>Twoja faktura za ' . h($L) . ' ' . h($in) . ' jest gotowa: <b>' . h($amt) . '</b>, płatna do <b>' . h($due) . '</b>.'
-                                . (!empty($ch['invoice_view_url']) ? ' <a href="' . h((string)$ch['invoice_view_url']) . '">Zobacz fakturę</a>.' : '') . '</p>' . $how . $why],
+                                '<p>Twoja proforma za ' . h($L) . ' ' . h($in) . ' jest gotowa: <b>' . h($amt) . '</b>, płatna do <b>' . h($due) . '</b>.'
+                                . ($docUrl !== '' ? ' <a href="' . h($docUrl) . '">' . ($ch['proforma_view_url'] ? 'Zobacz proformę' : 'Zobacz fakturę') . '</a> (fakturę wystawimy po wpłacie).' : '') . '</p>' . $how . $why],
             'przypomnienie' => [$L . ': czekamy na wpłatę ' . $amt,
                                 '<p>Nie widzimy jeszcze wpłaty za ' . h($L) . ' ' . h($in) . ' (' . h($amt) . ', termin: ' . h($due) . ').</p>'
                                 . '<p>Jeśli już zapłacono — dziękujemy, wpłata pojawi się u nas w ciągu 1–2 dni roboczych. Jeśli nie — zapłać w ciągu kilku dni, inaczej będziemy musieli wstrzymać dostęp.</p>' . $how],
@@ -922,7 +932,7 @@ final class ClaudeBilling
     /** Tytuł przelewu tradycyjnego dla naliczenia. */
     public static function transferTitle(array $ch): string
     {
-        return strtoupper(self::P(self::productOf($ch))['label']) . ' ' . ($ch['invoice_number'] ?: ('NAL/' . (int)$ch['id'])) . ' ' . self::periodLabel((string)$ch['period']);
+        return strtoupper(self::P(self::productOf($ch))['label']) . ' ' . (($ch['proforma_number'] ?? '') ?: ($ch['invoice_number'] ?: ('NAL/' . (int)$ch['id']))) . ' ' . self::periodLabel((string)$ch['period']);
     }
 
     // ── Dane do widoków ─────────────────────────────────────────────────────────
@@ -959,7 +969,7 @@ final class ClaudeBilling
         $r = db_one("SELECT SUM(status='active') a, SUM(status='suspended') s, SUM(status='ended') e FROM claude_subscriptions WHERE is_test=0 AND product=?", [$pr]) ?: [];
         $c = db_one("SELECT SUM(status='pending') np, COALESCE(SUM(CASE WHEN status='pending' THEN amount_pln END),0) sp,
                             SUM(status='pending' AND due_on < date('now')) no, COALESCE(SUM(CASE WHEN status='paid' AND paid_at >= date('now','start of month') THEN amount_pln END),0) pm,
-                            SUM(status IN ('pending','paid') AND invoice_id IS NULL) ni
+                            SUM((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL)) ni
                        FROM claude_charges WHERE is_test=0 AND product=?", [$pr]) ?: [];
         $gaps = 0;
         foreach (db_all("SELECT * FROM claude_subscriptions WHERE is_test=0 AND product=? AND status IN ('active','suspended')", [$pr]) as $sb) if (self::invoiceDataGaps($sb)) $gaps++;
@@ -979,8 +989,9 @@ final class ClaudeBilling
         $est = $r ? (float)$r['amount_pln'] : null;
         $out = ['now' => null, 'next' => null];
         $open = $sub && in_array($sub['status'], ['active', 'suspended'], true);
-        if (!$open) {   // przed włączeniem: pierwsza faktura dziś, następna w dniu naliczenia kolejnego miesiąca
+        if (!$open) {   // przed włączeniem: pierwsza faktura dziś (albo w dniu, od którego przyjmujemy wnioski), następna w dniu naliczenia kolejnego miesiąca
             if ($est === null) return $out;
+            if ($s['available_from'] !== '' && $s['available_from'] > $today) $today = $s['available_from'];
             $fake = ['cycle_start' => $today, 'due_day' => null, 'product' => $product];
             $out['now'] = ['amount' => $est, 'issue' => $today, 'due' => date('Y-m-d', strtotime($today . ' +' . self::TERM_DAYS . ' day')), 'estimate' => true];
             $np = date('Y-m', strtotime(substr($today, 0, 7) . '-01 +1 month'));
@@ -994,6 +1005,36 @@ final class ClaudeBilling
         $np = $last && $last['p'] ? date('Y-m', strtotime($last['p'] . '-01 +1 month')) : substr((string)$sub['cycle_start'], 0, 7);
         if ($est !== null && $sub['status'] === 'active') $out['next'] = ['amount' => $est, 'issue' => self::billingDate($sub, $np, $s), 'due' => self::dueFor($sub, $np, $s), 'estimate' => true];
         return $out;
+    }
+
+    /** Treść komunikatu dla uczestników (Komunikaty TI) o możliwości wnioskowania — prostym językiem. @return array{title:string,body:string,expires:string} */
+    public static function noticeText(string $product = 'claude'): array
+    {
+        $P = self::P($product);
+        $s = self::settings($product);
+        $from = $s['available_from'] !== '' && $s['available_from'] > date('Y-m-d') ? $s['available_from'] : date('Y-m-d');
+        $r = self::lastRate($product);
+        $title = $P['label'] . ' — możesz go włączyć' . ($from > date('Y-m-d') ? ' od ' . self::dayMonth($from) : '') . ' w panelu „Moje licencje”';
+        $body = ($from > date('Y-m-d') ? 'Od ' . self::dayMonth($from) : 'Od dziś') . ' możesz sam(a) włączyć ' . $P['what'] . ' w panelu „Moje licencje” (kursant.feer.org.pl/licencje).' . "\n\n"
+            . 'Ile to kosztuje: ' . self::usdWords($s['usd']) . ' miesięcznie po kursie PKO BP' . self::extrasWords($s) . ($r ? ' — dziś razem ok. ' . self::zl((float)$r['amount_pln']) : '') . '.'
+            . ($s['list_usd'] > $s['usd'] ? ' To cena dla organizacji non-profit (normalnie ' . self::usdWords($s['list_usd']) . ').' : '') . "\n"
+            . 'Jak to działa: po włączeniu dostajesz proformę, płacisz w ' . self::TERM_DAYS . ' dni (Przelewy24, przelew albo BLIK), a po wpłacie — fakturę. Kolejne opłaty co miesiąc. Zrezygnować możesz w każdej chwili.' . "\n"
+            . ($s['available_until'] !== '' ? 'Zamawiać możesz do ' . self::dayMonth($s['available_until']) . '. ' : '')
+            . 'Warunek: przydzielona licencja ' . $P['label'] . '. Nie masz jej, a chcesz korzystać? Napisz do prowadzącego.';
+        return ['title' => $title, 'body' => $body, 'expires' => date('Y-m-d', strtotime($from . ' +30 day'))];
+    }
+
+    /** Publikuje komunikat w panelu uczestników (k30_ti_notices, przypięty, 30 dni od daty); e-mail do wszystkich tylko na życzenie. */
+    public static function publishNotice(string $product, bool $email, array $actor): int
+    {
+        require_once dirname(__DIR__, 3) . '/includes/ti_notices.php';
+        ti_notices_migrate();
+        $n = self::noticeText($product);
+        $id = db_insert('k30_ti_notices', ['title' => $n['title'], 'body' => $n['body'], 'audience' => 'all', 'is_pinned' => 1, 'is_active' => 1,
+            'expires_at' => $n['expires'], 'author_id' => ($actor['id'] ?? 0) ?: null, 'author_name' => (string)($actor['name'] ?? '')]);
+        if ($email) ti_notices_send_email($id, $n['title'], $n['body']);
+        self::event(null, null, 'notice', self::P($product)['label'] . ': opublikowano komunikat #' . $id . ' „' . $n['title'] . '”' . ($email ? ' (z e-mailem do uczestników)' : '') . '.', (string)($actor['name'] ?? ''));
+        return $id;
     }
 
     /** Dane do sekcji produktu w panelu uczestnika. */
