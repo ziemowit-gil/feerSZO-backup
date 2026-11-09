@@ -1,66 +1,101 @@
 <?php
-if (!isset($me, $tab)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
+if (!isset($org)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
- * modules/ti_licencje_kursant/view/_top.php — nagłówek panelu „Moje licencje” (Metro, Tailwind tw-), zakładki Licencje / Produkty i usługi, komunikat.
- * Zmienne: $org, $me, $flash, $tab ('licencje' | 'produkty').
+ * modules/ti_licencje_kursant/view/_top.php — szkielet panelu licencji w stylu Portalu Kontrahenta (portal_kontrahenta/_layout_head.php):
+ * biały, gov.pl-podobny pasek z marką, pasek dostępności (kontrast + wielkość liter, localStorage), okruszki, dwie kolumny: menu po lewej, treść.
+ * Treść korzysta z Tailwind CDN (prefiks tw-) i komponentów m-* przemalowanych na paletę portalu. Bez menu (strona logowania): $nav = null.
+ * Zmienne: $org, $PAGE_TITLE, $me (opcjonalnie), $nav (opcjonalnie: lista [anchor, etykieta, odznaka]), $flash (opcjonalnie).
  */
+$PAGE_TITLE = $PAGE_TITLE ?? 'Panel licencji';
+$nav = $nav ?? null;
 ?><!doctype html>
 <html lang="pl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#1d1d1d">
-<title><?= $tab === 'produkty' ? 'Produkty i usługi' : 'Moje licencje' ?> — <?= h($org) ?></title>
+<title><?= h($PAGE_TITLE) ?> — <?= h($org) ?></title>
+<script>try { var _c = localStorage.getItem('lp_contrast'), _f = localStorage.getItem('lp_fontsize'); if (_c) document.documentElement.dataset.contrast = _c; if (_f) document.documentElement.dataset.fontsize = _f; } catch (e) {}</script>
 <script src="https://cdn.tailwindcss.com/3.4.5"></script>
-<script>tailwind.config = { prefix: 'tw-', corePlugins: { preflight: true }, theme: { borderRadius: { none: '0', DEFAULT: '0' }, extend: {
-  colors: { m: { cyan: '#1ba1e2', cobalt: '#0050ef', green: '#008a00', red: '#a20025', amber: '#f0a30a', orange: '#fa6800', steel: '#647687', dark: '#1d1d1d', line: '#d6d6d6', bg: '#f4f4f4', nord: '#4687ff', claude: '#da532c' } },
-  fontFamily: { metro: ['"Segoe UI"', '"Segoe UI Web"', '"Open Sans"', 'Ubuntu', 'system-ui', 'sans-serif'] } } } }</script>
-<style type="text/tailwindcss">
-  body { @apply tw-font-metro tw-bg-m-bg tw-text-m-dark; }
-  .m-tile   { @apply tw-bg-white tw-border tw-border-solid tw-border-m-line tw-p-5 sm:tw-p-6 tw-mb-4; }
-  .m-head   { @apply tw-text-xl tw-font-light tw-mb-3 tw-text-m-dark; }
-  .m-label  { @apply tw-block tw-text-sm tw-font-semibold tw-mb-1; }
-  .m-input  { @apply tw-w-full tw-border-2 tw-border-solid tw-border-m-line tw-bg-white tw-px-3 tw-py-2 focus:tw-outline-none focus:tw-border-m-cyan; }
-  .m-input[aria-invalid="true"] { @apply tw-border-m-red; }
-  .m-err    { @apply tw-text-sm tw-text-m-red tw-mt-1 tw-font-semibold; }
-  .m-btn    { @apply tw-inline-flex tw-items-center tw-justify-center tw-gap-2 tw-bg-m-cyan tw-text-white tw-font-semibold tw-px-5 tw-py-3 tw-border-0 tw-no-underline hover:tw-bg-m-cobalt focus:tw-outline-none focus:tw-ring-4 focus:tw-ring-m-amber; min-height: 44px; }
-  .m-btn-ghost { @apply tw-inline-flex tw-items-center tw-gap-2 tw-bg-white tw-text-m-dark tw-font-semibold tw-px-4 tw-py-2 tw-border-2 tw-border-solid tw-border-m-dark tw-no-underline hover:tw-bg-m-bg focus:tw-outline-none focus:tw-ring-4 focus:tw-ring-m-amber; min-height: 44px; }
-  .m-check  { @apply tw-flex tw-gap-3 tw-items-start tw-p-3 tw-border-2 tw-border-solid tw-border-m-line tw-bg-white tw-cursor-pointer; }
-  .m-check input { @apply tw-mt-1 tw-h-5 tw-w-5 tw-shrink-0 tw-accent-m-cyan; }
-  .m-chip   { @apply tw-inline-block tw-text-white tw-px-2 tw-py-0.5 tw-text-xs tw-font-semibold tw-align-middle; }
-  .m-kv dt  { @apply tw-text-xs tw-uppercase tw-tracking-wide tw-text-m-steel; }
-  .m-kv dd  { @apply tw-mb-3 tw-font-semibold; }
-  .m-row    { @apply tw-border-t tw-border-solid tw-border-m-line tw-py-3; }
-  summary   { @apply tw-cursor-pointer tw-font-semibold; min-height: 32px; }
-  a { @apply tw-text-m-cobalt tw-underline; }
-  .skip { @apply tw-sr-only focus:tw-not-sr-only focus:tw-absolute focus:tw-p-3 focus:tw-bg-m-amber focus:tw-text-m-dark; }
+<script>tailwind.config = { prefix: 'tw-', corePlugins: { preflight: true }, theme: { extend: {
+  colors: { m: { cyan: '#0857a6', cobalt: '#063f7a', green: '#1e7b3a', red: '#b42318', amber: '#f0a30a', orange: '#c2410c', steel: '#5a5a5a', dark: '#1b1b1b', line: '#d8dde3', bg: '#f5f7fa' } } } } }</script>
+<style>
+  :root { --pk-blue: #0857a6; --pk-blue-dark: #063f7a; --pk-bg: #ffffff; --pk-ink: #1b1b1b; --pk-muted: #5a5a5a; --pk-border: #d8dde3; --pk-panel: #f5f7fa; --pk-fs: 16px; }
+  html[data-contrast="high"] { --pk-blue: #ffe600; --pk-blue-dark: #ffe600; --pk-bg: #000; --pk-ink: #fff; --pk-muted: #e5e5e5; --pk-border: #ffe600; --pk-panel: #111; }
+  html[data-fontsize="lg"] { --pk-fs: 19px; } html[data-fontsize="xl"] { --pk-fs: 22px; }
+  html { font-size: var(--pk-fs); }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--pk-bg); color: var(--pk-ink); }
+  a { color: var(--pk-blue-dark); }
+  html[data-contrast="high"] a { color: var(--pk-blue); text-decoration: underline; }
   :focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+  .skip { position: absolute; left: -9999px; } .skip:focus { left: 8px; top: 8px; background: #facc15; color: #000; padding: 8px 12px; z-index: 10; }
+  .pk-topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--pk-border); flex-wrap: wrap; gap: 10px; }
+  .pk-brand { font-weight: 800; font-size: 1.15rem; color: var(--pk-blue-dark); text-decoration: none; }
+  html[data-contrast="high"] .pk-brand { color: var(--pk-blue); }
+  .pk-a11y { display: flex; align-items: center; gap: 14px; font-size: .82rem; flex-wrap: wrap; }
+  .pk-a11y-group { display: flex; align-items: center; gap: 6px; }
+  .pk-a11y button, .pk-user button { border: 1px solid var(--pk-border); background: var(--pk-bg); color: var(--pk-ink); border-radius: 4px; padding: 3px 8px; font-weight: 700; cursor: pointer; font-size: .85rem; min-height: 32px; }
+  .pk-a11y button.active { background: var(--pk-blue-dark); color: #fff; border-color: var(--pk-blue-dark); }
+  html[data-contrast="high"] .pk-a11y button.active { background: var(--pk-blue); color: #000; }
+  .pk-user { display: flex; align-items: center; gap: 10px; font-size: .9rem; }
+  .pk-crumb { padding: 10px 24px; font-size: .85rem; color: var(--pk-muted); border-bottom: 1px solid var(--pk-border); }
+  .pk-wrap { max-width: 1200px; margin: 0 auto; padding: 28px 24px 60px; }
+  .pk-grid { display: grid; grid-template-columns: 1fr; gap: 28px; }
+  @media (min-width: 900px) { .pk-grid { grid-template-columns: 240px 1fr; } }
+  .pk-side { align-self: start; position: sticky; top: 12px; border: 1px solid var(--pk-border); border-radius: 8px; padding: 10px; background: var(--pk-panel); }
+  .pk-side a { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 9px 10px; border-radius: 6px; text-decoration: none; color: var(--pk-ink); font-weight: 600; min-height: 40px; }
+  .pk-side a:hover, .pk-side a:focus { background: var(--pk-bg); }
+  .pk-side .pk-badge { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: .75rem; font-weight: 700; background: var(--pk-bg); border: 1px solid var(--pk-border); color: var(--pk-ink); white-space: nowrap; }
+  .pk-side .pk-badge.due { background: #fff4d6; border-color: #f0a30a; }
+  .pk-side hr { border: 0; border-top: 1px solid var(--pk-border); margin: 8px 0; }
+  .pk-footer { text-align: center; padding: 24px; color: var(--pk-muted); font-size: .8rem; }
+  .pk-alert { padding: 12px 14px; border-radius: 6px; margin-bottom: 16px; font-size: .95rem; }
+  .pk-alert-err { background: #fdecec; color: #8a1c1c; border: 1px solid #f3b9b9; } .pk-alert-ok { background: #eaf7ee; color: #146c32; border: 1px solid #b6e3c2; } .pk-alert-info { background: #eaf2fb; color: #0857a6; border: 1px solid #b9d3ef; }
+  html[data-contrast="high"] .pk-alert { background: #111; border: 1px solid var(--pk-blue); color: var(--pk-ink); }
+  /* komponenty treści (m-*) — w palecie portalu */
+  .m-tile { background: var(--pk-bg); border: 1px solid var(--pk-border); border-radius: 8px; padding: 22px 24px; margin-bottom: 20px; scroll-margin-top: 16px; }
+  .m-head { font-size: 1.25rem; font-weight: 700; margin: 0 0 12px; }
+  .m-label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; color: var(--pk-muted); }
+  .m-input { width: 100%; padding: 9px 11px; border: 1px solid var(--pk-border); border-radius: 5px; font-size: 1rem; background: var(--pk-bg); color: var(--pk-ink); }
+  .m-input[aria-invalid="true"] { border: 2px solid #b42318; }
+  .m-err { font-size: .85rem; color: #b42318; margin-top: 4px; font-weight: 600; }
+  .m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--pk-blue-dark); color: #fff; border: none; border-radius: 5px; padding: 10px 20px; font-weight: 700; font-size: 1rem; cursor: pointer; text-decoration: none; min-height: 44px; }
+  html[data-contrast="high"] .m-btn { background: var(--pk-blue); color: #000; }
+  .m-btn-ghost { display: inline-flex; align-items: center; gap: 6px; background: var(--pk-bg); color: var(--pk-blue-dark); border: 1px solid var(--pk-blue-dark); border-radius: 5px; padding: 8px 16px; font-weight: 700; cursor: pointer; text-decoration: none; min-height: 40px; }
+  .m-check { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--pk-border); border-radius: 6px; background: var(--pk-panel); cursor: pointer; }
+  .m-check input { margin-top: 4px; width: 20px; height: 20px; flex-shrink: 0; }
+  .m-chip { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: .78rem; font-weight: 700; vertical-align: middle; color: #fff; }
+  .m-kv dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--pk-muted); }
+  .m-kv dd { margin: 0 0 12px; font-weight: 600; }
+  .m-row { border-top: 1px solid var(--pk-border); padding: 12px 0; }
+  summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+  html[data-contrast="high"] .tw-bg-m-bg { background: #111 !important; color: #fff !important; }
 </style>
 </head>
 <body>
 <a class="skip" href="#tresc">Przejdź do treści</a>
-<header class="tw-bg-m-dark tw-text-white">
-  <div class="tw-max-w-4xl tw-mx-auto tw-flex tw-items-stretch">
-    <div class="tw-bg-m-cyan tw-px-4 tw-py-3 tw-text-2xl tw-font-semibold" aria-hidden="true">🔑</div>
-    <div class="tw-px-4 tw-py-2 tw-flex-1">
-      <div class="tw-text-xs tw-uppercase tw-tracking-widest tw-opacity-80"><?= h($org) ?></div>
-      <div class="tw-text-lg tw-font-light">Moje licencje</div>
-    </div>
-    <a href="../index.php" class="tw-self-center tw-px-4 tw-text-white tw-text-sm">← Panel uczestnika</a>
+<div class="pk-topbar">
+  <a class="pk-brand" href="<?= h(isset($me) ? route('lk.index') : route('lk.login')) ?>">Panel licencji — <?= h($org) ?></a>
+  <div class="pk-a11y" aria-label="Ułatwienia dostępu">
+    <div class="pk-a11y-group" role="group" aria-label="Kontrast"><span>Kontrast:</span><button type="button" data-lp-contrast="normal">Normalny</button><button type="button" data-lp-contrast="high">Wysoki</button></div>
+    <div class="pk-a11y-group" role="group" aria-label="Wielkość liter"><span>Wielkość liter:</span><button type="button" data-lp-fontsize="md" aria-label="Litery normalne">A</button><button type="button" data-lp-fontsize="lg" aria-label="Litery większe" style="font-size:1rem">A</button><button type="button" data-lp-fontsize="xl" aria-label="Litery największe" style="font-size:1.15rem">A</button></div>
   </div>
-</header>
-<main id="tresc" class="tw-max-w-4xl tw-mx-auto tw-px-4 tw-py-6">
-<h1 class="tw-text-3xl tw-font-light tw-mb-1"><?= $tab === 'produkty' ? 'Produkty i usługi' : 'Moje licencje' ?></h1>
-<p class="tw-text-m-steel tw-mb-4"><?= h($me['name']) ?> — <?= $tab === 'produkty' ? 'usługi, które Fundacja kupuje dla Ciebie i refakturuje na Ciebie.' : 'wszystkie programy i dostępy w jednym miejscu.' ?></p>
-<nav class="tw-flex tw-gap-6 tw-border-0 tw-border-b tw-border-solid tw-border-m-line tw-mb-5" aria-label="Zakładki">
-  <?php foreach (['licencje' => ['Licencje', route('lk.index')], 'produkty' => ['Produkty i usługi', route('lk.products')]] as $tk => [$tl, $tu]): ?>
-  <a href="<?= h($tu) ?>" class="tw-text-lg tw-py-2 tw-no-underline <?= $tab === $tk ? 'tw-text-m-dark tw-font-semibold tw-border-0 tw-border-b-4 tw-border-solid tw-border-m-cyan' : 'tw-text-m-steel tw-font-light' ?>"<?= $tab === $tk ? ' aria-current="page"' : '' ?>><?= h($tl) ?></a>
-  <?php endforeach; ?>
-</nav>
-
-<?php if ($flash): ?>
-<div class="<?= $flash[0] === 'ok' ? 'tw-bg-m-green' : ($flash[0] === 'info' ? 'tw-bg-m-cobalt' : 'tw-bg-m-red') ?> tw-text-white tw-p-4 tw-mb-4" role="<?= $flash[0] === 'err' ? 'alert' : 'status' ?>" tabindex="-1" id="komunikat"><?= h($flash[1]) ?></div>
+  <?php if (isset($me)): ?>
+  <div class="pk-user"><span><?= h($me['name']) ?></span>
+    <form method="post" action="<?= h(route('lk.logout')) ?>"><?= Router::csrfField() ?><button type="submit">Wyloguj</button></form></div>
+  <?php endif; ?>
+</div>
+<div class="pk-crumb"><?= isset($me) ? 'Panel licencji' . ($me['fromTi'] ? ' · <a href="../index.php">← Panel uczestnika TI</a>' : '') : 'Logowanie do panelu licencji' ?></div>
+<div class="pk-wrap<?= $nav !== null ? ' pk-grid' : '' ?>">
+<?php if ($nav !== null): ?>
+  <nav class="pk-side" aria-label="Menu panelu licencji">
+    <?php foreach ($nav as [$anchor, $label, $badge, $due]): ?>
+      <a href="#<?= h($anchor) ?>"><span><?= h($label) ?></span><?php if ($badge !== ''): ?><span class="pk-badge<?= $due ? ' due' : '' ?>"><?= h($badge) ?></span><?php endif; ?></a>
+    <?php endforeach; ?>
+  </nav>
+<?php endif; ?>
+<main id="tresc">
+<?php if (!empty($flash)): ?>
+<div class="pk-alert pk-alert-<?= $flash[0] === 'ok' ? 'ok' : ($flash[0] === 'info' ? 'info' : 'err') ?>" role="<?= $flash[0] === 'err' ? 'alert' : 'status' ?>" tabindex="-1" id="komunikat"><?= h($flash[1]) ?></div>
 <script>document.getElementById('komunikat').focus();</script>
 <?php endif; ?>
-

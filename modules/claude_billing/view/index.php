@@ -6,6 +6,7 @@ if (!isset($P, $actor)) { header('Location: /karty30/ti/dydaktyk/claudeAbonament
  */
 $title = 'Płatne licencje — ' . $P['label'];
 $kierCur = 'claudeAbonament.php';
+require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
 include dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_head.php';
 $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
 ?>
@@ -45,7 +46,7 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
     <div class="row g-3">
       <div class="col-md-3"><label class="form-label" for="s-usd">Opłata miesięczna (USD<?= $product === 'claude' ? ', cena non-profit' : '' ?>)</label><input class="form-control" id="s-usd" name="usd" value="<?= h((string)$s['usd']) ?>" inputmode="decimal"></div>
       <div class="col-md-3"><label class="form-label" for="s-list">Cena regularna (USD) — rabat na fakturze</label><input class="form-control" id="s-list" name="list_usd" value="<?= h((string)$s['list_usd']) ?>" inputmode="decimal" aria-describedby="s-list-h"><div id="s-list-h" class="form-text">0 = bez rabatu na fakturze.</div></div>
-      <div class="col-md-3"><label class="form-label" for="s-day">Dzień graniczny naliczenia</label><input class="form-control" id="s-day" name="due_day" type="number" min="1" max="28" value="<?= (int)$s['due_day'] ?>" aria-describedby="s-day-h"><div id="s-day-h" class="form-text">Co miesiąc w dniu aktywacji, nie później niż ten dzień. Termin płatności: zawsze <?= ClaudeBilling::TERM_DAYS ?> dni.</div></div>
+      <div class="col-md-3"><label class="form-label" for="s-day">Dzień graniczny naliczenia</label><input class="form-control" id="s-day" name="due_day" type="number" min="1" max="28" value="<?= (int)$s['due_day'] ?>" aria-describedby="s-day-h"><div id="s-day-h" class="form-text">1 = dokument zawsze 1. dnia miesiąca (domyślnie). Inny dzień: w dniu aktywacji, nie później niż ten dzień. Termin płatności: zawsze <?= ClaudeBilling::TERM_DAYS ?> dni.</div></div>
       <div class="col-md-3"><label class="form-label" for="s-from">Zamawianie od</label><input class="form-control" type="date" id="s-from" name="available_from" value="<?= h($s['available_from']) ?>" aria-describedby="s-win-h"></div>
       <div class="col-md-3"><label class="form-label" for="s-until">Zamawianie do</label><input class="form-control" type="date" id="s-until" name="available_until" value="<?= h($s['available_until']) ?>" aria-describedby="s-win-h"><div id="s-win-h" class="form-text">Puste = bez ograniczenia. Poza tym oknem uczestnik nie włączy licencji; działające abonamenty trwają dalej.</div></div>
       <div class="col-md-3"><label class="form-label" for="s-pct">Doliczany podatek / narzut (%)</label><input class="form-control" id="s-pct" name="pct" value="<?= h((string)$s['pct']) ?>" inputmode="decimal" aria-describedby="s-pct-h"><div id="s-pct-h" class="form-text">Domyślnie 23 (VAT od importu usługi, płaci uczestnik). 0 = bez narzutu.</div></div>
@@ -82,13 +83,13 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
 </section>
 
 <details class="panel"<?= $q !== '' ? ' open' : '' ?>>
-  <summary class="fw-semibold">Aktywuj za uczestnika (np. małoletni, decyzja kierownika)</summary>
+  <summary class="fw-semibold">Uczestnik: konto w panelu licencji · aktywacja za uczestnika</summary>
   <form method="get" action="claudeAbonament.php" class="d-flex gap-2 mt-3" role="search"><input type="hidden" name="product" value="<?= h($product) ?>">
     <label class="visually-hidden" for="cb-q">Szukaj uczestnika</label><input class="form-control" id="cb-q" name="q" value="<?= h($q) ?>" placeholder="Imię lub nazwisko">
     <button class="btn-metro" type="submit">Szukaj</button>
   </form>
   <?php if ($found): ?>
-  <table class="table table-sm mt-2"><thead><tr><th>Uczestnik</th><th>Licencja <?= h($P['label']) ?></th><th>Abonament</th><th><span class="visually-hidden">Akcja</span></th></tr></thead><tbody>
+  <table class="table table-sm mt-2"><thead><tr><th>Uczestnik</th><th>Licencja <?= h($P['label']) ?></th><th>Abonament</th><th><span class="visually-hidden">Akcja</span></th><th>Panel licencji</th></tr></thead><tbody>
   <?php foreach ($found as $c): ?>
     <tr><td><?= h($c['name']) ?></td><td><?= $c['claude'] ? h($c['claude']['license_name']) : '<span class="text-secondary">brak</span>' ?></td>
       <td><?= $c['sub'] ? h(ClaudeBilling::STATUS[$c['sub']['status']]) : '—' ?></td>
@@ -96,7 +97,10 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
         <form method="post" action="<?= h(route('cb.activate')) ?>" class="d-flex gap-1 align-items-center"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>"><input type="hidden" name="client_id" value="<?= (int)$c['id'] ?>">
           <label class="visually-hidden" for="cb-d<?= (int)$c['id'] ?>">Data aktywacji</label><input class="form-control form-control-sm" style="width:150px" type="date" id="cb-d<?= (int)$c['id'] ?>" name="date" value="<?= date('Y-m-d') ?>">
           <button class="btn-metro green btn-sm" type="submit">Aktywuj</button></form>
-      <?php else: ?><a href="<?= h(route('cb.show', ['id' => (int)$c['sub']['id']])) ?>">karta</a><?php endif; ?></td></tr>
+      <?php else: ?><a href="<?= h(route('cb.show', ['id' => (int)$c['sub']['id']])) ?>">karta</a><?php endif; ?></td>
+      <td><?php $ll = LicenseLogin::get((int)$c['id']); ?><?= $ll ? '<span class="font-monospace small">' . h($ll) . '</span> ' : '' ?>
+        <form method="post" action="<?= h(route('cb.lic.account')) ?>" class="d-inline"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>"><input type="hidden" name="client_id" value="<?= (int)$c['id'] ?>"><input type="hidden" name="q" value="<?= h($q) ?>">
+          <button class="btn-metro btn-sm<?= $ll ? ' dark' : '' ?>" type="submit"><?= $ll ? 'Nowe hasło' : 'Załóż konto w panelu licencji' ?></button></form></td></tr>
   <?php endforeach; ?></tbody></table>
   <?php elseif ($q !== ''): ?><p class="mt-2">Nikogo nie znaleziono.</p><?php endif; ?>
 </details>

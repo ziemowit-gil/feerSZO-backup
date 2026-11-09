@@ -1,11 +1,21 @@
 <?php
-if (!isset($me)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
-/** modules/ti_licencje_kursant/view/_bottom.php — stopka panelu „Moje licencje” (domyka _top.php) + kopiowanie / odsłanianie kluczy. */ ?>
+if (!isset($org)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu
+/** modules/ti_licencje_kursant/view/_bottom.php — stopka panelu licencji (domyka _top.php): pasek dostępności, kopiowanie i odsłanianie kluczy. */
+?>
 </main>
-<footer class="tw-max-w-4xl tw-mx-auto tw-px-4 tw-pb-8 tw-text-xs tw-text-m-steel"><?= h($org) ?> · Moje licencje · pytania: napisz do prowadzącego w panelu</footer>
+</div>
+<div class="pk-footer"><?= h($org) ?> · Panel licencji · pytania: napisz do prowadzącego albo do biura</div>
+<div style="position:absolute;left:-9999px" id="lk-live" aria-live="polite"></div>
 <script>
 (function () {
-  var live = document.getElementById('lk-live');
+  var root = document.documentElement, live = document.getElementById('lk-live');
+  function mark() {
+    document.querySelectorAll('[data-lp-contrast]').forEach(function (b) { var on = (root.dataset.contrast || 'normal') === b.dataset.lpContrast; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    document.querySelectorAll('[data-lp-fontsize]').forEach(function (b) { var on = (root.dataset.fontsize || 'md') === b.dataset.lpFontsize; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  }
+  document.querySelectorAll('[data-lp-contrast]').forEach(function (b) { b.addEventListener('click', function () { root.dataset.contrast = b.dataset.lpContrast; try { localStorage.setItem('lp_contrast', b.dataset.lpContrast); } catch (e) {} mark(); }); });
+  document.querySelectorAll('[data-lp-fontsize]').forEach(function (b) { b.addEventListener('click', function () { root.dataset.fontsize = b.dataset.lpFontsize; try { localStorage.setItem('lp_fontsize', b.dataset.lpFontsize); } catch (e) {} mark(); }); });
+  mark();
   document.querySelectorAll('.lk-copy').forEach(function (b) {
     b.addEventListener('click', function () { navigator.clipboard.writeText(b.getAttribute('data-copy')); if (live) live.textContent = 'Skopiowano.'; b.firstChild.textContent = 'Skopiowano'; });
   });

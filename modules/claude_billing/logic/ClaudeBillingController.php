@@ -113,6 +113,24 @@ final class ClaudeBillingController
         }, '', route('cb.index', ['product' => $p]));
     }
 
+    /** Konto w panelu licencji (login „l” + 8 cyfr i nowe hasło) — zakłada kadra; hasło pokazujemy raz, do przekazania uczestnikowi. */
+    public function licAccount(): ?string
+    {
+        $cid = (int)($_POST['client_id'] ?? 0);
+        $p = $this->product();
+        return $this->act(function () use ($cid) {
+            require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
+            $c = db_one("SELECT name FROM k30_clients WHERE id=?", [$cid]);
+            if (!$c) throw new DomainException('Nie ma takiego uczestnika.');
+            $new = !LicenseLogin::get($cid);
+            $login = LicenseLogin::generate($cid, $this->actor()['name'] . ' (panel dydaktyka)');
+            $pass = LicenseLogin::issuePassword($cid);
+            ClaudeBilling::event(null, null, 'lic_account', ($new ? 'Założono' : 'Nowe hasło —') . ' konto w panelu licencji: ' . $c['name'] . ' (' . $login . ').', $this->actor()['name']);
+            return ($new ? 'Założono konto w panelu licencji' : 'Nowe hasło do panelu licencji') . ' dla ' . $c['name'] . ': login ' . $login . ', hasło ' . $pass
+                . ' — przekaż je uczestnikowi (pokazujemy je tylko teraz). Logowanie: https://kursant.feer.org.pl/licencje/';
+        }, '', route('cb.index', ['product' => $p, 'q' => (string)($_POST['q'] ?? '')]));
+    }
+
     // ── Karta abonamentu ────────────────────────────────────────────────────────
 
     public function show(string $id): string
