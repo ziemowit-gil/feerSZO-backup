@@ -373,6 +373,15 @@ final class ClaudeBilling
                 'discount_pln' => round($listBase - $base, 2), 'discount_usd' => round(max(0, $s['list_usd'] - $s['usd']), 2)];
     }
 
+    /**
+     * Cena regularna samej usługi w zł (lista USD × kurs + narzut %), BEZ prowizji za płatność — tę kwotę pokazujemy jako „cena regularna X USD = … zł”.
+     * list_pln zawiera prowizję (żeby rabat = list_pln − amount_pln się zgadzał), więc nie wolno go podpisywać jako równowartości X USD.
+     */
+    public static function listService(array $x): float
+    {
+        return isset($x['list_base_pln']) ? (float)$x['list_base_pln'] : round((float)($x['list_pln'] ?? 0) - (float)($x['fee_pln'] ?? 0), 2);
+    }
+
     /** Wycena bieżąca (pobiera kurs z PKO BP). */
     public static function quote(?string $onDate = null, string $product = 'claude'): array
     {

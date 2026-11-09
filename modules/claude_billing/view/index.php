@@ -30,7 +30,7 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
 <section class="panel accent">
   <h2 class="mt-0">Kurs i kwota</h2>
   <p class="mb-2"><?php if ($rate): ?>Ostatni kurs <?= h($rate['kind_label']) ?> PKO BP (tabela <?= h(PkoRates::tableLabel($rate)) ?>): <b><?= h(ClaudeBilling::rateFmt((float)$rate['rate'])) ?>/USD</b>
-    → <?= h(ClaudeBilling::priceShort($s)) ?> = <b><?= h(ClaudeBilling::zl((float)$rate['amount_pln'])) ?></b> miesięcznie<?= $s['list_usd'] > $s['usd'] ? ' (cena regularna ' . h(ClaudeBilling::usd($s['list_usd'])) . ' = ' . h(ClaudeBilling::zl((float)$rate['list_pln'])) . ', rabat non-profit ' . h(ClaudeBilling::zl((float)$rate['discount_pln'])) . ')' : '' ?>.
+    → <?= h(ClaudeBilling::priceShort($s)) ?> = <b><?= h(ClaudeBilling::zl((float)$rate['amount_pln'])) ?></b> miesięcznie<?= $s['list_usd'] > $s['usd'] ? ' (cena regularna ' . h(ClaudeBilling::usd($s['list_usd'])) . ' = ' . h(ClaudeBilling::zl(ClaudeBilling::listService($rate))) . ' bez prowizji, rabat non-profit ' . h(ClaudeBilling::zl((float)$rate['discount_pln'])) . ')' : '' ?>.
     <?php else: ?>Nie pobrano jeszcze kursu z PKO BP.<?php endif; ?></p>
   <div class="d-flex flex-wrap gap-2">
     <form method="post" action="<?= h(route('cb.rate')) ?>"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>"><button class="btn-metro" type="submit">Pobierz kurs teraz</button></form>

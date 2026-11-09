@@ -49,7 +49,8 @@ final class ClaudeInvoice
         $P = ClaudeBilling::P(ClaudeBilling::productOf($ch));
         return ((int)$ch['is_test'] ? '[TEST — dokument testowy] ' : '')
             . 'Dostęp do ' . ($P['program'] !== '' ? preg_replace('/\s*\(.*\)$/u', '', $P['name']) . ' ' . $P['program'] : $P['name']) . ', okres: ' . ClaudeBilling::periodLabel((string)$ch['period']) . '. '
-            . ($disc > 0 ? 'Cena regularna ' . ClaudeBilling::usd((float)$ch['list_usd']) . ' = ' . ClaudeBilling::zl((float)$ch['list_pln'])
+            . ($disc > 0 ? 'Cena regularna ' . ClaudeBilling::usd((float)$ch['list_usd']) . ' = ' . ClaudeBilling::zl(ClaudeBilling::listService($ch))
+                . ((float)($ch['pct'] ?? 0) > 0 ? ' (z ' . ClaudeBilling::pctFmt((float)$ch['pct']) . ' ' . ($ch['pct_label'] ?? '') . ', bez prowizji)' : ' (bez prowizji)')
                 . '; rabat dla organizacji non-profit ' . ClaudeBilling::usd(round((float)$ch['list_usd'] - (float)$ch['usd'], 2)) . ' = ' . ClaudeBilling::zl($disc) . '; ' : '')
             . 'do zapłaty: ' . ClaudeBilling::breakdown($ch) . ((float)($ch['pct'] ?? 0) > 0 && ($ch['pct_label'] ?? '') === 'VAT' ? ' (' . ClaudeBilling::pctFmt((float)$ch['pct']) . ' VAT od importu usługi, doliczony do ceny)' : '') . '. '
             . 'Kurs ' . $kind . ' PKO BP z tabeli ' . PkoRates::tableLabel(['table_number' => $ch['rate_table'], 'table_at' => $ch['rate_at']]) . ': ' . ClaudeBilling::rateFmt((float)$ch['rate']) . '/USD.'

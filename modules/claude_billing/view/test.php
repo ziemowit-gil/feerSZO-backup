@@ -22,7 +22,7 @@ $nextMonth = date('Y-m-', strtotime('first day of next month')) . str_pad((strin
   <h2 class="mt-0">1. Kurs PKO BP i kwota</h2>
   <?php if ($quote): ?>
     <p class="mb-1">Kurs <?= h($quote['kind_label']) ?> USD z tabeli PKO BP <?= h(PkoRates::tableLabel($quote)) ?>: <b><?= h(ClaudeBilling::rateFmt($quote['rate'])) ?></b><?= $quote['stale'] ? ' <span class="chip" style="background:#a20025">' . h($quote['source']) . '</span>' : '' ?></p>
-    <p class="mb-0">Cena regularna <?= h(ClaudeBilling::usd($quote['list_usd'])) ?> = <?= h(ClaudeBilling::zl($quote['list_pln'])) ?> · rabat non-profit <?= h(ClaudeBilling::zl($quote['discount_pln'])) ?> · <b>do zapłaty <?= h(ClaudeBilling::priceShort($quote)) ?> = <?= h(ClaudeBilling::zl($quote['amount_pln'])) ?></b></p>
+    <p class="mb-0">Cena regularna <?= h(ClaudeBilling::usd($quote['list_usd'])) ?> = <?= h(ClaudeBilling::zl(ClaudeBilling::listService($quote))) ?> (bez prowizji) · rabat non-profit <?= h(ClaudeBilling::zl($quote['discount_pln'])) ?> · <b>do zapłaty <?= h(ClaudeBilling::priceShort($quote)) ?> = <?= h(ClaudeBilling::zl($quote['amount_pln'])) ?></b></p>
   <?php else: ?><p class="text-danger mb-0">Nie udało się pobrać kursu: <?= h($quoteErr) ?></p><?php endif; ?>
   <p class="small mt-2 mb-0">Fakturownia: <?= ClaudeInvoice::live($s) ? '<b>podłączona</b> — proforma i zamówienie powstaną naprawdę' : '<b class="text-danger">SYMULACJA</b> — ' . ($s['simulate'] ? 'włączony tryb symulacji' : 'Fakturownia niepodłączona') . '; dokumenty dostaną numery SYM-… i nie trafią do Fakturowni' ?> ·
     Przelewy24: <?= $p24['enabled'] ? 'włączone (' . h($p24['env'] === 'sandbox' ? 'sandbox' : 'produkcja — w teście tylko symulacja') . ')' : 'wyłączone — w teście symulacja' ?> ·
