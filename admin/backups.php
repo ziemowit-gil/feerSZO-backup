@@ -150,15 +150,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Weryfikacja renderuje wyniki na miejscu (bez przekierowania).
+    // Komunikat przez sesję, nie przez adres: treść zawiera HTML budowany po stronie serwera (np. <pre> z wynikiem
+    // backupu), a wypisywanie ?msg= z adresu pozwalało wstrzyknąć skrypt linkiem podsuniętym administratorowi.
     if ($act !== 'verify') {
-        header('Location: ' . APP_URL . '/admin/backups.php'
-             . ($flash ? '?msg=' . urlencode($flash) . '&type=' . $flash_type : ''));
+        if ($flash) $_SESSION['backupsFlash'] = ['msg' => $flash, 'type' => $flash_type];
+        header('Location: ' . APP_URL . '/admin/backups.php');
         exit;
     }
 }
 $verify = $verify ?? null;
 
-if (!empty($_GET['msg'])) { $flash = $_GET['msg']; $flash_type = $_GET['type'] ?? 'success'; }
+if (!empty($_SESSION['backupsFlash'])) {
+    $flash      = (string)($_SESSION['backupsFlash']['msg'] ?? '');
+    $flash_type = (string)($_SESSION['backupsFlash']['type'] ?? 'success');
+    unset($_SESSION['backupsFlash']);
+}
+if (!in_array($flash_type, ['success', 'danger', 'warning', 'info'], true)) $flash_type = 'info';
 
 // ── Skanuj katalog backupów ───────────────────────────────────────────────
 $months = [];
@@ -281,7 +288,7 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
 
 
 <?php if ($flash): ?>
-<div class="alert alert-<?= h($flash_type) ?> py-2 small"><?= $flash ?></div>
+<div class="alert alert-<?= h($flash_type) ?> py-2 small" role="<?= $flash_type === 'danger' ? 'alert' : 'status' ?>"><?= $flash ?></div>
 <?php endif; ?>
 
 <?php
