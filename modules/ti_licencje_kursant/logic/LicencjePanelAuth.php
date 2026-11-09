@@ -19,6 +19,10 @@ final class LicencjePanelAuth
             session_write_close();
         }
         session_name('szo_licencje');
+        // Po sesji panelu TI (k30_student) PHP pamięta jej identyfikator i session_start() użyłby go zamiast ciasteczka szo_licencje —
+        // panel licencji pisałby do pliku sesji TI, a po zalogowaniu loginem „l…” następne wejście trafiało znowu na logowanie. Własny identyfikator:
+        $own = (string)($_COOKIE['szo_licencje'] ?? '');
+        session_id(preg_match('/^[A-Za-z0-9,-]{22,256}$/', $own) ? $own : session_create_id());
         session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
                                    'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
         session_start();
