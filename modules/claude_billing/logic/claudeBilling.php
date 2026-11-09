@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Zasady (polecenia z 2026-11-09):
  *   • Uczestnik z przypisaną licencją produktu (moduł Licencje: nazwa/dostawca pasuje do produktu) sam aktywuje dostęp w panelu /licencje —
  *     podaje dane do faktury, akceptuje warunki; w Helpdesku IT powstaje zgłoszenie aktywacji. NordVPN: jedna licencja na osobę (sprawdzane po e-mailu).
- *   • Naliczenie (i faktura VAT w Fakturowni) w dniu aktywacji, potem co miesiąc w dniu aktywacji, ale nie później niż 8. dnia miesiąca
+ *   • Naliczenie (proforma w Fakturowni) w dniu aktywacji, potem zawsze 1. dnia miesiąca (ustawienie; wcześniej: dzień aktywacji, nie później niż 8.)
  *     (dzień graniczny zmienia kierownik — globalnie albo dla jednej osoby). Termin płatności: zawsze 5 dni.
  *   • Kwota (dynamicznie, z ustawień): cena w USD × ostatni kurs PKO BP (domyślnie sprzedaż dewiz) z dnia naliczenia + narzut % (domyślnie 2% „VAT”)
  *     + prowizja za płatność (domyślnie 1,23 zł, osobna pozycja faktury); narzut domyślnie 23% „VAT” (VAT od importu usługi — koszt po stronie uczestnika); Claude: 8 USD (cena non-profit, regularna 25 USD → rabat na fakturze).
@@ -26,16 +26,16 @@ final class ClaudeBilling
     /** Produkty. match — fragmenty nazwy/dostawcy licencji w module Licencje; uniqueEmail — jedna licencja na adres e-mail. */
     public const PRODUCTS = [
         'claude'  => ['label' => 'Claude', 'name' => 'Claude Team (Claude for Nonprofit)', 'what' => 'asystent AI Claude', 'prefix' => 'claude_bill_',
-                      'match' => ['claude', 'anthropic', 'antropic'], 'uniqueEmail' => false, 'color' => '#da532c',
+                      'match' => ['claude', 'anthropic', 'antropic'], 'uniqueEmail' => false, 'color' => '#da532c', 'requiresEdu' => true, 'pool' => false,
                       'program' => 'w programie Claude for Nonprofit (Anthropic)', 'defaults' => ['enabled' => '1', 'usd' => '8', 'list_usd' => '25']],
         'nordvpn' => ['label' => 'NordVPN', 'name' => 'NordVPN', 'what' => 'NordVPN — bezpieczne połączenie z internetem', 'prefix' => 'nordvpn_bill_',
-                      'match' => ['nordvpn', 'nord vpn', 'nordlayer', 'nord security'], 'uniqueEmail' => true, 'color' => '#4687ff',
+                      'match' => ['nordvpn', 'nord vpn', 'nordlayer', 'nord security'], 'uniqueEmail' => true, 'color' => '#4687ff', 'requiresEdu' => false, 'pool' => true,
                       'program' => '', 'defaults' => ['enabled' => '0', 'usd' => '0', 'list_usd' => '0']],
     ];
     public const STATUS = ['active' => 'aktywny', 'suspended' => 'wstrzymany (zaległość)', 'ended' => 'zakończony'];
     public const CHARGE_STATUS = ['pending' => 'do zapłaty', 'paid' => 'opłacone', 'cancelled' => 'anulowane'];
     public const DEFAULTS = [
-        'enabled' => '1', 'usd' => '8', 'list_usd' => '25', 'due_day' => '8', 'grace_days' => '7',
+        'enabled' => '1', 'usd' => '8', 'list_usd' => '25', 'due_day' => '1', 'grace_days' => '7',   // dokument zawsze 1. dnia miesiąca (polecenie 2026-11-09)
         'available_from' => '', 'available_until' => '',   // okno zamawiania (włączania) przez uczestników: od / do — puste = bez ograniczenia
         'pct' => '23', 'pct_label' => 'VAT', 'fee_pln' => '1.23',   // 23% VAT od importu usługi — doliczany do ceny, płaci uczestnik (faktura FEER wg ustawień Faktur, domyślnie zw) i prowizja za płatność (polecenia 2026-11-09)
         'rate_kind' => 'sale_foreign', 'invoice' => 'auto', 'discount_mode' => 'rabat', 'invoice_email' => '1', 'notify' => '1', 'helpdesk' => '1',
@@ -54,6 +54,7 @@ final class ClaudeBilling
     /** Czy tworzyć prawdziwe zgłoszenia także dla testowych abonamentów (zaznaczone na stronie testu). */
     public static bool $testRealTickets = false;
     private static array $afterPay = [];
+    private static string $poolNote = '';
     /** Ustawienia produktu (jedno zapytanie na prefiks; czyszczone przy zapisie — org_setting() trzyma wartości do końca żądania). */
     private static array $settingsCache = [];
     private static bool $shutdownSet = false;
@@ -129,6 +130,87 @@ final class ClaudeBilling
             kind TEXT NOT NULL, text TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '',
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_claude_ev_sub ON claude_events(subscription_id, id)");
+        db()->exec("CREATE TABLE IF NOT EXISTS license_edu_requests (
+            client_id INTEGER PRIMARY KEY, proposed TEXT NOT NULL DEFAULT '', helpdesk_number TEXT NOT NULL DEFAULT '',
+            created_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+    }
+
+    // ── Konto @edu.feer.org.pl (wymagane do Claude) ─────────────────────────────
+
+    public const EDU_DOMAIN = 'edu.feer.org.pl';
+
+    /** Konto uczestnika w tenancie edukacyjnym (ms_upn, sprawa AM7, e-mail w kartotece) albo null. */
+    public static function eduAccount(int $clientId): ?string
+    {
+        $like = '%@' . self::EDU_DOMAIN;
+        foreach ([["SELECT ms_upn v FROM k30_ti_student_accounts WHERE client_id=? AND LOWER(COALESCE(ms_upn,'')) LIKE ? ORDER BY id DESC LIMIT 1", true],
+                  ["SELECT tenant_upn v FROM licenses WHERE interested_kind='client' AND interested_id=? AND LOWER(tenant_upn) LIKE ? ORDER BY id DESC LIMIT 1", true],
+                  ["SELECT email v FROM k30_clients WHERE id=? AND LOWER(COALESCE(email,'')) LIKE ?", true]] as [$sql]) {
+            try { $r = db_one($sql, [$clientId, $like]); if ($r && trim((string)$r['v']) !== '') return trim((string)$r['v']); } catch (\Throwable $e) {}
+        }
+        return null;
+    }
+
+    /** Wniosek o konto @edu.feer.org.pl (jeden na osobę) albo null. */
+    public static function eduRequest(int $clientId): ?array
+    {
+        self::migrate();
+        return db_one("SELECT * FROM license_edu_requests WHERE client_id=?", [$clientId]) ?: null;
+    }
+
+    /** Proponowany adres konta edu: login „l” + 8 cyfr @edu.feer.org.pl (login tworzony, gdy go nie ma). */
+    public static function eduProposal(int $clientId): string
+    {
+        require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
+        return (LicenseLogin::get($clientId) ?: LicenseLogin::generate($clientId, 'propozycja konta edu')) . '@' . self::EDU_DOMAIN;
+    }
+
+    /** Uczestnik prosi o konto @edu.feer.org.pl — zgłoszenie w Helpdesku IT z proponowanym loginem. */
+    public static function requestEdu(int $clientId, array $actor): array
+    {
+        self::migrate();
+        if (self::eduAccount($clientId)) throw new DomainException('Masz już konto @' . self::EDU_DOMAIN . '.');
+        if ($r = self::eduRequest($clientId)) return $r;
+        $c = self::client($clientId) ?? ['name' => '', 'email' => ''];
+        $proposed = self::eduProposal($clientId);
+        $num = '';
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
+            $desc = "Załóż konto w tenancie edukacyjnym (@" . self::EDU_DOMAIN . ") — potrzebne do Claude.\nOsoba: " . $c['name'] . ' (uczestnik nr ' . $clientId . ')'
+                . ($c['email'] ? "\nE-mail kontaktowy: " . $c['email'] : '') . "\nProponowany login: " . $proposed . "\nZgłosił: " . ($actor['name'] ?? '') . ' (' . ($actor['via'] ?? '') . ')';
+            $tid = hd_ticket_quick_create(['id' => null, 'name' => (string)$c['name'], 'email' => (string)$c['email']], 'Załóż konto @' . self::EDU_DOMAIN . ': ' . $c['name'], $desc, 'it_licencje_am', 'normalny', 'license_edu');
+            try { require_once dirname(__DIR__, 2) . '/helpdeskCollab/lib/helpdeskCollab.php'; hdTagAdd($tid, 'claude'); hdTagAdd($tid, 'konto_edu'); } catch (\Throwable $e) {}
+            $num = (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [$tid])['number'] ?? '');
+        } catch (\Throwable $e) {
+            self::notifyOffice(['is_test' => 0, 'id' => 0, 'product' => 'claude'], 'Konto @' . self::EDU_DOMAIN . ' do założenia: ' . $c['name'], '<p>Proponowany login: <b>' . h($proposed) . '</b> (zgłoszenie Helpdesk nie powstało: ' . h($e->getMessage()) . ').</p>');
+        }
+        db_insert('license_edu_requests', ['client_id' => $clientId, 'proposed' => $proposed, 'helpdesk_number' => $num, 'created_by' => (string)($actor['name'] ?? '')]);
+        return self::eduRequest($clientId) ?? [];
+    }
+
+    // ── Pula licencji Fundacji (modules/license_pool) ───────────────────────────
+
+    /** Produkt w puli licencji Fundacji pasujący do produktu (np. NordVPN) albo null. */
+    public static function poolProduct(string $product): ?int
+    {
+        $P = self::P($product);
+        if (empty($P['pool'])) return null;
+        try {
+            require_once dirname(__DIR__, 2) . '/license_pool/lib/LpPool.php';
+            foreach (LpPool::products(true) as $pp) {
+                $hay = mb_strtolower((string)$pp['name'] . ' ' . (string)($pp['vendor'] ?? ''));
+                foreach ($P['match'] as $m) if (str_contains($hay, $m)) return (int)$pp['id'];
+            }
+        } catch (\Throwable $e) {}
+        return null;
+    }
+
+    /** Czy w puli jest wolne miejsce na produkt. */
+    public static function poolHasFree(string $product): bool
+    {
+        $pid = self::poolProduct($product);
+        if (!$pid) return false;
+        try { return LpPool::pickFree($pid) !== null; } catch (\Throwable $e) { return false; }
     }
 
     // ── Produkty i ustawienia ───────────────────────────────────────────────────
@@ -207,7 +289,7 @@ final class ClaudeBilling
         return 'Włączam dostęp do ' . $P['label'] . '. Wiem, że co miesiąc płacę ' . self::usdWords($s['usd'])
             . ($s['list_usd'] > $s['usd'] ? ' (cena dla organizacji non-profit, normalnie ' . self::usdWords($s['list_usd']) . ')' : '')
             . ' przeliczone na złote po kursie PKO BP z dnia wystawienia faktury' . self::extrasWords($s) . '. '
-            . 'Pierwszą fakturę dostanę od razu, kolejne co miesiąc w dniu włączenia dostępu, ale nie później niż ' . $s['due_day'] . '. dnia miesiąca. '
+            . 'Pierwszą proformę dostanę od razu, kolejne ' . ($s['due_day'] === 1 ? 'zawsze 1. dnia miesiąca' : 'co miesiąc w dniu włączenia dostępu, ale nie później niż ' . $s['due_day'] . '. dnia miesiąca') . '; po wpłacie dostanę fakturę. '
             . 'Na zapłatę mam ' . self::TERM_DAYS . ' dni (Przelewy24, przelew na konto albo Szybki przelew z faktury). '
             . 'Jeśli nie zapłacę w ciągu ' . $s['grace_days'] . ' dni po terminie, dostęp zostanie wstrzymany do czasu wpłaty. '
             . 'Mogę zrezygnować w każdej chwili w panelu — wtedy nie dostanę kolejnych faktur.';
@@ -444,11 +526,19 @@ final class ClaudeBilling
         $a = self::assignment($clientId, $product);
         $open = db_one("SELECT id FROM claude_subscriptions WHERE client_id=? AND product=? AND status IN ('active','suspended') AND is_test=0", [$clientId, $P['key']]);
         if ($open)                 return ['ok' => false, 'reason' => 'Masz już włączony ' . $P['label'] . '.', 'assignment' => $a];
-        if (!$a)                   return ['ok' => false, 'reason' => 'Nie masz jeszcze przydzielonej licencji ' . $P['label'] . '. Jeśli chcesz z niej korzystać, napisz do prowadzącego albo do biura.', 'assignment' => null];
+        $fromPool = false;
+        if (!$a && !empty($P['pool']) && self::poolProduct($P['key'])) {   // licencję weźmiemy z puli licencji Fundacji przy włączeniu
+            if (!self::poolHasFree($P['key'])) return ['ok' => false, 'reason' => 'Wszystkie licencje ' . $P['label'] . ' z puli Fundacji są teraz zajęte — napisz do biura, damy znać, gdy zwolni się miejsce.', 'assignment' => null];
+            $fromPool = true;
+        }
+        if (!$a && !$fromPool)     return ['ok' => false, 'reason' => 'Nie masz jeszcze przydzielonej licencji ' . $P['label'] . '. Jeśli chcesz z niej korzystać, napisz do prowadzącego albo do biura.', 'assignment' => null];
         if (!$s['enabled'] || !$s['priced']) return ['ok' => false, 'reason' => 'Samodzielne włączenie ' . $P['label'] . ' jest chwilowo niedostępne — napisz do biura.', 'assignment' => $a];
         if ($s['available_until'] !== '' && $s['available_until'] < date('Y-m-d')) return ['ok' => false, 'reason' => 'Zamawianie ' . $P['label'] . ' zakończyło się ' . self::dayMonth($s['available_until']) . '. Jeśli potrzebujesz dostępu, napisz do biura.', 'assignment' => $a];
         if ($s['available_from'] !== '' && $s['available_from'] > date('Y-m-d')) return ['ok' => false, 'reason' => 'Wnioski o ' . $P['label'] . ' przyjmujemy od ' . self::dayMonth($s['available_from']) . ' — wtedy włączysz go tutaj sam(a).', 'assignment' => $a, 'from' => $s['available_from']];
         if (self::isMinor($clientId)) return ['ok' => false, 'reason' => 'Dostęp osoby niepełnoletniej włącza biuro na prośbę opiekuna.', 'assignment' => $a];
+        if (!empty($P['requiresEdu']) && !self::eduAccount($clientId)) {
+            return ['ok' => false, 'needEdu' => true, 'assignment' => $a, 'reason' => 'Do ' . $P['label'] . ' potrzebujesz konta @' . self::EDU_DOMAIN . ' — bez niego nie uruchomimy dostępu. Poproś o nie poniżej, a Dział IT je założy.'];
+        }
         if ($P['uniqueEmail']) {
             $email = trim((string)(self::client($clientId)['email'] ?? ''));
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'reason' => 'Do ' . $P['label'] . ' potrzebny jest Twój adres e-mail w kartotece — napisz do biura, żeby go dopisało.', 'assignment' => $a];
@@ -456,7 +546,7 @@ final class ClaudeBilling
         }
         $debt = db_one("SELECT COUNT(*) n FROM claude_charges WHERE client_id=? AND product=? AND status='pending' AND is_test=0", [$clientId, $P['key']]);
         if ((int)($debt['n'] ?? 0) > 0) return ['ok' => false, 'reason' => 'Masz nieopłaconą fakturę za ' . $P['label'] . ' z poprzedniego okresu — najpierw ją ureguluj.', 'assignment' => $a];
-        return ['ok' => true, 'reason' => '', 'assignment' => $a];
+        return ['ok' => true, 'reason' => '', 'assignment' => $a, 'fromPool' => $fromPool];
     }
 
     /**
@@ -481,6 +571,16 @@ final class ClaudeBilling
             if (!$s['priced']) throw new DomainException('Najpierw ustaw cenę ' . $P['label'] . ' w ustawieniach.');
             $assignment = self::assignment($clientId, $product);
         }
+        if (!$assignment && !$test && !empty($P['pool']) && ($pid = self::poolProduct($product))) {   // licencja z puli licencji Fundacji (klucz trafia do modułu Licencje)
+            require_once dirname(__DIR__, 2) . '/license_pool/lib/LpPool.php';
+            $c = self::client($clientId) ?? [];
+            $r = LpPool::assign(['holder_type' => 'client', 'holder_id' => $clientId, 'product_id' => $pid, 'context' => 'Płatne licencje — ' . $P['label'],
+                                 'note' => 'włączone w panelu licencji (' . ($actor['via'] ?? '') . ')', 'notify' => false, 'holder_email' => (string)($c['email'] ?? ''),
+                                 'billing_form' => 'FAK', 'billing_ref' => 'subskrypcja ' . $P['label'] . ' — proforma/faktura co miesiąc (Płatne licencje)'], null);   // rozliczenie: faktura (moduł Licencje wymaga formy)
+            if (empty($r['ok'])) throw new DomainException('Nie udało się przydzielić licencji ' . $P['label'] . ' z puli: ' . implode(' ', (array)($r['errors'] ?? [])));
+            $assignment = self::assignment($clientId, $product);
+            self::$poolNote = 'licencja z puli Fundacji (przydział #' . (int)($r['id'] ?? 0) . ')';
+        }
         $date = $date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : date('Y-m-d');
         $free = false;
         if (!$test) { require_once dirname(__DIR__, 3) . '/includes/ti_virtual.php'; $free = ti_client_no_billing($clientId); }
@@ -495,6 +595,7 @@ final class ClaudeBilling
             'is_test' => $test ? 1 : 0,
         ]);
         self::event($id, null, 'activated', 'Włączono ' . $P['label'] . ' od ' . self::date($date) . ($free ? ' — bez opłat (uczestnik „bez rozliczeń”)' : '') . '. Warunki zaakceptowane ' . date('d.m.Y H:i') . (($actor['ip'] ?? '') !== '' ? ', IP ' . $actor['ip'] : '') . '.', (string)($actor['name'] ?? ''));
+        if (self::$poolNote !== '') { self::event($id, null, 'pool', 'Przydzielono ' . self::$poolNote . '.', (string)($actor['name'] ?? '')); self::$poolNote = ''; }
         $sub = self::subscription($id);
         if ($gaps = self::invoiceDataGaps($sub)) self::alertBuyerGaps($sub, $gaps);
         $charge = null;
@@ -549,8 +650,18 @@ final class ClaudeBilling
     public static function chargeTitle(array $ch): string
     {
         $P = self::P(self::productOf($ch));
-        return ((int)$ch['is_test'] ? '[TEST] ' : '') . $P['label'] . ' — ' . self::periodLabel((string)$ch['period'])
+        $doc = self::docRef($ch);
+        return ((int)$ch['is_test'] ? '[TEST] ' : '') . ($doc !== '' ? $doc . ' — ' : '') . $P['label'] . ' — ' . self::periodLabel((string)$ch['period'])
             . ' (' . self::priceShort($ch) . ', kurs PKO BP ' . self::rateFmt((float)$ch['rate']) . ')';
+    }
+
+    /** „Proforma PF/…” albo „Faktura FV/…” (opłacone) — do tytułów przelewu i płatności; pusto, gdy brak dokumentu albo symulacja. */
+    public static function docRef(array $ch): string
+    {
+        $paid = ($ch['status'] ?? '') === 'paid' && (string)($ch['invoice_number'] ?? '') !== '';
+        $no = $paid ? (string)$ch['invoice_number'] : ((string)($ch['proforma_number'] ?? '') ?: (string)($ch['invoice_number'] ?? ''));
+        if ($no === '' || str_starts_with($no, 'SYM-')) return '';
+        return ($paid || (string)($ch['proforma_number'] ?? '') === '' ? 'Faktura ' : 'Proforma ') . $no;
     }
 
     /** Naliczenie za okres — kurs z PKO BP z dnia naliczenia; pozycja w portalu płatności; faktura. Musi działać POZA transakcją (pp_add_item ma własną). */
@@ -570,6 +681,10 @@ final class ClaudeBilling
             'pct' => $q['pct'], 'pct_label' => $q['pct_label'], 'fee_pln' => $q['fee_pln'], 'base_pln' => $q['base_pln'],
             'status' => 'pending', 'is_test' => (int)$sub['is_test'], 'note' => $q['stale'] ? 'kurs: ' . $q['source'] : '',
         ]);
+        if ($s['invoice'] === 'auto' || (int)$sub['is_test']) {   // najpierw proforma (numer trafia do tytułu płatności), potem pozycja portalu
+            require_once __DIR__ . '/ClaudeInvoice.php';
+            try { ClaudeInvoice::issueForCharge($id); } catch (\Throwable $e) { db_exec("UPDATE claude_charges SET invoice_error=? WHERE id=?", [mb_substr($e->getMessage(), 0, 500), $id]); }
+        }
         $ch = self::charge($id);
         require_once dirname(__DIR__, 2) . '/payment_portal/logic/paymentPortal.php';
         $item = pp_add_item((int)$sub['client_id'], self::chargeTitle($ch), (float)$ch['amount_pln'], 'manual', null, $due, 'Abonament ' . self::P($product)['label'], null);
@@ -577,10 +692,6 @@ final class ClaudeBilling
         else db_exec("UPDATE claude_charges SET note=? WHERE id=?", [trim($ch['note'] . ' Portal płatności: ' . $item), $id]);
         self::event((int)$sub['id'], $id, 'charge', 'Naliczenie za ' . self::periodLabel($period) . ': ' . self::breakdown(self::charge($id))
             . ' (' . $q['kind_label'] . ', tabela PKO BP ' . PkoRates::tableLabel($q) . '), termin ' . self::date($due) . '.', 'system');
-        if ($s['invoice'] === 'auto' || (int)$sub['is_test']) {   // faktura VAT (test: proforma) w Fakturowni od razu — z terminem 5 dni i rabatem
-            require_once __DIR__ . '/ClaudeInvoice.php';
-            try { ClaudeInvoice::issueForCharge($id); } catch (\Throwable $e) { db_exec("UPDATE claude_charges SET invoice_error=? WHERE id=?", [mb_substr($e->getMessage(), 0, 500), $id]); }
-        }
         $ch = self::charge($id);
         self::notifyParticipant($sub, 'naliczenie', $ch);
         return $ch;
@@ -936,9 +1047,8 @@ final class ClaudeBilling
     /** Tytuł przelewu tradycyjnego dla naliczenia. */
     public static function transferTitle(array $ch): string
     {
-        $no = ($ch['proforma_number'] ?? '') ?: ($ch['invoice_number'] ?? '');
-        if (str_starts_with((string)$no, 'SYM-')) $no = '';   // symulacja — numer nie istnieje w Fakturowni
-        return strtoupper(self::P(self::productOf($ch))['label']) . ' ' . ($no ?: ('NAL/' . (int)$ch['id'])) . ' ' . self::periodLabel((string)$ch['period']);
+        $doc = self::docRef($ch);   // numer proformy albo faktury — wymagany w tytule
+        return ($doc !== '' ? $doc : 'NAL/' . (int)$ch['id']) . ' ' . self::P(self::productOf($ch))['label'] . ' ' . self::periodLabel((string)$ch['period']);
     }
 
     // ── Dane do widoków ─────────────────────────────────────────────────────────

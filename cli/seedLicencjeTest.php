@@ -6,7 +6,8 @@
  * i danymi do faktury, a do tego:
  *   • licencje w module Licencje: Claude Team (Anthropic), NordVPN (Nord Security, z loginem), Adobe Creative Cloud (TEST) z kluczem,
  *   • licencję na Office — sprawę AM7 „przyznana” z kontem w tenancie (login l + 8 cyfr),
- *   • login do licencji „l” + 8 cyfr (modules/license_login),
+ *   • login do panelu licencji „l” + 8 cyfr (modules/license_login) z hasłem serwisowym — logowanie na kursant.feer.org.pl/licencje/,
+ *   • przykładowe konto w tenancie edukacyjnym: l…@edu.feer.org.pl (tylko wpis w SZO — ms_upn; bez konta w Microsoft), wymagane do Claude,
  *   • usługi refakturowane przez FEER (modules/ti_products): domenę i hosting z ceną miesięczną.
  * Abonamentu Claude/NordVPN NIE włącza — to robi się w panelu (przycisk „Włącz …”), żeby przejść cały przebieg; NordVPN wymaga ceny w ustawieniach.
  *
@@ -64,7 +65,8 @@ switch ($cmd) {
         $cid = (int)$acc['client_id'];
         echo "Konto {$login} → uczestnik #{$cid} „{$acc['name']}”" . ($ours ? '' : ' (NIE założone przez ten seeder)') . "\n";
         foreach (k30_ti_client_licenses($cid) as $l) echo "  licencja: {$l['license_name']} ({$l['vendor']})" . ($l['login'] ? ", login {$l['login']}" : '') . "\n";
-        echo "  login do licencji: " . (LicenseLogin::get($cid) ?: '—') . "\n";
+        echo "  panel licencji: https://kursant.feer.org.pl/licencje/  login " . (LicenseLogin::get($cid) ?: '—') . " (hasło serwisowe)\n";
+        echo "  konto edu (seed): " . (ClaudeBilling::eduAccount($cid) ?: '—') . "\n";
         echo "  hasło serwisowe: " . (org_setting(LT_PASS_KEY) ?: '— (ustawi się przy „Załóż”)') . "\n";
         echo "  logowanie: https://kursant.feer.org.pl/  login {$login}\n";
         try {   // diagnoza logowania (modules/ti_login): pierwsze logowanie kodem SMS i blokada po nieudanych próbach
@@ -110,9 +112,12 @@ switch ($cmd) {
                 'login' => $n === 'NordVPN' ? LT_EMAIL : '', 'access_key' => $n === 'Adobe Creative Cloud (TEST)' ? 'TEST-1234-ABCD-5678' : '', 'notes' => LT_MARKER]);
             echo "OK licencja {$n}\n";
         }
-        // login do licencji l + 8 cyfr
+        // login do panelu licencji l + 8 cyfr z hasłem serwisowym + przykładowe konto w tenancie edukacyjnym (wpis w SZO)
         $own = LicenseLogin::generate($cid, 'seeder');
-        echo "OK login do licencji: {$own}\n";
+        LicenseLogin::setPassword($cid, $newPass);
+        echo "OK panel licencji: login {$own} (hasło serwisowe)\n";
+        try { db_exec("UPDATE k30_ti_student_accounts SET ms_upn=? WHERE id=? AND COALESCE(ms_upn,'')=''", [$own . '@edu.feer.org.pl', (int)$acc['id']]); echo "OK konto edu (seed): {$own}@edu.feer.org.pl\n"; }
+        catch (\Throwable $e) { echo "POMINIĘTO konto edu: {$e->getMessage()}\n"; }
         // licencja na Office — sprawa AM7 „przyznana” z kontem w tenancie
         try {
             require_once $base . '/modules/ti_licencje_dydaktyczne/lib/ldSchema.php';
@@ -143,7 +148,8 @@ switch ($cmd) {
                 echo $r['ok'] ? "OK usługa {$in['name']}\n" : "POMINIĘTO usługa {$in['name']}: " . implode(' ', $r['errors']) . "\n";
             }
         } catch (\Throwable $e) { echo "POMINIĘTO usługi: {$e->getMessage()}\n"; }
-        echo "\nLogowanie: {$login} / {$newPass}  (hasło serwisowe — zapisane w ustawieniach, „Stan” je pokaże)\n";
+        echo "\nPanel licencji: https://kursant.feer.org.pl/licencje/  →  {$own} / {$newPass}\n";
+        echo "Panel uczestnika TI: https://kursant.feer.org.pl/  →  {$login} / {$newPass}  (hasło serwisowe — „Stan” je pokaże)\n";
         echo "Panel: " . rtrim((string)APP_URL, '/') . "/karty30/ti/kursant/licencje/  (na produkcji: https://kursant.feer.org.pl/licencje/)\n";
         $ns = ClaudeBilling::settings('nordvpn');
         if (!$ns['priced'] || !$ns['enabled']) echo "Uwaga: NordVPN ma wyłączone samodzielne włączanie albo brak ceny — ustaw w panelu dydaktyka › Płatne licencje › NordVPN.\n";
@@ -157,7 +163,10 @@ switch ($cmd) {
         db_exec("UPDATE k30_ti_student_accounts SET password_hash=?, is_active=1, last_login=COALESCE(last_login, datetime('now')), sec_chosen=1, sec_image=COALESCE(sec_image, 3), reauth_at=COALESCE(reauth_at, datetime('now')), must_change_password=0 WHERE id=?",
             [password_hash($newPass, PASSWORD_DEFAULT), (int)$acc['id']]);
         try { db_exec("DELETE FROM login_attempts WHERE identifier=?", ['ti:' . $login]); } catch (\Throwable $e) {}   // blokada po nieudanych próbach
-        echo "OK nowe losowe hasło serwisowe (blokada nieudanych prób wyczyszczona).\nLogowanie: {$login} / {$newPass}  →  https://kursant.feer.org.pl/\n";
+        if ($ll = LicenseLogin::get((int)$acc['client_id'])) LicenseLogin::setPassword((int)$acc['client_id'], $newPass);
+        echo "OK nowe losowe hasło serwisowe (blokada nieudanych prób wyczyszczona).\n";
+        if ($ll) echo "Panel licencji: https://kursant.feer.org.pl/licencje/  →  {$ll} / {$newPass}\n";
+        echo "Panel uczestnika TI: https://kursant.feer.org.pl/  →  {$login} / {$newPass}\n";
         cli_exit(0);
 
     case 'delete':

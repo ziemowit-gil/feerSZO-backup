@@ -592,4 +592,22 @@ return [
         },
     ],
 
+
+    // Claude / NordVPN: dokument (proforma) zawsze 1. dnia miesiąca — treść oświadczenia (wersja +1, gdy w bazie jest jeszcze „8. dnia”)
+    // i dzień graniczny w ustawieniach produktów z 8 na 1 (gdy ktoś zapisał 8 — domyślnie już 1).
+    '2026-11_claude_oplata_1_dnia' => [
+        'desc' => 'Płatne licencje: dokument zawsze 1. dnia miesiąca (oświadczenie Claude — nowa wersja do akceptacji; dzień graniczny 1)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/ti_terms.php';
+            ti_terms_migrate();
+            $t = db_one("SELECT id, body_html FROM k30_ti_terms WHERE type='claude_oplata'");
+            if ($t && str_contains((string)$t['body_html'], '8. dnia')) {
+                $body = ti_claude_oplata_body();
+                if (!str_contains($body, '1. dnia')) throw new RuntimeException('Treść oświadczenia bez „1. dnia”');
+                db_exec("UPDATE k30_ti_terms SET body_html=?, version=version+1, updated_at=datetime('now') WHERE id=?", [$body, (int)$t['id']]);
+            }
+            foreach (['claude_bill_due_day', 'nordvpn_bill_due_day'] as $k) db_exec("UPDATE settings SET value='1' WHERE key_=? AND value='8'", [$k]);
+        },
+    ],
+
 ];

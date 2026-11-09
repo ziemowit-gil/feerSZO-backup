@@ -83,7 +83,7 @@ function seedersRegistry(): array
         ],
         'licencje_test' => [
             'group' => 'Konta testowe', 'title' => 'Uczestnik z licencjami (Claude, NordVPN, Office, usługi)', 'script' => 'seedLicencjeTest.php',
-            'desc'  => '„Uczestnik Licencje (TEST)” z kontem w panelu (kursant wirtualny — bez e-maili i SMS-ów) do testów kursant.feer.org.pl/licencje: licencje Claude Team, NordVPN i program z kluczem, licencja na Office (AM7, przyznana), login „l” + 8 cyfr, domena i hosting refakturowane przez FEER. Abonamentu nie włącza — robi się to w panelu. Hasło serwisowe: puste pole = stałe hasło zapisane w ustawieniach (losowane przy pierwszym „Załóż”, widoczne w „Stan”); wpisane = nowe hasło serwisowe.',
+            'desc'  => '„Uczestnik Licencje (TEST)” z kontem w panelu (kursant wirtualny — bez e-maili i SMS-ów) do testów kursant.feer.org.pl/licencje: licencje Claude Team, NordVPN i program z kluczem, licencja na Office (AM7, przyznana), login do panelu licencji „l” + 8 cyfr (to samo hasło), przykładowe konto @edu.feer.org.pl (wpis w SZO), domena i hosting refakturowane przez FEER. Abonamentu nie włącza — robi się to w panelu. Hasło serwisowe: puste pole = stałe hasło zapisane w ustawieniach (losowane przy pierwszym „Załóż”, widoczne w „Stan”); wpisane = nowe hasło serwisowe.',
             'fields'  => [
                 'haslo' => ['label' => 'Hasło serwisowe', 'type' => 'password', 'opt' => '--haslo', 'help' => 'min. 8 znaków; puste = dotychczasowe hasło serwisowe'],
                 'login' => ['label' => 'Login w panelu', 'type' => 'text', 'default' => 'kursant.licencje', 'opt' => '--login'],
