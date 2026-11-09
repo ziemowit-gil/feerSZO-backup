@@ -93,7 +93,8 @@ final class PkoRates
         ]]);
         $raw = @file_get_contents($url, false, $ctx);
         $code = 0;
-        if (isset($http_response_header[0]) && preg_match('#HTTP/\S+\s+(\d+)#', $http_response_header[0], $m)) $code = (int)$m[1];
+        $hdr = function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : (${'http_response_header'} ?? []);   // PHP 8.5: zmienna przestarzała
+        if (isset($hdr[0]) && preg_match('#HTTP/\S+\s+(\d+)#', $hdr[0], $m)) $code = (int)$m[1];
         if (!is_string($raw) || $raw === '') throw new RuntimeException('PKO BP nie odpowiada (HTTP ' . $code . ').');
         $data = json_decode($raw, true);
         if (!is_array($data)) throw new RuntimeException('PKO BP zwrócił stronę zamiast danych (HTTP ' . $code . ', np. przerwa techniczna).');
