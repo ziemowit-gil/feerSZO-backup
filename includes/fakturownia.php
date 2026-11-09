@@ -114,9 +114,11 @@ function fakturownia_test_connection(string $account, string $token): array {
 function fakturownia_create_invoice(string $account, string $token, array $inv): array {
     if (!$account || !$token) return ['success' => false, 'error' => 'Brak konfiguracji API'];
 
+    // $inv['extra'] — dodatkowe pola faktury wg API (np. show_discount, discount_kind, oid, oid_unique, status, paid,
+    // paid_date, payment_type, description); nadpisują domyślne. Pozycje (positions) idą bez zmian, więc mogą nieść discount.
     $body = json_encode([
         'api_token' => $token,
-        'invoice'   => [
+        'invoice'   => array_merge([
             'kind'             => $inv['kind']            ?? 'vat',
             'number'           => $inv['number']          ?? null,
             'sell_date'        => $inv['sell_date']       ?? date('Y-m-d'),
@@ -131,7 +133,7 @@ function fakturownia_create_invoice(string $account, string $token, array $inv):
             'buyer_email'      => $inv['buyer_email']     ?? '',
             'currency'         => $inv['currency']        ?? 'PLN',
             'positions'        => $inv['positions']       ?? [],
-        ],
+        ], (array)($inv['extra'] ?? [])),
     ], JSON_UNESCAPED_UNICODE);
 
     $ctx = stream_context_create(['http' => [
@@ -155,6 +157,7 @@ function fakturownia_create_invoice(string $account, string $token, array $inv):
             'invoice_id'  => $data['id'],
             'invoice_url' => "https://{$account}.fakturownia.pl/invoices/{$data['id']}",
             'number'      => $data['number'] ?? '',
+            'data'        => $data,   // pełna odpowiedź (np. price_gross — kontrola naliczenia rabatu)
         ];
     }
     $err = $data['error'] ?? ($data['message'] ?? ($raw ? substr($raw, 0, 200) : "HTTP $code"));

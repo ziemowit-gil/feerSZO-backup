@@ -696,8 +696,10 @@ function invoice_demo_issue(string $source, int $source_id, int $uid): array
  *
  * @return array{ok:bool,error?:string}
  */
-function invoice_push(int $id): array
+function invoice_push(int $id, array $opts = []): array
 {
+    // $opts (opcjonalne): 'positions' — własne pozycje dla Fakturowni (np. z rabatem: price_net + discount),
+    // 'extra' — dodatkowe pola faktury wg API (show_discount, discount_kind, oid, status=paid…). Używa abonament Claude.
     $inv = invoice_get($id);
     if (!$inv) return ['ok' => false, 'error' => 'Nie znaleziono faktury.'];
     if (!empty($inv['fakturownia_id'])) {
@@ -724,6 +726,7 @@ function invoice_push(int $id): array
             'tax'              => $it['vat_rate'],
         ];
     }
+    if (!empty($opts['positions'])) $positions = $opts['positions'];
 
     // Faktury z TI mają własną serię TI/nr/mm/rok — narzucamy ją Fakturowni,
     // żeby oznaczenie zgadzało się z panelem. Pozostałe źródła numeruje Fakturownia.
@@ -746,6 +749,7 @@ function invoice_push(int $id): array
         'buyer_email'     => $inv['buyer_email'],
         'currency'        => $inv['currency'],
         'positions'       => $positions,
+        'extra'           => (array)($opts['extra'] ?? []),
     ]);
 
     $now = date('Y-m-d H:i:s');
@@ -770,7 +774,7 @@ function invoice_push(int $id): array
     // Kopia PDF jest wygodą, nie warunkiem powodzenia — brak nie unieważnia wystawienia.
     invoice_pdf_fetch($id);
 
-    return ['ok' => true];
+    return ['ok' => true, 'fakturownia' => (array)($res['data'] ?? [])];
 }
 
 /**
