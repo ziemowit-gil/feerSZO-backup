@@ -149,7 +149,10 @@ if ($pf_ids) {
 $przelew_rachunki = edok_rachunki_list();
 $can_export = $przelew_rachunki && (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')));
 $bank_pin_ok = edok_pin_is_set((int)current_user()['id']);   // zaznaczanie z listy do „Zatwierdź operacje bankowe”
-$sel_col     = $can_export || $bank_pin_ok;
+// Akcje zbiorcze (modules/edok_bulk): jedno pole wyboru w każdym wierszu; eksport przelewów i operacje banku
+// biorą z zaznaczenia tylko pasujące dokumenty (data-export / data-bank).
+require_once __DIR__ . '/../modules/edok_bulk/logic/edokBulk.php';
+$can_pay = edokBulkCanPay();
 
 if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
@@ -336,8 +339,10 @@ require_once __DIR__ . '/../includes/header.php';
   </select>
   <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-bank"></i> Eksportuj przelewy</button>
 </form>
-<p class="text-muted small mb-2">Zaznaczyć do eksportu przelewów można zaakceptowane, jeszcze nieopłacone wydatki z prawidłowym 26-cyfrowym rachunkiem kontrahenta.</p>
 <?php endif; ?>
+<p class="text-muted small mb-2">Zaznacz dokumenty, żeby użyć akcji zbiorczych (pasek na dole: akceptacja jednym PIN-em, PDF-y w ZIP<?= $can_pay ? ', oznaczenie jako opłacone' : '' ?>).<?php if ($can_export): ?> Do eksportu przelewów trafią z zaznaczenia tylko zaakceptowane, jeszcze nieopłacone wydatki z prawidłowym 26-cyfrowym rachunkiem kontrahenta.<?php endif; ?></p>
+
+<?php include __DIR__ . '/../modules/edok_bulk/view/result.php'; ?>
 
 <?php $from_n = $total_docs ? ($page - 1) * $per_page + 1 : 0; $to_n = min($page * $per_page, $total_docs); ?>
 <div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
@@ -353,9 +358,7 @@ require_once __DIR__ . '/../includes/header.php';
   <table class="table table-sm table-hover align-middle">
     <thead class="table-light">
       <tr>
-        <?php if ($sel_col): ?>
-        <th style="width:2rem"><input type="checkbox" class="form-check-input" id="edokExportAll" title="Zaznacz wszystkie" aria-label="Zaznacz wszystkie"></th>
-        <?php endif; ?>
+        <th style="width:2rem"><input type="checkbox" class="form-check-input" id="edokSelAll" title="Zaznacz wszystkie na stronie" aria-label="Zaznacz wszystkie dokumenty na stronie"></th>
         <th title="Numer dokumentu nadany w EODoK (EODoK/nr/rok). Oznaczenie TEST = dokument testowy.">Numer</th>
         <th title="Wydatek = koszt do zapłaty; Przychód = wpływ / sprzedaż.">Kierunek</th>
         <th title="Dostawca lub sprzedawca (wydatek) albo płatnik / źródło wpływu (przychód).">Kontrahent</th>
@@ -371,7 +374,7 @@ require_once __DIR__ . '/../includes/header.php';
         <th></th>
       </tr>
       <tr class="edok-colfilter">
-        <?php if ($sel_col): ?><th></th><?php endif; ?>
+        <th></th>
         <th><input form="colFilters" name="c_numer" value="<?= h($cf['c_numer']) ?>" class="form-control form-control-sm" placeholder="Filtruj…" aria-label="Filtr: numer" style="min-width:90px"></th>
         <th><select form="colFilters" name="kierunek" class="form-select form-select-sm" aria-label="Filtr: kierunek" onchange="this.form.submit()">
           <option value="">Wszystkie</option><option value="wydatek"<?= $filter_kierunek === 'wydatek' ? ' selected' : '' ?>>Wydatek</option><option value="przychod"<?= $filter_kierunek === 'przychod' ? ' selected' : '' ?>>Przychód</option></select></th>
@@ -394,14 +397,20 @@ require_once __DIR__ . '/../includes/header.php';
     </thead>
     <tbody>
       <?php if (!$docs): ?>
-      <tr><td colspan="<?= $sel_col ? 15 : 14 ?>" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
+      <tr><td colspan="15" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
       <?php endif; ?>
       <?php foreach ($docs as $doc): ?>
       <tr>
-        <?php if ($sel_col): ?>
-        <td><?php if ($can_export && edok_przelew_exportable($doc)): ?><input type="checkbox" class="form-check-input edok-export-check" value="<?= (int)$doc['id'] ?>" aria-label="Zaznacz <?= h($doc['number']) ?> do eksportu">
-            <?php elseif (!empty($bank_pin_ok) && $doc['status'] === 'w_obiegu'): ?><input type="checkbox" class="form-check-input edok-bank-check" value="<?= (int)$doc['id'] ?>" title="Zaznacz do zatwierdzenia jako operację banku" aria-label="Zaznacz <?= h($doc['number']) ?> do zatwierdzenia jako operację banku"><?php endif; ?></td>
-        <?php endif; ?>
+        <?php
+          $sel_pay = $can_pay && $doc['status'] === 'zaakceptowany' && ($doc['kierunek'] ?? 'wydatek') === 'wydatek'
+                     && !in_array($doc['status_platnosci'] ?: 'nowy', ['oplacony', 'anulowany'], true);
+        ?>
+        <td><input type="checkbox" class="form-check-input edok-sel" value="<?= (int)$doc['id'] ?>"
+                   data-sign="<?= $doc['status'] === 'w_obiegu' && empty($doc['obieg_papierowy']) ? 1 : 0 ?>"
+                   data-pay="<?= $sel_pay ? 1 : 0 ?>"
+                   data-export="<?= $can_export && edok_przelew_exportable($doc) ? 1 : 0 ?>"
+                   data-bank="<?= $bank_pin_ok && $doc['status'] === 'w_obiegu' ? 1 : 0 ?>"
+                   aria-label="Zaznacz dokument <?= h($doc['number']) ?>"></td>
         <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?>
           <?php if (edok_zaplata_do_zwrotu($doc)): ?> <span class="badge bg-warning text-dark" title="<?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-person-check"></i> do zwrotu</span>
           <?php elseif (!empty($doc['zaplacono_przed'])): ?> <span class="badge bg-success-subtle text-success-emphasis" title="Zapłacona przed akceptacją: <?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-cash-coin"></i> zapłacona</span><?php endif; ?>
@@ -439,6 +448,7 @@ require_once __DIR__ . '/../includes/header.php';
     </tbody>
   </table>
 </div>
+<?php if ($docs) include __DIR__ . '/../modules/edok_bulk/view/bar.php'; ?>
 
 <?php if ($pages > 1): ?>
 <nav aria-label="Stronicowanie dokumentów" class="mt-2">
@@ -453,48 +463,39 @@ require_once __DIR__ . '/../includes/header.php';
 </nav>
 <?php endif; ?>
 
-<?php if ($sel_col): ?>
 <script>
 (function () {
-  // Zaznaczanie z listy do „Zatwierdź operacje bankowe”: dokumenty w obiegu bez przelewu do eksportu.
-  var bank = Array.from(document.querySelectorAll('.edok-bank-check'));
+  // Zaznaczenie z listy (pola .edok-sel, obsługa w modules/edok_bulk/view/modals.php) → eksport przelewów
+  // (tylko data-export=1) i „Zatwierdź operacje bankowe” (tylko data-bank=1: dokumenty w obiegu).
+  function picked(attr) {
+    return Array.prototype.slice.call(document.querySelectorAll('.edok-sel'))
+      .filter(function (c) { return c.checked && c.getAttribute(attr) === '1'; })
+      .map(function (c) { return c.value; });
+  }
   var bankBtn = document.getElementById('bankQuickBtn'), bankCount = document.getElementById('bankQuickCount');
   var bankIds = document.getElementById('bankQuickIds'), bankNote = document.getElementById('bankQuickNote');
   var pendingCount = bankCount ? parseInt(bankCount.textContent, 10) || 0 : 0;
-  function syncBank() {
-    var ids = bank.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+  var form = document.getElementById('edokExportForm');
+  function sync() {
+    var ids = picked('data-bank');
     if (bankIds) bankIds.value = ids.join(',');
     if (bankCount) bankCount.textContent = ids.length ? ids.length : pendingCount;
     if (bankBtn) { bankBtn.classList.toggle('btn-warning', !ids.length); bankBtn.classList.toggle('btn-danger', ids.length > 0); }
-    if (bankNote) { bankNote.textContent = ids.length ? 'Zaznaczone z listy: ' + ids.length + ' — zostaną oznaczone jako operacje banku (system zapamięta wzorzec tytułu) i zatwierdzone.' : ''; bankNote.style.display = ids.length ? '' : 'none'; }
+    if (bankNote) { bankNote.textContent = ids.length ? 'Zaznaczone z listy w obiegu: ' + ids.length + ' — zostaną oznaczone jako operacje banku (system zapamięta wzorzec tytułu) i zatwierdzone.' : ''; bankNote.style.display = ids.length ? '' : 'none'; }
     var list = document.getElementById('bankQuickPendingList'); if (list) list.style.display = ids.length ? 'none' : '';
+    if (form) {
+      var ex = picked('data-export');
+      document.getElementById('edokExportIds').value = ex.join(',');
+      document.getElementById('edokExportCount').textContent = ex.length;
+      form.classList.toggle('d-none', !ex.length);
+      form.classList.toggle('d-flex', ex.length > 0);
+    }
   }
-  bank.forEach(function (b) { b.addEventListener('change', syncBank); });
-  syncBank();
-  <?php if (!$can_export): ?>
-  var allB = document.getElementById('edokExportAll');
-  if (allB) { allB.disabled = !bank.length; allB.addEventListener('change', function () { bank.forEach(function (b) { b.checked = allB.checked; }); syncBank(); }); }
-  return;
-  <?php endif; ?>
-  var boxes = Array.from(document.querySelectorAll('.edok-export-check'));
-  var all   = document.getElementById('edokExportAll');
-  var form  = document.getElementById('edokExportForm');
-  function sync() {
-    var ids = boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
-    document.getElementById('edokExportIds').value = ids.join(',');
-    document.getElementById('edokExportCount').textContent = ids.length;
-    form.classList.toggle('d-none', !ids.length);
-    form.classList.toggle('d-flex', ids.length > 0);
-    all.checked = boxes.length > 0 && ids.length === boxes.length;
-    all.indeterminate = ids.length > 0 && ids.length < boxes.length;
-  }
-  all.disabled = !boxes.length;
-  all.addEventListener('change', function () { boxes.forEach(function (b) { b.checked = all.checked; }); bank.forEach(function (b) { b.checked = all.checked; }); sync(); syncBank(); });
-  boxes.forEach(function (b) { b.addEventListener('change', sync); });
+  document.addEventListener('edok-sel-change', sync);
   sync();
 })();
 </script>
-<?php endif; ?>
+<?php $edbBack = $_SERVER['REQUEST_URI'] ?? ''; if ($docs) include __DIR__ . '/../modules/edok_bulk/view/modals.php'; ?>
 
 <?php if ((is_admin() || edok_has_role('upload')) && org_setting('kdok_ksef_enabled') === '1'): ?>
 <div class="modal fade" id="salesSyncModal" tabindex="-1" aria-labelledby="salesSyncLabel" aria-hidden="true">
