@@ -401,6 +401,12 @@ final class ClaudeBilling
         return db_one("SELECT id, name, email, phone, address FROM k30_clients WHERE id=?", [$clientId]) ?: null;
     }
 
+    /** Konto wirtualne (testowe, np. seeder licencje_test): pełna symulacja — dokumenty SYM bez Fakturowni, Helpdesk bez zgłoszeń, bez e-maili i SMS. */
+    public static function isVirtual(int $clientId): bool
+    {
+        try { return (bool)db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=? AND COALESCE(is_virtual,0)=1", [$clientId]); } catch (\Throwable $e) { return false; }
+    }
+
     public static function isMinor(int $clientId): bool
     {
         try { return (bool)db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=? AND COALESCE(is_minor,0)=1", [$clientId]); } catch (\Throwable $e) { return false; }
@@ -937,6 +943,11 @@ final class ClaudeBilling
             . ($kind === 'wstrzymanie' ? "\nWyłącz miejsce do czasu wpłaty. Gdy pieniądze dotrą, system sam założy zgłoszenie „Przywróć”." : '')
             . ($why !== '' ? "\nPowód: " . $why : '')
             . "\nZgłosił: " . ($actor['name'] ?? '') . ' (' . ($actor['via'] ?? '') . ')';
+        if (!(int)$sub['is_test'] && self::isVirtual((int)$sub['client_id'])) {   // konto testowe: zgłoszenie tylko w historii
+            self::event((int)$sub['id'], null, 'helpdesk', 'Zgłoszenie (konto testowe, symulacja, nie utworzono): ' . $title, 'system');
+            if ($kind === 'aktywacja') db_exec("UPDATE claude_subscriptions SET helpdesk_number='SYMULACJA' WHERE id=?", [(int)$sub['id']]);
+            return $kind === 'aktywacja' ? 'SYMULACJA' : null;
+        }
         if ((int)$sub['is_test'] && !self::$testRealTickets) {
             self::$testTickets[] = ['title' => $title, 'desc' => $desc];
             self::event((int)$sub['id'], null, 'helpdesk', 'Zgłoszenie (test — nie utworzono): ' . $title, 'test');

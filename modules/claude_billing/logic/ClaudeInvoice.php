@@ -139,8 +139,9 @@ final class ClaudeInvoice
         if (!$D || !$ch) return ['ok' => false, 'error' => 'Nie ma takiego naliczenia.'];
         $col = $doc;   // kolumny naliczenia: proforma_* / order_* / invoice_*
         $s0 = ClaudeBilling::settings(ClaudeBilling::productOf($ch));
+        $virtual = ClaudeBilling::isVirtual((int)$ch['client_id']);   // konto testowe — zawsze symulacja, Fakturownia nietknięta
         if (!empty($ch[$col . '_id'])) {
-            if (!self::isSim((string)$ch[$col . '_number']) || !self::live($s0)) {
+            if (!self::isSim((string)$ch[$col . '_number']) || !self::live($s0) || $virtual) {
                 return ['ok' => true, 'number' => (string)$ch[$col . '_number'], 'local_id' => (int)$ch[$col . '_id'], 'simulated' => self::isSim((string)$ch[$col . '_number'])];
             }
             // Fakturownia już działa — symulację zastępujemy prawdziwym dokumentem
@@ -170,15 +171,17 @@ final class ClaudeInvoice
         }
         $uid ??= (int)(db_one("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1")['id'] ?? 0);
         $fee = round((float)($ch['fee_pln'] ?? 0), 2);
-        $ex = db_one("SELECT id FROM invoices WHERE source=? AND source_id=? AND is_test=? AND deleted_at IS NULL", [$D['source'], $chargeId, $test ? 1 : 0]);
+        $rowTest = $test || $virtual;   // dokument konta testowego nie trafia do rejestru faktur jako prawdziwy
+        $ex = db_one("SELECT id FROM invoices WHERE source=? AND source_id=? AND is_test=? AND deleted_at IS NULL", [$D['source'], $chargeId, $rowTest ? 1 : 0]);
         if ($ex) $id = (int)$ex['id'];
         else {
             $items = [['name' => self::positionName($ch), 'unit' => 'mies.', 'qty' => 1, 'unit_net' => round((float)$ch['amount_pln'] - $fee, 2), 'vat_rate' => self::TAX]];
             if ($fee > 0) $items[] = ['name' => 'Prowizja za obsługę płatności', 'unit' => 'szt.', 'qty' => 1, 'unit_net' => $fee, 'vat_rate' => self::TAX];
             $id = invoice_create(array_intersect_key($payload['invoice'], array_flip(['buyer_name', 'buyer_tax_no', 'buyer_street', 'buyer_post_code', 'buyer_city', 'buyer_email', 'issue_date', 'sell_date', 'payment_to']))
-                + ['kind' => $D['kind'], 'source' => $D['source'], 'source_id' => $chargeId, 'notes' => self::description($ch), 'is_test' => $test ? 1 : 0], $items, $uid);
+                + ['kind' => $D['kind'], 'source' => $D['source'], 'source_id' => $chargeId, 'notes' => self::description($ch), 'is_test' => $rowTest ? 1 : 0], $items, $uid);
             if ($uid <= 0) db_exec("UPDATE invoices SET created_by=NULL WHERE id=?", [$id]);
         }
+        if ($virtual) return self::simulate($chargeId, $doc, $ch, $payload, $id, 'konto testowe (wirtualne): symulacja Fakturowni');
         if (!self::live($s)) {
             return self::simulate($chargeId, $doc, $ch, $payload, $id, !empty($s['simulate']) ? 'włączony tryb symulacji (Płatne licencje › Ustawienia)'
                 : 'Fakturownia nie jest podłączona (Administracja › Faktury: konto i token API)');
@@ -321,6 +324,43 @@ final class ClaudeInvoice
             [$localId, $no, mb_substr($msg, 0, 500), json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), $chargeId]);
         if (!$same) ClaudeBilling::event((int)$ch['subscription_id'], $chargeId, 'simulated', $msg, 'system');
         return ['ok' => true, 'simulated' => true, 'number' => $no, 'local_id' => $localId, 'warning' => $msg, 'payload' => $payload];
+    }
+
+    /** PDF dokumentu symulowanego (SYM-…): dane jak w Fakturowni (payload), znak wodny SYMULACJA. Zwraca bajty PDF. */
+    public static function simPdf(int $chargeId, string $doc): string
+    {
+        $D = self::DOCS[$doc] ?? null;
+        $ch = ClaudeBilling::charge($chargeId);
+        if (!$D || !$ch || !self::isSim((string)$ch[$doc . '_number'])) throw new DomainException('To nie jest dokument symulowany.');
+        $p = self::payload($ch, $doc);
+        $org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'));
+        $acc = ClaudeBilling::payAccount((int)$ch['client_id'], ClaudeBilling::productOf($ch));
+        $zl = fn(float $v) => number_format($v, 2, ',', ' ') . ' zł';
+        $rows = '';
+        foreach ($p['positions'] as $i => $pos) {
+            $gross = isset($pos['total_price_gross']) ? (float)$pos['total_price_gross'] : round((float)$pos['price_gross'] - (float)($pos['discount'] ?? 0), 2);
+            $rows .= '<tr><td>' . ($i + 1) . '</td><td>' . h((string)$pos['name']) . (isset($pos['discount']) ? '<br><small>cena regularna ' . $zl((float)$pos['price_gross']) . ', rabat non-profit ' . $zl((float)$pos['discount']) . '</small>' : '')
+                   . '</td><td>' . (int)$pos['quantity'] . ' ' . h((string)$pos['quantity_unit']) . '</td><td>zw</td><td style="text-align:right">' . $zl($gross) . '</td></tr>';
+        }
+        $b = $p['invoice'];
+        $html = '<style>body{font-family:dejavusans;font-size:9.5pt;color:#1d1d1d} h1{font-size:15pt;margin:0 0 2mm} table{border-collapse:collapse;width:100%} td,th{border:0.2mm solid #999;padding:1.5mm 2mm;vertical-align:top} th{background:#eee;text-align:left} .sym{border:0.6mm solid #a4262c;color:#a4262c;padding:2mm 3mm;font-weight:bold;margin-bottom:4mm}</style>'
+            . '<div class="sym">SYMULACJA: dokument nie istnieje w Fakturowni i nie jest dokumentem księgowym (konto testowe albo brak połączenia z Fakturownią).</div>'
+            . '<h1>' . h($D['label']) . ' ' . h((string)$ch[$doc . '_number']) . '</h1>'
+            . '<p>Data wystawienia: ' . h(ClaudeBilling::date($b['issue_date'])) . ' · ' . ($doc === 'proforma' ? 'Termin płatności: ' . h(ClaudeBilling::date($b['payment_to'])) : 'Zapłacono: ' . h(ClaudeBilling::date($b['payment_to']))) . '</p>'
+            . '<table style="margin:3mm 0"><tr><th style="width:50%">Sprzedawca</th><th>Nabywca</th></tr><tr><td>' . h($org) . ($acc ? '<br>Rachunek: ' . h($acc['nrb_fmt']) : '') . '</td><td>'
+            . h((string)$b['buyer_name']) . '<br>' . h((string)$b['buyer_street']) . '<br>' . h(trim($b['buyer_post_code'] . ' ' . $b['buyer_city'])) . ($b['buyer_tax_no'] !== '' ? '<br>NIP ' . h((string)$b['buyer_tax_no']) : '') . '</td></tr></table>'
+            . '<table><tr><th>Lp.</th><th>Nazwa</th><th>Ilość</th><th>VAT</th><th style="text-align:right">Wartość brutto</th></tr>' . $rows
+            . '<tr><td colspan="4" style="text-align:right"><b>Razem do zapłaty</b></td><td style="text-align:right"><b>' . $zl((float)$ch['amount_pln']) . '</b></td></tr></table>'
+            . '<p style="margin-top:3mm">' . h((string)$p['extra']['description']) . '</p>'
+            . '<p><small>Podstawa zwolnienia z VAT jak na dokumentach Fundacji w Fakturowni. Wyliczenie: ' . h(ClaudeBilling::breakdown($ch)) . '.</small></p>';
+        require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+        $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
+        if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+        $m = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 15, 'margin_right' => 15, 'margin_top' => 15, 'margin_bottom' => 15, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+        $m->SetTitle($D['label'] . ' ' . $ch[$doc . '_number'] . ' (symulacja)');
+        $m->SetWatermarkText('SYMULACJA', 0.08); $m->showWatermarkText = true;
+        $m->WriteHTML($html);
+        return $m->Output('', 'S');
     }
 
     private static function fail(int $chargeId, string $error, array $payload): array
