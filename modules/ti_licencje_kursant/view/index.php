@@ -1,44 +1,66 @@
 <?php
 if (!isset($me, $paid)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
- * modules/ti_licencje_kursant/view/index.php — panel licencji (jeden panel jak Portal Kontrahenta): menu po lewej, sekcje na jednej stronie.
- * Sekcje: Subskrypcje (Claude, NordVPN) · Licencje na Office · Programy i klucze · Materiały dydaktyczne · Moje sprawy · Produkty i usługi
- * (refakturowane przez FEER — liczone osobno) · Moje konto. Prostym językiem: co masz, do kiedy, ile płacisz, co zrobić.
- * Wygląd Metro: znaczniki stanu m-tag (ok / due / bad / off), płaskie kafle. Office: konto @edu.feer.org.pl = Office aktywny.
- * Każdą operację potwierdza kod jednorazowy (SMS) — formularze idą jak zwykle, kontroler odsyła na /potwierdz.
- * Zmienne: $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $flash, $err, $old, $org.
+ * modules/ti_licencje_kursant/view/index.php — panel licencji: strona startowa z kaflami i osobne podstrony (polecenie 2026-11-09).
+ * $page: 'start' (kafle) · 'claude' / 'nordvpn' (subskrypcja, /licencja/{produkt}) · 'office' · 'programy' · 'materialy' · 'sprawy' · 'produkty' · 'konto'.
+ * Menu po lewej prowadzi do podstron. Wygląd Metro: znaczniki stanu m-tag (ok / due / bad / off). Office: konto @edu.feer.org.pl = Office aktywny.
+ * Każdą operację potwierdza kod jednorazowy (SMS). Konto testowe ($virtual): dokumenty w symulacji (SYM, PDF do pobrania) i symulowana wpłata.
+ * Identyfikatory ($ids): w systemie licencji (LIC-…) i numer beneficjenta (BEN-…) — nie są loginami.
+ * Zmienne: $page, $ids, $virtual, $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $flash, $err, $old, $org.
  */
 $C = LicencjeKursantController::class;
+$U = fn(string $k) => LicencjeKursantController::pageUrl($k);
 $e = fn(string $p, string $k) => isset($err[$p][$k]) ? '<p id="e-' . h($p . $k) . '" class="m-err">' . h($err[$p][$k]) . '</p>' : '';
 $a = fn(string $p, string $k) => isset($err[$p][$k]) ? ' aria-invalid="true" aria-describedby="e-' . h($p . $k) . '"' : '';
 $today = date('Y-m-d');
-$nPay = 0; $sumPay = 0.0;
-foreach ($paid as $v) foreach ($v['charges'] as $c) if ($c['status'] === 'pending') { $nPay++; $sumPay += (float)$c['amount_pln']; }
-$PAGE_TITLE = 'Moje licencje';
-$nav = [['subskrypcje', 'Subskrypcje', $nPay ? 'do zapłaty ' . ClaudeBilling::zl($sumPay) : (string)count($paid), $nPay > 0],
-        ['office', 'Licencje na Office', ($office || $eduAccount) ? (string)(count($office) + ($eduAccount ? 1 : 0)) : '', false],
-        ['programy', 'Programy i klucze', $software ? (string)count($software) : '', false],
-        ['dydaktyczne', 'Materiały dydaktyczne', $am5 ? (string)count($am5) : '', false],
-        ['sprawy', 'Moje sprawy', $ops ? (string)count($ops) : '', false],
-        ['produkty', 'Produkty i usługi', $prodMonthly > 0 ? ClaudeBilling::zl($prodMonthly) . '/mies.' : ($products ? (string)count($products) : ''), false],
-        ['konto', 'Moje konto', '', false]];
+// kafle i menu: krótki stan każdej licencji
+$tiles = [];
+foreach ($paid as $pk => $v) {
+    $sub = $v['sub']; $due = 0.0; $n = 0;
+    foreach ($v['charges'] as $c) if ($c['status'] === 'pending') { $n++; $due += (float)$c['amount_pln']; }
+    $open = $sub && in_array($sub['status'], ['active', 'suspended'], true);
+    $st = !$open ? (!empty($v['eligible']['needEdu']) ? ['potrzebne konto @edu', 'off'] : ($v['eligible']['ok'] ? ['możesz włączyć', 'off'] : ['niedostępny', 'off']))
+        : ($sub['status'] === 'suspended' ? ['wstrzymany', 'bad'] : ['włączony', 'ok']);
+    $tiles[$pk] = [$v['P']['label'], $st, $n ? 'do zapłaty ' . ClaudeBilling::zl($due) : ($open ? 'opłacone' : ''), $n > 0];
+}
+$tiles['office'] = ['Office', $eduAccount ? ['aktywny', 'ok'] : ($office ? ['wniosek', 'due'] : ['brak', 'off']), $eduAccount ? (string)$eduAccount : '', false];
+$tiles['programy'] = ['Programy i klucze', $software ? [count($software) . ' ' . (count($software) === 1 ? 'program' : 'programy'), 'ok'] : ['brak', 'off'], '', false];
+$tiles['materialy'] = ['Materiały dydaktyczne', $am5 ? [count($am5) . ' ' . (count($am5) === 1 ? 'licencja' : 'licencje'), 'ok'] : ['brak', 'off'], '', false];
+$tiles['sprawy'] = ['Moje sprawy', $ops ? [count($ops) . ' ' . (count($ops) === 1 ? 'sprawa' : 'sprawy'), 'due'] : ['brak', 'off'], '', false];
+$tiles['produkty'] = ['Produkty i usługi', $products ? [count($products) . ' ' . (count($products) === 1 ? 'usługa' : 'usługi'), 'ok'] : ['brak', 'off'], $prodMonthly > 0 ? ClaudeBilling::zl($prodMonthly) . ' miesięcznie' : '', false];
+$tiles['konto'] = ['Moje konto', [$login ?: 'bez loginu', 'off'], 'login, hasło, kontakt', false];
+$nav = [[$U(''), 'Start', '', false, $page === 'start']];
+foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $dueFlag ? $sum : '', $dueFlag, $page === $k];
+$PAGE_TITLE = $page === 'start' ? 'Moje licencje' : ($tiles[$page][0] ?? 'Moje licencje');
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
+$idsLine = '<p class="m-note tw-mb-4">Identyfikator w systemie licencji: <b class="m-mono">' . h($ids['lic']) . '</b> · Nr beneficjenta: <b class="m-mono">' . h($ids['ben']) . '</b></p>';
 ?>
+<?php if ($page === 'start'): ?>
 <h1 class="m-title">Moje licencje</h1>
-<p class="m-lead"><?= h($me['name']) ?> — licencje, subskrypcje i usługi od Fundacji w jednym miejscu. Każdą zmianę potwierdzasz kodem z SMS-a<?= $contact['phone'] !== '' ? ' (numer ' . h(LicencjeKod::mask($contact['phone'])) . ')' : '' ?>.</p>
+<p class="m-lead"><?= h($me['name']) ?>. Każdą zmianę potwierdzasz kodem SMS<?= $contact['phone'] !== '' ? ' wysłanym na numer ' . h(LicencjeKod::mask($contact['phone'])) : '' ?>.</p>
+<?= $idsLine ?>
+<?php if ($virtual): ?><div class="pk-alert pk-alert-info" role="note">Konto testowe. Dokumenty z Fakturowni są symulowane (numery SYM, PDF do pobrania), wpłatę można zasymulować, nic nie trafia do Fakturowni ani Helpdesku.</div><?php endif; ?>
+<?php if (!$paid): ?><p class="m-explain">Nie masz subskrypcji. Licencję na Claude albo NordVPN przypisuje prowadzący.</p><?php endif; ?>
+<ul class="m-tiles" role="list">
+  <?php foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]): ?>
+  <li><a class="m-tilelink<?= $dueFlag ? ' due' : '' ?>" href="<?= h($U($k)) ?>">
+    <span class="m-tilelink-title"><?= h($lbl) ?></span>
+    <span class="m-tag <?= h($st[1]) ?>"><?= h($st[0]) ?></span>
+    <?php if ($sum !== ''): ?><span class="m-tilelink-sum"><?= h($sum) ?></span><?php endif; ?>
+  </a></li>
+  <?php endforeach; ?>
+</ul>
+<?php endif; ?>
 
 <?php /* ── Subskrypcje: Claude, NordVPN ── */ ?>
-<section id="subskrypcje" class="tw-mb-2" aria-labelledby="h-sub">
-  <h2 id="h-sub" class="m-sect">Subskrypcje <small>— opłacane co miesiąc: proforma, wpłata, faktura</small></h2>
-  <?php if (!$paid): ?><div class="m-tile"><p>Nie masz subskrypcji. Jeśli chcesz korzystać z Claude albo NordVPN, napisz do prowadzącego — licencję trzeba Ci najpierw przypisać.</p></div><?php endif; ?>
-<?php foreach ($paid as $pk => $v): $P = $v['P']; $s = $v['settings']; $sub = $v['sub'];
+<?php foreach ($paid as $pk => $v): if ($page !== $pk) continue; $P = $v['P']; $s = $v['settings']; $sub = $v['sub'];
   $open = $sub && in_array($sub['status'], ['active', 'suspended'], true);
   $buyer = array_merge($open ? array_intersect_key($sub, ClaudeBilling::BUYER_FIELDS) : ClaudeBilling::buyerDefaults((int)$me['cid']), array_intersect_key($old[$pk] ?? [], ClaudeBilling::BUYER_FIELDS));
-  $state = !$sub || $sub['status'] === 'ended' ? ['możesz włączyć', 'off'] : ($sub['status'] === 'active' ? ['włączony', 'ok'] : ['wstrzymany — brak wpłaty', 'bad']);
+  $state = !$sub || $sub['status'] === 'ended' ? ['możesz włączyć', 'off'] : ($sub['status'] === 'active' ? ['włączony', 'ok'] : ['wstrzymany: brak wpłaty', 'bad']);
   if (!$open && !$v['eligible']['ok']) $state = [!empty($v['eligible']['needEdu']) ? 'potrzebne konto @edu' : 'niedostępny', 'off'];
-  $priceTxt = $s['priced'] ? 'Co miesiąc ' . ClaudeBilling::usdWords($s['usd']) . ' po kursie PKO BP' . ClaudeBilling::extrasWords($s) . ($v['rate'] ? ' — dziś razem ok. ' . ClaudeBilling::zl((float)$v['rate']['amount_pln']) : '')
-              . ($s['list_usd'] > $s['usd'] ? '. ' . ClaudeBilling::usdWords($s['usd']) . ' to cena dla organizacji non-profit (normalnie ' . ClaudeBilling::usdWords($s['list_usd']) . ').' : '.') : '';
+  $priceTxt = $s['priced'] ? 'Cena: ' . ClaudeBilling::priceShort($s) . ' miesięcznie (kurs PKO BP)' . ($v['rate'] ? ', dziś razem ' . ClaudeBilling::zl((float)$v['rate']['amount_pln']) : '') . '.'
+              . ($s['list_usd'] > $s['usd'] ? ' To cena dla organizacji non-profit, cena regularna to ' . number_format((float)$s['list_usd'], 2, ',', ' ') . ' USD.' : '') : '';
   $pr = $v['projection'] ?? ['now' => null, 'next' => null];
   $proj = function () use ($pr, $open, $s) { if ((!$pr['now'] && !$pr['next']) || !$s['priced'] || (!$open && !$s['enabled'])) return; ?>
     <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3 tw-mb-4" role="group" aria-label="Najbliższe płatności">
@@ -47,14 +69,16 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
         <div class="m-kv"><dt><?= h($lbl) ?></dt></div>
         <div class="m-num"><?= $x['estimate'] ? '≈ ' : '' ?><?= h(ClaudeBilling::zl((float)$x['amount'])) ?></div>
         <div class="tw-text-sm tw-mt-1">dokument <?= h(ClaudeBilling::dayMonth($x['issue'])) ?>, zapłać do <?= h(ClaudeBilling::dayMonth($x['due'])) ?></div>
-        <?php if ($x['estimate']): ?><div class="m-note tw-mt-1">szacunek po dzisiejszym kursie — dokładna kwota zależy od kursu z dnia dokumentu</div><?php endif; ?>
+        <?php if ($x['estimate']): ?><div class="m-note tw-mt-1">Szacunek według dzisiejszego kursu. Kwota na dokumencie zależy od kursu z dnia wystawienia.</div><?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>
   <?php };
 ?>
-  <section id="<?= h($pk) ?>" class="m-tile" aria-labelledby="h-<?= h($pk) ?>">
-    <h3 id="h-<?= h($pk) ?>" class="m-head"><?= h($P['label']) ?> <?= $tag($state[1], $state[0]) ?></h3>
+  <h1 class="m-title"><?= h($P['label']) ?> <?= $tag($state[1], $state[0]) ?></h1>
+  <p class="m-explain">Subskrypcja płatna co miesiąc. Dostajesz proformę, masz <?= ClaudeBilling::TERM_DAYS ?> dni na wpłatę, a po wpłacie dostajesz fakturę. Bez wpłaty dostęp zostaje wstrzymany.</p>
+  <?= $idsLine ?>
+  <section class="m-tile" aria-label="<?= h($P['label']) ?>">
     <p class="tw-text-sm tw-mb-3"><?= h(ucfirst($P['what'])) ?>.<?= $s['enabled'] || $open ? ' ' . h($priceTxt) : '' ?></p>
 
     <?php if ($open): ?>
@@ -66,43 +90,61 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
       <?php $proj(); ?>
       <?php if (!empty($v['priceChange'])): $pc = $v['priceChange']; $chg = $pc['change']; $cmp = $v['priceCmp']; $fromD = ClaudeBilling::dayMonth((string)$chg['effective_from']); ?>
       <div class="pk-alert pk-alert-info" role="region" aria-label="Zmiana ceny <?= h($P['label']) ?>">
-        <p class="tw-font-semibold tw-mb-1">Od <?= h($fromD) ?> zmienia się cena</p>
+        <p class="tw-font-semibold tw-mb-1">Nowa cena od <?= h($fromD) ?></p>
         <p class="tw-text-sm tw-mb-1">Teraz: <?= h($cmp['old']) ?><?= $cmp['oldPln'] !== null ? ' (≈ ' . h(ClaudeBilling::zl($cmp['oldPln'])) . ')' : '' ?>. Od <?= h($fromD) ?>: <b><?= h($cmp['new']) ?></b><?= $cmp['newPln'] !== null ? ' (≈ ' . h(ClaudeBilling::zl($cmp['newPln'])) . ' miesięcznie)' : '' ?>.</p>
-        <?php if ((string)$chg['reason'] !== ''): ?><p class="tw-text-sm tw-mb-1">Dlaczego: <?= h((string)$chg['reason']) ?></p><?php endif; ?>
+        <?php if ((string)$chg['reason'] !== ''): ?><p class="tw-text-sm tw-mb-1">Powód: <?= h((string)$chg['reason']) ?></p><?php endif; ?>
         <?php if ($pc['recipient'] === 'opiekun'): ?>
-          <p class="tw-text-sm tw-mb-0">Decyzję podejmuje Twój opiekun — dostał e-mail z linkiem.<?= $pc['decision'] !== '' ? ' Decyzja: ' . ($pc['decision'] === 'accept' ? 'akceptacja.' : 'rezygnacja.') : '' ?></p>
+          <p class="tw-text-sm tw-mb-0">Decyduje opiekun. Wysłaliśmy mu e-mail z linkiem.<?= $pc['decision'] !== '' ? ' Jego decyzja: ' . ($pc['decision'] === 'accept' ? 'akceptacja.' : 'rezygnacja.') : '' ?></p>
         <?php else: ?>
-          <?php if ($pc['decision'] !== ''): ?><p class="tw-text-sm tw-mb-2">Twoja decyzja: <b><?= $pc['decision'] === 'accept' ? 'akceptuję nową cenę' : 'rezygnuję — dostęp skończy się przed ' . h($fromD) ?></b>. Możesz ją zmienić do <?= h(ClaudeBilling::dayMonth(date('Y-m-d', strtotime($chg['effective_from'] . ' -1 day')))) ?>.</p>
-          <?php else: ?><p class="tw-text-sm tw-mb-2">Prosimy o decyzję. Bez odpowiedzi: <?= $chg['no_answer'] === 'reject' ? 'dostęp skończy się przed ' . h($fromD) : 'zostajesz z nową ceną (zrezygnować możesz w każdej chwili)' ?>.</p><?php endif; ?>
+          <?php if ($pc['decision'] !== ''): ?><p class="tw-text-sm tw-mb-2">Twoja decyzja: <b><?= $pc['decision'] === 'accept' ? 'akceptujesz nową cenę' : 'rezygnujesz, dostęp kończy się przed ' . h($fromD) ?></b>. Możesz ją zmienić do <?= h(ClaudeBilling::dayMonth(date('Y-m-d', strtotime($chg['effective_from'] . ' -1 day')))) ?>.</p>
+          <?php else: ?><p class="tw-text-sm tw-mb-2">Wybierz przed <?= h($fromD) ?>. Jeśli nie wybierzesz, <?= $chg['no_answer'] === 'reject' ? 'dostęp skończy się przed ' . h($fromD) : 'zostaniesz przy nowej cenie (zrezygnować możesz w każdej chwili)' ?>.</p><?php endif; ?>
           <form method="post" action="<?= h(route('lk.price.decide', ['id' => (int)$pc['id']])) ?>" class="tw-flex tw-flex-wrap tw-gap-2"><?= Router::csrfField() ?>
             <?php if ($pc['decision'] !== 'accept'): ?><button class="m-btn" type="submit" name="decision" value="accept">Akceptuję nową cenę</button><?php endif; ?>
-            <?php if ($pc['decision'] !== 'reject'): ?><button class="m-btn-ghost m-btn-danger" type="submit" name="decision" value="reject">Nie akceptuję — rezygnuję</button><?php endif; ?>
+            <?php if ($pc['decision'] !== 'reject'): ?><button class="m-btn-ghost m-btn-danger" type="submit" name="decision" value="reject">Rezygnuję</button><?php endif; ?>
           </form>
-          <p class="m-note tw-mt-2">Potwierdzisz kodem z SMS-a.</p>
+          <p class="m-note tw-mt-2">Wymaga kodu SMS.</p>
         <?php endif; ?>
       </div>
       <?php endif; ?>
-      <?php if ($sub['status'] === 'suspended'): ?><div class="pk-alert pk-alert-err" role="alert">Dostęp jest wstrzymany, bo nie dotarła wpłata. Zapłać zaległość poniżej — włączymy go z powrotem sami.</div><?php endif; ?>
-      <?php if ($v['gaps']): ?><div class="pk-alert pk-alert-info" role="alert"><b>Brakuje danych do faktury:</b> <?= h(implode(', ', $v['gaps'])) ?>. Uzupełnij je niżej.</div><?php endif; ?>
+      <?php if ($sub['status'] === 'suspended'): ?><div class="pk-alert pk-alert-err" role="alert">Dostęp wstrzymany, bo nie ma wpłaty. Po wpłacie włączy się sam.</div><?php endif; ?>
+      <?php if ($v['gaps']): ?><div class="pk-alert pk-alert-info" role="alert">Brak danych do faktury: <?= h(implode(', ', $v['gaps'])) ?>. Uzupełnij je niżej.</div><?php endif; ?>
 
       <?php foreach ($v['charges'] as $c): if ($c['status'] === 'cancelled') continue; $late = $c['status'] === 'pending' && $c['due_on'] < $today;
         $docUrl = $c['status'] === 'paid' ? (string)$c['invoice_view_url'] : ((string)$c['proforma_view_url'] ?: (string)$c['invoice_view_url']);
         $docNo  = $c['status'] === 'paid' ? (string)$c['invoice_number'] : ((string)$c['proforma_number'] ?: (string)$c['invoice_number']);
         $docLbl = $c['status'] === 'paid' || ($c['proforma_number'] === '' && $c['invoice_number'] !== '') ? 'faktura' : 'proforma';
-        if (str_starts_with($docNo, 'SYM-')) { $docNo = ''; $docUrl = ''; } ?>
+        if (str_starts_with($docNo, 'SYM-')) { $docNo = ''; $docUrl = ''; }
+        // dokumenty do pobrania: prawdziwe (podgląd w Fakturowni) albo — na koncie testowym — symulacje jako PDF
+        $docs = [];
+        foreach (['proforma' => 'Proforma', 'order' => 'Zamówienie', 'invoice' => 'Faktura'] as $dk => $dl) {
+            $no = (string)$c[$dk . '_number'];
+            if ($no === '') continue;
+            $sym = str_starts_with($no, 'SYM-');
+            if ($sym && !$virtual) continue;
+            if (!$sym && ($dk === 'order' || (string)$c[$dk . '_view_url'] === '')) { $docs[] = [$dl . ' ' . $no, '', false]; continue; }
+            $docs[] = [$dl . ' ' . $no, route('lk.doc', ['id' => (int)$c['id'], 'doc' => $dk]), $sym];
+        } ?>
       <div class="m-row">
         <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
           <span class="tw-font-semibold"><?= h(ucfirst(ClaudeBilling::periodLabel((string)$c['period']))) ?></span>
           <span class="tw-text-lg tw-font-semibold" style="font-variant-numeric:tabular-nums"><?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?></span>
           <?php if ($c['status'] === 'paid'): ?><?= $tag('ok', 'zapłacone ' . ClaudeBilling::dayMonth(substr((string)$c['paid_at'], 0, 10))) ?>
-          <?php else: ?><?= $tag($late ? 'bad' : 'due', ($late ? 'po terminie — było do ' : 'zapłać do ') . ClaudeBilling::dayMonth($c['due_on'])) ?><?php endif; ?>
-          <?php if ($docUrl !== ''): ?><a href="<?= h($docUrl) ?>" target="_blank" rel="noopener" class="tw-text-sm"><?= $docLbl ?> <?= h($docNo) ?><span class="tw-sr-only"> (nowa karta)</span></a>
-          <?php else: ?><span class="tw-text-sm m-muted"><?= $c['status'] === 'paid' ? 'faktura' : 'proforma' ?> w przygotowaniu</span><?php endif; ?>
+          <?php else: ?><?= $tag($late ? 'bad' : 'due', $late ? 'po terminie (było do ' . ClaudeBilling::dayMonth($c['due_on']) . ')' : 'zapłać do ' . ClaudeBilling::dayMonth($c['due_on'])) ?><?php endif; ?>
+          <?php if (!$docs): ?><span class="tw-text-sm m-muted"><?= $c['status'] === 'paid' ? 'faktura' : 'proforma' ?> w przygotowaniu</span><?php endif; ?>
         </div>
+        <?php if ($docs): ?>
+        <ul class="m-docs" aria-label="Dokumenty za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?>">
+          <?php foreach ($docs as [$dlbl, $durl, $dsym]): ?>
+          <li><?php if ($durl === ''): ?><?= h($dlbl) ?><?php elseif ($dsym): ?><a href="<?= h($durl) ?>"><?= h($dlbl) ?></a> <span class="m-note">(symulacja, pobierz PDF)</span><?php else: ?><a href="<?= h($durl) ?>" target="_blank" rel="noopener"><?= h($dlbl) ?></a> <span class="m-note">(Fakturownia, nowa karta)</span><?php endif; ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
         <p class="m-note tw-mt-1"><?= h(ClaudeBilling::breakdown($c)) ?> (kurs PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p>
         <?php if ($c['status'] === 'pending'): ?>
         <div class="tw-flex tw-flex-wrap tw-gap-2 tw-mt-2">
-          <?php if ($s['pay_redirect'] === 'portal'): ?>
+          <?php if ($virtual): ?>
+            <form method="post" action="<?= h(route('lk.sim.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać (symulacja)<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></button></form>
+          <?php elseif ($s['pay_redirect'] === 'portal'): ?>
             <a class="m-btn" href="../platnosci.php">Zapłać<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></a>
           <?php elseif ($s['pay_redirect'] === 'fakturownia' && $docUrl !== ''): ?>
             <a class="m-btn" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">Zapłać (BLIK / szybki przelew)<span class="tw-sr-only"> — <?= $docLbl ?> w nowej karcie</span></a>
@@ -111,7 +153,7 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
           <?php endif; ?>
           <?php if ($docUrl !== '' && $s['pay_redirect'] !== 'fakturownia'): ?><a class="m-btn-ghost" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">BLIK / szybki przelew z <?= $docLbl === 'proforma' ? 'proformy' : 'faktury' ?><span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
         </div>
-        <?php if ($v['account']): ?><p class="tw-text-sm tw-mt-2">Albo zwykły przelew: konto <span class="m-mono tw-font-semibold"><?= h($v['account']['nrb_fmt']) ?></span>, tytuł <span class="tw-font-semibold"><?= h(ClaudeBilling::transferTitle($c)) ?></span>, kwota <?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?>.</p><?php endif; ?>
+        <?php if ($v['account']): ?><p class="tw-text-sm tw-mt-2">Przelew: konto <span class="m-mono tw-font-semibold"><?= h($v['account']['nrb_fmt']) ?></span>, tytuł <span class="tw-font-semibold"><?= h(ClaudeBilling::transferTitle($c)) ?></span>, kwota <?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?>.</p><?php endif; ?>
         <?php endif; ?>
       </div>
       <?php endforeach; ?>
@@ -130,8 +172,8 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
       <details class="m-row">
         <summary>Zrezygnuj z <?= h($P['label']) ?></summary>
         <form method="post" action="<?= h(route('lk.cancel', ['product' => $pk])) ?>" class="tw-mt-3"><?= Router::csrfField() ?>
-          <p class="tw-text-sm tw-mb-2">Nie dostaniesz kolejnych dokumentów. Dostęp zostanie wyłączony<?= $v['paidThrough'] ? ' po ' . h(ClaudeBilling::dayMonth($v['paidThrough'])) : '' ?>. Nieopłaconą zaległość trzeba jeszcze zapłacić.</p>
-          <label class="m-check"><input type="checkbox" name="confirm" value="1" required><span>Tak, rezygnuję z <?= h($P['label']) ?>.</span></label>
+          <p class="tw-text-sm tw-mb-2">Po rezygnacji nie będzie nowych opłat. Dostęp wyłączymy<?= $v['paidThrough'] ? ' po ' . h(ClaudeBilling::dayMonth($v['paidThrough'])) : ' od razu' ?>. Zaległe opłaty trzeba zapłacić.</p>
+          <label class="m-check"><input type="checkbox" name="confirm" value="1" required><span>Rezygnuję z <?= h($P['label']) ?>.</span></label>
           <button class="m-btn-ghost m-btn-danger tw-mt-3" type="submit">Zrezygnuj</button>
         </form>
       </details>
@@ -139,9 +181,9 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
     <?php elseif (!empty($v['eligible']['needEdu'])): $eduReq = $v['edu']['request'] ?? null; ?>
       <div class="pk-alert pk-alert-info"><?= h($v['eligible']['reason']) ?></div>
       <?php if ($eduReq): ?>
-        <p class="tw-text-sm">Poprosiliśmy o konto <b class="m-mono"><?= h($eduReq['proposed']) ?></b> <?= h(ClaudeBilling::dayMonth(substr((string)$eduReq['created_at'], 0, 10))) ?><?= $eduReq['helpdesk_number'] ? ' (zgłoszenie ' . h($eduReq['helpdesk_number']) . ')' : '' ?>. Gdy Dział IT je założy, włączysz Claude tutaj.</p>
+        <p class="tw-text-sm">Wniosek o konto <b class="m-mono"><?= h($eduReq['proposed']) ?></b> złożony <?= h(ClaudeBilling::dayMonth(substr((string)$eduReq['created_at'], 0, 10))) ?><?= $eduReq['helpdesk_number'] ? ' (zgłoszenie ' . h($eduReq['helpdesk_number']) . ')' : '' ?>. Gdy Dział IT założy konto, włączysz tu Claude.</p>
       <?php else: ?>
-        <p class="tw-text-sm tw-mb-3">Proponujemy konto: <b class="m-mono"><?= h($login ? $login . '@' . ClaudeBilling::EDU_DOMAIN : 'l + 8 cyfr @' . ClaudeBilling::EDU_DOMAIN) ?></b> — bez Twojego imienia i nazwiska w adresie.</p>
+        <p class="tw-text-sm tw-mb-3">Proponowany adres: <b class="m-mono"><?= h($login ? $login . '@' . ClaudeBilling::EDU_DOMAIN : 'l + 8 cyfr @' . ClaudeBilling::EDU_DOMAIN) ?></b></p>
         <form method="post" action="<?= h(route('lk.edu')) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Poproś o konto @<?= h(ClaudeBilling::EDU_DOMAIN) ?></button></form>
       <?php endif; ?>
     <?php elseif (!$v['eligible']['ok']): ?>
@@ -151,33 +193,38 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
       <?php $proj(); ?>
       <form method="post" action="<?= h(route('lk.activate', ['product' => $pk])) ?>" novalidate><?= Router::csrfField() ?>
         <h4 class="m-sect tw-mt-2">Włącz <?= h($P['label']) ?></h4>
-        <p class="tw-text-sm tw-mb-3">Podaj dane do faktury — przy każdej opłacie dostaniesz proformę, a po wpłacie fakturę. Pola z gwiazdką są wymagane.</p>
+        <p class="tw-text-sm tw-mb-3">Dane do faktury. Co miesiąc dostaniesz proformę, a po wpłacie fakturę. Pola z gwiazdką są wymagane.</p>
         <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3">
           <?php foreach (ClaudeBilling::BUYER_FIELDS as $k => $l): ?>
           <div><label class="m-label" for="<?= h($pk . $k) ?>"><?= h(ucfirst($l)) ?><?= $k !== 'buyer_tax_no' ? ' *' : '' ?></label><input class="m-input" id="<?= h($pk . $k) ?>" name="<?= h($k) ?>" value="<?= h((string)($buyer[$k] ?? '')) ?>"<?= $a($pk, $k) ?>><?= $e($pk, $k) ?></div>
           <?php endforeach; ?>
         </div>
         <label class="m-check tw-mt-4"><input type="checkbox" name="accept" value="1"<?= !empty($old[$pk]['accept']) ? ' checked' : '' ?><?= $a($pk, 'accept') ?>><span class="tw-text-sm"><?= h(ClaudeBilling::termsText($s)) ?></span></label><?= $e($pk, 'accept') ?>
-        <button class="m-btn tw-mt-4" type="submit">Włącz <?= h($P['label']) ?> — akceptuję zasady</button>
-        <p class="m-note tw-mt-2">Potwierdzisz kodem z SMS-a. Po włączeniu Dział IT dostaje zgłoszenie i uruchamia Twoje konto. Pierwsza proforma pojawi się tu od razu.</p>
+        <button class="m-btn tw-mt-4" type="submit">Włączam <?= h($P['label']) ?> i akceptuję zasady</button>
+        <p class="m-note tw-mt-2">Wymaga kodu SMS. Po włączeniu Dział IT dostaje zgłoszenie i uruchamia konto. Pierwszą proformę zobaczysz tu od razu.</p>
       </form>
     <?php endif; ?>
   </section>
 <?php endforeach; ?>
-</section>
+<?php if (isset(ClaudeBilling::PRODUCTS[$page]) && !isset($paid[$page])): ?>
+<h1 class="m-title"><?= h(ClaudeBilling::P($page)['label']) ?></h1>
+<p class="m-explain">Nie masz przypisanej licencji <?= h(ClaudeBilling::P($page)['label']) ?>. Przypisuje ją prowadzący albo biuro.</p>
+<?php endif; ?>
 
 <?php /* ── Licencje na Office (AM7) ── */ ?>
-<section id="office" class="m-tile" aria-labelledby="h-office">
-  <h2 id="h-office" class="m-head">Licencje na Office</h2>
+<?php if ($page === 'office'): ?>
+<h1 class="m-title">Licencje na Office</h1>
+<p class="m-explain">Word, Excel, PowerPoint, Outlook i Teams. Office działa z kontem @<?= h(ClaudeBilling::EDU_DOMAIN) ?>.</p>
+<section class="m-tile" aria-label="Licencje na Office">
   <?php if ($eduAccount): $hintE = rawurlencode($eduAccount); ?>
   <div class="m-row" style="border-top:0;padding-top:0">
     <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3"><span class="tw-font-semibold">Office (Microsoft 365 dla edukacji)</span> <?= $tag('ok', 'aktywny') ?></div>
-    <p class="tw-text-sm tw-mt-1">Masz konto <span class="m-mono tw-font-semibold"><?= h($eduAccount) ?></span> — z nim działa Office: Word, Excel, PowerPoint, Outlook i Teams w przeglądarce.
+    <p class="tw-text-sm tw-mt-1">Twoje konto: <span class="m-mono tw-font-semibold"><?= h($eduAccount) ?></span>
       <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($eduAccount) ?>">Kopiuj<span class="tw-sr-only"> login</span></button></p>
     <p class="tw-text-sm tw-mt-1"><a href="https://www.office.com/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Otwórz Office<span class="tw-sr-only"> (nowa karta)</span></a> · <a href="https://outlook.office.com/mail/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Poczta<span class="tw-sr-only"> (nowa karta)</span></a> · <a href="https://teams.microsoft.com/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Teams<span class="tw-sr-only"> (nowa karta)</span></a></p>
   </div>
   <?php endif; ?>
-  <?php if (!$office && !$eduAccount): ?><p class="tw-text-sm m-muted">Nie masz licencji na Office. Office działa z kontem @<?= h(ClaudeBilling::EDU_DOMAIN) ?> — potrzebujesz? Napisz do prowadzącego, złożymy wniosek.</p><?php endif; ?>
+  <?php if (!$office && !$eduAccount): ?><p class="tw-text-sm m-muted">Nie masz Office ani konta @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Wniosek składa prowadzący.</p><?php endif; ?>
   <?php foreach ($office as $o): $g = $o['request_status'] === 'granted'; ?>
   <div class="m-row">
     <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
@@ -186,18 +233,21 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
     </div>
     <?php if ($g && $o['tenant_upn']): ?>
       <p class="tw-text-sm tw-mt-1">Login do Office: <span class="m-mono tw-font-semibold"><?= h($o['tenant_upn']) ?></span> · <a href="https://www.office.com/?login_hint=<?= h(rawurlencode((string)$o['tenant_upn'])) ?>" target="_blank" rel="noopener">otwórz Office<span class="tw-sr-only"> (nowa karta)</span></a></p>
-      <p class="m-note">Hasło startowe przyszło SMS-em. Przy pierwszym logowaniu Microsoft poprosi o nowe.</p>
-    <?php elseif ($g): ?><p class="tw-text-sm tw-mt-1">Licencja przyznana — Dział IT zakłada konto<?= $login ? ' (login ' . h($login) . ')' : '' ?>. Dane logowania przyjdą e-mailem i SMS-em.</p><?php endif; ?>
+      <p class="m-note">Hasło startowe przyszło SMS-em. Przy pierwszym logowaniu Microsoft każe je zmienić.</p>
+    <?php elseif ($g): ?><p class="tw-text-sm tw-mt-1">Licencja przyznana. Dział IT zakłada konto<?= $login ? ' (login ' . h($login) . ')' : '' ?>. Dane logowania przyjdą e-mailem i SMS-em.</p><?php endif; ?>
     <?php if ($o['period_to']): ?><p class="m-note">Ważna<?= $o['period_from'] ? ' od ' . h(ClaudeBilling::dayMonth($o['period_from'])) : '' ?> do <?= h(ClaudeBilling::dayMonth($o['period_to'])) ?> · sprawa <?= h($o['case_number']) ?></p><?php endif; ?>
   </div>
   <?php endforeach; ?>
 </section>
+<?php endif; ?>
 
 <?php /* ── Programy i klucze (moduł Licencje) ── */ ?>
-<section id="programy" class="m-tile" aria-labelledby="h-soft">
-  <h2 id="h-soft" class="m-head">Programy i klucze</h2>
+<?php if ($page === 'programy'): ?>
+<h1 class="m-title">Programy i klucze</h1>
+<p class="m-explain">Programy, które przypisała Ci Fundacja, z loginami i kluczami. Nie przekazuj ich nikomu.</p>
+<section class="m-tile" aria-label="Programy i klucze">
   <?php if (!$software): ?><p class="tw-text-sm m-muted">Nie masz przypisanych programów.</p><?php endif; ?>
-  <?php if ($software && !$termOk): ?><div class="pk-alert pk-alert-info">Loginy i klucze zobaczysz po zaakceptowaniu oświadczenia o poufności w panelu uczestnika (Regulaminy).</div><?php endif; ?>
+  <?php if ($software && !$termOk): ?><div class="pk-alert pk-alert-info">Loginy i klucze są ukryte, dopóki nie zaakceptujesz oświadczenia o poufności (panel uczestnika, zakładka Regulaminy).</div><?php endif; ?>
   <?php foreach ($software as $l): $exp = !empty($l['expires_at']) && $l['expires_at'] < $today; ?>
   <div class="m-row">
     <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
@@ -215,24 +265,30 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
   </div>
   <?php endforeach; ?>
 </section>
+<?php endif; ?>
 
 <?php /* ── Materiały dydaktyczne (AM5) ── */ ?>
-<section id="dydaktyczne" class="m-tile" aria-labelledby="h-am5">
-  <h2 id="h-am5" class="m-head">Materiały dydaktyczne</h2>
+<?php if ($page === 'materialy'): ?>
+<h1 class="m-title">Materiały dydaktyczne</h1>
+<p class="m-explain">Licencje na materiały do zajęć. Dostęp dostajesz po odesłaniu oświadczenia, link przychodzi e-mailem.</p>
+<section class="m-tile" aria-label="Materiały dydaktyczne">
   <?php if (!$am5): ?><p class="tw-text-sm m-muted">Brak licencji na materiały do zajęć.</p><?php endif; ?>
   <?php foreach ($am5 as $x): ?>
   <div class="m-row">
     <span class="tw-font-semibold"><?= h($x['title'] ?: 'Licencja dydaktyczna') ?></span>
     <?= $tag($x['status'] === 'accepted' ? 'ok' : (in_array($x['status'], ['rejected', 'revoked'], true) ? 'bad' : 'due'), $C::AM5_STATUS[$x['status']] ?? $x['status']) ?>
-    <?php if ($x['status'] === 'invited' && $x['due_on']): ?><p class="tw-text-sm tw-mt-1">Odeślij oświadczenie do <?= h(ClaudeBilling::dayMonth($x['due_on'])) ?>. Nie masz linku? Napisz do prowadzącego.</p><?php endif; ?>
+    <?php if ($x['status'] === 'invited' && $x['due_on']): ?><p class="tw-text-sm tw-mt-1">Odeślij oświadczenie do <?= h(ClaudeBilling::dayMonth($x['due_on'])) ?>. Link jest w e-mailu. Jeśli go nie masz, napisz do prowadzącego.</p><?php endif; ?>
     <?php if ($x['period_to']): ?><p class="m-note">Do <?= h(ClaudeBilling::dayMonth($x['period_to'])) ?> · sprawa <?= h($x['case_number']) ?></p><?php endif; ?>
   </div>
   <?php endforeach; ?>
 </section>
+<?php endif; ?>
 
 <?php /* ── Moje sprawy (AM11–24, ANT1) ── */ ?>
-<section id="sprawy" class="m-tile" aria-labelledby="h-ops">
-  <h2 id="h-ops" class="m-head">Moje sprawy</h2>
+<?php if ($page === 'sprawy'): ?>
+<h1 class="m-title">Moje sprawy</h1>
+<p class="m-explain">Twoje wnioski licencyjne: przyznanie, zwrot kosztów, zmiana płatnika lub planu, zawieszenie, przedłużenie. Tu widać, na jakim są etapie.</p>
+<section class="m-tile" aria-label="Moje sprawy">
   <?php if (!$ops): ?><p class="tw-text-sm m-muted">Brak spraw licencyjnych.</p><?php endif; ?>
   <?php foreach ($ops as $o): ?>
   <div class="m-row tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
@@ -242,14 +298,16 @@ $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . 
   </div>
   <?php endforeach; ?>
 </section>
+<?php endif; ?>
 
 <?php /* ── Produkty i usługi (refakturowane przez FEER) — liczone osobno ── */
 $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce', 'due'], 'suspended' => ['zawieszona', 'bad']]; ?>
-<section id="produkty" class="m-tile" aria-labelledby="h-prod">
-  <h2 id="h-prod" class="m-head">Produkty i usługi</h2>
-  <p class="tw-text-sm m-muted tw-mb-3">Refakturowane przez Fundację, rozliczane osobno od subskrypcji.</p>
+<?php if ($page === 'produkty'): ?>
+<h1 class="m-title">Produkty i usługi</h1>
+<p class="m-explain">Domeny, hosting i inne usługi, które Fundacja kupuje dla Ciebie i refakturuje. Płacisz za nie osobno, poza subskrypcjami.</p>
+<section class="m-tile" aria-label="Produkty i usługi">
   <?php if ($products): ?><div class="m-box tw-mb-3" style="max-width:320px"><div class="m-kv"><dt>Razem miesięcznie za usługi</dt></div><div class="m-num"><?= h(ClaudeBilling::zl($prodMonthly)) ?></div></div><?php endif; ?>
-  <?php if (!$products && $feerUpn === ''): ?><p class="tw-text-sm m-muted">Nie masz usług od Fundacji. Potrzebujesz domeny albo hostingu do projektu? Napisz do prowadzącego.</p><?php endif; ?>
+  <?php if (!$products && $feerUpn === ''): ?><p class="tw-text-sm m-muted">Nie masz usług. Domenę albo hosting zamawia prowadzący.</p><?php endif; ?>
   <?php foreach ($products as $p): $t = TiProducts::TYPES[$p['product_type']] ?? TiProducts::TYPES['other']; $hint = TiProducts::dateHint($p); $dl = TiProducts::daysLeft($p); $amt = (float)($p['monthly_amount'] ?? 0); ?>
   <div class="m-row">
     <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
@@ -258,8 +316,8 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
       <?= $tag($pchip[$p['status']][1] ?? 'off', $pchip[$p['status']][0] ?? $p['status']) ?>
     </div>
     <p class="tw-text-sm tw-mt-1">
-      <?php if ($p['expires_at']): ?>Opłacona do <b><?= h(ClaudeBilling::dayMonth((string)$p['expires_at'])) ?></b><?= $hint === 'overdue' ? ' — termin minął, napisz do biura, jeśli chcesz ją przedłużyć' : ($hint === 'soon' ? ' — zostało ' . (int)$dl . ($dl === 1 ? ' dzień' : ' dni') : '') ?>.<?php else: ?>Bez daty końca.<?php endif; ?>
-      <?php if ($amt > 0): ?> Płacisz co miesiąc <b><?= h(ClaudeBilling::zl((float)$p['_after'])) ?></b><?= $p['_after'] < $amt ? ' (zamiast ' . h(ClaudeBilling::zl($amt)) . ($p['discount_note'] !== '' ? ' — ' . h($p['discount_note']) : '') . ')' : '' ?><?= !empty($p['billing_day']) ? ', faktura ok. ' . (int)$p['billing_day'] . '. dnia miesiąca' : '' ?>.<?php endif; ?>
+      <?php if ($p['expires_at']): ?>Opłacona do <b><?= h(ClaudeBilling::dayMonth((string)$p['expires_at'])) ?></b><?= $hint === 'overdue' ? '. Termin minął; żeby przedłużyć, napisz do biura' : ($hint === 'soon' ? ', zostało ' . (int)$dl . ($dl === 1 ? ' dzień' : ' dni') : '') ?>.<?php else: ?>Bez daty końca.<?php endif; ?>
+      <?php if ($amt > 0): ?> Płacisz co miesiąc <b><?= h(ClaudeBilling::zl((float)$p['_after'])) ?></b><?= $p['_after'] < $amt ? ' (zamiast ' . h(ClaudeBilling::zl($amt)) . ($p['discount_note'] !== '' ? ': ' . h($p['discount_note']) : '') . ')' : '' ?><?= !empty($p['billing_day']) ? ', faktura ok. ' . (int)$p['billing_day'] . '. dnia miesiąca' : '' ?>.<?php endif; ?>
     </p>
     <?php if ($p['product_type'] !== 'domain' && trim((string)$p['server_details']) !== ''): ?><p class="m-note">Pakiet / serwer: <?= h($p['server_details']) ?></p><?php endif; ?>
   </div>
@@ -272,25 +330,36 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
   </div>
   <?php endif; ?>
 </section>
+<?php endif; ?>
 
 <?php /* ── Moje konto ── */ ?>
-<section id="konto" class="m-tile" aria-labelledby="h-konto">
-  <h2 id="h-konto" class="m-head">Moje konto w panelu licencji</h2>
+<?php if ($page === 'konto'): ?>
+<h1 class="m-title">Moje konto w panelu licencji</h1>
+<p class="m-explain">Login, hasło i dane kontaktowe. Na ten telefon wysyłamy kody, na e-mail proformy i faktury.</p>
+<?= $idsLine ?>
+<section class="m-tile" aria-label="Moje konto w panelu licencji">
   <?php if ($login): ?>
     <p class="tw-mb-1">Login: <span class="tw-text-xl m-mono tw-font-bold"><?= h($login) ?></span> <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($login) ?>">Kopiuj<span class="tw-sr-only"> login</span></button></p>
-    <p class="tw-text-sm m-muted tw-mb-3">Tym loginem logujesz się do panelu licencji. Ten sam login (z dopiskiem @<?= h(ClaudeBilling::EDU_DOMAIN) ?>) dostają Twoje konta w Office i Claude — bez imienia i nazwiska w adresie.</p>
     <details<?= !$hasPassword ? ' open' : '' ?>><summary><?= $hasPassword ? 'Zmień hasło' : 'Ustaw hasło do panelu licencji' ?></summary>
       <form method="post" action="<?= h(route('lk.password')) ?>" class="tw-mt-3 tw-grid sm:tw-grid-cols-2 tw-gap-3" style="max-width:640px"><?= Router::csrfField() ?>
         <div><label class="m-label" for="pw1">Nowe hasło (min. 10 znaków)</label><input class="m-input" type="password" id="pw1" name="new" autocomplete="new-password" minlength="10"></div>
         <div><label class="m-label" for="pw2">Powtórz hasło</label><input class="m-input" type="password" id="pw2" name="new2" autocomplete="new-password" minlength="10"></div>
-        <div><button class="m-btn" type="submit">Zapisz hasło</button> <span class="m-note">potwierdzisz kodem z SMS-a</span></div>
+        <div><button class="m-btn" type="submit">Zapisz hasło</button> <span class="m-note">wymaga kodu SMS</span></div>
       </form>
     </details>
   <?php else: ?>
-    <p class="tw-text-sm">Nie masz jeszcze własnego loginu do panelu licencji (litera l i 8 cyfr). Zakłada go biuro — poproś prowadzącego. Do tego czasu wchodzisz tu z panelu uczestnika TI.</p>
+    <p class="tw-text-sm">Nie masz loginu do panelu licencji. Zakłada go biuro. Do tego czasu wchodzisz tu z panelu uczestnika TI.</p>
   <?php endif; ?>
   <div class="m-row tw-mt-4">
-    <h3 class="m-sect">Dane kontaktowe</h3>
+    <h2 class="m-sect">Identyfikatory</h2>
+    <dl class="m-kv tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
+      <div><dt>Identyfikator w systemie licencji</dt><dd class="m-mono"><?= h($ids['lic']) ?></dd></div>
+      <div><dt>Nr beneficjenta</dt><dd class="m-mono"><?= h($ids['ben']) ?></dd></div>
+    </dl>
+    <p class="m-note">Podawaj je w kontakcie z biurem. To nie są loginy, nigdzie się nimi nie logujesz.</p>
+  </div>
+  <div class="m-row">
+    <h2 class="m-sect">Dane kontaktowe</h2>
     <dl class="m-kv tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
       <div><dt>E-mail</dt><dd><?= $contact['email'] !== '' ? h($contact['email']) : '—' ?></dd></div>
       <div><dt>Telefon (kody SMS)</dt><dd><?= $contact['phone'] !== '' ? h($contact['phone']) : '—' ?></dd></div>
@@ -298,4 +367,5 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
     <a class="m-btn-ghost" href="<?= h(route('lk.contact')) ?>">Zmień e-mail lub telefon</a>
   </div>
 </section>
+<?php endif; ?>
 <?php include __DIR__ . '/_bottom.php'; ?>

@@ -41,7 +41,15 @@ $r->group(['lp.auth'], function (Router $r) {
 });
 $r->group(['lp.auth', 'lp.contact'], function (Router $r) {
     $r->get('/',                       [LicencjeKursantController::class, 'index'])->name('lk.index');
+    $r->get('/licencja/{product}',     [LicencjeKursantController::class, 'licence'])->name('lk.licence');
+    $r->get('/office',                 [LicencjeKursantController::class, 'office'])->name('lk.office');
+    $r->get('/programy',               [LicencjeKursantController::class, 'programs'])->name('lk.programs');
+    $r->get('/materialy',              [LicencjeKursantController::class, 'materials'])->name('lk.materials');
+    $r->get('/sprawy',                 [LicencjeKursantController::class, 'cases'])->name('lk.cases');
     $r->get('/produkty',               [LicencjeKursantController::class, 'products'])->name('lk.products');
+    $r->get('/konto',                  [LicencjeKursantController::class, 'account'])->name('lk.account');
+    $r->get('/dokument/{id}/{doc}',    [LicencjeKursantController::class, 'document'])->name('lk.doc');
+    $r->post('/symulacja/zaplac/{id}', [LicencjeKursantController::class, 'simPay'])->name('lk.sim.pay');
     $r->get('/potwierdz',              [LicencjeKursantController::class, 'confirmForm'])->name('lk.confirm');
     $r->post('/potwierdz',             [LicencjeKursantController::class, 'confirmPost'])->name('lk.confirm.post');
     $r->post('/potwierdz/ponownie',    [LicencjeKursantController::class, 'confirmResend'])->name('lk.confirm.resend');

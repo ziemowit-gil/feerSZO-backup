@@ -14,7 +14,7 @@ $nav = $nav ?? null;
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title><?= h($PAGE_TITLE) ?> — <?= h($org) ?></title>
+<title><?= h($PAGE_TITLE) ?> · <?= h($org) ?></title>
 <script>try { var _c = localStorage.getItem('lp_contrast'), _f = localStorage.getItem('lp_fontsize'); if (_c) document.documentElement.dataset.contrast = _c; if (_f) document.documentElement.dataset.fontsize = _f; } catch (e) {}</script>
 <script src="https://cdn.tailwindcss.com/3.4.5"></script>
 <script>tailwind.config = { prefix: 'tw-', corePlugins: { preflight: true }, theme: { extend: {
@@ -51,7 +51,18 @@ $nav = $nav ?? null;
   /* menu boczne */
   .pk-side { align-self: start; position: sticky; top: 12px; background: var(--mt-card); border: 1px solid var(--mt-line); padding: 6px 0; }
   .pk-side a { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 10px 14px; text-decoration: none; color: var(--mt-ink); font-weight: 400; min-height: 42px; border-left: 3px solid transparent; }
-  .pk-side a:hover, .pk-side a:focus-visible, .pk-side a[aria-current="true"] { background: var(--mt-bg); border-left-color: var(--mt-accent); }
+  .pk-side a:hover, .pk-side a:focus-visible { background: var(--mt-bg); border-left-color: var(--mt-accent); }
+  .pk-side a[aria-current="page"] { background: var(--mt-bg); border-left-color: var(--mt-ink); font-weight: 700; }
+  /* kafle strony startowej (Metro Start, stonowane): biały kafel, tytuł, znacznik stanu, krótki opis */
+  .m-tiles { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .m-tilelink { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 130px; padding: 16px; background: var(--mt-card); border: 1px solid var(--mt-line); border-top: 3px solid var(--mt-line); color: var(--mt-ink); text-decoration: none; }
+  .m-tilelink:hover, .m-tilelink:focus-visible { border-top-color: var(--mt-accent); background: var(--mt-bg); }
+  .m-tilelink.due { border-top-color: var(--mt-due); }
+  .m-tilelink-title { font-size: 1.25rem; font-weight: 300; }
+  .m-tilelink .m-tag { align-self: flex-start; }
+  .m-tilelink-sum { font-size: .85rem; color: var(--mt-muted); word-break: break-all; }
+  .m-docs { list-style: none; margin: 6px 0 0; padding: 0; font-size: .9rem; }
+  .m-docs li { padding: 2px 0; }
   .pk-side .pk-badge { font-size: .78rem; color: var(--mt-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .pk-side .pk-badge.due { color: var(--mt-bad); font-weight: 700; }
   .pk-footer { text-align: center; padding: 24px; color: var(--mt-muted); font-size: .8rem; }
@@ -63,6 +74,7 @@ $nav = $nav ?? null;
   .m-lead { color: var(--mt-muted); margin: 0 0 24px; }
   .m-sect { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--mt-muted); margin: 0 0 10px; }
   .m-sect small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .m-explain { color: var(--mt-muted); font-size: .92rem; margin: -4px 0 16px; max-width: 70ch; }
   .m-tile { background: var(--mt-card); border: 1px solid var(--mt-line); padding: 22px 24px; margin-bottom: 20px; scroll-margin-top: 16px; }
   .m-head { font-size: 1.45rem; font-weight: 300; margin: 0 0 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .m-label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; color: var(--mt-ink); }
@@ -111,8 +123,8 @@ $nav = $nav ?? null;
 <div class="pk-wrap<?= $nav !== null ? ' pk-grid' : '' ?>">
 <?php if ($nav !== null): ?>
   <nav class="pk-side" aria-label="Menu panelu licencji">
-    <?php foreach ($nav as [$anchor, $label, $badge, $due]): ?>
-      <a href="#<?= h($anchor) ?>"><span><?= h($label) ?></span><?php if ($badge !== ''): ?><span class="pk-badge<?= $due ? ' due' : '' ?>"><?= h($badge) ?></span><?php endif; ?></a>
+    <?php foreach ($nav as [$href, $label, $badge, $due, $cur]): ?>
+      <a href="<?= h($href) ?>"<?= $cur ? ' aria-current="page"' : '' ?>><span><?= h($label) ?></span><?php if ($badge !== ''): ?><span class="pk-badge<?= $due ? ' due' : '' ?>"><?= h($badge) ?></span><?php endif; ?></a>
     <?php endforeach; ?>
   </nav>
 <?php endif; ?>

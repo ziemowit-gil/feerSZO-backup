@@ -126,7 +126,7 @@ final class LicencjeKod
                 try {
                     require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
                     mail_queue_add(trim($email), '', 'Kod do panelu licencji: ' . $code,
-                        '<p>Dzień dobry,</p><p>Twój kod: <b style="font-size:20px;letter-spacing:3px">' . $code . '</b></p><p>Potwierdza: ' . h($what) . '. Kod jest ważny 10 minut. Nikomu go nie podawaj — pracownicy Fundacji nigdy o niego nie proszą.</p>'
+                        '<p>Dzień dobry,</p><p>Twój kod: <b style="font-size:20px;letter-spacing:3px">' . $code . '</b></p><p>Potwierdza: ' . h($what) . '. Kod jest ważny 10 minut. Nikomu go nie podawaj. Pracownicy Fundacji nigdy o niego nie proszą.</p>'
                         . '<p style="color:#555;font-size:13px">Jeśli to nie Ty, zignoruj tę wiadomość i zmień hasło do panelu licencji.</p>',
                         '', 'license_panel_code', $cid, '', true);
                     $slot['channel'] = 'email'; $slot['to'] = self::maskEmail($email);
@@ -142,9 +142,9 @@ final class LicencjeKod
     public static function verify(string $purpose, string $code): string
     {
         $s = $_SESSION['lk_otp'][$purpose] ?? null;
-        if (!$s) return 'Kod wygasł albo nie został wysłany — wyślij nowy.';
-        if (time() > (int)$s['exp']) { unset($_SESSION['lk_otp'][$purpose]); return 'Kod wygasł (ważny 10 minut) — wyślij nowy.'; }
-        if ((int)$s['tries'] >= self::TRIES) { unset($_SESSION['lk_otp'][$purpose]); return 'Za dużo błędnych prób — wyślij nowy kod.'; }
+        if (!$s) return 'Kod wygasł albo nie został wysłany. Wyślij nowy.';
+        if (time() > (int)$s['exp']) { unset($_SESSION['lk_otp'][$purpose]); return 'Kod wygasł (ważny 10 minut). Wyślij nowy.'; }
+        if ((int)$s['tries'] >= self::TRIES) { unset($_SESSION['lk_otp'][$purpose]); return 'Za dużo błędnych prób. Wyślij nowy kod.'; }
         $code = preg_replace('/\D/', '', $code);
         if (!hash_equals((string)$s['hash'], hash('sha256', $purpose . '|' . $code))) {
             $_SESSION['lk_otp'][$purpose]['tries'] = (int)$s['tries'] + 1;

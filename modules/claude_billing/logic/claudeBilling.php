@@ -28,7 +28,7 @@ final class ClaudeBilling
         'claude'  => ['label' => 'Claude', 'name' => 'Claude Team (Claude for Nonprofit)', 'what' => 'asystent AI Claude', 'prefix' => 'claude_bill_',
                       'match' => ['claude', 'anthropic', 'antropic'], 'uniqueEmail' => false, 'color' => '#da532c', 'requiresEdu' => true, 'pool' => false,
                       'program' => 'w programie Claude for Nonprofit (Anthropic)', 'defaults' => ['enabled' => '1', 'usd' => '8', 'list_usd' => '25']],
-        'nordvpn' => ['label' => 'NordVPN', 'name' => 'NordVPN', 'what' => 'NordVPN — bezpieczne połączenie z internetem', 'prefix' => 'nordvpn_bill_',
+        'nordvpn' => ['label' => 'NordVPN', 'name' => 'NordVPN', 'what' => 'NordVPN, szyfrowane połączenie z internetem (VPN)', 'prefix' => 'nordvpn_bill_',
                       'match' => ['nordvpn', 'nord vpn', 'nordlayer', 'nord security'], 'uniqueEmail' => true, 'color' => '#4687ff', 'requiresEdu' => false, 'pool' => true,
                       'program' => '', 'defaults' => ['enabled' => '0', 'usd' => '0', 'list_usd' => '0']],
     ];
@@ -533,21 +533,21 @@ final class ClaudeBilling
         $open = db_one("SELECT id FROM claude_subscriptions WHERE client_id=? AND product=? AND status IN ('active','suspended') AND is_test=0", [$clientId, $P['key']]);
         if ($open)                 return ['ok' => false, 'reason' => 'Masz już włączony ' . $P['label'] . '.', 'assignment' => $a];
         $fromPool = false;   // uczestnik włącza tylko licencję PRZYPISANĄ mu w SZO (NordVPN: przydział z puli robi kadra — polecenie 2026-11-09)
-        if (!$a)                   return ['ok' => false, 'reason' => 'Nie masz przypisanej licencji ' . $P['label'] . '. Jeśli chcesz z niej korzystać, napisz do prowadzącego albo do biura — przypiszą ją z puli licencji Fundacji.', 'assignment' => null];
-        if (!$s['enabled'] || !$s['priced']) return ['ok' => false, 'reason' => 'Samodzielne włączenie ' . $P['label'] . ' jest chwilowo niedostępne — napisz do biura.', 'assignment' => $a];
+        if (!$a)                   return ['ok' => false, 'reason' => 'Nie masz przypisanej licencji ' . $P['label'] . '. Przypisuje ją prowadzący albo biuro.', 'assignment' => null];
+        if (!$s['enabled'] || !$s['priced']) return ['ok' => false, 'reason' => 'Włączanie ' . $P['label'] . ' jest teraz wyłączone. Napisz do biura.', 'assignment' => $a];
         if ($s['available_until'] !== '' && $s['available_until'] < date('Y-m-d')) return ['ok' => false, 'reason' => 'Zamawianie ' . $P['label'] . ' zakończyło się ' . self::dayMonth($s['available_until']) . '. Jeśli potrzebujesz dostępu, napisz do biura.', 'assignment' => $a];
-        if ($s['available_from'] !== '' && $s['available_from'] > date('Y-m-d')) return ['ok' => false, 'reason' => 'Wnioski o ' . $P['label'] . ' przyjmujemy od ' . self::dayMonth($s['available_from']) . ' — wtedy włączysz go tutaj sam(a).', 'assignment' => $a, 'from' => $s['available_from']];
+        if ($s['available_from'] !== '' && $s['available_from'] > date('Y-m-d')) return ['ok' => false, 'reason' => $P['label'] . ' można włączyć od ' . self::dayMonth($s['available_from']) . '.', 'assignment' => $a, 'from' => $s['available_from']];
         if (self::isMinor($clientId)) return ['ok' => false, 'reason' => 'Dostęp osoby niepełnoletniej włącza biuro na prośbę opiekuna.', 'assignment' => $a];
         if (!empty($P['requiresEdu']) && !self::eduAccount($clientId)) {
-            return ['ok' => false, 'needEdu' => true, 'assignment' => $a, 'reason' => 'Do ' . $P['label'] . ' potrzebujesz konta @' . self::EDU_DOMAIN . ' — bez niego nie uruchomimy dostępu. Poproś o nie poniżej, a Dział IT je założy.'];
+            return ['ok' => false, 'needEdu' => true, 'assignment' => $a, 'reason' => $P['label'] . ' działa tylko z kontem @' . self::EDU_DOMAIN . '. Nie masz go. Złóż wniosek poniżej, konto założy Dział IT.'];
         }
         if ($P['uniqueEmail']) {
             $email = trim((string)(self::client($clientId)['email'] ?? ''));
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'reason' => 'Do ' . $P['label'] . ' potrzebny jest Twój adres e-mail w kartotece — napisz do biura, żeby go dopisało.', 'assignment' => $a];
-            if (self::emailTaken($email, $P['key'], $clientId)) return ['ok' => false, 'reason' => 'Na adres ' . $email . ' jest już włączona licencja ' . $P['label'] . ' — przysługuje jedna na osobę.', 'assignment' => $a];
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'reason' => $P['label'] . ' wymaga adresu e-mail. Uzupełnij go w „Moje konto”.', 'assignment' => $a];
+            if (self::emailTaken($email, $P['key'], $clientId)) return ['ok' => false, 'reason' => 'Na adres ' . $email . ' jest już włączona licencja ' . $P['label'] . '. Jedna osoba może mieć jedną.', 'assignment' => $a];
         }
         $debt = db_one("SELECT COUNT(*) n FROM claude_charges WHERE client_id=? AND product=? AND status='pending' AND is_test=0", [$clientId, $P['key']]);
-        if ((int)($debt['n'] ?? 0) > 0) return ['ok' => false, 'reason' => 'Masz nieopłaconą fakturę za ' . $P['label'] . ' z poprzedniego okresu — najpierw ją ureguluj.', 'assignment' => $a];
+        if ((int)($debt['n'] ?? 0) > 0) return ['ok' => false, 'reason' => 'Masz niezapłaconą fakturę za ' . $P['label'] . '. Najpierw ją zapłać.', 'assignment' => $a];
         return ['ok' => true, 'reason' => '', 'assignment' => $a, 'fromPool' => $fromPool];
     }
 

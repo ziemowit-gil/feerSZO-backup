@@ -20,7 +20,7 @@ include __DIR__ . '/_top.php';
     <button class="m-btn" type="submit">Zaloguj się</button>
   </form>
   <hr class="tw-my-5" style="border:0;border-top:1px solid var(--pk-border)">
-  <p class="tw-text-sm tw-mb-2"><b>Uczestnik zajęć TI?</b> Zaloguj się do <a href="../login.php">panelu uczestnika</a> i wejdź w „Licencje” — trafisz tu bez ponownego logowania.</p>
-  <p class="tw-text-sm">Nie masz loginu albo nie pamiętasz hasła? Login do panelu licencji zakłada biuro — napisz do prowadzącego albo do biura.</p>
+  <p class="tw-text-sm tw-mb-2">Uczestnik zajęć TI może wejść z <a href="../login.php">panelu uczestnika</a> (zakładka Licencje) bez drugiego logowania.</p>
+  <p class="tw-text-sm">Login i hasło do panelu licencji zakłada biuro. Jeśli ich nie masz albo nie pamiętasz hasła, napisz do biura.</p>
 </div>
 <?php include __DIR__ . '/_bottom.php'; ?>

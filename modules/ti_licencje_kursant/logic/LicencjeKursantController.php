@@ -19,6 +19,7 @@ require_once dirname(__DIR__, 2) . '/claude_billing/logic/claudeBilling.php';
 require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
 require_once __DIR__ . '/LicencjePanelAuth.php';
 require_once __DIR__ . '/LicencjeKod.php';
+require_once __DIR__ . '/LicencjeId.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/PriceChange.php';
 
 final class LicencjeKursantController
@@ -27,12 +28,12 @@ final class LicencjeKursantController
     public const OP_NAMES = ['AM11' => 'Licencja opłacana przez Fundację', 'AM12' => 'Zwrot kosztów licencji', 'AM13' => 'Licencja opłacana przez kogoś innego',
         'AM20' => 'Zmiana płatnika licencji', 'AM21' => 'Zmiana planu licencji', 'AM22' => 'Zawieszenie licencji', 'AM23' => 'Odebranie licencji',
         'AM24' => 'Przedłużenie licencji', 'ANT1' => 'Wniosek o dostęp do Claude'];
-    public const OP_STATUS = ['signing' => 'czeka na Twoje potwierdzenie — link przyszedł e-mailem i SMS-em', 'pending' => 'czeka na decyzję',
-        'approved' => 'zatwierdzone — Dział IT to teraz wykonuje', 'executed' => 'gotowe', 'rejected' => 'odmowa', 'cancelled' => 'wycofane'];
-    public const AM7_STATUS = ['draft' => 'wniosek w przygotowaniu', 'started' => 'wniosek złożony — czekamy na decyzję', 'granted' => 'przyznana',
+    public const OP_STATUS = ['signing' => 'czeka na Twój podpis (link w e-mailu i SMS-ie)', 'pending' => 'czeka na decyzję',
+        'approved' => 'zatwierdzone, Dział IT wykonuje', 'executed' => 'gotowe', 'rejected' => 'odmowa', 'cancelled' => 'wycofane'];
+    public const AM7_STATUS = ['draft' => 'wniosek w przygotowaniu', 'started' => 'wniosek złożony, czeka na decyzję', 'granted' => 'przyznana',
         'refused' => 'odmowa', 'withdrawn' => 'wniosek wycofany'];
-    public const AM5_STATUS = ['invited' => 'czekamy na Twoje oświadczenie — link przyszedł e-mailem', 'submitted' => 'oświadczenie wysłane — sprawdzamy je',
-        'accepted' => 'masz dostęp', 'rejected' => 'oświadczenie do poprawy — sprawdź e-mail', 'revoked' => 'dostęp cofnięty'];
+    public const AM5_STATUS = ['invited' => 'czeka na Twoje oświadczenie (link w e-mailu)', 'submitted' => 'oświadczenie wysłane, sprawdzamy',
+        'accepted' => 'masz dostęp', 'rejected' => 'oświadczenie do poprawy (szczegóły w e-mailu)', 'revoked' => 'dostęp cofnięty'];
 
     private static function org(): string
     {
@@ -56,10 +57,22 @@ final class LicencjeKursantController
         if ($me['sid'] > 0 && function_exists('ti_account_log')) ti_account_log($me['sid'], $action, $text);
     }
 
+    /** Podstrony panelu: klucz => [trasa, tytuł]. Produkty płatne (claude, nordvpn) mają podstronę lk.licence. */
+    public const PAGES = ['office' => ['lk.office', 'Licencje na Office'], 'programy' => ['lk.programs', 'Programy i klucze'], 'materialy' => ['lk.materials', 'Materiały dydaktyczne'],
+        'sprawy' => ['lk.cases', 'Moje sprawy'], 'produkty' => ['lk.products', 'Produkty i usługi'], 'konto' => ['lk.account', 'Moje konto']];
+
+    /** Adres podstrony dla klucza (produkt płatny, strona albo '' = start). */
+    public static function pageUrl(string $key): string
+    {
+        if (isset(ClaudeBilling::PRODUCTS[$key])) return route('lk.licence', ['product' => $key]);
+        if (isset(self::PAGES[$key])) return route(self::PAGES[$key][0]);
+        return route('lk.index');
+    }
+
     private function flash(string $type, string $msg, string $anchor = ''): ?string
     {
         $_SESSION['lk_flash'] = [$type, $msg];
-        header('Location: ' . route('lk.index') . ($anchor !== '' ? '#' . $anchor : ''));
+        header('Location: ' . self::pageUrl($anchor));
         return null;
     }
 
@@ -99,8 +112,8 @@ final class LicencjeKursantController
     {
         $me = $this->me();
         $op = $_SESSION['lk_op'] ?? null;
-        if (!$op || (int)$op['cid'] !== $me['cid'] || !in_array($op['method'], self::CONFIRMABLE, true)) return $this->flash('err', 'Nie ma operacji do potwierdzenia — zacznij jeszcze raz.');
-        if (time() - (int)$op['at'] > LicencjeKod::TTL) { unset($_SESSION['lk_op']); return $this->flash('err', 'Minęło ponad 10 minut — zacznij operację jeszcze raz.', $op['anchor']); }
+        if (!$op || (int)$op['cid'] !== $me['cid'] || !in_array($op['method'], self::CONFIRMABLE, true)) return $this->flash('err', 'Nie ma nic do potwierdzenia. Zacznij od nowa.');
+        if (time() - (int)$op['at'] > LicencjeKod::TTL) { unset($_SESSION['lk_op']); return $this->flash('err', 'Minęło ponad 10 minut. Zacznij od nowa.', $op['anchor']); }
         $e = LicencjeKod::verify('op', (string)($_POST['code'] ?? ''));
         if ($e !== '') { $_SESSION['lk_code_err'] = $e; header('Location: ' . route('lk.confirm')); return null; }
         unset($_SESSION['lk_op']);
@@ -114,7 +127,7 @@ final class LicencjeKursantController
     {
         $me = $this->me();
         $op = $_SESSION['lk_op'] ?? null;
-        if (!$op) return $this->flash('err', 'Nie ma operacji do potwierdzenia.');
+        if (!$op) return $this->flash('err', 'Nie ma nic do potwierdzenia.');
         $prev = LicencjeKod::pending('op');
         if ($prev && time() - (int)$prev['sent'] < LicencjeKod::RESEND) {
             $_SESSION['lk_code_err'] = 'Nowy kod możesz wysłać za ' . (LicencjeKod::RESEND - (time() - (int)$prev['sent'])) . ' s.';
@@ -131,7 +144,7 @@ final class LicencjeKursantController
     {
         $op = $_SESSION['lk_op'] ?? null;
         unset($_SESSION['lk_op'], $_SESSION['lk_otp']['op']);
-        return $this->flash('info', 'Anulowano — nic nie zmieniliśmy.', (string)($op['anchor'] ?? ''));
+        return $this->flash('info', 'Anulowano. Nic się nie zmieniło.', (string)($op['anchor'] ?? ''));
     }
 
     private function takeFlash(): ?array
@@ -159,7 +172,7 @@ final class LicencjeKursantController
         $email = trim((string)($_POST['email'] ?? '')); $phone = trim((string)($_POST['phone'] ?? ''));
         $err = [];
         if (!LicencjeKod::validEmail($email)) $err['email'] = 'Wpisz adres e-mail, np. jan.kowalski@gmail.com.';
-        if (!LicencjeKod::validPhone($phone)) $err['phone'] = 'Wpisz numer komórki — 9 cyfr, np. 600 100 200 (numer zagraniczny: z +).';
+        if (!LicencjeKod::validPhone($phone)) $err['phone'] = 'Wpisz numer komórki: 9 cyfr, np. 600 100 200. Numer zagraniczny wpisz z +.';
         if ($err) { $_SESSION['lk_contact_err'] = $err + ['_old' => ['email' => $email, 'phone' => $phone]]; header('Location: ' . route('lk.contact')); return null; }
         unset($_SESSION['lk_otp']['contact']);
         $_SESSION['lk_contact_new'] = ['cid' => $me['cid'], 'email' => $email, 'phone' => LicencjeKod::normPhone($phone)];
@@ -181,7 +194,7 @@ final class LicencjeKursantController
         LicencjeKod::confirm($me['cid'], $new['email'], $new['phone'], 'panel licencji (kod SMS)');
         unset($_SESSION['lk_contact_new']);
         $this->log($me, 'license_panel_contact', 'Dane kontaktowe w panelu licencji: ' . $new['email'] . ', ' . $new['phone'] . ' (potwierdzone kodem).');
-        return $this->flash('ok', $first ? 'Dziękujemy — dane zapisane. Możesz już zarządzać licencjami. Każdą zmianę potwierdzisz kodem z SMS-a.' : 'Zapisaliśmy nowe dane kontaktowe.', $first ? '' : 'konto');
+        return $this->flash('ok', $first ? 'Dane zapisane. Możesz już zarządzać licencjami. Każdą zmianę potwierdzasz kodem SMS.' : 'Nowe dane kontaktowe zapisane.', $first ? '' : 'konto');
     }
 
     // ── Zmiana ceny: decyzja ────────────────────────────────────────────────────
@@ -195,11 +208,11 @@ final class LicencjeKursantController
         $p = ClaudeBilling::product((string)$a['change']['product']);
         $d = (string)($_POST['decision'] ?? '');
         try { PriceChange::validate($a, $d, $me['name']); } catch (\Throwable $e) { return $this->flash('err', $e->getMessage(), $p); }
-        if (!$this->confirmed('priceDecide', [(string)(int)$id], ($d === 'accept' ? 'akceptacja' : 'rezygnacja') . ' — nowa cena ' . ClaudeBilling::P($p)['label'], $p)) return null;
+        if (!$this->confirmed('priceDecide', [(string)(int)$id], ($d === 'accept' ? 'akceptacja' : 'rezygnacja') . ' nowej ceny ' . ClaudeBilling::P($p)['label'], $p)) return null;
         PriceChange::decideAnswer($a, $d, $me['name'], $me['ip'], 'panel licencji');
         $this->log($me, 'license_price_answer', 'Zmiana ceny ' . ClaudeBilling::P($p)['label'] . ': ' . ($d === 'accept' ? 'akceptacja' : 'rezygnacja') . '.');
         $from = ClaudeBilling::dayMonth((string)$a['change']['effective_from']);
-        return $this->flash('ok', $d === 'accept' ? 'Zapisaliśmy: akceptujesz nową cenę od ' . $from . '.' : 'Zapisaliśmy: rezygnujesz. Dostęp zakończy się przed ' . $from . ' — do tego dnia płacisz po starej cenie.', $p);
+        return $this->flash('ok', $d === 'accept' ? 'Zapisane: akceptujesz nową cenę od ' . $from . '.' : 'Zapisane: rezygnujesz. Dostęp kończy się przed ' . $from . '. Do tego dnia płacisz starą cenę.', $p);
     }
 
     /** Strona z linku w e-mailu (uczestnik albo opiekun). */
@@ -226,7 +239,7 @@ final class LicencjeKursantController
             try { PriceChange::decide($token, $st['decision'], $st['name'], (string)($_SERVER['REMOTE_ADDR'] ?? '')); }
             catch (\Throwable $e) { return $back($e->getMessage()); }
             unset($_SESSION['lk_price'][$k]);
-            $_SESSION['lk_flash'] = ['ok', 'Dziękujemy — zapisaliśmy decyzję.'];
+            $_SESSION['lk_flash'] = ['ok', 'Decyzja zapisana.'];
             return $back();
         }
         if (($_POST['step'] ?? '') === 'back') { unset($_SESSION['lk_price'][$k], $_SESSION['lk_otp'][$purpose]); return $back(); }
@@ -234,7 +247,7 @@ final class LicencjeKursantController
         try { PriceChange::validate($a, $d, $name); } catch (\Throwable $e) { return $back($e->getMessage()); }
         $t = PriceChange::codeTarget($a);
         unset($_SESSION['lk_otp'][$purpose]);
-        $r = LicencjeKod::send($purpose, (int)$a['client_id'], $t['phone'], $t['email'], ($d === 'accept' ? 'akceptacja' : 'rezygnacja') . ' — nowa cena');
+        $r = LicencjeKod::send($purpose, (int)$a['client_id'], $t['phone'], $t['email'], ($d === 'accept' ? 'akceptacja' : 'rezygnacja') . ' nowej ceny');
         if (!$r['ok']) return $back($r['error']);
         $_SESSION['lk_price'][$k] = ['decision' => $d, 'name' => $name];
         return $back();
@@ -273,7 +286,59 @@ final class LicencjeKursantController
 
     // ── Panel ───────────────────────────────────────────────────────────────────
 
-    public function index(): string
+    public function index(): string { return $this->render('start'); }
+    public function office(): string { return $this->render('office'); }
+    public function programs(): string { return $this->render('programy'); }
+    public function materials(): string { return $this->render('materialy'); }
+    public function cases(): string { return $this->render('sprawy'); }
+    public function products(): string { return $this->render('produkty'); }
+    public function account(): string { return $this->render('konto'); }
+    public function licence(string $product): string
+    {
+        if (!isset(ClaudeBilling::PRODUCTS[$product])) { header('Location: ' . route('lk.index')); exit; }
+        return $this->render($product);
+    }
+
+    /** Pobranie dokumentu: symulacja (SYM-…) → PDF z SZO; prawdziwy → podgląd w Fakturowni. */
+    public function document(string $id, string $doc): ?string
+    {
+        $me = $this->me();
+        $ch = ClaudeBilling::charge((int)$id);
+        if (!$ch || (int)$ch['client_id'] !== $me['cid'] || !in_array($doc, ['proforma', 'order', 'invoice'], true)) { http_response_code(404); return 'Nie znaleziono dokumentu.'; }
+        require_once dirname(__DIR__, 2) . '/claude_billing/logic/ClaudeInvoice.php';
+        $no = (string)$ch[$doc . '_number'];
+        if (ClaudeInvoice::isSim($no)) {
+            try { $pdf = ClaudeInvoice::simPdf((int)$id, $doc); }
+            catch (\Throwable $e) { error_log('lk simPdf: ' . $e); return $this->flash('err', 'Nie udało się przygotować PDF. Spróbuj ponownie.', ClaudeBilling::productOf($ch)); }
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $no) . '.pdf"');
+            header('Content-Length: ' . strlen($pdf));
+            echo $pdf;
+            exit;
+        }
+        $url = $doc === 'order' ? '' : (string)$ch[$doc . '_view_url'];
+        if ($url === '') return $this->flash('info', 'Ten dokument nie jest jeszcze gotowy do pobrania.', ClaudeBilling::productOf($ch));
+        header('Location: ' . $url);
+        return null;
+    }
+
+    /** Konto testowe: symulowana wpłata (bez Przelewy24) — dalej zamówienie i faktura w symulacji. */
+    public function simPay(string $id): ?string
+    {
+        $me = $this->me();
+        $ch = ClaudeBilling::charge((int)$id);
+        if (!$ch || (int)$ch['client_id'] !== $me['cid']) { http_response_code(404); return 'Nie znaleziono opłaty.'; }
+        $p = ClaudeBilling::productOf($ch);
+        if (!ClaudeBilling::isVirtual($me['cid'])) return $this->flash('err', 'Symulacja wpłaty działa tylko na koncie testowym.', $p);
+        try {
+            ClaudeBilling::markPaid((int)$id, 'symulacja (konto testowe)', 'SYM-' . date('YmdHis'), ['name' => $me['name'], 'via' => 'panel licencji']);
+            ClaudeBilling::afterPayment();
+        } catch (\Throwable $e) { return $this->flash('err', $e->getMessage(), $p); }
+        $ch = ClaudeBilling::charge((int)$id);
+        return $this->flash('ok', 'Symulacja: wpłata ' . ClaudeBilling::zl((float)$ch['amount_pln']) . ' zaksięgowana. Zamówienie ' . ($ch['order_number'] ?: '(w przygotowaniu)') . ' i faktura ' . ($ch['invoice_number'] ?: '(w przygotowaniu)') . ' są do pobrania.', $p);
+    }
+
+    private function render(string $page): string
     {
         $me = $this->me();
         $cid = $me['cid'];
@@ -316,19 +381,13 @@ final class LicencjeKursantController
         require_once dirname(__DIR__, 3) . '/includes/p24.php';
         $flash = $_SESSION['lk_flash'] ?? null; $err = $_SESSION['lk_errors'] ?? []; $old = $_SESSION['lk_old'] ?? [];
         unset($_SESSION['lk_flash'], $_SESSION['lk_errors'], $_SESSION['lk_old']);
-        return Router::view(self::VIEW . 'index.php', ['me' => $me, 'paid' => $paid, 'software' => $software, 'termOk' => $termOk, 'office' => $office, 'am5' => $am5,
+        return Router::view(self::VIEW . 'index.php', ['page' => $page, 'ids' => ['lic' => LicencjeId::licence($cid), 'ben' => LicencjeId::beneficiary($cid)], 'virtual' => ClaudeBilling::isVirtual($cid), 'me' => $me, 'paid' => $paid, 'software' => $software, 'termOk' => $termOk, 'office' => $office, 'am5' => $am5,
             'ops' => $ops, 'products' => $products, 'prodMonthly' => round($prodMonthly, 2), 'feerUpn' => $feerUpn, 'p24on' => p24_enabled(),
             'login' => LicenseLogin::get($cid), 'hasPassword' => LicenseLogin::hasPassword($cid), 'minor' => ClaudeBilling::isMinor($cid),
             'contact' => LicencjeKod::contact($cid), 'eduAccount' => ClaudeBilling::eduAccount($cid),
             'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()]);
     }
 
-    /** Dawny adres zakładki — produkty są teraz sekcją jednego panelu. */
-    public function products(): ?string
-    {
-        header('Location: ' . route('lk.index') . '#produkty');
-        return null;
-    }
 
     public function activate(string $product): ?string
     {
@@ -348,7 +407,7 @@ final class LicencjeKursantController
             $sub = ClaudeBilling::activate($me['cid'], ['name' => $me['name'], 'via' => 'panel licencji', 'ip' => $me['ip']], false, null, true, null, $buyer, $p);
             $this->log($me, $p . '_activate', 'Włączono ' . $L . ' (#' . (int)$sub['id'] . ').');
             $first = db_one("SELECT amount_pln, due_on FROM claude_charges WHERE subscription_id=? ORDER BY id LIMIT 1", [(int)$sub['id']]);
-            return $this->flash('ok', $L . ' włączony. Dział IT dostał zgłoszenie' . ($sub['helpdesk_number'] ? ' ' . $sub['helpdesk_number'] : '') . ' i uruchomi Twoje konto — zwykle w ciągu jednego dnia roboczego.'
+            return $this->flash('ok', $L . ' włączony. Dział IT dostał zgłoszenie' . ($sub['helpdesk_number'] ? ' ' . $sub['helpdesk_number'] : '') . ' i uruchomi konto, zwykle w ciągu dnia roboczego.'
                 . ($first ? ' Pierwsza płatność: ' . ClaudeBilling::zl((float)$first['amount_pln']) . ', do ' . ClaudeBilling::dayMonth($first['due_on']) . '.' : ''), $p);
         } catch (DomainException | InvalidArgumentException $e) {
             return $this->flash('err', $e->getMessage(), $p);
@@ -362,12 +421,12 @@ final class LicencjeKursantController
     public function edu(): ?string
     {
         $me = $this->me();
-        if (ClaudeBilling::eduRequest($me['cid'])) return $this->flash('info', 'Prośba o konto @' . ClaudeBilling::EDU_DOMAIN . ' już jest u Działu IT.', 'claude');
-        if (!$this->confirmed('edu', [], 'prośba o konto @' . ClaudeBilling::EDU_DOMAIN, 'claude')) return null;
+        if (ClaudeBilling::eduRequest($me['cid'])) return $this->flash('info', 'Wniosek o konto @' . ClaudeBilling::EDU_DOMAIN . ' już jest w Dziale IT.', 'claude');
+        if (!$this->confirmed('edu', [], 'wniosek o konto @' . ClaudeBilling::EDU_DOMAIN, 'claude')) return null;
         try {
             $r = ClaudeBilling::requestEdu($me['cid'], ['name' => $me['name'], 'via' => 'panel licencji']);
             $this->log($me, 'edu_request', 'Wniosek o konto @' . ClaudeBilling::EDU_DOMAIN . ': ' . ($r['proposed'] ?? '') . '.');
-            return $this->flash('ok', 'Poprosiliśmy Dział IT o konto ' . ($r['proposed'] ?? '') . (!empty($r['helpdesk_number']) ? ' (zgłoszenie ' . $r['helpdesk_number'] . ')' : '') . '. Gdy będzie gotowe, włączysz Claude tutaj.', 'claude');
+            return $this->flash('ok', 'Wniosek o konto ' . ($r['proposed'] ?? '') . ' wysłany do Działu IT' . (!empty($r['helpdesk_number']) ? ' (zgłoszenie ' . $r['helpdesk_number'] . ')' : '') . '. Gdy konto będzie gotowe, włączysz tu Claude.', 'claude');
         } catch (\Throwable $e) {
             return $this->flash('err', $e->getMessage(), 'claude');
         }
@@ -384,7 +443,7 @@ final class LicencjeKursantController
         if (!$this->confirmed('buyer', [$p], 'zmiana danych do faktury', $p)) return null;
         $err = ClaudeBilling::saveBuyer((int)$sub['id'], $_POST, $me['name'] . ' (panel licencji)');
         if ($err) { $_SESSION['lk_errors'] = [$p => $err]; $_SESSION['lk_old'] = [$p => $_POST]; return $this->flash('err', 'Popraw dane do faktury (' . count($err) . ').', $p); }
-        return $this->flash('ok', 'Zapisaliśmy dane do faktury. Jeśli jakiś dokument na nie czekał — właśnie się wystawił.', $p);
+        return $this->flash('ok', 'Dane do faktury zapisane. Jeśli dokument czekał na te dane, już się wystawił.', $p);
     }
 
     public function cancel(string $product): ?string
@@ -392,14 +451,14 @@ final class LicencjeKursantController
         $me = $this->me();
         $p = ClaudeBilling::product($product);
         $L = ClaudeBilling::P($p)['label'];
-        if (empty($_POST['confirm'])) return $this->flash('err', 'Zaznacz, że na pewno chcesz zrezygnować.', $p);
+        if (empty($_POST['confirm'])) return $this->flash('err', 'Zaznacz, że rezygnujesz.', $p);
         $sub = ClaudeBilling::forClient($me['cid'], false, $p);
         if (!$sub || !in_array($sub['status'], ['active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . $L . '.', $p);
         if (!$this->confirmed('cancel', [$p], 'rezygnacja z ' . $L, $p)) return null;
         try {
             ClaudeBilling::end((int)$sub['id'], 'rezygnacja w panelu licencji', ['name' => $me['name'], 'via' => 'panel licencji']);
             $this->log($me, $p . '_cancel', 'Rezygnacja z ' . $L . ' (#' . (int)$sub['id'] . ').');
-            return $this->flash('ok', 'Zrezygnowałeś/aś z ' . $L . '. Nie dostaniesz kolejnych faktur.', $p);
+            return $this->flash('ok', 'Zrezygnowałeś/aś z ' . $L . '. Kolejnych faktur nie będzie.', $p);
         } catch (\Throwable $e) {
             return $this->flash('err', $e->getMessage(), $p);
         }
@@ -429,8 +488,8 @@ final class LicencjeKursantController
         if ($ch['status'] === 'pending' && ($p24 = p24_payment_for('claude_charge', (int)$id))) { p24_reconcile_payment((int)$p24['id']); $ch = ClaudeBilling::charge((int)$id); }
         $p = ClaudeBilling::productOf($ch);
         $L = ClaudeBilling::P($p)['label'];
-        if ($ch['status'] === 'paid') return $this->flash('ok', 'Dziękujemy — wpłata ' . ClaudeBilling::zl((float)$ch['amount_pln']) . ' za ' . $L . ' dotarła. Fakturę wystawimy automatycznie.', $p);
-        return $this->flash('info', 'Czekamy na potwierdzenie płatności z Przelewy24 — zwykle trwa to chwilę. Odśwież stronę za minutę. Jeśli płatność się nie udała, spróbuj ponownie.', $p);
+        if ($ch['status'] === 'paid') return $this->flash('ok', 'Wpłata ' . ClaudeBilling::zl((float)$ch['amount_pln']) . ' za ' . $L . ' dotarła. Faktura wystawi się automatycznie.', $p);
+        return $this->flash('info', 'Przelewy24 jeszcze nie potwierdziły płatności. Odśwież stronę za minutę. Jeśli płatność się nie udała, zapłać ponownie.', $p);
     }
 
     /** Zmiana hasła do panelu licencji. */
@@ -438,12 +497,12 @@ final class LicencjeKursantController
     {
         $me = $this->me();
         $p1 = (string)($_POST['new'] ?? ''); $p2 = (string)($_POST['new2'] ?? '');
-        if (!LicenseLogin::get($me['cid'])) return $this->flash('err', 'Nie masz jeszcze loginu do panelu licencji — zakłada go biuro.', 'konto');
+        if (!LicenseLogin::get($me['cid'])) return $this->flash('err', 'Nie masz loginu do panelu licencji. Zakłada go biuro.', 'konto');
         if (mb_strlen($p1) < 10) return $this->flash('err', 'Hasło musi mieć co najmniej 10 znaków.', 'konto');
-        if ($p1 !== $p2) return $this->flash('err', 'Hasła się różnią — wpisz to samo dwa razy.', 'konto');
+        if ($p1 !== $p2) return $this->flash('err', 'Hasła się różnią. Wpisz dwa razy to samo.', 'konto');
         if (!$this->confirmed('password', [], 'zmiana hasła do panelu licencji', 'konto')) return null;
         LicenseLogin::setPassword($me['cid'], $p1);
         $this->log($me, 'license_panel_password', 'Zmiana hasła do panelu licencji.');
-        return $this->flash('ok', 'Zapisaliśmy nowe hasło do panelu licencji.', 'konto');
+        return $this->flash('ok', 'Nowe hasło zapisane.', 'konto');
     }
 }

@@ -142,17 +142,17 @@ final class PriceChange
         $cmp = self::compare($chg);
         $from = ClaudeBilling::dayMonth((string)$chg['effective_from']);
         $day0 = ClaudeBilling::dayMonth(date('Y-m-d', strtotime($chg['effective_from'] . ' -1 day')));
-        $subject = $P['label'] . ': od ' . $from . ' nowa cena' . ($token ? ' — prosimy o decyzję' : '');
+        $subject = $P['label'] . ': nowa cena od ' . $from . ($token ? ' (potrzebna Twoja decyzja)' : '');
         $html = '<p>Dzień dobry,</p>'
             . '<p>' . ($asGuardian ? 'jako opiekun decydujesz, czy ' . h($person) . ' dalej korzysta z ' . h($P['label']) . '. Od ' . h($from) . ' zmienia się cena.'
                                    : 'od ' . h($from) . ' zmienia się cena dostępu do ' . h($P['label']) . '.') . '</p>'
             . '<ul><li>Teraz: <b>' . h($cmp['old']) . '</b>' . ($cmp['oldPln'] !== null ? ' (dziś ok. ' . h(ClaudeBilling::zl($cmp['oldPln'])) . ' miesięcznie)' : '') . '</li>'
             . '<li>Od ' . h($from) . ': <b>' . h($cmp['new']) . '</b>' . ($cmp['newPln'] !== null ? ' (dziś ok. ' . h(ClaudeBilling::zl($cmp['newPln'])) . ' miesięcznie)' : '') . '</li></ul>'
-            . ((string)$chg['reason'] !== '' ? '<p>Dlaczego: ' . h((string)$chg['reason']) . '</p>' : '')
+            . ((string)$chg['reason'] !== '' ? '<p>Powód: ' . h((string)$chg['reason']) . '</p>' : '')
             . ($token
-                ? '<p><a href="' . h(self::decisionUrl($token)) . '" style="background:#063f7a;color:#fff;padding:10px 22px;text-decoration:none;display:inline-block;font-weight:700;border-radius:5px">Akceptuję albo rezygnuję — wybierz</a></p>'
-                  . '<p style="color:#555;font-size:13px">Jeśli nie odpowiesz do ' . h($day0) . ': ' . ($chg['no_answer'] === 'reject' ? 'dostęp zakończy się ' . h($day0) . '.' : 'dostęp zostanie z nową ceną — zrezygnować możesz w każdej chwili w panelu licencji.') . '</p>'
-                : '<p>Decyzję podejmuje opiekun — wysłaliśmy mu osobną wiadomość z linkiem.</p>')
+                ? '<p><a href="' . h(self::decisionUrl($token)) . '" style="background:#063f7a;color:#fff;padding:10px 22px;text-decoration:none;display:inline-block;font-weight:700;border-radius:5px">Wybierz: akceptuję albo rezygnuję</a></p>'
+                  . '<p style="color:#555;font-size:13px">Jeśli nie odpowiesz do ' . h($day0) . ': ' . ($chg['no_answer'] === 'reject' ? 'dostęp zakończy się ' . h($day0) . '.' : 'dostęp zostanie z nową ceną. Zrezygnować możesz w każdej chwili w panelu licencji.') . '</p>'
+                : '<p>Decyduje opiekun. Wysłaliśmy mu osobną wiadomość z linkiem.</p>')
             . '<p style="color:#555;font-size:13px">Pytania? Odpowiedz na tę wiadomość albo napisz do prowadzącego.</p>';
         try {
             require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
@@ -181,7 +181,7 @@ final class PriceChange
     /** Sprawdzenie, czy decyzję można zapisać (przed wysłaniem kodu). */
     public static function validate(array $a, string $decision, string $name): void
     {
-        if (!in_array($a['change']['status'] ?? '', ['sent'], true)) throw new DomainException('Ta zmiana ceny jest już zamknięta — decyzji nie można zmienić.');
+        if (!in_array($a['change']['status'] ?? '', ['sent'], true)) throw new DomainException('Zmiana ceny jest zamknięta. Decyzji nie można już zmienić.');
         if (!in_array($decision, ['accept', 'reject'], true)) throw new InvalidArgumentException('Wybierz: akceptuję albo rezygnuję.');
         if (mb_strlen(trim($name)) < 3) throw new InvalidArgumentException('Wpisz imię i nazwisko.');
     }
