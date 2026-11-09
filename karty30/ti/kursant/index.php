@@ -5669,6 +5669,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $rv_lic_token         = $vlab_token;
     $rv_lic_redirect_tab  = 'licencje';
     include __DIR__ . '/_licencje_view.php';
+    include __DIR__ . '/_claude_abonament_view.php';   // abonament Claude: aktywacja, naliczenia, płatność (modules/claude_billing)
     include __DIR__ . '/_uslugi_view.php';   // domeny, hosting i inne usługi (modules/ti_products)
     include __DIR__ . '/_feer_m365_view.php'; // konto Microsoft 365 na tenancie FEER
   ?>

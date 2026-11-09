@@ -596,6 +596,8 @@ function pp_settle(int $tx_id, array $response, string $by, ?int $uid): ?string 
                 try { db()->prepare("UPDATE invoices SET paid_at=datetime('now') WHERE id=? AND paid_at IS NULL")->execute([(int)$it['reference_id']]); } catch (\Throwable $e) {}
             }
         }
+        // Abonament Claude (modules/claude_billing): naliczenia z tej transakcji → opłacone; faktura w Fakturowni i wznowienie po zakończeniu żądania
+        try { require_once dirname(__DIR__, 2) . '/claude_billing/logic/claudeBilling.php'; ClaudeBilling::onPortalSettled($tx_id); } catch (\Throwable $e) { error_log('claude settle: ' . $e->getMessage()); }
         audit_log('payments.success', ['transaction_id' => $tx_id, 'uuid' => $tx['transaction_uuid'], 'method' => $tx['payment_method'],
             'total' => (float)$tx['total_amount'], 'response' => $response, 'by' => $by], $uid);
         if ($own) $pdo->commit();

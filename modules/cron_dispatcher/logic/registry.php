@@ -335,6 +335,11 @@ function cron_dispatcher_registry(): array
             'interval' => 82800,        // 23 h: start o 7:00 bez dryfu
             'schedule' => [7, 8],       // okno 7:00–8:00 — terminy 7 dni w sprawach licencji AM5/AM7 (oświadczenia, podpis AM7, alert dla biura); wyłączone, póki nie włączy kierownik
         ],
+        'claude_billing' => [
+            'file'     => $cronDir . '/agents/claudeBilling.php',
+            'interval' => 3600,         // co godzinę w oknie 6–22: naliczenia (kurs PKO BP, faktura w Fakturowni), wpłaty z Fakturowni, przypomnienia, wstrzymania
+            'schedule' => [6, 22],
+        ],
         'ti_licencje_packages' => [
             'file'     => $cronDir . '/agents/tiLicensePackages.php',
             'interval' => 120,          // co 2 min — pakiety poprawionych druków AM po zatwierdzonych korektach AMSK (5 min od zatwierdzenia), ZIP z hasłem do osoby i kierownika

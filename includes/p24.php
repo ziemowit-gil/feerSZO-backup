@@ -301,6 +301,11 @@ function p24_mark_paid(int $payment_id): void {
             require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php';
             pp_settle_from_p24((int)$p['source_id'], db_one("SELECT * FROM p24_payments WHERE id=?", [$payment_id]) ?: $p);
         }
+        // Abonament Claude — płatność bezpośrednio za naliczenie (panel /licencje); source_id = claude_charges.id
+        if ($p['source_type'] === 'claude_charge' && (int)$p['source_id'] > 0) {
+            require_once dirname(__DIR__) . '/modules/claude_billing/logic/claudeBilling.php';
+            ClaudeBilling::onP24Paid((int)$p['source_id'], db_one("SELECT * FROM p24_payments WHERE id=?", [$payment_id]) ?: $p);
+        }
         // Kolejne źródła można dodać tutaj.
     } catch (\Throwable $e) {}
 }
