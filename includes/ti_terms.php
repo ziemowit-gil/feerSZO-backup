@@ -41,6 +41,22 @@ function ti_term_client_has_claude(int $client_id): bool {
     return $c[$client_id] = $has;
 }
 
+/** Treść oświadczenia o opłacie za dostęp do Claude (regulamin claude_oplata) — seed i migracja 2026-11_claude_oplata_8usd. */
+function ti_claude_oplata_body(): string {
+    return '<p>Ja, niżej podpisany/a, wyrażam zgodę na comiesięczną opłatę za dostęp do narzędzia Claude (licencja Claude Team w programie Claude for Nonprofit) '
+        . 'udostępnionego mi przez Fundację.</p>'
+        . '<p>Oświadczam, że wiem, że:</p>'
+        . '<ol>'
+        . '<li>Opłata wynosi 8 USD miesięcznie — tyle, ile Fundacja płaci za jedno miejsce w Claude Team w cenie dla organizacji non-profit (cena regularna: 25 USD). '
+        . 'Kwotę przelicza się na złote po ostatnim kursie sprzedaży dewiz PKO Banku Polskiego z dnia wystawienia faktury.</li>'
+        . '<li>Fakturę dostaję w dniu włączenia dostępu, a potem co miesiąc w dniu włączenia dostępu, nie później niż 8. dnia miesiąca. Na zapłatę mam 5 dni '
+        . '(Przelewy24, przelew na rachunek Fundacji albo szybki przelew z faktury). Jeśli nie zapłacę w ciągu 7 dni po terminie, dostęp zostanie wstrzymany do czasu wpłaty.</li>'
+        . '<li>Zniżka dla organizacji non-profit nie obejmuje używania API Claude — dotyczy wyłącznie planów Team i Enterprise.</li>'
+        . '<li>Mogę zrezygnować w każdej chwili w panelu „Moje licencje” — wtedy nie dostanę kolejnych faktur. Jeśli dostawca zmieni cenę licencji, '
+        . 'Fundacja poprosi mnie o ponowne zaakceptowanie tego oświadczenia.</li>'
+        . '</ol>';
+}
+
 function ti_terms_migrate(): void {
     static $done = false;
     if ($done) return;
@@ -109,18 +125,8 @@ function ti_terms_migrate(): void {
             }
             $audience = '';
             if ($type === 'claude_oplata') {
-                // Oświadczenie o zryczałtowanej opłacie za dostęp do Claude — tylko osoby z aktywną licencją Claude (odbiorca „claude”)
-                $body_html = '<p>Ja, niżej podpisany/a, wyrażam zgodę na obciążenie mnie zryczałtowaną opłatą w wysokości 25 zł '
-                    . 'za dostęp do narzędzia Claude (licencja Claude Team) udostępnionego mi przez Fundację.</p>'
-                    . '<p>Oświadczam, że zostałem/am poinformowany/a, że:</p>'
-                    . '<ol>'
-                    . '<li>Opłata ryczałtowa w wysokości 25 zł jest uśredniona i obowiązuje do końca grudnia 2026 r., niezależnie od kursu dolara amerykańskiego.</li>'
-                    . '<li>Koszt licencji Claude Team dla organizacji non-profit wynosi 8 USD za miejsce miesięcznie (rozliczenie miesięczne). '
-                    . 'Różnicę między opłatą ryczałtową a kosztem licencji pokrywa Fundacja Edukacji Empatii Rozwoju „FEER”.</li>'
-                    . '<li>Zniżka dla organizacji non-profit nie obejmuje użycia API, a dotyczy wyłącznie planów Team i Enterprise.</li>'
-                    . '<li>Ceny i warunki licencji mogą ulec zmianie po stronie dostawcy. Zmiana taka nie wpływa na wysokość opłaty ryczałtowej '
-                    . 'określonej w pkt 1 do końca grudnia 2026 r.</li>'
-                    . '</ol>';
+                // Oświadczenie o opłacie za dostęp do Claude (od 2026-11-09: 8 USD miesięcznie po kursie PKO BP) — tylko osoby z aktywną licencją Claude (odbiorca „claude”)
+                $body_html = ti_claude_oplata_body();
                 $is_active = 1;
                 $audience  = 'claude';
             }

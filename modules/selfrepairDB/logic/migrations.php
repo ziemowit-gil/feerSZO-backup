@@ -556,4 +556,25 @@ return [
         },
     ],
 
+
+    // Claude: oświadczenie o opłacie — z „25 zł ryczałtem” na 8 USD miesięcznie po kursie PKO BP (abonament, modules/claude_billing).
+    // Nowa treść = ti_claude_oplata_body() (includes/ti_terms.php, ta sama co seed); wersja +1, więc osoby, które przyjęły wersję z 25 zł, zaakceptują nową.
+    // Własne (zmienione w panelu) szablony e-mail/SMS ti_claude_statement z kwotą 25 zł — usuwane, wraca treść z kodu.
+    '2026-11_claude_oplata_8usd' => [
+        'desc' => 'Claude: oświadczenie o opłacie — 8 USD miesięcznie zamiast 25 zł (nowa wersja do akceptacji)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/ti_terms.php';
+            ti_terms_migrate();
+            $t = db_one("SELECT id, body_html FROM k30_ti_terms WHERE type='claude_oplata'");
+            if ($t && (str_contains((string)$t['body_html'], '25 zł') || str_contains((string)$t['body_html'], 'zryczałtowan'))) {
+                $body_html = ti_claude_oplata_body();
+                if (!str_contains($body_html, '8 USD')) throw new RuntimeException('Nowa treść oświadczenia nie zawiera kwoty 8 USD');
+                db_exec("UPDATE k30_ti_terms SET title='Oświadczenie o opłacie za dostęp do Claude', body_html=?, version=version+1, updated_at=datetime('now') WHERE id=?", [$body_html, (int)$t['id']]);
+            }
+            foreach (['email_templates' => 'body_html', 'sms_templates' => 'message'] as $tbl => $col) {
+                try { db_exec("DELETE FROM $tbl WHERE key_='ti_claude_statement' AND ($col LIKE '%25 z%' OR $col LIKE '%ryczałt%' OR $col LIKE '%ryczalt%')"); } catch (\Throwable $e) {}
+            }
+        },
+    ],
+
 ];

@@ -12,7 +12,7 @@ $c = OperationForm::Ant1->color();
 <div class="pivot"><a href="<?= h(route('ld.index')) ?>">Sprawy AM5 / AM7</a><a href="<?= h(route('ld.accounts')) ?>">Operacje na licencjach</a><a href="<?= h(route('ld.ant1')) ?>" aria-current="page">ANT1</a></div>
 <h1><span class="sym" style="background:<?= h($c) ?>">ANT1</span> Wniosek o nadanie uprawnień w ramach dostępu do subskrypcji Claude for Nonprofit</h1>
 <p class="text-secondary">Formularz elektroniczny: 1) wybierz osobę (pełnoletni / niepełnoletni uczestnik szkoleń albo dydaktyk / trener), 2) wypełnij ANT1 — dane, e-mail w domenie <?= h(Ant1Form::EMAIL_DOMAIN) ?>, kurs i grupa.
-  Osoba potwierdza przez link (e-mail + SMS) wniosek, <b>oświadczenie o zryczałtowanej opłacie <?= h(Ant1Form::FEE) ?> za dostęp do Claude</b> i klauzulę RODO; potem kierownik składa oświadczenie (decyzja cyfrowa),
+  Osoba potwierdza przez link (e-mail + SMS) wniosek, <b>oświadczenie o opłacie za dostęp do Claude (<?= h(Ant1Form::FEE) ?>)</b> i klauzulę RODO; potem kierownik składa oświadczenie (decyzja cyfrowa),
   Dział IT dostaje zgłoszenie, a osoba — dokument ANT1 w PDF (układ jak AM20). Pusty wzór: <a href="<?= h(route('ld.op.blank', ['form' => 'ANT1'])) ?>" target="_blank" rel="noopener">ANT1 do druku</a>.</p>
 
 <section class="panel accent" style="border-left-color:<?= h($c) ?>">

@@ -93,7 +93,7 @@ $ant1 = $form === OperationForm::Ant1;
 <?php elseif ($ant1): ?>
 <section class="panel"><p class="small mb-0"><?= h($form->statement()) ?></p></section>
 <section class="panel warn">
-  <h2 class="mt-0">Oświadczenie o zryczałtowanej opłacie <?= h(Ant1Form::FEE) ?> za dostęp do Claude</h2>
+  <h2 class="mt-0">Oświadczenie o opłacie za dostęp do Claude (<?= h(Ant1Form::FEE) ?>)</h2>
   <p class="small"><?= h(Ant1Form::FEE_INTRO) ?></p>
   <p class="small mb-1"><?= h(Ant1Form::FEE_LEAD) ?></p>
   <ol class="small"><?php foreach (Ant1Form::FEE_POINTS as $pt): ?><li><?= h($pt) ?></li><?php endforeach; ?></ol>

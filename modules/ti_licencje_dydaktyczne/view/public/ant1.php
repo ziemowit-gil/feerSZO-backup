@@ -1,7 +1,7 @@
 <?php
 /**
  * modules/ti_licencje_dydaktyczne/view/public/ant1.php — portal: potwierdzenie wniosku ANT1 (dostęp do Claude for Nonprofit) przez osobę:
- * dane wniosku, oświadczenie o zryczałtowanej opłacie 25 zł, klauzula RODO + oświadczenie o danych; podpis = imię i nazwisko, trzy zgody.
+ * dane wniosku, oświadczenie o opłacie (8 USD miesięcznie), klauzula RODO + oświadczenie o danych; podpis = imię i nazwisko, trzy zgody.
  * Zmienne: $op, $token, $errors, $old, $org.
  */
 $title = 'Potwierdzenie wniosku o dostęp do Claude';
@@ -38,12 +38,12 @@ include __DIR__ . '/_top.php';
   <div class="tw-hidden" aria-hidden="true"><label>Nie wypełniaj <input name="www" tabindex="-1" autocomplete="off"></label></div>
 
   <fieldset class="m-tile">
-    <legend class="m-head tw-float-left tw-w-full">Oświadczenie o zryczałtowanej opłacie <?= h(Ant1Form::FEE) ?> za dostęp do Claude</legend>
+    <legend class="m-head tw-float-left tw-w-full">Oświadczenie o opłacie za dostęp do Claude (<?= h(Ant1Form::FEE) ?>)</legend>
     <p class="tw-clear-both tw-text-sm"><?= h(Ant1Form::FEE_INTRO) ?></p>
     <p class="tw-text-sm"><?= h(Ant1Form::FEE_LEAD) ?></p>
     <ol class="tw-text-sm tw-list-decimal tw-pl-6 tw-space-y-1"><?php foreach (Ant1Form::FEE_POINTS as $pt): ?><li><?= h($pt) ?></li><?php endforeach; ?></ol>
     <label class="m-check tw-mt-4"><input type="checkbox" name="confirm_fee" value="1"<?= !empty($old['confirm_fee']) ? ' checked' : '' ?><?= $aria('confirm_fee') ?>>
-      <span>Wyrażam zgodę na zryczałtowaną opłatę <?= h(Ant1Form::FEE) ?> za dostęp do narzędzia Claude i potwierdzam, że zapoznałem/am się z pkt 1–4.</span></label><?= $err('confirm_fee') ?>
+      <span>Wyrażam zgodę na opłatę <?= h(Ant1Form::FEE) ?> za dostęp do narzędzia Claude i potwierdzam, że zapoznałem/am się z pkt 1–4.</span></label><?= $err('confirm_fee') ?>
   </fieldset>
 
   <fieldset class="m-tile">

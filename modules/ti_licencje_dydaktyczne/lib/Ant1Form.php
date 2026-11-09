@@ -17,7 +17,7 @@ final class Ant1Form
     public const SYMBOL = 'ANT1';
     public const PRODUCT = 'Claude for Nonprofit (Anthropic Claude, w tym Claude Code)';
     public const EMAIL_DOMAIN = 'edu.feer.org.pl';
-    public const FEE = '25 zł';
+    public const FEE = '8 USD miesięcznie';   // od 2026-11-09 (wcześniej 25 zł ryczałtem) — kwota i zasady jak w modules/claude_billing
 
     public const TYPES = [
         'pelnoletni'  => 'pełnoletniego kursanta / uczestnika szkoleń',
@@ -30,14 +30,14 @@ final class Ant1Form
 
     public const TEXT_REQUEST = 'Zwracam się z prośbą o nadanie dostępu do Anthropic Claude, w tym także Anthropic Claude Code, w ramach szkolenia / kursu, który jest przeze mnie prowadzony / w którym uczestniczę — na potrzeby dydaktyczne.';
 
-    /** OŚWIADCZENIE o zryczałtowanej opłacie: wstęp, punkty 1–4. Opłata jest za SAM DOSTĘP do narzędzia Claude. */
-    public const FEE_INTRO = 'Ja, niżej podpisany/a, wyrażam zgodę na obciążenie mnie zryczałtowaną opłatą w wysokości 25 zł za dostęp do narzędzia Claude (licencja Claude Team) udostępnionego mi przez Fundację.';
+    /** OŚWIADCZENIE o opłacie: wstęp, punkty 1–4. Opłata jest za SAM DOSTĘP do narzędzia Claude (od 2026-11-09: 8 USD miesięcznie, wcześniej 25 zł ryczałtem). */
+    public const FEE_INTRO = 'Ja, niżej podpisany/a, wyrażam zgodę na comiesięczną opłatę za dostęp do narzędzia Claude (licencja Claude Team w programie Claude for Nonprofit) udostępnionego mi przez Fundację.';
     public const FEE_LEAD  = 'Oświadczam, że zostałem/am poinformowany/a, że:';
     public const FEE_POINTS = [
-        'Opłata ryczałtowa w wysokości 25 zł jest uśredniona i obowiązuje do końca grudnia 2026 r., niezależnie od kursu dolara amerykańskiego.',
-        'Koszt licencji Claude Team dla organizacji non-profit wynosi 8 USD za miejsce miesięcznie (rozliczenie miesięczne). Różnicę między opłatą ryczałtową a kosztem licencji pokrywa Fundacja Edukacji Empatii Rozwoju „FEER”.',
-        'Zniżka dla organizacji non-profit nie obejmuje użycia API, a dotyczy wyłącznie planów Team i Enterprise.',
-        'Ceny i warunki licencji mogą ulec zmianie po stronie dostawcy. Zmiana taka nie wpływa na wysokość opłaty ryczałtowej określonej w pkt 1 do końca grudnia 2026 r.',
+        'Opłata wynosi 8 USD miesięcznie — tyle, ile Fundacja płaci za jedno miejsce w Claude Team w cenie dla organizacji non-profit (cena regularna: 25 USD). Kwotę przelicza się na złote po ostatnim kursie sprzedaży dewiz PKO Banku Polskiego z dnia wystawienia faktury.',
+        'Fakturę dostaję w dniu włączenia dostępu, a potem co miesiąc w dniu włączenia dostępu, nie później niż 8. dnia miesiąca. Na zapłatę mam 5 dni (Przelewy24, przelew na rachunek Fundacji albo szybki przelew z faktury). Jeśli nie zapłacę w ciągu 7 dni po terminie, dostęp zostanie wstrzymany do czasu wpłaty.',
+        'Zniżka dla organizacji non-profit nie obejmuje używania API Claude — dotyczy wyłącznie planów Team i Enterprise.',
+        'Mogę zrezygnować w każdej chwili w panelu „Moje licencje” — wtedy nie dostanę kolejnych faktur. Jeśli dostawca zmieni cenę licencji, Fundacja poprosi mnie o ponowne zaakceptowanie tego oświadczenia.',
     ];
 
     /** KLAUZULA INFORMACYJNA (RODO) — akapity wzoru. */
@@ -56,7 +56,7 @@ final class Ant1Form
     public const RODO_DECL = 'Nie wprowadzam do narzędzia danych szczególnej kategorii (np. o zdrowiu, pochodzeniu, poglądach) ani danych osób trzecich, chyba że są w pełni zanonimizowane i jest to konieczne do celu ćwiczenia.';
 
     public const KIEROWNIK_FOOT = 'Osobie tej przydzielono imienne konto licencji narzędzia Claude (Anthropic, PBC) na czas udziału w zajęciach lub szkoleniu.';
-    public const KIEROWNIK_DECL = 'Oświadczam, że osoba została poinformowana o zasadach przetwarzania danych osobowych określonych w klauzuli informacyjnej RODO oraz o wysokości opłaty ryczałtowej w wysokości 25 zł.';
+    public const KIEROWNIK_DECL = 'Oświadczam, że osoba została poinformowana o zasadach przetwarzania danych osobowych określonych w klauzuli informacyjnej RODO oraz o wysokości opłaty: 8 USD miesięcznie po kursie PKO BP, płatnej co miesiąc.';
 
     /** Pola wniosku (biuro wypełnia; zgody potwierdza osoba przez link — pola check pominięte w formularzu). */
     public static function requestFields(): array

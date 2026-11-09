@@ -45,7 +45,7 @@ $rv_lic_term_ok = $rv_lic_term_ok ?? true;
         </div>
 
         <?php
-          // Claude: od 17.10.2026 dostęp objęty zryczałtowaną opłatą — wymagane oświadczenie (regulamin typu claude_oplata, odbiorca „claude”)
+          // Claude: dostęp objęty opłatą (od 2026-11-09: 8 USD miesięcznie po kursie PKO BP) — wymagane oświadczenie (regulamin typu claude_oplata, odbiorca „claude”)
           $kp_is_claude = function_exists('ti_term_is_claude_license') ? ti_term_is_claude_license($lic)
                         : stripos((string)$lic['license_name'] . ' ' . (string)$lic['vendor'], 'claude') !== false;
           $kp_claude_term = $kp_is_claude && function_exists('ti_term_get') ? ti_term_get('claude_oplata') : null;
@@ -54,7 +54,7 @@ $rv_lic_term_ok = $rv_lic_term_ok ?? true;
         <?php if ($kp_is_claude && !$kp_claude_ok): ?>
         <div class="alert alert-warning py-2 small mb-2 kp-lic-uwaga" role="note">
           <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-          <strong>Wymagane oświadczenie:</strong> dostęp do Claude jest objęty zryczałtowaną opłatą 25 zł.
+          <strong>Wymagane oświadczenie:</strong> dostęp do Claude kosztuje 8 USD miesięcznie (po kursie PKO BP).
           <?php if (basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'parent.php'): ?>
             Zaakceptuj <a href="?tab=regulaminy" class="alert-link">oświadczenie o opłacie w zakładce Regulaminy</a>.
           <?php else: ?>
@@ -63,7 +63,7 @@ $rv_lic_term_ok = $rv_lic_term_ok ?? true;
         </div>
         <?php elseif ($kp_is_claude && $kp_claude_term && !empty($kp_claude_term['is_active'])): ?>
         <div class="text-body-secondary small mb-2 kp-lic-uwaga">
-          <i class="bi bi-check2-circle text-success me-1" aria-hidden="true"></i>Oświadczenie o zryczałtowanej opłacie 25 zł za dostęp do Claude — zaakceptowane.
+          <i class="bi bi-check2-circle text-success me-1" aria-hidden="true"></i>Oświadczenie o opłacie za dostęp do Claude (8 USD miesięcznie) — zaakceptowane.
         </div>
         <?php endif; ?>
 
