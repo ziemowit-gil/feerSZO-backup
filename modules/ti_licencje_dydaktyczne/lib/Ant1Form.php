@@ -5,7 +5,7 @@ declare(strict_types=1);
  * modules/ti_licencje_dydaktyczne/lib/Ant1Form.php — ANT1: wniosek o nadanie uprawnień w ramach dostępu do subskrypcji
  * Claude for Nonprofit (Anthropic Claude, w tym Claude Code) dla uczestnika szkoleń (pełnoletniego / niepełnoletniego) albo dydaktyka.
  *
- * Wzór papierowy: lib/wzor/druk-ANT1.docx (dane osoby, oświadczenie o zryczałtowanej opłacie 25 zł za dostęp do Claude, klauzula
+ * Wzór papierowy: lib/wzor/druk-ANT1.docx (dane osoby, oświadczenie o opłacie za dostęp do Claude — we wzorze 25 zł, od 2026-11-09 8 USD miesięcznie, klauzula
  * informacyjna RODO, oświadczenie kierownika). Tu: teksty wzoru słowo w słowo (bez zmian redakcyjnych) + wartości domyślne.
  * Obieg (rejestr operacji, LicenseOperationService): biuro wypełnia dane → osoba potwierdza wniosek, oświadczenie o opłacie
  * i RODO przez link (e-mail + SMS; stempel: imię i nazwisko, czas, IP) → kierownik składa oświadczenie kierownika (decyzja cyfrowa)
@@ -69,7 +69,7 @@ final class Ant1Form
             'nr_kursu'    => ['Nr kursu', 'text', false, null],
             'nazwa_grupy' => ['Nazwa grupy', 'text', false, null],
             'uwagi'       => ['Uwagi do wniosku (cel dydaktyczny, zakres)', 'textarea', false, null],
-            'oplata_zgoda' => ['Oświadczenie o opłacie ryczałtowej 25 zł (potwierdza osoba przez link)', 'check', false, null],
+            'oplata_zgoda' => ['Oświadczenie o opłacie 8 USD miesięcznie (potwierdza osoba przez link)', 'check', false, null],
             'rodo_zgoda'   => ['Zapoznanie z klauzulą RODO i oświadczenie o danych (potwierdza osoba przez link)', 'check', false, null],
         ];
     }

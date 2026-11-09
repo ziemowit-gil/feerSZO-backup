@@ -256,33 +256,36 @@ final class LicenseOperationService
         $r = $op['request'];
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         if ($op['formEnum'] === OperationForm::Ant1) {
-            // ANT1 — potwierdzenie wniosku o dostęp do Claude, oświadczenia o opłacie 25 zł i zapoznania z RODO
-            $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Potwierdź wniosek o dostęp do Claude (ANT1) — ' . $op['number'];
-            $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($op['created_name']) . '</b> przygotował(a) w Twoim imieniu wniosek <b>ANT1</b> o nadanie dostępu do <b>'
-                . $e(Ant1Form::PRODUCT) . '</b> na potrzeby dydaktyczne.</p><table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
-                . '<tr><td style="background:#f2f2f2;width:170px">Numer sprawy</td><td><b>' . $e($op['number']) . '</b></td></tr>'
-                . '<tr><td style="background:#f2f2f2">Wniosek dotyczy</td><td>' . $e(Ant1Form::TYPES[$r['rodzaj'] ?? ''] ?? '') . '</td></tr>'
-                . '<tr><td style="background:#f2f2f2">Konto (e-mail)</td><td>' . $e($r['email_edu'] ?? '') . '</td></tr>'
+            // ANT1 — potwierdzenie wniosku o dostęp do Claude, oświadczenia o opłacie (8 USD miesięcznie) i zapoznania z RODO
+            $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Potwierdź wniosek o dostęp do Claude — do ' . ldDate($op['due_on']);
+            $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($op['created_name']) . '</b> przygotował(a) dla Ciebie wniosek o dostęp do <b>'
+                . $e(Ant1Form::PRODUCT) . '</b> — do nauki na zajęciach.</p><table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
+                . '<tr><td style="background:#f2f2f2;width:170px">Wniosek dotyczy</td><td>' . $e(Ant1Form::TYPES[$r['rodzaj'] ?? ''] ?? '') . '</td></tr>'
+                . '<tr><td style="background:#f2f2f2">Twoje konto (e-mail)</td><td>' . $e($r['email_edu'] ?? '') . '</td></tr>'
                 . (($r['nazwa_grupy'] ?? '') !== '' ? '<tr><td style="background:#f2f2f2">Kurs / grupa</td><td>' . $e(trim(($r['nr_kursu'] ?? '') . ' ' . $r['nazwa_grupy'])) . '</td></tr>' : '')
-                . '<tr><td style="background:#f2f2f2">Opłata ryczałtowa</td><td><b>' . $e(Ant1Form::FEE) . '</b> za dostęp do narzędzia Claude (do końca grudnia 2026 r.)</td></tr>'
-                . '<tr><td style="background:#f2f2f2">Termin potwierdzenia</td><td><b>do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e(ldDate($op['due_on'])) . '</b></td></tr></table>'
-                . '<p>Pod linkiem przeczytasz wniosek, <b>oświadczenie o zryczałtowanej opłacie 25 zł</b> i <b>klauzulę informacyjną RODO</b>; potwierdzasz je wpisując imię i nazwisko. '
-                . 'Dopiero po Twoim potwierdzeniu kierownik składa oświadczenie i Dział IT nadaje dostęp. Link jest osobisty i ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
-            $sms = 'FEER: potwierdz wniosek o dostep do Claude (ANT1, ' . $op['number'] . ') i oswiadczenie o oplacie 25 zl do ' . ldDate($op['due_on']) . ': ' . $link;
-            $html = LicenseNotificationService::layout('Dostęp do Claude — potwierdzenie wniosku', $body, $link, 'Przeczytaj i potwierdź wniosek', 'ANT1');
+                . '<tr><td style="background:#f2f2f2">Opłata</td><td><b>' . $e(Ant1Form::FEE) . '</b> po kursie PKO BP — faktura co miesiąc, płatna w 5 dni</td></tr>'
+                . '<tr><td style="background:#f2f2f2">Potwierdź do</td><td><b>' . $e(ldDate($op['due_on'])) . '</b> (' . LD_REALIZATION_DAYS . ' dni)</td></tr>'
+                . '<tr><td style="background:#f2f2f2">Numer sprawy</td><td>' . $e($op['number']) . '</td></tr></table>'
+                . '<p><b>Co musisz zrobić:</b> kliknij przycisk poniżej. Przeczytasz tam wniosek, <b>oświadczenie o opłacie (' . $e(Ant1Form::FEE) . ')</b> i <b>informację o tym, jak chronimy Twoje dane (RODO)</b>. '
+                . 'Na koniec wpisz swoje imię i nazwisko — to Twoje potwierdzenie.</p>'
+                . '<p><b>Co dalej?</b> Gdy potwierdzisz, kierownik zatwierdzi wniosek, a Dział IT nada Ci dostęp. Bez Twojego potwierdzenia nie możemy ruszyć dalej. '
+                . 'Link jest tylko dla Ciebie i działa przez ' . LD_TOKEN_DAYS . ' dni.</p>';
+            $sms = 'FEER: potwierdz do ' . ldDate($op['due_on']) . ' wniosek o dostep do Claude i oplate 8 USD/mies. (sprawa ' . $op['number'] . '): ' . $link;
+            $html = LicenseNotificationService::layout('Potwierdź wniosek o dostęp do Claude', $body, $link, 'Przeczytaj i potwierdź wniosek', 'ANT1');
         } else {
-        $pay = $r['tryb'] === 'zajecia' ? 'doliczenie <b>' . $e(self::money((float)$r['kwota'])) . '</b> do opłaty za zajęcia' : 'wpłata <b>' . $e(self::money((float)$r['kwota'])) . '</b> na rachunek ' . $e(self::nrb((string)$r['rachunek']));
-        $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Potwierdź zmianę płatnika licencji (AM20) — ' . $op['number'];
-        $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($op['created_name']) . '</b> złożył(a) w Twoim imieniu wniosek <b>AM20</b> o zmianę płatnika licencji <b>'
-            . $e($op['state']['sku'] ?? '') . '</b>.</p><table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
-            . '<tr><td style="background:#f2f2f2;width:170px">Numer sprawy</td><td><b>' . $e($op['number']) . '</b></td></tr>'
-            . '<tr><td style="background:#f2f2f2">Nowy płatnik</td><td>' . $e($r['nowy_platnik']) . '</td></tr>'
-            . '<tr><td style="background:#f2f2f2">Sposób płatności</td><td>' . $pay . '</td></tr>'
-            . '<tr><td style="background:#f2f2f2">Od dnia</td><td>' . $e(ldDate($r['data_zmiany'])) . '</td></tr>'
-            . '<tr><td style="background:#f2f2f2">Termin potwierdzenia</td><td><b>do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e(ldDate($op['due_on'])) . '</b></td></tr></table>'
-            . '<p>Zmiana wejdzie w życie dopiero po Twoim <b>potwierdzeniu wniosku</b> (przycisk poniżej). Link jest osobisty i ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
-        $sms = 'FEER: potwierdz zmiane platnika licencji (AM20, ' . $op['number'] . ') do ' . ldDate($op['due_on']) . ': ' . $link;
-        $html = LicenseNotificationService::layout('Zmiana płatnika — potwierdzenie', $body, $link, 'Sprawdź i potwierdź wniosek', 'AM20');
+        $pay = $r['tryb'] === 'zajecia' ? 'kwota <b>' . $e(self::money((float)$r['kwota'])) . '</b> zostanie doliczona do opłaty za zajęcia' : 'przelew <b>' . $e(self::money((float)$r['kwota'])) . '</b> na konto ' . $e(self::nrb((string)$r['rachunek']));
+        $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Potwierdź zmianę płatnika za licencję — do ' . ldDate($op['due_on']);
+        $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($op['created_name']) . '</b> złożył(a) w Twoim imieniu wniosek o zmianę płatnika za licencję <b>'
+            . $e($op['state']['sku'] ?? '') . '</b>. Chodzi o to, kto i jak będzie za nią płacić.</p><table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
+            . '<tr><td style="background:#f2f2f2;width:170px">Kto będzie płacić</td><td>' . $e($r['nowy_platnik']) . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Jak</td><td>' . $pay . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Od kiedy</td><td>' . $e(ldDate($r['data_zmiany'])) . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Potwierdź do</td><td><b>' . $e(ldDate($op['due_on'])) . '</b> (' . LD_REALIZATION_DAYS . ' dni)</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Numer sprawy</td><td>' . $e($op['number']) . '</td></tr></table>'
+            . '<p><b>Co musisz zrobić:</b> kliknij przycisk poniżej, sprawdź wniosek i potwierdź go. Bez Twojego potwierdzenia zmiana nie wejdzie w życie. '
+            . 'Link jest tylko dla Ciebie i działa przez ' . LD_TOKEN_DAYS . ' dni.</p>';
+        $sms = 'FEER: potwierdz zmiane platnika za licencje do ' . ldDate($op['due_on']) . ' (sprawa ' . $op['number'] . '): ' . $link;
+        $html = LicenseNotificationService::layout('Potwierdź zmianę płatnika', $body, $link, 'Sprawdź i potwierdź wniosek', 'AM20');
         }
         $res = $this->notify->send($reminder ? LicenseNotificationType::Reminder : LicenseNotificationType::RequestStarted,
             ['name' => $op['account_name'], 'email' => $op['account_email'], 'phone' => $op['account_phone']], $subject, $html, $sms, ['type' => 'operation', 'id' => $id], $actor);
@@ -319,7 +322,7 @@ final class LicenseOperationService
         if ($op['formEnum'] === OperationForm::Ant1) {
             // ANT1: po potwierdzeniu (wniosek + oświadczenie o opłacie + RODO) sprawa czeka na oświadczenie kierownika; akceptacja = też regulamin TI „claude_oplata”
             db_exec("UPDATE license_operations SET status = ?, updated_at = ? WHERE id = ?", [OperationStatus::Pending->value, $now, $id]);
-            $this->event($id, 'op.signed', 'Potwierdzono oświadczenie o zryczałtowanej opłacie ' . Ant1Form::FEE . ' za dostęp do Claude i zapoznanie z klauzulą RODO.', $actor);
+            $this->event($id, 'op.signed', 'Potwierdzono oświadczenie o opłacie za dostęp do Claude (' . Ant1Form::FEE . ') i zapoznanie z klauzulą RODO.', $actor);
             $this->recordClaudeTerm($op, $actor);
             $this->notify->alertOffice('ANT1 potwierdzony — do oświadczenia kierownika — ' . $op['number'], '<p><b>' . htmlspecialchars(trim($name)) . '</b> potwierdził(a) wniosek o dostęp do Claude, oświadczenie o opłacie '
                 . htmlspecialchars(Ant1Form::FEE) . ' i RODO. Oświadczenie kierownika (decyzja cyfrowa) w panelu dydaktyka › Licencje › Operacje — termin do ' . htmlspecialchars(ldDate($op['due_on'])) . '.</p>',
@@ -359,15 +362,16 @@ final class LicenseOperationService
     {
         $f = $op['formEnum'];
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $subject = $f->value . ' — ' . $f->short() . ' — sprawa ' . $op['number'];
+        $subject = 'Rozpatrujemy wniosek: ' . $f->short() . ' — decyzja do ' . ldDate($op['due_on']);
         $sku = (string)($op['state']['sku'] ?? '');
-        $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($actor['name']) . '</b> wszczął(-ęła) w dniu ' . $e(ldDate(substr((string)$op['created_at'], 0, 10)))
-            . ' sprawę <b>' . $e($f->title()) . '</b>' . ($sku !== '' ? ' dotyczącą licencji <b>' . $e($sku) . '</b>' : '') . '.</p>'
-            . '<table style="border-collapse:collapse;margin:8px 0" cellpadding="6"><tr><td style="background:#f2f2f2;width:170px">Numer sprawy</td><td><b>' . $e($op['number']) . '</b></td></tr>'
-            . '<tr><td style="background:#f2f2f2">Formularz</td><td>' . $e($f->value) . ' — ' . $e($f->title()) . '</td></tr>'
-            . '<tr><td style="background:#f2f2f2">Termin realizacji</td><td><b>do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e(ldDate($op['due_on'])) . '</b></td></tr></table>'
-            . ($f->needsApproval() ? '<p>O decyzji poinformujemy e-mailem (dokument w PDF).</p>' : '');
-        $sms = 'FEER: ' . $actor['name'] . ' wszczal(a) sprawe ' . $f->value . ' (' . $f->short() . ')' . ($sku !== '' ? ' - ' . mb_strimwidth($sku, 0, 25, '...') : '') . ', nr ' . $op['number'] . '. Realizacja do ' . LD_REALIZATION_DAYS . ' dni.';
+        $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($actor['name']) . '</b> złożył(a) ' . $e(ldDate(substr((string)$op['created_at'], 0, 10)))
+            . ' wniosek w sprawie Twojej licencji: <b>' . $e($f->short()) . '</b>' . ($sku !== '' ? ' (licencja <b>' . $e($sku) . '</b>)' : '') . '.</p>'
+            . '<table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
+            . '<tr><td style="background:#f2f2f2;width:170px">Decyzja do</td><td><b>' . $e(ldDate($op['due_on'])) . '</b> (najpóźniej ' . LD_REALIZATION_DAYS . ' dni)</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Numer sprawy</td><td>' . $e($op['number']) . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Dokument</td><td>' . $e($f->title()) . ' (' . $e($f->value) . ')</td></tr></table>'
+            . ($f->needsApproval() ? '<p>Wniosek rozpatrzy kierownik. Decyzję wyślemy Ci e-mailem (w PDF). Teraz nie musisz nic robić.</p>' : '');
+        $sms = 'FEER: ' . $actor['name'] . ' zlozyl(a) wniosek: ' . $f->short() . ($sku !== '' ? ' - ' . mb_strimwidth($sku, 0, 25, '...') : '') . ' (sprawa ' . $op['number'] . '). Decyzja do ' . ldDate($op['due_on']) . ', wyslemy ja e-mailem.';
         $r = $this->notify->send(LicenseNotificationType::RequestStarted, ['name' => $op['account_name'], 'email' => $op['account_email'], 'phone' => $op['account_phone']],
             $subject, LicenseNotificationService::layout($f->short(), $body, '', '', $f->value), $sms, ['type' => 'operation', 'id' => (int)$op['id']], $actor);
         return (new LicenseManagementService($this->notify))->describe($r);
@@ -465,7 +469,7 @@ final class LicenseOperationService
                 case OperationForm::Am11: $manual[] = 'zakup / przypisanie licencji ' . ($r['produkt'] ?? '') . ' (' . ldDate($r['okres_od'] ?? '') . ' — ' . ldDate($r['okres_do'] ?? '') . ')'; break;
                 case OperationForm::Am12: $manual[] = 'finanse: ' . ($r['sposob'] === 'refaktura' ? 'refaktura' : 'zwrot kosztu') . ' ' . self::money((float)($r['kwota'] ?? 0)); break;
                 case OperationForm::Am13: $manual[] = 'aktywacja licencji ' . ($r['licencja'] ?? '') . ' (' . ($r['aktywacja'] ?? '') . ')'; break;
-                case OperationForm::Ant1: $manual[] = 'nadanie dostępu ' . Ant1Form::PRODUCT . ' — konto ' . ($r['email_edu'] ?? '') . ' (' . (Ant1Form::TYPES[$r['rodzaj'] ?? ''] ?? '') . '); opłata ryczałtowa ' . Ant1Form::FEE . ' potwierdzona przez osobę'; break;
+                case OperationForm::Ant1: $manual[] = 'nadanie dostępu ' . Ant1Form::PRODUCT . ' — konto ' . ($r['email_edu'] ?? '') . ' (' . (Ant1Form::TYPES[$r['rodzaj'] ?? ''] ?? '') . '); opłata ' . Ant1Form::FEE . ' potwierdzona przez osobę (włącza abonament w panelu /licencje)'; break;
                 case OperationForm::Am21: $manual[] = 'zmiana planu u dostawcy na: ' . ($r['nowy_produkt'] ?? ''); break;
                 case OperationForm::Am22: $manual[] = ($r['rodzaj'] === 'reasygnacja' ? 'przekazanie licencji: ' . $r['nowy_uzytkownik'] : 'zawieszenie do ' . ldDate($r['do_dnia'] ?? '')) . '; dane: ' . ($r['wytyczne'] ?? ''); break;
             }
@@ -581,24 +585,25 @@ final class LicenseOperationService
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         if ($r['tryb'] === 'zajecia') {
             $t = strtotime((string)$r['data_zmiany']) ?: time();
-            $txt = '<p>Od ' . $e(ldDate($r['data_zmiany'])) . ' płatnikiem licencji <b>' . $e($op['state']['sku'] ?? '') . '</b> jest <b>' . $e($r['nowy_platnik']) . '</b>. '
-                 . 'Opłata za zajęcia za ' . date('m.Y', $t) . ' wzrasta o <b>' . $e(self::money((float)$r['kwota'])) . '</b> (doliczone do rozliczenia).</p>';
-            $sms = 'FEER: ' . $op['number'] . ' - licencja ' . mb_strimwidth((string)($op['state']['sku'] ?? ''), 0, 25, '...') . ': do oplaty za zajecia ' . date('m.Y', $t) . ' doliczono ' . number_format((float)$r['kwota'], 2, ',', '') . ' zl.';
+            $txt = '<p>od ' . $e(ldDate($r['data_zmiany'])) . ' za licencję <b>' . $e($op['state']['sku'] ?? '') . '</b> płaci <b>' . $e($r['nowy_platnik']) . '</b>.</p>'
+                 . '<p>Kwotę <b>' . $e(self::money((float)$r['kwota'])) . '</b> doliczyliśmy do opłaty za zajęcia za ' . date('m.Y', $t) . ' — opłata za ten miesiąc będzie o tyle wyższa.</p>'
+                 . '<p style="font-size:12px;color:#666">Numer sprawy: ' . $e($op['number']) . '</p>';
+            $sms = 'FEER: do oplaty za zajecia za ' . date('m.Y', $t) . ' doliczylismy ' . number_format((float)$r['kwota'], 2, ',', '') . ' zl za licencje ' . mb_strimwidth((string)($op['state']['sku'] ?? ''), 0, 25, '...') . ' (sprawa ' . $op['number'] . ').';
         } else {
-            $txt = '<p>Od ' . $e(ldDate($r['data_zmiany'])) . ' płatnikiem licencji <b>' . $e($op['state']['sku'] ?? '') . '</b> jest <b>' . $e($r['nowy_platnik']) . '</b>. Prosimy o wpłatę:</p>'
+            $txt = '<p>od ' . $e(ldDate($r['data_zmiany'])) . ' za licencję <b>' . $e($op['state']['sku'] ?? '') . '</b> płaci <b>' . $e($r['nowy_platnik']) . '</b>. Prosimy o przelew:</p>'
                  . '<table style="border-collapse:collapse" cellpadding="6"><tr><td style="background:#f2f2f2">Kwota</td><td><b>' . $e(self::money((float)$r['kwota'])) . '</b></td></tr>'
-                 . '<tr><td style="background:#f2f2f2">Rachunek</td><td><b>' . $e(self::nrb((string)$r['rachunek'])) . '</b></td></tr>'
-                 . '<tr><td style="background:#f2f2f2">Odbiorca</td><td>' . $e(ldOrgName()) . '</td></tr><tr><td style="background:#f2f2f2">Tytuł</td><td><b>' . $e($op['number']) . '</b></td></tr></table>';
-            $sms = 'FEER: ' . $op['number'] . ' - wplata ' . number_format((float)$r['kwota'], 2, ',', '') . ' zl na rachunek ' . (string)$r['rachunek'] . ', tytul: ' . $op['number'];
+                 . '<tr><td style="background:#f2f2f2">Numer konta</td><td><b>' . $e(self::nrb((string)$r['rachunek'])) . '</b></td></tr>'
+                 . '<tr><td style="background:#f2f2f2">Odbiorca</td><td>' . $e(ldOrgName()) . '</td></tr><tr><td style="background:#f2f2f2">Tytuł przelewu</td><td><b>' . $e($op['number']) . '</b></td></tr></table>';
+            $sms = 'FEER: prosimy o przelew ' . number_format((float)$r['kwota'], 2, ',', '') . ' zl na konto ' . (string)$r['rachunek'] . ', tytul: ' . $op['number'];
         }
         $txt .= '<p style="font-size:12px;color:#666">' . $e(OperationForm::Am20->effect()) . '</p>';
-        $html = LicenseNotificationService::layout('Zmiana płatnika licencji', '<p>Dzień dobry ' . $e($op['account_name']) . ',</p>' . $txt, '', '', 'AM20');
+        $html = LicenseNotificationService::layout('Nowy płatnik za licencję', '<p>Dzień dobry ' . $e($op['account_name']) . ',</p>' . $txt, '', '', 'AM20');
         $res = $this->notify->send(LicenseNotificationType::DecisionInterested, ['name' => $op['account_name'], 'email' => $op['account_email'], 'phone' => $op['account_phone']],
-            'Zmiana płatnika licencji — ' . $op['number'], $html, $sms, ['type' => 'operation', 'id' => $id], $actor);
+            'Zmiana płatnika za licencję — od ' . ldDate($r['data_zmiany']), $html, $sms, ['type' => 'operation', 'id' => $id], $actor);
         $out = (new LicenseManagementService($this->notify))->describe($res);
         $pe = (string)($r['platnik_email'] ?? '');
         if ($pe !== '' && strcasecmp($pe, (string)$op['account_email']) !== 0) {
-            $res2 = $this->notify->send(LicenseNotificationType::DecisionInterested, ['name' => (string)$r['nowy_platnik'], 'email' => $pe], 'Płatność za licencję — ' . $op['number'],
+            $res2 = $this->notify->send(LicenseNotificationType::DecisionInterested, ['name' => (string)$r['nowy_platnik'], 'email' => $pe], 'Płatność za licencję od ' . ldDate($r['data_zmiany']) . ' (sprawa ' . $op['number'] . ')',
                 str_replace('Dzień dobry ' . $e($op['account_name']), 'Dzień dobry', $html), '', ['type' => 'operation', 'id' => $id], $actor, false);
             $out .= '; płatnik: ' . (new LicenseManagementService($this->notify))->describe($res2);
         }
@@ -624,12 +629,13 @@ final class LicenseOperationService
         $grant = $f === OperationForm::Am20 || !empty($op['decision']['grant']);
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $att = LicenseNotificationService::attachment($rel, $op['number']);
-        $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p>w sprawie <b>' . $e($op['number']) . '</b> (' . $e($f->title()) . ') '
-            . ($f === OperationForm::Am20 ? 'zarejestrowaliśmy zmianę płatnika.' : ($grant ? '<b>zatwierdzono</b> wniosek.' : '<b>odmówiono</b>: ' . $e($op['decision']['warunki'] ?? ''))) . '</p>'
-            . ($att ? '<p>Dokument w układzie formularza jest w załączniku (PDF).</p>' : '<p><i>Dokument doręczymy osobno.</i></p>');
+        $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p>'
+            . ($f === OperationForm::Am20 ? 'zapisaliśmy zmianę płatnika za licencję.' : ($grant ? 'wniosek <b>' . $e($f->short()) . '</b> został <b>zatwierdzony</b>.' : 'wniosek <b>' . $e($f->short()) . '</b> został <b>odrzucony</b>. Powód: ' . $e($op['decision']['warunki'] ?? ''))) . '</p>'
+            . ($att ? '<p>Dokument z decyzją jest w załączniku (PDF).</p>' : '<p><i>Dokument wyślemy osobno.</i></p>')
+            . '<p style="font-size:12px;color:#666">Numer sprawy: ' . $e($op['number']) . ' (' . $e($f->title()) . ').</p>';
         $res = $this->notify->send(LicenseNotificationType::DecisionInterested, ['name' => $op['account_name'], 'email' => $op['account_email'], 'phone' => $op['account_phone']],
-            $f->value . ' — ' . ($f === OperationForm::Am20 ? 'zmiana płatnika' : ($grant ? 'decyzja: zatwierdzono' : 'decyzja: odmowa')) . ' — ' . $op['number'],
-            LicenseNotificationService::layout($f->short(), $body, '', '', $f->value), $f === OperationForm::Am20 ? '' : 'FEER: decyzja w sprawie ' . $op['number'] . ' - ' . ($grant ? 'zatwierdzono' : 'odmowa') . '. PDF w e-mailu.',
+            ($f === OperationForm::Am20 ? 'Zmiana płatnika za licencję zapisana' : ($grant ? 'Wniosek zatwierdzony: ' . $f->short() : 'Wniosek odrzucony: ' . $f->short())) . ' (' . $f->value . ')',
+            LicenseNotificationService::layout($f->short(), $body, '', '', $f->value), $f === OperationForm::Am20 ? '' : 'FEER: wniosek ' . $f->short() . ' (sprawa ' . $op['number'] . ') ' . ($grant ? 'zatwierdzony' : 'odrzucony') . '. Szczegoly w e-mailu.',
             ['type' => 'operation', 'id' => $id], $actor, true, $att);
         if (!$att) $this->notify->alertOffice('Dokument ' . $op['number'] . ' bez PDF', '<p>PDF nie powstał — doręcz dokument osobie inną drogą (wydruk z panelu).</p>', ['type' => 'operation', 'id' => $id], $actor, LicenseNotificationType::DecisionAdmin);
         $d = (new LicenseManagementService($this->notify))->describe($res);

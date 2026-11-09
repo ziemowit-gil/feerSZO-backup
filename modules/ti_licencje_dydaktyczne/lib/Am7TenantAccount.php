@@ -306,12 +306,15 @@ final class Am7TenantAccount
         $rev = (int)$o90['info']['revision'];
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p>'
-              . '<p><b>Przepraszamy za pomyłkę.</b> W załączniku przesyłamy zaktualizowane formularze AM (<b>AM90/' . $rev . ' — aktualizacja danych</b> oraz <b>AM91 — zmiana loginu</b>) w archiwum ZIP zabezpieczonym hasłem.</p>'
-              . '<p>Hasło do archiwum wysłaliśmy <b>SMS-em</b> na numer kończący się na {PHONE}. Nowy login do konta znajdziesz w formularzach; hasło do konta się nie zmieniło. Dokumenty nie wymagają podpisu. <b>Nie jest wymagane żadne działanie z Twojej strony.</b> Sprawa: ' . $e($l['case_number']) . '.</p>';
+              . '<p><b>Przepraszamy za pomyłkę.</b> Zmieniliśmy login do Twojego konta. Nowy login jest w dokumentach w załączniku.</p>'
+              . '<p><b>Hasło do konta się nie zmieniło.</b> Od teraz loguj się nowym loginem.</p>'
+              . '<p>Dokumenty są w archiwum ZIP zabezpieczonym hasłem. Hasło do archiwum wysłaliśmy <b>SMS-em</b> na numer kończący się na {PHONE}.</p>'
+              . '<p>Nie musisz niczego podpisywać ani odsyłać.</p>'
+              . '<p style="font-size:12px;color:#666">W archiwum: AM90/' . $rev . ' (aktualizacja danych) i AM91 (zmiana loginu). Numer sprawy: ' . $e($l['case_number']) . '.</p>';
         $r = LicenseZipDelivery::deliver($this->svc, $c, (string)$l['case_number'], ['type' => 'license', 'id' => $id], [
             ldFileName($o90['number']) . '.' . $o90['out']['ext'] => $o90['out']['bytes'],
             ldFileName($o91['number']) . '.' . $o91['out']['ext'] => $o91['out']['bytes'],
-        ], 'Zaktualizowane formularze AM (AM90/' . $rev . ', AM91) — przepraszamy za pomyłkę, sprawa ' . $l['case_number'], 'Zaktualizowane formularze AM', $body, $actor,
+        ], 'Nowy login do Twojego konta — przepraszamy za pomyłkę', 'Nowy login do Twojego konta', $body, $actor,
             'am_aktualizacja_' . $id, 'AM_aktualizacja_' . $o90['number']);
         $this->svc->licenses->event($id, 'am90.sent', ($auto ? 'Automatycznie' : 'Ręcznie') . ' wysłano ZIP z formularzami AM90/' . $rev . ' i AM91: ' . $r['describe'], $actor);
         if ($r['mailed']) db()->prepare("UPDATE licenses SET am90_sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
@@ -358,17 +361,18 @@ final class Am7TenantAccount
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         if ($rev > 1) {
             $ch = (array)$o['info']['change'];
-            $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy <b>aktualizację danych (AM90/' . $rev . ')</b> — zmieniliśmy login (UPN) Twojego konta Microsoft 365.</p>'
-                  . '<p>Dotychczasowy login: <b>' . $e($ch['old']) . '</b><br>Nowy login: <b>' . $e($ch['new']) . '</b></p>'
-                  . '<p><b>Uzasadnienie zmiany:</b> ' . $e($ch['reason']) . '</p>'
-                  . '<p><b>Hasło się nie zmieniło.</b> Od teraz loguj się nowym loginem; w aplikacjach (Teams, Outlook, Office, OneDrive) wyloguj się i zaloguj ponownie. Dokument zastępuje poprzednie potwierdzenie AM90 i nie wymaga podpisu. Sprawa: ' . $e($l['case_number']) . '.</p>';
-            $subject = 'Aktualizacja danych (AM90/' . $rev . ') — zmiana loginu konta Microsoft 365, sprawa ' . $l['case_number'];
-            $heading = 'Aktualizacja danych — zmiana loginu konta';
+            $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>zmieniliśmy login do Twojego konta Microsoft 365.</p>'
+                  . '<p>Stary login: <b>' . $e($ch['old']) . '</b><br>Nowy login: <b>' . $e($ch['new']) . '</b></p>'
+                  . '<p><b>Dlaczego:</b> ' . $e($ch['reason']) . '</p>'
+                  . '<p><b>Hasło się nie zmieniło.</b> Od teraz loguj się nowym loginem. W aplikacjach (Teams, Outlook, Office, OneDrive) wyloguj się i zaloguj ponownie.</p>'
+                  . '<p>W załączniku jest dokument o tej zmianie (AM90/' . $rev . '). Zastępuje on poprzednie potwierdzenie i nie trzeba go podpisywać. Numer sprawy: ' . $e($l['case_number']) . '.</p>';
+            $subject = 'Nowy login do Twojego konta Microsoft 365';
+            $heading = 'Nowy login do konta';
         } else {
-            $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy <b>potwierdzenie wykonania operacji (AM90)</b> — konto <b>' . $e($o['info']['upn']) . '</b> zostało utworzone, a w dokumencie znajdziesz warunki udostępnienia.</p>'
-                  . '<p>Dokument nie wymaga podpisu. Jeżeli licencjodawca zmieni warunki licencji, Fundacja może dokonać zmiany warunków udostępnienia. Sprawa: ' . $e($l['case_number']) . '.</p>';
-            $subject = 'Potwierdzenie wykonania operacji (AM90) — ' . $l['title'] . ', sprawa ' . $l['case_number'];
-            $heading = 'Potwierdzenie wykonania operacji';
+            $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>utworzyliśmy Twoje konto <b>' . $e($o['info']['upn']) . '</b>. W załączniku jest potwierdzenie (AM90) — znajdziesz w nim zasady, na jakich udostępniamy Ci konto.</p>'
+                  . '<p>Nie musisz go podpisywać. Jeśli dostawca programu (licencjodawca) zmieni warunki licencji, Fundacja może odpowiednio zmienić zasady udostępnienia. Numer sprawy: ' . $e($l['case_number']) . '.</p>';
+            $subject = 'Potwierdzenie: Twoje konto jest utworzone — ' . $l['title'];
+            $heading = 'Konto utworzone';
         }
         $att = LicenseNotificationService::attachment($rel, $o['number']);
         $c = $this->svc->interestedContact($l);

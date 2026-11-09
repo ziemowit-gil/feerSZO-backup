@@ -227,30 +227,36 @@ final class LicenseManagementService
         $due = ldDate($l['due_on'] ?? '');
         $course = trim((string)$l['course_name']);
         if ($type === LicenseNotificationType::RequestStarted) {
-            $subject = 'Wszczęto proces udzielenia licencji dydaktycznej (' . LD_SYMBOL . ')';
+            $subject = 'Staramy się o licencję na materiał do zajęć — decyzja do ' . $due;
             $body = '<p>Dzień dobry' . ($to['name'] !== '' ? ' ' . $e($to['name']) : '') . ',</p>'
-                . '<p>informujemy, że <b>' . $e($l['started_name'] ?: 'pracownik ' . ldOrgName()) . '</b> wszczął(-ęła) w dniu ' . $e(ldDate(substr((string)$l['started_at'], 0, 10)))
-                . ' proces udzielenia licencji na korzystanie w celach dydaktycznych z materiału:</p>'
+                . '<p>poprosiliśmy licencjodawcę o zgodę na korzystanie z materiału na zajęciach. Wniosek złożył(a) <b>' . $e($l['started_name'] ?: 'pracownik ' . ldOrgName()) . '</b> '
+                . $e(ldDate(substr((string)$l['started_at'], 0, 10))) . '.</p>'
                 . '<table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
-                . '<tr><td style="background:#f2f2f2;width:180px">Numer sprawy</td><td><b>' . $e($nr) . '</b></td></tr>'
-                . '<tr><td style="background:#f2f2f2">Dokument</td><td>' . LicenseDoc::Am5Request->symbol() . ' — ' . $e(LicenseDoc::Am5Request->title()) . '</td></tr>'
-                . '<tr><td style="background:#f2f2f2">Utwór / materiał</td><td>' . $e($l['title']) . '</td></tr>'
-                . ($course !== '' ? '<tr><td style="background:#f2f2f2">Kurs / zajęcia</td><td>' . $e($course) . '</td></tr>' : '')
+                . '<tr><td style="background:#f2f2f2;width:180px">Materiał</td><td><b>' . $e($l['title']) . '</b></td></tr>'
+                . ($course !== '' ? '<tr><td style="background:#f2f2f2">Kurs</td><td>' . $e($course) . '</td></tr>' : '')
                 . '<tr><td style="background:#f2f2f2">Licencjodawca</td><td>' . $e($l['licensor_name']) . '</td></tr>'
-                . '<tr><td style="background:#f2f2f2">Termin realizacji</td><td><b>do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e($due) . '</b></td></tr></table>'
-                . '<p>Gdy licencjodawca udzieli licencji, otrzymasz link do złożenia oświadczeń <b>' . LicenseDoc::Am5Participant->symbol() . '</b> (oświadczenie licencjobiorcy – kursanta) '
-                . 'i <b>' . LicenseDoc::Am5NonTransfer->symbol() . '</b> (o nieodstępowaniu licencji i nieudostępnianiu materiałów).</p>'
-                . '<p>Jeśli nie spodziewasz się tej wiadomości, skontaktuj się z biurem ' . $e(ldOrgName()) . '.</p>';
-            $sms = 'FEER: ' . ($l['started_name'] ?: 'Fundacja') . ' wszczal(a) proces licencji ' . LD_SYMBOL . ' (sprawa ' . $nr . ') na material "' . mb_strimwidth((string)$l['title'], 0, 30, '...') . '"'
-                . ($course !== '' ? ' (' . mb_strimwidth($course, 0, 30, '...') . ')' : '') . '. Realizacja do ' . LD_REALIZATION_DAYS . ' dni (do ' . $due . '). Szczegoly w e-mailu.';
+                . '<tr><td style="background:#f2f2f2">Decyzja licencjodawcy do</td><td><b>' . $e($due) . '</b> (najpóźniej ' . LD_REALIZATION_DAYS . ' dni)</td></tr>'
+                . '<tr><td style="background:#f2f2f2">Numer sprawy</td><td>' . $e($nr) . '</td></tr>'
+                . '<tr><td style="background:#f2f2f2">Dokument</td><td>' . $e(LicenseDoc::Am5Request->title()) . ' (' . LicenseDoc::Am5Request->symbol() . ')</td></tr></table>'
+                . '<p><b>Co dalej?</b> Teraz nie musisz nic robić. Gdy licencjodawca się zgodzi, wyślemy Ci link do dwóch krótkich oświadczeń: '
+                . 'że będziesz korzystać z materiału tylko w zakresie licencji (' . LicenseDoc::Am5Participant->symbol() . ') '
+                . 'i że nie przekażesz go innym osobom (' . LicenseDoc::Am5NonTransfer->symbol() . ').</p>'
+                . '<p>Nie wiesz, o co chodzi? Skontaktuj się z biurem ' . $e(ldOrgName()) . '.</p>';
+            $sms = 'FEER: ' . ($l['started_name'] ?: 'Fundacja') . ' poprosil(a) o licencje na material "' . mb_strimwidth((string)$l['title'], 0, 30, '...') . '"'
+                . ($course !== '' ? ' (' . mb_strimwidth($course, 0, 30, '...') . ')' : '') . '. Licencjodawca odpowie do ' . $due . '. Sprawa ' . $nr . '. Szczegoly w e-mailu.';
         } else {
             $grant = $l['requestStatus'] === LicenseRequestStatus::Granted;
-            $subject = ($grant ? 'Udzielono licencji dydaktycznej' : 'Licencjodawca odmówił licencji') . ' (' . $nr . ')';
+            $subject = ($grant ? 'Jest zgoda na materiał „' : 'Nie ma zgody na materiał „') . $l['title'] . '”';
             $body = '<p>Dzień dobry' . ($to['name'] !== '' ? ' ' . $e($to['name']) : '') . ',</p>'
-                . '<p>w procesie <b>' . $e($nr) . '</b> (materiał: ' . $e($l['title']) . ') licencjodawca <b>' . $e($l['licensor_name']) . '</b> '
-                . ($grant ? '<b>udzielił licencji</b> na okres ' . $e(ldDate($l['period_from']) . ' — ' . ldDate($l['period_to'])) . '. Link do złożenia oświadczeń otrzymasz w osobnej wiadomości.'
-                          : '<b>odmówił udzielenia licencji</b>' . (trim((string)($l['decision']['refusal_reason'] ?? '')) !== '' ? ': ' . $e($l['decision']['refusal_reason']) : '') . '.') . '</p>';
-            $sms = 'FEER: licencja ' . LD_SYMBOL . ' "' . mb_strimwidth((string)$l['title'], 0, 40, '...') . '" - ' . ($grant ? 'UDZIELONA. Link do oswiadczen wyslemy osobno.' : 'odmowa licencjodawcy.');
+                . ($grant ? '<p>dobra wiadomość: licencjodawca <b>' . $e($l['licensor_name']) . '</b> <b>zgodził się</b> na korzystanie z materiału <b>' . $e($l['title']) . '</b> '
+                          . 'od ' . $e(ldDate($l['period_from']) . ' do ' . ldDate($l['period_to'])) . '.</p>'
+                          . '<p>W osobnej wiadomości wyślemy Ci link do oświadczeń. Złóż je, żeby zacząć korzystać z materiału.</p>'
+                          : '<p>niestety licencjodawca <b>' . $e($l['licensor_name']) . '</b> <b>nie zgodził się</b> na korzystanie z materiału <b>' . $e($l['title']) . '</b>'
+                          . (trim((string)($l['decision']['refusal_reason'] ?? '')) !== '' ? '. Powód: ' . $e($l['decision']['refusal_reason']) : '') . '.</p>'
+                          . '<p>Masz pytania? Skontaktuj się z biurem ' . $e(ldOrgName()) . '.</p>')
+                . '<p style="font-size:12px;color:#666">Numer sprawy: ' . $e($nr) . '</p>';
+            $sms = 'FEER: licencjodawca ' . ($grant ? 'zgodzil sie' : 'nie zgodzil sie') . ' na material "' . mb_strimwidth((string)$l['title'], 0, 40, '...') . '". '
+                . ($grant ? 'Link do oswiadczen wyslemy osobno.' : 'Szczegoly w e-mailu.');
         }
         // Decyzja licencjodawcy (sekcja H wniosku AM5/1, układ CIT) — PDF w załączniku
         $att = $type === LicenseNotificationType::DecisionInterested ? LicenseNotificationService::attachment((string)$l['request_pdf'], $nr . ' decyzja') : [];
@@ -272,18 +278,20 @@ final class LicenseManagementService
         $link = self::publicUrl('/decyzja/' . $token);
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $nr = LicenseDocument::number(LicenseDoc::Am5Request, $l);
-        $subject = 'Wniosek o udzielenie licencji dydaktycznej ' . $nr . ' — ' . ldOrgName();
-        $body = '<p>Szanowni Państwo,</p><p>' . $e($l['applicant_name']) . ' zwraca się z prośbą o udzielenie licencji na korzystanie w celach dydaktycznych z utworu lub materiału '
-            . '<b>' . $e($l['title']) . '</b>' . (trim((string)$l['course_name']) !== '' ? ' w kursie <b>' . $e($l['course_name']) . '</b>' : '') . '.</p>'
-            . '<p>Wniosek (wzór <b>' . LicenseDoc::Am5Request->symbol() . '</b>) jest w załączniku. Decyzję można podjąć przez formularz pod przyciskiem — bez logowania — '
-            . 'albo podpisać sekcję H wydruku i odesłać skan.</p><p><b>Prosimy o decyzję w ciągu ' . LD_REALIZATION_DAYS . ' dni — do ' . $e(ldDate($l['due_on'])) . '.</b> '
-            . 'Link jest ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
+        $subject = ldOrgName() . ' prosi o zgodę na wykorzystanie materiału na zajęciach — do ' . ldDate($l['due_on']);
+        $body = '<p>Dzień dobry,</p><p>' . $e($l['applicant_name']) . ' prosi o zgodę (licencję) na korzystanie z materiału '
+            . '<b>' . $e($l['title']) . '</b> w celach dydaktycznych' . (trim((string)$l['course_name']) !== '' ? ', na kursie <b>' . $e($l['course_name']) . '</b>' : '') . '.</p>'
+            . '<p><b>Jak odpowiedzieć?</b> Wystarczy jeden z dwóch sposobów:</p><ul>'
+            . '<li>kliknąć przycisk poniżej i wypełnić krótki formularz — bez logowania,</li>'
+            . '<li>albo wydrukować wniosek z załącznika (' . LicenseDoc::Am5Request->symbol() . '), podpisać część H i odesłać nam skan.</li></ul>'
+            . '<p><b>Prosimy o odpowiedź do ' . $e(ldDate($l['due_on'])) . '</b> (w ciągu ' . LD_REALIZATION_DAYS . ' dni). '
+            . 'Link działa przez ' . LD_TOKEN_DAYS . ' dni.</p>';
         $att = [];
         if ($doc['ext'] === 'pdf') $att = LicenseNotificationService::attachment((string)$doc['path'], $nr);
         $st = 'failed';
         try {
             if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
-            $qid = mail_queue_add($email, (string)$l['licensor_name'], $subject, LicenseNotificationService::layout('Wniosek o licencję dydaktyczną', $body, $link, 'Podejmij decyzję'),
+            $qid = mail_queue_add($email, (string)$l['licensor_name'], $subject, LicenseNotificationService::layout('Prośba o zgodę na materiał', $body, $link, 'Odpowiedz na prośbę'),
                                   '', LicenseNotificationService::MODULE, (int)$l['id'], '', true, $att);
             $row = $qid > 0 ? db_one("SELECT status, last_error FROM mail_queue WHERE id = ?", [$qid]) : null;
             $st = ($row['status'] ?? '') === 'sent' ? 'sent' : ($qid > 0 ? 'queued' : 'failed');
@@ -299,7 +307,7 @@ final class LicenseManagementService
             $phone = trim((string)$l['licensor_phone']);
             if ($phone !== '') {
                 $this->notify->send(LicenseNotificationType::LicensorRequest, ['name' => (string)$l['licensor_name'], 'phone' => $phone], '', '',
-                    'FEER: prosimy o decyzje w sprawie licencji ' . LD_SYMBOL . ' na "' . mb_strimwidth((string)$l['title'], 0, 40, '...') . '" do ' . ldDate($l['due_on']) . ': ' . $link,
+                    'FEER: prosimy o zgode na uzycie materialu "' . mb_strimwidth((string)$l['title'], 0, 40, '...') . '" na zajeciach. Prosimy o odpowiedz do ' . ldDate($l['due_on']) . ': ' . $link,
                     ['type' => 'license', 'id' => (int)$l['id']], $actor, false);
             }
             $this->notify->alertOffice('Wniosek ' . $nr . ' — e-mail do licencjodawcy nie wyszedł od razu',
@@ -437,24 +445,25 @@ final class LicenseManagementService
         if ($l['form'] === LicenseForm::Am7) {
             [$subject, $body, $sms] = Am7Workflow::inviteTexts($l, $a, $link, $due, $type);
             $r = $this->notify->send($type, ['name' => (string)$a['holder_name'], 'email' => (string)$a['holder_email'], 'phone' => (string)$a['holder_phone']],
-                $subject, LicenseNotificationService::layout('Licencja — oświadczenia', $body, $link, 'Złóż oświadczenia', 'AM7'), $sms,
+                $subject, LicenseNotificationService::layout('Złóż oświadczenia do licencji', $body, $link, 'Złóż oświadczenia', 'AM7'), $sms,
                 ['type' => 'assignment', 'id' => $assignmentId], $actor);
             $this->licenses->event((int)$a['license_id'], $type === LicenseNotificationType::Reminder ? 'invite.remind' : 'invite.send', 'Link do oświadczeń AM7/4 i AM7/5: ' . $this->describe($r), $actor, $assignmentId);
             return $this->describe($r);
         }
-        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Licencja dydaktyczna — złóż oświadczenia ' . LD_SYMBOL . ' do ' . $due;
+        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Złóż oświadczenia, żeby korzystać z materiału — do ' . $due;
         $body = '<p>Dzień dobry ' . $e($a['holder_name']) . ',</p>'
-            . '<p>' . $e(ldOrgName()) . ' przyznała Ci licencję na korzystanie w celach dydaktycznych z materiału <b>' . $e($l['title']) . '</b>'
-            . (trim((string)$l['course_name']) !== '' ? ' w kursie <b>' . $e($l['course_name']) . '</b>' : '') . ' (licencjodawca: ' . $e($l['licensor_name'])
-            . ', okres ' . $e(ldDate($l['period_from']) . ' — ' . ldDate($l['period_to'])) . ').</p>'
-            . '<p>Aby korzystać z materiału, uzupełnij dane i złóż dwa oświadczenia: <b>' . LicenseDoc::Am5Participant->symbol() . '</b> — oświadczenie licencjobiorcy – kursanta '
-            . 'oraz <b>' . LicenseDoc::Am5NonTransfer->symbol() . '</b> — o nieodstępowaniu licencji i nieudostępnianiu materiałów.</p>'
+            . '<p>' . $e(ldOrgName()) . ' przyznała Ci licencję na materiał <b>' . $e($l['title']) . '</b>'
+            . (trim((string)$l['course_name']) !== '' ? ' do kursu <b>' . $e($l['course_name']) . '</b>' : '') . '. Licencja obowiązuje od '
+            . $e(ldDate($l['period_from']) . ' do ' . ldDate($l['period_to'])) . ' (licencjodawca: ' . $e($l['licensor_name']) . ').</p>'
+            . '<p><b>Żeby korzystać z materiału</b>, kliknij przycisk poniżej, sprawdź swoje dane i złóż dwa krótkie oświadczenia:</p><ul>'
+            . '<li>że korzystasz z materiału tylko w zakresie i w okresie licencji, na potrzeby swojego kursu (' . LicenseDoc::Am5Participant->symbol() . '),</li>'
+            . '<li>że nie przekażesz licencji, kopii materiału ani danych dostępowych innym osobom (' . LicenseDoc::Am5NonTransfer->symbol() . ').</li></ul>'
             . ($a['statusEnum'] === LicenseAssignmentStatus::Rejected && trim((string)$a['decision_note']) !== ''
-                ? '<p style="border-left:4px solid #a20025;padding-left:10px"><b>Poprzednie oświadczenia odrzucono:</b> ' . $e($a['decision_note']) . '. Prosimy o ponowne złożenie.</p>' : '')
-            . '<p><b>Realizacja do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e($due) . '.</b> Link jest osobisty i ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
-        $sms = 'FEER: przyznano Ci licencje ' . LD_SYMBOL . ' na "' . mb_strimwidth((string)$l['title'], 0, 40, '...') . '". Zloz oswiadczenia do ' . $due . ': ' . $link;
+                ? '<p style="border-left:4px solid #a20025;padding-left:10px"><b>Poprzednich oświadczeń nie mogliśmy przyjąć.</b> Powód: ' . $e($a['decision_note']) . '. Złóż je jeszcze raz.</p>' : '')
+            . '<p><b>Masz czas do ' . $e($due) . '</b> (' . LD_REALIZATION_DAYS . ' dni). Link jest tylko dla Ciebie i działa przez ' . LD_TOKEN_DAYS . ' dni.</p>';
+        $sms = 'FEER: masz licencje na material "' . mb_strimwidth((string)$l['title'], 0, 40, '...') . '". Zeby z niego korzystac, zloz oswiadczenia do ' . $due . ': ' . $link;
         $r = $this->notify->send($type, ['name' => (string)$a['holder_name'], 'email' => (string)$a['holder_email'], 'phone' => (string)$a['holder_phone']],
-            $subject, LicenseNotificationService::layout('Licencja dydaktyczna — oświadczenia', $body, $link, 'Złóż oświadczenia'), $sms,
+            $subject, LicenseNotificationService::layout('Złóż oświadczenia do licencji', $body, $link, 'Złóż oświadczenia'), $sms,
             ['type' => 'assignment', 'id' => $assignmentId], $actor);
         $this->licenses->event((int)$a['license_id'], $type === LicenseNotificationType::Reminder ? 'invite.remind' : 'invite.send', 'Link do oświadczeń: ' . $this->describe($r), $actor, $assignmentId);
         return $this->describe($r);
@@ -539,17 +548,18 @@ final class LicenseManagementService
         $att = [];
         foreach ($files as $f) if ($f['ext'] === 'pdf') $att = array_merge($att, LicenseNotificationService::attachment($f['rel'], $f['nr']));
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $subject = 'Potwierdzenie złożenia oświadczeń ' . $l['form']->value . ' — ' . $l['title'];
-        $body = '<p>Dzień dobry ' . $e($dto->name) . ',</p><p>potwierdzamy złożenie oświadczeń:</p><ul>'
-            . implode('', array_map(fn($f) => '<li><b>' . $e($f['nr']) . '</b> — ' . $e($f['doc']->title()) . '</li>', $files)) . '</ul>'
-            . '<p>Weryfikacja przez ' . $e(ldOrgName()) . ' trwa do ' . LD_REALIZATION_DAYS . ' dni. Dokumenty są w załączniku' . (count($att) < count($files) ? ' (część w wersji HTML — do pobrania u biura)' : '') . '.</p>';
+        $subject = 'Dostaliśmy Twoje oświadczenia — ' . $l['title'];
+        $body = '<p>Dzień dobry ' . $e($dto->name) . ',</p><p>dziękujemy, dostaliśmy Twoje oświadczenia:</p><ul>'
+            . implode('', array_map(fn($f) => '<li>' . $e($f['doc']->title()) . ' — nr <b>' . $e($f['nr']) . '</b></li>', $files)) . '</ul>'
+            . '<p>Teraz ' . $e(ldOrgName()) . ' je sprawdzi — zajmie to do ' . LD_REALIZATION_DAYS . ' dni. Napiszemy do Ciebie, gdy skończymy.</p>'
+            . '<p>Kopie dokumentów są w załączniku' . (count($att) < count($files) ? ' (część jest tylko w wersji HTML — możesz ją dostać w biurze)' : '') . '.</p>';
         $email = $dto->email !== '' ? $dto->email : (string)$a['holder_email'];
         $phone = $dto->phone !== '' ? $dto->phone : (string)$a['holder_phone'];
         $st = 'skipped';
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
             try {
                 if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
-                $qid = mail_queue_add($email, $dto->name, $subject, LicenseNotificationService::layout('Oświadczenia złożone', $body, '', '', $l['form']->value), '', LicenseNotificationService::MODULE, (int)$a['id'], '', true, $att);
+                $qid = mail_queue_add($email, $dto->name, $subject, LicenseNotificationService::layout('Dostaliśmy Twoje oświadczenia', $body, '', '', $l['form']->value), '', LicenseNotificationService::MODULE, (int)$a['id'], '', true, $att);
                 $row = $qid > 0 ? db_one("SELECT status, last_error FROM mail_queue WHERE id = ?", [$qid]) : null;
                 $st = ($row['status'] ?? '') === 'sent' ? 'sent' : ($qid > 0 ? 'queued' : 'skipped');
                 db_insert('notification_logs', ['module' => LicenseNotificationService::MODULE, 'ref_type' => 'assignment', 'ref_id' => (int)$a['id'],
@@ -560,7 +570,7 @@ final class LicenseManagementService
         // Fallback: e-mail nie wyszedł od razu albo brak adresu → SMS z numerami dokumentów
         if ($st !== 'sent' && $phone !== '') {
             $this->notify->send(LicenseNotificationType::DeclarationConfirm, ['name' => $dto->name, 'phone' => $phone], '', '',
-                'FEER: przyjelismy oswiadczenia ' . implode(', ', array_column($files, 'nr')) . '. Weryfikacja do ' . LD_REALIZATION_DAYS . ' dni.', ['type' => 'assignment', 'id' => (int)$a['id']], $actor, false);
+                'FEER: dostalismy Twoje oswiadczenia (' . implode(', ', array_column($files, 'nr')) . '). Sprawdzimy je w ciagu ' . LD_REALIZATION_DAYS . ' dni.', ['type' => 'assignment', 'id' => (int)$a['id']], $actor, false);
         }
     }
 
@@ -663,12 +673,12 @@ final class LicenseManagementService
         $this->licenses->event((int)$a['license_id'], $approve ? 'declarations.approve' : 'declarations.reject', ($approve ? 'Zatwierdzono oświadczenia.' : 'Odrzucono oświadczenia: ' . $note), $actor, $assignmentId);
         if ($approve) {
             $l = $this->mustLicense((int)$a['license_id']);
-            $subject = 'Oświadczenia ' . LD_SYMBOL . ' zatwierdzone — ' . $l['title'];
-            $body = '<p>Dzień dobry ' . htmlspecialchars((string)$a['holder_name']) . ',</p><p>Twoje oświadczenia do licencji na materiał <b>' . htmlspecialchars((string)$l['title'])
-                . '</b> zostały zatwierdzone. Możesz korzystać z materiału w zakresie i okresie licencji (do ' . htmlspecialchars(ldDate($l['period_to'])) . ').</p>'
-                . ($note !== '' ? '<p>Uwagi: ' . htmlspecialchars($note) . '</p>' : '');
+            $subject = 'Gotowe — możesz korzystać z „' . $l['title'] . '”';
+            $body = '<p>Dzień dobry ' . htmlspecialchars((string)$a['holder_name']) . ',</p><p>sprawdziliśmy Twoje oświadczenia do licencji na <b>' . htmlspecialchars((string)$l['title'])
+                . '</b> i wszystko się zgadza. Możesz już korzystać z licencji — w jej zakresie, do ' . htmlspecialchars(ldDate($l['period_to'])) . '.</p>'
+                . ($note !== '' ? '<p>Uwagi od nas: ' . htmlspecialchars($note) . '</p>' : '');
             $r = $this->notify->send(LicenseNotificationType::DeclarationDecided, ['name' => (string)$a['holder_name'], 'email' => (string)$a['holder_email'], 'phone' => (string)$a['holder_phone']],
-                $subject, LicenseNotificationService::layout('Oświadczenia zatwierdzone', $body), 'FEER: oswiadczenia ' . LD_SYMBOL . ' do licencji "' . mb_strimwidth((string)$l['title'], 0, 40, '...') . '" zatwierdzone.',
+                $subject, LicenseNotificationService::layout('Oświadczenia zatwierdzone', $body), 'FEER: Twoje oswiadczenia do licencji "' . mb_strimwidth((string)$l['title'], 0, 40, '...') . '" sa zatwierdzone. Mozesz z niej korzystac.',
                 ['type' => 'assignment', 'id' => $assignmentId], $actor);
             return 'Zatwierdzono. Powiadomienie: ' . $this->describe($r) . '.';
         }

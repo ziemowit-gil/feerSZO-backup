@@ -380,12 +380,13 @@ final class LicenseCorrection
             : (new LicenseManagementService())->interestedContact($t);
         [$rel] = LicenseStorage::put($o['out']['bytes'], $o['out']['ext'], 'amsk_' . $id);
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $body = '<p>Dzień dobry ' . $e($contact['name']) . ',</p><p><b>Przepraszamy za pomyłkę.</b> W załączniku przesyłamy korektę danych w dokumentach AM (<b>AMSK</b>) w sprawie <b>'
-              . $e($c['target_number']) . '</b>. <b>Nie jest wymagane żadne działanie z Twojej strony.</b></p>';
+        $body = '<p>Dzień dobry ' . $e($contact['name']) . ',</p><p><b>Przepraszamy za pomyłkę.</b> W dokumentach do Twojej sprawy były błędne dane. Poprawiliśmy je — korekta jest w załączniku.</p>'
+              . '<p><b>Nie musisz nic robić.</b></p>'
+              . '<p style="font-size:12px;color:#666">Korekta dokumentów (AMSK) w sprawie ' . $e($c['target_number']) . '.</p>';
         $att = LicenseNotificationService::attachment($rel, $o['number']);
         $notify = new LicenseNotificationService();
-        $res = $notify->send(LicenseNotificationType::OperationConfirm, $contact, 'Korekta dokumentów AM (AMSK) — przepraszamy za pomyłkę, sprawa ' . $c['target_number'],
-            LicenseNotificationService::layout('Korekta dokumentów AM', $body, '', '', 'AMSK'), '', ['type' => $c['scope'] === 'operation' ? 'operation' : 'license', 'id' => (int)$c['target_id']], $actor, true, $att);
+        $res = $notify->send(LicenseNotificationType::OperationConfirm, $contact, 'Poprawiliśmy błąd w Twoich dokumentach — przepraszamy',
+            LicenseNotificationService::layout('Poprawka w dokumentach', $body, '', '', 'AMSK'), '', ['type' => $c['scope'] === 'operation' ? 'operation' : 'license', 'id' => (int)$c['target_id']], $actor, true, $att);
         $d = (new LicenseManagementService($notify))->describe($res);
         if (!empty($res['delivered']) || in_array('queued', (array)($res['channels'] ?? []), true)) db()->prepare("UPDATE license_corrections SET sent_at = ? WHERE id = ?")->execute([ldNow(), $id]);
         self::event($c, 'amsk.sent', 'Wysłano AMSK ' . self::code($id) . ': ' . $d, $actor);

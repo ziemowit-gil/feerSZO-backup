@@ -458,17 +458,17 @@ HTML;
     // ── TI: nowa licencja przypisana (kursant / opiekun) ─────────────
     $ti_license_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
-<p>W panelu kursanta przypisano Ci licencję na oprogramowanie:</p>
+<p>masz nową licencję na program. Oto najważniejsze informacje:</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Oprogramowanie</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Program</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
   {{vendor_row}}
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Data wydania</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{issued}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Wydana</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{issued}}</td></tr>
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ważna do</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{expires}}</td></tr>
 </table>
-<p>Szczegóły licencji znajdziesz w zakładce <strong>Licencje</strong> po zalogowaniu do panelu kursanta. {{secret_note}}</p>
+<p>Wszystko o licencji znajdziesz w panelu, w zakładce <strong>Licencje</strong>. {{secret_note}}</p>
 <div style="margin:20px 0;text-align:center">
   <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-    Przejdź do panelu kursanta →
+    Otwórz panel →
   </a>
 </div>
 <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
@@ -478,14 +478,14 @@ HTML;
 
     $ti_claude_statement_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
-<p>W związku z przypisaną licencją <strong>{{software}}</strong> w panelu kursanta czeka na akceptację <strong>oświadczenie o zryczałtowanej opłacie za dostęp do Claude</strong>.</p>
+<p>Masz przydzieloną licencję <strong>{{software}}</strong>. Zanim zaczniesz z niej korzystać, zaakceptuj w panelu <strong>oświadczenie o opłacie za dostęp do Claude</strong>.</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Uczestnik</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{student}}</td></tr>
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Licencja</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Opłata ryczałtowa</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">25 zł — za sam dostęp do narzędzia Claude, do końca grudnia 2026 r.</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Gdzie zaakceptować</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">panel kursanta → zakładka Regulaminy</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ile to kosztuje</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">8 dolarów miesięcznie (cena dla organizacji non-profit), po kursie PKO BP — faktura co miesiąc</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Gdzie zaakceptować</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">panel uczestnika → zakładka Regulaminy</td></tr>
 </table>
-<p>Oświadczenie zawiera pełną informację o zasadach opłaty (m.in. że różnicę między opłatą ryczałtową a kosztem licencji Claude Team pokrywa Fundacja). Po jego zaakceptowaniu możesz w pełni korzystać z dostępu do Claude. {{minor_note}}</p>
+<p>W oświadczeniu przeczytasz, kiedy przychodzi faktura, ile masz czasu na zapłatę i jak zrezygnować. Po akceptacji włączysz Claude w panelu „Moje licencje”. {{minor_note}}</p>
 <div style="margin:20px 0;text-align:center">
   <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
     Przejdź do oświadczenia →
@@ -515,17 +515,17 @@ HTML;
 
     $ti_license_guardian_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
-<p>Kursantowi <strong>{{student}}</strong> przypisano licencję na oprogramowanie:</p>
+<p><strong>{{student}}</strong> ma nową licencję na program. Oto najważniejsze informacje:</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Oprogramowanie</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Program</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
   {{vendor_row}}
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Data wydania</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{issued}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Wydana</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{issued}}</td></tr>
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ważna do</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{expires}}</td></tr>
 </table>
-<p>Szczegóły licencji są w zakładce <strong>Licencje</strong> w panelu (po zalogowaniu jako opiekun). {{secret_note}}</p>
+<p>Wszystko o licencji znajdziesz w panelu, w zakładce <strong>Licencje</strong> — zaloguj się jako opiekun. {{secret_note}}</p>
 <div style="margin:20px 0;text-align:center">
   <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
-    Przejdź do panelu →
+    Zaloguj się do panelu →
   </a>
 </div>
 <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
@@ -644,29 +644,29 @@ HTML;
 <p>Dzień dobry{{greeting}},</p>
 <p>{{lead}}</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Oprogramowanie</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Opłata miesięczna</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Forma rozliczenia</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{form}}</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Termin rozliczenia</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{day}}. dnia każdego miesiąca</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Pierwsza opłata</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">dzisiaj ({{date}})</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Program</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ile co miesiąc</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Sposób rozliczenia</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{form}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Kiedy płacić</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{day}}. dnia każdego miesiąca</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Pierwsza płatność</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">dzisiaj ({{date}})</td></tr>
 </table>
-<p>Płatność prosimy wykonać na rachunek <strong>{{account}}</strong>, w tytule: <strong>„{{title}}”</strong>.
-   Dzień przed każdym kolejnym terminem wyślemy przypomnienie. Szczegóły w panelu: <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
-<p style="margin-top:18px">Z poważaniem,<br>{{org}}</p>
-<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość wygenerowana automatycznie.</p>
+<p><strong>Jak zapłacić:</strong> przelew na konto <strong>{{account}}</strong>, w tytule wpisz <strong>„{{title}}”</strong>.</p>
+<p>Dzień przed każdym kolejnym terminem przypomnimy o płatności. Wszystkie płatności widać w panelu: <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
+<p style="margin-top:18px">Pozdrawiamy,<br>{{org}}</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość wysłana automatycznie.</p>
 HTML;
 
     $ti_license_billing_reminder_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
-<p>przypominamy, że <strong>jutro ({{date}})</strong> przypada rozliczenie licencji <strong>{{software}}</strong>{{for_student}}.</p>
+<p>jutro (<strong>{{date}}</strong>) mija termin płatności za licencję <strong>{{software}}</strong>{{for_student}}.</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Do zapłaty</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Forma rozliczenia</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{form}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Kwota</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600"><strong>{{amount}}</strong>{{discount_html}}</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Sposób rozliczenia</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{form}}</td></tr>
 </table>
-<p>Rachunek: <strong>{{account}}</strong>, tytuł: <strong>„{{title}}”</strong>. Jeśli wpłata została już dokonana, prosimy zignorować tę wiadomość.
-   Panel: <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
-<p style="margin-top:18px">Z poważaniem,<br>{{org}}</p>
-<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość wygenerowana automatycznie.</p>
+<p><strong>Jak zapłacić:</strong> przelew na konto <strong>{{account}}</strong>, w tytule wpisz <strong>„{{title}}”</strong>.</p>
+<p>Jeśli już zapłacono — dziękujemy, tę wiadomość można zignorować. Płatności widać w panelu: <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
+<p style="margin-top:18px">Pozdrawiamy,<br>{{org}}</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość wysłana automatycznie.</p>
 HTML;
 
     $ti_payment_reminder_body = <<<'HTML'
@@ -1211,7 +1211,7 @@ HTML,
             'icon'        => 'bi-cash-coin',
             'auto'        => true,
             'description' => 'W dniu przypisania licencji z rozliczeniem miesięcznym: kwota, forma, dzień miesiąca, ewentualny rabat i dane do przelewu. Do kursanta albo opiekuna małoletniego.',
-            'subject'     => '{{org}}: rozliczenie licencji — {{software}}',
+            'subject'     => '{{software}}: opłata co miesiąc i dane do przelewu',
             'body'        => $ti_license_billing_start_body,
             'vars'        => [
                 'org'           => ['label' => 'Nazwa organizacji', 'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
@@ -1236,7 +1236,7 @@ HTML,
             'icon'        => 'bi-bell',
             'auto'        => true,
             'description' => 'Co miesiąc, dzień przed terminem rozliczenia licencji (cron o 7:00). Do kursanta albo opiekuna małoletniego.',
-            'subject'     => '{{org}}: jutro rozliczenie licencji — {{software}}',
+            'subject'     => 'Jutro termin płatności za {{software}}',
             'body'        => $ti_license_billing_reminder_body,
             'vars'        => [
                 'org'           => ['label' => 'Nazwa organizacji', 'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
@@ -1260,24 +1260,24 @@ HTML,
             'icon'        => 'bi-person-check',
             'auto'        => true,
             'description' => 'Wysyłany po kliknięciu „Utwórz konto w tenancie” przy przyznanym wniosku AM7: usługa, login i instrukcja aktywacji; hasło idzie osobnym SMS-em. Kopia (UDW) trafia do administratora.',
-            'subject'     => 'Twoja usługa została aktywowana – dane do logowania',
+            'subject'     => 'Twoje konto jest gotowe — oto login',
             'body'        => <<<'HTML'
-<p>Dzień dobry{{greeting}}!</p>
-<p>Z przyjemnością informujemy, że Twoje konto zostało aktywowane. Poniżej znajdziesz szczegóły dotyczące dostępu:</p>
+<p>Dzień dobry{{greeting}},</p>
+<p>Twoje konto jest gotowe. Oto dane do logowania:</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:30%;vertical-align:top">Usługa</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{service}}</td></tr>
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;vertical-align:top">Login</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{login}}</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;vertical-align:top">Hasło</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px">wysłane w osobnej wiadomości SMS na Twój numer telefonu</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;vertical-align:top">Hasło</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px">przyszło osobnym SMS-em na Twój telefon</td></tr>
 </table>
-<p style="margin:18px 0 6px"><strong>Jak aktywować i zainstalować produkt?</strong></p>
+<p style="margin:18px 0 6px"><strong>Jak zacząć?</strong></p>
 <ol style="margin:0 0 14px;padding-left:20px">
   <li>Wejdź na stronę <a href="https://office.com" style="color:#0f766e">office.com</a>.</li>
-  <li>Zaloguj się, używając powyższego loginu oraz hasła z wiadomości SMS.</li>
-  <li>Postępuj zgodnie z instrukcjami na ekranie, aby dokończyć konfigurację i pobrać aplikacje.</li>
+  <li>Zaloguj się: wpisz login z tej wiadomości i hasło z SMS-a.</li>
+  <li>Dalej prowadzą Cię instrukcje na ekranie — dzięki nim skończysz konfigurację i pobierzesz aplikacje.</li>
 </ol>
-<p style="margin:18px 0 6px"><strong>Potrzebujesz pomocy?</strong></p>
-<p>Jeśli napotkasz jakiekolwiek trudności przy logowaniu lub instalacji, nie musisz się martwić. Umów się z nami na krótkie spotkanie online – chętnie pomożemy Ci we wszystkim krok po kroku!</p>
-<p style="margin:16px 0"><a href="{{tidycal_url}}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:600;padding:11px 20px">Kliknij tutaj, aby umówić spotkanie online</a></p>
+<p style="margin:18px 0 6px"><strong>Coś nie działa?</strong></p>
+<p>Umów się z nami na krótkie spotkanie online. Pomożemy Ci z logowaniem i instalacją krok po kroku.</p>
+<p style="margin:16px 0"><a href="{{tidycal_url}}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:600;padding:11px 20px">Umów spotkanie online</a></p>
 <p style="margin-top:18px">Pozdrawiamy,<br>Zespół Fundacji FEER</p>
 HTML,
             'vars'        => [
@@ -1295,7 +1295,7 @@ HTML,
             'icon'        => 'bi-key',
             'auto'        => true,
             'description' => 'Powiadomienie dla kursanta o przypisaniu licencji na oprogramowanie (moduł Licencje kursantów TI). Nie zawiera loginu ani klucza — te są w panelu.',
-            'subject'     => '{{org}}: przypisano licencję — {{software}}',
+            'subject'     => 'Masz nową licencję: {{software}}',
             'body'        => $ti_license_body,
             'vars'        => [
                 'org'         => ['label' => 'Nazwa organizacji',        'sample' => 'Dydaktyka TI'],
@@ -1315,7 +1315,7 @@ HTML,
             'group'       => 'TI — Zajęcia',
             'icon'        => 'bi-stars',
             'auto'        => true,
-            'description' => 'Po przypisaniu licencji Claude (i z przycisku w Regulaminach): w panelu kursanta czeka oświadczenie o zryczałtowanej opłacie 25 zł za dostęp do Claude. Do kursanta i — u małoletnich — do opiekuna.',
+            'description' => 'Po przypisaniu licencji Claude (i z przycisku w Regulaminach): w panelu kursanta czeka oświadczenie o opłacie za dostęp do Claude (8 USD miesięcznie). Do kursanta i — u małoletnich — do opiekuna.',
             'subject'     => '{{org}}: oświadczenie o opłacie za dostęp do Claude czeka na akceptację',
             'body'        => $ti_claude_statement_body,
             'vars'        => [
@@ -1334,7 +1334,7 @@ HTML,
             'icon'        => 'bi-key',
             'auto'        => true,
             'description' => 'Powiadomienie dla opiekuna małoletniego kursanta o przypisaniu licencji na oprogramowanie. Nie zawiera loginu ani klucza.',
-            'subject'     => '{{org}}: przypisano licencję — {{software}} ({{student}})',
+            'subject'     => '{{student}} ma nową licencję: {{software}}',
             'body'        => $ti_license_guardian_body,
             'vars'        => [
                 'org'         => ['label' => 'Nazwa organizacji',        'sample' => 'Dydaktyka TI'],

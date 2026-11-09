@@ -96,20 +96,21 @@ final class Am7Workflow
         $nr = (string)$l['case_number'];
         $due = ldDate((string)$l['due_on']);
         $r = $l['request'];
-        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Wszczęto proces udostępnienia oprogramowania (AM7) — sprawa ' . $nr;
+        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Podpisz wniosek o dostęp do ' . $l['title'] . ' — do ' . $due;
         $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p>'
-            . '<p><b>' . $e($l['started_name'] ?: 'pracownik ' . ldOrgName()) . '</b> wszczął(-ęła) w dniu ' . $e(ldDate(substr((string)$l['started_at'], 0, 10)))
-            . ' proces udostępnienia Ci licencji / dostępu do <b>' . $e($l['title']) . '</b> (' . $e(ldOrgName()) . ').</p>'
+            . '<p><b>' . $e($l['started_name'] ?: 'pracownik ' . ldOrgName()) . '</b> przygotował(a) ' . $e(ldDate(substr((string)$l['started_at'], 0, 10)))
+            . ' wniosek o dostęp do <b>' . $e($l['title']) . '</b> dla Ciebie. Dostęp zapewnia ' . $e(ldOrgName()) . '.</p>'
             . '<table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
-            . '<tr><td style="background:#f2f2f2;width:180px">Numer sprawy</td><td><b>' . $e($nr) . '</b></td></tr>'
-            . '<tr><td style="background:#f2f2f2">Dokument</td><td>' . LicenseDoc::Am7Request->symbol() . ' — ' . $e(LicenseDoc::Am7Request->title()) . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2;width:180px">Program i licencja</td><td>' . $e($r['plan'] ?? '') . '</td></tr>'
             . '<tr><td style="background:#f2f2f2">Kurs</td><td>' . $e($l['course_name']) . '</td></tr>'
-            . '<tr><td style="background:#f2f2f2">Produkt i licencja</td><td>' . $e($r['plan'] ?? '') . '</td></tr>'
-            . '<tr><td style="background:#f2f2f2">Termin realizacji</td><td><b>do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e($due) . '</b></td></tr></table>'
-            . '<p>Sprawdź dane we wniosku i <b>podpisz go elektronicznie</b> (przycisk poniżej). Po podpisaniu placówka wyda decyzję — otrzymasz ją e-mailem w PDF.</p>';
-        $sms = 'FEER: ' . ($l['started_name'] ?: 'Fundacja') . ' wszczal(a) proces licencji ' . mb_strimwidth((string)$l['title'], 0, 25, '...') . ' (AM7, sprawa ' . $nr . '). Podpisz wniosek do ' . $due . ': ' . $link;
+            . '<tr><td style="background:#f2f2f2">Podpisz do</td><td><b>' . $e($due) . '</b></td></tr>'
+            . '<tr><td style="background:#f2f2f2">Numer sprawy</td><td>' . $e($nr) . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Dokument</td><td>' . $e(LicenseDoc::Am7Request->title()) . ' (' . LicenseDoc::Am7Request->symbol() . ')</td></tr></table>'
+            . '<p><b>Co musisz zrobić:</b> kliknij przycisk poniżej, sprawdź dane we wniosku i podpisz go elektronicznie.</p>'
+            . '<p><b>Co dalej?</b> Po Twoim podpisie wydamy decyzję i wyślemy ją do Ciebie e-mailem (w PDF).</p>';
+        $sms = 'FEER: ' . ($l['started_name'] ?: 'Fundacja') . ' przygotowal(a) wniosek o dostep do ' . mb_strimwidth((string)$l['title'], 0, 25, '...') . ' (sprawa ' . $nr . '). Podpisz go do ' . $due . ': ' . $link;
         $res = $this->svc->notify->send($type, $this->svc->interestedContact($l), $subject,
-            LicenseNotificationService::layout('Licencja — wniosek do podpisu', $body, $link, 'Sprawdź i podpisz wniosek', 'AM7'), $sms, ['type' => 'license', 'id' => $id], $actor);
+            LicenseNotificationService::layout('Podpisz wniosek o dostęp', $body, $link, 'Sprawdź i podpisz wniosek', 'AM7'), $sms, ['type' => 'license', 'id' => $id], $actor);
         $this->svc->licenses->event($id, 'request.sign_link', 'Link do podpisu wniosku: ' . $this->svc->describe($res), $actor);
         return $this->svc->describe($res);
     }
@@ -234,12 +235,22 @@ final class Am7Workflow
         $report = [];
         // Wysyłka decyzji e-mailem w PDF (fallback: SMS z informacją + alert do biura z prośbą o doręczenie)
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $subject = ($grant ? 'Decyzja o przyznaniu dostępu do ' : 'Decyzja o odmowie dostępu do ') . $l['title'] . ' — sprawa ' . $l['case_number'];
-        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy decyzję <b>' . $e($pdf['number']) . '</b> — ' . $e($pdf['doc']->title()) . '.</p>'
-            . ($grant ? '<p>Konto / identyfikator: <b>' . $e($d['account'] ?? '') . '</b>, produkt i licencja: <b>' . $e($d['plan'] ?? '') . '</b>, okres dostępu: <b>' . $e(ldDate($d['period_from'] ?? '') . ' — ' . ldDate($d['period_to'] ?? '')) . '</b>.</p>'
-                      . '<p>Helpdesk IT przygotuje dostęp (konto, klucz lub licencję). W osobnej wiadomości otrzymasz link do złożenia oświadczeń <b>AM7/4</b> i <b>AM7/5</b> (do ' . LD_REALIZATION_DAYS . ' dni).</p>'
-                      : '<p>Uzasadnienie: ' . $e($d['refusal_reason'] ?? '') . '</p>');
-        $sms = 'FEER: decyzja AM7 (sprawa ' . $l['case_number'] . ') - ' . ($grant ? 'PRZYZNANO dostep.' : 'odmowa dostepu.') . ' PDF wyslalismy e-mailem.';
+        $subject = ($grant ? 'Przyznaliśmy Ci dostęp do ' : 'Nie możemy przyznać Ci dostępu do ') . $l['title'];
+        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p>'
+            . ($grant ? '<p>dobra wiadomość: <b>przyznaliśmy Ci dostęp do ' . $e($l['title']) . '</b>.</p>'
+                      . '<table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
+                      . '<tr><td style="background:#f2f2f2;width:180px">Konto</td><td><b>' . $e($d['account'] ?? '') . '</b></td></tr>'
+                      . '<tr><td style="background:#f2f2f2">Program i licencja</td><td>' . $e($d['plan'] ?? '') . '</td></tr>'
+                      . '<tr><td style="background:#f2f2f2">Dostęp</td><td>od ' . $e(ldDate($d['period_from'] ?? '') . ' do ' . ldDate($d['period_to'] ?? '')) . '</td></tr></table>'
+                      . '<p><b>Co dalej?</b></p><ol>'
+                      . '<li>Dział IT przygotuje Twój dostęp (konto, klucz albo licencję).</li>'
+                      . '<li>W osobnej wiadomości wyślemy Ci link do dwóch krótkich oświadczeń (AM7/4 i AM7/5). Złóż je w ciągu ' . LD_REALIZATION_DAYS . ' dni.</li></ol>'
+                      : '<p>niestety nie możemy przyznać Ci dostępu do <b>' . $e($l['title']) . '</b>.</p>'
+                      . '<p><b>Powód:</b> ' . $e($d['refusal_reason'] ?? '') . '</p>'
+                      . '<p>Masz pytania? Skontaktuj się z biurem ' . $e(ldOrgName()) . '.</p>')
+            . '<p style="font-size:12px;color:#666">Decyzja: ' . $e($pdf['doc']->title()) . ', nr ' . $e($pdf['number']) . '. Numer sprawy: ' . $e($l['case_number']) . '.</p>';
+        $sms = 'FEER: ' . ($grant ? 'przyznalismy Ci dostep do ' : 'nie mozemy przyznac Ci dostepu do ') . mb_strimwidth((string)$l['title'], 0, 25, '...') . ' (sprawa ' . $l['case_number'] . '). '
+            . ($grant ? 'Decyzje wyslalismy e-mailem.' : 'Szczegoly w e-mailu.');
         $att = LicenseNotificationService::attachment($pdf['path'], $pdf['number']);
         if (!$att) {
             // Fallback: PDF nie powstał (mPDF niedostępny → wersja HTML) — decyzja i tak wychodzi, biuro doręcza wydruk
@@ -248,10 +259,10 @@ final class Am7Workflow
             $this->svc->notify->alertOffice('Decyzja ' . $pdf['number'] . ' wysłana BEZ PDF',
                 '<p>Nie udało się wygenerować PDF decyzji (zapisano wersję ' . htmlspecialchars($pdf['ext']) . '). Prosimy doręczyć decyzję kursantowi <b>' . htmlspecialchars((string)$l['interested_name']) . '</b> inną drogą (wydruk z panelu).</p>',
                 ['type' => 'license', 'id' => $id], $actor, LicenseNotificationType::DecisionAdmin);
-            $body .= '<p><i>Dokument decyzji doręczymy osobno.</i></p>';
+            $body .= '<p><i>Plik PDF z decyzją nie dołączył się do tej wiadomości — doręczymy go osobno.</i></p>';
         }
         $res = $this->svc->notify->send(LicenseNotificationType::DecisionInterested, $this->svc->interestedContact($l), $subject,
-            LicenseNotificationService::layout($grant ? 'Decyzja o przyznaniu' : 'Decyzja o odmowie', $body, '', '', 'AM7'), $sms,
+            LicenseNotificationService::layout($grant ? 'Dostęp przyznany' : 'Odmowa dostępu', $body, '', '', 'AM7'), $sms,
             ['type' => 'license', 'id' => $id], $actor, true, $att);
         $report[] = ($resend ? 'Ponowna wysyłka decyzji: ' : 'Decyzja do kursanta: ') . $this->svc->describe($res);
         $this->svc->licenses->event($id, 'decision.sent', ($resend ? 'Ponownie wysłano decyzję ' : 'Wysłano decyzję ') . $pdf['number'] . ' (PDF): ' . $this->svc->describe($res), $actor);
@@ -302,13 +313,18 @@ final class Am7Workflow
     {
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $d = $l['decision'];
-        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . 'Licencja ' . $l['title'] . ' — złóż oświadczenia AM7/4 i AM7/5 do ' . $due;
-        $body = '<p>Dzień dobry ' . $e($a['holder_name']) . ',</p><p>przyznaliśmy Ci licencję / dostęp do <b>' . $e($l['title']) . '</b> (sprawa <b>' . $e($l['case_number']) . '</b>): konto <b>' . $e($d['account'] ?? '')
-            . '</b>, plan <b>' . $e($d['plan'] ?? '') . '</b>, okres ' . $e(ldDate($l['period_from']) . ' — ' . ldDate($l['period_to'])) . '.</p>'
-            . '<p>Złóż dwa oświadczenia: <b>AM7/4</b> — krótkie oświadczenie licencjobiorcy — kursanta oraz <b>AM7/5</b> — o nieprzekazywaniu licencji i dostępu.</p>'
-            . ($a['status'] === 'rejected' && trim((string)$a['decision_note']) !== '' ? '<p style="border-left:4px solid #a20025;padding-left:10px"><b>Poprzednie oświadczenia odrzucono:</b> ' . $e($a['decision_note']) . '</p>' : '')
-            . '<p><b>Realizacja do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e($due) . '.</b> Link jest osobisty i ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
-        $sms = 'FEER: licencja ' . mb_strimwidth((string)$l['title'], 0, 25, '...') . ' (sprawa ' . $l['case_number'] . ') - zloz oswiadczenia AM7/4 i AM7/5 do ' . $due . ': ' . $link;
+        $subject = ($type === LicenseNotificationType::Reminder ? 'Przypomnienie: ' : '') . $l['title'] . ' — złóż dwa oświadczenia do ' . $due;
+        $body = '<p>Dzień dobry ' . $e($a['holder_name']) . ',</p><p>przyznaliśmy Ci dostęp do <b>' . $e($l['title']) . '</b>:</p><ul>'
+            . '<li>konto: <b>' . $e($d['account'] ?? '') . '</b></li>'
+            . '<li>plan: <b>' . $e($d['plan'] ?? '') . '</b></li>'
+            . '<li>okres: od ' . $e(ldDate($l['period_from']) . ' do ' . ldDate($l['period_to'])) . '</li></ul>'
+            . '<p><b>Co musisz zrobić:</b> kliknij przycisk poniżej i złóż dwa krótkie oświadczenia:</p><ul>'
+            . '<li>że będziesz korzystać z dostępu do nauki na kursie i przestrzegać warunków licencji (AM7/4),</li>'
+            . '<li>że nikomu nie przekażesz konta, danych logowania ani klucza licencyjnego (AM7/5).</li></ul>'
+            . ($a['status'] === 'rejected' && trim((string)$a['decision_note']) !== '' ? '<p style="border-left:4px solid #a20025;padding-left:10px"><b>Poprzednich oświadczeń nie mogliśmy przyjąć.</b> Powód: ' . $e($a['decision_note']) . '</p>' : '')
+            . '<p><b>Masz czas do ' . $e($due) . '</b> (' . LD_REALIZATION_DAYS . ' dni). Link jest tylko dla Ciebie i działa przez ' . LD_TOKEN_DAYS . ' dni.</p>'
+            . '<p style="font-size:12px;color:#666">Numer sprawy: ' . $e($l['case_number']) . '</p>';
+        $sms = 'FEER: dostep do ' . mb_strimwidth((string)$l['title'], 0, 25, '...') . ' (sprawa ' . $l['case_number'] . ') - zloz 2 oswiadczenia do ' . $due . ': ' . $link;
         return [$subject, $body, $sms];
     }
 
