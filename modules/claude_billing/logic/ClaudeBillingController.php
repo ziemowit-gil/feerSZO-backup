@@ -10,6 +10,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/claudeBilling.php';
 require_once __DIR__ . '/ClaudeInvoice.php';
 require_once __DIR__ . '/PriceChange.php';
+require_once __DIR__ . '/LicenceRequest.php';
 
 final class ClaudeBillingController
 {
@@ -67,9 +68,33 @@ final class ClaudeBillingController
         $p = $this->product();
         $changes = PriceChange::list($p);
         $open = array_values(array_filter($changes, fn($c) => in_array($c['status'], ['draft', 'sent'], true)));
+        $requests = [];   // wnioski z kreatora czekające na wpłatę / fakturę / aktywację
+        foreach (ClaudeBilling::listAll('requested', false, $p) as $r) {
+            $ch = db_one("SELECT id FROM claude_charges WHERE subscription_id=? AND status<>'cancelled' ORDER BY id LIMIT 1", [(int)$r['id']]);
+            $r['charge'] = $ch ? ClaudeBilling::charge((int)$ch['id']) : null;
+            $requests[] = $r;
+        }
+        $tabs = ['wnioski', 'abonamenty', 'uczestnicy', 'cena', 'ustawienia'];
+        $tab = (string)($_GET['tab'] ?? '');
+        if (!in_array($tab, $tabs, true)) $tab = $q !== '' ? 'uczestnicy' : ($filter !== '' ? 'abonamenty' : ($requests ? 'wnioski' : 'abonamenty'));
         return $this->view('index.php', ['rows' => ClaudeBilling::listAll($filter, false, $p), 'filter' => $filter, 'stats' => ClaudeBilling::stats($p),
-            's' => ClaudeBilling::settings($p), 'rate' => ClaudeBilling::lastRate($p), 'q' => $q, 'found' => $found,
+            's' => ClaudeBilling::settings($p), 'rate' => ClaudeBilling::lastRate($p), 'q' => $q, 'found' => $found, 'tab' => $tab, 'requests' => $requests,
             'changes' => $changes, 'changeAnswers' => $open ? PriceChange::answers((int)$open[0]['id']) : []]);
+    }
+
+    /** Wniosek z kreatora — te same kroki co w karcie Helpdesku: wpłata, faktura VAT, aktywacja, odrzucenie. */
+    public function requestAction(string $id, string $act): ?string
+    {
+        $sub = ClaudeBilling::subscription((int)$id);
+        $p = ClaudeBilling::product((string)($sub['product'] ?? 'claude'));
+        $a = $this->actor();
+        return $this->act(fn() => match ($act) {
+            'paid'     => LicenceRequest::markPaid((int)$id, $a, mb_substr(trim((string)($_POST['ref'] ?? '')), 0, 120)),
+            'invoice'  => LicenceRequest::issueInvoice((int)$id, $a),
+            'activate' => LicenceRequest::activate((int)$id, $a),
+            'reject'   => LicenceRequest::reject((int)$id, (string)($_POST['reason'] ?? ''), $a),
+            default    => throw new InvalidArgumentException('Nieznana akcja.'),
+        }, '', route('cb.index', ['product' => $p, 'tab' => 'wnioski']));
     }
 
     // ── Zmiany cen (z akceptacją abonentów) ─────────────────────────────────────
@@ -78,7 +103,7 @@ final class ClaudeBillingController
     {
         $p = $this->product();
         return $this->act(fn() => 'Zaplanowano zmianę ceny #' . PriceChange::create($p, $_POST, $this->actor()['name']) . '. Sprawdź podgląd i wyślij powiadomienia do abonentów.',
-            '', route('cb.index') . '?product=' . $p . '#zmiana-ceny');
+            '', route('cb.index', ['product' => $p, 'tab' => 'cena']) . '#zmiana-ceny');
     }
 
     public function priceSend(string $id): ?string
@@ -88,20 +113,20 @@ final class ClaudeBillingController
         return $this->act(function () use ($id) {
             $r = PriceChange::send((int)$id, $this->actor()['name']);
             return 'Wysłano powiadomienia o zmianie ceny: ' . $r['sent'] . '.' . ($r['skipped'] ? ' Bez wysyłki (brak e-maila): ' . implode(', ', $r['skipped']) . ' — skontaktuj się z nimi inaczej.' : '');
-        }, '', route('cb.index') . '?product=' . $p . '#zmiana-ceny');
+        }, '', route('cb.index', ['product' => $p, 'tab' => 'cena']) . '#zmiana-ceny');
     }
 
     public function priceCancel(string $id): ?string
     {
         $c = PriceChange::get((int)$id);
         $p = ClaudeBilling::product((string)($c['product'] ?? 'claude'));
-        return $this->act(fn() => PriceChange::cancel((int)$id, $this->actor()['name']), 'Zmiana ceny wycofana.', route('cb.index') . '?product=' . $p . '#zmiana-ceny');
+        return $this->act(fn() => PriceChange::cancel((int)$id, $this->actor()['name']), 'Zmiana ceny wycofana.', route('cb.index', ['product' => $p, 'tab' => 'cena']) . '#zmiana-ceny');
     }
 
     public function saveSettings(): ?string
     {
         $p = $this->product();
-        return $this->act(fn() => ClaudeBilling::saveSettings($_POST, $this->actor()['name'], $p), 'Zapisano ustawienia — ' . ClaudeBilling::P($p)['label'] . '.', route('cb.index', ['product' => $p]));
+        return $this->act(fn() => ClaudeBilling::saveSettings($_POST, $this->actor()['name'], $p), 'Zapisano ustawienia — ' . ClaudeBilling::P($p)['label'] . '.', route('cb.index', ['product' => $p, 'tab' => 'ustawienia']));
     }
 
     public function rateCheck(): ?string
@@ -110,7 +135,7 @@ final class ClaudeBillingController
             $q = ClaudeBilling::quote(null, $this->product());
             return 'Kurs PKO BP (' . $q['kind_label'] . ', tabela ' . PkoRates::tableLabel($q) . '): ' . ClaudeBilling::rateFmt($q['rate']) . '/USD → '
                 . ClaudeBilling::usd($q['usd']) . ' = ' . ClaudeBilling::zl($q['amount_pln']) . ($q['stale'] ? ' (UWAGA: ' . $q['source'] . ')' : '') . '.';
-        }, '', route('cb.index', ['product' => $this->product()]));
+        }, '', route('cb.index', ['product' => $this->product(), 'tab' => 'cena']));
     }
 
     public function notice(): ?string
@@ -119,7 +144,7 @@ final class ClaudeBillingController
         return $this->act(function () use ($p) {
             $id = ClaudeBilling::publishNotice($p, !empty($_POST['email']), $this->actor());
             return 'Opublikowano komunikat #' . $id . ' w panelu uczestników' . (!empty($_POST['email']) ? ' i wysłano e-mail' : ' (bez e-maila)') . '.';
-        }, '', route('cb.index', ['product' => $p]));
+        }, '', route('cb.index', ['product' => $p, 'tab' => 'cena']));
     }
 
     public function runNow(): ?string
@@ -128,7 +153,7 @@ final class ClaudeBillingController
             $r = ClaudeBilling::run();
             return 'Przebieg: naliczenia ' . $r['charges'] . ', przypomnienia ' . $r['reminders'] . ', wstrzymane ' . $r['suspended'] . ', wznowione ' . $r['resumed']
                 . ($r['errors'] ? '. Błędy: ' . implode('; ', array_slice($r['errors'], 0, 3)) : '') . '.';
-        }, '', route('cb.index', ['product' => $this->product()]));
+        }, '', route('cb.index', ['product' => $this->product(), 'tab' => 'cena']));
     }
 
     /** Aktywacja przez kadrę (np. małoletni, osoba bez licencji w module Licencje — wtedy zgoda kierownika). */
@@ -140,7 +165,7 @@ final class ClaudeBillingController
             $a = $this->actor();
             $sub = ClaudeBilling::activate($cid, $a, false, (string)($_POST['date'] ?? '') ?: null, false, (int)($_POST['due_day'] ?? 0) ?: null, null, $p);
             return 'Włączono ' . ClaudeBilling::P($p)['label'] . ': ' . $sub['client_name'] . '.' . (ClaudeBilling::invoiceDataGaps($sub) ? ' Uzupełnij dane do faktury VAT na karcie abonamentu.' : '');
-        }, '', route('cb.index', ['product' => $p]));
+        }, '', route('cb.index', ['product' => $p, 'tab' => 'uczestnicy']));
     }
 
     /** Konto w panelu licencji (login „l” + 8 cyfr i nowe hasło) — zakłada kadra; hasło pokazujemy raz, do przekazania uczestnikowi. */
@@ -158,7 +183,7 @@ final class ClaudeBillingController
             ClaudeBilling::event(null, null, 'lic_account', ($new ? 'Założono' : 'Nowe hasło —') . ' konto w panelu licencji: ' . $c['name'] . ' (numer ' . $login . ').', $this->actor()['name']);
             return ($new ? 'Założono konto w panelu licencji' : 'Nowe hasło do panelu licencji') . ' dla ' . $c['name'] . ': numer w panelu licencji (login) ' . $login . ', hasło ' . $pass
                 . ' — przekaż je uczestnikowi (pokazujemy je tylko teraz). Logowanie: https://kursant.feer.org.pl/licencje/';
-        }, '', route('cb.index', ['product' => $p, 'q' => (string)($_POST['q'] ?? '')]));
+        }, '', route('cb.index', ['product' => $p, 'tab' => 'uczestnicy', 'q' => (string)($_POST['q'] ?? '')]));
     }
 
     // ── Karta abonamentu ────────────────────────────────────────────────────────
