@@ -23,7 +23,14 @@ final class ClaudeBillingController
 
     private function view(string $file, array $data): string
     {
-        return Router::view(self::VIEW . $file, $data + ['actor' => $this->actor()]);
+        $p = $data['product'] ?? $this->product();
+        return Router::view(self::VIEW . $file, $data + ['actor' => $this->actor(), 'product' => $p, 'P' => ClaudeBilling::P($p)]);
+    }
+
+    /** Produkt z adresu / formularza (claude | nordvpn). */
+    private function product(): string
+    {
+        return ClaudeBilling::product((string)($_POST['product'] ?? $_GET['product'] ?? 'claude'));
     }
 
     /** Akcja z komunikatem i powrotem. */
@@ -51,27 +58,29 @@ final class ClaudeBillingController
         if (mb_strlen($q) >= 2) {
             require_once dirname(__DIR__, 2) . '/ti_licencje/logic/tiClaudeStatement.php';
             foreach (db_all("SELECT id, name, email FROM k30_clients WHERE name LIKE ? AND name <> ? ORDER BY name LIMIT 20", ['%' . $q . '%', self::TEST_CLIENT]) as $c) {
-                $c['claude'] = TiClaudeStatement::claudeAssignment((int)$c['id']);
-                $c['sub'] = ClaudeBilling::forClient((int)$c['id']);
+                $c['claude'] = ClaudeBilling::assignment((int)$c['id'], $this->product());
+                $c['sub'] = ClaudeBilling::forClient((int)$c['id'], false, $this->product());
                 $found[] = $c;
             }
         }
-        return $this->view('index.php', ['rows' => ClaudeBilling::listAll($filter), 'filter' => $filter, 'stats' => ClaudeBilling::stats(),
-            's' => ClaudeBilling::settings(), 'rate' => ClaudeBilling::lastRate(), 'q' => $q, 'found' => $found]);
+        $p = $this->product();
+        return $this->view('index.php', ['rows' => ClaudeBilling::listAll($filter, false, $p), 'filter' => $filter, 'stats' => ClaudeBilling::stats($p),
+            's' => ClaudeBilling::settings($p), 'rate' => ClaudeBilling::lastRate($p), 'q' => $q, 'found' => $found]);
     }
 
     public function saveSettings(): ?string
     {
-        return $this->act(fn() => ClaudeBilling::saveSettings($_POST, $this->actor()['name']), 'Zapisano ustawienia abonamentu Claude.', route('cb.index'));
+        $p = $this->product();
+        return $this->act(fn() => ClaudeBilling::saveSettings($_POST, $this->actor()['name'], $p), 'Zapisano ustawienia — ' . ClaudeBilling::P($p)['label'] . '.', route('cb.index', ['product' => $p]));
     }
 
     public function rateCheck(): ?string
     {
         return $this->act(function () {
-            $q = ClaudeBilling::quote();
+            $q = ClaudeBilling::quote(null, $this->product());
             return 'Kurs PKO BP (' . $q['kind_label'] . ', tabela ' . PkoRates::tableLabel($q) . '): ' . ClaudeBilling::rateFmt($q['rate']) . '/USD → '
                 . ClaudeBilling::usd($q['usd']) . ' = ' . ClaudeBilling::zl($q['amount_pln']) . ($q['stale'] ? ' (UWAGA: ' . $q['source'] . ')' : '') . '.';
-        }, '', route('cb.index'));
+        }, '', route('cb.index', ['product' => $this->product()]));
     }
 
     public function runNow(): ?string
@@ -80,18 +89,19 @@ final class ClaudeBillingController
             $r = ClaudeBilling::run();
             return 'Przebieg: naliczenia ' . $r['charges'] . ', przypomnienia ' . $r['reminders'] . ', wstrzymane ' . $r['suspended'] . ', wznowione ' . $r['resumed']
                 . ($r['errors'] ? '. Błędy: ' . implode('; ', array_slice($r['errors'], 0, 3)) : '') . '.';
-        }, '', route('cb.index'));
+        }, '', route('cb.index', ['product' => $this->product()]));
     }
 
     /** Aktywacja przez kadrę (np. małoletni, osoba bez licencji w module Licencje — wtedy zgoda kierownika). */
     public function activate(): ?string
     {
         $cid = (int)($_POST['client_id'] ?? 0);
-        return $this->act(function () use ($cid) {
+        $p = $this->product();
+        return $this->act(function () use ($cid, $p) {
             $a = $this->actor();
-            $sub = ClaudeBilling::activate($cid, $a, false, (string)($_POST['date'] ?? '') ?: null, false, (int)($_POST['due_day'] ?? 0) ?: null);
-            return 'Aktywowano abonament Claude: ' . $sub['client_name'] . '.' . (ClaudeBilling::invoiceDataGaps($sub) ? ' Uzupełnij dane do faktury VAT na karcie abonamentu.' : '');
-        }, '', route('cb.index'));
+            $sub = ClaudeBilling::activate($cid, $a, false, (string)($_POST['date'] ?? '') ?: null, false, (int)($_POST['due_day'] ?? 0) ?: null, null, $p);
+            return 'Włączono ' . ClaudeBilling::P($p)['label'] . ': ' . $sub['client_name'] . '.' . (ClaudeBilling::invoiceDataGaps($sub) ? ' Uzupełnij dane do faktury VAT na karcie abonamentu.' : '');
+        }, '', route('cb.index', ['product' => $p]));
     }
 
     // ── Karta abonamentu ────────────────────────────────────────────────────────
@@ -100,8 +110,8 @@ final class ClaudeBillingController
     {
         $sub = ClaudeBilling::subscription((int)$id);
         if (!$sub) { http_response_code(404); return 'Nie znaleziono abonamentu.'; }
-        return $this->view('show.php', ['sub' => $sub, 'charges' => ClaudeBilling::charges((int)$id), 'events' => ClaudeBilling::events((int)$id, 60),
-            's' => ClaudeBilling::settings(), 'gaps' => ClaudeBilling::invoiceDataGaps($sub), 'paidThrough' => ClaudeBilling::paidThrough($sub)]);
+        return $this->view('show.php', ['product' => ClaudeBilling::productOf($sub), 'sub' => $sub, 'charges' => ClaudeBilling::charges((int)$id), 'events' => ClaudeBilling::events((int)$id, 60),
+            's' => ClaudeBilling::settings(ClaudeBilling::productOf($sub)), 'gaps' => ClaudeBilling::invoiceDataGaps($sub), 'paidThrough' => ClaudeBilling::paidThrough($sub)]);
     }
 
     public function buyer(string $id): ?string
@@ -168,14 +178,15 @@ final class ClaudeBillingController
     {
         ClaudeBilling::migrate();
         $cid = $this->testClient();
-        $sub = ClaudeBilling::forClient($cid, true);
+        $p = $this->product();
+        $sub = ClaudeBilling::forClient($cid, true, $p);
         $quote = null; $quoteErr = '';
-        try { $quote = ClaudeBilling::quote(); } catch (\Throwable $e) { $quoteErr = $e->getMessage(); }
+        try { $quote = ClaudeBilling::quote(null, $p); } catch (\Throwable $e) { $quoteErr = $e->getMessage(); }
         require_once dirname(__DIR__, 3) . '/includes/p24.php';
         require_once dirname(__DIR__, 3) . '/includes/invoices.php';
         $log = $_SESSION['claude_test_log'] ?? []; $tickets = $_SESSION['claude_test_tickets'] ?? [];
         return $this->view('test.php', ['sub' => $sub, 'charges' => $sub ? ClaudeBilling::charges((int)$sub['id']) : [], 'events' => $sub ? ClaudeBilling::events((int)$sub['id'], 80) : [],
-            's' => ClaudeBilling::settings(), 'quote' => $quote, 'quoteErr' => $quoteErr, 'log' => $log, 'tickets' => $tickets, 'clientId' => $cid,
+            's' => ClaudeBilling::settings($p), 'quote' => $quote, 'quoteErr' => $quoteErr, 'log' => $log, 'tickets' => $tickets, 'clientId' => $cid,
             'buyer' => ClaudeBilling::buyerDefaults($cid), 'fakturowniaReady' => invoices_api_ready(), 'p24' => ['enabled' => p24_enabled(), 'env' => p24_environment()]]);
     }
 
@@ -183,16 +194,17 @@ final class ClaudeBillingController
     {
         return $this->act(function () {
             $cid = $this->testClient();
-            if ($old = ClaudeBilling::forClient($cid, true)) if (in_array($old['status'], ['active', 'suspended'], true)) throw new DomainException('Test już trwa — najpierw „Wyczyść test”.');
+            $p = $this->product();
+            if ($old = ClaudeBilling::forClient($cid, true, $p)) if (in_array($old['status'], ['active', 'suspended'], true)) throw new DomainException('Test już trwa — najpierw „Wyczyść test”.');
             ClaudeBilling::$testRealTickets = !empty($_POST['real_tickets']);
             ClaudeBilling::$testTickets = [];
             $sub = ClaudeBilling::activate($cid, ['name' => $this->actor()['name'], 'via' => 'test', 'ip' => (string)($_SERVER['REMOTE_ADDR'] ?? '')], true,
-                (string)($_POST['date'] ?? '') ?: null, false, (int)($_POST['due_day'] ?? 0) ?: null, $_POST);
+                (string)($_POST['date'] ?? '') ?: null, false, (int)($_POST['due_day'] ?? 0) ?: null, $_POST, $p);
             $ch = db_one("SELECT * FROM claude_charges WHERE subscription_id=? ORDER BY id LIMIT 1", [(int)$sub['id']]);
             $this->testLog('Aktywacja testowa od ' . ClaudeBilling::date($sub['activated_on']) . '. Naliczenie: ' . ($ch ? ClaudeBilling::zl((float)$ch['amount_pln']) . ' (' . ClaudeBilling::usd((float)$ch['usd']) . ' × ' . ClaudeBilling::rateFmt((float)$ch['rate']) . '), termin ' . ClaudeBilling::date($ch['due_on'])
                 . '. Proforma: ' . ($ch['invoice_number'] ?: 'nie wystawiona — ' . ($ch['invoice_error'] ?: '?')) : 'brak') . '.', ClaudeBilling::$testTickets);
             return 'Test uruchomiony — przejdź przez kolejne kroki poniżej.';
-        }, '', route('cb.test'));
+        }, '', route('cb.test', ['product' => $this->product()]));
     }
 
     /** Symulowana wpłata Przelewy24: transakcja portalu + pp_settle (ten sam kod co webhook P24), bez pieniędzy. */
@@ -220,7 +232,7 @@ final class ClaudeBillingController
             $this->testLog('Symulowana wpłata P24 za ' . ClaudeBilling::periodLabel($ch['period']) . ' → naliczenie: ' . ClaudeBilling::CHARGE_STATUS[$ch['status']] . ', proforma ' . ($ch['invoice_number'] ?: '—')
                 . ($ch['invoice_error'] ? ' (' . $ch['invoice_error'] . ')' : ''), ClaudeBilling::$testTickets);
             return 'Wpłata zasymulowana.';
-        }, '', route('cb.test'));
+        }, '', route('cb.test', ['product' => $this->product()]));
     }
 
     /** Prawdziwa transakcja w sandboksie Przelewy24 (tylko gdy P24 włączone w środowisku sandbox). */
@@ -229,12 +241,12 @@ final class ClaudeBillingController
         try {
             require_once dirname(__DIR__, 3) . '/includes/p24.php';
             if (!p24_enabled() || p24_environment() !== 'sandbox') throw new DomainException('Przelewy24 nie są w trybie sandbox — prawdziwej płatności w teście nie uruchamiamy.');
-            $url = ClaudeBilling::startP24((int)$id, (string)(db_one("SELECT email FROM users WHERE id=?", [$this->actor()['id']])['email'] ?? ''), route('cb.test'));
+            $url = ClaudeBilling::startP24((int)$id, (string)(db_one("SELECT email FROM users WHERE id=?", [$this->actor()['id']])['email'] ?? ''), route('cb.test', ['product' => $this->product()]));
             header('Location: ' . $url);
             return null;
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
-            return Router::redirect(route('cb.test'));
+            return Router::redirect(route('cb.test', ['product' => $this->product()]));
         }
     }
 
@@ -248,7 +260,7 @@ final class ClaudeBillingController
             $this->testLog('Przebieg dzienny na ' . ClaudeBilling::date($day) . ': naliczenia ' . $r['charges'] . ', przypomnienia ' . $r['reminders'] . ', wstrzymane ' . $r['suspended'] . ', wznowione ' . $r['resumed']
                 . ($r['log'] ? ' — ' . implode('; ', $r['log']) : '') . ($r['errors'] ? ' BŁĘDY: ' . implode('; ', $r['errors']) : ''), ClaudeBilling::$testTickets);
             return 'Przebieg dzienny wykonany dla daty ' . ClaudeBilling::date($day) . '.';
-        }, '', route('cb.test'));
+        }, '', route('cb.test', ['product' => $this->product()]));
     }
 
     public function testClean(): ?string
@@ -265,6 +277,6 @@ final class ClaudeBillingController
             db_exec("DELETE FROM claude_subscriptions WHERE client_id=? AND is_test=1", [$cid]);
             unset($_SESSION['claude_test_log'], $_SESSION['claude_test_tickets']);
             return 'Wyczyszczono test' . ($msgs ? ' (' . implode('; ', $msgs) . ')' : '') . '.';
-        }, '', route('cb.test'));
+        }, '', route('cb.test', ['product' => $this->product()]));
     }
 }

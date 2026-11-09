@@ -6,13 +6,13 @@
  * (kolejny miesiąc, przypomnienie, wstrzymanie, wznowienie) → sprzątanie. Bez e-maili do ludzi i bez pieniędzy.
  * Zmienne: $sub, $charges, $events, $s, $quote, $quoteErr, $log, $tickets, $clientId, $buyer, $fakturowniaReady, $p24, $actor.
  */
-$title = 'Abonament Claude — test całego przebiegu';
+$title = $P['label'] . ' — test całego przebiegu'; $isTest = true;
 $kierCur = 'claudeAbonament.php';
 include dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_head.php';
 $open = $sub && in_array($sub['status'], ['active', 'suspended'], true);
 $nextMonth = date('Y-m-', strtotime('first day of next month')) . str_pad((string)min((int)date('j'), (int)$s['due_day']), 2, '0', STR_PAD_LEFT);
 ?>
-<div class="pivot"><a href="<?= h(route('cb.index')) ?>">Abonamenty</a><a href="<?= h(route('cb.test')) ?>" aria-current="page">Test całego przebiegu</a></div>
+<div class="pivot"><?php foreach (ClaudeBilling::PRODUCTS as $pk => $pp): ?><a href="<?= h(route('cb.index', ['product' => $pk])) ?>"<?= $pk === $product && empty($isTest) ? ' aria-current="page"' : '' ?>><?= h($pp['label']) ?></a><?php endforeach; ?><a href="<?= h(route('cb.test', ['product' => $product])) ?>"<?= !empty($isTest) ? ' aria-current="page"' : '' ?>>Test całego przebiegu (<?= h($P['label']) ?>)</a></div>
 <h1>Test całego przebiegu</h1>
 <p class="text-secondary">Uczestnik testowy: <b><?= h(ClaudeBillingController::TEST_CLIENT) ?></b> (id <?= (int)$clientId ?>). Test nie wysyła e-maili ani SMS-ów do ludzi i nie pobiera pieniędzy.
   W Fakturowni powstaje <b>proforma</b> (nie dokument księgowy) — „Wyczyść test” usuwa ją z Fakturowni. Zgłoszenia Helpdesk są tylko podglądem, chyba że zaznaczysz inaczej.</p>
@@ -25,14 +25,14 @@ $nextMonth = date('Y-m-', strtotime('first day of next month')) . str_pad((strin
   <?php else: ?><p class="text-danger mb-0">Nie udało się pobrać kursu: <?= h($quoteErr) ?></p><?php endif; ?>
   <p class="small mt-2 mb-0">Fakturownia: <?= $fakturowniaReady ? '<b>skonfigurowana</b> — proforma powstanie naprawdę' : '<b class="text-danger">nieskonfigurowana</b> — zobaczysz tylko dane, które poszłyby do Fakturowni' ?> ·
     Przelewy24: <?= $p24['enabled'] ? 'włączone (' . h($p24['env'] === 'sandbox' ? 'sandbox' : 'produkcja — w teście tylko symulacja') . ')' : 'wyłączone — w teście symulacja' ?> ·
-    Rachunek do wpłat: <span class="font-monospace"><?= h(ClaudeBilling::payAccount()['nrb_fmt'] ?? '—') ?></span></p>
+    Rachunek do wpłat: <span class="font-monospace"><?= h(ClaudeBilling::payAccount(0, $product)['nrb_fmt'] ?? '—') ?></span></p>
 </section>
 
 <?php if (!$open): ?>
 <section class="panel">
   <h2 class="mt-0">2. Aktywacja (jak uczestnik w panelu)</h2>
   <form method="post" action="<?= h(route('cb.test.start')) ?>">
-    <?= Router::csrfField() ?>
+    <?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>">
     <div class="row g-2">
       <div class="col-md-3"><label class="form-label small" for="t-date">Data aktywacji</label><input class="form-control form-control-sm" type="date" id="t-date" name="date" value="<?= date('Y-m-d') ?>"></div>
       <div class="col-md-3"><label class="form-label small" for="t-day">Dzień graniczny (puste = <?= (int)$s['due_day'] ?>)</label><input class="form-control form-control-sm" type="number" min="1" max="28" id="t-day" name="due_day"></div>
@@ -64,7 +64,7 @@ $nextMonth = date('Y-m-', strtotime('first day of next month')) . str_pad((strin
 <section class="panel">
   <h2 class="mt-0">4. Upływ czasu (przebieg dzienny dla podanej daty)</h2>
   <p class="small">Przykłady: kolejny miesiąc — <?= h(ClaudeBilling::date($nextMonth)) ?>; przypomnienie — dzień terminu; wstrzymanie — termin + <?= (int)$s['grace_days'] + 1 ?> dni; po „Symuluj wpłatę” przy wstrzymanym — wznowienie.</p>
-  <form method="post" action="<?= h(route('cb.test.time')) ?>" class="d-flex gap-2 align-items-end"><?= Router::csrfField() ?>
+  <form method="post" action="<?= h(route('cb.test.time')) ?>" class="d-flex gap-2 align-items-end"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>">
     <div><label class="form-label small" for="t-today">Data</label><input class="form-control form-control-sm" type="date" id="t-today" name="today" value="<?= h($nextMonth) ?>"></div>
     <button class="btn-metro dark btn-sm" type="submit">Uruchom przebieg dla tej daty</button></form>
 </section>
@@ -85,5 +85,5 @@ $nextMonth = date('Y-m-', strtotime('first day of next month')) . str_pad((strin
 </section>
 <?php endif; ?>
 
-<form method="post" action="<?= h(route('cb.test.clean')) ?>" class="mb-4"><?= Router::csrfField() ?><button class="btn-metro red" type="submit">Wyczyść test (abonament, naliczenia, proformy w Fakturowni)</button></form>
+<form method="post" action="<?= h(route('cb.test.clean')) ?>" class="mb-4"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>"><button class="btn-metro red" type="submit">Wyczyść test (abonament, naliczenia, proformy w Fakturowni)</button></form>
 <?php include dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_foot.php'; ?>

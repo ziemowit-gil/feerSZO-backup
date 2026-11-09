@@ -3,12 +3,12 @@
  * modules/claude_billing/view/show.php — karta abonamentu Claude: stan, dane do faktury VAT, dzień graniczny, naliczenia, dziennik, zakończenie.
  * Zmienne: $sub, $charges, $events, $s, $gaps, $paidThrough, $actor.
  */
-$title = 'Abonament Claude — ' . $sub['client_name'];
+$title = $P['label'] . ' — ' . $sub['client_name'];
 $kierCur = 'claudeAbonament.php';
 include dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_head.php';
 $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
 ?>
-<div class="pivot"><a href="<?= h(route('cb.index')) ?>">Abonamenty</a><a href="<?= h(route('cb.test')) ?>">Test całego przebiegu</a></div>
+<div class="pivot"><?php foreach (ClaudeBilling::PRODUCTS as $pk => $pp): ?><a href="<?= h(route('cb.index', ['product' => $pk])) ?>"<?= $pk === $product && empty($isTest) ? ' aria-current="page"' : '' ?>><?= h($pp['label']) ?></a><?php endforeach; ?><a href="<?= h(route('cb.test', ['product' => $product])) ?>"<?= !empty($isTest) ? ' aria-current="page"' : '' ?>>Test całego przebiegu (<?= h($P['label']) ?>)</a></div>
 <h1><?= h($sub['client_name']) ?> <span class="chip align-middle" style="background:<?= $st[$sub['status']] ?? '#647687' ?>"><?= h(ClaudeBilling::STATUS[$sub['status']] ?? $sub['status']) ?></span></h1>
 
 <section class="panel accent">

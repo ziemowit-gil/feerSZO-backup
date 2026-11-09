@@ -26,8 +26,9 @@ final class ClaudeInvoice
     {
         $disc = round((float)$ch['list_pln'] - (float)$ch['amount_pln'], 2);
         $kind = PkoRates::KINDS[$ch['rate_kind']] ?? 'kurs';
+        $P = ClaudeBilling::P(ClaudeBilling::productOf($ch));
         return ((int)$ch['is_test'] ? '[TEST — proforma testowa, nie jest dokumentem księgowym] ' : '')
-            . 'Dostęp do narzędzia Claude (licencja Claude Team) w programie Claude for Nonprofit (Anthropic), okres: ' . ClaudeBilling::periodLabel((string)$ch['period']) . '. '
+            . 'Dostęp do ' . $P['name'] . ($P['program'] !== '' ? ' ' . $P['program'] : '') . ', okres: ' . ClaudeBilling::periodLabel((string)$ch['period']) . '. '
             . ($disc > 0 ? 'Cena regularna ' . ClaudeBilling::usd((float)$ch['list_usd']) . ' = ' . ClaudeBilling::zl((float)$ch['list_pln'])
                 . '; rabat dla organizacji non-profit ' . ClaudeBilling::usd(round((float)$ch['list_usd'] - (float)$ch['usd'], 2)) . ' = ' . ClaudeBilling::zl($disc) . '; ' : '')
             . 'do zapłaty ' . ClaudeBilling::usd((float)$ch['usd']) . ' = ' . ClaudeBilling::zl((float)$ch['amount_pln']) . '. '
@@ -37,7 +38,7 @@ final class ClaudeInvoice
 
     public static function positionName(array $ch): string
     {
-        return 'Dostęp do narzędzia Claude (Claude Team, Claude for Nonprofit) — ' . ClaudeBilling::periodLabel((string)$ch['period']);
+        return 'Dostęp do ' . ClaudeBilling::P(ClaudeBilling::productOf($ch))['name'] . ' — ' . ClaudeBilling::periodLabel((string)$ch['period']);
     }
 
     /** Nabywca: dane do faktury z abonamentu. */
@@ -60,7 +61,7 @@ final class ClaudeInvoice
     {
         require_once dirname(__DIR__, 3) . '/includes/invoices.php';
         $vat ??= invoices_config()['vat'];
-        $mode ??= ClaudeBilling::settings()['discount_mode'];
+        $mode ??= ClaudeBilling::settings(ClaudeBilling::productOf($ch))['discount_mode'];
         $test = (int)$ch['is_test'] === 1;
         $b = self::buyer($ch);
         $disc = round((float)$ch['list_pln'] - (float)$ch['amount_pln'], 2);
@@ -68,7 +69,7 @@ final class ClaudeInvoice
         $paid = $ch['status'] === 'paid';
         $paidDate = $ch['paid_at'] ? date('Y-m-d', strtotime((string)$ch['paid_at'])) : date('Y-m-d');
         $issue = (string)($ch['issue_on'] ?: date('Y-m-d'));
-        $acc = (int)$ch['is_test'] ? null : ClaudeBilling::payAccount((int)$ch['client_id']);
+        $acc = ClaudeBilling::payAccount((int)$ch['client_id'], ClaudeBilling::productOf($ch));
         $parts = preg_split('/\s+/u', trim((string)$b['buyer_name'])) ?: [];
         $last = count($parts) > 1 ? (string)array_pop($parts) : '';
         $company = $b['buyer_tax_no'] !== '';
@@ -85,7 +86,7 @@ final class ClaudeInvoice
             'buyer_name' => $b['buyer_name'], 'buyer_tax_no' => $b['buyer_tax_no'], 'buyer_street' => $b['buyer_street'],
             'buyer_post_code' => $b['buyer_post_code'], 'buyer_city' => $b['buyer_city'], 'buyer_email' => $b['buyer_email'], 'currency' => 'PLN',
         ];
-        $extra = ['oid' => ($test ? 'TEST-' : '') . 'CLAUDE/' . (int)$ch['id'], 'oid_unique' => 'yes', 'description' => self::description($ch) . ' ' . self::payHint($ch, $acc),
+        $extra = ['oid' => ($test ? 'TEST-' : '') . strtoupper(ClaudeBilling::productOf($ch)) . '/' . (int)$ch['id'], 'oid_unique' => 'yes', 'description' => self::description($ch) . ' ' . self::payHint($ch, $acc),
                   'payment_to_kind' => 'other_date',
                   'buyer_company' => $company ? '1' : '0', 'lang' => 'pl', 'buyer_country' => 'PL',
                   'payment_type' => ($ch['paid_via'] ?? '') === 'Przelewy24' ? 'Przelewy24' : 'transfer'];
@@ -107,7 +108,7 @@ final class ClaudeInvoice
         $test = (int)$ch['is_test'] === 1;
         if ($ch['status'] === 'cancelled') return ['ok' => false, 'error' => 'Naliczenie anulowane — bez faktury.'];
         if (!empty($ch['invoice_id'])) return ['ok' => true, 'number' => (string)$ch['invoice_number'], 'invoice_id' => (int)$ch['invoice_id']];
-        $s = ClaudeBilling::settings();
+        $s = ClaudeBilling::settings(ClaudeBilling::productOf($ch));
         if (!$force && !$test && $s['invoice'] !== 'auto') return ['ok' => false, 'skipped' => true, 'error' => 'Faktury wystawiane ręcznie (ustawienie).'];
 
         require_once dirname(__DIR__, 3) . '/includes/invoices.php';
@@ -186,7 +187,7 @@ final class ClaudeInvoice
         ClaudeBilling::event((int)$ch['subscription_id'], $chargeId, $ok ? 'invoice_paid' : 'invoice_error', $ok ? 'Faktura ' . $inv['number'] . ' oznaczona w Fakturowni jako opłacona (' . $ch['paid_via'] . ').'
             : 'Nie oznaczono faktury ' . $inv['number'] . ' jako opłaconej w Fakturowni: ' . fakturownia_error($r), 'system');
         if (!$ok) db_exec("UPDATE claude_charges SET invoice_error=? WHERE id=?", ['Oznacz fakturę ' . $inv['number'] . ' jako opłaconą w Fakturowni ręcznie: ' . mb_substr(fakturownia_error($r), 0, 300), $chargeId]);
-        $s = ClaudeBilling::settings();
+        $s = ClaudeBilling::settings(ClaudeBilling::productOf($ch));
         if ($ok && !(int)$ch['is_test'] && $s['invoice_email']) self::send((int)$ch['invoice_id'], ClaudeBilling::charge($chargeId));
         return ['ok' => $ok];
     }
@@ -245,11 +246,12 @@ final class ClaudeInvoice
         if (empty($inv['pdf_path']) || !is_file(invoices_pdf_dir() . '/' . basename((string)$inv['pdf_path']))) { invoice_pdf_fetch($invoiceId); $inv = invoice_get($invoiceId); }
         $path = !empty($inv['pdf_path']) ? invoices_pdf_dir() . '/' . basename((string)$inv['pdf_path']) : '';
         $att = $path !== '' && is_file($path) ? [['path' => $path, 'name' => 'Faktura_' . preg_replace('/[^A-Za-z0-9\-_]+/', '-', (string)$inv['number']) . '.pdf', 'mime' => 'application/pdf', 'size' => (int)@filesize($path)]] : [];
-        $html = '<p>Dzień dobry,</p><p>w załączeniu faktura <b>' . h((string)$inv['number']) . '</b> za dostęp do Claude (' . h(ClaudeBilling::periodLabel((string)$ch['period'])) . ') na kwotę <b>'
-              . ClaudeBilling::zl((float)$ch['amount_pln']) . '</b> — <b>opłacona</b>, nic nie trzeba dopłacać.</p><p style="color:#555;font-size:13px">' . h(self::description($ch)) . '</p>';
+        $L = ClaudeBilling::P(ClaudeBilling::productOf($ch))['label'];
+        $html = '<p>Dzień dobry,</p><p>w załączniku faktura <b>' . h((string)$inv['number']) . '</b> za ' . h($L) . ' ' . h(ClaudeBilling::periodIn((string)$ch['period'])) . ': <b>'
+              . ClaudeBilling::zl((float)$ch['amount_pln']) . '</b>. Jest już opłacona — nic więcej nie trzeba robić. Dziękujemy!</p>';
         try {
             require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
-            mail_queue_add($to, (string)$inv['buyer_name'], 'Faktura ' . $inv['number'] . ' — dostęp do Claude (opłacona)', $html, '', 'invoice', $invoiceId, '', false, $att);
+            mail_queue_add($to, (string)$inv['buyer_name'], 'Faktura ' . $inv['number'] . ' za ' . $L . ' (opłacona)', $html, '', 'invoice', $invoiceId, '', false, $att);
         } catch (\Throwable $e) { error_log('claude invoice mail: ' . $e->getMessage()); }
     }
 }

@@ -226,7 +226,7 @@ function dydMenuSections(): array
         $it('', 'Pula licencji Fundacji', 'licencjeFundacji.php', 'key-fill'),
         $it('', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock', $nLd, 'warning'),
         $it('', 'Dostęp do Claude (ANT1)',       'licencjeDydaktyczne.php?_route=%2Fant1', 'stars'),
-        $it('', 'Abonament Claude',              'claudeAbonament.php', 'credit-card'),
+        $it('', 'Płatne licencje (Claude, NordVPN)', 'claudeAbonament.php', 'credit-card'),
         $it('', 'Korekty AMSK',                'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square', $nAmsk, 'warning'),
         $it('', 'Microsoft 365',         'microsoft365.php',      'microsoft'),
         $it('', 'Regulaminy',            'regulaminy.php',        'file-earmark-text'),
