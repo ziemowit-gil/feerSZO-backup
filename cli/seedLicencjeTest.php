@@ -67,6 +67,14 @@ switch ($cmd) {
         echo "  login do licencji: " . (LicenseLogin::get($cid) ?: '—') . "\n";
         echo "  hasło serwisowe: " . (org_setting(LT_PASS_KEY) ?: '— (ustawi się przy „Załóż”)') . "\n";
         echo "  logowanie: https://kursant.feer.org.pl/  login {$login}\n";
+        try {   // diagnoza logowania (modules/ti_login): pierwsze logowanie kodem SMS i blokada po nieudanych próbach
+            require_once $base . '/includes/ti_student_reauth.php';
+            if (function_exists('ti_reauth_migrate')) ti_reauth_migrate();
+            $row = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [(int)$acc['id']]);
+            echo "  logowanie hasłem: " . (ti_student_needs_reauth($row) ? 'NIE — konto czeka na pierwsze logowanie kodem SMS (uruchom „Nowe losowe hasło”)' : 'tak') . ", aktywne: " . ((int)$row['is_active'] ? 'tak' : 'NIE') . "\n";
+            $n = (int)(db_one("SELECT COUNT(*) n FROM login_attempts WHERE identifier=? AND created_at > ?", ['ti:' . $login, date('Y-m-d H:i:s', time() - 3600)])['n'] ?? 0);
+            echo "  nieudane próby w ostatniej godzinie: {$n}" . ($n ? ' („Nowe losowe hasło” je wyczyści)' : '') . "\n";
+        } catch (\Throwable $e) {}
         foreach (array_keys(ClaudeBilling::PRODUCTS) as $p) { $s = ClaudeBilling::forClient($cid, false, $p); if ($s) echo "  abonament {$p}: {$s['status']} od {$s['activated_on']}\n"; }
         try { foreach (db_all("SELECT case_number, request_status, tenant_upn FROM licenses WHERE interested_kind='client' AND interested_id=?", [$cid]) as $o) echo "  sprawa {$o['case_number']}: {$o['request_status']} {$o['tenant_upn']}\n"; } catch (\Throwable $e) {}
         try { foreach (db_all("SELECT name, product_type, status FROM k30_ti_client_products WHERE client_id=?", [$cid]) as $p) echo "  usługa: {$p['name']} ({$p['product_type']}, {$p['status']})\n"; } catch (\Throwable $e) {}
@@ -93,6 +101,7 @@ switch ($cmd) {
         // logowanie hasłem od razu: bez „pierwszego logowania kodem SMS” (ti_student_needs_reauth — brak last_login / sec_chosen), obrazek bezpieczeństwa wybrany
         try { db_exec("UPDATE k30_ti_student_accounts SET last_login=COALESCE(last_login, datetime('now')), sec_chosen=1, sec_image=COALESCE(sec_image, 3), reauth_at=COALESCE(reauth_at, datetime('now')), must_change_password=0 WHERE id=?", [(int)$acc['id']]); }
         catch (\Throwable $e) { echo "UWAGA: nie ustawiono pierwszego logowania ({$e->getMessage()}) — konto może prosić o kod SMS.\n"; }
+        try { db_exec("DELETE FROM login_attempts WHERE identifier=?", ['ti:' . $login]); } catch (\Throwable $e) {}   // blokada po nieudanych próbach
         // licencje w module Licencje
         foreach ($licNames as $n => $v) {
             $lid = $licenseId($n, $v);
@@ -147,7 +156,8 @@ switch ($cmd) {
         org_setting_set(LT_PASS_KEY, $newPass);
         db_exec("UPDATE k30_ti_student_accounts SET password_hash=?, is_active=1, last_login=COALESCE(last_login, datetime('now')), sec_chosen=1, sec_image=COALESCE(sec_image, 3), reauth_at=COALESCE(reauth_at, datetime('now')), must_change_password=0 WHERE id=?",
             [password_hash($newPass, PASSWORD_DEFAULT), (int)$acc['id']]);
-        echo "OK nowe losowe hasło serwisowe.\nLogowanie: {$login} / {$newPass}\n";
+        try { db_exec("DELETE FROM login_attempts WHERE identifier=?", ['ti:' . $login]); } catch (\Throwable $e) {}   // blokada po nieudanych próbach
+        echo "OK nowe losowe hasło serwisowe (blokada nieudanych prób wyczyszczona).\nLogowanie: {$login} / {$newPass}  →  https://kursant.feer.org.pl/\n";
         cli_exit(0);
 
     case 'delete':
