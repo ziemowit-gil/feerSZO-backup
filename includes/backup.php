@@ -18,7 +18,8 @@ function backup_base_dir(): string {
 }
 
 function backup_root(): string {
-    return backup_base_dir() . '/backups';
+    // BACKUP_ROOT — tylko do testów na kopii bazy (żeby nie pisać do prawdziwego backups/).
+    return defined('BACKUP_ROOT') ? rtrim((string)BACKUP_ROOT, '/') : backup_base_dir() . '/backups';
 }
 
 // ── Szyfrowanie ─────────────────────────────────────────────────────────────
@@ -100,56 +101,18 @@ function backup_kind(string $name): ?string {
 // ── Przywracanie ────────────────────────────────────────────────────────────
 
 /**
- * Przywraca bazę SQLite z pliku kopii (.db lub .db.enc). Waliduje integralność
- * (PRAGMA integrity_check) PRZED podmianą i robi kopię bezpieczeństwa bieżącej bazy.
+ * Przywraca całą bazę SQLite z pliku kopii (.db lub .db.enc) — przez modules/backup_restore
+ * (integrity_check kopii, obowiązkowa kopia pre-restore, ATTACH + DELETE/INSERT w jednej transakcji
+ * na bieżącym połączeniu). Dawniej plik kopii był kopiowany na żywą bazę, co przy trybie WAL groziło
+ * uszkodzeniem bazy. Pełny wybór (także pojedyncze tabele): modules/backup_restore/router.php.
  * @return array{ok:bool,msg:string,safety?:string}
  */
 function backup_restore_db(string $full): array {
-    if (!is_file($full)) return ['ok' => false, 'msg' => 'Plik kopii nie istnieje.'];
-
-    $src = $full; $tmp = null;
-    if (backup_is_encrypted($full)) {
-        $tmp = backup_decrypt_file($full);
-        if (!$tmp) return ['ok' => false, 'msg' => 'Nie udało się odszyfrować kopii (błędny klucz?).'];
-        $src = $tmp;
-    }
-
-    // Walidacja: poprawny, spójny plik SQLite.
-    try {
-        $chk = new PDO('sqlite:' . $src);
-        $chk->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $row = $chk->query('PRAGMA integrity_check')->fetch(PDO::FETCH_NUM);
-        $chk = null;
-        if (!$row || strtolower((string)$row[0]) !== 'ok') {
-            if ($tmp) @unlink($tmp);
-            return ['ok' => false, 'msg' => 'Kopia nie przeszła kontroli integralności (integrity_check) — przerwano.'];
-        }
-    } catch (\Throwable $e) {
-        if ($tmp) @unlink($tmp);
-        return ['ok' => false, 'msg' => 'Nieprawidłowy plik bazy: ' . $e->getMessage()];
-    }
-
-    // Kopia bezpieczeństwa bieżącej bazy PRZED podmianą.
-    $dbp    = DB_PATH;
-    $safety = backup_root() . '/' . date('Y-m') . '/umowy_pre-restore_' . date('Ymd_His') . '.db';
-    @mkdir(dirname($safety), 0750, true);
-    try {
-        $pdo = new PDO('sqlite:' . $dbp);
-        $pdo->exec('VACUUM INTO ' . $pdo->quote($safety));
-        $pdo = null;
-    } catch (\Throwable $e) { /* brak bieżącej bazy — kontynuujemy */ }
-
-    if (!@copy($src, $dbp)) {
-        if ($tmp) @unlink($tmp);
-        return ['ok' => false, 'msg' => 'Nie udało się nadpisać bazy docelowej (uprawnienia?).'];
-    }
-    if ($tmp) @unlink($tmp);
-
-    return [
-        'ok'     => true,
-        'msg'    => 'Baza przywrócona. Kopia sprzed przywrócenia: ' . basename($safety),
-        'safety' => $safety,
-    ];
+    require_once backup_base_dir() . '/modules/backup_restore/logic/backupRestore.php';
+    $rel  = backup_rel($full);
+    $cand = $rel !== null ? backupRestoreFind($rel) : null;
+    if (!$cand) return ['ok' => false, 'msg' => 'Plik kopii nie istnieje albo nie jest kopią bazy.'];
+    return backupRestoreRun($cand, 'full');
 }
 
 /**

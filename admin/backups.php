@@ -246,6 +246,8 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
 </div>
 <div id="sp-backup-result" class="mb-3" style="display:none"></div>
 
+<?php include dirname(__DIR__) . '/modules/backup_restore/view/card.php'; ?>
+
 <!-- Czyszczenie kopii z poprzedniego miesiąca -->
 <div class="card shadow-sm mb-3">
   <div class="card-header py-2 fw-semibold"><i class="bi bi-trash3 me-1 text-danger"></i>Usuń kopie z poprzedniego miesiąca</div>
@@ -482,11 +484,14 @@ $_openssl    = backup_openssl_available();
           <td class="text-muted small"><?= h($f['size_h']) ?></td>
           <td class="text-muted small"><?= date('d.m.Y H:i', $f['mtime']) ?></td>
           <td class="text-end">
-            <?php if (!empty($f['type']['restore'])): ?>
+            <?php if (!empty($f['type']['restore']) && $f['kind'] === 'db'): ?>
+            <a href="<?= APP_URL ?>/modules/backup_restore/router.php?file=<?= urlencode($f['rel']) ?>"
+               class="btn btn-outline-warning btn-sm py-0 px-2" title="Przywróć z tej kopii (porównanie i wybór tabel)">
+              <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i><span class="visually-hidden">Przywróć z tej kopii</span>
+            </a>
+            <?php elseif (!empty($f['type']['restore'])): ?>
             <?php
-              $_rmsg = $f['kind'] === 'db'
-                ? 'PRZYWRÓCIĆ BAZĘ z tej kopii? Bieżąca baza zostanie NADPISANA (utworzymy kopię pre-restore). Kontynuować?'
-                : 'PRZYWRÓCIĆ pliki z tej kopii? Bieżące pliki zostaną NADPISANE plikami z archiwum. Kontynuować?';
+              $_rmsg = 'PRZYWRÓCIĆ pliki z tej kopii? Bieżące pliki zostaną NADPISANE plikami z archiwum. Kontynuować?';
             ?>
             <form method="post" class="d-inline" onsubmit="return confirm('<?= h($_rmsg) ?>')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -525,7 +530,7 @@ $_openssl    = backup_openssl_available();
   Backupy lokalne w <code>backups/YYYY-MM/</code>, niedostępne przez HTTP. Backup przyrostowy co 4 godziny — baza, uploads oraz katalog <code>certs/</code> (klucze prywatne).
   Rotacja: zawsze zachowywane min. 3 ostatnie kopie każdego typu, pozostałe starsze niż 30 dni usuwane przez CRON.
   <?php if ($_enc_on): ?>&middot; <i class="bi bi-lock-fill"></i> Kopie szyfrowane AES-256.<?php endif; ?>
-  &middot; <i class="bi bi-arrow-counterclockwise"></i> Przywracanie: baza jest walidowana (integrity_check) i poprzedzana kopią pre-restore; archiwa nadpisują pliki.
+  &middot; <i class="bi bi-arrow-counterclockwise"></i> Przywracanie: baza — porównanie tabel i wybór zakresu (wybrane tabele albo cała baza), walidacja (integrity_check) i obowiązkowa kopia pre-restore; archiwa nadpisują pliki.
   <?php if ($_sp_enabled): ?>
   &middot; <i class="bi bi-cloud-arrow-up text-primary"></i> SharePoint: przyrostowo co 6h, pełny backup systemu w nocy.
   <?php else: ?>
