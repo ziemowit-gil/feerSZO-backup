@@ -20,6 +20,10 @@
  * „create” ustawia kontu to samo hasło, a „status” je pokazuje (Admin › Seedery — tylko admin). Podane --haslo staje się nowym hasłem serwisowym.
  * Hasła nie ma w kodzie ani w gicie.
  * Także z Admin › Seedery (klucz licencje_test).
+ * Tryby konta: „create” zakłada konto WIRTUALNE (bez e-maili i SMS, dokumenty w symulacji). „rzeczywiste” przełącza je na prawdziwe:
+ * SMS-y i e-maile wychodzą naprawdę, przy pierwszym logowaniu do panelu licencji trzeba podać własny e-mail i telefon, a dokumenty idą do
+ * Fakturowni (proforma; fakturę VAT wystawia Helpdesk — to prawdziwy dokument księgowy). Dotychczasowe abonamenty i opłaty (symulacje) są
+ * czyszczone, żeby CRON nie zamienił ich w prawdziwe proformy. „wirtualne” wraca do trybu testowego.
  */
 require_once dirname(__DIR__) . '/includes/cli_inproc.php';   // cli_exit() — także uruchamianie z Admin › Seedery
 if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit("Ten skrypt można uruchomić tylko z CLI.\n"); }
@@ -68,6 +72,8 @@ switch ($cmd) {
         echo "  panel licencji: https://kursant.feer.org.pl/licencje/  login " . (LicenseLogin::get($cid) ?: '—') . " (hasło serwisowe)\n";
         echo "  konto edu (seed): " . (ClaudeBilling::eduAccount($cid) ?: '—') . "\n";
         echo "  hasło serwisowe: " . (org_setting(LT_PASS_KEY) ?: '— (ustawi się przy „Załóż”)') . "\n";
+        $virt = (int)(db_one("SELECT COALESCE(is_virtual,0) v FROM k30_ti_student_accounts WHERE id=?", [(int)$acc['id']])['v'] ?? 0);
+        echo "  tryb: " . ($virt ? 'WIRTUALNE (symulacja: bez e-maili, SMS i Fakturowni)' : 'RZECZYWISTE (SMS, e-maile i Fakturownia naprawdę)') . "\n";
         echo "  logowanie: https://kursant.feer.org.pl/  login {$login}\n";
         try {   // diagnoza logowania (modules/ti_login): pierwsze logowanie kodem SMS i blokada po nieudanych próbach
             require_once $base . '/includes/ti_student_reauth.php';
@@ -171,6 +177,35 @@ switch ($cmd) {
         echo "Panel uczestnika TI: https://kursant.feer.org.pl/  →  {$login} / {$newPass}\n";
         cli_exit(0);
 
+    case 'rzeczywiste':
+    case 'wirtualne':
+        if (!$acc) { fwrite(STDERR, "Brak konta {$login} — najpierw „create”.\n"); cli_exit(1); }
+        if (!$ours) { fwrite(STDERR, "Konto {$login} nie zostało założone przez ten seeder.\n"); cli_exit(1); }
+        $cid = (int)$acc['client_id'];
+        ClaudeBilling::migrate();
+        // czysty start: abonamenty i opłaty z poprzedniego trybu (symulacje SYM-… nie mogą stać się prawdziwymi proformami)
+        foreach (db_all("SELECT pp_item_id FROM claude_charges WHERE client_id=? AND pp_item_id IS NOT NULL", [$cid]) as $r) db_exec("UPDATE payable_items SET status='cancelled' WHERE id=? AND status IN ('pending','processing')", [(int)$r['pp_item_id']]);
+        $n = (int)(db_one("SELECT COUNT(*) n FROM claude_subscriptions WHERE client_id=?", [$cid])['n'] ?? 0);
+        db_exec("DELETE FROM claude_events WHERE subscription_id IN (SELECT id FROM claude_subscriptions WHERE client_id=?)", [$cid]);
+        db_exec("DELETE FROM claude_charges WHERE client_id=?", [$cid]);
+        db_exec("DELETE FROM claude_subscriptions WHERE client_id=?", [$cid]);
+        try { db_exec("DELETE FROM license_panel_contacts WHERE client_id=?", [$cid]); } catch (\Throwable $e) {}   // pierwsze wejście znowu pyta o e-mail i telefon
+        if ($cmd === 'rzeczywiste') {
+            db_exec("UPDATE k30_ti_student_accounts SET is_virtual=0 WHERE client_id=?", [$cid]);
+            db_exec("UPDATE k30_clients SET email='', phone='' WHERE id=?", [$cid]);   // fikcyjne dane kontaktowe out — podasz własne
+            echo "OK konto {$login} jest RZECZYWISTE" . ($n ? " (usunięto {$n} abonament(y) z symulacji)" : '') . ".\n";
+            echo "Przy pierwszym wejściu do panelu licencji podaj własny e-mail i telefon (kod przyjdzie SMS-em).\n";
+            echo "Dokumenty idą do Fakturowni: proforma od razu po wniosku, faktura VAT po kliknięciu w Helpdesku (prawdziwy dokument księgowy).\n";
+            echo "Powrót do testów: akcja „Konto testowe (symulacja)”.\n";
+        } else {
+            db_exec("UPDATE k30_ti_student_accounts SET is_virtual=1 WHERE client_id=?", [$cid]);
+            db_exec("UPDATE k30_clients SET email=?, phone='' WHERE id=?", [LT_EMAIL, $cid]);
+            echo "OK konto {$login} jest znowu WIRTUALNE (symulacja)" . ($n ? ", usunięto {$n} abonament(y)" : '') . ". Dokumenty z Fakturowni z trybu rzeczywistego usuń tam ręcznie.\n";
+        }
+        if (function_exists('ti_virtual_contacts')) { require_once $base . '/includes/ti_virtual.php'; ti_virtual_contacts(true); }
+        if ($ll = LicenseLogin::get($cid)) echo "Panel licencji: https://kursant.feer.org.pl/licencje/  →  {$ll} / hasło serwisowe (akcja „Stan”)\n";
+        cli_exit(0);
+
     case 'delete':
         if (!$acc) { echo "Brak konta {$login} — nic do usunięcia.\n"; cli_exit(0); }
         if (!$ours) { fwrite(STDERR, "Konto {$login} nie zostało założone przez ten seeder — nie usuwam.\n"); cli_exit(1); }
@@ -190,6 +225,6 @@ switch ($cmd) {
         cli_exit(0);
 
     default:
-        fwrite(STDERR, "Użycie: php cli/seedLicencjeTest.php create|haslo|status|delete [--haslo=…] [--login=kursant.licencje]\n");
+        fwrite(STDERR, "Użycie: php cli/seedLicencjeTest.php create|haslo|status|rzeczywiste|wirtualne|delete [--haslo=…] [--login=kursant.licencje]\n");
         cli_exit(2);
 }
