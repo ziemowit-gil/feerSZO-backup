@@ -10,7 +10,8 @@ declare(strict_types=1);
  *     podaje dane do faktury, akceptuje warunki; w Helpdesku IT powstaje zgłoszenie aktywacji. NordVPN: jedna licencja na osobę (sprawdzane po e-mailu).
  *   • Naliczenie (i faktura VAT w Fakturowni) w dniu aktywacji, potem co miesiąc w dniu aktywacji, ale nie później niż 8. dnia miesiąca
  *     (dzień graniczny zmienia kierownik — globalnie albo dla jednej osoby). Termin płatności: zawsze 5 dni.
- *   • Kwota: cena w USD × ostatni kurs PKO BP (domyślnie sprzedaż dewiz) z dnia naliczenia; Claude: 8 USD (cena non-profit, regularna 25 USD → rabat na fakturze).
+ *   • Kwota (dynamicznie, z ustawień): cena w USD × ostatni kurs PKO BP (domyślnie sprzedaż dewiz) z dnia naliczenia + narzut % (domyślnie 2% „VAT”)
+ *     + prowizja za płatność (domyślnie 1,23 zł, osobna pozycja faktury); narzut domyślnie 23% „VAT” (VAT od importu usługi — koszt po stronie uczestnika); Claude: 8 USD (cena non-profit, regularna 25 USD → rabat na fakturze).
  *   • Płatność: Przelewy24 (bezpośrednio z panelu albo w portalu /platnosci), przelew na rachunek 88 1020 2906 0000 1302 0661 7932, Szybki przelew
  *     z faktury w Fakturowni. Wpłata z każdej drogi zamyka naliczenie, faktura w Fakturowni dostaje status „opłacona”.
  *   • Pilnowanie: przypomnienie w dniu terminu, wstrzymanie po karencji (zgłoszenie Helpdesk), wznowienie po wpłacie; rezygnacja → zgłoszenie dezaktywacji.
@@ -35,6 +36,7 @@ final class ClaudeBilling
     public const CHARGE_STATUS = ['pending' => 'do zapłaty', 'paid' => 'opłacone', 'cancelled' => 'anulowane'];
     public const DEFAULTS = [
         'enabled' => '1', 'usd' => '8', 'list_usd' => '25', 'due_day' => '8', 'grace_days' => '7',
+        'pct' => '23', 'pct_label' => 'VAT', 'fee_pln' => '1.23',   // 23% VAT od importu usługi — doliczany do ceny, płaci uczestnik (faktura FEER wg ustawień Faktur, domyślnie zw) i prowizja za płatność (polecenia 2026-11-09)
         'rate_kind' => 'sale_foreign', 'invoice' => 'auto', 'discount_mode' => 'rabat', 'invoice_email' => '1', 'notify' => '1', 'helpdesk' => '1',
         'pay_redirect' => 'p24', 'fast_transfer_url' => 'https://fundacjafeer.fakturownia.pl/apps/szybki-przelew',
         'bank_account' => '88102029060000130206617932',   // rachunek do wpłat (polecenie 2026-11-09)
@@ -97,6 +99,7 @@ final class ClaudeBilling
             usd REAL NOT NULL, list_usd REAL NOT NULL DEFAULT 0,
             rate REAL NOT NULL, rate_kind TEXT NOT NULL DEFAULT '', rate_table TEXT NOT NULL DEFAULT '', rate_at TEXT NOT NULL DEFAULT '',
             amount_pln REAL NOT NULL, list_pln REAL NOT NULL DEFAULT 0,
+            pct REAL NOT NULL DEFAULT 0, pct_label TEXT NOT NULL DEFAULT '', fee_pln REAL NOT NULL DEFAULT 0, base_pln REAL,
             issue_on DATE, invoice_view_url TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'pending',
             pp_item_id INTEGER,
@@ -109,6 +112,9 @@ final class ClaudeBilling
             UNIQUE(subscription_id, period))");
         // tabele z pierwszej wersji (tylko Claude) — kolumna produktu
         foreach (['claude_subscriptions', 'claude_charges'] as $t) { try { db()->exec("ALTER TABLE $t ADD COLUMN product TEXT NOT NULL DEFAULT 'claude'"); } catch (\Throwable $e) {} }
+        foreach (["pct REAL NOT NULL DEFAULT 0", "pct_label TEXT NOT NULL DEFAULT ''", "fee_pln REAL NOT NULL DEFAULT 0", "base_pln REAL"] as $col) {   // narzut % i prowizja (2026-11-09)
+            try { db()->exec("ALTER TABLE claude_charges ADD COLUMN $col"); } catch (\Throwable $e) {}
+        }
         db()->exec("DROP INDEX IF EXISTS uq_claude_sub_open");
         db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_lic_sub_open ON claude_subscriptions(client_id, product) WHERE status IN ('active','suspended')");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_claude_ch_status ON claude_charges(status, due_on)");
@@ -142,6 +148,9 @@ final class ClaudeBilling
         $s['list_usd'] = max(0.0, (float)str_replace(',', '.', (string)$s['list_usd']));
         $s['due_day'] = min(28, max(1, (int)$s['due_day']));
         $s['grace_days'] = min(60, max(0, (int)$s['grace_days']));
+        $s['pct'] = min(50.0, max(0.0, (float)str_replace(',', '.', (string)$s['pct'])));
+        $s['fee_pln'] = round(min(100.0, max(0.0, (float)str_replace(',', '.', (string)$s['fee_pln']))), 2);
+        $s['pct_label'] = mb_substr(trim((string)$s['pct_label']), 0, 30);
         if (!isset(PkoRates::KINDS[$s['rate_kind']])) $s['rate_kind'] = 'sale_foreign';
         if (!in_array($s['invoice'], ['auto', 'manual', 'off'], true)) $s['invoice'] = 'auto';
         if (!in_array($s['discount_mode'], ['rabat', 'opis'], true)) $s['discount_mode'] = 'rabat';
@@ -161,6 +170,7 @@ final class ClaudeBilling
         $map = [
             'enabled' => !empty($in['enabled']) ? '1' : '0', 'usd' => $num($in['usd'] ?? ''), 'list_usd' => $num($in['list_usd'] ?? '') ?: '0',
             'due_day' => (string)(int)($in['due_day'] ?? 8), 'grace_days' => (string)(int)($in['grace_days'] ?? 7),
+            'pct' => $num($in['pct'] ?? '0') ?: '0', 'pct_label' => mb_substr(trim((string)($in['pct_label'] ?? '')), 0, 30), 'fee_pln' => $num($in['fee_pln'] ?? '0') ?: '0',
             'pay_redirect' => (string)($in['pay_redirect'] ?? 'p24'), 'fast_transfer_url' => trim((string)($in['fast_transfer_url'] ?? '')),
             'bank_account' => preg_replace('/\D/', '', preg_replace('/^\s*PL/i', '', (string)($in['bank_account'] ?? ''))),
             'rate_kind' => (string)($in['rate_kind'] ?? 'sale_foreign'), 'invoice' => (string)($in['invoice'] ?? 'auto'), 'discount_mode' => (string)($in['discount_mode'] ?? 'rabat'),
@@ -168,6 +178,8 @@ final class ClaudeBilling
         ];
         if ($map['enabled'] === '1' && (float)$map['usd'] <= 0) throw new InvalidArgumentException('Ustaw miesięczną cenę w USD, zanim włączysz samodzielną aktywację ' . $P['label'] . '.');
         if ((float)$map['usd'] < 0) throw new InvalidArgumentException('Cena nie może być ujemna.');
+        if ((float)$map['pct'] < 0 || (float)$map['pct'] > 50) throw new InvalidArgumentException('Narzut procentowy: 0–50%.');
+        if ((float)$map['fee_pln'] < 0 || (float)$map['fee_pln'] > 100) throw new InvalidArgumentException('Prowizja za płatność: 0–100 zł.');
         if ((int)$map['due_day'] < 1 || (int)$map['due_day'] > 28) throw new InvalidArgumentException('Dzień graniczny: 1–28.');
         if ((float)$map['list_usd'] > 0 && (float)$map['list_usd'] < (float)$map['usd']) throw new InvalidArgumentException('Cena regularna nie może być niższa od ceny po rabacie.');
         require_once dirname(__DIR__, 2) . '/payment_portal/logic/paymentPortal.php';
@@ -183,10 +195,9 @@ final class ClaudeBilling
     {
         $s ??= self::settings($product);
         $P = self::P($s['product'] ?? $product);
-        $price = self::usdWords($s['usd']);
-        return 'Włączam dostęp do ' . $P['label'] . '. Wiem, że co miesiąc płacę ' . $price
-            . ($s['list_usd'] > $s['usd'] ? ' — to cena dla organizacji non-profit (normalnie ' . self::usdWords($s['list_usd']) . ')' : '')
-            . ', przeliczone na złote po kursie PKO BP z dnia wystawienia faktury. '
+        return 'Włączam dostęp do ' . $P['label'] . '. Wiem, że co miesiąc płacę ' . self::usdWords($s['usd'])
+            . ($s['list_usd'] > $s['usd'] ? ' (cena dla organizacji non-profit, normalnie ' . self::usdWords($s['list_usd']) . ')' : '')
+            . ' przeliczone na złote po kursie PKO BP z dnia wystawienia faktury' . self::extrasWords($s) . '. '
             . 'Pierwszą fakturę dostanę od razu, kolejne co miesiąc w dniu włączenia dostępu, ale nie później niż ' . $s['due_day'] . '. dnia miesiąca. '
             . 'Na zapłatę mam ' . self::TERM_DAYS . ' dni (Przelewy24, przelew na konto albo Szybki przelew z faktury). '
             . 'Jeśli nie zapłacę w ciągu ' . $s['grace_days'] . ' dni po terminie, dostęp zostanie wstrzymany do czasu wpłaty. '
@@ -199,6 +210,31 @@ final class ClaudeBilling
     public static function usd(float $v): string { return number_format($v, 2, ',', ' ') . ' USD'; }
     public static function usdWords(float $v): string { $n = rtrim(rtrim(number_format($v, 2, ',', ''), '0'), ','); return $n . ' ' . ((float)$v == 1.0 ? 'dolara' : 'dolarów'); }
     public static function rateFmt(float $v): string { return number_format($v, 4, ',', ' ') . ' zł'; }
+    public static function pctFmt(float $v): string { return rtrim(rtrim(number_format($v, 2, ',', ''), '0'), ',') . '%'; }
+    /** „, plus 2% VAT i 1,23 zł prowizji za płatność” (puste, gdy brak narzutu i prowizji). */
+    public static function extrasWords(array $s): string
+    {
+        $x = [];
+        if ((float)($s['pct'] ?? 0) > 0) $x[] = self::pctFmt((float)$s['pct']) . ((string)($s['pct_label'] ?? '') !== '' ? ' ' . $s['pct_label'] : '');
+        if ((float)($s['fee_pln'] ?? 0) > 0) $x[] = self::zl((float)$s['fee_pln']) . ' prowizji za płatność';
+        return $x ? ', plus ' . implode(' i ', $x) : '';
+    }
+    /** Krótko: „8 USD + 2% VAT + 1,23 zł prowizji” (ustawienia albo naliczenie). */
+    public static function priceShort(array $s): string
+    {
+        return self::usd((float)($s['usd'] ?? 0)) . ((float)($s['pct'] ?? 0) > 0 ? ' + ' . self::pctFmt((float)$s['pct']) . ((string)($s['pct_label'] ?? '') !== '' ? ' ' . $s['pct_label'] : '') : '')
+            . ((float)($s['fee_pln'] ?? 0) > 0 ? ' + ' . self::zl((float)$s['fee_pln']) . ' prowizji' : '');
+    }
+    /** Rozbicie kwoty naliczenia: USD × kurs = baza; + narzut %; + prowizja = razem (dla starych naliczeń bez narzutu — samo przeliczenie). */
+    public static function breakdown(array $ch): string
+    {
+        $raw = round((float)$ch['usd'] * (float)$ch['rate'], 2);
+        $base = $ch['base_pln'] !== null && $ch['base_pln'] !== '' ? (float)$ch['base_pln'] : round((float)$ch['amount_pln'] - (float)($ch['fee_pln'] ?? 0), 2);
+        $t = self::usd((float)$ch['usd']) . ' × ' . self::rateFmt((float)$ch['rate']) . ' = ' . self::zl($raw);
+        if ((float)($ch['pct'] ?? 0) > 0) $t .= ' + ' . self::pctFmt((float)$ch['pct']) . ((string)($ch['pct_label'] ?? '') !== '' ? ' ' . $ch['pct_label'] : '') . ' (' . self::zl(round($base - $raw, 2)) . ')';
+        if ((float)($ch['fee_pln'] ?? 0) > 0) $t .= ' + prowizja ' . self::zl((float)$ch['fee_pln']);
+        return $t . ' = ' . self::zl((float)$ch['amount_pln']);
+    }
     public static function date(?string $d): string { $t = $d ? strtotime($d) : false; return $t ? date('d.m.Y', $t) : '—'; }
     /** „13 grudnia” (bez roku, gdy bieżący) — do maili i panelu. */
     public static function dayMonth(?string $d): string
@@ -236,10 +272,14 @@ final class ClaudeBilling
     /** Kwoty dla kursu (zaokrąglenie do grosza; rabat = różnica, żeby suma zawsze się zgadzała). */
     public static function amounts(float $rate, array $s): array
     {
-        $amount = round($s['usd'] * $rate, 2);
-        $list = $s['list_usd'] > $s['usd'] ? round($s['list_usd'] * $rate, 2) : $amount;
-        return ['usd' => $s['usd'], 'list_usd' => max($s['list_usd'], $s['usd']), 'amount_pln' => $amount, 'list_pln' => $list,
-                'discount_pln' => round($list - $amount, 2), 'discount_usd' => round(max(0, $s['list_usd'] - $s['usd']), 2)];
+        $k = 1 + (float)($s['pct'] ?? 0) / 100;
+        $fee = round((float)($s['fee_pln'] ?? 0), 2);
+        $base = round($s['usd'] * $rate * $k, 2);                                             // USD × kurs + narzut %
+        $listBase = $s['list_usd'] > $s['usd'] ? round($s['list_usd'] * $rate * $k, 2) : $base;
+        return ['usd' => $s['usd'], 'list_usd' => max($s['list_usd'], $s['usd']), 'pct' => (float)($s['pct'] ?? 0), 'pct_label' => (string)($s['pct_label'] ?? ''),
+                'fee_pln' => $fee, 'base_pln' => $base, 'list_base_pln' => $listBase,
+                'amount_pln' => round($base + $fee, 2), 'list_pln' => round($listBase + $fee, 2),
+                'discount_pln' => round($listBase - $base, 2), 'discount_usd' => round(max(0, $s['list_usd'] - $s['usd']), 2)];
     }
 
     /** Wycena bieżąca (pobiera kurs z PKO BP). */
@@ -499,7 +539,7 @@ final class ClaudeBilling
     {
         $P = self::P(self::productOf($ch));
         return ((int)$ch['is_test'] ? '[TEST] ' : '') . $P['label'] . ' — ' . self::periodLabel((string)$ch['period'])
-            . ' (' . self::usd((float)$ch['usd']) . ' × ' . self::rateFmt((float)$ch['rate']) . ', kurs PKO BP)';
+            . ' (' . self::priceShort($ch) . ', kurs PKO BP ' . self::rateFmt((float)$ch['rate']) . ')';
     }
 
     /** Naliczenie za okres — kurs z PKO BP z dnia naliczenia; pozycja w portalu płatności; faktura. Musi działać POZA transakcją (pp_add_item ma własną). */
@@ -516,6 +556,7 @@ final class ClaudeBilling
             'subscription_id' => (int)$sub['id'], 'product' => $product, 'client_id' => (int)$sub['client_id'], 'period' => $period, 'due_on' => $due,
             'issue_on' => self::billingDate($sub, $period, $s), 'usd' => $q['usd'], 'list_usd' => $q['list_usd'], 'rate' => $q['rate'], 'rate_kind' => $q['kind'],
             'rate_table' => (string)$q['table_number'], 'rate_at' => (string)$q['table_at'], 'amount_pln' => $q['amount_pln'], 'list_pln' => $q['list_pln'],
+            'pct' => $q['pct'], 'pct_label' => $q['pct_label'], 'fee_pln' => $q['fee_pln'], 'base_pln' => $q['base_pln'],
             'status' => 'pending', 'is_test' => (int)$sub['is_test'], 'note' => $q['stale'] ? 'kurs: ' . $q['source'] : '',
         ]);
         $ch = self::charge($id);
@@ -523,8 +564,8 @@ final class ClaudeBilling
         $item = pp_add_item((int)$sub['client_id'], self::chargeTitle($ch), (float)$ch['amount_pln'], 'manual', null, $due, 'Abonament ' . self::P($product)['label'], null);
         if (is_int($item)) db_exec("UPDATE claude_charges SET pp_item_id=? WHERE id=?", [$item, $id]);
         else db_exec("UPDATE claude_charges SET note=? WHERE id=?", [trim($ch['note'] . ' Portal płatności: ' . $item), $id]);
-        self::event((int)$sub['id'], $id, 'charge', 'Naliczenie za ' . self::periodLabel($period) . ': ' . self::usd($q['usd']) . ' × ' . self::rateFmt($q['rate'])
-            . ' (' . $q['kind_label'] . ', tabela PKO BP ' . PkoRates::tableLabel($q) . ') = ' . self::zl($q['amount_pln']) . ', termin ' . self::date($due) . '.', 'system');
+        self::event((int)$sub['id'], $id, 'charge', 'Naliczenie za ' . self::periodLabel($period) . ': ' . self::breakdown(self::charge($id))
+            . ' (' . $q['kind_label'] . ', tabela PKO BP ' . PkoRates::tableLabel($q) . '), termin ' . self::date($due) . '.', 'system');
         if ($s['invoice'] === 'auto' || (int)$sub['is_test']) {   // faktura VAT (test: proforma) w Fakturowni od razu — z terminem 5 dni i rabatem
             require_once __DIR__ . '/ClaudeInvoice.php';
             try { ClaudeInvoice::issueForCharge($id); } catch (\Throwable $e) { db_exec("UPDATE claude_charges SET invoice_error=? WHERE id=?", [mb_substr($e->getMessage(), 0, 500), $id]); }
@@ -834,7 +875,7 @@ final class ClaudeBilling
         $in = $ch ? self::periodIn((string)$ch['period']) : '';
         $due = $ch ? self::dayMonth((string)$ch['due_on']) : '';
         $acc = self::payAccount(0, $product);
-        $why = $ch ? '<p style="color:#555;font-size:13px">Skąd ta kwota? ' . h(self::usdWords((float)$ch['usd'])) . ' × ' . h(self::rateFmt((float)$ch['rate'])) . ' (kurs PKO BP z ' . h(self::dayMonth(substr((string)$ch['rate_at'], 0, 10))) . ')'
+        $why = $ch ? '<p style="color:#555;font-size:13px">Skąd ta kwota? ' . h(self::breakdown($ch)) . ' (kurs PKO BP z ' . h(self::dayMonth(substr((string)$ch['rate_at'], 0, 10))) . ')'
             . ((float)$ch['list_pln'] > (float)$ch['amount_pln'] ? '. Normalnie ' . h($L) . ' kosztuje ' . h(self::usdWords((float)$ch['list_usd'])) . ' — jako organizacja non-profit płacimy mniej i tę zniżkę przekazujemy Tobie.' : '.') . '</p>' : '';
         $how = $ch ? '<p><b>Jak zapłacić</b> (wybierz jedno):</p><ul>'
             . '<li>Przelewy24 — w panelu, przycisk „Zapłać”,</li>'
@@ -926,6 +967,35 @@ final class ClaudeBilling
                 'pending_sum' => (float)($c['sp'] ?? 0), 'overdue' => (int)($c['no'] ?? 0), 'paid_month' => (float)($c['pm'] ?? 0), 'no_invoice' => (int)($c['ni'] ?? 0)];
     }
 
+    /**
+     * Projekcja: ta płatność (otwarte naliczenie albo — przed włączeniem — pierwsza, dziś) i następna (dzień naliczenia kolejnego miesiąca),
+     * kwota szacowana po ostatnim zapisanym kursie PKO BP. @return array{now:?array{amount:float,due:string,issue:string,estimate:bool},next:?array{amount:float,due:string,issue:string,estimate:bool}}
+     */
+    public static function projection(?array $sub, string $product = 'claude', ?string $today = null): array
+    {
+        $today ??= date('Y-m-d');
+        $s = self::settings($product);
+        $r = self::lastRate($product);
+        $est = $r ? (float)$r['amount_pln'] : null;
+        $out = ['now' => null, 'next' => null];
+        $open = $sub && in_array($sub['status'], ['active', 'suspended'], true);
+        if (!$open) {   // przed włączeniem: pierwsza faktura dziś, następna w dniu naliczenia kolejnego miesiąca
+            if ($est === null) return $out;
+            $fake = ['cycle_start' => $today, 'due_day' => null, 'product' => $product];
+            $out['now'] = ['amount' => $est, 'issue' => $today, 'due' => date('Y-m-d', strtotime($today . ' +' . self::TERM_DAYS . ' day')), 'estimate' => true];
+            $np = date('Y-m', strtotime(substr($today, 0, 7) . '-01 +1 month'));
+            $out['next'] = ['amount' => $est, 'issue' => self::billingDate($fake, $np, $s), 'due' => self::dueFor($fake, $np, $s), 'estimate' => true];
+            return $out;
+        }
+        if ((int)$sub['free']) return $out;
+        $pend = db_one("SELECT * FROM claude_charges WHERE subscription_id=? AND status='pending' ORDER BY due_on LIMIT 1", [(int)$sub['id']]);
+        if ($pend) $out['now'] = ['amount' => (float)$pend['amount_pln'], 'issue' => (string)$pend['issue_on'], 'due' => (string)$pend['due_on'], 'estimate' => false];
+        $last = db_one("SELECT MAX(period) p FROM claude_charges WHERE subscription_id=?", [(int)$sub['id']]);
+        $np = $last && $last['p'] ? date('Y-m', strtotime($last['p'] . '-01 +1 month')) : substr((string)$sub['cycle_start'], 0, 7);
+        if ($est !== null && $sub['status'] === 'active') $out['next'] = ['amount' => $est, 'issue' => self::billingDate($sub, $np, $s), 'due' => self::dueFor($sub, $np, $s), 'estimate' => true];
+        return $out;
+    }
+
     /** Dane do sekcji produktu w panelu uczestnika. */
     public static function participantView(int $clientId, string $product = 'claude'): array
     {
@@ -936,6 +1006,6 @@ final class ClaudeBilling
         $el = self::eligibility($clientId, $product);
         return ['product' => $product, 'P' => self::P($product), 'settings' => $s, 'sub' => $sub, 'charges' => $sub ? self::charges((int)$sub['id']) : [], 'eligible' => $el,
                 'hasLicense' => $el['assignment'] !== null, 'rate' => self::lastRate($product), 'paidThrough' => $sub ? self::paidThrough($sub) : null,
-                'account' => self::payAccount($clientId, $product), 'gaps' => $sub ? self::invoiceDataGaps($sub) : []];
+                'account' => self::payAccount($clientId, $product), 'gaps' => $sub ? self::invoiceDataGaps($sub) : [], 'projection' => self::projection($sub, $product)];
     }
 }

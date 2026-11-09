@@ -25,8 +25,9 @@ include __DIR__ . '/_top.php';
   $buyer = array_merge($open ? array_intersect_key($sub, ClaudeBilling::BUYER_FIELDS) : ClaudeBilling::buyerDefaults((int)$me['cid']), array_intersect_key($old[$pk] ?? [], ClaudeBilling::BUYER_FIELDS));
   $state = !$sub || $sub['status'] === 'ended' ? ['możesz włączyć', 'tw-bg-m-steel'] : ($sub['status'] === 'active' ? ['włączony', 'tw-bg-m-green'] : ['wstrzymany — brak wpłaty', 'tw-bg-m-red']);
   if (!$open && !$v['eligible']['ok']) $state = ['niedostępny', 'tw-bg-m-steel'];
-  $priceTxt = $s['priced'] ? 'Co miesiąc ' . ClaudeBilling::usdWords($s['usd']) . ($v['rate'] ? ' (dziś ok. ' . ClaudeBilling::zl((float)$v['rate']['amount_pln']) . ')' : '')
-              . ($s['list_usd'] > $s['usd'] ? ' — cena dla organizacji non-profit, normalnie ' . ClaudeBilling::usdWords($s['list_usd']) . '.' : '.') : '';
+  $priceTxt = $s['priced'] ? 'Co miesiąc ' . ClaudeBilling::usdWords($s['usd']) . ' po kursie PKO BP' . ClaudeBilling::extrasWords($s) . ($v['rate'] ? ' — dziś razem ok. ' . ClaudeBilling::zl((float)$v['rate']['amount_pln']) : '')
+              . ($s['list_usd'] > $s['usd'] ? '. ' . ClaudeBilling::usdWords($s['usd']) . ' to cena dla organizacji non-profit (normalnie ' . ClaudeBilling::usdWords($s['list_usd']) . ').' : '.') : '';
+  $pr = $v['projection'] ?? ['now' => null, 'next' => null];
 ?>
 <section id="<?= h($pk) ?>" class="m-tile" style="border-left:6px solid <?= h($P['color']) ?>" aria-labelledby="h-<?= h($pk) ?>">
   <h2 id="h-<?= h($pk) ?>" class="m-head"><?= h($P['label']) ?> <span class="m-chip <?= $state[1] ?>"><?= h($state[0]) ?></span></h2>
@@ -38,6 +39,18 @@ include __DIR__ . '/_top.php';
       <div><dt>Opłacony do</dt><dd><?= $v['paidThrough'] ? h(ClaudeBilling::dayMonth($v['paidThrough'])) : 'jeszcze nic' ?></dd></div>
       <div><dt>Faktura co miesiąc</dt><dd>ok. <?= ClaudeBilling::dueDay($sub, $s) ?>. dnia, płatna w <?= ClaudeBilling::TERM_DAYS ?> dni</dd></div>
     </dl>
+    <?php if ($pr['now'] || $pr['next']): ?>
+    <div class="tw-grid sm:tw-grid-cols-2 tw-gap-2 tw-mb-3" aria-label="Projekcja płatności">
+      <?php foreach (['now' => $open ? 'Ta płatność' : 'Pierwsza płatność (po włączeniu)', 'next' => 'Następna płatność'] as $pk2 => $plabel): if (!$pr[$pk2]) continue; $x = $pr[$pk2]; ?>
+      <div class="<?= $pk2 === 'now' ? 'tw-bg-m-amber tw-text-m-dark' : 'tw-bg-m-bg tw-text-m-dark tw-border tw-border-solid tw-border-m-line' ?> tw-p-3">
+        <div class="tw-text-xs tw-uppercase tw-tracking-wide"><?= h($plabel) ?></div>
+        <div class="tw-text-2xl tw-font-light"><?= $x['estimate'] ? 'ok. ' : '' ?><?= h(ClaudeBilling::zl((float)$x['amount'])) ?></div>
+        <div class="tw-text-sm">faktura <?= h(ClaudeBilling::dayMonth($x['issue'])) ?>, zapłać do <?= h(ClaudeBilling::dayMonth($x['due'])) ?></div>
+        <?php if ($x['estimate']): ?><div class="tw-text-xs tw-text-m-steel">szacunek po dzisiejszym kursie — dokładna kwota zależy od kursu z dnia faktury</div><?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     <?php if ($sub['status'] === 'suspended'): ?><p class="tw-bg-m-red tw-text-white tw-p-3 tw-mb-3" role="alert">Dostęp jest wstrzymany, bo nie dotarła wpłata. Zapłać zaległą fakturę poniżej — włączymy go z powrotem sami, nie musisz nic zgłaszać.</p><?php endif; ?>
     <?php if ($v['gaps']): ?><p class="tw-bg-m-amber tw-text-m-dark tw-p-3 tw-mb-3" role="alert"><b>Brakuje danych do faktury:</b> <?= h(implode(', ', $v['gaps'])) ?>. Uzupełnij je niżej — bez nich nie wystawimy faktury.</p><?php endif; ?>
 
@@ -50,7 +63,7 @@ include __DIR__ . '/_top.php';
         <?php else: ?><span class="m-chip <?= $late ? 'tw-bg-m-red' : 'tw-bg-m-amber' ?>"><?= $late ? 'po terminie — było do ' : 'zapłać do ' ?><?= h(ClaudeBilling::dayMonth($c['due_on'])) ?></span><?php endif; ?>
         <?php if ($c['invoice_view_url']): ?><a href="<?= h($c['invoice_view_url']) ?>" target="_blank" rel="noopener" class="tw-text-sm">faktura <?= h($c['invoice_number']) ?><span class="tw-sr-only"> (otwiera się w nowej karcie)</span></a><?php endif; ?>
       </div>
-      <p class="tw-text-xs tw-text-m-steel tw-mt-1"><?= h(ClaudeBilling::usdWords((float)$c['usd'])) ?> × <?= h(ClaudeBilling::rateFmt((float)$c['rate'])) ?> (kurs PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p>
+      <p class="tw-text-xs tw-text-m-steel tw-mt-1"><?= h(ClaudeBilling::breakdown($c)) ?> (kurs PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p>
       <?php if ($c['status'] === 'pending'): ?>
       <div class="tw-flex tw-flex-wrap tw-gap-2 tw-mt-2">
         <?php if ($s['pay_redirect'] === 'portal'): ?>
@@ -92,6 +105,19 @@ include __DIR__ . '/_top.php';
   <?php else: ?>
     <form method="post" action="<?= h(route('lk.activate', ['product' => $pk])) ?>" novalidate><?= Router::csrfField() ?>
       <h3 class="tw-font-semibold tw-mb-1">Włącz <?= h($P['label']) ?></h3>
+    <?php if ($pr['now'] || $pr['next']): ?>
+    <div class="tw-grid sm:tw-grid-cols-2 tw-gap-2 tw-mb-3" aria-label="Projekcja płatności">
+      <?php foreach (['now' => $open ? 'Ta płatność' : 'Pierwsza płatność (po włączeniu)', 'next' => 'Następna płatność'] as $pk2 => $plabel): if (!$pr[$pk2]) continue; $x = $pr[$pk2]; ?>
+      <div class="<?= $pk2 === 'now' ? 'tw-bg-m-amber tw-text-m-dark' : 'tw-bg-m-bg tw-text-m-dark tw-border tw-border-solid tw-border-m-line' ?> tw-p-3">
+        <div class="tw-text-xs tw-uppercase tw-tracking-wide"><?= h($plabel) ?></div>
+        <div class="tw-text-2xl tw-font-light"><?= $x['estimate'] ? 'ok. ' : '' ?><?= h(ClaudeBilling::zl((float)$x['amount'])) ?></div>
+        <div class="tw-text-sm">faktura <?= h(ClaudeBilling::dayMonth($x['issue'])) ?>, zapłać do <?= h(ClaudeBilling::dayMonth($x['due'])) ?></div>
+        <?php if ($x['estimate']): ?><div class="tw-text-xs tw-text-m-steel">szacunek po dzisiejszym kursie — dokładna kwota zależy od kursu z dnia faktury</div><?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
       <p class="tw-text-sm tw-mb-3">Podaj dane do faktury — przy każdej opłacie dostaniesz fakturę e-mailem. Pola z gwiazdką są wymagane.</p>
       <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3">
         <?php foreach (ClaudeBilling::BUYER_FIELDS as $k => $l): ?>

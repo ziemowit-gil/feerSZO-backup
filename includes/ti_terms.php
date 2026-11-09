@@ -48,7 +48,7 @@ function ti_claude_oplata_body(): string {
         . '<p>Oświadczam, że wiem, że:</p>'
         . '<ol>'
         . '<li>Opłata wynosi 8 USD miesięcznie — tyle, ile Fundacja płaci za jedno miejsce w Claude Team w cenie dla organizacji non-profit (cena regularna: 25 USD). '
-        . 'Kwotę przelicza się na złote po ostatnim kursie sprzedaży dewiz PKO Banku Polskiego z dnia wystawienia faktury.</li>'
+        . 'Kwotę przelicza się na złote po ostatnim kursie sprzedaży dewiz PKO Banku Polskiego z dnia wystawienia faktury. Do tej kwoty dolicza się 23% VAT od importu usługi oraz 1,23 zł prowizji za obsługę płatności.</li>'
         . '<li>Fakturę dostaję w dniu włączenia dostępu, a potem co miesiąc w dniu włączenia dostępu, nie później niż 8. dnia miesiąca. Na zapłatę mam 5 dni '
         . '(Przelewy24, przelew na rachunek Fundacji albo szybki przelew z faktury). Jeśli nie zapłacę w ciągu 7 dni po terminie, dostęp zostanie wstrzymany do czasu wpłaty.</li>'
         . '<li>Zniżka dla organizacji non-profit nie obejmuje używania API Claude — dotyczy wyłącznie planów Team i Enterprise.</li>'

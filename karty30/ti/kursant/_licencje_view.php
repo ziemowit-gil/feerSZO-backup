@@ -54,7 +54,7 @@ $rv_lic_term_ok = $rv_lic_term_ok ?? true;
         <?php if ($kp_is_claude && !$kp_claude_ok): ?>
         <div class="alert alert-warning py-2 small mb-2 kp-lic-uwaga" role="note">
           <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-          <strong>Wymagane oświadczenie:</strong> dostęp do Claude kosztuje 8 USD miesięcznie (po kursie PKO BP).
+          <strong>Wymagane oświadczenie:</strong> dostęp do Claude kosztuje 8 USD miesięcznie po kursie PKO BP, plus 23% VAT i 1,23 zł prowizji.
           <?php if (basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'parent.php'): ?>
             Zaakceptuj <a href="?tab=regulaminy" class="alert-link">oświadczenie o opłacie w zakładce Regulaminy</a>.
           <?php else: ?>
@@ -63,7 +63,7 @@ $rv_lic_term_ok = $rv_lic_term_ok ?? true;
         </div>
         <?php elseif ($kp_is_claude && $kp_claude_term && !empty($kp_claude_term['is_active'])): ?>
         <div class="text-body-secondary small mb-2 kp-lic-uwaga">
-          <i class="bi bi-check2-circle text-success me-1" aria-hidden="true"></i>Oświadczenie o opłacie za dostęp do Claude (8 USD miesięcznie) — zaakceptowane.
+          <i class="bi bi-check2-circle text-success me-1" aria-hidden="true"></i>Oświadczenie o opłacie za dostęp do Claude (8 USD + 23% VAT + prowizja, miesięcznie) — zaakceptowane.
         </div>
         <?php endif; ?>
 

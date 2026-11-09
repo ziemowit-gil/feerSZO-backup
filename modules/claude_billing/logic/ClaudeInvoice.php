@@ -28,10 +28,10 @@ final class ClaudeInvoice
         $kind = PkoRates::KINDS[$ch['rate_kind']] ?? 'kurs';
         $P = ClaudeBilling::P(ClaudeBilling::productOf($ch));
         return ((int)$ch['is_test'] ? '[TEST — proforma testowa, nie jest dokumentem księgowym] ' : '')
-            . 'Dostęp do ' . $P['name'] . ($P['program'] !== '' ? ' ' . $P['program'] : '') . ', okres: ' . ClaudeBilling::periodLabel((string)$ch['period']) . '. '
+            . 'Dostęp do ' . ($P['program'] !== '' ? preg_replace('/\s*\(.*\)$/u', '', $P['name']) . ' ' . $P['program'] : $P['name']) . ', okres: ' . ClaudeBilling::periodLabel((string)$ch['period']) . '. '
             . ($disc > 0 ? 'Cena regularna ' . ClaudeBilling::usd((float)$ch['list_usd']) . ' = ' . ClaudeBilling::zl((float)$ch['list_pln'])
                 . '; rabat dla organizacji non-profit ' . ClaudeBilling::usd(round((float)$ch['list_usd'] - (float)$ch['usd'], 2)) . ' = ' . ClaudeBilling::zl($disc) . '; ' : '')
-            . 'do zapłaty ' . ClaudeBilling::usd((float)$ch['usd']) . ' = ' . ClaudeBilling::zl((float)$ch['amount_pln']) . '. '
+            . 'do zapłaty: ' . ClaudeBilling::breakdown($ch) . ((float)($ch['pct'] ?? 0) > 0 && ($ch['pct_label'] ?? '') === 'VAT' ? ' (' . ClaudeBilling::pctFmt((float)$ch['pct']) . ' VAT od importu usługi, doliczony do ceny)' : '') . '. '
             . 'Kurs ' . $kind . ' PKO BP z tabeli ' . PkoRates::tableLabel(['table_number' => $ch['rate_table'], 'table_at' => $ch['rate_at']]) . ': ' . ClaudeBilling::rateFmt((float)$ch['rate']) . '/USD.'
             . ($ch['status'] === 'paid' ? ' Zapłacono: ' . ($ch['paid_via'] ?: '—') . ', ' . ClaudeBilling::date($ch['paid_at']) . '.' : '');
     }
@@ -64,7 +64,10 @@ final class ClaudeInvoice
         $mode ??= ClaudeBilling::settings(ClaudeBilling::productOf($ch))['discount_mode'];
         $test = (int)$ch['is_test'] === 1;
         $b = self::buyer($ch);
-        $disc = round((float)$ch['list_pln'] - (float)$ch['amount_pln'], 2);
+        $fee = round((float)($ch['fee_pln'] ?? 0), 2);
+        $svc = round((float)$ch['amount_pln'] - $fee, 2);          // usługa: USD × kurs + narzut % (bez prowizji)
+        $svcList = round((float)$ch['list_pln'] - $fee, 2);
+        $disc = round($svcList - $svc, 2);
         $useDiscount = $mode === 'rabat' && $disc > 0 && !is_numeric($vat);   // przy stawce liczbowej rabat kwotowy netto/brutto bywa niejednoznaczny — wtedy opis
         $paid = $ch['status'] === 'paid';
         $paidDate = $ch['paid_at'] ? date('Y-m-d', strtotime((string)$ch['paid_at'])) : date('Y-m-d');
@@ -75,11 +78,12 @@ final class ClaudeInvoice
         $company = $b['buyer_tax_no'] !== '';
         $pos = ['name' => self::positionName($ch), 'quantity' => 1, 'quantity_unit' => 'mies.', 'tax' => $vat];
         if ($useDiscount) {
-            $pos += ['price_net' => (float)$ch['list_pln'], 'price_gross' => (float)$ch['list_pln'], 'discount' => $disc,
-                     'discount_percent' => round($disc / max(0.01, (float)$ch['list_pln']) * 100, 4)];
+            $pos += ['price_net' => $svcList, 'price_gross' => $svcList, 'discount' => $disc, 'discount_percent' => round($disc / max(0.01, $svcList) * 100, 4)];
         } else {
-            $pos += ['total_price_gross' => (float)$ch['amount_pln']];
+            $pos += ['total_price_gross' => $svc];
         }
+        $positions = [$pos];
+        if ($fee > 0) $positions[] = ['name' => 'Prowizja za obsługę płatności', 'quantity' => 1, 'quantity_unit' => 'szt.', 'tax' => $vat, 'total_price_gross' => $fee];
         $inv = [
             'kind' => $test ? 'proforma' : 'vat',
             'sell_date' => $issue, 'issue_date' => $issue, 'payment_to' => (string)$ch['due_on'],
@@ -94,7 +98,7 @@ final class ClaudeInvoice
         if ($acc) $extra['seller_bank_account'] = $acc['nrb_fmt'];   // rachunek do wpłat za Claude (ustawienie modułu)
         if ($paid && !$test) $extra += ['status' => 'paid', 'paid' => number_format((float)$ch['amount_pln'], 2, '.', ''), 'paid_date' => $paidDate];
         if ($useDiscount) $extra += ['show_discount' => '1', 'discount_kind' => 'amount'];
-        return ['invoice' => $inv, 'positions' => [$pos], 'extra' => $extra, 'mode' => $useDiscount ? 'rabat' : 'opis', 'expected_gross' => (float)$ch['amount_pln']];
+        return ['invoice' => $inv, 'positions' => $positions, 'extra' => $extra, 'mode' => $useDiscount ? 'rabat' : 'opis', 'expected_gross' => (float)$ch['amount_pln']];
     }
 
     /**
@@ -130,7 +134,8 @@ final class ClaudeInvoice
         else {
             $id = invoice_create(array_intersect_key($payload['invoice'], array_flip(['buyer_name', 'buyer_tax_no', 'buyer_street', 'buyer_post_code', 'buyer_city', 'buyer_email', 'issue_date', 'sell_date', 'payment_to']))
                 + ['kind' => $payload['invoice']['kind'], 'source' => self::SOURCE, 'source_id' => $chargeId, 'notes' => self::description($ch), 'is_test' => $test ? 1 : 0],
-                [['name' => self::positionName($ch), 'unit' => 'mies.', 'qty' => 1, 'unit_net' => (float)$ch['amount_pln'], 'vat_rate' => $cfg['vat']]], $uid);
+                array_values(array_filter([['name' => self::positionName($ch), 'unit' => 'mies.', 'qty' => 1, 'unit_net' => round((float)$ch['amount_pln'] - (float)($ch['fee_pln'] ?? 0), 2), 'vat_rate' => $cfg['vat']],
+                    (float)($ch['fee_pln'] ?? 0) > 0 ? ['name' => 'Prowizja za obsługę płatności', 'unit' => 'szt.', 'qty' => 1, 'unit_net' => (float)$ch['fee_pln'], 'vat_rate' => $cfg['vat']] : null])), $uid);
             if ($uid <= 0) db_exec("UPDATE invoices SET created_by=NULL WHERE id=?", [$id]);
         }
 

@@ -270,7 +270,7 @@ final class LicenseOperationService
                 . 'Na koniec wpisz swoje imię i nazwisko — to Twoje potwierdzenie.</p>'
                 . '<p><b>Co dalej?</b> Gdy potwierdzisz, kierownik zatwierdzi wniosek, a Dział IT nada Ci dostęp. Bez Twojego potwierdzenia nie możemy ruszyć dalej. '
                 . 'Link jest tylko dla Ciebie i działa przez ' . LD_TOKEN_DAYS . ' dni.</p>';
-            $sms = 'FEER: potwierdz do ' . ldDate($op['due_on']) . ' wniosek o dostep do Claude i oplate 8 USD/mies. (sprawa ' . $op['number'] . '): ' . $link;
+            $sms = 'FEER: potwierdz do ' . ldDate($op['due_on']) . ' wniosek o dostep do Claude i oplate 8 USD+VAT/mies. (sprawa ' . $op['number'] . '): ' . $link;
             $html = LicenseNotificationService::layout('Potwierdź wniosek o dostęp do Claude', $body, $link, 'Przeczytaj i potwierdź wniosek', 'ANT1');
         } else {
         $pay = $r['tryb'] === 'zajecia' ? 'kwota <b>' . $e(self::money((float)$r['kwota'])) . '</b> zostanie doliczona do opłaty za zajęcia' : 'przelew <b>' . $e(self::money((float)$r['kwota'])) . '</b> na konto ' . $e(self::nrb((string)$r['rachunek']));

@@ -482,7 +482,7 @@ HTML;
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;border-top:2px solid #0f766e">
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Uczestnik</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{student}}</td></tr>
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Licencja</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">{{software}}</td></tr>
-  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ile to kosztuje</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">8 dolarów miesięcznie (cena dla organizacji non-profit), po kursie PKO BP — faktura co miesiąc</td></tr>
+  <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Ile to kosztuje</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">8 dolarów miesięcznie (cena dla organizacji non-profit) po kursie PKO BP, plus 23% VAT i 1,23 zł prowizji — faktura co miesiąc</td></tr>
   <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;width:38%;vertical-align:top">Gdzie zaakceptować</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:15px;font-weight:600">panel uczestnika → zakładka Regulaminy</td></tr>
 </table>
 <p>W oświadczeniu przeczytasz, kiedy przychodzi faktura, ile masz czasu na zapłatę i jak zrezygnować. Po akceptacji włączysz Claude w panelu „Moje licencje”. {{minor_note}}</p>
@@ -1315,7 +1315,7 @@ HTML,
             'group'       => 'TI — Zajęcia',
             'icon'        => 'bi-stars',
             'auto'        => true,
-            'description' => 'Po przypisaniu licencji Claude (i z przycisku w Regulaminach): w panelu kursanta czeka oświadczenie o opłacie za dostęp do Claude (8 USD miesięcznie). Do kursanta i — u małoletnich — do opiekuna.',
+            'description' => 'Po przypisaniu licencji Claude (i z przycisku w Regulaminach): w panelu kursanta czeka oświadczenie o opłacie za dostęp do Claude (8 USD + 23% VAT + prowizja, miesięcznie). Do kursanta i — u małoletnich — do opiekuna.',
             'subject'     => '{{org}}: oświadczenie o opłacie za dostęp do Claude czeka na akceptację',
             'body'        => $ti_claude_statement_body,
             'vars'        => [

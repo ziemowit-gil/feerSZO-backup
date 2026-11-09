@@ -577,4 +577,19 @@ return [
         },
     ],
 
+    // Claude: do oświadczenia (wersja „8 USD”) dopisane 23% VAT od importu usługi i 1,23 zł prowizji — wersja +1 tylko, gdy w bazie jest
+    // jeszcze treść bez VAT (gdy wyżej migracja 8 USD ruszyła razem z tą, treść jest już pełna i nic się nie dzieje).
+    '2026-11_claude_oplata_vat_prowizja' => [
+        'desc' => 'Claude: oświadczenie o opłacie — dopisany 23% VAT i 1,23 zł prowizji (nowa wersja do akceptacji)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/ti_terms.php';
+            ti_terms_migrate();
+            $t = db_one("SELECT id, body_html FROM k30_ti_terms WHERE type='claude_oplata'");
+            if (!$t || !str_contains((string)$t['body_html'], '8 USD') || str_contains((string)$t['body_html'], '23% VAT')) return;
+            $body = ti_claude_oplata_body();
+            if (!str_contains($body, '23% VAT')) throw new RuntimeException('Treść oświadczenia bez 23% VAT');
+            db_exec("UPDATE k30_ti_terms SET body_html=?, version=version+1, updated_at=datetime('now') WHERE id=?", [$body, (int)$t['id']]);
+        },
+    ],
+
 ];

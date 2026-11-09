@@ -310,8 +310,8 @@ function sms_tpl_registry(): array
             'group'       => 'TI — Zajęcia',
             'icon'        => 'bi-stars',
             'auto'        => true,
-            'description' => 'Wysyłane po przypisaniu licencji Claude (i z przycisku w Regulaminach): w panelu kursanta czeka oświadczenie o opłacie za dostęp do Claude (8 USD miesięcznie). Do opiekuna małoletniego — ten sam szablon.',
-            'message'     => '{{org}}: w panelu kursanta czeka oswiadczenie o oplacie za dostep do Claude (8 USD miesiecznie, licencja {{software}}). Zaakceptuj je w zakladce Regulaminy: {{url}}',
+            'description' => 'Wysyłane po przypisaniu licencji Claude (i z przycisku w Regulaminach): w panelu kursanta czeka oświadczenie o opłacie za dostęp do Claude (8 USD + 23% VAT + prowizja, miesięcznie). Do opiekuna małoletniego — ten sam szablon.',
+            'message'     => '{{org}}: w panelu kursanta czeka oswiadczenie o oplacie za dostep do Claude (8 USD + 23% VAT + 1,23 zl prowizji miesiecznie, licencja {{software}}). Zaakceptuj je w zakladce Regulaminy: {{url}}',
             'vars'        => [
                 'org'      => ['label' => 'Nazwa organizacji', 'sample' => 'FEER'],
                 'student'  => ['label' => 'Kursant', 'sample' => 'Jan Kowalski'],

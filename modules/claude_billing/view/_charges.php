@@ -14,7 +14,7 @@ $cst = ['pending' => '#f0a30a', 'paid' => '#008a00', 'cancelled' => '#647687'];
     <tr>
       <td><?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></td>
       <td><?= h(ClaudeBilling::date($c['issue_on'] ?: $c['created_at'])) ?></td>
-      <td class="text-end text-nowrap"><b><?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?></b><br><small class="text-secondary"><?= h(ClaudeBilling::usd((float)$c['usd'])) ?> × <?= h(ClaudeBilling::rateFmt((float)$c['rate'])) ?> (<?= h($c['rate_table']) ?>)<?= (float)$c['list_pln'] > (float)$c['amount_pln'] ? '<br>regularna ' . h(ClaudeBilling::zl((float)$c['list_pln'])) . ', rabat ' . h(ClaudeBilling::zl((float)$c['list_pln'] - (float)$c['amount_pln'])) : '' ?></small></td>
+      <td class="text-end text-nowrap"><b><?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?></b><br><small class="text-secondary"><?= h(ClaudeBilling::breakdown($c)) ?> (<?= h($c['rate_table']) ?>)<?= (float)$c['list_pln'] > (float)$c['amount_pln'] ? '<br>regularna ' . h(ClaudeBilling::zl((float)$c['list_pln'])) . ', rabat ' . h(ClaudeBilling::zl((float)$c['list_pln'] - (float)$c['amount_pln'])) : '' ?></small></td>
       <td class="<?= $late ? 'text-danger fw-bold' : '' ?>"><?= h(ClaudeBilling::date($c['due_on'])) ?></td>
       <td><span class="chip" style="background:<?= $cst[$c['status']] ?? '#647687' ?>"><?= h(ClaudeBilling::CHARGE_STATUS[$c['status']] ?? $c['status']) ?></span>
         <?php if ($c['status'] === 'paid'): ?><br><small><?= h(ClaudeBilling::date($c['paid_at'])) ?> · <?= h($c['paid_via']) ?></small><?php endif; ?>
