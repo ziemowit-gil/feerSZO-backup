@@ -99,6 +99,11 @@ final class TiLogin
     /** Czy logowanie tym loginem / z tego IP jest chwilowo zablokowane (za dużo nieudanych prób). */
     public static function throttled(string $login): bool
     {
+        // Limit prób (MAX_PER_LOGIN na login / MAX_PER_IP na IP w WINDOW_SEC) — WYŁĄCZONY poleceniem z 2026-11-09.
+        // Włączenie z powrotem: ustawienie ti_login_throttle = 1 (tabela settings). Nieudane próby są nadal zapisywane (recordAttempt).
+        $on = function_exists('org_setting') ? (string)org_setting('ti_login_throttle')
+            : (string)(db_one("SELECT value FROM settings WHERE key_='ti_login_throttle'")['value'] ?? '');
+        if (trim($on) !== '1') return false;
         _auth_security_init();
         $since = date('Y-m-d H:i:s', time() - self::WINDOW_SEC);
         $byLogin = db_one("SELECT COUNT(*) AS c FROM login_attempts WHERE identifier=? AND created_at > ?",
