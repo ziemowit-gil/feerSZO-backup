@@ -322,15 +322,63 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .inbox-empty i { @apply tw-text-3xl tw-block tw-mb-2 tw-opacity-25; }
 </style>
 
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <div>
-    <h1 class="h4 fw-bold mb-0">
-      <i class="bi bi-inbox text-primary me-2" aria-hidden="true"></i>Skrzynka wiadomości
-    </h1>
-    <p class="text-muted small mb-0">Wiadomości wewnętrzne powiązane z zadaniami</p>
-  </div>
+<style>
+/* ══ Skrzynka wiadomości (2026-11-10) — szata Metro jak reszta Zadań: nagłówek z kafelkiem, wątki z filtrem,
+   płaskie dymki (moje zielonkawe), pole odpowiedzi z „Wyślij” z napisem ══ */
+html body #tsk-main .inbox-wrap{border:1px solid var(--tm-line);border-top:2px solid var(--tsk-green);border-radius:0;grid-template-columns:320px minmax(0,1fr);
+  height:calc(100vh - 230px);min-height:420px}
+html body #tsk-main .inbox-sidebar{border-right:1px solid var(--tm-line);background:#fff}
+html body #tsk-main .inbox-sidebar-head{background:#fff;border-bottom:1px solid var(--tm-line);padding:.7rem .9rem .5rem;flex-wrap:wrap;gap:.5rem}
+html body #tsk-main .inbox-sidebar-title{font-size:.68rem;letter-spacing:.14em;color:#3f3f46}
+html body #tsk-main .inbox-th-count{min-width:1.5rem;padding:.05rem .4rem;background:var(--tm-light);font-size:.74rem;font-weight:700;text-align:center;color:var(--tsk-text)}
+html body #tsk-main .inbox-filter{flex:1 0 100%;min-height:32px;padding:0 .55rem;border:1px solid #8a8886;font-size:.84rem}
+html body #tsk-main .inbox-filter:focus{outline:0;border-color:var(--tsk-green);box-shadow:inset 0 0 0 1px var(--tsk-green)}
+html body #tsk-main .inbox-thread-item{padding:.7rem .9rem .7rem calc(.9rem - 3px);border-bottom:1px solid #f0f0f0;gap:.65rem}
+html body #tsk-main .inbox-thread-item:hover{background:#f7f7f7}
+html body #tsk-main .inbox-thread-item.active{background:var(--tsk-green-bg);border-left-color:var(--tsk-green)}
+html body #tsk-main .inbox-thread-item:focus-visible{outline:2px solid var(--tsk-text)!important;outline-offset:-2px}
+html body #tsk-main .inbox-unread-dot{width:9px;height:9px;border-radius:0;background:var(--tsk-green);margin-top:.4rem}
+html body #tsk-main .inbox-th-title{font-size:.9rem;color:var(--tsk-text)}
+html body #tsk-main .inbox-thread-item.unread .inbox-th-title{font-weight:700}
+html body #tsk-main .inbox-th-preview{font-size:.78rem;color:var(--tm-muted)}
+html body #tsk-main .inbox-th-time{font-size:.72rem;color:var(--tm-muted)}
+html body #tsk-main .inbox-thread-head{background:#fff;border-bottom:1px solid var(--tm-line);padding:.75rem 1.1rem}
+html body #tsk-main .inbox-thread-task{font-size:1.02rem;font-weight:600;gap:.6rem}
+html body #tsk-main .inbox-thread-task>.bi{color:var(--tsk-green)}
+html body #tsk-main .inbox-open-btn{display:inline-flex;align-items:center;gap:.35rem;margin-left:auto;min-height:32px;padding:0 .75rem;border:1px solid #8a8886;background:#fff;
+  color:var(--tsk-text);font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap}
+html body #tsk-main .inbox-open-btn:hover{background:var(--tm-light)}
+html body #tsk-main .inbox-open-btn:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px}
+html body #tsk-main .inbox-msg-list{background:#fafafa;padding:1.1rem 1.25rem;gap:1rem}
+html body #tsk-main .inbox-bubble{max-width:min(72%,680px)}
+html body #tsk-main .inbox-bubble-av{width:32px;height:32px;border-radius:0;font-size:.66rem}
+html body #tsk-main .inbox-bubble-text{border-radius:0!important;background:#fff;border:1px solid var(--tm-line);padding:.65rem .85rem;font-size:.9rem;line-height:1.55;color:var(--tsk-text)}
+html body #tsk-main .inbox-bubble.mine .inbox-bubble-text{background:var(--tsk-green-bg);border-color:#cfe6cf;color:var(--tsk-text)}
+html body #tsk-main .inbox-bubble-meta{font-size:.74rem;color:var(--tm-muted);margin-top:.3rem}
+html body #tsk-main .inbox-bubble-meta .badge{border-radius:0;background:var(--tsk-green)!important}
+html body #tsk-main .inbox-bubble-cta .btn{border-radius:0;font-weight:600}
+html body #tsk-main .inbox-reply-bar{background:#fff;border-top:1px solid var(--tm-line);padding:.7rem 1.1rem .5rem}
+html body #tsk-main .inbox-reply-bar>.d-flex:first-child{padding:0 0 .5rem!important}
+html body #tsk-main .inbox-reply-bar .form-select{max-width:24rem;min-height:32px;border:1px solid #8a8886;border-radius:0;font-size:.86rem}
+html body #tsk-main .inbox-reply-inner{gap:.5rem;align-items:stretch}
+html body #tsk-main .inbox-reply-ta{border:1px solid #8a8886;border-radius:0;min-height:3.6rem;max-height:160px;padding:.5rem .65rem;font-size:.9rem}
+html body #tsk-main .inbox-reply-ta:focus{outline:0;border-color:var(--tsk-green);box-shadow:inset 0 0 0 1px var(--tsk-green)}
+html body #tsk-main .inbox-send-btn{display:inline-flex;align-items:center;gap:.4rem;padding:0 1rem;border:0;border-radius:0;background:var(--tsk-green);color:#fff;font-size:.86rem;font-weight:600;cursor:pointer}
+html body #tsk-main .inbox-send-btn:hover,html body #tsk-main .inbox-send-btn:focus-visible{background:var(--tm-dark)}
+html body #tsk-main .inbox-reply-bar>p{padding:.35rem 0 0!important;color:var(--tm-muted)!important;font-size:.74rem!important}
+html body #tsk-main .inbox-empty{background:#fafafa;color:#3f3f46}
+html body #tsk-main .inbox-empty i{opacity:1;color:var(--tm-muted)}
+html body #tsk-main .inbox-unread-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;background:var(--tsk-green);color:#fff;font-size:.82rem;font-weight:700}
+@media(max-width:768px){html body #tsk-main .inbox-wrap{height:auto}}
+</style>
+
+<div class="tk-head">
+  <h1 class="tk-head-t">
+    <span class="tk-head-tile" style="--ws:var(--tsk-green);--ws-ink:#fff" aria-hidden="true"><i class="bi bi-inbox"></i></span>
+    <span>Skrzynka wiadomości<span class="ws-set-sub">Wiadomości wewnętrzne powiązane z zadaniami</span></span>
+  </h1>
   <?php if ($unread_total > 0): ?>
-  <span class="badge bg-primary fs-6 px-3 py-2"><?= $unread_total ?> nieprzeczytanych</span>
+  <div class="tk-head-act"><span class="inbox-unread-chip"><i class="bi bi-envelope-fill" aria-hidden="true"></i><?= $unread_total ?> nieprzeczytanych</span></div>
   <?php endif; ?>
 </div>
 
@@ -339,10 +387,13 @@ require_once __DIR__ . '/includes/header_tasks.php';
   <!-- ── Lista wątków ──────────────────────────────────────────────── -->
   <aside class="inbox-sidebar" aria-label="Wątki wiadomości">
     <div class="inbox-sidebar-head">
-      <h2 class="inbox-sidebar-title">
-        <i class="bi bi-chat-left-dots me-1" aria-hidden="true"></i>Wątki
-      </h2>
-      <span class="text-muted" style="font-size:.74rem"><?= count($threads) ?></span>
+      <h2 class="inbox-sidebar-title">Wątki</h2>
+      <span class="inbox-th-count"><span class="visually-hidden">Liczba wątków: </span><?= count($threads) ?></span>
+      <?php if (count($threads) > 3): ?>
+      <label class="visually-hidden" for="inbox-thread-filter">Filtruj wątki</label>
+      <input type="search" id="inbox-thread-filter" class="inbox-filter" placeholder="Filtruj wątki…" autocomplete="off"
+             oninput="(function(q){q=q.trim().toLowerCase();document.querySelectorAll('.inbox-thread-item').forEach(function(it){it.hidden=!!q&&(it.textContent||'').toLowerCase().indexOf(q)<0;});})(this.value)">
+      <?php endif; ?>
     </div>
     <div class="inbox-thread-list" role="list">
       <?php if (!$threads): ?>
@@ -472,10 +523,9 @@ function renderThread(thread) {
       <div class="inbox-thread-task">
         <i class="bi bi-table" aria-hidden="true"></i>
         ${escHtml(thread.task_title)}
-        <button class="btn btn-link btn-sm p-0 ms-1" style="font-size:.78rem"
-                onclick="taskOpenById(${thread.task_id})"
-                aria-label="Otwórz szczegóły zadania">
-          Otwórz zadanie <i class="bi bi-box-arrow-up-right ms-1" aria-hidden="true"></i>
+        <button type="button" class="inbox-open-btn"
+                onclick="taskOpenById(${thread.task_id})">
+          <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Otwórz zadanie
         </button>
       </div>
     </div>
@@ -496,7 +546,8 @@ function renderThread(thread) {
         const msgSenderId = parseInt(m.sender_id) || 0;
 
         // Formatuj treść — **bold**
-        const formattedBody = escHtml(m.body)
+        // Bez dziur z wielu pustych linii (np. treść prośby o przekazanie) — najwyżej jedna pusta linia
+        const formattedBody = escHtml(String(m.body || '').replace(/\r\n?/g, '\n').replace(/\n[ \t]*(?:\n[ \t]*){2,}/g, '\n\n').trim())
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
         // Czy bieżący wątek już ma decyzję (akceptacja lub odrzucenie po tym transfer)
@@ -598,11 +649,10 @@ function renderThread(thread) {
                   placeholder="Odpowiedz…"
                   aria-label="Treść odpowiedzi"
                   onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();inboxSendReply()}"></textarea>
-        <button class="btn btn-primary btn-sm"
+        <button type="button" class="inbox-send-btn"
                 onclick="inboxSendReply()"
-                title="Wyślij (Ctrl+Enter)"
-                aria-label="Wyślij odpowiedź">
-          <i class="bi bi-send" aria-hidden="true"></i>
+                title="Wyślij (Ctrl+Enter)">
+          <i class="bi bi-send" aria-hidden="true"></i>Wyślij
         </button>
       </div>
       <p class="text-muted mb-0 mt-1 px-3 pb-2" style="font-size:.72rem">
