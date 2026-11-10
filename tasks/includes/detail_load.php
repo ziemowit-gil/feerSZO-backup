@@ -78,10 +78,17 @@ catch (\Throwable $e) {}
 // Pliki z Koszulek (workspaces) powiązane z zadaniem
 $ws_linked_files = [];
 $ws_for_task     = null;
+$ws_sp_ok = false; $ws_task_folder = null; $ws_folder_files = []; $ws_folders_all = []; $ws_can_upload = false;
 try {
     require_once dirname(dirname(__DIR__)) . '/includes/workspaces.php';
     $ws_linked_files = ws_files_for_task($id);
     $ws_for_task     = db_one("SELECT id, name FROM task_workspaces WHERE id=?", [$task['workspace_id']]);
+    // Folder zadania w Koszulkach (pliki wgrane do niego należą do zadania) + foldery obszaru do przeglądania
+    $ws_sp_ok        = ws_available();
+    $ws_task_folder  = ws_task_folder($id);
+    $ws_folder_files = $ws_task_folder ? ws_list_files((int)$ws_task_folder['id']) : [];
+    $ws_folders_all  = $ws_sp_ok ? ws_list_folders((int)$task['workspace_id']) : [];
+    $ws_can_upload   = $ws_sp_ok && ws_can_upload((int)$task['workspace_id'], $uid);
 } catch (\Throwable $e) {}
 
 $subtasks = [];

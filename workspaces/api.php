@@ -59,7 +59,7 @@ $user    = current_user();
 $user_id = (int)($user['id'] ?? 0);
 
 // Akcje na plikach i folderach wymagają połączonego SharePointa (powiązania plik–zadanie i listy to czysta baza — działają zawsze)
-if (in_array($action, ['create_folder', 'upload_file', 'delete_file', 'delete_folder'], true) && !ws_available()) {
+if (in_array($action, ['create_folder', 'upload_file', 'delete_file', 'delete_folder', 'ensure_task_folder'], true) && !ws_available()) {
     http_response_code(503);
     echo json_encode(['ok' => false, 'blocked' => true,
         'error' => 'SharePoint nie jest połączony — operacje na plikach i folderach są zablokowane. ' . SpConnection::blockedReason()
@@ -191,6 +191,33 @@ $resp = match($action) {
         return ['ok' => true, 'files' => $files];
     })(),
 
+    // ── Folder zadania: istniejący albo nowy (pierwsze wgranie z okna zadania) ─
+    'ensure_task_folder' => (function () use ($body, $user_id): array {
+        $task_id = (int)($body['task_id'] ?? 0);
+        $task    = $task_id ? db_one("SELECT id, workspace_id FROM tasks WHERE id = ? AND deleted_at IS NULL", [$task_id]) : null;
+        if (!$task) return ['ok' => false, 'error' => 'Nie znaleziono zadania.'];
+        ws_require_access((int)$task['workspace_id'], 'member');
+        $folder = ws_sp_create_task_folder($task_id, $user_id);   // sama zakłada też foldery nadrzędne (Koszulki/obszar)
+        if (!$folder) return ['ok' => false, 'error' => 'Nie udało się utworzyć folderu zadania na SharePoincie.'];
+        return ['ok' => true, 'folder' => ['id' => (int)$folder['id'], 'name' => $folder['name']]];
+    })(),
+
+    // ── Pliki jednego folderu (przeglądanie folderów w oknie zadania) ─────────
+    'folder_files' => (function () use ($body): array {
+        $folder_id = (int)($body['folder_id'] ?? 0);
+        $q         = mb_strtolower(trim((string)($body['q'] ?? '')));
+        $folder    = $folder_id ? ws_get_folder($folder_id) : null;
+        if (!$folder) return ['ok' => false, 'files' => [], 'error' => 'Nie znaleziono folderu.'];
+        ws_require_access((int)$folder['workspace_id'], 'viewer');
+        $out = [];
+        foreach (ws_list_files($folder_id) as $f) {
+            if ($q !== '' && !str_contains(mb_strtolower($f['name'] . ' ' . $f['original_name']), $q)) continue;
+            $out[] = ['id' => (int)$f['id'], 'name' => $f['name'], 'folder_name' => $folder['name'],
+                      'size_label' => ws_format_size((int)$f['file_size'])];
+        }
+        return ['ok' => true, 'files' => $out];
+    })(),
+
     // ── Lista plików w workspace (do pickera w detail.php zadania) ────────────
     'list_ws_files' => (function () use ($body): array {
         $ws_id = (int)($body['workspace_id'] ?? 0);
@@ -201,7 +228,7 @@ $resp = match($action) {
 
         $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
         $rows = db_all(
-            "SELECT f.id, f.name, f.original_name, f.file_size, f.folder_id
+            "SELECT f.id, f.name, f.original_name, f.file_size, f.folder_id, fld.name AS folder_name
              FROM ws_files f
              JOIN ws_folders fld ON fld.id = f.folder_id
              WHERE fld.workspace_id = ? AND f.deleted_at IS NULL

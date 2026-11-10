@@ -411,14 +411,23 @@ function ws_unlink_file_from_task(int $file_id, int $task_id): array {
  */
 function ws_files_for_task(int $task_id): array {
     return db_all(
-        "SELECT f.*, tf.linked_at, u.name AS uploader_name
+        "SELECT f.*, tf.linked_at, u.name AS uploader_name, fld.name AS folder_name, fld.task_id AS folder_task_id
          FROM ws_task_files tf
          JOIN ws_files f ON f.id = tf.file_id
+         LEFT JOIN ws_folders fld ON fld.id = f.folder_id
          LEFT JOIN users u ON u.id = f.uploaded_by
          WHERE tf.task_id = ? AND f.deleted_at IS NULL
          ORDER BY tf.linked_at DESC",
         [$task_id]
     );
+}
+
+/**
+ * Folder zadania w Koszulkach (ws_folders.task_id — tworzony przez ws_sp_create_task_folder) albo null.
+ * Pliki wgrane do tego folderu należą do zadania bez osobnego przypinania (ws_task_files).
+ */
+function ws_task_folder(int $task_id): ?array {
+    return db_one("SELECT * FROM ws_folders WHERE task_id = ? ORDER BY id LIMIT 1", [$task_id]) ?: null;
 }
 
 /**

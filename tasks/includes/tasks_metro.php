@@ -505,6 +505,32 @@ html body #td-root .td-timer-btn.is-running{background:var(--tm-red)}
 html body #td-root .td-timer-btn i{margin:0!important}
 html body #td-root #td-manual-time{margin-top:.6rem!important}
 
+/* ══ Okno zadania → Folder zadania w Koszulkach (2026-11-10): pliki folderu zadania i przypięte z innych folderów,
+   „Wgraj do folderu zadania”, przeglądarka folderów obszaru z „Dodaj” ══ */
+html body #td-root .td-ws-head{display:flex;align-items:center;gap:.5rem}
+html body #td-root .td-ws-open{margin-left:auto;font-size:.76rem;font-weight:600;color:var(--tm-blue);text-decoration:none;text-transform:none;letter-spacing:0}
+html body #td-root .td-ws-open:hover{text-decoration:underline}
+html body #td-root .td-ws-row{display:flex;align-items:center;gap:.55rem;padding:.4rem .55rem}
+html body #td-root .td-ws-row>.bi:first-child{color:var(--tm-blue);font-size:1rem}
+html body #td-root .td-ws-main{display:flex;flex-direction:column;min-width:0;flex:1}
+html body #td-root .td-ws-name{display:block;max-width:100%;border:0;background:none;padding:0;text-align:left;font:inherit;font-size:.86rem;font-weight:600;
+  color:var(--tsk-text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+html body #td-root .td-ws-name:hover,html body #td-root .td-ws-name:focus-visible{text-decoration:underline;color:var(--tm-blue)}
+html body #td-root .td-ws-meta{font-size:.72rem;color:var(--tm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body #td-root .td-ws-subhead{margin:.6rem 0 .25rem;font-size:.72rem;font-weight:700;color:var(--tm-muted)}
+html body #td-root .td-ws-note{margin:.35rem 0 0;font-size:.8rem;color:var(--tm-muted)}
+html body #td-root .td-ws-note.is-err{color:var(--tm-red)}
+html body #td-root .td-ws-actions{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.55rem}
+html body #td-root .td-ws-picker{margin-top:.5rem;border:1px solid #c8c6c4;background:#fff}
+html body #td-root .td-ws-pick-bar{display:flex;gap:.3rem;padding:.4rem;background:var(--tm-light);border-bottom:1px solid var(--tm-line)}
+html body #td-root .td-ws-pick-bar .form-select,html body #td-root .td-ws-pick-bar .form-control{min-height:30px;font-size:.8rem;border:1px solid #8a8886;border-radius:0}
+html body #td-root .td-ws-pick-bar .form-select{max-width:48%}
+html body #td-root .td-ws-results{max-height:260px;overflow-y:auto;padding:.2rem .45rem}
+html body #td-root .td-ws-pick-row{display:flex;align-items:center;gap:.5rem;padding:.35rem .1rem;border-bottom:1px solid #f0f0f0}
+html body #td-root .td-ws-pick-row:last-child{border-bottom:0}
+html body #td-root .td-ws-pick-row>.bi{color:var(--tm-blue)}
+html body #td-root .td-ws-pick-name{font-size:.84rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ══ Lista zadań (2026-11-10): nagłówek obszaru z działaniami + zakładki statusu, wyszukiwarka i filtry w jednym wierszu ══
    Nagłówek: kafelek obszaru (jak w kolumnie Obszary), przełącznik Lista/Kanban, „Nowe zadanie”, menu „⋯” (powiadomienia,
    eksport, usuń obszar). Pasek: zakładki z podkreśleniem zamiast szarych pigułek, liczniki jako plakietki (zero wyciszone). */
