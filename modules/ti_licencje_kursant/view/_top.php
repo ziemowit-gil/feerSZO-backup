@@ -109,6 +109,7 @@ $nav = $nav ?? null;
   .m-note { font-size: .78rem; color: var(--mt-muted); }
   .m-muted { color: var(--mt-muted); }
   .m-mono { font-family: Consolas, "SFMono-Regular", Menlo, monospace; }
+  .m-copy { padding: 2px 10px !important; min-height: 28px; font-size: .78rem !important; margin-left: 6px; vertical-align: middle; }   /* „Kopiuj” przy danych do przelewu (cel ≥ 24 px, WCAG 2.5.8) */
   summary { cursor: pointer; font-weight: 600; min-height: 32px; }
   .m-code { font-size: 1.6rem; letter-spacing: .4em; text-align: center; max-width: 12ch; font-family: Consolas, Menlo, monospace; }
 </style>

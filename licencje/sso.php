@@ -4,7 +4,7 @@
  *
  * Działa na hoście SZO (APP_URL), bo tam jest sesja SZO: wymaga zalogowania (require_login — formularz SZO z 2FA i kluczami;
  * przycisk „Microsoft 365” startuje z auth/ms365.php?redirect=…/licencje/sso.php). Dostęp: rola admin albo uprawnienie
- * „licencje_admin” (Administracja › Użytkownicy › Moduły). Potem jednorazowy link ?wejscie_admin=… (2 minuty) do Panelu Licencji
+ * „licencje_admin” (Administracja › Użytkownicy › Moduły); administrator SZO ZAWSZE (także w innym kontekście pracy). Potem jednorazowy link ?wejscie_admin=… (2 minuty) do Panelu Licencji
  * na jego adresie (kursant.feer.org.pl/licencje/) — panel ma własną sesję i nie czyta sesji SZO.
  */
 require_once dirname(__DIR__) . '/config.php';
@@ -23,9 +23,15 @@ require_once dirname(__DIR__) . '/includes/permissions.php';
 require_once dirname(__DIR__) . '/modules/ti_licencje_kursant/logic/LicencjePanelAuth.php';
 
 require_login();
-$u = current_user() ?? [];
+// Prawdziwy użytkownik z sesji SZO: kontekst pracy administratora (podgląd roli, wcielenie, „Mój panel”) nie odbiera dostępu — admin ma ZAWSZE dostęp.
+$u = (is_array($_SESSION['user'] ?? null) && !empty($_SESSION['user']['id'])) ? $_SESSION['user'] : (current_user() ?? []);
 $via = ($_GET['via'] ?? '') === 'ms365' ? 'Microsoft 365' : 'SZO';
-if (!can_read('licencje_admin')) {
+$allowed = ($u['role'] ?? '') === 'admin';
+if (!$allowed) {
+    can_read('licencje_admin');   // inicjuje tabele uprawnień
+    $allowed = !empty(role_permissions((string)($u['role'] ?? ''))['licencje_admin']['can_read']) || !empty(user_permissions((int)($u['id'] ?? 0))['licencje_admin']['can_read']);
+}
+if (!$allowed) {
     http_response_code(403);
     $name = h((string)($u['name'] ?? $u['username'] ?? ''));
     echo '<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Brak dostępu — Panel Licencji</title>'

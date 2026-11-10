@@ -195,24 +195,41 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
           <p class="tw-text-sm tw-mt-2"><?= ($c['kind'] ?? '') === 'card' ? 'Płatność kartą nie została dokończona.' : ($card ? 'Pobierzemy z karty ' . h(LicenceCard::label($card)) . ' ' . h(ClaudeBilling::dayMonth($c['due_on'])) . '. Nic nie musisz robić.' : 'Podepnij kartę, żeby zapłacić.') ?>
             <?php if (!$card): ?> <a href="<?= h(route('lk.card', ['product' => $pk])) ?>">Podepnij kartę</a><?php endif; ?></p>
           <?php if (!empty($c['card_error'])): ?><p class="m-note">Ostatnia próba się nie udała. Spróbujemy jeszcze raz, a po <?= LicenceCard::MAX_ATTEMPTS ?> próbach dostaniesz proformę do przelewu.</p><?php endif; ?>
-        <?php elseif ($c['status'] === 'pending'): ?>
-        <div class="tw-flex tw-flex-wrap tw-gap-2 tw-mt-2">
-          <?php if ($virtual): ?>
-            <form method="post" action="<?= h(route('lk.sim.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać (symulacja)<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></button></form>
-          <?php elseif ($s['pay_redirect'] === 'portal'): ?>
-            <a class="m-btn" href="<?= h(route('lk.portal')) ?>">Zapłać w portalu płatności<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></a>
-          <?php elseif ($s['pay_redirect'] === 'fakturownia' && $docUrl !== ''): ?>
-            <a class="m-btn" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">Zapłać (BLIK / szybki przelew)<span class="tw-sr-only"> — <?= $docLbl ?> w nowej karcie</span></a>
-          <?php elseif (!empty($p24on)): ?>
-            <form method="post" action="<?= h(route('lk.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać przez Przelewy24<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></button></form>
-          <?php endif; ?>
-          <?php if ($docUrl !== '' && $s['pay_redirect'] !== 'fakturownia'): ?><a class="m-btn-ghost" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">BLIK / szybki przelew z <?= $docLbl === 'proforma' ? 'proformy' : 'faktury' ?><span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
-          <?php // portal płatności zawsze jako wyraźny przycisk; główny, gdy nie ma innego przycisku „Zapłać” (np. Przelewy24 wyłączone)
-            $payBtn = $virtual || $s['pay_redirect'] === 'portal' || ($s['pay_redirect'] === 'fakturownia' && $docUrl !== '') || !empty($p24on); ?>
-          <?php if ($s['pay_redirect'] !== 'portal' && !$virtual): ?><a class="<?= $payBtn ? 'm-btn-ghost' : 'm-btn' ?>" href="<?= h(route('lk.portal')) ?>">Zapłać w portalu płatności<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></a><?php endif; ?>
-        </div>
-        <?php if ($s['pay_redirect'] !== 'portal'): ?><p class="m-note tw-mt-2">W portalu płatności zapłacisz za wszystko w jednym miejscu: zajęcia, licencje i inne opłaty.</p><?php endif; ?>
-        <?php if ($v['account']): ?><p class="tw-text-sm tw-mt-2">Przelew: konto <span class="m-mono tw-font-semibold"><?= h($v['account']['nrb_fmt']) ?></span>, tytuł <span class="tw-font-semibold"><?= h(ClaudeBilling::transferTitle($c)) ?></span>, kwota <?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?>.</p><?php endif; ?>
+        <?php elseif ($c['status'] === 'pending'): $pid = 'pay' . (int)$c['id']; $amt = ClaudeBilling::zl((float)$c['amount_pln']); $ttl = ClaudeBilling::transferTitle($c); ?>
+        <section class="tw-mt-3" aria-labelledby="<?= $pid ?>-h">
+          <h3 class="m-sect" id="<?= $pid ?>-h">Jak zapłacić <?= h($amt) ?></h3>
+          <div class="tw-grid md:tw-grid-cols-2 tw-gap-3">
+            <div class="m-box">
+              <p class="tw-font-semibold tw-mb-1">Online</p>
+              <p class="tw-text-sm tw-mb-3">BLIK, szybki przelew albo karta. Wpłata dociera od razu.</p>
+              <div class="tw-flex tw-flex-col tw-gap-2 tw-items-start">
+                <?php if ($virtual): ?>
+                  <form method="post" action="<?= h(route('lk.sim.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać (symulacja)<span class="tw-sr-only"> <?= h($amt) ?></span></button></form>
+                <?php else: ?>
+                  <a class="m-btn" href="<?= h(route('lk.portal')) ?>">Zapłać w portalu płatności<span class="tw-sr-only"> <?= h($amt) ?></span></a>
+                  <?php if (!empty($p24on) && $s['pay_redirect'] === 'p24'): ?>
+                    <form method="post" action="<?= h(route('lk.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit">Tylko ta opłata: Przelewy24<span class="tw-sr-only"> <?= h($amt) ?></span></button></form>
+                  <?php endif; ?>
+                  <?php if ($docUrl !== ''): ?><a class="m-btn-ghost" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">BLIK z <?= $docLbl === 'proforma' ? 'proformy' : 'faktury' ?> (Fakturownia)<span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
+                <?php endif; ?>
+              </div>
+              <p class="m-note tw-mt-2">W portalu płatności zapłacisz za wszystko naraz: zajęcia, licencje i inne opłaty.</p>
+            </div>
+            <?php if ($v['account']): ?>
+            <div class="m-box">
+              <p class="tw-font-semibold tw-mb-1">Przelew tradycyjny</p>
+              <p class="tw-text-sm tw-mb-2">Z dowolnego banku. Wpłata dociera w 1–2 dni robocze.</p>
+              <dl class="m-kv tw-text-sm">
+                <dt>Odbiorca</dt><dd><?= h($org) ?></dd>
+                <dt>Numer konta</dt><dd><span class="m-mono"><?= h($v['account']['nrb_fmt']) ?></span> <button type="button" class="m-btn-ghost m-copy lk-copy" data-copy="<?= h(str_replace(' ', '', $v['account']['nrb_fmt'])) ?>">Kopiuj<span class="tw-sr-only"> numer konta</span></button></dd>
+                <dt>Tytuł</dt><dd><?= h($ttl) ?> <button type="button" class="m-btn-ghost m-copy lk-copy" data-copy="<?= h($ttl) ?>">Kopiuj<span class="tw-sr-only"> tytuł przelewu</span></button></dd>
+                <dt>Kwota</dt><dd><?= h($amt) ?> <button type="button" class="m-btn-ghost m-copy lk-copy" data-copy="<?= h(number_format((float)$c['amount_pln'], 2, ',', '')) ?>">Kopiuj<span class="tw-sr-only"> kwotę</span></button></dd>
+                <dt>Termin</dt><dd><?= h(ClaudeBilling::dayMonth($c['due_on'])) ?></dd>
+              </dl>
+            </div>
+            <?php endif; ?>
+          </div>
+        </section>
         <?php endif; ?>
       </div>
       <?php endforeach; ?>
