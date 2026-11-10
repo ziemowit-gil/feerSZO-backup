@@ -339,6 +339,64 @@ if ($action === 'start') {
     api_ok(['send_id'=>$send_id,'recipients'=>count($ids)]);
 }
 
+// ── Podgląd wiadomości (krok 4): dokładnie ten HTML, który dostanie wskazany odbiorca — bez wysyłki i bez śledzenia.
+//    contact_id = odbiorca z podglądu listy (sprawdzamy dostęp); brak → dane zalogowanego użytkownika jako przykład.
+if ($action === 'mail_preview') {
+    $channel = in_array($body['channel'] ?? '', ['email', 'sms'], true) ? $body['channel'] : 'email';
+    $msg  = trim((string)($body['body'] ?? ''));
+    $subj = trim((string)($body['subject'] ?? ''));
+    $cid  = (int)($body['contact_id'] ?? 0);
+    $me   = current_user();
+    $me_row = db_one("SELECT email, name, phone_number, crm_sms_signature FROM users WHERE id=?", [$uid]) ?: [];
+
+    $sample = null; $to = null;
+    if ($cid && crm_can_access_contact($cid)) {
+        $sample = db_one("SELECT * FROM crm_contacts WHERE id=? AND crm_active=1", [$cid]) ?: null;
+        if ($sample) {
+            $pid = (int)($body['person_id'] ?? 0) ?: null;
+            $to  = crm_contact_recipient($cid, $pid, $sample);
+        }
+    }
+    if (!$sample) {
+        $sample = ['imie_nazwisko' => (string)($me_row['name'] ?? ''), 'email' => (string)($me_row['email'] ?? ''),
+                   'telefon' => (string)($me_row['phone_number'] ?? ''), 'organizacja' => '', 'stanowisko' => ''];
+        $to = ['name' => $sample['imie_nazwisko'], 'email' => $sample['email'], 'telefon' => $sample['telefon']];
+    }
+
+    // Zmienne użyte w treści/temacie: nieznane (zostaną dosłownie) i puste u tego odbiorcy
+    $unknown = $empty = [];
+    if (preg_match_all('/\{[a-z_]+\}/i', $msg . ' ' . $subj, $mm)) {
+        foreach (array_unique($mm[0]) as $v) {
+            $val = CrmManager::renderTemplate($v, $sample);
+            if ($val === $v) $unknown[] = $v;
+            elseif (trim($val) === '') $empty[] = $v;
+        }
+    }
+
+    $r_body = CrmManager::renderTemplate($msg, $sample);
+    $r_subj = CrmManager::renderTemplate($subj, $sample);
+    $out = [
+        'sample'       => (string)($sample['imie_nazwisko'] ?? ''),
+        'sample_id'    => (int)($sample['id'] ?? 0),
+        'to'           => trim((string)($to['name'] ?? '') . ' <' . (string)($channel === 'sms' ? ($to['telefon'] ?? '') : ($to['email'] ?? '')) . '>'),
+        'unknown_vars' => array_values($unknown),
+        'empty_vars'   => array_values($empty),
+    ];
+    if ($channel === 'sms') {
+        $sig = trim((string)($me_row['crm_sms_signature'] ?? ''));
+        $out['text'] = $sig !== '' ? rtrim($r_body) . "\n" . $sig : $r_body;
+        api_ok($out);
+    }
+    $from = '';
+    if (($body['send_as'] ?? 'system') === 'me' && !empty($me['microsoft_id']) && !empty($me['email']) && _mail_m365_configured()) {
+        $from = trim((string)$me['email']);
+    }
+    $out['from']    = $from !== '' ? $from : _mail_from();   // ten sam wybór nadawcy co przy wysyłce z konta systemowego
+    $out['subject'] = $r_subj;
+    $out['html']    = CrmManager::emailHtml($r_body, $uid);
+    api_ok($out);
+}
+
 // ── Wiadomość próbna: tylko do zalogowanego użytkownika, z danymi pierwszego odbiorcy jako wzorem zmiennych ──
 if ($action === 'test_send') {
     $channel = in_array($body['channel'] ?? '', ['email', 'sms'], true) ? $body['channel'] : 'email';

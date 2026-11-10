@@ -344,6 +344,27 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-hist .hist-row { font-size:.84rem; padding:.6rem 0 }
 .ms-hist .hist-row .text-muted { color:var(--ms-muted) !important; font-size:.76rem !important }
 
+/* Krok 4: podgląd wiadomości obok podsumowania (od ok. 900 px szerokości kroku), węziej jedno pod drugim */
+.ms-wizard > .wiz-pane[data-step="4"] { container-type:inline-size; container-name:mss4 }
+.ms-s4 { display:grid; grid-template-columns:minmax(0,1fr); gap:1.25rem; align-items:start }
+@container mss4 (min-width:900px) { .ms-s4 { grid-template-columns:minmax(0,1fr) 300px } }
+.ms-pv { min-width:0; border:1px solid var(--ms-line); background:#faf9f8 }
+.ms-pv-head { display:flex; align-items:center; gap:.5rem; padding:.55rem .75rem; border-bottom:1px solid var(--ms-line); background:#fff }
+.ms-pv-t { margin:0 auto 0 0; font-size:.78rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#374151 }
+.ms-pv-head .form-select { width:auto; max-width:22rem; min-height:32px }
+.ms-pv-head .btn { min-height:32px }
+.ms-pv-meta { display:grid; grid-template-columns:auto minmax(0,1fr); gap:.2rem .75rem; margin:0; padding:.6rem .9rem; background:#fff; border-bottom:1px solid var(--ms-line); font-size:.86rem }
+.ms-pv-meta dt { color:var(--ms-muted); font-weight:600 }
+.ms-pv-meta dd { margin:0; color:#111827; overflow-wrap:anywhere }
+#msPvSubj { font-weight:700 }
+.ms-pv-warn { margin:0; padding:.5rem .9rem; background:#fff4ce; border-bottom:1px solid #e8d48a; color:#4d3800; font-size:.84rem }
+.ms-pv-warn code { color:#4d3800; background:transparent; font-weight:700 }
+.ms-pv-body { padding:.75rem; min-height:12rem }
+.ms-pv-body[aria-busy="true"] { opacity:.55 }
+.ms-pv-frame { display:block; width:100%; height:16rem; border:1px solid var(--ms-line); background:#fff }
+.ms-pv-sms { margin:0; max-width:24rem; padding:.75rem .9rem; background:#e9f5ee; border:1px solid #b7dcc6; white-space:pre-wrap; font-family:inherit; font-size:.92rem; color:#111827 }
+.ms-pv-note { margin:0; padding:0 .9rem .7rem; font-size:.78rem; color:var(--ms-muted) }
+
 @media (min-width:1000px) {
   .ms-shell { grid-template-columns:220px minmax(0,1fr) }
   .ms-side { position:sticky; top:var(--ms-stick); border-right:1px solid var(--ms-line); padding-right:.5rem }
@@ -783,10 +804,36 @@ include __DIR__ . '/includes/header_crm.php';
       <span class="ms-step__num" aria-hidden="true">4</span>
       <div class="ms-step__main">
         <div class="ms-step__t">Wyślij</div>
-        <div class="ms-step__h">Sprawdź podsumowanie i wyślij</div>
+        <div class="ms-step__h">Obejrzyj wiadomość tak, jak zobaczy ją odbiorca, i wyślij</div>
       </div>
     </div>
 
+    <div class="ms-s4">
+    <!-- Podgląd: ten sam HTML, który wyjdzie (treść + podpis + stopka), z danymi wybranego odbiorcy -->
+    <section class="ms-pv" aria-labelledby="msPvT">
+      <div class="ms-pv-head">
+        <h3 class="ms-pv-t" id="msPvT">Tak zobaczy to odbiorca</h3>
+        <label class="visually-hidden" for="msPvWho">Pokaż podgląd dla odbiorcy</label>
+        <select id="msPvWho" class="form-select form-select-sm" onchange="MS.mailPreview()"></select>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="MS.mailPreview()" title="Odśwież podgląd">
+          <i class="bi bi-arrow-repeat" aria-hidden="true"></i><span class="visually-hidden">Odśwież podgląd</span>
+        </button>
+      </div>
+      <dl class="ms-pv-meta">
+        <dt>Od</dt><dd id="msPvFrom">—</dd>
+        <dt>Do</dt><dd id="msPvTo">—</dd>
+        <dt class="ms-pv-subj-l">Temat</dt><dd class="ms-pv-subj-l" id="msPvSubj">—</dd>
+      </dl>
+      <div id="msPvWarn" class="ms-pv-warn" role="status" aria-live="polite" hidden></div>
+      <div class="ms-pv-body" aria-busy="false" id="msPvBody">
+        <iframe id="msPvFrame" class="ms-pv-frame" title="Podgląd treści wiadomości"
+                sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>
+        <pre id="msPvSms" class="ms-pv-sms" hidden></pre>
+      </div>
+      <p class="ms-pv-note">Treść z podpisem i stopką, zmienne wypełnione danymi wybranego odbiorcy. Program pocztowy odbiorcy może nieco zmienić krój pisma.</p>
+    </section>
+
+    <div class="ms-s4-side">
     <dl class="ms-summary">
       <dt>Odbiorcy</dt><dd id="sendCount">0</dd>
       <dt>Kanał</dt><dd id="sendChannel">E-mail</dd>
@@ -803,7 +850,7 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <button type="button" id="previewBtn" class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="MS.preview()">
-      <i class="bi bi-eye me-1"></i>Podgląd odbiorców
+      <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Przelicz odbiorców
     </button>
     <label class="ms-track" id="msTrackRow">
       <input type="checkbox" id="ms_track">
@@ -821,6 +868,8 @@ include __DIR__ . '/includes/header_crm.php';
     <div class="form-text text-center mt-1" style="font-size:.72rem">
       Wysyłka uruchamiana synchronicznie — nie zamykaj okna.
     </div>
+    </div><!-- /.ms-s4-side -->
+    </div><!-- /.ms-s4 -->
   </div><!-- /krok 4 -->
 
   <!-- Nawigacja kreatora -->
@@ -927,6 +976,8 @@ const MS = (function() {
   // domyślny (osoba oznaczona jako adresat → osoba główna → adres podmiotu).
   let _person_over  = {};
   let _dw_emails    = new Map(); // email → label
+  let _pvList       = [];     // pierwsi odbiorcy z podglądu listy — do wyboru w podglądzie wiadomości (krok 4)
+  let _pvSeq        = 0;      // odrzucamy spóźnione odpowiedzi podglądu
   let _editor       = null;   // RichEditor (CKEditor 5; gdy CDN niedostępny — zwykłe pole tekstowe)
   let _total        = 0;
   let _searchTimer  = null;
@@ -1454,6 +1505,7 @@ const MS = (function() {
       document.getElementById('sendBtnCount').textContent='0';
       document.getElementById('sendBtn').disabled = true;
       renderDropped(null);
+      setPvList([]);
       sideSum();
       return;
     }
@@ -1477,6 +1529,7 @@ const MS = (function() {
           _total = res.data.total;
           updateCounters();
           renderDropped(res.data.dropped);
+          setPvList(res.data.contacts);
           const list = res.data.contacts.slice(0,15).map(c=>
 recipientRow(c)
           ).join('');
@@ -1494,6 +1547,7 @@ recipientRow(c)
         _total = res.data.total;
         updateCounters();
         renderDropped(res.data.dropped);
+        setPvList(res.data.contacts);
         const list = res.data.contacts.slice(0,15).map(c=>
 recipientRow(c)
         ).join('');
@@ -1640,7 +1694,69 @@ recipientRow(c)
     const next = document.getElementById('wizNextBtn');
     if (back) back.disabled = (_step === 1);
     if (next) next.style.display = (_step === WIZ_STEPS) ? 'none' : '';
+    if (_step === WIZ_STEPS) mailPreview();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Podgląd wiadomości (krok 4) ────────────────────────────────────────────
+  function setPvList(list) {
+    _pvList = Array.isArray(list) ? list : [];
+    const sel = document.getElementById('msPvWho');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '';
+    if (!_pvList.length) { sel.add(new Option('Twoje dane (nie wybrano odbiorców)', '')); sel.disabled = true; return; }
+    sel.disabled = false;
+    _pvList.forEach(c => {
+      const addr = _channel === 'sms' ? (c.telefon || '') : (c.email || '');
+      sel.add(new Option('Dla: ' + c.name + (addr ? ' — ' + addr : ''), String(c.id)));
+    });
+    if (cur && _pvList.some(c => String(c.id) === cur)) sel.value = cur;
+    if (_step === WIZ_STEPS) mailPreview();
+  }
+
+  async function mailPreview() {
+    const frame = document.getElementById('msPvFrame'), sms = document.getElementById('msPvSms');
+    const warn  = document.getElementById('msPvWarn'), box = document.getElementById('msPvBody');
+    if (!frame || !box) return;
+    const cid = parseInt(document.getElementById('msPvWho')?.value || '0', 10) || 0;
+    const seq = ++_pvSeq;
+    const isSms = _channel === 'sms';
+    document.querySelectorAll('.ms-pv-subj-l').forEach(el => { el.hidden = isSms; });
+    document.querySelectorAll('#msPvFrom, .ms-pv-meta dt:first-child').forEach(el => { el.hidden = isSms; });
+    const body = getBody();
+    if (!body) {
+      warn.hidden = false; warn.textContent = 'Brak treści — wpisz ją w kroku 3.';
+      frame.hidden = isSms; sms.hidden = !isSms; frame.srcdoc = ''; sms.textContent = '';
+      return;
+    }
+    box.setAttribute('aria-busy', 'true');
+    let r;
+    try {
+      r = await audCall({ action: 'mail_preview', channel: _channel, body,
+        subject: document.getElementById('ms_subject').value.trim(),
+        contact_id: cid, person_id: _person_over[cid] || 0,
+        send_as: document.getElementById('ms_send_as')?.value || 'system' });
+    } catch (e) { r = { ok: false, error: 'Błąd połączenia.' }; }
+    if (seq !== _pvSeq) return;
+    box.setAttribute('aria-busy', 'false');
+    if (!r.ok) { warn.hidden = false; warn.textContent = 'Nie udało się przygotować podglądu: ' + (r.error || 'błąd'); return; }
+    const d = r.data;
+    document.getElementById('msPvFrom').textContent = d.from || '—';
+    document.getElementById('msPvTo').textContent   = d.to || '—';
+    document.getElementById('msPvSubj').textContent = d.subject || '(bez tematu)';
+    const notes = [];
+    if (d.unknown_vars && d.unknown_vars.length) notes.push('Nieznane zmienne zostaną wysłane dosłownie: ' + d.unknown_vars.map(v => '<code>' + esc(v) + '</code>').join(', ') + '.');
+    if (d.empty_vars && d.empty_vars.length) notes.push('U tego odbiorcy puste: ' + d.empty_vars.map(v => '<code>' + esc(v) + '</code>').join(', ') + ' — sprawdź, czy zdanie ma sens bez nich.');
+    if (!cid) notes.push('Nie wybrano odbiorców — zmienne wypełniono Twoimi danymi.');
+    warn.hidden = !notes.length; warn.innerHTML = notes.join('<br>');
+    frame.hidden = isSms; sms.hidden = !isSms;
+    if (isSms) { sms.textContent = d.text || ''; return; }
+    // Bez własnych stylów akapitów — jak w programie pocztowym liczą się tylko style z samej wiadomości
+    frame.onload = () => { try { frame.style.height = Math.max(frame.contentDocument.documentElement.scrollHeight + 2, 160) + 'px'; } catch (e) {} };
+    frame.srcdoc = '<!doctype html><html lang="pl"><head><meta charset="utf-8"><base target="_blank">'
+      + '<style>html,body{margin:0}body{padding:16px 20px;font-family:Aptos,Calibri,"Segoe UI",Arial,sans-serif;font-size:15px;line-height:1.45;color:#1f1f1f;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style>'
+      + '</head><body>' + (d.html || '') + '</body></html>';
   }
 
   // Podpisy pod krokami: co już wybrano (kanał i podstawa, liczba odbiorców, temat) — widać to z każdego kroku.
@@ -1699,7 +1815,7 @@ recipientRow(c)
            searchContacts, addContact, removeContact,
            searchDw, dwKeydown, addDwManual, addDw, removeDw,
            preview, send, insertVar, loadTemplate, purposeChanged, membersChanged,
-           wizNext, wizBack, wizGo };
+           wizNext, wizBack, wizGo, mailPreview };
 })();
 </script>
 

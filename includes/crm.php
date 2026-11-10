@@ -2589,6 +2589,32 @@ class CrmManager
     /** Wysyłka masowa w toku z włączonym śledzeniem (ustawia crm/api/mass_send.php) — null = bez śledzenia. */
     public static ?int $mass_track_send_id = null;
 
+    /**
+     * HTML e-maila dokładnie w postaci, w jakiej wychodzi z CRM: treść (HTML z edytora po crm_mail_tidy_html
+     * albo zwykły tekst z <br>), podpis e-mail użytkownika i stopka CRM. Bez piksela śledzenia — ten dokłada
+     * sendAndLog. Z tej samej funkcji korzysta podgląd w Wysyłce masowej, więc pokazuje to, co dostanie odbiorca.
+     */
+    public static function emailHtml(string $body, ?int $user_id = null): string
+    {
+        require_once __DIR__ . '/mime_text.php';
+        $user_id ??= (int)(current_user()['id'] ?? 0);
+        // HTML, jeśli treść zawiera tagi; inaczej zwykły tekst zawinięty w <br>
+        $is_html = strip_tags($body) !== $body;
+        // Puste akapity z edytora (podwójny Enter) → jedna pusta linia, akapity bez marginesów
+        $html = $is_html ? crm_mail_tidy_html($body) : nl2br(htmlspecialchars($body));
+        // Podpis użytkownika (jeśli ustawiony)
+        $sig = trim((string)((db_one("SELECT crm_email_signature FROM users WHERE id=?", [$user_id]) ?: [])['crm_email_signature'] ?? ''));
+        if ($sig !== '') {
+            $html .= "\n<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:1rem 0\">\n" . $sig;
+        }
+        // Globalna stopka CRM admina (jeśli ustawiona)
+        $footer = trim((string)org_setting('crm_email_footer'));
+        if ($footer !== '') {
+            $html .= "\n<hr>\n" . $footer;
+        }
+        return $html;
+    }
+
     public static function sendAndLog(
         int    $contact_id,
         string $channel,
@@ -2624,21 +2650,8 @@ class CrmManager
                 } elseif ($channel === 'email' && $to['email'] !== '') {
                     require_once __DIR__ . '/mail_queue.php';
                     $to_name = $to['name'] !== '' ? $to['name'] : ($contact['imie_nazwisko'] ?? '');
-                    // Wyślij HTML jeśli treść zawiera tagi, inaczej zawiń w prosty HTML
-                    $is_html = strip_tags($body) !== $body;
-                    require_once __DIR__ . '/mime_text.php';
-                    // Puste akapity z edytora (podwójny Enter) → jedna pusta linia, akapity bez marginesów
-                    $html_body = $is_html ? crm_mail_tidy_html($body) : nl2br(htmlspecialchars($body));
-                    // Dołącz podpis użytkownika (jeśli ustawiony)
-                    $user_email_sig = trim($user_sig['crm_email_signature'] ?? '');
-                    if ($user_email_sig !== '') {
-                        $html_body .= "\n<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:1rem 0\">\n" . $user_email_sig;
-                    }
-                    // Dołącz globalną stopkę CRM admina (jeśli ustawiona)
-                    $crm_footer = trim(org_setting('crm_email_footer'));
-                    if ($crm_footer !== '') {
-                        $html_body .= "\n<hr>\n" . $crm_footer;
-                    }
+                    // Treść + podpis + stopka — jedna funkcja dla wysyłki i podglądu
+                    $html_body = self::emailHtml($body, $user_id);
                     if (self::$mass_track_send_id) {
                         // Wysyłka masowa z włączonym śledzeniem: piksel otwarcia + linki z licznikiem
                         require_once __DIR__ . '/crmMassStats.php';
