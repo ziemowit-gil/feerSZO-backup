@@ -100,7 +100,18 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
   <p class="m-explain"><?= ($v['payMode'] ?? '') === 'card' ? 'Płacisz co miesiąc kartą. Opłatę pobieramy sami w dniu terminu, a po wpłacie przychodzi faktura.' : 'Płacisz co miesiąc. Dostajesz proformę i masz ' . ClaudeBilling::TERM_DAYS . ' dni na wpłatę. Po wpłacie przychodzi faktura. Bez wpłaty wstrzymujemy dostęp.' ?></p>
   <?= $idsLine ?>
   <section class="m-tile" aria-label="<?= h($P['label']) ?>">
-    <p class="tw-text-sm tw-mb-3"><?= h(ucfirst($P['what'])) ?>.<?= $s['enabled'] || $open ? ' ' . h($priceTxt) : '' ?></p>
+    <p class="tw-text-sm tw-mb-3"><?= h(ucfirst($P['what'])) ?>.</p>
+    <?php if ($s['priced'] && ($s['enabled'] || $open || $requested)): $rt = $v['rate'] ?? null; ?>
+    <div class="m-box tw-mb-4" role="group" aria-label="Cena <?= h($P['label']) ?>">
+      <dl class="tw-grid sm:tw-grid-cols-4 tw-gap-x-6 tw-gap-y-2 tw-text-sm" style="margin:0">
+        <div><dt class="m-note">Cena licencji</dt><dd class="tw-font-semibold" style="margin:0"><?= h(ClaudeBilling::usd((float)$s['usd'])) ?> / miesiąc<?php if ($s['list_usd'] > $s['usd']): ?><span class="m-note tw-block">zwykle <s><?= h(ClaudeBilling::usd((float)$s['list_usd'])) ?></s>, taniej dla organizacji non-profit</span><?php endif; ?></dd></div>
+        <?php if ((float)$s['pct'] > 0): ?><div><dt class="m-note"><?= h($s['pct_label'] !== '' ? $s['pct_label'] : 'Narzut') ?></dt><dd class="tw-font-semibold" style="margin:0">+ <?= h(ClaudeBilling::pctFmt((float)$s['pct'])) ?></dd></div><?php endif; ?>
+        <?php if ((float)$s['fee_pln'] > 0): ?><div><dt class="m-note">Prowizja za płatność</dt><dd class="tw-font-semibold" style="margin:0">+ <?= h(ClaudeBilling::zl((float)$s['fee_pln'])) ?></dd></div><?php endif; ?>
+        <div><dt class="m-note">Razem dziś</dt><dd style="margin:0"><span class="m-num" style="font-size:1.4rem"><?= $rt ? '≈ ' . h(ClaudeBilling::zl((float)$rt['amount_pln'])) : '—' ?></span><span class="m-note tw-block">miesięcznie</span></dd></div>
+      </dl>
+      <p class="m-note tw-mt-2" style="margin-bottom:0">Dolary przeliczamy po kursie PKO BP z dnia wystawienia proformy, dlatego kwota może się co miesiąc trochę różnić.</p>
+    </div>
+    <?php endif; ?>
 
     <?php if ($open || $requested): ?>
       <?php if ($requested): $rq = array_values(array_filter($v['charges'], fn($x) => ($x['kind'] ?? 'month') === 'month' && $x['status'] !== 'cancelled'))[0] ?? null; $rqPaid = $rq && $rq['status'] === 'paid'; ?>
