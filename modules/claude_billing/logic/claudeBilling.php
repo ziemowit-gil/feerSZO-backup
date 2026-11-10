@@ -42,7 +42,12 @@ final class ClaudeBilling
         'simulate' => '0',   // symulacja wystawiania dokumentów (SYM-…) zamiast Fakturowni — do testów
         'pay_redirect' => 'p24', 'fast_transfer_url' => 'https://fundacjafeer.fakturownia.pl/apps/szybki-przelew',
         'bank_account' => '88102029060000130206617932',   // rachunek do wpłat (polecenie 2026-11-09)
+        // nazwy pozycji na proformie / zamówieniu / fakturze — ustawia administrator (polecenie 2026-11-11); pola: {produkt} {licencja} {okres} {uczestnik}
+        'position_name' => 'Dostęp do {produkt} — {okres}', 'fee_name' => 'Prowizja za obsługę płatności',
     ];
+    /** Pola do wstawienia w nazwie pozycji faktury: znacznik => opis. */
+    public const POSITION_FIELDS = ['{produkt}' => 'pełna nazwa produktu, np. Claude Team (Claude for Nonprofit)', '{licencja}' => 'krótka nazwa, np. Claude',
+                                    '{okres}' => 'miesiąc opłaty, np. listopad 2026', '{uczestnik}' => 'nabywca z danych do faktury'];
     /** Termin płatności od naliczenia — zawsze 5 dni (polecenie 2026-11-09). */
     public const TERM_DAYS = 5;
     private const MONTHS = [1 => 'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
@@ -239,6 +244,7 @@ final class ClaudeBilling
         $s['pct'] = min(50.0, max(0.0, (float)str_replace(',', '.', (string)$s['pct'])));
         $s['fee_pln'] = round(min(100.0, max(0.0, (float)str_replace(',', '.', (string)$s['fee_pln']))), 2);
         $s['pct_label'] = mb_substr(trim((string)$s['pct_label']), 0, 30);
+        foreach (['position_name', 'fee_name'] as $nk) $s[$nk] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$s[$nk])), 0, 200) ?: self::DEFAULTS[$nk];
         foreach (['available_from', 'available_until'] as $dk) if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$s[$dk])) $s[$dk] = '';
         if (!isset(PkoRates::KINDS[$s['rate_kind']])) $s['rate_kind'] = 'sale_foreign';
         if (!in_array($s['invoice'], ['auto', 'manual', 'off'], true)) $s['invoice'] = 'auto';
@@ -267,7 +273,14 @@ final class ClaudeBilling
             'rate_kind' => (string)($in['rate_kind'] ?? 'sale_foreign'), 'invoice' => (string)($in['invoice'] ?? 'auto'), 'discount_mode' => (string)($in['discount_mode'] ?? 'rabat'),
             'invoice_email' => !empty($in['invoice_email']) ? '1' : '0', 'notify' => !empty($in['notify']) ? '1' : '0', 'helpdesk' => !empty($in['helpdesk']) ? '1' : '0',
             'simulate' => !empty($in['simulate']) ? '1' : '0',
+            // nazwy pozycji faktury: brak pola w formularzu (np. zmiana ceny) = bez zmian; puste = domyślna
+            'position_name' => array_key_exists('position_name', $in) ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$in['position_name'])), 0, 200) : (string)(self::settings($product)['position_name']),
+            'fee_name' => array_key_exists('fee_name', $in) ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$in['fee_name'])), 0, 200) : (string)(self::settings($product)['fee_name']),
         ];
+        if ($map['position_name'] !== '' && !preg_match('/\{okres\}/u', $map['position_name'])) throw new InvalidArgumentException('Nazwa pozycji na fakturze musi zawierać {okres} (miesiąc opłaty), żeby faktury z kolejnych miesięcy się różniły.');
+        if (preg_match_all('/\{[^}]*\}/u', $map['position_name'] . ' ' . $map['fee_name'], $tm)) {
+            foreach ($tm[0] as $t) if (!isset(self::POSITION_FIELDS[$t])) throw new InvalidArgumentException('Nieznane pole ' . $t . ' w nazwie pozycji. Dozwolone: ' . implode(', ', array_keys(self::POSITION_FIELDS)) . '.');
+        }
         if ($map['enabled'] === '1' && (float)$map['usd'] <= 0) throw new InvalidArgumentException('Ustaw miesięczną cenę w USD, zanim włączysz samodzielną aktywację ' . $P['label'] . '.');
         if ((float)$map['usd'] < 0) throw new InvalidArgumentException('Cena nie może być ujemna.');
         if ((float)$map['pct'] < 0 || (float)$map['pct'] > 50) throw new InvalidArgumentException('Narzut procentowy: 0–50%.');
@@ -281,6 +294,14 @@ final class ClaudeBilling
         foreach ($map as $k => $v) org_setting_set($P['prefix'] . $k, $v);
         unset(self::$settingsCache[$P['prefix']]);
         self::event(null, null, 'settings', $P['label'] . ' — zmieniono ustawienia: ' . json_encode($map, JSON_UNESCAPED_UNICODE), $by);
+    }
+
+    /** Nazwa pozycji z szablonu administratora (pola {produkt} {licencja} {okres} {uczestnik}). */
+    public static function positionText(string $tpl, string $product, string $period, string $buyer = ''): string
+    {
+        $P = self::P($product);
+        $out = strtr($tpl, ['{produkt}' => (string)$P['name'], '{licencja}' => (string)$P['label'], '{okres}' => self::periodLabel($period), '{uczestnik}' => trim($buyer)]);
+        return mb_substr(trim(preg_replace('/\s+/u', ' ', preg_replace('/\s*[—-]\s*$/u', '', $out))), 0, 250);
     }
 
     /** Warunki akceptowane przy aktywacji — prostym językiem (zapisywane w abonamencie). */

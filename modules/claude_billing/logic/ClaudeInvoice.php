@@ -57,9 +57,18 @@ final class ClaudeInvoice
             . ($ch['status'] === 'paid' ? ' Zapłacono: ' . ($ch['paid_via'] ?: '—') . ', ' . ClaudeBilling::date($ch['paid_at']) . '.' : '');
     }
 
+    /** Nazwa pozycji usługi — szablon z ustawień produktu (Płatne licencje › Ustawienia › Pozycje na fakturze). */
     public static function positionName(array $ch): string
     {
-        return 'Dostęp do ' . ClaudeBilling::P(ClaudeBilling::productOf($ch))['name'] . ' — ' . ClaudeBilling::periodLabel((string)$ch['period']);
+        $p = ClaudeBilling::productOf($ch);
+        return ClaudeBilling::positionText(ClaudeBilling::settings($p)['position_name'], $p, (string)$ch['period'], (string)(self::buyer($ch)['buyer_name'] ?? ''));
+    }
+
+    /** Nazwa pozycji prowizji za płatność — z ustawień produktu. */
+    public static function feeName(array $ch): string
+    {
+        $p = ClaudeBilling::productOf($ch);
+        return ClaudeBilling::positionText(ClaudeBilling::settings($p)['fee_name'], $p, (string)$ch['period'], (string)(self::buyer($ch)['buyer_name'] ?? ''));
     }
 
     /** Nabywca: dane do faktury z abonamentu. */
@@ -101,7 +110,7 @@ final class ClaudeInvoice
         $pos += $useDiscount ? ['price_net' => $svcList, 'price_gross' => $svcList, 'discount' => $disc, 'discount_percent' => round($disc / max(0.01, $svcList) * 100, 4)]
                              : ['total_price_gross' => $svc];
         $positions = [$pos];
-        if ($fee > 0) $positions[] = ['name' => 'Prowizja za obsługę płatności', 'quantity' => 1, 'quantity_unit' => 'szt.', 'tax' => $vat, 'total_price_gross' => $fee];
+        if ($fee > 0) $positions[] = ['name' => self::feeName($ch), 'quantity' => 1, 'quantity_unit' => 'szt.', 'tax' => $vat, 'total_price_gross' => $fee];
         $inv = [
             'kind' => $D['kind'],
             'sell_date' => $issue, 'issue_date' => $issue, 'payment_to' => $doc === 'proforma' ? (string)$ch['due_on'] : $paidDate,
@@ -177,7 +186,7 @@ final class ClaudeInvoice
         if ($ex) $id = (int)$ex['id'];
         else {
             $items = [['name' => self::positionName($ch), 'unit' => 'mies.', 'qty' => 1, 'unit_net' => round((float)$ch['amount_pln'] - $fee, 2), 'vat_rate' => self::TAX]];
-            if ($fee > 0) $items[] = ['name' => 'Prowizja za obsługę płatności', 'unit' => 'szt.', 'qty' => 1, 'unit_net' => $fee, 'vat_rate' => self::TAX];
+            if ($fee > 0) $items[] = ['name' => self::feeName($ch), 'unit' => 'szt.', 'qty' => 1, 'unit_net' => $fee, 'vat_rate' => self::TAX];
             $id = invoice_create(array_intersect_key($payload['invoice'], array_flip(['buyer_name', 'buyer_tax_no', 'buyer_street', 'buyer_post_code', 'buyer_city', 'buyer_email', 'issue_date', 'sell_date', 'payment_to']))
                 + ['kind' => $D['kind'], 'source' => $D['source'], 'source_id' => $chargeId, 'notes' => self::description($ch), 'is_test' => $rowTest ? 1 : 0], $items, $uid);
             if ($uid <= 0) db_exec("UPDATE invoices SET created_by=NULL WHERE id=?", [$id]);

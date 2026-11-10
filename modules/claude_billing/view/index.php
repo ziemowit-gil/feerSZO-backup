@@ -253,6 +253,17 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
       <div class="col-md-3"><label class="form-label" for="s-from">Wnioski od</label><input class="form-control" type="date" id="s-from" name="available_from" value="<?= h($s['available_from']) ?>" aria-describedby="s-win-h"></div>
       <div class="col-md-3"><label class="form-label" for="s-until">Wnioski do</label><input class="form-control" type="date" id="s-until" name="available_until" value="<?= h($s['available_until']) ?>" aria-describedby="s-win-h"><div id="s-win-h" class="form-text">Puste = bez ograniczenia. Działające abonamenty trwają dalej.</div></div>
     </div></fieldset>
+    <fieldset class="mb-3" aria-describedby="pos-h"><legend class="fs-6 fw-semibold">Pozycje na fakturze</legend>
+      <p class="small text-secondary mb-2" id="pos-h">Tak będą się nazywać pozycje na proformie, zamówieniu i fakturze VAT (Fakturownia i rejestr faktur). Pola do wstawienia:
+        <?php $pf = []; foreach (ClaudeBilling::POSITION_FIELDS as $tk => $tl) $pf[] = '<code>' . h($tk) . '</code> (' . h($tl) . ')'; echo implode(', ', $pf); ?>. W nazwie usługi musi być <code>{okres}</code>.</p>
+      <div class="row g-3">
+        <div class="col-md-7"><label class="form-label" for="s-pos">Nazwa pozycji usługi</label><input class="form-control" id="s-pos" name="position_name" maxlength="200" value="<?= h($s['position_name']) ?>" aria-describedby="s-pos-p">
+          <div class="form-text" id="s-pos-p">Podgląd: <b><?= h(ClaudeBilling::positionText($s['position_name'], $product, date('Y-m'), 'Jan Kowalski')) ?></b></div></div>
+        <div class="col-md-5"><label class="form-label" for="s-feen">Nazwa pozycji prowizji</label><input class="form-control" id="s-feen" name="fee_name" maxlength="200" value="<?= h($s['fee_name']) ?>" aria-describedby="s-feen-p">
+          <div class="form-text" id="s-feen-p">Podgląd: <b><?= h(ClaudeBilling::positionText($s['fee_name'], $product, date('Y-m'), 'Jan Kowalski')) ?></b><?= $s['fee_pln'] > 0 ? '' : ' (prowizja = 0 zł, pozycja się nie pojawi)' ?></div></div>
+      </div>
+      <div class="form-text">Puste pole przywraca nazwę domyślną. Zmiana dotyczy nowych dokumentów; wystawionych się nie zmienia.</div>
+    </fieldset>
     <fieldset class="mb-3"><legend class="fs-6 fw-semibold">Dokumenty i płatności</legend>
     <div class="row g-3">
       <div class="col-md-4"><label class="form-label" for="s-inv">Dokumenty w Fakturowni</label><select class="form-select" id="s-inv" name="invoice"><option value="auto"<?= $s['invoice'] === 'auto' ? ' selected' : '' ?>>automatycznie</option><option value="manual"<?= $s['invoice'] === 'manual' ? ' selected' : '' ?>>ręcznie z karty abonamentu</option><option value="off"<?= $s['invoice'] === 'off' ? ' selected' : '' ?>>wyłączone</option></select></div>

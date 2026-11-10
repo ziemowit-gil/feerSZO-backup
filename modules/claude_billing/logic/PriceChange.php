@@ -245,7 +245,8 @@ final class PriceChange
             $in = ['enabled' => $s['enabled'] ? 1 : 0, 'usd' => (string)$chg['usd'], 'list_usd' => (string)$chg['list_usd'], 'due_day' => $s['due_day'], 'grace_days' => $s['grace_days'],
                    'available_from' => $s['available_from'], 'available_until' => $s['available_until'], 'pct' => (string)$chg['pct'], 'pct_label' => $s['pct_label'], 'fee_pln' => (string)$chg['fee_pln'],
                    'rate_kind' => $s['rate_kind'], 'invoice' => $s['invoice'], 'discount_mode' => $s['discount_mode'], 'pay_redirect' => $s['pay_redirect'], 'fast_transfer_url' => $s['fast_transfer_url'],
-                   'bank_account' => $s['bank_account'], 'invoice_email' => $s['invoice_email'] ? 1 : 0, 'notify' => $s['notify'] ? 1 : 0, 'helpdesk' => $s['helpdesk'] ? 1 : 0, 'simulate' => $s['simulate'] ? 1 : 0];
+                   'bank_account' => $s['bank_account'], 'invoice_email' => $s['invoice_email'] ? 1 : 0, 'notify' => $s['notify'] ? 1 : 0, 'helpdesk' => $s['helpdesk'] ? 1 : 0, 'simulate' => $s['simulate'] ? 1 : 0,
+                   'position_name' => $s['position_name'], 'fee_name' => $s['fee_name']];
             ClaudeBilling::saveSettings($in, 'zmiana ceny #' . $chg['id'], (string)$chg['product']);
             db_exec("UPDATE license_price_changes SET status='applied', applied_at=datetime('now') WHERE id=?", [(int)$chg['id']]);
             $rep[] = ClaudeBilling::P((string)$chg['product'])['label'] . ': wprowadzono zmianę ceny #' . $chg['id'];
