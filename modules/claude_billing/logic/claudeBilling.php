@@ -725,12 +725,17 @@ final class ClaudeBilling
         return db_one("SELECT ch.*, c.name AS client_name, c.email AS client_email FROM claude_charges ch LEFT JOIN k30_clients c ON c.id=ch.client_id WHERE ch.id=?", [$id]) ?: null;
     }
 
-    public static function chargeTitle(array $ch): string
+    /** Tytuł płatności za licencję — zawsze ten sam wzór (polecenie 2026-11-10): przelew, Przelewy24, portal płatności. */
+    public static function paymentTitle(array $ch): string
     {
         $P = self::P(self::productOf($ch));
-        $doc = self::docRef($ch);
-        return ((int)$ch['is_test'] ? '[TEST] ' : '') . ($doc !== '' ? $doc . ' — ' : '') . $P['label'] . ' — ' . self::periodLabel((string)$ch['period'])
-            . ' (' . self::priceShort($ch) . ', kurs PKO BP ' . self::rateFmt((float)$ch['rate']) . ')';
+        if (($ch['kind'] ?? 'month') === 'card') return 'Opłata weryfikacyjna karty, produkt: ' . $P['label'];
+        return 'Opłata za licencję za ' . self::periodLabel((string)$ch['period']) . ', produkt: ' . $P['label'] . ', zniżka edukacyjna - kursant';
+    }
+
+    public static function chargeTitle(array $ch): string
+    {
+        return ((int)$ch['is_test'] ? '[TEST] ' : '') . self::paymentTitle($ch);
     }
 
     /** „Proforma PF/…” albo „Faktura FV/…” (opłacone) — do tytułów przelewu i płatności; pusto, gdy brak dokumentu albo symulacja. */
@@ -1259,10 +1264,10 @@ final class ClaudeBilling
     }
 
     /** Tytuł przelewu tradycyjnego dla naliczenia. */
+    /** Tytuł przelewu = tytuł płatności za licencję (ten sam wzór wszędzie). */
     public static function transferTitle(array $ch): string
     {
-        $doc = self::docRef($ch);   // numer proformy albo faktury — wymagany w tytule
-        return ($doc !== '' ? $doc : 'NAL/' . (int)$ch['id']) . ' ' . self::P(self::productOf($ch))['label'] . ' ' . self::periodLabel((string)$ch['period']);
+        return self::paymentTitle($ch);
     }
 
     // ── Dane do widoków ─────────────────────────────────────────────────────────

@@ -41,8 +41,16 @@ final class ClaudeInvoice
         return invoices_api_ready() && empty($s['simulate']);
     }
 
-    /** Opis przeliczenia i rabatu — na dokumencie (description) i w uwagach w SZO. */
+    /** Dopisek w uwagach każdego dokumentu za licencję (polecenie 2026-11-10). */
+    public const REINVOICE_NOTE = 'Kwota stanowi zwrot kosztów poniesionych przez Fundację (tzw. refakturowanie).';
+
+    /** Opis przeliczenia i rabatu — na dokumencie (description) i w uwagach w SZO; zawsze z dopiskiem o refakturowaniu. */
     public static function description(array $ch): string
+    {
+        return trim(self::descriptionBase($ch) . ' ' . self::REINVOICE_NOTE);
+    }
+
+    private static function descriptionBase(array $ch): string
     {
         if (self::isCardFee($ch)) {   // opłata weryfikacyjna karty (płatności cykliczne Przelewy24)
             return ((int)$ch['is_test'] ? '[TEST — dokument testowy] ' : '') . 'Opłata weryfikacyjna karty płatniczej przy włączeniu płatności kartą za ' . ClaudeBilling::P(ClaudeBilling::productOf($ch))['label']

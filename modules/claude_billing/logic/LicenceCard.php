@@ -174,8 +174,7 @@ final class LicenceCard
 
     public static function chargeTitle(array $ch): string
     {
-        $s = ClaudeBilling::settings(ClaudeBilling::productOf($ch));
-        return ((string)($ch['kind'] ?? '') === 'card' ? (string)$s['card_fee_name'] . ' (' . ClaudeBilling::P(ClaudeBilling::productOf($ch))['label'] . ')' : ClaudeBilling::chargeTitle($ch));
+        return ClaudeBilling::chargeTitle($ch);   // wspólny wzór tytułu płatności (ClaudeBilling::paymentTitle)
     }
 
     /** Zapis zgody: treść, data i godzina, IP, przeglądarka; PDF do uploads/licencje_zgody/ i do teczki uczestnika. */
