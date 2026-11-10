@@ -319,7 +319,11 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
           <div class="form-check"><input class="form-check-input" type="radio" name="pay_mode" id="pm-<?= h($pmk) ?>" value="<?= h($pmk) ?>"<?= $s['pay_mode'] === $pmk ? ' checked' : '' ?><?= $pmk === 'card' && !$p24ok && $s['pay_mode'] !== 'card' ? ' disabled' : '' ?>>
             <label class="form-check-label" for="pm-<?= h($pmk) ?>"><?= h(ucfirst($pml)) ?></label></div>
           <?php endforeach; ?>
-          <div class="form-text">Dla jednej osoby zmienisz to na karcie abonamentu.</div></div>
+          <input type="hidden" name="card_only" value="0">
+          <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="card_only" id="pm-only" value="1"<?= !empty($s['card_only']) ? ' checked' : '' ?> aria-describedby="pm-only-h">
+            <label class="form-check-label" for="pm-only">Tylko karta (bez przejścia na przelew)</label></div>
+          <div class="form-text" id="pm-only-h">Gdy obciążenie się nie uda albo uczestnik nie podepnie karty, nie wysyłamy proformy: prosimy o inną kartę, a bez wpłaty dostęp wstrzymuje się po karencji. Dotyczy trybu „karta”.</div>
+          <div class="form-text">Dla jednej osoby zmienisz sposób płatności na karcie abonamentu.</div></div>
         <div class="col-md-3"><label class="form-label" for="s-cfee">Opłata weryfikacyjna karty (zł)</label><input class="form-control" id="s-cfee" name="card_fee_pln" inputmode="decimal" value="<?= h(number_format((float)$s['card_fee_pln'], 2, ',', '')) ?>"></div>
         <div class="col-md-4"><label class="form-label" for="s-cfeen">Nazwa pozycji na fakturze</label><input class="form-control" id="s-cfeen" name="card_fee_name" maxlength="200" value="<?= h($s['card_fee_name']) ?>"></div>
       </div>
@@ -336,6 +340,13 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
       <div class="col-md-4"><label class="form-label" for="s-inv">Dokumenty w Fakturowni</label><select class="form-select" id="s-inv" name="invoice"><option value="auto"<?= $s['invoice'] === 'auto' ? ' selected' : '' ?>>automatycznie</option><option value="manual"<?= $s['invoice'] === 'manual' ? ' selected' : '' ?>>ręcznie z karty abonamentu</option><option value="off"<?= $s['invoice'] === 'off' ? ' selected' : '' ?>>wyłączone</option></select></div>
       <div class="col-md-4"><label class="form-label" for="s-pay">Przycisk „Zapłać” u uczestnika</label><select class="form-select" id="s-pay" name="pay_redirect"><option value="p24"<?= $s['pay_redirect'] === 'p24' ? ' selected' : '' ?>>Przelewy24 od razu</option><option value="portal"<?= $s['pay_redirect'] === 'portal' ? ' selected' : '' ?>>portal płatności SZO</option><option value="fakturownia"<?= $s['pay_redirect'] === 'fakturownia' ? ' selected' : '' ?>>Szybki przelew z dokumentu w Fakturowni</option></select></div>
       <div class="col-md-4"><label class="form-label" for="s-acc">Rachunek do wpłat</label><input class="form-control font-monospace" id="s-acc" name="bank_account" value="<?= h(ClaudeBilling::payAccount(0, $product)['nrb_fmt'] ?? '') ?>"></div>
+      <div class="col-12"><input type="hidden" name="auto_invoice" value="0"><input type="hidden" name="invoice_to_folder" value="0">
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="auto_invoice" id="s-autofv" value="1"<?= !empty($s['auto_invoice']) ? ' checked' : '' ?>>
+          <label class="form-check-label" for="s-autofv">Faktura VAT automatycznie po wpłacie, także przy wniosku</label>
+          <div class="form-text">Bez tej opcji fakturę za pierwszą wpłatę przy wniosku wystawia Helpdesk. Przy płatności kartą faktura wystawia się zawsze sama.</div></div>
+        <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="invoice_to_folder" id="s-fvdoc" value="1"<?= !empty($s['invoice_to_folder']) ? ' checked' : '' ?>>
+          <label class="form-check-label" for="s-fvdoc">Pobieraj PDF faktury z Fakturowni i dołączaj do dokumentów uczestnika</label>
+          <div class="form-text">Kopia trafia też do rejestru faktur SZO. Uczestnik widzi fakturę w swoich dokumentach.</div></div></div>
       <div class="col-md-8"><label class="form-label" for="s-fast">Szybki przelew (Fakturownia)</label><input class="form-control" id="s-fast" name="fast_transfer_url" value="<?= h($s['fast_transfer_url']) ?>"><div class="form-text"><a href="<?= h($s['fast_transfer_url']) ?>" target="_blank" rel="noopener">Konfiguracja w Fakturowni<span class="visually-hidden"> (nowa karta)</span></a></div></div>
     </div></fieldset>
     <button class="cb-btn" type="submit">Zapisz ustawienia</button>

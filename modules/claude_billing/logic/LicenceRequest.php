@@ -60,8 +60,8 @@ final class LicenceRequest
         $edu = '';
         if (!empty($el['needEdu'])) {   // konto Office (inicjał.nazwisko@edu): sprawdzamy w tenancie EDU; gdy go nie ma, SZO założy je przy aktywacji
             require_once __DIR__ . '/LicenceOffice.php';
-            $o = LicenceOffice::check($cid, (string)($actor['name'] ?? ''));
-            $edu = in_array($o['state'], ['exists', 'created'], true) ? '' : 'Konto Office ' . $o['upn'] . ': ' . $o['text'] . ' SZO założy je przy aktywacji dostępu.';
+            $o = LicenceOffice::check($cid, (string)($actor['name'] ?? ''));   // nie rzuca wyjątków
+            $edu = in_array($o['state'], ['exists', 'created'], true) ? '' : 'Konto Office' . ($o['upn'] !== '' ? ' ' . $o['upn'] : '') . ': ' . $o['text'] . ' SZO założy je przy aktywacji dostępu.';
         }
         $sub = ClaudeBilling::subscription($id);
         $charge = ClaudeBilling::createCharge($sub, substr($today, 0, 7), $today);   // proforma (Fakturownia) + portal płatności + e-mail

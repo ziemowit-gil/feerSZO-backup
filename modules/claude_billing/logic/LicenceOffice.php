@@ -193,6 +193,15 @@ final class LicenceOffice
      */
     public static function check(int $cid, string $by = 'system'): array
     {
+        try { return self::checkInner($cid, $by); }
+        catch (\Throwable $e) {   // sprawdzenie konta nigdy nie przerywa wniosku ani strony
+            error_log('licence office check #' . $cid . ': ' . $e->getMessage());
+            return ['state' => 'error', 'upn' => '', 'text' => 'Nie udało się sprawdzić konta Office: ' . $e->getMessage()];
+        }
+    }
+
+    private static function checkInner(int $cid, string $by): array
+    {
         self::migrate();
         $c = ClaudeBilling::client($cid);
         if (!$c) return ['state' => 'error', 'upn' => '', 'text' => 'Nie ma takiego uczestnika.'];

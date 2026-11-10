@@ -153,13 +153,22 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
         $docLbl = $c['status'] === 'paid' || ($c['proforma_number'] === '' && $c['invoice_number'] !== '') ? 'faktura' : 'proforma';
         if (str_starts_with($docNo, 'SYM-')) { $docNo = ''; $docUrl = ''; }
         // dokumenty do pobrania: prawdziwe (podgląd w Fakturowni) albo — na koncie testowym — symulacje jako PDF
-        $docs = [];
+        $docs = []; $symPreview = false;
         foreach (['proforma' => 'Proforma', 'order' => 'Zamówienie', 'invoice' => 'Faktura'] as $dk => $dl) {
             $no = (string)$c[$dk . '_number'];
             if ($no === '') continue;
             $sym = str_starts_with($no, 'SYM-');
-            if ($sym && !$virtual) continue;
-            $docs[] = [$dl . ' ' . $no, route('lk.doc', ['id' => (int)$c['id'], 'doc' => $dk]), $sym, $sym ? '' : (string)($c[$dk . '_view_url'] ?? '')];
+            if ($sym && !$virtual && $dk !== 'proforma') continue;   // faktura / zamówienie w symulacji to nie dokument — uczestnik ich nie widzi
+            if ($sym && !$virtual) $symPreview = true;               // proforma w symulacji: podgląd PDF (Fakturownia jeszcze nie wystawiła dokumentu)
+            $docs[] = [$sym && !$virtual ? $dl . ' (podgląd)' : $dl . ' ' . $no, route('lk.doc', ['id' => (int)$c['id'], 'doc' => $dk]), $sym && $virtual, $sym ? '' : (string)($c[$dk . '_view_url'] ?? '')];
+        }
+        // dlaczego nie ma dokumentu (zamiast samego „w przygotowaniu”)
+        $docWhy = '';
+        if (!$docs && $c['status'] === 'pending' && ($c['pay_mode'] ?? '') !== 'card' && ($c['kind'] ?? 'month') === 'month') {
+            $ie = (string)($c['invoice_error'] ?? '');
+            $docWhy = str_contains($ie, 'Brak danych do faktury') ? 'Proforma czeka na dane do faktury. Uzupełnij je niżej, wystawi się sama.'
+                    : ($s['invoice'] !== 'auto' ? 'Proformę wystawi biuro. Możesz już zapłacić przelewem według danych niżej.'
+                    : 'Proforma jest w przygotowaniu, zwykle kilka minut. Możesz już zapłacić przelewem według danych niżej.');
         } ?>
       <div class="m-row">
         <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
@@ -168,8 +177,10 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
           <?php if ($c['status'] === 'paid'): ?><?= $tag('ok', 'zapłacone ' . ClaudeBilling::dayMonth(substr((string)$c['paid_at'], 0, 10))) ?>
           <?php elseif (($c['pay_mode'] ?? '') === 'card'): ?><?= $tag('due', 'z karty ' . ClaudeBilling::dayMonth($c['due_on'])) ?>
           <?php else: ?><?= $tag($late ? 'bad' : 'due', $late ? 'po terminie (było do ' . ClaudeBilling::dayMonth($c['due_on']) . ')' : 'zapłać do ' . ClaudeBilling::dayMonth($c['due_on'])) ?><?php endif; ?>
-          <?php if (!$docs): ?><span class="tw-text-sm m-muted"><?= $c['status'] === 'paid' || ($c['pay_mode'] ?? '') === 'card' ? 'faktura VAT po wpłacie' : 'proforma w przygotowaniu' ?></span><?php endif; ?>
+          <?php if (!$docs && $docWhy === ''): ?><span class="tw-text-sm m-muted"><?= $c['status'] === 'paid' ? 'faktura w przygotowaniu' : (($c['pay_mode'] ?? '') === 'card' ? 'faktura VAT po wpłacie' : 'proforma w przygotowaniu') ?></span><?php endif; ?>
         </div>
+        <?php if ($docWhy !== ''): ?><p class="tw-text-sm tw-mt-1"><?= h($docWhy) ?></p><?php endif; ?>
+        <?php if ($symPreview): ?><p class="m-note tw-mt-1">To podgląd proformy. W Fakturowni dokument jeszcze nie powstał, wystawimy go automatycznie. Możesz już zapłacić według danych niżej.</p><?php endif; ?>
         <?php if ($docs): ?>
         <ul class="m-docs" aria-label="Dokumenty za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?>">
           <?php foreach ($docs as [$dlbl, $durl, $dsym, $dview]): ?>
@@ -196,14 +207,18 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
             <form method="post" action="<?= h(route('lk.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać przez Przelewy24<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></button></form>
           <?php endif; ?>
           <?php if ($docUrl !== '' && $s['pay_redirect'] !== 'fakturownia'): ?><a class="m-btn-ghost" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">BLIK / szybki przelew z <?= $docLbl === 'proforma' ? 'proformy' : 'faktury' ?><span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
+          <?php // portal płatności zawsze jako wyraźny przycisk; główny, gdy nie ma innego przycisku „Zapłać” (np. Przelewy24 wyłączone)
+            $payBtn = $virtual || $s['pay_redirect'] === 'portal' || ($s['pay_redirect'] === 'fakturownia' && $docUrl !== '') || !empty($p24on); ?>
+          <?php if ($s['pay_redirect'] !== 'portal' && !$virtual): ?><a class="<?= $payBtn ? 'm-btn-ghost' : 'm-btn' ?>" href="<?= h(route('lk.portal')) ?>">Zapłać w portalu płatności<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></a><?php endif; ?>
         </div>
-        <?php if ($s['pay_redirect'] !== 'portal'): ?><p class="tw-text-sm tw-mt-2"><a href="<?= h(route('lk.portal')) ?>">Wszystkie opłaty w portalu płatności</a> <span class="m-note">(zajęcia, licencje i inne w jednym miejscu)</span></p><?php endif; ?>
+        <?php if ($s['pay_redirect'] !== 'portal'): ?><p class="m-note tw-mt-2">W portalu płatności zapłacisz za wszystko w jednym miejscu: zajęcia, licencje i inne opłaty.</p><?php endif; ?>
         <?php if ($v['account']): ?><p class="tw-text-sm tw-mt-2">Przelew: konto <span class="m-mono tw-font-semibold"><?= h($v['account']['nrb_fmt']) ?></span>, tytuł <span class="tw-font-semibold"><?= h(ClaudeBilling::transferTitle($c)) ?></span>, kwota <?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?>.</p><?php endif; ?>
         <?php endif; ?>
       </div>
       <?php endforeach; ?>
 
-      <details class="m-row"<?= $v['gaps'] || !empty($err[$pk]) ? ' open' : '' ?>>
+      <?php $needData = (bool)array_filter($v['charges'], fn($x) => $x['status'] !== 'cancelled' && str_contains((string)($x['invoice_error'] ?? ''), 'Brak danych do faktury')); ?>
+      <details class="m-row"<?= $v['gaps'] || $needData || !empty($err[$pk]) ? ' open' : '' ?>>
         <summary>Dane do faktury</summary>
         <form method="post" action="<?= h(route('lk.buyer', ['product' => $pk])) ?>" novalidate class="tw-mt-3"><?= Router::csrfField() ?>
           <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3">

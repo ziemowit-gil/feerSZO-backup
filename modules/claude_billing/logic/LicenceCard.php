@@ -92,11 +92,17 @@ final class LicenceCard
         return isset(self::PAY_MODES[$s['pay_mode'] ?? '']) ? (string)$s['pay_mode'] : 'invoice';
     }
 
-    /** Naliczenie w trybie karty: abonament w trybie „karta” i (karta podpięta albo wniosek — kartę podepnie zaraz po wniosku). */
+    /** „Tylko karta” (ustawienie produktu): bez przejścia na proformę i przelew. */
+    public static function cardOnly(array $sub): bool
+    {
+        return self::mode($sub) === 'card' && !empty(ClaudeBilling::settings(ClaudeBilling::productOf($sub))['card_only']);
+    }
+
+    /** Naliczenie w trybie karty: abonament w trybie „karta” i (karta podpięta albo wniosek — kartę podepnie zaraz po wniosku; albo „tylko karta”). */
     public static function chargeInCardMode(array $sub): bool
     {
         if (self::mode($sub) !== 'card') return false;
-        return self::active((int)$sub['client_id']) !== null || $sub['status'] === 'requested';
+        return self::active((int)$sub['client_id']) !== null || $sub['status'] === 'requested' || self::cardOnly($sub);
     }
 
     /** Teksty zgody dla produktu. @return array{checkbox:string,info:list<string>,button:string} */
@@ -283,6 +289,7 @@ final class LicenceCard
             }
         }
         db_exec("UPDATE license_cards SET status='replaced', removed_at=datetime('now'), removed_reason='nowa karta' WHERE client_id=? AND status='active'", [$cid]);
+        db_exec("UPDATE claude_charges SET card_attempts=0, card_error='' WHERE client_id=? AND status='pending' AND kind='month' AND pay_mode='card'", [$cid]);   // nowa karta — próby od nowa
         $cardId = (int)db_insert('license_cards', ['client_id' => $cid, 'ref_id' => (string)$info['refId'], 'mask' => (string)($info['mask'] ?? ''), 'card_type' => (string)($info['cardType'] ?? ''),
             'card_date' => (string)($info['cardDate'] ?? ''), 'bin' => (string)($info['bin'] ?? ''), 'hash' => (string)($info['hash'] ?? ''), 'status' => 'active',
             'consent_id' => $consentId, 'verify_charge_id' => $chargeId, 'is_sim' => $sim ? 1 : 0] + ($order !== '' ? ['p24_order_id' => $order] : []));   // db_insert zamienia '' w kolumnach *_id na NULL
@@ -313,8 +320,8 @@ final class LicenceCard
         if (!$ch || $ch['status'] !== 'pending' || ($ch['kind'] ?? '') !== 'month') return ['ok' => false, 'text' => 'Naliczenie nie czeka na wpłatę.'];
         $cid = (int)$ch['client_id'];
         $card = self::active($cid);
-        if (!$card) { self::fallback($chargeId, 'brak podpiętej karty'); return ['ok' => false, 'text' => 'Brak podpiętej karty — naliczenie przeszło na przelew.']; }
-        if ((int)$ch['card_attempts'] >= self::MAX_ATTEMPTS) { self::fallback($chargeId, self::MAX_ATTEMPTS . ' nieudane próby'); return ['ok' => false, 'text' => 'Wyczerpane próby — przelew.']; }
+        if (!$card) { self::fallback($chargeId, 'brak podpiętej karty'); return ['ok' => false, 'text' => 'Brak podpiętej karty' . (($s0 = ClaudeBilling::subscription((int)$ch['subscription_id'])) && self::cardOnly($s0) ? ' — czekamy, aż uczestnik ją podepnie (tylko karta).' : ' — naliczenie przeszło na przelew.')]; }
+        if ((int)$ch['card_attempts'] >= self::MAX_ATTEMPTS) { self::fallback($chargeId, self::MAX_ATTEMPTS . ' nieudane próby'); return ['ok' => false, 'text' => 'Wyczerpane próby obciążenia karty.']; }
         require_once dirname(__DIR__, 3) . '/includes/p24.php';
         $open = db_one("SELECT id FROM p24_payments WHERE source_type='claude_charge' AND source_id=? AND status='pending' AND order_id<>'' AND created_at >= datetime('now','-1 day')", [$chargeId]);
         if ($open) return ['ok' => true, 'text' => 'Obciążenie już trwa — czekamy na wynik z Przelewy24.'];
@@ -343,6 +350,15 @@ final class LicenceCard
     {
         $ch = ClaudeBilling::charge($chargeId);
         if (!$ch || $ch['status'] !== 'pending' || ($ch['kind'] ?? '') !== 'month' || ($ch['pay_mode'] ?? '') !== 'card') return;
+        $sub0 = ClaudeBilling::subscription((int)$ch['subscription_id']) ?? [];
+        if ($sub0 && self::cardOnly($sub0)) {   // tylko karta: zostaje na karcie — prośba o inną kartę (raz na naliczenie), wstrzymanie jak zwykle po karencji
+            if (!str_contains((string)$ch['note'], '[prośba o kartę]')) {
+                db_exec("UPDATE claude_charges SET note=TRIM(note || ' [prośba o kartę]') WHERE id=?", [$chargeId]);
+                ClaudeBilling::event((int)$ch['subscription_id'], $chargeId, 'card_fallback', 'Opłata za ' . ClaudeBilling::periodLabel((string)$ch['period']) . ' nie pobrana (' . $why . '). Tylko karta: prośba o podpięcie innej karty.', 'system');
+                ClaudeBilling::notifyParticipant($sub0, 'karta_inna', $ch, $why);
+            }
+            return;
+        }
         db_exec("UPDATE claude_charges SET pay_mode='invoice', due_on=MAX(due_on, ?) WHERE id=?", [date('Y-m-d', strtotime('+' . ClaudeBilling::TERM_DAYS . ' day')), $chargeId]);
         ClaudeBilling::event((int)$ch['subscription_id'], $chargeId, 'card_fallback', 'Opłata za ' . ClaudeBilling::periodLabel((string)$ch['period']) . ' przechodzi na przelew (' . $why . ').', 'system');
         ClaudeBilling::toInvoiceMode($chargeId);
@@ -372,7 +388,9 @@ final class LicenceCard
         }
         $sub = db_one("SELECT id FROM claude_subscriptions WHERE client_id=? AND status IN ('requested','active','suspended') ORDER BY id DESC LIMIT 1", [$cid]);
         ClaudeBilling::event($sub ? (int)$sub['id'] : null, null, 'card_removed', 'Zgoda na płatności kartą wycofana, karta ' . self::label($card) . ' odpięta (' . $by . ($ip !== '' ? ', IP ' . $ip : '') . '). Kolejne opłaty: proforma i przelew.', $by);
-        return 'Karta odpięta, zgoda wycofana. Kolejne opłaty: proforma i przelew. To nie jest rezygnacja z licencji.';
+        $only = $sub && ($sx = ClaudeBilling::subscription((int)$sub['id'])) && self::cardOnly($sx);
+        return $only ? 'Karta odpięta, zgoda wycofana. Za tę licencję płaci się tylko kartą: podepnij inną kartę albo zrezygnuj z licencji. Wycofanie zgody nie jest rezygnacją.'
+                     : 'Karta odpięta, zgoda wycofana. Kolejne opłaty: proforma i przelew. To nie jest rezygnacja z licencji.';
     }
 
     // ── Przebieg dzienny (z ClaudeBilling::run) ───────────────────────────────
@@ -395,7 +413,7 @@ final class LicenceCard
             if (!self::active((int)$r['client_id'])) self::fallback((int)$r['id'], 'karta nie została podpięta');
         }
         // opłaty miesięczne w dniu terminu
-        foreach (db_all("SELECT id FROM claude_charges WHERE kind='month' AND status='pending' AND pay_mode='card' AND due_on<=? AND (card_tried_at IS NULL OR date(card_tried_at) < ?) AND is_test=0 ORDER BY id LIMIT 50", [$today, $today]) as $r) {
+        foreach (db_all("SELECT id FROM claude_charges WHERE kind='month' AND status='pending' AND pay_mode='card' AND due_on<=? AND (card_tried_at IS NULL OR date(card_tried_at) < ?) AND card_attempts < ? AND is_test=0 ORDER BY id LIMIT 50", [$today, $today, self::MAX_ATTEMPTS]) as $r) {
             $x = self::chargeNow((int)$r['id'], 'system');
             $rep['log'][] = 'karta, naliczenie #' . (int)$r['id'] . ': ' . $x['text'];
         }

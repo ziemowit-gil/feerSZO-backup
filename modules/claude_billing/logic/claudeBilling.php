@@ -54,6 +54,9 @@ final class ClaudeBilling
         'position_name' => 'Dostęp do {produkt} — {okres}', 'fee_name' => 'Prowizja za obsługę płatności',
         // sposób płatności (polecenie 2026-11-10): invoice = proforma i przelew, card = karta (Przelewy24), pobieranie automatyczne i FVAT po wpłacie
         'pay_mode' => 'invoice', 'card_fee_pln' => '1.23', 'card_fee_name' => 'Opłata weryfikacyjna karty płatniczej',
+        'card_only' => '0',
+        'auto_invoice' => '0',        // faktura VAT od razu po każdej wpłacie, także przy wniosku (Helpdesk tylko aktywuje dostęp)
+        'invoice_to_folder' => '0',   // PDF faktury VAT pobierany do SZO i dołączany do dokumentów uczestnika (teczka)   // tylko karta: bez przejścia na proformę i przelew (nieudane obciążenie → prośba o inną kartę, potem wstrzymanie jak zwykle)
         'tenant_sku' => '',   // Office A3/A5: identyfikator licencji (SKU) w tenancie edukacyjnym — nadawany przy aktywacji
     ];
     /** Pola do wstawienia w nazwie pozycji faktury: znacznik => opis. */
@@ -276,10 +279,13 @@ final class ClaudeBilling
         if (!preg_match('#^https://#', $s['fast_transfer_url'])) $s['fast_transfer_url'] = self::DEFAULTS['fast_transfer_url'];
         $s['bank_account'] = preg_replace('/\D/', '', preg_replace('/^\s*PL/i', '', (string)$s['bank_account']));
         if (strlen($s['bank_account']) !== 26) $s['bank_account'] = self::DEFAULTS['bank_account'];
-        foreach (['enabled', 'invoice_email', 'notify', 'helpdesk', 'simulate'] as $b) $s[$b] = $s[$b] === '1';
+        foreach (['enabled', 'invoice_email', 'notify', 'helpdesk', 'simulate', 'card_only', 'auto_invoice', 'invoice_to_folder'] as $b) $s[$b] = $s[$b] === '1';
         $s['priced'] = $s['usd'] > 0;
         return $s;
     }
+
+    /** Czyści pamięć ustawień w bieżącym żądaniu (testy, zmiany przez org_setting_set). */
+    public static function flushSettings(): void { self::$settingsCache = []; }
 
     public static function saveSettings(array $in, string $by, string $product = 'claude'): void
     {
@@ -304,6 +310,9 @@ final class ClaudeBilling
             'card_fee_pln' => array_key_exists('card_fee_pln', $in) ? ($num($in['card_fee_pln']) ?: '1.23') : (string)(self::settings($product)['card_fee_pln']),
             'card_fee_name' => array_key_exists('card_fee_name', $in) ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$in['card_fee_name'])), 0, 200) : (string)(self::settings($product)['card_fee_name']),
             'tenant_sku' => array_key_exists('tenant_sku', $in) ? strtolower(trim((string)$in['tenant_sku'])) : (string)(self::settings($product)['tenant_sku']),
+            'card_only' => array_key_exists('card_only', $in) ? (!empty($in['card_only']) ? '1' : '0') : (self::settings($product)['card_only'] ? '1' : '0'),
+            'auto_invoice' => array_key_exists('auto_invoice', $in) ? (!empty($in['auto_invoice']) ? '1' : '0') : (self::settings($product)['auto_invoice'] ? '1' : '0'),
+            'invoice_to_folder' => array_key_exists('invoice_to_folder', $in) ? (!empty($in['invoice_to_folder']) ? '1' : '0') : (self::settings($product)['invoice_to_folder'] ? '1' : '0'),
         ];
         if ($map['tenant_sku'] !== '' && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $map['tenant_sku'])) throw new InvalidArgumentException('Licencja w tenancie (SKU) to identyfikator w postaci xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (Microsoft 365 › Licencje).');
         if ((float)$map['card_fee_pln'] < 0.01 || (float)$map['card_fee_pln'] > 10) throw new InvalidArgumentException('Opłata weryfikacyjna karty: od 0,01 do 10 zł.');
@@ -885,7 +894,8 @@ final class ClaudeBilling
                 $ch0 = self::charge($id);
                 $sub0 = $ch0 ? self::subscription((int)$ch0['subscription_id']) : null;
                 $byCard = $ch0 && (($ch0['kind'] ?? '') === 'card' || ($ch0['pay_mode'] ?? '') === 'card');   // karta: FVAT zawsze od razu po wpłacie (także przy wniosku)
-                if ($sub0 && $sub0['status'] === 'requested' && !$byCard) {   // wniosek: fakturę VAT wystawia Helpdesk (karta w zgłoszeniu)
+                $autoFv = $byCard || ($ch0 && !empty(self::settings(self::productOf($ch0))['auto_invoice']));   // opcja: FVAT od razu po każdej wpłacie
+                if ($sub0 && $sub0['status'] === 'requested' && !$autoFv) {   // wniosek: fakturę VAT wystawia Helpdesk (karta w zgłoszeniu)
                     require_once __DIR__ . '/LicenceRequest.php';
                     LicenceRequest::note((int)$sub0['helpdesk_ticket_id'], 'Wpłata ' . self::zl((float)$ch0['amount_pln']) . ' dotarła (' . ($ch0['paid_via'] ?: 'wpłata') . '). Następny krok: Wystaw fakturę VAT, potem Aktywuj dostęp.');
                 } else {
@@ -894,7 +904,8 @@ final class ClaudeBilling
                     if ($sub0 && $sub0['status'] === 'requested' && ($ch0['kind'] ?? '') === 'month') {
                         require_once __DIR__ . '/LicenceRequest.php';
                         $chx = self::charge($id);
-                        LicenceRequest::note((int)$sub0['helpdesk_ticket_id'], 'Pobrano ' . self::zl((float)$ch0['amount_pln']) . ' z karty. Faktura VAT ' . ($chx['invoice_number'] ?: '(w przygotowaniu)') . ' wystawiona automatycznie. Następny krok: Aktywuj dostęp.');
+                        LicenceRequest::note((int)$sub0['helpdesk_ticket_id'], ($byCard ? 'Pobrano ' . self::zl((float)$ch0['amount_pln']) . ' z karty.' : 'Wpłata ' . self::zl((float)$ch0['amount_pln']) . ' dotarła (' . ($ch0['paid_via'] ?: 'wpłata') . ').')
+                            . ' Faktura VAT ' . ($chx['invoice_number'] ?: '(w przygotowaniu)') . ' wystawiona automatycznie. Następny krok: Aktywuj dostęp.');
                     }
                 }
             } catch (\Throwable $e) {
@@ -1016,7 +1027,9 @@ final class ClaudeBilling
             require_once __DIR__ . '/ClaudeInvoice.php';
             $simSql = ClaudeInvoice::live() ? " OR proforma_number LIKE 'SYM-%' OR order_number LIKE 'SYM-%' OR invoice_number LIKE 'SYM-%'" : '';   // Fakturownia działa — zastąp symulacje
             foreach (db_all("SELECT id, product FROM claude_charges WHERE ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL AND kind='month' AND pay_mode<>'card')
-                    OR (status='paid' AND invoice_id IS NULL AND (kind='card' OR pay_mode='card' OR subscription_id NOT IN (SELECT id FROM claude_subscriptions WHERE status='requested')))$simSql) AND status<>'cancelled' AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
+                    OR (status='paid' AND invoice_id IS NULL AND (kind='card' OR pay_mode='card' OR subscription_id NOT IN (SELECT id FROM claude_subscriptions WHERE status='requested'))
+                        OR (status='paid' AND invoice_id IS NULL AND subscription_id IN (SELECT id FROM claude_subscriptions WHERE status='requested') AND product IN (SELECT substr(key_, 1, length(key_) - length('_bill_auto_invoice')) FROM settings WHERE key_ LIKE '%\_bill\_auto\_invoice' ESCAPE '\' AND value='1')))$simSql)
+                    AND status<>'cancelled' AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
                 if (self::settings((string)$r['product'])['invoice'] !== 'auto') continue;
                 try { ClaudeInvoice::issueForCharge((int)$r['id']); } catch (\Throwable $e) { $rep['errors'][] = 'faktura #' . $r['id'] . ': ' . $e->getMessage(); }
             }
@@ -1158,6 +1171,9 @@ final class ClaudeBilling
             'wplata_karta'  => ['Pobraliśmy ' . $amt . ' za ' . $L,
                                 '<p>Pobraliśmy <b>' . h($amt) . '</b> z karty' . ($card !== '' ? ' ' . h($card) : '') . ' za ' . h($L) . ' ' . h($in) . '. Dziękujemy!'
                                 . (!empty($ch['invoice_number']) ? ' Faktura VAT ' . h((string)$ch['invoice_number']) . ' jest w panelu.' : ' Faktura VAT będzie w panelu.') . '</p>'],
+            'karta_inna'    => [$L . ': nie udało się pobrać opłaty z karty',
+                                '<p>Nie udało się pobrać <b>' . h($amt) . '</b> z karty za ' . h($L) . ' ' . h($in) . ($extra !== '' ? ' (' . h($extra) . ')' : '') . '.</p>'
+                                . '<p>Za ' . h($L) . ' płacisz tylko kartą. Podepnij inną kartę w panelu (zakładka „Rozliczenia”), a opłatę pobierzemy od razu. Bez wpłaty wstrzymamy dostęp po ' . (int)self::settings($product)['grace_days'] . ' dniach od terminu.</p>'],
             'karta_blad'    => [$L . ': nie udało się pobrać opłaty z karty',
                                 '<p>Nie udało się pobrać <b>' . h($amt) . '</b> z karty za ' . h($L) . ' ' . h($in) . ($extra !== '' ? ' (' . h($extra) . ')' : '') . '.</p>'
                                 . '<p>Dlatego wysyłamy proformę do zapłaty przelewem, termin <b>' . h($due) . '</b>.</p>' . $how],

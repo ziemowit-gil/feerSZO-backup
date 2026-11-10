@@ -242,6 +242,7 @@ final class ClaudeInvoice
         ClaudeBilling::event((int)$ch['subscription_id'], $chargeId, $doc, $D['label'] . ($test ? ' testowa' : '') . ' ' . $inv['number'] . ' w Fakturowni (zw) — '
             . ($payload['mode'] === 'rabat' ? 'z rabatem non-profit' : 'cena non-profit z opisem rabatu') . '.' . ($warning !== '' ? ' UWAGA: ' . $warning : ''), 'system');
         if ($doc === 'invoice' && !$test && $s['invoice_email']) self::send($id, ClaudeBilling::charge($chargeId));
+        if ($doc === 'invoice' && !$test && !empty($s['invoice_to_folder'])) self::toFolder($chargeId);   // opcja: PDF faktury do dokumentów uczestnika
         return ['ok' => true, 'number' => (string)$inv['number'], 'local_id' => $id, 'warning' => $warning, 'payload' => $payload, 'url' => (string)$inv['fakturownia_url']];
     }
 
@@ -313,6 +314,27 @@ final class ClaudeInvoice
         return (string)($r['invoice']['status'] ?? '') === 'paid' || $paidAmt + 0.009 >= (float)$ch['amount_pln'];
     }
 
+    /** PDF faktury VAT pobrany z Fakturowni (kopia w SZO) i dołączony do dokumentów uczestnika (teczka, kategoria „inne”) — bez duplikatów. */
+    public static function toFolder(int $chargeId): bool
+    {
+        try {
+            $ch = ClaudeBilling::charge($chargeId);
+            if (!$ch || (string)$ch['invoice_number'] === '') return false;
+            $sym = self::isSim((string)$ch['invoice_number']);
+            if ($sym && !ClaudeBilling::isVirtual((int)$ch['client_id'])) return false;   // symulacja to nie dokument — tylko konto testowe
+            $acc = db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id=? AND is_active=1 ORDER BY id DESC LIMIT 1", [(int)$ch['client_id']]);
+            if (!$acc) return false;
+            require_once dirname(__DIR__, 2) . '/ti_student_folder/logic/studentFolder.php';
+            TiStudentFolder::migrate();
+            $title = 'Faktura VAT ' . $ch['invoice_number'] . ' (' . ClaudeBilling::P(ClaudeBilling::productOf($ch))['label'] . ')';
+            if (db_one("SELECT 1 FROM k30_ti_sfile WHERE account_id=? AND title=? AND deleted_at IS NULL", [(int)$acc['id'], $title])) return true;
+            $pdf = self::pdf($chargeId, 'invoice');
+            $ok = TiStudentFolder::addSystemFile((int)$acc['id'], 'inne', $title, $pdf['name'], $pdf['bytes'], 'Faktura za ' . (($ch['kind'] ?? '') === 'card' ? 'opłatę weryfikacyjną karty' : ClaudeBilling::periodLabel((string)$ch['period'])) . ', dołączona automatycznie.') > 0;
+            if ($ok) ClaudeBilling::event((int)$ch['subscription_id'], $chargeId, 'invoice_folder', 'Faktura ' . $ch['invoice_number'] . ' (PDF) dołączona do dokumentów uczestnika.', 'system');
+            return $ok;
+        } catch (\Throwable $e) { error_log('licencje faktura do teczki #' . $chargeId . ': ' . $e->getMessage()); return false; }
+    }
+
     /** Usuwa testowe dokumenty (proforma, zamówienie) z Fakturowni i z rejestru SZO (strona testu). */
     public static function deleteTest(int $chargeId): string
     {
@@ -346,6 +368,7 @@ final class ClaudeInvoice
         db_exec("UPDATE claude_charges SET {$doc}_id=?, {$doc}_number=?, invoice_error=?, invoice_payload=? WHERE id=?",
             [$localId, $no, mb_substr($msg, 0, 500), json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), $chargeId]);
         if (!$same) ClaudeBilling::event((int)$ch['subscription_id'], $chargeId, 'simulated', $msg, 'system');
+        if ($doc === 'invoice' && !(int)$ch['is_test'] && !empty(ClaudeBilling::settings(ClaudeBilling::productOf($ch))['invoice_to_folder'])) self::toFolder($chargeId);   // konto testowe: PDF symulacji do teczki (prawdziwe konto — toFolder pomija symulacje)
         return ['ok' => true, 'simulated' => true, 'number' => $no, 'local_id' => $localId, 'warning' => $msg, 'payload' => $payload];
     }
 
