@@ -277,26 +277,38 @@ html body .tsk-dash .tsk-row:hover,html body #tsk-main .tsk-row:hover{background
 /* ══ Lista: kolumna obszarów po lewej + gęsta tabela ═════════════════════ */
 html body #tsk-main .tk-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:1.5rem;align-items:start}
 html body #tsk-main .tk-layout-main{min-width:0}
-html body #tsk-main .tk-ws-side{position:sticky;top:120px;background:var(--tm-light);padding:.5rem 0}
-html body #tsk-main .tk-ws-side-h{font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--tm-muted);padding:.4rem 1rem .5rem}
-html body #tsk-main .tk-ws-side-list{list-style:none;margin:0;padding:0}
-html body #tsk-main .tk-ws-side-link{display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem .55rem calc(1rem - 4px);border-left:4px solid transparent;
-  color:var(--tsk-text);text-decoration:none;font-size:.88rem;line-height:1.25}
-html body #tsk-main .tk-ws-side-link i{color:var(--ws);font-size:1rem;flex-shrink:0}
-html body #tsk-main .tk-ws-side-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-html body #tsk-main .tk-ws-side-cnt{font-size:.72rem;color:var(--tm-muted);flex-shrink:0}
-html body #tsk-main .tk-ws-side-link:hover{background:var(--tm-light-h)}
-html body #tsk-main .tk-ws-side-link.active{background:#fff;border-left-color:var(--ws);font-weight:600}
-html body #tsk-main .tk-ws-side-manage{display:flex;align-items:center;gap:.5rem;margin-top:.5rem;padding:.6rem 1rem;border-top:1px solid #dcdcdc;
-  font-size:.8rem;color:var(--tm-muted);text-decoration:none}
-html body #tsk-main .tk-ws-side-manage:hover{color:var(--tsk-text);background:var(--tm-light-h)}
+/* Obszary jak lewa kolumna Skrzynki CRM: białe tło z linią po prawej, obszar = kafelek Metro w kolorze obszaru
+   (ikona w kolorze czytelnym na tym tle — --ws-ink liczy PHP), pełna nazwa w dwóch liniach zamiast ucinania,
+   licznik jako plakietka (zero wyciszone), aktywny obszar podbarwiony jego kolorem. */
+html body #tsk-main .tk-layout{grid-template-columns:240px minmax(0,1fr)}
+html body #tsk-main .tk-ws-side{position:sticky;top:120px;background:#fff;padding:.25rem 0 .5rem;border-right:1px solid var(--tm-line)}
+html body #tsk-main .tk-ws-side-h{font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--tm-muted);padding:.4rem .9rem .45rem}
+html body #tsk-main .tk-ws-side-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+html body #tsk-main .tk-ws-side-link{display:flex;align-items:center;gap:.65rem;min-height:44px;padding:.35rem .75rem .35rem calc(.9rem - 3px);border-left:3px solid transparent;
+  color:var(--tsk-text);text-decoration:none;font-size:.88rem;line-height:1.2}
+html body #tsk-main .tk-ws-tile{width:30px;height:30px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:var(--ws);color:var(--ws-ink,#fff);font-size:.95rem}
+html body #tsk-main .tk-ws-tile i{color:inherit}
+html body #tsk-main .tk-ws-side-name{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+html body #tsk-main .tk-ws-side-cnt{flex-shrink:0;min-width:1.6rem;padding:.12rem .35rem;text-align:center;font-size:.74rem;font-weight:700;line-height:1.2;
+  color:var(--tsk-text);background:var(--tm-light);font-variant-numeric:tabular-nums}
+html body #tsk-main .tk-ws-side-cnt.is-zero{background:transparent;color:var(--tm-muted);font-weight:400}
+html body #tsk-main .tk-ws-side-link:hover{background:var(--tm-light)}
+html body #tsk-main .tk-ws-side-link:focus-visible{outline:2px solid var(--tsk-text);outline-offset:-2px}
+html body #tsk-main .tk-ws-side-link.active{background:var(--tm-light);background:color-mix(in srgb, var(--ws) 12%, #fff);border-left-color:var(--ws);font-weight:700}
+html body #tsk-main .tk-ws-side-link.active .tk-ws-side-cnt:not(.is-zero){background:var(--ws);color:var(--ws-ink,#fff)}
+html body #tsk-main .tk-ws-side-manage{display:flex;align-items:center;gap:.5rem;margin:.5rem .5rem 0;padding:.6rem .4rem;border-top:1px solid var(--tm-line);
+  font-size:.82rem;font-weight:600;color:var(--tsk-text);text-decoration:none}
+html body #tsk-main .tk-ws-side-manage i{color:var(--tm-muted)}
+html body #tsk-main .tk-ws-side-manage:hover{background:var(--tm-light)}
 @media(max-width:991.98px){
   html body #tsk-main .tk-layout{grid-template-columns:minmax(0,1fr);gap:1rem}
-  html body #tsk-main .tk-ws-side{position:static;padding:0;display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none}
+  html body #tsk-main .tk-ws-side{position:static;padding:0;border-right:0;border-bottom:1px solid var(--tm-line);display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none}
   html body #tsk-main .tk-ws-side-h,html body #tsk-main .tk-ws-side-manage{display:none}
-  html body #tsk-main .tk-ws-side-list{display:flex}
-  html body #tsk-main .tk-ws-side-link{border-left:0;border-bottom:4px solid transparent;padding:.6rem .9rem;white-space:nowrap}
+  html body #tsk-main .tk-ws-side-list{flex-direction:row;gap:0}
+  html body #tsk-main .tk-ws-side-link{border-left:0;border-bottom:3px solid transparent;padding:.4rem .8rem;white-space:nowrap}
   html body #tsk-main .tk-ws-side-link.active{border-bottom-color:var(--ws)}
+  html body #tsk-main .tk-ws-tile{width:22px;height:22px;font-size:.78rem}
+  html body #tsk-main .tk-ws-side-name{display:block;white-space:nowrap}
 }
 
 html body #tsk-main .tk-table td{vertical-align:top;padding:.8rem .7rem}
