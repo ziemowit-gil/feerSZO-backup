@@ -27,7 +27,11 @@ final class ClaudeBilling
     public const PRODUCTS = [
         'claude'  => ['label' => 'Claude', 'name' => 'Claude Team (Claude for Nonprofit)', 'what' => 'asystent AI Claude', 'prefix' => 'claude_bill_',
                       'match' => ['claude', 'anthropic', 'antropic'], 'uniqueEmail' => false, 'color' => '#da532c', 'requiresEdu' => true, 'pool' => false,
-                      'program' => 'w programie Claude for Nonprofit (Anthropic)', 'defaults' => ['enabled' => '1', 'usd' => '8', 'list_usd' => '25']],
+                      'program' => 'w programie Claude for Nonprofit (Anthropic)', 'goodstack' => true,
+                      'defaults' => ['enabled' => '1', 'usd' => '8', 'list_usd' => '25',
+                                     // drugi sposób: weryfikacja Claude for Nonprofit w Goodstack (polecenie 2026-11-10) — FEER potwierdza dostęp; warunek: konto Office EDU
+                                     'goodstack_krs' => '0000779281',   // na stronie Goodstack: KRS → „Fundacja Edukacji Empatii Rozwoju "FEER"”
+                                     'goodstack_url' => 'https://validation.goodstack.org/validate/validationinvite_5c61c931-ae4e-4bfa-bddd-d0035eba12dd?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXJ0bmVyUHVibGljS2V5IjoicGtfYmYzYjE2OTUtNGZjZS00YzEwLTljMjItMTNmNDMxMjhiYjI5IiwiaWF0IjoxNzk0MzUwNDQ5LCJhdWQiOiJ2YWxpZGF0aW9uLWludml0ZS1wYXJ0bmVyLXB1YmxpYy1rZXkifQ.HUYDE2YsJTZYB-PptS3phpN3cGOsNqURj9mhoj_5sYY']],
         'nordvpn' => ['label' => 'NordVPN', 'name' => 'NordVPN', 'what' => 'NordVPN, szyfrowane połączenie z internetem (VPN)', 'prefix' => 'nordvpn_bill_',
                       'match' => ['nordvpn', 'nord vpn', 'nordlayer', 'nord security'], 'uniqueEmail' => true, 'color' => '#4687ff', 'requiresEdu' => false, 'pool' => true,
                       'program' => '', 'defaults' => ['enabled' => '0', 'usd' => '0', 'list_usd' => '0']],
@@ -58,6 +62,8 @@ final class ClaudeBilling
         'auto_invoice' => '0',        // faktura VAT od razu po każdej wpłacie, także przy wniosku (Helpdesk tylko aktywuje dostęp)
         'invoice_to_folder' => '0',   // PDF faktury VAT pobierany do SZO i dołączany do dokumentów uczestnika (teczka)   // tylko karta: bez przejścia na proformę i przelew (nieudane obciążenie → prośba o inną kartę, potem wstrzymanie jak zwykle)
         'tenant_sku' => '',   // Office A3/A5: identyfikator licencji (SKU) w tenancie edukacyjnym — nadawany przy aktywacji
+        'goodstack_url' => '',   // Claude: link weryfikacji Claude for Nonprofit (Goodstack); puste = bez drugiego sposobu
+        'goodstack_krs' => '',   // numer KRS Fundacji do wpisania na stronie Goodstack
     ];
     /** Pola do wstawienia w nazwie pozycji faktury: znacznik => opis. */
     public const POSITION_FIELDS = ['{produkt}' => 'pełna nazwa produktu, np. Claude Team (Claude for Nonprofit)', '{licencja}' => 'krótka nazwa, np. Claude',
@@ -269,6 +275,8 @@ final class ClaudeBilling
         $s['pct_label'] = mb_substr(trim((string)$s['pct_label']), 0, 30);
         foreach (['position_name', 'fee_name', 'card_fee_name'] as $nk) $s[$nk] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$s[$nk])), 0, 200) ?: self::DEFAULTS[$nk];
         if (!in_array($s['pay_mode'], ['invoice', 'card'], true)) $s['pay_mode'] = 'invoice';
+        $s['goodstack_krs'] = preg_replace('/\D/', '', (string)$s['goodstack_krs']);
+        $s['goodstack_url'] = preg_match('#^https://[a-z0-9.-]*goodstack\.org/#i', trim((string)$s['goodstack_url'])) ? trim((string)$s['goodstack_url']) : '';
         $s['tenant_sku'] = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', trim((string)$s['tenant_sku'])) ? strtolower(trim((string)$s['tenant_sku'])) : '';
         $s['card_fee_pln'] = round(min(10.0, max(0.01, (float)str_replace(',', '.', (string)$s['card_fee_pln']))), 2);
         foreach (['available_from', 'available_until'] as $dk) if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$s[$dk])) $s[$dk] = '';
@@ -323,10 +331,13 @@ final class ClaudeBilling
             'card_fee_pln' => array_key_exists('card_fee_pln', $in) ? ($num($in['card_fee_pln']) ?: '1.23') : (string)(self::settings($product)['card_fee_pln']),
             'card_fee_name' => array_key_exists('card_fee_name', $in) ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$in['card_fee_name'])), 0, 200) : (string)(self::settings($product)['card_fee_name']),
             'tenant_sku' => array_key_exists('tenant_sku', $in) ? strtolower(trim((string)$in['tenant_sku'])) : (string)(self::settings($product)['tenant_sku']),
+            'goodstack_url' => array_key_exists('goodstack_url', $in) ? trim((string)$in['goodstack_url']) : (string)(self::settings($product)['goodstack_url']),
+            'goodstack_krs' => array_key_exists('goodstack_krs', $in) ? preg_replace('/\D/', '', (string)$in['goodstack_krs']) : (string)(self::settings($product)['goodstack_krs']),
             'card_only' => array_key_exists('card_only', $in) ? (!empty($in['card_only']) ? '1' : '0') : (self::settings($product)['card_only'] ? '1' : '0'),
             'auto_invoice' => array_key_exists('auto_invoice', $in) ? (!empty($in['auto_invoice']) ? '1' : '0') : (self::settings($product)['auto_invoice'] ? '1' : '0'),
             'invoice_to_folder' => array_key_exists('invoice_to_folder', $in) ? (!empty($in['invoice_to_folder']) ? '1' : '0') : (self::settings($product)['invoice_to_folder'] ? '1' : '0'),
         ];
+        if ($map['goodstack_url'] !== '' && !preg_match('#^https://[a-z0-9.-]*goodstack\.org/#i', $map['goodstack_url'])) throw new InvalidArgumentException('Link weryfikacji musi prowadzić do Goodstack (https://….goodstack.org/…).');
         if ($map['tenant_sku'] !== '' && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $map['tenant_sku'])) throw new InvalidArgumentException('Licencja w tenancie (SKU) to identyfikator w postaci xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (Microsoft 365 › Licencje).');
         if ((float)$map['card_fee_pln'] < 0.01 || (float)$map['card_fee_pln'] > 10) throw new InvalidArgumentException('Opłata weryfikacyjna karty: od 0,01 do 10 zł.');
         if ($map['pay_mode'] === 'card') {

@@ -101,9 +101,33 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
   <?php };
 ?>
   <h1 class="m-title"><?= h($P['label']) ?> <?= $tag($state[1], $state[0]) ?></h1>
-  <p class="m-explain"><?= ($v['payMode'] ?? '') === 'card' ? 'Płacisz co miesiąc kartą. Opłatę pobieramy sami w dniu terminu, a po wpłacie przychodzi faktura.' : 'Płacisz co miesiąc. Dostajesz proformę i masz ' . ClaudeBilling::TERM_DAYS . ' dni na wpłatę. Po wpłacie przychodzi faktura. Bez wpłaty wstrzymujemy dostęp.' ?></p>
+  <p class="m-explain"><?= !empty($P['goodstack']) && ($s['goodstack_url'] ?? '') !== '' && !$open && !$requested ? 'Masz dwa sposoby na ' . h($P['label']) . '. Polecamy pierwszy: weryfikujesz się jako osoba z Fundacji i płacisz sam(a) w Anthropic.' : (($v['payMode'] ?? '') === 'card' ? 'Płacisz co miesiąc kartą. Opłatę pobieramy sami w dniu terminu, a po wpłacie przychodzi faktura.' : 'Płacisz co miesiąc. Dostajesz proformę i masz ' . ClaudeBilling::TERM_DAYS . ' dni na wpłatę. Po wpłacie przychodzi faktura. Bez wpłaty wstrzymujemy dostęp.') ?></p>
   <?= $idsLine ?>
+  <?php if (!empty($P['goodstack']) && ($s['goodstack_url'] ?? '') !== ''): $gsOpen = $open || $requested; ?>
+  <?php /* Sposób polecany (polecenie 2026-11-10): Claude for Nonprofit przez weryfikację Goodstack, płatność własną kartą w Anthropic */ ?>
+  <section class="m-tile tw-mb-4" aria-labelledby="gs-h" style="border-top:4px solid var(--mt-ok)">
+    <h2 class="m-sect" id="gs-h">Sposób 1 <?= $tag('ok', 'polecamy') ?> Claude for Nonprofit, płacisz sam(a) kartą</h2>
+    <p class="tw-text-sm tw-mb-2">Weryfikujesz się jako osoba z Fundacji, a potem kupujesz Claude bezpośrednio w Anthropic, w cenie dla organizacji non-profit. Płacisz własną kartą, Fundacja nie wystawia faktur.</p>
+    <?php if (!$eduAccount): ?>
+      <p class="tw-text-sm tw-mb-2"><b>Warunek:</b> konto Office @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Nie masz go jeszcze.</p>
+      <?php $officeBox('claude'); ?>
+    <?php else: ?>
+      <details<?= $gsOpen ? '' : ' open' ?>><summary class="tw-text-sm">Jak to zrobić (5 kroków)</summary>
+        <ol class="tw-list-decimal tw-pl-6 tw-text-sm tw-space-y-1 tw-mt-2">
+          <li>Kliknij „Przejdź do weryfikacji”. Otworzy się strona Goodstack.</li>
+          <li>W polu z nazwą organizacji wpisz numer KRS <b class="m-mono"><?= h($s['goodstack_krs'] !== '' ? $s['goodstack_krs'] : '0000779281') ?></b> i wybierz <b>Fundacja Edukacji Empatii Rozwoju "FEER"</b>.</li>
+          <li>Podaj e-mail z konta Office: <b class="m-mono"><?= h((string)$eduAccount) ?></b>. Potwierdź go linkiem, który przyjdzie na tę skrzynkę.</li>
+          <li>Fundacja potwierdzi, że należysz do organizacji. Zwykle w ciągu 1–2 dni roboczych.</li>
+          <li>Po potwierdzeniu kupisz Claude w Anthropic i zapłacisz własną kartą.</li>
+        </ol>
+      </details>
+      <a class="m-btn tw-mt-3" href="<?= h(route('lk.goodstack')) ?>" target="_blank" rel="noopener">Przejdź do weryfikacji ↗<span class="tw-sr-only"> (strona Goodstack, nowa karta)</span></a>
+      <p class="m-note tw-mt-2">Pocztę z konta Office odbierzesz na <a href="https://outlook.office.com/mail/?login_hint=<?= h(rawurlencode((string)$eduAccount)) ?>" target="_blank" rel="noopener">outlook.office.com<span class="tw-sr-only"> (nowa karta)</span></a>.</p>
+    <?php endif; ?>
+  </section>
+  <?php endif; ?>
   <section class="m-tile" aria-label="<?= h($P['label']) ?>">
+    <?php if (!empty($P['goodstack']) && ($s['goodstack_url'] ?? '') !== ''): ?><h2 class="m-sect">Sposób 2: przez Fundację (płatna licencja)</h2><?php endif; ?>
     <p class="tw-text-sm tw-mb-3"><?= h(ucfirst($P['what'])) ?>.</p>
     <?php if ($s['priced'] && ($s['enabled'] || $open || $requested)): $rt = $v['rate'] ?? null; ?>
     <div class="m-box tw-mb-4" role="group" aria-label="Cena <?= h($P['label']) ?>">

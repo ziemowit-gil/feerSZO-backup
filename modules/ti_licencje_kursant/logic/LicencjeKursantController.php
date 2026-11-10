@@ -605,6 +605,35 @@ final class LicencjeKursantController
     }
 
     /** Prośba o konto @edu.feer.org.pl (wymagane do Claude). */
+    /** Claude — drugi sposób: weryfikacja Claude for Nonprofit w Goodstack (warunek: konto Office EDU). Zapis w dzienniku i zgłoszenie dla FEER (raz). */
+    public function goodstack(): ?string
+    {
+        $me = $this->me();
+        $s = ClaudeBilling::settings('claude');
+        if ($s['goodstack_url'] === '') return $this->flash('err', 'Weryfikacja jest chwilowo niedostępna. Napisz do biura.', 'claude');
+        $edu = ClaudeBilling::eduAccount($me['cid']);
+        if (!$edu) return $this->flash('err', 'Najpierw załóż konto Office (@' . ClaudeBilling::EDU_DOMAIN . '). Bez niego weryfikacja się nie uda.', 'office');
+        $seen = db_one("SELECT 1 FROM claude_events WHERE kind='goodstack_start' AND text LIKE ?", ['%#' . $me['cid'] . ')%']);
+        ClaudeBilling::event(null, null, 'goodstack_start', 'Weryfikacja Claude for Nonprofit (Goodstack): ' . $me['name'] . ', konto Office ' . $edu . ' (uczestnik #' . $me['cid'] . ').', $me['name']);
+        $this->log($me, 'claude_goodstack', 'Przejście do weryfikacji Claude for Nonprofit (Goodstack).');
+        if (!$seen && !ClaudeBilling::isVirtual($me['cid'])) {   // FEER potwierdza dostęp w Goodstack — zgłoszenie z danymi do potwierdzenia
+            try {
+                require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
+                $c = ClaudeBilling::client($me['cid']) ?? ['name' => $me['name'], 'email' => ''];
+                $desc = 'Uczestnik przechodzi weryfikację Claude for Nonprofit w Goodstack (drugi sposób dostępu do Claude, bez płatnej licencji FEER).'
+                    . "
+Osoba: " . $c['name'] . ' (uczestnik nr ' . $me['cid'] . ')' . "
+Konto Office EDU: " . $edu . ($c['email'] ? "
+E-mail: " . $c['email'] : '')
+                    . "
+Następny krok: potwierdź dostęp tej osoby w panelu Goodstack (FEER aprowizuje), potem zamknij zgłoszenie.";
+                hd_ticket_quick_create(['id' => null, 'name' => (string)$c['name'], 'email' => (string)$c['email']], 'Claude for Nonprofit — weryfikacja Goodstack: ' . $c['name'], $desc, 'it_licencje_am', 'normalny', 'license_goodstack');
+            } catch (\Throwable $e) { error_log('lk goodstack: ' . $e->getMessage()); }
+        }
+        header('Location: ' . $s['goodstack_url']);
+        return null;
+    }
+
     /** Wniosek o aktywację planu Office A3 / A5, gdy plan nie ma jeszcze ceny (kreator działa dopiero po ustawieniu ceny): zgłoszenie do biura. */
     public function officePlan(): ?string
     {
