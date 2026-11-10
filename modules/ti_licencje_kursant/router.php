@@ -49,6 +49,7 @@ $r->group(['lp.auth', 'lp.contact'], function (Router $r) {
     $r->get('/produkty',               [LicencjeKursantController::class, 'products'])->name('lk.products');
     $r->get('/konto',                  [LicencjeKursantController::class, 'account'])->name('lk.account');
     $r->get('/dokument/{id}/{doc}',    [LicencjeKursantController::class, 'document'])->name('lk.doc');
+    $r->get('/platnosci',              [LicencjeKursantController::class, 'portal'])->name('lk.portal');
     $r->post('/symulacja/zaplac/{id}', [LicencjeKursantController::class, 'simPay'])->name('lk.sim.pay');
     $r->get('/potwierdz',              [LicencjeKursantController::class, 'confirmForm'])->name('lk.confirm');
     $r->post('/potwierdz',             [LicencjeKursantController::class, 'confirmPost'])->name('lk.confirm.post');

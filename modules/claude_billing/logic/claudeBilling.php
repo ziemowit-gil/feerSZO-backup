@@ -1093,6 +1093,44 @@ final class ClaudeBilling
         return ['nrb' => $nrb, 'nrb_fmt' => trim(substr($nrb, 0, 2) . ' ' . implode(' ', str_split(substr($nrb, 2), 4))), 'kind' => 'org'];
     }
 
+    /**
+     * Płatne licencje w portalu płatności (/platnosci): opłaty uczestnika z dokumentami do pobrania.
+     * Pozycje portalu mają typ „manual”, a licencję rozpoznajemy po claude_charges.pp_item_id (tabela payable_items ma CHECK na typ).
+     * Dokumenty SYM (symulacja) pokazujemy tylko kontu testowemu. @return array{byItem:array<int,array>,charges:list<array>}
+     */
+    public static function portalLicences(int $participantId): array
+    {
+        self::migrate();
+        $virtual = self::isVirtual($participantId);
+        $out = ['byItem' => [], 'charges' => []];
+        foreach (db_all("SELECT * FROM claude_charges WHERE client_id=? AND is_test=0 AND status<>'cancelled' ORDER BY period DESC, id DESC LIMIT 36", [$participantId]) as $ch) {
+            $docs = [];
+            foreach (['proforma' => 'Proforma', 'order' => 'Zamówienie', 'invoice' => 'Faktura'] as $d => $l) {
+                $no = (string)$ch[$d . '_number'];
+                if ($no === '' || (str_starts_with($no, 'SYM-') && !$virtual)) continue;
+                $docs[] = ['doc' => $d, 'label' => $l . ' ' . $no, 'url' => 'dokument.php?type=licence&id=' . (int)$ch['id'] . '&doc=' . $d];
+            }
+            $row = ['charge_id' => (int)$ch['id'], 'product' => self::productOf($ch), 'label' => 'Płatna licencja (' . self::P(self::productOf($ch))['label'] . ')',
+                    'period' => self::periodLabel((string)$ch['period']), 'amount' => (float)$ch['amount_pln'], 'status' => (string)$ch['status'], 'due_on' => (string)$ch['due_on'], 'docs' => $docs];
+            $out['charges'][] = $row;
+            if (!empty($ch['pp_item_id'])) $out['byItem'][(int)$ch['pp_item_id']] = $row;
+        }
+        return $out;
+    }
+
+    /** Etykiety pozycji portalu, które są opłatami licencji (panel administratora portalu). @return array<int,string> item_id => etykieta */
+    public static function portalItemLabels(array $itemIds): array
+    {
+        $itemIds = array_values(array_filter(array_map('intval', $itemIds)));
+        if (!$itemIds) return [];
+        try { self::migrate(); } catch (\Throwable $e) { return []; }
+        $out = [];
+        foreach (db_all("SELECT pp_item_id, product FROM claude_charges WHERE pp_item_id IN (" . implode(',', array_fill(0, count($itemIds), '?')) . ")", $itemIds) as $r) {
+            $out[(int)$r['pp_item_id']] = 'Płatna licencja (' . self::P((string)$r['product'])['label'] . ')';
+        }
+        return $out;
+    }
+
     /** Tytuł przelewu tradycyjnego dla naliczenia. */
     public static function transferTitle(array $ch): string
     {

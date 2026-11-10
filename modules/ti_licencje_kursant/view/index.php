@@ -159,7 +159,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
           <?php if ($virtual): ?>
             <form method="post" action="<?= h(route('lk.sim.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać (symulacja)<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></button></form>
           <?php elseif ($s['pay_redirect'] === 'portal'): ?>
-            <a class="m-btn" href="../platnosci.php">Zapłać<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></a>
+            <a class="m-btn" href="<?= h(route('lk.portal')) ?>">Zapłać w portalu płatności<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></a>
           <?php elseif ($s['pay_redirect'] === 'fakturownia' && $docUrl !== ''): ?>
             <a class="m-btn" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">Zapłać (BLIK / szybki przelew)<span class="tw-sr-only"> — <?= $docLbl ?> w nowej karcie</span></a>
           <?php elseif (!empty($p24on)): ?>
@@ -167,6 +167,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
           <?php endif; ?>
           <?php if ($docUrl !== '' && $s['pay_redirect'] !== 'fakturownia'): ?><a class="m-btn-ghost" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">BLIK / szybki przelew z <?= $docLbl === 'proforma' ? 'proformy' : 'faktury' ?><span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
         </div>
+        <?php if ($s['pay_redirect'] !== 'portal'): ?><p class="tw-text-sm tw-mt-2"><a href="<?= h(route('lk.portal')) ?>">Wszystkie opłaty w portalu płatności</a> <span class="m-note">(zajęcia, licencje i inne w jednym miejscu)</span></p><?php endif; ?>
         <?php if ($v['account']): ?><p class="tw-text-sm tw-mt-2">Przelew: konto <span class="m-mono tw-font-semibold"><?= h($v['account']['nrb_fmt']) ?></span>, tytuł <span class="tw-font-semibold"><?= h(ClaudeBilling::transferTitle($c)) ?></span>, kwota <?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?>.</p><?php endif; ?>
         <?php endif; ?>
       </div>

@@ -3,6 +3,7 @@
  * platnosci/dokument.php — dokumenty rozliczeń dla zalogowanego w portalu uczestnika (wyłącznie własne):
  *   ?type=hours&month=M&year=R[&course_id=N]  — rozpiska godzin (PDF)
  *   ?type=invoice&id=N                        — faktura (FVAT) rozliczenia
+ *   ?type=licence&id=N&doc=proforma|order|invoice — dokument opłaty płatnej licencji (Claude, NordVPN): PDF z Fakturowni albo symulacji
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -15,6 +16,18 @@ $pid = pp_current();
 if (!$pid) { http_response_code(403); exit('Zaloguj się do portalu płatności.'); }
 karty30_migrate();
 $type = (string)($_GET['type'] ?? '');
+if ($type === 'licence') {
+    require_once dirname(__DIR__) . '/modules/claude_billing/logic/ClaudeInvoice.php';
+    $ch = ClaudeBilling::charge((int)($_GET['id'] ?? 0));
+    $doc = (string)($_GET['doc'] ?? '');
+    if (!$ch || (int)$ch['client_id'] !== $pid || (int)$ch['is_test'] || (ClaudeInvoice::isSim((string)($ch[$doc . '_number'] ?? '')) && !ClaudeBilling::isVirtual($pid))) { http_response_code(404); exit('Dokument nie istnieje.'); }
+    try { ClaudeInvoice::sendPdf(ClaudeInvoice::pdf((int)$ch['id'], $doc)); }
+    catch (\Throwable $e) {
+        $url = $doc !== 'order' ? (string)($ch[$doc . '_view_url'] ?? '') : '';
+        if ($url !== '') { header('Location: ' . $url); exit; }
+        http_response_code(404); exit('Dokument nie jest jeszcze dostępny. Spróbuj za chwilę.');
+    }
+}
 if ($type === 'invoice') {
     $b = db_one("SELECT invoice_path, invoice_name FROM k30_ti_billing WHERE id=? AND client_id=? AND status!='cancelled'", [(int)($_GET['id'] ?? 0), $pid]);
     if ($b && $b['invoice_path'] !== '') { k30_ti_invoice_send_file($b['invoice_path'], $b['invoice_name']); exit; }

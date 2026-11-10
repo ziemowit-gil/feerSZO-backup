@@ -317,6 +317,18 @@ final class LicencjeKursantController
         }
     }
 
+    /** Przejście do portalu płatności (/platnosci) jednym kliknięciem — tam wszystkie opłaty uczestnika (zajęcia, licencje, inne). */
+    public function portal(): ?string
+    {
+        $me = $this->me();
+        if (ClaudeBilling::isMinor($me['cid'])) return $this->flash('err', 'Płatności osoby niepełnoletniej prowadzi opiekun w panelu rodzica.');
+        require_once dirname(__DIR__, 3) . '/modules/payment_portal/logic/paymentPortal.php';
+        $this->log($me, 'license_panel_portal', 'Przejście z panelu licencji do portalu płatności.');
+        if (!pp_portal_login_participant($me['cid'], 'panel licencji')) return $this->flash('err', 'Portal płatności jest dla tego konta niedostępny. Napisz do biura.');
+        header('Location: /platnosci/');   // ten sam host — ciasteczko sesji portalu (ścieżka /platnosci) zostaje po tej stronie
+        exit;
+    }
+
     /** Konto testowe: symulowana wpłata (bez Przelewy24) — dalej zamówienie i faktura w symulacji. */
     public function simPay(string $id): ?string
     {

@@ -297,6 +297,8 @@ $sel  = $pid ? db_one("SELECT id, name, email FROM k30_clients WHERE id=?", [$pi
 $pu   = $sel ? pp_user($pid) : null;
 if ($sel) pp_sync_ti_items($pid);
 $sel_items = $sel ? db_all("SELECT * FROM payable_items WHERE participant_id=? ORDER BY status='pending' DESC, status='processing' DESC, id DESC LIMIT 100", [$pid]) : [];
+$lic_labels = [];   // pozycje będące opłatami płatnych licencji (modules/claude_billing) — typ „manual”, rozpoznawane po claude_charges.pp_item_id
+if ($sel_items) { try { require_once dirname(__DIR__) . '/modules/claude_billing/logic/claudeBilling.php'; $lic_labels = ClaudeBilling::portalItemLabels(array_column($sel_items, 'id')); } catch (\Throwable $e) {} }
 $nrb_pending = db_all("SELECT t.*, c.name FROM portal_transactions t JOIN k30_clients c ON c.id=t.participant_id
                         WHERE t.status='pending' AND t.payment_method='individual_nrb' ORDER BY t.id");
 $bank_c = pp_bank_candidates();
@@ -577,7 +579,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-2">Pozycja</th><th class="pr-2">Rodzaj</th><th class="pr-2 text-right">Kwota</th><th class="pr-2">Termin</th><th class="pr-2">Status</th><th></th></tr></thead>
         <tbody class="divide-y divide-slate-100">
         <?php foreach ($sel_items as $it): ?>
-          <tr><td class="py-1.5 pr-2"><?= h($it['title']) ?><div class="font-mono text-[11px] text-slate-500" title="Tytuł przelewu tego zobowiązania"><?= h(pp_item_transfer_title($it, (string)($sel['name'] ?? ''))) ?></div></td><td class="pr-2 text-xs"><?= h(PP_REF_TYPES[$it['reference_type']] ?? $it['reference_type']) ?><?= $it['reference_id'] ? ' #' . (int)$it['reference_id'] : '' ?></td>
+          <tr><td class="py-1.5 pr-2"><?= h($it['title']) ?><div class="font-mono text-[11px] text-slate-500" title="Tytuł przelewu tego zobowiązania"><?= h(pp_item_transfer_title($it, (string)($sel['name'] ?? ''))) ?></div></td><td class="pr-2 text-xs"><?= h($lic_labels[(int)$it['id']] ?? (PP_REF_TYPES[$it['reference_type']] ?? $it['reference_type'])) ?><?= $it['reference_id'] ? ' #' . (int)$it['reference_id'] : '' ?></td>
             <td class="pr-2 text-right tabular-nums"><?= h(pp_fmt((float)$it['amount'])) ?></td><td class="pr-2 text-xs"><?= $it['due_date'] ? h(date('d.m.Y', strtotime((string)$it['due_date']))) : '—' ?></td>
             <td class="pr-2 text-xs"><?= h(PP_ITEM_STATUS[$it['status']] ?? $it['status']) ?></td>
             <td class="text-right whitespace-nowrap"><?php $iv = db_one("SELECT number FROM pp_item_invoices WHERE item_id=?", [(int)$it['id']]); ?>

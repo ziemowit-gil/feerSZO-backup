@@ -115,6 +115,8 @@ pp_sync_ti_items($pid);
 $flash = $_SESSION['pp_flash'] ?? null; unset($_SESSION['pp_flash']);
 $view  = (string)($_GET['view'] ?? '');
 $items = db_all("SELECT * FROM payable_items WHERE participant_id=? AND status IN ('pending','processing') ORDER BY COALESCE(due_date,'9999-12-31'), id", [$pid]);
+$lic = ['byItem' => [], 'charges' => []];   // płatne licencje (Claude, NordVPN) — modules/claude_billing
+try { require_once dirname(__DIR__) . '/modules/claude_billing/logic/claudeBilling.php'; $lic = ClaudeBilling::portalLicences($pid); } catch (\Throwable $e) { error_log('portal licencje: ' . $e->getMessage()); }
 $hist  = db_all("SELECT * FROM portal_transactions WHERE participant_id=? ORDER BY id DESC LIMIT 50", [$pid]);
 $hist_items = [];
 foreach (db_all("SELECT ti.portal_transaction_id, pi.title, ti.amount FROM portal_transaction_items ti JOIN payable_items pi ON pi.id=ti.payable_item_id
@@ -302,6 +304,9 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
                 <span x-show="it.status === 'processing'" class="ml-1 rounded bg-amber-100 px-1.5 text-amber-900">w trakcie opłacania</span>
               </span>
             </label>
+            <span class="flex flex-col items-end gap-0.5 text-xs" x-show="it.docs.length">
+              <template x-for="d in it.docs" :key="d.url"><a class="text-navy-700 hover:underline whitespace-nowrap" :href="d.url" download><i class="bi bi-download" aria-hidden="true"></i> <span x-text="d.label"></span></a></template>
+            </span>
             <span class="tabular-nums font-semibold whitespace-nowrap" x-text="zl(it.amount)"></span>
           </li>
         </template>
@@ -422,6 +427,18 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
       <?php endforeach; ?></tbody></table></div>
   </section>
   <?php endif; ?>
+  <?php if ($lic['charges']): $lst = ['pending' => 'do zapłaty', 'paid' => 'opłacone']; ?>
+  <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="lic-h">
+    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-5 py-3"><h2 id="lic-h" class="font-semibold"><i class="bi bi-key text-navy-700" aria-hidden="true"></i> Płatne licencje (Claude, NordVPN)</h2>
+      <a class="ml-auto text-sm text-navy-700 hover:underline" href="/karty30/ti/kursant/licencje/">Zarządzaj w panelu licencji</a></div>
+    <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Opłaty za płatne licencje</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Okres</th><th class="px-2">Licencja</th><th class="px-2 text-right">Kwota</th><th class="px-2">Stan</th><th class="px-5 text-right">Dokumenty</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach ($lic['charges'] as $lc): ?>
+      <tr><td class="whitespace-nowrap px-5 py-2"><?= h($lc['period']) ?></td><td class="px-2"><?= h(ClaudeBilling::P($lc['product'])['label']) ?></td><td class="px-2 text-right tabular-nums"><?= h(pp_fmt($lc['amount'])) ?></td>
+        <td class="px-2 text-xs"><?= h($lst[$lc['status']] ?? $lc['status']) ?><?= $lc['status'] === 'pending' && $lc['due_on'] ? ' do ' . h(date('d.m.Y', strtotime($lc['due_on']))) : '' ?></td>
+        <td class="px-5 text-right text-xs whitespace-nowrap"><?php foreach ($lc['docs'] as $k => $d): ?><?= $k ? ' · ' : '' ?><a class="text-navy-700 hover:underline" href="<?= h($d['url']) ?>" download><?= h($d['label']) ?></a><?php endforeach; ?><?= $lc['docs'] ? '' : '—' ?></td></tr>
+      <?php endforeach; ?></tbody></table></div>
+  </section>
+  <?php endif; ?>
   <!-- ═══ Historia ═══ -->
   <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="h-h">
     <h2 id="h-h" class="border-b border-slate-200 px-5 py-3 font-semibold">Historia płatności</h2>
@@ -489,7 +506,8 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
 function cart() {
   return {
     items: <?= $J(array_map(fn($i) => ['id' => (int)$i['id'], 'title' => $i['title'], 'pay_title' => pp_item_transfer_title($i, (string)($cl['name'] ?? '')), 'amount' => (float)$i['amount'], 'status' => $i['status'],
-                                     'type_label' => PP_REF_TYPES[$i['reference_type']] ?? $i['reference_type'], 'due_date' => $i['due_date'],
+                                     'type_label' => $lic['byItem'][(int)$i['id']]['label'] ?? (PP_REF_TYPES[$i['reference_type']] ?? $i['reference_type']), 'due_date' => $i['due_date'],
+                                     'docs' => array_map(fn($d) => ['label' => $d['label'] . ' (PDF)', 'url' => $d['url']], $lic['byItem'][(int)$i['id']]['docs'] ?? []),
                                      'due_label' => $i['due_date'] ? date('d.m.Y', strtotime((string)$i['due_date'])) : '', 'overdue' => $i['due_date'] && $i['due_date'] < $today], $items)) ?>,
     sel: [], method: <?= $J($p24_on ? 'p24' : ($nrb !== '' ? 'individual_nrb' : '')) ?>,
     payable() { return this.items.filter(i => i.status === 'pending'); },
