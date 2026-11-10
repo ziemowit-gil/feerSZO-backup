@@ -174,6 +174,19 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
     </button>
   </div>
 
+  <?php
+  // Lista pogrupowana wg kolumn obszaru (kolejność jak w Kanbanie); puste kolumny pomijamy
+  $_grp = [];
+  foreach ($lists_map as $_l) {
+      $_grp[(int)$_l['id']] = ['name' => (string)$_l['name'], 'color' => (string)($_l['color'] ?? ''), 'tasks' => []];
+  }
+  foreach ($tasks as $_t) {
+      $_lid = (int)($_t['list_id'] ?? 0);
+      if (!isset($_grp[$_lid])) $_grp[$_lid] = ['name' => (string)($_t['list_name'] ?: 'Bez kolumny'), 'color' => (string)($_t['list_color'] ?? ''), 'tasks' => []];
+      $_grp[$_lid]['tasks'][] = $_t;
+  }
+  $_grp = array_filter($_grp, fn($g) => $g['tasks']);
+  ?>
   <div class="tk-table-box">
     <table class="tk-table tk-table--v2"
            id="task-table"
@@ -194,9 +207,9 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           <th scope="col" class="th-act"><span class="visually-hidden">Akcje</span></th>
         </tr>
       </thead>
-      <tbody id="tk-tbody">
 
       <?php if (!$tasks): ?>
+      <tbody id="tk-tbody">
       <tr>
         <td colspan="6">
           <?php $is_brand_new = ($workspace && empty($lists_map)); ?>
@@ -230,8 +243,20 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           <?php endif; ?>
         </td>
       </tr>
+      </tbody>
 
-      <?php else: foreach ($tasks as $task):
+      <?php else: foreach ($_grp as $_gid => $_g): ?>
+      <tbody class="tk-grp" data-grp="<?= (int)$_gid ?>" style="--lc:<?= h($_g['color'] ?: '#8a8886') ?>">
+      <tr class="tk-grp-row">
+        <th colspan="6" scope="rowgroup">
+          <button type="button" class="tk-grp-btn" aria-expanded="true" onclick="tkGrpToggle(this)">
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            <span class="tk-grp-name"><?= h($_g['name']) ?></span>
+            <span class="tk-grp-n"><span class="visually-hidden">, zadań: </span><?= count($_g['tasks']) ?></span>
+          </button>
+        </th>
+      </tr>
+      <?php foreach ($_g['tasks'] as $task):
         $pri_meta = [
           4 => ['🔴','Krytyczny','#dc2626'],
           3 => ['🟡','Wysoki',   '#f59e0b'],
@@ -293,7 +318,6 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
               </ul>
             </span>
             <span title="Numer zadania">#<?= (int)$task['id'] ?></span>
-            <span title="Kolumna"><i class="bi bi-columns-gap" aria-hidden="true"></i><?= h($task['list_name']) ?></span>
             <?php if (!empty($task['unit_name'])): ?>
             <span title="Jednostka: <?= h($task['unit_name']) ?>"><i class="bi bi-diagram-3" aria-hidden="true"></i><?= h($task['unit_short'] ?: $task['unit_name']) ?></span>
             <?php endif; ?>
@@ -423,28 +447,30 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
         </td>
 
       </tr>
+      <?php endforeach; ?>
+      </tbody>
       <?php endforeach; endif; ?>
 
-      </tbody>
     </table>
   </div>
 
   <!-- Stopka z licznikiem -->
-  <?php if ($tasks): ?>
-  <div class="px-3 py-2 border-top" style="background:var(--tk-bg-soft);font-size:.75rem;color:var(--tk-muted)">
-    Pokazano <strong><?= count($tasks) ?></strong> zadań
-    <?php if ($cnt['all'] !== count($tasks)): ?>
-    z <strong><?= $cnt['all'] ?></strong>
-    <?php endif; ?>
-  </div>
-  <?php endif; ?>
-
-  <!-- Legenda kolumny "Weryf." -->
-  <div class="tk-legend" aria-label="Legenda kolumny weryfikacji wykonania">
+  <?php if ($tasks):
+      $_n  = count($tasks);
+      $_nw = $_n === 1 ? 'zadanie' : (($_n % 10 >= 2 && $_n % 10 <= 4 && ($_n % 100 < 12 || $_n % 100 > 14)) ? 'zadania' : 'zadań');
+      $_has_done = (bool)array_filter($tasks, fn($t) => $t['_status'] === 'done'); ?>
+  <div class="tk-foot">
+    <span>Pokazano <strong><?= $_n ?></strong> <?= $_nw ?><?php if ($cnt['all'] !== $_n): ?> z <strong><?= $cnt['all'] ?></strong><?php endif; ?></span>
+    <?php if ($_has_done): ?>
+  <!-- Legenda oznaczeń przy ukończonych (tylko gdy są ukończone) -->
+  <div class="tk-legend" aria-label="Legenda oznaczeń ukończonych zadań">
     <span><span class="tk-confirm-badge z" aria-hidden="true">Z</span> Zakończone, ale niepotwierdzone</span>
     <span><span class="tk-confirm-badge zp" aria-hidden="true">ZP</span> Zakończone i potwierdzone przez lidera</span>
     <span><span class="tk-confirm-badge o" aria-hidden="true">O</span> Odrzucone przez lidera (z podanym powodem)</span>
   </div>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
 </div>
 <?php endif; ?>

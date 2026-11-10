@@ -165,11 +165,33 @@
                         else region.innerHTML = d.list_html;
                     }
                     if (d.counts) updateCounts(d.counts);
+                    tkGrpRestore();
                     tkAnnounce('Znaleziono ' + d.total + ' zadań.');
                 }
             })
             .catch(() => {});
     }
+
+    /* Grupy listy (kolumny) — zwijanie; stan pamiętany w przeglądarce i odtwarzany po przeładowaniu listy */
+    function tkGrpStore(v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('tkGrpCollapsed') || '[]'); localStorage.setItem('tkGrpCollapsed', JSON.stringify(v)); } catch (e) { return []; } }
+    function tkGrpSet(tb, open) {
+        const btn = tb.querySelector('.tk-grp-btn');
+        if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        tb.classList.toggle('is-collapsed', !open);
+    }
+    window.tkGrpToggle = function (btn) {
+        const tb = btn.closest('tbody');
+        const open = btn.getAttribute('aria-expanded') !== 'true';
+        tkGrpSet(tb, open);
+        const id = tb.dataset.grp, list = (tkGrpStore() || []).filter(x => x !== id);
+        if (!open) list.push(id);
+        tkGrpStore(list);
+    };
+    function tkGrpRestore() {
+        const list = tkGrpStore() || [];
+        document.querySelectorAll('#task-table tbody.tk-grp').forEach(tb => { if (list.indexOf(tb.dataset.grp) >= 0) tkGrpSet(tb, false); });
+    }
+    document.addEventListener('DOMContentLoaded', tkGrpRestore);
 
     /* Aktualizuj liczniki na pillach statusu */
     function updateCounts(counts) {
@@ -365,7 +387,7 @@
         if (cnt)  cnt.textContent = ids.length + ' zaznaczon' + (ids.length === 1 ? 'e' : 'ych');
         if (all)  all.indeterminate = ids.length > 0 && ids.length < rows.length;
         if (all)  all.checked = ids.length === rows.length && rows.length > 0;
-        document.querySelectorAll('#tk-tbody tr').forEach(tr => {
+        document.querySelectorAll('#task-table tbody tr').forEach(tr => {
             const cb = tr.querySelector('.tk-row-select');
             tr.classList.toggle('selected', cb?.checked || false);
         });

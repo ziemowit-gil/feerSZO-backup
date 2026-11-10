@@ -551,6 +551,36 @@ html body #tsk-main .tk-toolbar .tk-search:focus{border-color:var(--tsk-green)!i
 html body #tsk-main .tk-toolbar .tk-filters-btn{height:34px;border:1px solid #8a8886!important;background:#fff;color:var(--tsk-text)}
 html body #tsk-main .tk-toolbar .tk-filters-btn:hover{background:var(--tm-light);color:var(--tsk-text)}
 html body #tsk-main .tk-toolbar .tk-filters-btn.has-active{background:var(--tsk-green-bg);border-color:var(--tsk-green)!important;color:var(--tsk-green-dark)}
+/* ══ Lista zadań (2026-11-10): wiersze pogrupowane wg kolumn (zwijane nagłówki w kolorze kolumny), spokojny status
+   (zdanie, nie wersaliki; kolor tylko kropką/tłem), stopka z poprawną odmianą, legenda Z/ZP/O tylko przy ukończonych ══ */
+html body #tsk-main .tk-table--v2 thead th{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3f3f46}
+html body #tsk-main .tk-table--v2 tr.tk-grp-row{border-bottom:0}
+html body #tsk-main .tk-table--v2 tr.tk-grp-row:hover{background:transparent}
+html body #tsk-main .tk-table--v2 tr.tk-grp-row>th{padding:.9rem .5rem .35rem;background:#fff;border-bottom:2px solid var(--lc,#8a8886);text-transform:none;letter-spacing:0}
+html body #tsk-main .tk-table--v2 tbody.tk-grp:first-of-type tr.tk-grp-row>th{padding-top:.5rem}
+html body #tsk-main .tk-grp-btn{display:inline-flex;align-items:center;gap:.5rem;border:0;background:none;padding:.15rem .3rem;font-size:.92rem;font-weight:700;color:var(--tsk-text);cursor:pointer}
+html body #tsk-main .tk-grp-btn:hover{background:var(--tm-light)}
+html body #tsk-main .tk-grp-btn:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px}
+html body #tsk-main .tk-grp-btn>i{font-size:.75rem;color:var(--tm-muted);transition:transform .15s}
+html body #tsk-main .tk-grp-n{min-width:1.5rem;padding:.08rem .4rem;background:var(--tm-light-h);font-size:.74rem;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+html body #tsk-main tbody.tk-grp.is-collapsed .tk-grp-btn>i{transform:rotate(-90deg)}
+html body #tsk-main tbody.tk-grp.is-collapsed>tr:not(.tk-grp-row){display:none!important}
+html body #tsk-main .tk-table--v2 .tk-status{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .6rem;border:1px solid #c8c6c4;border-radius:0;background:#fff;
+  color:var(--tsk-text);font-size:.8rem;font-weight:600;letter-spacing:0;text-transform:none;white-space:nowrap;filter:none}
+html body #tsk-main .tk-table--v2 .tk-status.s-open i{color:var(--tm-muted)}
+html body #tsk-main .tk-table--v2 .tk-status.s-taken{background:#eef3ff;border-color:#b8c9f5;color:#0b3a9e}
+html body #tsk-main .tk-table--v2 .tk-status.s-taken i{color:#0050ef}
+html body #tsk-main .tk-table--v2 .tk-status.s-done{background:#dff6dd;border-color:#a7d8a4;color:#0e5a0e}
+html body #tsk-main .tk-table--v2 .tk-status:hover{border-color:var(--tsk-text);filter:none}
+html body #tsk-main .tk-table--v2 .tk-status:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px;filter:none}
+html body #tsk-main .tk-table--v2 .tk-title{font-weight:600;font-size:.92rem}
+html body #tsk-main .tk-foot{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1.5rem;padding:.6rem .75rem;border-top:1px solid var(--tm-line);font-size:.8rem;color:#3f3f46}
+html body #tsk-main .tk-foot .tk-legend{display:flex;flex-wrap:wrap;gap:.3rem 1rem;margin:0 0 0 auto;padding:0;border:0;font-size:.76rem;color:#3f3f46}
+@container (max-width: 820px){
+  html body #tsk-main .tk-table--v2 tbody tr.tk-grp-row{display:block;border-left:0;padding:0}
+  html body #tsk-main .tk-table--v2 tbody tr.tk-grp-row>th{display:block}
+}
+
 @media(max-width:767.98px){
   html body #tsk-main .tk-tools{margin-left:0;width:100%}
   html body #tsk-main .tk-search-w{flex:1}
