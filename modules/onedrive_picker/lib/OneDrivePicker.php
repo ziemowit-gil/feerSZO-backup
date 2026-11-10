@@ -94,7 +94,11 @@ final class OneDrivePicker
             ? $this->graph->od_search($driveId, mb_substr($query, 0, 100))
             : $this->graph->od_list($driveId, $folderId);
         if (!$raw && $this->graph->last_status() >= 400) {
-            throw new \RuntimeException('Nie udało się odczytać OneDrive (' . $this->graph->last_status() . ').');
+            // Treść błędu z Graph (np. „invalidRequest: …”) — od razu widać przyczynę zamiast samego kodu
+            $err = $this->graph->last_error();
+            $why = trim((string)($err['code'] ?? '') . ': ' . (string)($err['message'] ?? ''), ': ');
+            throw new \RuntimeException('Nie udało się odczytać OneDrive (' . $this->graph->last_status()
+                . ($why !== '' ? ' — ' . mb_substr($why, 0, 160) : '') . ').');
         }
 
         $allowedExt = array_map('strtolower', $allowedExt);

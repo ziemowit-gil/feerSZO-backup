@@ -146,6 +146,8 @@ if ($action === 'onedrive_list' || $action === 'onedrive_pick') {
                     'big'    => !$is_folder && (int)($it['size'] ?? 0) > CRM_ATT_MAX_BYTES,
                 ];
             }
+            // Foldery najpierw, potem nazwy (Graph w OneDrive firmowym nie sortuje po „folder”)
+            usort($items, fn($a, $b) => [$b['folder'], mb_strtolower($a['name'])] <=> [$a['folder'], mb_strtolower($b['name'])]);
             att_out(['ok' => true, 'items' => $items, 'search' => $q !== '']);
         }
 

@@ -1307,9 +1307,10 @@ class M365Graph {
         $base = $item_id === ''
             ? "https://graph.microsoft.com/v1.0/drives/{$drive_id}/root/children"
             : "https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/" . urlencode($item_id) . "/children";
+        // Bez $orderby: OneDrive firmowy (SharePoint) nie sortuje po „folder” i odpowiada 400 —
+        // kolejność (foldery najpierw, potem nazwy) układają wywołujący (OneDrivePicker::listItems, crm/api/attachments.php).
         $url  = $base . '?' . http_build_query([
             '$select'  => 'id,name,size,file,folder,webUrl,lastModifiedDateTime',
-            '$orderby' => 'folder,name',
             '$top'     => $top,
         ]);
         $resp = $this->http_get($url);
