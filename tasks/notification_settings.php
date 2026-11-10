@@ -304,9 +304,22 @@ if (!$is_fragment) {
 .ns-admin-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;margin:0 0 1rem;background:#f2f2f2;color:#111827;text-decoration:none}
 .ns-admin-link:hover,.ns-admin-link:focus-visible{background:#1d1d1d;color:#fff}
 .ns-admin-link small{color:inherit;opacity:.75}
+
+/* ══ Widok administracyjny (2026-11-10): szeroko (tabela członków się mieści, przyciski nie wystają poza nią),
+   przełączniki z miejscem na etykietę, kolory przycisków i szarych napisów z kontrastem ≥ 4,5:1 ══ */
+.ns-wrap--admin{max-width:min(1240px,100%);padding-left:clamp(.75rem,2vw,1.5rem);padding-right:clamp(.75rem,2vw,1.5rem)}
+.form-switch{padding-left:3.2em}
+.form-switch .form-check-input{margin-left:-3.2em}
+.ns-wrap--admin .table{font-size:.86rem!important}
+.ns-wrap--admin .table th{white-space:nowrap}
+.ns-wrap--admin .ns-member-row td:first-child{white-space:nowrap}
+.ns-wrap--admin .ns-send-reminder-btn{white-space:nowrap}
+.ns-wrap--admin .ns-act-btn{background:#007a00!important;color:#fff!important;border:0!important;border-radius:0;font-weight:600}
+.ns-wrap--admin .ns-act-btn:hover,.ns-wrap--admin .ns-act-btn:focus-visible{background:#1d1d1d!important}
+.ns-wrap--admin .ns-muted{color:#5f5f5f!important}
 </style>
 
-<div class="ns-wrap <?= $is_fragment ? 'p-3' : 'py-4' ?> mx-auto">
+<div class="ns-wrap<?= $ns_view === 'admin' ? ' ns-wrap--admin' : '' ?> <?= $is_fragment ? 'p-3' : 'py-4' ?> mx-auto">
 
   <!-- Header karty (ukryty w modalu — modal ma własny nagłówek) ── -->
   <?php if (!$is_fragment): ?>
@@ -451,13 +464,12 @@ if (!$is_fragment) {
           </select>
         </div>
         <div class="col-12 col-sm-3">
-          <button type="submit" class="btn btn-sm w-100"
-                  style="background:#0891b2;color:#fff;border:none;font-size:.8rem">
+          <button type="submit" class="btn btn-sm w-100 ns-act-btn" style="font-size:.8rem">
             <i class="bi bi-send-fill me-1"></i>Wyślij test
           </button>
         </div>
       </div>
-      <div id="admin-test-hint" class="mt-2" style="font-size:.73rem;color:#94a3b8"></div>
+      <div id="admin-test-hint" class="mt-2 ns-muted" style="font-size:.76rem"></div>
     </form>
   </div>
   <?php endif; ?>
@@ -509,13 +521,13 @@ if (!$is_fragment) {
       <div class="ms-auto">
         <?php if ($unconfigured_count > 0): ?>
         <button type="button" id="ns-bulk-reminder-btn"
-                class="btn btn-sm" style="background:#0891b2;color:#fff;border:none;font-size:.8rem"
+                class="btn btn-sm ns-act-btn" style="font-size:.8rem"
                 data-csrf="<?= h($csrf) ?>">
           <i class="bi bi-envelope-fill me-1"></i>Wyślij do wszystkich bez konfiguracji
           (<?= $unconfigured_count ?>)
         </button>
         <?php else: ?>
-        <span style="font-size:.79rem;color:#94a3b8">Wszyscy mają własną konfigurację</span>
+        <span class="ns-muted" style="font-size:.8rem">Wszyscy mają własną konfigurację</span>
         <?php endif; ?>
       </div>
     </div>
@@ -571,7 +583,7 @@ if (!$is_fragment) {
             <i class="bi bi-x-circle" style="color:#cbd5e1" title="SMS wyłączony"></i>
             <?php endif; ?>
           </td>
-          <td class="py-2" style="color:#94a3b8;white-space:nowrap">
+          <td class="py-2 ns-muted" style="white-space:nowrap">
             <?= $m['updated_at'] ? h(substr($m['updated_at'], 0, 16)) : '—' ?>
           </td>
           <td class="py-2">
@@ -583,7 +595,7 @@ if (!$is_fragment) {
               <i class="bi bi-envelope-fill me-1"></i>Wyślij przypomnienie
             </button>
             <?php elseif (!$has_mail): ?>
-            <span style="font-size:.73rem;color:#94a3b8">Brak e-mail</span>
+            <span class="ns-muted" style="font-size:.76rem">Brak e-mail</span>
             <?php endif; ?>
           </td>
         </tr>
