@@ -963,7 +963,7 @@ final class ClaudeBilling
         $title = ((int)$sub['is_test'] ? '[TEST] ' : '') . $titles[$kind] . ': ' . $sub['client_name'];
         $desc = $titles[$kind] . "\nOsoba: " . $sub['client_name'] . ' (uczestnik nr ' . $sub['client_id'] . ')'
             . ($sub['client_email'] ? "\nE-mail: " . $sub['client_email'] : '')
-            . ($own ? "\nLogin do licencji (wygenerowany przez uczestnika): " . $own : '')
+            . ($own ? "\nNumer w panelu licencji: " . $own : '')
             . (!empty($lic['login']) ? "\nLogin licencji: " . $lic['login'] : (!empty($acc['ms_upn']) ? "\nKonto edu: " . $acc['ms_upn'] : ''))
             . ($lic ? "\nLicencja: " . $lic['license_name'] . ($lic['expires_at'] ? ' (ważna do ' . self::date($lic['expires_at']) . ')' : '') : '')
             . ($kind === 'wniosek' ? "\nWniosek z: " . self::date($sub['activated_on']) : "\nWłączony od: " . self::date($sub['activated_on']) . ', faktura co miesiąc ok. ' . self::dueDay($sub, $s) . '. dnia')

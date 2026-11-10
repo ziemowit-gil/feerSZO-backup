@@ -1168,7 +1168,7 @@ foreach (HD_STATUSES as $_k => $_s) if (!isset($_hd_main[$_k])) $_hd_off[$_k] = 
     });
   });
   (function(){
-    var KEY='hdFoldedCards', open={'Status':1,'Operator':1,'Szczegóły':1};
+    var KEY='hdFoldedCards', open={'Status':1,'Operator':1,'Szczegóły':1,'Wniosek o płatną licencję':1};   // karta wniosku: przyciski faktury i aktywacji od razu widoczne
     var saved={}; try{ saved=JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(e){}
     document.querySelectorAll('.hd-side-card').forEach(function(card){
       var head=card.querySelector(':scope > .hd-side-card-head'), body=card.querySelector(':scope > .hd-side-card-body');
