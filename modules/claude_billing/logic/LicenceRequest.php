@@ -66,6 +66,8 @@ final class LicenceRequest
         $charge = ClaudeBilling::createCharge($sub, substr($today, 0, 7), $today);   // proforma (Fakturownia) + portal płatności + e-mail
         $num = ClaudeBilling::helpdesk(ClaudeBilling::subscription($id), 'wniosek', $actor, $charge, $edu !== '' ? 'Konto @' . ClaudeBilling::EDU_DOMAIN . ' do założenia: ' . $edu : '');
         if ($edu !== '' && $num) db_exec("UPDATE license_edu_requests SET helpdesk_number=? WHERE client_id=?", [$num, $cid]);
+        require_once __DIR__ . '/LicenceCrm.php';
+        LicenceCrm::addClient($cid);   // grupa CRM „TI - płatne licencje i oprogramowanie” (bez wyjątków)
         return ClaudeBilling::subscription($id) + ['charge' => $charge];
     }
 

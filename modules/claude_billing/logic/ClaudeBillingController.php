@@ -82,6 +82,18 @@ final class ClaudeBillingController
             'changes' => $changes, 'changeAnswers' => $open ? PriceChange::answers((int)$open[0]['id']) : []]);
     }
 
+    /** Grupa CRM „TI - płatne licencje i oprogramowanie”: dopisanie wszystkich obecnych użytkowników. */
+    public function crmSync(): ?string
+    {
+        $p = $this->product();
+        return $this->act(function () {
+            require_once __DIR__ . '/LicenceCrm.php';
+            $r = LicenceCrm::syncAll();
+            return 'Grupa CRM „' . LicenceCrm::NAME . '”: sprawdzono ' . $r['total'] . ' uczestników, dodano ' . $r['added'] . ' (nowe kontakty: ' . $r['created'] . ')'
+                . ($r['skipped'] ? ', pominięto ' . $r['skipped'] . ' (konta testowe albo brak danych)' : '') . '.';
+        }, '', route('cb.index', ['product' => $p, 'tab' => 'ustawienia']));
+    }
+
     /** Pobranie PDF dokumentu opłaty (proforma / zamówienie / faktura; symulacja albo kopia z Fakturowni). */
     public function document(string $id, string $doc): ?string
     {

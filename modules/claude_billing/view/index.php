@@ -242,6 +242,14 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
       : (!empty($s['simulate']) ? 'Włączona symulacja (przełącznik niżej): dokumenty SYM-… tylko w SZO.' : 'Niepodłączona: dokumenty powstają w symulacji (SYM-…) i zostaną wystawione naprawdę, gdy połączenie zadziała.') ?></p>
   <p class="small mb-0">Konfiguracja: Administracja › <a href="<?= h(APP_URL) ?>/admin/invoices_settings.php">Faktury</a> (administrator): „Konto Fakturowni” i „Token API”, stawka zw i podstawa zwolnienia, „Testuj połączenie”. „Backend faktur” na tamtej stronie dotyczy innych faktur SZO, nie licencji. Konto testowe uczestnika zawsze zostaje w symulacji.</p>
 </section>
+<?php require_once dirname(__DIR__) . '/logic/LicenceCrm.php';
+      $crmG = null; try { $crmG = db_one("SELECT g.id, g.name, (SELECT COUNT(*) FROM crm_group_members m WHERE m.group_id=g.id) n FROM crm_groups g WHERE g.auto_source=?", [LicenceCrm::SOURCE]); } catch (\Throwable $e) {} ?>
+<section class="panel" aria-labelledby="crm-h">
+  <h2 class="mt-0 h6" id="crm-h">Grupa w CRM</h2>
+  <p class="mb-2"><?= $crmG ? '„' . h($crmG['name']) . '”: ' . (int)$crmG['n'] . ' kontaktów. <a href="' . h(APP_URL) . '/crm/group/view.php?id=' . (int)$crmG['id'] . '">Otwórz w CRM</a>' : 'Grupa „' . h(LicenceCrm::NAME) . '” powstanie przy pierwszym dodaniu.' ?></p>
+  <p class="small text-secondary mb-2">Uczestnicy z płatną licencją (wniosek, aktywna, wstrzymana) i z przypisanym oprogramowaniem trafiają tam sami: przy wniosku, przy włączeniu przez kadrę i raz dziennie (CRON). Nowe kontakty CRM powstają bez automatyzacji i bez e-maili. Z grupy nikt nie jest usuwany.</p>
+  <form method="post" action="<?= h(route('cb.crm')) ?>"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>"><button class="cb-btn ghost" type="submit">Dopisz teraz wszystkich obecnych</button></form>
+</section>
 <section class="panel" aria-labelledby="set-h">
   <h2 class="mt-0" id="set-h">Ustawienia <?= h($P['label']) ?></h2>
   <form method="post" action="<?= h(route('cb.settings')) ?>">

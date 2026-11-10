@@ -595,6 +595,15 @@ return [
 
     // Claude / NordVPN: dokument (proforma) zawsze 1. dnia miesiąca — treść oświadczenia (wersja +1, gdy w bazie jest jeszcze „8. dnia”)
     // i dzień graniczny w ustawieniach produktów z 8 na 1 (gdy ktoś zapisał 8 — domyślnie już 1).
+    // Grupa CRM „TI - płatne licencje i oprogramowanie” — jednorazowo dopisuje obecnych użytkowników płatnych licencji i oprogramowania
+    // (dalej dodaje ich moduł sam: wniosek, włączenie, CRON). Kontakty bez automatyzacji CRM i bez e-maili.
+    '2026-11_crm_grupa_platne_licencje' => [
+        'desc' => 'CRM: grupa „TI - płatne licencje i oprogramowanie” z obecnymi użytkownikami płatnych licencji i oprogramowania',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/claude_billing/logic/LicenceCrm.php';
+            LicenceCrm::syncAll();
+        },
+    ],
     '2026-11_claude_oplata_1_dnia' => [
         'desc' => 'Płatne licencje: dokument zawsze 1. dnia miesiąca (oświadczenie Claude — nowa wersja do akceptacji; dzień graniczny 1)',
         'run'  => static function () use ($ROOT): void {

@@ -614,6 +614,7 @@ final class ClaudeBilling
         $charge = null;
         if (!$free) $charge = self::createCharge($sub, substr($date, 0, 7), $date);
         self::helpdesk($sub, 'aktywacja', $actor, $charge);
+        if (!$test) { require_once __DIR__ . '/LicenceCrm.php'; LicenceCrm::addClient($clientId); }   // grupa CRM płatnych licencji
         self::notifyOffice($sub, 'Włączenie ' . $P['label'] . ' — ' . $sub['client_name'], '<p><b>' . h((string)$sub['client_name']) . '</b> włączył(a) ' . h($P['label']) . ' od ' . self::dayMonth($date) . '.'
             . ($charge ? ' Pierwsza faktura: <b>' . self::zl((float)$charge['amount_pln']) . '</b>, płatna do ' . self::dayMonth($charge['due_on']) . '.' : '') . '</p>');
         return self::subscription($id);
@@ -853,6 +854,11 @@ final class ClaudeBilling
         self::migrate();
         $today ??= date('Y-m-d');
         $rep = ['charges' => 0, 'reminders' => 0, 'suspended' => 0, 'resumed' => 0, 'errors' => [], 'log' => []];
+        if (!$onlyTest && !$onlySub && org_setting('licencje_crm_sync_on') !== date('Y-m-d')) {   // raz dziennie: grupa CRM (też oprogramowanie przypisane w module Licencje)
+            org_setting_set('licencje_crm_sync_on', date('Y-m-d'));
+            try { require_once __DIR__ . '/LicenceCrm.php'; $cr = LicenceCrm::syncAll(); if ($cr['added']) $rep['log'][] = 'CRM: do grupy płatnych licencji dodano ' . $cr['added']; }
+            catch (\Throwable $e) { $rep['errors'][] = 'grupa CRM: ' . $e->getMessage(); }
+        }
         if (!$onlyTest && !$onlySub) {   // zmiany cen w dniu wejścia w życie (przed naliczeniami — nowe dokumenty już po nowej cenie)
             require_once __DIR__ . '/PriceChange.php';
             try { foreach (PriceChange::applyDue($today) as $l) $rep['log'][] = $l; } catch (\Throwable $e) { $rep['errors'][] = 'zmiana ceny: ' . $e->getMessage(); }

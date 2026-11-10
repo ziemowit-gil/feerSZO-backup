@@ -30,6 +30,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/komunikat',                    [ClaudeBillingController::class, 'notice'])->name('cb.notice');
     $r->post('/wniosek/{id}/{act}',           [ClaudeBillingController::class, 'requestAction'])->name('cb.req');
     $r->get('/dokument/{id}/{doc}',           [ClaudeBillingController::class, 'document'])->name('cb.doc');
+    $r->post('/crm',                          [ClaudeBillingController::class, 'crmSync'])->name('cb.crm');
     $r->post('/zmiana-ceny',                  [ClaudeBillingController::class, 'priceCreate'])->name('cb.price.create');
     $r->post('/zmiana-ceny/{id}/wyslij',      [ClaudeBillingController::class, 'priceSend'])->name('cb.price.send');
     $r->post('/zmiana-ceny/{id}/wycofaj',     [ClaudeBillingController::class, 'priceCancel'])->name('cb.price.cancel');
