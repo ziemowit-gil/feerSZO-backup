@@ -28,7 +28,11 @@ $tiles['office'] = ['Office', $eduAccount ? ['aktywny', 'ok'] : ($office ? ['wni
 $officeBox = function (string $back) use ($officeAcc, $virtual) {
     $oa = $officeAcc ?: ['upn' => '', 'state' => '', 'note' => ''];
     echo '<div class="m-row" style="border-top:0;padding-top:0">';
-    echo '<p class="tw-text-sm">Konto Office będzie miało login <span class="m-mono tw-font-semibold">' . h((string)$oa['upn'] ?: '(brak imienia lub nazwiska w kartotece)') . '</span>. Login dostaniesz e-mailem, hasło tymczasowe SMS-em.</p>';
+    if ((string)$oa['upn'] === '') {   // login z imienia i nazwiska — bez nich nie da się go ustalić
+        echo '<p class="tw-text-sm">Nie możemy ustalić loginu do Office, bo w Twoich danych brakuje imienia albo nazwiska. Napisz do biura, poprawimy to.</p></div>';
+        return;
+    }
+    echo '<p class="tw-text-sm">Twój login do Office będzie taki: <span class="m-mono tw-font-semibold">' . h((string)$oa['upn']) . '</span>. Login dostaniesz e-mailem, hasło tymczasowe SMS-em.</p>';
     if (($oa['state'] ?? '') === 'error' && ($oa['note'] ?? '') !== '') echo '<p class="m-note">Ostatnia próba się nie udała. Spróbuj jeszcze raz albo napisz do biura.</p>';
     if ((string)$oa['upn'] !== '') {
         echo '<form method="post" action="' . h(route('lk.edu')) . '" class="tw-mt-2">' . Router::csrfField() . '<input type="hidden" name="back" value="' . h($back) . '">'
@@ -56,7 +60,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
 <h1 class="m-title">Moje licencje</h1>
 <p class="m-lead"><?= h($me['name']) ?>. Każdą zmianę potwierdzasz kodem SMS<?= $contact['phone'] !== '' ? ' wysłanym na numer ' . h(LicencjeKod::mask($contact['phone'])) : '' ?>.</p>
 <?= $idsLine ?>
-<?php if ($virtual): ?><div class="pk-alert pk-alert-info" role="note">Konto testowe. Dokumenty z Fakturowni są symulowane (numery SYM, PDF do pobrania), wpłatę można zasymulować, nic nie trafia do Fakturowni ani Helpdesku.</div><?php endif; ?>
+<?php if ($virtual): ?><div class="pk-alert pk-alert-info" role="note">Konto testowe. Dokumenty i wpłaty są tylko symulacją, nic nie trafia do księgowości.</div><?php endif; ?>
 <?php if (!$paid): ?><p class="m-explain">Nie masz subskrypcji. Licencję na Claude albo NordVPN przypisuje prowadzący.</p><?php endif; ?>
 <ul class="m-tiles" role="list">
   <?php foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]): ?>
@@ -93,7 +97,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
   <?php };
 ?>
   <h1 class="m-title"><?= h($P['label']) ?> <?= $tag($state[1], $state[0]) ?></h1>
-  <p class="m-explain"><?= ($v['payMode'] ?? '') === 'card' ? 'Subskrypcja płatna co miesiąc kartą. Opłatę pobieramy automatycznie w dniu terminu, a po wpłacie dostajesz fakturę VAT.' : 'Subskrypcja płatna co miesiąc. Dostajesz proformę, masz ' . ClaudeBilling::TERM_DAYS . ' dni na wpłatę, a po wpłacie dostajesz fakturę. Bez wpłaty dostęp zostaje wstrzymany.' ?></p>
+  <p class="m-explain"><?= ($v['payMode'] ?? '') === 'card' ? 'Płacisz co miesiąc kartą. Opłatę pobieramy sami w dniu terminu, a po wpłacie przychodzi faktura.' : 'Płacisz co miesiąc. Dostajesz proformę i masz ' . ClaudeBilling::TERM_DAYS . ' dni na wpłatę. Po wpłacie przychodzi faktura. Bez wpłaty wstrzymujemy dostęp.' ?></p>
   <?= $idsLine ?>
   <section class="m-tile" aria-label="<?= h($P['label']) ?>">
     <p class="tw-text-sm tw-mb-3"><?= h(ucfirst($P['what'])) ?>.<?= $s['enabled'] || $open ? ' ' . h($priceTxt) : '' ?></p>
@@ -101,16 +105,16 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
     <?php if ($open || $requested): ?>
       <?php if ($requested): $rq = array_values(array_filter($v['charges'], fn($x) => ($x['kind'] ?? 'month') === 'month' && $x['status'] !== 'cancelled'))[0] ?? null; $rqPaid = $rq && $rq['status'] === 'paid'; ?>
       <div class="pk-alert pk-alert-info" role="status">
-        <p class="tw-font-semibold tw-mb-1">Wniosek złożony <?= h(ClaudeBilling::dayMonth($sub['activated_on'])) ?><?= $sub['helpdesk_number'] ? ' (zgłoszenie ' . h($sub['helpdesk_number']) . ')' : '' ?></p>
+        <p class="tw-font-semibold tw-mb-1">Wniosek złożony <?= h(ClaudeBilling::dayMonth($sub['activated_on'])) ?><?= $sub['helpdesk_number'] ? ' <span class="m-note">(nr ' . h($sub['helpdesk_number']) . ')</span>' : '' ?>. Co dalej:</p>
         <ol class="tw-list-decimal tw-pl-6 tw-text-sm tw-space-y-1">
           <?php if (($v['payMode'] ?? '') === 'card'): ?>
           <li><?= $card ? 'Karta podpięta.' : '<a href="' . h(route('lk.card', ['product' => $pk])) . '">Podepnij kartę</a> (opłata weryfikacyjna ' . h(ClaudeBilling::zl((float)$s['card_fee_pln'])) . ').' ?></li>
-          <li><?= $rqPaid ? 'Pierwsza opłata pobrana z karty' . ($rq && (string)$rq['invoice_number'] !== '' ? ', faktura VAT ' . h((string)$rq['invoice_number']) : '') . '.' : 'Pobierzemy pierwszą opłatę z karty, faktura VAT przyjdzie od razu.' ?></li>
+          <li><?= $rqPaid ? 'Pierwsza opłata pobrana z karty. Faktura jest niżej.' : 'Pobierzemy pierwszą opłatę z karty. Faktura przyjdzie od razu.' ?></li>
           <?php else: ?>
-          <li><?= $rqPaid ? 'Proforma zapłacona.' : 'Zapłać proformę (niżej) do ' . h(ClaudeBilling::dayMonth((string)($rq['due_on'] ?? ''))) . '.' ?></li>
-          <li>Helpdesk wystawi fakturę VAT<?= $rq && (string)$rq['invoice_number'] !== '' ? ': gotowe' : '' ?>.</li>
+          <li><?= $rqPaid ? 'Opłata zapłacona, dziękujemy.' : 'Zapłać do ' . h(ClaudeBilling::dayMonth((string)($rq['due_on'] ?? ''))) . ' (niżej masz dwa sposoby).' ?></li>
+          <li><?= $rq && (string)$rq['invoice_number'] !== '' && !str_starts_with((string)$rq['invoice_number'], 'SYM-') ? 'Faktura gotowa, jest niżej.' : 'Po wpłacie wystawimy fakturę.' ?></li>
           <?php endif; ?>
-          <li>Helpdesk włączy dostęp. Dostaniesz e-mail.</li>
+          <li>Włączymy dostęp i napiszemy do Ciebie e-mail.</li>
         </ol>
       </div>
       <?php endif; ?>
@@ -180,7 +184,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
           <?php if (!$docs && $docWhy === ''): ?><span class="tw-text-sm m-muted"><?= $c['status'] === 'paid' ? 'faktura w przygotowaniu' : (($c['pay_mode'] ?? '') === 'card' ? 'faktura VAT po wpłacie' : 'proforma w przygotowaniu') ?></span><?php endif; ?>
         </div>
         <?php if ($docWhy !== ''): ?><p class="tw-text-sm tw-mt-1"><?= h($docWhy) ?></p><?php endif; ?>
-        <?php if ($symPreview): ?><p class="m-note tw-mt-1">To podgląd proformy. W Fakturowni dokument jeszcze nie powstał, wystawimy go automatycznie. Możesz już zapłacić według danych niżej.</p><?php endif; ?>
+        <?php if ($symPreview): ?><p class="m-note tw-mt-1">To podgląd proformy. Ostateczną dostaniesz e-mailem. Zapłacić możesz już teraz.</p><?php endif; ?>
         <?php if ($docs): ?>
         <ul class="m-docs" aria-label="Dokumenty za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?>">
           <?php foreach ($docs as [$dlbl, $durl, $dsym, $dview]): ?>
@@ -190,7 +194,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
           <?php endforeach; ?>
         </ul>
         <?php endif; ?>
-        <?php if (($c['kind'] ?? '') !== 'card'): ?><p class="m-note tw-mt-1"><?= h(ClaudeBilling::breakdown($c)) ?> (kurs PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p><?php endif; ?>
+        <?php if (($c['kind'] ?? '') !== 'card'): ?><details class="tw-mt-1"><summary class="tw-text-sm" style="font-weight:400">Skąd ta kwota?</summary><p class="m-note tw-mt-1"><?= h(ClaudeBilling::breakdown($c)) ?> (kurs dolara w PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p></details><?php endif; ?>
         <?php if ($c['status'] === 'pending' && (($c['pay_mode'] ?? '') === 'card' || ($c['kind'] ?? '') === 'card')): ?>
           <p class="tw-text-sm tw-mt-2"><?= ($c['kind'] ?? '') === 'card' ? 'Płatność kartą nie została dokończona.' : ($card ? 'Pobierzemy z karty ' . h(LicenceCard::label($card)) . ' ' . h(ClaudeBilling::dayMonth($c['due_on'])) . '. Nic nie musisz robić.' : 'Podepnij kartę, żeby zapłacić.') ?>
             <?php if (!$card): ?> <a href="<?= h(route('lk.card', ['product' => $pk])) ?>">Podepnij kartę</a><?php endif; ?></p>
@@ -201,23 +205,17 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
           <div class="tw-grid md:tw-grid-cols-2 tw-gap-3">
             <div class="m-box">
               <p class="tw-font-semibold tw-mb-1">Online</p>
-              <p class="tw-text-sm tw-mb-3">BLIK, szybki przelew albo karta. Wpłata dociera od razu.</p>
-              <div class="tw-flex tw-flex-col tw-gap-2 tw-items-start">
-                <?php if ($virtual): ?>
-                  <form method="post" action="<?= h(route('lk.sim.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać (symulacja)<span class="tw-sr-only"> <?= h($amt) ?></span></button></form>
-                <?php else: ?>
-                  <a class="m-btn" href="<?= h(route('lk.portal')) ?>">Zapłać w portalu płatności<span class="tw-sr-only"> <?= h($amt) ?></span></a>
-                  <?php if (!empty($p24on) && $s['pay_redirect'] === 'p24'): ?>
-                    <form method="post" action="<?= h(route('lk.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit">Tylko ta opłata: Przelewy24<span class="tw-sr-only"> <?= h($amt) ?></span></button></form>
-                  <?php endif; ?>
-                  <?php if ($docUrl !== ''): ?><a class="m-btn-ghost" href="<?= h($docUrl) ?>" target="_blank" rel="noopener">BLIK z <?= $docLbl === 'proforma' ? 'proformy' : 'faktury' ?> (Fakturownia)<span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?>
-                <?php endif; ?>
-              </div>
-              <p class="m-note tw-mt-2">W portalu płatności zapłacisz za wszystko naraz: zajęcia, licencje i inne opłaty.</p>
+              <p class="tw-text-sm tw-mb-3">BLIK, przelew z banku albo karta. Wpłata dociera od razu.</p>
+              <?php if ($virtual): ?>
+                <form method="post" action="<?= h(route('lk.sim.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać online (symulacja)<span class="tw-sr-only"> <?= h($amt) ?></span></button></form>
+              <?php else: ?>
+                <a class="m-btn" href="<?= h(route('lk.portal')) ?>">Zapłać online<span class="tw-sr-only"> <?= h($amt) ?></span></a>
+              <?php endif; ?>
+              <p class="m-note tw-mt-3">Przejdziesz do portalu płatności. Tam zapłacisz też za zajęcia i inne opłaty naraz.</p>
             </div>
             <?php if ($v['account']): ?>
             <div class="m-box">
-              <p class="tw-font-semibold tw-mb-1">Przelew tradycyjny</p>
+              <p class="tw-font-semibold tw-mb-1">Zwykły przelew</p>
               <p class="tw-text-sm tw-mb-2">Z dowolnego banku. Wpłata dociera w 1–2 dni robocze.</p>
               <dl class="m-kv tw-text-sm">
                 <dt>Odbiorca</dt><dd><?= h($org) ?></dd>
@@ -269,7 +267,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
       <?php $proj(); ?>
       <?php if (!empty($v['eligible']['needEdu'])): ?><p class="tw-text-sm tw-mb-2"><?= h($P['label']) ?> działa tylko z kontem Microsoft 365 @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Nie masz go jeszcze. Możesz je założyć teraz albo zostawić to nam: założymy je przy włączeniu dostępu.</p><?php $officeBox('claude'); ?><?php endif; ?>
       <a class="m-btn" href="<?= h(route('lk.wizard', ['product' => $pk])) ?>">Złóż wniosek o <?= h($P['label']) ?></a>
-      <p class="m-note tw-mt-2">Trzy kroki: co dostajesz, dane do faktury, podsumowanie. Potem dostajesz proformę z Fakturowni, a po wpłacie Helpdesk wystawia fakturę VAT i włącza dostęp.</p>
+      <p class="m-note tw-mt-2">Trzy krótkie kroki: co dostajesz, dane do faktury, podsumowanie. Potem dostajesz proformę, a po wpłacie fakturę i dostęp.</p>
     <?php endif; ?>
   </section>
 <?php endforeach; ?>
@@ -314,7 +312,10 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
         </tr>
       <?php endforeach; ?>
       </tbody></table></div>
-    <p class="m-note tw-mt-2">Skrót porównania. Pełny opis planów: <a href="<?= h(LicenceOffice::PLANS_SOURCE) ?>" target="_blank" rel="noopener">Microsoft: porównanie planów Microsoft 365 dla edukacji<span class="tw-sr-only"> (nowa karta)</span></a>.</p>
+    <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-3 tw-mt-3">
+      <a class="m-btn-ghost" href="<?= h(LicenceOffice::PLANS_SOURCE) ?>" target="_blank" rel="noopener">Pełne porównanie planów ↗<span class="tw-sr-only"> na stronie Microsoft (nowa karta)</span></a>
+      <span class="m-note">Powyżej skrót. Szczegóły każdego planu są na stronie Microsoft.</span>
+    </div>
   </div>
   <?php foreach ($office as $o): $g = $o['request_status'] === 'granted'; ?>
   <div class="m-row">

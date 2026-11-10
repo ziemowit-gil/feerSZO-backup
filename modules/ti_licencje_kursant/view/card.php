@@ -36,7 +36,7 @@ include __DIR__ . '/_top.php';
       <?php foreach ($t['info'] as $par): ?><p class="tw-mb-2"><?= h($par) ?></p><?php endforeach; ?>
     </div>
     <button class="m-btn tw-mt-4" type="submit"><?= h($t['button']) ?></button>
-    <p class="m-note tw-mt-2">Najpierw potwierdzisz zgodę kodem SMS. Zapiszemy datę, godzinę i adres IP, a zgodę w PDF dodamy do Twoich dokumentów.<?= $virtual ? ' Konto testowe: płatność i karta w symulacji, bez Przelewy24.' : ' Potem przejdziesz do Przelewy24.' ?></p>
+    <p class="m-note tw-mt-2">Najpierw potwierdzisz zgodę kodem SMS. Zapiszemy datę, godzinę i adres IP, a zgodę w PDF dodamy do Twoich dokumentów.<?= $virtual ? ' Konto testowe: płatność i karta to tylko symulacja.' : ' Potem przejdziesz na bezpieczną stronę płatności.' ?></p>
   </form>
   <?php endif; ?>
 </div>
