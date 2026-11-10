@@ -242,8 +242,6 @@
         document.getElementById('at-error').classList.add('d-none');
         const listSel = document.getElementById('at-list');
         if (listSel) listSel.value = listId ? String(listId) : '0';
-        const more = document.getElementById('at-more');
-        if (more) more.open = !!listId;   // dodawanie z kolumny Kanbana — pokaż wybraną kolumnę
         // Reset trybu przypisania → osoba
         const modePersonRadio = document.getElementById('at-mode-person');
         if (modePersonRadio) {

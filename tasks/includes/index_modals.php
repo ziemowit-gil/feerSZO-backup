@@ -109,32 +109,23 @@
         </div>
         <?php endif; ?>
 
-        <details class="at-more" id="at-more">
-          <summary>Więcej opcji <span>kolumna<?= $all_areas ? ', obszar tematyczny' : '' ?></span></summary>
-          <div class="at-grid">
-            <div>
-              <label class="at-l" for="at-list">Kolumna</label>
-              <select id="at-list" class="at-in">
-                <?php $_at_def = array_values(array_filter($lists_map, fn($l) => empty($l['is_done_state'])))[0] ?? (array_values($lists_map)[0] ?? null); ?>
-                <option value="0">Domyślna<?= $_at_def ? ' (' . h($_at_def['name']) . ')' : ' — utworzymy „Do zrobienia”' ?></option>
-                <?php foreach ($lists_map as $l): ?>
-                <option value="<?= $l['id'] ?>"><?= h($l['name']) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <?php if ($all_areas): ?>
-            <div>
-              <label class="at-l" for="at-area">Obszar tematyczny</label>
-              <select id="at-area" class="at-in">
-                <option value="0">— brak —</option>
-                <?php foreach ($all_areas as $ar): ?>
-                <option value="<?= $ar['id'] ?>"><?= h($ar['name']) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <?php endif; ?>
+        <?php /* Bez „Więcej opcji”: zadanie trafia do domyślnej kolumny obszaru albo do tej, w której kliknięto „+”
+                 w Kanbanie (openAddModal(listId) ustawia ukryte pole). Kolumnę zmienia się potem w oknie zadania
+                 albo przeciągnięciem w Kanbanie. Obszar tematyczny — tylko gdy organizacja go używa. */ ?>
+        <input type="hidden" id="at-list" value="0">
+        <?php if ($all_areas): ?>
+        <div class="at-grid">
+          <div>
+            <label class="at-l" for="at-area">Obszar tematyczny</label>
+            <select id="at-area" class="at-in">
+              <option value="0">— brak —</option>
+              <?php foreach ($all_areas as $ar): ?>
+              <option value="<?= $ar['id'] ?>"><?= h($ar['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
-        </details>
+        </div>
+        <?php endif; ?>
         <div id="at-error" class="alert alert-danger py-2 small d-none mt-3 mb-0" role="alert"></div>
       </div>
       <div class="modal-footer">

@@ -417,10 +417,6 @@ html body #addTaskModal .at-seg label{display:inline-flex;align-items:center;gap
 html body #addTaskModal .at-seg label+input+label{border-left:0}
 html body #addTaskModal .at-seg .btn-check:checked+label{background:var(--tsk-text);color:#fff}
 html body #addTaskModal .at-seg .btn-check:focus-visible+label{outline:2px solid var(--tsk-green);outline-offset:2px}
-html body #addTaskModal .at-more{margin-top:1rem;border-top:1px solid var(--tm-line);padding-top:.6rem}
-html body #addTaskModal .at-more>summary{cursor:pointer;font-weight:600;font-size:.85rem;color:var(--tsk-text);padding:.2rem 0}
-html body #addTaskModal .at-more>summary span{font-weight:400;color:var(--tm-muted);margin-left:.35rem}
-html body #addTaskModal .at-more[open]>summary{margin-bottom:.6rem}
 html body #addTaskModal .modal-footer{border-top:1px solid var(--tm-line);padding:.75rem 1.25rem;gap:.4rem}
 html body #addTaskModal .at-hint{margin-right:auto;font-size:.75rem;color:var(--tm-muted)}
 html body #addTaskModal .at-btn{display:inline-flex;align-items:center;border:2px solid var(--tsk-green);background:var(--tsk-green);color:#fff;font-weight:600;font-size:.88rem;padding:.4rem 1rem;border-radius:0}
