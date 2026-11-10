@@ -59,7 +59,7 @@
         <div class="at-grid">
           <div>
             <label class="at-l" for="at-due">Termin</label>
-            <input type="date" id="at-due" class="at-in">
+            <input type="date" id="at-due" class="at-in" data-quick-dates>
           </div>
           <div>
             <label class="at-l" for="at-priority">Priorytet</label>

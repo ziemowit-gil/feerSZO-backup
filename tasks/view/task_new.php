@@ -58,7 +58,7 @@ html body #tsk-main .tnw-att label{display:flex;gap:.4rem;align-items:flex-start
       <div><label class="tp-l" for="tnw-list">Kolumna</label><select class="tp-in" id="tnw-list" name="list_id" required></select></div>
       <div><label class="tp-l" for="tnw-prio">Priorytet</label>
         <select class="tp-in" id="tnw-prio" name="priority"><?php foreach ([1, 2, 3, 4] as $p): ?><option value="<?= $p ?>" <?= $p === 2 ? 'selected' : '' ?>><?= h(tasksPlusPriorityLabel($p)) ?></option><?php endforeach; ?></select></div>
-      <div><label class="tp-l" for="tnw-due">Termin</label><input class="tp-in" type="date" id="tnw-due" name="due_date"></div>
+      <div><label class="tp-l" for="tnw-due">Termin</label><input class="tp-in" type="date" id="tnw-due" name="due_date" data-quick-dates></div>
     </div>
     <div class="tnw-field"><label class="tp-l" for="tnw-title">Tytuł</label>
       <input class="tp-in" id="tnw-title" name="title" required maxlength="300" value="<?= h($prefill['title']) ?>"></div>

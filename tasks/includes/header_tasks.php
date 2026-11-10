@@ -393,6 +393,8 @@ body {
 #tsk-notif-banner .tsk-nb-sub { @apply tw-text-[.77rem] tw-mt-[.1rem]; color: #047857; }
 </style>
 <?php /* Szata Metro UI jak System Tożsamości — ostatni blok stylów */ require_once __DIR__ . '/tasks_metro.php'; ?>
+<?php /* Szybkie daty (+7 dni, +14 dni, za miesiąc) przy polach z data-quick-dates — modules/quick_dates */
+      require_once dirname(dirname(__DIR__)) . '/modules/quick_dates/lib/quickDates.php'; quickDatesAssets(); ?>
 </head>
 <body>
 

@@ -16,7 +16,7 @@
       </label>
       <?php if (task_field_editable('due_date', $my_role)): ?>
       <div class="d-flex gap-1">
-        <input type="date" id="td-due" class="form-control form-control-sm"
+        <input type="date" id="td-due" class="form-control form-control-sm" data-quick-dates="parent"
                value="<?= h($task['due_date'] ?? '') ?>"
                onchange="tdPatch({due_date:this.value||null}); document.getElementById('td-due-time').disabled = !this.value"
                aria-label="Data terminu zadania">
@@ -38,7 +38,7 @@
         <i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Start
       </label>
       <?php if (task_field_editable('start_date', $my_role)): ?>
-      <input type="date" id="td-start" class="form-control form-control-sm"
+      <input type="date" id="td-start" class="form-control form-control-sm" data-quick-dates
              value="<?= h($task['start_date'] ?? '') ?>"
              onchange="tdPatch({start_date:this.value||null})"
              aria-label="Data rozpoczęcia zadania">
