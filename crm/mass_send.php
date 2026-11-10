@@ -773,9 +773,9 @@ include __DIR__ . '/includes/header_crm.php';
       <?php endforeach; ?>
     </div>
 
-    <!-- Quill dla email -->
-    <div id="ms_quill_wrap">
-      <div id="ms_quill" style="min-height:180px;font-size:.9rem"></div>
+    <!-- CKEditor 5 dla e-maila (Enter = nowy akapit z odstępem, Shift+Enter = nowa linia) -->
+    <div id="ms_editor_wrap">
+      <div id="ms_editor"></div>
     </div>
     <!-- Textarea dla SMS -->
     <div id="ms_plain_wrap" style="display:none">
@@ -917,13 +917,17 @@ include __DIR__ . '/includes/header_crm.php';
 
 </div><!-- /ms-shell -->
 
-<!-- Quill -->
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<!-- CKEditor 5 — ta sama kompilacja „classic” co w pismach do umów i EZD (CDN, bez klucza licencyjnego) -->
+<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
+<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/translations/pl.js"></script>
 <style>
-#ms_quill_wrap .ql-toolbar.ql-snow { border:1px solid #E5E7EB;border-bottom:none;border-radius:.375rem .375rem 0 0;background:#F9FAFB;padding:.3rem .5rem }
-#ms_quill_wrap .ql-container.ql-snow { border:1px solid #E5E7EB;border-radius:0 0 .375rem .375rem;font-size:.9rem }
-#ms_quill_wrap .ql-editor { min-height:180px }
+/* Płasko jak reszta kreatora; akapity w edytorze mają taki sam odstęp jak w wysłanym mailu (margin:0 0 1em) */
+#ms_editor_wrap { --ck-border-radius:0; --ck-color-base-border:#9CA3AF; --ck-color-focus-border:#0F766E; --ck-focus-ring:1px solid #0F766E }
+#ms_editor_wrap .ck.ck-toolbar { background:#F3F4F6 }
+#ms_editor_wrap .ck-editor__editable { min-height:260px; max-height:60vh; font-size:.95rem; line-height:1.5; color:#111827 }
+#ms_editor_wrap .ck-content p { margin:0 0 1em }
+#ms_editor_wrap .ck-content h2, #ms_editor_wrap .ck-content h3 { margin:.6em 0 .5em }
+#ms_editor_wrap .ms-editor-fallback { width:100%; min-height:260px; font-size:.95rem; border:1px solid #9CA3AF; padding:.6rem .75rem }
 </style>
 
 <script>
@@ -942,25 +946,48 @@ const MS = (function() {
   // domyślny (osoba oznaczona jako adresat → osoba główna → adres podmiotu).
   let _person_over  = {};
   let _dw_emails    = new Map(); // email → label
-  let _quill        = null;
+  let _editor       = null;   // CKEditor 5; null = edytor się nie wczytał (zostaje zwykłe pole tekstowe)
   let _total        = 0;
   let _searchTimer  = null;
   let _dwTimer      = null;
 
-  function initQuill() {
-    _quill = new Quill('#ms_quill', {
-      theme: 'snow',
-      placeholder: 'Treść e-maila… Użyj zmiennych {imie}, {imie_nazwisko}, {email}',
-      modules: { toolbar: [
-        [{ header: [1,2,false] }],
-        ['bold','italic','underline'],
-        [{ color: [] }],
-        [{ list: 'ordered' },{ list: 'bullet' }],
-        ['link','clean']
-      ]}
-    });
+  function initEditor() {
+    const host = document.getElementById('ms_editor');
+    if (!host) return;
+    if (!window.ClassicEditor) {
+      // CDN niedostępny — zwykłe pole tekstowe (serwer zamieni puste linie na akapity), żeby dało się wysłać
+      host.outerHTML = '<textarea id="ms_editor_fallback" class="ms-editor-fallback" aria-label="Treść e-maila"'
+        + ' placeholder="Treść e-maila… Edytor się nie wczytał — wpisz zwykły tekst."></textarea>';
+      return;
+    }
+    ClassicEditor.create(host, {
+      language: 'pl',
+      placeholder: 'Treść e-maila… Enter = nowy akapit, Shift+Enter = nowa linia. Zmienne: {imie}, {imie_nazwisko}, {email}',
+      // Osadzanie filmów (YouTube itp.) nie działa w poczcie — wyłączone
+      removePlugins: ['MediaEmbed'],
+      toolbar: ['heading', '|', 'bold', 'italic', 'link', '|', 'bulletedList', 'numberedList', 'blockQuote', 'insertTable', '|', 'undo', 'redo'],
+      heading: { options: [
+        { model: 'paragraph', title: 'Akapit', class: 'ck-heading_paragraph' },
+        { model: 'heading2', view: 'h2', title: 'Nagłówek', class: 'ck-heading_heading2' },
+        { model: 'heading3', view: 'h3', title: 'Podtytuł', class: 'ck-heading_heading3' }
+      ]},
+      link: { defaultProtocol: 'https://' }
+    }).then(ed => {
+      _editor = ed;
+      ed.ui.view.editable.element.setAttribute('aria-label', 'Treść e-maila');
+      ed.model.document.on('change:data', () => sideSum());
+    }).catch(err => { console.error('CKEditor:', err); });
   }
-  initQuill();
+  initEditor();
+
+  /* HTML do maila: puste akapity (podwójny Enter) wylatują — odstęp między akapitami daje margines,
+     taki sam jak w edytorze; bez niego Outlook/Gmail dokładają własne marginesy. */
+  function emailHtml(html) {
+    return String(html || '')
+      .replace(/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '')
+      .replace(/<p>/gi, '<p style="margin:0 0 1em">')
+      .trim();
+  }
 
   // ── Group picker ────────────────────────────────────────────────────────────
   function toggleGroupPicker(e) {
@@ -1180,7 +1207,7 @@ const MS = (function() {
       b.classList.toggle('active', c===ch);
       b.setAttribute('aria-pressed', c===ch ? 'true' : 'false');
     });
-    document.getElementById('ms_quill_wrap').style.display = ch==='email' ? '' : 'none';
+    document.getElementById('ms_editor_wrap').style.display = ch==='email' ? '' : 'none';
     document.getElementById('ms_plain_wrap').style.display  = ch==='sms'   ? '' : 'none';
     document.getElementById('emailSubjectRow').style.display= ch==='email' ? '' : 'none';
     var senderRow = document.getElementById('ms_sender_row');
@@ -1544,7 +1571,9 @@ recipientRow(c)
 
   function getBody() {
     if (_channel === 'sms') return document.getElementById('ms_plain_body').value.trim();
-    return _quill ? _quill.root.innerHTML : '';
+    if (_editor) return emailHtml(_editor.getData());
+    const fb = document.getElementById('ms_editor_fallback');
+    return fb ? fb.value.trim() : '';
   }
 
   function insertVar(v) {
@@ -1553,10 +1582,19 @@ recipientRow(c)
       const s=ta.selectionStart,e=ta.selectionEnd;
       ta.value=ta.value.slice(0,s)+v+ta.value.slice(e);
       ta.selectionStart=ta.selectionEnd=s+v.length;
-    } else if (_quill) {
-      const r=_quill.getSelection(true);
-      _quill.insertText(r?r.index:_quill.getLength(),v,'user');
+    } else if (_editor) {
+      _editor.model.change(w => _editor.model.insertContent(w.createText(v)));
+      _editor.editing.view.focus();
+    } else {
+      const fb=document.getElementById('ms_editor_fallback');
+      if (fb) { const s=fb.selectionStart,e=fb.selectionEnd; fb.value=fb.value.slice(0,s)+v+fb.value.slice(e); fb.selectionStart=fb.selectionEnd=s+v.length; fb.focus(); }
     }
+  }
+
+  // Szablon zapisany jako zwykły tekst → akapity (pusta linia) i łamania wierszy (pojedynczy Enter)
+  function plainToHtml(t) {
+    const esc = x => x.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(t).trim().split(/\n[ \t]*\n+/).map(p => '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>').join('');
   }
 
   function loadTemplate() {
@@ -1569,10 +1607,8 @@ recipientRow(c)
     const body=opt.dataset.body||'';
     if (ch==='email') {
       document.getElementById('ms_subject').value=subj;
-      if (_quill) {
-        if (/<[a-z]/i.test(body)) _quill.root.innerHTML=body;
-        else _quill.setText(body);
-      }
+      if (_editor) _editor.setData(/<[a-z]/i.test(body) ? body : plainToHtml(body));
+      else { const fb=document.getElementById('ms_editor_fallback'); if (fb) fb.value=body.replace(/<[^>]*>/g,''); }
     } else {
       document.getElementById('ms_plain_body').value=body;
       updateSmsCount();
