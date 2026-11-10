@@ -270,9 +270,9 @@ final class LicencjeKursantController
         $login = trim((string)($_POST['login'] ?? '')); $pass = (string)($_POST['password'] ?? '');
         $back = function (string $e) use ($login) { $_SESSION['lk_login_err'] = $e; $_SESSION['lk_login_old'] = $login; header('Location: ' . route('lk.login')); return null; };
         if ($login === '' || $pass === '') return $back('Wpisz login i hasło.');
-        if (LicencjePanelAuth::throttled($login)) return $back('Za dużo nieudanych prób — spróbuj ponownie za 15 minut.');
+        if (LicencjePanelAuth::throttled($login)) return $back('Było za dużo nieudanych prób. Spróbuj ponownie za 15 minut.');
         $cid = LicenseLogin::verify($login, $pass);
-        if (!$cid) { LicencjePanelAuth::recordFail($login); return $back('Nieprawidłowy login lub hasło.'); }
+        if (!$cid) { LicencjePanelAuth::recordFail($login); return $back('Login albo hasło się nie zgadza. Sprawdź je i spróbuj jeszcze raz.'); }
         LicencjePanelAuth::login($cid, 'login ' . strtolower($login));
         $sid = (int)(db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id DESC LIMIT 1", [$cid])['id'] ?? 0);
         if ($sid > 0 && function_exists('ti_account_log')) ti_account_log($sid, 'license_panel_login', 'Logowanie do panelu licencji (' . strtolower($login) . ').');
