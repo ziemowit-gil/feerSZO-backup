@@ -56,6 +56,8 @@ $r->group(['lp.auth', 'lp.contact'], function (Router $r) {
     $r->get('/programy',               [LicencjeKursantController::class, 'programs'])->name('lk.programs');
     $r->get('/materialy',              [LicencjeKursantController::class, 'materials'])->name('lk.materials');
     $r->get('/sprawy',                 [LicencjeKursantController::class, 'cases'])->name('lk.cases');
+    $r->get('/sprawy/{kind}/{id}',     [LicencjeKursantController::class, 'caseView'])->name('lk.case');          // podgląd sprawy AM / zgłoszenia AM…
+    $r->post('/sprawy/zgloszenie/{id}/odpowiedz', [LicencjeKursantController::class, 'caseReply'])->name('lk.case.reply');
     $r->get('/produkty',               [LicencjeKursantController::class, 'products'])->name('lk.products');
     $r->get('/konto',                  [LicencjeKursantController::class, 'account'])->name('lk.account');
     $r->get('/rozliczenia',            [LicencjeKursantController::class, 'billing'])->name('lk.billing');          // karta i dane do faktur

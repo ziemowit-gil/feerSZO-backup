@@ -294,6 +294,35 @@ final class LicencjeKursantController
     public function programs(): string { return $this->render('programy'); }
     public function materials(): string { return $this->render('materialy'); }
     public function cases(): string { return $this->render('sprawy'); }
+
+    /** Podgląd sprawy AM (op = operacja AM11–AM24, lic = wniosek AM5/AM7) albo zgłoszenia AM… (hd) z korespondencją. */
+    public function caseView(string $kind, string $id): string
+    {
+        $me = $this->me();
+        require_once __DIR__ . '/LicencjeSprawy.php';
+        require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';   // hd_sanitize_body — bezpieczne wyświetlenie wiadomości
+        $case = in_array($kind, ['op', 'lic'], true) ? LicencjeSprawy::case($me['cid'], $kind, (int)$id) : null;
+        $tid = $kind === 'hd' ? (int)$id : (int)($case['ticket'] ?? 0);
+        $ticket = $tid ? LicencjeSprawy::ticket($me['cid'], $tid) : null;
+        if (!$case && !$ticket) { $this->flash('err', 'Nie znaleziono sprawy.', 'sprawy'); exit; }
+        return $this->render('sprawa', ['sprawa' => $case, 'ticket' => $ticket, 'msgs' => $ticket ? LicencjeSprawy::messages((int)$ticket['id']) : [], 'caseKind' => $kind, 'caseId' => (int)$id]);
+    }
+
+    /** Odpowiedź uczestnika w zgłoszeniu AM… (korespondencja). */
+    public function caseReply(string $id): ?string
+    {
+        $me = $this->me();
+        require_once __DIR__ . '/LicencjeSprawy.php';
+        $kind = in_array((string)($_POST['kind'] ?? 'hd'), ['op', 'lic', 'hd'], true) ? (string)$_POST['kind'] : 'hd';
+        $back = route('lk.case', ['kind' => $kind, 'id' => (int)($_POST['back_id'] ?? $id)]);
+        try {
+            $msg = LicencjeSprawy::reply($me['cid'], (int)$id, (string)($_POST['body'] ?? ''), $me['name']);
+            $this->log($me, 'case_reply', 'Odpowiedź w zgłoszeniu #' . (int)$id . '.');
+            $_SESSION['lk_flash'] = ['ok', $msg];
+        } catch (\Throwable $e) { $_SESSION['lk_flash'] = ['err', $e->getMessage()]; }
+        header('Location: ' . $back);
+        return null;
+    }
     public function products(): string { return $this->render('produkty'); }
     public function account(): string { return $this->render('konto'); }
     public function licence(string $product): string
@@ -347,7 +376,7 @@ final class LicencjeKursantController
         return $this->flash('ok', 'Symulacja: wpłata ' . ClaudeBilling::zl((float)$ch['amount_pln']) . ' zaksięgowana. Zamówienie ' . ($ch['order_number'] ?: '(w przygotowaniu)') . ' i faktura ' . ($ch['invoice_number'] ?: '(w przygotowaniu)') . ' są do pobrania.', $p);
     }
 
-    private function render(string $page): string
+    private function render(string $page, array $extra = []): string
     {
         $me = $this->me();
         $cid = $me['cid'];
@@ -404,7 +433,9 @@ final class LicencjeKursantController
             'login' => LicenseLogin::get($cid), 'hasPassword' => LicenseLogin::hasPassword($cid), 'minor' => ClaudeBilling::isMinor($cid),
             'contact' => LicencjeKod::contact($cid), 'eduAccount' => ClaudeBilling::eduAccount($cid), 'officeAcc' => LicenceOffice::summary($cid),
             'card' => LicenceCard::active($cid), 'consents' => LicenceCard::consents($cid),
-            'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()]);
+            'sprawy' => (function () use ($cid) { require_once __DIR__ . '/LicencjeSprawy.php'; return LicencjeSprawy::cases($cid); })(),
+            'tickets' => in_array($page, ['sprawy', 'start'], true) ? LicencjeSprawy::tickets($cid) : [],
+            'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()] + $extra);
     }
 
 

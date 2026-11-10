@@ -6,7 +6,7 @@ if (!isset($me, $paid)) { header('Location: /licencje/', true, 302); exit; }   /
  * Menu po lewej prowadzi do podstron. Wygląd Metro: znaczniki stanu m-tag (ok / due / bad / off). Office: konto @edu.feer.org.pl = Office aktywny.
  * Każdą operację potwierdza kod jednorazowy (SMS). Konto testowe ($virtual): dokumenty w symulacji (SYM, PDF do pobrania) i symulowana wpłata.
  * Numery ($ids): numer w panelu licencji (l + 8 cyfr, nadany raz, nim się logujesz) i nr beneficjenta (student_no z Ewidencji Uczestników).
- * Zmienne: $page, $ids, $virtual, $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $officeAcc, $card, $consents, $flash, $err, $old, $org.
+ * Zmienne: $page, $ids, $virtual, $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $officeAcc, $card, $consents, $sprawy, $tickets, ($page = sprawa: $sprawa, $ticket, $msgs, $caseKind, $caseId), $flash, $err, $old, $org.
  */
 $C = LicencjeKursantController::class;
 $U = fn(string $k) => LicencjeKursantController::pageUrl($k);
@@ -43,14 +43,15 @@ $officeBox = function (string $back) use ($officeAcc, $virtual) {
 };
 $tiles['programy'] = ['Programy i klucze', $software ? [count($software) . ' ' . (count($software) === 1 ? 'program' : 'programy'), 'ok'] : ['brak', 'off'], '', false];
 $tiles['materialy'] = ['Materiały dydaktyczne', $am5 ? [count($am5) . ' ' . (count($am5) === 1 ? 'licencja' : 'licencje'), 'ok'] : ['brak', 'off'], '', false];
-$tiles['sprawy'] = ['Moje sprawy', $ops ? [count($ops) . ' ' . (count($ops) === 1 ? 'sprawa' : 'sprawy'), 'due'] : ['brak', 'off'], '', false];
+$_nSpr = count($sprawy ?? []) + count($tickets ?? []);
+$tiles['sprawy'] = ['Moje sprawy', $_nSpr ? [count($sprawy ?? []) . ' ' . (count($sprawy ?? []) === 1 ? 'sprawa' : 'spraw') . (($tickets ?? []) ? ', ' . count($tickets) . ' zgł.' : ''), 'due'] : ['brak', 'off'], '', false];
 $tiles['produkty'] = ['Produkty i usługi', $products ? [count($products) . ' ' . (count($products) === 1 ? 'usługa' : 'usługi'), 'ok'] : ['brak', 'off'], $prodMonthly > 0 ? ClaudeBilling::zl($prodMonthly) . ' miesięcznie' : '', false];
 $cardModes = array_filter($paid, fn($v) => ($v['payMode'] ?? '') === 'card' && $v['sub'] && in_array($v['sub']['status'], ['requested', 'active', 'suspended'], true));
 $tiles['rozliczenia'] = ['Rozliczenia', $card ? ['karta podpięta', 'ok'] : ($cardModes ? ['podepnij kartę', 'due'] : ['przelew', 'off']), $card ? LicenceCard::label($card) : 'karta i dane do faktur', !$card && $cardModes];
 $tiles['konto'] = ['Moje konto', $login ? ['aktywne', 'ok'] : ['bez numeru', 'off'], ($login ? 'numer ' . $login . ', ' : '') . 'hasło, kontakt', false];   // numer w opisie (znacznik zamienia litery na wielkie)
 $nav = [[$U(''), 'Start', '', false, $page === 'start']];
-foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $dueFlag ? $sum : '', $dueFlag, $page === $k];
-$PAGE_TITLE = $page === 'start' ? 'Moje licencje' : ($tiles[$page][0] ?? 'Moje licencje');
+foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $dueFlag ? $sum : '', $dueFlag, $page === $k || ($page === 'sprawa' && $k === 'sprawy')];
+$PAGE_TITLE = $page === 'start' ? 'Moje licencje' : ($page === 'sprawa' ? 'Sprawa' : ($tiles[$page][0] ?? 'Moje licencje'));
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
 $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" style="border-left:4px solid var(--mt-ink)"><dl class="tw-grid sm:tw-grid-cols-3 tw-gap-x-6 tw-gap-y-2" style="margin:0">'
@@ -394,20 +395,82 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
 <?php endif; ?>
 
 <?php /* ── Moje sprawy (AM11–24, ANT1) ── */ ?>
-<?php if ($page === 'sprawy'): ?>
+<?php if ($page === 'sprawy'): $hdSt = ['nowe' => ['przyjęte', 'due'], 'otwarte' => ['w toku', 'due'], 'oczekuje' => ['czeka na Ciebie', 'bad'], 'rozwiązane' => ['rozwiązane', 'ok'], 'zamknięte' => ['zamknięte', 'off']]; ?>
 <h1 class="m-title">Moje sprawy</h1>
-<p class="m-explain">Twoje wnioski licencyjne: przyznanie, zwrot kosztów, zmiana płatnika lub planu, zawieszenie, przedłużenie. Tu widać, na jakim są etapie.</p>
+<p class="m-explain">Twoje wnioski licencyjne i zgłoszenia w sprawie licencji. Kliknij sprawę, żeby zobaczyć szczegóły i korespondencję.</p>
 <?= $idsLine ?>
-<section class="m-tile" aria-label="Moje sprawy">
-  <?php if (!$ops): ?><p class="tw-text-sm m-muted">Brak spraw licencyjnych.</p><?php endif; ?>
-  <?php foreach ($ops as $o): ?>
-  <div class="m-row tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
-    <span class="tw-font-semibold"><?= h($C::OP_NAMES[$o['form']] ?? 'Sprawa licencyjna') ?></span>
-    <?= $tag($o['status'] === 'executed' ? 'ok' : (in_array($o['status'], ['rejected', 'cancelled'], true) ? 'off' : 'due'), $C::OP_STATUS[$o['status']] ?? $o['status']) ?>
-    <span class="m-note">złożona <?= h(ClaudeBilling::dayMonth(substr((string)$o['created_at'], 0, 10))) ?> · nr <?= h($o['number']) ?></span>
+<section class="m-tile" aria-labelledby="s-am">
+  <h2 class="m-sect" id="s-am">Wnioski AM</h2>
+  <?php if (!$sprawy): ?><p class="tw-text-sm m-muted">Nie masz wniosków licencyjnych.</p><?php endif; ?>
+  <?php foreach ($sprawy as $o): $isOp = $o['kind'] === 'op';
+    $nm = $isOp ? ($C::OP_NAMES[$o['form']] ?? 'Sprawa licencyjna') : (($o['form'] === 'AM7' ? 'Office i oprogramowanie (AM7)' : 'Materiały dydaktyczne (AM5)') . ($o['title'] !== '' ? ': ' . $o['title'] : ''));
+    $stl = $isOp ? ($C::OP_STATUS[$o['status']] ?? $o['status']) : ($C::AM7_STATUS[$o['status']] ?? $o['status']);
+    $cls = in_array($o['status'], ['executed', 'granted'], true) ? 'ok' : (in_array($o['status'], ['rejected', 'cancelled', 'refused', 'withdrawn'], true) ? 'off' : 'due'); ?>
+  <div class="m-row tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3 tw-gap-y-1">
+    <a class="tw-font-semibold" href="<?= h(route('lk.case', ['kind' => $o['kind'], 'id' => $o['id']])) ?>"><?= h($nm) ?></a>
+    <?= $tag($cls, $stl) ?>
+    <span class="m-note">nr <?= h($o['number']) ?> · złożona <?= h(ClaudeBilling::dayMonth(substr($o['created'], 0, 10))) ?><?= $o['ticket_no'] !== '' ? ' · zgłoszenie ' . h($o['ticket_no']) : '' ?></span>
   </div>
   <?php endforeach; ?>
 </section>
+<section class="m-tile tw-mt-4" aria-labelledby="s-hd">
+  <h2 class="m-sect" id="s-hd">Zgłoszenia w sprawie licencji</h2>
+  <?php if (!$tickets): ?><p class="tw-text-sm m-muted">Nie masz zgłoszeń.</p><?php endif; ?>
+  <?php foreach ($tickets as $t): [$tl, $tc] = $hdSt[$t['status']] ?? [$t['status'], 'due']; ?>
+  <div class="m-row tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3 tw-gap-y-1">
+    <a class="tw-font-semibold" href="<?= h(route('lk.case', ['kind' => 'hd', 'id' => (int)$t['id']])) ?>"><?= h($t['title']) ?></a>
+    <?= $tag($tc, $tl) ?>
+    <span class="m-note">nr <?= h($t['number']) ?> · <?= h(ClaudeBilling::dayMonth(substr((string)$t['created_at'], 0, 10))) ?></span>
+  </div>
+  <?php endforeach; ?>
+</section>
+<?php endif; ?>
+
+<?php if ($page === 'sprawa'): $hdSt = ['nowe' => ['przyjęte', 'due'], 'otwarte' => ['w toku', 'due'], 'oczekuje' => ['czeka na Ciebie', 'bad'], 'rozwiązane' => ['rozwiązane', 'ok'], 'zamknięte' => ['zamknięte', 'off']]; ?>
+<p class="m-note tw-mb-2"><a href="<?= h(route('lk.cases')) ?>">← Moje sprawy</a></p>
+<?php if ($sprawa): $isOp = $sprawa['kind'] === 'op';
+  $nm = $isOp ? ($C::OP_NAMES[$sprawa['form']] ?? 'Sprawa licencyjna') : (($sprawa['form'] === 'AM7' ? 'Office i oprogramowanie (AM7)' : 'Materiały dydaktyczne (AM5)'));
+  $stl = $isOp ? ($C::OP_STATUS[$sprawa['status']] ?? $sprawa['status']) : ($C::AM7_STATUS[$sprawa['status']] ?? $sprawa['status']);
+  $cls = in_array($sprawa['status'], ['executed', 'granted'], true) ? 'ok' : (in_array($sprawa['status'], ['rejected', 'cancelled', 'refused', 'withdrawn'], true) ? 'off' : 'due'); ?>
+<h1 class="m-title"><?= h($nm) ?> <?= $tag($cls, $stl) ?></h1>
+<section class="m-tile" aria-label="Szczegóły sprawy">
+  <dl class="m-kv tw-grid sm:tw-grid-cols-3 tw-gap-x-6">
+    <div><dt>Numer sprawy</dt><dd class="m-mono"><?= h($sprawa['number']) ?></dd></div>
+    <div><dt>Złożona</dt><dd><?= h(ClaudeBilling::date(substr($sprawa['created'], 0, 10))) ?></dd></div>
+    <div><dt>Decyzja</dt><dd><?= $sprawa['decided'] !== '' ? h(ClaudeBilling::date(substr($sprawa['decided'], 0, 10))) : 'jeszcze nie ma' ?></dd></div>
+    <?php if (!$isOp && ($sprawa['title'] ?? '') !== ''): ?><div><dt>Czego dotyczy</dt><dd><?= h($sprawa['title']) ?></dd></div><?php endif; ?>
+    <?php if (!$isOp && ($sprawa['to'] ?? '') !== ''): ?><div><dt>Ważna</dt><dd><?= ($sprawa['from'] ?? '') !== '' ? h(ClaudeBilling::date($sprawa['from'])) . ' – ' : 'do ' ?><?= h(ClaudeBilling::date($sprawa['to'])) ?></dd></div><?php endif; ?>
+    <?php if ($sprawa['ticket_no'] !== ''): ?><div><dt>Zgłoszenie</dt><dd class="m-mono"><?= h($sprawa['ticket_no']) ?></dd></div><?php endif; ?>
+  </dl>
+</section>
+<?php elseif ($ticket): [$tl, $tc] = $hdSt[$ticket['status']] ?? [$ticket['status'], 'due']; ?>
+<h1 class="m-title"><?= h($ticket['title']) ?> <?= $tag($tc, $tl) ?></h1>
+<?php endif; ?>
+<?php if ($ticket): [$tl, $tc] = $hdSt[$ticket['status']] ?? [$ticket['status'], 'due']; ?>
+<section class="m-tile tw-mt-4" aria-labelledby="k-h">
+  <h2 class="m-sect" id="k-h">Korespondencja · zgłoszenie <?= h($ticket['number']) ?> <?= $tag($tc, $tl) ?></h2>
+  <div class="m-row" style="border-top:0;padding-top:0">
+    <p class="m-note tw-mb-1"><?= h(date('d.m.Y H:i', strtotime((string)$ticket['created_at']))) ?> · zgłoszenie</p>
+    <div class="tw-text-sm"><?= nl2br(h(trim(strip_tags((string)$ticket['description'])))) ?></div>
+  </div>
+  <?php foreach ($msgs as $m): ?>
+  <div class="m-row">
+    <p class="m-note tw-mb-1"><?= h(date('d.m.Y H:i', strtotime((string)$m['created_at']))) ?> · <?= h((string)$m['user_name'] ?: 'Fundacja') ?></p>
+    <div class="tw-text-sm"><?= function_exists('hd_sanitize_body') ? hd_sanitize_body((string)$m['body']) : nl2br(h(strip_tags((string)$m['body']))) ?></div>
+  </div>
+  <?php endforeach; ?>
+  <?php if ($ticket['status'] !== 'zamknięte'): ?>
+  <form method="post" action="<?= h(route('lk.case.reply', ['id' => (int)$ticket['id']])) ?>" class="m-row"><?= Router::csrfField() ?>
+    <input type="hidden" name="kind" value="<?= h($caseKind) ?>"><input type="hidden" name="back_id" value="<?= (int)$caseId ?>">
+    <label class="m-label" for="k-body">Twoja wiadomość</label>
+    <textarea class="m-input" id="k-body" name="body" rows="4" required minlength="2" maxlength="5000"></textarea>
+    <button class="m-btn tw-mt-2" type="submit">Wyślij wiadomość</button>
+  </form>
+  <?php else: ?><p class="m-note">Zgłoszenie jest zamknięte. Jeśli potrzebujesz pomocy, napisz do biura.</p><?php endif; ?>
+</section>
+<?php elseif ($sprawa): ?>
+<p class="m-note tw-mt-3">Ta sprawa nie ma jeszcze korespondencji. Jeśli masz pytanie, napisz do biura.</p>
+<?php endif; ?>
 <?php endif; ?>
 
 <?php /* ── Produkty i usługi (refakturowane przez FEER) — liczone osobno ── */
