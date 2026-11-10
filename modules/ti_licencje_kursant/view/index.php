@@ -152,7 +152,7 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
         <?php if ((float)$s['fee_pln'] > 0): ?><div><dt class="m-note">Prowizja za płatność</dt><dd class="tw-font-semibold" style="margin:0">+ <?= h(ClaudeBilling::zl((float)$s['fee_pln'])) ?></dd></div><?php endif; ?>
         <div><dt class="m-note">Razem dziś</dt><dd style="margin:0"><span class="m-num" style="font-size:1.4rem"><?= $rt ? '≈ ' . h(ClaudeBilling::zl((float)$rt['amount_pln'])) : '—' ?></span><span class="m-note tw-block">miesięcznie</span></dd></div>
       </dl>
-      <p class="m-note tw-mt-2" style="margin-bottom:0">Dolary przeliczamy po kursie PKO BP z dnia wystawienia proformy, dlatego kwota może się co miesiąc trochę różnić.</p>
+      <p class="m-imp" style="margin-bottom:0">Dolary przeliczamy po kursie PKO BP z dnia wystawienia proformy, dlatego kwota może się co miesiąc trochę różnić.</p>
     </div>
     <?php endif; ?>
 
@@ -194,7 +194,7 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
             <?php if ($pc['decision'] !== 'accept'): ?><button class="m-btn" type="submit" name="decision" value="accept">Akceptuję nową cenę</button><?php endif; ?>
             <?php if ($pc['decision'] !== 'reject'): ?><button class="m-btn-ghost m-btn-danger" type="submit" name="decision" value="reject">Rezygnuję</button><?php endif; ?>
           </form>
-          <p class="m-note tw-mt-2">Wymaga kodu SMS.</p>
+          <p class="m-imp">Decyzję potwierdzisz kodem SMS.</p>
         <?php endif; ?>
       </div>
       <?php endif; ?>
@@ -637,7 +637,7 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
   <h2 class="m-sect" id="r-karta">Karta płatnicza</h2>
   <?php if ($card): $cz = $card['consent_id'] ? LicenceCard::consent((int)$card['consent_id']) : null; ?>
     <p class="tw-text-sm"><span class="tw-font-semibold"><?= h(LicenceCard::label($card)) ?></span> <?= $tag('ok', 'podpięta') ?></p>
-    <p class="m-note">Podpięta <?= h(ClaudeBilling::dayMonth(substr((string)$card['created_at'], 0, 10))) ?>. Opłaty pobieramy automatycznie, przed każdym obciążeniem dostajesz e-mail z kwotą i dniem.</p>
+    <p class="m-imp">Podpięta <?= h(ClaudeBilling::dayMonth(substr((string)$card['created_at'], 0, 10))) ?>. Opłaty pobieramy automatycznie, przed każdym obciążeniem dostajesz e-mail z kwotą i dniem.</p>
     <?php if ($cz): ?><p class="tw-text-sm tw-mt-2">Zgoda z <?= h(date('d.m.Y H:i', strtotime((string)$cz['accepted_at']))) ?>: <a class="m-btn-ghost" href="<?= h(route('lk.consent', ['id' => (int)$cz['id']])) ?>" download>Pobierz PDF<span class="tw-sr-only"> zgody na płatności kartą</span></a></p><?php endif; ?>
     <details class="m-row"><summary>Wycofaj zgodę i odepnij kartę</summary>
       <form method="post" action="<?= h(route('lk.card.remove')) ?>" class="tw-mt-3"><?= Router::csrfField() ?>
@@ -649,7 +649,7 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
   <?php elseif ($cardModes): ?>
     <p class="tw-text-sm">Za <?= h(implode(', ', array_map(fn($v) => $v['P']['label'], $cardModes))) ?> płacisz kartą. Nie masz jeszcze podpiętej karty.</p>
     <?php foreach ($cardModes as $ck => $cv): ?><a class="m-btn tw-mt-2" href="<?= h(route('lk.card', ['product' => $ck])) ?>">Podepnij kartę (<?= h($cv['P']['label']) ?>)</a> <?php endforeach; ?>
-    <p class="m-note tw-mt-2">Najpierw pobierzemy <?= h(ClaudeBilling::zl((float)reset($cardModes)['settings']['card_fee_pln'])) ?> opłaty weryfikacyjnej karty, z fakturą VAT.</p>
+    <p class="m-imp">Najpierw pobierzemy <?= h(ClaudeBilling::zl((float)reset($cardModes)['settings']['card_fee_pln'])) ?> opłaty weryfikacyjnej karty, z fakturą VAT.</p>
   <?php else: ?>
     <p class="tw-text-sm">Za licencje płacisz przelewem po proformie. Płatność kartą włącza Fundacja.</p>
   <?php endif; ?>
@@ -698,7 +698,8 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
       <form method="post" action="<?= h(route('lk.password')) ?>" class="tw-mt-3 tw-grid sm:tw-grid-cols-2 tw-gap-3" style="max-width:640px"><?= Router::csrfField() ?>
         <div><label class="m-label" for="pw1">Nowe hasło (min. 10 znaków)</label><input class="m-input" type="password" id="pw1" name="new" autocomplete="new-password" minlength="10"></div>
         <div><label class="m-label" for="pw2">Powtórz hasło</label><input class="m-input" type="password" id="pw2" name="new2" autocomplete="new-password" minlength="10"></div>
-        <div><button class="m-btn" type="submit">Zapisz hasło</button> <span class="m-note">wymaga kodu SMS</span></div>
+        <p class="m-imp" style="margin-top:0">Zmianę hasła potwierdzisz kodem SMS.</p>
+        <div><button class="m-btn" type="submit">Zapisz hasło</button></div>
       </form>
     </details>
   <?php else: ?>

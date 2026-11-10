@@ -87,7 +87,7 @@ $fa = fn(string $k) => isset($err[$k]) ? ' aria-invalid="true" aria-describedby=
     <button class="m-btn" type="submit">Składam wniosek</button>
     <button class="m-btn-ghost" type="submit" name="dir" value="back">Wstecz</button>
   </div>
-  <p class="m-note tw-mt-2">Wymaga kodu SMS. <?= ($s['pay_mode'] ?? '') === 'card' ? 'Po złożeniu przejdziesz do zgody na płatności kartą.' : 'Po złożeniu dostaniesz proformę.' ?></p>
+  <p class="m-imp">Wniosek potwierdzisz kodem SMS. <?= ($s['pay_mode'] ?? '') === 'card' ? 'Po złożeniu przejdziesz do zgody na płatności kartą.' : 'Po złożeniu dostaniesz proformę.' ?></p>
 <?php endif; ?>
 </form>
 </div>

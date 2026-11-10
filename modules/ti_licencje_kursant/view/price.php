@@ -45,7 +45,7 @@ include __DIR__ . '/_top.php';
       </fieldset>
       <div class="tw-mb-4"><label class="m-label" for="p-name">Imię i nazwisko <?= $guardian ? 'opiekuna' : '' ?> *</label><input class="m-input" id="p-name" name="name" autocomplete="name" required></div>
       <button class="m-btn" type="submit">Wyślij kod</button>
-      <p class="m-note tw-mt-2">Decyzję potwierdzasz kodem SMS<?= $guardian ? ' na numer opiekuna z kartoteki' : '' ?>. Bez numeru kod przyjdzie e-mailem. Jeśli nikt nie wybierze, <?= $chg['no_answer'] === 'reject' ? 'dostęp skończy się przed ' . h($fromD) : 'dostęp zostanie z nową ceną' ?>.</p>
+      <p class="m-imp">Decyzję potwierdzasz kodem SMS<?= $guardian ? ' na numer opiekuna z kartoteki' : '' ?>. Bez numeru kod przyjdzie e-mailem. Jeśli nikt nie wybierze, <?= $chg['no_answer'] === 'reject' ? 'dostęp skończy się przed ' . h($fromD) : 'dostęp zostanie z nową ceną' ?>.</p>
     </form>
   <?php endif; ?>
 <?php endif; ?>
