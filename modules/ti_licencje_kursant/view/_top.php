@@ -1,5 +1,5 @@
 <?php
-if (!isset($org)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
+if (!isset($org)) { header('Location: /licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/ti_licencje_kursant/view/_top.php — szkielet panelu licencji: układ jak Portal Kontrahenta (pasek, okruszki, menu po lewej, treść),
  * wygląd Metro (jak System Tożsamości): ciemny pasek z akcentem, zero zaokrągleń, stonowane znaczniki stanu (m-tag ok|due|bad|off) zamiast kolorowych pigułek.
@@ -126,7 +126,7 @@ $nav = $nav ?? null;
     <form method="post" action="<?= h(route('lk.logout')) ?>"><?= Router::csrfField() ?><button type="submit">Wyloguj</button></form></div>
   <?php endif; ?>
 </div>
-<div class="pk-crumb"><?= isset($me) ? 'Panel licencji' . ($me['fromTi'] ? ' · <a href="../index.php">← Panel uczestnika TI</a>' : '') : 'Logowanie do panelu licencji' ?></div>
+<div class="pk-crumb"><?= isset($me) ? 'Panel licencji' . ($me['fromTi'] ? ' · <a href="/karty30/ti/kursant/index.php">← Panel uczestnika TI</a>' : '') : 'Logowanie do panelu licencji' ?></div>
 <div class="pk-wrap<?= $nav !== null ? ' pk-grid' : '' ?>">
 <?php if ($nav !== null): ?>
   <nav class="pk-side" aria-label="Menu panelu licencji">

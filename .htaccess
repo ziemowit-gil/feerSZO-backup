@@ -190,6 +190,8 @@ RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|newUI|to
 RewriteCond %{REQUEST_URI} !^/rozliczenia(/|$) [NC]
 # Portal płatności (/platnosci) — wejście z panelu kursanta/rodzica jednym kliknięciem
 RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
+# Panel Licencji (/licencje/ → licencje/index.php w korzeniu) — niezależny od panelu kursanta (polecenie 2026-11-10)
+RewriteCond %{REQUEST_URI} !^/licencje(/|$) [NC]
 # Router modułu TI (nabór do grup: /nabor → modules/ti/router.php) — publiczny, nie ścieżka panelu kursanta
 RewriteCond %{REQUEST_URI} !^/modules/ti/router\.php [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
@@ -201,6 +203,7 @@ RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
 RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|tozsamosc|espis)/ [NC]
 RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
+RewriteCond %{REQUEST_URI} !^/licencje(/|$) [NC]
 # Router modułu TI (nabór do grup: /nabor → modules/ti/router.php) — publiczny, nie ścieżka panelu kursanta
 RewriteCond %{REQUEST_URI} !^/modules/ti/router\.php [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]

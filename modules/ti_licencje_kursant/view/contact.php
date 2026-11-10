@@ -1,5 +1,5 @@
 <?php
-if (!isset($me, $c)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu
+if (!isset($me, $c)) { header('Location: /licencje/', true, 302); exit; }   // widok tylko przez router modułu
 /**
  * modules/ti_licencje_kursant/view/contact.php — dane kontaktowe w panelu licencji.
  * Pierwsze wejście ($required): kto nie ma e-maila albo telefonu, musi je podać — bez tego panel nie pozwala na operacje.

@@ -125,8 +125,14 @@ foreach ($ti_ctx_courses as $_cc) {
 }
 
 $tab        = $_GET['tab'] ?? 'dane';
-// Licencje mają własny panel /licencje (modules/ti_licencje_kursant) — stara zakładka przekierowuje
-if ($tab === 'licencje' && $_SERVER['REQUEST_METHOD'] === 'GET') { header('Location: licencje/', true, 302); exit; }
+// Licencje mają własny, niezależny Panel Licencji /licencje/ (licencje/index.php) — stara zakładka przekierowuje jednorazowym linkiem wejścia (bez ponownego logowania)
+if ($tab === 'licencje' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    require_once dirname(__DIR__, 3) . '/modules/ti_licencje_kursant/logic/LicencjePanelAuth.php';
+    $_lpMe = student_current();
+    $_lpUrl = LicencjePanelAuth::PATH;
+    if ($_lpMe) { try { $_lpUrl .= '?wejscie=' . LicencjePanelAuth::handoffCreate((int)$_lpMe['client_id'], (int)$_lpMe['id']); } catch (\Throwable $e) { error_log('licencje handoff: ' . $e->getMessage()); } }
+    header('Location: ' . $_lpUrl, true, 302); exit;
+}
 $vlab_token = student_token();
 
 // ── Widok panelu: klasyczny (domyślny) albo alternatywny ─────────────────────

@@ -1,5 +1,5 @@
 <?php
-if (!isset($org)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu
+if (!isset($org)) { header('Location: /licencje/', true, 302); exit; }   // widok tylko przez router modułu
 /**
  * modules/ti_licencje_kursant/view/login.php — logowanie do panelu licencji (jak Portal Kontrahenta): login „l” + 8 cyfr i hasło.
  * Zmienne: $org, $err, $old.
@@ -20,7 +20,7 @@ include __DIR__ . '/_top.php';
     <button class="m-btn" type="submit">Zaloguj się</button>
   </form>
   <hr class="tw-my-5" style="border:0;border-top:1px solid var(--pk-border)">
-  <p class="tw-text-sm tw-mb-2">Uczestnik zajęć TI może wejść z <a href="../login.php">panelu uczestnika</a> (zakładka Licencje) bez drugiego logowania.</p>
-  <p class="tw-text-sm">Login i hasło do panelu licencji zakłada biuro. Jeśli ich nie masz albo nie pamiętasz hasła, napisz do biura.</p>
+  <p class="tw-text-sm tw-mb-2">Login i hasło wysyła biuro: login e-mailem, hasło SMS-em. Jeśli ich nie masz albo nie pamiętasz hasła, napisz do biura.</p>
+  <p class="tw-text-sm">Uczestnik zajęć TI może też wejść z <a href="/karty30/ti/login.php">panelu uczestnika</a> (zakładka Licencje) bez drugiego logowania.</p>
 </div>
 <?php include __DIR__ . '/_bottom.php'; ?>

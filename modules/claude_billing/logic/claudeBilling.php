@@ -1043,11 +1043,11 @@ final class ClaudeBilling
         } catch (\Throwable $e) { error_log('licencje office: ' . $e->getMessage()); }
     }
 
-    /** Adres panelu licencji uczestnika (kursant.feer.org.pl/licencje/). */
+    /** Adres Panelu Licencji uczestnika (kursant.feer.org.pl/licencje/ — niezależny panel, LicencjePanelAuth::publicUrl). */
     public static function panelUrl(string $anchor = ''): string
     {
-        $base = defined('APP_URL') ? rtrim((string)APP_URL, '/') : '';
-        return $base . '/karty30/ti/kursant/licencje/' . ($anchor !== '' ? '#' . $anchor : '');
+        require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjePanelAuth.php';
+        return LicencjePanelAuth::publicUrl() . ($anchor !== '' ? '#' . $anchor : '');
     }
 
     /** E-mail do uczestnika — prosto: za co, ile, do kiedy, jak zapłacić. Bez testów i małoletnich (rozliczenia prowadzi opiekun/biuro). */

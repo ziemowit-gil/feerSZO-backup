@@ -1,5 +1,5 @@
 <?php
-if (!isset($org)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu
+if (!isset($org)) { header('Location: /licencje/', true, 302); exit; }   // widok tylko przez router modułu
 /** modules/ti_licencje_kursant/view/_bottom.php — stopka panelu licencji (domyka _top.php): pasek dostępności, kopiowanie i odsłanianie kluczy. */
 ?>
 </main>

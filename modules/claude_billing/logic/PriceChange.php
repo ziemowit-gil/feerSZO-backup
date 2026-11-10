@@ -132,8 +132,8 @@ final class PriceChange
 
     public static function decisionUrl(string $token): string
     {
-        $base = defined('APP_URL') ? rtrim((string)APP_URL, '/') : '';
-        return $base . '/karty30/ti/kursant/licencje/?_route=' . rawurlencode('/zmiana-ceny/' . $token);
+        require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjePanelAuth.php';
+        return LicencjePanelAuth::publicUrl() . '?_route=' . rawurlencode('/zmiana-ceny/' . $token);
     }
 
     private static function mail(array $chg, string $to, string $toName, string $person, bool $asGuardian, ?string $token): void

@@ -1,5 +1,5 @@
 <?php
-if (!isset($me, $p, $step)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu
+if (!isset($me, $p, $step)) { header('Location: /licencje/', true, 302); exit; }   // widok tylko przez router modułu
 /**
  * modules/ti_licencje_kursant/view/wizard.php — kreator wniosku o płatną licencję (Claude, NordVPN).
  * Krok 1: co dostajesz i ile kosztuje · krok 2: dane do faktury · krok 3: podsumowanie i zgoda → kod SMS → wniosek, proforma z Fakturowni, zgłoszenie w Helpdesku.

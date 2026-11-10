@@ -128,7 +128,10 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
 <?php endif; ?>
 
 <?php elseif ($tab === 'uczestnicy'): ?>
-<p class="cb-explain">Znajdź uczestnika, żeby założyć mu konto w panelu licencji (numer l + 8 cyfr i hasło, pokazane raz) albo włączyć <?= h($P['label']) ?> w jego imieniu, bez kreatora.</p>
+<?php require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjePanelAccess.php'; $lpUrl = LicencjePanelAuth::publicUrl(); ?>
+<p class="cb-explain">Panel Licencji działa osobno od panelu uczestnika TI. Adres dla uczestników: <a href="<?= h($lpUrl) ?>" target="_blank" rel="noopener"><span class="font-monospace"><?= h($lpUrl) ?></span><span class="visually-hidden"> (nowa karta)</span></a>
+  <button type="button" class="cb-btn ghost" onclick="navigator.clipboard&&navigator.clipboard.writeText('<?= h($lpUrl) ?>');this.textContent='Skopiowano'">Kopiuj adres</button></p>
+<p class="cb-explain">„Wyślij dane do panelu” zakłada login (l + 8 cyfr, nadawany raz) i nowe hasło. Uczestnik dostaje e-mail z adresem i loginem oraz SMS z hasłem. Dane dostają tylko osoby z licencjami albo produktami; płatny produkt liczy się dopiero z fakturą VAT. Tu możesz też włączyć <?= h($P['label']) ?> za uczestnika, bez kreatora.</p>
 <form method="get" action="claudeAbonament.php" class="d-flex gap-2 mb-3" role="search" style="max-width:520px"><input type="hidden" name="product" value="<?= h($product) ?>"><input type="hidden" name="tab" value="uczestnicy">
   <label class="visually-hidden" for="cb-q">Szukaj uczestnika</label><input class="form-control" id="cb-q" name="q" value="<?= h($q) ?>" placeholder="Imię lub nazwisko">
   <button class="cb-btn" type="submit">Szukaj</button>
@@ -147,10 +150,32 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
           <button class="cb-btn ok" type="submit">Włącz</button></form>
       <?php else: ?>—<?php endif; ?></td>
       <td><?= $ll ? '<span class="font-monospace small me-1">' . h($ll) . '</span>' : '' ?>
+        <?php $lpWhy = LicencjePanelAccess::reasons((int)$c['id']); ?>
+        <?php if ($lpWhy): ?>
         <form method="post" action="<?= h(route('cb.lic.account')) ?>" class="d-inline"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>"><input type="hidden" name="client_id" value="<?= (int)$c['id'] ?>"><input type="hidden" name="q" value="<?= h($q) ?>">
-          <button class="cb-btn<?= $ll ? ' ghost' : '' ?>" type="submit"><?= $ll ? 'Nowe hasło' : 'Załóż konto' ?></button></form></td></tr>
+          <button class="cb-btn<?= $ll && LicenseLogin::hasPassword((int)$c['id']) ? ' ghost' : '' ?>" type="submit"><?= $ll && LicenseLogin::hasPassword((int)$c['id']) ? 'Wyślij nowe hasło' : 'Wyślij dane do panelu' ?><span class="visually-hidden"> (<?= h($c['name']) ?>)</span></button></form>
+        <span class="d-block small text-secondary"><?= h(implode(', ', array_slice($lpWhy, 0, 3))) ?></span>
+        <?php else: $lpPw = LicencjePanelAccess::paidWithoutInvoice((int)$c['id']); ?>
+        <span class="small text-secondary">Brak licencji i produktów<?= $lpPw ? '. Płatne bez faktury VAT: ' . h(implode(', ', $lpPw)) : '' ?>.</span>
+        <?php endif; ?></td></tr>
   <?php endforeach; ?></tbody></table></div>
 <?php elseif ($q !== ''): ?><p>Nikogo nie znaleziono.</p><?php endif; ?>
+<?php $lpCand = LicencjePanelAccess::candidates(); ?>
+<section class="panel mt-3" aria-labelledby="lp-c-h">
+  <h2 class="mt-0" id="lp-c-h">Bez danych do Panelu Licencji (<?= count($lpCand) ?>)</h2>
+  <p class="cb-explain mb-2">Osoby z licencjami albo produktami, które nie mają jeszcze hasła do panelu.</p>
+  <?php if (!$lpCand): ?><p class="mb-0">Wszyscy z licencjami albo produktami mają już dane.</p><?php else: ?>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <caption class="visually-hidden">Uczestnicy bez danych do Panelu Licencji</caption>
+    <thead><tr><th scope="col">Uczestnik</th><th scope="col">Ma</th><th scope="col">Dane do panelu</th></tr></thead><tbody>
+    <?php foreach ($lpCand as $lc): ?>
+      <tr><td><?= h($lc['name']) ?></td><td class="small"><?= h(implode(', ', array_slice($lc['reasons'], 0, 3))) ?><?= count($lc['reasons']) > 3 ? ' i ' . (count($lc['reasons']) - 3) . ' inne' : '' ?></td>
+        <td><form method="post" action="<?= h(route('cb.lic.account')) ?>"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>"><input type="hidden" name="client_id" value="<?= (int)$lc['id'] ?>"><input type="hidden" name="q" value="<?= h($q) ?>">
+          <button class="cb-btn" type="submit">Wyślij dane do panelu<span class="visually-hidden"> (<?= h($lc['name']) ?>)</span></button></form></td></tr>
+    <?php endforeach; ?>
+  </tbody></table></div>
+  <?php endif; ?>
+</section>
 
 <?php elseif ($tab === 'cena'): $nt = ClaudeBilling::noticeText($product); ?>
 <section class="panel" aria-labelledby="rate-h">

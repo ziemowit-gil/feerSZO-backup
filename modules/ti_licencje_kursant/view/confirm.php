@@ -1,5 +1,5 @@
 <?php
-if (!isset($me, $op)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu
+if (!isset($me, $op)) { header('Location: /licencje/', true, 302); exit; }   // widok tylko przez router modułu
 /**
  * modules/ti_licencje_kursant/view/confirm.php — potwierdzenie operacji kodem jednorazowym (SMS, gdy nie wyjdzie — e-mail).
  * Zmienne: $me, $op (co potwierdzamy), $otp (kanał, maska, kod na ekranie dla konta testowego), $err, $org, $flash.

@@ -1,5 +1,5 @@
 <?php
-if (!isset($token, $org)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu
+if (!isset($token, $org)) { header('Location: /licencje/', true, 302); exit; }   // widok tylko przez router modułu
 /**
  * modules/ti_licencje_kursant/view/price.php — decyzja o zmianie ceny z linku w e-mailu (uczestnik albo opiekun osoby niepełnoletniej).
  * Krok 1: akceptuję / rezygnuję + imię i nazwisko. Krok 2 ($st): kod (SMS na telefon decydującego; gdy brak — e-mail). Bez logowania — link jest kluczem.

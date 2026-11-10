@@ -197,21 +197,19 @@ final class ClaudeBillingController
         }, '', route('cb.index', ['product' => $p, 'tab' => 'uczestnicy']));
     }
 
-    /** Konto w panelu licencji (login „l” + 8 cyfr i nowe hasło) — zakłada kadra; hasło pokazujemy raz, do przekazania uczestnikowi. */
+    /** Dane do Panelu Licencji (login „l” + 8 cyfr i nowe hasło) — e-mail z adresem i loginem, SMS z hasłem; tylko uczestnicy z licencjami lub produktami
+     *  (płatne produkty dopiero z fakturą VAT) — LicencjePanelAccess. Hasło na ekranie tylko wtedy, gdy SMS nie wyszedł. */
     public function licAccount(): ?string
     {
         $cid = (int)($_POST['client_id'] ?? 0);
         $p = $this->product();
         return $this->act(function () use ($cid) {
-            require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
+            require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjePanelAccess.php';
             $c = db_one("SELECT name FROM k30_clients WHERE id=?", [$cid]);
             if (!$c) throw new DomainException('Nie ma takiego uczestnika.');
-            $new = !LicenseLogin::get($cid);
-            $login = LicenseLogin::generate($cid, $this->actor()['name'] . ' (panel dydaktyka)');
-            $pass = LicenseLogin::issuePassword($cid);
-            ClaudeBilling::event(null, null, 'lic_account', ($new ? 'Założono' : 'Nowe hasło —') . ' konto w panelu licencji: ' . $c['name'] . ' (numer ' . $login . ').', $this->actor()['name']);
-            return ($new ? 'Założono konto w panelu licencji' : 'Nowe hasło do panelu licencji') . ' dla ' . $c['name'] . ': numer w panelu licencji (login) ' . $login . ', hasło ' . $pass
-                . ' — przekaż je uczestnikowi (pokazujemy je tylko teraz). Logowanie: https://kursant.feer.org.pl/licencje/';
+            $r = LicencjePanelAccess::issue($cid, $this->actor());
+            return ($r['new'] ? 'Założono dane do Panelu Licencji' : 'Nowe hasło do Panelu Licencji') . ' dla ' . $c['name'] . ': login ' . $r['login'] . '. ' . $r['text']
+                . ($r['password'] !== '' ? ' Hasło (pokazujemy je tylko teraz): ' . $r['password'] . '.' : '') . ' Adres panelu: ' . $r['url'];
         }, '', route('cb.index', ['product' => $p, 'tab' => 'uczestnicy', 'q' => (string)($_POST['q'] ?? '')]));
     }
 

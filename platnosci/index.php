@@ -430,7 +430,7 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
   <?php if ($lic['charges']): $lst = ['pending' => 'do zapłaty', 'paid' => 'opłacone']; ?>
   <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="lic-h">
     <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-5 py-3"><h2 id="lic-h" class="font-semibold"><i class="bi bi-key text-navy-700" aria-hidden="true"></i> Płatne licencje (Claude, NordVPN)</h2>
-      <a class="ml-auto text-sm text-navy-700 hover:underline" href="/karty30/ti/kursant/licencje/">Zarządzaj w panelu licencji</a></div>
+      <a class="ml-auto text-sm text-navy-700 hover:underline" href="/licencje/">Zarządzaj w panelu licencji</a></div>
     <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Opłaty za płatne licencje</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Okres</th><th class="px-2">Licencja</th><th class="px-2 text-right">Kwota</th><th class="px-2">Stan</th><th class="px-5 text-right">Dokumenty</th></tr></thead><tbody class="divide-y divide-slate-100">
       <?php foreach ($lic['charges'] as $lc): ?>
       <tr><td class="whitespace-nowrap px-5 py-2"><?= h($lc['period']) ?></td><td class="px-2"><?= h(ClaudeBilling::P($lc['product'])['label']) ?></td><td class="px-2 text-right tabular-nums"><?= h(pp_fmt($lc['amount'])) ?></td>

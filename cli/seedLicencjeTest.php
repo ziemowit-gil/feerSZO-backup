@@ -158,7 +158,7 @@ switch ($cmd) {
         } catch (\Throwable $e) { echo "POMINIĘTO usługi: {$e->getMessage()}\n"; }
         echo "\nPanel licencji: https://kursant.feer.org.pl/licencje/  →  {$own} / {$newPass}\n";
         echo "Panel uczestnika TI: https://kursant.feer.org.pl/  →  {$login} / {$newPass}  (hasło serwisowe — „Stan” je pokaże)\n";
-        echo "Panel: " . rtrim((string)APP_URL, '/') . "/karty30/ti/kursant/licencje/  (na produkcji: https://kursant.feer.org.pl/licencje/)\n";
+        echo "Panel: " . rtrim((string)APP_URL, '/') . "/licencje/  (na produkcji: https://kursant.feer.org.pl/licencje/)\n";
         $ns = ClaudeBilling::settings('nordvpn');
         if (!$ns['priced'] || !$ns['enabled']) echo "Uwaga: NordVPN ma wyłączone samodzielne włączanie albo brak ceny — ustaw w panelu dydaktyka › Płatne licencje › NordVPN.\n";
         cli_exit(0);

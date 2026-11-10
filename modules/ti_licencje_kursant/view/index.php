@@ -1,5 +1,5 @@
 <?php
-if (!isset($me, $paid)) { header('Location: /karty30/ti/kursant/licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
+if (!isset($me, $paid)) { header('Location: /licencje/', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
  * modules/ti_licencje_kursant/view/index.php — panel licencji: strona startowa z kaflami i osobne podstrony (polecenie 2026-11-09).
  * $page: 'start' (kafle) · 'claude' / 'nordvpn' (subskrypcja, /licencja/{produkt}) · 'office' · 'programy' · 'materialy' · 'sprawy' · 'produkty' · 'konto'.
