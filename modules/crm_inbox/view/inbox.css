@@ -676,3 +676,40 @@ a.ib-ct-name:hover { color:var(--crm-primary-dark); text-decoration:underline }
   .ib-shell > .ib-tabs2 + .ib-wrap, .ib-shell > .ib-wrap { grid-column:2 }
   .ib-shell .ib-search { max-width:none; flex:1 1 320px }
 }
+
+/* ══ Prostszy widok, szersza lista (2026-11-10) ═══════════════════════════════════════════════════════════════
+   Lista domyślnie zajmuje ok. 42% miejsca (460–820 px) zamiast stałych 440 px — tematy mieszczą się w wierszu.
+   Pasek zaznaczania: bez zaznaczenia jeden niski wiersz, działania pojawiają się po zaznaczeniu, w jednej linii.
+   Okno odczytu: numer wiadomości w linii z datą, pola obsługi (kolejka, opiekun, tagi, obserwujący) w jednym
+   rzędzie bez nagłówków — opisują się same („Kolejka: …”, „Opiekun: …”, „+ tag”), czytniki mają aria-label. */
+.ib-wrap { grid-template-columns:var(--ib-list-w, clamp(460px, 42%, 820px)) 10px minmax(0, 1fr) }
+
+.ib-shell .ib-bulk { min-height:38px; flex-wrap:nowrap; gap:.5rem; padding:.3rem .5rem }
+.ib-shell .ib-bulk > label { white-space:nowrap }
+.ib-shell .ib-bulk.is-armed .ib-bulk-lbl { display:none }
+.ib-shell #ibBulkInfo { white-space:nowrap; color:var(--ib-text) }
+.ib-shell .ib-bulk-acts { display:none; align-items:center; gap:.25rem .4rem; flex-wrap:wrap; justify-content:flex-end; margin-left:auto; min-width:0 }
+.ib-shell .ib-bulk.is-armed .ib-bulk-acts { display:flex }
+.ib-shell .ib-bulk-acts .ib-bulk-act { margin-left:0; height:28px }
+.ib-shell .ib-bulk-q { gap:.2rem }
+.ib-shell .ib-bulk-q .ib-field { height:28px; font-size:.78rem; padding:0 .4rem }
+.ib-shell #ibBulkTag { width:6.5rem }
+.ib-shell #ibBulkQueue { width:auto; max-width:9.5rem }
+
+.ib-shell .ib-head { padding:.75rem 1.15rem .55rem }
+.ib-shell .ib-meta .ib-no { font-variant-numeric:tabular-nums; letter-spacing:0 }
+
+.ib-shell .ib-bar .ib-handle { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem .5rem; margin-top:.25rem; padding:.35rem 0 .1rem }
+.ib-shell .ib-handle > * { flex-direction:row; align-items:center; gap:.3rem; flex:0 1 auto }
+.ib-shell .ib-handle .ib-hl, .ib-shell .ib-handle .ib-fol-lbl { display:none }
+.ib-shell .ib-handle .ib-assign .ib-field { width:auto; min-width:9rem; max-width:14rem; height:30px !important }
+.ib-shell .ib-handle .ib-tagbar { flex-wrap:wrap }
+.ib-shell .ib-handle .ib-tagadd input { width:6.5rem }
+.ib-shell .ib-handle .ib-fol { margin-left:auto }
+.ib-shell .ib-handle .ib-fol .ib-tagadd select { width:auto; max-width:10rem }
+/* „Obserwuj” w szacie paska (wcześniej brązowa ramka odstawała od reszty) */
+.ib-shell .ib-handle .ib-fol .ib-ooo-btn { display:inline-flex; align-items:center; gap:.3rem; border:1px solid #8a8886; color:var(--ib-text); background:#fff; font-weight:600 }
+.ib-shell .ib-handle .ib-fol .ib-ooo-btn .bi { color:var(--crm-primary) }
+.ib-shell .ib-handle .ib-fol .ib-ooo-btn:hover { background:var(--ib-hover); color:var(--ib-text) }
+.ib-shell .ib-handle .ib-fol .ib-ooo-btn:focus-visible { outline:3px solid var(--crm-primary-dark, #00504f); outline-offset:2px }
+@container ibpane (max-width:640px) { .ib-shell .ib-handle .ib-fol { margin-left:0 } }

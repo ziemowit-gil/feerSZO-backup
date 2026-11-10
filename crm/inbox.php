@@ -201,8 +201,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ids = array_slice(array_unique(array_map('intval', (array)($_POST['msg_ids'] ?? []))), 0, 500);
                 $qid = (int)($_POST['bulk_queue_id'] ?? 0) ?: null;
                 $n = 0;
-                foreach ($ids as $bid) { if ($bid > 0 && crm_mailbox_message($bid) !== null && crm_mq_move($bid, $qid) > 0) $n++; }
-                flash_set($n ? 'success' : 'warning', $n ? 'Przeniesiono do kolejki: ' . $n . ' wiad. (z wątkami).' : 'Nie zaznaczono żadnej wiadomości.');
+                if ($qid === null) flash_set('warning', 'Wybierz kolejkę docelową.');
+                else {
+                    foreach ($ids as $bid) { if ($bid > 0 && crm_mailbox_message($bid) !== null && crm_mq_move($bid, $qid) > 0) $n++; }
+                    flash_set($n ? 'success' : 'warning', $n ? 'Przeniesiono do kolejki: ' . $n . ' wiad. (z wątkami).' : 'Nie zaznaczono żadnej wiadomości.');
+                }
                 $back = 'inbox.php?' . http_build_query(array_filter([
                     'view' => $_POST['view'] ?? null, 'mailbox_id' => $_POST['mailbox_id'] ?? null, 'queue_id' => $_POST['queue_f'] ?? null, 'folder' => $_POST['folder_f'] ?? null,
                     'q'    => $_POST['q'] ?? null,
@@ -793,8 +796,8 @@ include __DIR__ . '/includes/header_crm.php';
   <script>
   // Zapamiętana szerokość listy i tryb zwarty — przed pierwszym malowaniem, bez mrugnięcia
   try {
-    var _w = parseInt(localStorage.getItem('crmInboxListW') || '', 10);
-    if (_w >= 300 && _w <= 900) document.getElementById('ibWrap').style.setProperty('--ib-list-w', _w + 'px');
+    var _w = parseInt(localStorage.getItem('crmInboxListW2') || '', 10);
+    if (_w >= 320 && _w <= 1200) document.getElementById('ibWrap').style.setProperty('--ib-list-w', _w + 'px');
     if (localStorage.getItem('crmInboxCompact') === '1') document.getElementById('ibWrap').classList.add('is-compact');
   } catch (e) {}
   </script>
@@ -833,37 +836,42 @@ include __DIR__ . '/includes/header_crm.php';
         <label>
           <input type="checkbox" id="ibCheckAll"
                  aria-label="Zaznacz wszystkie widoczne wiadomości (<?= count($inbox['rows']) ?>)">
-          <span>Zaznacz widoczne (<?= count($inbox['rows']) ?>)</span>
+          <span class="ib-bulk-lbl">Zaznacz wszystkie (<?= count($inbox['rows']) ?>)</span>
         </label>
-        <span id="ibBulkInfo" hidden>· <span class="ib-bulk-n" id="ibBulkN">0</span> zazn.</span>
-        <?php if (!$bulk_view): ?>
-        <span class="ib-bulk-q">
-          <label class="visually-hidden" for="ibBulkTag">Tag dla zaznaczonych</label>
-          <input id="ibBulkTag" name="bulk_tag" list="ibTagListB" maxlength="30" placeholder="tag…" autocomplete="off" class="ib-field" style="width:7rem;height:28px;font-size:.78rem">
-          <datalist id="ibTagListB"><?php foreach ($tag_suggest as $ts): ?><option value="<?= h($ts) ?>"><?php endforeach; ?></datalist>
-          <button type="submit" name="_op" value="bulk_tag" class="ib-bulk-act" title="Dodaj tag do zaznaczonych wiadomości"><i class="bi bi-tag" aria-hidden="true"></i>Taguj</button>
-        </span>
-        <?php endif; ?>
-        <?php if (count($queues) > 1 && !$bulk_view): ?>
-        <span class="ib-bulk-q">
-          <label class="visually-hidden" for="ibBulkQueue">Kolejka docelowa dla zaznaczonych</label>
-          <select name="bulk_queue_id" id="ibBulkQueue" class="ib-field">
-            <?php foreach ($queues as $qq): ?><option value="<?= (int)$qq['id'] ?>"><?= h($qq['name']) ?></option><?php endforeach; ?>
-          </select>
-          <button type="submit" name="_op" value="bulk_queue" class="ib-bulk-act" title="Przenieś zaznaczone wiadomości (z wątkami) do wybranej kolejki"><i class="bi bi-collection" aria-hidden="true"></i>Przenieś do kolejki</button>
-        </span>
-        <?php endif; ?>
-        <button class="ib-bulk-act" id="ibBulkReadBtn" disabled title="Oznacz zaznaczone wiadomości jako przeczytane">
-          <i class="bi bi-envelope-open" aria-hidden="true"></i>Oznacz przeczytane
-        </button>
-        <button class="ib-bulk-act" id="ibBulkBtn" disabled
-                <?= $bulk_view ? '' : 'onclick="return confirm(\'Porzucić zaznaczone wiadomości? Znikną ze Skrzynki CRM — zostaną w widoku Ukryte, w Poczcie i EZD bez zmian.\')"' ?>>
-          <?php if ($bulk_view): ?>
-          <i class="bi bi-eye" aria-hidden="true"></i>Przywróć
-          <?php else: ?>
-          <i class="bi bi-hand-thumbs-down" aria-hidden="true"></i>Porzuć zaznaczone
+        <span id="ibBulkInfo" hidden><span class="ib-bulk-n" id="ibBulkN">0</span> zaznaczone</span>
+        <?php /* Działania pokazują się dopiero po zaznaczeniu — bez zaznaczenia pasek to jeden niski wiersz. */ ?>
+        <div class="ib-bulk-acts">
+          <?php if (!$bulk_view): ?>
+          <span class="ib-bulk-q">
+            <label class="visually-hidden" for="ibBulkTag">Tag dla zaznaczonych</label>
+            <input id="ibBulkTag" name="bulk_tag" list="ibTagListB" maxlength="30" placeholder="tag…" autocomplete="off" class="ib-field">
+            <datalist id="ibTagListB"><?php foreach ($tag_suggest as $ts): ?><option value="<?= h($ts) ?>"><?php endforeach; ?></datalist>
+            <button type="submit" name="_op" value="bulk_tag" class="ib-bulk-act" title="Dodaj tag do zaznaczonych wiadomości"><i class="bi bi-tag" aria-hidden="true"></i>Taguj</button>
+          </span>
           <?php endif; ?>
-        </button>
+          <?php if (count($queues) > 1 && !$bulk_view): ?>
+          <span class="ib-bulk-q">
+            <label class="visually-hidden" for="ibBulkQueue">Kolejka docelowa dla zaznaczonych</label>
+            <select name="bulk_queue_id" id="ibBulkQueue" class="ib-field">
+              <option value="" selected disabled>Do kolejki…</option>
+              <?php foreach ($queues as $qq): ?><option value="<?= (int)$qq['id'] ?>"><?= h($qq['name']) ?></option><?php endforeach; ?>
+            </select>
+            <button type="submit" name="_op" value="bulk_queue" class="ib-bulk-act" title="Przenieś zaznaczone wiadomości (z wątkami) do wybranej kolejki"><i class="bi bi-collection" aria-hidden="true"></i>Przenieś</button>
+          </span>
+          <?php endif; ?>
+          <button class="ib-bulk-act" id="ibBulkReadBtn" disabled title="Oznacz zaznaczone wiadomości jako przeczytane">
+            <i class="bi bi-envelope-open" aria-hidden="true"></i>Przeczytane
+          </button>
+          <button class="ib-bulk-act" id="ibBulkBtn" disabled
+                  <?= $bulk_view ? '' : 'onclick="return confirm(\'Porzucić zaznaczone wiadomości? Znikną ze Skrzynki CRM — zostaną w widoku Ukryte, w Poczcie i EZD bez zmian.\')"' ?>
+                  title="<?= $bulk_view ? 'Przywróć zaznaczone do Skrzynki CRM' : 'Porzuć zaznaczone — znikną ze Skrzynki CRM (zostaną w widoku Ukryte)' ?>">
+            <?php if ($bulk_view): ?>
+            <i class="bi bi-eye" aria-hidden="true"></i>Przywróć
+            <?php else: ?>
+            <i class="bi bi-hand-thumbs-down" aria-hidden="true"></i>Porzuć
+            <?php endif; ?>
+          </button>
+        </div>
       </div>
     </form>
     <?php endif; ?>
@@ -1032,8 +1040,8 @@ include __DIR__ . '/includes/header_crm.php';
   </section>
 
   <div class="ib-resizer" id="ibResizer" role="separator" tabindex="0" aria-orientation="vertical"
-       aria-label="Szerokość listy wiadomości — przeciągnij albo użyj strzałek" aria-controls="ibListWrap"
-       aria-valuemin="300" aria-valuemax="900" aria-valuenow="440"></div>
+       aria-label="Szerokość listy wiadomości — przeciągnij albo użyj strzałek; dwuklik lub Enter przywraca domyślną" aria-controls="ibListWrap"
+       aria-valuemin="320" aria-valuemax="1200" aria-valuenow="560"></div>
 
   <!-- ══ WIADOMOŚĆ ═══════════════════════════════════════════════════════ -->
   <section class="ib-col-msg" id="ibMsgCol" aria-label="Podgląd wiadomości">
@@ -1105,22 +1113,24 @@ include __DIR__ . '/includes/header_crm.php';
                                                        : (string)($msg['from_name'] ?: $msg['from_email'] ?: $msg['contact_name'] ?: '—')); ?>
         <span class="ib-av ib-av--lg<?= $msg_out ? ' ib-av--out' : '' ?>" style="--h:<?= (int)$mav_h ?>" aria-hidden="true"><?= h($mav_ini) ?></span>
         <div class="ib-head-main">
-          <?php if ($msg_no !== ''): ?>
-          <div class="ib-h1-no">WIADOMOŚĆ NR <span class="ib-no">#<?= h($msg_no) ?></span></div>
-          <?php endif; ?>
           <h2 class="ib-h1" id="ibMsgTitle" tabindex="-1"><?= h($msg['subject'] ?: '(bez tematu)') ?></h2>
           <div class="ib-meta">
             <?php if ($msg_out): ?>
             <span>Do:</span>
-            <strong><?= h($msg['contact_name'] ?: ($msg['from_email'] ?: '—')) ?></strong>
-            <?php else: ?>
-            <strong><?= h($msg['from_name'] ?: ($msg['from_email'] ?: '—')) ?></strong>
-            <?php if (!empty($msg['from_email']) && $msg['from_name']): ?>&lt;<?= h($msg['from_email']) ?>&gt;<?php endif; ?>
+            <strong><?= h($msg['contact_name'] ?: ($msg['from_email'] ?: '—')) ?></strong> ·
+            <?php else: $from_disp = (string)($msg['from_name'] ?: ($msg['from_email'] ?: ($msg['contact_name'] ?? ''))); ?>
+            <?php if ($from_disp !== ''): ?>
+            <strong><?= h($from_disp) ?></strong>
+            <?php if (!empty($msg['from_email']) && $msg['from_name']): ?>&lt;<?= h($msg['from_email']) ?>&gt;<?php endif; ?> ·
             <?php endif; ?>
-            · <time datetime="<?= h(date('c', strtotime((string)$msg['sent_at']))) ?>"><?= h(date('d.m.Y H:i', strtotime((string)$msg['sent_at']))) ?></time>
+            <?php endif; ?>
+            <time datetime="<?= h(date('c', strtotime((string)$msg['sent_at']))) ?>"><?= h(date('d.m.Y H:i', strtotime((string)$msg['sent_at']))) ?></time>
             <?php if (!empty($msg['mailbox_name'])): ?>
             · na <span class="ib-mbox-dot" style="--c:<?= h(crm_mailbox_color((int)($msg['mailbox_id'] ?? 0))) ?>" aria-hidden="true"></span>
             <?= h($msg['mailbox_name']) ?>
+            <?php endif; ?>
+            <?php if ($msg_no !== ''): ?>
+            · <span class="ib-no" title="Numer wiadomości w Skrzynce CRM">nr <?= h($msg_no) ?></span>
             <?php endif; ?>
           </div>
         </div>
@@ -1377,10 +1387,10 @@ include __DIR__ . '/includes/header_crm.php';
         <form method="post" class="ib-assign" data-ib-xhr="assign"><?= $hidden ?><span class="ib-hl">Opiekun</span><input type="hidden" name="_op" value="assign">
           <select name="user_id" class="ib-field" aria-label="Przypisz wiadomość osobie"
                   title="Wskaż osobę, która poprowadzi tę wiadomość" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
-            <option value="">— przypisz osobę —</option>
+            <option value="">Opiekun: brak</option>
             <?php foreach ($users as $u): $u_away = isset($uav_away[(int)$u['id']]); ?>
             <option value="<?= (int)$u['id'] ?>" <?= (int)($msg['assigned_to'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?><?= $u_away && (int)($msg['assigned_to'] ?? 0) !== (int)$u['id'] ? ' disabled' : '' ?>>
-              <?= h($u['name']) ?><?= $u_away ? ' — poza biurem' : '' ?>
+              Opiekun: <?= h($u['name']) ?><?= $u_away ? ' — poza biurem' : '' ?>
             </option>
             <?php endforeach; ?>
           </select>
@@ -1407,13 +1417,12 @@ include __DIR__ . '/includes/header_crm.php';
             <form method="post" class="d-inline"><?= $hidden ?><input type="hidden" name="_op" value="fol_remove"><input type="hidden" name="follower_id" value="<?= (int)$fw['id'] ?>">
               <button type="submit" aria-label="Usuń obserwującego <?= h($fw['name']) ?>" title="Przestań powiadamiać tę osobę"><i class="bi bi-x" aria-hidden="true"></i></button></form></span>
           <?php endforeach; ?>
-          <?php if (!$fols): ?><span class="small text-muted">nikt</span><?php endif; ?>
           <form method="post" class="d-inline"><?= $hidden ?><input type="hidden" name="_op" value="fol_me">
-            <button type="submit" class="ib-ooo-btn" style="height:26px;padding:0 .6rem"><?= $i_follow ? 'Przestań obserwować' : 'Obserwuj' ?></button></form>
+            <button type="submit" class="ib-ooo-btn" title="<?= $i_follow ? 'Przestań dostawać powiadomienia o tej rozmowie' : 'Dostawaj powiadomienia o nowych wiadomościach w tej rozmowie' ?>"><i class="bi bi-eye<?= $i_follow ? '-slash' : '' ?>" aria-hidden="true"></i> <?= $i_follow ? 'Nie obserwuj' : 'Obserwuj' ?></button></form>
           <form method="post" class="ib-tagadd"><?= $hidden ?><input type="hidden" name="_op" value="fol_add">
             <label class="visually-hidden" for="ibFolAdd">Dodaj obserwującego</label>
-            <select id="ibFolAdd" name="follower_id" class="ib-field" style="height:26px;font-size:.78rem" onchange="if(this.value)this.form.submit()">
-              <option value="">+ dodaj osobę</option>
+            <select id="ibFolAdd" name="follower_id" class="ib-field" onchange="if(this.value)this.form.submit()">
+              <option value="">+ obserwujący</option>
               <?php foreach ($users as $fu): if (in_array((int)$fu['id'], $fol_ids, true)) continue; ?><option value="<?= (int)$fu['id'] ?>"><?= h($fu['name']) ?></option><?php endforeach; ?>
             </select>
           </form>

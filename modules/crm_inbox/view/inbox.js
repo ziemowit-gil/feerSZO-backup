@@ -41,17 +41,25 @@
 
   /* ── Regulowana szerokość listy ──────────────────────────────────────── */
   var rz = document.getElementById('ibResizer');
-  var MIN_W = 300, MAX_W = 900, DEF_W = 440;
+  // Domyślna szerokość listy liczy się w CSS (ok. 42% miejsca, 460–820 px); tu tylko granice przeciągania.
+  var MIN_W = 320, MAX_W = 1200;
+  var listCol = wrap.querySelector('.ib-col-list');
   function listW() {
-    var v = parseInt(getComputedStyle(wrap).getPropertyValue('--ib-list-w'), 10);
-    return isNaN(v) ? DEF_W : v;
+    var v = parseInt(wrap.style.getPropertyValue('--ib-list-w'), 10);
+    if (!isNaN(v)) return v;
+    return listCol ? Math.round(listCol.getBoundingClientRect().width) : 560;
   }
   function setW(w, save) {
     var max = Math.min(MAX_W, wrap.clientWidth - 420);
     w = Math.round(Math.max(MIN_W, Math.min(max, w)));
     wrap.style.setProperty('--ib-list-w', w + 'px');
     if (rz) rz.setAttribute('aria-valuenow', w);
-    if (save) store('crmInboxListW', String(w));
+    if (save) store('crmInboxListW2', String(w));
+  }
+  function resetW() {                                  // powrót do szerokości domyślnej (z CSS)
+    wrap.style.removeProperty('--ib-list-w');
+    try { localStorage.removeItem('crmInboxListW2'); } catch (e) {}
+    if (rz) rz.setAttribute('aria-valuenow', listW());
   }
   if (rz) {
     rz.setAttribute('aria-valuenow', listW());
@@ -74,10 +82,11 @@
       else if (e.key === 'ArrowRight') setW(w + step, true);
       else if (e.key === 'Home') setW(MIN_W, true);
       else if (e.key === 'End') setW(MAX_W, true);
+      else if (e.key === 'Enter') resetW();
       else return;
       e.preventDefault();
     });
-    rz.addEventListener('dblclick', function () { setW(DEF_W, true); });
+    rz.addEventListener('dblclick', resetW);
   }
 
   /* ── Lista zwarta (bez podglądu treści) ──────────────────────────────── */
