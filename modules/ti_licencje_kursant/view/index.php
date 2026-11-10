@@ -308,7 +308,6 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
       <?php $proj(); ?>
       <?php if (!empty($v['eligible']['needEdu'])): ?><p class="tw-text-sm tw-mb-2"><?= h($P['label']) ?> działa tylko z kontem Microsoft 365 @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Nie masz go jeszcze. Możesz je założyć teraz albo zostawić to nam: założymy je przy włączeniu dostępu.</p><?php $officeBox('claude'); ?><?php endif; ?>
       <a class="m-btn" href="<?= h(route('lk.wizard', ['product' => $pk])) ?>">Złóż wniosek o <?= h($P['label']) ?></a>
-      <p class="m-note tw-mt-2">Trzy krótkie kroki: co dostajesz, dane do faktury, podsumowanie. Potem dostajesz proformę, a po wpłacie fakturę i dostęp.</p>
     <?php endif; ?>
   </section>
 <?php endforeach; ?>
@@ -535,9 +534,15 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
 <?php /* ── Moje konto ── */ ?>
 <?php /* ── Dysk Online (pilotaż, realizuje sdata.net.pl) ── */ ?>
 <?php if ($page === 'dysk'): ?>
-<h1 class="m-title">Dysk Online <?= $tag($drive ? 'ok' : 'due', $drive ? 'aktywny' : 'pilotaż') ?></h1>
+<div class="tw-flex tw-items-center tw-gap-4 tw-flex-wrap"><img src="https://sd136.sdata.net.pl:8027/media/img/seafile-logo.png" alt="Seafile" style="height:40px;width:auto" onerror="this.remove()"><h1 class="m-title" style="margin:0">Dysk Online <?= $tag($drive ? 'ok' : ($driveReq ? 'due' : 'off'), $drive ? 'aktywny' : ($driveReq ? 'zgłoszenie wysłane' : 'pilotaż')) ?></h1></div>
 <p class="m-explain">Dodatkowy dysk w chmurze, widoczny w Windowsie, na Macu i w telefonie jak zwykły dysk. Pliki są na serwerach, nie na Twoim komputerze, więc awaria albo kradzież laptopa ich nie zabiera.</p>
 <?= $idsLine ?>
+<div class="m-imp tw-mb-4" role="note" aria-label="Ważne informacje o Dysku Online"><p class="tw-font-semibold tw-mb-1">Ważne</p>
+  <ul class="tw-list-disc tw-pl-5 tw-space-y-1" style="margin-top:0">
+    <li>Usługę realizuje sdata.net.pl. Fundacja prowadzi pilotaż i rozlicza usługę z uczestnikami.</li>
+    <li>Ceny to ceny dostawcy. Fundacja rozlicza je jako zwrot kosztów.</li>
+    <?php if (!$drive && empty($driveReq)): ?><li>Zgłoszenie potwierdzisz kodem SMS.</li><?php endif; ?>
+  </ul></div>
 <section class="m-tile" aria-labelledby="d-stan">
   <h2 class="m-sect" id="d-stan">Twój Dysk Online</h2>
   <?php if ($drive): ?>
@@ -545,13 +550,18 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
     <p class="m-note">Dane do logowania przekazało Ci biuro. Jeśli ich nie masz, napisz do biura.</p>
   <?php else: ?>
     <?php require_once dirname(__DIR__) . '/logic/LicencjeDysk.php'; $dPlans = LicencjeDysk::plans(true); ?>
+    <?php $dLock = !empty($driveReq); $dSel = $dLock ? (string)$driveReq['key'] : ''; ?>
+    <?php if ($dLock): ?>
+    <div class="pk-alert pk-alert-ok" role="status">Twoje zgłoszenie dotarło <?= h(ClaudeBilling::dayMonth((string)$driveReq['at'])) ?><?= $driveReq['ticket'] !== '' ? ' (nr ' . h($driveReq['ticket']) . ')' : '' ?>. Wybrany pakiet: <b><?= h($driveReq['plan']) ?></b>. Założymy dysk i prześlemy dane do logowania. Jeśli chcesz zmienić pakiet, napisz w <a href="<?= h(route('lk.cases')) ?>">Moich sprawach</a>.</div>
+    <?php else: ?>
     <p class="tw-text-sm tw-mb-3">To usługa pilotażowa. Wybierz pakiet i zgłoś się. Założymy Ci dysk i prześlemy dane do logowania.</p>
+    <?php endif; ?>
     <form method="post" action="<?= h(route('lk.drive.join')) ?>"><?= Router::csrfField() ?>
-      <fieldset style="border:0;padding:0;margin:0"><legend class="tw-text-sm tw-font-semibold tw-mb-2">Pakiet</legend>
+      <fieldset style="border:0;padding:0;margin:0"<?= $dLock ? ' disabled' : '' ?>><legend class="tw-text-sm tw-font-semibold tw-mb-2"><?= $dLock ? 'Pakiet (zgłoszony)' : 'Pakiet' ?></legend>
       <div class="tw-grid md:tw-grid-cols-3 tw-gap-3">
-        <?php $dFirst = true; foreach ($dPlans as $dk => $dp): ?>
-        <label class="m-box" style="cursor:pointer;display:block">
-          <span class="tw-flex tw-items-center tw-gap-2"><input type="radio" name="plan" value="<?= h($dk) ?>"<?= $dFirst ? ' checked' : '' ?> required> <span class="tw-font-semibold"><?= h($dp['name']) ?></span></span>
+        <?php $dFirst = true; foreach ($dPlans as $dk => $dp): $dOn = $dLock ? $dk === $dSel : $dFirst; ?>
+        <label class="m-box" style="display:block;<?= $dLock ? ($dOn ? 'border:2px solid var(--mt-ink)' : 'opacity:.55') : 'cursor:pointer' ?>">
+          <span class="tw-flex tw-items-center tw-gap-2"><input type="radio" name="plan" value="<?= h($dk) ?>"<?= $dOn ? ' checked' : '' ?> required> <span class="tw-font-semibold"><?= h($dp['name']) ?></span></span>
           <span class="m-num tw-block tw-mt-1" style="font-size:1.5rem"><?= h(LicencjeDysk::zl($dp['price'])) ?></span><span class="m-note">miesięcznie</span>
           <span class="tw-block tw-text-sm tw-mt-2"><b><?= h($dp['size']) ?></b><?= $dp['users'] ? ', do ' . (int)$dp['users'] . ' użytkowników' : '' ?></span>
         </label>
@@ -559,10 +569,19 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
       </div>
       </fieldset>
       <p class="tw-text-sm tw-mt-3">W każdym pakiecie: <?= h(implode(', ', LicencjeDysk::FEATURES)) ?>.</p>
-      <button class="m-btn tw-mt-3" type="submit">Zgłaszam się do pilotażu</button>
+      <?php if (!$dLock): ?><button class="m-btn tw-mt-3" type="submit">Zgłaszam się do pilotażu</button><?php endif; ?>
     </form>
-    <p class="m-note tw-mt-2">Zgłoszenie potwierdzisz kodem SMS. Ceny to ceny dostawcy, Fundacja rozlicza je jako zwrot kosztów.</p>
   <?php endif; ?>
+</section>
+<section class="m-tile tw-mt-4" aria-labelledby="d-sea">
+  <h2 class="m-sect" id="d-sea">Czym jest Seafile</h2>
+  <p class="tw-text-sm tw-mb-2">Dysk Online działa na Seafile. To program do przechowywania i udostępniania plików z otwartym kodem źródłowym. Korzystają z niego uczelnie, firmy i instytucje.</p>
+  <ul class="tw-list-disc tw-pl-6 tw-text-sm tw-space-y-1">
+    <li><b>Biblioteki.</b> Pliki trzymasz w bibliotekach, czyli głównych folderach. Bibliotekę możesz udostępnić innym osobom albo zaszyfrować własnym hasłem. Wtedy do środka nie zajrzy nawet administrator serwera.</li>
+    <li><b>Trzy sposoby pracy.</b> Przez przeglądarkę, przez program SeaDrive, który pokazuje dysk w Eksploratorze Windows albo w Finderze na Macu, i przez aplikację Seafile na Androida i iPhone'a.</li>
+    <li><b>Nie zajmuje miejsca na komputerze.</b> SeaDrive pobiera plik dopiero wtedy, gdy go otwierasz.</li>
+    <li><b>Historia i kosz.</b> Seafile pamięta wcześniejsze wersje plików, a usunięte pliki przez jakiś czas trzyma w koszu biblioteki.</li>
+  </ul>
 </section>
 <section class="m-tile tw-mt-4" aria-labelledby="d-jak">
   <h2 class="m-sect" id="d-jak">Jak zacząć</h2>
@@ -593,7 +612,6 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
     <li>Serwery chroni zapora sieciowa, otwarte są tylko porty potrzebne do pracy.</li>
     <li>Połączenie z dyskiem jest szyfrowane (HTTPS), więc nikt nie podejrzy przesyłanych plików.</li>
   </ul>
-  <p class="m-note tw-mt-3">Usługę realizuje sdata.net.pl. Fundacja prowadzi pilotaż i rozlicza usługę z uczestnikami.</p>
 </section>
 <?php endif; ?>
 

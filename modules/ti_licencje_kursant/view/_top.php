@@ -107,6 +107,8 @@ $nav = $nav ?? null;
   .m-box { border: 1px solid var(--mt-line); padding: 14px 16px; background: var(--mt-card); }
   .m-box.now { border-top: 3px solid var(--mt-ink); }
   .m-note { font-size: .78rem; color: var(--mt-muted); }
+  .m-imp { font-size: .95rem; color: var(--mt-ink); background: var(--mt-card); border: 1px solid var(--mt-line); border-left: 4px solid var(--mt-accent); padding: 10px 14px; margin-top: 12px; }   /* ważne informacje (kod SMS, ceny, kto realizuje) — nigdy jako drobny przypis */
+  .m-imp p:last-child, .m-imp ul:last-child { margin-bottom: 0; }
   .m-muted { color: var(--mt-muted); }
   .m-mono { font-family: Consolas, "SFMono-Regular", Menlo, monospace; }
   .m-copy { padding: 2px 10px !important; min-height: 28px; font-size: .78rem !important; margin-left: 6px; vertical-align: middle; }   /* „Kopiuj” przy danych do przelewu (cel ≥ 24 px, WCAG 2.5.8) */

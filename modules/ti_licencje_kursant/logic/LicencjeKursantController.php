@@ -435,6 +435,7 @@ final class LicencjeKursantController
             'card' => LicenceCard::active($cid), 'consents' => LicenceCard::consents($cid),
             'sprawy' => (function () use ($cid) { require_once __DIR__ . '/LicencjeSprawy.php'; return LicencjeSprawy::cases($cid); })(),
             'tickets' => in_array($page, ['sprawy', 'start'], true) ? LicencjeSprawy::tickets($cid) : [],
+            'driveReq' => $page === 'dysk' ? self::driveRequest($cid) : null,
             'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()] + $extra);
     }
 
@@ -637,6 +638,18 @@ Następny krok: potwierdź dostęp tej osoby w panelu Goodstack (FEER aprowizuje
     // ── Dysk Online (pilotaż, realizuje sdata.net.pl) ─────────────────────────
 
     public function drive(): string { return $this->render('dysk'); }
+
+    /** Ostatnie zgłoszenie do pilotażu Dysku Online (60 dni): pakiet, data, numer zgłoszenia — po zgłoszeniu wybór pakietu jest zablokowany. */
+    private static function driveRequest(int $cid): ?array
+    {
+        $e = db_one("SELECT text, created_at FROM claude_events WHERE kind='drive_join' AND text LIKE ? AND created_at >= datetime('now','-60 day') ORDER BY id DESC LIMIT 1", ['%#' . $cid . ')%']);
+        if (!$e) return null;
+        $plan = preg_match('/pakiet (.+?):/u', (string)$e['text'], $m) ? trim($m[1]) : '';
+        $key = '';
+        require_once __DIR__ . '/LicencjeDysk.php';
+        foreach (LicencjeDysk::PLANS as $k => $p) if ($p['name'] === $plan) $key = $k;
+        return ['plan' => $plan, 'key' => $key, 'at' => (string)$e['created_at'], 'ticket' => preg_match('/zgłoszenie (\S+?)\.$/u', (string)$e['text'], $m2) ? $m2[1] : ''];
+    }
 
     /** Zgłoszenie udziału w pilotażu Dysku Online: kod SMS, zgłoszenie Helpdesk dla FEER (raz na 60 dni). Aktywną usługę biuro wpisuje w Usługach i produktach (dostawca sdata.net.pl). */
     public function driveJoin(): ?string
