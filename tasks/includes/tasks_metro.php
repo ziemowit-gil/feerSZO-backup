@@ -504,6 +504,58 @@ html body #td-root .td-timer-btn:focus-visible{outline:2px solid var(--tsk-text)
 html body #td-root .td-timer-btn.is-running{background:var(--tm-red)}
 html body #td-root .td-timer-btn i{margin:0!important}
 html body #td-root #td-manual-time{margin-top:.6rem!important}
+
+/* ══ Lista zadań (2026-11-10): nagłówek obszaru z działaniami + zakładki statusu, wyszukiwarka i filtry w jednym wierszu ══
+   Nagłówek: kafelek obszaru (jak w kolumnie Obszary), przełącznik Lista/Kanban, „Nowe zadanie”, menu „⋯” (powiadomienia,
+   eksport, usuń obszar). Pasek: zakładki z podkreśleniem zamiast szarych pigułek, liczniki jako plakietki (zero wyciszone). */
+html body #tsk-main .tk-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem 1rem;margin-bottom:.75rem}
+html body #tsk-main .tk-head-t{display:flex;align-items:center;gap:.65rem;margin:0;font-size:1.35rem;font-weight:600;letter-spacing:-.01em;color:var(--tsk-text);min-width:0}
+html body #tsk-main .tk-head-t>span:last-child{overflow-wrap:anywhere}
+html body #tsk-main .tk-head-tile{width:36px;height:36px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:var(--ws);color:var(--ws-ink,#fff);font-size:1.1rem}
+html body #tsk-main .tk-head-act{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem}
+html body #tsk-main .tk-hbtn{display:inline-flex;align-items:center;gap:.4rem;min-height:36px;padding:0 .85rem;border:1px solid #8a8886;border-radius:0;
+  background:#fff;color:var(--tsk-text);font-size:.85rem;font-weight:600;line-height:1;white-space:nowrap;cursor:pointer}
+html body #tsk-main .tk-hbtn:hover{background:var(--tm-light)}
+html body #tsk-main .tk-hbtn:focus-visible,html body #tsk-main .tk-viewsw-b:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px}
+html body #tsk-main .tk-hbtn--cta{background:var(--tsk-green);border-color:var(--tsk-green);color:#fff}
+html body #tsk-main .tk-hbtn--cta:hover{background:var(--tm-dark);border-color:var(--tm-dark)}
+html body #tsk-main .tk-hbtn--icon{width:36px;padding:0;justify-content:center;font-size:1.05rem}
+html body #tsk-main .tk-viewsw{display:inline-flex;border:1px solid #8a8886}
+html body #tsk-main .tk-viewsw-b{display:inline-flex;align-items:center;gap:.35rem;min-height:34px;padding:0 .75rem;color:var(--tsk-text);text-decoration:none;font-size:.84rem;font-weight:600}
+html body #tsk-main .tk-viewsw-b+.tk-viewsw-b{border-left:1px solid #8a8886}
+html body #tsk-main .tk-viewsw-b:hover{background:var(--tm-light)}
+html body #tsk-main .tk-viewsw-b.is-on{background:var(--tsk-text);color:#fff}
+html body #tsk-main .tk-more{min-width:250px;padding:.3rem 0;font-size:.86rem;border-radius:0}
+html body #tsk-main .tk-more .dropdown-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .9rem}
+html body #tsk-main .tk-more .dropdown-item>i{width:1rem;text-align:center;color:var(--tm-muted)}
+html body #tsk-main .tk-more-note{margin-left:auto;font-size:.74rem;color:var(--tm-muted)}
+html body #tsk-main .tk-more-danger,html body #tsk-main .tk-more-danger>i{color:var(--tm-red)!important}
+html body #tsk-main .tk-more .dropdown-item:hover .tk-more-note,html body #tsk-main .tk-more .dropdown-item:focus .tk-more-note{color:inherit}
+
+html body #tsk-main .tk-toolbar{display:flex;align-items:flex-end;flex-wrap:wrap;gap:.5rem 1rem;background:#fff;padding:0;margin-bottom:.85rem;border:0!important;border-bottom:1px solid var(--tm-line)!important}
+html body #tsk-main .tk-pivot{display:flex;align-items:stretch;gap:.15rem;overflow-x:auto;scrollbar-width:none;min-width:0}
+html body #tsk-main .tk-toolbar .tk-pill,html body #tsk-main .tk-toolbar .tk-pill[data-s]{height:auto;min-height:40px;padding:.45rem .7rem .4rem;background:transparent;color:var(--tm-muted);
+  border:0!important;border-bottom:3px solid transparent!important;border-radius:0;font-size:.88rem;font-weight:600;gap:.4rem;white-space:nowrap}
+html body #tsk-main .tk-toolbar .tk-pill:hover{background:var(--tm-light);color:var(--tsk-text)}
+html body #tsk-main .tk-toolbar .tk-pill[data-s].active{background:transparent;color:var(--tsk-text);border-bottom-color:var(--tsk-green)!important}
+html body #tsk-main .tk-toolbar .tk-pill:focus-visible{outline:2px solid var(--tsk-text);outline-offset:-2px}
+html body #tsk-main .tk-toolbar .pill-n{min-width:1.4rem;padding:.1rem .35rem;font-size:.72rem;font-weight:700;line-height:1.2;text-align:center;opacity:1;
+  background:var(--tm-light);color:var(--tsk-text);font-variant-numeric:tabular-nums}
+html body #tsk-main .tk-toolbar .tk-pill.active .pill-n:not(.is-zero){background:var(--tsk-green);color:#fff}
+html body #tsk-main .tk-toolbar .pill-n.is-zero{background:transparent;color:var(--tm-muted);font-weight:400}
+html body #tsk-main .tk-tools{display:flex;align-items:center;gap:.4rem;margin-left:auto;padding-bottom:.45rem}
+html body #tsk-main .tk-search-w{position:relative}
+html body #tsk-main .tk-search-w>i{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--tm-muted);font-size:.85rem;pointer-events:none}
+html body #tsk-main .tk-toolbar .tk-search{width:15rem;max-width:60vw;height:34px;padding-left:1.9rem;border:1px solid #8a8886!important;border-radius:0;background:#fff;font-size:.86rem}
+html body #tsk-main .tk-toolbar .tk-search:focus{border-color:var(--tsk-green)!important;box-shadow:inset 0 0 0 1px var(--tsk-green);outline:0}
+html body #tsk-main .tk-toolbar .tk-filters-btn{height:34px;border:1px solid #8a8886!important;background:#fff;color:var(--tsk-text)}
+html body #tsk-main .tk-toolbar .tk-filters-btn:hover{background:var(--tm-light);color:var(--tsk-text)}
+html body #tsk-main .tk-toolbar .tk-filters-btn.has-active{background:var(--tsk-green-bg);border-color:var(--tsk-green)!important;color:var(--tsk-green-dark)}
+@media(max-width:767.98px){
+  html body #tsk-main .tk-tools{margin-left:0;width:100%}
+  html body #tsk-main .tk-search-w{flex:1}
+  html body #tsk-main .tk-toolbar .tk-search{width:100%;max-width:none}
+}
 </style>
 <script>
 /* Rozwijane menu (np. priorytet w wierszu tabeli) pozycjonowane „fixed”, żeby przewijany

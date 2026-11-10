@@ -1195,3 +1195,18 @@ function task_due_label(array $t, string $date_fmt = 'd.m'): string {
     $time = task_normalize_due_time($t['due_time'] ?? '');
     return date($date_fmt, strtotime($t['due_date'])) . ($time ? ' ' . $time : '');
 }
+
+
+/**
+ * Kolor ikony na kafelku w kolorze obszaru: czarny na jasnym tle (np. żółtym), biały na ciemnym —
+ * ten, który daje większy kontrast (luminancja względna WCAG, próg 0,179).
+ */
+function task_ws_ink(string $hex): string
+{
+    $h = ltrim(trim($hex), '#');
+    if (strlen($h) === 3) $h = $h[0] . $h[0] . $h[1] . $h[1] . $h[2] . $h[2];
+    if (!preg_match('/^[0-9a-f]{6}$/i', $h)) return '#ffffff';
+    $lin = static function (string $x): float { $v = hexdec($x) / 255; return $v <= 0.03928 ? $v / 12.92 : (($v + 0.055) / 1.055) ** 2.4; };
+    $lum = 0.2126 * $lin(substr($h, 0, 2)) + 0.7152 * $lin(substr($h, 2, 2)) + 0.0722 * $lin(substr($h, 4, 2));
+    return $lum > 0.179 ? '#1d1d1d' : '#ffffff';
+}

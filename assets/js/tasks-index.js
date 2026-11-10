@@ -175,7 +175,7 @@
     function updateCounts(counts) {
         ['all','open','taken','done','mine'].forEach(k => {
             const el = document.getElementById('tk-cnt-' + k);
-            if (el && counts[k] !== undefined) el.textContent = counts[k];
+            if (el && counts[k] !== undefined) { el.textContent = counts[k]; el.classList.toggle('is-zero', !+counts[k]); }
         });
     }
 

@@ -8,31 +8,69 @@
  * $my_notify_prefs, $my_role, $cnt, $available_templates.
  */
 ?>
-<!-- ── Nagłówek obszaru: nazwa + główna akcja ──────────────────────────────── -->
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-  <h2 class="h5 fw-bold mb-0 d-flex align-items-center gap-2">
-    <span class="ws-dot" style="width:10px;height:10px;border-radius:50%;background:<?= h($workspace['color']) ?>" aria-hidden="true"></span>
-    <?= h($workspace['name']) ?>
+<?php
+$_tk_ws_color = (string)($workspace['color'] ?: '#5f5f5f');
+$kanban_url = '?' . http_build_query(array_merge($_GET, ['ws' => $ws_id, 'view' => 'kanban']));
+$list_url   = '?' . http_build_query(array_merge($_GET, ['ws' => $ws_id, 'view' => 'list']));
+$export_url = APP_URL . '/tasks/export.php?' . http_build_query(array_merge($_GET, ['ws' => $ws_id]));
+$np_active  = $ws_id && $my_role && ($my_notify_prefs['notify_email'] || $my_notify_prefs['notify_sms'] || $my_notify_prefs['notify_push']);
+?>
+<!-- ── Nagłówek obszaru: nazwa, widok i działania (rzadsze w menu „⋯”) ─────────── -->
+<div class="tk-head">
+  <h2 class="tk-head-t">
+    <span class="tk-head-tile" style="--ws:<?= h($_tk_ws_color) ?>;--ws-ink:<?= task_ws_ink($_tk_ws_color) ?>" aria-hidden="true"><i class="bi <?= h($workspace['icon'] ?? '' ?: 'bi-folder') ?>"></i></span>
+    <span><?= h($workspace['name']) ?></span>
   </h2>
-  <?php if ($can_add): ?>
-  <div class="d-flex gap-2">
-    <?php if ($available_templates && $lists_map): ?>
-    <button type="button"
-            class="btn btn-outline-primary"
-            onclick="openTemplateModal()"
-            aria-label="Zastosuj szablon zadań">
-      <i class="bi bi-list-check me-1" aria-hidden="true"></i>Zastosuj szablon
+  <div class="tk-head-act">
+    <div class="tk-viewsw" role="group" aria-label="Widok zadań">
+      <a href="<?= h($list_url) ?>" class="tk-viewsw-b<?= $view_mode !== 'kanban' ? ' is-on' : '' ?>"<?= $view_mode !== 'kanban' ? ' aria-current="page"' : '' ?> onclick="return tkGoView('list')">
+        <i class="bi bi-list-ul" aria-hidden="true"></i>Lista</a>
+      <a href="<?= h($kanban_url) ?>" class="tk-viewsw-b<?= $view_mode === 'kanban' ? ' is-on' : '' ?>"<?= $view_mode === 'kanban' ? ' aria-current="page"' : '' ?> onclick="return tkGoView('kanban')">
+        <i class="bi bi-kanban" aria-hidden="true"></i>Kanban</a>
+    </div>
+    <?php if ($can_add && $available_templates && $lists_map): ?>
+    <button type="button" class="tk-hbtn" onclick="openTemplateModal()">
+      <i class="bi bi-list-check" aria-hidden="true"></i>Zastosuj szablon
     </button>
     <?php endif; ?>
-    <button type="button"
-            class="btn btn-primary"
-            onclick="openAddModal()"
-            aria-label="Dodaj nowe zadanie">
-      <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowe zadanie
+    <?php if ($can_add): ?>
+    <button type="button" class="tk-hbtn tk-hbtn--cta" onclick="openAddModal()">
+      <i class="bi bi-plus-lg" aria-hidden="true"></i>Nowe zadanie
     </button>
+    <?php endif; ?>
+    <div class="dropdown">
+      <button type="button" class="tk-hbtn tk-hbtn--icon" data-bs-toggle="dropdown" aria-expanded="false"
+              aria-label="Więcej działań obszaru" title="Więcej: powiadomienia, eksport<?= $can_add ? ', usuwanie obszaru' : '' ?>">
+        <i class="bi bi-three-dots" aria-hidden="true"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end tk-more">
+        <?php if ($ws_id && $my_role): ?>
+        <li><button type="button" class="dropdown-item" onclick="openNotifyModal()" aria-haspopup="dialog">
+          <i class="bi bi-bell<?= $np_active ? '-fill' : '' ?>" aria-hidden="true"></i>Powiadomienia obszaru
+          <span class="tk-more-note"><?= $np_active ? 'włączone' : 'wyłączone' ?></span></button></li>
+        <?php endif; ?>
+        <li><a class="dropdown-item" href="<?= h($export_url) ?>" onclick="return tkExport()">
+          <i class="bi bi-filetype-csv" aria-hidden="true"></i>Eksportuj widoczne do CSV</a></li>
+        <?php if ($can_add): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><button type="button" class="dropdown-item tk-more-danger" onclick="openDeleteWsModal()" aria-haspopup="dialog">
+          <i class="bi bi-trash3" aria-hidden="true"></i>Usuń obszar…</button></li>
+        <?php endif; ?>
+      </ul>
+    </div>
   </div>
-  <?php endif; ?>
 </div>
+<script>
+/* Widok i eksport z BIEŻĄCYMI filtrami (filtry zmieniają się bez przeładowania, więc adres z serwera bywa nieaktualny) */
+function tkFormQuery(extra) {
+  var f = document.getElementById('tkFilterForm');
+  var q = new URLSearchParams(f ? new FormData(f) : undefined);
+  Object.keys(extra || {}).forEach(function (k) { q.set(k, extra[k]); });
+  return q.toString();
+}
+function tkGoView(v) { location.href = '?' + tkFormQuery({ view: v }); return false; }
+function tkExport() { location.href = <?= json_encode(APP_URL . '/tasks/export.php') ?> + '?' + tkFormQuery({}); return false; }
+</script>
 
 <?php
 $_tk_active_filters = (int)((bool)$filter_priority) + (int)((bool)$filter_list)
@@ -44,41 +82,39 @@ $_tk_active_filters = (int)((bool)$filter_priority) + (int)((bool)$filter_list)
   <input type="hidden" name="status" id="tk-status-hidden" value="<?= h($filter_status) ?>">
   <input type="hidden" name="view"   value="<?= h($view_mode) ?>">
 
-  <!-- Szukaj -->
-  <div>
-    <label class="visually-hidden" for="tk-q">Szukaj zadania</label>
-    <input type="search" id="tk-q" name="q" class="tk-search"
-           placeholder="Szukaj…"
-           value="<?= h($filter_q) ?>"
-           aria-label="Szukaj zadania po tytule lub opisie">
-  </div>
-
-  <div class="tk-sep" role="separator" aria-hidden="true"></div>
-
-  <!-- Status -->
-  <div class="d-flex gap-1 flex-wrap" role="group" aria-label="Filtr statusu">
+  <!-- Status jako zakładki (pivot) z licznikami -->
+  <div class="tk-pivot" role="group" aria-label="Filtr statusu">
     <?php
     $sp = [
-      'all'   => ['Wszystkie', 'bi-list-ul'],
-      'open'  => ['Do zrobienia', 'bi-circle'],
-      'taken' => ['Przydzielone', 'bi-person-fill'],
-      'done'  => ['Ukończone', 'bi-check-circle-fill'],
-      'mine'  => ['Moje',      'bi-person-check-fill'],
+      'all'   => 'Wszystkie',
+      'open'  => 'Do zrobienia',
+      'taken' => 'Przydzielone',
+      'done'  => 'Ukończone',
+      'mine'  => 'Moje',
     ];
-    foreach ($sp as $k => [$lbl, $ico]):
+    foreach ($sp as $k => $lbl):
     ?>
     <button type="button"
        class="tk-pill <?= $filter_status===$k?'active':'' ?>"
        data-s="<?= $k ?>"
        aria-pressed="<?= $filter_status===$k?'true':'false' ?>"
        onclick="tkSetStatus('<?= $k ?>', this)">
-      <i class="bi <?= $ico ?>" aria-hidden="true"></i><?= $lbl ?>
-      <span class="pill-n" id="tk-cnt-<?= $k ?>"><?= $cnt[$k] ?></span>
+      <?= $lbl ?>
+      <span class="pill-n<?= (int)$cnt[$k] ? '' : ' is-zero' ?>" id="tk-cnt-<?= $k ?>"><?= $cnt[$k] ?></span>
     </button>
     <?php endforeach; ?>
   </div>
 
-  <div class="tk-sep" role="separator" aria-hidden="true"></div>
+  <div class="tk-tools">
+  <!-- Szukaj -->
+  <div class="tk-search-w">
+    <i class="bi bi-search" aria-hidden="true"></i>
+    <label class="visually-hidden" for="tk-q">Szukaj zadania</label>
+    <input type="search" id="tk-q" name="q" class="tk-search"
+           placeholder="Szukaj w obszarze…"
+           value="<?= h($filter_q) ?>"
+           aria-label="Szukaj zadania po tytule lub opisie">
+  </div>
 
   <!-- Więcej filtrów — priorytet/kategoria/tag/obszar/jednostka pod jednym przyciskiem -->
   <div class="dropdown" id="tk-filters-wrap">
@@ -93,7 +129,7 @@ $_tk_active_filters = (int)((bool)$filter_priority) + (int)((bool)$filter_list)
       Filtry
       <span class="tk-filters-badge <?= $_tk_active_filters ? '' : 'd-none' ?>" id="tk-filters-badge"><?= $_tk_active_filters ?></span>
     </button>
-    <div class="dropdown-menu shadow tk-filters-panel" id="tk-filters-panel" role="menu" aria-label="Panel filtrów">
+    <div class="dropdown-menu dropdown-menu-end shadow tk-filters-panel" id="tk-filters-panel" role="menu" aria-label="Panel filtrów">
 
       <div class="tk-filters-field">
         <label for="tk-pri">Priorytet</label>
@@ -168,45 +204,6 @@ $_tk_active_filters = (int)((bool)$filter_priority) + (int)((bool)$filter_list)
     </div>
   </div>
 
-  <!-- Powiadomienia + Widok + Dodaj zadanie + Usuń obszar -->
-  <div class="ms-auto d-flex gap-2 align-items-center">
-    <?php if ($ws_id && $my_role): ?>
-    <?php $np_active = $my_notify_prefs['notify_email'] || $my_notify_prefs['notify_sms'] || $my_notify_prefs['notify_push']; ?>
-    <button type="button" class="btn btn-outline-secondary btn-sm"
-            onclick="openNotifyModal()"
-            title="Powiadomienia dla tego obszaru"
-            aria-label="Powiadomienia dla tego obszaru<?= $np_active ? ' (włączone)' : '' ?>"
-            aria-haspopup="dialog">
-      <i class="bi bi-bell<?= $np_active ? '-fill text-warning' : '' ?>"></i>
-    </button>
-    <?php endif; ?>
-    <?php
-    $kanban_url = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'view'=>'kanban']));
-    $list_url   = '?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id,'view'=>'list']));
-    $export_url = APP_URL . '/tasks/export.php?' . http_build_query(array_merge($_GET, ['ws'=>$ws_id]));
-    ?>
-    <a href="<?= h($export_url) ?>" class="btn btn-outline-secondary btn-sm" title="Eksportuj widoczne zadania do CSV">
-      <i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>Eksportuj
-    </a>
-    <?php if ($view_mode === 'kanban'): ?>
-    <a href="<?= $list_url ?>" class="btn btn-outline-secondary btn-sm" title="Widok listy">
-      <i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lista
-    </a>
-    <?php else: ?>
-    <a href="<?= $kanban_url ?>" class="btn btn-outline-secondary btn-sm" title="Widok Kanban">
-      <i class="bi bi-kanban me-1" aria-hidden="true"></i>Kanban
-    </a>
-    <?php endif; ?>
-
-    <?php if ($can_add): ?>
-    <button type="button"
-            class="btn btn-outline-danger btn-sm"
-            onclick="openDeleteWsModal()"
-            aria-haspopup="dialog"
-            aria-label="Usuń obszar <?= h($workspace['name']) ?>">
-      <i class="bi bi-trash3" aria-hidden="true"></i>
-    </button>
-    <?php endif; ?>
-  </div>
+  </div><!-- /.tk-tools -->
 
 </form>
