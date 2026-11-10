@@ -70,7 +70,7 @@ final class ClaudeBillingController
         $open = array_values(array_filter($changes, fn($c) => in_array($c['status'], ['draft', 'sent'], true)));
         $requests = [];   // wnioski z kreatora czekające na wpłatę / fakturę / aktywację
         foreach (ClaudeBilling::listAll('requested', false, $p) as $r) {
-            $ch = db_one("SELECT id FROM claude_charges WHERE subscription_id=? AND status<>'cancelled' ORDER BY id LIMIT 1", [(int)$r['id']]);
+            $ch = db_one("SELECT id FROM claude_charges WHERE subscription_id=? AND status<>'cancelled' AND kind='month' ORDER BY id LIMIT 1", [(int)$r['id']]);
             $r['charge'] = $ch ? ClaudeBilling::charge((int)$ch['id']) : null;
             $requests[] = $r;
         }
@@ -229,6 +229,58 @@ final class ClaudeBillingController
             if (empty($r['ok'])) throw new DomainException($c['name'] . ': ' . $r['text']);
             return $c['name'] . ': ' . $r['text'] . (!empty($r['password']) ? ' Hasło tymczasowe (pokazujemy je tylko teraz): ' . $r['password'] : '');
         }, '', $to);
+    }
+
+    // ── Płatności kartą (LicenceCard) ────────────────────────────────────────────
+
+    /** Sposób płatności dla jednego abonamentu: '' = jak w ustawieniach produktu, invoice, card. */
+    public function payMode(string $id): ?string
+    {
+        return $this->act(function () use ($id) {
+            require_once __DIR__ . '/LicenceCard.php';
+            $sub = ClaudeBilling::subscription((int)$id);
+            if (!$sub) throw new DomainException('Nie ma takiego abonamentu.');
+            $m = (string)($_POST['pay_mode'] ?? '');
+            if ($m !== '' && !isset(LicenceCard::PAY_MODES[$m])) throw new InvalidArgumentException('Nieznany sposób płatności.');
+            db_exec("UPDATE claude_subscriptions SET pay_mode=?, updated_at=datetime('now') WHERE id=?", [$m, (int)$id]);
+            $txt = $m === '' ? 'jak w ustawieniach (' . LicenceCard::PAY_MODES[LicenceCard::mode(['pay_mode' => '', 'product' => $sub['product']])] . ')' : LicenceCard::PAY_MODES[$m];
+            ClaudeBilling::event((int)$id, null, 'pay_mode', 'Sposób płatności: ' . $txt . '.', $this->actor()['name']);
+            return 'Sposób płatności: ' . $txt . '.' . ($m === 'card' && !LicenceCard::active((int)$sub['client_id']) ? ' Uczestnik musi jeszcze podpiąć kartę w Panelu Licencji (Rozliczenia); do tego czasu opłaty idą przelewem.' : '');
+        }, '', route('cb.show', ['id' => $id]));
+    }
+
+    /** Odpięcie karty przez kadrę (np. na prośbę uczestnika e-mailem) = wycofanie zgody. */
+    public function cardRemove(string $cid): ?string
+    {
+        $back = (int)($_POST['sub_id'] ?? 0);
+        return $this->act(function () use ($cid) {
+            require_once __DIR__ . '/LicenceCard.php';
+            return LicenceCard::withdraw((int)$cid, ['name' => $this->actor()['name'] . ' (panel dydaktyka)']);
+        }, '', $back ? route('cb.show', ['id' => $back]) : route('cb.index', ['product' => $this->product(), 'tab' => 'abonamenty']));
+    }
+
+    /** Obciążenie karty teraz (kadra), np. po nieudanej próbie. */
+    public function cardCharge(string $id): ?string
+    {
+        $ch = ClaudeBilling::charge((int)$id);
+        return $this->act(function () use ($id) {
+            require_once __DIR__ . '/LicenceCard.php';
+            $r = LicenceCard::chargeNow((int)$id, $this->actor()['name'] . ' (panel dydaktyka)');
+            if (!$r['ok']) throw new DomainException($r['text']);
+            return $r['text'];
+        }, '', $ch ? route('cb.show', ['id' => (int)$ch['subscription_id']]) : route('cb.index'));
+    }
+
+    /** PDF zgody na płatności kartą. */
+    public function consent(string $id): ?string
+    {
+        require_once __DIR__ . '/LicenceCard.php';
+        try { $f = LicenceCard::consentFile((int)$id); } catch (\Throwable $e) { http_response_code(404); return 'Nie znaleziono zgody.'; }
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $f['name'] . '"');
+        header('Content-Length: ' . strlen($f['bytes']));
+        echo $f['bytes'];
+        exit;
     }
 
     // ── Karta abonamentu ────────────────────────────────────────────────────────

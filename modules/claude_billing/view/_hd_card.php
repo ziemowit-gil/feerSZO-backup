@@ -23,8 +23,12 @@ $lrStep = fn(bool $done, string $txt) => '<li class="' . ($done ? 'text-success'
     <div class="fw-semibold"><?= h($lrP['label']) ?>: <?= h((string)$lrSub['client_name']) ?></div>
     <div class="text-muted mb-2">Stan: <?= h(ClaudeBilling::STATUS[$lrSub['status']] ?? $lrSub['status']) ?><?= $hd_lr['virtual'] ? ' · konto testowe (dokumenty w symulacji)' : '' ?></div>
     <ol class="list-unstyled mb-2">
+      <?php if ($lrCh && ($lrCh['pay_mode'] ?? '') === 'card'): require_once dirname(__DIR__) . '/logic/LicenceCard.php'; $lrCard = LicenceCard::active((int)$lrSub['client_id']); ?>
+      <?= $lrStep((bool)$lrCard, $lrCard ? 'Płatność kartą: ' . h(LicenceCard::label($lrCard)) . ' (zgoda w dokumentach uczestnika)' : 'Płatność kartą: uczestnik jeszcze nie podpiął karty (bez proformy, FVAT po wpłacie)') ?>
+      <?php else: ?>
       <?= $lrStep($lrCh && $lrCh['proforma_number'] !== '', 'Proforma ' . h($lrCh['proforma_number'] ?? '') . ($lrCh ? ', ' . h(ClaudeBilling::zl((float)$lrCh['amount_pln'])) . ', termin ' . h(ClaudeBilling::date($lrCh['due_on'])) : '')
           . ($lrCh && $lrCh['proforma_view_url'] && !$lrSym((string)$lrCh['proforma_number']) ? ' · <a href="' . h($lrCh['proforma_view_url']) . '" target="_blank" rel="noopener">podgląd<span class="visually-hidden"> proformy (nowa karta)</span></a>' : '')) ?>
+      <?php endif; ?>
       <?= $lrStep($lrPaid, $lrPaid ? 'Wpłata dotarła ' . h(ClaudeBilling::date((string)$lrCh['paid_at'])) . ' (' . h((string)$lrCh['paid_via']) . ')' : 'Wpłata: jeszcze nie ma') ?>
       <?= $lrStep($lrInv !== '', $lrInv !== '' ? 'Faktura VAT ' . h($lrInv) . ($lrSym($lrInv) ? ' (symulacja)' : '') : 'Faktura VAT: do wystawienia po wpłacie') ?>
       <?= $lrStep(!$lrReq && $lrSub['status'] !== 'ended', !$lrReq && $lrSub['status'] !== 'ended' ? 'Dostęp aktywny od ' . h(ClaudeBilling::date($lrSub['activated_on'])) : 'Dostęp: do aktywacji') ?>

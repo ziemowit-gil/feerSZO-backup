@@ -121,6 +121,31 @@ final class TiStudentFolder
                       is_file($full) ? (int)filesize($full) : 0, is_file($full) ? (string)hash_file('sha256', $full) : '', $at ?: date('Y-m-d H:i:s')]);
     }
 
+    /**
+     * Dokument wygenerowany przez system (np. zgoda na płatności kartą z Panelu Licencji) — zapis w teczce jako zatwierdzony, widoczny dla kursanta.
+     * @return int id wpisu albo 0 (błąd zapisu)
+     */
+    public static function addSystemFile(int $accountId, string $category, string $title, string $fileName, string $bytes, string $note = ''): int
+    {
+        self::migrate();
+        if ($accountId <= 0 || $bytes === '') return 0;
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) ?: 'pdf';
+        if (!isset(self::MIME_BY_EXT[$ext])) return 0;
+        $tmp = tempnam(sys_get_temp_dir(), 'sfold');
+        file_put_contents($tmp, $bytes);
+        $path = self::store($tmp, $accountId, $ext, false);
+        @unlink($tmp);
+        if ($path === '') return 0;
+        $full = rtrim(UPLOAD_DIR, '/') . '/' . $path;
+        db()->prepare("INSERT INTO k30_ti_sfile (account_id, category, title, note, file_path, file_name, mime, size, sha256, visible_student, source, status, created_by_name)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'system', 'approved', 'system')")
+           ->execute([$accountId, self::cat($category), mb_substr($title, 0, 200), mb_substr($note, 0, 1000), $path, mb_substr($fileName, 0, 150), self::MIME_BY_EXT[$ext],
+                      (int)filesize($full), (string)hash_file('sha256', $full)]);
+        $id = (int)db()->lastInsertId();
+        self::log($accountId, 'Teczka: dodano „' . $title . '” (system).');
+        return $id;
+    }
+
     // ── Teczka ──────────────────────────────────────────────────────────────────
 
     /** Pliki konta. $forStudent: tylko widoczne dla kursanta i (zatwierdzone albo dodane przez kursanta/opiekuna). */

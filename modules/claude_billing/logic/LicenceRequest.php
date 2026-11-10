@@ -34,7 +34,7 @@ final class LicenceRequest
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'reason' => $P['label'] . ' wymaga adresu e-mail. Uzupełnij go w „Moje konto”.', 'assignment' => $a];
             if (ClaudeBilling::emailTaken($email, $P['key'], $cid)) return ['ok' => false, 'reason' => 'Na adres ' . $email . ' jest już włączona licencja ' . $P['label'] . '. Jedna osoba może mieć jedną.', 'assignment' => $a];
         }
-        $debt = db_one("SELECT COUNT(*) n FROM claude_charges WHERE client_id=? AND product=? AND status='pending' AND is_test=0", [$cid, $P['key']]);
+        $debt = db_one("SELECT COUNT(*) n FROM claude_charges WHERE client_id=? AND product=? AND status='pending' AND is_test=0 AND kind='month'", [$cid, $P['key']]);
         if ((int)($debt['n'] ?? 0) > 0) return ['ok' => false, 'reason' => 'Masz niezapłaconą fakturę za ' . $P['label'] . '. Najpierw ją zapłać.', 'assignment' => $a];
         return ['ok' => true, 'reason' => '', 'assignment' => $a, 'needEdu' => !empty($P['requiresEdu']) && !ClaudeBilling::eduAccount($cid)];
     }
@@ -78,7 +78,7 @@ final class LicenceRequest
         $sub = db_one("SELECT id FROM claude_subscriptions WHERE helpdesk_ticket_id=? ORDER BY id DESC LIMIT 1", [$ticketId]);
         if (!$sub) return null;
         $sub = ClaudeBilling::subscription((int)$sub['id']);
-        $ch = db_one("SELECT id FROM claude_charges WHERE subscription_id=? AND status<>'cancelled' ORDER BY id LIMIT 1", [(int)$sub['id']]);
+        $ch = db_one("SELECT id FROM claude_charges WHERE subscription_id=? AND status<>'cancelled' AND kind='month' ORDER BY id LIMIT 1", [(int)$sub['id']]);
         require_once __DIR__ . '/ClaudeInvoice.php';
         return ['sub' => $sub, 'P' => ClaudeBilling::P(ClaudeBilling::productOf($sub)), 'charge' => $ch ? ClaudeBilling::charge((int)$ch['id']) : null,
                 'edu' => ClaudeBilling::eduAccount((int)$sub['client_id']), 'eduReq' => ClaudeBilling::eduRequest((int)$sub['client_id']),
@@ -97,7 +97,7 @@ final class LicenceRequest
 
     private static function firstCharge(int $subId): ?array
     {
-        $ch = db_one("SELECT id FROM claude_charges WHERE subscription_id=? AND status<>'cancelled' ORDER BY id LIMIT 1", [$subId]);
+        $ch = db_one("SELECT id FROM claude_charges WHERE subscription_id=? AND status<>'cancelled' AND kind='month' ORDER BY id LIMIT 1", [$subId]);
         return $ch ? ClaudeBilling::charge((int)$ch['id']) : null;
     }
 

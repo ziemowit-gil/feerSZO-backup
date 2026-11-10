@@ -110,7 +110,7 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
 <?php if (!$rows): ?><p>Brak abonamentów w tym widoku.</p><?php else: ?>
 <div class="table-responsive"><table class="table table-sm align-middle">
   <caption class="visually-hidden">Abonamenty <?= h($P['label']) ?></caption>
-  <thead><tr><th scope="col">Uczestnik</th><th scope="col">Stan</th><th scope="col">Od</th><th scope="col" class="text-end">Do zapłaty</th><th scope="col">Najbliższy termin</th><th scope="col">Dane do FV</th><th scope="col">Konto Office</th><th scope="col">Helpdesk</th></tr></thead>
+  <thead><tr><th scope="col">Uczestnik</th><th scope="col">Stan</th><th scope="col">Od</th><th scope="col" class="text-end">Do zapłaty</th><th scope="col">Najbliższy termin</th><th scope="col">Dane do FV</th><th scope="col">Płatność</th><th scope="col">Konto Office</th><th scope="col">Helpdesk</th></tr></thead>
   <tbody>
   <?php foreach ($rows as $r): $g = ClaudeBilling::invoiceDataGaps($r); ?>
     <tr>
@@ -120,6 +120,8 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
       <td class="text-end text-nowrap"><?= (int)$r['n_pending'] ? h(ClaudeBilling::zl((float)$r['sum_pending'])) . ' (' . (int)$r['n_pending'] . ')' : '—' ?></td>
       <td class="text-nowrap<?= $r['next_due'] && $r['next_due'] < date('Y-m-d') ? ' text-danger fw-bold' : '' ?>"><?= h(ClaudeBilling::date($r['next_due'])) ?></td>
       <td><?= $g ? $tag('bad', 'brak: ' . implode(', ', $g)) : 'komplet' ?></td>
+      <td class="small"><?php require_once dirname(__DIR__) . '/logic/LicenceCard.php'; $rc = LicenceCard::active((int)$r['client_id']); $rm = LicenceCard::mode($r); ?>
+        <?= $rm === 'card' ? ($rc ? 'karta ' . h(LicenceCard::label($rc)) : $tag('due', 'karta: niepodpięta')) : 'proforma i przelew' ?><?= ($r['pay_mode'] ?? '') !== '' ? ' <span class="text-secondary">(wyjątek)</span>' : '' ?></td>
       <td><?= $officeCell((int)$r['client_id']) ?></td>
       <td><?= h($r['helpdesk_number'] ?: '—') ?></td>
     </tr>
@@ -305,6 +307,22 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
           <div class="form-text" id="s-feen-p">Podgląd: <b><?= h(ClaudeBilling::positionText($s['fee_name'], $product, date('Y-m'), 'Jan Kowalski')) ?></b><?= $s['fee_pln'] > 0 ? '' : ' (prowizja = 0 zł, pozycja się nie pojawi)' ?></div></div>
       </div>
       <div class="form-text">Puste pole przywraca nazwę domyślną. Zmiana dotyczy nowych dokumentów; wystawionych się nie zmienia.</div>
+    </fieldset>
+    <?php require_once dirname(__DIR__, 3) . '/includes/p24.php'; require_once dirname(__DIR__) . '/logic/LicenceCard.php'; $p24ok = p24_enabled(); ?>
+    <fieldset class="mb-3" aria-describedby="pm-h"><legend class="fs-6 fw-semibold">Sposób płatności</legend>
+      <p class="small text-secondary mb-2" id="pm-h">Karta: uczestnik podpina kartę w Panelu Licencji (zgoda, kod SMS, PDF zgody w jego dokumentach). Najpierw pobieramy opłatę weryfikacyjną z fakturą VAT,
+        potem co miesiąc opłatę z karty w dniu terminu (wcześniej e-mail z kwotą i dniem), a po każdej wpłacie od razu fakturę VAT. Po <?= LicenceCard::MAX_ATTEMPTS ?> nieudanych próbach opłata przechodzi na proformę i przelew.
+        Wymaga Przelewy24 z usługą kart i płatności cyklicznych (włącza ją opiekun konta w P24): <?= $p24ok ? $tag('ok', 'Przelewy24 włączone') : $tag('bad', 'Przelewy24 wyłączone') ?> <a href="<?= h(APP_URL) ?>/admin/p24_settings.php">ustawienia Przelewy24</a>.</p>
+      <div class="row g-3">
+        <div class="col-md-5" role="radiogroup" aria-labelledby="pm-l"><span class="form-label d-block" id="pm-l">Jak płacą uczestnicy za <?= h($P['label']) ?></span>
+          <?php foreach (LicenceCard::PAY_MODES as $pmk => $pml): ?>
+          <div class="form-check"><input class="form-check-input" type="radio" name="pay_mode" id="pm-<?= h($pmk) ?>" value="<?= h($pmk) ?>"<?= $s['pay_mode'] === $pmk ? ' checked' : '' ?><?= $pmk === 'card' && !$p24ok && $s['pay_mode'] !== 'card' ? ' disabled' : '' ?>>
+            <label class="form-check-label" for="pm-<?= h($pmk) ?>"><?= h(ucfirst($pml)) ?></label></div>
+          <?php endforeach; ?>
+          <div class="form-text">Dla jednej osoby zmienisz to na karcie abonamentu.</div></div>
+        <div class="col-md-3"><label class="form-label" for="s-cfee">Opłata weryfikacyjna karty (zł)</label><input class="form-control" id="s-cfee" name="card_fee_pln" inputmode="decimal" value="<?= h(number_format((float)$s['card_fee_pln'], 2, ',', '')) ?>"></div>
+        <div class="col-md-4"><label class="form-label" for="s-cfeen">Nazwa pozycji na fakturze</label><input class="form-control" id="s-cfeen" name="card_fee_name" maxlength="200" value="<?= h($s['card_fee_name']) ?>"></div>
+      </div>
     </fieldset>
     <fieldset class="mb-3"><legend class="fs-6 fw-semibold">Dokumenty i płatności</legend>
     <div class="row g-3">

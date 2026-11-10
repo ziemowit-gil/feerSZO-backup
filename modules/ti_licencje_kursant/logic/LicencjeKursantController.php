@@ -22,6 +22,7 @@ require_once __DIR__ . '/LicencjeKod.php';
 require_once __DIR__ . '/LicencjeId.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceRequest.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/PriceChange.php';
+require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceCard.php';   // płatności kartą (zgoda, podpięcie, wycofanie)
 
 final class LicencjeKursantController
 {
@@ -60,7 +61,7 @@ final class LicencjeKursantController
 
     /** Podstrony panelu: klucz => [trasa, tytuł]. Produkty płatne (claude, nordvpn) mają podstronę lk.licence. */
     public const PAGES = ['office' => ['lk.office', 'Licencje na Office'], 'programy' => ['lk.programs', 'Programy i klucze'], 'materialy' => ['lk.materials', 'Materiały dydaktyczne'],
-        'sprawy' => ['lk.cases', 'Moje sprawy'], 'produkty' => ['lk.products', 'Produkty i usługi'], 'konto' => ['lk.account', 'Moje konto']];
+        'sprawy' => ['lk.cases', 'Moje sprawy'], 'produkty' => ['lk.products', 'Produkty i usługi'], 'rozliczenia' => ['lk.billing', 'Rozliczenia'], 'konto' => ['lk.account', 'Moje konto']];
 
     /** Adres podstrony dla klucza (produkt płatny, strona albo '' = start). */
     public static function pageUrl(string $key): string
@@ -80,7 +81,7 @@ final class LicencjeKursantController
     // ── Potwierdzanie operacji kodem ────────────────────────────────────────────
 
     /** Operacje, które można wykonać po kodzie (whitelista metod kontrolera). */
-    private const CONFIRMABLE = ['wizardPost', 'edu', 'buyer', 'cancel', 'password', 'priceDecide'];
+    private const CONFIRMABLE = ['wizardPost', 'edu', 'buyer', 'cancel', 'password', 'priceDecide', 'cardPost', 'cardRemove'];
 
     /**
      * Brama kodu: true — operacja potwierdzona, wykonuj; false — kod wysłany (albo błąd), przekierowanie już ustawione (handler zwraca null).
@@ -358,6 +359,7 @@ final class LicencjeKursantController
                 $v['orderable'] = $v['settings']['enabled'] && $v['settings']['priced'];
                 if (!$v['hasLicense'] && !$v['sub'] && !$v['orderable']) continue;   // pokazujemy, co można zamówić, i to, co już jest   // nie dotyczy tej osoby (NordVPN: tylko gdy licencja jest przypisana do uczestnika)
                 $v['edu'] = !empty(ClaudeBilling::P($p)['requiresEdu']) ? ['account' => ClaudeBilling::eduAccount($cid), 'request' => ClaudeBilling::eduRequest($cid)] : null;
+                $v['payMode'] = $v['sub'] ? LicenceCard::mode($v['sub']) : (string)$v['settings']['pay_mode'];   // invoice | card
                 $v['priceChange'] = $v['sub'] && in_array($v['sub']['status'], ['active', 'suspended'], true) ? PriceChange::openForSubscription((int)$v['sub']['id']) : null;
                 if ($v['priceChange']) $v['priceCmp'] = PriceChange::compare($v['priceChange']['change']);
                 $paid[$p] = $v;
@@ -400,9 +402,102 @@ final class LicencjeKursantController
             'ops' => $ops, 'products' => $products, 'prodMonthly' => round($prodMonthly, 2), 'feerUpn' => $feerUpn, 'p24on' => p24_enabled(),
             'login' => LicenseLogin::get($cid), 'hasPassword' => LicenseLogin::hasPassword($cid), 'minor' => ClaudeBilling::isMinor($cid),
             'contact' => LicencjeKod::contact($cid), 'eduAccount' => ClaudeBilling::eduAccount($cid), 'officeAcc' => LicenceOffice::summary($cid),
+            'card' => LicenceCard::active($cid), 'consents' => LicenceCard::consents($cid),
             'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()]);
     }
 
+
+    // ── Rozliczenia: karta (zgoda, podpięcie, wycofanie) i dane do faktur ──────────
+
+    public function billing(): string { return $this->render('rozliczenia'); }
+
+    private function openSub(int $cid, string $p): ?array
+    {
+        $sub = ClaudeBilling::forClient($cid, false, $p);
+        return $sub && in_array($sub['status'], ['requested', 'active', 'suspended'], true) ? $sub : null;
+    }
+
+    /** Zgoda na płatności kartą (treść ustalona przez Fundację) i kwoty przed udzieleniem zgody. */
+    public function cardForm(string $product): string
+    {
+        $me = $this->me();
+        $p = ClaudeBilling::product($product);
+        $sub = $this->openSub($me['cid'], $p);
+        if (!$sub) { $this->flash('err', 'Najpierw złóż wniosek o ' . ClaudeBilling::P($p)['label'] . '.', $p); exit; }
+        if (LicenceCard::mode($sub) !== 'card') { $this->flash('info', 'Za ' . ClaudeBilling::P($p)['label'] . ' płacisz przelewem po proformie.', 'rozliczenia'); exit; }
+        $err = $_SESSION['lk_card_err'] ?? ''; unset($_SESSION['lk_card_err']);
+        require_once dirname(__DIR__, 3) . '/includes/p24.php';
+        return Router::view(self::VIEW . 'card.php', ['me' => $me, 'p' => $p, 'P' => ClaudeBilling::P($p), 'sub' => $sub, 't' => LicenceCard::texts($p), 'pv' => LicenceCard::preview($sub),
+            'card' => LicenceCard::active($me['cid']), 'virtual' => ClaudeBilling::isVirtual($me['cid']), 'p24on' => p24_enabled(), 'err' => $err, 'org' => self::org(), 'flash' => $this->takeFlash()]);
+    }
+
+    /** „Udzielam zgody i przechodzę do płatności”: kod jednorazowy, zapis zgody (PDF do teczki), opłata weryfikacyjna w Przelewy24 (tylko karty). */
+    public function cardPost(string $product): ?string
+    {
+        $me = $this->me();
+        $p = ClaudeBilling::product($product);
+        $sub = $this->openSub($me['cid'], $p);
+        if (!$sub) return $this->flash('err', 'Najpierw złóż wniosek o ' . ClaudeBilling::P($p)['label'] . '.', $p);
+        if (empty($_POST['zgoda'])) { $_SESSION['lk_card_err'] = 'Zaznacz pole zgody, żeby przejść do płatności.'; header('Location: ' . route('lk.card', ['product' => $p])); return null; }
+        if (!$this->confirmed('cardPost', [$p], 'zgoda na płatności kartą (' . ClaudeBilling::P($p)['label'] . ')', 'rozliczenia')) return null;
+        try {
+            $back = LicencjePanelAuth::publicUrl() . '?_route=' . rawurlencode('/karta/' . $p . '/powrot');
+            $r = LicenceCard::begin((int)$sub['id'], ['name' => $me['name'], 'via' => 'panel licencji', 'ip' => $me['ip'],
+                'confirm' => 'kod jednorazowy wysłany na ' . LicencjeKod::mask((string)($me['phone'] ?: $me['email']))], $back);
+            $this->log($me, 'card_consent', 'Zgoda na płatności kartą #' . $r['consent'] . ' (' . ClaudeBilling::P($p)['label'] . ').');
+            if ($r['sim']) {
+                $card = LicenceCard::active($me['cid']);
+                return $this->flash('ok', 'Konto testowe: symulacja. Karta ' . LicenceCard::label($card) . ' podpięta, opłata weryfikacyjna i faktura w symulacji. Zgoda jest w Twoich dokumentach.', 'rozliczenia');
+            }
+            header('Location: ' . $r['url']);
+            return null;
+        } catch (DomainException | InvalidArgumentException $e) {
+            return $this->flash('err', $e->getMessage(), 'rozliczenia');
+        } catch (\Throwable $e) {
+            error_log('lk karta: ' . $e);
+            return $this->flash('err', 'Nie udało się rozpocząć płatności kartą. Spróbuj za chwilę albo napisz do biura.', 'rozliczenia');
+        }
+    }
+
+    /** Powrót z Przelewy24 po opłacie weryfikacyjnej. Wynik przychodzi powiadomieniem — tu tylko stan. */
+    public function cardReturn(string $product): ?string
+    {
+        $me = $this->me();
+        $p = ClaudeBilling::product($product);
+        require_once dirname(__DIR__, 3) . '/includes/p24.php';
+        $last = db_one("SELECT pp.id FROM p24_payments pp JOIN claude_charges ch ON ch.id=pp.source_id WHERE pp.source_type='claude_charge' AND ch.client_id=? AND ch.kind='card' ORDER BY pp.id DESC LIMIT 1", [$me['cid']]);
+        if ($last) { try { p24_reconcile_payment((int)$last['id']); ClaudeBilling::afterPayment(); } catch (\Throwable $e) {} }
+        $card = LicenceCard::active($me['cid']);
+        if ($card) return $this->flash('ok', 'Karta ' . LicenceCard::label($card) . ' podpięta. Opłaty za ' . ClaudeBilling::P($p)['label'] . ' pobieramy teraz automatycznie, faktury VAT przyjdą e-mailem.', 'rozliczenia');
+        return $this->flash('info', 'Czekamy na potwierdzenie płatności z Przelewy24. Zwykle trwa to minutę. Odśwież tę stronę za chwilę.', 'rozliczenia');
+    }
+
+    /** Wycofanie zgody i odpięcie karty (kod jednorazowy). Nie jest rezygnacją z licencji. */
+    public function cardRemove(): ?string
+    {
+        $me = $this->me();
+        if (!LicenceCard::active($me['cid'])) return $this->flash('info', 'Nie masz podpiętej karty.', 'rozliczenia');
+        if (!$this->confirmed('cardRemove', [], 'wycofanie zgody na płatności kartą', 'rozliczenia')) return null;
+        try {
+            $msg = LicenceCard::withdraw($me['cid'], ['name' => $me['name'] . ' (panel licencji)']);
+            $this->log($me, 'card_withdraw', 'Wycofano zgodę na płatności kartą.');
+            return $this->flash('ok', $msg, 'rozliczenia');
+        } catch (\Throwable $e) { return $this->flash('err', $e->getMessage(), 'rozliczenia'); }
+    }
+
+    /** PDF własnej zgody na płatności kartą. */
+    public function consentPdf(string $id): ?string
+    {
+        $me = $this->me();
+        $z = LicenceCard::consent((int)$id);
+        if (!$z || (int)$z['client_id'] !== $me['cid']) { http_response_code(404); return 'Nie znaleziono dokumentu.'; }
+        $f = LicenceCard::consentFile((int)$id);
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $f['name'] . '"');
+        header('Content-Length: ' . strlen($f['bytes']));
+        echo $f['bytes'];
+        exit;
+    }
 
     /** Dawne bezpośrednie włączanie — teraz kreator wniosku. */
     public function activate(string $product): ?string
@@ -457,6 +552,15 @@ final class LicencjeKursantController
             unset($_SESSION['lk_wiz'][$p]);
             $this->log($me, $p . '_request', 'Wniosek o ' . $L . ' (#' . (int)$sub['id'] . ', zgłoszenie ' . $sub['helpdesk_number'] . ').');
             $ch = $sub['charge'];
+            if (LicenceCard::mode($sub) === 'card') {   // płatność kartą: zaraz po wniosku zgoda i podpięcie karty (albo obciążenie już podpiętej)
+                if (LicenceCard::active($me['cid'])) {
+                    $x = $ch ? LicenceCard::chargeNow((int)$ch['id'], $me['name'] . ' (panel licencji)') : ['text' => ''];
+                    return $this->flash('ok', 'Wniosek o ' . $L . ' złożony. ' . $x['text'] . ' Faktura VAT przyjdzie po wpłacie, potem Helpdesk włączy dostęp.', $p);
+                }
+                $_SESSION['lk_flash'] = ['ok', 'Wniosek o ' . $L . ' złożony. Teraz podepnij kartę: przeczytaj zgodę i przejdź do płatności.'];
+                header('Location: ' . route('lk.card', ['product' => $p]));
+                return null;
+            }
             return $this->flash('ok', 'Wniosek o ' . $L . ' złożony' . ($sub['helpdesk_number'] ? ' (zgłoszenie ' . $sub['helpdesk_number'] . ')' : '') . '.'
                 . ($ch ? ' Proforma ' . ($ch['proforma_number'] ?: '') . ': ' . ClaudeBilling::zl((float)$ch['amount_pln']) . ', zapłać do ' . ClaudeBilling::dayMonth($ch['due_on']) . '.' : '')
                 . ' Po wpłacie Helpdesk wystawi fakturę VAT i włączy dostęp.', $p);
@@ -492,14 +596,15 @@ final class LicencjeKursantController
     {
         $me = $this->me();
         $p = ClaudeBilling::product($product);
+        $back = ($_POST['back'] ?? '') === 'rozliczenia' ? 'rozliczenia' : $p;   // formularz także na stronie „Rozliczenia”
         $sub = ClaudeBilling::forClient($me['cid'], false, $p);
-        if (!$sub || !in_array($sub['status'], ['requested', 'active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . ClaudeBilling::P($p)['label'] . '.', $p);
+        if (!$sub || !in_array($sub['status'], ['requested', 'active', 'suspended'], true)) return $this->flash('err', 'Nie masz włączonego ' . ClaudeBilling::P($p)['label'] . '.', $back);
         [, $pre] = ClaudeBilling::buyerFromInput($_POST);
-        if ($pre) { $_SESSION['lk_errors'] = [$p => $pre]; $_SESSION['lk_old'] = [$p => $_POST]; return $this->flash('err', 'Popraw dane do faktury (' . count($pre) . ').', $p); }
-        if (!$this->confirmed('buyer', [$p], 'zmiana danych do faktury', $p)) return null;
+        if ($pre) { $_SESSION['lk_errors'] = [$p => $pre]; $_SESSION['lk_old'] = [$p => $_POST]; return $this->flash('err', 'Popraw dane do faktury (' . count($pre) . ').', $back); }
+        if (!$this->confirmed('buyer', [$p], 'zmiana danych do faktury', $back)) return null;
         $err = ClaudeBilling::saveBuyer((int)$sub['id'], $_POST, $me['name'] . ' (panel licencji)');
-        if ($err) { $_SESSION['lk_errors'] = [$p => $err]; $_SESSION['lk_old'] = [$p => $_POST]; return $this->flash('err', 'Popraw dane do faktury (' . count($err) . ').', $p); }
-        return $this->flash('ok', 'Dane do faktury zapisane. Jeśli dokument czekał na te dane, już się wystawił.', $p);
+        if ($err) { $_SESSION['lk_errors'] = [$p => $err]; $_SESSION['lk_old'] = [$p => $_POST]; return $this->flash('err', 'Popraw dane do faktury (' . count($err) . ').', $back); }
+        return $this->flash('ok', 'Dane do faktury zapisane. Jeśli dokument czekał na te dane, już się wystawił.', $back);
     }
 
     public function cancel(string $product): ?string

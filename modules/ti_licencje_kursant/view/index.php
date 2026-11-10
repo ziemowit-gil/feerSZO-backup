@@ -6,7 +6,7 @@ if (!isset($me, $paid)) { header('Location: /licencje/', true, 302); exit; }   /
  * Menu po lewej prowadzi do podstron. Wygląd Metro: znaczniki stanu m-tag (ok / due / bad / off). Office: konto @edu.feer.org.pl = Office aktywny.
  * Każdą operację potwierdza kod jednorazowy (SMS). Konto testowe ($virtual): dokumenty w symulacji (SYM, PDF do pobrania) i symulowana wpłata.
  * Numery ($ids): numer w panelu licencji (l + 8 cyfr, nadany raz, nim się logujesz) i nr beneficjenta (student_no z Ewidencji Uczestników).
- * Zmienne: $page, $ids, $virtual, $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $officeAcc, $flash, $err, $old, $org.
+ * Zmienne: $page, $ids, $virtual, $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $officeAcc, $card, $consents, $flash, $err, $old, $org.
  */
 $C = LicencjeKursantController::class;
 $U = fn(string $k) => LicencjeKursantController::pageUrl($k);
@@ -41,6 +41,8 @@ $tiles['programy'] = ['Programy i klucze', $software ? [count($software) . ' ' .
 $tiles['materialy'] = ['Materiały dydaktyczne', $am5 ? [count($am5) . ' ' . (count($am5) === 1 ? 'licencja' : 'licencje'), 'ok'] : ['brak', 'off'], '', false];
 $tiles['sprawy'] = ['Moje sprawy', $ops ? [count($ops) . ' ' . (count($ops) === 1 ? 'sprawa' : 'sprawy'), 'due'] : ['brak', 'off'], '', false];
 $tiles['produkty'] = ['Produkty i usługi', $products ? [count($products) . ' ' . (count($products) === 1 ? 'usługa' : 'usługi'), 'ok'] : ['brak', 'off'], $prodMonthly > 0 ? ClaudeBilling::zl($prodMonthly) . ' miesięcznie' : '', false];
+$cardModes = array_filter($paid, fn($v) => ($v['payMode'] ?? '') === 'card' && $v['sub'] && in_array($v['sub']['status'], ['requested', 'active', 'suspended'], true));
+$tiles['rozliczenia'] = ['Rozliczenia', $card ? ['karta podpięta', 'ok'] : ($cardModes ? ['podepnij kartę', 'due'] : ['przelew', 'off']), $card ? LicenceCard::label($card) : 'karta i dane do faktur', !$card && $cardModes];
 $tiles['konto'] = ['Moje konto', $login ? ['aktywne', 'ok'] : ['bez numeru', 'off'], ($login ? 'numer ' . $login . ', ' : '') . 'hasło, kontakt', false];   // numer w opisie (znacznik zamienia litery na wielkie)
 $nav = [[$U(''), 'Start', '', false, $page === 'start']];
 foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $dueFlag ? $sum : '', $dueFlag, $page === $k];
@@ -91,18 +93,23 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
   <?php };
 ?>
   <h1 class="m-title"><?= h($P['label']) ?> <?= $tag($state[1], $state[0]) ?></h1>
-  <p class="m-explain">Subskrypcja płatna co miesiąc. Dostajesz proformę, masz <?= ClaudeBilling::TERM_DAYS ?> dni na wpłatę, a po wpłacie dostajesz fakturę. Bez wpłaty dostęp zostaje wstrzymany.</p>
+  <p class="m-explain"><?= ($v['payMode'] ?? '') === 'card' ? 'Subskrypcja płatna co miesiąc kartą. Opłatę pobieramy automatycznie w dniu terminu, a po wpłacie dostajesz fakturę VAT.' : 'Subskrypcja płatna co miesiąc. Dostajesz proformę, masz ' . ClaudeBilling::TERM_DAYS . ' dni na wpłatę, a po wpłacie dostajesz fakturę. Bez wpłaty dostęp zostaje wstrzymany.' ?></p>
   <?= $idsLine ?>
   <section class="m-tile" aria-label="<?= h($P['label']) ?>">
     <p class="tw-text-sm tw-mb-3"><?= h(ucfirst($P['what'])) ?>.<?= $s['enabled'] || $open ? ' ' . h($priceTxt) : '' ?></p>
 
     <?php if ($open || $requested): ?>
-      <?php if ($requested): $rq = $v['charges'][0] ?? null; $rqPaid = $rq && $rq['status'] === 'paid'; ?>
+      <?php if ($requested): $rq = array_values(array_filter($v['charges'], fn($x) => ($x['kind'] ?? 'month') === 'month' && $x['status'] !== 'cancelled'))[0] ?? null; $rqPaid = $rq && $rq['status'] === 'paid'; ?>
       <div class="pk-alert pk-alert-info" role="status">
         <p class="tw-font-semibold tw-mb-1">Wniosek złożony <?= h(ClaudeBilling::dayMonth($sub['activated_on'])) ?><?= $sub['helpdesk_number'] ? ' (zgłoszenie ' . h($sub['helpdesk_number']) . ')' : '' ?></p>
         <ol class="tw-list-decimal tw-pl-6 tw-text-sm tw-space-y-1">
+          <?php if (($v['payMode'] ?? '') === 'card'): ?>
+          <li><?= $card ? 'Karta podpięta.' : '<a href="' . h(route('lk.card', ['product' => $pk])) . '">Podepnij kartę</a> (opłata weryfikacyjna ' . h(ClaudeBilling::zl((float)$s['card_fee_pln'])) . ').' ?></li>
+          <li><?= $rqPaid ? 'Pierwsza opłata pobrana z karty' . ($rq && (string)$rq['invoice_number'] !== '' ? ', faktura VAT ' . h((string)$rq['invoice_number']) : '') . '.' : 'Pobierzemy pierwszą opłatę z karty, faktura VAT przyjdzie od razu.' ?></li>
+          <?php else: ?>
           <li><?= $rqPaid ? 'Proforma zapłacona.' : 'Zapłać proformę (niżej) do ' . h(ClaudeBilling::dayMonth((string)($rq['due_on'] ?? ''))) . '.' ?></li>
           <li>Helpdesk wystawi fakturę VAT<?= $rq && (string)$rq['invoice_number'] !== '' ? ': gotowe' : '' ?>.</li>
+          <?php endif; ?>
           <li>Helpdesk włączy dostęp. Dostaniesz e-mail.</li>
         </ol>
       </div>
@@ -135,6 +142,10 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
       <?php endif; ?>
       <?php if ($sub['status'] === 'suspended'): ?><div class="pk-alert pk-alert-err" role="alert">Dostęp wstrzymany, bo nie ma wpłaty. Po wpłacie włączy się sam.</div><?php endif; ?>
       <?php if ($v['gaps']): ?><div class="pk-alert pk-alert-info" role="alert">Brak danych do faktury: <?= h(implode(', ', $v['gaps'])) ?>. Uzupełnij je niżej.</div><?php endif; ?>
+      <?php if (($v['payMode'] ?? '') === 'card'): ?>
+        <p class="tw-text-sm tw-mb-3">Płatność: <?= $card ? 'karta ' . h(LicenceCard::label($card)) . ', pobieramy automatycznie, faktura VAT po każdej wpłacie.' : '<b>karta</b>. Nie masz jeszcze podpiętej karty.' ?>
+          <a href="<?= h($card ? route('lk.billing') : route('lk.card', ['product' => $pk])) ?>"><?= $card ? 'Zarządzaj kartą' : 'Podepnij kartę' ?></a></p>
+      <?php endif; ?>
 
       <?php foreach ($v['charges'] as $c): if ($c['status'] === 'cancelled') continue; $late = $c['status'] === 'pending' && $c['due_on'] < $today;
         $docUrl = $c['status'] === 'paid' ? (string)$c['invoice_view_url'] : ((string)$c['proforma_view_url'] ?: (string)$c['invoice_view_url']);
@@ -152,11 +163,12 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
         } ?>
       <div class="m-row">
         <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
-          <span class="tw-font-semibold"><?= h(ucfirst(ClaudeBilling::periodLabel((string)$c['period']))) ?></span>
+          <span class="tw-font-semibold"><?= ($c['kind'] ?? '') === 'card' ? 'Opłata weryfikacyjna karty' : h(ucfirst(ClaudeBilling::periodLabel((string)$c['period']))) ?></span>
           <span class="tw-text-lg tw-font-semibold" style="font-variant-numeric:tabular-nums"><?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?></span>
           <?php if ($c['status'] === 'paid'): ?><?= $tag('ok', 'zapłacone ' . ClaudeBilling::dayMonth(substr((string)$c['paid_at'], 0, 10))) ?>
+          <?php elseif (($c['pay_mode'] ?? '') === 'card'): ?><?= $tag('due', 'z karty ' . ClaudeBilling::dayMonth($c['due_on'])) ?>
           <?php else: ?><?= $tag($late ? 'bad' : 'due', $late ? 'po terminie (było do ' . ClaudeBilling::dayMonth($c['due_on']) . ')' : 'zapłać do ' . ClaudeBilling::dayMonth($c['due_on'])) ?><?php endif; ?>
-          <?php if (!$docs): ?><span class="tw-text-sm m-muted"><?= $c['status'] === 'paid' ? 'faktura' : 'proforma' ?> w przygotowaniu</span><?php endif; ?>
+          <?php if (!$docs): ?><span class="tw-text-sm m-muted"><?= $c['status'] === 'paid' || ($c['pay_mode'] ?? '') === 'card' ? 'faktura VAT po wpłacie' : 'proforma w przygotowaniu' ?></span><?php endif; ?>
         </div>
         <?php if ($docs): ?>
         <ul class="m-docs" aria-label="Dokumenty za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?>">
@@ -167,8 +179,12 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
           <?php endforeach; ?>
         </ul>
         <?php endif; ?>
-        <p class="m-note tw-mt-1"><?= h(ClaudeBilling::breakdown($c)) ?> (kurs PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p>
-        <?php if ($c['status'] === 'pending'): ?>
+        <?php if (($c['kind'] ?? '') !== 'card'): ?><p class="m-note tw-mt-1"><?= h(ClaudeBilling::breakdown($c)) ?> (kurs PKO BP z <?= h(ClaudeBilling::dayMonth(substr((string)$c['rate_at'], 0, 10))) ?>)</p><?php endif; ?>
+        <?php if ($c['status'] === 'pending' && (($c['pay_mode'] ?? '') === 'card' || ($c['kind'] ?? '') === 'card')): ?>
+          <p class="tw-text-sm tw-mt-2"><?= ($c['kind'] ?? '') === 'card' ? 'Płatność kartą nie została dokończona.' : ($card ? 'Pobierzemy z karty ' . h(LicenceCard::label($card)) . ' ' . h(ClaudeBilling::dayMonth($c['due_on'])) . '. Nic nie musisz robić.' : 'Podepnij kartę, żeby zapłacić.') ?>
+            <?php if (!$card): ?> <a href="<?= h(route('lk.card', ['product' => $pk])) ?>">Podepnij kartę</a><?php endif; ?></p>
+          <?php if (!empty($c['card_error'])): ?><p class="m-note">Ostatnia próba się nie udała. Spróbujemy jeszcze raz, a po <?= LicenceCard::MAX_ATTEMPTS ?> próbach dostaniesz proformę do przelewu.</p><?php endif; ?>
+        <?php elseif ($c['status'] === 'pending'): ?>
         <div class="tw-flex tw-flex-wrap tw-gap-2 tw-mt-2">
           <?php if ($virtual): ?>
             <form method="post" action="<?= h(route('lk.sim.pay', ['id' => (int)$c['id']])) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zapłać (symulacja)<span class="tw-sr-only"> za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></span></button></form>
@@ -357,6 +373,66 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
 <?php endif; ?>
 
 <?php /* ── Moje konto ── */ ?>
+<?php /* ── Rozliczenia: karta i dane do faktur (konta rozliczeniowe) ── */ ?>
+<?php if ($page === 'rozliczenia'): ?>
+<h1 class="m-title">Rozliczenia</h1>
+<p class="m-explain">Karta do płatności za licencje i dane, na które wystawiamy faktury. Każdą zmianę potwierdzasz kodem SMS.</p>
+<?= $idsLine ?>
+<section class="m-tile" aria-labelledby="r-karta">
+  <h2 class="m-sect" id="r-karta">Karta płatnicza</h2>
+  <?php if ($card): $cz = $card['consent_id'] ? LicenceCard::consent((int)$card['consent_id']) : null; ?>
+    <p class="tw-text-sm"><span class="tw-font-semibold"><?= h(LicenceCard::label($card)) ?></span> <?= $tag('ok', 'podpięta') ?></p>
+    <p class="m-note">Podpięta <?= h(ClaudeBilling::dayMonth(substr((string)$card['created_at'], 0, 10))) ?>. Opłaty pobieramy automatycznie, przed każdym obciążeniem dostajesz e-mail z kwotą i dniem.</p>
+    <?php if ($cz): ?><p class="tw-text-sm tw-mt-2">Zgoda z <?= h(date('d.m.Y H:i', strtotime((string)$cz['accepted_at']))) ?>: <a class="m-btn-ghost" href="<?= h(route('lk.consent', ['id' => (int)$cz['id']])) ?>" download>Pobierz PDF<span class="tw-sr-only"> zgody na płatności kartą</span></a></p><?php endif; ?>
+    <details class="m-row"><summary>Wycofaj zgodę i odepnij kartę</summary>
+      <form method="post" action="<?= h(route('lk.card.remove')) ?>" class="tw-mt-3"><?= Router::csrfField() ?>
+        <p class="tw-text-sm">Kolejne opłaty dostaniesz jako proformę do przelewu. To nie jest rezygnacja z licencji i nie zmienia opłat, które już minęły.</p>
+        <button class="m-btn-ghost m-btn-danger tw-mt-2" type="submit">Wycofaj zgodę i odepnij kartę</button>
+      </form>
+    </details>
+    <?php foreach ($cardModes as $ck => $cv): ?><p class="tw-text-sm tw-mt-2"><a href="<?= h(route('lk.card', ['product' => $ck])) ?>">Zmień kartę</a> <span class="m-note">(nowa zgoda i opłata weryfikacyjna <?= h(ClaudeBilling::zl((float)$cv['settings']['card_fee_pln'])) ?>)</span></p><?php break; endforeach; ?>
+  <?php elseif ($cardModes): ?>
+    <p class="tw-text-sm">Za <?= h(implode(', ', array_map(fn($v) => $v['P']['label'], $cardModes))) ?> płacisz kartą. Nie masz jeszcze podpiętej karty.</p>
+    <?php foreach ($cardModes as $ck => $cv): ?><a class="m-btn tw-mt-2" href="<?= h(route('lk.card', ['product' => $ck])) ?>">Podepnij kartę (<?= h($cv['P']['label']) ?>)</a> <?php endforeach; ?>
+    <p class="m-note tw-mt-2">Najpierw pobierzemy <?= h(ClaudeBilling::zl((float)reset($cardModes)['settings']['card_fee_pln'])) ?> opłaty weryfikacyjnej karty, z fakturą VAT.</p>
+  <?php else: ?>
+    <p class="tw-text-sm">Za licencje płacisz przelewem po proformie. Płatność kartą włącza Fundacja.</p>
+  <?php endif; ?>
+  <?php if ($consents): ?>
+  <div class="m-row">
+    <h3 class="tw-font-semibold tw-text-sm tw-mb-1">Zgody na płatności kartą</h3>
+    <ul class="tw-text-sm tw-space-y-1">
+      <?php foreach ($consents as $z): ?>
+      <li><?= h(date('d.m.Y H:i', strtotime((string)$z['accepted_at']))) ?> · <?= h(ClaudeBilling::P((string)$z['product'])['label']) ?> · IP <?= h((string)$z['ip']) ?> ·
+        <?= $z['withdrawn_at'] ? $tag('off', 'wycofana ' . ClaudeBilling::dayMonth(substr((string)$z['withdrawn_at'], 0, 10))) : ($z['card_id'] ? $tag('ok', 'aktywna') : $tag('due', 'płatność niedokończona')) ?>
+        <a href="<?= h(route('lk.consent', ['id' => (int)$z['id']])) ?>" download>PDF<span class="tw-sr-only"> zgody z <?= h(date('d.m.Y', strtotime((string)$z['accepted_at']))) ?></span></a></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+</section>
+<section class="m-tile tw-mt-4" aria-labelledby="r-fv">
+  <h2 class="m-sect" id="r-fv">Dane do faktur</h2>
+  <?php $fvSubs = array_filter($paid, fn($v) => $v['sub'] && in_array($v['sub']['status'], ['requested', 'active', 'suspended'], true)); ?>
+  <?php if (!$fvSubs): ?><p class="tw-text-sm">Nie masz subskrypcji, więc nie wystawiamy Ci faktur za licencje.</p><?php endif; ?>
+  <?php foreach ($fvSubs as $fk => $fv): $fb = array_merge(array_intersect_key($fv['sub'], ClaudeBilling::BUYER_FIELDS), array_intersect_key($old[$fk] ?? [], ClaudeBilling::BUYER_FIELDS)); $fe = $err[$fk] ?? []; ?>
+  <details class="m-row"<?= $fv['gaps'] || $fe ? ' open' : '' ?>>
+    <summary><?= h($fv['P']['label']) ?>: <?= h(trim((string)$fb['buyer_name']) ?: 'brak nabywcy') ?><?= $fv['gaps'] ? ' — brakuje: ' . h(implode(', ', $fv['gaps'])) : '' ?></summary>
+    <form method="post" action="<?= h(route('lk.buyer', ['product' => $fk])) ?>" novalidate class="tw-mt-3"><?= Router::csrfField() ?><input type="hidden" name="back" value="rozliczenia">
+      <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3">
+        <?php foreach (ClaudeBilling::BUYER_FIELDS as $k => $l): $eid = 'r' . $fk . $k; ?>
+        <div><label class="m-label" for="<?= h($eid) ?>"><?= h(ucfirst($l)) ?><?= $k !== 'buyer_tax_no' ? ' *' : '' ?></label>
+          <input class="m-input" id="<?= h($eid) ?>" name="<?= h($k) ?>" value="<?= h((string)($fb[$k] ?? '')) ?>"<?= isset($fe[$k]) ? ' aria-invalid="true" aria-describedby="' . h($eid) . '-e"' : '' ?>>
+          <?php if (isset($fe[$k])): ?><p class="m-err" id="<?= h($eid) ?>-e"><?= h((string)$fe[$k]) ?></p><?php endif; ?></div>
+        <?php endforeach; ?>
+      </div>
+      <button class="m-btn-ghost tw-mt-3" type="submit">Zapisz dane do faktury</button>
+    </form>
+  </details>
+  <?php endforeach; ?>
+</section>
+<?php endif; ?>
+
 <?php if ($page === 'konto'): ?>
 <h1 class="m-title">Moje konto w panelu licencji</h1>
 <p class="m-explain">Login, hasło i dane kontaktowe. Na ten telefon wysyłamy kody, na e-mail proformy i faktury.</p>

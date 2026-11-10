@@ -46,6 +46,12 @@ $r->group(['lp.auth', 'lp.contact'], function (Router $r) {
     $r->get('/sprawy',                 [LicencjeKursantController::class, 'cases'])->name('lk.cases');
     $r->get('/produkty',               [LicencjeKursantController::class, 'products'])->name('lk.products');
     $r->get('/konto',                  [LicencjeKursantController::class, 'account'])->name('lk.account');
+    $r->get('/rozliczenia',            [LicencjeKursantController::class, 'billing'])->name('lk.billing');          // karta i dane do faktur
+    $r->get('/karta/{product}',        [LicencjeKursantController::class, 'cardForm'])->name('lk.card');            // zgoda na płatności kartą
+    $r->post('/karta/{product}',       [LicencjeKursantController::class, 'cardPost'])->name('lk.card.post');
+    $r->get('/karta/{product}/powrot', [LicencjeKursantController::class, 'cardReturn'])->name('lk.card.return');   // powrót z Przelewy24
+    $r->post('/karta-usun',            [LicencjeKursantController::class, 'cardRemove'])->name('lk.card.remove');   // wycofanie zgody
+    $r->get('/zgoda/{id}',             [LicencjeKursantController::class, 'consentPdf'])->name('lk.consent');
     $r->get('/dokument/{id}/{doc}',    [LicencjeKursantController::class, 'document'])->name('lk.doc');
     $r->get('/platnosci',              [LicencjeKursantController::class, 'portal'])->name('lk.portal');
     $r->post('/symulacja/zaplac/{id}', [LicencjeKursantController::class, 'simPay'])->name('lk.sim.pay');

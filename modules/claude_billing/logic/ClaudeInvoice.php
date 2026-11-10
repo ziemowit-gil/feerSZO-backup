@@ -44,6 +44,10 @@ final class ClaudeInvoice
     /** Opis przeliczenia i rabatu — na dokumencie (description) i w uwagach w SZO. */
     public static function description(array $ch): string
     {
+        if (self::isCardFee($ch)) {   // opłata weryfikacyjna karty (płatności cykliczne Przelewy24)
+            return ((int)$ch['is_test'] ? '[TEST — dokument testowy] ' : '') . 'Opłata weryfikacyjna karty płatniczej przy włączeniu płatności kartą za ' . ClaudeBilling::P(ClaudeBilling::productOf($ch))['label']
+                . ' (operator płatności Przelewy24).' . ($ch['status'] === 'paid' ? ' Zapłacono kartą, ' . ClaudeBilling::date($ch['paid_at']) . '.' : '');
+        }
         $disc = round((float)$ch['list_pln'] - (float)$ch['amount_pln'], 2);
         $kind = PkoRates::KINDS[$ch['rate_kind']] ?? 'kurs';
         $P = ClaudeBilling::P(ClaudeBilling::productOf($ch));
@@ -57,10 +61,17 @@ final class ClaudeInvoice
             . ($ch['status'] === 'paid' ? ' Zapłacono: ' . ($ch['paid_via'] ?: '—') . ', ' . ClaudeBilling::date($ch['paid_at']) . '.' : '');
     }
 
+    /** Naliczenie „opłata weryfikacyjna karty” (LicenceCard). */
+    public static function isCardFee(array $ch): bool { return ($ch['kind'] ?? '') === 'card'; }
+
+    /** Jednostka pozycji: miesiąc usługi albo sztuka (opłata weryfikacyjna karty). */
+    public static function unit(array $ch): string { return self::isCardFee($ch) ? 'szt.' : 'mies.'; }
+
     /** Nazwa pozycji usługi — szablon z ustawień produktu (Płatne licencje › Ustawienia › Pozycje na fakturze). */
     public static function positionName(array $ch): string
     {
         $p = ClaudeBilling::productOf($ch);
+        if (self::isCardFee($ch)) return (string)ClaudeBilling::settings($p)['card_fee_name'];
         return ClaudeBilling::positionText(ClaudeBilling::settings($p)['position_name'], $p, (string)$ch['period'], (string)(self::buyer($ch)['buyer_name'] ?? ''));
     }
 
@@ -106,7 +117,7 @@ final class ClaudeInvoice
         $parts = preg_split('/\s+/u', trim((string)$b['buyer_name'])) ?: [];
         $last = count($parts) > 1 ? (string)array_pop($parts) : '';
         $company = $b['buyer_tax_no'] !== '';
-        $pos = ['name' => self::positionName($ch), 'quantity' => 1, 'quantity_unit' => 'mies.', 'tax' => $vat];
+        $pos = ['name' => self::positionName($ch), 'quantity' => 1, 'quantity_unit' => self::unit($ch), 'tax' => $vat];
         $pos += $useDiscount ? ['price_net' => $svcList, 'price_gross' => $svcList, 'discount' => $disc, 'discount_percent' => round($disc / max(0.01, $svcList) * 100, 4)]
                              : ['total_price_gross' => $svc];
         $positions = [$pos];
@@ -120,7 +131,7 @@ final class ClaudeInvoice
         $extra = ['oid' => ($test ? 'TEST-' : '') . strtoupper(ClaudeBilling::productOf($ch)) . '/' . $D['oid'] . (int)$ch['id'], 'oid_unique' => 'yes',
                   'description' => trim(self::description($ch) . ' ' . ($doc === 'proforma' ? self::payHint($ch, $acc) : '')),
                   'payment_to_kind' => 'other_date', 'buyer_company' => $company ? '1' : '0', 'lang' => 'pl', 'buyer_country' => 'PL',
-                  'payment_type' => ($ch['paid_via'] ?? '') === 'Przelewy24' ? 'Przelewy24' : 'transfer'];
+                  'payment_type' => self::isCardFee($ch) || ($ch['pay_mode'] ?? '') === 'card' ? 'card' : (($ch['paid_via'] ?? '') === 'Przelewy24' ? 'Przelewy24' : 'transfer')];
         if (!$company) $extra += ['buyer_first_name' => implode(' ', $parts), 'buyer_last_name' => $last];
         if ($acc) $extra['seller_bank_account'] = $acc['nrb_fmt'];   // rachunek do wpłat (ustawienie modułu)
         if ($doc !== 'proforma' && !empty($ch['proforma_fid'])) $extra['from_invoice_id'] = (int)$ch['proforma_fid'];   // zamówienie i faktura na podstawie proformy
@@ -185,7 +196,7 @@ final class ClaudeInvoice
         $ex = db_one("SELECT id FROM invoices WHERE source=? AND source_id=? AND is_test=? AND deleted_at IS NULL", [$D['source'], $chargeId, $rowTest ? 1 : 0]);
         if ($ex) $id = (int)$ex['id'];
         else {
-            $items = [['name' => self::positionName($ch), 'unit' => 'mies.', 'qty' => 1, 'unit_net' => round((float)$ch['amount_pln'] - $fee, 2), 'vat_rate' => self::TAX]];
+            $items = [['name' => self::positionName($ch), 'unit' => self::unit($ch), 'qty' => 1, 'unit_net' => round((float)$ch['amount_pln'] - $fee, 2), 'vat_rate' => self::TAX]];
             if ($fee > 0) $items[] = ['name' => self::feeName($ch), 'unit' => 'szt.', 'qty' => 1, 'unit_net' => $fee, 'vat_rate' => self::TAX];
             $id = invoice_create(array_intersect_key($payload['invoice'], array_flip(['buyer_name', 'buyer_tax_no', 'buyer_street', 'buyer_post_code', 'buyer_city', 'buyer_email', 'issue_date', 'sell_date', 'payment_to']))
                 + ['kind' => $D['kind'], 'source' => $D['source'], 'source_id' => $chargeId, 'notes' => self::description($ch), 'is_test' => $rowTest ? 1 : 0], $items, $uid);
@@ -244,6 +255,7 @@ final class ClaudeInvoice
         if (!$ch) return ['ok' => false, 'error' => 'Nie ma takiego naliczenia.'];
         if ($ch['status'] === 'paid') return self::afterPaid($chargeId, $force, $uid);
         if (!empty($ch['invoice_id']) && empty($ch['proforma_id'])) return ['ok' => true, 'number' => (string)$ch['invoice_number']];   // naliczenie sprzed zmiany (faktura od razu)
+        if (self::isCardFee($ch) || ($ch['pay_mode'] ?? '') === 'card') return ['ok' => false, 'skipped' => true, 'error' => 'Płatność kartą: bez proformy, faktura VAT po wpłacie.'];
         return self::issueDoc($chargeId, 'proforma', $force, $uid);
     }
 
@@ -253,6 +265,7 @@ final class ClaudeInvoice
         $ch = ClaudeBilling::charge($chargeId);
         if (!$ch || $ch['status'] !== 'paid') return ['ok' => false, 'error' => 'Naliczenie nie jest opłacone.'];
         if (!empty($ch['invoice_id']) && empty($ch['proforma_id'])) return self::markPaidLegacy($ch);
+        if (empty($ch['proforma_id']) && (self::isCardFee($ch) || ($ch['pay_mode'] ?? '') === 'card')) return self::issueDoc($chargeId, 'invoice', $force, $uid);   // karta: od razu faktura VAT (opłacona)
         if (!empty($ch['proforma_id'])) self::changeStatusPaid((int)$ch['proforma_id'], $ch, 'Proforma');
         $o = self::issueDoc($chargeId, 'order', $force, $uid);
         if (empty($o['ok']) && empty($o['skipped'])) return $o;

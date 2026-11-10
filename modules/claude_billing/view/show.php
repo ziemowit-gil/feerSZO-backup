@@ -11,7 +11,8 @@ include dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_head.php';
 include __DIR__ . '/_style.php';
 $stCls = ['requested' => 'due', 'active' => 'ok', 'suspended' => 'bad', 'ended' => 'off'];
 $dd = ClaudeBilling::dueDay($sub, $s);
-$first = $charges ? $charges[count($charges) - 1] : null;   // najstarsza opłata (pierwsza po wniosku / włączeniu)
+$firstM = array_values(array_filter($charges, fn($x) => ($x['kind'] ?? 'month') === 'month'));
+$first = $firstM ? $firstM[count($firstM) - 1] : null;   // najstarsza opłata miesięczna (pierwsza po wniosku / włączeniu)
 ?>
 <div class="cbx">
 <p class="small mb-1"><a href="<?= h(route('cb.index', ['product' => $product, 'tab' => $sub['status'] === 'requested' ? 'wnioski' : 'abonamenty'])) ?>">← Płatne licencje: <?= h($P['label']) ?></a></p>
@@ -30,6 +31,37 @@ $first = $charges ? $charges[count($charges) - 1] : null;   // najstarsza opłat
     <div class="col-md-8"><dt>Zasady opłat</dt><dd><details><summary class="small">zaakceptowane <?= h(ClaudeBilling::date($sub['terms_accepted_at'])) ?><?= $sub['terms_ip'] ? ', IP ' . h($sub['terms_ip']) : '' ?></summary><p class="small mb-0 mt-1"><?= h($sub['terms_text']) ?></p></details></dd></div>
     <?php if ($sub['status'] === 'ended'): ?><div class="col-12"><dt>Zakończony</dt><dd><?= h(ClaudeBilling::date($sub['ended_on'])) ?>: <?= h($sub['ended_reason']) ?></dd></div><?php endif; ?>
   </dl>
+</section>
+
+<?php require_once dirname(__DIR__) . '/logic/LicenceCard.php'; $pmCard = LicenceCard::active((int)$sub['client_id']); $pmMode = LicenceCard::mode($sub); $pmCons = LicenceCard::consents((int)$sub['client_id']); ?>
+<section class="panel" aria-labelledby="pm-h">
+  <h2 class="mt-0" id="pm-h">Płatność</h2>
+  <div class="row g-3">
+    <div class="col-md-5">
+      <form method="post" action="<?= h(route('cb.paymode', ['id' => (int)$sub['id']])) ?>" class="d-flex gap-2 align-items-end"><?= Router::csrfField() ?>
+        <div class="flex-grow-1"><label class="form-label small" for="pm-sel">Sposób płatności dla tej osoby</label>
+          <select class="form-select form-select-sm" id="pm-sel" name="pay_mode">
+            <option value=""<?= ($sub['pay_mode'] ?? '') === '' ? ' selected' : '' ?>>jak w ustawieniach (<?= h(LicenceCard::PAY_MODES[$s['pay_mode']] ?? '') ?>)</option>
+            <?php foreach (LicenceCard::PAY_MODES as $pmk => $pml): ?><option value="<?= h($pmk) ?>"<?= ($sub['pay_mode'] ?? '') === $pmk ? ' selected' : '' ?>><?= h($pml) ?></option><?php endforeach; ?>
+          </select></div>
+        <button class="cb-btn ghost" type="submit">Zapisz</button></form>
+      <p class="small text-secondary mb-0 mt-1">Teraz: <?= h(LicenceCard::PAY_MODES[$pmMode]) ?>.</p>
+    </div>
+    <div class="col-md-7">
+      <div class="small"><b>Karta:</b> <?= $pmCard ? h(LicenceCard::label($pmCard)) . ', podpięta ' . h(ClaudeBilling::date($pmCard['created_at'])) : 'brak (podpina ją uczestnik w Panelu Licencji › Rozliczenia)' ?></div>
+      <?php if ($pmCard): ?>
+        <details class="mt-1"><summary class="small">Odepnij kartę (wycofanie zgody)</summary>
+          <form method="post" action="<?= h(route('cb.card.remove', ['cid' => (int)$sub['client_id']])) ?>" class="mt-1"><?= Router::csrfField() ?><input type="hidden" name="sub_id" value="<?= (int)$sub['id'] ?>">
+            <p class="small mb-1">Np. gdy uczestnik poprosił o to e-mailem. Kolejne opłaty: proforma i przelew. To nie jest zakończenie abonamentu.</p>
+            <button class="cb-btn danger" type="submit">Odepnij kartę</button></form></details>
+      <?php endif; ?>
+      <?php if ($pmCons): ?><ul class="list-unstyled small mt-2 mb-0">
+        <?php foreach ($pmCons as $z): ?><li>Zgoda #<?= (int)$z['id'] ?> · <?= h(date('d.m.Y H:i:s', strtotime((string)$z['accepted_at']))) ?> · IP <?= h((string)$z['ip']) ?>
+          · <?= $z['withdrawn_at'] ? 'wycofana ' . h(ClaudeBilling::date($z['withdrawn_at'])) . ($z['withdrawn_by'] !== '' ? ' (' . h((string)$z['withdrawn_by']) . ')' : '') : ($z['card_id'] ? 'aktywna' : 'płatność niedokończona') ?>
+          · <a href="<?= h(route('cb.consent', ['id' => (int)$z['id']])) ?>" download>PDF<span class="visually-hidden"> zgody #<?= (int)$z['id'] ?></span></a><?= $z['sfile_id'] ? ' · w teczce uczestnika' : '' ?></li><?php endforeach; ?>
+      </ul><?php endif; ?>
+    </div>
+  </div>
 </section>
 
 <?php if ($sub['status'] === 'requested'): $sid = (int)$sub['id']; $paid = $first && $first['status'] === 'paid'; $inv = $first ? (string)$first['invoice_number'] : ''; ?>

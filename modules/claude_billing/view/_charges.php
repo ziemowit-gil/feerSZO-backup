@@ -13,13 +13,15 @@ $cst = ['pending' => 'due', 'paid' => 'ok', 'cancelled' => 'off'];
   <tbody>
   <?php foreach ($charges as $c): $late = $c['status'] === 'pending' && $c['due_on'] < date('Y-m-d'); ?>
     <tr>
-      <td><?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?></td>
+      <td><?= ($c['kind'] ?? '') === 'card' ? 'Opłata weryfikacyjna karty<br><small class="text-secondary">' . h(ClaudeBilling::date($c['created_at'])) . '</small>' : h(ClaudeBilling::periodLabel((string)$c['period'])) ?>
+        <?php if (($c['pay_mode'] ?? '') === 'card'): ?><br><span class="cb-tag ok">karta</span><?php endif; ?></td>
       <td><?= h(ClaudeBilling::date($c['issue_on'] ?: $c['created_at'])) ?></td>
-      <td class="text-end text-nowrap"><b><?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?></b><br><small class="text-secondary"><?= h(ClaudeBilling::breakdown($c)) ?> (<?= h($c['rate_table']) ?>)<?= (float)$c['list_pln'] > (float)$c['amount_pln'] ? '<br>regularna ' . h(ClaudeBilling::zl(ClaudeBilling::listService($c))) . ' bez prowizji' . ', rabat ' . h(ClaudeBilling::zl((float)$c['list_pln'] - (float)$c['amount_pln'])) : '' ?></small></td>
+      <td class="text-end text-nowrap"><b><?= h(ClaudeBilling::zl((float)$c['amount_pln'])) ?></b><?php if (($c['kind'] ?? '') === 'card'): ?></td><?php else: ?><br><small class="text-secondary"><?= h(ClaudeBilling::breakdown($c)) ?> (<?= h($c['rate_table']) ?>)<?= (float)$c['list_pln'] > (float)$c['amount_pln'] ? '<br>regularna ' . h(ClaudeBilling::zl(ClaudeBilling::listService($c))) . ' bez prowizji' . ', rabat ' . h(ClaudeBilling::zl((float)$c['list_pln'] - (float)$c['amount_pln'])) : '' ?></small></td><?php endif; ?>
       <td class="<?= $late ? 'text-danger fw-bold' : '' ?>"><?= h(ClaudeBilling::date($c['due_on'])) ?></td>
       <td><span class="cb-tag <?= $cst[$c['status']] ?? 'off' ?>"><?= h(ClaudeBilling::CHARGE_STATUS[$c['status']] ?? $c['status']) ?></span>
         <?php if ($c['status'] === 'paid'): ?><br><small><?= h(ClaudeBilling::date($c['paid_at'])) ?> · <?= h($c['paid_via']) ?></small><?php endif; ?>
-        <?php if ($c['note']): ?><br><small class="text-secondary"><?= h($c['note']) ?></small><?php endif; ?></td>
+        <?php if ($c['note']): ?><br><small class="text-secondary"><?= h($c['note']) ?></small><?php endif; ?>
+        <?php if ((int)($c['card_attempts'] ?? 0) || ($c['card_error'] ?? '') !== ''): ?><br><small class="<?= ($c['card_error'] ?? '') !== '' ? 'text-danger' : 'text-secondary' ?>">próby obciążenia karty: <?= (int)$c['card_attempts'] ?><?= ($c['card_error'] ?? '') !== '' ? ', ostatni błąd: ' . h((string)$c['card_error']) : '' ?></small><?php endif; ?></td>
       <td style="min-width:16rem"><ul class="cb-docs"><?php foreach (['proforma' => 'Proforma', 'order' => 'Zamówienie', 'invoice' => 'Faktura'] as $dk => $dl):
               $no = (string)($c[$dk . '_number'] ?? ''); if ($no === '') continue; $u = (string)($c[$dk . '_view_url'] ?? ''); ?>
           <li><span class="text-secondary"><?= $dl ?></span> <?= $u !== '' ? '<a href="' . h($u) . '" target="_blank" rel="noopener">' . h($no) . '<span class="visually-hidden"> (podgląd w Fakturowni, nowa karta)</span></a>' : h($no) ?><?= str_starts_with($no, 'SYM-') ? ' <span class="cb-tag due" title="nie istnieje w Fakturowni">symulacja</span>' : '' ?>
@@ -32,6 +34,9 @@ $cst = ['pending' => 'due', 'paid' => 'ok', 'cancelled' => 'off'];
           <form method="post" action="<?= h(route('cb.test.pay', ['id' => (int)$c['id']])) ?>" class="d-inline"><?= Router::csrfField() ?><button class="cb-btn ok" type="submit">Symuluj wpłatę Przelewy24</button></form>
           <?php if (!empty($p24['enabled']) && ($p24['env'] ?? '') === 'sandbox'): ?><form method="post" action="<?= h(route('cb.test.p24', ['id' => (int)$c['id']])) ?>" class="d-inline"><?= Router::csrfField() ?><button class="cb-btn" type="submit">Zapłać w sandboksie P24</button></form><?php endif; ?>
         <?php elseif (!$test && $c['status'] === 'pending'): ?>
+          <?php if (($c['pay_mode'] ?? '') === 'card' && ($c['kind'] ?? '') === 'month'): ?>
+          <form method="post" action="<?= h(route('cb.card.charge', ['id' => (int)$c['id']])) ?>" class="mb-1"><?= Router::csrfField() ?><button class="cb-btn" type="submit">Pobierz teraz z karty</button></form>
+          <?php endif; ?>
           <form method="post" action="<?= h(route('cb.charge.paid', ['id' => (int)$c['id']])) ?>" class="d-flex gap-1 mb-1"><?= Router::csrfField() ?>
             <label class="visually-hidden" for="via<?= (int)$c['id'] ?>">Sposób</label><select class="form-select form-select-sm" id="via<?= (int)$c['id'] ?>" name="via" style="width:auto"><option>przelew</option><option>gotówka</option><option>Szybki przelew (Fakturownia)</option></select>
             <label class="visually-hidden" for="ref<?= (int)$c['id'] ?>">Odnośnik</label><input class="form-control form-control-sm" id="ref<?= (int)$c['id'] ?>" name="ref" placeholder="nr wyciągu / uwaga" style="width:140px">
@@ -40,8 +45,8 @@ $cst = ['pending' => 'due', 'paid' => 'ok', 'cancelled' => 'off'];
             <label class="visually-hidden" for="rs<?= (int)$c['id'] ?>">Powód</label><input class="form-control form-control-sm" id="rs<?= (int)$c['id'] ?>" name="reason" placeholder="powód anulowania" style="width:200px">
             <button class="cb-btn danger" type="submit">Anuluj</button></form>
         <?php endif; ?>
-        <?php if (!$test && $c['status'] !== 'cancelled' && (($c['status'] === 'pending' && !$c['proforma_number'] && !$c['invoice_number']) || ($c['status'] === 'paid' && !$c['invoice_number']))): ?>
-          <form method="post" action="<?= h(route('cb.charge.invoice', ['id' => (int)$c['id']])) ?>" class="mt-1"><?= Router::csrfField() ?><button class="cb-btn" type="submit"><?= $c['status'] === 'paid' ? 'Wystaw zamówienie i fakturę (zw)' : 'Wystaw proformę (zw)' ?></button></form>
+        <?php if (!$test && $c['status'] !== 'cancelled' && (($c['status'] === 'pending' && !$c['proforma_number'] && !$c['invoice_number'] && ($c['pay_mode'] ?? '') !== 'card' && ($c['kind'] ?? 'month') === 'month') || ($c['status'] === 'paid' && !$c['invoice_number']))): ?>
+          <form method="post" action="<?= h(route('cb.charge.invoice', ['id' => (int)$c['id']])) ?>" class="mt-1"><?= Router::csrfField() ?><button class="cb-btn" type="submit"><?= $c['status'] === 'paid' ? (($c['pay_mode'] ?? '') === 'card' || ($c['kind'] ?? '') === 'card' ? 'Wystaw fakturę (zw)' : 'Wystaw zamówienie i fakturę (zw)') : 'Wystaw proformę (zw)' ?></button></form>
         <?php endif; ?>
       </td>
     </tr>

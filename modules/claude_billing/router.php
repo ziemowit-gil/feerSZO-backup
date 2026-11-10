@@ -37,6 +37,10 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/aktywuj',                      [ClaudeBillingController::class, 'activate'])->name('cb.activate');
     $r->post('/konto-licencji',               [ClaudeBillingController::class, 'licAccount'])->name('cb.lic.account');
     $r->post('/office/{cid}',                 [ClaudeBillingController::class, 'office'])->name('cb.office');
+    $r->post('/abonament/{id}/platnosc',      [ClaudeBillingController::class, 'payMode'])->name('cb.paymode');
+    $r->post('/karta/{cid}/odepnij',          [ClaudeBillingController::class, 'cardRemove'])->name('cb.card.remove');
+    $r->post('/naliczenie/{id}/karta',        [ClaudeBillingController::class, 'cardCharge'])->name('cb.card.charge');
+    $r->get('/zgoda/{id}',                    [ClaudeBillingController::class, 'consent'])->name('cb.consent');
     $r->get('/abonament/{id}',                [ClaudeBillingController::class, 'show'])->name('cb.show');
     $r->post('/abonament/{id}/dane',          [ClaudeBillingController::class, 'buyer'])->name('cb.buyer');
     $r->post('/abonament/{id}/dzien',         [ClaudeBillingController::class, 'dueDay'])->name('cb.dueday');

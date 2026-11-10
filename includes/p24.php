@@ -58,8 +58,9 @@ function p24_environment(): string {
     return p24_setting('environment', 'sandbox') === 'prod' ? 'prod' : 'sandbox';
 }
 
-/** Bazowy URL API Przelewy24 zależnie od środowiska. */
+/** Bazowy URL API Przelewy24 zależnie od środowiska (P24_BASE_URL_TEST — tylko testy hermetyczne z atrapą API). */
 function p24_base_url(): string {
+    if (defined('P24_BASE_URL_TEST')) return (string)P24_BASE_URL_TEST;
     return p24_environment() === 'prod' ? 'https://secure.przelewy24.pl' : 'https://sandbox.przelewy24.pl';
 }
 
@@ -127,7 +128,7 @@ function p24_test_connection(): array {
  */
 function p24_create_order(string $source_type, int $source_id, float $amount_pln,
                           string $description, string $return_url, string $notify_url,
-                          string $email = ''): array {
+                          string $email = '', array $extra = []): array {
     p24_migrate();
     $grosze = (int) round($amount_pln * 100);
     if ($grosze < 1) throw new RuntimeException('Kwota płatności musi być większa od zera.');
@@ -173,6 +174,8 @@ function p24_create_order(string $source_type, int $source_id, float $amount_pln
         'urlStatus'   => $notify_url,
         'sign'        => $sign,
     ];
+    // dodatkowe pola rejestracji: channel (4096 = tylko karty), methodRefId (numer referencyjny karty — płatność cykliczna)
+    foreach (['channel', 'methodRefId', 'waitForResult', 'urlCardPaymentNotification'] as $k) if (array_key_exists($k, $extra)) $payload[$k] = $extra[$k];
 
     $resp  = p24_api_call('POST', '/api/v1/transaction/register', $payload);
     $token = (string)($resp['data']['token'] ?? '');
@@ -327,6 +330,42 @@ function p24_reconcile_payment(int $payment_id): string {
         return (string)($row['status'] ?? 'pending');
     } catch (\Throwable $e) {}
     return 'pending';
+}
+
+// ── Karty: zapis karty i płatności cykliczne (Card API) ─────────────────────────
+// Usługa kart i płatności cyklicznych musi być włączona na koncie Przelewy24 (opiekun P24) — domyślnie jest wyłączona także w sandboxie.
+
+/** GET z Basic Auth (posId:apiKey). */
+function p24_api_get(string $path): array {
+    $auth = base64_encode(p24_setting('pos_id') . ':' . p24_setting('api_key'));
+    $ctx  = stream_context_create(['http' => ['method' => 'GET', 'header' => "Authorization: Basic {$auth}\r\n", 'ignore_errors' => true, 'timeout' => 20]]);
+    $raw = @file_get_contents(p24_base_url() . $path, false, $ctx);
+    return json_decode($raw ?: '{}', true) ?? [];
+}
+
+/** Dane karty z opłaconej transakcji: refId (do kolejnych obciążeń), mask, cardType, cardDate (MMRRRR), bin, hash. [] gdy brak. */
+function p24_card_info(string $order_id): array {
+    if (!preg_match('/^\d+$/', $order_id)) return [];
+    $r = p24_api_get('/api/v1/card/info/' . $order_id);
+    return is_array($r['data'] ?? null) && !empty($r['data']['refId']) ? $r['data'] : [];
+}
+
+/**
+ * Obciążenie zapisanej karty bez udziału klienta (płatność cykliczna): rejestracja transakcji z methodRefId, potem card/charge.
+ * Wynik przychodzi powiadomieniem na urlStatus (jak zwykła płatność) — księgowanie po transaction/verify.
+ * @return array{id:int,order_id:string,token:string}
+ */
+function p24_card_charge(string $source_type, int $source_id, float $amount_pln, string $description, string $notify_url, string $email, string $ref_id): array {
+    $o = p24_create_order($source_type, $source_id, $amount_pln, $description, $notify_url, $notify_url, $email, ['methodRefId' => $ref_id]);
+    $r = p24_api_call('POST', '/api/v1/card/charge', ['token' => $o['token']]);
+    $order = (string)($r['data']['orderId'] ?? '');
+    if ($order === '') {
+        db()->prepare("UPDATE p24_payments SET status='failed' WHERE id=?")->execute([(int)$o['id']]);
+        $msg = is_string($r['error'] ?? null) ? $r['error'] : (is_array($r['error'] ?? null) ? json_encode($r['error'], JSON_UNESCAPED_UNICODE) : 'karta nie została obciążona');
+        throw new RuntimeException('Przelewy24: ' . $msg);
+    }
+    db()->prepare("UPDATE p24_payments SET order_id=? WHERE id=?")->execute([$order, (int)$o['id']]);
+    return ['id' => (int)$o['id'], 'order_id' => $order, 'token' => (string)$o['token']];
 }
 
 /** Ostatnia płatność dla danego źródła (do wyświetlenia linku/statusu). */

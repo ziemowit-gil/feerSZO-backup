@@ -38,10 +38,17 @@ $fa = fn(string $k) => isset($err[$k]) ? ' aria-invalid="true" aria-describedby=
   <?php endif; ?>
   <h3 class="m-sect">Jak to działa</h3>
   <ol class="tw-list-decimal tw-pl-6 tw-mb-4 tw-text-sm tw-space-y-1">
+    <?php if (($s['pay_mode'] ?? '') === 'card'): ?>
+    <li>Składasz wniosek, a potem podpinasz kartę w Przelewy24. Najpierw pobierzemy <?= h(ClaudeBilling::zl((float)$s['card_fee_pln'])) ?> opłaty weryfikacyjnej karty, z fakturą VAT.</li>
+    <li>Zaraz potem pobierzemy pierwszą opłatę miesięczną. Faktura VAT przyjdzie e-mailem.</li>
+    <li>Helpdesk włącza dostęp. Dostaniesz e-mail.</li>
+    <li>Potem co miesiąc pobieramy opłatę z karty, a przed każdym obciążeniem dostajesz e-mail z kwotą i dniem. Zrezygnować możesz w każdej chwili.</li>
+    <?php else: ?>
     <li>Składasz wniosek. Od razu dostajesz proformę z Fakturowni (e-mailem i tutaj).</li>
     <li>Płacisz proformę w <?= ClaudeBilling::TERM_DAYS ?> dni: Przelewy24, BLIK albo zwykły przelew.</li>
     <li>Po wpłacie Helpdesk wystawia fakturę VAT i włącza dostęp. Dostaniesz e-mail.</li>
     <li>Potem co miesiąc: proforma, wpłata, faktura. Zrezygnować możesz w każdej chwili.</li>
+    <?php endif; ?>
   </ol>
   <?php if ($eduProposal !== ''): ?>
   <div class="pk-alert pk-alert-info"><?= h($P['label']) ?> działa tylko z kontem Microsoft 365 @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Nie masz go jeszcze. Założymy konto <b class="m-mono"><?= h($eduProposal) ?></b> przy włączeniu dostępu. Login dostaniesz e-mailem, hasło tymczasowe SMS-em.</div>
@@ -80,7 +87,7 @@ $fa = fn(string $k) => isset($err[$k]) ? ' aria-invalid="true" aria-describedby=
     <button class="m-btn" type="submit">Składam wniosek</button>
     <button class="m-btn-ghost" type="submit" name="dir" value="back">Wstecz</button>
   </div>
-  <p class="m-note tw-mt-2">Wymaga kodu SMS. Po złożeniu dostaniesz proformę z Fakturowni, a Helpdesk dostanie zgłoszenie.</p>
+  <p class="m-note tw-mt-2">Wymaga kodu SMS. <?= ($s['pay_mode'] ?? '') === 'card' ? 'Po złożeniu przejdziesz do zgody na płatności kartą, a Helpdesk dostanie zgłoszenie.' : 'Po złożeniu dostaniesz proformę z Fakturowni, a Helpdesk dostanie zgłoszenie.' ?></p>
 <?php endif; ?>
 </form>
 </div>

@@ -44,6 +44,8 @@ final class ClaudeBilling
         'bank_account' => '88102029060000130206617932',   // rachunek do wpłat (polecenie 2026-11-09)
         // nazwy pozycji na proformie / zamówieniu / fakturze — ustawia administrator (polecenie 2026-11-11); pola: {produkt} {licencja} {okres} {uczestnik}
         'position_name' => 'Dostęp do {produkt} — {okres}', 'fee_name' => 'Prowizja za obsługę płatności',
+        // sposób płatności (polecenie 2026-11-10): invoice = proforma i przelew, card = karta (Przelewy24), pobieranie automatyczne i FVAT po wpłacie
+        'pay_mode' => 'invoice', 'card_fee_pln' => '1.23', 'card_fee_name' => 'Opłata weryfikacyjna karty płatniczej',
     ];
     /** Pola do wstawienia w nazwie pozycji faktury: znacznik => opis. */
     public const POSITION_FIELDS = ['{produkt}' => 'pełna nazwa produktu, np. Claude Team (Claude for Nonprofit)', '{licencja}' => 'krótka nazwa, np. Claude',
@@ -140,6 +142,13 @@ final class ClaudeBilling
         db()->exec("CREATE TABLE IF NOT EXISTS license_edu_requests (
             client_id INTEGER PRIMARY KEY, proposed TEXT NOT NULL DEFAULT '', helpdesk_number TEXT NOT NULL DEFAULT '',
             created_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        // płatności kartą (LicenceCard, 2026-11-10): rodzaj naliczenia (month | card = opłata weryfikacyjna karty), sposób płatności, próby obciążenia
+        foreach (["kind TEXT NOT NULL DEFAULT 'month'", "pay_mode TEXT NOT NULL DEFAULT ''", "card_attempts INTEGER NOT NULL DEFAULT 0", "card_tried_at DATETIME", "card_error TEXT NOT NULL DEFAULT ''", "card_id INTEGER"] as $col) {
+            try { db()->exec("ALTER TABLE claude_charges ADD COLUMN $col"); } catch (\Throwable $e) {}
+        }
+        try { db()->exec("ALTER TABLE claude_subscriptions ADD COLUMN pay_mode TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}   // '' = jak w ustawieniach produktu
+        require_once __DIR__ . '/LicenceCard.php';
+        LicenceCard::migrate();
     }
 
     // ── Konto @edu.feer.org.pl (wymagane do Claude) ─────────────────────────────
@@ -246,7 +255,9 @@ final class ClaudeBilling
         $s['pct'] = min(50.0, max(0.0, (float)str_replace(',', '.', (string)$s['pct'])));
         $s['fee_pln'] = round(min(100.0, max(0.0, (float)str_replace(',', '.', (string)$s['fee_pln']))), 2);
         $s['pct_label'] = mb_substr(trim((string)$s['pct_label']), 0, 30);
-        foreach (['position_name', 'fee_name'] as $nk) $s[$nk] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$s[$nk])), 0, 200) ?: self::DEFAULTS[$nk];
+        foreach (['position_name', 'fee_name', 'card_fee_name'] as $nk) $s[$nk] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$s[$nk])), 0, 200) ?: self::DEFAULTS[$nk];
+        if (!in_array($s['pay_mode'], ['invoice', 'card'], true)) $s['pay_mode'] = 'invoice';
+        $s['card_fee_pln'] = round(min(10.0, max(0.01, (float)str_replace(',', '.', (string)$s['card_fee_pln']))), 2);
         foreach (['available_from', 'available_until'] as $dk) if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$s[$dk])) $s[$dk] = '';
         if (!isset(PkoRates::KINDS[$s['rate_kind']])) $s['rate_kind'] = 'sale_foreign';
         if (!in_array($s['invoice'], ['auto', 'manual', 'off'], true)) $s['invoice'] = 'auto';
@@ -278,7 +289,16 @@ final class ClaudeBilling
             // nazwy pozycji faktury: brak pola w formularzu (np. zmiana ceny) = bez zmian; puste = domyślna
             'position_name' => array_key_exists('position_name', $in) ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$in['position_name'])), 0, 200) : (string)(self::settings($product)['position_name']),
             'fee_name' => array_key_exists('fee_name', $in) ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$in['fee_name'])), 0, 200) : (string)(self::settings($product)['fee_name']),
+            // sposób płatności i opłata weryfikacyjna karty: brak pola w formularzu = bez zmian
+            'pay_mode' => array_key_exists('pay_mode', $in) ? (in_array((string)$in['pay_mode'], ['invoice', 'card'], true) ? (string)$in['pay_mode'] : 'invoice') : (string)(self::settings($product)['pay_mode']),
+            'card_fee_pln' => array_key_exists('card_fee_pln', $in) ? ($num($in['card_fee_pln']) ?: '1.23') : (string)(self::settings($product)['card_fee_pln']),
+            'card_fee_name' => array_key_exists('card_fee_name', $in) ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$in['card_fee_name'])), 0, 200) : (string)(self::settings($product)['card_fee_name']),
         ];
+        if ((float)$map['card_fee_pln'] < 0.01 || (float)$map['card_fee_pln'] > 10) throw new InvalidArgumentException('Opłata weryfikacyjna karty: od 0,01 do 10 zł.');
+        if ($map['pay_mode'] === 'card') {
+            require_once dirname(__DIR__, 3) . '/includes/p24.php';
+            if (!p24_enabled()) throw new InvalidArgumentException('Płatności kartą wymagają włączonych Przelewy24 (Administracja › Przelewy24) z usługą kart i płatności cyklicznych.');
+        }
         if ($map['position_name'] !== '' && !preg_match('/\{okres\}/u', $map['position_name'])) throw new InvalidArgumentException('Nazwa pozycji na fakturze musi zawierać {okres} (miesiąc opłaty), żeby faktury z kolejnych miesięcy się różniły.');
         if (preg_match_all('/\{[^}]*\}/u', $map['position_name'] . ' ' . $map['fee_name'], $tm)) {
             foreach ($tm[0] as $t) if (!isset(self::POSITION_FIELDS[$t])) throw new InvalidArgumentException('Nieznane pole ' . $t . ' w nazwie pozycji. Dozwolone: ' . implode(', ', array_keys(self::POSITION_FIELDS)) . '.');
@@ -580,7 +600,7 @@ final class ClaudeBilling
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'reason' => $P['label'] . ' wymaga adresu e-mail. Uzupełnij go w „Moje konto”.', 'assignment' => $a];
             if (self::emailTaken($email, $P['key'], $clientId)) return ['ok' => false, 'reason' => 'Na adres ' . $email . ' jest już włączona licencja ' . $P['label'] . '. Jedna osoba może mieć jedną.', 'assignment' => $a];
         }
-        $debt = db_one("SELECT COUNT(*) n FROM claude_charges WHERE client_id=? AND product=? AND status='pending' AND is_test=0", [$clientId, $P['key']]);
+        $debt = db_one("SELECT COUNT(*) n FROM claude_charges WHERE client_id=? AND product=? AND status='pending' AND is_test=0 AND kind='month'", [$clientId, $P['key']]);
         if ((int)($debt['n'] ?? 0) > 0) return ['ok' => false, 'reason' => 'Masz niezapłaconą fakturę za ' . $P['label'] . '. Najpierw ją zapłać.', 'assignment' => $a];
         return ['ok' => true, 'reason' => '', 'assignment' => $a, 'fromPool' => $fromPool];
     }
@@ -663,7 +683,7 @@ final class ClaudeBilling
     /** Ostatni dzień opłaconego okresu (dzień przed naliczeniem kolejnego okresu po ostatnim opłaconym) albo null. */
     public static function paidThrough(array $sub): ?string
     {
-        $last = db_one("SELECT period FROM claude_charges WHERE subscription_id=? AND status='paid' ORDER BY period DESC LIMIT 1", [(int)$sub['id']]);
+        $last = db_one("SELECT period FROM claude_charges WHERE subscription_id=? AND status='paid' AND kind='month' ORDER BY period DESC LIMIT 1", [(int)$sub['id']]);
         if (!$last) return null;
         $next = date('Y-m', strtotime($last['period'] . '-01 +1 month'));
         return date('Y-m-d', strtotime(self::billingDate($sub, $next) . ' -1 day'));
@@ -718,20 +738,43 @@ final class ClaudeBilling
             'pct' => $q['pct'], 'pct_label' => $q['pct_label'], 'fee_pln' => $q['fee_pln'], 'base_pln' => $q['base_pln'],
             'status' => 'pending', 'is_test' => (int)$sub['is_test'], 'note' => $q['stale'] ? 'kurs: ' . $q['source'] : '',
         ]);
-        if ($s['invoice'] === 'auto' || (int)$sub['is_test']) {   // najpierw proforma (numer trafia do tytułu płatności), potem pozycja portalu
-            require_once __DIR__ . '/ClaudeInvoice.php';
-            try { ClaudeInvoice::issueForCharge($id); } catch (\Throwable $e) { db_exec("UPDATE claude_charges SET invoice_error=? WHERE id=?", [mb_substr($e->getMessage(), 0, 500), $id]); }
+        require_once __DIR__ . '/LicenceCard.php';
+        if (LicenceCard::chargeInCardMode($sub)) {   // karta: bez proformy i pozycji w portalu; obciążenie w dniu terminu, FVAT po wpłacie
+            db_exec("UPDATE claude_charges SET pay_mode='card' WHERE id=?", [$id]);
+            self::event((int)$sub['id'], $id, 'charge', 'Naliczenie za ' . self::periodLabel($period) . ': ' . self::breakdown(self::charge($id))
+                . ' (' . $q['kind_label'] . ', tabela PKO BP ' . PkoRates::tableLabel($q) . '). Płatność kartą: obciążenie ' . self::date($due) . ', faktura VAT po wpłacie.', 'system');
+            $ch = self::charge($id);
+            if ($sub['status'] !== 'requested') self::notifyParticipant($sub, 'naliczenie_karta', $ch);   // kwota i dzień obciążenia przed obciążeniem (zgoda)
+            return $ch;
         }
-        $ch = self::charge($id);
-        require_once dirname(__DIR__, 2) . '/payment_portal/logic/paymentPortal.php';
-        $item = pp_add_item((int)$sub['client_id'], self::chargeTitle($ch), (float)$ch['amount_pln'], 'manual', null, $due, 'Abonament ' . self::P($product)['label'], null);
-        if (is_int($item)) db_exec("UPDATE claude_charges SET pp_item_id=? WHERE id=?", [$item, $id]);
-        else db_exec("UPDATE claude_charges SET note=? WHERE id=?", [trim($ch['note'] . ' Portal płatności: ' . $item), $id]);
+        db_exec("UPDATE claude_charges SET pay_mode='invoice' WHERE id=?", [$id]);
+        self::toInvoiceMode($id, false);
         self::event((int)$sub['id'], $id, 'charge', 'Naliczenie za ' . self::periodLabel($period) . ': ' . self::breakdown(self::charge($id))
             . ' (' . $q['kind_label'] . ', tabela PKO BP ' . PkoRates::tableLabel($q) . '), termin ' . self::date($due) . '.', 'system');
         $ch = self::charge($id);
         self::notifyParticipant($sub, 'naliczenie', $ch);
         return $ch;
+    }
+
+    /** Naliczenie płatne przelewem: proforma (najpierw — numer trafia do tytułu płatności) i pozycja w portalu płatności. Także po nieudanym obciążeniu karty. */
+    public static function toInvoiceMode(int $id, bool $log = true): void
+    {
+        $ch = self::charge($id);
+        if (!$ch || $ch['status'] !== 'pending') return;
+        $sub = self::subscription((int)$ch['subscription_id']) ?? [];
+        $s = self::settings(self::productOf($ch));
+        if ($s['invoice'] === 'auto' || (int)$ch['is_test']) {
+            require_once __DIR__ . '/ClaudeInvoice.php';
+            try { ClaudeInvoice::issueForCharge($id); } catch (\Throwable $e) { db_exec("UPDATE claude_charges SET invoice_error=? WHERE id=?", [mb_substr($e->getMessage(), 0, 500), $id]); }
+        }
+        $ch = self::charge($id);
+        if (!(int)$ch['pp_item_id']) {
+            require_once dirname(__DIR__, 2) . '/payment_portal/logic/paymentPortal.php';
+            $item = pp_add_item((int)$ch['client_id'], self::chargeTitle($ch), (float)$ch['amount_pln'], 'manual', null, (string)$ch['due_on'], 'Abonament ' . self::P(self::productOf($ch))['label'], null);
+            if (is_int($item)) db_exec("UPDATE claude_charges SET pp_item_id=? WHERE id=?", [$item, $id]);
+            else db_exec("UPDATE claude_charges SET note=? WHERE id=?", [trim($ch['note'] . ' Portal płatności: ' . $item), $id]);
+        }
+        if ($log) self::event((int)$ch['subscription_id'], $id, 'invoice_mode', 'Opłata za ' . self::periodLabel((string)$ch['period']) . ': proforma i przelew (termin ' . self::date((string)$ch['due_on']) . ').', 'system');
     }
 
     public static function cancelCharge(int $id, array $actor, string $reason = ''): void
@@ -825,21 +868,33 @@ final class ClaudeBilling
         self::$afterPay = [];
         $subs = [];
         foreach ($ids as $id) {
+            $byCard = false;
             try {
                 $ch0 = self::charge($id);
                 $sub0 = $ch0 ? self::subscription((int)$ch0['subscription_id']) : null;
-                if ($sub0 && $sub0['status'] === 'requested') {   // wniosek: fakturę VAT wystawia Helpdesk (karta w zgłoszeniu)
+                $byCard = $ch0 && (($ch0['kind'] ?? '') === 'card' || ($ch0['pay_mode'] ?? '') === 'card');   // karta: FVAT zawsze od razu po wpłacie (także przy wniosku)
+                if ($sub0 && $sub0['status'] === 'requested' && !$byCard) {   // wniosek: fakturę VAT wystawia Helpdesk (karta w zgłoszeniu)
                     require_once __DIR__ . '/LicenceRequest.php';
                     LicenceRequest::note((int)$sub0['helpdesk_ticket_id'], 'Wpłata ' . self::zl((float)$ch0['amount_pln']) . ' dotarła (' . ($ch0['paid_via'] ?: 'wpłata') . '). Następny krok: Wystaw fakturę VAT, potem Aktywuj dostęp.');
                 } else {
                     require_once __DIR__ . '/ClaudeInvoice.php';
                     ClaudeInvoice::afterPaid($id);
+                    if ($sub0 && $sub0['status'] === 'requested' && ($ch0['kind'] ?? '') === 'month') {
+                        require_once __DIR__ . '/LicenceRequest.php';
+                        $chx = self::charge($id);
+                        LicenceRequest::note((int)$sub0['helpdesk_ticket_id'], 'Pobrano ' . self::zl((float)$ch0['amount_pln']) . ' z karty. Faktura VAT ' . ($chx['invoice_number'] ?: '(w przygotowaniu)') . ' wystawiona automatycznie. Następny krok: Aktywuj dostęp.');
+                    }
                 }
             } catch (\Throwable $e) {
                 db_exec("UPDATE claude_charges SET invoice_error=? WHERE id=?", [mb_substr($e->getMessage(), 0, 500), $id]);
             }
             $ch = self::charge($id);
-            if ($ch) { $subs[(int)$ch['subscription_id']] = true; self::notifyParticipant(self::subscription((int)$ch['subscription_id']) ?? [], 'wplata', $ch); }
+            if ($ch && ($ch['kind'] ?? '') === 'card') {   // opłata weryfikacyjna: zapis karty i od razu zaległe opłaty miesięczne
+                try { require_once __DIR__ . '/LicenceCard.php'; LicenceCard::afterVerification($id); } catch (\Throwable $e) { error_log('licencje karta po weryfikacji #' . $id . ': ' . $e->getMessage()); }
+                self::notifyParticipant(self::subscription((int)$ch['subscription_id']) ?? [], 'karta_ok', self::charge($id));
+                continue;
+            }
+            if ($ch) { $subs[(int)$ch['subscription_id']] = true; self::notifyParticipant(self::subscription((int)$ch['subscription_id']) ?? [], $byCard ? 'wplata_karta' : 'wplata', $ch); }
         }
         foreach (array_keys($subs) as $sid) {
             try { self::maybeResume($sid, date('Y-m-d')); } catch (\Throwable $e) { error_log('licencje resume: ' . $e->getMessage()); }
@@ -853,7 +908,7 @@ final class ClaudeBilling
     {
         $s ??= self::settings(self::productOf($sub));
         $limit = date('Y-m-d', strtotime($today . ' -' . $s['grace_days'] . ' day'));
-        return db_all("SELECT * FROM claude_charges WHERE subscription_id=? AND status='pending' AND due_on < ?", [(int)$sub['id'], $limit]);
+        return db_all("SELECT * FROM claude_charges WHERE subscription_id=? AND status='pending' AND kind='month' AND due_on < ?", [(int)$sub['id'], $limit]);
     }
 
     private static function maybeResume(int $subId, string $today): bool
@@ -885,6 +940,10 @@ final class ClaudeBilling
         if (!$onlyTest && !$onlySub) {   // zmiany cen w dniu wejścia w życie (przed naliczeniami — nowe dokumenty już po nowej cenie)
             require_once __DIR__ . '/PriceChange.php';
             try { foreach (PriceChange::applyDue($today) as $l) $rep['log'][] = $l; } catch (\Throwable $e) { $rep['errors'][] = 'zmiana ceny: ' . $e->getMessage(); }
+        }
+        if (!$onlyTest && !$onlySub) {   // karty: porzucone weryfikacje, wyniki obciążeń, obciążenia w dniu terminu
+            require_once __DIR__ . '/LicenceCard.php';
+            try { LicenceCard::run($today, $rep); } catch (\Throwable $e) { $rep['errors'][] = 'karty: ' . $e->getMessage(); }
         }
         $w = ["status IN ('requested','active','suspended')"]; $p = [];
         if ($onlyTest) $w[] = 'is_test=1';
@@ -920,7 +979,7 @@ final class ClaudeBilling
                 self::afterPayment();
                 $sub = self::subscription($sid);
                 if ($sub['status'] !== 'active') continue;
-                foreach (db_all("SELECT * FROM claude_charges WHERE subscription_id=? AND status='pending' AND due_on<=? AND reminded_at IS NULL", [$sid, $today]) as $ch) {
+                foreach (db_all("SELECT * FROM claude_charges WHERE subscription_id=? AND status='pending' AND kind='month' AND pay_mode<>'card' AND due_on<=? AND reminded_at IS NULL", [$sid, $today]) as $ch) {
                     db_exec("UPDATE claude_charges SET reminded_at=datetime('now') WHERE id=?", [(int)$ch['id']]);
                     self::notifyParticipant($sub, 'przypomnienie', self::charge((int)$ch['id']));
                     self::event($sid, (int)$ch['id'], 'reminder', 'Przypomnienie o płatności za ' . self::periodLabel($ch['period']) . ' (termin ' . self::date($ch['due_on']) . ').', 'system');
@@ -944,7 +1003,8 @@ final class ClaudeBilling
         if (!$onlyTest) {   // faktury, których nie udało się wystawić od razu (Fakturownia nie odpowiadała, brakowało danych)
             require_once __DIR__ . '/ClaudeInvoice.php';
             $simSql = ClaudeInvoice::live() ? " OR proforma_number LIKE 'SYM-%' OR order_number LIKE 'SYM-%' OR invoice_number LIKE 'SYM-%'" : '';   // Fakturownia działa — zastąp symulacje
-            foreach (db_all("SELECT id, product FROM claude_charges WHERE ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL AND subscription_id NOT IN (SELECT id FROM claude_subscriptions WHERE status='requested'))$simSql) AND status<>'cancelled' AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
+            foreach (db_all("SELECT id, product FROM claude_charges WHERE ((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL AND kind='month' AND pay_mode<>'card')
+                    OR (status='paid' AND invoice_id IS NULL AND (kind='card' OR pay_mode='card' OR subscription_id NOT IN (SELECT id FROM claude_subscriptions WHERE status='requested')))$simSql) AND status<>'cancelled' AND is_test=0 AND created_at >= date('now','-60 day') LIMIT 20") as $r) {
                 if (self::settings((string)$r['product'])['invoice'] !== 'auto') continue;
                 try { ClaudeInvoice::issueForCharge((int)$r['id']); } catch (\Throwable $e) { $rep['errors'][] = 'faktura #' . $r['id'] . ': ' . $e->getMessage(); }
             }
@@ -1073,7 +1133,22 @@ final class ClaudeBilling
             . '<li>Przelewy24 — w panelu, przycisk „Zapłać”,</li>'
             . ($docUrl !== '' ? '<li>BLIK albo szybki przelew — przycisk na <a href="' . h($docUrl) . '">' . ($ch['proforma_view_url'] ? 'proformie' : 'fakturze') . '</a>,</li>' : '')
             . ($acc ? '<li>zwykły przelew na konto <b>' . h($acc['nrb_fmt']) . '</b>, w tytule: <b>' . h(self::transferTitle($ch)) . '</b>.</li>' : '') . '</ul>' : '';
+        $card = '';
+        if (in_array($kind, ['naliczenie_karta', 'karta_ok', 'wplata_karta', 'aktywny'], true)) { require_once __DIR__ . '/LicenceCard.php'; $card = LicenceCard::label(LicenceCard::active((int)$sub['client_id'])); }
+        $cardMode = $kind === 'aktywny' && $card !== '';
         [$subject, $body] = match ($kind) {
+            'naliczenie_karta' => [$L . ': ' . $amt . ' z karty ' . $due,
+                                '<p>Opłata za ' . h($L) . ' ' . h($in) . ' wynosi <b>' . h($amt) . '</b>. Pobierzemy ją z karty ' . h($card) . ' <b>' . h($due) . '</b>. Nic nie musisz robić.</p>'
+                                . '<p>Po wpłacie dostaniesz fakturę VAT. Jeśli nie chcesz płacić kartą, wycofaj zgodę w panelu (zakładka „Rozliczenia”) przed tym dniem. Wtedy dostaniesz proformę do przelewu.</p>' . $why],
+            'karta_ok'      => ['Karta podpięta — ' . $L,
+                                '<p>Twoja karta ' . h($card) . ' jest podpięta. Opłata weryfikacyjna ' . h($amt) . ' dotarła' . (!empty($ch['invoice_number']) ? ', faktura ' . h((string)$ch['invoice_number']) . ' jest w panelu' : '') . '.</p>'
+                                . '<p>Od teraz opłaty za ' . h($L) . ' pobieramy z karty automatycznie. Przed każdym obciążeniem dostaniesz e-mail z kwotą i dniem.</p>'],
+            'wplata_karta'  => ['Pobraliśmy ' . $amt . ' za ' . $L,
+                                '<p>Pobraliśmy <b>' . h($amt) . '</b> z karty' . ($card !== '' ? ' ' . h($card) : '') . ' za ' . h($L) . ' ' . h($in) . '. Dziękujemy!'
+                                . (!empty($ch['invoice_number']) ? ' Faktura VAT ' . h((string)$ch['invoice_number']) . ' jest w panelu.' : ' Faktura VAT będzie w panelu.') . '</p>'],
+            'karta_blad'    => [$L . ': nie udało się pobrać opłaty z karty',
+                                '<p>Nie udało się pobrać <b>' . h($amt) . '</b> z karty za ' . h($L) . ' ' . h($in) . ($extra !== '' ? ' (' . h($extra) . ')' : '') . '.</p>'
+                                . '<p>Dlatego wysyłamy proformę do zapłaty przelewem, termin <b>' . h($due) . '</b>.</p>' . $how],
             'naliczenie'    => [$L . ': opłata ' . $in . ' — ' . $amt . ' do ' . $due,
                                 '<p>Twoja proforma za ' . h($L) . ' ' . h($in) . ' jest gotowa: <b>' . h($amt) . '</b>, płatna do <b>' . h($due) . '</b>.'
                                 . ($docUrl !== '' ? ' <a href="' . h($docUrl) . '">' . ($ch['proforma_view_url'] ? 'Zobacz proformę' : 'Zobacz fakturę') . '</a> (fakturę wystawimy po wpłacie).' : '') . '</p>' . $how . $why],
@@ -1090,7 +1165,8 @@ final class ClaudeBilling
                                 '<p>Dziękujemy za wpłatę. Dział IT włącza Twój dostęp do ' . h($L) . ' z powrotem — zwykle w ciągu jednego dnia roboczego.</p>'],
             'aktywny'       => [$L . ': dostęp włączony',
                                 '<p>Helpdesk włączył Twój dostęp do ' . h($L) . '. Fakturę znajdziesz w panelu licencji.</p>'
-                                . '<p>Kolejne opłaty: co miesiąc dostaniesz proformę, masz ' . self::TERM_DAYS . ' dni na wpłatę. Zrezygnować możesz w każdej chwili w panelu.</p>'],
+                                . ($cardMode ? '<p>Kolejne opłaty pobieramy co miesiąc z karty ' . h($card) . '. Przed każdym obciążeniem dostaniesz e-mail z kwotą i dniem. Zrezygnować możesz w każdej chwili w panelu.</p>'
+                                             : '<p>Kolejne opłaty: co miesiąc dostaniesz proformę, masz ' . self::TERM_DAYS . ' dni na wpłatę. Zrezygnować możesz w każdej chwili w panelu.</p>')],
             'odrzucony'     => ['Wniosek o ' . $L . ' odrzucony',
                                 '<p>Twój wniosek o ' . h($L) . ' został odrzucony. Powód: ' . h($extra) . '</p><p>Proforma do tego wniosku jest nieaktualna, nie płać jej.</p>'],
             'dane_fv'       => ['Brakuje danych do faktury za ' . $L,
@@ -1180,9 +1256,9 @@ final class ClaudeBilling
         $w = ['s.is_test=?', 's.product=?']; $p = [$test ? 1 : 0, self::product($product)];
         if (isset(self::STATUS[$filter])) { $w[] = 's.status=?'; $p[] = $filter; }
         return db_all("SELECT s.*, c.name AS client_name, c.email AS client_email,
-                (SELECT COUNT(*) FROM claude_charges x WHERE x.subscription_id=s.id AND x.status='pending') AS n_pending,
-                (SELECT COALESCE(SUM(amount_pln),0) FROM claude_charges x WHERE x.subscription_id=s.id AND x.status='pending') AS sum_pending,
-                (SELECT MIN(due_on) FROM claude_charges x WHERE x.subscription_id=s.id AND x.status='pending') AS next_due,
+                (SELECT COUNT(*) FROM claude_charges x WHERE x.subscription_id=s.id AND x.status='pending' AND x.kind='month') AS n_pending,
+                (SELECT COALESCE(SUM(amount_pln),0) FROM claude_charges x WHERE x.subscription_id=s.id AND x.status='pending' AND x.kind='month') AS sum_pending,
+                (SELECT MIN(due_on) FROM claude_charges x WHERE x.subscription_id=s.id AND x.status='pending' AND x.kind='month') AS next_due,
                 (SELECT COUNT(*) FROM claude_charges x WHERE x.subscription_id=s.id AND x.status='paid') AS n_paid
               FROM claude_subscriptions s LEFT JOIN k30_clients c ON c.id=s.client_id
              WHERE " . implode(' AND ', $w) . " ORDER BY CASE s.status WHEN 'suspended' THEN 0 WHEN 'active' THEN 1 ELSE 2 END, c.name", $p);
@@ -1195,8 +1271,8 @@ final class ClaudeBilling
         $r = db_one("SELECT SUM(status='active') a, SUM(status='suspended') s, SUM(status='ended') e FROM claude_subscriptions WHERE is_test=0 AND product=?", [$pr]) ?: [];
         $c = db_one("SELECT SUM(status='pending') np, COALESCE(SUM(CASE WHEN status='pending' THEN amount_pln END),0) sp,
                             SUM(status='pending' AND due_on < date('now')) no, COALESCE(SUM(CASE WHEN status='paid' AND paid_at >= date('now','start of month') THEN amount_pln END),0) pm,
-                            SUM((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL) OR (status='paid' AND invoice_id IS NULL)) ni
-                       FROM claude_charges WHERE is_test=0 AND product=?", [$pr]) ?: [];
+                            SUM((status='pending' AND proforma_id IS NULL AND invoice_id IS NULL AND pay_mode<>'card') OR (status='paid' AND invoice_id IS NULL)) ni
+                       FROM claude_charges WHERE is_test=0 AND product=? AND (kind='month' OR status='paid')", [$pr]) ?: [];
         $gaps = 0;
         foreach (db_all("SELECT * FROM claude_subscriptions WHERE is_test=0 AND product=? AND status IN ('active','suspended')", [$pr]) as $sb) if (self::invoiceDataGaps($sb)) $gaps++;
         return ['buyer_gaps' => $gaps, 'active' => (int)($r['a'] ?? 0), 'suspended' => (int)($r['s'] ?? 0), 'ended' => (int)($r['e'] ?? 0), 'pending' => (int)($c['np'] ?? 0),
@@ -1225,9 +1301,9 @@ final class ClaudeBilling
             return $out;
         }
         if ((int)$sub['free']) return $out;
-        $pend = db_one("SELECT * FROM claude_charges WHERE subscription_id=? AND status='pending' ORDER BY due_on LIMIT 1", [(int)$sub['id']]);
+        $pend = db_one("SELECT * FROM claude_charges WHERE subscription_id=? AND status='pending' AND kind='month' ORDER BY due_on LIMIT 1", [(int)$sub['id']]);
         if ($pend) $out['now'] = ['amount' => (float)$pend['amount_pln'], 'issue' => (string)$pend['issue_on'], 'due' => (string)$pend['due_on'], 'estimate' => false];
-        $last = db_one("SELECT MAX(period) p FROM claude_charges WHERE subscription_id=?", [(int)$sub['id']]);
+        $last = db_one("SELECT MAX(period) p FROM claude_charges WHERE subscription_id=? AND kind='month'", [(int)$sub['id']]);
         $np = $last && $last['p'] ? date('Y-m', strtotime($last['p'] . '-01 +1 month')) : substr((string)$sub['cycle_start'], 0, 7);
         if ($est !== null && $sub['status'] === 'active') $out['next'] = ['amount' => $est, 'issue' => self::billingDate($sub, $np, $s), 'due' => self::dueFor($sub, $np, $s), 'estimate' => true];
         return $out;
