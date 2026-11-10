@@ -6,7 +6,7 @@ if (!isset($adm, $plans)) { header('Location: /licencje/', true, 302); exit; }  
  */
 $PAGE_TITLE = 'Dysk Online: pakiety';
 require_once dirname(__DIR__) . '/logic/LicencjeAdminNav.php';
-$nav = array_map(fn($x) => [$x[0], $x[1], '', false, $x[2] === 'dysk'], LicencjeAdminNav::items());
+$nav = LicencjeAdminNav::sideNav('dysk');
 include __DIR__ . '/_top.php';
 $num = fn(float $v) => rtrim(rtrim(number_format($v, 2, ',', ''), '0'), ',');
 ?>

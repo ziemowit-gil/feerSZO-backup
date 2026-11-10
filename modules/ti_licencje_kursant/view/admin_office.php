@@ -6,7 +6,7 @@ if (!isset($adm, $plans)) { header('Location: /licencje/', true, 302); exit; }  
  */
 $PAGE_TITLE = 'Office: ceny planów';
 require_once dirname(__DIR__) . '/logic/LicencjeAdminNav.php';
-$nav = array_map(fn($x) => [$x[0], $x[1], '', false, $x[2] === 'ceny-office'], LicencjeAdminNav::items());
+$nav = LicencjeAdminNav::sideNav('ceny-office');
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
 $num = fn(float $v) => $v > 0 ? rtrim(rtrim(number_format($v, 2, ',', ''), '0'), ',') : '';

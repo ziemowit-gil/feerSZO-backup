@@ -53,6 +53,15 @@ $nav = $nav ?? null;
   .pk-side a { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 10px 14px; text-decoration: none; color: var(--mt-ink); font-weight: 400; min-height: 42px; border-left: 3px solid transparent; }
   .pk-side a:hover, .pk-side a:focus-visible { background: var(--mt-bg); border-left-color: var(--mt-accent); }
   .pk-side a[aria-current="page"] { background: var(--mt-bg); border-left-color: var(--mt-ink); font-weight: 700; }
+  /* rozwijane grupy menu (Office: konto, A3, A5; Produkty i usługi: wszystkie, Dysk Online) */
+  .pk-grp > summary { list-style: none; display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 10px 14px; min-height: 42px; border-left: 3px solid transparent; font-weight: 400; color: var(--mt-ink); }
+  .pk-grp > summary::-webkit-details-marker { display: none; }
+  .pk-grp > summary::after { content: ""; flex: none; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); margin-left: auto; transition: transform .15s; }
+  .pk-grp[open] > summary::after { transform: rotate(45deg); }
+  .pk-grp > summary:hover, .pk-grp > summary:focus-visible { background: var(--mt-bg); border-left-color: var(--mt-accent); }
+  .pk-grp.cur > summary { font-weight: 700; }
+  .pk-grp[open] > summary .pk-badge { display: none; }
+  .pk-grp > a { padding-left: 30px; font-size: .95rem; }
   /* kafle strony startowej (Metro Start, stonowane): biały kafel, tytuł, znacznik stanu, krótki opis */
   .m-tiles { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
   .m-tilelink { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 130px; padding: 16px; background: var(--mt-card); border: 1px solid var(--mt-line); border-top: 3px solid var(--mt-line); color: var(--mt-ink); text-decoration: none; }
@@ -136,8 +145,16 @@ $nav = $nav ?? null;
 <div class="pk-wrap<?= $nav !== null ? ' pk-grid' : '' ?>">
 <?php if ($nav !== null): ?>
   <nav class="pk-side" aria-label="Menu panelu licencji">
-    <?php foreach ($nav as [$href, $label, $badge, $due, $cur]): ?>
+    <?php $_pkLink = function (array $it) { [$href, $label, $badge, $due, $cur] = $it; ?>
       <a href="<?= h($href) ?>"<?= $cur ? ' aria-current="page"' : '' ?>><span><?= h($label) ?></span><?php if ($badge !== ''): ?><span class="pk-badge<?= $due ? ' due' : '' ?>"><?= h($badge) ?></span><?php endif; ?></a>
+    <?php }; ?>
+    <?php foreach ($nav as $_n): ?>
+      <?php if (isset($_n['group'])): $_gCur = false; $_gDue = ''; foreach ($_n['items'] as $_it) { $_gCur = $_gCur || $_it[4]; if ($_it[3] && $_gDue === '') $_gDue = (string)$_it[2]; } ?>
+      <details class="pk-grp<?= $_gCur ? ' cur' : '' ?>"<?= $_gCur || $_gDue !== '' ? ' open' : '' ?>>
+        <summary><span><?= h($_n['group']) ?></span><?php if ($_gDue !== ''): ?><span class="pk-badge due"><?= h($_gDue) ?></span><?php endif; ?></summary>
+        <?php foreach ($_n['items'] as $_it) $_pkLink($_it); ?>
+      </details>
+      <?php else: $_pkLink($_n); endif; ?>
     <?php endforeach; ?>
   </nav>
 <?php endif; ?>

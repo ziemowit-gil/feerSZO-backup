@@ -52,7 +52,20 @@ $cardModes = array_filter($paid, fn($v) => ($v['payMode'] ?? '') === 'card' && $
 $tiles['rozliczenia'] = ['Rozliczenia', $card ? ['karta podpięta', 'ok'] : ($cardModes ? ['podepnij kartę', 'due'] : ['przelew', 'off']), $card ? LicenceCard::label($card) : 'karta i dane do faktur', !$card && $cardModes];
 $tiles['konto'] = ['Moje konto', $login ? ['aktywne', 'ok'] : ['bez numeru', 'off'], ($login ? 'numer ' . $login . ', ' : '') . 'hasło, kontakt', false];   // numer w opisie (znacznik zamienia litery na wielkie)
 $nav = [[$U(''), 'Start', '', false, $page === 'start']];
-foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $dueFlag ? $sum : '', $dueFlag, $page === $k || ($page === 'sprawa' && $k === 'sprawy')];
+// rozwijane grupy menu (polecenie 2026-11-10): A3 i A5 to też Office; Dysk Online to jedna z usług
+$navGroups = ['office' => ['Office', ['office' => 'Konto Office', 'office_a3' => 'Office A3', 'office_a5' => 'Office A5']],
+              'produkty' => ['Produkty i usługi', ['produkty' => 'Wszystkie usługi', 'dysk' => 'Dysk Online']]];
+$navIn = []; foreach ($navGroups as $g => [, $mem]) foreach ($mem as $mk => $ml) $navIn[$mk] = $g;
+$navAt = [];
+foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) {
+    $it = [$U($k), $lbl, $dueFlag ? $sum : '', $dueFlag, $page === $k || ($page === 'sprawa' && $k === 'sprawy')];
+    if (!isset($navIn[$k])) { $nav[] = $it; continue; }
+    $g = $navIn[$k]; $it[1] = $navGroups[$g][1][$k];
+    if (!isset($navAt[$g])) { $navAt[$g] = count($nav); $nav[] = ['group' => $navGroups[$g][0], 'items' => []]; }
+    $nav[$navAt[$g]]['items'][$k] = $it;
+}
+foreach ($navAt as $g => $i) $nav[$i]['items'] = array_values(array_filter(array_map(fn($mk) => $nav[$i]['items'][$mk] ?? null, array_keys($navGroups[$g][1]))));   // kolejność jak w grupie: konto, A3, A5
+foreach ($navAt as $g => $i) if (count($nav[$i]['items']) === 1) { $one = $nav[$i]['items'][0]; $one[1] = $navGroups[$g][0]; $nav[$i] = $one; }   // jedna pozycja — zwykły link
 $PAGE_TITLE = $page === 'start' ? 'Moje licencje' : ($page === 'sprawa' ? 'Sprawa' : ($tiles[$page][0] ?? 'Moje licencje'));
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';

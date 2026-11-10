@@ -6,7 +6,7 @@ if (!isset($adm, $org)) { header('Location: /licencje/', true, 302); exit; }   /
  */
 $PAGE_TITLE = 'Administrator Licencji';
 require_once dirname(__DIR__) . '/logic/LicencjeAdminNav.php';
-$nav = array_map(fn($x) => [$x[0], $x[1], '', false, $x[2] === 'admin'], LicencjeAdminNav::items());   // pełne menu Administratora Licencji
+$nav = LicencjeAdminNav::sideNav('admin');   // pełne menu Administratora Licencji
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
 $qf = '<input type="hidden" name="q" value="' . h($q) . '">';
