@@ -94,7 +94,7 @@
       </button>
       <?php endif; ?>
 
-      <?php $msw_active='tasks'; $msw_dark=false; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
+      <?php $msw_active='tasks'; $msw_dark=true; /* ciemny pasek Metro — przełącznik modułów w wersji na ciemne tło */ require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
 
       <!-- Powiadomienia -->
       <div class="dropdown" id="tsk-notif-wrap">

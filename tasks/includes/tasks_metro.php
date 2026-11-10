@@ -73,6 +73,37 @@ html body .tsk-pivot-menu .dropdown-item:hover,html body .tsk-pivot-menu .dropdo
 html body .tsk-pivot-menu .dropdown-item:hover i,html body .tsk-pivot-menu .dropdown-item:focus i{color:#fff}
 @media(max-width:575.98px){html body .tsk-pivot-link span:not(.tsk-pivot-cnt){display:none}html body .tsk-pivot-link{padding:.7rem .75rem .6rem}}
 
+/* ══ Nagłówek — delikatnie nowocześniejsze Metro (2026-11-10): niższy kontrast „pudełek”, jednolite przyciski 36 px
+   z podświetleniem zamiast zielonego wypełnienia, kafelek awatara zamiast koła, separator przy przełączniku obszaru;
+   pasek sekcji wyższy, z wyraźniejszym stanem aktywnym i spokojnym hover ══ */
+html body .tsk-navbar{background:#1b1a19;border-bottom:1px solid rgba(255,255,255,.06)}
+html body .tsk-navbar>.container-xl{min-height:56px;padding-top:.5rem!important;padding-bottom:.5rem!important;gap:.75rem!important}
+html body .tsk-brand{gap:.7rem;font-weight:600;font-size:1rem;letter-spacing:-.005em}
+html body .tsk-brand-icon{width:36px;height:36px;font-size:1.05rem;background:var(--tsk-green)}
+html body .tsk-brand-sub{opacity:1;color:rgba(255,255,255,.62);font-size:.7rem;font-weight:400;margin-top:.15rem}
+html body #tsk-ws-switch-wrap{padding-left:.75rem;border-left:1px solid rgba(255,255,255,.14)}
+html body .tsk-ws-switch-btn{min-height:36px;padding:0 .75rem;gap:.5rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:.88rem;font-weight:600}
+html body .tsk-ws-switch-btn:hover,html body .tsk-ws-switch-btn[aria-expanded="true"]{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.28);color:#fff}
+html body .tsk-ws-switch-dot{width:10px;height:10px;border-radius:0!important}
+html body .tsk-navbar .btn-outline-secondary{min-height:36px;padding:0 .75rem;background:transparent;border:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.9);font-weight:600}
+html body .tsk-navbar .btn-outline-secondary:hover,html body .tsk-navbar .btn-outline-secondary:focus-visible{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff}
+html body .tsk-notif-btn{width:36px;height:36px;background:transparent;border:1px solid rgba(255,255,255,.18);color:#fff}
+html body .tsk-notif-btn:hover,html body .tsk-notif-btn[aria-expanded="true"]{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:#fff}
+html body .tsk-notif-badge{top:-5px;right:-5px;min-width:18px;height:18px;padding:0 .25rem;font-size:.66rem;line-height:18px;border:2px solid #1b1a19}
+html body .tsk-avatar{width:36px;height:36px;border-radius:0!important;font-size:.8rem;letter-spacing:.02em}
+html body .tsk-navbar .fl-trigger{min-height:36px;border-radius:0}
+html body .tsk-navbar :focus-visible{outline:2px solid #fff!important;outline-offset:2px!important}
+html body .tsk-pivot{box-shadow:0 1px 0 rgba(0,0,0,.02)}
+html body .tsk-pivot-link{min-height:48px;padding:.75rem .9rem .62rem;color:#3f3f46;font-size:.9rem;gap:.5rem;transition:background-color .12s,color .12s}
+html body .tsk-pivot-link i{font-size:1.02rem;color:var(--tm-muted)}
+html body .tsk-pivot-link:hover{background:#f5f5f5;color:var(--tsk-text)}
+html body .tsk-pivot-link:hover i{color:var(--tsk-text)}
+html body .tsk-pivot-link.active{background:transparent;color:var(--tsk-text);font-weight:600;border-bottom-color:var(--tsk-green)}
+html body .tsk-pivot-link.active i{color:var(--tsk-green)}
+html body .tsk-pivot-cnt{min-width:1.3rem;height:1.2rem;font-size:.68rem}
+html body .tsk-pivot-more{border-left-color:var(--tm-line)}
+@media(prefers-reduced-motion:reduce){html body .tsk-pivot-link{transition:none}}
+
 /* ── Treść ───────────────────────────────────────────────────────────────── */
 /* Pełna szerokość okna (jak CRM) — wcześniej pas 1320 px pośrodku; górny pasek, sekcje i treść równo z marginesem bocznym */
 html body #tsk-main,html body .tsk-navbar>.container-xl,html body .tsk-pivot>.tsk-pivot-inner{max-width:none;width:100%;
