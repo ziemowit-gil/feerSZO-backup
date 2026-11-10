@@ -229,8 +229,10 @@ $notify_to = task_notify_address($uid, (string)($user['email'] ?? ''));
 $has_mail  = $notify_to !== '';
 
 if (!$is_fragment) {
-    $page_title = 'Powiadomienia — Zadania';
-    require_once dirname(__DIR__) . '/includes/header.php';
+    // Ramka modułu Zadań (górny pasek, sekcje, „Ustawienia” podświetlone) — wcześniej ogólny nagłówek SZO
+    $PAGE_TITLE       = $ns_view === 'admin' ? 'Powiadomienia — administracja' : 'Powiadomienia';
+    $TASKS_BREADCRUMB = $PAGE_TITLE;
+    require_once __DIR__ . '/includes/header_tasks.php';
 }
 ?>
 
@@ -317,38 +319,77 @@ if (!$is_fragment) {
 .ns-wrap--admin .ns-act-btn{background:#007a00!important;color:#fff!important;border:0!important;border-radius:0;font-weight:600}
 .ns-wrap--admin .ns-act-btn:hover,.ns-wrap--admin .ns-act-btn:focus-visible{background:#1d1d1d!important}
 .ns-wrap--admin .ns-muted{color:#5f5f5f!important}
+.ns-muted{color:#5f5f5f!important}
+
+/* ══ Nowy wygląd (2026-11-10): strona w ramce modułu Zadań, nagłówek jak nagłówek obszaru, w widoku administracyjnym
+   kafelki z liczbami, tabela członków w głównej kolumnie i boczna kolumna z testem wysyłki / odpowiedziami e-mailem ══ */
+.ns-head{display:flex;align-items:flex-start;gap:.85rem;margin:0 0 1.25rem;padding-bottom:1rem;border-bottom:1px solid #e1e1e1}
+.ns-head-tile{width:44px;height:44px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:#007a00;color:#fff;font-size:1.3rem}
+.ns-head-main{flex:1;min-width:0}
+.ns-head-t{margin:0;font-size:1.45rem;font-weight:600;letter-spacing:-.01em;color:#111827;line-height:1.2}
+.ns-head-sub{margin:.2rem 0 0;font-size:.88rem;color:#3f3f46}
+.ns-head-mail{display:inline-flex;align-items:center;gap:.4rem;margin:.45rem 0 0;padding:.2rem .6rem;background:#f2f2f2;font-size:.82rem;color:#111827}
+.ns-head-mail span{color:#5f5f5f}
+.ns-head-mail.is-warn{background:#fde7e9;color:#a20025}
+.ns-head-link{display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;min-height:36px;padding:0 .85rem;border:1px solid #8a8886;color:#111827;text-decoration:none;font-size:.85rem;font-weight:600}
+.ns-head-link:hover{background:#f2f2f2;color:#111827}
+.ns-head-link:focus-visible{outline:2px solid #111827;outline-offset:1px}
+
+.ns-kpis{list-style:none;margin:0 0 1.25rem;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px}
+.ns-kpis li{display:flex;flex-direction:column;gap:.15rem;padding:.75rem .9rem;background:#f2f2f2;border-left:4px solid #8a8886}
+.ns-kpis li.is-ok{border-left-color:#007a00}
+.ns-kpis li.is-warn{border-left-color:#c25100;background:#fff4e5}
+.ns-kpis li.is-bad{border-left-color:#a20025;background:#fde7e9}
+.ns-kpi-n{font-size:1.6rem;font-weight:300;line-height:1.1;color:#111827;font-variant-numeric:tabular-nums}
+.ns-kpi-l{font-size:.8rem;color:#3f3f46}
+
+.ns-admin-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:1.25rem;align-items:start}
+@media(min-width:1100px){.ns-admin-grid{grid-template-columns:minmax(0,1fr) 340px}}
+.ns-admin-side{display:flex;flex-direction:column;gap:1.25rem;min-width:0}
+.ns-wrap--admin .ns-card{border:1px solid #e1e1e1;border-top:2px solid #007a00;background:#fff}
+.ns-wrap--admin .ns-card-header{padding:.7rem 1rem;font-size:.95rem}
+.ns-wrap--admin .ns-admin-side form{padding:.85rem 1rem 1rem!important}
+.ns-wrap--admin .ns-admin-side p.small{font-size:.8rem!important;line-height:1.5}
+.ns-tbl-bar{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem;padding:.55rem 1rem;background:#f2f2f2;border-bottom:1px solid #e1e1e1}
+.ns-tbl thead th{background:#fff;font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3f3f46;border-bottom:1px solid #e1e1e1;padding-top:.6rem!important;padding-bottom:.6rem!important}
+.ns-tbl td{vertical-align:middle;border-bottom-color:#f0f0f0}
+.ns-tbl tbody tr:hover>td{background:#f7f7f7}
+.ns-st{display:inline-block;padding:.12rem .5rem;font-size:.74rem;font-weight:700}
+.ns-st.is-ok{background:#dff6dd;color:#0e5a0e}
+.ns-st.is-warn{background:#fff4ce;color:#6b4a00}
+.ns-send-reminder-btn{display:inline-flex;align-items:center;gap:.3rem;min-height:30px;padding:0 .7rem;border:1px solid #8a8886;background:#fff;color:#111827;
+  font-size:.78rem;font-weight:600;white-space:nowrap;cursor:pointer}
+.ns-send-reminder-btn:hover{background:#f2f2f2}
+.ns-send-reminder-btn:focus-visible{outline:2px solid #111827;outline-offset:1px}
+.ns-send-reminder-btn i{color:#007a00}
+.ns-send-reminder-btn.is-sent{background:#dff6dd;border-color:#007a00;color:#0e5a0e}
+.ns-send-reminder-btn.is-err{background:#fde7e9;border-color:#a20025;color:#a20025}
+.ns-send-reminder-btn.is-sent i,.ns-send-reminder-btn.is-err i{color:inherit}
 </style>
 
 <div class="ns-wrap<?= $ns_view === 'admin' ? ' ns-wrap--admin' : '' ?> <?= $is_fragment ? 'p-3' : 'py-4' ?> mx-auto">
 
-  <!-- Header karty (ukryty w modalu — modal ma własny nagłówek) ── -->
+  <!-- Nagłówek strony (ukryty w modalu — modal ma własny nagłówek) ── -->
   <?php if (!$is_fragment): ?>
-  <div class="ns-header">
-    <div class="d-flex align-items-center gap-3">
-      <div style="width:50px;height:50px;border-radius:12px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">
-        <i class="bi bi-bell-fill"></i>
-      </div>
-      <div style="flex:1">
-        <div style="font-size:1.2rem;font-weight:700"><?= $ns_view === 'admin' ? 'Powiadomienia — administracja' : 'Powiadomienia e-mail' ?></div>
-        <div style="font-size:.82rem;opacity:.85;margin-top:.15rem"><?= $ns_view === 'admin'
-            ? 'Status powiadomień członków obszarów, testy wysyłki i odpowiedzi e-mailem'
-            : 'Zadania i terminy — kontroluj co i kiedy trafia na Twoją skrzynkę' ?></div>
-        <?php if ($has_mail): ?>
-        <div class="ns-email-chip">
-          <i class="bi bi-envelope-fill"></i>
-          <?= h($notify_to) ?>
-          <span style="opacity:.7">· <?= ($pref['notify_email'] ?? '') !== '' && !empty($pref['notify_email_verified_at']) ? 'własny adres powiadomień' : 'adres z konta' ?></span>
-        </div>
-        <?php else: ?>
-        <div class="ns-email-chip" style="background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.4)">
-          <i class="bi bi-exclamation-triangle-fill"></i>
-          Brak adresu e-mail — powiadomienia nie będą wysyłane
-        </div>
-        <?php endif; ?>
-      </div>
+  <div class="ns-head">
+    <span class="ns-head-tile" aria-hidden="true"><i class="bi <?= $ns_view === 'admin' ? 'bi-shield-lock' : 'bi-bell' ?>"></i></span>
+    <div class="ns-head-main">
+      <h1 class="ns-head-t"><?= $ns_view === 'admin' ? 'Powiadomienia — administracja' : 'Powiadomienia' ?></h1>
+      <p class="ns-head-sub"><?= $ns_view === 'admin'
+          ? 'Status powiadomień członków obszarów, testy wysyłki i odpowiedzi e-mailem'
+          : 'Zadania i terminy — kontroluj, co i kiedy trafia na Twoją skrzynkę' ?></p>
+      <?php if ($has_mail): ?>
+      <p class="ns-head-mail"><i class="bi bi-envelope" aria-hidden="true"></i><?= h($notify_to) ?>
+        <span>· <?= ($pref['notify_email'] ?? '') !== '' && !empty($pref['notify_email_verified_at']) ? 'własny adres powiadomień' : 'adres z konta' ?></span></p>
+      <?php else: ?>
+      <p class="ns-head-mail is-warn"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>Brak adresu e-mail — powiadomienia e-mail nie będą wysyłane</p>
+      <?php endif; ?>
     </div>
+    <?php if ($ns_view === 'admin'): ?>
+    <a class="ns-head-link" href="<?= APP_URL ?>/tasks/notification_settings.php"><i class="bi bi-arrow-left" aria-hidden="true"></i>Moje ustawienia</a>
+    <?php endif; ?>
   </div>
-  <?php endif; /* !$is_fragment — koniec ns-header */ ?>
+  <?php endif; /* !$is_fragment — koniec nagłówka */ ?>
 
   <?php if ($saved && !$is_fragment): ?>
   <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 mb-4" role="alert">
@@ -363,9 +404,7 @@ if (!$is_fragment) {
   </div>
   <?php endif; ?>
 
-  <?php if ($ns_view === 'admin'): ?>
-  <p class="mb-3"><a href="<?= APP_URL ?>/tasks/notification_settings.php"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Moje ustawienia powiadomień</a></p>
-  <?php else: /* ── widok użytkownika ── */ ?>
+  <?php if ($ns_view !== 'admin'): /* ── widok użytkownika ── */ ?>
   <?php require __DIR__ . '/includes/notif_settings_user.php'; ?>
   <?php endif; /* koniec widoku użytkownika */ ?>
 
@@ -380,6 +419,27 @@ if (!$is_fragment) {
         JOIN task_workspace_members twm ON twm.user_id = u.id
         ORDER BY u.name");
   ?>
+  <?php
+  // Status członków obszarów — liczony na początku: kafelki z liczbami i tabela w głównej kolumnie
+  $members_status = [];
+  try {
+      $members_status = db_all("
+          SELECT DISTINCT u.id, u.name, u.email, u.phone_number,
+                 tnp.user_id AS configured_uid,
+                 COALESCE(tnp.notify_sms, 0) AS notify_sms,
+                 tnp.updated_at
+          FROM users u
+          JOIN task_workspace_members twm ON twm.user_id = u.id
+          LEFT JOIN task_notification_prefs tnp ON tnp.user_id = u.id
+          WHERE u.is_active = 1
+          ORDER BY (tnp.user_id IS NULL) DESC, u.name
+      ");
+  } catch (\Throwable $e) {}
+  $unconfigured_count = count(array_filter($members_status, fn($m) => !$m['configured_uid']));
+  $ns_no_mail = count(array_filter($members_status, fn($m) => empty($m['email'])));
+  $ns_sms_on  = count(array_filter($members_status, fn($m) => $m['notify_sms'] && !empty($m['phone_number'])));
+  ob_start();   // karty boczne: odpowiedzi e-mailem (admin systemu) + test wysyłki
+  ?>
   <?php if (is_admin()):
     require_once dirname(__DIR__) . '/includes/m365.php';
     $mr_on     = m365_setting('tasks_mail_reply_enabled') === '1';
@@ -387,7 +447,7 @@ if (!$is_fragment) {
     $mr_m365   = m365_setting('m365_enabled') === '1' && $mr_sender !== '';
   ?>
   <!-- ══ Admin: odpowiedzi e-mailem → komentarze ═════════════════════ -->
-  <div class="ns-card mb-3 mt-4">
+  <div class="ns-card">
     <div class="ns-card-header">
       <i class="bi bi-reply-fill" style="color:#2563eb"></i>
       Odpowiedź e-mailem jako komentarz
@@ -418,10 +478,10 @@ if (!$is_fragment) {
   <?php endif; ?>
 
   <!-- ══ Admin: Test per user ════════════════════════════════════ -->
-  <div class="ns-card mb-3 mt-4">
+  <div class="ns-card">
     <div class="ns-card-header">
       <i class="bi bi-person-lines-fill" style="color:#0891b2"></i>
-      Testuj powiadomienia — wybrany użytkownik
+      Wyślij test do wybranej osoby
       <span class="sec-badge ms-auto" style="background:#e0f2fe;color:#0369a1">Admin / Lider</span>
     </div>
 
@@ -438,7 +498,7 @@ if (!$is_fragment) {
       <input type="hidden" name="_csrf"   value="<?= h($csrf) ?>">
       <input type="hidden" name="_action" value="admin_test_notif">
       <div class="row g-2 align-items-end">
-        <div class="col-12 col-sm-5">
+        <div class="col-12">
           <label class="form-label" style="font-size:.8rem;font-weight:600;color:#374151" for="admin_target_uid">
             <i class="bi bi-person me-1"></i>Użytkownik
           </label>
@@ -453,7 +513,7 @@ if (!$is_fragment) {
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-12 col-sm-4">
+        <div class="col-7">
           <label class="form-label" style="font-size:.8rem;font-weight:600;color:#374151" for="admin_test_channel">
             <i class="bi bi-send me-1"></i>Kanał
           </label>
@@ -463,7 +523,7 @@ if (!$is_fragment) {
             <option value="inapp">In-app (dzwonek)</option>
           </select>
         </div>
-        <div class="col-12 col-sm-3">
+        <div class="col-5">
           <button type="submit" class="btn btn-sm w-100 ns-act-btn" style="font-size:.8rem">
             <i class="bi bi-send-fill me-1"></i>Wyślij test
           </button>
@@ -474,33 +534,28 @@ if (!$is_fragment) {
   </div>
   <?php endif; ?>
 
-  <?php
-  /* ══ Status powiadomień — wszyscy członkowie obszarów ═══════════════════ */
-  if ($is_leader_or_admin):
-      $members_status = [];
-      try {
-          $members_status = db_all("
-              SELECT DISTINCT u.id, u.name, u.email, u.phone_number,
-                     tnp.user_id AS configured_uid,
-                     COALESCE(tnp.notify_sms, 0) AS notify_sms,
-                     tnp.updated_at
-              FROM users u
-              JOIN task_workspace_members twm ON twm.user_id = u.id
-              LEFT JOIN task_notification_prefs tnp ON tnp.user_id = u.id
-              WHERE u.is_active = 1
-              ORDER BY (tnp.user_id IS NULL) DESC, u.name
-          ");
-      } catch (\Throwable $e) {}
-      $unconfigured_count = count(array_filter($members_status, fn($m) => !$m['configured_uid']));
-  endif;
-  ?>
+  <?php $ns_side_html = !empty($is_leader_or_admin) ? (string)ob_get_clean() : ''; ?>
+  <?php if (!empty($is_leader_or_admin)): ?>
 
+  <!-- ══ Liczby ══════════════════════════════════════════════════════════ -->
+  <ul class="ns-kpis" aria-label="Podsumowanie">
+    <li><span class="ns-kpi-n"><?= count($members_status) ?></span><span class="ns-kpi-l">członków obszarów</span></li>
+    <li class="<?= count($members_status) - $unconfigured_count ? 'is-ok' : '' ?>"><span class="ns-kpi-n"><?= count($members_status) - $unconfigured_count ?></span><span class="ns-kpi-l">z własnymi ustawieniami</span></li>
+    <li class="<?= $unconfigured_count ? 'is-warn' : '' ?>"><span class="ns-kpi-n"><?= $unconfigured_count ?></span><span class="ns-kpi-l">na ustawieniach domyślnych</span></li>
+    <li class="<?= $ns_no_mail ? 'is-bad' : '' ?>"><span class="ns-kpi-n"><?= $ns_no_mail ?></span><span class="ns-kpi-l">bez adresu e-mail</span></li>
+    <?php if (sms_is_enabled()): ?>
+    <li><span class="ns-kpi-n"><?= $ns_sms_on ?></span><span class="ns-kpi-l">z włączonym SMS</span></li>
+    <?php endif; ?>
+  </ul>
+
+  <div class="ns-admin-grid">
+  <div class="ns-admin-main">
   <?php if ($is_leader_or_admin && $members_status): ?>
   <!-- ══ Admin: Status powiadomień ══════════════════════════════════════ -->
-  <div class="ns-card mb-3 mt-4" id="ns-member-status">
+  <div class="ns-card" id="ns-member-status">
     <div class="ns-card-header">
       <i class="bi bi-people-fill" style="color:#0891b2"></i>
-      Status powiadomień — członkowie obszarów
+      Członkowie obszarów
       <?php if ($unconfigured_count > 0): ?>
       <span class="sec-badge ms-auto" style="background:#fef9c3;color:#92400e">
         <?= $unconfigured_count ?> bez konfiguracji
@@ -513,7 +568,7 @@ if (!$is_fragment) {
     </div>
 
     <!-- Toolbar -->
-    <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="background:#f8fafc;flex-wrap:wrap">
+    <div class="ns-tbl-bar">
       <div class="form-check form-switch mb-0" style="font-size:.82rem">
         <input class="form-check-input" type="checkbox" id="ns-only-uncfg" role="switch">
         <label class="form-check-label" for="ns-only-uncfg">Tylko niekonfigurowane</label>
@@ -535,8 +590,8 @@ if (!$is_fragment) {
 
     <!-- Tabela -->
     <div style="overflow-x:auto">
-    <table class="table table-sm mb-0" style="font-size:.82rem">
-      <thead style="background:#f8fafc">
+    <table class="table table-sm mb-0 ns-tbl">
+      <thead>
         <tr>
           <th class="px-3 py-2">Imię i nazwisko</th>
           <th class="py-2">E-mail</th>
@@ -562,9 +617,9 @@ if (!$is_fragment) {
           <td class="py-2" style="color:#475569"><?= h($m['email'] ?: '—') ?></td>
           <td class="py-2 text-center">
             <?php if ($is_cfg): ?>
-            <span class="badge" style="background:#dcfce7;color:#15803d;font-size:.7rem">Skonfigurowany</span>
+            <span class="ns-st is-ok">Własne</span>
             <?php else: ?>
-            <span class="badge" style="background:#fef9c3;color:#92400e;font-size:.7rem">Domyślne</span>
+            <span class="ns-st is-warn">Domyślne</span>
             <?php endif; ?>
           </td>
           <td class="py-2 text-center">
@@ -588,8 +643,7 @@ if (!$is_fragment) {
           </td>
           <td class="py-2">
             <?php if (!$is_cfg && $has_mail): ?>
-            <button type="button" class="btn btn-sm ns-send-reminder-btn"
-                    style="font-size:.73rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd"
+            <button type="button" class="ns-send-reminder-btn"
                     data-uid="<?= (int)$m['id'] ?>"
                     data-csrf="<?= h($csrf) ?>">
               <i class="bi bi-envelope-fill me-1"></i>Wyślij przypomnienie
@@ -604,9 +658,14 @@ if (!$is_fragment) {
     </table>
     </div>
   </div>
+  <?php elseif (!$members_status): ?>
+  <div class="ns-card"><div class="ns-card-header">Członkowie obszarów</div><p class="ns-muted p-3 mb-0">Brak aktywnych członków obszarów.</p></div>
   <?php endif; ?>
+  </div><!-- /.ns-admin-main -->
+  <aside class="ns-admin-side" aria-label="Test wysyłki i ustawienia"><?= $ns_side_html ?></aside>
+  </div><!-- /.ns-admin-grid -->
+  <?php endif; /* lider/admin */ ?>
 
-  <!-- Informacja ───────────────────────────────────────────────── -->
   <?php endif; /* koniec widoku administracyjnego */ ?>
 
 
@@ -672,20 +731,20 @@ function setPreset(name) {
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.ok) {
-          btn.innerHTML = '<i class="bi bi-check-circle-fill me-1" style="color:#16a34a"></i>Wysłano';
-          btn.style.cssText = 'font-size:.73rem;background:#f0fdf4;color:#15803d;border:1px solid #86efac';
+          btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Wysłano';
+          btn.classList.remove('is-err'); btn.classList.add('is-sent');
         } else {
           btn.disabled = false;
-          btn.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1" style="color:#dc2626"></i>'
+          btn.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>'
                         + (d.msg || 'Błąd');
-          btn.style.cssText = 'font-size:.73rem;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5';
+          btn.classList.remove('is-sent'); btn.classList.add('is-err');
         }
         btn.title = d.msg || '';
       })
       .catch(function () {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-envelope-fill me-1"></i>Wyślij przypomnienie';
-        btn.style.cssText = 'font-size:.73rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd';
+        btn.classList.remove('is-sent', 'is-err');
       });
     });
   });
@@ -738,7 +797,7 @@ function setPreset(name) {
 </script>
 
 <?php if (!$is_fragment): ?>
-<?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
+<?php require_once __DIR__ . '/includes/footer_tasks.php'; ?>
 <?php else: ?>
 <?php exit; ?>
 <?php endif; ?>
