@@ -326,7 +326,7 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-summary dt { color:var(--ms-muted) }
 
 .ms-channels { display:flex; flex-wrap:wrap; gap:.6rem }
-.ms-channels .channel-btn { flex:0 1 20rem; min-height:58px; padding:.65rem 1rem; background:#fff; font:inherit; color:#1d1d1d; border:1px solid #9CA3AF; border-left-width:4px }
+.ms-channels .channel-btn { flex:0 1 16rem; min-height:48px; padding:.65rem 1rem; background:#fff; font:inherit; color:#1d1d1d; border:1px solid #9CA3AF; border-left-width:4px }
 .ms-channels .channel-btn span { font-size:.92rem }
 .ms-channels .channel-btn small { font-size:.74rem !important }
 .ms-channels .channel-btn.active { border-color:var(--ch-color); background:var(--ch-bg); color:var(--ch-color) }
@@ -424,13 +424,6 @@ include __DIR__ . '/includes/header_crm.php';
         <i class="bi bi-envelope-fill" style="color:#0176D3" aria-hidden="true"></i>
         <span class="ch-text">
           <span>E-mail</span>
-          <?php if ($m365_ok): ?>
-          <small style="color:#0078d4;font-size:.68rem;font-weight:600"><i class="bi bi-microsoft"></i> Microsoft 365<?= $smtp_ok ? ' · zapas: SMTP' : '' ?></small>
-          <?php elseif ($smtp_ok): ?>
-          <small style="color:#059669;font-size:.68rem;font-weight:600"><i class="bi bi-server"></i> SMTP</small>
-          <?php else: ?>
-          <small class="text-warning" style="font-size:.68rem"><i class="bi bi-exclamation-triangle"></i> PHP mail()</small>
-          <?php endif; ?>
         </span>
       </button>
       <?php if ($sms_ok): ?>
@@ -439,7 +432,6 @@ include __DIR__ . '/includes/header_crm.php';
         <i class="bi bi-phone-fill" style="color:#B45309" aria-hidden="true"></i>
         <span class="ch-text">
           <span>SMS</span>
-          <small style="color:#B45309;font-size:.68rem;font-weight:600"><i class="bi bi-broadcast" aria-hidden="true"></i> <?= h($sms_label) ?><?= $sms_fb !== '' ? ' · zapas: ' . h($sms_fb) : '' ?></small>
         </span>
       </button>
       <?php else: ?>
