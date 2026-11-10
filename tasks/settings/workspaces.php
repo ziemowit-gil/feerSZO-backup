@@ -242,6 +242,9 @@ if ($sys_admin) {
     ));
 }
 
+// Bez wskazanego obszaru — od razu pierwszy z listy (zamiast pustego panelu „Wybierz obszar…”)
+if (!$active_ws_id && $workspaces) $active_ws_id = (int)$workspaces[0]['id'];
+
 $active_ws = null; $lists = []; $members = []; $all_users = [];
 $linked_teams = []; $linkable_teams = [];
 if ($active_ws_id) {
@@ -280,33 +283,37 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
 
 <?= flash_html() ?>
 
-<div class="tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2 tw-mb-4">
-  <div>
-    <h1 class="tw-text-lg tw-font-bold tw-mb-0 tw-flex tw-items-center tw-gap-2">
-      <i class="bi bi-sliders tw-text-blue-600" aria-hidden="true"></i>Obszary robocze
-    </h1>
-    <p class="tw-text-slate-500 tw-text-sm tw-mb-0">Zarządzaj obszarami, kolumnami i członkami</p>
-  </div>
-  <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#wsModal">
-    <i class="bi bi-plus-lg me-1"></i>Nowy obszar
-  </button>
-</div>
+<?php /* Układ jak lista zadań: kolumna obszarów po lewej (te same kafelki), nagłówek wybranego obszaru i zakładki po prawej */ ?>
+<div class="tk-layout ws-set">
 
-<div class="row g-3">
+  <?php require_once __DIR__ . '/includes/workspaces_sidebar.php'; ?>
 
-  <div class="col-lg-3">
-    <?php require_once __DIR__ . '/includes/workspaces_sidebar.php'; ?>
-  </div>
-
-  <div class="col-lg-9">
+  <div class="tk-layout-main">
     <?php if (!$active_ws): ?>
-    <div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-py-14 tw-text-center tw-text-slate-400">
-      <i class="bi bi-sliders tw-text-4xl tw-block tw-mb-2 tw-opacity-40" aria-hidden="true"></i>
-      Wybierz obszar z listy lub utwórz nowy.
+    <div class="tk-head">
+      <h1 class="tk-head-t"><span class="tk-head-tile" style="--ws:#5f5f5f" aria-hidden="true"><i class="bi bi-sliders"></i></span><span>Obszary robocze</span></h1>
+      <div class="tk-head-act">
+        <button type="button" class="tk-hbtn tk-hbtn--cta" data-bs-toggle="modal" data-bs-target="#wsModal"><i class="bi bi-plus-lg" aria-hidden="true"></i>Nowy obszar</button>
+      </div>
     </div>
-    <?php else: ?>
+    <div class="ws-set-empty">
+      <i class="bi bi-kanban" aria-hidden="true"></i>
+      <p>Nie masz jeszcze obszarów, którymi możesz zarządzać.</p>
+      <button type="button" class="tk-hbtn tk-hbtn--cta" data-bs-toggle="modal" data-bs-target="#wsModal"><i class="bi bi-plus-lg" aria-hidden="true"></i>Utwórz pierwszy obszar</button>
+    </div>
+    <?php else: $_aws_color = (string)($active_ws['color'] ?: '#5f5f5f'); ?>
+    <div class="tk-head">
+      <h1 class="tk-head-t">
+        <span class="tk-head-tile" style="--ws:<?= h($_aws_color) ?>;--ws-ink:<?= task_ws_ink($_aws_color) ?>" aria-hidden="true"><i class="bi <?= h($active_ws['icon'] ?: 'bi-folder') ?>"></i></span>
+        <span><?= h($active_ws['name']) ?><span class="ws-set-sub">Ustawienia obszaru<?= empty($active_ws['is_active']) ? ' · nieaktywny' : '' ?></span></span>
+      </h1>
+      <div class="tk-head-act">
+        <a class="tk-hbtn" href="<?= APP_URL ?>/tasks/index.php?ws=<?= (int)$active_ws['id'] ?>"><i class="bi bi-list-task" aria-hidden="true"></i>Otwórz zadania</a>
+        <button type="button" class="tk-hbtn tk-hbtn--cta" data-bs-toggle="modal" data-bs-target="#wsModal"><i class="bi bi-plus-lg" aria-hidden="true"></i>Nowy obszar</button>
+      </div>
+    </div>
 
-    <ul class="nav nav-tabs mb-3">
+    <ul class="nav nav-tabs ws-set-tabs mb-3">
       <li class="nav-item">
         <a class="nav-link active" href="#tab-lists" data-bs-toggle="tab">
           <i class="bi bi-view-stacked me-1"></i>Kolumny <span class="badge bg-secondary ms-1"><?= count($lists) ?></span>
@@ -344,7 +351,7 @@ require_once dirname(__DIR__) . '/includes/header_tasks.php';
       </div>
     </div><!-- /tab-content -->
     <?php endif; ?>
-  </div><!-- /col-lg-9 -->
+  </div><!-- /.tk-layout-main -->
 </div>
 
 <?php require_once __DIR__ . '/includes/workspaces_modals.php'; ?>

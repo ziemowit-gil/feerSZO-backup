@@ -581,6 +581,20 @@ html body #tsk-main .tk-foot .tk-legend{display:flex;flex-wrap:wrap;gap:.3rem 1r
   html body #tsk-main .tk-table--v2 tbody tr.tk-grp-row>th{display:block}
 }
 
+/* ══ Ustawienia → Obszary robocze: układ i kafelki jak na liście zadań, zakładki z podkreśleniem ══ */
+html body #tsk-main .ws-set .tk-ws-side-link.is-inactive{opacity:.6}
+html body #tsk-main .tk-ws-side-empty{padding:.5rem .9rem;color:var(--tm-muted);font-size:.85rem;margin:0}
+html body #tsk-main .ws-set-sub{display:block;font-size:.8rem;font-weight:400;color:var(--tm-muted);letter-spacing:0;margin-top:.1rem}
+html body #tsk-main .ws-set-tabs.nav-tabs{border-bottom:1px solid var(--tm-line);gap:.15rem}
+html body #tsk-main .ws-set-tabs .nav-link{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:var(--tm-muted);font-weight:600;font-size:.9rem;padding:.55rem .8rem .45rem;margin-bottom:-1px}
+html body #tsk-main .ws-set-tabs .nav-link:hover{background:var(--tm-light);color:var(--tsk-text)}
+html body #tsk-main .ws-set-tabs .nav-link.active{color:var(--tsk-text);border-bottom-color:var(--tsk-green);background:transparent}
+html body #tsk-main .ws-set-tabs .nav-link .badge{border-radius:0;background:var(--tm-light-h)!important;color:var(--tsk-text);font-weight:700}
+html body #tsk-main .ws-set-tabs .nav-link.active .badge{background:var(--tsk-green)!important;color:#fff}
+html body #tsk-main .ws-set-empty{display:flex;flex-direction:column;align-items:center;gap:.6rem;padding:3rem 1rem;background:var(--tm-light);text-align:center;color:#3f3f46}
+html body #tsk-main .ws-set-empty>i{font-size:2rem;color:var(--tm-muted)}
+html body #tsk-main .ws-set-empty p{margin:0}
+
 @media(max-width:767.98px){
   html body #tsk-main .tk-tools{margin-left:0;width:100%}
   html body #tsk-main .tk-search-w{flex:1}
