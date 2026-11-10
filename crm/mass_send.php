@@ -190,8 +190,6 @@ include __DIR__ . '/includes/header_crm.php';
 .wiz-pane.wiz-active { display:block }
 .ms-wiznav { display:flex; align-items:center; gap:.6rem; margin:.25rem 0 1rem }
 .ms-wiznav-spacer { flex:1 }
-.ms-wizard, .ms-stepper, .crm-page-header { max-width:960px; margin-left:auto; margin-right:auto }
-.ms-wizard ~ .ms-section { max-width:960px; margin-left:auto; margin-right:auto }
 /* Grupy — kompaktowa lista zamiast dużych kafli */
 .ms-group-list { border:1px solid var(--crm-border); border-radius:9px; max-height:230px; overflow-y:auto; }
 .ms-group-row { display:flex; align-items:center; gap:.55rem; padding:.45rem .7rem; cursor:pointer;
@@ -282,6 +280,86 @@ include __DIR__ . '/includes/header_crm.php';
 .ms-st-l{font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#374151;margin-bottom:.2rem}
 .ms-st-o{display:flex;align-items:center;gap:.4rem;margin:0;font-size:.82rem;color:#111827;cursor:pointer}
 .ms-st-o input{accent-color:#0F766E}.ms-st-inact{color:#4B5563;margin-top:.3rem}
+
+/* ══ Przebudowa 2026-11-10: pełna szerokość, kroki z podsumowaniem po lewej, historia po prawej (jak Skrzynka) ══
+   Płasko (Metro), akcent var(--crm-primary); podpowiedzi ciemniejsze niż #9CA3AF — kontrast ≥ 4,5:1 (WCAG AA). */
+.ms-shell { --ms-line:#e1e1e1; --ms-muted:#4B5563; --ms-stick:calc(var(--crm-topbar-h, 52px) + var(--crm-navbar-h, 48px) + .75rem);
+  display:grid; grid-template-columns:minmax(0,1fr); gap:1rem 1.25rem; align-items:start }
+.crm-page-header { padding-bottom:.6rem; margin-bottom:1rem; border-bottom:1px solid var(--ms-line, #e1e1e1) }
+.crm-page-title { font-size:1.35rem; font-weight:600 }
+.crm-page-subtitle { color:#4B5563 }
+
+/* Kroki: pionowa lista z podpisem „co wybrano” pod każdym */
+.ms-side { min-width:0 }
+.ms-stepper { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.15rem; flex-wrap:nowrap }
+.ms-stepper > li { margin:0 }
+.ms-stepper-item { width:100%; display:flex; align-items:flex-start; gap:.65rem; padding:.6rem .75rem; min-width:0;
+  background:transparent; border:0; border-left:3px solid transparent; border-radius:0; text-align:left; font:inherit;
+  color:#1d1d1d; cursor:pointer; box-shadow:none }
+.ms-stepper-item:hover { background:#f5f7f7 }
+.ms-stepper-item .ms-stepper-num { width:1.7rem; height:1.7rem; border-radius:0; background:#e5e7eb; color:#374151; font-size:.82rem; font-weight:700;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0 }
+.ms-stepper-txt { display:flex; flex-direction:column; min-width:0; line-height:1.25 }
+.ms-stepper-label { font-size:.92rem; font-weight:600 }
+.ms-stepper-sub { font-size:.78rem; color:var(--ms-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100% }
+.ms-stepper-item.active { background:var(--crm-primary-bg); border-left-color:var(--crm-primary); color:var(--crm-primary-dark); box-shadow:none }
+.ms-stepper-item.active .ms-stepper-num, .ms-stepper-item.done .ms-stepper-num { background:var(--crm-primary); color:#fff }
+.ms-stepper-item.done { color:#1d1d1d }
+.ms-stepper-item:focus-visible { outline:3px solid var(--crm-primary-dark); outline-offset:-3px }
+.ms-side-note { margin:.75rem 0 0; padding:.6rem .75rem; font-size:.78rem; color:var(--ms-muted); border-top:1px solid var(--ms-line) }
+
+/* Bieżący krok */
+.ms-wizard { min-width:0 }
+.ms-wizard > .wiz-pane, .ms-wizard > .ms-wiznav { max-width:1100px }
+.ms-section, .ms-wizard .card { border:1px solid var(--ms-line) !important; border-top:2px solid var(--crm-primary) !important; padding:1.15rem 1.35rem }
+.ms-step { margin:-1.15rem -1.35rem 1.1rem; padding:.85rem 1.35rem .7rem; background:#fff; border-bottom:1px solid var(--ms-line) }
+.ms-step__num { display:none }
+.ms-step__t { font-size:1.15rem; font-weight:600 }
+.ms-step__h { font-size:.84rem; color:var(--ms-muted) }
+.ms-section-title { color:#374151 }
+.ms-wizard .form-label { font-size:.86rem }
+.ms-wizard .form-label.small, .ms-wizard .form-check-label.small { font-size:.86rem !important }
+.ms-wizard .form-text, .ms-wizard .form-text[style] { font-size:.8rem !important; color:var(--ms-muted) }
+.ms-wizard .text-muted { color:var(--ms-muted) !important }
+.ms-wizard .form-control, .ms-wizard .form-select { font-size:.9rem }
+.ms-varlbl { font-size:.8rem; color:var(--ms-muted) }
+.ms-summary dt { color:var(--ms-muted) }
+
+.ms-channels { display:flex; flex-wrap:wrap; gap:.6rem }
+.ms-channels .channel-btn { flex:0 1 20rem; min-height:58px; padding:.65rem 1rem; background:#fff; font:inherit; color:#1d1d1d; border:1px solid #9CA3AF; border-left-width:4px }
+.ms-channels .channel-btn span { font-size:.92rem }
+.ms-channels .channel-btn small { font-size:.74rem !important }
+.ms-channels .channel-btn.active { border-color:var(--ch-color); background:var(--ch-bg); color:var(--ch-color) }
+.ms-channels .channel-btn:focus-visible { outline:3px solid var(--crm-primary-dark); outline-offset:2px }
+
+.ms-wiznav { padding:.25rem 0 0 }
+.ms-wiznav .btn { min-width:7.5rem; min-height:38px }
+
+/* Ostatnie wysyłki — zwarta prawa kolumna */
+.ms-hist { background:#fff; border:1px solid var(--ms-line); border-top:2px solid var(--crm-primary); padding:.25rem 1rem .5rem; min-width:0 }
+.ms-hist-head { display:flex; align-items:center; gap:.5rem; padding:.6rem 0 .5rem; border-bottom:1px solid var(--ms-line) }
+.ms-hist-t { margin:0; font-size:.78rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#374151 }
+.ms-hist-more { margin-left:auto; font-size:.8rem; font-weight:600; color:var(--crm-primary-dark); text-decoration:none }
+.ms-hist-more:hover { text-decoration:underline }
+.ms-hist .hist-row { font-size:.84rem; padding:.6rem 0 }
+.ms-hist .hist-row .text-muted { color:var(--ms-muted) !important; font-size:.76rem !important }
+
+@media (min-width:1000px) {
+  .ms-shell { grid-template-columns:220px minmax(0,1fr) }
+  .ms-side { position:sticky; top:var(--ms-stick); border-right:1px solid var(--ms-line); padding-right:.5rem }
+  .ms-shell > .ms-hist { grid-column:2 }
+}
+@media (min-width:1400px) {
+  .ms-shell.has-hist { grid-template-columns:220px minmax(0,1fr) 340px }
+  .ms-shell.has-hist > .ms-hist { grid-column:3; position:sticky; top:var(--ms-stick); max-height:calc(100vh - var(--ms-stick) - 1rem); overflow-y:auto }
+}
+@media (max-width:999.98px) {
+  .ms-stepper { flex-direction:row; overflow-x:auto; border-bottom:1px solid var(--ms-line) }
+  .ms-stepper > li { flex:1 0 auto }
+  .ms-stepper-item { border-left:0; border-bottom:3px solid transparent; padding:.5rem .6rem }
+  .ms-stepper-item.active { border-bottom-color:var(--crm-primary) }
+  .ms-stepper-sub, .ms-side-note { display:none }
+}
 </style>
 
 <div class="crm-page-header">
@@ -294,16 +372,27 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
-<!-- ══ KREATOR: stepper ══════════════════════════════════════════════════════ -->
-<div class="ms-stepper" id="msStepper" role="list" aria-label="Kroki wysyłki masowej">
-  <?php foreach (['Kanał','Odbiorcy','Treść','Wyślij'] as $i => $lbl): $n = $i + 1; ?>
-  <div class="ms-stepper-item<?= $n === 1 ? ' active' : '' ?>" data-step="<?= $n ?>" role="listitem"
-       tabindex="0" onclick="MS.wizGo(<?= $n ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();MS.wizGo(<?= $n ?>)}">
-    <span class="ms-stepper-num"><?= $n ?></span>
-    <span class="ms-stepper-label"><?= h($lbl) ?></span>
-  </div>
-  <?php endforeach; ?>
-</div>
+<?php /* Układ jak Skrzynka: kroki z podsumowaniem wyborów po lewej, bieżący krok na środku,
+         ostatnie wysyłki po prawej — na całą szerokość ekranu (wcześniej wąski pas 960 px). */ ?>
+<div class="ms-shell<?= $history ? ' has-hist' : '' ?>">
+
+<!-- ══ KREATOR: kroki ═══════════════════════════════════════════════════════ -->
+<nav class="ms-side" aria-label="Kroki wysyłki masowej">
+  <ol class="ms-stepper" id="msStepper">
+    <?php foreach (['Kanał','Odbiorcy','Treść','Wyślij'] as $i => $lbl): $n = $i + 1; ?>
+    <li>
+      <button type="button" class="ms-stepper-item<?= $n === 1 ? ' active' : '' ?>" data-step="<?= $n ?>"<?= $n === 1 ? ' aria-current="step"' : '' ?> onclick="MS.wizGo(<?= $n ?>)">
+        <span class="ms-stepper-num" aria-hidden="true"><?= $n ?></span>
+        <span class="ms-stepper-txt">
+          <span class="ms-stepper-label"><?= h($lbl) ?></span>
+          <span class="ms-stepper-sub" data-sub="<?= $n ?>"></span>
+        </span>
+      </button>
+    </li>
+    <?php endforeach; ?>
+  </ol>
+  <p class="ms-side-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Nic nie wychodzi, dopóki nie klikniesz „Wyślij” w kroku 4.</p>
+</nav>
 
 <div class="ms-wizard" id="msWizard">
 
@@ -329,11 +418,11 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
     <?php endif; ?>
 
-    <div class="d-flex gap-2">
-      <div class="channel-btn active" id="ch-email" data-channel="email"
+    <div class="ms-channels" role="group" aria-label="Kanał wysyłki">
+      <button type="button" class="channel-btn active" id="ch-email" data-channel="email" aria-pressed="true"
            style="--ch-color:#0176D3;--ch-bg:#EEF4FF" onclick="MS.setChannel('email')">
-        <i class="bi bi-envelope-fill" style="color:#0176D3"></i>
-        <div class="ch-text">
+        <i class="bi bi-envelope-fill" style="color:#0176D3" aria-hidden="true"></i>
+        <span class="ch-text">
           <span>E-mail</span>
           <?php if ($m365_ok): ?>
           <small style="color:#0078d4;font-size:.68rem;font-weight:600"><i class="bi bi-microsoft"></i> Microsoft 365<?= $smtp_ok ? ' · zapas: SMTP' : '' ?></small>
@@ -342,17 +431,17 @@ include __DIR__ . '/includes/header_crm.php';
           <?php else: ?>
           <small class="text-warning" style="font-size:.68rem"><i class="bi bi-exclamation-triangle"></i> PHP mail()</small>
           <?php endif; ?>
-        </div>
-      </div>
+        </span>
+      </button>
       <?php if ($sms_ok): ?>
-      <div class="channel-btn" id="ch-sms" data-channel="sms"
-           style="--ch-color:#D97706;--ch-bg:#FEF3E2" onclick="MS.setChannel('sms')">
-        <i class="bi bi-phone-fill" style="color:#D97706"></i>
-        <div class="ch-text">
+      <button type="button" class="channel-btn" id="ch-sms" data-channel="sms" aria-pressed="false"
+           style="--ch-color:#B45309;--ch-bg:#FEF3E2" onclick="MS.setChannel('sms')">
+        <i class="bi bi-phone-fill" style="color:#B45309" aria-hidden="true"></i>
+        <span class="ch-text">
           <span>SMS</span>
-          <small style="color:#B45309;font-size:.68rem;font-weight:600"><i class="bi bi-broadcast"></i> <?= h($sms_label) ?><?= $sms_fb !== '' ? ' · zapas: ' . h($sms_fb) : '' ?></small>
-        </div>
-      </div>
+          <small style="color:#B45309;font-size:.68rem;font-weight:600"><i class="bi bi-broadcast" aria-hidden="true"></i> <?= h($sms_label) ?><?= $sms_fb !== '' ? ' · zapas: ' . h($sms_fb) : '' ?></small>
+        </span>
+      </button>
       <?php else: ?>
       <div class="channel-btn" style="opacity:.4;cursor:default">
         <i class="bi bi-phone" style="color:#9CA3AF"></i>
@@ -757,8 +846,11 @@ include __DIR__ . '/includes/header_crm.php';
 
 <!-- Historia -->
 <?php if ($history): ?>
-<div class="ms-section">
-    <div class="ms-section-title">Ostatnie wysyłki</div>
+<aside class="ms-hist" aria-labelledby="msHistT">
+    <div class="ms-hist-head">
+      <h2 class="ms-hist-t" id="msHistT">Ostatnie wysyłki</h2>
+      <a href="<?= APP_URL ?>/crm/mass_stats.php" class="ms-hist-more">Statystyki <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    </div>
     <?php foreach ($history as $hs):
         $failures = $history_failures[$hs['id']] ?? [];
         $has_fail = $hs['sent_fail'] > 0;
@@ -820,8 +912,10 @@ include __DIR__ . '/includes/header_crm.php';
       <?php endif; ?>
     </div>
     <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
+</aside>
+<?php endif; ?>
+
+</div><!-- /ms-shell -->
 
 <!-- Quill -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
@@ -1081,7 +1175,10 @@ const MS = (function() {
   function setChannel(ch) {
     _channel = ch;
     ['email','sms'].forEach(c => {
-      document.getElementById('ch-'+c)?.classList.toggle('active', c===ch);
+      const b = document.getElementById('ch-'+c);
+      if (!b) return;
+      b.classList.toggle('active', c===ch);
+      b.setAttribute('aria-pressed', c===ch ? 'true' : 'false');
     });
     document.getElementById('ms_quill_wrap').style.display = ch==='email' ? '' : 'none';
     document.getElementById('ms_plain_wrap').style.display  = ch==='sms'   ? '' : 'none';
@@ -1376,6 +1473,7 @@ const MS = (function() {
       document.getElementById('sendBtnCount').textContent='0';
       document.getElementById('sendBtn').disabled = true;
       renderDropped(null);
+      sideSum();
       return;
     }
     document.getElementById('recipientPreviewBox').style.display='';
@@ -1425,6 +1523,7 @@ recipientRow(c)
   }
 
   function updateCounters() {
+    sideSum();
     document.getElementById('recipientCount').textContent = _total;
     document.getElementById('sendCount').textContent      = _total;
     document.getElementById('sendBtnCount').textContent   = _total;
@@ -1557,12 +1656,40 @@ recipientRow(c)
       const s = parseInt(it.dataset.step);
       it.classList.toggle('active', s === _step);
       it.classList.toggle('done',   s <  _step);
+      if (s === _step) it.setAttribute('aria-current', 'step'); else it.removeAttribute('aria-current');
     });
+    sideSum();
     const back = document.getElementById('wizBackBtn');
     const next = document.getElementById('wizNextBtn');
     if (back) back.disabled = (_step === 1);
     if (next) next.style.display = (_step === WIZ_STEPS) ? 'none' : '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Podpisy pod krokami: co już wybrano (kanał i podstawa, liczba odbiorców, temat) — widać to z każdego kroku.
+  function plOdb(n) {
+    if (!n) return 'brak odbiorców';
+    if (n === 1) return '1 odbiorca';
+    const d = n % 10, dd = n % 100;
+    return n + (d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? ' odbiorcy' : ' odbiorców');
+  }
+  function sideSum() {
+    const set = (n, t) => { const el = document.querySelector('[data-sub="' + n + '"]'); if (el) el.textContent = t; };
+    const pSel = document.getElementById('ms_purpose');
+    const mem  = document.getElementById('ms_members');
+    let basis = 'komunikat operacyjny';
+    if (mem && mem.checked) basis = 'członkowie organizacji';
+    else if (pSel && pSel.value !== '0' && pSel.selectedOptions[0]) basis = pSel.selectedOptions[0].textContent.split(' — ')[0].trim();
+    set(1, (_channel === 'email' ? 'E-mail' : 'SMS') + ' · ' + basis);
+    set(2, plOdb(_total));
+    if (_channel === 'email') {
+      const subj = (document.getElementById('ms_subject')?.value || '').trim();
+      set(3, subj ? subj : 'bez tematu');
+    } else {
+      const len = (document.getElementById('ms_plain_body')?.value || '').length;
+      set(3, len ? len + ' znaków' : 'pusta treść');
+    }
+    set(4, _total ? 'do ' + plOdb(_total) : 'najpierw wybierz odbiorców');
   }
 
   function wizValidate(step) {
@@ -1589,6 +1716,7 @@ recipientRow(c)
   }
 
   wizShow(1);
+  ['input', 'change'].forEach(ev => document.getElementById('msWizard')?.addEventListener(ev, sideSum));
 
   return { setChannel, toggleGroupPicker, filterGroupPicker, pickGroup, toggleTag, toggleContractSet, toggleCategory, toggleStatusFilter, audLoad, audSave, audDelete, retry, testSend,
            searchContacts, addContact, removeContact,
