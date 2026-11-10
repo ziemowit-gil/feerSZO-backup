@@ -29,6 +29,7 @@ final class TiProducts
         'cyberfolks' => 'Cyberfolks',
         'nazwapl'    => 'Nazwa.pl',
         'cloudflare' => 'Cloudflare',
+        'sdata'      => 'sdata.net.pl',   // Dysk Online (pilotaż, Panel Licencji)
         'other'      => 'Inny',
     ];
 

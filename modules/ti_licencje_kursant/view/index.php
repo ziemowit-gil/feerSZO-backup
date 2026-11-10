@@ -46,6 +46,8 @@ $tiles['materialy'] = ['Materiały dydaktyczne', $am5 ? [count($am5) . ' ' . (co
 $_nSpr = count($sprawy ?? []) + count($tickets ?? []);
 $tiles['sprawy'] = ['Moje sprawy', $_nSpr ? [count($sprawy ?? []) . ' ' . (count($sprawy ?? []) === 1 ? 'sprawa' : 'spraw') . (($tickets ?? []) ? ', ' . count($tickets) . ' zgł.' : ''), 'due'] : ['brak', 'off'], '', false];
 $tiles['produkty'] = ['Produkty i usługi', $products ? [count($products) . ' ' . (count($products) === 1 ? 'usługa' : 'usługi'), 'ok'] : ['brak', 'off'], $prodMonthly > 0 ? ClaudeBilling::zl($prodMonthly) . ' miesięcznie' : '', false];
+$drive = array_values(array_filter($products, fn($x) => ($x['provider'] ?? '') === 'sdata' || stripos((string)$x['name'], 'dysk online') !== false))[0] ?? null;   // Dysk Online (pilotaż, sdata.net.pl)
+$tiles['dysk'] = ['Dysk Online', $drive ? ($drive['status'] === 'suspended' ? ['zawieszony', 'bad'] : ['aktywny', 'ok']) : ['pilotaż', 'due'], $drive ? (string)$drive['name'] : 'dysk w chmurze', false];
 $cardModes = array_filter($paid, fn($v) => ($v['payMode'] ?? '') === 'card' && $v['sub'] && in_array($v['sub']['status'], ['requested', 'active', 'suspended'], true));
 $tiles['rozliczenia'] = ['Rozliczenia', $card ? ['karta podpięta', 'ok'] : ($cardModes ? ['podepnij kartę', 'due'] : ['przelew', 'off']), $card ? LicenceCard::label($card) : 'karta i dane do faktur', !$card && $cardModes];
 $tiles['konto'] = ['Moje konto', $login ? ['aktywne', 'ok'] : ['bez numeru', 'off'], ($login ? 'numer ' . $login . ', ' : '') . 'hasło, kontakt', false];   // numer w opisie (znacznik zamienia litery na wielkie)
@@ -531,6 +533,55 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
 <?php endif; ?>
 
 <?php /* ── Moje konto ── */ ?>
+<?php /* ── Dysk Online (pilotaż, realizuje sdata.net.pl) ── */ ?>
+<?php if ($page === 'dysk'): ?>
+<h1 class="m-title">Dysk Online <?= $tag($drive ? 'ok' : 'due', $drive ? 'aktywny' : 'pilotaż') ?></h1>
+<p class="m-explain">Dodatkowy dysk w chmurze, widoczny w Windowsie, na Macu i w telefonie jak zwykły dysk. Pliki są na serwerach, nie na Twoim komputerze, więc awaria albo kradzież laptopa ich nie zabiera.</p>
+<?= $idsLine ?>
+<section class="m-tile" aria-labelledby="d-stan">
+  <h2 class="m-sect" id="d-stan">Twój Dysk Online</h2>
+  <?php if ($drive): ?>
+    <p class="tw-text-sm">Usługa: <b><?= h((string)$drive['name']) ?></b><?= (string)($drive['server_details'] ?? '') !== '' ? ' · ' . h((string)$drive['server_details']) : '' ?><?= $drive['expires_at'] ? ' · do ' . h(ClaudeBilling::dayMonth((string)$drive['expires_at'])) : '' ?></p>
+    <p class="m-note">Dane do logowania przekazało Ci biuro. Jeśli ich nie masz, napisz do biura.</p>
+  <?php else: ?>
+    <p class="tw-text-sm tw-mb-3">To usługa pilotażowa. Zgłoś się, a założymy Ci dysk i prześlemy dane do logowania. Warunki pilotażu poda biuro.</p>
+    <form method="post" action="<?= h(route('lk.drive.join')) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zgłaszam się do pilotażu</button></form>
+    <p class="m-note tw-mt-2">Zgłoszenie potwierdzisz kodem SMS.</p>
+  <?php endif; ?>
+</section>
+<section class="m-tile tw-mt-4" aria-labelledby="d-jak">
+  <h2 class="m-sect" id="d-jak">Jak zacząć</h2>
+  <ol class="tw-list-decimal tw-pl-6 tw-text-sm tw-space-y-1">
+    <li>Zgłaszasz się do pilotażu. Dostajesz login i hasło.</li>
+    <li>Instalujesz program na komputerze z Windowsem, na Macu albo w telefonie.</li>
+    <li>Wgrywasz pliki na nowy dysk, który się pojawi.</li>
+    <li>Gotowe. Masz do nich dostęp z domu, z pracy i z telefonu. Możesz też udostępniać pliki innym osobom.</li>
+  </ol>
+</section>
+<section class="m-tile tw-mt-4" aria-labelledby="d-zal">
+  <h2 class="m-sect" id="d-zal">Co zyskujesz</h2>
+  <ul class="tw-list-disc tw-pl-6 tw-text-sm tw-space-y-1">
+    <li><b>Wspólna praca.</b> Udostępniasz foldery innym użytkownikom. Osobom z zewnątrz możesz dać dostęp do plików przez przeglądarkę.</li>
+    <li><b>Bezpieczeństwo przy awarii.</b> Pliki są na wirtualnym dysku, a nie na Twoim komputerze. Codziennie robimy kopię zapasową, więc po awarii komputera dane na Ciebie czekają.</li>
+    <li><b>Ochrona przed kradzieżą.</b> Jeśli ktoś ukradnie Ci laptopa, pliki nadal są na Dysku Online.</li>
+    <li><b>Wersje plików.</b> Przywrócisz starszą wersję dokumentu Word, arkusza Excel albo pliku tekstowego.</li>
+    <li><b>Dostęp z telefonu.</b> Wygodne do wgrywania zdjęć i innych plików.</li>
+  </ul>
+</section>
+<section class="m-tile tw-mt-4" aria-labelledby="d-bez">
+  <h2 class="m-sect" id="d-bez">Bezpieczeństwo</h2>
+  <ul class="tw-list-disc tw-pl-6 tw-text-sm tw-space-y-1">
+    <li>Dane są w profesjonalnych centrach danych: główne serwery w Niemczech, zapasowe w Finlandii. Fizyczny dostęp ma tylko uprawniony personel.</li>
+    <li>Serwery mają podwójne zasilanie, podwójne łącza i macierze dyskowe, więc usługa działa całą dobę.</li>
+    <li>Kopia zapasowa jest w innym kraju niż serwer główny, więc dane zawsze da się odtworzyć.</li>
+    <li>Każdy dysk działa w osobnym kontenerze. Pliki różnych osób się nie mieszają.</li>
+    <li>Serwery chroni zapora sieciowa, otwarte są tylko porty potrzebne do pracy.</li>
+    <li>Połączenie z dyskiem jest szyfrowane (HTTPS), więc nikt nie podejrzy przesyłanych plików.</li>
+  </ul>
+  <p class="m-note tw-mt-3">Usługę realizuje sdata.net.pl. Fundacja prowadzi pilotaż i rozlicza usługę z uczestnikami.</p>
+</section>
+<?php endif; ?>
+
 <?php /* ── Rozliczenia: karta i dane do faktur (konta rozliczeniowe) ── */ ?>
 <?php if ($page === 'rozliczenia'): ?>
 <h1 class="m-title">Rozliczenia</h1>

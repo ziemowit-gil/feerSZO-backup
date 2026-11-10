@@ -62,6 +62,8 @@ $r->group(['lp.auth', 'lp.contact'], function (Router $r) {
     $r->post('/sprawy/zgloszenie/{id}/odpowiedz', [LicencjeKursantController::class, 'caseReply'])->name('lk.case.reply');
     $r->get('/produkty',               [LicencjeKursantController::class, 'products'])->name('lk.products');
     $r->get('/konto',                  [LicencjeKursantController::class, 'account'])->name('lk.account');
+    $r->get('/dysk',                   [LicencjeKursantController::class, 'drive'])->name('lk.drive');             // Dysk Online (pilotaż, sdata.net.pl)
+    $r->post('/dysk/zgloszenie',       [LicencjeKursantController::class, 'driveJoin'])->name('lk.drive.join');
     $r->get('/rozliczenia',            [LicencjeKursantController::class, 'billing'])->name('lk.billing');          // karta i dane do faktur
     $r->get('/karta/{product}',        [LicencjeKursantController::class, 'cardForm'])->name('lk.card');            // zgoda na płatności kartą
     $r->post('/karta/{product}',       [LicencjeKursantController::class, 'cardPost'])->name('lk.card.post');
