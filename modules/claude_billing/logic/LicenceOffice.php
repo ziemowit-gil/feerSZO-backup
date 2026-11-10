@@ -267,22 +267,22 @@ final class LicenceOffice
         $email = trim((string)($c['email'] ?? ''));
         $phone = trim((string)($c['phone'] ?? ''));
         $okE = false; $okS = false;
+        if ($phone !== '') {   // najpierw SMS z hasłem — treść e-maila zależy od tego, czy wyszedł
+            require_once dirname(__DIR__, 3) . '/includes/sms.php';
+            $GLOBALS['__sms_quiet_bypass'] = true;   // hasło do świeżo założonego konta wychodzi o każdej porze (jak kod jednorazowy)
+            try { $okS = !in_array(sms_send($phone, $org . ': haslo tymczasowe do konta ' . $upn . ': ' . $pass . ' (zmienisz je przy pierwszym logowaniu)', 'access_data'), ['', 'odlozony'], true); } catch (\Throwable $e) {}
+            unset($GLOBALS['__sms_quiet_bypass']);
+        }
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
             require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
             $hint = rawurlencode($upn);
             $html = '<p>Dzień dobry,</p>'
                 . '<p>założyliśmy Ci konto Microsoft 365 w ' . h($org) . '. Zalogujesz się nim do Worda, Excela, Outlooka i Teams.</p>'
                 . '<p>Twój login: <b>' . h($upn) . '</b></p>'
-                . '<p>Hasło tymczasowe przyszło osobno SMS-em. Przy pierwszym logowaniu Microsoft poprosi o nowe hasło.</p>'
+                . '<p>' . ($okS ? 'Hasło tymczasowe przyszło osobno SMS-em.' : 'Hasło tymczasowe przekaże Ci biuro.') . ' Przy pierwszym logowaniu Microsoft poprosi o nowe hasło.</p>'
                 . '<p>Logowanie: <a href="https://www.office.com/?login_hint=' . h($hint) . '">office.com</a></p>'
                 . '<p>Jeśli to pomyłka, odpisz na tę wiadomość.</p>';
             try { mail_queue_add($email, (string)($c['name'] ?? ''), 'Twoje konto Microsoft 365: ' . $upn, $html, '', 'licencje_office', (int)($c['id'] ?? 0), '', true); $okE = true; } catch (\Throwable $e) {}
-        }
-        if ($phone !== '') {
-            require_once dirname(__DIR__, 3) . '/includes/sms.php';
-            $GLOBALS['__sms_quiet_bypass'] = true;   // hasło do świeżo założonego konta wychodzi o każdej porze (jak kod jednorazowy)
-            try { $okS = !in_array(sms_send($phone, $org . ': haslo tymczasowe do konta ' . $upn . ': ' . $pass . ' (zmienisz je przy pierwszym logowaniu)', 'access_data'), ['', 'odlozony'], true); } catch (\Throwable $e) {}
-            unset($GLOBALS['__sms_quiet_bypass']);
         }
         $t = [];
         $t[] = $okE ? 'Login poszedł e-mailem.' : 'E-mail z loginem nie wyszedł.';
