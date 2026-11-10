@@ -90,6 +90,35 @@ final class LicencjeAdminController
         } catch (\Throwable $e) { return $this->back('err', $e->getMessage()); }
     }
 
+    /** Office ze zniżką edukacyjną: ceny planów A3 / A5 (A1 w cenie) — edytuje kierownik albo administrator. */
+    public function officePrices(): string
+    {
+        $a = $this->adm();
+        $flash = $_SESSION['lk_flash'] ?? null; unset($_SESSION['lk_flash']);
+        $plans = [];
+        foreach (LicenceOffice::PLANS as $k => $pl) {
+            if (!$pl['product']) continue;
+            $plans[$k] = $pl + ['s' => ClaudeBilling::settings($pl['product']), 'rate' => ClaudeBilling::lastRate($pl['product'])];
+        }
+        return Router::view(self::VIEW . 'admin_office.php', ['adm' => $a, 'plans' => $plans, 'org' => self::org(), 'flash' => $flash]);
+    }
+
+    public function officePricesSave(): ?string
+    {
+        $a = $this->adm();
+        $done = []; $err = [];
+        foreach (LicenceOffice::PLANS as $k => $pl) {
+            if (!$pl['product'] || !isset($_POST['usd'][$k])) continue;
+            try {
+                ClaudeBilling::savePrices($pl['product'], !empty($_POST['enabled'][$k]), str_replace(',', '.', trim((string)$_POST['usd'][$k])), str_replace(',', '.', trim((string)($_POST['list_usd'][$k] ?? ''))), $a['name'] . ' (Panel Licencji)');
+                $done[] = $pl['name'];
+            } catch (\Throwable $e) { $err[] = $pl['name'] . ': ' . $e->getMessage(); }
+        }
+        $_SESSION['lk_flash'] = $err ? ['err', implode(' ', $err)] : ['ok', 'Zapisano ceny: ' . implode(', ', $done) . '.'];
+        header('Location: ' . route('lk.admin.prices'));
+        return null;
+    }
+
     public function logout(): ?string
     {
         LicencjePanelAuth::adminLogout();

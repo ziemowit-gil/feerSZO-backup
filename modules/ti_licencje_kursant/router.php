@@ -36,6 +36,8 @@ $r->group(['lp.admin'], function (Router $r) {
     $r->post('/admin/dostep',          [LicencjeAdminController::class, 'access'])->name('lk.admin.access');
     $r->post('/admin/office',          [LicencjeAdminController::class, 'office'])->name('lk.admin.office');
     $r->post('/admin/wyloguj',         [LicencjeAdminController::class, 'logout'])->name('lk.admin.logout');
+    $r->get('/admin/ceny-office',      [LicencjeAdminController::class, 'officePrices'])->name('lk.admin.prices');      // Office A3 / A5: ceny (kierownik / admin)
+    $r->post('/admin/ceny-office',     [LicencjeAdminController::class, 'officePricesSave'])->name('lk.admin.prices.save');
 });
 
 $r->get('/logowanie',                  [LicencjeKursantController::class, 'loginForm'])->name('lk.login');

@@ -284,6 +284,19 @@ final class ClaudeBilling
         return $s;
     }
 
+    /** Zmiana samej ceny i zamawiania produktu — pozostałe ustawienia bez zmian (Panel Licencji › Office: ceny planów; kierownik albo admin). */
+    public static function savePrices(string $product, bool $enabled, string $usd, string $listUsd, string $by): void
+    {
+        $s = self::settings($product);
+        $in = [];
+        foreach (['due_day', 'grace_days', 'available_from', 'available_until', 'pct', 'pct_label', 'fee_pln', 'pay_redirect', 'fast_transfer_url', 'bank_account', 'rate_kind', 'invoice', 'discount_mode'] as $k) $in[$k] = (string)$s[$k];
+        foreach (['invoice_email', 'notify', 'helpdesk', 'simulate'] as $k) $in[$k] = $s[$k] ? '1' : '';
+        $in['enabled'] = $enabled ? '1' : '';
+        $in['usd'] = trim($usd) === '' ? '0' : $usd;
+        $in['list_usd'] = trim($listUsd) === '' ? '0' : $listUsd;
+        self::saveSettings($in, $by, $product);
+    }
+
     /** Czyści pamięć ustawień w bieżącym żądaniu (testy, zmiany przez org_setting_set). */
     public static function flushSettings(): void { self::$settingsCache = []; }
 

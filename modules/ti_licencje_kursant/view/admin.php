@@ -14,6 +14,7 @@ $qf = '<input type="hidden" name="q" value="' . h($q) . '">';
 <h1 class="m-title">Administrator Licencji</h1>
 <p class="m-explain">Znajdź uczestnika, nadaj mu dostęp do Panelu Licencji albo załóż konto Office. Dane do panelu dostają osoby z licencjami albo produktami; płatny produkt liczy się dopiero z fakturą VAT.</p>
 <div class="tw-flex tw-flex-wrap tw-gap-2 tw-mb-4">
+  <a class="m-btn" href="<?= h(route('lk.admin.prices')) ?>">Office: ceny planów A3 / A5</a>
   <a class="m-btn-ghost" href="/licencje/claudeAbonament.php?tab=ustawienia">Ceny i ustawienia płatnych licencji</a>
   <a class="m-btn-ghost" href="/licencje/licencjeDydaktyczne.php">Wnioski AM5 / AM7 i operacje</a>
   <a class="m-btn-ghost" href="/licencje/licencjeKursantow.php">Programy i klucze</a>
