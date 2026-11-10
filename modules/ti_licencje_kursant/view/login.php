@@ -9,7 +9,13 @@ include __DIR__ . '/_top.php';
 ?>
 <div class="m-tile" style="max-width:480px">
   <h1 class="m-head">Zaloguj się do panelu licencji</h1>
-  <p class="tw-text-sm tw-mb-4">Tu zarządzasz swoimi licencjami: Claude, NordVPN, Office, programami i usługami od Fundacji.</p>
+  <p class="tw-text-sm tw-mb-2">Panel Licencji to jedno miejsce na programy i usługi, które masz dzięki Fundacji FEER. Tutaj:</p>
+  <ul class="tw-list-disc tw-pl-6 tw-text-sm tw-mb-4 tw-space-y-1">
+    <li>sprawdzisz swoje licencje i konto Office, a gdy go nie masz, założysz je,</li>
+    <li>złożysz wniosek o Claude, Office z aplikacjami na komputer albo Dysk Online,</li>
+    <li>zapłacisz online albo przelewem, pobierzesz proformy i faktury, podepniesz kartę,</li>
+    <li>zobaczysz swoje sprawy licencyjne i odpiszesz na wiadomości od nas.</li>
+  </ul>
   <?php if ($err !== ''): ?><div class="pk-alert pk-alert-err" role="alert" id="blad"><?= h($err) ?></div><?php endif; ?>
   <form method="post" action="<?= h(route('lk.login.post')) ?>" novalidate>
     <?= Router::csrfField() ?>
