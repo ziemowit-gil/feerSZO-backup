@@ -712,6 +712,31 @@ if ($active_folder_id) {
     }
 }
 
+// Liczniki plików folderów, zadania folderów zadań, brakujące foldery zadań, powiązania plików — po jednym zapytaniu
+$tf_counts = [];
+foreach (db_all("SELECT f.folder_id, COUNT(*) AS n FROM ws_files f JOIN ws_folders fo ON fo.id = f.folder_id
+                 WHERE fo.workspace_id = ? AND f.deleted_at IS NULL GROUP BY f.folder_id", [$ws_id]) as $_r) {
+    $tf_counts[(int)$_r['folder_id']] = (int)$_r['n'];
+}
+$tf_tasks = [];
+foreach (db_all("SELECT t.id, t.title, t.completed_at, t.deleted_at, tl.is_done_state, tl.name AS list_name
+                 FROM tasks t LEFT JOIN task_lists tl ON tl.id = t.list_id WHERE t.workspace_id = ?", [$ws_id]) as $_t) {
+    $tf_tasks[(int)$_t['id']] = $_t + ['_done' => !empty($_t['completed_at']) || !empty($_t['is_done_state'])];
+}
+$tf_shared = array_values(array_filter($folders, fn($f) => empty($f['task_id'])));
+$tf_taskf  = array_values(array_filter($folders, fn($f) => !empty($f['task_id'])));
+$tf_missing = (int)(db_one("SELECT COUNT(*) AS n FROM tasks t WHERE t.workspace_id = ? AND t.deleted_at IS NULL
+                            AND NOT EXISTS (SELECT 1 FROM ws_folders f WHERE f.task_id = t.id)", [$ws_id])['n'] ?? 0);
+$tf_links = [];
+if ($active_folder_id) {
+    foreach (db_all("SELECT wtf.file_id, COUNT(*) AS n FROM ws_task_files wtf JOIN ws_files f ON f.id = wtf.file_id
+                     WHERE f.folder_id = ? GROUP BY wtf.file_id", [$active_folder_id]) as $_r) {
+        $tf_links[(int)$_r['file_id']] = (int)$_r['n'];
+    }
+}
+$tf_active_task = ($active_folder && !empty($active_folder['task_id'])) ? ($tf_tasks[(int)$active_folder['task_id']] ?? null) : null;
+$tf_ws_color = (string)($workspace['color'] ?: '#5f5f5f');
+
 // Załączniki zadań + powiązane pliki Koszulek → tasks/includes/files_task_manager.php
 
 $PAGE_TITLE       = h($workspace['name']) . ' — Pliki';
@@ -722,192 +747,198 @@ $TASKS_FILES_VIEW = true;  // sygnał dla header_tasks.php: switcher WS → file
 require_once __DIR__ . '/includes/header_tasks.php';
 ?>
 
-<style type="text/tailwindcss">
-/* ── Tokeny wspólne z tasks/index.php ─────────────────────────────────── */
-:root {
-  --tk-focus:   #2563eb;
-  --tk-border:  #e2e8f0;
-  --tk-bg-soft: #f8fafc;
-  --tk-text:    #0f172a;
-  --tk-muted:   #64748b;
-  --tk-radius:  .5rem;
-}
+<style>
+/* ══ Pliki obszaru (2026-11-10) — szata Metro jak lista zadań: nagłówek z kafelkiem obszaru i przełącznikiem widoków,
+   foldery wspólne i foldery zadań w lewej kolumnie (filtr), folder zadania z linkiem do zadania, tabela bez zaokrągleń ══ */
+.tf-page{--tf-line:#e1e1e1;--tf-muted:#5f5f5f;--tf-text:#111827}
+.tf-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:1.25rem;align-items:start}
+@media(min-width:992px){.tf-layout{grid-template-columns:280px minmax(0,1fr)}}
+.tf-side{background:#fff;border-right:1px solid var(--tf-line);padding:.25rem 0 .5rem}
+@media(min-width:992px){.tf-side{position:sticky;top:120px;max-height:calc(100vh - 140px);overflow-y:auto}}
+.tf-side-search{padding:.25rem .75rem .5rem}
+.tf-side-search input{width:100%;min-height:32px;padding:0 .55rem;border:1px solid #8a8886;font-size:.84rem}
+.tf-side-search input:focus{outline:0;border-color:var(--tsk-green,#007a00);box-shadow:inset 0 0 0 1px var(--tsk-green,#007a00)}
+.tf-side-h{display:flex;align-items:center;gap:.4rem;padding:.6rem .9rem .3rem;font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--tf-muted)}
+.tf-side-h .tf-cnt{margin-left:auto}
+.tf-side ul{list-style:none;margin:0;padding:0}
+.tf-folder-link{display:flex;align-items:center;gap:.6rem;min-height:40px;padding:.3rem .75rem .3rem calc(.9rem - 3px);border-left:3px solid transparent;color:var(--tf-text);text-decoration:none;font-size:.86rem;line-height:1.2}
+.tf-folder-link:hover{background:#f2f2f2;color:var(--tf-text)}
+.tf-folder-link:focus-visible{outline:2px solid var(--tf-text);outline-offset:-2px}
+.tf-folder-link.active{background:#f2f2f2;background:color-mix(in srgb,var(--ws) 12%,#fff);border-left-color:var(--ws);font-weight:700}
+.tf-folder-link>.bi{flex-shrink:0;font-size:1rem;color:var(--ws)}
+.tf-folder-link.is-done>.bi{color:#5f5f5f}
+.tf-folder-link.is-done .tf-folder-name{color:#5f5f5f}
+.tf-folder-name{flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.tf-cnt{flex-shrink:0;min-width:1.5rem;padding:.08rem .35rem;text-align:center;font-size:.72rem;font-weight:700;background:#f2f2f2;color:var(--tf-text);font-variant-numeric:tabular-nums}
+.tf-cnt.is-zero{background:transparent;color:var(--tf-muted);font-weight:400}
+.tf-side-none{padding:.3rem .9rem .5rem;font-size:.8rem;color:var(--tf-muted);margin:0}
 
-.tf-toolbar {
-  @apply tw-flex tw-flex-wrap tw-gap-2 tw-items-center tw-bg-white tw-py-[.55rem] tw-px-3 tw-mb-[.85rem];
-  border: 1px solid var(--tk-border); border-radius: var(--tk-radius);
-}
-.tf-view-btn {
-  @apply tw-inline-flex tw-items-center tw-gap-[.3rem] tw-py-[.22rem] tw-px-[.65rem] tw-rounded-full tw-text-[.77rem] tw-font-semibold tw-border-[1.5px] tw-border-transparent tw-no-underline tw-bg-slate-100 tw-transition-all tw-whitespace-nowrap;
-  color: var(--tk-muted);
-}
-.tf-view-btn.active { background: var(--tsk-green, #059669); color: #fff; border-color: var(--tsk-green, #059669); }
-.tf-view-btn:hover:not(.active) { @apply tw-border-slate-400; }
-.tf-sep { @apply tw-w-px tw-h-[1.3rem] tw-bg-slate-200 tw-flex-shrink-0; }
-.tf-wrap { @apply tw-bg-white tw-overflow-hidden; border: 1px solid var(--tk-border); border-radius: var(--tk-radius); }
-.tf-folder-link {
-  @apply tw-flex tw-items-center tw-gap-2 tw-py-[.45rem] tw-px-[.9rem] tw-text-[.85rem] tw-no-underline tw-text-slate-700 tw-border-l-[3px] tw-border-l-transparent tw-transition-all;
-}
-.tf-folder-link:hover { background: #f8fafc; color: var(--tsk-green, #059669); border-left-color: #e2e8f0; }
-.tf-folder-link.active {
-  background: var(--tsk-green-bg, #ecfdf5); color: var(--tsk-green, #059669);
-  font-weight: 600; border-left-color: var(--tsk-green, #059669);
-}
-.tf-file-icon { @apply tw-text-[1.1rem]; }
-
-/* ── Przełącznik widoku Lista/Galeria ─────────────────────────────────── */
-.tf-view-toggle.active { @apply tw-bg-slate-800 tw-text-white tw-border-slate-800; }
-
-/* ── Drag & drop upload ───────────────────────────────────────────────── */
-.tf-dropzone { @apply tw-relative; }
-.tf-drop-overlay {
-  @apply tw-hidden tw-absolute tw-inset-0 tw-z-20 tw-flex-col tw-items-center tw-justify-center tw-gap-2
-         tw-text-white tw-text-sm tw-font-semibold tw-text-center tw-pointer-events-none tw-rounded-lg tw-p-4;
-  background: rgba(5,150,105,.88);
-  border: 3px dashed rgba(255,255,255,.75);
-}
-.tf-drop-overlay i { @apply tw-text-4xl; }
-.tf-dropzone.tf-drop-active .tf-drop-overlay { @apply tw-flex; }
-
-/* ── Widok galerii ─────────────────────────────────────────────────────── */
-.tf-file-grid {
-  @apply tw-grid tw-gap-3 tw-p-3;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-}
-.tf-grid-card { @apply tw-flex tw-flex-col tw-gap-1; }
-.tf-grid-thumb {
-  @apply tw-relative tw-aspect-square tw-rounded-lg tw-overflow-hidden tw-flex tw-items-center tw-justify-center tw-bg-slate-100;
-  border: 1px solid var(--tk-border);
-}
-.tf-grid-thumb img { @apply tw-w-full tw-h-full tw-object-cover; }
-.tf-grid-thumb i { @apply tw-text-4xl; color: var(--tk-muted); }
-.tf-grid-overlay {
-  @apply tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center tw-gap-1 tw-opacity-0 tw-transition-opacity;
-  background: rgba(15,23,42,.55);
-}
-.tf-grid-thumb:hover .tf-grid-overlay,
-.tf-grid-thumb:focus-within .tf-grid-overlay { @apply tw-opacity-100; }
-.tf-grid-taskbadge { @apply tw-absolute tw-top-1 tw-right-1 tw-text-[.62rem]; }
-.tf-grid-name { @apply tw-text-[.8rem] tw-font-medium tw-mt-1; color: var(--tk-text); }
-.tf-grid-meta { @apply tw-text-[.7rem]; color: var(--tk-muted); }
+.tf-card{position:relative;background:#fff;border:1px solid var(--tf-line);border-top:2px solid var(--ws,#007a00)}
+.tf-card-head{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .75rem;padding:.75rem 1rem;border-bottom:1px solid var(--tf-line)}
+.tf-card-t{display:flex;align-items:center;gap:.5rem;margin:0;font-size:1.05rem;font-weight:600;color:var(--tf-text);min-width:0}
+.tf-card-t>.bi{color:var(--ws);flex-shrink:0}
+.tf-card-act{display:flex;align-items:center;gap:.35rem;margin-left:auto;flex-wrap:wrap}
+.tf-taskline{display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .75rem;padding:.5rem 1rem;background:#f7f7f7;border-bottom:1px solid var(--tf-line);font-size:.84rem;color:#3f3f46}
+.tf-taskline a{font-weight:600;color:var(--tm-blue,#0f6fa8);text-decoration:none}
+.tf-taskline a:hover{text-decoration:underline}
+.tf-st{display:inline-block;padding:.08rem .45rem;font-size:.74rem;font-weight:700;background:#eef3ff;color:#0b3a9e}
+.tf-st.is-done{background:#dff6dd;color:#0e5a0e}
+.tf-st.is-gone{background:#fde7e9;color:#a20025}
+.tf-ibtn{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-width:32px;height:32px;padding:0 .55rem;border:1px solid #8a8886;background:#fff;color:var(--tf-text);font-size:.82rem;font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
+.tf-ibtn:hover{background:#f2f2f2;color:var(--tf-text)}
+.tf-ibtn:focus-visible{outline:2px solid var(--tf-text);outline-offset:1px}
+.tf-ibtn.is-cta{background:var(--tsk-green,#007a00);border-color:var(--tsk-green,#007a00);color:#fff}
+.tf-ibtn.is-cta:hover{background:#1d1d1d;border-color:#1d1d1d}
+.tf-ibtn.is-danger{color:#a20025}
+.tf-ibtn.is-danger:hover{background:#a20025;border-color:#a20025;color:#fff}
+.tf-ibtn.active{background:var(--tf-text);border-color:var(--tf-text);color:#fff}
+.tf-seg{display:inline-flex}
+.tf-seg .tf-ibtn+.tf-ibtn{border-left:0}
+.tf-progress{padding:.4rem 1rem;border-bottom:1px solid var(--tf-line)}
+.tf-progress .progress{height:4px;border-radius:0}
+.tf-progress small{color:var(--tf-muted)}
+.tf-empty{display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:3rem 1rem;text-align:center;color:#3f3f46;font-size:.9rem}
+.tf-empty>.bi{font-size:2rem;color:var(--tf-muted)}
+.tf-table{width:100%;margin:0;font-size:.86rem}
+.tf-table thead th{padding:.6rem .75rem;background:#fff;font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3f3f46;border-bottom:1px solid var(--tf-line);white-space:nowrap}
+.tf-table td{padding:.55rem .75rem;vertical-align:middle;border-bottom:1px solid #f0f0f0}
+.tf-table tbody tr:hover>td{background:#f7f7f7}
+.tf-fname{display:block;max-width:100%;border:0;background:none;padding:0;text-align:left;font:inherit;font-weight:600;color:var(--tf-text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.tf-fname:hover,.tf-fname:focus-visible{text-decoration:underline;color:var(--tm-blue,#0f6fa8)}
+.tf-file-icon{font-size:1.15rem}
+.tf-links{display:inline-flex;align-items:center;gap:.25rem;margin-top:.15rem;padding:.05rem .4rem;border:0;font-size:.72rem;font-weight:600;background:#f2f2f2;color:#3f3f46;cursor:pointer}
+.tf-links.has{background:#eef3ff;color:#0b3a9e}
+.tf-links:hover{text-decoration:underline}
+.tf-acts{display:flex;gap:.25rem;justify-content:flex-end}
+.tf-muted{color:var(--tf-muted)}
+.tf-dropzone{position:relative}
+.tf-drop-overlay{display:none;position:absolute;inset:0;z-index:20;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;padding:1rem;
+  color:#fff;font-size:.95rem;font-weight:600;text-align:center;pointer-events:none;background:rgba(0,122,0,.9);border:3px dashed rgba(255,255,255,.8)}
+.tf-drop-overlay i{font-size:2.25rem}
+.tf-dropzone.tf-drop-active .tf-drop-overlay{display:flex}
+.tf-file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.75rem;padding:.9rem}
+.tf-grid-card{display:flex;flex-direction:column;gap:.15rem}
+.tf-grid-thumb{position:relative;aspect-ratio:1/1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f2f2f2;border:1px solid var(--tf-line)}
+.tf-grid-thumb img{width:100%;height:100%;object-fit:cover}
+.tf-grid-thumb i{font-size:2.5rem;color:var(--tf-muted)}
+.tf-grid-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:.25rem;opacity:0;transition:opacity .15s;background:rgba(17,24,39,.55)}
+.tf-grid-thumb:hover .tf-grid-overlay,.tf-grid-thumb:focus-within .tf-grid-overlay{opacity:1}
+.tf-grid-taskbadge{position:absolute;top:.3rem;right:.3rem;padding:.05rem .35rem;font-size:.66rem;font-weight:700;background:#0050ef;color:#fff}
+.tf-grid-name{margin-top:.25rem;font-size:.82rem;font-weight:600;color:var(--tf-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tf-grid-meta{font-size:.72rem;color:var(--tf-muted)}
+/* Menedżer plików zadań pod spodem (tasks/includes/files_task_manager.php) — ta sama szata */
+.tf-page .tf-wrap{background:#fff;border:1px solid var(--tf-line);border-top:2px solid var(--tf-text);border-radius:0;overflow:hidden}
+.tf-page .tf-wrap .table thead th{background:#fff;font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3f3f46}
+.tf-page .tf-wrap .bg-light{background:#f7f7f7!important}
+.tf-page .tf-wrap .badge{border-radius:0}
+@media(prefers-reduced-motion:reduce){.tf-grid-overlay{transition:none}}
 </style>
 
-<main id="tsk-main" class="py-3 px-3 px-md-4 px-lg-5">
+<div class="tf-page" style="--ws:<?= h($tf_ws_color) ?>">
 <?php require_once dirname(__DIR__) . '/includes/banner_rewrite.php' ?>
 
-<!-- Pasek narzędzi — widoki + breadcrumb -->
-<div class="tf-toolbar">
-  <!-- Przełącznik widoków: Zadania | Kanban | Pliki (aktywny) -->
-  <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws_id ?>&view=list" class="tf-view-btn">
-    <i class="bi bi-list-ul"></i>Lista
-  </a>
-  <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws_id ?>&view=kanban" class="tf-view-btn">
-    <i class="bi bi-kanban"></i>Kanban
-  </a>
-  <a href="<?= APP_URL ?>/tasks/files.php?ws=<?= $ws_id ?>" class="tf-view-btn active">
-    <i class="bi bi-folder2-open"></i>Pliki
-  </a>
-
-  <div class="tf-sep" aria-hidden="true"></div>
-
-  <!-- Rola użytkownika -->
-  <span class="badge rounded-pill text-bg-secondary" style="font-size:.7rem"><?= ucfirst($role ?: 'viewer') ?></span>
-
-  <!-- Prawostronnie: dodaj folder -->
-  <?php if ($can_manage && $sp_ok): ?>
-  <button class="btn btn-sm btn-outline-primary py-0 px-2 ms-auto"
-          data-bs-toggle="modal" data-bs-target="#newFolderModal" style="font-size:.8rem">
-    <i class="bi bi-folder-plus me-1"></i>Nowy folder
-  </button>
-  <?php else: ?>
-  <div class="ms-auto"></div>
-  <?php endif; ?>
+<!-- ── Nagłówek obszaru: nazwa, przełącznik widoków, działania ─────────────────────── -->
+<div class="tk-head">
+  <h1 class="tk-head-t">
+    <span class="tk-head-tile" style="--ws:<?= h($tf_ws_color) ?>;--ws-ink:<?= task_ws_ink($tf_ws_color) ?>" aria-hidden="true"><i class="bi <?= h($workspace['icon'] ?: 'bi-folder') ?>"></i></span>
+    <span><?= h($workspace['name']) ?><span class="ws-set-sub">Pliki obszaru · Twoja rola: <?= h(['admin' => 'administrator', 'editor' => 'lider', 'member' => 'członek', 'viewer' => 'podgląd'][$role ?: 'viewer'] ?? ($role ?: 'podgląd')) ?></span></span>
+  </h1>
+  <div class="tk-head-act">
+    <div class="tk-viewsw" role="group" aria-label="Widok obszaru">
+      <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws_id ?>&view=list" class="tk-viewsw-b"><i class="bi bi-list-ul" aria-hidden="true"></i>Lista</a>
+      <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws_id ?>&view=kanban" class="tk-viewsw-b"><i class="bi bi-kanban" aria-hidden="true"></i>Kanban</a>
+      <a href="<?= APP_URL ?>/tasks/files.php?ws=<?= $ws_id ?>" class="tk-viewsw-b is-on" aria-current="page"><i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki</a>
+    </div>
+    <?php if ($can_manage && $sp_ok && $tf_missing > 0): ?>
+    <button type="button" class="tk-hbtn" id="tfInitTaskFolders" title="Utwórz na SharePoincie foldery dla zadań, które jeszcze ich nie mają">
+      <i class="bi bi-folder-plus" aria-hidden="true"></i>Foldery dla zadań (<?= $tf_missing ?>)</button>
+    <?php endif; ?>
+    <?php if ($can_manage && $sp_ok): ?>
+    <button type="button" class="tk-hbtn tk-hbtn--cta" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+      <i class="bi bi-folder-plus" aria-hidden="true"></i>Nowy folder</button>
+    <?php endif; ?>
+  </div>
 </div>
 
-<div class="row g-3">
+<div class="tf-layout">
 
-  <!-- ── Sidebar: Foldery ───────────────────────────────────────────────── -->
-  <div class="col-12 col-lg-3">
-    <div class="tf-wrap">
-      <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom"
-           style="font-size:.8rem; font-weight:700; color:var(--tk-muted); text-transform:uppercase; letter-spacing:.04em">
-        <span><i class="bi bi-folder me-1"></i>Foldery</span>
-        <span class="badge text-bg-secondary rounded-pill" style="font-size:.6rem"><?= count($folders) ?></span>
-      </div>
-
-      <?php if (empty($folders)): ?>
-      <div class="text-center text-muted py-4 px-3" style="font-size:.8rem">
-        <i class="bi bi-folder2 d-block mb-1" style="font-size:1.5rem; opacity:.3"></i>
-        Brak folderów
-        <?php if ($can_manage && $sp_ok): ?>
-        <div class="mt-2">
-          <button class="btn btn-sm btn-outline-primary py-0 px-2" data-bs-toggle="modal" data-bs-target="#newFolderModal">
-            <i class="bi bi-folder-plus me-1"></i>Utwórz folder
-          </button>
-        </div>
-        <?php endif; ?>
-      </div>
-      <?php else: ?>
-      <nav aria-label="Foldery workspace">
-        <?php foreach ($folders as $f): ?>
-        <a href="?ws=<?= $ws_id ?>&folder=<?= (int)$f['id'] ?>"
-           class="tf-folder-link <?= (int)$f['id'] === $active_folder_id ? 'active' : '' ?>">
-          <i class="bi bi-folder-fill flex-shrink-0" style="color:<?= h($workspace['color'] ?: '#3b82f6') ?>"></i>
-          <span class="text-truncate flex-grow-1"><?= h($f['name']) ?></span>
-        </a>
-        <?php endforeach; ?>
-      </nav>
-      <?php endif; ?>
+  <!-- ── Foldery: wspólne + foldery zadań ─────────────────────────────────────── -->
+  <nav class="tf-side" aria-label="Foldery obszaru">
+    <?php if ($folders): ?>
+    <div class="tf-side-search">
+      <label class="visually-hidden" for="tfFolderFilter">Filtruj foldery</label>
+      <input type="search" id="tfFolderFilter" placeholder="Filtruj foldery…" autocomplete="off">
     </div>
-  </div>
+    <?php endif; ?>
+    <?php foreach ([['Foldery wspólne', $tf_shared, 'bi-folder-fill'], ['Foldery zadań', $tf_taskf, 'bi-check2-square']] as [$_gl, $_gf, $_gi]): ?>
+    <div class="tf-side-h"><?= h($_gl) ?><span class="tf-cnt<?= $_gf ? '' : ' is-zero' ?>"><?= count($_gf) ?></span></div>
+    <?php if (!$_gf): ?>
+    <p class="tf-side-none"><?= $_gl === 'Foldery wspólne' ? 'Brak — utwórz folder „Nowy folder”.' : 'Brak — powstają przy wgraniu pliku z okna zadania.' ?></p>
+    <?php else: ?>
+    <ul class="tf-folder-group">
+      <?php foreach ($_gf as $f):
+        $_fid = (int)$f['id']; $_n = $tf_counts[$_fid] ?? 0;
+        $_tk  = !empty($f['task_id']) ? ($tf_tasks[(int)$f['task_id']] ?? null) : null;
+        $_done = $_tk && ($_tk['_done'] || !empty($_tk['deleted_at'])); ?>
+      <li>
+        <a href="?ws=<?= $ws_id ?>&folder=<?= $_fid ?>" class="tf-folder-link<?= $_fid === $active_folder_id ? ' active' : '' ?><?= $_done ? ' is-done' : '' ?>"
+           <?= $_fid === $active_folder_id ? 'aria-current="page"' : '' ?> data-name="<?= h(mb_strtolower($f['name'])) ?>" title="<?= h($f['name']) ?>">
+          <i class="bi <?= $_tk && $_tk['_done'] ? 'bi-check2-circle' : $_gi ?>" aria-hidden="true"></i>
+          <span class="tf-folder-name"><?= h($f['name']) ?><?php if ($_done): ?><span class="visually-hidden"> (zadanie <?= !empty($_tk['deleted_at']) ? 'usunięte' : 'ukończone' ?>)</span><?php endif; ?></span>
+          <span class="tf-cnt<?= $_n ? '' : ' is-zero' ?>"><span class="visually-hidden">, plików: </span><?= $_n ?></span>
+        </a>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php endif; ?>
+    <?php endforeach; ?>
+  </nav>
 
-  <!-- ── Główna kolumna: pliki ──────────────────────────────────────────── -->
-  <div class="col-12 col-lg-9">
+  <!-- ── Zawartość folderu ─────────────────────────────────────────────────── -->
+  <section class="tf-main" aria-label="Zawartość folderu">
 
     <?php if ($active_folder): ?>
-    <!-- Nagłówek folderu -->
-    <div class="tf-wrap mb-3<?= ($can_upload && $sp_ok) ? ' tf-dropzone' : '' ?>" id="tfFolderCard">
-      <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
-        <i class="bi bi-folder2-open" style="color:<?= h($workspace['color'] ?: '#3b82f6') ?>"></i>
-        <span class="fw-semibold flex-grow-1" style="font-size:.9rem"><?= h($active_folder['name']) ?></span>
-
-        <?php if (!empty($files)): ?>
-        <div class="btn-group btn-group-sm" role="group" aria-label="Widok plików">
-          <button type="button" class="btn btn-outline-secondary py-0 px-2 tf-view-toggle active"
-                  data-view="list" title="Widok listy" style="font-size:.78rem">
-            <i class="bi bi-list-ul"></i>
-          </button>
-          <button type="button" class="btn btn-outline-secondary py-0 px-2 tf-view-toggle"
-                  data-view="grid" title="Widok galerii" style="font-size:.78rem">
-            <i class="bi bi-grid-3x3-gap"></i>
-          </button>
+    <div class="tf-card<?= ($can_upload && $sp_ok) ? ' tf-dropzone' : '' ?>" id="tfFolderCard">
+      <div class="tf-card-head">
+        <h2 class="tf-card-t"><i class="bi <?= $tf_active_task ? 'bi-check2-square' : 'bi-folder2-open' ?>" aria-hidden="true"></i><span><?= h($active_folder['name']) ?></span></h2>
+        <span class="tf-muted" style="font-size:.82rem"><?= count($files) ?> <?= count($files) === 1 ? 'plik' : ((count($files) % 10 >= 2 && count($files) % 10 <= 4 && (count($files) % 100 < 12 || count($files) % 100 > 14)) ? 'pliki' : 'plików') ?></span>
+        <div class="tf-card-act">
+          <?php if (!empty($files)): ?>
+          <div class="tf-seg" role="group" aria-label="Widok plików">
+            <button type="button" class="tf-ibtn tf-view-toggle active" data-view="list" title="Widok listy" aria-label="Widok listy"><i class="bi bi-list-ul" aria-hidden="true"></i></button>
+            <button type="button" class="tf-ibtn tf-view-toggle" data-view="grid" title="Widok galerii" aria-label="Widok galerii"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i></button>
+          </div>
+          <?php endif; ?>
+          <?php if ($can_upload && $sp_ok): ?>
+          <button type="button" class="tf-ibtn is-cta" onclick="document.getElementById('uploadInput').click()">
+            <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>Wgraj</button>
+          <input type="file" id="uploadInput" multiple hidden>
+          <?php endif; ?>
+          <?php if ($can_manage): ?>
+          <button type="button" class="tf-ibtn is-danger" title="Usuń folder" aria-label="Usuń folder <?= h($active_folder['name']) ?>"
+                  data-action="delete-folder" data-id="<?= $active_folder_id ?>"><i class="bi bi-trash3" aria-hidden="true"></i></button>
+          <?php endif; ?>
         </div>
-        <?php endif; ?>
-
-        <?php if ($can_upload && $sp_ok): ?>
-        <button class="btn btn-sm btn-primary py-0 px-2" onclick="document.getElementById('uploadInput').click()">
-          <i class="bi bi-upload me-1"></i>Wgraj
-        </button>
-        <input type="file" id="uploadInput" multiple style="display:none">
-        <?php endif; ?>
-
-        <?php if ($can_manage): ?>
-        <button class="btn btn-sm btn-outline-danger py-0 px-2"
-                title="Usuń folder" data-action="delete-folder" data-id="<?= $active_folder_id ?>">
-          <i class="bi bi-trash3"></i>
-        </button>
-        <?php endif; ?>
       </div>
 
-      <!-- Progress upload -->
-      <div id="uploadProgress" style="display:none" class="px-3 py-1">
-        <div class="progress" style="height:4px">
-          <div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadBar" style="width:0%"></div>
-        </div>
-        <small class="text-muted" id="uploadStatus"></small>
+      <?php if (!empty($active_folder['task_id'])): ?>
+      <div class="tf-taskline">
+        <span>Folder zadania</span>
+        <?php if ($tf_active_task && empty($tf_active_task['deleted_at'])): ?>
+        <span class="tf-st<?= $tf_active_task['_done'] ? ' is-done' : '' ?>"><?= $tf_active_task['_done'] ? 'ukończone' : h($tf_active_task['list_name'] ?: 'otwarte') ?></span>
+        <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws_id ?>&task=<?= (int)$active_folder['task_id'] ?>">Otwórz zadanie „<?= h($tf_active_task['title']) ?>” <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        <span class="tf-muted">— pliki z tego folderu widać w oknie zadania.</span>
+        <?php else: ?>
+        <span class="tf-st is-gone">zadanie usunięte</span>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+
+      <div id="uploadProgress" class="tf-progress" style="display:none" role="status" aria-live="polite">
+        <div class="progress"><div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadBar" style="width:0%;background:#007a00"></div></div>
+        <small id="uploadStatus"></small>
       </div>
 
-      <!-- Nakładka drag&drop -->
       <?php if ($can_upload && $sp_ok): ?>
       <div id="tfDropOverlay" class="tf-drop-overlay">
         <i class="bi bi-cloud-arrow-up-fill" aria-hidden="true"></i>
@@ -916,121 +947,83 @@ require_once __DIR__ . '/includes/header_tasks.php';
       <?php endif; ?>
 
       <?php if (empty($files)): ?>
-      <div class="text-center text-muted py-5" style="font-size:.88rem" id="tfEmptyState">
-        <i class="bi bi-file-earmark d-block mb-2" style="font-size:2rem; opacity:.3"></i>
-        Folder jest pusty. <?= ($can_upload && $sp_ok) ? 'Wgraj pierwszy plik albo przeciągnij go tutaj.' : 'Wgraj pierwszy plik.' ?>
+      <div class="tf-empty" id="tfEmptyState">
+        <i class="bi bi-file-earmark" aria-hidden="true"></i>
+        <span>Folder jest pusty.<?= ($can_upload && $sp_ok) ? ' Wgraj pierwszy plik albo przeciągnij go tutaj.' : '' ?></span>
       </div>
       <?php else: ?>
       <div class="table-responsive" id="tfListView">
-        <table class="table table-sm table-hover mb-0 tk-table" style="font-size:.83rem">
-          <thead class="table-light">
+        <table class="tf-table">
+          <thead>
             <tr>
-              <th style="width:2rem" class="ps-3"></th>
+              <th style="width:2.5rem"><span class="visually-hidden">Typ</span></th>
               <th>Nazwa</th>
               <th class="d-none d-md-table-cell">Rozmiar</th>
               <th class="d-none d-lg-table-cell">Wgrał/a</th>
               <th class="d-none d-md-table-cell">Data</th>
-              <th class="text-end pe-3">Akcje</th>
+              <th class="text-end"><span class="visually-hidden">Działania</span></th>
             </tr>
           </thead>
           <tbody>
           <?php foreach ($files as $f):
             $ext  = strtolower(pathinfo($f['original_name'], PATHINFO_EXTENSION));
             $icon = match($ext) {
-                'pdf'            => 'bi-file-earmark-pdf text-danger',
-                'doc','docx'     => 'bi-file-earmark-word text-primary',
-                'xls','xlsx'     => 'bi-file-earmark-excel text-success',
-                'ppt','pptx'     => 'bi-file-earmark-ppt text-warning',
-                'jpg','jpeg','png',
-                'gif','webp'     => 'bi-file-earmark-image text-info',
-                'zip','7z','tar',
-                'gz'             => 'bi-file-earmark-zip text-secondary',
-                default          => 'bi-file-earmark text-muted',
+                'pdf'                         => 'bi-file-earmark-pdf text-danger',
+                'doc','docx'                  => 'bi-file-earmark-word text-primary',
+                'xls','xlsx'                  => 'bi-file-earmark-excel text-success',
+                'ppt','pptx'                  => 'bi-file-earmark-ppt text-warning',
+                'jpg','jpeg','png','gif','webp' => 'bi-file-earmark-image text-info',
+                'zip','7z','tar','gz'         => 'bi-file-earmark-zip text-secondary',
+                default                       => 'bi-file-earmark tf-muted',
             };
             $previewable = in_array($ext, ['pdf','jpg','jpeg','png','gif','webp']);
             $docPreview  = in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']);
-            $task_count  = (int)(db_one(
-                "SELECT COUNT(*) AS n FROM ws_task_files WHERE file_id=?", [$f['id']]
-            )['n'] ?? 0);
-            $fid = (int)$f['id'];
+            $fid        = (int)$f['id'];
+            $task_count = $tf_links[$fid] ?? 0;
             $dl_url = APP_URL . '/workspaces/api.php?action=download&id=' . $fid . '&_csrf=' . urlencode(csrf_token());
             $pv_url = APP_URL . '/workspaces/api.php?action=preview&id='  . $fid . '&_csrf=' . urlencode(csrf_token());
           ?>
           <tr id="frow-<?= $fid ?>">
-            <td class="ps-3"><i class="bi <?= $icon ?> tf-file-icon"></i></td>
-            <td class="text-truncate" style="max-width:220px">
+            <td><i class="bi <?= $icon ?> tf-file-icon" aria-hidden="true"></i></td>
+            <td style="max-width:0;width:50%">
               <?php if ($previewable): ?>
-              <button class="btn btn-link p-0 text-body text-truncate btn-preview"
-                      style="font-size:inherit;text-decoration:none;max-width:200px;vertical-align:baseline"
-                      data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>"
-                      data-name="<?= h($f['name']) ?>" title="<?= h($f['name']) ?>">
-                <?= h($f['name']) ?>
-              </button>
+              <button type="button" class="tf-fname btn-preview" data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>"
+                      data-name="<?= h($f['name']) ?>" title="Podgląd: <?= h($f['name']) ?>"><?= h($f['name']) ?></button>
               <?php elseif ($docPreview && $f['web_url']): ?>
-              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener"
-                 class="text-body text-decoration-none" title="Otwórz w Office Online">
-                <?= h($f['name']) ?>
-              </a>
+              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-fname" title="Otwórz w Office Online: <?= h($f['name']) ?>"><?= h($f['name']) ?></a>
               <?php else: ?>
-              <a href="<?= h($dl_url) ?>" class="text-body text-decoration-none"
-                 title="Pobierz <?= h($f['name']) ?>">
-                <?= h($f['name']) ?>
-              </a>
+              <a href="<?= h($dl_url) ?>" class="tf-fname" title="Pobierz: <?= h($f['name']) ?>"><?= h($f['name']) ?></a>
               <?php endif; ?>
-              <button class="badge rounded-pill border-0 ms-1 btn-file-tasks
-                             <?= $task_count ? 'text-bg-info' : 'text-bg-light text-muted' ?>"
-                      style="font-size:.6rem; cursor:pointer"
-                      data-file-id="<?= $fid ?>"
-                      title="<?= $task_count ? 'Pokaż powiązane zadania' : 'Brak zadań — przypisz' ?>">
-                <i class="bi bi-check2-square me-1"></i><?= $task_count ?>
+              <button type="button" class="tf-links btn-file-tasks<?= $task_count ? ' has' : '' ?>" data-file-id="<?= $fid ?>"
+                      title="<?= $task_count ? 'Pokaż zadania, do których przypięto plik' : 'Plik nie jest przypięty do zadań' ?>">
+                <i class="bi bi-check2-square" aria-hidden="true"></i><?= $task_count ? 'w zadaniach: ' . $task_count : 'brak zadań' ?>
               </button>
             </td>
-            <td class="d-none d-md-table-cell text-muted"><?= ws_format_size((int)$f['file_size']) ?></td>
-            <td class="d-none d-lg-table-cell text-muted text-truncate" style="max-width:120px">
-              <?= h($f['uploader_name'] ?? '—') ?>
-            </td>
-            <td class="d-none d-md-table-cell text-muted">
-              <?= date('d.m.Y', strtotime($f['created_at'])) ?>
-            </td>
-            <td class="text-end pe-2">
-              <div class="d-flex gap-1 justify-content-end">
+            <td class="d-none d-md-table-cell tf-muted"><?= ws_format_size((int)$f['file_size']) ?></td>
+            <td class="d-none d-lg-table-cell tf-muted text-truncate" style="max-width:140px"><?= h($f['uploader_name'] ?? '—') ?></td>
+            <td class="d-none d-md-table-cell tf-muted"><?= date('d.m.Y', strtotime($f['created_at'])) ?></td>
+            <td>
+              <div class="tf-acts">
                 <?php if ($previewable): ?>
-                <button class="btn btn-sm btn-outline-secondary py-0 px-2 btn-preview"
-                        data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>"
-                        data-name="<?= h($f['name']) ?>" title="Podgląd">
-                  <i class="bi bi-eye"></i>
-                </button>
+                <button type="button" class="tf-ibtn btn-preview" data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>" data-name="<?= h($f['name']) ?>"
+                        title="Podgląd" aria-label="Podgląd: <?= h($f['name']) ?>"><i class="bi bi-eye" aria-hidden="true"></i></button>
                 <?php elseif ($docPreview && $f['web_url']): ?>
-                <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener"
-                   class="btn btn-sm btn-outline-secondary py-0 px-2" title="Otwórz w Office Online">
-                  <i class="bi bi-box-arrow-up-right"></i>
-                </a>
+                <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-ibtn" title="Otwórz w Office Online" aria-label="Otwórz w Office Online: <?= h($f['name']) ?>"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
                 <?php endif; ?>
-                <a href="<?= h($dl_url) ?>"
-                   class="btn btn-sm btn-outline-primary py-0 px-2" title="Pobierz">
-                  <i class="bi bi-download"></i>
-                </a>
-                <button class="btn btn-sm btn-outline-secondary py-0 px-2 btn-link-task"
-                        data-id="<?= $fid ?>" data-name="<?= h($f['name']) ?>"
-                        title="Przypisz do zadania">
-                  <i class="bi bi-link-45deg"></i>
-                </button>
+                <a href="<?= h($dl_url) ?>" class="tf-ibtn" title="Pobierz" aria-label="Pobierz: <?= h($f['name']) ?>"><i class="bi bi-download" aria-hidden="true"></i></a>
+                <button type="button" class="tf-ibtn btn-link-task" data-id="<?= $fid ?>" data-name="<?= h($f['name']) ?>"
+                        title="Przypnij do zadania" aria-label="Przypnij do zadania: <?= h($f['name']) ?>"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
                 <?php if ($can_manage): ?>
-                <button class="btn btn-sm btn-outline-danger py-0 px-2 btn-delete-file"
-                        data-id="<?= $fid ?>" title="Usuń plik">
-                  <i class="bi bi-trash3"></i>
-                </button>
+                <button type="button" class="tf-ibtn is-danger btn-delete-file" data-id="<?= $fid ?>"
+                        title="Usuń plik" aria-label="Usuń plik: <?= h($f['name']) ?>"><i class="bi bi-trash3" aria-hidden="true"></i></button>
                 <?php endif; ?>
               </div>
             </td>
           </tr>
-          <!-- Detail row: zadania powiązane z plikiem -->
           <tr id="ftasks-<?= $fid ?>" class="file-tasks-row" style="display:none">
-            <td colspan="6" class="p-0 ps-5 pe-3 pb-2" style="background:var(--tsk-bg); border-top:none">
-              <div class="file-tasks-content py-2" id="ftasks-content-<?= $fid ?>">
-                <span class="text-muted small">
-                  <span class="spinner-border spinner-border-sm me-1"></span>Wczytuję…
-                </span>
+            <td colspan="6" style="background:#f7f7f7;padding:.4rem 1rem .6rem 3rem">
+              <div class="file-tasks-content" id="ftasks-content-<?= $fid ?>">
+                <span class="tf-muted small"><span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Wczytuję…</span>
               </div>
             </td>
           </tr>
@@ -1044,23 +1037,19 @@ require_once __DIR__ . '/includes/header_tasks.php';
         <?php foreach ($files as $f):
           $ext  = strtolower(pathinfo($f['original_name'], PATHINFO_EXTENSION));
           $icon = match($ext) {
-              'pdf'            => 'bi-file-earmark-pdf text-danger',
-              'doc','docx'     => 'bi-file-earmark-word text-primary',
-              'xls','xlsx'     => 'bi-file-earmark-excel text-success',
-              'ppt','pptx'     => 'bi-file-earmark-ppt text-warning',
-              'jpg','jpeg','png',
-              'gif','webp'     => 'bi-file-earmark-image text-info',
-              'zip','7z','tar',
-              'gz'             => 'bi-file-earmark-zip text-secondary',
-              default          => 'bi-file-earmark text-muted',
+              'pdf'                         => 'bi-file-earmark-pdf text-danger',
+              'doc','docx'                  => 'bi-file-earmark-word text-primary',
+              'xls','xlsx'                  => 'bi-file-earmark-excel text-success',
+              'ppt','pptx'                  => 'bi-file-earmark-ppt text-warning',
+              'jpg','jpeg','png','gif','webp' => 'bi-file-earmark-image text-info',
+              'zip','7z','tar','gz'         => 'bi-file-earmark-zip text-secondary',
+              default                       => 'bi-file-earmark',
           };
           $is_image    = in_array($ext, ['jpg','jpeg','png','gif','webp'], true);
           $previewable = in_array($ext, ['pdf','jpg','jpeg','png','gif','webp']);
           $docPreview  = in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']);
-          $task_count  = (int)(db_one(
-              "SELECT COUNT(*) AS n FROM ws_task_files WHERE file_id=?", [$f['id']]
-          )['n'] ?? 0);
-          $fid    = (int)$f['id'];
+          $fid        = (int)$f['id'];
+          $task_count = $tf_links[$fid] ?? 0;
           $dl_url = APP_URL . '/workspaces/api.php?action=download&id=' . $fid . '&_csrf=' . urlencode(csrf_token());
           $pv_url = APP_URL . '/workspaces/api.php?action=preview&id='  . $fid . '&_csrf=' . urlencode(csrf_token());
         ?>
@@ -1071,43 +1060,23 @@ require_once __DIR__ . '/includes/header_tasks.php';
             <?php else: ?>
             <i class="bi <?= $icon ?>" aria-hidden="true"></i>
             <?php endif; ?>
-
             <div class="tf-grid-overlay">
               <?php if ($previewable): ?>
-              <button class="btn btn-sm btn-light btn-preview"
-                      data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>"
-                      data-name="<?= h($f['name']) ?>" title="Podgląd">
-                <i class="bi bi-eye"></i>
-              </button>
+              <button type="button" class="tf-ibtn btn-preview" data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>" data-name="<?= h($f['name']) ?>" aria-label="Podgląd: <?= h($f['name']) ?>"><i class="bi bi-eye" aria-hidden="true"></i></button>
               <?php elseif ($docPreview && $f['web_url']): ?>
-              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener"
-                 class="btn btn-sm btn-light" title="Otwórz w Office Online">
-                <i class="bi bi-box-arrow-up-right"></i>
-              </a>
+              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-ibtn" aria-label="Otwórz w Office Online: <?= h($f['name']) ?>"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
               <?php endif; ?>
-              <a href="<?= h($dl_url) ?>" class="btn btn-sm btn-light" title="Pobierz">
-                <i class="bi bi-download"></i>
-              </a>
-              <button class="btn btn-sm btn-light btn-link-task"
-                      data-id="<?= $fid ?>" data-name="<?= h($f['name']) ?>" title="Przypisz do zadania">
-                <i class="bi bi-link-45deg"></i>
-              </button>
+              <a href="<?= h($dl_url) ?>" class="tf-ibtn" aria-label="Pobierz: <?= h($f['name']) ?>"><i class="bi bi-download" aria-hidden="true"></i></a>
+              <button type="button" class="tf-ibtn btn-link-task" data-id="<?= $fid ?>" data-name="<?= h($f['name']) ?>" aria-label="Przypnij do zadania: <?= h($f['name']) ?>"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
               <?php if ($can_manage): ?>
-              <button class="btn btn-sm btn-light text-danger btn-delete-file"
-                      data-id="<?= $fid ?>" title="Usuń plik">
-                <i class="bi bi-trash3"></i>
-              </button>
+              <button type="button" class="tf-ibtn is-danger btn-delete-file" data-id="<?= $fid ?>" aria-label="Usuń plik: <?= h($f['name']) ?>"><i class="bi bi-trash3" aria-hidden="true"></i></button>
               <?php endif; ?>
             </div>
-
             <?php if ($task_count): ?>
-            <span class="badge rounded-pill border-0 tf-grid-taskbadge text-bg-info"
-                  title="Powiązane zadania: <?= $task_count ?> (rozwiń w widoku listy)">
-              <i class="bi bi-check2-square me-1"></i><?= $task_count ?>
-            </span>
+            <span class="tf-grid-taskbadge" title="Przypięty do zadań: <?= $task_count ?>"><i class="bi bi-check2-square" aria-hidden="true"></i> <?= $task_count ?></span>
             <?php endif; ?>
           </div>
-          <div class="tf-grid-name text-truncate" title="<?= h($f['name']) ?>"><?= h($f['name']) ?></div>
+          <div class="tf-grid-name" title="<?= h($f['name']) ?>"><?= h($f['name']) ?></div>
           <div class="tf-grid-meta"><?= ws_format_size((int)$f['file_size']) ?> · <?= date('d.m.Y', strtotime($f['created_at'])) ?></div>
         </div>
         <?php endforeach; ?>
@@ -1116,44 +1085,29 @@ require_once __DIR__ . '/includes/header_tasks.php';
     </div><!-- /folder card -->
 
     <?php elseif (!empty($folders)): ?>
-    <div class="tf-wrap py-5 text-center text-muted">
-      <i class="bi bi-arrow-left-circle d-block mb-2" style="font-size:2rem; opacity:.3"></i>
-      Wybierz folder z listy po lewej.
-    </div>
+    <div class="tf-card"><div class="tf-empty"><i class="bi bi-arrow-left-circle" aria-hidden="true"></i><span>Wybierz folder z listy po lewej.</span></div></div>
 
     <?php else: ?>
-    <?php if ($auto_initialized): ?>
-    <div class="tf-wrap py-5 text-center text-muted">
-      <i class="bi bi-check-circle d-block mb-2 text-success" style="font-size:2.5rem"></i>
-      <p class="mb-1">Folder obszaru został utworzony w SharePoint.</p>
-      <?php if ($auto_created > 0): ?>
-      <p class="small mb-2">Zainicjalizowano <?= $auto_created ?> <?= $auto_created === 1 ? 'folder zadania' : ($auto_created < 5 ? 'foldery zadań' : 'folderów zadań') ?>.</p>
+    <div class="tf-card"><div class="tf-empty">
+      <?php if ($auto_initialized): ?>
+      <i class="bi bi-check-circle" aria-hidden="true" style="color:#007a00"></i>
+      <span>Folder obszaru został utworzony na SharePoincie.<?= $auto_created > 0 ? ' Utworzono foldery dla ' . $auto_created . ' ' . ($auto_created === 1 ? 'zadania' : 'zadań') . '.' : '' ?></span>
+      <?php else: ?>
+      <i class="bi bi-folder2" aria-hidden="true"></i>
+      <span>Brak folderów w tym obszarze.</span>
       <?php endif; ?>
-      <?php if ($can_manage): ?>
-      <button class="btn btn-sm btn-primary mt-1" data-bs-toggle="modal" data-bs-target="#newFolderModal">
-        <i class="bi bi-folder-plus me-1"></i>Utwórz folder
-      </button>
-      <?php endif; ?>
-    </div>
-    <?php else: ?>
-    <div class="tf-wrap py-5 text-center text-muted">
-      <i class="bi bi-folder2 d-block mb-2" style="font-size:2.5rem; opacity:.3"></i>
-      <p>Brak folderów w tym obszarze.</p>
       <?php if ($can_manage && $sp_ok): ?>
-      <button class="btn btn-sm btn-primary mt-1" data-bs-toggle="modal" data-bs-target="#newFolderModal">
-        <i class="bi bi-folder-plus me-1"></i>Utwórz pierwszy folder
-      </button>
+      <button type="button" class="tf-ibtn is-cta" data-bs-toggle="modal" data-bs-target="#newFolderModal"><i class="bi bi-folder-plus" aria-hidden="true"></i>Utwórz folder</button>
       <?php endif; ?>
-    </div>
-    <?php endif; ?>
+    </div></div>
     <?php endif; ?>
 
-  </div><!-- /col-lg-9 -->
-</div><!-- /row -->
+  </section>
+</div><!-- /.tf-layout -->
 
 <?php require __DIR__ . '/includes/files_task_manager.php'; ?>
 
-</main>
+</div><!-- /.tf-page -->
 
 <!-- ══ Modals ══════════════════════════════════════════════════════════════ -->
 
@@ -1543,6 +1497,33 @@ document.querySelectorAll('.btn-delete-task-attach').forEach(btn => {
       else alert(r.error || 'Błąd usuwania.');
     } catch (e) { alert('Błąd połączenia.'); }
   });
+});
+
+// ── Filtr folderów w lewej kolumnie ───────────────────────────────────────
+(function () {
+  const inp = document.getElementById('tfFolderFilter');
+  if (!inp) return;
+  inp.addEventListener('input', () => {
+    const q = inp.value.trim().toLowerCase();
+    document.querySelectorAll('.tf-folder-group').forEach(ul => {
+      let shown = 0;
+      ul.querySelectorAll('.tf-folder-link').forEach(a => {
+        const on = !q || (a.dataset.name || '').includes(q);
+        a.parentElement.hidden = !on; if (on) shown++;
+      });
+      ul.hidden = shown === 0;
+    });
+  });
+})();
+
+// ── Foldery dla zadań bez folderu (lider/admin) ───────────────────────────
+document.getElementById('tfInitTaskFolders')?.addEventListener('click', async function () {
+  if (!confirm('Utworzyć na SharePoincie foldery dla zadań, które jeszcze ich nie mają?')) return;
+  this.disabled = true;
+  this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Tworzę foldery…';
+  const r = await wsApi({action: 'init_ws_folders', workspace_id: WS_ID});
+  if (r.ok) location.reload();
+  else { alert(r.error || 'Nie udało się utworzyć folderów.'); this.disabled = false; this.textContent = 'Foldery dla zadań'; }
 });
 </script>
 
