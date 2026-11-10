@@ -154,6 +154,10 @@ final class LicenceRequest
             if (empty($o['ok'])) throw new DomainException($P['label'] . ' działa tylko z kontem @' . ClaudeBilling::EDU_DOMAIN . '. ' . $o['text']);
             $officeNote = ' ' . $o['text'] . (!empty($o['password']) ? ' Hasło tymczasowe do przekazania: ' . $o['password'] . '.' : '');
         }
+        if (!empty($P['office'])) {   // Office A3/A5: licencja w tenancie edukacyjnym (SKU z ustawień produktu)
+            require_once __DIR__ . '/LicenceOffice.php';
+            $officeNote .= ' ' . LicenceOffice::assignSku($cid, (string)ClaudeBilling::settings($product)['tenant_sku'], $P['label'], (string)($actor['name'] ?? ''))['text'];
+        }
         $a = ClaudeBilling::assignment($cid, $product);
         $poolNote = '';
         if (!$a && ($pid = ClaudeBilling::poolProduct($product))) {

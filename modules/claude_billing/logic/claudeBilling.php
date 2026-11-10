@@ -31,6 +31,14 @@ final class ClaudeBilling
         'nordvpn' => ['label' => 'NordVPN', 'name' => 'NordVPN', 'what' => 'NordVPN, szyfrowane połączenie z internetem (VPN)', 'prefix' => 'nordvpn_bill_',
                       'match' => ['nordvpn', 'nord vpn', 'nordlayer', 'nord security'], 'uniqueEmail' => true, 'color' => '#4687ff', 'requiresEdu' => false, 'pool' => true,
                       'program' => '', 'defaults' => ['enabled' => '0', 'usd' => '0', 'list_usd' => '0']],
+        // Office ze zniżką edukacyjną (polecenie 2026-11-10): konto w tenancie edukacyjnym ma domyślnie A1 (bez aplikacji stacjonarnych);
+        // A3 / A5 to płatne plany wyższe — cenę ustawia administrator, licencję w tenancie nadaje aktywacja (ustawienie tenant_sku). Porównanie: LicenceOffice::PLANS.
+        'office_a3' => ['label' => 'Office A3', 'name' => 'Microsoft 365 A3 (cena edukacyjna)', 'what' => 'Microsoft 365 A3 dla edukacji: Word, Excel, PowerPoint, Outlook i Teams także jako aplikacje stacjonarne na komputerze',
+                      'prefix' => 'office_a3_bill_', 'match' => ['microsoft 365 a3', 'office 365 a3', 'm365 a3'], 'uniqueEmail' => false, 'color' => '#d83b01', 'requiresEdu' => true, 'pool' => false,
+                      'program' => 'w programie Microsoft 365 Education', 'office' => 'A3', 'defaults' => ['enabled' => '0', 'usd' => '0', 'list_usd' => '0']],
+        'office_a5' => ['label' => 'Office A5', 'name' => 'Microsoft 365 A5 (cena edukacyjna)', 'what' => 'Microsoft 365 A5 dla edukacji: wszystko z A3 oraz zaawansowane zabezpieczenia, zgodność i analityka',
+                      'prefix' => 'office_a5_bill_', 'match' => ['microsoft 365 a5', 'office 365 a5', 'm365 a5'], 'uniqueEmail' => false, 'color' => '#a4262c', 'requiresEdu' => true, 'pool' => false,
+                      'program' => 'w programie Microsoft 365 Education', 'office' => 'A5', 'defaults' => ['enabled' => '0', 'usd' => '0', 'list_usd' => '0']],
     ];
     public const STATUS = ['requested' => 'wniosek (czeka na Helpdesk)', 'active' => 'aktywny', 'suspended' => 'wstrzymany (zaległość)', 'ended' => 'zakończony'];
     public const CHARGE_STATUS = ['pending' => 'do zapłaty', 'paid' => 'opłacone', 'cancelled' => 'anulowane'];
@@ -46,6 +54,7 @@ final class ClaudeBilling
         'position_name' => 'Dostęp do {produkt} — {okres}', 'fee_name' => 'Prowizja za obsługę płatności',
         // sposób płatności (polecenie 2026-11-10): invoice = proforma i przelew, card = karta (Przelewy24), pobieranie automatyczne i FVAT po wpłacie
         'pay_mode' => 'invoice', 'card_fee_pln' => '1.23', 'card_fee_name' => 'Opłata weryfikacyjna karty płatniczej',
+        'tenant_sku' => '',   // Office A3/A5: identyfikator licencji (SKU) w tenancie edukacyjnym — nadawany przy aktywacji
     ];
     /** Pola do wstawienia w nazwie pozycji faktury: znacznik => opis. */
     public const POSITION_FIELDS = ['{produkt}' => 'pełna nazwa produktu, np. Claude Team (Claude for Nonprofit)', '{licencja}' => 'krótka nazwa, np. Claude',
@@ -257,6 +266,7 @@ final class ClaudeBilling
         $s['pct_label'] = mb_substr(trim((string)$s['pct_label']), 0, 30);
         foreach (['position_name', 'fee_name', 'card_fee_name'] as $nk) $s[$nk] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$s[$nk])), 0, 200) ?: self::DEFAULTS[$nk];
         if (!in_array($s['pay_mode'], ['invoice', 'card'], true)) $s['pay_mode'] = 'invoice';
+        $s['tenant_sku'] = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', trim((string)$s['tenant_sku'])) ? strtolower(trim((string)$s['tenant_sku'])) : '';
         $s['card_fee_pln'] = round(min(10.0, max(0.01, (float)str_replace(',', '.', (string)$s['card_fee_pln']))), 2);
         foreach (['available_from', 'available_until'] as $dk) if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$s[$dk])) $s[$dk] = '';
         if (!isset(PkoRates::KINDS[$s['rate_kind']])) $s['rate_kind'] = 'sale_foreign';
@@ -293,7 +303,9 @@ final class ClaudeBilling
             'pay_mode' => array_key_exists('pay_mode', $in) ? (in_array((string)$in['pay_mode'], ['invoice', 'card'], true) ? (string)$in['pay_mode'] : 'invoice') : (string)(self::settings($product)['pay_mode']),
             'card_fee_pln' => array_key_exists('card_fee_pln', $in) ? ($num($in['card_fee_pln']) ?: '1.23') : (string)(self::settings($product)['card_fee_pln']),
             'card_fee_name' => array_key_exists('card_fee_name', $in) ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$in['card_fee_name'])), 0, 200) : (string)(self::settings($product)['card_fee_name']),
+            'tenant_sku' => array_key_exists('tenant_sku', $in) ? strtolower(trim((string)$in['tenant_sku'])) : (string)(self::settings($product)['tenant_sku']),
         ];
+        if ($map['tenant_sku'] !== '' && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $map['tenant_sku'])) throw new InvalidArgumentException('Licencja w tenancie (SKU) to identyfikator w postaci xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (Microsoft 365 › Licencje).');
         if ((float)$map['card_fee_pln'] < 0.01 || (float)$map['card_fee_pln'] > 10) throw new InvalidArgumentException('Opłata weryfikacyjna karty: od 0,01 do 10 zł.');
         if ($map['pay_mode'] === 'card') {
             require_once dirname(__DIR__, 3) . '/includes/p24.php';

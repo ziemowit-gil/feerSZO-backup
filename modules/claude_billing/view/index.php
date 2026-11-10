@@ -324,6 +324,13 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
         <div class="col-md-4"><label class="form-label" for="s-cfeen">Nazwa pozycji na fakturze</label><input class="form-control" id="s-cfeen" name="card_fee_name" maxlength="200" value="<?= h($s['card_fee_name']) ?>"></div>
       </div>
     </fieldset>
+    <?php if (!empty($P['office'])): ?>
+    <fieldset class="mb-3" aria-describedby="sku-h"><legend class="fs-6 fw-semibold">Licencja w tenancie edukacyjnym</legend>
+      <p class="small text-secondary mb-2" id="sku-h">Konto Office ma domyślnie A1 (bez aplikacji stacjonarnych). Po aktywacji <?= h($P['label']) ?> SZO nada kontu tę licencję w tenancie edukacyjnym. Puste pole: Helpdesk nadaje ją ręcznie.</p>
+      <div class="row g-3"><div class="col-md-6"><label class="form-label" for="s-sku">Identyfikator licencji (SKU) <?= h($P['office']) ?></label>
+        <input class="form-control font-monospace" id="s-sku" name="tenant_sku" value="<?= h($s['tenant_sku']) ?>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" aria-describedby="sku-h"></div></div>
+    </fieldset>
+    <?php endif; ?>
     <fieldset class="mb-3"><legend class="fs-6 fw-semibold">Dokumenty i płatności</legend>
     <div class="row g-3">
       <div class="col-md-4"><label class="form-label" for="s-inv">Dokumenty w Fakturowni</label><select class="form-select" id="s-inv" name="invoice"><option value="auto"<?= $s['invoice'] === 'auto' ? ' selected' : '' ?>>automatycznie</option><option value="manual"<?= $s['invoice'] === 'manual' ? ' selected' : '' ?>>ręcznie z karty abonamentu</option><option value="off"<?= $s['invoice'] === 'off' ? ' selected' : '' ?>>wyłączone</option></select></div>

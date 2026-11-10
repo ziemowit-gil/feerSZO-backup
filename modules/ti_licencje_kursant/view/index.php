@@ -261,6 +261,29 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
   </div>
   <?php endif; ?>
   <?php if (!$eduAccount): ?><?php $officeBox('office'); ?><?php endif; ?>
+  <?php // Office ze zniżką edukacyjną: plan domyślny A1 (bez aplikacji stacjonarnych), A3 / A5 płatne — ceny ustala administrator (Płatne licencje)
+    $plCur = 'A1'; foreach (['office_a5' => 'A5', 'office_a3' => 'A3'] as $opk => $opl) { $osb = $paid[$opk]['sub'] ?? null; if ($osb && in_array($osb['status'], ['active', 'suspended'], true)) { $plCur = $opl; break; } } ?>
+  <div class="m-row">
+    <h2 class="m-sect">Office ze zniżką edukacyjną</h2>
+    <p class="tw-text-sm tw-mb-2">Twój plan: <b><?= h(LicenceOffice::PLANS[$plCur]['name']) ?></b><?= $plCur === 'A1' ? '. To plan domyślny, w cenie: Office w przeglądarce i na telefonie, bez aplikacji stacjonarnych.' : '.' ?></p>
+    <div class="tw-overflow-x-auto"><table class="tw-w-full tw-text-sm" style="border-collapse:collapse">
+      <caption class="tw-sr-only">Porównanie planów Microsoft 365 dla edukacji</caption>
+      <thead><tr style="border-bottom:1px solid var(--pk-border)"><th scope="col" class="tw-text-left tw-py-2 tw-pr-3">Plan</th><th scope="col" class="tw-text-left tw-py-2 tw-pr-3">Co zawiera</th><th scope="col" class="tw-text-left tw-py-2 tw-pr-3">Aplikacje stacjonarne</th><th scope="col" class="tw-text-left tw-py-2 tw-pr-3">Cena</th><th scope="col" class="tw-text-left tw-py-2"><span class="tw-sr-only">Działanie</span></th></tr></thead>
+      <tbody>
+      <?php foreach (LicenceOffice::PLANS as $plk => $pl): $pv = $pl['product'] ? ($paid[$pl['product']] ?? null) : null; $ps = $pv['settings'] ?? null; $pSub = $pv['sub'] ?? null;
+            $pOpen = $pSub && in_array($pSub['status'], ['requested', 'active', 'suspended'], true); ?>
+        <tr style="border-bottom:1px solid var(--pk-border)">
+          <th scope="row" class="tw-text-left tw-py-2 tw-pr-3 tw-align-top"><?= h($pl['name']) ?><?= $plk === $plCur ? ' ' . $tag('ok', 'Twój plan') : '' ?></th>
+          <td class="tw-py-2 tw-pr-3 tw-align-top"><ul class="tw-list-disc tw-pl-5"><?php foreach ($pl['features'] as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul></td>
+          <td class="tw-py-2 tw-pr-3 tw-align-top"><?= $pl['desktop'] ? 'tak' : 'nie' ?></td>
+          <td class="tw-py-2 tw-pr-3 tw-align-top tw-whitespace-nowrap"><?= !$pl['product'] ? 'w cenie' : ($ps && $ps['priced'] ? h(ClaudeBilling::priceShort($ps)) . ' miesięcznie' . (!empty($pv['rate']) ? '<br><span class="m-note">dziś ≈ ' . h(ClaudeBilling::zl((float)$pv['rate']['amount_pln'])) . '</span>' : '') : '<span class="m-muted">cenę poda biuro</span>') ?></td>
+          <td class="tw-py-2 tw-align-top"><?php if ($pOpen): ?><a href="<?= h(route('lk.licence', ['product' => $pl['product']])) ?>">Szczegóły</a>
+            <?php elseif ($pv && !empty($pv['orderable']) && $plk !== $plCur): ?><a class="m-btn-ghost" href="<?= h(route('lk.wizard', ['product' => $pl['product']])) ?>">Zamów <?= h($plk) ?></a><?php endif; ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+    <p class="m-note tw-mt-2">Skrót porównania. Pełny opis planów: <a href="<?= h(LicenceOffice::PLANS_SOURCE) ?>" target="_blank" rel="noopener">Microsoft: porównanie planów Microsoft 365 dla edukacji<span class="tw-sr-only"> (nowa karta)</span></a>.</p>
+  </div>
   <?php foreach ($office as $o): $g = $o['request_status'] === 'granted'; ?>
   <div class="m-row">
     <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">

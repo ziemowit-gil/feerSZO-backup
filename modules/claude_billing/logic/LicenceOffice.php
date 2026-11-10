@@ -19,6 +19,38 @@ final class LicenceOffice
 {
     public const STATE = ['exists' => 'jest w tenancie', 'created' => 'założone', 'missing' => 'nie ma w tenancie', 'error' => 'nie udało się sprawdzić',
                           'unknown' => 'tenant EDU nieskonfigurowany', 'sim' => 'symulacja (konto testowe)'];
+    /** Plany Microsoft 365 Education (porównanie w Panelu Licencji). A1 jest domyślny i w cenie; A3 i A5 to płatne produkty (ClaudeBilling::PRODUCTS office_a3 / office_a5). */
+    public const PLANS = [
+        'A1' => ['name' => 'Office 365 A1', 'product' => null, 'desktop' => false,
+                 'features' => ['Word, Excel, PowerPoint i OneNote w przeglądarce i na telefonie', 'Outlook (poczta), Teams i OneDrive', 'bez aplikacji stacjonarnych na komputerze']],
+        'A3' => ['name' => 'Microsoft 365 A3', 'product' => 'office_a3', 'desktop' => true,
+                 'features' => ['wszystko z A1', 'aplikacje stacjonarne Office na komputerze: Word, Excel, PowerPoint, Outlook, OneNote', 'zarządzanie urządzeniami i dodatkowe zabezpieczenia']],
+        'A5' => ['name' => 'Microsoft 365 A5', 'product' => 'office_a5', 'desktop' => true,
+                 'features' => ['wszystko z A3', 'zaawansowana ochrona przed zagrożeniami', 'zaawansowana zgodność z przepisami i analityka']],
+    ];
+    public const PLANS_SOURCE = 'https://www.microsoft.com/pl-pl/education/products/microsoft-365/compare-microsoft-365-education-plans';
+
+    /** Licencja (SKU) Office A3/A5 w tenancie edukacyjnym — przy aktywacji abonamentu. @return array{ok:bool,text:string} */
+    public static function assignSku(int $cid, string $sku, string $label, string $by = 'system'): array
+    {
+        if ($sku === '') return ['ok' => false, 'text' => 'Licencji ' . $label . ' w tenancie nie nadano automatycznie (brak SKU w ustawieniach) — nadaj ją ręcznie w Microsoft 365.'];
+        if (ClaudeBilling::isVirtual($cid)) return ['ok' => true, 'text' => 'Symulacja: licencja ' . $label . ' nadana (konto testowe).'];
+        $r = self::get($cid);
+        $upn = ClaudeBilling::eduAccount($cid);
+        if (!$upn) return ['ok' => false, 'text' => 'Brak konta Office — licencji ' . $label . ' nie nadano.'];
+        try {
+            $g = self::graph();
+            $gid = (string)($r['graph_id'] ?? '');
+            if ($gid === '' || str_starts_with($gid, 'SIM-')) { $u = $g->get_user_by_id($upn); $gid = (string)($u['id'] ?? ''); }
+            if ($gid === '') throw new RuntimeException('nie znaleziono konta ' . $upn . ' w tenancie');
+            $g->assign_license($gid, $sku);
+            ClaudeBilling::event(null, null, 'office', 'Nadano licencję ' . $label . ' kontu ' . $upn . ' w tenancie edukacyjnym.', $by);
+            return ['ok' => true, 'text' => 'Licencja ' . $label . ' nadana kontu ' . $upn . '.'];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'text' => 'Nie nadano licencji ' . $label . ' (' . $e->getMessage() . ') — nadaj ją ręcznie w Microsoft 365.'];
+        }
+    }
+
     /** Klient Graph dla testów (obiekt z get_user_by_id, last_status, create_user, assign_license). */
     public static ?object $graph = null;
     /** Ostatnie hasło tymczasowe (do pokazania kadrze, gdy SMS nie wyszedł). */
