@@ -74,7 +74,9 @@ html body .tsk-pivot-menu .dropdown-item:hover i,html body .tsk-pivot-menu .drop
 @media(max-width:575.98px){html body .tsk-pivot-link span:not(.tsk-pivot-cnt){display:none}html body .tsk-pivot-link{padding:.7rem .75rem .6rem}}
 
 /* ── Treść ───────────────────────────────────────────────────────────────── */
-html body #tsk-main{max-width:1320px}
+/* Pełna szerokość okna (jak CRM) — wcześniej pas 1320 px pośrodku; górny pasek, sekcje i treść równo z marginesem bocznym */
+html body #tsk-main,html body .tsk-navbar>.container-xl,html body .tsk-pivot>.tsk-pivot-inner{max-width:none;width:100%;
+  padding-left:clamp(.75rem,2vw,2rem);padding-right:clamp(.75rem,2vw,2rem)}
 html body #tsk-main h1,html body #tsk-main .tk-title{font-weight:300;letter-spacing:-.02em;line-height:1.1}
 html body #tsk-main .tk-subtitle{color:var(--tm-muted);font-weight:300}
 html body #tsk-main h2,html body #tsk-main .h2,html body #tsk-main h3.tk-section{font-weight:300;letter-spacing:-.01em}
@@ -265,6 +267,8 @@ html body #tsk-main .tk-bulk-sep{background:rgba(255,255,255,.25)}
 html body #tsk-main .tk-bulk-bar .tk-bulk-count,html body #tsk-main .tk-bulk-bar .tk-bulk-close{color:#fff}
 /* Kanban */
 html body #tsk-main .tk-kanban-col{background:var(--tm-light)}
+/* Kolumny Kanbanu rozciągają się na dostępną szerokość (min. 256 px, maks. 420 px); przy wielu kolumnach — przewijanie w poziomie */
+html body #tsk-main .tk-kanban-col{flex:1 0 256px;max-width:420px}
 html body #tsk-main .tk-kanban-hdr{border-top-width:4px!important;background:transparent;font-weight:600}
 html body #tsk-main .tk-card{border:0;background:#fff;box-shadow:none!important;margin-bottom:4px}
 html body #tsk-main .tk-card:hover{outline:2px solid var(--tsk-text);outline-offset:-2px}
