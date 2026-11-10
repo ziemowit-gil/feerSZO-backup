@@ -28,7 +28,7 @@ $tiles['programy'] = ['Programy i klucze', $software ? [count($software) . ' ' .
 $tiles['materialy'] = ['Materiały dydaktyczne', $am5 ? [count($am5) . ' ' . (count($am5) === 1 ? 'licencja' : 'licencje'), 'ok'] : ['brak', 'off'], '', false];
 $tiles['sprawy'] = ['Moje sprawy', $ops ? [count($ops) . ' ' . (count($ops) === 1 ? 'sprawa' : 'sprawy'), 'due'] : ['brak', 'off'], '', false];
 $tiles['produkty'] = ['Produkty i usługi', $products ? [count($products) . ' ' . (count($products) === 1 ? 'usługa' : 'usługi'), 'ok'] : ['brak', 'off'], $prodMonthly > 0 ? ClaudeBilling::zl($prodMonthly) . ' miesięcznie' : '', false];
-$tiles['konto'] = ['Moje konto', [$login ?: 'bez loginu', 'off'], 'login, hasło, kontakt', false];
+$tiles['konto'] = ['Moje konto', $login ? ['aktywne', 'ok'] : ['bez numeru', 'off'], ($login ? 'numer ' . $login . ', ' : '') . 'hasło, kontakt', false];   // numer w opisie (znacznik zamienia litery na wielkie)
 $nav = [[$U(''), 'Start', '', false, $page === 'start']];
 foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $dueFlag ? $sum : '', $dueFlag, $page === $k];
 $PAGE_TITLE = $page === 'start' ? 'Moje licencje' : ($tiles[$page][0] ?? 'Moje licencje');
