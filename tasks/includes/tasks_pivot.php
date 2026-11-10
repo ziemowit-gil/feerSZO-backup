@@ -37,7 +37,7 @@ if ($_tsk_is_leader) {
 require_once dirname(dirname(__DIR__)) . '/includes/task_nozbe.php';
 $_tsk_nozbe_connected = task_nozbe_configured((int)$_tu['id']);
 $_tsk_set_active = _tsk_active('/tasks/settings') || _tsk_active('/tasks/notification') || _tsk_active('/tasks/nozbe')
-    || _tsk_active('_route=/reguly') || _tsk_active('_route=/skrzynka-obszaru');
+    || _tsk_active('_route=/reguly') || _tsk_active('_route=/skrzynka-obszaru') || _tsk_active('_route=/uprawnienia-plikow');
 ?>
 <nav class="tsk-pivot" aria-label="Sekcje modułu Zadania">
   <div class="container-xl tsk-pivot-inner">
@@ -88,6 +88,7 @@ $_tsk_set_active = _tsk_active('/tasks/settings') || _tsk_active('/tasks/notific
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/teams.php"><i class="bi bi-people" aria-hidden="true"></i>Zespoły</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/templates.php"><i class="bi bi-list-check" aria-hidden="true"></i>Szablony zadań</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/areas.php"><i class="bi bi-layers" aria-hidden="true"></i>Obszary zadań</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/router.php?_route=/uprawnienia-plikow"><i class="bi bi-shield-lock" aria-hidden="true"></i>Uprawnienia do plików</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/roles.php"><i class="bi bi-shield-lock" aria-hidden="true"></i>Uprawnienia ról</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/fields.php"><i class="bi bi-ui-checks-grid" aria-hidden="true"></i>Uprawnienia pól</a></li>
         <li><hr class="dropdown-divider"></li>

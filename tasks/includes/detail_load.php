@@ -79,6 +79,7 @@ catch (\Throwable $e) {}
 $ws_linked_files = [];
 $ws_for_task     = null;
 $ws_sp_ok = false; $ws_task_folder = null; $ws_folder_files = []; $ws_folders_all = []; $ws_can_upload = false;
+$ws_can_view = false; $ws_can_link = false; $ws_can_dl = false;
 try {
     require_once dirname(dirname(__DIR__)) . '/includes/workspaces.php';
     $ws_linked_files = ws_files_for_task($id);
@@ -88,7 +89,11 @@ try {
     $ws_task_folder  = ws_task_folder($id);
     $ws_folder_files = $ws_task_folder ? ws_list_files((int)$ws_task_folder['id']) : [];
     $ws_folders_all  = $ws_sp_ok ? ws_list_folders((int)$task['workspace_id']) : [];
-    $ws_can_upload   = $ws_sp_ok && ws_can_upload((int)$task['workspace_id'], $uid);
+    $ws_can_upload   = $ws_sp_ok && ws_can('upload', (int)$task['workspace_id'], $uid);
+    // Macierz uprawnień do plików: bez „przeglądania” sekcja Koszulek znika, bez „przypinania” — brak Dodaj/Odepnij
+    $ws_can_view     = ws_can('view', (int)$task['workspace_id'], $uid);
+    $ws_can_link     = ws_can('link', (int)$task['workspace_id'], $uid);
+    $ws_can_dl       = ws_can('download', (int)$task['workspace_id'], $uid);
 } catch (\Throwable $e) {}
 
 $subtasks = [];

@@ -132,12 +132,91 @@ function ws_user_role(int $workspace_id, ?int $user_id = null): ?string {
     return task_workspace_role($workspace_id, $user_id);
 }
 
+// ── Macierz uprawnień do plików (tylko moduł Pliki / Koszulki) ───────────────
+//
+// Role w obszarze (task_workspace_role): viewer = podgląd, member = członek, editor = lider, admin = administrator
+// obszaru (i administrator systemu). Macierz „działanie × rola” ma typowe ustawienia poniżej; administrator systemu
+// zmienia ją w Zadania → Ustawienia → Uprawnienia do plików (tasks/router.php?_route=/uprawnienia-plikow), zapis
+// w org_setting('ws_file_perms') jako JSON. Administrator obszaru ma zawsze wszystkie działania (bez ryzyka blokady).
+
+/** Role obszaru w kolejności uprawnień — etykiety do macierzy. */
+function ws_file_roles(): array {
+    return ['viewer' => 'Podgląd', 'member' => 'Członek', 'editor' => 'Lider', 'admin' => 'Administrator obszaru'];
+}
+
+/** Działania na plikach: klucz => [etykieta, opis, role w typowej macierzy]. */
+function ws_file_actions(): array {
+    return [
+        'view'          => ['Przeglądanie folderów i plików', 'Lista folderów, plików i ich powiązań z zadaniami.', ['viewer', 'member', 'editor', 'admin']],
+        'download'      => ['Pobieranie i podgląd', 'Pobranie pliku, podgląd PDF i obrazów, otwarcie w Office Online.', ['viewer', 'member', 'editor', 'admin']],
+        'upload'        => ['Wgrywanie plików', 'Do folderów obszaru i do folderu zadania (także z okna zadania).', ['member', 'editor', 'admin']],
+        'link'          => ['Przypinanie do zadań', 'Przypięcie pliku z dowolnego folderu do zadania i odpięcie.', ['member', 'editor', 'admin']],
+        'delete_own'    => ['Usuwanie własnych plików', 'Tylko pliki wgrane przez tę osobę.', ['member', 'editor', 'admin']],
+        'delete_any'    => ['Usuwanie plików innych osób', 'Każdy plik w obszarze.', ['editor', 'admin']],
+        'create_folder' => ['Tworzenie folderów', 'Nowe foldery wspólne obszaru.', ['editor', 'admin']],
+        'task_folders'  => ['Foldery dla wszystkich zadań', 'Przycisk „Foldery dla zadań” — tworzy brakujące foldery zadań naraz.', ['editor', 'admin']],
+        'delete_folder' => ['Usuwanie folderów', 'Usunięcie folderu razem z plikami.', ['editor', 'admin']],
+    ];
+}
+
+/** Bieżąca macierz: zapisana przez administratora albo typowa; administrator obszaru zawsze ma wszystko. */
+function ws_file_matrix(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $saved = json_decode(org_setting('ws_file_perms') ?: '', true);
+    $roles = array_keys(ws_file_roles());
+    $out = [];
+    foreach (ws_file_actions() as $key => [, , $def]) {
+        $list = is_array($saved[$key] ?? null) ? array_values(array_intersect($roles, $saved[$key])) : $def;
+        if (!in_array('admin', $list, true)) $list[] = 'admin';
+        $out[$key] = $list;
+    }
+    return $cache = $out;
+}
+
+/** Zapis macierzy (administrator systemu). $in: [działanie => [role…]]. */
+function ws_file_matrix_save(array $in): void {
+    $roles = array_keys(ws_file_roles());
+    $out = [];
+    foreach (array_keys(ws_file_actions()) as $key) {
+        $list = array_values(array_intersect($roles, array_map('strval', (array)($in[$key] ?? []))));
+        if (!in_array('admin', $list, true)) $list[] = 'admin';
+        $out[$key] = $list;
+    }
+    org_setting_set('ws_file_perms', json_encode($out));
+}
+
 /**
- * Czy użytkownik może wgrywać pliki (minimum: member).
+ * Czy użytkownik może wykonać działanie na plikach obszaru. 'delete_file' rozstrzyga się na delete_any albo
+ * delete_own (wtedy $file musi być wgrany przez tę osobę).
+ */
+function ws_can(string $action, int $workspace_id, ?int $user_id = null, ?array $file = null): bool {
+    $user_id = $user_id ?: (int)(current_user()['id'] ?? 0);
+    $role = ws_user_role($workspace_id, $user_id);
+    if ($role === null) return false;
+    if ($role === 'admin') return true;
+    $m = ws_file_matrix();
+    if ($action === 'delete_file') {
+        if (in_array($role, $m['delete_any'], true)) return true;
+        return $file !== null && (int)($file['uploaded_by'] ?? 0) === $user_id && in_array($role, $m['delete_own'], true);
+    }
+    return in_array($role, $m[$action] ?? [], true);
+}
+
+/** Wymusza uprawnienie w API (JSON 403 z nazwą brakującego działania). */
+function ws_require_perm(string $action, int $workspace_id, ?array $file = null): void {
+    if (ws_can($action, $workspace_id, null, $file)) return;
+    $lbl = $action === 'delete_file' ? 'Usuwanie tego pliku' : (ws_file_actions()[$action][0] ?? $action);
+    if (!headers_sent()) { header('Content-Type: application/json; charset=utf-8'); http_response_code(403); }
+    echo json_encode(['ok' => false, 'error' => 'Brak uprawnienia: ' . $lbl . '. O zmianę poproś lidera lub administratora obszaru.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/**
+ * Czy użytkownik może wgrywać pliki — wg macierzy uprawnień do plików (typowo: członek i wyżej).
  */
 function ws_can_upload(int $workspace_id, ?int $user_id = null): bool {
-    $role = ws_user_role($workspace_id, $user_id);
-    return in_array($role, ['admin', 'editor', 'member'], true);
+    return ws_can('upload', $workspace_id, $user_id);
 }
 
 /**

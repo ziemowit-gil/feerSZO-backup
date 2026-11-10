@@ -6,7 +6,7 @@
 -->
 <?php
 $td_show_attachments = task_field_visible('files', $my_role);
-$td_show_ws_files     = (bool)$ws_for_task;
+$td_show_ws_files     = (bool)$ws_for_task && $ws_can_view;   // macierz uprawnień do plików: „przeglądanie”
 ?>
 <!-- ══ PLIKI ZADANIA (Załączniki + Koszulki, jedna sekcja) ═══════════════════ -->
 <?php if ($td_show_attachments || $td_show_ws_files): ?>
@@ -158,7 +158,8 @@ $td_show_ws_files     = (bool)$ws_for_task;
   <?php if ($td_show_ws_files):
     $td_ws_in_folder = array_map(fn($f) => (int)$f['id'], $ws_folder_files);
     $td_ws_other     = array_values(array_filter($ws_linked_files, fn($f) => !in_array((int)$f['id'], $td_ws_in_folder, true)));
-    $td_ws_row = static function (array $wf, bool $linked) use ($csrf, $can_edit): string {
+    $td_ws_unlink = $can_edit && $ws_can_link;
+    $td_ws_row = static function (array $wf, bool $linked) use ($csrf, $td_ws_unlink, $ws_can_dl): string {
         $ext  = strtolower(pathinfo($wf['original_name'] ?: $wf['name'], PATHINFO_EXTENSION));
         $icon = match (true) {
             in_array($ext, ['jpg','jpeg','png','gif','webp'], true) => 'image',
@@ -173,7 +174,9 @@ $td_show_ws_files     = (bool)$ws_for_task;
         $dl  = APP_URL . '/workspaces/api.php?action=download&id=' . $fid . '&_csrf=' . urlencode($csrf);
         $pv  = APP_URL . '/workspaces/api.php?action=preview&id=' . $fid . '&_csrf=' . urlencode($csrf);
         $name = h($wf['name']);
-        if (in_array($ext, ['pdf','jpg','jpeg','png','gif','webp'], true)) {
+        if (!$ws_can_dl) {
+            $open = '<span class="td-ws-name" style="cursor:default">' . $name . '</span>';
+        } elseif (in_array($ext, ['pdf','jpg','jpeg','png','gif','webp'], true)) {
             $open = '<button type="button" class="td-ws-name" onclick="tdPreviewFile(' . h(json_encode($pv)) . ',' . h(json_encode($wf['name'])) . ',' . h(json_encode($ext)) . ')" title="Podgląd: ' . $name . '">' . $name . '</button>';
         } elseif (in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx'], true) && !empty($wf['web_url'])) {
             $open = '<a class="td-ws-name" href="' . h($wf['web_url']) . '" target="_blank" rel="noopener" title="Otwórz w Office Online: ' . $name . '">' . $name . '</a>';
@@ -184,8 +187,8 @@ $td_show_ws_files     = (bool)$ws_for_task;
         return '<div class="td-file-row td-ws-row" id="wsfile-' . $fid . '" data-ws-file="' . $fid . '">'
              . '<i class="bi bi-file-earmark-' . $icon . ' flex-shrink-0" aria-hidden="true"></i>'
              . '<span class="td-ws-main">' . $open . '<span class="td-ws-meta">' . $meta . '</span></span>'
-             . '<a href="' . h($dl) . '" class="td-file-dl flex-shrink-0" title="Pobierz" aria-label="Pobierz ' . $name . '"><i class="bi bi-download" aria-hidden="true"></i></a>'
-             . ($linked && $can_edit ? '<button type="button" class="btn-close flex-shrink-0 td-ws-unlink" data-file-id="' . $fid . '" aria-label="Odepnij plik ' . $name . ' od zadania" title="Odepnij od zadania (plik zostaje w swoim folderze)" style="font-size:.55rem"></button>' : '')
+             . ($ws_can_dl ? '<a href="' . h($dl) . '" class="td-file-dl flex-shrink-0" title="Pobierz" aria-label="Pobierz ' . $name . '"><i class="bi bi-download" aria-hidden="true"></i></a>' : '')
+             . ($linked && $td_ws_unlink ? '<button type="button" class="btn-close flex-shrink-0 td-ws-unlink" data-file-id="' . $fid . '" aria-label="Odepnij plik ' . $name . ' od zadania" title="Odepnij od zadania (plik zostaje w swoim folderze)" style="font-size:.55rem"></button>' : '')
              . '</div>';
     };
   ?>
@@ -214,20 +217,20 @@ $td_show_ws_files     = (bool)$ws_for_task;
         : 'Zadanie nie ma jeszcze folderu — powstanie przy pierwszym wgraniu pliku.' ?></p>
     <?php endif; ?>
 
-    <?php if ($ws_can_upload || $can_edit): ?>
+    <?php if ($ws_can_upload || ($can_edit && $ws_can_link)): ?>
     <div class="td-ws-actions">
       <?php if ($ws_can_upload): ?>
       <button type="button" class="td-mini-btn" id="td-ws-upload-btn"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>Wgraj do folderu zadania</button>
       <input type="file" id="td-ws-upload" multiple hidden>
       <?php endif; ?>
-      <?php if ($can_edit && $ws_folders_all): ?>
+      <?php if ($can_edit && $ws_can_link && $ws_folders_all): ?>
       <button type="button" class="td-mini-btn" id="td-ws-link-btn" aria-expanded="false" aria-controls="td-ws-picker">
         <i class="bi bi-folder-symlink" aria-hidden="true"></i>Dodaj z folderów obszaru</button>
       <?php endif; ?>
     </div>
     <p class="td-ws-note" id="td-ws-progress" role="status" aria-live="polite" hidden></p>
 
-    <?php if ($can_edit && $ws_folders_all): ?>
+    <?php if ($can_edit && $ws_can_link && $ws_folders_all): ?>
     <div id="td-ws-picker" class="td-ws-picker" hidden>
       <div class="td-ws-pick-bar">
         <label class="visually-hidden" for="td-ws-folder">Folder</label>

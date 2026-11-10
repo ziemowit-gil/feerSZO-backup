@@ -32,6 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($_GET['action'] ?? '', ['do
     }
     $file_id = (int)($_GET['id'] ?? 0);
     $inline  = ($_GET['action'] === 'preview');
+    $_wf     = ws_get_file($file_id);
+    if ($_wf && !ws_can('download', (int)$_wf['workspace_id'])) {   // macierz uprawnień do plików
+        http_response_code(403);
+        echo 'Brak uprawnienia do pobierania plików w tym obszarze.';
+        exit;
+    }
     ws_proxy_download($file_id, current_user()['id'] ?? null, $inline);
     exit;
 }
@@ -78,7 +84,7 @@ $resp = match($action) {
         if (!$ws_id || !$name) {
             return ['ok' => false, 'error' => 'Brak wymaganego parametru workspace_id lub name.'];
         }
-        ws_require_access($ws_id, 'editor');
+        ws_require_perm('create_folder', $ws_id);
         return ws_create_folder($ws_id, $name, $desc, $user_id);
     })(),
 
@@ -90,7 +96,7 @@ $resp = match($action) {
         $folder = ws_get_folder($folder_id);
         if (!$folder) return ['ok' => false, 'file' => null, 'error' => 'Nie znaleziono folderu.'];
 
-        ws_require_access((int)$folder['workspace_id'], 'member');
+        ws_require_perm('upload', (int)$folder['workspace_id']);
 
         if (empty($_FILES['file'])) return ['ok' => false, 'file' => null, 'error' => 'Brak pliku w żądaniu.'];
 
@@ -116,7 +122,7 @@ $resp = match($action) {
         $file = ws_get_file($id);
         if (!$file) return ['ok' => false, 'error' => 'Nie znaleziono pliku.'];
 
-        ws_require_access((int)$file['workspace_id'], 'editor');
+        ws_require_perm('delete_file', (int)$file['workspace_id'], $file);
         return ws_delete_file($id, is_admin());
     })(),
 
@@ -128,7 +134,7 @@ $resp = match($action) {
         $folder = ws_get_folder($id);
         if (!$folder) return ['ok' => false, 'error' => 'Nie znaleziono folderu.'];
 
-        ws_require_access((int)$folder['workspace_id'], 'editor');
+        ws_require_perm('delete_folder', (int)$folder['workspace_id']);
         return ws_delete_folder($id);
     })(),
 
@@ -141,7 +147,7 @@ $resp = match($action) {
         $file = ws_get_file($file_id);
         if (!$file) return ['ok' => false, 'error' => 'Nie znaleziono pliku.'];
 
-        ws_require_access((int)$file['workspace_id'], 'member');
+        ws_require_perm('link', (int)$file['workspace_id']);
         return ws_link_file_to_task($file_id, $task_id, $user_id);
     })(),
 
@@ -154,7 +160,7 @@ $resp = match($action) {
         $file = ws_get_file($file_id);
         if (!$file) return ['ok' => false, 'error' => 'Nie znaleziono pliku.'];
 
-        ws_require_access((int)$file['workspace_id'], 'member');
+        ws_require_perm('link', (int)$file['workspace_id']);
         return ws_unlink_file_from_task($file_id, $task_id);
     })(),
 
@@ -166,7 +172,7 @@ $resp = match($action) {
         $file = ws_get_file($file_id);
         if (!$file) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'tasks' => []];
 
-        ws_require_access((int)$file['workspace_id']);
+        ws_require_perm('view', (int)$file['workspace_id']);
 
         $tasks = ws_tasks_for_file($file_id);
         return ['ok' => true, 'tasks' => $tasks];
@@ -180,7 +186,7 @@ $resp = match($action) {
         $task = db_one("SELECT id, workspace_id FROM tasks WHERE id = ?", [$task_id]);
         if (!$task) return ['ok' => false, 'error' => 'Nie znaleziono zadania.', 'files' => []];
 
-        ws_require_access((int)$task['workspace_id']);
+        ws_require_perm('view', (int)$task['workspace_id']);
 
         $files = ws_files_for_task($task_id);
         foreach ($files as &$f) {
@@ -196,7 +202,7 @@ $resp = match($action) {
         $task_id = (int)($body['task_id'] ?? 0);
         $task    = $task_id ? db_one("SELECT id, workspace_id FROM tasks WHERE id = ? AND deleted_at IS NULL", [$task_id]) : null;
         if (!$task) return ['ok' => false, 'error' => 'Nie znaleziono zadania.'];
-        ws_require_access((int)$task['workspace_id'], 'member');
+        ws_require_perm('upload', (int)$task['workspace_id']);
         $folder = ws_sp_create_task_folder($task_id, $user_id);   // sama zakłada też foldery nadrzędne (Koszulki/obszar)
         if (!$folder) return ['ok' => false, 'error' => 'Nie udało się utworzyć folderu zadania na SharePoincie.'];
         return ['ok' => true, 'folder' => ['id' => (int)$folder['id'], 'name' => $folder['name']]];
@@ -208,7 +214,7 @@ $resp = match($action) {
         $q         = mb_strtolower(trim((string)($body['q'] ?? '')));
         $folder    = $folder_id ? ws_get_folder($folder_id) : null;
         if (!$folder) return ['ok' => false, 'files' => [], 'error' => 'Nie znaleziono folderu.'];
-        ws_require_access((int)$folder['workspace_id'], 'viewer');
+        ws_require_perm('view', (int)$folder['workspace_id']);
         $out = [];
         foreach (ws_list_files($folder_id) as $f) {
             if ($q !== '' && !str_contains(mb_strtolower($f['name'] . ' ' . $f['original_name']), $q)) continue;
@@ -224,7 +230,7 @@ $resp = match($action) {
         $q     = trim($body['q'] ?? '');
         if (!$ws_id) return ['ok' => false, 'files' => [], 'error' => 'Brak workspace_id.'];
 
-        ws_require_access($ws_id, 'viewer');
+        ws_require_perm('view', $ws_id);
 
         $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
         $rows = db_all(
@@ -248,7 +254,7 @@ $resp = match($action) {
     'init_ws_folders' => (function () use ($body, $user_id): array {
         $ws_id = (int)($body['workspace_id'] ?? 0);
         if (!$ws_id) return ['ok' => false, 'error' => 'Brak workspace_id.'];
-        ws_require_access($ws_id, 'editor');
+        ws_require_perm('task_folders', $ws_id);
         ws_sp_init_workspace($ws_id);
         $created = ws_init_task_folders($ws_id, $user_id);
         $total   = (int)(db_one(
@@ -262,7 +268,7 @@ $resp = match($action) {
     'list_folders' => (function () use ($body): array {
         $ws_id = (int)($body['workspace_id'] ?? 0);
         if (!$ws_id) return ['ok' => false, 'folders' => [], 'error' => 'Brak workspace_id.'];
-        ws_require_access($ws_id, 'viewer');
+        ws_require_perm('view', $ws_id);
         $folders = ws_list_folders($ws_id);
         return ['ok' => true, 'folders' => array_map(
             fn($f) => ['id' => (int)$f['id'], 'name' => $f['name']],

@@ -27,6 +27,7 @@ require_once __DIR__ . '/logic/RulesController.php';
 require_once __DIR__ . '/logic/NewTaskController.php';
 require_once __DIR__ . '/logic/MailIntakeController.php';
 require_once __DIR__ . '/logic/LinksController.php';
+require_once __DIR__ . '/logic/FilePermsController.php';
 
 $r = new Router('/tasks/router.php');
 $r->aliasMiddleware('tasks', function () {
@@ -56,6 +57,8 @@ $r->group(['tasks'], function (Router $r) {
     $r->post('/skrzynka-obszaru', [MailIntakeController::class, 'save'])->name('intake.save');
     $r->post('/powiazania', [LinksController::class, 'add'])->name('links.add');
     $r->post('/powiazania/usun', [LinksController::class, 'remove'])->name('links.remove');
+    $r->get('/uprawnienia-plikow', [FilePermsController::class, 'index'])->name('fileperms.index');
+    $r->post('/uprawnienia-plikow', [FilePermsController::class, 'save'])->name('fileperms.save');
 });
 
 $r->dispatch();

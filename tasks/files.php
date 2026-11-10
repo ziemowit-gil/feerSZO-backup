@@ -667,8 +667,15 @@ if (!$workspace) {
     exit;
 }
 
-$can_upload = ws_can_upload($ws_id, $uid);
-$can_manage = ws_can_manage($ws_id, $uid);
+// Uprawnienia do plików wg macierzy (includes/workspaces.php → ws_can; ustawia administrator w Zadania → Ustawienia)
+$can_view       = ws_can('view', $ws_id, $uid);
+$can_dl         = ws_can('download', $ws_id, $uid);
+$can_upload     = ws_can('upload', $ws_id, $uid);
+$can_link       = ws_can('link', $ws_id, $uid);
+$can_folder     = ws_can('create_folder', $ws_id, $uid);
+$can_del_folder = ws_can('delete_folder', $ws_id, $uid);
+$can_tf         = ws_can('task_folders', $ws_id, $uid);
+$can_manage     = ws_can_manage($ws_id, $uid);   // menedżer plików zadań (załączniki lokalne) — bez zmian
 $folders    = ws_list_folders($ws_id);
 $sp_ok      = ws_available();
 $role       = ws_user_role($ws_id, $uid);
@@ -688,10 +695,19 @@ if (!$sp_ok) {
     exit;
 }
 
+// Bez uprawnienia „Przeglądanie folderów i plików” — tylko komunikat
+if (!$can_view) {
+    $PAGE_TITLE = h($workspace['name']) . ' — Pliki'; $TASKS_BREADCRUMB = h($workspace['name']); $TASKS_WS_ID = $ws_id; $TASKS_FILES_VIEW = true;
+    require_once __DIR__ . '/includes/header_tasks.php';
+    echo '<div class="alert alert-warning" role="alert">Twoja rola w obszarze „' . h($workspace['name']) . '” nie obejmuje przeglądania plików. O dostęp poproś lidera obszaru.</div>';
+    include __DIR__ . '/includes/footer_tasks.php';
+    exit;
+}
+
 // Auto-inicjuj strukturę SP gdy obszar jest pusty i użytkownik ma uprawnienia
 $auto_initialized = false;
 $auto_created     = 0;
-if (empty($folders) && $can_manage && $sp_ok) {
+if (empty($folders) && $can_tf && $sp_ok) {
     try {
         ws_sp_init_workspace($ws_id);
         $auto_created     = ws_init_task_folders($ws_id, $uid);
@@ -849,11 +865,15 @@ require_once __DIR__ . '/includes/header_tasks.php';
       <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws_id ?>&view=kanban" class="tk-viewsw-b"><i class="bi bi-kanban" aria-hidden="true"></i>Kanban</a>
       <a href="<?= APP_URL ?>/tasks/files.php?ws=<?= $ws_id ?>" class="tk-viewsw-b is-on" aria-current="page"><i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki</a>
     </div>
-    <?php if ($can_manage && $sp_ok && $tf_missing > 0): ?>
+    <?php if ($can_tf && $sp_ok && $tf_missing > 0): ?>
     <button type="button" class="tk-hbtn" id="tfInitTaskFolders" title="Utwórz na SharePoincie foldery dla zadań, które jeszcze ich nie mają">
       <i class="bi bi-folder-plus" aria-hidden="true"></i>Foldery dla zadań (<?= $tf_missing ?>)</button>
     <?php endif; ?>
-    <?php if ($can_manage && $sp_ok): ?>
+    <?php if (is_admin()): ?>
+    <a class="tk-hbtn" href="<?= APP_URL ?>/tasks/router.php?_route=/uprawnienia-plikow" title="Kto co może w Plikach (macierz uprawnień)">
+      <i class="bi bi-shield-lock" aria-hidden="true"></i>Uprawnienia</a>
+    <?php endif; ?>
+    <?php if ($can_folder && $sp_ok): ?>
     <button type="button" class="tk-hbtn tk-hbtn--cta" data-bs-toggle="modal" data-bs-target="#newFolderModal">
       <i class="bi bi-folder-plus" aria-hidden="true"></i>Nowy folder</button>
     <?php endif; ?>
@@ -914,7 +934,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
             <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>Wgraj</button>
           <input type="file" id="uploadInput" multiple hidden>
           <?php endif; ?>
-          <?php if ($can_manage): ?>
+          <?php if ($can_del_folder): ?>
           <button type="button" class="tf-ibtn is-danger" title="Usuń folder" aria-label="Usuń folder <?= h($active_folder['name']) ?>"
                   data-action="delete-folder" data-id="<?= $active_folder_id ?>"><i class="bi bi-trash3" aria-hidden="true"></i></button>
           <?php endif; ?>
@@ -976,8 +996,8 @@ require_once __DIR__ . '/includes/header_tasks.php';
                 'zip','7z','tar','gz'         => 'bi-file-earmark-zip text-secondary',
                 default                       => 'bi-file-earmark tf-muted',
             };
-            $previewable = in_array($ext, ['pdf','jpg','jpeg','png','gif','webp']);
-            $docPreview  = in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']);
+            $previewable = $can_dl && in_array($ext, ['pdf','jpg','jpeg','png','gif','webp']);
+            $docPreview  = $can_dl && in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']);
             $fid        = (int)$f['id'];
             $task_count = $tf_links[$fid] ?? 0;
             $dl_url = APP_URL . '/workspaces/api.php?action=download&id=' . $fid . '&_csrf=' . urlencode(csrf_token());
@@ -991,8 +1011,10 @@ require_once __DIR__ . '/includes/header_tasks.php';
                       data-name="<?= h($f['name']) ?>" title="Podgląd: <?= h($f['name']) ?>"><?= h($f['name']) ?></button>
               <?php elseif ($docPreview && $f['web_url']): ?>
               <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-fname" title="Otwórz w Office Online: <?= h($f['name']) ?>"><?= h($f['name']) ?></a>
-              <?php else: ?>
+              <?php elseif ($can_dl): ?>
               <a href="<?= h($dl_url) ?>" class="tf-fname" title="Pobierz: <?= h($f['name']) ?>"><?= h($f['name']) ?></a>
+              <?php else: ?>
+              <span class="tf-fname" style="cursor:default"><?= h($f['name']) ?></span>
               <?php endif; ?>
               <button type="button" class="tf-links btn-file-tasks<?= $task_count ? ' has' : '' ?>" data-file-id="<?= $fid ?>"
                       title="<?= $task_count ? 'Pokaż zadania, do których przypięto plik' : 'Plik nie jest przypięty do zadań' ?>">
@@ -1010,10 +1032,14 @@ require_once __DIR__ . '/includes/header_tasks.php';
                 <?php elseif ($docPreview && $f['web_url']): ?>
                 <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-ibtn" title="Otwórz w Office Online" aria-label="Otwórz w Office Online: <?= h($f['name']) ?>"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
                 <?php endif; ?>
+                <?php if ($can_dl): ?>
                 <a href="<?= h($dl_url) ?>" class="tf-ibtn" title="Pobierz" aria-label="Pobierz: <?= h($f['name']) ?>"><i class="bi bi-download" aria-hidden="true"></i></a>
+                <?php endif; ?>
+                <?php if ($can_link): ?>
                 <button type="button" class="tf-ibtn btn-link-task" data-id="<?= $fid ?>" data-name="<?= h($f['name']) ?>"
                         title="Przypnij do zadania" aria-label="Przypnij do zadania: <?= h($f['name']) ?>"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
-                <?php if ($can_manage): ?>
+                <?php endif; ?>
+                <?php if (ws_can('delete_file', $ws_id, $uid, $f)): ?>
                 <button type="button" class="tf-ibtn is-danger btn-delete-file" data-id="<?= $fid ?>"
                         title="Usuń plik" aria-label="Usuń plik: <?= h($f['name']) ?>"><i class="bi bi-trash3" aria-hidden="true"></i></button>
                 <?php endif; ?>
@@ -1045,9 +1071,9 @@ require_once __DIR__ . '/includes/header_tasks.php';
               'zip','7z','tar','gz'         => 'bi-file-earmark-zip text-secondary',
               default                       => 'bi-file-earmark',
           };
-          $is_image    = in_array($ext, ['jpg','jpeg','png','gif','webp'], true);
-          $previewable = in_array($ext, ['pdf','jpg','jpeg','png','gif','webp']);
-          $docPreview  = in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']);
+          $is_image    = $can_dl && in_array($ext, ['jpg','jpeg','png','gif','webp'], true);
+          $previewable = $can_dl && in_array($ext, ['pdf','jpg','jpeg','png','gif','webp']);
+          $docPreview  = $can_dl && in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']);
           $fid        = (int)$f['id'];
           $task_count = $tf_links[$fid] ?? 0;
           $dl_url = APP_URL . '/workspaces/api.php?action=download&id=' . $fid . '&_csrf=' . urlencode(csrf_token());
@@ -1066,9 +1092,13 @@ require_once __DIR__ . '/includes/header_tasks.php';
               <?php elseif ($docPreview && $f['web_url']): ?>
               <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-ibtn" aria-label="Otwórz w Office Online: <?= h($f['name']) ?>"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
               <?php endif; ?>
+              <?php if ($can_dl): ?>
               <a href="<?= h($dl_url) ?>" class="tf-ibtn" aria-label="Pobierz: <?= h($f['name']) ?>"><i class="bi bi-download" aria-hidden="true"></i></a>
+              <?php endif; ?>
+              <?php if ($can_link): ?>
               <button type="button" class="tf-ibtn btn-link-task" data-id="<?= $fid ?>" data-name="<?= h($f['name']) ?>" aria-label="Przypnij do zadania: <?= h($f['name']) ?>"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
-              <?php if ($can_manage): ?>
+              <?php endif; ?>
+              <?php if (ws_can('delete_file', $ws_id, $uid, $f)): ?>
               <button type="button" class="tf-ibtn is-danger btn-delete-file" data-id="<?= $fid ?>" aria-label="Usuń plik: <?= h($f['name']) ?>"><i class="bi bi-trash3" aria-hidden="true"></i></button>
               <?php endif; ?>
             </div>
@@ -1096,7 +1126,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
       <i class="bi bi-folder2" aria-hidden="true"></i>
       <span>Brak folderów w tym obszarze.</span>
       <?php endif; ?>
-      <?php if ($can_manage && $sp_ok): ?>
+      <?php if ($can_folder && $sp_ok): ?>
       <button type="button" class="tf-ibtn is-cta" data-bs-toggle="modal" data-bs-target="#newFolderModal"><i class="bi bi-folder-plus" aria-hidden="true"></i>Utwórz folder</button>
       <?php endif; ?>
     </div></div>
@@ -1112,7 +1142,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 <!-- ══ Modals ══════════════════════════════════════════════════════════════ -->
 
 <!-- Nowy folder -->
-<?php if ($can_manage && $sp_ok): ?>
+<?php if ($can_folder && $sp_ok): ?>
 <div class="modal fade" id="newFolderModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-sm">
     <div class="modal-content">
