@@ -134,8 +134,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
             if ($no === '') continue;
             $sym = str_starts_with($no, 'SYM-');
             if ($sym && !$virtual) continue;
-            if (!$sym && ($dk === 'order' || (string)$c[$dk . '_view_url'] === '')) { $docs[] = [$dl . ' ' . $no, '', false]; continue; }
-            $docs[] = [$dl . ' ' . $no, route('lk.doc', ['id' => (int)$c['id'], 'doc' => $dk]), $sym];
+            $docs[] = [$dl . ' ' . $no, route('lk.doc', ['id' => (int)$c['id'], 'doc' => $dk]), $sym, $sym ? '' : (string)($c[$dk . '_view_url'] ?? '')];
         } ?>
       <div class="m-row">
         <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
@@ -147,8 +146,10 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
         </div>
         <?php if ($docs): ?>
         <ul class="m-docs" aria-label="Dokumenty za <?= h(ClaudeBilling::periodLabel((string)$c['period'])) ?>">
-          <?php foreach ($docs as [$dlbl, $durl, $dsym]): ?>
-          <li><?php if ($durl === ''): ?><?= h($dlbl) ?><?php elseif ($dsym): ?><a href="<?= h($durl) ?>"><?= h($dlbl) ?></a> <span class="m-note">(symulacja, pobierz PDF)</span><?php else: ?><a href="<?= h($durl) ?>" target="_blank" rel="noopener"><?= h($dlbl) ?></a> <span class="m-note">(Fakturownia, nowa karta)</span><?php endif; ?></li>
+          <?php foreach ($docs as [$dlbl, $durl, $dsym, $dview]): ?>
+          <li><span class="tw-mr-2"><?= h($dlbl) ?><?= $dsym ? ' <span class="m-note">(symulacja)</span>' : '' ?></span>
+            <a class="m-btn-ghost" href="<?= h($durl) ?>" download>Pobierz PDF<span class="tw-sr-only"> — <?= h($dlbl) ?></span></a>
+            <?php if ($dview !== ''): ?> <a class="tw-text-sm" href="<?= h($dview) ?>" target="_blank" rel="noopener">podgląd online<span class="tw-sr-only"> — <?= h($dlbl) ?> (nowa karta)</span></a><?php endif; ?></li>
           <?php endforeach; ?>
         </ul>
         <?php endif; ?>

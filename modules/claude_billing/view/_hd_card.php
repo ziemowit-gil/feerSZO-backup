@@ -29,6 +29,13 @@ $lrStep = fn(bool $done, string $txt) => '<li class="' . ($done ? 'text-success'
       <?= $lrStep($lrInv !== '', $lrInv !== '' ? 'Faktura VAT ' . h($lrInv) . ($lrSym($lrInv) ? ' (symulacja)' : '') : 'Faktura VAT: do wystawienia po wpłacie') ?>
       <?= $lrStep(!$lrReq && $lrSub['status'] !== 'ended', !$lrReq && $lrSub['status'] !== 'ended' ? 'Dostęp aktywny od ' . h(ClaudeBilling::date($lrSub['activated_on'])) : 'Dostęp: do aktywacji') ?>
     </ol>
+    <?php if ($lrCh): $lrDl = fn(string $d) => 'licencjeWniosek.php?ticket_id=' . (int)$ticket['id'] . '&amp;pdf=' . $d; ?>
+    <div class="d-flex flex-wrap gap-1 mb-2">
+      <?php foreach (ClaudeInvoice::DOC_LABELS as $d => $dl): if ((string)$lrCh[$d . '_number'] === '') continue; ?>
+        <a class="btn btn-sm btn-outline-secondary" href="<?= $lrDl($d) ?>" download><i class="bi bi-download me-1" aria-hidden="true"></i><?= h($dl) ?> PDF<span class="visually-hidden"> <?= h((string)$lrCh[$d . '_number']) ?></span></a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     <?php if (!empty($lrP['requiresEdu'])): ?>
       <div class="mb-1"><?= $hd_lr['edu'] ? 'Konto @' . h(ClaudeBilling::EDU_DOMAIN) . ': <span class="font-monospace">' . h($hd_lr['edu']) . '</span>'
           : '<span class="text-danger">Brak konta @' . h(ClaudeBilling::EDU_DOMAIN) . '.</span> Załóż: <span class="font-monospace">' . h($hd_lr['eduReq']['proposed'] ?? '') . '</span> i wpisz je w Ewidencji Uczestników (konto Microsoft).' ?></div>

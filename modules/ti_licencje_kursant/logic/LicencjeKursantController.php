@@ -307,20 +307,14 @@ final class LicencjeKursantController
         $ch = ClaudeBilling::charge((int)$id);
         if (!$ch || (int)$ch['client_id'] !== $me['cid'] || !in_array($doc, ['proforma', 'order', 'invoice'], true)) { http_response_code(404); return 'Nie znaleziono dokumentu.'; }
         require_once dirname(__DIR__, 2) . '/claude_billing/logic/ClaudeInvoice.php';
-        $no = (string)$ch[$doc . '_number'];
-        if (ClaudeInvoice::isSim($no)) {
-            try { $pdf = ClaudeInvoice::simPdf((int)$id, $doc); }
-            catch (\Throwable $e) { error_log('lk simPdf: ' . $e); return $this->flash('err', 'Nie udało się przygotować PDF. Spróbuj ponownie.', ClaudeBilling::productOf($ch)); }
-            header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $no) . '.pdf"');
-            header('Content-Length: ' . strlen($pdf));
-            echo $pdf;
-            exit;
+        if (ClaudeInvoice::isSim((string)$ch[$doc . '_number']) && !ClaudeBilling::isVirtual($me['cid'])) { http_response_code(404); return 'Nie znaleziono dokumentu.'; }   // symulacje widzi tylko konto testowe
+        try { ClaudeInvoice::sendPdf(ClaudeInvoice::pdf((int)$id, $doc)); }
+        catch (\Throwable $e) {
+            $url = $doc === 'order' ? '' : (string)$ch[$doc . '_view_url'];
+            if ($url !== '') { header('Location: ' . $url); return null; }   // PDF z Fakturowni chwilowo niedostępny — podgląd online
+            error_log('lk pdf: ' . $e->getMessage());
+            return $this->flash('err', 'Nie udało się pobrać PDF. Spróbuj za chwilę.', ClaudeBilling::productOf($ch));
         }
-        $url = $doc === 'order' ? '' : (string)$ch[$doc . '_view_url'];
-        if ($url === '') return $this->flash('info', 'Ten dokument nie jest jeszcze gotowy do pobrania.', ClaudeBilling::productOf($ch));
-        header('Location: ' . $url);
-        return null;
     }
 
     /** Konto testowe: symulowana wpłata (bez Przelewy24) — dalej zamówienie i faktura w symulacji. */

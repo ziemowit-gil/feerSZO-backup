@@ -68,7 +68,8 @@ $nav = $nav ?? null;
   .m-steps li.cur { color: var(--mt-ink); font-weight: 700; border-bottom-color: var(--mt-accent); }
   .m-steps li.done { color: var(--mt-ok); }
   .m-steps-n { display: inline-block; min-width: 1.6em; height: 1.6em; line-height: 1.5em; text-align: center; border: 1px solid currentColor; margin-right: 6px; font-size: .8rem; }
-  .m-docs li { padding: 2px 0; }
+  .m-docs li { padding: 4px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .m-docs .m-btn-ghost { min-height: 34px; padding: 4px 12px; font-size: .85rem; }
   .pk-side .pk-badge { font-size: .78rem; color: var(--mt-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .pk-side .pk-badge.due { color: var(--mt-bad); font-weight: 700; }
   .pk-footer { text-align: center; padding: 24px; color: var(--mt-muted); font-size: .8rem; }

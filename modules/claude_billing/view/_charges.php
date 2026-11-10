@@ -22,7 +22,8 @@ $cst = ['pending' => '#f0a30a', 'paid' => '#008a00', 'cancelled' => '#647687'];
         <?php if ($c['note']): ?><br><small class="text-secondary"><?= h($c['note']) ?></small><?php endif; ?></td>
       <td><?php foreach (['proforma' => 'Proforma', 'order' => 'Zamówienie', 'invoice' => 'Faktura'] as $dk => $dl):
               $no = (string)($c[$dk . '_number'] ?? ''); if ($no === '') continue; $u = (string)($c[$dk . '_view_url'] ?? ''); ?>
-          <div class="small"><span class="text-secondary"><?= $dl ?>:</span> <?= $u !== '' ? '<a href="' . h($u) . '" target="_blank" rel="noopener">' . h($no) . '</a>' : h($no) ?><?= str_starts_with($no, 'SYM-') ? ' <span class="chip" style="background:#fa6800" title="nie istnieje w Fakturowni">symulacja</span>' : '' ?></div>
+          <div class="small mb-1"><span class="text-secondary"><?= $dl ?>:</span> <?= $u !== '' ? '<a href="' . h($u) . '" target="_blank" rel="noopener">' . h($no) . '<span class="visually-hidden"> (podgląd w Fakturowni, nowa karta)</span></a>' : h($no) ?><?= str_starts_with($no, 'SYM-') ? ' <span class="chip" style="background:#fa6800" title="nie istnieje w Fakturowni">symulacja</span>' : '' ?>
+            <?php if (!$test): ?><a class="btn btn-sm btn-outline-secondary py-0 ms-1" href="<?= h(route('cb.doc', ['id' => (int)$c['id'], 'doc' => $dk])) ?>" download>Pobierz PDF<span class="visually-hidden"> — <?= $dl ?> <?= h($no) ?></span></a><?php endif; ?></div>
         <?php endforeach; ?>
         <?php if ($c['invoice_error']): ?><div class="text-danger small"><?= h($c['invoice_error']) ?></div><?php endif; ?>
         <?php if ($c['invoice_payload']): ?><details><summary class="small">dane wysłane do Fakturowni</summary><pre class="small bg-light p-2" style="white-space:pre-wrap;max-width:520px"><?= h((string)$c['invoice_payload']) ?></pre></details><?php endif; ?></td>

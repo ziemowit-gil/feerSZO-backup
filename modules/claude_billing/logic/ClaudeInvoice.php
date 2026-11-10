@@ -327,6 +327,44 @@ final class ClaudeInvoice
         return ['ok' => true, 'simulated' => true, 'number' => $no, 'local_id' => $localId, 'warning' => $msg, 'payload' => $payload];
     }
 
+    public const DOC_LABELS = ['proforma' => 'Proforma', 'order' => 'Zamówienie', 'invoice' => 'Faktura'];
+
+    /**
+     * PDF dokumentu opłaty do pobrania (proforma / zamówienie / faktura): symulacja → PDF z SZO, prawdziwy → kopia z Fakturowni
+     * (zapisana lokalnie przy pierwszym pobraniu). @return array{bytes:string,name:string} Rzuca DomainException, gdy dokumentu nie ma albo Fakturownia nie oddała PDF.
+     */
+    public static function pdf(int $chargeId, string $doc): array
+    {
+        $ch = ClaudeBilling::charge($chargeId);
+        if (!$ch || !isset(self::DOC_LABELS[$doc])) throw new DomainException('Nie ma takiego dokumentu.');
+        $no = (string)($ch[$doc . '_number'] ?? '');
+        if ($no === '') throw new DomainException(self::DOC_LABELS[$doc] . ' jeszcze nie powstała.');
+        $name = preg_replace('/[^A-Za-z0-9._-]+/', '_', strtr(self::DOC_LABELS[$doc], ['ó' => 'o']) . '_' . $no) . '.pdf';
+        if (self::isSim($no)) return ['bytes' => self::simPdf($chargeId, $doc), 'name' => $name];
+        require_once dirname(__DIR__, 3) . '/includes/invoices.php';
+        require_once dirname(__DIR__, 3) . '/includes/fakturownia.php';
+        $id = (int)($ch[$doc . '_id'] ?? 0);
+        $inv = $id ? invoice_get($id) : null;
+        if (!$inv) throw new DomainException('Brak dokumentu w rejestrze faktur.');
+        $file = (string)($inv['pdf_path'] ?? '');
+        $path = $file !== '' ? invoices_pdf_dir() . '/' . basename($file) : '';
+        if ($path === '' || !is_file($path)) $path = (string)invoice_pdf_fetch($id);
+        $bytes = $path !== '' && is_file($path) ? (string)file_get_contents($path) : '';
+        if (!str_starts_with($bytes, '%PDF')) throw new DomainException('Fakturownia nie oddała PDF. Spróbuj za chwilę albo otwórz podgląd dokumentu.');
+        return ['bytes' => $bytes, 'name' => $name];
+    }
+
+    /** Wysyła PDF do przeglądarki (pobranie) i kończy żądanie. */
+    public static function sendPdf(array $pdf): never
+    {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $pdf['name'] . '"');
+        header('Content-Length: ' . strlen($pdf['bytes']));
+        header('Cache-Control: private, no-store');
+        echo $pdf['bytes'];
+        exit;
+    }
+
     /** PDF dokumentu symulowanego (SYM-…): dane jak w Fakturowni (payload), znak wodny SYMULACJA. Zwraca bajty PDF. */
     public static function simPdf(int $chargeId, string $doc): string
     {

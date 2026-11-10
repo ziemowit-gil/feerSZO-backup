@@ -92,9 +92,9 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
       <td><a href="<?= h(route('cb.show', ['id' => $sid])) ?>"><?= h((string)$r['client_name']) ?></a></td>
       <td class="text-nowrap"><?= h(ClaudeBilling::date($r['activated_on'])) ?></td>
       <td><ul class="cb-steps">
-        <li class="<?= $ch && $ch['proforma_number'] !== '' ? 'done' : 'todo' ?>">Proforma <?= h($ch['proforma_number'] ?? '—') ?><?= $ch ? ', ' . h(ClaudeBilling::zl((float)$ch['amount_pln'])) . ', do ' . h(ClaudeBilling::date($ch['due_on'])) : '' ?></li>
+        <li class="<?= $ch && $ch['proforma_number'] !== '' ? 'done' : 'todo' ?>">Proforma <?= h($ch['proforma_number'] ?? '—') ?><?= $ch ? ', ' . h(ClaudeBilling::zl((float)$ch['amount_pln'])) . ', do ' . h(ClaudeBilling::date($ch['due_on'])) : '' ?><?= $ch && $ch['proforma_number'] !== '' ? ' · <a href="' . h(route('cb.doc', ['id' => (int)$ch['id'], 'doc' => 'proforma'])) . '" download>pobierz PDF<span class="visually-hidden"> proformy</span></a>' : '' ?></li>
         <li class="<?= $paid ? 'done' : 'todo' ?>"><?= $paid ? 'Wpłata ' . h(ClaudeBilling::date((string)$ch['paid_at'])) . ' (' . h((string)$ch['paid_via']) . ')' : 'Wpłata: jeszcze nie ma' ?></li>
-        <li class="<?= $inv !== '' ? 'done' : 'todo' ?>"><?= $inv !== '' ? 'Faktura ' . h($inv) : 'Faktura VAT: po wpłacie' ?></li>
+        <li class="<?= $inv !== '' ? 'done' : 'todo' ?>"><?= $inv !== '' ? 'Faktura ' . h($inv) . ' · <a href="' . h(route('cb.doc', ['id' => (int)$ch['id'], 'doc' => 'invoice'])) . '" download>pobierz PDF<span class="visually-hidden"> faktury</span></a>' : 'Faktura VAT: po wpłacie' ?></li>
       </ul></td>
       <td><?= (int)($r['helpdesk_ticket_id'] ?? 0) ? '<a href="' . h(APP_URL) . '/helpdesk/view.php?id=' . (int)$r['helpdesk_ticket_id'] . '" target="_blank" rel="noopener">' . h($r['helpdesk_number'] ?: 'zgłoszenie') . '<span class="visually-hidden"> (nowa karta)</span></a>' : h($r['helpdesk_number'] ?: '—') ?></td>
       <td>

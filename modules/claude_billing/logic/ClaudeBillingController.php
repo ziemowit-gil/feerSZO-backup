@@ -82,6 +82,17 @@ final class ClaudeBillingController
             'changes' => $changes, 'changeAnswers' => $open ? PriceChange::answers((int)$open[0]['id']) : []]);
     }
 
+    /** Pobranie PDF dokumentu opłaty (proforma / zamówienie / faktura; symulacja albo kopia z Fakturowni). */
+    public function document(string $id, string $doc): ?string
+    {
+        $ch = ClaudeBilling::charge((int)$id);
+        try { ClaudeInvoice::sendPdf(ClaudeInvoice::pdf((int)$id, $doc)); }
+        catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+            return Router::redirect($ch ? route('cb.show', ['id' => (int)$ch['subscription_id']]) : route('cb.index'));
+        }
+    }
+
     /** Wniosek z kreatora — te same kroki co w karcie Helpdesku: wpłata, faktura VAT, aktywacja, odrzucenie. */
     public function requestAction(string $id, string $act): ?string
     {
