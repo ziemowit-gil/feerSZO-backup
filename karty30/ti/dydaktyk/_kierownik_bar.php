@@ -20,6 +20,8 @@
  *                                  gdy kierownik pracuje w roli „Kierownik Instytucji”),
  *                    $KIER_EXTRA_HTML — dodatkowy HTML pod listą (np. przyciski narzędzi sekcji).
  */
+if (defined('LICENCE_ADMIN_MOUNT')) { include dirname(__DIR__, 3) . '/modules/ti_licencje_kursant/view/_admin_nav_bs.php'; return; }   // ekran licencji w Panelu Licencji: menu Administratora Licencji
+
 $KIER_CUR   = $KIER_CUR   ?? '';
 $KIER_LABEL = $KIER_LABEL ?? '';
 $KIER_EMBED = !empty($KIER_EMBED);
@@ -50,11 +52,7 @@ if (!empty($KIER_ITEMS)) {
         ['Podgląd klientów',          'klienci.php',                'person-lines-fill'],
         ['Ewidencja Uczestników',     'konta.php',                  'person-badge'],
         ['Microsoft 365',             'microsoft365.php',           'microsoft'],
-        ['Licencje',                  'licencjeKursantow.php',      'key'],
-        ['Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock'],
-        ...(trim((string)org_setting('ant1_enabled')) === '1' ? [['Dostęp do Claude (ANT1)', 'licencjeDydaktyczne.php?_route=%2Fant1', 'stars']] : []),   // ANT1 wyłączony (Płatne licencje)
-        ['Płatne licencje (Claude, NordVPN)', 'claudeAbonament.php', 'credit-card'],
-        ['Korekty AMSK',              'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square'],
+        ['Panel Licencji (licencje i ceny)', 'panelLicencji.php', 'key'],   // licencje — w Panelu Licencji (/licencje/)
         ['Dokumenty kursantów',       'dokumentyKursanta.php',      'folder2-open'],
         ['Rozliczenia grupy',         'index.php?tab=rozliczenia',  'receipt-cutoff'],
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],

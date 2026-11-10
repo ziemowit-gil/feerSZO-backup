@@ -13,7 +13,11 @@
  * WCAG 2.1 — etykiety pól, aria-*, odznaki z ikoną i tekstem (kolor nie jest jedynym
  * nośnikiem informacji), kontrast tekstu odznak ≥ 7:1, wynik filtrowania w regionie status.
  */
-require_once __DIR__ . '/auth.php';
+if (!defined('LICENCE_ADMIN_MOUNT')) {   // licencje są teraz w Panelu Licencji (Administrator Licencji): /licencje/licencjeKursantow.php
+    $_qs = (string)($_SERVER['QUERY_STRING'] ?? '');
+    header('Location: /licencje/licencjeKursantow.php' . ($_qs !== '' ? '?' . $_qs : ''), true, ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' ? 302 : 307);
+    exit;
+}
 require_once dirname(__DIR__, 3) . '/modules/ti_licencje/logic/tiLicencjeManager.php';
 
 $me = dyd_require();

@@ -4,6 +4,7 @@
  * wejście routera modułu modules/ti_licencje_dydaktyczne (sesja i CSRF panelu; tylko kadra zarządzająca).
  * Adresy: licencjeDydaktyczne.php (pulpit), ?_route=/nowy, /nowy-am7, /licencje/{id}, /wzor/AM7-2 …
  */
-require_once __DIR__ . '/auth.php';
-define('LD_PANEL', true);
-require dirname(__DIR__, 3) . '/modules/ti_licencje_dydaktyczne/router.php';
+// Licencje są teraz w Panelu Licencji (Administrator Licencji, logowanie Microsoft 365 / SZO) — polecenie 2026-11-10: znikają z panelu kierownika.
+$_qs = (string)($_SERVER['QUERY_STRING'] ?? '');
+header('Location: /licencje/licencjeDydaktyczne.php' . ($_qs !== '' ? '?' . $_qs : ''), true, ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' ? 302 : 307);
+exit;

@@ -15,7 +15,7 @@ require_once dirname(__DIR__) . '/router/lib/Router.php';
 if (!defined('CB_PANEL')) { http_response_code(404); exit('Nie znaleziono strony.'); }
 
 require_once __DIR__ . '/logic/ClaudeBillingController.php';
-$r = new Router('/karty30/ti/dydaktyk/claudeAbonament.php', 'query');
+$r = new Router(defined('CB_BASE') ? CB_BASE : '/karty30/ti/dydaktyk/claudeAbonament.php', 'query');   // CB_BASE — Panel Licencji (licencje/)
 $r->csrfUsing(fn() => dyd_token_check(), fn() => dyd_token(), '_token');
 $r->aliasMiddleware('dyd.staff', function () {
     dyd_require();

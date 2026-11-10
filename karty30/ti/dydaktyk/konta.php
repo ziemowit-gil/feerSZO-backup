@@ -1075,7 +1075,7 @@ foreach ($accounts as $a) {
 }
 
 $active_tab = $_GET['ptab'] ?? (isset($_GET['guardian']) ? 'opiekun' : (isset($_GET['authp']) ? 'upowaznieni' : 'ogolne'));
-if (!in_array($active_tab, ['ogolne', 'platnosci', 'licencje', 'produkty', 'dokumenty', 'opiekun', 'upowaznieni'], true)) $active_tab = 'ogolne';
+if (!in_array($active_tab, ['ogolne', 'platnosci', 'produkty', 'dokumenty', 'opiekun', 'upowaznieni'], true)) $active_tab = 'ogolne';   // „licencje” — w Panelu Licencji
 
 // Opiekun/rodzic — te same kolumny co $selected_acc (k30_ti_student_accounts),
 // więc bez osobnego zapytania.
@@ -1383,6 +1383,8 @@ function printBulk(){
         <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
         <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope-arrow-up me-1" aria-hidden="true"></i>Wyślij ponownie link do konta</button>
       </form>
+      <?php $_lpName = (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [(int)$sa['client_id']])['name'] ?? ''); ?>
+      <a class="btn btn-sm btn-outline-secondary" href="/licencje/?_route=<?= h(rawurlencode('/admin')) ?>&amp;q=<?= h(rawurlencode($_lpName)) ?>" target="_blank" rel="noopener"><i class="bi bi-key me-1" aria-hidden="true"></i>Licencje i Office w Panelu Licencji<span class="visually-hidden"> (nowa karta, wymaga roli Administrator Licencji)</span></a>
 
       <?php foreach ([2, 3] as $pn):
         $pval = trim((string)($sa["notify_phone{$pn}"] ?? ''));
@@ -1421,11 +1423,6 @@ function printBulk(){
     <li class="nav-item" role="presentation">
       <button class="nav-link <?= $active_tab === 'platnosci' ? 'active' : '' ?>" id="tab-btn-platnosci" data-bs-toggle="tab" data-bs-target="#tab-platnosci" type="button" role="tab" aria-controls="tab-platnosci" aria-selected="<?= $active_tab === 'platnosci' ? 'true' : 'false' ?>">
         <i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Płatności
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link <?= $active_tab === 'licencje' ? 'active' : '' ?>" id="tab-btn-licencje" data-bs-toggle="tab" data-bs-target="#tab-licencje" type="button" role="tab" aria-controls="tab-licencje" aria-selected="<?= $active_tab === 'licencje' ? 'true' : 'false' ?>">
-        <i class="bi bi-key me-1" aria-hidden="true"></i>Licencje i Office
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -1842,174 +1839,7 @@ function printBulk(){
       </div>
     </div>
 
-    <!-- ── Zakładka: Licencje ───────────────────────────────────────────── -->
-    <div class="tab-pane fade <?= $active_tab === 'licencje' ? 'show active' : '' ?>" id="tab-licencje" role="tabpanel" aria-labelledby="tab-btn-licencje" tabindex="0">
-      <?php
-        $sa_licenses = k30_ti_client_licenses((int)$sa['client_id']);
-        $sa_license_catalog = array_filter(k30_ti_licenses_all(true), fn($l) => !empty($l['is_active']));
-        // Panel Licencji i konto Office (tenant edukacyjny) — dostęp nadaje się tutaj (polecenie 2026-11-10)
-        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje_kursant/logic/LicencjePanelAccess.php';
-        require_once dirname(dirname(dirname(__DIR__))) . '/modules/claude_billing/logic/LicenceOffice.php';
-        $sa_lp_login = LicenseLogin::get((int)$sa['client_id']);
-        $sa_lp_pass = LicenseLogin::hasPassword((int)$sa['client_id']);
-        $sa_lp_last = $sa_lp_login ? (string)(db_one("SELECT last_login FROM license_logins WHERE client_id=?", [(int)$sa['client_id']])['last_login'] ?? '') : '';
-        $sa_lp_why = LicencjePanelAccess::reasons((int)$sa['client_id']);
-        $sa_lp_unpaid = $sa_lp_why ? [] : LicencjePanelAccess::paidWithoutInvoice((int)$sa['client_id']);
-        $sa_office = LicenceOffice::summary((int)$sa['client_id']);
-      ?>
-      <section class="border rounded p-2 mb-3" style="max-width:980px" aria-labelledby="lp-h-<?= (int)$sa['id'] ?>">
-        <div class="small fw-semibold text-body-secondary mb-1" id="lp-h-<?= (int)$sa['id'] ?>">Panel Licencji i konto Office</div>
-        <div class="row g-2 small">
-          <div class="col-md-6">
-            <div>Panel Licencji: <a href="<?= h(LicencjePanelAuth::publicUrl()) ?>" target="_blank" rel="noopener"><?= h(preg_replace('#^https?://#', '', LicencjePanelAuth::publicUrl())) ?><span class="visually-hidden"> (nowa karta)</span></a></div>
-            <div>Login: <?= $sa_lp_login ? '<span class="font-monospace fw-semibold">' . h($sa_lp_login) . '</span>' : '<span class="text-body-secondary">nie nadano</span>' ?>
-              · hasło: <?= $sa_lp_pass ? 'ustawione' : '<span class="text-body-secondary">brak</span>' ?><?= $sa_lp_last !== '' ? ' · ostatnie logowanie ' . h(date('d.m.Y H:i', strtotime($sa_lp_last))) : '' ?></div>
-            <?php if ($sa_lp_why): ?>
-              <div class="text-body-secondary">Ma: <?= h(implode(', ', array_slice($sa_lp_why, 0, 4))) ?><?= count($sa_lp_why) > 4 ? ' i ' . (count($sa_lp_why) - 4) . ' inne' : '' ?></div>
-              <form method="post" class="mt-1" onsubmit="return confirm('<?= $sa_lp_pass ? 'Nadać nowe hasło do Panelu Licencji? Stare przestanie działać.' : 'Nadać dostęp do Panelu Licencji?' ?> Kursant dostanie SMS z hasłem i e-mail z adresem i loginem.')">
-                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="license_panel_access"><input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-key me-1" aria-hidden="true"></i><?= $sa_lp_pass ? 'Wyślij nowe hasło do Panelu Licencji' : 'Nadaj dostęp do Panelu Licencji' ?></button>
-              </form>
-            <?php else: ?>
-              <div class="text-body-secondary">Dostęp do Panelu Licencji dostają osoby z licencjami albo produktami.<?= $sa_lp_unpaid ? ' Płatne bez faktury VAT (liczą się dopiero po jej wystawieniu): ' . h(implode(', ', $sa_lp_unpaid)) . '.' : '' ?></div>
-            <?php endif; ?>
-          </div>
-          <div class="col-md-6">
-            <div>Konto Office (tenant edukacyjny): <?= $sa_office['upn'] !== '' ? '<span class="font-monospace fw-semibold">' . h($sa_office['upn']) . '</span>' : '<span class="text-danger">brak imienia lub nazwiska</span>' ?>
-              <span class="badge <?= $sa_office['ok'] ? 'text-bg-success' : ($sa_office['state'] === 'error' ? 'text-bg-danger' : 'text-bg-secondary') ?>"><?= h($sa_office['ok'] ? 'aktywne' : $sa_office['label']) ?></span></div>
-            <?php if ($sa_office['checked'] !== '' || $sa_office['note'] !== ''): ?><div class="text-body-secondary"><?= h(trim($sa_office['note'] . ($sa_office['checked'] !== '' ? ', sprawdzono ' . $sa_office['checked'] : ''), ', ')) ?></div><?php endif; ?>
-            <?php if (!$sa_office['ok'] && $sa_office['upn'] !== ''): ?>
-              <form method="post" class="mt-1" onsubmit="return confirm('Sprawdzić konto w tenancie edukacyjnym i założyć je, jeśli go nie ma? Login pójdzie e-mailem, hasło SMS-em.')">
-                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="license_office"><input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-                <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Sprawdź w tenancie edu / załóż konto Office</button>
-              </form>
-            <?php elseif ($sa_has_ms && $ms_online_enabled): ?>
-              <form method="post" class="mt-1" onsubmit="return confirm('Usunąć konto Microsoft <?= h((string)$sa['ms_upn']) ?> z tenanta edukacyjnego? Kursant straci Office i pocztę.')">
-                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="ms_delete"><input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Usuń konto Microsoft</button>
-              </form>
-            <?php endif; ?>
-          </div>
-        </div>
-      </section>
-      <div class="small fw-semibold text-body-secondary mb-1">
-        Licencje na oprogramowanie <span class="fw-normal">(inne niż Microsoft 365 — Adobe, Canva, antywirus…)</span>
-      </div>
-      <?php if (!empty($sa['licenses_only'])): $_has_billed = (bool)array_filter($sa_licenses, fn($x) => $x['status'] !== 'revoked' && TiLicencjeManager::amounts($x)); if (!$_has_billed): ?>
-      <div class="alert alert-warning py-2 small mb-2" role="alert" style="max-width:640px">
-        To konto ma opcję <strong>„tylko rozliczenie licencji”</strong>, ale nie ma jeszcze licencji z rozliczeniem miesięcznym. Dodaj licencję poniżej —
-        podaj <strong>kwotę miesięczną</strong> i (opcjonalnie) dzień rozliczenia oraz rabat. Uczestnik dostanie e-mail i SMS z kwotą i terminem.
-      </div>
-      <?php endif; endif; ?>
-      <?php if ($sa_licenses): ?>
-      <ul class="list-group list-group-flush mb-2" style="max-width:560px">
-        <?php foreach ($sa_licenses as $sl): $sl_st = TiLicencjeManager::statusOf($sl); ?>
-        <li class="list-group-item d-flex align-items-center gap-2 px-0 py-1 small flex-wrap">
-          <span class="fw-semibold"><?= h($sl['license_name']) ?></span>
-          <?php if ($sl['login']): ?><span class="font-monospace text-body-secondary"><?= h($sl['login']) ?></span><?php endif; ?>
-          <?php if (!empty($sl['expires_at'])): ?>
-          <span class="<?= $sl_st === 'expired' ? 'text-danger fw-semibold' : ($sl_st === 'expiring' ? 'text-warning-emphasis fw-semibold' : 'text-body-secondary') ?>">do <?= h($sl['expires_at']) ?><?= $sl_st === 'expired' ? ' (wygasła)' : ($sl_st === 'expiring' ? ' (wygasa wkrótce)' : '') ?></span>
-          <?php endif; ?>
-          <span class="badge border text-body" title="Forma rozliczenia"><?= $sl['billing_form'] !== '' ? h($sl['billing_form']) : 'brak formy rozliczenia' ?></span>
-          <?php $sl_am = TiLicencjeManager::amounts($sl); if ($sl_am): ?>
-          <span class="badge text-bg-light border" title="Rozliczenie miesięczne: kwota do zapłaty, dzień miesiąca<?= $sl_am[0] !== $sl_am[1] ? ', po rabacie (cena ' . number_format($sl_am[0], 2, ',', ' ') . ' zł)' : '' ?>">
-            <?= number_format($sl_am[1], 2, ',', ' ') ?> zł · <?= (int)$sl['billing_day'] ?>. dnia<?= $sl_am[0] !== $sl_am[1] ? ' · rabat' : '' ?></span>
-          <?php endif; ?>
-          <form method="post" class="ms-auto d-inline-flex gap-1" onsubmit="return confirm('Wysłać ponownie informację o tej licencji (e-mail i SMS)?')">
-            <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-            <input type="hidden" name="_op" value="license_notify">
-            <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-            <input type="hidden" name="assignment_id" value="<?= (int)$sl['id'] ?>">
-            <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Wyślij informację o przypisaniu ponownie" aria-label="Wyślij ponownie informację o licencji <?= h($sl['license_name']) ?>"><i class="bi bi-envelope-arrow-up" aria-hidden="true"></i></button>
-          </form>
-          <form method="post" class="" onsubmit="return confirm('Cofnąć przypisanie licencji „<?= h(addslashes($sl['license_name'])) ?>”?')">
-            <input type="hidden" name="_token"       value="<?= h(dyd_token()) ?>">
-            <input type="hidden" name="_op"          value="license_revoke">
-            <input type="hidden" name="account_id"   value="<?= (int)$sa['id'] ?>">
-            <input type="hidden" name="assignment_id" value="<?= (int)$sl['id'] ?>">
-            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Cofnij przypisanie" aria-label="Cofnij przypisanie licencji <?= h($sl['license_name']) ?>"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-          </form>
-        </li>
-        <?php endforeach; ?>
-      </ul>
-      <?php else: ?>
-      <p class="text-body-secondary small mb-2">Brak przypisanych licencji.</p>
-      <?php endif; ?>
-
-      <?php if ($sa_license_catalog): ?>
-      <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
-        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-        <input type="hidden" name="_op"        value="license_assign">
-        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-        <div>
-          <label class="form-label small mb-0" for="lic_sel">Oprogramowanie</label>
-          <select class="form-select form-select-sm" id="lic_sel" name="license_id" required style="min-width:170px">
-            <option value="">— wybierz —</option>
-            <?php foreach ($sa_license_catalog as $lc): ?>
-            <option value="<?= (int)$lc['id'] ?>"><?= h($lc['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_login">Login</label>
-          <input type="text" class="form-control form-control-sm font-monospace" id="lic_login" name="login" style="width:130px">
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_key">Klucz</label>
-          <input type="text" class="form-control form-control-sm font-monospace" id="lic_key" name="access_key" style="width:130px">
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_exp">Ważne do</label>
-          <input type="date" class="form-control form-control-sm" id="lic_exp" name="expires_at" min="<?= date('Y-m-d') ?>">
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_form">Forma rozliczenia <span class="text-danger" aria-hidden="true">*</span></label>
-          <select class="form-select form-select-sm" id="lic_form" name="billing_form" required>
-            <option value="">— wybierz —</option>
-            <?php foreach (TiLicencjeManager::BILLING_FORMS as $bf_code => $bf_meta): ?>
-            <option value="<?= $bf_code ?>"><?= $bf_code ?> — <?= h($bf_meta['label']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_bref">Nr faktury / kod</label>
-          <input type="text" class="form-control form-control-sm font-monospace" id="lic_bref" name="billing_ref" maxlength="190" style="width:150px">
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_amt">Kwota mies. (zł)<?= !empty($sa['licenses_only']) ? ' <span class="text-danger" aria-hidden="true">*</span>' : '' ?></label>
-          <input type="text" inputmode="decimal" class="form-control form-control-sm" id="lic_amt" name="monthly_amount" style="width:90px" placeholder="np. 49,00"<?= !empty($sa['licenses_only']) ? ' required' : '' ?>>
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_day">Dzień rozliczenia</label>
-          <input type="number" min="1" max="31" class="form-control form-control-sm" id="lic_day" name="billing_day" style="width:80px" placeholder="dziś">
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_dt">Rabat</label>
-          <select class="form-select form-select-sm" id="lic_dt" name="discount_type" style="width:90px">
-            <option value="">brak</option><option value="pct">%</option><option value="amt">zł</option>
-          </select>
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_dv">Wartość rabatu</label>
-          <input type="text" inputmode="decimal" class="form-control form-control-sm" id="lic_dv" name="discount_value" style="width:80px">
-        </div>
-        <div>
-          <label class="form-label small mb-0" for="lic_dn">Opis rabatu</label>
-          <input type="text" class="form-control form-control-sm" id="lic_dn" name="discount_note" maxlength="120" style="width:150px" placeholder="np. edukacyjny">
-        </div>
-        <div class="form-check mb-1">
-          <input class="form-check-input" type="checkbox" id="lic_notify" name="notify" value="1" checked>
-          <label class="form-check-label small" for="lic_notify">Powiadom (e-mail / SMS)</label>
-        </div>
-        <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Przypisz</button>
-      </form>
-      <?php else: ?>
-      <p class="text-body-secondary small mb-0">Brak aktywnego oprogramowania w katalogu.</p>
-      <?php endif; ?>
-      <a href="licencjeKursantow.php" class="small d-inline-block mt-2"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pełny katalog oprogramowania i wszystkie przypisania</a>
-      <?php try { include dirname(__DIR__, 3) . '/modules/ti_licencje_dydaktyczne/view/_kontaPanel.php'; } catch (\Throwable $_ldE) { error_log('konta ld panel: ' . $_ldE->getMessage()); } /* zarządzanie licencjami AM20–AM24 */ ?>
-    </div>
-
+    <?php /* Zakładka „Licencje i Office” przeniesiona do Panelu Licencji (Administrator Licencji, /licencje/) — polecenie 2026-11-10 */ ?>
     <!-- ── Zakładka: Usługi i produkty (domeny, hosting, inne) ─────────── -->
     <?php include __DIR__ . '/_konta_produkty.php'; ?>
 

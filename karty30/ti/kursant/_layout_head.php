@@ -17,6 +17,10 @@ $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
 // Układ menu (modules/ti_dyd_menu, dydMenuLayout): domyślnie górny pasek sekcji; po wybraniu układu „side” stałe menu boczne
 // zastępuje górny rząd sekcji. Przełączenie: ?menu=top|side na dowolnej stronie panelu (zapamiętywane per osoba).
 $KP_SIDE_MENU = '';
+if (defined('LICENCE_ADMIN_MOUNT') && $KP_TOPBAR) {   // ekrany licencji w Panelu Licencji (licencje/_mount.php): marka i wylogowanie Panelu Licencji
+    $KP_TOPBAR = ['brand' => 'Panel licencji', 'icon' => 'key', 'user' => (string)(($GLOBALS['LA_ADMIN']['name'] ?? '') . ' · Administrator Licencji'), 'logout' => '/licencje/logout.php', 'no_enrich' => true];
+    $KP_TITLE = preg_replace('/ — Panel dydaktyka$/u', ' — Panel licencji', (string)$KP_TITLE);
+}
 if ($KP_TOPBAR && function_exists('dyd_current') && ($KP_TOPBAR['brand'] ?? '') === 'Panel dydaktyka' && empty($KP_TOPBAR['no_enrich'])) {
     require_once dirname(__DIR__, 3) . '/modules/ti_dyd_menu/logic/dydMenu.php';
     $KP_SIDE_MENU = dydMenuBoot($KP_TOPBAR, (string)$KP_BODY_CLASS);

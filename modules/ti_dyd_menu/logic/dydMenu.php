@@ -224,12 +224,8 @@ function dydMenuSections(): array
         $it('', 'Nabór do grup',         'nabor.php',             'person-plus', $nNabor, 'primary'),
         $it('', 'Dokumenty kursantów',   'dokumentyKursanta.php', 'folder2-open', $sfPending, 'warning'),
         $it('', 'Umowy szkoleniowe',     'umowaSzkolenia.php',    'file-earmark-text'),
-        $it('', 'Licencje',              'licencjeKursantow.php', 'key'),
-        $it('', 'Pula licencji Fundacji', 'licencjeFundacji.php', 'key-fill'),
-        $it('', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock', $nLd, 'warning'),
-        ...(trim((string)org_setting('ant1_enabled')) === '1' ? [$it('', 'Dostęp do Claude (ANT1)', 'licencjeDydaktyczne.php?_route=%2Fant1', 'stars')] : []),   // ANT1 wyłączony (Płatne licencje)
-        $it('', 'Płatne licencje (Claude, NordVPN)', 'claudeAbonament.php', 'credit-card', $nLic, 'primary'),
-        $it('', 'Korekty AMSK',                'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square', $nAmsk, 'warning'),
+        // licencje (programy, pula, AM5/AM7, korekty AMSK, płatne licencje, ceny) — w Panelu Licencji (/licencje/; polecenie 2026-11-10); tu tylko wejście
+        $it('', 'Panel Licencji (licencje i ceny)', 'panelLicencji.php', 'key'),
         $it('', 'Microsoft 365',         'microsoft365.php',      'microsoft'),
         $it('', 'Regulaminy',            'regulaminy.php',        'file-earmark-text'),
         $it('', 'Program poleceń',       'polecenia.php',         'gift'),

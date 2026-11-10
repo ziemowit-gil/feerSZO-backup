@@ -58,7 +58,7 @@ if (!defined('LD_PANEL')) { http_response_code(404); exit('Nie znaleziono strony
 require_once __DIR__ . '/logic/LicenseAdminController.php';
 require_once __DIR__ . '/logic/LicenseOperationController.php';
 require_once __DIR__ . '/logic/LicenseCorrectionController.php';
-$r = new Router('/karty30/ti/dydaktyk/licencjeDydaktyczne.php', 'query');
+$r = new Router(defined('LD_BASE') ? LD_BASE : '/karty30/ti/dydaktyk/licencjeDydaktyczne.php', 'query');   // LD_BASE — Panel Licencji (licencje/)
 $r->csrfUsing(fn() => dyd_token_check(), fn() => dyd_token(), '_token');
 $r->aliasMiddleware('dyd.staff', function () {
     dyd_require();

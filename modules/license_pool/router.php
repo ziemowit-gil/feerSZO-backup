@@ -17,7 +17,7 @@ if (!defined('LP_CONTEXT') || !in_array(LP_CONTEXT, ['ti', 'it'], true)) { http_
 require_once __DIR__ . '/logic/LpController.php';
 
 if (LP_CONTEXT === 'ti') {
-    $r = new Router('/karty30/ti/dydaktyk/licencjeFundacji.php', 'query');
+    $r = new Router(defined('LP_BASE') ? LP_BASE : '/karty30/ti/dydaktyk/licencjeFundacji.php', 'query');   // LP_BASE — Panel Licencji (licencje/)
     $r->csrfUsing(fn() => dyd_token_check(), fn() => dyd_token(), '_token');
     $r->aliasMiddleware('lp.access', function () {
         dyd_require();

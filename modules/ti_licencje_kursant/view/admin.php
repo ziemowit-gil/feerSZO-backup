@@ -5,13 +5,19 @@ if (!isset($adm, $org)) { header('Location: /licencje/', true, 302); exit; }   /
  * konto Office (tenant edukacyjny), osoby z licencjami bez danych do panelu. Zmienne: $adm, $q, $found, $cand, $org, $flash.
  */
 $PAGE_TITLE = 'Administrator Licencji';
-$nav = [[route('lk.admin'), 'Uczestnicy', '', false, true]];
+require_once dirname(__DIR__) . '/logic/LicencjeAdminNav.php';
+$nav = array_map(fn($x) => [$x[0], $x[1], '', false, $x[2] === 'admin'], LicencjeAdminNav::items());   // pełne menu Administratora Licencji
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
 $qf = '<input type="hidden" name="q" value="' . h($q) . '">';
 ?>
 <h1 class="m-title">Administrator Licencji</h1>
 <p class="m-explain">Znajdź uczestnika, nadaj mu dostęp do Panelu Licencji albo załóż konto Office. Dane do panelu dostają osoby z licencjami albo produktami; płatny produkt liczy się dopiero z fakturą VAT.</p>
+<div class="tw-flex tw-flex-wrap tw-gap-2 tw-mb-4">
+  <a class="m-btn-ghost" href="/licencje/claudeAbonament.php?tab=ustawienia">Ceny i ustawienia płatnych licencji</a>
+  <a class="m-btn-ghost" href="/licencje/licencjeDydaktyczne.php">Wnioski AM5 / AM7 i operacje</a>
+  <a class="m-btn-ghost" href="/licencje/licencjeKursantow.php">Programy i klucze</a>
+</div>
 
 <section class="m-tile" aria-labelledby="a-szukaj">
   <h2 class="m-sect" id="a-szukaj">Szukaj uczestnika</h2>
