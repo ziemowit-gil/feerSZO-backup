@@ -449,23 +449,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── Konto Microsoft 365 (tenant szkoleniowy) ─────────────────────────────
+    // Konto Office zakłada się tak samo jak w Panelu Licencji: inicjał.nazwisko@edu.feer.org.pl, najpierw sprawdzenie w tenancie edukacyjnym
+    // (modules/claude_billing/logic/LicenceOffice.php; polecenie 2026-11-10) — przycisk jest w zakładce „Licencje i Office”.
     if ($op === 'ms_create') {
         $aid = (int)($_POST['account_id'] ?? 0);
-        $res = ti_ms_provision($aid);
-        if ($res['ok']) {
-            $_SESSION['new_ms_creds'] = ['upn' => $res['upn'] ?? '', 'password' => $res['password'] ?? ''];
-            flash_set('success', 'Konto Microsoft utworzone: ' . ($res['upn'] ?? ''));
-        } else {
-            flash_set('danger', $res['msg']);
-        }
-        header('Location: konta.php?selected=' . $aid); exit;
+        $acc = $aid ? db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        if ($acc) {
+            require_once dirname(dirname(dirname(__DIR__))) . '/modules/claude_billing/logic/LicenceOffice.php';
+            $res = LicenceOffice::ensure((int)$acc['client_id'], ['name' => $dyd_name . ' (Ewidencja Uczestników)']);
+            if (!empty($res['password'])) $_SESSION['new_ms_creds'] = ['upn' => $res['upn'], 'password' => $res['password']];
+            flash_set(!empty($res['ok']) ? 'success' : 'danger', 'Konto Office: ' . $res['text']);
+        } else flash_set('danger', 'Nie znaleziono konta kursanta.');
+        header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
     }
 
     if ($op === 'ms_delete') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $res = ti_ms_delete($aid);
+        if ($res['ok']) {   // stan konta Office w Panelu Licencji też znika (inaczej panel pokazywałby usunięte konto)
+            try { $c = db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]); if ($c) db_exec("DELETE FROM license_office_accounts WHERE client_id=?", [(int)$c['client_id']]); } catch (\Throwable $e) {}
+        }
         flash_set($res['ok'] ? 'success' : 'danger', $res['msg']);
-        header('Location: konta.php?selected=' . $aid); exit;
+        header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
     }
 
     // Zapis danych opiekuna + status małoletniego
@@ -608,6 +613,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? 'Link do sprawdzarki numeru konta wysłany ponownie.'
             : 'Nie udało się wysłać linku — sprawdź, czy kursant ma ustawiony numer konta i poprawny adres e-mail.');
         header('Location: konta.php?selected=' . $aid); exit;
+    }
+
+    // Panel Licencji (kursant.feer.org.pl/licencje/): dane logowania — login l + 8 cyfr i nowe hasło (SMS z hasłem, e-mail z adresem i loginem);
+    // tylko dla osób z licencjami albo produktami, płatne produkty dopiero z fakturą VAT (modules/ti_licencje_kursant/logic/LicencjePanelAccess.php)
+    if ($op === 'license_panel_access' || $op === 'license_office') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        try {
+            if (!$acc) throw new DomainException('Nie znaleziono konta kursanta.');
+            if ($op === 'license_panel_access') {
+                require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje_kursant/logic/LicencjePanelAccess.php';
+                $r = LicencjePanelAccess::issue((int)$acc['client_id'], ['name' => $dyd_name . ' (Ewidencja Uczestników)']);
+                flash_set($r['sms'] || $r['password'] === '' ? 'success' : 'warning', ($r['new'] ? 'Nadano dostęp do Panelu Licencji' : 'Nowe hasło do Panelu Licencji') . ': login ' . $r['login'] . '. ' . $r['text']
+                    . ($r['password'] !== '' ? ' Hasło (pokazujemy je tylko teraz): ' . $r['password'] . '.' : ''));
+            } else {   // konto Office inicjał.nazwisko@edu.feer.org.pl w tenancie edukacyjnym: sprawdź, a gdy go nie ma, załóż
+                require_once dirname(dirname(dirname(__DIR__))) . '/modules/claude_billing/logic/LicenceOffice.php';
+                $r = LicenceOffice::ensure((int)$acc['client_id'], ['name' => $dyd_name . ' (Ewidencja Uczestników)']);
+                flash_set(!empty($r['ok']) ? 'success' : 'danger', 'Konto Office: ' . $r['text'] . (!empty($r['password']) ? ' Hasło tymczasowe (pokazujemy je tylko teraz): ' . $r['password'] . '.' : ''));
+            }
+        } catch (\Throwable $e) { flash_set('danger', $e->getMessage()); }
+        header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
     }
 
     // Licencje na oprogramowanie (inne niż MS365) — przypisanie/unieważnienie wprost z panelu akcji
@@ -1399,7 +1425,7 @@ function printBulk(){
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link <?= $active_tab === 'licencje' ? 'active' : '' ?>" id="tab-btn-licencje" data-bs-toggle="tab" data-bs-target="#tab-licencje" type="button" role="tab" aria-controls="tab-licencje" aria-selected="<?= $active_tab === 'licencje' ? 'true' : 'false' ?>">
-        <i class="bi bi-key me-1" aria-hidden="true"></i>Licencje
+        <i class="bi bi-key me-1" aria-hidden="true"></i>Licencje i Office
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -1590,22 +1616,7 @@ function printBulk(){
             <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
           </form>
         </div>
-        <?php if ($ms_online_enabled): ?>
-        <div class="kk-row">
-          <div class="kk-row-info">
-            <div class="kk-row-title">Konto Microsoft (nauka online)</div>
-            <div class="kk-row-desc"><?php if ($sa_has_ms): ?><i class="bi bi-microsoft" aria-hidden="true"></i> <span class="font-monospace"><?= h($sa['ms_upn']) ?></span><?php else: ?>Kursant nie ma konta Microsoft.<?php endif; ?></div>
-          </div>
-          <form method="post" class="kk-row-ctl" <?= $sa_has_ms ? "onsubmit=\"return confirm('Usunąć konto Microsoft tego kursanta?')\"" : '' ?>>
-            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-            <input type="hidden" name="_op"        value="<?= $sa_has_ms ? 'ms_delete' : 'ms_create' ?>">
-            <input type="hidden" name="account_id" value="<?= $_sid ?>">
-            <button type="submit" class="btn btn-sm <?= $sa_has_ms ? 'btn-outline-danger' : 'btn-outline-primary' ?>">
-              <i class="bi bi-microsoft me-1" aria-hidden="true"></i><?= $sa_has_ms ? 'Usuń konto Microsoft' : 'Utwórz konto Microsoft' ?>
-            </button>
-          </form>
-        </div>
-        <?php endif; ?>
+        <?php /* Konto Microsoft (Office) — przeniesione do zakładki „Licencje i Office” (polecenie 2026-11-10) */ ?>
       </section>
 
       <section class="kk-sec" aria-labelledby="kk-h-rozl">
@@ -1836,7 +1847,51 @@ function printBulk(){
       <?php
         $sa_licenses = k30_ti_client_licenses((int)$sa['client_id']);
         $sa_license_catalog = array_filter(k30_ti_licenses_all(true), fn($l) => !empty($l['is_active']));
+        // Panel Licencji i konto Office (tenant edukacyjny) — dostęp nadaje się tutaj (polecenie 2026-11-10)
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje_kursant/logic/LicencjePanelAccess.php';
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/claude_billing/logic/LicenceOffice.php';
+        $sa_lp_login = LicenseLogin::get((int)$sa['client_id']);
+        $sa_lp_pass = LicenseLogin::hasPassword((int)$sa['client_id']);
+        $sa_lp_last = $sa_lp_login ? (string)(db_one("SELECT last_login FROM license_logins WHERE client_id=?", [(int)$sa['client_id']])['last_login'] ?? '') : '';
+        $sa_lp_why = LicencjePanelAccess::reasons((int)$sa['client_id']);
+        $sa_lp_unpaid = $sa_lp_why ? [] : LicencjePanelAccess::paidWithoutInvoice((int)$sa['client_id']);
+        $sa_office = LicenceOffice::summary((int)$sa['client_id']);
       ?>
+      <section class="border rounded p-2 mb-3" style="max-width:980px" aria-labelledby="lp-h-<?= (int)$sa['id'] ?>">
+        <div class="small fw-semibold text-body-secondary mb-1" id="lp-h-<?= (int)$sa['id'] ?>">Panel Licencji i konto Office</div>
+        <div class="row g-2 small">
+          <div class="col-md-6">
+            <div>Panel Licencji: <a href="<?= h(LicencjePanelAuth::publicUrl()) ?>" target="_blank" rel="noopener"><?= h(preg_replace('#^https?://#', '', LicencjePanelAuth::publicUrl())) ?><span class="visually-hidden"> (nowa karta)</span></a></div>
+            <div>Login: <?= $sa_lp_login ? '<span class="font-monospace fw-semibold">' . h($sa_lp_login) . '</span>' : '<span class="text-body-secondary">nie nadano</span>' ?>
+              · hasło: <?= $sa_lp_pass ? 'ustawione' : '<span class="text-body-secondary">brak</span>' ?><?= $sa_lp_last !== '' ? ' · ostatnie logowanie ' . h(date('d.m.Y H:i', strtotime($sa_lp_last))) : '' ?></div>
+            <?php if ($sa_lp_why): ?>
+              <div class="text-body-secondary">Ma: <?= h(implode(', ', array_slice($sa_lp_why, 0, 4))) ?><?= count($sa_lp_why) > 4 ? ' i ' . (count($sa_lp_why) - 4) . ' inne' : '' ?></div>
+              <form method="post" class="mt-1" onsubmit="return confirm('<?= $sa_lp_pass ? 'Nadać nowe hasło do Panelu Licencji? Stare przestanie działać.' : 'Nadać dostęp do Panelu Licencji?' ?> Kursant dostanie SMS z hasłem i e-mail z adresem i loginem.')">
+                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="license_panel_access"><input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-key me-1" aria-hidden="true"></i><?= $sa_lp_pass ? 'Wyślij nowe hasło do Panelu Licencji' : 'Nadaj dostęp do Panelu Licencji' ?></button>
+              </form>
+            <?php else: ?>
+              <div class="text-body-secondary">Dostęp do Panelu Licencji dostają osoby z licencjami albo produktami.<?= $sa_lp_unpaid ? ' Płatne bez faktury VAT (liczą się dopiero po jej wystawieniu): ' . h(implode(', ', $sa_lp_unpaid)) . '.' : '' ?></div>
+            <?php endif; ?>
+          </div>
+          <div class="col-md-6">
+            <div>Konto Office (tenant edukacyjny): <?= $sa_office['upn'] !== '' ? '<span class="font-monospace fw-semibold">' . h($sa_office['upn']) . '</span>' : '<span class="text-danger">brak imienia lub nazwiska</span>' ?>
+              <span class="badge <?= $sa_office['ok'] ? 'text-bg-success' : ($sa_office['state'] === 'error' ? 'text-bg-danger' : 'text-bg-secondary') ?>"><?= h($sa_office['ok'] ? 'aktywne' : $sa_office['label']) ?></span></div>
+            <?php if ($sa_office['checked'] !== '' || $sa_office['note'] !== ''): ?><div class="text-body-secondary"><?= h(trim($sa_office['note'] . ($sa_office['checked'] !== '' ? ', sprawdzono ' . $sa_office['checked'] : ''), ', ')) ?></div><?php endif; ?>
+            <?php if (!$sa_office['ok'] && $sa_office['upn'] !== ''): ?>
+              <form method="post" class="mt-1" onsubmit="return confirm('Sprawdzić konto w tenancie edukacyjnym i założyć je, jeśli go nie ma? Login pójdzie e-mailem, hasło SMS-em.')">
+                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="license_office"><input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Sprawdź w tenancie edu / załóż konto Office</button>
+              </form>
+            <?php elseif ($sa_has_ms && $ms_online_enabled): ?>
+              <form method="post" class="mt-1" onsubmit="return confirm('Usunąć konto Microsoft <?= h((string)$sa['ms_upn']) ?> z tenanta edukacyjnego? Kursant straci Office i pocztę.')">
+                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="ms_delete"><input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Usuń konto Microsoft</button>
+              </form>
+            <?php endif; ?>
+          </div>
+        </div>
+      </section>
       <div class="small fw-semibold text-body-secondary mb-1">
         Licencje na oprogramowanie <span class="fw-normal">(inne niż Microsoft 365 — Adobe, Canva, antywirus…)</span>
       </div>
