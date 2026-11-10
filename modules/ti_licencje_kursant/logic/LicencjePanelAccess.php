@@ -28,7 +28,8 @@ final class LicencjePanelAccess
             }
         } catch (\Throwable $e) {}
         try {
-            foreach (db_all("SELECT name FROM k30_ti_client_licenses WHERE client_id=? AND status='active' AND (expires_at IS NULL OR expires_at='' OR expires_at >= date('now'))", [$cid]) as $r) $out[] = 'program: ' . $r['name'];
+            foreach (db_all("SELECT l.name FROM k30_ti_client_licenses cl JOIN k30_ti_licenses l ON l.id = cl.license_id
+                              WHERE cl.client_id=? AND cl.status='active' AND (cl.expires_at IS NULL OR cl.expires_at='' OR cl.expires_at >= date('now'))", [$cid]) as $r) $out[] = 'program: ' . $r['name'];
         } catch (\Throwable $e) {}
         try {
             $n = (int)(db_one("SELECT COUNT(*) n FROM license_assignments a JOIN licenses l ON l.id=a.license_id WHERE a.holder_kind='client' AND a.holder_id=? AND a.status NOT IN ('revoked','cancelled')", [$cid])['n'] ?? 0);
