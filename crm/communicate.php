@@ -178,7 +178,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $to = crm_contact_recipient($cid, $person_pick, $contact);
                 if (!empty($to['email'])) {
                     $is_html   = strip_tags($rendered_body) !== $rendered_body;
-                    $html_body = $is_html ? $rendered_body : nl2br(htmlspecialchars($rendered_body));
+                    require_once dirname(__DIR__) . '/includes/mime_text.php';
+                    $html_body = $is_html ? crm_mail_tidy_html($rendered_body) : nl2br(htmlspecialchars($rendered_body));
                     $crm_footer = trim(org_setting('crm_email_footer') ?? '');
                     if ($crm_footer) $html_body .= "\n<hr>\n" . $crm_footer;
                     mail_queue_add($to['email'], $to['name'] ?: ($contact['imie_nazwisko'] ?? ''),

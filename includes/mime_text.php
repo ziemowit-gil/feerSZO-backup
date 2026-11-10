@@ -131,6 +131,45 @@ function crm_mail_html_to_text(string $html): string {
 }
 
 /**
+ * Porządkuje odstępy w HTML-u wychodzącego maila z CRM (edytor Quill, wklejki z Worda).
+ *
+ * Edytor zapisuje każdy Enter jako osobny <p>, a pustą linię (podwójny Enter) jako
+ * pusty akapit <p><br></p>. W edytorze akapity nie mają marginesów, ale programy
+ * pocztowe (Outlook, Gmail) dodają im ok. 1em u góry i u dołu — pusty akapit
+ * zamieniał się w dziurę na trzy linie. Tu:
+ *  - serie pustych akapitów (wielokrotny Enter) zbijamy do JEDNEJ pustej linii,
+ *  - puste akapity na początku i na końcu treści usuwamy,
+ *  - akapitom bez własnego marginesu dajemy margin:0 — mail wygląda jak w edytorze
+ *    (Enter = nowa linia, podwójny Enter = jedna pusta linia),
+ *  - serie 3+ <br> skracamy do dwóch.
+ * Zwykły tekst (bez znaczników) zwracamy bez zmian.
+ */
+function crm_mail_tidy_html(string $html): string
+{
+    if ($html === '' || !crm_mail_looks_html($html)) return $html;
+    $empty = '(?:&nbsp;|&#160;|\xc2\xa0|<br\s*/?>|<span\b[^>]*>\s*</span>|\s)*';
+    $blank = '<(p|div)\b[^>]*>' . $empty . '</\1>';
+    // puste akapity na początku i na końcu
+    $html = preg_replace('~^\s*(?:' . $blank . '\s*)+~iu', '', $html) ?? $html;
+    $html = preg_replace('~(?:\s*' . $blank . ')+\s*$~iu', '', $html) ?? $html;
+    // kilka pustych akapitów pod rząd → jedna pusta linia
+    $html = preg_replace('~(?:' . $blank . '\s*){2,}~iu', '<p style="margin:0">&nbsp;</p>', $html) ?? $html;
+    // serie <br> → najwyżej dwa
+    $html = preg_replace('~(?:<br\s*/?>\s*){3,}~i', '<br><br>', $html) ?? $html;
+    // akapity bez marginesów (jak w edytorze); jawny margines z treści (np. z Worda) zostaje — stoi dalej w style
+    $html = preg_replace_callback('~<p\b([^>]*)>~i', static function (array $m): string {
+        $attrs = $m[1];
+        if (preg_match('~\bstyle\s*=\s*(["\'])(.*?)\1~is', $attrs, $st)) {
+            if (preg_match('~(^|;)\s*margin\s*:~i', $st[2])) return $m[0];
+            $attrs = str_replace($st[0], 'style=' . $st[1] . 'margin:0;' . $st[2] . $st[1], $attrs);
+            return '<p' . $attrs . '>';
+        }
+        return '<p style="margin:0"' . $attrs . '>';
+    }, $html) ?? $html;
+    return $html;
+}
+
+/**
  * Czy tekst jest w rzeczywistości HTML-em.
  *
  * Wiadomości pisane w CRM (edytor bogatego tekstu) i część wiadomości z Graph API

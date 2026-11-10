@@ -113,6 +113,8 @@ function crm_automation_run_action(array $rule, int $contact_id, array $context)
             require_once __DIR__ . '/mail_queue.php';
             $subject = CrmManager::renderTemplate($tpl['subject'] ?? '', $contact);
             $body    = CrmManager::renderTemplate($tpl['body'] ?? '', $contact);
+            require_once __DIR__ . '/mime_text.php';
+            $body    = crm_mail_tidy_html($body);
             mail_queue_add($contact['email'], $contact['imie_nazwisko'] ?? '', $subject ?: 'Wiadomość', $body, '', 'crm_automation', (int)$rule['id'], '', false);
             db_insert('crm_communications', [
                 'contact_id'    => $contact_id,

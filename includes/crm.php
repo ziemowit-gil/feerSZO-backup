@@ -2626,7 +2626,9 @@ class CrmManager
                     $to_name = $to['name'] !== '' ? $to['name'] : ($contact['imie_nazwisko'] ?? '');
                     // Wyślij HTML jeśli treść zawiera tagi, inaczej zawiń w prosty HTML
                     $is_html = strip_tags($body) !== $body;
-                    $html_body = $is_html ? $body : nl2br(htmlspecialchars($body));
+                    require_once __DIR__ . '/mime_text.php';
+                    // Puste akapity z edytora (podwójny Enter) → jedna pusta linia, akapity bez marginesów
+                    $html_body = $is_html ? crm_mail_tidy_html($body) : nl2br(htmlspecialchars($body));
                     // Dołącz podpis użytkownika (jeśli ustawiony)
                     $user_email_sig = trim($user_sig['crm_email_signature'] ?? '');
                     if ($user_email_sig !== '') {

@@ -358,7 +358,7 @@ if ($action === 'test_send') {
     if ($channel === 'email') {
         $to = trim((string)($me_row['email'] ?? ''));
         if ($to === '') api_err('Twoje konto nie ma adresu e-mail.');
-        $html = crm_mail_looks_html($r_body) ? $r_body : nl2br(htmlspecialchars($r_body, ENT_QUOTES, 'UTF-8'));
+        $html = crm_mail_looks_html($r_body) ? crm_mail_tidy_html($r_body) : nl2br(htmlspecialchars($r_body, ENT_QUOTES, 'UTF-8'));
         mail_queue_add($to, (string)($me_row['name'] ?? ''), '[TEST] ' . $r_subj, $html, trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8')), 'crm_test', 0, '', true);
         api_ok(['to' => $to, 'sample' => $sample['imie_nazwisko'] ?? '']);
     }
