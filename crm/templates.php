@@ -167,11 +167,6 @@ include __DIR__ . '/includes/header_crm.php';
   border-radius:6px;padding:.1rem .4rem;cursor:pointer;
 }
 .var-chip:hover{background:var(--crm-primary);color:#fff}
-#tpl-quill-wrapper .ql-toolbar.ql-snow{border:1px solid #E5E7EB;border-bottom:none;border-radius:.375rem .375rem 0 0;background:#F9FAFB;padding:.3rem .5rem}
-#tpl-quill-wrapper .ql-container.ql-snow{border:1px solid #E5E7EB;border-radius:0 0 .375rem .375rem}
-#tpl-quill-wrapper .ql-editor{min-height:160px;font-size:.85rem}
-#tpl-quill-wrapper .ql-editor.ql-blank::before{color:#9CA3AF;font-style:normal}
-#tpl-quill-wrapper.is-invalid .ql-toolbar,#tpl-quill-wrapper.is-invalid .ql-container{border-color:#dc3545}
 
 /* ══ Układ Dynamics 365: lista jak widok siatki, proste krawędzie, kontrast ≥ 4,5:1 ══ */
 .tpl-list{border:1px solid #D1D5DB;background:#fff}
@@ -402,7 +397,7 @@ include __DIR__ . '/includes/header_crm.php';
                   </button>
                 </div>
                 <div id="tpl-quill-wrapper">
-                  <div id="tpl_body_editor" aria-label="Treść szablonu" aria-required="true"></div>
+                  <div id="tpl_body_editor"></div>
                 </div>
                 <div id="tpl_body_err" class="text-danger d-none mt-1" style="font-size:.78rem">Treść szablonu nie może być pusta.</div>
                 <div class="form-text" style="font-size:.74rem">Formatowanie (pogrubienie, listy, linki) zostanie zachowane w wysłanym e-mailu.</div>
@@ -489,37 +484,28 @@ include __DIR__ . '/includes/header_crm.php';
 </div>
 
 <script>
-var _tplQuill = null;
+// Edytor treści szablonu: CKEditor 5 ze wspólnego modułu modules/rich_editor (ładuje go nagłówek CRM)
+var _tplEd = null;
 
-function tplInitQuill() {
-  if (_tplQuill || typeof Quill === 'undefined') return;
-  _tplQuill = new Quill('#tpl_body_editor', {
-    theme: 'snow',
-    placeholder: 'Treść wiadomości. Możesz używać zmiennych, np. {imie}.',
-    modules: {
-      toolbar: [
-        [{ 'header': [false, 2, 3] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['blockquote', 'link'],
-        ['clean']
-      ]
-    }
-  });
-  _tplQuill.on('text-change', function () {
-    if (_tplQuill.getText().trim() !== '') {
-      document.getElementById('tpl_body_err').classList.add('d-none');
-      document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
-    }
-  });
+function tplBodyOk() {
+  document.getElementById('tpl_body_err').classList.add('d-none');
+  if (_tplEd) _tplEd.setInvalid(false);
 }
-document.addEventListener('DOMContentLoaded', tplInitQuill);
+function tplInitEditor() {
+  if (_tplEd || !window.RichEditor) return;
+  _tplEd = RichEditor.attach('#tpl_body_editor', {
+    label: 'Treść szablonu', describedBy: 'tpl_body_err', minHeight: '200px', maxHeight: '50vh',
+    placeholder: 'Treść wiadomości. Enter = nowy akapit, Shift+Enter = nowa linia. Zmienne, np. {imie}.'
+  });
+  _tplEd.onChange(function () { if (!_tplEd.isEmpty()) tplBodyOk(); });
+}
+document.addEventListener('DOMContentLoaded', tplInitEditor);
 
 // Otwiera modal wklejania HTML — wstępnie wypełniony obecną treścią edytora (podgląd/edycja źródła)
 function tplOpenHtmlPaste() {
-  tplInitQuill();
+  tplInitEditor();
   var ta = document.getElementById('tpl_html_paste');
-  if (ta) ta.value = _tplQuill ? _tplQuill.root.innerHTML : '';
+  if (ta) ta.value = _tplEd ? _tplEd.getHtml() : '';
   new bootstrap.Modal(document.getElementById('tplHtmlPasteModal')).show();
   setTimeout(function () { ta?.focus(); }, 300);
 }
@@ -527,13 +513,10 @@ function tplOpenHtmlPaste() {
 // Zastępuje treść edytora wklejonym kodem HTML
 function tplApplyHtmlPaste() {
   var html = document.getElementById('tpl_html_paste').value;
-  tplInitQuill();
-  if (_tplQuill) {
-    _tplQuill.root.innerHTML = html;
-    if (_tplQuill.getText().trim() !== '') {
-      document.getElementById('tpl_body_err').classList.add('d-none');
-      document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
-    }
+  tplInitEditor();
+  if (_tplEd) {
+    _tplEd.setHtml(html);
+    if (!_tplEd.isEmpty()) tplBodyOk();
   }
   bootstrap.Modal.getInstance(document.getElementById('tplHtmlPasteModal'))?.hide();
 }
@@ -547,7 +530,7 @@ function tplToggleSubject() {
   // Załączniki dotyczą tylko e-maila — przy SMS-ie pole nie ma sensu
   var attWrap = document.getElementById('tpl_att_wrap');
   if (attWrap) attWrap.classList.toggle('d-none', !isEmail);
-  if (isEmail) tplInitQuill();
+  if (isEmail) tplInitEditor();
 }
 
 function tplNew() {
@@ -557,11 +540,10 @@ function tplNew() {
   document.getElementById('tplModalLabel').innerHTML = '<i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>Nowy szablon';
   document.getElementById('tpl_active').checked = true;
   var lk = document.getElementById('tpl_locked'); if (lk) lk.checked = false;
-  tplInitQuill();
-  if (_tplQuill) _tplQuill.setText('');
+  tplInitEditor();
+  if (_tplEd) _tplEd.setHtml('');
   document.getElementById('tpl_body_sms').value = '';
-  document.getElementById('tpl_body_err').classList.add('d-none');
-  document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
+  tplBodyOk();
   if (window.CrmAtt) window.CrmAtt.clear();
   tplToggleSubject();
 }
@@ -572,20 +554,16 @@ function tplEdit(t) {
   document.getElementById('tpl_name').value   = t.name || '';
   document.getElementById('tpl_channel').value= t.channel || 'email';
   document.getElementById('tpl_subject').value= t.subject || '';
-  tplInitQuill();
+  tplInitEditor();
   var body = t.body || '';
   if ((t.channel || 'email') === 'sms') {
     document.getElementById('tpl_body_sms').value = body;
-    if (_tplQuill) _tplQuill.setText('');
+    if (_tplEd) _tplEd.setHtml('');
   } else {
-    if (_tplQuill) {
-      if (/<[a-z]/i.test(body)) _tplQuill.root.innerHTML = body;
-      else _tplQuill.setText(body);
-    }
+    if (_tplEd) _tplEd.setHtml(body);
     document.getElementById('tpl_body_sms').value = '';
   }
-  document.getElementById('tpl_body_err').classList.add('d-none');
-  document.getElementById('tpl-quill-wrapper').classList.remove('is-invalid');
+  tplBodyOk();
   document.getElementById('tpl_active').checked = (t.is_active === 1 || t.is_active === '1');
   var lk = document.getElementById('tpl_locked'); if (lk) lk.checked = (t.is_locked === 1 || t.is_locked === '1');
   document.getElementById('tplModalLabel').innerHTML = '<i class="bi bi-pencil me-2" aria-hidden="true"></i>Edytuj szablon';
@@ -602,13 +580,12 @@ function tplCopyVar(btn) {
   setTimeout(function(){ btn.textContent = orig; }, 900);
 }
 
-// Wstaw zmienną w miejscu kursora — do aktywnego edytora (Quill dla e-maila, textarea dla SMS)
+// Wstaw zmienną w miejscu kursora — do aktywnego edytora (CKEditor dla e-maila, textarea dla SMS)
 function tplInsertVar(v) {
   var ch = document.getElementById('tpl_channel').value;
   if (ch === 'email') {
-    if (!_tplQuill) return;
-    var range = _tplQuill.getSelection(true);
-    _tplQuill.insertText(range ? range.index : _tplQuill.getLength(), v, 'user');
+    if (!_tplEd) return;
+    _tplEd.insertText(v);
   } else {
     var ta = document.getElementById('tpl_body_sms');
     if (!ta) return;
@@ -625,15 +602,16 @@ function tplInsertVar(v) {
 document.getElementById('tplForm').addEventListener('submit', function (e) {
   var ch = document.getElementById('tpl_channel').value;
   if (ch === 'email') {
-    tplInitQuill();
-    if (!_tplQuill || _tplQuill.getText().trim() === '') {
+    tplInitEditor();
+    if (!_tplEd || _tplEd.isEmpty()) {
       e.preventDefault();
       document.getElementById('tpl_body_err').classList.remove('d-none');
-      document.getElementById('tpl-quill-wrapper').classList.add('is-invalid');
-      if (_tplQuill) _tplQuill.focus();
+      if (_tplEd) { _tplEd.setInvalid(true); _tplEd.focus(); }
       return;
     }
-    document.getElementById('tpl_body').value = _tplQuill.root.innerHTML;
+    // Zapis w postaci „mailowej” (bez pustych akapitów, z odstępem akapitów) — szablon wysyłany przez automaty
+    // CRM bez przechodzenia przez edytor wygląda tak samo jak w edytorze.
+    document.getElementById('tpl_body').value = _tplEd.getEmailHtml();
   } else {
     var ta = document.getElementById('tpl_body_sms');
     var plain = ta.value.trim();

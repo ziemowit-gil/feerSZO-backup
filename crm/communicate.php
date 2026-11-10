@@ -613,9 +613,9 @@ include __DIR__ . '/includes/header_crm.php';
           <?php endforeach; ?>
         </div>
 
-        <!-- WYSIWYG Quill — widoczny dla email/rich text -->
+        <!-- Edytor treści (CKEditor 5, modules/rich_editor) — widoczny dla email/rich text -->
         <div id="quillWrapper">
-          <div id="quillEditor" style="min-height:200px;font-size:.92rem;border-radius:0 0 .375rem .375rem"></div>
+          <div id="quillEditor"></div>
         </div>
 
         <!-- Textarea plain — dla SMS / plain text -->
@@ -860,9 +860,7 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
-<!-- Quill WYSIWYG -->
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<?php /* Edytor treści: CKEditor 5 z modules/rich_editor (ładuje go nagłówek CRM) */ ?>
 
 <style>
 /* Chip odbiorcy */
@@ -888,68 +886,25 @@ include __DIR__ . '/includes/header_crm.php';
 .comm-di.already  { opacity:.45;cursor:default;pointer-events:none; }
 .comm-di.disabled { opacity:.55;cursor:not-allowed;background:#FEF3E2; }
 .comm-di.disabled .comm-di-name { color:#92400E; }
-/* Quill customizacja */
-#quillWrapper .ql-toolbar.ql-snow {
-  border: 1px solid #E5E7EB; border-bottom: none;
-  border-radius: .375rem .375rem 0 0;
-  background: #F9FAFB; padding: .35rem .5rem;
-}
-#quillWrapper .ql-container.ql-snow {
-  border: 1px solid #E5E7EB;
-  border-radius: 0 0 .375rem .375rem;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: .92rem;
-}
-#quillWrapper .ql-editor { min-height: 200px; }
-#quillWrapper .ql-editor.ql-blank::before { color: #9CA3AF; font-style: normal; }
-.ql-toolbar .ql-formats { margin-right: 6px; }
 </style>
 
 <script>
 (function () {
   'use strict';
 
-  // ── Quill init ─────────────────────────────────────────────────────────────
-  var _quill = null;
+  // ── Edytor treści (CKEditor 5 przez modules/rich_editor) ───────────────────
   var _mode  = 'rich'; // 'rich' | 'plain'
-
-  function initQuill() {
-    if (_quill) return;
-    _quill = new Quill('#quillEditor', {
-      theme: 'snow',
-      placeholder: 'Treść wiadomości… Możesz używać zmiennych np. {imie}',
-      modules: {
-        toolbar: [
-          [{ header: [1, 2, 3, false] }],
-          ['bold', 'italic', 'underline', 'strike'],
-          [{ color: [] }, { background: [] }],
-          [{ list: 'ordered' }, { list: 'bullet' }],
-          [{ indent: '-1' }, { indent: '+1' }],
-          ['link', 'blockquote', 'code-block'],
-          ['clean'],
-        ]
-      }
-    });
-    // Ustaw wartość początkową (np. po walidacji serwera)
-    var initial = document.getElementById('bodyHidden').value;
-    if (initial) {
-      // Jeśli jest HTML, wstaw jako HTML; jeśli plain, wstaw jako tekst
-      if (/<[a-z][\s\S]*>/i.test(initial)) {
-        _quill.root.innerHTML = initial;
-      } else {
-        _quill.setText(initial);
-      }
-    }
-    _quill.on('text-change', function() { updateCharCount(); });
-    // Udostępnij dla modułu AI
-    document.getElementById('quillEditor').__quill = _quill;
-  }
-
-  // Uruchom Quill od razu
-  initQuill();
+  // Wartość początkowa (np. po walidacji serwera) — HTML albo zwykły tekst
+  var _ed = RichEditor.attach('#quillEditor', {
+    label: 'Treść wiadomości', minHeight: '220px',
+    placeholder: 'Treść wiadomości… Enter = nowy akapit, Shift+Enter = nowa linia. Zmienne np. {imie}',
+    initial: document.getElementById('bodyHidden').value
+  });
+  _ed.onChange(function() { updateCharCount(); });
 
   // ── Tryb edytora ──────────────────────────────────────────────────────────
   var Comm = window.Comm = {};
+  Comm.editor = _ed;   // dla modułu AI
 
   Comm.setMode = function(mode) {
     _mode = mode;
@@ -964,14 +919,11 @@ include __DIR__ . '/includes/header_crm.php';
 
     // Synchronizuj treść między trybami
     if (!isRich) {
-      var html = _quill ? _quill.root.innerHTML : '';
-      // Usuń HTML → plain przy przejściu
-      var tmp = document.createElement('div');
-      tmp.innerHTML = html;
-      document.getElementById('bodyPlain').value = (tmp.textContent || '').trim();
+      // HTML → zwykły tekst (akapity jako nowe linie)
+      document.getElementById('bodyPlain').value = _ed.getText();
     } else {
       var plain = document.getElementById('bodyPlain').value;
-      if (_quill && plain) _quill.setText(plain);
+      if (plain) _ed.setHtml(plain);
     }
     updateCharCount();
   };
@@ -1014,9 +966,7 @@ include __DIR__ . '/includes/header_crm.php';
       ta.selectionStart = ta.selectionEnd = s + v.length;
       ta.focus();
     } else {
-      if (!_quill) return;
-      var range = _quill.getSelection(true);
-      _quill.insertText(range ? range.index : _quill.getLength(), v, 'user');
+      _ed.insertText(v);
     }
     updateCharCount();
   };
@@ -1024,8 +974,8 @@ include __DIR__ . '/includes/header_crm.php';
   // ── Synchronizacja body przed submitem ────────────────────────────────────
   document.getElementById('communicateForm')?.addEventListener('submit', function() {
     var hidden = document.getElementById('bodyHidden');
-    if (_mode === 'rich' && _quill) {
-      hidden.value = _quill.root.innerHTML;
+    if (_mode === 'rich') {
+      hidden.value = _ed.getEmailHtml();   // bez pustych akapitów, odstępy jak w edytorze
     } else {
       hidden.value = document.getElementById('bodyPlain').value;
     }
@@ -1052,10 +1002,7 @@ include __DIR__ . '/includes/header_crm.php';
     } else {
       document.getElementById('editorModeGroup').style.display = '';
       Comm.setMode('rich');
-      if (_quill) {
-        if (/<[a-z][\s\S]*>/i.test(body)) { _quill.root.innerHTML = body; }
-        else { _quill.setText(body); }
-      }
+      _ed.setHtml(body);
     }
     toggleSubject();
     updateCharCount();
@@ -1075,8 +1022,8 @@ include __DIR__ . '/includes/header_crm.php';
     if (!cc) return;
     var ch  = (document.getElementById('channel') || {}).value || 'email';
     var len;
-    if (_mode === 'rich' && _quill) {
-      len = _quill.getText().replace(/\n$/, '').length;
+    if (_mode === 'rich') {
+      len = _ed.getText().length;
     } else {
       len = (document.getElementById('bodyPlain')?.value || '').length;
     }
@@ -1131,9 +1078,8 @@ include __DIR__ . '/includes/header_crm.php';
     if (isSms) {
       document.getElementById('bodyPlain').value = body;
     } else {
-      if (_mode === 'rich' && _quill) {
-        if (/<[a-z][\s\S]*>/i.test(body)) { _quill.root.innerHTML = body; }
-        else { _quill.setText(body); }
+      if (_mode === 'rich') {
+        _ed.setHtml(body);
       } else {
         document.getElementById('bodyPlain').value = body;
       }
@@ -1408,18 +1354,10 @@ function aiApply() {
     const isRich     = !document.getElementById('plainWrapper') ||
                        document.getElementById('plainWrapper').style.display === 'none';
 
-    const qlEditor = document.getElementById('quillEditor');
-    if (isRich && qlEditor && qlEditor.__quill) {
-        const q = qlEditor.__quill;
-        if (insertMode === 'replace') {
-            q.root.innerHTML = _aiGeneratedHtml;
-        } else {
-            q.clipboard.dangerouslyPasteHTML(q.getLength() - 1, _aiGeneratedHtml);
-        }
-    } else if (isRich && qlEditor) {
-        // fallback: wstaw bezpośrednio do DOM edytora Quill
-        if (insertMode === 'replace') qlEditor.innerHTML = _aiGeneratedHtml;
-        else qlEditor.innerHTML += _aiGeneratedHtml;
+    const ed = window.Comm && window.Comm.editor;
+    if (isRich && ed) {
+        if (insertMode === 'replace') ed.setHtml(_aiGeneratedHtml);
+        else ed.appendHtml(_aiGeneratedHtml);
     } else {
         const ta = document.getElementById('bodyPlain');
         if (ta) {

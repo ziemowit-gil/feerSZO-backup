@@ -909,18 +909,7 @@ include __DIR__ . '/includes/header_crm.php';
 
 </div><!-- /ms-shell -->
 
-<!-- CKEditor 5 — ta sama kompilacja „classic” co w pismach do umów i EZD (CDN, bez klucza licencyjnego) -->
-<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
-<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/translations/pl.js"></script>
-<style>
-/* Płasko jak reszta kreatora; akapity w edytorze mają taki sam odstęp jak w wysłanym mailu (margin:0 0 1em) */
-#ms_editor_wrap { --ck-border-radius:0; --ck-color-base-border:#9CA3AF; --ck-color-focus-border:#0F766E; --ck-focus-ring:1px solid #0F766E }
-#ms_editor_wrap .ck.ck-toolbar { background:#F3F4F6 }
-#ms_editor_wrap .ck-editor__editable { min-height:260px; max-height:60vh; font-size:.95rem; line-height:1.5; color:#111827 }
-#ms_editor_wrap .ck-content p { margin:0 0 1em }
-#ms_editor_wrap .ck-content h2, #ms_editor_wrap .ck-content h3 { margin:.6em 0 .5em }
-#ms_editor_wrap .ms-editor-fallback { width:100%; min-height:260px; font-size:.95rem; border:1px solid #9CA3AF; padding:.6rem .75rem }
-</style>
+<?php /* Edytor treści: CKEditor 5 z modules/rich_editor (ładuje go nagłówek CRM) */ ?>
 
 <script>
 const MS = (function() {
@@ -938,48 +927,21 @@ const MS = (function() {
   // domyślny (osoba oznaczona jako adresat → osoba główna → adres podmiotu).
   let _person_over  = {};
   let _dw_emails    = new Map(); // email → label
-  let _editor       = null;   // CKEditor 5; null = edytor się nie wczytał (zostaje zwykłe pole tekstowe)
+  let _editor       = null;   // RichEditor (CKEditor 5; gdy CDN niedostępny — zwykłe pole tekstowe)
   let _total        = 0;
   let _searchTimer  = null;
   let _dwTimer      = null;
 
   function initEditor() {
-    const host = document.getElementById('ms_editor');
-    if (!host) return;
-    if (!window.ClassicEditor) {
-      // CDN niedostępny — zwykłe pole tekstowe (serwer zamieni puste linie na akapity), żeby dało się wysłać
-      host.outerHTML = '<textarea id="ms_editor_fallback" class="ms-editor-fallback" aria-label="Treść e-maila"'
-        + ' placeholder="Treść e-maila… Edytor się nie wczytał — wpisz zwykły tekst."></textarea>';
-      return;
-    }
-    ClassicEditor.create(host, {
-      language: 'pl',
-      placeholder: 'Treść e-maila… Enter = nowy akapit, Shift+Enter = nowa linia. Zmienne: {imie}, {imie_nazwisko}, {email}',
-      // Osadzanie filmów (YouTube itp.) nie działa w poczcie — wyłączone
-      removePlugins: ['MediaEmbed'],
-      toolbar: ['heading', '|', 'bold', 'italic', 'link', '|', 'bulletedList', 'numberedList', 'blockQuote', 'insertTable', '|', 'undo', 'redo'],
-      heading: { options: [
-        { model: 'paragraph', title: 'Akapit', class: 'ck-heading_paragraph' },
-        { model: 'heading2', view: 'h2', title: 'Nagłówek', class: 'ck-heading_heading2' },
-        { model: 'heading3', view: 'h3', title: 'Podtytuł', class: 'ck-heading_heading3' }
-      ]},
-      link: { defaultProtocol: 'https://' }
-    }).then(ed => {
-      _editor = ed;
-      ed.ui.view.editable.element.setAttribute('aria-label', 'Treść e-maila');
-      ed.model.document.on('change:data', () => sideSum());
-    }).catch(err => { console.error('CKEditor:', err); });
+    _editor = RichEditor.attach('#ms_editor', {
+      label: 'Treść e-maila', minHeight: '260px',
+      placeholder: 'Treść e-maila… Enter = nowy akapit, Shift+Enter = nowa linia. Zmienne: {imie}, {imie_nazwisko}, {email}'
+    });
+    _editor.onChange(() => sideSum());
   }
   initEditor();
 
-  /* HTML do maila: puste akapity (podwójny Enter) wylatują — odstęp między akapitami daje margines,
-     taki sam jak w edytorze; bez niego Outlook/Gmail dokładają własne marginesy. */
-  function emailHtml(html) {
-    return String(html || '')
-      .replace(/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '')
-      .replace(/<p>/gi, '<p style="margin:0 0 1em">')
-      .trim();
-  }
+
 
   // ── Group picker ────────────────────────────────────────────────────────────
   function toggleGroupPicker(e) {
@@ -1563,9 +1525,7 @@ recipientRow(c)
 
   function getBody() {
     if (_channel === 'sms') return document.getElementById('ms_plain_body').value.trim();
-    if (_editor) return emailHtml(_editor.getData());
-    const fb = document.getElementById('ms_editor_fallback');
-    return fb ? fb.value.trim() : '';
+    return _editor ? _editor.getEmailHtml() : '';
   }
 
   function insertVar(v) {
@@ -1575,18 +1535,8 @@ recipientRow(c)
       ta.value=ta.value.slice(0,s)+v+ta.value.slice(e);
       ta.selectionStart=ta.selectionEnd=s+v.length;
     } else if (_editor) {
-      _editor.model.change(w => _editor.model.insertContent(w.createText(v)));
-      _editor.editing.view.focus();
-    } else {
-      const fb=document.getElementById('ms_editor_fallback');
-      if (fb) { const s=fb.selectionStart,e=fb.selectionEnd; fb.value=fb.value.slice(0,s)+v+fb.value.slice(e); fb.selectionStart=fb.selectionEnd=s+v.length; fb.focus(); }
+      _editor.insertText(v);
     }
-  }
-
-  // Szablon zapisany jako zwykły tekst → akapity (pusta linia) i łamania wierszy (pojedynczy Enter)
-  function plainToHtml(t) {
-    const esc = x => x.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return String(t).trim().split(/\n[ \t]*\n+/).map(p => '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>').join('');
   }
 
   function loadTemplate() {
@@ -1599,8 +1549,7 @@ recipientRow(c)
     const body=opt.dataset.body||'';
     if (ch==='email') {
       document.getElementById('ms_subject').value=subj;
-      if (_editor) _editor.setData(/<[a-z]/i.test(body) ? body : plainToHtml(body));
-      else { const fb=document.getElementById('ms_editor_fallback'); if (fb) fb.value=body.replace(/<[^>]*>/g,''); }
+      if (_editor) _editor.setHtml(body);
     } else {
       document.getElementById('ms_plain_body').value=body;
       updateSmsCount();

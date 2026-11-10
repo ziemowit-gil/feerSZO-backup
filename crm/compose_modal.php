@@ -134,16 +134,6 @@ $templates = db_all("SELECT * FROM crm_templates WHERE is_active=1 ORDER BY chan
 $csrf      = csrf_token();
 ?>
 <style>
-#cm-quill-wrapper .ql-toolbar.ql-snow {
-  border:1px solid #E5E7EB;border-bottom:none;border-radius:.375rem .375rem 0 0;
-  background:#F9FAFB;padding:.3rem .5rem;
-}
-#cm-quill-wrapper .ql-container.ql-snow {
-  border:1px solid #E5E7EB;border-radius:0 0 .375rem .375rem;
-  font-size:.91rem;
-}
-#cm-quill-wrapper .ql-editor { min-height:180px; }
-#cm-quill-wrapper .ql-editor.ql-blank::before { color:#9CA3AF;font-style:normal; }
 .cm-var-btn {
   font-size:.68rem;font-family:monospace;padding:.05rem .3rem;
   border:1px solid #d1d5db;background:#f8fafc;border-radius:3px;cursor:pointer;
@@ -419,7 +409,7 @@ var BASE       = <?= json_encode(rtrim(APP_URL,'/')) ?>;
 // więc to zmienna, a nie stała.
 var CONTACT_ID = <?= (int)$contact_id ?>;
 
-var _quill = null;
+var _ed    = null;   // RichEditor (CKEditor 5) — modules/rich_editor, ładowany w nagłówku CRM
 var _mode  = 'rich';
 var _aiHtml = '', _aiPlain = '';
 
@@ -428,18 +418,11 @@ CM.sent = false;
 
 /* ── Init ─────────────────────────────────────────────────────────────── */
 CM.init = function() {
-    _quill = new Quill('#cm-quill-editor', {
-        theme: 'snow',
-        placeholder: 'Treść wiadomości…',
-        modules: { toolbar: [
-            [{ header: [1,2,3,false] }],
-            ['bold','italic','underline'],
-            [{ list:'ordered' },{ list:'bullet' }],
-            ['link','blockquote'],
-            ['clean'],
-        ]}
+    _ed = RichEditor.attach('#cm-quill-editor', {
+        label: 'Treść wiadomości',
+        placeholder: 'Treść wiadomości… Enter = nowy akapit, Shift+Enter = nowa linia'
     });
-    _quill.on('text-change', CM.updateChar);
+    _ed.onChange(CM.updateChar);
 
     // Wstrzyknij przyciski do modal-footer
     var tpl  = document.getElementById('cm-footer-tpl');
@@ -469,10 +452,7 @@ CM.init = function() {
             document.getElementById('cm-plain').value = body;
         } else {
             CM.setMode('rich');
-            if (_quill) {
-                if (/<[a-z]/i.test(body)) _quill.root.innerHTML = body;
-                else _quill.setText(body);
-            }
+            _ed.setHtml(body);
         }
         CM.onChannelChange(opt.dataset.ch || 'email');
         // Szablon może mieć własne załączniki — serwer robi kopie plików
@@ -498,12 +478,9 @@ CM.init = function() {
         }
     }
 
-    // Odpowiedź ze Skrzynki: cytat oryginału pod kursorem
+    // Odpowiedź ze Skrzynki: cytat oryginału pod kursorem (pusty akapit na górze, kursor w nim)
     var preQuote = <?= json_encode($pre_quote) ?>;
-    if (preQuote && _quill) {
-        _quill.clipboard.dangerouslyPasteHTML(0, preQuote);
-        _quill.setSelection(0, 0);
-    }
+    if (preQuote) _ed.prependHtml(preQuote);
 
     CM.updateChar();
 
@@ -513,19 +490,23 @@ CM.init = function() {
     // Stan początkowy (do wykrywania zmian), szkic roboczy, skróty i ochrona przed zamknięciem
     CM.base = CM.snapshot();
     CM.draftKey = 'crmDraft:' + (CONTACT_ID || 0) + ':' + <?= json_encode($reply_to ?: 0) ?>;
-    CM.restoreDraft();
-    _quill.on('text-change', CM.saveDraftSoon);
     var subjEl = document.getElementById('cm-subject');
-    if (subjEl) subjEl.addEventListener('input', CM.saveDraftSoon);
     CM.bindGuards();
-    if (preQuote && _quill) setTimeout(function () { _quill.focus(); _quill.setSelection(0, 0); }, 150);
-    else if (CONTACT_ID && subjEl && !subjEl.value) setTimeout(function () { subjEl.focus(); }, 150);
-    else if (CONTACT_ID && _quill) setTimeout(function () { _quill.focus(); }, 150);
+    // Edytor startuje asynchronicznie — stan bazowy i szkic dopiero na gotowej treści (bez fałszywego „niezapisane”)
+    _ed.ready.then(function () {
+        CM.base = CM.snapshot();
+        CM.restoreDraft();
+        _ed.onChange(CM.saveDraftSoon);
+        if (subjEl) subjEl.addEventListener('input', CM.saveDraftSoon);
+        if (preQuote) setTimeout(function () { _ed.focus(true); }, 150);
+        else if (CONTACT_ID && subjEl && !subjEl.value) setTimeout(function () { subjEl.focus(); }, 150);
+        else if (CONTACT_ID) setTimeout(function () { _ed.focus(); }, 150);
+    });
 };
 
 /* ── Szkic roboczy, ochrona przed utratą treści, skróty ─────────────────── */
 CM.snapshot = function() {
-    var b = _mode === 'rich' && _quill ? _quill.getText().trim() : (document.getElementById('cm-plain') || {}).value || '';
+    var b = _mode === 'rich' && _ed ? _ed.getText() : (document.getElementById('cm-plain') || {}).value || '';
     return (document.getElementById('cm-subject') ? document.getElementById('cm-subject').value : '') + '\u0001' + b;
 };
 CM.dirty = function() { return !CM.sent && CM.snapshot() !== CM.base; };
@@ -536,7 +517,7 @@ CM.saveDraftSoon = function() {
             if (!CM.dirty()) { localStorage.removeItem(CM.draftKey); return; }
             localStorage.setItem(CM.draftKey, JSON.stringify({
                 t: Date.now(), subject: (document.getElementById('cm-subject') || {}).value || '',
-                html: _mode === 'rich' && _quill ? _quill.root.innerHTML : '', plain: (document.getElementById('cm-plain') || {}).value || '', mode: _mode }));
+                html: _mode === 'rich' && _ed ? _ed.getHtml() : '', plain: (document.getElementById('cm-plain') || {}).value || '', mode: _mode }));
         } catch (e) {}
     }, 600);
 };
@@ -547,7 +528,7 @@ CM.restoreDraft = function() {
         if (!d || Date.now() - d.t > 7 * 864e5) { localStorage.removeItem(CM.draftKey); return; }
         var subj = document.getElementById('cm-subject'); if (subj && d.subject) subj.value = d.subject;
         if (d.mode === 'plain') { CM.setMode('plain'); document.getElementById('cm-plain').value = d.plain || ''; }
-        else if (_quill && d.html) _quill.root.innerHTML = d.html;
+        else if (_ed && d.html) _ed.setHtml(d.html);
         var n = document.getElementById('cm-draft-note'), tx = document.getElementById('cm-draft-txt');
         if (n && tx) { tx.textContent = 'Przywrócono niewysłany szkic z ' + new Date(d.t).toLocaleString('pl-PL', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) + '.'; n.classList.remove('d-none'); n.classList.add('d-flex'); }
         CM.updateChar();
@@ -555,7 +536,7 @@ CM.restoreDraft = function() {
 };
 CM.discardDraft = function() {
     try { localStorage.removeItem(CM.draftKey); } catch (e) {}
-    if (_quill) _quill.setText(''); var p = document.getElementById('cm-plain'); if (p) p.value = '';
+    if (_ed) _ed.setHtml(''); var p = document.getElementById('cm-plain'); if (p) p.value = '';
     var subj = document.getElementById('cm-subject'); if (subj) subj.value = <?= json_encode($pre_subject) ?>;
     var n = document.getElementById('cm-draft-note'); if (n) { n.classList.add('d-none'); n.classList.remove('d-flex'); }
     CM.updateChar();
@@ -714,13 +695,11 @@ CM.setMode = function(mode) {
     document.getElementById('cm-plain-wrapper').style.display  = r ? 'none' : '';
     document.getElementById('cm-btn-rich').classList.toggle('active',  r);
     document.getElementById('cm-btn-plain').classList.toggle('active', !r);
-    if (!r && _quill) {
-        var tmp = document.createElement('div');
-        tmp.innerHTML = _quill.root.innerHTML;
-        document.getElementById('cm-plain').value = (tmp.textContent || '').trim();
+    if (!r && _ed) {
+        document.getElementById('cm-plain').value = _ed.getText();   // akapity zostają jako nowe linie
     } else if (r) {
         var plain = document.getElementById('cm-plain').value;
-        if (_quill && plain) _quill.setText(plain);
+        if (_ed && plain) _ed.setHtml(plain);
     }
     CM.updateChar();
 };
@@ -732,9 +711,8 @@ CM.insertVar = function(v) {
         ta.value = ta.value.slice(0, s) + v + ta.value.slice(ta.selectionEnd);
         ta.selectionStart = ta.selectionEnd = s + v.length;
         ta.focus();
-    } else if (_quill) {
-        var range = _quill.getSelection(true);
-        _quill.insertText(range ? range.index : _quill.getLength(), v, 'user');
+    } else if (_ed) {
+        _ed.insertText(v);
     }
 };
 
@@ -742,8 +720,8 @@ CM.updateChar = function() {
     var cc  = document.getElementById('cm-char');
     if (!cc) return;
     var ch  = (document.getElementById('cm-channel') || {}).value || 'email';
-    var len = _mode === 'rich' && _quill
-        ? _quill.getText().replace(/\n$/, '').length
+    var len = _mode === 'rich' && _ed
+        ? _ed.getText().length
         : (document.getElementById('cm-plain')?.value || '').length;
     if (ch === 'sms') {
         var msgs = Math.ceil(len / 160) || 1;
@@ -759,7 +737,7 @@ CM.send = function() {
     var err = document.getElementById('cm-error');
     err.classList.add('d-none');
 
-    var body = _mode === 'rich' && _quill ? _quill.root.innerHTML : document.getElementById('cm-plain').value;
+    var body = _mode === 'rich' && _ed ? _ed.getEmailHtml() : document.getElementById('cm-plain').value;
     var ch   = document.getElementById('cm-channel').value;
 
     if (!CONTACT_ID) {
@@ -769,8 +747,8 @@ CM.send = function() {
         return;
     }
 
-    var plainTxt = _mode === 'rich' && _quill ? _quill.getText().trim() : (document.getElementById('cm-plain').value || '').trim();
-    if (!plainTxt) { err.textContent = 'Treść wiadomości jest pusta.'; err.classList.remove('d-none'); (_mode === 'rich' && _quill ? _quill.focus() : document.getElementById('cm-plain').focus()); return; }
+    var plainTxt = _mode === 'rich' && _ed ? _ed.getText() : (document.getElementById('cm-plain').value || '').trim();
+    if (!plainTxt) { err.textContent = 'Treść wiadomości jest pusta.'; err.classList.remove('d-none'); (_mode === 'rich' && _ed ? _ed.focus() : document.getElementById('cm-plain').focus()); return; }
     var subjV = (document.getElementById('cm-subject')?.value || '').trim();
     if (ch === 'email' && !subjV && !confirm('Wiadomość nie ma tematu. Wysłać mimo to?')) { document.getElementById('cm-subject')?.focus(); return; }
 
@@ -862,9 +840,9 @@ CM.aiGenerate = function() {
 
 CM.aiApply = function() {
     var ins = document.getElementById('cm-ai-insert').value;
-    if (_mode === 'rich' && _quill) {
-        if (ins === 'replace') _quill.root.innerHTML = _aiHtml;
-        else _quill.clipboard.dangerouslyPasteHTML(_quill.getLength()-1, _aiHtml);
+    if (_mode === 'rich' && _ed) {
+        if (ins === 'replace') _ed.setHtml(_aiHtml);
+        else _ed.appendHtml(_aiHtml);
     } else {
         var ta = document.getElementById('cm-plain');
         ta.value = ins === 'replace' ? _aiPlain : (ta.value ? ta.value + '\n\n' + _aiPlain : _aiPlain);

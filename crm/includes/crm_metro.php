@@ -278,8 +278,8 @@ html body .cs-item .cs-flag{border-radius:0;background:var(--cm-red);color:#fff}
    z fragmentu (tła odbiorcy, przycisk AI) wymagają !important. */
 html body #crmComposeModal .modal-dialog{max-width:min(1000px,96vw)}
 html body #crmComposeModal.cm-full .modal-dialog{max-width:98vw}
-html body #crmComposeModal .ql-editor{min-height:300px}
-html body #crmComposeModal.cm-full .ql-editor{min-height:48vh}
+html body #crmComposeModal .re-wrap{--re-min-h:300px}
+html body #crmComposeModal.cm-full .re-wrap{--re-min-h:48vh}
 html body #crmComposeModal .cm-wide-btn{background:transparent;border:0;color:#fff;opacity:.85;font-size:1.05rem;padding:.25rem .5rem;margin-left:auto;margin-right:.35rem;cursor:pointer}
 html body #crmComposeModal .cm-wide-btn:hover{opacity:1}
 html body #crmComposeModal .cm-wide-btn:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
@@ -311,11 +311,8 @@ html body #cm-root [data-bs-target="#cm-ai-modal"]:hover{background:var(--cm-dar
 html body #cm-mode-bar{gap:1rem}
 html body #cm-mode-bar .btn{border:0!important;border-bottom:3px solid transparent!important;background:none!important;color:var(--cm-muted);font-weight:400;padding:.2rem 0 .3rem}
 html body #cm-mode-bar .btn.active{color:var(--cm-dark);font-weight:600;border-bottom-color:var(--crm-primary)!important}
-/* Edytor Quill — kwadratowy, ramka 2px, płaski pasek narzędzi */
-html body #cm-quill-wrapper .ql-toolbar.ql-snow{border:2px solid var(--cm-field);border-bottom:0;border-radius:0;background:var(--cm-light)}
-html body #cm-quill-wrapper .ql-container.ql-snow{border:2px solid var(--cm-field);border-radius:0;font-family:inherit;font-size:.95rem}
-html body #cm-quill-wrapper:focus-within .ql-toolbar.ql-snow,html body #cm-quill-wrapper:focus-within .ql-container.ql-snow{border-color:var(--crm-primary)}
-html body #cm-quill-wrapper .ql-editor{min-height:240px}
+/* Edytor treści (CKEditor) w oknie wiadomości — ramka jak pola formularza okna */
+html body #cm-quill-wrapper .re-wrap{--ck-color-base-border:var(--cm-field);--ck-color-toolbar-background:var(--cm-light)}
 html body #cm-root #cm-plain{min-height:240px}
 /* Załączniki */
 html body #cm-root .catt{background:var(--cm-light);border:0;border-radius:0}

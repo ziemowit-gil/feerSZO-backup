@@ -381,9 +381,9 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
 </style>
 <?php /* CRM to głównie tabele i listy — tło ledwie zaznaczone */ ?>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/app_bg.php'; app_bg_css('#EFF1F5', 'subtle'); ?>
-<!-- Quill — ładowany globalnie, potrzebny dla modalnego kompozytora -->
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<?php /* Edytor treści (CKEditor 5) — ładowany globalnie, potrzebny dla modalnego kompozytora, Komunikacji,
+         szablonów i Wysyłki masowej; wspólny moduł modules/rich_editor */
+      require_once dirname(dirname(__DIR__)) . '/modules/rich_editor/lib/richEditor.php'; richEditorAssets(); ?>
 <?php /* Szata Metro UI jak System Tożsamości — ostatni blok stylów */ require_once __DIR__ . '/crm_metro.php'; ?>
 <?php /* Tabele nie ucinają kolumn */ require_once dirname(dirname(__DIR__)) . '/includes/table_overflow.php'; table_overflow_assets(); ?>
 </head>
@@ -457,7 +457,7 @@ window.openCommModal = function(contactId, channel, opts) {
 
     modal.show();
 
-    // Pobierz fragment — uruchom JS dopiero gdy modal jest w pełni widoczny (Quill wymaga widocznego kontenera)
+    // Pobierz fragment — uruchom JS dopiero gdy modal jest w pełni widoczny (edytor startuje w widocznym kontenerze)
     var _pending_html = null;
     var _modal_shown  = false;
 

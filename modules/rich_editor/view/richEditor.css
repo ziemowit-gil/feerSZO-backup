@@ -1,0 +1,19 @@
+/* modules/rich_editor/view/richEditor.css — wygląd wspólnego edytora (CKEditor 5) w szacie Metro:
+   płasko, bez zaokrągleń, akcent CRM. Akapity w edytorze mają taki sam odstęp jak w wysłanym mailu
+   (margin:0 0 1em — patrz RichEditor.emailHtml), więc co widać w edytorze, to dostaje odbiorca. */
+.re-wrap { --ck-border-radius:0; --ck-color-base-border:#8a8886; --ck-color-focus-border:var(--crm-primary, #0F766E);
+  --ck-focus-ring:1px solid var(--crm-primary, #0F766E); --ck-color-toolbar-background:#f3f4f6; --ck-font-size-base:13px;
+  --re-min-h:220px; --re-max-h:60vh; position:relative }
+.re-wrap .ck.ck-editor { width:100% }
+.re-wrap .ck.ck-toolbar { border-color:#8a8886 }
+.re-wrap .ck-editor__editable { min-height:var(--re-min-h); max-height:var(--re-max-h); font-size:.95rem; line-height:1.5; color:#111827 }
+.re-wrap .ck-content p { margin:0 0 1em }
+.re-wrap .ck-content h2, .re-wrap .ck-content h3 { margin:.6em 0 .5em; line-height:1.25 }
+.re-wrap .ck-content h2 { font-size:1.3rem } .re-wrap .ck-content h3 { font-size:1.1rem }
+.re-wrap .ck-content blockquote { margin:0 0 1em; padding:.3em 0 .3em 1em; border-left:3px solid #c8c6c4; color:#374151; font-style:normal }
+.re-wrap .ck.ck-editor__editable.ck-placeholder::before, .re-wrap .ck .ck-placeholder::before { color:#6b7280 }
+.re-wrap.is-invalid .ck.ck-toolbar, .re-wrap.is-invalid .ck.ck-editor__main > .ck-editor__editable { border-color:#b91c1c }
+.re-fallback { width:100%; min-height:var(--re-min-h, 220px); font-size:.95rem; line-height:1.5; border:1px solid #8a8886; padding:.6rem .75rem; font-family:inherit }
+.re-fallback:focus { outline:none; border-color:var(--crm-primary, #0F766E); box-shadow:inset 0 0 0 1px var(--crm-primary, #0F766E) }
+/* Okienka CKEditora (link, tabela) nad oknami modalnymi Bootstrapa */
+.ck.ck-balloon-panel { z-index:2000 !important }
