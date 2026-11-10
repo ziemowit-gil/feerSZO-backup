@@ -114,7 +114,10 @@ final class ClaudeBillingController
         return $this->act(fn() => match ($act) {
             'paid'     => LicenceRequest::markPaid((int)$id, $a, mb_substr(trim((string)($_POST['ref'] ?? '')), 0, 120)),
             'invoice'  => LicenceRequest::issueInvoice((int)$id, $a),
-            'activate' => LicenceRequest::activate((int)$id, $a),
+            'activate' => LicenceRequest::activate((int)$id, $a) . (function () use ($id, $a) {   // e-mail z danymi dostępu wpisanymi przy aktywacji
+                require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjeDostep.php';
+                return LicencjeDostep::afterActivate((int)$id, $_POST, $a);
+            })(),
             'reject'   => LicenceRequest::reject((int)$id, (string)($_POST['reason'] ?? ''), $a),
             default    => throw new InvalidArgumentException('Nieznana akcja.'),
         }, '', route('cb.index', ['product' => $p, 'tab' => 'wnioski']));

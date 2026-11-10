@@ -436,6 +436,7 @@ final class LicencjeKursantController
             'sprawy' => (function () use ($cid) { require_once __DIR__ . '/LicencjeSprawy.php'; return LicencjeSprawy::cases($cid); })(),
             'tickets' => in_array($page, ['sprawy', 'start'], true) ? LicencjeSprawy::tickets($cid) : [],
             'driveReq' => $page === 'dysk' ? self::driveRequest($cid) : null,
+            'accessMsgs' => (function () use ($cid) { require_once __DIR__ . '/LicencjeDostep.php'; return LicencjeDostep::forClient($cid); })(),
             'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()] + $extra);
     }
 

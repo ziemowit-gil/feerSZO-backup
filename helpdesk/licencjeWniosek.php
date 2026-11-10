@@ -38,7 +38,10 @@ try {
     $msg = match ((string)($_POST['act'] ?? '')) {
         'paid'     => LicenceRequest::markPaid($sid, $actor, mb_substr(trim((string)($_POST['ref'] ?? '')), 0, 120)),
         'invoice'  => LicenceRequest::issueInvoice($sid, $actor),
-        'activate' => LicenceRequest::activate($sid, $actor),
+        'activate' => LicenceRequest::activate($sid, $actor) . (function () use ($sid, $actor) {   // e-mail z danymi dostępu wpisanymi przy aktywacji (SMS z hasłem)
+            require_once dirname(__DIR__) . '/modules/ti_licencje_kursant/logic/LicencjeDostep.php';
+            return LicencjeDostep::afterActivate($sid, $_POST, $actor);
+        })(),
         'reject'   => LicenceRequest::reject($sid, (string)($_POST['reason'] ?? ''), $actor),
         'office'   => (function () use ($req, $actor) {   // konto Office (inicjał.nazwisko@edu): sprawdź w tenancie EDU, załóż, gdy go nie ma
             require_once dirname(__DIR__) . '/modules/claude_billing/logic/LicenceOffice.php';

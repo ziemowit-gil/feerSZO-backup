@@ -58,6 +58,17 @@ $qf = '<input type="hidden" name="q" value="' . h($q) . '">';
         <button class="m-btn-ghost" type="submit">Sprawdź / załóż konto Office<span class="tw-sr-only"> (<?= h($r['name']) ?>)</span></button></form>
       <?php endif; ?>
     </div>
+    <?php require_once dirname(__DIR__) . '/logic/LicencjeDostep.php'; $accSent = LicencjeDostep::forClient((int)$r['id']); ?>
+    <details class="tw-mt-3"><summary>Wyślij dane dostępu<span class="tw-sr-only"> (<?= h($r['name']) ?>)</span></summary>
+      <form method="post" action="<?= h(route('lk.admin.accessdata')) ?>" class="tw-mt-3" style="max-width:560px"><?= Router::csrfField() ?><?= $qf ?><input type="hidden" name="client_id" value="<?= (int)$r['id'] ?>">
+        <p class="tw-text-sm tw-mb-3">Uczestnik dostanie e-mail z loginem, adresem i instrukcją. Hasło albo klucz wyślemy osobno SMS-em, nigdy e-mailem.</p>
+        <?= LicencjeDostep::fieldsHtml('ad' . (int)$r['id'] . '-', 'office_a3', (int)$r['id'], false, true) ?>
+        <button class="m-btn" type="submit">Wyślij dane dostępu</button>
+      </form>
+      <?php if ($accSent): ?><p class="tw-text-sm tw-mt-3 tw-font-semibold">Wysłane wcześniej</p><ul class="tw-text-sm tw-list-disc tw-pl-5">
+        <?php foreach (array_slice($accSent, 0, 5) as $as): ?><li><?= h($as['service']) ?>, <?= h(date('d.m.Y H:i', strtotime((string)$as['created_at']))) ?><?= $as['login'] !== '' ? ', login ' . h($as['login']) : '' ?> (e-mail: <?= $as['email_sent'] ? 'tak' : 'nie' ?><?= $as['had_secret'] ? ', SMS: ' . ($as['sms_sent'] ? 'tak' : 'nie') : '' ?>)<?= $as['created_by'] !== '' ? ', ' . h($as['created_by']) : '' ?></li><?php endforeach; ?>
+      </ul><?php endif; ?>
+    </details>
   </div>
   <?php endforeach; ?>
 </section>

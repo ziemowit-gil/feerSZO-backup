@@ -74,6 +74,21 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
     . '<div><dt class="m-note">Numer beneficjenta</dt><dd class="m-mono tw-font-semibold" style="margin:0;font-size:1.15rem">' . h($ids['ben'] !== '' ? $ids['ben'] : 'nie nadano') . '</dd></div>'
     . '<div><dt class="m-note">Konto Office</dt><dd style="margin:0;font-size:1.05rem">' . ($eduAccount ? '<span class="m-mono tw-font-semibold">' . h((string)$eduAccount) . '</span>' : '<a href="' . h(route('lk.office')) . '">nie masz, załóż</a>') . '</dd></div>'
     . '</dl></div>';   // numery w ramce na każdej podstronie (polecenie 2026-11-10)
+// dane do logowania wysłane przez administratora (LicencjeDostep) — bez haseł; $only = klucz usługi albo '' (wszystkie)
+$accBox = function (string $only = '') use ($accessMsgs) {
+    $rows = array_values(array_filter($accessMsgs ?? [], fn($a) => $only === '' || (string)$a['product'] === $only));
+    if (!$rows) return;
+    echo '<section class="m-tile tw-mt-4" aria-labelledby="acc-' . h($only ?: 'all') . '"><h2 class="m-sect" id="acc-' . h($only ?: 'all') . '">Dane do logowania</h2>';
+    foreach ($only === '' ? $rows : array_slice($rows, 0, 1) as $a) {
+        echo '<div class="m-row"' . ($only !== '' ? ' style="border-top:0;padding-top:0"' : '') . '><p class="tw-font-semibold">' . h((string)$a['service']) . ' <span class="m-note">wysłane ' . h(date('d.m.Y', strtotime((string)$a['created_at']))) . '</span></p>'
+           . '<dl class="m-kv tw-grid sm:tw-grid-cols-3 tw-gap-x-6 tw-mt-1">'
+           . ((string)$a['login'] !== '' ? '<div><dt>Login</dt><dd class="m-mono">' . h((string)$a['login']) . '</dd></div>' : '')
+           . ((string)$a['url'] !== '' ? '<div><dt>Adres logowania</dt><dd><a href="' . h((string)$a['url']) . '" target="_blank" rel="noopener">' . h(preg_replace('#^https?://#', '', rtrim((string)$a['url'], '/'))) . '<span class="tw-sr-only"> (nowa karta)</span></a></dd></div>' : '')
+           . ((int)$a['had_secret'] ? '<div><dt>Hasło</dt><dd>' . ((int)$a['sms_sent'] ? 'wysłaliśmy SMS-em' : 'przekazało Ci je biuro') . '</dd></div>' : '')
+           . '</dl>' . ((string)$a['note'] !== '' ? '<p class="tw-text-sm tw-mt-2">' . nl2br(h((string)$a['note'])) . '</p>' : '') . '</div>';
+    }
+    echo '</section>';
+};
 ?>
 <?php if ($page === 'start'): ?>
 <h1 class="m-title">Moje licencje</h1>
@@ -323,6 +338,7 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
       <a class="m-btn" href="<?= h(route('lk.wizard', ['product' => $pk])) ?>">Złóż wniosek o <?= h($P['label']) ?></a>
     <?php endif; ?>
   </section>
+  <?php $accBox($pk); ?>
 <?php endforeach; ?>
 <?php if (isset(ClaudeBilling::PRODUCTS[$page]) && !isset($paid[$page])): ?>
 <h1 class="m-title"><?= h(ClaudeBilling::P($page)['label']) ?></h1>
@@ -586,6 +602,7 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
     </form>
   <?php endif; ?>
 </section>
+<?php $accBox('dysk'); ?>
 <section class="m-tile tw-mt-4" aria-labelledby="d-sea">
   <h2 class="m-sect" id="d-sea">Czym jest Seafile</h2>
   <p class="tw-text-sm tw-mb-2">Dysk Online działa na Seafile. To program do przechowywania i udostępniania plików z otwartym kodem źródłowym. Korzystają z niego uczelnie, firmy i instytucje.</p>
@@ -692,6 +709,7 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
 <h1 class="m-title">Moje konto w panelu licencji</h1>
 <p class="m-explain">Login, hasło i dane kontaktowe. Na ten telefon wysyłamy kody, na e-mail proformy i faktury.</p>
 <?= $idsLine ?>
+<?php $accBox(); ?>
 <section class="m-tile" aria-label="Moje konto w panelu licencji">
   <?php if ($login): ?>
     <details<?= !$hasPassword ? ' open' : '' ?>><summary><?= $hasPassword ? 'Zmień hasło' : 'Ustaw hasło do panelu licencji' ?></summary>

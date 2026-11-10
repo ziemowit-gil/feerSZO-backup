@@ -55,7 +55,10 @@ $lrStep = fn(bool $done, string $txt) => '<li class="' . ($done ? 'text-success'
       <?php elseif ($lrPaid && $lrInv === ''): ?>
         <?= $lrForm('invoice', 'Wystaw fakturę VAT', 'btn-primary') ?>
       <?php elseif ($lrInv !== '' || !$lrCh): ?>
-        <?= $lrForm('activate', 'Aktywuj dostęp', 'btn-success') ?>
+        <?php require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjeDostep.php'; ?>
+        <?= $lrForm('activate', 'Aktywuj dostęp', 'btn-success', '<fieldset class="border rounded p-2 mb-2"><legend class="small fw-semibold float-none w-auto px-1 mb-0">Dane dostępu dla uczestnika</legend>'
+            . '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="acc_send" value="1" id="lr-acc-send" checked><label class="form-check-label small" for="lr-acc-send">Wyślij e-mail z tymi danymi (hasło SMS-em)</label></div>'
+            . LicencjeDostep::fieldsHtml('lr-acc-', (string)$lrSub['product'], (int)$lrSub['client_id'], true) . '</fieldset>') ?>
       <?php endif; ?>
       <details class="mt-2"><summary class="small">Odrzuć wniosek</summary>
         <?= $lrForm('reject', 'Odrzuć wniosek', 'btn-outline-danger', '<label class="form-label mb-0 small" for="lr-why">Powód (uczestnik dostanie go e-mailem)</label><textarea class="form-control form-control-sm mb-1" id="lr-why" name="reason" rows="2" required minlength="5"></textarea>') ?>

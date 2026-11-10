@@ -90,6 +90,18 @@ final class LicencjeAdminController
         } catch (\Throwable $e) { return $this->back('err', $e->getMessage()); }
     }
 
+    /** Dane dostępu do licencji lub usługi (Microsoft 365 A3 / A5, Claude, NordVPN, Dysk Online, inna): e-mail z danymi, hasło SMS-em. */
+    public function accessData(): ?string
+    {
+        $a = $this->adm();
+        require_once __DIR__ . '/LicencjeDostep.php';
+        $cid = (int)($_POST['client_id'] ?? 0);
+        try {
+            $r = LicencjeDostep::send($cid, (array)($_POST['acc'] ?? []), ['name' => $a['name'] . ' (Administrator Licencji)']);
+            return $this->back($r['email'] || $r['secret'] === '' ? 'ok' : 'info', 'Dane dostępu: ' . $r['text'] . ($r['secret'] !== '' ? ' Hasło / klucz (pokazujemy je tylko teraz): ' . $r['secret'] . '.' : ''));
+        } catch (\Throwable $e) { return $this->back('err', $e->getMessage()); }
+    }
+
     /** Office ze zniżką edukacyjną: ceny planów A3 / A5 (A1 w cenie) — edytuje kierownik albo administrator. */
     public function officePrices(): string
     {

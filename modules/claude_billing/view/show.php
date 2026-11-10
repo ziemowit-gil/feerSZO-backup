@@ -74,7 +74,13 @@ $first = $firstM ? $firstM[count($firstM) - 1] : null;   // najstarsza opłata m
     <?php elseif ($paid && $inv === ''): ?>
       <form method="post" action="<?= h(route('cb.req', ['id' => $sid, 'act' => 'invoice'])) ?>"><?= Router::csrfField() ?><button class="cb-btn" type="submit">Wystaw fakturę VAT</button></form>
     <?php else: ?>
-      <form method="post" action="<?= h(route('cb.req', ['id' => $sid, 'act' => 'activate'])) ?>"><?= Router::csrfField() ?><button class="cb-btn ok" type="submit">Aktywuj dostęp</button></form>
+      <?php require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjeDostep.php'; ?>
+      <form method="post" action="<?= h(route('cb.req', ['id' => $sid, 'act' => 'activate'])) ?>" style="max-width:520px"><?= Router::csrfField() ?>
+        <fieldset class="border rounded p-2 mb-2"><legend class="small fw-semibold float-none w-auto px-1 mb-0">Dane dostępu dla uczestnika</legend>
+          <div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="acc_send" value="1" id="rq-acc-send" checked><label class="form-check-label small" for="rq-acc-send">Wyślij e-mail z tymi danymi (hasło SMS-em)</label></div>
+          <?= LicencjeDostep::fieldsHtml('rq-acc-', (string)$sub['product'], (int)$sub['client_id'], true) ?>
+        </fieldset>
+        <button class="cb-btn ok" type="submit">Aktywuj dostęp</button></form>
     <?php endif; ?>
     <details><summary class="small">Odrzuć wniosek</summary>
       <form method="post" action="<?= h(route('cb.req', ['id' => $sid, 'act' => 'reject'])) ?>" class="mt-1" style="max-width:420px"><?= Router::csrfField() ?><label class="form-label small mb-0" for="rq-why">Powód (uczestnik dostanie e-mail)</label><textarea class="form-control form-control-sm mb-1" id="rq-why" name="reason" rows="2" required minlength="5"></textarea><button class="cb-btn danger" type="submit">Odrzuć wniosek</button></form>
