@@ -81,11 +81,8 @@
            class="form-control form-control-sm"
            placeholder="Nowe podzadanie… (Enter aby dodać)"
            onkeydown="if(event.key==='Enter'){event.preventDefault();tdStAdd()}">
-    <button type="button"
-            class="btn btn-sm btn-outline-secondary px-2"
-            onclick="tdStAdd()"
-            aria-label="Dodaj podzadanie">
-      <i class="bi bi-plus-lg" aria-hidden="true"></i>
+    <button type="button" class="td-add-btn" onclick="tdStAdd()" aria-label="Dodaj podzadanie">
+      <i class="bi bi-plus-lg" aria-hidden="true"></i><span>Dodaj</span>
     </button>
   </div>
   <?php endif; ?>
@@ -108,8 +105,7 @@
             Szacunek:
           </label>
           <input type="number" id="td-est-hours"
-                 class="form-control form-control-sm"
-                 style="width:70px;font-size:.78rem"
+                 class="form-control form-control-sm td-est-in"
                  min="0" max="999" step="0.5"
                  value="<?= h($task['estimated_hours'] ?? '') ?>"
                  placeholder="godz."
@@ -125,11 +121,10 @@
 
       <!-- Timer start/stop -->
       <button type="button"
-              class="btn btn-sm"
+              class="td-timer-btn"
               id="td-timer-btn"
               onclick="tdTimerToggle()"
-              aria-label="Uruchom lub zatrzymaj timer czasu pracy"
-              style="font-size:.74rem;white-space:nowrap">
+              aria-label="Uruchom lub zatrzymaj timer czasu pracy">
         <i class="bi bi-play-fill me-1" id="td-timer-icon" aria-hidden="true"></i>
         <span id="td-timer-label">Start</span>
       </button>
@@ -160,8 +155,8 @@
   <!-- Ręczny wpis -->
   <?php if ($can_edit): ?>
   <details class="mt-2" id="td-manual-time">
-    <summary class="text-muted" style="font-size:.76rem;cursor:pointer">
-      <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Dodaj ręczny wpis
+    <summary class="td-mini-btn">
+      <i class="bi bi-plus-circle" aria-hidden="true"></i>Dodaj ręczny wpis
     </summary>
     <div class="row g-2 mt-1">
       <div class="col-5">

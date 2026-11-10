@@ -463,6 +463,47 @@ html body #td-root .td-section{border-bottom-color:var(--tm-line)}
 html body #td-root .td-status-row .badge,html body #td-root .td-tag-btn{border-radius:0}
 @media(max-width:479.98px){html body #td-root .td-props-grid{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){html body #tsk-main *{transition:none!important;animation:none!important}}
+
+/* ══ Okno zadania (2026-11-10): lżejsze sekcje — pola z cienką ramką jak w Skrzynce i Wysyłce masowej,
+   jeden styl małych przycisków (Obserwuj, ręczny wpis), wyraźne działania główne (Dodaj podzadanie, Start/Stop) ══ */
+html body #td-root .td-main .td-section{padding:1rem 1.25rem}
+html body #td-root .td-main .td-label{font-size:.7rem;letter-spacing:.1em;margin-bottom:.55rem}
+html body #td-root .td-main .form-control,html body #td-root .td-main .form-select,html body #td-root .td-main .ts-wrapper .ts-control{
+  border:1px solid #8a8886;border-radius:0;box-shadow:none;min-height:34px;font-size:.88rem}
+html body #td-root .td-main .form-control:focus,html body #td-root .td-main .form-select:focus,html body #td-root .td-main .ts-wrapper.focus .ts-control{
+  border-color:var(--tsk-green);box-shadow:inset 0 0 0 1px var(--tsk-green)}
+html body #td-root .td-main .ts-wrapper .item{padding:.1rem .45rem!important;font-size:.84rem}
+html body #td-root #td-desc{min-height:6.5rem;line-height:1.55;padding:.55rem .7rem;resize:vertical}
+/* małe przyciski pomocnicze */
+html body #td-root .td-mini-btn{display:inline-flex;align-items:center;gap:.35rem;min-height:30px;padding:0 .7rem;border:1px solid #8a8886;border-radius:0;
+  background:#fff;color:var(--tsk-text);font-size:.8rem;font-weight:600;line-height:1;cursor:pointer;list-style:none;white-space:nowrap}
+html body #td-root .td-mini-btn::-webkit-details-marker{display:none}
+html body #td-root .td-mini-btn:hover{background:var(--tm-light)}
+html body #td-root .td-mini-btn:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px}
+html body #td-root .td-mini-btn i{margin:0!important;color:var(--tsk-green)}
+html body #td-root #td-watch-btn[aria-pressed="true"]{background:var(--tsk-green);border-color:var(--tsk-green);color:#fff}
+html body #td-root #td-watch-btn[aria-pressed="true"] i{color:#fff}
+html body #td-root details[open]>summary.td-mini-btn{background:var(--tm-light)}
+html body #td-root .td-watch{gap:.4rem .7rem;margin-top:.6rem!important}
+html body #td-root #td-watch-list{font-size:.78rem;color:var(--tm-muted)!important}
+/* podzadania: pole z dołączonym „Dodaj” */
+html body #td-root #td-st-add-row{gap:0!important}
+html body #td-root #td-st-add-row .form-control{border-right:0}
+html body #td-root .td-add-btn{display:inline-flex;align-items:center;gap:.35rem;flex-shrink:0;min-height:34px;padding:0 .9rem;border:0;border-radius:0;
+  background:var(--tsk-green);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer}
+html body #td-root .td-add-btn:hover,html body #td-root .td-add-btn:focus-visible{background:var(--tm-dark)}
+html body #td-root .td-add-btn:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px}
+html body #td-root #td-st-empty,html body #td-root #td-time-log>p{color:var(--tm-muted)!important;font-size:.82rem!important}
+/* czas pracy: szacunek + Start/Stop */
+html body #td-root #td-time-section label[for="td-est-hours"]{font-size:.78rem!important;color:var(--tm-muted)!important}
+html body #td-root .td-est-in{width:5rem!important;min-height:30px!important;font-size:.82rem!important}
+html body #td-root .td-timer-btn{display:inline-flex;align-items:center;gap:.3rem;min-height:30px;padding:0 .85rem;border:0;border-radius:0;
+  background:var(--tsk-green);color:#fff;font-size:.8rem;font-weight:600;white-space:nowrap;cursor:pointer}
+html body #td-root .td-timer-btn:hover{background:var(--tm-dark)}
+html body #td-root .td-timer-btn:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px}
+html body #td-root .td-timer-btn.is-running{background:var(--tm-red)}
+html body #td-root .td-timer-btn i{margin:0!important}
+html body #td-root #td-manual-time{margin-top:.6rem!important}
 </style>
 <script>
 /* Rozwijane menu (np. priorytet w wierszu tabeli) pozycjonowane „fixed”, żeby przewijany

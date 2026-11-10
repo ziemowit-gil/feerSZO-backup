@@ -130,8 +130,7 @@
 
   <!-- Obserwujący: powiadomienia o zadaniu bez przypisania -->
   <div class="td-watch mt-2" id="td-watch">
-    <button type="button" id="td-watch-btn"
-            class="btn btn-sm <?= $i_watch ? 'btn-secondary' : 'btn-outline-secondary' ?> py-0"
+    <button type="button" id="td-watch-btn" class="td-mini-btn"
             aria-pressed="<?= $i_watch ? 'true' : 'false' ?>"
             onclick="tdToggleWatch()">
       <i class="bi <?= $i_watch ? 'bi-eye-fill' : 'bi-eye' ?> me-1" aria-hidden="true"></i><span><?= $i_watch ? 'Obserwujesz' : 'Obserwuj' ?></span>

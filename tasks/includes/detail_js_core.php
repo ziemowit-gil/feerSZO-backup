@@ -303,8 +303,6 @@ window.tdToggleWatch = function() {
             btn.disabled = false;
             if (!r.ok) { alert(r.error); return; }
             btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-            btn.classList.toggle('btn-secondary', on);
-            btn.classList.toggle('btn-outline-secondary', !on);
             btn.querySelector('i').className = 'bi ' + (on ? 'bi-eye-fill' : 'bi-eye') + ' me-1';
             btn.querySelector('span').textContent = on ? 'Obserwujesz' : 'Obserwuj';
             const list = document.getElementById('td-watch-list');

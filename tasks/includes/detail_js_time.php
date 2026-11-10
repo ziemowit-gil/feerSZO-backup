@@ -71,7 +71,7 @@ function startTimerDisplay(startedAt, logId) {
     const label  = document.getElementById('td-timer-label');
     const runDiv = document.getElementById('td-timer-running');
 
-    if (btn)    btn.style.cssText    = 'background:#dc2626;color:#fff;border:none;font-size:.74rem';
+    if (btn)    btn.classList.add('is-running');
     if (icon)   icon.className       = 'bi bi-stop-fill me-1';
     if (label)  label.textContent    = 'Stop';
     if (runDiv) { runDiv.style.display='flex'; runDiv.classList.remove('d-none'); }
@@ -93,7 +93,7 @@ function stopTimerDisplay() {
     const icon   = document.getElementById('td-timer-icon');
     const label  = document.getElementById('td-timer-label');
     const runDiv = document.getElementById('td-timer-running');
-    if (btn)    btn.style.cssText = '';
+    if (btn)    btn.classList.remove('is-running');
     if (icon)   icon.className    = 'bi bi-play-fill me-1';
     if (label)  label.textContent = 'Start';
     if (runDiv) runDiv.style.display = 'none';
