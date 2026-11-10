@@ -93,347 +93,158 @@ $pri_colors = [4 => '#dc2626', 3 => '#f59e0b', 2 => '#3b82f6', 1 => '#94a3b8'];
 $pri_labels = [4 => 'Krytyczny', 3 => 'Wysoki', 2 => 'Normalny', 1 => 'Niski'];
 ?>
 
-<style type="text/tailwindcss">
-/* ══ Moje zadania ═══════════════════════════════════════════════════════════ */
-.mz-wrap {
-  --tz-line: #E5E9F0;
-  --tz-muted: #5b6472;
-  --tz-ink: #111827;
-  --tz-50: rgba(5,150,105,.07);
-  @apply tw-max-w-[1000px];
+<?php
+// Grupy wg terminu — „co mam zrobić najpierw” (kolejność w grupie: priorytet, termin — z zapytania)
+$mz_today  = strtotime(date('Y-m-d'));
+$mz_groups = ['over' => ['Po terminie', 'is-bad', []], 'today' => ['Dziś', 'is-warn', []], 'week' => ['Najbliższe 7 dni', '', []],
+              'later' => ['Później', '', []], 'none' => ['Bez terminu', '', []]];
+foreach ($my_tasks as $t) {
+    $d = $t['due_date'] ? (int)floor((strtotime($t['due_date']) - $mz_today) / 86400) : null;
+    $k = $d === null ? 'none' : ($d < 0 ? 'over' : ($d === 0 ? 'today' : ($d <= 7 ? 'week' : 'later')));
+    $t['_days'] = $d;
+    $mz_groups[$k][2][] = $t;
 }
-
-/* Hero */
-.mz-hero {
-  @apply tw-relative tw-rounded-2xl tw-overflow-hidden tw-mb-6 tw-bg-cover tw-bg-center;
-  min-height: 130px;
-  background-color: <?= h($_mz_brand) ?>;
-}
-.mz-hero__overlay {
-  @apply tw-absolute tw-inset-0;
-  background: linear-gradient(135deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.15) 100%);
-}
-.mz-hero__body {
-  @apply tw-relative tw-z-[1] tw-flex tw-items-center tw-gap-[1.1rem] tw-py-6 tw-px-6;
-}
-.mz-hero__av {
-  @apply tw-w-16 tw-h-16 tw-rounded-full tw-flex-shrink-0 tw-flex tw-items-center tw-justify-center tw-text-2xl tw-font-extrabold tw-overflow-hidden tw-select-none;
-  color: <?= h($_mz_brand) ?>;
-  background: rgba(255,255,255,.9); border: 3px solid rgba(255,255,255,.6);
-}
-.mz-hero__av img { @apply tw-w-full tw-h-full tw-object-cover tw-rounded-full; }
-.mz-hero__info { @apply tw-flex-1 tw-min-w-0; }
-.mz-hero__name { @apply tw-text-xl tw-font-extrabold tw-text-white tw-leading-tight;
-  text-shadow: 0 1px 3px rgba(0,0,0,.4); }
-.mz-hero__sub  { @apply tw-text-[.82rem] tw-mt-1; color: rgba(255,255,255,.8); }
-.mz-hero__stats { @apply tw-flex tw-gap-5 tw-mt-[.65rem] tw-flex-wrap; }
-.mz-hero__stat  { @apply tw-text-[.78rem]; color: rgba(255,255,255,.9); }
-.mz-hero__stat strong { @apply tw-text-[1.05rem] tw-font-extrabold tw-block tw-leading-tight; }
-.mz-hero__actions { @apply tw-flex tw-gap-2 tw-flex-shrink-0; }
-.mz-hero__btn {
-  @apply tw-text-white tw-rounded-lg tw-py-[.35rem] tw-px-[.65rem] tw-text-[.78rem] tw-cursor-pointer tw-flex tw-items-center tw-gap-[.3rem] tw-transition-colors;
-  background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
-  backdrop-filter: blur(4px);
-}
-.mz-hero__btn:hover { background: rgba(255,255,255,.3); }
-/* Formularz zdjęcia */
-.mz-hero__photo-form {
-  @apply tw-hidden tw-absolute tw-bottom-0 tw-left-0 tw-right-0 tw-z-10 tw-py-[.65rem] tw-px-5 tw-items-center tw-gap-[.65rem];
-  background: rgba(0,0,0,.75); backdrop-filter: blur(6px);
-}
-.mz-hero__photo-form.visible { @apply tw-flex; }
-.mz-hero__photo-inp {
-  @apply tw-flex-1 tw-text-white tw-rounded-lg tw-py-[.35rem] tw-px-3 tw-text-[.81rem];
-  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.3);
-}
-.mz-hero__photo-inp::placeholder { color: rgba(255,255,255,.5); }
-.mz-hero__photo-inp:focus { outline: none; border-color: rgba(255,255,255,.7); }
-@media (max-width: 600px) {
-  .mz-hero__body   { @apply tw-flex-wrap; }
-  .mz-hero__actions { @apply tw-absolute tw-top-[.85rem] tw-right-[.85rem]; }
-  .mz-hero__stats  { @apply tw-gap-[.85rem]; }
-}
-
-/* KPI karty */
-.mz-kpi-row { @apply tw-grid tw-grid-cols-4 tw-gap-[.9rem] tw-mb-6; }
-@media(max-width:700px) { .mz-kpi-row { @apply tw-grid-cols-2; } }
-
-.mz-kpi { @apply tw-bg-white tw-rounded-2xl tw-py-4 tw-px-[1.1rem] tw-flex tw-flex-col tw-gap-1;
-  border: 1px solid var(--tz-line); box-shadow:0 1px 3px rgba(16,24,40,.07); }
-.mz-kpi__val { @apply tw-text-3xl tw-font-extrabold tw-leading-none; }
-.mz-kpi__lbl { @apply tw-text-[.78rem] tw-font-semibold tw-uppercase tw-tracking-wide; color:var(--tz-muted); }
-.mz-kpi--ok   .mz-kpi__val { @apply tw-text-emerald-600; }
-.mz-kpi--warn .mz-kpi__val { @apply tw-text-amber-600; }
-.mz-kpi--red  .mz-kpi__val { @apply tw-text-red-600; }
-.mz-kpi--neu  .mz-kpi__val { @apply tw-text-blue-500; }
-
-/* Sekcja-karta */
-.mz-card { @apply tw-bg-white tw-rounded-2xl tw-overflow-hidden tw-mb-5;
-  border: 1px solid var(--tz-line); box-shadow:0 1px 3px rgba(16,24,40,.08); }
-.mz-card__hd { @apply tw-py-[.85rem] tw-px-[1.1rem] tw-flex tw-items-center tw-gap-[.55rem] tw-font-bold tw-text-[.95rem];
-  border-bottom:1px solid var(--tz-line); color:var(--tz-ink); }
-.mz-card__hd i { color:var(--tsk-green); }
-.mz-card__hd .badge-cnt { @apply tw-ml-auto tw-text-[.72rem] tw-font-bold tw-rounded-full tw-py-[.15em] tw-px-[.6em];
-  background:var(--tz-50); color:var(--tsk-green); }
-
-/* Wiersze zadań */
-.mz-task-row { @apply tw-flex tw-items-center tw-gap-3 tw-py-[.7rem] tw-px-[1.1rem] tw-transition-colors;
-  border-bottom:1px solid var(--tz-line); }
-.mz-task-row:last-child { @apply tw-border-b-0; }
-.mz-task-row:hover { background:var(--tz-50); }
-
-.mz-dot { @apply tw-w-[10px] tw-h-[10px] tw-rounded-full tw-flex-shrink-0; }
-
-.mz-task-body { @apply tw-flex-1 tw-min-w-0; }
-.mz-task-title { @apply tw-font-semibold tw-text-[.92rem] tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis;
-  color:var(--tz-ink); }
-.mz-task-title a { @apply tw-text-inherit tw-no-underline; }
-.mz-task-title a:hover { @apply tw-underline; }
-.mz-task-meta  { @apply tw-text-xs tw-mt-[.1rem]; color:var(--tz-muted); }
-
-.mz-due { @apply tw-text-[.77rem] tw-font-semibold tw-flex-shrink-0 tw-rounded-md tw-py-[.2em] tw-px-[.55em]; }
-.mz-due--ok   { @apply tw-bg-green-50 tw-text-green-600; }
-.mz-due--soon { @apply tw-bg-amber-50 tw-text-amber-700; }
-.mz-due--over { @apply tw-bg-red-50 tw-text-red-600; }
-.mz-due--none { @apply tw-bg-slate-100 tw-text-slate-400; }
-
-.mz-done-btn { @apply tw-bg-transparent tw-rounded-full tw-w-7 tw-h-7 tw-flex tw-items-center tw-justify-center tw-cursor-pointer tw-text-slate-400 tw-flex-shrink-0 tw-transition-all;
-  border:1px solid #d1d5db; }
-.mz-done-btn:hover { @apply tw-border-emerald-600 tw-text-emerald-600 tw-bg-green-50; }
-.mz-done-btn.done-ok { @apply tw-border-emerald-600 tw-bg-emerald-600 tw-text-white tw-pointer-events-none; }
-
-/* Puste stany */
-.mz-empty { @apply tw-py-8 tw-px-4 tw-text-center tw-text-[.9rem]; color:var(--tz-muted); }
-.mz-empty i { @apply tw-text-3xl tw-text-slate-300 tw-block tw-mb-2; }
-
-/* Ukończone (collapsible) */
-.mz-done-row .mz-task-title { color:var(--tz-muted); @apply tw-line-through; }
+$mz_due = static function (?int $d, ?string $date): array {
+    if ($d === null) return ['', ''];
+    if ($d < 0)   return [abs($d) === 1 ? 'wczoraj' : abs($d) . ' dni po terminie', 'is-bad'];
+    if ($d === 0) return ['dziś', 'is-warn'];
+    if ($d === 1) return ['jutro', 'is-warn'];
+    return [$d <= 7 ? 'za ' . $d . ' dni' : date('d.m', strtotime((string)$date)), ''];
+};
+?>
+<style>
+/* ══ Moje zadania (2026-11-10) — Metro jak reszta modułu: nagłówek z kafelkiem (bez kolorowego banera, na którym
+   biały tekst bywał niewidoczny), kafelki liczb, zadania pogrupowane wg terminu, obok wolne i ostatnio ukończone ══ */
+html body #tsk-main .mz-head-av{width:44px;height:44px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:var(--tsk-green);color:#fff;font-size:1rem;font-weight:700}
+html body #tsk-main .mz-kpis{list-style:none;margin:0 0 1.25rem;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px}
+html body #tsk-main .mz-kpis a{display:flex;flex-direction:column;gap:.1rem;padding:.8rem 1rem;background:var(--tm-light);border-left:4px solid var(--tm-field);color:var(--tsk-text);text-decoration:none}
+html body #tsk-main .mz-kpis a:hover{background:var(--tm-light-h)}
+html body #tsk-main .mz-kpis a:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px}
+html body #tsk-main .mz-kpis .is-ok{border-left-color:var(--tsk-green)}
+html body #tsk-main .mz-kpis .is-warn{border-left-color:var(--tm-orange);background:#fff4e5}
+html body #tsk-main .mz-kpis .is-bad{border-left-color:var(--tm-red);background:#fde7e9}
+html body #tsk-main .mz-kpi-n{font-size:1.75rem;font-weight:300;line-height:1.1;font-variant-numeric:tabular-nums}
+html body #tsk-main .mz-kpi-l{font-size:.82rem;color:#3f3f46}
+html body #tsk-main .mz-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:1.25rem;align-items:start}
+@media(min-width:1200px){html body #tsk-main .mz-grid{grid-template-columns:minmax(0,1fr) 380px}}
+html body #tsk-main .mz-card{background:#fff;border:1px solid var(--tm-line);border-top:2px solid var(--tsk-green);margin-bottom:1.25rem}
+html body #tsk-main .mz-card-hd{display:flex;align-items:center;gap:.5rem;margin:0;padding:.75rem 1rem;border-bottom:1px solid var(--tm-line);font-size:1rem;font-weight:600;color:var(--tsk-text)}
+html body #tsk-main .mz-card-hd .mz-n{margin-left:auto;min-width:1.5rem;padding:.05rem .4rem;background:var(--tm-light);font-size:.74rem;font-weight:700;text-align:center}
+html body #tsk-main .mz-grp{margin:0;padding:.6rem 1rem .3rem;font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3f3f46;display:flex;align-items:center;gap:.5rem}
+html body #tsk-main .mz-grp.is-bad{color:var(--tm-red)}
+html body #tsk-main .mz-grp.is-warn{color:var(--tm-orange)}
+html body #tsk-main .mz-grp .mz-n{min-width:1.3rem;padding:.02rem .35rem;background:var(--tm-light);color:var(--tsk-text);font-size:.7rem;text-align:center;letter-spacing:0}
+html body #tsk-main .mz-row{display:flex;align-items:center;gap:.7rem;padding:.6rem 1rem;border-top:1px solid #f0f0f0}
+html body #tsk-main .mz-row:hover{background:#f7f7f7}
+html body #tsk-main .mz-done-btn{width:28px;height:28px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid #8a8886;background:#fff;color:transparent;cursor:pointer}
+html body #tsk-main .mz-done-btn:hover,html body #tsk-main .mz-done-btn:focus-visible{border-color:var(--tsk-green);color:var(--tsk-green);background:var(--tsk-green-bg)}
+html body #tsk-main .mz-done-btn:focus-visible{outline:2px solid var(--tsk-text);outline-offset:1px}
+html body #tsk-main .mz-done-btn.done-ok{background:var(--tsk-green);border-color:var(--tsk-green);color:#fff;pointer-events:none}
+html body #tsk-main .mz-pri{width:10px;height:10px;flex-shrink:0}
+html body #tsk-main .mz-body{flex:1;min-width:0}
+html body #tsk-main .mz-title{display:block;font-weight:600;font-size:.92rem;color:var(--tsk-text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body #tsk-main .mz-title:hover,html body #tsk-main .mz-title:focus-visible{text-decoration:underline}
+html body #tsk-main .mz-meta{font-size:.76rem;color:var(--tm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body #tsk-main .mz-due{flex-shrink:0;padding:.12rem .5rem;font-size:.76rem;font-weight:600;background:var(--tm-light);color:#3f3f46;white-space:nowrap}
+html body #tsk-main .mz-due.is-bad{background:#fde7e9;color:var(--tm-red)}
+html body #tsk-main .mz-due.is-warn{background:#fff4e5;color:#8a3a00}
+html body #tsk-main .mz-open{flex-shrink:0;display:inline-flex;align-items:center;gap:.3rem;min-height:30px;padding:0 .65rem;border:1px solid #8a8886;color:var(--tsk-text);font-size:.8rem;font-weight:600;text-decoration:none}
+html body #tsk-main .mz-open:hover{background:var(--tm-light);color:var(--tsk-text)}
+html body #tsk-main .mz-empty{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:2rem 1rem;text-align:center;color:#3f3f46}
+html body #tsk-main .mz-empty>.bi{font-size:1.8rem;color:var(--tsk-green)}
+html body #tsk-main .mz-done .mz-title{color:var(--tm-muted);text-decoration:line-through}
+@media(prefers-reduced-motion:reduce){html body #tsk-main .mz-row{transition:none!important}}
 </style>
 
 <div class="tsk-main-content">
-<div class="mz-wrap">
 
-  <!-- Hero: tło marki lub zdjęcie usera -->
-  <div class="mz-hero" id="mzHero">
-    <div class="mz-hero__overlay" id="mzHeroOverlay"></div>
-    <div class="mz-hero__body">
-      <div class="mz-hero__av" id="mzHeroAv">
-        <?= h($_mz_initials) ?>
-      </div>
-      <div class="mz-hero__info">
-        <div class="mz-hero__name"><?= h($user['name'] ?? '') ?></div>
-        <div class="mz-hero__sub"><?= h($user['email'] ?? '') ?></div>
-        <div class="mz-hero__stats">
-          <div class="mz-hero__stat">
-            <strong><?= $kpi_active ?></strong>Aktywne
-          </div>
-          <?php if ($kpi_overdue): ?>
-          <div class="mz-hero__stat" style="color:#fca5a5">
-            <strong><?= $kpi_overdue ?></strong>Zaległe
-          </div>
-          <?php endif; ?>
-          <div class="mz-hero__stat">
-            <strong><?= $kpi_done_w ?></strong>Ukończone (7 dni)
-          </div>
-        </div>
-      </div>
-      <div class="mz-hero__actions">
-        <button type="button" class="mz-hero__btn" id="mzHeroBgBtn"
-                title="Zmień tło">
-          <i class="bi bi-image" aria-hidden="true"></i>
-        </button>
-      </div>
-    </div>
-    <!-- Formularz ustawiania własnego zdjęcia -->
-    <div class="mz-hero__photo-form" id="mzPhotoForm">
-      <input type="url" class="mz-hero__photo-inp" id="mzPhotoUrl"
-             placeholder="URL zdjęcia (https://...)">
-      <button type="button" class="mz-hero__btn" id="mzPhotoSave">
-        <i class="bi bi-check2" aria-hidden="true"></i>Ustaw
-      </button>
-      <button type="button" class="mz-hero__btn" id="mzPhotoClear">
-        <i class="bi bi-x" aria-hidden="true"></i>Usuń
-      </button>
-      <button type="button" class="mz-hero__btn" id="mzPhotoClose">
-        <i class="bi bi-chevron-down" aria-hidden="true"></i>
-      </button>
-    </div>
+<div class="tk-head">
+  <h1 class="tk-head-t">
+    <span class="mz-head-av" aria-hidden="true"><?= h($_mz_initials) ?></span>
+    <span>Moje zadania<span class="ws-set-sub"><?= h($user['name'] ?? '') ?><?= !empty($user['email']) ? ' · ' . h($user['email']) : '' ?></span></span>
+  </h1>
+  <div class="tk-head-act">
+    <a class="tk-hbtn" href="<?= APP_URL ?>/tasks/router.php?_route=/kalendarz"><i class="bi bi-calendar3" aria-hidden="true"></i>Kalendarz</a>
+    <a class="tk-hbtn tk-hbtn--cta" href="<?= APP_URL ?>/tasks/router.php?_route=/nowe"><i class="bi bi-plus-lg" aria-hidden="true"></i>Nowe zadanie</a>
   </div>
+</div>
 
-  <!-- KPI -->
-  <div class="mz-kpi-row">
-    <div class="mz-kpi <?= $kpi_active ? 'mz-kpi--ok' : 'mz-kpi--neu' ?>">
-      <span class="mz-kpi__val"><?= $kpi_active ?></span>
-      <span class="mz-kpi__lbl">Aktywne</span>
-    </div>
-    <div class="mz-kpi <?= $kpi_overdue ? 'mz-kpi--red' : 'mz-kpi--ok' ?>">
-      <span class="mz-kpi__val"><?= $kpi_overdue ?></span>
-      <span class="mz-kpi__lbl">Zaległe</span>
-    </div>
-    <div class="mz-kpi <?= $kpi_today ? 'mz-kpi--warn' : 'mz-kpi--neu' ?>">
-      <span class="mz-kpi__val"><?= $kpi_today ?></span>
-      <span class="mz-kpi__lbl">Termin dziś</span>
-    </div>
-    <div class="mz-kpi mz-kpi--neu">
-      <span class="mz-kpi__val"><?= $kpi_done_w ?></span>
-      <span class="mz-kpi__lbl">Ukończone (7 dni)</span>
-    </div>
-  </div>
+<ul class="mz-kpis" aria-label="Podsumowanie moich zadań">
+  <li><a href="#mz-assigned" class="<?= $kpi_active ? 'is-ok' : '' ?>"><span class="mz-kpi-n"><?= $kpi_active ?></span><span class="mz-kpi-l">aktywnych przypisanych</span></a></li>
+  <li><a href="#mz-grp-over" class="<?= $kpi_overdue ? 'is-bad' : '' ?>"><span class="mz-kpi-n"><?= $kpi_overdue ?></span><span class="mz-kpi-l">po terminie</span></a></li>
+  <li><a href="#mz-grp-today" class="<?= $kpi_today ? 'is-warn' : '' ?>"><span class="mz-kpi-n"><?= $kpi_today ?></span><span class="mz-kpi-l">z terminem dziś</span></a></li>
+  <li><a href="#mz-done" class="<?= $kpi_done_w ? 'is-ok' : '' ?>"><span class="mz-kpi-n"><?= $kpi_done_w ?></span><span class="mz-kpi-l">ukończonych w 7 dni</span></a></li>
+</ul>
 
-  <!-- Moje aktywne zadania -->
-  <div class="mz-card">
-    <div class="mz-card__hd">
-      <i class="bi bi-person-check-fill" aria-hidden="true"></i>
-      Przypisane do mnie
-      <?php if ($my_tasks): ?>
-      <span class="badge-cnt"><?= count($my_tasks) ?></span>
-      <?php endif; ?>
-    </div>
-
+<div class="mz-grid">
+  <!-- Przypisane do mnie — pogrupowane wg terminu -->
+  <section class="mz-card" id="mz-assigned" aria-labelledby="mz-assigned-h">
+    <h2 class="mz-card-hd" id="mz-assigned-h"><i class="bi bi-person-check" aria-hidden="true" style="color:var(--tsk-green)"></i>Przypisane do mnie
+      <?php if ($my_tasks): ?><span class="mz-n"><span class="visually-hidden">zadań: </span><?= count($my_tasks) ?></span><?php endif; ?></h2>
     <?php if (!$my_tasks): ?>
     <div class="mz-empty">
-      <i class="bi bi-check2-circle"></i>
-      Nie masz żadnych aktywnych zadań — świetna robota!
+      <i class="bi bi-check2-circle" aria-hidden="true"></i>
+      <span>Nie masz żadnych aktywnych zadań — świetna robota!</span>
+      <?php if ($available): ?><a class="mz-open" href="#mz-free">Zobacz wolne zadania w Twoich obszarach</a><?php endif; ?>
     </div>
-    <?php else: ?>
-
-    <?php foreach ($my_tasks as $t):
-      $due_class = 'mz-due--none';
-      $due_txt   = 'Brak terminu';
-      if ($t['due_date']) {
-          $days = (int)floor((strtotime($t['due_date']) - time()) / 86400);
-          if ($days < 0)       { $due_class = 'mz-due--over'; $due_txt = 'Zaległe ' . abs($days) . ' d'; }
-          elseif ($days === 0) { $due_class = 'mz-due--soon'; $due_txt = 'Dziś'; }
-          elseif ($days <= 3)  { $due_class = 'mz-due--soon'; $due_txt = 'Za ' . $days . ' d'; }
-          else                 { $due_class = 'mz-due--ok';   $due_txt = date('d.m', strtotime($t['due_date'])); }
-      }
-      $pri  = (int)($t['priority'] ?? 2);
-      $pcol = $pri_colors[$pri] ?? '#94a3b8';
-      $plbl = $pri_labels[$pri] ?? 'Normalny';
-    ?>
-    <div class="mz-task-row" id="mzrow-<?= (int)$t['id'] ?>">
-      <button type="button" class="mz-done-btn"
-              data-task-id="<?= (int)$t['id'] ?>"
-              data-csrf="<?= h($_SESSION['csrf'] ?? '') ?>"
-              title="Oznacz jako ukończone"
-              aria-label="Oznacz zadanie „<?= h($t['title']) ?>" jako ukończone">
-        <i class="bi bi-check-lg" aria-hidden="true"></i>
-      </button>
-
-      <span class="mz-dot" style="background:<?= h($pcol) ?>" title="<?= h($plbl) ?>"></span>
-
-      <div class="mz-task-body">
-        <div class="mz-task-title">
-          <a href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$t['id'] ?>"><?= h($t['title']) ?></a>
-        </div>
-        <div class="mz-task-meta">
-          <?php if ($t['ws_name']): ?>
-          <i class="bi bi-layers" style="font-size:.7rem"></i>
-          <?= h($t['ws_name']) ?> &rsaquo;
-          <?php endif; ?>
-          <span style="color:<?= h($t['list_color'] ?: '#6b7280') ?>;font-weight:600">
-            <?= h($t['list_name']) ?>
-          </span>
-        </div>
+    <?php else: foreach ($mz_groups as $gk => [$gl, $gc, $gt]): if (!$gt) continue; ?>
+    <h3 class="mz-grp <?= $gc ?>" id="mz-grp-<?= $gk ?>"><?= h($gl) ?><span class="mz-n"><?= count($gt) ?></span></h3>
+    <?php foreach ($gt as $t):
+      $pri = (int)($t['priority'] ?? 2); [$dl, $dc] = $mz_due($t['_days'], $t['due_date']); ?>
+    <div class="mz-row" id="mzrow-<?= (int)$t['id'] ?>">
+      <button type="button" class="mz-done-btn" data-task-id="<?= (int)$t['id'] ?>" data-csrf="<?= h($_SESSION['csrf'] ?? '') ?>"
+              title="Oznacz jako ukończone" aria-label="Oznacz zadanie „<?= h($t['title']) ?>” jako ukończone"><i class="bi bi-check-lg" aria-hidden="true"></i></button>
+      <span class="mz-pri" style="background:<?= h($pri_colors[$pri] ?? '#94a3b8') ?>" title="Priorytet: <?= h($pri_labels[$pri] ?? 'Normalny') ?>"></span>
+      <div class="mz-body">
+        <a class="mz-title" href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$t['id'] ?>"><?= h($t['title']) ?></a>
+        <div class="mz-meta"><?= h($t['ws_name'] ?? '') ?><?= ($t['ws_name'] ?? '') !== '' ? ' › ' : '' ?><?= h($t['list_name'] ?? '') ?><span class="visually-hidden">, priorytet <?= h($pri_labels[$pri] ?? 'Normalny') ?></span></div>
       </div>
-
-      <span class="mz-due <?= $due_class ?>"><?= h($due_txt) ?></span>
+      <?php if ($dl !== ''): ?><span class="mz-due <?= $dc ?>"><?= h($dl) ?></span><?php endif; ?>
     </div>
-    <?php endforeach; ?>
+    <?php endforeach; endforeach; endif; ?>
+  </section>
 
+  <aside>
+    <?php if ($available): ?>
+    <section class="mz-card" id="mz-free" aria-labelledby="mz-free-h">
+      <h2 class="mz-card-hd" id="mz-free-h"><i class="bi bi-box-seam" aria-hidden="true" style="color:var(--tsk-green)"></i>Wolne w moich obszarach<span class="mz-n"><?= count($available) ?></span></h2>
+      <?php foreach ($available as $t):
+        $pri = (int)($t['priority'] ?? 2);
+        $d = $t['due_date'] ? (int)floor((strtotime($t['due_date']) - $mz_today) / 86400) : null;
+        [$dl, $dc] = $mz_due($d, $t['due_date']); ?>
+      <div class="mz-row">
+        <span class="mz-pri" style="background:<?= h($pri_colors[$pri] ?? '#94a3b8') ?>" title="Priorytet: <?= h($pri_labels[$pri] ?? 'Normalny') ?>"></span>
+        <div class="mz-body">
+          <a class="mz-title" href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$t['id'] ?>"><?= h($t['title']) ?></a>
+          <div class="mz-meta"><?= h($t['ws_name'] ?? '') ?><?= ($t['ws_name'] ?? '') !== '' ? ' › ' : '' ?><?= h($t['list_name'] ?? '') ?></div>
+        </div>
+        <?php if ($dl !== ''): ?><span class="mz-due <?= $dc ?>"><?= h($dl) ?></span><?php endif; ?>
+        <a class="mz-open" href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$t['id'] ?>" aria-label="Otwórz i weź: <?= h($t['title']) ?>">Otwórz</a>
+      </div>
+      <?php endforeach; ?>
+    </section>
     <?php endif; ?>
-  </div>
 
-  <!-- Wolne do wzięcia -->
-  <?php if ($available): ?>
-  <div class="mz-card">
-    <div class="mz-card__hd">
-      <i class="bi bi-box-seam" aria-hidden="true"></i>
-      Wolne w moich obszarach
-      <span class="badge-cnt"><?= count($available) ?></span>
-    </div>
-
-    <?php foreach ($available as $t):
-      $pri  = (int)($t['priority'] ?? 2);
-      $pcol = $pri_colors[$pri] ?? '#94a3b8';
-      $plbl = $pri_labels[$pri] ?? 'Normalny';
-      $due_class = 'mz-due--none'; $due_txt = '';
-      if ($t['due_date']) {
-          $days = (int)floor((strtotime($t['due_date']) - time()) / 86400);
-          if ($days < 0)       { $due_class = 'mz-due--over'; $due_txt = 'Zaległe'; }
-          elseif ($days === 0) { $due_class = 'mz-due--soon'; $due_txt = 'Dziś'; }
-          elseif ($days <= 3)  { $due_class = 'mz-due--soon'; $due_txt = 'Za ' . $days . ' d'; }
-          else                 { $due_class = 'mz-due--ok';   $due_txt = date('d.m', strtotime($t['due_date'])); }
-      }
-    ?>
-    <div class="mz-task-row">
-      <span class="mz-dot" style="background:<?= h($pcol) ?>" title="<?= h($plbl) ?>"></span>
-
-      <div class="mz-task-body">
-        <div class="mz-task-title">
-          <a href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$t['id'] ?>"><?= h($t['title']) ?></a>
+    <?php if ($recent_done): ?>
+    <section class="mz-card mz-done" id="mz-done" aria-labelledby="mz-done-h">
+      <h2 class="mz-card-hd" id="mz-done-h"><i class="bi bi-check-circle" aria-hidden="true" style="color:var(--tsk-green)"></i>Ostatnio ukończone<span class="mz-n"><?= count($recent_done) ?></span></h2>
+      <?php foreach ($recent_done as $t):
+        $days_ago = $t['completed_at'] ? (int)floor((time() - strtotime($t['completed_at'])) / 86400) : 0;
+        $ago_txt  = $days_ago === 0 ? 'dziś' : ($days_ago === 1 ? 'wczoraj' : $days_ago . ' dni temu'); ?>
+      <div class="mz-row">
+        <i class="bi bi-check2" aria-hidden="true" style="color:var(--tsk-green)"></i>
+        <div class="mz-body">
+          <a class="mz-title" href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$t['id'] ?>"><?= h($t['title']) ?></a>
+          <div class="mz-meta"><?= h($t['ws_name'] ?? '') ?><?= ($t['ws_name'] ?? '') !== '' && ($t['list_name'] ?? '') !== '' ? ' › ' : '' ?><?= h($t['list_name'] ?? '') ?></div>
         </div>
-        <div class="mz-task-meta">
-          <?php if ($t['ws_name']): ?>
-          <i class="bi bi-layers" style="font-size:.7rem"></i>
-          <?= h($t['ws_name']) ?> &rsaquo;
-          <?php endif; ?>
-          <span style="color:<?= h($t['list_color'] ?: '#6b7280') ?>;font-weight:600">
-            <?= h($t['list_name']) ?>
-          </span>
-        </div>
+        <span class="mz-due"><?= h($ago_txt) ?></span>
       </div>
+      <?php endforeach; ?>
+    </section>
+    <?php endif; ?>
+  </aside>
+</div>
 
-      <?php if ($due_txt): ?>
-      <span class="mz-due <?= $due_class ?>"><?= h($due_txt) ?></span>
-      <?php endif; ?>
-
-      <a href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$t['id'] ?>"
-         class="btn btn-outline-success btn-sm" style="flex-shrink:0;font-size:.75rem">
-        <i class="bi bi-arrow-right-circle" aria-hidden="true"></i> Otwórz
-      </a>
-    </div>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-
-  <!-- Ostatnio ukończone -->
-  <?php if ($recent_done): ?>
-  <details class="mz-card">
-    <summary class="mz-card__hd" style="cursor:pointer;list-style:none;user-select:none">
-      <i class="bi bi-check-circle-fill" style="color:#059669" aria-hidden="true"></i>
-      Ostatnio ukończone
-      <span class="badge-cnt" style="background:#f0fdf4;color:#059669"><?= count($recent_done) ?></span>
-      <i class="bi bi-chevron-down ms-auto" style="font-size:.8rem;color:var(--tz-muted)" aria-hidden="true"></i>
-    </summary>
-
-    <?php foreach ($recent_done as $t):
-      $days_ago = $t['completed_at']
-          ? (int)floor((time() - strtotime($t['completed_at'])) / 86400)
-          : 0;
-      $ago_txt  = $days_ago === 0 ? 'dziś' : ($days_ago === 1 ? 'wczoraj' : $days_ago . ' dni temu');
-    ?>
-    <div class="mz-task-row mz-done-row">
-      <span class="mz-dot" style="background:#d1d5db"></span>
-
-      <div class="mz-task-body">
-        <div class="mz-task-title">
-          <a href="<?= APP_URL ?>/tasks/index.php?task=<?= (int)$t['id'] ?>"><?= h($t['title']) ?></a>
-        </div>
-        <div class="mz-task-meta">
-          <?= h($t['ws_name'] ?? '') ?>
-          <?php if ($t['ws_name'] && $t['list_name']): ?> &rsaquo; <?php endif; ?>
-          <?= h($t['list_name'] ?? '') ?>
-        </div>
-      </div>
-
-      <span class="mz-due mz-due--ok" style="background:#f0fdf4;color:#059669"><?= h($ago_txt) ?></span>
-    </div>
-    <?php endforeach; ?>
-  </details>
-  <?php endif; ?>
-
-</div><!-- .mz-wrap -->
 </div><!-- .tsk-main-content -->
 
 <script>
@@ -479,60 +290,7 @@ $pri_labels = [4 => 'Krytyczny', 3 => 'Wysoki', 2 => 'Normalny', 1 => 'Niski'];
   });
 })();
 
-/* --- Hero tła: localStorage mzHeroBg = '' | 'color' | url --- */
-(function () {
-  var BRAND   = '<?= addslashes($_mz_brand) ?>';
-  var LS_KEY  = 'mzHeroBg';
-  var hero    = document.getElementById('mzHero');
-  var overlay = document.getElementById('mzHeroOverlay');
-  var bgBtn   = document.getElementById('mzHeroBgBtn');
-  var photoForm = document.getElementById('mzPhotoForm');
-  var photoUrl  = document.getElementById('mzPhotoUrl');
-  var photoSave = document.getElementById('mzPhotoSave');
-  var photoClear = document.getElementById('mzPhotoClear');
-  var photoClose = document.getElementById('mzPhotoClose');
 
-  function applyBg(val) {
-    if (!val || val === 'color') {
-      hero.style.backgroundImage = '';
-      hero.style.backgroundColor = BRAND;
-      overlay.style.display = 'none';
-    } else {
-      hero.style.backgroundImage = 'url(' + val + ')';
-      hero.style.backgroundColor = BRAND;
-      overlay.style.display = '';
-    }
-  }
-
-  var saved = localStorage.getItem(LS_KEY) || '';
-  applyBg(saved);
-  if (saved && saved !== 'color') {
-    photoUrl.value = saved;
-  }
-
-  bgBtn.addEventListener('click', function () {
-    photoForm.classList.toggle('visible');
-  });
-
-  photoSave.addEventListener('click', function () {
-    var url = photoUrl.value.trim();
-    if (!url) return;
-    localStorage.setItem(LS_KEY, url);
-    applyBg(url);
-    photoForm.classList.remove('visible');
-  });
-
-  photoClear.addEventListener('click', function () {
-    localStorage.removeItem(LS_KEY);
-    photoUrl.value = '';
-    applyBg('');
-    photoForm.classList.remove('visible');
-  });
-
-  photoClose.addEventListener('click', function () {
-    photoForm.classList.remove('visible');
-  });
-})();
 </script>
 
 <?php require_once __DIR__ . '/includes/footer_tasks.php'; ?>
