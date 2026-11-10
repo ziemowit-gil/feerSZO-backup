@@ -104,6 +104,20 @@ html body .tsk-pivot-cnt{min-width:1.3rem;height:1.2rem;font-size:.68rem}
 html body .tsk-pivot-more{border-left-color:var(--tm-line)}
 @media(prefers-reduced-motion:reduce){html body .tsk-pivot-link{transition:none}}
 
+/* ══ Dwa tony grafitu (wybór użytkownika 2026-11-10): pasek sekcji grafitowy, o ton jaśniejszy od górnego paska.
+   Nieaktywne sekcje 80% bieli, aktywna biała z jasnozieloną kreską (kontrast z tłem ≥ 3:1), liczniki bez zmian. ══ */
+html body .tsk-pivot{background:#34465a;border-bottom:0;box-shadow:0 1px 0 rgba(0,0,0,.18);color:#fff}
+html body .tsk-pivot-link{color:rgba(255,255,255,.8)}
+html body .tsk-pivot-link i{color:rgba(255,255,255,.7)}
+html body .tsk-pivot-link:hover{background:rgba(255,255,255,.08);color:#fff}
+html body .tsk-pivot-link:hover i{color:#fff}
+html body .tsk-pivot-link.active{color:#fff;border-bottom-color:#6fd27a;background:rgba(255,255,255,.06)}
+html body .tsk-pivot-link.active i{color:#6fd27a}
+html body .tsk-pivot-link:focus-visible{outline:2px solid #fff!important;outline-offset:-3px!important}
+html body .tsk-pivot-more{border-left-color:rgba(255,255,255,.16)}
+html body .tsk-pivot-cnt.is-off{background:rgba(255,255,255,.16);color:#fff}
+html body .tsk-pivot-chev{opacity:.8}
+
 /* ── Treść ───────────────────────────────────────────────────────────────── */
 /* Pełna szerokość okna (jak CRM) — wcześniej pas 1320 px pośrodku; górny pasek, sekcje i treść równo z marginesem bocznym */
 html body #tsk-main,html body .tsk-navbar>.container-xl,html body .tsk-pivot>.tsk-pivot-inner{max-width:none;width:100%;
