@@ -187,7 +187,13 @@ final class ClaudeBillingController
         return $this->act(function () use ($cid, $p) {
             $a = $this->actor();
             $sub = ClaudeBilling::activate($cid, $a, false, (string)($_POST['date'] ?? '') ?: null, false, (int)($_POST['due_day'] ?? 0) ?: null, null, $p);
-            return 'Włączono ' . ClaudeBilling::P($p)['label'] . ': ' . $sub['client_name'] . '.' . (ClaudeBilling::invoiceDataGaps($sub) ? ' Uzupełnij dane do faktury VAT na karcie abonamentu.' : '');
+            $office = '';
+            if (!empty(ClaudeBilling::P($p)['requiresEdu']) && !ClaudeBilling::eduAccount($cid)) {   // Claude działa z kontem Office: sprawdź w tenancie EDU, a gdy go nie ma, załóż
+                require_once __DIR__ . '/LicenceOffice.php';
+                $o = LicenceOffice::ensure($cid, ['name' => $a['name'] . ' (panel dydaktyka)', 'via' => 'panel dydaktyka']);
+                $office = ' Konto Office: ' . $o['text'] . (!empty($o['password']) ? ' Hasło tymczasowe: ' . $o['password'] . '.' : '');
+            }
+            return 'Włączono ' . ClaudeBilling::P($p)['label'] . ': ' . $sub['client_name'] . '.' . (ClaudeBilling::invoiceDataGaps($sub) ? ' Uzupełnij dane do faktury VAT na karcie abonamentu.' : '') . $office;
         }, '', route('cb.index', ['product' => $p, 'tab' => 'uczestnicy']));
     }
 
@@ -207,6 +213,24 @@ final class ClaudeBillingController
             return ($new ? 'Założono konto w panelu licencji' : 'Nowe hasło do panelu licencji') . ' dla ' . $c['name'] . ': numer w panelu licencji (login) ' . $login . ', hasło ' . $pass
                 . ' — przekaż je uczestnikowi (pokazujemy je tylko teraz). Logowanie: https://kursant.feer.org.pl/licencje/';
         }, '', route('cb.index', ['product' => $p, 'tab' => 'uczestnicy', 'q' => (string)($_POST['q'] ?? '')]));
+    }
+
+    /** Konto Office uczestnika (inicjał.nazwisko@edu): sprawdzenie w tenancie EDU, a gdy go nie ma, założenie (login e-mailem, hasło SMS-em). */
+    public function office(string $cid): ?string
+    {
+        $p = $this->product();
+        $back = (string)($_POST['back'] ?? '');
+        if (preg_match('/^show:(\d+)$/', $back, $m)) $to = route('cb.show', ['id' => (int)$m[1]]);
+        elseif (str_starts_with($back, 'uczestnicy:')) $to = route('cb.index', ['product' => $p, 'tab' => 'uczestnicy', 'q' => substr($back, 11)]);
+        else $to = route('cb.index', ['product' => $p, 'tab' => in_array($back, ['wnioski', 'abonamenty'], true) ? $back : 'wnioski']);
+        return $this->act(function () use ($cid) {
+            require_once __DIR__ . '/LicenceOffice.php';
+            $c = ClaudeBilling::client((int)$cid);
+            if (!$c) throw new DomainException('Nie ma takiego uczestnika.');
+            $r = LicenceOffice::ensure((int)$cid, ['name' => $this->actor()['name'] . ' (panel dydaktyka)', 'via' => 'panel dydaktyka']);
+            if (empty($r['ok'])) throw new DomainException($c['name'] . ': ' . $r['text']);
+            return $c['name'] . ': ' . $r['text'] . (!empty($r['password']) ? ' Hasło tymczasowe (pokazujemy je tylko teraz): ' . $r['password'] : '');
+        }, '', $to);
     }
 
     // ── Karta abonamentu ────────────────────────────────────────────────────────

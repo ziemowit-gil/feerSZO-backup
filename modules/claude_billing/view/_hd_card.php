@@ -36,9 +36,12 @@ $lrStep = fn(bool $done, string $txt) => '<li class="' . ($done ? 'text-success'
       <?php endforeach; ?>
     </div>
     <?php endif; ?>
-    <?php if (!empty($lrP['requiresEdu'])): ?>
-      <div class="mb-1"><?= $hd_lr['edu'] ? 'Konto @' . h(ClaudeBilling::EDU_DOMAIN) . ': <span class="font-monospace">' . h($hd_lr['edu']) . '</span>'
-          : '<span class="text-danger">Brak konta @' . h(ClaudeBilling::EDU_DOMAIN) . '.</span> Załóż: <span class="font-monospace">' . h($hd_lr['eduReq']['proposed'] ?? '') . '</span> i wpisz je w Ewidencji Uczestników (konto Microsoft).' ?></div>
+    <?php $lrO = $hd_lr['office'] ?? ['upn' => '', 'ok' => false, 'label' => '', 'state' => '', 'checked' => '']; ?>
+    <div class="mb-1">Konto Office: <?= $lrO['upn'] !== '' ? '<span class="font-monospace">' . h($lrO['upn']) . '</span>' : '<span class="text-danger">brak imienia lub nazwiska w kartotece</span>' ?>
+      (<?= h($lrO['ok'] ? 'aktywne' : $lrO['label']) ?><?= $lrO['checked'] !== '' ? ', sprawdzono ' . h($lrO['checked']) : '' ?>)</div>
+    <?php if (!$lrO['ok']): ?>
+      <?php if (!empty($lrP['requiresEdu'])): ?><div class="text-muted mb-1"><?= h($lrP['label']) ?> działa z kontem Office. Przy aktywacji SZO sprawdzi tenant EDU i założy konto, jeśli go nie ma (login e-mailem, hasło SMS-em).</div><?php endif; ?>
+      <?= $lrForm('office', 'Sprawdź w tenancie EDU / załóż konto Office', 'btn-outline-secondary') ?>
     <?php endif; ?>
     <?php if ($hd_lr['pool'] !== null && !$hd_lr['assignment']): ?><div class="mb-1">Licencja z puli Fundacji przy aktywacji: <?= $hd_lr['pool'] ? 'jest wolne miejsce' : '<span class="text-danger">brak wolnych licencji</span>' ?>.</div><?php endif; ?>
     <div class="text-muted mb-1">Fakturownia: <?= $hd_lr['live'] ? 'podłączona' : 'niepodłączona, dokumenty w symulacji' ?>. Przez Fakturownię idą tylko faktury z licencji. Konfiguracja: Administracja › <a href="<?= h(APP_URL) ?>/admin/invoices_settings.php">Faktury</a>, pola „Konto Fakturowni” i „Token API” (administrator).</div>

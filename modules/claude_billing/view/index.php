@@ -21,6 +21,20 @@ $fkAcc = trim((string)org_setting('fakturownia_account'));
 $win = !$s['enabled'] ? ['wyłączone', 'bad'] : (($s['available_until'] !== '' && $s['available_until'] < date('Y-m-d')) ? ['zamknięte od ' . ClaudeBilling::date($s['available_until']), 'bad']
      : (($s['available_from'] !== '' && $s['available_from'] > date('Y-m-d')) ? ['od ' . ClaudeBilling::date($s['available_from']), 'due'] : ['otwarte' . ($s['available_until'] !== '' ? ' do ' . ClaudeBilling::date($s['available_until']) : ''), 'ok']));
 $tabs = ['wnioski' => 'Wnioski', 'abonamenty' => 'Abonamenty', 'uczestnicy' => 'Uczestnicy', 'cena' => 'Cena i zamawianie', 'ustawienia' => 'Ustawienia'];
+require_once dirname(__DIR__) . '/logic/LicenceOffice.php';
+// Konto Office uczestnika (inicjał.nazwisko@edu) w każdej zakładce: stan z SZO (bez pytania tenanta przy wyświetlaniu); przycisk sprawdza tenant EDU i zakłada konto, gdy go nie ma
+$officeCell = function (int $cid, string $back = '') use ($tag, $product): string {
+    $o = LicenceOffice::summary($cid);
+    $out = $o['upn'] !== '' ? '<span class="font-monospace small">' . h($o['upn']) . '</span> ' : '';
+    $out .= $o['ok'] ? $tag('ok', 'aktywne') : $tag($o['state'] === 'error' ? 'bad' : 'off', $o['label']);
+    if ($o['checked'] !== '') $out .= '<span class="d-block small text-secondary">sprawdzono ' . h($o['checked']) . '</span>';
+    if ($back !== '' && !$o['ok']) {
+        $out .= '<form method="post" action="' . h(route('cb.office', ['cid' => $cid])) . '" class="mt-1">' . Router::csrfField()
+              . '<input type="hidden" name="product" value="' . h($product) . '"><input type="hidden" name="back" value="' . h($back) . '">'
+              . '<button class="cb-btn ghost" type="submit">Sprawdź / załóż<span class="visually-hidden"> konto Office</span></button></form>';
+    }
+    return $out;
+};
 $reqForm = function (int $sid, string $act, string $label, string $cls, string $extra = '') {
     return '<form method="post" action="' . h(route('cb.req', ['id' => $sid, 'act' => $act])) . '" class="d-inline-block">' . Router::csrfField() . $extra
          . '<button class="cb-btn ' . h($cls) . '" type="submit">' . h($label) . '</button></form>';
@@ -59,7 +73,7 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
 <?php if (!$requests): ?><p>Brak wniosków o <?= h($P['label']) ?> do obsługi.</p><?php else: ?>
 <div class="table-responsive"><table class="table table-sm">
   <caption class="visually-hidden">Wnioski o <?= h($P['label']) ?></caption>
-  <thead><tr><th scope="col">Uczestnik</th><th scope="col">Złożony</th><th scope="col">Kroki</th><th scope="col">Helpdesk</th><th scope="col">Następny krok</th></tr></thead>
+  <thead><tr><th scope="col">Uczestnik</th><th scope="col">Złożony</th><th scope="col">Kroki</th><th scope="col">Konto Office</th><th scope="col">Helpdesk</th><th scope="col">Następny krok</th></tr></thead>
   <tbody>
   <?php foreach ($requests as $r): $ch = $r['charge']; $paid = $ch && $ch['status'] === 'paid'; $inv = $ch ? (string)$ch['invoice_number'] : ''; $sid = (int)$r['id']; ?>
     <tr>
@@ -70,6 +84,7 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
         <li class="<?= $paid ? 'done' : 'todo' ?>"><?= $paid ? 'Wpłata ' . h(ClaudeBilling::date((string)$ch['paid_at'])) . ' (' . h((string)$ch['paid_via']) . ')' : 'Wpłata: jeszcze nie ma' ?></li>
         <li class="<?= $inv !== '' ? 'done' : 'todo' ?>"><?= $inv !== '' ? 'Faktura ' . h($inv) . ' · <a href="' . h(route('cb.doc', ['id' => (int)$ch['id'], 'doc' => 'invoice'])) . '" download>pobierz PDF<span class="visually-hidden"> faktury</span></a>' : 'Faktura VAT: po wpłacie' ?></li>
       </ul></td>
+      <td><?= $officeCell((int)$r['client_id'], 'wnioski') ?></td>
       <td><?= (int)($r['helpdesk_ticket_id'] ?? 0) ? '<a href="' . h(APP_URL) . '/helpdesk/view.php?id=' . (int)$r['helpdesk_ticket_id'] . '" target="_blank" rel="noopener">' . h($r['helpdesk_number'] ?: 'zgłoszenie') . '<span class="visually-hidden"> (nowa karta)</span></a>' : h($r['helpdesk_number'] ?: '—') ?></td>
       <td>
         <?php if ($ch && !$paid): ?>
@@ -95,7 +110,7 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
 <?php if (!$rows): ?><p>Brak abonamentów w tym widoku.</p><?php else: ?>
 <div class="table-responsive"><table class="table table-sm align-middle">
   <caption class="visually-hidden">Abonamenty <?= h($P['label']) ?></caption>
-  <thead><tr><th scope="col">Uczestnik</th><th scope="col">Stan</th><th scope="col">Od</th><th scope="col" class="text-end">Do zapłaty</th><th scope="col">Najbliższy termin</th><th scope="col">Dane do FV</th><th scope="col">Helpdesk</th></tr></thead>
+  <thead><tr><th scope="col">Uczestnik</th><th scope="col">Stan</th><th scope="col">Od</th><th scope="col" class="text-end">Do zapłaty</th><th scope="col">Najbliższy termin</th><th scope="col">Dane do FV</th><th scope="col">Konto Office</th><th scope="col">Helpdesk</th></tr></thead>
   <tbody>
   <?php foreach ($rows as $r): $g = ClaudeBilling::invoiceDataGaps($r); ?>
     <tr>
@@ -105,6 +120,7 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
       <td class="text-end text-nowrap"><?= (int)$r['n_pending'] ? h(ClaudeBilling::zl((float)$r['sum_pending'])) . ' (' . (int)$r['n_pending'] . ')' : '—' ?></td>
       <td class="text-nowrap<?= $r['next_due'] && $r['next_due'] < date('Y-m-d') ? ' text-danger fw-bold' : '' ?>"><?= h(ClaudeBilling::date($r['next_due'])) ?></td>
       <td><?= $g ? $tag('bad', 'brak: ' . implode(', ', $g)) : 'komplet' ?></td>
+      <td><?= $officeCell((int)$r['client_id']) ?></td>
       <td><?= h($r['helpdesk_number'] ?: '—') ?></td>
     </tr>
   <?php endforeach; ?>
@@ -120,10 +136,11 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
 <?php if ($found): ?>
 <div class="table-responsive"><table class="table table-sm">
   <caption class="visually-hidden">Wyniki wyszukiwania</caption>
-  <thead><tr><th scope="col">Uczestnik</th><th scope="col">Licencja <?= h($P['label']) ?></th><th scope="col">Abonament</th><th scope="col">Włącz za uczestnika</th><th scope="col">Panel licencji</th></tr></thead><tbody>
+  <thead><tr><th scope="col">Uczestnik</th><th scope="col">Licencja <?= h($P['label']) ?></th><th scope="col">Abonament</th><th scope="col">Konto Office</th><th scope="col">Włącz za uczestnika</th><th scope="col">Panel licencji</th></tr></thead><tbody>
   <?php foreach ($found as $c): $ll = LicenseLogin::get((int)$c['id']); ?>
     <tr><td><?= h($c['name']) ?></td><td><?= $c['claude'] ? h($c['claude']['license_name']) : '<span class="text-secondary">nieprzypisana</span>' ?></td>
       <td><?= $c['sub'] ? '<a href="' . h(route('cb.show', ['id' => (int)$c['sub']['id']])) . '">' . $tag($stCls[$c['sub']['status']] ?? 'off', ClaudeBilling::STATUS[$c['sub']['status']] ?? '') . '</a>' : '—' ?></td>
+      <td><?= $officeCell((int)$c['id'], 'uczestnicy:' . $q) ?></td>
       <td><?php if (!$c['sub'] || $c['sub']['status'] === 'ended'): ?>
         <form method="post" action="<?= h(route('cb.activate')) ?>" class="d-flex gap-1 align-items-center"><?= Router::csrfField() ?><input type="hidden" name="product" value="<?= h($product) ?>"><input type="hidden" name="client_id" value="<?= (int)$c['id'] ?>">
           <label class="visually-hidden" for="cb-d<?= (int)$c['id'] ?>">Data włączenia</label><input class="form-control form-control-sm" style="width:150px" type="date" id="cb-d<?= (int)$c['id'] ?>" name="date" value="<?= date('Y-m-d') ?>">

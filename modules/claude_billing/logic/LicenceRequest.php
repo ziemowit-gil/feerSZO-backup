@@ -58,14 +58,14 @@ final class LicenceRequest
         ]);
         ClaudeBilling::event($id, null, 'requested', 'Wniosek o ' . $P['label'] . ' (kreator w panelu licencji). Warunki zaakceptowane ' . date('d.m.Y H:i') . (($actor['ip'] ?? '') !== '' ? ', IP ' . $actor['ip'] : '') . '.', (string)($actor['name'] ?? ''));
         $edu = '';
-        if (!empty($el['needEdu']) && !ClaudeBilling::eduRequest($cid)) {   // konto @edu do założenia — w tym samym zgłoszeniu
-            $edu = ClaudeBilling::eduProposal($cid);
-            db_insert('license_edu_requests', ['client_id' => $cid, 'proposed' => $edu, 'helpdesk_number' => '', 'created_by' => (string)($actor['name'] ?? '')]);
+        if (!empty($el['needEdu'])) {   // konto Office (inicjał.nazwisko@edu): sprawdzamy w tenancie EDU; gdy go nie ma, SZO założy je przy aktywacji
+            require_once __DIR__ . '/LicenceOffice.php';
+            $o = LicenceOffice::check($cid, (string)($actor['name'] ?? ''));
+            $edu = in_array($o['state'], ['exists', 'created'], true) ? '' : 'Konto Office ' . $o['upn'] . ': ' . $o['text'] . ' SZO założy je przy aktywacji dostępu.';
         }
         $sub = ClaudeBilling::subscription($id);
         $charge = ClaudeBilling::createCharge($sub, substr($today, 0, 7), $today);   // proforma (Fakturownia) + portal płatności + e-mail
-        $num = ClaudeBilling::helpdesk(ClaudeBilling::subscription($id), 'wniosek', $actor, $charge, $edu !== '' ? 'Konto @' . ClaudeBilling::EDU_DOMAIN . ' do założenia: ' . $edu : '');
-        if ($edu !== '' && $num) db_exec("UPDATE license_edu_requests SET helpdesk_number=? WHERE client_id=?", [$num, $cid]);
+        ClaudeBilling::helpdesk(ClaudeBilling::subscription($id), 'wniosek', $actor, $charge, $edu);
         require_once __DIR__ . '/LicenceCrm.php';
         LicenceCrm::addClient($cid);   // grupa CRM „TI - płatne licencje i oprogramowanie” (bez wyjątków)
         return ClaudeBilling::subscription($id) + ['charge' => $charge];
@@ -82,6 +82,7 @@ final class LicenceRequest
         require_once __DIR__ . '/ClaudeInvoice.php';
         return ['sub' => $sub, 'P' => ClaudeBilling::P(ClaudeBilling::productOf($sub)), 'charge' => $ch ? ClaudeBilling::charge((int)$ch['id']) : null,
                 'edu' => ClaudeBilling::eduAccount((int)$sub['client_id']), 'eduReq' => ClaudeBilling::eduRequest((int)$sub['client_id']),
+                'office' => (function () use ($sub) { require_once __DIR__ . '/LicenceOffice.php'; return LicenceOffice::summary((int)$sub['client_id']); })(),
                 'assignment' => ClaudeBilling::assignment((int)$sub['client_id'], ClaudeBilling::productOf($sub)), 'virtual' => ClaudeBilling::isVirtual((int)$sub['client_id']),
                 'live' => ClaudeInvoice::live(), 'pool' => ClaudeBilling::poolProduct(ClaudeBilling::productOf($sub)) ? ClaudeBilling::poolHasFree(ClaudeBilling::productOf($sub)) : null];
     }
@@ -146,9 +147,12 @@ final class LicenceRequest
         $ch = self::firstCharge($subId);
         if ($ch && $ch['status'] !== 'paid') throw new DomainException('Najpierw musi dotrzeć wpłata.');
         if ($ch && (string)$ch['invoice_number'] === '') throw new DomainException('Najpierw wystaw fakturę VAT.');
-        if (!empty($P['requiresEdu']) && !ClaudeBilling::eduAccount($cid)) {
-            $req = ClaudeBilling::eduRequest($cid);
-            throw new DomainException($P['label'] . ' działa tylko z kontem @' . ClaudeBilling::EDU_DOMAIN . '. Najpierw załóż konto' . ($req ? ' ' . $req['proposed'] : '') . ' i wpisz je w Ewidencji Uczestników (konto Microsoft).');
+        $officeNote = '';
+        if (!empty($P['requiresEdu']) && !ClaudeBilling::eduAccount($cid)) {   // konto Office: sprawdź w tenancie EDU, a gdy go nie ma, załóż
+            require_once __DIR__ . '/LicenceOffice.php';
+            $o = LicenceOffice::ensure($cid, $actor);
+            if (empty($o['ok'])) throw new DomainException($P['label'] . ' działa tylko z kontem @' . ClaudeBilling::EDU_DOMAIN . '. ' . $o['text']);
+            $officeNote = ' ' . $o['text'] . (!empty($o['password']) ? ' Hasło tymczasowe do przekazania: ' . $o['password'] . '.' : '');
         }
         $a = ClaudeBilling::assignment($cid, $product);
         $poolNote = '';
@@ -166,11 +170,11 @@ final class LicenceRequest
         db_exec("UPDATE claude_subscriptions SET status='active', activated_on=?, cycle_start=?, assignment_id=COALESCE(?, assignment_id), updated_at=datetime('now') WHERE id=? AND status='requested'",
             [$today, $today, $a['id'] ?? null, $subId]);
         if ($ch && $ch['period'] !== substr($today, 0, 7)) db_exec("UPDATE claude_charges SET period=? WHERE id=?", [substr($today, 0, 7), (int)$ch['id']]);   // pierwsza wpłata pokrywa miesiąc aktywacji
-        ClaudeBilling::event($subId, null, 'activated', 'Dostęp ' . $P['label'] . ' aktywowany z Helpdesku od ' . ClaudeBilling::date($today) . ' (' . ($actor['name'] ?? '') . ').' . $poolNote, (string)($actor['name'] ?? ''));
+        ClaudeBilling::event($subId, null, 'activated', 'Dostęp ' . $P['label'] . ' aktywowany z Helpdesku od ' . ClaudeBilling::date($today) . ' (' . ($actor['name'] ?? '') . ').' . $poolNote . preg_replace('/ Hasło tymczasowe do przekazania: .*$/u', '', $officeNote), (string)($actor['name'] ?? ''));
         $sub = ClaudeBilling::subscription($subId);
-        self::note((int)$sub['helpdesk_ticket_id'], 'Dostęp ' . $P['label'] . ' aktywowany od ' . ClaudeBilling::date($today) . '.' . $poolNote . ' Kolejne opłaty: co miesiąc, automatycznie. Zgłoszenie można zamknąć.', (string)($actor['name'] ?? ''));
+        self::note((int)$sub['helpdesk_ticket_id'], 'Dostęp ' . $P['label'] . ' aktywowany od ' . ClaudeBilling::date($today) . '.' . $poolNote . preg_replace('/ Hasło tymczasowe do przekazania: .*$/u', '', $officeNote) . ' Kolejne opłaty: co miesiąc, automatycznie. Zgłoszenie można zamknąć.', (string)($actor['name'] ?? ''));
         ClaudeBilling::notifyParticipant($sub, 'aktywny', $ch);
-        return 'Dostęp ' . $P['label'] . ' aktywny od dziś.' . $poolNote . ' Uczestnik dostał e-mail.';
+        return 'Dostęp ' . $P['label'] . ' aktywny od dziś.' . $poolNote . $officeNote . ' Uczestnik dostał e-mail.';
     }
 
     /** Uczestnik wycofuje wniosek (przed aktywacją, bez wpłaty). */

@@ -44,7 +44,7 @@ $fa = fn(string $k) => isset($err[$k]) ? ' aria-invalid="true" aria-describedby=
     <li>Potem co miesiąc: proforma, wpłata, faktura. Zrezygnować możesz w każdej chwili.</li>
   </ol>
   <?php if ($eduProposal !== ''): ?>
-  <div class="pk-alert pk-alert-info"><?= h($P['label']) ?> działa tylko z kontem @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Nie masz go, więc razem z wnioskiem poprosimy o konto <b class="m-mono"><?= h($eduProposal) ?></b>. Założy je Helpdesk przed włączeniem dostępu.</div>
+  <div class="pk-alert pk-alert-info"><?= h($P['label']) ?> działa tylko z kontem Microsoft 365 @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Nie masz go jeszcze. Założymy konto <b class="m-mono"><?= h($eduProposal) ?></b> przy włączeniu dostępu. Login dostaniesz e-mailem, hasło tymczasowe SMS-em.</div>
   <?php elseif ($eduReq): ?>
   <div class="pk-alert pk-alert-info">Konto <b class="m-mono"><?= h($eduReq['proposed']) ?></b> jest w przygotowaniu. Helpdesk włączy dostęp, gdy będzie gotowe.</div>
   <?php endif; ?>

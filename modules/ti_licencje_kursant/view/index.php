@@ -6,7 +6,7 @@ if (!isset($me, $paid)) { header('Location: /karty30/ti/kursant/licencje/', true
  * Menu po lewej prowadzi do podstron. Wygląd Metro: znaczniki stanu m-tag (ok / due / bad / off). Office: konto @edu.feer.org.pl = Office aktywny.
  * Każdą operację potwierdza kod jednorazowy (SMS). Konto testowe ($virtual): dokumenty w symulacji (SYM, PDF do pobrania) i symulowana wpłata.
  * Numery ($ids): numer w panelu licencji (l + 8 cyfr, nadany raz, nim się logujesz) i nr beneficjenta (student_no z Ewidencji Uczestników).
- * Zmienne: $page, $ids, $virtual, $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $flash, $err, $old, $org.
+ * Zmienne: $page, $ids, $virtual, $me, $paid, $software, $termOk, $office, $am5, $ops, $products, $prodMonthly, $feerUpn, $p24on, $login, $hasPassword, $minor, $contact, $eduAccount, $officeAcc, $flash, $err, $old, $org.
  */
 $C = LicencjeKursantController::class;
 $U = fn(string $k) => LicencjeKursantController::pageUrl($k);
@@ -24,6 +24,19 @@ foreach ($paid as $pk => $v) {
     $tiles[$pk] = [$v['P']['label'], $st, $n ? 'do zapłaty ' . ClaudeBilling::zl($due) : ($open ? 'opłacone' : ''), $n > 0];
 }
 $tiles['office'] = ['Office', $eduAccount ? ['aktywny', 'ok'] : ($office ? ['wniosek', 'due'] : ['brak', 'off']), $eduAccount ? (string)$eduAccount : '', false];
+// Konto Office (inicjał.nazwisko@edu) — stan i przycisk „Załóż konto Office” (sprawdza tenant EDU; gdy konta nie ma, zakłada je; kod jednorazowy)
+$officeBox = function (string $back) use ($officeAcc, $virtual) {
+    $oa = $officeAcc ?: ['upn' => '', 'state' => '', 'note' => ''];
+    echo '<div class="m-row" style="border-top:0;padding-top:0">';
+    echo '<p class="tw-text-sm">Konto Office będzie miało login <span class="m-mono tw-font-semibold">' . h((string)$oa['upn'] ?: '(brak imienia lub nazwiska w kartotece)') . '</span>. Login dostaniesz e-mailem, hasło tymczasowe SMS-em.</p>';
+    if (($oa['state'] ?? '') === 'error' && ($oa['note'] ?? '') !== '') echo '<p class="m-note">Ostatnia próba się nie udała. Spróbuj jeszcze raz albo napisz do biura.</p>';
+    if ((string)$oa['upn'] !== '') {
+        echo '<form method="post" action="' . h(route('lk.edu')) . '" class="tw-mt-2">' . Router::csrfField() . '<input type="hidden" name="back" value="' . h($back) . '">'
+           . '<button class="m-btn" type="submit">Załóż konto Office</button></form>';
+        echo '<p class="m-note tw-mt-1">' . ($virtual ? 'Konto testowe: tylko symulacja, bez Microsoft 365.' : 'Najpierw sprawdzimy, czy takie konto już masz. Jeśli tak, po prostu je połączymy.') . '</p>';
+    }
+    echo '</div>';
+};
 $tiles['programy'] = ['Programy i klucze', $software ? [count($software) . ' ' . (count($software) === 1 ? 'program' : 'programy'), 'ok'] : ['brak', 'off'], '', false];
 $tiles['materialy'] = ['Materiały dydaktyczne', $am5 ? [count($am5) . ' ' . (count($am5) === 1 ? 'licencja' : 'licencje'), 'ok'] : ['brak', 'off'], '', false];
 $tiles['sprawy'] = ['Moje sprawy', $ops ? [count($ops) . ' ' . (count($ops) === 1 ? 'sprawa' : 'sprawy'), 'due'] : ['brak', 'off'], '', false];
@@ -34,7 +47,8 @@ foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $d
 $PAGE_TITLE = $page === 'start' ? 'Moje licencje' : ($tiles[$page][0] ?? 'Moje licencje');
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
-$idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono">' . h($ids['lic']) . '</b> · Nr beneficjenta: <b class="m-mono">' . h($ids['ben'] !== '' ? $ids['ben'] : 'nie nadano') . '</b></p>';
+$idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono">' . h($ids['lic']) . '</b> · Nr beneficjenta: <b class="m-mono">' . h($ids['ben'] !== '' ? $ids['ben'] : 'nie nadano') . '</b>'
+    . ' · Konto Office: ' . ($eduAccount ? '<b class="m-mono">' . h((string)$eduAccount) . '</b>' : '<a href="' . h(route('lk.office')) . '">brak, załóż</a>') . '</p>';   // Office na każdej podstronie (polecenie 2026-11-10)
 ?>
 <?php if ($page === 'start'): ?>
 <h1 class="m-title">Moje licencje</h1>
@@ -201,10 +215,11 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
 
     <?php elseif (!$v['eligible']['ok']): ?>
       <p class="tw-text-sm"><?= h($v['eligible']['reason']) ?></p>
+      <?php if (!empty($v['eligible']['needEdu'])) $officeBox('claude'); ?>
       <?php $proj(); ?>
     <?php else: ?>
       <?php $proj(); ?>
-      <?php if (!empty($v['eligible']['needEdu'])): ?><p class="tw-text-sm tw-mb-3"><?= h($P['label']) ?> działa tylko z kontem @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Nie masz go, więc poprosimy o nie razem z wnioskiem.</p><?php endif; ?>
+      <?php if (!empty($v['eligible']['needEdu'])): ?><p class="tw-text-sm tw-mb-2"><?= h($P['label']) ?> działa tylko z kontem Microsoft 365 @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Nie masz go jeszcze. Możesz je założyć teraz albo zostawić to nam: założymy je przy włączeniu dostępu.</p><?php $officeBox('claude'); ?><?php endif; ?>
       <a class="m-btn" href="<?= h(route('lk.wizard', ['product' => $pk])) ?>">Złóż wniosek o <?= h($P['label']) ?></a>
       <p class="m-note tw-mt-2">Trzy kroki: co dostajesz, dane do faktury, podsumowanie. Potem dostajesz proformę z Fakturowni, a po wpłacie Helpdesk wystawia fakturę VAT i włącza dostęp.</p>
     <?php endif; ?>
@@ -219,6 +234,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
 <?php if ($page === 'office'): ?>
 <h1 class="m-title">Licencje na Office</h1>
 <p class="m-explain">Word, Excel, PowerPoint, Outlook i Teams. Office działa z kontem @<?= h(ClaudeBilling::EDU_DOMAIN) ?>.</p>
+<?= $idsLine ?>
 <section class="m-tile" aria-label="Licencje na Office">
   <?php if ($eduAccount): $hintE = rawurlencode($eduAccount); ?>
   <div class="m-row" style="border-top:0;padding-top:0">
@@ -228,7 +244,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
     <p class="tw-text-sm tw-mt-1"><a href="https://www.office.com/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Otwórz Office<span class="tw-sr-only"> (nowa karta)</span></a> · <a href="https://outlook.office.com/mail/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Poczta<span class="tw-sr-only"> (nowa karta)</span></a> · <a href="https://teams.microsoft.com/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Teams<span class="tw-sr-only"> (nowa karta)</span></a></p>
   </div>
   <?php endif; ?>
-  <?php if (!$office && !$eduAccount): ?><p class="tw-text-sm m-muted">Nie masz Office ani konta @<?= h(ClaudeBilling::EDU_DOMAIN) ?>. Wniosek składa prowadzący.</p><?php endif; ?>
+  <?php if (!$eduAccount): ?><?php $officeBox('office'); ?><?php endif; ?>
   <?php foreach ($office as $o): $g = $o['request_status'] === 'granted'; ?>
   <div class="m-row">
     <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3">
@@ -249,6 +265,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
 <?php if ($page === 'programy'): ?>
 <h1 class="m-title">Programy i klucze</h1>
 <p class="m-explain">Programy, które przypisała Ci Fundacja, z loginami i kluczami. Nie przekazuj ich nikomu.</p>
+<?= $idsLine ?>
 <section class="m-tile" aria-label="Programy i klucze">
   <?php if (!$software): ?><p class="tw-text-sm m-muted">Nie masz przypisanych programów.</p><?php endif; ?>
   <?php if ($software && !$termOk): ?><div class="pk-alert pk-alert-info">Loginy i klucze są ukryte, dopóki nie zaakceptujesz oświadczenia o poufności (panel uczestnika, zakładka Regulaminy).</div><?php endif; ?>
@@ -275,6 +292,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
 <?php if ($page === 'materialy'): ?>
 <h1 class="m-title">Materiały dydaktyczne</h1>
 <p class="m-explain">Licencje na materiały do zajęć. Dostęp dostajesz po odesłaniu oświadczenia, link przychodzi e-mailem.</p>
+<?= $idsLine ?>
 <section class="m-tile" aria-label="Materiały dydaktyczne">
   <?php if (!$am5): ?><p class="tw-text-sm m-muted">Brak licencji na materiały do zajęć.</p><?php endif; ?>
   <?php foreach ($am5 as $x): ?>
@@ -292,6 +310,7 @@ $idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono"
 <?php if ($page === 'sprawy'): ?>
 <h1 class="m-title">Moje sprawy</h1>
 <p class="m-explain">Twoje wnioski licencyjne: przyznanie, zwrot kosztów, zmiana płatnika lub planu, zawieszenie, przedłużenie. Tu widać, na jakim są etapie.</p>
+<?= $idsLine ?>
 <section class="m-tile" aria-label="Moje sprawy">
   <?php if (!$ops): ?><p class="tw-text-sm m-muted">Brak spraw licencyjnych.</p><?php endif; ?>
   <?php foreach ($ops as $o): ?>
@@ -309,6 +328,7 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
 <?php if ($page === 'produkty'): ?>
 <h1 class="m-title">Produkty i usługi</h1>
 <p class="m-explain">Domeny, hosting i inne usługi, które Fundacja kupuje dla Ciebie i refakturuje. Płacisz za nie osobno, poza subskrypcjami.</p>
+<?= $idsLine ?>
 <section class="m-tile" aria-label="Produkty i usługi">
   <?php if ($products): ?><div class="m-box tw-mb-3" style="max-width:320px"><div class="m-kv"><dt>Razem miesięcznie za usługi</dt></div><div class="m-num"><?= h(ClaudeBilling::zl($prodMonthly)) ?></div></div><?php endif; ?>
   <?php if (!$products && $feerUpn === ''): ?><p class="tw-text-sm m-muted">Nie masz usług. Domenę albo hosting zamawia prowadzący.</p><?php endif; ?>

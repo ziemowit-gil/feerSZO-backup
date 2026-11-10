@@ -388,12 +388,18 @@ final class LicencjeKursantController
         $feerUpn = '';
         if ($me['sid']) { try { $feerUpn = trim((string)(db_one("SELECT feer_ms_upn FROM k30_ti_student_accounts WHERE id=?", [$me['sid']])['feer_ms_upn'] ?? '')); } catch (\Throwable $e) {} }
         require_once dirname(__DIR__, 3) . '/includes/p24.php';
+        // konto Office (inicjał.nazwisko@edu): na stronach Office i Claude sprawdzamy tenant EDU co najwyżej raz na 12 godzin (konto tej osoby wiąże się samo)
+        require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceOffice.php';
+        if (in_array($page, ['office', 'claude'], true) && !ClaudeBilling::eduAccount($cid)) {
+            $oa = LicenceOffice::get($cid);
+            if (!$oa || !$oa['checked_at'] || strtotime((string)$oa['checked_at']) < time() - 43200) { try { LicenceOffice::check($cid, $me['name'] . ' (panel licencji)'); } catch (\Throwable $e) { error_log('lk office: ' . $e->getMessage()); } }
+        }
         $flash = $_SESSION['lk_flash'] ?? null; $err = $_SESSION['lk_errors'] ?? []; $old = $_SESSION['lk_old'] ?? [];
         unset($_SESSION['lk_flash'], $_SESSION['lk_errors'], $_SESSION['lk_old']);
         return Router::view(self::VIEW . 'index.php', ['page' => $page, 'ids' => ['lic' => LicencjeId::licence($cid), 'ben' => LicencjeId::beneficiary($cid)], 'virtual' => ClaudeBilling::isVirtual($cid), 'me' => $me, 'paid' => $paid, 'software' => $software, 'termOk' => $termOk, 'office' => $office, 'am5' => $am5,
             'ops' => $ops, 'products' => $products, 'prodMonthly' => round($prodMonthly, 2), 'feerUpn' => $feerUpn, 'p24on' => p24_enabled(),
             'login' => LicenseLogin::get($cid), 'hasPassword' => LicenseLogin::hasPassword($cid), 'minor' => ClaudeBilling::isMinor($cid),
-            'contact' => LicencjeKod::contact($cid), 'eduAccount' => ClaudeBilling::eduAccount($cid),
+            'contact' => LicencjeKod::contact($cid), 'eduAccount' => ClaudeBilling::eduAccount($cid), 'officeAcc' => LicenceOffice::summary($cid),
             'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()]);
     }
 
@@ -463,17 +469,22 @@ final class LicencjeKursantController
     }
 
     /** Prośba o konto @edu.feer.org.pl (wymagane do Claude). */
+    /** Konto Office (inicjał.nazwisko@edu): sprawdzenie w tenancie EDU, a gdy go nie ma, założenie (login e-mailem, hasło SMS-em). Potwierdzane kodem. */
     public function edu(): ?string
     {
         $me = $this->me();
-        if (ClaudeBilling::eduRequest($me['cid'])) return $this->flash('info', 'Wniosek o konto @' . ClaudeBilling::EDU_DOMAIN . ' już jest w Dziale IT.', 'claude');
-        if (!$this->confirmed('edu', [], 'wniosek o konto @' . ClaudeBilling::EDU_DOMAIN, 'claude')) return null;
+        $back = in_array((string)($_POST['back'] ?? ''), ['office', 'claude'], true) ? (string)$_POST['back'] : 'office';
+        require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceOffice.php';
+        if ($acc = ClaudeBilling::eduAccount($me['cid'])) return $this->flash('info', 'Masz już konto Office: ' . $acc . '.', $back);
+        if (!$this->confirmed('edu', [], 'założenie konta Office', $back)) return null;
         try {
-            $r = ClaudeBilling::requestEdu($me['cid'], ['name' => $me['name'], 'via' => 'panel licencji']);
-            $this->log($me, 'edu_request', 'Wniosek o konto @' . ClaudeBilling::EDU_DOMAIN . ': ' . ($r['proposed'] ?? '') . '.');
-            return $this->flash('ok', 'Wniosek o konto ' . ($r['proposed'] ?? '') . ' wysłany do Działu IT' . (!empty($r['helpdesk_number']) ? ' (zgłoszenie ' . $r['helpdesk_number'] . ')' : '') . '. Gdy konto będzie gotowe, włączysz tu Claude.', 'claude');
+            $r = LicenceOffice::ensure($me['cid'], ['name' => $me['name'] . ' (panel licencji)', 'via' => 'panel licencji']);
+            $this->log($me, 'office_account', 'Konto Office ' . $r['upn'] . ': ' . $r['text']);
+            if (empty($r['ok'])) return $this->flash('err', $r['text'] . ' Napisz do biura, jeśli to się powtarza.', $back);
+            if ($r['state'] === 'sim') return $this->flash('ok', 'Konto testowe: symulacja. Konto ' . $r['upn'] . ' widać w panelu, ale nie powstało w Microsoft 365 i nic nie wysłaliśmy.', $back);
+            return $this->flash('ok', !empty($r['created']) ? 'Gotowe. Konto ' . $r['upn'] . ' założone. Login wysłaliśmy e-mailem, hasło tymczasowe SMS-em.' : 'Masz już konto ' . $r['upn'] . ' w Microsoft 365. Połączyliśmy je z panelem.', $back);
         } catch (\Throwable $e) {
-            return $this->flash('err', $e->getMessage(), 'claude');
+            return $this->flash('err', $e->getMessage(), $back);
         }
     }
 

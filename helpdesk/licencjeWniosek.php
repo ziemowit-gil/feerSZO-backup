@@ -1,7 +1,7 @@
 <?php
 /**
  * helpdesk/licencjeWniosek.php — akcje Helpdesku na wniosku o płatną licencję (karta „Wniosek o płatną licencję” w zgłoszeniu):
- * wpłata dotarła (przelew), wystaw fakturę VAT (Fakturownia), aktywuj dostęp, odrzuć wniosek. Logika: modules/claude_billing/logic/LicenceRequest.php.
+ * wpłata dotarła (przelew), wystaw fakturę VAT (Fakturownia), aktywuj dostęp, odrzuć wniosek, konto Office (sprawdź w tenancie EDU / załóż). Logika: modules/claude_billing/logic/LicenceRequest.php.
  * Tylko operator Helpdesku z dostępem do zgłoszenia; POST z tokenem _csrf; po akcji powrót do zgłoszenia z komunikatem.
  * GET ?ticket_id=…&pdf=proforma|order|invoice — pobranie PDF dokumentu wniosku.
  */
@@ -40,6 +40,13 @@ try {
         'invoice'  => LicenceRequest::issueInvoice($sid, $actor),
         'activate' => LicenceRequest::activate($sid, $actor),
         'reject'   => LicenceRequest::reject($sid, (string)($_POST['reason'] ?? ''), $actor),
+        'office'   => (function () use ($req, $actor) {   // konto Office (inicjał.nazwisko@edu): sprawdź w tenancie EDU, załóż, gdy go nie ma
+            require_once dirname(__DIR__) . '/modules/claude_billing/logic/LicenceOffice.php';
+            $r = LicenceOffice::ensure((int)$req['sub']['client_id'], $actor);
+            if (empty($r['ok'])) throw new DomainException($r['text']);
+            LicenceRequest::note((int)$req['sub']['helpdesk_ticket_id'], 'Konto Office: ' . $r['text'], (string)$actor['name']);
+            return $r['text'] . (!empty($r['password']) ? ' Hasło tymczasowe (pokazujemy je tylko teraz): ' . $r['password'] : '');
+        })(),
         default    => throw new InvalidArgumentException('Nieznana akcja.'),
     };
     flash_set('success', $msg);

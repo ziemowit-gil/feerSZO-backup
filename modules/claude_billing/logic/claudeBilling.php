@@ -149,6 +149,8 @@ final class ClaudeBilling
     /** Konto uczestnika w tenancie edukacyjnym (ms_upn, sprawa AM7, e-mail w kartotece) albo null. */
     public static function eduAccount(int $clientId): ?string
     {
+        require_once __DIR__ . '/LicenceOffice.php';
+        if ($o = LicenceOffice::account($clientId)) return $o;   // sprawdzone w tenancie EDU albo założone przez SZO
         $like = '%@' . self::EDU_DOMAIN;
         foreach ([["SELECT ms_upn v FROM k30_ti_student_accounts WHERE client_id=? AND LOWER(COALESCE(ms_upn,'')) LIKE ? ORDER BY id DESC LIMIT 1", true],
                   ["SELECT tenant_upn v FROM licenses WHERE interested_kind='client' AND interested_id=? AND LOWER(tenant_upn) LIKE ? ORDER BY id DESC LIMIT 1", true],
@@ -165,11 +167,11 @@ final class ClaudeBilling
         return db_one("SELECT * FROM license_edu_requests WHERE client_id=?", [$clientId]) ?: null;
     }
 
-    /** Proponowany adres konta edu: login „l” + 8 cyfr @edu.feer.org.pl (login tworzony, gdy go nie ma). */
+    /** Adres konta Office: pierwsza litera imienia . nazwisko @edu.feer.org.pl (LicenceOffice; wariant z cyfrą, gdy login ma ktoś inny). */
     public static function eduProposal(int $clientId): string
     {
-        require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
-        return (LicenseLogin::get($clientId) ?: LicenseLogin::generate($clientId, 'propozycja konta edu')) . '@' . self::EDU_DOMAIN;
+        require_once __DIR__ . '/LicenceOffice.php';
+        return LicenceOffice::summary($clientId)['upn'];
     }
 
     /** Uczestnik prosi o konto @edu.feer.org.pl — zgłoszenie w Helpdesku IT z proponowanym loginem. */
@@ -571,7 +573,7 @@ final class ClaudeBilling
         if ($s['available_from'] !== '' && $s['available_from'] > date('Y-m-d')) return ['ok' => false, 'reason' => $P['label'] . ' można włączyć od ' . self::dayMonth($s['available_from']) . '.', 'assignment' => $a, 'from' => $s['available_from']];
         if (self::isMinor($clientId)) return ['ok' => false, 'reason' => 'Dostęp osoby niepełnoletniej włącza biuro na prośbę opiekuna.', 'assignment' => $a];
         if (!empty($P['requiresEdu']) && !self::eduAccount($clientId)) {
-            return ['ok' => false, 'needEdu' => true, 'assignment' => $a, 'reason' => $P['label'] . ' działa tylko z kontem @' . self::EDU_DOMAIN . '. Nie masz go. Złóż wniosek poniżej, konto założy Dział IT.'];
+            return ['ok' => false, 'needEdu' => true, 'assignment' => $a, 'reason' => $P['label'] . ' działa tylko z kontem @' . self::EDU_DOMAIN . '. Nie masz go jeszcze. Załóż je przyciskiem „Załóż konto Office”.'];
         }
         if ($P['uniqueEmail']) {
             $email = trim((string)(self::client($clientId)['email'] ?? ''));
