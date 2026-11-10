@@ -544,9 +544,24 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
     <p class="tw-text-sm">Usługa: <b><?= h((string)$drive['name']) ?></b><?= (string)($drive['server_details'] ?? '') !== '' ? ' · ' . h((string)$drive['server_details']) : '' ?><?= $drive['expires_at'] ? ' · do ' . h(ClaudeBilling::dayMonth((string)$drive['expires_at'])) : '' ?></p>
     <p class="m-note">Dane do logowania przekazało Ci biuro. Jeśli ich nie masz, napisz do biura.</p>
   <?php else: ?>
-    <p class="tw-text-sm tw-mb-3">To usługa pilotażowa. Zgłoś się, a założymy Ci dysk i prześlemy dane do logowania. Warunki pilotażu poda biuro.</p>
-    <form method="post" action="<?= h(route('lk.drive.join')) ?>"><?= Router::csrfField() ?><button class="m-btn" type="submit">Zgłaszam się do pilotażu</button></form>
-    <p class="m-note tw-mt-2">Zgłoszenie potwierdzisz kodem SMS.</p>
+    <?php require_once dirname(__DIR__) . '/logic/LicencjeDysk.php'; $dPlans = LicencjeDysk::plans(true); ?>
+    <p class="tw-text-sm tw-mb-3">To usługa pilotażowa. Wybierz pakiet i zgłoś się. Założymy Ci dysk i prześlemy dane do logowania.</p>
+    <form method="post" action="<?= h(route('lk.drive.join')) ?>"><?= Router::csrfField() ?>
+      <fieldset style="border:0;padding:0;margin:0"><legend class="tw-text-sm tw-font-semibold tw-mb-2">Pakiet</legend>
+      <div class="tw-grid md:tw-grid-cols-3 tw-gap-3">
+        <?php $dFirst = true; foreach ($dPlans as $dk => $dp): ?>
+        <label class="m-box" style="cursor:pointer;display:block">
+          <span class="tw-flex tw-items-center tw-gap-2"><input type="radio" name="plan" value="<?= h($dk) ?>"<?= $dFirst ? ' checked' : '' ?> required> <span class="tw-font-semibold"><?= h($dp['name']) ?></span></span>
+          <span class="m-num tw-block tw-mt-1" style="font-size:1.5rem"><?= h(LicencjeDysk::zl($dp['price'])) ?></span><span class="m-note">miesięcznie</span>
+          <span class="tw-block tw-text-sm tw-mt-2"><b><?= h($dp['size']) ?></b><?= $dp['users'] ? ', do ' . (int)$dp['users'] . ' użytkowników' : '' ?></span>
+        </label>
+        <?php $dFirst = false; endforeach; ?>
+      </div>
+      </fieldset>
+      <p class="tw-text-sm tw-mt-3">W każdym pakiecie: <?= h(implode(', ', LicencjeDysk::FEATURES)) ?>.</p>
+      <button class="m-btn tw-mt-3" type="submit">Zgłaszam się do pilotażu</button>
+    </form>
+    <p class="m-note tw-mt-2">Zgłoszenie potwierdzisz kodem SMS. Ceny to ceny dostawcy, Fundacja rozlicza je jako zwrot kosztów.</p>
   <?php endif; ?>
 </section>
 <section class="m-tile tw-mt-4" aria-labelledby="d-jak">

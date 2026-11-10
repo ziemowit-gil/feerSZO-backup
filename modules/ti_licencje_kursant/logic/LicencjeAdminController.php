@@ -119,6 +119,25 @@ final class LicencjeAdminController
         return null;
     }
 
+    /** Dysk Online (pilotaż, sdata.net.pl): pakiety i ceny — kierownik albo administrator. */
+    public function drivePrices(): string
+    {
+        $a = $this->adm();
+        require_once __DIR__ . '/LicencjeDysk.php';
+        $flash = $_SESSION['lk_flash'] ?? null; unset($_SESSION['lk_flash']);
+        return Router::view(self::VIEW . 'admin_dysk.php', ['adm' => $a, 'plans' => LicencjeDysk::plans(), 'org' => self::org(), 'flash' => $flash]);
+    }
+
+    public function drivePricesSave(): ?string
+    {
+        $a = $this->adm();
+        require_once __DIR__ . '/LicencjeDysk.php';
+        try { LicencjeDysk::save((array)($_POST['p'] ?? []), $a['name'] . ' (Panel Licencji)'); $_SESSION['lk_flash'] = ['ok', 'Zapisano pakiety Dysku Online.']; }
+        catch (\Throwable $e) { $_SESSION['lk_flash'] = ['err', $e->getMessage()]; }
+        header('Location: ' . route('lk.admin.drive'));
+        return null;
+    }
+
     public function logout(): ?string
     {
         LicencjePanelAuth::adminLogout();

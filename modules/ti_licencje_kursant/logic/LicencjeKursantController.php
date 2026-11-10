@@ -642,24 +642,30 @@ Następny krok: potwierdź dostęp tej osoby w panelu Goodstack (FEER aprowizuje
     public function driveJoin(): ?string
     {
         $me = $this->me();
+        require_once __DIR__ . '/LicencjeDysk.php';
+        $plans = LicencjeDysk::plans(true);
+        $pk = (string)($_POST['plan'] ?? '');
+        if (!isset($plans[$pk])) return $this->flash('err', 'Wybierz pakiet dysku.', 'dysk');
+        $pl = $plans[$pk];
         $dup = db_one("SELECT 1 FROM claude_events WHERE kind='drive_join' AND text LIKE ? AND created_at >= datetime('now','-60 day')", ['%#' . $me['cid'] . ')%']);
         if ($dup) return $this->flash('info', 'Twoje zgłoszenie do pilotażu Dysku Online już do nas dotarło. Odezwiemy się.', 'dysk');
-        if (!$this->confirmed('driveJoin', [], 'zgłoszenie do pilotażu Dysku Online', 'dysk')) return null;
+        if (!$this->confirmed('driveJoin', [], 'zgłoszenie do pilotażu Dysku Online (' . $pl['name'] . ', ' . LicencjeDysk::zl($pl['price']) . ' miesięcznie)', 'dysk')) return null;
         $num = '';
         if (!ClaudeBilling::isVirtual($me['cid'])) {
             try {
                 require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
                 $c = ClaudeBilling::client($me['cid']) ?? ['name' => $me['name'], 'email' => '', 'phone' => ''];
-                $desc = 'Uczestnik zgłasza chęć udziału w pilotażu Dysku Online (usługę realizuje sdata.net.pl).' . "\nOsoba: " . $c['name'] . ' (uczestnik nr ' . $me['cid'] . ')'
+                $desc = 'Uczestnik zgłasza chęć udziału w pilotażu Dysku Online (usługę realizuje sdata.net.pl).' . "\nPakiet: " . $pl['name'] . ' (' . $pl['size'] . ', ' . LicencjeDysk::zl($pl['price']) . ' miesięcznie)'
+                    . "\nZamówienie u dostawcy: " . $pl['order'] . "\nOsoba: " . $c['name'] . ' (uczestnik nr ' . $me['cid'] . ')'
                     . ($c['email'] ? "\nE-mail: " . $c['email'] : '') . ($c['phone'] ? "\nTelefon: " . $c['phone'] : '')
                     . "\nNastępny krok: załóż dysk w sdata.net.pl, przekaż dane logowania i wpisz usługę uczestnikowi w Ewidencji › Usługi i produkty (dostawca sdata.net.pl, nazwa „Dysk Online”).";
-                $tid = hd_ticket_quick_create(['id' => null, 'name' => (string)$c['name'], 'email' => (string)$c['email']], 'Dysk Online (pilotaż): ' . $c['name'], $desc, 'it_licencje_am', 'normalny', 'license_drive');
+                $tid = hd_ticket_quick_create(['id' => null, 'name' => (string)$c['name'], 'email' => (string)$c['email']], 'Dysk Online ' . $pl['name'] . ' (pilotaż): ' . $c['name'], $desc, 'it_licencje_am', 'normalny', 'license_drive');
                 $num = (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [$tid])['number'] ?? '');
             } catch (\Throwable $e) { error_log('lk drive: ' . $e->getMessage()); }
         }
-        ClaudeBilling::event(null, null, 'drive_join', 'Zgłoszenie do pilotażu Dysku Online: ' . $me['name'] . ' (uczestnik #' . $me['cid'] . ')' . ($num !== '' ? ', zgłoszenie ' . $num : '') . '.', $me['name']);
+        ClaudeBilling::event(null, null, 'drive_join', 'Zgłoszenie do pilotażu Dysku Online, pakiet ' . $pl['name'] . ': ' . $me['name'] . ' (uczestnik #' . $me['cid'] . ')' . ($num !== '' ? ', zgłoszenie ' . $num : '') . '.', $me['name']);
         $this->log($me, 'drive_join', 'Zgłoszenie do pilotażu Dysku Online.');
-        return $this->flash('ok', 'Zgłoszenie wysłane' . ($num !== '' ? ' (nr ' . $num . ')' : '') . '. Odezwiemy się z danymi do logowania i warunkami pilotażu.', 'dysk');
+        return $this->flash('ok', 'Zgłoszenie wysłane: ' . $pl['name'] . ($num !== '' ? ' (nr ' . $num . ')' : '') . '. Założymy dysk i prześlemy dane do logowania.', 'dysk');
     }
 
     /** Wniosek o aktywację planu Office A3 / A5, gdy plan nie ma jeszcze ceny (kreator działa dopiero po ustawieniu ceny): zgłoszenie do biura. */
