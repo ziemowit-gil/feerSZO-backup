@@ -81,7 +81,7 @@ final class LicencjeKursantController
     // ── Potwierdzanie operacji kodem ────────────────────────────────────────────
 
     /** Operacje, które można wykonać po kodzie (whitelista metod kontrolera). */
-    private const CONFIRMABLE = ['wizardPost', 'edu', 'buyer', 'cancel', 'password', 'priceDecide', 'cardPost', 'cardRemove'];
+    private const CONFIRMABLE = ['wizardPost', 'edu', 'buyer', 'cancel', 'password', 'priceDecide', 'cardPost', 'cardRemove', 'officePlan'];
 
     /**
      * Brama kodu: true — operacja potwierdzona, wykonuj; false — kod wysłany (albo błąd), przekierowanie już ustawione (handler zwraca null).
@@ -574,6 +574,39 @@ final class LicencjeKursantController
     }
 
     /** Prośba o konto @edu.feer.org.pl (wymagane do Claude). */
+    /** Wniosek o aktywację planu Office A3 / A5, gdy plan nie ma jeszcze ceny (kreator działa dopiero po ustawieniu ceny): zgłoszenie do biura. */
+    public function officePlan(): ?string
+    {
+        $me = $this->me();
+        $plan = strtoupper((string)($_POST['plan'] ?? ''));
+        $pl = LicenceOffice::PLANS[$plan] ?? null;
+        if (!$pl || !$pl['product']) return $this->flash('err', 'Nie ma takiego planu.', 'office');
+        $v = ClaudeBilling::participantView($me['cid'], $pl['product']);
+        if ($v['settings']['enabled'] && $v['settings']['priced']) { header('Location: ' . route('lk.wizard', ['product' => $pl['product']])); return null; }
+        $dup = db_one("SELECT 1 FROM claude_events WHERE kind='office_plan_request' AND text LIKE ? AND created_at >= datetime('now','-30 day')", ['%#' . $me['cid'] . ' ' . $plan . '%']);
+        if ($dup) return $this->flash('info', 'Wniosek o ' . $pl['name'] . ' już do nas dotarł. Odezwiemy się z ceną.', 'office');
+        if (!$this->confirmed('officePlan', [], 'wniosek o aktywację ' . $pl['name'], 'office')) return null;
+        $num = '';
+        if (!ClaudeBilling::isVirtual($me['cid'])) {
+            try {
+                require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
+                $c = ClaudeBilling::client($me['cid']) ?? ['name' => $me['name'], 'email' => ''];
+                $desc = 'Uczestnik prosi o aktywację planu ' . $pl['name'] . ' (Office ze zniżką edukacyjną).' . "
+Osoba: " . $c['name'] . ' (uczestnik nr ' . $me['cid'] . ')'
+                    . ($c['email'] ? "
+E-mail: " . $c['email'] : '') . "
+Konto Office: " . (ClaudeBilling::eduAccount($me['cid']) ?: 'brak')
+                    . "
+Następny krok: ustaw cenę planu w Panelu Licencji (Płatne licencje › Office " . $plan . ' › Ustawienia) i daj znać uczestnikowi — wtedy złoży wniosek w kreatorze.';
+                $tid = hd_ticket_quick_create(['id' => null, 'name' => (string)$c['name'], 'email' => (string)$c['email']], 'Wniosek o aktywację ' . $pl['name'] . ': ' . $c['name'], $desc, 'it_licencje_am', 'normalny', 'license_office_plan');
+                $num = (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [$tid])['number'] ?? '');
+            } catch (\Throwable $e) { error_log('lk office plan: ' . $e->getMessage()); }
+        }
+        ClaudeBilling::event(null, null, 'office_plan_request', 'Wniosek o aktywację ' . $pl['name'] . ' (uczestnik #' . $me['cid'] . ' ' . $plan . ')' . ($num !== '' ? ', zgłoszenie ' . $num : '') . '.', $me['name']);
+        $this->log($me, 'office_plan_request', 'Wniosek o aktywację ' . $pl['name'] . '.');
+        return $this->flash('ok', 'Wniosek o ' . $pl['name'] . ' wysłany' . ($num !== '' ? ' (nr ' . $num . ')' : '') . '. Odezwiemy się z ceną, potem włączymy plan.', 'office');
+    }
+
     /** Konto Office (inicjał.nazwisko@edu): sprawdzenie w tenancie EDU, a gdy go nie ma, założenie (login e-mailem, hasło SMS-em). Potwierdzane kodem. */
     public function edu(): ?string
     {

@@ -322,7 +322,8 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
           <td class="tw-py-2 tw-pr-3 tw-align-top"><?= $pl['desktop'] ? 'tak' : 'nie' ?></td>
           <td class="tw-py-2 tw-pr-3 tw-align-top tw-whitespace-nowrap"><?= !$pl['product'] ? 'w cenie' : ($ps && $ps['priced'] ? h(ClaudeBilling::priceShort($ps)) . ' miesięcznie' . (!empty($pv['rate']) ? '<br><span class="m-note">dziś ≈ ' . h(ClaudeBilling::zl((float)$pv['rate']['amount_pln'])) . '</span>' : '') : '<span class="m-muted">cenę poda biuro</span>') ?></td>
           <td class="tw-py-2 tw-align-top"><?php if ($pOpen): ?><a href="<?= h(route('lk.licence', ['product' => $pl['product']])) ?>">Szczegóły</a>
-            <?php elseif ($pv && !empty($pv['orderable']) && $plk !== $plCur): ?><a class="m-btn-ghost" href="<?= h(route('lk.wizard', ['product' => $pl['product']])) ?>">Zamów <?= h($plk) ?></a><?php endif; ?></td>
+            <?php elseif ($pl['product'] && $plk !== $plCur && $pv && !empty($pv['orderable'])): ?><a class="m-btn-ghost" href="<?= h(route('lk.wizard', ['product' => $pl['product']])) ?>">Złóż wniosek o aktywację<span class="tw-sr-only"> <?= h($pl['name']) ?></span></a>
+            <?php elseif ($pl['product'] && $plk !== $plCur): ?><form method="post" action="<?= h(route('lk.office.plan')) ?>"><?= Router::csrfField() ?><input type="hidden" name="plan" value="<?= h($plk) ?>"><button class="m-btn-ghost" type="submit">Złóż wniosek o aktywację<span class="tw-sr-only"> <?= h($pl['name']) ?></span></button></form><?php endif; ?></td>
         </tr>
       <?php endforeach; ?>
       </tbody></table></div>

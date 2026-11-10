@@ -76,6 +76,7 @@ $r->group(['lp.auth', 'lp.contact'], function (Router $r) {
     $r->post('/wniosek/{product}',     [LicencjeKursantController::class, 'wizardPost'])->name('lk.wizard.post');
     $r->post('/wlacz/{product}',       [LicencjeKursantController::class, 'activate'])->name('lk.activate');
     $r->post('/konto-edu',             [LicencjeKursantController::class, 'edu'])->name('lk.edu');
+    $r->post('/office/plan',           [LicencjeKursantController::class, 'officePlan'])->name('lk.office.plan');   // wniosek o aktywację A3 / A5
     $r->post('/dane/{product}',        [LicencjeKursantController::class, 'buyer'])->name('lk.buyer');
     $r->post('/rezygnacja/{product}',  [LicencjeKursantController::class, 'cancel'])->name('lk.cancel');
     $r->post('/zaplac/{id}',           [LicencjeKursantController::class, 'pay'])->name('lk.pay');
