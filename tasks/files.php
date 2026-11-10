@@ -790,6 +790,16 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .tf-cnt.is-zero{background:transparent;color:var(--tf-muted);font-weight:400}
 .tf-side-none{padding:.3rem .9rem .5rem;font-size:.8rem;color:var(--tf-muted);margin:0}
 .tf-ws-list{margin-bottom:.4rem!important;padding-bottom:.4rem!important;border-bottom:1px solid var(--tf-line)!important}
+.tf-ws-list .tk-ws-side-link{min-height:36px!important;padding-top:.2rem!important;padding-bottom:.2rem!important;font-size:.84rem!important}
+.tf-ws-list .tk-ws-tile{width:24px!important;height:24px!important;font-size:.78rem!important}
+.tf-empty{padding:2rem 1rem!important}
+.tf-more{margin-top:1.25rem;border-top:1px solid var(--tf-line)}
+.tf-more>summary{display:flex;align-items:center;gap:.5rem;padding:.75rem .25rem;font-size:.95rem;font-weight:600;color:var(--tf-text);cursor:pointer;list-style:none}
+.tf-more>summary::-webkit-details-marker{display:none}
+.tf-more>summary::after{content:"\25BE";margin-left:auto;color:var(--tf-muted)}
+.tf-more[open]>summary::after{content:"\25B4"}
+.tf-more>summary .tf-muted{font-weight:400;font-size:.82rem}
+.tf-more>summary:focus-visible{outline:2px solid var(--tf-text);outline-offset:2px}
 
 .tf-card{position:relative;background:#fff;border:1px solid var(--tf-line);border-top:2px solid var(--ws,#007a00)}
 .tf-card-head{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .75rem;padding:.75rem 1rem;border-bottom:1px solid var(--tf-line)}
@@ -859,7 +869,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 <div class="tk-head">
   <h1 class="tk-head-t">
     <span class="tk-head-tile" style="--ws:<?= h($tf_ws_color) ?>;--ws-ink:<?= task_ws_ink($tf_ws_color) ?>" aria-hidden="true"><i class="bi <?= h($workspace['icon'] ?: 'bi-folder') ?>"></i></span>
-    <span><?= h($workspace['name']) ?><span class="ws-set-sub">Pliki obszaru · Twoja rola: <?= h(['admin' => 'administrator', 'editor' => 'lider', 'member' => 'członek', 'viewer' => 'podgląd'][$role ?: 'viewer'] ?? ($role ?: 'podgląd')) ?></span></span>
+    <span><?= h($workspace['name']) ?><span class="ws-set-sub">Pliki obszaru</span></span>
   </h1>
   <div class="tk-head-act">
     <div class="tk-viewsw" role="group" aria-label="Widok obszaru">
@@ -870,10 +880,6 @@ require_once __DIR__ . '/includes/header_tasks.php';
     <?php if ($can_tf && $sp_ok && $tf_missing > 0): ?>
     <button type="button" class="tk-hbtn" id="tfInitTaskFolders" title="Utwórz na SharePoincie foldery dla zadań, które jeszcze ich nie mają">
       <i class="bi bi-folder-plus" aria-hidden="true"></i>Foldery dla zadań (<?= $tf_missing ?>)</button>
-    <?php endif; ?>
-    <?php if (is_admin()): ?>
-    <a class="tk-hbtn" href="<?= APP_URL ?>/tasks/router.php?_route=/uprawnienia-plikow" title="Kto co może w Plikach (macierz uprawnień)">
-      <i class="bi bi-shield-lock" aria-hidden="true"></i>Uprawnienia</a>
     <?php endif; ?>
     <?php if ($can_folder && $sp_ok): ?>
     <button type="button" class="tk-hbtn tk-hbtn--cta" data-bs-toggle="modal" data-bs-target="#newFolderModal">
@@ -901,17 +907,16 @@ require_once __DIR__ . '/includes/header_tasks.php';
       <?php endforeach; ?>
     </ul>
     <?php endif; ?>
-    <?php if ($folders): ?>
+    <?php if (count($folders) > 8): ?>
     <div class="tf-side-search">
       <label class="visually-hidden" for="tfFolderFilter">Filtruj foldery</label>
       <input type="search" id="tfFolderFilter" placeholder="Filtruj foldery…" autocomplete="off">
     </div>
     <?php endif; ?>
+    <?php if (!$folders): ?><p class="tf-side-none">Brak folderów.</p><?php endif; ?>
     <?php foreach ([['Foldery wspólne', $tf_shared, 'bi-folder-fill'], ['Foldery zadań', $tf_taskf, 'bi-check2-square']] as [$_gl, $_gf, $_gi]): ?>
-    <div class="tf-side-h"><?= h($_gl) ?><span class="tf-cnt<?= $_gf ? '' : ' is-zero' ?>"><?= count($_gf) ?></span></div>
-    <?php if (!$_gf): ?>
-    <p class="tf-side-none"><?= $_gl === 'Foldery wspólne' ? 'Brak — utwórz folder „Nowy folder”.' : 'Brak — powstają przy wgraniu pliku z okna zadania.' ?></p>
-    <?php else: ?>
+    <?php if ($_gf): ?>
+    <div class="tf-side-h"><?= h($_gl) ?><span class="tf-cnt"><?= count($_gf) ?></span></div>
     <ul class="tf-folder-group">
       <?php foreach ($_gf as $f):
         $_fid = (int)$f['id']; $_n = $tf_counts[$_fid] ?? 0;
@@ -963,8 +968,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
         <span>Folder zadania</span>
         <?php if ($tf_active_task && empty($tf_active_task['deleted_at'])): ?>
         <span class="tf-st<?= $tf_active_task['_done'] ? ' is-done' : '' ?>"><?= $tf_active_task['_done'] ? 'ukończone' : h($tf_active_task['list_name'] ?: 'otwarte') ?></span>
-        <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws_id ?>&task=<?= (int)$active_folder['task_id'] ?>">Otwórz zadanie „<?= h($tf_active_task['title']) ?>” <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-        <span class="tf-muted">— pliki z tego folderu widać w oknie zadania.</span>
+        <a href="<?= APP_URL ?>/tasks/index.php?ws=<?= $ws_id ?>&task=<?= (int)$active_folder['task_id'] ?>" title="Pliki z tego folderu widać w oknie zadania">Otwórz zadanie <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         <?php else: ?>
         <span class="tf-st is-gone">zadanie usunięte</span>
         <?php endif; ?>
@@ -1152,7 +1156,12 @@ require_once __DIR__ . '/includes/header_tasks.php';
   </section>
 </div><!-- /.tf-layout -->
 
-<?php require __DIR__ . '/includes/files_task_manager.php'; ?>
+<?php $tf_tm_open = !empty($_GET['task']) || ($_GET['q'] ?? '') !== '' || !empty($_GET['kind']) || !empty($_GET['sort']); ?>
+<details class="tf-more" id="task-files"<?= $tf_tm_open ? ' open' : '' ?>>
+  <summary><i class="bi bi-paperclip" aria-hidden="true"></i>Załączniki zadań <span class="tf-muted">— pliki dodane bezpośrednio do zadań (filtry, wgrywanie do wybranego zadania)</span></summary>
+  <?php require __DIR__ . '/includes/files_task_manager.php'; ?>
+</details>
+<script>if (location.hash === '#task-files') { var _tfm = document.getElementById('task-files'); if (_tfm) _tfm.open = true; }</script>
 
 </div><!-- /.tf-page -->
 
