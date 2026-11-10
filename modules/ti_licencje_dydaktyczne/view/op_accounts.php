@@ -15,7 +15,7 @@ include __DIR__ . '/_head.php';
   Decyzja cyfrowa (stempel: ID, czas, IP), wydruk PDF, realizacja automatyczna albo zadaniem dla IT.</p>
 
 <p><a class="btn btn-metro green" href="<?= h(route('ld.am20')) ?>"><i class="bi bi-cash-coin" aria-hidden="true"></i> AM20 + AM20-1 — zmiana płatnika (formularz elektroniczny)</a>
-  <a class="btn btn-metro" style="background:#da532c;color:#fff" href="<?= h(route('ld.ant1')) ?>"><i class="bi bi-stars" aria-hidden="true"></i> ANT1 — dostęp do Claude for Nonprofit (formularz elektroniczny)</a></p>
+  <?php if (Ant1Form::enabled()): ?><a class="btn btn-metro" style="background:#da532c;color:#fff" href="<?= h(route('ld.ant1')) ?>"><i class="bi bi-stars" aria-hidden="true"></i> ANT1 — dostęp do Claude for Nonprofit (formularz elektroniczny)</a><?php endif; ?></p>
 <nav class="tiles" aria-label="Kolejka">
   <a class="tile" style="background:#f0a30a" href="<?= h(route('ld.accounts', ['status' => 'pending'])) ?>"><span class="n"><?= (int)$counts['pending'] ?></span><span class="l">Czeka na decyzję</span></a>
   <a class="tile" style="background:#fa6800" href="<?= h(route('ld.accounts', ['status' => 'signing'])) ?>"><span class="n"><?= (int)($counts['signing'] ?? 0) ?></span><span class="l">AM20 — czeka na potwierdzenie osoby</span></a>
@@ -62,7 +62,7 @@ include __DIR__ . '/_head.php';
 <section class="panel">
   <h2 class="mt-0">Wzory do druku</h2>
   <ul class="list-unstyled mb-0 small">
-    <?php foreach (OperationForm::cases() as $f): ?><li class="mb-1"><span class="sym" style="background:<?= h($f->color()) ?>"><?= h($f->value) ?></span> <a href="<?= h(route('ld.op.blank', ['form' => $f->value])) ?>" target="_blank" rel="noopener"><?= h($f->title()) ?></a></li>
+    <?php foreach (array_filter(OperationForm::cases(), fn($_of) => $_of !== OperationForm::Ant1 || Ant1Form::enabled()) as $f): ?><li class="mb-1"><span class="sym" style="background:<?= h($f->color()) ?>"><?= h($f->value) ?></span> <a href="<?= h(route('ld.op.blank', ['form' => $f->value])) ?>" target="_blank" rel="noopener"><?= h($f->title()) ?></a></li>
       <?php if ($f === OperationForm::Am20): ?><li class="mb-1"><span class="sym" style="background:<?= h($f->color()) ?>">AM20-1</span> <a href="<?= h(route('ld.op.blank', ['form' => 'AM20-1'])) ?>" target="_blank" rel="noopener">Wykaz dokumentów księgowych wystawionych dotąd przez FEER (załącznik do AM20)</a></li><?php endif; ?>
     <?php endforeach; ?>
   </ul>

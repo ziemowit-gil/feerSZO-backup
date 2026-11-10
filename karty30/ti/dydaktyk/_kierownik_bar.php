@@ -52,7 +52,7 @@ if (!empty($KIER_ITEMS)) {
         ['Microsoft 365',             'microsoft365.php',           'microsoft'],
         ['Licencje',                  'licencjeKursantow.php',      'key'],
         ['Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock'],
-        ['Dostęp do Claude (ANT1)',       'licencjeDydaktyczne.php?_route=%2Fant1', 'stars'],
+        ...(trim((string)org_setting('ant1_enabled')) === '1' ? [['Dostęp do Claude (ANT1)', 'licencjeDydaktyczne.php?_route=%2Fant1', 'stars']] : []),   // ANT1 wyłączony (Płatne licencje)
         ['Płatne licencje (Claude, NordVPN)', 'claudeAbonament.php', 'credit-card'],
         ['Korekty AMSK',              'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square'],
         ['Dokumenty kursantów',       'dokumentyKursanta.php',      'folder2-open'],

@@ -227,7 +227,7 @@ function dydMenuSections(): array
         $it('', 'Licencje',              'licencjeKursantow.php', 'key'),
         $it('', 'Pula licencji Fundacji', 'licencjeFundacji.php', 'key-fill'),
         $it('', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'file-earmark-lock', $nLd, 'warning'),
-        $it('', 'Dostęp do Claude (ANT1)',       'licencjeDydaktyczne.php?_route=%2Fant1', 'stars'),
+        ...(trim((string)org_setting('ant1_enabled')) === '1' ? [$it('', 'Dostęp do Claude (ANT1)', 'licencjeDydaktyczne.php?_route=%2Fant1', 'stars')] : []),   // ANT1 wyłączony (Płatne licencje)
         $it('', 'Płatne licencje (Claude, NordVPN)', 'claudeAbonament.php', 'credit-card', $nLic, 'primary'),
         $it('', 'Korekty AMSK',                'licencjeDydaktyczne.php?_route=%2Fkorekty', 'pencil-square', $nAmsk, 'warning'),
         $it('', 'Microsoft 365',         'microsoft365.php',      'microsoft'),

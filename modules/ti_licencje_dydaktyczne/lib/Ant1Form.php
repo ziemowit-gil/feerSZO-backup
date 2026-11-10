@@ -14,6 +14,14 @@ declare(strict_types=1);
  */
 final class Ant1Form
 {
+    /** ANT1 wyłączony od 2026-11-11 (dostęp do Claude obsługuje modules/claude_billing: kreator w panelu licencji + Helpdesk). Ustawienie ant1_enabled = 1 włącza go z powrotem. */
+    public const DISABLED_MSG = 'Wnioski ANT1 są wyłączone. Dostęp do Claude obsługują teraz Płatne licencje: uczestnik składa wniosek w panelu licencji (kursant.feer.org.pl/licencje), a Helpdesk wystawia fakturę i aktywuje dostęp.';
+
+    public static function enabled(): bool
+    {
+        return trim((string)org_setting('ant1_enabled')) === '1';
+    }
+
     public const SYMBOL = 'ANT1';
     public const PRODUCT = 'Claude for Nonprofit (Anthropic Claude, w tym Claude Code)';
     public const EMAIL_DOMAIN = 'edu.feer.org.pl';

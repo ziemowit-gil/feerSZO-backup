@@ -144,6 +144,7 @@ final class LicenseOperationController
     /** Kreator ANT1 (dostęp do Claude for Nonprofit): wybór osoby → formularz (/operacje/nowa?form=ANT1). */
     public function ant1Wizard(): string
     {
+        if (!Ant1Form::enabled()) { flash_set('warning', Ant1Form::DISABLED_MSG); Router::redirect('claudeAbonament.php?tab=wnioski&product=claude'); exit; }
         $q = (string)($_GET['q'] ?? '');
         return $this->view('ant1_wizard.php', ['q' => $q, 'found' => LicenseResources::searchAccounts($q),
             'recent' => array_filter($this->ops->search(['form' => 'ANT1']), fn($o) => true)]);
@@ -166,6 +167,7 @@ final class LicenseOperationController
     {
         $acc = $this->accountFrom((string)($_GET['konto'] ?? $_POST['konto'] ?? ''));
         $form = OperationForm::tryFrom((string)($_GET['form'] ?? $_POST['form'] ?? '')) ?? OperationForm::Am20;
+        if ($form === OperationForm::Ant1 && !Ant1Form::enabled()) { flash_set('warning', Ant1Form::DISABLED_MSG); Router::redirect('claudeAbonament.php?tab=wnioski&product=claude'); exit; }
         $key = (string)($_GET['zasob'] ?? $_POST['zasob'] ?? '');
         $res = $key !== '' ? LicenseResources::resource($acc, $key) : null;
         return $this->view('op_form.php', ['acc' => $acc, 'form' => $form, 'res' => $res, 'resources' => LicenseResources::forAccount($acc),
@@ -177,6 +179,7 @@ final class LicenseOperationController
         $acc = $this->accountFrom((string)($_POST['konto'] ?? ''));
         $form = OperationForm::tryFrom((string)($_POST['form'] ?? ''));
         if (!$form) { flash_set('danger', 'Nieznany formularz.'); return Router::redirect(route('ld.account', ['kind' => $acc['kind'], 'id' => $acc['id']])); }
+        if ($form === OperationForm::Ant1 && !Ant1Form::enabled()) { flash_set('warning', Ant1Form::DISABLED_MSG); return Router::redirect('claudeAbonament.php?tab=wnioski&product=claude'); }
         $in = $_POST;
         if (($in['rachunek_wybor'] ?? '') !== '' && ($in['rachunek_wybor'] ?? '') !== 'inny') $in['rachunek'] = $in['rachunek_wybor'];
         try {

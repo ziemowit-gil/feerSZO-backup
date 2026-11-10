@@ -150,7 +150,15 @@ final class LicensePublicController
         if ($this->throttled()) return $this->blocked();
         $op = (new LicenseOperationService())->bySignToken((string)$token);
         if (!$op || $op['formEnum'] !== OperationForm::Ant1) return $this->failToken();
+        if (!Ant1Form::enabled()) return $this->ant1Off();
         return $this->view('ant1.php', ['op' => $op, 'token' => $token, 'errors' => $errors, 'old' => $old ?: ['name' => $op['account_name']], 'sym' => 'ANT1']);
+    }
+
+    /** ANT1 wyłączony — link z e-maila prowadzi do panelu licencji (wniosek o Claude w kreatorze). */
+    private function ant1Off(): string
+    {
+        return $this->view('message.php', ['title' => 'Ten wniosek nie jest już obsługiwany', 'tone' => 'info',
+            'text' => 'Dostęp do Claude załatwiamy teraz w panelu licencji: wejdź na kursant.feer.org.pl/licencje, wybierz Claude i kliknij „Złóż wniosek”. Pytania: napisz do prowadzącego albo do biura.']);
     }
 
     public function ant1Pdf(string $token): ?string
@@ -174,6 +182,7 @@ final class LicensePublicController
         $ops = new LicenseOperationService();
         $op = $ops->bySignToken((string)$token);
         if (!$op || $op['formEnum'] !== OperationForm::Ant1) return $this->failToken();
+        if (!Ant1Form::enabled()) return $this->ant1Off();
         if (trim((string)($_POST['www'] ?? '')) !== '') return Router::redirect(route('ld.pub.done'));
         $errors = [];
         if (!LdInput::bool($_POST, 'confirm_fee')) $errors['confirm_fee'] = 'Zaznacz oświadczenie o zryczałtowanej opłacie.';

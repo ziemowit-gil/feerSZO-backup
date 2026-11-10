@@ -101,7 +101,7 @@ include __DIR__ . '/_tabs.php'; ?>
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
     <p class="text-secondary mb-0 me-auto">Zmiana płatnika (AM20), planu, zawieszenie, cofnięcie, przedłużenie oraz wnioski AM11–AM13. Otwarte operacje: do decyzji, czekające na potwierdzenie osoby, w realizacji.</p>
     <a class="btn btn-metro green" href="<?= h(route('ld.am20')) ?>"><i class="bi bi-cash-coin" aria-hidden="true"></i> AM20 + AM20-1 — zmiana płatnika</a>
-    <a class="btn btn-metro" style="background:#da532c;color:#fff" href="<?= h(route('ld.ant1')) ?>"><i class="bi bi-stars" aria-hidden="true"></i> ANT1 — dostęp do Claude</a>
+    <?php if (Ant1Form::enabled()): ?><a class="btn btn-metro" style="background:#da532c;color:#fff" href="<?= h(route('ld.ant1')) ?>"><i class="bi bi-stars" aria-hidden="true"></i> ANT1 — dostęp do Claude</a><?php endif; ?>
     <a class="btn btn-metro dark" href="<?= h(route('ld.accounts')) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Wszystkie operacje i konta</a>
   </div>
   <div class="d-flex flex-wrap gap-2 mb-2" aria-label="Kolejka operacji">
@@ -191,7 +191,7 @@ include __DIR__ . '/_tabs.php'; ?>
     <p class="small text-secondary">Puste formularze — gdy licencjodawca lub uczestnik nie korzysta z portalu. Decyzję z papieru wpisuje się na karcie licencji.</p>
     <ul class="list-unstyled mb-0">
       <?php foreach (LicenseDoc::cases() as $d): ?><li class="mb-1"><span class="sym"<?= $d->form() === LicenseForm::Am7 ? ' style="background:#0050ef"' : '' ?>><?= h($d->symbol()) ?></span> <a href="<?= h(route('ld.blank', ['doc' => $d->slug()])) ?>" target="_blank" rel="noopener"><?= h($d->title()) ?></a></li><?php endforeach; ?>
-      <?php foreach (OperationForm::cases() as $of): ?><li class="mb-1"><span class="sym" style="background:<?= h($of->color()) ?>"><?= h($of->value) ?></span> <a href="<?= h(route('ld.op.blank', ['form' => $of->value])) ?>" target="_blank" rel="noopener"><?= h($of->title()) ?></a></li>
+      <?php foreach (array_filter(OperationForm::cases(), fn($_of) => $_of !== OperationForm::Ant1 || Ant1Form::enabled()) as $of): ?><li class="mb-1"><span class="sym" style="background:<?= h($of->color()) ?>"><?= h($of->value) ?></span> <a href="<?= h(route('ld.op.blank', ['form' => $of->value])) ?>" target="_blank" rel="noopener"><?= h($of->title()) ?></a></li>
         <?php if ($of === OperationForm::Am20): ?><li class="mb-1"><span class="sym" style="background:<?= h($of->color()) ?>">AM20-1</span> <a href="<?= h(route('ld.op.blank', ['form' => 'AM20-1'])) ?>" target="_blank" rel="noopener">Wykaz dokumentów księgowych wystawionych dotąd przez FEER (załącznik do AM20)</a></li><?php endif; ?>
       <?php endforeach; ?>
     </ul>
