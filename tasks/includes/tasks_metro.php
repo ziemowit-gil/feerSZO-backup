@@ -76,11 +76,11 @@ html body .tsk-pivot-menu .dropdown-item:hover i,html body .tsk-pivot-menu .drop
 /* ══ Nagłówek — delikatnie nowocześniejsze Metro (2026-11-10): niższy kontrast „pudełek”, jednolite przyciski 36 px
    z podświetleniem zamiast zielonego wypełnienia, kafelek awatara zamiast koła, separator przy przełączniku obszaru;
    pasek sekcji wyższy, z wyraźniejszym stanem aktywnym i spokojnym hover ══ */
-html body .tsk-navbar{background:#1b1a19;border-bottom:1px solid rgba(255,255,255,.06)}
+html body .tsk-navbar{background:#2b3a4a;border-bottom:1px solid rgba(255,255,255,.08)}   /* grafitowo-niebieski (wybór użytkownika 2026-11-10) */
 html body .tsk-navbar>.container-xl{min-height:56px;padding-top:.5rem!important;padding-bottom:.5rem!important;gap:.75rem!important}
 html body .tsk-brand{gap:.7rem;font-weight:600;font-size:1rem;letter-spacing:-.005em}
 html body .tsk-brand-icon{width:36px;height:36px;font-size:1.05rem;background:var(--tsk-green)}
-html body .tsk-brand-sub{opacity:1;color:rgba(255,255,255,.62);font-size:.7rem;font-weight:400;margin-top:.15rem}
+html body .tsk-brand-sub{opacity:1;color:rgba(255,255,255,.72);font-size:.7rem;font-weight:400;margin-top:.15rem}
 html body #tsk-ws-switch-wrap{padding-left:.75rem;border-left:1px solid rgba(255,255,255,.14)}
 html body .tsk-ws-switch-btn{min-height:36px;padding:0 .75rem;gap:.5rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:.88rem;font-weight:600}
 html body .tsk-ws-switch-btn:hover,html body .tsk-ws-switch-btn[aria-expanded="true"]{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.28);color:#fff}
@@ -89,7 +89,7 @@ html body .tsk-navbar .btn-outline-secondary{min-height:36px;padding:0 .75rem;ba
 html body .tsk-navbar .btn-outline-secondary:hover,html body .tsk-navbar .btn-outline-secondary:focus-visible{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff}
 html body .tsk-notif-btn{width:36px;height:36px;background:transparent;border:1px solid rgba(255,255,255,.18);color:#fff}
 html body .tsk-notif-btn:hover,html body .tsk-notif-btn[aria-expanded="true"]{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:#fff}
-html body .tsk-notif-badge{top:-5px;right:-5px;min-width:18px;height:18px;padding:0 .25rem;font-size:.66rem;line-height:18px;border:2px solid #1b1a19}
+html body .tsk-notif-badge{top:-5px;right:-5px;min-width:18px;height:18px;padding:0 .25rem;font-size:.66rem;line-height:18px;border:2px solid #2b3a4a}
 html body .tsk-avatar{width:36px;height:36px;border-radius:0!important;font-size:.8rem;letter-spacing:.02em}
 html body .tsk-navbar .fl-trigger{min-height:36px;border-radius:0}
 html body .tsk-navbar :focus-visible{outline:2px solid #fff!important;outline-offset:2px!important}
