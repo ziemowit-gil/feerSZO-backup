@@ -1157,11 +1157,17 @@ require_once __DIR__ . '/includes/header_tasks.php';
 </div><!-- /.tf-layout -->
 
 <?php $tf_tm_open = !empty($_GET['task']) || ($_GET['q'] ?? '') !== '' || !empty($_GET['kind']) || !empty($_GET['sort']); ?>
-<details class="tf-more" id="task-files"<?= $tf_tm_open ? ' open' : '' ?>>
+<details class="tf-more" id="tf-task-files-wrap"<?= $tf_tm_open ? ' open' : '' ?>>
   <summary><i class="bi bi-paperclip" aria-hidden="true"></i>Załączniki zadań <span class="tf-muted">— pliki dodane bezpośrednio do zadań (filtry, wgrywanie do wybranego zadania)</span></summary>
   <?php require __DIR__ . '/includes/files_task_manager.php'; ?>
 </details>
-<script>if (location.hash === '#task-files') { var _tfm = document.getElementById('task-files'); if (_tfm) _tfm.open = true; }</script>
+<script>
+// Wejście z okna zadania (#task-files) — rozwiń sekcję i przewiń do kotwicy menedżera załączników
+if (location.hash === '#task-files') {
+  var _tfm = document.getElementById('tf-task-files-wrap');
+  if (_tfm) { _tfm.open = true; var _tfa = document.getElementById('task-files'); if (_tfa) _tfa.scrollIntoView(); }
+}
+</script>
 
 </div><!-- /.tf-page -->
 
