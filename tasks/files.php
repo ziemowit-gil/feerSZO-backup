@@ -695,13 +695,9 @@ if (!$sp_ok) {
     exit;
 }
 
-// Bez uprawnienia „Przeglądanie folderów i plików” — tylko komunikat
+// Bez „Przeglądania folderów wspólnych” widać tylko foldery zadań (pliki zadań są dla wszystkich w obszarze)
 if (!$can_view) {
-    $PAGE_TITLE = h($workspace['name']) . ' — Pliki'; $TASKS_BREADCRUMB = h($workspace['name']); $TASKS_WS_ID = $ws_id; $TASKS_FILES_VIEW = true;
-    require_once __DIR__ . '/includes/header_tasks.php';
-    echo '<div class="alert alert-warning" role="alert">Twoja rola w obszarze „' . h($workspace['name']) . '” nie obejmuje przeglądania plików. O dostęp poproś lidera obszaru.</div>';
-    include __DIR__ . '/includes/footer_tasks.php';
-    exit;
+    $folders = array_values(array_filter($folders, fn($f) => !empty($f['task_id'])));
 }
 
 // Auto-inicjuj strukturę SP gdy obszar jest pusty i użytkownik ma uprawnienia
@@ -719,6 +715,9 @@ if (empty($folders) && $can_tf && $sp_ok) {
 }
 
 $active_folder_id = (int)($_GET['folder'] ?? ($folders[0]['id'] ?? 0));
+if (!$can_view && $active_folder_id && !in_array($active_folder_id, array_map(fn($f) => (int)$f['id'], $folders), true)) {
+    $active_folder_id = (int)($folders[0]['id'] ?? 0);   // folder wspólny bez uprawnienia → pierwszy folder zadania
+}
 $active_folder    = null;
 $files            = [];
 if ($active_folder_id) {
@@ -751,6 +750,8 @@ if ($active_folder_id) {
     }
 }
 $tf_active_task = ($active_folder && !empty($active_folder['task_id'])) ? ($tf_tasks[(int)$active_folder['task_id']] ?? null) : null;
+// Pliki folderu zadania pobiera każdy z dostępem do obszaru; w folderach wspólnych — wg macierzy
+if ($active_folder && !empty($active_folder['task_id'])) $can_dl = true;
 $tf_ws_color = (string)($workspace['color'] ?: '#5f5f5f');
 
 // Załączniki zadań + powiązane pliki Koszulek → tasks/includes/files_task_manager.php

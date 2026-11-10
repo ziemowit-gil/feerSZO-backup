@@ -147,8 +147,8 @@ function ws_file_roles(): array {
 /** Działania na plikach: klucz => [etykieta, opis, role w typowej macierzy]. */
 function ws_file_actions(): array {
     return [
-        'view'          => ['Przeglądanie folderów i plików', 'Lista folderów, plików i ich powiązań z zadaniami.', ['viewer', 'member', 'editor', 'admin']],
-        'download'      => ['Pobieranie i podgląd', 'Pobranie pliku, podgląd PDF i obrazów, otwarcie w Office Online.', ['viewer', 'member', 'editor', 'admin']],
+        'view'          => ['Przeglądanie folderów wspólnych', 'Foldery wspólne obszaru i ich pliki. Pliki zadań widzą zawsze wszyscy z dostępem do obszaru.', ['viewer', 'member', 'editor', 'admin']],
+        'download'      => ['Pobieranie z folderów wspólnych', 'Pobranie, podgląd PDF i obrazów, Office Online. Pliki zadań pobierają zawsze wszyscy z dostępem do obszaru.', ['viewer', 'member', 'editor', 'admin']],
         'upload'        => ['Wgrywanie plików', 'Do folderów obszaru i do folderu zadania (także z okna zadania).', ['member', 'editor', 'admin']],
         'link'          => ['Przypinanie do zadań', 'Przypięcie pliku z dowolnego folderu do zadania i odpięcie.', ['member', 'editor', 'admin']],
         'delete_own'    => ['Usuwanie własnych plików', 'Tylko pliki wgrane przez tę osobę.', ['member', 'editor', 'admin']],
@@ -201,6 +201,24 @@ function ws_can(string $action, int $workspace_id, ?int $user_id = null, ?array 
         return $file !== null && (int)($file['uploaded_by'] ?? 0) === $user_id && in_array($role, $m['delete_own'], true);
     }
     return in_array($role, $m[$action] ?? [], true);
+}
+
+/**
+ * Plik zadania: leży w folderze zadania (ws_folders.task_id) albo jest przypięty do zadania (ws_task_files).
+ * Pliki zadań widzi i pobiera KAŻDY, kto ma dostęp do obszaru (i tym samym do jego zadań) — macierz uprawnień
+ * ogranicza tylko foldery wspólne oraz działania (wgrywanie, przypinanie, usuwanie, foldery).
+ */
+function ws_is_task_file(array $file): bool {
+    $fld = ws_get_folder((int)($file['folder_id'] ?? 0));
+    if ($fld && !empty($fld['task_id'])) return true;
+    return (bool)db_one("SELECT 1 FROM ws_task_files WHERE file_id = ? LIMIT 1", [(int)$file['id']]);
+}
+
+/** Czy użytkownik może zobaczyć/pobrać plik: plik zadania — każdy z dostępem do obszaru; inny — wg macierzy. */
+function ws_can_file(string $action, array $file, ?int $user_id = null): bool {
+    $ws = (int)$file['workspace_id'];
+    if (ws_user_role($ws, $user_id) === null) return false;
+    return ws_can($action, $ws, $user_id) || ws_is_task_file($file);
 }
 
 /** Wymusza uprawnienie w API (JSON 403 z nazwą brakującego działania). */

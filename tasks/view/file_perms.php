@@ -28,6 +28,8 @@ html body #tsk-main .fp-state{margin-left:auto;font-size:.82rem;color:var(--tm-m
     <h1 class="tp-title">Uprawnienia do plików</h1>
     <p class="tp-lead">Kto co może w Plikach obszarów (foldery na SharePoincie, folder zadania, przypinanie do zadań). Dotyczy tylko plików —
       zadania, komentarze i załączniki zadań mają własne zasady. Rola osoby w obszarze wynika z członkostwa w obszarze lub zespole.</p>
+    <p class="tp-lead"><strong>Pliki zadań są widoczne dla wszystkich:</strong> pliki w folderze zadania i pliki przypięte do zadania widzi i pobiera
+      każdy, kto ma dostęp do obszaru (także w oknie zadania). Macierz ogranicza foldery wspólne i działania — wgrywanie, przypinanie, usuwanie, foldery.</p>
   </div>
 </div>
 

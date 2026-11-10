@@ -91,9 +91,10 @@ try {
     $ws_folders_all  = $ws_sp_ok ? ws_list_folders((int)$task['workspace_id']) : [];
     $ws_can_upload   = $ws_sp_ok && ws_can('upload', (int)$task['workspace_id'], $uid);
     // Macierz uprawnień do plików: bez „przeglądania” sekcja Koszulek znika, bez „przypinania” — brak Dodaj/Odepnij
-    $ws_can_view     = ws_can('view', (int)$task['workspace_id'], $uid);
+    // Pliki zadania (folder zadania + przypięte) widzi i pobiera każdy, kto widzi zadanie; macierz decyduje o działaniach
+    $ws_can_view     = true;
+    $ws_can_dl       = true;
     $ws_can_link     = ws_can('link', (int)$task['workspace_id'], $uid);
-    $ws_can_dl       = ws_can('download', (int)$task['workspace_id'], $uid);
 } catch (\Throwable $e) {}
 
 $subtasks = [];

@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($_GET['action'] ?? '', ['do
     $file_id = (int)($_GET['id'] ?? 0);
     $inline  = ($_GET['action'] === 'preview');
     $_wf     = ws_get_file($file_id);
-    if ($_wf && !ws_can('download', (int)$_wf['workspace_id'])) {   // macierz uprawnień do plików
+    if ($_wf && !ws_can_file('download', $_wf)) {   // pliki zadań — wszyscy w obszarze; foldery wspólne — wg macierzy
         http_response_code(403);
         echo 'Brak uprawnienia do pobierania plików w tym obszarze.';
         exit;
@@ -172,7 +172,7 @@ $resp = match($action) {
         $file = ws_get_file($file_id);
         if (!$file) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'tasks' => []];
 
-        ws_require_perm('view', (int)$file['workspace_id']);
+        if (!ws_can_file('view', $file)) ws_require_perm('view', (int)$file['workspace_id']);
 
         $tasks = ws_tasks_for_file($file_id);
         return ['ok' => true, 'tasks' => $tasks];
@@ -186,7 +186,7 @@ $resp = match($action) {
         $task = db_one("SELECT id, workspace_id FROM tasks WHERE id = ?", [$task_id]);
         if (!$task) return ['ok' => false, 'error' => 'Nie znaleziono zadania.', 'files' => []];
 
-        ws_require_perm('view', (int)$task['workspace_id']);
+        ws_require_access((int)$task['workspace_id']);   // pliki zadania widzi każdy z dostępem do obszaru
 
         $files = ws_files_for_task($task_id);
         foreach ($files as &$f) {
@@ -214,7 +214,9 @@ $resp = match($action) {
         $q         = mb_strtolower(trim((string)($body['q'] ?? '')));
         $folder    = $folder_id ? ws_get_folder($folder_id) : null;
         if (!$folder) return ['ok' => false, 'files' => [], 'error' => 'Nie znaleziono folderu.'];
-        ws_require_perm('view', (int)$folder['workspace_id']);
+        // Folder zadania — każdy z dostępem do obszaru; folder wspólny — wg macierzy
+        if (empty($folder['task_id'])) ws_require_perm('view', (int)$folder['workspace_id']);
+        else ws_require_access((int)$folder['workspace_id']);
         $out = [];
         foreach (ws_list_files($folder_id) as $f) {
             if ($q !== '' && !str_contains(mb_strtolower($f['name'] . ' ' . $f['original_name']), $q)) continue;

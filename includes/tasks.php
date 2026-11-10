@@ -728,6 +728,8 @@ function _task_field_perms(): array {
  */
 function task_field_visible(string $field_key, ?string $ws_role = null): bool {
     if (in_array($ws_role, ['admin', 'editor'], true)) return true;
+    // Pliki zadania (załączniki) WIDZĄ wszyscy z dostępem do zadania — ustawienia pola dotyczą tylko dodawania/usuwania
+    if ($field_key === 'files') return true;
     $fd = _task_field_perms()[$field_key] ?? null;
     if (!$fd) return true;
     $roles_json = $fd['visible_roles'] ?? '';
