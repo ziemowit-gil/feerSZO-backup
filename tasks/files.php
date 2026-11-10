@@ -789,6 +789,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
 .tf-cnt{flex-shrink:0;min-width:1.5rem;padding:.08rem .35rem;text-align:center;font-size:.72rem;font-weight:700;background:#f2f2f2;color:var(--tf-text);font-variant-numeric:tabular-nums}
 .tf-cnt.is-zero{background:transparent;color:var(--tf-muted);font-weight:400}
 .tf-side-none{padding:.3rem .9rem .5rem;font-size:.8rem;color:var(--tf-muted);margin:0}
+.tf-ws-list{margin-bottom:.4rem!important;padding-bottom:.4rem!important;border-bottom:1px solid var(--tf-line)!important}
 
 .tf-card{position:relative;background:#fff;border:1px solid var(--tf-line);border-top:2px solid var(--ws,#007a00)}
 .tf-card-head{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .75rem;padding:.75rem 1rem;border-bottom:1px solid var(--tf-line)}
@@ -884,7 +885,22 @@ require_once __DIR__ . '/includes/header_tasks.php';
 <div class="tf-layout">
 
   <!-- ── Foldery: wspólne + foldery zadań ─────────────────────────────────────── -->
-  <nav class="tf-side" aria-label="Foldery obszaru">
+  <nav class="tf-side" aria-label="Obszary i foldery">
+    <?php /* Wybór obszaru tylko po boku (bez przełącznika w górnym pasku) — te same kafelki co na liście zadań */ ?>
+    <?php if (count($workspaces) > 1): ?>
+    <div class="tf-side-h">Obszary</div>
+    <ul class="tk-ws-side-list tf-ws-list">
+      <?php foreach ($workspaces as $_w): $_won = (int)$_w['id'] === $ws_id; $_wc = (string)($_w['color'] ?: '#5f5f5f'); ?>
+      <li>
+        <a href="<?= APP_URL ?>/tasks/files.php?ws=<?= (int)$_w['id'] ?>" class="tk-ws-side-link<?= $_won ? ' active' : '' ?>"<?= $_won ? ' aria-current="page"' : '' ?>
+           style="--ws:<?= h($_wc) ?>;--ws-ink:<?= task_ws_ink($_wc) ?>" title="<?= h($_w['name']) ?>">
+          <span class="tk-ws-tile" aria-hidden="true"><i class="bi <?= h($_w['icon'] ?: 'bi-folder') ?>"></i></span>
+          <span class="tk-ws-side-name"><?= h($_w['name']) ?></span>
+        </a>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php endif; ?>
     <?php if ($folders): ?>
     <div class="tf-side-search">
       <label class="visually-hidden" for="tfFolderFilter">Filtruj foldery</label>

@@ -21,66 +21,8 @@
       </span>
     </a>
 
-    <?php if ($_tsk_workspaces):
-        $_tsk_cur_ws  = null;
-        foreach ($_tsk_workspaces as $_wsRow) {
-            if ((int)$_wsRow['id'] === (int)$_ws_id) { $_tsk_cur_ws = $_wsRow; break; }
-        }
-        // tasks/files.php ustawia $TASKS_FILES_VIEW = true — WS switcher zmienia URL na files.php
-        $_tsk_on_files = $TASKS_FILES_VIEW ?? false;
-        $_tsk_view_qs  = $_tsk_on_files ? '' : (isset($_GET['view']) ? '&view=' . urlencode($_GET['view']) : '');
-        $_tsk_ws_base  = $_tsk_on_files
-            ? (APP_URL . '/tasks/files.php')
-            : (APP_URL . '/tasks/index.php');
-    ?>
-    <div class="dropdown d-none d-sm-block" id="tsk-ws-switch-wrap">
-      <button type="button" class="tsk-ws-switch-btn" id="tsk-ws-switch-btn"
-              data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-              aria-label="Przełącz obszar roboczy<?= $_tsk_cur_ws ? ' — bieżący: ' . h($_tsk_cur_ws['name']) : '' ?>">
-        <?php if ($_tsk_cur_ws): ?>
-        <span class="tsk-ws-switch-dot" style="background:<?= h($_tsk_cur_ws['color']) ?>" aria-hidden="true"></span>
-        <span class="text-truncate" style="max-width:130px"><?= h($_tsk_cur_ws['name']) ?></span>
-        <?php else: ?>
-        <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
-        <span>Wszystkie obszary</span>
-        <?php endif; ?>
-        <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.6" aria-hidden="true"></i>
-      </button>
-      <div class="dropdown-menu shadow tsk-ws-switch-menu" role="menu" aria-label="Lista obszarów roboczych">
-        <div class="tsk-ws-switch-search-wrap">
-          <input type="search" id="tsk-ws-switch-search"
-                 class="form-control form-control-sm"
-                 placeholder="Szukaj obszaru…"
-                 aria-label="Szukaj obszaru roboczego"
-                 oninput="tskWsFilter(this.value)">
-        </div>
-        <div class="tsk-ws-switch-list" id="tsk-ws-switch-list">
-          <?php if (!$_tsk_on_files): ?>
-          <a href="<?= APP_URL ?>/tasks/index.php<?= $_tsk_view_qs ? '?' . ltrim($_tsk_view_qs, '&') : '' ?>"
-             class="tsk-ws-switch-item <?= !$_ws_id ? 'active' : '' ?>"
-             data-name="wszystkie zadania"
-             aria-current="<?= !$_ws_id ? 'page' : 'false' ?>">
-            <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
-            <span class="flex-grow-1">Wszystkie zadania</span>
-          </a>
-          <div class="tsk-ws-switch-sep" role="separator"></div>
-          <?php endif; ?>
-          <?php foreach ($_tsk_workspaces as $ws): ?>
-          <a href="<?= $_tsk_ws_base ?>?ws=<?= $ws['id'] ?><?= $_tsk_view_qs ?>"
-             class="tsk-ws-switch-item <?= (int)$_ws_id === (int)$ws['id'] ? 'active' : '' ?>"
-             data-name="<?= h(mb_strtolower($ws['name'])) ?>"
-             aria-current="<?= (int)$_ws_id === (int)$ws['id'] ? 'page' : 'false' ?>">
-            <span class="tsk-ws-dot" style="background:<?= h($ws['color']) ?>" aria-hidden="true"></span>
-            <i class="bi <?= h($ws['icon']) ?>" aria-hidden="true"></i>
-            <span class="flex-grow-1 text-truncate"><?= h($ws['name']) ?></span>
-            <span class="tsk-ws-cnt" aria-label="<?= (int)$ws['task_count'] ?> zadań"><?= (int)$ws['task_count'] ?></span>
-          </a>
-          <?php endforeach; ?>
-          <div class="tsk-ws-switch-empty" id="tsk-ws-switch-empty" style="display:none">Brak wyników</div>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
+    <?php /* Wybór obszaru tylko w bocznej kolumnie („Obszary” na liście zadań, na stronie Pliki nad folderami) —
+             przełącznik w górnym pasku usunięty na życzenie użytkownika (2026-11-10). */ ?>
 
     <nav class="ms-auto d-flex align-items-center gap-2" aria-label="Akcje użytkownika">
 
