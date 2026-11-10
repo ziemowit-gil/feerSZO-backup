@@ -91,6 +91,10 @@ final class LicencjePanelAuth
         db()->exec("CREATE TABLE IF NOT EXISTS license_panel_handoffs (
             token_hash TEXT PRIMARY KEY, client_id INTEGER NOT NULL, student_id INTEGER, expires_at DATETIME NOT NULL, used_at DATETIME,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        // wejście administratora (rola SZO „Administrator Licencji”): kind='admin', user_id / user_name z SZO
+        foreach (["kind TEXT NOT NULL DEFAULT 'ti'", "user_id INTEGER", "user_name TEXT NOT NULL DEFAULT ''", "via TEXT NOT NULL DEFAULT ''"] as $col) {
+            try { db()->exec("ALTER TABLE license_panel_handoffs ADD COLUMN $col"); } catch (\Throwable $e) {}
+        }
     }
 
     /** Jednorazowy link wejścia z panelu uczestnika TI (2 minuty). Zwraca token do ?wejscie=. */
@@ -109,13 +113,70 @@ final class LicencjePanelAuth
         if (!preg_match('/^[a-f0-9]{48}$/', $token)) return false;
         self::handoffMigrate();
         $h = hash('sha256', $token);
-        $r = db_one("SELECT * FROM license_panel_handoffs WHERE token_hash=? AND used_at IS NULL AND expires_at >= ?", [$h, date('Y-m-d H:i:s')]);
+        $r = db_one("SELECT * FROM license_panel_handoffs WHERE token_hash=? AND used_at IS NULL AND expires_at >= ? AND kind='ti'", [$h, date('Y-m-d H:i:s')]);
         if (!$r) return false;
         $st = db()->prepare("UPDATE license_panel_handoffs SET used_at=datetime('now') WHERE token_hash=? AND used_at IS NULL");
         $st->execute([$h]);
         if ($st->rowCount() !== 1) return false;   // równoległe użycie tego samego linku
         self::login((int)$r['client_id'], 'panel uczestnika TI', $r['student_id'] !== null ? (int)$r['student_id'] : null);
         return true;
+    }
+
+    // ── Administrator Licencji: logowanie przez SZO albo Microsoft 365 (polecenie 2026-11-10) ──
+    // licencje/sso.php działa na hoście SZO (APP_URL): wymaga logowania SZO (z jego 2FA i kluczami; Microsoft 365 przez auth/ms365.php),
+    // sprawdza uprawnienie „licencje_admin” (albo rolę admin) i wraca do panelu jednorazowym linkiem ?wejscie_admin=… (2 minuty).
+
+    private const ADMIN_KEY = 'lp_admin';
+
+    /** Adres startu logowania administratora: $via = 'szo' | 'ms365'. */
+    public static function adminLoginUrl(string $via): string
+    {
+        $app = defined('APP_URL') ? rtrim((string)APP_URL, '/') : '';
+        $sso = $app . self::PATH . 'sso.php';
+        return $via === 'ms365' ? $app . '/auth/ms365.php?redirect=' . rawurlencode($sso . '?via=ms365') : $sso . '?via=szo';
+    }
+
+    public static function adminHandoffCreate(int $userId, string $name, string $via): string
+    {
+        self::handoffMigrate();
+        $t = bin2hex(random_bytes(24));
+        db_insert('license_panel_handoffs', ['token_hash' => hash('sha256', $t), 'client_id' => 0, 'kind' => 'admin', 'user_id' => $userId, 'user_name' => mb_substr($name, 0, 150),
+                                             'via' => $via, 'expires_at' => date('Y-m-d H:i:s', time() + 120)]);
+        return $t;
+    }
+
+    public static function adminHandoffConsume(string $token): bool
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/', $token)) return false;
+        self::handoffMigrate();
+        $h = hash('sha256', $token);
+        $r = db_one("SELECT * FROM license_panel_handoffs WHERE token_hash=? AND used_at IS NULL AND expires_at >= ? AND kind='admin'", [$h, date('Y-m-d H:i:s')]);
+        if (!$r) return false;
+        $st = db()->prepare("UPDATE license_panel_handoffs SET used_at=datetime('now') WHERE token_hash=? AND used_at IS NULL");
+        $st->execute([$h]);
+        if ($st->rowCount() !== 1) return false;
+        self::start();
+        session_regenerate_id(true);
+        $_SESSION[self::ADMIN_KEY] = ['uid' => (int)$r['user_id'], 'name' => (string)$r['user_name'], 'via' => (string)$r['via'], 'ts' => time()];
+        $_SESSION['lp_csrf'] ??= bin2hex(random_bytes(16));
+        return true;
+    }
+
+    /** Zalogowany Administrator Licencji: ['uid','name','via'] albo null (2 h bezczynności). */
+    public static function admin(): ?array
+    {
+        self::start();
+        $a = $_SESSION[self::ADMIN_KEY] ?? null;
+        if (!$a || time() - (int)($a['ts'] ?? 0) > self::TTL) { unset($_SESSION[self::ADMIN_KEY]); return null; }
+        $_SESSION[self::ADMIN_KEY]['ts'] = time();
+        return $_SESSION[self::ADMIN_KEY];
+    }
+
+    public static function adminLogout(): void
+    {
+        self::start();
+        unset($_SESSION[self::ADMIN_KEY]);
+        session_regenerate_id(true);
     }
 
     /** Limit prób jak przy logowaniu TI: działa tylko przy ustawieniu ti_login_throttle = 1 (domyślnie wyłączony). */

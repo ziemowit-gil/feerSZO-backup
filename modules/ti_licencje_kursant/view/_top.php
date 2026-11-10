@@ -116,17 +116,20 @@ $nav = $nav ?? null;
 <body>
 <a class="skip" href="#tresc">Przejdź do treści</a>
 <div class="pk-topbar">
-  <a class="pk-brand" href="<?= h(isset($me) ? route('lk.index') : route('lk.login')) ?>"><b>Panel licencji</b> · <?= h($org) ?></a>
+  <a class="pk-brand" href="<?= h(isset($adm) ? route('lk.admin') : (isset($me) ? route('lk.index') : route('lk.login'))) ?>"><b>Panel licencji</b> · <?= h($org) ?></a>
   <div class="pk-a11y" aria-label="Ułatwienia dostępu">
     <div class="pk-a11y-group" role="group" aria-label="Kontrast"><span>Kontrast:</span><button type="button" data-lp-contrast="normal">Normalny</button><button type="button" data-lp-contrast="high">Wysoki</button></div>
     <div class="pk-a11y-group" role="group" aria-label="Wielkość liter"><span>Wielkość liter:</span><button type="button" data-lp-fontsize="md" aria-label="Litery normalne">A</button><button type="button" data-lp-fontsize="lg" aria-label="Litery większe" style="font-size:1rem">A</button><button type="button" data-lp-fontsize="xl" aria-label="Litery największe" style="font-size:1.15rem">A</button></div>
   </div>
-  <?php if (isset($me)): ?>
+  <?php if (isset($adm)): ?>
+  <div class="pk-user"><span>Administrator Licencji: <?= h($adm['name']) ?></span>
+    <form method="post" action="<?= h(route('lk.admin.logout')) ?>"><?= Router::csrfField() ?><button type="submit">Wyloguj</button></form></div>
+  <?php elseif (isset($me)): ?>
   <div class="pk-user"><span><?= h($me['name']) ?></span>
     <form method="post" action="<?= h(route('lk.logout')) ?>"><?= Router::csrfField() ?><button type="submit">Wyloguj</button></form></div>
   <?php endif; ?>
 </div>
-<div class="pk-crumb"><?= isset($me) ? 'Panel licencji' . ($me['fromTi'] ? ' · <a href="/karty30/ti/kursant/index.php">← Panel uczestnika TI</a>' : '') : 'Logowanie do panelu licencji' ?></div>
+<div class="pk-crumb"><?= isset($adm) ? 'Panel licencji · Administrator Licencji (logowanie: ' . h($adm['via']) . ')' : (isset($me) ? 'Panel licencji' . ($me['fromTi'] ? ' · <a href="/karty30/ti/kursant/index.php">← Panel uczestnika TI</a>' : '') : 'Logowanie do panelu licencji') ?></div>
 <div class="pk-wrap<?= $nav !== null ? ' pk-grid' : '' ?>">
 <?php if ($nav !== null): ?>
   <nav class="pk-side" aria-label="Menu panelu licencji">

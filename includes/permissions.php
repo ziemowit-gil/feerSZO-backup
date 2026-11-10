@@ -36,6 +36,7 @@ const PERMISSION_MODULES = [
     'slowniki'      => 'Słownik Centralny (słowniki systemu)',
     'msues_wdrozenie' => 'Wdrożenie MSUES (aplikacja zewnętrzna, SSO)',
     'audytor'       => 'Tajemniczy Klient — audyty dostępności (aplikacja zewnętrzna, SSO)',
+    'licencje_admin' => 'Administrator Licencji (Panel Licencji — logowanie Microsoft 365 / SZO)',
     'admin'         => 'Administracja',
 ];
 
@@ -151,10 +152,10 @@ function _permissions_init(): void {
             if ($mod !== 'admin') {
                 // EZD: dostęp tylko per-konto (user_permissions) albo rola ezd_user;
                 // editor i viewer nie dostają EZD przez rolę.
-                if (!in_array($mod, ['ezd', 'msues_wdrozenie', 'audytor'], true)) {   // tylko admin i konta nadawane ręcznie
+                if (!in_array($mod, ['ezd', 'msues_wdrozenie', 'audytor', 'licencje_admin'], true)) {   // tylko admin i konta nadawane ręcznie
                     $ins->execute([$editor_id, $mod, 1, 1, 0]);
                 }
-                $ins->execute([$viewer_id, $mod, in_array($mod, ['ezd', 'analityka', 'msues_wdrozenie', 'audytor'], true) ? 0 : 1, 0, 0]);   // EZD i Analityka TI tylko na wniosek
+                $ins->execute([$viewer_id, $mod, in_array($mod, ['ezd', 'analityka', 'msues_wdrozenie', 'audytor', 'licencje_admin'], true) ? 0 : 1, 0, 0]);   // EZD i Analityka TI tylko na wniosek
             }
         }
         // crm_user: tylko crm read+write

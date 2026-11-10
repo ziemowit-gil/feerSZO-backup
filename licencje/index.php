@@ -20,5 +20,11 @@ if (isset($_GET['wejscie']) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') 
     header('Location: ' . LicencjePanelAuth::PATH, true, 302);
     exit;
 }
+if (isset($_GET['wejscie_admin']) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {   // Administrator Licencji z SZO / Microsoft 365 (licencje/sso.php)
+    $ok = LicencjePanelAuth::adminHandoffConsume((string)$_GET['wejscie_admin']);
+    if (!$ok) $_SESSION['lk_login_err'] = 'Link logowania administratora wygasł albo był już użyty. Zaloguj się jeszcze raz.';
+    header('Location: ' . LicencjePanelAuth::PATH . ($ok ? '?_route=' . rawurlencode('/admin') : ''), true, 302);
+    exit;
+}
 define('LK_PANEL', true);
 require dirname(__DIR__) . '/modules/ti_licencje_kursant/router.php';

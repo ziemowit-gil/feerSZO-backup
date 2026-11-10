@@ -261,7 +261,8 @@ final class LicencjeKursantController
     {
         if (LicencjePanelAuth::user()) { header('Location: ' . route('lk.index')); exit; }
         $err = $_SESSION['lk_login_err'] ?? ''; $old = $_SESSION['lk_login_old'] ?? ''; unset($_SESSION['lk_login_err'], $_SESSION['lk_login_old']);
-        return Router::view(self::VIEW . 'login.php', ['err' => $err, 'old' => $old, 'org' => self::org()]);
+        return Router::view(self::VIEW . 'login.php', ['err' => $err, 'old' => $old, 'org' => self::org(), 'flash' => $this->takeFlash(),
+            'adminOn' => LicencjePanelAuth::admin() !== null, 'adminSzo' => LicencjePanelAuth::adminLoginUrl('szo'), 'adminMs' => LicencjePanelAuth::adminLoginUrl('ms365')]);
     }
 
     public function loginPost(): ?string
@@ -308,7 +309,7 @@ final class LicencjeKursantController
         $ch = ClaudeBilling::charge((int)$id);
         if (!$ch || (int)$ch['client_id'] !== $me['cid'] || !in_array($doc, ['proforma', 'order', 'invoice'], true)) { http_response_code(404); return 'Nie znaleziono dokumentu.'; }
         require_once dirname(__DIR__, 2) . '/claude_billing/logic/ClaudeInvoice.php';
-        if (ClaudeInvoice::isSim((string)$ch[$doc . '_number']) && !ClaudeBilling::isVirtual($me['cid'])) { http_response_code(404); return 'Nie znaleziono dokumentu.'; }   // symulacje widzi tylko konto testowe
+        if (ClaudeInvoice::isSim((string)$ch[$doc . '_number']) && !ClaudeBilling::isVirtual($me['cid']) && $doc !== 'proforma') { http_response_code(404); return 'Nie znaleziono dokumentu.'; }   // symulacje faktur widzi tylko konto testowe; proforma — podgląd
         try { ClaudeInvoice::sendPdf(ClaudeInvoice::pdf((int)$id, $doc)); }
         catch (\Throwable $e) {
             $url = $doc === 'order' ? '' : (string)$ch[$doc . '_view_url'];

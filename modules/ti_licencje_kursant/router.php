@@ -11,6 +11,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/router/lib/Router.php';
 require_once __DIR__ . '/logic/LicencjeKursantController.php';
 require_once __DIR__ . '/logic/LicencjeKod.php';
+require_once __DIR__ . '/logic/LicencjeAdminController.php';
 
 if (!defined('LK_PANEL')) { http_response_code(404); exit('Nie znaleziono strony.'); }
 
@@ -24,6 +25,17 @@ $r->aliasMiddleware('lp.auth', function () {
 $r->aliasMiddleware('lp.contact', function () {
     $u = LicencjePanelAuth::user();
     if ($u && LicencjeKod::needsContact((int)$u['cid'])) { header('Location: ' . route('lk.contact')); exit; }
+});
+
+// Administrator Licencji (logowanie SZO / Microsoft 365 przez licencje/sso.php)
+$r->aliasMiddleware('lp.admin', function () {
+    if (!LicencjePanelAuth::admin()) { header('Location: ' . route('lk.login')); exit; }
+});
+$r->group(['lp.admin'], function (Router $r) {
+    $r->get('/admin',                  [LicencjeAdminController::class, 'index'])->name('lk.admin');
+    $r->post('/admin/dostep',          [LicencjeAdminController::class, 'access'])->name('lk.admin.access');
+    $r->post('/admin/office',          [LicencjeAdminController::class, 'office'])->name('lk.admin.office');
+    $r->post('/admin/wyloguj',         [LicencjeAdminController::class, 'logout'])->name('lk.admin.logout');
 });
 
 $r->get('/logowanie',                  [LicencjeKursantController::class, 'loginForm'])->name('lk.login');
