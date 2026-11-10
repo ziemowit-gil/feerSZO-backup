@@ -10,6 +10,7 @@ if (!isset($P, $actor)) { header('Location: /karty30/ti/dydaktyk/claudeAbonament
 $title = $P['label'] . ' — test całego przebiegu'; $isTest = true;
 $kierCur = 'claudeAbonament.php';
 include dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_head.php';
+include __DIR__ . '/_style.php';
 $open = $sub && in_array($sub['status'], ['active', 'suspended'], true);
 $nextMonth = date('Y-m-', strtotime('first day of next month')) . str_pad((string)min((int)date('j'), (int)$s['due_day']), 2, '0', STR_PAD_LEFT);
 ?>

@@ -1,31 +1,55 @@
 <?php
 if (!isset($P, $actor)) { header('Location: /karty30/ti/dydaktyk/claudeAbonament.php', true, 302); exit; }   // widok tylko przez router modułu (bezpośredni adres pliku → panel)
 /**
- * modules/claude_billing/view/show.php — karta abonamentu Claude: stan, dane do faktury VAT, dzień graniczny, naliczenia, dziennik, zakończenie.
- * Zmienne: $sub, $charges, $events, $s, $gaps, $paidThrough, $actor.
+ * modules/claude_billing/view/show.php — karta abonamentu (panel dydaktyka › Płatne licencje): stan, wniosek (te same kroki co w Helpdesku),
+ * dane do faktury, opłaty z dokumentami PDF, dzień dokumentu dla tej osoby, zakończenie, dziennik. Szata jak ekran zarządzania (_style.php).
+ * Zmienne: $sub, $charges, $events, $s, $gaps, $paidThrough, $actor, $product, $P.
  */
-$title = $P['label'] . ' — ' . $sub['client_name'];
+$title = $P['label'] . ': ' . $sub['client_name'];
 $kierCur = 'claudeAbonament.php';
 include dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_head.php';
-$st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
+include __DIR__ . '/_style.php';
+$stCls = ['requested' => 'due', 'active' => 'ok', 'suspended' => 'bad', 'ended' => 'off'];
+$dd = ClaudeBilling::dueDay($sub, $s);
+$first = $charges ? $charges[count($charges) - 1] : null;   // najstarsza opłata (pierwsza po wniosku / włączeniu)
 ?>
-<div class="pivot"><?php foreach (ClaudeBilling::PRODUCTS as $pk => $pp): ?><a href="<?= h(route('cb.index', ['product' => $pk])) ?>"<?= $pk === $product && empty($isTest) ? ' aria-current="page"' : '' ?>><?= h($pp['label']) ?></a><?php endforeach; ?><a href="<?= h(route('cb.test', ['product' => $product])) ?>"<?= !empty($isTest) ? ' aria-current="page"' : '' ?>>Test całego przebiegu (<?= h($P['label']) ?>)</a></div>
-<h1><?= h($sub['client_name']) ?> <span class="chip align-middle" style="background:<?= $st[$sub['status']] ?? '#647687' ?>"><?= h(ClaudeBilling::STATUS[$sub['status']] ?? $sub['status']) ?></span></h1>
+<div class="cbx">
+<p class="small mb-1"><a href="<?= h(route('cb.index', ['product' => $product, 'tab' => $sub['status'] === 'requested' ? 'wnioski' : 'abonamenty'])) ?>">← Płatne licencje: <?= h($P['label']) ?></a></p>
+<h1 class="mb-3"><?= h($sub['client_name']) ?> <span class="cb-tag <?= h($stCls[$sub['status']] ?? 'off') ?> align-middle"><?= h(ClaudeBilling::STATUS[$sub['status']] ?? $sub['status']) ?></span></h1>
 
-<section class="panel accent">
-  <dl class="row mb-0">
-    <dt class="col-sm-3">Aktywowany</dt><dd class="col-sm-9"><?= h(ClaudeBilling::date($sub['activated_on'])) ?> przez <?= h($sub['activated_by']) ?><?= $sub['cycle_start'] !== $sub['activated_on'] ? ' · bieżący cykl od ' . h(ClaudeBilling::date($sub['cycle_start'])) : '' ?></dd>
-    <dt class="col-sm-3">Naliczenie</dt><dd class="col-sm-9">co miesiąc w dniu <?= (int)date('j', strtotime((string)$sub['cycle_start'])) ?>, nie później niż <?= ClaudeBilling::dueDay($sub, $s) ?>. dnia; termin <?= ClaudeBilling::TERM_DAYS ?> dni<?= (int)$sub['free'] ? ' — <b>bez opłat</b> (uczestnik „bez rozliczeń”)' : '' ?></dd>
-    <dt class="col-sm-3">Opłacono do</dt><dd class="col-sm-9"><?= h(ClaudeBilling::date($paidThrough)) ?></dd>
-    <dt class="col-sm-3">Zgłoszenie IT</dt><dd class="col-sm-9"><?= h($sub['helpdesk_number'] ?: '—') ?></dd>
-    <dt class="col-sm-3">Warunki</dt><dd class="col-sm-9"><details><summary>zaakceptowane <?= h(ClaudeBilling::date($sub['terms_accepted_at'])) ?><?= $sub['terms_ip'] ? ', IP ' . h($sub['terms_ip']) : '' ?></summary><p class="small mb-0"><?= h($sub['terms_text']) ?></p></details></dd>
-    <?php if ($sub['status'] === 'ended'): ?><dt class="col-sm-3">Zakończony</dt><dd class="col-sm-9"><?= h(ClaudeBilling::date($sub['ended_on'])) ?> — <?= h($sub['ended_reason']) ?></dd><?php endif; ?>
+<section class="panel">
+  <dl class="cb-info row mb-0">
+    <div class="col-md-4"><dt><?= $sub['status'] === 'requested' ? 'Wniosek z' : 'Włączony od' ?></dt><dd><?= h(ClaudeBilling::date($sub['activated_on'])) ?><span class="d-block small text-secondary"><?= h($sub['activated_by']) ?></span></dd></div>
+    <div class="col-md-4"><dt>Dokument co miesiąc</dt><dd><?= $dd === 1 ? 'proforma 1. dnia miesiąca' : 'proforma ok. ' . $dd . '. dnia miesiąca' ?>, termin <?= ClaudeBilling::TERM_DAYS ?> dni<?= (int)$sub['free'] ? '<span class="d-block small"><b>bez opłat</b> (uczestnik „bez rozliczeń”)</span>' : '' ?></dd></div>
+    <div class="col-md-4"><dt>Opłacony do</dt><dd><?= h(ClaudeBilling::date($paidThrough)) ?></dd></div>
+    <div class="col-md-4"><dt>Zgłoszenie w Helpdesku</dt><dd><?= (int)($sub['helpdesk_ticket_id'] ?? 0) ? '<a href="' . h(APP_URL) . '/helpdesk/view.php?id=' . (int)$sub['helpdesk_ticket_id'] . '" target="_blank" rel="noopener">' . h($sub['helpdesk_number'] ?: 'otwórz') . '<span class="visually-hidden"> (nowa karta)</span></a>' : h($sub['helpdesk_number'] ?: '—') ?></dd></div>
+    <div class="col-md-8"><dt>Zasady opłat</dt><dd><details><summary class="small">zaakceptowane <?= h(ClaudeBilling::date($sub['terms_accepted_at'])) ?><?= $sub['terms_ip'] ? ', IP ' . h($sub['terms_ip']) : '' ?></summary><p class="small mb-0 mt-1"><?= h($sub['terms_text']) ?></p></details></dd></div>
+    <?php if ($sub['status'] === 'ended'): ?><div class="col-12"><dt>Zakończony</dt><dd><?= h(ClaudeBilling::date($sub['ended_on'])) ?>: <?= h($sub['ended_reason']) ?></dd></div><?php endif; ?>
   </dl>
 </section>
 
-<section class="panel<?= $gaps ? ' warn' : '' ?>">
-  <h2 class="mt-0">Dane do faktury VAT</h2>
-  <?php if ($gaps): ?><p class="text-danger fw-semibold">Brakuje: <?= h(implode(', ', $gaps)) ?> — faktury czekają.</p><?php endif; ?>
+<?php if ($sub['status'] === 'requested'): $sid = (int)$sub['id']; $paid = $first && $first['status'] === 'paid'; $inv = $first ? (string)$first['invoice_number'] : ''; ?>
+<section class="panel" aria-labelledby="wn-h">
+  <h2 class="mt-0" id="wn-h">Wniosek: następny krok</h2>
+  <p class="cb-explain mb-2">Proforma <?= $first && $first['proforma_number'] !== '' ? h($first['proforma_number']) : '(w przygotowaniu)' ?> → wpłata<?= $paid ? ' (jest)' : '' ?> → faktura VAT<?= $inv !== '' ? ' (' . h($inv) . ')' : '' ?> → dostęp. Te same przyciski są w karcie zgłoszenia w Helpdesku.</p>
+  <div class="d-flex flex-wrap gap-2 align-items-start">
+    <?php if ($first && !$paid): ?>
+      <form method="post" action="<?= h(route('cb.req', ['id' => $sid, 'act' => 'paid'])) ?>" class="d-flex gap-1"><?= Router::csrfField() ?><label class="visually-hidden" for="rq-ref">Tytuł przelewu</label><input class="form-control form-control-sm" id="rq-ref" name="ref" placeholder="tytuł / nr (opcja)" style="width:11rem"><button class="cb-btn ghost" type="submit">Wpłata dotarła</button></form>
+    <?php elseif ($paid && $inv === ''): ?>
+      <form method="post" action="<?= h(route('cb.req', ['id' => $sid, 'act' => 'invoice'])) ?>"><?= Router::csrfField() ?><button class="cb-btn" type="submit">Wystaw fakturę VAT</button></form>
+    <?php else: ?>
+      <form method="post" action="<?= h(route('cb.req', ['id' => $sid, 'act' => 'activate'])) ?>"><?= Router::csrfField() ?><button class="cb-btn ok" type="submit">Aktywuj dostęp</button></form>
+    <?php endif; ?>
+    <details><summary class="small">Odrzuć wniosek</summary>
+      <form method="post" action="<?= h(route('cb.req', ['id' => $sid, 'act' => 'reject'])) ?>" class="mt-1" style="max-width:420px"><?= Router::csrfField() ?><label class="form-label small mb-0" for="rq-why">Powód (uczestnik dostanie e-mail)</label><textarea class="form-control form-control-sm mb-1" id="rq-why" name="reason" rows="2" required minlength="5"></textarea><button class="cb-btn danger" type="submit">Odrzuć wniosek</button></form>
+    </details>
+  </div>
+</section>
+<?php endif; ?>
+
+<section class="panel" aria-labelledby="fv-h">
+  <h2 class="mt-0" id="fv-h">Dane do faktury VAT</h2>
+  <?php if ($gaps): ?><p class="text-danger fw-semibold">Brakuje: <?= h(implode(', ', $gaps)) ?>. Dokumenty czekają na te dane.</p><?php endif; ?>
   <form method="post" action="<?= h(route('cb.buyer', ['id' => (int)$sub['id']])) ?>">
     <?= Router::csrfField() ?>
     <div class="row g-2">
@@ -33,32 +57,33 @@ $st = ['active' => '#008a00', 'suspended' => '#a20025', 'ended' => '#647687'];
       <div class="col-md-4"><label class="form-label small" for="b-<?= h($k) ?>"><?= h(ucfirst($l)) ?></label><input class="form-control form-control-sm" id="b-<?= h($k) ?>" name="<?= h($k) ?>" value="<?= h((string)$sub[$k]) ?>"<?= isset($gaps[$k]) ? ' aria-invalid="true"' : '' ?>></div>
       <?php endforeach; ?>
     </div>
-    <button class="btn-metro btn-sm mt-2" type="submit">Zapisz dane (i wystaw zaległe faktury)</button>
+    <button class="cb-btn mt-2" type="submit">Zapisz dane (i wystaw zaległe dokumenty)</button>
   </form>
 </section>
 
-<h2>Naliczenia</h2>
-<?php if (!$charges): ?><p class="text-secondary">Brak naliczeń.</p><?php else: $test = false; include __DIR__ . '/_charges.php'; endif; ?>
+<h2>Opłaty i dokumenty</h2>
+<?php if (!$charges): ?><p class="text-secondary">Brak opłat.</p><?php else: $test = false; include __DIR__ . '/_charges.php'; endif; ?>
 
 <?php if ($sub['status'] !== 'ended'): ?>
 <div class="row g-3">
   <div class="col-md-6"><section class="panel">
-    <h2 class="mt-0">Dzień graniczny dla tej osoby</h2>
+    <h2 class="mt-0">Dzień dokumentu dla tej osoby</h2>
     <form method="post" action="<?= h(route('cb.dueday', ['id' => (int)$sub['id']])) ?>" class="d-flex gap-2 align-items-end"><?= Router::csrfField() ?>
-      <div><label class="form-label small" for="dd">Dzień (1–28, puste = ogólne: <?= (int)$s['due_day'] ?>)</label><input class="form-control form-control-sm" id="dd" name="due_day" type="number" min="1" max="28" value="<?= h((string)($sub['due_day'] ?? '')) ?>"></div>
-      <button class="btn-metro btn-sm" type="submit">Zapisz</button></form>
+      <div><label class="form-label small" for="dd">Dzień 1–28 (puste = jak w ustawieniach: <?= (int)$s['due_day'] ?>)</label><input class="form-control form-control-sm" id="dd" name="due_day" type="number" min="1" max="28" value="<?= h((string)($sub['due_day'] ?? '')) ?>"></div>
+      <button class="cb-btn ghost" type="submit">Zapisz</button></form>
   </section></div>
-  <div class="col-md-6"><section class="panel warn">
-    <h2 class="mt-0">Zakończ abonament</h2>
+  <div class="col-md-6"><section class="panel">
+    <h2 class="mt-0"><?= $sub['status'] === 'requested' ? 'Zamknij bez aktywacji' : 'Zakończ abonament' ?></h2>
     <form method="post" action="<?= h(route('cb.end', ['id' => (int)$sub['id']])) ?>" class="d-flex gap-2 align-items-end"><?= Router::csrfField() ?>
       <div class="flex-grow-1"><label class="form-label small" for="er">Powód</label><input class="form-control form-control-sm" id="er" name="reason" placeholder="np. koniec kursu"></div>
-      <button class="btn-metro red btn-sm" type="submit">Zakończ (zgłoszenie do IT)</button></form>
+      <button class="cb-btn danger" type="submit">Zakończ (zgłoszenie do IT)</button></form>
   </section></div>
 </div>
 <?php endif; ?>
 
 <h2>Dziennik</h2>
 <ul class="list-unstyled small">
-  <?php foreach ($events as $e): ?><li class="border-bottom py-1"><span class="text-secondary"><?= h(date('d.m.Y H:i', strtotime((string)$e['created_at']))) ?></span> — <?= h($e['text']) ?><?= $e['by_name'] ? ' <span class="text-secondary">(' . h($e['by_name']) . ')</span>' : '' ?></li><?php endforeach; ?>
+  <?php foreach ($events as $e): ?><li class="border-bottom py-1"><span class="text-secondary"><?= h(date('d.m.Y H:i', strtotime((string)$e['created_at']))) ?></span> · <?= h($e['text']) ?><?= $e['by_name'] ? ' <span class="text-secondary">(' . h($e['by_name']) . ')</span>' : '' ?></li><?php endforeach; ?>
 </ul>
+</div>
 <?php include dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_foot.php'; ?>

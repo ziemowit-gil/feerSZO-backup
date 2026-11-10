@@ -26,33 +26,7 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
          . '<button class="cb-btn ' . h($cls) . '" type="submit">' . h($label) . '</button></form>';
 };
 ?>
-<style>
-  /* Ekran zarządzania Płatnymi licencjami — stonowany Metro: biel, szarości, jeden akcent; kontrast tekstu ≥ 4,5:1 */
-  .cbx { --ink: #1d1d1d; --muted: #555; --line: #d6d6d6; --bg: #f3f4f6; --link: #0f6fa8; --ok: #107c10; --due: #8a5300; --bad: #a4262c; }
-  .cbx .cb-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
-  .cbx .cb-prod { display: inline-flex; border: 1px solid var(--line); }
-  .cbx .cb-prod a { padding: .35rem .9rem; color: var(--ink); text-decoration: none; }
-  .cbx .cb-prod a[aria-current="page"] { background: var(--ink); color: #fff; }
-  .cbx .cb-state { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; font-size: .88rem; color: var(--muted); margin-bottom: 1rem; }
-  .cbx .cb-state b { color: var(--ink); font-weight: 600; }
-  .cbx .cb-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0; border: 1px solid var(--line); background: #fff; margin-bottom: 1rem; }
-  .cbx .cb-metric { display: block; padding: .6rem .8rem; border-right: 1px solid var(--line); color: var(--ink); text-decoration: none; border-top: 3px solid transparent; }
-  .cbx a.cb-metric:hover, .cbx a.cb-metric:focus-visible { background: var(--bg); }
-  .cbx .cb-metric.warn { border-top-color: var(--due); } .cbx .cb-metric.alert { border-top-color: var(--bad); }
-  .cbx .cb-metric .n { display: block; font-size: 1.6rem; font-weight: 300; line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .cbx .cb-metric .l { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-  .cbx .cb-tag { display: inline-block; padding: 0 .45rem; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border: 1px solid currentColor; color: var(--muted); white-space: nowrap; }
-  .cbx .cb-tag.ok { color: var(--ok); } .cbx .cb-tag.due { color: var(--due); } .cbx .cb-tag.bad { color: var(--bad); }
-  .cbx .cb-btn { border: 1px solid var(--link); background: var(--link); color: #fff; font-weight: 600; padding: .3rem .8rem; font-size: .88rem; }
-  .cbx .cb-btn:hover { background: #0b5a89; }
-  .cbx .cb-btn.ghost { background: #fff; color: var(--ink); border-color: var(--ink); } .cbx .cb-btn.ghost:hover { background: var(--bg); }
-  .cbx .cb-btn.danger { background: #fff; color: var(--bad); border-color: var(--bad); }
-  .cbx .cb-btn.ok { background: var(--ok); border-color: var(--ok); }
-  .cbx .cb-explain { color: var(--muted); font-size: .9rem; max-width: 80ch; }
-  .cbx .table td, .cbx .table th { vertical-align: top; }
-  .cbx .cb-steps { list-style: none; padding: 0; margin: 0; font-size: .82rem; }
-  .cbx .cb-steps li.done { color: var(--ok); } .cbx .cb-steps li.todo { color: var(--muted); }
-</style>
+<?php include __DIR__ . '/_style.php'; ?>
 <div class="cbx">
 <div class="cb-head">
   <h1 class="mb-0">Płatne licencje</h1>
