@@ -53,12 +53,15 @@ foreach ($tiles as $k => [$lbl, $st, $sum, $dueFlag]) $nav[] = [$U($k), $lbl, $d
 $PAGE_TITLE = $page === 'start' ? 'Moje licencje' : ($tiles[$page][0] ?? 'Moje licencje');
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
-$idsLine = '<p class="m-note tw-mb-4">Numer w panelu licencji: <b class="m-mono">' . h($ids['lic']) . '</b> · Nr beneficjenta: <b class="m-mono">' . h($ids['ben'] !== '' ? $ids['ben'] : 'nie nadano') . '</b>'
-    . ' · Konto Office: ' . ($eduAccount ? '<b class="m-mono">' . h((string)$eduAccount) . '</b>' : '<a href="' . h(route('lk.office')) . '">brak, załóż</a>') . '</p>';   // Office na każdej podstronie (polecenie 2026-11-10)
+$idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" style="border-left:4px solid var(--mt-ink)"><dl class="tw-grid sm:tw-grid-cols-3 tw-gap-x-6 tw-gap-y-2" style="margin:0">'
+    . '<div><dt class="m-note">Numer w Panelu Licencji</dt><dd class="m-mono tw-font-semibold" style="margin:0;font-size:1.15rem">' . h($ids['lic']) . '</dd></div>'
+    . '<div><dt class="m-note">Numer beneficjenta</dt><dd class="m-mono tw-font-semibold" style="margin:0;font-size:1.15rem">' . h($ids['ben'] !== '' ? $ids['ben'] : 'nie nadano') . '</dd></div>'
+    . '<div><dt class="m-note">Konto Office</dt><dd style="margin:0;font-size:1.05rem">' . ($eduAccount ? '<span class="m-mono tw-font-semibold">' . h((string)$eduAccount) . '</span>' : '<a href="' . h(route('lk.office')) . '">nie masz, załóż</a>') . '</dd></div>'
+    . '</dl></div>';   // numery w ramce na każdej podstronie (polecenie 2026-11-10)
 ?>
 <?php if ($page === 'start'): ?>
 <h1 class="m-title">Moje licencje</h1>
-<p class="m-lead"><?= h($me['name']) ?>. Każdą zmianę potwierdzasz kodem SMS<?= $contact['phone'] !== '' ? ' wysłanym na numer ' . h(LicencjeKod::mask($contact['phone'])) : '' ?>.</p>
+<p class="m-lead"><?= h($me['name']) ?></p>
 <?= $idsLine ?>
 <?php if ($virtual): ?><div class="pk-alert pk-alert-info" role="note">Konto testowe. Dokumenty i wpłaty są tylko symulacją, nic nie trafia do księgowości.</div><?php endif; ?>
 <?php if (!$paid): ?><p class="m-explain">Nie masz subskrypcji. Licencję na Claude albo NordVPN przypisuje prowadzący.</p><?php endif; ?>
