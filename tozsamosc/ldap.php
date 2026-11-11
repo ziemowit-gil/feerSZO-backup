@@ -266,7 +266,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
   </div>
 </nav>
 
-<?php flash_show(); ?>
+<?= flash_html() ?>
 
 <?php if (!$ldap_configured && $_tab !== 'konfigurator'): ?>
 <div class="tz-card mb-3" style="border-color:#fde68a;background:#fffbeb">
