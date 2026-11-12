@@ -1615,4 +1615,8 @@ document.getElementById('passModal').addEventListener('show.bs.modal', function(
 })();
 </script>
 
+<?php // Okno porównania i scalania duplikatów (modules/user_merge) — w HTML strony, otwierane plakietką „Wykryto N osób”.
+require_once dirname(__DIR__) . '/modules/user_merge/view/mergeModal.php';
+userMergeRenderModal($um_all, $um_open_uid); ?>
+
 <?php include dirname(__DIR__) . '/tozsamosc/_foot.php'; ?>
