@@ -99,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── M365 auto-tworzenie ──────────────────────────────────────────────────
     $m365_pass_created  = null;
     $m365_login_created = null;
+    $m365_warn          = '';   // ostrzeżenie M365 doklejane do końcowego komunikatu (flash ma jedno miejsce)
 
     if ($m365_create_mode === 'auto' && $m365_enabled_local) {
         try {
@@ -108,9 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $enabled            = m365_should_be_active($data);
             $m365user           = $graph->create_user($m365_login_created, $data['imie_nazwisko'] ?? '', $m365_pass_created, $enabled);
 
-            $sku = m365_setting('m365_license_sku_id');
-            $lic = 0;
-            if ($sku) { $graph->assign_license($m365user['id'], $sku); $lic = 1; }
+            // Licencja: błąd nie przerywa zapisu — konto w Entra już istnieje i musi trafić do umowy
+            $sku     = m365_setting('m365_license_sku_id');
+            $lic_err = $sku ? $graph->try_assign_license($m365user['id'], $sku) : null;
+            $lic     = ($sku && $lic_err === null) ? 1 : 0;
 
             db_update($TABLE, [
                 'm365_konto'               => 1,
@@ -125,9 +127,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['m365_new_pass']  = $m365_pass_created;
             $_SESSION['m365_sent']      = false;
 
-            log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Automatycznie utworzono konto M365: ' . $m365_login_created);
+            log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Automatycznie utworzono konto M365: ' . $m365_login_created
+                . ($lic_err !== null ? ' (bez licencji: ' . $lic_err . ')' : ''));
+            if ($lic_err !== null) $m365_warn = 'Konto M365 utworzone, ale licencji nie nadano: ' . $lic_err . ' Nadaj ją ręcznie w Microsoft 365.';
         } catch (\Throwable $e) {
-            flash_set('warning', 'Konto M365 nie zostało utworzone: ' . $e->getMessage());
+            $m365_warn = 'Konto M365 nie zostało utworzone: ' . $e->getMessage();
         }
     }
 
@@ -171,10 +175,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Przekazanie do akceptacji
     if ($status_original === 'projekt') {
         submit_for_approval($TYPE, $id, (int)current_user()['id'], $data['numer_umowy'] ?? '');
-        flash_set('success', 'Porozumienie wolontariackie zostało dodane i przekazane do akceptacji.');
+        $done_msg = 'Porozumienie wolontariackie zostało dodane i przekazane do akceptacji.';
     } else {
-        flash_set('success', 'Porozumienie wolontariackie zostało dodane.');
+        $done_msg = 'Porozumienie wolontariackie zostało dodane.';
     }
+    flash_set($m365_warn !== '' ? 'warning' : 'success', $done_msg . ($m365_warn !== '' ? ' ' . $m365_warn : ''));
 
     unset($_SESSION['wolontariat_draft'][$token]);
     header('Location: ' . APP_URL . '/contracts/' . $TYPE . '/view.php?id=' . $id);

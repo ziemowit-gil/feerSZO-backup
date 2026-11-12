@@ -89,14 +89,15 @@ function m365SelfCreate(array $user): array {
 
         $created = $graph->create_user($login, $name, $pass, true);
         $oid = $created['id'];
-        if ($sku) $graph->assign_license($oid, $sku);
+        // Licencja: błąd nie usuwa założonego konta — zapisujemy je bez licencji i zgłaszamy działowi IT
+        $licErr = $sku ? $graph->try_assign_license($oid, $sku) : null;
 
         $uid = (int)$user['id'];
         $pdo = db();
         $pdo->beginTransaction();
         $pdo->prepare("UPDATE umowy_{$type} SET m365_konto=1, m365_login=?, m365_user_id=?, m365_konto_aktywne=1,
                        m365_data_utworzenia=?, m365_licencja_przypisana=?, m365_self_lock=NULL WHERE id=?")
-            ->execute([$login, $oid, date('Y-m-d H:i:s'), $sku ? 1 : 0, (int)$c['id']]);
+            ->execute([$login, $oid, date('Y-m-d H:i:s'), ($sku && $licErr === null) ? 1 : 0, (int)$c['id']]);
         // konto lokalne tej osoby wiążemy z kontem Microsoft (logowanie jednym kliknięciem)
         $pdo->prepare("UPDATE users SET microsoft_id=? WHERE id=?")->execute([$oid, $uid]);
         $pdo->commit();
@@ -116,18 +117,21 @@ function m365SelfCreate(array $user): array {
             'login' => $login, 'plain' => $pass, 'sent_to_email' => null,
             'notes' => 'Konto założone samodzielnie przez współpracownika', 'issued_by' => $uid]);
     } catch (\Throwable $e) {}
-    m365SelfNotifyIt($user, $login, $type, (int)$c['id']);
+    m365SelfNotifyIt($user, $login, $type, (int)$c['id'], $licErr);
     if (function_exists('authlog_write')) authlog_write($uid, 'm365_self_created', (string)($user['email'] ?? ''), 'Samodzielnie założono konto M365: ' . $login);
     return ['login' => $login, 'password' => $pass];
 }
 
 /** Zgłoszenie informacyjne dla działu IT (helpdesk, kategoria it_m365) o samodzielnie założonym koncie. */
-function m365SelfNotifyIt(array $user, string $login, string $type, int $contractId): void {
+function m365SelfNotifyIt(array $user, string $login, string $type, int $contractId, ?string $licErr = null): void {
     try {
         require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
         $name = (string)($user['name'] ?? $user['email'] ?? '');
         $desc = "Współpracownik samodzielnie założył konto Microsoft 365 po akceptacji regulaminu i podpisaniu oświadczenia RODO.\n\n"
-              . "Osoba: {$name} ({$user['email']})\nLogin M365: {$login}\nUmowa: {$type} #{$contractId}\n\nZgłoszenie informacyjne — działań nie wymaga.";
+              . "Osoba: {$name} ({$user['email']})\nLogin M365: {$login}\nUmowa: {$type} #{$contractId}\n\n"
+              . ($licErr !== null
+                  ? "WYMAGA DZIAŁANIA: licencji nie nadano automatycznie ({$licErr}). Nadaj ją ręcznie w Microsoft 365."
+                  : 'Zgłoszenie informacyjne — działań nie wymaga.');
         $tid = db_insert('helpdesk_tickets', [
             'number' => hd_next_number('CHG'), 'title' => 'Samodzielnie założone konto M365: ' . $login,
             'description' => $desc, 'category' => 'it_m365', 'priority' => 'niski', 'status' => 'nowe',

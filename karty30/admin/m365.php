@@ -261,8 +261,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user_id   = $user_resp['id'] ?? '';
             if (!$user_id) throw new RuntimeException('Brak ID nowego użytkownika w odpowiedzi API.');
 
-            // Przypisz licencję
-            $g->assign_license($user_id, $sku_id);
+            // Przypisz licencję — błąd nie przerywa zapisu: konto w Entra już istnieje i musi trafić do bazy
+            $lic_err = $g->try_assign_license($user_id, $sku_id);
 
             // Przypisz do grupy MS365 (opcjonalnie)
             $group_id  = trim($_POST['group_id'] ?? '') ?: k30_m365_setting('default_group_id');
@@ -279,12 +279,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     m365_user_id=?, m365_login=?, m365_employee_id=?,
                     m365_license_sku=?, m365_provisioned_at=datetime('now'), m365_expires_at=?, m365_group_id=?
                  WHERE id=?"
-            )->execute([$user_id, $login, (string)$emp_id, $sku_id, $expires ?: null, $group_id ?: null, $client_id]);
+            )->execute([$user_id, $login, (string)$emp_id, $lic_err === null ? $sku_id : null, $expires ?: null, $group_id ?: null, $client_id]);
 
-            flash_set('success',
+            flash_set($lic_err === null ? 'success' : 'warning',
                 "Konto M365 utworzone!\n" .
                 "Login: {$login} | ID: {$emp_id} | Hasło: {$password}\n" .
                 ($expires ? "Konto ważne do: {$expires}\n" : '') .
+                ($lic_err !== null ? 'Uwaga: licencji nie nadano — ' . $lic_err . " Nadaj ją ręcznie w Microsoft 365.\n" : '') .
                 $group_msg .
                 "Zapisz hasło — nie będzie widoczne ponownie!"
             );
@@ -340,15 +341,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user    = $g->create_user_with_employee_id($login, $client['name'], $password, (string)$emp_id);
                 $user_id = $user['id'] ?? '';
                 if (!$user_id) throw new RuntimeException('Brak ID nowego użytkownika w odpowiedzi API.');
-                $g->assign_license($user_id, $sku_id);
+                $lic_err = $g->try_assign_license($user_id, $sku_id); // błąd licencji nie gubi utworzonego konta
                 if ($group_id !== '') { try { $g->add_to_group($user_id, $group_id); } catch (\Throwable $eg) {} }
                 db()->prepare(
                     "UPDATE k30_clients SET
                         m365_user_id=?, m365_login=?, m365_employee_id=?,
                         m365_license_sku=?, m365_provisioned_at=datetime('now'), m365_expires_at=?, m365_group_id=?
                      WHERE id=?"
-                )->execute([$user_id, $login, (string)$emp_id, $sku_id, $expires ?: null, $group_id ?: null, $cid]);
+                )->execute([$user_id, $login, (string)$emp_id, $lic_err === null ? $sku_id : null, $expires ?: null, $group_id ?: null, $cid]);
                 $created[] = ['name' => $client['name'], 'login' => $login, 'emp_id' => $emp_id];
+                if ($lic_err !== null) $errors_bulk[] = $client['name'] . ' — konto ' . $login . ' utworzone, ale licencji nie nadano: ' . $lic_err;
             } catch (\Throwable $ei) {
                 $errors_bulk[] = $client['name'] . ' — ' . k30_m365_friendly_error($ei->getMessage());
             }
@@ -433,8 +435,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $emp_id  = k30_random_employee_id();
                 $user    = $g->create_user_with_employee_id($login, $display, $password, (string)$emp_id);
                 $user_id = $user['id'] ?? '';
-                if ($sku_id && $user_id) {
-                    try { $g->assign_license($user_id, $sku_id); } catch (\Throwable $el) {}
+                if ($sku_id && $user_id && ($lic_err = $g->try_assign_license($user_id, $sku_id)) !== null) {
+                    $errors_bulk[] = "{$login} — konto utworzone, ale licencji nie nadano: {$lic_err}";
                 }
                 if ($group_id !== '' && $user_id) {
                     try { $g->add_to_group($user_id, $group_id); } catch (\Throwable $eg) {}

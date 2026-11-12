@@ -78,11 +78,9 @@ try {
             $azure    = $graph->create_user($login, $imie_nazwisko, $password, $konto_aktywne);
             $user_id  = $azure['id'];
 
-            $lic_assigned = 0;
-            if ($sku) {
-                $graph->assign_license($user_id, $sku);
-                $lic_assigned = 1;
-            }
+            // Licencja: błąd nie przerywa zapisu — konto w Entra już istnieje i musi trafić do bazy
+            $lic_err      = $sku ? $graph->try_assign_license($user_id, $sku) : null;
+            $lic_assigned = ($sku && $lic_err === null) ? 1 : 0;
 
             $sent = false;
             $sender = m365_setting('m365_sender_user_id');
@@ -123,13 +121,14 @@ try {
 
             // Audit log
             log_contract_action('m365_standalone', $sa_id, $user['id'], 'create',
-                "Utworzono konto M365: {$login}" . ($sent ? ' (mail wysłany)' : ''));
+                "Utworzono konto M365: {$login}" . ($sent ? ' (mail wysłany)' : '') . ($lic_err !== null ? ' (bez licencji: ' . $lic_err . ')' : ''));
 
-            flash_set('success',
+            flash_set($lic_err !== null ? 'warning' : 'success',
                 'Konto M365 <strong>' . h($login) . '</strong> zostało utworzone'
                 . ($konto_aktywne ? ' i jest <strong>aktywne</strong>' : ' (nieaktywne)')
                 . ($sent ? ' — mail wysłany na ' . h($email) : '')
-                . '.');
+                . '.'
+                . ($lic_err !== null ? ' Licencji nie nadano: ' . $lic_err . ' Nadaj ją ręcznie w Microsoft 365.' : ''));
             break;
         }
 

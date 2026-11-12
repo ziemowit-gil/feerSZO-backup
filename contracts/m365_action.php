@@ -60,13 +60,9 @@ try {
         $user = $graph->create_user($login, $person_name, $password, $enabled);
         $user_id = $user['id'];
 
-        // Przypisz licencję
-        if ($sku) {
-            $graph->assign_license($user_id, $sku);
-            $lic_assigned = 1;
-        } else {
-            $lic_assigned = 0;
-        }
+        // Przypisz licencję — błąd nie przerywa zapisu: konto w Entra już istnieje i musi trafić do umowy
+        $lic_err      = $sku ? $graph->try_assign_license($user_id, $sku) : null;
+        $lic_assigned = ($sku && $lic_err === null) ? 1 : 0;
 
         // Wyślij mail (jeśli mamy adres e-mail osoby)
         $sent = false;
@@ -128,7 +124,13 @@ try {
             'created' => ' · konto lokalne auto-utworzone (viewer)',
             default   => '',
         };
-        flash_set('success', "Konto M365 utworzone: {$login}{$link_suffix}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail — mail nie wysłany)'));
+        $mail_note = $sent ? ' (mail wysłany)' : ' (brak e-mail — mail nie wysłany)';
+        if ($lic_err !== null) {
+            log_contract_action($type, $id, (int)current_user()['id'], 'note', 'Konto M365 ' . $login . ' bez licencji: ' . $lic_err);
+            flash_set('warning', "Konto M365 utworzone: {$login}{$link_suffix}{$mail_note}, ale licencji nie nadano: {$lic_err} Nadaj ją ręcznie w Microsoft 365.");
+        } else {
+            flash_set('success', "Konto M365 utworzone: {$login}{$link_suffix}{$mail_note}");
+        }
 
     } elseif ($action === 'enable' || ($action === 'toggle_active' && !$row['m365_konto_aktywne'])) {
         if (!$row['m365_user_id']) throw new RuntimeException('Brak ID użytkownika Azure AD.');

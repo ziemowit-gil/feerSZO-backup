@@ -155,6 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $m365_ok  = null;  // null = nie żądano, true = sukces, string = błąd
         $m365_login_created = '';
         $m365_mail_sent     = false;
+        $m365_lic_err       = null;  // przyczyna, gdy konto powstało bez licencji
         if (!empty($_POST['m365_create_now'])) {
             try {
                 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
@@ -177,8 +178,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $user    = $graph->create_user($login, $pname, $pass, true);
                 $user_id = $user['id'];
-                $lic_assigned = 0;
-                if ($sku) { $graph->assign_license($user_id, $sku); $lic_assigned = 1; }
+                // Licencja: błąd nie przerywa zapisu — konto w Entra już istnieje i musi trafić do umowy
+                $m365_lic_err = $sku ? $graph->try_assign_license($user_id, $sku) : null;
+                $lic_assigned = ($sku && $m365_lic_err === null) ? 1 : 0;
                 $sent_m = false;
                 $sender = m365_setting('m365_sender_user_id');
                 if ($sender && $pemail) { $graph->send_welcome_email($sender, $pemail, $pname, $login, $pass); $sent_m = true; }
@@ -208,7 +210,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($m365_ok === true) {
+        if ($m365_ok === true && $m365_lic_err !== null) {
+            flash_set('warning', 'Umowa zlecenie dodana. Konto M365 <strong>' . h($m365_login_created) . '</strong> utworzone, ale licencji nie nadano: '
+                . $m365_lic_err . ' Nadaj ją ręcznie w Microsoft 365.' . ($m365_mail_sent ? ' Mail z danymi wysłany.' : ''));
+        } elseif ($m365_ok === true) {
             flash_set('success', 'Umowa zlecenie dodana. Konto M365 <strong>' . h($m365_login_created) . '</strong> utworzone.' . ($m365_mail_sent ? ' Mail z danymi wysłany.' : ''));
         } elseif (is_string($m365_ok)) {
             flash_set('success', 'Umowa zlecenie dodana. <span class="text-warning fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i>Konto M365 nie zostało utworzone:</span> ' . h($m365_ok));

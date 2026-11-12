@@ -187,6 +187,7 @@ class M365Graph {
         if (!$ids) return 0;
         $this->http_post("https://graph.microsoft.com/v1.0/users/{$user_id}/assignLicense",
             ['addLicenses' => [], 'removeLicenses' => $ids]);
+        $this->require_success('Microsoft 365 nie odebrał licencji');
         return count($ids);
     }
 
@@ -321,19 +322,22 @@ class M365Graph {
 
     // ── Włącz / wyłącz konto ────────────────────────────────────────────────
 
+    /** Włącza/wyłącza konto (accountEnabled). Sukces = 2xx (204), inaczej wyjątek z komunikatem Graph. @throws \RuntimeException */
     public function set_enabled(string $user_id, bool $enabled): void {
         $this->http_patch(
             "https://graph.microsoft.com/v1.0/users/{$user_id}",
             ['accountEnabled' => $enabled]
         );
+        $this->require_success($enabled ? 'Microsoft 365 nie włączył konta' : 'Microsoft 365 nie wyłączył konta');
     }
 
-    /** Aktualizuje wyświetlaną nazwę konta (np. przy zmianie imienia/nazwiska w SZO). */
+    /** Aktualizuje wyświetlaną nazwę konta (np. przy zmianie imienia/nazwiska w SZO). @throws \RuntimeException gdy Graph nie zwróci 2xx */
     public function update_profile(string $user_id, string $display_name): void {
         $this->http_patch(
             "https://graph.microsoft.com/v1.0/users/{$user_id}",
             ['displayName' => $display_name]
         );
+        $this->require_success('Microsoft 365 nie zmienił nazwy konta');
     }
 
     // ── Reset hasła ──────────────────────────────────────────────────────────
@@ -374,19 +378,36 @@ class M365Graph {
 
     // ── Przypisz licencję ────────────────────────────────────────────────────
 
+    /**
+     * Nadaje licencję (SKU). Sukces = 2xx (Graph zwraca 200), inaczej wyjątek z komunikatem Graph
+     * (np. brak wolnych licencji, brak usageLocation, licencja już przypisana).
+     * Przy ZAKŁADANIU konta używaj try_assign_license() — błąd licencji nie może zostawić konta w Entra bez zapisu w bazie.
+     * @throws \RuntimeException
+     */
     public function assign_license(string $user_id, string $sku_id): void {
         $this->http_post(
             "https://graph.microsoft.com/v1.0/users/{$user_id}/assignLicense",
             ['addLicenses' => [['skuId' => $sku_id, 'disabledPlans' => []]], 'removeLicenses' => []]
         );
+        $this->require_success('Microsoft 365 nie nadał licencji');
     }
 
-    /** Odbiera jedną licencję (SKU) użytkownikowi. */
+    /**
+     * Nadaje licencję bez przerywania zakładania konta: null = nadana, tekst = przyczyna błędu.
+     * Konto zostaje; wołający zapisuje m365_licencja_przypisana=0 i pokazuje ostrzeżenie.
+     */
+    public function try_assign_license(string $user_id, string $sku_id): ?string {
+        try { $this->assign_license($user_id, $sku_id); return null; }
+        catch (\RuntimeException $e) { return $e->getMessage(); }
+    }
+
+    /** Odbiera jedną licencję (SKU) użytkownikowi. @throws \RuntimeException gdy Graph nie zwróci 2xx */
     public function remove_license(string $user_id, string $sku_id): void {
         $this->http_post(
             "https://graph.microsoft.com/v1.0/users/{$user_id}/assignLicense",
             ['addLicenses' => [], 'removeLicenses' => [$sku_id]]
         );
+        $this->require_success('Microsoft 365 nie odebrał licencji');
     }
 
     // ── Usuń użytkownika ─────────────────────────────────────────────────────

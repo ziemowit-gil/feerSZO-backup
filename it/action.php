@@ -163,9 +163,10 @@ try {
         $user     = $graph->create_user($login, $person_name, $password, $enabled);
         $user_id  = $user['id'];
 
-        $lic_assigned = 0;
-        $sku = m365_setting('m365_license_sku_id');
-        if ($sku) { $graph->assign_license($user_id, $sku); $lic_assigned = 1; }
+        // Licencja: błąd nie przerywa zapisu — konto w Entra już istnieje i musi trafić do umowy
+        $sku          = m365_setting('m365_license_sku_id');
+        $lic_err      = $sku ? $graph->try_assign_license($user_id, $sku) : null;
+        $lic_assigned = ($sku && $lic_err === null) ? 1 : 0;
 
         $sent   = false;
         $sender = m365_setting('m365_sender_user_id');
@@ -223,8 +224,9 @@ try {
             'created' => ' · konto lokalne utworzone',
             default   => '',
         };
-        log_contract_action($ctype, $cid, current_user()['id'], 'edit', "Utworzono konto M365: {$login}{$link_suffix}" . ($sent?' (mail wysłany)':''));
-        flash_set('success', "Konto M365 utworzone: {$login}{$link_suffix}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail)'));
+        $lic_note = $lic_err !== null ? ", ale licencji nie nadano: {$lic_err} Nadaj ją ręcznie w Microsoft 365." : '';
+        log_contract_action($ctype, $cid, current_user()['id'], 'edit', "Utworzono konto M365: {$login}{$link_suffix}" . ($sent?' (mail wysłany)':'') . $lic_note);
+        flash_set($lic_err !== null ? 'warning' : 'success', "Konto M365 utworzone: {$login}{$link_suffix}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail)') . $lic_note);
         header('Location: ' . APP_URL . "/contracts/{$ctype}/view.php?id={$cid}#tab-m365"); exit;
     }
 

@@ -699,6 +699,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ── M365 auto-tworzenie ──────────────────────────────────────────────
         $m365_pass_created  = null;
         $m365_login_created = null;
+        $m365_warn          = '';   // ostrzeżenie M365 doklejane do końcowego komunikatu (flash ma jedno miejsce)
         if ($m365_create_mode === 'auto' && $m365_enabled) {
             try {
                 $graph              = new M365Graph();
@@ -733,11 +734,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $graph->assign_license($m365user['id'], $sku);
                         db_update($TABLE, ['m365_licencja_przypisana' => 1], $id);
                     } catch (\Throwable $eLic) {
-                        flash_set('warning', 'Konto M365 utworzone, ale nie przypisano licencji: ' . $eLic->getMessage());
+                        $m365_warn = 'Konto M365 utworzone, ale nie przypisano licencji: ' . $eLic->getMessage() . ' Nadaj ją ręcznie w Microsoft 365.';
                     }
                 }
             } catch (\Throwable $e) {
-                flash_set('warning', 'Konto M365 nie zostało utworzone: ' . $e->getMessage());
+                $m365_warn = 'Konto M365 nie zostało utworzone: ' . $e->getMessage();
                 $m365_pass_created  = null;
                 $m365_login_created = null;
             }
@@ -832,13 +833,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Techniczna: bez obiegu, bez numeru RU — tylko wpis i dostęp
         if ($is_technical) {
-            flash_set('success', 'Wpis historycznej współpracy wolontariackiej zarejestrowany.');
+            $done_msg = 'Wpis historycznej współpracy wolontariackiej zarejestrowany.';
         } elseif (($row['status'] ?? '') === 'projekt') {
             submit_for_approval($TYPE, $id, (int)current_user()['id'], $data['numer_umowy'] ?? '');
-            flash_set('success', 'Porozumienie wolontariackie zostało dodane i przekazane do akceptacji.');
+            $done_msg = 'Porozumienie wolontariackie zostało dodane i przekazane do akceptacji.';
         } else {
-            flash_set('success', 'Porozumienie wolontariackie zostało dodane.');
+            $done_msg = 'Porozumienie wolontariackie zostało dodane.';
         }
+        flash_set($m365_warn !== '' ? 'warning' : 'success', $done_msg . ($m365_warn !== '' ? ' ' . $m365_warn : ''));
         // ── Zachęta do uzupełnienia profilu w katalogu ────────────────────────
         if (!empty($data['email']) && filter_var($data['email'], FILTER_VALIDATE_EMAIL) && !$is_technical) {
             try {
