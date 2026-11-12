@@ -140,7 +140,7 @@ $asWhere    = fn(string $ip, string $geo): string => implode(' · ', array_filte
       <div class="ma-card-hd"><h2 id="as-lock-h" class="ma-card-t">Nie rozpoznajesz jakiejś aktywności?</h2></div>
       <div class="ma-bar ma-bar--err">
         <i class="bi bi-shield-exclamation ma-bar-ic" aria-hidden="true"></i>
-        <div class="ma-bar-tx">Jeśli widzisz logowanie, którego nie wykonałeś, wybierz „To nie ja”. Wylogujemy wszystkie inne urządzenia<?= $asHasMs ? ' (także Microsoft 365)' : '' ?>,
+        <div class="ma-bar-tx">Jeśli widzisz logowanie, którego nie rozpoznajesz, wybierz „To nie ja”. Wylogujemy wszystkie inne urządzenia<?= $asHasMs ? ' (także Microsoft 365)' : '' ?>,
           zapomnimy nieznane miejsca logowania, a Ty od razu ustawisz nowe hasło.</div>
       </div>
       <form method="post" action="<?= h($asUrl('/to-nie-ja')) ?>" class="m-0"
