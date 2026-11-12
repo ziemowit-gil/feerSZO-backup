@@ -1377,7 +1377,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <option value="<?= h($k) ?>"><?= h($label) ?></option>
             <?php endforeach; ?>
           </select>
-          <p class="small text-muted mt-2 mb-0">Plik ELIXIR-O do zaimportowania w bankowości — zweryfikuj przelew przed skierowaniem do realizacji. Przy pierwszym przelewie do kontrahenta pojawi się prośba o potwierdzenie NIP i rachunku.</p>
+          <p class="small text-muted mt-2 mb-0">Plik ELIXIR-O do zaimportowania w bankowości — zweryfikuj przelew przed skierowaniem do realizacji. W plikach dla PKO BP (iPKO biznes) numer akceptacji trafia do pola „Referencje własne”, a nie do tytułu. Przy pierwszym przelewie do kontrahenta pojawi się prośba o potwierdzenie NIP i rachunku.</p>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>

@@ -704,8 +704,10 @@ function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
  * formatu powyżej; kwota jest w skrócie pomijana jako pierwsza (§2 pkt 11:
  * odrzuca się najpierw opis celu płatności, kwota nie jest wymieniona w ogóle,
  * więc traktowana jest jako równie zbywalna przy braku miejsca).
+ * $z_akc = false — tytuł BEZ numeru akceptacji (pliki dla PKO BP: numer idzie do
+ * pola „Referencje własne”, patrz edok_ipko_biznes_export()/edok_ipko_iso20022_export()).
  */
-function edok_generate_tytul_przelewu(array $doc): string {
+function edok_generate_tytul_przelewu(array $doc, bool $z_akc = true): string {
     // Tytuł narzucony z zewnątrz (np. przelew składek ZUS) — bez generowania.
     if (!empty($doc['_tytul'])) return mb_substr((string)$doc['_tytul'], 0, 140);
     $jest_przychod = ($doc['kierunek'] ?? 'wydatek') === 'przychod';
@@ -749,7 +751,7 @@ function edok_generate_tytul_przelewu(array $doc): string {
 
     $prefix = $jest_przychod ? 'PRZYCHÓD: ' : (!empty($doc['_zwrot']) ? 'ZWROT KOSZTÓW: ' : 'PŁATNOŚĆ: ');
     $parts = [$prefix . $opis_krotki, $ident];
-    if ($numer !== '') $parts[] = 'AKC: ' . $numer;
+    if ($numer !== '' && $z_akc) $parts[] = 'AKC: ' . $numer;
     if ($kwota !== '') $parts[] = $kwota . ' ' . $waluta;
     $t = implode(' - ', $parts);
 
@@ -757,8 +759,8 @@ function edok_generate_tytul_przelewu(array $doc): string {
 
     // Format skrócony (§2 pkt 11): zachowuje numer akceptacji i identyfikator
     // dokumentu, odrzuca opis celu płatności jako pierwszy.
-    $short_akc   = $numer !== '' ? 'AKC:' . $numer : '';
-    $short_ident = $jest_faktura ? 'FAK:' . $nr_dok : ($jest_proforma ? 'PROFORMA:' . $nr_dok : 'DOK:' . ($nr_dok !== '' ? $nr_dok : $numer));
+    $short_akc   = $numer !== '' && $z_akc ? 'AKC:' . $numer : '';
+    $short_ident = $jest_faktura ? 'FAK:' . $nr_dok : ($jest_proforma ? 'PROFORMA:' . $nr_dok : 'DOK:' . ($nr_dok !== '' ? $nr_dok : ($z_akc ? $numer : $typ_label)));
     $short = trim((!empty($doc['_zwrot']) ? 'ZWROT ' : '') . $short_akc . ' ' . $short_ident);
     return mb_substr($short, 0, 140);
 }
@@ -1730,12 +1732,22 @@ function edok_ipko_sanitize(string $s): string {
  * zawijany co 35 znaków; przelew podatkowy podaje gotowe wiersze w '_tytul_linie'
  * (/TI/…/OKR/… | /SFP/… | /TXT/…), żeby żaden znacznik nie został rozcięty między wierszami.
  */
-function edok_elixir_tytul(array $doc): string {
+function edok_elixir_tytul(array $doc, bool $z_akc = true): string {
     if (!empty($doc['_tytul_linie'])) {
         $l = array_map(fn($x) => mb_substr(edok_ipko_sanitize((string)$x), 0, 35), array_slice(array_values((array)$doc['_tytul_linie']), 0, 4));
         return implode('|', array_pad($l, 4, ''));
     }
-    return implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc)), 35, 4));
+    return implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc, $z_akc)), 35, 4));
+}
+
+/**
+ * Czy numer akceptacji (EODoK) mieści się w całości w referencji przelewu — wtedy pliki dla
+ * PKO BP pomijają „AKC: …” w tytule. Gdy numer nie mieści się w limicie pola referencji albo
+ * traci znaki przy oczyszczaniu, zostaje w tytule, żeby nie zgubić go z przelewu.
+ */
+function edok_akc_w_referencji(array $doc, string $referencja): bool {
+    $numer = trim((string)($doc['number'] ?? ''));
+    return $numer !== '' && $referencja === $numer;
 }
 
 /** Pole 15 ELIXIR-O (klasyfikacja polecenia): 51 = przelew zwykły, 71 = przelew do urzędu skarbowego ('_kod'). */
@@ -1836,9 +1848,10 @@ function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): stri
         $data_fmt     = str_replace('-', '', date('Y-m-d'));
         $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
         $bank_k       = substr($nrb_k, 2, 8);
-        $tytul        = edok_elixir_tytul($doc);
         // Referencja własna zleceniodawcy: max 16 znaków, bez polskich liter/znaków specjalnych poza / - ? : ( ) . , ' + spacja.
+        // To w niej jest numer akceptacji (EODoK) — tytuł przelewu już go nie powtarza („AKC: …”).
         $referencja   = mb_substr(preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? '')), 0, 16);
+        $tytul        = edok_elixir_tytul($doc, !edok_akc_w_referencji($doc, $referencja));
 
         $fields = [
             '110', $data_fmt, (string)$kwota_groszy, $bank_z, '0',
@@ -2170,8 +2183,10 @@ function edok_ipko_iso20022_export(array $docs, string $rachunek_zlecen_nrb): st
         if ($kwota <= 0) continue;
         $sum += $kwota;
         $num = preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? ''));
+        // EndToEndId = „Referencje własne” w iPKO biznes — tam jest numer akceptacji, tytuł go nie powtarza.
+        $e2e = mb_substr($num, 0, 35);
         $tx[] = ['nazwa' => $t((string)($doc['kontrahent_nazwa'] ?? ''), 70) ?: 'Odbiorca', 'nrb' => $nrb_k, 'kwota' => $kwota,
-                 'tytul' => $t(edok_generate_tytul_przelewu($doc), 140), 'e2e' => mb_substr($num, 0, 35) ?: 'NOTPROVIDED',
+                 'tytul' => $t(edok_generate_tytul_przelewu($doc, !edok_akc_w_referencji($doc, $e2e)), 140), 'e2e' => $e2e ?: 'NOTPROVIDED',
                  'instr' => mb_substr(($num !== '' ? $num : 'DOC' . (int)($doc['id'] ?? 0)) . '-' . (int)($doc['id'] ?? 0) . '-' . count($tx), 0, 35)];
     }
     if (!$tx) return '';
