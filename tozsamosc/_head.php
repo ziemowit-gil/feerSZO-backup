@@ -43,6 +43,7 @@ try { $__has_ika = !empty((db_one("SELECT cpc_code FROM users WHERE id=?", [(int
 // Strony administracyjne podsystemu (plik => [etykieta, ikona]) — grupa „Administracja” w menu.
 $__admin_items = [
     'uzytkownicy.php' => ['Użytkownicy',          'bi-people'],
+    'raport.php'      => ['Raport bezpieczeństwa kont', 'bi-shield-exclamation'],   // modules/account_security
     'role.php'        => ['Role i uprawnienia',   'bi-diagram-3'],
     'moduly.php'      => ['Uprawnienia modułów',  'bi-grid-3x3-gap'],
     'audit.php'       => ['Dziennik zdarzeń',     'bi-journal-text'],

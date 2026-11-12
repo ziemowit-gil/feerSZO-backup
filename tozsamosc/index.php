@@ -1445,6 +1445,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
   <?php $sec_title('administracja', 'Administracja', 'Zarządzanie kontami, rolami, logowaniem i federacją tożsamości.'); ?>
   <?php $admin_tiles = [
     ['Użytkownicy',          'Konta, role, aktywacja, import z katalogu AD', 'bi-people',       APP_URL . '/tozsamosc/uzytkownicy.php'],
+    ['Raport bezpieczeństwa kont', 'Konta bez MFA, bez telefonu, uśpione; eksport CSV', 'bi-shield-exclamation', APP_URL . '/tozsamosc/raport.php'],
     ['Role i uprawnienia',   'Macierz modułów per rola',                     'bi-diagram-3',    APP_URL . '/tozsamosc/role.php'],
     ['Dodatkowe moduły',     'Uprawnienia indywidualne ponad rolę',          'bi-grid-3x3-gap', APP_URL . '/tozsamosc/moduly.php'],
     ['Kody IKA',             'Nadawanie i reset kodów autoryzacyjnych',      'bi-123',          APP_URL . '/tozsamosc/ika_admin.php'],
