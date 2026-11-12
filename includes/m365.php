@@ -444,14 +444,17 @@ class M365Graph {
             "https://graph.microsoft.com/v1.0/users/{$sender_user_id}/sendMail",
             ['message' => $message, 'saveToSentItems' => false]
         );
-        // Graph zwraca 202 bez body przy sukcesie; błąd to {'error':{...}}
-        if ($this->last_error !== null) {
-            throw new \RuntimeException(
-                'Graph sendMail error: ' . json_encode($this->last_error, JSON_UNESCAPED_UNICODE)
-            );
-        }
+        // Graph zwraca 202 bez body przy sukcesie; inny status / brak odpowiedzi = wyjątek z komunikatem Graph
+        $this->require_success('Microsoft 365 nie wysłał e-maila');
     }
 
+    /** Jak send_raw_email(), ale bez wyjątku: null = wysłany, tekst = przyczyna błędu (operacja przed mailem już się udała). */
+    public function try_send_raw_email(string $sender_user_id, string $to, string $subject, string $html_body, string $reply_to = ''): ?string {
+        try { $this->send_raw_email($sender_user_id, $to, $subject, $html_body, $reply_to); return null; }
+        catch (\RuntimeException $e) { return $e->getMessage(); }
+    }
+
+    /** Mail z loginem i hasłem. Sukces = 2xx (202), inaczej wyjątek (hasła nie ma w komunikacie). @throws \RuntimeException */
     public function send_welcome_email(string $sender_user_id, string $to_email, string $display_name, string $login, string $password): void {
         $body = [
             'message' => [
@@ -470,6 +473,17 @@ class M365Graph {
             "https://graph.microsoft.com/v1.0/users/{$sender_user_id}/sendMail",
             $body
         );
+        $this->require_success('Microsoft 365 nie wysłał e-maila', [$password]);
+    }
+
+    /**
+     * Jak send_welcome_email(), ale bez wyjątku: null = wysłany, tekst = przyczyna błędu.
+     * Do użycia PO założeniu konta / zmianie hasła — błąd maila nie może zgubić konta ani nowego hasła
+     * (wołający pokazuje hasło adminowi i ostrzega, że trzeba je przekazać ręcznie).
+     */
+    public function try_send_welcome_email(string $sender_user_id, string $to_email, string $display_name, string $login, string $password): ?string {
+        try { $this->send_welcome_email($sender_user_id, $to_email, $display_name, $login, $password); return null; }
+        catch (\RuntimeException $e) { return $e->getMessage(); }
     }
 
     private function welcome_html(string $name, string $login, string $password): string {

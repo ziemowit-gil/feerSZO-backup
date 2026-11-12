@@ -168,11 +168,12 @@ try {
         $lic_err      = $sku ? $graph->try_assign_license($user_id, $sku) : null;
         $lic_assigned = ($sku && $lic_err === null) ? 1 : 0;
 
-        $sent   = false;
-        $sender = m365_setting('m365_sender_user_id');
+        // Mail: błąd nie przerywa zapisu konta (konto w Entra już istnieje); hasło zobaczy admin
+        $sent     = false; $mail_err = null;
+        $sender   = m365_setting('m365_sender_user_id');
         if ($sender && $person_email) {
-            $graph->send_welcome_email($sender, $person_email, $person_name, $login, $password);
-            $sent = true;
+            $mail_err = $graph->try_send_welcome_email($sender, $person_email, $person_name, $login, $password);
+            $sent     = $mail_err === null;
         }
 
         // Zapisz do umowy (backward compat)
@@ -224,9 +225,10 @@ try {
             'created' => ' · konto lokalne utworzone',
             default   => '',
         };
-        $lic_note = $lic_err !== null ? ", ale licencji nie nadano: {$lic_err} Nadaj ją ręcznie w Microsoft 365." : '';
+        $lic_note = ($lic_err !== null ? " Licencji nie nadano: {$lic_err} Nadaj ją ręcznie w Microsoft 365." : '')
+                  . ($mail_err !== null ? " Mail z danymi logowania nie wyszedł: {$mail_err} Przekaż dane ręcznie." : '');
         log_contract_action($ctype, $cid, current_user()['id'], 'edit', "Utworzono konto M365: {$login}{$link_suffix}" . ($sent?' (mail wysłany)':'') . $lic_note);
-        flash_set($lic_err !== null ? 'warning' : 'success', "Konto M365 utworzone: {$login}{$link_suffix}" . ($sent ? ' (mail wysłany)' : ' (brak e-mail)') . $lic_note);
+        flash_set($lic_note !== '' ? 'warning' : 'success', "Konto M365 utworzone: {$login}{$link_suffix}" . ($sent ? ' (mail wysłany)' : ($mail_err !== null ? '.' : ' (brak e-mail)')) . $lic_note);
         header('Location: ' . APP_URL . "/contracts/{$ctype}/view.php?id={$cid}#tab-m365"); exit;
     }
 
@@ -286,11 +288,12 @@ try {
         $password = M365Graph::generate_password();
         $graph->set_password($account['external_id'], $password);
 
-        $sender = m365_setting('m365_sender_user_id');
-        $sent   = false;
+        // Hasło jest już zmienione: błąd maila nie może go zgubić (zapis w rejestrze + pokazanie adminowi niżej)
+        $sender   = m365_setting('m365_sender_user_id');
+        $sent     = false; $mail_err = null;
         if ($sender) {
-            $graph->send_welcome_email($sender, $crow['email'], $account['display_name'] ?? $account['login'], $account['login'], $password);
-            $sent = true;
+            $mail_err = $graph->try_send_welcome_email($sender, $crow['email'], $account['display_name'] ?? $account['login'], $account['login'], $password);
+            $sent     = $mail_err === null;
         }
 
         it_log_password([
@@ -312,8 +315,9 @@ try {
         $_SESSION['it_issued_pass'] = ['login'=>$account['login'],'pass'=>$password,'sent'=>$sent];
 
         if ($ctype && $cid) log_contract_action($ctype, $cid, current_user()['id'], 'edit',
-            'Reset hasła M365: ' . $account['login'] . ($sent ? ' (mail wysłany)' : ''));
-        flash_set('success', 'Hasło zresetowane' . ($sent ? ' i wysłane na ' . h($crow['email']) : '') . '.');
+            'Reset hasła M365: ' . $account['login'] . ($sent ? ' (mail wysłany)' : '') . ($mail_err !== null ? ' (mail NIE wysłany: ' . $mail_err . ')' : ''));
+        if ($mail_err !== null) flash_set('warning', 'Hasło zresetowane, ale mail nie wyszedł: ' . $mail_err . ' Przekaż hasło ręcznie.');
+        else flash_set('success', 'Hasło zresetowane' . ($sent ? ' i wysłane na ' . h($crow['email']) : '') . '.');
 
     } elseif ($action === 'delete_m365') {
         if (!is_admin()) throw new \RuntimeException('Tylko administrator może trwale usuwać konta M365.');

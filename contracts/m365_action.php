@@ -64,12 +64,12 @@ try {
         $lic_err      = $sku ? $graph->try_assign_license($user_id, $sku) : null;
         $lic_assigned = ($sku && $lic_err === null) ? 1 : 0;
 
-        // Wyślij mail (jeśli mamy adres e-mail osoby)
-        $sent = false;
+        // Wyślij mail (jeśli mamy adres e-mail osoby) — błąd maila nie przerywa zapisu konta; hasło zobaczy admin
+        $sent = false; $mail_err = null;
         $sender = m365_setting('m365_sender_user_id');
         if ($sender && $person_email) {
-            $graph->send_welcome_email($sender, $person_email, $person_name, $login, $password);
-            $sent = true;
+            $mail_err = $graph->try_send_welcome_email($sender, $person_email, $person_name, $login, $password);
+            $sent     = $mail_err === null;
         }
 
         // Zapisz hasło do historii IT (zaszyfrowane) — chroni przed utratą przy odświeżeniu strony
@@ -124,10 +124,13 @@ try {
             'created' => ' · konto lokalne auto-utworzone (viewer)',
             default   => '',
         };
-        $mail_note = $sent ? ' (mail wysłany)' : ' (brak e-mail — mail nie wysłany)';
-        if ($lic_err !== null) {
-            log_contract_action($type, $id, (int)current_user()['id'], 'note', 'Konto M365 ' . $login . ' bez licencji: ' . $lic_err);
-            flash_set('warning', "Konto M365 utworzone: {$login}{$link_suffix}{$mail_note}, ale licencji nie nadano: {$lic_err} Nadaj ją ręcznie w Microsoft 365.");
+        $mail_note = $sent ? ' (mail wysłany)' : ($mail_err !== null ? '' : ' (brak e-mail — mail nie wysłany)');
+        $warn = [];
+        if ($lic_err !== null)  $warn[] = "Licencji nie nadano: {$lic_err} Nadaj ją ręcznie w Microsoft 365.";
+        if ($mail_err !== null) $warn[] = "Mail z danymi logowania nie wyszedł: {$mail_err} Przekaż dane ręcznie (hasło poniżej).";
+        if ($warn) {
+            log_contract_action($type, $id, (int)current_user()['id'], 'note', 'Konto M365 ' . $login . ' — ' . implode(' ', $warn));
+            flash_set('warning', "Konto M365 utworzone: {$login}{$link_suffix}{$mail_note}. " . implode(' ', $warn));
         } else {
             flash_set('success', "Konto M365 utworzone: {$login}{$link_suffix}{$mail_note}");
         }
@@ -151,13 +154,15 @@ try {
         if (!$person_email) throw new RuntimeException('Ta umowa nie zawiera adresu e-mail odbiorcy.');
         $password = M365Graph::generate_password();
         // Reset hasła przez set_enabled (reużywa PATCH) — użyj osobnej instancji
-        $graph->set_password($row['m365_user_id'], $password);
-        $graph->send_welcome_email($sender, $person_email, $person_name, $row['m365_login'], $password);
+        $graph->set_password($row['m365_user_id'], $password);   // wyjątek = nic nie zmieniono
+        // Hasło jest już zmienione: błąd maila nie może go zgubić — admin zobaczy je na stronie umowy
+        $mail_err = $graph->try_send_welcome_email($sender, $person_email, $person_name, $row['m365_login'], $password);
         auth_start();
         $_SESSION['m365_new_pass']  = $password;
         $_SESSION['m365_new_login'] = $row['m365_login'];
-        $_SESSION['m365_sent']      = true;
-        flash_set('success', 'Nowe hasło wygenerowane i mail wysłany.');
+        $_SESSION['m365_sent']      = $mail_err === null;
+        if ($mail_err !== null) flash_set('warning', 'Nowe hasło ustawione, ale mail nie wyszedł: ' . $mail_err . ' Przekaż hasło ręcznie (pokazane poniżej).');
+        else flash_set('success', 'Nowe hasło wygenerowane i mail wysłany.');
 
     } elseif ($action === 'send_m365_setup_link') {
         // Wysyła LINK (token) zamiast hasła bezpośrednio — wolontariusz klika i widzi dane logowania.
@@ -215,8 +220,9 @@ try {
 HTML;
         // Wyślij przez M365 Graph lub kolejkę mailową
         $sender = m365_setting('m365_sender_user_id');
+        $mail_err = null;   // hasło i token są już ustawione — błąd maila nie może ich zgubić
         if ($sender) {
-            $graph->send_raw_email($sender, $person_email, "Aktywacja konta Microsoft 365 — {$org}", $mail_html);
+            $mail_err = $graph->try_send_raw_email($sender, $person_email, "Aktywacja konta Microsoft 365 — {$org}", $mail_html);
         } else {
             require_once dirname(__DIR__) . '/includes/mail_queue.php';
             mail_queue_add($person_email, $person_name, "Aktywacja konta Microsoft 365 — {$org}", $mail_html, '', $type, $id, '', true);
@@ -243,12 +249,18 @@ HTML;
         auth_start();
         $_SESSION['m365_new_pass']  = $password;
         $_SESSION['m365_new_login'] = $row['m365_login'];
-        $_SESSION['m365_sent']      = true;
+        $_SESSION['m365_sent']      = $mail_err === null;
 
         require_once dirname(__DIR__) . '/includes/approval.php';
-        log_contract_action($type, $id, (int)current_user()['id'], 'note',
-            'Wysłano link aktywacyjny M365 na: ' . $person_email);
-        flash_set('success', 'Link aktywacyjny M365 wysłany na ' . $person_email . '.');
+        if ($mail_err !== null) {
+            log_contract_action($type, $id, (int)current_user()['id'], 'note',
+                'Link aktywacyjny M365 NIE wysłany na ' . $person_email . ': ' . $mail_err);
+            flash_set('warning', 'Hasło tymczasowe ustawione, ale e-mail z linkiem aktywacyjnym nie wyszedł: ' . $mail_err . ' Przekaż dane ręcznie (pokazane poniżej).');
+        } else {
+            log_contract_action($type, $id, (int)current_user()['id'], 'note',
+                'Wysłano link aktywacyjny M365 na: ' . $person_email);
+            flash_set('success', 'Link aktywacyjny M365 wysłany na ' . $person_email . '.');
+        }
 
     } elseif ($action === 'send_setup_email') {
         // Wysyła e-mail z loginiem M365 i tymczasowym hasłem — forceChangePasswordNextSignIn=true
@@ -303,8 +315,9 @@ HTML;
 </div></body></html>
 HTML;
         $sender = m365_setting('m365_sender_user_id');
+        $mail_err = null;   // hasło jest już zmienione — błąd maila nie może go zgubić
         if ($sender) {
-            $graph->send_raw_email($sender, $person_email, "Ustaw hasło Microsoft 365 — {$org}", $mail_html);
+            $mail_err = $graph->try_send_raw_email($sender, $person_email, "Ustaw hasło Microsoft 365 — {$org}", $mail_html);
         } else {
             require_once dirname(__DIR__) . '/includes/mail_queue.php';
             mail_queue_add($person_email, $person_name, "Ustaw hasło Microsoft 365 — {$org}", $mail_html, '', $type, $id, '', true);
@@ -312,11 +325,17 @@ HTML;
         auth_start();
         $_SESSION['m365_new_pass']  = $password;
         $_SESSION['m365_new_login'] = $row['m365_login'];
-        $_SESSION['m365_sent']      = true;
+        $_SESSION['m365_sent']      = $mail_err === null;
         require_once dirname(__DIR__) . '/includes/approval.php';
-        log_contract_action($type, $id, (int)current_user()['id'], 'note',
-            'Wysłano link do ustawienia hasła M365 na: ' . $person_email);
-        flash_set('success', 'E-mail z danymi do ustawienia hasła Microsoft 365 wysłany na ' . $person_email . '.');
+        if ($mail_err !== null) {
+            log_contract_action($type, $id, (int)current_user()['id'], 'note',
+                'E-mail z hasłem tymczasowym M365 NIE wysłany na ' . $person_email . ': ' . $mail_err);
+            flash_set('warning', 'Hasło tymczasowe ustawione, ale e-mail nie wyszedł: ' . $mail_err . ' Przekaż hasło ręcznie (pokazane poniżej).');
+        } else {
+            log_contract_action($type, $id, (int)current_user()['id'], 'note',
+                'Wysłano link do ustawienia hasła M365 na: ' . $person_email);
+            flash_set('success', 'E-mail z danymi do ustawienia hasła Microsoft 365 wysłany na ' . $person_email . '.');
+        }
 
     } elseif ($action === 'toggle' && $row['m365_konto']) {
         // Przełącznik "konto utworzono" — wpisz ręcznie istniejący login

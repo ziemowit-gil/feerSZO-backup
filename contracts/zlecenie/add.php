@@ -156,6 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $m365_login_created = '';
         $m365_mail_sent     = false;
         $m365_lic_err       = null;  // przyczyna, gdy konto powstało bez licencji
+        $m365_mail_err      = null;  // przyczyna, gdy mail z danymi nie wyszedł
         if (!empty($_POST['m365_create_now'])) {
             try {
                 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
@@ -183,7 +184,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $lic_assigned = ($sku && $m365_lic_err === null) ? 1 : 0;
                 $sent_m = false;
                 $sender = m365_setting('m365_sender_user_id');
-                if ($sender && $pemail) { $graph->send_welcome_email($sender, $pemail, $pname, $login, $pass); $sent_m = true; }
+                // Mail: błąd nie przerywa zapisu konta (konto w Entra już istnieje); hasło zobaczy admin
+                if ($sender && $pemail) { $m365_mail_err = $graph->try_send_welcome_email($sender, $pemail, $pname, $login, $pass); $sent_m = $m365_mail_err === null; }
                 try {
                     it_migrate();
                     $_svc = db_one("SELECT id FROM it_services WHERE slug='m365'");
@@ -210,9 +212,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($m365_ok === true && $m365_lic_err !== null) {
-            flash_set('warning', 'Umowa zlecenie dodana. Konto M365 <strong>' . h($m365_login_created) . '</strong> utworzone, ale licencji nie nadano: '
-                . $m365_lic_err . ' Nadaj ją ręcznie w Microsoft 365.' . ($m365_mail_sent ? ' Mail z danymi wysłany.' : ''));
+        if ($m365_ok === true && ($m365_lic_err !== null || $m365_mail_err !== null)) {
+            flash_set('warning', 'Umowa zlecenie dodana. Konto M365 <strong>' . h($m365_login_created) . '</strong> utworzone.'
+                . ($m365_lic_err !== null ? ' Licencji nie nadano: ' . $m365_lic_err . ' Nadaj ją ręcznie w Microsoft 365.' : '')
+                . ($m365_mail_err !== null ? ' Mail z danymi logowania nie wyszedł: ' . $m365_mail_err . ' Przekaż dane ręcznie (hasło poniżej).' : '')
+                . ($m365_mail_sent ? ' Mail z danymi wysłany.' : ''));
         } elseif ($m365_ok === true) {
             flash_set('success', 'Umowa zlecenie dodana. Konto M365 <strong>' . h($m365_login_created) . '</strong> utworzone.' . ($m365_mail_sent ? ' Mail z danymi wysłany.' : ''));
         } elseif (is_string($m365_ok)) {

@@ -82,13 +82,12 @@ try {
             $lic_err      = $sku ? $graph->try_assign_license($user_id, $sku) : null;
             $lic_assigned = ($sku && $lic_err === null) ? 1 : 0;
 
-            $sent = false;
+            $sent = false; $mail_err = null;
             $sender = m365_setting('m365_sender_user_id');
             if ($sender && $email) {
-                try {
-                    $graph->send_welcome_email($sender, $email, $imie_nazwisko, $login, $password);
-                    $sent = true;
-                } catch (\Exception $e) { /* mail nieobowiązkowy */ }
+                // mail nieobowiązkowy — błąd nie przerywa zapisu konta; hasło zobaczy admin
+                $mail_err = $graph->try_send_welcome_email($sender, $email, $imie_nazwisko, $login, $password);
+                $sent     = $mail_err === null;
             }
 
             $now = date('Y-m-d H:i:s');
@@ -123,12 +122,13 @@ try {
             log_contract_action('m365_standalone', $sa_id, $user['id'], 'create',
                 "Utworzono konto M365: {$login}" . ($sent ? ' (mail wysłany)' : '') . ($lic_err !== null ? ' (bez licencji: ' . $lic_err . ')' : ''));
 
-            flash_set($lic_err !== null ? 'warning' : 'success',
+            flash_set(($lic_err !== null || $mail_err !== null) ? 'warning' : 'success',
                 'Konto M365 <strong>' . h($login) . '</strong> zostało utworzone'
                 . ($konto_aktywne ? ' i jest <strong>aktywne</strong>' : ' (nieaktywne)')
                 . ($sent ? ' — mail wysłany na ' . h($email) : '')
                 . '.'
-                . ($lic_err !== null ? ' Licencji nie nadano: ' . $lic_err . ' Nadaj ją ręcznie w Microsoft 365.' : ''));
+                . ($lic_err !== null ? ' Licencji nie nadano: ' . $lic_err . ' Nadaj ją ręcznie w Microsoft 365.' : '')
+                . ($mail_err !== null ? ' Mail z danymi logowania nie wyszedł: ' . $mail_err . ' Przekaż dane ręcznie.' : ''));
             break;
         }
 
@@ -160,17 +160,23 @@ try {
             if (!$sender) throw new RuntimeException('Nie skonfigurowano nadawcy maili (m365_sender_user_id).');
 
             $password = M365Graph::generate_password();
-            $graph->set_password($acc['m365_user_id'], $password);
-            $graph->send_welcome_email($sender, $acc['email'], $acc['imie_nazwisko'], $acc['m365_login'], $password);
+            $graph->set_password($acc['m365_user_id'], $password);   // wyjątek = nic nie zmieniono
+            // Hasło jest już zmienione: błąd maila nie może go zgubić — admin zobaczy je na stronie
+            $mail_err = $graph->try_send_welcome_email($sender, $acc['email'], $acc['imie_nazwisko'], $acc['m365_login'], $password);
 
             auth_start();
             $_SESSION['m365sa_new_login'] = $acc['m365_login'];
             $_SESSION['m365sa_new_pass']  = $password;
-            $_SESSION['m365sa_sent']      = true;
+            $_SESSION['m365sa_sent']      = $mail_err === null;
             $_SESSION['m365sa_email']     = $acc['email'];
 
-            log_contract_action('m365_standalone', $sa_id, current_user()['id'], 'edit', 'Wysłano mail z nowym hasłem: ' . $acc['email']);
-            flash_set('success', 'Nowe hasło wygenerowane i mail wysłany na <strong>' . h($acc['email']) . '</strong>.');
+            if ($mail_err !== null) {
+                log_contract_action('m365_standalone', $sa_id, current_user()['id'], 'edit', 'Nowe hasło ustawione, mail NIE wysłany na ' . $acc['email'] . ': ' . $mail_err);
+                flash_set('warning', 'Nowe hasło ustawione, ale mail nie wyszedł: ' . $mail_err . ' Przekaż hasło ręcznie (pokazane poniżej).');
+            } else {
+                log_contract_action('m365_standalone', $sa_id, current_user()['id'], 'edit', 'Wysłano mail z nowym hasłem: ' . $acc['email']);
+                flash_set('success', 'Nowe hasło wygenerowane i mail wysłany na <strong>' . h($acc['email']) . '</strong>.');
+            }
             break;
         }
 
