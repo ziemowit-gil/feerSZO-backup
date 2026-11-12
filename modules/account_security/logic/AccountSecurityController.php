@@ -7,6 +7,7 @@
  */
 
 require_once dirname(__DIR__) . '/lib/accountSecurityDevices.php';
+require_once dirname(__DIR__) . '/lib/accountSecurityM365.php';
 
 final class AccountSecurityController
 {
@@ -98,6 +99,14 @@ final class AccountSecurityController
             flash_set('warning', 'Nie znaleziono tego urządzenia.');
         }
         header('Location: ' . self::back('urzadzenia')); return null;
+    }
+
+    /** POST /m365/sprawdz — odczyt stanu konta Microsoft 365 z Entra ID (tylko odczyt); wynik w sesji, pokazuje sekcja Usługi. */
+    public function checkM365(): ?string
+    {
+        $me = self::me();
+        AccountSecurityM365::store((int)$me['id'], AccountSecurityM365::fetch($me));
+        header('Location: ' . self::back('uslugi')); return null;
     }
 
     /**

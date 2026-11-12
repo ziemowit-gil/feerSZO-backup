@@ -1280,6 +1280,8 @@ $sec_head = function (string $k) use ($sec_heads): void {
     <?php endforeach; ?>
   </div>
 
+  <?php include dirname(__DIR__) . '/modules/account_security/view/m365Status.php'; // stan konta w Entra ID (odczyt na żądanie) ?>
+
   <h2 class="ma-h2">Narzędzia zewnętrzne</h2>
   <div class="ma-svcs">
     <article class="ma-card ma-svc" aria-labelledby="svc-trello">
