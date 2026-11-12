@@ -98,6 +98,15 @@ final class UserMergeService
         $pdo      = db();
         $summary  = ['moved' => [], 'left' => [], 'contracts' => [], 'filled' => [], 'ms' => ['moved_from' => null, 'clash' => []]];
 
+        // Samonaprawy schematu (CREATE TABLE IF NOT EXISTS) PRZED transakcją: w MySQL DDL w transakcji = niejawny COMMIT.
+        require_once dirname(__DIR__, 3) . '/includes/approval.php';
+        require_once dirname(__DIR__, 3) . '/includes/auth_security.php';
+        audit_logs_migrate();
+        if (function_exists('_auth_security_init')) _auth_security_init();
+        userMergeRelationColumns();
+        userMergeContractEmailColumns();
+        $keepToken = (string)($_SESSION['_session_token'] ?? '');   // własne konto jako główne — nie wylogowuj bieżącej sesji
+
         $pdo->beginTransaction();
         try {
             $userCols = userMergeTableColumns('users');
@@ -148,8 +157,9 @@ final class UserMergeService
             $summary['filled'] = array_keys($fill);
 
             // sesje: hasło konta głównego się zmieniło, archiwa nie mogą działać dalej
-            require_once dirname(__DIR__, 3) . '/includes/auth_security.php';
-            foreach ([...$dups, $primary] as $u) { if (function_exists('session_destroy_all')) session_destroy_all((int)$u['id']); }
+            foreach ([...$dups, $primary] as $u) {
+                if (function_exists('session_destroy_all')) session_destroy_all((int)$u['id'], (int)$u['id'] === $byUid ? $keepToken : '');
+            }
 
             $dupList = implode(', ', array_map(fn($d) => '#' . $d['id'] . ' (' . $d['email'] . ')', $dups));
             audit_log('tozsamosc.users_merged', [
@@ -164,7 +174,6 @@ final class UserMergeService
                 'password'     => 'temporary, hash only, must_change',
                 'm365_sync_requested' => !empty($opts['sync_m365']),
             ], $byUid);
-            require_once dirname(__DIR__, 3) . '/includes/approval.php';
             log_user_action((int)$primary['id'], $byUid, 'user_merge',
                 'Scalono z kontem ' . $dupList . '. Przepięto powiązań: ' . array_sum($summary['moved'])
                 . ($summary['filled'] ? '; uzupełniono: ' . implode(', ', $summary['filled']) : '') . '. Nowe hasło tymczasowe (zmiana wymuszona).');
