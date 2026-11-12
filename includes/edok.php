@@ -1894,6 +1894,8 @@ function edok_ipko_suma_algo(): string {
  * Administratora iPKO: suma SHA1 albo MD5, dołączona jako ostatnia linia. Liczona z bajtów
  * pliku (już w ISO-8859-2) sprzed tej linii, łącznie z CRLF ostatniego rekordu; zapis
  * szesnastkowy małymi literami, bez CRLF na końcu. Pusty plik zostaje pusty.
+ * Format potwierdzony importem w iPKO biznes FEER 2026-11-12 (SHA1; warianty z wielkimi literami,
+ * CRLF po sumie i sumą bez ostatniego CRLF nie były potrzebne).
  */
 function edok_ipko_suma_dopisz(string $bytes, ?string $algo = null): string {
     $algo ??= edok_ipko_suma_algo();
