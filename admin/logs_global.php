@@ -7,6 +7,8 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/auth_security.php';
+// login_log zapisuje czas w UTC (SQLite CURRENT_TIMESTAMP) — przeliczenia w zakładce Logowania i eksporcie
+require_once dirname(__DIR__) . '/modules/account_security/lib/accountSecurityDevices.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Przeglądarka logów';
@@ -37,11 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Disposition: attachment; filename="login_log_' . date('Ymd') . '.csv"');
         $fh = fopen('php://output', 'w');
         fprintf($fh, chr(0xEF).chr(0xBB).chr(0xBF));
-        fputcsv($fh, ['ID','Użytkownik','E-mail','IP','User Agent','Akcja','Szczegóły','Data'], ';');
+        fputcsv($fh, ['ID','Użytkownik','E-mail','IP','User Agent','Akcja','Szczegóły','Data (czas polski)'], ';');
         try {
             $rows = db()->query("SELECT l.*, u.name FROM login_log l LEFT JOIN users u ON u.id=l.user_id ORDER BY l.created_at DESC")->fetchAll(\PDO::FETCH_ASSOC);
             foreach ($rows as $r) {
-                fputcsv($fh, [$r['id'], $r['name'] ?? '', $r['email'] ?? '', $r['ip'] ?? '', $r['user_agent'] ?? '', $r['action'] ?? '', $r['detail'] ?? '', $r['created_at'] ?? ''], ';');
+                fputcsv($fh, [$r['id'], $r['name'] ?? '', $r['email'] ?? '', $r['ip'] ?? '', $r['user_agent'] ?? '', $r['action'] ?? '', $r['detail'] ?? '',
+                              AccountSecurityDevices::localTime((string)($r['created_at'] ?? ''), 'Y-m-d H:i:s')], ';');
             }
         } catch (\Throwable $e) {}
         fclose($fh);
@@ -109,7 +112,9 @@ if ($tab === 'auth') {
         $s = "%$search%";
         $params = array_merge($params, [$s,$s,$s,$s,$s]);
     }
-    $where .= build_date_where('l.created_at', $date_from, $date_to, $params);
+    // login_log zapisuje czas w UTC — granice dni z filtra (czas polski) przeliczamy na UTC
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from)) { $where .= ' AND l.created_at >= ?'; $params[] = AccountSecurityDevices::dbTimeFromLocal($date_from . ' 00:00:00'); }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_to))   { $where .= ' AND l.created_at < ?';  $params[] = AccountSecurityDevices::dbTimeFromLocal(date('Y-m-d', strtotime($date_to . ' +1 day')) . ' 00:00:00'); }
     try {
         $total = (int)db()->prepare("SELECT COUNT(*) FROM login_log l LEFT JOIN users u ON u.id=l.user_id WHERE $where")->execute($params) ? db()->prepare("SELECT COUNT(*) FROM login_log l LEFT JOIN users u ON u.id=l.user_id WHERE $where")->execute($params) : 0;
         $st = db()->prepare("SELECT COUNT(*) FROM login_log l LEFT JOIN users u ON u.id=l.user_id WHERE $where");
@@ -268,7 +273,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php foreach ($rows as $r): ?>
         <tr>
           <td class="text-muted small"><?= (int)$r['id'] ?></td>
-          <td class="text-nowrap small"><?= h($r['created_at']) ?></td>
+          <td class="text-nowrap small"><?= h(AccountSecurityDevices::localTime((string)$r['created_at'], 'Y-m-d H:i:s')) ?></td>
           <td><?= h($r['name'] ?? '—') ?></td>
           <td><?= h($r['email'] ?? '—') ?></td>
           <td class="small text-muted"><?= h($r['ip'] ?? '—') ?></td>

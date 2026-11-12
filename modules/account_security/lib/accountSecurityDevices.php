@@ -57,6 +57,21 @@ final class AccountSecurityDevices
         }
     }
 
+    /**
+     * Odwrotność localTime(): czas lokalny (np. granica filtra „od dnia”) → zapis porównywalny z kolumną tabeli
+     * bezpieczeństwa (SQLite: UTC, MySQL: bez zmian). Nieprawidłowa data → wejście bez zmian.
+     */
+    public static function dbTimeFromLocal(string $local): string
+    {
+        if ((defined('DB_TYPE') ? DB_TYPE : 'sqlite') !== 'sqlite') return $local;
+        try {
+            return (new \DateTimeImmutable($local, new \DateTimeZone(date_default_timezone_get())))
+                ->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return $local;
+        }
+    }
+
     /** Ten sam czas w formacie ISO 8601 (atrybut datetime elementu <time>). */
     public static function isoTime(string $stored): string
     {
