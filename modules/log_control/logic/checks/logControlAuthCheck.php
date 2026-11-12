@@ -9,7 +9,7 @@ class LogControlAuthCheck extends ItControlCheck
     public function description(): string { return 'login_log (login_fail / login_blocked) i login_attempts — progi i brute force per IP.'; }
 
     protected function execute(ItControlContext $ctx, ItControlResult $r): void {
-        $from = $ctx->windowStartSql();
+        $from = $ctx->windowStartSqlUtc();   // login_log i login_attempts: czas w UTC (SQLite CURRENT_TIMESTAMP)
         $rows = $this->tryAll("SELECT action, COUNT(*) AS n FROM login_log WHERE created_at >= ? GROUP BY action", [$from]);
         if ($rows === null) { $r->skip('Brak tabeli login_log.'); return; }
         $by = array_column($rows, 'n', 'action');

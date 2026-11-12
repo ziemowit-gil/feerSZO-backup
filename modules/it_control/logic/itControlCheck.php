@@ -126,6 +126,14 @@ final class ItControlContext
         return date('Y-m-d H:i:s', $this->windowStart());
     }
 
+    /**
+     * Początek okna dla tabel z CURRENT_TIMESTAMP / datetime('now') — w SQLite to UTC (login_log, login_attempts,
+     * mail_queue). windowStartSql() jest w czasie lokalnym i dla tych tabel skracałby okno o 1–2 godziny.
+     */
+    public function windowStartSqlUtc(): string {
+        return (defined('DB_TYPE') ? DB_TYPE : 'sqlite') === 'sqlite' ? gmdate('Y-m-d H:i:s', $this->windowStart()) : $this->windowStartSql();
+    }
+
     /** Wynik raz policzony w przebiegu (np. odczyt plików dzienników współdzielony przez checki). */
     public function remember(string $key, callable $fn): mixed {
         if (!array_key_exists($key, $this->cache)) $this->cache[$key] = $fn();

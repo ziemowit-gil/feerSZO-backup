@@ -8,7 +8,7 @@ class LogControlMailFailuresCheck extends ItControlCheck
     public function title(): string { return 'Nieudane wysyłki e-mail'; }
 
     protected function execute(ItControlContext $ctx, ItControlResult $r): void {
-        $from = $ctx->windowStartSql();
+        $from = $ctx->windowStartSqlUtc();   // mail_queue.created_at = CURRENT_TIMESTAMP (w SQLite UTC)
         $rows = $this->tryAll("SELECT status, COUNT(*) AS n FROM mail_queue WHERE created_at >= ? GROUP BY status", [$from]);
         if ($rows === null) { $r->skip('Brak tabeli mail_queue.'); return; }
         $by = array_column($rows, 'n', 'status');

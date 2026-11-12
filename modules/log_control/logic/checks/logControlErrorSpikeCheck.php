@@ -33,15 +33,18 @@ class LogControlErrorSpikeCheck extends ItControlCheck
         foreach (logControlReadAll($ctx) as $f) {
             foreach ($f['entries'] as $e) if ($e['level'] === 'fatal' || $e['level'] === 'error') $add($e['ts']);
         }
-        $fromSql = date('Y-m-d H:i:s', $from);
+        // login_log i mail_queue: created_at = CURRENT_TIMESTAMP (w SQLite UTC); api_audit_log: datetime('now','localtime').
+        // Czas UTC czytany jak lokalny przesuwał zdarzenia o 1–2 h wstecz — skok z ostatniej godziny wypadał z okna.
+        $utc = (defined('DB_TYPE') ? DB_TYPE : 'sqlite') === 'sqlite';
         $sources = [
-            "SELECT created_at AS t FROM login_log WHERE created_at >= ? AND action IN ('login_fail','login_blocked')",
-            "SELECT created_at AS t FROM mail_queue WHERE created_at >= ? AND status='failed'",
-            "SELECT created_at AS t FROM api_audit_log WHERE created_at >= ? AND (status IN (401,403,429) OR status >= 500)",
+            ["SELECT created_at AS t FROM login_log WHERE created_at >= ? AND action IN ('login_fail','login_blocked')", $utc],
+            ["SELECT created_at AS t FROM mail_queue WHERE created_at >= ? AND status='failed'", $utc],
+            ["SELECT created_at AS t FROM api_audit_log WHERE created_at >= ? AND (status IN (401,403,429) OR status >= 500)", false],
         ];
-        foreach ($sources as $sql) {
+        foreach ($sources as [$sql, $isUtc]) {
+            $fromSql = $isUtc ? gmdate('Y-m-d H:i:s', $from) : date('Y-m-d H:i:s', $from);
             foreach ($this->tryAll($sql, [$fromSql]) ?? [] as $row) {
-                $t = strtotime((string)$row['t']);
+                $t = strtotime((string)$row['t'] . ($isUtc ? ' UTC' : ''));
                 if ($t) $add($t);
             }
         }

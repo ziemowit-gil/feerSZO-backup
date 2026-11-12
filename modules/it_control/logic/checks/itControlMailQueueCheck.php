@@ -16,8 +16,10 @@ class ItControlMailQueueCheck extends ItControlCheck
         $stuck = (int)($this->tryOne("SELECT COUNT(*) AS n FROM mail_queue WHERE status IN ('pending','sending') AND scheduled_at <= ?",
                      [date('Y-m-d H:i:s', $ctx->now - $stuckMin * 60)])['n'] ?? 0);
         $oldest = $this->tryOne("SELECT MIN(scheduled_at) AS t FROM mail_queue WHERE status IN ('pending','sending') AND scheduled_at <= ?", [date('Y-m-d H:i:s', $ctx->now)])['t'] ?? null;
+        // created_at = CURRENT_TIMESTAMP (w SQLite UTC); scheduled_at wyżej jest z date() PHP — czas lokalny
+        $since24 = (defined('DB_TYPE') ? DB_TYPE : 'sqlite') === 'sqlite' ? gmdate('Y-m-d H:i:s', $ctx->now - 86400) : date('Y-m-d H:i:s', $ctx->now - 86400);
         $failed24 = (int)($this->tryOne("SELECT COUNT(*) AS n FROM mail_queue WHERE status='failed' AND created_at >= ?",
-                     [date('Y-m-d H:i:s', $ctx->now - 86400)])['n'] ?? 0);
+                     [$since24])['n'] ?? 0);
         $r->metric('by_status', $by)->metric('pending', $pending)->metric('stuck', $stuck)
           ->metric('oldest_pending', $oldest)->metric('failed_24h', $failed24);
         if ($stuck > 0) {
