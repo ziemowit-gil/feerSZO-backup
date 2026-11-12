@@ -51,7 +51,7 @@ final class LicencjeKursantController
         $c = db_one("SELECT name, email, phone FROM k30_clients WHERE id=?", [$cid]) ?: ['name' => '', 'email' => '', 'phone' => ''];
         $sid = (int)($u['sid'] ?? 0) ?: (int)(db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id DESC LIMIT 1", [$cid])['id'] ?? 0);
         return ['cid' => $cid, 'sid' => $sid, 'name' => (string)$c['name'], 'email' => (string)$c['email'], 'phone' => (string)($c['phone'] ?? ''), 'ip' => (string)($_SERVER['REMOTE_ADDR'] ?? ''),
-                'via' => (string)$u['via'], 'fromTi' => !empty($u['sid'])];
+                'via' => (string)$u['via'], 'fromTi' => !empty($u['sid']), 'imp' => (string)($u['imp'] ?? '')];
     }
 
     private function log(array $me, string $action, string $text): void
@@ -282,6 +282,7 @@ final class LicencjeKursantController
 
     public function logout(): ?string
     {
+        if (LicencjePanelAuth::endImpersonation() !== null) { header('Location: ' . route('lk.admin')); return null; }   // podgląd administratora: powrót do jego części
         LicencjePanelAuth::logout();
         header('Location: ' . route('lk.login'));
         return null;

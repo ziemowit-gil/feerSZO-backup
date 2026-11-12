@@ -24,7 +24,17 @@ $r->aliasMiddleware('lp.auth', function () {
 // Pierwsze wejście: bez e-maila albo telefonu w kartotece — najpierw dane kontaktowe (telefon potwierdzony kodem SMS), dopiero potem operacje.
 $r->aliasMiddleware('lp.contact', function () {
     $u = LicencjePanelAuth::user();
-    if ($u && LicencjeKod::needsContact((int)$u['cid'])) { header('Location: ' . route('lk.contact')); exit; }
+    if ($u && empty($u['imp']) && LicencjeKod::needsContact((int)$u['cid'])) { header('Location: ' . route('lk.contact')); exit; }   // podgląd administratora: bez kroku kontaktu
+});
+// Podgląd Administratora Licencji jako uczestnik: tylko oglądanie — każda operacja uczestnika (POST) wraca z komunikatem.
+$r->aliasMiddleware('lp.readonly', function () {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' || !LicencjePanelAuth::impersonator()) return;
+    $_SESSION['lk_flash'] = ['err', 'To podgląd administratora. Operacje uczestnika są wyłączone.'];
+    $ref = (string)($_SERVER['HTTP_REFERER'] ?? '');
+    $path = (string)parse_url($ref, PHP_URL_PATH);
+    $same = $ref !== '' && (string)parse_url($ref, PHP_URL_HOST) === (string)($_SERVER['HTTP_HOST'] ?? '') && str_starts_with($path, LicencjePanelAuth::PATH);
+    header('Location: ' . ($same ? $ref : route('lk.index')));
+    exit;
 });
 
 // Administrator Licencji (logowanie SZO / Microsoft 365 przez licencje/sso.php)
@@ -37,6 +47,8 @@ $r->group(['lp.admin'], function (Router $r) {
     $r->post('/admin/office',          [LicencjeAdminController::class, 'office'])->name('lk.admin.office');
     $r->post('/admin/dane-dostepu',    [LicencjeAdminController::class, 'accessData'])->name('lk.admin.accessdata');   // e-mail z danymi dostępu (hasło SMS-em)
     $r->post('/admin/wyloguj',         [LicencjeAdminController::class, 'logout'])->name('lk.admin.logout');
+    $r->post('/admin/jako',            [LicencjeAdminController::class, 'impersonate'])->name('lk.admin.as');           // podgląd panelu jako uczestnik
+    $r->post('/admin/jako/koniec',     [LicencjeAdminController::class, 'impersonateEnd'])->name('lk.admin.as.end');
     $r->get('/admin/ceny-office',      [LicencjeAdminController::class, 'officePrices'])->name('lk.admin.prices');      // Office A3 / A5: ceny (kierownik / admin)
     $r->post('/admin/ceny-office',     [LicencjeAdminController::class, 'officePricesSave'])->name('lk.admin.prices.save');
     $r->get('/admin/dysk',             [LicencjeAdminController::class, 'drivePrices'])->name('lk.admin.drive');        // Dysk Online: pakiety i ceny
@@ -51,10 +63,10 @@ $r->post('/zmiana-ceny/{token}',       [LicencjeKursantController::class, 'price
 $r->group(['lp.auth'], function (Router $r) {
     $r->post('/wyloguj',               [LicencjeKursantController::class, 'logout'])->name('lk.logout');
     $r->get('/kontakt',                [LicencjeKursantController::class, 'contactForm'])->name('lk.contact');
-    $r->post('/kontakt',               [LicencjeKursantController::class, 'contactPost'])->name('lk.contact.post');
-    $r->post('/kontakt/kod',           [LicencjeKursantController::class, 'contactCode'])->name('lk.contact.code');
+    $r->post('/kontakt',               [LicencjeKursantController::class, 'contactPost'])->name('lk.contact.post')->middleware('lp.readonly');
+    $r->post('/kontakt/kod',           [LicencjeKursantController::class, 'contactCode'])->name('lk.contact.code')->middleware('lp.readonly');
 });
-$r->group(['lp.auth', 'lp.contact'], function (Router $r) {
+$r->group(['lp.auth', 'lp.contact', 'lp.readonly'], function (Router $r) {
     $r->get('/',                       [LicencjeKursantController::class, 'index'])->name('lk.index');
     $r->get('/licencja/{product}',     [LicencjeKursantController::class, 'licence'])->name('lk.licence');
     $r->get('/office',                 [LicencjeKursantController::class, 'office'])->name('lk.office');

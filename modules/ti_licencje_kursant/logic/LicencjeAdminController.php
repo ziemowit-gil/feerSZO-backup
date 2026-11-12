@@ -102,6 +102,33 @@ final class LicencjeAdminController
         } catch (\Throwable $e) { return $this->back('err', $e->getMessage()); }
     }
 
+    /** Podgląd Panelu Licencji oczami uczestnika (polecenie 2026-11-12): administrator wchodzi jako uczestnik; operacje uczestnika są wyłączone. */
+    public function impersonate(): ?string
+    {
+        $a = $this->adm();
+        $cid = (int)($_POST['client_id'] ?? 0);
+        $c = $cid > 0 ? db_one("SELECT id, name FROM k30_clients WHERE id=?", [$cid]) : null;
+        if (!$c) return $this->back('err', 'Nie znaleziono uczestnika.');
+        LicencjePanelAuth::impersonate($cid, $a);
+        // ślad wejścia: dziennik operacji uczestnika (konto TI) i dziennik Płatnych licencji
+        $sid = (int)(db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id DESC LIMIT 1", [$cid])['id'] ?? 0);
+        if ($sid > 0 && function_exists('ti_account_log')) ti_account_log($sid, 'licencje_podglad_admin', 'Administrator Licencji ' . $a['name'] . ' otworzył Panel Licencji jako uczestnik (podgląd).', (int)$a['uid'] ?: null, (string)$a['name']);
+        try { ClaudeBilling::event(null, null, 'admin_view', 'Podgląd Panelu Licencji jako ' . $c['name'] . ' (Administrator Licencji ' . $a['name'] . ').', (string)$a['name']); } catch (\Throwable $e) {}
+        $_SESSION['lk_flash'] = ['info', 'Widzisz Panel Licencji tak jak ' . $c['name'] . '. To podgląd: operacje uczestnika są wyłączone.'];
+        header('Location: ' . route('lk.index'));
+        return null;
+    }
+
+    public function impersonateEnd(): ?string
+    {
+        $this->adm();
+        $cid = LicencjePanelAuth::endImpersonation();
+        $c = $cid ? db_one("SELECT name FROM k30_clients WHERE id=?", [$cid]) : null;
+        $_SESSION['lk_flash'] = ['ok', 'Koniec podglądu' . ($c ? ': ' . $c['name'] : '') . '.'];
+        header('Location: ' . route('lk.admin') . ($c ? '&q=' . rawurlencode((string)$c['name']) : ''));
+        return null;
+    }
+
     /** Office ze zniżką edukacyjną: ceny planów A3 / A5 (A1 w cenie) — edytuje kierownik albo administrator. */
     public function officePrices(): string
     {

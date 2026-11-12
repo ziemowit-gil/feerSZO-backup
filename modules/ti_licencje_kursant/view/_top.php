@@ -136,11 +136,17 @@ $nav = $nav ?? null;
   <?php if (isset($adm)): ?>
   <div class="pk-user"><span>Administrator Licencji: <?= h($adm['name']) ?></span>
     <form method="post" action="<?= h(route('lk.admin.logout')) ?>"><?= Router::csrfField() ?><button type="submit">Wyloguj</button></form></div>
+  <?php elseif (isset($me) && ($me['imp'] ?? '') !== ''): ?>
+  <div class="pk-user"><span><?= h($me['name']) ?> · podgląd: <?= h($me['imp']) ?></span>
+    <form method="post" action="<?= h(route('lk.admin.as.end')) ?>"><?= Router::csrfField() ?><button type="submit">Wróć do administratora</button></form></div>
   <?php elseif (isset($me)): ?>
   <div class="pk-user"><span><?= h($me['name']) ?></span>
     <form method="post" action="<?= h(route('lk.logout')) ?>"><?= Router::csrfField() ?><button type="submit">Wyloguj</button></form></div>
   <?php endif; ?>
 </div>
+<?php if (isset($me) && ($me['imp'] ?? '') !== ''): ?>
+<div class="pk-alert pk-alert-info" role="note" style="margin:0;border-radius:0">Podgląd Administratora Licencji: widzisz panel tak jak <b><?= h($me['name']) ?></b>. Operacje uczestnika (wnioski, płatności, zmiany) są wyłączone.</div>
+<?php endif; ?>
 <div class="pk-crumb"><?= isset($adm) ? 'Panel licencji · Administrator Licencji (logowanie: ' . h($adm['via']) . ')' : (isset($me) ? 'Panel licencji' . ($me['fromTi'] ? ' · <a href="/karty30/ti/kursant/index.php">← Panel uczestnika TI</a>' : '') : 'Logowanie do panelu licencji') ?></div>
 <div class="pk-wrap<?= $nav !== null ? ' pk-grid' : '' ?>">
 <?php if ($nav !== null): ?>

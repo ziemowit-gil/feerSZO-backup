@@ -57,6 +57,8 @@ $qf = '<input type="hidden" name="q" value="' . h($q) . '">';
       <form method="post" action="<?= h(route('lk.admin.office')) ?>"><?= Router::csrfField() ?><?= $qf ?><input type="hidden" name="client_id" value="<?= (int)$r['id'] ?>">
         <button class="m-btn-ghost" type="submit">Sprawdź / załóż konto Office<span class="tw-sr-only"> (<?= h($r['name']) ?>)</span></button></form>
       <?php endif; ?>
+      <form method="post" action="<?= h(route('lk.admin.as')) ?>"><?= Router::csrfField() ?><input type="hidden" name="client_id" value="<?= (int)$r['id'] ?>">
+        <button class="m-btn-ghost" type="submit">Zaloguj jako uczestnik<span class="tw-sr-only"> (<?= h($r['name']) ?>, podgląd)</span></button></form>
     </div>
     <?php require_once dirname(__DIR__) . '/logic/LicencjeDostep.php'; $accSent = LicencjeDostep::forClient((int)$r['id']); ?>
     <details class="tw-mt-3"><summary>Wyślij dane dostępu<span class="tw-sr-only"> (<?= h($r['name']) ?>)</span></summary>

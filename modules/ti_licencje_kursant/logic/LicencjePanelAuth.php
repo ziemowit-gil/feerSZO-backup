@@ -28,12 +28,13 @@ final class LicencjePanelAuth
         session_start();
     }
 
-    /** Zalogowana osoba: ['cid' => klient, 'via' => skąd, 'sid' => konto TI albo null] albo null. */
+    /** Zalogowana osoba: ['cid' => klient, 'via' => skąd, 'sid' => konto TI albo null, 'imp' => administrator przy podglądzie] albo null. */
     public static function user(): ?array
     {
         self::start();
         $u = $_SESSION[self::KEY] ?? null;
         if (!$u || time() - (int)($u['ts'] ?? 0) > self::TTL) { unset($_SESSION[self::KEY]); return null; }
+        if (!empty($u['imp']) && !self::admin()) { unset($_SESSION[self::KEY]); return null; }   // podgląd kończy się razem z sesją administratora
         $_SESSION[self::KEY]['ts'] = time();
         return $_SESSION[self::KEY];
     }
@@ -176,7 +177,39 @@ final class LicencjePanelAuth
     {
         self::start();
         unset($_SESSION[self::ADMIN_KEY]);
+        if (!empty($_SESSION[self::KEY]['imp'])) unset($_SESSION[self::KEY]);   // razem z podglądem uczestnika
         session_regenerate_id(true);
+    }
+
+    // ── Administrator Licencji jako uczestnik (polecenie 2026-11-12) ─────────────
+    // Administrator widzi panel tak jak uczestnik (Programy i klucze, dane dostępu, NordVPN…). To podgląd: operacje uczestnika (POST) blokuje
+    // middleware lp.readonly w routerze — każdą z nich i tak potwierdza kod SMS wysyłany na telefon uczestnika. Koniec: przycisk w pasku,
+    // wylogowanie administratora albo wygaśnięcie jego sesji.
+
+    public static function impersonate(int $clientId, array $admin): void
+    {
+        self::start();
+        session_regenerate_id(true);
+        $_SESSION[self::KEY] = ['cid' => $clientId, 'via' => 'podgląd Administratora Licencji', 'sid' => null,
+                                'imp' => (string)($admin['name'] ?? 'Administrator Licencji'), 'imp_uid' => (int)($admin['uid'] ?? 0), 'ts' => time()];
+        $_SESSION['lp_csrf'] ??= bin2hex(random_bytes(16));
+    }
+
+    /** Imię administratora, gdy trwa podgląd uczestnika; null — zwykłe logowanie uczestnika albo brak. */
+    public static function impersonator(): ?string
+    {
+        $u = self::user();
+        return $u && !empty($u['imp']) ? (string)$u['imp'] : null;
+    }
+
+    /** Kończy podgląd (tylko podgląd — zwykłej sesji uczestnika nie rusza). Zwraca id uczestnika albo null. */
+    public static function endImpersonation(): ?int
+    {
+        self::start();
+        if (empty($_SESSION[self::KEY]['imp'])) return null;
+        $cid = (int)$_SESSION[self::KEY]['cid'];
+        unset($_SESSION[self::KEY]);
+        return $cid;
     }
 
     /** Limit prób jak przy logowaniu TI: działa tylko przy ustawieniu ti_login_throttle = 1 (domyślnie wyłączony). */
