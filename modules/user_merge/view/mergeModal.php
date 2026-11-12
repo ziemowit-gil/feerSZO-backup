@@ -82,7 +82,7 @@ function userMergeRenderModal(array $um, int $openUid = 0): void {
     $cfg = ['members' => array_map('strval', $members), 'primary' => (string)$primary,
             'dups' => array_map('strval', array_values(array_diff($members, [$primary]))),
             'strong' => $strong, 'conflict' => $conflict, 'self' => in_array($meId, $members, true) ? (string)$meId : '',
-            'hasMs' => $hasMs];
+            'hasMs' => $hasMs, 'needPhone' => !$phones];
     $rowsDef = [
         'ID'                 => fn($u) => '#' . (int)$u['id'],
         'Imię'               => fn($u) => (string)($u['first_name'] ?? ''),
@@ -202,18 +202,28 @@ function userMergeRenderModal(array $um, int $openUid = 0): void {
                 <li>Puste pola konta głównego uzupełnimy danymi z pozostałych kont — wypełnionych nie nadpisujemy.</li>
                 <li>Pozostałe konta zostaną <strong>zarchiwizowane</strong> (nieaktywne, oznaczone jako scalone) — nic nie usuwamy.</li>
                 <li>Powstanie nowe hasło tymczasowe (16 znaków); system wymusi jego zmianę przy pierwszym logowaniu.
-                  <?php if ($phones): ?>Przyjdzie SMS-em na: <?= h(implode(', ', $phones)) ?>.<?php endif; ?></li>
+                  <?php if ($phones): ?>Przyjdzie SMS-em na: <?= h(implode(', ', $phones)) ?>.<?php else: ?>Przyjdzie SMS-em na numer podany niżej.<?php endif; ?></li>
                 <li>Potwierdzenie (bez hasła) wyślemy e-mailem na: <?= h(implode(', ', array_map(fn($e) => fcMask($e, 'email'), $emails))) ?>.</li>
                 <?php if ($hasMs): ?><li>Logowanie kontem Microsoft zostanie zachowane na koncie głównym.</li><?php endif; ?>
               </ul>
             </div>
 
-            <?php if (!$phones): ?>
-            <p class="tw-m-0 tw-mt-3 tw-rounded-lg tw-border tw-border-solid tw-border-[#bc4b09] tw-bg-[#fff9f5] tw-px-4 tw-py-2 tw-text-sm tw-text-[#8a3707]">
-              <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-              <strong>Żadne z kont nie ma numeru telefonu</strong> — hasło tymczasowe nie dotrze SMS-em. Po scaleniu ustaw hasło przyciskiem
-              „Resetuj hasło”. Hasła w Microsoft 365 nie zmienimy (użytkownik nie poznałby nowego).
-            </p>
+            <?php if (!$phones): $pid = 'um-phone-' . $gid; ?>
+            <div class="tw-mt-3 tw-rounded-lg tw-border tw-border-solid tw-border-[#bc4b09] tw-bg-[#fff9f5] tw-px-4 tw-py-3 tw-text-sm">
+              <p class="tw-m-0 tw-text-[#8a3707]"><i class="bi bi-telephone-plus" aria-hidden="true"></i>
+                <strong>Żadne z kont nie ma numeru telefonu.</strong> Hasło tymczasowe wysyłamy SMS-em — dodaj numer tej osoby.
+                Zapiszemy go na koncie głównym.</p>
+              <label for="<?= h($pid) ?>" class="tw-mt-2 tw-block tw-font-semibold tw-text-[#242424]">Numer telefonu komórkowego <span class="tw-font-normal">(wymagany)</span></label>
+              <input id="<?= h($pid) ?>" name="phone" type="tel" inputmode="tel" autocomplete="off" required maxlength="20"
+                     x-model="phone" @blur="phoneTouched = true" placeholder="np. 600 100 200"
+                     :aria-invalid="(phoneTouched && !phoneValid()) ? 'true' : 'false'"
+                     :aria-describedby="'<?= h($pid) ?>-help' + ((phoneTouched && !phoneValid()) ? ' <?= h($pid) ?>-err' : '')"
+                     aria-describedby="<?= h($pid) ?>-help"
+                     class="form-control tw-mt-1 tw-max-w-xs">
+              <p id="<?= h($pid) ?>-help" class="tw-m-0 tw-mt-1 tw-text-xs tw-text-[#424242]">9 cyfr albo numer z kierunkowym kraju, np. +48 600 100 200.</p>
+              <p id="<?= h($pid) ?>-err" class="tw-m-0 tw-mt-1 tw-text-xs tw-font-semibold tw-text-[#b10e1c]" x-show="phoneTouched && !phoneValid()">
+                <i class="bi bi-exclamation-circle" aria-hidden="true"></i> Wpisz poprawny numer: 9 cyfr albo z kierunkowym kraju.</p>
+            </div>
             <?php endif; ?>
             <?php if ($msClash): ?>
             <p class="tw-m-0 tw-mt-3 tw-rounded-lg tw-border tw-border-solid tw-border-[#bc4b09] tw-bg-[#fff9f5] tw-px-4 tw-py-2 tw-text-sm tw-text-[#8a3707]">
@@ -229,7 +239,7 @@ function userMergeRenderModal(array $um, int $openUid = 0): void {
               </legend>
               <?php if ($hasMs): ?>
               <label class="tw-flex tw-cursor-pointer tw-items-start tw-gap-2 tw-text-sm">
-                <input type="checkbox" name="sync_m365" value="1" x-model="sync" class="tw-mt-0.5 tw-h-4 tw-w-4"<?= $phones ? '' : ' disabled' ?>>
+                <input type="checkbox" name="sync_m365" value="1" x-model="sync" class="tw-mt-0.5 tw-h-4 tw-w-4" :disabled="!phoneOk()">
                 <span>Ustaw to samo hasło tymczasowe także w Microsoft 365 (Entra ID) i wymuś jego zmianę przy pierwszym logowaniu.
                   <span class="tw-block tw-text-xs tw-text-[#616161]">Nie zadziała dla kont z rolą administratora Entra ani kont synchronizowanych z AD lokalnego — błąd pokażemy, scalenie zostanie.</span></span>
               </label>
@@ -288,7 +298,7 @@ document.addEventListener('alpine:init', function () {
   // Formularz grupy: wybór konta głównego i scalanych, warunki przycisku „Tak, zmigruj”.
   Alpine.data('userMergeForm', function (cfg) {
     return {
-      primary: cfg.primary, dups: cfg.dups.slice(), sync: true, confirm: false, busy: false,
+      primary: cfg.primary, dups: cfg.dups.slice(), sync: true, confirm: false, busy: false, phone: '', phoneTouched: false,
       init: function () {
         var self = this;   // poprzednie konto główne wraca na listę scalanych
         this.$watch('primary', function (v, old) { if (old && old !== v && self.dups.indexOf(old) < 0) self.dups.push(old); });
@@ -304,12 +314,20 @@ document.addEventListener('alpine:init', function () {
         var self = this;
         return this.sel().some(function (id) { return !cfg.strong[self.pair(self.primary, id)]; });
       },
+      // Numer jak po stronie serwera (UserMergeService::normalizePhone): 9 cyfr albo 11–15 z kierunkowym (prefiks 00 pomijany).
+      phoneValid: function () {
+        var d = String(this.phone || '').replace(/\D+/g, '');
+        if (d.indexOf('00') === 0) d = d.slice(2);
+        return d.length === 9 || (d.length >= 11 && d.length <= 15);
+      },
+      phoneOk: function () { return !cfg.needPhone || this.phoneValid(); },
       reason: function () {
         var self = this, s = this.sel();
         if (!s.length) return 'Zaznacz co najmniej jedno konto do scalenia.';
         if (s.some(function (id) { return cfg.conflict[self.pair(self.primary, id)]; }))
           return 'Konto główne i scalane konto mają różne numery PESEL — to różne osoby. Scalenie jest zablokowane.';
         if (cfg.self && s.indexOf(cfg.self) >= 0) return 'Nie możesz zarchiwizować własnego konta — wybierz je jako konto główne.';
+        if (!this.phoneOk()) return 'Podaj numer telefonu — wyślemy na niego hasło tymczasowe.';
         if (this.needsConfirm() && !this.confirm) return 'Potwierdź, że to ta sama osoba.';
         return '';
       },

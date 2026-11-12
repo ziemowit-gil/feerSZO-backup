@@ -35,6 +35,7 @@ final class UserMergeController
             'members'      => $members,
             'sync_m365'    => !empty($_POST['sync_m365']),
             'confirm_same' => !empty($_POST['confirm_same']),
+            'phone'        => trim((string)($_POST['phone'] ?? '')),
         ], (int)current_user()['id']);
 
         auth_start();

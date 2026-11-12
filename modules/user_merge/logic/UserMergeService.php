@@ -81,7 +81,8 @@ final class UserMergeService
 
     /**
      * @param int[] $dupIds  konta do zarchiwizowania (scalane w konto główne)
-     * @param array{members?:int[], sync_m365?:bool, confirm_same?:bool} $opts  members = skład grupy widziany w oknie
+     * @param array{members?:int[], sync_m365?:bool, confirm_same?:bool, phone?:string} $opts  members = skład grupy widziany
+     *        w oknie; phone = numer podany przez administratora, gdy żadne konto go nie ma (wymagany — hasło idzie SMS-em)
      * @return array{ok:bool, error?:string, primary?:array, merged?:array, moved?:int, left?:int, contracts?:int,
      *               filled?:string[], ms?:array, sms?:array, email?:array, m365?:array}
      */
@@ -151,6 +152,10 @@ final class UserMergeService
                 $pdo->prepare("UPDATE users SET {$set} WHERE id = ?")->execute([...array_values($arch), (int)$d['id']]);
             }
 
+            // numer podany w oknie (żadne konto go nie miało) — na niego idzie SMS z hasłem
+            if ($check['phone'] !== '' && trim((string)($cur['phone_number'] ?? '')) === '' && in_array('phone_number', $userCols, true)) {
+                $fill['phone_number'] = $check['phone']; $cur['phone_number'] = $check['phone'];
+            }
             $upd = $fill + ['password' => password_hash($password, PASSWORD_BCRYPT), 'must_change_password' => 1, 'is_active' => 1];
             $set = implode(', ', array_map(fn($c) => "`{$c}` = ?", array_keys($upd)));
             $pdo->prepare("UPDATE users SET {$set} WHERE id = ?")->execute([...array_values($upd), (int)$primary['id']]);
@@ -167,6 +172,7 @@ final class UserMergeService
                 'merged_ids'   => array_map(fn($d) => (int)$d['id'], $dups),
                 'reason'       => $check['strong'] ? 'pesel' : 'name_confirmed',
                 'filled'       => $summary['filled'],                   // tylko nazwy pól — wartości nie logujemy
+                'phone_added_by_admin' => $check['phone'] !== '',
                 'microsoft'    => $summary['ms'],
                 'moved'        => $summary['moved'],
                 'left_on_archive' => $summary['left'],
@@ -198,7 +204,7 @@ final class UserMergeService
                 'filled' => $summary['filled'], 'ms' => $summary['ms']] + $notify;
     }
 
-    /** @return array{error:string}|array{primary:array, dups:array, strong:bool} */
+    /** @return array{error:string}|array{primary:array, dups:array, strong:bool, phone:string} */
     public function validate(int $primaryId, array $dupIds, array $opts, int $byUid): array
     {
         if ($primaryId < 1 || !$dupIds) return ['error' => 'Wybierz konto główne i co najmniej jedno konto do scalenia.'];
@@ -235,7 +241,13 @@ final class UserMergeService
         if (!$strong && empty($opts['confirm_same'])) {
             return ['error' => 'Konta nie mają wspólnego numeru PESEL — potwierdź, że to ta sama osoba.'];
         }
-        return ['primary' => $primary, 'dups' => array_map(fn($id) => $rows[$id], $dupIds), 'strong' => $strong];
+        // Hasło tymczasowe idzie SMS-em: gdy żadne konto nie ma numeru, administrator musi go podać.
+        $phone = '';
+        if (!array_filter($ids, fn($id) => self::phoneOf($rows[$id]) !== '')) {
+            $phone = self::normalizePhone((string)($opts['phone'] ?? ''));
+            if ($phone === '') return ['error' => 'Żadne z kont nie ma numeru telefonu — podaj poprawny numer, na który wyślemy hasło tymczasowe.'];
+        }
+        return ['primary' => $primary, 'dups' => array_map(fn($id) => $rows[$id], $dupIds), 'strong' => $strong, 'phone' => $phone];
     }
 
     // ───────────────────────── Powiadomienia ─────────────────────────
@@ -245,6 +257,18 @@ final class UserMergeService
     {
         $p = trim((string)($u['phone_number'] ?? ''));
         return $p !== '' ? $p : trim((string)($u['alt_phone_number'] ?? ''));
+    }
+
+    /**
+     * Numer podany przez administratora → format jak w Tożsamości (sms_normalize_phone: 48XXXXXXXXX); '' = niepoprawny.
+     * 9 cyfr (PL) albo 11–15 cyfr z kierunkowym; prefiks 00 pomijany. Ta sama reguła w oknie (phoneValid).
+     */
+    public static function normalizePhone(string $raw): string
+    {
+        $d = (string)preg_replace('/\D+/', '', $raw);
+        if (str_starts_with($d, '00')) $d = substr($d, 2);
+        if (strlen($d) === 9) $d = '48' . $d;
+        return (strlen($d) >= 11 && strlen($d) <= 15) ? $d : '';
     }
 
     private static function maskPhone(string $p): string

@@ -5,6 +5,16 @@
  * role="status" — czytnik ekranu odczyta wynik po przeładowaniu strony. Hasła tu nie ma (nie ma go w sesji).
  */
 
+/** Polska nazwa pola konta (reszta: nazwa kolumny). */
+function userMergeFieldLabel(string $col): string {
+    return ['first_name' => 'imię', 'last_name' => 'nazwisko', 'name' => 'nazwa wyświetlana', 'phone_number' => 'telefon',
+            'alt_phone_number' => 'telefon dodatkowy', 'alt_email' => 'e-mail dodatkowy', 'rpts_pesel' => 'PESEL',
+            'rpts_data_urodzenia' => 'data urodzenia', 'rpts_miejsce_urodzenia' => 'miejsce urodzenia',
+            'rpts_nazwisko_rodowe' => 'nazwisko rodowe', 'rpts_imie_ojca' => 'imię ojca', 'rpts_imie_matki' => 'imię matki',
+            'microsoft_id' => 'konto Microsoft', 'm365_login' => 'login Microsoft 365', 'org_unit_id' => 'jednostka organizacyjna',
+            'guardian_name' => 'opiekun', 'guardian_email' => 'e-mail opiekuna', 'guardian_phone' => 'telefon opiekuna'][$col] ?? $col;
+}
+
 function userMergeResultBox(?array $r): string {
     if (!$r || empty($r['ok'])) return '';
     $warn = false;
@@ -17,7 +27,7 @@ function userMergeResultBox(?array $r): string {
     $items[] = $line('bi-check-circle-fill', 'ok', 'Scalono: ' . $merged . ' → <strong>#' . (int)$r['primary']['id'] . ' ' . h($r['primary']['name'])
         . '</strong> (' . h($r['primary']['email']) . '). Przepięte powiązania: ' . (int)$r['moved']
         . ($r['contracts'] ? ', umowy z nowym adresem e-mail: ' . (int)$r['contracts'] : '')
-        . ($r['filled'] ? ', uzupełnione pola: ' . h(implode(', ', $r['filled'])) : '') . '.'
+        . ($r['filled'] ? ', uzupełnione pola: ' . h(implode(', ', array_map('userMergeFieldLabel', $r['filled']))) : '') . '.'
         . ($r['left'] ? ' Rekordy pozostawione przy archiwum (były już na koncie głównym): ' . (int)$r['left'] . '.' : ''));
     if (!empty($r['ms']['clash'])) {
         $items[] = $line('bi-exclamation-triangle-fill', 'warn', 'Konto zarchiwizowane miało inne konto Microsoft — zostało przy archiwum (bez zmian w Entra ID).');
