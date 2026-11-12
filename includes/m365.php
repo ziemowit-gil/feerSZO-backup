@@ -338,11 +338,38 @@ class M365Graph {
 
     // ── Reset hasła ──────────────────────────────────────────────────────────
 
+    /**
+     * Ustawia hasło konta w Entra ID (PATCH /users/{id} passwordProfile). Sukces = 2xx (Graph zwraca 204).
+     * Każda inna odpowiedź (403 Authorization_RequestDenied, 400 złożoność hasła, 404 brak konta, brak odpowiedzi)
+     * → wyjątek z komunikatem Graph; kod wyjątku = status HTTP (0 = brak odpowiedzi). Hasła nie ma w komunikacie.
+     * Wołający pokazuje sukces dopiero PO tym wywołaniu, w tym samym try.
+     * @throws \RuntimeException
+     */
     public function set_password(string $user_id, string $password, bool $force_change = true): void {
         $this->http_patch(
             "https://graph.microsoft.com/v1.0/users/{$user_id}",
             ['passwordProfile' => ['forceChangePasswordNextSignIn' => $force_change, 'password' => $password]]
         );
+        $this->require_success('Microsoft 365 nie zmienił hasła', [$password]);
+    }
+
+    /**
+     * Rzuca wyjątek, gdy ostatnie wywołanie Graph nie zwróciło 2xx: „$what (HTTP n): komunikat Graph”.
+     * Wartości z $secrets (np. hasło) są wycinane z komunikatu, zanim trafi do UI lub logu.
+     * @throws \RuntimeException kod = status HTTP
+     */
+    private function require_success(string $what, array $secrets = []): void {
+        $st = $this->last_status;
+        if ($st >= 200 && $st < 300) return;
+        $err = $this->last_error ?? [];
+        $msg = trim((string)($err['message'] ?? ''));
+        if ($msg === '') $msg = trim((string)($err['code'] ?? ''));
+        if ($msg === '') $msg = $st === 0 ? 'brak odpowiedzi Graph API' : 'Graph API nie podał przyczyny';
+        foreach ($secrets as $s) {
+            if ((string)$s !== '') $msg = str_replace((string)$s, '***', $msg);
+        }
+        if ($st === 403) $msg = rtrim($msg, '. ') . '. Sprawdź uprawnienia aplikacji w Entra ID.';
+        throw new \RuntimeException($what . ($st > 0 ? ' (HTTP ' . $st . ')' : '') . ': ' . $msg, $st);
     }
 
     // ── Przypisz licencję ────────────────────────────────────────────────────

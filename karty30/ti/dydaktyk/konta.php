@@ -268,20 +268,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, must_change_password=1, updated_at=datetime('now') WHERE id=?")
            ->execute([password_hash($pass, PASSWORD_BCRYPT), $aid]);
 
-        $ms_msg = '';
+        $ms_msg = ''; $ms_ok = true;
         if (!empty($acc['ms_user_id'])) {
             try {
-                m365_edu()->set_password($acc['ms_user_id'], $pass, true);
+                m365_edu()->set_password($acc['ms_user_id'], $pass, true); // wyjątek, gdy Graph nie zwróci 2xx
                 $ms_msg = ' Nadpisano też hasło konta Microsoft (' . $acc['ms_upn'] . ').';
             } catch (\Throwable $e) {
-                $ms_msg = ' UWAGA: nie udało się nadpisać hasła konta Microsoft: ' . $e->getMessage();
+                $ms_ok  = false;
+                $ms_msg = ' UWAGA: nie udało się nadpisać hasła konta Microsoft (' . $acc['ms_upn'] . ') — ma ono nadal poprzednie hasło. ' . $e->getMessage();
             }
         }
 
         $c = db_one("SELECT name, phone FROM k30_clients WHERE id=?", [$acc['client_id']]);
         $_SESSION['new_student_creds'] = ['login' => $acc['login'], 'password' => $pass, 'name' => $c['name'] ?? ''];
         $sms = _student_send_login_sms($c['phone'] ?? '', $acc['login'], $pass);
-        flash_set('success', "Hasło serwisowe ustawione dla {$acc['login']}." . $sms . $ms_msg);
+        flash_set($ms_ok ? 'success' : 'warning', "Hasło serwisowe ustawione dla {$acc['login']}." . $sms . $ms_msg);
         header('Location: konta.php?selected=' . $aid); exit;
     }
 

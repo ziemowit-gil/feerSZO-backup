@@ -89,6 +89,10 @@ $ok     = $_GET['ok'] ?? '';
 
   <?php if (($_GET['nowy'] ?? '') === '1'): ?>
   <div class="alert alert-success small py-2 rounded-0" role="status">Hasło zostało zapisane. Klucz możesz dodać teraz albo później.</div>
+  <?php // Ostrzeżenie z kursant_haslo.php: hasło panelu zmienione, ale Microsoft 365 odrzucił zmianę
+        if (($_f = flash_get()) && ($_f['type'] ?? '') === 'warning'): ?>
+  <div class="alert alert-warning small py-2 rounded-0" role="alert"><?= h((string)$_f['msg']) ?></div>
+  <?php endif; ?>
   <?php endif; ?>
   <?php if ($ok === 'usun'): ?><div class="alert alert-success small py-2 rounded-0" role="status">Klucz usunięty.</div><?php endif; ?>
   <?php if ($ok === 'dodany'): ?><div class="alert alert-success small py-2 rounded-0" role="status">Klucz dodany.</div><?php endif; ?>

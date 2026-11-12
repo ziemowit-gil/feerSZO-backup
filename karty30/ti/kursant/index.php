@@ -808,16 +808,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $log_note = $forced ? 'Ustawiono hasło przy pierwszym logowaniu.' : 'Zmieniono hasło.';
         // Kursant ma jedno hasło do wszystkiego — jeśli ma też konto Microsoft (EDU),
         // nadpisz od razu jego hasło tym samym, nowym hasłem.
+        $ms_blad = '';
         if (!empty($acc['ms_user_id'])) {
             try {
-                m365_edu()->set_password($acc['ms_user_id'], $new, false);
+                m365_edu()->set_password($acc['ms_user_id'], $new, false); // wyjątek, gdy Graph nie zwróci 2xx
                 $log_note .= ' Zaktualizowano też hasło konta Microsoft (' . $acc['ms_upn'] . ').';
             } catch (\Throwable $e) {
-                $log_note .= ' UWAGA: nie udało się zaktualizować hasła konta Microsoft: ' . $e->getMessage();
+                $ms_blad = $e->getMessage();
+                $log_note .= ' UWAGA: nie udało się zaktualizować hasła konta Microsoft: ' . $ms_blad;
             }
         }
         ti_account_log((int)$student['id'], 'password_changed', $log_note);
-        header('Location: index.php?tab=ustawienia&pwok=1'); exit;
+        // Hasło panelu zmienione; gdy Microsoft 365 odrzucił zmianę, pokaż to obok potwierdzenia (pwerr)
+        $ms_uwaga = $ms_blad === '' ? '' : '&pwerr=' . rawurlencode('Konto Microsoft (' . $acc['ms_upn'] . ') ma nadal poprzednie hasło. '
+            . $ms_blad . ' Zgłoś to opiekunowi kursu.');
+        header('Location: index.php?tab=ustawienia&pwok=1' . $ms_uwaga); exit;
     }
 
     // Ustawienie / zmiana aliasu logowania przez kursanta

@@ -40,21 +40,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([password_hash($new, PASSWORD_BCRYPT), (int)$student['id']]);
         $log_note = 'Zmieniono hasło (Tożsamość).';
         // Jedno hasło do wszystkiego: jeśli kursant ma konto Microsoft (EDU), ustaw też tam.
+        $ms_blad = '';
         if (!empty($acc['ms_user_id'])) {
             try {
-                m365_edu()->set_password($acc['ms_user_id'], $new, false);
+                m365_edu()->set_password($acc['ms_user_id'], $new, false); // wyjątek, gdy Graph nie zwróci 2xx
                 $log_note .= ' Zaktualizowano też hasło konta Microsoft (' . $acc['ms_upn'] . ').';
             } catch (\Throwable $e) {
-                $log_note .= ' UWAGA: nie udało się zaktualizować hasła konta Microsoft: ' . $e->getMessage();
+                $ms_blad = $e->getMessage();
+                $log_note .= ' UWAGA: nie udało się zaktualizować hasła konta Microsoft: ' . $ms_blad;
             }
         }
         ti_account_log((int)$student['id'], 'password_changed', $log_note);
-        flash_set('success', 'Hasło zostało zmienione.');
+        if ($ms_blad !== '') {
+            // Hasło do panelu jest już zmienione, konto Microsoft zostało przy starym — powiedz to wprost (kursant_haslo / kursant_klucz).
+            flash_set('warning', 'Hasło do panelu zostało zmienione, ale konto Microsoft (' . $acc['ms_upn'] . ') ma nadal poprzednie hasło. '
+                . $ms_blad . ' Zgłoś to opiekunowi kursu.');
+        } else {
+            flash_set('success', 'Hasło zostało zmienione.');
+        }
         // Po wymuszonej zmianie (pierwsze logowanie) zachęć do klucza sprzętowego.
         header('Location: ' . APP_URL . ($wymuszona ? '/tozsamosc/kursant_klucz.php?nowy=1' : '/tozsamosc/kursant_haslo.php?ok=1')); exit;
     }
 }
 $ok = isset($_GET['ok']);
+// Ostrzeżenie o nieudanej zmianie hasła w Microsoft 365 (flash z POST powyżej)
+$uwaga_ms = '';
+if ($ok && ($_f = flash_get()) && ($_f['type'] ?? '') === 'warning') $uwaga_ms = (string)$_f['msg'];
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -90,6 +101,9 @@ $ok = isset($_GET['ok']);
 
   <?php if ($ok): ?>
   <div class="alert alert-success small py-2 rounded-0" role="status">Hasło zostało zmienione. Dziękujemy.</div>
+  <?php endif; ?>
+  <?php if ($uwaga_ms !== ''): ?>
+  <div class="alert alert-warning small py-2 rounded-0" role="alert"><?= h($uwaga_ms) ?></div>
   <?php endif; ?>
   <?php if ($blad !== ''): ?>
   <div class="alert alert-danger small py-2 rounded-0" role="alert"><?= h($blad) ?></div>
