@@ -642,6 +642,9 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 <?php endif; ?>
 
 <?php require_once dirname(__DIR__) . '/modules/user_merge/view/mergeBadge.php';
+require_once dirname(__DIR__) . '/modules/user_merge/view/mergeResult.php';
+require_once dirname(__DIR__) . '/modules/user_merge/logic/UserMergeController.php';
+echo userMergeResultBox(UserMergeController::takeResult());
 echo userMergeSummary($um_all, $filter_dup, $tz_url); ?>
 
 <!-- Kafle statystyk — klik = filtr -->

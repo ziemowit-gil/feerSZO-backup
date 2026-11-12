@@ -103,6 +103,7 @@ function userMergeRenderModal(array $um, int $openUid = 0): void {
         <form method="post" action="<?= h($action) ?>" @submit="if (!canSubmit()) { $event.preventDefault(); return; } busy = true">
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="members" value="<?= h(implode(',', $members)) ?>">
+          <?php if ($n > 2): ?><input type="hidden" name="dups_explicit" value="1"><?php endif; ?>
           <div class="tw-flex tw-items-start tw-gap-3 tw-border-0 tw-border-b tw-border-solid tw-border-[#e0e0e0] tw-px-5 tw-py-4">
             <div class="tw-min-w-0 tw-flex-1">
               <h2 id="um-title-<?= h($gid) ?>" class="tw-m-0 tw-text-xl tw-font-semibold">

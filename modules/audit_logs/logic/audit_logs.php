@@ -23,6 +23,7 @@ const AUDIT_MODULES = [
     'holograms'   => 'Hologramy',
     'smart_cards' => 'Karty dostępu',
     'us_przelewy' => 'Przelewy do US',
+    'tozsamosc'   => 'Tożsamość (scalanie kont)',
 ];
 
 function audit_logs_migrate(): void {

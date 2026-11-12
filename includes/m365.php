@@ -781,8 +781,10 @@ class M365Graph {
             'content' => json_encode($data),
             'ignore_errors' => true,
         ]]);
-        @file_get_contents($url, false, $ctx);
+        $resp = @file_get_contents($url, false, $ctx);
         $this->capture_status($http_response_header ?? []);
+        // Treść błędu (np. 403 Authorization_RequestDenied przy set_password) — last_error(); 204 = pusta odpowiedź.
+        $this->capture_error(json_decode($resp ?: '{}', true) ?? []);
     }
 
     /** Zapamiętuje status HTTP ostatniej odpowiedzi (do wykrycia 429/401/403 przez wołających). */
