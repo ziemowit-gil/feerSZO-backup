@@ -51,6 +51,7 @@ $r->group(['lp.admin'], function (Router $r) {
     $r->post('/admin/jako/koniec',     [LicencjeAdminController::class, 'impersonateEnd'])->name('lk.admin.as.end');
     $r->get('/admin/ceny-office',      [LicencjeAdminController::class, 'officePrices'])->name('lk.admin.prices');      // Office A3 / A5: ceny (kierownik / admin)
     $r->post('/admin/ceny-office',     [LicencjeAdminController::class, 'officePricesSave'])->name('lk.admin.prices.save');
+    $r->post('/admin/poczta-edu',      [LicencjeAdminController::class, 'eduMailSave'])->name('lk.admin.edumail');      // poczta Office kont EDU: wyłącznik administratora
     $r->get('/admin/dysk',             [LicencjeAdminController::class, 'drivePrices'])->name('lk.admin.drive');        // Dysk Online: pakiety i ceny
     $r->post('/admin/dysk',            [LicencjeAdminController::class, 'drivePricesSave'])->name('lk.admin.drive.save');
 });

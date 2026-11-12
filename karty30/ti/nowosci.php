@@ -8,6 +8,7 @@
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_online.php';   // ti_edu_mail_enabled() — wyłącznik poczty EDU
 
 $_login = '/login.php';
 $_panel = '/karty30/ti/kursant/index.php';
@@ -159,7 +160,7 @@ include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
     <h2 id="h-kon"><i class="bi bi-person-gear" aria-hidden="true"></i> Konto i ustawienia</h2>
     <div class="nw-grid">
       <?= nwCard('bi-person-check', 'Sam upoważnisz zaufaną osobę', '<p>Dostęp do podglądu panelu dla np. członka rodziny lub asystenta — widzi lekcje, frekwencję i rozliczenia, ale niczego nie zmienia. Zablokujesz lub odwołasz go w każdej chwili.</p>', 'Sprawy → Upoważnieni.') ?>
-      <?= nwCard('bi-microsoft', 'Microsoft 365 (EDU)', '<p>Masz szkolne konto Microsoft 365? W panelu jest zakładka z loginem i skrótami do Outlooka, Teams, OneDrive, Worda i Excela.</p>') ?>
+      <?= nwCard('bi-microsoft', 'Microsoft 365 (EDU)', '<p>Masz szkolne konto Microsoft 365? W panelu jest zakładka z loginem i skrótami do ' . (ti_edu_mail_enabled() ? 'Outlooka, ' : '') . 'Teams, OneDrive, Worda i Excela.</p>') ?>
       <?= nwCard('bi-sliders2', 'Uporządkowane ustawienia', '<p>Wszystko na jednej stronie, w kafelkach: Menu panelu, Ułatwienia, Bezpieczeństwo, Powiadomienia, Push i Kalendarz.</p>') ?>
     </div>
   </section>

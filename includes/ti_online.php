@@ -94,6 +94,28 @@ function ti_student_selfservice_enabled(): bool {
     return true;
 }
 
+/**
+ * Integracja poczty Office (Outlook) dla kont EDU — wyłącznik administratora (polecenie 2026-11-12).
+ * Wyłączona: panel kursanta TI, panel TI i Panel Licencji nie pokazują kafli/linków do Outlooka,
+ * adresu @edu jako e-maila kontaktowego ani wzmianek o poczcie w opisach i e-mailu z loginem.
+ * Tylko interfejs — tenant Microsoft (licencje, skrzynki Exchange) zostaje bez zmian.
+ * Ustawienie: settings.k30_m365_edu_mail_enabled ('0' = wyłączona; brak wpisu = włączona).
+ */
+function ti_edu_mail_enabled(): bool {
+    return ti_m365_setting('edu_mail_enabled', '1') !== '0';
+}
+
+/** Zapis wyłącznika poczty EDU (tylko administrator — sprawdza wołający). Zapamiętuje kto i kiedy zmienił. */
+function ti_edu_mail_set(bool $on, string $who): void {
+    m365_save_setting('k30_m365_edu_mail_enabled', $on ? '1' : '0');
+    m365_save_setting('k30_m365_edu_mail_changed', date('Y-m-d H:i') . ' · ' . mb_substr(trim($who) !== '' ? trim($who) : 'administrator', 0, 120));
+}
+
+/** „RRRR-MM-DD GG:MM · kto” ostatniej zmiany wyłącznika poczty EDU albo '' (nie zmieniano). */
+function ti_edu_mail_changed(): string {
+    return ti_m365_setting('edu_mail_changed', '');
+}
+
 // ── Stan kursanta ─────────────────────────────────────────────────────────────
 
 /** Zwraca rekord konta kursanta wraz z danymi beneficjenta. */

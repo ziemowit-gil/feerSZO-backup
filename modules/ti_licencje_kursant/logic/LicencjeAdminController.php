@@ -158,6 +158,29 @@ final class LicencjeAdminController
         return null;
     }
 
+    /** Wyłącznik poczty Office (EDU) zmienia tylko Administrator Licencji (logowanie SZO / Microsoft 365), nie kierownik wchodzący z panelu TI. */
+    public static function canSwitchEduMail(array $a): bool
+    {
+        return in_array((string)($a['via'] ?? ''), ['SZO', 'Microsoft 365'], true);
+    }
+
+    /** Poczta Office (Outlook) kont EDU w panelach: włącz / wyłącz (ti_edu_mail_set; to samo ustawienie co w panelu TI › Nauka online). */
+    public function eduMailSave(): ?string
+    {
+        $a = $this->adm();
+        if (!self::canSwitchEduMail($a)) {
+            $_SESSION['lk_flash'] = ['err', 'Pocztę Office dla kont EDU włącza i wyłącza tylko administrator.'];
+        } else {
+            require_once dirname(__DIR__, 3) . '/includes/ti_online.php';
+            $on = ($_POST['edu_mail'] ?? '0') === '1';
+            ti_edu_mail_set($on, (string)$a['name'] . ' (Panel Licencji)');
+            ClaudeBilling::event(null, null, 'office', ($on ? 'Włączono' : 'Wyłączono') . ' pocztę Office (Outlook) kont EDU w panelach.', (string)$a['name']);
+            $_SESSION['lk_flash'] = ['ok', $on ? 'Poczta Office dla kont EDU jest włączona w panelach.' : 'Poczta Office dla kont EDU jest wyłączona w panelach.'];
+        }
+        header('Location: ' . route('lk.admin.prices') . '#poczta-edu');
+        return null;
+    }
+
     /** Dysk Online (pilotaż, sdata.net.pl): pakiety i ceny — kierownik albo administrator. */
     public function drivePrices(): string
     {

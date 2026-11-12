@@ -3,18 +3,21 @@
  * karty30/ti/kursant/_alt_office.php — zakładka „Microsoft 365 (EDU)” w widoku alternatywnym.
  * Pokazywana tylko kursantom z aktywnym kontem szkoleniowym (k30_ti_student_accounts.ms_upn).
  * Bez zakładania/usuwania konta — tylko login, skróty do aplikacji i informacja o haśle.
+ * Kafel „Outlook — poczta” tylko przy włączonej poczcie EDU (ti_edu_mail_enabled — wyłącznik administratora).
  * Zmienne z index.php: $account.
  */
 $_of_upn = trim((string)($account['ms_upn'] ?? ''));
 $_of_q   = 'login_hint=' . rawurlencode($_of_upn);
 $_of_apki = [
     ['Office (wszystkie aplikacje)', 'grid-3x3-gap', 'https://www.office.com/?' . $_of_q, 'Start Microsoft 365 w przeglądarce'],
-    ['Outlook — poczta',            'envelope',     'https://outlook.office.com/mail/?' . $_of_q, 'Szkolna skrzynka e-mail'],
     ['Teams',                       'people',       'https://teams.microsoft.com/?' . $_of_q, 'Spotkania i czat'],
     ['OneDrive — pliki',            'cloud',        'https://www.office.com/launch/onedrive?' . $_of_q, 'Twoje pliki w chmurze'],
     ['Word',                        'file-earmark-word',  'https://www.office.com/launch/word?' . $_of_q, 'Dokumenty tekstowe'],
     ['Excel',                       'file-earmark-excel', 'https://www.office.com/launch/excel?' . $_of_q, 'Arkusze kalkulacyjne'],
 ];
+if (ti_edu_mail_enabled()) {
+    array_splice($_of_apki, 1, 0, [['Outlook — poczta', 'envelope', 'https://outlook.office.com/mail/?' . $_of_q, 'Szkolna skrzynka e-mail']]);
+}
 ?>
 <h1 class="h5 fw-bold mb-1"><i class="bi bi-microsoft text-primary me-2" aria-hidden="true"></i>Microsoft 365 (EDU)</h1>
 <p class="text-body-secondary small mb-3">Twoje konto szkoleniowe Microsoft 365. Aplikacje otwierają się w nowej karcie przeglądarki.</p>

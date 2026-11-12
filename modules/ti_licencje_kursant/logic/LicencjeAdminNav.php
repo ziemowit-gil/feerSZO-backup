@@ -17,7 +17,7 @@ final class LicencjeAdminNav
             [$b . 'licencjeDydaktyczne.php', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'Licencje'],
             [$b . 'licencjeDydaktyczne.php?_route=' . rawurlencode('/korekty'), 'Korekty AMSK', 'licencjeDydaktyczne.php?_route=%2Fkorekty', 'Licencje'],
             [$b . 'claudeAbonament.php', 'Płatne licencje', 'claudeAbonament.php', 'Płatne usługi i ceny'],
-            [$b . '?_route=' . rawurlencode('/admin/ceny-office'), 'Office: ceny planów', 'ceny-office', 'Płatne usługi i ceny'],
+            [$b . '?_route=' . rawurlencode('/admin/ceny-office'), 'Office: ceny i poczta', 'ceny-office', 'Płatne usługi i ceny'],
             [$b . '?_route=' . rawurlencode('/admin/dysk'), 'Dysk Online: pakiety', 'dysk', 'Płatne usługi i ceny'],
         ];
         if (trim((string)(function_exists('org_setting') ? org_setting('ant1_enabled') : '')) === '1') $i[] = [$b . 'licencjeDydaktyczne.php?_route=' . rawurlencode('/ant1'), 'Dostęp do Claude (ANT1)', '', 'Licencje'];

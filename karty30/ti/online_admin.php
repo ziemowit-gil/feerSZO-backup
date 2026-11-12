@@ -48,6 +48,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Wyłącznik poczty Office (Outlook) dla kont EDU — tylko administrator (polecenie 2026-11-12)
+    if ($op === 'save_edu_mail') {
+        if (!is_admin()) {
+            flash_set('danger', 'Pocztę Office dla kont EDU włącza i wyłącza tylko administrator.');
+        } else {
+            $on = ($_POST['edu_mail_enabled'] ?? '0') === '1';
+            $cu = current_user() ?? [];
+            ti_edu_mail_set($on, (string)($cu['name'] ?? $cu['username'] ?? $cu['email'] ?? ''));
+            flash_set('success', $on ? 'Poczta Office dla kont EDU jest włączona w panelach.' : 'Poczta Office dla kont EDU jest wyłączona w panelach.');
+        }
+        header('Location: online_admin.php#edu-mail'); exit;
+    }
+
     if ($op === 'test_ms') {
         if (!ti_ms_enabled()) {
             $test_result = ['ok' => false, 'msg' => 'Microsoft 365 nie jest skonfigurowane — uzupełnij dane w „Dydaktyka 3 → M365".'];
@@ -169,6 +182,32 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
           <input type="hidden" name="_op" value="test_ms">
           <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug me-1"></i>Test połączenia MS</button>
+        </form>
+        <hr>
+        <?php $edu_mail_on = ti_edu_mail_enabled(); $edu_mail_when = ti_edu_mail_changed(); ?>
+        <form method="post" id="edu-mail" aria-labelledby="edu-mail-h">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="_op" value="save_edu_mail">
+          <input type="hidden" name="edu_mail_enabled" value="0">
+          <h2 class="h6 fw-semibold mb-2" id="edu-mail-h">Poczta Office (Outlook) dla kont EDU
+            <span class="badge <?= $edu_mail_on ? 'bg-success' : 'bg-secondary' ?> ms-1"><?= $edu_mail_on ? 'włączona' : 'wyłączona' ?></span></h2>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" role="switch" name="edu_mail_enabled" value="1" id="edu-mail-on"
+                   aria-describedby="edu-mail-help"<?= $edu_mail_on ? ' checked' : '' ?><?= is_admin() ? '' : ' disabled' ?>>
+            <label class="form-check-label" for="edu-mail-on">Pokazuj pocztę Office w panelu TI, panelu kursanta i Panelu Licencji</label>
+          </div>
+          <div class="form-text mb-2" id="edu-mail-help">
+            Po wyłączeniu znikają kafel i linki „Outlook — poczta”, adres @edu na liście e-maili kontaktowych kursanta
+            i wzmianki o poczcie w opisach oraz w e-mailu z loginem do nowego konta Office.
+            Konta, licencje i skrzynki w tenancie Microsoft zostają bez zmian.
+            Weryfikacja Goodstack (Claude) nadal prosi o potwierdzenie linkiem wysłanym na adres @edu.
+            <?php if ($edu_mail_when !== ''): ?><br>Ostatnia zmiana: <?= h($edu_mail_when) ?>.<?php endif; ?>
+          </div>
+          <?php if (is_admin()): ?>
+          <button class="btn btn-primary btn-sm"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+          <?php else: ?>
+          <p class="small text-body-secondary mb-0">Zmienić to może tylko administrator.</p>
+          <?php endif; ?>
         </form>
       </div>
     </div>

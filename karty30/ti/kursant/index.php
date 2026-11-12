@@ -2259,8 +2259,9 @@ document.addEventListener('DOMContentLoaded', function() {
     $contact_emails = [];
     if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
     // Login konta Microsoft pokazujemy tylko, gdy kursant sam nim zarządza
-    // z panelu (ti_student_selfservice_enabled) i faktycznie je ma.
-    if (ti_student_selfservice_enabled() && !empty($account['ms_upn']))
+    // z panelu (ti_student_selfservice_enabled), faktycznie je ma, a poczta EDU
+    // nie jest wyłączona przez administratora (ti_edu_mail_enabled).
+    if (ti_student_selfservice_enabled() && ti_edu_mail_enabled() && !empty($account['ms_upn']))
         $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
     if (!empty($account['guardian_email'])) $contact_emails[] = ['Opiekun', $account['guardian_email']];
 

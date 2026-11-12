@@ -30,6 +30,20 @@ final class LicenceOffice
     ];
     public const PLANS_SOURCE = 'https://www.microsoft.com/pl-pl/education/products/microsoft-365/compare-microsoft-365-education-plans';
 
+    /** Czy panele pokazują pocztę Office (Outlook) kont EDU — wyłącznik administratora, ti_edu_mail_enabled(). */
+    public static function mailEnabled(): bool
+    {
+        require_once dirname(__DIR__, 3) . '/includes/ti_online.php';
+        return ti_edu_mail_enabled();
+    }
+
+    /** Opis planu do pokazania: przy wyłączonej poczcie EDU bez wzmianek o Outlooku. @return list<string> */
+    public static function features(array $plan): array
+    {
+        if (self::mailEnabled()) return $plan['features'];
+        return array_map(fn(string $f) => str_replace(['Outlook (poczta), Teams i OneDrive', 'PowerPoint, Outlook, OneNote'], ['Teams i OneDrive', 'PowerPoint, OneNote'], $f), $plan['features']);
+    }
+
     /** Licencja (SKU) Office A3/A5 w tenancie edukacyjnym — przy aktywacji abonamentu. @return array{ok:bool,text:string} */
     public static function assignSku(int $cid, string $sku, string $label, string $by = 'system'): array
     {
@@ -318,7 +332,7 @@ final class LicenceOffice
             require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
             $hint = rawurlencode($upn);
             $html = '<p>Dzień dobry,</p>'
-                . '<p>założyliśmy Ci konto Microsoft 365 w ' . h($org) . '. Zalogujesz się nim do Worda, Excela, Outlooka i Teams.</p>'
+                . '<p>założyliśmy Ci konto Microsoft 365 w ' . h($org) . '. Zalogujesz się nim do Worda, Excela' . (self::mailEnabled() ? ', Outlooka' : '') . ' i Teams.</p>'
                 . '<p>Twój login: <b>' . h($upn) . '</b></p>'
                 . '<p>' . ($okS ? 'Hasło tymczasowe przyszło osobno SMS-em.' : 'Hasło tymczasowe przekaże Ci biuro.') . ' Przy pierwszym logowaniu Microsoft poprosi o nowe hasło.</p>'
                 . '<p>Logowanie: <a href="https://www.office.com/?login_hint=' . h($hint) . '">office.com</a></p>'

@@ -3,22 +3,23 @@ if (!isset($adm, $plans)) { header('Location: /licencje/', true, 302); exit; }  
 /**
  * modules/ti_licencje_kursant/view/admin_office.php — Office ze zniżką edukacyjną: ceny planów A3 i A5 (A1 w cenie), edytuje kierownik albo administrator.
  * Zapis tylko ceny i zamawiania (ClaudeBilling::savePrices) — VAT, prowizja i reszta ustawień produktu bez zmian. Zmienne: $adm, $plans, $org, $flash.
+ * Pod cenami: wyłącznik poczty Office (Outlook) kont EDU w panelach — zmienia tylko Administrator Licencji (LicencjeAdminController::canSwitchEduMail).
  */
-$PAGE_TITLE = 'Office: ceny planów';
+$PAGE_TITLE = 'Office: ceny planów i poczta';
 require_once dirname(__DIR__) . '/logic/LicencjeAdminNav.php';
 $nav = LicencjeAdminNav::sideNav('ceny-office');
 include __DIR__ . '/_top.php';
 $tag = fn(string $cls, string $txt) => '<span class="m-tag ' . h($cls) . '">' . h($txt) . '</span>';
 $num = fn(float $v) => $v > 0 ? rtrim(rtrim(number_format($v, 2, ',', ''), '0'), ',') : '';
 ?>
-<h1 class="m-title">Office: ceny planów</h1>
+<h1 class="m-title">Office: ceny planów i poczta</h1>
 <p class="m-explain">Konto Office ma domyślnie plan A1, w cenie i bez aplikacji stacjonarnych. Tu ustalasz miesięczną cenę planów A3 i A5 dla uczestników. Do ceny doliczamy VAT i prowizję jak przy innych płatnych licencjach.</p>
 <form method="post" action="<?= h(route('lk.admin.prices.save')) ?>" novalidate><?= Router::csrfField() ?>
   <div class="tw-grid md:tw-grid-cols-2 tw-gap-4">
   <?php foreach ($plans as $k => $pl): $s = $pl['s']; $r = $pl['rate']; ?>
     <section class="m-tile" aria-labelledby="pl-<?= h($k) ?>">
       <h2 class="m-sect" id="pl-<?= h($k) ?>"><?= h($pl['name']) ?> <?= $s['enabled'] && $s['priced'] ? $tag('ok', 'można zamawiać') : $tag('off', 'zamawianie wyłączone') ?></h2>
-      <ul class="tw-list-disc tw-pl-5 tw-text-sm tw-mb-3"><?php foreach ($pl['features'] as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul>
+      <ul class="tw-list-disc tw-pl-5 tw-text-sm tw-mb-3"><?php foreach (LicenceOffice::features($pl) as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul>
       <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3">
         <div><label class="m-label" for="usd-<?= h($k) ?>">Cena miesięczna (USD)</label>
           <input class="m-input" id="usd-<?= h($k) ?>" name="usd[<?= h($k) ?>]" inputmode="decimal" value="<?= h($num((float)$s['usd'])) ?>" placeholder="np. 3,50" aria-describedby="usd-h-<?= h($k) ?>"></div>
@@ -34,4 +35,21 @@ $num = fn(float $v) => $v > 0 ? rtrim(rtrim(number_format($v, 2, ',', ''), '0'),
   </div>
   <button class="m-btn tw-mt-4" type="submit">Zapisz ceny</button>
 </form>
+
+<?php require_once dirname(__DIR__, 3) . '/includes/ti_online.php';
+  $mailOn = ti_edu_mail_enabled(); $mailWhen = ti_edu_mail_changed(); $mailCan = LicencjeAdminController::canSwitchEduMail($adm); ?>
+<section class="m-tile tw-mt-6" id="poczta-edu" aria-labelledby="poczta-edu-h">
+  <h2 class="m-sect" id="poczta-edu-h">Poczta Office (Outlook) dla kont EDU <?= $mailOn ? $tag('ok', 'włączona') : $tag('off', 'wyłączona') ?></h2>
+  <p class="tw-text-sm tw-mb-3" id="poczta-edu-opis">Po wyłączeniu panel TI, panel kursanta i Panel Licencji nie pokazują poczty kont @<?= h(ClaudeBilling::EDU_DOMAIN) ?>: kafla i linków do Outlooka, adresu @<?= h(ClaudeBilling::EDU_DOMAIN) ?> jako e-maila kontaktowego ani wzmianek o poczcie w opisach planów i w e-mailu z loginem. Konta, licencje i skrzynki w Microsoft zostają bez zmian. Weryfikacja Goodstack (Claude) nadal prosi o potwierdzenie linkiem wysłanym na adres @<?= h(ClaudeBilling::EDU_DOMAIN) ?>.</p>
+  <?php if ($mailCan): ?>
+  <form method="post" action="<?= h(route('lk.admin.edumail')) ?>"><?= Router::csrfField() ?>
+    <input type="hidden" name="edu_mail" value="0">
+    <label class="m-check"><input type="checkbox" name="edu_mail" value="1" aria-describedby="poczta-edu-opis"<?= $mailOn ? ' checked' : '' ?>><span>Pokazuj pocztę Office w panelach</span></label>
+    <button class="m-btn tw-mt-3" type="submit">Zapisz</button>
+  </form>
+  <?php else: ?>
+  <p class="m-imp" style="margin-bottom:0">Zmienić to może tylko Administrator Licencji (logowanie przez SZO albo Microsoft 365).</p>
+  <?php endif; ?>
+  <?php if ($mailWhen !== ''): ?><p class="m-note tw-mt-2">Ostatnia zmiana: <?= h($mailWhen) ?>.</p><?php endif; ?>
+</section>
 <?php include __DIR__ . '/_bottom.php'; ?>

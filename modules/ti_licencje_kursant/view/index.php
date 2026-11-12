@@ -13,6 +13,7 @@ $U = fn(string $k) => LicencjeKursantController::pageUrl($k);
 $e = fn(string $p, string $k) => isset($err[$p][$k]) ? '<p id="e-' . h($p . $k) . '" class="m-err">' . h($err[$p][$k]) . '</p>' : '';
 $a = fn(string $p, string $k) => isset($err[$p][$k]) ? ' aria-invalid="true" aria-describedby="e-' . h($p . $k) . '"' : '';
 $today = date('Y-m-d');
+$eduMail = LicenceOffice::mailEnabled();   // wyłącznik administratora: poczta Office (Outlook) kont EDU w panelach
 // kafle i menu: krótki stan każdej licencji
 $tiles = [];
 foreach ($paid as $pk => $v) {
@@ -175,7 +176,7 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
         </ol>
       </details>
       <a class="m-btn tw-mt-3" href="<?= h(route('lk.goodstack')) ?>" target="_blank" rel="noopener">Przejdź do weryfikacji ↗<span class="tw-sr-only"> (strona Goodstack, nowa karta)</span></a>
-      <p class="m-note tw-mt-2">Pocztę z konta Office odbierzesz na <a href="https://outlook.office.com/mail/?login_hint=<?= h(rawurlencode((string)$eduAccount)) ?>" target="_blank" rel="noopener">outlook.office.com<span class="tw-sr-only"> (nowa karta)</span></a>.</p>
+      <?php if ($eduMail): ?><p class="m-note tw-mt-2">Pocztę z konta Office odbierzesz na <a href="https://outlook.office.com/mail/?login_hint=<?= h(rawurlencode((string)$eduAccount)) ?>" target="_blank" rel="noopener">outlook.office.com<span class="tw-sr-only"> (nowa karta)</span></a>.</p><?php endif; ?>
     <?php endif; ?>
   </section>
   <?php endif; ?>
@@ -371,7 +372,7 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
 <?php /* ── Licencje na Office (AM7) ── */ ?>
 <?php if ($page === 'office'): ?>
 <h1 class="m-title">Licencje na Office</h1>
-<p class="m-explain">Word, Excel, PowerPoint, Outlook i Teams. Office działa z kontem @<?= h(ClaudeBilling::EDU_DOMAIN) ?>.</p>
+<p class="m-explain">Word, Excel, PowerPoint<?= $eduMail ? ', Outlook' : '' ?> i Teams. Office działa z kontem @<?= h(ClaudeBilling::EDU_DOMAIN) ?>.</p>
 <?= $idsLine ?>
 <section class="m-tile" aria-label="Licencje na Office">
   <?php if ($eduAccount): $hintE = rawurlencode($eduAccount); ?>
@@ -379,7 +380,7 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
     <div class="tw-flex tw-flex-wrap tw-items-baseline tw-gap-x-3"><span class="tw-font-semibold">Office (Microsoft 365 dla edukacji)</span> <?= $tag('ok', 'aktywny') ?></div>
     <p class="tw-text-sm tw-mt-1">Twoje konto: <span class="m-mono tw-font-semibold"><?= h($eduAccount) ?></span>
       <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($eduAccount) ?>">Kopiuj<span class="tw-sr-only"> login</span></button></p>
-    <p class="tw-text-sm tw-mt-1"><a href="https://www.office.com/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Otwórz Office<span class="tw-sr-only"> (nowa karta)</span></a> · <a href="https://outlook.office.com/mail/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Poczta<span class="tw-sr-only"> (nowa karta)</span></a> · <a href="https://teams.microsoft.com/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Teams<span class="tw-sr-only"> (nowa karta)</span></a></p>
+    <p class="tw-text-sm tw-mt-1"><a href="https://www.office.com/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Otwórz Office<span class="tw-sr-only"> (nowa karta)</span></a><?php if ($eduMail): ?> · <a href="https://outlook.office.com/mail/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Poczta<span class="tw-sr-only"> (nowa karta)</span></a><?php endif; ?> · <a href="https://teams.microsoft.com/?login_hint=<?= h($hintE) ?>" target="_blank" rel="noopener">Teams<span class="tw-sr-only"> (nowa karta)</span></a></p>
   </div>
   <?php endif; ?>
   <?php if (!$eduAccount): ?><?php $officeBox('office'); ?><?php endif; ?>
@@ -396,7 +397,7 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
             $pOpen = $pSub && in_array($pSub['status'], ['requested', 'active', 'suspended'], true); ?>
         <tr style="border-bottom:1px solid var(--pk-border)">
           <th scope="row" class="tw-text-left tw-py-2 tw-pr-3 tw-align-top"><?= h($pl['name']) ?><?= $plk === $plCur ? ' ' . $tag('ok', 'Twój plan') : '' ?></th>
-          <td class="tw-py-2 tw-pr-3 tw-align-top"><ul class="tw-list-disc tw-pl-5"><?php foreach ($pl['features'] as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul></td>
+          <td class="tw-py-2 tw-pr-3 tw-align-top"><ul class="tw-list-disc tw-pl-5"><?php foreach (LicenceOffice::features($pl) as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul></td>
           <td class="tw-py-2 tw-pr-3 tw-align-top"><?= $pl['desktop'] ? 'tak' : 'nie' ?></td>
           <td class="tw-py-2 tw-pr-3 tw-align-top tw-whitespace-nowrap"><?= !$pl['product'] ? 'w cenie' : ($ps && $ps['priced'] ? h(ClaudeBilling::priceShort($ps)) . ' miesięcznie' . (!empty($pv['rate']) ? '<br><span class="m-note">dziś ≈ ' . h(ClaudeBilling::zl((float)$pv['rate']['amount_pln'])) . '</span>' : '') : '<span class="m-muted">cenę poda biuro</span>') ?></td>
           <td class="tw-py-2 tw-align-top"><?php if ($pOpen): ?><a href="<?= h(route('lk.licence', ['product' => $pl['product']])) ?>">Szczegóły</a>
