@@ -1476,10 +1476,14 @@ switch ($action) {
             ORDER BY cl.assigned_at DESC
         ");
         $stmt->execute([$cid]);
+        // klucze dopiero po akceptacji oświadczenia o poufności (ta sama zasada co panel uczestnika i Panel Licencji)
+        $licTerm   = ti_term_get('licencje');
+        $keyLocked = $licTerm && !empty($licTerm['is_active']) && !ti_term_accepted($cid, 'licencje');
         json_ok(array_map(fn($r) => [
             'id'            => (int)$r['id'],
             'software_name' => $r['software_name'],
-            'license_key'   => $r['license_key'],
+            'license_key'   => $keyLocked ? null : $r['license_key'],
+            'key_locked'    => $keyLocked && (string)$r['license_key'] !== '',
             'assigned_at'   => $r['assigned_at'],
             'expires_at'    => $r['expires_at'],
             'download_url'  => $r['download_url'],

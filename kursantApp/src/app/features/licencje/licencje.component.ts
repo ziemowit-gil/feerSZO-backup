@@ -58,13 +58,29 @@ import { License } from '../../core/models/kursant.models';
                 }
               </div>
 
+              @if (lic.key_locked) {
+                <p class="lic-locked text-sm">
+                  <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+                  Klucz zobaczysz po zaakceptowaniu oświadczenia o poufności (zakładka Regulaminy).
+                </p>
+              }
+
               @if (lic.license_key) {
                 <div class="lic-key-row">
-                  <span class="meta-label">Klucz licencji</span>
+                  <span class="meta-label" [id]="'lic-key-lbl-' + lic.id">Klucz licencji</span>
                   <div class="key-wrap">
-                    <code class="lic-key" [attr.aria-label]="'Klucz: ' + lic.license_key">
-                      {{ lic.license_key }}
+                    <!-- klucz domyślnie zamaskowany; pełna wartość dopiero po „Pokaż” -->
+                    <code class="lic-key" [attr.aria-labelledby]="'lic-key-lbl-' + lic.id">
+                      @if (isShown(lic.id)) { {{ lic.license_key }} } @else { <span aria-hidden="true">••••••••</span><span class="sr-only">ukryty</span> }
                     </code>
+                    <button class="copy-btn"
+                            type="button"
+                            [attr.aria-pressed]="isShown(lic.id)"
+                            [attr.aria-label]="(isShown(lic.id) ? 'Ukryj' : 'Pokaż') + ' klucz licencji dla ' + lic.software_name"
+                            (click)="toggleKey(lic.id)">
+                      <span class="material-symbols-outlined" aria-hidden="true">{{ isShown(lic.id) ? 'visibility_off' : 'visibility' }}</span>
+                      <span class="btn-txt" aria-hidden="true">{{ isShown(lic.id) ? 'Ukryj' : 'Pokaż' }}</span>
+                    </button>
                     <button class="copy-btn"
                             type="button"
                             [attr.aria-label]="'Kopiuj klucz licencji dla ' + lic.software_name"
@@ -149,6 +165,17 @@ import { License } from '../../core/models/kursant.models';
       &:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
     }
 
+    .btn-txt { font-size: .8rem; margin-left: .2rem; }
+
+    .lic-locked {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      margin: 0;
+      color: #374151;
+      .material-symbols-outlined { font-size: 1rem; }
+    }
+
     .lic-notes { margin: 0; }
   `],
 })
@@ -158,6 +185,18 @@ export class LicencjeComponent implements OnInit {
 
   loading  = signal(true);
   licenses = signal<License[]>([]);
+  /** Licencje, których klucz uczestnik odsłonił przyciskiem „Pokaż” (domyślnie wszystkie zamaskowane). */
+  shown    = signal<ReadonlySet<number>>(new Set());
+
+  isShown(id: number): boolean {
+    return this.shown().has(id);
+  }
+
+  toggleKey(id: number): void {
+    const next = new Set(this.shown());
+    if (next.has(id)) next.delete(id); else next.add(id);
+    this.shown.set(next);
+  }
 
   ngOnInit(): void {
     this.api.getLicenses().subscribe({

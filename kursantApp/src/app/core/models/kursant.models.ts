@@ -343,6 +343,7 @@ export interface License {
   id: number;
   software_name: string;
   license_key: string | null;
+  key_locked?: boolean;   // klucz ukryty do akceptacji oświadczenia o poufności
   assigned_at: string;
   expires_at: string | null;
   download_url: string | null;
