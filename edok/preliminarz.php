@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
                 $nazwa = $rachunki_ok[$nrb]['nazwa'] ?? '' ?: ($rachunki_ok[$nrb]['bank'] ?? '');
                 $slug  = trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $nazwa) ?: ''), '_');
                 $pslug = $paczka !== '' ? trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $paczka) ?: ''), '_') : '';
-                $pliki[$plik['prefix'] . '_' . ($slug !== '' ? $slug . '_' : '') . substr((string) $nrb, -4) . ($pslug !== '' ? '_' . mb_substr($pslug, 0, 60) : '') . '_' . $stamp . '.' . $plik['ext']] = $plik['content'];
+                $pliki[edok_przelewy_nazwa_pliku($plik, (string) $nrb, $plik['prefix'] . '_' . ($slug !== '' ? $slug . '_' : '') . substr((string) $nrb, -4) . ($pslug !== '' ? '_' . mb_substr($pslug, 0, 60) : '') . '_' . $stamp . '.' . $plik['ext'])] = $plik['content'];
             }
             if ($pliki) {
                 // Po wygenerowaniu pliku status płatności = „Zlecony do banku” (zapis w audycie).

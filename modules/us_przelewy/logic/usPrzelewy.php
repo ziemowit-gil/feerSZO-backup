@@ -464,7 +464,7 @@ function uspGenerujPlik(array $ids, string $nrbZ, string $format, bool $ponowne)
     if (!$rows) return 'Zaznacz co najmniej jedno zobowiązanie do zapłaty.';
     $plik = edok_przelewy_export($rows, $nrbZ, $format);
     if ($plik['content'] === '') return 'Nie udało się wygenerować pliku przelewu.';
-    $nazwa = 'US_' . $plik['prefix'] . '_' . substr($nrbZ, -4) . '_' . date('Y-m-d_His') . '.' . $plik['ext'];
+    $nazwa = edok_przelewy_nazwa_pliku($plik, $nrbZ, 'US_' . $plik['prefix'] . '_' . substr($nrbZ, -4) . '_' . date('Y-m-d_His') . '.' . $plik['ext']);
     $dir = rtrim(UPLOAD_DIR, '/') . '/us_przelewy';
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
     $rel = 'us_przelewy/' . $nazwa;

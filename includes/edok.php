@@ -2918,7 +2918,7 @@ function edok_zus_handle_post(): array {
                 $kwota = number_format($kw, 2, ',', '');
                 $plik  = edok_przelewy_export([edok_zus_row($okres, $kwota, $nrs)], (string)$nrb, $format);
                 if ($plik['content'] === '') continue;
-                $pliki['ZUS_' . str_replace('-', '', $okres) . '_' . $plik['prefix'] . '_' . substr((string)$nrb, -4) . '_' . $stamp . '.' . $plik['ext']] = $plik['content'];
+                $pliki[edok_przelewy_nazwa_pliku($plik, (string)$nrb, 'ZUS_' . str_replace('-', '', $okres) . '_' . $plik['prefix'] . '_' . substr((string)$nrb, -4) . '_' . $stamp . '.' . $plik['ext'])] = $plik['content'];
                 db_insert('edok_zus_przelewy', [
                     'okres' => $okres, 'kwota' => $kwota, 'nrs' => $nrs, 'rachunek_z' => (string)$nrb,
                     'format' => $plik['prefix'], 'tytul' => edok_zus_tytul($okres),
@@ -3320,6 +3320,31 @@ function edok_przelewy_export(array $docs, string $rachunek_zlecen_nrb, string $
         return ['content' => edok_elixir_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'ELIXIR-O', 'ext' => 'pli'];
     }
     return ['content' => edok_ipko_biznes_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'iPKO_biznes', 'ext' => 'txt'];
+}
+
+/**
+ * Kolejny numer pliku przelewów dla PKO BP w bieżącym miesiącu (od 1 co miesiąc), zapisany
+ * w ustawieniu „edok_pko_plik_nr” jako {"ym":"RRRR-MM","nr":N}. Czytane wprost z bazy, nie przez
+ * org_setting() (ta trzyma wartość w pamięci — przy kilku plikach w jednym ZIP numery by się powtórzyły).
+ */
+function edok_pko_plik_nr(): int {
+    $ym  = date('Y-m');
+    $st  = json_decode((string)(db_one("SELECT value FROM settings WHERE key_ = 'edok_pko_plik_nr'")['value'] ?? ''), true);
+    $nr  = (is_array($st) && ($st['ym'] ?? '') === $ym) ? (int)($st['nr'] ?? 0) + 1 : 1;
+    org_setting_set('edok_pko_plik_nr', json_encode(['ym' => $ym, 'nr' => $nr]));
+    return $nr;
+}
+
+/**
+ * Nazwa pobieranego pliku przelewów. Dla PKO BP (formaty iPKO biznes .txt i XML):
+ * „PKO_{nr kolejny w miesiącu, 3 cyfry}_{MM}_{RR}_{GG}_{MM}_{SS}_{4 ostatnie cyfry rachunku nadawcy}.{ext}”,
+ * np. PKO_003_11_26_14_30_05_7480.txt. Inne banki zachowują dotychczasową nazwę $domyslna.
+ * Numer jest zużywany przy każdym wywołaniu — wołać tylko dla pliku, który naprawdę trafia do pobrania.
+ */
+function edok_przelewy_nazwa_pliku(array $plik, string $rachunek_zlecen_nrb, string $domyslna): string {
+    if (!in_array($plik['prefix'] ?? '', ['iPKO_biznes', 'iPKO_ISO20022'], true)) return $domyslna;
+    return sprintf('PKO_%03d_%s_%s.%s', edok_pko_plik_nr(), date('m_y_H_i_s'),
+        substr(preg_replace('/\D/', '', $rachunek_zlecen_nrb), -4), $plik['ext']);
 }
 
 // ── Import wyciągu bankowego — MT940 (iPKO biznes) ─────────────────────────────

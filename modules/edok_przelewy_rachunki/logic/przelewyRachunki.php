@@ -152,7 +152,7 @@ function prz_rach_generuj(array $rids, string $nrb_z, string $format, bool $ozna
         $okresy = array_values(array_unique(array_map(fn($d) => (string)$d['okres'], $gdocs)));
         $pt = count($okresy) === 1 ? edok_paczka_tytul($gdocs) : 'WYNAGRODZENIA';
         $ps = $pt !== '' ? '_' . mb_substr(trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $pt) ?: ''), '_'), 0, 60) : '';
-        $pliki[] = ['nazwa' => 'Przelewy_rachunki_' . ($ym !== '' ? $ym . '_' : '') . $pl['prefix'] . '_' . substr($nrb_z, -4) . $ps . '_' . date('Y-m-d_His') . '.' . $pl['ext'],
+        $pliki[] = ['nazwa' => edok_przelewy_nazwa_pliku($pl, $nrb_z, 'Przelewy_rachunki_' . ($ym !== '' ? $ym . '_' : '') . $pl['prefix'] . '_' . substr($nrb_z, -4) . $ps . '_' . date('Y-m-d_His') . '.' . $pl['ext']),
                     'content' => $pl['content'], 'ext' => $pl['ext'], 'paczka' => $pt];
     }
     if (!$pliki) return ['ok' => false, 'msg' => 'Eksporter nie zwrócił żadnego przelewu — sprawdź numery kont.'];
