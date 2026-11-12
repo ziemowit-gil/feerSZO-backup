@@ -523,8 +523,8 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
     <div class="nb-search-wrap">
       <i class="nb-search-icon bi bi-search" aria-hidden="true"></i>
       <input type="search" id="cmdk-trigger" readonly
-             placeholder="Szukaj w menu i danych…"
-             aria-label="Otwórz wyszukiwarkę menu i danych (Ctrl+K)">
+             placeholder="Szukaj osób, umów i w menu…"
+             aria-label="Otwórz wyszukiwarkę: osoby (PESEL, nazwisko, telefon, e-mail), umowy (numer) i menu (Ctrl+K)">
       <span class="nb-search-kbd" aria-hidden="true">Ctrl K</span>
     </div>
   </div>
@@ -907,17 +907,23 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
 .cmdk-inbar input{flex:1;border:0;outline:0;font-size:1rem;color:#0f172a;background:transparent}
 .cmdk-esc{font-size:.62rem;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:6px;padding:.15rem .4rem;flex-shrink:0}
 .cmdk-scroll{overflow-y:auto;padding:.3rem .4rem .45rem}
-.cmdk-sec{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#94a3b8;padding:.6rem .85rem .25rem}
+.cmdk-sec{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#64748b;padding:.6rem .85rem .25rem}
 .cmdk-item{display:flex;align-items:center;gap:.7rem;padding:.5rem .7rem;border-radius:10px;text-decoration:none;color:#334155;cursor:pointer}
 .cmdk-ic{width:32px;height:32px;border-radius:9px;background:#f1f5f9;color:#475569;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
 .cmdk-tx{flex:1;min-width:0}
 .cmdk-lb{font-size:.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cmdk-sb{font-size:.74rem;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmdk-sb{font-size:.74rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmdk-mt{color:#0f766e;font-weight:600}
+.cmdk-src{flex-shrink:0;background:#f1f5f9;color:#334155;font-size:.68rem;font-weight:600;border-radius:999px;padding:.2rem .55rem}
+.cmdk-tip{margin:.4rem .45rem .15rem;padding:.5rem .75rem;border-radius:10px;background:#f8fafc;color:#475569;font-size:.78rem;line-height:1.45}
+.cmdk-tip.cmdk-warn{background:#eff6ff;color:#1e3a8a}
+.cmdk-tip b{color:#0f172a}
+.cmdk-all .cmdk-ic{background:#eef2ff;color:#3730a3}
 .cmdk-item .badge{flex-shrink:0}
 .cmdk-item.cmdk-on,.cmdk-item:hover{background:#eff6ff;color:#1d4ed8}
 .cmdk-item.cmdk-on .cmdk-ic,.cmdk-item:hover .cmdk-ic{background:#dbeafe;color:#1d4ed8}
-.cmdk-empty{padding:1.5rem;text-align:center;color:#94a3b8;font-size:.86rem}
-.cmdk-foot{border-top:1px solid #f1f5f9;padding:.5rem .9rem;font-size:.72rem;color:#94a3b8;display:flex;gap:1.1rem;align-items:center;flex-wrap:wrap}
+.cmdk-empty{padding:1.25rem 1.5rem;text-align:center;color:#64748b;font-size:.86rem}
+.cmdk-foot{border-top:1px solid #f1f5f9;padding:.5rem .9rem;font-size:.72rem;color:#64748b;display:flex;gap:1.1rem;align-items:center;flex-wrap:wrap}
 .cmdk-foot kbd{background:#f1f5f9;border-radius:5px;padding:.05rem .35rem;font-size:.7rem;color:#475569;border:0}
 @media(prefers-reduced-motion:reduce){.cmdk-backdrop,.cmdk-panel{animation:none!important}}
 </style>
@@ -927,7 +933,7 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
   var root = document.getElementById('cmdk-root'); if(!root) return;
   if(root.parentNode !== document.body) document.body.appendChild(root);
 
-  var open=false, query='', active=0, flat=[], menuRes=[], dataRes=[], timer=null, seq=0;
+  var open=false, query='', active=0, flat=[], menuRes=[], dataRes=[], dataKind='', dataHint='', loading=false, timer=null, seq=0;
 
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 
@@ -946,8 +952,12 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
 
   function itemHTML(it, idx, kind){
     var url = kind==='menu' ? (cfg.appUrl + it.path) : it.url;
-    var badge = it.badge ? '<span class="badge bg-warning text-dark">'+esc(it.badge)+'</span>' : '';
-    var sub = it.sub ? '<div class="cmdk-sb">'+esc(it.sub)+'</div>' : '';
+    var badge = !it.badge ? '' : (kind==='menu'
+      ? '<span class="badge bg-warning text-dark">'+esc(it.badge)+'</span>'
+      : '<span class="cmdk-src">'+esc(it.badge)+'</span>');
+    var subTx = it.sub ? esc(it.sub) : '';
+    if(kind==='data' && it.match) subTx += (subTx?' · ':'')+'<span class="cmdk-mt">dopasowano: '+esc(it.match)+'</span>';
+    var sub = subTx ? '<div class="cmdk-sb">'+subTx+'</div>' : '';
     return '<a class="cmdk-item'+(idx===active?' cmdk-on':'')+'" data-idx="'+idx+'" href="'+esc(url)+'">'
       +'<span class="cmdk-ic"><i class="bi '+esc(it.icon)+'"></i></span>'
       +'<span class="cmdk-tx"><div class="cmdk-lb">'+esc(it.label)+'</div>'+sub+'</span>'+badge+'</a>';
@@ -956,16 +966,37 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
   function renderList(){
     var scroll = document.getElementById('cmdk-scroll'); if(!scroll) return;
     flat = [];
-    var html='';
-    if(menuRes.length){
+    var html='', q=query.trim();
+    function addMenu(){
+      if(!menuRes.length) return;
       html+='<div class="cmdk-sec">Menu</div>';
       menuRes.forEach(function(m){ var i=flat.length; flat.push({kind:'menu',d:m}); html+=itemHTML(m,i,'menu'); });
     }
-    if(dataRes.length){
-      html+='<div class="cmdk-sec">Dane</div>';
-      dataRes.forEach(function(d){ var i=flat.length; flat.push({kind:'data',d:d}); html+=itemHTML(d,i,'data'); });
+    function addData(){
+      // Sekcje wg źródła z GlobalSearch (Osoby / Umowy / Helpdesk), w kolejności z odpowiedzi
+      var last=null;
+      dataRes.forEach(function(d){
+        var g=d.groupLabel||'Dane';
+        if(g!==last){ html+='<div class="cmdk-sec">'+esc(g)+'</div>'; last=g; }
+        var i=flat.length; flat.push({kind:'data',d:d}); html+=itemHTML(d,i,'data');
+      });
     }
-    if(!flat.length) html='<div class="cmdk-empty">Brak wyników'+(query?' dla „'+esc(query)+'”':'')+'.</div>';
+    if(!q){
+      html+='<div class="cmdk-tip">Szukaj osób po <b>PESEL-u</b> (11 cyfr), <b>nazwisku</b>, <b>telefonie</b> lub <b>e-mailu</b> i umów po <b>numerze</b> — albo pozycji menu.</div>';
+    } else if(dataHint){
+      html+='<div class="cmdk-tip cmdk-warn" role="note"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>'+esc(dataHint)+'</div>';
+    }
+    // PESEL, telefon, e-mail, numer → najpierw dane; tekst → najpierw menu
+    if(/^(pesel|phone|email|number)$/.test(dataKind)){ addData(); addMenu(); } else { addMenu(); addData(); }
+    if(!menuRes.length && !dataRes.length){
+      html+='<div class="cmdk-empty">'+(loading && q.length>=2 ? 'Szukam w danych…' : 'Brak wyników'+(q?' dla „'+esc(q)+'”':'')+'.')+'</div>';
+    }
+    if(q.length>=2){
+      var i=flat.length; flat.push({kind:'all'});
+      html+='<a class="cmdk-item cmdk-all'+(i===active?' cmdk-on':'')+'" data-idx="'+i+'" href="'+esc(cfg.search+'?q='+encodeURIComponent(q))+'">'
+        +'<span class="cmdk-ic"><i class="bi bi-list-ul"></i></span>'
+        +'<span class="cmdk-tx"><div class="cmdk-lb">Wszystkie wyniki dla „'+esc(q)+'”</div><div class="cmdk-sb">Pełna lista osób, umów i zadań</div></span></a>';
+    }
     scroll.innerHTML=html;
     if(active>=flat.length) active=Math.max(0,flat.length-1);
     markActive(false);
@@ -978,13 +1009,22 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
     if(scrollTo && nodes[active]) nodes[active].scrollIntoView({block:'nearest'});
   }
 
+  function announce(msg){ var l=document.getElementById('cmdk-live'); if(l) l.textContent=msg; }
+
   function fetchData(q){
-    if(q.length<2){ dataRes=[]; renderList(); return; }
+    if(q.length<2){ ++seq; dataRes=[]; dataKind=''; dataHint=''; loading=false; renderList(); return; }
     var mine=++seq;
-    fetch(cfg.api+'?q='+encodeURIComponent(q))
+    loading=true; renderList();
+    fetch(cfg.api+'?q='+encodeURIComponent(q), {credentials:'same-origin'})
       .then(function(r){return r.json();})
-      .then(function(d){ if(mine!==seq) return; dataRes=(d && d.results)?d.results:[]; renderList(); })
-      .catch(function(){ if(mine===seq){ dataRes=[]; renderList(); } });
+      .then(function(d){
+        if(mine!==seq) return;
+        loading=false;
+        dataRes=(d && d.results)?d.results:[]; dataKind=(d && d.kind)||''; dataHint=(d && d.hint)||'';
+        renderList();
+        announce(dataRes.length ? ('Znaleziono '+dataRes.length+' w danych.') : 'Brak wyników w danych.');
+      })
+      .catch(function(){ if(mine===seq){ loading=false; dataRes=[]; dataKind=''; dataHint=''; renderList(); } });
   }
 
   function onInput(v){
@@ -998,20 +1038,22 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
   function go(){
     if(!flat.length) return;
     var e=flat[active]; if(!e) return;
-    var url = e.kind==='menu' ? (cfg.appUrl + e.d.path) : e.d.url;
+    var url = e.kind==='all' ? (cfg.search+'?q='+encodeURIComponent(query.trim()))
+            : e.kind==='menu' ? (cfg.appUrl + e.d.path) : e.d.url;
     window.location.href = url;
   }
 
   function openPalette(){
     if(open) return; open=true;
-    query=''; active=0; menuRes=filterMenu(''); dataRes=[];
+    query=''; active=0; menuRes=filterMenu(''); dataRes=[]; dataKind=''; dataHint=''; loading=false;
     root.hidden=false;
     root.innerHTML='<div class="cmdk-backdrop" data-cmdk-close="1">'
-      +'<div class="cmdk-panel" role="dialog" aria-modal="true" aria-label="Wyszukiwarka menu">'
-      +'<div class="cmdk-inbar"><i class="bi bi-search"></i>'
-      +'<input id="cmdk-input" type="text" placeholder="Szukaj w menu i danych…" autocomplete="off" spellcheck="false" aria-label="Szukaj w menu i danych">'
+      +'<div class="cmdk-panel" role="dialog" aria-modal="true" aria-label="Wyszukiwarka osób, umów i menu">'
+      +'<div class="cmdk-inbar"><i class="bi bi-search" aria-hidden="true"></i>'
+      +'<input id="cmdk-input" type="text" placeholder="PESEL, nazwisko, telefon, e-mail, nr umowy lub menu…" autocomplete="off" spellcheck="false" aria-label="Szukaj osób po PESEL-u, nazwisku, telefonie lub e-mailu, umów po numerze albo pozycji menu">'
       +'<span class="cmdk-esc">ESC</span></div>'
       +'<div class="cmdk-scroll" id="cmdk-scroll"></div>'
+      +'<div class="visually-hidden" aria-live="polite" id="cmdk-live"></div>'
       +'<div class="cmdk-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> nawigacja</span><span><kbd>↵</kbd> otwórz</span><span><kbd>esc</kbd> zamknij</span></div>'
       +'</div></div>';
     renderList();
@@ -1099,7 +1141,7 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
       </div>
     </div>
     <a class="oc-link<?= $_nb_on_home ? ' active' : '' ?>" href="<?= APP_URL ?>/index.php"><i class="bi bi-house-door"></i>Strona główna</a>
-    <button type="button" class="oc-link tw-w-full tw-text-left" style="background:none;border:0" data-cmdk-open data-bs-dismiss="offcanvas"><i class="bi bi-search"></i>Szukaj w menu i danych</button>
+    <button type="button" class="oc-link tw-w-full tw-text-left" style="background:none;border:0" data-cmdk-open data-bs-dismiss="offcanvas"><i class="bi bi-search"></i>Szukaj osób, umów i w menu</button>
     <?php foreach (($_menu['tree'] ?? []) as $_n): ?>
       <?php if (!empty($_n['path']) && empty($_n['groups'])): ?>
     <a class="oc-link<?= !empty($_n['active']) ? ' active' : '' ?>" href="<?= APP_URL . h($_n['path']) ?>"><i class="bi <?= h($_n['icon']) ?>"></i><?= h($_n['label']) ?><?php if (!empty($_n['badge'])): ?><span class="badge bg-danger"><?= (int)$_n['badge'] ?></span><?php endif; ?></a>

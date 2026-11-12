@@ -1,7 +1,8 @@
 <?php
 /**
  * api/search_quick.php — JSON endpoint dla live-search w topbarze.
- * Zwraca moduły + wyniki danych pasujące do ?q=
+ * Zwraca wyniki danych pasujące do ?q=: osoby i umowy z GlobalSearch (modules/global_search — PESEL, nazwisko,
+ * telefon, e-mail, numer umowy; z uprawnieniami źródeł) + zgłoszenia Helpdesku.
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -17,76 +18,17 @@ if (mb_strlen($q) < 2) {
     exit;
 }
 
-$lq   = mb_strtolower($q);
-$like = '%' . $q . '%';
-
-// Uwaga: pozycje menu (moduły) obsługuje teraz paleta poleceń po stronie klienta
+// Uwaga: pozycje menu (moduły) obsługuje paleta poleceń po stronie klienta
 // na podstawie rejestru includes/menu.php (jedno źródło prawdy). Ten endpoint
 // zwraca wyłącznie szybkie wyniki DANYCH; klucz `modules` pozostaje pusty dla
 // zgodności wstecznej.
 
-// ── Dane — szybkie wyniki ─────────────────────────────────────────────────────
-$data_results = [];
+// ── Osoby i umowy — globalna wyszukiwarka (PESEL, nazwisko, telefon, e-mail, nr umowy) ──
+require_once dirname(__DIR__) . '/modules/global_search/logic/globalSearch.php';
+$global       = GlobalSearch::run($q, 5, 8, 'paleta');
+$data_results = GlobalSearch::flat($global);
 
-// Wolontariusze
-try {
-    $rows = db_all(
-        "SELECT id, imie_nazwisko, numer_umowy, email FROM umowy_wolontariat
-         WHERE (imie_nazwisko LIKE ? OR numer_umowy LIKE ? OR email LIKE ?)" . contractHiddenSql('umowy_wolontariat') . " LIMIT 4",
-        [$like, $like, $like]
-    );
-    foreach ($rows as $r) {
-        $data_results[] = [
-            'label'    => $r['imie_nazwisko'],
-            'sub'      => ($r['numer_umowy'] ?: '') . ($r['email'] ? ' · ' . $r['email'] : ''),
-            'icon'     => 'bi-heart',
-            'color'    => 'success',
-            'badge'    => 'Wolontariat',
-            'url'      => APP_URL . '/contracts/wolontariat/view.php?id=' . (int)$r['id'],
-            'type'     => 'data',
-        ];
-    }
-} catch (\Throwable $e) {}
-
-// Osoby
-try {
-    $rows = db_all(
-        "SELECT id, imie_nazwisko, email FROM persons
-         WHERE imie_nazwisko LIKE ? OR email LIKE ? LIMIT 3",
-        [$like, $like]
-    );
-    foreach ($rows as $r) {
-        $data_results[] = [
-            'label' => $r['imie_nazwisko'],
-            'sub'   => $r['email'] ?? '',
-            'icon'  => 'bi-person',
-            'color' => 'info',
-            'badge' => 'Osoba',
-            'url'   => APP_URL . '/persons/view.php?id=' . (int)$r['id'],
-            'type'  => 'data',
-        ];
-    }
-} catch (\Throwable $e) {}
-
-// CRM
-try {
-    $rows = db_all(
-        "SELECT id, imie_nazwisko, email FROM crm_contacts
-         WHERE imie_nazwisko LIKE ? OR email LIKE ? LIMIT 3",
-        [$like, $like]
-    );
-    foreach ($rows as $r) {
-        $data_results[] = [
-            'label' => $r['imie_nazwisko'],
-            'sub'   => $r['email'] ?? '',
-            'icon'  => 'bi-diagram-2',
-            'color' => 'success',
-            'badge' => 'CRM',
-            'url'   => APP_URL . '/crm/contacts/view.php?id=' . (int)$r['id'],
-            'type'  => 'data',
-        ];
-    }
-} catch (\Throwable $e) {}
+$like = '%' . $q . '%';
 
 // Helpdesk
 try {
@@ -104,16 +46,18 @@ try {
             'badge' => 'Helpdesk',
             'url'   => APP_URL . '/helpdesk/view.php?id=' . (int)$r['id'],
             'type'  => 'data',
+            'group' => 'helpdesk',
+            'groupLabel' => 'Helpdesk',
         ];
     }
 } catch (\Throwable $e) {}
 
-// Ogranicz dane do 8
-$data_results = array_slice($data_results, 0, 8);
 
 echo json_encode([
     'modules' => [],
     'results' => $data_results,
     'query'   => $q,
+    'kind'    => $global['kind'],
+    'hint'    => $global['hint'],
     'search_url' => APP_URL . '/search.php?q=' . urlencode($q),
 ], JSON_UNESCAPED_UNICODE);
