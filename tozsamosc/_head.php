@@ -63,6 +63,7 @@ $__nav_me = [
     ['podstawowe',     'Dane konta',          'bi-person-vcard',       null, false],
     ['bezpieczenstwo', 'Zabezpieczenia',      'bi-shield-lock',        null, false],
     [null,             'Metody weryfikacji',  'bi-shield-check',       APP_URL . '/tozsamosc/mfa.php', $TZ_ACTIVE === 'mfa'],
+    ['urzadzenia',     'Urządzenia i logowania', 'bi-laptop',          null, false],
     ['uslugi',         'Usługi',              'bi-grid',               null, false],
 ];
 if ($__has_ika) $__nav_me[] = ['ika', 'Kod IKA', 'bi-123', null, false];

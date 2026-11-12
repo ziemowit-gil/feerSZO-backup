@@ -506,7 +506,8 @@ $services[] = [
 $trello_ws_url = org_setting('trello_workspace_url') ?: 'https://trello.com';
 
 // Sekcje (klucze = #hash; kolejność jak w menu _head.php)
-$tabs = ['przeglad' => 'Przegląd', 'podstawowe' => 'Dane konta', 'bezpieczenstwo' => 'Zabezpieczenia', 'uslugi' => 'Usługi'];
+$tabs = ['przeglad' => 'Przegląd', 'podstawowe' => 'Dane konta', 'bezpieczenstwo' => 'Zabezpieczenia',
+         'urzadzenia' => 'Urządzenia i logowania', 'uslugi' => 'Usługi'];   // urzadzenia: modules/account_security
 if ($has_ika) $tabs['ika'] = 'Kod IKA';
 $tabs['rejestr'] = 'Moje dane (RODO)';
 $tabs['opanelu'] = 'Pomoc i informacje';
@@ -534,6 +535,9 @@ $sec_open = 'haslo';
 if (!$has_local_password)                   $sec_open = 'haslo';
 elseif ($phone_pending || !$phone_verified) $sec_open = 'telefon';
 elseif (!$mfa_active)                       $sec_open = 'mfa';
+// ?sec=… (np. po „To nie ja” w Urządzeniach → zmiana hasła) rozwija wskazane ustawienie
+$__qsec = (string)($_GET['sec'] ?? '');
+if (in_array($__qsec, ['haslo', 'telefon', 'mfa', 'pin'], true)) $sec_open = $__qsec;
 if ($errors && $__pa !== '') {
     if (str_starts_with($__pa, 'pwd'))            $sec_open = 'haslo';
     elseif (str_starts_with($__pa, 'phone'))      $sec_open = 'telefon';
@@ -1238,6 +1242,8 @@ $sec_head = function (string $k) use ($sec_heads): void {
   </div>
 </section>
 <?php endif; ?>
+
+<?php include dirname(__DIR__) . '/modules/account_security/view/devicesSection.php'; // sekcja #urzadzenia ?>
 
 <!-- ═══════════ USŁUGI ═══════════ -->
 <section id="uslugi" class="ma-sec" aria-labelledby="uslugi-h" x-show="tab === 'uslugi'" x-cloak>

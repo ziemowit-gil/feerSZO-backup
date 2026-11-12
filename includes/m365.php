@@ -168,7 +168,7 @@ class M365Graph {
 
     // ── Cykl życia konta (offboarding, menedżer, MFA, role) ─────────────────
 
-    /** Unieważnia aktywne sesje logowania użytkownika (revokeSignInSessions). */
+    /** Unieważnia aktywne sesje logowania użytkownika (revokeSignInSessions). @throws \RuntimeException gdy Graph nie zwróci 2xx */
     public function revoke_sessions(string $user_id): void {
         $ctx = stream_context_create(['http' => [
             'method'  => 'POST',
@@ -176,8 +176,10 @@ class M365Graph {
             'content' => '{}',
             'ignore_errors' => true,
         ]]);
-        @file_get_contents("https://graph.microsoft.com/v1.0/users/{$user_id}/revokeSignInSessions", false, $ctx);
+        $resp = @file_get_contents("https://graph.microsoft.com/v1.0/users/{$user_id}/revokeSignInSessions", false, $ctx);
         $this->capture_status($http_response_header ?? []);
+        $this->capture_error(json_decode($resp ?: '{}', true) ?? []);
+        $this->require_success('Microsoft 365 nie wylogował sesji');   // sukces = 200 {"value": true}
     }
 
     /** Odbiera WSZYSTKIE przypisane licencje; zwraca liczbę odebranych. */
