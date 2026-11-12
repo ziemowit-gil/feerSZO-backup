@@ -133,6 +133,7 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
 
 <?php /* ── Subskrypcje: Claude, NordVPN ── */ ?>
 <?php foreach ($paid as $pk => $v): if ($page !== $pk) continue; $P = $v['P']; $s = $v['settings']; $sub = $v['sub'];
+  $gsOn = LicenceOffice::goodstackOn($P, $s);   // sposób Goodstack (Claude): wymaga linku i włączonej poczty EDU
   $open = $sub && in_array($sub['status'], ['active', 'suspended'], true);
   $requested = $sub && $sub['status'] === 'requested';   // wniosek z kreatora: proforma wystawiona, czeka na wpłatę i Helpdesk
   $buyer = array_merge($open || $requested ? array_intersect_key($sub, ClaudeBilling::BUYER_FIELDS) : ClaudeBilling::buyerDefaults((int)$me['cid']), array_intersect_key($old[$pk] ?? [], ClaudeBilling::BUYER_FIELDS));
@@ -155,9 +156,9 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
   <?php };
 ?>
   <h1 class="m-title"><?= h($P['label']) ?> <?= $tag($state[1], $state[0]) ?></h1>
-  <p class="m-explain"><?= !empty($P['goodstack']) && ($s['goodstack_url'] ?? '') !== '' && !$open && !$requested ? 'Masz dwa sposoby na ' . h($P['label']) . '. Polecamy pierwszy: weryfikujesz się jako osoba z Fundacji i płacisz sam(a) w Anthropic.' : (($v['payMode'] ?? '') === 'card' ? 'Płacisz co miesiąc kartą. Opłatę pobieramy sami w dniu terminu, a po wpłacie przychodzi faktura.' : 'Płacisz co miesiąc. Dostajesz proformę i masz ' . ClaudeBilling::TERM_DAYS . ' dni na wpłatę. Po wpłacie przychodzi faktura. Bez wpłaty wstrzymujemy dostęp.') ?></p>
+  <p class="m-explain"><?= $gsOn && !$open && !$requested ? 'Masz dwa sposoby na ' . h($P['label']) . '. Polecamy pierwszy: weryfikujesz się jako osoba z Fundacji i płacisz sam(a) w Anthropic.' : (($v['payMode'] ?? '') === 'card' ? 'Płacisz co miesiąc kartą. Opłatę pobieramy sami w dniu terminu, a po wpłacie przychodzi faktura.' : 'Płacisz co miesiąc. Dostajesz proformę i masz ' . ClaudeBilling::TERM_DAYS . ' dni na wpłatę. Po wpłacie przychodzi faktura. Bez wpłaty wstrzymujemy dostęp.') ?></p>
   <?= $idsLine ?>
-  <?php if (!empty($P['goodstack']) && ($s['goodstack_url'] ?? '') !== ''): $gsOpen = $open || $requested; ?>
+  <?php if ($gsOn): $gsOpen = $open || $requested; ?>
   <?php /* Sposób polecany (polecenie 2026-11-10): Claude for Nonprofit przez weryfikację Goodstack, płatność własną kartą w Anthropic */ ?>
   <section class="m-tile tw-mb-4" aria-labelledby="gs-h" style="border-top:4px solid var(--mt-ok)">
     <h2 class="m-sect" id="gs-h">Sposób 1 <?= $tag('ok', 'polecamy') ?> Claude for Nonprofit, płacisz sam(a) kartą</h2>
@@ -181,7 +182,7 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
   </section>
   <?php endif; ?>
   <section class="m-tile" aria-label="<?= h($P['label']) ?>">
-    <?php if (!empty($P['goodstack']) && ($s['goodstack_url'] ?? '') !== ''): ?><h2 class="m-sect">Sposób 2: przez Fundację (płatna licencja)</h2><?php endif; ?>
+    <?php if ($gsOn): ?><h2 class="m-sect">Sposób 2: przez Fundację (płatna licencja)</h2><?php endif; ?>
     <p class="tw-text-sm tw-mb-3"><?= h(ucfirst($P['what'])) ?>.</p>
     <?php if ($s['priced'] && ($s['enabled'] || $open || $requested)): $rt = $v['rate'] ?? null; ?>
     <div class="m-box tw-mb-4" role="group" aria-label="Cena <?= h($P['label']) ?>">
@@ -397,7 +398,7 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
             $pOpen = $pSub && in_array($pSub['status'], ['requested', 'active', 'suspended'], true); ?>
         <tr style="border-bottom:1px solid var(--pk-border)">
           <th scope="row" class="tw-text-left tw-py-2 tw-pr-3 tw-align-top"><?= h($pl['name']) ?><?= $plk === $plCur ? ' ' . $tag('ok', 'Twój plan') : '' ?></th>
-          <td class="tw-py-2 tw-pr-3 tw-align-top"><ul class="tw-list-disc tw-pl-5"><?php foreach (LicenceOffice::features($pl) as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul></td>
+          <td class="tw-py-2 tw-pr-3 tw-align-top"><ul class="tw-list-disc tw-pl-5"><?php foreach ($pl['features'] as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul></td>
           <td class="tw-py-2 tw-pr-3 tw-align-top"><?= $pl['desktop'] ? 'tak' : 'nie' ?></td>
           <td class="tw-py-2 tw-pr-3 tw-align-top tw-whitespace-nowrap"><?= !$pl['product'] ? 'w cenie' : ($ps && $ps['priced'] ? h(ClaudeBilling::priceShort($ps)) . ' miesięcznie' . (!empty($pv['rate']) ? '<br><span class="m-note">dziś ≈ ' . h(ClaudeBilling::zl((float)$pv['rate']['amount_pln'])) . '</span>' : '') : '<span class="m-muted">cenę poda biuro</span>') ?></td>
           <td class="tw-py-2 tw-align-top"><?php if ($pOpen): ?><a href="<?= h(route('lk.licence', ['product' => $pl['product']])) ?>">Szczegóły</a>

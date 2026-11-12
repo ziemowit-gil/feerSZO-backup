@@ -613,7 +613,7 @@ final class LicencjeKursantController
     {
         $me = $this->me();
         $s = ClaudeBilling::settings('claude');
-        if ($s['goodstack_url'] === '') return $this->flash('err', 'Weryfikacja jest chwilowo niedostępna. Napisz do biura.', 'claude');
+        if (!LicenceOffice::goodstackOn(ClaudeBilling::P('claude'), $s)) return $this->flash('err', 'Weryfikacja jest chwilowo niedostępna. Napisz do biura.', 'claude');   // brak linku albo poczta EDU wyłączona
         $edu = ClaudeBilling::eduAccount($me['cid']);
         if (!$edu) return $this->flash('err', 'Najpierw załóż konto Office (@' . ClaudeBilling::EDU_DOMAIN . '). Bez niego weryfikacja się nie uda.', 'office');
         $seen = db_one("SELECT 1 FROM claude_events WHERE kind='goodstack_start' AND text LIKE ?", ['%#' . $me['cid'] . ')%']);

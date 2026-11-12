@@ -198,9 +198,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </div>
           <div class="form-text mb-2" id="edu-mail-help">
             Po wyłączeniu znikają kafel i linki „Outlook — poczta”, adres @edu na liście e-maili kontaktowych kursanta
-            i wzmianki o poczcie w opisach oraz w e-mailu z loginem do nowego konta Office.
+            i wzmianki o Outlooku w e-mailu z loginem do nowego konta Office. Opisy planów Microsoft 365 zostają pełne.
+            Znika też sposób Claude for Nonprofit (weryfikacja Goodstack), bo Goodstack potwierdza adres @edu linkiem w e-mailu.
             Konta, licencje i skrzynki w tenancie Microsoft zostają bez zmian.
-            Weryfikacja Goodstack (Claude) nadal prosi o potwierdzenie linkiem wysłanym na adres @edu.
             <?php if ($edu_mail_when !== ''): ?><br>Ostatnia zmiana: <?= h($edu_mail_when) ?>.<?php endif; ?>
           </div>
           <?php if (is_admin()): ?>

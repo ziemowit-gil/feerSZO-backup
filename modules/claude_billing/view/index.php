@@ -331,6 +331,9 @@ $reqForm = function (int $sid, string $act, string $label, string $cls, string $
     <?php if (!empty($P['goodstack'])): ?>
     <fieldset class="mb-3" aria-describedby="gs-hh"><legend class="fs-6 fw-semibold">Sposób polecany: weryfikacja Claude for Nonprofit (Goodstack)</legend>
       <p class="small text-secondary mb-2" id="gs-hh">Uczestnik z kontem Office EDU przechodzi weryfikację w Goodstack (KRS Fundacji, potwierdzenie e-maila), FEER potwierdza dostęp, a uczestnik płaci za Claude własną kartą w Anthropic. Przy pierwszym przejściu powstaje zgłoszenie w Helpdesku do potwierdzenia. Puste pole linku ukrywa ten sposób.</p>
+      <?php require_once dirname(__DIR__) . '/logic/LicenceOffice.php'; if (!LicenceOffice::mailEnabled()): ?>
+      <div class="alert alert-warning small" role="note"><i class="bi bi-envelope-slash me-1" aria-hidden="true"></i>Poczta Office dla kont EDU jest wyłączona, więc uczestnicy nie widzą tego sposobu (Goodstack potwierdza adres @edu linkiem w e-mailu). Pocztę włącza administrator w Panelu Licencji › Office: ceny i poczta albo w panelu TI › Nauka online.</div>
+      <?php endif; ?>
       <div class="row g-3">
         <div class="col-md-9"><label class="form-label" for="s-gs">Link weryfikacji (Goodstack)</label><input class="form-control" id="s-gs" name="goodstack_url" value="<?= h($s['goodstack_url']) ?>"></div>
         <div class="col-md-3"><label class="form-label" for="s-gsk">KRS Fundacji</label><input class="form-control font-monospace" id="s-gsk" name="goodstack_krs" value="<?= h($s['goodstack_krs']) ?>" inputmode="numeric"></div>

@@ -37,11 +37,13 @@ final class LicenceOffice
         return ti_edu_mail_enabled();
     }
 
-    /** Opis planu do pokazania: przy wyłączonej poczcie EDU bez wzmianek o Outlooku. @return list<string> */
-    public static function features(array $plan): array
+    /**
+     * Claude for Nonprofit przez weryfikację Goodstack: produkt ją przewiduje, link jest ustawiony i poczta EDU jest włączona
+     * (Goodstack potwierdza adres @edu linkiem w e-mailu — przy wyłączonej poczcie ten sposób znika, polecenie 2026-11-12).
+     */
+    public static function goodstackOn(array $P, array $s): bool
     {
-        if (self::mailEnabled()) return $plan['features'];
-        return array_map(fn(string $f) => str_replace(['Outlook (poczta), Teams i OneDrive', 'PowerPoint, Outlook, OneNote'], ['Teams i OneDrive', 'PowerPoint, OneNote'], $f), $plan['features']);
+        return !empty($P['goodstack']) && ($s['goodstack_url'] ?? '') !== '' && self::mailEnabled();
     }
 
     /** Licencja (SKU) Office A3/A5 w tenancie edukacyjnym — przy aktywacji abonamentu. @return array{ok:bool,text:string} */

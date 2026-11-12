@@ -19,7 +19,7 @@ $num = fn(float $v) => $v > 0 ? rtrim(rtrim(number_format($v, 2, ',', ''), '0'),
   <?php foreach ($plans as $k => $pl): $s = $pl['s']; $r = $pl['rate']; ?>
     <section class="m-tile" aria-labelledby="pl-<?= h($k) ?>">
       <h2 class="m-sect" id="pl-<?= h($k) ?>"><?= h($pl['name']) ?> <?= $s['enabled'] && $s['priced'] ? $tag('ok', 'można zamawiać') : $tag('off', 'zamawianie wyłączone') ?></h2>
-      <ul class="tw-list-disc tw-pl-5 tw-text-sm tw-mb-3"><?php foreach (LicenceOffice::features($pl) as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul>
+      <ul class="tw-list-disc tw-pl-5 tw-text-sm tw-mb-3"><?php foreach ($pl['features'] as $f): ?><li><?= h($f) ?></li><?php endforeach; ?></ul>
       <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3">
         <div><label class="m-label" for="usd-<?= h($k) ?>">Cena miesięczna (USD)</label>
           <input class="m-input" id="usd-<?= h($k) ?>" name="usd[<?= h($k) ?>]" inputmode="decimal" value="<?= h($num((float)$s['usd'])) ?>" placeholder="np. 3,50" aria-describedby="usd-h-<?= h($k) ?>"></div>
@@ -40,7 +40,7 @@ $num = fn(float $v) => $v > 0 ? rtrim(rtrim(number_format($v, 2, ',', ''), '0'),
   $mailOn = ti_edu_mail_enabled(); $mailWhen = ti_edu_mail_changed(); $mailCan = LicencjeAdminController::canSwitchEduMail($adm); ?>
 <section class="m-tile tw-mt-6" id="poczta-edu" aria-labelledby="poczta-edu-h">
   <h2 class="m-sect" id="poczta-edu-h">Poczta Office (Outlook) dla kont EDU <?= $mailOn ? $tag('ok', 'włączona') : $tag('off', 'wyłączona') ?></h2>
-  <p class="tw-text-sm tw-mb-3" id="poczta-edu-opis">Po wyłączeniu panel TI, panel kursanta i Panel Licencji nie pokazują poczty kont @<?= h(ClaudeBilling::EDU_DOMAIN) ?>: kafla i linków do Outlooka, adresu @<?= h(ClaudeBilling::EDU_DOMAIN) ?> jako e-maila kontaktowego ani wzmianek o poczcie w opisach planów i w e-mailu z loginem. Konta, licencje i skrzynki w Microsoft zostają bez zmian. Weryfikacja Goodstack (Claude) nadal prosi o potwierdzenie linkiem wysłanym na adres @<?= h(ClaudeBilling::EDU_DOMAIN) ?>.</p>
+  <p class="tw-text-sm tw-mb-3" id="poczta-edu-opis">Po wyłączeniu panel TI, panel kursanta i Panel Licencji nie pokazują poczty kont @<?= h(ClaudeBilling::EDU_DOMAIN) ?>: kafla i linków do Outlooka, adresu @<?= h(ClaudeBilling::EDU_DOMAIN) ?> jako e-maila kontaktowego ani wzmianki o Outlooku w e-mailu z loginem. Opisy planów Microsoft 365 zostają pełne. Konta, licencje i skrzynki w Microsoft zostają bez zmian. Znika też sposób Claude for Nonprofit (weryfikacja Goodstack), bo Goodstack potwierdza adres @<?= h(ClaudeBilling::EDU_DOMAIN) ?> linkiem w e-mailu. Zostaje płatna licencja przez Fundację.</p>
   <?php if ($mailCan): ?>
   <form method="post" action="<?= h(route('lk.admin.edumail')) ?>"><?= Router::csrfField() ?>
     <input type="hidden" name="edu_mail" value="0">
