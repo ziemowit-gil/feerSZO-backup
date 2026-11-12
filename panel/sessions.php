@@ -4,6 +4,8 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/auth_security.php';
+// Czasy sesji i logowań są w bazie w UTC (SQLite CURRENT_TIMESTAMP) — localTime() przelicza na strefę aplikacji
+require_once dirname(__DIR__) . '/modules/account_security/lib/accountSecurityDevices.php';
 
 require_login();
 $PAGE_TITLE = 'Sesje i historia logowań';
@@ -102,7 +104,7 @@ if ($_is_volunteer_only) {
       </div>
       <div class="text-muted" style="font-size:.75rem">
         <i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($masked_ip) ?>
-        · <?= h(date('d.m.Y H:i', strtotime($last))) ?>
+        · <?= h(AccountSecurityDevices::localTime((string)$last)) ?>
       </div>
     </div>
     <?php if (!$is_current): ?>
@@ -149,7 +151,7 @@ if ($_is_volunteer_only) {
       </div>
     </div>
     <div class="text-muted text-nowrap" style="font-size:.72rem">
-      <?= h(date('d.m H:i', strtotime($log['created_at']))) ?>
+      <?= h(AccountSecurityDevices::localTime((string)$log['created_at'], 'd.m H:i')) ?>
     </div>
   </li>
   <?php endforeach; ?>
@@ -209,10 +211,10 @@ if ($_is_volunteer_only) {
         <div class="text-muted" style="font-size:.75rem">
           <i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($s['ip']) ?>
           <span class="mx-1">·</span>
-          Ostatnia aktywność: <?= h(date('d.m.Y H:i', strtotime($last))) ?>
+          Ostatnia aktywność: <?= h(AccountSecurityDevices::localTime((string)$last)) ?>
         </div>
         <div class="text-muted" style="font-size:.72rem;opacity:.6">
-          Zalogowano: <?= h(date('d.m.Y H:i', strtotime($s['created_at']))) ?>
+          Zalogowano: <?= h(AccountSecurityDevices::localTime((string)$s['created_at'])) ?>
         </div>
       </div>
       <?php if (!$is_current): ?>
@@ -266,7 +268,7 @@ if ($_is_volunteer_only) {
         </div>
       </div>
       <div class="text-muted text-nowrap" style="font-size:.72rem">
-        <?= h(date('d.m H:i', strtotime($log['created_at']))) ?>
+        <?= h(AccountSecurityDevices::localTime((string)$log['created_at'], 'd.m H:i')) ?>
       </div>
     </li>
     <?php endforeach; ?>
