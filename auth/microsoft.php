@@ -189,8 +189,11 @@ if (!$error && $redirect_after === '__prowadzacy_ms365__') {
     $ms_em = strtolower((string)($ms_user['mail'] ?? $ms_user['userPrincipalName'] ?? ''));
     $prowadzacy_login_url = rtrim(KURSANT_NEW_UI_URL, '/') . '/logowanie-prowadzacy';
 
+    // Najpierw konto z tym microsoft_id; archiwum po scaleniu kont → konto główne (modules/user_merge).
+    require_once dirname(__DIR__) . '/modules/user_merge/lib/userMergeResolve.php';
     $u = $ms_em !== '' || $ms_id !== ''
-        ? db_one("SELECT * FROM users WHERE (email = ? OR microsoft_id = ?) LIMIT 1", [$ms_em, $ms_id])
+        ? userMergeFollow(db_one("SELECT * FROM users WHERE (email = ? OR microsoft_id = ?)
+                                  ORDER BY (microsoft_id = ? AND microsoft_id <> '') DESC LIMIT 1", [$ms_em, $ms_id, $ms_id]))
         : null;
 
     if (!$u || !$u['is_active']) {
@@ -215,9 +218,13 @@ if (!$error) {
     $name  = $ms_user['displayName'] ?? $email;
     $ms_id = $ms_user['id'] ?? '';
 
-    // Szukaj użytkownika po e-mailu lub microsoft_id (niezależnie od is_active)
-    $existing = db_one("SELECT * FROM users WHERE (email = ? OR microsoft_id = ?) LIMIT 1",
-                       [$email, $ms_id]);
+    // Szukaj użytkownika po e-mailu lub microsoft_id (niezależnie od is_active); najpierw po microsoft_id.
+    // Konto zarchiwizowane przy scalaniu kont (merged_into_id) → konto główne (modules/user_merge).
+    require_once dirname(__DIR__) . '/modules/user_merge/lib/userMergeResolve.php';
+    $ms_raw   = db_one("SELECT * FROM users WHERE (email = ? OR microsoft_id = ?)
+                        ORDER BY (microsoft_id = ? AND microsoft_id <> '') DESC LIMIT 1", [$email, $ms_id, $ms_id]);
+    $existing = userMergeFollow($ms_raw);
+    $ms_via_merge = $ms_raw && $existing && (int)$ms_raw['id'] !== (int)$existing['id'];
 
     if ($existing && !$existing['is_active']) {
         $error = 'Konto zostało dezaktywowane. Skontaktuj się z administratorem.';
@@ -228,8 +235,11 @@ if (!$error) {
     if ($existing) {
         // Aktualizuj microsoft_id i email jeśli się zmieniły
         $upd = [];
-        if (($existing['microsoft_id'] ?? '') !== $ms_id) $upd['microsoft_id'] = $ms_id;
-        if ($existing['email']                !== $email)  $upd['email']        = $email;
+        // Po scaleniu kont (wejście przez archiwum) nie podmieniamy konta Microsoft, które konto główne już ma.
+        if (($existing['microsoft_id'] ?? '') !== $ms_id && !($ms_via_merge && !empty($existing['microsoft_id']))) $upd['microsoft_id'] = $ms_id;
+        // E-mail tylko, gdy nie zajmuje go inne konto (np. archiwum po scaleniu) — inaczej UNIQUE przerywał logowanie.
+        if ($existing['email'] !== $email
+            && !db_one("SELECT id FROM users WHERE email = ? AND id <> ?", [$email, (int)$existing['id']])) $upd['email'] = $email;
         if ($upd) db_update('users', $upd, $existing['id']);
         $user = $existing;
     } else {
