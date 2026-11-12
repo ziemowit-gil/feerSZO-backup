@@ -686,6 +686,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
     elseif ($s && $s['status'] === 'ok')        { $cls = 'is-done';     $icon = 'bi-check-lg';           $state = 'Zaakceptowano'; }
     elseif ($s && $s['status'] === 'odrzucono') { $cls = 'is-rejected'; $icon = 'bi-x-lg';               $state = 'Odrzucono — obieg zatrzymany'; }
     elseif ($s && $s['status'] === 'uwagi')     { $cls = 'is-uwagi';    $icon = 'bi-exclamation-lg';     $state = 'Zaakceptowano z uwagami'; }
+    elseif ($doc['status'] === 'zaakceptowany') { $cls = 'is-done';     $icon = 'bi-check-lg';           $state = 'Zaakceptowano bez obiegu etapowego'; }
     elseif ($sk === $current_key && !$is_terminal) { $cls = 'is-current'; $icon = (string)$n;            $state = 'Bieżący etap — oczekuje na decyzję'; }
     else                                        { $cls = 'is-blocked';  $icon = (string)$n;              $state = $is_terminal ? 'Nie dotyczy' : 'Czeka na poprzednie etapy'; }
     $who = $decided ? trim(($s['user_name'] ?? '') . ($s['decided_at'] ? ' · ' . date('d.m.Y H:i', strtotime($s['decided_at'])) : '')) : '';

@@ -99,12 +99,18 @@ foreach (array_merge(array_keys($col_text), ['c_od', 'c_do'], array_map(fn($k) =
 foreach ($col_text as $k => $col) {
     if ($cf[$k] !== '') { $where[] = "{$col} LIKE ?"; $params[] = '%' . $cf[$k] . '%'; }
 }
+// Dokument zaakceptowany bez obiegu etapowego (np. zobowiązanie US „Akceptuję”, akceptacja papierowa) nie ma wpisów
+// w edok_steps — jego etapy liczą się jako zatwierdzone, nie jako „oczekuje” (tak też pokazuje je lista i karta).
 foreach (array_keys(EDOK_STEPS) as $sk) {
     $v = $cf['c_' . $sk];
     if ($v === 'oczekuje') {
-        $where[] = "NOT EXISTS (SELECT 1 FROM edok_steps st WHERE st.doc_id = edok_documents.id AND st.step_key = ? AND st.status IN ('ok','uwagi','odrzucono'))";
+        $where[] = "status <> 'zaakceptowany' AND NOT EXISTS (SELECT 1 FROM edok_steps st WHERE st.doc_id = edok_documents.id AND st.step_key = ? AND st.status IN ('ok','uwagi','odrzucono'))";
         $params[] = $sk;
-    } elseif (in_array($v, ['ok', 'uwagi', 'odrzucono'], true)) {
+    } elseif ($v === 'ok') {
+        $where[] = "(EXISTS (SELECT 1 FROM edok_steps st WHERE st.doc_id = edok_documents.id AND st.step_key = ? AND st.status = 'ok')
+            OR (status = 'zaakceptowany' AND NOT EXISTS (SELECT 1 FROM edok_steps st WHERE st.doc_id = edok_documents.id AND st.step_key = ? AND st.status IN ('ok','uwagi','odrzucono'))))";
+        array_push($params, $sk, $sk);
+    } elseif (in_array($v, ['uwagi', 'odrzucono'], true)) {
         $where[] = "EXISTS (SELECT 1 FROM edok_steps st WHERE st.doc_id = edok_documents.id AND st.step_key = ? AND st.status = ?)";
         array_push($params, $sk, $v);
     }
