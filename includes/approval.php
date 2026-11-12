@@ -176,11 +176,22 @@ function log_auth_action(int $user_id, string $action, string $note = ''): void 
 /** Loguje zmianę na koncie użytkownika (reset hasła, zmiana roli itp.). */
 function log_user_action(int $affected_uid, int $by_uid, string $action, string $note = ''): void {
     log_contract_action('user', $affected_uid, $by_uid, $action, $note);
+    _approval_security_notify($affected_uid, $action, $by_uid);
 }
 
 /** Loguje zdarzenie systemowe (ustawienia, konfiguracja). */
 function log_system_action(int $user_id, string $action, string $note = ''): void {
     log_contract_action('system', 0, $user_id, $action, $note);
+    _approval_security_notify($user_id, $action, $user_id);
+}
+
+/** Powiadomienia bezpieczeństwa konta (modules/account_security): reset hasła, wyłączenie MFA… — nigdy nie przerywa zapisu. */
+function _approval_security_notify(int $uid, string $action, int $by_uid): void {
+    if ($uid <= 0) return;
+    try {
+        require_once dirname(__DIR__) . '/modules/account_security/lib/accountSecurityNotify.php';
+        accountSecurityNotifyFromLog($uid, $action, $by_uid);
+    } catch (\Throwable $e) {}
 }
 
 // ── Wysyłka maili ─────────────────────────────────────────────────────────────

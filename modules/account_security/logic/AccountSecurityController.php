@@ -8,6 +8,7 @@
 
 require_once dirname(__DIR__) . '/lib/accountSecurityDevices.php';
 require_once dirname(__DIR__) . '/lib/accountSecurityM365.php';
+require_once dirname(__DIR__) . '/lib/accountSecurityNotify.php';
 
 final class AccountSecurityController
 {
@@ -101,6 +102,37 @@ final class AccountSecurityController
         header('Location: ' . self::back('urzadzenia')); return null;
     }
 
+    /** POST /powiadomienia — zapis preferencji powiadomień o bezpieczeństwie (n[zdarzenie][email|sms]). */
+    public function saveNotify(): ?string
+    {
+        $me = self::me();
+        AccountSecurityNotify::savePrefs((int)$me['id'], (array)($_POST['n'] ?? []));
+        flash_set('success', 'Zapisano ustawienia powiadomień o bezpieczeństwie.');
+        header('Location: ' . self::back('bezpieczenstwo', ['sec' => 'powiadomienia'])); return null;
+    }
+
+    /** POST /powiadomienia/test — wiadomość testowa na włączone kanały (najwyżej raz na minutę). */
+    public function testNotify(): ?string
+    {
+        $me = self::me();
+        $back = self::back('bezpieczenstwo', ['sec' => 'powiadomienia']);
+        if ((int)($_SESSION['account_security_test_at'] ?? 0) > time() - 60) {
+            flash_set('warning', 'Powiadomienie testowe można wysłać raz na minutę — spróbuj za chwilę.');
+            header('Location: ' . $back); return null;
+        }
+        $_SESSION['account_security_test_at'] = time();
+        $r = accountSecurityNotify((int)$me['id'], 'test');
+        $parts = [];
+        $parts[] = match ($r['email']) {
+            true    => 'e-mail wysłany na ' . $me['email'],
+            false   => 'e-mail NIE został wysłany (błąd poczty)',
+            default => 'e-mail pominięty (login nie jest adresem e-mail)',
+        };
+        if ($r['sms'] !== null) $parts[] = $r['sms'] ? 'SMS wysłany' : 'SMS NIE został wysłany';
+        flash_set(in_array(false, $r, true) || $r['email'] === null ? 'warning' : 'success', 'Powiadomienie testowe: ' . implode(', ', $parts) . '.');
+        header('Location: ' . $back); return null;
+    }
+
     /** POST /m365/sprawdz — odczyt stanu konta Microsoft 365 z Entra ID (tylko odczyt); wynik w sesji, pokazuje sekcja Usługi. */
     public function checkM365(): ?string
     {
@@ -122,9 +154,7 @@ final class AccountSecurityController
         $m   = self::revokeMicrosoftSessions($me);
         authlog_write($uid, 'security_lockdown', (string)$me['email'],
             'Zgłoszono nierozpoznaną aktywność: wylogowano sesje SZO (' . $n . '), zapomniano urządzenia i adresy (' . $d . ').' . self::m365Sentence($m));
-        if (function_exists('accountSecurityNotify')) {
-            accountSecurityNotify($uid, 'lockdown', ['sessions' => $n]);
-        }
+        accountSecurityNotify($uid, 'lockdown', ['sessions' => $n]);   // potwierdzenie e-mailem (zawsze)
         flash_set($m['state'] === 'err' ? 'warning' : 'success',
             'Konto zabezpieczone: wylogowano inne urządzenia (' . $n . ') i zapomniano nieznane miejsca logowania.'
             . self::m365Sentence($m) . ' Teraz ustaw nowe hasło.');

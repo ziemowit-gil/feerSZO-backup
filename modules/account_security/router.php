@@ -8,7 +8,10 @@
  *   POST /urzadzenia/zapomnij      — zapomnij znane urządzenie (id wiersza trusted_logins)
  *   POST /to-nie-ja                — nierozpoznana aktywność: wyloguj wszędzie, zapomnij urządzenia, zmień hasło
  *   POST /m365/sprawdz             — odczyt stanu konta Microsoft 365 z Entra ID (bez zmian w Microsoft)
- * Widoki: view/devicesSection.php (sekcja #urzadzenia), view/m365Status.php (karta w sekcji #uslugi) — dołącza tozsamosc/index.php.
+ *   POST /powiadomienia            — zapis ustawień powiadomień o bezpieczeństwie
+ *   POST /powiadomienia/test       — powiadomienie testowe (raz na minutę)
+ * Widoki: view/devicesSection.php (sekcja #urzadzenia), view/m365Status.php (karta w sekcji #uslugi),
+ * view/notifySettings.php (ustawienie w akordeonie #bezpieczenstwo) — dołącza tozsamosc/index.php.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
@@ -24,5 +27,7 @@ $r->group(['auth'], function (Router $r) {
     $r->post('/urzadzenia/zapomnij', [AccountSecurityController::class, 'forgetDevice'])->name('account_security.device_forget');
     $r->post('/to-nie-ja', [AccountSecurityController::class, 'lockdown'])->name('account_security.lockdown');
     $r->post('/m365/sprawdz', [AccountSecurityController::class, 'checkM365'])->name('account_security.m365_check');
+    $r->post('/powiadomienia', [AccountSecurityController::class, 'saveNotify'])->name('account_security.notify_save');
+    $r->post('/powiadomienia/test', [AccountSecurityController::class, 'testNotify'])->name('account_security.notify_test');
 });
 $r->dispatch();

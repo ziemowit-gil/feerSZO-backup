@@ -210,6 +210,13 @@ function authlog_write(?int $user_id, string $action, string $email = '', string
              VALUES (?, ?, ?, ?, ?, ?)"
         )->execute([$user_id, $email, _auth_ip(), _auth_ua(), $action, $detail]);
     } catch (\Throwable $e) {}
+    // Powiadomienia bezpieczeństwa (modules/account_security): zmiana hasła, telefonu… — nigdy nie przerywa zapisu dziennika
+    if ($user_id) {
+        try {
+            require_once dirname(__DIR__) . '/modules/account_security/lib/accountSecurityNotify.php';
+            accountSecurityNotifyFromLog($user_id, $action, $user_id);
+        } catch (\Throwable $e) {}
+    }
 }
 
 function authlog_user(int $user_id, int $limit = 50): array {
@@ -442,7 +449,15 @@ function auth_new_login_check(int $uid, string $email = ''): void {
     // ma już jakieś zaufane urządzenie (przy wdrożeniu nikt nie dostaje komunikatu tylko dlatego, że brak ciasteczka).
     $isNew = ($hasTrusted || $anyHist) && (!$ipKnown || ($hasDev && !$devKnown));
     $pend = ['ip' => $ip, 'ua' => $ua, 'dev' => $dev, 'at' => date('Y-m-d H:i:s'), 'new_ip' => !$ipKnown, 'new_dev' => ($hasDev && !$devKnown)];
-    if ($isNew) { $_SESSION['_new_login_pending'] = $pend; return; }
+    if ($isNew) {
+        $_SESSION['_new_login_pending'] = $pend;
+        // Powiadomienie właściciela konta poza ekranem potwierdzenia (który widzi ten, kto się loguje) — modules/account_security
+        try {
+            require_once dirname(__DIR__) . '/modules/account_security/lib/accountSecurityNotify.php';
+            accountSecurityNotify($uid, 'new_login', ['ip' => $ip, 'ua' => $ua, 'new_dev' => $pend['new_dev']]);
+        } catch (\Throwable $e) {}
+        return;
+    }
     auth_trust_login($uid, $pend);
 }
 

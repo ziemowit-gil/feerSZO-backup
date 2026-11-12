@@ -49,6 +49,7 @@ final class SmsSenders
 
         'access_data'            => [self::G_ACCESS, 'Login i hasło do konta', 'Panel kursanta i rodzica, konto MS 365, ownCloud, VLab, reset hasła panelu.'],
         'account_activation'     => [self::G_ACCESS, 'Aktywacja konta — przypomnienia automatyczne', 'Codzienne przypomnienie o braku pierwszego logowania (cron).'],
+        'security_alert'         => [self::G_ACCESS, 'Alert bezpieczeństwa konta', 'System Tożsamości: nowe logowanie, zmiana hasła, wyłączenie MFA — gdy osoba włączyła SMS w „Powiadomieniach o bezpieczeństwie”.'],
         'whatsapp_group'         => [self::G_ACCESS, 'Link do grupy WhatsApp', 'Wolontariusz: zaproszenie do grupy.'],
 
         'ti_bulk_message'        => [self::G_TI, 'Wiadomość masowa do kursantów', 'Komunikacja i wiadomości wysyłane z panelu dydaktyka.'],

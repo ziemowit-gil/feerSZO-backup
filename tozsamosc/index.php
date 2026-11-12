@@ -537,7 +537,7 @@ elseif ($phone_pending || !$phone_verified) $sec_open = 'telefon';
 elseif (!$mfa_active)                       $sec_open = 'mfa';
 // ?sec=… (np. po „To nie ja” w Urządzeniach → zmiana hasła) rozwija wskazane ustawienie
 $__qsec = (string)($_GET['sec'] ?? '');
-if (in_array($__qsec, ['haslo', 'telefon', 'mfa', 'pin'], true)) $sec_open = $__qsec;
+if (in_array($__qsec, ['haslo', 'telefon', 'mfa', 'pin', 'powiadomienia'], true)) $sec_open = $__qsec;
 if ($errors && $__pa !== '') {
     if (str_starts_with($__pa, 'pwd'))            $sec_open = 'haslo';
     elseif (str_starts_with($__pa, 'phone'))      $sec_open = 'telefon';
@@ -928,6 +928,11 @@ $sec_heads = [
     'pin'     => ['bi-telephone-outbound', 'Szybkie dzwonienie (aplikacja mobilna)',
                   $pin_is_set, $pin_is_set ? 'PIN ustawiony' : 'PIN nieustawiony'],
 ];
+// Powiadomienia o bezpieczeństwie (modules/account_security): „gotowe”, gdy e-mail o nowym logowaniu i zmianie hasła jest włączony
+require_once dirname(__DIR__) . '/modules/account_security/lib/accountSecurityNotify.php';
+$as_notify_prefs = AccountSecurityNotify::prefs($uid);
+$sec_heads['powiadomienia'] = ['bi-bell', 'Powiadomienia o bezpieczeństwie',
+    $as_notify_prefs['new_login']['email'] && $as_notify_prefs['password']['email'], AccountSecurityNotify::summary($as_notify_prefs)];
 $sec_head = function (string $k) use ($sec_heads): void {
     [$ic, $t, $ok, $st] = $sec_heads[$k];
     ?>
@@ -1203,6 +1208,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
     </div>
   </article>
   <?php endif; ?>
+  <?php include dirname(__DIR__) . '/modules/account_security/view/notifySettings.php'; // ustawienie #sec-powiadomienia ?>
 </section>
 
 <?php if ($has_ika): ?>
