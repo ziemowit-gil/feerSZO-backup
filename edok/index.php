@@ -180,284 +180,402 @@ if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     exit;
 }
 
+// Liczniki do kafli i zakładek statusów (całość, niezależnie od filtrów listy).
+$status_counts = array_fill_keys(array_keys(EDOK_STATUSES), 0);
+foreach (db_all("SELECT status, COUNT(*) AS n FROM edok_documents GROUP BY status") as $r) {
+    if (isset($status_counts[$r['status']])) $status_counts[$r['status']] = (int)$r['n'];
+}
+$do_zaplaty = (int)(db_one("SELECT COUNT(*) AS n FROM edok_documents WHERE status = 'zaakceptowany' AND COALESCE(kierunek,'wydatek') = 'wydatek'
+    AND COALESCE(status_platnosci,'nowy') NOT IN ('oplacony','anulowany') AND COALESCE(zaplacono_przed,0) = 0")['n'] ?? 0);
+// Adres listy z bieżącymi filtrami, z podmienionymi parametrami ('' usuwa parametr); zawsze od 1. strony.
+$list_url = function (array $set): string {
+    $q = array_diff_key($_GET, ['export' => 1, 'page' => 1]);
+    foreach ($set as $k => $v) { if ($v === '') unset($q[$k]); else $q[$k] = $v; }
+    return APP_URL . '/edok/index.php' . ($q ? '?' . http_build_query($q) : '');
+};
+$step_abbr  = ['meryt' => 'M', 'formal' => 'F', 'rachunkowa' => 'R', 'dekretacja' => 'D', 'zatwierdza' => 'Z'];
+$step_short = ['meryt' => 'merytoryczny', 'formal' => 'formalny', 'rachunkowa' => 'rachunkowy', 'dekretacja' => 'dekretacja', 'zatwierdza' => 'zatwierdzenie'];
+$status_short = ['draft' => 'Projekt', 'w_obiegu' => 'W obiegu', 'zaakceptowany' => 'Zaakceptowany', 'odrzucony' => 'Odrzucony', 'wycofany' => 'Wycofany'];
+$tab_labels   = ['' => 'Wszystkie', 'draft' => 'Projekty', 'w_obiegu' => 'W obiegu', 'zaakceptowany' => 'Zaakceptowane', 'odrzucony' => 'Odrzucone', 'wycofany' => 'Wycofane'];
+$adv_active   = $cf_active || $filter_obieg !== '';
+$filters_any  = $filter_status !== '' || $filter_kierunek !== '' || $filter_q !== '' || $filter_proformy || $adv_active;
+
 $PAGE_TITLE = 'EODoK — Elektroniczny Obieg Dokumentów Księgowych';
 require_once __DIR__ . '/../includes/header.php';
+
+$can_upload = is_admin() || edok_has_role('upload');
+$can_fin    = is_admin() || edok_has_role('zatwierdza') || edok_has_role('ksiegowy');
+$can_ksieg  = is_admin() || edok_has_role('ksiegowy');
+$pending_count = array_sum(array_map('count', edok_pending_for_user((int)current_user()['id'])));
+if ($can_upload) { require_once __DIR__ . '/../includes/edok_bank.php'; $bank_open = edok_bank_unassigned_count(); $queue_count = edok_queue_count(); } else { $bank_open = 0; $queue_count = 0; }
+$ksef_on = org_setting('kdok_ksef_enabled') === '1';
+$bank_docs_pending = $bank_pin_ok ? edok_bank_docs_pending() : [];
 ?>
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h4 class="mb-0"><i class="bi bi-journal-check"></i> EODoK — Elektroniczny Obieg Dokumentów Księgowych</h4>
-  <?php
-    $can_upload = is_admin() || edok_has_role('upload');
-    $can_fin    = is_admin() || edok_has_role('zatwierdza') || edok_has_role('ksiegowy');
-    $can_ksieg  = is_admin() || edok_has_role('ksiegowy');
-    $pending_count = array_sum(array_map('count', edok_pending_for_user((int)current_user()['id'])));
-    if ($can_upload) { require_once __DIR__ . '/../includes/edok_bank.php'; $bank_open = edok_bank_unassigned_count(); $queue_count = edok_queue_count(); } else { $bank_open = 0; $queue_count = 0; }
-    $ksef_on = org_setting('kdok_ksef_enabled') === '1';
-  ?>
-  <div class="d-flex gap-2 flex-wrap align-items-center">
-    <a href="<?= APP_URL ?>/edok/pending.php" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-check2-all"></i> Do akceptacji
-      <?php if ($pending_count): ?><span class="badge bg-primary ms-1"><?= $pending_count ?></span><?php endif; ?>
-    </a>
-    <?php $bank_docs_pending = $bank_pin_ok ? edok_bank_docs_pending() : []; if ($bank_pin_ok): ?>
+<style type="text/tailwindcss">
+/* Lista EODoK — styl Metro jak karta dokumentu (edok/view.php): płasko, akcent #0072c6, kolory stanów z kontrastem ≥ 4.5:1.
+   Bez preflightu: każde tw-border* ma tw-border-solid. Zaczepy skryptów (.edok-sel, #edokSelAll, #edokExportForm, #bankQuick*) bez zmian. */
+.edl-page { font-family: 'Segoe UI', 'Segoe UI Web', system-ui, sans-serif; }
+.edl-page .btn, .edl-page .form-control, .edl-page .form-select, .edl-page .dropdown-menu, .edl-page .page-link { border-radius: 0; }
+.edl-page .btn-primary { background-color: #0072c6; border-color: #0072c6; }
+.edl-page .btn-primary:hover, .edl-page .btn-primary:focus { background-color: #005a9e; border-color: #005a9e; }
+.edl-page :focus-visible { outline: 3px solid #1d1d1d; outline-offset: 2px; }
+
+.edl-head { @apply tw-flex tw-items-end tw-justify-between tw-flex-wrap tw-gap-3 tw-mb-4; }
+.edl-title { @apply tw-m-0 tw-text-3xl tw-font-light tw-text-neutral-900 tw-leading-tight; }
+.edl-subtitle { @apply tw-block tw-text-sm tw-font-normal tw-text-neutral-600 tw-mt-1; }
+.edl-actions { @apply tw-flex tw-items-center tw-gap-2 tw-flex-wrap; }
+
+.edl-tiles { @apply tw-list-none tw-p-0 tw-m-0 tw-mb-4 tw-grid tw-gap-1 tw-grid-cols-2 md:tw-grid-cols-3 xl:tw-grid-cols-5; }
+.edl-tile { @apply tw-relative tw-flex tw-flex-col tw-justify-between tw-h-full tw-min-h-[6.5rem] tw-p-3 tw-no-underline tw-bg-neutral-200 tw-text-neutral-900 hover:tw-bg-neutral-300 hover:tw-text-neutral-900; }
+.edl-tile__n { @apply tw-text-4xl tw-font-light tw-leading-none; }
+.edl-tile__l { @apply tw-text-sm tw-font-semibold tw-leading-snug tw-mt-2 tw-pr-6; }
+.edl-tile__i { @apply tw-absolute tw-top-3 tw-right-3 tw-text-xl; }
+.edl-tile--accent { @apply tw-bg-[#0072c6] tw-text-white hover:tw-bg-[#005a9e] hover:tw-text-white; }
+.edl-tile--warn   { @apply tw-bg-[#b45f06] tw-text-white hover:tw-bg-[#8f4a05] hover:tw-text-white; }
+.edl-tile--ok     { @apply tw-bg-[#128a3f] tw-text-white hover:tw-bg-[#0d6b30] hover:tw-text-white; }
+
+.edl-tabs { @apply tw-flex tw-flex-wrap tw-mb-3 tw-border-0 tw-border-b-2 tw-border-solid tw-border-neutral-300; }
+.edl-tab { @apply tw-inline-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2 tw-text-sm tw-font-semibold tw-text-neutral-700 tw-no-underline tw-border-0 tw-border-b-4 tw-border-solid tw-border-transparent hover:tw-text-neutral-900 hover:tw-border-neutral-400; margin-bottom: -2px; }
+.edl-tab[aria-current="page"] { @apply tw-text-[#0072c6] tw-border-[#0072c6]; }
+.edl-tab__n { @apply tw-text-xs tw-font-semibold tw-bg-neutral-200 tw-text-neutral-800 tw-px-1.5 tw-py-0.5; }
+.edl-tab[aria-current="page"] .edl-tab__n { @apply tw-bg-[#0072c6] tw-text-white; }
+
+.edl-filters { @apply tw-flex tw-flex-wrap tw-items-center tw-gap-2 tw-mb-3; }
+.edl-search { @apply tw-relative tw-flex-1 tw-min-w-[16rem] tw-max-w-xl; }
+.edl-search > .bi { @apply tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-text-neutral-600 tw-pointer-events-none; }
+.edl-search input { @apply tw-pl-9; }
+.edl-seg { @apply tw-inline-flex tw-border tw-border-solid tw-border-neutral-400 tw-bg-white; }
+.edl-seg a { @apply tw-px-3 tw-py-1.5 tw-text-sm tw-text-neutral-800 tw-no-underline hover:tw-bg-neutral-200; }
+.edl-seg a + a { @apply tw-border-0 tw-border-l tw-border-solid tw-border-neutral-400; }
+.edl-seg a[aria-current="true"] { @apply tw-bg-neutral-900 tw-text-white; }
+.edl-adv { @apply tw-bg-neutral-100 tw-border-0 tw-border-l-[6px] tw-border-solid tw-border-[#0072c6] tw-mb-3; }
+.edl-adv > summary { @apply tw-cursor-pointer tw-px-4 tw-py-2 tw-text-sm tw-font-semibold tw-text-neutral-900; }
+.edl-adv__grid { @apply tw-grid tw-gap-3 tw-px-4 tw-pb-4 tw-pt-1 sm:tw-grid-cols-2 lg:tw-grid-cols-4 xl:tw-grid-cols-6; }
+.edl-adv__grid label { @apply tw-block tw-text-xs tw-font-semibold tw-text-neutral-700 tw-mb-1; }
+
+.edl-meta { @apply tw-flex tw-justify-between tw-items-center tw-flex-wrap tw-gap-2 tw-mb-2 tw-text-sm tw-text-neutral-600; }
+.edl-exportbar { @apply tw-items-center tw-gap-2 tw-mb-2 tw-flex-wrap tw-px-3 tw-py-2 tw-bg-[#e6f1fa] tw-border-0 tw-border-l-[6px] tw-border-solid tw-border-[#0072c6]; }
+
+.edl-tablewrap { @apply tw-overflow-x-auto tw-bg-white tw-border tw-border-solid tw-border-neutral-300; }
+.edl-table { @apply tw-w-full tw-text-sm tw-border-collapse; }
+.edl-table thead th { @apply tw-bg-neutral-100 tw-text-neutral-700 tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-px-3 tw-py-2 tw-text-left tw-whitespace-nowrap tw-border-0 tw-border-b-2 tw-border-solid tw-border-neutral-300; }
+.edl-table td { @apply tw-px-3 tw-py-2.5 tw-align-middle tw-border-0 tw-border-b tw-border-solid tw-border-neutral-200; }
+.edl-table tbody tr:hover td { @apply tw-bg-[#f3f8fc]; }
+.edl-table tbody tr:last-child td { @apply tw-border-b-0; }
+.edl-num { @apply tw-font-mono tw-font-semibold tw-text-[#0072c6] tw-no-underline tw-whitespace-nowrap hover:tw-underline; }
+.edl-tags { @apply tw-flex tw-flex-wrap tw-gap-1 tw-mt-1; }
+.edl-pill { @apply tw-inline-flex tw-items-center tw-gap-1 tw-px-1.5 tw-py-0.5 tw-text-[11px] tw-font-semibold tw-leading-tight tw-whitespace-nowrap; }
+.edl-pill--out  { @apply tw-bg-neutral-200 tw-text-neutral-800; }
+.edl-pill--in   { @apply tw-bg-[#dcebf7] tw-text-[#00497f]; }
+.edl-pill--warn { @apply tw-bg-[#fbe9d7] tw-text-[#7a3f03]; }
+.edl-pill--ok   { @apply tw-bg-[#dcf1e3] tw-text-[#0b5c2a]; }
+.edl-pill--info { @apply tw-bg-[#e6eefb] tw-text-[#1f3f7a]; }
+.edl-party { @apply tw-block tw-font-medium tw-text-neutral-900 tw-leading-snug; }
+.edl-sub { @apply tw-block tw-text-xs tw-text-neutral-600 tw-mt-0.5; }
+.edl-titlecell { @apply tw-text-neutral-800 tw-leading-snug tw-line-clamp-2; }
+.edl-amount { @apply tw-text-right tw-whitespace-nowrap tw-tabular-nums; }
+.edl-amount b { @apply tw-font-semibold tw-text-neutral-900; }
+.edl-amount small { @apply tw-text-xs tw-text-neutral-600 tw-ml-1; }
+.edl-status { @apply tw-inline-flex tw-items-center tw-px-2 tw-py-0.5 tw-text-xs tw-font-semibold tw-whitespace-nowrap; }
+.edl-status--draft         { @apply tw-bg-neutral-300 tw-text-neutral-900; }
+.edl-status--w_obiegu      { @apply tw-bg-[#b45f06] tw-text-white; }
+.edl-status--zaakceptowany { @apply tw-bg-[#128a3f] tw-text-white; }
+.edl-status--odrzucony     { @apply tw-bg-[#c4262e] tw-text-white; }
+.edl-status--wycofany      { @apply tw-bg-neutral-900 tw-text-white; }
+.edl-steps { @apply tw-inline-flex tw-gap-0.5; }
+.edl-step { @apply tw-inline-flex tw-items-center tw-justify-center tw-w-6 tw-h-6 tw-text-[11px] tw-font-bold tw-bg-white tw-text-neutral-600 tw-border tw-border-solid tw-border-neutral-400; }
+.edl-step.is-ok    { @apply tw-bg-[#128a3f] tw-border-[#128a3f] tw-text-white; }
+.edl-step.is-uwagi { @apply tw-bg-[#b45f06] tw-border-[#b45f06] tw-text-white; }
+.edl-step.is-rej   { @apply tw-bg-[#c4262e] tw-border-[#c4262e] tw-text-white; }
+.edl-step.is-next  { @apply tw-border-2 tw-border-[#0072c6] tw-text-[#0072c6]; }
+.edl-paper { @apply tw-inline-flex tw-items-center tw-gap-1 tw-px-2 tw-py-0.5 tw-text-xs tw-font-semibold tw-bg-white tw-text-neutral-800 tw-border tw-border-solid tw-border-neutral-400 tw-whitespace-nowrap; }
+.edl-open { @apply tw-inline-flex tw-items-center tw-justify-center tw-w-8 tw-h-8 tw-text-[#0072c6] tw-no-underline tw-border-2 tw-border-solid tw-border-[#0072c6] hover:tw-bg-[#0072c6] hover:tw-text-white; }
+.edl-legend { @apply tw-flex tw-flex-wrap tw-gap-x-4 tw-gap-y-1 tw-text-xs tw-text-neutral-600 tw-mt-2 tw-mb-0; }
+.edl-empty { @apply tw-text-center tw-text-neutral-600 tw-py-10; }
+</style>
+
+<div class="edl-page">
+<div class="edl-head">
+  <h1 class="edl-title">EODoK <span class="edl-subtitle">Elektroniczny Obieg Dokumentów Księgowych</span></h1>
+  <div class="edl-actions">
+    <?php if ($bank_pin_ok): ?>
     <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#bankQuickModal" id="bankQuickBtn" title="Rozpoznane operacje banku w obiegu albo dokumenty zaznaczone na liście">
-      <i class="bi bi-bank"></i> Zatwierdź operacje bankowe <span class="badge bg-dark ms-1" id="bankQuickCount"><?= count($bank_docs_pending) ?></span>
+      <i class="bi bi-bank" aria-hidden="true"></i> Zatwierdź operacje bankowe <span class="badge bg-dark ms-1" id="bankQuickCount"><?= count($bank_docs_pending) ?></span>
     </button>
     <?php endif; ?>
-    <?php if ($can_upload): ?>
-    <a href="<?= APP_URL ?>/edok/queue.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-inboxes"></i> Kolejka do opisu
-      <?php if ($queue_count): ?><span class="badge bg-primary ms-1"><?= $queue_count ?></span><?php endif; ?></a>
-    <a href="<?= APP_URL ?>/edok/mailbox.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-envelope-paper"></i> Skrzynka faktur</a>
-    <?php endif; ?>
 
     <?php if ($can_upload): ?>
     <div class="dropdown">
-      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-box-arrow-in-down"></i> Import</button>
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i> Import</button>
       <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/mailbox.php"><i class="bi bi-envelope-paper" aria-hidden="true"></i> Skrzynka faktur</a></li>
         <?php if ($ksef_on): ?>
-        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#salesSyncModal"><i class="bi bi-cloud-download"></i> Pobierz sprzedaż z KSeF</button></li>
+        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#salesSyncModal"><i class="bi bi-cloud-download" aria-hidden="true"></i> Pobierz sprzedaż z KSeF</button></li>
         <?php endif; ?>
-        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#salesXmlModal"><i class="bi bi-file-earmark-code"></i> Import sprzedaży z plików XML</button></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/ksef_sync.php"><i class="bi bi-cloud-arrow-down"></i> Synchronizacja KSeF (zakupy)</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/mt940_import.php"><i class="bi bi-upload"></i> Import wyciągu (MT940)</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/szablony.php"><i class="bi bi-file-earmark-richtext"></i> Szablony</a></li>
+        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#salesXmlModal"><i class="bi bi-file-earmark-code" aria-hidden="true"></i> Import sprzedaży z plików XML</button></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/ksef_sync.php"><i class="bi bi-cloud-arrow-down" aria-hidden="true"></i> Synchronizacja KSeF (zakupy)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/mt940_import.php"><i class="bi bi-upload" aria-hidden="true"></i> Import wyciągu (MT940)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/szablony.php"><i class="bi bi-file-earmark-richtext" aria-hidden="true"></i> Szablony</a></li>
       </ul>
     </div>
     <?php endif; ?>
 
     <div class="dropdown">
-      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-bank2"></i> Bank i płatności<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></button>
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-bank2" aria-hidden="true"></i> Bank i płatności<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></button>
       <ul class="dropdown-menu dropdown-menu-end">
         <?php if ($can_upload): ?>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/wyciag.php"><i class="bi bi-bank2"></i> Wyciągi bankowe<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/wyciag.php"><i class="bi bi-bank2" aria-hidden="true"></i> Wyciągi bankowe<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></a></li>
         <?php endif; ?>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/preliminarz.php"><i class="bi bi-calendar-check"></i> Preliminarz płatności</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/transfers.php"><i class="bi bi-arrow-left-right"></i> Przelewy własne fundacji</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/preliminarz.php"><i class="bi bi-calendar-check" aria-hidden="true"></i> Preliminarz płatności</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/transfers.php"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Przelewy własne fundacji</a></li>
         <?php if ($can_fin): ?>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/zaplacone_przed.php"><i class="bi bi-cash-coin"></i> Zapłacone przed akceptacją</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/zaplacone_przed.php"><i class="bi bi-cash-coin" aria-hidden="true"></i> Zapłacone przed akceptacją</a></li>
         <?php endif; ?>
       </ul>
     </div>
 
     <div class="dropdown">
-      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-file-earmark-bar-graph"></i> Raporty i eksport</button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/index.php?<?= h(http_build_query(array_merge($_GET, ['export' => 'csv']))) ?>"><i class="bi bi-filetype-csv"></i> Eksport listy (CSV)</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/dla_ksiegowego.php"><i class="bi bi-file-earmark-spreadsheet"></i> Dla księgowego (PDF/Excel)</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/raport_analityczny.php"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/archiwum.php"><i class="bi bi-archive"></i> Archiwum miesięczne</a></li>
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"><i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i> Raporty i eksport</button>
+      <ul class="dropdown-menu dropdown-menu-end" style="min-width:19rem">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/index.php?<?= h(http_build_query(array_merge($_GET, ['export' => 'csv']))) ?>"><i class="bi bi-filetype-csv" aria-hidden="true"></i> Eksport listy (CSV)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/dla_ksiegowego.php"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Dla księgowego (PDF/Excel)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/raport_analityczny.php"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> Tabela analityczna</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/archiwum.php"><i class="bi bi-archive" aria-hidden="true"></i> Archiwum miesięczne</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <form method="get" action="<?= APP_URL ?>/edok/monthly_pdf.php" class="px-3 py-1">
+            <?php $months_pl = ['', 'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień']; ?>
+            <div class="small fw-semibold mb-1" id="edl_mpdf">PDF ze wszystkimi dokumentami z miesiąca</div>
+            <div class="d-flex gap-1" role="group" aria-labelledby="edl_mpdf">
+              <select name="miesiac" class="form-select form-select-sm" aria-label="Miesiąc">
+                <?php for ($m = 1; $m <= 12; $m++): ?>
+                <option value="<?= $m ?>" <?= $m == (int)date('n') ? 'selected' : '' ?>><?= h($months_pl[$m]) ?></option>
+                <?php endfor; ?>
+              </select>
+              <select name="rok" class="form-select form-select-sm" style="max-width:6rem" aria-label="Rok">
+                <?php for ($r = (int)date('Y'); $r >= (int)date('Y') - 5; $r--): ?>
+                <option value="<?= $r ?>" <?= $r == (int)date('Y') ? 'selected' : '' ?>><?= $r ?></option>
+                <?php endfor; ?>
+              </select>
+              <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</button>
+            </div>
+          </form>
+        </li>
       </ul>
     </div>
 
     <div class="dropdown">
-      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Więcej"><i class="bi bi-three-dots"></i></button>
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Więcej"><i class="bi bi-three-dots" aria-hidden="true"></i></button>
       <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/ustaw_pin.php"><i class="bi bi-shield-lock"></i> Twój PIN</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/ustaw_pin.php"><i class="bi bi-shield-lock" aria-hidden="true"></i> Twój PIN</a></li>
         <?php if ($can_ksieg): ?>
         <li><form method="post" onsubmit="return confirm('Przeliczyć tytuły przelewów wszystkich niezaakceptowanych dokumentów do aktualnego formatu?');">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="update_titles">
-          <button type="submit" class="dropdown-item"><i class="bi bi-arrow-repeat"></i> Aktualizuj tytuły przelewów</button></form></li>
+          <button type="submit" class="dropdown-item"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Aktualizuj tytuły przelewów</button></form></li>
         <?php endif; ?>
         <?php if (is_admin()): ?>
         <li><hr class="dropdown-divider"></li>
         <li><form method="post" onsubmit="return confirm('Usunąć wszystkie dokumenty testowe (numer EODoK-TEST/…) wraz z etapami, audytem i wygenerowanymi PDF-ami? Tej operacji nie można cofnąć.');">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="delete_test_docs">
-          <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash3"></i> Usuń dokumenty testowe</button></form></li>
+          <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash3" aria-hidden="true"></i> Usuń dokumenty testowe</button></form></li>
         <?php endif; ?>
       </ul>
     </div>
 
     <?php if ($can_upload): ?>
-    <a href="<?= APP_URL ?>/edok/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy dokument</a>
+    <a href="<?= APP_URL ?>/edok/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg" aria-hidden="true"></i> Nowy dokument</a>
     <?php endif; ?>
   </div>
 </div>
 
-<form method="get" action="<?= APP_URL ?>/edok/monthly_pdf.php" class="row g-2 mb-3 align-items-end">
-  <div class="col-auto">
-    <label class="form-label small mb-1">PDF ze wszystkimi dokumentami z miesiąca</label>
-    <?php $months_pl = ['', 'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień']; ?>
-    <div class="d-flex gap-1">
-      <select name="miesiac" class="form-select form-select-sm">
-        <?php for ($m = 1; $m <= 12; $m++): ?>
-        <option value="<?= $m ?>" <?= $m == (int)date('n') ? 'selected' : '' ?>><?= h($months_pl[$m]) ?></option>
-        <?php endfor; ?>
-      </select>
-      <select name="rok" class="form-select form-select-sm" style="max-width:100px">
-        <?php for ($r = (int)date('Y'); $r >= (int)date('Y') - 5; $r--): ?>
-        <option value="<?= $r ?>" <?= $r == (int)date('Y') ? 'selected' : '' ?>><?= $r ?></option>
-        <?php endfor; ?>
-      </select>
-      <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap"><i class="bi bi-file-earmark-pdf"></i> Pobierz PDF</button>
-    </div>
-  </div>
-</form>
+<ul class="edl-tiles" aria-label="Podsumowanie obiegu">
+  <li><a class="edl-tile<?= $pending_count ? ' edl-tile--accent' : '' ?>" href="<?= APP_URL ?>/edok/pending.php">
+    <i class="bi bi-check2-all edl-tile__i" aria-hidden="true"></i><span class="edl-tile__n"><?= $pending_count ?></span><span class="edl-tile__l">Czeka na Twoją akceptację</span></a></li>
+  <li><a class="edl-tile" href="<?= APP_URL ?>/edok/index.php?status=w_obiegu">
+    <i class="bi bi-arrow-repeat edl-tile__i" aria-hidden="true"></i><span class="edl-tile__n"><?= $status_counts['w_obiegu'] ?></span><span class="edl-tile__l">Dokumenty w obiegu</span></a></li>
+  <li><a class="edl-tile<?= $do_zaplaty ? ' edl-tile--ok' : '' ?>" href="<?= APP_URL ?>/edok/preliminarz.php">
+    <i class="bi bi-calendar-check edl-tile__i" aria-hidden="true"></i><span class="edl-tile__n"><?= $do_zaplaty ?></span><span class="edl-tile__l">Zaakceptowane, do zapłaty</span></a></li>
+  <?php if ($can_upload): ?>
+  <li><a class="edl-tile<?= $queue_count ? ' edl-tile--warn' : '' ?>" href="<?= APP_URL ?>/edok/queue.php">
+    <i class="bi bi-inboxes edl-tile__i" aria-hidden="true"></i><span class="edl-tile__n"><?= $queue_count ?></span><span class="edl-tile__l">Kolejka do opisu</span></a></li>
+  <li><a class="edl-tile<?= $bank_open ? ' edl-tile--warn' : '' ?>" href="<?= APP_URL ?>/edok/wyciag.php">
+    <i class="bi bi-bank2 edl-tile__i" aria-hidden="true"></i><span class="edl-tile__n"><?= $bank_open ?></span><span class="edl-tile__l">Operacje z wyciągu bez dokumentu</span></a></li>
+  <?php else: ?>
+  <li><a class="edl-tile" href="<?= APP_URL ?>/edok/index.php?status=draft">
+    <i class="bi bi-pencil edl-tile__i" aria-hidden="true"></i><span class="edl-tile__n"><?= $status_counts['draft'] ?></span><span class="edl-tile__l">Projekty</span></a></li>
+  <li><a class="edl-tile" href="<?= APP_URL ?>/edok/index.php?status=odrzucony">
+    <i class="bi bi-x-circle edl-tile__i" aria-hidden="true"></i><span class="edl-tile__n"><?= $status_counts['odrzucony'] ?></span><span class="edl-tile__l">Odrzucone</span></a></li>
+  <?php endif; ?>
+</ul>
 
-<form method="get" class="row g-2 mb-3 align-items-end">
-  <div class="col-auto">
-    <label class="form-label small mb-1">Status</label>
-    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-      <option value="">Wszystkie</option>
-      <?php foreach (EDOK_STATUSES as $k => $s): ?>
-      <option value="<?= h($k) ?>" <?= $filter_status === $k ? 'selected' : '' ?>><?= h($s['label']) ?></option>
+<nav aria-label="Status dokumentów">
+  <div class="edl-tabs">
+    <?php foreach ($tab_labels as $k => $lbl): $n_ = $k === '' ? array_sum($status_counts) : $status_counts[$k]; ?>
+    <a class="edl-tab" href="<?= h($list_url(['status' => $k])) ?>"<?= $filter_status === $k ? ' aria-current="page"' : '' ?>><?= h($lbl) ?> <span class="edl-tab__n"><?= $n_ ?></span></a>
+    <?php endforeach; ?>
+  </div>
+</nav>
+
+<form id="colFilters" method="get" action="<?= APP_URL ?>/edok/index.php" role="search" aria-label="Filtrowanie dokumentów">
+  <?php if ($filter_status !== '' && isset(EDOK_STATUSES[$filter_status])): ?><input type="hidden" name="status" value="<?= h($filter_status) ?>"><?php endif; ?>
+  <?php if ($filter_kierunek !== ''): ?><input type="hidden" name="kierunek" value="<?= h($filter_kierunek) ?>"><?php endif; ?>
+  <div class="edl-filters">
+    <div class="edl-search">
+      <i class="bi bi-search" aria-hidden="true"></i>
+      <label for="edl_q" class="visually-hidden">Szukaj dokumentów</label>
+      <input type="search" id="edl_q" name="q" value="<?= h($filter_q) ?>" class="form-control" placeholder="Szukaj: numer, kontrahent, tytuł, nr faktury…">
+    </div>
+    <button type="submit" class="btn btn-primary">Szukaj</button>
+    <div class="edl-seg" role="group" aria-label="Kierunek">
+      <?php foreach (['' => 'Wszystkie', 'wydatek' => 'Wydatki', 'przychod' => 'Przychody'] as $k => $lbl): ?>
+      <a href="<?= h($list_url(['kierunek' => $k])) ?>"<?= $filter_kierunek === $k ? ' aria-current="true"' : '' ?>><?= h($lbl) ?></a>
       <?php endforeach; ?>
-    </select>
-  </div>
-  <div class="col-auto">
-    <label class="form-label small mb-1">Kierunek</label>
-    <select name="kierunek" class="form-select form-select-sm" onchange="this.form.submit()">
-      <option value="">Wszystkie</option>
-      <option value="wydatek" <?= $filter_kierunek === 'wydatek' ? 'selected' : '' ?>>Wydatek</option>
-      <option value="przychod" <?= $filter_kierunek === 'przychod' ? 'selected' : '' ?>>Przychód</option>
-    </select>
-  </div>
-  <div class="col-auto">
-    <div class="form-check mb-1">
+    </div>
+    <div class="form-check mb-0">
       <input type="checkbox" class="form-check-input" name="proformy_bez_faktury" id="f_proformy" value="1" <?= $filter_proformy ? 'checked' : '' ?> onchange="this.form.submit()">
       <label class="form-check-label small" for="f_proformy">Proformy bez faktury końcowej</label>
     </div>
+    <?php if ($filters_any): ?><a href="<?= APP_URL ?>/edok/index.php" class="btn btn-link btn-sm"><i class="bi bi-x-lg" aria-hidden="true"></i> Wyczyść filtry</a><?php endif; ?>
   </div>
-  <div class="col-auto">
-    <label class="form-label small mb-1">Szukaj</label>
-    <input type="text" name="q" class="form-control form-control-sm" value="<?= h($filter_q) ?>" placeholder="numer, kontrahent, tytuł…">
-  </div>
-  <div class="col-auto">
-    <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Szukaj</button>
-  </div>
+  <details class="edl-adv"<?= $adv_active ? ' open' : '' ?>>
+    <summary>Filtry szczegółowe<?= $adv_active ? ' (włączone)' : '' ?></summary>
+    <div class="edl-adv__grid">
+      <div><label for="f_numer">Numer</label><input id="f_numer" name="c_numer" value="<?= h($cf['c_numer']) ?>" class="form-control form-control-sm" placeholder="np. 0041"></div>
+      <div><label for="f_kontr">Kontrahent</label><input id="f_kontr" name="c_kontrahent" value="<?= h($cf['c_kontrahent']) ?>" class="form-control form-control-sm"></div>
+      <div><label for="f_tytul">Tytuł</label><input id="f_tytul" name="c_tytul" value="<?= h($cf['c_tytul']) ?>" class="form-control form-control-sm"></div>
+      <div><label for="f_kwota">Kwota brutto</label><input id="f_kwota" name="c_kwota" value="<?= h($cf['c_kwota']) ?>" class="form-control form-control-sm" placeholder="np. 220" inputmode="decimal"></div>
+      <div><label for="f_od">Dodano od</label><input id="f_od" type="date" name="c_od" value="<?= h($cf['c_od']) ?>" class="form-control form-control-sm"></div>
+      <div><label for="f_do">Dodano do</label><input id="f_do" type="date" name="c_do" value="<?= h($cf['c_do']) ?>" class="form-control form-control-sm"></div>
+      <div><label for="f_obieg">Obieg</label><select id="f_obieg" name="c_obieg" class="form-select form-select-sm">
+        <option value="">Każdy</option><option value="E"<?= $filter_obieg === 'E' ? ' selected' : '' ?>>Elektroniczny (E)</option><option value="P"<?= $filter_obieg === 'P' ? ' selected' : '' ?>>Papierowy (P)</option></select></div>
+      <?php foreach (array_keys(EDOK_STEPS) as $sk): $cv = $cf['c_' . $sk]; ?>
+      <div><label for="f_<?= h($sk) ?>">Etap <?= h($step_abbr[$sk]) ?> — <?= h($step_short[$sk]) ?></label><select id="f_<?= h($sk) ?>" name="c_<?= h($sk) ?>" class="form-select form-select-sm">
+        <option value="">Dowolny</option><option value="ok"<?= $cv === 'ok' ? ' selected' : '' ?>>✓ zatwierdzone</option><option value="uwagi"<?= $cv === 'uwagi' ? ' selected' : '' ?>>! z uwagami</option>
+        <option value="odrzucono"<?= $cv === 'odrzucono' ? ' selected' : '' ?>>✗ odrzucone</option><option value="oczekuje"<?= $cv === 'oczekuje' ? ' selected' : '' ?>>○ oczekuje</option></select></div>
+      <?php endforeach; ?>
+      <div class="tw-flex tw-items-end"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel" aria-hidden="true"></i> Zastosuj</button></div>
+    </div>
+  </details>
 </form>
 
 <?php if ($can_export): ?>
-<form method="post" action="<?= APP_URL ?>/edok/preliminarz.php" id="edokExportForm"
-      class="d-none align-items-center gap-2 mb-2 flex-wrap p-2 border rounded bg-light">
+<form method="post" action="<?= APP_URL ?>/edok/preliminarz.php" id="edokExportForm" class="d-none edl-exportbar">
   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
   <input type="hidden" name="action" value="export_przelewy">
   <input type="hidden" name="pakiet_ids" id="edokExportIds">
   <input type="hidden" name="rachunek_map" value="{}">
-  <span class="small"><strong id="edokExportCount">0</strong> zaznaczonych</span>
-  <select name="rachunek_zlecen" class="form-select form-select-sm" style="width:auto" title="Rachunek, z którego mają pójść przelewy" required>
+  <span class="small"><strong id="edokExportCount">0</strong> do eksportu przelewów</span>
+  <select name="rachunek_zlecen" class="form-select form-select-sm" style="width:auto" aria-label="Rachunek, z którego mają pójść przelewy" required>
     <?php foreach ($przelew_rachunki as $r): ?>
     <option value="<?= h($r['nrb']) ?>"><?= h(edok_rachunek_etykieta($r)) ?> (…<?= h(substr(preg_replace('/\D/', '', $r['nrb']), -4)) ?>)</option>
     <?php endforeach; ?>
   </select>
-  <select name="format" class="form-select form-select-sm" style="width:auto" title="Format pliku przelewów">
+  <select name="format" class="form-select form-select-sm" style="width:auto" aria-label="Format pliku przelewów">
     <?php foreach (EDOK_PRZELEWY_FORMATY as $k => $label): ?>
     <option value="<?= h($k) ?>"><?= h($label) ?></option>
     <?php endforeach; ?>
   </select>
-  <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-bank"></i> Eksportuj przelewy</button>
+  <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-bank" aria-hidden="true"></i> Eksportuj przelewy</button>
 </form>
 <?php endif; ?>
-<p class="text-muted small mb-2">Zaznacz dokumenty, żeby użyć akcji zbiorczych (pasek na dole: akceptacja jednym PIN-em, PDF-y w ZIP<?= $can_pay ? ', oznaczenie jako opłacone' : '' ?>).<?php if ($can_export): ?> Do eksportu przelewów trafią z zaznaczenia tylko zaakceptowane, jeszcze nieopłacone wydatki z prawidłowym 26-cyfrowym rachunkiem kontrahenta.<?php endif; ?></p>
 
 <?php include __DIR__ . '/../modules/edok_bulk/view/result.php'; ?>
 
 <?php $from_n = $total_docs ? ($page - 1) * $per_page + 1 : 0; $to_n = min($page * $per_page, $total_docs); ?>
-<div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
-  <span role="status">Dokumenty <strong><?= $from_n ?>–<?= $to_n ?></strong> z <strong><?= $total_docs ?></strong><?= ($filter_status || $filter_kierunek || $filter_q !== '' || $filter_proformy || $cf_active) ? ' (po filtrach)' : '' ?></span>
-  <?php if ($pages > 1): ?><span>Strona <?= $page ?> z <?= $pages ?></span><?php endif; ?>
+<div class="edl-meta">
+  <span role="status">Dokumenty <strong><?= $from_n ?>–<?= $to_n ?></strong> z <strong><?= $total_docs ?></strong><?= $filters_any ? ' (po filtrach)' : '' ?></span>
+  <span>Zaznacz dokumenty, żeby użyć akcji zbiorczych (pasek na dole)<?= $can_export ? ' lub wyeksportować przelewy zaakceptowanych, nieopłaconych wydatków' : '' ?>.<?php if ($pages > 1): ?> · Strona <?= $page ?> z <?= $pages ?><?php endif; ?></span>
 </div>
 
-<form id="colFilters" method="get" action="<?= APP_URL ?>/edok/index.php">
-  <?php if ($filter_q !== ''): ?><input type="hidden" name="q" value="<?= h($filter_q) ?>"><?php endif; ?>
-  <?php if ($filter_proformy): ?><input type="hidden" name="proformy_bez_faktury" value="1"><?php endif; ?>
-</form>
-<div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
-    <thead class="table-light">
+<div class="edl-tablewrap">
+  <table class="edl-table">
+    <caption class="visually-hidden">Dokumenty EODoK</caption>
+    <thead>
       <tr>
-        <th style="width:2rem"><input type="checkbox" class="form-check-input" id="edokSelAll" title="Zaznacz wszystkie na stronie" aria-label="Zaznacz wszystkie dokumenty na stronie"></th>
-        <th title="Numer dokumentu nadany w EODoK (EODoK/nr/rok). Oznaczenie TEST = dokument testowy.">Numer</th>
-        <th title="Wydatek = koszt do zapłaty; Przychód = wpływ / sprzedaż.">Kierunek</th>
-        <th title="Dostawca lub sprzedawca (wydatek) albo płatnik / źródło wpływu (przychód).">Kontrahent</th>
-        <th title="Tytuł dokumentu — zwykle numer faktury lub opis operacji.">Tytuł</th>
-        <th class="text-end" title="Kwota brutto w walucie dokumentu.">Kwota brutto</th>
-        <th title="Stan obiegu: projekt, w obiegu, zaakceptowany, odrzucony, wycofany.">Status</th>
-        <th class="text-center" title="Sposób akceptacji: E = elektroniczny (eObieg w EODoK, domyślnie faktury, w tym z KSeF), P = papierowy (akceptacja na papierze, domyślnie rachunki do umów).">Obieg</th>
-        <?php $step_abbr = ['meryt' => 'M', 'formal' => 'F', 'rachunkowa' => 'R', 'dekretacja' => 'D', 'zatwierdza' => 'Z']; $step_no = 0; ?>
-        <?php foreach (EDOK_STEPS as $sk => $sl): $step_no++; ?>
-        <th class="text-center" title="Etap <?= $step_no ?> z 5: <?= h($sl) ?>. Ikona w wierszu: zielona = zaakceptowano, żółta = z uwagami, czerwona = odrzucono, szara = oczekuje."><abbr title="" style="text-decoration:none"><?= h($step_abbr[$sk] ?? '?') ?>.</abbr></th>
-        <?php endforeach; ?>
-        <th title="Data dodania dokumentu do EODoK.">Dodano</th>
-        <th></th>
-      </tr>
-      <tr class="edok-colfilter">
-        <th></th>
-        <th><input form="colFilters" name="c_numer" value="<?= h($cf['c_numer']) ?>" class="form-control form-control-sm" placeholder="Filtruj…" aria-label="Filtr: numer" style="min-width:90px"></th>
-        <th><select form="colFilters" name="kierunek" class="form-select form-select-sm" aria-label="Filtr: kierunek" onchange="this.form.submit()">
-          <option value="">Wszystkie</option><option value="wydatek"<?= $filter_kierunek === 'wydatek' ? ' selected' : '' ?>>Wydatek</option><option value="przychod"<?= $filter_kierunek === 'przychod' ? ' selected' : '' ?>>Przychód</option></select></th>
-        <th><input form="colFilters" name="c_kontrahent" value="<?= h($cf['c_kontrahent']) ?>" class="form-control form-control-sm" placeholder="Filtruj…" aria-label="Filtr: kontrahent"></th>
-        <th><input form="colFilters" name="c_tytul" value="<?= h($cf['c_tytul']) ?>" class="form-control form-control-sm" placeholder="Filtruj…" aria-label="Filtr: tytuł"></th>
-        <th><input form="colFilters" name="c_kwota" value="<?= h($cf['c_kwota']) ?>" class="form-control form-control-sm text-end" placeholder="np. 220" aria-label="Filtr: kwota brutto" style="min-width:80px"></th>
-        <th><select form="colFilters" name="status" class="form-select form-select-sm" aria-label="Filtr: status" onchange="this.form.submit()">
-          <option value="">Wszystkie</option><?php foreach (EDOK_STATUSES as $k => $st_): ?><option value="<?= h($k) ?>"<?= $filter_status === $k ? ' selected' : '' ?>><?= h($st_['label']) ?></option><?php endforeach; ?></select></th>
-        <th><select form="colFilters" name="c_obieg" class="form-select form-select-sm px-1" aria-label="Filtr: obieg" onchange="this.form.submit()" style="min-width:52px">
-          <option value="">—</option><option value="E"<?= $filter_obieg === 'E' ? ' selected' : '' ?>>E</option><option value="P"<?= $filter_obieg === 'P' ? ' selected' : '' ?>>P</option></select></th>
-        <?php foreach (array_keys(EDOK_STEPS) as $sk): $cv = $cf['c_' . $sk]; ?>
-        <th><select form="colFilters" name="c_<?= h($sk) ?>" class="form-select form-select-sm px-1" aria-label="Filtr: etap <?= h($step_abbr[$sk] ?? $sk) ?>" onchange="this.form.submit()" style="min-width:52px">
-          <option value="">—</option><option value="ok"<?= $cv === 'ok' ? ' selected' : '' ?>>✓ zatwierdzone</option><option value="uwagi"<?= $cv === 'uwagi' ? ' selected' : '' ?>>! z uwagami</option>
-          <option value="odrzucono"<?= $cv === 'odrzucono' ? ' selected' : '' ?>>✗ odrzucone</option><option value="oczekuje"<?= $cv === 'oczekuje' ? ' selected' : '' ?>>○ oczekuje</option></select></th>
-        <?php endforeach; ?>
-        <th><div class="d-flex gap-1"><input form="colFilters" type="date" name="c_od" value="<?= h($cf['c_od']) ?>" class="form-control form-control-sm" aria-label="Dodano od" title="Dodano od"><input form="colFilters" type="date" name="c_do" value="<?= h($cf['c_do']) ?>" class="form-control form-control-sm" aria-label="Dodano do" title="Dodano do"></div></th>
-        <th class="text-nowrap"><button form="colFilters" class="btn btn-sm btn-outline-primary" title="Zastosuj filtry"><i class="bi bi-funnel"></i></button>
-          <?php if ($cf_active || $filter_status || $filter_kierunek): ?><a href="<?= APP_URL ?>/edok/index.php<?= $filter_q !== '' ? '?q=' . urlencode($filter_q) : '' ?>" class="btn btn-sm btn-outline-secondary" title="Wyczyść filtry kolumn"><i class="bi bi-x-lg"></i></a><?php endif; ?></th>
+        <th scope="col" style="width:2.25rem"><input type="checkbox" class="form-check-input" id="edokSelAll" title="Zaznacz wszystkie na stronie" aria-label="Zaznacz wszystkie dokumenty na stronie"></th>
+        <th scope="col">Numer</th>
+        <th scope="col">Kontrahent</th>
+        <th scope="col">Tytuł</th>
+        <th scope="col" class="tw-text-right">Kwota brutto</th>
+        <th scope="col">Status</th>
+        <th scope="col" title="Etapy akceptacji: M — merytoryczny, F — formalny, R — rachunkowy, D — dekretacja, Z — zatwierdzenie">Etapy M·F·R·D·Z</th>
+        <th scope="col">Dodano</th>
+        <th scope="col"><span class="visually-hidden">Otwórz</span></th>
       </tr>
     </thead>
     <tbody>
       <?php if (!$docs): ?>
-      <tr><td colspan="15" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
+      <tr><td colspan="9" class="edl-empty"><i class="bi bi-inbox tw-text-3xl tw-block tw-mb-2" aria-hidden="true"></i>Brak dokumentów<?= $filters_any ? ' dla wybranych filtrów' : '' ?>.</td></tr>
       <?php endif; ?>
-      <?php foreach ($docs as $doc): ?>
+      <?php foreach ($docs as $doc):
+        $kier = ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? 'przychod' : 'wydatek';
+        $sel_pay = $can_pay && $doc['status'] === 'zaakceptowany' && $kier === 'wydatek'
+                   && !in_array($doc['status_platnosci'] ?: 'nowy', ['oplacony', 'anulowany'], true);
+        $view_url = APP_URL . '/edok/view.php?id=' . (int)$doc['id'];
+        $pl = (string)($doc['status_platnosci'] ?? '');
+      ?>
       <tr>
-        <?php
-          $sel_pay = $can_pay && $doc['status'] === 'zaakceptowany' && ($doc['kierunek'] ?? 'wydatek') === 'wydatek'
-                     && !in_array($doc['status_platnosci'] ?: 'nowy', ['oplacony', 'anulowany'], true);
-        ?>
         <td><input type="checkbox" class="form-check-input edok-sel" value="<?= (int)$doc['id'] ?>"
                    data-sign="<?= $doc['status'] === 'w_obiegu' && empty($doc['obieg_papierowy']) ? 1 : 0 ?>"
                    data-pay="<?= $sel_pay ? 1 : 0 ?>"
                    data-export="<?= $can_export && edok_przelew_exportable($doc) ? 1 : 0 ?>"
                    data-bank="<?= $bank_pin_ok && $doc['status'] === 'w_obiegu' ? 1 : 0 ?>"
                    aria-label="Zaznacz dokument <?= h($doc['number']) ?>"></td>
-        <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?>
-          <?php if (edok_zaplata_do_zwrotu($doc)): ?> <span class="badge bg-warning text-dark" title="<?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-person-check"></i> do zwrotu</span>
-          <?php elseif (!empty($doc['zaplacono_przed'])): ?> <span class="badge bg-success-subtle text-success-emphasis" title="Zapłacona przed akceptacją: <?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-cash-coin"></i> zapłacona</span><?php endif; ?>
-          <?php if ($doc['typ_dokumentu'] === 'proforma'): ?> <span class="badge bg-info-subtle text-info-emphasis" title="<?= isset($proforma_z_faktura[$doc['id']]) ? 'Rozliczona fakturą końcową' : 'Czeka na fakturę końcową' ?>">proforma<?= isset($proforma_z_faktura[$doc['id']]) ? ' ✓' : ' · bez faktury' ?></span><?php endif; ?></td>
-        <td><?= ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? '<span class="badge bg-info text-dark" title="Przychód — wpływ lub sprzedaż">Przychód</span>' : '<span class="badge bg-secondary" title="Wydatek — koszt do zapłaty">Wydatek</span>' ?></td>
-        <td title="<?= h($doc['kontrahent_nazwa']) ?><?= !empty($doc['kontrahent_nip']) ? ' · NIP ' . h($doc['kontrahent_nip']) : '' ?>"><?= h($doc['kontrahent_nazwa']) ?></td>
-        <td title="<?= h($doc['title']) ?>"><?= h($doc['title']) ?></td>
-        <td class="text-end font-monospace"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td>
-        <td><?= edok_status_badge($doc['status'], $doc) ?></td>
-        <td class="text-center"><?php if (!empty($doc['obieg_papierowy'])): ?><span class="badge bg-light text-dark border" title="Obieg papierowy — akceptacja na papierze">P</span><?php else: ?><span class="badge bg-primary-subtle text-primary-emphasis border" title="Obieg elektroniczny (eObieg w EODoK)">E</span><?php endif; ?></td>
-        <?php foreach (array_keys(EDOK_STEPS) as $sk): ?>
-        <td class="text-center">
-          <?php $st = $doc['steps'][$sk] ?? null; $m_ = $doc['step_meta'][$sk] ?? null;
-            $who_ = ($m_ && $m_['decided_at']) ? ' — ' . $m_['user_name'] . ', ' . date('d.m.Y H:i', strtotime($m_['decided_at'])) : '';
-            $lbl_ = edok_step_label($sk, $doc); ?>
-          <?php if (!empty($doc['obieg_papierowy'])): ?>
-          <i class="bi bi-file-earmark-text text-secondary" title="<?= h($lbl_ . ': akceptacja papierowa') ?>" role="img" aria-label="<?= h($lbl_ . ': akceptacja papierowa') ?>"></i>
-          <?php elseif ($st === 'ok'): ?>
-          <i class="bi bi-check-circle-fill text-success" title="<?= h($lbl_ . ': zatwierdzone' . $who_) ?>" role="img" aria-label="<?= h($lbl_ . ': zatwierdzone') ?>"></i>
-          <?php elseif ($st === 'uwagi'): ?>
-          <i class="bi bi-exclamation-circle-fill text-warning" title="<?= h($lbl_ . ': z uwagami' . $who_) ?>" role="img" aria-label="<?= h($lbl_ . ': z uwagami') ?>"></i>
-          <?php elseif ($st === 'odrzucono'): ?>
-          <i class="bi bi-x-circle-fill text-danger" title="<?= h($lbl_ . ': odrzucono' . $who_) ?>" role="img" aria-label="<?= h($lbl_ . ': odrzucono') ?>"></i>
-          <?php else: ?>
-          <i class="bi bi-circle text-muted" title="<?= h($lbl_ . ': oczekuje na decyzję') ?>" role="img" aria-label="<?= h($lbl_ . ': oczekuje') ?>"></i>
+        <td>
+          <a class="edl-num" href="<?= h($view_url) ?>"><?= h($doc['number']) ?></a>
+          <div class="edl-tags">
+            <?php if ($kier === 'przychod'): ?><span class="edl-pill edl-pill--in"><i class="bi bi-arrow-down-left" aria-hidden="true"></i> Przychód</span>
+            <?php else: ?><span class="edl-pill edl-pill--out"><i class="bi bi-arrow-up-right" aria-hidden="true"></i> Wydatek</span><?php endif; ?>
+            <?php if (edok_is_test_number($doc['number'])): ?><span class="edl-pill edl-pill--warn">TEST</span><?php endif; ?>
+            <?php if (edok_zaplata_do_zwrotu($doc)): ?><span class="edl-pill edl-pill--warn" title="<?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-person-check" aria-hidden="true"></i> do zwrotu</span>
+            <?php elseif (!empty($doc['zaplacono_przed'])): ?><span class="edl-pill edl-pill--ok" title="Zapłacona przed akceptacją: <?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-cash-coin" aria-hidden="true"></i> zapłacona</span><?php endif; ?>
+            <?php if ($doc['typ_dokumentu'] === 'proforma'): ?><span class="edl-pill edl-pill--info" title="<?= isset($proforma_z_faktura[$doc['id']]) ? 'Rozliczona fakturą końcową' : 'Czeka na fakturę końcową' ?>">proforma<?= isset($proforma_z_faktura[$doc['id']]) ? ' ✓' : ' · bez faktury' ?></span><?php endif; ?>
+          </div>
+        </td>
+        <td><span class="edl-party"><?= h($doc['kontrahent_nazwa']) ?></span><?php if (!empty($doc['kontrahent_nip'])): ?><span class="edl-sub">NIP <?= h($doc['kontrahent_nip']) ?></span><?php endif; ?></td>
+        <td><span class="edl-titlecell" title="<?= h($doc['title']) ?>"><?= h($doc['title']) ?></span></td>
+        <td class="edl-amount"><b><?= h($doc['kwota_brutto']) ?></b><small><?= h($doc['waluta'] ?: 'PLN') ?></small></td>
+        <td>
+          <span class="edl-status edl-status--<?= h($doc['status']) ?>" title="<?= h(edok_status_label($doc)) ?>"><?= h($status_short[$doc['status']] ?? $doc['status']) ?></span>
+          <?php if ($doc['status'] === 'zaakceptowany' && $kier === 'wydatek' && $pl !== '' && $pl !== 'nowy' && isset(EDOK_STATUS_PLATNOSCI[$pl])): ?>
+          <span class="edl-sub">Płatność: <?= h(mb_strtolower(EDOK_STATUS_PLATNOSCI[$pl]['label'])) ?></span>
           <?php endif; ?>
         </td>
-        <?php endforeach; ?>
-        <td title="Dodano <?= h(date('d.m.Y H:i', strtotime((string)$doc['created_at']))) ?><?= !empty($doc['creator_name']) ? ' — ' . h($doc['creator_name']) : '' ?>"><?= date_pl($doc['created_at']) ?></td>
-        <td class="text-nowrap">
-          <a href="<?= APP_URL ?>/edok/view.php?id=<?= $doc['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+        <td>
+          <?php if (edok_is_papierowy($doc)): ?>
+          <span class="edl-paper" title="Obieg papierowy — akceptacja na oryginale dokumentu"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Papierowy</span>
+          <?php else:
+            $parts_ = []; $steps_html_ = ''; $next_ = false;
+            foreach (array_keys(EDOK_STEPS) as $sk) {
+                $st = $doc['steps'][$sk] ?? null; $m_ = $doc['step_meta'][$sk] ?? null;
+                $who_ = ($m_ && $m_['decided_at']) ? ' — ' . $m_['user_name'] . ', ' . date('d.m.Y H:i', strtotime($m_['decided_at'])) : '';
+                if ($st === 'ok')                            { $c_ = 'is-ok';    $in_ = '<i class="bi bi-check-lg"></i>';       $s_ = 'zatwierdzone'; }
+                elseif ($st === 'uwagi')                     { $c_ = 'is-uwagi'; $in_ = '!';                                    $s_ = 'z uwagami'; }
+                elseif ($st === 'odrzucono')                 { $c_ = 'is-rej';   $in_ = '<i class="bi bi-x-lg"></i>';           $s_ = 'odrzucone'; }
+                elseif ($doc['status'] === 'zaakceptowany')  { $c_ = 'is-ok';    $in_ = '<i class="bi bi-check-lg"></i>';       $s_ = 'zatwierdzone (bez obiegu etapowego)'; }
+                elseif (!$next_ && $doc['status'] === 'w_obiegu') { $next_ = true; $c_ = 'is-next'; $in_ = h($step_abbr[$sk]); $s_ = 'bieżący etap, oczekuje'; }
+                else                                         { $c_ = '';         $in_ = h($step_abbr[$sk]);                     $s_ = 'oczekuje'; }
+                $parts_[] = $step_short[$sk] . ': ' . $s_;
+                $steps_html_ .= '<span class="edl-step ' . $c_ . '" title="' . h(edok_step_label($sk, $doc) . ': ' . $s_ . $who_) . '">' . $in_ . '</span>';
+            } ?>
+          <span class="edl-steps" role="img" aria-label="<?= h('Obieg elektroniczny — ' . implode('; ', $parts_)) ?>"><?= $steps_html_ ?></span>
+          <?php endif; ?>
         </td>
+        <td class="tw-whitespace-nowrap" title="Dodano <?= h(date('d.m.Y H:i', strtotime((string)$doc['created_at']))) ?><?= !empty($doc['creator_name']) ? ' — ' . h($doc['creator_name']) : '' ?>"><?= date_pl($doc['created_at']) ?></td>
+        <td><a href="<?= h($view_url) ?>" class="edl-open" title="Otwórz dokument" aria-label="Otwórz dokument <?= h($doc['number']) ?>"><i class="bi bi-arrow-right" aria-hidden="true"></i></a></td>
       </tr>
       <?php endforeach; ?>
     </tbody>
   </table>
 </div>
+<p class="edl-legend">
+  <span><strong>Etapy:</strong> M — merytoryczny, F — formalny, R — rachunkowy, D — dekretacja, Z — zatwierdzenie do zapłaty.</span>
+  <span>✓ zielony — zatwierdzone, ! pomarańczowy — z uwagami, ✗ czerwony — odrzucone, niebieska ramka — bieżący etap, szara ramka — oczekuje.</span>
+</p>
 <?php if ($docs) include __DIR__ . '/../modules/edok_bulk/view/bar.php'; ?>
 
 <?php if ($pages > 1): ?>
-<nav aria-label="Stronicowanie dokumentów" class="mt-2">
+<nav aria-label="Stronicowanie dokumentów" class="mt-3">
   <ul class="pagination pagination-sm justify-content-center flex-wrap mb-0">
     <li class="page-item<?= $page <= 1 ? ' disabled' : '' ?>"><a class="page-link" href="<?= h($page_url(max(1, $page - 1))) ?>" rel="prev">« Poprzednia</a></li>
     <?php for ($n = 1; $n <= $pages; $n++):
@@ -468,6 +586,7 @@ require_once __DIR__ . '/../includes/header.php';
   </ul>
 </nav>
 <?php endif; ?>
+</div><!-- /.edl-page -->
 
 <script>
 (function () {
