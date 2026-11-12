@@ -474,7 +474,16 @@ $where_sql = $where_parts ? 'WHERE ' . implode(' AND ', $where_parts) : '';
 require_once dirname(__DIR__) . '/includes/mobile_auth.php';
 mobile_pin_schema_heal();
 
+// Możliwe duplikaty kont (PESEL / imię i nazwisko) — modules/user_merge. Liczone na wszystkich kontach, nie tylko na liście.
+require_once dirname(__DIR__) . '/modules/user_merge/lib/userMergeDetect.php';
+$um_all        = userMergeGroups();
+$filter_dup    = ($_GET['duplikaty'] ?? '') === '1';
+$um_open_uid   = (int)($_GET['scal'] ?? 0);
+
 $users = db_all("SELECT * FROM users $where_sql ORDER BY created_at DESC", $where_params);
+if ($filter_dup) {
+    $users = array_values(array_filter($users, fn($u) => isset($um_all['byUser'][(int)$u['id']])));
+}
 $me    = current_user();
 
 // Migracja WebAuthn — musi być przed zapytaniami na webauthn_credentials
@@ -549,8 +558,8 @@ foreach ($db_roles as $r) {
 // Widok listy: tabela albo kafle — ?widok=, zapamiętany w sesji
 if (isset($_GET['widok'])) $_SESSION['tz_users_view'] = $_GET['widok'] === 'kafle' ? 'kafle' : 'lista';
 $tz_view = ($_SESSION['tz_users_view'] ?? 'lista') === 'kafle' ? 'kafle' : 'lista';
-$tz_url  = function (array $over = []) use ($filter_search, $filter_role, $filter_active): string {
-    $q = array_merge(['q' => $filter_search, 'role' => $filter_role, 'active' => $filter_active], $over);
+$tz_url  = function (array $over = []) use ($filter_search, $filter_role, $filter_active, $filter_dup): string {
+    $q = array_merge(['q' => $filter_search, 'role' => $filter_role, 'active' => $filter_active, 'duplikaty' => $filter_dup ? '1' : ''], $over);
     $q = array_filter($q, fn($v) => $v !== '' && $v !== null);
     return TZ_USERS_URL . ($q ? '?' . http_build_query($q) : '');
 };
@@ -632,6 +641,9 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 </div>
 <?php endif; ?>
 
+<?php require_once dirname(__DIR__) . '/modules/user_merge/view/mergeBadge.php';
+echo userMergeSummary($um_all, $filter_dup, $tz_url); ?>
+
 <!-- Kafle statystyk — klik = filtr -->
 <nav class="tzu-tiles" aria-label="Szybkie filtry">
   <a href="<?= h($tz_url(['active' => ''])) ?>" class="tzu-tile<?= $filter_active === '' ? ' on' : '' ?>" style="--tile:#1ba1e2"<?= $filter_active === '' ? ' aria-current="true"' : '' ?>>
@@ -655,6 +667,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2">
     <form method="get" class="row g-2 align-items-end">
+      <?php if ($filter_dup): ?><input type="hidden" name="duplikaty" value="1"><?php endif; ?>
       <div class="col-sm-4">
         <input type="text" name="q" class="form-control form-control-sm"
                placeholder="Szukaj po nazwie lub e-mailu"
@@ -903,6 +916,7 @@ unset($u);
         <div class="min-w-0">
           <div class="tzu-name"><?= h($u['name']) ?><?php if ($uid_ === (int)$me['id']): ?> <span class="badge bg-info">ja</span><?php endif; ?></div>
           <div class="tzu-mail"><?= h($u['email']) ?><?php if (!empty($u['microsoft_id'])): ?> <i class="bi bi-microsoft" style="color:#00a4ef" title="Połączone z M365"></i><?php endif; ?></div>
+          <?php if ($um_b = userMergeBadge($uid_, $um_all) . userMergeMergedBadge($u)): ?><div class="tw-mt-1"><?= $um_b ?></div><?php endif; ?>
         </div>
       </div>
       <div class="tzu-meta">
@@ -937,6 +951,7 @@ unset($u);
             <?php if ((int)$u['id'] === (int)$me['id']): ?>
             <span class="badge bg-info ms-1">ja</span>
             <?php endif; ?>
+            <?php if ($um_b = userMergeBadge((int)$u['id'], $um_all) . userMergeMergedBadge($u)): ?><div class="tw-mt-1 tw-font-normal"><?= $um_b ?></div><?php endif; ?>
           </td>
           <td>
             <?= h($u['email']) ?>

@@ -68,6 +68,17 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 
 <?= flash_html() ?>
 
+<?php // Możliwy duplikat tego konta (modules/user_merge) — porównanie i scalanie na liście kont.
+require_once dirname(__DIR__) . '/modules/user_merge/view/mergeBadge.php';
+if ($um_g = userMergeGroupOf($uid)): ?>
+<div class="tw-mb-3 tw-flex tw-flex-wrap tw-items-center tw-gap-3 tw-rounded-lg tw-border tw-border-solid tw-border-amber-600 tw-bg-amber-50 tw-px-4 tw-py-3 tw-text-amber-950">
+  <i class="bi bi-people tw-text-xl" aria-hidden="true"></i>
+  <p class="tw-m-0 tw-flex-1 tw-text-sm"><strong>To konto ma możliwy duplikat.</strong>
+    <?= $um_g['strong'] ? 'Inne konto ma ten sam PESEL.' : 'Inne konto ma to samo imię i nazwisko — sprawdź, czy to ta sama osoba.' ?></p>
+  <?= userMergeBadge($uid) ?>
+</div>
+<?php endif; ?>
+
 <div class="card shadow-sm mb-3">
   <div class="card-body d-flex flex-wrap align-items-center gap-3">
     <div class="d-flex align-items-center gap-2">
