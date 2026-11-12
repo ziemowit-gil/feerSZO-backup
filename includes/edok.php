@@ -1872,7 +1872,33 @@ function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): stri
 
     $content = $rows ? implode("\r\n", $rows) . "\r\n" : '';
     $encoded = @iconv('UTF-8', 'ISO-8859-2//TRANSLIT', $content);
-    return $encoded !== false ? $encoded : $content;
+    return edok_ipko_suma_dopisz($encoded !== false ? $encoded : $content);
+}
+
+/** Algorytm sumy kontrolnej w plikach iPKO biznes (ustawienie organizacji „edok_ipko_suma”). */
+const EDOK_IPKO_SUMA_ALGO = [
+    ''     => 'Bez sumy kontrolnej',
+    'sha1' => 'SHA1',
+    'md5'  => 'MD5',
+];
+
+function edok_ipko_suma_algo(): string {
+    $a = (string) org_setting('edok_ipko_suma');
+    return isset(EDOK_IPKO_SUMA_ALGO[$a]) ? $a : '';
+}
+
+/**
+ * Dopisuje ostatnią linię z sumą kontrolną pliku — wymagana, gdy w iPKO biznes włączono
+ * „Weryfikację sumy kontrolnej importowanych plików” (Zarządzanie dostępem; bez niej import
+ * kończy się błędem „plik nie został podpisany właściwym algorytmem”). Wg Przewodnika
+ * Administratora iPKO: suma SHA1 albo MD5, dołączona jako ostatnia linia. Liczona z bajtów
+ * pliku (już w ISO-8859-2) sprzed tej linii, łącznie z CRLF ostatniego rekordu; zapis
+ * szesnastkowy małymi literami, bez CRLF na końcu. Pusty plik zostaje pusty.
+ */
+function edok_ipko_suma_dopisz(string $bytes, ?string $algo = null): string {
+    $algo ??= edok_ipko_suma_algo();
+    if ($algo === '' || $bytes === '') return $bytes;
+    return $bytes . hash($algo, $bytes);
 }
 
 /**

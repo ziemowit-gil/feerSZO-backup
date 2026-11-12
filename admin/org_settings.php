@@ -341,6 +341,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
 
+    } elseif (isset($_POST['save_ipko_suma'])) {
+        // Suma kontrolna w plikach przelewów iPKO biznes (edok_ipko_suma_dopisz()).
+        require_once __DIR__ . '/../includes/edok.php';
+        $algo = (string)($_POST['ipko_suma'] ?? '');
+        if (!isset(EDOK_IPKO_SUMA_ALGO[$algo])) $algo = '';
+        org_setting_set('edok_ipko_suma', $algo);
+        flash_set('success', $algo !== '' ? 'Pliki dla iPKO biznes będą miały sumę kontrolną ' . EDOK_IPKO_SUMA_ALGO[$algo] . ' w ostatniej linii.' : 'Pliki dla iPKO biznes bez sumy kontrolnej.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
+
     } elseif (isset($_POST['add_rachunek'])) {
         $raw_nrb = strtoupper(preg_replace('/[\s\-]/', '', trim($_POST['rachunek_nrb'] ?? '')));
         if (str_starts_with($raw_nrb, 'PL')) $raw_nrb = substr($raw_nrb, 2);
@@ -1495,6 +1504,33 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="text-muted small"><i class="bi bi-bank me-1"></i>Brak zdefiniowanych rachunków — dodaj pierwszy rachunek powyżej.</div>
     <?php endif; ?>
 
+  </div>
+  </div>
+
+  <?php $ipko_suma_cfg = edok_ipko_suma_algo(); ?>
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-file-earmark-lock text-primary me-1"></i> Pliki przelewów dla iPKO biznes — suma kontrolna</div>
+  <div class="card-body">
+    <p class="text-muted small mb-2" id="ipko_suma_h">
+      Gdy w iPKO biznes jest włączona <em>Weryfikacja sumy kontrolnej importowanych plików</em> (Zarządzanie dostępem),
+      bank przyjmuje tylko pliki z sumą kontrolną w ostatniej linii. Bez niej import kończy się komunikatem
+      „Wskazany plik nie został podpisany właściwym algorytmem”. Ustawienie dotyczy plików ELIXIR-O (.txt) dla iPKO biznes:
+      przelewów z Preliminarza, ZUS, urzędu skarbowego i rachunków do umów. Algorytm musi być taki sam jak w iPKO.
+    </p>
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold" for="ipko_suma">Suma kontrolna w pliku</label>
+        <select name="ipko_suma" id="ipko_suma" class="form-select form-select-sm" aria-describedby="ipko_suma_h">
+          <?php foreach (EDOK_IPKO_SUMA_ALGO as $k => $label): ?>
+          <option value="<?= h($k) ?>" <?= $k === $ipko_suma_cfg ? 'selected' : '' ?>><?= h($label) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" name="save_ipko_suma" value="1" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Zapisz</button>
+      </div>
+    </form>
   </div>
   </div>
 
