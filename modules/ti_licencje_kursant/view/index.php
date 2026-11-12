@@ -75,18 +75,41 @@ $idsLine = '<div class="m-box tw-mb-4" role="group" aria-label="Twoje numery" st
     . '<div><dt class="m-note">Konto Office</dt><dd style="margin:0;font-size:1.05rem">' . ($eduAccount ? '<span class="m-mono tw-font-semibold">' . h((string)$eduAccount) . '</span>' : '<a href="' . h(route('lk.office')) . '">nie masz, załóż</a>') . '</dd></div>'
     . '</dl></div>';   // numery w ramce na każdej podstronie (polecenie 2026-11-10)
 // dane do logowania wysłane przez administratora (LicencjeDostep) — bez haseł; $only = klucz usługi albo '' (wszystkie)
-$accBox = function (string $only = '') use ($accessMsgs) {
+// Klucze nigdy jawnie (zgłoszenie 2026-11-12: klucz NordVPN wpisany w pole „Login” był widoczny na /licencja/nordvpn):
+// login, który nie jest adresem e-mail, i każdy klucz uczestnika z „Programy i klucze” (także w instrukcji) — zamaskowane, „Pokaż” jak w Programach,
+// a przed akceptacją oświadczenia o poufności ($termOk) w ogóle niewysyłane do przeglądarki.
+$accSecrets = [];
+foreach ($software ?? [] as $l) { $k = trim((string)($l['access_key'] ?? '')); if (mb_strlen($k) >= 6) $accSecrets[$k] = true; }
+$accSecrets = array_keys($accSecrets);
+usort($accSecrets, fn($x, $y) => mb_strlen($y) <=> mb_strlen($x));   // dłuższe najpierw (klucz zawarty w innym)
+$accMask = function (string $secret, string $what) use ($termOk): string {
+    if (!$termOk) return '<span class="m-mono" aria-hidden="true">••••••••</span><span class="tw-sr-only">ukryty</span>';
+    return '<span class="lk-wrap"><span class="m-mono lk-secret" data-secret="' . h($secret) . '">••••••••</span>'
+         . ' <button type="button" class="m-btn-ghost lk-reveal" aria-pressed="false">Pokaż<span class="tw-sr-only"> ' . h($what) . '</span></button>'
+         . ' <button type="button" class="m-btn-ghost lk-copy" data-copy="' . h($secret) . '">Kopiuj<span class="tw-sr-only"> ' . h($what) . '</span></button></span>';
+};
+$accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, $termOk) {
     $rows = array_values(array_filter($accessMsgs ?? [], fn($a) => $only === '' || (string)$a['product'] === $only));
     if (!$rows) return;
     echo '<section class="m-tile tw-mt-4" aria-labelledby="acc-' . h($only ?: 'all') . '"><h2 class="m-sect" id="acc-' . h($only ?: 'all') . '">Dane do logowania</h2>';
+    $hidden = false;
     foreach ($only === '' ? $rows : array_slice($rows, 0, 1) as $a) {
-        echo '<div class="m-row"' . ($only !== '' ? ' style="border-top:0;padding-top:0"' : '') . '><p class="tw-font-semibold">' . h((string)$a['service']) . ' <span class="m-note">wysłane ' . h(date('d.m.Y', strtotime((string)$a['created_at']))) . '</span></p>'
+        $svc = (string)$a['service'];
+        $login = (string)$a['login'];
+        $loginSecret = $login !== '' && (in_array($login, $accSecrets, true) || !filter_var($login, FILTER_VALIDATE_EMAIL));
+        $note = nl2br(h((string)$a['note']));
+        $ph = [];   // klucz w instrukcji: najpierw znaczniki, potem maska (maska zawiera klucz w data-secret — bez ponownej podmiany)
+        foreach ($accSecrets as $i => $s) if (str_contains($note, h($s))) { $note = str_replace(h($s), "\x00" . $i . "\x00", $note); $ph["\x00" . $i . "\x00"] = $accMask($s, 'klucz do ' . $svc); }
+        if ($ph) $note = strtr($note, $ph);
+        $hidden = $hidden || (!$termOk && ($loginSecret || $ph));
+        echo '<div class="m-row"' . ($only !== '' ? ' style="border-top:0;padding-top:0"' : '') . '><p class="tw-font-semibold">' . h($svc) . ' <span class="m-note">wysłane ' . h(date('d.m.Y', strtotime((string)$a['created_at']))) . '</span></p>'
            . '<dl class="m-kv tw-grid sm:tw-grid-cols-3 tw-gap-x-6 tw-mt-1">'
-           . ((string)$a['login'] !== '' ? '<div><dt>Login</dt><dd class="m-mono">' . h((string)$a['login']) . '</dd></div>' : '')
+           . ($login !== '' ? '<div><dt>' . ($loginSecret ? 'Login / klucz' : 'Login') . '</dt><dd' . ($loginSecret ? '' : ' class="m-mono"') . '>' . ($loginSecret ? $accMask($login, 'login lub klucz do ' . $svc) : h($login)) . '</dd></div>' : '')
            . ((string)$a['url'] !== '' ? '<div><dt>Adres logowania</dt><dd><a href="' . h((string)$a['url']) . '" target="_blank" rel="noopener">' . h(preg_replace('#^https?://#', '', rtrim((string)$a['url'], '/'))) . '<span class="tw-sr-only"> (nowa karta)</span></a></dd></div>' : '')
            . ((int)$a['had_secret'] ? '<div><dt>Hasło</dt><dd>' . ((int)$a['sms_sent'] ? 'wysłaliśmy SMS-em' : 'przekazało Ci je biuro') . '</dd></div>' : '')
-           . '</dl>' . ((string)$a['note'] !== '' ? '<p class="tw-text-sm tw-mt-2">' . nl2br(h((string)$a['note'])) . '</p>' : '') . '</div>';
+           . '</dl>' . ((string)$a['note'] !== '' ? '<p class="tw-text-sm tw-mt-2">' . $note . '</p>' : '') . '</div>';
     }
+    if ($hidden) echo '<div class="pk-alert pk-alert-info tw-mt-2">Klucz zobaczysz po zaakceptowaniu oświadczenia o poufności (panel uczestnika, zakładka Regulaminy).</div>';
     echo '</section>';
 };
 ?>

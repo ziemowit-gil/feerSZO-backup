@@ -75,7 +75,7 @@ final class LicencjeDostep
         } else {
             $out .= '<input type="hidden" name="acc[product]" value="' . h($product) . '">';
         }
-        $out .= $f('login', 'Login', 'text', $d['login'], ' maxlength="190" autocomplete="off"');
+        $out .= $f('login', 'Login (e-mail albo nazwa użytkownika; klucza tu nie wpisuj)', 'text', $d['login'], ' maxlength="190" autocomplete="off"');
         $out .= $f('url', 'Adres logowania', 'text', $d['url'], ' maxlength="300" inputmode="url"');
         $out .= $f('secret', 'Hasło albo klucz (pójdzie SMS-em, nie e-mailem)', 'text', '', ' maxlength="300" autocomplete="off"');
         $out .= $f('note', 'Jak zacząć (trafi do e-maila)', 'textarea', $d['note']);
