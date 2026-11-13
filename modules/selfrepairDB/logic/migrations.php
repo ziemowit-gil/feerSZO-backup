@@ -658,4 +658,15 @@ return [
         },
     ],
 
+    // Portal Usług IT: usługa „Migracja” z artykułem „migracja” — terminy (14.11 poczta, 20.11 wyłączenie Microsoft 365,
+    // 1.12 jedno hasło IAM), powody odejścia od Microsoft 365, co zrobić, loginy i hasła, zmiany z 13.11.2026
+    // (polecenie 2026-11-13; modules/it_portal/lib/itPortalMigracjaSeed.php). Nadpisuje tylko własną usługę i artykuł.
+    '2026-11_it_portal_migracja_article' => [
+        'desc' => 'Portal Usług IT: usługa „Migracja” i artykuł o odejściu od Microsoft 365 (terminy, powody, loginy i hasła)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaSeed.php';
+            itPortalMigracjaApply(APP_URL);   // to samo ręcznie: php cli/it_portal_migracja_seed.php [--dry-run]
+        },
+    ],
+
 ];
