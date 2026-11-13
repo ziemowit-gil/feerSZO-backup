@@ -109,7 +109,7 @@ final class DhostingContractMail
 
         $sms = '';
         if ($mobile) {
-            try { DhostingMigrator::sendPasswordSms($phone, $box, $password, false); $sms = 'wysłano na ' . DhostingMigrator::maskPhone($phone); }
+            try { DhostingMigrator::sendPasswordSms($phone, $box, $password, false, $action !== 'created'); $sms = 'wysłano na ' . DhostingMigrator::maskPhone($phone); }
             catch (\Throwable $e) { $sms = 'błąd SMS: ' . $e->getMessage(); }
         }
         $res = ['mailbox' => $box, 'password' => $password, 'action' => $action, 'sms' => $sms];
@@ -197,7 +197,7 @@ final class DhostingContractMail
         try { DhostingCopy::passwordChanged($mailbox, $password); } catch (\Throwable $e) { error_log('[dhosting] haslo dla kopiowania ' . $mailbox . ': ' . $e->getMessage()); }   // kopiowanie / dosyłanie dostaje nowe hasło
         $sent = '';
         if ($sms && $phone !== '' && sms_is_mobile($phone)) {
-            DhostingMigrator::sendPasswordSms($phone, $mailbox, $password, true);
+            DhostingMigrator::sendPasswordSms($phone, $mailbox, $password, true, true);   // nowe hasło istniejącej skrzynki — „z przyczyn technicznych”
             $sent = 'wysłano na ' . DhostingMigrator::maskPhone($phone);
         }
         $res = ['mailbox' => $mailbox, 'password' => $password, 'action' => 'password', 'sms' => $sent];

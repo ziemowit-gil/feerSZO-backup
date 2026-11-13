@@ -198,7 +198,7 @@ final class DhostingMigratorController
                     $phone = $this->phoneForMailbox($mb, $job);
                     $sms = '';
                     if ($phone !== '' && sms_is_mobile($phone)) {
-                        try { DhostingMigrator::sendPasswordSms($phone, $mb, $pass, false); $sms = 'wysłano na ' . DhostingMigrator::maskPhone($phone); }
+                        try { DhostingMigrator::sendPasswordSms($phone, $mb, $pass, false, true); $sms = 'wysłano na ' . DhostingMigrator::maskPhone($phone); }   // kolejne hasło — „z przyczyn technicznych”
                         catch (\Throwable $e) { $sms = 'błąd SMS: ' . $e->getMessage(); }
                     }
                     $nid = DhostingCopy::retry($mb, $by, $pass);

@@ -232,7 +232,7 @@ final class DhostingMigrator
                     $res['sms'] = 'brak numeru komórkowego w koncie';
                 } else {
                     try {
-                        self::sendPasswordSms($a['phone'], $a['mailbox'], $password, false);
+                        self::sendPasswordSms($a['phone'], $a['mailbox'], $password, false, (bool)$a['exists']);   // skrzynka już była = kolejne hasło
                         $res['sms'] = 'wysłano na ' . self::maskPhone($a['phone']);
                         self::record($a['mailbox'], ['sms_at' => date('Y-m-d H:i:s'), 'sms_to' => self::maskPhone($a['phone'])]);
                     } catch (\Throwable $e) {
@@ -263,7 +263,7 @@ final class DhostingMigrator
         $sw = DhostingConfig::switchDate();
         $lines = [];
         if ($res['status'] === 'exists') $lines[] = 'Twoja nowa skrzynka pocztowa ' . $box . ' jest już gotowa.';
-        elseif (str_starts_with((string)$res['msg'], 'Skrzynka już była')) $lines[] = 'Ustawiliśmy nowe hasło do Twojej nowej skrzynki pocztowej ' . $box . '.';
+        elseif (str_starts_with((string)$res['msg'], 'Skrzynka już była')) $lines[] = 'Ustawiliśmy nowe hasło do Twojej nowej skrzynki pocztowej ' . $box . ' — zmiana z przyczyn technicznych.';
         else $lines[] = 'Założyliśmy Ci nową skrzynkę pocztową ' . $box . ' — ten sam adres i login co w Microsoft 365.';
         if ($res['status'] === 'exists') $lines[] = 'Zaloguj się hasłem, które już masz (z SMS-a). Jeśli go nie masz, napisz do Helpdesku IT.';
         elseif (str_starts_with((string)$res['sms'], 'wysłano')) $lines[] = 'Hasło przyszło SMS-em (' . substr((string)$res['sms'], strlen('wysłano na ')) . '). Nie podawaj go nikomu.';
@@ -452,11 +452,13 @@ final class DhostingMigrator
     // ── SMS ────────────────────────────────────────────────────────────────────────────────────
 
     /** SMS z hasłem (rodzaj access_data). $bypassQuiet: użytkownik sam poprosił — wychodzi też w nocy, jak kod. */
-    public static function sendPasswordSms(string $phone, string $mailbox, string $password, bool $bypassQuiet): void
+    /**
+     * SMS z hasłem do skrzynki. $technical = administrator zmienia hasło skrzynce, która już je miała (kolejne nadanie, nie pierwsze) —
+     * dopisujemy „Zmiana hasła z przyczyn technicznych” (polecenie 2026-11-13).
+     */
+    public static function sendPasswordSms(string $phone, string $mailbox, string $password, bool $bypassQuiet, bool $technical = false): void
     {
-        $web = DhostingConfig::webmailOrDefault();
-        // „hasło obowiązuje od” (polecenie 2026-11-13): chwila wysłania = chwila ustawienia hasła; format DD.MM.RR gg:mm:ss
-        $msg = 'FEER: poczta ' . $mailbox . "\nHaslo: " . $password . "\nHaslo obowiazuje od " . date('d.m.y H:i:s') . ($web !== '' ? "\nLogowanie: " . $web : '');
+        $msg = self::passwordSmsText($mailbox, $password, $technical);   // „hasło obowiązuje od” = chwila wysłania (DD.MM.RR gg:mm:ss)
         $prev = $GLOBALS['__sms_quiet_bypass'] ?? null;
         if ($bypassQuiet) $GLOBALS['__sms_quiet_bypass'] = true;
         try {
@@ -506,6 +508,13 @@ final class DhostingMigrator
         });
         return ['active' => $status === '' ? null : stripos($status, 'active') === 0, 'status' => $status,
                 'phoneMasked' => $phone !== '' ? self::maskPhone($phone) : ''];
+    }
+
+    /** Treść SMS-a z hasłem do skrzynki (osobno, żeby dało się ją sprawdzić w testach bez wysyłki). */
+    public static function passwordSmsText(string $mailbox, string $password, bool $technical = false): string
+    {
+        $web = DhostingConfig::webmailOrDefault();
+        return 'FEER: poczta ' . $mailbox . ($technical ? "\nZmiana hasla z przyczyn technicznych." : '') . "\nHaslo: " . $password . "\nHaslo obowiazuje od " . date('d.m.y H:i:s') . ($web !== '' ? "\nLogowanie: " . $web : '');
     }
 
     public static function maskPhone(string $phone): string
