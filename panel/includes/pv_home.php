@@ -432,6 +432,10 @@ panelMetroAssets($_vol_color);
     }
     panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_hd_my_open ? (string)$_hd_my_open : '',
                     'sub'=>$_hd_my_open ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
+    require_once dirname(__DIR__, 2) . '/includes/asystent_ai.php';
+    if (asai_public_enabled()) {   // chatbot /chatbot/ (Pomoc IT + baza wiedzy), stały adres → bieżący token
+        panelMetroTile(['href'=>APP_URL.'/chatbot/','icon'=>'bi-life-preserver','label'=>'Czat Pomocy IT','sub'=>'poczta, hasła, logowanie, procedury','color'=>'blue']);
+    }
     panelMetroTile(['href'=>'#narzedzia','go'=>'narzedzia','icon'=>'bi-grid-3x3-gap','label'=>'Narzędzia','val'=>(string)count($_pv_tools),'color'=>'teal']);
     panelMetroTile(['href'=>'#wiedza','go'=>'wiedza','icon'=>'bi-book','label'=>'Wiedza','val'=>(string)count($_pv_know),'sub'=>'procedury, dokumenty, katalog','color'=>'indigo']);
     ?>

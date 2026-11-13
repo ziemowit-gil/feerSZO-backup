@@ -124,6 +124,9 @@ $_sh_lead = $_sh_admin
                   'sub'=>'kontakt, adres, rachunek, upoważnienia','color'=>'teal','group'=>'konto'];
   $_sh_tiles[] = ['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_sh_hd ? (string)$_sh_hd : '',
                   'sub'=>$_sh_hd ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta','group'=>'pomoc'];
+  require_once dirname(__DIR__, 2) . '/includes/asystent_ai.php';
+  if (asai_public_enabled())   // chatbot /chatbot/ (Pomoc IT + baza wiedzy), stały adres → bieżący token
+      $_sh_tiles[] = ['href'=>APP_URL.'/chatbot/','icon'=>'bi-life-preserver','label'=>'Czat Pomocy IT','sub'=>'poczta, hasła, logowanie, procedury','color'=>'blue','group'=>'pomoc'];
   // Kafle „Microsoft 365 i poczta” i „Zarządzanie pocztą” (stopka z panelu M365) usunięte 2026-11-14 — wycofujemy się z Microsoft 365
   // Samodzielna zmiana haseł (modules/nowe_haslo, /nowehaslo): dwa osobne hasła — poczta oraz logowanie jednokrotne z chmurą (wspólne)
   $_sh_pwi = !empty($pwInit['rows']);   // hasło startowe → kafel czerwony „do zrobienia” (NoweHasloInitial)
