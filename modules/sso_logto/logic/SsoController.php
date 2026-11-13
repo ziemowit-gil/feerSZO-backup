@@ -118,6 +118,21 @@ final class SsoController
         $person = self::personFromContract($row);
         $by = (string)(current_user()['email'] ?? '');
         $do = (string)($_POST['do'] ?? '');
+        if ($do === 'rename') {   // login w chmurze z „_” → imie.nazwisko: nowe konto i hasło, stare wyłączone, SMS i e-mail (polecenie 2026-11-13)
+            try { $rn = SsoAccounts::renameCloudLogin($person['email'], $by, $person); }   // dane z umowy — login jak w propozycji na karcie
+            catch (\Throwable $e) { return $this->flashGlobal($back . '#sso', 'danger', 'Chmura: ' . $e->getMessage()); }
+            if ($rn['error'] !== '') return $this->flashGlobal($back . '#sso', 'danger', 'Chmura: ' . $rn['error']);
+            $_SESSION[self::K_RESULT] = ['ctx' => $type . ':' . $id, 'rows' => [[
+                'email' => $rn['email'], 'name' => $person['name'], 'username' => $rn['new'], 'cloud_uid' => $rn['new'], 'password' => $rn['password'],
+                'logto' => $rn['logto'] === 'to samo hasło' ? 'password' : '', 'job' => null,
+                'cloud' => 'nowy login (było: ' . $rn['old'] . ', stare konto: ' . ($rn['old_disabled'] ?: '—') . ')' . ($rn['files'] !== '' ? '; pliki z OneDrive: ' . $rn['files'] : ''),
+                'sms' => $rn['sms'] . ', e-mail: ' . $rn['mail'],
+            ]]];
+            if (function_exists('log_contract_action')) {
+                try { log_contract_action($type, $id, (int)(current_user()['id'] ?? 0), 'note', 'Chmura: login zmieniony z ' . $rn['old'] . ' na ' . $rn['new'] . ' (SMS: ' . $rn['sms'] . ', e-mail: ' . $rn['mail'] . ')'); } catch (\Throwable $e) {}
+            }
+            return Router::redirect($back . '#sso');
+        }
         try {
             $res = match ($do) {
                 'create'   => SsoAccounts::provision($person, ['cloud' => !empty($_POST['cloud']), 'files' => !empty($_POST['files']), 'by' => $by, 'via' => 'admin']),

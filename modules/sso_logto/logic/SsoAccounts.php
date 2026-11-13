@@ -346,12 +346,32 @@ final class SsoAccounts
         foreach (db_all("SELECT email, name, user_id, cloud_uid FROM sso_accounts WHERE COALESCE(cloud_uid,'') <> '' ORDER BY name") as $r) {
             $old = (string)$r['cloud_uid'];
             if (!str_contains($old, '_')) continue;
-            $p = self::personContact((string)$r['email'], $r['user_id'] !== null ? (int)$r['user_id'] : null);
-            $new = self::cloudUidBase((string)($p['name'] ?: $r['name']), $p['login'], (string)$r['email']);
+            $p = self::cloudPerson((string)$r['email']);
+            $new = self::cloudUidBase($p['name'], $p['login'], (string)$r['email']);
             if ($new === $old) continue;
             $out[] = ['email' => (string)$r['email'], 'name' => (string)($p['name'] ?: $r['name']), 'old' => $old, 'new' => $new, 'phone' => $p['phone']];
         }
         return $out;
+    }
+
+    /**
+     * Dane osoby do loginu w chmurze: konto SZO / umowa (personContact), nadpisane niepustymi polami $person (np. z karty umowy).
+     * Jedno źródło dla propozycji na karcie umowy, listy na /ssoadmin i samej zmiany loginu. [name, login, phone].
+     */
+    public static function cloudPerson(string $email, ?array $person = null): array
+    {
+        $row = self::get(strtolower(trim($email)));
+        $p = self::personContact($email, isset($row['user_id']) ? (int)$row['user_id'] : null);
+        foreach (['name', 'login', 'phone'] as $k) { if (trim((string)($person[$k] ?? '')) !== '') $p[$k] = trim((string)$person[$k]); }
+        if ($p['name'] === '') $p['name'] = (string)($row['name'] ?? '');
+        return $p;
+    }
+
+    /** Proponowany login w chmurze (imie.nazwisko) dla osoby — to samo, co dostanie przy zmianie, o ile login nie jest zajęty. */
+    public static function cloudUidProposal(string $email, ?array $person = null): string
+    {
+        $p = self::cloudPerson($email, $person);
+        return self::cloudUidBase($p['name'], $p['login'], $email);
     }
 
     /** Imię i nazwisko, login organizacji i telefon osoby: konto SZO (user_id albo e-mail), potem najnowsza umowa z tym e-mailem. */
@@ -378,15 +398,16 @@ final class SsoAccounts
      * Zmiana loginu w chmurze z „…_…” na imie.nazwisko. Loginu w Nextcloud nie da się zmienić, więc: nowe konto z NOWYM hasłem
      * (to samo hasło dostaje Logto — zasada jednego hasła), stare konto WYŁĄCZONE (pliki zostają, nic nie kasujemy), kopiowanie plików
      * z OneDrive od nowa na nowe konto, jeśli było zlecone dla starego. Potem SMS (login + hasło) i e-mail (bez hasła).
-     * Zwraca ['email','name','old','new','password','logto','old_disabled','files','sms','mail','error'].
+     * $person (opcjonalnie, np. z umowy: name, login, phone) ma pierwszeństwo przed danymi z konta SZO — wtedy nowy login zgadza się
+     * z propozycją pokazaną na karcie umowy. Zwraca ['email','name','old','new','password','logto','old_disabled','files','sms','mail','error'].
      */
-    public static function renameCloudLogin(string $email, string $by): array
+    public static function renameCloudLogin(string $email, string $by, ?array $person = null): array
     {
         $email = strtolower(trim($email));
         $row = self::get($email);
         $old = (string)($row['cloud_uid'] ?? '');
-        $p = self::personContact($email, isset($row['user_id']) ? (int)$row['user_id'] : null);
-        $name = $p['name'] !== '' ? $p['name'] : (string)($row['name'] ?? '');
+        $p = self::cloudPerson($email, $person);
+        $name = $p['name'];
         $res = ['email' => $email, 'name' => $name, 'old' => $old, 'new' => '', 'password' => null, 'logto' => '', 'old_disabled' => '', 'files' => '', 'sms' => '', 'mail' => '', 'error' => ''];
         if ($old === '' || !str_contains($old, '_')) { $res['error'] = 'login w chmurze nie ma „_” — bez zmian'; return $res; }
         if (!SsoConfig::cloudConfigured()) { $res['error'] = 'chmura nie jest skonfigurowana'; return $res; }
