@@ -84,6 +84,72 @@ final class SsoAccounts
     }
 
     /** Login (username w Logto = login w chmurze) z loginu organizacji albo e-maila: małe litery ASCII, cyfry, „_”. */
+    /**
+     * Login w chmurze w postaci imie.nazwisko (polecenie 2026-11-13). Logto nie dopuszcza kropki w nazwie użytkownika (stąd „_” w usernameBase),
+     * więc login w chmurze NIE jest już nazwą z Logto. Kolejność:
+     *   1) login organizacji (konto Microsoft) albo e-mail w domenie organizacji — część przed @ (ziemowit.gil; skrzynki wspólne: edukacja);
+     *   2) imię i nazwisko osoby: pierwszy i ostatni wyraz, bez dopisku po „|” (adres prywatny: jan1985@gmail.com → jan.kowalski);
+     *   3) oczyszczona część adresu przed @.
+     * Znaki: a-z, 0-9, kropka i myślnik. Kolizje (login innej osoby) rozwiązuje cloudFreeUid() numerem na końcu.
+     */
+    public static function cloudUidBase(string $name, string $login, string $email): string
+    {
+        $clean = function (string $s): string {
+            $s = strtr(mb_strtolower(trim($s)), ['ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z']);
+            $c = function_exists('iconv') ? (string)@iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) : $s;
+            $c = (string)preg_replace('/[^a-z0-9.\-]+/', '.', strtolower($c));
+            return trim((string)preg_replace('/\.{2,}/', '.', $c), '.-');
+        };
+        $local = fn(string $src) => $clean(($at = strpos($src, '@')) === false ? $src : substr($src, 0, $at));
+        $org = self::orgDomains();
+        $inOrg = fn(string $addr) => ($at = strrpos($addr, '@')) !== false && in_array(strtolower(substr($addr, $at + 1)), $org, true);
+        foreach ([$login, $email] as $src) {
+            $src = trim($src);
+            if ($src === '' || ($src === trim($email) && !$inOrg($src))) continue;   // e-mail prywatny nie wyznacza loginu
+            $l = $local($src);
+            if ($l !== '' && preg_match('/^[a-z]/', $l)) return substr($l, 0, 60);
+        }
+        $n = (string)preg_replace('/\(.*?\)/', ' ', explode('|', $name)[0]);
+        $words = array_values(array_filter(array_map($clean, preg_split('/\s+/', trim($n)) ?: []), fn($w) => (bool)preg_match('/^[a-z]+(-[a-z]+)*$/', $w)));
+        if (count($words) >= 2) return substr($words[0] . '.' . $words[count($words) - 1], 0, 60);
+        $l = $local(trim($login) !== '' ? $login : $email);
+        if ($l === '') $l = 'uzytkownik';
+        if (!preg_match('/^[a-z]/', $l)) $l = 'u.' . $l;
+        return substr($l, 0, 60);
+    }
+
+    /** Domeny organizacji (logowanie Microsoft 365 i przenoszone domeny poczty) — małymi literami. */
+    private static function orgDomains(): array
+    {
+        static $d = null;
+        if ($d !== null) return $d;
+        $d = [];
+        if (function_exists('m365_setting')) { $m = strtolower(trim((string)m365_setting('m365_domain'))); if ($m !== '') $d[] = $m; }
+        try {
+            require_once dirname(__DIR__, 2) . '/dhosting_migrator/lib/DhostingConfig.php';
+            foreach (DhostingConfig::domains() as $src => $dst) { $d[] = strtolower((string)$src); $d[] = strtolower((string)$dst); }
+        } catch (\Throwable $e) {}
+        if (!$d) $d[] = 'feer.org.pl';
+        return $d = array_values(array_unique(array_filter($d)));
+    }
+
+    /**
+     * Wolny login w chmurze dla osoby: $base, potem $base2, $base3… Konto o tym loginie i tym samym e-mailu (albo bez e-maila) uznajemy
+     * za konto tej osoby. Zwraca [uid, istniejące-dane|null]. $skip — login, którego nie bierzemy (np. stary z „_”).
+     */
+    private static function cloudFreeUid(CloudApi $cloud, string $base, string $email, string $skip = ''): array
+    {
+        for ($i = 1; $i <= 99; $i++) {
+            $uid = $base . ($i > 1 ? (string)$i : '');
+            if ($uid === $skip) continue;
+            $info = $cloud->user($uid);
+            if ($info === null) return [$uid, null];
+            $theirs = strtolower(trim((string)($info['email'] ?? '')));
+            if ($theirs === '' || $theirs === $email) return [$uid, $info];
+        }
+        throw new RuntimeException('nie udało się dobrać wolnego loginu w chmurze dla ' . $email . ' (' . $base . ').');
+    }
+
     public static function usernameBase(string $login, string $email): string
     {
         $src = trim($login) !== '' ? trim($login) : trim($email);
@@ -123,7 +189,9 @@ final class SsoAccounts
                 : ((string)($row['cloud_uid'] ?? '') !== '' ? (string)$row['cloud_uid'] : self::usernameBase((string)($person['login'] ?? ''), $email));
             self::upsert($email, array_filter(['user_id' => isset($person['user_id']) ? (int)$person['user_id'] : null, 'name' => $name], fn($v) => $v !== null));
             $out = ['email' => $email, 'username' => $username, 'password' => $generated ? $password : null, 'logto' => 'pominięte', 'cloud' => '', 'job' => null];
-            return self::provisionCloud($person, $opt, $out, $email, $username, $name, $password, $by);
+            $out = self::provisionCloud($person, $opt, $out, $email, $username, $name, $password, $by);
+            if (!empty($out['cloud_uid'])) $out['username'] = $out['cloud_uid'];   // bez Logto jedynym loginem jest login w chmurze (imie.nazwisko)
+            return $out;
         }
         $api = SsoConfig::logto();
         $lu = null;
@@ -168,7 +236,7 @@ final class SsoAccounts
         $wantCloud = !empty($opt['cloud']) || !empty($row['cloud_uid']);
         if ($wantCloud && SsoConfig::cloudConfigured()) {
             try {
-                $out['cloud'] = self::cloudEnsure($email, $username, $name, $password, !empty($opt['cloud']), $by);
+                $out['cloud'] = self::cloudEnsure($email, $username, $name, $password, !empty($opt['cloud']), $by, (string)($person['login'] ?? ''));
             } catch (\Throwable $e) {
                 $out['cloud'] = 'błąd: ' . $e->getMessage();
             }
@@ -179,6 +247,7 @@ final class SsoAccounts
                 $out['job'] = CloudFilesCopy::queue((string)self::get($email)['cloud_uid'], $src, $password, $email, $by);
             }
         }
+        $out['cloud_uid'] = (string)(self::get($email)['cloud_uid'] ?? '');
         if (in_array($out['cloud'], ['created', 'linked', 'synced'], true)) {
             try { $out['mail'] = self::cloudMail($email, $name, (string)self::get($email)['cloud_uid'], $out); }
             catch (\Throwable $e) { $out['mail'] = 'błąd'; error_log('[sso] e-mail o chmurze ' . $email . ': ' . $e->getMessage()); }
@@ -233,18 +302,21 @@ final class SsoAccounts
         return $send($email, $name, $title, $html, $text) ? 'wysłany' : 'nie wyszedł';
     }
 
-    /** Konto w chmurze z hasłem z Logto: zakłada (gdy $create) albo dowiązuje istniejące i ustawia mu to samo hasło. */
-    private static function cloudEnsure(string $email, string $username, string $name, string $password, bool $create, string $by): string
+    /**
+     * Konto w chmurze z hasłem z Logto: zakłada (gdy $create) albo dowiązuje istniejące i ustawia mu to samo hasło.
+     * Nowe konto dostaje login imie.nazwisko (cloudUidBase + wolny numer), nie nazwę z Logto (ta ma „_” zamiast kropki).
+     */
+    private static function cloudEnsure(string $email, string $username, string $name, string $password, bool $create, string $by, string $login = ''): string
     {
         $cloud = SsoConfig::cloud();
         $row = self::get($email);
-        $uid = (string)($row['cloud_uid'] ?? '') !== '' ? (string)$row['cloud_uid'] : strtolower($username);
-        $info = $cloud->user($uid);
+        if ((string)($row['cloud_uid'] ?? '') !== '') {
+            $uid = (string)$row['cloud_uid'];
+            $info = $cloud->user($uid);
+        } else {
+            [$uid, $info] = self::cloudFreeUid($cloud, self::cloudUidBase($name, $login, $email), $email);
+        }
         if ($info !== null) {
-            $theirs = strtolower(trim((string)($info['email'] ?? '')));
-            if (empty($row['cloud_uid']) && $theirs !== '' && $theirs !== $email) {
-                throw new RuntimeException('login „' . $uid . '” w chmurze należy do innego adresu (' . $theirs . ').');
-            }
             $cloud->setPassword($uid, $password);
             $state = empty($row['cloud_uid']) ? 'linked' : 'synced';
             self::upsert($email, ['cloud_uid' => $uid] + (empty($row['cloud_uid']) ? ['cloud_created_at' => date('Y-m-d H:i:s'), 'cloud_by' => $by] : []));
@@ -259,6 +331,149 @@ final class SsoAccounts
         }
         self::audit('sso.cloud_' . $state, ['email' => $email, 'uid' => $uid]);
         return $state;
+    }
+
+    // ── Zmiana loginów w chmurze z „_” na imie.nazwisko (polecenie 2026-11-13) ─────────────────────────────────
+
+    /** Podmiana wysyłek w testach: fn($to, $name, $subject, $html, $text): bool oraz fn($phone, $message): bool. */
+    public static ?\Closure $sendSms = null;
+
+    /** Konta w chmurze z „_” w loginie (dawny login z nazwy Logto): [['email','name','old','new','phone'], …] — tylko gdy nowy login jest inny. */
+    public static function cloudUnderscoreList(): array
+    {
+        self::migrate();
+        $out = [];
+        foreach (db_all("SELECT email, name, user_id, cloud_uid FROM sso_accounts WHERE COALESCE(cloud_uid,'') <> '' ORDER BY name") as $r) {
+            $old = (string)$r['cloud_uid'];
+            if (!str_contains($old, '_')) continue;
+            $p = self::personContact((string)$r['email'], $r['user_id'] !== null ? (int)$r['user_id'] : null);
+            $new = self::cloudUidBase((string)($p['name'] ?: $r['name']), $p['login'], (string)$r['email']);
+            if ($new === $old) continue;
+            $out[] = ['email' => (string)$r['email'], 'name' => (string)($p['name'] ?: $r['name']), 'old' => $old, 'new' => $new, 'phone' => $p['phone']];
+        }
+        return $out;
+    }
+
+    /** Imię i nazwisko, login organizacji i telefon osoby: konto SZO (user_id albo e-mail), potem najnowsza umowa z tym e-mailem. */
+    private static function personContact(string $email, ?int $userId): array
+    {
+        $u = $userId ? db_one("SELECT name, m365_login, phone_number FROM users WHERE id=?", [$userId]) : null;
+        $u = $u ?: db_one("SELECT name, m365_login, phone_number FROM users WHERE LOWER(email)=?", [strtolower($email)]);
+        $p = ['name' => trim((string)($u['name'] ?? '')), 'login' => trim((string)($u['m365_login'] ?? '')), 'phone' => trim((string)($u['phone_number'] ?? ''))];
+        if ($p['phone'] === '' || $p['name'] === '') {
+            foreach (['wolontariat', 'zlecenie', 'dzielo'] as $t) {
+                try { $c = db_one("SELECT imie_nazwisko, telefon, m365_login FROM umowy_{$t} WHERE LOWER(email)=? ORDER BY id DESC LIMIT 1", [strtolower($email)]); }
+                catch (\Throwable $e) { $c = null; }
+                if (!$c) continue;
+                if ($p['name'] === '') $p['name'] = trim((string)($c['imie_nazwisko'] ?? ''));
+                if ($p['phone'] === '') $p['phone'] = trim((string)($c['telefon'] ?? ''));
+                if ($p['login'] === '') $p['login'] = trim((string)($c['m365_login'] ?? ''));
+                break;
+            }
+        }
+        return $p;
+    }
+
+    /**
+     * Zmiana loginu w chmurze z „…_…” na imie.nazwisko. Loginu w Nextcloud nie da się zmienić, więc: nowe konto z NOWYM hasłem
+     * (to samo hasło dostaje Logto — zasada jednego hasła), stare konto WYŁĄCZONE (pliki zostają, nic nie kasujemy), kopiowanie plików
+     * z OneDrive od nowa na nowe konto, jeśli było zlecone dla starego. Potem SMS (login + hasło) i e-mail (bez hasła).
+     * Zwraca ['email','name','old','new','password','logto','old_disabled','files','sms','mail','error'].
+     */
+    public static function renameCloudLogin(string $email, string $by): array
+    {
+        $email = strtolower(trim($email));
+        $row = self::get($email);
+        $old = (string)($row['cloud_uid'] ?? '');
+        $p = self::personContact($email, isset($row['user_id']) ? (int)$row['user_id'] : null);
+        $name = $p['name'] !== '' ? $p['name'] : (string)($row['name'] ?? '');
+        $res = ['email' => $email, 'name' => $name, 'old' => $old, 'new' => '', 'password' => null, 'logto' => '', 'old_disabled' => '', 'files' => '', 'sms' => '', 'mail' => '', 'error' => ''];
+        if ($old === '' || !str_contains($old, '_')) { $res['error'] = 'login w chmurze nie ma „_” — bez zmian'; return $res; }
+        if (!SsoConfig::cloudConfigured()) { $res['error'] = 'chmura nie jest skonfigurowana'; return $res; }
+        $cloud = SsoConfig::cloud();
+        $password = SsoConfig::generatePassword();
+        try {
+            [$new, $info] = self::cloudFreeUid($cloud, self::cloudUidBase($name, $p['login'], $email), $email, $old);
+            if ($info !== null) $cloud->setPassword($new, $password);
+            else $cloud->createUser($new, $password, $name, $email, SsoConfig::cloudGroup(), SsoConfig::cloudQuota());
+        } catch (\Throwable $e) {
+            $res['error'] = 'nie założono nowego konta w chmurze: ' . $e->getMessage();
+            return $res;
+        }
+        $res['new'] = $new;
+        $res['password'] = $password;
+        $now = date('Y-m-d H:i:s');
+        self::upsert($email, ['cloud_uid' => $new, 'cloud_created_at' => $now, 'cloud_by' => $by]);
+        // Logto: to samo nowe hasło (jedno hasło do logowania jednokrotnego i chmury)
+        if (!empty($row['logto_id']) && SsoConfig::logtoConfigured()) {
+            try { SsoConfig::logto()->setPassword((string)$row['logto_id'], $password); self::upsert($email, ['logto_pwd_at' => $now, 'logto_pwd_reset_at' => '']); $res['logto'] = 'to samo hasło'; }
+            catch (\Throwable $e) { $res['logto'] = 'błąd: ' . $e->getMessage(); }
+        }
+        // stare konto: wyłączamy (pliki zostają u administratora chmury)
+        try { $cloud->disableUser($old); $res['old_disabled'] = 'wyłączone'; } catch (\Throwable $e) { $res['old_disabled'] = 'błąd: ' . $e->getMessage(); }
+        // pliki z OneDrive: od nowa na nowe konto, gdy były zlecone dla starego
+        try {
+            CloudFilesCopy::migrate();
+            $last = db_one("SELECT source FROM sso_files_jobs WHERE cloud_uid=? ORDER BY id DESC LIMIT 1", [$old]);
+            db()->prepare("UPDATE sso_files_jobs SET status='cancelled', password_enc=NULL, updated_at=? WHERE cloud_uid=? AND status IN ('queued','running','waiting')")->execute([$now, $old]);
+            if ($last && (string)$last['source'] !== '' && GraphDrive::configured()) $res['files'] = 'zadanie #' . CloudFilesCopy::queue($new, (string)$last['source'], $password, $email, $by);
+        } catch (\Throwable $e) { $res['files'] = 'błąd: ' . $e->getMessage(); }
+        self::audit('sso.cloud_rename', ['email' => $email, 'old' => $old, 'new' => $new, 'by' => $by]);
+        $res['sms'] = self::renameSms($p['phone'], $old, $new, $password, $res['logto'] === 'to samo hasło');
+        $res['mail'] = self::renameMail($email, $name, $old, $new, $res['logto'] === 'to samo hasło', $p['phone'] !== '' && $res['sms'] === 'wysłano', $res['files'] !== '' && !str_starts_with($res['files'], 'błąd'));
+        return $res;
+    }
+
+    private static function renameSms(string $phone, string $old, string $new, string $password, bool $logto): string
+    {
+        if ($phone === '') return 'brak numeru';
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/sms.php';
+            if (!function_exists('sms_is_mobile') || !sms_is_mobile($phone)) return 'nie komórka';
+            $host = preg_replace('~^https?://~', '', SsoConfig::cloudUrl());
+            $msg = SsoConfig::smsPrefix() . ': zmienilismy login w chmurze plikow. Nowy login: ' . $new . ' Haslo: ' . $password
+                 . ' (obowiazuje od ' . date('d.m.y H:i:s') . ').' . ($logto ? ' To samo haslo do logowania jednokrotnego.' : '') . ' Strona: ' . $host;
+            $msg = function_exists('sms_ascii') ? sms_ascii($msg) : $msg;
+            if (self::$sendSms) return (self::$sendSms)($phone, $msg) ? 'wysłano' : 'nie wyszedł';
+            if (function_exists('sms_channel_ready') && !sms_channel_ready()) return 'brak dostawcy SMS';
+            sms_send($phone, $msg, 'access_data');
+            return 'wysłano';
+        } catch (\Throwable $e) {
+            return 'błąd SMS';
+        }
+    }
+
+    private static function renameMail(string $email, string $name, string $old, string $new, bool $logto, bool $smsOk, bool $files): string
+    {
+        $url = SsoConfig::cloudUrl();
+        $host = (string)(parse_url($url, PHP_URL_HOST) ?: $url);
+        $e = fn(string $x) => htmlspecialchars($x, ENT_QUOTES, 'UTF-8');
+        $title = 'Zmieniliśmy Twój login w chmurze Fundacji';
+        $lines = [
+            'Nowy login: ' . $new . ' (dotąd: ' . $old . '). Możesz też logować się adresem ' . $email . '.',
+            $smsOk ? 'Nowe hasło wysłaliśmy SMS-em. Hasła nie wysyłamy e-mailem.' : 'Nowe hasło przekaże Ci administrator. Hasła nie wysyłamy e-mailem.',
+        ];
+        if ($logto) $lines[] = 'To samo nowe hasło działa w logowaniu jednokrotnym. Stare hasło przestało działać.';
+        $lines[] = 'Stare konto (' . $old . ') wyłączyliśmy. Jeśli wgrałeś(-aś) tam pliki, nie zginęły: napisz do administratora, a przeniesiemy je.';
+        if ($files) $lines[] = 'Pliki z OneDrive kopiujemy jeszcze raz, tym razem na nowe konto. Nic nie musisz robić.';
+        $lines[] = 'W aplikacji na komputerze i telefonie wyloguj się i zaloguj ponownie nowym loginem.';
+        $html = '<p>Dzień dobry' . ($name !== '' ? ', ' . $e($name) : '') . ',</p>'
+              . '<p>zmieniliśmy login do Twojego konta w chmurze Fundacji (<a href="' . $e($url) . '">' . $e($host) . '</a>). Loginy mają teraz postać imie.nazwisko.</p><ul>';
+        foreach ($lines as $l) $html .= '<li>' . $e($l) . '</li>';
+        $html .= '</ul><p>Logowanie: <a href="' . $e($url) . '">' . $e($url) . '</a></p>'
+               . '<p style="color:#555">Nikt z Fundacji nie poprosi Cię o hasło. Jeśli ktoś o nie prosi, to próba oszustwa.</p>';
+        $text = 'Zmieniliśmy login do Twojego konta w chmurze Fundacji (' . $url . '). Loginy mają teraz postać imie.nazwisko.' . "\n\n- "
+              . implode("\n- ", $lines) . "\n\nLogowanie: " . $url . "\nNikt z Fundacji nie poprosi Cię o hasło.";
+        try {
+            $send = self::$sendMail ?? (function (string $to, string $nm, string $subj, string $h, string $t): bool {
+                require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+                return (bool)mail_queue_add($to, $nm, $subj, $h, $t, 'sso_cloud_rename');
+            });
+            return $send($email, $name, $title, $html, $text) ? 'wysłany' : 'nie wyszedł';
+        } catch (\Throwable $ex) {
+            error_log('[sso] e-mail o zmianie loginu ' . $email . ': ' . $ex->getMessage());
+            return 'błąd';
+        }
     }
 
     /** Nowe hasło (użytkownik w Tożsamości albo administrator) — Logto i chmura naraz. */

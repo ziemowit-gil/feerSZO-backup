@@ -29,7 +29,7 @@ $ssoWithPass = array_filter($ssoRows, fn($r) => !empty($r['password']));
       <?php foreach ($ssoRows as $r): ?>
         <tr>
           <td><?= h($r['name'] ?? '') ?><?php if (!empty($r['email'])): ?><br><span class="text-body-secondary"><?= h($r['email']) ?></span><?php endif; ?></td>
-          <td><?= $r['username'] !== '' ? '<code>' . h($r['username']) . '</code>' : '—' ?></td>
+          <td><?= $r['username'] !== '' ? '<code>' . h($r['username']) . '</code>' : '—' ?><?php if (!empty($r['cloud_uid']) && $r['cloud_uid'] !== $r['username']): ?><br><span class="text-body-secondary">w chmurze: <code><?= h($r['cloud_uid']) ?></code></span><?php endif; ?></td>
           <td>
             <?php if (($r['logto'] ?? '') === 'pominięte'): ?><span class="d-block text-body-secondary">tylko chmura (Logto nieskonfigurowane)</span><?php endif; ?>
             <?php if (!empty($r['password'])): ?>

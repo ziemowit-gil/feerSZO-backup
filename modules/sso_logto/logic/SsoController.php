@@ -153,6 +153,28 @@ final class SsoController
         ];
     }
 
+    /**
+     * POST /ssoadmin/loginy — loginy w chmurze z „_” zamieniane na imie.nazwisko (polecenie 2026-11-13): dla zaznaczonych osób nowe konto
+     * i nowe hasło (też w Logto), stare konto wyłączone, SMS z loginem i hasłem, e-mail bez hasła (SsoAccounts::renameCloudLogin).
+     */
+    public function cloudRename(): ?string
+    {
+        $back = route('sso.index') . '#loginy';
+        $emails = array_values(array_unique(array_filter(array_map(fn($e) => strtolower(trim((string)$e)), (array)($_POST['emails'] ?? [])))));
+        if (!$emails) return $this->flash($back, 'warning', 'Zaznacz co najmniej jedną osobę.');
+        if (count($emails) > 25) return $this->flash($back, 'warning', 'Naraz najwyżej 25 osób. Zaznacz mniej i powtórz.');
+        @set_time_limit(300);
+        $by = (string)(current_user()['email'] ?? '');
+        $rows = [];
+        foreach ($emails as $em) {
+            try { $rows[] = SsoAccounts::renameCloudLogin($em, $by); }
+            catch (\Throwable $e) { $rows[] = ['email' => $em, 'name' => '', 'old' => '', 'new' => '', 'password' => null, 'logto' => '', 'old_disabled' => '', 'files' => '', 'sms' => '', 'mail' => '', 'error' => $e->getMessage()]; }
+        }
+        $this->audit('sso.cloud_rename_batch', ['osoby' => count($rows), 'items' => array_map(fn($r) => ['email' => $r['email'], 'old' => $r['old'], 'new' => $r['new'], 'error' => $r['error']], $rows)]);
+        $_SESSION[self::K_RESULT] = ['ctx' => 'loginy', 'rows' => $rows];
+        return Router::redirect($back);
+    }
+
     public function filesAction(): ?string
     {
         $back = (string)($_POST['back'] ?? '');
@@ -448,7 +470,9 @@ final class SsoController
             require_once dirname(__DIR__, 3) . '/includes/sms.php';
             if (!sms_channel_ready()) return 'brak dostawcy SMS';
             $cloudOnly = ($res['logto'] ?? '') === 'pominięte';   // Logto nieskonfigurowane — samo konto w chmurze
-            $msg = sms_ascii(SsoConfig::smsPrefix() . ($cloudOnly ? ': chmura plikow' : ': logowanie jednokrotne') . '. Login: ' . $res['username'] . ' Haslo: ' . $res['password']
+            $cloudUid = (string)($res['cloud_uid'] ?? '');   // login w chmurze (imie.nazwisko) różni się od nazwy w Logto („_” zamiast kropki)
+            $msg = sms_ascii(SsoConfig::smsPrefix() . ($cloudOnly ? ': chmura plikow' : ': logowanie jednokrotne') . '. Login: ' . $res['username']
+                . (!$cloudOnly && $cloudUid !== '' && $cloudUid !== $res['username'] ? ' (w chmurze: ' . $cloudUid . ')' : '') . ' Haslo: ' . $res['password']
                 . ' Haslo obowiazuje od ' . date('d.m.y H:i:s') . '. Strona: ' . preg_replace('~^https://~', '', $cloudOnly ? SsoConfig::cloudUrl() : SsoConfig::logtoUrl()));
             sms_send($phone, $msg, 'access_data');
             return 'wysłano';

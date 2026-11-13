@@ -94,6 +94,12 @@ final class CloudApi
         }
     }
 
+    /** Wyłącza konto (pliki zostają; włączenie: PUT users/{uid}/enable). */
+    public function disableUser(string $uid): void
+    {
+        $this->ocs('PUT', 'users/' . rawurlencode($uid) . '/disable');
+    }
+
     public function setPassword(string $uid, string $password): void
     {
         $this->ocs('PUT', 'users/' . rawurlencode($uid), ['key' => 'password', 'value' => $password]);

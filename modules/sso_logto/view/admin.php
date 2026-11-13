@@ -222,7 +222,7 @@ $copyField = function (string $id, string $label, string $value) {
           <ol class="sso-steps mt-2">
             <li>W Logto: Applications → Create → <strong>Traditional web</strong>, nazwa „Chmura”. Redirect URI: <code><?= h(($cfg['cloud_url'] ?: 'https://chmura…') . '/apps/user_oidc/code') ?></code> (z <code>/index.php</code> przed <code>/apps</code>, jeśli chmura nie ma ładnych adresów).</li>
             <li>W Nextcloud: aplikacja <strong>OpenID Connect user backend</strong> (user_oidc) → dodaj dostawcę: Discovery <code><?= h($logtoHost) ?>/oidc/.well-known/openid-configuration</code>, Client ID i secret z Logto, scope <code>openid email profile</code>.</li>
-            <li>W ustawieniach dostawcy wyłącz „Use unique user ID” i ustaw mapowanie identyfikatora użytkownika na <code>username</code> — wtedy konta założone przez SZO łączą się z logowaniem przez Logto. W ownCloud odpowiednikiem jest aplikacja OpenID Connect.</li>
+            <li>W ustawieniach dostawcy wyłącz „Use unique user ID”. Uwaga: konta w chmurze mają login imie.nazwisko, a nazwa użytkownika w Logto ma „_” zamiast kropki (Logto nie dopuszcza kropki). Mapowanie identyfikatora na <code>username</code> założy więc osobne konto z „_”. Żeby logowanie przez Logto trafiało na konto założone przez SZO, identyfikator musi pochodzić z pola z loginem imie.nazwisko (np. własne pole w tokenie Logto). W ownCloud odpowiednikiem jest aplikacja OpenID Connect.</li>
           </ol>
         </details>
       </div>
@@ -236,6 +236,66 @@ $copyField = function (string $id, string $label, string $value) {
   <form method="post" action="<?= h(route('sso.test')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug" aria-hidden="true"></i> Testuj Logto</button></form>
   <form method="post" action="<?= h(route('sso.testCloud')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cloud-check" aria-hidden="true"></i> Testuj chmurę</button></form>
 </div>
+
+<?php $renames = SsoAccounts::cloudUnderscoreList(); $renamed = SsoController::takeResult('loginy'); ?>
+<section class="card mb-4" id="loginy" aria-labelledby="ssoRenameH">
+  <div class="card-header"><h2 id="ssoRenameH" class="h6 mb-0"><i class="bi bi-person-lines-fill" aria-hidden="true"></i> Loginy w chmurze: imie.nazwisko</h2></div>
+  <div class="card-body small">
+    <?php if ($renamed): ?>
+      <div class="alert alert-warning" role="status" tabindex="-1">
+        <p class="fw-semibold mb-2"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Hasła widać tylko teraz. Po odświeżeniu strony znikną.</p>
+        <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+          <caption class="visually-hidden">Wynik zmiany loginów w chmurze</caption>
+          <thead><tr><th scope="col">Osoba</th><th scope="col">Login</th><th scope="col">Hasło</th><th scope="col">Stare konto</th><th scope="col">Logto</th><th scope="col">Pliki z OneDrive</th><th scope="col">SMS</th><th scope="col">E-mail</th></tr></thead>
+          <tbody>
+          <?php foreach ($renamed as $r): ?>
+            <tr>
+              <td><?= h($r['name']) ?><br><span class="text-body-secondary"><?= h($r['email']) ?></span></td>
+              <?php if ($r['error'] !== ''): ?>
+                <td colspan="7" class="text-danger-emphasis"><?= h($r['error']) ?></td>
+              <?php else: ?>
+                <td><code><?= h($r['old']) ?></code> <span aria-label="na">→</span> <code><?= h($r['new']) ?></code></td>
+                <td><code class="sso-pass"><?= h((string)$r['password']) ?></code></td>
+                <td><?= h($r['old_disabled'] ?: '—') ?></td>
+                <td><?= h($r['logto'] ?: '—') ?></td>
+                <td><?= h($r['files'] ?: '—') ?></td>
+                <td><?= h($r['sms'] ?: '—') ?></td>
+                <td><?= h($r['mail'] ?: '—') ?></td>
+              <?php endif; ?>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table></div>
+      </div>
+    <?php endif; ?>
+    <p class="mb-2">Nowe konta w chmurze dostają login imie.nazwisko. Starsze konta mają login z „_” (z nazwy w logowaniu jednokrotnym, które nie dopuszcza kropki). Loginu w chmurze nie da się zmienić, więc dla zaznaczonych osób zakładamy nowe konto z nowym hasłem, a stare wyłączamy. Pliki na starym koncie zostają, nic nie kasujemy.</p>
+    <p class="mb-2">Osoba dostaje SMS z nowym loginem i hasłem oraz e-mail o zmianie (bez hasła). Jeśli ma konto logowania jednokrotnego, dostaje ono to samo nowe hasło. Kopiowanie plików z OneDrive, jeśli było zlecone, rusza od nowa na nowe konto.</p>
+    <?php if (!$renames): ?>
+      <p class="mb-0"><i class="bi bi-check-circle" aria-hidden="true"></i> Wszystkie loginy w chmurze mają już postać imie.nazwisko.</p>
+    <?php else: ?>
+      <form method="post" action="<?= h(route('sso.cloudRename')) ?>" onsubmit="return confirm('Zmienić loginy zaznaczonym osobom? Każda dostanie nowe hasło SMS-em i e-mail o zmianie, a stare konto w chmurze zostanie wyłączone.')">
+        <?= Router::csrfField() ?>
+        <div class="table-responsive border rounded mb-2"><table class="table table-sm mb-0 align-middle">
+          <caption class="visually-hidden">Konta w chmurze z „_” w loginie</caption>
+          <thead class="table-light"><tr><th scope="col" style="width:2.5rem"><span class="visually-hidden">Zaznacz</span></th><th scope="col">Osoba</th><th scope="col">Stary login</th><th scope="col">Nowy login</th><th scope="col">Telefon</th></tr></thead>
+          <tbody>
+          <?php foreach ($renames as $i => $r): ?>
+            <tr>
+              <td><input class="form-check-input" type="checkbox" name="emails[]" value="<?= h($r['email']) ?>" id="ssoRn<?= $i ?>" checked></td>
+              <td><label for="ssoRn<?= $i ?>" class="mb-0"><?= h($r['name'] ?: $r['email']) ?></label><br><span class="text-body-secondary"><?= h($r['email']) ?></span></td>
+              <td><code><?= h($r['old']) ?></code></td>
+              <td><code><?= h($r['new']) ?></code></td>
+              <td><?= $r['phone'] !== '' ? h($r['phone']) : '<span class="text-danger-emphasis">brak numeru, SMS nie pójdzie</span>' ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table></div>
+        <p class="text-body-secondary mb-2">Nowy login w tabeli to propozycja. Gdy jest zajęty przez inną osobę, dostanie numer na końcu (np. jan.kowalski2).</p>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Zmień loginy, wyślij SMS i e-mail</button>
+      </form>
+    <?php endif; ?>
+  </div>
+</section>
 
 <section class="card mb-4" id="pliki" aria-labelledby="ssoFilesH">
   <div class="card-header"><h2 id="ssoFilesH" class="h6 mb-0"><i class="bi bi-files" aria-hidden="true"></i> Pliki z OneDrive → chmura</h2></div>

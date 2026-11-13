@@ -30,6 +30,7 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->post('/ssoadmin/test-chmury',  [SsoController::class, 'testCloud'])->name('sso.testCloud');
     $r->post('/ssoadmin/osoba',        [SsoController::class, 'personAction'])->name('sso.person');
     $r->post('/ssoadmin/pliki',        [SsoController::class, 'filesAction'])->name('sso.files');
+    $r->post('/ssoadmin/loginy',       [SsoController::class, 'cloudRename'])->name('sso.cloudRename');   // loginy w chmurze z „_” → imie.nazwisko
 });
 
 $r->group(['auth'], function (Router $r) {
