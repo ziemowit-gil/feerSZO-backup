@@ -21,6 +21,11 @@ final class DhostingGraphUnavailable extends DhostingGraphException {}
 final class DhostingGraphDenied extends DhostingGraphException {}
 /** Wiadomość zniknęła w trakcie (404) — pomijamy ją. */
 final class DhostingGraphGone extends DhostingGraphException {}
+/**
+ * Graph nie umie oddać MIME tej jednej wiadomości („500: MIME content conversion failed.” — zaproszenia z kalendarza,
+ * wiadomości uszkodzone albo nietypowe). Błąd stały, nie chwilowy: nie ponawiamy, składamy wiadomość sami (buildMime).
+ */
+final class DhostingGraphUnconvertible extends DhostingGraphException {}
 
 final class DhostingGraphMail
 {
@@ -87,7 +92,7 @@ final class DhostingGraphMail
     {
         $filter = $since ? '&$filter=receivedDateTime%20ge%20' . gmdate('Y-m-d\\TH:i:s\\Z', $since) : '';
         $url = $next !== '' ? $next : '/users/' . rawurlencode($user) . '/mailFolders/' . rawurlencode($folderId)
-            . '/messages?$top=50&$select=id,internetMessageId,receivedDateTime,sentDateTime,isRead,isDraft,flag' . $filter . '&$orderby=receivedDateTime%20asc';
+            . '/messages?$top=50&$select=id,internetMessageId,subject,receivedDateTime,sentDateTime,isRead,isDraft,flag' . $filter . '&$orderby=receivedDateTime%20asc';
         $r = $this->getJson($url);
         return ['items' => $r['value'] ?? [], 'next' => (string)($r['@odata.nextLink'] ?? '')];
     }
@@ -117,9 +122,85 @@ final class DhostingGraphMail
             if ($ok === false) throw new DhostingGraphUnavailable('Microsoft 365 niedostępny: ' . $err);
             if ($code >= 200 && $code < 300) return (int)filesize($file);
             $body = (string)@file_get_contents($file, false, null, 0, 2000);
+            if ($code >= 500 && preg_match('/MIME content conversion failed|MimeContentConversion/i', $body)) {
+                throw new DhostingGraphUnconvertible('Microsoft 365 nie oddał oryginału wiadomości (' . $code . ': MIME content conversion failed).');
+            }
             if ($this->retryable($code, $retryAfter, $try)) continue;
             $this->fail($code, $body, $retryAfter);
         }
+    }
+
+    /**
+     * Wiadomość złożona z danych Graph, gdy oryginału MIME nie da się pobrać (DhostingGraphUnconvertible): nagłówki
+     * (Od, Do, DW, UDW, Odpowiedz do, Temat, Data, Message-ID), treść HTML albo tekst i załączniki-pliki. Załączniki-wiadomości
+     * i odnośniki nie mają bajtów w Graph — trafiają do listy w nagłówku X-Migracja-Pominiete. Zapis do $file, zwraca rozmiar.
+     */
+    public function buildMime(string $user, string $msgId, string $file): int
+    {
+        $u = rawurlencode($user);
+        $m = rawurlencode($msgId);
+        $j = $this->getJson("/users/{$u}/messages/{$m}?\$select=subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,"
+            . 'receivedDateTime,sentDateTime,internetMessageId,body,hasAttachments');
+        $files = []; $skipped = [];
+        if (!empty($j['hasAttachments'])) {
+            $next = "/users/{$u}/messages/{$m}/attachments";
+            while ($next !== '') {
+                $r = $this->getJson($next);
+                foreach ($r['value'] ?? [] as $a) {
+                    $isFile = str_ends_with((string)($a['@odata.type'] ?? ''), 'fileAttachment') && isset($a['contentBytes']);
+                    if ($isFile) $files[] = $a; else $skipped[] = (string)($a['name'] ?? 'załącznik');
+                }
+                $next = (string)($r['@odata.nextLink'] ?? '');
+            }
+        }
+        $enc = fn(string $s) => preg_match('/[^\x20-\x7E]/', $s) ? mb_encode_mimeheader($s, 'UTF-8', 'B', "\r\n ") : $s;
+        $one = function (?array $r) use ($enc): string {
+            $mail = trim((string)($r['emailAddress']['address'] ?? ''));
+            $name = trim(str_replace(['"', "\r", "\n"], ['', ' ', ' '], (string)($r['emailAddress']['name'] ?? '')));
+            if ($mail === '') return '';
+            if ($name === '' || strcasecmp($name, $mail) === 0) return '<' . $mail . '>';
+            // słowo zakodowane (RFC 2047) bez cudzysłowu; zwykłe ASCII — w cudzysłowie
+            return (preg_match('/[^\x20-\x7E]/', $name) ? $enc($name) : '"' . $name . '"') . ' <' . $mail . '>';
+        };
+        $list = fn(array $rs) => implode(",\r\n ", array_values(array_filter(array_map($one, $rs))));
+        $h = [];
+        if ($v = $one($j['from'] ?? $j['sender'] ?? null)) $h[] = 'From: ' . $v;
+        foreach (['To' => 'toRecipients', 'Cc' => 'ccRecipients', 'Bcc' => 'bccRecipients', 'Reply-To' => 'replyTo'] as $hn => $k) {
+            if (($v = $list((array)($j[$k] ?? []))) !== '') $h[] = $hn . ': ' . $v;
+        }
+        $h[] = 'Subject: ' . $enc(str_replace(["\r", "\n"], ' ', (string)($j['subject'] ?? '')));
+        $ts = strtotime((string)($j['sentDateTime'] ?? $j['receivedDateTime'] ?? '')) ?: time();
+        $h[] = 'Date: ' . date('r', $ts);
+        $mid = trim((string)($j['internetMessageId'] ?? ''));
+        if ($mid !== '' && !preg_match('/[\r\n]/', $mid)) $h[] = 'Message-ID: ' . $mid;
+        $h[] = 'MIME-Version: 1.0';
+        $h[] = 'X-Migracja: wiadomosc odtworzona z danych Microsoft 365 (brak oryginalnego MIME)';
+        if ($skipped) $h[] = 'X-Migracja-Pominiete: ' . $enc(mb_substr(implode(', ', $skipped), 0, 300));
+        $isHtml = strtolower((string)($j['body']['contentType'] ?? 'text')) === 'html';
+        $bodyPart = 'Content-Type: text/' . ($isHtml ? 'html' : 'plain') . '; charset=UTF-8' . "\r\n" . 'Content-Transfer-Encoding: base64' . "\r\n\r\n"
+            . chunk_split(base64_encode((string)($j['body']['content'] ?? '')), 76, "\r\n");
+        $fh = fopen($file, 'wb');
+        if (!$fh) throw new RuntimeException('Nie można utworzyć pliku tymczasowego.');
+        if (!$files) {
+            fwrite($fh, implode("\r\n", $h) . "\r\n" . $bodyPart);
+        } else {
+            $b = '=_dhm_' . bin2hex(random_bytes(12));
+            fwrite($fh, implode("\r\n", $h) . "\r\n" . 'Content-Type: multipart/mixed; boundary="' . $b . '"' . "\r\n\r\n"
+                . '--' . $b . "\r\n" . $bodyPart);
+            foreach ($files as $a) {
+                $fn = str_replace(['"', "\r", "\n"], '', (string)($a['name'] ?? 'zalacznik'));
+                $ct = preg_match('~^[\w.+-]+/[\w.+-]+$~', (string)($a['contentType'] ?? '')) ? (string)$a['contentType'] : 'application/octet-stream';
+                $inline = !empty($a['isInline']) && !empty($a['contentId']);
+                fwrite($fh, '--' . $b . "\r\n" . 'Content-Type: ' . $ct . '; name="' . $enc($fn) . '"' . "\r\n"
+                    . 'Content-Transfer-Encoding: base64' . "\r\n"
+                    . 'Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $enc($fn) . '"' . "\r\n"
+                    . ($inline ? 'Content-ID: <' . trim((string)$a['contentId'], '<>') . '>' . "\r\n" : '') . "\r\n"
+                    . chunk_split((string)preg_replace('/\s+/', '', (string)$a['contentBytes']), 76, "\r\n"));
+            }
+            fwrite($fh, '--' . $b . '--' . "\r\n");
+        }
+        fclose($fh);
+        return (int)filesize($file);
     }
 
     // ── HTTP ───────────────────────────────────────────────────────────────────────────────────

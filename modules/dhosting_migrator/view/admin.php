@@ -314,7 +314,9 @@ $statusOf  = function (array $a): array {
       <thead class="table-light"><tr><th scope="col">Skrzynka</th><th scope="col">Stan</th><th scope="col" style="min-width:12rem">Postęp</th><th scope="col">Uwagi</th><th scope="col"><span class="visually-hidden">Akcje</span></th></tr></thead>
       <tbody>
       <?php foreach ($jobs as $j): $pct = DhostingCopy::percent($j); $active = in_array($j['status'], DhostingCopy::ACTIVE, true);
-            $cls = ['done' => 'dhm-b--ok', 'error' => 'dhm-b--err', 'cancelled' => 'dhm-b--off', 'waiting' => 'dhm-b--err'][$j['status']] ?? 'dhm-b--todo'; ?>
+            $cls = ['done' => 'dhm-b--ok', 'error' => 'dhm-b--err', 'cancelled' => 'dhm-b--off', 'waiting' => 'dhm-b--err'][$j['status']] ?? 'dhm-b--todo';
+            // wykaz nieudanych — raz na skrzynkę (przy najnowszym zadaniu), stan bieżący rejestru
+            $_fl = !isset($_failShown[$j['mailbox']]) && (int)$j['failed_items'] > 0 ? DhostingCopy::failedFor((string)$j['mailbox']) : []; $_failShown[$j['mailbox']] = true; ?>
         <tr>
           <td><code><?= h($j['mailbox']) ?></code><div class="text-body-secondary" style="font-size:.75rem"><?= h($j['via'] === 'self' ? 'sam użytkownik' : 'administrator') ?> · <?= h(substr((string)$j['created_at'], 0, 16)) ?></div></td>
           <td><span class="dhm-b <?= $cls ?>"><?= h(DhostingCopy::LABELS[$j['status']] ?? $j['status']) ?></span></td>
@@ -329,6 +331,23 @@ $statusOf  = function (array $a): array {
             <?php if ($j['status'] === 'done' && $j['finished_at']): ?><div>Zakończono <?= h(substr((string)$j['finished_at'], 0, 16)) ?></div><?php endif; ?>
             <?php if (!empty($j['need_password'])): ?><div class="fw-semibold text-danger-emphasis"><i class="bi bi-key" aria-hidden="true"></i> Hasło do nowej skrzynki nie pasuje — zaznacz konto na liście i ustaw nowe hasło z kopiowaniem albo poproś osobę o podanie hasła na /migracjapoczty.</div><?php endif; ?>
             <?php if ($j['last_error']): ?><div class="text-danger-emphasis"><?= h(mb_substr((string)$j['last_error'], 0, 400)) ?></div><?php endif; ?>
+            <?php if ($_fl): ?>
+            <details class="mt-1"><summary>Wykaz nieudanych (<?= count($_fl) ?>)<span class="visually-hidden"> — <?= h($j['mailbox']) ?></span></summary>
+              <div class="table-responsive mt-1" style="max-height:18rem">
+                <table class="table table-sm table-bordered mb-1" style="font-size:.75rem">
+                  <caption class="visually-hidden">Wiadomości skrzynki <?= h($j['mailbox']) ?>, których nie udało się przenieść</caption>
+                  <thead><tr><th scope="col">Data</th><th scope="col">Folder</th><th scope="col">Temat</th><th scope="col">Powód</th></tr></thead>
+                  <tbody>
+                  <?php foreach ($_fl as $fr): ?>
+                    <tr><td class="text-nowrap"><?= h($fr['received_at'] ? substr((string)$fr['received_at'], 0, 16) : '—') ?></td><td><?= h((string)($fr['folder'] ?: '—')) ?></td>
+                        <td><?= h((string)($fr['subject'] ?? '') !== '' ? (string)$fr['subject'] : ($fr['failed_at'] ? '(bez tematu)' : '(brak szczegółów — sprzed 13.11)')) ?></td><td><?= h(mb_substr((string)($fr['reason'] ?? ''), 0, 200)) ?></td></tr>
+                  <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+              <div class="text-body-secondary">Zostały w Microsoft 365. „Ponów przenoszenie poczty” spróbuje je skopiować jeszcze raz (udane znikną z wykazu).</div>
+            </details>
+            <?php endif; ?>
           </td>
           <td class="text-end text-nowrap">
             <?php $_first = !isset($_seenBox[$j['mailbox']]); $_seenBox[$j['mailbox']] = true; ?>

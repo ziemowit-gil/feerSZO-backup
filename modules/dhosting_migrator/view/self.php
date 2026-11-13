@@ -231,6 +231,16 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
         <div class="mt-progress<?= $job['status'] === 'done' ? ' mt-progress--done' : '' ?>" role="progressbar" aria-label="Postęp kopiowania poczty" aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100"><span style="width:<?= $pct ?>%"></span></div>
         <div class="mt-progress-lbl"><span>Skopiowano <?= (int)$job['copied_items'] ?> z <?= (int)$job['total_items'] ?> wiadomości<?= (int)$job['failed_items'] ? ' · nie udało się: ' . (int)$job['failed_items'] : '' ?></span><span><?= $pct ?>%</span></div>
         <?php if ($jobActive && !$needPw): ?><p class="dm-help">Strona odświeża się sama co minutę.</p><?php endif; ?>
+        <?php $failed = (int)$job['failed_items'] > 0 ? DhostingCopy::failedFor((string)$job['mailbox']) : []; if ($failed): ?>
+          <details class="dm-help" style="margin-top:.6rem"><summary>Wiadomości, których nie udało się przenieść (<?= count($failed) ?>)</summary>
+            <p style="margin:.4rem 0">Zostały w starej skrzynce Microsoft 365. Jeśli któraś jest Ci potrzebna, otwórz ją tam i prześlij do siebie albo napisz do administratora.</p>
+            <ul style="margin:0;padding-left:1.2rem">
+              <?php foreach ($failed as $fr): ?>
+              <li><?= h($fr['received_at'] ? date('d.m.Y', strtotime((string)$fr['received_at'])) . ' · ' : '') ?><?= h((string)($fr['folder'] ?: 'folder nieznany')) ?> · <?= h((string)($fr['subject'] ?? '') !== '' ? (string)$fr['subject'] : '(bez tematu)') ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </details>
+        <?php endif; ?>
         <?php if ($needPw): ?>
           <div class="dm-msg dm-msg--warning" role="alert" style="background:var(--pvm-bg)"><i class="bi bi-key" aria-hidden="true"></i><div><strong>Nowa skrzynka nie przyjęła hasła.</strong>
             Hasło, z którym zaczęliśmy kopiowanie, już nie pasuje — na przykład zostało zmienione po założeniu skrzynki.
