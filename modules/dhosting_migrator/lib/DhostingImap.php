@@ -164,6 +164,30 @@ final class DhostingImap
         return function_exists('mb_convert_encoding') ? (string)mb_convert_encoding($raw, 'UTF-8', 'UTF7-IMAP') : $raw;
     }
 
+    /**
+     * Nazwa jednego poziomu folderu (bez ścieżki) z nazwy folderu Microsoft 365: separator hierarchii serwera i „/” → „_”.
+     * „/” zamieniamy zawsze, także gdy separatorem jest „.” — Dovecot (układ Maildir) odrzuca go: „NO [CANNOT] Invalid mailbox
+     * name: Name must not have '/' characters” (13.11.2026, folder w rodzaju „Faktury 2025/2026” wywracał całe kopiowanie).
+     */
+    public static function leafName(string $name, string $delim): string
+    {
+        $leaf = str_replace(array_unique(array_filter([$delim, '/'])), '_', trim($name));
+        return trim($leaf) !== '' ? $leaf : 'Folder';
+    }
+
+    /** Ostrożniejsza nazwa poziomu, gdy serwer odrzucił zwykłą: tylko litery, cyfry, spacja, „-” i „_”. */
+    public static function strictLeafName(string $name): string
+    {
+        $leaf = trim((string)preg_replace(['/[^\p{L}\p{N} _-]+/u', '/_{2,}/'], ['_', '_'], trim($name)), " _");
+        return $leaf !== '' ? $leaf : 'Folder';
+    }
+
+    /** Czy NO z serwera oznacza niedozwoloną nazwę folderu (a nie np. brak miejsca czy rozłączenie). */
+    public static function isBadName(\Throwable $e): bool
+    {
+        return $e instanceof DhostingImapCommandFailed && (bool)preg_match('/\[CANNOT\]|invalid mailbox name|must not have|not allowed/i', $e->getMessage());
+    }
+
     // ── Protokół ───────────────────────────────────────────────────────────────────────────────
 
     private function nextTag(): string { return 'D' . (++$this->tag); }

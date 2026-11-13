@@ -424,6 +424,7 @@ final class DhostingCopy
         $out = [];
         foreach ($gFolders as $f) {
             $wk = $f['special'];
+            $leaf = null; $parentName = null;   // tylko foldery użytkownika (do awaryjnej nazwy przy odrzuceniu przez serwer)
             if ($wk === 'inbox') {
                 $name = 'INBOX';
             } elseif ($wk !== null && isset($specialMap[$wk])) {
@@ -432,9 +433,8 @@ final class DhostingCopy
                 foreach ($names as $n) { if ($name === null && isset($byName[mb_strtolower($n)])) $name = $byName[mb_strtolower($n)]; }
                 $name ??= $default;
             } else {
-                $leaf = str_replace($d, '_', trim($f['name'])) ?: 'Folder';
+                $leaf = DhostingImap::leafName((string)$f['name'], $d);   // separator serwera i „/” → „_”
                 $parentPath = array_slice($f['path'], 0, -1);
-                $parentName = null;
                 if ($parentPath) {
                     // rodzic jest wcześniej na liście (przejście w głąb) — szukamy go po ścieżce
                     foreach ($out as $o) { if ($o['path'] === $parentPath) { $parentName = $o['target']; break; } }
@@ -444,7 +444,18 @@ final class DhostingCopy
             if ($name === 'INBOX' || isset($byName[mb_strtolower($name)])) {
                 $raw = $name === 'INBOX' ? 'INBOX' : DhostingImap::encodeName($byName[mb_strtolower($name)]);
             } else {
-                $raw = $imap->create($name);
+                try {
+                    $raw = $imap->create($name);
+                } catch (DhostingImapCommandFailed $e) {
+                    // serwer nie przyjął nazwy (niedozwolone znaki) — jeden folder nie może zatrzymać kopiowania całej skrzynki
+                    if ($leaf === null || !DhostingImap::isBadName($e)) throw $e;
+                    $strict = DhostingImap::strictLeafName($leaf);
+                    $alt = $parentName !== null ? $parentName . $d . $strict : $strict;
+                    if ($alt === $name) throw $e;
+                    error_log('dhosting copy: folder „' . $name . '” odrzucony (' . $e->getMessage() . '), używam „' . $alt . '”');
+                    $name = $alt;
+                    $raw = isset($byName[mb_strtolower($name)]) ? DhostingImap::encodeName($byName[mb_strtolower($name)]) : $imap->create($name);
+                }
                 $byName[mb_strtolower($name)] = $name;
             }
             $out[] = ['id' => $f['id'], 'path' => $f['path'], 'special' => $wk, 'target' => $name, 'imap' => $raw,

@@ -154,10 +154,13 @@ final class DhostingGraphMail
         }
     }
 
-    /** 429/503/504: krótkie Retry-After czekamy na miejscu (do 3 prób), długie — ponowienie później. */
+    /**
+     * 429/500/502/503/504: krótkie Retry-After (albo 5, 10, 15 s) czekamy na miejscu, do 3 prób; długie — ponowienie później.
+     * 500 i 502 (Bad Gateway) dopisane 13.11.2026 — Graph zwracał chwilowe 502 i zadanie od razu szło na ponowienie za 6 h.
+     */
     private function retryable(int $code, int $retryAfter, int $try): bool
     {
-        if (!in_array($code, [429, 503, 504], true) || $try >= 3) return false;
+        if (!in_array($code, [429, 500, 502, 503, 504], true) || $try >= 3) return false;
         $wait = $retryAfter > 0 ? $retryAfter : 5 * ($try + 1);
         if ($wait > 30) return false;
         sleep($wait);
