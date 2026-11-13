@@ -261,7 +261,9 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
         <?php elseif ($job['status'] === 'error' && $job['last_error']): ?>
           <div class="dm-msg dm-msg--danger" role="alert" style="background:var(--pvm-bg)"><i class="bi bi-x-octagon" aria-hidden="true"></i><div><?= h(mb_substr((string)$job['last_error'], 0, 300)) ?></div></div>
         <?php elseif ($job['status'] === 'done'): ?>
+          <?php $doneWeb = $web !== '' ? $web : DhostingConfig::DEFAULT_WEBMAIL; // po zakończonym kopiowaniu — odnośnik do poczty w przeglądarce (polecenie 2026-11-13) ?>
           <p class="dm-help">Zakończono <?= h(substr((string)$job['finished_at'], 0, 16)) ?>. Foldery z Outlooka są w nowej skrzynce pod tymi samymi nazwami.</p>
+          <p><a class="mt-btn" href="<?= h($doneWeb) ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Otwórz pocztę: <?= h((string)(parse_url($doneWeb, PHP_URL_HOST) ?: $doneWeb)) ?><span class="visually-hidden"> (nowa karta)</span></a></p>
         <?php endif; ?>
         <?php if ($jobActive): ?>
         <form method="post" action="<?= h(route('dhm.selfCopy')) ?>" onsubmit="return confirm('Anulować kopiowanie poczty?')">

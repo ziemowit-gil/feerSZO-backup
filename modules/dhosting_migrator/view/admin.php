@@ -329,7 +329,8 @@ $statusOf  = function (array $a): array {
           </td>
           <td style="max-width:22rem">
             <?php if ($j['status'] === 'waiting' && $j['next_run_at']): ?><div>Ponowienie: <?= h(substr((string)$j['next_run_at'], 0, 16)) ?> (próba <?= (int)$j['attempts'] ?>)</div><?php endif; ?>
-            <?php if ($j['status'] === 'done' && $j['finished_at']): ?><div>Zakończono <?= h(substr((string)$j['finished_at'], 0, 16)) ?></div><?php endif; ?>
+            <?php if ($j['status'] === 'done' && $j['finished_at']): $_web = DhostingConfig::webmailOrDefault(); ?><div>Zakończono <?= h(substr((string)$j['finished_at'], 0, 16)) ?> ·
+              <a href="<?= h($_web) ?>" target="_blank" rel="noopener">webmail <?= h((string)(parse_url($_web, PHP_URL_HOST) ?: $_web)) ?><span class="visually-hidden"> (nowa karta, poczta <?= h($j['mailbox']) ?>)</span></a></div><?php endif; ?>
             <?php if (!empty($j['need_password'])): ?><div class="fw-semibold text-danger-emphasis"><i class="bi bi-key" aria-hidden="true"></i> Hasło do nowej skrzynki nie pasuje — zaznacz konto na liście i ustaw nowe hasło z kopiowaniem albo poproś osobę o podanie hasła na /migracjapoczty.</div><?php endif; ?>
             <?php if ($j['last_error']): ?><div class="text-danger-emphasis"><?= h(mb_substr((string)$j['last_error'], 0, 400)) ?></div><?php endif; ?>
             <?php if ($_fl): ?>
