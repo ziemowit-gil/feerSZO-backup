@@ -706,6 +706,23 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Moja poczta”: artykuł „Bardzo duże pliki: TransferNow i WeTransfer” i rozbudowane „Duże załączniki”
+    // (polecenie 2026-11-13: „opisz też artykuł dot. TransferNow i WeTransfer w kontekście dużych załączników”).
+    // Wgrywa tylko te dwa artykuły (bez wstępu usługi i bez ukrywania), modules/it_portal/lib/itPortalDpocztaSeed.php.
+    '2026-11_it_portal_transfer_article' => [
+        'desc' => 'Portal Usług IT: artykuł „Bardzo duże pliki: TransferNow i WeTransfer” i rozbudowane „Duże załączniki” w „Moja poczta”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            if (is_file($ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php')) require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            itPortalDpocztaApply(defined('ITP_SZO_URL') ? ITP_SZO_URL : 'https://szo.feer.org.pl', false, ['duze-zalaczniki', 'transfernow-wetransfer']);
+            // seeder nadpisuje artykuł bez sekcji „Pomoc producenta” — dopisz ją z powrotem, jeśli ten moduł już jest
+            if (is_file($ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php')) {
+                require_once $ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php';
+                if (function_exists('itPortalVendorHelpApply')) itPortalVendorHelpApply();
+            }
+        },
+    ],
+
     // Portal Usług IT, „Moja poczta”: sekcja „Pomoc producenta” (linki do pomocy dhosting.pl) na dole instrukcji poczty
     // (polecenie 2026-11-13; modules/it_portal/lib/itPortalVendorHelp.php). Zmienia tylko artykuły z listy linków.
     // Po ponownym zasiewie artykułów (itPortalDpocztaApply) uruchom: php cli/it_portal_vendor_help.php

@@ -5,14 +5,20 @@
  * Zasady logowania wg polecenia 2026-11-13: login imie.nazwisko@feer.org.pl; konta sprzed 13.11.2026 (migracja z Microsoft 365)
  * dostały hasło SMS-em po migracji, konta założone później dostają je SMS-em po podpisaniu umowy.
  * Używa migracja '2026-11_it_portal_dpoczta_articles' (modules/selfrepairDB/logic/migrations.php): dodaje tylko brakujące artykuły.
+ * Artykuł „transfernow-wetransfer” i rozbudowane „duze-zalaczniki” (polecenie 2026-11-13: „opisz też artykuł dot. TransferNow
+ * i WeTransfer w kontekście dużych załączników”) wgrywa migracja '2026-11_it_portal_transfer_article' przez $only.
+ * Limity planów bezpłatnych wg stron dostawców, stan 2026-11-13: TransferNow 5 GB na przesyłkę, 7 dni, hasło bez opłat;
+ * WeTransfer 10 przesyłek albo 3 GB w ciągu 30 dni, 3 dni, hasło tylko w planie płatnym.
  */
 
 /**
  * Zasiew: wstęp „Moja poczta”, artykuły dPoczta.pl (ten sam adres = nadpisanie), ukrycie dawnych artykułów o poczcie
  * w Office 365 (is_published = 0, bez kasowania). Bezpieczne do ponownego uruchomienia.
+ * $only (lista adresów artykułów): wgrywa tylko te artykuły, bez nadpisywania wstępu i bez ukrywania (dla późniejszych migracji);
+ * kolejność (sort_order) taka sama jak przy pełnym zasiewie.
  * @return array{category:string, hidden:list<string>, created:list<string>, updated:list<string>}
  */
-function itPortalDpocztaApply(string $app, bool $dryRun = false): array {
+function itPortalDpocztaApply(string $app, bool $dryRun = false, ?array $only = null): array {
     require_once dirname(__DIR__) . '/logic/itPortal.php';
     itPortalMigrate();
     $app = rtrim($app, '/');
@@ -23,8 +29,8 @@ function itPortalDpocztaApply(string $app, bool $dryRun = false): array {
     $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'moja-poczta'");
     if ($cat) {
         $catId = (int)$cat['id'];
-        $rep['category'] = 'wstęp nadpisany';
-        if (!$dryRun) db_exec("UPDATE itp_categories SET intro_html = ?, intro_blocks = '', intro_plain = ?, updated_at = datetime('now') WHERE id = ?",
+        $rep['category'] = $only !== null ? 'bez zmian' : 'wstęp nadpisany';
+        if (!$dryRun && $only === null) db_exec("UPDATE itp_categories SET intro_html = ?, intro_blocks = '', intro_plain = ?, updated_at = datetime('now') WHERE id = ?",
                               [$intro, itPortalPlain($intro), $catId]);
     } else {
         $rep['category'] = 'usługa utworzona';
@@ -39,7 +45,7 @@ function itPortalDpocztaApply(string $app, bool $dryRun = false): array {
     // dawne instrukcje poczty w Office 365: w „Mojej poczcie” każdy artykuł o Office/M365/Outlooku/Exchange,
     // w innych usługach tylko taki, którego tytuł mówi o poczcie, skrzynce lub Outlooku
     $o365 = static fn(string $s): bool => (bool)preg_match('/office\s*365|microsoft\s*365|\bm365\b|outlook|exchange/iu', $s);
-    foreach (db_all("SELECT a.id, a.category_id, a.slug, a.title, a.keywords, a.body_plain, c.slug AS cslug
+    foreach ($only !== null ? [] : db_all("SELECT a.id, a.category_id, a.slug, a.title, a.keywords, a.body_plain, c.slug AS cslug
                        FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE a.is_published = 1") as $a) {
         $own = (int)$a['category_id'] === $catId;
         if ($own && isset($articles[$a['slug']])) continue;
@@ -52,12 +58,14 @@ function itPortalDpocztaApply(string $app, bool $dryRun = false): array {
 
     $i = 0;
     foreach ($articles as $slug => [$title, $keywords, $blocks, $pinned]) {
+        $sort = (++$i) * 10;
+        if ($only !== null && !in_array($slug, $only, true)) continue;
         $old = $catId ? db_one("SELECT id FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]) : null;
         $rep[$old ? 'updated' : 'created'][] = "moja-poczta/{$slug} — {$title}";
         if ($dryRun) continue;
         itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
             'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => $pinned ? 1 : 0,
-            'sort_order' => (++$i) * 10], $old ? (int)$old['id'] : 0);
+            'sort_order' => $sort], $old ? (int)$old['id'] : 0);
     }
     return $rep;
 }
@@ -77,6 +85,12 @@ function itPortalDpocztaArticles(string $app): array {
     $hd = $app . '/helpdesk/new.php';
     $gear = 'Kliknij ikonę koła zębatego po prawej stronie (ustawienia).';
     $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
+    $cloud = 'https://nc.feer.org.pl';
+    try {
+        require_once dirname(__DIR__, 2) . '/sso_logto/lib/SsoConfig.php';
+        if (SsoConfig::cloudUrl() !== '') $cloud = SsoConfig::cloudUrl();
+    } catch (\Throwable $e) {}
+    $transfer = $app . '/uslugi-it/uslugi/moja-poczta/transfernow-wetransfer';
 
     return [
         'logowanie-dpoczta' => ['Jak zalogować się do poczty', 'logowanie, login, hasło, sms, dpoczta, webmail, migracja, nowa poczta, imie.nazwisko', [
@@ -206,9 +220,69 @@ function itPortalDpocztaArticles(string $app): array {
             ]],
         ], false],
 
-        'duze-zalaczniki' => ['Duże załączniki', 'załącznik, załączniki, limit, rozmiar, duży plik, zip', [
-            ['type' => 'text', 'html' => '<p>Dostawca poczty podaje limit 2 GB na załączniki. Serwer odbiorcy często przyjmuje jednak dużo mniej, zwykle kilkadziesiąt MB, i wtedy wiadomość wraca do Ciebie.</p>'
-                . '<p>Duże pliki spakuj do ZIP albo wyślij link do pliku w chmurze organizacji zamiast załącznika.</p>'],
+        'duze-zalaczniki' => ['Duże załączniki', 'załącznik, załączniki, limit, rozmiar, duży plik, zip, link, chmura, transfernow, wetransfer, wiadomość wróciła', [
+            ['type' => 'text', 'html' => '<p>Dostawca poczty podaje limit 2 GB na załączniki. Serwer odbiorcy często przyjmuje jednak dużo mniej, zwykle 20–30 MB. '
+                . 'Wtedy wiadomość wraca do Ciebie z informacją, że jest za duża.</p>'
+                . '<p>Plik większy niż ok. 20 MB wyślij jako link, a nie załącznik:</p><ul>'
+                . '<li>z <a href="' . $cloud . '">chmury Fundacji</a>, gdy w pliku są dane osobowe albo gdy wysyłasz go komuś z Fundacji,</li>'
+                . '<li>przez TransferNow albo WeTransfer, gdy wysyłasz go poza Fundację i nie ma w nim danych osobowych. '
+                . 'Jak to zrobić, opisuje artykuł <a href="' . $transfer . '">Bardzo duże pliki: TransferNow i WeTransfer</a>.</li></ul>'
+                . '<p>Kilka mniejszych plików możesz też spakować do jednego archiwum ZIP.</p>'],
+        ], false],
+
+        'transfernow-wetransfer' => ['Bardzo duże pliki: TransferNow i WeTransfer',
+            'transfernow, wetransfer, duży plik, duże pliki, duży załącznik, przesyłanie plików, wysyłka plików, link do pobrania, gb, hasło, zip, 7-zip, phishing, chmura', [
+            ['type' => 'text', 'html' => '<p>Plik jest za duży na załącznik? Wyślij odbiorcy link, a plik pobierze on ze strony usługi. '
+                . 'Do tego służą TransferNow i WeTransfer. W planie bezpłatnym nie trzeba zakładać konta.</p>'
+                . '<p>Zanim wybierzesz usługę, sprawdź, co jest w pliku i do kogo trafi:</p><ul>'
+                . '<li><strong>Plik z danymi osobowymi albo odbiorca z Fundacji</strong> (PESEL, adresy, umowy, dokumenty uczestników, dane o zdrowiu): '
+                . 'udostępnij plik z <a href="' . $cloud . '">chmury Fundacji</a>. Plik zostaje na serwerze Fundacji, a link możesz wyłączyć w każdej chwili. '
+                . 'Przy pliku kliknij ikonę udostępniania, utwórz link i w jego ustawieniach włącz hasło i datę wygaśnięcia.</li>'
+                . '<li><strong>Plik bez danych osobowych dla kogoś spoza Fundacji</strong> (zdjęcia z wydarzenia, film, grafiki, prezentacja): '
+                . 'możesz użyć TransferNow albo WeTransfer.</li></ul>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Plików z danymi osobowymi nie wysyłaj przez TransferNow ani WeTransfer bez zabezpieczenia. '
+                . 'Jeśli odbiorca nie może pobrać pliku z chmury, najpierw spakuj go do archiwum ZIP z hasłem (opis niżej). '
+                . 'Hasło podaj SMS-em albo przez telefon, nigdy w tej samej wiadomości co link.</p>'],
+
+            ['type' => 'text', 'html' => '<h2>Którą usługę wybrać</h2>'
+                . '<table><thead><tr><th>Plan bezpłatny</th><th>TransferNow</th><th>WeTransfer</th></tr></thead><tbody>'
+                . '<tr><td>Największa przesyłka</td><td>5 GB</td><td>3 GB</td></tr>'
+                . '<tr><td>Limit przesyłek</td><td>dostawca nie podaje</td><td>10 przesyłek albo 3 GB łącznie w ciągu 30 dni</td></tr>'
+                . '<tr><td>Ile dni plik czeka na odbiorcę</td><td>7</td><td>3</td></tr>'
+                . '<tr><td>Hasło do pobrania</td><td>tak, bez opłat</td><td>tylko w planie płatnym</td></tr>'
+                . '</tbody></table>'
+                . '<p>Polecamy TransferNow: przyjmie większy plik, trzyma go dłużej i pozwala ustawić hasło za darmo. '
+                . 'WeTransfer wybierz, gdy odbiorca o niego prosi.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Limity sprawdziliśmy 13 listopada 2026 r. Dostawcy zmieniają je bez uprzedzenia, aktualne znajdziesz na ich stronach.</p>'],
+
+            ['type' => 'wizard', 'title' => 'Wysyłka przez TransferNow', 'intro' => '<p>Otwórz <a href="https://www.transfernow.net/pl">transfernow.net</a>. Konto nie jest potrzebne.</p>', 'steps' => [
+                $step('Dodaj pliki', '<p>Kliknij przycisk dodawania plików albo przeciągnij pliki na stronę. Wszystkie razem mogą mieć do 5 GB.</p>'),
+                $step('Wybierz link albo e-mail', '<p>Polecamy link. Skopiujesz go i wyślesz odbiorcy ze swojej skrzynki w dpoczta.pl, więc odbiorca zobaczy, że wiadomość jest od Ciebie. '
+                    . 'Jeśli wolisz wysyłkę e-mailem przez TransferNow, wpisz adres odbiorcy i swój adres służbowy.</p>'),
+                $step('Ustaw hasło', '<p>W opcjach przesyłki włącz hasło i wpisz je. Odbiorcy podaj je SMS-em albo przez telefon.</p>'),
+                $step('Wyślij', '<p>Kliknij przycisk wysyłania i nie zamykaj karty, dopóki pasek postępu nie dojdzie do końca. '
+                    . 'Dostaniesz link albo potwierdzenie e-mailem. Plik będzie czekał na odbiorcę 7 dni.</p>'),
+            ]],
+
+            ['type' => 'wizard', 'title' => 'Wysyłka przez WeTransfer', 'intro' => '<p>Otwórz <a href="https://wetransfer.com">wetransfer.com</a>.</p>', 'steps' => [
+                $step('Dodaj pliki', '<p>Kliknij plus i wybierz pliki. Wszystkie razem mogą mieć do 3 GB.</p>'),
+                $step('Wpisz adresy albo wybierz link', '<p>Wpisz adres odbiorcy, swój adres służbowy, tytuł i krótką wiadomość. W opcjach przesyłki możesz zamiast e-maila wybrać link i wysłać go ze swojej skrzynki.</p>'),
+                $step('Potwierdź swój adres', '<p>WeTransfer może wysłać kod na Twój adres. Przepisz go z wiadomości w dpoczta.pl. Hasła do poczty nie podawaj na tej stronie.</p>'),
+                $step('Wyślij', '<p>Kliknij przycisk wysyłania i poczekaj do końca. Plik zniknie po 3 dniach. W planie bezpłatnym nie ustawisz hasła, więc wysyłaj tak tylko pliki, które mogłyby trafić do kogoś obcego.</p>'),
+            ]],
+
+            ['type' => 'text', 'html' => '<h2>Archiwum ZIP z hasłem</h2>'
+                . '<p>Na Windowsie zainstaluj bezpłatny program <a href="https://www.7-zip.org">7-Zip</a>. Kliknij plik albo folder prawym przyciskiem myszy i wybierz „7-Zip”, potem „Dodaj do archiwum…”. '
+                . 'Ustaw format „zip” i szyfrowanie „AES-256”, wpisz hasło dwa razy i kliknij „OK”.</p>'
+                . '<p>Na Macu użyj bezpłatnego programu <a href="https://www.keka.io/pl/">Keka</a>. Wybierz format ZIP, włącz szyfrowanie AES-256, wpisz hasło i przeciągnij pliki na okno programu.</p>'
+                . '<p>Hasło powinno mieć co najmniej 12 znaków. Odbiorca otworzy archiwum w 7-Zip, Keka albo innym programie z obsługą AES-256. '
+                . 'Rozpakowywanie wbudowane w Windows takiego archiwum nie otworzy.</p>'],
+
+            ['type' => 'text', 'html' => '<h2>Gdy ktoś przysyła Ci plik</h2>'
+                . '<p>Pobierz plik, zanim link wygaśnie, i zapisz go w chmurze Fundacji albo w folderze projektu. Nie zostawiaj go w folderze „Pobrane”.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Oszuści podszywają się pod WeTransfer i TransferNow. Prawdziwe linki prowadzą na adresy '
+                . '<code>wetransfer.com</code>, <code>we.tl</code> albo <code>transfernow.net</code>. Strona pobierania nigdy nie prosi o hasło do poczty ani innego konta. '
+                . 'Jeśli prosi, nic nie wpisuj i <a href="' . $hd . '">zgłoś wiadomość w Helpdesku</a>. Ostrożnie z plikiem, którego się nie spodziewasz, nawet od znajomego nadawcy.</p>'],
         ], false],
     ];
 }
