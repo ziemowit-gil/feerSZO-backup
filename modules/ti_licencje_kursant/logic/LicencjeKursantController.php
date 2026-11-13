@@ -23,6 +23,7 @@ require_once __DIR__ . '/LicencjeId.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceRequest.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/PriceChange.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceCard.php';   // płatności kartą (zgoda, podpięcie, wycofanie)
+require_once dirname(__DIR__, 2) . '/ti_poczta_stud/logic/PocztaStud.php';     // poczta @stud.feer.org.pl (sdata.net.pl)
 
 final class LicencjeKursantController
 {
@@ -61,7 +62,7 @@ final class LicencjeKursantController
 
     /** Podstrony panelu: klucz => [trasa, tytuł]. Produkty płatne (claude, nordvpn) mają podstronę lk.licence. */
     public const PAGES = ['office' => ['lk.office', 'Licencje na Office'], 'programy' => ['lk.programs', 'Programy i klucze'], 'materialy' => ['lk.materials', 'Materiały dydaktyczne'],
-        'sprawy' => ['lk.cases', 'Moje sprawy'], 'produkty' => ['lk.products', 'Produkty i usługi'], 'rozliczenia' => ['lk.billing', 'Rozliczenia'], 'dysk' => ['lk.drive', 'Dysk Online'], 'konto' => ['lk.account', 'Moje konto']];
+        'sprawy' => ['lk.cases', 'Moje sprawy'], 'produkty' => ['lk.products', 'Produkty i usługi'], 'rozliczenia' => ['lk.billing', 'Rozliczenia'], 'dysk' => ['lk.drive', 'Dysk Online'], 'poczta' => ['lk.mail', 'Poczta'], 'konto' => ['lk.account', 'Moje konto']];
 
     /** Adres podstrony dla klucza (produkt płatny, strona albo '' = start). */
     public static function pageUrl(string $key): string
@@ -81,7 +82,7 @@ final class LicencjeKursantController
     // ── Potwierdzanie operacji kodem ────────────────────────────────────────────
 
     /** Operacje, które można wykonać po kodzie (whitelista metod kontrolera). */
-    private const CONFIRMABLE = ['wizardPost', 'edu', 'buyer', 'cancel', 'password', 'priceDecide', 'cardPost', 'cardRemove', 'officePlan', 'driveJoin'];
+    private const CONFIRMABLE = ['wizardPost', 'edu', 'buyer', 'cancel', 'password', 'priceDecide', 'cardPost', 'cardRemove', 'officePlan', 'driveJoin', 'mailReveal'];
 
     /**
      * Brama kodu: true — operacja potwierdzona, wykonuj; false — kod wysłany (albo błąd), przekierowanie już ustawione (handler zwraca null).
@@ -437,6 +438,7 @@ final class LicencjeKursantController
             'sprawy' => (function () use ($cid) { require_once __DIR__ . '/LicencjeSprawy.php'; return LicencjeSprawy::cases($cid); })(),
             'tickets' => in_array($page, ['sprawy', 'start'], true) ? LicencjeSprawy::tickets($cid) : [],
             'driveReq' => $page === 'dysk' ? self::driveRequest($cid) : null,
+            'studMail' => PocztaStud::get($cid),   // hasło ($studPass) przychodzi tylko w $extra z mail() — tablica bazowa wygrywa przy „+”
             'accessMsgs' => (function () use ($cid) { require_once __DIR__ . '/LicencjeDostep.php'; return LicencjeDostep::forClient($cid); })(),
             'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()] + $extra);
     }
@@ -640,6 +642,27 @@ Następny krok: potwierdź dostęp tej osoby w panelu Goodstack (FEER aprowizuje
     // ── Dysk Online (pilotaż, realizuje sdata.net.pl) ─────────────────────────
 
     public function drive(): string { return $this->render('dysk'); }
+
+    /** Poczta @stud.feer.org.pl (sdata.net.pl): login, link do webmaila; hasło po kodzie jednorazowym. */
+    public function mail(): string
+    {
+        $pass = $_SESSION['lk_stud_pass'] ?? null; unset($_SESSION['lk_stud_pass']);   // hasło pokazujemy raz, zaraz po potwierdzeniu kodem
+        return $this->render('poczta', ['studPass' => is_array($pass) && time() - (int)$pass['at'] < 300 ? (string)$pass['p'] : '']);
+    }
+
+    public function mailReveal(): ?string
+    {
+        $me = $this->me();
+        $acc = PocztaStud::get($me['cid']);
+        if (!$acc) return $this->flash('err', 'Nie masz jeszcze poczty @' . PocztaStud::DOMAIN . '. Napisz do biura.', 'poczta');
+        if (!$acc['hasPassword']) return $this->flash('info', 'Hasła do poczty jeszcze nie wpisaliśmy. Przekaże je biuro.', 'poczta');
+        if (!$this->confirmed('mailReveal', [], 'pokazanie hasla do poczty', 'poczta')) return null;
+        $p = PocztaStud::revealPassword($me['cid'], 'Panel Licencji');
+        if ($p === '') return $this->flash('err', 'Nie udało się odczytać hasła. Napisz do biura.', 'poczta');
+        $_SESSION['lk_stud_pass'] = ['p' => $p, 'at' => time()];
+        header('Location: ' . route('lk.mail'));
+        return null;
+    }
 
     /** Ostatnie zgłoszenie do pilotażu Dysku Online (60 dni): pakiet, data, numer zgłoszenia — po zgłoszeniu wybór pakietu jest zablokowany. */
     private static function driveRequest(int $cid): ?array

@@ -12,6 +12,7 @@ require_once __DIR__ . '/LicencjePanelAuth.php';
 require_once __DIR__ . '/LicencjePanelAccess.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceOffice.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceCard.php';
+require_once dirname(__DIR__, 2) . '/ti_poczta_stud/logic/PocztaStud.php';
 
 final class LicencjeAdminController
 {
@@ -55,7 +56,7 @@ final class LicencjeAdminController
         $last = db_one("SELECT last_login FROM license_logins WHERE client_id=?", [$cid]);
         return $c + ['login' => LicenseLogin::get($cid), 'hasPass' => LicenseLogin::hasPassword($cid), 'last' => (string)($last['last_login'] ?? ''),
                      'why' => LicencjePanelAccess::reasons($cid), 'unpaid' => LicencjePanelAccess::paidWithoutInvoice($cid), 'office' => LicenceOffice::summary($cid),
-                     'card' => LicenceCard::active($cid), 'virtual' => ClaudeBilling::isVirtual($cid)];
+                     'card' => LicenceCard::active($cid), 'virtual' => ClaudeBilling::isVirtual($cid), 'mail' => PocztaStud::get($cid)];
     }
 
     public function index(): string
@@ -88,6 +89,20 @@ final class LicencjeAdminController
             $r = LicenceOffice::ensure($cid, ['name' => $a['name'] . ' (Administrator Licencji)']);
             return $this->back(!empty($r['ok']) ? 'ok' : 'err', 'Konto Office: ' . $r['text'] . (!empty($r['password']) ? ' Hasło tymczasowe (pokazujemy je tylko teraz): ' . $r['password'] . '.' : ''));
         } catch (\Throwable $e) { return $this->back('err', $e->getMessage()); }
+    }
+
+    /** Poczta @stud.feer.org.pl (sdata.net.pl): login i hasło wpisuje administrator; puste hasło = bez zmiany. */
+    public function studMailSave(): ?string
+    {
+        $a = $this->adm();
+        try { return $this->back('ok', PocztaStud::save((int)($_POST['client_id'] ?? 0), (string)($_POST['mail_login'] ?? ''), (string)($_POST['mail_pass'] ?? ''), $a['name'] . ' (Administrator Licencji)')); }
+        catch (\Throwable $e) { return $this->back('err', 'Poczta: ' . $e->getMessage()); }
+    }
+
+    public function studMailRemove(): ?string
+    {
+        $a = $this->adm();
+        return $this->back('ok', PocztaStud::remove((int)($_POST['client_id'] ?? 0), $a['name'] . ' (Administrator Licencji)'));
     }
 
     /** Dane dostępu do licencji lub usługi (Microsoft 365 A3 / A5, Claude, NordVPN, Dysk Online, inna): e-mail z danymi, hasło SMS-em. */

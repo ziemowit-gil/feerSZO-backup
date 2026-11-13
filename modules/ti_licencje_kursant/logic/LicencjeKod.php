@@ -99,9 +99,10 @@ final class LicencjeKod
 
     /**
      * Wysyła kod do celu $purpose (np. 'op', 'contact', 'price:12'). $phone / $email — dokąd; najpierw SMS, potem e-mail.
+     * $panel — nazwa panelu w treści („licencji”, „kursanta” — poczta @stud z panelu kursanta).
      * @return array{ok:bool,channel:string,to:string,shown:?string,error:string}
      */
-    public static function send(string $purpose, int $cid, string $phone, string $email, string $what): array
+    public static function send(string $purpose, int $cid, string $phone, string $email, string $what, string $panel = 'licencji'): array
     {
         $prev = $_SESSION['lk_otp'][$purpose] ?? null;
         if ($prev && time() - (int)$prev['sent'] < self::RESEND && ($prev['what'] ?? '') === $what) {
@@ -109,7 +110,7 @@ final class LicencjeKod
         }
         $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         $slot = ['hash' => hash('sha256', $purpose . '|' . $code), 'exp' => time() + self::TTL, 'tries' => 0, 'sent' => time(), 'what' => $what, 'channel' => '', 'to' => '', 'shown' => null];
-        $txt = 'FEER panel licencji: kod ' . $code . ' potwierdza: ' . $what . '. Wazny 10 min. Nikomu go nie podawaj.';
+        $txt = 'FEER panel ' . $panel . ': kod ' . $code . ' potwierdza: ' . $what . '. Wazny 10 min. Nikomu go nie podawaj.';
         if (self::isVirtual($cid)) {
             $slot['channel'] = 'ekran'; $slot['shown'] = $code;
         } else {
@@ -125,9 +126,9 @@ final class LicencjeKod
             if ($slot['channel'] === '' && self::validEmail($email)) {
                 try {
                     require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
-                    mail_queue_add(trim($email), '', 'Kod do panelu licencji: ' . $code,
+                    mail_queue_add(trim($email), '', 'Kod do panelu ' . $panel . ': ' . $code,
                         '<p>Dzień dobry,</p><p>Twój kod: <b style="font-size:20px;letter-spacing:3px">' . $code . '</b></p><p>Potwierdza: ' . h($what) . '. Kod jest ważny 10 minut. Nikomu go nie podawaj. Pracownicy Fundacji nigdy o niego nie proszą.</p>'
-                        . '<p style="color:#555;font-size:13px">Jeśli to nie Ty, zignoruj tę wiadomość i zmień hasło do panelu licencji.</p>',
+                        . '<p style="color:#555;font-size:13px">Jeśli to nie Ty, zignoruj tę wiadomość i zmień hasło do panelu ' . h($panel) . '.</p>',
                         '', 'license_panel_code', $cid, '', true);
                     $slot['channel'] = 'email'; $slot['to'] = self::maskEmail($email);
                 } catch (\Throwable $e) { error_log('lk otp mail: ' . $e->getMessage()); }

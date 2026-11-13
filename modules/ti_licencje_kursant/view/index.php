@@ -49,6 +49,8 @@ $tiles['sprawy'] = ['Moje sprawy', $_nSpr ? [count($sprawy ?? []) . ' ' . (count
 $tiles['produkty'] = ['Produkty i usługi', $products ? [count($products) . ' ' . (count($products) === 1 ? 'usługa' : 'usługi'), 'ok'] : ['brak', 'off'], $prodMonthly > 0 ? ClaudeBilling::zl($prodMonthly) . ' miesięcznie' : '', false];
 $drive = array_values(array_filter($products, fn($x) => ($x['provider'] ?? '') === 'sdata' || stripos((string)$x['name'], 'dysk online') !== false))[0] ?? null;   // Dysk Online (pilotaż, sdata.net.pl)
 $tiles['dysk'] = ['Dysk Online', $drive ? ($drive['status'] === 'suspended' ? ['zawieszony', 'bad'] : ['aktywny', 'ok']) : ['pilotaż', 'due'], $drive ? (string)$drive['name'] : 'dysk w chmurze', false];
+// Poczta @stud.feer.org.pl (sdata.net.pl) — kafel tylko, gdy kadra wpisała konto (PocztaStud)
+if (!empty($studMail)) $tiles['poczta'] = ['Poczta', ['aktywna', 'ok'], (string)$studMail['login'], false];
 $cardModes = array_filter($paid, fn($v) => ($v['payMode'] ?? '') === 'card' && $v['sub'] && in_array($v['sub']['status'], ['requested', 'active', 'suspended'], true));
 $tiles['rozliczenia'] = ['Rozliczenia', $card ? ['karta podpięta', 'ok'] : ($cardModes ? ['podepnij kartę', 'due'] : ['przelew', 'off']), $card ? LicenceCard::label($card) : 'karta i dane do faktur', !$card && $cardModes];
 $tiles['konto'] = ['Moje konto', $login ? ['aktywne', 'ok'] : ['bez numeru', 'off'], ($login ? 'numer ' . $login . ', ' : '') . 'hasło, kontakt', false];   // numer w opisie (znacznik zamienia litery na wielkie)
@@ -586,6 +588,38 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
 <?php endif; ?>
 
 <?php /* ── Moje konto ── */ ?>
+<?php /* ── Poczta @stud.feer.org.pl (sdata.net.pl): login, webmail, hasło po kodzie ── */ ?>
+<?php if ($page === 'poczta'): $sm = $studMail ?? null; $sp = (string)($studPass ?? ''); ?>
+<h1 class="m-title">Poczta</h1>
+<p class="m-explain">Twoja skrzynka e-mail w Fundacji. Otwierasz ją w przeglądarce, na stronie <?= h(preg_replace('#^https?://|/$#', '', PocztaStud::WEBMAIL)) ?>.</p>
+<?= $idsLine ?>
+<?php if (!$sm): ?>
+<section class="m-tile"><p class="tw-text-sm">Nie masz jeszcze poczty @<?= h(PocztaStud::DOMAIN) ?>. Jeśli jej potrzebujesz, napisz do biura.</p></section>
+<?php else: ?>
+<section class="m-tile" aria-labelledby="pm-h">
+  <h2 class="m-sect" id="pm-h">Twoja poczta <?= $tag('ok', 'aktywna') ?></h2>
+  <dl class="m-kv tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
+    <div><dt>Adres i login</dt><dd><span class="m-mono tw-font-semibold"><?= h($sm['login']) ?></span> <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($sm['login']) ?>">Kopiuj<span class="tw-sr-only"> adres poczty</span></button></dd></div>
+    <div><dt>Hasło</dt><dd>
+      <?php if ($sp !== ''): ?>
+        <span class="m-mono tw-font-semibold" id="pm-pass"><?= h($sp) ?></span> <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($sp) ?>">Kopiuj<span class="tw-sr-only"> hasło do poczty</span></button>
+        <span class="m-note tw-block">Pokazujemy je tylko teraz. Po odświeżeniu strony zniknie.</span>
+      <?php elseif ($sm['hasPassword']): ?>
+        <form method="post" action="<?= h(route('lk.mail.reveal')) ?>" style="display:inline"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit">Pokaż hasło<span class="tw-sr-only"> do poczty (wyślemy kod)</span></button></form>
+      <?php else: ?>Przekaże je biuro.<?php endif; ?>
+    </dd></div>
+  </dl>
+  <a class="m-btn tw-mt-3" href="<?= h(PocztaStud::WEBMAIL) ?>" target="_blank" rel="noopener">Otwórz pocztę ↗<span class="tw-sr-only"> (<?= h(PocztaStud::WEBMAIL) ?>, nowa karta)</span></a>
+  <div class="m-imp" role="note" aria-label="Ważne informacje o poczcie"><p class="tw-font-semibold tw-mb-1">Ważne</p>
+    <ul class="tw-list-disc tw-pl-5 tw-space-y-1" style="margin-top:0">
+      <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>. To nie jest konto Microsoft 365, więc nie zalogujesz się nim do Office.</li>
+      <li>Hasło do poczty jest inne niż hasło do panelu. Pokażemy je po kodzie, który wyślemy SMS-em.</li>
+      <li>Jeśli zmienisz hasło na stronie poczty, tutaj nadal będzie stare.</li>
+    </ul></div>
+</section>
+<?php endif; ?>
+<?php endif; ?>
+
 <?php /* ── Dysk Online (pilotaż, realizuje sdata.net.pl) ── */ ?>
 <?php if ($page === 'dysk'): ?>
 <div class="tw-flex tw-items-center tw-gap-4 tw-flex-wrap"><img src="https://sd136.sdata.net.pl:8027/media/img/seafile-logo.png" alt="Seafile" style="height:40px;width:auto" onerror="this.remove()"><h1 class="m-title" style="margin:0">Dysk Online <?= $tag($drive ? 'ok' : ($driveReq ? 'due' : 'off'), $drive ? 'aktywny' : ($driveReq ? 'zgłoszenie wysłane' : 'pilotaż')) ?></h1></div>

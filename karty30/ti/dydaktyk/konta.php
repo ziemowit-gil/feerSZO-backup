@@ -616,6 +616,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    // Poczta @stud.feer.org.pl (sdata.net.pl, nie Microsoft 365): login i hasło wpisuje kadra; to samo konto co w Panelu Licencji (modules/ti_poczta_stud)
+    if ($op === 'stud_mail_save' || $op === 'stud_mail_remove') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_poczta_stud/logic/PocztaStud.php';
+        try {
+            if (!$acc) throw new DomainException('Nie znaleziono konta kursanta.');
+            $msg = $op === 'stud_mail_save'
+                ? PocztaStud::save((int)$acc['client_id'], (string)($_POST['mail_login'] ?? ''), (string)($_POST['mail_pass'] ?? ''), $dyd_name . ' (Ewidencja Uczestników)')
+                : PocztaStud::remove((int)$acc['client_id'], $dyd_name . ' (Ewidencja Uczestników)');
+            flash_set('success', $msg);
+        } catch (\Throwable $e) { flash_set('danger', 'Poczta: ' . $e->getMessage()); }
+        header('Location: konta.php?selected=' . $aid . '#kk-h-poczta'); exit;
+    }
+
     // Panel Licencji (kursant.feer.org.pl/licencje/): dane logowania — login l + 8 cyfr i nowe hasło (SMS z hasłem, e-mail z adresem i loginem);
     // tylko dla osób z licencjami albo produktami, płatne produkty dopiero z fakturą VAT (modules/ti_licencje_kursant/logic/LicencjePanelAccess.php)
     if ($op === 'license_panel_access' || $op === 'license_office') {
@@ -1615,6 +1630,39 @@ function printBulk(){
           </form>
         </div>
         <?php /* Konto Microsoft (Office) — przeniesione do zakładki „Licencje i Office” (polecenie 2026-11-10) */ ?>
+      </section>
+
+      <?php require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_poczta_stud/logic/PocztaStud.php'; $_pm = PocztaStud::get((int)($sa['client_id'] ?? 0)); ?>
+      <section class="kk-sec" aria-labelledby="kk-h-poczta">
+        <h3 id="kk-h-poczta"><i class="bi bi-envelope" aria-hidden="true"></i>Poczta @<?= h(PocztaStud::DOMAIN) ?></h3>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Skrzynka
+              <?php if ($_pm): ?><span class="font-monospace ms-1"><?= h($_pm['login']) ?></span> <span class="kk-state <?= $_pm['hasPassword'] ? 'kk-state-on' : 'kk-state-off' ?> ms-1"><?= $_pm['hasPassword'] ? 'hasło wpisane' : 'bez hasła' ?></span>
+              <?php else: ?><span class="kk-state kk-state-off ms-1">brak</span><?php endif; ?>
+            </div>
+            <div class="kk-row-desc" id="kk-pm-d-<?= $_sid ?>">Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?> (webmail <?= h(PocztaStud::WEBMAIL) ?>), to nie jest konto Microsoft 365. Wpisz login i hasło z panelu dostawcy. Kursant zobaczy login i link w panelu kursanta i w Panelu Licencji, a hasło odsłoni kodem SMS. Puste hasło = bez zmian.
+              <?php if ($_pm): ?><br>Zmienione <?= h(date('d.m.Y H:i', strtotime((string)$_pm['updated_at']))) ?>, <?= h($_pm['updated_by']) ?><?= $_pm['revealed_at'] ? '; kursant odsłonił hasło ' . h(date('d.m.Y H:i', strtotime((string)$_pm['revealed_at']))) : '' ?>.<?php endif; ?></div>
+          </div>
+          <form method="post" class="kk-row-ctl" autocomplete="off">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="stud_mail_save">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <label class="visually-hidden" for="kk-pm-l-<?= $_sid ?>">Login poczty (adres @<?= h(PocztaStud::DOMAIN) ?>)</label>
+            <input class="form-control form-control-sm w-auto" id="kk-pm-l-<?= $_sid ?>" name="mail_login" size="28" required placeholder="login@<?= h(PocztaStud::DOMAIN) ?>" value="<?= h((string)($_pm['login'] ?? '')) ?>" aria-describedby="kk-pm-d-<?= $_sid ?>">
+            <label class="visually-hidden" for="kk-pm-p-<?= $_sid ?>">Hasło poczty</label>
+            <input class="form-control form-control-sm w-auto" id="kk-pm-p-<?= $_sid ?>" name="mail_pass" type="password" size="16" autocomplete="new-password" placeholder="<?= $_pm && $_pm['hasPassword'] ? 'hasło bez zmian' : 'hasło' ?>">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
+          </form>
+          <?php if ($_pm): ?>
+          <form method="post" class="kk-row-ctl" onsubmit="return confirm('Usunąć wpis poczty <?= h($_pm['login']) ?>? Skrzynka w <?= h(PocztaStud::PROVIDER) ?> zostaje.')">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="stud_mail_remove">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Usuń wpis<span class="visually-hidden"> poczty <?= h($_pm['login']) ?></span></button>
+          </form>
+          <?php endif; ?>
+        </div>
       </section>
 
       <section class="kk-sec" aria-labelledby="kk-h-rozl">

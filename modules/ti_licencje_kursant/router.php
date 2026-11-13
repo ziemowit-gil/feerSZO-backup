@@ -51,6 +51,8 @@ $r->group(['lp.admin'], function (Router $r) {
     $r->post('/admin/jako/koniec',     [LicencjeAdminController::class, 'impersonateEnd'])->name('lk.admin.as.end');
     $r->get('/admin/ceny-office',      [LicencjeAdminController::class, 'officePrices'])->name('lk.admin.prices');      // Office A3 / A5: ceny (kierownik / admin)
     $r->post('/admin/ceny-office',     [LicencjeAdminController::class, 'officePricesSave'])->name('lk.admin.prices.save');
+    $r->post('/admin/poczta-stud',     [LicencjeAdminController::class, 'studMailSave'])->name('lk.admin.studmail');     // poczta @stud.feer.org.pl: login i hasło
+    $r->post('/admin/poczta-stud/usun', [LicencjeAdminController::class, 'studMailRemove'])->name('lk.admin.studmail.del');
     $r->post('/admin/poczta-edu',      [LicencjeAdminController::class, 'eduMailSave'])->name('lk.admin.edumail');      // poczta Office kont EDU: wyłącznik administratora
     $r->get('/admin/dysk',             [LicencjeAdminController::class, 'drivePrices'])->name('lk.admin.drive');        // Dysk Online: pakiety i ceny
     $r->post('/admin/dysk',            [LicencjeAdminController::class, 'drivePricesSave'])->name('lk.admin.drive.save');
@@ -79,6 +81,8 @@ $r->group(['lp.auth', 'lp.contact', 'lp.readonly'], function (Router $r) {
     $r->get('/produkty',               [LicencjeKursantController::class, 'products'])->name('lk.products');
     $r->get('/konto',                  [LicencjeKursantController::class, 'account'])->name('lk.account');
     $r->get('/dysk',                   [LicencjeKursantController::class, 'drive'])->name('lk.drive');             // Dysk Online (pilotaż, sdata.net.pl)
+    $r->get('/poczta',                 [LicencjeKursantController::class, 'mail'])->name('lk.mail');               // poczta @stud.feer.org.pl (sdata.net.pl)
+    $r->post('/poczta/haslo',          [LicencjeKursantController::class, 'mailReveal'])->name('lk.mail.reveal');  // hasło po kodzie jednorazowym
     $r->post('/dysk/zgloszenie',       [LicencjeKursantController::class, 'driveJoin'])->name('lk.drive.join');
     $r->get('/rozliczenia',            [LicencjeKursantController::class, 'billing'])->name('lk.billing');          // karta i dane do faktur
     $r->get('/karta/{product}',        [LicencjeKursantController::class, 'cardForm'])->name('lk.card');            // zgoda na płatności kartą
