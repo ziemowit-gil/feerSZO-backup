@@ -29,6 +29,8 @@ final class PocztaStud
     public const MAX_REVEALS = 5;
     /** Najkrótsze hasło startowe, które przyjmujemy od kadry. */
     public const MIN_PASSWORD = 8;
+    /** Kategoria Helpdesku zgłoszeń kont poczty kursanta (prefiks numeru MIG-ST — includes/helpdesk.php). */
+    public const HD_CATEGORY = 'it_poczta_kursanta';
     private const CTX = 'stud_mail_accounts.password_enc';
     private const CTX_SESSION = 'stud_mail_accounts.session';
     private const SESSION_TTL = 300;
@@ -51,7 +53,8 @@ final class PocztaStud
                 : db()->query("SHOW COLUMNS FROM stud_mail_accounts")->fetchAll(PDO::FETCH_COLUMN, 0);
         } catch (\Throwable $e) {}
         foreach (['password_expires_at' => 'DATETIME', 'reveal_count' => 'INTEGER NOT NULL DEFAULT 0',
-                  'password_cleared_at' => 'DATETIME', 'password_cleared_why' => "TEXT NOT NULL DEFAULT ''"] as $col => $def) {
+                  'password_cleared_at' => 'DATETIME', 'password_cleared_why' => "TEXT NOT NULL DEFAULT ''",
+                  'helpdesk_ticket_id' => 'INTEGER'] as $col => $def) {
             if (!in_array($col, $have, true)) {
                 try { db()->exec("ALTER TABLE stud_mail_accounts ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
             }
@@ -107,7 +110,7 @@ final class PocztaStud
      * Nowe hasło zeruje licznik odsłonięć i liczy od nowa termin ważności.
      * @return string komunikat dla kadry
      */
-    public static function save(int $cid, string $login, string $password, string $by): string
+    public static function save(int $cid, string $login, string $password, string $by, int $byUserId = 0): string
     {
         if ($cid <= 0) throw new InvalidArgumentException('Nie wskazano uczestnika.');
         self::migrate();
@@ -130,7 +133,9 @@ final class PocztaStud
             db_exec("INSERT INTO stud_mail_accounts (client_id, login, password_enc, password_set_at, password_expires_at, updated_at, updated_by) VALUES (?,?,?,?,?,?,?)",
                     [$cid, $login, $password !== '' ? (string)fcEncrypt($password, self::CTX) : '', $password !== '' ? $now : null, $password !== '' ? $exp : null, $now, $by]);
         }
-        self::log($cid, 'stud_mail_save', 'Poczta ' . $login . ': ' . ($was ? 'zmieniono' : 'dodano') . ($password !== '' ? ' (z hasłem startowym ważnym do ' . date('d.m.Y', strtotime($exp)) . ')' : '') . ', ' . $by . '.');
+        $what = 'Poczta ' . $login . ': ' . ($was ? 'zmieniono' : 'dodano') . ($password !== '' ? ' (z hasłem startowym ważnym do ' . date('d.m.Y', strtotime($exp)) . ')' : '') . ', ' . $by . '.';
+        self::log($cid, 'stud_mail_save', $what);
+        self::helpdesk($cid, $what, $byUserId, $by);   // nowe konto → nowe zgłoszenie MIG-ST (zgłaszający = kadra); zmiana → notatka
         return 'Zapisano pocztę ' . $login . ($password !== ''
             ? ' z hasłem startowym. Uczestnik odsłoni je kodem SMS do ' . date('d.m.Y', strtotime($exp)) . ' (najwyżej ' . self::MAX_REVEALS . ' razy).'
             : ($was ? ', hasło bez zmian.' : ' bez hasła.'));
@@ -161,6 +166,7 @@ final class PocztaStud
         db_exec("UPDATE stud_mail_accounts SET revealed_at=?, reveal_count=COALESCE(reveal_count,0)+1 WHERE client_id=?", [date('Y-m-d H:i:s'), $cid]);
         $t = 'Uczestnik odsłonił hasło startowe do poczty ' . $r['login'] . ' (' . $via . ', ' . ($acc['reveal_count'] + 1) . '/' . self::MAX_REVEALS . ').';
         self::log($cid, 'stud_mail_reveal', $t);
+        self::helpdesk($cid, $t);
         return $p;
     }
 
@@ -190,6 +196,143 @@ final class PocztaStud
         return 'Bez hasła startowego.';
     }
 
+    /**
+     * Dane logowania do uczestnika (polecenie 2026-11-13): HASŁO SMS-em (rodzaj access_data), a e-mailem TEKSTOWYM (bez HTML)
+     * login, adres logowania https://titan.sdata.net.pl/ i ustawienia programu pocztowego (IMAP/SMTP). Hasła w e-mailu nie ma.
+     * $plainPassword — hasło świeżo wpisane w formularzu; '' = odszyfrowane z bazy (ponowne wysłanie). Numer: telefon z kartoteki,
+     * a gdy go brak — telefon opiekuna z konta TI; e-mail tak samo. @return string komunikat dla kadry
+     */
+    public static function sendLoginData(int $cid, string $by, int $byUserId = 0, string $plainPassword = ''): string
+    {
+        $acc = self::get($cid);
+        if (!$acc) throw new InvalidArgumentException('Ten uczestnik nie ma wpisanej poczty.');
+        $cl = db_one("SELECT name, email, phone FROM k30_clients WHERE id=?", [$cid]) ?: [];
+        $sa = db_one("SELECT guardian_email, guardian_phone FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [$cid]) ?: [];
+        $to = trim((string)($cl['email'] ?? ''));
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL) || self::isStudDomain($to)) $to = trim((string)($sa['guardian_email'] ?? ''));
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL) || self::isStudDomain($to)) $to = '';
+        $phone = trim((string)($cl['phone'] ?? ''));
+        if (preg_replace('/\D/', '', $phone) === '') $phone = trim((string)($sa['guardian_phone'] ?? ''));
+        $hasPhone = strlen((string)preg_replace('/\D/', '', $phone)) >= 9;
+        if ($to === '' && !$hasPhone) throw new InvalidArgumentException('Uczestnik nie ma w kartotece ani e-maila, ani telefonu — uzupełnij dane kontaktowe.');
+
+        // 1. SMS z hasłem (najpierw — treść e-maila mówi, czy hasło wyszło)
+        $smsInfo = '';
+        $smsSent = false;
+        if ($acc['hasPassword']) {
+            $pw = $plainPassword !== '' ? $plainPassword : self::storedPassword($cid);
+            if ($pw === '') $smsInfo = 'hasła nie da się odczytać — wpisz je ponownie';
+            elseif (!$hasPhone) $smsInfo = 'brak telefonu — hasło uczestnik odsłoni w panelu kodem przysłanym e-mailem';
+            else {
+                $txt = 'FEER: poczta kursanta ' . $acc['login'] . "\nHaslo: " . $pw . "\nHaslo obowiazuje od " . date('d.m.y H:i:s')
+                     . "\nLogowanie: " . preg_replace('#^https?://|/$#', '', self::WEBMAIL);
+                try {
+                    require_once dirname(__DIR__, 3) . '/includes/sms.php';
+                    $smsSent = sms_send($phone, function_exists('sms_ascii') ? sms_ascii($txt) : $txt, 'access_data') !== '';
+                } catch (\Throwable $e) { error_log('poczta stud sms: ' . $e->getMessage()); }
+                $smsInfo = $smsSent ? 'hasło SMS-em na ' . self::maskPhone($phone) : 'SMS z hasłem NIE wyszedł (bramka SMS) — uczestnik odsłoni je w panelu';
+            }
+        }
+
+        // 2. E-mail tekstowy z loginem i adresem logowania
+        $mailInfo = 'brak e-maila w kartotece';
+        if ($to !== '') {
+            [$first] = self::splitName((string)($cl['name'] ?? ''));
+            $host = preg_replace('#^https?://|/$#', '', self::WEBMAIL);
+            $l = [];
+            $l[] = 'Dzień dobry' . ($first !== '' ? ' ' . $first : '') . ',';
+            $l[] = '';
+            $l[] = 'masz w Fundacji pocztę kursanta. Oto dane do logowania:';
+            $l[] = '';
+            $l[] = 'Login (adres e-mail): ' . $acc['login'];
+            if (!$acc['hasPassword']) $l[] = 'Hasło: przekaże je biuro Fundacji.';
+            elseif ($smsSent) $l[] = 'Hasło: wysłaliśmy je SMS-em na numer ' . self::maskPhone($phone) . '.';
+            else $l[] = 'Hasło: zobaczysz je w panelu kursanta, w zakładce „Poczta kursanta”, po wpisaniu kodu jednorazowego.';
+            $l[] = '';
+            $l[] = 'Pocztę otworzysz w przeglądarce:';
+            $l[] = self::WEBMAIL;
+            $l[] = '';
+            $l[] = 'Albo przez program pocztowy (np. Thunderbird, Outlook, poczta w telefonie) — wtedy podaj poniższe dane:';
+            $l[] = 'Adres serwera poczty przychodzącej i wychodzącej: ' . $host;
+            $l[] = 'Nazwa użytkownika: ' . $acc['login'];
+            $l[] = 'Poczta przychodząca (IMAP): szyfrowanie SSL/TLS — tak, port 993';
+            $l[] = 'Poczta wychodząca (SMTP): szyfrowanie SSL/TLS — tak, port 465';
+            $l[] = '';
+            if ($acc['hasPassword']) {
+                $l[] = 'To hasło startowe. Po pierwszym logowaniu ustaw własne hasło. W panelu kursanta hasło startowe czeka do '
+                     . date('d.m.Y', strtotime((string)$acc['password_expires_at'])) . ', potem znika.';
+                $l[] = '';
+            }
+            $l[] = 'Nikomu nie podawaj hasła ani kodów z SMS-ów. Pracownicy Fundacji nigdy o nie nie proszą.';
+            $l[] = 'Jeśli to nie Ty, zignoruj tę wiadomość.';
+            $l[] = '';
+            $l[] = 'Pozdrawiamy';
+            $l[] = defined('ORG_NAME') ? ORG_NAME : 'Fundacja';
+            require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+            $id = mail_queue_add($to, (string)($cl['name'] ?? ''), 'Poczta kursanta — dane do logowania', '', implode("\n", $l), 'stud_mail_login', $cid);
+            $mailInfo = $id > 0 ? 'e-mail z loginem na ' . (function_exists('fcMask') ? fcMask($to, 'email') : $to) : 'e-mail zablokowany (konto testowe)';
+        }
+
+        $summary = 'Dane logowania do poczty ' . $acc['login'] . ': ' . $mailInfo . ($smsInfo !== '' ? '; ' . $smsInfo : '') . ' (' . $by . ').';
+        self::log($cid, 'stud_mail_sent', $summary);
+        self::helpdesk($cid, $summary, $byUserId, $by);
+        return 'Wysłano: ' . $mailInfo . ($smsInfo !== '' ? '; ' . $smsInfo : '') . '.';
+    }
+
+    /**
+     * Zgłoszenie w Helpdesku dla konta poczty kursanta (kategoria „Poczta kursanta”, prefiks MIG-ST; polecenie 2026-11-13).
+     * Każde konto ma jedno zgłoszenie, zakładane przy pierwszym zapisie przez kadrę — zgłaszający = kierownik / administrator,
+     * który wpisał konto. Kolejne zdarzenia (hasło, wysyłka, odsłonięcie, potwierdzenie, wygaśnięcie) to notatki wewnętrzne.
+     * Bez $byUserId (zdarzenia uczestnika, CRON) zgłoszenia nie zakładamy — tylko dopisujemy. Nigdy nie przerywa wołającego.
+     */
+    public static function helpdesk(int $cid, string $note, int $byUserId = 0, string $byName = ''): ?int
+    {
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
+            helpdesk_migrate();
+            self::migrate();
+            $row = db_one("SELECT login, helpdesk_ticket_id FROM stud_mail_accounts WHERE client_id=?", [$cid]);
+            if (!$row) return null;
+            $tid = (int)($row['helpdesk_ticket_id'] ?? 0);
+            if ($tid > 0) {   // po scaleniu w Helpdesku — zgłoszenie docelowe
+                $t = db_one("SELECT id, merged_into FROM helpdesk_tickets WHERE id=?", [$tid]);
+                $guard = 0;
+                while ($t && !empty($t['merged_into']) && $guard++ < 5) $t = db_one("SELECT id, merged_into FROM helpdesk_tickets WHERE id=?", [(int)$t['merged_into']]);
+                $tid = $t ? (int)$t['id'] : 0;
+            }
+            if ($tid <= 0) {
+                if ($byUserId <= 0) return null;
+                $u = db_one("SELECT id, name, email FROM users WHERE id=?", [$byUserId]);
+                if (!$u) return null;
+                $cl = db_one("SELECT name FROM k30_clients WHERE id=?", [$cid]) ?: [];
+                $desc = "Konto poczty kursanta w domenie @" . self::DOMAIN . " (dostawca " . self::PROVIDER . ").\n\n"
+                      . 'Kursant: ' . trim((string)($cl['name'] ?? '')) . ' (nr ' . $cid . ")\n"
+                      . 'Login: ' . $row['login'] . "\n"
+                      . 'Logowanie: ' . self::WEBMAIL . "\n"
+                      . 'Wpisał(a): ' . ($byName !== '' ? $byName : (string)$u['name']) . "\n\n"
+                      . 'Hasła nie zapisujemy w zgłoszeniu. Przebieg (hasło startowe, wysyłka danych, odsłonięcie, zmiana hasła) dopisujemy tutaj.';
+                $tid = hd_ticket_quick_create(['id' => (int)$u['id'], 'name' => (string)$u['name'], 'email' => (string)$u['email']],
+                    'Poczta kursanta: ' . $row['login'], self::hdPlain($desc), self::HD_CATEGORY, 'normalny', 'poczta_kursanta');
+                db_exec("UPDATE stud_mail_accounts SET helpdesk_ticket_id=? WHERE client_id=?", [$tid, $cid]);
+            }
+            db_insert('helpdesk_messages', ['ticket_id' => $tid, 'user_id' => $byUserId > 0 ? $byUserId : null,
+                'user_name' => $byName !== '' ? $byName : 'Poczta kursanta (system)', 'body' => self::hdPlain($note), 'is_internal' => 1]);
+            db_exec("UPDATE helpdesk_tickets SET updated_at=? WHERE id=?", [date('Y-m-d H:i:s'), $tid]);
+            return $tid;
+        } catch (\Throwable $e) {
+            error_log('poczta stud helpdesk ' . $cid . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /** Numer zgłoszenia Helpdesku konta (MIG-ST-…) albo ''. */
+    public static function ticketNumber(?array $acc): string
+    {
+        $tid = (int)($acc['helpdesk_ticket_id'] ?? 0);
+        if ($tid <= 0) return '';
+        try { return (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [$tid])['number'] ?? ''); } catch (\Throwable $e) { return ''; }
+    }
+
     // ── Hasło w sesji między potwierdzeniem kodu a wyświetleniem (tylko zaszyfrowane, 5 minut, jeden odczyt) ──
 
     /** Wartość do zapisania w $_SESSION zamiast jawnego hasła. */
@@ -214,7 +357,44 @@ final class PocztaStud
         header('Referrer-Policy: no-referrer');
     }
 
+    /**
+     * Imię i nazwisko z pola k30_clients.name („Jan Kowalski”, „Anna Maria Nowak-Kowalska”, „Jan Kowalski (TEST)”):
+     * pierwsze słowo = imię, ostatnie = nazwisko. @return array{0:string,1:string}
+     */
+    public static function splitName(string $name): array
+    {
+        $n = trim((string)preg_replace(['/\([^)]*\)/u', '/\s+/u'], ['', ' '], $name));
+        $parts = $n === '' ? [] : explode(' ', $n);
+        if (count($parts) < 2) return [$parts[0] ?? '', ''];
+        return [$parts[0], $parts[count($parts) - 1]];
+    }
+
     // ── Wewnętrzne ──
+
+    /** Hasło startowe odszyfrowane z bazy (ponowna wysyłka SMS-em przez kadrę) albo ''. */
+    private static function storedPassword(int $cid): string
+    {
+        $r = db_one("SELECT password_enc FROM stud_mail_accounts WHERE client_id=?", [$cid]);
+        if (!$r || (string)$r['password_enc'] === '') return '';
+        return (string)(fcDecrypt((string)$r['password_enc'], self::CTX) ?? '');
+    }
+
+    private static function isStudDomain(string $email): bool
+    {
+        return strtolower(substr($email, (int)strrpos($email, '@') + 1)) === self::DOMAIN;
+    }
+
+    private static function maskPhone(string $phone): string
+    {
+        $d = (string)preg_replace('/\D/', '', $phone);
+        return strlen($d) >= 3 ? '••• ••• ' . substr($d, -3) : '•••';
+    }
+
+    /** Czysty tekst do Helpdesku — helpdesk/_detail.php traktuje treść z „<” jako HTML. */
+    private static function hdPlain(string $s): string
+    {
+        return str_replace(['<', '>'], ['‹', '›'], trim($s));
+    }
 
     /** Usuwa hasło startowe z bazy (zostaje login), z powodem w dzienniku. */
     private static function clear(int $cid, string $why, string $action): void
@@ -222,6 +402,7 @@ final class PocztaStud
         db_exec("UPDATE stud_mail_accounts SET password_enc='', password_cleared_at=?, password_cleared_why=? WHERE client_id=? AND password_enc<>''",
                 [date('Y-m-d H:i:s'), mb_substr($why, 0, 200), $cid]);
         self::log($cid, $action, 'Hasło startowe do poczty usunięte z panelu: ' . $why . '.');
+        self::helpdesk($cid, 'Hasło startowe usunięte z panelu: ' . $why . '.');
     }
 
     /** Wpis w dzienniku konta TI uczestnika (Aktywność konta), jeśli ma konto w panelu, oraz w audit_logs. */

@@ -95,7 +95,20 @@ final class LicencjeAdminController
     public function studMailSave(): ?string
     {
         $a = $this->adm();
-        try { return $this->back('ok', PocztaStud::save((int)($_POST['client_id'] ?? 0), (string)($_POST['mail_login'] ?? ''), (string)($_POST['mail_pass'] ?? ''), $a['name'] . ' (Administrator Licencji)')); }
+        $cid = (int)($_POST['client_id'] ?? 0); $by = $a['name'] . ' (Administrator Licencji)'; $pass = (string)($_POST['mail_pass'] ?? '');
+        try {
+            $msg = PocztaStud::save($cid, (string)($_POST['mail_login'] ?? ''), $pass, $by, (int)($a['uid'] ?? 0));
+            if (!empty($_POST['send_data'])) $msg .= ' ' . PocztaStud::sendLoginData($cid, $by, (int)($a['uid'] ?? 0), trim($pass));   // e-mail z loginem + SMS z hasłem
+            return $this->back('ok', $msg);
+        }
+        catch (\Throwable $e) { return $this->back('err', 'Poczta: ' . $e->getMessage()); }
+    }
+
+    /** Ponowna wysyłka danych logowania do poczty kursanta: e-mail tekstowy z loginem i adresem logowania, SMS z hasłem startowym. */
+    public function studMailSend(): ?string
+    {
+        $a = $this->adm();
+        try { return $this->back('ok', PocztaStud::sendLoginData((int)($_POST['client_id'] ?? 0), $a['name'] . ' (Administrator Licencji)', (int)($a['uid'] ?? 0))); }
         catch (\Throwable $e) { return $this->back('err', 'Poczta: ' . $e->getMessage()); }
     }
 

@@ -617,15 +617,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Poczta kursanta @stud.feer.org.pl (sdata.net.pl, niezależna od Microsoft 365): login i hasło wpisuje kadra; to samo konto co w Panelu Licencji (modules/ti_poczta_stud)
-    if ($op === 'stud_mail_save' || $op === 'stud_mail_remove') {
+    if ($op === 'stud_mail_save' || $op === 'stud_mail_remove' || $op === 'stud_mail_send') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = $aid ? db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
         require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_poczta_stud/logic/PocztaStud.php';
         try {
             if (!$acc) throw new DomainException('Nie znaleziono konta kursanta.');
-            $msg = $op === 'stud_mail_save'
-                ? PocztaStud::save((int)$acc['client_id'], (string)($_POST['mail_login'] ?? ''), (string)($_POST['mail_pass'] ?? ''), $dyd_name . ' (Ewidencja Uczestników)')
-                : PocztaStud::remove((int)$acc['client_id'], $dyd_name . ' (Ewidencja Uczestników)');
+            $_pmBy = $dyd_name . ' (Ewidencja Uczestników)';
+            if ($op === 'stud_mail_save') {
+                $_pmPass = (string)($_POST['mail_pass'] ?? '');
+                $msg = PocztaStud::save((int)$acc['client_id'], (string)($_POST['mail_login'] ?? ''), $_pmPass, $_pmBy, $uid);
+                // domyślnie zaznaczone: e-mail z loginem i adresem logowania + SMS z hasłem
+                if (!empty($_POST['send_data'])) $msg .= ' ' . PocztaStud::sendLoginData((int)$acc['client_id'], $_pmBy, $uid, trim($_pmPass));
+            } elseif ($op === 'stud_mail_send') {
+                $msg = PocztaStud::sendLoginData((int)$acc['client_id'], $_pmBy, $uid);
+            } else {
+                $msg = PocztaStud::remove((int)$acc['client_id'], $_pmBy);
+            }
             flash_set('success', $msg);
         } catch (\Throwable $e) { flash_set('danger', 'Poczta: ' . $e->getMessage()); }
         header('Location: konta.php?selected=' . $aid . '#kk-h-poczta'); exit;
@@ -1638,11 +1646,14 @@ function printBulk(){
         <div class="kk-row">
           <div class="kk-row-info">
             <div class="kk-row-title">Skrzynka
-              <?php if ($_pm): ?><span class="font-monospace ms-1"><?= h($_pm['login']) ?></span> <span class="kk-state <?= $_pm['hasPassword'] ? 'kk-state-on' : 'kk-state-off' ?> ms-1"><?= $_pm['hasPassword'] ? 'hasło wpisane' : 'bez hasła' ?></span>
+              <?php if ($_pm): ?><span class="font-monospace ms-1"><?= h($_pm['login']) ?></span> <span class="kk-state <?= $_pm['hasPassword'] ? 'kk-state-on' : 'kk-state-off' ?> ms-1"><?= $_pm['hasPassword'] ? 'hasło startowe czeka' : (!empty($_pm['password_cleared_at']) ? 'hasło startowe usunięte' : 'bez hasła') ?></span>
               <?php else: ?><span class="kk-state kk-state-off ms-1">brak</span><?php endif; ?>
             </div>
-            <div class="kk-row-desc" id="kk-pm-d-<?= $_sid ?>">Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?> (webmail <?= h(PocztaStud::WEBMAIL) ?>). Wpisz login i hasło z panelu dostawcy. Kursant zobaczy login i link w panelu kursanta i w Panelu Licencji, a hasło odsłoni kodem SMS. Puste hasło = bez zmian.
-              <?php if ($_pm): ?><br>Zmienione <?= h(date('d.m.Y H:i', strtotime((string)$_pm['updated_at']))) ?>, <?= h($_pm['updated_by']) ?><?= $_pm['revealed_at'] ? '; kursant odsłonił hasło ' . h(date('d.m.Y H:i', strtotime((string)$_pm['revealed_at']))) : '' ?>.<?php endif; ?></div>
+            <div class="kk-row-desc" id="kk-pm-d-<?= $_sid ?>">Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?> (webmail <?= h(PocztaStud::WEBMAIL) ?>). Wpisz login i hasło startowe z panelu dostawcy. Zaznaczone „wyślij kursantowi dane”: e-mail z loginem i adresem logowania, hasło SMS-em (nigdy e-mailem). W panelu kursant odsłoni hasło kodem jednorazowym — najwyżej <?= PocztaStud::MAX_REVEALS ?> razy, przez <?= PocztaStud::TTL_DAYS ?> dni. Puste hasło = bez zmian.
+              <?php if ($_pm): $_pmTicket = PocztaStud::ticketNumber($_pm); ?><br>Zmienione <?= h(date('d.m.Y H:i', strtotime((string)$_pm['updated_at']))) ?>, <?= h($_pm['updated_by']) ?>. <?= h(PocztaStud::staffStatus($_pm)) ?>
+                <?php if ($_pmTicket !== ''): ?><br>Zgłoszenie w Helpdesku: <a href="<?= h(APP_URL . '/helpdesk/view.php?id=' . (int)$_pm['helpdesk_ticket_id']) ?>" target="_blank" rel="noopener"><?= h($_pmTicket) ?><span class="visually-hidden"> (otwiera się w nowej karcie)</span></a><?php endif; ?>
+              <?php endif; ?>
+</div>
           </div>
           <form method="post" class="kk-row-ctl" autocomplete="off">
             <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
@@ -1651,9 +1662,21 @@ function printBulk(){
             <label class="visually-hidden" for="kk-pm-l-<?= $_sid ?>">Login poczty (adres @<?= h(PocztaStud::DOMAIN) ?>)</label>
             <input class="form-control form-control-sm w-auto" id="kk-pm-l-<?= $_sid ?>" name="mail_login" size="28" required placeholder="login@<?= h(PocztaStud::DOMAIN) ?>" value="<?= h((string)($_pm['login'] ?? '')) ?>" aria-describedby="kk-pm-d-<?= $_sid ?>">
             <label class="visually-hidden" for="kk-pm-p-<?= $_sid ?>">Hasło poczty</label>
-            <input class="form-control form-control-sm w-auto" id="kk-pm-p-<?= $_sid ?>" name="mail_pass" type="password" size="16" autocomplete="new-password" placeholder="<?= $_pm && $_pm['hasPassword'] ? 'hasło bez zmian' : 'hasło' ?>">
+            <input class="form-control form-control-sm w-auto" id="kk-pm-p-<?= $_sid ?>" name="mail_pass" type="password" size="16" minlength="<?= PocztaStud::MIN_PASSWORD ?>" autocomplete="new-password" placeholder="<?= $_pm && $_pm['hasPassword'] ? 'hasło bez zmian' : 'hasło startowe' ?>">
+            <div class="form-check form-check-inline mb-0 small">
+              <input class="form-check-input" type="checkbox" id="kk-pm-s-<?= $_sid ?>" name="send_data" value="1" checked>
+              <label class="form-check-label" for="kk-pm-s-<?= $_sid ?>">wyślij kursantowi dane (e-mail z loginem, SMS z hasłem)</label>
+            </div>
             <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
           </form>
+          <?php if ($_pm): ?>
+          <form method="post" class="kk-row-ctl">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="stud_mail_send">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <button type="submit" class="btn btn-sm btn-outline-primary">Wyślij dane ponownie<span class="visually-hidden"> (e-mail z loginem<?= $_pm['hasPassword'] ? ', SMS z hasłem' : '' ?>) do <?= h($_pm['login']) ?></span></button>
+          </form>
+          <?php endif; ?>
           <?php if ($_pm): ?>
           <form method="post" class="kk-row-ctl" onsubmit="return confirm('Usunąć wpis poczty <?= h($_pm['login']) ?>? Skrzynka w <?= h(PocztaStud::PROVIDER) ?> zostaje.')">
             <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">

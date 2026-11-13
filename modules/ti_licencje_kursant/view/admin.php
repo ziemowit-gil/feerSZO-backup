@@ -73,10 +73,13 @@ $qf = '<input type="hidden" name="q" value="' . h($q) . '">';
             <input class="m-input" id="<?= $mk ?>-p" name="mail_pass" type="password" autocomplete="new-password" aria-describedby="<?= $mk ?>-ph">
             <p class="m-note" id="<?= $mk ?>-ph"><?= $ml && $ml['hasPassword'] ? 'Puste pole: hasło bez zmian (wpisane ' . h(date('d.m.Y', strtotime((string)$ml['password_set_at']))) . ').' : 'Puste pole: bez hasła, uczestnik zobaczy, że przekaże je biuro.' ?></p></div>
         </div>
+        <label class="tw-flex tw-items-center tw-gap-2 tw-mt-3 tw-text-sm"><input type="checkbox" name="send_data" value="1" checked> Wyślij uczestnikowi dane (e-mail z loginem i adresem logowania, SMS z hasłem)</label>
         <button class="m-btn tw-mt-3" type="submit">Zapisz pocztę</button>
       </form>
-      <?php if ($ml): ?>
-      <p class="m-note tw-mt-2">Zmienione <?= h(date('d.m.Y H:i', strtotime((string)$ml['updated_at']))) ?> przez <?= h($ml['updated_by']) ?><?= $ml['revealed_at'] ? '. Uczestnik ostatnio odsłonił hasło ' . h(date('d.m.Y H:i', strtotime((string)$ml['revealed_at']))) : '' ?>.</p>
+      <?php if ($ml): $mlTicket = PocztaStud::ticketNumber($ml); ?>
+      <p class="m-note tw-mt-2">Zmienione <?= h(date('d.m.Y H:i', strtotime((string)$ml['updated_at']))) ?> przez <?= h($ml['updated_by']) ?>. <?= h(PocztaStud::staffStatus($ml)) ?><?= $mlTicket !== '' ? ' Zgłoszenie w Helpdesku: ' . h($mlTicket) . '.' : '' ?></p>
+      <form method="post" action="<?= h(route('lk.admin.studmail.send')) ?>" class="tw-mt-2"><?= Router::csrfField() ?><?= $qf ?><input type="hidden" name="client_id" value="<?= (int)$r['id'] ?>">
+        <button class="m-btn-ghost" type="submit">Wyślij dane ponownie<span class="tw-sr-only"> (<?= h($r['name']) ?>: e-mail z loginem<?= $ml['hasPassword'] ? ', SMS z hasłem' : '' ?>)</span></button></form>
       <form method="post" action="<?= h(route('lk.admin.studmail.del')) ?>" class="tw-mt-2"><?= Router::csrfField() ?><?= $qf ?><input type="hidden" name="client_id" value="<?= (int)$r['id'] ?>">
         <button class="m-btn-ghost" type="submit">Usuń wpis poczty<span class="tw-sr-only"> (<?= h($r['name']) ?>)</span></button>
         <span class="m-note">Skrzynka w <?= h(PocztaStud::PROVIDER) ?> zostaje.</span></form>

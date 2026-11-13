@@ -94,7 +94,7 @@ $_pm_tok  = h(student_token());
   <p class="fw-semibold mb-1">Ważne</p>
   <ul class="mb-0 small">
     <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</li>
-    <li>Hasło do poczty jest inne niż hasło do panelu. Pokażemy je po kodzie, który wyślemy SMS-em.</li>
+    <li>Hasło startowe wysyłamy SMS-em. Jeśli SMS zginął, pokażemy je tutaj po kodzie jednorazowym. Hasło do poczty jest inne niż hasło do panelu.</li>
     <li>To hasło startowe. Po pierwszym logowaniu ustaw na stronie poczty własne hasło i kliknij „Mam już własne hasło”.</li>
     <li>Hasło startowe zniknie z panelu po <?= PocztaStud::TTL_DAYS ?> dniach od wpisania albo po <?= PocztaStud::MAX_REVEALS ?> pokazaniach.</li>
     <li>Nikomu nie podawaj hasła ani kodu z SMS-a. Pracownicy Fundacji nigdy o nie nie proszą.</li>

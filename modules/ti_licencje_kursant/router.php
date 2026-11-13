@@ -53,6 +53,7 @@ $r->group(['lp.admin'], function (Router $r) {
     $r->post('/admin/ceny-office',     [LicencjeAdminController::class, 'officePricesSave'])->name('lk.admin.prices.save');
     $r->post('/admin/poczta-stud',     [LicencjeAdminController::class, 'studMailSave'])->name('lk.admin.studmail');     // poczta @stud.feer.org.pl: login i hasło
     $r->post('/admin/poczta-stud/usun', [LicencjeAdminController::class, 'studMailRemove'])->name('lk.admin.studmail.del');
+    $r->post('/admin/poczta-stud/wyslij', [LicencjeAdminController::class, 'studMailSend'])->name('lk.admin.studmail.send');   // e-mail z loginem + SMS z hasłem
     $r->post('/admin/poczta-edu',      [LicencjeAdminController::class, 'eduMailSave'])->name('lk.admin.edumail');      // poczta Office kont EDU: wyłącznik administratora
     $r->get('/admin/dysk',             [LicencjeAdminController::class, 'drivePrices'])->name('lk.admin.drive');        // Dysk Online: pakiety i ceny
     $r->post('/admin/dysk',            [LicencjeAdminController::class, 'drivePricesSave'])->name('lk.admin.drive.save');
