@@ -121,7 +121,7 @@ function _claim_notify(array $task, array $actor, string $event): void {
         $headers = "From: noreply@" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . "\r\n"
                  . "Content-Type: text/plain; charset=utf-8\r\n";
 
-        require_once dirname(__DIR__, 2) . '/includes/task_notify.php'; // e-maile Zadań tylko przez Graph
+        require_once dirname(__DIR__, 2) . '/includes/task_notify.php'; // e-maile Zadań przez kolejkę poczty (task_mail_send)
         foreach ($recipients as $r) {
             if (!empty($r['email'])) task_mail_send_text($r['email'], $subject, $body, 'task', null, (int)($r['id'] ?? 0), 'claim');
         }

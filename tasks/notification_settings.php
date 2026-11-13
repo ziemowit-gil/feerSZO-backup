@@ -61,16 +61,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!is_admin()) {
             $error = 'Brak uprawnień.';
         } else {
-            require_once dirname(__DIR__) . '/includes/m365.php';
-            $on = !empty($_POST['tasks_mail_reply_enabled']);
-            if ($on && m365_setting('tasks_mail_reply_enabled') !== '1') {
-                // Świeży start: bez przetwarzania poczty sprzed włączenia, nowa delta
-                m365_save_setting('tasks_mail_reply_since', date('Y-m-d H:i:s'));
-                m365_save_setting('tasks_mail_reply_delta', '');
+            try {
+                $mr_test = task_mail_reply_save($_POST);
+                $saved = true;
+                if ($mr_test !== null) {
+                    $error = 'Zapisano, ale nie udało się zalogować do skrzynki odpowiedzi: ' . $mr_test;
+                } else {
+                    $email_msg = task_mail_reply_enabled()
+                        ? 'Odpowiedzi e-mailem włączone. Logowanie do skrzynki działa.'
+                        : 'Odpowiedzi e-mailem wyłączone.';
+                }
+            } catch (\InvalidArgumentException $e) {
+                $error = $e->getMessage();
             }
-            m365_save_setting('tasks_mail_reply_enabled', $on ? '1' : '0');
-            $saved = true;
-            $email_msg = $on ? 'Odpowiedzi e-mailem włączone.' : 'Odpowiedzi e-mailem wyłączone.';
         }
     } elseif (($_POST['_action'] ?? '') === 'admin_test_notif') {
         // ── Admin: test per user ──────────────────────────────────────────
@@ -120,8 +123,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $via = ''; $err = '';
                     $ok = task_mail_send($tu['email'], 'Test powiadomień — Zadania', $html, 'task_test', (int)$tu['id'], 20, $via, $err, (int)$tu['id'], 'test');
                     $admin_test_result = ['ok' => $ok, 'msg' => $ok
-                        ? 'E-mail testowy wysłany na ' . $tu['email'] . ' (' . $tu['name'] . ')'
-                        : 'Nie udało się wysłać na ' . $tu['email'] . ' przez Microsoft Graph: ' . $err];
+                        ? 'E-mail testowy wysłany na ' . $tu['email'] . ' (' . $tu['name'] . ')' . ($via === 'queued' ? ', czeka w kolejce poczty' : '')
+                        : 'Nie udało się wysłać na ' . $tu['email'] . ': ' . $err];
                 }
             }
         }
@@ -157,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $via = ''; $err = '';
                 $ok = task_mail_send($notify_to, 'Test powiadomień — Zadania', $html, 'task_test', $uid, 20, $via, $err, (int)$uid, 'test');
                 $test_result = ['ok' => $ok, 'channel' => 'email',
-                    'msg' => $ok ? 'E-mail testowy wysłany na ' . $notify_to : 'Nie udało się wysłać przez Microsoft Graph: ' . $err];
+                    'msg' => $ok ? 'E-mail testowy wysłany na ' . $notify_to . ($via === 'queued' ? ' (czeka w kolejce poczty)' : '') : 'Nie udało się wysłać: ' . $err];
             }
         }
     } else {
@@ -441,15 +444,15 @@ if (!$is_fragment) {
   ob_start();   // karty boczne: odpowiedzi e-mailem (admin systemu) + test wysyłki
   ?>
   <?php if (is_admin()):
-    require_once dirname(__DIR__) . '/includes/m365.php';
-    $mr_on     = m365_setting('tasks_mail_reply_enabled') === '1';
-    $mr_sender = m365_setting('m365_sender_user_id');
-    $mr_m365   = m365_setting('m365_enabled') === '1' && $mr_sender !== '';
+    require_once dirname(__DIR__) . '/modules/mailImap/lib/ImapAccount.php';
+    $mr_on  = _tn_setting('tasks_mail_reply_enabled') === '1';
+    $mr     = task_mail_reply_stored();
+    $mr_def = ImapAccount::defaultHost();
   ?>
-  <!-- ══ Admin: odpowiedzi e-mailem → komentarze ═════════════════════ -->
+  <!-- ══ Admin: odpowiedzi e-mailem → komentarze (skrzynka IMAP, bez Microsoft 365) ══ -->
   <div class="ns-card">
     <div class="ns-card-header">
-      <i class="bi bi-reply-fill" style="color:#2563eb"></i>
+      <i class="bi bi-reply-fill" style="color:#2563eb" aria-hidden="true"></i>
       Odpowiedź e-mailem jako komentarz
       <span class="sec-badge ms-auto" style="background:#fee2e2;color:#b91c1c">Admin systemu</span>
     </div>
@@ -458,21 +461,55 @@ if (!$is_fragment) {
       <input type="hidden" name="_action" value="save_mail_reply">
       <div class="form-check form-switch mb-2">
         <input class="form-check-input" type="checkbox" role="switch" id="tasks_mail_reply_enabled"
-               name="tasks_mail_reply_enabled" value="1" <?= $mr_on ? 'checked' : '' ?> <?= $mr_m365 ? '' : 'disabled' ?>>
+               name="tasks_mail_reply_enabled" value="1" <?= $mr_on ? 'checked' : '' ?> aria-describedby="mrHelp">
         <label class="form-check-label" for="tasks_mail_reply_enabled">
           Odpowiedź na powiadomienie o zadaniu dodaje komentarz
         </label>
       </div>
-      <p class="small text-muted mb-2">
-        Temat powiadomień dostaje znacznik <code>[ZAD-123-…]</code>. Odpowiedzi trafiają do skrzynki nadawcy
-        <strong><?= h($mr_sender ?: '— nieustawiony —') ?></strong>, a cron co 5 min zamienia je w komentarze —
-        tylko gdy nadawca to adresat powiadomienia (e-mail z konta lub potwierdzony adres powiadomień)
-        i nadal może komentować. Wymaga uprawnienia Graph <strong>Mail.Read (Application)</strong> dla tej skrzynki.
+      <p class="small text-muted mb-2" id="mrHelp">
+        Powiadomienia dostają w temacie znacznik <code>[ZAD-123-…]</code>, a odpowiedzi wracają na skrzynkę podaną niżej.
+        Co 5 minut system czyta ją przez IMAP i dopisuje odpowiedzi do zadań jako komentarze. Robi to tylko wtedy, gdy nadawca
+        jest adresatem powiadomienia (e-mail z konta albo potwierdzony adres powiadomień) i nadal może komentować.
+        Najlepiej załóż na to osobną skrzynkę, np. <code>zadania@feer.org.pl</code>.
       </p>
-      <?php if (!$mr_m365): ?>
-      <p class="small text-warning-emphasis mb-2">Niedostępne: wysyłka przez Microsoft 365 nie jest skonfigurowana.</p>
-      <?php endif; ?>
-      <button type="submit" class="btn btn-sm btn-primary" <?= $mr_m365 ? '' : 'disabled' ?>>Zapisz</button>
+      <div class="row g-2 mb-2">
+        <div class="col-12">
+          <label class="form-label small mb-1" for="mrAddr">Adres skrzynki odpowiedzi</label>
+          <input class="form-control form-control-sm" type="email" id="mrAddr" name="tasks_mail_reply_address" autocomplete="off"
+                 value="<?= h($mr['address']) ?>" placeholder="zadania@feer.org.pl">
+        </div>
+        <div class="col-sm-8">
+          <label class="form-label small mb-1" for="mrHost">Serwer IMAP</label>
+          <input class="form-control form-control-sm" type="text" id="mrHost" name="imap_host" autocomplete="off"
+                 value="<?= h($mr['host']) ?>" placeholder="<?= h($mr_def[0]) ?>" aria-describedby="mrHostHelp">
+          <div class="form-text" id="mrHostHelp">Puste pole: <?= h($mr_def[0]) ?>.</div>
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label small mb-1" for="mrPort">Port</label>
+          <input class="form-control form-control-sm" type="number" id="mrPort" name="imap_port" min="1" max="65535"
+                 value="<?= (int)($mr['port'] ?: $mr_def[1]) ?>">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label small mb-1" for="mrSec">Szyfrowanie</label>
+          <select class="form-select form-select-sm" id="mrSec" name="imap_security">
+            <?php foreach (ImapReader::SECURITY as $k => $label): ?>
+            <option value="<?= h($k) ?>" <?= $mr['security'] === $k ? 'selected' : '' ?>><?= h($label) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label small mb-1" for="mrUser">Login</label>
+          <input class="form-control form-control-sm" type="text" id="mrUser" name="imap_user" autocomplete="off"
+                 value="<?= h($mr['user']) ?>" placeholder="jak adres skrzynki">
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1" for="mrPass">Hasło do skrzynki</label>
+          <input class="form-control form-control-sm" type="password" id="mrPass" name="imap_pass" autocomplete="new-password"
+                 aria-describedby="mrPassHelp">
+          <div class="form-text" id="mrPassHelp"><?= $mr['pass_enc'] !== '' ? 'Hasło jest zapisane. Zostaw puste, żeby go nie zmieniać.' : 'Hasło zapiszemy zaszyfrowane.' ?></div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary">Zapisz i sprawdź połączenie</button>
     </form>
   </div>
   <?php endif; ?>

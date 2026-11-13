@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tu = db_one("SELECT email FROM users WHERE id=?", [$target_id]);
         $task = db_one("SELECT title FROM tasks WHERE id=?", [$task_id]);
         if ($tu && !empty($tu['email'])) {
-            require_once dirname(__DIR__) . '/includes/task_notify.php'; // e-maile Zadań tylko przez Graph
+            require_once dirname(__DIR__) . '/includes/task_notify.php'; // e-maile Zadań przez kolejkę poczty (task_mail_send)
             task_mail_send_text($tu['email'],
                 "[{$org}] Nowa wiadomosc: " . ($task['title'] ?? ''),
                 "Wiadomosc od {$u['name']}:\n\n{$msg_body}\n\n---\n" . rtrim(APP_URL,'/').'/tasks/inbox.php',

@@ -1,8 +1,8 @@
 <?php
 /**
  * Skrypt cron: odpowiedzi e-mailem na powiadomienia o zadaniach → komentarze.
- * Działa tylko, gdy admin włączył opcję (settings.tasks_mail_reply_enabled) — patrz
- * task_mail_reply_ingest() w includes/task_notify.php. Dispatcher co 5 min.
+ * Działa tylko, gdy admin włączył opcję i podał skrzynkę IMAP (Zadania → Powiadomienia → widok admina) — patrz
+ * task_mail_reply_ingest() w includes/task_notify.php. Od 2026-11-13 przez IMAP, bez Microsoft Graph. Dispatcher co 5 min.
  *   php cron/tasks_mail_reply.php [--dry-run]
  */
 if (php_sapi_name() !== 'cli') {
@@ -15,7 +15,6 @@ require_once $base_dir . '/includes/db.php';
 require_once $base_dir . '/includes/functions.php';
 require_once $base_dir . '/includes/tasks.php';
 require_once $base_dir . '/includes/task_notify.php';
-require_once $base_dir . '/includes/m365.php';
 
 $dry = in_array('--dry-run', $argv ?? [], true);
 echo "[" . date('Y-m-d H:i:s') . "] Start: tasks_mail_reply" . ($dry ? ' (dry-run)' : '') . "\n";

@@ -674,13 +674,13 @@ function _tn_default_prefs(): array {
  * Każda próba (sukces i błąd) jest zapisywana w task_notification_log.
  */
 /**
- * Wysyłka e-maila modułu Zadania — WYŁĄCZNIE przez Microsoft Graph (sendMail w imieniu
- * nadawcy z ustawień M365: m365_enabled=1 + m365_sender_user_id). Bez SMTP, mail_queue
- * i mail(): gdy Graph nie jest skonfigurowany albo zwróci błąd, wiadomość nie wychodzi,
- * a błąd trafia do task_notification_errors (+ email_log jako 'm365_failed').
- * $via: 'm365' | 'rate_limited' | 'graph_not_configured' | 'graph_failed'; $err: opis błędu.
- * $reply_to: odpowiedź odbiorcy trafi na ten adres (np. do osoby, która przekazała zadanie). NIE ustawiać
- * w powiadomieniach z [ZAD-…] — „odpowiedź e-mailem → komentarz” czyta skrzynkę nadawcy.
+ * Wysyłka e-maila modułu Zadania przez kolejkę poczty (includes/mail_queue.php: nadawca systemowy, SMTP nowej poczty).
+ * Od 2026-11-13 bez Microsoft Graph (polecenie „w zadaniach wywal Microsoft”). Wiadomość idzie od razu ($immediate);
+ * gdy serwer chwilowo nie przyjmie, zostaje w kolejce i ponawia ją cron poczty.
+ * $via: 'smtp' (wysłana) | 'queued' (czeka w kolejce) | 'rate_limited' | 'no_address' | 'bad_address' | 'blocked' | 'mail_failed';
+ * $err: opis błędu.
+ * $reply_to: odpowiedź odbiorcy trafi na ten adres (np. do osoby, która przekazała zadanie, albo do skrzynki
+ * „odpowiedź e-mailem → komentarz” — patrz _tn_reply_decorate()).
  */
 function task_mail_send(string $to, string $subject, string $html, string $ctx_type = 'task', ?int $ctx_id = null,
                         int $rate_limit = 20, string &$via = '', string &$err = '', int $user_id = 0, string $event = '',
@@ -688,31 +688,37 @@ function task_mail_send(string $to, string $subject, string $html, string $ctx_t
     $via = ''; $err = '';
     $to = trim($to);
     if ($to === '') { $via = 'no_address'; return false; }
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        $via = 'bad_address'; $err = "nieprawidłowy adres {$to}";
+        _tn_log_error($user_id, $event ?: $ctx_type, 'email', "Poczta: {$err}");
+        return false;
+    }
     if (function_exists('email_rate_limit_ok') && !email_rate_limit_ok($to, $rate_limit)) {
         $via = 'rate_limited'; $err = "limit wysyłek na adres {$to}";
         if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, 'rate_limited');
-        _tn_log_error($user_id, $event ?: $ctx_type, 'email', "Graph: {$err}");
+        _tn_log_error($user_id, $event ?: $ctx_type, 'email', "Poczta: {$err}");
         return false;
     }
     try {
-        require_once __DIR__ . '/m365.php';
-        $sender = m365_setting('m365_sender_user_id');
-        $graph  = new M365Graph();
-        if (m365_setting('m365_enabled') !== '1' || $sender === '' || !$graph->is_configured()) {
-            $via = 'graph_not_configured';
-            $err = 'Microsoft Graph nie jest skonfigurowany do wysyłki (Admin → Microsoft 365: włączony moduł, nadawca m365_sender_user_id, dane aplikacji).';
-        } else {
-            $graph->send_raw_email($sender, $to, $subject, $html, $reply_to);
-            $via = 'm365';
-            if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
+        require_once __DIR__ . '/mail_queue.php';
+        $headers = ['X-SZO-Module' => 'zadania'];
+        if ($reply_to !== '' && filter_var($reply_to, FILTER_VALIDATE_EMAIL)) $headers['Reply-To'] = $reply_to;
+        $id = mail_queue_add($to, '', $subject, $html, '', $ctx_type ?: 'task', $ctx_id, '', true, [], '', [], [], $headers);
+        if ($id > 0) {
+            $row = db_one("SELECT status, last_error FROM mail_queue WHERE id = ?", [$id]);
+            $via = ($row['status'] ?? '') === 'sent' ? 'smtp' : 'queued';
+            if ($via === 'queued') $err = (string)($row['last_error'] ?? '');
+            if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, $via === 'smtp' ? 'sent' : 'queued');
             return true;
         }
+        $via = 'blocked';
+        $err = 'kolejka poczty nie przyjęła wiadomości na ten adres';
     } catch (\Throwable $e) {
-        $via = 'graph_failed';
+        $via = 'mail_failed';
         $err = $e->getMessage();
     }
-    if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, 'm365_failed');
-    _tn_log_error($user_id, $event ?: $ctx_type, 'email', "Graph [{$via}] dla {$to}: " . mb_substr($err, 0, 800));
+    if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, 'failed');
+    _tn_log_error($user_id, $event ?: $ctx_type, 'email', "Poczta [{$via}] dla {$to}: " . mb_substr($err, 0, 800));
     return false;
 }
 
@@ -761,7 +767,7 @@ function _tn_email(int $user_id, ?string $to, string $event, int $ref_id,
     $via = '';
     try {
         $err = '';
-        $ok = task_mail_send($to, $subject, $html, 'task', $ref_id, 20, $via, $err, $user_id, $event); // tylko Graph; błąd zapisuje task_mail_send()
+        $ok = task_mail_send($to, $subject, $html, 'task', $ref_id, 20, $via, $err, $user_id, $event, _tn_reply_to_for($event, $html)); // błąd zapisuje task_mail_send()
         if ($ok) {
             _tn_dedup_mark($user_id, $event, $ref_id, 'email', $via ?: 'direct');
         } else {
@@ -1049,20 +1055,89 @@ function _tn_schema_heal(): void {
 //  ODPOWIEDŹ E-MAILEM → KOMENTARZ (opcja admina: settings.tasks_mail_reply_enabled)
 // ─────────────────────────────────────────────────────────────────────────────
 //  Wychodzące powiadomienia o zadaniu dostają w temacie znacznik [ZAD-{id}-{podpis}],
-//  podpis = HMAC(zadanie, odbiorca). Odpowiedzi trafiają do skrzynki nadawcy systemowego
-//  (m365_sender_user_id); cron/tasks_mail_reply.php czyta ją przez Graph (delta) i dodaje
-//  komentarz TYLKO gdy nadawca (e-mail z konta lub potwierdzony adres powiadomień) pasuje
-//  do podpisu i nadal może komentować w obszarze. Wymaga Mail.Read (Application).
+//  podpis = HMAC(zadanie, odbiorca), oraz Reply-To = skrzynka odpowiedzi (tasks_mail_reply_address).
+//  cron/tasks_mail_reply.php czyta tę skrzynkę przez IMAP (modules/mailImap, od 2026-11-13 zamiast
+//  Microsoft Graph) i dodaje komentarz TYLKO gdy nadawca (e-mail z konta lub potwierdzony adres
+//  powiadomień) pasuje do podpisu i nadal może komentować w obszarze.
+//  Ustawienia (tabela settings): tasks_mail_reply_address, tasks_mail_imap_host/_port/_security/_user,
+//  tasks_mail_imap_pass (fcEncrypt, kontekst settings.tasks_mail_imap_pass), kursor tasks_mail_imap_uidvalidity/_last_uid.
 
 /** Zdarzenia, pod którymi zachęcamy do odpowiedzi (przypomnienia i zmiany — też). */
 const TASK_MAIL_REPLY_EVENTS = ['created', 'assigned', 'comment', 'mention', 'file_added', 'moved',
                                 'confirmed', 'rejected', 'due_1day', 'due_today', 'due_soon'];
+const TASK_MAIL_IMAP_CTX = 'settings.tasks_mail_imap_pass';
+
+/** Ustawienie wprost z bazy (org_setting() ma statyczny cache — po zapisie w tym samym żądaniu oddałby starą wartość). */
+function _tn_setting(string $key): string {
+    try { return (string)(db_one("SELECT value FROM settings WHERE key_ = ?", [$key])['value'] ?? ''); } catch (\Throwable $e) { return ''; }
+}
+
+/** Zapisane dane skrzynki odpowiedzi (hasło zaszyfrowane). */
+function task_mail_reply_stored(): array {
+    return ['host' => _tn_setting('tasks_mail_imap_host'), 'port' => (int)(_tn_setting('tasks_mail_imap_port') ?: 993),
+            'security' => _tn_setting('tasks_mail_imap_security') ?: 'ssl', 'user' => _tn_setting('tasks_mail_imap_user'),
+            'pass_enc' => _tn_setting('tasks_mail_imap_pass'), 'address' => strtolower(trim(_tn_setting('tasks_mail_reply_address')))];
+}
+
+/** Konto IMAP skrzynki odpowiedzi albo null. */
+function task_mail_reply_account(): ?ImapAccount {
+    require_once dirname(__DIR__) . '/modules/mailImap/lib/ImapAccount.php';
+    return ImapAccount::fromStored(task_mail_reply_stored(), TASK_MAIL_IMAP_CTX);
+}
+
+/** Adres, na który mają wracać odpowiedzi (Reply-To powiadomień). */
+function task_mail_reply_address(): string {
+    $a = task_mail_reply_stored()['address'];
+    return filter_var($a, FILTER_VALIDATE_EMAIL) ? $a : '';
+}
 
 function task_mail_reply_enabled(): bool {
-    require_once __DIR__ . '/m365.php';
-    return m365_setting('tasks_mail_reply_enabled') === '1'
-        && m365_setting('m365_enabled') === '1'
-        && m365_setting('m365_sender_user_id') !== '';
+    $st = task_mail_reply_stored();
+    return _tn_setting('tasks_mail_reply_enabled') === '1' && task_mail_reply_address() !== ''
+        && $st['host'] !== '' && $st['user'] !== '' && $st['pass_enc'] !== '';
+}
+
+/**
+ * Zapis ustawień z formularza admina (tasks/notification_settings.php). Puste hasło = bez zmiany.
+ * Włączenie (albo zmiana skrzynki) ustawia kursor na koniec skrzynki — stara poczta nie staje się komentarzami.
+ * Zwraca komunikat testu logowania (null = połączenie działa albo opcja wyłączona).
+ */
+function task_mail_reply_save(array $in): ?string {
+    require_once dirname(__DIR__) . '/modules/mailImap/lib/ImapAccount.php';
+    $on = !empty($in['tasks_mail_reply_enabled']);
+    $addr = strtolower(trim((string)($in['tasks_mail_reply_address'] ?? '')));
+    $old = task_mail_reply_stored();
+    if (!$on && $addr === '' && trim((string)($in['imap_user'] ?? '')) === '') {
+        org_setting_set('tasks_mail_reply_enabled', '0');
+        return null;
+    }
+    if (!filter_var($addr, FILTER_VALIDATE_EMAIL)) throw new InvalidArgumentException('Podaj adres skrzynki odpowiedzi, np. zadania@feer.org.pl.');
+    $acc = ImapAccount::normalize(['host' => $in['imap_host'] ?? '', 'port' => $in['imap_port'] ?? '', 'security' => $in['imap_security'] ?? 'ssl',
+                                   'user' => trim((string)($in['imap_user'] ?? '')) ?: $addr, 'pass' => (string)($in['imap_pass'] ?? '')],
+                                  TASK_MAIL_IMAP_CTX, $old['pass_enc']);
+    $changed = $acc['host'] !== $old['host'] || $acc['user'] !== $old['user'] || $addr !== $old['address'];
+    org_setting_set('tasks_mail_reply_address', $addr);
+    org_setting_set('tasks_mail_imap_host', $acc['host']);
+    org_setting_set('tasks_mail_imap_port', (string)$acc['port']);
+    org_setting_set('tasks_mail_imap_security', $acc['security']);
+    org_setting_set('tasks_mail_imap_user', $acc['user']);
+    org_setting_set('tasks_mail_imap_pass', $acc['pass_enc']);
+    if ($on && (_tn_setting('tasks_mail_reply_enabled') !== '1' || $changed)) {
+        org_setting_set('tasks_mail_reply_since', date('Y-m-d H:i:s'));
+        org_setting_set('tasks_mail_imap_uidvalidity', '0');   // pierwszy przebieg ustawi kursor na koniec skrzynki
+        org_setting_set('tasks_mail_imap_last_uid', '0');
+    }
+    org_setting_set('tasks_mail_reply_enabled', $on ? '1' : '0');
+    if (!$on) return null;
+    $a = task_mail_reply_account();
+    return $a ? $a->test() : 'Nie udało się odczytać zapisanego hasła.';
+}
+
+/** Reply-To powiadomienia: skrzynka odpowiedzi, gdy wiadomość dostaje znacznik [ZAD-…] (te same warunki co _tn_reply_decorate). */
+function _tn_reply_to_for(string $event, string $html): string {
+    if (!in_array($event, TASK_MAIL_REPLY_EVENTS, true) || !task_mail_reply_enabled()) return '';
+    if (!preg_match('#/tasks/index\.php\?task=(\d+)#', $html)) return '';
+    return task_mail_reply_address();
 }
 
 function _tn_reply_sig(int $task_id, int $user_id): string {
@@ -1122,93 +1197,109 @@ function _tn_reply_schema(): void {
 }
 
 /**
- * Przetwarza nowe wiadomości w skrzynce nadawcy. Zwraca statystyki.
- * Pierwsze uruchomienie po włączeniu pomija pocztę sprzed momentu włączenia (tasks_mail_reply_since).
+ * Przetwarza nowe wiadomości w skrzynce odpowiedzi (IMAP). Zwraca statystyki.
+ * Pierwszy przebieg po włączeniu tylko ustawia kursor na koniec skrzynki; poczta sprzed włączenia
+ * (tasks_mail_reply_since) też jest pomijana. Przetworzone odpowiedzi dostają flagę \\Seen.
  */
 function task_mail_reply_ingest(bool $dry_run = false): array {
     $stats = ['seen' => 0, 'added' => 0, 'skipped' => 0, 'error' => ''];
     if (!task_mail_reply_enabled()) { $stats['error'] = 'wyłączone'; return $stats; }
     _tn_reply_schema();
-
-    $graph   = new M365Graph();
-    $mailbox = m365_setting('m365_sender_user_id');
-    $delta   = m365_setting('tasks_mail_reply_delta') ?: null;
-    $since   = strtotime(m365_setting('tasks_mail_reply_since') ?: 'now');
+    $acc = task_mail_reply_account();
+    if (!$acc) { $stats['error'] = 'nie udało się odczytać hasła skrzynki odpowiedzi'; return $stats; }
+    $since = strtotime(_tn_setting('tasks_mail_reply_since') ?: 'now');
 
     try {
-        $res = $graph->get_messages_delta($mailbox, 'inbox', $delta);
+        $imap = $acc->open();
+        $res = $acc->fetchNew($imap, (int)_tn_setting('tasks_mail_imap_uidvalidity'), (int)_tn_setting('tasks_mail_imap_last_uid'));
     } catch (\Throwable $e) {
         $stats['error'] = $e->getMessage();
         return $stats;
     }
-    if (empty($res['delta_link']) && empty($res['messages'])) {
-        $stats['error'] = 'Graph nie zwrócił delty — sprawdź uprawnienie Mail.Read (Application) dla skrzynki nadawcy.';
-        return $stats;
-    }
 
-    foreach ($res['messages'] as $msg) {
-        if (!empty($msg['@removed'])) continue;
+    $done = [];
+    foreach ($res['messages'] as $uid => $msg) {
+        if ($msg === null) continue;   // za duża albo nie do pobrania
         $stats['seen']++;
-        $mid     = (string)($msg['internetMessageId'] ?? $msg['id'] ?? '');
-        $subject = (string)($msg['subject'] ?? '');
-        if ($mid === '' || !preg_match('/\[ZAD-(\d+)-([0-9a-f]{10})\]/i', $subject, $m)) continue;
-        if (strtotime((string)($msg['receivedDateTime'] ?? '')) < $since) continue;
-        if (db_one("SELECT 1 AS x FROM task_mail_replies WHERE message_id=?", [$mid])) continue;
-
-        $log = function (string $status, string $detail = '', ?int $uid = null, ?int $cid = null) use ($mid, $m, $dry_run, &$stats) {
-            if ($status === 'added') $stats['added']++; else $stats['skipped']++;
-            if ($dry_run) { echo "  [{$status}] ZAD-{$m[1]} {$detail}\n"; return; }
-            db()->prepare("INSERT OR IGNORE INTO task_mail_replies (message_id, task_id, user_id, comment_id, status, detail) VALUES (?,?,?,?,?,?)")
-                ->execute([$mid, (int)$m[1], $uid, $cid, $status, mb_substr($detail, 0, 500)]);
-        };
-
-        // Autoodpowiedzi (urlop itp.) nie są komentarzami
-        if (preg_match('/^(Automatic reply|Autoreply|Out of Office|Automatyczna odpowiedź|Odpowiedź automatyczna|Nieobecność)/iu', $subject)) {
-            $log('auto_reply'); continue;
-        }
-
-        $task_id = (int)$m[1];
-        $sig     = strtolower($m[2]);
-        $from    = strtolower(trim((string)($msg['from']['emailAddress']['address'] ?? '')));
-
-        // Nadawca → użytkownik: e-mail z konta albo potwierdzony adres powiadomień; podpis musi pasować
-        $cands = db_all(
-            "SELECT u.id FROM users u LEFT JOIN task_notification_prefs p ON p.user_id = u.id
-             WHERE u.is_active = 1
-               AND (LOWER(u.email) = ? OR (LOWER(p.notify_email) = ? AND p.notify_email_verified_at IS NOT NULL))",
-            [$from, $from]
-        );
-        $uid = null;
-        foreach ($cands as $c) {
-            if (hash_equals(_tn_reply_sig($task_id, (int)$c['id']), $sig)) { $uid = (int)$c['id']; break; }
-        }
-        if (!$uid) { $log('sender_mismatch', $from); continue; }
-
-        $task = db_one(
-            "SELECT t.id, tl.workspace_id FROM tasks t JOIN task_lists tl ON tl.id = t.list_id
-             WHERE t.id=? AND t.deleted_at IS NULL",
-            [$task_id]
-        );
-        if (!$task) { $log('no_task', '', $uid); continue; }
-        $role = task_workspace_role((int)$task['workspace_id'], $uid);
-        if (!$role || !task_field_editable('comments', $role)) { $log('no_permission', (string)$role, $uid); continue; }
-
-        $body = task_mail_reply_extract((string)($msg['body']['content'] ?? $msg['bodyPreview'] ?? ''),
-                                        (string)($msg['body']['contentType'] ?? 'text'));
-        if ($body === '') { $log('empty', '', $uid); continue; }
-
-        if ($dry_run) { $log('added', mb_substr($body, 0, 80), $uid); continue; }
-
-        $now = date('Y-m-d H:i:s');
-        $cid = db_insert('task_comments', [
-            'task_id' => $task_id, 'author_id' => $uid, 'body' => $body,
-            'created_at' => $now, 'updated_at' => $now,
-        ]);
-        task_log($task_id, $uid, 'comment_added', null, null, ['via' => 'email']);
-        try { task_notify_new_comment($task_id, (int)$cid, $body, $uid); } catch (\Throwable $e) {}
-        $log('added', '', $uid, (int)$cid);
+        $mid = $msg->messageId !== '' ? $msg->messageId : 'imap:' . $res['cursor'][0] . ':' . $uid;
+        $handled = _tn_reply_handle([
+            'mid' => $mid, 'subject' => $msg->subject, 'from' => $msg->fromEmail, 'received' => $msg->date ?? time(),
+            'body' => $msg->text !== '' ? $msg->text : $msg->html, 'type' => $msg->text !== '' ? 'text' : 'html',
+            'auto' => $msg->isAutomatic(),
+        ], $since, $dry_run, $stats);
+        if ($handled) $done[] = (int)$uid;
     }
 
-    if (!$dry_run && !empty($res['delta_link'])) m365_save_setting('tasks_mail_reply_delta', $res['delta_link']);
+    if (!$dry_run) {
+        try { if ($done) $imap->addFlag($done, '\\Seen'); } catch (\Throwable $e) {}
+        org_setting_set('tasks_mail_imap_uidvalidity', (string)$res['cursor'][0]);
+        org_setting_set('tasks_mail_imap_last_uid', (string)$res['cursor'][1]);
+    }
+    try { $imap->logout(); } catch (\Throwable $e) {}
     return $stats;
+}
+
+/**
+ * Jedna wiadomość: ['mid','subject','from','received'(ts),'body','type'(text|html),'auto'(bool)].
+ * Zwraca true, gdy wiadomość była odpowiedzią na powiadomienie ([ZAD-…]) i została obsłużona (dodana albo odrzucona).
+ */
+function _tn_reply_handle(array $msg, int $since, bool $dry_run, array &$stats): bool {
+    $mid     = (string)$msg['mid'];
+    $subject = (string)$msg['subject'];
+    if ($mid === '' || !preg_match('/\[ZAD-(\d+)-([0-9a-f]{10})\]/i', $subject, $m)) return false;
+    if ((int)$msg['received'] < $since) return false;
+    if (db_one("SELECT 1 AS x FROM task_mail_replies WHERE message_id=?", [$mid])) return true;
+
+    $log = function (string $status, string $detail = '', ?int $uid = null, ?int $cid = null) use ($mid, $m, $dry_run, &$stats) {
+        if ($status === 'added') $stats['added']++; else $stats['skipped']++;
+        if ($dry_run) { echo "  [{$status}] ZAD-{$m[1]} {$detail}\n"; return; }
+        db()->prepare("INSERT OR IGNORE INTO task_mail_replies (message_id, task_id, user_id, comment_id, status, detail) VALUES (?,?,?,?,?,?)")
+            ->execute([$mid, (int)$m[1], $uid, $cid, $status, mb_substr($detail, 0, 500)]);
+    };
+
+    // Autoodpowiedzi (urlop itp.) nie są komentarzami
+    if (!empty($msg['auto']) || preg_match('/^(Automatic reply|Autoreply|Out of Office|Automatyczna odpowiedź|Odpowiedź automatyczna|Nieobecność)/iu', $subject)) {
+        $log('auto_reply'); return true;
+    }
+
+    $task_id = (int)$m[1];
+    $sig     = strtolower($m[2]);
+    $from    = strtolower(trim((string)$msg['from']));
+
+    // Nadawca → użytkownik: e-mail z konta albo potwierdzony adres powiadomień; podpis musi pasować
+    $cands = db_all(
+        "SELECT u.id FROM users u LEFT JOIN task_notification_prefs p ON p.user_id = u.id
+         WHERE u.is_active = 1
+           AND (LOWER(u.email) = ? OR (LOWER(p.notify_email) = ? AND p.notify_email_verified_at IS NOT NULL))",
+        [$from, $from]
+    );
+    $uid = null;
+    foreach ($cands as $c) {
+        if (hash_equals(_tn_reply_sig($task_id, (int)$c['id']), $sig)) { $uid = (int)$c['id']; break; }
+    }
+    if (!$uid) { $log('sender_mismatch', $from); return true; }
+
+    $task = db_one(
+        "SELECT t.id, tl.workspace_id FROM tasks t JOIN task_lists tl ON tl.id = t.list_id
+         WHERE t.id=? AND t.deleted_at IS NULL",
+        [$task_id]
+    );
+    if (!$task) { $log('no_task', '', $uid); return true; }
+    $role = task_workspace_role((int)$task['workspace_id'], $uid);
+    if (!$role || !task_field_editable('comments', $role)) { $log('no_permission', (string)$role, $uid); return true; }
+
+    $body = task_mail_reply_extract((string)$msg['body'], (string)$msg['type']);
+    if ($body === '') { $log('empty', '', $uid); return true; }
+
+    if ($dry_run) { $log('added', mb_substr($body, 0, 80), $uid); return true; }
+
+    $now = date('Y-m-d H:i:s');
+    $cid = db_insert('task_comments', [
+        'task_id' => $task_id, 'author_id' => $uid, 'body' => $body,
+        'created_at' => $now, 'updated_at' => $now,
+    ]);
+    task_log($task_id, $uid, 'comment_added', null, null, ['via' => 'email']);
+    try { task_notify_new_comment($task_id, (int)$cid, $body, $uid); } catch (\Throwable $e) {}
+    $log('added', '', $uid, (int)$cid);
+    return true;
 }

@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $headers = "From: noreply@".($_SERVER['HTTP_HOST']??'localhost')."\r\n"
                      . "Reply-To: ".($actor['email']??'')."\r\n"
                      . "Content-Type: text/plain; charset=utf-8\r\n";
-            require_once dirname(__DIR__) . '/includes/task_notify.php'; // e-maile Zadań tylko przez Graph
+            require_once dirname(__DIR__) . '/includes/task_notify.php'; // e-maile Zadań przez kolejkę poczty (task_mail_send)
             task_mail_send_text(
                 $reporter['email'],
                 "[{$org}] Odpowiedz lidera: {$task['title']}",

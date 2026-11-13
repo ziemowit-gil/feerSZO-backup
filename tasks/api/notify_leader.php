@@ -90,7 +90,7 @@ $sent = 0;
 foreach ($recipients as $r) {
     if (!empty($r['email'])) {
         $via = ''; $err = '';
-        $ok = task_mail_send($r['email'], $subject, $html_body, 'task', null, 10, $via, $err, (int)($r['id'] ?? 0), 'notify_leader'); // tylko Graph
+        $ok = task_mail_send($r['email'], $subject, $html_body, 'task', null, 10, $via, $err, (int)($r['id'] ?? 0), 'notify_leader'); // kolejka poczty (task_mail_send)
         if ($ok) $sent++;
     }
 }
