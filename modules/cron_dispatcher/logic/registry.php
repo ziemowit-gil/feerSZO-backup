@@ -377,6 +377,15 @@ function cron_dispatcher_registry(): array
             'interval' => 86400,        // raz dziennie — pełny backup systemu na SharePoint
             'schedule' => [1, 3],       // w nocy
         ],
+        'backup_remote' => [
+            'file'     => $cronDir . '/agents/backup_remote.php',
+            'interval' => 3600,         // co godzinę — nowe kopie lokalne na serwer zdalny SFTP/rsync (obok SharePointa, niezależnie); pierwsza wysyłka = pełna; wyłączone, póki admin nie włączy w Kopiach zapasowych
+        ],
+        'backup_remote_full' => [
+            'file'     => $cronDir . '/agents/backup_remote_full.php',
+            'interval' => 86400,        // raz dziennie — pełna kopia na serwer zdalny, gdy minął ustawiony okres (doba / 7 dni) + retencja na serwerze
+            'schedule' => [3, 5],       // w nocy, po pełnym backupie SharePoint
+        ],
         'sync_crm_volunteers' => [
             'file'     => $cronDir . '/sync_crm_volunteers.php',
             'interval' => 86400,        // raz dziennie

@@ -10,6 +10,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/includes/backup.php';
 require_once dirname(__DIR__) . '/includes/admin_audit.php';
+require_once dirname(__DIR__) . '/modules/backup_remote/logic/backupRemoteActions.php';
 admin_audit_migrate();
 
 require_role('admin');
@@ -111,6 +112,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $flash = 'Zapisano próg alertu o przeterminowaniu: ' . $h . ' h.'; $flash_type = 'success';
     }
 
+    // Kopia na serwer zdalny (SFTP / rsync) — modules/backup_remote. Błędy walidacji i test połączenia
+    // renderują się na miejscu (bez przekierowania), żeby zachować wartości formularza.
+    $remoteStay = false;
+    if (str_starts_with($act, 'remote_')) {
+        $rr = backupRemoteHandlePost($act);
+        $flash = $rr['flash']; $flash_type = $rr['type'];
+        $remoteStay = empty($rr['redirect']);
+    }
+
     $verify = null;
     if ($act === 'verify') {
         $verify = backup_verify(true);
@@ -152,9 +162,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Weryfikacja renderuje wyniki na miejscu (bez przekierowania).
     // Komunikat przez sesję, nie przez adres: treść zawiera HTML budowany po stronie serwera (np. <pre> z wynikiem
     // backupu), a wypisywanie ?msg= z adresu pozwalało wstrzyknąć skrypt linkiem podsuniętym administratorowi.
-    if ($act !== 'verify') {
+    if ($act !== 'verify' && !$remoteStay) {
         if ($flash) $_SESSION['backupsFlash'] = ['msg' => $flash, 'type' => $flash_type];
-        header('Location: ' . APP_URL . '/admin/backups.php');
+        header('Location: ' . APP_URL . '/admin/backups.php' . (str_starts_with($act, 'remote_') ? '#backup-remote' : ''));
         exit;
     }
 }
@@ -346,6 +356,20 @@ $_health_txt = $_last_ok === 0 ? 'Brak danych' : ($_stale ? 'Przeterminowany' : 
         <div class="text-muted">SharePoint — folder / retencja</div>
         <div class="fw-semibold"><code style="font-size:.78rem"><?= h($_sp_folder) ?></code> · <?= (int)(org_setting('sp_backup_retention_days') ?: 90) ?> dni</div>
       </div>
+      <?php $_rm = backupRemoteSummary(); ?>
+      <div class="col-6 col-md-3">
+        <div class="text-muted"><i class="bi bi-hdd-network me-1" aria-hidden="true"></i>Serwer zdalny — ostatnia wysyłka</div>
+        <div class="fw-semibold">
+          <?php if (!$_rm['enabled']): ?><span class="text-muted">wyłączony</span>
+          <?php elseif ($_rm['last'] && !$_rm['last']['ok']): ?><a href="#backup-remote" class="text-danger"><i class="bi bi-x-circle-fill" aria-hidden="true"></i> błąd <?= date('d.m.Y H:i', (int)$_rm['last']['ts']) ?></a>
+          <?php elseif ($_rm['last_ok']): ?><?= date('d.m.Y H:i', $_rm['last_ok']) ?> <span class="text-muted">(<?= round((time() - $_rm['last_ok']) / 3600, 1) ?>h)</span>
+          <?php else: ?><span class="text-muted">brak danych</span><?php endif; ?>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-muted">Serwer zdalny — cel</div>
+        <div class="fw-semibold"><?= $_rm['enabled'] ? h(strtoupper($_rm['method']) . ' · ' . $_rm['host']) : '<span class="text-muted">—</span>' ?></div>
+      </div>
     </div>
     <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
       <form method="post" class="d-inline">
@@ -396,6 +420,8 @@ $_health_txt = $_last_ok === 0 ? 'Brak danych' : ($_stale ? 'Przeterminowany' : 
   </div>
 </div>
 <?php endif; ?>
+
+<?php include dirname(__DIR__) . '/modules/backup_remote/view/card.php'; ?>
 
 <?php
 $_enc_on     = backup_encryption_enabled();
@@ -543,6 +569,7 @@ $_openssl    = backup_openssl_available();
   <?php else: ?>
   &middot; <a href="<?= APP_URL ?>/admin/sp_onboarding.php"><i class="bi bi-cloud-arrow-up"></i> Włącz SharePoint backup</a>
   <?php endif; ?>
+  &middot; <i class="bi bi-hdd-network"></i> Serwer zdalny (SFTP / rsync): <?= $_rm['enabled'] ? 'nowe kopie co godzinę, pełna kopia ' . (backupRemoteConfig()['full_every'] === 7 ? 'co 7 dni' : 'co noc') . '.' : '<a href="#backup-remote">wyłączony — skonfiguruj</a>.' ?>
 </div>
 
 <?php if ($_sp_enabled): ?>
