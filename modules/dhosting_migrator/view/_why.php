@@ -11,9 +11,15 @@
  * EX1550543/MO1550821; nie atak — ustawienia serwerów po aktualizacji; 13.11 wciąż naprawiana). Pominięte jako niepewne:
  * 16.03, kwiecień/maj, 9.11. Przy zmianie treści sprawdź aktualny stan.
  */
+// $whyCollapsed (strona migracji, polecenie 2026-11-13 „uprość”): ta sama treść, zwinięta pod jednym zdaniem — nadal na początku strony
+$whyCollapsed = !empty($whyCollapsed);
 ?>
 <section class="dm-sec" aria-labelledby="hWhy">
   <h2 id="hWhy" class="mt-h2">Dlaczego <b>przenosimy pocztę?</b></h2>
+  <?php if ($whyCollapsed): ?>
+  <details class="dm-more">
+    <summary>Microsoft zmienia warunki dla organizacji pozarządowych, a w 2026 r. jego poczta kilka razy nie działała. Rozwiń, żeby przeczytać więcej.</summary>
+  <?php endif; ?>
   <div class="mt-group">
     <p><strong>Microsoft kolejny raz zmienia warunki dla organizacji pozarządowych — w tym roku to już nie pierwsza zmiana, która nas dotyka.</strong></p>
     <ul class="dm-list">
@@ -47,4 +53,5 @@
       u którego koszt nie zależy od zmian w programach Microsoft. Nowa poczta działa na otwartych standardach (IMAP i SMTP),
       więc w razie potrzeby przeniesiemy ją dalej bez zmiany Twojego adresu.</p>
   </div>
+  <?php if ($whyCollapsed): ?></details><?php endif; ?>
 </section>

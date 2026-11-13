@@ -76,8 +76,12 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
     <div>
       <div class="mt-kicker">Poczta Fundacji</div>
       <h1 class="mt-title">Migracja poczty</h1>
+      <?php if (!empty($st['migrated'])): ?>
+      <p class="mt-lead">Twoja poczta jest już w nowej skrzynce. Poniżej masz wszystko, czego potrzebujesz do logowania.</p>
+      <?php else: ?>
       <p class="mt-lead">Nowa skrzynka pocztowa z <strong>tym samym loginem</strong> co Twoje konto Microsoft 365 i <strong>nowym hasłem</strong>.
-        Możesz też przenieść do niej pocztę z Microsoft 365.</p>
+        Dotychczasowa poczta przeniesie się do niej sama.</p>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -87,63 +91,65 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
     </div>
   <?php endif; ?>
 
-  <?php include __DIR__ . '/_why.php'; // na początku strony (polecenie 2026-11-13), pod komunikatem po akcji ?>
+  <?php if (!empty($st['migrated'])):
+        // Migracja zakończona (polecenie 2026-11-13): najważniejsze na górze — kto i kiedy, login, hasło (SMS), logowanie, potem dane do programu.
+        // Stan skrzynki i numer do SMS-ów z API dostawcy ($st['info'], DhostingMigrator::publicInfo), zapasowo z rejestru.
+        $mj  = $st['copy'] ?? null;
+        $reg = $st['registry'] ?? [];
+        $inf = $st['info'] ?? [];
+        $byAdmin   = ($mj['via'] ?? 'admin') !== 'self';
+        $loginUrl  = $web !== '' ? $web : DhostingConfig::DEFAULT_WEBMAIL;
+        $loginHost = (string)(parse_url($loginUrl, PHP_URL_HOST) ?: $loginUrl);
+        $smsTo     = ($inf['phoneMasked'] ?? '') !== '' ? (string)$inf['phoneMasked'] : (string)($reg['sms_to'] ?? ''); ?>
+  <section class="dm-done" aria-labelledby="hDone">
+    <h2 id="hDone"><i class="bi bi-check2-circle" aria-hidden="true" style="color:var(--m-green)"></i> <?= $byAdmin ? 'Administrator zakończył migrację Twojej poczty' : 'Migracja Twojej poczty jest zakończona' ?></h2>
+    <p class="dm-done__when"><?= !empty($mj['finished_at']) ? 'Zakończono ' . h(date('d.m.Y, H:i', strtotime((string)$mj['finished_at']))) . '. ' : '' ?>Możesz już korzystać z nowej skrzynki.</p>
+    <?php if (($inf['active'] ?? null) === false): ?>
+      <div class="dm-msg dm-msg--danger" role="alert"><i class="bi bi-lock" aria-hidden="true"></i><div><strong>Skrzynka jest teraz zablokowana.</strong> Napisz do administratora<?= $hdUrl !== '' ? ' w <a href="' . h($hdUrl) . '">swoim zgłoszeniu</a>' : '' ?>.</div></div>
+    <?php endif; ?>
+    <div class="mt-grid mt-grid--sm" role="list" aria-label="Dane do logowania">
+      <div class="mt-tile dm-static" role="listitem" style="--c:var(--m-blue)">
+        <i class="bi bi-person ic" aria-hidden="true"></i>
+        <div><span class="val"><?= h((string)($st['mailbox'] ?? '')) ?></span><span class="lbl">Login — Twój adres e-mail</span></div>
+      </div>
+      <div class="mt-tile dm-static" role="listitem" style="--c:var(--m-indigo)">
+        <i class="bi bi-phone ic" aria-hidden="true"></i>
+        <div><span class="val">Hasło z SMS-a</span><span class="lbl"><?= $smsTo !== '' ? 'wysłane na numer ' . h($smsTo) : 'albo od administratora' ?><?= !empty($reg['sms_at']) ? ', ' . h(date('d.m.Y', strtotime((string)$reg['sms_at']))) : '' ?></span></div>
+      </div>
+      <a class="mt-tile" role="listitem" style="--c:var(--m-green)" href="<?= h($loginUrl) ?>" target="_blank" rel="noopener">
+        <i class="bi bi-box-arrow-up-right ic" aria-hidden="true"></i>
+        <div><span class="val"><?= h($loginHost) ?></span><span class="lbl">Otwórz pocztę w przeglądarce<span class="visually-hidden"> (nowa karta)</span></span></div>
+      </a>
+    </div>
+    <p class="dm-help" style="margin:1rem 0 0">Nie masz hasła albo chcesz coś zmienić (nowe hasło, ponowne kopiowanie)?
+      <?= $locked ? 'To robi administrator — ' : '' ?><?php if ($hdUrl !== ''): ?>napisz w <a href="<?= h($hdUrl) ?>">swoim zgłoszeniu <?= h((string)$st['ticket']['number']) ?></a>.<?php else: ?>napisz do Helpdesku IT.<?php endif; ?></p>
+  </section>
+  <?php if (!$locked): ?>
+    <div class="dm-msg dm-msg--info" role="status"><i class="bi bi-shield-check" aria-hidden="true"></i>
+      <div>To konto jest już zmigrowane. Jako administrator możesz nadal ustawić nowe hasło albo skopiować pocztę ponownie.</div></div>
+  <?php endif; ?>
+
+  <section class="dm-sec" aria-labelledby="hCfg">
+    <h2 id="hCfg" class="mt-h2">Ustawienia <b>programu pocztowego</b></h2>
+    <div class="mt-group">
+      <p>Telefon (Gmail, Poczta w iPhonie), Outlook, Thunderbird i inne programy: dodaj konto ręcznie, z tymi danymi.</p>
+      <?php $cfgBox = (string)($st['mailbox'] ?? ''); include __DIR__ . '/_mailConfig.php'; ?>
+    </div>
+  </section>
+  <?php else: ?>
+  <?php $whyCollapsed = true; include __DIR__ . '/_why.php'; // na początku strony (polecenie 2026-11-13), zwinięte (polecenie „uprość”) ?>
 
   <div class="mt-imp">
     <div class="mt-imp__item" style="--c:var(--m-blue)">
       <h2 class="mt-imp__ttl">Co się dzieje z pocztą?</h2>
-      <p class="mt-imp__body"><?php if ($swTxt !== ''): ?><strong>Od <?= h($swTxt) ?> poczta</strong> w domenie @<?= h($domain) ?> <?= $swPast ? 'działa' : 'będzie działać' ?><?php else: ?>Wkrótce poczta w domenie @<?= h($domain) ?> będzie działać<?php endif; ?> u polskiego dostawcy zamiast w Microsoft 365. <strong>Twój adres e-mail się nie zmienia.</strong>
-Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt) : '' ?> — zajmie to około 5 minut. Dotychczasowa poczta skopiuje się sama, razem z folderami.</p>
+      <p class="mt-imp__body"><?php if ($swTxt !== ''): ?><strong>Od <?= h($swTxt) ?> poczta</strong> w domenie @<?= h($domain) ?> <?= $swPast ? 'działa' : 'będzie działać' ?><?php else: ?>Wkrótce poczta w domenie @<?= h($domain) ?> będzie działać<?php endif; ?> u polskiego dostawcy zamiast w Microsoft 365.
+        <strong>Nie zmienia się</strong> Twój adres e-mail, hasło do Microsoft 365 ani logowanie do SZO.
+        Zrób kroki poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt) : '' ?> — to około 5 minut. Dotychczasowa poczta skopiuje się sama, razem z folderami.</p>
     </div>
   </div>
-
-  <div class="mt-grid mt-grid--sm" role="list" aria-label="Stan migracji">
-    <div class="mt-tile dm-static" role="listitem" style="--c:var(<?= $exists ? '--m-green' : '--m-blue' ?>)">
-      <i class="bi bi-envelope-at ic" aria-hidden="true"></i>
-      <div><span class="val"><?= $exists ? 'Jest' : ($st['exists'] === false ? 'Brak' : '—') ?></span><span class="lbl">Nowa skrzynka</span></div>
-    </div>
-    <div class="mt-tile dm-static" role="listitem" style="--c:var(<?= $job && $job['status'] === 'done' ? '--m-green' : '--m-teal' ?>)">
-      <i class="bi bi-arrow-left-right ic" aria-hidden="true"></i>
-      <div><span class="val"><?= $job ? $pct . '%' : '—' ?></span><span class="lbl">Kopia poczty<?= $job ? ' — ' . h(DhostingCopy::LABELS[$job['status']] ?? $job['status']) : '' ?></span></div>
-    </div>
-    <div class="mt-tile dm-static" role="listitem" style="--c:var(<?= $st['mobile'] ? '--m-indigo' : '--m-orange' ?>)">
-      <i class="bi bi-phone ic" aria-hidden="true"></i>
-      <div><span class="val"><?= $st['mobile'] ? 'Jest' : 'Brak' ?></span><span class="lbl">Numer do SMS</span></div>
-    </div>
-    <?php if (!empty($st['ticket'])): ?>
-      <a class="mt-tile" role="listitem" style="--c:var(--m-violet)" <?= $hdUrl !== '' ? 'href="' . h($hdUrl) . '"' : '' ?>>
-        <i class="bi bi-life-preserver ic" aria-hidden="true"></i>
-        <div><span class="val" style="font-size:1.1rem;font-weight:600"><?= h((string)$st['ticket']['number']) ?></span><span class="lbl">Zgłoszenie w Helpdesku<?= $hdUrl !== '' ? ' — otwórz' : '' ?></span></div>
-      </a>
-    <?php endif; ?>
-  </div>
-
-  <?php if ($locked):
-        // migracja zakończona (polecenie 2026-11-13): kto zakończył, hasło SMS-em, gdzie się logować
-        $mj  = $st['copy'] ?? null;
-        $reg = $st['registry'] ?? [];
-        $byAdmin = ($mj['via'] ?? 'admin') !== 'self';
-        $loginUrl = $web !== '' ? $web : DhostingConfig::DEFAULT_WEBMAIL;
-        $loginHost = (string)(parse_url($loginUrl, PHP_URL_HOST) ?: $loginUrl); ?>
-    <div class="dm-msg dm-msg--success" role="status" style="margin-top:1rem"><i class="bi bi-check2-circle" aria-hidden="true"></i>
-      <div><strong><?= $byAdmin ? 'Administrator zakończył migrację Twojej poczty.' : 'Migracja Twojej poczty jest zakończona.' ?></strong>
-        <?php if (!empty($mj['finished_at'])): ?><span>(<?= h(date('d.m.Y H:i', strtotime((string)$mj['finished_at']))) ?>)</span><?php endif; ?>
-        <ul style="margin:.4rem 0 0;padding-left:1.2rem">
-          <?php $inf = $st['info'] ?? []; $smsTo = ($inf['phoneMasked'] ?? '') !== '' ? (string)$inf['phoneMasked'] : (string)($reg['sms_to'] ?? ''); ?>
-          <?php if (($inf['active'] ?? null) === true): ?><li>Skrzynka jest aktywna.</li>
-          <?php elseif (($inf['active'] ?? null) === false): ?><li><strong>Skrzynka jest teraz zablokowana.</strong> Napisz do administratora.</li><?php endif; ?>
-          <li><?php if (!empty($reg['sms_at']) || $smsTo !== ''): ?>Hasło do nowej skrzynki przyszło SMS-em<?= $smsTo !== '' ? ' na numer ' . h($smsTo) : '' ?><?= !empty($reg['sms_at']) ? ' (' . h(date('d.m.Y H:i', strtotime((string)$reg['sms_at']))) . ')' : '' ?>.
-              <?php else: ?>Hasło do nowej skrzynki przyszło SMS-em albo przekazał je administrator.<?php endif; ?></li>
-          <li>Logowanie: <a href="<?= h($loginUrl) ?>" target="_blank" rel="noopener"><?= h($loginHost) ?><span class="visually-hidden"> (nowa karta)</span></a>
-              — login: <b><?= h((string)($st['mailbox'] ?? '')) ?></b>, hasło z SMS-a.</li>
-          <li>Nie masz hasła albo chcesz coś zmienić (nowe hasło, ponowne kopiowanie)? To robi administrator —
-              <?php if ($hdUrl !== ''): ?>napisz w <a href="<?= h($hdUrl) ?>">swoim zgłoszeniu <?= h((string)$st['ticket']['number']) ?></a>.<?php else: ?>napisz do Helpdesku IT.<?php endif; ?></li>
-        </ul></div></div>
-  <?php elseif (!empty($st['migrated'])): ?>
-    <div class="dm-msg dm-msg--info" role="status" style="margin-top:1rem"><i class="bi bi-shield-check" aria-hidden="true"></i>
-      <div>To konto jest już zmigrowane. Jako administrator możesz nadal ustawić nowe hasło albo skopiować pocztę ponownie.</div></div>
   <?php endif; ?>
 
+  <?php if (empty($st['migrated'])): ?>
   <section class="dm-sec" aria-labelledby="hSteps">
     <h2 id="hSteps" class="mt-h2">Twoje <b>kroki</b></h2>
     <ol class="dm-steps">
@@ -154,25 +160,11 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
       </li>
       <?php endforeach; ?>
     </ol>
+    <?php if (!empty($st['ticket'])): ?>
+      <p class="dm-help">Coś nie działa? Napisz w <?php if ($hdUrl !== ''): ?><a href="<?= h($hdUrl) ?>">swoim zgłoszeniu <?= h((string)$st['ticket']['number']) ?></a><?php else: ?>zgłoszeniu <?= h((string)$st['ticket']['number']) ?><?php endif; ?>.</p>
+    <?php endif; ?>
   </section>
-
-  <section class="dm-sec" aria-labelledby="hBox">
-    <h2 id="hBox" class="mt-h2">Twoja <b>skrzynka</b></h2>
-    <div class="mt-group">
-      <dl class="mt-kv">
-        <div><dt>Login Microsoft 365</dt><dd><?= $st['login'] !== '' ? h($st['login']) : '—' ?></dd></div>
-        <div><dt>Nowa skrzynka</dt><dd><?= $st['mailbox'] ? h($st['mailbox']) : '—' ?></dd></div>
-        <div><dt>Stan</dt><dd><?= $st['exists'] === true ? '<span class="mt-yes">Skrzynka istnieje</span>' : ($st['exists'] === false ? 'Jeszcze jej nie ma' : '—') ?></dd></div>
-        <div><dt>Numer do SMS</dt><dd><?= $st['phoneMasked'] !== '' ? h($st['phoneMasked']) : 'brak' ?></dd></div>
-        <?php if (!empty($st['registry']['password_set_at'])): ?>
-        <div><dt>Ostatnie hasło</dt><dd><?= h(substr((string)$st['registry']['password_set_at'], 0, 16)) ?></dd></div>
-        <?php endif; ?>
-        <?php if (!empty($st['ticket'])): ?>
-        <div><dt>Zgłoszenie w Helpdesku</dt><dd><?php if ($hdUrl !== ''): ?><a href="<?= h($hdUrl) ?>"><?= h((string)$st['ticket']['number']) ?></a><?php else: ?><?= h((string)$st['ticket']['number']) ?><?php endif; ?> — tu napisz, jeśli coś nie działa</dd></div>
-        <?php endif; ?>
-      </dl>
-    </div>
-  </section>
+  <?php endif; ?>
 
   <?php if ($st['problem'] !== '' && !$locked): ?>
     <div class="dm-msg dm-msg--warning" role="alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><?= h($st['problem']) ?></div></div>
@@ -353,33 +345,17 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
   </section>
   <?php endif; ?>
 
-  <section class="dm-sec" aria-labelledby="hCfg">
-    <h2 id="hCfg" class="mt-h2">Ustawienia <b>programu pocztowego</b></h2>
-    <div class="mt-group">
-      <p>Dla telefonu (Gmail, Poczta iOS), Outlooka, Thunderbirda — <?= $swTxt !== '' ? ($swPast ? 'od ' . h($swTxt) : 'od ' . h($swTxt) . ', nie wcześniej') : 'po przełączeniu' ?>. Typ konta: <strong>IMAP</strong>.</p>
-      <table class="dm-cfg">
-        <caption class="visually-hidden">Dane do konfiguracji konta pocztowego</caption>
-        <tr><th scope="row">Adres e-mail i login</th><td><?= $st['mailbox'] ? '<code>' . h($st['mailbox']) . '</code>' : 'pełny adres e-mail' ?></td></tr>
-        <tr><th scope="row">Hasło</th><td>to z SMS-a albo Twoje własne, jeśli ustawiłeś(-aś) je wyżej (nie hasło do Microsoft 365)</td></tr>
-        <tr><th scope="row">Poczta przychodząca (IMAP)</th><td><code><?= h($imapHost) ?></code>, port <?= (int)$imapPort ?>, SSL/TLS</td></tr>
-        <tr><th scope="row">Poczta wychodząca (SMTP)</th><td><code><?= h(DhostingConfig::SMTP_HOST) ?></code>, port <?= (int)DhostingConfig::SMTP_PORT ?>, STARTTLS, z uwierzytelnianiem (ten sam login i hasło)</td></tr>
-      </table>
-      <?php if ($web !== '' && $exists): ?>
-        <p style="margin-top:.8rem">Poczta przez przeglądarkę: <a href="<?= h($web) ?>" target="_blank" rel="noopener"><?= h($web) ?></a> (otwiera się w nowej karcie)</p>
-      <?php endif; ?>
-    </div>
+  <?php if (empty($st['migrated'])): ?>
+  <section class="dm-sec" aria-labelledby="hCfgLater">
+    <h2 id="hCfgLater" class="mt-h2">Ustawienia <b>programu pocztowego</b></h2>
+    <details class="dm-more">
+      <summary>Dane do telefonu i Outlooka — przydadzą się <?= $swTxt !== '' ? ($swPast ? 'od ' . h($swTxt) : 'od ' . h($swTxt) . ', nie wcześniej') : 'po przełączeniu' ?></summary>
+      <?php $cfgBox = (string)($st['mailbox'] ?? ''); include __DIR__ . '/_mailConfig.php'; ?>
+    </details>
   </section>
-
-  <section class="dm-sec" aria-labelledby="hSame">
-    <h2 id="hSame" class="mt-h2">Co się <b>nie zmienia</b></h2>
-    <div class="mt-group">
-      <ul class="dm-list">
-        <li>adres e-mail,</li>
-        <li>hasło do konta Microsoft 365 i logowanie do SZO,</li>
-        <li>wiadomości, które w dniu przełączenia jeszcze wpadną do starej skrzynki — dokopiujemy je, nic nie zginie.</li>
-      </ul>
-    </div>
-  </section>
+  <?php else: ?>
+  <?php $whyCollapsed = true; include __DIR__ . '/_why.php'; ?>
+  <?php endif; ?>
 
   <div class="mt-note" role="note" style="border-left-color:var(--m-red)"><i class="bi bi-shield-exclamation" aria-hidden="true" style="color:var(--m-red)"></i>
     <div><strong>Bezpieczeństwo:</strong> hasło do nowej skrzynki wysyłamy <strong>tylko SMS-em</strong>, nigdy e-mailem.

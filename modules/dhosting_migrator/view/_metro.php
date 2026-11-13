@@ -77,5 +77,20 @@ panelMetroAssets(panelMetroColor('blue'));
   .pvm .mt-progress{margin-top:.5rem}
   .pvm .mt-progress--done>span{background:var(--m-green)}
   .pvm a{color:#0b5a8a}
+  .pvm table.dm-cfg{margin:0 0 1rem}
+  .pvm table.dm-cfg caption.dm-cfg__cap{caption-side:top;text-align:left;font-weight:600;font-size:1rem;color:var(--pvm-ink);padding:0 0 .4rem}
+  .pvm table.dm-cfg--srv th{width:auto}
+  .pvm table.dm-cfg--srv thead th{color:var(--pvm-ink);font-size:.85rem;border-top:0;background:#fff}
+  /* rozwijane dodatki (strona prosta: szczegóły na żądanie) */
+  .pvm details.dm-more{margin:.6rem 0;border-left:4px solid var(--pvm-line);padding:.2rem 0 .2rem .8rem}
+  .pvm details.dm-more>summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}
+  .pvm details.dm-more>summary:focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
+  .pvm details.dm-more[open]>summary{margin-bottom:.4rem}
+  /* migracja zakończona: duża karta z najważniejszym */
+  .pvm .dm-done{background:var(--pvm-light);border-left:8px solid var(--m-green);padding:1.1rem 1.2rem;margin:0 0 1.5rem}
+  .pvm .dm-done h2{margin:0 0 .25rem;font-size:1.5rem;font-weight:600;color:var(--pvm-ink)}
+  .pvm .dm-done .dm-done__when{color:var(--pvm-muted);margin:0 0 1rem}
+  .pvm .dm-done .mt-grid{margin:0}
+  .pvm .dm-done .mt-tile .val{font-size:1.05rem;font-weight:600}
   @media(max-width:480px){.pvm table.dm-cfg th{width:auto}.pvm .mt-title{font-size:1.75rem}}
 </style>

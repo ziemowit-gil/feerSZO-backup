@@ -29,6 +29,8 @@ final class DhostingConfig
     public const SMTP_HOST = 'smtp.dpoczta.pl';
     // 587 + STARTTLS (sprawdzone 13.11.2026: na 465 serwer odpowiada zwykłym SMTP bez TLS — „SSL na 465” w programach pocztowych nie działa)
     public const SMTP_PORT = 587;
+    /** Serwer POP3 (instrukcja dostawcy, 2026-11-13: 110 bez szyfrowania, 995 SSL) — tylko do opisu dla użytkowników. */
+    public const POP3_HOST = 'pop3.dpoczta.pl';
 
     public static function get(string $key, string $default = ''): string
     {
