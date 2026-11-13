@@ -517,7 +517,7 @@ final class PocztaStud
         return $out;
     }
 
-    /** Drugi XLSX: tylko e-mail @stud i alias @edu, jako tekst, bez nagłówków (do wgrania u dostawcy poczty). Kończy żądanie. */
+    /** Drugi XLSX: nagłówek „E-mail”, „Alias”, potem tylko e-mail @stud i alias @edu jako tekst (do wgrania u dostawcy poczty). Kończy żądanie. */
     public static function exportAliasXlsx(string $by): void
     {
         require_once dirname(__DIR__, 3) . '/includes/xlsx.php';
@@ -526,6 +526,7 @@ final class PocztaStud
         while (ob_get_level() > 0) ob_end_clean();
         $x = new XlsxWriter();
         $x->addSheet('E-mail i alias');
+        $x->writeRow(['E-mail', 'Alias'], ['header', 'text']);
         foreach ($rows as $r) $x->writeRow($r, ['text']);
         $x->output('poczta_kursanta_email_alias_' . date('Ymd_Hi') . '.xlsx');
     }
