@@ -67,6 +67,9 @@ RewriteRule ^seeder-test(/.*)?$  /modules/seeders/router.php [QSA,L]
 RewriteRule ^migracjapoczty(/.*)?$ /modules/dhosting_migrator/router.php [QSA,L]
 RewriteRule ^migracjaadmin(/.*)?$  /modules/dhosting_migrator/router.php [QSA,L]
 
+# ── Samodzielna zmiana haseł (logowanie jednokrotne + chmura, poczta): /nowehaslo/… → modules/nowe_haslo/router.php ──
+RewriteRule ^nowehaslo(/.*)?$ /modules/nowe_haslo/router.php [QSA,L]
+
 # ── Logowanie jednokrotne (Logto) i chmura plików: /ssoadmin/… (administrator), /sso/… (użytkownik) ──
 RewriteRule ^ssoadmin(/.*)?$ /modules/sso_logto/router.php [QSA,L]
 RewriteRule ^sso(/.*)?$      /modules/sso_logto/router.php [QSA,L]
