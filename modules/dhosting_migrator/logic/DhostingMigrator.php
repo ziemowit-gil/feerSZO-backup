@@ -256,14 +256,15 @@ final class DhostingMigrator
         ];
         if (!DhostingConfig::selfEnabled()) { $st['problem'] = 'Zakładanie skrzynek przez użytkowników jest wyłączone. Skontaktuj się z administratorem.'; return $st; }
         if ($login === '') { $st['problem'] = 'Twoje konto nie jest połączone z kontem Microsoft 365, więc nie wiemy, jaki login ma mieć skrzynka. Zaloguj się przez Microsoft albo poproś administratora.'; return $st; }
-        if ($box === null) { $st['problem'] = 'Login ' . $login . ' jest w domenie, której nie przenosimy na dhosting.'; return $st; }
+        if ($box === null) { $st['problem'] = 'Login ' . $login . ' jest w domenie, której poczty nie przenosimy.'; return $st; }
 
         $api = DhostingConfig::api();
         if (!$api->configured()) { $st['problem'] = 'Usługa nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.'; return $st; }
         try {
             $st['exists'] = in_array($box, $api->getMailboxList(substr($box, strrpos($box, '@') + 1)), true);
         } catch (\Throwable $e) {
-            $st['problem'] = 'Nie udało się sprawdzić stanu skrzynki na dhosting. Spróbuj za chwilę. (' . $e->getMessage() . ')';
+            error_log('[dhosting] selfState: ' . $e->getMessage()); // szczegóły tylko w logu — użytkownik nie widzi nazwy dostawcy (polecenie 2026-11-13)
+            $st['problem'] = 'Nie udało się sprawdzić stanu Twojej skrzynki. Spróbuj za chwilę.';
             return $st;
         }
         if (!$st['mobile']) { $st['problem'] = 'Hasło wysyłamy SMS-em, a w Twoim koncie nie ma numeru komórkowego. Dodaj go w Ustawieniach konta.'; return $st; }
@@ -297,7 +298,7 @@ final class DhostingMigrator
             }
         } catch (\Throwable $e) {
             self::record($box, $base + ['status' => 'error', 'last_error' => mb_substr($e->getMessage(), 0, 500)]);
-            throw new RuntimeException('dhosting nie przyjął zmiany: ' . $e->getMessage());
+            throw new RuntimeException('Serwer poczty nie przyjął zmiany. Spróbuj za kilka minut albo skontaktuj się z administratorem.'); // szczegóły w last_error (widzi admin)
         }
         self::record($box, $base + ['status' => 'created', 'password_set_at' => date('Y-m-d H:i:s'), 'last_error' => null]
             + ($st['exists'] ? [] : ['created_at' => date('Y-m-d H:i:s')]));
@@ -327,13 +328,13 @@ final class DhostingMigrator
         $box = $login !== '' ? DhostingConfig::mailboxFor($login) : null;
         if (!DhostingConfig::selfEnabled() || $box === null) throw new RuntimeException('Kopiowanie poczty nie jest dostępne dla Twojego konta.');
         if (!DhostingCopy::available()) throw new RuntimeException('Kopiowanie poczty nie jest jeszcze skonfigurowane. Skontaktuj się z administratorem.');
-        if ($password === '') throw new RuntimeException('Wpisz hasło do skrzynki dhosting.');
+        if ($password === '') throw new RuntimeException('Wpisz hasło do nowej skrzynki.');
         $ok = DhostingCopy::checkPassword($box, $password);
         if ($ok === false) throw new RuntimeException('To hasło nie pasuje do skrzynki ' . $box . '. Jeśli go nie pamiętasz, poproś o nowe hasło SMS-em.');
         DhostingCopy::queue($box, $login, $password, (int)$u['id'], 'self', $by);
         return $ok === true
             ? 'Kopiowanie poczty do ' . $box . ' ruszy w ciągu kilku minut. Postęp zobaczysz na tej stronie.'
-            : 'Serwer poczty dhosting chwilowo nie odpowiada — kopiowanie czeka w kolejce i spróbujemy ponownie (co ' . DhostingCopy::RETRY_HOURS . ' h).';
+            : 'Nowy serwer poczty chwilowo nie odpowiada — kopiowanie czeka w kolejce i spróbujemy ponownie (co ' . DhostingCopy::RETRY_HOURS . ' h).';
     }
 
     /** Login Microsoft użytkownika: m365_login, a gdy go brak — e-mail konta (jeśli jest w obsługiwanej domenie), na końcu Graph po microsoft_id. */

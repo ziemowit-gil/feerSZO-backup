@@ -188,7 +188,7 @@ final class DhostingCopy
         $imap = null;
         try {
             $pass = (string)fcDecrypt((string)$job['password_enc'], self::PASS_CTX);
-            if ($pass === '') throw new RuntimeException('Brak hasła do skrzynki dhosting — uruchom kopiowanie ponownie z hasłem.');
+            if ($pass === '') throw new RuntimeException('Brak hasła do nowej skrzynki — uruchom kopiowanie ponownie z hasłem.');
             $graph = new DhostingGraphMail();
             $imap = new DhostingImap(DhostingConfig::imapAddress());
             $imap->connect();

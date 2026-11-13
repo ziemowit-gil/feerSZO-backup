@@ -25,10 +25,10 @@ $steps[] = $st['mobile']
     ? ['done', 'Numer komórkowy w SZO', 'Gotowe — hasło przyjdzie na ' . $st['phoneMasked'] . '.']
     : ['todo', 'Numer komórkowy w SZO', 'Do zrobienia — dodaj numer w Ustawieniach konta (link niżej). Na niego przyjdzie hasło.'];
 $steps[] = $exists
-    ? ['done', 'Skrzynka na dhosting i hasło SMS-em', 'Gotowe — skrzynka ' . $st['mailbox'] . ' istnieje.']
+    ? ['done', 'Nowa skrzynka i hasło SMS-em', 'Gotowe — skrzynka ' . $st['mailbox'] . ' istnieje.']
     : ($st['exists'] === false
-        ? ['todo', 'Skrzynka na dhosting i hasło SMS-em', 'Do zrobienia — kliknij „Załóż skrzynkę i wyślij hasło SMS-em” poniżej.']
-        : ['info', 'Skrzynka na dhosting i hasło SMS-em', 'Nie udało się teraz sprawdzić — zobacz komunikat niżej.']);
+        ? ['todo', 'Nowa skrzynka i hasło SMS-em', 'Do zrobienia — kliknij „Załóż skrzynkę i wyślij hasło SMS-em” poniżej.']
+        : ['info', 'Nowa skrzynka i hasło SMS-em', 'Nie udało się teraz sprawdzić — zobacz komunikat niżej.']);
 if ($job && $job['status'] === 'done') $steps[] = ['done', 'Kopia poczty z Microsoft 365', 'Gotowe — skopiowano ' . (int)$job['copied_items'] . ' wiadomości.'];
 elseif ($job && $job['status'] === 'waiting') $steps[] = ['doing', 'Kopia poczty z Microsoft 365', 'Czeka — serwer był niedostępny, ponowimy ' . substr((string)$job['next_run_at'], 0, 16) . '.'];
 elseif ($jobActive) $steps[] = ['doing', 'Kopia poczty z Microsoft 365', 'W toku — ' . $pct . '% (nic nie musisz robić, kopiuje się w tle).'];
@@ -123,7 +123,7 @@ $steps[] = ['info', 'Program pocztowy w telefonie i komputerze', ($swTxt !== '' 
 
 <main id="tresc">
   <h1><i class="bi bi-envelope-at" aria-hidden="true"></i> Migracja poczty</h1>
-  <p class="lead">Skrzynka na serwerach dhosting.pl z <strong>tym samym loginem</strong> co Twoje konto Microsoft 365 i <strong>nowym hasłem</strong>. Możesz też przenieść do niej pocztę z Microsoft 365.</p>
+  <p class="lead">Nowa skrzynka pocztowa z <strong>tym samym loginem</strong> co Twoje konto Microsoft 365 i <strong>nowym hasłem</strong>. Możesz też przenieść do niej pocztę z Microsoft 365.</p>
 
   <?php if ($flash): ?>
     <div class="msg msg--<?= h($flash['type']) ?>" role="<?= $flash['type'] === 'success' ? 'status' : 'alert' ?>"><?= h($flash['msg']) ?></div>
@@ -133,7 +133,7 @@ $steps[] = ['info', 'Program pocztowy w telefonie i komputerze', ($swTxt !== '' 
     <h2 id="hNews"><i class="bi bi-info-circle" aria-hidden="true"></i> Co się dzieje z pocztą?</h2>
     <p><?php if ($swTxt !== ''): ?><strong>Od <?= h($swTxt) ?> poczta</strong> w domenie @<?= h($domain) ?> <?= $swPast ? 'działa' : 'będzie działać' ?>
        <?php else: ?>Wkrótce poczta w domenie @<?= h($domain) ?> będzie działać<?php endif; ?>
-       na serwerach polskiej firmy dhosting.pl zamiast w Microsoft 365. <strong>Twój adres e-mail się nie zmienia.</strong></p>
+       u polskiego dostawcy zamiast w Microsoft 365. <strong>Twój adres e-mail się nie zmienia.</strong></p>
     <p>Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt) : '' ?> — zajmie to około 5 minut. Dotychczasowa poczta skopiuje się sama, razem z folderami.</p>
   </section>
 
@@ -155,7 +155,7 @@ $steps[] = ['info', 'Program pocztowy w telefonie i komputerze', ($swTxt !== '' 
     <h2 id="hBox">Twoja skrzynka</h2>
     <dl>
       <dt>Login Microsoft</dt><dd><?= $st['login'] !== '' ? h($st['login']) : '—' ?></dd>
-      <dt>Skrzynka dhosting</dt><dd><?= $st['mailbox'] ? h($st['mailbox']) : '—' ?></dd>
+      <dt>Nowa skrzynka</dt><dd><?= $st['mailbox'] ? h($st['mailbox']) : '—' ?></dd>
       <dt>Stan</dt>
       <dd><?php if ($st['exists'] === true): ?><span class="b b--ok">Skrzynka istnieje</span>
           <?php elseif ($st['exists'] === false): ?><span class="b b--info">Jeszcze jej nie ma</span>
@@ -215,7 +215,7 @@ $steps[] = ['info', 'Program pocztowy w telefonie i komputerze', ($swTxt !== '' 
       <?php elseif ($job['status'] === 'error' && $job['last_error']): ?>
         <div class="msg msg--danger" role="alert"><?= h(mb_substr((string)$job['last_error'], 0, 300)) ?></div>
       <?php elseif ($job['status'] === 'done'): ?>
-        <p class="small">Zakończono <?= h(substr((string)$job['finished_at'], 0, 16)) ?>. Foldery z Outlooka są w skrzynce dhosting pod tymi samymi nazwami.</p>
+        <p class="small">Zakończono <?= h(substr((string)$job['finished_at'], 0, 16)) ?>. Foldery z Outlooka są w nowej skrzynce pod tymi samymi nazwami.</p>
       <?php endif; ?>
       <?php if ($jobActive): ?>
       <form method="post" action="<?= h(route('dhm.selfCopy')) ?>" onsubmit="return confirm('Anulować kopiowanie poczty?')">
@@ -227,10 +227,10 @@ $steps[] = ['info', 'Program pocztowy w telefonie i komputerze', ($swTxt !== '' 
 
     <?php if ($exists && !$jobActive): ?>
       <?php if (!$job): ?><p class="small" style="margin-top:0">Masz już skrzynkę i hasło z SMS-a? Podaj je, a skopiujemy pocztę z Microsoft 365. Wiadomości już przeniesione nie zdublują się.</p>
-      <?php else: ?><p class="small">Chcesz skopiować pocztę jeszcze raz (np. nowe wiadomości)? Podaj hasło do skrzynki dhosting.</p><?php endif; ?>
+      <?php else: ?><p class="small">Chcesz skopiować pocztę jeszcze raz (np. nowe wiadomości)? Podaj hasło do nowej skrzynki.</p><?php endif; ?>
       <form method="post" action="<?= h(route('dhm.selfCopy')) ?>" class="js-once">
         <?= Router::csrfField() ?><input type="hidden" name="op" value="start">
-        <label class="fld" for="mpw">Hasło do skrzynki dhosting</label>
+        <label class="fld" for="mpw">Hasło do nowej skrzynki</label>
         <input class="inp" type="password" id="mpw" name="mail_password" autocomplete="current-password" required aria-describedby="mpwHelp">
         <p class="help" id="mpwHelp">To hasło z SMS-a albo Twoje własne, jeśli było zmieniane. Przechowujemy je zaszyfrowane tylko do końca kopiowania.</p>
         <button class="btn btn--ghost" type="submit"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Skopiuj pocztę</button>

@@ -279,7 +279,7 @@ function _menu_viewer(): array {
         $search[] = _mi('Moja karta dostępu','/modules/smart_cards/my.php','bi-person-badge',['match'=>'/modules/smart_cards/my','kw'=>'karta dostępu identyfikator nfc wniosek biuro']);
     $search[] = _mi('Microsoft 365','/panel/m365.php','bi-microsoft',['match'=>'/panel/m365','kw'=>'m365 office']);
     if (org_setting('dhosting_self_enabled') === '1')
-        $search[] = _mi('Moja skrzynka dhosting','/migracjapoczty','bi-envelope-at',['match'=>'/migracjapoczty','kw'=>'poczta skrzynka dhosting hasło sms nowa skrzynka']);
+        $search[] = _mi('Migracja poczty','/migracjapoczty','bi-envelope-at',['match'=>'/migracjapoczty','kw'=>'poczta skrzynka dhosting hasło sms nowa skrzynka']);
     $search[] = _mi('Sesje i bezpieczeństwo','/panel/sessions.php','bi-shield-lock',['match'=>'/panel/sessions']);
     $search[] = _mi('Ustawienia konta','/panel/password.php','bi-gear',['match'=>'/panel/password','kw'=>'hasło 2fa ustawienia']);
 
