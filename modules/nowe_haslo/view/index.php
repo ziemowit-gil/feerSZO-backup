@@ -45,6 +45,16 @@ if ($noRandom) $mSel = 'own';
   .pvm .nh-login{font-size:1.15rem;font-weight:600;word-break:break-all}
   .pvm ol.nh-two{margin:.3rem 0 0;padding-left:1.3rem}
   .pvm ol.nh-two li{margin:.35rem 0}
+  .pvm .nh-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:1rem;align-items:start}
+  .pvm .nh-card{background:#fff;border:2px solid var(--pvm-line);border-top:6px solid var(--m-blue);padding:1rem 1.1rem 1.1rem}
+  .pvm .nh-card--sel{border-color:var(--m-blue)}
+  .pvm .nh-card--off{border-top-color:var(--pvm-line)}
+  .pvm .nh-card__h{font-size:1.1rem;font-weight:600;margin:0 0 .35rem;display:flex;gap:.5rem;align-items:center}
+  .pvm .nh-card__h i{color:var(--m-blue)}
+  .pvm .nh-card__login{margin:0 0 .25rem;word-break:break-all}
+  .pvm .nh-card__desc{margin:0 0 .6rem;color:var(--pvm-muted);font-size:.92rem}
+  .pvm .nh-card .dm-inp{max-width:none}
+  .pvm .nh-card .dm-chk{margin:.2rem 0 .7rem}
 </style>
 </head>
 <body>
@@ -71,7 +81,7 @@ if ($noRandom) $mSel = 'own';
       <div class="mt-kicker">Konta Fundacji</div>
       <h1 class="mt-title">Nowe hasło</h1>
       <p class="mt-lead">Tu zmienisz hasło do logowania jednokrotnego i chmury plików albo hasło do poczty.
-        <?php if ($mode === 'user'): ?>Jesteś zalogowany do SZO, więc zmienisz hasło od razu, bez kodu.
+        <?php if ($mode === 'user'): ?>Masz dwa osobne hasła. Zmienisz każde od razu, bez kodu.
         <?php else: ?>Najpierw potwierdzimy, że to Ty: danymi z umowy z Fundacją i kodem.
         Przy haśle do poczty kod przychodzi SMS-em (a gdy nie mamy numeru, na prywatny e-mail), przy haśle logowania jednokrotnego e-mailem.<?php endif; ?></p>
     </div>
@@ -92,6 +102,7 @@ if ($noRandom) $mSel = 'own';
     </div>
   <?php endif; ?>
 
+  <?php if ($mode !== 'user'): ?>
   <div class="mt-note" role="note" style="border-left-color:var(--m-orange);margin-bottom:1.25rem"><i class="bi bi-shield-lock" aria-hidden="true" style="color:var(--m-orange)"></i>
     <div><strong>Masz dwa hasła.</strong>
       <ol class="nh-two">
@@ -100,6 +111,7 @@ if ($noRandom) $mSel = 'own';
         <li><strong>Poczta</strong> — osobne hasło. Musi być inne niż hasło logowania jednokrotnego. Sprawdzimy to przy zmianie.</li>
       </ol>
       <p style="margin:.4rem 0 0">Gdy ktoś pozna jedno hasło, nie dostanie się do drugiego konta. Hasła nigdy nie wysyłamy e-mailem.</p></div></div>
+  <?php endif; ?>
 
   <?php if ($mode === 'none'): ?>
   <ol class="dm-path" aria-label="Etapy">
@@ -133,7 +145,7 @@ if ($noRandom) $mSel = 'own';
     </ol>
     <?php endif; ?>
 
-    <?php if ($acc): ?>
+    <?php if ($acc && $mode !== 'user'): /* zalogowany widzi loginy w kartach */ ?>
     <section class="dm-sec" aria-labelledby="hAcc">
       <h2 id="hAcc" class="mt-h2">Twój <b>login</b></h2>
       <div class="mt-group">
@@ -154,40 +166,39 @@ if ($noRandom) $mSel = 'own';
 
     <?php if ($hasSso || $hasMail): ?>
     <section class="dm-sec" aria-labelledby="hChg" id="zmiana">
-      <h2 id="hChg" class="mt-h2">Zmień <b>hasło</b></h2>
+      <h2 id="hChg" class="mt-h2"><?= $mode === 'user' ? 'Twoje <b>hasła</b>' : 'Zmień <b>hasło</b>' ?></h2>
 
-      <?php if ($mode === 'user'): /* zalogowany: zmiana od razu, bez kodu (NoweHasloController::changePost) */ ?>
-        <div class="mt-group">
-          <form method="post" action="<?= h(route('nh.change')) ?>" class="js-once" id="nhForm" novalidate>
-            <?= Router::csrfField() ?>
-            <fieldset class="nh-set">
-              <legend>Które hasło zmieniasz?</legend>
-              <label class="nh-opt"><input type="radio" name="target" value="sso"<?= $tSel === 'sso' ? ' checked' : '' ?><?= $okSso ? '' : ' disabled' ?>>
-                <span>Logowanie jednokrotne i chmura plików<span class="nh-sub">Jedno hasło do obu.<?= $hasSso ? '' : ' Nie masz jeszcze tego konta.' ?></span></span></label>
-              <label class="nh-opt"><input type="radio" name="target" value="mail"<?= $tSel === 'mail' ? ' checked' : '' ?><?= $okMail ? '' : ' disabled' ?>>
-                <span>Poczta<span class="nh-sub"><?= $acc && $acc['mailbox'] !== '' ? h($acc['mailbox']) . '. ' : '' ?>Osobne hasło, inne niż do logowania jednokrotnego.<?= $hasMail ? '' : ' Nie masz skrzynki.' ?></span></span></label>
-            </fieldset>
-            <fieldset class="nh-set">
-              <legend>Jakie ma być nowe hasło?</legend>
-              <label class="nh-opt"><input type="radio" name="mode" value="own"<?= $mSel === 'own' ? ' checked' : '' ?> aria-controls="nhOwn">
-                <span>Ustawię własne<span class="nh-sub">Wpiszesz je poniżej.</span></span></label>
-              <label class="nh-opt"><input type="radio" name="mode" value="random"<?= $mSel === 'random' ? ' checked' : '' ?><?= $noRandom ? ' disabled' : '' ?> aria-controls="nhOwn">
-                <span>Wyślij mi losowe SMS-em<span class="nh-sub"><?= $noRandom ? 'Nie mamy Twojego numeru komórkowego, a hasła nie wysyłamy e-mailem.' : 'Dostaniesz je na telefon. Na ekranie go nie pokażemy.' ?></span></span></label>
-            </fieldset>
-            <div id="nhOwn">
-              <label class="dm-fld" for="nhPw">Nowe hasło</label>
-              <input class="dm-inp" id="nhPw" name="password" type="password" autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>" aria-describedby="nhPwHelp">
-              <p class="dm-help" id="nhPwHelp">Co najmniej <?= NoweHaslo::MIN_LEN ?> znaków: małe i wielkie litery oraz cyfry. Bez imienia, nazwiska i loginu.
-                Hasło do poczty musi być inne niż hasło logowania jednokrotnego.</p>
-              <label class="dm-fld" for="nhPw2">Powtórz nowe hasło</label>
-              <input class="dm-inp" id="nhPw2" name="password2" type="password" autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>">
-              <label class="dm-chk" style="margin-top:.6rem"><input type="checkbox" id="nhShow"> <span>Pokaż hasło</span></label>
-            </div>
-            <?php if ($okSso || $okMail): ?>
-              <p class="dm-help">Po zmianie dostaniesz SMS i e-mail z informacją, że hasło się zmieniło.</p>
-              <button type="submit" class="mt-btn"><i class="bi bi-check2" aria-hidden="true"></i> Zmień hasło</button>
+      <?php if ($mode === 'user'): /* zalogowany: dwie karty obok siebie, każda z własnym formularzem, bez kodu (NoweHasloController::changePost) */
+        $cards = [
+          'sso'  => ['icon' => 'bi-cloud-check', 'title' => 'Logowanie jednokrotne i chmura plików', 'ok' => $okSso,
+                     'login' => $acc ? $acc['login'] . ($acc['cloudUid'] !== '' ? ' (w chmurze też ' . $acc['cloudUid'] . ')' : '') : '',
+                     'desc' => 'SZO, chmura plików i inne aplikacje Fundacji.',
+                     'none' => 'Nie masz jeszcze tego konta. Napisz do Helpdesku IT — założymy je.'],
+          'mail' => ['icon' => 'bi-envelope', 'title' => 'Poczta', 'ok' => $okMail,
+                     'login' => $acc ? $acc['mailbox'] : '',
+                     'desc' => 'Skrzynka pocztowa. Hasło musi być inne niż do logowania jednokrotnego.',
+                     'none' => 'Nie masz skrzynki pocztowej Fundacji.'],
+        ]; ?>
+        <div class="nh-grid">
+          <?php foreach ($cards as $t => $c): $id = 'nh' . ucfirst($t); ?>
+          <article class="nh-card<?= $c['ok'] ? '' : ' nh-card--off' ?><?= $tSel === $t && $c['ok'] ? ' nh-card--sel' : '' ?>" aria-labelledby="<?= $id ?>H">
+            <h3 id="<?= $id ?>H" class="nh-card__h"><i class="bi <?= $c['icon'] ?>" aria-hidden="true"></i> <?= h($c['title']) ?></h3>
+            <?php if ($c['login'] !== ''): ?><p class="nh-card__login">Login: <strong><?= h($c['login']) ?></strong></p><?php endif; ?>
+            <p class="nh-card__desc"><?= h($c['ok'] ? $c['desc'] : $c['none']) ?></p>
+            <?php if ($c['ok']): ?>
+              <form method="post" action="<?= h(route('nh.change')) ?>" class="js-once nh-pwform" novalidate>
+                <?= Router::csrfField() ?><input type="hidden" name="target" value="<?= $t ?>"><input type="hidden" name="mode" value="own">
+                <label class="dm-fld" for="<?= $id ?>Pw">Nowe hasło</label>
+                <input class="dm-inp" id="<?= $id ?>Pw" name="password" type="password" required autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>" aria-describedby="<?= $id ?>Help">
+                <label class="dm-fld" for="<?= $id ?>Pw2">Powtórz nowe hasło</label>
+                <input class="dm-inp" id="<?= $id ?>Pw2" name="password2" type="password" required autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>">
+                <p class="dm-help" id="<?= $id ?>Help">Co najmniej <?= NoweHaslo::MIN_LEN ?> znaków: małe i wielkie litery oraz cyfry. Bez imienia, nazwiska i loginu.</p>
+                <label class="dm-chk"><input type="checkbox" class="nh-show"> <span>Pokaż hasło</span></label>
+                <button type="submit" class="mt-btn"><i class="bi bi-check2" aria-hidden="true"></i> Zmień hasło</button>
+              </form>
             <?php endif; ?>
-          </form>
+          </article>
+          <?php endforeach; ?>
         </div>
       <?php elseif ($code === null): ?>
         <div class="mt-group">
@@ -271,6 +282,11 @@ if ($noRandom) $mSel = 'own';
 (function () {
   document.querySelectorAll('form.js-once').forEach(function (f) {
     f.addEventListener('submit', function () { var b = f.querySelector('button[type=submit]'); if (b) { b.disabled = true; b.lastChild.textContent = ' Chwileczkę…'; } });
+  });
+  document.querySelectorAll('.nh-show').forEach(function (c) {
+    c.addEventListener('change', function () {
+      c.closest('form').querySelectorAll('input[name=password], input[name=password2]').forEach(function (i) { i.type = c.checked ? 'text' : 'password'; });
+    });
   });
   var form = document.getElementById('nhForm');
   if (!form) return;
