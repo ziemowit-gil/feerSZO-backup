@@ -834,6 +834,17 @@ return [
 
     // „Poczta kursanta” w /uslugi-it: data wyłączenia kont @edu.feer.org.pl (20.11.2026) i lead „po ostatnich awariach Microsoft 365”
     // (polecenie 2026-11-13). Nadpisuje wstęp i artykuły także tam, gdzie poprzednia migracja już się wykonała.
+    // Portal Usług IT, „Chmura plików”: logowanie przez IAM już działa (polecenie 2026-11-13 „zaktualizuj, że już obsługuje IAM”) —
+    // wstęp usługi i oba artykuły (nextcloud, instalacja-aplikacji): kroki z logowaniem jednokrotnym, ramka „Chmura obsługuje już IAM”.
+    '2026-11_it_portal_cloud_iam' => [
+        'desc' => 'Portal Usług IT: chmura plików obsługuje logowanie jednokrotne (IAM) — wstęp i artykuły',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_cloud_seed.php [--dry-run]
+        },
+    ],
+
     // Portal Usług IT: usługa „Konto i hasła” z artykułem „Zmiana haseł” (dwa osobne hasła: poczta oraz logowanie jednokrotne z chmurą;
     // strona /nowehaslo i kafel „Zmiana haseł” w panelu współpracownika; polecenie 2026-11-13). modules/it_portal/lib/itPortalHaslaSeed.php.
     '2026-11_it_portal_hasla' => [

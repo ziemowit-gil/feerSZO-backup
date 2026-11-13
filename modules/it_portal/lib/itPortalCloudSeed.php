@@ -4,8 +4,9 @@
  * z wprowadzeniem i krótkim artykułem o Nextcloud. Polecenie 2026-11-13: „Przygotuj też krótki artykuł o NextCloud + takie wprowadzenie”.
  * Artykuł „instalacja-aplikacji” (polecenie 2026-11-13: instalacja klientów Nextcloud na przykładzie instrukcji CRI AGH, link do niej
  * jako przydatny materiał z dopiskiem, by wpisać adres chmury Fundacji zamiast AGH) wgrywa migracja '2026-11_it_portal_cloud_clients'.
- * „Docelowo Nextcloud będzie obsługiwany przez IAM” (2026-11-13) — ramka w obu artykułach; dziś logowanie loginem i hasłem IAM
- * bezpośrednio w Nextcloud (bez user_oidc).
+ * Logowanie przez IAM (2026-11-13, „zaktualizuj, że już obsługuje IAM”): Nextcloud loguje przez logowanie jednokrotne (user_oidc,
+ * login z customData.nc_uid w Logto) — przycisk na stronie chmury i strona logowania IAM, także w aplikacjach. Ramka w obu
+ * artykułach mówi już, że chmura obsługuje IAM (wcześniej: „Docelowo chmurę obsłuży IAM”). Migracja '2026-11_it_portal_cloud_iam'.
  *
  * Fakty zgodne z kodem na 2026-11-13: adres chmury z SsoConfig::cloudUrl() (produkcja https://nc.feer.org.pl), login
  * imie.nazwisko albo adres e-mail, hasło IAM (inne niż do poczty), konto zakładane po zalogowaniu do SZO (/sso/start)
@@ -74,7 +75,7 @@ function itPortalCloudIntro(string $app): string {
     return '<p>Chmura plików Fundacji działa na programie Nextcloud pod adresem <a href="' . $cloud . '">' . $host . '</a>. '
          . 'Zastępuje OneDrive z Microsoft 365, który wyłączamy 20 listopada 2026 r. Trzymasz w niej pliki służbowe, udostępniasz je innym osobom '
          . 'i synchronizujesz z komputerem i telefonem.</p>'
-         . '<p>Logujesz się loginem <code>imie.nazwisko</code> albo adresem e-mail i hasłem IAM. To hasło jest inne niż hasło do poczty. '
+         . '<p>Logujesz się logowaniem jednokrotnym (IAM), tak jak do SZO: adresem e-mail i hasłem IAM. To hasło jest inne niż hasło do poczty. '
          . 'Zacznij od instrukcji poniżej. Jeśli czegoś w niej brakuje, <a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
 }
 
@@ -110,7 +111,7 @@ function itPortalCloudBlocks(string $app): array {
         ['type' => 'wizard', 'title' => 'Pierwsze kroki', 'intro' => '', 'steps' => [
             $step('Załóż konto', '<p>Po zalogowaniu do SZO panel sam zaproponuje konto IAM i konto w chmurze. Ustawiasz jedno hasło do obu. '
                 . 'Konto założysz też w Systemie Tożsamości, w sekcji <a href="' . $app . '/tozsamosc/index.php#sso">Logowanie jednokrotne</a>.</p>'),
-            $step('Zaloguj się w przeglądarce', '<p>Wejdź na <a href="' . $cloud . '">' . $host . '</a>. Login to <code>imie.nazwisko</code> albo Twój adres e-mail, hasło to hasło IAM.</p>'),
+            $step('Zaloguj się w przeglądarce', '<p>Wejdź na <a href="' . $cloud . '">' . $host . '</a> i wybierz logowanie jednokrotne. Na stronie logowania IAM podaj adres e-mail i hasło IAM.</p>'),
             $step('Zainstaluj aplikację', '<p>Pobierz aplikację Nextcloud na komputer (Windows, macOS, Linux) albo telefon (Android, iOS) ze strony '
                 . '<a href="https://nextcloud.com/install/">nextcloud.com/install</a>. Przy pierwszym uruchomieniu wpisz adres <code>' . $host . '</code> i zaloguj się. '
                 . 'Aplikacja na komputerze synchronizuje wybrane foldery tak jak OneDrive. Krok po kroku opisuje to instrukcja '
@@ -118,8 +119,9 @@ function itPortalCloudBlocks(string $app): array {
             $step('Przenieś pliki z OneDrive', '<p>Przed 20 listopada 2026 r. przenieś do chmury pliki z OneDrive, których potrzebujesz. Jeśli administrator zlecił kopiowanie '
                 . 'Twojego OneDrive, pliki pojawią się same w folderze „OneDrive”.</p>'),
         ]],
-        ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Docelowo chmurę obsłuży IAM.</strong> Do Nextcloud zalogujesz się wtedy logowaniem jednokrotnym, tak jak do SZO, '
-            . 'a aplikacje na komputerze i telefonie przekierują Cię na stronę logowania IAM. Login i hasło zostaną te same. O zmianie napiszemy w komunikatach Portalu Usług IT.</p>'],
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Chmura obsługuje już logowanie jednokrotne (IAM).</strong> Do Nextcloud logujesz się tak jak do SZO: '
+            . 'przycisk logowania jednokrotnego przenosi Cię na stronę logowania IAM. Aplikacje na komputerze i telefonie otwierają tę samą stronę. '
+            . 'Hasło jest jedno dla IAM i chmury, a do poczty masz osobne.</p>'],
         ['type' => 'text', 'html' => '<h2>Udostępnianie</h2>'
             . '<p>Przy pliku albo folderze kliknij ikonę udostępniania. Wpisz imię lub adres osoby z Fundacji albo utwórz link. '
             . 'Przy linku możesz ustawić hasło, datę wygaśnięcia i to, czy odbiorca może tylko oglądać, czy także zmieniać pliki.</p>'],
@@ -155,7 +157,7 @@ function itPortalCloudClientsBlocks(string $app): array {
         ]],
         ['type' => 'wizard', 'title' => 'Komputer: połączenie z chmurą Fundacji', 'intro' => '', 'steps' => [
             $step('Wpisz adres serwera', '<p>Kliknij „Zaloguj się” i jako adres serwera wpisz <code>' . $cloud . '</code>.</p>'),
-            $step('Zaloguj się w przeglądarce', '<p>Aplikacja otworzy przeglądarkę. Zaloguj się loginem <code>imie.nazwisko</code> albo adresem e-mail i hasłem IAM (tym samym co do chmury, innym niż do poczty).</p>'),
+            $step('Zaloguj się w przeglądarce', '<p>Aplikacja otworzy przeglądarkę. Wybierz logowanie jednokrotne i na stronie logowania IAM podaj adres e-mail i hasło IAM (to samo co do chmury, inne niż do poczty).</p>'),
             $step('Udziel dostępu', '<p>Sprawdź, czy na ekranie jest Twoje imię i nazwisko, i kliknij „Udziel dostępu”. Wróć do aplikacji.</p>'),
             $step('Wybierz folder i sposób synchronizacji', '<p>Zostaw folder proponowany przez aplikację albo wskaż inny. Potem wybierz, co ma trafiać na komputer:</p><ul>'
                 . '<li><strong>Pliki wirtualne</strong>: widzisz wszystkie pliki, ale pobierają się dopiero przy otwarciu. Oszczędza miejsce na dysku. Polecamy na Windows i macOS.</li>'
@@ -164,16 +166,17 @@ function itPortalCloudClientsBlocks(string $app): array {
         ]],
         ['type' => 'wizard', 'title' => 'Telefon (Android, iPhone)', 'intro' => '', 'steps' => [
             $step('Zainstaluj aplikację', '<p>W Sklepie Play albo App Store wyszukaj „Nextcloud” (wydawca Nextcloud GmbH) i zainstaluj aplikację.</p>'),
-            $step('Zaloguj się', '<p>Kliknij „Zaloguj się”, wpisz adres <code>' . $cloud . '</code>, zaloguj się loginem i hasłem IAM i udziel dostępu.</p>'),
+            $step('Zaloguj się', '<p>Kliknij „Zaloguj się” i wpisz adres <code>' . $cloud . '</code>. Wybierz logowanie jednokrotne, zaloguj się adresem e-mail i hasłem IAM i udziel dostępu.</p>'),
             $step('Zdecyduj o zdjęciach', '<p>Aplikacja może sama wysyłać zdjęcia z telefonu do chmury. Włącz to tylko dla zdjęć służbowych. Prywatnych zdjęć nie wysyłaj do chmury Fundacji.</p>'),
         ]],
-        ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Docelowo chmurę obsłuży IAM.</strong> Do Nextcloud zalogujesz się wtedy logowaniem jednokrotnym, tak jak do SZO, '
-            . 'a aplikacje na komputerze i telefonie przekierują Cię na stronę logowania IAM. Login i hasło zostaną te same. O zmianie napiszemy w komunikatach Portalu Usług IT.</p>'],
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Chmura obsługuje już logowanie jednokrotne (IAM).</strong> Do Nextcloud logujesz się tak jak do SZO: '
+            . 'przycisk logowania jednokrotnego przenosi Cię na stronę logowania IAM. Aplikacje na komputerze i telefonie otwierają tę samą stronę. '
+            . 'Hasło jest jedno dla IAM i chmury, a do poczty masz osobne.</p>'],
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Pliku usuniętego z folderu synchronizowanego na komputerze ubywa też w chmurze. Odzyskasz go z kosza na <a href="' . $cloud . '">' . $host . '</a>. '
             . 'Po zmianie hasła IAM aplikacje poproszą o ponowne zalogowanie.</p>'],
         ['type' => 'text', 'html' => '<h2>Przydatne materiały</h2><ul>'
             . '<li><a href="https://cri.agh.edu.pl/pomoc-it/instrukcje/instalacja-i-konfiguracja-aplikacji-nextcloud">Instalacja i konfiguracja aplikacji Nextcloud</a>: instrukcja ze zrzutami ekranu przygotowana przez Akademię Górniczo-Hutniczą (AGH). '
-            . 'Kroki są te same, ale zamiast adresu AGH (<code>dysk.agh.edu.pl</code>) wpisz adres chmury Fundacji: <code>' . $cloud . '</code>, a zamiast danych AGH podaj swój login i hasło IAM.</li>'
+            . 'Kroki są te same, ale zamiast adresu AGH (<code>dysk.agh.edu.pl</code>) wpisz adres chmury Fundacji: <code>' . $cloud . '</code>, a przy logowaniu wybierz logowanie jednokrotne i podaj adres e-mail i hasło IAM.</li>'
             . '<li><a href="https://nextcloud.com/install/#install-clients">Aplikacje Nextcloud do pobrania</a></li>'
             . '<li><a href="https://docs.nextcloud.com/server/latest/user_manual/pl/">Podręcznik użytkownika Nextcloud</a></li></ul>'],
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Aplikacja nie łączy się albo synchronizacja stoi? <a href="' . $hd . '">Napisz do Helpdesku</a>.</p>'],
