@@ -54,6 +54,11 @@ $code_available  = _login_method_enabled('login_method_code', true);
 $x509_available  = false;
 try { $x509_available = x509_any_active() && _login_method_enabled('login_method_x509', true); } catch (\Throwable $e) {}
 
+// Logowanie jednokrotne (Logto, OpenID Connect) — modules/sso_logto/lib/LogtoOidc.php; od 13.11.2026 główna metoda obok e-maila,
+// Microsoft 365 tylko dla administratorów (account_is_office_only).
+$logto_available = false;
+try { require_once dirname(__DIR__) . '/modules/sso_logto/lib/LogtoOidc.php'; $logto_available = LogtoOidc::enabled(); } catch (\Throwable $e) {}
+
 // ── State ─────────────────────────────────────────────────────────────────
 $default_tab = $ms_available ? 'ms365' : 'local';
 $active_tab = $_GET['tab'] ?? $default_tab;
@@ -61,6 +66,8 @@ $sms_step   = 1;
 $sms_phone  = '';
 $error      = '';
 $info       = '';
+// Błąd z logowania przez Logto (SsoController::loginFail) — pokazujemy raz, w zwykłym miejscu komunikatów.
+if (!empty($_SESSION['login_notice_error'])) { $error = (string)$_SESSION['login_notice_error']; unset($_SESSION['login_notice_error']); }
 
 // ── Handle POST ───────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -87,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $active_tab = 'local';
             } elseif ($user && account_is_office_only($user) && empty($user['allow_local_fallback'])) {
                 authlog_write((int)$user['id'], 'login_blocked_office', $user['email'], 'Konto służbowe — wymagane logowanie przez Microsoft 365');
-                $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office). Użyj przycisku „Zaloguj przez Microsoft 365”.';
+                $error = 'Konto administratora @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office). Użyj przycisku „Microsoft 365 — administratorzy”.';
                 $active_tab = 'local';
             } elseif ($user && $user['password'] && password_verify($pass, $user['password'])) {
                 brute_clear($email);
@@ -164,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $active_tab = 'sms';
         } elseif ($user && account_is_office_only($user)) {
             authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
-            $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
+            $error = 'Konto administratora @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
             $active_tab = 'sms';
         } elseif ($user) {
             log_auth_action((int)$user['id'], 'login_sms', 'Logowanie SMS: ' . $sms_phone);
@@ -191,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try { $user = x509_verify_login($p12_data, $cert_pass); } catch (\Throwable $e) {}
             if ($user && account_is_office_only($user)) {
                 authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
-                $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
+                $error = 'Konto administratora @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
                 $active_tab = 'x509';
             } elseif ($user) {
                 log_auth_action((int)$user['id'], 'login_x509', 'Logowanie X.509: ' . $user['email']);
@@ -220,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($user && account_is_office_only($user)) {
             authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
-            $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
+            $error = 'Konto administratora @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
             $active_tab = 'x509';
         } elseif ($user) {
             log_auth_action((int)$user['id'], 'login_x509_app', 'Logowanie X.509 (SzoCert): ' . $user['email']);
@@ -239,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = auth_login_by_code($code);
         if ($user && account_is_office_only($user)) {
             authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
-            $error      = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
+            $error      = 'Konto administratora @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
             $active_tab = 'code';
         } elseif ($user) {
             try {
@@ -361,6 +368,8 @@ $_sso_hint = $_SESSION['sso_hint'] ?? null;
 if ($_sso_hint && time() - (int)($_sso_hint['at'] ?? 0) > 900) { unset($_SESSION['sso_hint']); $_sso_hint = null; }
 $has_alt = ($code_available || $sms_available || $x509_available);
 $_show_ms = $ms_available && !$emergency;
+$_show_logto = $logto_available && !$emergency;
+$_logto_url = APP_URL . '/sso/logowanie' . ($redirect !== '' ? '?redirect=' . urlencode($redirect) : '');
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -389,6 +398,9 @@ body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;back
 .lg-ms{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;min-height:50px;background:#0f6fa8;color:#fff!important;text-decoration:none;font-weight:600;font-size:1.02rem}
 .lg-ms:hover,.lg-ms:focus{background:#0b5582}
 .lg-ms-sub{font-size:.88rem;color:#3b3b3b;text-align:center;margin:.45rem 0 0}
+/* Microsoft 365 tylko dla administratorów — przycisk drugoplanowy (obrys); #075f9e na białym = 6,6:1 */
+.lg-ms.lg-ms--admin{background:#fff;color:#075f9e!important;border:1px solid #075f9e;min-height:40px;font-size:.92rem}
+.lg-ms.lg-ms--admin:hover,.lg-ms.lg-ms--admin:focus{background:#e6f1fb}
 .lg-or{display:flex;align-items:center;gap:.8rem;margin:1.5rem 0 1.1rem;color:#3b3b3b;font-size:.9rem}
 .lg-or::before,.lg-or::after{content:"";flex:1;border-top:1px solid #c8c8c8}
 .lg-field{margin-bottom:.9rem}
@@ -441,13 +453,14 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
 .lg-brand{display:none}
 .lg-h1{font-size:1.35rem;font-weight:700;color:#1f2937}
 .lg-lead{font-size:.9rem;margin-bottom:1rem}
-.lg-ms{background:#0a7fd1;border-radius:2px;min-height:42px;font-size:.95rem}
-.lg-ms:hover,.lg-ms:focus{background:#075f9e}
+/* #075f9e z białym = 6,7:1 (wcześniejszy #0a7fd1 = 4,2:1 — za mało dla tekstu 15 px, WCAG 1.4.3) */
+.lg-ms{background:#075f9e;border-radius:2px;min-height:42px;font-size:.95rem}
+.lg-ms:hover,.lg-ms:focus{background:#054a7a}
 .lg-in{border:1px solid #8d95a1;border-radius:2px;min-height:34px;font-size:.9rem;padding:.3rem .55rem}
 .lg-in:focus{border-color:#0a7fd1}
 .lg-field label{font-size:.85rem}
-.lg-btn{background:#0a7fd1;border-radius:2px;min-height:40px;font-size:.95rem}
-.lg-btn:hover,.lg-btn:focus{background:#075f9e}
+.lg-btn{background:#075f9e;border-radius:2px;min-height:40px;font-size:.95rem}
+.lg-btn:hover,.lg-btn:focus{background:#054a7a}
 .lg-links a,.lg-more summary,.lg-new strong{color:#075f9e}
 .lg-new i{background:#0a7fd1;border-radius:2px}
 .lg-new a,.lg-new button,.lg-alt button{border-radius:2px;background:#fff;border-color:#c9ced6}
@@ -481,9 +494,15 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
     <?php if ($error && !in_array($active_tab, ['code','sms','x509'], true)): ?><div class="lg-alert err" role="alert" id="login-error-box"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span id="login-error-text"><?= h($error) ?></span></div><?php endif; ?>
     <?php if ($emergency): ?><div class="lg-alert warn" role="note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>Logowanie awaryjne — użyj adresu e-mail i <strong>hasła awaryjnego</strong>.</span></div><?php endif; ?>
 
+    <?php if ($_show_logto): ?>
+    <a class="lg-ms" href="<?= h($_logto_url) ?>"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
+    <p class="lg-ms-sub">Jedno konto Fundacji — to samo co do chmury plików</p>
+    <?php endif; ?>
     <?php if ($_show_ms): ?>
-    <a class="lg-ms" href="<?= h($_ms_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Zaloguj przez Microsoft 365</a>
-    <p class="lg-ms-sub">Poczta w domenie fundacji (@feer.org.pl)</p>
+    <a class="lg-ms lg-ms--admin<?= $_show_logto ? ' mt-3' : '' ?>" href="<?= h($_ms_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Microsoft 365 — administratorzy</a>
+    <p class="lg-ms-sub">Tylko konta administratorów @feer.org.pl</p>
+    <?php endif; ?>
+    <?php if ($_show_logto || $_show_ms): ?>
     <div class="lg-or">albo e-mail i hasło</div>
     <?php endif; ?>
 
@@ -491,7 +510,7 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_method" value="local">
       <div class="lg-field"><label for="f-email">Adres e-mail</label>
-        <input type="email" name="email" id="f-email" class="lg-in" autocomplete="email" inputmode="email" required<?= (!$_show_ms || ($error && $active_tab === 'local')) ? ' autofocus' : '' ?><?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>></div>
+        <input type="email" name="email" id="f-email" class="lg-in" autocomplete="email" inputmode="email" required<?= ((!$_show_ms && !$_show_logto) || ($error && $active_tab === 'local')) ? ' autofocus' : '' ?><?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>></div>
       <div class="lg-field"><label for="f-pass">Hasło</label>
         <div class="lg-pass"><input type="password" name="password" id="f-pass" class="lg-in" autocomplete="current-password" required<?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>>
           <button type="button" aria-label="Pokaż hasło" aria-pressed="false" onclick="var i=document.getElementById('f-pass'),s=i.type==='password';i.type=s?'text':'password';this.setAttribute('aria-pressed',s);this.firstElementChild.className=s?'bi bi-eye-slash':'bi bi-eye'"><i class="bi bi-eye" aria-hidden="true"></i></button></div></div>

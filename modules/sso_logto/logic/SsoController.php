@@ -11,12 +11,15 @@ declare(strict_types=1);
  *   POST /migracjaadmin/pliki — migrator: konta Logto + chmura + kopiowanie plików dla zaznaczonych kont Microsoft 365.
  * Użytkownik (zalogowany): POST /sso/konto (sam zakłada konto), POST /sso/haslo (nowe hasło) — sekcja #sso w Tożsamości;
  *   GET /sso/start — prośba po zalogowaniu (lib/ssoPrompt.php): ten sam formularz co w Tożsamości, z from=start wraca tutaj.
+ * Logowanie do SZO przez Logto (bez zalogowania): GET /sso/logowanie (start, OpenID Connect) i GET /sso/powrot (Redirect URI)
+ *   — lib/LogtoOidc.php; te same bramki co logowanie hasłem (aktywność, panel TI, Microsoft-only administratorów, IKA w CRM, 2FA, WebAuthn).
  * Wygenerowane hasła admin widzi tylko raz (sesja), nigdy w adresie.
  */
 require_once dirname(__DIR__) . '/lib/SsoConfig.php';
 require_once __DIR__ . '/SsoAccounts.php';
 require_once __DIR__ . '/CloudFilesCopy.php';
 require_once dirname(__DIR__) . '/lib/ssoPrompt.php';
+require_once dirname(__DIR__) . '/lib/LogtoOidc.php';
 
 final class SsoController
 {
@@ -43,6 +46,10 @@ final class SsoController
                 'has_webhook' => SsoConfig::has('sso_logto_webhook_key'),
                 'self'        => SsoConfig::selfEnabled(),
                 'prompt'      => SsoConfig::get('sso_login_prompt', '1') !== '0',
+                'szo_login'   => SsoConfig::get('sso_szo_login') === '1',
+                'szo_app_id'  => SsoConfig::get('sso_szo_app_id'),
+                'has_szo_secret' => SsoConfig::has('sso_szo_app_secret'),
+                'szo_ready'   => LogtoOidc::configured(),
                 'sms_prefix'  => SsoConfig::get('sso_sms_prefix'),
                 'cloud_kind'  => SsoConfig::cloudKind(),
                 'cloud_url'   => SsoConfig::get('sso_cloud_url'),
@@ -216,6 +223,112 @@ final class SsoController
         if (!$u) return null;
         return ['email' => strtolower((string)$u['email']), 'name' => (string)$u['name'], 'login' => (string)($u['m365_login'] ?? ''),
                 'm365' => (string)($u['m365_login'] ?? '') ?: $mid, 'user_id' => (int)$u['id'], 'phone' => (string)($u['phone_number'] ?? '')];
+    }
+
+    // ── Logowanie do SZO przez Logto (OpenID Connect) ────────────────────────────────────────
+
+    /** GET /sso/logowanie?redirect= — przekierowanie na stronę logowania Logto. */
+    public function loginStart(): ?string
+    {
+        $raw = (string)($_GET['redirect'] ?? '');
+        $redirect = ($raw !== '' && str_starts_with($raw, APP_URL . '/')) ? $raw : '';
+        if (current_user()) return Router::redirect($redirect !== '' ? $redirect : auth_default_landing());
+        if (!LogtoOidc::enabled()) return $this->loginFail('Logowanie jednokrotne nie jest jeszcze włączone. Zaloguj się e-mailem i hasłem.');
+        try {
+            return Router::redirect(LogtoOidc::authUrl($redirect));
+        } catch (\Throwable $e) {
+            error_log('[sso] logowanie Logto — start: ' . $e->getMessage());
+            return $this->loginFail('Serwer logowania jednokrotnego nie odpowiada. Spróbuj za chwilę albo zaloguj się e-mailem i hasłem.');
+        }
+    }
+
+    /** GET /sso/powrot — Redirect URI aplikacji SZO w Logto: konto SZO po identyfikatorze Logto albo potwierdzonym e-mailu. */
+    public function loginCallback(): ?string
+    {
+        $root = dirname(__DIR__, 3);
+        require_once $root . '/includes/approval.php';        // log_auth_action
+        require_once $root . '/includes/auth_security.php';   // authlog_write
+        require_once $root . '/modules/user_merge/lib/userMergeResolve.php';
+        if (!LogtoOidc::enabled()) return $this->loginFail('Logowanie jednokrotne nie jest włączone.');
+        try {
+            $c = LogtoOidc::callback($_GET);
+        } catch (\Throwable $e) {
+            error_log('[sso] logowanie Logto — powrót: ' . $e->getMessage());
+            if (($_GET['error'] ?? '') === 'access_denied') return $this->loginFail('Logowanie zostało przerwane. Spróbuj ponownie.');
+            return $this->loginFail('Nie udało się zalogować przez logowanie jednokrotne. Spróbuj ponownie albo zaloguj się e-mailem i hasłem.');
+        }
+
+        // Konto SZO: najpierw powiązanie z Logto (sso_accounts.logto_id), potem potwierdzony e-mail z Logto (i dowiązanie).
+        $acc = SsoAccounts::byLogtoId($c['sub']);
+        $email = $acc ? (string)$acc['email'] : '';
+        if ($email === '' && $c['email'] !== '' && $c['email_verified']) {
+            if (!db_one("SELECT id FROM users WHERE LOWER(email)=?", [$c['email']])) {   // nie zakładamy powiązań dla obcych adresów
+                authlog_write(null, 'login_fail', $c['email'], 'Logto: brak konta w SZO');
+                return $this->loginFail('Nie ma konta w SZO z adresem ' . $c['email'] . '. Napisz do Helpdesku IT.');
+            }
+            $email = SsoAccounts::linkFromLogto(['id' => $c['sub'], 'primaryEmail' => $c['email'], 'username' => $c['username'], 'name' => $c['name']]);
+        }
+        if ($email === '') {
+            authlog_write(null, 'login_fail', $c['email'], 'Logto: konto bez powiązania z SZO (' . $c['sub'] . ')');
+            return $this->loginFail('Twoje konto logowania jednokrotnego nie jest połączone z kontem w SZO' . ($c['email'] !== '' ? ' (' . $c['email'] . ')' : '') . '. Zaloguj się e-mailem i hasłem albo napisz do Helpdesku IT.');
+        }
+        $user = userMergeFollow(db_one("SELECT * FROM users WHERE LOWER(email)=?", [$email]) ?: null);
+        if (!$user) {
+            authlog_write(null, 'login_fail', $email, 'Logto: brak konta w SZO');
+            return $this->loginFail('Nie ma konta w SZO z adresem ' . $email . '. Napisz do Helpdesku IT.');
+        }
+        $uid = (int)$user['id'];
+        if (empty($user['is_active'])) return $this->loginFail('Konto zostało dezaktywowane. Skontaktuj się z administratorem.');
+        if (account_is_ti_panel_only($user)) {
+            authlog_write($uid, 'login_blocked_ti_panel', (string)$user['email'], 'Logto: konto panelu dydaktyka TI');
+            return $this->loginFail('To konto działa wyłącznie w panelu dydaktyka TI — zaloguj się pod adresem karty30/ti/dydaktyk/.');
+        }
+        if (account_is_office_only($user)) {
+            authlog_write($uid, 'login_blocked_office', (string)$user['email'], 'Logto: konto administratora — wymagane logowanie przez Microsoft 365');
+            return $this->loginFail('Konto administratora @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).');
+        }
+        $crmOnly = ($user['role'] ?? '') === 'crm_user';
+        if (!$crmOnly) { try { $crmOnly = !empty(db_one("SELECT crm_only FROM roles WHERE name=?", [(string)$user['role']])['crm_only']); } catch (\Throwable $e) {} }
+        if ($crmOnly && empty($user['cpc_code'])) {
+            return $this->loginFail('Twoje konto wymaga aktywacji kodu IKA przed pierwszym logowaniem. Skontaktuj się z administratorem.');
+        }
+
+        $target = auth_login_landing($user, $c['redirect']);
+        $endUrl = LogtoOidc::endSessionUrl($c['id_token']);
+        try { SsoAccounts::touchSignIn($c['sub']); } catch (\Throwable $e) {}
+
+        // Logowanie dwuetapowe SZO (TOTP/SMS) — jak przy haśle; administratorów tu nie ma (tylko Microsoft 365).
+        if (!empty($user['twofa_method'])) {
+            $_SESSION['2fa_uid']      = $uid;
+            $_SESSION['2fa_method']   = $user['twofa_method'];
+            $_SESSION['2fa_phone']    = $user['twofa_phone'] ?? '';
+            $_SESSION['2fa_attempts'] = 0;
+            if ($endUrl !== '') $_SESSION['logto_logout'] = $endUrl;
+            if ($user['twofa_method'] === 'sms' && !empty($user['twofa_phone'])) {
+                try {
+                    require_once $root . '/includes/sms.php';
+                    $otp = sms_generate_otp($user['twofa_phone'], $uid);
+                    sms_send_with_fallback($user['twofa_phone'], "Kod 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '', 'twofa_code');
+                    $_SESSION['2fa_sms_sent'] = true;
+                } catch (\Throwable $e) {}
+            }
+            return Router::redirect(APP_URL . '/auth/2fa.php?redirect=' . urlencode($target));
+        }
+
+        log_auth_action($uid, 'login_logto', 'Logowanie jednokrotne (Logto): ' . $user['email']);
+        authlog_write($uid, 'login', (string)$user['email'], 'Logowanie jednokrotne (Logto)');
+        if ($endUrl !== '') $_SESSION['logto_logout'] = $endUrl;   // auth/logout.php kończy też sesję w Logto
+        require_once $root . '/includes/webauthn.php';
+        if (webauthn_login_gate($user, $target)) exit;
+        login_user($user);
+        return Router::redirect($target);
+    }
+
+    /** Błąd logowania przez Logto — komunikat na zwykłym ekranie logowania (auth/login.php czyta login_notice_error). */
+    private function loginFail(string $msg): ?string
+    {
+        $_SESSION['login_notice_error'] = $msg;
+        return Router::redirect(APP_URL . '/auth/login.php');
     }
 
     // ── Użytkownik (Tożsamość → Logowanie jednokrotne) ───────────────────────────────────────

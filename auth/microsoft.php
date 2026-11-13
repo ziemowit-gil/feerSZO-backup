@@ -249,9 +249,9 @@ if (!$error) {
         $ms_display_email = $email ?? '';
     }
 
-    // Logowanie przez Microsoft 365 jest zarezerwowane dla administracji i
-    // koordynatorów (konta @feer.org.pl w roli admin/editor — account_is_office_only).
-    // Wolontariusze i współpracownicy logują się prywatnym e-mailem i hasłem.
+    // Logowanie przez Microsoft 365 jest zarezerwowane dla administratorów (konta
+    // @feer.org.pl w roli admin — account_is_office_only; od 13.11.2026 bez koordynatorów).
+    // Pozostali logują się przez logowanie jednokrotne (Logto, /sso/logowanie) albo e-mailem i hasłem.
     // Wyjątek: wejście do panelu dydaktyka (osobna weryfikacja uprawnień w
     // office_enter.php) — tam Office mogą użyć też prowadzący w innych rolach.
     if (!$error && isset($user)) {
@@ -259,7 +259,7 @@ if (!$error) {
         if (!$is_dyd_flow && !account_is_office_only($user)) {
             if (function_exists('authlog_write')) {
                 authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '',
-                    'Konto wolontariusza/współpracownika — logowanie przez Microsoft 365 zablokowane');
+                    'Konto bez roli administratora — logowanie przez Microsoft 365 zablokowane');
             }
             $error = 'office_not_allowed';
         }
@@ -342,16 +342,25 @@ if (!$error) {
     <div style="width:64px;height:64px;border-radius:16px;background:#DBEAFE;display:inline-flex;align-items:center;justify-content:center;font-size:1.8rem;margin-bottom:.75rem">
       ✉️
     </div>
-    <h5 class="fw-bold mb-1">Zaloguj się prywatnym e-mailem</h5>
+    <h5 class="fw-bold mb-1">Zaloguj się inaczej</h5>
     <p class="text-muted small mb-0">
-      To konto (wolontariusz / współpracownik) loguje się <strong>prywatnym e-mailem i hasłem</strong>.
-      Logowanie przez Microsoft 365 jest zarezerwowane dla administracji i koordynatorów.
+      Logowanie przez Microsoft 365 jest tylko dla <strong>administratorów</strong>.
+      Zaloguj się <strong>logowaniem jednokrotnym</strong> albo <strong>e-mailem i hasłem</strong>.
     </p>
   </div>
   <div class="d-grid gap-2">
-    <a href="<?= APP_URL ?>/auth/login.php?view=priv" class="btn btn-primary btn-sm">
+    <?php
+    $__lt = false;
+    try { require_once dirname(__DIR__) . '/modules/sso_logto/lib/LogtoOidc.php'; $__lt = LogtoOidc::enabled(); } catch (\Throwable $e) {}
+    if ($__lt): ?>
+    <a href="<?= APP_URL ?>/sso/logowanie" class="btn btn-primary btn-sm">
+      <i class="bi bi-key me-1"></i>Zaloguj przez logowanie jednokrotne
+    </a>
+    <?php endif; ?>
+    <a href="<?= APP_URL ?>/auth/login.php?view=priv" class="btn <?= $__lt ? 'btn-outline-primary' : 'btn-primary' ?> btn-sm">
       <i class="bi bi-box-arrow-in-right me-1"></i>Zaloguj się e-mailem i hasłem
     </a>
+    <a href="<?= APP_URL ?>/user/verify_reset.php" class="btn btn-link btn-sm">Nie masz hasła albo go nie pamiętasz? Ustaw je kodem SMS</a>
     <a href="<?= APP_URL ?>/auth/login.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-left me-1"></i>Wróć do strony logowania
     </a>

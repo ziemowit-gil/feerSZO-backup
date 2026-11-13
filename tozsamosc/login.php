@@ -2,7 +2,7 @@
 /**
  * tozsamosc/login.php — dedykowane okno logowania do Systemu Tożsamości (wygląd logowania TI, METRO).
  *
- * Lewa kolumna wyjaśnia, czym jest System Tożsamości i SSO. Prawa: Microsoft 365 (SSO) albo e-mail i hasło.
+ * Lewa kolumna wyjaśnia, czym jest System Tożsamości i SSO. Prawa: logowanie jednokrotne (Logto), Microsoft 365 (tylko administratorzy) albo e-mail i hasło.
  * Formularz NIE ma własnej kryptografii — wysyła dane do /auth/login.php (anty-brute, „tylko Office”, 2FA,
  * bramka WebAuthn, wymuszona zmiana hasła). Pole „from” sprawia, że po błędzie wracamy tutaj z ?err=.
  * Rzadsze metody (kod jednorazowy, SMS, certyfikat X.509) — przez pełny ekran /auth/login.php (?pelne=1).
@@ -37,6 +37,10 @@ $action   = $APP . '/auth/login.php?redirect=' . urlencode($redirect);
 $full_url = $APP . '/auth/login.php?pelne=1&redirect=' . urlencode($redirect);   // kod / SMS / certyfikat
 $ms_ok    = function_exists('ms_login_available') && ms_login_available();
 $ms_url   = ($ms_ok && function_exists('ms_auth_url')) ? ms_auth_url($redirect) : '';
+// Logowanie jednokrotne (Logto) — od 13.11.2026 główna metoda; Microsoft 365 tylko dla administratorów.
+$lt_ok    = false;
+try { require_once dirname(__DIR__) . '/modules/sso_logto/lib/LogtoOidc.php'; $lt_ok = LogtoOidc::enabled(); } catch (\Throwable $ex) {}
+$lt_url   = $APP . '/sso/logowanie?redirect=' . urlencode($redirect);
 $sso_url  = $APP . '/karty30/ti/sso.php';
 $e        = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
@@ -92,16 +96,24 @@ loginShellHead([
       <div class="alert alert-danger small py-2" role="alert" id="tzt-err"><i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i><?= $e($err) ?></div>
       <?php endif; ?>
 
+      <?php if ($lt_ok): ?>
+      <a href="<?= $e($lt_url) ?>" class="tz-btn tzt-ms">
+        <i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne
+      </a>
+      <p class="tz-hint mt-2 mb-0">Jedno konto Fundacji — to samo co do chmury plików.</p>
+      <?php endif; ?>
       <?php if ($ms_ok): ?>
-      <a href="<?= $e($ms_url) ?>" class="tz-btn tz-btn-ghost tzt-ms"
-         aria-label="Zaloguj przez Microsoft 365 — zostaniesz przekierowany do Microsoft">
+      <a href="<?= $e($ms_url) ?>" class="tz-btn tz-btn-ghost tzt-ms<?= $lt_ok ? ' mt-3' : '' ?>"
+         aria-label="Microsoft 365 — tylko administratorzy; zostaniesz przekierowany do Microsoft">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
           <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
           <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
         </svg>
-        Zaloguj przez Microsoft 365
+        Microsoft 365 — administratorzy
       </a>
-      <p class="tz-hint mt-2 mb-0">Konto <strong>@feer.org.pl</strong> — logowanie jednokrotne (SSO), bez wpisywania hasła.</p>
+      <p class="tz-hint mt-2 mb-0">Tylko konta administratorów <strong>@feer.org.pl</strong>.</p>
+      <?php endif; ?>
+      <?php if ($lt_ok || $ms_ok): ?>
       <div class="tz-sep">lub e-mailem i hasłem</div>
       <?php endif; ?>
 
@@ -113,7 +125,7 @@ loginShellHead([
         <div class="mb-3">
           <label for="tzt-email">Adres e-mail</label>
           <input type="email" class="form-control form-control-lg" id="tzt-email" name="email"
-                 autocomplete="username" inputmode="email" required <?= $ms_ok ? '' : 'autofocus' ?>
+                 autocomplete="username" inputmode="email" required <?= ($ms_ok || $lt_ok) ? '' : 'autofocus' ?>
                  <?= $err !== '' ? 'aria-invalid="true" aria-describedby="tzt-err"' : '' ?>>
         </div>
         <div class="mb-2">

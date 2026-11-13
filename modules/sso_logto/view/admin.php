@@ -94,6 +94,43 @@ $copyField = function (string $id, string $label, string $value) {
     </div>
   </section>
 
+  <section class="card mb-4" id="logowanie-szo" aria-labelledby="ssoSzoH">
+    <div class="card-header"><h2 id="ssoSzoH" class="h6 mb-0"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Logowanie do SZO przez Logto</h2></div>
+    <div class="card-body row g-3">
+      <div class="col-12 small">
+        <div class="alert alert-info py-2 mb-0" role="note">Microsoft 365 loguje do SZO tylko <strong>administratorów</strong> (rola admin, konto @feer.org.pl).
+          Wszyscy pozostali — także koordynatorzy — logują się przez Logto albo e-mailem i hasłem. Administratorzy przez Logto się nie zalogują.</div>
+      </div>
+      <div class="col-md-6"><?= $copyField('ssoSzoRedirect', 'Redirect URI (wklej w Logto)', LogtoOidc::redirectUri()) ?></div>
+      <div class="col-md-6"><?= $copyField('ssoSzoLogout', 'Post sign-out redirect URI (wklej w Logto)', LogtoOidc::postLogoutUri()) ?></div>
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold" for="ssoSzoId">App ID aplikacji SZO (Traditional web)</label>
+        <input type="text" class="form-control form-control-sm" id="ssoSzoId" name="szo_app_id" value="<?= h($cfg['szo_app_id']) ?>" maxlength="64" spellcheck="false">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold" for="ssoSzoSecret">App secret</label>
+        <input type="password" class="form-control form-control-sm" id="ssoSzoSecret" name="szo_app_secret" value="" autocomplete="new-password" aria-describedby="ssoSzoSecretH">
+        <div class="form-text" id="ssoSzoSecretH"><?= $cfg['has_szo_secret'] ? 'Zapisany (zaszyfrowany). Zostaw puste, żeby nie zmieniać.' : 'Nie ustawiono.' ?></div>
+      </div>
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="szo_login" value="1" id="ssoSzoOn" aria-describedby="ssoSzoOnH" <?= $cfg['szo_login'] ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ssoSzoOn">Pokaż na ekranie logowania przycisk „Zaloguj przez logowanie jednokrotne”</label>
+          <div class="form-text" id="ssoSzoOnH"><?= $cfg['szo_ready'] ? 'Aplikacja SZO jest skonfigurowana.' : 'Przycisk pojawi się, gdy uzupełnisz App ID i App secret.' ?> Po wylogowaniu z SZO kończy się też sesja w Logto.</div>
+        </div>
+      </div>
+      <details class="col-12 small">
+        <summary>Jak założyć aplikację SZO w Logto</summary>
+        <ol class="sso-steps mt-2">
+          <li>Konsola Logto → <strong>Applications</strong> → <strong>Create application</strong> → <strong>Traditional web</strong> (np. „PHP”), nazwa „SZO”.</li>
+          <li>W ustawieniach aplikacji wklej <strong>Redirect URI</strong> i <strong>Post sign-out redirect URI</strong> z pól powyżej i zapisz.</li>
+          <li>Skopiuj <strong>App ID</strong> i <strong>App secret</strong> do pól obok, zaznacz przycisk na ekranie logowania i zapisz ustawienia.</li>
+        </ol>
+        <p class="mb-0">Konto w SZO odnajdujemy po powiązaniu z Logto (konta założone z SZO) albo po potwierdzonym adresie e-mail. Logowanie dwuetapowe SZO i klucze bezpieczeństwa działają jak przy logowaniu hasłem.</p>
+      </details>
+    </div>
+  </section>
+
   <section class="card mb-4" aria-labelledby="ssoHookH">
     <div class="card-header"><h2 id="ssoHookH" class="h6 mb-0"><i class="bi bi-broadcast" aria-hidden="true"></i> Webhook Logto → SZO</h2></div>
     <div class="card-body row g-3">

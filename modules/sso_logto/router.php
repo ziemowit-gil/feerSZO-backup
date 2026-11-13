@@ -8,7 +8,8 @@
  *   /ssoadmin/osoba           — POST: konto / nowe hasło / chmura dla osoby z umowy (karta w tozsamosc/access.php);
  *   /ssoadmin/pliki           — POST: anuluj / ponów kopiowanie plików z OneDrive;
  *   /sso/konto, /sso/haslo    — POST: użytkownik sam zakłada konto / zmienia hasło (Tożsamość → Logowanie jednokrotne);
- *   /sso/start                — GET: prośba po zalogowaniu „załóż konto logowania jednokrotnego i w chmurze” (raz na zalogowanie).
+ *   /sso/start                — GET: prośba po zalogowaniu „załóż konto logowania jednokrotnego i w chmurze” (raz na zalogowanie);
+ *   /sso/logowanie, /sso/powrot — GET bez logowania: logowanie do SZO przez Logto (OpenID Connect; /sso/powrot = Redirect URI).
  * Webhook i SMS dla Logto to osobne pliki: api/v1/logto_webhook.php, api/v1/logto_sms.php.
  * Migrator (/migracjaadmin/pliki) ma trasę w modules/dhosting_migrator/router.php.
  * Bez przepisywania: /modules/sso_logto/router.php?_route=/ssoadmin. CSRF dla POST sprawdza Router.
@@ -36,5 +37,10 @@ $r->group(['auth'], function (Router $r) {
     $r->post('/sso/konto', [SsoController::class, 'selfCreate'])->name('sso.selfCreate');
     $r->post('/sso/haslo', [SsoController::class, 'selfPassword'])->name('sso.selfPassword');
 });
+
+// Logowanie do SZO przez Logto (OpenID Connect) — bez middleware 'auth': to jest właśnie logowanie (lib/LogtoOidc.php).
+// /sso/powrot = Redirect URI aplikacji „Traditional web” w Logto.
+$r->get('/sso/logowanie', [SsoController::class, 'loginStart'])->name('sso.login');
+$r->get('/sso/powrot',    [SsoController::class, 'loginCallback'])->name('sso.callback');
 
 $r->dispatch();

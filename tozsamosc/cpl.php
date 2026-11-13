@@ -4,7 +4,9 @@
  *
  * Wejście przed logowaniem do SZO i Systemu Tożsamości. Pola:
  *  - Nazwa użytkownika + Hasło  → POST do /auth/login.php (anty-brute, „tylko Office”, 2FA, bramka WebAuthn),
- *  - Logowanie domenowe          → logowanie kontem Microsoft 365 (SSO), bez hasła w tym oknie,
+ *  - Logowanie domenowe          → logowanie kontem Microsoft 365 (SSO), bez hasła w tym oknie — od 13.11.2026 TYLKO administratorzy,
+ *                                  domyślnie odznaczone (account_is_office_only; pozostali dostają komunikat w auth/microsoft.php),
+ *  - Zaloguj przez logowanie jednokrotne → Logto (OpenID Connect, /sso/logowanie, modules/sso_logto/lib/LogtoOidc.php),
  *  - Profil / Rola               → moduł, do którego trafisz po zalogowaniu (adres docelowy, nie nadaje uprawnień —
  *                                  dostęp nadal rozstrzyga sam moduł).
  * Błędy wracają tutaj przez pole „from” (?err=). Rzadsze metody (SMS, kod, certyfikat) — /auth/login.php?pelne=1.
@@ -55,6 +57,8 @@ if (current_user()) { header('Location: ' . $profiles[$sel][2]); exit; }
 $err   = trim((string)($_GET['err'] ?? ''));
 $token = csrf_token();
 $ms_ok = function_exists('ms_login_available') && ms_login_available() && function_exists('ms_auth_url');
+$lt_ok = false;   // logowanie jednokrotne (Logto) — przycisk pod „Zaloguj”, cel wg wybranego profilu
+try { require_once dirname(__DIR__) . '/modules/sso_logto/lib/LogtoOidc.php'; $lt_ok = LogtoOidc::enabled(); } catch (\Throwable $ex) {}
 $urls  = [];   // per profil: formularz (hasło) i Microsoft (domenowe)
 // ms_auth_url() zapisuje w sesji nowy „state” przy każdym wywołaniu — adres Microsoft powstaje więc dopiero po kliknięciu (?ms=profil).
 if (isset($_GET['ms']) && $ms_ok && isset($profiles[(string)$_GET['ms']])) {
@@ -66,6 +70,7 @@ foreach ($profiles as $k => $p) {
     $urls[$k] = [
         'form' => $APP . '/auth/login.php?redirect=' . urlencode($p[2]),
         'ms'   => $ms_ok ? $SELF . '?ms=' . urlencode($k) . ($want !== '' ? '&redirect=' . urlencode($want) : '') : '',
+        'sso'  => $lt_ok ? $APP . '/sso/logowanie?redirect=' . urlencode($p[2]) : '',
     ];
 }
 $from_url = $SELF . ($want !== '' ? '?redirect=' . urlencode($want) : '');
@@ -89,7 +94,7 @@ header('Cache-Control: no-store');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CPL — Centralny Portal Logowania · Fundacja FEER</title>
 <style>
-  :root{--ink:#1f2937;--ink2:#4b5563;--brand:#2e2a7a;--blue:#0a7fd1;--blue-d:#075f9e;--green:#2e9b3f;--line:#c9ced6;--bg:#e9ebee}
+  :root{--ink:#1f2937;--ink2:#4b5563;--brand:#2e2a7a;--blue:#0a6fb8;--blue-d:#075f9e;--green:#2e9b3f;--line:#c9ced6;--bg:#e9ebee}
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:var(--bg);color:var(--ink);font:14px/1.4 Tahoma,"Segoe UI",Verdana,Arial,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -112,6 +117,8 @@ header('Cache-Control: no-store');
   .link a{color:#374151}
   .btn{display:block;margin:14px auto 6px;min-width:112px;height:34px;border:0;background:var(--blue);color:#fff;font:700 13px Tahoma,"Segoe UI",sans-serif;cursor:pointer;border-radius:2px;padding:0 18px}
   .btn:hover{background:var(--blue-d)}
+  .btn--sso{width:max-content;max-width:100%;line-height:34px;text-align:center;text-decoration:none;background:#fff;color:var(--blue-d);border:1px solid var(--blue-d)}
+  .btn--sso:hover{background:#e6f1fb;color:var(--blue-d)}
   .alert{margin:0 0 12px;padding:8px 10px;background:#fde8e8;border-left:5px solid #b42318;color:#7a1710;font-size:13px}
   .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px 10px;background:#eceeef;font-size:12px;color:#374151;flex-wrap:wrap}
   .foot .lang{display:flex;align-items:center;gap:6px;font-weight:700}
@@ -156,13 +163,13 @@ header('Cache-Control: no-store');
       <span></span>
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
         <?php if ($ms_ok): ?>
-        <label class="chk"><input type="checkbox" id="cpl-domain" aria-describedby="cpl-domain-h"<?= $err === '' ? ' checked' : '' ?>> <span>Logowanie domenowe</span></label>
+        <label class="chk"><input type="checkbox" id="cpl-domain" aria-describedby="cpl-domain-h"> <span>Logowanie domenowe (administratorzy)</span></label>
         <?php else: ?><span></span><?php endif; ?>
         <span class="link"><a href="<?= $e($APP . '/user/verify_reset.php') ?>">Zapomniałem hasła</a></span>
       </div>
     </div>
     <?php if ($ms_ok): ?>
-    <p class="hint" id="cpl-domain-h">Logowanie domenowe: konto <strong>@feer.org.pl</strong> w Microsoft 365 (SSO), bez hasła w tym oknie.</p>
+    <p class="hint" id="cpl-domain-h">Logowanie domenowe: Microsoft 365 — tylko konta <strong>administratorów</strong> @feer.org.pl. Pozostali logują się hasłem<?= $lt_ok ? ' albo logowaniem jednokrotnym' : '' ?>.</p>
     <?php endif; ?>
 
     <div class="row">
@@ -176,6 +183,10 @@ header('Cache-Control: no-store');
     <p class="hint" id="cpl-profile-h">Profil wskazuje, dokąd trafisz po zalogowaniu. Zakres dostępu nadają uprawnienia Twojego konta.</p>
 
     <button type="submit" class="btn" id="cpl-go">Zaloguj</button>
+    <?php if ($lt_ok): ?>
+    <a class="btn btn--sso" id="cpl-sso" href="<?= $e($urls[$sel]['sso']) ?>">Zaloguj przez logowanie jednokrotne</a>
+    <p class="hint" style="padding-left:0;text-align:center">Jedno konto Fundacji (Logto) — to samo co do chmury plików.</p>
+    <?php endif; ?>
   </form>
 
   <p class="vpn" id="cpl-vpn" role="note"<?= $profiles[$sel][3] ? '' : ' hidden' ?>><strong>Niektóre usługi są dostępne wyłącznie z VPN.</strong>
@@ -197,7 +208,7 @@ header('Cache-Control: no-store');
       pass = document.getElementById('cpl-pass'), rowUser = document.getElementById('row-user'),
       rowPass = document.getElementById('row-pass'),
       rem = document.getElementById('cpl-remember'), hasErr = <?= $err !== '' ? 'true' : 'false' ?>;
-  var KEY = 'cpl.prefs';
+  var KEY = 'cpl.prefs.v2';   // v2 (13.11.2026): Microsoft 365 tylko dla administratorów — dawne „Logowanie domenowe” nie wraca samo
   function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
   function save(v) { try { if (v) localStorage.setItem(KEY, JSON.stringify(v)); else localStorage.removeItem(KEY); } catch (e) {} }
 
@@ -205,6 +216,7 @@ header('Cache-Control: no-store');
     var k = prof.value, domain = !!(dom && dom.checked);
     form.action = URLS[k].form;
     var vn = document.getElementById('cpl-vpn'); if (vn) vn.hidden = !VPN[k];
+    var so = document.getElementById('cpl-sso'); if (so && URLS[k].sso) so.href = URLS[k].sso;
     rowPass.hidden = domain; rowUser.hidden = domain;
     pass.disabled = domain; user.disabled = domain;
     if (!domain) setTimeout(function () { try { user.focus(); } catch (e) {} }, 0);

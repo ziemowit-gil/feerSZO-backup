@@ -11,6 +11,9 @@ declare(strict_types=1);
  *   sso_logto_webhook_key  — Signing key webhooka Logto → SZO (zaszyfrowany)
  *   sso_self_enabled       — '1' = użytkownik sam zakłada konto w Tożsamości (domyślnie tak)
  *   sso_login_prompt       — '1' = po każdym zalogowaniu prośba o konto (lib/ssoPrompt.php, /sso/start); domyślnie tak
+ *   sso_szo_login          — '1' = logowanie do SZO przez Logto (przycisk na ekranie logowania, lib/LogtoOidc.php)
+ *   sso_szo_app_id         — App ID aplikacji „Traditional web” w Logto (SZO jako klient OpenID Connect)
+ *   sso_szo_app_secret     — App secret tej aplikacji (zaszyfrowany)
  *   sso_cloud_kind         — 'nextcloud' | 'owncloud'
  *   sso_cloud_url          — adres chmury (inny serwer, np. https://chmura.feer.org.pl)
  *   sso_cloud_user         — login administratora chmury
@@ -28,7 +31,7 @@ final class SsoConfig
 {
     public const DEFAULT_LOGTO_URL = 'https://logto.feer.org.pl';
     public const CLOUD_KINDS = ['nextcloud' => 'Nextcloud', 'owncloud' => 'ownCloud'];
-    private const SECRETS = ['sso_logto_m2m_secret', 'sso_logto_webhook_key', 'sso_cloud_pass'];
+    private const SECRETS = ['sso_logto_m2m_secret', 'sso_logto_webhook_key', 'sso_cloud_pass', 'sso_szo_app_secret'];
 
     public static function get(string $key, string $default = ''): string
     {
@@ -64,6 +67,12 @@ final class SsoConfig
     {
         if (!self::logtoConfigured()) throw new LogtoApiException('Logowanie jednokrotne nie jest skonfigurowane (brak aplikacji Machine-to-machine w ustawieniach).');
         return new LogtoApi(self::logtoUrl(), self::get('sso_logto_m2m_id'), self::secret('sso_logto_m2m_secret'));
+    }
+
+    /** App secret aplikacji SZO (logowanie przez Logto, lib/LogtoOidc.php). */
+    public static function szoAppSecret(): string
+    {
+        return self::secret('sso_szo_app_secret');
     }
 
     public static function webhookKey(): string
@@ -135,6 +144,8 @@ final class SsoConfig
         }
         $m2m = trim((string)($in['logto_m2m_id'] ?? ''));
         if ($m2m !== '' && !preg_match('/^[a-z0-9]{6,64}$/i', $m2m)) throw new InvalidArgumentException('App ID aplikacji Machine-to-machine: same litery i cyfry.');
+        $szoApp = trim((string)($in['szo_app_id'] ?? ''));
+        if ($szoApp !== '' && !preg_match('/^[a-z0-9]{6,64}$/i', $szoApp)) throw new InvalidArgumentException('App ID aplikacji SZO (Traditional web): same litery i cyfry.');
 
         $kind = (string)($in['cloud_kind'] ?? 'nextcloud');
         if (!isset(self::CLOUD_KINDS[$kind])) $kind = 'nextcloud';
@@ -155,6 +166,8 @@ final class SsoConfig
         org_setting_set('sso_logto_m2m_id', $m2m);
         org_setting_set('sso_self_enabled', !empty($in['self_enabled']) ? '1' : '0');
         org_setting_set('sso_login_prompt', !empty($in['login_prompt']) ? '1' : '0');
+        org_setting_set('sso_szo_login', !empty($in['szo_login']) ? '1' : '0');
+        org_setting_set('sso_szo_app_id', $szoApp);
         org_setting_set('sso_sms_prefix', $prefix);
         org_setting_set('sso_cloud_kind', $kind);
         org_setting_set('sso_cloud_url', $cloudUrl);
@@ -163,7 +176,8 @@ final class SsoConfig
         org_setting_set('sso_cloud_quota', $quota);
         org_setting_set('sso_cloud_self', !empty($in['cloud_self']) ? '1' : '0');
 
-        $map = ['logto_m2m_secret' => 'sso_logto_m2m_secret', 'webhook_key' => 'sso_logto_webhook_key', 'cloud_pass' => 'sso_cloud_pass'];
+        $map = ['logto_m2m_secret' => 'sso_logto_m2m_secret', 'webhook_key' => 'sso_logto_webhook_key', 'cloud_pass' => 'sso_cloud_pass',
+                'szo_app_secret' => 'sso_szo_app_secret'];
         foreach ($map as $field => $key) {
             $v = trim((string)($in[$field] ?? ''));
             if (!empty($in[$field . '_clear'])) { org_setting_set($key, ''); continue; }

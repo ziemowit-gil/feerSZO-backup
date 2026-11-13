@@ -430,11 +430,13 @@ function is_viewer(): bool {
 }
 
 /**
- * Administracja (rola `admin`) i koordynatorzy (rola `editor`) na koncie służbowym
- * @feer.org.pl logują się WYŁĄCZNIE przez Microsoft 365 (Office). Pozostałe metody
- * (hasło lokalne, SMS, kod jednorazowy, certyfikat X.509) są dla nich zablokowane.
- * Konta @feer.org.pl w innych rolach (viewer, crm_user, ezd_user) logują się normalnie.
- * Wyjątek: konto awaryjne serwis@local zachowuje logowanie lokalne (break-glass).
+ * Administracja (rola `admin`) na koncie służbowym @feer.org.pl loguje się WYŁĄCZNIE
+ * przez Microsoft 365 (Office). Pozostałe metody (hasło lokalne, SMS, kod jednorazowy,
+ * certyfikat X.509, logowanie jednokrotne Logto) są dla niej zablokowane.
+ * Od 13.11.2026 (polecenie: „wyłącz logowanie MS365 do SZO, pozostaw je jedynie dla adminów,
+ * włącz logowanie przez Logto lub mailem”) koordynatorzy (rola `editor`) i wszyscy pozostali
+ * logują się przez Logto (/sso/logowanie) albo e-mailem i hasłem — a Microsoft 365 ich odrzuca
+ * (auth/microsoft.php, office_not_allowed). Wyjątek: konto awaryjne serwis@local (break-glass).
  *
  * Przyjmuje wiersz users (zalecane) lub sam e-mail (zgodność wstecz — rola dociągana
  * z bazy). Zob. [[project_login_office_only]].
@@ -470,7 +472,7 @@ function account_is_office_only($user): bool {
             $role = (string)($row['role'] ?? '');
         } catch (\Throwable $e) { $role = ''; }
     }
-    return in_array($role, ['admin', 'editor'], true);
+    return $role === 'admin';
 }
 
 // Zwraca true jeśli zalogowany użytkownik jest właścicielem umowy (lub ma uprawnienia edytora/admina).
