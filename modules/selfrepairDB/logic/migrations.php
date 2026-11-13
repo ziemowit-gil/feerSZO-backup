@@ -820,4 +820,16 @@ return [
         },
     ],
 
+    // Portal Usług IT: usługa „Poczta kursanta” dla grupy „Kursant” — odrębny serwer titan.sdata.net.pl, login i hasło startowe SMS-em,
+    // dane IMAP/SMTP, przekierowanie z @edu.feer.org.pl na imienny adres @stud.feer.org.pl, oraz „Dlaczego rezygnujemy z Microsoft 365”
+    // (polecenia 2026-11-13). modules/it_portal/lib/itPortalPocztaKursantaSeed.php.
+    '2026-11_it_portal_poczta_kursanta' => [
+        'desc' => 'Portal Usług IT: usługa „Poczta kursanta” (logowanie, przekierowanie z edu) i artykuł o rezygnacji z Microsoft 365',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPocztaKursantaSeed.php';
+            itPortalPocztaKursantaApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_poczta_kursanta_seed.php [--dry-run]
+        },
+    ],
+
 ];
