@@ -582,6 +582,17 @@ panelMetroAssets($_vol_color);
     </div>
     <?php endif; ?>
 
+    <?php if (org_setting('dhosting_self_enabled') === '1'): /* migrator M365 → dhosting — samodzielna strona /migracjapoczty */ ?>
+    <div class="mt-svc" style="--c:var(--m-blue, #0050ef)">
+      <i class="bi bi-envelope-at ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3>Migracja poczty (dhosting)</h3>
+        <p>Skrzynka z tym samym loginem co Microsoft 365, hasło SMS-em i kopiowanie poczty.</p>
+        <div class="mt-links"><a href="<?= APP_URL ?>/migracjapoczty"><i class="bi bi-arrow-right-circle" aria-hidden="true"></i>Przejdź do migracji poczty</a></div>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <?php if ($_canva_contract_wolont && $_canva_has_access): ?>
     <div class="mt-svc" style="--c:var(--m-teal)">
       <i class="bi bi-palette ic" aria-hidden="true"></i>

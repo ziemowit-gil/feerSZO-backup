@@ -132,6 +132,10 @@ $_sh_lead = $_sh_admin
                       'sub'=>$_sh_mf['pending'] ? 'ustaw swoją stopkę' : 'stopka, aliasy, hasło, 2FA, autoresponder','color'=>$_sh_mf['pending'] ? 'red' : 'blue',
                       'keep_color'=>$_sh_mf['pending'],'tag'=>$_sh_mf['pending'] ? 'do zrobienia' : '','group'=>'konto'];
   }
+  if (org_setting('dhosting_self_enabled') === '1') {   // migrator M365 → dhosting (modules/dhosting_migrator), samodzielna strona
+      $_sh_tiles[] = ['href'=>APP_URL.'/migracjapoczty','icon'=>'bi-envelope-at','label'=>'Migracja poczty',
+                      'sub'=>'skrzynka dhosting, hasło SMS-em, kopiowanie poczty','color'=>'blue','group'=>'konto'];
+  }
   if (is_file($ROOT . '/panel/calendar.php') && module_enabled('org_calendar_enabled')) {
       $_sh_tiles[] = ['href'=>APP_URL.'/panel/calendar.php','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>'wydarzenia i dyżury','color'=>'teal','group'=>'komunikacja'];
   }
