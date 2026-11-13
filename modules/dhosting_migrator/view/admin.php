@@ -292,11 +292,18 @@ $statusOf  = function (array $a): array {
   <div class="alert alert-info small">Brak kont Microsoft 365 w przenoszonych domenach.</div>
 <?php endif; ?>
 
+<?php $_seenBox = []; $storedPass = $storedPass ?? []; $retried = $retried ?? null; ?>
 <section id="kopiowanie" class="card mt-4" aria-labelledby="dhmCopyH">
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
     <h2 id="dhmCopyH" class="h6 mb-0"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Kopiowanie poczty z Microsoft 365</h2>
     <span class="small text-body-secondary">w tle co 5 min · niedostępny serwer = ponowienie co <?= DhostingCopy::RETRY_HOURS ?> h (najdłużej 7 dni)</span>
   </div>
+  <?php if ($retried): ?>
+    <div class="alert alert-warning rounded-0 border-0 border-bottom small mb-0" role="status">
+      <strong>Ponowiono z nowym hasłem:</strong> <code><?= h($retried['mailbox']) ?></code> · hasło: <code class="user-select-all fs-6"><?= h($retried['password']) ?></code><?= $retried['sms'] !== '' ? ' · SMS: ' . h($retried['sms']) : '' ?>
+      <div>Hasło widać tylko teraz — system go nie zapisuje (poza zaszyfrowaną kopią na czas kopiowania). Przekaż je bezpiecznie, nie zwykłym e-mailem.</div>
+    </div>
+  <?php endif; ?>
   <?php if (!$copyOk): ?>
     <div class="card-body small"><div class="alert alert-secondary mb-0">Kopiowanie niedostępne — integracja Microsoft 365 nie jest skonfigurowana (Admin › Microsoft 365). Sprawdź też „Testuj połączenie”.</div></div>
   <?php endif; ?>
@@ -323,6 +330,19 @@ $statusOf  = function (array $a): array {
             <?php if ($j['last_error']): ?><div class="text-danger-emphasis"><?= h(mb_substr((string)$j['last_error'], 0, 220)) ?></div><?php endif; ?>
           </td>
           <td class="text-end text-nowrap">
+            <?php $_first = !isset($_seenBox[$j['mailbox']]); $_seenBox[$j['mailbox']] = true; ?>
+            <?php if (!$active && $_first): /* „Ponów przenoszenie poczty” tylko przy najnowszym zadaniu skrzynki */ ?>
+            <form method="post" action="<?= h(route('dhm.copy')) ?>" class="d-inline">
+              <?= Router::csrfField() ?><input type="hidden" name="job" value="<?= (int)$j['id'] ?>">
+              <?php if (isset($storedPass[$j['mailbox']])): ?>
+                <button class="btn btn-sm btn-outline-primary" name="op" value="retry" title="Nowe przejście zapisanym hasłem — tylko brakujące wiadomości"
+                        onclick="return confirm('Ponowić przenoszenie poczty do <?= h($j['mailbox']) ?>? Skopiowane zostaną tylko brakujące wiadomości.')"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Ponów przenoszenie poczty</button>
+              <?php else: ?>
+                <button class="btn btn-sm btn-outline-primary" name="op" value="retry_newpass" title="Brak zapisanego hasła — ustawi nowe hasło (SMS do osoby) i ponowi"
+                        onclick="return confirm('Brak zapisanego hasła do <?= h($j['mailbox']) ?>.\nUstawić NOWE hasło (dotychczasowe przestanie działać), wysłać je osobie SMS-em i ponowić przenoszenie poczty?')"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Ponów z nowym hasłem</button>
+              <?php endif; ?>
+            </form>
+            <?php endif; ?>
             <?php if ($active): ?>
             <form method="post" action="<?= h(route('dhm.copy')) ?>" class="d-inline">
               <?= Router::csrfField() ?><input type="hidden" name="job" value="<?= (int)$j['id'] ?>">

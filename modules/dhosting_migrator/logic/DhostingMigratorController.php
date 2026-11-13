@@ -26,6 +26,7 @@ final class DhostingMigratorController
     private const K_FLASH  = 'dhmFlash';
     private const K_TEST   = 'dhmTest';
     private const K_RESTORED = 'dhmRestored';
+    private const K_RETRY    = 'dhmRetry';
 
     // ── Administrator ─────────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,8 @@ final class DhostingMigratorController
             'copyOk'   => DhostingCopy::available(),
             'suspended'=> DhostingContractMail::suspendedList(),
             'restored' => $this->take(self::K_RESTORED),
+            'retried'  => $this->take(self::K_RETRY),
+            'storedPass' => DhostingCopy::storedPasswordBoxes(),
             'cfg'      => [
                 'api_url'      => DhostingConfig::get('dhosting_api_url'),
                 'api_user'     => DhostingConfig::get('dhosting_api_user'),
@@ -159,6 +162,36 @@ final class DhostingMigratorController
             DhostingCopy::cancel($id);
             try { audit_log('dhosting.copy_cancel', ['job' => $id, 'mailbox' => $job['mailbox']]); } catch (\Throwable $e) {}
             return $this->flash($back, 'success', 'Anulowano kopiowanie do ' . $job['mailbox'] . ' (hasło usunięte).');
+        }
+        // „Ponów przenoszenie poczty” — zapisanym hasłem albo z nowym hasłem (SMS do osoby / raz na ekranie)
+        $op = (string)($_POST['op'] ?? '');
+        if ($op === 'retry' || $op === 'retry_newpass') {
+            $mb = (string)$job['mailbox'];
+            $by = (string)(current_user()['email'] ?? '');
+            $note = '';
+            try {
+                if ($op === 'retry_newpass') {
+                    if (!ika_ok($back)) return $this->flash($back, 'warning', 'Sesja kodu IKA wygasła — hasła NIE zmieniono. Potwierdź kod IKA i powtórz.');
+                    $pass = DhostingConfig::generatePassword();
+                    DhostingConfig::api()->changeMailboxPassword($mb, $pass);
+                    $phone = $this->phoneForMailbox($mb, $job);
+                    $sms = '';
+                    if ($phone !== '' && sms_is_mobile($phone)) {
+                        try { DhostingMigrator::sendPasswordSms($phone, $mb, $pass, false); $sms = 'wysłano na ' . DhostingMigrator::maskPhone($phone); }
+                        catch (\Throwable $e) { $sms = 'błąd SMS: ' . $e->getMessage(); }
+                    }
+                    $nid = DhostingCopy::retry($mb, $by, $pass);
+                    $_SESSION[self::K_RETRY] = ['mailbox' => $mb, 'password' => $pass, 'sms' => $sms];
+                    $note = ' Nowe hasło' . ($sms !== '' ? ' — SMS: ' . $sms : ' — poniżej (tylko teraz), przekaż je osobie') . '.';
+                } else {
+                    $nid = DhostingCopy::retry($mb, $by);
+                }
+            } catch (\Throwable $e) {
+                return $this->flash($back, $e->getMessage() === DhostingCopy::NO_PASS ? 'warning' : 'danger', $e->getMessage());
+            }
+            try { audit_log('dhosting.copy_retry', ['mailbox' => $mb, 'job' => $nid, 'new_password' => $op === 'retry_newpass']); } catch (\Throwable $e) {}
+            return $this->flash($back, 'success', 'Przenoszenie poczty do ' . $mb . ' ponowione (zadanie #' . $nid . ') — ruszy w najbliższym przebiegu (do 5 min). '
+                . 'Skopiowane zostaną tylko brakujące wiadomości; to, co jest w nowej skrzynce, zostaje bez zmian.' . $note);
         }
         DhostingCopy::runSoon($id);
         return $this->flash($back, 'success', 'Kopiowanie do ' . $job['mailbox'] . ' ruszy w najbliższym przebiegu (do 5 min).');
@@ -356,6 +389,24 @@ final class DhostingMigratorController
         }
         $g = DhostingGuest::current();
         return $g ? DhostingGuest::userRow($g) : null;
+    }
+
+    /** Numer komórkowy właściciela skrzynki: konto SZO z zadania / rejestru, potem umowy (telefon). '' = brak. */
+    private function phoneForMailbox(string $mailbox, array $job): string
+    {
+        $uids = array_filter([(int)($job['user_id'] ?? 0)]);
+        try { $uids[] = (int)(db_one("SELECT user_id FROM dhosting_mailboxes WHERE mailbox=?", [$mailbox])['user_id'] ?? 0); } catch (\Throwable $e) {}
+        foreach (array_filter($uids) as $uid) {
+            $p = (string)(db_one("SELECT phone_number FROM users WHERE id=?", [$uid])['phone_number'] ?? '');
+            if ($p !== '' && sms_is_mobile($p)) return $p;
+        }
+        try {
+            foreach (DhostingContractMail::contractsFor($mailbox) as $c) {
+                $p = (string)($c['telefon'] ?? '');
+                if ($p !== '' && sms_is_mobile($p)) return $p;
+            }
+        } catch (\Throwable $e) {}
+        return '';
     }
 
     /** Kto wykonał akcję (rejestr, kolejka kopiowania). */

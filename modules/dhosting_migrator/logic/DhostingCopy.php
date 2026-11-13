@@ -234,6 +234,48 @@ final class DhostingCopy
             ->execute([date('Y-m-d H:i:s'), date('Y-m-d H:i:s'), $id]);
     }
 
+    public const NO_PASS = 'Brak zapisanego hasła do tej skrzynki (minęło okno dosyłania albo kopiowanie anulowano) — użyj „Ponów z nowym hasłem” albo poproś osobę, żeby podała hasło na stronie migracji.';
+
+    /**
+     * „Ponów przenoszenie poczty” (administrator): nowe pełne przejście dla skrzynki — kopiuje tylko brakujące wiadomości
+     * (rejestr + Message-ID w nowej skrzynce; niczego tam nie nadpisuje). $password: nowe hasło ustawione właśnie przez
+     * administratora; null = zaszyfrowane hasło zapisane przy wcześniejszym zadaniu (przechodzi na nowe zadanie).
+     * Aktywne zadanie tej skrzynki — tylko przyspieszamy je. Zwraca id zadania; brak hasła → wyjątek NO_PASS.
+     */
+    public static function retry(string $mailbox, string $by, ?string $password = null): int
+    {
+        self::migrate();
+        $mailbox = strtolower(trim($mailbox));
+        $last = self::latestFor($mailbox);
+        if (!$last) throw new RuntimeException('Ta skrzynka nie była jeszcze kopiowana.');
+        $uid = $last['user_id'] !== null ? (int)$last['user_id'] : null;
+        if ($password !== null) {
+            $id = self::queue($mailbox, (string)$last['source'], $password, $uid, 'admin', $by);
+        } elseif ($active = self::activeFor($mailbox)) {
+            self::runSoon((int)$active['id']);
+            return (int)$active['id'];
+        } else {
+            $src = db_one("SELECT id, password_enc, keep_until FROM dhosting_copy_jobs WHERE mailbox=? AND password_enc IS NOT NULL ORDER BY id DESC LIMIT 1", [$mailbox]);
+            if (!$src) throw new RuntimeException(self::NO_PASS);
+            $now = date('Y-m-d H:i:s');
+            db()->prepare("INSERT INTO dhosting_copy_jobs (mailbox, source, user_id, via, created_by, created_at, status, password_enc, next_run_at, updated_at, kind, keep_until)
+                           VALUES (?, ?, ?, 'admin', ?, ?, 'queued', ?, ?, ?, 'full', ?)")
+                ->execute([$mailbox, $last['source'], $uid, $by, $now, $src['password_enc'], $now, $now, $src['keep_until']]);
+            $id = (int)db()->lastInsertId();
+            db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=NULL WHERE id=?")->execute([(int)$src['id']]);
+        }
+        self::helpdesk(['mailbox' => $mailbox, 'source' => $last['source'], 'user_id' => $uid],
+            'Administrator (' . $by . ') ponowił przenoszenie poczty (zadanie #' . $id . ')' . ($password !== null ? ' z nowym hasłem.' : '.'));
+        return $id;
+    }
+
+    /** Skrzynki z zapisanym (zaszyfrowanym) hasłem — „Ponów przenoszenie” bez zmiany hasła. mailbox => true. */
+    public static function storedPasswordBoxes(): array
+    {
+        self::migrate();
+        return array_flip(array_column(db_all("SELECT DISTINCT mailbox FROM dhosting_copy_jobs WHERE password_enc IS NOT NULL"), 'mailbox'));
+    }
+
     public static function percent(array $job): int
     {
         $t = (int)$job['total_items'];
