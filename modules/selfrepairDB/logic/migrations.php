@@ -943,4 +943,14 @@ return [
         },
     ],
 
+    // Canva (2026-11-14): logowanie na razie przez „Kontynuuj z Microsoft” i stare hasło Microsoft 365 — artykuł w usłudze „Microsoft 365”.
+    '2026-11_it_portal_canva_article' => [
+        'desc' => 'Portal Usług IT, „Microsoft 365”: artykuł „Canva: logowanie kontem Microsoft i starym hasłem”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCanvaSeed.php';
+            itPortalCanvaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
