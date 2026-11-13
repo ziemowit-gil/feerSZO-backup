@@ -706,4 +706,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Moja poczta”: sekcja „Pomoc producenta” (linki do pomocy dhosting.pl) na dole instrukcji poczty
+    // (polecenie 2026-11-13; modules/it_portal/lib/itPortalVendorHelp.php). Zmienia tylko artykuły z listy linków.
+    // Po ponownym zasiewie artykułów (itPortalDpocztaApply) uruchom: php cli/it_portal_vendor_help.php
+    '2026-11_it_portal_vendor_help' => [
+        'desc' => 'Portal Usług IT: sekcja „Pomoc producenta” z linkami do pomocy dhosting.pl w instrukcjach „Moja poczta”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php';
+            itPortalVendorHelpApply();   // to samo ręcznie: php cli/it_portal_vendor_help.php [--dry-run]
+        },
+    ],
+
 ];
