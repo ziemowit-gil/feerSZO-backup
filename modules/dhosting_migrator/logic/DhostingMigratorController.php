@@ -17,6 +17,7 @@ require_once __DIR__ . '/DhostingContractMail.php';
 require_once dirname(__DIR__) . '/lib/DhostingGraphSource.php';
 require_once dirname(__DIR__, 2) . '/audit_logs/logic/audit_logs.php';
 require_once dirname(__DIR__, 3) . '/includes/admin_audit.php';
+require_once dirname(__DIR__, 3) . '/includes/approval.php';
 
 final class DhostingMigratorController
 {
@@ -24,6 +25,7 @@ final class DhostingMigratorController
     private const K_RESULT = 'dhmResult';
     private const K_FLASH  = 'dhmFlash';
     private const K_TEST   = 'dhmTest';
+    private const K_RESTORED = 'dhmRestored';
 
     // ── Administrator ─────────────────────────────────────────────────────────────────────────
 
@@ -39,6 +41,8 @@ final class DhostingMigratorController
             'test'     => $this->take(self::K_TEST),
             'jobs'     => DhostingCopy::jobs(),
             'copyOk'   => DhostingCopy::available(),
+            'suspended'=> DhostingContractMail::suspendedList(),
+            'restored' => $this->take(self::K_RESTORED),
             'cfg'      => [
                 'api_url'      => DhostingConfig::get('dhosting_api_url'),
                 'api_user'     => DhostingConfig::get('dhosting_api_user'),
@@ -158,6 +162,29 @@ final class DhostingMigratorController
         }
         DhostingCopy::runSoon($id);
         return $this->flash($back, 'success', 'Kopiowanie do ' . $job['mailbox'] . ' ruszy w najbliższym przebiegu (do 5 min).');
+    }
+
+    /** POST /migracjaadmin/zawieszone — przywrócenie zawieszonej skrzynki z listy (nowe hasło raz na ekranie, opcjonalnie SMS). */
+    public function suspendedPost(): ?string
+    {
+        $back = route('dhm.index') . '#zawieszone';
+        if (!ika_ok($back)) return $this->flash($back, 'warning', 'Sesja kodu IKA wygasła — skrzynki NIE przywrócono. Potwierdź kod IKA i powtórz.');
+        $mb = strtolower(trim((string)($_POST['mailbox'] ?? '')));
+        $item = null;
+        foreach (DhostingContractMail::suspendedList() as $s) if ($s['mailbox'] === $mb) { $item = $s; break; }
+        if (!$item) return $this->flash($back, 'warning', 'Tej skrzynki nie ma na liście zawieszonych.');
+        $by = (string)(current_user()['email'] ?? '');
+        try {
+            $res = DhostingContractMail::restore($mb, $by, !empty($_POST['sms']), $item['phone']);
+        } catch (\Throwable $e) {
+            return $this->flash($back, 'danger', 'Serwer poczty: ' . $e->getMessage());
+        }
+        foreach ($item['contracts'] as $c) {
+            try { log_contract_action($c['type'], $c['id'], (int)(current_user()['id'] ?? 0), 'note', 'Administrator przywrócił skrzynkę pocztową ' . $mb . ' (lista zawieszonych).'); } catch (\Throwable $e) {}
+        }
+        try { admin_audit_migrate(); admin_audit('dhosting_box_restore', 'dhosting', 'Przywrócono skrzynkę ' . $mb, 0, $mb); } catch (\Throwable $e) {}
+        $_SESSION[self::K_RESTORED] = $res + ['person' => $item['person']];
+        return $this->flash($back, 'success', 'Przywrócono skrzynkę ' . $mb . ' — nowe hasło poniżej (tylko teraz).' . ($res['sms'] !== '' ? ' SMS: ' . $res['sms'] . '.' : ''));
     }
 
     /**

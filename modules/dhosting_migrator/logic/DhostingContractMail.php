@@ -48,6 +48,8 @@ final class DhostingContractMail
             last_error TEXT NULL)");
         try { db()->exec("CREATE INDEX idx_dhcb_mailbox ON dhosting_contract_boxes(mailbox)"); } catch (\Throwable $e) {}
         try { db()->exec("CREATE INDEX idx_dhcb_contract ON dhosting_contract_boxes(contract_type, contract_id)"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE dhosting_contract_boxes ADD COLUMN suspend_reason TEXT NULL"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE dhosting_contract_boxes ADD COLUMN suspended_by VARCHAR(190) NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
     }
 
     /** Zakładanie skrzynek przy umowach dostępne (API skonfigurowane i nie wyłączone ustawieniem). */
@@ -210,11 +212,13 @@ final class DhostingContractMail
         $api->changeMailboxPassword($mailbox, DhostingConfig::generatePassword(20));
         $api->changeMailboxStatus($mailbox, false);
         $now = date('Y-m-d H:i:s');
-        $upd = db()->prepare("UPDATE dhosting_contract_boxes SET status='suspended', suspended_at=?, last_error=NULL WHERE mailbox=?");
-        $upd->execute([$now, $mailbox]);
+        $upd = db()->prepare("UPDATE dhosting_contract_boxes SET status='suspended', suspended_at=?, suspend_reason=?, suspended_by=?, last_error=NULL WHERE mailbox=?");
+        $upd->execute([$now, $reason, $by, $mailbox]);
         if ($upd->rowCount() === 0) {   // skrzynka z migracji — zapamiętujemy stan
-            db()->prepare("INSERT INTO dhosting_contract_boxes (contract_type, contract_id, mailbox, status, created_at, created_by, suspended_at) VALUES ('migracja', 0, ?, 'suspended', ?, ?, ?)")
-                ->execute([$mailbox, $now, $by, $now]);
+            $person = '';
+            try { $person = (string)(db_one("SELECT display_name FROM dhosting_mailboxes WHERE mailbox=?", [$mailbox])['display_name'] ?? ''); } catch (\Throwable $e) {}
+            db()->prepare("INSERT INTO dhosting_contract_boxes (contract_type, contract_id, mailbox, person, status, created_at, created_by, suspended_at, suspend_reason, suspended_by) VALUES ('migracja', 0, ?, ?, 'suspended', ?, ?, ?, ?, ?)")
+                ->execute([$mailbox, $person, $now, $by, $now, $reason, $by]);
         }
         // Hasło trzymane na dosyłanie poczty jest już nieaktualne — kasujemy je i przerywamy aktywne kopiowanie
         try {
@@ -238,6 +242,39 @@ final class DhostingContractMail
         self::audit('dhosting.contract_box_restored', ['mailbox' => $mailbox, 'by' => $by]);
         DhostingHelpdesk::event($mailbox, 'Skrzynka przywrócona przez administratora (' . $by . ').', [], false);
         return $res;
+    }
+
+    /**
+     * Zawieszone skrzynki do panelu administratora (najnowsze najpierw): mailbox, person, suspended_at, reason, by,
+     * contracts (umowy powiązane: type, id, numer, osoba, koniec), phone (komórkowy z umowy — do SMS-a przy przywróceniu).
+     */
+    public static function suspendedList(): array
+    {
+        self::migrate();
+        $out = [];
+        $rows = db_all("SELECT mailbox, MAX(person) AS person, MAX(suspended_at) AS suspended_at, MAX(suspend_reason) AS reason, MAX(suspended_by) AS by_
+                        FROM dhosting_contract_boxes WHERE status='suspended' GROUP BY mailbox ORDER BY MAX(suspended_at) DESC");
+        foreach ($rows as $r) {
+            $contracts = [];
+            $phone = '';
+            foreach (self::contractsFor((string)$r['mailbox']) as $c) {
+                $contracts[] = ['type' => $c['_type'], 'id' => (int)$c['id'], 'numer' => (string)($c['numer_umowy'] ?? ''),
+                                'person' => (string)($c['imie_nazwisko'] ?? ''), 'end' => (string)($c['data_zakonczenia'] ?? $c['termin_oddania'] ?? '')];
+                $t = (string)($c['telefon'] ?? '');
+                if ($phone === '' && $t !== '' && sms_is_mobile($t)) $phone = $t;
+            }
+            $person = (string)$r['person'] !== '' ? (string)$r['person'] : (string)($contracts[0]['person'] ?? '');
+            $out[] = ['mailbox' => (string)$r['mailbox'], 'person' => $person, 'suspended_at' => (string)$r['suspended_at'],
+                      'reason' => (string)($r['reason'] ?? ''), 'by' => (string)($r['by_'] ?? ''), 'contracts' => $contracts, 'phone' => $phone];
+        }
+        return $out;
+    }
+
+    /** Czy skrzynka jest zawieszona (w SZO). */
+    public static function isSuspended(string $mailbox): bool
+    {
+        self::migrate();
+        return (bool)db_one("SELECT id FROM dhosting_contract_boxes WHERE mailbox=? AND status='suspended' LIMIT 1", [strtolower(trim($mailbox))]);
     }
 
     // ── CRON: zawieszanie po wygaśnięciu umowy ────────────────────────────────────────────────

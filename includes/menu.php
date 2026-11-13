@@ -622,6 +622,7 @@ function _menu_editor(): array {
             _mi('Kreator kont M365 z listy (XLS)','/modules/ms_edu_bulk/kreator.php','bi-magic',['match'=>'/modules/ms_edu_bulk/kreator','kw'=>'kreator konta m365 xls excel import lista csv']),
             _mi('Konta EDU — zarządzanie','/modules/ms_edu_bulk/konta.php','bi-person-gear',['match'=>'/modules/ms_edu_bulk/konta','kw'=>'konta edu zarządzanie zawieszenie offboarding menedżer mfa rola entra']),
             _mi('Migrator kont M365 → dhosting','/migracjaadmin','bi-envelope-arrow-up',['match'=>'/migracjaadmin','kw'=>'dhosting migracja migrator skrzynki poczta konta microsoft hasła sms przeniesienie']),
+            _mi('Zawieszone skrzynki pocztowe','/migracjaadmin#zawieszone','bi-pause-circle',['match'=>'/migracjaadmin#zawieszone','kw'=>'zawieszone skrzynki poczta wyłączone przywróć hasło umowa wygasła']),
             _mi('SharePoint','/admin/sharepoint_settings.php','bi-cloud-upload',['match'=>'/admin/sharepoint','kw'=>'sharepoint']),
             _mi('Szkolenia (TidyCal)','/admin/tidycal_settings.php','bi-calendar2-check',['match'=>'/admin/tidycal','kw'=>'tidycal szkolenia']),
             _mi('Zadania / Nozbe','/admin/nozbe_settings.php','bi-check2-square',['match'=>'/admin/nozbe_settings','kw'=>'nozbe zadania integracja']),

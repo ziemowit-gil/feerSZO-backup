@@ -340,6 +340,59 @@ $statusOf  = function (array $a): array {
   <?php endif; ?>
 </section>
 
+<?php $suspended = $suspended ?? []; $restored = $restored ?? null;
+      $_ctLabel = ['wolontariat' => 'Wolontariat', 'zlecenie' => 'Zlecenie', 'dzielo' => 'Dzieło']; ?>
+<section id="zawieszone" class="card mt-4" aria-labelledby="dhmSuspH">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h2 id="dhmSuspH" class="h6 mb-0"><i class="bi bi-pause-circle" aria-hidden="true"></i> Zawieszone skrzynki <span class="badge text-bg-secondary"><?= count($suspended) ?></span></h2>
+    <span class="small text-body-secondary">automatycznie <?= DhostingContractMail::GRACE_DAYS ?> dni po wygaśnięciu umowy albo przez administratora · wyłączone, z losowym hasłem, bez powiadamiania</span>
+  </div>
+  <?php if ($restored): ?>
+    <div class="alert alert-warning rounded-0 border-0 border-bottom small mb-0" role="status">
+      <strong>Przywrócono:</strong> <code><?= h($restored['mailbox']) ?></code><?= $restored['person'] !== '' ? ' (' . h($restored['person']) . ')' : '' ?> ·
+      nowe hasło: <code class="user-select-all fs-6"><?= h($restored['password']) ?></code><?= $restored['sms'] !== '' ? ' · SMS: ' . h($restored['sms']) : '' ?>
+      <div>Hasło widać tylko teraz — system go nie zapisuje. Przekaż je bezpiecznie (SMS, osobiście), nie zwykłym e-mailem.</div>
+    </div>
+  <?php endif; ?>
+  <?php if (!$suspended): ?>
+    <div class="card-body small text-body-secondary">Brak zawieszonych skrzynek.</div>
+  <?php else: ?>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 small align-middle">
+      <caption class="visually-hidden">Zawieszone skrzynki pocztowe</caption>
+      <thead class="table-light"><tr><th scope="col">Skrzynka</th><th scope="col">Osoba</th><th scope="col">Umowy</th><th scope="col">Zawieszona</th><th scope="col">Powód</th><th scope="col"><span class="visually-hidden">Akcje</span></th></tr></thead>
+      <tbody>
+      <?php foreach ($suspended as $i => $s): ?>
+        <tr>
+          <td><code><?= h($s['mailbox']) ?></code></td>
+          <td><?= $s['person'] !== '' ? h($s['person']) : '—' ?></td>
+          <td>
+            <?php if (!$s['contracts']): ?>—<?php endif; ?>
+            <?php foreach ($s['contracts'] as $c): ?>
+              <div><a href="<?= h(APP_URL . '/contracts/' . $c['type'] . '/view.php?id=' . $c['id'] . '&tab=m365#skrzynka') ?>"><?= h(($_ctLabel[$c['type']] ?? $c['type']) . ' ' . ($c['numer'] !== '' ? $c['numer'] : '#' . $c['id'])) ?></a><?= $c['end'] !== '' ? ' <span class="text-body-secondary">do ' . h($c['end']) . '</span>' : '' ?></div>
+            <?php endforeach; ?>
+          </td>
+          <td class="text-nowrap"><?= h(substr($s['suspended_at'], 0, 16)) ?><?= $s['by'] !== '' ? '<div class="text-body-secondary" style="font-size:.75rem">' . h($s['by'] === 'CRON' ? 'automatycznie' : $s['by']) . '</div>' : '' ?></td>
+          <td style="max-width:18rem"><?= $s['reason'] !== '' ? h($s['reason']) : '—' ?></td>
+          <td class="text-end">
+            <form method="post" action="<?= h(route('dhm.suspended')) ?>" class="d-inline-flex flex-wrap gap-2 align-items-center justify-content-end"
+                  onsubmit="return confirm('Przywrócić skrzynkę <?= h($s['mailbox']) ?>? Zostanie włączona z nowym hasłem.')">
+              <?= Router::csrfField() ?><input type="hidden" name="mailbox" value="<?= h($s['mailbox']) ?>">
+              <?php if ($s['phone'] !== ''): ?>
+                <span class="form-check mb-0"><input class="form-check-input" type="checkbox" name="sms" value="1" id="dhmSuspSms<?= $i ?>">
+                  <label class="form-check-label" for="dhmSuspSms<?= $i ?>">SMS na <?= h(DhostingMigrator::maskPhone($s['phone'])) ?></label></span>
+              <?php endif; ?>
+              <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-play-circle" aria-hidden="true"></i> Przywróć</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
+</section>
+
 <?php if ($apiReady) echo $settingsHtml; ?>
 </div>
 
