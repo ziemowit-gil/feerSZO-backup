@@ -208,10 +208,7 @@ $_ai_on = panel_visible('asystent') && function_exists('asai_enabled') && asai_e
 if ($_ai_on) $_pv_quick[] = ['href'=>APP_URL.'/panel/asystent.php','icon'=>'bi-stars','label'=>'Asystent AI','sub'=>'zapytaj o procedury i sprawy','c'=>'var(--m-violet)'];
 if ($_tasks_tab_on) $_pv_quick[] = ['href'=>APP_URL.'/tasks/index.php','icon'=>'bi-check2-square','label'=>'Moje zadania','sub'=>$_tasks_mine ? $_tasks_mine . ' aktywnych' : 'brak aktywnych','c'=>'var(--m-orange)'];
 $_pv_quick[] = ['href'=>$_mail_chooser,'icon'=>'bi-envelope','label'=>'Poczta','sub'=>$_mail_chooser_label,'c'=>'var(--m-blue)','ext'=>true];
-if ($m365_login || !empty($u_db['microsoft_id'])) {
-    $_pv_quick[] = ['href'=>'https://teams.microsoft.com','icon'=>'bi-microsoft-teams','label'=>'Teams','sub'=>'czat i spotkania','c'=>'#4b53bc','ext'=>true];
-    $_pv_quick[] = ['href'=>'https://www.office.com','icon'=>'bi-microsoft','label'=>'Microsoft 365','sub'=>'Word, Excel, OneDrive','c'=>'var(--m-indigo)','ext'=>true];
-}
+// Skróty Teams i Microsoft 365 usunięte (2026-11-14: wycofujemy się z Microsoft 365)
 if ($_is_dyd) $_pv_quick[] = ['href'=>APP_URL.'/karty30/ti/dydaktyk/office_enter.php','icon'=>'bi-easel2','label'=>'Dydaktyka – panel','sub'=>'zajęcia, grupy, oceny','c'=>'var(--m-orange)'];
 $_pv_quick[] = ['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','sub'=>$_hd_my_open ? $_hd_my_open . ' otwartych' : 'zgłoś problem','c'=>'var(--m-magenta)'];
 if (is_file($ROOT . '/tozsamosc/index.php')) $_pv_quick[] = ['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'Tożsamość','sub'=>'hasło, MFA, telefon','c'=>'var(--m-dark)'];
@@ -568,19 +565,7 @@ panelMetroAssets($_vol_color);
       </div>
     </div>
 
-    <?php if ($m365_login || !empty($user['microsoft_id']) || !empty($u_db['microsoft_id'])): $_m_login = $m365_login ?: $email; ?>
-    <div class="mt-svc" style="--c:var(--m-indigo)">
-      <i class="bi bi-microsoft ic" aria-hidden="true"></i>
-      <div class="mt-svc__bd">
-        <h3>Microsoft 365 <span class="mt-badge mt-badge--ok">aktywne</span></h3>
-        <p>Login: <code><?= h($_m_login) ?></code> <button class="mt-copy" type="button" data-copy="<?= h($_m_login) ?>" aria-label="Kopiuj login Microsoft 365"><i class="bi bi-copy" aria-hidden="true"></i></button></p>
-        <?php if (!empty($u_db['m365_security_group_name'])): ?><p>Grupa dostępu: <?= h($u_db['m365_security_group_name']) ?></p><?php endif; ?>
-        <div class="mt-links">
-          <a href="https://portal.office.com" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (aplikacje)<span class="visually-hidden"> — nowa karta</span></a>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
+    <?php /* Karta „Microsoft 365” usunięta (2026-11-14: wycofujemy się z Microsoft 365) */ ?>
 
     <?php /* Samodzielna zmiana haseł (modules/nowe_haslo): dwa osobne hasła — poczta oraz logowanie jednokrotne z chmurą */ ?>
     <div class="mt-svc" style="--c:var(--m-indigo, #4f3fb0)">
@@ -662,17 +647,6 @@ panelMetroAssets($_vol_color);
         <h3>Poczta organizacji</h3>
         <p>Ta sama skrzynka w kilku programach do wyboru<?= $_mail_clients ? ' (' . count($_mail_clients) . ')' : '' ?> — wchodzisz zawsze przez <strong><?= h($_mail_chooser_label) ?></strong>.</p>
         <a class="mt-btn mt-2" href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-open" aria-hidden="true"></i>Otwórz pocztę<span class="visually-hidden"> — nowa karta</span></a>
-        <details class="mt-2">
-          <summary class="fw-semibold" style="cursor:pointer">Czym różnią się programy?</summary>
-          <dl class="mt-2 mb-0" style="font-size:.88rem">
-            <dt>Outlook w przeglądarce — do codziennej pracy</dt>
-            <dd class="mt-no">Poczta z kalendarzem, Teams, skrzynki współdzielone, reguły i autoodpowiedź, aplikacja na telefon.</dd>
-            <dt>Roundcube / SnappyMail — lekko i szybko</dt>
-            <dd class="mt-no">Tylko poczta — bez kalendarza i skrzynek współdzielonych; działa na słabym łączu i starszym sprzęcie, logowanie przyciskiem „Microsoft 365”.</dd>
-            <dt>Co jest wspólne</dt>
-            <dd class="mt-no mb-0">Adres, hasło (konto Microsoft), foldery i wszystkie wiadomości.</dd>
-          </dl>
-        </details>
       </div>
     </div>
   </section>

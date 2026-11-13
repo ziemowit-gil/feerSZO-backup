@@ -748,11 +748,6 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
           </a>
         </li>
         <li>
-          <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/m365.php">
-            <i class="bi bi-microsoft me-2 text-muted"></i>Microsoft 365
-          </a>
-        </li>
-        <li>
           <a class="dropdown-item py-2" href="<?= APP_URL ?>/panel/sessions.php">
             <i class="bi bi-shield-lock me-2 text-muted"></i>Sesje
           </a>

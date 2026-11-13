@@ -123,8 +123,7 @@ $_sh_lead = $_sh_admin
                   'sub'=>'kontakt, adres, rachunek, upoważnienia','color'=>'teal','group'=>'konto'];
   $_sh_tiles[] = ['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_sh_hd ? (string)$_sh_hd : '',
                   'sub'=>$_sh_hd ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta','group'=>'pomoc'];
-  $_sh_tiles[] = ['href'=>APP_URL.'/panel/m365.php','icon'=>'bi-microsoft','label'=>'Microsoft 365 i poczta',
-                  'sub'=>$_sh_m365 ?: 'konto nie zostało założone','color'=>$_sh_m365 ? 'indigo' : 'grey','keep_color'=>!$_sh_m365,'size'=>'w','tag'=>$_sh_m365 ? '' : 'brak','group'=>'konto'];
+  // Kafel „Microsoft 365 i poczta” usunięty (2026-11-14: wycofujemy się z Microsoft 365); $_sh_m365 = login skrzynki, nadal decyduje o „Zarządzaniu pocztą”
   if ($_sh_m365 !== '') {
       require_once dirname(__DIR__, 2) . '/modules/mail_footer/lib/mailFooter.php';
       $_sh_mf = mailFooterStatus($user);

@@ -474,16 +474,7 @@ if (module_enabled('ezd_enabled') && (can_read('ezd') || is_admin())) {
         'href' => APP_URL . '/ezd/index.php', 'cta' => 'Otwórz',
     ];
 }
-$services[] = [
-    'name' => 'Microsoft 365 / Entra ID', 'icon' => 'bi-microsoft', 'tone' => 'indigo',
-    'status' => $m365_active ? 'ok' : ($has_m365 ? 'warn' : 'off'),
-    'status_label' => $m365_active ? 'Aktywne' : ($has_m365 ? 'Zawieszone' : 'Brak konta'),
-    'desc' => $has_m365
-        ? 'Login: ' . ($m365_login ?: $panel_login) . ' · Licencja: ' . (!empty($m365_row['m365_licencja_przypisana']) ? 'przypisana' : 'brak')
-          . (!empty($m365_row['m365_data_utworzenia']) ? ' · Utworzone: ' . date('d.m.Y', strtotime($m365_row['m365_data_utworzenia'])) : '')
-        : 'Konto Microsoft 365 nie zostało utworzone dla tej tożsamości.',
-    'href' => APP_URL . '/panel/m365.php', 'cta' => 'Szczegóły',
-];
+// Usługa „Microsoft 365 / Entra ID” zdjęta z listy (2026-11-14: wycofujemy się z Microsoft 365)
 $services[] = [
     'name' => 'Katalog LDAP', 'icon' => 'bi-diagram-3', 'tone' => 'slate',
     'status' => $has_ldap ? 'ok' : ($ldap_enabled ? 'warn' : 'off'),
@@ -818,13 +809,6 @@ button.ma-tag:hover{background:var(--tz-hover)}
         <p class="ma-tile-p">Drugi składnik chroni konto nawet wtedy, gdy ktoś pozna Twoje hasło.</p>
         <p class="ma-tile-meta"><?= $mfa_active ? 'Aktywne: ' . h($mfa_label) : 'Drugi składnik nie jest skonfigurowany.' ?></p>
         <div class="ma-tile-ft"><a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="ma-link">Zarządzaj metodami <i class="bi bi-chevron-right" aria-hidden="true"></i></a></div>
-      </article>
-
-      <article class="ma-card ma-tile" aria-labelledby="t-m365">
-        <div class="ma-tile-hd"><span class="ma-ic<?= $m365_active ? '' : ' ma-ic--off' ?>" aria-hidden="true"><i class="bi bi-microsoft"></i></span><h2 id="t-m365" class="ma-tile-t">Microsoft 365</h2></div>
-        <p class="ma-tile-p"><?= $has_m365 ? 'Poczta, Teams i pliki organizacji (Entra ID).' : 'Konto Microsoft 365 nie zostało utworzone dla tej tożsamości.' ?></p>
-        <?php if ($has_m365): ?><p class="ma-tile-meta"><?= $m365_active ? 'Aktywne' : 'Zawieszone' ?> · <?= h($m365_login ?: $panel_login) ?></p><?php endif; ?>
-        <div class="ma-tile-ft"><a href="<?= APP_URL ?>/panel/m365.php" class="ma-link">Szczegóły konta<span class="visually-hidden"> Microsoft 365</span> <i class="bi bi-chevron-right" aria-hidden="true"></i></a></div>
       </article>
 
       <article class="ma-card ma-tile" aria-labelledby="t-svc">
