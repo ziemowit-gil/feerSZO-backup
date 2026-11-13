@@ -394,19 +394,7 @@ final class DhostingMigratorController
     /** Numer komórkowy właściciela skrzynki: konto SZO z zadania / rejestru, potem umowy (telefon). '' = brak. */
     private function phoneForMailbox(string $mailbox, array $job): string
     {
-        $uids = array_filter([(int)($job['user_id'] ?? 0)]);
-        try { $uids[] = (int)(db_one("SELECT user_id FROM dhosting_mailboxes WHERE mailbox=?", [$mailbox])['user_id'] ?? 0); } catch (\Throwable $e) {}
-        foreach (array_filter($uids) as $uid) {
-            $p = (string)(db_one("SELECT phone_number FROM users WHERE id=?", [$uid])['phone_number'] ?? '');
-            if ($p !== '' && sms_is_mobile($p)) return $p;
-        }
-        try {
-            foreach (DhostingContractMail::contractsFor($mailbox) as $c) {
-                $p = (string)($c['telefon'] ?? '');
-                if ($p !== '' && sms_is_mobile($p)) return $p;
-            }
-        } catch (\Throwable $e) {}
-        return '';
+        return DhostingMigrator::phoneForMailbox($mailbox, (int)($job['user_id'] ?? 0));
     }
 
     /** Kto wykonał akcję (rejestr, kolejka kopiowania). */

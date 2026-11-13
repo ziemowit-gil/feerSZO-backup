@@ -462,6 +462,28 @@ final class DhostingMigrator
         }
     }
 
+    /**
+     * Numer komórkowy właściciela skrzynki: konto SZO (zadanie / rejestr skrzynek) → telefon z umowy. '' = brak.
+     * Wspólne dla „Ponów z nowym hasłem” (kontroler) i SMS-a po zakończonym przenoszeniu (DhostingCopy::notifyDone).
+     */
+    public static function phoneForMailbox(string $mailbox, ?int $userId = null): string
+    {
+        $uids = array_filter([(int)$userId]);
+        try { $uids[] = (int)(db_one("SELECT user_id FROM dhosting_mailboxes WHERE mailbox=?", [$mailbox])['user_id'] ?? 0); } catch (\Throwable $e) {}
+        foreach (array_unique(array_filter($uids)) as $uid) {
+            $p = (string)(db_one("SELECT phone_number FROM users WHERE id=?", [$uid])['phone_number'] ?? '');
+            if ($p !== '' && sms_is_mobile($p)) return $p;
+        }
+        try {
+            require_once __DIR__ . '/DhostingContractMail.php';
+            foreach (DhostingContractMail::contractsFor($mailbox) as $c) {
+                $p = (string)($c['telefon'] ?? '');
+                if ($p !== '' && sms_is_mobile($p)) return $p;
+            }
+        } catch (\Throwable $e) {}
+        return '';
+    }
+
     public static function maskPhone(string $phone): string
     {
         $d = preg_replace('/\D/', '', $phone) ?? '';

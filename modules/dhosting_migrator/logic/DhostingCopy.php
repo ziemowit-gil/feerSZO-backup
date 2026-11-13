@@ -44,6 +44,88 @@ final class DhostingCopy
         'done' => 'zakończone', 'error' => 'błąd', 'cancelled' => 'anulowane',
     ];
 
+    /** Podmiana wysyłek w testach: fn($to, $name, $subject, $html, $text): bool oraz fn($phone, $message): string (dostawca, '' = nie wyszło). */
+    public static ?\Closure $sendMail = null;
+    public static ?\Closure $sendSms = null;
+
+    /**
+     * Po zakończonym pełnym przenoszeniu (polecenie 2026-11-13): e-mail i SMS „poczta przeniesiona — możesz się zalogować”:
+     * adres i login, hasło „to samo co do nowej skrzynki” (bez samego hasła), poczta w przeglądarce, ile przeniesiono, ile niepełnych
+     * i nieprzeniesionych (wykaz na stronie migracji), do kiedy dosyłamy nowe. Bez nazwy dostawcy. E-mail: nowa skrzynka + adres konta SZO;
+     * SMS: komórka z konta SZO / rejestru / umowy (rodzaj access_data, bez omijania ciszy nocnej). Zwraca opis do notatki Helpdesku.
+     */
+    public static function notifyDone(array $job, array $c, ?string $keep): string
+    {
+        $box = strtolower(trim((string)$job['mailbox']));
+        $uid = (int)($job['user_id'] ?? 0);
+        $user = $uid > 0 ? (db_one("SELECT name, email FROM users WHERE id=?", [$uid]) ?: []) : [];
+        $name = trim((string)($user['name'] ?? ''));
+        $web = DhostingConfig::webmail();
+        $url = (defined('APP_URL') ? rtrim((string)APP_URL, '/') : '') . '/migracjapoczty';
+        $list = self::failedFor($box, 5000);
+        $nFail = count(array_filter($list, fn($r) => (int)$r['result'] === 0));
+        $nPart = count($list) - $nFail;
+        $n = (int)$c['copied'];
+        $lines = ['Adres i login: ' . $box,
+                  'Hasło: to samo, którego używasz do nowej skrzynki (z SMS-a albo ustawione na stronie migracji).'];
+        if ($web !== '') $lines[] = 'Poczta w przeglądarce: ' . $web;
+        $lines[] = 'Przeniesiono ' . $n . ' ' . ($n === 1 ? 'wiadomość' : 'wiadomości') . '.';
+        if ($nPart || $nFail) {
+            $lines[] = 'Nie wszystko przeszło w całości: ' . implode(', ', array_filter([$nPart ? 'niepełne — ' . $nPart : '', $nFail ? 'nieprzeniesione — ' . $nFail : '']))
+                     . '. Wykaz jest na stronie migracji, a oryginały zostały w Microsoft 365.';
+        }
+        if ($keep) $lines[] = 'Nowe wiadomości, które jeszcze trafią do Microsoft 365, dosyłamy automatycznie do ' . date('d.m.Y H:i', (int)strtotime($keep)) . '.';
+        $title = 'Twoja poczta jest przeniesiona — możesz się zalogować';
+        $done = [];
+
+        if ($uid > 0) {
+            try {
+                require_once dirname(__DIR__, 3) . '/includes/notifications.php';
+                if (function_exists('notif_migrate')) notif_migrate();
+                if (function_exists('notif_create')) { notif_create($uid, 'system', $title, implode(' ', $lines), $url); $done[] = 'SZO'; }
+            } catch (\Throwable $e) { error_log('[dhosting] notif done ' . $box . ': ' . $e->getMessage()); }
+        }
+
+        $to = [$box];
+        $ue = strtolower(trim((string)($user['email'] ?? '')));
+        if ($ue !== '' && filter_var($ue, FILTER_VALIDATE_EMAIL) && !in_array($ue, $to, true)) $to[] = $ue;
+        $e = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $html = '<p>Dzień dobry' . ($name !== '' ? ', ' . $e($name) : '') . ',</p>'
+              . '<p>przenieśliśmy Twoją pocztę z Microsoft 365 do nowej skrzynki. <strong>Możesz się już do niej zalogować.</strong> Twój adres e-mail się nie zmienia.</p><ul>';
+        foreach ($lines as $l) {
+            $html .= '<li>' . ($web !== '' && str_starts_with($l, 'Poczta w przeglądarce: ')
+                ? 'Poczta w przeglądarce: <a href="' . $e($web) . '">' . $e($web) . '</a>' : $e($l)) . '</li>';
+        }
+        $html .= '</ul><p>Ustawienia poczty w telefonie i komputerze oraz szczegóły przenoszenia: <a href="' . $e($url) . '">' . $e($url) . '</a></p>'
+               . '<p style="color:#555">Nikt z Fundacji nie poprosi Cię o hasło — jeśli ktoś o nie prosi, to próba oszustwa.</p>';
+        $text = 'Przenieśliśmy Twoją pocztę z Microsoft 365 do nowej skrzynki. Możesz się już do niej zalogować.' . "\n\n" . implode("\n", $lines)
+              . "\n\nUstawienia i szczegóły: " . $url . "\nNikt z Fundacji nie poprosi Cię o hasło.";
+        $sent = 0;
+        try {
+            $mail = self::$sendMail ?? (function (string $to, string $nm, string $subj, string $h, string $t): bool {
+                require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+                return (bool)mail_queue_add($to, $nm, $subj, $h, $t, 'dhosting_copy_done');
+            });
+            foreach ($to as $addr) { if ($mail($addr, $name, $title, $html, $text)) $sent++; }
+        } catch (\Throwable $ex) { error_log('[dhosting] e-mail done ' . $box . ': ' . $ex->getMessage()); }
+        $done[] = $sent ? 'e-mail' . ($sent > 1 ? ' (' . $sent . ')' : '') : 'e-mail nie wyszedł';
+
+        try {
+            require_once __DIR__ . '/DhostingMigrator.php';
+            $phone = DhostingMigrator::phoneForMailbox($box, $uid ?: null);
+            if ($phone === '') {
+                $done[] = 'SMS: brak numeru komórkowego';
+            } else {
+                $msg = 'FEER: poczta ' . $box . ' przeniesiona, mozesz sie logowac swoim haslem.'
+                     . ($web !== '' ? ' Poczta: ' . $web : '') . ($nPart || $nFail ? ' Nie wszystko przeszlo, wykaz: ' . $url : '');
+                $sms = self::$sendSms ?? fn(string $p, string $m): string => (string)sms_send($p, function_exists('sms_ascii') ? sms_ascii($m) : $m, 'access_data');
+                $prov = $sms($phone, $msg);
+                $done[] = $prov === '' ? 'SMS nie wyszedł' : ($prov === 'odlozony' ? 'SMS po ciszy nocnej' : 'SMS') . ' (' . DhostingMigrator::maskPhone($phone) . ')';
+            }
+        } catch (\Throwable $ex) { $done[] = 'SMS: błąd'; error_log('[dhosting] SMS done ' . $box . ': ' . $ex->getMessage()); }
+        return implode(', ', $done);
+    }
+
     public static function migrate(): void
     {
         static $done = false;
@@ -411,13 +493,18 @@ final class DhostingCopy
                     }
                     if ($failList !== '') $failList = "\nNieudane i niepełne (pełny wykaz: /migracjaadmin#kopiowanie):" . $failList . (count($fl) > 10 ? "\n– …" : '');
                 }
+                $notice = '';
+                if (($job['kind'] ?? 'full') !== 'incremental') {
+                    try { $notice = self::notifyDone($job, $c, $keep); } catch (\Throwable $e) { $notice = 'błąd: ' . $e->getMessage(); }
+                }
                 if (($job['kind'] ?? 'full') !== 'incremental') {
                     self::helpdesk($job, 'Kopiowanie poczty zakończone: skopiowano ' . $c['copied'] . ' wiadomości (nowo dopisanych: ' . $added
                         . ($present ? ', już były w nowej skrzynce: ' . $present : '')
                         . ($rebuilt ? ', odtworzonych z danych, bo Microsoft nie oddał oryginału: ' . $rebuilt : '')
                         . ($partialN ? ', w tym niepełnych (bez całej treści albo bez załączników): ' . $partialN : '') . ')'
                         . ($c['failed'] ? ', nie udało się ' . $c['failed'] . ' (np. za duże dla serwera)' : '') . '.'
-                        . ($keep ? ' Nowe wiadomości z Microsoft 365 dosyłamy automatycznie co ' . self::SYNC_HOURS . ' h do ' . substr($keep, 0, 16) . '.' : '') . $failList);
+                        . ($keep ? ' Nowe wiadomości z Microsoft 365 dosyłamy automatycznie co ' . self::SYNC_HOURS . ' h do ' . substr($keep, 0, 16) . '.' : '')
+                        . ($notice !== '' ? ' Powiadomienie „możesz się zalogować”: ' . $notice . '.' : '') . $failList);
                 } elseif ($added > 0 || $c['failed'] > 0) {
                     self::helpdesk($job, 'Dosłano nowe wiadomości z Microsoft 365: ' . $added . ($c['failed'] ? ', nie udało się ' . $c['failed'] : '') . '.' . $failList);
                 }
