@@ -777,14 +777,26 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
         if (!str_starts_with(trim($r), '235')) throw new \RuntimeException("AUTH failed: {$r}");
     }
 
-    // Koperta
-    $send("MAIL FROM:<{$from}>");
-    $send("RCPT TO:<{$msg['to_email']}>");
+    // Koperta — każdą odpowiedź sprawdzamy. Po odrzuceniu nadawcy albo wszystkich odbiorców serwer nie przyjmie DATA, a wysłana
+    // mimo to treść wygląda dla Postfiksa jak złamanie protokołu („221 2.7.0 Error: I can break rules, too. Goodbye.”) —
+    // prawdziwy powód (np. odbiorca serwis@local w niewysyłalnej domenie) ginął w komunikacie błędu.
+    $abort = function (string $what, string $resp) use ($sock, $send): void {
+        try { $send("RSET"); $send("QUIT"); } catch (\Throwable $e) {}
+        fclose($sock);
+        throw new \RuntimeException("SMTP {$what}: " . trim($resp));
+    };
+    $r = $send("MAIL FROM:<{$from}>");
+    if (!str_starts_with(trim($r), '250')) $abort("odrzucił nadawcę <{$from}>", $r);
+    $rcpt_main = $send("RCPT TO:<{$msg['to_email']}>");
+    $accepted  = str_starts_with(trim($rcpt_main), '25') ? 1 : 0;
     $cc_list  = json_decode($msg['cc_emails']  ?? '[]', true) ?: [];
     $bcc_list = json_decode($msg['bcc_emails'] ?? '[]', true) ?: [];
-    foreach ($cc_list  as $e) { $send("RCPT TO:<{$e}>"); }
-    foreach ($bcc_list as $e) { $send("RCPT TO:<{$e}>"); }
-    $send("DATA");
+    foreach (array_merge($cc_list, $bcc_list) as $e) {
+        if (str_starts_with(trim($send("RCPT TO:<{$e}>")), '25')) $accepted++;   // odrzucony DW/UDW — jak dotąd pomijamy
+    }
+    if ($accepted === 0) $abort("odrzucił odbiorcę <{$msg['to_email']}>", $rcpt_main);
+    $r = $send("DATA");
+    if (!str_starts_with(trim($r), '354')) $abort("nie przyjął treści (DATA)", $r);
 
     // Załączniki
     $attachments = json_decode($msg['attachments'] ?? '[]', true) ?: [];
