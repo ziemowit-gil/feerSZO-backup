@@ -866,6 +866,16 @@ return [
         },
     ],
 
+    // Gosposia (/pomocne/gosposia) — artykuł jako SZKIC, bo modułu jeszcze nie ma; publikacja: php cli/it_portal_gosposia_seed.php --publish
+    '2026-11_it_portal_gosposia_draft' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: szkic artykułu o Gosposi (sprzątanie reklam ze skrzynki)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalGosposiaSeed.php';
+            itPortalGosposiaApply(ITP_SZO_URL);
+        },
+    ],
+
     '2026-11_it_portal_poczta_kursanta_edu_off' => [
         'desc' => 'Portal Usług IT, „Poczta kursanta”: wyłączenie kont @edu.feer.org.pl 20.11.2026 i powód (ostatnie awarie Microsoft 365)',
         'run'  => static function () use ($ROOT): void {
