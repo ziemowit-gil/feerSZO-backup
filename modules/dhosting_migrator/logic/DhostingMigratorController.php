@@ -45,6 +45,7 @@ final class DhostingMigratorController
                 'webmail_url'  => DhostingConfig::webmail(),
                 'imap_host'    => DhostingConfig::get('dhosting_imap_host'),
                 'imap_port'    => DhostingConfig::get('dhosting_imap_port'),
+                'switch_date'  => DhostingConfig::get('dhosting_switch_date'),
             ],
         ];
         return Router::view(self::VIEW . 'admin.php', $data);

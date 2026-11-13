@@ -3,6 +3,8 @@
  * modules/dhosting_migrator/view/self.php — /migracjapoczty: SAMODZIELNA strona (bez nagłówka, menu i stopki SZO —
  * polecenie 2026-11-13), wejście z panelu współpracownika. Użytkownik zakłada skrzynkę dhosting z loginem Microsoft
  * albo dostaje nowe hasło (tylko SMS-em) i kopiuje pocztę z Microsoft 365 (w tle, z postępem).
+ * Na górze „Co się dzieje” (data przełączenia z ustawień) i lista kroków ze stanem; niżej: dlaczego, ustawienia programu
+ * pocztowego, co się nie zmienia, bezpieczeństwo (treść jak w komunikacie do użytkowników, 2026-11-13).
  * Zmienne: $st (DhostingMigrator::selfState), $flash, $web, $me.
  */
 $org     = org_setting('org_short_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'SZO');
@@ -12,6 +14,26 @@ $job     = $st['copy'];
 $jobActive = $job && in_array($job['status'], DhostingCopy::ACTIVE, true);
 $pct     = $job ? DhostingCopy::percent($job) : 0;
 $copyOk  = $st['copyAvailable'] && $st['mailbox'] && DhostingConfig::selfEnabled();
+$swTs    = DhostingConfig::switchDate();
+$swTxt   = $swTs ? date('d.m.Y', $swTs) : '';
+$swPast  = $swTs && time() >= $swTs;
+[$imapHost, $imapPort] = DhostingConfig::imapForUsers();
+$domain  = $st['mailbox'] ? substr((string)$st['mailbox'], strrpos((string)$st['mailbox'], '@') + 1) : 'feer.org.pl';
+// Stan kroków: done | doing | todo | info (tekst stanu zawsze obok ikony — nie tylko kolor)
+$steps = [];
+$steps[] = $st['mobile']
+    ? ['done', 'Numer komórkowy w SZO', 'Gotowe — hasło przyjdzie na ' . $st['phoneMasked'] . '.']
+    : ['todo', 'Numer komórkowy w SZO', 'Do zrobienia — dodaj numer w Ustawieniach konta (link niżej). Na niego przyjdzie hasło.'];
+$steps[] = $exists
+    ? ['done', 'Skrzynka na dhosting i hasło SMS-em', 'Gotowe — skrzynka ' . $st['mailbox'] . ' istnieje.']
+    : ($st['exists'] === false
+        ? ['todo', 'Skrzynka na dhosting i hasło SMS-em', 'Do zrobienia — kliknij „Załóż skrzynkę i wyślij hasło SMS-em” poniżej.']
+        : ['info', 'Skrzynka na dhosting i hasło SMS-em', 'Nie udało się teraz sprawdzić — zobacz komunikat niżej.']);
+if ($job && $job['status'] === 'done') $steps[] = ['done', 'Kopia poczty z Microsoft 365', 'Gotowe — skopiowano ' . (int)$job['copied_items'] . ' wiadomości.'];
+elseif ($job && $job['status'] === 'waiting') $steps[] = ['doing', 'Kopia poczty z Microsoft 365', 'Czeka — serwer był niedostępny, ponowimy ' . substr((string)$job['next_run_at'], 0, 16) . '.'];
+elseif ($jobActive) $steps[] = ['doing', 'Kopia poczty z Microsoft 365', 'W toku — ' . $pct . '% (nic nie musisz robić, kopiuje się w tle).'];
+else $steps[] = ['todo', 'Kopia poczty z Microsoft 365', $exists ? 'Do zrobienia — podaj hasło do skrzynki w sekcji „Kopiowanie poczty” poniżej.' : 'Do zrobienia — zaznacz „Skopiuj też moją pocztę” przy zakładaniu skrzynki.'];
+$steps[] = ['info', 'Program pocztowy w telefonie i komputerze', ($swTxt !== '' ? ($swPast ? 'Od ' . $swTxt : 'Od ' . $swTxt . ' (wtedy, nie wcześniej)') : 'Po przełączeniu') . ' ustaw konto według danych w sekcji „Ustawienia programu pocztowego”.'];
 ?><!doctype html>
 <html lang="pl">
 <head>
@@ -28,6 +50,7 @@ $copyOk  = $st['copyAvailable'] && $st['mailbox'] && DhostingConfig::selfEnabled
   body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   a { color:var(--acc); }
   :focus-visible { outline:3px solid var(--ink); outline-offset:2px; }
+  .visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   .skip { position:absolute; left:-999px; top:0; background:#fff; padding:.5rem 1rem; }
   .skip:focus { left:1rem; z-index:10; }
   .bar { background:#fff; border-bottom:1px solid var(--line); }
@@ -68,7 +91,22 @@ $copyOk  = $st['copyAvailable'] && $st['mailbox'] && DhostingConfig::selfEnabled
   .prog--done > span { background:#12b76a; }
   .row { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
   .small { font-size:.875rem; color:var(--muted); }
-  @media (max-width:480px) { dl { grid-template-columns:1fr; } dt { margin-top:.35rem; } }
+  .news { background:#eff4ff; border:1px solid #b2ccff; border-radius:10px; padding:1rem 1.25rem; margin-bottom:1rem; }
+  .news h2 { margin-bottom:.35rem; }
+  .news p { margin:.25rem 0; }
+  .steps { list-style:none; margin:0; padding:0; }
+  .steps li { display:grid; grid-template-columns:1.75rem 1fr; gap:.15rem .6rem; padding:.55rem 0; border-top:1px solid #eaecf0; }
+  .steps li:first-child { border-top:0; }
+  .steps .ic { font-size:1.2rem; line-height:1.4; }
+  .steps .done .ic { color:#067647; } .steps .doing .ic { color:#b54708; } .steps .todo .ic { color:#1849a9; } .steps .info .ic { color:#475467; }
+  .steps b { display:block; }
+  .steps span.st { font-size:.9rem; color:var(--muted); }
+  table.cfg { border-collapse:collapse; width:100%; font-size:.95rem; }
+  table.cfg th, table.cfg td { text-align:left; padding:.4rem .5rem; border-top:1px solid #eaecf0; vertical-align:top; }
+  table.cfg th { width:42%; color:var(--muted); font-weight:600; }
+  code { background:#f2f4f7; padding:.05rem .3rem; border-radius:4px; word-break:break-all; }
+  ul.plain { margin:.25rem 0 0; padding-left:1.2rem; }
+  @media (max-width:480px) { dl { grid-template-columns:1fr; } dt { margin-top:.35rem; } table.cfg th { width:auto; } }
 </style>
 </head>
 <body>
@@ -90,6 +128,28 @@ $copyOk  = $st['copyAvailable'] && $st['mailbox'] && DhostingConfig::selfEnabled
   <?php if ($flash): ?>
     <div class="msg msg--<?= h($flash['type']) ?>" role="<?= $flash['type'] === 'success' ? 'status' : 'alert' ?>"><?= h($flash['msg']) ?></div>
   <?php endif; ?>
+
+  <section class="news" aria-labelledby="hNews">
+    <h2 id="hNews"><i class="bi bi-info-circle" aria-hidden="true"></i> Co się dzieje z pocztą?</h2>
+    <p><?php if ($swTxt !== ''): ?><strong>Od <?= h($swTxt) ?> poczta</strong> w domenie @<?= h($domain) ?> <?= $swPast ? 'działa' : 'będzie działać' ?>
+       <?php else: ?>Wkrótce poczta w domenie @<?= h($domain) ?> będzie działać<?php endif; ?>
+       na serwerach polskiej firmy dhosting.pl zamiast w Microsoft 365. <strong>Twój adres e-mail się nie zmienia.</strong></p>
+    <p>Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt) : '' ?> — zajmie to około 5 minut. Dotychczasowa poczta skopiuje się sama, razem z folderami.</p>
+  </section>
+
+  <section class="card" aria-labelledby="hSteps">
+    <h2 id="hSteps">Twoje kroki</h2>
+    <ol class="steps">
+      <?php foreach ($steps as $i => [$state, $title, $desc]):
+        $icon = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', 'todo' => 'bi-circle', 'info' => 'bi-gear'][$state];
+        $lab  = ['done' => 'gotowe', 'doing' => 'w toku', 'todo' => 'do zrobienia', 'info' => 'informacja'][$state]; ?>
+      <li class="<?= $state ?>">
+        <i class="bi <?= $icon ?> ic" aria-hidden="true"></i>
+        <div><b><?= $i + 1 ?>. <?= h($title) ?> <span class="visually-hidden">(<?= $lab ?>)</span></b><span class="st"><?= h($desc) ?></span></div>
+      </li>
+      <?php endforeach; ?>
+    </ol>
+  </section>
 
   <section class="card" aria-labelledby="hBox">
     <h2 id="hBox">Twoja skrzynka</h2>
@@ -180,6 +240,42 @@ $copyOk  = $st['copyAvailable'] && $st['mailbox'] && DhostingConfig::selfEnabled
     <?php endif; ?>
   </section>
   <?php endif; ?>
+
+  <section class="card" aria-labelledby="hWhy">
+    <h2 id="hWhy">Dlaczego przenosimy pocztę?</h2>
+    <p style="margin-top:0">Microsoft zmienił zasady programu dla organizacji pozarządowych: od 1 lipca 2025 r. wycofał bezpłatne licencje
+      Microsoft 365 Business Premium i Office 365 E1. Przy odnowieniu subskrypcji organizacje mogą przejść tylko na bezpłatny,
+      uboższy pakiet Business Basic albo kupić licencje (z rabatem).</p>
+    <p style="margin-bottom:0">Poczta to usługa, z której korzysta każdy z nas — dlatego przenosimy ją do polskiego dostawcy,
+      u którego koszt nie zależy od zmian w programach Microsoft.</p>
+  </section>
+
+  <section class="card" aria-labelledby="hCfg">
+    <h2 id="hCfg">Ustawienia programu pocztowego</h2>
+    <p class="small" style="margin-top:0">Dla telefonu (Gmail, Poczta iOS), Outlooka, Thunderbirda — <?= $swTxt !== '' ? ($swPast ? 'od ' . h($swTxt) : 'od ' . h($swTxt) . ', nie wcześniej') : 'po przełączeniu' ?>. Typ konta: <strong>IMAP</strong>.</p>
+    <table class="cfg">
+      <caption class="visually-hidden">Dane do konfiguracji konta pocztowego</caption>
+      <tr><th scope="row">Adres e-mail i login</th><td><?= $st['mailbox'] ? '<code>' . h($st['mailbox']) . '</code>' : 'pełny adres e-mail' ?></td></tr>
+      <tr><th scope="row">Hasło</th><td>to z SMS-a (nie hasło do Microsoft 365)</td></tr>
+      <tr><th scope="row">Poczta przychodząca (IMAP)</th><td><code><?= h($imapHost) ?></code>, port <?= (int)$imapPort ?>, SSL/TLS</td></tr>
+      <tr><th scope="row">Poczta wychodząca (SMTP)</th><td><code><?= h(DhostingConfig::SMTP_HOST) ?></code>, port <?= (int)DhostingConfig::SMTP_PORT ?>, SSL/TLS, z uwierzytelnianiem (ten sam login i hasło)</td></tr>
+    </table>
+  </section>
+
+  <section class="card" aria-labelledby="hSame">
+    <h2 id="hSame">Co się nie zmienia</h2>
+    <ul class="plain">
+      <li>adres e-mail,</li>
+      <li>hasło do konta Microsoft 365 i logowanie do SZO,</li>
+      <li>wiadomości, które w dniu przełączenia jeszcze wpadną do starej skrzynki — dokopiujemy je, nic nie zginie.</li>
+    </ul>
+  </section>
+
+  <div class="imp" role="note">
+    <strong>Bezpieczeństwo:</strong> hasło do nowej skrzynki wysyłamy <strong>tylko SMS-em</strong>, nigdy e-mailem.
+    Nikt z Fundacji nie poprosi Cię o podanie hasła — jeśli dostaniesz taką prośbę, to próba oszustwa.
+    Zgłoś ją w <a href="<?= APP_URL ?>/panel/helpdesk.php">Helpdesku IT</a>.
+  </div>
 
   <?php if ($web !== '' && $exists): ?>
     <p class="small">Poczta przez przeglądarkę: <a href="<?= h($web) ?>" target="_blank" rel="noopener"><?= h($web) ?></a> (otwiera się w nowej karcie)</p>

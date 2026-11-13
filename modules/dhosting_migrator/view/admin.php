@@ -81,6 +81,11 @@ $statusOf  = function (array $a): array {
           <label for="dhmWeb" class="form-label small">Adres poczty przez przeglądarkę (do SMS)</label>
           <input type="url" class="form-control form-control-sm" id="dhmWeb" name="webmail_url" value="<?= h($cfg['webmail_url']) ?>" placeholder="https://…">
         </div>
+        <div class="mb-3">
+          <label for="dhmSwitch" class="form-label small">Data przełączenia poczty (zmiana MX)</label>
+          <input type="date" class="form-control form-control-sm" id="dhmSwitch" name="switch_date" value="<?= h($cfg['switch_date']) ?>" aria-describedby="dhmSwitchHelp" style="max-width:12rem">
+          <div class="form-text" id="dhmSwitchHelp">Pokazywana użytkownikom na /migracjapoczty. Puste = „wkrótce”.</div>
+        </div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox" name="self_enabled" value="1" id="dhmSelf" <?= $cfg['self_enabled'] ? 'checked' : '' ?>>
           <label class="form-check-label small" for="dhmSelf">Użytkownik może sam założyć skrzynkę (hasło SMS-em)</label>
@@ -91,8 +96,8 @@ $statusOf  = function (array $a): array {
         <div class="row g-3">
           <div class="col-md-6">
             <label for="dhmImap" class="form-label small">Serwer IMAP skrzynek dhosting</label>
-            <input type="text" class="form-control form-control-sm" id="dhmImap" name="imap_host" value="<?= h($cfg['imap_host']) ?>" placeholder="np. mail.twojadomena.pl" aria-describedby="dhmImapHelp" autocomplete="off">
-            <div class="form-text" id="dhmImapHelp">Nazwa serwera poczty przychodzącej z panelu dhosting (SSL). Puste = kopiowanie wyłączone.</div>
+            <input type="text" class="form-control form-control-sm" id="dhmImap" name="imap_host" value="<?= h($cfg['imap_host'] !== '' ? $cfg['imap_host'] : DhostingConfig::DEFAULT_IMAP) ?>" placeholder="<?= h(DhostingConfig::DEFAULT_IMAP) ?>" aria-describedby="dhmImapHelp" autocomplete="off">
+            <div class="form-text" id="dhmImapHelp">Serwer poczty dhosting (SSL). Domyślnie <code><?= h(DhostingConfig::DEFAULT_IMAP) ?></code> — puste pole też oznacza ten serwer.</div>
           </div>
           <div class="col-md-2">
             <label for="dhmImapPort" class="form-label small">Port</label>
@@ -268,7 +273,7 @@ $statusOf  = function (array $a): array {
     <div class="form-check mb-0">
       <input class="form-check-input" type="checkbox" name="copy_mail" value="1" id="dhmCopyMail" <?= $copyOk ? 'checked' : 'disabled' ?> aria-describedby="dhmCopyHelp">
       <label class="form-check-label small" for="dhmCopyMail">Skopiuj też pocztę z Microsoft 365 (w tle)</label>
-      <span id="dhmCopyHelp" class="visually-hidden"><?= $copyOk ? 'Kopiowanie działa w tle co 5 minut; gdy serwer jest niedostępny, ponawia co 6 godzin.' : 'Niedostępne: ustaw serwer IMAP dhosting w konfiguracji API.' ?></span>
+      <span id="dhmCopyHelp" class="visually-hidden"><?= $copyOk ? 'Kopiowanie działa w tle co 5 minut; gdy serwer jest niedostępny, ponawia co 6 godzin.' : 'Niedostępne: integracja Microsoft 365 nie jest skonfigurowana (Admin › Microsoft 365).' ?></span>
     </div>
     <button type="submit" class="btn btn-primary btn-sm ms-auto" id="dhmGo" disabled>
       <i class="bi bi-envelope-plus" aria-hidden="true"></i> <span id="dhmGoTxt">Załóż skrzynki</span>
@@ -286,7 +291,7 @@ $statusOf  = function (array $a): array {
     <span class="small text-body-secondary">w tle co 5 min · niedostępny serwer = ponowienie co <?= DhostingCopy::RETRY_HOURS ?> h (najdłużej 7 dni)</span>
   </div>
   <?php if (!$copyOk): ?>
-    <div class="card-body small"><div class="alert alert-secondary mb-0">Kopiowanie wyłączone — ustaw serwer IMAP dhosting w konfiguracji API (i sprawdź „Testuj połączenie”).</div></div>
+    <div class="card-body small"><div class="alert alert-secondary mb-0">Kopiowanie niedostępne — integracja Microsoft 365 nie jest skonfigurowana (Admin › Microsoft 365). Sprawdź też „Testuj połączenie”.</div></div>
   <?php endif; ?>
   <?php if ($jobs): ?>
   <div class="table-responsive">

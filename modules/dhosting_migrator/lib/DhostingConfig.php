@@ -12,8 +12,9 @@ declare(strict_types=1);
  *   dhosting_quota        — pojemność nowej skrzynki w GB ('' = domyślna usługi, -1 = bez limitu)
  *   dhosting_self_enabled — '1' = użytkownik może sam założyć skrzynkę / dostać nowe hasło SMS-em
  *   dhosting_webmail_url  — adres poczty przez przeglądarkę, dopisywany do SMS i ekranów ('' = bez linku)
- *   dhosting_imap_host    — serwer IMAP skrzynek dhosting (do kopiowania poczty z Microsoft 365; '' = kopiowanie wyłączone)
+ *   dhosting_imap_host    — serwer IMAP skrzynek dhosting (do kopiowania poczty z Microsoft 365; '' = domyślny imap.dpoczta.pl)
  *   dhosting_imap_port    — port IMAP z SSL (domyślnie 993)
+ *   dhosting_switch_date  — data przełączenia poczty (RRRR-MM-DD, pokazywana użytkownikom na /migracjapoczty; '' = „wkrótce”)
  */
 require_once dirname(__DIR__, 2) . '/field_crypto/lib/fieldCrypto.php';
 require_once __DIR__ . '/DhostingApi.php';
@@ -22,6 +23,11 @@ require_once __DIR__ . '/DhostingImap.php';
 final class DhostingConfig
 {
     private const PASS_CTX = 'settings.dhosting_api_pass';
+    /** Serwer IMAP poczty dhosting (sprawdzony 2026-11-13: port 993, certyfikat *.dpoczta.pl; MX domen to mx-1/mx-2.dpoczta.pl). */
+    public const DEFAULT_IMAP = 'imap.dpoczta.pl';
+    /** Serwer wysyłki poczty dhosting (port 465 SSL, sprawdzony 2026-11-13) — do instrukcji dla użytkowników. */
+    public const SMTP_HOST = 'smtp.dpoczta.pl';
+    public const SMTP_PORT = 465;
 
     public static function get(string $key, string $default = ''): string
     {
@@ -75,12 +81,31 @@ final class DhostingConfig
         if ($port !== '' && (!ctype_digit($port) || (int)$port < 1 || (int)$port > 65535)) throw new InvalidArgumentException('Port IMAP musi być liczbą (zwykle 993).');
         org_setting_set('dhosting_imap_host', $imap);
         org_setting_set('dhosting_imap_port', $port);
+
+        $date = trim((string)($in['switch_date'] ?? ''));
+        if ($date !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !strtotime($date))) throw new InvalidArgumentException('Data przełączenia w formacie RRRR-MM-DD.');
+        org_setting_set('dhosting_switch_date', $date);
     }
 
-    /** Adres serwera IMAP do kopiowania poczty ('' = nieustawiony). Ustawienie może też być pełnym adresem ssl:// / tcp:// (testy). */
+    /** Data przełączenia poczty (znacznik czasu) albo null, gdy nieustalona. */
+    public static function switchDate(): ?int
+    {
+        $d = self::get('dhosting_switch_date');
+        return $d !== '' ? (strtotime($d . ' 00:00:00') ?: null) : null;
+    }
+
+    /** Serwer i port IMAP do instrukcji dla użytkownika (bez adresów testowych tcp://). */
+    public static function imapForUsers(): array
+    {
+        $h = self::get('dhosting_imap_host', self::DEFAULT_IMAP);
+        if (str_contains($h, '://')) $h = self::DEFAULT_IMAP;
+        return [$h, (int)(self::get('dhosting_imap_port') ?: 993)];
+    }
+
+    /** Adres serwera IMAP do kopiowania poczty (puste ustawienie = imap.dpoczta.pl). Ustawienie może też być pełnym adresem ssl:// / tcp:// (testy). */
     public static function imapAddress(): string
     {
-        $host = self::get('dhosting_imap_host');
+        $host = self::get('dhosting_imap_host', self::DEFAULT_IMAP);
         return $host === '' ? '' : DhostingImap::address($host, (int)(self::get('dhosting_imap_port') ?: 993));
     }
 

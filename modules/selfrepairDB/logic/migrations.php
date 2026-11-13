@@ -619,4 +619,13 @@ return [
         },
     ],
 
+    // Migrator poczty M365 → dhosting: data przełączenia (zmiana MX) podana przez użytkownika 2026-11-13 — 14.11.2026.
+    // Tylko gdy administrator nie ustawił jeszcze własnej daty (ustawienie na /migracjaadmin).
+    '2026-11_dhosting_switch_date' => [
+        'desc' => 'Migracja poczty: data przełączenia na dhosting 2026-11-14 (gdy nieustawiona)',
+        'run'  => static function (): void {
+            if (org_setting('dhosting_switch_date') === '') org_setting_set('dhosting_switch_date', '2026-11-14');
+        },
+    ],
+
 ];

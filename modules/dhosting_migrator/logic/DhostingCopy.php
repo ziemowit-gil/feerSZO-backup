@@ -72,7 +72,7 @@ final class DhostingCopy
             PRIMARY KEY (mailbox, msg_id))");
     }
 
-    /** Czy kopiowanie jest możliwe (serwer IMAP dhosting w ustawieniach + Microsoft 365 skonfigurowany). */
+    /** Czy kopiowanie jest możliwe (serwer IMAP dhosting — domyślnie imap.dpoczta.pl — i skonfigurowany Microsoft 365). */
     public static function available(): bool
     {
         return DhostingConfig::imapAddress() !== '' && DhostingGraphMail::configured();
