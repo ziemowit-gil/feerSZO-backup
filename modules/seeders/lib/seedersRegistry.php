@@ -68,6 +68,23 @@ function seedersRegistry(): array
                 ['id' => 'delete', 'label' => 'Usuń',        'kind' => 'danger',  'args' => ['delete'], 'use' => ['domain']],
             ],
         ],
+        'kursant_poczta' => [
+            'group' => 'Konta testowe', 'title' => 'Kursant do testów poczty kursanta (@stud.feer.org.pl)', 'script' => 'seedKursantPoczta.php',
+            'desc'  => '„Kursant Poczty (TEST)” z PRAWDZIWYM e-mailem i telefonem (e-maile i SMS-y naprawdę wychodzą), konto panelu kursant.poczta, zapis do grupy TEST-POCZTA (jest w XLSX loginów). Opcjonalnie wpis poczty kursanta (zgłoszenie MIG-ST) i wysyłka danych: e-mail z loginem, SMS z hasłem startowym. Idempotentne; Usuń kasuje tylko tego kursanta.',
+            'fields'  => [
+                'haslo'   => ['label' => 'Hasło panelu kursanta', 'type' => 'password', 'opt' => '--haslo', 'help' => 'login kursant.poczta; min. 8 znaków; puste przy nowym koncie = losowe, wypisane raz'],
+                'email'   => ['label' => 'E-mail kontaktowy', 'type' => 'email', 'default' => 'ziemowit.gil@gmail.com', 'opt' => '--email', 'help' => 'tu przyjdzie e-mail z loginem poczty'],
+                'telefon' => ['label' => 'Telefon', 'type' => 'text', 'default' => '535 231 923', 'opt' => '--telefon', 'help' => 'tu przyjdą SMS z hasłem startowym i kody do odsłonięcia hasła'],
+                'plogin'  => ['label' => 'Login poczty kursanta (opcjonalnie)', 'type' => 'text', 'opt' => '--poczta-login', 'help' => 'np. k.poczty — domenę @stud.feer.org.pl dopiszemy; puste = bez wpisu poczty'],
+                'phaslo'  => ['label' => 'Hasło startowe poczty (opcjonalnie)', 'type' => 'password', 'opt' => '--poczta-haslo', 'help' => 'min. 8 znaków; w bazie tylko zaszyfrowane'],
+                'wyslij'  => ['label' => 'Wyślij dane: e-mail z loginem + SMS z hasłem', 'type' => 'check', 'flag' => '--wyslij'],
+            ],
+            'actions' => [
+                ['id' => 'status', 'label' => 'Stan',                'kind' => 'preview', 'args' => ['status']],
+                ['id' => 'create', 'label' => 'Załóż / zaktualizuj', 'kind' => 'apply',   'args' => ['create'], 'use' => ['haslo', 'email', 'telefon', 'plogin', 'phaslo', 'wyslij']],
+                ['id' => 'delete', 'label' => 'Usuń',                'kind' => 'danger',  'args' => ['delete']],
+            ],
+        ],
         'panel_test' => [
             'group' => 'Konta testowe', 'title' => 'Panel z ukrytą umową (test@local)', 'script' => 'seedPanelTest.php',
             'desc'  => 'Konto test@local (viewer) z umową wolontariacką oznaczoną jako UKRYTA: właściciel widzi ją w swoim panelu, a dla personelu i systemu jest niewidoczna (listy, rejestr, liczniki, raporty, wyszukiwarki, wysyłki, API). Istniejące konto o tym adresie zostaje — hasło zmienia się tylko po wpisaniu go poniżej. Puste hasło przy nowym koncie = losowe, wypisane raz.',
