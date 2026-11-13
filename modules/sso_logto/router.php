@@ -7,7 +7,8 @@
  *   /ssoadmin/ustawienia      — POST zapis;  /ssoadmin/test, /ssoadmin/test-chmury — POST testy;
  *   /ssoadmin/osoba           — POST: konto / nowe hasło / chmura dla osoby z umowy (karta w tozsamosc/access.php);
  *   /ssoadmin/pliki           — POST: anuluj / ponów kopiowanie plików z OneDrive;
- *   /sso/konto, /sso/haslo    — POST: użytkownik sam zakłada konto / zmienia hasło (Tożsamość → Logowanie jednokrotne).
+ *   /sso/konto, /sso/haslo    — POST: użytkownik sam zakłada konto / zmienia hasło (Tożsamość → Logowanie jednokrotne);
+ *   /sso/start                — GET: prośba po zalogowaniu „załóż konto logowania jednokrotnego i w chmurze” (raz na zalogowanie).
  * Webhook i SMS dla Logto to osobne pliki: api/v1/logto_webhook.php, api/v1/logto_sms.php.
  * Migrator (/migracjaadmin/pliki) ma trasę w modules/dhosting_migrator/router.php.
  * Bez przepisywania: /modules/sso_logto/router.php?_route=/ssoadmin. CSRF dla POST sprawdza Router.
@@ -31,6 +32,7 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
 });
 
 $r->group(['auth'], function (Router $r) {
+    $r->get('/sso/start',  [SsoController::class, 'prompt'])->name('sso.prompt');   // prośba po zalogowaniu (lib/ssoPrompt.php)
     $r->post('/sso/konto', [SsoController::class, 'selfCreate'])->name('sso.selfCreate');
     $r->post('/sso/haslo', [SsoController::class, 'selfPassword'])->name('sso.selfPassword');
 });

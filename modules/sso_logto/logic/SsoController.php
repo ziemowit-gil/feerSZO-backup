@@ -9,12 +9,14 @@ declare(strict_types=1);
  *   POST /ssoadmin/osoba — konto Logto / nowe hasło / konto w chmurze dla osoby z umowy (karta w tozsamosc/access.php),
  *   POST /ssoadmin/pliki — anuluj / ponów kopiowanie plików z OneDrive,
  *   POST /migracjaadmin/pliki — migrator: konta Logto + chmura + kopiowanie plików dla zaznaczonych kont Microsoft 365.
- * Użytkownik (zalogowany): POST /sso/konto (sam zakłada konto), POST /sso/haslo (nowe hasło) — sekcja #sso w Tożsamości.
+ * Użytkownik (zalogowany): POST /sso/konto (sam zakłada konto), POST /sso/haslo (nowe hasło) — sekcja #sso w Tożsamości;
+ *   GET /sso/start — prośba po zalogowaniu (lib/ssoPrompt.php): ten sam formularz co w Tożsamości, z from=start wraca tutaj.
  * Wygenerowane hasła admin widzi tylko raz (sesja), nigdy w adresie.
  */
 require_once dirname(__DIR__) . '/lib/SsoConfig.php';
 require_once __DIR__ . '/SsoAccounts.php';
 require_once __DIR__ . '/CloudFilesCopy.php';
+require_once dirname(__DIR__) . '/lib/ssoPrompt.php';
 
 final class SsoController
 {
@@ -40,6 +42,7 @@ final class SsoController
                 'has_secret'  => SsoConfig::has('sso_logto_m2m_secret'),
                 'has_webhook' => SsoConfig::has('sso_logto_webhook_key'),
                 'self'        => SsoConfig::selfEnabled(),
+                'prompt'      => SsoConfig::get('sso_login_prompt', '1') !== '0',
                 'sms_prefix'  => SsoConfig::get('sso_sms_prefix'),
                 'cloud_kind'  => SsoConfig::cloudKind(),
                 'cloud_url'   => SsoConfig::get('sso_cloud_url'),
@@ -217,9 +220,46 @@ final class SsoController
 
     // ── Użytkownik (Tożsamość → Logowanie jednokrotne) ───────────────────────────────────────
 
+    /**
+     * GET /sso/start — prośba po zalogowaniu: załóż konto logowania jednokrotnego i w chmurze (Nextcloud).
+     * Gdy prośba jest wyłączona albo nie da się założyć konta samemu — od razu dalej ($next). Po założeniu konta
+     * ta sama strona pokazuje „Gotowe” (login, link do chmury) i przycisk „Przejdź dalej”.
+     */
+    public function prompt(): ?string
+    {
+        $_SESSION[SSO_PROMPT_K_CHECKED] = 1;
+        $next = ssoPromptSafeNext((string)($_GET['next'] ?? ''));
+        $me   = current_user();
+        $db   = db_one("SELECT id, email, name, first_name, m365_login FROM users WHERE id=?", [(int)$me['id']]) ?: [];
+        $flash = function_exists('flash_get') ? flash_get() : null;
+        require_once dirname(__DIR__, 3) . '/includes/permissions.php';   // panel_volunteer_shell — strona startowa Panelu albo SZO
+        $home = function_exists('panel_volunteer_shell') && panel_volunteer_shell($me) ? APP_URL . '/panel/index.php' : APP_URL . '/index.php';
+        $cont = $next !== '' ? $next : $home;
+        if (!SsoConfig::selfEnabled() || !SsoConfig::logtoConfigured()) {
+            if ($flash) flash_set($flash['type'], $flash['msg']);
+            return Router::redirect($cont);
+        }
+        $email = strtolower((string)($db['email'] ?? ''));
+        return Router::view(self::VIEW . 'loginPrompt.php', [
+            'me'    => $db,
+            'email' => $email,
+            'need'  => ssoPromptNeed($email),
+            'acc'   => $email !== '' ? SsoAccounts::get($email) : null,
+            'cloud' => ssoPromptWantsCloud(),
+            'next'  => $next,
+            'cont'  => $cont,
+            'flash' => $flash,
+        ]);
+    }
+
     public function selfCreate(): ?string
     {
-        $back = APP_URL . '/tozsamosc/index.php#sso';
+        // z ekranu prośby po zalogowaniu (/sso/start) wracamy tam — ze ścieżką dalszą — w innym razie do Tożsamości
+        $fromPrompt = ($_POST['from'] ?? '') === 'start';
+        $pnext = ssoPromptSafeNext((string)($_POST['next'] ?? ''));
+        $back = $fromPrompt
+            ? rtrim(APP_URL, '/') . SSO_PROMPT_PATH . ($pnext !== '' ? '?next=' . rawurlencode($pnext) : '')
+            : APP_URL . '/tozsamosc/index.php#sso';
         if (!SsoConfig::selfEnabled() || !SsoConfig::logtoConfigured()) return $this->flashGlobal($back, 'warning', 'Samodzielne zakładanie konta logowania jednokrotnego jest wyłączone.');
         $me = current_user();
         $db = db_one("SELECT id, email, name, m365_login FROM users WHERE id=?", [(int)$me['id']]);
@@ -231,6 +271,10 @@ final class SsoController
                 ['password' => $pass, 'cloud' => SsoConfig::cloudSelf() && SsoConfig::cloudConfigured(), 'files' => false, 'by' => (string)$db['email'], 'via' => 'self']
             );
         } catch (\Throwable $e) {
+            if ($fromPrompt) {   // ekran po zalogowaniu: bez technicznych szczegółów — te idą do dziennika
+                error_log('[sso] prośba po zalogowaniu, ' . (string)$db['email'] . ': ' . $e->getMessage());
+                return $this->flashGlobal($back, 'danger', 'Nie udało się teraz założyć konta. Spróbuj ponownie za kilka minut — jeśli dalej nie działa, napisz do Helpdesku IT.');
+            }
             return $this->flashGlobal($back, 'danger', $e->getMessage());
         }
         if (function_exists('log_user_action')) { try { log_user_action((int)$db['id'], (int)$db['id'], 'sso_create', 'Konto logowania jednokrotnego: ' . $res['username']); } catch (\Throwable $e) {} }

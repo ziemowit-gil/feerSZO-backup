@@ -10,6 +10,7 @@ declare(strict_types=1);
  *   sso_logto_m2m_secret   — App secret tej aplikacji (zaszyfrowany)
  *   sso_logto_webhook_key  — Signing key webhooka Logto → SZO (zaszyfrowany)
  *   sso_self_enabled       — '1' = użytkownik sam zakłada konto w Tożsamości (domyślnie tak)
+ *   sso_login_prompt       — '1' = po każdym zalogowaniu prośba o konto (lib/ssoPrompt.php, /sso/start); domyślnie tak
  *   sso_cloud_kind         — 'nextcloud' | 'owncloud'
  *   sso_cloud_url          — adres chmury (inny serwer, np. https://chmura.feer.org.pl)
  *   sso_cloud_user         — login administratora chmury
@@ -153,6 +154,7 @@ final class SsoConfig
         org_setting_set('sso_logto_url', $url);
         org_setting_set('sso_logto_m2m_id', $m2m);
         org_setting_set('sso_self_enabled', !empty($in['self_enabled']) ? '1' : '0');
+        org_setting_set('sso_login_prompt', !empty($in['login_prompt']) ? '1' : '0');
         org_setting_set('sso_sms_prefix', $prefix);
         org_setting_set('sso_cloud_kind', $kind);
         org_setting_set('sso_cloud_url', $cloudUrl);

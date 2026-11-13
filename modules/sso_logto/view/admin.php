@@ -75,6 +75,13 @@ $copyField = function (string $id, string $label, string $value) {
           <label class="form-check-label small" for="ssoSelf">Użytkownik sam zakłada konto w Tożsamości (przycisk „Utwórz konto”)</label>
         </div>
       </div>
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="login_prompt" value="1" id="ssoPrompt" aria-describedby="ssoPromptH" <?= $cfg['prompt'] ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ssoPrompt">Po każdym zalogowaniu proś osoby bez konta o założenie konta logowania jednokrotnego i w chmurze</label>
+          <div class="form-text" id="ssoPromptH">Ekran z formularzem hasła pojawia się raz po zalogowaniu (po regulaminie i kreatorze), z przyciskiem „Nie teraz”. Działa, gdy włączone jest samodzielne zakładanie konta; konto w chmurze powstaje, gdy zaznaczysz to niżej w sekcji chmury.</div>
+        </div>
+      </div>
       <details class="col-12 small">
         <summary>Jak założyć aplikację Machine-to-machine w Logto</summary>
         <ol class="sso-steps mt-2">

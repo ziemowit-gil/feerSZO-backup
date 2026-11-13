@@ -566,6 +566,7 @@ function login_user(array $user, bool $mobile_scope = false): void {
     ];
     $_SESSION['user'] = $userData;
     unset($_SESSION['sso_hint']); // komunikat „logujesz się do aplikacji X” — po zalogowaniu nieaktualny
+    unset($_SESSION['sso_prompt_checked']); // prośba o konto logowania jednokrotnego i w chmurze — raz po KAŻDYM zalogowaniu (modules/sso_logto/lib/ssoPrompt.php)
     if ($mobile_scope) { $_SESSION['_mobile_scope'] = 1; } else { unset($_SESSION['_mobile_scope']); }
     // Inicjuj poziom zaufania sesji (1 = hasło)
     if (function_exists('tz_init_on_login')) {

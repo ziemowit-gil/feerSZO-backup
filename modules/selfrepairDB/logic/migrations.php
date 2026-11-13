@@ -628,4 +628,14 @@ return [
         },
     ],
 
+    // Logowanie jednokrotne: polecenie 2026-11-13 — każdy nowo zalogowany ma być poproszony o konto w chmurze (Nextcloud)
+    // i w Logto, więc samodzielne założenie konta zakłada też konto w chmurze. Tylko gdy administrator nic nie wybrał
+    // (zapis formularza /ssoadmin wpisuje '0' albo '1', więc świadome wyłączenie zostaje).
+    '2026-11_sso_cloud_self_default' => [
+        'desc' => 'Logowanie jednokrotne: przy samodzielnym zakładaniu konta także konto w chmurze (gdy nieustawione)',
+        'run'  => static function (): void {
+            if (org_setting('sso_cloud_self') === '') org_setting_set('sso_cloud_self', '1');
+        },
+    ],
+
 ];

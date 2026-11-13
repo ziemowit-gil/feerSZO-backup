@@ -68,7 +68,9 @@ function firstRunGate(?array $user): void {
  *   0. wymuszona zmiana hasła (must_change_password) — tylko konta z hasłem lokalnym,
  *   1. zgoda na dokumentową formę umów (/user/first_login_consent.php),
  *   2. kreator pierwszych kroków (firstRunGate),
- *   3. oświadczenie o ochronie danych (/panel/gdpr_statement.php) — tylko w Panelu ($gdpr = true).
+ *   3. oświadczenie o ochronie danych (/panel/gdpr_statement.php) — tylko w Panelu ($gdpr = true),
+ *   4. prośba o konto logowania jednokrotnego i w chmurze (/sso/start, modules/sso_logto/lib/ssoPrompt.php) — raz
+ *      po KAŻDYM zalogowaniu, dopóki osoba konta nie ma; „Nie teraz” = do następnego logowania.
  * Wołają ją includes/header.php (SZO: zgoda + kreator), panel/includes/header_panel.php (kreator + RODO)
  * i panel/launcher.php (wszystko). $consent / $gdpr wyłączają kroki, których dany ekran nie wymaga.
  */
@@ -122,6 +124,12 @@ function firstLoginGate(?array $user, bool $consent = true, bool $gdpr = false):
             header('Location: ' . APP_URL . '/panel/gdpr_statement.php');
             exit;
         }
+    }
+
+    // 4. Logowanie jednokrotne + chmura (Nextcloud): prośba raz po zalogowaniu (ssoPromptGate sam pilnuje wyjątków).
+    $ssoPrompt = dirname(__DIR__, 2) . '/sso_logto/lib/ssoPrompt.php';
+    if (is_file($ssoPrompt)) {
+        try { require_once $ssoPrompt; ssoPromptGate($user); } catch (\Throwable $e) { error_log('[sso] prośba: ' . $e->getMessage()); }
     }
 }
 
