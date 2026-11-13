@@ -104,6 +104,11 @@ if ($noRandom) $mSel = 'own';
     </div>
   </div>
 
+  <div class="dm-msg dm-msg--info" role="note">
+    <i class="bi bi-cone-striped" aria-hidden="true"></i>
+    <div><strong>To nowy system — mogą zdarzać się błędy.</strong> Mechanizm zmiany haseł dopiero wdrażamy i nie jest jeszcze doskonały.
+      Jeśli coś nie zadziała, spróbuj za kilka minut albo napisz do <a href="<?= h(APP_URL . '/helpdesk/new.php') ?>">Helpdesku IT</a> — pomożemy.</div>
+  </div>
   <?php if (!empty($initial['rows'])): /* hasła startowe — NoweHasloInitial (zachęta, po GRACE_DAYS blokada panelu) */ ?>
     <div class="dm-msg dm-msg--<?= $initial['force'] ? 'danger' : 'warning' ?>" role="<?= $initial['force'] ? 'alert' : 'status' ?>">
       <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
