@@ -149,6 +149,13 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
   </div>
   <?php endif; ?>
 
+  <?php /* osobne hasła (polecenie 2026-11-13): poczta ≠ Panel współpracownika (SZO) ≠ logowanie jednokrotne — ze względów bezpieczeństwa */ ?>
+  <div class="mt-note" role="note" style="border-left-color:var(--m-orange);margin-bottom:1rem"><i class="bi bi-key" aria-hidden="true" style="color:var(--m-orange)"></i>
+    <div><strong>Hasło do poczty jest osobne.</strong> Jest inne niż hasło do Panelu współpracownika (SZO)<?= $guest ? '' : ', w którym teraz jesteś' ?>,
+      i inne niż hasło do logowania jednokrotnego i chmury plików. To celowe, ze względów bezpieczeństwa: gdy ktoś pozna jedno z tych haseł,
+      nie dostanie się do pozostałych kont.</div>
+  </div>
+
   <?php if (empty($st['migrated'])): ?>
   <section class="dm-sec" aria-labelledby="hSteps">
     <h2 id="hSteps" class="mt-h2">Twoje <b>kroki</b></h2>

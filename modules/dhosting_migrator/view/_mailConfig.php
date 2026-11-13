@@ -19,7 +19,7 @@ $cfgRows = static function (bool $ssl) use ($cfgImap): array {
 <table class="dm-cfg">
   <caption class="dm-cfg__cap">Dane do logowania</caption>
   <tr><th scope="row">Nazwa użytkownika</th><td><?= $cfgUser !== '' ? '<code>' . h($cfgUser) . '</code>' : 'Twój pełny adres e-mail' ?></td></tr>
-  <tr><th scope="row">Hasło</th><td>hasło do skrzynki pocztowej (z SMS-a albo ustawione przez Ciebie) — nie hasło do Microsoft 365</td></tr>
+  <tr><th scope="row">Hasło</th><td>hasło do skrzynki pocztowej (z SMS-a albo ustawione przez Ciebie) — osobne: inne niż do Panelu współpracownika (SZO), Microsoft 365 i logowania jednokrotnego</td></tr>
   <tr><th scope="row">Serwer poczty wychodzącej wymaga uwierzytelnienia</th><td><strong>Tak</strong> — ten sam login i hasło</td></tr>
 </table>
 
