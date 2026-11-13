@@ -694,4 +694,28 @@ return [
         },
     ],
 
+    // Migracja poczty: nowe skrzynki dostają 5 GB (polecenie 2026-11-13: „nowe limity poczty 5 GB dla wolontariusza / pracownika,
+    // pozostałe konta kadry kierowniczej bez zmian” → „ustaw 5 GB”). dhosting_quota to pojemność NOWEJ skrzynki (createMailbox:
+    // migrator, samodzielne założenie, skrzynka przy umowie); istniejących skrzynek, w tym kadry kierowniczej, nie zmienia.
+    // Wpisuje 5 także wtedy, gdy było inne ustawienie — tak polecił użytkownik. Zmiana później: /migracjaadmin › ustawienia.
+    '2026-11_dhosting_quota_5gb' => [
+        'desc' => 'Migracja poczty: pojemność nowych skrzynek 5 GB (wolontariusz, pracownik)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/functions.php';   // cli/migrate.php ładuje tylko config.php
+            org_setting_set('dhosting_quota', '5');
+        },
+    ],
+
+    // Portal Usług IT, „Moja poczta”: artykuł „Bardzo duże pliki: TransferNow i WeTransfer” i rozbudowane „Duże załączniki”
+    // (polecenie 2026-11-13: „opisz też artykuł dot. TransferNow i WeTransfer w kontekście dużych załączników”).
+    // Wgrywa tylko te dwa artykuły (bez wstępu usługi i bez ukrywania), modules/it_portal/lib/itPortalDpocztaSeed.php.
+    '2026-11_it_portal_transfer_article' => [
+        'desc' => 'Portal Usług IT: artykuł „Bardzo duże pliki: TransferNow i WeTransfer” i rozbudowane „Duże załączniki” w „Moja poczta”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            if (is_file($ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php')) require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            itPortalDpocztaApply(defined('ITP_SZO_URL') ? ITP_SZO_URL : 'https://szo.feer.org.pl', false, ['duze-zalaczniki', 'transfernow-wetransfer']);
+        },
+    ],
+
 ];
