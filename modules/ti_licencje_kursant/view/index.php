@@ -603,18 +603,28 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
     <div><dt>Hasło</dt><dd>
       <?php if ($sp !== ''): ?>
         <span class="m-mono tw-font-semibold" id="pm-pass"><?= h($sp) ?></span> <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($sp) ?>">Kopiuj<span class="tw-sr-only"> hasło do poczty</span></button>
-        <span class="m-note tw-block">Pokazujemy je tylko teraz. Po odświeżeniu strony zniknie.</span>
-      <?php elseif ($sm['hasPassword']): ?>
+        <span class="m-note tw-block">Pokazujemy je tylko teraz. Po odświeżeniu strony zniknie. Zostało pokazań: <?= (int)$sm['revealsLeft'] ?> z <?= PocztaStud::MAX_REVEALS ?>.</span>
+      <?php elseif (!$sm['hasPassword'] && !empty($sm['password_cleared_at'])): ?>
+        Hasła startowego nie ma już w panelu (<?= h(date('d.m.Y', strtotime((string)$sm['password_cleared_at']))) ?>). Logujesz się własnym hasłem.
+      <?php elseif (!$sm['hasPassword']): ?>Przekaże je biuro.
+      <?php elseif (!$sm['canReveal']): ?><span role="status"><?= h($sm['blockReason']) ?></span>
+      <?php else: ?>
         <form method="post" action="<?= h(route('lk.mail.reveal')) ?>" style="display:inline"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit">Pokaż hasło<span class="tw-sr-only"> do poczty (wyślemy kod)</span></button></form>
-      <?php else: ?>Przekaże je biuro.<?php endif; ?>
+        <span class="m-note tw-block">Hasło startowe jest w panelu do <?= h(date('d.m.Y', strtotime((string)$sm['password_expires_at']))) ?>. Możesz je pokazać jeszcze <?= (int)$sm['revealsLeft'] ?> <?= (int)$sm['revealsLeft'] === 1 ? 'raz' : 'razy' ?>.</span>
+      <?php endif; ?>
     </dd></div>
   </dl>
+  <?php if ($sm['hasPassword']): ?>
+  <form method="post" action="<?= h(route('lk.mail.done')) ?>" class="tw-mt-3"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit">Mam już własne hasło — usuń hasło startowe z panelu</button></form>
+  <?php endif; ?>
   <a class="m-btn tw-mt-3" href="<?= h(PocztaStud::WEBMAIL) ?>" target="_blank" rel="noopener">Otwórz pocztę ↗<span class="tw-sr-only"> (<?= h(PocztaStud::WEBMAIL) ?>, nowa karta)</span></a>
   <div class="m-imp" role="note" aria-label="Ważne informacje o poczcie"><p class="tw-font-semibold tw-mb-1">Ważne</p>
     <ul class="tw-list-disc tw-pl-5 tw-space-y-1" style="margin-top:0">
       <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</li>
       <li>Hasło do poczty jest inne niż hasło do panelu. Pokażemy je po kodzie, który wyślemy SMS-em.</li>
-      <li>Jeśli zmienisz hasło na stronie poczty, tutaj nadal będzie stare.</li>
+      <li>To hasło startowe. Po pierwszym logowaniu ustaw na stronie poczty własne hasło i kliknij „Mam już własne hasło”.</li>
+      <li>Hasło startowe zniknie z panelu po <?= PocztaStud::TTL_DAYS ?> dniach od wpisania albo po <?= PocztaStud::MAX_REVEALS ?> pokazaniach.</li>
+      <li>Nikomu nie podawaj hasła ani kodu z SMS-a. Pracownicy Fundacji nigdy o nie nie proszą.</li>
     </ul></div>
 </section>
 <?php endif; ?>

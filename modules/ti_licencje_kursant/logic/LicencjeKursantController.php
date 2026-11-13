@@ -647,7 +647,8 @@ Następny krok: potwierdź dostęp tej osoby w panelu Goodstack (FEER aprowizuje
     public function mail(): string
     {
         $pass = $_SESSION['lk_stud_pass'] ?? null; unset($_SESSION['lk_stud_pass']);   // hasło pokazujemy raz, zaraz po potwierdzeniu kodem
-        return $this->render('poczta', ['studPass' => is_array($pass) && time() - (int)$pass['at'] < 300 ? (string)$pass['p'] : '']);
+        PocztaStud::noStoreHeaders();   // strona może pokazać hasło startowe — bez zapisu w pamięci podręcznej
+        return $this->render('poczta', ['studPass' => PocztaStud::sessionTake($pass)]);   // w sesji leży zaszyfrowane, najwyżej 5 minut
     }
 
     public function mailReveal(): ?string
@@ -655,13 +656,23 @@ Następny krok: potwierdź dostęp tej osoby w panelu Goodstack (FEER aprowizuje
         $me = $this->me();
         $acc = PocztaStud::get($me['cid']);
         if (!$acc) return $this->flash('err', 'Nie masz jeszcze poczty @' . PocztaStud::DOMAIN . '. Napisz do biura.', 'poczta');
-        if (!$acc['hasPassword']) return $this->flash('info', 'Hasła do poczty jeszcze nie wpisaliśmy. Przekaże je biuro.', 'poczta');
+        if (!$acc['hasPassword']) return $this->flash('info', !empty($acc['password_cleared_at'])
+            ? 'Hasła startowego nie ma już w panelu. Jeśli go nie znasz, napisz do biura.'
+            : 'Hasła do poczty jeszcze nie wpisaliśmy. Przekaże je biuro.', 'poczta');
+        if (!$acc['canReveal']) return $this->flash('err', $acc['blockReason'], 'poczta');   // limit pokazań — bez wysyłania kodu
         if (!$this->confirmed('mailReveal', [], 'pokazanie hasla do poczty', 'poczta')) return null;
         $p = PocztaStud::revealPassword($me['cid'], 'Panel Licencji');
         if ($p === '') return $this->flash('err', 'Nie udało się odczytać hasła. Napisz do biura.', 'poczta');
-        $_SESSION['lk_stud_pass'] = ['p' => $p, 'at' => time()];
+        $_SESSION['lk_stud_pass'] = PocztaStud::sessionPut($p);   // w sesji tylko zaszyfrowane, do jednego wyświetlenia
         header('Location: ' . route('lk.mail'));
         return null;
+    }
+
+    /** Uczestnik ustawił własne hasło do poczty — hasło startowe znika z bazy (podgląd administratora blokuje lp.readonly). */
+    public function mailDone(): ?string
+    {
+        $me = $this->me();
+        return $this->flash('ok', PocztaStud::confirmChanged($me['cid'], 'Panel Licencji'), 'poczta');
     }
 
     /** Ostatnie zgłoszenie do pilotażu Dysku Online (60 dni): pakiet, data, numer zgłoszenia — po zgłoszeniu wybór pakietu jest zablokowany. */

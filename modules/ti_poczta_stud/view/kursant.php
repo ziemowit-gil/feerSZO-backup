@@ -2,14 +2,15 @@
 /**
  * modules/ti_poczta_stud/view/kursant.php — zakładka „Poczta kursanta” w panelu kursanta TI (?tab=poczta, oba wyglądy panelu).
  * Poczta @stud.feer.org.pl prowadzona przez sdata.net.pl, niezależna od Microsoft 365: adres/login, link do webmaila, hasło po kodzie jednorazowym.
- * Kod wysyła i sprawdza index.php (operacje stud_mail_code / stud_mail_verify, LicencjeKod z celem 'stud_mail').
+ * Kod wysyła i sprawdza index.php (operacje stud_mail_code / stud_mail_verify, LicencjeKod z celem 'stud_mail');
+ * stud_mail_done — uczestnik potwierdza, że ustawił własne hasło (hasło startowe znika z bazy). Limit odsłonięć i ważność: PocztaStud.
  * Zmienne z index.php: $stud_mail (PocztaStud::get), $client.
  */
 if (!isset($stud_mail) || !$stud_mail) return;
 require_once dirname(__DIR__, 2) . '/ti_licencje_kursant/logic/LicencjeKod.php';
 $_pm_msg  = $_SESSION['stud_mail_msg'] ?? null;    unset($_SESSION['stud_mail_msg']);
 $_pm_rev  = $_SESSION['stud_mail_reveal'] ?? null; unset($_SESSION['stud_mail_reveal']);   // hasło pokazujemy raz, zaraz po kodzie
-$_pm_pass = is_array($_pm_rev) && time() - (int)$_pm_rev['at'] < 300 ? (string)$_pm_rev['p'] : '';
+$_pm_pass = PocztaStud::sessionTake($_pm_rev);   // w sesji leży zaszyfrowane, najwyżej 5 minut
 $_pm_otp  = $_pm_pass === '' ? LicencjeKod::pending('stud_mail') : null;
 if ($_pm_otp && time() > (int)$_pm_otp['exp']) $_pm_otp = null;
 $_pm_host = preg_replace('#^https?://|/$#', '', PocztaStud::WEBMAIL);
@@ -40,9 +41,14 @@ $_pm_tok  = h(student_token());
             <button type="button" class="btn btn-sm btn-outline-secondary pm-kopiuj" data-copy="<?= h($_pm_pass) ?>">
               <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj<span class="visually-hidden"> hasło do poczty</span></button>
           </div>
-          <div class="small text-body-secondary mt-1">Pokazujemy je tylko teraz. Po odświeżeniu strony zniknie.</div>
+          <div class="small text-body-secondary mt-1">Pokazujemy je tylko teraz. Po odświeżeniu strony zniknie.
+            Zostało pokazań: <?= (int)$stud_mail['revealsLeft'] ?> z <?= PocztaStud::MAX_REVEALS ?>.</div>
+        <?php elseif (!$stud_mail['hasPassword'] && !empty($stud_mail['password_cleared_at'])): ?>
+          Hasła startowego nie ma już w panelu (<?= h(date('d.m.Y', strtotime((string)$stud_mail['password_cleared_at']))) ?>). Logujesz się własnym hasłem.
         <?php elseif (!$stud_mail['hasPassword']): ?>
           Przekaże je biuro.
+        <?php elseif (!$stud_mail['canReveal']): ?>
+          <span role="status"><?= h($stud_mail['blockReason']) ?></span>
         <?php elseif ($_pm_otp): ?>
           <p class="small mb-2" role="status">
             <?php if (($_pm_otp['channel'] ?? '') === 'ekran'): ?>Konto testowe: kod to <b class="font-monospace"><?= h((string)$_pm_otp['shown']) ?></b>.
@@ -66,6 +72,15 @@ $_pm_tok  = h(student_token());
             <input type="hidden" name="_op" value="stud_mail_code">
             <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż hasło<span class="visually-hidden"> do poczty (wyślemy kod SMS)</span></button>
           </form>
+          <div class="small text-body-secondary mt-1">Hasło startowe jest w panelu do <?= h(date('d.m.Y', strtotime((string)$stud_mail['password_expires_at']))) ?>.
+            Możesz je pokazać jeszcze <?= (int)$stud_mail['revealsLeft'] ?> <?= (int)$stud_mail['revealsLeft'] === 1 ? 'raz' : 'razy' ?>.</div>
+        <?php endif; ?>
+        <?php if ($stud_mail['hasPassword']): ?>
+          <form method="post" class="mt-2">
+            <input type="hidden" name="_token" value="<?= $_pm_tok ?>">
+            <input type="hidden" name="_op" value="stud_mail_done">
+            <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Mam już własne hasło — usuń hasło startowe z panelu</button>
+          </form>
         <?php endif; ?>
       </dd>
     </dl>
@@ -80,7 +95,9 @@ $_pm_tok  = h(student_token());
   <ul class="mb-0 small">
     <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</li>
     <li>Hasło do poczty jest inne niż hasło do panelu. Pokażemy je po kodzie, który wyślemy SMS-em.</li>
-    <li>Jeśli zmienisz hasło na stronie poczty, tutaj nadal będzie stare.</li>
+    <li>To hasło startowe. Po pierwszym logowaniu ustaw na stronie poczty własne hasło i kliknij „Mam już własne hasło”.</li>
+    <li>Hasło startowe zniknie z panelu po <?= PocztaStud::TTL_DAYS ?> dniach od wpisania albo po <?= PocztaStud::MAX_REVEALS ?> pokazaniach.</li>
+    <li>Nikomu nie podawaj hasła ani kodu z SMS-a. Pracownicy Fundacji nigdy o nie nie proszą.</li>
   </ul>
 </div>
 <p class="small text-body-secondary mb-0">Kłopot z logowaniem do poczty? Napisz przez <a href="?tab=problem">Pomoc</a>.</p>

@@ -83,6 +83,7 @@ $r->group(['lp.auth', 'lp.contact', 'lp.readonly'], function (Router $r) {
     $r->get('/dysk',                   [LicencjeKursantController::class, 'drive'])->name('lk.drive');             // Dysk Online (pilotaż, sdata.net.pl)
     $r->get('/poczta',                 [LicencjeKursantController::class, 'mail'])->name('lk.mail');               // poczta @stud.feer.org.pl (sdata.net.pl)
     $r->post('/poczta/haslo',          [LicencjeKursantController::class, 'mailReveal'])->name('lk.mail.reveal');  // hasło po kodzie jednorazowym
+    $r->post('/poczta/mam-haslo',      [LicencjeKursantController::class, 'mailDone'])->name('lk.mail.done');      // własne hasło ustawione — hasło startowe znika
     $r->post('/dysk/zgloszenie',       [LicencjeKursantController::class, 'driveJoin'])->name('lk.drive.join');
     $r->get('/rozliczenia',            [LicencjeKursantController::class, 'billing'])->name('lk.billing');          // karta i dane do faktur
     $r->get('/karta/{product}',        [LicencjeKursantController::class, 'cardForm'])->name('lk.card');            // zgoda na płatności kartą

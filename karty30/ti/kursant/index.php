@@ -172,6 +172,7 @@ $client  = db_one("SELECT * FROM k30_clients WHERE id=?", [$student['client_id']
 // Poczta kursanta @stud.feer.org.pl (sdata.net.pl, niezależna od Microsoft 365): login i hasło wpisuje kadra; zakładka tylko, gdy jest wpis (modules/ti_poczta_stud)
 require_once dirname(__DIR__, 3) . '/modules/ti_poczta_stud/logic/PocztaStud.php';
 $stud_mail = PocztaStud::get((int)$student['client_id']);
+if ($tab === 'poczta') PocztaStud::noStoreHeaders();   // strona może pokazać hasło startowe — bez zapisu w pamięci podręcznej
 
 // ── Streak aktywności — aktualizuj raz dziennie ────────────────────────────
 $today_str = date('Y-m-d');
@@ -195,13 +196,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($KUR_SIMPLE && !in_array($op, student_simple_allowed((int)$student['id'], 'ops'), true)) { header('Location: index.php?tab=' . student_simple_home((int)$student['id'])); exit; }
 
     // Poczta @stud.feer.org.pl: hasło odsłaniane kodem jednorazowym (SMS, gdy nie wyjdzie — e-mail; konto testowe — kod na ekranie)
-    if ($op === 'stud_mail_code' || $op === 'stud_mail_verify') {
+    if ($op === 'stud_mail_code' || $op === 'stud_mail_verify' || $op === 'stud_mail_done') {
         require_once dirname(__DIR__, 3) . '/modules/ti_licencje_kursant/logic/LicencjeKod.php';
         $_pm_cid = (int)$student['client_id'];
         if (!empty($kur_imp)) {   // podgląd administratora jako kursant — bez SMS-ów do kursanta i bez odsłaniania hasła
             $_SESSION['stud_mail_msg'] = ['warning', 'To podgląd administratora. Hasło odsłania tylko sam kursant.'];
+        } elseif ($op === 'stud_mail_done') {   // uczestnik ustawił własne hasło — hasło startowe znika z bazy
+            $_SESSION['stud_mail_msg'] = ['success', PocztaStud::confirmChanged($_pm_cid, 'panel kursanta')];
         } elseif (!$stud_mail || !$stud_mail['hasPassword']) {
-            $_SESSION['stud_mail_msg'] = ['danger', 'Hasła do poczty jeszcze nie wpisaliśmy. Przekaże je biuro.'];
+            $_SESSION['stud_mail_msg'] = ['danger', !empty($stud_mail['password_cleared_at'])
+                ? 'Hasła startowego nie ma już w panelu. Jeśli go nie znasz, napisz do biura przez Pomoc.'
+                : 'Hasła do poczty jeszcze nie wpisaliśmy. Przekaże je biuro.'];
+        } elseif (!$stud_mail['canReveal']) {   // limit odsłonięć — bez wysyłania kodu
+            $_SESSION['stud_mail_msg'] = ['danger', $stud_mail['blockReason']];
         } elseif ($op === 'stud_mail_code') {
             $_r = LicencjeKod::send('stud_mail', $_pm_cid, (string)($client['phone'] ?? ''), (string)($client['email'] ?? ''), 'pokazanie hasla do poczty', 'kursanta');
             if (!$_r['ok']) $_SESSION['stud_mail_msg'] = ['danger', $_r['error']];
@@ -212,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $_p = PocztaStud::revealPassword($_pm_cid, 'panel kursanta');
                 if ($_p === '') $_SESSION['stud_mail_msg'] = ['danger', 'Nie udało się odczytać hasła. Napisz do biura przez Pomoc.'];
-                else $_SESSION['stud_mail_reveal'] = ['p' => $_p, 'at' => time()];
+                else $_SESSION['stud_mail_reveal'] = PocztaStud::sessionPut($_p);   // w sesji tylko zaszyfrowane, do jednego wyświetlenia
             }
         }
         header('Location: index.php?tab=poczta#poczta-haslo'); exit;
