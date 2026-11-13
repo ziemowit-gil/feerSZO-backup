@@ -144,9 +144,10 @@ final class DhostingMigrator
                 'mobile'    => $phone !== '' && sms_is_mobile($phone),
                 'exists'    => isset($onDhosting[$box]),
                 'registry'  => $reg[$box] ?? null,
+                'admin'     => ($u['role'] ?? '') === 'admin',   // administrator SZO — zawsze widoczny na górze listy (polecenie 2026-11-13)
             ];
         }
-        usort($accounts, fn($a, $b) => strcoll(mb_strtolower($a['name']), mb_strtolower($b['name'])));
+        usort($accounts, fn($a, $b) => ((int)!$a['admin'] <=> (int)!$b['admin']) ?: strcoll(mb_strtolower($a['name']), mb_strtolower($b['name'])));   // administratorzy na górze
         return ['accounts' => $accounts, 'errors' => $errors, 'domains' => $domainCounts];
     }
 
@@ -154,7 +155,7 @@ final class DhostingMigrator
     private static function localUsersIndex(): array
     {
         $idx = ['ms' => [], 'login' => []];
-        $rows = db()->query("SELECT id, email, phone_number, microsoft_id, m365_login FROM users")->fetchAll(PDO::FETCH_ASSOC);
+        $rows = db()->query("SELECT id, email, phone_number, microsoft_id, m365_login, role FROM users")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $r) {
             if (!empty($r['microsoft_id'])) $idx['ms'][(string)$r['microsoft_id']] = $r;
             foreach (['m365_login', 'email'] as $k) {

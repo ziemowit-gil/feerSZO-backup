@@ -244,9 +244,10 @@ $statusOf  = function (array $a): array {
       </thead>
       <tbody>
       <?php foreach ($accounts as $i => $a): [$st, $stLabel, $stCls] = $statusOf($a); $reg = $a['registry']; ?>
-        <tr data-st="<?= h($st) ?>" data-q="<?= h(mb_strtolower($a['name'] . ' ' . $a['login'] . ' ' . $a['mailbox'])) ?>">
+        <tr data-st="<?= h($st) ?>" data-admin="<?= !empty($a['admin']) ? '1' : '0' ?>" data-q="<?= h(mb_strtolower($a['name'] . ' ' . $a['login'] . ' ' . $a['mailbox'])) ?>">
           <td><input type="checkbox" class="form-check-input dhm-check dhm-row" name="ids[]" value="<?= h($a['m365_id']) ?>" id="dhmR<?= $i ?>"></td>
           <td><label for="dhmR<?= $i ?>" class="mb-0"><?= h($a['name']) ?></label>
+              <?= !empty($a['admin']) ? '<span class="dhm-b dhm-b--todo ms-1">administrator SZO</span>' : '' ?>
               <?= !$a['enabled'] ? '<span class="dhm-b dhm-b--off ms-1">konto M365 wyłączone</span>' : '' ?>
               <?= $a['user_id'] ? '' : '<span class="dhm-b dhm-b--off ms-1">brak konta w SZO</span>' ?></td>
           <td><code><?= h($a['login']) ?></code><?php if ($a['mailbox'] !== $a['login']): ?> <span class="dhm-arrow" aria-label="na">→</span> <code><?= h($a['mailbox']) ?></code><?php endif; ?></td>
@@ -453,13 +454,19 @@ $statusOf  = function (array $a): array {
   }
   function filter() {
     const t = (q ? q.value : '').trim().toLowerCase(), s = f ? f.value : '';
-    rows.forEach(r => r.classList.toggle('dhm-hidden', (s && r.dataset.st !== s) || (t && !r.dataset.q.includes(t))));
+    // konta administratorów SZO zostają widoczne przy każdym filtrze stanu (np. ze skrzynką przy „do założenia”) — do zaznaczenia ręcznie
+    rows.forEach(r => {
+      const pinOnly = !!s && r.dataset.st !== s && r.dataset.admin === '1';
+      r.classList.toggle('dhm-hidden', (s && r.dataset.st !== s && !pinOnly) || (t && !r.dataset.q.includes(t)));
+      r.dataset.pinOnly = pinOnly ? '1' : '';
+    });
     if (shown) shown.textContent = 'Widoczne: ' + visible().length + ' z ' + rows.length;
     if (all) all.checked = false;
   }
   if (q) q.addEventListener('input', filter);
   if (f) f.addEventListener('change', filter);
-  if (all) all.addEventListener('change', () => { visible().forEach(r => r.querySelector('.dhm-row').checked = all.checked); count(); });
+  // „zaznacz wszystkie widoczne” pomija konta administratorów pokazane tylko dlatego, że są przypięte (inny stan niż filtr)
+  if (all) all.addEventListener('change', () => { visible().filter(r => r.dataset.pinOnly !== '1').forEach(r => r.querySelector('.dhm-row').checked = all.checked); count(); });
   rows.forEach(r => r.querySelector('.dhm-row').addEventListener('change', count));
   const nt = document.getElementById('dhmNotify'); if (nt) nt.addEventListener('change', count);
   const form = document.getElementById('dhmForm');
