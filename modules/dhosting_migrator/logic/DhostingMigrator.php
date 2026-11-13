@@ -261,13 +261,14 @@ final class DhostingMigrator
             'login' => $login, 'mailbox' => $box, 'phone' => $phone, 'phoneMasked' => $phone !== '' ? self::maskPhone($phone) : '',
             'mobile' => $phone !== '' && sms_is_mobile($phone), 'exists' => null, 'problem' => '', 'wait' => 0,
             'registry' => $box ? self::registryRow($box) : null,
-            'copy' => $box ? DhostingCopy::latestFor($box) : null, 'copyAvailable' => DhostingCopy::available(),
+            'copy' => $box ? DhostingCopy::mainFor($box) : null, 'copyAvailable' => DhostingCopy::available(),
+            'sync' => $box ? DhostingCopy::syncInfo($box) : null,
             'ticket' => $box ? DhostingHelpdesk::ticketFor($box) : null,
             'needPhone' => false, 'migrated' => false, 'locked' => false,
         ];
         // Konto zmigrowane (kopia poczty zakończona) — dalsze zmiany tylko administrator (polecenie 2026-11-13).
         // $u['_admin'] ustawia kontroler dla zalogowanego administratora; gość (bez logowania) nigdy nim nie jest.
-        $st['migrated'] = ($st['copy']['status'] ?? '') === 'done';
+        $st['migrated'] = $box !== null && DhostingCopy::everDone($box);
         $st['locked'] = $st['migrated'] && empty($u['_admin']);
         if (!DhostingConfig::selfEnabled()) { $st['problem'] = 'Zakładanie skrzynek przez użytkowników jest wyłączone. Skontaktuj się z administratorem.'; return $st; }
         if ($login === '') { $st['problem'] = 'Twoje konto nie jest połączone z kontem Microsoft 365, więc nie wiemy, jaki login ma mieć skrzynka. Zaloguj się przez Microsoft albo poproś administratora.'; return $st; }
@@ -356,7 +357,7 @@ final class DhostingMigrator
         $box = $login !== '' ? DhostingConfig::mailboxFor($login) : null;
         if (!DhostingConfig::selfEnabled() || $box === null) throw new RuntimeException('Kopiowanie poczty nie jest dostępne dla Twojego konta.');
         if (!DhostingCopy::available()) throw new RuntimeException('Kopiowanie poczty nie jest jeszcze skonfigurowane. Skontaktuj się z administratorem.');
-        if (empty($u['_admin']) && (DhostingCopy::latestFor($box)['status'] ?? '') === 'done') throw new RuntimeException(self::LOCKED_MSG);
+        if (empty($u['_admin']) && DhostingCopy::everDone($box)) throw new RuntimeException(self::LOCKED_MSG);
         if ($password === '') throw new RuntimeException('Wpisz hasło do nowej skrzynki.');
         $ok = DhostingCopy::checkPassword($box, $password);
         if ($ok === false) throw new RuntimeException('To hasło nie pasuje do skrzynki ' . $box . '. Jeśli go nie pamiętasz, poproś o nowe hasło SMS-em.');

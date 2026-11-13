@@ -17,6 +17,13 @@ declare(strict_types=1);
  *     kopiowanie tej samej skrzynki (np. dosłanie nowych wiadomości) nie robi duplikatów; nieudane próbuje kolejne zadanie.
  *  3. Niedostępność (Microsoft, dhosting, IMAP, także odrzucone logowanie) → status „czeka”, ponowienie co 6 h
  *     (polecenie 2026-11-13), najdłużej 7 dni bez postępu — potem błąd i skasowanie hasła.
+ *  4. Kopia przyrostowa (polecenie 2026-11-13): źródłem jest WYŁĄCZNIE Microsoft 365, a nowa skrzynka jest już w użyciu —
+ *     niczego w niej nie zmieniamy ani nie usuwamy, tylko dopisujemy brakujące wiadomości. Przed pobraniem MIME porównujemy:
+ *     rejestr dhosting_copy_items (co już skopiowaliśmy — także gdy użytkownik potem to przeniósł lub usunął) i nagłówek
+ *     Message-ID w folderze docelowym (IMAP EXAMINE + UID SEARCH, tylko odczyt). Po zakończonym zadaniu hasło zostaje
+ *     (zaszyfrowane) do SYNC_DAYS dni po dacie przełączenia, a CRON co SYNC_HOURS h zakłada zadanie „incremental”, które
+ *     pobiera z Graph tylko wiadomości odebrane od ostatniej kopii (z zakładką 1 dnia; duplikaty odsiewa porównanie).
+ *     Po końcu okna hasło jest kasowane. Stan „zmigrowane” = jest zakończone zadanie (everDone).
  */
 require_once dirname(__DIR__) . '/lib/DhostingConfig.php';
 require_once dirname(__DIR__) . '/lib/DhostingImap.php';
@@ -27,6 +34,9 @@ final class DhostingCopy
 {
     public const RETRY_HOURS = 6;
     public const MAX_ATTEMPTS = 28;            // 28 × 6 h = 7 dni bez postępu
+    public const SYNC_HOURS = 3;               // co ile godzin dosyłamy nowe wiadomości z Microsoft 365
+    public const SYNC_DAYS = 7;                // ile dni po dacie przełączenia (bez daty: po zakończeniu kopii) dosyłamy
+    private const OVERLAP = 86400;             // zakładka kopii przyrostowej (duplikaty odsiewa porównanie)
     private const PASS_CTX = 'dhosting_copy_jobs.password_enc';
     public const ACTIVE = ['queued', 'running', 'waiting'];
     public const LABELS = [
@@ -64,6 +74,9 @@ final class DhostingCopy
             last_error TEXT NULL)");
         try { db()->exec("CREATE INDEX idx_dhcopy_mailbox ON dhosting_copy_jobs(mailbox)"); } catch (\Throwable $e) {}
         try { db()->exec("CREATE INDEX idx_dhcopy_status ON dhosting_copy_jobs(status, next_run_at)"); } catch (\Throwable $e) {}
+        // kind: full (pełne przejście) | incremental (dosyłanie nowych); keep_until: do kiedy trzymamy hasło na dosyłanie
+        try { db()->exec("ALTER TABLE dhosting_copy_jobs ADD COLUMN kind VARCHAR(12) NOT NULL DEFAULT 'full'"); } catch (\Throwable $e) {}
+        try { db()->exec("ALTER TABLE dhosting_copy_jobs ADD COLUMN keep_until VARCHAR(19) NULL"); } catch (\Throwable $e) {}
         // result: 1 = skopiowana, 2 = zniknęła w trakcie (pomijamy), 0 = nieudana (np. za duża) — ponawia dopiero inne zadanie
         db()->exec("CREATE TABLE IF NOT EXISTS dhosting_copy_items (
             mailbox VARCHAR(190) NOT NULL,
@@ -90,7 +103,8 @@ final class DhostingCopy
         $enc = (string)fcEncrypt($password, self::PASS_CTX);
         $active = self::activeFor($mailbox);
         if ($active) {
-            db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=?, source=?, status='queued', attempts=0, next_run_at=?, last_error=NULL, updated_at=? WHERE id=?")
+            db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=?, source=?, status='queued', attempts=0, next_run_at=?, last_error=NULL, updated_at=?,
+                           state_json=CASE WHEN kind='incremental' THEN NULL ELSE state_json END, kind='full' WHERE id=?")
                 ->execute([$enc, $source, $now, $now, (int)$active['id']]);
             return (int)$active['id'];
         }
@@ -114,11 +128,75 @@ final class DhostingCopy
         return $r ?: null;
     }
 
+    /** Najnowsze zadanie pełnego kopiowania (bez automatycznego dosyłania) — stan kopii na stronie użytkownika. */
+    public static function mainFor(string $mailbox): ?array
+    {
+        self::migrate();
+        $r = db_one("SELECT * FROM dhosting_copy_jobs WHERE mailbox=? AND kind<>'incremental' ORDER BY id DESC LIMIT 1", [strtolower($mailbox)]);
+        return $r ?: null;
+    }
+
+    /** Konto zmigrowane: jest zakończone zadanie kopiowania. */
+    public static function everDone(string $mailbox): bool
+    {
+        self::migrate();
+        return (bool)db_one("SELECT id FROM dhosting_copy_jobs WHERE mailbox=? AND status='done' LIMIT 1", [strtolower($mailbox)]);
+    }
+
+    /** Dosyłanie nowych wiadomości: active (hasło trzymane), until (do kiedy), last (ostatnie zakończone dosłanie albo null). */
+    public static function syncInfo(string $mailbox): array
+    {
+        self::migrate();
+        $mailbox = strtolower($mailbox);
+        $now = date('Y-m-d H:i:s');
+        $k = db_one("SELECT keep_until FROM dhosting_copy_jobs WHERE mailbox=? AND password_enc IS NOT NULL AND keep_until > ? ORDER BY id DESC LIMIT 1", [$mailbox, $now]);
+        $last = db_one("SELECT id, status, finished_at, state_json FROM dhosting_copy_jobs WHERE mailbox=? AND kind='incremental' AND status='done' ORDER BY id DESC LIMIT 1", [$mailbox]);
+        $added = $last ? (int)((json_decode((string)$last['state_json'], true) ?: [])['appended'] ?? 0) : 0;
+        return ['active' => (bool)$k, 'until' => (string)($k['keep_until'] ?? ''), 'last' => $last ? ['at' => (string)$last['finished_at'], 'added' => $added] : null];
+    }
+
+    /** Do kiedy trzymać hasło na dosyłanie: SYNC_DAYS dni po dacie przełączenia (bez daty — od teraz); null = już nie. */
+    public static function keepUntil(): ?string
+    {
+        $sw = class_exists('DhostingConfig') ? DhostingConfig::switchDate() : null;
+        $end = ($sw ?: time()) + self::SYNC_DAYS * 86400;
+        return $end > time() ? date('Y-m-d H:i:s', $end) : null;
+    }
+
+    /**
+     * CRON: zakłada zadania dosyłania dla skrzynek, których ostatnie zadanie zakończyło się ponad SYNC_HOURS h temu
+     * i wciąż trzyma hasło (okno dosyłania); po końcu okna kasuje hasła. Hasło przechodzi na nowe zadanie (stare je traci).
+     */
+    public static function scheduleSync(): array
+    {
+        self::migrate();
+        $now = date('Y-m-d H:i:s');
+        $log = [];
+        db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=NULL WHERE status='done' AND password_enc IS NOT NULL AND (keep_until IS NULL OR keep_until <= ?)")
+            ->execute([$now]);
+        $cut = date('Y-m-d H:i:s', time() - self::SYNC_HOURS * 3600);
+        $rows = db_all("SELECT * FROM dhosting_copy_jobs WHERE status='done' AND password_enc IS NOT NULL AND keep_until > ? AND finished_at <= ? ORDER BY id", [$now, $cut]);
+        foreach ($rows as $j) {
+            $newer = db_one("SELECT id FROM dhosting_copy_jobs WHERE mailbox=? AND id>? LIMIT 1", [$j['mailbox'], (int)$j['id']]);
+            if ($newer) {   // nowsze zadanie ma już własne hasło — to stare tylko czyścimy
+                db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=NULL WHERE id=?")->execute([(int)$j['id']]);
+                continue;
+            }
+            db()->prepare("INSERT INTO dhosting_copy_jobs (mailbox, source, user_id, via, created_by, created_at, status, password_enc, next_run_at, updated_at, kind, keep_until)
+                           VALUES (?, ?, ?, 'auto', 'dosyłanie nowych wiadomości', ?, 'queued', ?, ?, ?, 'incremental', ?)")
+                ->execute([$j['mailbox'], $j['source'], $j['user_id'], $now, $j['password_enc'], $now, $now, $j['keep_until']]);
+            $nid = (int)db()->lastInsertId();
+            db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=NULL WHERE id=?")->execute([(int)$j['id']]);
+            $log[] = "[SYNC] {$j['mailbox']}: dosyłanie nowych wiadomości (#{$nid})";
+        }
+        return $log;
+    }
+
     /** Zadania do panelu admina (najnowsze najpierw), bez haseł. */
     public static function jobs(int $limit = 200): array
     {
         self::migrate();
-        $st = db()->prepare("SELECT id, mailbox, source, user_id, via, created_by, created_at, status, total_items, copied_items, failed_items, bytes,
+        $st = db()->prepare("SELECT id, mailbox, source, user_id, via, kind, created_by, created_at, status, total_items, copied_items, failed_items, bytes,
                                     attempts, next_run_at, started_at, finished_at, updated_at, last_error
                              FROM dhosting_copy_jobs ORDER BY CASE WHEN status IN ('queued','running','waiting') THEN 0 ELSE 1 END, id DESC LIMIT " . max(1, $limit));
         $st->execute();
@@ -172,6 +250,7 @@ final class DhostingCopy
         $deadline = time() + $budget;
         $log = [];
         if (!self::available()) return ['[SKIP] Kopiowanie poczty nieskonfigurowane (serwer IMAP dhosting albo Microsoft 365).'];
+        try { $log = self::scheduleSync(); } catch (\Throwable $e) { $log[] = '[ERROR] dosyłanie: ' . $e->getMessage(); }
         $now = date('Y-m-d H:i:s');
         $due = db()->prepare("SELECT id FROM dhosting_copy_jobs WHERE status IN ('queued','running','waiting')
                               AND (next_run_at IS NULL OR next_run_at <= ?) AND (locked_until IS NULL OR locked_until < ?) ORDER BY id");
@@ -205,19 +284,30 @@ final class DhostingCopy
             $imap->login((string)$job['mailbox'], $pass);
             if (empty($state['folders'])) {
                 $state = self::plan($graph, $imap, (string)$job['source']);
+                if (($job['kind'] ?? 'full') === 'incremental') self::sinceFromPrevious($job, $state);
                 $c['total'] = array_sum(array_column($state['folders'], 'total'));
                 self::save($id, $state, $c, null);
             }
             $finished = self::copyFolders($id, (string)$job['mailbox'], $graph, $imap, (string)$job['source'], $state, $c, $deadline);
             $imap->logout();
             if ($finished) {
-                db()->prepare("UPDATE dhosting_copy_jobs SET status='done', password_enc=NULL, finished_at=?, locked_until=NULL, next_run_at=NULL,
+                $keep = self::keepUntil();   // okno dosyłania: hasło zostaje (zaszyfrowane), po oknie kasuje je scheduleSync()
+                db()->prepare("UPDATE dhosting_copy_jobs SET status='done', password_enc=CASE WHEN ? IS NULL THEN NULL ELSE password_enc END, keep_until=?,
+                               finished_at=?, locked_until=NULL, next_run_at=NULL,
                                attempts=0, state_json=?, copied_items=?, failed_items=?, bytes=?, updated_at=?, last_error=? WHERE id=?")
-                    ->execute([date('Y-m-d H:i:s'), json_encode($state, JSON_UNESCAPED_UNICODE), $c['copied'], $c['failed'], $c['bytes'], date('Y-m-d H:i:s'),
+                    ->execute([$keep, $keep, date('Y-m-d H:i:s'), json_encode($state, JSON_UNESCAPED_UNICODE), $c['copied'], $c['failed'], $c['bytes'], date('Y-m-d H:i:s'),
                                $c['failed'] ? $c['failed'] . ' wiadomości nie dało się skopiować (np. za duże dla serwera).' : null, $id]);
                 try { if (function_exists('audit_log')) audit_log('dhosting.copy_done', ['mailbox' => $job['mailbox'], 'copied' => $c['copied'], 'failed' => $c['failed']], 0); } catch (\Throwable $e) {}
-                self::helpdesk($job, 'Kopiowanie poczty zakończone: skopiowano ' . $c['copied'] . ' wiadomości'
-                    . ($c['failed'] ? ', nie udało się ' . $c['failed'] . ' (np. za duże dla serwera)' : '') . '.');
+                $added = (int)($state['appended'] ?? 0);
+                $present = (int)($state['present'] ?? 0);
+                if (($job['kind'] ?? 'full') !== 'incremental') {
+                    self::helpdesk($job, 'Kopiowanie poczty zakończone: skopiowano ' . $c['copied'] . ' wiadomości (nowo dopisanych: ' . $added
+                        . ($present ? ', już były w nowej skrzynce: ' . $present : '') . ')'
+                        . ($c['failed'] ? ', nie udało się ' . $c['failed'] . ' (np. za duże dla serwera)' : '') . '.'
+                        . ($keep ? ' Nowe wiadomości z Microsoft 365 dosyłamy automatycznie co ' . self::SYNC_HOURS . ' h do ' . substr($keep, 0, 16) . '.' : ''));
+                } elseif ($added > 0 || $c['failed'] > 0) {
+                    self::helpdesk($job, 'Dosłano nowe wiadomości z Microsoft 365: ' . $added . ($c['failed'] ? ', nie udało się ' . $c['failed'] : '') . '.');
+                }
                 return "[OK] #{$id} {$job['mailbox']}: zakończone, skopiowano {$c['copied']}, błędów {$c['failed']}";
             }
             db()->prepare("UPDATE dhosting_copy_jobs SET status='queued', locked_until=NULL, next_run_at=?, attempts=0, last_error=NULL, updated_at=? WHERE id=?")
@@ -231,7 +321,8 @@ final class DhostingCopy
             if ($attempts >= self::MAX_ATTEMPTS) {
                 db()->prepare("UPDATE dhosting_copy_jobs SET status='error', password_enc=NULL, attempts=?, locked_until=NULL, next_run_at=NULL, finished_at=?, last_error=?, updated_at=? WHERE id=?")
                     ->execute([$attempts, date('Y-m-d H:i:s'), 'Przerwano po 7 dniach prób: ' . $msg, date('Y-m-d H:i:s'), $id]);
-                self::helpdesk($job, 'Kopiowanie poczty przerwane po 7 dniach prób (skopiowano ' . $c['copied'] . ' z ' . $c['total'] . '). Ostatni błąd: ' . $msg);
+                self::helpdesk($job, (($job['kind'] ?? 'full') === 'incremental' ? 'Dosyłanie nowych wiadomości przerwane' : 'Kopiowanie poczty przerwane')
+                    . ' po 7 dniach prób (skopiowano ' . $c['copied'] . ' z ' . $c['total'] . '). Ostatni błąd: ' . $msg);
                 return "[ERROR] #{$id} {$job['mailbox']}: koniec prób — {$msg}";
             }
             $next = date('Y-m-d H:i:s', time() + self::RETRY_HOURS * 3600);
@@ -241,6 +332,31 @@ final class DhostingCopy
             if ($attempts === 1) self::helpdesk($job, 'Kopiowanie poczty czeka: ' . $msg . ' Ponowienie co ' . self::RETRY_HOURS . ' h (najbliższe ' . $next . ').');
             return "[WAIT] #{$id} {$job['mailbox']}: {$msg} — ponowienie {$next}";
         }
+    }
+
+    /**
+     * Kopia przyrostowa: dla każdego folderu „od kiedy” = ostatnia data odbioru z poprzedniego zakończonego zadania tej skrzynki
+     * (ten sam folder Graph) minus zakładka; folder nieznany wcześniej — od zakończenia poprzedniego zadania minus zakładka.
+     * Liczba wiadomości nieznana z góry (total 0 → postęp z tego, co przejdzie).
+     */
+    private static function sinceFromPrevious(array $job, array &$state): void
+    {
+        $prev = db_one("SELECT state_json, finished_at, started_at FROM dhosting_copy_jobs WHERE mailbox=? AND status='done' AND id<? ORDER BY id DESC LIMIT 1",
+            [$job['mailbox'], (int)$job['id']]);
+        if (!$prev) return;   // brak poprzedniej kopii — pełne przejście
+        $last = [];
+        foreach ((json_decode((string)$prev['state_json'], true) ?: [])['folders'] ?? [] as $pf) {
+            if (!empty($pf['last'])) $last[(string)$pf['id']] = (string)$pf['last'];
+        }
+        $fallback = (int)strtotime((string)($prev['started_at'] ?: $prev['finished_at']));
+        foreach ($state['folders'] as &$f) {
+            $t = isset($last[$f['id']]) ? (int)strtotime($last[$f['id']]) : $fallback;
+            $f['since'] = max(0, $t - self::OVERLAP);
+            $f['total'] = 0;
+            $f['done'] = false;
+        }
+        unset($f);
+        $state['incremental'] = true;
     }
 
     /** Plan folderów: Graph → IMAP; brakujące foldery tworzy. */
@@ -314,7 +430,7 @@ final class DhostingCopy
                     if (time() >= $deadline) { self::save($id, $state, $c, null); return false; }
                     $cur = (string)$f['next'];
                     try {
-                        $page = $graph->messagesPage($source, (string)$f['id'], $cur);
+                        $page = $graph->messagesPage($source, (string)$f['id'], $cur, !empty($f['since']) ? (int)$f['since'] : null);
                     } catch (DhostingGraphGone $e) {
                         $f['done'] = true; break;                         // folder usunięty w trakcie
                     } catch (DhostingGraphUnavailable | DhostingGraphDenied $e) {
@@ -326,6 +442,8 @@ final class DhostingCopy
                     foreach ($page['items'] as $m) {
                         if (time() >= $deadline) { $f['next'] = $cur; self::save($id, $state, $c, null); return false; }
                         $mid = (string)$m['id'];
+                        $rcv = (string)($m['receivedDateTime'] ?? '');
+                        if ($rcv !== '' && strcmp($rcv, (string)($f['last'] ?? '')) > 0) $f['last'] = $rcv;   // do następnej kopii przyrostowej
                         $seen->execute([$mailbox, $mid]);
                         $prev = $seen->fetch(PDO::FETCH_ASSOC) ?: null;
                         $seen->closeCursor();
@@ -333,6 +451,18 @@ final class DhostingCopy
                             $mine = (int)$prev['job_id'] === $id;
                             if ((int)$prev['result'] === 1 && !$mine) { $c['copied']++; continue; }   // przeniesiona wcześniej innym zadaniem — jest na serwerze
                             if ((int)$prev['result'] !== 0 || $mine) continue;                          // już policzona w tym zadaniu / zniknęła
+                        }
+                        // Porównanie z nową skrzynką (już w użyciu): ta sama wiadomość jest w folderze docelowym → nie dopisujemy.
+                        $imid = (string)($m['internetMessageId'] ?? '');
+                        if ($imid !== '' && empty($state['noSearch'])) {
+                            try {
+                                if ($imap->hasMessageId((string)$f['imap'], $imid)) {
+                                    $mark($mid, 1); $c['copied']++; $state['present'] = (int)($state['present'] ?? 0) + 1;
+                                    continue;
+                                }
+                            } catch (DhostingImapCommandFailed $e) {
+                                $state['noSearch'] = true;   // serwer nie szuka po nagłówku — zostaje rejestr
+                            }
                         }
                         try {
                             $c['bytes'] += $graph->downloadMime($source, $mid, $tmp);
@@ -348,6 +478,7 @@ final class DhostingCopy
                             $imap->appendFile((string)$f['imap'], $tmp, $flags, $ts);
                             $mark($mid, 1);
                             $c['copied']++;
+                            $state['appended'] = (int)($state['appended'] ?? 0) + 1;
                         } catch (DhostingImapCommandFailed $e) {
                             $mark($mid, 0);               // np. za duża — liczymy jako nieudaną, idziemy dalej
                             $c['failed']++;

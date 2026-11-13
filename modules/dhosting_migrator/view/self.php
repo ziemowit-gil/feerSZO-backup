@@ -241,6 +241,13 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
         <?php endif; ?>
       <?php endif; ?>
 
+      <?php $sync = $st['sync'] ?? null; if ($sync && ($sync['active'] || $sync['last'])): ?>
+        <p class="dm-help" style="margin-top:.6rem"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+          <?php if ($sync['active']): ?>Nowe wiadomości, które jeszcze wpadną do Microsoft 365, dosyłamy automatycznie co <?= DhostingCopy::SYNC_HOURS ?> h — do <?= h(substr($sync['until'], 0, 16)) ?>.
+            Dopisujemy tylko brakujące; tego, co już jest w nowej skrzynce, nie zmieniamy.<?php endif; ?>
+          <?php if ($sync['last']): ?>Ostatnio: <?= h(substr($sync['last']['at'], 0, 16)) ?> — dosłano <?= (int)$sync['last']['added'] ?>.<?php endif; ?></p>
+      <?php endif; ?>
+
       <?php if ($exists && !$jobActive && !$locked): ?>
         <?php if (!$job): ?><p>Masz już skrzynkę i hasło z SMS-a? Podaj je, a skopiujemy pocztę z Microsoft 365. Wiadomości już przeniesione nie zdublują się.</p>
         <?php else: ?><p>Chcesz skopiować pocztę jeszcze raz (np. nowe wiadomości)? Podaj hasło do nowej skrzynki.</p><?php endif; ?>

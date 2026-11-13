@@ -79,11 +79,15 @@ final class DhostingGraphMail
         return $out;
     }
 
-    /** Strona wiadomości folderu (najstarsze najpierw). $next = @odata.nextLink z poprzedniej strony albo ''. */
-    public function messagesPage(string $user, string $folderId, string $next = ''): array
+    /**
+     * Strona wiadomości folderu (najstarsze najpierw). $next = @odata.nextLink z poprzedniej strony albo ''.
+     * $since (znacznik czasu, kopia przyrostowa): tylko wiadomości odebrane od tej chwili — filtr na tym samym polu co sortowanie.
+     */
+    public function messagesPage(string $user, string $folderId, string $next = '', ?int $since = null): array
     {
+        $filter = $since ? '&$filter=receivedDateTime%20ge%20' . gmdate('Y-m-d\\TH:i:s\\Z', $since) : '';
         $url = $next !== '' ? $next : '/users/' . rawurlencode($user) . '/mailFolders/' . rawurlencode($folderId)
-            . '/messages?$top=50&$select=id,receivedDateTime,sentDateTime,isRead,isDraft,flag&$orderby=receivedDateTime%20asc';
+            . '/messages?$top=50&$select=id,internetMessageId,receivedDateTime,sentDateTime,isRead,isDraft,flag' . $filter . '&$orderby=receivedDateTime%20asc';
         $r = $this->getJson($url);
         return ['items' => $r['value'] ?? [], 'next' => (string)($r['@odata.nextLink'] ?? '')];
     }

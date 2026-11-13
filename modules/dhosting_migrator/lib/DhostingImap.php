@@ -23,6 +23,7 @@ final class DhostingImap
     private $sock = null;
     private int $tag = 0;
     private string $delim = '/';
+    private ?string $examined = null;   // folder otwarty tylko do odczytu (EXAMINE) — do porównania przed APPEND
 
     /** $server: „host” (= ssl://host:993), „host:port” albo pełny adres „ssl://host:993” / „tcp://127.0.0.1:1143” (testy). */
     public function __construct(private string $server, private int $timeout = 30) {}
@@ -121,6 +122,24 @@ final class DhostingImap
         } finally { fclose($fh); }
         $this->write("\r\n");
         $this->readTagged($tag);
+    }
+
+    /**
+     * Czy w folderze $raw jest już wiadomość z tym nagłówkiem Message-ID. Folder otwieramy przez EXAMINE (tylko odczyt:
+     * nie zmienia flag ani \\Recent), więc porównanie niczego w nowej skrzynce nie rusza. Polecenie odrzucone → wyjątek.
+     */
+    public function hasMessageId(string $raw, string $messageId): bool
+    {
+        $messageId = trim($messageId);
+        if ($messageId === '' || preg_match('/[\x00-\x1f"\\\\]/', $messageId)) return false;
+        if ($this->examined !== $raw) {
+            $this->command('EXAMINE ' . $this->astring($raw));
+            $this->examined = $raw;
+        }
+        foreach ($this->command('UID SEARCH HEADER Message-ID ' . $this->astring($messageId)) as $line) {
+            if (preg_match('/^\* SEARCH(?: (.*))?$/', $line, $m)) return trim((string)($m[1] ?? '')) !== '';
+        }
+        return false;
     }
 
     public function logout(): void
