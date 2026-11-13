@@ -126,6 +126,110 @@ final class DhostingCopy
         return implode(', ', $done);
     }
 
+    /**
+     * Administratorzy, do których idzie podsumowanie przenoszenia: ustawienie dhosting_admin_email (adresy po przecinku) albo —
+     * gdy puste — aktywni użytkownicy z rolą admin. [['id' => ?int, 'name' => string, 'email' => string], …] — bez powtórzeń adresów.
+     * Powiadomienie w SZO dostaje zawsze każdy aktywny admin (także przy ustawieniu własnych adresów).
+     */
+    public static function adminRecipients(): array
+    {
+        $admins = [];
+        try { $admins = db_all("SELECT id, name, email FROM users WHERE role='admin' AND is_active=1"); } catch (\Throwable $e) {}
+        $cfg = trim(DhostingConfig::get('dhosting_admin_email'));
+        $out = [];
+        if ($cfg !== '') {
+            foreach (preg_split('/[\s,;]+/', $cfg) ?: [] as $a) {
+                $a = strtolower(trim($a));
+                if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) $out[$a] = ['id' => null, 'name' => '', 'email' => $a];
+            }
+        } else {
+            foreach ($admins as $u) {
+                $a = strtolower(trim((string)$u['email']));
+                if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) $out[$a] = ['id' => (int)$u['id'], 'name' => (string)$u['name'], 'email' => $a];
+            }
+        }
+        return ['mail' => array_values($out), 'notif' => array_values(array_filter(array_map(fn($u) => (int)$u['id'], $admins)))];
+    }
+
+    /**
+     * Podsumowanie dla administratorów po zakończeniu przenoszenia (polecenie 2026-11-13): $kind 'done' (pełne przenoszenie skończone)
+     * albo 'error' (przerwane po 7 dniach prób). Powiadomienie w SZO dla aktywnych adminów + e-mail (adminRecipients). Treść dla admina —
+     * nazwa dostawcy dozwolona. Skrzynka, kto zlecił, start/koniec, liczby (skopiowane, dopisane, już były, w innym folderze, odtworzone,
+     * niepełne, nieprzeniesione), wynik powiadomienia osoby, do 10 pozycji wykazu i link do /migracjaadmin#kopiowanie. Zwraca opis wysyłki.
+     */
+    public static function notifyAdmins(array $job, array $c, array $state, string $userNotice, string $kind, string $error = ''): string
+    {
+        $box = strtolower(trim((string)$job['mailbox']));
+        $url = (defined('APP_URL') ? rtrim((string)APP_URL, '/') : '') . '/migracjaadmin#kopiowanie';
+        $list = self::failedFor($box, 5000);
+        $nFail = count(array_filter($list, fn($r) => (int)$r['result'] === 0));
+        $nPart = count($list) - $nFail;
+        $incr = ($job['kind'] ?? 'full') === 'incremental';
+        $title = $kind === 'error'
+            ? ($incr ? 'Dosyłanie poczty przerwane: ' : 'Przenoszenie poczty przerwane: ') . $box
+            : 'Przenoszenie poczty zakończone: ' . $box;
+        $fmt = fn($d) => $d ? date('d.m.Y H:i', (int)strtotime((string)$d)) : '—';
+        $lines = [
+            'Skrzynka: ' . $box . ((string)($job['source'] ?? '') !== '' && strcasecmp((string)$job['source'], $box) !== 0 ? ' (źródło w Microsoft 365: ' . $job['source'] . ')' : ''),
+            'Zlecił: ' . (($job['via'] ?? '') === 'self' ? 'sam użytkownik' : 'administrator') . ((string)($job['created_by'] ?? '') !== '' ? ' (' . $job['created_by'] . ')' : ''),
+            'Start: ' . $fmt($job['started_at'] ?? $job['created_at'] ?? null) . ' · ' . ($kind === 'error' ? 'przerwano: ' : 'koniec: ') . $fmt(date('Y-m-d H:i:s')),
+            'Skopiowane: ' . (int)$c['copied'] . ($kind === 'error' ? ' z ' . (int)($c['total'] ?? 0) : '')
+                . ' (nowo dopisane: ' . (int)($state['appended'] ?? 0) . ', już były na serwerze: ' . (int)($state['present'] ?? 0)
+                . (($state['foundElsewhere'] ?? 0) ? ', w tym w innym folderze: ' . (int)$state['foundElsewhere'] : '')
+                . ', odtworzone z danych Graph: ' . (int)($state['rebuilt'] ?? 0) . ')',
+            'Niepełne: ' . $nPart . ' · nieprzeniesione: ' . $nFail . ' · rozmiar: ' . number_format((int)($c['bytes'] ?? 0) / 1048576, 1, ',', ' ') . ' MB',
+        ];
+        if ($kind === 'error' && $error !== '') $lines[] = 'Ostatni błąd: ' . mb_substr($error, 0, 400);
+        if ($userNotice !== '') $lines[] = 'Powiadomienie osoby („możesz się zalogować”): ' . $userNotice;
+        $items = [];
+        foreach (array_slice($list, 0, 10) as $fr) {
+            $items[] = ((int)$fr['result'] === 3 ? '[niepełna] ' : '[nieprzeniesiona] ') . ($fr['received_at'] ? substr((string)$fr['received_at'], 0, 10) . ' · ' : '')
+                     . ($fr['folder'] ?: '?') . ' · ' . ((string)($fr['subject'] ?? '') !== '' ? $fr['subject'] : '(bez tematu)')
+                     . ((string)($fr['reason'] ?? '') !== '' ? ' — ' . mb_substr((string)$fr['reason'], 0, 160) : '');
+        }
+        $done = [];
+
+        $rcp = self::adminRecipients();
+        if ($rcp['notif']) {
+            try {
+                require_once dirname(__DIR__, 3) . '/includes/notifications.php';
+                if (function_exists('notif_migrate')) notif_migrate();
+                $n = 0;
+                if (function_exists('notif_create')) {
+                    foreach ($rcp['notif'] as $aid) { notif_create($aid, 'system', $title, implode(' · ', array_slice($lines, 3, 2)), $url); $n++; }
+                }
+                if ($n) $done[] = 'SZO (' . $n . ')';
+            } catch (\Throwable $e) { error_log('[dhosting] notif admin ' . $box . ': ' . $e->getMessage()); }
+        }
+
+        $e = fn(string $x) => htmlspecialchars($x, ENT_QUOTES, 'UTF-8');
+        $html = '<p><strong>' . $e($title) . '</strong></p><ul>';
+        foreach ($lines as $l) $html .= '<li>' . $e($l) . '</li>';
+        $html .= '</ul>';
+        if ($items) {
+            $html .= '<p>Nieudane i niepełne' . (count($list) > 10 ? ' (pierwsze 10 z ' . count($list) . ')' : '') . ':</p><ul>';
+            foreach ($items as $it) $html .= '<li>' . $e($it) . '</li>';
+            $html .= '</ul>';
+        }
+        $html .= '<p><a href="' . $e($url) . '">Migracja poczty — kopiowanie (/migracjaadmin)</a></p>';
+        $text = $title . "\n\n" . implode("\n", $lines) . ($items ? "\n\nNieudane i niepełne:\n– " . implode("\n– ", $items) . (count($list) > 10 ? "\n– …" : '') : '')
+              . "\n\n" . $url;
+        $sent = 0;
+        if ($rcp['mail']) {
+            try {
+                $mail = self::$sendMail ?? (function (string $to, string $nm, string $subj, string $h, string $t): bool {
+                    require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+                    return (bool)mail_queue_add($to, $nm, $subj, $h, $t, 'dhosting_copy_admin');
+                });
+                foreach ($rcp['mail'] as $r) { if ($mail($r['email'], $r['name'], $title, $html, $text)) $sent++; }
+            } catch (\Throwable $ex) { error_log('[dhosting] e-mail admin ' . $box . ': ' . $ex->getMessage()); }
+            $done[] = $sent ? 'e-mail (' . $sent . ')' : 'e-mail nie wyszedł';
+        } else {
+            $done[] = 'e-mail: brak adresów administratorów';
+        }
+        return implode(', ', $done);
+    }
+
     public static function migrate(): void
     {
         static $done = false;
@@ -493,9 +597,10 @@ final class DhostingCopy
                     }
                     if ($failList !== '') $failList = "\nNieudane i niepełne (pełny wykaz: /migracjaadmin#kopiowanie):" . $failList . (count($fl) > 10 ? "\n– …" : '');
                 }
-                $notice = '';
+                $notice = ''; $adminNotice = '';
                 if (($job['kind'] ?? 'full') !== 'incremental') {
                     try { $notice = self::notifyDone($job, $c, $keep); } catch (\Throwable $e) { $notice = 'błąd: ' . $e->getMessage(); }
+                    try { $adminNotice = self::notifyAdmins($job, $c, $state, $notice, 'done'); } catch (\Throwable $e) { $adminNotice = 'błąd: ' . $e->getMessage(); }
                 }
                 if (($job['kind'] ?? 'full') !== 'incremental') {
                     self::helpdesk($job, 'Kopiowanie poczty zakończone: skopiowano ' . $c['copied'] . ' wiadomości (nowo dopisanych: ' . $added
@@ -504,7 +609,8 @@ final class DhostingCopy
                         . ($partialN ? ', w tym niepełnych (bez całej treści albo bez załączników): ' . $partialN : '') . ')'
                         . ($c['failed'] ? ', nie udało się ' . $c['failed'] . ' (np. za duże dla serwera)' : '') . '.'
                         . ($keep ? ' Nowe wiadomości z Microsoft 365 dosyłamy automatycznie co ' . self::SYNC_HOURS . ' h do ' . substr($keep, 0, 16) . '.' : '')
-                        . ($notice !== '' ? ' Powiadomienie „możesz się zalogować”: ' . $notice . '.' : '') . $failList);
+                        . ($notice !== '' ? ' Powiadomienie „możesz się zalogować”: ' . $notice . '.' : '')
+                        . ($adminNotice !== '' ? ' Podsumowanie dla administratorów: ' . $adminNotice . '.' : '') . $failList);
                 } elseif ($added > 0 || $c['failed'] > 0) {
                     self::helpdesk($job, 'Dosłano nowe wiadomości z Microsoft 365: ' . $added . ($c['failed'] ? ', nie udało się ' . $c['failed'] : '') . '.' . $failList);
                 }
@@ -521,8 +627,11 @@ final class DhostingCopy
             if ($attempts >= self::MAX_ATTEMPTS) {
                 db()->prepare("UPDATE dhosting_copy_jobs SET status='error', password_enc=NULL, attempts=?, locked_until=NULL, next_run_at=NULL, finished_at=?, last_error=?, updated_at=? WHERE id=?")
                     ->execute([$attempts, date('Y-m-d H:i:s'), 'Przerwano po 7 dniach prób: ' . $msg, date('Y-m-d H:i:s'), $id]);
+                $adminNotice = '';
+                try { $adminNotice = self::notifyAdmins($job, $c, $state, '', 'error', $msg); } catch (\Throwable $e3) { $adminNotice = 'błąd: ' . $e3->getMessage(); }
                 self::helpdesk($job, (($job['kind'] ?? 'full') === 'incremental' ? 'Dosyłanie nowych wiadomości przerwane' : 'Kopiowanie poczty przerwane')
-                    . ' po 7 dniach prób (skopiowano ' . $c['copied'] . ' z ' . $c['total'] . '). Ostatni błąd: ' . $msg);
+                    . ' po 7 dniach prób (skopiowano ' . $c['copied'] . ' z ' . $c['total'] . '). Ostatni błąd: ' . $msg
+                    . ($adminNotice !== '' ? ' Powiadomienie administratorów: ' . $adminNotice . '.' : ''));
                 return "[ERROR] #{$id} {$job['mailbox']}: koniec prób — {$msg}";
             }
             $next = date('Y-m-d H:i:s', time() + self::RETRY_HOURS * 3600);
