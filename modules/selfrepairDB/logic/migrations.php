@@ -925,4 +925,22 @@ return [
         },
     ],
 
+    // Hasła WYŁĄCZNIE w SZO (/nowehaslo), nie w dpoczta.pl — zmiana poza SZO się nie synchronizuje (polecenie 2026-11-14, „to ważne”).
+    // Nadpisuje „Jak zmienić hasło do poczty” (dotąd instrukcja w dpoczta.pl), krok w „Jak zalogować się do poczty”, „Zmiana haseł”,
+    // artykuły „Migracja” i odświeża „Pomoc producenta” bez linku do zmiany hasła u dostawcy.
+    '2026-11_it_portal_hasla_tylko_szo' => [
+        'desc' => 'Portal Usług IT: hasło do poczty zmieniamy wyłącznie w SZO (/nowehaslo), nie w dpoczta.pl',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalHaslaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php';
+            itPortalDpocztaApply(ITP_SZO_URL, false, ['zmiana-hasla-poczty', 'logowanie-dpoczta']);
+            itPortalHaslaApply(ITP_SZO_URL);
+            itPortalMigracjaApply(ITP_SZO_URL);
+            itPortalVendorHelpApply();
+        },
+    ],
+
 ];

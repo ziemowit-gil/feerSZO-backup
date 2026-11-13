@@ -73,6 +73,10 @@ function itPortalHaslaArticles(string $app): array {
             ['type' => 'text', 'html' => '<p>W Fundacji masz dwa osobne hasła. Pierwsze otwiera pocztę. Drugie jest wspólne dla logowania jednokrotnego '
                 . 'i chmury plików. Muszą być różne, więc gdy ktoś pozna jedno, nie wejdzie na drugie konto.</p>'],
 
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p><strong>Ważne: oba hasła zmieniaj wyłącznie w SZO, na stronie <a href="' . $nh . '">Nowe hasło</a>.</strong> '
+                . 'Nie zmieniaj hasła w ustawieniach dpoczta.pl ani w chmurze. Hasło zmienione poza SZO nie zsynchronizuje się z pozostałymi systemami '
+                . 'i usługi przestaną działać.</p>'],
+
             ['type' => 'text', 'html' => '<h2>Które hasło do czego</h2>'
                 . '<p>Hasło do poczty otwiera skrzynkę <code>imie.nazwisko@feer.org.pl</code> w przeglądarce, w telefonie i w programie pocztowym. '
                 . 'Kod do jego zmiany przychodzi SMS-em na numer zapisany w SZO albo w umowie, a gdy go nie mamy, e-mailem na Twój prywatny adres.</p>'

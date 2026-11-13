@@ -179,6 +179,13 @@ function szo_features(): array {
 
         // ── Konto, logowanie, bezpieczeństwo ────────────────────────────────
         [
+            'id' => 'nowe_haslo', 'title' => 'Nowe hasło: zmiana hasła do poczty oraz logowania jednokrotnego i chmury',
+            'path' => '/nowehaslo', 'module' => '', 'roles' => 'all',
+            'kw' => 'hasło zmiana hasła nowe hasło poczta dpoczta skrzynka iam logowanie jednokrotne chmura nextcloud logto zapomniałem hasła reset synchronizacja',
+            'desc' => 'JEDYNE miejsce zmiany hasła do poczty i hasła logowania jednokrotnego/chmury (działa też bez logowania, kod SMS lub e-mail). '
+                    . 'Hasła NIE zmienia się w dpoczta.pl ani w chmurze — zmiana poza SZO nie synchronizuje się i usługi przestają działać. W panelu: kafel „Zmiana haseł”.',
+        ],
+        [
             'id' => 'konto_ustawienia', 'title' => 'Ustawienia konta i zmiana hasła',
             'path' => '/panel/password.php', 'module' => '', 'roles' => 'all',
             'kw' => 'hasło zmiana hasła ustawienia konta numer telefonu dane kontaktowe profil',

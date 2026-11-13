@@ -28,9 +28,7 @@ function itPortalVendorHelpLinks(): array {
             ['dPoczta.pl – najważniejsze informacje', $u('dpoczta-pl-najwazniejsze-informacje')],
             ['Możliwe problemy z odbiorem wiadomości e-mail', $u('mozliwe-problemy-z-odbiorem-wiadomosci-e-mail')],
         ],
-        'moja-poczta/zmiana-hasla-poczty' => [
-            ['Zmiana hasła do skrzynki e-mail z poziomu dpoczta.pl', $u('zmiana-hasla-do-skrzynki-e-mail-z-poziomu-dpoczta-pl')],
-        ],
+        // 'moja-poczta/zmiana-hasla-poczty' — bez linków: hasło do poczty zmieniamy wyłącznie w SZO (/nowehaslo), nie w dpoczta.pl (2026-11-14)
         'moja-poczta/poczta-w-telefonie' => [
             ['W jaki sposób skonfigurować program pocztowy?', $u('w-jaki-sposob-skonfigurowac-program-pocztowy')],
             ['Konfiguracja poczty na iOS (iPhone)', $u('konfiguracja-poczty-na-ios-11-iphone')],
@@ -93,7 +91,6 @@ function itPortalVendorHelpLinks(): array {
         // usługa „Migracja” (polecenie 2026-11-13: „dodaj też pomoc producenta do artykułu Migracja”)
         'migracja/migracja' => [
             ['dPoczta.pl – najważniejsze informacje', $u('dpoczta-pl-najwazniejsze-informacje')],
-            ['Zmiana hasła do skrzynki e-mail z poziomu dpoczta.pl', $u('zmiana-hasla-do-skrzynki-e-mail-z-poziomu-dpoczta-pl')],
             ['W jaki sposób skonfigurować program pocztowy?', $u('w-jaki-sposob-skonfigurowac-program-pocztowy')],
             ['Jak skonfigurować pocztę w Outlook 365?', $u('jak-skonfigurowac-poczte-w-outlook-365')],
             ['Konfiguracja poczty na iOS (iPhone)', $u('konfiguracja-poczty-na-ios-11-iphone')],
@@ -104,7 +101,6 @@ function itPortalVendorHelpLinks(): array {
         ],
         'migracja/iam-i-poczta' => [
             ['dPoczta.pl – najważniejsze informacje', $u('dpoczta-pl-najwazniejsze-informacje')],
-            ['Zmiana hasła do skrzynki e-mail z poziomu dpoczta.pl', $u('zmiana-hasla-do-skrzynki-e-mail-z-poziomu-dpoczta-pl')],
             ['Jak ustawić weryfikację dwuetapową w webmailu?', $u('jak-ustawie-weryfikacje-dwuetapowa-w-webmailu')],
             ['Co to jest IMAP?', $u('co-to-jest-imap')],
         ],

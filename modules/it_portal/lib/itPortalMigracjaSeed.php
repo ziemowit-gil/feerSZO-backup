@@ -106,7 +106,8 @@ function itPortalMigracjaArticles(string $app): array {
                 . '<p>Hasło do poczty musi być inne niż hasło IAM. Jeśli ktoś pozna jedno z nich, nie wejdzie na drugie konto.</p>'],
 
             ['type' => 'text', 'html' => '<h2>Jak zmienić hasło</h2>'
-                . '<p>Hasło IAM i chmury albo hasło do poczty zmienisz sam na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. Każdą zmianę potwierdzasz kodem. '
+                . '<p><strong>Oba hasła zmieniaj wyłącznie w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, nie w ustawieniach dpoczta.pl.</strong> '
+                . 'Hasło zmienione w dpoczta.pl nie zsynchronizuje się z SZO i usługi przestaną działać. Każdą zmianę potwierdzasz kodem. '
                 . 'Przy haśle do poczty kod przychodzi SMS-em na numer zapisany w SZO albo w umowie, a gdy numeru nie mamy, na Twój prywatny e-mail. '
                 . 'Przy haśle IAM i chmury kod przychodzi e-mailem. '
                 . 'Możesz wpisać własne hasło (co najmniej 12 znaków, małe i wielkie litery oraz cyfry) albo dostać losowe SMS-em. '
@@ -182,7 +183,7 @@ function itPortalMigracjaArticles(string $app): array {
                 . 'według instrukcji w usłudze <a href="' . $app . '/uslugi-it/uslugi/moja-poczta">Moja poczta</a>.</li>'
                 . '<li>Logujesz się pełnym adresem e-mail i hasłem do poczty, innym niż hasło IAM.</li>'
                 . '<li>Skrzynka wolontariusza i pracownika ma 5 GB. Skrzynki kadry kierowniczej zachowują dotychczasowy limit.</li>'
-                . '<li>Hasło zmienisz na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. Kod potwierdzenia przyjdzie SMS-em, a gdy nie mamy Twojego numeru, na prywatny e-mail.</li>'
+                . '<li>Hasło zmieniasz wyłącznie w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, nigdy w ustawieniach dpoczta.pl (inaczej nie zsynchronizuje się z SZO). Kod potwierdzenia przyjdzie SMS-em, a gdy nie mamy Twojego numeru, na prywatny e-mail.</li>'
                 . '<li>Skrzynkę możesz dodatkowo zabezpieczyć weryfikacją dwuetapową (2FA). Opis jest w usłudze Moja poczta.</li></ul>'],
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Skrzynka zapełnia się szybciej, gdy trzymasz w niej duże załączniki. Pliki zapisuj w chmurze i wysyłaj link zamiast załącznika.</p>'],
             ['type' => 'text', 'html' => '<h2>Dlaczego dwa hasła</h2>'

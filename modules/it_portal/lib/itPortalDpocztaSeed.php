@@ -99,17 +99,20 @@ function itPortalDpocztaArticles(string $app): array {
                 $step('Otwórz stronę poczty', '<p>Wejdź na <a href="https://dpoczta.pl">dpoczta.pl</a>.</p>'),
                 $step('Wpisz login', '<p>Loginem jest pełny adres służbowy: <code>imie.nazwisko@feer.org.pl</code>, małymi literami i bez polskich znaków (np. <code>jan.kowalski@feer.org.pl</code>).</p>'),
                 $step('Wpisz hasło z SMS-a', '<p>Hasło do skrzynki dostałeś SMS-em:</p><ul><li>jeśli konto pocztowe istniało przed 13.11.2026, SMS przyszedł po przeniesieniu poczty z Microsoft 365;</li><li>jeśli konto założyliśmy później, SMS przychodzi po podpisaniu umowy.</li></ul>'),
-                $step('Zmień hasło na własne', '<p>Po pierwszym logowaniu ustaw własne hasło. Opis jest w instrukcji „Jak zmienić hasło do poczty”.</p>'),
+                $step('Zmień hasło na własne', '<p>Po pierwszym logowaniu ustaw własne hasło w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. Nie zmieniaj go w ustawieniach dpoczta.pl. Opis jest w instrukcji „Jak zmienić hasło do poczty”.</p>'),
             ]],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Hasło do poczty jest osobne. To inne hasło niż do Panelu współpracownika (SZO), do Microsoft 365 i do logowania jednokrotnego.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie masz SMS-a albo hasło nie działa? <a href="' . $hd . '">Zgłoś to w Helpdesku</a>, nadamy nowe hasło.</p>'],
         ], true],
 
-        'zmiana-hasla-poczty' => ['Jak zmienić hasło do poczty', 'hasło, zmiana hasła, nowe hasło, dpoczta, wymagania hasła', [
-            ['type' => 'wizard', 'title' => 'Zmiana hasła', 'intro' => '', 'steps' => [
-                $step('Otwórz ustawienia', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . '</p>'),
-                $step('Wybierz „Hasło”', '<p>Na liście po lewej kliknij „Hasło”.</p>'),
-                $step('Wpisz stare i nowe hasło', '<p>W pierwszym polu wpisz obecne hasło (np. to z SMS-a). Nowe hasło wpisz dwa razy w kolejnych polach i kliknij „Zapisz”.</p>'),
+        // 2026-11-14: hasło do poczty TYLKO przez SZO (/nowehaslo) — zmiana w dpoczta.pl nie synchronizuje się z SZO
+        'zmiana-hasla-poczty' => ['Jak zmienić hasło do poczty', 'hasło, zmiana hasła, nowe hasło, nowehaslo, szo, dpoczta, wymagania hasła, synchronizacja', [
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p><strong>Ważne: hasło do poczty zmieniaj wyłącznie w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>.</strong> ' . 'Nie zmieniaj go w ustawieniach dpoczta.pl. Hasło zmienione w dpoczta.pl nie trafi do SZO, więc systemy się rozjadą: ' . 'kopia poczty, Gosposia i inne usługi przestaną działać, a przy kolejnej zmianie hasło może wrócić do starego.</p>'],
+            ['type' => 'wizard', 'title' => 'Zmiana hasła w SZO', 'intro' => '', 'steps' => [
+                $step('Otwórz stronę Nowe hasło', '<p>Wejdź na <a href="' . $app . '/nowehaslo">Nowe hasło</a> w SZO. W panelu współpracownika kliknij kafel „Zmiana haseł”. '
+                    . 'Wejdziesz tam też bez logowania: podaj prywatny e-mail albo PESEL z umowy oraz adres służbowy.</p>'),
+                $step('Wybierz hasło do poczty', '<p>Zaznacz „hasło do poczty” i kliknij „Wyślij kod”. Kod przyjdzie SMS-em, a gdy nie mamy Twojego numeru, e-mailem na prywatny adres.</p>'),
+                $step('Wpisz kod i nowe hasło', '<p>Przepisz kod i wpisz nowe hasło dwa razy. Możesz też wybrać hasło losowe, które przyjdzie SMS-em.</p>'),
             ]],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nowe hasło musi mieć co najmniej 12 znaków, w tym małą literę, wielką literę i cyfrę.</p>'],
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Masz pocztę też w telefonie albo w Outlooku? Po zmianie hasła wpisz nowe także tam, inaczej program przestanie pobierać wiadomości.</p>'],
