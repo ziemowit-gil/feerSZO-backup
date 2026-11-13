@@ -108,7 +108,34 @@ final class DhostingCopy
         if ($cl !== '') $parts[] = 'chmura: ' . ($cl === 'created' ? 'założona' : ($cloudOk ? 'nadpisane hasło' : $cl));
         if ($sms !== '') $parts[] = 'nowe hasło: ' . $sms;
         return ['ok' => $ok, 'text' => implode(', ', $parts) ?: 'bez zmian',
-                'username' => (string)($res['username'] ?? ''), 'logto' => $lt, 'cloud' => $cl, 'sms' => $sms];
+                'username' => (string)($res['username'] ?? ''), 'logto' => $lt, 'cloud' => $cl, 'sms' => $sms,
+                'password' => $pw];   // tylko do pokazania administratorowi raz, gdy SMS nie wyszedł — nigdzie nie zapisujemy
+    }
+
+    /**
+     * Czy osobie z zakończonego przenoszenia brakuje konta logowania jednokrotnego albo w chmurze (przycisk „Utwórz konto NC i SSO”
+     * na /migracjaadmin, polecenie 2026-11-13). need=false, gdy oba są albo nic nie jest skonfigurowane / brak osoby z e-mailem.
+     * @return array{need:bool,logto:bool,cloud:bool,label:string,email:string}
+     */
+    public static function ssoStatus(array $job): array
+    {
+        $none = ['need' => false, 'logto' => false, 'cloud' => false, 'label' => '', 'email' => ''];
+        try {
+            require_once dirname(__DIR__, 2) . '/sso_logto/logic/SsoAccounts.php';
+            $lOn = SsoConfig::logtoConfigured();
+            $cOn = SsoConfig::cloudConfigured();
+            if (!$lOn && !$cOn) return $none;
+            $p = self::personFor($job);
+            if (!$p) return $none;
+            $row = SsoAccounts::get((string)$p['email']);
+            $hasL = $row && !empty($row['logto_id']);
+            $hasC = $row && !empty($row['cloud_uid']);
+            return ['need' => ($lOn && !$hasL) || ($cOn && !$hasC), 'logto' => $hasL, 'cloud' => $hasC, 'email' => (string)$p['email'],
+                    'label' => $lOn && $cOn ? 'Utwórz konto NC i SSO' : ($cOn ? 'Utwórz konto NC' : 'Utwórz konto SSO')];
+        } catch (\Throwable $e) {
+            error_log('[dhosting] ssoStatus ' . ($job['mailbox'] ?? '') . ': ' . $e->getMessage());
+            return $none;
+        }
     }
 
     /** Osoba do kont SSO: konto SZO z zadania, inaczej po loginie Microsoft / adresie skrzynki, na końcu po koncie Microsoft z umowy. */

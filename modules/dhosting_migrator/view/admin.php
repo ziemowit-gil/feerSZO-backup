@@ -293,12 +293,18 @@ $statusOf  = function (array $a): array {
   <div class="alert alert-info small">Brak kont Microsoft 365 w przenoszonych domenach.</div>
 <?php endif; ?>
 
-<?php $_seenBox = []; $storedPass = $storedPass ?? []; $retried = $retried ?? null; ?>
+<?php $_seenBox = []; $storedPass = $storedPass ?? []; $retried = $retried ?? null; $accMade = $accMade ?? null; ?>
 <section id="kopiowanie" class="card mt-4" aria-labelledby="dhmCopyH">
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
     <h2 id="dhmCopyH" class="h6 mb-0"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Kopiowanie poczty z Microsoft 365</h2>
     <span class="small text-body-secondary">w tle co 5 min · niedostępny serwer = ponowienie co <?= DhostingCopy::RETRY_HOURS ?> h (najdłużej 7 dni)</span>
   </div>
+  <?php if ($accMade): ?>
+    <div class="alert alert-warning rounded-0 border-0 border-bottom small mb-0" role="status">
+      <strong>Konta NC i SSO dla <?= h($accMade['mailbox']) ?>:</strong> login <code><?= h($accMade['username']) ?></code> · hasło: <code class="user-select-all fs-6"><?= h($accMade['password']) ?></code>
+      <div>SMS z hasłem nie wyszedł — hasło widać tylko teraz. Przekaż je osobie bezpiecznie (nie e-mailem). Jest inne niż hasło do poczty.</div>
+    </div>
+  <?php endif; ?>
   <?php if ($retried): ?>
     <div class="alert alert-warning rounded-0 border-0 border-bottom small mb-0" role="status">
       <strong>Ponowiono z nowym hasłem:</strong> <code><?= h($retried['mailbox']) ?></code> · hasło: <code class="user-select-all fs-6"><?= h($retried['password']) ?></code><?= $retried['sms'] !== '' ? ' · SMS: ' . h($retried['sms']) : '' ?>
@@ -353,6 +359,16 @@ $statusOf  = function (array $a): array {
           </td>
           <td class="text-end text-nowrap">
             <?php $_first = !isset($_seenBox[$j['mailbox']]); $_seenBox[$j['mailbox']] = true; ?>
+            <?php $_sso = $_first && $j['status'] === 'done' ? DhostingCopy::ssoStatus($j) : null;
+                  if ($_sso && $_sso['need']): /* po skopiowaniu poczty: brak konta w chmurze / logowania jednokrotnego (polecenie 2026-11-13) */ ?>
+            <form method="post" action="<?= h(route('dhm.copy')) ?>" class="d-inline">
+              <?= Router::csrfField() ?><input type="hidden" name="job" value="<?= (int)$j['id'] ?>">
+              <button class="btn btn-sm btn-outline-success" name="op" value="accounts" title="Nowe hasło — osobne od poczty — idzie SMS-em; istniejące konto dostaje nowe hasło"
+                      onclick="return confirm('<?= h($_sso['label']) ?> dla <?= h($j['mailbox']) ?>?\nOsoba dostanie nowe hasło (inne niż do poczty) SMS-em.')"><i class="bi bi-cloud-plus" aria-hidden="true"></i> <?= h($_sso['label']) ?></button>
+            </form>
+            <?php elseif ($_sso && $_sso['email'] !== '' && ($_sso['logto'] || $_sso['cloud'])): ?>
+            <span class="small text-body-secondary d-block">NC<?= $_sso['logto'] ? ' i SSO' : '' ?>: konto jest</span>
+            <?php endif; ?>
             <?php if (!$active && $_first): /* „Ponów przenoszenie poczty” tylko przy najnowszym zadaniu skrzynki */ ?>
             <form method="post" action="<?= h(route('dhm.copy')) ?>" class="d-inline">
               <?= Router::csrfField() ?><input type="hidden" name="job" value="<?= (int)$j['id'] ?>">

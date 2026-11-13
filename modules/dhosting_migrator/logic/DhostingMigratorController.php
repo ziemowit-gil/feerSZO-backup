@@ -27,6 +27,7 @@ final class DhostingMigratorController
     private const K_TEST   = 'dhmTest';
     private const K_RESTORED = 'dhmRestored';
     private const K_RETRY    = 'dhmRetry';
+    private const K_ACC      = 'dhmAcc';      // konta NC i SSO po migracji: hasło raz na ekranie, gdy SMS nie wyszedł
 
     // ── Administrator ─────────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ final class DhostingMigratorController
             'suspended'=> DhostingContractMail::suspendedList(),
             'restored' => $this->take(self::K_RESTORED),
             'retried'  => $this->take(self::K_RETRY),
+            'accMade'  => $this->take(self::K_ACC),
             'storedPass' => DhostingCopy::storedPasswordBoxes(),
             'cfg'      => [
                 'api_url'      => DhostingConfig::get('dhosting_api_url'),
@@ -165,6 +167,19 @@ final class DhostingMigratorController
         }
         // „Ponów przenoszenie poczty” — zapisanym hasłem albo z nowym hasłem (SMS do osoby / raz na ekranie)
         $op = (string)($_POST['op'] ?? '');
+        // „Utwórz konto NC i SSO” przy zakończonym przenoszeniu (polecenie 2026-11-13): to samo co automat po migracji —
+        // nowe, osobne od poczty hasło SMS-em; istniejące konto dostaje nowe hasło
+        if ($op === 'accounts') {
+            if (!ika_ok($back)) return $this->flash($back, 'warning', 'Sesja kodu IKA wygasła — kont NIE założono. Potwierdź kod IKA i powtórz.');
+            if ($job['status'] !== 'done') return $this->flash($back, 'warning', 'Konta zakładamy po zakończonym przenoszeniu poczty.');
+            $acc = DhostingCopy::accountsAfterMigration($job);
+            try { audit_log('dhosting.sso_accounts', ['mailbox' => $job['mailbox'], 'wynik' => $acc['text']]); } catch (\Throwable $e) {}
+            $smsOk = str_starts_with((string)($acc['sms'] ?? ''), 'SMS (') || str_starts_with((string)($acc['sms'] ?? ''), 'SMS po');
+            if (!empty($acc['ok']) && !$smsOk && ($acc['password'] ?? '') !== '') {
+                $_SESSION[self::K_ACC] = ['mailbox' => $job['mailbox'], 'username' => $acc['username'], 'password' => $acc['password'], 'text' => $acc['text']];
+            }
+            return $this->flash($back, !empty($acc['ok']) ? 'success' : 'danger', 'Konta dla ' . $job['mailbox'] . ': ' . $acc['text'] . '.');
+        }
         if ($op === 'retry' || $op === 'retry_newpass') {
             $mb = (string)$job['mailbox'];
             $by = (string)(current_user()['email'] ?? '');
