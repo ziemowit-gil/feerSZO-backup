@@ -11,9 +11,11 @@ declare(strict_types=1);
  * POST /pomocne/gosposia/przeglad           — JSON: nadawcy do sprzątania;
  * POST /pomocne/gosposia/biala-lista        — JSON: dodaj adres albo domenę;  …/biala-lista/usun — JSON: usuń własny wpis;
  * POST /pomocne/gosposia/kosz               — JSON: przenieś zatwierdzone UID-y do Kosza (po potwierdzeniu w oknie).
+ * Powiadomienia e-mail (start przeglądu, podsumowanie przeglądu, podsumowanie sprzątania): GosposiaNotify.
  * Żądania fetch wysyłają FormData z polem _csrf (Router + csrf_check). Hasła nigdy nie wracają do widoku ani do dzienników.
  */
 require_once __DIR__ . '/Gosposia.php';
+require_once __DIR__ . '/GosposiaNotify.php';
 
 final class GosposiaController
 {
@@ -59,11 +61,16 @@ final class GosposiaController
         $uid = (int)current_user()['id'];
         $cred = Gosposia::credentials($uid);
         if (!$cred) return $this->fail('Najpierw połącz pocztę.', 409);
+        // Przegląd już trwa (np. podwójne kliknięcie) — bez drugiej pary maili.
+        $running = !in_array(Gosposia::progressRead($uid)['stage'], ['idle', 'done', 'error'], true);
         // Sesja zamknięta na czas przeglądu, żeby równoległe GET /postep nie czekały na jej blokadę.
         Gosposia::progressWrite($uid, ['stage' => 'start', 'done' => 0, 'total' => 0]);
         session_write_close();
+        $user = current_user();
+        if (!$running) GosposiaNotify::started($user, (string)$cred['email']);
         try {
             $res = ['ok' => true] + Gosposia::scan($uid, $cred, null, null, true);
+            if (!$running) GosposiaNotify::scanned($user, (string)$cred['email'], $res);
         } catch (GosposiaImapAuthFailed $e) {
             $res = $this->fail($e->getMessage() . ' Odłącz pocztę i połącz ją jeszcze raz.', 401);
         } catch (\RuntimeException $e) {
@@ -109,7 +116,9 @@ final class GosposiaController
         $sel = json_decode((string)($_POST['selection'] ?? ''), true);
         if (!is_array($sel)) return $this->fail('Nie zaznaczono żadnej wiadomości.', 422);
         try {
-            return ['ok' => true] + Gosposia::moveToTrash($uid, $cred, $sel);
+            $res = ['ok' => true] + Gosposia::moveToTrash($uid, $cred, $sel);
+            GosposiaNotify::trashed(current_user(), (string)$cred['email'], $res);
+            return $res;
         } catch (GosposiaImapAuthFailed $e) {
             return $this->fail($e->getMessage(), 401);
         } catch (\RuntimeException $e) {
