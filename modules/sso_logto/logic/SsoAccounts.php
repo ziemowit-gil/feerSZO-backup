@@ -19,6 +19,9 @@ require_once __DIR__ . '/CloudFilesCopy.php';
 
 final class SsoAccounts
 {
+    /** Podmiana wysyłki e-maila w testach: fn($to, $name, $subject, $html, $text): bool. */
+    public static ?\Closure $sendMail = null;
+
     public static function migrate(): void
     {
         static $done = false;
@@ -176,7 +179,58 @@ final class SsoAccounts
                 $out['job'] = CloudFilesCopy::queue((string)self::get($email)['cloud_uid'], $src, $password, $email, $by);
             }
         }
+        if (in_array($out['cloud'], ['created', 'linked', 'synced'], true)) {
+            try { $out['mail'] = self::cloudMail($email, $name, (string)self::get($email)['cloud_uid'], $out); }
+            catch (\Throwable $e) { $out['mail'] = 'błąd'; error_log('[sso] e-mail o chmurze ' . $email . ': ' . $e->getMessage()); }
+        }
         return $out;
+    }
+
+    /**
+     * E-mail po założeniu konta w chmurze albo ustawieniu mu hasła (polecenie 2026-11-13): adres chmury, login, skąd hasło (bez hasła —
+     * hasła idą SMS-em albo osoba ustawiła je sama), opis: groupware + miejsce na pliki, zamiennik OneDrive, aplikacje na komputer
+     * i telefon, pliki z OneDrive w folderze „OneDrive”. Zwraca 'wysłany' albo 'nie wyszedł'.
+     */
+    private static function cloudMail(string $email, string $name, string $uid, array $out): string
+    {
+        $url = SsoConfig::cloudUrl();
+        $label = SsoConfig::cloudLabel();
+        $host = (string)(parse_url($url, PHP_URL_HOST) ?: $url);
+        $new = $out['cloud'] === 'created';
+        $logto = ($out['logto'] ?? '') !== 'pominięte';
+        $quota = trim((string)SsoConfig::cloudQuota());
+        $e = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $title = $new ? 'Twoje konto w chmurze Fundacji — ' . $host : 'Nowe hasło do chmury Fundacji — ' . $host;
+        $pass = $out['password'] !== null
+            ? 'Hasło przekazujemy osobno — SMS-em albo przez administratora. Nigdy nie wysyłamy go e-mailem.'
+            : 'Hasło: to, które właśnie ustawiłeś(-aś).';
+        $same = $logto ? 'To samo hasło działa w logowaniu jednokrotnym. Jest inne niż hasło do poczty — celowo, ze względów bezpieczeństwa.'
+                       : 'Jest inne niż hasło do poczty — celowo, ze względów bezpieczeństwa.';
+        $what = [
+            'Pliki i foldery w jednym miejscu, dostępne z komputera, telefonu i przeglądarki' . ($quota !== '' ? ' (masz ' . $quota . ' miejsca)' : '') . '.',
+            'Udostępnianie plików i folderów innym osobom z Fundacji albo linkiem — także osobom spoza Fundacji.',
+            'Wspólna praca nad dokumentami i folderami zespołu, wersje plików i kosz, z którego odzyskasz usunięte pliki.',
+            'Aplikacja ' . $label . ' na komputer (Windows, macOS, Linux) i telefon (Android, iOS) synchronizuje pliki tak jak OneDrive.',
+        ];
+        if (!empty($out['job'])) $what[] = 'Twoje pliki z OneDrive kopiujemy w tle do folderu „OneDrive” w chmurze — nic nie musisz robić.';
+        $html = '<p>Dzień dobry' . ($name !== '' ? ', ' . $e($name) : '') . ',</p>'
+              . '<p>' . ($new ? 'założyliśmy Ci konto' : 'ustawiliśmy nowe hasło do Twojego konta') . ' w chmurze Fundacji: <a href="' . $e($url) . '">' . $e($host) . '</a>.</p>'
+              . '<p><strong>Czym jest chmura?</strong> To ' . $e($label) . ' — narzędzie do pracy grupowej (groupware) i miejsce na pliki. Zastępuje OneDrive z Microsoft 365:</p><ul>';
+        foreach ($what as $w) $html .= '<li>' . $e($w) . '</li>';
+        $html .= '</ul><p><strong>Logowanie:</strong> <a href="' . $e($url) . '">' . $e($url) . '</a><br>Login: <b>' . $e($uid) . '</b> (albo adres ' . $e($email) . ')<br>'
+               . $e($pass) . '<br>' . $e($same) . '</p>'
+               . ($label === 'Nextcloud' ? '<p>Aplikacje na komputer i telefon: <a href="https://nextcloud.com/install/">nextcloud.com/install</a> — przy pierwszym uruchomieniu wpisz adres ' . $e($host) . '.</p>' : '')
+               . '<p style="color:#555">Nikt z Fundacji nie poprosi Cię o hasło — jeśli ktoś o nie prosi, to próba oszustwa.</p>';
+        $text = ($new ? 'Założyliśmy Ci konto' : 'Ustawiliśmy nowe hasło do Twojego konta') . ' w chmurze Fundacji: ' . $url . "\n\n"
+              . 'Czym jest chmura? To ' . $label . ' — narzędzie do pracy grupowej (groupware) i miejsce na pliki. Zastępuje OneDrive z Microsoft 365:' . "\n- " . implode("\n- ", $what)
+              . "\n\nLogowanie: " . $url . "\nLogin: " . $uid . ' (albo adres ' . $email . ")\n" . $pass . "\n" . $same
+              . ($label === 'Nextcloud' ? "\n\nAplikacje na komputer i telefon: https://nextcloud.com/install/ — przy pierwszym uruchomieniu wpisz adres " . $host . '.' : '')
+              . "\n\nNikt z Fundacji nie poprosi Cię o hasło.";
+        $send = self::$sendMail ?? (function (string $to, string $nm, string $subj, string $h, string $t): bool {
+            require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+            return (bool)mail_queue_add($to, $nm, $subj, $h, $t, 'sso_cloud_account');
+        });
+        return $send($email, $name, $title, $html, $text) ? 'wysłany' : 'nie wyszedł';
     }
 
     /** Konto w chmurze z hasłem z Logto: zakłada (gdy $create) albo dowiązuje istniejące i ustawia mu to samo hasło. */
