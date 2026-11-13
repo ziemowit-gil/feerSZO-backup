@@ -31,6 +31,7 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->post('/ssoadmin/osoba',        [SsoController::class, 'personAction'])->name('sso.person');
     $r->post('/ssoadmin/pliki',        [SsoController::class, 'filesAction'])->name('sso.files');
     $r->post('/ssoadmin/loginy',       [SsoController::class, 'cloudRename'])->name('sso.cloudRename');   // loginy w chmurze z „_” → imie.nazwisko
+    $r->post('/ssoadmin/nc-uid',       [SsoController::class, 'ncUidSync'])->name('sso.ncUid');            // login chmury w Logto (customData.nc_uid)
 });
 
 $r->group(['auth'], function (Router $r) {

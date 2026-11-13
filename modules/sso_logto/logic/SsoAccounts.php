@@ -22,6 +22,13 @@ final class SsoAccounts
     /** Podmiana wysyłki e-maila w testach: fn($to, $name, $subject, $html, $text): bool. */
     public static ?\Closure $sendMail = null;
 
+    /**
+     * Klucz w customData konta Logto z loginem w chmurze (imie.nazwisko). Nextcloud (aplikacja user_oidc) bierze z niego login
+     * przy logowaniu jednokrotnym: zakres „custom_data”, mapowanie uid = custom_data.nc_uid. Nazwa użytkownika w Logto nie może
+     * mieć kropki (stąd „_”), więc bez tego logowanie przez Logto zakładałoby w chmurze nowe, puste konta zamiast istniejących.
+     */
+    public const NC_UID_KEY = 'nc_uid';
+
     public static function migrate(): void
     {
         static $done = false;
@@ -225,7 +232,9 @@ final class SsoAccounts
 
         $out = ['email' => $email, 'username' => $username, 'password' => $generated ? $password : null, 'logto' => $logtoState, 'cloud' => '', 'job' => null];
         self::audit('sso.logto_' . $logtoState, ['email' => $email, 'username' => $username, 'via' => $opt['via'] ?? '']);
-        return self::provisionCloud($person, $opt, $out, $email, $username, $name, $password, $by);
+        $out = self::provisionCloud($person, $opt, $out, $email, $username, $name, $password, $by);
+        $out['nc_uid'] = self::syncCloudUidQuiet($email);   // login chmury w Logto — logowanie do Nextcloud przez Logto
+        return $out;
     }
 
     /** Część „chmura + pliki” z provision(): konto w chmurze z tym samym hasłem i (na życzenie) zadanie kopiowania plików z OneDrive. */
@@ -425,6 +434,7 @@ final class SsoAccounts
         $res['password'] = $password;
         $now = date('Y-m-d H:i:s');
         self::upsert($email, ['cloud_uid' => $new, 'cloud_created_at' => $now, 'cloud_by' => $by]);
+        $res['nc_uid'] = self::syncCloudUidQuiet($email);   // nowy login chmury także w Logto (logowanie do Nextcloud przez Logto)
         // Logto: to samo nowe hasło (jedno hasło do logowania jednokrotnego i chmury)
         if (!empty($row['logto_id']) && SsoConfig::logtoConfigured()) {
             try { SsoConfig::logto()->setPassword((string)$row['logto_id'], $password); self::upsert($email, ['logto_pwd_at' => $now, 'logto_pwd_reset_at' => '']); $res['logto'] = 'to samo hasło'; }
@@ -515,6 +525,62 @@ final class SsoAccounts
         return ['email' => $email, 'username' => (string)$row['logto_username'], 'password' => $generated ? $password : null, 'logto' => 'password', 'cloud' => $cloud, 'job' => null];
     }
 
+    // ── Login chmury w Logto (customData.nc_uid) ────────────────────────────────────────────
+
+    /**
+     * Zapisuje login w chmurze w customData konta Logto (klucz NC_UID_KEY). Zwraca: 'zapisano' | 'bez zmian' | 'pominięte: …'.
+     * Wyjątek przy błędzie Logto. $dry = tylko sprawdź, co by się zmieniło ('do zapisania').
+     */
+    public static function syncCloudUid(string $email, bool $dry = false): string
+    {
+        $row = self::get($email);
+        if (!$row) return 'pominięte: brak konta w SZO';
+        $uid = (string)($row['cloud_uid'] ?? '');
+        $lid = (string)($row['logto_id'] ?? '');
+        if ($uid === '') return 'pominięte: brak konta w chmurze';
+        if ($lid === '') return 'pominięte: brak konta logowania jednokrotnego';
+        if (!SsoConfig::logtoConfigured()) return 'pominięte: Logto nie jest skonfigurowane';
+        $api = SsoConfig::logto();
+        $u = $api->get($lid);
+        if (!$u) return 'pominięte: konta nie ma już w Logto';
+        $cur = (string)((is_array($u['customData'] ?? null) ? $u['customData'] : [])[self::NC_UID_KEY] ?? '');
+        if ($cur === $uid) return 'bez zmian';
+        if ($dry) return 'do zapisania' . ($cur !== '' ? ' (było: ' . $cur . ')' : '');
+        $api->setCustomData($lid, [self::NC_UID_KEY => $uid]);
+        self::audit('sso.nc_uid', ['email' => strtolower(trim($email)), 'nc_uid' => $uid, 'bylo' => $cur]);
+        return 'zapisano';
+    }
+
+    /** syncCloudUid bez wyjątków (przy zakładaniu kont, zmianie loginu, webhooku) — błąd trafia do error_log. */
+    public static function syncCloudUidQuiet(string $email): string
+    {
+        try { return self::syncCloudUid($email); }
+        catch (\Throwable $e) { error_log('[sso] nc_uid ' . $email . ': ' . $e->getMessage()); return 'błąd: ' . $e->getMessage(); }
+    }
+
+    /** Ile kont ma i logowanie jednokrotne, i chmurę (kandydaci do uzupełnienia nc_uid). */
+    public static function cloudUidCandidates(): int
+    {
+        self::migrate();
+        return (int)(db_one("SELECT COUNT(*) AS c FROM sso_accounts WHERE COALESCE(logto_id,'')<>'' AND COALESCE(cloud_uid,'')<>''")['c'] ?? 0);
+    }
+
+    /**
+     * Uzupełnia nc_uid wszystkim kontom z logowaniem jednokrotnym i chmurą (raz, po wdrożeniu; potem robi to samo zakładanie kont).
+     * @return list<array{email:string,name:string,cloud_uid:string,result:string}>
+     */
+    public static function syncAllCloudUids(bool $dry = false): array
+    {
+        self::migrate();
+        $out = [];
+        foreach (db_all("SELECT email, name, cloud_uid FROM sso_accounts WHERE COALESCE(logto_id,'')<>'' AND COALESCE(cloud_uid,'')<>'' ORDER BY name, email") as $r) {
+            try { $res = self::syncCloudUid((string)$r['email'], $dry); }
+            catch (\Throwable $e) { $res = 'błąd: ' . $e->getMessage(); }
+            $out[] = ['email' => (string)$r['email'], 'name' => (string)$r['name'], 'cloud_uid' => (string)$r['cloud_uid'], 'result' => $res];
+        }
+        return $out;
+    }
+
     // ── Webhook Logto ──────────────────────────────────────────────────────────────────────
 
     /** Konto założone/zmienione poza SZO (konsola Logto, rejestracja): dowiązanie po e-mailu. Zwraca e-mail albo ''. */
@@ -526,6 +592,7 @@ final class SsoAccounts
         $row = self::byLogtoId($id);
         if ($row) {
             self::upsert((string)$row['email'], array_filter(['logto_username' => (string)($u['username'] ?? '')], fn($v) => $v !== ''));
+            if (!empty($row['cloud_uid']) && (string)(($u['customData'] ?? [])[self::NC_UID_KEY] ?? '') !== (string)$row['cloud_uid']) self::syncCloudUidQuiet((string)$row['email']);
             return (string)$row['email'];
         }
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return '';
@@ -540,6 +607,7 @@ final class SsoAccounts
             'logto_created_at' => $cur['logto_created_at'] ?? date('Y-m-d H:i:s'),
             'logto_by' => 'Logto',
         ], fn($v) => $v !== null));
+        if (!empty($cur['cloud_uid'])) self::syncCloudUidQuiet($email);   // konto założone w konsoli Logto, a chmura już była
         return $email;
     }
 

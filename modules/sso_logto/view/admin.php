@@ -297,6 +297,44 @@ $copyField = function (string $id, string $label, string $value) {
   </div>
 </section>
 
+<?php $ncRows = SsoController::takeResult('ncuid'); $ncCount = SsoAccounts::cloudUidCandidates(); ?>
+<section class="card mb-4" id="ncuid" aria-labelledby="ssoNcUidH">
+  <div class="card-header"><h2 id="ssoNcUidH" class="h6 mb-0"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Logowanie do chmury przez logowanie jednokrotne</h2></div>
+  <div class="card-body small">
+    <p class="mb-2">Nextcloud loguje przez logowanie jednokrotne i bierze login z danych konta (<code>custom_data.<?= h(SsoAccounts::NC_UID_KEY) ?></code>).
+      Nazwa użytkownika w logowaniu jednokrotnym nie może mieć kropki, więc login w chmurze (imie.nazwisko) zapisujemy tam osobno.
+      Bez niego Nextcloud nie znajdzie istniejącego konta.</p>
+    <p class="mb-2">Nowe konta dostają ten zapis same. Przycisk poniżej uzupełnia go kontom założonym wcześniej. Haseł nie zmienia i nic nie wysyła.
+      Kont z logowaniem jednokrotnym i chmurą: <strong><?= (int)$ncCount ?></strong>.</p>
+    <?php if ($ncRows !== null): $ncPreview = (bool)array_filter($ncRows, fn($r) => str_starts_with($r['result'], 'do zapisania'));
+          $ncSum = array_count_values(array_map(fn($r) => preg_replace('/[:(].*$/u', '', $r['result']), $ncRows)); ?>
+      <div class="alert alert-<?= $ncPreview ? 'info' : 'success' ?>" role="status" tabindex="-1">
+        <p class="fw-semibold mb-2"><?= $ncPreview ? 'Podgląd — nic nie zapisano.' : 'Gotowe.' ?>
+          <?= h(implode(', ', array_map(fn($k, $v) => trim($k) . ': ' . $v, array_keys($ncSum), $ncSum))) ?></p>
+        <?php $ncShow = array_values(array_filter($ncRows, fn($r) => $r['result'] !== 'bez zmian')); if ($ncShow): ?>
+        <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+          <caption class="visually-hidden">Wynik zapisu loginów chmury w logowaniu jednokrotnym</caption>
+          <thead><tr><th scope="col">Osoba</th><th scope="col">Login w chmurze</th><th scope="col">Wynik</th></tr></thead>
+          <tbody>
+          <?php foreach ($ncShow as $r): ?>
+            <tr><td><?= h($r['name'] ?: $r['email']) ?><br><span class="text-body-secondary"><?= h($r['email']) ?></span></td>
+                <td><code><?= h($r['cloud_uid']) ?></code></td>
+                <td class="<?= str_starts_with($r['result'], 'błąd') ? 'text-danger-emphasis' : '' ?>"><?= h($r['result']) ?></td></tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table></div>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+    <div class="d-flex flex-wrap gap-2">
+      <form method="post" action="<?= h(route('sso.ncUid')) ?>" class="m-0"><?= Router::csrfField() ?><input type="hidden" name="do" value="preview">
+        <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-eye" aria-hidden="true"></i> Podgląd</button></form>
+      <form method="post" action="<?= h(route('sso.ncUid')) ?>" class="m-0"><?= Router::csrfField() ?><input type="hidden" name="do" value="apply">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Zapisz loginy chmury w logowaniu jednokrotnym</button></form>
+    </div>
+  </div>
+</section>
+
 <section class="card mb-4" id="pliki" aria-labelledby="ssoFilesH">
   <div class="card-header"><h2 id="ssoFilesH" class="h6 mb-0"><i class="bi bi-files" aria-hidden="true"></i> Pliki z OneDrive → chmura</h2></div>
   <div class="card-body small">

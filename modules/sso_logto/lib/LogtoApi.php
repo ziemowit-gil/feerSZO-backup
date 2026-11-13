@@ -81,6 +81,12 @@ final class LogtoApi
         $this->request('PATCH', '/api/users/' . rawurlencode($id) . '/password', ['password' => $password]);
     }
 
+    /** Częściowa zmiana customData konta (Logto scala klucze najwyższego poziomu). Zwraca customData po zmianie. */
+    public function setCustomData(string $id, array $data): array
+    {
+        return $this->request('PATCH', '/api/users/' . rawurlencode($id) . '/custom-data', ['customData' => $data]);
+    }
+
     // ── HTTP ───────────────────────────────────────────────────────────────────────────────
 
     public function request(string $method, string $path, ?array $json = null, array $query = [], ?array &$headersOut = null): array

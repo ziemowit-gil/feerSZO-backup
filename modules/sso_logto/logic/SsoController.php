@@ -190,6 +190,23 @@ final class SsoController
         return Router::redirect($back);
     }
 
+    /**
+     * POST /ssoadmin/nc-uid — login w chmurze (imie.nazwisko) zapisany w customData.nc_uid kont Logto, żeby Nextcloud (user_oidc)
+     * przy logowaniu jednokrotnym trafiał w istniejące konta. Nowe konta dostają nc_uid same (SsoAccounts::provision); to jest
+     * jednorazowe uzupełnienie istniejących. do=preview — tylko podgląd.
+     */
+    public function ncUidSync(): ?string
+    {
+        $back = route('sso.index') . '#ncuid';
+        if (!SsoConfig::logtoConfigured()) return $this->flash($back, 'warning', 'Logto nie jest skonfigurowane — najpierw uzupełnij połączenie.');
+        @set_time_limit(600);
+        $dry = ($_POST['do'] ?? '') === 'preview';
+        $rows = SsoAccounts::syncAllCloudUids($dry);
+        if (!$dry) $this->audit('sso.nc_uid_batch', ['konta' => count($rows), 'zapisano' => count(array_filter($rows, fn($r) => $r['result'] === 'zapisano'))]);
+        $_SESSION[self::K_RESULT] = ['ctx' => 'ncuid', 'rows' => $rows, 'dry' => $dry];
+        return Router::redirect($back);
+    }
+
     public function filesAction(): ?string
     {
         $back = (string)($_POST['back'] ?? '');
