@@ -2,7 +2,9 @@
 /**
  * modules/it_portal/lib/itPortalMigracjaSeed.php — usługa „Migracja” w Portalu Usług IT (/uslugi-it/uslugi/migracja) z artykułem
  * „migracja”: terminy, powody odejścia od Microsoft 365, co zrobić, loginy i hasła, zmiany z 13.11.2026 (polecenie 2026-11-13:
- * „opisz w /uslugi-it dzisiejsze zmiany i powody migracji, artykuł rozbuduj jako: migracja”). Tekst prostym językiem (humanizer).
+ * „opisz w /uslugi-it dzisiejsze zmiany i powody migracji, artykuł rozbuduj jako: migracja”), oraz artykuły „dlaczego-migrujemy”
+ * i „iam-i-poczta” (polecenie 2026-11-13: „dodaj artykuł dlaczego migrujemy i czym jest IAM i Poczta”; limity skrzynek: 5 GB
+ * dla wolontariusza i pracownika, konta kadry kierowniczej bez zmian — „opisz to w bazie”). Tekst prostym językiem (humanizer).
  *
  * Źródła faktów: modules/dhosting_migrator/view/_why.php (licencje, ceny, awarie 2026), modules/sso_logto/view/loginInfo.php
  * (wyłączenie Microsoft 365 20.11.2026, IAM), data przełączenia poczty 14.11.2026, „od 1 grudnia jedno hasło do wszystkich aplikacji”
@@ -53,7 +55,9 @@ function itPortalMigracjaApply(string $app, bool $dryRun = false): array {
 function itPortalMigracjaIntro(string $app): string {
     return '<p>Fundacja przenosi pracę z Microsoft 365 do nowej poczty, chmury plików i systemu tożsamości IAM. '
          . 'Twój adres e-mail się nie zmienia. Microsoft 365 wyłączamy 20 listopada 2026 r.</p>'
-         . '<p>Terminy, powody zmiany, loginy i hasła opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/migracja/migracja">Migracja z Microsoft 365</a>.</p>';
+         . '<p>Terminy, loginy i hasła opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/migracja/migracja">Migracja z Microsoft 365</a>. '
+         . 'Powody zmiany znajdziesz w artykule <a href="' . $app . '/uslugi-it/uslugi/migracja/dlaczego-migrujemy">Dlaczego odchodzimy od Microsoft 365</a>, '
+         . 'a opis nowych kont w artykule <a href="' . $app . '/uslugi-it/uslugi/migracja/iam-i-poczta">Czym jest IAM, a czym poczta</a>.</p>';
 }
 
 /**
@@ -74,19 +78,9 @@ function itPortalMigracjaArticles(string $app): array {
                 . '<li>Od 1 grudnia 2026 r. jednym loginem i jednym hasłem IAM zalogujesz się do wszystkich aplikacji Fundacji. Poczta ma swoje, osobne hasło.</li></ul>'],
 
             ['type' => 'text', 'html' => '<h2>Dlaczego odchodzimy od Microsoft 365</h2>'
-                . '<p>Microsoft kilka razy zmienił warunki dla organizacji pozarządowych:</p><ul>'
-                . '<li>1 lipca 2025 r. zakończył bezpłatne licencje Microsoft 365 Business Premium i Office 365 E1. Licencje wygasają przy pierwszym odnowieniu subskrypcji, '
-                . 'więc w 2026 r. tracą je kolejne organizacje. Część z nich zgłaszała, że po wygaśnięciu z dnia na dzień straciła dostęp do poczty i plików w OneDrive.</li>'
-                . '<li>Za darmo zostaje tylko pakiet Business Basic: poczta i Office w przeglądarce i w telefonie, bez programów na komputer. '
-                . 'Pełny pakiet trzeba kupować co miesiąc dla każdej osoby.</li>'
-                . '<li>1 lipca 2026 r. Microsoft podniósł ceny części pakietów.</li>'
-                . '<li>31 grudnia 2026 r. kończy się wsparcie narzędzia <span lang="en">Fundraising and Engagement</span> dla organizacji pozarządowych.</li></ul>'
-                . '<p>W 2026 r. poczta Microsoft 365 kilka razy przestała działać. 22 stycznia Outlook i Teams nie działały u dziesiątek tysięcy osób. '
-                . '31 sierpnia przez kilka godzin na całym świecie nie dało się wysyłać ani odbierać poczty, a awaria objęła też Teams, SharePoint i OneDrive. '
-                . '12 i 13 listopada przyszła jedna z największych awarii: poczta, Teams i SharePoint nie działały w 74 krajach, zgłoszeń było około 140 tysięcy.</p>'
-                . '<p>Gdy poczta, pliki i spotkania są u jednego dostawcy, jego awaria zatrzymuje pracę całej Fundacji. Każda zmiana jego zasad '
-                . 'oznacza wybór: płacić więcej albo stracić dostęp. Dlatego pocztę przenosimy do polskiego dostawcy, a pliki do chmury Fundacji. '
-                . 'Obie usługi działają na otwartych standardach, więc w razie potrzeby przeniesiemy je dalej bez zmiany Twojego adresu.</p>'],
+                . '<p>Microsoft zakończył bezpłatne licencje dla organizacji pozarządowych i podnosi ceny, a w 2026 r. jego poczta kilka razy przestała działać, '
+                . 'także na całym świecie. Gdy poczta, pliki i spotkania są u jednego dostawcy, jego awaria zatrzymuje całą Fundację. '
+                . 'Szczegóły opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/migracja/dlaczego-migrujemy">Dlaczego odchodzimy od Microsoft 365</a>.</p>'],
 
             ['type' => 'wizard', 'title' => 'Co masz zrobić', 'intro' => '<p>Część kroków mógł już zrobić za Ciebie administrator. Wtedy na stronach z kroków 1 i 3 zobaczysz, że są gotowe.</p>', 'steps' => [
                 $step('Przenieś pocztę', '<p>Wejdź na stronę <a href="' . $app . '/migracjapoczty">Migracja poczty</a>. Jeśli poczta jest już przeniesiona, zobaczysz to od razu, '
@@ -140,5 +134,61 @@ function itPortalMigracjaArticles(string $app): array {
                 . 'Jeśli przyjdzie SMS o zmianie hasła, której nie robiłeś(-aś), od razu <a href="' . $hd . '">napisz do Helpdesku</a>.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Masz pytanie albo coś nie działa? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],
         ], true],
+
+        'dlaczego-migrujemy' => ['Dlaczego odchodzimy od Microsoft 365',
+            'dlaczego, powód, microsoft 365, office 365, licencje, ceny, awaria, awarie, vendor lock-in, uzależnienie, otwarte standardy, imap, smtp, migracja', [
+            ['type' => 'text', 'html' => '<p>Poczta, pliki i spotkania Fundacji są dziś w Microsoft 365. W 2025 i 2026 r. Microsoft kilka razy zmienił warunki '
+                . 'dla organizacji pozarządowych, a jego usługi kilka razy przestały działać. Dlatego przenosimy pracę do narzędzi, nad którymi mamy kontrolę.</p>'],
+            ['type' => 'text', 'html' => '<h2>Zmiany warunków</h2><ul>'
+                . '<li>1 lipca 2025 r. Microsoft zakończył bezpłatne licencje Microsoft 365 Business Premium i Office 365 E1 dla organizacji pozarządowych. '
+                . 'Licencje wygasają przy pierwszym odnowieniu subskrypcji, więc w 2026 r. tracą je kolejne organizacje.</li>'
+                . '<li>Część organizacji zgłaszała na forum Microsoftu, że po wygaśnięciu licencji z dnia na dzień straciła dostęp do poczty i plików w OneDrive, '
+                . 'dopóki nie kupiła nowych.</li>'
+                . '<li>Za darmo zostaje tylko pakiet Business Basic: poczta i Office w przeglądarce i w telefonie, bez programów na komputer, takich jak Outlook czy Word. '
+                . 'Pełny pakiet trzeba kupić z rabatem, ale za każdą osobę i co miesiąc.</li>'
+                . '<li>1 lipca 2026 r. Microsoft podniósł ceny części pakietów Microsoft 365.</li>'
+                . '<li>31 grudnia 2026 r. kończy się wsparcie narzędzia <span lang="en">Fundraising and Engagement</span> dla organizacji pozarządowych.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Awarie w 2026 r.</h2><ul>'
+                . '<li>22 stycznia Outlook i Teams nie działały u dziesiątek tysięcy osób.</li>'
+                . '<li>31 sierpnia przez kilka godzin na całym świecie nie dało się zalogować do poczty Exchange Online ani wysyłać i odbierać wiadomości. '
+                . 'Awaria objęła też Teams, SharePoint i OneDrive. Microsoft podał jako przyczynę błąd w konfiguracji logowania.</li>'
+                . '<li>12 i 13 listopada przyszła jedna z największych awarii Microsoft 365. Od wieczora 12 listopada poczta w Outlooku, Teams, SharePoint i Copilot '
+                . 'nie działały w 74 krajach, a zgłoszeń było około 140 tysięcy, m.in. z urzędów i brytyjskiej służby zdrowia. Według Microsoftu nie był to atak, '
+                . 'tylko skutek zmian w ustawieniach serwerów po aktualizacji. Następnego dnia Microsoft wciąż przywracał działanie usług.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Co zmieniamy</h2>'
+                . '<p>Gdy poczta, pliki i spotkania są u jednego dostawcy, jego awaria zatrzymuje pracę całej Fundacji. Każda zmiana jego zasad stawia nas przed wyborem: '
+                . 'płacić więcej albo stracić dostęp. Takie uzależnienie od jednego dostawcy nazywa się po angielsku <span lang="en">vendor lock-in</span>.</p>'
+                . '<p>Pocztę przenosimy do polskiego dostawcy, u którego koszt nie zależy od zmian w programach Microsoftu. Poczta działa na otwartych standardach '
+                . 'IMAP i SMTP, więc w razie potrzeby przeniesiemy ją dalej bez zmiany Twojego adresu. Pliki trafiają do chmury Fundacji, a logowanie do systemu '
+                . 'tożsamości IAM. Opis nowych kont jest w artykule <a href="' . $app . '/uslugi-it/uslugi/migracja/iam-i-poczta">Czym jest IAM, a czym poczta</a>.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Terminy i to, co masz zrobić, opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/migracja/migracja">Migracja z Microsoft 365</a>.</p>'],
+        ], false],
+
+        'iam-i-poczta' => ['Czym jest IAM, a czym poczta',
+            'iam, logowanie jednokrotne, sso, logto, tożsamość, konto, chmura, nextcloud, poczta, skrzynka, limit, 5 gb, pojemność, hasło, login, dpoczta', [
+            ['type' => 'text', 'html' => '<p>Po migracji masz dwa konta z osobnymi hasłami: konto IAM i skrzynkę pocztową. Loginem w obu jest zwykle ten sam adres e-mail, '
+                . 'ale hasła muszą być różne.</p>'],
+            ['type' => 'text', 'html' => '<h2>IAM, czyli logowanie jednokrotne</h2>'
+                . '<p>IAM to system tożsamości Fundacji. Jedno konto i jedno hasło otwiera SZO, chmurę plików i kolejne aplikacje Fundacji. '
+                . 'Od 1 grudnia 2026 r. tym kontem zalogujesz się do wszystkich aplikacji Fundacji.</p><ul>'
+                . '<li>Login to adres e-mail zapisany w SZO.</li>'
+                . '<li>Na stronie logowania SZO wybierz „Zaloguj przez logowanie jednokrotne”. Strona logowania IAM ma adres <code>logto.feer.org.pl</code>.</li>'
+                . '<li>Konto założysz po zalogowaniu do SZO albo w Systemie Tożsamości, w sekcji <a href="' . $app . '/tozsamosc/index.php#sso">Logowanie jednokrotne</a>.</li>'
+                . '<li>Chmura plików ma to samo hasło co IAM. Zastępuje OneDrive: trzymasz w niej pliki, udostępniasz je innym osobom i synchronizujesz z komputerem i telefonem.</li>'
+                . '<li>Hasło zmienisz na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. Kod potwierdzenia przyjdzie e-mailem.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Poczta</h2>'
+                . '<p>Poczta służbowa ma ten sam adres co dotąd: <code>imie.nazwisko@feer.org.pl</code>. Od 14 listopada 2026 r. działa u polskiego dostawcy, poza Microsoft 365.</p><ul>'
+                . '<li>W przeglądarce otwierasz ją na <a href="https://dpoczta.pl">dpoczta.pl</a>. Do telefonu i programu pocztowego dodajesz ją jako konto IMAP, '
+                . 'według instrukcji w usłudze <a href="' . $app . '/uslugi-it/uslugi/moja-poczta">Moja poczta</a>.</li>'
+                . '<li>Logujesz się pełnym adresem e-mail i hasłem do poczty, innym niż hasło IAM.</li>'
+                . '<li>Skrzynka wolontariusza i pracownika ma 5 GB. Skrzynki kadry kierowniczej zachowują dotychczasowy limit.</li>'
+                . '<li>Hasło zmienisz na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. Kod potwierdzenia przyjdzie SMS-em, a gdy nie mamy Twojego numeru, na prywatny e-mail.</li>'
+                . '<li>Skrzynkę możesz dodatkowo zabezpieczyć weryfikacją dwuetapową (2FA). Opis jest w usłudze Moja poczta.</li></ul>'],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Skrzynka zapełnia się szybciej, gdy trzymasz w niej duże załączniki. Pliki zapisuj w chmurze i wysyłaj link zamiast załącznika.</p>'],
+            ['type' => 'text', 'html' => '<h2>Dlaczego dwa hasła</h2>'
+                . '<p>Jeśli ktoś pozna hasło IAM, nie wejdzie do Twojej poczty, i odwrotnie. Dlatego strona Nowe hasło nie przyjmie hasła do poczty takiego samego jak hasło IAM.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Hasło IAM wpisuj tylko na stronie logowania SZO i na <code>logto.feer.org.pl</code>, a hasło do poczty na dpoczta.pl i w swoim programie pocztowym. '
+                . 'Nikt z Fundacji nie poprosi Cię o hasło. <a href="' . $hd . '">Napisz do Helpdesku</a>, jeśli coś Cię zaniepokoi.</p>'],
+        ], false],
     ];
 }

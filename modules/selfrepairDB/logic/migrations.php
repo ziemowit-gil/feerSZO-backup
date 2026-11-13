@@ -682,4 +682,16 @@ return [
         },
     ],
 
+    // Portal Usług IT, usługa „Migracja”: artykuły „Dlaczego odchodzimy od Microsoft 365” i „Czym jest IAM, a czym poczta”
+    // (limity skrzynek: 5 GB wolontariusz/pracownik, kadra kierownicza bez zmian), krótszy wstęp „Dlaczego” w artykule „migracja”
+    // (polecenie 2026-11-13). Seeder nadpisuje tylko własną usługę i artykuły; linki na https://szo.feer.org.pl.
+    '2026-11_it_portal_migracja_iam_poczta' => [
+        'desc' => 'Portal Usług IT: artykuły „Dlaczego odchodzimy od Microsoft 365” i „Czym jest IAM, a czym poczta” w usłudze „Migracja”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            itPortalMigracjaApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_migracja_seed.php [--dry-run]
+        },
+    ],
+
 ];
