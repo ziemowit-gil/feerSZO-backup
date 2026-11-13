@@ -42,7 +42,7 @@ header('Cache-Control: no-store');
 <a href="#tresc" class="sr-only focus:not-sr-only focus:absolute focus:p-3 focus:bg-white">Przejdź do treści</a>
 <main id="tresc" class="max-w-4xl mx-auto p-4 sm:p-8" x-data='stopkaGen(<?= json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>
   <h1 class="text-2xl font-semibold mb-1">Generator stopki e-mail</h1>
-  <p class="text-slate-700 mb-6">Wpisz swoje dane, sprawdź podgląd i skopiuj stopkę jednym kliknięciem. Dane zostają w Twojej przeglądarce — nic nie wysyłamy na serwer.</p>
+  <p class="text-slate-700 mb-6">Wpisz swoje dane, sprawdź podgląd i skopiuj stopkę jednym kliknięciem. Dane zostają w Twojej przeglądarce — nic nie wysyłamy na serwer. Stopka jest elementem tożsamości Fundacji, dlatego każdy używa tego samego wzoru.</p>
 
   <div class="grid md:grid-cols-2 gap-6">
     <section class="bg-white rounded shadow p-5 space-y-3" aria-labelledby="h-dane">

@@ -27,13 +27,13 @@ function itPortalNoticeStopkaApply(string $app, bool $dryRun = false, string $da
 /** Treść komunikatu (HTML przechodzi przez itPortalSanitizeHtml w itPortalNoticeSave). */
 function itPortalNoticeStopkaBody(string $app): string {
     $a = static fn(string $path, string $text): string => '<a href="' . $app . $path . '">' . $text . '</a>';
-    return '<p>Od teraz każda wiadomość ze służbowej skrzynki musi mieć stopkę z generatora Fundacji.</p>'
+    return '<p>Od teraz każda wiadomość ze służbowej skrzynki musi mieć stopkę z generatora Fundacji. Stopka jest elementem tożsamości Fundacji, dlatego wszyscy używamy tego samego wzoru.</p>'
         . '<h3>Co masz zrobić</h3><ol>'
         . '<li>Otwórz ' . $a('/pomocne/generatorstopki', 'generator stopki') . ' (nie wymaga logowania).</li>'
         . '<li>Wpisz imię, nazwisko, stanowisko, telefon i adres e-mail. Dane Fundacji i linki do Facebooka, Instagrama i LinkedIna są w stopce od razu.</li>'
         . '<li>Kliknij „Kopiuj stopkę do schowka” i wklej ją w ustawieniach podpisu swojej poczty.</li></ol>'
         . '<h3>Do zapamiętania</h3><ul>'
-        . '<li>Wzór jest jeden dla wszystkich, więc nie zmieniamy go ręcznie.</li>'
+        . '<li>Stopka jest elementem tożsamości Fundacji, więc nie zmieniamy jej wyglądu ręcznie.</li>'
         . '<li>Gdy zmieni się telefon albo stanowisko, wygeneruj stopkę jeszcze raz.</li>'
         . '<li>Dane wpisane w generatorze zostają w Twojej przeglądarce i nie trafiają na serwer.</li></ul>'
         . '<h3>Gdzie przeczytać więcej</h3><ul>'
