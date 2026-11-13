@@ -307,7 +307,7 @@ $_asaiw_chips  = asai_suggestions($_asaiw_role, true, $_asaiw_scope);
     if (!trace || !trace.length) return;
     var d = document.createElement('div');
     d.className = 'asaiw-steps';
-    var names = { szukaj: 'Szukał w bazie wiedzy', otworz: 'Otworzył', funkcje: 'Sprawdził funkcje systemu', moje: 'Sprawdził Twoje dane' };
+    var names = { szukaj: 'Szukał w bazie wiedzy', otworz: 'Otworzył', funkcje: 'Sprawdził funkcje systemu', pomoc_it: 'Szukał w Pomocy IT', moje: 'Sprawdził Twoje dane' };
     var html = '';
     trace.forEach(function (t) {
       html += '<div>' + esc(names[t.tool] || t.tool) + ': „' + esc(t.input) + '" — ' + esc(t.summary) + '</div>';

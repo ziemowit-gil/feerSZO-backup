@@ -12,6 +12,7 @@
  *   • szukaj_w_bazie_wiedzy — dokumenty organizacji (co obowiązuje formalnie)
  *   • otworz_dokument       — pełna treść wskazanego wpisu
  *   • funkcje_systemu       — funkcje SZO: gdzie kliknąć, jakie kroki (includes/szo_features.php)
+ *   • pomoc_it              — Pomoc IT: artykuły i komunikaty Portalu Usług IT (modules/it_portal, /uslugi-it)
  *   • moje_dane             — dane bieżącego użytkownika (TYLKO sesja, nie link publiczny)
  *
  * Przeszukiwane źródła bazy wiedzy:
@@ -178,7 +179,69 @@ function asai_source_meta(): array {
         'zasada'    => ['label' => 'Zasada organizacji',     'icon' => 'bi-building-heart',  'url' => fn($id) => APP_URL . '/org_intro/index.php'],
         'komunikat' => ['label' => 'Komunikat organizacji',  'icon' => 'bi-megaphone',      'url' => fn($id) => APP_URL . '/komunikaty/index.php#k' . (int)$id],
         'funkcja'   => ['label' => 'Funkcja systemu',        'icon' => 'bi-grid-3x3-gap',   'url' => fn($id) => APP_URL],
+        'artykul_it'   => ['label' => 'Pomoc IT · artykuł',  'icon' => 'bi-life-preserver', 'url' => fn($id) => asai_it_article_url((int)$id)],
+        'komunikat_it' => ['label' => 'Pomoc IT · komunikat', 'icon' => 'bi-broadcast',     'url' => fn($id) => APP_URL . '/uslugi-it/komunikaty/' . (int)$id],
     ];
+}
+
+// ── Pomoc IT: artykuły i komunikaty Portalu Usług IT (/uslugi-it, jawne dla wszystkich) ──
+/** Czy jest Portal Usług IT (moduł + tabele). */
+function asai_it_available(): bool {
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    $f = dirname(__DIR__) . '/modules/it_portal/logic/itPortal.php';
+    if (!is_file($f)) return $ok = false;
+    require_once $f;
+    try { return $ok = (bool)db_one("SELECT 1 FROM sqlite_master WHERE type='table' AND name='itp_articles'"); }
+    catch (\Throwable) { return $ok = false; }
+}
+
+/** Publiczny adres artykułu Portalu Usług IT. */
+function asai_it_article_url(int $id): string {
+    if (!asai_it_available()) return APP_URL . '/uslugi-it/';
+    $r = db_one("SELECT a.slug, c.slug AS cslug FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE a.id = ?", [$id]);
+    return $r ? itPortalUrl('uslugi/' . rawurlencode($r['cslug']) . '/' . rawurlencode($r['slug'])) : itPortalUrl();
+}
+
+/**
+ * Szukanie w Pomocy IT. itPortalSearch() wymaga wszystkich słów naraz — gdy fraza od modelu jest dłuższa
+ * i nic nie trafia, szukamy każdym słowem osobno i sortujemy po sumie punktów słów (słowo w tytule waży więcej niż w treści).
+ * @return array{articles:array, notices:array}
+ */
+function asai_it_search(string $q, int $limit = 6): array {
+    $out = ['articles' => [], 'notices' => []];
+    if (!asai_it_available() || trim($q) === '') return $out;
+    $r = itPortalSearch($q, false);
+    $arts = $r['articles']; $nots = $r['notices'];
+    if (!$arts && !$nots) {
+        $hitA = []; $hitN = [];
+        foreach (array_slice(preg_split('/\s+/u', trim($q)) ?: [], 0, 6) as $w) {
+            if (mb_strlen($w) < 3 || in_array(mb_strtolower($w), ['jak', 'się', 'nie', 'czy', 'gdzie', 'mój', 'moja', 'moje', 'mam', 'jest', 'dla', 'oraz', 'albo'], true)) continue;
+            $rw = itPortalSearch($w, false);
+            foreach ($rw['articles'] as $a) { $hitA[$a['id']] ??= $a + ['n' => 0]; $hitA[$a['id']]['n'] += intdiv((int)$a['score'], 100000); }
+            foreach ($rw['notices'] as $n) { $hitN[$n['id']] ??= $n + ['n' => 0]; $hitN[$n['id']]['n']++; }
+        }
+        uasort($hitA, fn($a, $b) => [$b['n'], $b['views']] <=> [$a['n'], $a['views']]);   // n = suma punktów słów (tytuł 10, treść 1)
+        uasort($hitN, fn($a, $b) => $b['n'] <=> $a['n']);
+        $arts = array_values($hitA); $nots = array_values($hitN);
+    }
+    $out['articles'] = array_slice($arts, 0, $limit);
+    $out['notices']  = array_slice($nots, 0, 3);
+    return $out;
+}
+
+/** Bieżące komunikaty IT (awarie w toku / zgłoszone) — do panelu bocznego czatu. */
+function asai_it_open_notices(int $limit = 3): array {
+    if (!asai_it_available()) return [];
+    return db_all("SELECT id, title, status, notice_date FROM itp_notices WHERE is_published = 1 AND status IN ('zgloszone','w_toku')
+                   AND notice_date >= date('now','-30 days') ORDER BY notice_date DESC, id DESC LIMIT " . max(1, $limit));
+}
+
+/** Popularne instrukcje Pomocy IT (przypięte, potem najczęściej czytane). */
+function asai_it_popular(int $limit = 6): array {
+    if (!asai_it_available()) return [];
+    return array_map(fn($a) => ['title' => $a['title'], 'url' => itPortalUrl('uslugi/' . rawurlencode($a['category_slug']) . '/' . rawurlencode($a['slug']))],
+                     itPortalPopular($limit));
 }
 
 /** Zbuduj URL do rekordu danego typu. */
@@ -378,6 +441,21 @@ function asai_fetch(string $type, int $id, array $ctx = []): array {
             return ['ok'=>true, 'title'=>$r['original_name'],
                     'meta'=>'Załącznik do procedury #' . (int)$r['procedure_id'],
                     'content'=>'(Plik binarny — treści nie można odczytać automatycznie. Otwórz przez link źródłowy.)'];
+        case 'artykul_it':
+            if (!asai_it_available()) break;
+            $r = db_one("SELECT a.title, a.body_plain, c.name AS cname FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id
+                         WHERE a.id = ? AND a.is_published = 1 AND c.is_active = 1", [$id]);
+            if (!$r) break;
+            return ['ok'=>true, 'title'=>$r['title'],
+                    'meta'=>'Artykuł Pomocy IT (Portal Usług IT), usługa: ' . $r['cname'] . ', adres: ' . asai_it_article_url($id),
+                    'content'=>(string)$r['body_plain']];
+        case 'komunikat_it':
+            if (!asai_it_available()) break;
+            $r = db_one("SELECT title, body_plain, status, notice_date FROM itp_notices WHERE id = ? AND is_published = 1", [$id]);
+            if (!$r) break;
+            return ['ok'=>true, 'title'=>$r['title'],
+                    'meta'=>'Komunikat IT z ' . $r['notice_date'] . ', status: ' . (ITP_NOTICE_STATUSES[$r['status']]['label'] ?? $r['status']),
+                    'content'=>(string)$r['body_plain']];
     }
     return ['ok'=>false, 'error'=>'Nie znaleziono rekordu ' . $type . ' #' . $id . ' (mógł zostać usunięty lub zarchiwizowany).'];
 }
@@ -749,7 +827,7 @@ function asai_tools(array $ctx = []): array {
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
-                    'typ' => ['type' => 'string', 'enum' => ['procedura', 'dokument', 'uchwala', 'zasada', 'komunikat', 'zalacznik']],
+                    'typ' => ['type' => 'string', 'enum' => ['procedura', 'dokument', 'uchwala', 'zasada', 'komunikat', 'zalacznik', 'artykul_it', 'komunikat_it']],
                     'id'  => ['type' => 'integer', 'description' => 'Identyfikator wpisu zwrócony przez wyszukiwarkę.'],
                 ],
                 'required' => ['typ', 'id'],
@@ -767,6 +845,22 @@ function asai_tools(array $ctx = []): array {
             ],
         ],
     ];
+
+    if (asai_it_available()) {
+        $tools[] = [
+            'name' => 'pomoc_it',
+            'description' => 'Przeszukuje Pomoc IT (Portal Usług IT): instrukcje krok po kroku dla poczty, haseł i logowania, chmury, VPN, EZD, bezpieczeństwa, '
+                           . 'migracji poczty, a także bieżące komunikaty o awariach. Używaj przy każdym pytaniu technicznym („nie działa", „jak skonfigurować", '
+                           . '„hasło", „poczta", „telefon", „drukarka", „awaria"). Zapytanie: 1–3 słowa kluczowe. Pełną treść artykułu daje „otworz_dokument" z typem artykul_it.',
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'zapytanie' => ['type' => 'string', 'description' => 'Krótkie słowa kluczowe po polsku (np. „hasło poczta", „vpn", „telefon konfiguracja").'],
+                ],
+                'required' => ['zapytanie'],
+            ],
+        ];
+    }
 
     if (!empty($ctx['personal'])) {
         $tools[] = [
@@ -831,6 +925,7 @@ Jesteś asystentem organizacji pozarządowej ({$org}) wewnątrz systemu SZO — 
 Odpowiadasz na dwa różne rodzaje pytań i masz do nich różne narzędzia:
 A) „Co u nas obowiązuje" (procedura, uchwała, zasada, dokument, komunikat) → „szukaj_w_bazie_wiedzy" i „otworz_dokument".
 B) „Jak/gdzie to zrobić w systemie" (ekran, kroki, przycisk, moduł) → „funkcje_systemu".
+D) Sprawy techniczne IT (poczta, hasła, logowanie, chmura, VPN, telefon, komputer, awaria) → „pomoc_it", a potem „otworz_dokument" (typ artykul_it) dla najlepszego artykułu. Odpowiedz krótko krokami z artykułu i podaj jego adres. Jeśli komunikat IT mówi o trwającej awarii — powiedz to na początku. Gdy Pomoc IT nie rozwiązuje problemu, odeślij do Helpdesku IT: zgłoszenie po zalogowaniu {$app}/helpdesk/new.php; kto nie może się zalogować — {$app}/auth/report_login_issue.php (bez logowania); kontakt z działem IT: {$app}/uslugi-it/kontakt. Nigdy nie proś o podanie hasła w rozmowie.
 C) CRM (tylko edytor/administrator z prawem zapisu): „crm_przeglad_bazy" (zbiorcze statystyki), „crm_utworz_liste" (lista/segment kontaktów), „crm_utworz_status". Najpierw przejrzyj bazę, zaproponuj użytkownikowi konkretne statusy/listy i twórz je dopiero po jego zgodzie; reguły automatyczne i szersze propozycje wskaż na ekranie {$app}/crm/settings/ai_builder.php.
 Wiele pytań to jedno i drugie — wtedy użyj obu: najpierw sprawdź, co mówi dokument, potem wskaż ekran, na którym to się załatwia.
 
@@ -973,6 +1068,27 @@ function asai_run(array $history, int $max_iter = 6, array $opts = []): array {
                             'summary' => $rep['count'] . ' funkcji/ekranów'];
                 foreach ($rep['sources'] as $k => $src) $sources[$k] = $src;
                 $out = $rep['text'];
+            } elseif ($name === 'pomoc_it') {
+                $q  = (string)($in['zapytanie'] ?? '');
+                $it = asai_it_search($q);
+                $trace[] = ['tool' => 'pomoc_it', 'input' => $q,
+                            'summary' => count($it['articles']) . ' artykułów, ' . count($it['notices']) . ' komunikatów'];
+                $lines = [];
+                foreach ($it['notices'] as $n) {
+                    $nid = (int)$n['id'];
+                    $sources['komunikat_it:' . $nid] = ['type' => 'komunikat_it', 'id' => $nid, 'title' => $n['title'],
+                        'url' => asai_source_url('komunikat_it', $nid), 'label' => $meta['komunikat_it']['label'], 'icon' => $meta['komunikat_it']['icon']];
+                    $lines[] = "- [komunikat_it #{$nid}] {$n['title']} ({$n['notice_date']}, status: " . (ITP_NOTICE_STATUSES[$n['status']]['label'] ?? $n['status']) . ")";
+                }
+                foreach ($it['articles'] as $a) {
+                    $aid = (int)$a['id'];
+                    $url = itPortalUrl('uslugi/' . rawurlencode($a['category_slug']) . '/' . rawurlencode($a['slug']));
+                    $sources['artykul_it:' . $aid] = ['type' => 'artykul_it', 'id' => $aid, 'title' => $a['title'], 'url' => $url,
+                        'label' => $meta['artykul_it']['label'], 'icon' => $meta['artykul_it']['icon']];
+                    $lines[] = "- [artykul_it #{$aid}] {$a['title']} (usługa: {$a['category_name']}) {$url}\n  Fragment: " . itPortalExcerpt((string)$a['body_plain'], 260);
+                }
+                $out = $lines ? "Pomoc IT — wyniki:\n" . implode("\n", $lines)
+                              : "Brak artykułów Pomocy IT dla „{$q}\". Spróbuj innego słowa albo odeślij do Helpdesku IT: " . APP_URL . '/helpdesk/new.php (po zalogowaniu) lub ' . APP_URL . '/uslugi-it/kontakt';
             } elseif ($name === 'moje_dane') {
                 if (empty($actx['personal'])) {
                     $trace[] = ['tool' => 'moje', 'input' => '—', 'summary' => 'brak sesji — odmowa'];
