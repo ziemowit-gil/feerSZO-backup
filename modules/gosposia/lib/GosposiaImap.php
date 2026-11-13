@@ -43,7 +43,7 @@ final class GosposiaImap
         $ctx = stream_context_create(['ssl' => ['verify_peer' => true, 'verify_peer_name' => true, 'peer_name' => $host, 'SNI_enabled' => true]]);
         $errno = 0; $errstr = '';
         $s = @stream_socket_client($this->address, $errno, $errstr, $this->timeout, STREAM_CLIENT_CONNECT, $ctx);
-        if (!$s) throw new GosposiaImapUnavailable('Nie udało się połączyć z serwerem poczty (' . $host . '). Spróbuj za chwilę.');
+        if (!$s) throw new GosposiaImapUnavailable('Nie udało się połączyć z pocztą. Spróbuj za chwilę.');
         stream_set_timeout($s, $this->timeout);
         $this->sock = $s;
         [$greet] = $this->readLine();
@@ -67,7 +67,7 @@ final class GosposiaImap
         try {
             $this->readTagged($tag);
         } catch (GosposiaImapCommandFailed) {
-            throw new GosposiaImapAuthFailed('Serwer poczty nie przyjął adresu albo hasła. Sprawdź hasło do poczty (to nie jest hasło logowania jednokrotnego).');
+            throw new GosposiaImapAuthFailed('Poczta nie przyjęła adresu albo hasła. Sprawdź hasło do poczty.');
         }
         $this->caps = [];
     }

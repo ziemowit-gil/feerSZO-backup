@@ -592,6 +592,17 @@ panelMetroAssets($_vol_color);
       </div>
     </div>
 
+    <?php if (user_volunteer_contract_count() > 0 || is_admin()): /* Gosposia (modules/gosposia): administrator i współpracownicy z umową */ ?>
+    <div class="mt-svc" style="--c:var(--m-teal, #00797a)">
+      <i class="bi bi-stars ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3>Gosposia</h3>
+        <p>Sprząta z poczty reklamy i newslettery. Ty wybierasz, co wyrzucić, a wiadomości trafiają do Kosza.</p>
+        <div class="mt-links"><a href="<?= APP_URL ?>/pomocne/gosposia"><i class="bi bi-arrow-right-circle" aria-hidden="true"></i>Posprzątaj pocztę</a></div>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <?php if (org_setting('dhosting_self_enabled') === '1'): /* migrator M365 → dhosting — samodzielna strona /migracjapoczty */ ?>
     <div class="mt-svc" style="--c:var(--m-blue, #0050ef)">
       <i class="bi bi-envelope-at ic" aria-hidden="true"></i>

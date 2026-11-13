@@ -136,6 +136,11 @@ $_sh_lead = $_sh_admin
   $_sh_tiles[] = ['href'=>APP_URL.'/nowehaslo','icon'=>'bi-key','label'=>'Zmiana haseł',
                   'sub'=>'poczta oraz logowanie i chmura','color'=>'indigo','group'=>'konto',
                   'aria'=>'Zmiana haseł: osobno hasło do poczty i wspólne hasło do logowania jednokrotnego i chmury plików'];
+  if (is_admin()) {   // Gosposia (modules/gosposia, /pomocne/gosposia): administrator i współpracownicy z umową (ci mają kafel w pv_home.php)
+      $_sh_tiles[] = ['href'=>APP_URL.'/pomocne/gosposia','icon'=>'bi-stars','label'=>'Gosposia',
+                      'sub'=>'sprzątanie reklam z poczty','color'=>'teal','group'=>'konto',
+                      'aria'=>'Gosposia: sprzątanie reklam i newsletterów z poczty, z potwierdzeniem przed przeniesieniem do Kosza'];
+  }
   if (org_setting('dhosting_self_enabled') === '1') {   // migrator M365 → dhosting (modules/dhosting_migrator), samodzielna strona
       $_sh_tiles[] = ['href'=>APP_URL.'/migracjapoczty','icon'=>'bi-envelope-at','label'=>'Migracja poczty',
                       'sub'=>'nowa skrzynka, hasło SMS-em, kopiowanie poczty','color'=>'blue','group'=>'konto'];

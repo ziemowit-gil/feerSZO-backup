@@ -16,7 +16,21 @@ require_once __DIR__ . '/logic/GosposiaController.php';
 
 $r = new Router('/modules/gosposia/router.php', 'path', rtrim(APP_URL, '/'));
 
-$r->group(['auth'], function (Router $r) {
+// Dostęp: administrator i współpracownicy (osoba z umową, jak Panel współpracownika: user_volunteer_contract_count > 0).
+$r->aliasMiddleware('gosposia.access', function (): void {
+    require_login();
+    if (is_admin() || user_volunteer_contract_count(current_user()) > 0) return;
+    http_response_code(403);
+    $isJson = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && !isset($_POST['password']);
+    if ($isJson) { header('Content-Type: application/json; charset=utf-8'); echo json_encode(['ok' => false, 'error' => 'Gosposia jest dla administratora i współpracowników Fundacji.'], JSON_UNESCAPED_UNICODE); exit; }
+    echo '<!doctype html><html lang="pl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Gosposia</title>'
+       . '<main style="font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem"><h1>Gosposia</h1>'
+       . '<p>To narzędzie jest dla administratora i współpracowników Fundacji (osób z umową).</p>'
+       . '<p><a href="' . h(APP_URL . '/') . '">Wróć do SZO</a></p></main>';
+    exit;
+});
+
+$r->group(['gosposia.access'], function (Router $r) {
     $r->get('/pomocne/gosposia',                   [GosposiaController::class, 'index'])->name('gosposia.index');
     $r->post('/pomocne/gosposia/polacz',           [GosposiaController::class, 'connect'])->name('gosposia.connect');
     $r->post('/pomocne/gosposia/rozlacz',          [GosposiaController::class, 'disconnect'])->name('gosposia.disconnect');

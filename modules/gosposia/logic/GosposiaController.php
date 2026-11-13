@@ -4,7 +4,8 @@ declare(strict_types=1);
 /**
  * modules/gosposia/logic/GosposiaController.php — ekrany /pomocne/gosposia (zalogowani użytkownicy SZO).
  *
- * GET  /pomocne/gosposia                    — formularz połączenia skrzynki albo panel sprzątania;
+ * GET  /pomocne/gosposia                    — samodzielna strona (bez menu SZO): połączenie poczty albo sprzątanie;
+ * Dostęp: administrator i współpracownicy (osoby z umową) — middleware gosposia.access w router.php;
  * POST /pomocne/gosposia/polacz             — sprawdzenie loginu na imap.dpoczta.pl i zapis poświadczeń (PRG);
  * POST /pomocne/gosposia/rozlacz            — zapomnij skrzynkę (sesja + baza) (PRG);
  * POST /pomocne/gosposia/przeglad           — JSON: nadawcy do sprzątania;
@@ -29,6 +30,7 @@ final class GosposiaController
             'whitelist' => GosposiaStore::whitelist($uid),
             'aiReady'   => GosposiaClassifier::apiKey() !== '',
             'limit'     => Gosposia::scanLimit(),
+            'flash'     => flash_get(),
         ]);
     }
 
@@ -37,7 +39,7 @@ final class GosposiaController
         $uid = (int)current_user()['id'];
         try {
             Gosposia::connect($uid, (string)($_POST['email'] ?? ''), (string)($_POST['password'] ?? ''), !empty($_POST['remember']));
-            flash_set('success', 'Skrzynka połączona. Kliknij „Przejrzyj skrzynkę”.');
+            flash_set('success', 'Poczta połączona. Kliknij „Sprawdź pocztę”.');
         } catch (\RuntimeException $e) {
             flash_set('danger', $e->getMessage());
         }
@@ -47,7 +49,7 @@ final class GosposiaController
     public function disconnect(): ?string
     {
         Gosposia::disconnect((int)current_user()['id']);
-        flash_set('info', 'Gosposia zapomniała Twoją skrzynkę i hasło.');
+        flash_set('info', 'Poczta odłączona. Gosposia nie pamięta już hasła.');
         return Router::redirect(route('gosposia.index'));
     }
 
@@ -56,11 +58,11 @@ final class GosposiaController
         @set_time_limit(300);
         $uid = (int)current_user()['id'];
         $cred = Gosposia::credentials($uid);
-        if (!$cred) return $this->fail('Najpierw połącz skrzynkę.', 409);
+        if (!$cred) return $this->fail('Najpierw połącz pocztę.', 409);
         try {
             return ['ok' => true] + Gosposia::scan($uid, $cred);
         } catch (GosposiaImapAuthFailed $e) {
-            return $this->fail($e->getMessage() . ' Połącz skrzynkę ponownie.', 401);
+            return $this->fail($e->getMessage() . ' Odłącz pocztę i połącz ją jeszcze raz.', 401);
         } catch (\RuntimeException $e) {
             return $this->fail($e->getMessage(), 502);
         }
@@ -91,7 +93,7 @@ final class GosposiaController
         @set_time_limit(180);
         $uid = (int)current_user()['id'];
         $cred = Gosposia::credentials($uid);
-        if (!$cred) return $this->fail('Najpierw połącz skrzynkę.', 409);
+        if (!$cred) return $this->fail('Najpierw połącz pocztę.', 409);
         $sel = json_decode((string)($_POST['selection'] ?? ''), true);
         if (!is_array($sel)) return $this->fail('Nie zaznaczono żadnej wiadomości.', 422);
         try {

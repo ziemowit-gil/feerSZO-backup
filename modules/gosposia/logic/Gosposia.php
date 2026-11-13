@@ -41,8 +41,8 @@ final class Gosposia
     public static function connect(int $userId, string $email, string $password, bool $remember): void
     {
         $email = strtolower(trim($email));
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new \RuntimeException('Podaj poprawny adres skrzynki.');
-        if ($password === '') throw new \RuntimeException('Podaj hasło do poczty.');
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new \RuntimeException('Wpisz poprawny adres poczty.');
+        if ($password === '') throw new \RuntimeException('Wpisz hasło do poczty.');
         $imap = new GosposiaImap();
         $imap->connect();
         $imap->login($email, $password);
@@ -173,9 +173,9 @@ final class Gosposia
     {
         $scan = $_SESSION[self::K_SCAN] ?? null;
         if (!is_array($scan) || ($scan['uid'] ?? 0) !== $userId || $scan['mailbox'] !== $cred['email']) {
-            throw new \RuntimeException('Lista wygasła. Przejrzyj skrzynkę jeszcze raz.');
+            throw new \RuntimeException('Lista jest nieaktualna. Kliknij „Sprawdź jeszcze raz”.');
         }
-        if ($scan['trash'] === '') throw new \RuntimeException('Nie znaleźliśmy folderu Kosz na tej skrzynce, więc niczego nie przenosimy. Napisz do Helpdesku IT.');
+        if ($scan['trash'] === '') throw new \RuntimeException('Nie ma folderu Kosz, więc nic nie przenosimy. Napisz do Helpdesku IT.');
         $patterns = GosposiaStore::patterns($userId);
 
         $uids = []; $chosen = []; $perSender = []; $bytes = 0;
@@ -199,7 +199,7 @@ final class Gosposia
         if ($box['uidvalidity'] !== (int)$scan['uidvalidity']) {
             $imap->logout();
             unset($_SESSION[self::K_SCAN]);
-            throw new \RuntimeException('Skrzynka zmieniła się od przeglądu. Przejrzyj ją jeszcze raz.');
+            throw new \RuntimeException('Poczta zmieniła się w międzyczasie. Kliknij „Sprawdź jeszcze raz”.');
         }
         $method = $imap->moveToTrash(array_keys($uids), (string)$scan['trash']);
         $imap->logout();
