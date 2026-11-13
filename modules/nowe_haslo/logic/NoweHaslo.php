@@ -75,14 +75,17 @@ final class NoweHaslo
     // ── Zmiana ────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * $target: 'sso' (logowanie jednokrotne + chmura) | 'mail'; $mode: 'own' (własne, $pw1 = $pw2) | 'random' (losowe SMS-em).
+     * $target: 'sso' (logowanie jednokrotne + chmura) | 'mail'; $mode: 'own' (własne, $pw1 = $pw2) | 'random' (losowe SMS-em,
+     * tylko gdy znamy numer komórkowy — hasło nie idzie e-mailem). $confirm — czym potwierdzono (do notatki w Helpdesku).
      * Zwraca komunikat dla osoby. Wyjątek RuntimeException = nic nie zmieniono (komunikat dla osoby).
      */
-    public static function change(array $p, string $target, string $mode, string $pw1, string $pw2, string $by): string
+    public static function change(array $p, string $target, string $mode, string $pw1, string $pw2, string $by, string $confirm = 'kod SMS'): string
     {
         if (!in_array($target, ['sso', 'mail'], true)) throw new RuntimeException('Wybierz, które hasło zmieniasz.');
         if (!in_array($mode, ['own', 'random'], true)) throw new RuntimeException('Wybierz: własne hasło albo losowe SMS-em.');
-        if ((string)($p['phone'] ?? '') === '') throw new RuntimeException('Nie mamy Twojego numeru komórkowego. Napisz do Helpdesku IT.');
+        if ($mode === 'random' && (string)($p['phone'] ?? '') === '') {
+            throw new RuntimeException('Nie mamy Twojego numeru komórkowego, a hasła nie wysyłamy e-mailem. Ustaw własne hasło.');
+        }
         if (NoweHasloLimit::count('chg:' . $p['key'], 86400) >= self::DAY_LIMIT) {
             throw new RuntimeException('Hasło zmieniano dziś już ' . self::DAY_LIMIT . ' razy. Spróbuj jutro albo napisz do Helpdesku IT.');
         }
@@ -95,10 +98,10 @@ final class NoweHaslo
         $smsNote = self::smsAfter($p, $res, $own);
         $mailNote = self::mailAfter($p, $res, $own, $smsNote === 'wysłany');
         $how = $own ? 'własne (sprawdzone: ' . ($target === 'sso' ? 'inne niż do poczty' : 'inne niż logowania jednokrotnego i chmury') . ')' : 'losowe';
-        $who = ($p['via'] ?? '') === 'szo' ? 'zalogowany do SZO + kod SMS'
-             : 'bez logowania: ' . (($p['via'] ?? '') === 'pesel' ? 'PESEL' : 'prywatny e-mail') . ' + adres służbowy + kod SMS';
+        $who = ($p['via'] ?? '') === 'szo' ? 'zalogowany do SZO + ' . $confirm
+             : 'bez logowania: ' . (($p['via'] ?? '') === 'pesel' ? 'PESEL' : 'prywatny e-mail') . ' + adres służbowy + ' . $confirm;
         NoweHasloHelpdesk::event($p, 'Zmiana hasła na /nowehaslo (' . $who . '): ' . $res['what'] . '. ' . $res['detail']
-            . ' Hasło: ' . $how . '. SMS: ' . $smsNote . ' (' . DhostingMigrator::maskPhone((string)$p['phone']) . '). E-mail o zmianie: ' . $mailNote . '.'
+            . ' Hasło: ' . $how . '. SMS: ' . $smsNote . ((string)$p['phone'] !== '' ? ' (' . DhostingMigrator::maskPhone((string)$p['phone']) . ')' : '') . '. E-mail o zmianie: ' . $mailNote . '.'
             . ($res['warn'] !== '' ? ' DO SPRAWDZENIA: ' . $res['warn'] : ''));
         self::audit('nowehaslo.' . $target, ['key' => $p['key'], 'user_id' => (int)$p['user_id'], 'mode' => $mode, 'by' => $by,
                                             'detail' => $res['detail'], 'sms' => $smsNote, 'mail' => $mailNote, 'warn' => $res['warn']]);
@@ -231,6 +234,7 @@ final class NoweHaslo
     /** SMS po zmianie: losowe hasło (access_data) albo informacja o zmianie (security_alert). Zwraca 'wysłany' | 'nie wyszedł'. */
     private static function smsAfter(array $p, array $res, bool $own): string
     {
+        if ((string)($p['phone'] ?? '') === '') return 'brak numeru';
         $org = SsoConfig::smsPrefix();
         $when = date('d.m.y H:i:s');
         $host = preg_replace('~^https?://~', '', (string)$res['site']);

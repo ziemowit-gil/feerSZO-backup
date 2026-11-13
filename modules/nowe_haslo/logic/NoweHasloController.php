@@ -7,8 +7,9 @@ declare(strict_types=1);
  * GET  /nowehaslo          — zalogowany: konta i formularz zmiany; bez logowania: dane (prywatny e-mail / PESEL + adres
  *                             służbowy), potem formularz z kodem SMS;
  * POST /nowehaslo/wejscie  — gość: op=ident (dane) | restart;
- * POST /nowehaslo/kod      — wyślij kod SMS (albo ponownie);
- * POST /nowehaslo/zmien    — zmiana hasła: kod SMS + co (sso | mail) + jak (own | random) + hasło dwa razy;
+ * POST /nowehaslo/kod      — wyślij kod dla wybranego hasła (target=sso: e-mailem; target=mail: SMS-em albo na prywatny e-mail);
+ *                             op=cancel — „Zmień wybór”;
+ * POST /nowehaslo/zmien    — zmiana hasła, którego dotyczy kod: kod + jak (own | random) + hasło dwa razy;
  * POST /nowehaslo/zakoncz  — koniec sesji gościa.
  * Komunikaty idą przez sesję (PRG); hasła nigdy nie wracają do widoku.
  */
@@ -40,7 +41,7 @@ final class NoweHasloController
         try {
             if (($_POST['op'] ?? '') === 'ident') {
                 NoweHasloAuth::guestStart((string)($_POST['ident'] ?? ''), (string)($_POST['address'] ?? ''));
-                return $this->flash($back, 'info', 'Jeśli dane się zgadzają, wysłaliśmy kod SMS na numer komórkowy zapisany w SZO.');
+                return $this->flash($back . '#zmiana', 'info', 'Wybierz, które hasło zmieniasz, i zamów kod potwierdzenia.');
             }
             NoweHasloAuth::guestEnd();
         } catch (\RuntimeException $e) {
@@ -52,32 +53,36 @@ final class NoweHasloController
     public function codePost(): ?string
     {
         $back = route('nh.index');
+        if (($_POST['op'] ?? '') === 'cancel') { NoweHasloAuth::cancelCode(); return Router::redirect($back . '#zmiana'); }
+        $target = (string)($_POST['target'] ?? '');
+        $_SESSION[self::K_FORM] = ['target' => $target] + ($_SESSION[self::K_FORM] ?? []);
         try {
-            NoweHasloAuth::sendCode();
+            NoweHasloAuth::sendCode($target);
         } catch (\RuntimeException $e) {
-            return $this->flash($back, 'danger', $e->getMessage());
+            return $this->flash($back . '#zmiana', 'danger', $e->getMessage());
         }
-        $st = NoweHasloAuth::state();
-        return $this->flash($back . '#zmiana', 'success', $st['confirmed'] && $st['p']
-            ? 'Wysłaliśmy kod SMS na numer ' . DhostingMigrator::maskPhone((string)$st['p']['phone']) . '. Jest ważny 10 minut.'
-            : 'Jeśli dane się zgadzają, wysłaliśmy nowy kod SMS.');
+        $c = NoweHasloAuth::codeInfo();
+        return $this->flash($back . '#zmiana', 'success', $c && $c['mask'] !== ''
+            ? 'Wysłaliśmy kod ' . $c['mask'] . '. Jest ważny 10 minut.'
+            : ($target === 'mail' ? 'Jeśli dane się zgadzają, wysłaliśmy kod SMS-em na numer z SZO albo z umowy, a gdy go nie mamy, na Twój prywatny e-mail.'
+                                  : 'Jeśli dane się zgadzają, wysłaliśmy kod e-mailem na Twoje adresy zapisane w SZO.'));
     }
 
     public function changePost(): ?string
     {
         $back = route('nh.index');
-        $target = (string)($_POST['target'] ?? '');
         $mode = (string)($_POST['mode'] ?? '');
+        $target = (string)(NoweHasloAuth::codeInfo()['target'] ?? '');
         $_SESSION[self::K_FORM] = ['target' => $target, 'mode' => $mode];
         $st = NoweHasloAuth::state();
         if ($st['mode'] === 'none') return $this->flash($back, 'warning', 'Sesja wygasła. Wpisz dane jeszcze raz.');
         $codeOk = false;
         try {
-            $p = NoweHasloAuth::checkCode((string)($_POST['code'] ?? ''));
+            [$p, $target, $confirm] = NoweHasloAuth::checkCode((string)($_POST['code'] ?? ''));   // hasło, którego dotyczy kod
             if (!$p) throw new RuntimeException('Kod się nie zgadza.');      // atrapa (brak dopasowania) — tu nie dojdzie, ale na wszelki wypadek
             $codeOk = true;
             $by = $st['mode'] === 'user' ? (string)$p['email'] : 'bez logowania: ' . (string)$p['address'];
-            $msg = NoweHaslo::change($p, $target, $mode, (string)($_POST['password'] ?? ''), (string)($_POST['password2'] ?? ''), $by);
+            $msg = NoweHaslo::change($p, $target, $mode, (string)($_POST['password'] ?? ''), (string)($_POST['password2'] ?? ''), $by, $confirm);
             NoweHasloAuth::consumeCode();                                   // każda kolejna zmiana = nowy kod SMS
         } catch (\RuntimeException $e) {
             if ($codeOk) NoweHasloAuth::changeFailed();
