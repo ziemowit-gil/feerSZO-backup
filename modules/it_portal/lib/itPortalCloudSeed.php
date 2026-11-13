@@ -2,6 +2,10 @@
 /**
  * modules/it_portal/lib/itPortalCloudSeed.php — usługa „Chmura plików” w Portalu Usług IT (/uslugi-it/uslugi/chmura-plikow)
  * z wprowadzeniem i krótkim artykułem o Nextcloud. Polecenie 2026-11-13: „Przygotuj też krótki artykuł o NextCloud + takie wprowadzenie”.
+ * Artykuł „instalacja-aplikacji” (polecenie 2026-11-13: instalacja klientów Nextcloud na przykładzie instrukcji CRI AGH, link do niej
+ * jako przydatny materiał z dopiskiem, by wpisać adres chmury Fundacji zamiast AGH) wgrywa migracja '2026-11_it_portal_cloud_clients'.
+ * „Docelowo Nextcloud będzie obsługiwany przez IAM” (2026-11-13) — ramka w obu artykułach; dziś logowanie loginem i hasłem IAM
+ * bezpośrednio w Nextcloud (bez user_oidc).
  *
  * Fakty zgodne z kodem na 2026-11-13: adres chmury z SsoConfig::cloudUrl() (produkcja https://nc.feer.org.pl), login
  * imie.nazwisko albo adres e-mail, hasło IAM (inne niż do poczty), konto zakładane po zalogowaniu do SZO (/sso/start)
@@ -23,7 +27,7 @@ function itPortalCloudUrl(): string {
     return $url;
 }
 
-/** @return array{category:string, article:string} */
+/** @return array{category:string, article:list<string>} */
 function itPortalCloudApply(string $app, bool $dryRun = false): array {
     require_once dirname(__DIR__) . '/logic/itPortal.php';
     itPortalMigrate();
@@ -47,18 +51,19 @@ function itPortalCloudApply(string $app, bool $dryRun = false): array {
         }
     }
 
-    $title = 'Nextcloud: pierwsze kroki w chmurze plików';
-    $old = $catId ? db_one("SELECT * FROM itp_articles WHERE category_id = ? AND slug = 'nextcloud'", [$catId]) : null;
-    $rep['article'] = "chmura-plikow/nextcloud — {$title} (" . ($old ? 'nadpisany' : 'utworzony') . ')';
-    if ($dryRun) return $rep;
-    itPortalArticleSave([
-        'title' => $title, 'slug' => 'nextcloud', 'category_id' => $catId,
-        'keywords' => 'nextcloud, chmura, chmura plików, pliki, dysk, onedrive, udostępnianie, link, synchronizacja, aplikacja, kosz, wersje, nc.feer.org.pl, iam, hasło',
-        'blocks' => json_encode(itPortalCloudBlocks($app), JSON_UNESCAPED_UNICODE),
-        'related' => $old ? (json_decode((string)$old['related'], true) ?: []) : [],
-        'is_published' => $old ? (int)$old['is_published'] : 1, 'is_pinned' => $old ? (int)$old['is_pinned'] : 1,
-        'sort_order' => $old ? (int)$old['sort_order'] : 10,
-    ], $old ? (int)$old['id'] : 0);
+    $rep['article'] = [];
+    foreach (itPortalCloudArticles($app) as $slug => [$title, $keywords, $blocks, $pinned, $sort]) {
+        $old = $catId ? db_one("SELECT * FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]) : null;
+        $rep['article'][] = "chmura-plikow/{$slug} — {$title} (" . ($old ? 'nadpisany' : 'utworzony') . ')';
+        if ($dryRun) continue;
+        itPortalArticleSave([
+            'title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
+            'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE),
+            'related' => $old ? (json_decode((string)$old['related'], true) ?: []) : [],
+            'is_published' => $old ? (int)$old['is_published'] : 1, 'is_pinned' => $old ? (int)$old['is_pinned'] : ($pinned ? 1 : 0),
+            'sort_order' => $old ? (int)$old['sort_order'] : $sort,
+        ], $old ? (int)$old['id'] : 0);
+    }
     return $rep;
 }
 
@@ -73,7 +78,22 @@ function itPortalCloudIntro(string $app): string {
          . 'Zacznij od instrukcji poniżej. Jeśli czegoś w niej brakuje, <a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
 }
 
-/** Bloki artykułu. */
+/**
+ * Artykuły usługi: slug => [tytuł, słowa kluczowe, bloki, przypięty, kolejność].
+ * @return array<string, array{0:string,1:string,2:array,3:bool,4:int}>
+ */
+function itPortalCloudArticles(string $app): array {
+    return [
+        'nextcloud' => ['Nextcloud: pierwsze kroki w chmurze plików',
+            'nextcloud, chmura, chmura plików, pliki, dysk, onedrive, udostępnianie, link, synchronizacja, aplikacja, kosz, wersje, nc.feer.org.pl, iam, hasło',
+            itPortalCloudBlocks($app), true, 10],
+        'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
+            'nextcloud, aplikacja, klient, instalacja, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
+            itPortalCloudClientsBlocks($app), false, 20],
+    ];
+}
+
+/** Bloki artykułu „Nextcloud: pierwsze kroki”. */
 function itPortalCloudBlocks(string $app): array {
     $hd = $app . '/helpdesk/new.php';
     $cloud = itPortalCloudUrl();
@@ -93,10 +113,13 @@ function itPortalCloudBlocks(string $app): array {
             $step('Zaloguj się w przeglądarce', '<p>Wejdź na <a href="' . $cloud . '">' . $host . '</a>. Login to <code>imie.nazwisko</code> albo Twój adres e-mail, hasło to hasło IAM.</p>'),
             $step('Zainstaluj aplikację', '<p>Pobierz aplikację Nextcloud na komputer (Windows, macOS, Linux) albo telefon (Android, iOS) ze strony '
                 . '<a href="https://nextcloud.com/install/">nextcloud.com/install</a>. Przy pierwszym uruchomieniu wpisz adres <code>' . $host . '</code> i zaloguj się. '
-                . 'Aplikacja na komputerze synchronizuje wybrane foldery tak jak OneDrive.</p>'),
+                . 'Aplikacja na komputerze synchronizuje wybrane foldery tak jak OneDrive. Krok po kroku opisuje to instrukcja '
+                . '<a href="' . $app . '/uslugi-it/uslugi/chmura-plikow/instalacja-aplikacji">Instalacja aplikacji Nextcloud na komputerze i telefonie</a>.</p>'),
             $step('Przenieś pliki z OneDrive', '<p>Przed 20 listopada 2026 r. przenieś do chmury pliki z OneDrive, których potrzebujesz. Jeśli administrator zlecił kopiowanie '
                 . 'Twojego OneDrive, pliki pojawią się same w folderze „OneDrive”.</p>'),
         ]],
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Docelowo chmurę obsłuży IAM.</strong> Do Nextcloud zalogujesz się wtedy logowaniem jednokrotnym, tak jak do SZO, '
+            . 'a aplikacje na komputerze i telefonie przekierują Cię na stronę logowania IAM. Login i hasło zostaną te same. O zmianie napiszemy w komunikatach Portalu Usług IT.</p>'],
         ['type' => 'text', 'html' => '<h2>Udostępnianie</h2>'
             . '<p>Przy pliku albo folderze kliknij ikonę udostępniania. Wpisz imię lub adres osoby z Fundacji albo utwórz link. '
             . 'Przy linku możesz ustawić hasło, datę wygaśnięcia i to, czy odbiorca może tylko oglądać, czy także zmieniać pliki.</p>'],
@@ -111,5 +134,48 @@ function itPortalCloudBlocks(string $app): array {
             . '<li><a href="' . $doc . 'files/version_control.html">Wersje plików</a></li>'
             . '<li><a href="' . $doc . 'files/deleted_file_management.html">Usunięte pliki i kosz</a></li>'
             . '<li><a href="https://nextcloud.com/install/">Aplikacje Nextcloud na komputer i telefon</a></li></ul>'],
+    ];
+}
+
+/** Bloki artykułu „Instalacja aplikacji Nextcloud” (układ wzorowany na instrukcji CRI AGH, polecenie 2026-11-13). */
+function itPortalCloudClientsBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $cloud = itPortalCloudUrl();
+    $host = (string)(parse_url($cloud, PHP_URL_HOST) ?: $cloud);
+    $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
+
+    return [
+        ['type' => 'text', 'html' => '<p>Aplikacja Nextcloud na komputerze trzyma kopię plików z chmury w zwykłym folderze i sama synchronizuje zmiany w obie strony, tak jak OneDrive. '
+            . 'Aplikacja w telefonie daje dostęp do plików w podróży. Zanim zaczniesz, załóż konto w chmurze i sprawdź, czy logujesz się na <a href="' . $cloud . '">' . $host . '</a> w przeglądarce.</p>'],
+        ['type' => 'wizard', 'title' => 'Komputer: instalacja (Windows, macOS, Linux)', 'intro' => '', 'steps' => [
+            $step('Pobierz instalator', '<p>Wejdź na <a href="https://nextcloud.com/install/#install-clients">nextcloud.com/install</a>, w części dla komputerów (<span lang="en">Desktop</span>) wybierz swój system i pobierz plik.</p>'),
+            $step('Zainstaluj', '<p>Uruchom pobrany plik i przejdź przez kolejne ekrany instalatora, zostawiając ustawienia domyślne. Na komputerze służbowym instalacja może wymagać uprawnień administratora. '
+                . 'Jeśli ich nie masz, <a href="' . $hd . '">napisz do Helpdesku</a>.</p>'),
+            $step('Uruchom aplikację', '<p>Po instalacji aplikacja zwykle uruchamia się sama. Jeśli nie widzisz jej okna, poszukaj ikony chmurki w zasobniku systemowym obok zegara (Windows) albo na pasku menu u góry ekranu (macOS).</p>'),
+        ]],
+        ['type' => 'wizard', 'title' => 'Komputer: połączenie z chmurą Fundacji', 'intro' => '', 'steps' => [
+            $step('Wpisz adres serwera', '<p>Kliknij „Zaloguj się” i jako adres serwera wpisz <code>' . $cloud . '</code>.</p>'),
+            $step('Zaloguj się w przeglądarce', '<p>Aplikacja otworzy przeglądarkę. Zaloguj się loginem <code>imie.nazwisko</code> albo adresem e-mail i hasłem IAM (tym samym co do chmury, innym niż do poczty).</p>'),
+            $step('Udziel dostępu', '<p>Sprawdź, czy na ekranie jest Twoje imię i nazwisko, i kliknij „Udziel dostępu”. Wróć do aplikacji.</p>'),
+            $step('Wybierz folder i sposób synchronizacji', '<p>Zostaw folder proponowany przez aplikację albo wskaż inny. Potem wybierz, co ma trafiać na komputer:</p><ul>'
+                . '<li><strong>Pliki wirtualne</strong>: widzisz wszystkie pliki, ale pobierają się dopiero przy otwarciu. Oszczędza miejsce na dysku. Polecamy na Windows i macOS.</li>'
+                . '<li><strong>Synchronizuj wszystko</strong>: cała chmura pobiera się na komputer.</li>'
+                . '<li><strong>Wybierz, co synchronizować</strong>: tylko zaznaczone foldery.</li></ul><p>Kliknij „Połącz”. Pierwsza synchronizacja może potrwać.</p>'),
+        ]],
+        ['type' => 'wizard', 'title' => 'Telefon (Android, iPhone)', 'intro' => '', 'steps' => [
+            $step('Zainstaluj aplikację', '<p>W Sklepie Play albo App Store wyszukaj „Nextcloud” (wydawca Nextcloud GmbH) i zainstaluj aplikację.</p>'),
+            $step('Zaloguj się', '<p>Kliknij „Zaloguj się”, wpisz adres <code>' . $cloud . '</code>, zaloguj się loginem i hasłem IAM i udziel dostępu.</p>'),
+            $step('Zdecyduj o zdjęciach', '<p>Aplikacja może sama wysyłać zdjęcia z telefonu do chmury. Włącz to tylko dla zdjęć służbowych. Prywatnych zdjęć nie wysyłaj do chmury Fundacji.</p>'),
+        ]],
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Docelowo chmurę obsłuży IAM.</strong> Do Nextcloud zalogujesz się wtedy logowaniem jednokrotnym, tak jak do SZO, '
+            . 'a aplikacje na komputerze i telefonie przekierują Cię na stronę logowania IAM. Login i hasło zostaną te same. O zmianie napiszemy w komunikatach Portalu Usług IT.</p>'],
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Pliku usuniętego z folderu synchronizowanego na komputerze ubywa też w chmurze. Odzyskasz go z kosza na <a href="' . $cloud . '">' . $host . '</a>. '
+            . 'Po zmianie hasła IAM aplikacje poproszą o ponowne zalogowanie.</p>'],
+        ['type' => 'text', 'html' => '<h2>Przydatne materiały</h2><ul>'
+            . '<li><a href="https://cri.agh.edu.pl/pomoc-it/instrukcje/instalacja-i-konfiguracja-aplikacji-nextcloud">Instalacja i konfiguracja aplikacji Nextcloud</a>: instrukcja ze zrzutami ekranu przygotowana przez Akademię Górniczo-Hutniczą (AGH). '
+            . 'Kroki są te same, ale zamiast adresu AGH (<code>dysk.agh.edu.pl</code>) wpisz adres chmury Fundacji: <code>' . $cloud . '</code>, a zamiast danych AGH podaj swój login i hasło IAM.</li>'
+            . '<li><a href="https://nextcloud.com/install/#install-clients">Aplikacje Nextcloud do pobrania</a></li>'
+            . '<li><a href="https://docs.nextcloud.com/server/latest/user_manual/pl/">Podręcznik użytkownika Nextcloud</a></li></ul>'],
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Aplikacja nie łączy się albo synchronizacja stoi? <a href="' . $hd . '">Napisz do Helpdesku</a>.</p>'],
     ];
 }

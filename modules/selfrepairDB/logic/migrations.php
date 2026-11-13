@@ -791,4 +791,16 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Chmura plików”: artykuł „Instalacja aplikacji Nextcloud na komputerze i telefonie” (układ wg instrukcji CRI AGH,
+    // link do niej jako przydatny materiał z adresem chmury Fundacji zamiast AGH) i ramka „Docelowo chmurę obsłuży IAM” w obu artykułach
+    // (polecenia 2026-11-13). Odświeża też wstęp usługi i artykuł „nextcloud”. modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud_clients' => [
+        'desc' => 'Portal Usług IT: artykuł o instalacji aplikacji Nextcloud i informacja o logowaniu przez IAM w „Chmurze plików”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_cloud_seed.php [--dry-run]
+        },
+    ],
+
 ];
