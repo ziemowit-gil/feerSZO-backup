@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($to_add as $a) {
                 try { db()->prepare("INSERT OR IGNORE INTO task_workspace_members (workspace_id, user_id, role, added_by, added_at) VALUES (?,?,'admin',?,?)")->execute([$id,(int)$a['id'],$uid,$now_ts]); } catch (\Throwable $e) {}
             }
-            ws_sp_init_workspace($id);
+            ws_cloud_init_workspace($id);
             // Utwórz foldery SP podane w formularzu
             foreach ((array)($_POST['folders'] ?? []) as $fname) {
                 $fname = trim($fname);
@@ -206,6 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $role = in_array($_POST['member_role'] ?? '', ['admin','editor','member','viewer']) ? $_POST['member_role'] : 'member';
         if ($ws_id && $mu) {
             db()->prepare("INSERT OR REPLACE INTO task_workspace_members (workspace_id,user_id,role,added_by,added_at) VALUES (?,?,?,?,datetime('now','localtime'))")->execute([$ws_id,$mu,$role,$uid]);
+            WsCloud::syncQuiet($ws_id);   // folder obszaru w chmurze: udostępnienie nowej osobie / zmiana uprawnień
             flash_set('success', 'Użytkownik dodany.');
         }
         goto redirect;
@@ -214,6 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'remove_member' && $can_edit_ws) {
         $mu = (int)($_POST['member_uid'] ?? 0);
         db()->prepare("DELETE FROM task_workspace_members WHERE workspace_id=? AND user_id=?")->execute([$ws_id,$mu]);
+        WsCloud::syncQuiet($ws_id);   // folder obszaru w chmurze: koniec udostępnienia
         flash_set('success', 'Użytkownik usunięty.');
         goto redirect;
     }

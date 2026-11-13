@@ -30,13 +30,13 @@ include dirname(__DIR__) . '/includes/header.php';
     </h5>
     <?php if (!$sp_ok): ?>
     <span class="badge bg-warning text-dark">
-      <i class="bi bi-cloud-slash me-1" aria-hidden="true"></i>SharePoint niepołączony
+      <i class="bi bi-cloud-slash me-1" aria-hidden="true"></i>Chmura plików niepodłączona
     </span>
     <?php endif; ?>
   </div>
 
   <?php if (!$sp_ok): ?>
-  <?php SpConnection::renderBlocked('Moduł Pliki (Koszulki)', 'Pliki obszarów roboczych są przechowywane wyłącznie na SharePoincie — bez połączenia nie można ich przeglądać, wgrywać ani pobierać.'); ?>
+  <?php ws_render_unavailable('Moduł Pliki', 'Foldery obszarów roboczych są w chmurze plików. Bez niej nie można ich przeglądać, wgrywać ani pobierać.'); ?>
 
   <?php elseif (empty($workspaces)): ?>
   <div class="text-center text-muted py-5">

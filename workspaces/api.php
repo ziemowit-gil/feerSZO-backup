@@ -25,9 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($_GET['action'] ?? '', ['do
         echo 'Nieprawidłowy token CSRF.';
         exit;
     }
-    if (!ws_available()) {                                  // bez połączenia z SharePointem nie ma skąd pobrać pliku
+    if (!ws_available()) {                                  // bez chmury plików nie ma skąd pobrać pliku
         http_response_code(503);
-        echo 'SharePoint nie jest połączony — pobieranie i podgląd plików są zablokowane. ' . SpConnection::blockedReason() . ' Poproś administratora o połączenie SharePoint (Administracja → SharePoint).';
+        echo 'Pobieranie i podgląd plików są zablokowane. ' . ws_unavailable_reason() . ' Poproś administratora o podłączenie chmury plików.';
         exit;
     }
     $file_id = (int)($_GET['id'] ?? 0);
@@ -64,12 +64,11 @@ if (!hash_equals(csrf_token(), $csrf)) {
 $user    = current_user();
 $user_id = (int)($user['id'] ?? 0);
 
-// Akcje na plikach i folderach wymagają połączonego SharePointa (powiązania plik–zadanie i listy to czysta baza — działają zawsze)
+// Akcje na plikach i folderach wymagają chmury plików (powiązania plik–zadanie i listy to czysta baza — działają zawsze)
 if (in_array($action, ['create_folder', 'upload_file', 'delete_file', 'delete_folder', 'ensure_task_folder'], true) && !ws_available()) {
     http_response_code(503);
     echo json_encode(['ok' => false, 'blocked' => true,
-        'error' => 'SharePoint nie jest połączony — operacje na plikach i folderach są zablokowane. ' . SpConnection::blockedReason()
-                 . ' Poproś administratora o połączenie SharePoint (Administracja → SharePoint).']);
+        'error' => 'Operacje na plikach i folderach są zablokowane. ' . ws_unavailable_reason() . ' Poproś administratora o podłączenie chmury plików.']);
     exit;
 }
 
@@ -203,8 +202,8 @@ $resp = match($action) {
         $task    = $task_id ? db_one("SELECT id, workspace_id FROM tasks WHERE id = ? AND deleted_at IS NULL", [$task_id]) : null;
         if (!$task) return ['ok' => false, 'error' => 'Nie znaleziono zadania.'];
         ws_require_perm('upload', (int)$task['workspace_id']);
-        $folder = ws_sp_create_task_folder($task_id, $user_id);   // sama zakłada też foldery nadrzędne (Koszulki/obszar)
-        if (!$folder) return ['ok' => false, 'error' => 'Nie udało się utworzyć folderu zadania na SharePoincie.'];
+        $folder = ws_cloud_create_task_folder($task_id, $user_id);   // sama zakłada też foldery nadrzędne w chmurze (obszar/Zadania)
+        if (!$folder) return ['ok' => false, 'error' => 'Nie udało się utworzyć folderu zadania w chmurze.'];
         return ['ok' => true, 'folder' => ['id' => (int)$folder['id'], 'name' => $folder['name']]];
     })(),
 
@@ -257,7 +256,7 @@ $resp = match($action) {
         $ws_id = (int)($body['workspace_id'] ?? 0);
         if (!$ws_id) return ['ok' => false, 'error' => 'Brak workspace_id.'];
         ws_require_perm('task_folders', $ws_id);
-        ws_sp_init_workspace($ws_id);
+        ws_cloud_init_workspace($ws_id);
         $created = ws_init_task_folders($ws_id, $user_id);
         $total   = (int)(db_one(
             "SELECT COUNT(*) AS n FROM tasks WHERE workspace_id=? AND deleted_at IS NULL",

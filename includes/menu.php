@@ -482,7 +482,7 @@ function _menu_editor(): array {
     $biuro_search = [];
     if (module_enabled('tasks_enabled')) {
         $obs_g[] = _mi('Zadania','/tasks/dashboard.php','bi-kanban',['match'=>'/tasks/','kw'=>'zadania tablica kanban obszary listy']);
-        $biuro_search[] = _mi('Pliki','/tasks/files.php','bi-folder2-open',['match'=>'/tasks/files','kw'=>'pliki projektowe workspace koszulki sharepoint']);
+        $biuro_search[] = _mi('Pliki','/tasks/files.php','bi-folder2-open',['match'=>'/tasks/files','kw'=>'pliki projektowe obszary foldery chmura nextcloud']);
     }
     if (module_enabled('helpdesk_enabled')) {
         $obs_g[] = _mi('Helpdesk','/helpdesk/index.php','bi-ticket-perforated',['match'=>'/helpdesk/','badge'=>$cnt['hd'],'kw'=>'helpdesk zgłoszenie it wsparcie']);

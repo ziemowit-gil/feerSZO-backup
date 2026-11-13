@@ -36,14 +36,14 @@
           <hr class="my-2">
           <div class="mb-1">
             <label class="form-label small fw-semibold mb-1">
-              <i class="bi bi-folder2-open me-1 text-primary"></i>Foldery w SharePoint
+              <i class="bi bi-folder2-open me-1 text-primary" aria-hidden="true"></i>Foldery w chmurze
               <span class="text-muted fw-normal">(opcjonalnie)</span>
             </label>
             <div id="wsFolderList" class="d-flex flex-column gap-1 mb-1"></div>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="wsAddFolder" style="font-size:.8rem">
               <i class="bi bi-folder-plus me-1"></i>Dodaj folder
             </button>
-            <div class="form-text" style="font-size:.72rem">Foldery zostaną automatycznie utworzone w SharePoint po zapisaniu obszaru.</div>
+            <div class="form-text" style="font-size:.72rem">Po zapisaniu obszaru foldery powstaną w chmurze (Nextcloud) i zobaczą je członkowie obszaru z kontem w chmurze.</div>
           </div>
           <?php endif; ?>
         </div>

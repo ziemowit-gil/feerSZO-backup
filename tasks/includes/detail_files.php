@@ -134,7 +134,7 @@ $td_show_ws_files     = (bool)$ws_for_task && $ws_can_view;   // macierz uprawni
   <?php endif; ?>
   <?php endif; // td_show_attachments ?>
 
-  <!-- ── Folder zadania w Koszulkach (SharePoint) + pliki przypięte z innych folderów obszaru ── -->
+  <!-- ── Folder zadania w chmurze (Nextcloud) + pliki przypięte z innych folderów obszaru ── -->
   <?php if ($td_show_ws_files):
     $td_ws_in_folder = array_map(fn($f) => (int)$f['id'], $ws_folder_files);
     $td_ws_other     = array_values(array_filter($ws_linked_files, fn($f) => !in_array((int)$f['id'], $td_ws_in_folder, true)));
@@ -158,8 +158,8 @@ $td_show_ws_files     = (bool)$ws_for_task && $ws_can_view;   // macierz uprawni
             $open = '<span class="td-ws-name" style="cursor:default">' . $name . '</span>';
         } elseif (in_array($ext, ['pdf','jpg','jpeg','png','gif','webp'], true)) {
             $open = '<button type="button" class="td-ws-name" onclick="tdPreviewFile(' . h(json_encode($pv)) . ',' . h(json_encode($wf['name'])) . ',' . h(json_encode($ext)) . ')" title="Podgląd: ' . $name . '">' . $name . '</button>';
-        } elseif (in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx'], true) && !empty($wf['web_url'])) {
-            $open = '<a class="td-ws-name" href="' . h($wf['web_url']) . '" target="_blank" rel="noopener" title="Otwórz w Office Online: ' . $name . '">' . $name . '</a>';
+        } elseif (in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp'], true) && ($wf['provider'] ?? '') === 'nextcloud' && !empty($wf['web_url'])) {
+            $open = '<a class="td-ws-name" href="' . h($wf['web_url']) . '" target="_blank" rel="noopener" title="Otwórz w chmurze: ' . $name . '">' . $name . '<span class="visually-hidden"> (otwiera chmurę w nowej karcie)</span></a>';
         } else {
             $open = '<a class="td-ws-name" href="' . h($dl) . '" title="Pobierz: ' . $name . '">' . $name . '</a>';
         }
@@ -174,15 +174,19 @@ $td_show_ws_files     = (bool)$ws_for_task && $ws_can_view;   // macierz uprawni
   ?>
   <div class="td-ws" id="td-ws" data-ws-id="<?= (int)$task['workspace_id'] ?>" data-folder-id="<?= (int)($ws_task_folder['id'] ?? 0) ?>">
     <div class="td-files-sub<?= $td_show_attachments ? ' mt-3' : '' ?> td-ws-head">
-      <span><i class="bi bi-folder2-open" aria-hidden="true"></i> Folder zadania w Koszulkach</span>
-      <?php if ($ws_task_folder): ?>
+      <span><i class="bi bi-folder2-open" aria-hidden="true"></i> Folder zadania w chmurze</span>
+      <?php if ($ws_task_folder): $td_ws_cloud = ws_cloud_link($ws_task_folder); ?>
       <a class="td-ws-open" href="<?= APP_URL ?>/tasks/files.php?ws=<?= (int)$task['workspace_id'] ?>&folder=<?= (int)$ws_task_folder['id'] ?>" target="_blank" rel="noopener">
         Otwórz w Plikach <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (nowa karta)</span></a>
+      <?php if ($td_ws_cloud !== ''): ?>
+      <a class="td-ws-open" href="<?= h($td_ws_cloud) ?>" target="_blank" rel="noopener">
+        Otwórz w Nextcloudzie <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (nowa karta)</span></a>
+      <?php endif; ?>
       <?php endif; ?>
     </div>
 
-    <?php if (!$ws_sp_ok): ?>
-    <p class="td-ws-note">SharePoint nie jest połączony — pliki obszaru są chwilowo niedostępne. Załączniki zadania działają bez zmian.</p>
+    <?php if (!$ws_cloud_ok): ?>
+    <p class="td-ws-note">Chmura plików nie jest podłączona, więc pliki obszaru są chwilowo niedostępne. Załączniki zadania działają bez zmian.</p>
     <?php else: ?>
     <div id="td-ws-files" class="td-ws-list">
       <?php foreach ($ws_folder_files as $wf) echo $td_ws_row($wf, false); ?>
@@ -194,7 +198,7 @@ $td_show_ws_files     = (bool)$ws_for_task && $ws_can_view;   // macierz uprawni
     <?php if (!$ws_folder_files && !$td_ws_other): ?>
     <p class="td-ws-note" id="td-ws-empty"><?= $ws_task_folder
         ? 'Folder zadania jest pusty.'
-        : 'Zadanie nie ma jeszcze folderu — powstanie przy pierwszym wgraniu pliku.' ?></p>
+        : 'Zadanie nie ma jeszcze folderu. Powstanie w chmurze przy pierwszym wgraniu pliku.' ?></p>
     <?php endif; ?>
 
     <?php if ($ws_can_upload || ($can_edit && $ws_can_link)): ?>
@@ -228,7 +232,7 @@ $td_show_ws_files     = (bool)$ws_for_task && $ws_can_view;   // macierz uprawni
     </div>
     <?php endif; ?>
     <?php endif; ?>
-    <?php endif; // !$ws_sp_ok ?>
+    <?php endif; // !$ws_cloud_ok ?>
   </div>
   <?php endif; // td_show_ws_files ?>
 

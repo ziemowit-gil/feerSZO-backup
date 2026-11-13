@@ -1,18 +1,18 @@
 <?php
 /**
- * includes/workspaces.php — Serwis modułu Koszulek (Workspace).
+ * includes/workspaces.php — Serwis plików obszarów roboczych zadań (dawniej „Koszulki”).
  *
- * Koszulki to kontenery plików powiązane z obszarami roboczymi zadań
- * (task_workspaces). Pliki fizycznie przechowywane są na SharePoint;
- * lokalna baza trzyma wyłącznie metadane, uprawnienia i relacje z zadaniami.
+ * Foldery i pliki obszarów (task_workspaces) leżą w chmurze Nextcloud (od 2026-11-13 zamiast SharePointa, polecenie
+ * „w zadaniach wywal Microsoft i dodaj Nextcloud”); lokalna baza trzyma metadane, uprawnienia i powiązania z zadaniami.
+ * Układ w chmurze i udostępnienia członkom: modules/wsCloud/lib/WsCloud.php.
+ * Stare wiersze z provider='sharepoint' (sprzed zmiany): foldery przenoszą się do chmury same przy pierwszym użyciu
+ * (ws_cloud_folder), pliki przenosi cli/wsSharepointToCloud.php.
  *
- * Wymagania SP: sp_enabled=1, sp_site_url, sp_library (lub sp_workspaces_drive_id).
  * ACL: delegowane do task_workspace_role() — te same role co moduł Zadania.
  */
 
-require_once __DIR__ . '/m365.php';
 require_once __DIR__ . '/tasks.php';
-require_once dirname(__DIR__) . '/modules/sp_connection/logic/spConnection.php';
+require_once dirname(__DIR__) . '/modules/wsCloud/lib/WsCloud.php';
 
 // ── Auto-migracja schematu ────────────────────────────────────────────────────
 (function () {
@@ -76,50 +76,58 @@ require_once dirname(__DIR__) . '/modules/sp_connection/logic/spConnection.php';
     }
 })();
 
-// ── Konfiguracja SP ───────────────────────────────────────────────────────────
+// ── Chmura ────────────────────────────────────────────────────────────────────
 
 /**
- * Zwraca drive_id dla modułu Koszulek.
- * Pierwszeństwo: dedykowane ustawienie sp_workspaces_drive_id,
- * fallback: sp_library → sp_drive_id(sp_site_id(sp_site_url)).
- */
-function ws_sp_drive_id(): string {
-    static $cache = null;
-    if ($cache !== null) return $cache;
-
-    $override = m365_setting('sp_workspaces_drive_id');
-    if ($override !== '') {
-        return $cache = $override;
-    }
-
-    $site_url = m365_setting('sp_site_url');
-    if ($site_url === '') {
-        throw new \RuntimeException('Brak skonfigurowanego URL witryny SharePoint (sp_site_url).');
-    }
-    $graph    = new M365Graph();
-    $site_id  = $graph->sp_site_id($site_url);
-    $library  = m365_setting('sp_library');
-    $cache    = $graph->sp_drive_id($site_id, $library);
-    return $cache;
-}
-
-/**
- * Zwraca folder główny (root path) dla koszulek w SP.
- * Domyślnie "Koszulki", konfigurowalne przez sp_workspaces_root_folder.
- */
-function ws_sp_root_folder(): string {
-    $v = m365_setting('sp_workspaces_root_folder');
-    return $v !== '' ? trim($v, '/') : 'Koszulki';
-}
-
-/**
- * Sprawdza, czy moduł Koszulek jest dostępny: SharePoint połączony (M365 skonfigurowany, synchronizacja włączona, wskazana witryna —
- * SpConnection::isConnected()). Bez połączenia strony modułu pokazują blokadę (SpConnection::renderBlocked), a API odmawia (503).
- * Wynik pamiętany na czas żądania — funkcja jest wołana wielokrotnie.
+ * Czy pliki obszarów są dostępne: chmura plików skonfigurowana (SsoConfig: adres + konto API).
+ * Bez niej strony modułu pokazują panel ws_render_unavailable(), a API odmawia (503).
  */
 function ws_available(): bool {
     static $ok = null;
-    return $ok ??= SpConnection::isConnected();
+    return $ok ??= WsCloud::available();
+}
+
+/** Powód niedostępności (tekst dla użytkownika). */
+function ws_unavailable_reason(): string {
+    return 'Chmura plików (' . WsCloud::label() . ') nie jest skonfigurowana w SZO.';
+}
+
+/**
+ * Panel „pliki obszaru niedostępne” (Bootstrap + ikony; działa w układzie administracji i w module Zadań).
+ * Administrator dostaje link do ustawień chmury (/ssoadmin#chmura).
+ */
+function ws_render_unavailable(string $feature, string $detail = ''): void {
+    $admin = function_exists('is_admin') && is_admin();
+    $url = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/ssoadmin#chmura';
+    echo '<section class="card border-warning shadow-sm my-3" aria-labelledby="wsc-blocked-h"><div class="card-body text-center py-4 px-3">'
+       . '<i class="bi bi-cloud-slash text-warning-emphasis d-block mb-2" style="font-size:2.4rem" aria-hidden="true"></i>'
+       . '<h2 class="h5 fw-bold mb-2" id="wsc-blocked-h">' . h($feature) . ': chmura plików niedostępna</h2>'
+       . '<p class="mb-2">' . h(ws_unavailable_reason()) . '</p>'
+       . ($detail !== '' ? '<p class="small text-body-secondary mb-3">' . h($detail) . '</p>' : '')
+       . ($admin ? '<a class="btn btn-primary btn-sm" href="' . h($url) . '"><i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia chmury</a>'
+                 : '<p class="small mb-0">Poproś administratora o podłączenie chmury plików.</p>')
+       . '</div></section>';
+}
+
+/**
+ * Folder w chmurze dla wiersza ws_folders. Stary wiersz z SharePointa (provider ≠ 'nextcloud') dostaje folder w chmurze
+ * o tej samej nazwie (folder zadania: „Zadania/…”), a wiersz jest przepisywany na chmurę. Zwraca zaktualizowany wiersz.
+ */
+function ws_cloud_folder(array $folder): array {
+    if (($folder['provider'] ?? '') === 'nextcloud' && (string)($folder['remote_path'] ?? '') !== '') return $folder;
+    $rel = !empty($folder['task_id'])
+        ? 'Zadania/' . mb_substr(WsCloud::name((string)$folder['name'], 'Zadanie'), 0, 90) . ' (ZAD-' . (int)$folder['task_id'] . ')'
+        : WsCloud::name((string)$folder['name']);
+    $nc = WsCloud::ensureFolder((int)$folder['workspace_id'], $rel);
+    db()->prepare("UPDATE ws_folders SET provider='nextcloud', remote_folder_id=?, remote_path=?, drive_id=?, site_id='', updated_at=datetime('now') WHERE id=?")
+        ->execute([(string)$nc['fileid'], $nc['path'], WsCloud::api()->apiUid(), (int)$folder['id']]);
+    return db_one("SELECT * FROM ws_folders WHERE id = ?", [(int)$folder['id']]);
+}
+
+/** Link do folderu albo pliku w chmurze ('' gdy brak). */
+function ws_cloud_link(array $row): string {
+    if (($row['provider'] ?? '') !== 'nextcloud') return '';
+    return WsCloud::webUrl((int)($row['remote_item_id'] ?? $row['remote_folder_id'] ?? 0));
 }
 
 // ── ACL — delegowane do task_workspace_role ───────────────────────────────────
@@ -148,7 +156,7 @@ function ws_file_roles(): array {
 function ws_file_actions(): array {
     return [
         'view'          => ['Przeglądanie folderów wspólnych', 'Foldery wspólne obszaru i ich pliki. Pliki zadań widzą zawsze wszyscy z dostępem do obszaru.', ['viewer', 'member', 'editor', 'admin']],
-        'download'      => ['Pobieranie z folderów wspólnych', 'Pobranie, podgląd PDF i obrazów, Office Online. Pliki zadań pobierają zawsze wszyscy z dostępem do obszaru.', ['viewer', 'member', 'editor', 'admin']],
+        'download'      => ['Pobieranie z folderów wspólnych', 'Pobranie, podgląd PDF i obrazów, otwarcie w chmurze. Pliki zadań pobierają zawsze wszyscy z dostępem do obszaru.', ['viewer', 'member', 'editor', 'admin']],
         'upload'        => ['Wgrywanie plików', 'Do folderów obszaru i do folderu zadania (także z okna zadania).', ['member', 'editor', 'admin']],
         'link'          => ['Przypinanie do zadań', 'Przypięcie pliku z dowolnego folderu do zadania i odpięcie.', ['member', 'editor', 'admin']],
         'delete_own'    => ['Usuwanie własnych plików', 'Tylko pliki wgrane przez tę osobę.', ['member', 'editor', 'admin']],
@@ -267,7 +275,7 @@ function ws_require_access(int $workspace_id, string $min_role = 'viewer'): void
 // ── Operacje folderów ─────────────────────────────────────────────────────────
 
 /**
- * Bezpieczna nazwa folderu SP — ASCII + wybrane znaki.
+ * Bezpieczna nazwa (ASCII) — dawniej dla SharePointa; nowe foldery w chmurze nazywa WsCloud::name() z polskimi znakami.
  */
 function ws_sanitize_folder_name(string $name): string {
     // Zamień polskie znaki, usuń znaki niedozwolone w SP
@@ -281,56 +289,36 @@ function ws_sanitize_folder_name(string $name): string {
 }
 
 /**
- * Tworzy koszulkę (folder) dla danego workspace.
- * Tworzy katalog w SP: {root}/{workspace_slug}/{sanitized_name}
+ * Tworzy folder wspólny w obszarze: w chmurze „{root}/{obszar}/{nazwa}”, w bazie wiersz ws_folders (provider 'nextcloud').
+ * Przy okazji uzgadnia udostępnienia folderu obszaru dla członków.
  *
- * @param  int    $workspace_id  ID obszaru roboczego (task_workspaces.id)
- * @param  string $name          Nazwa koszulki (wyświetlana)
- * @param  string $description   Opis (opcjonalny)
- * @param  int|null $user_id     Tworzący (null = aktualny)
  * @return array  ['ok'=>bool, 'folder'=>row|null, 'error'=>string]
  */
 function ws_create_folder(int $workspace_id, string $name, string $description = '', ?int $user_id = null): array {
     if (!ws_available()) {
-        return ['ok' => false, 'folder' => null, 'error' => 'SharePoint nie jest skonfigurowany.'];
+        return ['ok' => false, 'folder' => null, 'error' => ws_unavailable_reason()];
     }
-
     $workspace = db_one("SELECT id, name, slug FROM task_workspaces WHERE id = ?", [$workspace_id]);
     if (!$workspace) {
         return ['ok' => false, 'folder' => null, 'error' => 'Nie znaleziono obszaru roboczego.'];
     }
-
     $user_id = $user_id ?? (current_user()['id'] ?? null);
 
     try {
-        $graph    = new M365Graph();
-        $drive_id = ws_sp_drive_id();
-        $root     = ws_sp_root_folder();
-
-        // Zapewnij katalog roota i katalogu workspace w SP
-        $ws_slug     = ws_sanitize_folder_name($workspace['name']);
-        $folder_slug = ws_sanitize_folder_name($name);
-
-        $graph->sp_create_folder($drive_id, '',         $root);
-        $graph->sp_create_folder($drive_id, $root,      $ws_slug);
-        $sp_item = $graph->sp_create_folder($drive_id, "{$root}/{$ws_slug}", $folder_slug);
-
-        $remote_path = "{$root}/{$ws_slug}/{$folder_slug}";
-
+        $nc = WsCloud::ensureFolder($workspace_id, WsCloud::name($name));   // ukośnik w nazwie nie tworzy podfolderu
         $id = db_insert('ws_folders', [
             'workspace_id'     => $workspace_id,
             'name'             => trim($name),
             'description'      => trim($description),
-            'provider'         => 'sharepoint',
-            'remote_folder_id' => $sp_item['id'],
-            'remote_path'      => $remote_path,
-            'drive_id'         => $drive_id,
+            'provider'         => 'nextcloud',
+            'remote_folder_id' => (string)$nc['fileid'],
+            'remote_path'      => $nc['path'],
+            'drive_id'         => WsCloud::api()->apiUid(),
             'created_by'       => $user_id,
         ]);
-
+        WsCloud::syncQuiet($workspace_id);
         $folder = db_one("SELECT * FROM ws_folders WHERE id = ?", [$id]);
         return ['ok' => true, 'folder' => $folder, 'error' => ''];
-
     } catch (\Throwable $e) {
         return ['ok' => false, 'folder' => null, 'error' => $e->getMessage()];
     }
@@ -348,7 +336,7 @@ function ws_delete_folder(int $folder_id): array {
     $folder = ws_get_folder($folder_id);
     if (!$folder) return ['ok' => false, 'error' => 'Nie znaleziono folderu.'];
 
-    // Soft-delete plików (nie usuwamy z SP — dane historyczne)
+    // Soft-delete plików (folder i pliki zostają w chmurze — dane historyczne)
     db()->prepare("UPDATE ws_files SET deleted_at = datetime('now') WHERE folder_id = ? AND deleted_at IS NULL")
         ->execute([$folder_id]);
     db()->prepare("DELETE FROM ws_folders WHERE id = ?")->execute([$folder_id]);
@@ -359,7 +347,7 @@ function ws_delete_folder(int $folder_id): array {
 // ── Operacje plików ───────────────────────────────────────────────────────────
 
 /**
- * Wgrywa plik do koszulki (SP + metadane w DB).
+ * Wgrywa plik do folderu obszaru (chmura + metadane w DB). Nazwa w chmurze = oryginalna, przy kolizji „nazwa (2).ext”.
  *
  * @param  int   $folder_id   ID koszulki (ws_folders.id)
  * @param  array $file_upload Jeden wpis z $_FILES['file'] lub ['name','tmp_name','type','size','error']
@@ -369,7 +357,7 @@ function ws_delete_folder(int $folder_id): array {
 function ws_upload_file(int $folder_id, array $file_upload, ?int $user_id = null): array {
     $folder = ws_get_folder($folder_id);
     if (!$folder) return ['ok' => false, 'file' => null, 'error' => 'Nie znaleziono folderu.'];
-    if (!ws_available()) return ['ok' => false, 'file' => null, 'error' => 'SharePoint nie jest skonfigurowany.'];
+    if (!ws_available()) return ['ok' => false, 'file' => null, 'error' => ws_unavailable_reason()];
 
     $user_id = $user_id ?? (current_user()['id'] ?? null);
 
@@ -394,32 +382,28 @@ function ws_upload_file(int $folder_id, array $file_upload, ?int $user_id = null
         return ['ok' => false, 'file' => null, 'error' => "Typ pliku .{$ext} nie jest dozwolony."];
     }
 
-    // Unikalna nazwa w SP (zachowaj oryginalną, dodaj timestamp jeśli kolizja)
-    $sp_filename = ws_sanitize_folder_name(pathinfo($orig_name, PATHINFO_FILENAME))
-                 . '_' . date('YmdHis')
-                 . '.' . $ext;
-
     try {
-        $graph    = new M365Graph();
-        $drive_id = $folder['drive_id'] ?: ws_sp_drive_id();
-        $sp_item  = $graph->sp_upload_to_folder($drive_id, $folder['remote_folder_id'], $sp_filename, $tmp_path);
-
-        if (empty($sp_item['id'])) {
-            return ['ok' => false, 'file' => null, 'error' => 'SharePoint nie zwrócił ID po wgraniu pliku.'];
+        $folder  = ws_cloud_folder($folder);
+        $name    = WsCloud::freeName((string)$folder['remote_path'], $orig_name);
+        $path    = $folder['remote_path'] . '/' . $name;
+        WsCloud::api()->ownPut($path, $tmp_path);
+        $st = WsCloud::api()->ownStat($path);
+        if (!$st || empty($st['fileid'])) {
+            return ['ok' => false, 'file' => null, 'error' => 'Chmura nie potwierdziła zapisu pliku.'];
         }
 
         $id = db_insert('ws_files', [
             'folder_id'      => $folder_id,
             'workspace_id'   => $folder['workspace_id'],
-            'name'           => $orig_name,
+            'name'           => $name,
             'original_name'  => $orig_name,
             'mime_type'      => $mime,
-            'file_size'      => $sp_item['size'] ?? $file_size,
-            'provider'       => 'sharepoint',
-            'remote_item_id' => $sp_item['id'],
-            'remote_path'    => $folder['remote_path'] . '/' . $sp_filename,
-            'drive_id'       => $drive_id,
-            'web_url'        => $sp_item['webUrl'] ?? '',
+            'file_size'      => (int)($st['size'] ?: $file_size),
+            'provider'       => 'nextcloud',
+            'remote_item_id' => (string)$st['fileid'],
+            'remote_path'    => $path,
+            'drive_id'       => WsCloud::api()->apiUid(),
+            'web_url'        => WsCloud::webUrl((int)$st['fileid']),
             'uploaded_by'    => $user_id,
         ]);
 
@@ -446,7 +430,8 @@ function ws_list_files(int $folder_id): array {
     );
 }
 
-function ws_delete_file(int $file_id, bool $hard_delete_sp = false): array {
+/** Usuwa plik z obszaru (soft delete w bazie); $hard_delete = true przenosi go też do kosza chmury. */
+function ws_delete_file(int $file_id, bool $hard_delete = false): array {
     $file = ws_get_file($file_id);
     if (!$file) return ['ok' => false, 'error' => 'Nie znaleziono pliku.'];
 
@@ -456,25 +441,17 @@ function ws_delete_file(int $file_id, bool $hard_delete_sp = false): array {
     // Soft delete w DB
     db()->prepare("UPDATE ws_files SET deleted_at = datetime('now') WHERE id = ?")->execute([$file_id]);
 
-    if ($hard_delete_sp && $file['remote_item_id'] && ws_available()) {
+    if ($hard_delete && ($file['provider'] ?? '') === 'nextcloud' && $file['remote_path'] !== '' && ws_available()) {
         try {
-            $graph    = new M365Graph();
-            $drive_id = $file['drive_id'] ?: ws_sp_drive_id();
-            $graph->sp_delete_item($drive_id, $file['remote_item_id']);
+            if (($file['drive_id'] ?? '') === WsCloud::api()->apiUid()) WsCloud::api()->ownDelete((string)$file['remote_path']);
         } catch (\Throwable $e) {
-            // non-fatal — lokalny soft-delete wystarczy
+            // non-fatal — lokalny soft-delete wystarczy (plik zostaje w chmurze)
         }
     }
 
     return ['ok' => true, 'error' => ''];
 }
 
-// ── Powiązania plików z zadaniami ─────────────────────────────────────────────
-
-/**
- * Przypisuje plik do zadania.
- * Weryfikuje, że plik i zadanie należą do tego samego workspace.
- */
 function ws_link_file_to_task(int $file_id, int $task_id, ?int $user_id = null): array {
     $file = ws_get_file($file_id);
     if (!$file) return ['ok' => false, 'error' => 'Nie znaleziono pliku.'];
@@ -520,7 +497,7 @@ function ws_files_for_task(int $task_id): array {
 }
 
 /**
- * Folder zadania w Koszulkach (ws_folders.task_id — tworzony przez ws_sp_create_task_folder) albo null.
+ * Folder zadania (ws_folders.task_id — tworzony przez ws_cloud_create_task_folder) albo null.
  * Pliki wgrane do tego folderu należą do zadania bez osobnego przypinania (ws_task_files).
  */
 function ws_task_folder(int $task_id): ?array {
@@ -545,11 +522,8 @@ function ws_tasks_for_file(int $file_id): array {
 // ── Proxy / bezpieczne pobieranie ─────────────────────────────────────────────
 
 /**
- * Weryfikuje uprawnienia i strumieniuje plik z SharePoint do klienta HTTP.
- * NIGDY nie należy dawać użytkownikom bezpośredniego URL do SP.
- *
- * @param  int      $file_id  ws_files.id
- * @param  int|null $user_id  Pobierający (null = aktualny)
+ * Weryfikuje uprawnienia i przekazuje plik z chmury do przeglądarki (przez plik tymczasowy).
+ * Osoby z kontem w chmurze mogą też otworzyć plik wprost w Nextcloudzie (web_url), jeśli folder obszaru jest im udostępniony.
  */
 function ws_proxy_download(int $file_id, ?int $user_id = null, bool $inline = false): void {
     $file = ws_get_file($file_id);
@@ -567,148 +541,104 @@ function ws_proxy_download(int $file_id, ?int $user_id = null, bool $inline = fa
         exit;
     }
 
+    if (($file['provider'] ?? '') !== 'nextcloud') {
+        http_response_code(410);
+        echo 'Ten plik został w SharePoincie i nie przeniesiono go jeszcze do chmury. Administrator przenosi go poleceniem php cli/wsSharepointToCloud.php.';
+        exit;
+    }
     if (!ws_available()) {
         http_response_code(503);
-        echo 'Usługa SharePoint niedostępna.';
+        echo ws_unavailable_reason();
         exit;
     }
 
-    if (!$file['remote_item_id']) {
-        http_response_code(404);
-        echo 'Plik nie ma przypisanego ID w SharePoint.';
-        exit;
-    }
-
+    $tmp = tempnam(sys_get_temp_dir(), 'wsdl');
     try {
-        $graph    = new M365Graph();
-        $drive_id = $file['drive_id'] ?: ws_sp_drive_id();
-        $bytes    = $graph->sp_download_file($drive_id, $file['remote_item_id']);
-
+        WsCloud::api()->ownDownload((string)$file['remote_path'], $tmp);
         $filename = $file['original_name'] ?: $file['name'] ?: 'plik';
         $mime     = $file['mime_type'] ?: 'application/octet-stream';
-
-        $disp = $inline ? 'inline' : 'attachment';
+        $disp     = $inline ? 'inline' : 'attachment';
         header('Content-Type: ' . $mime);
-        header('Content-Length: ' . strlen($bytes));
-        header('Content-Disposition: ' . $disp . '; filename="' . addslashes($filename) . '"');
+        header('Content-Length: ' . filesize($tmp));
+        header('Content-Disposition: ' . $disp . "; filename*=UTF-8''" . rawurlencode($filename));
         header('Cache-Control: private, no-store');
         header('X-Content-Type-Options: nosniff');
-
-        echo $bytes;
+        readfile($tmp);
+        @unlink($tmp);
         exit;
-
     } catch (\Throwable $e) {
+        @unlink($tmp);
         http_response_code(502);
-        echo 'Błąd pobierania z SharePoint: ' . htmlspecialchars($e->getMessage());
+        echo 'Błąd pobierania z chmury: ' . htmlspecialchars($e->getMessage());
         exit;
     }
 }
 
-// ── Inicjalizacja folderu SP przy tworzeniu workspace ─────────────────────────
+// ── Folder obszaru i foldery zadań w chmurze ──────────────────────────────────
 
 /**
- * Tworzy folder workspace w SharePoint: {sp_root}/{sanitized_name}/
- * Idempotentne — bezpieczne przy ponownym wywołaniu.
- * Nie rzuca wyjątków — błędy SP są logowane, workspace istnieje niezależnie od SP.
+ * Zakłada folder obszaru w chmurze „{root}/{obszar}” i udostępnia go członkom. Idempotentne.
+ * Nie rzuca wyjątków — błędy chmury są logowane, obszar istnieje niezależnie od chmury.
  */
-function ws_sp_init_workspace(int $ws_id): void {
+function ws_cloud_init_workspace(int $ws_id): void {
     if (!ws_available()) return;
-
-    $workspace = db_one("SELECT name FROM task_workspaces WHERE id=?", [$ws_id]);
-    if (!$workspace) return;
-
     try {
-        $drive_id = ws_sp_drive_id();
-        $root     = ws_sp_root_folder();
-        $ws_name  = ws_sanitize_folder_name($workspace['name']);
-        $graph    = new M365Graph();
-
-        $graph->sp_create_folder($drive_id, '',     $root);
-        $graph->sp_create_folder($drive_id, $root,  $ws_name);
+        WsCloud::workspaceRoot($ws_id);
+        WsCloud::syncShares($ws_id);
     } catch (\Throwable $e) {
-        error_log('[ws_sp_init_workspace] ws=' . $ws_id . ' ' . $e->getMessage());
+        error_log('[ws_cloud_init_workspace] ws=' . $ws_id . ' ' . $e->getMessage());
     }
 }
 
 /**
- * Tworzy podfolder SP dla konkretnego zadania w jego workspace.
- * Idempotentne — jeśli folder już istnieje w DB (task_id), pomija.
- * Zwraca istniejący lub nowo utworzony ws_folders row, lub null przy błędzie.
+ * Folder zadania w chmurze: „{root}/{obszar}/Zadania/{tytuł} (ZAD-{id})”. Idempotentne — gdy wiersz już jest
+ * (task_id w ws_folders), zwraca go (stary wiersz z SharePointa przenosi do chmury). Null przy błędzie.
  */
-function ws_sp_create_task_folder(int $task_id, ?int $user_id = null): ?array {
+function ws_cloud_create_task_folder(int $task_id, ?int $user_id = null): ?array {
     if (!ws_available()) return null;
 
-    // sprawdź czy folder już istnieje
     $existing = db_one("SELECT * FROM ws_folders WHERE task_id = ?", [$task_id]);
-    if ($existing) return $existing;
-
-    $task = db_one("SELECT id, title, workspace_id FROM tasks WHERE id = ? AND deleted_at IS NULL", [$task_id]);
-    if (!$task || !(int)$task['workspace_id']) return null;
-
-    $ws_id = (int)$task['workspace_id'];
-    $name  = ws_sanitize_folder_name($task['title']);
-    if (!$name) $name = 'Zadanie-' . $task_id;
-
     try {
-        $graph    = new M365Graph();
-        $drive_id = ws_sp_drive_id();
-        $root     = ws_sp_root_folder();
-        $ws_name  = ws_sanitize_folder_name(
-            db_one("SELECT name FROM task_workspaces WHERE id=?", [$ws_id])['name'] ?? 'obszar'
-        );
+        if ($existing) return ws_cloud_folder($existing);
 
-        $graph->sp_create_folder($drive_id, '',           $root);
-        $graph->sp_create_folder($drive_id, $root,        $ws_name);
-        $sp_item = $graph->sp_create_folder($drive_id, "{$root}/{$ws_name}", $name);
-
-        $remote_path = "{$root}/{$ws_name}/{$name}";
-        $uid = $user_id ?? (current_user()['id'] ?? null);
-
+        $task = db_one("SELECT id, title, workspace_id FROM tasks WHERE id = ? AND deleted_at IS NULL", [$task_id]);
+        if (!$task || !(int)$task['workspace_id']) return null;
+        $ws_id = (int)$task['workspace_id'];
+        $name  = mb_substr(WsCloud::name((string)$task['title'], 'Zadanie'), 0, 90) . ' (ZAD-' . $task_id . ')';
+        $nc    = WsCloud::ensureFolder($ws_id, 'Zadania/' . $name);
         $fid = db_insert('ws_folders', [
             'workspace_id'     => $ws_id,
             'task_id'          => $task_id,
             'name'             => $task['title'],
             'description'      => '',
-            'provider'         => 'sharepoint',
-            'remote_folder_id' => $sp_item['id'],
-            'remote_path'      => $remote_path,
-            'drive_id'         => $drive_id,
-            'created_by'       => $uid,
+            'provider'         => 'nextcloud',
+            'remote_folder_id' => (string)$nc['fileid'],
+            'remote_path'      => $nc['path'],
+            'drive_id'         => WsCloud::api()->apiUid(),
+            'created_by'       => $user_id ?? (current_user()['id'] ?? null),
         ]);
-
+        WsCloud::syncQuiet($ws_id);
         return db_one("SELECT * FROM ws_folders WHERE id = ?", [$fid]);
     } catch (\Throwable $e) {
-        error_log('[ws_sp_create_task_folder] task=' . $task_id . ' ' . $e->getMessage());
+        error_log('[ws_cloud_create_task_folder] task=' . $task_id . ' ' . $e->getMessage());
         return null;
     }
 }
 
 /**
- * Inicjalizuje foldery SP dla wszystkich zadań w danym workspace.
- * Pomija zadania, które już mają folder (task_id w ws_folders).
+ * Zakłada foldery w chmurze dla wszystkich zadań obszaru, które jeszcze ich nie mają.
  * Zwraca liczbę nowo utworzonych folderów.
  */
 function ws_init_task_folders(int $ws_id, ?int $user_id = null): int {
     if (!ws_available()) return 0;
-
     $tasks = db_all(
-        "SELECT id, title FROM tasks WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at",
+        "SELECT t.id FROM tasks t WHERE t.workspace_id = ? AND t.deleted_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM ws_folders f WHERE f.task_id = t.id) ORDER BY t.created_at",
         [$ws_id]
     );
-    if (empty($tasks)) return 0;
-
-    // Wczytaj już istniejące task_id folderów dla tego workspace
-    $existing_task_ids = array_column(
-        db_all("SELECT task_id FROM ws_folders WHERE workspace_id = ? AND task_id IS NOT NULL", [$ws_id]),
-        'task_id'
-    );
-    $existing_task_ids = array_map('intval', $existing_task_ids);
-
     $created = 0;
     foreach ($tasks as $t) {
-        if (in_array((int)$t['id'], $existing_task_ids, true)) continue;
-        $result = ws_sp_create_task_folder((int)$t['id'], $user_id);
-        if ($result) $created++;
+        if (ws_cloud_create_task_folder((int)$t['id'], $user_id)) $created++;
     }
     return $created;
 }

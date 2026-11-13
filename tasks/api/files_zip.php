@@ -1,8 +1,8 @@
 <?php
 /**
  * API: Pobranie wszystkich załączników zadania jako ZIP.
- * GET ?task=N — tylko lokalne załączniki (task_files); pliki z Koszulek (SharePoint) nie są
- * pobierane z Graph na potrzeby archiwum, ich lista trafia do pliku _Koszulki.txt w ZIP-ie.
+ * GET ?task=N — tylko lokalne załączniki (task_files); pliki z folderów obszaru (chmura Nextcloud) nie są
+ * pobierane na potrzeby archiwum, ich lista z linkami trafia do pliku _Pliki_w_chmurze.txt w ZIP-ie.
  * Uprawnienia jak przy podglądzie załącznika (tasks/api/file.php).
  */
 require_once dirname(__DIR__, 2) . '/config.php';
@@ -37,7 +37,7 @@ $files = db_all("SELECT original_name, stored_name FROM task_files WHERE task_id
 $ws_files = [];
 if (db_one("SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name='ws_task_files'")) {
     $ws_files = db_all(
-        "SELECT COALESCE(NULLIF(wf.original_name, ''), wf.name) AS name, wf.web_url
+        "SELECT COALESCE(NULLIF(wf.original_name, ''), wf.name) AS name, wf.web_url, wf.provider
          FROM ws_task_files wtf JOIN ws_files wf ON wf.id = wtf.file_id AND wf.deleted_at IS NULL
          WHERE wtf.task_id = ?",
         [$task_id]
@@ -64,9 +64,12 @@ foreach ($files as $f) {
     $added++;
 }
 if ($ws_files) {
-    $txt = "Pliki z Koszulek powiązane z zadaniem (przechowywane w SharePoint, nie dołączone do archiwum):\r\n\r\n";
-    foreach ($ws_files as $w) $txt .= '- ' . $w['name'] . ($w['web_url'] ? "\r\n  " . $w['web_url'] : '') . "\r\n";
-    $zip->addFromString('_Koszulki.txt', $txt);
+    $txt = "Pliki z folderów obszaru powiązane z zadaniem (są w chmurze plików, nie ma ich w tym archiwum):\r\n\r\n";
+    foreach ($ws_files as $w) {
+        $link = ($w['provider'] ?? '') === 'nextcloud' ? (string)$w['web_url'] : '';
+        $txt .= '- ' . $w['name'] . ($link !== '' ? "\r\n  " . $link : '') . "\r\n";
+    }
+    $zip->addFromString('_Pliki_w_chmurze.txt', $txt);
 }
 $zip->close();
 

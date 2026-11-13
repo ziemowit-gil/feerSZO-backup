@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     )->execute([$id, (int)$adm['id'], $uid, $now_ts]);
                 } catch (\Throwable $e) {}
             }
-            ws_sp_init_workspace($id);
+            ws_cloud_init_workspace($id);
             foreach ((array)($_POST['folders'] ?? []) as $fname) {
                 $fname = trim($fname);
                 if ($fname !== '') {

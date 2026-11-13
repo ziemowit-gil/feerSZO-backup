@@ -153,7 +153,7 @@ if ($action === 'create') {
     // Auto-utwórz folder SP dla nowego zadania (nieblokujące)
     try {
         require_once dirname(__DIR__, 2) . '/includes/workspaces.php';
-        ws_sp_create_task_folder($id, $uid);
+        ws_cloud_create_task_folder($id, $uid);
     } catch (\Throwable $e) {}
 
     $task = db_one("SELECT * FROM tasks WHERE id=?", [$id]);

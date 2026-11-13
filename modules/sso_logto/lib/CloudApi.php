@@ -242,6 +242,123 @@ final class CloudApi
         return $size;
     }
 
+    // ── Pliki na koncie API (np. foldery obszarów Zadań) i udostępnienia ──────────────────────
+    // Konto API zapisane w SZO jest właścicielem plików; osoby dostają do nich udostępnienia (OCS files_sharing).
+
+    /** Login konta API (właściciela plików zapisywanych przez SZO). */
+    public function apiUid(): string
+    {
+        return $this->adminUser;
+    }
+
+    public function ownMkdirs(string $path): void
+    {
+        $this->davMkdirs($this->adminUser, $this->adminPass, $path);
+    }
+
+    /** Wysyła plik na konto API (duży — w częściach). Zwraca liczbę bajtów. */
+    public function ownPut(string $path, string $file): int
+    {
+        return (int)filesize($file) >= self::chunkFrom()
+            ? $this->davPutChunked($this->adminUser, $this->adminPass, $path, $file)
+            : $this->davPut($this->adminUser, $this->adminPass, $path, $file);
+    }
+
+    /** PROPFIND (Depth 0): ['fileid' => int, 'size' => int, 'dir' => bool, 'mime' => string] albo null, gdy nie ma. */
+    public function ownStat(string $path): ?array
+    {
+        $xml = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop>'
+             . '<oc:fileid/><oc:size/><d:getcontentlength/><d:resourcetype/><d:getcontenttype/></d:prop></d:propfind>';
+        [$code, $raw] = self::http('PROPFIND', $this->davUrl($this->adminUser, $path), ['Depth: 0'], $xml,
+                                   [$this->adminUser, $this->adminPass]);
+        if ($code === 404) return null;
+        if ($code !== 207) $this->davFail($code, $raw, 'Nie można odczytać ' . $path);
+        $tag = fn(string $n) => preg_match('~<[a-z0-9]*:?' . $n . '>([^<]*)</~i', $raw, $m) ? trim($m[1]) : '';
+        $dir = (bool)preg_match('~<[a-z0-9]*:?collection\s*/>~i', $raw);
+        return ['fileid' => (int)$tag('fileid'), 'size' => (int)($tag('getcontentlength') ?: $tag('size')), 'dir' => $dir, 'mime' => $tag('getcontenttype')];
+    }
+
+    /** Pobiera plik z konta API do pliku lokalnego. Zwraca liczbę bajtów. */
+    public function ownDownload(string $path, string $toFile): int
+    {
+        $fh = fopen($toFile, 'wb');
+        if (!$fh) throw new RuntimeException('Nie można utworzyć pliku tymczasowego.');
+        $ch = curl_init($this->davUrl($this->adminUser, $path));
+        curl_setopt_array($ch, [CURLOPT_FILE => $fh, CURLOPT_USERPWD => $this->adminUser . ':' . $this->adminPass, CURLOPT_CONNECTTIMEOUT => 10,
+                                CURLOPT_TIMEOUT => 1800, CURLOPT_FAILONERROR => false]);
+        $ok = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        unset($ch);
+        fclose($fh);
+        if ($ok === false) throw new CloudUnavailable('Chmura niedostępna przy pobieraniu: ' . $err);
+        if ($code !== 200) $this->davFail($code, (string)@file_get_contents($toFile, false, null, 0, 4000), 'Nie można pobrać ' . $path);
+        return (int)filesize($toFile);
+    }
+
+    /** Usuwa plik albo folder z konta API (trafia do kosza chmury). Brak pliku to nie błąd. */
+    public function ownDelete(string $path): void
+    {
+        [$code, $raw] = self::http('DELETE', $this->davUrl($this->adminUser, $path), [], null, [$this->adminUser, $this->adminPass]);
+        if (in_array($code, [200, 204, 404], true)) return;
+        $this->davFail($code, $raw, 'Nie można usunąć ' . $path);
+    }
+
+    /** Udostępnienia ścieżki na koncie API: lista ['id','share_type','share_with','permissions']. */
+    public function shares(string $path): array
+    {
+        $d = $this->ocsAt('GET', '/ocs/v2.php/apps/files_sharing/api/v1/shares', ['path' => '/' . trim($path, '/')]);
+        return array_values(array_filter(array_map(fn($s) => is_array($s) ? [
+            'id' => (int)($s['id'] ?? 0), 'share_type' => (int)($s['share_type'] ?? -1),
+            'share_with' => (string)($s['share_with'] ?? ''), 'permissions' => (int)($s['permissions'] ?? 0),
+        ] : null, $d)));
+    }
+
+    /** Udostępnia ścieżkę osobie (share_type 0) z uprawnieniami (1 odczyt, 2 zmiana, 4 dodawanie, 8 usuwanie, 16 dalsze udostępnianie). */
+    public function shareCreate(string $path, string $uid, int $permissions): int
+    {
+        $d = $this->ocsAt('POST', '/ocs/v2.php/apps/files_sharing/api/v1/shares',
+                          ['path' => '/' . trim($path, '/'), 'shareType' => 0, 'shareWith' => $uid, 'permissions' => $permissions]);
+        return (int)($d['id'] ?? 0);
+    }
+
+    public function shareUpdate(int $id, int $permissions): void
+    {
+        $this->ocsAt('PUT', '/ocs/v2.php/apps/files_sharing/api/v1/shares/' . $id, ['permissions' => $permissions]);
+    }
+
+    public function shareDelete(int $id): void
+    {
+        $this->ocsAt('DELETE', '/ocs/v2.php/apps/files_sharing/api/v1/shares/' . $id);
+    }
+
+    /** OCS spoza /cloud/ (np. files_sharing) — te same zasady błędów co ocs(). */
+    private function ocsAt(string $method, string $endpoint, array $params = []): array
+    {
+        $url = $this->base . $endpoint;
+        $body = null;
+        if ($method === 'GET' || $method === 'DELETE') {
+            $url .= '?' . http_build_query($params + ['format' => 'json']);
+        } else {
+            $url .= '?format=json';
+            $body = http_build_query($params);
+        }
+        [$code, $raw] = self::http($method, $url, ['OCS-APIRequest: true', 'Accept: application/json'], $body, [$this->adminUser, $this->adminPass]);
+        $this->lastHttp = $code;
+        $this->lastRaw = mb_substr($raw, 0, 2000);
+        $j = json_decode($raw, true);
+        $meta = is_array($j) ? ($j['ocs']['meta'] ?? []) : [];
+        $status = (int)($meta['statuscode'] ?? 0);
+        if ($code >= 200 && $code < 300 && in_array($status, [100, 200], true)) return (array)($j['ocs']['data'] ?? []);
+        $msg = trim((string)($meta['message'] ?? ''));
+        if ($code === 0) throw new CloudUnavailable('Chmura niedostępna: ' . $raw);
+        if ($code === 401) { $e = new CloudDenied('Chmura odrzuciła logowanie konta API.', $status); $e->http = $code; throw $e; }
+        if ($code >= 500 || $code === 429) { $e = new CloudUnavailable('Chmura chwilowo niedostępna (HTTP ' . $code . ').', $status); $e->http = $code; throw $e; }
+        $e = new CloudApiException(self::label($this->kind) . ': ' . ($msg !== '' ? $msg : 'HTTP ' . $code) . ($status ? ' (kod ' . $status . ')' : ''), $status ?: $code);
+        $e->http = $code;
+        throw $e;
+    }
+
     private function davFail(int $code, string $raw, string $what): never
     {
         $msg = '';

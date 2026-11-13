@@ -101,8 +101,8 @@ include dirname(__DIR__) . '/includes/header.php';
   </ul>
 
   <?php if ($active_tab === 'files' && !$sp_ok): ?>
-  <!-- ═══════════════════════ TAB: PLIKI — zablokowana (SharePoint niepołączony) ═══════════════════════ -->
-  <?php SpConnection::renderBlocked('Pliki obszaru', 'Zakładka Pliki działa tylko z połączonym SharePointem. Zakładka Zadania jest dostępna bez zmian.'); ?>
+  <!-- ═══════════════════════ TAB: PLIKI — zablokowana (chmura plików niepodłączona) ═══════════════════════ -->
+  <?php ws_render_unavailable('Pliki obszaru', 'Zakładka Pliki działa tylko z podłączoną chmurą plików. Zakładka Zadania jest dostępna bez zmian.'); ?>
 
   <?php elseif ($active_tab === 'files'): ?>
   <!-- ═══════════════════════ TAB: PLIKI ═══════════════════════════════════ -->
@@ -412,7 +412,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="modal-footer py-2">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
         <button type="button" class="btn btn-sm btn-primary" id="btnCreateFolder">
-          <i class="bi bi-folder-plus me-1"></i>Utwórz w SharePoint
+          <i class="bi bi-folder-plus me-1" aria-hidden="true"></i>Utwórz folder
         </button>
       </div>
     </div>
@@ -704,7 +704,7 @@ document.getElementById('btnCreateFolder')?.addEventListener('click', async () =
     body: JSON.stringify({_csrf: CSRF, action: 'create_folder', workspace_id: WS_ID, name, description: desc})
   }).then(r => r.json());
 
-  btn.disabled = false; btn.innerHTML = '<i class="bi bi-folder-plus me-1"></i>Utwórz w SharePoint';
+  btn.disabled = false; btn.innerHTML = '<i class="bi bi-folder-plus me-1" aria-hidden="true"></i>Utwórz folder';
   if (r.ok) {
     window.location.href = `?ws=${WS_ID}&tab=files&folder=${r.folder.id}`;
   } else {
@@ -805,7 +805,7 @@ document.getElementById('btnLinkTask')?.addEventListener('click', async () => {
 // ── Usuń folder ───────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-action="delete-folder"]').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm('Usunąć folder? Pliki zostaną ukryte, ale pozostaną w SharePoint.')) return;
+    if (!confirm('Usunąć folder z listy? Pliki zostaną ukryte, ale zostaną w chmurze.')) return;
     const r = await fetch(API, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},

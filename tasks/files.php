@@ -65,7 +65,7 @@ if ($overview_mode) {
          ORDER BY f.created_at DESC LIMIT 10",
         $ov_ws_ids
     );
-    // Załączniki zadań — lokalne pliki (uploads/tasks/), NIEZALEŻNE od SharePoint/Koszulek.
+    // Załączniki zadań — lokalne pliki (uploads/tasks/), NIEZALEŻNE od folderów obszaru w chmurze.
     // Działają zawsze (nie wymagają $sp_ok) — patrz tasks/api/upload.php.
     $recent_task_files = empty($ov_ws_ids) ? [] : db_all(
         "SELECT tf.id, tf.original_name, tf.stored_name, tf.file_size, tf.created_at,
@@ -181,8 +181,8 @@ if ($overview_mode) {
 <?php else: ?>
 
 <?php if (!$sp_ok): ?>
-<?php SpConnection::renderBlocked('Moduł Pliki', 'Pliki obszarów roboczych są przechowywane wyłącznie na SharePoincie — bez połączenia nie można ich przeglądać, wgrywać ani pobierać. Załączniki zadań (lokalne) działają bez zmian.'); ?>
-<?php else: // SharePoint połączony: siatka obszarów + ostatnio dodane pliki ?>
+<?php ws_render_unavailable('Moduł Pliki', 'Foldery obszarów roboczych są w chmurze plików. Bez niej nie można ich przeglądać, wgrywać ani pobierać. Załączniki zadań działają bez zmian.'); ?>
+<?php else: // chmura podłączona: siatka obszarów + ostatnio dodane pliki ?>
 <!-- Siatka obszarów roboczych -->
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 mb-4">
   <?php foreach ($ov_workspaces as $ov_ws):
@@ -209,7 +209,7 @@ if ($overview_mode) {
       <?php if ($can_init): ?>
       <button class="btn btn-sm btn-outline-warning py-0 px-2 btn-init-ws flex-shrink-0"
               data-ws-id="<?= (int)$ov_ws['id'] ?>"
-              title="Utwórz foldery dla zadań w SharePoint"
+              title="Utwórz w chmurze foldery dla zadań"
               style="font-size:.75rem; white-space:nowrap">
         <i class="bi bi-magic me-1"></i>Inicjuj
       </button>
@@ -300,7 +300,7 @@ if ($overview_mode) {
 
 <?php endif; // sp_ok ?>
 
-<!-- Załączniki zadań (lokalne, niezależne od SharePoint/Koszulek) -->
+<!-- Załączniki zadań (lokalne, niezależne od folderów w chmurze) -->
 <?php if (!empty($recent_task_files)): ?>
 <div class="tf-wrap mt-3">
   <div class="d-flex align-items-center px-3 py-2 border-bottom"
@@ -401,7 +401,7 @@ if ($overview_mode) {
       <div class="modal-footer py-2">
         <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
         <button class="btn btn-sm btn-primary" id="ovBtnCreateFolder">
-          <i class="bi bi-folder-plus me-1"></i>Utwórz w SharePoint
+          <i class="bi bi-folder-plus me-1" aria-hidden="true"></i>Utwórz folder
         </button>
       </div>
     </div>
@@ -544,7 +544,7 @@ document.getElementById('ovBtnCreateFolder')?.addEventListener('click', async ()
   const btn = document.getElementById('ovBtnCreateFolder');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Tworzę…';
   const r = await wsApi({action: 'create_folder', workspace_id: wsId, name, description: desc});
-  btn.disabled = false; btn.innerHTML = '<i class="bi bi-folder-plus me-1"></i>Utwórz w SharePoint';
+  btn.disabled = false; btn.innerHTML = '<i class="bi bi-folder-plus me-1" aria-hidden="true"></i>Utwórz folder';
   if (r.ok) {
     window.location.href = `?ws=${wsId}&folder=${r.folder.id}`;
   } else { alertEl.textContent = r.error || 'Błąd.'; alertEl.style.display = ''; }
@@ -680,7 +680,7 @@ $folders    = ws_list_folders($ws_id);
 $sp_ok      = ws_available();
 $role       = ws_user_role($ws_id, $uid);
 
-// Bez połączenia z SharePointem widok obszaru (foldery i pliki leżą na SharePoincie) jest zablokowany — panel z linkiem do ustawień
+// Bez chmury plików widok obszaru (foldery i pliki leżą w chmurze) jest zablokowany — panel z linkiem do ustawień
 if (!$sp_ok) {
     $PAGE_TITLE       = h($workspace['name']) . ' — Pliki';
     $PAGE_SUBTITLE    = 'Pliki';
@@ -689,7 +689,7 @@ if (!$sp_ok) {
     $TASKS_FILES_VIEW = true;
     require_once __DIR__ . '/includes/header_tasks.php';
     echo '<main id="tsk-main" class="py-3 px-3 px-md-4 px-lg-5">';
-    SpConnection::renderBlocked('Pliki obszaru „' . $workspace['name'] . '”', 'Pliki obszarów roboczych są przechowywane wyłącznie na SharePoincie. Załączniki zadań (lokalne) nie wymagają SharePointa — są w widoku zadań.');
+    ws_render_unavailable('Pliki obszaru „' . $workspace['name'] . '”', 'Foldery obszarów roboczych są w chmurze plików. Załączniki zadań jej nie wymagają i są w widoku zadań.');
     echo '</main>';
     include __DIR__ . '/includes/footer_tasks.php';
     exit;
@@ -700,12 +700,12 @@ if (!$can_view) {
     $folders = array_values(array_filter($folders, fn($f) => !empty($f['task_id'])));
 }
 
-// Auto-inicjuj strukturę SP gdy obszar jest pusty i użytkownik ma uprawnienia
+// Auto-inicjuj strukturę w chmurze, gdy obszar jest pusty i użytkownik ma uprawnienia
 $auto_initialized = false;
 $auto_created     = 0;
 if (empty($folders) && $can_tf && $sp_ok) {
     try {
-        ws_sp_init_workspace($ws_id);
+        ws_cloud_init_workspace($ws_id);
         $auto_created     = ws_init_task_folders($ws_id, $uid);
         $folders          = ws_list_folders($ws_id);
         $auto_initialized = true;
@@ -878,7 +878,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
       <a href="<?= APP_URL ?>/tasks/files.php?ws=<?= $ws_id ?>" class="tk-viewsw-b is-on" aria-current="page"><i class="bi bi-folder2-open" aria-hidden="true"></i>Pliki</a>
     </div>
     <?php if ($can_tf && $sp_ok && $tf_missing > 0): ?>
-    <button type="button" class="tk-hbtn" id="tfInitTaskFolders" title="Utwórz na SharePoincie foldery dla zadań, które jeszcze ich nie mają">
+    <button type="button" class="tk-hbtn" id="tfInitTaskFolders" title="Utwórz w chmurze foldery dla zadań, które jeszcze ich nie mają">
       <i class="bi bi-folder-plus" aria-hidden="true"></i>Foldery dla zadań (<?= $tf_missing ?>)</button>
     <?php endif; ?>
     <?php if ($can_folder && $sp_ok): ?>
@@ -950,6 +950,11 @@ require_once __DIR__ . '/includes/header_tasks.php';
             <button type="button" class="tf-ibtn tf-view-toggle active" data-view="list" title="Widok listy" aria-label="Widok listy"><i class="bi bi-list-ul" aria-hidden="true"></i></button>
             <button type="button" class="tf-ibtn tf-view-toggle" data-view="grid" title="Widok galerii" aria-label="Widok galerii"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i></button>
           </div>
+          <?php endif; ?>
+          <?php $tf_cloud_link = ws_cloud_link($active_folder); if ($tf_cloud_link !== ''): ?>
+          <a class="tf-ibtn" href="<?= h($tf_cloud_link) ?>" target="_blank" rel="noopener"
+             title="Otwórz folder w Nextcloudzie (pliki, aplikacja na komputerze i telefonie)">
+            <i class="bi bi-cloud" aria-hidden="true"></i>W Nextcloudzie<span class="visually-hidden"> (nowa karta)</span></a>
           <?php endif; ?>
           <?php if ($can_upload && $sp_ok): ?>
           <button type="button" class="tf-ibtn is-cta" onclick="document.getElementById('uploadInput').click()">
@@ -1030,8 +1035,8 @@ require_once __DIR__ . '/includes/header_tasks.php';
               <?php if ($previewable): ?>
               <button type="button" class="tf-fname btn-preview" data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>"
                       data-name="<?= h($f['name']) ?>" title="Podgląd: <?= h($f['name']) ?>"><?= h($f['name']) ?></button>
-              <?php elseif ($docPreview && $f['web_url']): ?>
-              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-fname" title="Otwórz w Office Online: <?= h($f['name']) ?>"><?= h($f['name']) ?></a>
+              <?php elseif ($docPreview && $f['web_url'] && ($f['provider'] ?? '') === 'nextcloud'): ?>
+              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-fname" title="Otwórz w chmurze: <?= h($f['name']) ?>"><?= h($f['name']) ?></a>
               <?php elseif ($can_dl): ?>
               <a href="<?= h($dl_url) ?>" class="tf-fname" title="Pobierz: <?= h($f['name']) ?>"><?= h($f['name']) ?></a>
               <?php else: ?>
@@ -1050,8 +1055,8 @@ require_once __DIR__ . '/includes/header_tasks.php';
                 <?php if ($previewable): ?>
                 <button type="button" class="tf-ibtn btn-preview" data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>" data-name="<?= h($f['name']) ?>"
                         title="Podgląd" aria-label="Podgląd: <?= h($f['name']) ?>"><i class="bi bi-eye" aria-hidden="true"></i></button>
-                <?php elseif ($docPreview && $f['web_url']): ?>
-                <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-ibtn" title="Otwórz w Office Online" aria-label="Otwórz w Office Online: <?= h($f['name']) ?>"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+                <?php elseif ($docPreview && $f['web_url'] && ($f['provider'] ?? '') === 'nextcloud'): ?>
+                <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-ibtn" title="Otwórz w chmurze" aria-label="Otwórz w chmurze (nowa karta): <?= h($f['name']) ?>"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
                 <?php endif; ?>
                 <?php if ($can_dl): ?>
                 <a href="<?= h($dl_url) ?>" class="tf-ibtn" title="Pobierz" aria-label="Pobierz: <?= h($f['name']) ?>"><i class="bi bi-download" aria-hidden="true"></i></a>
@@ -1110,8 +1115,8 @@ require_once __DIR__ . '/includes/header_tasks.php';
             <div class="tf-grid-overlay">
               <?php if ($previewable): ?>
               <button type="button" class="tf-ibtn btn-preview" data-url="<?= h($pv_url) ?>" data-ext="<?= h($ext) ?>" data-name="<?= h($f['name']) ?>" aria-label="Podgląd: <?= h($f['name']) ?>"><i class="bi bi-eye" aria-hidden="true"></i></button>
-              <?php elseif ($docPreview && $f['web_url']): ?>
-              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-ibtn" aria-label="Otwórz w Office Online: <?= h($f['name']) ?>"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+              <?php elseif ($docPreview && $f['web_url'] && ($f['provider'] ?? '') === 'nextcloud'): ?>
+              <a href="<?= h($f['web_url']) ?>" target="_blank" rel="noopener" class="tf-ibtn" aria-label="Otwórz w chmurze (nowa karta): <?= h($f['name']) ?>"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
               <?php endif; ?>
               <?php if ($can_dl): ?>
               <a href="<?= h($dl_url) ?>" class="tf-ibtn" aria-label="Pobierz: <?= h($f['name']) ?>"><i class="bi bi-download" aria-hidden="true"></i></a>
@@ -1142,7 +1147,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
     <div class="tf-card"><div class="tf-empty">
       <?php if ($auto_initialized): ?>
       <i class="bi bi-check-circle" aria-hidden="true" style="color:#007a00"></i>
-      <span>Folder obszaru został utworzony na SharePoincie.<?= $auto_created > 0 ? ' Utworzono foldery dla ' . $auto_created . ' ' . ($auto_created === 1 ? 'zadania' : 'zadań') . '.' : '' ?></span>
+      <span>Folder obszaru został utworzony w chmurze.<?= $auto_created > 0 ? ' Utworzono foldery dla ' . $auto_created . ' ' . ($auto_created === 1 ? 'zadania' : 'zadań') . '.' : '' ?></span>
       <?php else: ?>
       <i class="bi bi-folder2" aria-hidden="true"></i>
       <span>Brak folderów w tym obszarze.</span>
@@ -1192,7 +1197,7 @@ if (location.hash === '#task-files') {
       <div class="modal-footer py-2">
         <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
         <button class="btn btn-sm btn-primary" id="btnCreateFolder">
-          <i class="bi bi-folder-plus me-1"></i>Utwórz w SharePoint
+          <i class="bi bi-folder-plus me-1" aria-hidden="true"></i>Utwórz folder
         </button>
       </div>
     </div>
@@ -1404,7 +1409,7 @@ document.getElementById('btnCreateFolder')?.addEventListener('click', async () =
   const btn = document.getElementById('btnCreateFolder');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Tworzę…';
   const r = await wsApi({action: 'create_folder', workspace_id: WS_ID, name, description: desc});
-  btn.disabled = false; btn.innerHTML = '<i class="bi bi-folder-plus me-1"></i>Utwórz w SharePoint';
+  btn.disabled = false; btn.innerHTML = '<i class="bi bi-folder-plus me-1" aria-hidden="true"></i>Utwórz folder';
   if (r.ok) window.location.href = `?ws=${WS_ID}&folder=${r.folder.id}`;
   else { alertEl.textContent = r.error || 'Błąd.'; alertEl.style.display = ''; }
 });
@@ -1537,7 +1542,7 @@ document.getElementById('btnLinkTask')?.addEventListener('click', async () => {
 // ── Usuń folder ───────────────────────────────────────────────────────────
 document.querySelectorAll('[data-action="delete-folder"]').forEach(btn => {
   btn.addEventListener('click', async () => {
-    if (!confirm('Usunąć folder? Pliki pozostaną w SharePoint.')) return;
+    if (!confirm('Usunąć folder z listy? Folder i pliki zostaną w chmurze.')) return;
     const r = await wsApi({action: 'delete_folder', id: +btn.dataset.id});
     if (r.ok) window.location.href = `?ws=${WS_ID}`;
     else alert(r.error || 'Błąd.');
@@ -1580,7 +1585,7 @@ document.querySelectorAll('.btn-delete-task-attach').forEach(btn => {
 
 // ── Foldery dla zadań bez folderu (lider/admin) ───────────────────────────
 document.getElementById('tfInitTaskFolders')?.addEventListener('click', async function () {
-  if (!confirm('Utworzyć na SharePoincie foldery dla zadań, które jeszcze ich nie mają?')) return;
+  if (!confirm('Utworzyć w chmurze foldery dla zadań, które jeszcze ich nie mają?')) return;
   this.disabled = true;
   this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Tworzę foldery…';
   const r = await wsApi({action: 'init_ws_folders', workspace_id: WS_ID});

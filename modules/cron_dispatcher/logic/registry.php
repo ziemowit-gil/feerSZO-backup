@@ -393,6 +393,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/agents/sso_cloud_teams.php',
             'interval' => 120,          // co 2 min — zespoły i obszary robocze z Zadań → grupy „szo-zespol-{id}” / „szo-obszar-{id}” w chmurze (modules/sso_logto/logic/CloudTeamsSync.php); bez zmian same odczyty; bez chmury pomija
         ],
+        'ws_cloud_shares' => [
+            'file'     => $cronDir . '/agents/ws_cloud_shares.php',
+            'interval' => 3600,         // co 1 h — folder obszaru Zadań w chmurze udostępniony członkom obszaru (modules/wsCloud); bez chmury pomija
+        ],
         'dhosting_suspend' => [
             'file'     => $cronDir . '/agents/dhosting_suspend.php',
             'interval' => 3600,         // co godzinę — skrzynki pocztowe zawieszane 2 dni po wygaśnięciu umowy (bez powiadomienia); dhosting_contract_suspend=0 wyłącza

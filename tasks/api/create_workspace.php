@@ -92,7 +92,7 @@ if ($task_id) {
 }
 
 // Auto-utwórz folder SP dla nowego workspace (nieblokujące)
-ws_sp_init_workspace($ws_id);
+ws_cloud_init_workspace($ws_id);
 
 $ws_url = rtrim(APP_URL, '/') . '/tasks/index.php?ws=' . $ws_id;
 
