@@ -491,6 +491,45 @@ final class PocztaStud
         $x->output('poczta_kursanta_loginy_' . date('Ymd_Hi') . '.xlsx');
     }
 
+    /** Domena dawnych kont uczestników (Microsoft 365 EDU) — alias przekierowujący na imienny adres @stud. */
+    public const EDU_DOMAIN = 'edu.feer.org.pl';
+
+    /**
+     * Wiersze drugiego arkusza: [e-mail @stud, alias @edu] dla aktualnych kursantów z loginem. Alias = obecne konto @edu.feer.org.pl
+     * uczestnika (ClaudeBilling::eduAccount: ms_upn, sprawa AM7, e-mail w kartotece — tylko baza, bez Graph), a gdy go nie ma —
+     * ta sama nazwa co login w domenie @edu.feer.org.pl. @return list<array{0:string,1:string}>
+     */
+    public static function exportAliasRows(): array
+    {
+        $edu = null;
+        try {
+            require_once dirname(__DIR__, 2) . '/claude_billing/logic/claudeBilling.php';
+            if (class_exists('ClaudeBilling') && method_exists('ClaudeBilling', 'eduAccount')) $edu = [ClaudeBilling::class, 'eduAccount'];
+        } catch (\Throwable $e) { error_log('poczta stud alias: ' . $e->getMessage()); }
+        $out = [];
+        foreach (self::exportRows() as $r) {
+            if ($r['login'] === '') continue;
+            $alias = '';
+            if ($edu) { try { $alias = mb_strtolower(trim((string)($edu)($r['client_id']))); } catch (\Throwable $e) {} }
+            if (!str_ends_with($alias, '@' . self::EDU_DOMAIN)) $alias = substr($r['login'], 0, (int)strrpos($r['login'], '@')) . '@' . self::EDU_DOMAIN;
+            $out[] = [$r['login'], $alias];
+        }
+        return $out;
+    }
+
+    /** Drugi XLSX: tylko e-mail @stud i alias @edu, jako tekst, bez nagłówków (do wgrania u dostawcy poczty). Kończy żądanie. */
+    public static function exportAliasXlsx(string $by): void
+    {
+        require_once dirname(__DIR__, 3) . '/includes/xlsx.php';
+        $rows = self::exportAliasRows();
+        self::audit('stud_mail.export_alias', ['wierszy' => count($rows), 'kto' => $by]);
+        while (ob_get_level() > 0) ob_end_clean();
+        $x = new XlsxWriter();
+        $x->addSheet('E-mail i alias');
+        foreach ($rows as $r) $x->writeRow($r, ['text']);
+        $x->output('poczta_kursanta_email_alias_' . date('Ymd_Hi') . '.xlsx');
+    }
+
     // ── Wewnętrzne ──
 
     /** Hasło startowe odszyfrowane z bazy (ponowna wysyłka SMS-em przez kadrę) albo ''. */

@@ -30,9 +30,11 @@ karty30_migrate();
 ti_licencje_migrate();   // kolumny formy rozliczenia licencji (zakładka „Licencje”)
 
 // Poczta kursanta: XLSX z aktualnymi kursantami i loginami pierwszaliteraimienia.nazwisko@stud.feer.org.pl (bez haseł)
-if (($_GET['export'] ?? '') === 'poczta_stud') {
+if (in_array($_GET['export'] ?? '', ['poczta_stud', 'poczta_stud_alias'], true)) {
     require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_poczta_stud/logic/PocztaStud.php';
-    PocztaStud::exportXlsx($dyd_name . ' (Ewidencja Uczestników)');
+    // drugi arkusz: tylko e-mail @stud i alias @edu jako tekst, bez nagłówków (do wgrania u dostawcy poczty)
+    if ($_GET['export'] === 'poczta_stud_alias') PocztaStud::exportAliasXlsx($dyd_name . ' (Ewidencja Uczestników)');
+    else PocztaStud::exportXlsx($dyd_name . ' (Ewidencja Uczestników)');
     exit;
 }
 
@@ -1240,6 +1242,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </a>
     <a href="konta.php?export=poczta_stud" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Loginy poczty kursanta (XLSX)<span class="visually-hidden"> — aktualni kursanci, loginy pierwsza litera imienia.nazwisko@stud.feer.org.pl, bez haseł</span>
+    </a>
+    <a href="konta.php?export=poczta_stud_alias" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>E-mail i alias @edu (XLSX)<span class="visually-hidden">: dwie kolumny tekstu bez nagłówków, adres @stud.feer.org.pl i alias @edu.feer.org.pl</span>
     </a>
     <a href="<?= h($portal_url) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Panel kursanta
