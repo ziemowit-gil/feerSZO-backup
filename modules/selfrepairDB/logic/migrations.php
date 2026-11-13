@@ -745,4 +745,16 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: artykuł „Pierwsze logowanie” przebudowany po odejściu od Microsoft 365 — logowanie
+    // jednokrotne albo e-mail i hasło, kreator, RODO, konto IAM i chmury, dwa hasła (polecenie 2026-11-13: „przebuduj też to”).
+    // modules/it_portal/lib/itPortalFirstLoginSeed.php; nadpisuje tylko ten artykuł.
+    '2026-11_it_portal_first_login_v2' => [
+        'desc' => 'Portal Usług IT: artykuł „Pierwsze logowanie krok po kroku” bez Microsoft 365 (logowanie jednokrotne, dwa hasła)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalFirstLoginSeed.php';
+            itPortalFirstLoginApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_first_login_seed.php [--dry-run]
+        },
+    ],
+
 ];
