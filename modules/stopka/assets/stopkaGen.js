@@ -3,7 +3,7 @@
 function stopkaGen(d) {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   return {
-    me: d.me, org: d.org, design: d.design, defaults: d.defaults, fonts: d.fonts, dark: false, copied: false, fail: false,
+    me: d.me, org: d.org, design: d.design, defaults: d.defaults, fonts: d.fonts, dark: false, copied: false, codeCopied: false, fail: false,
     shows: [['title','Stanowisko'],['phone','Telefon'],['email','E-mail'],['org','Nazwa organizacji'],['address','Adres'],['nip','NIP'],['krs','KRS'],['website','Strona WWW'],['social','Linki społecznościowe'],['promo','Treść promocyjna']],
     // Odpowiednik PHP: stopkaRenderHtml() w logic/stopka.php — zmieniając jedno, zmień drugie.
     html() {
@@ -51,6 +51,28 @@ function stopkaGen(d) {
       });
       walk(doc.getElementById('r'));
       return doc.getElementById('r').innerHTML;
+    },
+    // Thunderbird przyjmuje podpis jako KOD HTML (pole „Sygnaturka” + „Używaj HTML”), więc kopiujemy go jako zwykły tekst.
+    async copyCode() {
+      const code = this.html();
+      this.fail = false;
+      try { await navigator.clipboard.writeText(code); }
+      catch (e) {
+        const ta = document.createElement('textarea'); ta.value = code; ta.style.cssText = 'position:fixed;left:-9999px;';
+        document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy'); ta.remove();
+        if (!ok) { this.fail = true; return; }
+      }
+      this.codeCopied = true; setTimeout(() => this.codeCopied = false, 2500);
+    },
+    // Plik .html do opcji „dołącz sygnaturkę z pliku” w Thunderbirdzie.
+    download() {
+      const doc = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>' + this.html() + '</body></html>';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([doc], {type: 'text/html'}));
+      a.download = 'stopka.html';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     },
     async copy() {
       const html = this.html(), text = new DOMParser().parseFromString(html.replace(/<\/div>/g, '\n'), 'text/html').body.textContent.trim();

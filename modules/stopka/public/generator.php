@@ -59,8 +59,13 @@ header('Cache-Control: no-store');
     <section class="bg-white rounded shadow p-5 space-y-3" aria-labelledby="h-prev">
       <h2 id="h-prev" class="text-lg font-semibold">Podgląd stopki</h2>
       <div class="border border-solid border-slate-300 rounded p-4 overflow-x-auto bg-white" x-html="html()" aria-live="polite"></div>
-      <button type="button" @click="copy()" class="rounded bg-blue-700 text-white px-4 py-2 hover:bg-blue-800" x-text="copied ? 'Skopiowano ✔' : 'Kopiuj stopkę do schowka'"></button>
-      <p class="text-sm text-slate-700" role="status" x-show="copied" x-cloak>Stopka skopiowana. Wklej ją w ustawieniach podpisu swojej poczty.</p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" @click="copy()" class="rounded bg-blue-700 text-white px-4 py-2 hover:bg-blue-800" x-text="copied ? 'Skopiowano ✔' : 'Kopiuj stopkę do schowka'"></button>
+        <button type="button" @click="copyCode()" class="rounded bg-white text-slate-900 border border-solid border-slate-500 px-4 py-2 hover:bg-slate-50" x-text="codeCopied ? 'Kod skopiowany ✔' : 'Kopiuj kod HTML'"></button>
+        <button type="button" @click="download()" class="rounded bg-white text-slate-900 border border-solid border-slate-500 px-4 py-2 hover:bg-slate-50">Pobierz plik HTML</button>
+      </div>
+      <p class="text-sm text-slate-700" role="status" x-show="copied || codeCopied" x-cloak>Skopiowane. Wklej w ustawieniach podpisu swojej poczty.</p>
+      <p class="text-sm text-slate-600">„Kopiuj stopkę” wklejasz do edytorów, które pokazują formatowanie (webmail, Outlook). „Kopiuj kod HTML” i plik są dla Thunderbirda.</p>
       <p class="text-sm text-red-800" role="alert" x-show="fail" x-cloak>Przeglądarka zablokowała schowek — zaznacz podgląd myszą i skopiuj (Ctrl+C).</p>
     </section>
   </div>
@@ -71,7 +76,7 @@ header('Cache-Control: no-store');
       <li><strong>Poczta w przeglądarce (webmail):</strong> Ustawienia → Podpis → wklej (Ctrl+V) w edytorze podpisu.</li>
       <li><strong>Outlook (klasyczny):</strong> Plik → Opcje → Poczta → Podpisy → Nowy → wklej w polu edycji.</li>
       <li><strong>Outlook w przeglądarce:</strong> Ustawienia → Konto → Podpisy → wklej w edytorze.</li>
-      <li><strong>Thunderbird:</strong> Ustawienia konta → pole podpisu → zaznacz „Użyj HTML” i wklej kod.</li>
+      <li><strong>Thunderbird:</strong> kliknij „Kopiuj kod HTML”. Prawym przyciskiem myszy kliknij nazwę skrzynki → Ustawienia → pole „Sygnaturka”, zaznacz „Używaj HTML” i wklej kod. Zamiast wklejać, możesz pobrać plik HTML i wskazać go jako sygnaturkę z pliku.</li>
     </ul>
   </section>
 </main>
