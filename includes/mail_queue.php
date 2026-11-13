@@ -343,6 +343,7 @@ function mail_queue_all(string $status = '', int $limit = 200): array {
 
 /**
  * Wysyła wiadomość z kolejki. Priorytet:
+ *  0. wiadomość systemowa przy system_mail_transport=smtp → SMTP1 (przy błędzie dalej jak niżej)
  *  1. Microsoft 365 Graph API (jeśli skonfigurowane)
  *  2. SMTP1 (smtp_host)
  *  3. SMTP2 (smtp2_host) — zapasowy serwer
@@ -351,6 +352,15 @@ function mail_queue_all(string $status = '', int $limit = 200): array {
 function _mail_send(array $msg): bool {
     $orig = $msg;
     $msg = _mail_apply_system_sender($msg);
+    // 0. Wiadomości systemowe przez SMTP 1 (Ustawienia → Poczta → „Wysyłka wiadomości systemowych”, 2026-11-13: nowy serwer
+    //    poczty, nadawca fundacja@). Błąd SMTP → dalej zwykła kolejność, wiadomość nie ginie.
+    if (!empty($msg['_system']) && _mail_setting('system_mail_transport') === 'smtp') {
+        $smtp_host = _mail_setting('smtp_host');
+        if ($smtp_host) {
+            try { return _mail_send_smtp($msg, $smtp_host, 'smtp'); }
+            catch (\Throwable $e) { error_log('[mail] system SMTP failed, fallback: ' . $e->getMessage()); }
+        }
+    }
     // 1. M365 Graph API
     try {
         if (_mail_m365_configured()) {

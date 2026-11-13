@@ -34,7 +34,7 @@ function format_iban_pl(string $nrb): string {
 
 $branding_keys = ['org_krs','org_miejscowosc','org_nip','org_regon','org_adres','org_name','org_sad_rejestrowy','sidebar_color','volunteer_color','org_logo',
                   'notify_from_name','notify_from_email',
-                  'system_mail_from','system_mail_from_name','system_mail_reply_to','mail_correspondence_contexts',
+                  'system_mail_from','system_mail_from_name','system_mail_reply_to','mail_correspondence_contexts','system_mail_transport',
                   'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
                   'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
                   'm365_send_from_email','ksiegowy_email','rachunek_skan_email','rachunek_cc_emails',
@@ -164,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif (isset($_POST['save_mail'])) {
         $mail_keys = ['notify_from_name','notify_from_email',
-                      'system_mail_from','system_mail_from_name','system_mail_reply_to','mail_correspondence_contexts',
+                      'system_mail_from','system_mail_from_name','system_mail_reply_to','mail_correspondence_contexts','system_mail_transport',
                       'smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from_email','smtp_encryption',
                       'smtp2_host','smtp2_port','smtp2_user','smtp2_pass','smtp2_from_email','smtp2_encryption',
                       'm365_send_from_email','ksiegowy_email','rachunek_skan_email','rachunek_cc_emails'];
@@ -875,6 +875,15 @@ include dirname(__DIR__) . '/includes/header.php';
           <label class="form-label small fw-semibold" for="smr">Odpowiedzi (Reply-To)</label>
           <input type="email" id="smr" name="system_mail_reply_to" class="form-control form-control-sm" value="<?= h($saved['system_mail_reply_to'] ?? '') ?>" placeholder="<?= h(($saved['notify_from_email'] ?? '') ?: 'adres domyślnego nadawcy') ?>">
           <div class="form-text">Puste = domyślny nadawca organizacji.</div>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold" for="smt">Wysyłka wiadomości systemowych</label>
+          <select id="smt" name="system_mail_transport" class="form-select form-select-sm" aria-describedby="smtHelp">
+            <option value=""<?= ($saved['system_mail_transport'] ?? '') === '' ? ' selected' : '' ?>>jak pozostała poczta (najpierw Microsoft 365)</option>
+            <option value="smtp"<?= ($saved['system_mail_transport'] ?? '') === 'smtp' ? ' selected' : '' ?>>przez SMTP 1 (serwer poniżej)</option>
+          </select>
+          <div class="form-text" id="smtHelp">„Przez SMTP 1”: wiadomości systemowe wychodzą z serwera SMTP 1 z adresu nadawcy powyżej (login SMTP = ten adres).
+            Gdy SMTP 1 zawiedzie — wiadomość idzie dotychczasową drogą. Korespondencja bez zmian.</div>
         </div>
         <div class="col-md-7">
           <label class="form-label small fw-semibold" for="smc">Rodzaje korespondencji (nie systemowe)</label>
