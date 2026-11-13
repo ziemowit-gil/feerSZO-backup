@@ -29,6 +29,7 @@ const HD_CATEGORIES = [
     'it_backup'         => 'Kopia zapasowa / Dane',
     'it_inne'           => 'Inne IT',
     'it_licencje_am'    => 'Wnioski AM (licencje)',
+    'it_migracja_poczty'=> 'Migracja poczty', // zgłoszenia zakładane przez migrator poczty (modules/dhosting_migrator)
     'inne'              => 'Inne (spoza IT)',
     'zgl_blad'          => 'Błąd w systemie',
     'zgl_sugestia'      => 'Sugestia dot. obecnej funkcji',
@@ -43,6 +44,7 @@ const HD_CATEGORY_PREFIXES = [
     'zgl_nowa_funkcja' => 'HNF',
     'bug_report'       => 'HER',
     'it_licencje_am'   => 'AM',
+    'it_migracja_poczty' => 'MIG',
 ];
 
 /**

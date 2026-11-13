@@ -21,6 +21,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/DhostingConfig.php';
 require_once dirname(__DIR__) . '/lib/DhostingImap.php';
 require_once dirname(__DIR__) . '/lib/DhostingGraphMail.php';
+require_once dirname(__DIR__) . '/lib/DhostingHelpdesk.php';
 
 final class DhostingCopy
 {
@@ -134,8 +135,17 @@ final class DhostingCopy
     public static function cancel(int $id): void
     {
         self::migrate();
-        db()->prepare("UPDATE dhosting_copy_jobs SET status='cancelled', password_enc=NULL, finished_at=?, updated_at=? WHERE id=? AND status IN ('queued','running','waiting')")
-            ->execute([date('Y-m-d H:i:s'), date('Y-m-d H:i:s'), $id]);
+        $q = db()->prepare("UPDATE dhosting_copy_jobs SET status='cancelled', password_enc=NULL, finished_at=?, updated_at=? WHERE id=? AND status IN ('queued','running','waiting')");
+        $q->execute([date('Y-m-d H:i:s'), date('Y-m-d H:i:s'), $id]);
+        if ($q->rowCount() > 0 && ($job = self::job($id))) self::helpdesk($job, 'Anulowano kopiowanie poczty (zadanie #' . $id . ').');
+    }
+
+    /** Zdarzenie kopiowania w zgłoszeniu Helpdesku skrzynki (DhostingHelpdesk; nigdy nie przerywa kopiowania). */
+    private static function helpdesk(array $job, string $note): void
+    {
+        $src = (string)($job['source'] ?? '');
+        DhostingHelpdesk::event((string)$job['mailbox'], $note,
+            ['user_id' => (int)($job['user_id'] ?? 0), 'login' => str_contains($src, '@') ? $src : '']);
     }
 
     /** „Ponów teraz”: zadanie czekające wraca do kolejki najbliższego przebiegu CRON. */
@@ -206,6 +216,8 @@ final class DhostingCopy
                     ->execute([date('Y-m-d H:i:s'), json_encode($state, JSON_UNESCAPED_UNICODE), $c['copied'], $c['failed'], $c['bytes'], date('Y-m-d H:i:s'),
                                $c['failed'] ? $c['failed'] . ' wiadomości nie dało się skopiować (np. za duże dla serwera).' : null, $id]);
                 try { if (function_exists('audit_log')) audit_log('dhosting.copy_done', ['mailbox' => $job['mailbox'], 'copied' => $c['copied'], 'failed' => $c['failed']], 0); } catch (\Throwable $e) {}
+                self::helpdesk($job, 'Kopiowanie poczty zakończone: skopiowano ' . $c['copied'] . ' wiadomości'
+                    . ($c['failed'] ? ', nie udało się ' . $c['failed'] . ' (np. za duże dla serwera)' : '') . '.');
                 return "[OK] #{$id} {$job['mailbox']}: zakończone, skopiowano {$c['copied']}, błędów {$c['failed']}";
             }
             db()->prepare("UPDATE dhosting_copy_jobs SET status='queued', locked_until=NULL, next_run_at=?, attempts=0, last_error=NULL, updated_at=? WHERE id=?")
@@ -219,11 +231,14 @@ final class DhostingCopy
             if ($attempts >= self::MAX_ATTEMPTS) {
                 db()->prepare("UPDATE dhosting_copy_jobs SET status='error', password_enc=NULL, attempts=?, locked_until=NULL, next_run_at=NULL, finished_at=?, last_error=?, updated_at=? WHERE id=?")
                     ->execute([$attempts, date('Y-m-d H:i:s'), 'Przerwano po 7 dniach prób: ' . $msg, date('Y-m-d H:i:s'), $id]);
+                self::helpdesk($job, 'Kopiowanie poczty przerwane po 7 dniach prób (skopiowano ' . $c['copied'] . ' z ' . $c['total'] . '). Ostatni błąd: ' . $msg);
                 return "[ERROR] #{$id} {$job['mailbox']}: koniec prób — {$msg}";
             }
             $next = date('Y-m-d H:i:s', time() + self::RETRY_HOURS * 3600);
             db()->prepare("UPDATE dhosting_copy_jobs SET status='waiting', attempts=?, locked_until=NULL, next_run_at=?, last_error=?, updated_at=? WHERE id=?")
                 ->execute([$attempts, $next, $msg, date('Y-m-d H:i:s'), $id]);
+            // tylko pierwsza nieudana próba z rzędu — bez notatki co 6 h
+            if ($attempts === 1) self::helpdesk($job, 'Kopiowanie poczty czeka: ' . $msg . ' Ponowienie co ' . self::RETRY_HOURS . ' h (najbliższe ' . $next . ').');
             return "[WAIT] #{$id} {$job['mailbox']}: {$msg} — ponowienie {$next}";
         }
     }

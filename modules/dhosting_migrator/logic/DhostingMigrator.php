@@ -17,6 +17,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/DhostingConfig.php';
 require_once dirname(__DIR__) . '/lib/DhostingGraphSource.php';
 require_once __DIR__ . '/DhostingCopy.php';
+require_once dirname(__DIR__) . '/lib/DhostingHelpdesk.php';
 require_once dirname(__DIR__, 3) . '/includes/sms.php';
 
 final class DhostingMigrator
@@ -215,6 +216,8 @@ final class DhostingMigrator
             } catch (\Throwable $e) {
                 $res['msg'] = $e->getMessage();
                 self::record($a['mailbox'], $base + ['status' => 'error', 'last_error' => mb_substr($e->getMessage(), 0, 500)]);
+                DhostingHelpdesk::event($a['mailbox'], 'Administrator (' . $by . '): ' . ($a['exists'] ? 'nie udało się ustawić nowego hasła' : 'nie udało się założyć skrzynki')
+                    . '. Błąd: ' . $e->getMessage(), ['user_id' => $a['user_id'], 'name' => $a['name'], 'login' => $a['login']]);
                 $results[] = $res;
                 continue;
             }
@@ -232,6 +235,10 @@ final class DhostingMigrator
                     }
                 }
             }
+            DhostingHelpdesk::event($a['mailbox'], 'Administrator (' . $by . '): ' . $res['msg']
+                . ' SMS z hasłem: ' . ($res['sms'] !== '' ? $res['sms'] : 'nie wysyłano (hasło przekazuje administrator)') . '.'
+                . ($res['copy'] !== '' ? ' Kopiowanie poczty: ' . $res['copy'] . '.' : ''),
+                ['user_id' => $a['user_id'], 'name' => $a['name'], 'login' => $a['login']]);
             $results[] = $res;
         }
         return $results;
@@ -253,6 +260,7 @@ final class DhostingMigrator
             'mobile' => $phone !== '' && sms_is_mobile($phone), 'exists' => null, 'problem' => '', 'wait' => 0,
             'registry' => $box ? self::registryRow($box) : null,
             'copy' => $box ? DhostingCopy::latestFor($box) : null, 'copyAvailable' => DhostingCopy::available(),
+            'ticket' => $box ? DhostingHelpdesk::ticketFor($box) : null,
         ];
         if (!DhostingConfig::selfEnabled()) { $st['problem'] = 'Zakładanie skrzynek przez użytkowników jest wyłączone. Skontaktuj się z administratorem.'; return $st; }
         if ($login === '') { $st['problem'] = 'Twoje konto nie jest połączone z kontem Microsoft 365, więc nie wiemy, jaki login ma mieć skrzynka. Zaloguj się przez Microsoft albo poproś administratora.'; return $st; }
@@ -289,6 +297,8 @@ final class DhostingMigrator
         $box = (string)$st['mailbox'];
         $base = ['user_id' => (int)$u['id'], 'm365_id' => (string)($u['microsoft_id'] ?? ''), 'source_login' => $st['login'],
                  'display_name' => (string)($u['name'] ?? ''), 'via' => 'self', 'created_by' => $by];
+        $who = ['user_id' => (int)$u['id'], 'name' => (string)($u['name'] ?? ''), 'login' => $st['login']];
+        $did = $st['exists'] ? 'ustawił(a) nowe hasło do skrzynki' : 'założył(a) skrzynkę';
         try {
             if ($st['exists']) {
                 $api->changeMailboxPassword($box, $password);
@@ -298,6 +308,8 @@ final class DhostingMigrator
             }
         } catch (\Throwable $e) {
             self::record($box, $base + ['status' => 'error', 'last_error' => mb_substr($e->getMessage(), 0, 500)]);
+            DhostingHelpdesk::event($box, 'Użytkownik (samoobsługa): ' . ($st['exists'] ? 'nie udało się ustawić nowego hasła' : 'nie udało się założyć skrzynki')
+                . '. Błąd: ' . $e->getMessage(), $who);
             throw new RuntimeException('Serwer poczty nie przyjął zmiany. Spróbuj za kilka minut albo skontaktuj się z administratorem.'); // szczegóły w last_error (widzi admin)
         }
         self::record($box, $base + ['status' => 'created', 'password_set_at' => date('Y-m-d H:i:s'), 'last_error' => null]
@@ -314,9 +326,13 @@ final class DhostingMigrator
         } catch (\Throwable $e) {
             // Skrzynka jest, ale SMS nie doszedł — hasła nigdzie nie zapisaliśmy, więc użytkownik musi poprosić o kolejne.
             self::record($box, ['last_error' => 'SMS: ' . mb_substr($e->getMessage(), 0, 450)]);
+            DhostingHelpdesk::event($box, 'Użytkownik (samoobsługa) ' . $did . ', ale SMS z hasłem nie wyszedł: ' . $e->getMessage()
+                . ($copyNote !== '' ? ' Kopiowanie poczty w kolejce.' : ''), $who);
             throw new RuntimeException(($st['exists'] ? 'Hasło zmieniono' : 'Skrzynkę założono') . ', ale SMS z hasłem nie wyszedł (' . $e->getMessage()
                 . '). Za ' . (int)ceil(self::SELF_COOLDOWN / 60) . ' min poproś o nowe hasło albo skontaktuj się z administratorem.');
         }
+        DhostingHelpdesk::event($box, 'Użytkownik (samoobsługa) ' . $did . '. Hasło wysłano SMS-em na ' . $st['phoneMasked'] . '.'
+            . ($copyNote !== '' ? ' Kopiowanie poczty z Microsoft 365 w kolejce.' : ''), $who);
         return ($st['exists'] ? 'Ustawiliśmy nowe hasło do skrzynki ' : 'Założyliśmy skrzynkę ') . $box
             . '. Hasło wysłaliśmy SMS-em na numer ' . $st['phoneMasked'] . '.' . $copyNote;
     }
@@ -332,6 +348,9 @@ final class DhostingMigrator
         $ok = DhostingCopy::checkPassword($box, $password);
         if ($ok === false) throw new RuntimeException('To hasło nie pasuje do skrzynki ' . $box . '. Jeśli go nie pamiętasz, poproś o nowe hasło SMS-em.');
         DhostingCopy::queue($box, $login, $password, (int)$u['id'], 'self', $by);
+        DhostingHelpdesk::event($box, 'Użytkownik (samoobsługa) uruchomił(a) kopiowanie poczty z Microsoft 365'
+            . ($ok === true ? '.' : ' — serwer poczty chwilowo nie odpowiadał, zadanie czeka w kolejce.'),
+            ['user_id' => (int)$u['id'], 'name' => (string)($u['name'] ?? ''), 'login' => $login]);
         return $ok === true
             ? 'Kopiowanie poczty do ' . $box . ' ruszy w ciągu kilku minut. Postęp zobaczysz na tej stronie.'
             : 'Nowy serwer poczty chwilowo nie odpowiada — kopiowanie czeka w kolejce i spróbujemy ponownie (co ' . DhostingCopy::RETRY_HOURS . ' h).';

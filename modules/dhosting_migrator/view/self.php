@@ -165,6 +165,11 @@ $steps[] = ['info', 'Program pocztowy w telefonie i komputerze', ($swTxt !== '' 
       <?php if (!empty($st['registry']['password_set_at'])): ?>
       <dt>Ostatnie hasło</dt><dd><?= h(substr((string)$st['registry']['password_set_at'], 0, 16)) ?></dd>
       <?php endif; ?>
+      <?php if (!empty($st['ticket'])): $hdUrl = DhostingHelpdesk::trackUrl($st['ticket']); ?>
+      <dt>Zgłoszenie w Helpdesku</dt>
+      <dd><?php if ($hdUrl !== ''): ?><a href="<?= h($hdUrl) ?>"><?= h((string)$st['ticket']['number']) ?></a><?php else: ?><?= h((string)$st['ticket']['number']) ?><?php endif; ?>
+        — tu napisz, jeśli coś nie działa</dd>
+      <?php endif; ?>
     </dl>
   </section>
 
