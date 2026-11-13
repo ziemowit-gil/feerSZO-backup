@@ -25,6 +25,12 @@ $copyField = function (string $id, string $label, string $value) {
   .sso-b--off { background: #f2f4f7; color: #344054; }
   .sso-steps li { margin-bottom: .25rem; }
   .sso-wrap :focus-visible { outline: 3px solid #1d2939; outline-offset: 2px; }
+  .sso-tabs { display: flex; flex-wrap: wrap; gap: .25rem; border-bottom: 2px solid #d0d5dd; margin-bottom: 1rem; }
+  .sso-tabs [role=tab] { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: .55rem .9rem; min-height: 44px;
+    font-weight: 600; color: #344054; display: inline-flex; gap: .4rem; align-items: center; }
+  .sso-tabs [role=tab]:hover { color: #101828; background: #f9fafb; }
+  .sso-tabs [role=tab][aria-selected=true] { color: #101828; border-bottom-color: #0d6efd; }
+  .sso-pane:focus-visible { outline: 3px solid #1d2939; outline-offset: 4px; }
 </style>
 
 <div class="sso-wrap">
@@ -50,9 +56,25 @@ $copyField = function (string $id, string $label, string $value) {
   <div class="col-sm-6 col-lg"><div class="border rounded p-2 bg-white h-100"><div class="small text-body-secondary">Pliki z OneDrive</div><?= $pill($cfg['graph'] && $cloudOk, 'gotowe', $cfg['graph'] ? 'brak chmury' : 'brak Microsoft 365') ?></div></div>
 </div>
 
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <form method="post" action="<?= h(route('sso.test')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug" aria-hidden="true"></i> Testuj Logto</button></form>
+  <form method="post" action="<?= h(route('sso.testCloud')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cloud-check" aria-hidden="true"></i> Testuj chmurę</button></form>
+</div>
+
+<?php /* Karty (polecenie 2026-11-14 „zmień układ na karty”, „za dużo”): wzorzec ARIA tabs, strzałki/Home/End; adres #… otwiera kartę z tym elementem */ ?>
+<div class="sso-tabs" role="tablist" aria-label="Sekcje ustawień">
+  <button type="button" role="tab" id="t-logto" aria-controls="p-logto" aria-selected="true" tabindex="0"><i class="bi bi-person-badge" aria-hidden="true"></i> Logto</button>
+  <button type="button" role="tab" id="t-chmura-tab" aria-controls="p-chmura-tab" aria-selected="false" tabindex="-1"><i class="bi bi-cloud" aria-hidden="true"></i> Chmura</button>
+  <button type="button" role="tab" id="t-konta" aria-controls="p-konta" aria-selected="false" tabindex="-1"><i class="bi bi-person-lines-fill" aria-hidden="true"></i> Konta w chmurze</button>
+  <button type="button" role="tab" id="t-hasla-tab" aria-controls="p-hasla-tab" aria-selected="false" tabindex="-1"><i class="bi bi-key" aria-hidden="true"></i> Hasła</button>
+  <button type="button" role="tab" id="t-pliki-tab" aria-controls="p-pliki-tab" aria-selected="false" tabindex="-1"><i class="bi bi-files" aria-hidden="true"></i> Pliki z OneDrive</button>
+  <button type="button" role="tab" id="t-zdarzenia" aria-controls="p-zdarzenia" aria-selected="false" tabindex="-1"><i class="bi bi-journal-text" aria-hidden="true"></i> Zdarzenia</button>
+</div>
+
 <form method="post" action="<?= h(route('sso.settings')) ?>" id="ustawienia" autocomplete="off">
   <?= Router::csrfField() ?>
 
+<div class="sso-pane" role="tabpanel" id="p-logto" aria-labelledby="t-logto" tabindex="0">
   <section class="card mb-4" aria-labelledby="ssoLogtoH">
     <div class="card-header"><h2 id="ssoLogtoH" class="h6 mb-0"><i class="bi bi-person-badge" aria-hidden="true"></i> Logto — zakładanie kont z SZO</h2></div>
     <div class="card-body row g-3">
@@ -177,7 +199,10 @@ $copyField = function (string $id, string $label, string $value) {
       </div>
     </div>
   </section>
+  <button type="submit" class="btn btn-primary btn-sm mb-2"><i class="bi bi-save" aria-hidden="true"></i> Zapisz ustawienia</button>
+</div>
 
+<div class="sso-pane" role="tabpanel" id="p-chmura-tab" aria-labelledby="t-chmura-tab" tabindex="0" hidden>
   <section class="card mb-4" id="chmura" aria-labelledby="ssoCloudH">
     <div class="card-header"><h2 id="ssoCloudH" class="h6 mb-0"><i class="bi bi-cloud" aria-hidden="true"></i> Chmura plików — Nextcloud / ownCloud na osobnym serwerze</h2></div>
     <div class="card-body row g-3">
@@ -230,13 +255,11 @@ $copyField = function (string $id, string $label, string $value) {
   </section>
 
   <button type="submit" class="btn btn-primary btn-sm mb-2"><i class="bi bi-save" aria-hidden="true"></i> Zapisz ustawienia</button>
+</div>
 </form>
 
-<div class="d-flex flex-wrap gap-2 mb-4">
-  <form method="post" action="<?= h(route('sso.test')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug" aria-hidden="true"></i> Testuj Logto</button></form>
-  <form method="post" action="<?= h(route('sso.testCloud')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cloud-check" aria-hidden="true"></i> Testuj chmurę</button></form>
-</div>
 
+<div class="sso-pane" role="tabpanel" id="p-konta" aria-labelledby="t-konta" tabindex="0" hidden>
 <?php $renames = SsoAccounts::cloudUnderscoreList(); $renamed = SsoController::takeResult('loginy'); ?>
 <section class="card mb-4" id="loginy" aria-labelledby="ssoRenameH">
   <div class="card-header"><h2 id="ssoRenameH" class="h6 mb-0"><i class="bi bi-person-lines-fill" aria-hidden="true"></i> Loginy w chmurze: imie.nazwisko</h2></div>
@@ -381,6 +404,9 @@ $copyField = function (string $id, string $label, string $value) {
 </section>
 <?php if ($tmRes !== null): ?><script>document.getElementById('ssoTeamsResult')?.focus();</script><?php endif; ?>
 
+</div>
+
+<div class="sso-pane" role="tabpanel" id="p-hasla-tab" aria-labelledby="t-hasla-tab" tabindex="0" hidden>
 <?php $pwRows = SsoController::takeResult('hasla'); $pwList = SsoAccounts::passwordResetList(); ?>
 <section class="card mb-4" id="hasla" aria-labelledby="ssoPwH">
   <div class="card-header"><h2 id="ssoPwH" class="h6 mb-0"><i class="bi bi-key" aria-hidden="true"></i> Resetuj hasła dla użytkowników w NC</h2></div>
@@ -447,6 +473,9 @@ $copyField = function (string $id, string $label, string $value) {
 </section>
 <?php if ($pwRows): ?><script>document.getElementById('ssoPwResult')?.focus();</script><?php endif; ?>
 
+</div>
+
+<div class="sso-pane" role="tabpanel" id="p-pliki-tab" aria-labelledby="t-pliki-tab" tabindex="0" hidden>
 <section class="card mb-4" id="pliki" aria-labelledby="ssoFilesH">
   <div class="card-header"><h2 id="ssoFilesH" class="h6 mb-0"><i class="bi bi-files" aria-hidden="true"></i> Pliki z OneDrive → chmura</h2></div>
   <div class="card-body small">
@@ -455,6 +484,9 @@ $copyField = function (string $id, string $label, string $value) {
   </div>
 </section>
 
+</div>
+
+<div class="sso-pane" role="tabpanel" id="p-zdarzenia" aria-labelledby="t-zdarzenia" tabindex="0" hidden>
 <section class="card mb-4" aria-labelledby="ssoDelH">
   <div class="card-header"><h2 id="ssoDelH" class="h6 mb-0"><i class="bi bi-journal-text" aria-hidden="true"></i> Ostatnie zdarzenia z Logto (webhook)</h2></div>
   <div class="card-body small">
@@ -473,8 +505,49 @@ $copyField = function (string $id, string $label, string $value) {
   </div>
 </section>
 </div>
+</div>
 
 <script>
+// Karty: klik, strzałki, Home/End; #adres otwiera kartę z elementem (powroty po zapisie: #ustawienia, #chmura, #loginy, #hasla…);
+// pole z błędem walidacji w ukrytej karcie — pokazujemy tę kartę, żeby przeglądarka mogła na nie wskazać.
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.sso-tabs [role=tab]'));
+  if (!tabs.length) return;
+  function show(tab, focus) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (focus) tab.focus();
+    try { history.replaceState(null, '', '#' + tab.getAttribute('aria-controls').slice(2)); } catch (e) {}
+  }
+  function tabFor(el) {
+    var pane = el && (el.closest('[role=tabpanel]') || el.querySelector('[role=tabpanel]'));
+    return pane ? document.getElementById(pane.getAttribute('aria-labelledby')) : null;
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { show(t, false); });
+    t.addEventListener('keydown', function (e) {
+      var j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
+      if (j === null) return;
+      e.preventDefault();
+      show(tabs[(j + tabs.length) % tabs.length], true);
+    });
+  });
+  var h = location.hash.slice(1);
+  if (h) {
+    var el = document.getElementById(h) || document.getElementById('p-' + h);
+    var t = tabFor(el);
+    if (t) { show(t, false); if (el && !el.matches('[role=tabpanel]')) el.scrollIntoView(); }
+  }
+  document.getElementById('ustawienia').addEventListener('invalid', function (e) {
+    var t = tabFor(e.target);
+    if (t && t.getAttribute('aria-selected') !== 'true') show(t, false);
+  }, true);
+})();
+
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
     var el = document.getElementById(b.getAttribute('data-copy'));
