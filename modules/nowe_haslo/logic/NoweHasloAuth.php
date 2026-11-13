@@ -96,7 +96,7 @@ final class NoweHasloAuth
         $address = strtolower(trim($address));
         $box = $address !== '' ? DhostingConfig::mailboxFor($address) : null;
         $contracts = [];
-        if ($box) { try { $contracts = DhostingContractMail::contractsFor($box); } catch (\Throwable $e) { error_log('[nowehaslo] umowy ' . $box . ': ' . $e->getMessage()); } }
+        if ($box) { try { DhostingContractMail::migrate(); $contracts = DhostingContractMail::contractsFor($box); } catch (\Throwable $e) { error_log('[nowehaslo] umowy ' . $box . ': ' . $e->getMessage()); } }
         $phone = '';
         foreach ([...$phones, ...array_map(fn($c) => (string)($c['telefon'] ?? ''), $contracts)] as $ph) {
             if (trim($ph) !== '' && sms_is_mobile($ph)) { $phone = trim($ph); break; }
