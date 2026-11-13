@@ -757,4 +757,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Migracja”: artykuł „Terminologia: słowniczek pojęć” (polecenie 2026-11-13: „Nowy artykuł - terminologia”;
+    // SZO = Panel Współpracownika = System Zarządzania Organizacją). modules/it_portal/lib/itPortalGlossarySeed.php.
+    '2026-11_it_portal_glossary' => [
+        'desc' => 'Portal Usług IT: artykuł „Terminologia: słowniczek pojęć” w usłudze „Migracja”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalGlossarySeed.php';
+            itPortalGlossaryApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_glossary_seed.php [--dry-run]
+        },
+    ],
+
 ];
