@@ -353,9 +353,9 @@ $_metro_home = $_is_volunteer_only || !empty($contracts);
 require_once dirname(__DIR__) . '/includes/directory.php';
 require_once dirname(__DIR__) . '/modules/directory_profile/lib/directoryProfile.php';
 $dpStatus = directoryProfileEnforce($user);
-// Wymóg ustawienia własnej stopki (panel ms365webpanel) — w trybie „require” przekierowuje przed wysłaniem strony
-require_once dirname(__DIR__) . '/modules/mail_footer/lib/mailFooter.php';
-$mfStatus = mailFooterEnforce($user);
+// Wymóg stopki z panelu poczty Microsoft 365 (mail_footer) zdjęty z panelu 2026-11-14 („wywal zarządzanie stopką”):
+// bez przekierowania na /panel/poczta.php, bez pasa i kafla stopki. Obowiązkową stopkę robi generator /pomocne/generatorstopki.
+$mfStatus = null;
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';

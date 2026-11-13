@@ -84,7 +84,6 @@ $_sh_lead = $_sh_admin
 
   <?= function_exists('flash_html') ? flash_html() : '' ?>
   <?php panelMetroImportant($_sh_uid, (string)($user['role'] ?? 'viewer')); ?>
-  <?php include dirname(__DIR__, 2) . '/modules/mail_footer/view/pulpitNotice.php'; ?>
 
   <?php ob_start(); panelMetroSideFeed($_sh_uid, (string)($user['role'] ?? '')); $_sh_side = trim((string)ob_get_clean()); ?>
   <div class="sh-start<?= $_sh_side === '' ? ' sh-start--solo' : '' ?>">
@@ -93,7 +92,8 @@ $_sh_lead = $_sh_admin
   /* Kafle Start — jedna lista definicji; 'group' = sekcja w widoku „Grupuj wg funkcji”
      (klucze: modules/panel_metro panelMetroTileGroups(); bez 'group' → „Inne”). */
   $_sh_tiles = [];
-  $_sh_tiles[] = ['href'=>APP_URL.'/tozsamosc/','ava'=>$initials,'color'=>'acc','size'=>'l','group'=>'konto',
+  // Układ „Moje konto” (2026-11-14): profil szeroki (2×1) zamiast dużego 2×2, żeby kafle konta mieściły się w jednym rzędzie
+  $_sh_tiles[] = ['href'=>APP_URL.'/tozsamosc/','ava'=>$initials,'color'=>'acc','size'=>'w','group'=>'konto',
                   'val'=>(string)($user['name'] ?? ''),
                   'label'=>function_exists('ctx_role_label') ? ctx_role_label((string)($user['role'] ?? '')) : (string)($user['role'] ?? ''),
                   'sub'=>(string)($user['email'] ?? ''),
@@ -123,14 +123,7 @@ $_sh_lead = $_sh_admin
                   'sub'=>'kontakt, adres, rachunek, upoważnienia','color'=>'teal','group'=>'konto'];
   $_sh_tiles[] = ['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_sh_hd ? (string)$_sh_hd : '',
                   'sub'=>$_sh_hd ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta','group'=>'pomoc'];
-  // Kafel „Microsoft 365 i poczta” usunięty (2026-11-14: wycofujemy się z Microsoft 365); $_sh_m365 = login skrzynki, nadal decyduje o „Zarządzaniu pocztą”
-  if ($_sh_m365 !== '') {
-      require_once dirname(__DIR__, 2) . '/modules/mail_footer/lib/mailFooter.php';
-      $_sh_mf = mailFooterStatus($user);
-      $_sh_tiles[] = ['href'=>APP_URL.'/panel/poczta.php','icon'=>'bi-envelope-paper','label'=>'Zarządzanie pocztą',
-                      'sub'=>$_sh_mf['pending'] ? 'ustaw swoją stopkę' : 'stopka, aliasy, hasło, 2FA, autoresponder','color'=>$_sh_mf['pending'] ? 'red' : 'blue',
-                      'keep_color'=>$_sh_mf['pending'],'tag'=>$_sh_mf['pending'] ? 'do zrobienia' : '','group'=>'konto'];
-  }
+  // Kafle „Microsoft 365 i poczta” i „Zarządzanie pocztą” (stopka z panelu M365) usunięte 2026-11-14 — wycofujemy się z Microsoft 365
   // Samodzielna zmiana haseł (modules/nowe_haslo, /nowehaslo): dwa osobne hasła — poczta oraz logowanie jednokrotne z chmurą (wspólne)
   $_sh_tiles[] = ['href'=>APP_URL.'/nowehaslo','icon'=>'bi-key','label'=>'Zmiana haseł',
                   'sub'=>'poczta oraz logowanie i chmura','color'=>'indigo','group'=>'konto',
@@ -147,9 +140,7 @@ $_sh_lead = $_sh_admin
   if (is_file($ROOT . '/panel/calendar.php') && module_enabled('org_calendar_enabled')) {
       $_sh_tiles[] = ['href'=>APP_URL.'/panel/calendar.php','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>'wydarzenia i dyżury','color'=>'teal','group'=>'komunikacja'];
   }
-  if (is_file($ROOT . '/tozsamosc/index.php')) {
-      $_sh_tiles[] = ['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'Tożsamość','sub'=>'hasło, MFA, telefon','color'=>'dark','group'=>'konto'];
-  }
+  // Osobny kafel „Tożsamość” zbędny — kafel profilu prowadzi do Systemu Tożsamości
   if ($_sh_admin) {
       $_sh_tiles[] = ['href'=>APP_URL.'/admin/index.php','icon'=>'bi-gear','label'=>'Panel admina','sub'=>'administrator systemu','color'=>'dark','group'=>'admin'];
       if (module_enabled('tasks_enabled')) {
