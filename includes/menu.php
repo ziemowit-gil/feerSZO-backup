@@ -287,10 +287,14 @@ function _menu_viewer(): array {
     return [[
         'id'=>'panel','label'=>'Mój panel','icon'=>'bi-person-circle','badge'=>$badge,
         'active'=>_menu_hit('/panel/')||_menu_hit('/org_intro/')||_menu_hit('/komunikaty/')||_menu_hit('/directory/'),
-        'groups'=>[
+        'groups'=>array_values(array_filter([
             ['label'=>null,'items'=>$items],
             ['label'=>'Konto','items'=>$account],
-        ],
+            // Pomocne narzędzia (/pomocne/…): Gosposia — współpracownicy z umową (jak middleware gosposia.access)
+            user_volunteer_contract_count() > 0
+                ? ['label'=>'Pomocne','items'=>[_mi('Gosposia','/pomocne/gosposia','bi-stars',['match'=>'/pomocne/gosposia','kw'=>'gosposia sprzątanie poczty reklamy newslettery spam kosz porządek skrzynka'])]]
+                : null,
+        ])),
         'search'=>$search,
     ]];
 }
@@ -574,10 +578,16 @@ function _menu_editor(): array {
         if (module_enabled('cloudflare_enabled'))
             $it[] = _mi('Cloudflare DNS','/admin/cloudflare_dns.php','bi-globe2',['match'=>'/admin/cloudflare_','kw'=>'cloudflare dns domeny rekordy']);
     }
+    // Pomocne narzędzia (/pomocne/…): Gosposia — administrator i współpracownicy z umową (jak middleware gosposia.access)
+    $pomocne = [];
+    if (is_admin() || user_volunteer_contract_count() > 0)
+        $pomocne[] = _mi('Gosposia','/pomocne/gosposia','bi-stars',['match'=>'/pomocne/gosposia','kw'=>'gosposia sprzątanie poczty reklamy newslettery spam kosz porządek skrzynka']);
+    $itGroups = [['label'=>null,'items'=>$it]];
+    if ($pomocne) $itGroups[] = ['label'=>'Pomocne','items'=>$pomocne];
     $nodes[] = [
         'id'=>'it','label'=>'IT','icon'=>'bi-hdd-network',
-        'active'=>_menu_hit('/it/')||_menu_hit('/tools/')||_menu_hit('/vpn/')||_menu_hit('/admin/cloudflare_'),
-        'groups'=>[['label'=>null,'items'=>$it]],
+        'active'=>_menu_hit('/it/')||_menu_hit('/tools/')||_menu_hit('/vpn/')||_menu_hit('/admin/cloudflare_')||_menu_hit('/pomocne/'),
+        'groups'=>$itGroups,
     ];
 
     // ══ WIRTUALNE BIURKO (EZD) ═════════════════════════════════════════════════
