@@ -3,7 +3,8 @@
  * modules/dhosting_migrator/router.php — migrator kont Microsoft 365 → skrzynki pocztowe dhosting.pl.
  *
  * Adresy (czyste, .htaccess: ^migracjapoczty/?$ i ^migracjaadmin(/.*)?$ → ten plik; trasa ze ścieżki żądania, jak /seeder-test):
- *   /migracjapoczty             — użytkownik (zalogowany): sam zakłada skrzynkę z loginem Microsoft albo dostaje nowe hasło SMS-em;
+ *   /migracjapoczty             — użytkownik (zalogowany albo bez logowania: prywatny e-mail/PESEL + adres służbowy + kod SMS):
+ *                                 sam zakłada skrzynkę z loginem Microsoft albo dostaje nowe hasło SMS-em; /wejscie, /zakoncz, /telefon — POST;
  *   /migracjaadmin              — administrator (IKA): lista kont M365 obok stanu na dhosting, konfiguracja API dhosting;
  *   /migracjaadmin/zaloz        — POST: zakładanie skrzynek (hasła widoczne raz, opcjonalnie SMS);
  *   /migracjaadmin/ustawienia   — POST: zapis konfiguracji API;  /migracjaadmin/test — POST: test połączenia;
@@ -27,10 +28,13 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->post('/migracjaadmin/kopia',      [DhostingMigratorController::class, 'copyAction'])->name('dhm.copy');
 });
 
-$r->group(['auth'], function (Router $r) {
-    $r->get('/migracjapoczty',  [DhostingMigratorController::class, 'self'])->name('dhm.self');
-    $r->post('/migracjapoczty', [DhostingMigratorController::class, 'selfPost'])->name('dhm.selfPost');
-    $r->post('/migracjapoczty/kopia', [DhostingMigratorController::class, 'selfCopyPost'])->name('dhm.selfCopy');
-});
+// Bez middleware 'auth': kontroler wpuszcza zalogowanego albo gościa potwierdzonego zestawem danych + kodem SMS
+// (DhostingGuest), a nikogo innego odsyła na ekran wejścia. CSRF działa także bez logowania (sesja).
+$r->get('/migracjapoczty',            [DhostingMigratorController::class, 'self'])->name('dhm.self');
+$r->post('/migracjapoczty',           [DhostingMigratorController::class, 'selfPost'])->name('dhm.selfPost');
+$r->post('/migracjapoczty/kopia',     [DhostingMigratorController::class, 'selfCopyPost'])->name('dhm.selfCopy');
+$r->post('/migracjapoczty/wejscie',   [DhostingMigratorController::class, 'guestPost'])->name('dhm.guest');
+$r->post('/migracjapoczty/zakoncz',   [DhostingMigratorController::class, 'guestEnd'])->name('dhm.guestEnd');
+$r->post('/migracjapoczty/telefon',   [DhostingMigratorController::class, 'phonePost'])->name('dhm.phone');
 
 $r->dispatch();

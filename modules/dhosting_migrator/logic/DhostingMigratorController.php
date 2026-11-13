@@ -6,10 +6,13 @@ declare(strict_types=1);
  *
  * Administrator (role:admin + ważna sesja IKA): GET / (lista kont, ustawienia), POST /zaloz, /ustawienia, /test.
  * Kopiowanie poczty: POST /migracjaadmin/kopia (ponów teraz / anuluj), POST /migracjapoczty/kopia (start z hasłem / anuluj).
- * Użytkownik (auth): GET/POST /migracjapoczty — samodzielna strona bez menu SZO (wejście z panelu współpracownika).
+ * Użytkownik: GET/POST /migracjapoczty — samodzielna strona bez menu SZO (wejście z panelu współpracownika) — zalogowany
+ * albo bez logowania (DhostingGuest: prywatny e-mail/PESEL + adres służbowy + kod SMS; POST /wejscie, /zakoncz);
+ * POST /telefon — zalogowany bez numeru komórkowego dopisuje go kodem SMS. Konto zmigrowane: akcje tylko administrator.
  * Wyniki i komunikaty idą przez sesję (nie przez adres); wygenerowane hasła admin widzi tylko raz, zaraz po zapisie.
  */
 require_once __DIR__ . '/DhostingMigrator.php';
+require_once __DIR__ . '/DhostingGuest.php';
 require_once dirname(__DIR__) . '/lib/DhostingGraphSource.php';
 require_once dirname(__DIR__, 2) . '/audit_logs/logic/audit_logs.php';
 require_once dirname(__DIR__, 3) . '/includes/admin_audit.php';
@@ -160,21 +163,28 @@ final class DhostingMigratorController
     public function self(): string
     {
         $u = $this->meRow();
+        if ($u === null) {   // bez logowania: wejście zestawem danych (DhostingGuest)
+            return Router::view(self::VIEW . 'guest.php', ['flow' => DhostingGuest::flow(), 'flash' => $this->take(self::K_FLASH)]);
+        }
+        $guest = DhostingGuest::current();
         return Router::view(self::VIEW . 'self.php', [
-            'st'    => DhostingMigrator::selfState($u),
-            'flash' => $this->take(self::K_FLASH),
-            'web'   => DhostingConfig::webmail(),
-            'me'    => $u,
+            'st'        => DhostingMigrator::selfState($u),
+            'flash'     => $this->take(self::K_FLASH),
+            'web'       => DhostingConfig::webmail(),
+            'me'        => $u,
+            'guest'     => $guest !== null && !current_user(),
+            'phoneFlow' => (int)$u['id'] > 0 ? DhostingGuest::phoneFlow((int)$u['id']) : null,
         ]);
     }
 
     public function selfPost(): ?string
     {
         $back = route('dhm.self');
-        if (empty($_POST['confirm'])) return $this->flash($back, 'warning', 'Zaznacz potwierdzenie, że numer telefonu w koncie jest Twój.');
         $u = $this->meRow();
+        if ($u === null) return Router::redirect($back);
+        if (empty($_POST['confirm'])) return $this->flash($back, 'warning', 'Zaznacz potwierdzenie, że numer telefonu jest Twój.');
         try {
-            $msg = DhostingMigrator::selfProvision($u, (string)($u['email'] ?? ''), !empty($_POST['copy_mail']));
+            $msg = DhostingMigrator::selfProvision($u, $this->by($u), !empty($_POST['copy_mail']));
         } catch (\Throwable $e) {
             try { audit_log('dhosting.self_failed', ['error' => $e->getMessage()]); } catch (\Throwable $e2) {}
             return $this->flash($back, 'danger', $e->getMessage());
@@ -183,11 +193,12 @@ final class DhostingMigratorController
         return $this->flash($back, 'success', $msg);
     }
 
-    /** POST /migracjapoczty/kopia — start kopiowania z hasłem do skrzynki dhosting albo anulowanie własnego zadania. */
+    /** POST /migracjapoczty/kopia — start kopiowania z hasłem do nowej skrzynki albo anulowanie własnego zadania. */
     public function selfCopyPost(): ?string
     {
         $back = route('dhm.self');
         $u = $this->meRow();
+        if ($u === null) return Router::redirect($back);
         $box = DhostingConfig::mailboxFor(DhostingMigrator::loginForUser($u));
         if (($_POST['op'] ?? '') === 'cancel') {
             $job = $box ? DhostingCopy::activeFor($box) : null;
@@ -195,7 +206,7 @@ final class DhostingMigratorController
             return $this->flash($back, 'success', 'Anulowano kopiowanie poczty.');
         }
         try {
-            $msg = DhostingMigrator::selfCopy($u, (string)($_POST['mail_password'] ?? ''), (string)($u['email'] ?? ''));
+            $msg = DhostingMigrator::selfCopy($u, (string)($_POST['mail_password'] ?? ''), $this->by($u));
         } catch (\Throwable $e) {
             return $this->flash($back, 'danger', $e->getMessage());
         }
@@ -203,14 +214,74 @@ final class DhostingMigratorController
         return $this->flash($back, 'success', $msg);
     }
 
+    /** POST /migracjapoczty/wejscie — wejście bez logowania: op=ident | phone | code | resend | restart. */
+    public function guestPost(): ?string
+    {
+        $back = route('dhm.self');
+        if (current_user()) return Router::redirect($back);
+        $op = (string)($_POST['op'] ?? '');
+        try {
+            switch ($op) {
+                case 'ident':  DhostingGuest::start((string)($_POST['ident'] ?? ''), (string)($_POST['address'] ?? '')); break;
+                case 'phone':  DhostingGuest::setPhone((string)($_POST['phone'] ?? '')); break;
+                case 'resend': DhostingGuest::resend(); return $this->flash($back, 'success', 'Wysłaliśmy nowy kod.');
+                case 'code':   return $this->flash($back, 'success', DhostingGuest::verify((string)($_POST['code'] ?? ''), (string)($_POST['mail_code'] ?? '')));
+                default:       DhostingGuest::restart();
+            }
+        } catch (\RuntimeException $e) {
+            return $this->flash($back, 'danger', $e->getMessage());
+        }
+        return Router::redirect($back);
+    }
+
+    /** POST /migracjapoczty/zakoncz — koniec sesji gościa. */
+    public function guestEnd(): ?string
+    {
+        DhostingGuest::end();
+        return $this->flash(route('dhm.self'), 'success', 'Zakończono. Aby wrócić, wpisz dane jeszcze raz.');
+    }
+
+    /** POST /migracjapoczty/telefon — zalogowany bez numeru komórkowego: op=send (numer) | verify (kod) | cancel. */
+    public function phonePost(): ?string
+    {
+        $back = route('dhm.self');
+        $u = $this->meRow();
+        if ($u === null || (int)$u['id'] <= 0) return Router::redirect($back);
+        try {
+            switch ((string)($_POST['op'] ?? '')) {
+                case 'send':   DhostingGuest::phoneSend($u, (string)($_POST['phone'] ?? '')); return $this->flash($back, 'success', 'Wysłaliśmy kod SMS. Wpisz go poniżej.');
+                case 'verify': return $this->flash($back, 'success', DhostingGuest::phoneVerify($u, (string)($_POST['code'] ?? '')));
+                default:       DhostingGuest::phoneCancel();
+            }
+        } catch (\RuntimeException $e) {
+            return $this->flash($back, 'danger', $e->getMessage());
+        }
+        return Router::redirect($back);
+    }
+
     // ── Pomocnicze ─────────────────────────────────────────────────────────────────────────────
 
-    /** Wiersz users zalogowanego (prawdziwego, nie kontekstu admina). */
-    private function meRow(): array
+    /**
+     * Wiersz users zalogowanego (prawdziwego, nie kontekstu admina; _admin = administrator SZO) albo potwierdzonego gościa
+     * (DhostingGuest — konto SZO osoby albo wiersz zastępczy z umowy). null = nikt (strona pokaże wejście zestawem danych).
+     */
+    private function meRow(): ?array
     {
-        $me = function_exists('ctx_real_user') ? (ctx_real_user() ?: current_user()) : current_user();
-        $row = db_one("SELECT id, name, email, phone_number, microsoft_id, m365_login FROM users WHERE id=?", [(int)($me['id'] ?? 0)]);
-        return $row ?: ['id' => (int)($me['id'] ?? 0), 'email' => (string)($me['email'] ?? ''), 'microsoft_id' => (string)($me['microsoft_id'] ?? '')];
+        if (current_user()) {
+            $me = function_exists('ctx_real_user') ? (ctx_real_user() ?: current_user()) : current_user();
+            $row = db_one("SELECT id, name, email, phone_number, microsoft_id, m365_login FROM users WHERE id=?", [(int)($me['id'] ?? 0)]);
+            $row = $row ?: ['id' => (int)($me['id'] ?? 0), 'email' => (string)($me['email'] ?? ''), 'microsoft_id' => (string)($me['microsoft_id'] ?? '')];
+            $row['_admin'] = ($me['role'] ?? '') === 'admin';
+            return $row;
+        }
+        $g = DhostingGuest::current();
+        return $g ? DhostingGuest::userRow($g) : null;
+    }
+
+    /** Kto wykonał akcję (rejestr, kolejka kopiowania). */
+    private function by(array $u): string
+    {
+        return current_user() ? (string)($u['email'] ?? '') : 'bez logowania: ' . (string)($u['m365_login'] ?? '');
     }
 
     private function flash(string $back, string $type, string $msg): ?string
