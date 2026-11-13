@@ -35,34 +35,48 @@ final class GraphDrive
     }
 
     /**
-     * Jedna strona zawartości folderu. $itemId = 'root' albo id folderu; $next = @odata.nextLink z poprzedniej strony.
-     * @return array{items: list<array{id:string,name:string,folder:bool,size:int,mtime:int,skip:bool}>, next: ?string}
+     * Jedna strona zawartości folderu. $itemId = 'root' albo id folderu; $next = @odata.nextLink z poprzedniej strony;
+     * $drive = id cudzego dysku (folder ze skrótu do udostępnionego folderu), null = OneDrive osoby.
+     * Przenosimy wszystko (polecenie 2026-11-13 „przenoś pliki niezależnie od rodzaju”): notes OneNote (package) to folder
+     * z sekcjami .one — wchodzimy do niego jak do folderu; skrót do udostępnionego pliku/folderu (remoteItem) czytamy
+     * z dysku właściciela. skip = tylko pozycje bez treści (ani plik, ani folder, ani notes, ani skrót).
+     * @return array{items: list<array{id:string,drive:?string,name:string,folder:bool,size:int,mtime:int,kind:string,skip:bool}>, next: ?string}
      */
-    public function children(string $user, string $itemId, ?string $next = null): array
+    public function children(string $user, string $itemId, ?string $next = null, ?string $drive = null): array
     {
-        $u = rawurlencode($user);
-        $url = $next ?: $this->base . '/users/' . $u . '/drive/' . ($itemId === 'root' ? 'root' : 'items/' . rawurlencode($itemId))
+        $root = $drive !== null && $drive !== '' ? $this->base . '/drives/' . rawurlencode($drive) : $this->base . '/users/' . rawurlencode($user) . '/drive';
+        $url = $next ?: $root . '/' . ($itemId === 'root' ? 'root' : 'items/' . rawurlencode($itemId))
             . '/children?$top=200&$select=id,name,size,folder,file,package,remoteItem,lastModifiedDateTime';
         $j = $this->getJson($url);
         $items = [];
         foreach ((array)($j['value'] ?? []) as $it) {
+            $mtime = !empty($it['lastModifiedDateTime']) ? (int)strtotime((string)$it['lastModifiedDateTime']) : 0;
+            $r = $it['remoteItem'] ?? null;
+            if (is_array($r)) {
+                $rDrive = (string)($r['parentReference']['driveId'] ?? '');
+                $items[] = [
+                    'id' => (string)($r['id'] ?? ''), 'drive' => $rDrive !== '' ? $rDrive : null, 'name' => (string)($it['name'] ?? ($r['name'] ?? '')),
+                    'folder' => isset($r['folder']) || isset($r['package']), 'size' => (int)($r['size'] ?? ($it['size'] ?? 0)),
+                    'mtime' => !empty($r['lastModifiedDateTime']) ? (int)strtotime((string)$r['lastModifiedDateTime']) : $mtime,
+                    'kind' => 'remote', 'skip' => $rDrive === '' || (string)($r['id'] ?? '') === '',
+                ];
+                continue;
+            }
+            $isFolder = isset($it['folder']) || isset($it['package']);
             $items[] = [
-                'id'     => (string)($it['id'] ?? ''),
-                'name'   => (string)($it['name'] ?? ''),
-                'folder' => isset($it['folder']),
-                'size'   => (int)($it['size'] ?? 0),
-                'mtime'  => !empty($it['lastModifiedDateTime']) ? (int)strtotime((string)$it['lastModifiedDateTime']) : 0,
-                // notesy OneNote (package) i skróty do cudzych plików (remoteItem) nie są zwykłymi plikami — pomijamy
-                'skip'   => isset($it['package']) || isset($it['remoteItem']) || (!isset($it['folder']) && !isset($it['file'])),
+                'id' => (string)($it['id'] ?? ''), 'drive' => $drive !== '' ? $drive : null, 'name' => (string)($it['name'] ?? ''),
+                'folder' => $isFolder, 'size' => (int)($it['size'] ?? 0), 'mtime' => $mtime,
+                'kind' => isset($it['package']) ? 'package' : '', 'skip' => !$isFolder && !isset($it['file']),
             ];
         }
         return ['items' => $items, 'next' => isset($j['@odata.nextLink']) ? (string)$j['@odata.nextLink'] : null];
     }
 
-    /** Pobiera plik do $file (strumieniowo, za przekierowaniem na adres pobierania). Zwraca rozmiar. */
-    public function download(string $user, string $itemId, string $file): int
+    /** Pobiera plik do $file (strumieniowo, za przekierowaniem na adres pobierania). $drive = cudzy dysk (skrót). Zwraca rozmiar. */
+    public function download(string $user, string $itemId, string $file, ?string $drive = null): int
     {
-        $url = $this->base . '/users/' . rawurlencode($user) . '/drive/items/' . rawurlencode($itemId) . '/content';
+        $root = $drive !== null && $drive !== '' ? $this->base . '/drives/' . rawurlencode($drive) : $this->base . '/users/' . rawurlencode($user) . '/drive';
+        $url = $root . '/items/' . rawurlencode($itemId) . '/content';
         for ($try = 0; ; $try++) {
             $fh = fopen($file, 'wb');
             if (!$fh) throw new RuntimeException('Nie można utworzyć pliku tymczasowego.');

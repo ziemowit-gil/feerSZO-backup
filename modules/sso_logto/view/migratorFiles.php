@@ -13,7 +13,7 @@ $ssoRows = SsoController::takeResult('migrator');
   </div>
   <div class="card-body small">
     <?php if ($ssoRows) { $ssoResId = 'ssoMigResult'; include __DIR__ . '/_result.php'; } ?>
-    <p class="mb-2">Zaznacz osoby na liście wyżej i użyj „Konto Logto + chmura”. Każda dostaje jedno nowe hasło — to samo w logowaniu jednokrotnym i w chmurze. Hasło do poczty zostaje bez zmian. Pliki większe niż 2 GB i notesy OneNote są pomijane.</p>
+    <p class="mb-2">Zaznacz osoby na liście wyżej i użyj „<?= SsoConfig::logtoConfigured() ? 'Konto Logto + chmura' : 'Konto w chmurze + pliki' ?>” (pasek pod listą). Każda dostaje jedno nowe hasło — to samo w logowaniu jednokrotnym i w chmurze. Hasło do poczty zostaje bez zmian. Przenosimy wszystkie pliki: także notesy OneNote, skróty do udostępnionych plików i pliki większe niż 2 GB (wysyłane w częściach).</p>
     <?php $jobsBack = '/migracjaadmin'; $ssoJobs = null; include __DIR__ . '/_jobs.php'; ?>
   </div>
 </section>

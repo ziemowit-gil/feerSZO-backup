@@ -12,7 +12,8 @@ declare(strict_types=1);
  *   foldery przechodzimy wszerz (kolejka w state_json), stronami po 200 pozycji z Graph; pliki trafiają do folderu
  *   „OneDrive” w chmurze z tą samą strukturą i datą modyfikacji (X-OC-Mtime). Każdy skopiowany plik zapisujemy
  *   w sso_files_items (konto w chmurze + id elementu OneDrive), więc ponowne zadanie dla tej samej osoby dosyła tylko nowe.
- *   Pomijamy notesy OneNote i skróty do cudzych plików oraz pliki ponad MAX_BYTES (pojedynczy PUT).
+ *   Przenosimy wszystko (polecenie 2026-11-13): notesy OneNote (jak foldery), skróty do udostępnionych plików i folderów
+ *   (z dysku właściciela) i pliki dowolnej wielkości — od CloudApi::CHUNK_FROM wysyłane w częściach (WebDAV chunking v2).
  *   Niedostępność (Microsoft, chmura) → „czeka”, ponowienie co RETRY_HOURS h, najdłużej MAX_ATTEMPTS prób bez postępu.
  *   Odrzucone hasło w chmurze albo brak uprawnienia Files.Read.All → błąd od razu (ponawianie nic nie da).
  */
@@ -22,7 +23,7 @@ require_once dirname(__DIR__) . '/lib/GraphDrive.php';
 final class CloudFilesCopy
 {
     public const TARGET = 'OneDrive';
-    public const MAX_BYTES = 2147483648;       // 2 GB — większe pliki wymagają wysyłki w częściach (nieobsługiwane)
+    public const BIG_LOCK = 10800;             // duży plik: blokada zadania przedłużana o 3 h (pobranie + wysyłka w częściach)
     public const RETRY_HOURS = 6;
     public const MAX_ATTEMPTS = 28;            // 28 × 6 h = 7 dni bez postępu
     private const PASS_CTX = 'sso_files_jobs.password_enc';
@@ -162,7 +163,7 @@ final class CloudFilesCopy
         if ($pass === '') return self::finish($id, 'error', 'Brak hasła do chmury — nadaj nowe hasło w SZO, żeby skopiować pliki.');
 
         $state = json_decode((string)($job['state_json'] ?? ''), true);
-        if (!is_array($state) || !isset($state['queue'])) $state = ['queue' => [['root', '']], 'cur' => null];
+        if (!is_array($state) || !isset($state['queue'])) $state = ['queue' => [['root', '', null]], 'cur' => null];
         $cnt = ['total' => (int)$job['total_files'], 'copied' => (int)$job['copied_files'], 'skipped' => (int)$job['skipped_files'],
                 'failed' => (int)$job['failed_files'], 'bytes' => (int)$job['bytes']];
         $progress = false;
@@ -177,48 +178,64 @@ final class CloudFilesCopy
             while (time() < $deadline - 20) {
                 if ($state['cur'] === null) {
                     if (!$state['queue']) break;                                   // wszystko przejrzane
-                    [$fid, $fpath] = array_shift($state['queue']);
-                    $state['cur'] = ['id' => $fid, 'path' => $fpath, 'next' => null];
+                    $q = array_shift($state['queue']);
+                    $state['cur'] = ['id' => $q[0], 'path' => $q[1], 'drive' => $q[2] ?? null, 'next' => null];
                 }
                 $cur = $state['cur'];
                 try {
-                    $page = $graph->children($src, (string)$cur['id'], $cur['next']);
+                    $page = $graph->children($src, (string)$cur['id'], $cur['next'], $cur['drive'] ?? null);
                 } catch (GraphDriveGone $e) {
                     $state['cur'] = null;                                          // folder zniknął w trakcie
+                    continue;
+                } catch (GraphDriveDenied | GraphDriveException $e) {
+                    if (($cur['drive'] ?? null) === null || $e instanceof GraphDriveUnavailable) throw $e;
+                    $state['cur'] = null;                                          // udostępniony folder bez dostępu — pomijamy tylko go
                     continue;
                 }
                 $interrupted = false;
                 foreach ($page['items'] as $it) {
                     if (time() >= $deadline - 20) { $interrupted = true; break; }   // ta sama strona w następnym przebiegu
                     $path = ($cur['path'] === '' ? '' : $cur['path'] . '/') . self::safeName($it['name']);
+                    $key = self::key($it);
                     if ($it['folder']) {
-                        // folder trafia do kolejki raz na zadanie (result 3 + job_id), także gdy strona jest czytana ponownie
-                        if (!db_one("SELECT result FROM sso_files_items WHERE cloud_uid=? AND item_id=? AND result=3 AND job_id=?", [$uid, $it['id'], $id])) {
+                        // folder (też notes OneNote i udostępniony folder ze skrótu) trafia do kolejki raz na zadanie (result 3 + job_id)
+                        if (!db_one("SELECT result FROM sso_files_items WHERE cloud_uid=? AND item_id=? AND result=3 AND job_id=?", [$uid, $key, $id])) {
                             $cloud->davMkdirs($uid, $pass, self::TARGET . '/' . $path);
-                            $state['queue'][] = [$it['id'], $path];
-                            self::item($uid, $it['id'], $id, 3);
+                            $state['queue'][] = [$it['id'], $path, $it['drive'] ?? null];
+                            self::item($uid, $key, $id, 3);
                         }
                         continue;
                     }
-                    if (db_one("SELECT result FROM sso_files_items WHERE cloud_uid=? AND item_id=? AND result IN (1,2)", [$uid, $it['id']])) continue;
+                    if (db_one("SELECT result FROM sso_files_items WHERE cloud_uid=? AND item_id=? AND result IN (1,2)", [$uid, $key])) continue;
                     $cnt['total']++;
-                    if ($it['skip'] || $it['size'] > self::MAX_BYTES) {
-                        self::item($uid, $it['id'], $id, 2);
+                    if ($it['skip']) {                                             // tylko pozycje bez treści do pobrania
+                        self::item($uid, $key, $id, 2);
                         $cnt['skipped']++;
                         continue;
                     }
                     try {
-                        $graph->download($src, $it['id'], $tmp);
-                        $cnt['bytes'] += $cloud->davPut($uid, $pass, self::TARGET . '/' . $path, $tmp, $it['mtime'] ?: null);
-                        self::item($uid, $it['id'], $id, 1);
+                        if ($it['size'] >= CloudApi::chunkFrom()) {                 // duży plik: dłuższa blokada, żeby drugi przebieg go nie wziął
+                            db()->prepare("UPDATE sso_files_jobs SET locked_until=? WHERE id=?")->execute([date('Y-m-d H:i:s', time() + self::BIG_LOCK), $id]);
+                        }
+                        $graph->download($src, $it['id'], $tmp, $it['drive'] ?? null);
+                        $cnt['bytes'] += filesize($tmp) >= CloudApi::chunkFrom()
+                            ? $cloud->davPutChunked($uid, $pass, self::TARGET . '/' . $path, $tmp, $it['mtime'] ?: null)
+                            : $cloud->davPut($uid, $pass, self::TARGET . '/' . $path, $tmp, $it['mtime'] ?: null);
+                        self::item($uid, $key, $id, 1);
                         $cnt['copied']++;
                         $progress = true;
                     } catch (GraphDriveGone $e) {
-                        self::item($uid, $it['id'], $id, 2);
+                        self::item($uid, $key, $id, 2);
                         $cnt['skipped']++;
+                    } catch (GraphDriveDenied | GraphDriveException $e) {
+                        // udostępniony plik bez dostępu albo plik, którego Microsoft nie oddaje — nieudany, zadanie idzie dalej;
+                        // brak uprawnienia do własnego dysku osoby i niedostępność Microsoftu zatrzymują zadanie jak dotąd
+                        if ($e instanceof GraphDriveUnavailable || ($e instanceof GraphDriveDenied && ($it['drive'] ?? null) === null)) throw $e;
+                        self::item($uid, $key, $id, 0);
+                        $cnt['failed']++;
                     } catch (CloudApiException $e) {
                         if ($e instanceof CloudDenied || $e instanceof CloudFull || $e instanceof CloudUnavailable) throw $e;
-                        self::item($uid, $it['id'], $id, 0);                       // np. niedozwolona nazwa w chmurze
+                        self::item($uid, $key, $id, 0);                            // np. niedozwolona nazwa w chmurze
                         $cnt['failed']++;
                     }
                     @file_put_contents($tmp, '');
@@ -244,6 +261,13 @@ final class CloudFilesCopy
         db()->prepare("UPDATE sso_files_jobs SET locked_until=NULL, attempts=0, next_run_at=?, updated_at=? WHERE id=?")
             ->execute([date('Y-m-d H:i:s'), date('Y-m-d H:i:s'), $id]);
         return "[..] #{$id} {$uid}: {$cnt['copied']}/{$cnt['total']} — ciąg dalszy w następnym przebiegu";
+    }
+
+    /** Klucz pozycji w sso_files_items: id OneDrive osoby albo „dysk!id” dla pozycji z cudzego dysku (skrót do udostępnionych). */
+    private static function key(array $it): string
+    {
+        $d = (string)($it['drive'] ?? '');
+        return mb_substr($d !== '' ? $d . '!' . $it['id'] : (string)$it['id'], 0, 255);
     }
 
     /** Nazwa pliku/folderu bezpieczna dla chmury (ukośniki i znaki sterujące → „_”). */

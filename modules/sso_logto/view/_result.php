@@ -31,6 +31,7 @@ $ssoWithPass = array_filter($ssoRows, fn($r) => !empty($r['password']));
           <td><?= h($r['name'] ?? '') ?><?php if (!empty($r['email'])): ?><br><span class="text-body-secondary"><?= h($r['email']) ?></span><?php endif; ?></td>
           <td><?= $r['username'] !== '' ? '<code>' . h($r['username']) . '</code>' : '—' ?></td>
           <td>
+            <?php if (($r['logto'] ?? '') === 'pominięte'): ?><span class="d-block text-body-secondary">tylko chmura (Logto nieskonfigurowane)</span><?php endif; ?>
             <?php if (!empty($r['password'])): ?>
               <code class="sso-pass"><?= h($r['password']) ?></code>
               <button type="button" class="btn btn-link btn-sm p-0 ms-1" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent);this.textContent='Skopiowano'">Kopiuj<span class="visually-hidden"> hasło <?= h($r['username']) ?></span></button>

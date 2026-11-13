@@ -112,8 +112,17 @@ final class SsoAccounts
         $password = $generated ? SsoConfig::generatePassword() : (string)$opt['password'];
         $now = date('Y-m-d H:i:s');
 
-        $api = SsoConfig::logto();
         $row = self::get($email);
+        if (!SsoConfig::logtoConfigured()) {
+            // Logto jeszcze nieskonfigurowane (np. brak aplikacji M2M) — zakładamy samo konto w chmurze (polecenie 2026-11-13: przycisk
+            // w migratorze ma działać i bez Logto). Konto Logto dostanie to samo nowe hasło przy następnym nadaniu (provision / setPassword).
+            $username = (string)($row['logto_username'] ?? '') !== '' ? (string)$row['logto_username']
+                : ((string)($row['cloud_uid'] ?? '') !== '' ? (string)$row['cloud_uid'] : self::usernameBase((string)($person['login'] ?? ''), $email));
+            self::upsert($email, array_filter(['user_id' => isset($person['user_id']) ? (int)$person['user_id'] : null, 'name' => $name], fn($v) => $v !== null));
+            $out = ['email' => $email, 'username' => $username, 'password' => $generated ? $password : null, 'logto' => 'pominięte', 'cloud' => '', 'job' => null];
+            return self::provisionCloud($person, $opt, $out, $email, $username, $name, $password, $by);
+        }
+        $api = SsoConfig::logto();
         $lu = null;
         if ($row && !empty($row['logto_id'])) $lu = $api->get((string)$row['logto_id']);
         if (!$lu) $lu = $api->findByEmail($email);
@@ -145,7 +154,12 @@ final class SsoAccounts
 
         $out = ['email' => $email, 'username' => $username, 'password' => $generated ? $password : null, 'logto' => $logtoState, 'cloud' => '', 'job' => null];
         self::audit('sso.logto_' . $logtoState, ['email' => $email, 'username' => $username, 'via' => $opt['via'] ?? '']);
+        return self::provisionCloud($person, $opt, $out, $email, $username, $name, $password, $by);
+    }
 
+    /** Część „chmura + pliki” z provision(): konto w chmurze z tym samym hasłem i (na życzenie) zadanie kopiowania plików z OneDrive. */
+    private static function provisionCloud(array $person, array $opt, array $out, string $email, string $username, string $name, string $password, string $by): array
+    {
         // Chmura: zakładamy na życzenie; istniejące konto w chmurze zawsze dostaje to samo hasło (zasada „jedno hasło”)
         $row = self::get($email);
         $wantCloud = !empty($opt['cloud']) || !empty($row['cloud_uid']);

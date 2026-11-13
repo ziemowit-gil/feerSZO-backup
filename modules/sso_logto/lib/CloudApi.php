@@ -178,6 +178,64 @@ final class CloudApi
         $this->davFail($code, (string)$raw, 'Nie udało się zapisać ' . $path);
     }
 
+    /** Od tej wielkości plik idzie w częściach (duże PUT-y odrzuca serwer WWW/PHP; pliki > 2 GB — polecenie 2026-11-13). */
+    public const CHUNK_FROM = 268435456;      // 256 MB
+    public const CHUNK_BYTES = 67108864;      // 64 MB (Nextcloud: 5 MB–5 GB na część, najwyżej 10000 części)
+
+    /** Próg i wielkość części — w testach stałe SSO_CHUNK_FROM / SSO_CHUNK_BYTES. */
+    public static function chunkFrom(): int { return defined('SSO_CHUNK_FROM') ? (int)SSO_CHUNK_FROM : self::CHUNK_FROM; }
+    public static function chunkBytes(): int { return defined('SSO_CHUNK_BYTES') ? (int)SSO_CHUNK_BYTES : self::CHUNK_BYTES; }
+
+    /**
+     * Wysyła plik w częściach (WebDAV „chunking v2”: /remote.php/dav/uploads/{uid}/{id}, PUT kolejnych części, MOVE .file → cel).
+     * Nextcloud: części 1, 2, 3…; ownCloud: nazwy z przesunięciem (porządek leksykalny). Błąd → sprząta katalog części. Zwraca rozmiar.
+     */
+    public function davPutChunked(string $uid, string $pass, string $path, string $file, ?int $mtime = null): int
+    {
+        $size = (int)filesize($file);
+        $dest = $this->davUrl($uid, $path);
+        $upl = $this->base . '/remote.php/dav/uploads/' . rawurlencode($uid) . '/szo-' . bin2hex(random_bytes(8));
+        $auth = [$uid, $pass];
+        [$code, $raw] = self::http('MKCOL', $upl, ['Destination: ' . $dest], null, $auth);
+        if (!in_array($code, [201, 405], true)) $this->davFail($code, $raw, 'Nie można rozpocząć wysyłki w częściach ' . $path);
+        $fh = fopen($file, 'rb');
+        if (!$fh) throw new RuntimeException('Nie można otworzyć pliku tymczasowego.');
+        try {
+            $sent = 0; $n = 0;
+            while ($sent < $size) {
+                $len = (int)min(self::chunkBytes(), $size - $sent);
+                $n++;
+                $name = $this->kind === 'owncloud' ? sprintf('%015d', $sent) : (string)$n;
+                $left = $len;
+                $ch = curl_init($upl . '/' . $name);
+                curl_setopt_array($ch, [
+                    CURLOPT_UPLOAD => true, CURLOPT_INFILESIZE => $len, CURLOPT_RETURNTRANSFER => true, CURLOPT_USERPWD => $uid . ':' . $pass,
+                    CURLOPT_READFUNCTION => function ($c, $fd, $want) use ($fh, &$left) {
+                        if ($left <= 0) return '';
+                        $d = fread($fh, (int)min($want, $left));
+                        if ($d === false) return '';
+                        $left -= strlen($d);
+                        return $d;
+                    },
+                    CURLOPT_HTTPHEADER => ['Content-Type: application/octet-stream', 'Destination: ' . $dest, 'OC-Total-Length: ' . $size],
+                    CURLOPT_CONNECTTIMEOUT => 15, CURLOPT_TIMEOUT => 1800,
+                ]);
+                $raw = curl_exec($ch);
+                $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $err = curl_error($ch);
+                unset($ch);
+                if ($raw === false) { self::http('DELETE', $upl, [], null, $auth); throw new CloudUnavailable('Chmura niedostępna przy wysyłce części ' . $n . ': ' . $err); }
+                if (!in_array($code, [200, 201, 204], true)) { self::http('DELETE', $upl, [], null, $auth); $this->davFail($code, (string)$raw, 'Nie udało się zapisać części ' . $n . ' pliku ' . $path); }
+                $sent += $len;
+            }
+        } finally { fclose($fh); }
+        $h = ['Destination: ' . $dest, 'OC-Total-Length: ' . $size, 'Overwrite: T'];
+        if ($mtime) $h[] = 'X-OC-Mtime: ' . $mtime;
+        [$code, $raw] = self::http('MOVE', $upl . '/.file', $h, null, $auth, 1800);   // składanie dużego pliku trwa
+        if (!in_array($code, [200, 201, 204], true)) { self::http('DELETE', $upl, [], null, $auth); $this->davFail($code, $raw, 'Nie udało się złożyć pliku ' . $path); }
+        return $size;
+    }
+
     private function davFail(int $code, string $raw, string $what): never
     {
         $msg = '';
@@ -194,10 +252,10 @@ final class CloudApi
     }
 
     /** @return array{0:int,1:string} [kod HTTP, treść] */
-    private static function http(string $method, string $url, array $headers, ?string $body, ?array $auth): array
+    private static function http(string $method, string $url, array $headers, ?string $body, ?array $auth, int $timeout = 60): array
     {
         $ch = curl_init($url);
-        $opts = [CURLOPT_RETURNTRANSFER => true, CURLOPT_CUSTOMREQUEST => $method, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 60,
+        $opts = [CURLOPT_RETURNTRANSFER => true, CURLOPT_CUSTOMREQUEST => $method, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => $timeout,
                  CURLOPT_HTTPHEADER => $headers];
         if ($auth) $opts[CURLOPT_USERPWD] = $auth[0] . ':' . $auth[1];
         if ($body !== null) {
