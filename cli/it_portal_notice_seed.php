@@ -3,7 +3,7 @@
 /**
  * cli/it_portal_notice_seed.php — Portal Usług IT (/uslugi-it/komunikaty): komunikat „Ważne zmiany: odchodzimy od Microsoft 365”.
  * Tworzy komunikat albo nadpisuje treść istniejącego o tym tytule (data i publikacja zostają). Można uruchamiać wielokrotnie.
- * Bez migracji: komunikat publikuje się dopiero po ręcznym uruchomieniu.
+ * To samo robi raz automatycznie migracja '2026-11_it_portal_notice_zmiany'.
  *
  * Użycie (na produkcji, w katalogu aplikacji):
  *   php cli/it_portal_notice_seed.php --dry-run            # pokaż, co się zmieni, bez zapisu

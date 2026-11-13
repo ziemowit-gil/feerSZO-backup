@@ -7,7 +7,8 @@
  * Treść zgodna z artykułami portalu na 2026-11-13 (itPortalMigracjaSeed, itPortalFirstLoginSeed, itPortalGlossarySeed):
  * 14.11 nowa poczta, 20.11 wyłączenie Microsoft 365, 1.12 jedno hasło IAM do aplikacji Fundacji (poczta osobno).
  * Komunikat rozpoznajemy po tytule (ITP_NOTICE_SEED_TITLE): drugi raz nadpisuje treść, status i podpis, zostawia datę
- * i publikację (ręczne ukrycie w panelu portalu zostaje). Uruchamiane ręcznie: cli/it_portal_notice_seed.php (bez migracji).
+ * i publikację (ręczne ukrycie w panelu portalu zostaje). Używa migracja '2026-11_it_portal_notice_zmiany'
+ * i cli/it_portal_notice_seed.php.
  */
 const ITP_NOTICE_SEED_TITLE = 'Ważne zmiany: odchodzimy od Microsoft 365';
 

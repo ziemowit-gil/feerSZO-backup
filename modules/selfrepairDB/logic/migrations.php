@@ -768,4 +768,16 @@ return [
         },
     ],
 
+    // Portal Usług IT: komunikat „Ważne zmiany: odchodzimy od Microsoft 365” w /uslugi-it/komunikaty (polecenie 2026-11-13:
+    // „Przygotuj seed na komunikat o ważnych zmianach”, potem „Tak, dodaj migrację”). Publikuje komunikat z datą 2026-11-13;
+    // istniejący o tym tytule tylko odświeża (data i publikacja zostają). modules/it_portal/lib/itPortalNoticeSeed.php.
+    '2026-11_it_portal_notice_zmiany' => [
+        'desc' => 'Portal Usług IT: komunikat „Ważne zmiany: odchodzimy od Microsoft 365”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalNoticeSeed.php';
+            itPortalNoticeSeedApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_notice_seed.php [--dry-run]
+        },
+    ],
+
 ];
