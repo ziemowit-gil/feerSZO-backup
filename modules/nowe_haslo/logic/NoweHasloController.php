@@ -32,6 +32,7 @@ final class NoweHasloController
             'flash' => $this->take(self::K_FLASH),
             'initial' => NoweHasloInitial::status(current_user()),   // hasła startowe (zachęta / blokada panelu)
             'form'  => $this->take(self::K_FORM) ?? [],
+            'changed' => $this->take('nhChanged'),   // komunikat po udanej zmianie → okno dialogowe
         ]);
     }
 
@@ -106,6 +107,7 @@ final class NoweHasloController
             return $this->flash($back . '#zmiana', 'danger', $e->getMessage());
         }
         $_SESSION[self::K_FORM] = ['done' => $target];   // kreator: krok „Gotowe” proponuje drugie hasło startowe
+        $_SESSION['nhChanged'] = $msg;                     // okno na środku ekranu po zmianie (polecenie 2026-11-14, WCAG)
         return $this->flash($back, 'success', $msg);
     }
 

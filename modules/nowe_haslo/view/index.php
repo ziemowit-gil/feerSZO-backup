@@ -72,6 +72,15 @@ if ($noRandom) $mSel = 'own';
   .pvm .nh-done{display:flex;gap:.8rem;align-items:flex-start}
   .pvm .nh-done>i{font-size:2rem;color:#15803d;line-height:1}
   .pvm .dm-inp{box-sizing:border-box}
+  .nh-dlg{max-width:min(30rem,calc(100vw - 2rem));width:100%;padding:1.6rem 1.5rem 1.3rem;border:0;border-top:8px solid #15803d;
+    background:#fff;color:#111;box-shadow:0 24px 70px rgba(0,0,0,.35);text-align:center;font:inherit}
+  .nh-dlg::backdrop{background:rgba(0,0,0,.55)}
+  .nh-dlg__ic{width:3.5rem;height:3.5rem;margin:0 auto .7rem;border-radius:50%;background:#15803d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:2rem}
+  .nh-dlg__h{font-size:1.4rem;font-weight:700;margin:0 0 .6rem}
+  .nh-dlg p{margin:.4rem 0;line-height:1.5}
+  .nh-dlg__ok{margin-top:1rem;min-width:10rem;min-height:44px;justify-content:center}
+  .nh-dlg__ok:focus-visible{outline:3px solid #c50f1f;outline-offset:3px}
+  @media (prefers-reduced-motion:no-preference){.nh-dlg[open]{animation:nhPop .18s ease-out}@keyframes nhPop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}}
 </style>
 </head>
 <body>
@@ -351,11 +360,31 @@ if ($noRandom) $mSel = 'own';
   <?php endif; ?>
 </main>
 
+<?php if (!empty($changed)): /* okno po zmianie hasła: natywny <dialog> (showModal = pułapka fokusu, Esc, tło inert), role=alertdialog */ ?>
+<dialog id="nhDone" class="nh-dlg" role="alertdialog" aria-modal="true" aria-labelledby="nhDoneH" aria-describedby="nhDoneD">
+  <div class="nh-dlg__ic" aria-hidden="true"><i class="bi bi-check-lg"></i></div>
+  <h2 id="nhDoneH" class="nh-dlg__h">Hasło zmienione</h2>
+  <div id="nhDoneD">
+    <p><?= h((string)$changed) ?></p>
+    <p>Jeśli telefon, Outlook albo aplikacja chmury pamięta stare hasło, wpisz w nich nowe.</p>
+  </div>
+  <form method="dialog"><button type="submit" class="mt-btn nh-dlg__ok" autofocus>OK, rozumiem</button></form>
+</dialog>
+<?php endif; ?>
+
 <script>
 (function () {
   document.querySelectorAll('form.js-once').forEach(function (f) {
     f.addEventListener('submit', function () { var b = f.querySelector('button[type=submit]'); if (b) { b.disabled = true; b.lastChild.textContent = ' Chwileczkę…'; } });
   });
+  var dlg = document.getElementById('nhDone');
+  if (dlg && typeof dlg.showModal === 'function') {
+    dlg.showModal();
+    dlg.addEventListener('close', function () {
+      var t = document.querySelector('.nh-step[data-s="3"]:not([hidden]) .nh-actions .mt-btn') || document.getElementById('tresc');
+      if (t) { if (!t.hasAttribute('tabindex') && t.tagName === 'MAIN') t.setAttribute('tabindex', '-1'); t.focus(); }
+    });
+  } else if (dlg) { dlg.setAttribute('open', ''); }
   var wiz = document.getElementById('nhWiz');
   if (wiz) {
     var steps = wiz.querySelectorAll('.nh-step'), path = document.querySelectorAll('.dm-path li[data-p]');
