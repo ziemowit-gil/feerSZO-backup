@@ -54,7 +54,85 @@ final class DhostingCopy
      * i nieprzeniesionych (wykaz na stronie migracji), do kiedy dosyłamy nowe. Bez nazwy dostawcy. E-mail: nowa skrzynka + adres konta SZO;
      * SMS: komórka z konta SZO / rejestru / umowy (rodzaj access_data, bez omijania ciszy nocnej). Zwraca opis do notatki Helpdesku.
      */
-    public static function notifyDone(array $job, array $c, ?string $keep): string
+    /** Podmiana zakładania kont w testach: fn(array $person, array $opt): array (jak SsoAccounts::provision). */
+    public static ?\Closure $provision = null;
+
+    /**
+     * Po zakończonym przenoszeniu (polecenie 2026-11-13: „po zakończeniu utwórz konto w chmurze i SSO lub nadpisz istniejące”):
+     * konto logowania jednokrotnego (Logto) i konto w chmurze — brakujące zakładamy, istniejącym nadpisujemy hasło.
+     * Hasło jest NOWE i OSOBNE od hasła do poczty (polecenie 2026-11-13: osobne hasła ze względów bezpieczeństwa) — generuje je
+     * SsoAccounts::provision, wysyłamy je SMS-em (nigdy e-mailem). Bez Logto (nieskonfigurowane) — samo konto w chmurze.
+     * @return array{ok:bool,text:string,username?:string,logto?:string,cloud?:string,sms?:string}
+     */
+    public static function accountsAfterMigration(array $job): array
+    {
+        require_once dirname(__DIR__, 2) . '/sso_logto/logic/SsoAccounts.php';
+        $logto = SsoConfig::logtoConfigured();
+        $cloud = SsoConfig::cloudConfigured();
+        if (!$logto && !$cloud) return ['ok' => false, 'text' => 'logowanie jednokrotne i chmura nie są skonfigurowane'];
+        $person = self::personFor($job);
+        if (!$person) return ['ok' => false, 'text' => 'nie znaleziono osoby z adresem e-mail w SZO'];
+        $opt = ['cloud' => $cloud, 'files' => false, 'by' => 'migracja poczty', 'via' => 'migrator_done'];   // bez 'password' = nowe hasło
+        try {
+            $res = self::$provision ? (self::$provision)($person, $opt) : SsoAccounts::provision($person, $opt);
+        } catch (\Throwable $e) {
+            error_log('[dhosting] konta po migracji ' . $job['mailbox'] . ': ' . $e->getMessage());
+            return ['ok' => false, 'text' => 'błąd: ' . mb_substr($e->getMessage(), 0, 200)];
+        }
+        $lt = (string)($res['logto'] ?? '');
+        $cl = (string)($res['cloud'] ?? '');
+        $cloudOk = in_array($cl, ['created', 'linked', 'synced'], true);
+        $ok = $lt !== 'pominięte' || $cloudOk;
+        // SMS z loginem i nowym hasłem (osobny od SMS-a o poczcie). Bez SMS-a hasła nikt nie zna — administrator nadaje nowe w Zarządzaniu dostępem.
+        $sms = '';
+        $pw = (string)($res['password'] ?? '');
+        if ($ok && $pw !== '') {
+            try {
+                require_once __DIR__ . '/DhostingMigrator.php';
+                $phone = DhostingMigrator::phoneForMailbox(strtolower((string)$job['mailbox']), (int)($person['user_id'] ?? 0) ?: null);
+                if ($phone === '') {
+                    $sms = 'brak numeru komórkowego';
+                } else {
+                    $site = $lt !== 'pominięte' ? SsoConfig::logtoUrl() : SsoConfig::cloudUrl();
+                    $msg = SsoConfig::smsPrefix() . ': ' . ($lt !== 'pominięte' ? 'logowanie jednokrotne' . ($cloudOk ? ' i chmura plikow' : '') : 'chmura plikow')
+                         . '. Login: ' . $res['username'] . ' Haslo: ' . $pw . ' (inne niz do poczty). Haslo obowiazuje od ' . date('d.m.y H:i:s')
+                         . '. Strona: ' . preg_replace('~^https?://~', '', $site);
+                    $send = self::$sendSms ?? fn(string $p, string $m): string => (string)sms_send($p, function_exists('sms_ascii') ? sms_ascii($m) : $m, 'access_data');
+                    $prov = $send($phone, $msg);
+                    $sms = $prov === '' ? 'SMS nie wyszedł' : ($prov === 'odlozony' ? 'SMS po ciszy nocnej' : 'SMS') . ' (' . DhostingMigrator::maskPhone($phone) . ')';
+                }
+            } catch (\Throwable $e) { $sms = 'SMS: błąd'; error_log('[dhosting] SMS konta SSO ' . $job['mailbox'] . ': ' . $e->getMessage()); }
+        }
+        $parts = [];
+        if ($lt !== 'pominięte') $parts[] = 'logowanie jednokrotne: ' . ($lt === 'created' ? 'założone' : 'nadpisane hasło') . ' (login ' . $res['username'] . ')';
+        if ($cl !== '') $parts[] = 'chmura: ' . ($cl === 'created' ? 'założona' : ($cloudOk ? 'nadpisane hasło' : $cl));
+        if ($sms !== '') $parts[] = 'nowe hasło: ' . $sms;
+        return ['ok' => $ok, 'text' => implode(', ', $parts) ?: 'bez zmian',
+                'username' => (string)($res['username'] ?? ''), 'logto' => $lt, 'cloud' => $cl, 'sms' => $sms];
+    }
+
+    /** Osoba do kont SSO: konto SZO z zadania, inaczej po loginie Microsoft / adresie skrzynki, na końcu po koncie Microsoft z umowy. */
+    private static function personFor(array $job): ?array
+    {
+        $box = strtolower(trim((string)$job['mailbox']));
+        $src = strtolower(trim((string)($job['source'] ?? '')));
+        $uid = (int)($job['user_id'] ?? 0);
+        $u = $uid > 0 ? db_one("SELECT id, email, name, phone_number, m365_login FROM users WHERE id=?", [$uid]) : null;
+        if (!$u) $u = db_one("SELECT id, email, name, phone_number, m365_login FROM users WHERE LOWER(COALESCE(m365_login,''))=? OR LOWER(email)=? ORDER BY id LIMIT 1", [$src !== '' ? $src : $box, $box]);
+        if ($u && filter_var((string)$u['email'], FILTER_VALIDATE_EMAIL)) {
+            $login = (string)($u['m365_login'] ?? '') !== '' ? (string)$u['m365_login'] : $box;
+            return ['email' => strtolower((string)$u['email']), 'name' => (string)$u['name'], 'login' => $login, 'm365' => $login,
+                    'user_id' => (int)$u['id'], 'phone' => (string)($u['phone_number'] ?? '')];
+        }
+        try {
+            require_once dirname(__DIR__, 2) . '/sso_logto/logic/SsoController.php';
+            $p = $src !== '' ? SsoController::personByM365Id((string)$job['source']) : null;
+            if ($p && filter_var((string)$p['email'], FILTER_VALIDATE_EMAIL)) return $p;
+        } catch (\Throwable $e) {}
+        return null;
+    }
+
+    public static function notifyDone(array $job, array $c, ?string $keep, array $acc = []): string
     {
         $box = strtolower(trim((string)$job['mailbox']));
         $uid = (int)($job['user_id'] ?? 0);
@@ -69,6 +147,15 @@ final class DhostingCopy
         $lines = ['Adres i login: ' . $box,
                   'Hasło: to samo, którego używasz do nowej skrzynki (z SMS-a albo ustawione na stronie migracji).'];
         if ($web !== '') $lines[] = 'Poczta w przeglądarce: ' . $web;
+        if (!empty($acc['ok'])) {   // konta po migracji: osobne, nowe hasło (SMS) — nie to samo co do poczty
+            require_once dirname(__DIR__, 2) . '/sso_logto/lib/SsoConfig.php';
+            $lt = ($acc['logto'] ?? '') !== 'pominięte';
+            $cl = in_array((string)($acc['cloud'] ?? ''), ['created', 'linked', 'synced'], true);
+            $smsOk = str_starts_with((string)($acc['sms'] ?? ''), 'SMS (') || str_starts_with((string)($acc['sms'] ?? ''), 'SMS po');
+            $lines[] = 'Do ' . implode(' i ', array_filter([$lt ? 'logowania jednokrotnego' : '', $cl ? 'chmury plików ' . SsoConfig::cloudUrl() : '']))
+                     . ' masz osobne hasło — ze względów bezpieczeństwa inne niż do poczty. Login: ' . $acc['username'] . '. '
+                     . ($smsOk ? 'Hasło przyszło osobnym SMS-em.' : 'Hasło przekaże Ci administrator.');
+        }
         $lines[] = 'Przeniesiono ' . $n . ' ' . ($n === 1 ? 'wiadomość' : 'wiadomości') . '.';
         if ($nPart || $nFail) {
             $lines[] = 'Nie wszystko przeszło w całości: ' . implode(', ', array_filter([$nPart ? 'niepełne — ' . $nPart : '', $nFail ? 'nieprzeniesione — ' . $nFail : '']))
@@ -117,7 +204,8 @@ final class DhostingCopy
                 $done[] = 'SMS: brak numeru komórkowego';
             } else {
                 $msg = 'FEER: poczta ' . $box . ' przeniesiona, mozesz sie logowac swoim haslem.'
-                     . ($web !== '' ? ' Poczta: ' . $web : '') . ($nPart || $nFail ? ' Nie wszystko przeszlo, wykaz: ' . $url : '');
+                     . ($web !== '' ? ' Poczta: ' . $web : '') . (!empty($acc['ok']) ? ' Haslo do logowania jednokrotnego jest osobne (osobny SMS).' : '')
+                     . ($nPart || $nFail ? ' Nie wszystko przeszlo, wykaz: ' . $url : '');
                 $sms = self::$sendSms ?? fn(string $p, string $m): string => (string)sms_send($p, function_exists('sms_ascii') ? sms_ascii($m) : $m, 'access_data');
                 $prov = $sms($phone, $msg);
                 $done[] = $prov === '' ? 'SMS nie wyszedł' : ($prov === 'odlozony' ? 'SMS po ciszy nocnej' : 'SMS') . ' (' . DhostingMigrator::maskPhone($phone) . ')';
@@ -597,10 +685,11 @@ final class DhostingCopy
                     }
                     if ($failList !== '') $failList = "\nNieudane i niepełne (pełny wykaz: /migracjaadmin#kopiowanie):" . $failList . (count($fl) > 10 ? "\n– …" : '');
                 }
-                $notice = ''; $adminNotice = '';
+                $notice = ''; $adminNotice = ''; $acc = [];
                 if (($job['kind'] ?? 'full') !== 'incremental') {
-                    try { $notice = self::notifyDone($job, $c, $keep); } catch (\Throwable $e) { $notice = 'błąd: ' . $e->getMessage(); }
-                    try { $adminNotice = self::notifyAdmins($job, $c, $state, $notice, 'done'); } catch (\Throwable $e) { $adminNotice = 'błąd: ' . $e->getMessage(); }
+                    try { $acc = self::accountsAfterMigration($job); } catch (\Throwable $e) { $acc = ['ok' => false, 'text' => 'błąd: ' . $e->getMessage()]; }
+                    try { $notice = self::notifyDone($job, $c, $keep, $acc); } catch (\Throwable $e) { $notice = 'błąd: ' . $e->getMessage(); }
+                    try { $adminNotice = self::notifyAdmins($job, $c, $state, $notice . ($acc ? '; konta SSO i chmury: ' . $acc['text'] : ''), 'done'); } catch (\Throwable $e) { $adminNotice = 'błąd: ' . $e->getMessage(); }
                 }
                 if (($job['kind'] ?? 'full') !== 'incremental') {
                     self::helpdesk($job, 'Kopiowanie poczty zakończone: skopiowano ' . $c['copied'] . ' wiadomości (nowo dopisanych: ' . $added
@@ -609,6 +698,7 @@ final class DhostingCopy
                         . ($partialN ? ', w tym niepełnych (bez całej treści albo bez załączników): ' . $partialN : '') . ')'
                         . ($c['failed'] ? ', nie udało się ' . $c['failed'] . ' (np. za duże dla serwera)' : '') . '.'
                         . ($keep ? ' Nowe wiadomości z Microsoft 365 dosyłamy automatycznie co ' . self::SYNC_HOURS . ' h do ' . substr($keep, 0, 16) . '.' : '')
+                        . ($acc ? ' Konta logowania jednokrotnego i chmury (osobne, nowe hasło): ' . $acc['text'] . '.' : '')
                         . ($notice !== '' ? ' Powiadomienie „możesz się zalogować”: ' . $notice . '.' : '')
                         . ($adminNotice !== '' ? ' Podsumowanie dla administratorów: ' . $adminNotice . '.' : '') . $failList);
                 } elseif ($added > 0 || $c['failed'] > 0) {
