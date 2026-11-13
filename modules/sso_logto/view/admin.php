@@ -119,6 +119,11 @@ $copyField = function (string $id, string $label, string $value) {
           <div class="form-text" id="ssoSzoOnH"><?= $cfg['szo_ready'] ? 'Aplikacja SZO jest skonfigurowana.' : 'Przycisk pojawi się, gdy uzupełnisz App ID i App secret.' ?> Po wylogowaniu z SZO kończy się też sesja w Logto.</div>
         </div>
       </div>
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold" for="ssoMsOff">Data wyłączenia Microsoft 365</label>
+        <input type="date" class="form-control form-control-sm" id="ssoMsOff" name="ms_off_date" value="<?= h($cfg['ms_off_date']) ?>" aria-describedby="ssoMsOffH">
+        <div class="form-text" id="ssoMsOffH">Pokazywana w lewej kolumnie ekranu logowania („Odchodzimy od Microsoft 365”, odliczanie dni). Puste = bez daty.</div>
+      </div>
       <details class="col-12 small">
         <summary>Jak założyć aplikację SZO w Logto</summary>
         <ol class="sso-steps mt-2">

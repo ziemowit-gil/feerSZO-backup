@@ -14,6 +14,7 @@ declare(strict_types=1);
  *   sso_szo_login          — '1' = logowanie do SZO przez Logto (przycisk na ekranie logowania, lib/LogtoOidc.php)
  *   sso_szo_app_id         — App ID aplikacji „Traditional web” w Logto (SZO jako klient OpenID Connect)
  *   sso_szo_app_secret     — App secret tej aplikacji (zaszyfrowany)
+ *   sso_ms_off_date        — RRRR-MM-DD: dzień wyłączenia Microsoft 365 — lewa kolumna ekranu logowania (view/loginInfo.php)
  *   sso_cloud_kind         — 'nextcloud' | 'owncloud'
  *   sso_cloud_url          — adres chmury (inny serwer, np. https://chmura.feer.org.pl)
  *   sso_cloud_user         — login administratora chmury
@@ -67,6 +68,15 @@ final class SsoConfig
     {
         if (!self::logtoConfigured()) throw new LogtoApiException('Logowanie jednokrotne nie jest skonfigurowane (brak aplikacji Machine-to-machine w ustawieniach).');
         return new LogtoApi(self::logtoUrl(), self::get('sso_logto_m2m_id'), self::secret('sso_logto_m2m_secret'));
+    }
+
+    /** Dzień wyłączenia Microsoft 365 (północ, znacznik czasu) albo null — komunikat na ekranie logowania. */
+    public static function msOffDate(): ?int
+    {
+        $d = self::get('sso_ms_off_date');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) return null;
+        $t = strtotime($d . ' 00:00:00');
+        return $t === false ? null : $t;
     }
 
     /** App secret aplikacji SZO (logowanie przez Logto, lib/LogtoOidc.php). */
@@ -144,6 +154,10 @@ final class SsoConfig
         }
         $m2m = trim((string)($in['logto_m2m_id'] ?? ''));
         if ($m2m !== '' && !preg_match('/^[a-z0-9]{6,64}$/i', $m2m)) throw new InvalidArgumentException('App ID aplikacji Machine-to-machine: same litery i cyfry.');
+        $msOff = trim((string)($in['ms_off_date'] ?? ''));
+        if ($msOff !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $msOff) || strtotime($msOff) === false)) {
+            throw new InvalidArgumentException('Data wyłączenia Microsoft 365: wybierz dzień w kalendarzu (RRRR-MM-DD) albo zostaw puste.');
+        }
         $szoApp = trim((string)($in['szo_app_id'] ?? ''));
         if ($szoApp !== '' && !preg_match('/^[a-z0-9]{6,64}$/i', $szoApp)) throw new InvalidArgumentException('App ID aplikacji SZO (Traditional web): same litery i cyfry.');
 
@@ -168,6 +182,7 @@ final class SsoConfig
         org_setting_set('sso_login_prompt', !empty($in['login_prompt']) ? '1' : '0');
         org_setting_set('sso_szo_login', !empty($in['szo_login']) ? '1' : '0');
         org_setting_set('sso_szo_app_id', $szoApp);
+        org_setting_set('sso_ms_off_date', $msOff);
         org_setting_set('sso_sms_prefix', $prefix);
         org_setting_set('sso_cloud_kind', $kind);
         org_setting_set('sso_cloud_url', $cloudUrl);

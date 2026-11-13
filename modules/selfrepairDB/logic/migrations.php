@@ -638,4 +638,12 @@ return [
         },
     ],
 
+    // Ekran logowania: „za 7 dni wyłączymy Microsoft” (polecenie 2026-11-13) → 20.11.2026; zmiana na /ssoadmin.
+    '2026-11_sso_ms_off_date' => [
+        'desc' => 'Ekran logowania: data wyłączenia Microsoft 365 2026-11-20 (gdy nieustawiona)',
+        'run'  => static function (): void {
+            if (org_setting('sso_ms_off_date') === '') org_setting_set('sso_ms_off_date', '2026-11-20');
+        },
+    ],
+
 ];

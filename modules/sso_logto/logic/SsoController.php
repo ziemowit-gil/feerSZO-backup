@@ -50,6 +50,7 @@ final class SsoController
                 'szo_app_id'  => SsoConfig::get('sso_szo_app_id'),
                 'has_szo_secret' => SsoConfig::has('sso_szo_app_secret'),
                 'szo_ready'   => LogtoOidc::configured(),
+                'ms_off_date' => SsoConfig::get('sso_ms_off_date'),
                 'sms_prefix'  => SsoConfig::get('sso_sms_prefix'),
                 'cloud_kind'  => SsoConfig::cloudKind(),
                 'cloud_url'   => SsoConfig::get('sso_cloud_url'),

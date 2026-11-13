@@ -370,6 +370,11 @@ $has_alt = ($code_available || $sms_available || $x509_available);
 $_show_ms = $ms_available && !$emergency;
 $_show_logto = $logto_available && !$emergency;
 $_logto_url = APP_URL . '/sso/logowanie' . ($redirect !== '' ? '?redirect=' . urlencode($redirect) : '');
+// Druga kolumna: „Odchodzimy od Microsoft 365” — powody, prośba o logowanie do IAM, data wyłączenia (modules/sso_logto/view/loginInfo.php).
+$LOGIN_INFO = ['panel' => '', 'mini' => ''];
+try { require dirname(__DIR__) . '/modules/sso_logto/view/loginInfo.php'; }
+catch (\Throwable $e) { $LOGIN_INFO = ['panel' => '', 'mini' => '']; error_log('[login] kolumna informacji: ' . $e->getMessage()); }
+$_two = $LOGIN_INFO['panel'] !== '';
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -469,11 +474,41 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
 .lg-alert.info{background:#e6f1fb;border-color:#0a7fd1}
 .lg-cpl{font-size:.85rem}
 @media(max-width:480px){.lg-body{padding:1.2rem}}
+
+/* ── Dwie kolumny (polecenie 2026-11-13): informacja „Odchodzimy od Microsoft 365” + karta logowania ──
+   DOM: najpierw karta (h1), potem kolumna informacji (h2). Wąsko: jedna kolumna (karta, pod nią informacja,
+   w karcie skrót .lg-info-mini z odnośnikiem). Szeroko (≥ 900 px): informacja po lewej, karta 480 px po prawej.
+   Kontrast: #1f2937/#374151 na białym ≥ 9:1, #075f9e 6,7:1, #a33b00 6,6:1, tekst na #fff4ce i #e6f1fb ≥ 8:1. */
+.lg-two{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"card" "info";gap:1.25rem;width:100%;max-width:480px}
+.lg-two .lg-card{grid-area:card;max-width:none}
+.lg-info{grid-area:info;background:#fff;border:1px solid #d6d9de;border-radius:2px;padding:1.4rem 1.6rem 1.5rem;color:#1f2937;font-size:.9rem;line-height:1.5}
+.lg-info-kicker{margin:0 0 .2rem;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#a33b00}
+.lg-info-h{font-size:1.35rem;font-weight:700;color:#1f2937;margin:0 0 .5rem}
+.lg-info-lead{margin:0;color:#374151}
+.lg-info-h3{font-size:1rem;font-weight:700;color:#1f2937;margin:1.15rem 0 .4rem}
+.lg-info-list{margin:0;padding-left:1.15rem}
+.lg-info-list li{margin:0 0 .45rem}
+.lg-info-box{display:flex;gap:.6rem;align-items:flex-start;padding:.7rem .85rem;margin:1rem 0 0;background:#e6f1fb;border-left:4px solid #075f9e;border-radius:2px}
+.lg-info-box>i{font-size:1.1rem;line-height:1.35;color:#075f9e}
+.lg-info-box--warn{background:#fff4ce;border-left-color:#c25100}
+.lg-info-box--warn>i{color:#8a3a00}
+.lg-info-steps{margin:.45rem 0;padding-left:1.2rem}
+.lg-info-steps li{margin:0 0 .25rem}
+.lg-info-small{display:block;font-size:.82rem;color:#374151}
+.lg-info-help{margin:1rem 0 0;font-size:.85rem;color:#374151}
+.lg-info a{color:#075f9e;font-weight:600}
+.lg-info-mini a{color:#075f9e;font-weight:600}
+@media(min-width:900px){
+  .lg-two{grid-template-columns:minmax(0,1fr) 480px;grid-template-areas:"info card";max-width:1080px;align-items:start}
+  .lg-info-mini{display:none}
+}
+@media(max-width:480px){.lg-info{padding:1.1rem 1.2rem}}
 </style>
 </head>
 <body>
 <a class="lg-skip" href="#f-email">Przejdź do logowania</a>
 <main class="lg-wrap" id="login-main">
+<?php if ($_two): ?><div class="lg-two"><?php endif; ?>
   <div class="lg-card">
     <?= auth_screen_cpl_band($_org ?: 'Fundacja FEER') ?>
     <div class="lg-body">
@@ -493,6 +528,7 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
     <?php if (isset($_GET['ended'])): ?><div class="lg-alert ok" role="status"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Sesja zakończona — zaloguj się ponownie.</span></div><?php endif; ?>
     <?php if ($error && !in_array($active_tab, ['code','sms','x509'], true)): ?><div class="lg-alert err" role="alert" id="login-error-box"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span id="login-error-text"><?= h($error) ?></span></div><?php endif; ?>
     <?php if ($emergency): ?><div class="lg-alert warn" role="note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>Logowanie awaryjne — użyj adresu e-mail i <strong>hasła awaryjnego</strong>.</span></div><?php endif; ?>
+    <?php if ($_two) echo $LOGIN_INFO['mini']; /* skrót informacji — tylko na wąskim ekranie (< 900 px), pełna treść pod kartą */ ?>
 
     <?php if ($_show_logto): ?>
     <a class="lg-ms" href="<?= h($_logto_url) ?>"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
@@ -539,6 +575,10 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
     <?php endif; ?>
     </div><!-- /.lg-body -->
   </div>
+<?php if ($_two): ?>
+<?= $LOGIN_INFO['panel'] ?>
+</div><!-- /.lg-two -->
+<?php endif; ?>
 </main>
 <footer class="lg-foot"><?= h($_org) ?> · <a href="<?= APP_URL ?>/auth/help.php">Pomoc w logowaniu</a> · <a href="<?= APP_URL ?>/dostepnosc/">Deklaracja dostępności</a></footer>
 <?= $_modals_html ?>
