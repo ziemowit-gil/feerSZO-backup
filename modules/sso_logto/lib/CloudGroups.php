@@ -14,29 +14,42 @@ final class CloudGroups
 {
     public function __construct(private CloudApi $api) {}
 
+    /** Strona listy grup. Nextcloud 35 odrzuca większy limit (HTTP 400 przy limit=1000), więc czytamy stronami. */
+    private const PAGE = 100;
+
     /**
      * Grupy, których identyfikator zaczyna się od $prefix: [gid => nazwa wyświetlana]. Najpierw /groups/details (Nextcloud),
-     * gdy go nie ma — /groups (ownCloud, nazwa = identyfikator). Wyszukiwanie OCS dopasowuje fragment, więc filtrujemy jeszcze raz.
+     * gdy go nie ma, /groups (ownCloud, nazwa = identyfikator). Wyszukiwanie OCS dopasowuje fragment, a inne źródła grup
+     * (np. guest_app) zwracają swoje grupy bez względu na wyszukiwanie, więc filtrujemy jeszcze raz po przedrostku.
      */
     public function listByPrefix(string $prefix): array
     {
-        $out = [];
         try {
-            $d = $this->api->ocs('GET', 'groups/details', ['search' => $prefix, 'limit' => 1000]);
-            foreach ((array)($d['groups'] ?? []) as $g) {
-                $gid = (string)($g['id'] ?? '');
-                if ($gid !== '' && str_starts_with($gid, $prefix)) $out[$gid] = (string)($g['displayname'] ?? $gid);
-            }
-            return $out;
+            return $this->pages('groups/details', $prefix, fn($g) => [(string)($g['id'] ?? ''), (string)($g['displayname'] ?? ($g['id'] ?? ''))]);
         } catch (CloudUnavailable | CloudDenied $e) {
             throw $e;
         } catch (CloudApiException $e) {
-            // brak /groups/details (ownCloud) — zwykła lista identyfikatorów
+            // brak /groups/details (ownCloud): zwykła lista identyfikatorów
         }
-        $d = $this->api->ocs('GET', 'groups', ['search' => $prefix, 'limit' => 1000]);
-        foreach ((array)($d['groups'] ?? []) as $gid) {
-            $gid = (string)$gid;
-            if ($gid !== '' && str_starts_with($gid, $prefix)) $out[$gid] = $gid;
+        return $this->pages('groups', $prefix, fn($g) => [(string)$g, (string)$g]);
+    }
+
+    /** Wszystkie strony wyszukiwania grup; $pick zamienia element odpowiedzi na [gid, nazwa]. */
+    private function pages(string $path, string $prefix, callable $pick): array
+    {
+        $out = $seen = [];
+        for ($page = 0, $offset = 0; $page < 100; $page++, $offset += self::PAGE) {
+            $d = $this->api->ocs('GET', $path, ['search' => $prefix, 'limit' => self::PAGE, 'offset' => $offset]);
+            $list = (array)($d['groups'] ?? []);
+            $new = 0;
+            foreach ($list as $g) {
+                [$gid, $name] = $pick($g);
+                if ($gid === '' || isset($seen[$gid])) continue;
+                $seen[$gid] = true;
+                $new++;
+                if (str_starts_with($gid, $prefix)) $out[$gid] = $name;
+            }
+            if (count($list) < self::PAGE || $new === 0) break;   // ostatnia strona albo ta sama strona drugi raz
         }
         return $out;
     }
