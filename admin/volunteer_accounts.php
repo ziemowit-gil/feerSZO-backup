@@ -139,6 +139,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
                         log_user_action($new_uid, (int)$me['id'], 'note', 'Utworzono konto M365: ' . $m365_login_created);
+                        // To samo hasło w SZO co w nowym koncie Microsoft (polecenie 2026-11-14)
+                        db()->prepare("UPDATE users SET password=? WHERE id=?")
+                            ->execute([password_hash($m365_pass_created, PASSWORD_BCRYPT), $new_uid]);
 
                     } else {
                         // Ręczne — user podał dane

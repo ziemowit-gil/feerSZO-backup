@@ -85,8 +85,9 @@ function _wolontariat_provision_account(
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
     if (db_one("SELECT id FROM users WHERE email = ?", [$email])) return null;
 
-    // Tworzymy konto z losowym hasłem — użytkownik ustawia własne przez link
-    $hash = password_hash(bin2hex(random_bytes(24)), PASSWORD_BCRYPT);
+    // Hasło SZO = hasło nowego konta Microsoft, gdy je właśnie założyliśmy (polecenie 2026-11-14); bez konta Microsoft
+    // losowe. W obu przypadkach użytkownik może ustawić własne przez link.
+    $hash = password_hash($plain_pass !== null && $plain_pass !== '' ? $plain_pass : bin2hex(random_bytes(24)), PASSWORD_BCRYPT);
     db_insert('users', [
         'name'       => $name ?: $email,
         'email'      => $email,
@@ -765,7 +766,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $data['email'],
                 $data['imie_nazwisko'] ?? '',
                 $data['numer_umowy']   ?? '',
-                null,                          // hasło ustawia użytkownik przez link
+                $m365_pass_created,            // to samo hasło co nowe konto Microsoft (null = losowe; własne ustawi przez link)
                 $m365_login_created,
                 $is_technical,
                 ($data['portal_scope'] ?? '')
