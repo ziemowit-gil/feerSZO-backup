@@ -856,6 +856,16 @@ return [
         },
     ],
 
+    // „Zmiana haseł” bez tabeli (polecenie 2026-11-13): nadpisuje artykuł także tam, gdzie '2026-11_it_portal_hasla' już się wykonała.
+    '2026-11_it_portal_hasla_bez_tabeli' => [
+        'desc' => 'Portal Usług IT: artykuł „Zmiana haseł” bez tabeli (akapit na każde hasło)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalHaslaSeed.php';
+            itPortalHaslaApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_hasla_seed.php [--dry-run]
+        },
+    ],
+
     '2026-11_it_portal_poczta_kursanta_edu_off' => [
         'desc' => 'Portal Usług IT, „Poczta kursanta”: wyłączenie kont @edu.feer.org.pl 20.11.2026 i powód (ostatnie awarie Microsoft 365)',
         'run'  => static function () use ($ROOT): void {

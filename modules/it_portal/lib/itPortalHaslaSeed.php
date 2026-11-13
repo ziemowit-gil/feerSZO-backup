@@ -8,7 +8,8 @@
  * min. 12 znaków albo losowe SMS-em; hasło do poczty ≠ hasło logowania jednokrotnego; wejście bez logowania: prywatny e-mail albo
  * PESEL + adres służbowy) — te same, co artykuł migracja/migracja (itPortalMigracjaSeed.php); reset przez administratora:
  * SsoAccounts::resetPassword (karta umowy, /ssoadmin#hasla) i karta „Skrzynka pocztowa”.
- * Używa migracja '2026-11_it_portal_hasla' (modules/selfrepairDB/logic/migrations.php) i cli/it_portal_hasla_seed.php.
+ * Bez tabel (polecenie 2026-11-13 „bez tabeli”): każde hasło opisuje osobny akapit.
+ * Używa migracje '2026-11_it_portal_hasla', '2026-11_it_portal_hasla_bez_tabeli' (modules/selfrepairDB/logic/migrations.php) i cli/it_portal_hasla_seed.php.
  */
 
 /**
@@ -73,12 +74,10 @@ function itPortalHaslaArticles(string $app): array {
                 . 'i chmury plików. Muszą być różne, więc gdy ktoś pozna jedno, nie wejdzie na drugie konto.</p>'],
 
             ['type' => 'text', 'html' => '<h2>Które hasło do czego</h2>'
-                . '<table><thead><tr><th>Hasło</th><th>Do czego</th><th>Kod przy zmianie</th></tr></thead><tbody>'
-                . '<tr><td>Hasło do poczty</td><td>skrzynka <code>imie.nazwisko@feer.org.pl</code> w przeglądarce, w telefonie i w programie pocztowym</td>'
-                . '<td>SMS na numer zapisany w SZO albo w umowie, a gdy go nie mamy, e-mail na Twój prywatny adres</td></tr>'
-                . '<tr><td>Hasło logowania jednokrotnego</td><td>SZO (przycisk „Zaloguj przez logowanie jednokrotne”), chmura plików i kolejne aplikacje Fundacji</td>'
-                . '<td>e-mail</td></tr>'
-                . '</tbody></table>'],
+                . '<p>Hasło do poczty otwiera skrzynkę <code>imie.nazwisko@feer.org.pl</code> w przeglądarce, w telefonie i w programie pocztowym. '
+                . 'Kod do jego zmiany przychodzi SMS-em na numer zapisany w SZO albo w umowie, a gdy go nie mamy, e-mailem na Twój prywatny adres.</p>'
+                . '<p>Hasło logowania jednokrotnego otwiera SZO (przycisk „Zaloguj przez logowanie jednokrotne”), chmurę plików i kolejne aplikacje Fundacji. '
+                . 'Kod do jego zmiany przychodzi e-mailem.</p>'],
 
             ['type' => 'wizard', 'title' => 'Jak zmienić hasło', 'intro' => '<p>Zmiana zajmuje kilka minut. Przygotuj telefon albo skrzynkę, na którą przyjdzie kod.</p>', 'steps' => [
                 $step('Otwórz stronę Nowe hasło', '<p>Wejdź na <a href="' . $nh . '">stronę Nowe hasło</a>. W panelu współpracownika kliknij kafel „Zmiana haseł”.</p>'
