@@ -90,7 +90,7 @@ final class NoweHasloAuth
      * poza domenami przenoszonej poczty), contacts (e-mail konta SZO + prywatne: kody do IAM i e-mail o zmianie), via.
      * $phones / $privates — kandydaci z konta i z wejścia; dochodzą umowy z tym adresem służbowym (DhostingContractMail::contractsFor).
      */
-    private static function person(int $userId, string $name, string $email, string $address, array $phones, array $privates, string $via): array
+    public static function person(int $userId, string $name, string $email, string $address, array $phones, array $privates, string $via): array
     {
         $email = strtolower(trim($email));
         $address = strtolower(trim($address));
