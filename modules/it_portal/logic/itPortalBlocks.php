@@ -6,7 +6,7 @@
  *   text    {html}
  *   wizard  {title, intro, steps:[{title, html, images:[{file, alt, caption}]}]}   — „Kreator krok po kroku”
  *   image   {file, alt, caption}                                                   — pojedynczy zrzut ekranu
- *   callout {kind: info|warn|tip, html}
+ *   callout {kind: info|warn|tip|important, html}
  * Zrzuty ekranu: uploads/it_portal/{hex}.{png|jpg|gif|webp}, publicznie przez /uslugi-it/img/{plik}.
  * Kolumny body_html / intro_html trzymają sam tekst z bloków (zgodność wsteczna, wyszukiwarka);
  * artykuł bez bloków renderuje się jak dawniej z body_html.
@@ -14,7 +14,7 @@
 require_once dirname(__DIR__, 3) . '/includes/functions.php';
 
 const ITP_IMG_RE = '/^[a-f0-9]{20}\.(png|jpg|gif|webp)$/';
-const ITP_CALLOUTS = ['info' => 'Informacja', 'tip' => 'Wskazówka', 'warn' => 'Uwaga'];
+const ITP_CALLOUTS = ['info' => 'Informacja', 'tip' => 'Wskazówka', 'warn' => 'Uwaga', 'important' => 'Ważne'];
 
 function itPortalImageDir(): string {
     return rtrim(UPLOAD_DIR, '/') . '/it_portal/';

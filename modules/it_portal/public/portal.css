@@ -318,6 +318,12 @@ a:hover { text-decoration-thickness: 2px; }
 .itp-callout { margin: 0 0 1.2em; padding: 12px 16px; border-left: 5px solid var(--itp-accent); background: var(--itp-accent-soft); }
 .itp-callout--warn { border-color: #b45309; background: #fef3e2; }
 .itp-callout--tip { border-color: #2f7a32; background: #eaf5ea; }
+/* „Ważne”: obowiązki i zasady, które nie mogą zginąć w tekście. Ta sama ramka jest dla <blockquote> w komunikatach. */
+.itp-callout--important, .itp-body blockquote { border: 1px solid #b3261e; border-left-width: 6px; background: #fdecea; color: #2b0d0b; }
+.itp-body blockquote { margin: 0 0 1.2em; padding: 12px 16px; }
+.itp-body blockquote > :first-child { margin-top: 0; color: #8c1d18; }
+.itp-body blockquote > :last-child { margin-bottom: 0; }
+.itp-callout--important .itp-callout__t { color: #8c1d18; }
 .itp-callout__t { display: block; margin-bottom: 4px; }
 .itp-callout .itp-body p:last-child, .itp-callout div > p:last-child { margin-bottom: 0; }
 .itp-wizard { margin: 0 0 1.6em; border: 1px solid var(--itp-line); padding: 16px 20px 6px; background: #fff; }

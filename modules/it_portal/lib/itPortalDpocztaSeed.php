@@ -139,7 +139,7 @@ function itPortalDpocztaArticles(string $app): array {
         ], false],
 
         'generator-stopki' => ['Obowiązkowa stopka: jak ją wygenerować', 'stopka, podpis, generator stopki, obowiązkowa stopka, wzór stopki, dane organizacji, nip, krs, social, facebook, instagram, linkedin', [
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Każda wiadomość ze służbowej skrzynki musi mieć stopkę z generatora Fundacji. Stopka jest elementem tożsamości Fundacji, więc korzystanie z generatora jest obowiązkowe i nie zmieniamy stopki ręcznie: wszyscy mamy ten sam wzór i aktualne dane Fundacji.</p>'],
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Każda wiadomość ze służbowej skrzynki musi mieć stopkę z generatora Fundacji. Stopka jest elementem tożsamości Fundacji, więc korzystanie z generatora jest obowiązkowe i nie zmieniamy stopki ręcznie: wszyscy mamy ten sam wzór i aktualne dane Fundacji.</p>'],
             ['type' => 'text', 'html' => '<p>Generator działa pod adresem <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a> i nie wymaga logowania. Wpisane dane zostają w Twojej przeglądarce.</p>'],
             ['type' => 'wizard', 'title' => 'Stopka w pięciu krokach', 'intro' => '', 'steps' => [
                 $step('Otwórz generator', '<p>Wejdź na <a href="' . $app . '/pomocne/generatorstopki">generator stopki</a>.</p>'),
@@ -152,7 +152,7 @@ function itPortalDpocztaArticles(string $app): array {
         ], true],
 
         'podpis-w-poczcie' => ['Jak ustawić podpis (stopkę) w poczcie', 'podpis, stopka, sygnatura, tożsamość, generator stopki, obowiązkowa stopka, wklej stopkę, html', [
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Stopka musi pochodzić z generatora Fundacji: <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a>. Jak go używać, opisuje artykuł „<a href="' . $app . '/uslugi-it/uslugi/moja-poczta/generator-stopki">Obowiązkowa stopka: jak ją wygenerować</a>”. Tu pokazujemy, gdzie ją wkleić w poczcie.</p>'],
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Stopka musi pochodzić z generatora Fundacji: <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a>. Jak go używać, opisuje artykuł „<a href="' . $app . '/uslugi-it/uslugi/moja-poczta/generator-stopki">Obowiązkowa stopka: jak ją wygenerować</a>”. Tu pokazujemy, gdzie ją wkleić w poczcie.</p>'],
             ['type' => 'wizard', 'title' => 'Stopka z generatora w dPoczta.pl', 'intro' => '', 'steps' => [
                 $step('Skopiuj stopkę z generatora', '<p>Otwórz <a href="' . $app . '/pomocne/generatorstopki">generator</a>, wpisz swoje dane i kliknij „Kopiuj stopkę do schowka”.</p>'),
                 $step('Otwórz tożsamość', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Tożsamość” i kliknij swój adres.</p>'),
