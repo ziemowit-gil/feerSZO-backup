@@ -15,6 +15,9 @@ declare(strict_types=1);
  *   • hasło startowe żyje TTL_DAYS dni — potem znika z bazy; znika też, gdy uczestnik potwierdzi, że ustawił własne (confirmChanged);
  *   • po kodzie hasło czeka na wyświetlenie w sesji ZASZYFROWANE (sessionPut / sessionTake), najwyżej 5 minut, i jest pokazywane raz;
  *   • zapis, usunięcie, odsłonięcie i wyczyszczenie trafiają do dziennika konta uczestnika i do audit_logs (bez hasła).
+ *
+ * Eksport XLSX dla kierownika (currentParticipants / suggestLogin): aktualni uczestnicy z loginem
+ * pierwszaliteraimienia.nazwisko@stud.feer.org.pl (wpisany w SZO albo proponowany, zbieżności z cyfrą).
  */
 require_once dirname(__DIR__, 2) . '/field_crypto/lib/fieldCrypto.php';
 
@@ -357,6 +360,8 @@ final class PocztaStud
         header('Referrer-Policy: no-referrer');
     }
 
+    // ── Eksport XLSX dla kierownika: aktualni uczestnicy i loginy pierwszaliteraimienia.nazwisko@stud.feer.org.pl ──
+
     /**
      * Imię i nazwisko z pola k30_clients.name („Jan Kowalski”, „Anna Maria Nowak-Kowalska”, „Jan Kowalski (TEST)”):
      * pierwsze słowo = imię, ostatnie = nazwisko. @return array{0:string,1:string}
@@ -367,6 +372,111 @@ final class PocztaStud
         $parts = $n === '' ? [] : explode(' ', $n);
         if (count($parts) < 2) return [$parts[0] ?? '', ''];
         return [$parts[0], $parts[count($parts) - 1]];
+    }
+
+    /** Login „j.kowalski” (bez domeny) albo '' gdy brak imienia lub nazwiska. Polskie litery bez ogonków, tylko a-z 0-9 i „-”. */
+    public static function suggestLocal(string $name): string
+    {
+        [$first, $last] = self::splitName($name);
+        $ascii = fn(string $s): string => trim((string)preg_replace(['/[^a-z0-9-]+/', '/-{2,}/'], ['', '-'], mb_strtolower(strtr($s, [
+            'ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z',
+            'Ą' => 'a', 'Ć' => 'c', 'Ę' => 'e', 'Ł' => 'l', 'Ń' => 'n', 'Ó' => 'o', 'Ś' => 's', 'Ź' => 'z', 'Ż' => 'z',
+            'ä' => 'a', 'ö' => 'o', 'ü' => 'u', 'Ä' => 'a', 'Ö' => 'o', 'Ü' => 'u', 'é' => 'e', 'É' => 'e', 'á' => 'a', 'Á' => 'a',
+        ]))), '-');
+        $f = mb_substr($ascii($first), 0, 1);
+        $l = $ascii($last);
+        return ($f === '' || $l === '') ? '' : $f . '.' . $l;
+    }
+
+    /**
+     * Aktualni uczestnicy: aktywny zapis w aktywnej, niezamkniętej grupie; bez kont wirtualnych (testowych).
+     * @return list<array{client_id:int,name:string,groups:string,email:string,phone:string}>
+     */
+    public static function currentParticipants(): array
+    {
+        $today = date('Y-m-d');
+        $rows = db_all(
+            "SELECT cl.id AS client_id, cl.name, cl.email, cl.phone,
+                    GROUP_CONCAT(DISTINCT COALESCE(NULLIF(TRIM(c.group_code),''), c.name)) AS groups
+               FROM k30_ti_enrollments e
+               JOIN k30_ti_courses c ON c.id = e.course_id
+               JOIN k30_clients cl   ON cl.id = e.client_id
+              WHERE e.status = 'active'
+                AND (e.end_date IS NULL OR e.end_date = '' OR e.end_date >= ?)
+                AND COALESCE(c.is_active, 1) = 1 AND c.closed_at IS NULL
+                AND COALESCE(c.status, 'active') = 'active'
+                AND NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts sa WHERE sa.client_id = cl.id AND COALESCE(sa.is_virtual, 0) = 1)
+              GROUP BY cl.id, cl.name, cl.email, cl.phone",
+            [$today]
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = ['client_id' => (int)$r['client_id'], 'name' => trim((string)$r['name']), 'groups' => (string)($r['groups'] ?? ''),
+                      'email' => trim((string)($r['email'] ?? '')), 'phone' => trim((string)($r['phone'] ?? ''))];
+        }
+        usort($out, function ($a, $b) {
+            [$af, $al] = self::splitName($a['name']); [$bf, $bl] = self::splitName($b['name']);
+            return strcoll(mb_strtolower($al . ' ' . $af), mb_strtolower($bl . ' ' . $bf));
+        });
+        return $out;
+    }
+
+    /**
+     * Wiersze arkusza: login wpisany w SZO zostaje; reszta dostaje propozycję j.kowalski@stud.feer.org.pl,
+     * a przy zbieżności (z wpisanymi albo w obrębie listy) kolejną cyfrę: j.kowalski2…
+     * @return list<array{client_id:int,first:string,last:string,groups:string,email:string,phone:string,login:string,status:string}>
+     */
+    public static function exportRows(): array
+    {
+        self::migrate();
+        $taken = [];
+        $byClient = [];
+        foreach (db_all("SELECT client_id, login FROM stud_mail_accounts WHERE login <> ''") as $a) {
+            $taken[mb_strtolower((string)$a['login'])] = true;
+            $byClient[(int)$a['client_id']] = (string)$a['login'];
+        }
+        $rows = [];
+        foreach (self::currentParticipants() as $p) {
+            [$first, $last] = self::splitName($p['name']);
+            $status = '';
+            if (isset($byClient[$p['client_id']])) {
+                $login = $byClient[$p['client_id']];
+                $status = 'wpisany w SZO';
+            } elseif (($local = self::suggestLocal($p['name'])) === '') {
+                $login = '';
+                $status = 'brak imienia lub nazwiska w kartotece — uzupełnij ręcznie';
+            } else {
+                $login = $local . '@' . self::DOMAIN;
+                for ($i = 2; isset($taken[$login]); $i++) $login = $local . $i . '@' . self::DOMAIN;
+                $status = $login === $local . '@' . self::DOMAIN ? 'propozycja' : 'propozycja — zbieżność, dodano cyfrę';
+                $taken[$login] = true;
+            }
+            $rows[] = ['client_id' => $p['client_id'], 'first' => $first, 'last' => $last, 'groups' => $p['groups'],
+                       'email' => $p['email'], 'phone' => $p['phone'], 'login' => $login, 'status' => $status];
+        }
+        return $rows;
+    }
+
+    /** Wysyła plik XLSX (kończy żądanie). $by — kto pobrał (stopka arkusza i dziennik). */
+    public static function exportXlsx(string $by): void
+    {
+        require_once dirname(__DIR__, 3) . '/includes/xlsx.php';
+        $rows = self::exportRows();
+        self::audit('stud_mail.export', ['wierszy' => count($rows), 'kto' => $by]);
+        while (ob_get_level() > 0) ob_end_clean();
+        $x = new XlsxWriter();
+        $x->addSheet('Poczta kursanta');
+        $x->writeRow(['Poczta kursanta — aktualni kursanci i loginy @' . self::DOMAIN], ['header', 'text']);
+        $x->writeRow(['Aktywny zapis w aktywnej grupie, bez kont testowych. Login: pierwsza litera imienia, kropka, nazwisko (bez polskich znaków). Haseł w pliku nie ma.'], ['text']);
+        $x->writeRow([]);
+        $x->writeRow(['Lp.', 'Nr kursanta', 'Nazwisko', 'Imię', 'Grupy', 'Login poczty', 'Status loginu', 'E-mail kontaktowy', 'Telefon'], ['header', 'text']);
+        foreach ($rows as $i => $r) {
+            $x->writeRow([(string)($i + 1), (string)$r['client_id'], $r['last'], $r['first'], $r['groups'], $r['login'], $r['status'], $r['email'], $r['phone']], ['text']);
+        }
+        if (!$rows) $x->writeRow(['Brak aktualnych kursantów.'], ['text']);
+        $x->writeRow([]);
+        $x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . $by], ['text']);
+        $x->output('poczta_kursanta_loginy_' . date('Ymd_Hi') . '.xlsx');
     }
 
     // ── Wewnętrzne ──

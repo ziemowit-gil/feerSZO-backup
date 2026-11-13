@@ -29,6 +29,13 @@ $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
 karty30_migrate();
 ti_licencje_migrate();   // kolumny formy rozliczenia licencji (zakładka „Licencje”)
 
+// Poczta kursanta: XLSX z aktualnymi kursantami i loginami pierwszaliteraimienia.nazwisko@stud.feer.org.pl (bez haseł)
+if (($_GET['export'] ?? '') === 'poczta_stud') {
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_poczta_stud/logic/PocztaStud.php';
+    PocztaStud::exportXlsx($dyd_name . ' (Ewidencja Uczestników)');
+    exit;
+}
+
 /** Generuje prosty login: pierwsza litera imienia + kropka + nazwisko, bez polskich znaków */
 function _gen_student_login(string $name, string $suffix = ''): string {
     $map = ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
@@ -1231,6 +1238,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <a href="<?= h($parent_portal_url) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-people me-1" aria-hidden="true"></i>Panel rodzica
     </a>
+    <a href="konta.php?export=poczta_stud" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Loginy poczty kursanta (XLSX)<span class="visually-hidden"> — aktualni kursanci, loginy pierwsza litera imienia.nazwisko@stud.feer.org.pl, bez haseł</span>
+    </a>
     <a href="<?= h($portal_url) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Panel kursanta
     </a>
@@ -1653,7 +1663,7 @@ function printBulk(){
               <?php if ($_pm): $_pmTicket = PocztaStud::ticketNumber($_pm); ?><br>Zmienione <?= h(date('d.m.Y H:i', strtotime((string)$_pm['updated_at']))) ?>, <?= h($_pm['updated_by']) ?>. <?= h(PocztaStud::staffStatus($_pm)) ?>
                 <?php if ($_pmTicket !== ''): ?><br>Zgłoszenie w Helpdesku: <a href="<?= h(APP_URL . '/helpdesk/view.php?id=' . (int)$_pm['helpdesk_ticket_id']) ?>" target="_blank" rel="noopener"><?= h($_pmTicket) ?><span class="visually-hidden"> (otwiera się w nowej karcie)</span></a><?php endif; ?>
               <?php endif; ?>
-</div>
+              <?php if (!$_pm || !$_pm['hasPassword']): ?><br>Login możesz wziąć z arkusza „Loginy poczty kursanta (XLSX)”<?= ($_pmSug = PocztaStud::suggestLocal((string)($sa['client_name'] ?? $sa['name'] ?? ''))) !== '' && !$_pm ? ' — propozycja: <span class="font-monospace">' . h($_pmSug) . '@' . h(PocztaStud::DOMAIN) . '</span>' : '' ?>.<?php endif; ?></div>
           </div>
           <form method="post" class="kk-row-ctl" autocomplete="off">
             <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
