@@ -391,7 +391,7 @@ function cron_dispatcher_registry(): array
         ],
         'sso_cloud_teams' => [
             'file'     => $cronDir . '/agents/sso_cloud_teams.php',
-            'interval' => 3600,         // co 1 h — zespoły z modułu Zadań → grupy „szo-zespol-{id}” w chmurze (modules/sso_logto/logic/CloudTeamsSync.php); bez chmury pomija
+            'interval' => 120,          // co 2 min — zespoły i obszary robocze z Zadań → grupy „szo-zespol-{id}” / „szo-obszar-{id}” w chmurze (modules/sso_logto/logic/CloudTeamsSync.php); bez zmian same odczyty; bez chmury pomija
         ],
         'dhosting_suspend' => [
             'file'     => $cronDir . '/agents/dhosting_suspend.php',
