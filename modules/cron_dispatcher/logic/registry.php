@@ -389,6 +389,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/agents/sso_cloud_files.php',
             'interval' => 300,          // co 5 min — kopiowanie plików OneDrive → chmura Nextcloud/ownCloud (modules/sso_logto), porcja ~4 min; niedostępność = ponowienie za 6 h; bez zadań pomija
         ],
+        'sso_cloud_teams' => [
+            'file'     => $cronDir . '/agents/sso_cloud_teams.php',
+            'interval' => 3600,         // co 1 h — zespoły z modułu Zadań → grupy „szo-zespol-{id}” w chmurze (modules/sso_logto/logic/CloudTeamsSync.php); bez chmury pomija
+        ],
         'dhosting_suspend' => [
             'file'     => $cronDir . '/agents/dhosting_suspend.php',
             'interval' => 3600,         // co godzinę — skrzynki pocztowe zawieszane 2 dni po wygaśnięciu umowy (bez powiadomienia); dhosting_contract_suspend=0 wyłącza
