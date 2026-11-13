@@ -582,6 +582,16 @@ panelMetroAssets($_vol_color);
     </div>
     <?php endif; ?>
 
+    <?php /* Samodzielna zmiana haseł (modules/nowe_haslo): dwa osobne hasła — poczta oraz logowanie jednokrotne z chmurą */ ?>
+    <div class="mt-svc" style="--c:var(--m-indigo, #4f3fb0)">
+      <i class="bi bi-key ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3>Zmiana haseł</h3>
+        <p>Masz dwa osobne hasła: jedno do poczty, drugie do logowania jednokrotnego i chmury plików. Każde zmienisz sam, po kodzie potwierdzenia.</p>
+        <div class="mt-links"><a href="<?= APP_URL ?>/nowehaslo"><i class="bi bi-arrow-right-circle" aria-hidden="true"></i>Zmień hasło</a></div>
+      </div>
+    </div>
+
     <?php if (org_setting('dhosting_self_enabled') === '1'): /* migrator M365 → dhosting — samodzielna strona /migracjapoczty */ ?>
     <div class="mt-svc" style="--c:var(--m-blue, #0050ef)">
       <i class="bi bi-envelope-at ic" aria-hidden="true"></i>

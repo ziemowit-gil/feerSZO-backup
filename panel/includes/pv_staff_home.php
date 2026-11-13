@@ -132,6 +132,10 @@ $_sh_lead = $_sh_admin
                       'sub'=>$_sh_mf['pending'] ? 'ustaw swoją stopkę' : 'stopka, aliasy, hasło, 2FA, autoresponder','color'=>$_sh_mf['pending'] ? 'red' : 'blue',
                       'keep_color'=>$_sh_mf['pending'],'tag'=>$_sh_mf['pending'] ? 'do zrobienia' : '','group'=>'konto'];
   }
+  // Samodzielna zmiana haseł (modules/nowe_haslo, /nowehaslo): dwa osobne hasła — poczta oraz logowanie jednokrotne z chmurą (wspólne)
+  $_sh_tiles[] = ['href'=>APP_URL.'/nowehaslo','icon'=>'bi-key','label'=>'Zmiana haseł',
+                  'sub'=>'poczta oraz logowanie i chmura','color'=>'indigo','group'=>'konto',
+                  'aria'=>'Zmiana haseł: osobno hasło do poczty i wspólne hasło do logowania jednokrotnego i chmury plików'];
   if (org_setting('dhosting_self_enabled') === '1') {   // migrator M365 → dhosting (modules/dhosting_migrator), samodzielna strona
       $_sh_tiles[] = ['href'=>APP_URL.'/migracjapoczty','icon'=>'bi-envelope-at','label'=>'Migracja poczty',
                       'sub'=>'nowa skrzynka, hasło SMS-em, kopiowanie poczty','color'=>'blue','group'=>'konto'];
