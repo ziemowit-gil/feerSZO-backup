@@ -560,6 +560,23 @@ final class SsoAccounts
                 'cloud_uid' => (string)($cur['cloud_uid'] ?? ''), 'password' => $password, 'logto' => $logto, 'cloud' => $cloud, 'job' => null];
     }
 
+    /**
+     * Osoby z kontem w chmurze albo w logowaniu jednokrotnym — lista do zbiorczego resetu haseł na /ssoadmin#hasla.
+     * @return list<array{email:string,name:string,cloud_uid:string,logto:bool,phone:string,pwd_at:string}>
+     */
+    public static function passwordResetList(): array
+    {
+        self::migrate();
+        $out = [];
+        foreach (db_all("SELECT email, name, cloud_uid, logto_id, logto_pwd_at FROM sso_accounts
+                          WHERE COALESCE(cloud_uid,'')<>'' OR COALESCE(logto_id,'')<>'' ORDER BY name, email") as $r) {
+            $p = self::cloudPerson((string)$r['email']);
+            $out[] = ['email' => (string)$r['email'], 'name' => (string)($p['name'] ?: $r['name']), 'cloud_uid' => (string)($r['cloud_uid'] ?? ''),
+                      'logto' => (string)($r['logto_id'] ?? '') !== '', 'phone' => $p['phone'], 'pwd_at' => (string)($r['logto_pwd_at'] ?? '')];
+        }
+        return $out;
+    }
+
     // ── Login chmury w Logto (customData.nc_uid) ────────────────────────────────────────────
 
     /**

@@ -211,6 +211,36 @@ final class SsoController
         return Router::redirect($back);
     }
 
+    /**
+     * POST /ssoadmin/hasla — „Resetuj hasła dla użytkowników w NC” (polecenie 2026-11-13): dla zaznaczonych osób nowe hasło naraz
+     * w chmurze i w logowaniu jednokrotnym (SsoAccounts::resetPassword), opcjonalnie SMS z loginem i hasłem. Najwyżej 25 osób naraz.
+     */
+    public function passwordReset(): ?string
+    {
+        $back = route('sso.index') . '#hasla';
+        $emails = array_values(array_unique(array_filter(array_map(fn($e) => strtolower(trim((string)$e)), (array)($_POST['emails'] ?? [])))));
+        if (!$emails) return $this->flash($back, 'warning', 'Zaznacz co najmniej jedną osobę.');
+        if (count($emails) > 25) return $this->flash($back, 'warning', 'Naraz najwyżej 25 osób. Zaznacz mniej i powtórz.');
+        @set_time_limit(300);
+        $by = (string)(current_user()['email'] ?? '');
+        $sms = !empty($_POST['sms']);
+        $rows = [];
+        foreach ($emails as $em) {
+            try {
+                $res = SsoAccounts::resetPassword($em, $by);
+                $res['sms'] = $sms ? $this->smsCredentials(SsoAccounts::cloudPerson($em)['phone'], $res) : 'nie wysyłano';
+                $res['error'] = '';
+            } catch (\Throwable $e) {
+                $res = ['email' => $em, 'name' => '', 'username' => '', 'cloud_uid' => '', 'password' => null, 'logto' => '', 'cloud' => '', 'sms' => '', 'error' => $e->getMessage()];
+            }
+            $rows[] = $res;
+        }
+        $this->audit('sso.password_reset_batch', ['osoby' => count($rows), 'sms' => $sms,
+            'items' => array_map(fn($r) => ['email' => $r['email'], 'cloud' => $r['cloud'], 'logto' => $r['logto'], 'sms' => $r['sms'], 'error' => $r['error']], $rows)]);
+        $_SESSION[self::K_RESULT] = ['ctx' => 'hasla', 'rows' => $rows];
+        return Router::redirect($back);
+    }
+
     public function filesAction(): ?string
     {
         $back = (string)($_POST['back'] ?? '');

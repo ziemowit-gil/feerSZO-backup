@@ -335,6 +335,72 @@ $copyField = function (string $id, string $label, string $value) {
   </div>
 </section>
 
+<?php $pwRows = SsoController::takeResult('hasla'); $pwList = SsoAccounts::passwordResetList(); ?>
+<section class="card mb-4" id="hasla" aria-labelledby="ssoPwH">
+  <div class="card-header"><h2 id="ssoPwH" class="h6 mb-0"><i class="bi bi-key" aria-hidden="true"></i> Resetuj hasła dla użytkowników w NC</h2></div>
+  <div class="card-body small">
+    <?php if ($pwRows): ?>
+      <div class="alert alert-warning" role="status" tabindex="-1" id="ssoPwResult">
+        <p class="fw-semibold mb-2"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Nowe hasła widać tylko teraz. Po odświeżeniu strony znikną.</p>
+        <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+          <caption class="visually-hidden">Wynik resetu haseł w chmurze i logowaniu jednokrotnym</caption>
+          <thead><tr><th scope="col">Osoba</th><th scope="col">Login</th><th scope="col">Nowe hasło</th><th scope="col">Chmura</th><th scope="col">Logowanie jednokrotne</th><th scope="col">SMS</th></tr></thead>
+          <tbody>
+          <?php foreach ($pwRows as $r): ?>
+            <tr>
+              <td><?= h($r['name'] ?: $r['email']) ?><br><span class="text-body-secondary"><?= h($r['email']) ?></span></td>
+              <?php if (($r['error'] ?? '') !== ''): ?>
+                <td colspan="5" class="text-danger-emphasis"><?= h($r['error']) ?></td>
+              <?php else: ?>
+                <td><code><?= h((string)$r['username']) ?></code><?php if ($r['cloud_uid'] !== '' && $r['cloud_uid'] !== $r['username']): ?><br><span class="text-body-secondary">w chmurze: <code><?= h($r['cloud_uid']) ?></code></span><?php endif; ?></td>
+                <td><code class="sso-pass"><?= h((string)$r['password']) ?></code></td>
+                <td class="<?= str_starts_with((string)$r['cloud'], 'błąd') ? 'text-danger-emphasis' : '' ?>"><?= h($r['cloud'] ?: '—') ?></td>
+                <td><?= $r['logto'] === 'password' ? 'to samo hasło' : 'brak konta' ?></td>
+                <td><?= h($r['sms'] ?: '—') ?></td>
+              <?php endif; ?>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table></div>
+      </div>
+    <?php endif; ?>
+    <p class="mb-2">Zaznaczone osoby dostają jedno nowe hasło do chmury plików (Nextcloud) i do logowania jednokrotnego. Dotychczasowe przestaje działać.
+      Hasła do poczty to nie zmienia: poczta ma zawsze osobne, inne hasło.</p>
+    <p class="mb-2">Gdy osoba woli ustawić hasło sama, wystarczy strona <a href="<?= h(rtrim(APP_URL, '/') . '/nowehaslo') ?>">Nowe hasło</a>.</p>
+    <?php if (!$pwList): ?>
+      <p class="mb-0">Nikt nie ma jeszcze konta w chmurze ani w logowaniu jednokrotnym.</p>
+    <?php else: ?>
+      <form method="post" action="<?= h(route('sso.passwordReset')) ?>" onsubmit="return confirm('Nadać nowe hasła zaznaczonym osobom? Dotychczasowe hasła do chmury i logowania jednokrotnego przestaną działać.')">
+        <?= Router::csrfField() ?>
+        <fieldset>
+          <legend class="visually-hidden">Osoby do resetu hasła</legend>
+          <div class="table-responsive border rounded mb-2"><table class="table table-sm mb-0 align-middle">
+            <caption class="visually-hidden">Osoby z kontem w chmurze albo w logowaniu jednokrotnym</caption>
+            <thead class="table-light"><tr><th scope="col" style="width:2.5rem"><span class="visually-hidden">Zaznacz</span></th><th scope="col">Osoba</th><th scope="col">Login w chmurze</th><th scope="col">Logowanie jednokrotne</th><th scope="col">Hasło ustawione</th><th scope="col">Telefon</th></tr></thead>
+            <tbody>
+            <?php foreach ($pwList as $i => $r): ?>
+              <tr>
+                <td><input class="form-check-input" type="checkbox" name="emails[]" value="<?= h($r['email']) ?>" id="ssoPw<?= $i ?>"></td>
+                <td><label for="ssoPw<?= $i ?>" class="mb-0"><?= h($r['name'] ?: $r['email']) ?></label><br><span class="text-body-secondary"><?= h($r['email']) ?></span></td>
+                <td><?= $r['cloud_uid'] !== '' ? '<code>' . h($r['cloud_uid']) . '</code>' : '—' ?></td>
+                <td><?= $r['logto'] ? 'jest' : 'brak' ?></td>
+                <td><?= $r['pwd_at'] !== '' ? h(date('d.m.Y H:i', strtotime($r['pwd_at']))) : '—' ?></td>
+                <td><?= $r['phone'] !== '' ? h($r['phone']) : '<span class="text-danger-emphasis">brak numeru</span>' ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table></div>
+        </fieldset>
+        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="sms" value="1" id="ssoPwSms" checked>
+          <label class="form-check-label" for="ssoPwSms">Wyślij każdej osobie SMS z loginem i nowym hasłem</label></div>
+        <p class="text-body-secondary mb-2">Naraz najwyżej 25 osób. Osoba bez numeru telefonu SMS-a nie dostanie, hasło przekażesz jej sam.</p>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-key" aria-hidden="true"></i> Resetuj hasła zaznaczonym</button>
+      </form>
+    <?php endif; ?>
+  </div>
+</section>
+<?php if ($pwRows): ?><script>document.getElementById('ssoPwResult')?.focus();</script><?php endif; ?>
+
 <section class="card mb-4" id="pliki" aria-labelledby="ssoFilesH">
   <div class="card-header"><h2 id="ssoFilesH" class="h6 mb-0"><i class="bi bi-files" aria-hidden="true"></i> Pliki z OneDrive → chmura</h2></div>
   <div class="card-body small">
