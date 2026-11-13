@@ -159,7 +159,14 @@ function itPortalDpocztaArticles(string $app): array {
                 $step('Wklej stopkę', '<p>Jeśli suwak „Włącz projektanta podpisu” jest włączony, wyłącz go. W polu podpisu wklej stopkę (Ctrl+V). Jeśli edytor ma tryb HTML, włącz go przed wklejeniem.</p>'),
                 $step('Zapisz i sprawdź', '<p>Kliknij „Zapisz” na dole strony. Napisz wiadomość do siebie i zobacz, czy stopka wygląda tak jak w podglądzie generatora.</p>'),
             ]],
-            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>W Outlooku i Thunderbirdzie wklejasz tę samą stopkę z generatora w ustawieniach podpisu. Wskazówki są na stronie generatora.</p>'],
+            ['type' => 'wizard', 'title' => 'Stopka z generatora w Thunderbirdzie', 'intro' => '', 'steps' => [
+                $step('Skopiuj kod HTML', '<p>W <a href="' . $app . '/pomocne/generatorstopki">generatorze</a> wpisz swoje dane i kliknij „Kopiuj kod HTML”. Przycisk „Kopiuj stopkę do schowka” nie nadaje się do Thunderbirda, bo wkleiłby zwykły tekst bez układu.</p>'),
+                $step('Otwórz ustawienia konta', '<p>Uruchom Thunderbirda. W lewej kolumnie kliknij prawym przyciskiem myszy nazwę swojej skrzynki i wybierz „Ustawienia”.</p>'),
+                $step('Wklej kod w polu „Sygnaturka”', '<p>Zaznacz opcję „Używaj HTML”, potem wklej kod w pole „Sygnaturka” (Ctrl+V). Ustawienia zapisują się same.</p>'),
+                $step('Sprawdź wiadomością próbną', '<p>Napisz wiadomość do siebie i zobacz, czy stopka wygląda tak jak w podglądzie generatora.</p>'),
+            ]],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Zamiast wklejać kod, możesz kliknąć w generatorze „Pobierz plik HTML” i w ustawieniach konta wskazać ten plik jako sygnaturkę. Masz kilka skrzynek? W „Zarządzaj tożsamościami” wybierz „Edytuj” albo „Dodaj” i ustaw stopkę przy każdej tożsamości.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>W Outlooku wklej stopkę z przycisku „Kopiuj stopkę do schowka” w oknie edycji podpisu (Plik → Opcje → Poczta → Podpisy).</p>'],
             ['type' => 'text', 'html' => '<p>W „Tożsamości” zmienisz też nazwę nadawcy, którą widzą odbiorcy. Jeśli masz dostęp do innej skrzynki, np. działu, dodasz ją przyciskiem „Nowa tożsamość” (ikona ołówka) i wybierzesz przy pisaniu wiadomości.</p>'],
         ], false],
 
