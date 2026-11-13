@@ -780,6 +780,23 @@ return [
         },
     ],
 
+    // Portal Usług IT: obowiązkowa stopka e-mail — artykuł „Obowiązkowa stopka: jak ją wygenerować”, link w „Jak ustawić podpis”
+    // i komunikat „Obowiązkowa stopka w wiadomościach e-mail” (polecenie 2026-11-13). Generator: /pomocne/generatorstopki (modules/stopka/public).
+    '2026-11_it_portal_stopka' => [
+        'desc' => 'Portal Usług IT: artykuł i komunikat o obowiązkowej stopce e-mail (generator /pomocne/generatorstopki)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalNoticeStopkaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL, false, ['generator-stopki', 'podpis-w-poczcie']);
+            if (is_file($ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php')) {   // seeder zdejmuje „Pomoc producenta” — dopisz z powrotem
+                require_once $ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php';
+                if (function_exists('itPortalVendorHelpApply')) itPortalVendorHelpApply();
+            }
+            itPortalNoticeStopkaApply(ITP_SZO_URL);   // ręcznie: php cli/it_portal_stopka_seed.php [--dry-run]
+        },
+    ],
+
     // Portal Usług IT: usługa „Chmura plików” z wprowadzeniem i artykułem „Nextcloud: pierwsze kroki w chmurze plików”
     // (polecenie 2026-11-13: „Przygotuj też krótki artykuł o NextCloud + takie wprowadzenie”). modules/it_portal/lib/itPortalCloudSeed.php.
     '2026-11_it_portal_cloud' => [
