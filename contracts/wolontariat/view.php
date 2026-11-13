@@ -2883,7 +2883,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
       <div class="wm-tile-main<?= $_wm_has ? ' is-mail' : '' ?>"><?= $_wm_has ? h($row['m365_login'] ?: 'konto aktywne') : 'Brak konta' ?></div>
       <div class="wm-tile-sub">
         <?php if (!empty($row['m365_nie_wylaczaj'])): ?><i class="bi bi-shield-lock me-1"></i>Dostęp utrzymany po wygaśnięciu umowy.<br><?php endif; ?>
-        Konto, hasło i wysyłka danych do panelu — w Systemie Tożsamości.
+        Konto, hasło, skrzynka pocztowa i wysyłka danych do panelu — w Systemie Tożsamości.
       </div>
       <?php if (can_edit()): ?>
       <div class="wm-tile-actions">

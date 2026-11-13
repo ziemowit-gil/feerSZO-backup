@@ -1,11 +1,14 @@
 <?php
 /**
- * tozsamosc/access.php — Zarządzanie dostępem (MS365 + panel) dla osoby z umowy.
+ * tozsamosc/access.php — Zarządzanie dostępem (panel + MS365 + skrzynka pocztowa) dla osoby z umowy.
  *
  * Panel ADMINA/EDYTORA w podsystemie Tożsamość. Konsoliduje akcje dostępowe
  * przeniesione z widoku umowy (contracts/&lt;typ&gt;/view.php):
  *   • Panel: link do ustawienia hasła, reset hasła + dane, jednorazowy kod dostępu.
  *   • Microsoft 365: reset hasła, usunięcie konta.
+ *   • Skrzynka pocztowa (nowy serwer poczty): założenie, nowe hasło, zawieszenie, przywrócenie — karta
+ *     modules/dhosting_migrator/view/contractMailbox.php w wyglądzie Tożsamości ($DH_BOX_SKIN='tz'); akcje (tylko admin)
+ *     idą na POST /migracjaadmin/skrzynka i wracają tutaj (#skrzynka).
  *
  * Wywołanie: /tozsamosc/access.php?type=wolontariat&id=<id_umowy>
  */
@@ -194,7 +197,7 @@ include __DIR__ . '/_head.php';
 
 <div class="tz-h">
   <h1><i class="bi bi-shield-lock me-2" style="color:#1E6DFF" aria-hidden="true"></i>Zarządzanie dostępem</h1>
-  <p>MS365 i panel · <?= h($row['imie_nazwisko'] ?? $email) ?> · umowa <?= h($row['numer_umowy'] ?? ('#'.$id)) ?></p>
+  <p>Panel, Microsoft 365 i poczta · <?= h($row['imie_nazwisko'] ?? $email) ?> · umowa <?= h($row['numer_umowy'] ?? ('#'.$id)) ?></p>
 </div>
 
 <p class="mb-3"><a href="<?= h($back_view) ?>" class="tz-btn tz-btn--ghost btn-sm"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wróć do umowy</a></p>
@@ -280,5 +283,8 @@ include __DIR__ . '/_head.php';
     <?php endif; ?>
   </div>
 </section>
+
+<!-- ── Skrzynka pocztowa (nowy serwer poczty) ── -->
+<?php $DH_BOX_SKIN = 'tz'; include dirname(__DIR__) . '/modules/dhosting_migrator/view/contractMailbox.php'; ?>
 
 <?php include __DIR__ . '/_foot.php';

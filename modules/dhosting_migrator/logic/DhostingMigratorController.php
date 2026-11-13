@@ -188,8 +188,9 @@ final class DhostingMigratorController
     }
 
     /**
-     * POST /migracjaadmin/skrzynka — administrator w widoku umowy: op=password | suspend | restore | create
-     * (karta „Skrzynka pocztowa”, view/contractMailbox.php). Komunikaty przez flash SZO, powrót do zakładki M365 umowy.
+     * POST /migracjaadmin/skrzynka — administrator w widoku umowy albo w Systemie Tożsamości: op=password | suspend | restore | create
+     * (karta „Skrzynka pocztowa”, view/contractMailbox.php). Komunikaty przez flash SZO, powrót do zakładki M365 umowy
+     * albo (ret=tz) do tozsamosc/access.php.
      */
     public function boxPost(): ?string
     {
@@ -197,8 +198,14 @@ final class DhostingMigratorController
         $id   = (int)($_POST['id'] ?? 0);
         $table = DhostingContractMail::TABLES[$type] ?? null;
         if (!$table || $id <= 0) return Router::redirect(route('dhm.index'));
-        $back = APP_URL . "/contracts/{$type}/view.php?id={$id}&tab=m365#skrzynka";
-        if (!ika_ok($back)) { flash_set('warning', 'Sesja kodu IKA wygasła — potwierdź kod IKA i powtórz.'); return Router::redirect($back); }
+        // Powrót: karta w widoku umowy (zakładka M365) albo w Systemie Tożsamości (tozsamosc/access.php, ret=tz) — tylko te dwa.
+        $back = ($_POST['ret'] ?? '') === 'tz'
+            ? APP_URL . "/tozsamosc/access.php?type={$type}&id={$id}#skrzynka"
+            : APP_URL . "/contracts/{$type}/view.php?id={$id}&tab=m365#skrzynka";
+        if (!ika_ok($back)) {   // strona Tożsamości sama nie pyta o IKA — od razu na bramę, potem z powrotem na kartę
+            flash_set('warning', 'Potwierdź kod IKA i powtórz operację na skrzynce.');
+            return Router::redirect(APP_URL . '/contracts/ika_gate.php?to=' . urlencode($back));
+        }
         $row = db_one("SELECT * FROM {$table} WHERE id=?", [$id]);
         if (!$row) { flash_set('error', 'Nie znaleziono umowy.'); return Router::redirect($back); }
         $by = (string)(current_user()['email'] ?? '');
