@@ -734,4 +734,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Migracja”: sekcja „Pomoc producenta” także w artykułach „migracja” i „iam-i-poczta” (polecenie 2026-11-13:
+    // „dodaj też pomoc producenta do artykułu Migracja”). Odświeża wszystkie sekcje z listy, więc naprawia też artykuły
+    // nadpisane po migracji 2026-11_it_portal_vendor_help (np. „duze-zalaczniki” z 2026-11_it_portal_transfer_article).
+    '2026-11_it_portal_vendor_help_migracja' => [
+        'desc' => 'Portal Usług IT: sekcja „Pomoc producenta” w artykułach usługi „Migracja” i odświeżenie w „Moja poczta”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php';
+            itPortalVendorHelpApply();   // to samo ręcznie: php cli/it_portal_vendor_help.php [--dry-run]
+        },
+    ],
+
 ];

@@ -2,9 +2,9 @@
 <?php
 /**
  * cli/it_portal_vendor_help.php — Portal Usług IT (/uslugi-it): sekcja „Pomoc producenta” (linki do pomocy dhosting.pl)
- * na dole instrukcji w usłudze „Moja poczta”. Odświeża sekcję, jeśli już jest. Można uruchamiać wielokrotnie.
- * Uruchom ponownie po każdym php cli/it_portal_dpoczta_seed.php (seeder nadpisuje artykuły bez tej sekcji).
- * To samo robi raz automatycznie migracja '2026-11_it_portal_vendor_help'.
+ * na dole instrukcji w usługach „Moja poczta” i „Migracja”. Odświeża sekcję, jeśli już jest. Można uruchamiać wielokrotnie.
+ * Uruchom ponownie po każdym php cli/it_portal_dpoczta_seed.php albo cli/it_portal_migracja_seed.php (seedery nadpisują artykuły bez tej sekcji).
+ * To samo robią automatycznie migracje 2026-11_it_portal_vendor_help i 2026-11_it_portal_vendor_help_migracja.
  *
  * Użycie (na produkcji, w katalogu aplikacji):
  *   php cli/it_portal_vendor_help.php --dry-run   # pokaż, co się zmieni, bez zapisu
