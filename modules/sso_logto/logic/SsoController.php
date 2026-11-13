@@ -506,10 +506,15 @@ final class SsoController
             $msg = sms_ascii(SsoConfig::smsPrefix() . ($cloudOnly ? ': chmura plikow' : ': logowanie jednokrotne') . '. Login: ' . $res['username']
                 . (!$cloudOnly && $cloudUid !== '' && $cloudUid !== $res['username'] ? ' (w chmurze: ' . $cloudUid . ')' : '') . ' Haslo: ' . $res['password']
                 . ' Haslo obowiazuje od ' . date('d.m.y H:i:s') . '. Strona: ' . preg_replace('~^https://~', '', $cloudOnly ? SsoConfig::cloudUrl() : SsoConfig::logtoUrl()));
-            sms_send($phone, $msg, 'access_data');
-            return 'wysłano';
+            // Zawsze ręczna akcja administratora: wychodzi od razu, także w ciszy nocnej (22–7). Bez tego SMS z hasłem czekałby
+            // do rana w sms_deferred otwartym tekstem, a tu widniałoby „wysłano” (zob. PocztaStud::sendLoginData).
+            $GLOBALS['__sms_quiet_bypass'] = true;
+            $prov = sms_send($phone, $msg, 'access_data');
+            return $prov !== '' && $prov !== 'odlozony' ? 'wysłano' : 'nie wyszedł';
         } catch (\Throwable $e) {
             return 'błąd SMS';
+        } finally {
+            unset($GLOBALS['__sms_quiet_bypass']);
         }
     }
 
