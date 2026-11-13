@@ -18,6 +18,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/SsoConfig.php';
 require_once __DIR__ . '/SsoAccounts.php';
 require_once __DIR__ . '/CloudFilesCopy.php';
+require_once __DIR__ . '/CloudTeamsSync.php';
 require_once dirname(__DIR__) . '/lib/ssoPrompt.php';
 require_once dirname(__DIR__) . '/lib/LogtoOidc.php';
 
@@ -238,6 +239,21 @@ final class SsoController
         $this->audit('sso.password_reset_batch', ['osoby' => count($rows), 'sms' => $sms,
             'items' => array_map(fn($r) => ['email' => $r['email'], 'cloud' => $r['cloud'], 'logto' => $r['logto'], 'sms' => $r['sms'], 'error' => $r['error']], $rows)]);
         $_SESSION[self::K_RESULT] = ['ctx' => 'hasla', 'rows' => $rows];
+        return Router::redirect($back);
+    }
+
+    /**
+     * POST /ssoadmin/zespoly — zespoły z modułu Zadań jako grupy w chmurze (CloudTeamsSync; polecenie 2026-11-13 „zespoły też pobierz z SZO”).
+     * do=preview — tylko podgląd. Ten sam przebieg robi co godzinę agent CRON sso_cloud_teams.
+     */
+    public function teamsSync(): ?string
+    {
+        $back = route('sso.index') . '#zespoly';
+        if (!SsoConfig::cloudConfigured()) return $this->flash($back, 'warning', 'Chmura plików nie jest skonfigurowana. Najpierw uzupełnij połączenie.');
+        @set_time_limit(300);
+        $dry = ($_POST['do'] ?? '') === 'preview';
+        $res = CloudTeamsSync::run($dry);
+        $_SESSION[self::K_RESULT] = ['ctx' => 'zespoly', 'rows' => ['dry' => $dry] + $res];
         return Router::redirect($back);
     }
 
