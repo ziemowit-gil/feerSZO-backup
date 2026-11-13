@@ -20,6 +20,7 @@ require_once __DIR__ . '/NoweHasloAuth.php';
 require_once dirname(__DIR__) . '/lib/NoweHasloCheck.php';
 require_once dirname(__DIR__) . '/lib/NoweHasloHelpdesk.php';
 require_once dirname(__DIR__) . '/lib/NoweHasloLimit.php';
+require_once dirname(__DIR__) . '/lib/NoweHasloInitial.php';
 require_once dirname(__DIR__, 2) . '/sso_logto/logic/SsoAccounts.php';
 
 final class NoweHaslo
@@ -93,6 +94,8 @@ final class NoweHaslo
         if ($own) self::validate($p, $pw1, $pw2);
         $res = $target === 'sso' ? self::changeSso($p, $own, $pw1, $by) : self::changeMail($p, $own, $pw1, $by);
         NoweHasloLimit::hit('chg:' . $p['key']);
+        // Zmiana przez samą osobę (także hasło losowe na jej prośbę) — hasło przestaje być startowe
+        NoweHasloInitial::clear($target === 'sso' ? 'sso' : 'poczta', (string)$res['login']);
 
         // SMS: losowe hasło albo informacja o zmianie (bez hasła)
         $smsNote = self::smsAfter($p, $res, $own);

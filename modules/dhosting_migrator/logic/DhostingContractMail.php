@@ -213,6 +213,8 @@ final class DhostingContractMail
         $api = DhostingConfig::api();
         $api->changeMailboxPassword($mailbox, DhostingConfig::generatePassword(20));
         $api->changeMailboxStatus($mailbox, false);
+        require_once dirname(__DIR__, 2) . '/nowe_haslo/lib/NoweHasloInitial.php';
+        NoweHasloInitial::clear('poczta', $mailbox);   // zawieszona skrzynka — nie zachęcamy do zmiany hasła
         $now = date('Y-m-d H:i:s');
         $upd = db()->prepare("UPDATE dhosting_contract_boxes SET status='suspended', suspended_at=?, suspend_reason=?, suspended_by=?, last_error=NULL WHERE mailbox=?");
         $upd->execute([$now, $reason, $by, $mailbox]);

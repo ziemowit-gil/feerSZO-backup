@@ -886,6 +886,16 @@ return [
         },
     ],
 
+    // Hasła startowe (2026-11-14): oznacz konta IAM/chmury i skrzynki z hasłem nadanym przez SZO, których osoba sama nie zmieniła.
+    // Termin 7 dni liczony od uruchomienia tej migracji; potem panel przekierowuje na /nowehaslo (NoweHasloInitial::enforce).
+    '2026-11_password_initial_backfill' => [
+        'desc' => 'Hasła startowe: uzupełnienie istniejących kont logowania jednokrotnego, chmury i poczty',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/nowe_haslo/lib/NoweHasloInitial.php';
+            NoweHasloInitial::backfill();
+        },
+    ],
+
     // Strona usługi „Microsoft 365”: wyróżnienie „Wycofujemy się z Microsoft 365” nad dotychczasowym wstępem (polecenie 2026-11-14).
     '2026-11_it_portal_ms365_off' => [
         'desc' => 'Portal Usług IT, „Microsoft 365”: informacja o wycofaniu się z Microsoft 365 (data z sso_ms_off_date)',

@@ -84,6 +84,7 @@ $_sh_lead = $_sh_admin
 
   <?= function_exists('flash_html') ? flash_html() : '' ?>
   <?php panelMetroImportant($_sh_uid, (string)($user['role'] ?? 'viewer')); ?>
+  <?php include dirname(__DIR__, 2) . '/modules/nowe_haslo/view/_panelBanner.php'; /* hasło startowe — zachęta do zmiany */ ?>
 
   <?php ob_start(); panelMetroSideFeed($_sh_uid, (string)($user['role'] ?? '')); $_sh_side = trim((string)ob_get_clean()); ?>
   <div class="sh-start<?= $_sh_side === '' ? ' sh-start--solo' : '' ?>">
@@ -125,8 +126,10 @@ $_sh_lead = $_sh_admin
                   'sub'=>$_sh_hd ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta','group'=>'pomoc'];
   // Kafle „Microsoft 365 i poczta” i „Zarządzanie pocztą” (stopka z panelu M365) usunięte 2026-11-14 — wycofujemy się z Microsoft 365
   // Samodzielna zmiana haseł (modules/nowe_haslo, /nowehaslo): dwa osobne hasła — poczta oraz logowanie jednokrotne z chmurą (wspólne)
+  $_sh_pwi = !empty($pwInit['rows']);   // hasło startowe → kafel czerwony „do zrobienia” (NoweHasloInitial)
   $_sh_tiles[] = ['href'=>APP_URL.'/nowehaslo','icon'=>'bi-key','label'=>'Zmiana haseł',
-                  'sub'=>'poczta oraz logowanie i chmura','color'=>'indigo','group'=>'konto',
+                  'sub'=>$_sh_pwi ? 'zmień hasło startowe' : 'poczta oraz logowanie i chmura','color'=>$_sh_pwi ? 'red' : 'indigo',
+                  'keep_color'=>$_sh_pwi,'tag'=>$_sh_pwi ? 'do zrobienia' : '','group'=>'konto',
                   'aria'=>'Zmiana haseł: osobno hasło do poczty i wspólne hasło do logowania jednokrotnego i chmury plików'];
   if (is_admin()) {   // Gosposia (modules/gosposia, /pomocne/gosposia): administrator i współpracownicy z umową (ci mają kafel w pv_home.php)
       $_sh_tiles[] = ['href'=>APP_URL.'/pomocne/gosposia','icon'=>'bi-stars','label'=>'Gosposia',

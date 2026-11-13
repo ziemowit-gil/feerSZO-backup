@@ -319,6 +319,7 @@ panelMetroAssets($_vol_color);
 
   <?php panelMetroImportant((int)$user['id'], (string)($user['role'] ?? 'viewer')); ?>
 
+  <?php include $ROOT . '/modules/nowe_haslo/view/_panelBanner.php'; /* hasło startowe — zachęta do zmiany */ ?>
   <?php include $ROOT . '/modules/directory_profile/view/pulpitNotice.php'; ?>
   <?php if ($_show_dir_invite): ?>
   <div class="mt-note" role="complementary" aria-label="Zaproszenie do uzupełnienia profilu">

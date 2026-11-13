@@ -198,6 +198,7 @@ final class SsoAccounts
             $out = ['email' => $email, 'username' => $username, 'password' => $generated ? $password : null, 'logto' => 'pominięte', 'cloud' => '', 'job' => null];
             $out = self::provisionCloud($person, $opt, $out, $email, $username, $name, $password, $by);
             if (!empty($out['cloud_uid'])) $out['username'] = $out['cloud_uid'];   // bez Logto jedynym loginem jest login w chmurze (imie.nazwisko)
+            self::initialMark($email, $by);
             return $out;
         }
         $api = SsoConfig::logto();
@@ -234,6 +235,7 @@ final class SsoAccounts
         self::audit('sso.logto_' . $logtoState, ['email' => $email, 'username' => $username, 'via' => $opt['via'] ?? '']);
         $out = self::provisionCloud($person, $opt, $out, $email, $username, $name, $password, $by);
         $out['nc_uid'] = self::syncCloudUidQuiet($email);   // login chmury w Logto — logowanie do Nextcloud przez Logto
+        self::initialMark($email, $by);
         return $out;
     }
 
@@ -432,6 +434,7 @@ final class SsoAccounts
         }
         $res['new'] = $new;
         $res['password'] = $password;
+        self::initialMark($email, $by);
         $now = date('Y-m-d H:i:s');
         self::upsert($email, ['cloud_uid' => $new, 'cloud_created_at' => $now, 'cloud_by' => $by]);
         $res['nc_uid'] = self::syncCloudUidQuiet($email);   // nowy login chmury także w Logto (logowanie do Nextcloud przez Logto)
@@ -522,6 +525,7 @@ final class SsoAccounts
             catch (\Throwable $e) { $cloud = 'błąd: ' . $e->getMessage(); }
         }
         self::audit('sso.password', ['email' => $email, 'by' => $by, 'cloud' => $cloud]);
+        self::initialMark($email, $by);   // zmiana przez samą osobę (Tożsamość, /nowehaslo) czyści znacznik zaraz potem
         return ['email' => $email, 'username' => (string)$row['logto_username'], 'password' => $generated ? $password : null, 'logto' => 'password', 'cloud' => $cloud, 'job' => null];
     }
 
@@ -554,6 +558,7 @@ final class SsoAccounts
             }
         }
         self::audit('sso.password_reset', ['email' => $email, 'by' => $by, 'logto' => $logto, 'cloud' => $cloud]);
+        self::initialMark($email, $by);
         $cur = self::get($email) ?? [];
         return ['email' => $email, 'name' => (string)($row['name'] ?? ''),
                 'username' => $hasLogto ? (string)($row['logto_username'] ?? '') : (string)($cur['cloud_uid'] ?? ''),
@@ -676,6 +681,7 @@ final class SsoAccounts
         $row = self::byLogtoId($logtoId);
         if (!$row) return '';
         self::upsert((string)$row['email'], ['logto_pwd_reset_at' => date('Y-m-d H:i:s')]);
+        self::initialLib(); NoweHasloInitial::clear('sso', (string)$row['email']);   // osoba sama ustawiła hasło w Logto
         return (string)$row['email'];
     }
 
@@ -702,6 +708,19 @@ final class SsoAccounts
     {
         self::migrate();
         return db_all("SELECT * FROM sso_webhook_log ORDER BY created_at DESC LIMIT " . max(1, $limit)) ?: [];
+    }
+
+    /** Hasło startowe (nadane przez SZO / administratora) — modules/nowe_haslo/lib/NoweHasloInitial.php. */
+    private static function initialLib(): void
+    {
+        require_once dirname(__DIR__, 2) . '/nowe_haslo/lib/NoweHasloInitial.php';
+    }
+
+    private static function initialMark(string $email, string $by): void
+    {
+        self::initialLib();
+        $row = self::get($email);
+        NoweHasloInitial::mark('sso', $email, isset($row['user_id']) ? (int)$row['user_id'] : null, $by);
     }
 
     private static function audit(string $action, array $data): void

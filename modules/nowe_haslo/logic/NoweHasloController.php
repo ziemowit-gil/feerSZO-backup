@@ -30,6 +30,7 @@ final class NoweHasloController
             'acc'   => $st['confirmed'] && $p ? NoweHaslo::overview($p) : null,
             'code'  => NoweHasloAuth::codeInfo(),
             'flash' => $this->take(self::K_FLASH),
+            'initial' => NoweHasloInitial::status(current_user()),   // hasła startowe (zachęta / blokada panelu)
             'form'  => $this->take(self::K_FORM) ?? [],
         ]);
     }

@@ -525,6 +525,8 @@ final class SsoController
         } catch (\Throwable $e) {
             return $this->flashGlobal($back, 'danger', $e->getMessage());
         }
+        require_once dirname(__DIR__, 2) . '/nowe_haslo/lib/NoweHasloInitial.php';
+        NoweHasloInitial::clear('sso', (string)$res['email']);   // własne hasło — już nie startowe
         if (function_exists('log_user_action')) { try { log_user_action((int)$db['id'], (int)$db['id'], 'sso_password', 'Nowe hasło logowania jednokrotnego'); } catch (\Throwable $e) {} }
         $msg = 'Zmieniliśmy hasło logowania jednokrotnego.';
         if (in_array($res['cloud'], ['linked', 'synced'], true)) $msg .= ' W chmurze plików też działa już nowe hasło.';

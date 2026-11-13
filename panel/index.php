@@ -12,6 +12,9 @@ require_once dirname(__DIR__) . '/includes/applications.php';
 require_once dirname(__DIR__) . '/includes/zlecenie_rachunki.php';
 
 require_login();
+// Hasła startowe (modules/nowe_haslo/lib/NoweHasloInitial.php): pas zachęty na pulpicie, po 7 dniach przekierowanie na /nowehaslo
+require_once dirname(__DIR__) . '/modules/nowe_haslo/lib/NoweHasloInitial.php';
+$pwInit = NoweHasloInitial::enforce(current_user());
 _applications_init();
 $PAGE_TITLE = 'Mój panel';
 $user = current_user();

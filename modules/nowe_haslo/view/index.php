@@ -75,6 +75,15 @@ if ($noRandom) $mSel = 'own';
     </div>
   </div>
 
+  <?php if (!empty($initial['rows'])): /* hasła startowe — NoweHasloInitial (zachęta, po GRACE_DAYS blokada panelu) */ ?>
+    <div class="dm-msg dm-msg--<?= $initial['force'] ? 'danger' : 'warning' ?>" role="<?= $initial['force'] ? 'alert' : 'status' ?>">
+      <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+      <div><strong>Masz hasło startowe: <?= h(implode(' oraz ', $initial['labels'])) ?>.</strong>
+        <?= $initial['force']
+            ? 'Zmień je teraz. Do tego czasu panel SZO jest zablokowany.'
+            : 'Zmień je na własne do ' . h(NoweHasloInitial::dateLabel((int)$initial['deadline'])) . '. Potem panel SZO będzie zablokowany, dopóki go nie zmienisz.' ?></div>
+    </div>
+  <?php endif; ?>
   <?php if ($flash): ?>
     <div class="dm-msg dm-msg--<?= h($flash['type']) ?>" role="<?= in_array($flash['type'], ['success', 'info'], true) ? 'status' : 'alert' ?>">
       <i class="bi <?= $flash['type'] === 'success' ? 'bi-check-circle' : ($flash['type'] === 'info' ? 'bi-info-circle' : 'bi-exclamation-triangle') ?>" aria-hidden="true"></i><div><?= h($flash['msg']) ?></div>

@@ -151,14 +151,28 @@ final class DhostingApi
             else $body['Quota'] = number_format(max(0.1, $quotaGb), 1, '.', '');
         }
         if ($description !== '') $body['mailboxDescription'] = mb_substr($description, 0, 200);
-        return $this->call('POST', '/email/createMailbox', $body);
+        $res = $this->call('POST', '/email/createMailbox', $body);
+        self::initialMark($mailbox);
+        return $res;
     }
 
+    /** Każde hasło ustawione przez SZO jest startowe; zmiana przez samą osobę (/nowehaslo) czyści znacznik zaraz potem. */
     public function changeMailboxPassword(string $mailbox, string $password): array
     {
-        return $this->call('PUT', '/email/changeMailboxPassword', [
+        $res = $this->call('PUT', '/email/changeMailboxPassword', [
             'MailboxName' => strtolower(trim($mailbox)), 'NewPassword' => $password, 'SendSms' => false,
         ]);
+        self::initialMark($mailbox);
+        return $res;
+    }
+
+    /** Hasło startowe skrzynki — modules/nowe_haslo/lib/NoweHasloInitial.php (błąd nie przerywa zmiany hasła). */
+    private static function initialMark(string $mailbox): void
+    {
+        try {
+            require_once dirname(__DIR__, 2) . '/nowe_haslo/lib/NoweHasloInitial.php';
+            NoweHasloInitial::mark('poczta', $mailbox);
+        } catch (\Throwable $e) { error_log('[dhosting] hasło startowe: ' . $e->getMessage()); }
     }
 
     /** Włącza (true) albo wyłącza (false) całą skrzynkę — PUT /email/changeMailboxStatus {MailboxName, NewStatus}. */
