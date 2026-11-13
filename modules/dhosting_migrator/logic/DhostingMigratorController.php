@@ -15,6 +15,7 @@ require_once __DIR__ . '/DhostingMigrator.php';
 require_once __DIR__ . '/DhostingGuest.php';
 require_once __DIR__ . '/DhostingContractMail.php';
 require_once dirname(__DIR__) . '/lib/DhostingGraphSource.php';
+require_once dirname(__DIR__) . '/lib/DhostingCredPdf.php';
 require_once dirname(__DIR__, 2) . '/audit_logs/logic/audit_logs.php';
 require_once dirname(__DIR__, 3) . '/includes/admin_audit.php';
 require_once dirname(__DIR__, 3) . '/includes/approval.php';
@@ -27,7 +28,9 @@ final class DhostingMigratorController
     private const K_TEST   = 'dhmTest';
     private const K_RESTORED = 'dhmRestored';
     private const K_RETRY    = 'dhmRetry';
-    private const K_ACC      = 'dhmAcc';      // konta NC i SSO po migracji: hasło raz na ekranie, gdy SMS nie wyszedł
+    private const K_ACC      = 'dhmAcc';      // konta NC i SSO po migracji: hasła raz na ekranie, gdy SMS nie wyszedł (['rows' => …])
+    private const K_PDF      = 'dhmPdf';      // dane logowania do wydruku PDF (z hasłami) — 15 min po nadaniu haseł
+    private const PDF_TTL    = 900;
 
     // ── Administrator ─────────────────────────────────────────────────────────────────────────
 
@@ -47,6 +50,7 @@ final class DhostingMigratorController
             'restored' => $this->take(self::K_RESTORED),
             'retried'  => $this->take(self::K_RETRY),
             'accMade'  => $this->take(self::K_ACC),
+            'pdfReady' => $this->pdfPeople(),
             'storedPass' => DhostingCopy::storedPasswordBoxes(),
             'cfg'      => [
                 'api_url'      => DhostingConfig::get('dhosting_api_url'),
@@ -90,6 +94,9 @@ final class DhostingMigratorController
         admin_audit('dhosting_create', 'dhosting', 'Skrzynki dhosting: ' . $ok . ' ustawionych, ' . $err . ' błędów', 0, implode(', ', array_column($results, 'mailbox')));
 
         $_SESSION[self::K_RESULT] = $results;
+        $now = date('Y-m-d H:i:s');
+        $this->pdfStash(array_map(fn($r) => ['name' => (string)$r['name'], 'mailbox' => (string)$r['mailbox'], 'mail_password' => $r['password'], 'issued_at' => $now],
+            array_filter($results, fn($r) => $r['password'] !== null)));
         return Router::redirect($back . '#wynik');
     }
 
@@ -157,6 +164,8 @@ final class DhostingMigratorController
     public function copyAction(): ?string
     {
         $back = route('dhm.index') . '#kopiowanie';
+        // „Utwórz konta NC i SSO” zbiorczo dla już przeniesionych skrzynek (polecenie 2026-11-13: „zbiorcze tworzenie dla utworzonych już poczt”)
+        if (($_POST['op'] ?? '') === 'accounts_bulk') return $this->accountsBulk($back);
         $id = (int)($_POST['job'] ?? 0);
         $job = $id ? DhostingCopy::job($id) : null;
         if (!$job) return $this->flash($back, 'warning', 'Nie znaleziono zadania kopiowania.');
@@ -174,10 +183,7 @@ final class DhostingMigratorController
             if ($job['status'] !== 'done') return $this->flash($back, 'warning', 'Konta zakładamy po zakończonym przenoszeniu poczty.');
             $acc = DhostingCopy::accountsAfterMigration($job);
             try { audit_log('dhosting.sso_accounts', ['mailbox' => $job['mailbox'], 'wynik' => $acc['text']]); } catch (\Throwable $e) {}
-            $smsOk = str_starts_with((string)($acc['sms'] ?? ''), 'SMS (') || str_starts_with((string)($acc['sms'] ?? ''), 'SMS po');
-            if (!empty($acc['ok']) && !$smsOk && ($acc['password'] ?? '') !== '') {
-                $_SESSION[self::K_ACC] = ['mailbox' => $job['mailbox'], 'username' => $acc['username'], 'password' => $acc['password'], 'text' => $acc['text']];
-            }
+            $this->accRemember([[$job, $acc]]);
             return $this->flash($back, !empty($acc['ok']) ? 'success' : 'danger', 'Konta dla ' . $job['mailbox'] . ': ' . $acc['text'] . '.');
         }
         if ($op === 'retry' || $op === 'retry_newpass') {
@@ -197,6 +203,7 @@ final class DhostingMigratorController
                     }
                     $nid = DhostingCopy::retry($mb, $by, $pass);
                     $_SESSION[self::K_RETRY] = ['mailbox' => $mb, 'password' => $pass, 'sms' => $sms];
+                    $this->pdfStash([['name' => $this->nameForJob($job), 'mailbox' => $mb, 'mail_password' => $pass, 'issued_at' => date('Y-m-d H:i:s')]]);
                     $note = ' Nowe hasło' . ($sms !== '' ? ' — SMS: ' . $sms : ' — poniżej (tylko teraz), przekaż je osobie') . '.';
                 } else {
                     $nid = DhostingCopy::retry($mb, $by);
@@ -417,6 +424,120 @@ final class DhostingMigratorController
     private function by(array $u): string
     {
         return current_user() ? (string)($u['email'] ?? '') : 'bez logowania: ' . (string)($u['m365_login'] ?? '');
+    }
+
+    /** Zbiorczo: najnowsze zakończone przenoszenia, którym brakuje konta NC / SSO — najwyżej 25 naraz (czas SMS-ów i API). */
+    private function accountsBulk(string $back): ?string
+    {
+        if (!ika_ok($back)) return $this->flash($back, 'warning', 'Sesja kodu IKA wygasła — kont NIE założono. Potwierdź kod IKA i powtórz.');
+        @set_time_limit(600);
+        @ignore_user_abort(true);
+        $todo = []; $seen = [];
+        foreach (DhostingCopy::jobs(1000) as $j) {
+            if (isset($seen[$j['mailbox']])) continue;          // tylko najnowsze zadanie skrzynki
+            $seen[$j['mailbox']] = true;
+            if ($j['status'] !== 'done') continue;
+            if (DhostingCopy::ssoStatus($j)['need']) $todo[] = $j;
+        }
+        if (!$todo) return $this->flash($back, 'info', 'Wszystkie przeniesione skrzynki mają już konta NC i SSO (albo nie ma osoby z e-mailem w SZO).');
+        $more = max(0, count($todo) - 25);
+        $done = [];
+        foreach (array_slice($todo, 0, 25) as $j) {
+            $full = DhostingCopy::job((int)$j['id']) ?: $j;
+            try { $acc = DhostingCopy::accountsAfterMigration($full); } catch (\Throwable $e) { $acc = ['ok' => false, 'text' => 'błąd: ' . $e->getMessage()]; }
+            $done[] = [$full, $acc];
+        }
+        $ok = count(array_filter($done, fn($d) => !empty($d[1]['ok'])));
+        try { audit_log('dhosting.sso_accounts_bulk', ['ok' => $ok, 'all' => count($done), 'items' => array_map(fn($d) => ['mailbox' => $d[0]['mailbox'], 'wynik' => $d[1]['text']], $done)]); } catch (\Throwable $e) {}
+        $this->accRemember($done);
+        return $this->flash($back, $ok === count($done) ? 'success' : 'warning', 'Konta NC i SSO: gotowe dla ' . $ok . ' z ' . count($done) . ' osób.'
+            . ($more ? ' Zostało jeszcze ' . $more . ' — kliknij ponownie.' : '') . ' Hasła poszły SMS-em; dane do wydruku (PDF) są dostępne przez 15 minut.');
+    }
+
+    /** Wyniki zakładania kont NC i SSO: do ekranu (hasła tylko tam, gdzie SMS nie wyszedł) i do wydruku PDF (wszystkie hasła, 15 min). */
+    private function accRemember(array $done): void
+    {
+        $rows = []; $pdf = []; $now = date('Y-m-d H:i:s');
+        foreach ($done as [$job, $acc]) {
+            $smsOk = str_starts_with((string)($acc['sms'] ?? ''), 'SMS (') || str_starts_with((string)($acc['sms'] ?? ''), 'SMS po');
+            $rows[] = ['mailbox' => (string)$job['mailbox'], 'username' => (string)($acc['username'] ?? ''), 'text' => (string)$acc['text'],
+                       'password' => !empty($acc['ok']) && !$smsOk ? (string)($acc['password'] ?? '') : ''];
+            if (!empty($acc['ok']) && (string)($acc['password'] ?? '') !== '') {
+                $pdf[] = ['name' => $this->nameForJob($job), 'mailbox' => (string)$job['mailbox'], 'sso_login' => (string)$acc['username'], 'sso_password' => (string)$acc['password'],
+                          'sso_logto' => ($acc['logto'] ?? '') !== 'pominięte', 'sso_cloud' => in_array((string)($acc['cloud'] ?? ''), ['created', 'linked', 'synced'], true), 'issued_at' => $now];
+            }
+        }
+        $_SESSION[self::K_ACC] = ['rows' => $rows];
+        if ($pdf) $this->pdfStash($pdf);
+    }
+
+    private function nameForJob(array $job): string
+    {
+        $uid = (int)($job['user_id'] ?? 0);
+        $n = $uid > 0 ? (string)(db_one("SELECT name FROM users WHERE id=?", [$uid])['name'] ?? '') : '';
+        return $n !== '' ? $n : (string)$job['mailbox'];
+    }
+
+    /** Dokłada osoby do wydruku (scalanie po adresie skrzynki: hasło do poczty + dane SSO na jednej stronie), ważne 15 min. */
+    private function pdfStash(array $people): void
+    {
+        if (!$people) return;
+        $cur = $this->pdfPeople() ?? [];
+        $byBox = [];
+        foreach ($cur as $p) $byBox[strtolower((string)($p['mailbox'] ?? $p['sso_login'] ?? ''))] = $p;
+        foreach ($people as $p) {
+            $k = strtolower((string)($p['mailbox'] ?? $p['sso_login'] ?? ''));
+            $byBox[$k] = isset($byBox[$k]) ? array_merge($byBox[$k], array_filter($p, fn($v) => $v !== null && $v !== '')) : $p;
+        }
+        $_SESSION[self::K_PDF] = ['until' => time() + self::PDF_TTL, 'people' => array_values($byBox)];
+    }
+
+    /** Osoby do wydruku albo null (brak / minęło 15 minut — wtedy kasujemy hasła z sesji). */
+    private function pdfPeople(): ?array
+    {
+        $s = $_SESSION[self::K_PDF] ?? null;
+        if (!is_array($s) || (int)($s['until'] ?? 0) < time() || empty($s['people'])) { unset($_SESSION[self::K_PDF]); return null; }
+        return $s['people'];
+    }
+
+    /** GET /migracjaadmin/pdf — dane logowania z hasłami nadanymi w ciągu ostatnich 15 minut. */
+    public function adminPdf(): ?string
+    {
+        $back = route('dhm.index');
+        $people = $this->pdfPeople();
+        if (!$people) return $this->flash($back, 'warning', 'Nie ma danych do wydruku. Hasła można wydrukować tylko przez 15 minut od ich nadania.');
+        try { audit_log('dhosting.credentials_pdf', ['osoby' => count($people), 'skrzynki' => array_column($people, 'mailbox')]); } catch (\Throwable $e) {}
+        $org = function_exists('org_setting') ? (org_setting('org_short_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja')) : 'Fundacja';
+        $bytes = DhostingCredPdf::render($people, (string)$org);
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="dane-logowania-' . date('Ymd-Hi') . '.pdf"');
+        header('Cache-Control: no-store, private');
+        echo $bytes;
+        exit;
+    }
+
+    /** GET /migracjapoczty/pdf — własne dane logowania osoby, BEZ haseł (poczta + logowanie jednokrotne i chmura, jeśli są). */
+    public function selfPdf(): ?string
+    {
+        $u = $this->meRow();
+        if ($u === null) return Router::redirect(route('dhm.self'));
+        $st = DhostingMigrator::selfState($u);
+        $p = ['name' => (string)($u['name'] ?? ''), 'mailbox' => (string)($st['mailbox'] ?? ''), 'mail_password' => null];
+        try {
+            require_once dirname(__DIR__, 2) . '/sso_logto/logic/SsoAccounts.php';
+            $acc = filter_var((string)($u['email'] ?? ''), FILTER_VALIDATE_EMAIL) ? SsoAccounts::get(strtolower((string)$u['email'])) : null;
+            if ($acc && (!empty($acc['logto_id']) || !empty($acc['cloud_uid']))) {
+                $p += ['sso_login' => (string)($acc['logto_username'] ?: $acc['cloud_uid']), 'sso_password' => null,
+                       'sso_logto' => !empty($acc['logto_id']), 'sso_cloud' => !empty($acc['cloud_uid'])];
+            }
+        } catch (\Throwable $e) {}
+        $org = org_setting('org_short_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja');
+        $bytes = DhostingCredPdf::render([$p], (string)$org);
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="dane-logowania-poczta.pdf"');
+        header('Cache-Control: no-store, private');
+        echo $bytes;
+        exit;
     }
 
     private function flash(string $back, string $type, string $msg): ?string

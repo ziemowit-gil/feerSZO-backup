@@ -149,6 +149,12 @@ $statusOf  = function (array $a): array {
 <?php if ($flash): ?>
   <div class="alert alert-<?= h($flash['type']) ?> small" role="<?= $flash['type'] === 'success' ? 'status' : 'alert' ?>"><?= h($flash['msg']) ?></div>
 <?php endif; ?>
+<?php if (!empty($pdfReady)): /* dane logowania z hasłami nadanymi w ostatnich 15 minutach (polecenie 2026-11-13: wydruk PDF) */ ?>
+  <div class="alert alert-info small d-flex flex-wrap align-items-center gap-2" role="note">
+    <span><strong>Dane logowania do wydruku:</strong> <?= count($pdfReady) ?> <?= count($pdfReady) === 1 ? 'osoba' : 'osób' ?> (z hasłami). Dostępne przez 15 minut od nadania haseł — potem znikają.</span>
+    <a class="btn btn-sm btn-primary ms-auto" href="<?= h(route('dhm.pdf')) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Drukuj dane logowania (PDF)</a>
+  </div>
+<?php endif; ?>
 
 <?php if (!$apiReady): ?>
   <div class="alert alert-info small" role="status"><strong>Zacznij od konfiguracji API dhosting</strong> — login i hasło API od dhosting.pl oraz przenoszone domeny. Bez tego nie widać stanu skrzynek i nie da się ich zakładać.</div>
@@ -168,6 +174,7 @@ $statusOf  = function (array $a): array {
       <?php if ($withPass): ?>
       <button type="button" class="btn btn-sm btn-primary" id="dhmCopy"><i class="bi bi-clipboard" aria-hidden="true"></i> Kopiuj loginy i hasła</button>
       <button type="button" class="btn btn-sm btn-outline-primary" onclick="window.print()"><i class="bi bi-printer" aria-hidden="true"></i> Drukuj</button>
+      <?php if (!empty($pdfReady)): ?><a class="btn btn-sm btn-outline-primary" href="<?= h(route('dhm.pdf')) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF dla osób</a><?php endif; ?>
       <?php endif; ?>
     </div>
   </div>
@@ -298,11 +305,22 @@ $statusOf  = function (array $a): array {
   <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
     <h2 id="dhmCopyH" class="h6 mb-0"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Kopiowanie poczty z Microsoft 365</h2>
     <span class="small text-body-secondary">w tle co 5 min · niedostępny serwer = ponowienie co <?= DhostingCopy::RETRY_HOURS ?> h (najdłużej 7 dni)</span>
+    <?php // zbiorczo: konta NC i SSO dla już przeniesionych skrzynek bez tych kont (polecenie 2026-11-13)
+      $bulkN = 0; $_bs = [];
+      foreach ($jobs ?? [] as $_bj) { if (isset($_bs[$_bj['mailbox']])) continue; $_bs[$_bj['mailbox']] = true; if ($_bj['status'] === 'done' && DhostingCopy::ssoStatus($_bj)['need']) $bulkN++; }
+      if ($bulkN > 0): ?>
+    <form method="post" action="<?= h(route('dhm.copy')) ?>" class="w-100 d-flex flex-wrap align-items-center gap-2">
+      <?= Router::csrfField() ?>
+      <button class="btn btn-sm btn-success" name="op" value="accounts_bulk"
+              onclick="return confirm('Utworzyć konta NC i SSO dla <?= min(25, $bulkN) ?> osób z przeniesioną pocztą?\nKażda dostanie nowe hasło (inne niż do poczty) SMS-em.')"><i class="bi bi-people" aria-hidden="true"></i> Utwórz konta NC i SSO dla przeniesionych skrzynek (<?= $bulkN ?>)</button>
+      <span class="small text-body-secondary">Nowe hasło — osobne od poczty — idzie SMS-em; istniejące konto dostaje nowe hasło. Naraz najwyżej 25 osób. Potem wydrukujesz dane logowania (PDF).</span>
+    </form>
+    <?php endif; ?>
   </div>
-  <?php if ($accMade): ?>
+  <?php $accRows = array_values(array_filter((array)($accMade['rows'] ?? []), fn($r) => ($r['password'] ?? '') !== '')); if ($accRows): ?>
     <div class="alert alert-warning rounded-0 border-0 border-bottom small mb-0" role="status">
-      <strong>Konta NC i SSO dla <?= h($accMade['mailbox']) ?>:</strong> login <code><?= h($accMade['username']) ?></code> · hasło: <code class="user-select-all fs-6"><?= h($accMade['password']) ?></code>
-      <div>SMS z hasłem nie wyszedł — hasło widać tylko teraz. Przekaż je osobie bezpiecznie (nie e-mailem). Jest inne niż hasło do poczty.</div>
+      <strong>Konta NC i SSO — SMS z hasłem nie wyszedł do <?= count($accRows) ?> <?= count($accRows) === 1 ? 'osoby' : 'osób' ?>.</strong> Hasła widać tylko teraz (albo w PDF przez 15 minut). Są inne niż hasła do poczty.
+      <ul class="mb-0 mt-1"><?php foreach ($accRows as $ar): ?><li><code><?= h($ar['mailbox']) ?></code> · login <code><?= h($ar['username']) ?></code> · hasło <code class="user-select-all"><?= h($ar['password']) ?></code></li><?php endforeach; ?></ul>
     </div>
   <?php endif; ?>
   <?php if ($retried): ?>

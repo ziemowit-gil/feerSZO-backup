@@ -27,6 +27,7 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->post('/migracjaadmin/ustawienia', [DhostingMigratorController::class, 'saveSettings'])->name('dhm.settings');
     $r->post('/migracjaadmin/test',       [DhostingMigratorController::class, 'test'])->name('dhm.test');
     $r->post('/migracjaadmin/kopia',      [DhostingMigratorController::class, 'copyAction'])->name('dhm.copy');
+    $r->get('/migracjaadmin/pdf',         [DhostingMigratorController::class, 'adminPdf'])->name('dhm.pdf');     // dane logowania z hasłami (15 min po nadaniu)
     $r->post('/migracjaadmin/skrzynka',   [DhostingMigratorController::class, 'boxPost'])->name('dhm.box');   // karta w widoku umowy
     $r->post('/migracjaadmin/zawieszone', [DhostingMigratorController::class, 'suspendedPost'])->name('dhm.suspended');
     // Pliki z OneDrive → chmura (Nextcloud/ownCloud) z kontem logowania jednokrotnego (modules/sso_logto)
@@ -42,5 +43,6 @@ $r->post('/migracjapoczty/kopia',     [DhostingMigratorController::class, 'selfC
 $r->post('/migracjapoczty/wejscie',   [DhostingMigratorController::class, 'guestPost'])->name('dhm.guest');
 $r->post('/migracjapoczty/zakoncz',   [DhostingMigratorController::class, 'guestEnd'])->name('dhm.guestEnd');
 $r->post('/migracjapoczty/telefon',   [DhostingMigratorController::class, 'phonePost'])->name('dhm.phone');
+$r->get('/migracjapoczty/pdf',        [DhostingMigratorController::class, 'selfPdf'])->name('dhm.selfPdf');   // własne dane logowania, bez haseł
 
 $r->dispatch();

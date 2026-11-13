@@ -141,6 +141,8 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
     <div class="mt-group">
       <p>Telefon (Gmail, Poczta w iPhonie), Outlook, Thunderbird i inne programy: dodaj konto ręcznie, z tymi danymi.</p>
       <?php $cfgBox = (string)($st['mailbox'] ?? ''); include __DIR__ . '/_mailConfig.php'; ?>
+      <p style="margin-top:.8rem"><a class="mt-btn mt-btn--ghost" href="<?= h(route('dhm.selfPdf')) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Pobierz PDF z danymi logowania</a>
+        <span class="dm-help" style="display:block">Bez haseł — te masz z SMS-a. Przyda się do ustawienia telefonu i komputera.</span></p>
     </div>
   </section>
   <?php else: ?>
