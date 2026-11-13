@@ -834,6 +834,17 @@ return [
 
     // „Poczta kursanta” w /uslugi-it: data wyłączenia kont @edu.feer.org.pl (20.11.2026) i lead „po ostatnich awariach Microsoft 365”
     // (polecenie 2026-11-13). Nadpisuje wstęp i artykuły także tam, gdzie poprzednia migracja już się wykonała.
+    // Portal Usług IT: usługa „Konto i hasła” z artykułem „Zmiana haseł” (dwa osobne hasła: poczta oraz logowanie jednokrotne z chmurą;
+    // strona /nowehaslo i kafel „Zmiana haseł” w panelu współpracownika; polecenie 2026-11-13). modules/it_portal/lib/itPortalHaslaSeed.php.
+    '2026-11_it_portal_hasla' => [
+        'desc' => 'Portal Usług IT: usługa „Konto i hasła” i artykuł o samodzielnej zmianie haseł',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalHaslaSeed.php';
+            itPortalHaslaApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_hasla_seed.php [--dry-run]
+        },
+    ],
+
     '2026-11_it_portal_poczta_kursanta_edu_off' => [
         'desc' => 'Portal Usług IT, „Poczta kursanta”: wyłączenie kont @edu.feer.org.pl 20.11.2026 i powód (ostatnie awarie Microsoft 365)',
         'run'  => static function () use ($ROOT): void {
