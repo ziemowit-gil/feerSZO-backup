@@ -467,8 +467,9 @@ final class SsoController
         try {
             require_once dirname(__DIR__, 3) . '/includes/sms.php';
             if (!sms_channel_ready()) return 'brak dostawcy SMS';
-            $msg = sms_ascii(SsoConfig::smsPrefix() . ': logowanie jednokrotne. Login: ' . $res['username'] . ' Haslo: ' . $res['password']
-                . ' Strona: ' . preg_replace('~^https://~', '', SsoConfig::logtoUrl()));
+            $cloudOnly = ($res['logto'] ?? '') === 'pominięte';   // Logto nieskonfigurowane — samo konto w chmurze
+            $msg = sms_ascii(SsoConfig::smsPrefix() . ($cloudOnly ? ': chmura plikow' : ': logowanie jednokrotne') . '. Login: ' . $res['username'] . ' Haslo: ' . $res['password']
+                . ' Strona: ' . preg_replace('~^https://~', '', $cloudOnly ? SsoConfig::cloudUrl() : SsoConfig::logtoUrl()));
             sms_send($phone, $msg, 'access_data');
             return 'wysłano';
         } catch (\Throwable $e) {
