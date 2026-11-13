@@ -646,4 +646,16 @@ return [
         },
     ],
 
+    // Portal Usług IT: poczta przeniesiona z Microsoft 365 na dhosting (13.11.2026) → usługa „Moja poczta” dostaje
+    // nowy wstęp i instrukcje webmaila dPoczta.pl (modules/it_portal/lib/itPortalDpocztaSeed.php). Polecenie 2026-11-13:
+    // „nadpisz artykuły o których mowa w office365” — artykuły z tym samym adresem są nadpisywane, a dawne artykuły
+    // o poczcie w Office 365 / Outlooku ukrywane (is_published = 0, nie kasowane: przywrócisz je w panelu portalu).
+    '2026-11_it_portal_dpoczta_articles' => [
+        'desc' => 'Portal Usług IT: instrukcje poczty dPoczta.pl w „Moja poczta”, ukrycie dawnych artykułów o poczcie Office 365',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(APP_URL);   // to samo ręcznie: php cli/it_portal_dpoczta_seed.php [--dry-run]
+        },
+    ],
+
 ];
