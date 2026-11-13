@@ -780,4 +780,15 @@ return [
         },
     ],
 
+    // Portal Usług IT: usługa „Chmura plików” z wprowadzeniem i artykułem „Nextcloud: pierwsze kroki w chmurze plików”
+    // (polecenie 2026-11-13: „Przygotuj też krótki artykuł o NextCloud + takie wprowadzenie”). modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud' => [
+        'desc' => 'Portal Usług IT: usługa „Chmura plików” i artykuł o Nextcloud',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_cloud_seed.php [--dry-run]
+        },
+    ],
+
 ];
