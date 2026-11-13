@@ -285,6 +285,7 @@ $statusOf  = function (array $a): array {
       <i class="bi bi-envelope-plus" aria-hidden="true"></i> <span id="dhmGoTxt">Zleć migrację</span>
     </button>
   </div>
+  <?php include dirname(__DIR__, 2) . '/sso_logto/view/migratorBar.php'; // chmura + pliki z OneDrive dla zaznaczonych kont ?>
   <p class="small text-body-secondary mb-0">Naraz najwyżej <?= DhostingMigrator::BATCH_MAX ?> kont. Każda operacja trafia do dziennika (audit).</p>
 </form>
 <?php elseif (!$overview['errors']): ?>
@@ -339,6 +340,8 @@ $statusOf  = function (array $a): array {
     <div class="card-body small text-body-secondary">Brak zadań. Zaznacz „Skopiuj też pocztę” przy zakładaniu skrzynek albo poproś użytkowników o skorzystanie z /migracjapoczty.</div>
   <?php endif; ?>
 </section>
+
+<?php include dirname(__DIR__, 2) . '/sso_logto/view/migratorFiles.php'; // sekcja #pliki: OneDrive → chmura ?>
 
 <?php $suspended = $suspended ?? []; $restored = $restored ?? null;
       $_ctLabel = ['wolontariat' => 'Wolontariat', 'zlecenie' => 'Zlecenie', 'dzielo' => 'Dzieło']; ?>
@@ -422,6 +425,12 @@ $statusOf  = function (array $a): array {
   const form = document.getElementById('dhmForm');
   if (form) form.addEventListener('submit', e => {
     const n = rows.filter(r => r.querySelector('.dhm-row').checked).length;
+    if (e.submitter && e.submitter.id === 'ssoCloudGo') {   // chmura + pliki (modules/sso_logto/view/migratorBar.php)
+      const files = document.getElementById('ssoFilesCopy') && document.getElementById('ssoFilesCopy').checked;
+      if (!confirm('Założyć konta logowania jednokrotnego i w chmurze dla ' + n + ' kont? Każde dostanie NOWE hasło (to samo w Logto i w chmurze).' + (files ? '\nPliki z OneDrive skopiują się w tle.' : ''))) { e.preventDefault(); return; }
+      e.submitter.disabled = true;
+      return;
+    }
     const reset = document.getElementById('dhmReset').checked ? '\nDla istniejących skrzynek zostanie ustawione NOWE hasło.' : '';
     const ordr = document.getElementById('dhmNotify') && document.getElementById('dhmNotify').checked;
     if (!confirm((ordr ? 'Zlecić migrację ' + n + ' kont? Osoby dostaną powiadomienie w SZO i e-mail.' : 'Założyć skrzynki na dhosting dla ' + n + ' kont?') + reset)) { e.preventDefault(); return; }

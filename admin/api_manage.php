@@ -37,6 +37,7 @@ const AM_API_PERMISSIONS = [
     'audytor:users'    => 'Tajemniczy Klient — lista użytkowników z uprawnieniem (import osób; api/v1/audytor_users.php)',
     'audytor:sms'      => 'Tajemniczy Klient — wysyłka kodów logowania SMS (wyłącznie sztywny szablon; api/v1/audytor_sms.php)',
     'audytor:mail'     => 'Tajemniczy Klient — wysyłka powiadomień e-mail (czysty tekst, Microsoft Graph; api/v1/audytor_mail.php)',
+    'logto:sms'        => 'Logto (logowanie jednokrotne) — łącznik „HTTP SMS”: kody 4–8 cyfr w stałym szablonie (api/v1/logto_sms.php)',
     'ezd:upload'       => 'EZD Wirtualne biurko — dołączanie plików/skanów (api/v1/ezd_upload.php, bez odczytu)',
     'pelnomocnictwa:read'  => 'Rejestr pełnomocnictw — odczyt',
     'pelnomocnictwa:write' => 'Rejestr pełnomocnictw — zapis (twórz / edytuj / usuń)',

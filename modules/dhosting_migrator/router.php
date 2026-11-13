@@ -17,6 +17,7 @@ require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/router/lib/Router.php';
 require_once __DIR__ . '/logic/DhostingMigratorController.php';
+require_once dirname(__DIR__) . '/sso_logto/logic/SsoController.php';
 
 $r = new Router('/modules/dhosting_migrator/router.php', 'path', rtrim(APP_URL, '/'));
 
@@ -28,6 +29,9 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->post('/migracjaadmin/kopia',      [DhostingMigratorController::class, 'copyAction'])->name('dhm.copy');
     $r->post('/migracjaadmin/skrzynka',   [DhostingMigratorController::class, 'boxPost'])->name('dhm.box');   // karta w widoku umowy
     $r->post('/migracjaadmin/zawieszone', [DhostingMigratorController::class, 'suspendedPost'])->name('dhm.suspended');
+    // Pliki z OneDrive → chmura (Nextcloud/ownCloud) z kontem logowania jednokrotnego (modules/sso_logto)
+    $r->post('/migracjaadmin/pliki',         [SsoController::class, 'migratorFiles'])->name('dhm.files');
+    $r->post('/migracjaadmin/pliki/zadanie', [SsoController::class, 'filesAction'])->name('dhm.filesJob');
 });
 
 // Bez middleware 'auth': kontroler wpuszcza zalogowanego albo gościa potwierdzonego zestawem danych + kodem SMS

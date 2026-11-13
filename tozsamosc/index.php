@@ -493,6 +493,21 @@ $services[] = [
         : ($ldap_enabled ? 'Utwórz swój wpis w katalogu LDAP organizacji na podstawie danych tożsamości. Hasło nie jest kopiowane.' : 'Usługa katalogu LDAP jest tymczasowo nieaktywna.'),
     'ldap' => true,
 ];
+// Logowanie jednokrotne (Logto) + chmura plików — modules/sso_logto (sekcja #sso)
+require_once dirname(__DIR__) . '/modules/sso_logto/logic/SsoAccounts.php';
+$sso_acc = null;
+try { $sso_acc = SsoAccounts::get($panel_login); } catch (\Throwable $e) {}
+$sso_ready = SsoConfig::logtoConfigured();
+$sso_has   = $sso_acc && !empty($sso_acc['logto_id']);
+$services[] = [
+    'name' => 'Logowanie jednokrotne', 'icon' => 'bi-key', 'tone' => 'teal',
+    'status' => $sso_has ? 'ok' : ($sso_ready ? 'warn' : 'off'),
+    'status_label' => $sso_has ? 'Aktywne' : ($sso_ready ? 'Do założenia' : 'Nieaktywna'),
+    'desc' => $sso_has
+        ? 'Login: ' . $sso_acc['logto_username'] . (!empty($sso_acc['cloud_uid']) ? ' · chmura plików z tym samym hasłem' : '')
+        : 'Jedno konto i jedno hasło do aplikacji organizacji, np. chmury plików. Hasło do poczty jest odrębne.',
+    'tab' => 'sso', 'cta' => $sso_has ? 'Szczegóły i hasło' : 'Utwórz konto',
+];
 $services[] = [
     'name' => 'Uwierzytelnianie wieloskładnikowe (MFA)', 'icon' => 'bi-shield-check', 'tone' => $mfa_active ? 'emerald' : 'amber',
     'status' => $mfa_active ? 'ok' : 'warn', 'status_label' => $mfa_active ? $mfa_label : 'Brak drugiego składnika',
@@ -507,7 +522,8 @@ $trello_ws_url = org_setting('trello_workspace_url') ?: 'https://trello.com';
 
 // Sekcje (klucze = #hash; kolejność jak w menu _head.php)
 $tabs = ['przeglad' => 'Przegląd', 'podstawowe' => 'Dane konta', 'bezpieczenstwo' => 'Zabezpieczenia',
-         'urzadzenia' => 'Urządzenia i logowania', 'uslugi' => 'Usługi'];   // urzadzenia: modules/account_security
+         'urzadzenia' => 'Urządzenia i logowania', 'uslugi' => 'Usługi',
+         'sso' => 'Logowanie jednokrotne'];   // urzadzenia: modules/account_security; sso: modules/sso_logto
 if ($has_ika) $tabs['ika'] = 'Kod IKA';
 $tabs['rejestr'] = 'Moje dane (RODO)';
 $tabs['opanelu'] = 'Pomoc i informacje';
@@ -1311,6 +1327,9 @@ $sec_head = function (string $k) use ($sec_heads): void {
   </div>
 </section>
 
+<!-- ═══════════ LOGOWANIE JEDNOKROTNE (Logto + chmura plików) ═══════════ -->
+<?php include dirname(__DIR__) . '/modules/sso_logto/view/userSection.php'; ?>
+
 <!-- ═══════════ MOJE DANE (RODO) ═══════════ -->
 <section id="rejestr" class="ma-sec" aria-labelledby="rejestr-h" x-show="tab === 'rejestr'" x-cloak>
   <?php $sec_title('rejestr', 'Moje dane (RODO)', 'Co dzieje się z Twoimi danymi osobowymi, kto ma upoważnienie do ich przetwarzania i jakie czynności wykonano na Twojej umowie.',
@@ -1425,6 +1444,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
       <li><i class="bi bi-1-circle-fill" aria-hidden="true"></i><span>Twoje konto i <strong>numer UID</strong> powstają automatycznie w chwili <strong>zawarcia umowy</strong> — UID jest stały i niezmienny.</span></li>
       <li><i class="bi bi-2-circle-fill" aria-hidden="true"></i><span><strong>Login do panelu</strong> (identyfikator sieciowy) może różnić się od <strong>loginu Microsoft 365</strong> — oba widzisz w <a href="#podstawowe" @click.prevent="go('podstawowe')">danych konta</a>.</span></li>
       <li><i class="bi bi-3-circle-fill" aria-hidden="true"></i><span>Zmiana hasła <strong>synchronizuje się</strong> jednocześnie z panelem SZO i Microsoft 365 / Entra ID.</span></li>
+      <li><i class="bi bi-4-circle-fill" aria-hidden="true"></i><span><strong>Logowanie jednokrotne</strong> ma własne hasło, to samo w chmurze plików. <strong>Hasło do poczty jest odrębne.</strong> Szczegóły w sekcji <a href="#sso" @click.prevent="go('sso')">Logowanie jednokrotne</a>.</span></li>
     </ul>
   </div>
 
@@ -1452,6 +1472,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
     ['Synchronizacja kont',  'Wysyłka zmian do systemów zewnętrznych',       'bi-arrow-repeat', APP_URL . '/tozsamosc/sync.php'],
     ['Katalog LDAP',         'Połączenie i wpisy w katalogu organizacji',   'bi-diagram-2',    APP_URL . '/tozsamosc/ldap.php'],
     ['SAML / SSO',           'Federacja tożsamości (IdP)',                   'bi-boxes',        APP_URL . '/tozsamosc/saml.php'],
+    ['Logowanie jednokrotne i chmura', 'Logto, chmura Nextcloud/ownCloud, webhook i SMS dla Logto', 'bi-key', rtrim(APP_URL, '/') . '/ssoadmin'],
     ['Ustawienia logowania', 'Metody logowania, polityki',                   'bi-sliders',      APP_URL . '/tozsamosc/ustawienia.php'],
     ['Macierz dostępu EZD',  'Kto widzi co w Wirtualnym biurku',             'bi-shield-check', APP_URL . '/tozsamosc/ezd_macierz.php'],
     ['Rejestr audytu',       'Zdarzenia logowania i zmian kont',             'bi-journal-text', APP_URL . '/tozsamosc/audit.php'],

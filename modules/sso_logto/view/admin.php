@@ -1,0 +1,227 @@
+<?php
+/**
+ * modules/sso_logto/view/admin.php — ustawienia logowania jednokrotnego (Logto) i chmury plików (administrator).
+ * Zmienne: $flash, $test, $deliveries, $jobs, $cfg.
+ */
+$PAGE_TITLE = 'Logowanie jednokrotne i chmura plików';
+include dirname(__DIR__, 3) . '/includes/header.php';
+
+require_once dirname(__DIR__, 3) . '/includes/sms.php';
+$smsOn      = function_exists('sms_channel_ready') && sms_channel_ready();
+$logtoOk    = $cfg['m2m_id'] !== '' && $cfg['has_secret'];
+$cloudOk    = $cfg['cloud_url'] !== '' && $cfg['cloud_user'] !== '' && $cfg['has_cloud_pass'];
+$base       = rtrim(APP_URL, '/');
+$logtoHost  = rtrim($cfg['logto_url'], '/');
+$pill = fn(bool $ok, string $yes, string $no) => '<span class="sso-b ' . ($ok ? 'sso-b--ok' : 'sso-b--off') . '">' . h($ok ? $yes : $no) . '</span>';
+$copyField = function (string $id, string $label, string $value) {
+    return '<label class="form-label small fw-semibold mb-1" for="' . h($id) . '">' . h($label) . '</label>'
+         . '<div class="input-group input-group-sm"><input type="text" class="form-control font-monospace" id="' . h($id) . '" value="' . h($value) . '" readonly>'
+         . '<button type="button" class="btn btn-outline-secondary" data-copy="' . h($id) . '">Kopiuj<span class="visually-hidden"> ' . h($label) . '</span></button></div>';
+};
+?>
+<style>
+  .sso-b { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .sso-b--ok  { background: #dcfae6; color: #085d3a; }
+  .sso-b--off { background: #f2f4f7; color: #344054; }
+  .sso-steps li { margin-bottom: .25rem; }
+  .sso-wrap :focus-visible { outline: 3px solid #1d2939; outline-offset: 2px; }
+</style>
+
+<div class="sso-wrap">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <h1 class="h4 mb-0"><i class="bi bi-key" aria-hidden="true"></i> Logowanie jednokrotne i chmura plików</h1>
+  <a href="<?= h($base) ?>/tozsamosc/index.php#administracja" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-arrow-left" aria-hidden="true"></i> Tożsamość › Administracja</a>
+</div>
+
+<p class="text-body-secondary small">Jedno konto i jedno hasło do aplikacji organizacji (Logto pod <?= h($logtoHost) ?>). Konto w chmurze plików ma zawsze to samo hasło co Logto — SZO ustawia je w obu miejscach naraz. Hasło do poczty jest odrębne.</p>
+
+<?php if ($flash): ?>
+  <div class="alert alert-<?= h($flash['type']) ?> small" role="<?= $flash['type'] === 'success' ? 'status' : 'alert' ?>"><?= h($flash['msg']) ?></div>
+<?php endif; ?>
+<?php if ($test): ?>
+  <div class="alert alert-<?= $test['ok'] ? 'success' : 'danger' ?> small" role="status"><strong>Test: <?= h($test['what']) ?></strong><br><?= implode('<br>', array_map('h', $test['lines'])) ?></div>
+<?php endif; ?>
+
+<div class="row g-2 mb-4" aria-label="Stan konfiguracji">
+  <div class="col-sm-6 col-lg"><div class="border rounded p-2 bg-white h-100"><div class="small text-body-secondary">Logto (zakładanie kont)</div><?= $pill($logtoOk, 'skonfigurowane', 'brak danych M2M') ?></div></div>
+  <div class="col-sm-6 col-lg"><div class="border rounded p-2 bg-white h-100"><div class="small text-body-secondary">Webhook Logto → SZO</div><?= $pill($cfg['has_webhook'], 'klucz zapisany', 'brak klucza') ?></div></div>
+  <div class="col-sm-6 col-lg"><div class="border rounded p-2 bg-white h-100"><div class="small text-body-secondary">SMS z Logto przez SZO</div><?= $pill($smsOn, 'dostawca SMS gotowy', 'brak dostawcy SMS') ?></div></div>
+  <div class="col-sm-6 col-lg"><div class="border rounded p-2 bg-white h-100"><div class="small text-body-secondary">Chmura (<?= h(SsoConfig::CLOUD_KINDS[$cfg['cloud_kind']]) ?>)</div><?= $pill($cloudOk, 'skonfigurowana', 'nieskonfigurowana') ?></div></div>
+  <div class="col-sm-6 col-lg"><div class="border rounded p-2 bg-white h-100"><div class="small text-body-secondary">Pliki z OneDrive</div><?= $pill($cfg['graph'] && $cloudOk, 'gotowe', $cfg['graph'] ? 'brak chmury' : 'brak Microsoft 365') ?></div></div>
+</div>
+
+<form method="post" action="<?= h(route('sso.settings')) ?>" id="ustawienia" autocomplete="off">
+  <?= Router::csrfField() ?>
+
+  <section class="card mb-4" aria-labelledby="ssoLogtoH">
+    <div class="card-header"><h2 id="ssoLogtoH" class="h6 mb-0"><i class="bi bi-person-badge" aria-hidden="true"></i> Logto — zakładanie kont z SZO</h2></div>
+    <div class="card-body row g-3">
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold" for="ssoUrl">Adres Logto</label>
+        <input type="url" class="form-control form-control-sm" id="ssoUrl" name="logto_url" value="<?= h($cfg['logto_url']) ?>" placeholder="<?= h(SsoConfig::DEFAULT_LOGTO_URL) ?>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold" for="ssoM2m">App ID aplikacji Machine-to-machine</label>
+        <input type="text" class="form-control form-control-sm font-monospace" id="ssoM2m" name="logto_m2m_id" value="<?= h($cfg['m2m_id']) ?>">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold" for="ssoSecret">App secret</label>
+        <input type="password" class="form-control form-control-sm" id="ssoSecret" name="logto_m2m_secret" value="" autocomplete="new-password" aria-describedby="ssoSecretH">
+        <div class="form-text" id="ssoSecretH"><?= $cfg['has_secret'] ? 'Zapisany (zaszyfrowany). Zostaw puste, żeby nie zmieniać.' : 'Nie ustawiono.' ?></div>
+      </div>
+      <div class="col-md-6 d-flex align-items-end">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="self_enabled" value="1" id="ssoSelf" <?= $cfg['self'] ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ssoSelf">Użytkownik sam zakłada konto w Tożsamości (przycisk „Utwórz konto”)</label>
+        </div>
+      </div>
+      <details class="col-12 small">
+        <summary>Jak założyć aplikację Machine-to-machine w Logto</summary>
+        <ol class="sso-steps mt-2">
+          <li>Konsola administratora Logto → <strong>Applications</strong> → <strong>Create application</strong> → <strong>Machine-to-machine</strong>, nazwa „SZO”.</li>
+          <li>W kroku ról przypisz rolę <strong>Logto Management API access</strong> (bez niej Logto odmówi zakładania kont).</li>
+          <li>Skopiuj <strong>App ID</strong> i <strong>App secret</strong> do pól powyżej i zapisz. Potem „Testuj Logto”.</li>
+          <li>W <strong>Sign-in experience</strong> włącz logowanie <strong>adresem e-mail lub nazwą użytkownika</strong> z hasłem — SZO zakłada konta z oboma.</li>
+        </ol>
+      </details>
+    </div>
+  </section>
+
+  <section class="card mb-4" aria-labelledby="ssoHookH">
+    <div class="card-header"><h2 id="ssoHookH" class="h6 mb-0"><i class="bi bi-broadcast" aria-hidden="true"></i> Webhook Logto → SZO</h2></div>
+    <div class="card-body row g-3">
+      <div class="col-md-7"><?= $copyField('ssoHookUrl', 'Endpoint URL (wklej w Logto)', SsoConfig::webhookUrl()) ?></div>
+      <div class="col-md-5">
+        <label class="form-label small fw-semibold mb-1" for="ssoHookKey">Signing key z Logto</label>
+        <input type="password" class="form-control form-control-sm" id="ssoHookKey" name="webhook_key" value="" autocomplete="new-password" aria-describedby="ssoHookKeyH">
+        <div class="form-text" id="ssoHookKeyH"><?= $cfg['has_webhook'] ? 'Zapisany (zaszyfrowany). Zostaw puste, żeby nie zmieniać.' : 'Bez klucza SZO odrzuca webhook (503).' ?></div>
+      </div>
+      <details class="col-12 small">
+        <summary>Jak dodać webhook w Logto</summary>
+        <ol class="sso-steps mt-2">
+          <li>Konsola Logto → <strong>Developer</strong> → <strong>Webhooks</strong> → <strong>Create webhook</strong>, nazwa „SZO”, Endpoint URL jak wyżej.</li>
+          <li>Zdarzenia: <code>PostRegister</code>, <code>PostSignIn</code>, <code>PostResetPassword</code>, <code>User.Created</code>, <code>User.Data.Updated</code>, <code>User.Deleted</code>.</li>
+          <li>Po utworzeniu skopiuj <strong>Signing key</strong> (sekcja „Secure webhook”) do pola obok i zapisz. „Send test payload” w Logto powinien dać odpowiedź 200.</li>
+        </ol>
+        <p class="mb-0">Co robi SZO: dowiązuje konta założone poza SZO (po adresie e-mail), zapisuje datę ostatniego logowania, odnotowuje zmianę hasła w Logto (chmura ma wtedy stare hasło) i odpina usunięte konta.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="card mb-4" aria-labelledby="ssoSmsH">
+    <div class="card-header"><h2 id="ssoSmsH" class="h6 mb-0"><i class="bi bi-phone" aria-hidden="true"></i> SMS z Logto przez bramkę SMS SZO (łącznik „HTTP SMS”)</h2></div>
+    <div class="card-body row g-3">
+      <div class="col-md-7"><?= $copyField('ssoSmsUrl', 'Endpoint (pole „Endpoint” w Logto)', SsoConfig::smsUrl()) ?></div>
+      <div class="col-md-5">
+        <label class="form-label small fw-semibold mb-1" for="ssoSmsPrefix">Początek SMS-a</label>
+        <input type="text" class="form-control form-control-sm" id="ssoSmsPrefix" name="sms_prefix" value="<?= h($cfg['sms_prefix']) ?>" placeholder="FEER" maxlength="20" aria-describedby="ssoSmsPrefixH">
+        <div class="form-text" id="ssoSmsPrefixH">Np. „FEER: kod logowania 123456…”. Bez polskich liter.</div>
+      </div>
+      <div class="col-12 small">
+        <ol class="sso-steps mb-2">
+          <li>W SZO: <a href="<?= h($base) ?>/admin/api_manage.php?tab=api">Klucze API</a> → nowy klucz „Logto SMS” z zakresem <code>logto:sms</code>. Skopiuj klucz (widać go raz).</li>
+          <li>W Logto: <strong>Connectors</strong> → <strong>Email and SMS connectors</strong> → <strong>SMS connector</strong> → <strong>HTTP SMS</strong>.</li>
+          <li><strong>Endpoint</strong>: adres powyżej. <strong>Authorization Header</strong>: <code>Bearer </code> i klucz API (np. <code>Bearer szo_…</code>).</li>
+          <li>„Test connection” na swój numer. SMS wychodzi przez dostawcę z Ustawień SMS SZO (także w nocy — to kody jednorazowe).</li>
+        </ol>
+        <p class="mb-0 text-body-secondary">Limity: 5 SMS-ów na numer na godzinę, 60 na godzinę i 300 na dobę łącznie. SZO wysyła tylko kody (4–8 cyfr) w stałym szablonie, nie dowolną treść.<?= $smsOn ? '' : ' <strong>Uwaga: w SZO nie ma skonfigurowanego dostawcy SMS (Administracja › Ustawienia SMS).</strong>' ?></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card mb-4" id="chmura" aria-labelledby="ssoCloudH">
+    <div class="card-header"><h2 id="ssoCloudH" class="h6 mb-0"><i class="bi bi-cloud" aria-hidden="true"></i> Chmura plików — Nextcloud / ownCloud na osobnym serwerze</h2></div>
+    <div class="card-body row g-3">
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold" for="ssoKind">Rodzaj</label>
+        <select class="form-select form-select-sm" id="ssoKind" name="cloud_kind">
+          <?php foreach (SsoConfig::CLOUD_KINDS as $k => $l): ?><option value="<?= h($k) ?>" <?= $cfg['cloud_kind'] === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-9">
+        <label class="form-label small fw-semibold" for="ssoCloudUrl">Adres chmury</label>
+        <input type="url" class="form-control form-control-sm" id="ssoCloudUrl" name="cloud_url" value="<?= h($cfg['cloud_url']) ?>" placeholder="https://chmura.feer.org.pl">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold" for="ssoCloudUser">Login administratora chmury</label>
+        <input type="text" class="form-control form-control-sm" id="ssoCloudUser" name="cloud_user" value="<?= h($cfg['cloud_user']) ?>">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold" for="ssoCloudPass">Hasło aplikacji administratora</label>
+        <input type="password" class="form-control form-control-sm" id="ssoCloudPass" name="cloud_pass" value="" autocomplete="new-password" aria-describedby="ssoCloudPassH">
+        <div class="form-text" id="ssoCloudPassH"><?= $cfg['has_cloud_pass'] ? 'Zapisane (zaszyfrowane). Zostaw puste, żeby nie zmieniać.' : 'Ustawienia → Bezpieczeństwo → „Utwórz nowe hasło aplikacji”.' ?></div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small fw-semibold" for="ssoGroup">Grupa</label>
+        <input type="text" class="form-control form-control-sm" id="ssoGroup" name="cloud_group" value="<?= h($cfg['cloud_group']) ?>" placeholder="np. FEER">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small fw-semibold" for="ssoQuota">Miejsce</label>
+        <input type="text" class="form-control form-control-sm" id="ssoQuota" name="cloud_quota" value="<?= h($cfg['cloud_quota']) ?>" placeholder="np. 5 GB">
+      </div>
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="cloud_self" value="1" id="ssoCloudSelf" <?= $cfg['cloud_self'] ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ssoCloudSelf">Gdy użytkownik sam zakłada konto w Tożsamości, od razu załóż mu też konto w chmurze (to samo hasło)</label>
+        </div>
+      </div>
+      <div class="col-12 small">
+        <p class="mb-1"><strong>Hasło w chmurze = hasło w Logto.</strong> SZO ustawia je w obu miejscach naraz: przy zakładaniu konta, przy nowym haśle od administratora i gdy użytkownik zmienia hasło w Tożsamości. Login w chmurze to nazwa użytkownika z Logto.</p>
+        <p class="mb-1">To inna chmura niż magazyn plików TI (Admin › Magazyn plików / ownCloud) — tamte ustawienia zostają bez zmian.</p>
+        <details>
+          <summary>Logowanie do chmury przyciskiem „Zaloguj przez Logto” (zalecane)</summary>
+          <ol class="sso-steps mt-2">
+            <li>W Logto: Applications → Create → <strong>Traditional web</strong>, nazwa „Chmura”. Redirect URI: <code><?= h(($cfg['cloud_url'] ?: 'https://chmura…') . '/apps/user_oidc/code') ?></code> (z <code>/index.php</code> przed <code>/apps</code>, jeśli chmura nie ma ładnych adresów).</li>
+            <li>W Nextcloud: aplikacja <strong>OpenID Connect user backend</strong> (user_oidc) → dodaj dostawcę: Discovery <code><?= h($logtoHost) ?>/oidc/.well-known/openid-configuration</code>, Client ID i secret z Logto, scope <code>openid email profile</code>.</li>
+            <li>W ustawieniach dostawcy wyłącz „Use unique user ID” i ustaw mapowanie identyfikatora użytkownika na <code>username</code> — wtedy konta założone przez SZO łączą się z logowaniem przez Logto. W ownCloud odpowiednikiem jest aplikacja OpenID Connect.</li>
+          </ol>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <button type="submit" class="btn btn-primary btn-sm mb-2"><i class="bi bi-save" aria-hidden="true"></i> Zapisz ustawienia</button>
+</form>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+  <form method="post" action="<?= h(route('sso.test')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug" aria-hidden="true"></i> Testuj Logto</button></form>
+  <form method="post" action="<?= h(route('sso.testCloud')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cloud-check" aria-hidden="true"></i> Testuj chmurę</button></form>
+</div>
+
+<section class="card mb-4" id="pliki" aria-labelledby="ssoFilesH">
+  <div class="card-header"><h2 id="ssoFilesH" class="h6 mb-0"><i class="bi bi-files" aria-hidden="true"></i> Pliki z OneDrive → chmura</h2></div>
+  <div class="card-body small">
+    <p class="mb-2">Kopiowanie zlecasz w <a href="<?= h($base) ?>/migracjaadmin#pliki">migratorze kont</a> (wiele osób naraz) albo w Zarządzaniu dostępem przy umowie. Pliki trafiają do folderu <code><?= h(CloudFilesCopy::TARGET) ?></code> w chmurze, w tle co 5 minut. Aplikacja SZO w Microsoft 365 potrzebuje uprawnienia aplikacji <code>Files.Read.All</code> ze zgodą administratora.</p>
+    <?php $jobsBack = '/ssoadmin'; include __DIR__ . '/_jobs.php'; ?>
+  </div>
+</section>
+
+<section class="card mb-4" aria-labelledby="ssoDelH">
+  <div class="card-header"><h2 id="ssoDelH" class="h6 mb-0"><i class="bi bi-journal-text" aria-hidden="true"></i> Ostatnie zdarzenia z Logto (webhook)</h2></div>
+  <div class="card-body small">
+    <?php if (!$deliveries): ?>
+      <p class="mb-0 text-body-secondary">Jeszcze nic nie przyszło.</p>
+    <?php else: ?>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th scope="col">Kiedy</th><th scope="col">Zdarzenie</th><th scope="col">Osoba</th><th scope="col">Wynik</th></tr></thead>
+        <tbody>
+        <?php foreach ($deliveries as $d): ?>
+          <tr><td><?= h(date('d.m.Y H:i', strtotime((string)$d['created_at']))) ?></td><td><code><?= h($d['event']) ?></code></td><td><?= h($d['email'] ?: '—') ?></td><td><?= h($d['note']) ?></td></tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table></div>
+    <?php endif; ?>
+  </div>
+</section>
+</div>
+
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var el = document.getElementById(b.getAttribute('data-copy'));
+    navigator.clipboard.writeText(el.value).then(function () { var t = b.firstChild.textContent; b.firstChild.textContent = 'Skopiowano'; setTimeout(function () { b.firstChild.textContent = t; }, 1500); });
+  });
+});
+</script>
+
+<?php include dirname(__DIR__, 3) . '/includes/footer.php'; ?>

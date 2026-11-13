@@ -287,4 +287,7 @@ include __DIR__ . '/_head.php';
 <!-- ── Skrzynka pocztowa (nowy serwer poczty) ── -->
 <?php $DH_BOX_SKIN = 'tz'; include dirname(__DIR__) . '/modules/dhosting_migrator/view/contractMailbox.php'; ?>
 
+<!-- ── Logowanie jednokrotne (Logto) i chmura plików (modules/sso_logto) ── -->
+<?php include dirname(__DIR__) . '/modules/sso_logto/view/contractCard.php'; ?>
+
 <?php include __DIR__ . '/_foot.php';

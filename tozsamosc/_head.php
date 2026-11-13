@@ -66,6 +66,7 @@ $__nav_me = [
     [null,             'Metody weryfikacji',  'bi-shield-check',       APP_URL . '/tozsamosc/mfa.php', $TZ_ACTIVE === 'mfa'],
     ['urzadzenia',     'Urządzenia i logowania', 'bi-laptop',          null, false],
     ['uslugi',         'Usługi',              'bi-grid',               null, false],
+    ['sso',            'Logowanie jednokrotne', 'bi-key',              null, false],   // modules/sso_logto
 ];
 if ($__has_ika) $__nav_me[] = ['ika', 'Kod IKA', 'bi-123', null, false];
 $__nav_me[] = ['rejestr', 'Moje dane (RODO)',   'bi-file-earmark-lock', null, false];

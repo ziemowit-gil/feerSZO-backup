@@ -46,6 +46,7 @@ final class SmsSenders
         'ika_code'               => [self::G_CODES, 'Kod IKA', 'Wysłanie kodu IKA z panelu administratora.'],
         'inpost_shipment'        => [self::G_CODES, 'Numer nadania przesyłki InPost', 'Formularz publiczny /extforms/inpostNadanie: SMS do nadawcy z numerem nadania w Paczkomacie (wychodzi też w nocy).'],
         'audytor_login_code'     => [self::G_CODES, 'Kod logowania — Tajemniczy Klient', 'Aplikacja zewnętrzna audytor.feer.org.pl (api/v1/audytor_sms.php): kod logowania SMS dla użytkowników zewnętrznych.'],
+        'logto_code'             => [self::G_CODES, 'Kod z logowania jednokrotnego (Logto)', 'Logto, łącznik „HTTP SMS” (api/v1/logto_sms.php): kod logowania, rejestracji, zmiany hasła i weryfikacji.'],
 
         'access_data'            => [self::G_ACCESS, 'Login i hasło do konta', 'Panel kursanta i rodzica, konto MS 365, ownCloud, VLab, reset hasła panelu, skrzynka dhosting (migrator kont).'],
         'account_activation'     => [self::G_ACCESS, 'Aktywacja konta — przypomnienia automatyczne', 'Codzienne przypomnienie o braku pierwszego logowania (cron).'],
