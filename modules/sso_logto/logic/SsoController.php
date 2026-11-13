@@ -243,8 +243,8 @@ final class SsoController
     }
 
     /**
-     * POST /ssoadmin/zespoly — zespoły z modułu Zadań jako grupy w chmurze (CloudTeamsSync; polecenie 2026-11-13 „zespoły też pobierz z SZO”).
-     * do=preview — tylko podgląd. Ten sam przebieg robi co godzinę agent CRON sso_cloud_teams.
+     * POST /ssoadmin/zespoly — zespoły i obszary robocze z modułu Zadań jako grupy w chmurze (CloudTeamsSync; polecenia 2026-11-13
+     * „zespoły też pobierz z SZO” i 2026-11-14 „dodaj obszary robocze”). do=preview — tylko podgląd. Ten sam przebieg robi co 2 min agent CRON sso_cloud_teams.
      */
     public function teamsSync(): ?string
     {

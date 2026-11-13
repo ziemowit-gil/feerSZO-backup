@@ -33,7 +33,7 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->post('/ssoadmin/loginy',       [SsoController::class, 'cloudRename'])->name('sso.cloudRename');   // loginy w chmurze z „_” → imie.nazwisko
     $r->post('/ssoadmin/nc-uid',       [SsoController::class, 'ncUidSync'])->name('sso.ncUid');            // login chmury w Logto (customData.nc_uid)
     $r->post('/ssoadmin/hasla',        [SsoController::class, 'passwordReset'])->name('sso.passwordReset'); // reset haseł w chmurze (NC) + logowaniu jednokrotnym
-    $r->post('/ssoadmin/zespoly',      [SsoController::class, 'teamsSync'])->name('sso.teamsSync');         // zespoły Zadań SZO → grupy w chmurze
+    $r->post('/ssoadmin/zespoly',      [SsoController::class, 'teamsSync'])->name('sso.teamsSync');         // zespoły i obszary robocze Zadań → grupy w chmurze
 });
 
 $r->group(['auth'], function (Router $r) {

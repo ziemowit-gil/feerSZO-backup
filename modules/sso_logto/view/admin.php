@@ -335,9 +335,9 @@ $copyField = function (string $id, string $label, string $value) {
   </div>
 </section>
 
-<?php $tmRes = SsoController::takeResult('zespoly'); $tmTeams = CloudTeamsSync::teams(); ?>
+<?php $tmRes = SsoController::takeResult('zespoly'); $tmTeams = CloudTeamsSync::teams(); $tmWs = CloudTeamsSync::workspaces(); $tmKind = ['zespół' => 'Zespół', 'obszar' => 'Obszar']; ?>
 <section class="card mb-4" id="zespoly" aria-labelledby="ssoTeamsH">
-  <div class="card-header"><h2 id="ssoTeamsH" class="h6 mb-0"><i class="bi bi-people" aria-hidden="true"></i> Zespoły z SZO jako grupy w chmurze</h2></div>
+  <div class="card-header"><h2 id="ssoTeamsH" class="h6 mb-0"><i class="bi bi-people" aria-hidden="true"></i> Zespoły i obszary robocze z SZO jako grupy w chmurze</h2></div>
   <div class="card-body small">
     <?php if ($tmRes !== null): $tmDry = !empty($tmRes['dry']); ?>
       <div class="alert alert-<?= $tmRes['error'] !== '' ? 'danger' : ($tmDry ? 'info' : 'success') ?>" role="status" tabindex="-1" id="ssoTeamsResult">
@@ -345,12 +345,12 @@ $copyField = function (string $id, string $label, string $value) {
           <?= h(CloudTeamsSync::summary($tmRes)) ?></p>
         <?php if ($tmRes['teams']): ?>
         <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
-          <caption class="visually-hidden">Wynik synchronizacji zespołów z grupami w chmurze</caption>
-          <thead><tr><th scope="col">Zespół</th><th scope="col">Grupa w chmurze</th><th scope="col"><?= $tmDry ? 'Do dopisania' : 'Dopisani' ?></th><th scope="col"><?= $tmDry ? 'Do wypisania' : 'Wypisani' ?></th><th scope="col">Bez konta w chmurze</th></tr></thead>
+          <caption class="visually-hidden">Wynik synchronizacji zespołów i obszarów roboczych z grupami w chmurze</caption>
+          <thead><tr><th scope="col">Zespół albo obszar</th><th scope="col">Grupa w chmurze</th><th scope="col"><?= $tmDry ? 'Do dopisania' : 'Dopisani' ?></th><th scope="col"><?= $tmDry ? 'Do wypisania' : 'Wypisani' ?></th><th scope="col">Bez konta w chmurze</th></tr></thead>
           <tbody>
           <?php foreach ($tmRes['teams'] as $r): ?>
             <tr>
-              <td><?= h($r['name']) ?><?= !$r['active'] ? ' <span class="badge bg-secondary">wyłączony</span>' : '' ?></td>
+              <td><span class="text-body-secondary"><?= h($tmKind[$r['kind'] ?? 'zespół'] ?? '') ?>:</span> <?= h($r['name']) ?><?= !$r['active'] ? ' <span class="badge bg-secondary">wyłączony</span>' : '' ?></td>
               <td><code><?= h($r['gid']) ?></code><br><span class="text-body-secondary"><?= h($r['group']) ?><?= $r['renamed'] ? ', nazwa poprawiona' : '' ?></span>
                 <?php if ($r['error'] !== ''): ?><br><span class="text-danger-emphasis"><?= h($r['error']) ?></span><?php endif; ?></td>
               <td><?= $r['added'] ? h(implode(', ', $r['added'])) : '—' ?></td>
@@ -363,16 +363,19 @@ $copyField = function (string $id, string $label, string $value) {
         <?php endif; ?>
       </div>
     <?php endif; ?>
-    <p class="mb-2">Każdy aktywny zespół z modułu Zadań ma w chmurze grupę <code><?= h(CloudTeamsSync::PREFIX) ?>{numer}</code> z nazwą zespołu.
-      W grupie są członkowie zespołu, którzy mają konto w chmurze. Dzięki temu w chmurze udostępnisz plik albo folder całemu zespołowi naraz.</p>
-    <p class="mb-2">Grupa wyłączonego albo usuniętego zespołu zostaje, ale bez członków, więc udostępnienia nie znikają.
-      Inne grupy w chmurze zostają bez zmian. Synchronizacja chodzi sama co godzinę, a przycisk uruchamia ją od razu.</p>
-    <p class="mb-2">Zespołów w SZO: <strong><?= count($tmTeams) ?></strong>, w tym aktywnych: <strong><?= count(array_filter($tmTeams, fn($t) => $t['active'])) ?></strong>.</p>
+    <p class="mb-2">Każdy aktywny zespół z modułu Zadań ma w chmurze grupę <code><?= h(CloudTeamsSync::PREFIX) ?>{numer}</code> z nazwą zespołu,
+      a każdy aktywny obszar roboczy grupę <code><?= h(CloudTeamsSync::WS_PREFIX) ?>{numer}</code> o nazwie „Obszar: {nazwa}”.
+      W grupie obszaru są osoby dopisane do obszaru i członkowie zespołów przypisanych do obszaru. Do grup trafiają tylko osoby z kontem w chmurze.
+      Dzięki temu w chmurze udostępnisz plik albo folder całemu zespołowi albo obszarowi naraz.</p>
+    <p class="mb-2">Grupa wyłączonego albo usuniętego zespołu czy obszaru zostaje, ale bez członków, więc udostępnienia nie znikają.
+      Inne grupy w chmurze zostają bez zmian. Synchronizacja chodzi sama co 2 minuty, a przycisk uruchamia ją od razu.</p>
+    <p class="mb-2">Zespołów w SZO: <strong><?= count($tmTeams) ?></strong>, w tym aktywnych: <strong><?= count(array_filter($tmTeams, fn($t) => $t['active'])) ?></strong>.
+      Obszarów roboczych: <strong><?= count($tmWs) ?></strong>, w tym aktywnych: <strong><?= count(array_filter($tmWs, fn($t) => $t['active'])) ?></strong>.</p>
     <div class="d-flex flex-wrap gap-2">
       <form method="post" action="<?= h(route('sso.teamsSync')) ?>" class="m-0"><?= Router::csrfField() ?><input type="hidden" name="do" value="preview">
         <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-eye" aria-hidden="true"></i> Podgląd</button></form>
       <form method="post" action="<?= h(route('sso.teamsSync')) ?>" class="m-0"><?= Router::csrfField() ?><input type="hidden" name="do" value="apply">
-        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Synchronizuj zespoły</button></form>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Synchronizuj zespoły i obszary</button></form>
     </div>
   </div>
 </section>
