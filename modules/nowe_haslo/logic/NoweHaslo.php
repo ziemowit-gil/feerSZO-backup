@@ -158,9 +158,13 @@ final class NoweHaslo
             try {
                 $r = SsoAccounts::setPassword($email, $pw, $by);   // Logto, potem chmura tym samym hasłem; wyjątek = nic nie zmieniono
             } catch (\Throwable $e) {
-                error_log('[nowehaslo] Logto ' . $email . ': ' . $e->getMessage());
                 $m = $e->getMessage();
-                throw new RuntimeException(str_contains($m, 'odrzuciło hasło') ? $m : 'Logowanie jednokrotne nie przyjęło zmiany. Spróbuj za kilka minut albo napisz do Helpdesku IT.');
+                error_log('[nowehaslo] Logto ' . $email . ': ' . $m);
+                if (str_contains($m, 'odrzuciło hasło')) throw new RuntimeException($m);
+                // Przyczyna dla administratora (2026-11-14: „nie przyjęło zmiany” bez wskazówki, a log serwera nie zawsze jest pod ręką)
+                $admin = function_exists('is_admin') && is_admin();
+                throw new RuntimeException('Logowanie jednokrotne nie przyjęło zmiany. Spróbuj za kilka minut albo napisz do Helpdesku IT.'
+                    . ($admin ? ' Szczegóły dla administratora: ' . mb_substr($m, 0, 300) : ''));
             }
             $c = (string)($r['cloud'] ?? '');
             $cloudOk = in_array($c, ['linked', 'synced'], true);
