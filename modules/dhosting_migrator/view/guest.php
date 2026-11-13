@@ -41,18 +41,20 @@ $order = array_keys($path);
     </div>
   </div>
 
+  <?php if ($flash): ?>
+    <div class="dm-msg dm-msg--<?= h($flash['type']) ?>" role="<?= $flash['type'] === 'success' ? 'status' : 'alert' ?>">
+      <i class="bi <?= $flash['type'] === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle' ?>" aria-hidden="true"></i><div><?= h($flash['msg']) ?></div>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($step === 'ident') include __DIR__ . '/_why.php'; // pierwszy krok: na początku strony (polecenie 2026-11-13) ?>
+
   <ol class="dm-path" aria-label="Etapy">
     <?php foreach ($path as $k => $label):
       $done = array_search($k, $order, true) < array_search($cur, $order, true); ?>
       <li<?= $k === $cur ? ' aria-current="step"' : '' ?><?= $done ? ' class="done"' : '' ?>><?= array_search($k, $order, true) + 1 ?>. <?= h($label) ?><?= $done ? '<span class="visually-hidden"> (zrobione)</span>' : '' ?></li>
     <?php endforeach; ?>
   </ol>
-
-  <?php if ($flash): ?>
-    <div class="dm-msg dm-msg--<?= h($flash['type']) ?>" role="<?= $flash['type'] === 'success' ? 'status' : 'alert' ?>">
-      <i class="bi <?= $flash['type'] === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle' ?>" aria-hidden="true"></i><div><?= h($flash['msg']) ?></div>
-    </div>
-  <?php endif; ?>
 
   <?php if ($step === 'ident'): ?>
   <section class="dm-sec" aria-labelledby="hId">
@@ -121,7 +123,7 @@ $order = array_keys($path);
   </section>
   <?php endif; ?>
 
-  <?php include __DIR__ . '/_why.php'; ?>
+  <?php if ($step !== 'ident') include __DIR__ . '/_why.php'; // dalsze kroki: na dole, żeby pole kodu SMS było od razu widać ?>
 </main>
 
 <script>

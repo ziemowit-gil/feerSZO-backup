@@ -84,6 +84,8 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
     </div>
   <?php endif; ?>
 
+  <?php include __DIR__ . '/_why.php'; // na początku strony (polecenie 2026-11-13), pod komunikatem po akcji ?>
+
   <div class="mt-imp">
     <div class="mt-imp__item" style="--c:var(--m-blue)">
       <h2 class="mt-imp__ttl">Co się dzieje z pocztą?</h2>
@@ -264,8 +266,6 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
     </div>
   </section>
   <?php endif; ?>
-
-  <?php include __DIR__ . '/_why.php'; ?>
 
   <section class="dm-sec" aria-labelledby="hCfg">
     <h2 id="hCfg" class="mt-h2">Ustawienia <b>programu pocztowego</b></h2>
