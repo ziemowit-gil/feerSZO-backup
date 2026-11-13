@@ -886,6 +886,16 @@ return [
         },
     ],
 
+    // Strona usługi „Microsoft 365”: wyróżnienie „Wycofujemy się z Microsoft 365” nad dotychczasowym wstępem (polecenie 2026-11-14).
+    '2026-11_it_portal_ms365_off' => [
+        'desc' => 'Portal Usług IT, „Microsoft 365”: informacja o wycofaniu się z Microsoft 365 (data z sso_ms_off_date)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMs365OffSeed.php';
+            itPortalMs365OffApply(ITP_SZO_URL);
+        },
+    ],
+
     '2026-11_it_portal_poczta_kursanta_edu_off' => [
         'desc' => 'Portal Usług IT, „Poczta kursanta”: wyłączenie kont @edu.feer.org.pl 20.11.2026 i powód (ostatnie awarie Microsoft 365)',
         'run'  => static function () use ($ROOT): void {
