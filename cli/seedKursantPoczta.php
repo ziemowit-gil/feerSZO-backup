@@ -12,7 +12,11 @@
  *
  * Użycie:
  *   php cli/seedKursantPoczta.php status
- *   php cli/seedKursantPoczta.php create --haslo='<hasło panelu>' [--email=…] [--telefon=…] [--poczta-login=k.poczty] [--poczta-haslo='<hasło startowe>'] [--wyslij]
+ *   php cli/seedKursantPoczta.php create --haslo='<hasło panelu>' [--email=…] [--telefon=…] [--poczta-login=k.poczty] [--poczta-haslo='<hasło startowe>'] [--wyslij] [--kadra=<e-mail konta admin/editor>]
+ *
+ * --kadra — z terminala (bez sesji) wysyłka i zgłoszenie MIG-ST idą na konto wskazanej osoby z kadry: SMS z hasłem wychodzi wtedy
+ * także w ciszy nocnej (ręczna wysyłka kadry), a zgłaszającym w Helpdesku jest ta osoba. Bez --kadra w CLI: bez zgłoszenia,
+ * a w nocy bez SMS-a z hasłem. Z Admin › Seedery osobą jest zalogowany administrator.
  *   php cli/seedKursantPoczta.php delete
  *
  * create przy istniejącym kursancie aktualizuje e-mail i telefon; hasło panelu zmienia tylko podane --haslo
@@ -49,7 +53,7 @@ const SKP_GROUP  = 'TEST-POCZTA';
 
 $usage = "Użycie:\n"
        . "  php cli/seedKursantPoczta.php status\n"
-       . "  php cli/seedKursantPoczta.php create --haslo='<hasło panelu>' [--email=…] [--telefon=…] [--poczta-login=…] [--poczta-haslo='…'] [--wyslij]\n"
+       . "  php cli/seedKursantPoczta.php create --haslo='<hasło panelu>' [--email=…] [--telefon=…] [--poczta-login=…] [--poczta-haslo='…'] [--wyslij] [--kadra=<e-mail>]\n"
        . "  php cli/seedKursantPoczta.php delete\n";
 
 // Własny parser: getopt() przerywa na pierwszej nie-opcji (tu: komendzie), więc „create --haslo=…” by nie zadziałało.
@@ -111,6 +115,9 @@ switch ($cmd) {
                 'is_active' => 1, 'must_change_password' => 0]);
             echo "Utworzono kursanta „" . SKP_NAME . "” (nr {$cid}), login panelu: " . SKP_LOGIN . ".\n";
             if ($shown !== '') echo "Hasło panelu (losowe, pokazujemy je tylko teraz): {$shown}\n";
+            // Konto bez last_login: pierwsze logowanie idzie kodem SMS (ti_student_needs_reauth), potem kursant ustawia własne hasło.
+            echo "Logowanie kursanta: " . rtrim((string)APP_URL, '/') . "/karty30/ti/login.php — login " . SKP_LOGIN
+               . ", dowolne hasło; pierwsze logowanie kodem SMS na {$phone}, potem własne hasło.\n";
         }
 
         // Grupa testowa i aktywny zapis — kursant jest „aktualny” (XLSX loginów)
@@ -126,6 +133,14 @@ switch ($cmd) {
         $u = function_exists('current_user') ? current_user() : null;
         $by = 'Seeder testowego kursanta' . ($u ? ' (' . ($u['name'] ?? '') . ')' : '');
         $uid = (int)($u['id'] ?? 0);
+        if (($kEmail = $val('kadra')) !== '') {
+            $ku = db_one("SELECT id, name, role FROM users WHERE LOWER(email) = LOWER(?) AND is_active = 1", [$kEmail]);
+            if (!$ku || !in_array((string)$ku['role'], ['admin', 'editor'], true)) {
+                fwrite(STDERR, "--kadra: brak aktywnego konta admin/editor o adresie {$kEmail}.\n"); cli_exit(2);
+            }
+            $uid = (int)$ku['id'];
+            $by  = 'Seeder testowego kursanta (' . $ku['name'] . ')';
+        }
         $mLogin = $val('poczta-login');
         $mPass  = $val('poczta-haslo');
         try {
