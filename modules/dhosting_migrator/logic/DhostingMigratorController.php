@@ -283,7 +283,7 @@ final class DhostingMigratorController
         return Router::view(self::VIEW . 'self.php', [
             'st'        => DhostingMigrator::selfState($u),
             'flash'     => $this->take(self::K_FLASH),
-            'web'       => DhostingConfig::webmail(),
+            'web'       => DhostingConfig::webmailOrDefault(),
             'me'        => $u,
             'guest'     => $guest !== null && !current_user(),
             'phoneFlow' => (int)$u['id'] > 0 ? DhostingGuest::phoneFlow((int)$u['id']) : null,

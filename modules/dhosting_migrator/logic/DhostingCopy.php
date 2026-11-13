@@ -60,7 +60,7 @@ final class DhostingCopy
         $uid = (int)($job['user_id'] ?? 0);
         $user = $uid > 0 ? (db_one("SELECT name, email FROM users WHERE id=?", [$uid]) ?: []) : [];
         $name = trim((string)($user['name'] ?? ''));
-        $web = DhostingConfig::webmail();
+        $web = DhostingConfig::webmailOrDefault();
         $url = (defined('APP_URL') ? rtrim((string)APP_URL, '/') : '') . '/migracjapoczty';
         $list = self::failedFor($box, 5000);
         $nFail = count(array_filter($list, fn($r) => (int)$r['result'] === 0));

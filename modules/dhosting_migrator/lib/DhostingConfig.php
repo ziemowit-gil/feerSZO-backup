@@ -163,6 +163,16 @@ final class DhostingConfig
         return self::get('dhosting_webmail_url');
     }
 
+    /** Domyślne logowanie do nowej poczty, gdy w konfiguracji nie wpisano adresu (polecenie 2026-11-13: „logowanie dpoczta.pl”). */
+    public const DEFAULT_WEBMAIL = 'https://dpoczta.pl';
+
+    /** Adres logowania dla osób (strona migracji, SMS-y, e-mail po przeniesieniu): ustawienie albo dpoczta.pl. Formularz konfiguracji używa webmail(). */
+    public static function webmailOrDefault(): string
+    {
+        $w = self::webmail();
+        return $w !== '' ? $w : self::DEFAULT_WEBMAIL;
+    }
+
     /**
      * Hasło do nowej skrzynki: 14 znaków bez łatwych do pomylenia (0/O, 1/l/I), zawsze z wielką i małą literą,
      * cyfrą i znakiem specjalnym — polityka dhosting nie jest opisana w dokumentacji, przykład to „P@ssword34”.

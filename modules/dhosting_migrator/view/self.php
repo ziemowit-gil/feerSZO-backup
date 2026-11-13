@@ -118,10 +118,27 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
     <?php endif; ?>
   </div>
 
-  <?php if ($locked): ?>
-    <div class="dm-msg dm-msg--success" role="status" style="margin-top:1rem"><i class="bi bi-lock" aria-hidden="true"></i>
-      <div><strong>Twoja poczta jest już przeniesiona.</strong> Dalsze zmiany (np. nowe hasło albo ponowne kopiowanie) robi administrator —
-        <?php if ($hdUrl !== ''): ?>napisz w <a href="<?= h($hdUrl) ?>">swoim zgłoszeniu <?= h((string)$st['ticket']['number']) ?></a>.<?php else: ?>napisz do Helpdesku IT.<?php endif; ?></div></div>
+  <?php if ($locked):
+        // migracja zakończona (polecenie 2026-11-13): kto zakończył, hasło SMS-em, gdzie się logować
+        $mj  = $st['copy'] ?? null;
+        $reg = $st['registry'] ?? [];
+        $byAdmin = ($mj['via'] ?? 'admin') !== 'self';
+        $loginUrl = $web !== '' ? $web : DhostingConfig::DEFAULT_WEBMAIL;
+        $loginHost = (string)(parse_url($loginUrl, PHP_URL_HOST) ?: $loginUrl); ?>
+    <div class="dm-msg dm-msg--success" role="status" style="margin-top:1rem"><i class="bi bi-check2-circle" aria-hidden="true"></i>
+      <div><strong><?= $byAdmin ? 'Administrator zakończył migrację Twojej poczty.' : 'Migracja Twojej poczty jest zakończona.' ?></strong>
+        <?php if (!empty($mj['finished_at'])): ?><span>(<?= h(date('d.m.Y H:i', strtotime((string)$mj['finished_at']))) ?>)</span><?php endif; ?>
+        <ul style="margin:.4rem 0 0;padding-left:1.2rem">
+          <?php $inf = $st['info'] ?? []; $smsTo = ($inf['phoneMasked'] ?? '') !== '' ? (string)$inf['phoneMasked'] : (string)($reg['sms_to'] ?? ''); ?>
+          <?php if (($inf['active'] ?? null) === true): ?><li>Skrzynka jest aktywna.</li>
+          <?php elseif (($inf['active'] ?? null) === false): ?><li><strong>Skrzynka jest teraz zablokowana.</strong> Napisz do administratora.</li><?php endif; ?>
+          <li><?php if (!empty($reg['sms_at']) || $smsTo !== ''): ?>Hasło do nowej skrzynki przyszło SMS-em<?= $smsTo !== '' ? ' na numer ' . h($smsTo) : '' ?><?= !empty($reg['sms_at']) ? ' (' . h(date('d.m.Y H:i', strtotime((string)$reg['sms_at']))) . ')' : '' ?>.
+              <?php else: ?>Hasło do nowej skrzynki przyszło SMS-em albo przekazał je administrator.<?php endif; ?></li>
+          <li>Logowanie: <a href="<?= h($loginUrl) ?>" target="_blank" rel="noopener"><?= h($loginHost) ?><span class="visually-hidden"> (nowa karta)</span></a>
+              — login: <b><?= h((string)($st['mailbox'] ?? '')) ?></b>, hasło z SMS-a.</li>
+          <li>Nie masz hasła albo chcesz coś zmienić (nowe hasło, ponowne kopiowanie)? To robi administrator —
+              <?php if ($hdUrl !== ''): ?>napisz w <a href="<?= h($hdUrl) ?>">swoim zgłoszeniu <?= h((string)$st['ticket']['number']) ?></a>.<?php else: ?>napisz do Helpdesku IT.<?php endif; ?></li>
+        </ul></div></div>
   <?php elseif (!empty($st['migrated'])): ?>
     <div class="dm-msg dm-msg--info" role="status" style="margin-top:1rem"><i class="bi bi-shield-check" aria-hidden="true"></i>
       <div>To konto jest już zmigrowane. Jako administrator możesz nadal ustawić nowe hasło albo skopiować pocztę ponownie.</div></div>

@@ -325,7 +325,7 @@ final class DhostingMigrator
             'copy' => $box ? DhostingCopy::mainFor($box) : null, 'copyAvailable' => DhostingCopy::available(),
             'sync' => $box ? DhostingCopy::syncInfo($box) : null,
             'ticket' => $box ? DhostingHelpdesk::ticketFor($box) : null,
-            'needPhone' => false, 'migrated' => false, 'locked' => false,
+            'needPhone' => false, 'migrated' => false, 'locked' => false, 'info' => [],
         ];
         // Konto zmigrowane (kopia poczty zakończona) — dalsze zmiany tylko administrator (polecenie 2026-11-13).
         // $u['_admin'] ustawia kontroler dla zalogowanego administratora; gość (bez logowania) nigdy nim nie jest.
@@ -339,6 +339,8 @@ final class DhostingMigrator
         if (!$api->configured()) { $st['problem'] = 'Usługa nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.'; return $st; }
         try {
             $st['exists'] = in_array($box, $api->getMailboxList(substr($box, strrpos($box, '@') + 1)), true);
+            // migracja zakończona: stan skrzynki i numer do SMS-ów z API dostawcy (ramka „Administrator zakończył migrację”)
+            if ($st['migrated'] && $st['exists']) $st['info'] = self::publicInfo($api, $box);
         } catch (\Throwable $e) {
             error_log('[dhosting] selfState: ' . $e->getMessage()); // szczegóły tylko w logu — użytkownik nie widzi nazwy dostawcy (polecenie 2026-11-13)
             $st['problem'] = 'Nie udało się sprawdzić stanu Twojej skrzynki. Spróbuj za chwilę.';
@@ -451,7 +453,7 @@ final class DhostingMigrator
     /** SMS z hasłem (rodzaj access_data). $bypassQuiet: użytkownik sam poprosił — wychodzi też w nocy, jak kod. */
     public static function sendPasswordSms(string $phone, string $mailbox, string $password, bool $bypassQuiet): void
     {
-        $web = DhostingConfig::webmail();
+        $web = DhostingConfig::webmailOrDefault();
         $msg = 'FEER: poczta ' . $mailbox . "\nHaslo: " . $password . ($web !== '' ? "\nLogowanie: " . $web : '');
         $prev = $GLOBALS['__sms_quiet_bypass'] ?? null;
         if ($bypassQuiet) $GLOBALS['__sms_quiet_bypass'] = true;
@@ -482,6 +484,26 @@ final class DhostingMigrator
             }
         } catch (\Throwable $e) {}
         return '';
+    }
+
+    /**
+     * Stan skrzynki z API (getMailboxInformation) do pokazania osobie: ['active' => ?bool, 'status' => surowy stan, 'phoneMasked' => numer
+     * zapisany przy skrzynce u dostawcy — tam idą SMS-y z hasłem]. Kształt odpowiedzi API nie jest udokumentowany — szukamy pól po nazwie
+     * (email_status: Active / Blocked by User / Blocked by Admin; pola z „phone”). Błąd API → [] (szczegóły tylko w logu).
+     */
+    public static function publicInfo(DhostingApi $api, string $box): array
+    {
+        try { $raw = $api->getMailboxInformation($box); }
+        catch (\Throwable $e) { error_log('[dhosting] getMailboxInformation ' . $box . ': ' . $e->getMessage()); return []; }
+        $status = ''; $phone = '';
+        array_walk_recursive($raw, function ($v, $k) use (&$status, &$phone) {
+            if (!is_scalar($v) || (string)$v === '') return;
+            $k = strtolower((string)$k);
+            if ($status === '' && in_array($k, ['email_status', 'emailstatus', 'mailbox_status', 'mailboxstatus'], true)) $status = (string)$v;
+            if ($phone === '' && str_contains($k, 'phone') && preg_match('/\d{6,}/', preg_replace('/\D/', '', (string)$v))) $phone = (string)$v;
+        });
+        return ['active' => $status === '' ? null : stripos($status, 'active') === 0, 'status' => $status,
+                'phoneMasked' => $phone !== '' ? self::maskPhone($phone) : ''];
     }
 
     public static function maskPhone(string $phone): string
