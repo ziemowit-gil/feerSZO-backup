@@ -276,7 +276,7 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
         <tr><th scope="row">Adres e-mail i login</th><td><?= $st['mailbox'] ? '<code>' . h($st['mailbox']) . '</code>' : 'pełny adres e-mail' ?></td></tr>
         <tr><th scope="row">Hasło</th><td>to z SMS-a (nie hasło do Microsoft 365)</td></tr>
         <tr><th scope="row">Poczta przychodząca (IMAP)</th><td><code><?= h($imapHost) ?></code>, port <?= (int)$imapPort ?>, SSL/TLS</td></tr>
-        <tr><th scope="row">Poczta wychodząca (SMTP)</th><td><code><?= h(DhostingConfig::SMTP_HOST) ?></code>, port <?= (int)DhostingConfig::SMTP_PORT ?>, SSL/TLS, z uwierzytelnianiem (ten sam login i hasło)</td></tr>
+        <tr><th scope="row">Poczta wychodząca (SMTP)</th><td><code><?= h(DhostingConfig::SMTP_HOST) ?></code>, port <?= (int)DhostingConfig::SMTP_PORT ?>, STARTTLS, z uwierzytelnianiem (ten sam login i hasło)</td></tr>
       </table>
       <?php if ($web !== '' && $exists): ?>
         <p style="margin-top:.8rem">Poczta przez przeglądarkę: <a href="<?= h($web) ?>" target="_blank" rel="noopener"><?= h($web) ?></a> (otwiera się w nowej karcie)</p>

@@ -27,7 +27,8 @@ final class DhostingConfig
     public const DEFAULT_IMAP = 'imap.dpoczta.pl';
     /** Serwer wysyłki poczty dhosting (port 465 SSL, sprawdzony 2026-11-13) — do instrukcji dla użytkowników. */
     public const SMTP_HOST = 'smtp.dpoczta.pl';
-    public const SMTP_PORT = 465;
+    // 587 + STARTTLS (sprawdzone 13.11.2026: na 465 serwer odpowiada zwykłym SMTP bez TLS — „SSL na 465” w programach pocztowych nie działa)
+    public const SMTP_PORT = 587;
 
     public static function get(string $key, string $default = ''): string
     {
