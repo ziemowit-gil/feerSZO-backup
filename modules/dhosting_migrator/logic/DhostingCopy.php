@@ -79,7 +79,8 @@ final class DhostingCopy
         try { db()->exec("ALTER TABLE dhosting_copy_jobs ADD COLUMN keep_until VARCHAR(19) NULL"); } catch (\Throwable $e) {}
         // need_password: serwer nowej poczty odrzucił zapisane hasło (np. zmienione po założeniu) — czekamy na aktualne
         try { db()->exec("ALTER TABLE dhosting_copy_jobs ADD COLUMN need_password INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
-        // result: 1 = skopiowana, 2 = zniknęła w trakcie (pomijamy), 0 = nieudana (np. za duża) — ponawia dopiero inne zadanie
+        // result: 1 = skopiowana, 2 = zniknęła w trakcie (pomijamy), 0 = nieudana (np. za duża) — ponawia dopiero inne zadanie,
+        // 3 = przeniesiona częściowo (odtworzona bez pełnej treści albo bez załączników) — jest na serwerze, ale w wykazie
         db()->exec("CREATE TABLE IF NOT EXISTS dhosting_copy_items (
             mailbox VARCHAR(190) NOT NULL,
             msg_id VARCHAR(255) NOT NULL,
@@ -93,13 +94,14 @@ final class DhostingCopy
     }
 
     /**
-     * Wiadomości skrzynki, których nie udało się przenieść (stan teraz: późniejsza udana próba zdejmuje je z wykazu).
-     * [['folder','subject','received_at','reason','failed_at'], …] — najstarsze najpierw; wiersze sprzed 13.11.2026 nie mają szczegółów.
+     * Wykaz wiadomości skrzynki przeniesionych niecałkowicie: result 0 = nie przeniesiona, 3 = przeniesiona częściowo (bez pełnej
+     * treści albo bez załączników — odtworzona przez buildMime). Stan teraz: późniejsza udana próba zdejmuje nieudaną z wykazu.
+     * [['result','folder','subject','received_at','reason','failed_at'], …] — najstarsze najpierw; wiersze sprzed 13.11.2026 bez szczegółów.
      */
     public static function failedFor(string $mailbox, int $limit = 500): array
     {
         self::migrate();
-        return db_all("SELECT folder, subject, received_at, reason, failed_at FROM dhosting_copy_items WHERE mailbox=? AND result=0
+        return db_all("SELECT result, folder, subject, received_at, reason, failed_at FROM dhosting_copy_items WHERE mailbox=? AND result IN (0, 3)
                        ORDER BY received_at IS NULL, received_at, msg_id LIMIT " . max(1, min(5000, $limit)), [strtolower(trim($mailbox))]);
     }
 
@@ -399,18 +401,21 @@ final class DhostingCopy
                 $added = (int)($state['appended'] ?? 0);
                 $present = (int)($state['present'] ?? 0);
                 $rebuilt = (int)($state['rebuilt'] ?? 0);
+                $partialN = (int)($state['partial'] ?? 0);
                 $failList = '';
-                if ($c['failed'] > 0) {
-                    foreach (array_slice(self::failedFor((string)$job['mailbox'], 11), 0, 10) as $fr) {
-                        $failList .= "\n– " . ($fr['received_at'] ? substr((string)$fr['received_at'], 0, 10) . ' · ' : '') . ($fr['folder'] ?: '?') . ' · '
-                                   . ($fr['subject'] !== null && $fr['subject'] !== '' ? $fr['subject'] : '(bez tematu)');
+                if ($c['failed'] > 0 || (int)($state['partial'] ?? 0) > 0) {
+                    $fl = self::failedFor((string)$job['mailbox'], 11);
+                    foreach (array_slice($fl, 0, 10) as $fr) {
+                        $failList .= "\n– " . ((int)$fr['result'] === 3 ? '[niepełna] ' : '') . ($fr['received_at'] ? substr((string)$fr['received_at'], 0, 10) . ' · ' : '')
+                                   . ($fr['folder'] ?: '?') . ' · ' . ($fr['subject'] !== null && $fr['subject'] !== '' ? $fr['subject'] : '(bez tematu)');
                     }
-                    if ($failList !== '') $failList = "\nNieudane (pełny wykaz: /migracjaadmin#kopiowanie):" . $failList . ($c['failed'] > 10 ? "\n– …" : '');
+                    if ($failList !== '') $failList = "\nNieudane i niepełne (pełny wykaz: /migracjaadmin#kopiowanie):" . $failList . (count($fl) > 10 ? "\n– …" : '');
                 }
                 if (($job['kind'] ?? 'full') !== 'incremental') {
                     self::helpdesk($job, 'Kopiowanie poczty zakończone: skopiowano ' . $c['copied'] . ' wiadomości (nowo dopisanych: ' . $added
                         . ($present ? ', już były w nowej skrzynce: ' . $present : '')
-                        . ($rebuilt ? ', odtworzonych z treści i załączników, bo Microsoft nie oddał oryginału: ' . $rebuilt : '') . ')'
+                        . ($rebuilt ? ', odtworzonych z danych, bo Microsoft nie oddał oryginału: ' . $rebuilt : '')
+                        . ($partialN ? ', w tym niepełnych (bez całej treści albo bez załączników): ' . $partialN : '') . ')'
                         . ($c['failed'] ? ', nie udało się ' . $c['failed'] . ' (np. za duże dla serwera)' : '') . '.'
                         . ($keep ? ' Nowe wiadomości z Microsoft 365 dosyłamy automatycznie co ' . self::SYNC_HOURS . ' h do ' . substr($keep, 0, 16) . '.' : '') . $failList);
                 } elseif ($added > 0 || $c['failed'] > 0) {
@@ -567,19 +572,22 @@ final class DhostingCopy
         // nieudana wiadomość: najpierw sprawdzamy serwer; jest → liczymy jako przeniesioną (true), nie ma → rejestr + szczegóły
         // do wykazu nieudanych (folder z Outlooka, data, temat, powód), zwraca false
         $det  = db()->prepare("UPDATE dhosting_copy_items SET folder=?, subject=?, received_at=?, reason=?, failed_at=? WHERE mailbox=? AND msg_id=?");
-        $fail = function (string $mid, array $m, array $f, string $reason) use ($mark, $det, $mailbox, $onServer, &$state): bool {
-            if (($where = $onServer($m)) !== null) {
+        $details = function (string $mid, array $m, array $f, string $reason) use ($det, $mailbox): void {
+            $rcv = (string)($m['receivedDateTime'] ?? $m['sentDateTime'] ?? '');
+            try {
+                $det->execute([mb_substr(implode(' / ', (array)($f['path'] ?? [])), 0, 255), mb_substr((string)($m['subject'] ?? ''), 0, 500),
+                               $rcv !== '' && ($t = strtotime($rcv)) ? date('Y-m-d H:i:s', $t) : null, mb_substr($reason, 0, 500), date('Y-m-d H:i:s'), $mailbox, $mid]);
+            } catch (\Throwable $e) { error_log('dhosting copy: wykaz nieudanych — ' . $e->getMessage()); }
+        };
+        $fail = function (string $mid, array $m, array $f, string $reason, bool $checked = false) use ($mark, $details, $onServer, &$state): bool {
+            if (!$checked && ($where = $onServer($m)) !== null) {
                 $mark($mid, 1);
                 $state['present'] = (int)($state['present'] ?? 0) + 1;
                 $state['foundElsewhere'] = (int)($state['foundElsewhere'] ?? 0) + 1;
                 return true;
             }
             $mark($mid, 0);
-            $rcv = (string)($m['receivedDateTime'] ?? $m['sentDateTime'] ?? '');
-            try {
-                $det->execute([mb_substr(implode(' / ', (array)($f['path'] ?? [])), 0, 255), mb_substr((string)($m['subject'] ?? ''), 0, 500),
-                               $rcv !== '' && ($t = strtotime($rcv)) ? date('Y-m-d H:i:s', $t) : null, mb_substr($reason, 0, 500), date('Y-m-d H:i:s'), $mailbox, $mid]);
-            } catch (\Throwable $e) { error_log('dhosting copy: wykaz nieudanych — ' . $e->getMessage()); }
+            $details($mid, $m, $f, $reason);
             return false;
         };
         try {
@@ -609,7 +617,7 @@ final class DhostingCopy
                         $seen->closeCursor();
                         if ($prev) {
                             $mine = (int)$prev['job_id'] === $id;
-                            if ((int)$prev['result'] === 1 && !$mine) { $c['copied']++; continue; }   // przeniesiona wcześniej innym zadaniem — jest na serwerze
+                            if (in_array((int)$prev['result'], [1, 3], true) && !$mine) { $c['copied']++; continue; }   // przeniesiona wcześniej innym zadaniem — jest na serwerze
                             if ((int)$prev['result'] !== 0 || $mine) continue;                          // już policzona w tym zadaniu / zniknęła
                         }
                         // Porównanie z nową skrzynką (już w użyciu): ta sama wiadomość jest w folderze docelowym → nie dopisujemy.
@@ -624,16 +632,17 @@ final class DhostingCopy
                                 $state['noSearch'] = true;   // serwer nie szuka po nagłówku — zostaje rejestr
                             }
                         }
+                        $rebuilt = '';   // '' = oryginał; full / partial / noattach = odtworzona (DhostingGraphMail::buildMime, lastRebuild)
                         try {
                             $c['bytes'] += $graph->downloadMime($source, $mid, $tmp);
                         } catch (DhostingGraphGone $e) {
                             $mark($mid, 2); continue;        // wiadomość zniknęła w trakcie
                         } catch (DhostingGraphUnconvertible $e) {
-                            // Graph nie oddaje oryginału tej wiadomości (stały błąd) — składamy ją z treści i załączników;
-                            // gdy i to się nie uda, liczymy jako nieudaną i idziemy dalej (jedna wiadomość nie zatrzymuje skrzynki)
+                            // Graph nie oddaje oryginału tej wiadomości (stały błąd) — odtwarzamy ją z danych, coraz prostszymi próbami
+                            // (treść HTML → tekst → sam początek); gdy nic nie wyjdzie — wykaz nieudanych, kopiowanie idzie dalej
                             try {
                                 $c['bytes'] += $graph->buildMime($source, $mid, $tmp);
-                                $state['rebuilt'] = (int)($state['rebuilt'] ?? 0) + 1;
+                                $rebuilt = $graph->lastRebuild ?: 'full';
                             } catch (DhostingGraphGone $e2) {
                                 $mark($mid, 2); continue;
                             } catch (DhostingGraphUnavailable | DhostingGraphDenied $e2) {
@@ -652,13 +661,41 @@ final class DhostingCopy
                         $ts = strtotime((string)($m['receivedDateTime'] ?? $m['sentDateTime'] ?? '')) ?: null;
                         try {
                             $imap->appendFile((string)$f['imap'], $tmp, $flags, $ts);
-                            $mark($mid, 1);
-                            $c['copied']++;
-                            $state['appended'] = (int)($state['appended'] ?? 0) + 1;
                         } catch (DhostingImapCommandFailed $e) {
-                            // np. za duża — idziemy dalej (chyba że już jest na serwerze w innym folderze)
-                            if ($fail($mid, $m, $f, 'Nowy serwer nie przyjął wiadomości: ' . $e->getMessage())) $c['copied']++;
-                            else $c['failed']++;
+                            // serwer nie przyjął (np. za duża): jest już w innym folderze? → przeniesiona; inaczej próba bez załączników
+                            $why = 'Nowy serwer nie przyjął wiadomości: ' . $e->getMessage();
+                            if ($onServer($m) !== null) {
+                                $mark($mid, 1); $c['copied']++;
+                                $state['present'] = (int)($state['present'] ?? 0) + 1;
+                                $state['foundElsewhere'] = (int)($state['foundElsewhere'] ?? 0) + 1;
+                                continue;
+                            }
+                            try {
+                                $c['bytes'] += $graph->buildMime($source, $mid, $tmp, false);
+                                $rebuilt = $graph->lastRebuild === 'partial' ? 'partial' : 'noattach';
+                                $imap->appendFile((string)$f['imap'], $tmp, $flags, $ts);
+                            } catch (DhostingGraphGone $e2) {
+                                $mark($mid, 2); continue;
+                            } catch (DhostingGraphUnavailable | DhostingGraphDenied $e2) {
+                                throw $e2;
+                            } catch (\Throwable $e2) {
+                                $fail($mid, $m, $f, $why . ($e2 instanceof DhostingImapCommandFailed ? ' Wersji bez załączników też nie przyjął.'
+                                    : ' Wersji bez załączników nie udało się przygotować: ' . $e2->getMessage()), true);
+                                $c['failed']++;
+                                continue;
+                            }
+                        }
+                        $c['copied']++;
+                        $state['appended'] = (int)($state['appended'] ?? 0) + 1;
+                        if ($rebuilt !== '') $state['rebuilt'] = (int)($state['rebuilt'] ?? 0) + 1;
+                        if ($rebuilt === 'partial' || $rebuilt === 'noattach') {   // jest na serwerze, ale niepełna — do wykazu
+                            $mark($mid, 3);
+                            $state['partial'] = (int)($state['partial'] ?? 0) + 1;
+                            $details($mid, $m, $f, $rebuilt === 'partial'
+                                ? 'Przeniesiona częściowo: Microsoft 365 nie oddał pełnej treści, jest jej początek (pełna wiadomość została w Microsoft 365).'
+                                : 'Przeniesiona bez załączników: była za duża dla nowego serwera albo załączników nie dało się pobrać; zostały w Microsoft 365.');
+                        } else {
+                            $mark($mid, 1);
                         }
                         if (($c['copied'] + $c['failed']) % 25 === 0) self::save($id, $state, $c, null);
                     }

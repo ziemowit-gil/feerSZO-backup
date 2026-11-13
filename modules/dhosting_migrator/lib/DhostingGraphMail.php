@@ -122,7 +122,7 @@ final class DhostingGraphMail
             if ($ok === false) throw new DhostingGraphUnavailable('Microsoft 365 niedostępny: ' . $err);
             if ($code >= 200 && $code < 300) return (int)filesize($file);
             $body = (string)@file_get_contents($file, false, null, 0, 2000);
-            if ($code >= 500 && preg_match('/MIME content conversion failed|MimeContentConversion/i', $body)) {
+            if ($code >= 500 && self::isConversionError($body)) {
                 throw new DhostingGraphUnconvertible('Microsoft 365 nie oddał oryginału wiadomości (' . $code . ': MIME content conversion failed).');
             }
             if ($this->retryable($code, $retryAfter, $try)) continue;
@@ -135,23 +135,61 @@ final class DhostingGraphMail
      * (Od, Do, DW, UDW, Odpowiedz do, Temat, Data, Message-ID), treść HTML albo tekst i załączniki-pliki. Załączniki-wiadomości
      * i odnośniki nie mają bajtów w Graph — trafiają do listy w nagłówku X-Migracja-Pominiete. Zapis do $file, zwraca rozmiar.
      */
-    public function buildMime(string $user, string $msgId, string $file): int
+    /** Jak wyszło ostatnie buildMime(): 'full' (pełna treść), 'partial' (bez pełnej treści — tylko początek), 'noattach' (bez załączników). */
+    public string $lastRebuild = '';
+
+    /**
+     * Próby po kolei (polecenie 2026-11-13 „podejmij próbę odtworzenia”): treść HTML → treść jako tekst → bez treści (tylko początek
+     * wiadomości, bodyPreview) → minimalny zestaw pól. $withAttachments=false: wersja bez załączników (gdy serwer odrzucił wiadomość
+     * jako za dużą) — nazwy pominiętych plików w treści i w nagłówku. Niedostępny Graph / brak uprawnień / zniknięta wiadomość — wyjątek dalej.
+     */
+    public function buildMime(string $user, string $msgId, string $file, bool $withAttachments = true): int
     {
         $u = rawurlencode($user);
         $m = rawurlencode($msgId);
-        $j = $this->getJson("/users/{$u}/messages/{$m}?\$select=subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,"
-            . 'receivedDateTime,sentDateTime,internetMessageId,body,hasAttachments');
-        $files = []; $skipped = [];
+        $base = "/users/{$u}/messages/{$m}?\$select=";
+        $hdrs = 'subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,internetMessageId,hasAttachments';
+        $tries = [
+            [$hdrs . ',body', [], 'full'],
+            [$hdrs . ',body', ['Prefer: outlook.body-content-type="text"'], 'full'],
+            [$hdrs . ',bodyPreview', [], 'partial'],
+            ['subject,from,receivedDateTime,sentDateTime,internetMessageId,hasAttachments,bodyPreview', [], 'partial'],
+        ];
+        $j = null; $mode = 'full'; $last = null;
+        foreach ($tries as [$sel, $hd, $md]) {
+            try { $j = $this->getJson($base . $sel, $hd); $mode = $md; break; }
+            catch (DhostingGraphUnavailable | DhostingGraphDenied | DhostingGraphGone $e) { throw $e; }
+            catch (DhostingGraphException $e) { $last = $e; }          // ta wersja nie przechodzi — próbujemy prostszej
+        }
+        if ($j === null) throw $last ?? new DhostingGraphException('Microsoft 365 nie oddał danych wiadomości.');
+        $files = []; $skipped = []; $attachErr = '';
         if (!empty($j['hasAttachments'])) {
-            $next = "/users/{$u}/messages/{$m}/attachments";
-            while ($next !== '') {
-                $r = $this->getJson($next);
-                foreach ($r['value'] ?? [] as $a) {
-                    $isFile = str_ends_with((string)($a['@odata.type'] ?? ''), 'fileAttachment') && isset($a['contentBytes']);
-                    if ($isFile) $files[] = $a; else $skipped[] = (string)($a['name'] ?? 'załącznik');
+            try {
+                $next = "/users/{$u}/messages/{$m}/attachments" . ($withAttachments ? '' : '?$select=name,size');
+                while ($next !== '') {
+                    $r = $this->getJson($next);
+                    foreach ($r['value'] ?? [] as $a) {
+                        $isFile = $withAttachments && str_ends_with((string)($a['@odata.type'] ?? ''), 'fileAttachment') && isset($a['contentBytes']);
+                        if ($isFile) $files[] = $a; else $skipped[] = (string)($a['name'] ?? 'załącznik');
+                    }
+                    $next = (string)($r['@odata.nextLink'] ?? '');
                 }
-                $next = (string)($r['@odata.nextLink'] ?? '');
-            }
+            } catch (DhostingGraphUnavailable | DhostingGraphDenied | DhostingGraphGone $e) { throw $e; }
+            catch (DhostingGraphException $e) { $attachErr = 'załączników nie udało się pobrać'; $files = []; }
+        }
+        if (!$withAttachments && ($skipped || $attachErr !== '')) $mode = $mode === 'partial' ? 'partial' : 'noattach';
+        if ($attachErr !== '' && $mode === 'full') $mode = 'noattach';
+        $this->lastRebuild = $mode;
+        // treść zastępcza: bez pełnej treści — początek wiadomości; bez załączników — lista pominiętych plików
+        $note = [];
+        if ($mode === 'partial') $note[] = 'Pełnej treści tej wiadomości nie udało się pobrać z Microsoft 365 przy przenoszeniu poczty. Poniżej jej początek.';
+        if (!$withAttachments && $skipped) $note[] = 'Wiadomość była za duża dla nowej skrzynki, dlatego przeniesiono ją bez załączników (zostały w Microsoft 365): ' . implode(', ', $skipped) . '.';
+        if ($attachErr !== '') $note[] = 'Załączników tej wiadomości nie udało się pobrać z Microsoft 365 — zostały w starej skrzynce.';
+        if ($mode === 'partial') $j['body'] = ['contentType' => 'text', 'content' => implode("\n\n", $note) . "\n\n" . (string)($j['bodyPreview'] ?? '')];
+        elseif ($note) {
+            $isH = strtolower((string)($j['body']['contentType'] ?? 'text')) === 'html';
+            $pre = $isH ? '<p style="border:1px solid #c00;padding:6px">' . htmlspecialchars(implode(' ', $note), ENT_QUOTES, 'UTF-8') . '</p>' : implode("\n", $note) . "\n\n";
+            $j['body']['content'] = $pre . (string)($j['body']['content'] ?? '');
         }
         $enc = fn(string $s) => preg_match('/[^\x20-\x7E]/', $s) ? mb_encode_mimeheader($s, 'UTF-8', 'B', "\r\n ") : $s;
         $one = function (?array $r) use ($enc): string {
@@ -174,7 +212,8 @@ final class DhostingGraphMail
         $mid = trim((string)($j['internetMessageId'] ?? ''));
         if ($mid !== '' && !preg_match('/[\r\n]/', $mid)) $h[] = 'Message-ID: ' . $mid;
         $h[] = 'MIME-Version: 1.0';
-        $h[] = 'X-Migracja: wiadomosc odtworzona z danych Microsoft 365 (brak oryginalnego MIME)';
+        $h[] = 'X-Migracja: ' . (['partial' => 'wiadomosc odtworzona czesciowo - bez pelnej tresci', 'noattach' => 'wiadomosc przeniesiona bez zalacznikow']
+            [$mode] ?? 'wiadomosc odtworzona z danych Microsoft 365 (brak oryginalnego MIME)');
         if ($skipped) $h[] = 'X-Migracja-Pominiete: ' . $enc(mb_substr(implode(', ', $skipped), 0, 300));
         $isHtml = strtolower((string)($j['body']['contentType'] ?? 'text')) === 'html';
         $bodyPart = 'Content-Type: text/' . ($isHtml ? 'html' : 'plain') . '; charset=UTF-8' . "\r\n" . 'Content-Transfer-Encoding: base64' . "\r\n\r\n"
@@ -205,7 +244,8 @@ final class DhostingGraphMail
 
     // ── HTTP ───────────────────────────────────────────────────────────────────────────────────
 
-    private function getJson(string $pathOrUrl): array
+    /** GET z JSON-em. $extraHeaders — np. Prefer: outlook.body-content-type="text" (odtwarzanie wiadomości bez HTML). */
+    private function getJson(string $pathOrUrl, array $extraHeaders = []): array
     {
         $url = str_starts_with($pathOrUrl, 'http') ? $pathOrUrl : $this->base . $pathOrUrl;
         for ($try = 0; ; $try++) {
@@ -213,7 +253,7 @@ final class DhostingGraphMail
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 15, CURLOPT_TIMEOUT => 60,
-                CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $this->token(), 'Accept: application/json', 'Prefer: IdType="ImmutableId"'],
+                CURLOPT_HTTPHEADER => array_merge(['Authorization: Bearer ' . $this->token(), 'Accept: application/json', 'Prefer: IdType="ImmutableId"'], $extraHeaders),
                 CURLOPT_HEADERFUNCTION => function ($c, $h) use (&$retryAfter) {
                     if (stripos($h, 'Retry-After:') === 0) $retryAfter = (int)trim(substr($h, 12));
                     return strlen($h);
@@ -230,9 +270,18 @@ final class DhostingGraphMail
                 return $j;
             }
             if ($code === 401 && $try === 0) { $this->token = null; continue; }
+            if ($code >= 500 && self::isConversionError((string)$raw)) {   // stały błąd jednej wiadomości — bez ponowień, nie „awaria Microsoft 365”
+                throw new DhostingGraphUnconvertible('Microsoft 365 nie oddał danych wiadomości (' . $code . ': MIME content conversion failed).');
+            }
             if ($this->retryable($code, $retryAfter, $try)) continue;
             $this->fail($code, (string)$raw, $retryAfter);
         }
+    }
+
+    /** Odpowiedź Graph „MIME content conversion failed” (ErrorMimeContentConversionFailed) — dotyczy jednej wiadomości, nie całej usługi. */
+    private static function isConversionError(string $body): bool
+    {
+        return (bool)preg_match('/MIME content conversion failed|MimeContentConversion|content conversion failed/i', $body);
     }
 
     /**
