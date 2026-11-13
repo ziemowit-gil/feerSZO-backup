@@ -591,42 +591,71 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
 <?php /* ── Poczta kursanta @stud.feer.org.pl (sdata.net.pl, niezależna od Microsoft 365): login, webmail, hasło po kodzie ── */ ?>
 <?php if ($page === 'poczta'): $sm = $studMail ?? null; $sp = (string)($studPass ?? ''); ?>
 <h1 class="m-title">Poczta kursanta</h1>
-<p class="m-explain">Twoja skrzynka e-mail w Fundacji. Otwierasz ją w przeglądarce, na stronie <?= h(preg_replace('#^https?://|/$#', '', PocztaStud::WEBMAIL)) ?>.</p>
+<p class="m-explain">Twoja skrzynka e-mail w Fundacji, na osobnym serwerze pocztowym. Otwierasz ją w przeglądarce na stronie <?= h(preg_replace('#^https?://|/$#', '', PocztaStud::WEBMAIL)) ?> albo w programie pocztowym.</p>
 <?= $idsLine ?>
 <?php if (!$sm): ?>
 <section class="m-tile"><p class="tw-text-sm">Nie masz jeszcze poczty @<?= h(PocztaStud::DOMAIN) ?>. Jeśli jej potrzebujesz, napisz do biura.</p></section>
-<?php else: ?>
-<section class="m-tile" aria-labelledby="pm-h">
-  <h2 class="m-sect" id="pm-h">Twoja poczta <?= $tag('ok', 'aktywna') ?></h2>
-  <dl class="m-kv tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
-    <div><dt>Adres i login</dt><dd><span class="m-mono tw-font-semibold"><?= h($sm['login']) ?></span> <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($sm['login']) ?>">Kopiuj<span class="tw-sr-only"> adres poczty</span></button></dd></div>
-    <div><dt>Hasło</dt><dd>
-      <?php if ($sp !== ''): ?>
-        <span class="m-mono tw-font-semibold" id="pm-pass"><?= h($sp) ?></span> <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($sp) ?>">Kopiuj<span class="tw-sr-only"> hasło do poczty</span></button>
-        <span class="m-note tw-block">Pokazujemy je tylko teraz. Po odświeżeniu strony zniknie. Zostało pokazań: <?= (int)$sm['revealsLeft'] ?> z <?= PocztaStud::MAX_REVEALS ?>.</span>
-      <?php elseif (!$sm['hasPassword'] && !empty($sm['password_cleared_at'])): ?>
-        Hasła startowego nie ma już w panelu (<?= h(date('d.m.Y', strtotime((string)$sm['password_cleared_at']))) ?>). Logujesz się własnym hasłem.
-      <?php elseif (!$sm['hasPassword']): ?>Przekaże je biuro.
-      <?php elseif (!$sm['canReveal']): ?><span role="status"><?= h($sm['blockReason']) ?></span>
-      <?php else: ?>
-        <form method="post" action="<?= h(route('lk.mail.reveal')) ?>" style="display:inline"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit">Pokaż hasło<span class="tw-sr-only"> do poczty (wyślemy kod)</span></button></form>
-        <span class="m-note tw-block">Hasło startowe jest w panelu do <?= h(date('d.m.Y', strtotime((string)$sm['password_expires_at']))) ?>. Możesz je pokazać jeszcze <?= (int)$sm['revealsLeft'] ?> <?= (int)$sm['revealsLeft'] === 1 ? 'raz' : 'razy' ?>.</span>
-      <?php endif; ?>
-    </dd></div>
-  </dl>
-  <?php if ($sm['hasPassword']): ?>
-  <form method="post" action="<?= h(route('lk.mail.done')) ?>" class="tw-mt-3"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit">Mam już własne hasło — usuń hasło startowe z panelu</button></form>
-  <?php endif; ?>
-  <a class="m-btn tw-mt-3" href="<?= h(PocztaStud::WEBMAIL) ?>" target="_blank" rel="noopener">Otwórz pocztę ↗<span class="tw-sr-only"> (<?= h(PocztaStud::WEBMAIL) ?>, nowa karta)</span></a>
-  <div class="m-imp" role="note" aria-label="Ważne informacje o poczcie"><p class="tw-font-semibold tw-mb-1">Ważne</p>
-    <ul class="tw-list-disc tw-pl-5 tw-space-y-1" style="margin-top:0">
-      <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</li>
-      <li>Hasło startowe wysyłamy SMS-em. Jeśli SMS zginął, pokażemy je tutaj po kodzie jednorazowym. Hasło do poczty jest inne niż hasło do panelu.</li>
-      <li>To hasło startowe. Po pierwszym logowaniu ustaw na stronie poczty własne hasło i kliknij „Mam już własne hasło”.</li>
-      <li>Hasło startowe zniknie z panelu po <?= PocztaStud::TTL_DAYS ?> dniach od wpisania albo po <?= PocztaStud::MAX_REVEALS ?> pokazaniach.</li>
-      <li>Nikomu nie podawaj hasła ani kodu z SMS-a. Pracownicy Fundacji nigdy o nie nie proszą.</li>
-    </ul></div>
-</section>
+<?php else: $pmHost = preg_replace('#^https?://|/$#', '', PocztaStud::WEBMAIL); ?>
+<div class="tw-grid lg:tw-grid-cols-12 tw-gap-4 tw-items-start">
+  <section class="m-tile lg:tw-col-span-7" aria-labelledby="pm-h">
+    <h2 class="m-sect" id="pm-h">Dane do logowania <?= $tag('ok', 'aktywna') ?></h2>
+    <dl class="m-kv">
+      <div><dt>Adres i login</dt><dd><span class="m-mono tw-font-semibold"><?= h($sm['login']) ?></span> <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($sm['login']) ?>">Kopiuj<span class="tw-sr-only"> adres poczty</span></button></dd></div>
+      <div><dt>Hasło startowe</dt><dd>
+        <?php if ($sp !== ''): ?>
+          <span class="m-mono tw-font-semibold" id="pm-pass"><?= h($sp) ?></span> <button type="button" class="m-btn-ghost lk-copy" data-copy="<?= h($sp) ?>">Kopiuj<span class="tw-sr-only"> hasło do poczty</span></button>
+          <span class="m-note tw-block">Widzisz je tylko teraz, po odświeżeniu strony zniknie.
+            <?= (int)$sm['revealsLeft'] > 0 ? 'Możesz je pokazać jeszcze ' . (int)$sm['revealsLeft'] . ' ' . ((int)$sm['revealsLeft'] === 1 ? 'raz' : 'razy') . '.' : 'To było ostatnie pokazanie.' ?></span>
+        <?php elseif (!$sm['hasPassword'] && !empty($sm['password_cleared_at'])): ?>
+          Usunęliśmy je z panelu <?= h(date('d.m.Y', strtotime((string)$sm['password_cleared_at']))) ?>. Logujesz się własnym hasłem.
+        <?php elseif (!$sm['hasPassword']): ?>Przekaże je biuro.
+        <?php elseif (!$sm['canReveal']): ?><span role="status"><?= h($sm['blockReason']) ?></span>
+        <?php else: ?>
+          <span class="tw-block tw-text-sm tw-mb-2">Przyszło SMS-em. Jeśli go nie masz, pokażemy je tutaj po kodzie jednorazowym.</span>
+          <form method="post" action="<?= h(route('lk.mail.reveal')) ?>" style="display:inline"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit">Pokaż hasło<span class="tw-sr-only"> do poczty (wyślemy kod)</span></button></form>
+          <span class="m-note tw-block">Czeka w panelu do <?= h(date('d.m.Y', strtotime((string)$sm['password_expires_at']))) ?>. Możesz je pokazać jeszcze <?= (int)$sm['revealsLeft'] ?> <?= (int)$sm['revealsLeft'] === 1 ? 'raz' : 'razy' ?>.</span>
+        <?php endif; ?>
+      </dd></div>
+    </dl>
+    <?php if ($sm['hasPassword']): ?>
+    <div class="tw-mt-3 tw-pt-3 tw-border-t tw-border-solid tw-border-gray-300">
+      <p class="tw-text-sm tw-mb-2" id="pm-done-d">Masz już własne hasło do poczty? Usuń hasło startowe z panelu.</p>
+      <form method="post" action="<?= h(route('lk.mail.done')) ?>"><?= Router::csrfField() ?><button class="m-btn-ghost" type="submit" aria-describedby="pm-done-d">Mam już własne hasło</button></form>
+    </div>
+    <?php endif; ?>
+    <a class="m-btn tw-mt-3" href="<?= h(PocztaStud::WEBMAIL) ?>" target="_blank" rel="noopener">Otwórz pocztę ↗<span class="tw-sr-only"> (<?= h(PocztaStud::WEBMAIL) ?>, nowa karta)</span></a>
+  </section>
+
+  <div class="lg:tw-col-span-5 tw-flex tw-flex-col tw-gap-4">
+    <?php if ($sm['hasPassword']): /* kroki pierwszego logowania tylko, gdy hasło startowe jeszcze czeka */ ?>
+    <section class="m-tile" aria-labelledby="pm-start-h">
+      <h2 class="m-sect" id="pm-start-h">Pierwsze logowanie</h2>
+      <ol class="tw-list-decimal tw-pl-5 tw-space-y-1 tw-text-sm" style="margin:0">
+        <li>Otwórz pocztę i zaloguj się pełnym adresem e-mail oraz hasłem startowym z SMS-a.</li>
+        <li>W ustawieniach poczty zmień hasło na własne, którego nie używasz nigdzie indziej.</li>
+        <li>Wróć tutaj i kliknij „Mam już własne hasło”.</li>
+      </ol>
+    </section>
+    <?php endif; ?>
+
+    <section class="m-tile" aria-labelledby="pm-imap-h">
+      <h2 class="m-sect" id="pm-imap-h">Program pocztowy albo telefon</h2>
+      <p class="tw-text-sm tw-mb-2">Dodaj konto IMAP i podaj takie dane:</p>
+      <dl class="m-kv">
+        <div><dt>Serwer</dt><dd class="m-mono"><?= h($pmHost) ?></dd></div>
+        <div><dt>Użytkownik</dt><dd>pełny adres e-mail</dd></div>
+        <div><dt>Poczta przychodząca</dt><dd>IMAP, SSL/TLS, port 993</dd></div>
+        <div><dt>Poczta wychodząca</dt><dd>SMTP, SSL/TLS, port 465</dd></div>
+      </dl>
+    </section>
+
+    <div class="m-imp" role="note" aria-labelledby="pm-imp-h" style="margin:0"><p class="tw-font-semibold tw-mb-1" id="pm-imp-h">Ważne</p>
+      <p class="tw-text-sm tw-mb-1">Hasło do poczty jest inne niż do panelu. Startowe trzymamy tutaj <?= PocztaStud::TTL_DAYS ?> dni i pokazujemy najwyżej <?= PocztaStud::MAX_REVEALS ?> razy, potem znika.</p>
+      <p class="tw-text-sm tw-mb-1">Nikt z Fundacji nie poprosi Cię o hasło ani o kod z SMS-a.</p>
+      <p class="tw-text-sm" style="margin-bottom:0">Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</p>
+    </div>
+  </div>
+</div>
 <?php endif; ?>
 <?php endif; ?>
 
