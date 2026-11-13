@@ -311,7 +311,7 @@ function tasksMailIntakeRun(bool $dryRun = false): array
 }
 
 /** Wiadomość z IMAP w kształcie wiersza poczty (pola używane przez opis zadania, potwierdzenie i filtry). */
-function tasksMailFromMime(MimeMessage $m, string $mailbox, int $uidValidity, int $uid): array
+function tasksMailFromMime(ImapMessage $m, string $mailbox, int $uidValidity, int $uid): array
 {
     $ts = $m->date ?? time();
     return [
@@ -330,7 +330,7 @@ function tasksMailImapSkip(int $wsId, array $c, string $why): void
 
 /**
  * Jedna wiadomość ze skrzynki obszaru → 'tasks' | 'comments' | 'skipped'.
- * $attachments: [['name','mime','bytes']] z MimeMessage.
+ * $attachments: [['name','mime','bytes']] z ImapMessage.
  */
 function tasksMailIntakeOne(array $in, array $c, array $own, int $creator, array $attachments = []): string
 {

@@ -14,7 +14,7 @@ declare(strict_types=1);
  * koniec; duplikaty i tak odsiewa Message-ID po stronie modułu.
  */
 require_once __DIR__ . '/ImapReader.php';
-require_once __DIR__ . '/MimeMessage.php';
+require_once __DIR__ . '/ImapMessage.php';
 require_once dirname(__DIR__, 2) . '/field_crypto/lib/fieldCrypto.php';
 
 final class ImapAccount
@@ -95,7 +95,7 @@ final class ImapAccount
     }
 
     /**
-     * Nowe wiadomości od kursora. Zwraca ['cursor' => [uidvalidity, last_uid], 'messages' => [uid => MimeMessage|null],
+     * Nowe wiadomości od kursora. Zwraca ['cursor' => [uidvalidity, last_uid], 'messages' => [uid => ImapMessage|null],
      * 'started' => bool (pierwszy odczyt: tylko ustawiono kursor)]. null w messages = wiadomość za duża albo nie do pobrania.
      * Kursor przesuwa się tylko o pobrane wiadomości (najwyżej $limit na przebieg).
      */
@@ -114,7 +114,7 @@ final class ImapAccount
         foreach ($uids as $uid) {
             if (($sizes[$uid] ?? 0) > ImapReader::MAX_BYTES) { $out[$uid] = null; continue; }
             $raw = $r->fetchRaw($uid);
-            $out[$uid] = $raw !== null ? MimeMessage::parse($raw) : null;
+            $out[$uid] = $raw !== null ? ImapMessage::parse($raw) : null;
         }
         $last = $uids ? max($uids) : $lastUid;
         return ['cursor' => [$uv, $last], 'messages' => $out, 'started' => false];

@@ -2,14 +2,15 @@
 declare(strict_types=1);
 
 /**
- * modules/mailImap/lib/MimeMessage.php — rozbiór wiadomości RFC 822 / MIME pobranej przez ImapReader.
+ * modules/mailImap/lib/ImapMessage.php — rozbiór wiadomości RFC 822 / MIME pobranej przez ImapReader.
+ * Nazwa nie „MimeMessage”: tak nazywa się klasa rozszerzenia PHP mailparse (jest na serwerze produkcyjnym).
  *
  * Wynik: nadawca (adres, nazwa), temat, data, Message-ID, nagłówki pętli (Auto-Submitted, Precedence), treść tekstowa
  * (text/plain, a gdy jej nie ma — HTML zamieniony na tekst), treść HTML oraz załączniki (nazwa, typ, bajty).
  * Obsługuje multipart (zagnieżdżony), base64 / quoted-printable, kodowanie nagłówków (RFC 2047) i nazw plików (RFC 2231),
  * dowolne kodowanie znaków przez mbstring/iconv. Wiadomość dołączona (message/rfc822) zostaje załącznikiem .eml.
  */
-final class MimeMessage
+final class ImapMessage
 {
     public string $fromEmail = '';
     public string $fromName = '';
