@@ -832,4 +832,15 @@ return [
         },
     ],
 
+    // „Poczta kursanta” w /uslugi-it: data wyłączenia kont @edu.feer.org.pl (20.11.2026) i lead „po ostatnich awariach Microsoft 365”
+    // (polecenie 2026-11-13). Nadpisuje wstęp i artykuły także tam, gdzie poprzednia migracja już się wykonała.
+    '2026-11_it_portal_poczta_kursanta_edu_off' => [
+        'desc' => 'Portal Usług IT, „Poczta kursanta”: wyłączenie kont @edu.feer.org.pl 20.11.2026 i powód (ostatnie awarie Microsoft 365)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPocztaKursantaSeed.php';
+            itPortalPocztaKursantaApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_poczta_kursanta_seed.php [--dry-run]
+        },
+    ],
+
 ];

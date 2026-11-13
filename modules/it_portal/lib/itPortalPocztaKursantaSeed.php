@@ -7,8 +7,8 @@
  *
  * Źródła faktów: modules/ti_poczta_stud (login pierwszaliteraimienia.nazwisko@stud.feer.org.pl, hasło startowe SMS-em, panel: 14 dni,
  * 5 pokazań, „Mam już własne hasło”), dane serwera od użytkownika (titan.sdata.net.pl, IMAP SSL 993, SMTP SSL 465), powody odejścia
- * od Microsoft 365 z artykułu migracja/dlaczego-migrujemy (itPortalMigracjaSeed.php). Terminu wyłączenia kont @edu.feer.org.pl
- * nie podajemy — użytkownik go nie wskazał.
+ * od Microsoft 365 z artykułu migracja/dlaczego-migrujemy (itPortalMigracjaSeed.php). Konta @edu.feer.org.pl wyłączamy 20.11.2026,
+ * a lead mówi, że to skutek ostatnich wydarzeń — awarii Microsoft 365 z 12–13.11.2026 (polecenie 2026-11-13).
  * Używa migracja '2026-11_it_portal_poczta_kursanta' (modules/selfrepairDB/logic/migrations.php) i cli/it_portal_poczta_kursanta_seed.php.
  */
 
@@ -54,7 +54,9 @@ function itPortalPocztaKursantaApply(string $app, bool $dryRun = false): array {
 
 /** Wstęp strony usługi „Poczta kursanta”. */
 function itPortalPocztaKursantaIntro(string $app): string {
-    return '<p>Uczestnicy szkoleń Fundacji dostają imienny adres e-mail w domenie <code>@stud.feer.org.pl</code>. '
+    return '<p>Po ostatnich awariach Microsoft 365 Fundacja rezygnuje z jego usług. Konta uczestników w domenie <code>@edu.feer.org.pl</code> '
+         . 'wyłączamy 20 listopada 2026 r.</p>'
+         . '<p>W zamian uczestnicy szkoleń dostają imienny adres e-mail w domenie <code>@stud.feer.org.pl</code>. '
          . 'Ta poczta działa na odrębnym serwerze i ma własne hasło, inne niż do panelu kursanta.</p>'
          . '<p>Jak się zalogować i jak dodać pocztę do telefonu, opisuje artykuł '
          . '<a href="' . $app . '/uslugi-it/uslugi/poczta-kursanta/logowanie">Poczta kursanta: login, hasło i logowanie</a>. '
@@ -71,7 +73,10 @@ function itPortalPocztaKursantaArticles(string $app): array {
     $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
     return [
         'logowanie' => ['Poczta kursanta: login, hasło i logowanie',
-            'poczta kursanta, stud.feer.org.pl, stud, edu.feer.org.pl, edu, e-mail, skrzynka, login, hasło, hasło startowe, sms, titan, titan.sdata.net.pl, sdata, imap, smtp, 993, 465, thunderbird, outlook, telefon, przekierowanie, odrębny serwer', [
+            'poczta kursanta, stud.feer.org.pl, stud, edu.feer.org.pl, edu, e-mail, skrzynka, login, hasło, hasło startowe, sms, titan, titan.sdata.net.pl, sdata, imap, smtp, 993, 465, thunderbird, outlook, telefon, przekierowanie, odrębny serwer, 20 listopada, wyłączenie', [
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Po ostatnich awariach Microsoft 365 wyłączamy konta <code>@edu.feer.org.pl</code> 20 listopada 2026 r. '
+                . 'Od tego dnia Twoją pocztą w Fundacji jest poczta kursanta, opisana poniżej. Dlaczego tak, wyjaśnia artykuł '
+                . '<a href="' . $app . '/uslugi-it/uslugi/poczta-kursanta/rezygnujemy-z-microsoft-365">Dlaczego rezygnujemy z Microsoft 365</a>.</p>'],
             ['type' => 'text', 'html' => '<p>Poczta kursanta to Twoja skrzynka e-mail w Fundacji, w domenie <code>@stud.feer.org.pl</code>. '
                 . 'Działa na odrębnym serwerze pocztowym, który prowadzi sdata.net.pl. Ma własne hasło, inne niż hasło do panelu kursanta. '
                 . 'Pocztę otwierasz w przeglądarce na stronie <a href="https://titan.sdata.net.pl/">titan.sdata.net.pl</a>.</p>'],
@@ -104,9 +109,11 @@ function itPortalPocztaKursantaArticles(string $app): array {
                 . '<tr><td>Poczta wychodząca (SMTP)</td><td>szyfrowanie SSL/TLS: tak, port 465</td></tr>'
                 . '</tbody></table>'],
 
-            ['type' => 'text', 'html' => '<h2>Wiadomości na adres @edu.feer.org.pl</h2>'
-                . '<p>Jeśli masz adres w domenie <code>@edu.feer.org.pl</code>, wiadomości wysłane na niego będziemy przekierowywać na Twój imienny adres '
-                . '<code>@stud.feer.org.pl</code>. Nowy adres podawaj już osobom i instytucjom, z którymi piszesz.</p>'],
+            ['type' => 'text', 'html' => '<h2>Konta i wiadomości @edu.feer.org.pl</h2>'
+                . '<p>Konta w domenie <code>@edu.feer.org.pl</code> wyłączamy 20 listopada 2026 r. Jeśli trzymasz na swoim koncie pliki, na przykład w OneDrive, '
+                . 'zapisz je wcześniej u siebie.</p>'
+                . '<p>Wiadomości wysłane na adres <code>@edu.feer.org.pl</code> będziemy przekierowywać na Twój imienny adres <code>@stud.feer.org.pl</code>. '
+                . 'Nowy adres podawaj już osobom i instytucjom, z którymi piszesz.</p>'],
 
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nikt z Fundacji nie poprosi Cię o hasło ani o kod z SMS-a. '
                 . 'Jeśli przyjdzie SMS z kodem, o który nie prosiłeś(-aś), napisz do nas przez <a href="' . $pomoc . '">zakładkę Pomoc w panelu kursanta</a>.</p>'],
@@ -115,20 +122,24 @@ function itPortalPocztaKursantaArticles(string $app): array {
         ], false],
 
         'rezygnujemy-z-microsoft-365' => ['Dlaczego rezygnujemy z Microsoft 365',
-            'microsoft 365, office 365, ms365, m365, rezygnacja, dlaczego, powód, licencje, ceny, awaria, edu.feer.org.pl, stud.feer.org.pl, poczta kursanta, imap, smtp', [
-            ['type' => 'text', 'html' => '<p>Fundacja rezygnuje z Microsoft 365. Pocztę, pliki i logowanie przenosimy do usług, nad którymi mamy kontrolę. '
-                . 'Uczestnicy szkoleń dostają w zamian pocztę kursanta: imienny adres <code>@stud.feer.org.pl</code> na odrębnym serwerze.</p>'],
+            'microsoft 365, office 365, ms365, m365, rezygnacja, dlaczego, powód, licencje, ceny, awaria, 12 listopada, 13 listopada, 20 listopada, wyłączenie, edu.feer.org.pl, stud.feer.org.pl, poczta kursanta, imap, smtp', [
+            ['type' => 'text', 'html' => '<p>Po ostatnich wydarzeniach Fundacja rezygnuje z Microsoft 365. 12 i 13 listopada 2026 r. przyszła jedna z największych awarii '
+                . 'tej usługi: poczta w Outlooku, Teams i SharePoint nie działały w 74 krajach, a Microsoft jeszcze następnego dnia przywracał ich działanie. '
+                . 'Konta uczestników w domenie <code>@edu.feer.org.pl</code> wyłączamy 20 listopada 2026 r.</p>'
+                . '<p>Pocztę, pliki i logowanie przenosimy do usług, nad którymi mamy kontrolę. Uczestnicy szkoleń dostają w zamian pocztę kursanta: '
+                . 'imienny adres <code>@stud.feer.org.pl</code> na odrębnym serwerze.</p>'],
 
             ['type' => 'text', 'html' => '<h2>Dlaczego</h2><ul>'
                 . '<li>1 lipca 2025 r. Microsoft zakończył bezpłatne licencje Microsoft 365 Business Premium i Office 365 E1 dla organizacji pozarządowych. '
                 . 'Za darmo zostaje tylko pakiet podstawowy. Pełny pakiet trzeba kupować za każdą osobę i co miesiąc.</li>'
                 . '<li>1 lipca 2026 r. Microsoft podniósł ceny części pakietów Microsoft 365.</li>'
-                . '<li>W 2026 r. usługi Microsoftu kilka razy przestały działać. 31 sierpnia przez kilka godzin na całym świecie nie dało się korzystać z poczty. '
-                . '12 i 13 listopada Outlook i Teams nie działały w 74 krajach.</li></ul>'
+                . '<li>Listopadowa awaria nie była pierwsza. 22 stycznia Outlook i Teams nie działały u dziesiątek tysięcy osób, '
+                . 'a 31 sierpnia przez kilka godzin na całym świecie nie dało się korzystać z poczty.</li></ul>'
                 . '<p>Gdy poczta, pliki i spotkania są u jednego dostawcy, jego awaria albo zmiana cennika zatrzymuje pracę całej Fundacji. '
                 . 'Nowa poczta działa na otwartych standardach IMAP i SMTP. W razie potrzeby przeniesiemy ją do innego dostawcy, a Twój adres zostanie ten sam.</p>'],
 
             ['type' => 'text', 'html' => '<h2>Co to zmienia dla Ciebie</h2><ul>'
+                . '<li>20 listopada 2026 r. wyłączamy konta <code>@edu.feer.org.pl</code>. Jeśli trzymasz na nich pliki, na przykład w OneDrive, zapisz je wcześniej u siebie.</li>'
                 . '<li>Dostajesz imienny adres <code>@stud.feer.org.pl</code>. Login przyjdzie e-mailem, a hasło startowe SMS-em.</li>'
                 . '<li>Wiadomości wysłane na adres <code>@edu.feer.org.pl</code> będziemy przekierowywać na Twój nowy adres.</li>'
                 . '<li>Pocztę otwierasz na <a href="https://titan.sdata.net.pl/">titan.sdata.net.pl</a> albo w programie pocztowym.</li></ul>'
