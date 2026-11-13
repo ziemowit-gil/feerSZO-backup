@@ -105,7 +105,7 @@ final class NoweHasloController
             } catch (\Throwable $e2) {}
             return $this->flash($back . '#zmiana', 'danger', $e->getMessage());
         }
-        unset($_SESSION[self::K_FORM]);
+        $_SESSION[self::K_FORM] = ['done' => $target];   // kreator: krok „Gotowe” proponuje drugie hasło startowe
         return $this->flash($back, 'success', $msg);
     }
 

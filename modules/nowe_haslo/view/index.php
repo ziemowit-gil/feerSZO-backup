@@ -45,16 +45,33 @@ if ($noRandom) $mSel = 'own';
   .pvm .nh-login{font-size:1.15rem;font-weight:600;word-break:break-all}
   .pvm ol.nh-two{margin:.3rem 0 0;padding-left:1.3rem}
   .pvm ol.nh-two li{margin:.35rem 0}
-  .pvm .nh-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:1rem;align-items:start}
-  .pvm .nh-card{background:#fff;border:2px solid var(--pvm-line);border-top:6px solid var(--m-blue);padding:1rem 1.1rem 1.1rem}
-  .pvm .nh-card--sel{border-color:var(--m-blue)}
-  .pvm .nh-card--off{border-top-color:var(--pvm-line)}
-  .pvm .nh-card__h{font-size:1.1rem;font-weight:600;margin:0 0 .35rem;display:flex;gap:.5rem;align-items:center}
-  .pvm .nh-card__h i{color:var(--m-blue)}
-  .pvm .nh-card__login{margin:0 0 .25rem;word-break:break-all}
-  .pvm .nh-card__desc{margin:0 0 .6rem;color:var(--pvm-muted);font-size:.92rem}
-  .pvm .nh-card .dm-inp{max-width:none}
-  .pvm .nh-card .dm-chk{margin:.2rem 0 .7rem}
+  .pvm .nh-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:.8rem}
+  .pvm .nh-tile{display:flex;gap:.7rem;align-items:flex-start;padding:1rem;border:2px solid var(--pvm-line);background:#fff;cursor:pointer;min-height:44px}
+  .pvm .nh-tile:has(input:checked){border-color:var(--m-blue);background:var(--pvm-light);box-shadow:inset 0 4px 0 var(--m-blue)}
+  .pvm .nh-tile:has(input:focus-visible){outline:3px solid #fbbf24;outline-offset:2px}
+  .pvm .nh-tile--off{cursor:default;opacity:.7}
+  .pvm .nh-tile input{width:1.25rem;height:1.25rem;margin-top:.2rem;flex-shrink:0;accent-color:var(--m-blue)}
+  .pvm .nh-tile__b{display:flex;flex-direction:column;gap:.2rem;min-width:0}
+  .pvm .nh-tile__h{font-weight:600;font-size:1.05rem;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+  .pvm .nh-tile__h i{color:var(--m-blue)}
+  .pvm .nh-tile__l{word-break:break-all}
+  .pvm .nh-tile__d{color:var(--pvm-muted);font-size:.9rem}
+  .pvm .nh-badge{font-size:.72rem;font-weight:700;color:#9a3412;border:1px solid currentColor;padding:.05rem .4rem;text-transform:uppercase;letter-spacing:.03em}
+  .pvm .nh-wiz{background:var(--pvm-light);padding:1.2rem}
+  .pvm .nh-wiz .mt-btn{margin-top:.8rem}
+  .pvm .nh-step__h{font-size:1.15rem;font-weight:600;margin:0 0 .3rem}
+  .pvm .nh-step__l{margin:0 0 .6rem;word-break:break-all}
+  .pvm .nh-wiz .dm-inp{max-width:26rem;box-sizing:border-box}
+  .pvm .nh-rules{list-style:none;padding:0;margin:.6rem 0;display:flex;flex-wrap:wrap;gap:.35rem .9rem;font-size:.9rem}
+  .pvm .nh-rules li::before{content:"○";margin-right:.35rem;color:var(--pvm-muted)}
+  .pvm .nh-rules li.ok{color:#14532d}
+  .pvm .nh-rules li.ok::before{content:"✓";color:#15803d;font-weight:700}
+  .pvm .nh-actions{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+  .pvm .nh-alt{margin:1rem 0 0;font-size:.92rem}
+  .pvm .nh-link{background:none;border:0;padding:0;font:inherit;color:var(--m-blue);text-decoration:underline;cursor:pointer;min-height:44px}
+  .pvm .nh-done{display:flex;gap:.8rem;align-items:flex-start}
+  .pvm .nh-done>i{font-size:2rem;color:#15803d;line-height:1}
+  .pvm .dm-inp{box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -166,40 +183,91 @@ if ($noRandom) $mSel = 'own';
 
     <?php if ($hasSso || $hasMail): ?>
     <section class="dm-sec" aria-labelledby="hChg" id="zmiana">
-      <h2 id="hChg" class="mt-h2"><?= $mode === 'user' ? 'Twoje <b>hasła</b>' : 'Zmień <b>hasło</b>' ?></h2>
+      <h2 id="hChg" class="mt-h2">Zmień <b>hasło</b></h2>
 
-      <?php if ($mode === 'user'): /* zalogowany: dwie karty obok siebie, każda z własnym formularzem, bez kodu (NoweHasloController::changePost) */
+      <?php if ($mode === 'user'): /* zalogowany: kreator 1) które hasło 2) nowe hasło 3) gotowe — bez kodu (NoweHasloController::changePost) */
+        $initSys = array_column($initial['rows'] ?? [], 'system');
         $cards = [
           'sso'  => ['icon' => 'bi-cloud-check', 'title' => 'Logowanie jednokrotne i chmura plików', 'ok' => $okSso,
-                     'login' => $acc ? $acc['login'] . ($acc['cloudUid'] !== '' ? ' (w chmurze też ' . $acc['cloudUid'] . ')' : '') : '',
-                     'desc' => 'SZO, chmura plików i inne aplikacje Fundacji.',
-                     'none' => 'Nie masz jeszcze tego konta. Napisz do Helpdesku IT — założymy je.'],
+                     'login' => $acc ? $acc['login'] : '', 'start' => in_array('sso', $initSys, true),
+                     'desc' => 'SZO, chmura plików i inne aplikacje Fundacji.', 'none' => 'Nie masz jeszcze tego konta.'],
           'mail' => ['icon' => 'bi-envelope', 'title' => 'Poczta', 'ok' => $okMail,
-                     'login' => $acc ? $acc['mailbox'] : '',
-                     'desc' => 'Skrzynka pocztowa. Hasło musi być inne niż do logowania jednokrotnego.',
-                     'none' => 'Nie masz skrzynki pocztowej Fundacji.'],
-        ]; ?>
-        <div class="nh-grid">
-          <?php foreach ($cards as $t => $c): $id = 'nh' . ucfirst($t); ?>
-          <article class="nh-card<?= $c['ok'] ? '' : ' nh-card--off' ?><?= $tSel === $t && $c['ok'] ? ' nh-card--sel' : '' ?>" aria-labelledby="<?= $id ?>H">
-            <h3 id="<?= $id ?>H" class="nh-card__h"><i class="bi <?= $c['icon'] ?>" aria-hidden="true"></i> <?= h($c['title']) ?></h3>
-            <?php if ($c['login'] !== ''): ?><p class="nh-card__login">Login: <strong><?= h($c['login']) ?></strong></p><?php endif; ?>
-            <p class="nh-card__desc"><?= h($c['ok'] ? $c['desc'] : $c['none']) ?></p>
-            <?php if ($c['ok']): ?>
-              <form method="post" action="<?= h(route('nh.change')) ?>" class="js-once nh-pwform" novalidate>
-                <?= Router::csrfField() ?><input type="hidden" name="target" value="<?= $t ?>"><input type="hidden" name="mode" value="own">
-                <label class="dm-fld" for="<?= $id ?>Pw">Nowe hasło</label>
-                <input class="dm-inp" id="<?= $id ?>Pw" name="password" type="password" required autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>" aria-describedby="<?= $id ?>Help">
-                <label class="dm-fld" for="<?= $id ?>Pw2">Powtórz nowe hasło</label>
-                <input class="dm-inp" id="<?= $id ?>Pw2" name="password2" type="password" required autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>">
-                <p class="dm-help" id="<?= $id ?>Help">Co najmniej <?= NoweHaslo::MIN_LEN ?> znaków: małe i wielkie litery oraz cyfry. Bez imienia, nazwiska i loginu.</p>
-                <label class="dm-chk"><input type="checkbox" class="nh-show"> <span>Pokaż hasło</span></label>
-                <button type="submit" class="mt-btn"><i class="bi bi-check2" aria-hidden="true"></i> Zmień hasło</button>
-              </form>
+                     'login' => $acc ? $acc['mailbox'] : '', 'start' => in_array('poczta', $initSys, true),
+                     'desc' => 'Skrzynka pocztowa. Hasło musi być inne niż do logowania jednokrotnego.', 'none' => 'Nie masz skrzynki pocztowej Fundacji.'],
+        ];
+        $done = $flash && $flash['type'] === 'success';
+        $wStep = $done ? 3 : (($form['target'] ?? '') !== '' ? 2 : 1);
+        $doneT = (string)($form['done'] ?? '');
+        $next = '';   // drugie hasło, które nadal jest startowe — propozycja po zmianie
+        foreach ($cards as $t => $c) if ($c['ok'] && $c['start'] && $t !== $doneT) { $next = $t; break; }
+      ?>
+        <ol class="dm-path" aria-label="Etapy">
+          <li data-p="1"<?= $wStep === 1 ? ' aria-current="step"' : ' class="done"' ?>>1. Wybierz hasło</li>
+          <li data-p="2"<?= $wStep === 2 ? ' aria-current="step"' : ($wStep > 2 ? ' class="done"' : '') ?>>2. Nowe hasło</li>
+          <li data-p="3"<?= $wStep === 3 ? ' aria-current="step"' : '' ?>>3. Gotowe</li>
+        </ol>
+
+        <form method="post" action="<?= h(route('nh.change')) ?>" id="nhWiz" class="nh-wiz" novalidate data-step="<?= $wStep ?>">
+          <?= Router::csrfField() ?><input type="hidden" name="mode" value="own" id="nhMode">
+
+          <div class="nh-step" data-s="1"<?= $wStep === 1 ? '' : ' hidden' ?>>
+            <fieldset class="nh-set">
+              <legend>Które hasło chcesz zmienić?</legend>
+              <div class="nh-grid">
+              <?php foreach ($cards as $t => $c): ?>
+                <label class="nh-tile<?= $c['ok'] ? '' : ' nh-tile--off' ?>">
+                  <input type="radio" name="target" value="<?= $t ?>" data-login="<?= h($c['login']) ?>" data-title="<?= h($c['title']) ?>"<?= $tSel === $t && $c['ok'] ? ' checked' : '' ?><?= $c['ok'] ? '' : ' disabled' ?>>
+                  <span class="nh-tile__b">
+                    <span class="nh-tile__h"><i class="bi <?= $c['icon'] ?>" aria-hidden="true"></i> <?= h($c['title']) ?>
+                      <?php if ($c['start'] && $c['ok']): ?><span class="nh-badge">hasło startowe</span><?php endif; ?></span>
+                    <?php if ($c['login'] !== ''): ?><span class="nh-tile__l"><?= h($c['login']) ?></span><?php endif; ?>
+                    <span class="nh-tile__d"><?= h($c['ok'] ? $c['desc'] : $c['none']) ?></span>
+                  </span>
+                </label>
+              <?php endforeach; ?>
+              </div>
+            </fieldset>
+            <button type="button" class="mt-btn" data-go="2"><?= 'Dalej' ?> <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+          </div>
+
+          <div class="nh-step" data-s="2"<?= $wStep === 2 ? '' : ' hidden' ?>>
+            <h3 class="nh-step__h" id="nhS2h" tabindex="-1">Nowe hasło: <span id="nhTitle"></span></h3>
+            <p class="nh-step__l">Login: <strong id="nhLogin"></strong></p>
+            <input type="text" name="username" id="nhUser" autocomplete="username" class="visually-hidden" tabindex="-1" aria-hidden="true">
+            <label class="dm-fld" for="nhPw">Nowe hasło</label>
+            <input class="dm-inp" id="nhPw" name="password" type="password" autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>" aria-describedby="nhRules">
+            <label class="dm-fld" for="nhPw2">Powtórz nowe hasło</label>
+            <input class="dm-inp" id="nhPw2" name="password2" type="password" autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>">
+            <label class="dm-chk"><input type="checkbox" id="nhShow"> <span>Pokaż hasło</span></label>
+            <ul class="nh-rules" id="nhRules" aria-live="polite">
+              <li data-r="len">co najmniej <?= NoweHaslo::MIN_LEN ?> znaków</li>
+              <li data-r="low">mała litera</li>
+              <li data-r="up">wielka litera</li>
+              <li data-r="dig">cyfra</li>
+              <li data-r="eq">oba pola takie same</li>
+            </ul>
+            <p class="dm-help">Bez imienia, nazwiska i loginu. Hasło do poczty musi być inne niż hasło logowania jednokrotnego — sprawdzimy to.</p>
+            <div class="nh-actions">
+              <button type="button" class="mt-btn mt-btn--ghost" data-go="1"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wstecz</button>
+              <button type="submit" class="mt-btn" id="nhSubmit"><i class="bi bi-check2" aria-hidden="true"></i> Zmień hasło</button>
+            </div>
+            <?php if (!$noRandom): ?>
+              <p class="nh-alt">Nie chcesz wymyślać? <button type="submit" class="nh-link" id="nhRandom">Wyślij mi losowe hasło SMS-em</button></p>
             <?php endif; ?>
-          </article>
-          <?php endforeach; ?>
-        </div>
+          </div>
+
+          <div class="nh-step" data-s="3"<?= $wStep === 3 ? '' : ' hidden' ?>>
+            <div class="nh-done"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+              <div><h3 class="nh-step__h">Gotowe</h3>
+                <p>Dostaniesz SMS i e-mail z potwierdzeniem. Jeśli telefon albo program pamięta stare hasło, wpisz w nim nowe.</p></div></div>
+            <div class="nh-actions">
+              <?php if ($next !== ''): ?>
+                <button type="button" class="mt-btn" data-go="2" data-pick="<?= $next ?>">Zmień teraz: <?= h(mb_strtolower($cards[$next]['title'])) ?> <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+              <?php endif; ?>
+              <a class="mt-btn <?= $next !== '' ? 'mt-btn--ghost' : '' ?>" href="<?= h(APP_URL . '/') ?>"><i class="bi bi-house" aria-hidden="true"></i> Wróć do SZO</a>
+            </div>
+          </div>
+        </form>
       <?php elseif ($code === null): ?>
         <div class="mt-group">
           <form method="post" action="<?= h(route('nh.code')) ?>" class="js-once" novalidate><?= Router::csrfField() ?>
@@ -283,11 +351,48 @@ if ($noRandom) $mSel = 'own';
   document.querySelectorAll('form.js-once').forEach(function (f) {
     f.addEventListener('submit', function () { var b = f.querySelector('button[type=submit]'); if (b) { b.disabled = true; b.lastChild.textContent = ' Chwileczkę…'; } });
   });
-  document.querySelectorAll('.nh-show').forEach(function (c) {
-    c.addEventListener('change', function () {
-      c.closest('form').querySelectorAll('input[name=password], input[name=password2]').forEach(function (i) { i.type = c.checked ? 'text' : 'password'; });
+  var wiz = document.getElementById('nhWiz');
+  if (wiz) {
+    var steps = wiz.querySelectorAll('.nh-step'), path = document.querySelectorAll('.dm-path li[data-p]');
+    var pw = document.getElementById('nhPw'), pw2 = document.getElementById('nhPw2'), mode = document.getElementById('nhMode');
+    function picked() { return wiz.querySelector('input[name=target]:checked'); }
+    function go(n) {
+      steps.forEach(function (s) { s.hidden = s.dataset.s !== String(n); });
+      path.forEach(function (li) {
+        var p = +li.dataset.p; li.classList.toggle('done', p < n);
+        if (p === n) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+      });
+      if (n === 2) {
+        var r = picked(); if (!r) { go(1); return; }
+        document.getElementById('nhTitle').textContent = r.dataset.title;
+        document.getElementById('nhLogin').textContent = r.dataset.login;
+        document.getElementById('nhUser').value = r.dataset.login;
+        pw.focus();
+      }
+    }
+    wiz.querySelectorAll('[data-go]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (b.dataset.pick) { var r = wiz.querySelector('input[name=target][value=' + b.dataset.pick + ']'); if (r) r.checked = true; pw.value = pw2.value = ''; rules(); }
+        if (b.dataset.go === '2' && !picked()) { wiz.querySelector('input[name=target]:not(:disabled)').focus(); return; }
+        go(+b.dataset.go);
+      });
     });
-  });
+    wiz.querySelectorAll('input[name=target]').forEach(function (r) { r.addEventListener('dblclick', function () { go(2); }); });
+    function rules() {
+      var v = pw.value, ok = { len: v.length >= <?= NoweHaslo::MIN_LEN ?>, low: /\p{Ll}/u.test(v), up: /\p{Lu}/u.test(v), dig: /\d/.test(v), eq: v !== '' && v === pw2.value };
+      wiz.querySelectorAll('.nh-rules li').forEach(function (li) { li.classList.toggle('ok', !!ok[li.dataset.r]); });
+    }
+    pw.addEventListener('input', rules); pw2.addEventListener('input', rules);
+    document.getElementById('nhShow').addEventListener('change', function (e) { pw.type = pw2.type = e.target.checked ? 'text' : 'password'; });
+    var rnd = document.getElementById('nhRandom');
+    if (rnd) rnd.addEventListener('click', function () { mode.value = 'random'; });
+    document.getElementById('nhSubmit').addEventListener('click', function () { mode.value = 'own'; });
+    wiz.addEventListener('submit', function () {
+      var b = document.getElementById('nhSubmit');
+      setTimeout(function () { b.disabled = true; if (rnd) rnd.disabled = true; b.lastChild.textContent = ' Chwileczkę…'; }, 0);
+    });
+    if (+wiz.dataset.step === 2) go(2);
+  }
   var form = document.getElementById('nhForm');
   if (!form) return;
   var own = document.getElementById('nhOwn');

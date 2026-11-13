@@ -53,11 +53,9 @@ final class NoweHasloCheck
                 return true;
             } catch (\Throwable $e) {
                 if (in_array($api->lastHttp, [400, 422], true)) return false;   // session.invalid_credentials albo konto bez hasła
-                if ($api->lastHttp !== 404) {                                    // 404 = konta już nie ma w Logto → sprawdzamy chmurę
-                    error_log('[nowehaslo] Logto verify ' . $logtoId . ': ' . $e->getMessage());
-                    self::$why = 'unavailable';
-                    return null;
-                }
+                // Inny błąd Logto (brak uprawnienia, 5xx, sieć) albo 404: nie poddajemy się — hasło chmury jest to samo co Logto,
+                // więc sprawdzamy logowaniem do chmury (2026-11-14: „Nie możemy teraz sprawdzić…” blokowało zmianę hasła poczty).
+                if ($api->lastHttp !== 404) error_log('[nowehaslo] Logto verify ' . $logtoId . ' HTTP ' . $api->lastHttp . ': ' . $e->getMessage() . ' — sprawdzam chmurę');
             }
         }
         $uid = (string)($acc['cloud_uid'] ?? '');
