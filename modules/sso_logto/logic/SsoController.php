@@ -378,24 +378,6 @@ final class SsoController
         return APP_URL . '/tozsamosc/index.php#sso';
     }
 
-    /**
-     * Opcja „to samo hasło także do poczty” (polecenie 2026-11-13, nieobowiązkowa): po udanym ustawieniu hasła logowania
-     * jednokrotnego ustawia je też w skrzynce pocztowej osoby (DhostingMigrator::selfSetPassword). Zwraca zdanie do komunikatu.
-     */
-    private function mailToo(array $db, string $pass): string
-    {
-        if (empty($_POST['mail_too'])) return '';
-        try {
-            require_once dirname(__DIR__, 2) . '/dhosting_migrator/logic/DhostingMigrator.php';
-            $u = db_one("SELECT id, name, email, phone_number, microsoft_id, m365_login FROM users WHERE id=?", [(int)$db['id']]) ?: $db;
-            $box = DhostingMigrator::selfSetPassword($u, $pass, (string)($db['email'] ?? ''));
-            if (function_exists('log_user_action')) { try { log_user_action((int)$db['id'], (int)$db['id'], 'mail_own_password', 'Własne hasło do poczty ' . $box); } catch (\Throwable $e) {} }
-            return ' Poczta ' . $box . ' ma teraz to samo hasło. Telefon i Outlook poproszą Cię o nie przy następnym sprawdzaniu poczty.';
-        } catch (\Throwable $e) {
-            return ' Hasło do poczty zostało stare, bo ' . $e->getMessage() . '.';
-        }
-    }
-
     public function selfCreate(): ?string
     {
         // z ekranu prośby po zalogowaniu (/sso/start) wracamy tam — ze ścieżką dalszą; ze strony migracji poczty — na nią; w innym razie do Tożsamości
@@ -424,7 +406,6 @@ final class SsoController
             : 'Konto logowania jednokrotnego już miałeś(-aś). Połączyliśmy je z SZO i ustawiliśmy nowe hasło.';
         if (in_array($res['cloud'], ['created', 'linked', 'synced'], true)) $msg .= ' W chmurze plików działa to samo hasło.';
         elseif (str_starts_with($res['cloud'], 'błąd')) $msg .= ' Konta w chmurze nie udało się przygotować. Administrator już o tym wie.';
-        $msg .= $this->mailToo($db, $pass);
         return $this->flashGlobal($back, 'success', $msg);
     }
 
@@ -444,7 +425,6 @@ final class SsoController
         $msg = 'Zmieniliśmy hasło logowania jednokrotnego.';
         if (in_array($res['cloud'], ['linked', 'synced'], true)) $msg .= ' W chmurze plików też działa już nowe hasło.';
         elseif (str_starts_with($res['cloud'], 'błąd')) $msg .= ' W chmurze plików zostało stare hasło, bo zmiana się nie udała (' . mb_substr($res['cloud'], 6) . ').';
-        $msg .= $this->mailToo($db, $pass);
         return $this->flashGlobal($back, 'success', $msg);
     }
 

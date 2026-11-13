@@ -121,12 +121,19 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
         <div><span class="val"><?= h($loginHost) ?></span><span class="lbl">Otwórz pocztę w przeglądarce<span class="visually-hidden"> (nowa karta)</span></span></div>
       </a>
     </div>
+    <?php if (!$byAdmin): /* osoba sama zleciła migrację — zachęta do zmiany hasła z SMS-a na własne (polecenie 2026-11-13) */ ?>
+      <div class="mt-note" role="note" style="margin:1rem 0 0;border-left-color:var(--m-orange);background:#fff"><i class="bi bi-shield-lock" aria-hidden="true" style="color:var(--m-orange)"></i>
+        <div><strong>Zmień hasło z SMS-a na własne.</strong> Zaloguj się na <a href="<?= h($loginUrl) ?>" target="_blank" rel="noopener"><?= h($loginHost) ?><span class="visually-hidden"> (nowa karta)</span></a>
+          i zmień hasło w ustawieniach poczty. Wymyśl takie, którego nie używasz nigdzie indziej. Potem wpisz nowe hasło w telefonie i w Outlooku.
+          <?php if (!empty($st['sync']['active'])): ?>Jeśli zmienisz je przed <?= h(date('d.m.Y', strtotime((string)$st['sync']['until']))) ?>, podaj nowe hasło na tej stronie, gdy o nie poprosimy — wtedy dalej będziemy dosyłać nowe wiadomości z Microsoft 365.<?php endif; ?></div>
+      </div>
+    <?php endif; ?>
     <p class="dm-help" style="margin:1rem 0 0">Nie masz hasła albo chcesz coś zmienić (nowe hasło, ponowne kopiowanie)?
       <?= $locked ? 'To robi administrator — ' : '' ?><?php if ($hdUrl !== ''): ?>napisz w <a href="<?= h($hdUrl) ?>">swoim zgłoszeniu <?= h((string)$st['ticket']['number']) ?></a>.<?php else: ?>napisz do Helpdesku IT.<?php endif; ?></p>
   </section>
   <?php if (!$locked): ?>
     <div class="dm-msg dm-msg--info" role="status"><i class="bi bi-shield-check" aria-hidden="true"></i>
-      <div>To konto jest już zmigrowane. Jako administrator możesz nadal ustawić nowe hasło albo skopiować pocztę ponownie.</div></div>
+      <div>To konto jest już zmigrowane. Jako administrator możesz nadal ustawić nowe hasło; ponowne przenoszenie poczty uruchomisz na <a href="<?= h(rtrim(APP_URL, '/')) ?>/migracjaadmin#kopiowanie">/migracjaadmin</a>.</div></div>
   <?php endif; ?>
 
   <section class="dm-sec" aria-labelledby="hCfg">
@@ -287,7 +294,8 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
           <?php if ($sync['last']): ?>Ostatnio: <?= h(substr($sync['last']['at'], 0, 16)) ?> — dosłano <?= (int)$sync['last']['added'] ?>.<?php endif; ?></p>
       <?php endif; ?>
 
-      <?php if ((($exists && !$jobActive) || $needPw) && !$locked): ?>
+      <?php // po migracji ponowne kopiowanie tylko przez administratora (/migracjaadmin) — formularz zostaje jedynie, gdy trwające dosyłanie czeka na aktualne hasło (polecenie 2026-11-13)
+            if (($needPw || ($exists && !$jobActive && empty($st['migrated']))) && !$locked): ?>
         <?php if ($needPw): ?>
         <?php elseif (!$job): ?><p>Masz już skrzynkę i hasło z SMS-a? Podaj je, a skopiujemy pocztę z Microsoft 365. Wiadomości już przeniesione nie zdublują się.</p>
         <?php else: ?><p>Chcesz skopiować pocztę jeszcze raz (np. nowe wiadomości)? Podaj hasło do nowej skrzynki.</p><?php endif; ?>
@@ -306,8 +314,8 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
   <?php endif; ?>
 
   <?php
-    // Logowanie jednokrotne i chmura plików (modules/sso_logto): osoba sama zakłada konta albo zmienia hasło; opcja „to samo hasło także do poczty”
-    // jest nieobowiązkowa i działa też po przeniesieniu poczty (polecenie 2026-11-13). Formularz idzie na /sso/konto albo /sso/haslo i wraca tutaj.
+    // Logowanie jednokrotne i chmura plików (modules/sso_logto): osoba sama zakłada konta albo zmienia hasło — osobne od hasła do poczty
+    // (opcję „to samo hasło także do poczty” usunięto 2026-11-13: osobne hasła ze względów bezpieczeństwa). Formularz idzie na /sso/konto albo /sso/haslo i wraca tutaj.
     require_once dirname(__DIR__, 2) . '/sso_logto/logic/SsoAccounts.php';
     $ssoEmail = strtolower(trim((string)($me['email'] ?? '')));
     $ssoOn = !$guest && SsoConfig::selfEnabled() && SsoConfig::logtoConfigured() && filter_var($ssoEmail, FILTER_VALIDATE_EMAIL);
@@ -341,13 +349,7 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
         <label class="dm-fld" for="ssoP2">Powtórz hasło</label>
         <input class="dm-inp" type="password" id="ssoP2" name="password2" required minlength="10" maxlength="128" autocomplete="new-password">
         <p class="dm-help" aria-hidden="true"></p>
-        <?php if ($exists): ?>
-        <div class="dm-chk">
-          <input type="checkbox" name="mail_too" value="1" id="ssoMail" aria-describedby="ssoMailH">
-          <label for="ssoMail">Ustaw to samo hasło także do poczty <?= h((string)$st['mailbox']) ?></label>
-        </div>
-        <p class="dm-help" id="ssoMailH">Nie musisz tego zaznaczać. Jeśli zaznaczysz, telefon i Outlook poproszą o nowe hasło do poczty. Bez zaznaczenia poczta działa jak dotąd.</p>
-        <?php endif; ?>
+        <p class="dm-help">To hasło jest osobne od hasła do poczty — hasło do poczty się nie zmienia.</p>
         <button type="submit" class="mt-btn"><i class="bi <?= $ssoHas && !$ssoNeedCloud ? 'bi-key' : 'bi-person-plus' ?>" aria-hidden="true"></i> <?= h($ssoBtn) ?></button>
       </form>
     </div>

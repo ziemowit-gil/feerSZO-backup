@@ -3,17 +3,9 @@
  * modules/sso_logto/view/userSection.php — sekcja #sso „Logowanie jednokrotne” w Tożsamości (tozsamosc/index.php).
  * Zmienne z index.php: $db_user, $has_m365, $sec_title. Formularze idą na POST /sso/konto i /sso/haslo (modules/sso_logto).
  * Przy samodzielnym zakładaniu konta użytkownik sam wybiera hasło — SZO go nie zapisuje (przekazuje do Logto i chmury).
- * Opcja „to samo hasło także do poczty” (polecenie 2026-11-13) — tylko gdy osoba ma skrzynkę w rejestrze migratora; nieobowiązkowa.
+ * Hasło do poczty jest osobne (opcję „to samo hasło także do poczty” usunięto 2026-11-13 — osobne hasła ze względów bezpieczeństwa).
  */
 require_once dirname(__DIR__) . '/logic/SsoAccounts.php';
-$ssoMailBox = null;
-try { require_once dirname(__DIR__, 2) . '/dhosting_migrator/logic/DhostingMigrator.php'; $ssoMailBox = DhostingMigrator::ownMailbox((array)$db_user); } catch (\Throwable $e) { $ssoMailBox = null; }
-$ssoMailChk = function (string $id) use ($ssoMailBox): void {
-    if ($ssoMailBox === null) return;
-    echo '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="mail_too" value="1" id="' . h($id) . '" aria-describedby="' . h($id) . 'h">'
-       . '<label class="form-check-label" for="' . h($id) . '">Ustaw to samo hasło także do poczty ' . h($ssoMailBox) . '</label></div>'
-       . '<div id="' . h($id) . 'h" class="form-text mb-3">Nie musisz tego zaznaczać. Jeśli zaznaczysz, telefon i Outlook poproszą o nowe hasło do poczty.</div>';
-};
 
 $ssoEmail  = strtolower((string)($db_user['email'] ?? ''));
 $ssoAcc    = $ssoEmail !== '' ? SsoAccounts::get($ssoEmail) : null;
@@ -39,7 +31,7 @@ $ssoBase   = rtrim(APP_URL, '/');
   <div class="ma-card">
     <ul class="ma-list ma-list--info">
       <li><i class="bi bi-1-circle-fill" aria-hidden="true"></i><span>Logowanie jednokrotne i chmura plików mają jedno hasło. Zmieniasz je tutaj i od razu działa w obu miejscach.</span></li>
-      <li><i class="bi bi-2-circle-fill" aria-hidden="true"></i><span>Poczta ma własne hasło.<?= $ssoMailBox !== null ? ' Jeśli chcesz, ustawisz tu takie samo: zaznacz pole pod formularzem. Bez tego hasło do poczty się nie zmienia.' : ' Zmiana hasła tutaj go nie rusza.' ?></span></li>
+      <li><i class="bi bi-2-circle-fill" aria-hidden="true"></i><span>Poczta ma własne, osobne hasło — celowo, ze względów bezpieczeństwa. Zmiana hasła tutaj go nie rusza.</span></li>
       <li><i class="bi bi-3-circle-fill" aria-hidden="true"></i><span>Hasło do SZO<?= $has_m365 ? ' i Microsoft 365' : '' ?> jest osobne. Zmieniasz je w <a href="#bezpieczenstwo" @click.prevent="go('bezpieczenstwo', 'haslo')">Zabezpieczeniach</a>.</span></li>
       <li><i class="bi bi-4-circle-fill" aria-hidden="true"></i><span>Nie używaj tego hasła poza organizacją i nie podawaj go nikomu. Administrator go nie zna i nigdy o nie nie poprosi.</span></li>
     </ul>
@@ -65,7 +57,6 @@ $ssoBase   = rtrim(APP_URL, '/');
           <input type="password" id="ssoP2" name="password2" class="form-control" required minlength="10" maxlength="128" autocomplete="new-password" x-model="p2" aria-describedby="ssoP2h">
           <div id="ssoP2h" class="form-text" aria-live="polite"><span x-show="p2.length > 0 && p1 !== p2">Hasła się różnią.</span></div>
         </div>
-        <?php $ssoMailChk('ssoMailNew'); ?>
         <button type="submit" class="tz-btn"><i class="bi bi-person-plus" aria-hidden="true"></i><?= $ssoCloudSelf ? 'Utwórz konta' : 'Utwórz konto' ?></button>
       </form>
       <?php else: ?>
@@ -96,14 +87,13 @@ $ssoBase   = rtrim(APP_URL, '/');
         <div class="mb-2">
           <label for="ssoN1" class="form-label fw-semibold">Nowe hasło</label>
           <input type="password" id="ssoN1" name="password" class="form-control" required minlength="10" maxlength="128" autocomplete="new-password" aria-describedby="ssoN1h" x-model="p1">
-          <div id="ssoN1h" class="form-text">Co najmniej 10 znaków.<?= $ssoHasCld ? ' Zmieni się też w chmurze plików.' : '' ?><?= $ssoMailBox !== null ? '' : ' Hasło do poczty zostaje bez zmian.' ?></div>
+          <div id="ssoN1h" class="form-text">Co najmniej 10 znaków.<?= $ssoHasCld ? ' Zmieni się też w chmurze plików.' : '' ?> Hasło do poczty zostaje bez zmian.</div>
         </div>
         <div class="mb-3">
           <label for="ssoN2" class="form-label fw-semibold">Powtórz nowe hasło</label>
           <input type="password" id="ssoN2" name="password2" class="form-control" required minlength="10" maxlength="128" autocomplete="new-password" x-model="p2" aria-describedby="ssoN2h">
           <div id="ssoN2h" class="form-text" aria-live="polite"><span x-show="p2.length > 0 && p1 !== p2">Hasła się różnią.</span></div>
         </div>
-        <?php $ssoMailChk('ssoMailPw'); ?>
         <button type="submit" class="tz-btn tz-btn--ghost"><i class="bi <?= $ssoAddCloud ? 'bi-cloud-plus' : 'bi-key' ?>" aria-hidden="true"></i><?= $ssoAddCloud ? 'Załóż konto w chmurze' : 'Zmień hasło' ?></button>
       </form>
     <?php endif; ?>
