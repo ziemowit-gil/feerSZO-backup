@@ -953,4 +953,18 @@ return [
         },
     ],
 
+    // /nowehaslo: zalogowany do SZO zmienia hasło bez kodu (2026-11-14) — opisy kroków w artykułach o zmianie hasła.
+    '2026-11_it_portal_nowehaslo_bez_kodu' => [
+        'desc' => 'Portal Usług IT: zmiana hasła po zalogowaniu do SZO bez kodu (artykuły „Zmiana haseł” i „Jak zmienić hasło do poczty”)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalHaslaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php';
+            itPortalDpocztaApply(ITP_SZO_URL, false, ['zmiana-hasla-poczty']);
+            itPortalHaslaApply(ITP_SZO_URL);
+            itPortalVendorHelpApply();
+        },
+    ],
+
 ];

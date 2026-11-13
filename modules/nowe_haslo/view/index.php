@@ -4,6 +4,7 @@
  * (styl: modules/dhosting_migrator/view/_metro.php). Stany: wejście gościa (dane) → kod SMS + formularz zmiany;
  * zalogowany: konta, kod SMS, formularz. Konta i login pokazujemy dopiero potwierdzonej osobie (gość — po pierwszym kodzie).
  * Kod potwierdzenia: hasło do poczty — SMS na numer z konta/umowy albo e-mail na prywatny adres; logowanie jednokrotne — e-mail.
+ * Zalogowany do SZO (mode 'user') zmienia hasło od razu, bez kodu — jeden formularz: które hasło, własne/losowe, hasło dwa razy.
  * Zmienne: $st (NoweHasloAuth::state), $acc (NoweHaslo::overview|null), $code (NoweHasloAuth::codeInfo|null), $flash, $form.
  */
 $org   = org_setting('org_short_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'SZO');
@@ -16,8 +17,8 @@ $loginUrl = APP_URL . '/auth/login.php?redirect=' . urlencode(APP_URL . '/noweha
 $hasSso  = $acc ? $acc['sso'] : true;
 $hasMail = $acc ? $acc['mailbox'] !== '' : true;
 // co można zmienić: konto istnieje i (u potwierdzonej osoby) jest gdzie wysłać kod
-$okSso  = $hasSso && (!$conf || $chSso !== null);
-$okMail = $hasMail && (!$conf || $chMail !== null);
+$okSso  = $hasSso && (!$conf || $chSso !== null || $mode === 'user');   // zalogowany zmienia bez kodu — kanał niepotrzebny
+$okMail = $hasMail && (!$conf || $chMail !== null || $mode === 'user');
 $tSel = (string)($form['target'] ?? '');
 if ($tSel === '' || ($tSel === 'sso' && !$okSso) || ($tSel === 'mail' && !$okMail)) $tSel = $okSso ? 'sso' : ($okMail ? 'mail' : '');
 $mSel = in_array($form['mode'] ?? '', ['own', 'random'], true) ? $form['mode'] : 'own';
@@ -70,8 +71,9 @@ if ($noRandom) $mSel = 'own';
       <div class="mt-kicker">Konta Fundacji</div>
       <h1 class="mt-title">Nowe hasło</h1>
       <p class="mt-lead">Tu zmienisz hasło do logowania jednokrotnego i chmury plików albo hasło do poczty.
-        <?= $mode === 'user' ? 'Każdą zmianę potwierdzisz kodem.' : 'Najpierw potwierdzimy, że to Ty: danymi z umowy z Fundacją i kodem.' ?>
-        Przy haśle do poczty kod przychodzi SMS-em (a gdy nie mamy numeru, na prywatny e-mail), przy haśle logowania jednokrotnego e-mailem.</p>
+        <?php if ($mode === 'user'): ?>Jesteś zalogowany do SZO, więc zmienisz hasło od razu, bez kodu.
+        <?php else: ?>Najpierw potwierdzimy, że to Ty: danymi z umowy z Fundacją i kodem.
+        Przy haśle do poczty kod przychodzi SMS-em (a gdy nie mamy numeru, na prywatny e-mail), przy haśle logowania jednokrotnego e-mailem.<?php endif; ?></p>
     </div>
   </div>
 
@@ -154,7 +156,40 @@ if ($noRandom) $mSel = 'own';
     <section class="dm-sec" aria-labelledby="hChg" id="zmiana">
       <h2 id="hChg" class="mt-h2">Zmień <b>hasło</b></h2>
 
-      <?php if ($code === null): ?>
+      <?php if ($mode === 'user'): /* zalogowany: zmiana od razu, bez kodu (NoweHasloController::changePost) */ ?>
+        <div class="mt-group">
+          <form method="post" action="<?= h(route('nh.change')) ?>" class="js-once" id="nhForm" novalidate>
+            <?= Router::csrfField() ?>
+            <fieldset class="nh-set">
+              <legend>Które hasło zmieniasz?</legend>
+              <label class="nh-opt"><input type="radio" name="target" value="sso"<?= $tSel === 'sso' ? ' checked' : '' ?><?= $okSso ? '' : ' disabled' ?>>
+                <span>Logowanie jednokrotne i chmura plików<span class="nh-sub">Jedno hasło do obu.<?= $hasSso ? '' : ' Nie masz jeszcze tego konta.' ?></span></span></label>
+              <label class="nh-opt"><input type="radio" name="target" value="mail"<?= $tSel === 'mail' ? ' checked' : '' ?><?= $okMail ? '' : ' disabled' ?>>
+                <span>Poczta<span class="nh-sub"><?= $acc && $acc['mailbox'] !== '' ? h($acc['mailbox']) . '. ' : '' ?>Osobne hasło, inne niż do logowania jednokrotnego.<?= $hasMail ? '' : ' Nie masz skrzynki.' ?></span></span></label>
+            </fieldset>
+            <fieldset class="nh-set">
+              <legend>Jakie ma być nowe hasło?</legend>
+              <label class="nh-opt"><input type="radio" name="mode" value="own"<?= $mSel === 'own' ? ' checked' : '' ?> aria-controls="nhOwn">
+                <span>Ustawię własne<span class="nh-sub">Wpiszesz je poniżej.</span></span></label>
+              <label class="nh-opt"><input type="radio" name="mode" value="random"<?= $mSel === 'random' ? ' checked' : '' ?><?= $noRandom ? ' disabled' : '' ?> aria-controls="nhOwn">
+                <span>Wyślij mi losowe SMS-em<span class="nh-sub"><?= $noRandom ? 'Nie mamy Twojego numeru komórkowego, a hasła nie wysyłamy e-mailem.' : 'Dostaniesz je na telefon. Na ekranie go nie pokażemy.' ?></span></span></label>
+            </fieldset>
+            <div id="nhOwn">
+              <label class="dm-fld" for="nhPw">Nowe hasło</label>
+              <input class="dm-inp" id="nhPw" name="password" type="password" autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>" aria-describedby="nhPwHelp">
+              <p class="dm-help" id="nhPwHelp">Co najmniej <?= NoweHaslo::MIN_LEN ?> znaków: małe i wielkie litery oraz cyfry. Bez imienia, nazwiska i loginu.
+                Hasło do poczty musi być inne niż hasło logowania jednokrotnego.</p>
+              <label class="dm-fld" for="nhPw2">Powtórz nowe hasło</label>
+              <input class="dm-inp" id="nhPw2" name="password2" type="password" autocomplete="new-password" maxlength="<?= NoweHaslo::MAX_LEN ?>">
+              <label class="dm-chk" style="margin-top:.6rem"><input type="checkbox" id="nhShow"> <span>Pokaż hasło</span></label>
+            </div>
+            <?php if ($okSso || $okMail): ?>
+              <p class="dm-help">Po zmianie dostaniesz SMS i e-mail z informacją, że hasło się zmieniło.</p>
+              <button type="submit" class="mt-btn"><i class="bi bi-check2" aria-hidden="true"></i> Zmień hasło</button>
+            <?php endif; ?>
+          </form>
+        </div>
+      <?php elseif ($code === null): ?>
         <div class="mt-group">
           <form method="post" action="<?= h(route('nh.code')) ?>" class="js-once" novalidate><?= Router::csrfField() ?>
             <fieldset class="nh-set">

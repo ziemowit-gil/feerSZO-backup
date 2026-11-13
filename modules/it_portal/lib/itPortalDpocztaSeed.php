@@ -111,8 +111,9 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'wizard', 'title' => 'Zmiana hasła w SZO', 'intro' => '', 'steps' => [
                 $step('Otwórz stronę Nowe hasło', '<p>Wejdź na <a href="' . $app . '/nowehaslo">Nowe hasło</a> w SZO. W panelu współpracownika kliknij kafel „Zmiana haseł”. '
                     . 'Wejdziesz tam też bez logowania: podaj prywatny e-mail albo PESEL z umowy oraz adres służbowy.</p>'),
-                $step('Wybierz hasło do poczty', '<p>Zaznacz „hasło do poczty” i kliknij „Wyślij kod”. Kod przyjdzie SMS-em, a gdy nie mamy Twojego numeru, e-mailem na prywatny adres.</p>'),
-                $step('Wpisz kod i nowe hasło', '<p>Przepisz kod i wpisz nowe hasło dwa razy. Możesz też wybrać hasło losowe, które przyjdzie SMS-em.</p>'),
+                $step('Wybierz hasło do poczty', '<p>Zaznacz „Poczta”. Jeśli jesteś zalogowany do SZO, kod nie jest potrzebny. '
+                    . 'Bez logowania kliknij „Wyślij kod”: przyjdzie SMS-em, a gdy nie mamy Twojego numeru, e-mailem na prywatny adres.</p>'),
+                $step('Ustaw nowe hasło', '<p>Wpisz nowe hasło dwa razy (bez logowania także kod) i kliknij „Zmień hasło”. Możesz też wybrać hasło losowe, które przyjdzie SMS-em.</p>'),
             ]],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nowe hasło musi mieć co najmniej 12 znaków, w tym małą literę, wielką literę i cyfrę.</p>'],
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Masz pocztę też w telefonie albo w Outlooku? Po zmianie hasła wpisz nowe także tam, inaczej program przestanie pobierać wiadomości.</p>'],

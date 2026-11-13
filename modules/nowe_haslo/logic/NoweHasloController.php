@@ -4,12 +4,12 @@ declare(strict_types=1);
 /**
  * modules/nowe_haslo/logic/NoweHasloController.php — ekrany /nowehaslo (samodzielna strona bez menu SZO, wygląd METRO).
  *
- * GET  /nowehaslo          — zalogowany: konta i formularz zmiany; bez logowania: dane (prywatny e-mail / PESEL + adres
- *                             służbowy), potem formularz z kodem SMS;
+ * GET  /nowehaslo          — zalogowany: konta i formularz zmiany BEZ KODU (sesja SZO = potwierdzenie); bez logowania:
+ *                             dane (prywatny e-mail / PESEL + adres służbowy), potem formularz z kodem SMS;
  * POST /nowehaslo/wejscie  — gość: op=ident (dane) | restart;
  * POST /nowehaslo/kod      — wyślij kod dla wybranego hasła (target=sso: e-mailem; target=mail: SMS-em albo na prywatny e-mail);
  *                             op=cancel — „Zmień wybór”;
- * POST /nowehaslo/zmien    — zmiana hasła, którego dotyczy kod: kod + jak (own | random) + hasło dwa razy;
+ * POST /nowehaslo/zmien    — zalogowany: target + jak (own | random) + hasło dwa razy; gość: hasło, którego dotyczy kod, + kod;
  * POST /nowehaslo/zakoncz  — koniec sesji gościa.
  * Komunikaty idą przez sesję (PRG); hasła nigdy nie wracają do widoku.
  */
@@ -73,18 +73,30 @@ final class NoweHasloController
     {
         $back = route('nh.index');
         $mode = (string)($_POST['mode'] ?? '');
-        $target = (string)(NoweHasloAuth::codeInfo()['target'] ?? '');
-        $_SESSION[self::K_FORM] = ['target' => $target, 'mode' => $mode];
         $st = NoweHasloAuth::state();
+        // Zalogowany do SZO zmienia własne hasło bez kodu — sesja SZO jest potwierdzeniem (polecenie 2026-11-14).
+        // Gość (bez logowania) nadal potwierdza się danymi z umowy i kodem SMS/e-mail.
+        $direct = $st['mode'] === 'user';
+        $target = $direct ? (string)($_POST['target'] ?? '') : (string)(NoweHasloAuth::codeInfo()['target'] ?? '');
+        $_SESSION[self::K_FORM] = ['target' => $target, 'mode' => $mode];
         if ($st['mode'] === 'none') return $this->flash($back, 'warning', 'Sesja wygasła. Wpisz dane jeszcze raz.');
         $codeOk = false;
         try {
-            [$p, $target, $confirm] = NoweHasloAuth::checkCode((string)($_POST['code'] ?? ''));   // hasło, którego dotyczy kod
-            if (!$p) throw new RuntimeException('Kod się nie zgadza.');      // atrapa (brak dopasowania) — tu nie dojdzie, ale na wszelki wypadek
-            $codeOk = true;
+            if ($direct) {
+                $p = $st['p'];
+                if (!$p) throw new RuntimeException('Nie znaleźliśmy Twojego konta. Napisz do Helpdesku IT.');
+                $acc = NoweHaslo::overview($p);
+                if ($target === 'sso' && !$acc['sso']) throw new RuntimeException('Nie masz jeszcze konta logowania jednokrotnego. Napisz do Helpdesku IT.');
+                if ($target === 'mail' && $acc['mailbox'] === '') throw new RuntimeException('Nie masz skrzynki pocztowej Fundacji.');
+                $confirm = 'sesja SZO (bez kodu)';
+            } else {
+                [$p, $target, $confirm] = NoweHasloAuth::checkCode((string)($_POST['code'] ?? ''));   // hasło, którego dotyczy kod
+                if (!$p) throw new RuntimeException('Kod się nie zgadza.');      // atrapa (brak dopasowania) — tu nie dojdzie, ale na wszelki wypadek
+                $codeOk = true;
+            }
             $by = $st['mode'] === 'user' ? (string)$p['email'] : 'bez logowania: ' . (string)$p['address'];
             $msg = NoweHaslo::change($p, $target, $mode, (string)($_POST['password'] ?? ''), (string)($_POST['password2'] ?? ''), $by, $confirm);
-            NoweHasloAuth::consumeCode();                                   // każda kolejna zmiana = nowy kod SMS
+            if ($direct) NoweHasloAuth::cancelCode(); else NoweHasloAuth::consumeCode();   // gość: każda kolejna zmiana = nowy kod SMS
         } catch (\RuntimeException $e) {
             if ($codeOk) NoweHasloAuth::changeFailed();
             try {

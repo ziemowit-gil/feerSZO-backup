@@ -87,7 +87,8 @@ function itPortalHaslaArticles(string $app): array {
                 $step('Otwórz stronę Nowe hasło', '<p>Wejdź na <a href="' . $nh . '">stronę Nowe hasło</a>. W panelu współpracownika kliknij kafel „Zmiana haseł”.</p>'
                     . '<p>Wejdziesz tam też bez logowania do SZO. Podaj wtedy prywatny e-mail albo PESEL z umowy oraz adres służbowy.</p>'),
                 $step('Wybierz hasło', '<p>Zaznacz, które hasło zmieniasz: do poczty albo do logowania jednokrotnego i chmury.</p>'),
-                $step('Wpisz kod', '<p>Przepisz kod z SMS-a albo z e-maila. Kod jest jednorazowy.</p>'),
+                $step('Wpisz kod (tylko bez logowania)', '<p>Jeśli jesteś zalogowany do SZO, kod nie jest potrzebny: od razu ustawiasz nowe hasło. '
+                    . 'Bez logowania kliknij „Wyślij kod” i przepisz kod z SMS-a albo z e-maila. Kod jest jednorazowy.</p>'),
                 $step('Ustaw nowe hasło', '<p>Wpisz własne hasło: co najmniej 12 znaków, małe i wielkie litery oraz cyfry. '
                     . 'Możesz też wybrać hasło losowe, które przyjdzie SMS-em.</p>'),
             ]],
