@@ -45,6 +45,11 @@ require_once $base . '/includes/auth.php';
 require_once $base . '/includes/functions.php';
 require_once $base . '/includes/karty30.php';
 require_once $base . '/modules/ti_poczta_stud/logic/PocztaStud.php';
+require_once $base . '/modules/it_portal/lib/itPortalSzoLinks.php';   // ITP_SZO_URL — w CLI APP_URL to localhost
+
+// Czyste CLI: sesję otwieramy PRZED pierwszym echo. Inaczej current_user() (audit_log, Helpdesk) próbuje ją otworzyć po wypisaniu
+// tekstu i każde wywołanie sypie ostrzeżeniami „headers already sent”.
+if (PHP_SAPI === 'cli' && !defined('SZO_CLI_INPROC') && function_exists('auth_start')) @auth_start();
 
 const SKP_NAME   = 'Kursant Poczty (TEST)';
 const SKP_LOGIN  = 'kursant.poczta';
@@ -116,7 +121,9 @@ switch ($cmd) {
             echo "Utworzono kursanta „" . SKP_NAME . "” (nr {$cid}), login panelu: " . SKP_LOGIN . ".\n";
             if ($shown !== '') echo "Hasło panelu (losowe, pokazujemy je tylko teraz): {$shown}\n";
             // Konto bez last_login: pierwsze logowanie idzie kodem SMS (ti_student_needs_reauth), potem kursant ustawia własne hasło.
-            echo "Logowanie kursanta: " . rtrim((string)APP_URL, '/') . "/karty30/ti/login.php — login " . SKP_LOGIN
+            $appUrl = rtrim((string)APP_URL, '/');
+            if ($appUrl === '' || preg_match('#//(localhost|127\.)#', $appUrl)) $appUrl = ITP_SZO_URL;
+            echo "Logowanie kursanta: " . $appUrl . "/karty30/ti/login.php — login " . SKP_LOGIN
                . ", dowolne hasło; pierwsze logowanie kodem SMS na {$phone}, potem własne hasło.\n";
         }
 
