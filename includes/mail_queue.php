@@ -357,6 +357,10 @@ function mail_queue_all(string $status = '', int $limit = 200): array {
 function _mail_send(array $msg): bool {
     $orig = $msg;
     $msg = _mail_apply_system_sender($msg);
+    // Własny adres odpowiedzi z nagłówków wiadomości (np. powiadomienia Zadań: odpowiedź → komentarz trafia do skrzynki IMAP
+    // modułu, 2026-11-13). Ma pierwszeństwo przed Reply-To nadawcy systemowego; nieprawidłowy adres jest pomijany.
+    $rt_own = _mail_header_reply_to($msg);
+    if ($rt_own !== '') { $msg['_reply_to'] = $rt_own; $orig['_reply_to'] = $rt_own; }
     // Każda próba trafia do mail_trace() (kanał, cel, wynik, błąd) — test w Ustawieniach → Poczta i last_error w kolejce
     // pokazują techniczny przebieg zamiast „sprawdź logi” (polecenie 2026-11-13).
     $try = function (string $via, string $target, callable $fn): ?bool {
@@ -894,6 +898,18 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
  * strumienia SMTP, więc dowolna nazwa/wartość pozwoliłaby wstrzyknąć CRLF i
  * rozbić wiadomość (header injection). Wartości obcinamy do jednej linii.
  */
+/** Reply-To podany w nagłówkach wiadomości (mail_queue_add(..., headers: ['Reply-To' => adres])) albo ''. */
+function _mail_header_reply_to(array $msg): string {
+    $raw = json_decode($msg['headers'] ?? '', true);
+    if (!is_array($raw)) return '';
+    foreach ($raw as $name => $value) {
+        if (strtolower(trim((string)$name)) !== 'reply-to') continue;
+        $v = trim(preg_replace('/[\r\n]+/', '', (string)$value));
+        return filter_var($v, FILTER_VALIDATE_EMAIL) ? $v : '';
+    }
+    return '';
+}
+
 function _mail_extra_headers(array $msg): string {
     $allowed = ['list-unsubscribe', 'list-unsubscribe-post', 'list-id', 'precedence',
                 'auto-submitted', 'in-reply-to', 'references'];
