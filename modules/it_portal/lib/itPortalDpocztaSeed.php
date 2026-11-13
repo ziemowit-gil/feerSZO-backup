@@ -139,27 +139,27 @@ function itPortalDpocztaArticles(string $app): array {
         ], false],
 
         'generator-stopki' => ['Obowiązkowa stopka: jak ją wygenerować', 'stopka, podpis, generator stopki, obowiązkowa stopka, wzór stopki, dane organizacji, nip, krs, social, facebook, instagram, linkedin', [
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p><strong>Stopka jest obowiązkowa.</strong> Każda wiadomość wysyłana ze służbowej skrzynki musi mieć stopkę wygenerowaną w generatorze Fundacji. Nie zmieniamy jej wyglądu ręcznie, bo wszyscy mamy mieć jednakowy wzór z aktualnymi danymi Fundacji.</p>'],
-            ['type' => 'text', 'html' => '<p>Generator jest pod adresem <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a>. Nie trzeba się logować. Wpisane dane zostają tylko w Twojej przeglądarce.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Każda wiadomość ze służbowej skrzynki musi mieć stopkę z generatora Fundacji. Nie zmieniamy jej ręcznie, żeby wszyscy mieli ten sam wzór i aktualne dane Fundacji.</p>'],
+            ['type' => 'text', 'html' => '<p>Generator działa pod adresem <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a> i nie wymaga logowania. Wpisane dane zostają w Twojej przeglądarce.</p>'],
             ['type' => 'wizard', 'title' => 'Stopka w pięciu krokach', 'intro' => '', 'steps' => [
                 $step('Otwórz generator', '<p>Wejdź na <a href="' . $app . '/pomocne/generatorstopki">generator stopki</a>.</p>'),
-                $step('Wpisz swoje dane', '<p>Uzupełnij imię, nazwisko, stanowisko, telefon i adres e-mail. Dane Fundacji (nazwa, adres, NIP, KRS, strona WWW, linki do Facebooka, Instagrama i LinkedIna) są już w stopce.</p>'),
-                $step('Sprawdź podgląd', '<p>Po prawej stronie widzisz, jak stopka będzie wyglądać. Sprawdź pisownię imienia, nazwiska i numeru telefonu.</p>'),
-                $step('Skopiuj stopkę', '<p>Kliknij „Kopiuj stopkę do schowka”. Gdy pojawi się „Skopiowano”, stopka jest w schowku. Jeśli przeglądarka zablokuje schowek, zaznacz podgląd myszą i naciśnij Ctrl+C.</p>'),
-                $step('Wklej ją w poczcie', '<p>Wklej stopkę (Ctrl+V) w ustawieniach podpisu swojej poczty. W webmailu dPoczta.pl robisz to w „Tożsamości”, szczegóły są w instrukcji „<a href="' . $app . '/uslugi-it/uslugi/moja-poczta/podpis-w-poczcie">Jak ustawić podpis (stopkę) w poczcie</a>”. Dla Outlooka i Thunderbirda kroki są pod generatorem.</p>'),
+                $step('Wpisz swoje dane', '<p>Podaj imię, nazwisko, stanowisko, telefon i adres e-mail. Dane Fundacji (nazwa, adres, NIP, KRS, strona WWW i linki do Facebooka, Instagrama i LinkedIna) są już w stopce.</p>'),
+                $step('Sprawdź podgląd', '<p>Po prawej stronie widzisz gotową stopkę. Sprawdź imię, nazwisko i numer telefonu.</p>'),
+                $step('Skopiuj stopkę', '<p>Kliknij „Kopiuj stopkę do schowka”. Gdy przycisk zmieni się na „Skopiowano”, stopka jest w schowku. Jeśli przeglądarka zablokuje schowek, zaznacz podgląd myszą i naciśnij Ctrl+C.</p>'),
+                $step('Wklej ją w poczcie', '<p>Wklej stopkę (Ctrl+V) w ustawieniach podpisu. W dPoczta.pl robisz to w „Tożsamości”, krok po kroku opisuje to artykuł „<a href="' . $app . '/uslugi-it/uslugi/moja-poczta/podpis-w-poczcie">Jak ustawić podpis (stopkę) w poczcie</a>”. Wskazówki dla Outlooka i Thunderbirda są pod generatorem.</p>'),
             ]],
-            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Zmienił się numer telefonu, stanowisko albo dane Fundacji? Wygeneruj stopkę jeszcze raz i podmień ją w poczcie. Coś się nie wyświetla poprawnie? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Gdy zmieni się telefon albo stanowisko, wygeneruj stopkę jeszcze raz i podmień ją w poczcie. Jeśli coś źle się wyświetla, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], true],
 
-        'podpis-w-poczcie' => ['Jak ustawić podpis (stopkę) w poczcie', 'podpis, stopka, sygnatura, tożsamość, projektant podpisu, logo, html', [
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Stopka jest obowiązkowa i musi pochodzić z generatora Fundacji: <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a> (opis w artykule „<a href="' . $app . '/uslugi-it/uslugi/moja-poczta/generator-stopki">Obowiązkowa stopka: jak ją wygenerować</a>”). Poniżej opisujemy, gdzie w poczcie ją ustawić.</p>'],
-            ['type' => 'wizard', 'title' => 'Podpis w projektancie', 'intro' => '', 'steps' => [
+        'podpis-w-poczcie' => ['Jak ustawić podpis (stopkę) w poczcie', 'podpis, stopka, sygnatura, tożsamość, generator stopki, obowiązkowa stopka, wklej stopkę, html', [
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Stopka musi pochodzić z generatora Fundacji: <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a>. Jak go używać, opisuje artykuł „<a href="' . $app . '/uslugi-it/uslugi/moja-poczta/generator-stopki">Obowiązkowa stopka: jak ją wygenerować</a>”. Tu pokazujemy, gdzie ją wkleić w poczcie.</p>'],
+            ['type' => 'wizard', 'title' => 'Stopka z generatora w dPoczta.pl', 'intro' => '', 'steps' => [
+                $step('Skopiuj stopkę z generatora', '<p>Otwórz <a href="' . $app . '/pomocne/generatorstopki">generator</a>, wpisz swoje dane i kliknij „Kopiuj stopkę do schowka”.</p>'),
                 $step('Otwórz tożsamość', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Tożsamość” i kliknij swój adres.</p>'),
-                $step('Włącz projektanta podpisu', '<p>Włącz suwak „Włącz projektanta podpisu”. Pojawią się zakładki do ustawienia stopki.</p>'),
-                $step('Uzupełnij dane', '<p>W „Szablony” wybierz układ. W „Użytkownik” wpisz imię i nazwisko, stanowisko i nazwę organizacji. W „Logo” możesz przesłać obraz, a w „Szczegóły” dodać telefon, stronę WWW i adres. „Zastrzeżenie” to drobny szary tekst pod podpisem.</p>'),
-                $step('Zapisz', '<p>Kliknij „Zapisz” na dole strony. Podpis pojawi się w nowych wiadomościach.</p>'),
+                $step('Wklej stopkę', '<p>Jeśli suwak „Włącz projektanta podpisu” jest włączony, wyłącz go. W polu podpisu wklej stopkę (Ctrl+V). Jeśli edytor ma tryb HTML, włącz go przed wklejeniem.</p>'),
+                $step('Zapisz i sprawdź', '<p>Kliknij „Zapisz” na dole strony. Napisz wiadomość do siebie i zobacz, czy stopka wygląda tak jak w podglądzie generatora.</p>'),
             ]],
-            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Używasz też Outlooka albo Thunderbirda? W projektancie jest eksport kodu HTML podpisu, który wkleisz w tym programie.</p>'],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>W Outlooku i Thunderbirdzie wklejasz tę samą stopkę z generatora w ustawieniach podpisu. Wskazówki są na stronie generatora.</p>'],
             ['type' => 'text', 'html' => '<p>W „Tożsamości” zmienisz też nazwę nadawcy, którą widzą odbiorcy. Jeśli masz dostęp do innej skrzynki, np. działu, dodasz ją przyciskiem „Nowa tożsamość” (ikona ołówka) i wybierzesz przy pisaniu wiadomości.</p>'],
         ], false],
 
