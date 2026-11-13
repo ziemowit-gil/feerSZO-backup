@@ -967,4 +967,14 @@ return [
         },
     ],
 
+    // Po migracji: zmiana haseł startowych na /nowehaslo (2026-11-14) — artykuł przypięty na górze usługi „Migracja”.
+    '2026-11_it_portal_startowe_article' => [
+        'desc' => 'Portal Usług IT, „Migracja”: artykuł „Po migracji: zmień hasła startowe”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalStartoweSeed.php';
+            itPortalStartoweApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
