@@ -94,6 +94,7 @@ final class DhostingContractMail
         if ($exists) {
             $api->changeMailboxPassword($box, $password);
             $api->changeMailboxStatus($box, true);
+            try { DhostingCopy::passwordChanged($box, $password); } catch (\Throwable $e) { error_log('[dhosting] haslo dla kopiowania ' . $box . ': ' . $e->getMessage()); }
             $action = 'restored';
         } else {
             $api->createMailbox($box, $password, $mobile ? $phone : null, DhostingConfig::quota(),
@@ -193,6 +194,7 @@ final class DhostingContractMail
         $api = DhostingConfig::api();
         $password = DhostingConfig::generatePassword();
         $api->changeMailboxPassword($mailbox, $password);
+        try { DhostingCopy::passwordChanged($mailbox, $password); } catch (\Throwable $e) { error_log('[dhosting] haslo dla kopiowania ' . $mailbox . ': ' . $e->getMessage()); }   // kopiowanie / dosyłanie dostaje nowe hasło
         $sent = '';
         if ($sms && $phone !== '' && sms_is_mobile($phone)) {
             DhostingMigrator::sendPasswordSms($phone, $mailbox, $password, true);

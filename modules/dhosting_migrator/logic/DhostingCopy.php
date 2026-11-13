@@ -77,6 +77,8 @@ final class DhostingCopy
         // kind: full (pełne przejście) | incremental (dosyłanie nowych); keep_until: do kiedy trzymamy hasło na dosyłanie
         try { db()->exec("ALTER TABLE dhosting_copy_jobs ADD COLUMN kind VARCHAR(12) NOT NULL DEFAULT 'full'"); } catch (\Throwable $e) {}
         try { db()->exec("ALTER TABLE dhosting_copy_jobs ADD COLUMN keep_until VARCHAR(19) NULL"); } catch (\Throwable $e) {}
+        // need_password: serwer nowej poczty odrzucił zapisane hasło (np. zmienione po założeniu) — czekamy na aktualne
+        try { db()->exec("ALTER TABLE dhosting_copy_jobs ADD COLUMN need_password INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
         // result: 1 = skopiowana, 2 = zniknęła w trakcie (pomijamy), 0 = nieudana (np. za duża) — ponawia dopiero inne zadanie
         db()->exec("CREATE TABLE IF NOT EXISTS dhosting_copy_items (
             mailbox VARCHAR(190) NOT NULL,
@@ -103,7 +105,7 @@ final class DhostingCopy
         $enc = (string)fcEncrypt($password, self::PASS_CTX);
         $active = self::activeFor($mailbox);
         if ($active) {
-            db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=?, source=?, status='queued', attempts=0, next_run_at=?, last_error=NULL, updated_at=?,
+            db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=?, source=?, status='queued', attempts=0, need_password=0, next_run_at=?, last_error=NULL, updated_at=?,
                            state_json=CASE WHEN kind='incremental' THEN NULL ELSE state_json END, kind='full' WHERE id=?")
                 ->execute([$enc, $source, $now, $now, (int)$active['id']]);
             return (int)$active['id'];
@@ -112,6 +114,45 @@ final class DhostingCopy
                        VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)")
             ->execute([$mailbox, $source, $userId, $via, $by, $now, $enc, $now, $now]);
         return (int)db()->lastInsertId();
+    }
+
+    /**
+     * SZO ustawiło skrzynce nowe hasło (administrator, umowa, samoobsługa): aktywne kopiowanie i okno dosyłania dostają je od razu,
+     * a zadanie czekające na hasło rusza w najbliższym przebiegu. Bez tego zadanie próbowało starym hasłem co 6 h aż do błędu.
+     * Zwraca liczbę zaktualizowanych zadań.
+     */
+    public static function passwordChanged(string $mailbox, string $password): int
+    {
+        self::migrate();
+        $mailbox = strtolower($mailbox);
+        $enc = (string)fcEncrypt($password, self::PASS_CTX);
+        $now = date('Y-m-d H:i:s');
+        $a = db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=?, need_password=0, attempts=0,
+                               last_error=CASE WHEN need_password=1 THEN NULL ELSE last_error END,
+                               next_run_at=CASE WHEN status='waiting' THEN ? ELSE next_run_at END,
+                               status=CASE WHEN status='waiting' THEN 'queued' ELSE status END, updated_at=?
+                            WHERE mailbox=? AND status IN ('queued','running','waiting')");
+        $a->execute([$enc, $now, $now, $mailbox]);
+        $b = db()->prepare("UPDATE dhosting_copy_jobs SET password_enc=?, updated_at=? WHERE mailbox=? AND status='done' AND password_enc IS NOT NULL AND keep_until > ?");
+        $b->execute([$enc, $now, $mailbox, $now]);
+        return $a->rowCount() + $b->rowCount();
+    }
+
+    /** Stan skrzynki na serwerze poczty (pola status/IMAP z getMailboxInformation) — do opisu błędu dla administratora; '' gdy się nie da. */
+    public static function mailboxDiag(string $mailbox): string
+    {
+        try {
+            $info = DhostingConfig::api()->getMailboxInformation($mailbox);
+        } catch (\Throwable $e) {
+            return 'nie udało się odczytać stanu skrzynki (' . mb_substr($e->getMessage(), 0, 120) . ')';
+        }
+        $out = [];
+        array_walk_recursive($info, function ($v, $k) use (&$out) {
+            if (count($out) < 8 && is_scalar($v) && preg_match('/status|imap|active|enabled/i', (string)$k)) {
+                $out[] = $k . '=' . (is_bool($v) ? ($v ? 'tak' : 'nie') : mb_substr((string)$v, 0, 40));
+            }
+        });
+        return implode(', ', $out);
     }
 
     public static function activeFor(string $mailbox): ?array
@@ -197,7 +238,7 @@ final class DhostingCopy
     {
         self::migrate();
         $st = db()->prepare("SELECT id, mailbox, source, user_id, via, kind, created_by, created_at, status, total_items, copied_items, failed_items, bytes,
-                                    attempts, next_run_at, started_at, finished_at, updated_at, last_error
+                                    attempts, need_password, next_run_at, started_at, finished_at, updated_at, last_error
                              FROM dhosting_copy_jobs ORDER BY CASE WHEN status IN ('queued','running','waiting') THEN 0 ELSE 1 END, id DESC LIMIT " . max(1, $limit));
         $st->execute();
         return $st->fetchAll(PDO::FETCH_ASSOC);
@@ -368,8 +409,17 @@ final class DhostingCopy
                 return "[ERROR] #{$id} {$job['mailbox']}: koniec prób — {$msg}";
             }
             $next = date('Y-m-d H:i:s', time() + self::RETRY_HOURS * 3600);
-            db()->prepare("UPDATE dhosting_copy_jobs SET status='waiting', attempts=?, locked_until=NULL, next_run_at=?, last_error=?, updated_at=? WHERE id=?")
-                ->execute([$attempts, $next, $msg, date('Y-m-d H:i:s'), $id]);
+            $needPw = $e instanceof DhostingImapAuthFailed ? 1 : 0;
+            if ($needPw) {
+                // To nie jest chwilowa niedostępność: skrzynka ma inne hasło niż zapisane (zmienione po założeniu albo zmiana nie weszła).
+                // Ponawiamy dalej co 6 h (gdyby serwer wprowadzał zmianę z opóźnieniem), ale strona użytkownika prosi o aktualne hasło.
+                $diag = self::mailboxDiag((string)$job['mailbox']);
+                $msg = 'Serwer nowej poczty nie przyjął zapisanego hasła do skrzynki (' . mb_substr($e->getMessage(), 0, 160) . ').'
+                     . ($diag !== '' ? ' Stan skrzynki na serwerze: ' . $diag . '.' : '')
+                     . ' Potrzebne aktualne hasło: osoba podaje je na /migracjapoczty albo administrator ustawia nowe (z kopiowaniem).';
+            }
+            db()->prepare("UPDATE dhosting_copy_jobs SET status='waiting', attempts=?, need_password=?, locked_until=NULL, next_run_at=?, last_error=?, updated_at=? WHERE id=?")
+                ->execute([$attempts, $needPw, $next, $msg, date('Y-m-d H:i:s'), $id]);
             // tylko pierwsza nieudana próba z rzędu — bez notatki co 6 h
             if ($attempts === 1) self::helpdesk($job, 'Kopiowanie poczty czeka: ' . $msg . ' Ponowienie co ' . self::RETRY_HOURS . ' h (najbliższe ' . $next . ').');
             return "[WAIT] #{$id} {$job['mailbox']}: {$msg} — ponowienie {$next}";

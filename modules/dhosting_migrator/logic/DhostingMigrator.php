@@ -199,6 +199,7 @@ final class DhostingMigrator
                         continue;
                     }
                     $api->changeMailboxPassword($a['mailbox'], $password);
+                    try { DhostingCopy::passwordChanged($a['mailbox'], $password); } catch (\Throwable $e) { error_log('[dhosting] haslo dla kopiowania ' . $a['mailbox'] . ': ' . $e->getMessage()); }   // aktywne kopiowanie / dosyłanie dostaje nowe hasło
                     $res['msg'] = 'Skrzynka już była — ustawiono nowe hasło.';
                 } else {
                     $api->createMailbox($a['mailbox'], $password, $a['mobile'] ? $a['phone'] : null, DhostingConfig::quota(),
@@ -375,6 +376,7 @@ final class DhostingMigrator
         try {
             if ($st['exists']) {
                 $api->changeMailboxPassword($box, $password);
+                try { DhostingCopy::passwordChanged($box, $password); } catch (\Throwable $e) { error_log('[dhosting] haslo dla kopiowania ' . $box . ': ' . $e->getMessage()); }   // kopiowanie czekające na hasło rusza dalej
                 try { $api->changeMailboxPhoneNumber($box, $st['phone']); } catch (\Throwable $e) { /* ten sam numer albo chwilowo zajęta — bez znaczenia */ }
             } else {
                 $api->createMailbox($box, $password, $st['phone'], DhostingConfig::quota(), 'Założona przez użytkownika (' . $st['login'] . ')');

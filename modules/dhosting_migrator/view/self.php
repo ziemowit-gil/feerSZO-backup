@@ -14,6 +14,8 @@ $canAct  = $st['problem'] === '' && $st['wait'] === 0 && !$locked;
 $exists  = $st['exists'] === true;
 $job     = $st['copy'];
 $jobActive = $job && in_array($job['status'], DhostingCopy::ACTIVE, true);
+// Serwer nowej poczty odrzucił zapisane hasło (DhostingCopy::runJob → need_password): prosimy o aktualne, bez auto-odświeżania
+$needPw  = $jobActive && !empty($job['need_password']);
 $pct     = $job ? DhostingCopy::percent($job) : 0;
 $copyOk  = $st['copyAvailable'] && $st['mailbox'] && DhostingConfig::selfEnabled();
 $swTs    = DhostingConfig::switchDate();
@@ -34,6 +36,7 @@ $steps[] = $exists
         ? ['todo', 'Nowa skrzynka i hasło SMS-em', 'Do zrobienia — kliknij „Załóż skrzynkę i wyślij hasło SMS-em” poniżej.']
         : ['info', 'Nowa skrzynka i hasło SMS-em', 'Nie udało się teraz sprawdzić — zobacz komunikat niżej.']);
 if ($job && $job['status'] === 'done') $steps[] = ['done', 'Kopia poczty z Microsoft 365', 'Gotowe — skopiowano ' . (int)$job['copied_items'] . ' wiadomości.'];
+elseif ($needPw) $steps[] = ['todo', 'Kopia poczty z Microsoft 365', 'Wstrzymana — nowa skrzynka nie przyjęła hasła. ' . ($locked ? 'Pomoże administrator (szczegóły niżej).' : 'Podaj aktualne hasło w sekcji „Kopiowanie poczty” poniżej.')];
 elseif ($job && $job['status'] === 'waiting') $steps[] = ['doing', 'Kopia poczty z Microsoft 365', 'Czeka — serwer był niedostępny, ponowimy ' . substr((string)$job['next_run_at'], 0, 16) . '.'];
 elseif ($jobActive) $steps[] = ['doing', 'Kopia poczty z Microsoft 365', 'W toku — ' . $pct . '% (nic nie musisz robić, kopiuje się w tle).'];
 else $steps[] = ['todo', 'Kopia poczty z Microsoft 365', $exists ? 'Do zrobienia — podaj hasło do skrzynki w sekcji „Kopiowanie poczty” poniżej.' : 'Do zrobienia — zaznacz „Skopiuj też moją pocztę” przy zakładaniu skrzynki.'];
@@ -46,7 +49,7 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<?php if ($jobActive): ?><meta http-equiv="refresh" content="60"><?php endif; ?>
+<?php if ($jobActive && !$needPw): ?><meta http-equiv="refresh" content="60"><?php endif; ?>
 <title>Migracja poczty — <?= h($org) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php include __DIR__ . '/_metro.php'; ?>
@@ -227,8 +230,13 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
         <p>Stan: <span class="mt-badge <?= $bcls ?>"><?= h($lab) ?></span></p>
         <div class="mt-progress<?= $job['status'] === 'done' ? ' mt-progress--done' : '' ?>" role="progressbar" aria-label="Postęp kopiowania poczty" aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100"><span style="width:<?= $pct ?>%"></span></div>
         <div class="mt-progress-lbl"><span>Skopiowano <?= (int)$job['copied_items'] ?> z <?= (int)$job['total_items'] ?> wiadomości<?= (int)$job['failed_items'] ? ' · nie udało się: ' . (int)$job['failed_items'] : '' ?></span><span><?= $pct ?>%</span></div>
-        <?php if ($jobActive): ?><p class="dm-help">Strona odświeża się sama co minutę.</p><?php endif; ?>
-        <?php if ($job['status'] === 'waiting'): ?>
+        <?php if ($jobActive && !$needPw): ?><p class="dm-help">Strona odświeża się sama co minutę.</p><?php endif; ?>
+        <?php if ($needPw): ?>
+          <div class="dm-msg dm-msg--warning" role="alert" style="background:var(--pvm-bg)"><i class="bi bi-key" aria-hidden="true"></i><div><strong>Nowa skrzynka nie przyjęła hasła.</strong>
+            Hasło, z którym zaczęliśmy kopiowanie, już nie pasuje — na przykład zostało zmienione po założeniu skrzynki.
+            <?php if ($locked): ?>Twoja poczta jest już przeniesiona, więc dalej pomoże administrator — <?php if ($hdUrl !== ''): ?>napisz w <a href="<?= h($hdUrl) ?>">swoim zgłoszeniu</a><?php else: ?>napisz do Helpdesku IT<?php endif; ?>, a dosyłanie wiadomości ruszy z nowym hasłem.
+            <?php else: ?>Podaj poniżej aktualne hasło do nowej skrzynki, a kopiowanie ruszy od miejsca, w którym stanęło. Nie pamiętasz go? Poproś wyżej o nowe hasło SMS-em — kopiowanie samo je przejmie.<?php endif; ?></div></div>
+        <?php elseif ($job['status'] === 'waiting'): ?>
           <div class="dm-msg dm-msg--warning" role="status" style="background:var(--pvm-bg)"><i class="bi bi-hourglass-split" aria-hidden="true"></i><div>Serwer był niedostępny — spróbujemy ponownie <?= h(substr((string)$job['next_run_at'], 0, 16)) ?> (co <?= DhostingCopy::RETRY_HOURS ?> h). <?= $job['last_error'] ? h(mb_substr((string)$job['last_error'], 0, 200)) : '' ?></div></div>
         <?php elseif ($job['status'] === 'error' && $job['last_error']): ?>
           <div class="dm-msg dm-msg--danger" role="alert" style="background:var(--pvm-bg)"><i class="bi bi-x-octagon" aria-hidden="true"></i><div><?= h(mb_substr((string)$job['last_error'], 0, 300)) ?></div></div>
@@ -250,15 +258,16 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
           <?php if ($sync['last']): ?>Ostatnio: <?= h(substr($sync['last']['at'], 0, 16)) ?> — dosłano <?= (int)$sync['last']['added'] ?>.<?php endif; ?></p>
       <?php endif; ?>
 
-      <?php if ($exists && !$jobActive && !$locked): ?>
-        <?php if (!$job): ?><p>Masz już skrzynkę i hasło z SMS-a? Podaj je, a skopiujemy pocztę z Microsoft 365. Wiadomości już przeniesione nie zdublują się.</p>
+      <?php if ((($exists && !$jobActive) || $needPw) && !$locked): ?>
+        <?php if ($needPw): ?>
+        <?php elseif (!$job): ?><p>Masz już skrzynkę i hasło z SMS-a? Podaj je, a skopiujemy pocztę z Microsoft 365. Wiadomości już przeniesione nie zdublują się.</p>
         <?php else: ?><p>Chcesz skopiować pocztę jeszcze raz (np. nowe wiadomości)? Podaj hasło do nowej skrzynki.</p><?php endif; ?>
         <form method="post" action="<?= h(route('dhm.selfCopy')) ?>" class="js-once">
           <?= Router::csrfField() ?><input type="hidden" name="op" value="start">
           <label class="dm-fld" for="mpw">Hasło do nowej skrzynki</label>
-          <input class="dm-inp" type="password" id="mpw" name="mail_password" autocomplete="current-password" required aria-describedby="mpwHelp">
+          <input class="dm-inp" type="password" id="mpw" name="mail_password" autocomplete="current-password" required aria-describedby="mpwHelp"<?= $needPw ? ' aria-invalid="true"' : '' ?>>
           <p class="dm-help" id="mpwHelp">To hasło z SMS-a albo Twoje własne, jeśli było zmieniane. Przechowujemy je zaszyfrowane tylko do końca kopiowania.</p>
-          <button class="mt-btn mt-btn--ghost" type="submit"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Skopiuj pocztę</button>
+          <button class="mt-btn mt-btn--ghost" type="submit"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> <?= $needPw ? 'Wznów kopiowanie' : 'Skopiuj pocztę' ?></button>
         </form>
       <?php elseif (!$exists && !$job && !$locked): ?>
         <p>Najpierw załóż skrzynkę — kopiowanie możesz zaznaczyć od razu przy zakładaniu.</p>
