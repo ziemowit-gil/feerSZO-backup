@@ -198,11 +198,13 @@ function mail_queue_add(
         try {
             $msg = db_one("SELECT * FROM mail_queue WHERE id=?", [$mail_id]);
             if ($msg) {
+                $tr0 = count(mail_trace());
                 $ok = _mail_send($msg);
                 if ($ok) {
                     db()->prepare("UPDATE mail_queue SET status='sent',sent_at=datetime('now') WHERE id=?")->execute([$mail_id]);
                     $sent_immediately = true;
                 }
+                _mail_trace_store($mail_id, array_slice(mail_trace(), $tr0));
             }
         } catch (\Throwable $e) {
             // Przy błędzie zostaje status='pending' — RabbitMQ / cron ponowi
@@ -276,13 +278,16 @@ function _mail_queue_send_one(array $msg, int &$sent, int &$failed): bool
     $claimed->execute([$msg['id']]);
     if ($claimed->rowCount() === 0) return false;
     try {
+        $tr0 = count(mail_trace());
         $ok = _mail_send($msg);
         if ($ok) {
             db()->prepare("UPDATE mail_queue SET status='sent',sent_at=datetime('now') WHERE id=?")->execute([$msg['id']]);
+            _mail_trace_store((int)$msg['id'], array_slice(mail_trace(), $tr0));
             $sent++;
             return true;
         }
-        throw new \RuntimeException('mail() zwróciło false');
+        $tt = mail_trace_text(array_slice(mail_trace(), $tr0));
+        throw new \RuntimeException($tt !== '' ? $tt : 'mail() zwróciło false');
     } catch (\Throwable $e) {
         $retry = (int)$msg['retry_count'] + 1;
         $new_status = $retry >= 5 ? 'failed' : 'pending';
@@ -352,53 +357,82 @@ function mail_queue_all(string $status = '', int $limit = 200): array {
 function _mail_send(array $msg): bool {
     $orig = $msg;
     $msg = _mail_apply_system_sender($msg);
+    // Każda próba trafia do mail_trace() (kanał, cel, wynik, błąd) — test w Ustawieniach → Poczta i last_error w kolejce
+    // pokazują techniczny przebieg zamiast „sprawdź logi” (polecenie 2026-11-13).
+    $try = function (string $via, string $target, callable $fn): ?bool {
+        $t = microtime(true);
+        try {
+            $ok = (bool)$fn();
+            mail_trace(['via' => $via, 'target' => $target, 'ok' => $ok, 'error' => $ok ? '' : 'funkcja zwróciła false', 'ms' => (int)round((microtime(true) - $t) * 1000)]);
+            return $ok;
+        } catch (\Throwable $e) {
+            mail_trace(['via' => $via, 'target' => $target, 'ok' => false, 'error' => $e->getMessage(), 'ms' => (int)round((microtime(true) - $t) * 1000)]);
+            error_log('[mail] ' . $via . ' failed: ' . $e->getMessage());
+            return null;
+        }
+    };
     // 0. Wiadomości systemowe przez SMTP 1 (Ustawienia → Poczta → „Wysyłka wiadomości systemowych”, 2026-11-13: nowy serwer
     //    poczty, nadawca fundacja@). Błąd SMTP → dalej zwykła kolejność, wiadomość nie ginie.
     if (!empty($msg['_system']) && _mail_setting('system_mail_transport') === 'smtp') {
         $smtp_host = _mail_setting('smtp_host');
-        if ($smtp_host) {
-            try { return _mail_send_smtp($msg, $smtp_host, 'smtp'); }
-            catch (\Throwable $e) { error_log('[mail] system SMTP failed, fallback: ' . $e->getMessage()); }
-        }
+        if ($smtp_host && $try('SMTP 1 (wiadomości systemowe)', _mail_smtp_target('smtp', $smtp_host, $msg), fn() => _mail_send_smtp($msg, $smtp_host, 'smtp'))) return true;
     }
     // 1. M365 Graph API
-    try {
-        if (_mail_m365_configured()) {
-            try {
-                return _mail_send_m365($msg);
-            } catch (\Throwable $e) {
-                // Skrzynka systemowa niedostępna (brak skrzynki / uprawnień) — wyślij od domyślnego nadawcy, nie gub wiadomości
-                if (empty($msg['_system'])) throw $e;
-                error_log('[mail] M365 system sender ' . $msg['from_email'] . ' failed, fallback to default: ' . $e->getMessage());
-                return _mail_send_m365($orig);
-            }
+    if (_mail_m365_configured()) {
+        $from = trim((string)($msg['from_email'] ?? '')) ?: (_mail_setting('m365_send_from_email') ?: _mail_setting('m365_sender_user_id'));
+        if ($try('Microsoft 365', 'Graph sendMail, nadawca ' . $from, fn() => _mail_send_m365($msg))) return true;
+        // Skrzynka systemowa niedostępna (brak skrzynki / uprawnień) — wyślij od domyślnego nadawcy, nie gub wiadomości
+        if (!empty($msg['_system'])) {
+            $from0 = trim((string)($orig['from_email'] ?? '')) ?: (_mail_setting('m365_send_from_email') ?: _mail_setting('m365_sender_user_id'));
+            if ($try('Microsoft 365 (domyślny nadawca)', 'Graph sendMail, nadawca ' . $from0, fn() => _mail_send_m365($orig))) return true;
         }
-    } catch (\Throwable $e) {
-        error_log('[mail] M365 failed: ' . $e->getMessage());
     }
 
     // 2. SMTP1
-    try {
-        $smtp_host = _mail_setting('smtp_host');
-        if ($smtp_host) {
-            return _mail_send_smtp($msg, $smtp_host, 'smtp');
-        }
-    } catch (\Throwable $e) {
-        error_log('[mail] SMTP1 failed: ' . $e->getMessage());
-    }
+    $smtp_host = _mail_setting('smtp_host');
+    if ($smtp_host && $try('SMTP 1', _mail_smtp_target('smtp', $smtp_host, $msg), fn() => _mail_send_smtp($msg, $smtp_host, 'smtp'))) return true;
 
     // 3. SMTP2 (backup)
-    try {
-        $smtp2_host = _mail_setting('smtp2_host');
-        if ($smtp2_host) {
-            return _mail_send_smtp($msg, $smtp2_host, 'smtp2');
-        }
-    } catch (\Throwable $e) {
-        error_log('[mail] SMTP2 failed: ' . $e->getMessage());
-    }
+    $smtp2_host = _mail_setting('smtp2_host');
+    if ($smtp2_host && $try('SMTP 2', _mail_smtp_target('smtp2', $smtp2_host, $msg), fn() => _mail_send_smtp($msg, $smtp2_host, 'smtp2'))) return true;
 
     // 4. PHP mail()
-    return _mail_send_native($msg);
+    return (bool)$try('PHP mail()', 'lokalny sendmail serwera', fn() => _mail_send_native($msg));
+}
+
+/** Opis celu SMTP do przebiegu: serwer:port, szyfrowanie, login, nadawca (bez hasła). */
+function _mail_smtp_target(string $prefix, string $host, array $msg): string {
+    $enc  = strtolower(_mail_setting("{$prefix}_encryption") ?: 'tls');
+    $user = _mail_setting("{$prefix}_user");
+    $from = !empty($msg['_system']) ? (string)$msg['from_email'] : (_mail_setting("{$prefix}_from_email") ?: _mail_from());
+    return $host . ':' . (int)(_mail_setting("{$prefix}_port") ?: 587) . ' ' . (['ssl' => 'SSL', 'tls' => 'STARTTLS', 'none' => 'bez szyfrowania'][$enc] ?? $enc)
+        . ($user !== '' ? ', login ' . $user : ', bez logowania') . ', nadawca ' . $from;
+}
+
+/**
+ * Przebieg wysyłek w tym żądaniu: [['via','target','ok','error','ms','at'], …]. $entry dopisuje, $reset czyści.
+ */
+function mail_trace(?array $entry = null, bool $reset = false): array {
+    static $t = [];
+    if ($reset) $t = [];
+    if ($entry !== null) $t[] = $entry + ['at' => date('H:i:s')];
+    return $t;
+}
+
+/** Przebieg jako tekst: „SMTP 1 (cel): BŁĄD — … (1234 ms) → Microsoft 365 (cel): wysłano (310 ms)”. */
+function mail_trace_text(array $trace): string {
+    $out = [];
+    foreach ($trace as $e) {
+        $out[] = $e['via'] . ' (' . $e['target'] . '): ' . ($e['ok'] ? 'wysłano' : 'BŁĄD — ' . $e['error']) . ' (' . (int)$e['ms'] . ' ms)';
+    }
+    return implode(' → ', $out);
+}
+
+/** Zapisuje przebieg w last_error wiadomości, gdy była choć jedna nieudana próba (także gdy w końcu wyszła inną drogą). */
+function _mail_trace_store(int $mail_id, array $mine): void {
+    if (!$mine || !array_filter($mine, fn($e) => !$e['ok'])) return;
+    try { db()->prepare("UPDATE mail_queue SET last_error=? WHERE id=?")->execute([mb_substr(mail_trace_text($mine), 0, 2000), $mail_id]); }
+    catch (\Throwable $e) {}
 }
 
 // ── Nadawca wiadomości systemowych ────────────────────────────────────────────
@@ -699,8 +733,15 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
     $timeout = 15;
     $addr = ($encryption === 'ssl') ? "ssl://{$host}" : "tcp://{$host}";
     $errno = $errstr = null;
-    $sock = stream_socket_client("{$addr}:{$port}", $errno, $errstr, $timeout);
-    if (!$sock) throw new \RuntimeException("SMTP connect failed: {$errstr} ({$errno})");
+    // Ostrzeżenia PHP z próby połączenia (przy SSL/TLS przyczyna z OpenSSL, np. „wrong version number”, jest tylko w nich)
+    $warns = [];
+    set_error_handler(function (int $no, string $str) use (&$warns): bool { $warns[] = $str; return true; });
+    try { $sock = stream_socket_client("{$addr}:{$port}", $errno, $errstr, $timeout); }
+    finally { restore_error_handler(); }
+    if (!$sock) {
+        throw new \RuntimeException("SMTP connect failed ({$addr}:{$port}): " . trim(($errstr ?: '') . ' (' . (int)$errno . ')')
+            . ($warns ? ' — ' . implode(' | ', array_map(fn($w) => preg_replace('/^stream_socket_client\(\): /', '', $w), $warns)) : ''));
+    }
 
     stream_set_timeout($sock, $timeout);
 

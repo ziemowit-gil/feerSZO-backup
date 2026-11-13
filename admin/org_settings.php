@@ -185,12 +185,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once dirname(__DIR__) . '/includes/mail_queue.php';
         $to = trim($_POST['test_to'] ?? current_user()['email'] ?? '');
         if ($to) {
+            // Wynik TEJ wiadomości (mail_queue_add zwykle wysyła od razu) + techniczny przebieg prób (mail_trace) — bez „sprawdź logi”.
+            $tr0 = count(mail_trace());
             $mid = mail_queue_add($to, '', 'Test wysyłki — ' . (defined('ORG_NAME') ? ORG_NAME : 'System'),
                 '<p>To jest testowa wiadomość wysłana z systemu zarządzania umowami.</p>',
                 'To jest testowa wiadomość wysłana z systemu zarządzania umowami.');
-            $res = mail_queue_process(1);
-            if ($res['sent']) flash_set('success', "Testowy e-mail wysłany na {$to}.");
-            else flash_set('error', 'Wysyłka nie powiodła się — sprawdź logi serwera.');
+            $row = $mid ? db_one("SELECT * FROM mail_queue WHERE id=?", [$mid]) : null;
+            if ($row && $row['status'] === 'pending') {
+                $s_ = $f_ = 0;
+                _mail_queue_send_one($row, $s_, $f_);
+                $row = db_one("SELECT * FROM mail_queue WHERE id=?", [$mid]);
+            }
+            $trace = mail_trace_text(array_slice(mail_trace(), $tr0));
+            if ($trace === '') $trace = (string)($row['last_error'] ?? '') ?: 'brak prób wysyłki (wiadomość nie trafiła do kolejki albo adres jest zablokowany)';
+            $sentOk = ($row['status'] ?? '') === 'sent';
+            $_SESSION['mail_test_result'] = ['to' => $to, 'id' => (int)$mid, 'status' => (string)($row['status'] ?? '?'), 'at' => date('Y-m-d H:i:s'),
+                                             'trace' => array_slice(mail_trace(), $tr0), 'text' => $trace];
+            if ($sentOk) flash_set('success', "Testowy e-mail (#{$mid}) wysłany na {$to}. Przebieg prób — pod przyciskiem testu.");
+            else flash_set('error', 'Wysyłka nie powiodła się' . ($mid ? " (#{$mid}, status: " . ($row['status'] ?? '?') . ')' : '') . ". Przebieg: {$trace}");
         }
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=mail'); exit;
     } elseif (isset($_POST['save_representative'])) {
@@ -1085,6 +1097,34 @@ include dirname(__DIR__) . '/includes/header.php';
         <i class="bi bi-send me-1"></i>Wyślij test
       </button>
     </form>
+    <?php $_mt = $_SESSION['mail_test_result'] ?? null; unset($_SESSION['mail_test_result']); if ($_mt): $_mtOk = $_mt['status'] === 'sent'; ?>
+    <section class="mt-3 border-start border-4 ps-3 <?= $_mtOk ? 'border-success' : 'border-danger' ?>" aria-labelledby="mtResH">
+      <h3 id="mtResH" class="h6 mb-1">Wynik testu: <?= $_mtOk ? 'wysłano' : 'nie wysłano' ?> <span class="fw-normal small text-body-secondary">— #<?= (int)$_mt['id'] ?> na <?= h($_mt['to']) ?>, <?= h($_mt['at']) ?>, status w kolejce: <?= h($_mt['status']) ?></span></h3>
+      <?php if (!$_mt['trace']): ?>
+        <p class="small mb-0"><?= h($_mt['text']) ?></p>
+      <?php else: ?>
+      <div class="table-responsive">
+        <table class="table table-sm small mb-1">
+          <caption class="visually-hidden">Kolejne próby wysyłki testowej wiadomości</caption>
+          <thead><tr><th scope="col">#</th><th scope="col">Kanał</th><th scope="col">Cel (serwer, szyfrowanie, login, nadawca)</th><th scope="col">Wynik</th><th scope="col">Czas</th><th scope="col">Szczegóły techniczne</th></tr></thead>
+          <tbody>
+          <?php foreach ($_mt['trace'] as $_i => $_e): ?>
+            <tr>
+              <td><?= $_i + 1 ?></td>
+              <td><?= h($_e['via']) ?></td>
+              <td><code><?= h($_e['target']) ?></code></td>
+              <td><?= $_e['ok'] ? '<span class="text-success fw-semibold">wysłano</span>' : '<span class="text-danger fw-semibold">błąd</span>' ?></td>
+              <td><?= (int)$_e['ms'] ?> ms</td>
+              <td><code style="white-space:pre-wrap;word-break:break-word"><?= h($_e['error'] !== '' ? $_e['error'] : '—') ?></code></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <p class="small text-body-secondary mb-0">Kolejność: <?= _mail_setting('system_mail_transport') === 'smtp' ? 'wiadomości systemowe najpierw przez SMTP 1, potem ' : '' ?>Microsoft 365 → SMTP 1 → SMTP 2 → PHP mail(). Próba nieudana nie gubi wiadomości — idzie następna droga.</p>
+      <?php endif; ?>
+    </section>
+    <?php endif; ?>
 
   </div>
   </div>
