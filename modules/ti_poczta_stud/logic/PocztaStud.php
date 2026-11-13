@@ -227,13 +227,25 @@ final class PocztaStud
             if ($pw === '') $smsInfo = 'hasła nie da się odczytać — wpisz je ponownie';
             elseif (!$hasPhone) $smsInfo = 'brak telefonu — hasło uczestnik odsłoni w panelu kodem przysłanym e-mailem';
             else {
-                $txt = 'FEER: poczta kursanta ' . $acc['login'] . "\nHaslo: " . $pw . "\nHaslo obowiazuje od " . date('d.m.y H:i:s')
-                     . "\nLogowanie: " . preg_replace('#^https?://|/$#', '', self::WEBMAIL);
-                try {
-                    require_once dirname(__DIR__, 3) . '/includes/sms.php';
-                    $smsSent = sms_send($phone, function_exists('sms_ascii') ? sms_ascii($txt) : $txt, 'access_data') !== '';
-                } catch (\Throwable $e) { error_log('poczta stud sms: ' . $e->getMessage()); }
-                $smsInfo = $smsSent ? 'hasło SMS-em na ' . self::maskPhone($phone) : 'SMS z hasłem NIE wyszedł (bramka SMS) — uczestnik odsłoni je w panelu';
+                // Cisza nocna (22–7, inc/smsQuietHours): odłożony SMS leżałby do rana w sms_deferred z hasłem otwartym tekstem.
+                // Wysyłka ręczna kadry ($byUserId) wychodzi zawsze, jak inne ręczne wysyłki kierownika/administratora;
+                // bez wskazanej osoby (CLI, CRON) w nocy SMS-a z hasłem nie wysyłamy wcale.
+                require_once dirname(__DIR__, 3) . '/inc/smsQuietHours/smsQuietHours.php';
+                if ($byUserId <= 0 && !smsQuietAllowed('access_data')) {
+                    $smsInfo = 'SMS z hasłem NIE wyszedł: cisza nocna (22:00–7:00), a hasła nie odkładamy do kolejki — wyślij dane ponownie po 7:00';
+                } else {
+                    $txt = 'FEER: poczta kursanta ' . $acc['login'] . "\nHaslo: " . $pw . "\nHaslo obowiazuje od " . date('d.m.y H:i:s')
+                         . "\nLogowanie: " . preg_replace('#^https?://|/$#', '', self::WEBMAIL);
+                    $prov = '';
+                    try {
+                        require_once dirname(__DIR__, 3) . '/includes/sms.php';
+                        if ($byUserId > 0) $GLOBALS['__sms_quiet_bypass'] = true;
+                        $prov = sms_send($phone, function_exists('sms_ascii') ? sms_ascii($txt) : $txt, 'access_data');
+                    } catch (\Throwable $e) { error_log('poczta stud sms: ' . $e->getMessage()); }
+                    finally { unset($GLOBALS['__sms_quiet_bypass']); }
+                    $smsSent = $prov !== '' && $prov !== 'odlozony';
+                    $smsInfo = $smsSent ? 'hasło SMS-em na ' . self::maskPhone($phone) : 'SMS z hasłem NIE wyszedł (bramka SMS) — uczestnik odsłoni je w panelu';
+                }
             }
         }
 
