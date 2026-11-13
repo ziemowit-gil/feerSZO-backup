@@ -181,7 +181,7 @@ $statusOf  = function (array $a): array {
     <div class="table-responsive">
       <table class="table table-sm mb-0 small" id="dhmResTable">
         <caption class="visually-hidden">Wynik zakładania skrzynek na dhosting</caption>
-        <thead><tr><th scope="col">Osoba</th><th scope="col">Skrzynka (login)</th><th scope="col">Hasło</th><th scope="col">Wynik</th><th scope="col">SMS</th><th scope="col">Kopiowanie poczty</th></tr></thead>
+        <thead><tr><th scope="col">Osoba</th><th scope="col">Skrzynka (login)</th><th scope="col">Hasło</th><th scope="col">Wynik</th><th scope="col">SMS</th><th scope="col">Kopiowanie poczty</th><th scope="col">Powiadomienie</th></tr></thead>
         <tbody>
         <?php foreach ($result as $r): ?>
           <tr>
@@ -192,6 +192,7 @@ $statusOf  = function (array $a): array {
                 <?= h($r['msg']) ?></td>
             <td><?= h($r['sms'] !== '' ? $r['sms'] : '—') ?></td>
             <td><?= h(($r['copy'] ?? '') !== '' ? $r['copy'] : '—') ?></td>
+            <td><?= h(($r['notify'] ?? '') !== '' ? $r['notify'] : '—') ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -275,8 +276,13 @@ $statusOf  = function (array $a): array {
       <label class="form-check-label small" for="dhmCopyMail">Skopiuj też pocztę z Microsoft 365 (w tle)</label>
       <span id="dhmCopyHelp" class="visually-hidden"><?= $copyOk ? 'Kopiowanie działa w tle co 5 minut; gdy serwer jest niedostępny, ponawia co 6 godzin.' : 'Niedostępne: integracja Microsoft 365 nie jest skonfigurowana (Admin › Microsoft 365).' ?></span>
     </div>
+    <div class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" name="notify" value="1" id="dhmNotify" checked aria-describedby="dhmNotifyHelp">
+      <label class="form-check-label small" for="dhmNotify">Zleć migrację: powiadom osoby, że administrator zlecił migrację</label>
+      <span id="dhmNotifyHelp" class="visually-hidden">Każda osoba dostanie powiadomienie w SZO (gdy ma konto) i e-mail na adres służbowy: co się stało, skąd hasło, czy poczta się kopiuje, link do strony migracji. Bez hasła.</span>
+    </div>
     <button type="submit" class="btn btn-primary btn-sm ms-auto" id="dhmGo" disabled>
-      <i class="bi bi-envelope-plus" aria-hidden="true"></i> <span id="dhmGoTxt">Załóż skrzynki</span>
+      <i class="bi bi-envelope-plus" aria-hidden="true"></i> <span id="dhmGoTxt">Zleć migrację</span>
     </button>
   </div>
   <p class="small text-body-secondary mb-0">Naraz najwyżej <?= DhostingMigrator::BATCH_MAX ?> kont. Każda operacja trafia do dziennika (audit).</p>
@@ -346,7 +352,8 @@ $statusOf  = function (array $a): array {
   function visible() { return rows.filter(r => !r.classList.contains('dhm-hidden')); }
   function count() {
     const n = rows.filter(r => r.querySelector('.dhm-row').checked).length;
-    if (go) { go.disabled = n === 0 || n > max; goTxt.textContent = n > max ? 'Za dużo zaznaczonych (maks. ' + max + ')' : 'Załóż skrzynki (' + n + ')'; }
+    const ord = document.getElementById('dhmNotify') && document.getElementById('dhmNotify').checked;
+    if (go) { go.disabled = n === 0 || n > max; goTxt.textContent = n > max ? 'Za dużo zaznaczonych (maks. ' + max + ')' : (ord ? 'Zleć migrację (' : 'Załóż skrzynki (') + n + ')'; }
   }
   function filter() {
     const t = (q ? q.value : '').trim().toLowerCase(), s = f ? f.value : '';
@@ -358,12 +365,14 @@ $statusOf  = function (array $a): array {
   if (f) f.addEventListener('change', filter);
   if (all) all.addEventListener('change', () => { visible().forEach(r => r.querySelector('.dhm-row').checked = all.checked); count(); });
   rows.forEach(r => r.querySelector('.dhm-row').addEventListener('change', count));
+  const nt = document.getElementById('dhmNotify'); if (nt) nt.addEventListener('change', count);
   const form = document.getElementById('dhmForm');
   if (form) form.addEventListener('submit', e => {
     const n = rows.filter(r => r.querySelector('.dhm-row').checked).length;
     const reset = document.getElementById('dhmReset').checked ? '\nDla istniejących skrzynek zostanie ustawione NOWE hasło.' : '';
-    if (!confirm('Założyć skrzynki na dhosting dla ' + n + ' kont?' + reset)) { e.preventDefault(); return; }
-    go.disabled = true; goTxt.textContent = 'Trwa zakładanie…';
+    const ordr = document.getElementById('dhmNotify') && document.getElementById('dhmNotify').checked;
+    if (!confirm((ordr ? 'Zlecić migrację ' + n + ' kont? Osoby dostaną powiadomienie w SZO i e-mail.' : 'Założyć skrzynki na dhosting dla ' + n + ' kont?') + reset)) { e.preventDefault(); return; }
+    go.disabled = true; goTxt.textContent = ordr ? 'Trwa zlecanie…' : 'Trwa zakładanie…';
   });
   filter(); count();
 

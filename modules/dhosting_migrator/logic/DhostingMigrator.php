@@ -174,7 +174,7 @@ final class DhostingMigrator
      * $copyMail: dodaj zadanie kopiowania poczty z Microsoft 365 (w tle) — tylko gdy znamy hasło, czyli przy założeniu / nowym haśle.
      * Zwraca listę wyników: mailbox, name, password (tylko gdy ustawiono), status ok|exists|error, msg, sms, copy.
      */
-    public static function adminCreate(array $m365Ids, bool $resetExisting, bool $sendSms, string $by, bool $copyMail = false, ?array $graphUsers = null): array
+    public static function adminCreate(array $m365Ids, bool $resetExisting, bool $sendSms, string $by, bool $copyMail = false, ?array $graphUsers = null, bool $notify = false): array
     {
         $want = array_flip(array_map('strval', $m365Ids));
         $overview = self::adminOverview($graphUsers);
@@ -185,7 +185,7 @@ final class DhostingMigrator
         foreach ($overview['accounts'] as $a) {
             if (!isset($want[$a['m365_id']])) continue;
             if (count($results) >= self::BATCH_MAX) break;
-            $res = ['mailbox' => $a['mailbox'], 'name' => $a['name'], 'password' => null, 'status' => 'error', 'msg' => '', 'sms' => '', 'copy' => ''];
+            $res = ['mailbox' => $a['mailbox'], 'name' => $a['name'], 'password' => null, 'status' => 'error', 'msg' => '', 'sms' => '', 'copy' => '', 'notify' => ''];
             $password = DhostingConfig::generatePassword();
             $base = ['user_id' => $a['user_id'], 'm365_id' => $a['m365_id'], 'source_login' => $a['login'], 'display_name' => $a['name']];
             try {
@@ -194,6 +194,7 @@ final class DhostingMigrator
                         $res['status'] = 'exists';
                         $res['msg'] = 'Skrzynka już jest na dhosting — pominięta (bez zmiany hasła).';
                         if ($copyMail) $res['copy'] = 'nie — bez nowego hasła nie da się kopiować (zaznacz „ustaw nowe hasło”)';
+                        if ($notify) $res['notify'] = self::notifyOrdered($a, $res, $by);
                         $results[] = $res;
                         continue;
                     }
@@ -241,9 +242,68 @@ final class DhostingMigrator
                 . ' SMS z hasłem: ' . ($res['sms'] !== '' ? $res['sms'] : 'nie wysyłano (hasło przekazuje administrator)') . '.'
                 . ($res['copy'] !== '' ? ' Kopiowanie poczty: ' . $res['copy'] . '.' : ''),
                 ['user_id' => $a['user_id'], 'name' => $a['name'], 'login' => $a['login']]);
+            if ($notify) $res['notify'] = self::notifyOrdered($a, $res, $by);
             $results[] = $res;
         }
         return $results;
+    }
+
+    /**
+     * „Administrator zlecił migrację” (polecenie 2026-11-13): powiadomienie w SZO (dzwonek, gdy osoba ma konto) i e-mail
+     * na adres służbowy (+ adres konta SZO, gdy inny) — co się stało, skąd hasło, czy poczta się kopiuje, link do /migracjapoczty.
+     * Bez hasła i bez nazwy dostawcy. Zwraca opis kanałów do tabeli wyników („SZO + e-mail (2)”) albo powód braku.
+     */
+    public static function notifyOrdered(array $a, array $res, string $by): string
+    {
+        if (!in_array($res['status'], ['ok', 'exists'], true)) return '';
+        $box = (string)$a['mailbox'];
+        $url = APP_URL . '/migracjapoczty';
+        $sw = DhostingConfig::switchDate();
+        $lines = [];
+        if ($res['status'] === 'exists') $lines[] = 'Twoja nowa skrzynka pocztowa ' . $box . ' jest już gotowa.';
+        elseif (str_starts_with((string)$res['msg'], 'Skrzynka już była')) $lines[] = 'Ustawiliśmy nowe hasło do Twojej nowej skrzynki pocztowej ' . $box . '.';
+        else $lines[] = 'Założyliśmy Ci nową skrzynkę pocztową ' . $box . ' — ten sam adres i login co w Microsoft 365.';
+        if ($res['status'] === 'exists') $lines[] = 'Zaloguj się hasłem, które już masz (z SMS-a). Jeśli go nie masz, napisz do Helpdesku IT.';
+        elseif (str_starts_with((string)$res['sms'], 'wysłano')) $lines[] = 'Hasło przyszło SMS-em (' . substr((string)$res['sms'], strlen('wysłano na ')) . '). Nie podawaj go nikomu.';
+        else $lines[] = 'Hasło przekaże Ci administrator.';
+        if (str_starts_with((string)$res['copy'], 'w kolejce')) $lines[] = 'Poczta z Microsoft 365 kopiuje się w tle — nic nie musisz robić.';
+        else $lines[] = 'Na stronie migracji możesz skopiować pocztę z Microsoft 365.';
+        if ($sw) $lines[] = 'Od ' . date('d.m.Y', $sw) . ' poczta działa na nowym serwerze — wtedy ustaw konto w telefonie i komputerze (dane są na stronie migracji).';
+        $title = 'Administrator zlecił migrację Twojej poczty';
+        $text = implode("\n", $lines) . "\n\nSzczegóły i postęp: " . $url . "\nNikt z Fundacji nie poprosi Cię o hasło — jeśli ktoś o nie prosi, to próba oszustwa.";
+        $done = [];
+
+        $uid = (int)($a['user_id'] ?? 0);
+        if ($uid > 0) {
+            try {
+                require_once dirname(__DIR__, 3) . '/includes/notifications.php';
+                if (function_exists('notif_migrate')) notif_migrate();
+                notif_create($uid, 'system', $title, implode(' ', $lines), $url);
+                $done[] = 'SZO';
+            } catch (\Throwable $e) { error_log('[dhosting] notif ' . $box . ': ' . $e->getMessage()); }
+        }
+        $to = [strtolower((string)$a['login'])];
+        if ($uid > 0) {
+            $ue = strtolower(trim((string)(db_one("SELECT email FROM users WHERE id=?", [$uid])['email'] ?? '')));
+            if ($ue !== '' && filter_var($ue, FILTER_VALIDATE_EMAIL) && !in_array($ue, $to, true)) $to[] = $ue;
+        }
+        $sent = 0;
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+            $html = '<p>Dzień dobry' . ($a['name'] !== '' ? ', ' . htmlspecialchars((string)$a['name'], ENT_QUOTES) : '') . ',</p>'
+                  . '<p><strong>Administrator zlecił migrację Twojej poczty</strong> z Microsoft 365 do nowej skrzynki. Twój adres e-mail się nie zmienia.</p><ul>';
+            foreach ($lines as $l) $html .= '<li>' . htmlspecialchars($l, ENT_QUOTES) . '</li>';
+            $html .= '</ul><p><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Szczegóły i postęp migracji</a></p>'
+                   . '<p style="color:#555">Nikt z Fundacji nie poprosi Cię o hasło — jeśli ktoś o nie prosi, to próba oszustwa.</p>';
+            foreach ($to as $addr) {
+                if (mail_queue_add($addr, (string)$a['name'], $title, $html, $text, 'dhosting_migration_order')) $sent++;
+            }
+            if ($sent) $done[] = 'e-mail' . ($sent > 1 ? ' (' . $sent . ')' : '');
+        } catch (\Throwable $e) { error_log('[dhosting] mail ' . $box . ': ' . $e->getMessage()); }
+
+        DhostingHelpdesk::event($box, 'Administrator (' . $by . ') zlecił migrację; powiadomiono: ' . ($done ? implode(' + ', $done) : 'nie udało się') . '.',
+            ['user_id' => $uid, 'name' => (string)$a['name'], 'login' => (string)$a['login']]);
+        return $done ? implode(' + ', $done) : 'nie udało się wysłać';
     }
 
     // ── Użytkownik: własna skrzynka ────────────────────────────────────────────────────────────

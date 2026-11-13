@@ -67,13 +67,14 @@ final class DhostingMigratorController
         @ignore_user_abort(true);
         $me = current_user();
         try {
-            $results = DhostingMigrator::adminCreate($ids, !empty($_POST['reset_existing']), !empty($_POST['send_sms']), (string)($me['email'] ?? ''), !empty($_POST['copy_mail']));
+            $results = DhostingMigrator::adminCreate($ids, !empty($_POST['reset_existing']), !empty($_POST['send_sms']), (string)($me['email'] ?? ''), !empty($_POST['copy_mail']),
+                null, !empty($_POST['notify']));
         } catch (\Throwable $e) {
             return $this->flash($back, 'danger', $e->getMessage());
         }
         $ok  = count(array_filter($results, fn($r) => $r['status'] === 'ok'));
         $err = count(array_filter($results, fn($r) => $r['status'] === 'error'));
-        $log = array_map(fn($r) => ['mailbox' => $r['mailbox'], 'status' => $r['status'], 'sms' => $r['sms'], 'msg' => $r['status'] === 'error' ? $r['msg'] : ''], $results);
+        $log = array_map(fn($r) => ['mailbox' => $r['mailbox'], 'status' => $r['status'], 'sms' => $r['sms'], 'notify' => $r['notify'] ?? '', 'msg' => $r['status'] === 'error' ? $r['msg'] : ''], $results);
         try { audit_log('dhosting.mailboxes_create', ['ok' => $ok, 'errors' => $err, 'items' => $log]); } catch (\Throwable $e) { error_log('[dhosting] audit_log: ' . $e->getMessage()); }
         admin_audit_migrate();
         admin_audit('dhosting_create', 'dhosting', 'Skrzynki dhosting: ' . $ok . ' ustawionych, ' . $err . ' błędów', 0, implode(', ', array_column($results, 'mailbox')));
