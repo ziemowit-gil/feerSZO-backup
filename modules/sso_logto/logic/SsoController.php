@@ -469,7 +469,7 @@ final class SsoController
             if (!sms_channel_ready()) return 'brak dostawcy SMS';
             $cloudOnly = ($res['logto'] ?? '') === 'pominięte';   // Logto nieskonfigurowane — samo konto w chmurze
             $msg = sms_ascii(SsoConfig::smsPrefix() . ($cloudOnly ? ': chmura plikow' : ': logowanie jednokrotne') . '. Login: ' . $res['username'] . ' Haslo: ' . $res['password']
-                . ' Strona: ' . preg_replace('~^https://~', '', $cloudOnly ? SsoConfig::cloudUrl() : SsoConfig::logtoUrl()));
+                . ' Haslo obowiazuje od ' . date('d.m.y H:i:s') . '. Strona: ' . preg_replace('~^https://~', '', $cloudOnly ? SsoConfig::cloudUrl() : SsoConfig::logtoUrl()));
             sms_send($phone, $msg, 'access_data');
             return 'wysłano';
         } catch (\Throwable $e) {

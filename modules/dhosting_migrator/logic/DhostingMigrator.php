@@ -500,7 +500,8 @@ final class DhostingMigrator
     public static function sendPasswordSms(string $phone, string $mailbox, string $password, bool $bypassQuiet): void
     {
         $web = DhostingConfig::webmailOrDefault();
-        $msg = 'FEER: poczta ' . $mailbox . "\nHaslo: " . $password . ($web !== '' ? "\nLogowanie: " . $web : '');
+        // „hasło obowiązuje od” (polecenie 2026-11-13): chwila wysłania = chwila ustawienia hasła; format DD.MM.RR gg:mm:ss
+        $msg = 'FEER: poczta ' . $mailbox . "\nHaslo: " . $password . "\nHaslo obowiazuje od " . date('d.m.y H:i:s') . ($web !== '' ? "\nLogowanie: " . $web : '');
         $prev = $GLOBALS['__sms_quiet_bypass'] ?? null;
         if ($bypassQuiet) $GLOBALS['__sms_quiet_bypass'] = true;
         try {
