@@ -140,18 +140,30 @@ html body #tsk-main .tcal-url{width:100%;font-family:ui-monospace,Menlo,Consolas
   <?php endforeach; ?>
 <?php endif; ?>
 
-<h2 class="tp-section" id="ical">Kalendarz w Outlooku i telefonie (iCal)</h2>
+<?php
+// Kalendarz w chmurze plików (Nextcloud) — polecenie 2026-11-13 „w zadaniach wywal Microsoft i dodaj Nextcloud”
+$ncCalUrl = '';
+try {
+    require_once dirname(__DIR__, 2) . '/modules/sso_logto/lib/SsoConfig.php';
+    if (SsoConfig::cloudConfigured() && SsoConfig::cloudKind() === 'nextcloud') $ncCalUrl = rtrim(SsoConfig::cloudUrl(), '/') . '/apps/calendar/';
+} catch (\Throwable $e) {}
+?>
+<h2 class="tp-section" id="ical">Kalendarz w Nextcloudzie i w telefonie (iCal)</h2>
 <div class="tp-group">
-  <p class="tp-muted" style="margin-top:0">Prywatny link pokazuje zadania <strong>przypisane do Ciebie</strong>, nieukończone, z terminem.
-    Dodaj go w Outlooku (Dodaj kalendarz → Subskrybuj z sieci Web), Kalendarzu Google („Z adresu URL”) albo na iPhonie
-    (Ustawienia → Kalendarz → Konta → Dodaj subskrypcję). Kalendarze odświeżają się co kilka godzin. Nie udostępniaj linku —
-    każdy, kto go zna, zobaczy Twoje terminy.</p>
+  <p class="tp-muted" style="margin-top:0">Prywatny link pokazuje nieukończone zadania z terminem, które są <strong>przypisane do Ciebie</strong>.</p>
+  <p class="tp-muted">W Nextcloudzie otwórz Kalendarz, kliknij „+ Nowy kalendarz” i wybierz „Nowa subskrypcja z odnośnika”. Wklej link i zapisz.
+    Ten sam link dodasz w Thunderbirdzie (Nowy kalendarz → W sieci) i na iPhonie (Ustawienia → Kalendarz → Konta → Dodaj subskrypcję).
+    Kalendarz pobiera zmiany co jakiś czas, więc nowe zadanie może pojawić się w nim z opóźnieniem.</p>
+  <p class="tp-muted">Nie udostępniaj linku. Kto go zna, zobaczy Twoje terminy.</p>
   <?php if ($icalUrl): ?>
   <label class="tp-l" for="tcal-url">Twój link</label>
   <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem">
     <input class="tp-in tcal-url" id="tcal-url" type="text" readonly value="<?= h($icalUrl) ?>" style="flex:1 1 24rem" onfocus="this.select()">
     <button class="tp-btn" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('tcal-url').value).then(()=>{this.textContent='Skopiowano';})">
       <i class="bi bi-clipboard" aria-hidden="true"></i>Kopiuj</button>
+    <?php if ($ncCalUrl !== ''): ?>
+    <a class="tp-btn tp-btn--ghost" href="<?= h($ncCalUrl) ?>" target="_blank" rel="noopener"><i class="bi bi-calendar-week" aria-hidden="true"></i>Kalendarz w Nextcloudzie<span class="visually-hidden"> (otwiera się w nowej karcie)</span></a>
+    <?php endif; ?>
     <a class="tp-btn tp-btn--ghost" href="<?= h(preg_replace('#^https?://#', 'webcal://', $icalUrl)) ?>"><i class="bi bi-calendar-plus" aria-hidden="true"></i>Otwórz w aplikacji</a>
   </div>
   <div style="display:flex;gap:.5rem;flex-wrap:wrap">
