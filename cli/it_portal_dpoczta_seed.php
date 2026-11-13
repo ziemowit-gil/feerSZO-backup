@@ -20,11 +20,12 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+require_once dirname(__DIR__) . '/modules/it_portal/lib/itPortalSzoLinks.php';
 
 $dry = in_array('--dry-run', $argv, true);
 echo ($dry ? "PODGLĄD (bez zapisu)" : "ZAPIS") . " — baza: " . DB_PATH . "\n\n";
 
-$rep = itPortalDpocztaApply(APP_URL, $dry);
+$rep = itPortalDpocztaApply(ITP_SZO_URL, $dry);   // linki zawsze na szo.feer.org.pl, nie na APP_URL (z CLI to localhost)
 echo "Usługa „Moja poczta”: {$rep['category']}\n";
 foreach (['created' => 'Nowe artykuły', 'updated' => 'Nadpisane artykuły', 'hidden' => 'Ukryte artykuły o poczcie Office 365'] as $k => $label) {
     echo "\n{$label} (" . count($rep[$k]) . "):\n";

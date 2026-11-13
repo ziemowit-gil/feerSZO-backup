@@ -654,7 +654,8 @@ return [
         'desc' => 'Portal Usług IT: instrukcje poczty dPoczta.pl w „Moja poczta”, ukrycie dawnych artykułów o poczcie Office 365',
         'run'  => static function () use ($ROOT): void {
             require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
-            itPortalDpocztaApply(APP_URL);   // to samo ręcznie: php cli/it_portal_dpoczta_seed.php [--dry-run]
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            itPortalDpocztaApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_dpoczta_seed.php [--dry-run]
         },
     ],
 
@@ -665,7 +666,19 @@ return [
         'desc' => 'Portal Usług IT: usługa „Migracja” i artykuł o odejściu od Microsoft 365 (terminy, powody, loginy i hasła)',
         'run'  => static function () use ($ROOT): void {
             require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaSeed.php';
-            itPortalMigracjaApply(APP_URL);   // to samo ręcznie: php cli/it_portal_migracja_seed.php [--dry-run]
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            itPortalMigracjaApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_migracja_seed.php [--dry-run]
+        },
+    ],
+
+    // Portal Usług IT: linki do stron SZO w artykułach i wstępach usług zawsze na https://szo.feer.org.pl (polecenie 2026-11-13:
+    // „podmień w artykułach adres na szo.feer.org.pl”). Seedery budowały je z APP_URL — z CLI/CRON to http://localhost, z innej
+    // domeny np. ti.feer.org.pl. Zamienia tylko hosta przed ścieżką strony SZO (modules/it_portal/lib/itPortalSzoLinks.php).
+    '2026-11_it_portal_szo_links' => [
+        'desc' => 'Portal Usług IT: linki do stron SZO w artykułach na https://szo.feer.org.pl',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            itPortalSzoLinksApply();   // to samo ręcznie: php cli/it_portal_szo_links.php [--dry-run]
         },
     ],
 

@@ -19,14 +19,15 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/modules/it_portal/lib/itPortalMigracjaSeed.php';
+require_once dirname(__DIR__) . '/modules/it_portal/lib/itPortalSzoLinks.php';
 
 $dry = in_array('--dry-run', $argv, true);
 echo ($dry ? "PODGLĄD (bez zapisu)" : "ZAPIS") . " — baza: " . DB_PATH . "\n\n";
 
-$rep = itPortalMigracjaApply(APP_URL, $dry);
+$rep = itPortalMigracjaApply(ITP_SZO_URL, $dry);   // linki zawsze na szo.feer.org.pl, nie na APP_URL (z CLI to localhost)
 echo "Usługa „Migracja”: {$rep['category']}\n";
 foreach (['created' => 'Nowe artykuły', 'updated' => 'Nadpisane artykuły'] as $k => $label) {
     echo "\n{$label} (" . count($rep[$k]) . "):\n";
     foreach ($rep[$k] as $line) echo "  - {$line}\n";
 }
-echo $dry ? "\nNic nie zapisano. Uruchom bez --dry-run, żeby zapisać.\n" : "\nGotowe: " . rtrim(APP_URL, '/') . "/uslugi-it/uslugi/migracja/migracja\n";
+echo $dry ? "\nNic nie zapisano. Uruchom bez --dry-run, żeby zapisać.\n" : "\nGotowe: " . ITP_SZO_URL . "/uslugi-it/uslugi/migracja/migracja\n";
