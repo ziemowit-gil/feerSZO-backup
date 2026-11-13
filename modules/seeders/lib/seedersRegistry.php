@@ -238,6 +238,22 @@ function seedersRegistry(): array
             ],
         ],
 
+        // ── Konta techniczne ──────────────────────────────────────────────
+        'cloud_tech_account' => [
+            'group' => 'Konta techniczne', 'title' => 'Konto techniczne SZO w chmurze plików (administrator API)', 'script' => 'seedCloudTechAccount.php',
+            'desc'  => 'Administrator Nextcloud, na którym SZO zakłada konta i grupy zespołów (naprawia błąd 403 „at least a sub admin”). Konto jest tylko w chmurze: w SZO zostają login i zaszyfrowane hasło w ustawieniach, bez użytkownika SZO, więc nie ma go na żadnej liście. Gdy obecne konto API nie jest administratorem, „Załóż” podaje polecenie occ, a „Aktywuj” przełącza SZO po jego wykonaniu.',
+            'fields'  => [
+                'uid'   => ['label' => 'Login w chmurze', 'type' => 'text', 'default' => 'szo-api', 'opt' => '--uid'],
+                'haslo' => ['label' => 'Hasło konta', 'type' => 'password', 'opt' => '--haslo', 'help' => 'co najmniej 16 znaków; puste = wygenerowane (tylko gdy obecne konto API jest administratorem albo z terminala)'],
+            ],
+            'actions' => [
+                ['id' => 'status',   'label' => 'Stan',      'kind' => 'preview', 'args' => ['--status']],
+                ['id' => 'create',   'label' => 'Załóż',     'kind' => 'apply',   'args' => ['--create'], 'use' => ['uid', 'haslo']],
+                ['id' => 'activate', 'label' => 'Aktywuj',   'kind' => 'apply',   'args' => ['--activate']],
+                ['id' => 'forget',   'label' => 'Porzuć oczekujące', 'kind' => 'danger', 'args' => ['--forget']],
+            ],
+        ],
+
         // ── Poczta ────────────────────────────────────────────────────────
         'mail_read_all' => [
             'group' => 'Poczta', 'title' => 'Oznacz całą pocztę jako przeczytaną', 'script' => 'mailMarkAllRead.php',
