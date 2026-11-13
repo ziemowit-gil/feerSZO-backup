@@ -95,7 +95,8 @@ final class NoweHaslo
         $res = $target === 'sso' ? self::changeSso($p, $own, $pw1, $by) : self::changeMail($p, $own, $pw1, $by);
         NoweHasloLimit::hit('chg:' . $p['key']);
         // Zmiana przez samą osobę (także hasło losowe na jej prośbę) — hasło przestaje być startowe
-        NoweHasloInitial::clear($target === 'sso' ? 'sso' : 'poczta', (string)$res['login']);
+        // Gdy zmieniła się tylko chmura (Logto nie działało), hasło logowania jednokrotnego nadal jest startowe
+        if (empty($res['keepInitial'])) NoweHasloInitial::clear($target === 'sso' ? 'sso' : 'poczta', (string)$res['login']);
 
         // SMS: losowe hasło albo informacja o zmianie (bez hasła)
         $smsNote = self::smsAfter($p, $res, $own);
@@ -154,6 +155,7 @@ final class NoweHaslo
         $logtoOn = !empty($acc['logto_id']) && SsoConfig::logtoConfigured();
         $cloudOn = !empty($acc['cloud_uid']) && SsoConfig::cloudConfigured();
         $warn = '';
+        $logtoDown = '';   // Logto nie działa (np. HTTP 500 przy tokenie) — wtedy zmieniamy samą chmurę przez OCS (polecenie 2026-11-14)
         if ($logtoOn) {
             try {
                 $r = SsoAccounts::setPassword($email, $pw, $by);   // Logto, potem chmura tym samym hasłem; wyjątek = nic nie zmieniono
@@ -161,11 +163,16 @@ final class NoweHaslo
                 $m = $e->getMessage();
                 error_log('[nowehaslo] Logto ' . $email . ': ' . $m);
                 if (str_contains($m, 'odrzuciło hasło')) throw new RuntimeException($m);
-                // Przyczyna dla administratora (2026-11-14: „nie przyjęło zmiany” bez wskazówki, a log serwera nie zawsze jest pod ręką)
-                $admin = function_exists('is_admin') && is_admin();
-                throw new RuntimeException('Logowanie jednokrotne nie przyjęło zmiany. Spróbuj za kilka minut albo napisz do Helpdesku IT.'
-                    . ($admin ? ' Szczegóły dla administratora: ' . mb_substr($m, 0, 300) : ''));
+                if (!$cloudOn) {
+                    // Przyczyna dla administratora (2026-11-14: „nie przyjęło zmiany” bez wskazówki, a log serwera nie zawsze jest pod ręką)
+                    $admin = function_exists('is_admin') && is_admin();
+                    throw new RuntimeException('Logowanie jednokrotne nie przyjęło zmiany. Spróbuj za kilka minut albo napisz do Helpdesku IT.'
+                        . ($admin ? ' Szczegóły dla administratora: ' . mb_substr($m, 0, 300) : ''));
+                }
+                $logtoDown = mb_substr($m, 0, 200);
             }
+        }
+        if ($logtoOn && $logtoDown === '') {
             $c = (string)($r['cloud'] ?? '');
             $cloudOk = in_array($c, ['linked', 'synced'], true);
             if ($cloudOn && !$cloudOk) $warn = 'w chmurze zostało stare hasło (' . ($c !== '' ? $c : 'brak zmiany') . ')';
@@ -180,13 +187,18 @@ final class NoweHaslo
             }
             $detail = 'chmura: nowe hasło (login ' . $acc['cloud_uid'] . ')' . (!empty($acc['logto_id']) ? '; logowanie jednokrotne: nieskonfigurowane w SZO — dostanie hasło przy następnej zmianie' : '');
             $what = 'chmura plików';
-            if (!empty($acc['logto_id'])) $warn = 'Logto ma stare hasło (SZO nie ma połączenia z Logto)';
+            if ($logtoDown !== '') {
+                $detail = 'chmura: nowe hasło przez OCS (login ' . $acc['cloud_uid'] . '); logowanie jednokrotne NIEZMIENIONE — Logto nie działało: ' . $logtoDown;
+                $warn = 'Logto ma stare hasło (Logto nie działało: ' . $logtoDown . ') — po naprawie Logto osoba musi zmienić hasło jeszcze raz';
+            } elseif (!empty($acc['logto_id'])) $warn = 'Logto ma stare hasło (SZO nie ma połączenia z Logto)';
         } else {
             throw new RuntimeException('Logowanie jednokrotne i chmura plików są chwilowo niedostępne. Spróbuj później albo napisz do Helpdesku IT.');
         }
         return ['what' => $what, 'whatTo' => $what === 'chmura plików' ? 'do chmury plików' : 'logowania jednokrotnego' . ($cloudOn ? ' i chmury plików' : ''),
                 'detail' => $detail, 'warn' => $warn,
-                'warnUser' => $warn !== '' ? 'W jednym z systemów zmiana się nie udała — Helpdesk IT już o tym wie i to poprawi.' : '',
+                'warnUser' => $logtoDown !== '' ? 'Logowanie jednokrotne jest chwilowo niedostępne i ma jeszcze stare hasło. Gdy zacznie działać, zmień hasło jeszcze raz — Helpdesk IT już o tym wie.'
+                            : ($warn !== '' ? 'W jednym z systemów zmiana się nie udała — Helpdesk IT już o tym wie i to poprawi.' : ''),
+                'keepInitial' => $logtoDown !== '',
                 'password' => $pw, 'login' => $email, 'target' => 'sso', 'cloudUid' => $cloudOn ? (string)$acc['cloud_uid'] : '',
                 'site' => $logtoOn ? SsoConfig::logtoUrl() : SsoConfig::cloudUrl()];
     }
