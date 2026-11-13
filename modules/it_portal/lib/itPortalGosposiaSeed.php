@@ -1,40 +1,61 @@
 <?php
 /**
- * modules/it_portal/lib/itPortalGosposiaSeed.php — artykuł „Gosposia: sprzątanie reklam ze skrzynki” w Portalu Usług IT
- * (/uslugi-it/uslugi/moja-poczta/gosposia). Polecenie 2026-11-13: „przygotuj artykul o gosposi” „na /pomoc-it”.
+ * modules/it_portal/lib/itPortalGosposiaSeed.php — artykuł „Gosposia: sprzątanie reklam z poczty” w Portalu Usług IT
+ * (/uslugi-it/uslugi/moja-poczta/gosposia). Polecenia: 2026-11-13 „przygotuj artykuł o gosposi na /pomoc-it”;
+ * 2026-11-14 „dodaj artykuł do pomocy IT”, „proste opisy”, „połącz jako przydatne z innymi artykułami w pomocy”.
  *
- * Opisuje narzędzie /pomocne/gosposia według specyfikacji (IMAP imap.dpoczta.pl:993, klasyfikacja Claude Haiku tylko na metadanych,
- * biała lista nigdy nie trafia do AI, przeniesienie do Kosza bez trwałego usuwania, potwierdzenie w oknie, ślad audytowy bez treści).
- * Modułu jeszcze NIE MA, dlatego domyślnie artykuł zapisuje się jako SZKIC (is_published=0) — widać go tylko w panelu Portalu.
- * Po wdrożeniu modułu: sprawdź zgodność tekstu i opublikuj: php cli/it_portal_gosposia_seed.php --publish
- * Usługa „Moja poczta” pochodzi z itPortalDpocztaSeed.php; gdy jej brak, artykuł nie powstaje.
- * Tekst prostym językiem (bez myślników i ozdobników), jak w itPortalHaslaSeed.php.
+ * Opisuje samodzielną stronę /pomocne/gosposia (modules/gosposia): dla administratora i współpracowników z umową, kafel w panelu,
+ * hasło do poczty, Kosz zamiast usuwania, zaufani nadawcy, co widzi AI (tylko metadane), co zapisujemy.
+ * Powiązane tematy („Zobacz też”) w obie strony: Gosposia ↔ RELATED (tylko artykuły, które istnieją; dopisuje, nie nadpisuje cudzych powiązań).
+ * Uwaga: itPortalArticleSave zapisuje 'related' z wejścia, więc przy ponownym zapisie artykułu przekazujemy powiązania jawnie.
+ * Uruchamiają: migracje '2026-11_it_portal_gosposia_draft' (szkic) i '2026-11_it_portal_gosposia_publish', cli/it_portal_gosposia_seed.php.
  */
 
+/** Artykuły z „Mojej poczty” łączone z Gosposią (slug w usłudze moja-poczta). */
+const ITP_GOSPOSIA_RELATED = ['spam-i-zaufani-nadawcy', 'filtry-i-przekierowanie', 'logowanie-dpoczta', 'zmiana-hasla-poczty', 'duze-zalaczniki'];
+
 /**
- * @return array{category:string, created:list<string>, updated:list<string>}
+ * @return array{category:string, created:list<string>, updated:list<string>, linked:list<string>}
  */
 function itPortalGosposiaApply(string $app, bool $dryRun = false, bool $publish = false): array {
     require_once dirname(__DIR__) . '/logic/itPortal.php';
     itPortalMigrate();
     $app = rtrim($app, '/');
-    $rep = ['category' => '', 'created' => [], 'updated' => []];
+    $rep = ['category' => '', 'created' => [], 'updated' => [], 'linked' => []];
 
     $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'moja-poczta'");
     if (!$cat) { $rep['category'] = 'brak usługi „Moja poczta” (najpierw php cli/it_portal_dpoczta_seed.php)'; return $rep; }
     $catId = (int)$cat['id'];
     $rep['category'] = 'Moja poczta';
 
+    // istniejące artykuły do „Zobacz też”
+    $rel = [];
+    foreach (ITP_GOSPOSIA_RELATED as $slug) {
+        $r = db_one("SELECT id, title, related FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]);
+        if ($r) $rel[(int)$r['id']] = $r;
+    }
+
+    $gid = 0;
     foreach (itPortalGosposiaArticles($app) as $slug => [$title, $keywords, $blocks]) {
-        $old = db_one("SELECT id, is_published, sort_order FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]);
-        $rep[$old ? 'updated' : 'created'][] = "moja-poczta/{$slug} — {$title} (" . ($publish ? 'opublikowany' : ($old && $old['is_published'] ? 'zostaje opublikowany' : 'szkic')) . ')';
-        if ($dryRun) continue;
+        $old = db_one("SELECT id, is_published, sort_order, related FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]);
+        $pub = $publish || ($old && (int)$old['is_published'] === 1);   // już opublikowanego nie ukrywamy
+        $rep[$old ? 'updated' : 'created'][] = "moja-poczta/{$slug} — {$title} (" . ($pub ? 'opublikowany' : 'szkic') . ')';
+        if ($dryRun) { $gid = $old ? (int)$old['id'] : 0; continue; }
         $sort = $old ? (int)$old['sort_order'] : (int)(db_one("SELECT COALESCE(MAX(sort_order), 0) + 10 AS s FROM itp_articles WHERE category_id = ?", [$catId])['s'] ?? 10);
-        itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
-            'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE),
-            // nie cofamy publikacji, którą ktoś już włączył w panelu
-            'is_published' => ($publish || ($old && (int)$old['is_published'] === 1)) ? 1 : 0,
-            'is_pinned' => 0, 'sort_order' => $sort], $old ? (int)$old['id'] : 0);
+        $related = array_values(array_unique(array_merge(itPortalIds($old['related'] ?? '[]'), array_keys($rel))));
+        $gid = itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
+            'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => $pub ? 1 : 0,
+            'is_pinned' => 0, 'sort_order' => $sort, 'related' => $related], $old ? (int)$old['id'] : 0);
+    }
+
+    // w drugą stronę: Gosposia w „Zobacz też” powiązanych artykułów (dopisanie do ich listy)
+    foreach ($rel as $id => $r) {
+        $ids = itPortalIds($r['related']);
+        if ($gid && in_array($gid, $ids, true)) continue;
+        $rep['linked'][] = (string)$r['title'];
+        if ($dryRun || !$gid) continue;
+        $ids[] = $gid;
+        db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode(array_values(array_unique($ids))), $id]);
     }
     return $rep;
 }
@@ -46,53 +67,45 @@ function itPortalGosposiaApply(string $app, bool $dryRun = false, bool $publish 
 function itPortalGosposiaArticles(string $app): array {
     $g  = $app . '/pomocne/gosposia';
     $hd = $app . '/helpdesk/new.php';
+    $nh = $app . '/uslugi-it/uslugi/moja-poczta/zmiana-hasla-poczty';
     $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
     return [
-        'gosposia' => ['Gosposia: sprzątanie reklam i newsletterów ze skrzynki',
-            'gosposia, sprzątanie poczty, reklamy, spam, newsletter, newslettery, oferty handlowe, marketing, wypisz się, kosz, porządek w skrzynce, dpoczta, ai, claude, biała lista, zaufani nadawcy', [
-            ['type' => 'text', 'html' => '<p>Gosposia pomaga posprzątać skrzynkę <code>imie.nazwisko@feer.org.pl</code> z newsletterów, ofert handlowych, '
-                . 'reklam i maili sprzedażowych. Przegląda pocztę, układa takie wiadomości według nadawców i pokazuje Ci listę. '
-                . 'Ty decydujesz, co przenieść do Kosza. Bez Twojego potwierdzenia nic nie znika.</p>'
-                . '<p>Gosposię znajdziesz w SZO pod adresem <a href="' . $g . '">' . htmlspecialchars($g, ENT_QUOTES) . '</a>. Trzeba być zalogowanym.</p>'],
+        'gosposia' => ['Gosposia: sprzątanie reklam z poczty',
+            'gosposia, sprzątanie poczty, porządek w poczcie, reklamy, spam, newsletter, newslettery, oferty, promocje, marketing, wypisz się, kosz, pełna skrzynka, miejsce w poczcie, dpoczta, ai, sztuczna inteligencja, zaufani nadawcy, biała lista', [
+            ['type' => 'text', 'html' => '<p>Gosposia sprząta z poczty reklamy, newslettery i oferty handlowe. '
+                . 'Pokazuje, od kogo są, a Ty wybierasz, co wyrzucić. Wiadomości trafiają do Kosza, więc możesz je odzyskać.</p>'
+                . '<p>Otwórz ją tutaj: <a href="' . $g . '">Gosposia</a>. Znajdziesz ją też w panelu współpracownika, na kafelku „Gosposia”. '
+                . 'Mogą z niej korzystać współpracownicy z umową i administrator.</p>'],
 
-            ['type' => 'wizard', 'title' => 'Jak posprzątać skrzynkę', 'intro' => '<p>Pierwsze sprzątanie zajmuje kilka minut. Przygotuj hasło do poczty.</p>', 'steps' => [
-                $step('Połącz skrzynkę', '<p>Otwórz <a href="' . $g . '">Gosposię</a>. Adres e-mail jest już wpisany. Podaj hasło do poczty, '
-                    . 'to samo co w przeglądarce i w telefonie. To nie jest hasło logowania jednokrotnego.</p>'
-                    . '<p>Hasło jest pamiętane tylko do końca sesji. Jeśli zaznaczysz „Zapamiętaj w SZO”, zapiszemy je zaszyfrowane, '
-                    . 'żeby następnym razem nie trzeba było go wpisywać.</p>'),
-                $step('Poczekaj na przegląd', '<p>Gosposia czyta nagłówki wiadomości i ocenia nadawców. Przy dużej skrzynce trwa to chwilę.</p>'),
-                $step('Przejrzyj listę nadawców', '<p>Przy każdym nadawcy widzisz rodzaj poczty (na przykład newsletter albo oferta handlowa), '
-                    . 'krótkie uzasadnienie, liczbę wiadomości i ich rozmiar. Rozwiń nadawcę, żeby zobaczyć tematy i daty. '
-                    . 'Odznacz wiadomości, które chcesz zostawić.</p>'),
-                $step('Zostaw zaufanych nadawców', '<p>Jeśli na liście jest ktoś, od kogo chcesz dostawać pocztę, kliknij „Dodaj do białej listy”. '
-                    . 'Nadawca od razu znika z listy i Gosposia nie pokaże go już nigdy więcej.</p>'),
-                $step('Przenieś do Kosza', '<p>Kliknij „Przenieś zaznaczone do Kosza”. W okienku zobaczysz, ile wiadomości i od ilu nadawców przeniesiesz. '
-                    . 'Potwierdź, a wiadomości trafią do folderu Kosz na Twojej skrzynce.</p>'),
+            ['type' => 'wizard', 'title' => 'Jak posprzątać pocztę', 'intro' => '<p>Zajmie to kilka minut. Przygotuj hasło do poczty.</p>', 'steps' => [
+                $step('Połącz pocztę', '<p>Otwórz <a href="' . $g . '">Gosposię</a>. Twój adres jest już wpisany. Wpisz hasło do poczty i kliknij „Połącz”.</p>'
+                    . '<p>To hasło, którym logujesz się do poczty, a nie hasło do SZO. Zaznacz „Zapamiętaj”, jeśli nie chcesz go wpisywać następnym razem.</p>'),
+                $step('Sprawdź pocztę', '<p>Kliknij „Sprawdź pocztę” i poczekaj chwilę.</p>'),
+                $step('Przejrzyj listę', '<p>Zobaczysz nadawców reklam i newsletterów. Przy każdym jest krótki opis i liczba wiadomości.</p>'
+                    . '<p>Kliknij „Pokaż wiadomości”, żeby zobaczyć tematy. Odznacz to, co chcesz zostawić.</p>'),
+                $step('Zostaw zaufanych', '<p>Jeśli ktoś z listy pisze do Ciebie ważne rzeczy, kliknij „Zostaw tego nadawcę”. '
+                    . 'Gosposia nie będzie już ruszać jego poczty.</p>'),
+                $step('Przenieś do Kosza', '<p>Kliknij czerwony przycisk na dole. Potwierdź w okienku. Gotowe.</p>'),
             ]],
 
             ['type' => 'text', 'html' => '<h2>Jak odzyskać wiadomość</h2>'
-                . '<p>Gosposia niczego nie usuwa na stałe. Wiadomości lądują w Koszu, tak jakbyś usunął je sam w poczcie. '
-                . 'Otwórz Kosz w poczcie w przeglądarce albo w telefonie i przenieś wiadomość z powrotem do Odebranych. '
-                . 'Pamiętaj, że serwer poczty może po jakimś czasie sam opróżniać Kosz.</p>'],
+                . '<p>Otwórz Kosz w poczcie i przenieś wiadomość z powrotem do Odebranych. Gosposia niczego nie kasuje na stałe.</p>'
+                . '<p>Pamiętaj, że Kosz może się sam opróżniać po pewnym czasie.</p>'],
 
-            ['type' => 'text', 'html' => '<h2>Co widzi sztuczna inteligencja</h2>'
-                . '<p>Do oceny nadawców Gosposia używa modelu Claude firmy Anthropic. Wysyła tylko to, co potrzebne: nadawcę, temat, datę, '
-                . 'informację, czy mail ma link „wypisz się”, i najwyżej pierwsze 200 znaków tekstu. Nie wysyła załączników ani całych wiadomości.</p>'
-                . '<p>Poczta od zaufanych nadawców nie trafia do oceny wcale. Należą do nich urzędy (adresy <code>.gov.pl</code>), Fundacja '
-                . '(<code>feer.org.pl</code>), dostawca poczty i banki, a także każdy, kogo sam dodasz do białej listy. Takich wiadomości Gosposia nigdy nie zaproponuje do Kosza.</p>'
-                . '<p>Gdy usługa AI jest niedostępna, Gosposia ocenia nadawców prostszymi regułami, na przykład po nagłówku „wypisz się”. '
-                . 'Wtedy przejrzyj listę szczególnie uważnie.</p>'],
-
-            ['type' => 'text', 'html' => '<h2>Co zapisujemy</h2>'
-                . '<p>SZO zapisuje, kto i kiedy przeniósł wiadomości do Kosza, ile ich było i od jakich adresów. '
-                . 'Nie zapisujemy tematów ani treści Twojej korespondencji, nie zapisujemy też hasła w dziennikach.</p>'],
+            ['type' => 'text', 'html' => '<h2>Twoje dane</h2>'
+                . '<p>Gosposia ocenia nadawców przy pomocy sztucznej inteligencji (Claude). Wysyła tylko nadawcę, temat i datę. '
+                . 'Nie wysyła treści wiadomości ani załączników.</p>'
+                . '<p>Poczta od zaufanych nadawców nie trafia do oceny wcale. Zaufani są zawsze urzędy, Fundacja, dostawca poczty i banki, '
+                . 'a także wszyscy, których sam dodasz.</p>'
+                . '<p>Zapisujemy tylko, kto i kiedy coś przeniósł, ile wiadomości i od jakich adresów. Tematów i treści nie zapisujemy.</p>'],
 
             ['type' => 'text', 'html' => '<h2>Coś nie działa</h2>'
-                . '<p>Jeśli Gosposia nie łączy się ze skrzynką, sprawdź hasło do poczty, logując się do poczty w przeglądarce. '
-                . 'Gdy hasło działa, a Gosposia dalej zgłasza błąd, napisz do <a href="' . $hd . '">Helpdesku IT</a>.</p>'],
+                . '<p>Gosposia nie łączy się z pocztą? Sprawdź hasło, logując się do poczty w przeglądarce. '
+                . 'Nie pamiętasz hasła? Zobacz <a href="' . $nh . '">Jak zmienić hasło do poczty</a>. '
+                . 'Gdy dalej nie działa, napisz do <a href="' . $hd . '">Helpdesku IT</a>.</p>'],
 
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Gosposia może się pomylić. Zanim potwierdzisz, rzuć okiem na listę, '
-                . 'zwłaszcza na nadawców z niską pewnością oceny. Ważną korespondencję zostaw albo dodaj nadawcę do białej listy.</p>'],
+                . 'zwłaszcza na pozycje oznaczone „niepewne, sprawdź”.</p>'],
         ]],
     ];
 }

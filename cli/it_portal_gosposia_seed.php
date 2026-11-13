@@ -4,8 +4,8 @@
  * cli/it_portal_gosposia_seed.php — Portal Usług IT (/uslugi-it): artykuł „Gosposia: sprzątanie reklam i newsletterów ze skrzynki”
  * w usłudze „Moja poczta” (narzędzie /pomocne/gosposia).
  *
- * Domyślnie zapisuje SZKIC (niewidoczny publicznie; już opublikowanego nie ukrywa). Opublikuj dopiero po wdrożeniu modułu.
- * Szkic zakłada raz automatycznie migracja '2026-11_it_portal_gosposia_draft'.
+ * Domyślnie zapisuje SZKIC (już opublikowanego nie ukrywa); --publish publikuje. Łączy artykuł w „Zobacz też” z artykułami o poczcie.
+ * Publikuje raz automatycznie migracja '2026-11_it_portal_gosposia_publish'.
  *
  * Użycie (na produkcji, w katalogu aplikacji):
  *   php cli/it_portal_gosposia_seed.php --dry-run    # pokaż, co się zmieni, bez zapisu
@@ -28,7 +28,7 @@ echo ($dry ? "PODGLĄD (bez zapisu)" : "ZAPIS") . " — baza: " . DB_PATH . "\n\
 
 $rep = itPortalGosposiaApply(ITP_SZO_URL, $dry, $pub);   // linki zawsze na szo.feer.org.pl, nie na APP_URL (z CLI to localhost)
 echo "Usługa: {$rep['category']}\n";
-foreach (['created' => 'Nowe artykuły', 'updated' => 'Nadpisane artykuły'] as $k => $label) {
+foreach (['created' => 'Nowe artykuły', 'updated' => 'Nadpisane artykuły', 'linked' => 'Gosposia dopisana do „Zobacz też”'] as $k => $label) {
     echo "\n{$label} (" . count($rep[$k]) . "):\n";
     foreach ($rep[$k] as $line) echo "  - {$line}\n";
 }

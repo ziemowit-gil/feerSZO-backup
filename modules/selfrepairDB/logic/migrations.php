@@ -876,6 +876,16 @@ return [
         },
     ],
 
+    // Gosposia gotowa jako samodzielna strona (2026-11-14): artykuł prostym językiem, opublikowany, „Zobacz też” z artykułami o poczcie.
+    '2026-11_it_portal_gosposia_publish' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: publikacja artykułu o Gosposi i powiązania z artykułami o poczcie',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalGosposiaSeed.php';
+            itPortalGosposiaApply(ITP_SZO_URL, false, true);   // to samo ręcznie: php cli/it_portal_gosposia_seed.php --publish
+        },
+    ],
+
     '2026-11_it_portal_poczta_kursanta_edu_off' => [
         'desc' => 'Portal Usług IT, „Poczta kursanta”: wyłączenie kont @edu.feer.org.pl 20.11.2026 i powód (ostatnie awarie Microsoft 365)',
         'run'  => static function () use ($ROOT): void {
