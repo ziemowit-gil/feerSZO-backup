@@ -67,6 +67,10 @@ RewriteRule ^seeder-test(/.*)?$  /modules/seeders/router.php [QSA,L]
 RewriteRule ^migracjapoczty(/.*)?$ /modules/dhosting_migrator/router.php [QSA,L]
 RewriteRule ^migracjaadmin(/.*)?$  /modules/dhosting_migrator/router.php [QSA,L]
 
+# ── Narzędzia pomocnicze (bez logowania): /pomocne/generatorstopki → modules/stopka/public/generator.php ──
+RewriteRule ^pomocne/generatorstopki$ /pomocne/generatorstopki/ [R=301,L]
+RewriteRule ^pomocne/generatorstopki/$ /modules/stopka/public/generator.php [QSA,L]
+
 # ── Samodzielna zmiana haseł (logowanie jednokrotne + chmura, poczta): /nowehaslo/… → modules/nowe_haslo/router.php ──
 RewriteRule ^nowehaslo(/.*)?$ /modules/nowe_haslo/router.php [QSA,L]
 

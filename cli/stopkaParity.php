@@ -7,7 +7,7 @@ $org = ['org_name' => "Fundacja \"Ą&B'", 'address' => 'ul. Długa 1', 'nip' => 
 $me = ['first_name' => 'Zię', 'last_name' => 'Gil<', 'job_title' => 'Dyr', 'phone' => '+48 1', 'email' => 'a@b.pl'];
 $e = fn($v) => htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $php = stopkaRenderHtml($org, ['name' => $e(trim($me['first_name'] . ' ' . $me['last_name'])), 'title' => $e($me['job_title']), 'phone' => $e($me['phone']), 'email' => $e($me['email'])]);
-$src = file_get_contents(dirname(__DIR__) . '/modules/stopka/index.php');
+$src = file_get_contents(dirname(__DIR__) . '/modules/stopka/assets/stopkaGen.js');
 preg_match('/function stopkaGen\(d\) \{.*?\n\}\n/s', $src, $m);
 $js = $m[0] . "\nconst g = stopkaGen(" . json_encode(['org' => $org, 'me' => $me, 'design' => $design, 'defaults' => [], 'fonts' => []], JSON_UNESCAPED_UNICODE)
     . ");\ng.safePromo = h => h; // allowlistę DOM sprawdza przeglądarka; tu porównujemy sam układ\nprocess.stdout.write(g.html());";
