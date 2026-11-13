@@ -129,14 +129,16 @@ final class GosposiaImap
 
     /**
      * Metadane wiadomości (bez treści): uid, size, from_name, from_email, subject, date (Y-m-d H:i), list_unsubscribe, precedence, list_id.
-     * BODY.PEEK nie ustawia flagi \Seen.
+     * BODY.PEEK nie ustawia flagi \Seen. $onChunk(pobrane, wszystkie) po każdej paczce — postęp na stronie.
      * @param list<int> $uids
      * @return list<array<string, mixed>>
      */
-    public function headers(array $uids): array
+    public function headers(array $uids, ?callable $onChunk = null): array
     {
         $out = [];
-        foreach (array_chunk($uids, 250) as $chunk) {
+        $total = count($uids);
+        $done = 0;
+        foreach (array_chunk($uids, 100) as $chunk) {
             $resp = $this->command('UID FETCH ' . self::uidSet($chunk) . ' (UID RFC822.SIZE BODY.PEEK[HEADER.FIELDS (' . self::FIELDS . ')])');
             foreach ($resp as [$line, $lits]) {
                 if (!preg_match('/^\* \d+ FETCH \(/i', $line)) continue;
@@ -148,6 +150,8 @@ final class GosposiaImap
                 }
                 $out[] = ['uid' => (int)$mu[1], 'size' => $size] + self::parseHeaders($hdr);
             }
+            $done += count($chunk);
+            if ($onChunk) $onChunk($done, $total);
         }
         return $out;
     }

@@ -81,21 +81,58 @@ final class Gosposia
         return $v > 0 ? min($v, 5000) : self::DEFAULT_SCAN_LIMIT;
     }
 
+    // ── Postęp przeglądu (polecenie 2026-11-14 „pokaż, ile już pobrał”) ───────────────────────
+    // Przegląd to jedno długie żądanie z zamkniętą sesją (session_write_close), a strona co sekundę pyta GET /postep.
+    // Postęp leży w małym pliku JSON w katalogu tymczasowym (bez tematów i adresów) — nazwa z APP_KEY i id użytkownika.
+
+    /** @var array|null stan przeglądu do zapisania w sesji po jej ponownym otwarciu (persistScan) */
+    private static ?array $pendingScan = null;
+
+    private static function progressFile(int $userId): string
+    {
+        return rtrim(sys_get_temp_dir(), '/') . '/szo_gosposia_' . sha1((defined('APP_KEY') ? APP_KEY : '') . '|' . $userId) . '.json';
+    }
+
+    /** $p: stage (start|connect|list|fetch|classify|done|error), done, total. */
+    public static function progressWrite(int $userId, array $p): void
+    {
+        @file_put_contents(self::progressFile($userId), json_encode($p + ['at' => time()]), LOCK_EX);
+    }
+
+    public static function progressRead(int $userId): array
+    {
+        $j = json_decode((string)@file_get_contents(self::progressFile($userId)), true);
+        if (!is_array($j) || time() - (int)($j['at'] ?? 0) > 600) return ['stage' => 'idle', 'done' => 0, 'total' => 0];
+        return ['stage' => (string)($j['stage'] ?? 'idle'), 'done' => (int)($j['done'] ?? 0), 'total' => (int)($j['total'] ?? 0)];
+    }
+
+    /** Po ponownym otwarciu sesji: zapisuje w niej stan ostatniego przeglądu (scan() działa przy zamkniętej sesji). */
+    public static function persistScan(): void
+    {
+        if (self::$pendingScan !== null) $_SESSION[self::K_SCAN] = self::$pendingScan;
+        self::$pendingScan = null;
+    }
+
     // ── Przegląd ───────────────────────────────────────────────────────────────────────────────
 
     /**
      * Przegląda ostatnie wiadomości w Odebranych i zwraca nadawców do sprzątania.
      * @return array{senders:list<array>, stats:array<string, int|string|bool>}
      */
-    public static function scan(int $userId, array $cred, ?GosposiaClassifier $classifier = null, ?GosposiaImap $imap = null): array
+    public static function scan(int $userId, array $cred, ?GosposiaClassifier $classifier = null, ?GosposiaImap $imap = null, bool $progress = false): array
     {
+        $tick = $progress ? fn(string $stage, int $done = 0, int $total = 0) => self::progressWrite($userId, ['stage' => $stage, 'done' => $done, 'total' => $total])
+                          : fn(string $stage, int $done = 0, int $total = 0) => null;
+        $tick('connect');
         $imap ??= self::open($cred);
+        $tick('list');
         $trash = $imap->findTrash();
         $box = $imap->select('INBOX');
         $all = $imap->uids();
         $limit = self::scanLimit();
         $uids = array_slice($all, -$limit);
-        $msgs = $uids ? $imap->headers($uids) : [];
+        $tick('fetch', 0, count($uids));
+        $msgs = $uids ? $imap->headers($uids, fn(int $d, int $t) => $tick('fetch', $d, $t)) : [];
         $imap->logout();
 
         $patterns = GosposiaStore::patterns($userId);
@@ -119,7 +156,9 @@ final class Gosposia
         }
 
         $classifier ??= new GosposiaClassifier();
-        $cls = $groups ? $classifier->classify(array_values(array_map(fn($g) => array_diff_key($g, ['messages' => 1, 'size' => 1]), $groups))) : ['results' => [], 'ai_batches' => 0, 'fallback_batches' => 0];
+        $cls = $groups ? $classifier->classify(array_values(array_map(fn($g) => array_diff_key($g, ['messages' => 1, 'size' => 1]), $groups)),
+                                               fn(int $d, int $t) => $tick('classify', $d, $t))
+                       : ['results' => [], 'ai_batches' => 0, 'fallback_batches' => 0];
 
         $senders = [];
         $map = [];
@@ -139,8 +178,9 @@ final class Gosposia
         }
         usort($senders, fn($a, $b) => [$b['count'], $b['confidence']] <=> [$a['count'], $a['confidence']]);
 
-        $_SESSION[self::K_SCAN] = ['uid' => $userId, 'mailbox' => $cred['email'], 'uidvalidity' => $box['uidvalidity'],
+        $_SESSION[self::K_SCAN] = self::$pendingScan = ['uid' => $userId, 'mailbox' => $cred['email'], 'uidvalidity' => $box['uidvalidity'],
             'trash' => $trash['raw'] ?? '', 'trash_name' => $trash['name'] ?? '', 'senders' => $map, 'at' => time()];
+        $tick('done', count($msgs), count($msgs));
 
         return ['senders' => $senders, 'stats' => [
             'inbox_total'      => count($all),

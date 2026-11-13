@@ -35,6 +35,7 @@ $r->group(['gosposia.access'], function (Router $r) {
     $r->post('/pomocne/gosposia/polacz',           [GosposiaController::class, 'connect'])->name('gosposia.connect');
     $r->post('/pomocne/gosposia/rozlacz',          [GosposiaController::class, 'disconnect'])->name('gosposia.disconnect');
     $r->post('/pomocne/gosposia/przeglad',         [GosposiaController::class, 'scan'])->name('gosposia.scan');
+    $r->get('/pomocne/gosposia/postep',            [GosposiaController::class, 'progress'])->name('gosposia.progress');
     $r->post('/pomocne/gosposia/biala-lista',      [GosposiaController::class, 'whitelistAdd'])->name('gosposia.whitelist.add');
     $r->post('/pomocne/gosposia/biala-lista/usun', [GosposiaController::class, 'whitelistRemove'])->name('gosposia.whitelist.remove');
     $r->post('/pomocne/gosposia/kosz',             [GosposiaController::class, 'trash'])->name('gosposia.trash');

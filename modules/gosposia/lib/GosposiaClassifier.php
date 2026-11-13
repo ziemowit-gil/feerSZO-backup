@@ -49,10 +49,12 @@ final class GosposiaClassifier
      * @param list<array{email:string, name:string, count:int, subjects:list<string>, unsubscribe:bool, list_id:bool, precedence:string}> $senders
      * @return array{results: array<string, array{is_junk:bool, category:string, confidence:float, reason:string, source:string}>, ai_batches:int, fallback_batches:int}
      */
-    public function classify(array $senders): array
+    public function classify(array $senders, ?callable $onBatch = null): array
     {
         $out = ['results' => [], 'ai_batches' => 0, 'fallback_batches' => 0];
         $key = self::apiKey();
+        $total = count($senders);
+        if ($onBatch) $onBatch(0, $total);
         foreach (array_chunk($senders, self::BATCH) as $batch) {
             $ai = $key !== '' || $this->transport ? $this->callClaude($batch, $key) : null;
             if ($ai === null) $out['fallback_batches']++; else $out['ai_batches']++;
@@ -60,6 +62,7 @@ final class GosposiaClassifier
                 $e = $s['email'];
                 $out['results'][$e] = $ai[$e] ?? self::heuristic($s);
             }
+            if ($onBatch) $onBatch(count($out['results']), $total);
         }
         return $out;
     }

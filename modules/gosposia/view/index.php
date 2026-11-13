@@ -11,7 +11,7 @@
 $org = org_setting('org_short_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'SZO');
 $cfg = [
     'csrf' => Router::csrfToken(),
-    'urls' => ['scan' => route('gosposia.scan'), 'trash' => route('gosposia.trash'),
+    'urls' => ['scan' => route('gosposia.scan'), 'progress' => route('gosposia.progress'), 'trash' => route('gosposia.trash'),
                'wlAdd' => route('gosposia.whitelist.add'), 'wlRemove' => route('gosposia.whitelist.remove')],
     'own'  => $whitelist['own'],
 ];
@@ -62,6 +62,10 @@ $article = rtrim(APP_URL, '/') . '/uslugi-it/uslugi/moja-poczta/gosposia';
   .gp-dlg .dm-row{justify-content:flex-end;margin-top:1rem}
   .pvm .gp-wl li{display:flex;justify-content:space-between;align-items:center;gap:.5rem;border-bottom:1px solid var(--pvm-line)}
   .pvm .gp-wl span{word-break:break-all}
+  .pvm .gp-prog{border-left:8px solid var(--m-blue);background:var(--pvm-light);padding:.8rem 1rem;margin:0 0 1rem}
+  .pvm .gp-prog p{margin:0 0 .45rem;font-weight:600}
+  .pvm .gp-prog progress{width:100%;max-width:32rem;height:1.1rem;accent-color:var(--m-blue)}
+  .pvm .gp-prog .gp-meta{margin:.35rem 0 0;font-weight:400}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@alpinejs/focus@3/dist/cdn.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js" defer></script>
@@ -126,6 +130,13 @@ $article = rtrim(APP_URL, '/') . '/uslugi-it/uslugi/moja-poczta/gosposia';
     </div>
     <p class="dm-help" style="margin-top:0">Sprawdzamy <?= (int)$limit ?> najnowszych wiadomości w Odebranych.<?= $aiReady ? '' : ' Sztuczna inteligencja jest wyłączona, więc działają prostsze reguły.' ?></p>
   </section>
+
+  <?php /* Postęp przeglądu: liczby odświeżane co sekundę (bez aria-live — czytnik usłyszy etapy z komunikatu niżej, nie każdą liczbę) */ ?>
+  <div class="gp-prog" x-show="busy && prog.stage !== 'idle'" x-cloak>
+    <p id="gpProgL" x-text="progText()"></p>
+    <progress aria-labelledby="gpProgL" :max="prog.total || 1" :value="prog.total ? prog.done : null"></progress>
+    <p class="gp-meta" x-show="prog.stage === 'fetch' || prog.stage === 'classify'" x-text="progPct()"></p>
+  </div>
 
   <div role="status" aria-live="polite" aria-atomic="true">
     <div class="dm-msg dm-msg--info gp-msg" x-show="status" x-cloak tabindex="-1" x-ref="status"><i class="bi bi-info-circle" aria-hidden="true"></i><div x-text="status"></div></div>
@@ -236,6 +247,33 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('gosposia', (cfg) => ({
     senders: [], sel: {}, own: cfg.own || [], stats: null, trashName: '',
     scanned: false, busy: false, status: '', error: '', confirmOpen: false, newPattern: '',
+    prog: { stage: 'idle', done: 0, total: 0 }, progTimer: null, progStage: '',
+
+    progText() {
+      const p = this.prog;
+      switch (p.stage) {
+        case 'fetch': return 'Pobrano ' + p.done + ' z ' + p.total + ' wiadomości';
+        case 'classify': return 'Oceniono ' + p.done + ' z ' + p.total + ' nadawców';
+        case 'list': return 'Sprawdzam listę wiadomości…';
+        case 'done': return 'Kończę…';
+        default: return 'Łączę się z pocztą…';
+      }
+    },
+    progPct() { return this.prog.total ? Math.round(this.prog.done * 100 / this.prog.total) + '%' : ''; },
+    async pollProgress() {
+      try {
+        const r = await fetch(cfg.urls.progress, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+        const j = await r.json();
+        if (j && j.ok && this.busy) {
+          this.prog = { stage: j.stage, done: j.done, total: j.total };
+          // etapy ogłaszamy czytnikom ekranu raz (komunikat stanu), liczby tylko na pasku
+          if (j.stage !== this.progStage && (j.stage === 'fetch' || j.stage === 'classify')) {
+            this.status = j.stage === 'fetch' ? 'Pobieram wiadomości: ' + j.total + ' do sprawdzenia.' : 'Oceniam nadawców: ' + j.total + '.';
+          }
+          this.progStage = j.stage;
+        }
+      } catch (e) {}
+    },
 
     plural(n, one, few, many) {
       if (n === 1) return one;
@@ -264,6 +302,8 @@ document.addEventListener('alpine:init', () => {
     async scan() {
       this.busy = true; this.error = '';
       this.status = 'Sprawdzam pocztę. To może potrwać około minuty.';
+      this.prog = { stage: 'start', done: 0, total: 0 }; this.progStage = '';
+      this.progTimer = setInterval(() => this.pollProgress(), 1000);
       try {
         const r = await this.post(cfg.urls.scan);
         this.senders = r.senders.map((s, i) => ({ ...s, idx: i, open: false }));
@@ -274,6 +314,8 @@ document.addEventListener('alpine:init', () => {
           ? 'Gotowe. Zaznaczyliśmy pewne przypadki. Przejrzyj listę i kliknij przycisk na dole.'
           : 'Gotowe. Nie ma nic do wyrzucenia.';
       } catch (e) { this.status = ''; this.error = e.message; }
+      clearInterval(this.progTimer); this.progTimer = null;
+      this.prog = { stage: 'idle', done: 0, total: 0 };
       this.busy = false;
     },
 

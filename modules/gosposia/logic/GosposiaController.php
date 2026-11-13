@@ -59,13 +59,25 @@ final class GosposiaController
         $uid = (int)current_user()['id'];
         $cred = Gosposia::credentials($uid);
         if (!$cred) return $this->fail('Najpierw połącz pocztę.', 409);
+        // Sesja zamknięta na czas przeglądu, żeby równoległe GET /postep nie czekały na jej blokadę.
+        Gosposia::progressWrite($uid, ['stage' => 'start', 'done' => 0, 'total' => 0]);
+        session_write_close();
         try {
-            return ['ok' => true] + Gosposia::scan($uid, $cred);
+            $res = ['ok' => true] + Gosposia::scan($uid, $cred, null, null, true);
         } catch (GosposiaImapAuthFailed $e) {
-            return $this->fail($e->getMessage() . ' Odłącz pocztę i połącz ją jeszcze raz.', 401);
+            $res = $this->fail($e->getMessage() . ' Odłącz pocztę i połącz ją jeszcze raz.', 401);
         } catch (\RuntimeException $e) {
-            return $this->fail($e->getMessage(), 502);
+            $res = $this->fail($e->getMessage(), 502);
         }
+        if (empty($res['ok'])) Gosposia::progressWrite($uid, ['stage' => 'error', 'done' => 0, 'total' => 0]);
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) { @session_start(); Gosposia::persistScan(); }
+        return $res;
+    }
+
+    /** GET: postęp trwającego przeglądu (bez tematów i adresów). */
+    public function progress(): array
+    {
+        return ['ok' => true] + Gosposia::progressRead((int)current_user()['id']);
     }
 
     public function whitelistAdd(): array
