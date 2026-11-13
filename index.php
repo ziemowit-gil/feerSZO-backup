@@ -378,7 +378,7 @@ a.dash-row:hover,button.dash-row:hover{background:#f2f2f2;color:inherit}
   </header>
 
   <?php include __DIR__ . '/modules/directory_profile/view/pulpitNotice.php'; ?>
-  <?php include __DIR__ . '/modules/mail_footer/view/pulpitNotice.php'; ?>
+  <?php /* pas „Ustaw swoją stopkę w poczcie” usunięty 2026-11-14 (polecenie: „wywal to info o stopce”) */ ?>
 
   <!-- ── KPI ──────────────────────────────────────────────────────────────── -->
   <section class="dash-kpi" aria-label="Wskaźniki">
