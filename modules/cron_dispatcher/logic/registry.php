@@ -381,6 +381,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/agents/backup_remote.php',
             'interval' => 3600,         // co godzinę — nowe kopie lokalne na serwer zdalny SFTP/rsync (obok SharePointa, niezależnie); pierwsza wysyłka = pełna; wyłączone, póki admin nie włączy w Kopiach zapasowych
         ],
+        'dhosting_copy' => [
+            'file'     => $cronDir . '/agents/dhosting_copy.php',
+            'interval' => 300,          // co 5 min — kopiowanie poczty M365 → dhosting (migrator), porcja ~4 min; niedostępność = ponowienie zadania za 6 h; bez zadań pomija
+        ],
         'backup_remote_full' => [
             'file'     => $cronDir . '/agents/backup_remote_full.php',
             'interval' => 86400,        // raz dziennie — pełna kopia na serwer zdalny, gdy minął ustawiony okres (doba / 7 dni) + retencja na serwerze

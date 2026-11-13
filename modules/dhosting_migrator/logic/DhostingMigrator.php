@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 require_once dirname(__DIR__) . '/lib/DhostingConfig.php';
 require_once dirname(__DIR__) . '/lib/DhostingGraphSource.php';
+require_once __DIR__ . '/DhostingCopy.php';
 require_once dirname(__DIR__, 3) . '/includes/sms.php';
 
 final class DhostingMigrator
@@ -167,9 +168,10 @@ final class DhostingMigrator
      * Zakłada skrzynki dla wybranych kont Microsoft 365 (po id z Graph).
      * $resetExisting: dla skrzynek, które już są na dhosting, ustaw nowe hasło (inaczej pomiń).
      * $sendSms: wyślij hasło SMS-em na numer z konta (tylko numery komórkowe).
-     * Zwraca listę wyników: mailbox, name, password (tylko gdy ustawiono), status ok|exists|error, msg, sms.
+     * $copyMail: dodaj zadanie kopiowania poczty z Microsoft 365 (w tle) — tylko gdy znamy hasło, czyli przy założeniu / nowym haśle.
+     * Zwraca listę wyników: mailbox, name, password (tylko gdy ustawiono), status ok|exists|error, msg, sms, copy.
      */
-    public static function adminCreate(array $m365Ids, bool $resetExisting, bool $sendSms, string $by, ?array $graphUsers = null): array
+    public static function adminCreate(array $m365Ids, bool $resetExisting, bool $sendSms, string $by, bool $copyMail = false, ?array $graphUsers = null): array
     {
         $want = array_flip(array_map('strval', $m365Ids));
         $overview = self::adminOverview($graphUsers);
@@ -180,7 +182,7 @@ final class DhostingMigrator
         foreach ($overview['accounts'] as $a) {
             if (!isset($want[$a['m365_id']])) continue;
             if (count($results) >= self::BATCH_MAX) break;
-            $res = ['mailbox' => $a['mailbox'], 'name' => $a['name'], 'password' => null, 'status' => 'error', 'msg' => '', 'sms' => ''];
+            $res = ['mailbox' => $a['mailbox'], 'name' => $a['name'], 'password' => null, 'status' => 'error', 'msg' => '', 'sms' => '', 'copy' => ''];
             $password = DhostingConfig::generatePassword();
             $base = ['user_id' => $a['user_id'], 'm365_id' => $a['m365_id'], 'source_login' => $a['login'], 'display_name' => $a['name']];
             try {
@@ -188,6 +190,7 @@ final class DhostingMigrator
                     if (!$resetExisting) {
                         $res['status'] = 'exists';
                         $res['msg'] = 'Skrzynka już jest na dhosting — pominięta (bez zmiany hasła).';
+                        if ($copyMail) $res['copy'] = 'nie — bez nowego hasła nie da się kopiować (zaznacz „ustaw nowe hasło”)';
                         $results[] = $res;
                         continue;
                     }
@@ -204,6 +207,11 @@ final class DhostingMigrator
                     'status' => 'created', 'via' => 'admin', 'created_by' => $by,
                     'password_set_at' => date('Y-m-d H:i:s'), 'last_error' => null,
                 ] + ($a['exists'] ? [] : ['created_at' => date('Y-m-d H:i:s')]));
+                if ($copyMail) {
+                    $res['copy'] = DhostingCopy::available()
+                        ? 'w kolejce (#' . DhostingCopy::queue($a['mailbox'], $a['m365_id'], $password, $a['user_id'], 'admin', $by) . ')'
+                        : 'nie — kopiowanie nieskonfigurowane (serwer IMAP / Microsoft 365)';
+                }
             } catch (\Throwable $e) {
                 $res['msg'] = $e->getMessage();
                 self::record($a['mailbox'], $base + ['status' => 'error', 'last_error' => mb_substr($e->getMessage(), 0, 500)]);
@@ -244,6 +252,7 @@ final class DhostingMigrator
             'login' => $login, 'mailbox' => $box, 'phone' => $phone, 'phoneMasked' => $phone !== '' ? self::maskPhone($phone) : '',
             'mobile' => $phone !== '' && sms_is_mobile($phone), 'exists' => null, 'problem' => '', 'wait' => 0,
             'registry' => $box ? self::registryRow($box) : null,
+            'copy' => $box ? DhostingCopy::latestFor($box) : null, 'copyAvailable' => DhostingCopy::available(),
         ];
         if (!DhostingConfig::selfEnabled()) { $st['problem'] = 'Zakładanie skrzynek przez użytkowników jest wyłączone. Skontaktuj się z administratorem.'; return $st; }
         if ($login === '') { $st['problem'] = 'Twoje konto nie jest połączone z kontem Microsoft 365, więc nie wiemy, jaki login ma mieć skrzynka. Zaloguj się przez Microsoft albo poproś administratora.'; return $st; }
@@ -268,7 +277,7 @@ final class DhostingMigrator
     }
 
     /** Zakłada skrzynkę użytkownika albo ustawia nowe hasło do istniejącej; hasło tylko SMS-em. Zwraca komunikat dla użytkownika. */
-    public static function selfProvision(array $u, string $by): string
+    public static function selfProvision(array $u, string $by, bool $copy = false): string
     {
         $st = self::selfState($u);
         if ($st['problem'] !== '') throw new RuntimeException($st['problem']);
@@ -292,6 +301,11 @@ final class DhostingMigrator
         }
         self::record($box, $base + ['status' => 'created', 'password_set_at' => date('Y-m-d H:i:s'), 'last_error' => null]
             + ($st['exists'] ? [] : ['created_at' => date('Y-m-d H:i:s')]));
+        $copyNote = '';
+        if ($copy && $st['copyAvailable']) {
+            DhostingCopy::queue($box, $st['login'], $password, (int)$u['id'], 'self', $by);
+            $copyNote = ' Poczta z Microsoft 365 skopiuje się w tle — postęp zobaczysz na tej stronie.';
+        }
 
         try {
             self::sendPasswordSms($st['phone'], $box, $password, true);
@@ -303,7 +317,23 @@ final class DhostingMigrator
                 . '). Za ' . (int)ceil(self::SELF_COOLDOWN / 60) . ' min poproś o nowe hasło albo skontaktuj się z administratorem.');
         }
         return ($st['exists'] ? 'Ustawiliśmy nowe hasło do skrzynki ' : 'Założyliśmy skrzynkę ') . $box
-            . '. Hasło wysłaliśmy SMS-em na numer ' . $st['phoneMasked'] . '.';
+            . '. Hasło wysłaliśmy SMS-em na numer ' . $st['phoneMasked'] . '.' . $copyNote;
+    }
+
+    /** Kopiowanie poczty do istniejącej skrzynki — użytkownik podaje hasło do skrzynki dhosting (np. z SMS-a). */
+    public static function selfCopy(array $u, string $password, string $by): string
+    {
+        $login = self::loginForUser($u);
+        $box = $login !== '' ? DhostingConfig::mailboxFor($login) : null;
+        if (!DhostingConfig::selfEnabled() || $box === null) throw new RuntimeException('Kopiowanie poczty nie jest dostępne dla Twojego konta.');
+        if (!DhostingCopy::available()) throw new RuntimeException('Kopiowanie poczty nie jest jeszcze skonfigurowane. Skontaktuj się z administratorem.');
+        if ($password === '') throw new RuntimeException('Wpisz hasło do skrzynki dhosting.');
+        $ok = DhostingCopy::checkPassword($box, $password);
+        if ($ok === false) throw new RuntimeException('To hasło nie pasuje do skrzynki ' . $box . '. Jeśli go nie pamiętasz, poproś o nowe hasło SMS-em.');
+        DhostingCopy::queue($box, $login, $password, (int)$u['id'], 'self', $by);
+        return $ok === true
+            ? 'Kopiowanie poczty do ' . $box . ' ruszy w ciągu kilku minut. Postęp zobaczysz na tej stronie.'
+            : 'Serwer poczty dhosting chwilowo nie odpowiada — kopiowanie czeka w kolejce i spróbujemy ponownie (co ' . DhostingCopy::RETRY_HOURS . ' h).';
     }
 
     /** Login Microsoft użytkownika: m365_login, a gdy go brak — e-mail konta (jeśli jest w obsługiwanej domenie), na końcu Graph po microsoft_id. */

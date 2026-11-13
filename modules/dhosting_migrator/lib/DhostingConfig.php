@@ -12,9 +12,12 @@ declare(strict_types=1);
  *   dhosting_quota        — pojemność nowej skrzynki w GB ('' = domyślna usługi, -1 = bez limitu)
  *   dhosting_self_enabled — '1' = użytkownik może sam założyć skrzynkę / dostać nowe hasło SMS-em
  *   dhosting_webmail_url  — adres poczty przez przeglądarkę, dopisywany do SMS i ekranów ('' = bez linku)
+ *   dhosting_imap_host    — serwer IMAP skrzynek dhosting (do kopiowania poczty z Microsoft 365; '' = kopiowanie wyłączone)
+ *   dhosting_imap_port    — port IMAP z SSL (domyślnie 993)
  */
 require_once dirname(__DIR__, 2) . '/field_crypto/lib/fieldCrypto.php';
 require_once __DIR__ . '/DhostingApi.php';
+require_once __DIR__ . '/DhostingImap.php';
 
 final class DhostingConfig
 {
@@ -65,6 +68,20 @@ final class DhostingConfig
         org_setting_set('dhosting_quota', $quota);
         org_setting_set('dhosting_self_enabled', !empty($in['self_enabled']) ? '1' : '0');
         org_setting_set('dhosting_webmail_url', $web);
+
+        $imap = strtolower(trim((string)($in['imap_host'] ?? '')));
+        if ($imap !== '' && !preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/', $imap)) throw new InvalidArgumentException('Serwer IMAP: sama nazwa hosta, np. mail.example.pl.');
+        $port = trim((string)($in['imap_port'] ?? ''));
+        if ($port !== '' && (!ctype_digit($port) || (int)$port < 1 || (int)$port > 65535)) throw new InvalidArgumentException('Port IMAP musi być liczbą (zwykle 993).');
+        org_setting_set('dhosting_imap_host', $imap);
+        org_setting_set('dhosting_imap_port', $port);
+    }
+
+    /** Adres serwera IMAP do kopiowania poczty ('' = nieustawiony). Ustawienie może też być pełnym adresem ssl:// / tcp:// (testy). */
+    public static function imapAddress(): string
+    {
+        $host = self::get('dhosting_imap_host');
+        return $host === '' ? '' : DhostingImap::address($host, (int)(self::get('dhosting_imap_port') ?: 993));
     }
 
     /** Mapa domena M365 → domena dhosting. */

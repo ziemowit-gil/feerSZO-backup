@@ -86,6 +86,23 @@ $statusOf  = function (array $a): array {
           <label class="form-check-label small" for="dhmSelf">Użytkownik może sam założyć skrzynkę (hasło SMS-em)</label>
         </div>
       </div>
+      <fieldset class="col-12 border-top pt-3">
+        <legend class="small fw-semibold mb-2" style="font-size:.875rem">Kopiowanie poczty z Microsoft 365 (IMAP dhosting)</legend>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="dhmImap" class="form-label small">Serwer IMAP skrzynek dhosting</label>
+            <input type="text" class="form-control form-control-sm" id="dhmImap" name="imap_host" value="<?= h($cfg['imap_host']) ?>" placeholder="np. mail.twojadomena.pl" aria-describedby="dhmImapHelp" autocomplete="off">
+            <div class="form-text" id="dhmImapHelp">Nazwa serwera poczty przychodzącej z panelu dhosting (SSL). Puste = kopiowanie wyłączone.</div>
+          </div>
+          <div class="col-md-2">
+            <label for="dhmImapPort" class="form-label small">Port</label>
+            <input type="text" inputmode="numeric" class="form-control form-control-sm" id="dhmImapPort" name="imap_port" value="<?= h($cfg['imap_port']) ?>" placeholder="993">
+          </div>
+          <div class="col-md-4 small text-body-secondary">
+            Aplikacja SZO w Microsoft potrzebuje uprawnienia aplikacji <code>Mail.Read</code> (ze zgodą administratora) — sprawdza to „Testuj połączenie”.
+          </div>
+        </div>
+      </fieldset>
       <details class="col-12">
         <summary class="small" style="cursor:pointer">Zaawansowane</summary>
         <label for="dhmUrl" class="form-label small mt-2">Adres API</label>
@@ -159,7 +176,7 @@ $statusOf  = function (array $a): array {
     <div class="table-responsive">
       <table class="table table-sm mb-0 small" id="dhmResTable">
         <caption class="visually-hidden">Wynik zakładania skrzynek na dhosting</caption>
-        <thead><tr><th scope="col">Osoba</th><th scope="col">Skrzynka (login)</th><th scope="col">Hasło</th><th scope="col">Wynik</th><th scope="col">SMS</th></tr></thead>
+        <thead><tr><th scope="col">Osoba</th><th scope="col">Skrzynka (login)</th><th scope="col">Hasło</th><th scope="col">Wynik</th><th scope="col">SMS</th><th scope="col">Kopiowanie poczty</th></tr></thead>
         <tbody>
         <?php foreach ($result as $r): ?>
           <tr>
@@ -169,6 +186,7 @@ $statusOf  = function (array $a): array {
             <td><span class="dhm-b <?= $r['status'] === 'ok' ? 'dhm-b--ok' : ($r['status'] === 'exists' ? 'dhm-b--off' : 'dhm-b--err') ?>"><?= $r['status'] === 'ok' ? 'OK' : ($r['status'] === 'exists' ? 'Pominięto' : 'Błąd') ?></span>
                 <?= h($r['msg']) ?></td>
             <td><?= h($r['sms'] !== '' ? $r['sms'] : '—') ?></td>
+            <td><?= h(($r['copy'] ?? '') !== '' ? $r['copy'] : '—') ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -247,6 +265,11 @@ $statusOf  = function (array $a): array {
       <input class="form-check-input" type="checkbox" name="reset_existing" value="1" id="dhmReset">
       <label class="form-check-label small" for="dhmReset">Dla skrzynek, które już są na dhosting — ustaw nowe hasło</label>
     </div>
+    <div class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" name="copy_mail" value="1" id="dhmCopyMail" <?= $copyOk ? 'checked' : 'disabled' ?> aria-describedby="dhmCopyHelp">
+      <label class="form-check-label small" for="dhmCopyMail">Skopiuj też pocztę z Microsoft 365 (w tle)</label>
+      <span id="dhmCopyHelp" class="visually-hidden"><?= $copyOk ? 'Kopiowanie działa w tle co 5 minut; gdy serwer jest niedostępny, ponawia co 6 godzin.' : 'Niedostępne: ustaw serwer IMAP dhosting w konfiguracji API.' ?></span>
+    </div>
     <button type="submit" class="btn btn-primary btn-sm ms-auto" id="dhmGo" disabled>
       <i class="bi bi-envelope-plus" aria-hidden="true"></i> <span id="dhmGoTxt">Załóż skrzynki</span>
     </button>
@@ -256,6 +279,55 @@ $statusOf  = function (array $a): array {
 <?php elseif (!$overview['errors']): ?>
   <div class="alert alert-info small">Brak kont Microsoft 365 w przenoszonych domenach.</div>
 <?php endif; ?>
+
+<section id="kopiowanie" class="card mt-4" aria-labelledby="dhmCopyH">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h2 id="dhmCopyH" class="h6 mb-0"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Kopiowanie poczty z Microsoft 365</h2>
+    <span class="small text-body-secondary">w tle co 5 min · niedostępny serwer = ponowienie co <?= DhostingCopy::RETRY_HOURS ?> h (najdłużej 7 dni)</span>
+  </div>
+  <?php if (!$copyOk): ?>
+    <div class="card-body small"><div class="alert alert-secondary mb-0">Kopiowanie wyłączone — ustaw serwer IMAP dhosting w konfiguracji API (i sprawdź „Testuj połączenie”).</div></div>
+  <?php endif; ?>
+  <?php if ($jobs): ?>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 small align-middle">
+      <caption class="visually-hidden">Zadania kopiowania poczty</caption>
+      <thead class="table-light"><tr><th scope="col">Skrzynka</th><th scope="col">Stan</th><th scope="col" style="min-width:12rem">Postęp</th><th scope="col">Uwagi</th><th scope="col"><span class="visually-hidden">Akcje</span></th></tr></thead>
+      <tbody>
+      <?php foreach ($jobs as $j): $pct = DhostingCopy::percent($j); $active = in_array($j['status'], DhostingCopy::ACTIVE, true);
+            $cls = ['done' => 'dhm-b--ok', 'error' => 'dhm-b--err', 'cancelled' => 'dhm-b--off', 'waiting' => 'dhm-b--err'][$j['status']] ?? 'dhm-b--todo'; ?>
+        <tr>
+          <td><code><?= h($j['mailbox']) ?></code><div class="text-body-secondary" style="font-size:.75rem"><?= h($j['via'] === 'self' ? 'sam użytkownik' : 'administrator') ?> · <?= h(substr((string)$j['created_at'], 0, 16)) ?></div></td>
+          <td><span class="dhm-b <?= $cls ?>"><?= h(DhostingCopy::LABELS[$j['status']] ?? $j['status']) ?></span></td>
+          <td>
+            <div class="progress" role="progressbar" aria-label="Postęp kopiowania <?= h($j['mailbox']) ?>" aria-valuenow="<?= $pct ?>" aria-valuemin="0" aria-valuemax="100" style="height:.6rem">
+              <div class="progress-bar<?= $j['status'] === 'done' ? ' bg-success' : '' ?>" style="width:<?= $pct ?>%"></div>
+            </div>
+            <div style="font-size:.75rem"><?= (int)$j['copied_items'] ?> / <?= (int)$j['total_items'] ?> wiad. (<?= $pct ?>%)<?= (int)$j['failed_items'] ? ' · nieudane: ' . (int)$j['failed_items'] : '' ?> · <?= h(number_format((int)$j['bytes'] / 1048576, 1, ',', ' ')) ?> MB</div>
+          </td>
+          <td style="max-width:22rem">
+            <?php if ($j['status'] === 'waiting' && $j['next_run_at']): ?><div>Ponowienie: <?= h(substr((string)$j['next_run_at'], 0, 16)) ?> (próba <?= (int)$j['attempts'] ?>)</div><?php endif; ?>
+            <?php if ($j['status'] === 'done' && $j['finished_at']): ?><div>Zakończono <?= h(substr((string)$j['finished_at'], 0, 16)) ?></div><?php endif; ?>
+            <?php if ($j['last_error']): ?><div class="text-danger-emphasis"><?= h(mb_substr((string)$j['last_error'], 0, 220)) ?></div><?php endif; ?>
+          </td>
+          <td class="text-end text-nowrap">
+            <?php if ($active): ?>
+            <form method="post" action="<?= h(route('dhm.copy')) ?>" class="d-inline">
+              <?= Router::csrfField() ?><input type="hidden" name="job" value="<?= (int)$j['id'] ?>">
+              <?php if ($j['status'] !== 'running'): ?><button class="btn btn-sm btn-outline-primary" name="op" value="run" title="Uruchom w najbliższym przebiegu CRON">Ponów teraz</button><?php endif; ?>
+              <button class="btn btn-sm btn-outline-danger" name="op" value="cancel" onclick="return confirm('Anulować kopiowanie do <?= h($j['mailbox']) ?>? Zapisane hasło zostanie usunięte.')">Anuluj</button>
+            </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php elseif ($copyOk): ?>
+    <div class="card-body small text-body-secondary">Brak zadań. Zaznacz „Skopiuj też pocztę” przy zakładaniu skrzynek albo poproś użytkowników o skorzystanie z /migracjapoczty.</div>
+  <?php endif; ?>
+</section>
 
 <?php if ($apiReady) echo $settingsHtml; ?>
 </div>

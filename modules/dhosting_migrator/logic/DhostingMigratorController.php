@@ -5,7 +5,8 @@ declare(strict_types=1);
  * modules/dhosting_migrator/logic/DhostingMigratorController.php — ekrany migratora kont Microsoft 365 → dhosting.pl.
  *
  * Administrator (role:admin + ważna sesja IKA): GET / (lista kont, ustawienia), POST /zaloz, /ustawienia, /test.
- * Użytkownik (auth): GET/POST /moja-skrzynka — własna skrzynka, hasło SMS-em.
+ * Kopiowanie poczty: POST /migracjaadmin/kopia (ponów teraz / anuluj), POST /migracjapoczty/kopia (start z hasłem / anuluj).
+ * Użytkownik (auth): GET/POST /migracjapoczty — samodzielna strona bez menu SZO (wejście z panelu współpracownika).
  * Wyniki i komunikaty idą przez sesję (nie przez adres); wygenerowane hasła admin widzi tylko raz, zaraz po zapisie.
  */
 require_once __DIR__ . '/DhostingMigrator.php';
@@ -32,6 +33,8 @@ final class DhostingMigratorController
             'result'   => $this->take(self::K_RESULT),
             'flash'    => $this->take(self::K_FLASH),
             'test'     => $this->take(self::K_TEST),
+            'jobs'     => DhostingCopy::jobs(),
+            'copyOk'   => DhostingCopy::available(),
             'cfg'      => [
                 'api_url'      => DhostingConfig::get('dhosting_api_url'),
                 'api_user'     => DhostingConfig::get('dhosting_api_user'),
@@ -40,6 +43,8 @@ final class DhostingMigratorController
                 'quota'        => DhostingConfig::get('dhosting_quota'),
                 'self_enabled' => DhostingConfig::selfEnabled(),
                 'webmail_url'  => DhostingConfig::webmail(),
+                'imap_host'    => DhostingConfig::get('dhosting_imap_host'),
+                'imap_port'    => DhostingConfig::get('dhosting_imap_port'),
             ],
         ];
         return Router::view(self::VIEW . 'admin.php', $data);
@@ -58,7 +63,7 @@ final class DhostingMigratorController
         @ignore_user_abort(true);
         $me = current_user();
         try {
-            $results = DhostingMigrator::adminCreate($ids, !empty($_POST['reset_existing']), !empty($_POST['send_sms']), (string)($me['email'] ?? ''));
+            $results = DhostingMigrator::adminCreate($ids, !empty($_POST['reset_existing']), !empty($_POST['send_sms']), (string)($me['email'] ?? ''), !empty($_POST['copy_mail']));
         } catch (\Throwable $e) {
             return $this->flash($back, 'danger', $e->getMessage());
         }
@@ -103,15 +108,50 @@ final class DhostingMigratorController
             }
             $out['raw'] = ['http' => $api->lastHttp, 'body' => $api->lastRaw];
         }
+        $first = '';
         try {
-            $n = count(DhostingGraphSource::users(array_keys(DhostingConfig::domains())));
-            $out['lines'][] = 'Microsoft 365: odczytano ' . $n . ' kont w tych domenach.';
+            $users = DhostingGraphSource::users(array_keys(DhostingConfig::domains()));
+            $out['lines'][] = 'Microsoft 365: odczytano ' . count($users) . ' kont w tych domenach.';
+            $first = (string)($users[0]['userPrincipalName'] ?? '');
         } catch (\Throwable $e) {
             $out['ok'] = false;
             $out['lines'][] = 'Microsoft 365: ' . $e->getMessage();
         }
+        // Kopiowanie poczty: odczyt skrzynki (Mail.Read) i dostępność serwera IMAP dhosting — bez logowania.
+        if ($first !== '') {
+            try {
+                (new DhostingGraphMail())->messagesPage($first, 'inbox');
+                $out['lines'][] = 'Microsoft 365: odczyt poczty działa (uprawnienie Mail.Read) — sprawdzone na ' . $first . '.';
+            } catch (\Throwable $e) {
+                $out['ok'] = false;
+                $out['lines'][] = 'Kopiowanie poczty: ' . $e->getMessage();
+            }
+        }
+        $addr = DhostingConfig::imapAddress();
+        if ($addr === '') {
+            $out['lines'][] = 'Serwer IMAP dhosting nieustawiony — kopiowanie poczty wyłączone.';
+        } else {
+            try { $im = new DhostingImap($addr, 10); $im->connect(); $im->logout(); $out['lines'][] = 'Serwer IMAP ' . $addr . ': odpowiada.'; }
+            catch (\Throwable $e) { $out['ok'] = false; $out['lines'][] = 'Serwer IMAP: ' . $e->getMessage(); }
+        }
         $_SESSION[self::K_TEST] = $out;
         return Router::redirect($back);
+    }
+
+    /** POST /migracjaadmin/kopia — „Ponów teraz” albo „Anuluj” dla zadania kopiowania. */
+    public function copyAction(): ?string
+    {
+        $back = route('dhm.index') . '#kopiowanie';
+        $id = (int)($_POST['job'] ?? 0);
+        $job = $id ? DhostingCopy::job($id) : null;
+        if (!$job) return $this->flash($back, 'warning', 'Nie znaleziono zadania kopiowania.');
+        if (($_POST['op'] ?? '') === 'cancel') {
+            DhostingCopy::cancel($id);
+            try { audit_log('dhosting.copy_cancel', ['job' => $id, 'mailbox' => $job['mailbox']]); } catch (\Throwable $e) {}
+            return $this->flash($back, 'success', 'Anulowano kopiowanie do ' . $job['mailbox'] . ' (hasło usunięte).');
+        }
+        DhostingCopy::runSoon($id);
+        return $this->flash($back, 'success', 'Kopiowanie do ' . $job['mailbox'] . ' ruszy w najbliższym przebiegu (do 5 min).');
     }
 
     // ── Użytkownik ─────────────────────────────────────────────────────────────────────────────
@@ -123,6 +163,7 @@ final class DhostingMigratorController
             'st'    => DhostingMigrator::selfState($u),
             'flash' => $this->take(self::K_FLASH),
             'web'   => DhostingConfig::webmail(),
+            'me'    => $u,
         ]);
     }
 
@@ -132,12 +173,32 @@ final class DhostingMigratorController
         if (empty($_POST['confirm'])) return $this->flash($back, 'warning', 'Zaznacz potwierdzenie, że numer telefonu w koncie jest Twój.');
         $u = $this->meRow();
         try {
-            $msg = DhostingMigrator::selfProvision($u, (string)($u['email'] ?? ''));
+            $msg = DhostingMigrator::selfProvision($u, (string)($u['email'] ?? ''), !empty($_POST['copy_mail']));
         } catch (\Throwable $e) {
             try { audit_log('dhosting.self_failed', ['error' => $e->getMessage()]); } catch (\Throwable $e2) {}
             return $this->flash($back, 'danger', $e->getMessage());
         }
         try { audit_log('dhosting.self_provision', ['mailbox' => DhostingConfig::mailboxFor(DhostingMigrator::loginForUser($u))]); } catch (\Throwable $e) {}
+        return $this->flash($back, 'success', $msg);
+    }
+
+    /** POST /migracjapoczty/kopia — start kopiowania z hasłem do skrzynki dhosting albo anulowanie własnego zadania. */
+    public function selfCopyPost(): ?string
+    {
+        $back = route('dhm.self');
+        $u = $this->meRow();
+        $box = DhostingConfig::mailboxFor(DhostingMigrator::loginForUser($u));
+        if (($_POST['op'] ?? '') === 'cancel') {
+            $job = $box ? DhostingCopy::activeFor($box) : null;
+            if ($job && (int)$job['user_id'] === (int)$u['id']) DhostingCopy::cancel((int)$job['id']);
+            return $this->flash($back, 'success', 'Anulowano kopiowanie poczty.');
+        }
+        try {
+            $msg = DhostingMigrator::selfCopy($u, (string)($_POST['mail_password'] ?? ''), (string)($u['email'] ?? ''));
+        } catch (\Throwable $e) {
+            return $this->flash($back, 'danger', $e->getMessage());
+        }
+        try { audit_log('dhosting.copy_self', ['mailbox' => $box]); } catch (\Throwable $e) {}
         return $this->flash($back, 'success', $msg);
     }
 

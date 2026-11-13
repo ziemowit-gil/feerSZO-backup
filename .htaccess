@@ -64,7 +64,7 @@ RewriteRule ^uslugi-it/szukaj/?$ /modules/it_portal/public/szukaj.php [QSA,L]
 RewriteRule ^seeder-test(/.*)?$  /modules/seeders/router.php [QSA,L]
 
 # ── Migrator kont Microsoft 365 → dhosting: /migracjapoczty (użytkownik), /migracjaadmin/… (administrator) ──
-RewriteRule ^migracjapoczty/?$     /modules/dhosting_migrator/router.php [QSA,L]
+RewriteRule ^migracjapoczty(/.*)?$ /modules/dhosting_migrator/router.php [QSA,L]
 RewriteRule ^migracjaadmin(/.*)?$  /modules/dhosting_migrator/router.php [QSA,L]
 
 # ── Nabór do grup TI: /nabor → publiczny formularz zgłoszenia (modules/ti/router.php) ──
