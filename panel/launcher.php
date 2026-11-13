@@ -3,8 +3,9 @@
  * panel/launcher.php — Ekran powitalny panelu współpracownika.
  *
  * Pokazywany po każdym zalogowaniu jako punkt startowy (auth_default_landing()). Współpracownik wybiera
- * miejsce docelowe: Poczta, Zadania, Zarządzaj umową, Tożsamość (+ Dydaktyka – panel
- * dla dydaktyków). Wygląd METRO jak System Tożsamości (modules/panel_metro).
+ * miejsce docelowe: Poczta (nowy serwer poczty), Zadania, Zarządzaj współpracą, Portal tożsamości, Logowanie jednokrotne,
+ * Usługi IT (+ Dydaktyka – panel dla dydaktyków). Wygląd METRO jak System Tożsamości (modules/panel_metro).
+ * Teksty kafli prostym językiem (humanizer, 2026-11-13).
  * Standalone volunteers są przekierowywani do panel/standalone.php.
  */
 require_once dirname(__DIR__) . '/config.php';
@@ -47,13 +48,18 @@ foreach (preg_split('/\s+/', trim($_name)) as $w) {
 }
 $_ini  = mb_substr($_ini, 0, 2, 'UTF-8') ?: '?';
 
-// Kafel „Poczta" otwiera od razu Outlook w przeglądarce (skrzynki są na Microsoft 365).
-$mail_url = 'https://outlook.office.com/mail/';
+// Kafel „Poczta” otwiera pocztę w przeglądarce na nowym serwerze (adres z ustawień migratora, domyślnie dpoczta.pl).
+// Od 13.11.2026 skrzynki nie są już na Microsoft 365, więc nie prowadzimy do Outlooka.
+$mail_url = 'https://dpoczta.pl';
+try {
+    require_once dirname(__DIR__) . '/modules/dhosting_migrator/lib/DhostingConfig.php';
+    if (class_exists('DhostingConfig') && method_exists('DhostingConfig', 'webmailOrDefault')) $mail_url = DhostingConfig::webmailOrDefault();
+} catch (\Throwable $e) {}
 
 $choices = [
     [
         'label' => 'Poczta',
-        'desc'  => 'Twoja skrzynka pocztowa FEER — czytaj i wysyłaj wiadomości',
+        'desc'  => 'Twoja skrzynka w Fundacji. Czytasz i wysyłasz wiadomości w przeglądarce.',
         'icon'  => 'bi-envelope-fill',
         'color' => 'indigo',
         'url'   => $mail_url,
@@ -61,7 +67,7 @@ $choices = [
     ],
     [
         'label' => 'Zadania',
-        'desc'  => 'Bieżące zadania, statusy i terminy — Twoja tablica pracy',
+        'desc'  => 'Twoje zadania, ich statusy i terminy',
         'icon'  => 'bi-kanban-fill',
         'color' => 'orange',
         'url'   => APP_URL . '/tasks/dashboard.php',
@@ -76,16 +82,24 @@ $choices = [
         'ext'   => false,
     ],
     [
-        'label' => 'Tożsamość',
-        'desc'  => 'Konta, dostępy do systemów IT — Microsoft 365 i inne',
+        'label' => 'Portal tożsamości',
+        'desc'  => 'Twoje konto: hasło do SZO, weryfikacja dwuetapowa, telefon i dostępy',
         'icon'  => 'bi-person-badge-fill',
         'color' => 'dark',
         'url'   => APP_URL . '/tozsamosc/',
         'ext'   => false,
     ],
     [
+        'label' => 'Logowanie jednokrotne',
+        'desc'  => 'Jedno konto i hasło do SZO, chmury plików i kolejnych aplikacji Fundacji',
+        'icon'  => 'bi-key-fill',
+        'color' => 'blue',
+        'url'   => APP_URL . '/tozsamosc/index.php#sso',
+        'ext'   => false,
+    ],
+    [
         'label' => 'Usługi IT',
-        'desc'  => 'Portal Usług IT — instrukcje, zgłoszenia i pomoc',
+        'desc'  => 'Instrukcje, zgłoszenia i pomoc',
         'icon'  => 'bi-pc-display-horizontal',
         'color' => 'teal',
         'url'   => APP_URL . '/uslugi-it/',
@@ -97,7 +111,7 @@ $choices = [
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?= h($_org ?: 'Panel') ?> — wybierz gdzie idziesz</title>
+<title>Panel współpracownika: <?= h($_org ?: 'start') ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php branding_css($_b); ?>
