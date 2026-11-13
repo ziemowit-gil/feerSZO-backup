@@ -127,8 +127,9 @@ function stopkaDesignDefaults(): array {
         'color' => '#222222', 'accent' => '#1d4ed8', 'nameAccent' => false,
         'sepStyle' => 'solid', 'sepColor' => '#999999', 'gap' => 8,
         'logoUrl' => '', 'logoWidth' => 120,
+        'social' => ['facebook' => 'https://feer.org.pl/fb', 'instagram' => 'https://feer.org.pl/instagram', 'linkedin' => 'https://feer.org.pl/linkedin'],
         'show' => ['title' => true, 'phone' => true, 'email' => true, 'org' => true, 'address' => true,
-                   'nip' => true, 'krs' => true, 'website' => true, 'promo' => true],
+                   'nip' => true, 'krs' => true, 'website' => true, 'social' => true, 'promo' => true],
     ];
 }
 
@@ -150,6 +151,12 @@ function stopkaDesignSanitize($in): array {
     $d['logoWidth'] = $clamp($in['logoWidth'] ?? null, 40, 300, $d['logoWidth']);
     $logo = is_string($in['logoUrl'] ?? null) ? trim($in['logoUrl']) : '';
     $d['logoUrl'] = (preg_match('~^https://[^\s"\'<>]+$~i', $logo)) ? $logo : '';
+    foreach (array_keys($d['social']) as $k) {
+        if (isset($in['social']) && is_array($in['social']) && array_key_exists($k, $in['social'])) {
+            $u = is_string($in['social'][$k]) ? trim($in['social'][$k]) : '';
+            $d['social'][$k] = preg_match('~^https://[^\s"\'<>]+$~i', $u) ? $u : ''; // pusty/niepoprawny = sieć ukryta
+        }
+    }
     foreach (array_keys($d['show']) as $k) {
         $d['show'][$k] = isset($in['show']) && is_array($in['show']) && array_key_exists($k, $in['show']) ? !empty($in['show'][$k]) : $d['show'][$k];
     }
@@ -193,6 +200,14 @@ function stopkaRenderHtml(array $s, array $person): string {
     if ($sh['website'] && $url !== '') {
         $href = preg_match('~^https?://~i', $url) ? $url : 'https://' . $url;
         $h .= $row($link($e($href), $e($url)), 'font-size:' . $sm . 'px;');
+    }
+    if ($sh['social']) {
+        $labels = ['facebook' => 'Facebook', 'instagram' => 'Instagram', 'linkedin' => 'LinkedIn'];
+        $links = [];
+        foreach ($labels as $k => $label) {
+            if ($d['social'][$k] !== '') $links[] = $link($e($d['social'][$k]), $label);
+        }
+        $h .= $row(implode(' &nbsp;|&nbsp; ', $links), 'margin-top:4px;font-size:' . $sm . 'px;');
     }
     $promo = trim((string)($s['promo_html'] ?? ''));
     if ($sh['promo'] && $promo !== '') {

@@ -199,6 +199,12 @@ $tabs = is_admin() ? ['stopka' => 'moja stopka', 'organizacja' => 'organizacja',
           <div class="tw-col-span-2"><label class="<?= $lbl ?>" for="d10">Szerokość logo: <span x-text="design.logoWidth"></span> px</label>
             <input id="d10" type="range" min="40" max="300" x-model.number="design.logoWidth" class="tw-w-full"></div>
         </fieldset>
+        <fieldset class="tw-grid tw-gap-3 tw-border-0 tw-p-0 tw-m-0">
+          <legend class="tw-text-sm tw-font-semibold tw-mb-2">Linki społecznościowe (https://…; puste pole ukrywa sieć)</legend>
+          <div><label class="<?= $lbl ?>" for="s1">Facebook</label><input id="s1" type="url" x-model="design.social.facebook" class="<?= $inp ?>"></div>
+          <div><label class="<?= $lbl ?>" for="s2">Instagram</label><input id="s2" type="url" x-model="design.social.instagram" class="<?= $inp ?>"></div>
+          <div><label class="<?= $lbl ?>" for="s3">LinkedIn</label><input id="s3" type="url" x-model="design.social.linkedin" class="<?= $inp ?>"></div>
+        </fieldset>
         <fieldset class="tw-border-0 tw-p-0 tw-m-0">
           <legend class="tw-text-sm tw-font-semibold tw-mb-2">Elementy stopki</legend>
           <div class="tw-grid tw-grid-cols-2 tw-gap-2 tw-text-sm">
@@ -278,7 +284,7 @@ function stopkaGen(d) {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   return {
     me: d.me, org: d.org, design: d.design, defaults: d.defaults, fonts: d.fonts, dark: false, copied: false, fail: false,
-    shows: [['title','Stanowisko'],['phone','Telefon'],['email','E-mail'],['org','Nazwa organizacji'],['address','Adres'],['nip','NIP'],['krs','KRS'],['website','Strona WWW'],['promo','Treść promocyjna']],
+    shows: [['title','Stanowisko'],['phone','Telefon'],['email','E-mail'],['org','Nazwa organizacji'],['address','Adres'],['nip','NIP'],['krs','KRS'],['website','Strona WWW'],['social','Linki społecznościowe'],['promo','Treść promocyjna']],
     // Odpowiednik PHP: stopkaRenderHtml() w logic/stopka.php — zmieniając jedno, zmień drugie.
     html() {
       const m = this.me, o = this.org, d = this.design, sh = d.show, sm = d.size - 1;
@@ -300,6 +306,12 @@ function stopkaGen(d) {
       if (sh.krs && (o.krs || '').trim()) h += row('KRS: ' + esc(o.krs), 'font-size:' + sm + 'px;');
       const url = (o.website || '').trim();
       if (sh.website && url) h += row(link(esc(/^https?:\/\//i.test(url) ? url : 'https://' + url), esc(url)), 'font-size:' + sm + 'px;');
+      if (sh.social) {
+        const links = [['facebook','Facebook'],['instagram','Instagram'],['linkedin','LinkedIn']]
+          .filter(([k]) => /^https:\/\/[^\s"'<>]+$/i.test((d.social || {})[k] || ''))
+          .map(([k, label]) => link(esc(d.social[k]), label));
+        h += row(links.join(' &nbsp;|&nbsp; '), 'margin-top:4px;font-size:' + sm + 'px;');
+      }
       const promo = (o.promo_html || '').trim();
       if (sh.promo && promo) {
         const bd = d.sepStyle === 'none' ? '' : 'border-top:1px ' + d.sepStyle + ' ' + d.sepColor + ';padding-top:8px;';
