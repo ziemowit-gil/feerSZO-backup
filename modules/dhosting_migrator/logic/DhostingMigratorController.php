@@ -282,7 +282,8 @@ final class DhostingMigratorController
         $guest = DhostingGuest::current();
         return Router::view(self::VIEW . 'self.php', [
             'st'        => DhostingMigrator::selfState($u),
-            'flash'     => $this->take(self::K_FLASH),
+            // komunikat migratora albo zwykły komunikat SZO (np. z formularza logowania jednokrotnego, który wraca na tę stronę)
+            'flash'     => $this->take(self::K_FLASH) ?? (function_exists('flash_get') ? flash_get() : null),
             'web'       => DhostingConfig::webmailOrDefault(),
             'me'        => $u,
             'guest'     => $guest !== null && !current_user(),

@@ -304,6 +304,55 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
   </section>
   <?php endif; ?>
 
+  <?php
+    // Logowanie jednokrotne i chmura plików (modules/sso_logto): osoba sama zakłada konta albo zmienia hasło; opcja „to samo hasło także do poczty”
+    // jest nieobowiązkowa i działa też po przeniesieniu poczty (polecenie 2026-11-13). Formularz idzie na /sso/konto albo /sso/haslo i wraca tutaj.
+    require_once dirname(__DIR__, 2) . '/sso_logto/logic/SsoAccounts.php';
+    $ssoEmail = strtolower(trim((string)($me['email'] ?? '')));
+    $ssoOn = !$guest && SsoConfig::selfEnabled() && SsoConfig::logtoConfigured() && filter_var($ssoEmail, FILTER_VALIDATE_EMAIL);
+    if ($ssoOn):
+      $ssoAcc       = SsoAccounts::get($ssoEmail);
+      $ssoHas       = $ssoAcc && !empty($ssoAcc['logto_id']);
+      $ssoHasCld    = $ssoAcc && !empty($ssoAcc['cloud_uid']);
+      $ssoCloudSelf = SsoConfig::cloudSelf() && SsoConfig::cloudConfigured();
+      $ssoCloud     = SsoConfig::cloudLabel();
+      $ssoNeedCloud = $ssoHas && !$ssoHasCld && $ssoCloudSelf;   // ma konto bez chmury: /sso/konto dołoży chmurę z nowym hasłem dla obu
+      $ssoAction    = rtrim(APP_URL, '/') . ($ssoHas && !$ssoNeedCloud ? '/sso/haslo' : '/sso/konto');
+      $ssoBtn       = !$ssoHas ? ($ssoCloudSelf ? 'Załóż konta' : 'Załóż konto') : ($ssoNeedCloud ? 'Załóż konto w chmurze' : 'Zmień hasło');
+  ?>
+  <section class="dm-sec" aria-labelledby="hSso">
+    <h2 id="hSso" class="mt-h2">Logowanie jednokrotne i <b>chmura plików</b></h2>
+    <div class="mt-group">
+      <?php if (!$ssoHas): ?>
+        <p>Jednym kontem zalogujesz się do aplikacji organizacji<?= $ssoCloudSelf ? ', a w chmurze ' . h($ssoCloud) . ' dostaniesz miejsce na pliki' : '' ?>. Login to Twój adres <?= h($ssoEmail) ?>, a hasło wymyślasz sam(a).</p>
+      <?php else: ?>
+        <p>Masz już konto. Login: <code><?= h((string)$ssoAcc['logto_username']) ?></code> albo <?= h($ssoEmail) ?>.
+          <?php if ($ssoHasCld): ?>W chmurze <?= h($ssoCloud) ?> logujesz się loginem <code><?= h((string)$ssoAcc['cloud_uid']) ?></code> i tym samym hasłem.<?php if (SsoConfig::cloudUrl() !== ''): ?> <a href="<?= h(SsoConfig::cloudUrl()) ?>" target="_blank" rel="noopener">Otwórz chmurę<span class="visually-hidden"> (nowa karta)</span></a><?php endif; ?>
+          <?php elseif ($ssoNeedCloud): ?>Konta w chmurze plików jeszcze nie masz. Założysz je tutaj, a nowe hasło będzie działać w obu miejscach.
+          <?php endif; ?></p>
+      <?php endif; ?>
+      <form method="post" action="<?= h($ssoAction) ?>" class="js-once">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="from" value="migracja">
+        <label class="dm-fld" for="ssoP1"><?= $ssoHas && !$ssoNeedCloud ? 'Nowe hasło' : 'Hasło' ?></label>
+        <input class="dm-inp" type="password" id="ssoP1" name="password" required minlength="10" maxlength="128" autocomplete="new-password" aria-describedby="ssoP1h">
+        <p class="dm-help" id="ssoP1h">Co najmniej 10 znaków. Najłatwiej zapamiętać kilka słów połączonych w jedno.</p>
+        <label class="dm-fld" for="ssoP2">Powtórz hasło</label>
+        <input class="dm-inp" type="password" id="ssoP2" name="password2" required minlength="10" maxlength="128" autocomplete="new-password">
+        <p class="dm-help" aria-hidden="true"></p>
+        <?php if ($exists): ?>
+        <div class="dm-chk">
+          <input type="checkbox" name="mail_too" value="1" id="ssoMail" aria-describedby="ssoMailH">
+          <label for="ssoMail">Ustaw to samo hasło także do poczty <?= h((string)$st['mailbox']) ?></label>
+        </div>
+        <p class="dm-help" id="ssoMailH">Nie musisz tego zaznaczać. Jeśli zaznaczysz, telefon i Outlook poproszą o nowe hasło do poczty. Bez zaznaczenia poczta działa jak dotąd.</p>
+        <?php endif; ?>
+        <button type="submit" class="mt-btn"><i class="bi <?= $ssoHas && !$ssoNeedCloud ? 'bi-key' : 'bi-person-plus' ?>" aria-hidden="true"></i> <?= h($ssoBtn) ?></button>
+      </form>
+    </div>
+  </section>
+  <?php endif; ?>
+
   <section class="dm-sec" aria-labelledby="hCfg">
     <h2 id="hCfg" class="mt-h2">Ustawienia <b>programu pocztowego</b></h2>
     <div class="mt-group">
@@ -311,7 +360,7 @@ Zrób kroki z listy poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt
       <table class="dm-cfg">
         <caption class="visually-hidden">Dane do konfiguracji konta pocztowego</caption>
         <tr><th scope="row">Adres e-mail i login</th><td><?= $st['mailbox'] ? '<code>' . h($st['mailbox']) . '</code>' : 'pełny adres e-mail' ?></td></tr>
-        <tr><th scope="row">Hasło</th><td>to z SMS-a (nie hasło do Microsoft 365)</td></tr>
+        <tr><th scope="row">Hasło</th><td>to z SMS-a albo Twoje własne, jeśli ustawiłeś(-aś) je wyżej (nie hasło do Microsoft 365)</td></tr>
         <tr><th scope="row">Poczta przychodząca (IMAP)</th><td><code><?= h($imapHost) ?></code>, port <?= (int)$imapPort ?>, SSL/TLS</td></tr>
         <tr><th scope="row">Poczta wychodząca (SMTP)</th><td><code><?= h(DhostingConfig::SMTP_HOST) ?></code>, port <?= (int)DhostingConfig::SMTP_PORT ?>, STARTTLS, z uwierzytelnianiem (ten sam login i hasło)</td></tr>
       </table>

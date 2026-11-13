@@ -360,6 +360,51 @@ final class DhostingMigrator
         return $st;
     }
 
+    /** Skrzynka osoby, jeśli jest w rejestrze (bez pytania serwera) — do pokazania opcji „to samo hasło także do poczty”. */
+    public static function ownMailbox(array $u): ?string
+    {
+        $login = self::loginForUser($u);
+        $box = $login !== '' ? DhostingConfig::mailboxFor($login) : null;
+        return $box !== null && self::registryRow($box) !== null ? $box : null;
+    }
+
+    /**
+     * Osoba sama ustawia WŁASNE hasło do swojej skrzynki: opcja „to samo hasło także do poczty” przy zakładaniu konta logowania
+     * jednokrotnego i chmury albo przy zmianie jego hasła (polecenie 2026-11-13). Działa także po przeniesieniu poczty (decyzja
+     * użytkownika); losowe hasło SMS-em i ponowne kopiowanie po migracji nadal robi tylko administrator. Hasła nie zapisujemy —
+     * aktywne kopiowanie / dosyłanie dostaje je przez DhostingCopy::passwordChanged. Zwraca adres skrzynki.
+     * Wyjątki niosą krótki powód małą literą — wołający dokleja go do zdania („Hasło do poczty zostało stare, bo …”).
+     */
+    public static function selfSetPassword(array $u, string $password, string $by): string
+    {
+        $login = self::loginForUser($u);
+        $box = $login !== '' ? DhostingConfig::mailboxFor($login) : null;
+        if ($box === null) throw new RuntimeException('nie masz skrzynki pocztowej w organizacji');
+        $api = DhostingConfig::api();
+        if (!$api->configured()) throw new RuntimeException('poczta nie jest jeszcze gotowa');
+        try {
+            $exists = in_array($box, $api->getMailboxList(substr($box, strrpos($box, '@') + 1)), true);
+        } catch (\Throwable $e) {
+            error_log('[dhosting] selfSetPassword ' . $box . ': ' . $e->getMessage());
+            throw new RuntimeException('nie udało się teraz sprawdzić Twojej skrzynki (spróbuj za kilka minut)');
+        }
+        if (!$exists) throw new RuntimeException('nie masz jeszcze nowej skrzynki (załóż ją na stronie migracji poczty)');
+        try {
+            $api->changeMailboxPassword($box, $password);
+        } catch (\Throwable $e) {
+            self::record($box, ['last_error' => mb_substr('Własne hasło: ' . $e->getMessage(), 0, 500)]);
+            DhostingHelpdesk::event($box, 'Użytkownik chciał ustawić własne hasło do skrzynki (to samo co do logowania jednokrotnego), ale serwer go nie przyjął: ' . $e->getMessage(),
+                ['user_id' => (int)($u['id'] ?? 0), 'name' => (string)($u['name'] ?? ''), 'login' => $login]);
+            throw new RuntimeException('serwer poczty nie przyjął tego hasła (spróbuj hasła z wielką literą i cyfrą)');
+        }
+        try { DhostingCopy::passwordChanged($box, $password); } catch (\Throwable $e) { error_log('[dhosting] haslo dla kopiowania ' . $box . ': ' . $e->getMessage()); }
+        self::record($box, ['password_set_at' => date('Y-m-d H:i:s'), 'last_error' => null]);
+        DhostingHelpdesk::event($box, 'Użytkownik (' . $by . ') ustawił(a) własne hasło do skrzynki — to samo co do logowania jednokrotnego i chmury.',
+            ['user_id' => (int)($u['id'] ?? 0), 'name' => (string)($u['name'] ?? ''), 'login' => $login]);
+        try { if (function_exists('audit_log')) audit_log('dhosting.self_own_password', ['mailbox' => $box], (int)($u['id'] ?? 0)); } catch (\Throwable $e) {}
+        return $box;
+    }
+
     /** Zakłada skrzynkę użytkownika albo ustawia nowe hasło do istniejącej; hasło tylko SMS-em. Zwraca komunikat dla użytkownika. */
     public static function selfProvision(array $u, string $by, bool $copy = false): string
     {

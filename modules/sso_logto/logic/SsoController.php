@@ -366,15 +366,42 @@ final class SsoController
         ]);
     }
 
+    /** Dokąd wrócić po formularzu: ekran po zalogowaniu (/sso/start), strona migracji poczty albo Tożsamość. */
+    private function selfBack(): string
+    {
+        $from = (string)($_POST['from'] ?? '');
+        if ($from === 'start') {
+            $pnext = ssoPromptSafeNext((string)($_POST['next'] ?? ''));
+            return rtrim(APP_URL, '/') . SSO_PROMPT_PATH . ($pnext !== '' ? '?next=' . rawurlencode($pnext) : '');
+        }
+        if ($from === 'migracja') return rtrim(APP_URL, '/') . '/migracjapoczty#hSso';
+        return APP_URL . '/tozsamosc/index.php#sso';
+    }
+
+    /**
+     * Opcja „to samo hasło także do poczty” (polecenie 2026-11-13, nieobowiązkowa): po udanym ustawieniu hasła logowania
+     * jednokrotnego ustawia je też w skrzynce pocztowej osoby (DhostingMigrator::selfSetPassword). Zwraca zdanie do komunikatu.
+     */
+    private function mailToo(array $db, string $pass): string
+    {
+        if (empty($_POST['mail_too'])) return '';
+        try {
+            require_once dirname(__DIR__, 2) . '/dhosting_migrator/logic/DhostingMigrator.php';
+            $u = db_one("SELECT id, name, email, phone_number, microsoft_id, m365_login FROM users WHERE id=?", [(int)$db['id']]) ?: $db;
+            $box = DhostingMigrator::selfSetPassword($u, $pass, (string)($db['email'] ?? ''));
+            if (function_exists('log_user_action')) { try { log_user_action((int)$db['id'], (int)$db['id'], 'mail_own_password', 'Własne hasło do poczty ' . $box); } catch (\Throwable $e) {} }
+            return ' Poczta ' . $box . ' ma teraz to samo hasło. Telefon i Outlook poproszą Cię o nie przy następnym sprawdzaniu poczty.';
+        } catch (\Throwable $e) {
+            return ' Hasło do poczty zostało stare, bo ' . $e->getMessage() . '.';
+        }
+    }
+
     public function selfCreate(): ?string
     {
-        // z ekranu prośby po zalogowaniu (/sso/start) wracamy tam — ze ścieżką dalszą — w innym razie do Tożsamości
+        // z ekranu prośby po zalogowaniu (/sso/start) wracamy tam — ze ścieżką dalszą; ze strony migracji poczty — na nią; w innym razie do Tożsamości
         $fromPrompt = ($_POST['from'] ?? '') === 'start';
-        $pnext = ssoPromptSafeNext((string)($_POST['next'] ?? ''));
-        $back = $fromPrompt
-            ? rtrim(APP_URL, '/') . SSO_PROMPT_PATH . ($pnext !== '' ? '?next=' . rawurlencode($pnext) : '')
-            : APP_URL . '/tozsamosc/index.php#sso';
-        if (!SsoConfig::selfEnabled() || !SsoConfig::logtoConfigured()) return $this->flashGlobal($back, 'warning', 'Samodzielne zakładanie konta logowania jednokrotnego jest wyłączone.');
+        $back = $this->selfBack();
+        if (!SsoConfig::selfEnabled() || !SsoConfig::logtoConfigured()) return $this->flashGlobal($back, 'warning', 'Konta logowania jednokrotnego zakłada teraz tylko administrator. Napisz do Helpdesku IT.');
         $me = current_user();
         $db = db_one("SELECT id, email, name, m365_login FROM users WHERE id=?", [(int)$me['id']]);
         $pass = $this->newPasswordFromPost($back);
@@ -387,22 +414,23 @@ final class SsoController
         } catch (\Throwable $e) {
             if ($fromPrompt) {   // ekran po zalogowaniu: bez technicznych szczegółów — te idą do dziennika
                 error_log('[sso] prośba po zalogowaniu, ' . (string)$db['email'] . ': ' . $e->getMessage());
-                return $this->flashGlobal($back, 'danger', 'Nie udało się teraz założyć konta. Spróbuj ponownie za kilka minut — jeśli dalej nie działa, napisz do Helpdesku IT.');
+                return $this->flashGlobal($back, 'danger', 'Nie udało się teraz założyć konta. Spróbuj za kilka minut, a jeśli dalej nie działa, napisz do Helpdesku IT.');
             }
             return $this->flashGlobal($back, 'danger', $e->getMessage());
         }
         if (function_exists('log_user_action')) { try { log_user_action((int)$db['id'], (int)$db['id'], 'sso_create', 'Konto logowania jednokrotnego: ' . $res['username']); } catch (\Throwable $e) {} }
         $msg = $res['logto'] === 'created'
-            ? 'Gotowe — masz konto logowania jednokrotnego. Login: ' . $res['username'] . ' (albo adres e-mail).'
-            : 'Twoje konto logowania jednokrotnego już istniało — zostało połączone z SZO i ma teraz nowe hasło.';
-        if (in_array($res['cloud'], ['created', 'linked', 'synced'], true)) $msg .= ' Konto w chmurze plików ma to samo hasło.';
-        elseif (str_starts_with($res['cloud'], 'błąd')) $msg .= ' Konta w chmurze nie udało się przygotować — administrator dostał informację w dzienniku.';
+            ? 'Gotowe, masz konto logowania jednokrotnego. Login: ' . $res['username'] . ' albo Twój adres e-mail.'
+            : 'Konto logowania jednokrotnego już miałeś(-aś). Połączyliśmy je z SZO i ustawiliśmy nowe hasło.';
+        if (in_array($res['cloud'], ['created', 'linked', 'synced'], true)) $msg .= ' W chmurze plików działa to samo hasło.';
+        elseif (str_starts_with($res['cloud'], 'błąd')) $msg .= ' Konta w chmurze nie udało się przygotować. Administrator już o tym wie.';
+        $msg .= $this->mailToo($db, $pass);
         return $this->flashGlobal($back, 'success', $msg);
     }
 
     public function selfPassword(): ?string
     {
-        $back = APP_URL . '/tozsamosc/index.php#sso';
+        $back = $this->selfBack();
         $me = current_user();
         $db = db_one("SELECT id, email FROM users WHERE id=?", [(int)$me['id']]);
         $pass = $this->newPasswordFromPost($back);
@@ -413,9 +441,10 @@ final class SsoController
             return $this->flashGlobal($back, 'danger', $e->getMessage());
         }
         if (function_exists('log_user_action')) { try { log_user_action((int)$db['id'], (int)$db['id'], 'sso_password', 'Nowe hasło logowania jednokrotnego'); } catch (\Throwable $e) {} }
-        $msg = 'Hasło logowania jednokrotnego zostało zmienione.';
-        if (in_array($res['cloud'], ['linked', 'synced'], true)) $msg .= ' W chmurze plików działa już to samo nowe hasło.';
-        elseif (str_starts_with($res['cloud'], 'błąd')) $msg .= ' Uwaga: nie udało się zmienić hasła w chmurze plików (' . mb_substr($res['cloud'], 6) . ').';
+        $msg = 'Zmieniliśmy hasło logowania jednokrotnego.';
+        if (in_array($res['cloud'], ['linked', 'synced'], true)) $msg .= ' W chmurze plików też działa już nowe hasło.';
+        elseif (str_starts_with($res['cloud'], 'błąd')) $msg .= ' W chmurze plików zostało stare hasło, bo zmiana się nie udała (' . mb_substr($res['cloud'], 6) . ').';
+        $msg .= $this->mailToo($db, $pass);
         return $this->flashGlobal($back, 'success', $msg);
     }
 
@@ -424,7 +453,7 @@ final class SsoController
     {
         $p1 = (string)($_POST['password'] ?? '');
         $p2 = (string)($_POST['password2'] ?? '');
-        if ($p1 === '' || $p1 !== $p2) { flash_set('danger', 'Hasła nie są takie same — wpisz to samo hasło dwa razy.'); return null; }
+        if ($p1 === '' || $p1 !== $p2) { flash_set('danger', 'Hasła się różnią. Wpisz to samo hasło w obu polach.'); return null; }
         if (mb_strlen($p1) < 10) { flash_set('danger', 'Hasło musi mieć co najmniej 10 znaków.'); return null; }
         if (mb_strlen($p1) > 128) { flash_set('danger', 'Hasło może mieć najwyżej 128 znaków.'); return null; }
         return $p1;
