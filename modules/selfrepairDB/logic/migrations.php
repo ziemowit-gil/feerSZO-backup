@@ -915,4 +915,14 @@ return [
         },
     ],
 
+    // Czat Pomocy IT (chatbot /chatbot/ z Pomocą IT, 2026-11-14): artykuł w usłudze „Helpdesk”, przypięty, z „Zobacz też”.
+    '2026-11_it_portal_chatbot_article' => [
+        'desc' => 'Portal Usług IT, „Helpdesk”: artykuł „Czat Pomocy IT: asystent AI” (link /chatbot/)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalChatbotSeed.php';
+            itPortalChatbotApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
