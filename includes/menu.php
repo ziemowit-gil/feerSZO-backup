@@ -278,6 +278,8 @@ function _menu_viewer(): array {
     if (module_enabled('smart_cards_enabled'))
         $search[] = _mi('Moja karta dostępu','/modules/smart_cards/my.php','bi-person-badge',['match'=>'/modules/smart_cards/my','kw'=>'karta dostępu identyfikator nfc wniosek biuro']);
     $search[] = _mi('Microsoft 365','/panel/m365.php','bi-microsoft',['match'=>'/panel/m365','kw'=>'m365 office']);
+    if (org_setting('dhosting_self_enabled') === '1')
+        $search[] = _mi('Moja skrzynka dhosting','/migracjapoczty','bi-envelope-at',['match'=>'/migracjapoczty','kw'=>'poczta skrzynka dhosting hasło sms nowa skrzynka']);
     $search[] = _mi('Sesje i bezpieczeństwo','/panel/sessions.php','bi-shield-lock',['match'=>'/panel/sessions']);
     $search[] = _mi('Ustawienia konta','/panel/password.php','bi-gear',['match'=>'/panel/password','kw'=>'hasło 2fa ustawienia']);
 
@@ -619,6 +621,7 @@ function _menu_editor(): array {
             _mi('Konta M365 Edu — hurtowo','/modules/ms_edu_bulk/index.php','bi-people-fill',['match'=>'/modules/ms_edu_bulk','kw'=>'konta m365 edu hurtowo generowanie uczniowie nauczyciele pdf login hasło']),
             _mi('Kreator kont M365 z listy (XLS)','/modules/ms_edu_bulk/kreator.php','bi-magic',['match'=>'/modules/ms_edu_bulk/kreator','kw'=>'kreator konta m365 xls excel import lista csv']),
             _mi('Konta EDU — zarządzanie','/modules/ms_edu_bulk/konta.php','bi-person-gear',['match'=>'/modules/ms_edu_bulk/konta','kw'=>'konta edu zarządzanie zawieszenie offboarding menedżer mfa rola entra']),
+            _mi('Migrator kont M365 → dhosting','/migracjaadmin','bi-envelope-arrow-up',['match'=>'/migracjaadmin','kw'=>'dhosting migracja migrator skrzynki poczta konta microsoft hasła sms przeniesienie']),
             _mi('SharePoint','/admin/sharepoint_settings.php','bi-cloud-upload',['match'=>'/admin/sharepoint','kw'=>'sharepoint']),
             _mi('Szkolenia (TidyCal)','/admin/tidycal_settings.php','bi-calendar2-check',['match'=>'/admin/tidycal','kw'=>'tidycal szkolenia']),
             _mi('Zadania / Nozbe','/admin/nozbe_settings.php','bi-check2-square',['match'=>'/admin/nozbe_settings','kw'=>'nozbe zadania integracja']),

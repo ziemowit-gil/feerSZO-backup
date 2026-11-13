@@ -1,0 +1,140 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * modules/dhosting_migrator/lib/DhostingConfig.php — ustawienia migratora kont Microsoft 365 → skrzynki dhosting.pl.
+ *
+ * Klucze w tabeli settings (org_setting):
+ *   dhosting_api_url      — adres API (domyślnie https://api.dhosting.pl)
+ *   dhosting_api_user     — login API od dhosting.pl
+ *   dhosting_api_pass     — hasło API, zaszyfrowane fcEncrypt (kontekst settings.dhosting_api_pass)
+ *   dhosting_domains      — obsługiwane domeny, po jednej w linii: „feer.org.pl” albo „domena-m365 = domena-dhosting”
+ *   dhosting_quota        — pojemność nowej skrzynki w GB ('' = domyślna usługi, -1 = bez limitu)
+ *   dhosting_self_enabled — '1' = użytkownik może sam założyć skrzynkę / dostać nowe hasło SMS-em
+ *   dhosting_webmail_url  — adres poczty przez przeglądarkę, dopisywany do SMS i ekranów ('' = bez linku)
+ */
+require_once dirname(__DIR__, 2) . '/field_crypto/lib/fieldCrypto.php';
+require_once __DIR__ . '/DhostingApi.php';
+
+final class DhostingConfig
+{
+    private const PASS_CTX = 'settings.dhosting_api_pass';
+
+    public static function get(string $key, string $default = ''): string
+    {
+        $v = function_exists('org_setting') ? org_setting($key) : '';
+        return $v !== '' ? $v : $default;
+    }
+
+    public static function api(): DhostingApi
+    {
+        $pass = '';
+        $enc = self::get('dhosting_api_pass');
+        if ($enc !== '') {
+            try { $pass = (string)fcDecrypt($enc, self::PASS_CTX); } catch (\Throwable $e) { $pass = ''; }
+        }
+        return new DhostingApi(self::get('dhosting_api_url', DhostingApi::DEFAULT_URL), self::get('dhosting_api_user'), $pass);
+    }
+
+    public static function hasPassword(): bool
+    {
+        return self::get('dhosting_api_pass') !== '';
+    }
+
+    /** Zapis z formularza admina. Puste hasło = bez zmiany. */
+    public static function save(array $in): void
+    {
+        $url = trim((string)($in['api_url'] ?? ''));
+        if ($url !== '' && !preg_match('~^https://[a-z0-9.-]+(:\d+)?(/.*)?$~i', $url)) {
+            throw new InvalidArgumentException('Adres API musi zaczynać się od https://.');
+        }
+        $map = self::parseDomains((string)($in['domains'] ?? ''));
+        $quota = trim(str_replace(',', '.', (string)($in['quota'] ?? '')));
+        if ($quota !== '' && $quota !== '-1' && (!is_numeric($quota) || (float)$quota < 0.1)) {
+            throw new InvalidArgumentException('Pojemność skrzynki: liczba GB (np. 2), -1 = bez limitu albo puste pole = domyślna usługi.');
+        }
+        $web = trim((string)($in['webmail_url'] ?? ''));
+        if ($web !== '' && !preg_match('~^https?://~i', $web)) throw new InvalidArgumentException('Adres poczty przez przeglądarkę musi zaczynać się od https://.');
+
+        org_setting_set('dhosting_api_url', $url);
+        org_setting_set('dhosting_api_user', trim((string)($in['api_user'] ?? '')));
+        $pass = (string)($in['api_pass'] ?? '');
+        if ($pass !== '') org_setting_set('dhosting_api_pass', (string)fcEncrypt($pass, self::PASS_CTX));
+        org_setting_set('dhosting_domains', implode("\n", array_map(
+            fn($src, $dst) => $src === $dst ? $src : $src . ' = ' . $dst, array_keys($map), $map)));
+        org_setting_set('dhosting_quota', $quota);
+        org_setting_set('dhosting_self_enabled', !empty($in['self_enabled']) ? '1' : '0');
+        org_setting_set('dhosting_webmail_url', $web);
+    }
+
+    /** Mapa domena M365 → domena dhosting. */
+    public static function domains(): array
+    {
+        return self::parseDomains(self::get('dhosting_domains'));
+    }
+
+    public static function parseDomains(string $text): array
+    {
+        $map = [];
+        foreach (preg_split('/[\r\n,;]+/', $text) ?: [] as $line) {
+            $line = strtolower(trim($line));
+            if ($line === '') continue;
+            $parts = array_map('trim', preg_split('/\s*(=>|=|→)\s*/u', $line) ?: []);
+            $src = $parts[0] ?? '';
+            $dst = $parts[1] ?? $src;
+            foreach ([$src, $dst] as $d) {
+                if (!preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/', $d)) throw new InvalidArgumentException('Niepoprawna domena: „' . $d . '”.');
+            }
+            $map[$src] = $dst;
+        }
+        return $map;
+    }
+
+    /** Adres skrzynki na dhosting dla loginu Microsoft (ten sam login, domena wg mapy). null = domena nieobsługiwana. */
+    public static function mailboxFor(string $m365Login): ?string
+    {
+        $l = strtolower(trim($m365Login));
+        $at = strrpos($l, '@');
+        if ($at === false) return null;
+        $local = substr($l, 0, $at);
+        $dst = self::domains()[substr($l, $at + 1)] ?? null;
+        if ($dst === null || $local === '' || str_contains($local, '#')) return null;   // #EXT# = konto gościa
+        $box = $local . '@' . $dst;
+        return filter_var($box, FILTER_VALIDATE_EMAIL) ? $box : null;
+    }
+
+    /** Pojemność nowej skrzynki: null = domyślna usługi. */
+    public static function quota(): ?float
+    {
+        $q = self::get('dhosting_quota');
+        return $q === '' ? null : (float)$q;
+    }
+
+    public static function selfEnabled(): bool
+    {
+        return self::get('dhosting_self_enabled') === '1';
+    }
+
+    public static function webmail(): string
+    {
+        return self::get('dhosting_webmail_url');
+    }
+
+    /**
+     * Hasło do nowej skrzynki: 14 znaków bez łatwych do pomylenia (0/O, 1/l/I), zawsze z wielką i małą literą,
+     * cyfrą i znakiem specjalnym — polityka dhosting nie jest opisana w dokumentacji, przykład to „P@ssword34”.
+     */
+    public static function generatePassword(int $len = 14): string
+    {
+        $sets = ['abcdefghijkmnpqrstuvwxyz', 'ABCDEFGHJKLMNPQRSTUVWXYZ', '23456789', '#%+=?!'];
+        $all  = implode('', $sets);
+        $chars = [];
+        foreach ($sets as $s) $chars[] = $s[random_int(0, strlen($s) - 1)];
+        while (count($chars) < $len) $chars[] = $all[random_int(0, strlen($all) - 1)];
+        for ($i = count($chars) - 1; $i > 0; $i--) {          // tasowanie Fishera–Yatesa na random_int
+            $j = random_int(0, $i);
+            [$chars[$i], $chars[$j]] = [$chars[$j], $chars[$i]];
+        }
+        return implode('', $chars);
+    }
+}

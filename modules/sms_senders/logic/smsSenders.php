@@ -47,7 +47,7 @@ final class SmsSenders
         'inpost_shipment'        => [self::G_CODES, 'Numer nadania przesyłki InPost', 'Formularz publiczny /extforms/inpostNadanie: SMS do nadawcy z numerem nadania w Paczkomacie (wychodzi też w nocy).'],
         'audytor_login_code'     => [self::G_CODES, 'Kod logowania — Tajemniczy Klient', 'Aplikacja zewnętrzna audytor.feer.org.pl (api/v1/audytor_sms.php): kod logowania SMS dla użytkowników zewnętrznych.'],
 
-        'access_data'            => [self::G_ACCESS, 'Login i hasło do konta', 'Panel kursanta i rodzica, konto MS 365, ownCloud, VLab, reset hasła panelu.'],
+        'access_data'            => [self::G_ACCESS, 'Login i hasło do konta', 'Panel kursanta i rodzica, konto MS 365, ownCloud, VLab, reset hasła panelu, skrzynka dhosting (migrator kont).'],
         'account_activation'     => [self::G_ACCESS, 'Aktywacja konta — przypomnienia automatyczne', 'Codzienne przypomnienie o braku pierwszego logowania (cron).'],
         'security_alert'         => [self::G_ACCESS, 'Alert bezpieczeństwa konta', 'System Tożsamości: nowe logowanie, zmiana hasła, wyłączenie MFA — gdy osoba włączyła SMS w „Powiadomieniach o bezpieczeństwie”.'],
         'whatsapp_group'         => [self::G_ACCESS, 'Link do grupy WhatsApp', 'Wolontariusz: zaproszenie do grupy.'],
