@@ -2,7 +2,7 @@
  tasks/includes/detail_files.php — wydzielone z tasks/detail.php.
  Załączniki + Pliki z Koszulek (workspaces), scalone w jedną sekcję "Pliki zadania"
  z linkiem do pełnego widoku Plików obszaru (tasks/files.php). Wymaga: $task, $my_role,
- $can_manage_files, $files, $ws_linked_files, $ws_for_task, $id, $can_edit, $ms_available, $has_ms, $csrf.
+ $can_manage_files, $files, $ws_linked_files, $ws_for_task, $id, $can_edit, $csrf.
 -->
 <?php
 $td_show_attachments = task_field_visible('files', $my_role);
@@ -121,26 +121,6 @@ $td_show_ws_files     = (bool)$ws_for_task && $ws_can_view;   // macierz uprawni
              aria-label="Wybierz pliki do uploadu">
     </label>
 
-    <?php if ($ms_available && $has_ms): ?>
-    <button type="button"
-            class="btn btn-sm"
-            style="background:#0078d4;color:#fff;border:none"
-            onclick="tdOpenOneDrive()"
-            aria-label="Wybierz plik z Microsoft OneDrive lub SharePoint">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1" aria-hidden="true">
-        <path d="M10.5 18.5H6a4.5 4.5 0 0 1-.95-8.9A6 6 0 0 1 16.7 7.6a4 4 0 0 1 2.8 6.9H10.5zm5-4.5-3.5-3.5-3.5 3.5h2.5v4h2v-4z"/>
-      </svg>
-      OneDrive / SharePoint
-    </button>
-    <?php elseif ($ms_available && !$has_ms): ?>
-    <span class="btn btn-sm btn-outline-secondary disabled"
-          aria-disabled="true"
-          tabindex="-1"
-          title="Zaloguj się przez Microsoft, aby importować z OneDrive">
-      <i class="bi bi-cloud-arrow-up me-1" aria-hidden="true"></i>OneDrive
-      <span class="badge bg-warning text-dark ms-1" style="font-size:.6rem">Wymagane konto MS</span>
-    </span>
-    <?php endif; ?>
   </div>
 
   <div id="td-upload-status" class="small text-muted mt-2 d-none" aria-live="polite">

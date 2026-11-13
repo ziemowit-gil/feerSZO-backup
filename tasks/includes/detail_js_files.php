@@ -1,6 +1,6 @@
 <script>
 /* tasks/includes/detail_js_files.php — wydzielone z tasks/detail.php.
-   Upload pliku, OneDrive, import z URL, usuwanie/podgląd (lightbox) plików.
+   Upload pliku, usuwanie/podgląd (lightbox) plików.
    UWAGA: ten fragment jest wstrzykiwany do offcanvas przez fetch()+createContextualFragment()
    (nie pełne przeładowanie strony) — dlatego BEZ IIFE per plik: deklaracje top-level
    (const/let/function) współdzielą jeden "script scope" ze wszystkimi innymi
@@ -93,77 +93,6 @@ if (tdDropZone) {
         tdUploadFiles(e.dataTransfer.files);
     });
 }
-
-/* OneDrive — okno wyboru z modules/onedrive_picker (Graph po stronie serwera; plik pobiera
-   tasks/api/import_url.php po ID elementu — bez OneDrive.js i bez popupu logowania). */
-window.tdOpenOneDrive = function() {
-    function _open() {
-        OneDrivePicker.open({
-            endpoint: BASE + '/modules/onedrive_picker/router.php?_route=/list',
-            csrf:     CSRF,
-            accept:   <?= json_encode(task_upload_accept_attr()) ?>,
-            maxBytes: <?= (int)TASK_UPLOAD_MAX_BYTES ?>,
-            title:    'Dodaj pliki z OneDrive',
-            onPick:   function(items) {
-                (function next(i) {
-                    if (i >= items.length) return;
-                    tdImportFromOneDrive(items[i], () => next(i + 1));
-                })(0);
-            },
-        });
-    }
-    if (window.OneDrivePicker) { _open(); return; }
-    const s = document.createElement('script');
-    s.src     = BASE + '/modules/onedrive_picker/view/picker.js?v=<?= (int)@filemtime(dirname(__DIR__, 2) . '/modules/onedrive_picker/view/picker.js') ?>';
-    s.onload  = _open;
-    s.onerror = () => alert('Nie udało się otworzyć okna OneDrive.');
-    document.head.appendChild(s);
-};
-
-window.tdImportFromOneDrive = function(item, onDone) {
-    const st  = document.getElementById('td-upload-status');
-    const msg = document.getElementById('td-upload-msg');
-    if (st)  st.classList.remove('d-none');
-    if (msg) msg.textContent = 'Pobieram z OneDrive: ' + item.name + '…';
-
-    api('/tasks/api/import_url.php', {task_id: TID, od_item_id: item.id})
-    .then(r => {
-        if (st) st.classList.add('d-none');
-        if (r.ok) { srAnnounce('Plik ' + item.name + ' dodany z OneDrive.'); openTask(TID); }
-        else alert('Błąd importu „' + item.name + '": ' + r.error);
-        if (onDone) onDone();
-    })
-    .catch(() => {
-        if (st) st.classList.add('d-none');
-        alert('Błąd sieci przy imporcie pliku z OneDrive.');
-        if (onDone) onDone();
-    });
-};
-
-window.tdImportFromUrl = function(url, filename, onDone) {
-    const st  = document.getElementById('td-upload-status');
-    const msg = document.getElementById('td-upload-msg');
-    if (st)  st.classList.remove('d-none');
-    if (msg) msg.textContent = 'Importuję: ' + filename + '…';
-
-    fetch(BASE + '/tasks/api/import_url.php', {
-        method:  'POST',
-        headers: {'Content-Type': 'application/json'},
-        body:    JSON.stringify({_csrf: CSRF, task_id: TID, url, filename}),
-    })
-    .then(r => r.json())
-    .then(r => {
-        if (st) st.classList.add('d-none');
-        if (r.ok) { srAnnounce('Plik ' + filename + ' importowany.'); openTask(TID); }
-        else alert('Błąd importu „' + filename + '": ' + r.error);
-        if (onDone) onDone();
-    })
-    .catch(() => {
-        if (st) st.classList.add('d-none');
-        alert('Błąd sieci przy imporcie pliku.');
-        if (onDone) onDone();
-    });
-};
 
 /* Okładka karty: >0 plik, 0 = automatycznie, -1 = bez okładki */
 window.tdSetCover = function(fileId) {

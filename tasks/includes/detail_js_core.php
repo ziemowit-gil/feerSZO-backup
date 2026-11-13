@@ -9,8 +9,6 @@
 const CSRF      = <?= json_encode($csrf) ?>;
 const BASE      = <?= json_encode(rtrim(APP_URL,'/')) ?>;
 const TID       = <?= (int)$id ?>;
-const MS_APP_ID = <?= json_encode($ms_app_id) ?>;
-const HAS_MS    = <?= $has_ms ? 'true' : 'false' ?>;
 const ALL_USERS = <?= json_encode(array_values(array_map(
     fn($u) => ['id' => (int)$u['id'], 'name' => $u['name']],
     $all_users

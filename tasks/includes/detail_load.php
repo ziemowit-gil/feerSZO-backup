@@ -7,7 +7,7 @@
  * $comments, $history, $files, $ws_linked_files, $ws_for_task, $subtasks,
  * $st_total/$st_done/$st_pct, $lists_in_ws, $csrf, $is_done, $overdue,
  * $is_confirmed/$is_rejected/$can_review/$can_confirm/$can_reject,
- * $_members_by_unit, $cur_user/$has_ms/$ms_app_id, oraz td_render_mentions().
+ * $_members_by_unit, $cur_user, oraz td_render_mentions().
  * config.php/db.php/auth.php/functions.php/tasks.php/org.php, require_login(),
  * $uid i $id już wczytane przez tasks/detail.php przed include tego pliku.
  */
@@ -183,11 +183,6 @@ foreach ($_unit_members as $m) {
 }
 
 $cur_user     = current_user();
-$has_ms       = !empty($cur_user['microsoft_id']);
-[, $ms_app_id] = _ms_creds();
-// OneDrive: okno wyboru po stronie serwera (Graph, uprawnienie aplikacji Files.Read.All) — patrz modules/onedrive_picker
-require_once dirname(__DIR__, 2) . '/modules/onedrive_picker/lib/OneDrivePicker.php';
-$ms_available  = OneDrivePicker::configured() && !OneDrivePicker::impersonating();
 
 function td_render_mentions(string $text, array $users): string {
     $html = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
