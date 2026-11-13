@@ -17,90 +17,122 @@ $_pm_host = preg_replace('#^https?://|/$#', '', PocztaStud::WEBMAIL);
 $_pm_tok  = h(student_token());
 ?>
 <h1 class="h5 fw-bold mb-1"><i class="bi bi-envelope-at text-primary me-2" aria-hidden="true"></i>Poczta kursanta</h1>
-<p class="text-body-secondary small mb-3">Twoja skrzynka e-mail w Fundacji. Otwierasz ją w przeglądarce, na stronie <?= h($_pm_host) ?>.</p>
+<p class="text-body-secondary small mb-3">Twoja skrzynka e-mail w Fundacji, na osobnym serwerze pocztowym. Otwierasz ją w przeglądarce na stronie <?= h($_pm_host) ?> albo w programie pocztowym.</p>
 
 <?php if ($_pm_msg): ?>
-<div class="alert alert-<?= h($_pm_msg[0]) ?>" role="alert"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i><?= h($_pm_msg[1]) ?></div>
+<div class="alert alert-<?= h($_pm_msg[0]) ?>" role="alert"><i class="bi <?= $_pm_msg[0] === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle' ?> me-1" aria-hidden="true"></i><?= h($_pm_msg[1]) ?></div>
 <?php endif; ?>
 
-<section class="card mb-3" style="max-width:720px" aria-labelledby="pm-konto-h">
-  <div class="card-body">
-    <h2 class="h6 fw-bold mb-3" id="pm-konto-h">Dane do logowania</h2>
-    <dl class="row mb-0">
-      <dt class="col-sm-4 text-body-secondary fw-normal">Adres i login</dt>
-      <dd class="col-sm-8 d-flex flex-wrap align-items-center gap-2">
-        <span class="font-monospace fw-semibold" id="pm-login"><?= h($stud_mail['login']) ?></span>
-        <button type="button" class="btn btn-sm btn-outline-secondary pm-kopiuj" data-copy="<?= h($stud_mail['login']) ?>">
-          <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj<span class="visually-hidden"> adres poczty</span></button>
-      </dd>
-      <dt class="col-sm-4 text-body-secondary fw-normal" id="poczta-haslo">Hasło</dt>
-      <dd class="col-sm-8">
-        <?php if ($_pm_pass !== ''): ?>
-          <div class="d-flex flex-wrap align-items-center gap-2">
-            <span class="font-monospace fw-semibold"><?= h($_pm_pass) ?></span>
-            <button type="button" class="btn btn-sm btn-outline-secondary pm-kopiuj" data-copy="<?= h($_pm_pass) ?>">
-              <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj<span class="visually-hidden"> hasło do poczty</span></button>
-          </div>
-          <div class="small text-body-secondary mt-1">Pokazujemy je tylko teraz. Po odświeżeniu strony zniknie.
-            Zostało pokazań: <?= (int)$stud_mail['revealsLeft'] ?> z <?= PocztaStud::MAX_REVEALS ?>.</div>
-        <?php elseif (!$stud_mail['hasPassword'] && !empty($stud_mail['password_cleared_at'])): ?>
-          Hasła startowego nie ma już w panelu (<?= h(date('d.m.Y', strtotime((string)$stud_mail['password_cleared_at']))) ?>). Logujesz się własnym hasłem.
-        <?php elseif (!$stud_mail['hasPassword']): ?>
-          Przekaże je biuro.
-        <?php elseif (!$stud_mail['canReveal']): ?>
-          <span role="status"><?= h($stud_mail['blockReason']) ?></span>
-        <?php elseif ($_pm_otp): ?>
-          <p class="small mb-2" role="status">
-            <?php if (($_pm_otp['channel'] ?? '') === 'ekran'): ?>Konto testowe: kod to <b class="font-monospace"><?= h((string)$_pm_otp['shown']) ?></b>.
-            <?php else: ?>Wysłaliśmy kod <?= ($_pm_otp['channel'] ?? '') === 'sms' ? 'SMS-em na numer' : 'e-mailem na adres' ?> <?= h((string)$_pm_otp['to']) ?>. Jest ważny 10 minut.<?php endif; ?>
-          </p>
-          <form method="post" class="d-flex flex-wrap align-items-end gap-2">
-            <input type="hidden" name="_token" value="<?= $_pm_tok ?>">
-            <input type="hidden" name="_op" value="stud_mail_verify">
-            <div><label class="form-label small mb-1" for="pm-kod">Kod (6 cyfr)</label>
-              <input class="form-control form-control-sm font-monospace" id="pm-kod" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" size="8" required<?= $_pm_msg ? ' aria-invalid="true"' : '' ?>></div>
-            <button type="submit" class="btn btn-sm btn-primary">Pokaż hasło</button>
-          </form>
-          <form method="post" class="mt-2">
-            <input type="hidden" name="_token" value="<?= $_pm_tok ?>">
-            <input type="hidden" name="_op" value="stud_mail_code">
-            <button type="submit" class="btn btn-sm btn-link px-0">Wyślij kod jeszcze raz</button>
-          </form>
-        <?php else: ?>
+<div class="row g-3 align-items-start" style="max-width:1200px">
+  <div class="col-lg-7">
+    <section class="card h-100" aria-labelledby="pm-konto-h">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-3" id="pm-konto-h">Dane do logowania</h2>
+        <dl class="row mb-0">
+          <dt class="col-sm-4 text-body-secondary fw-normal">Adres i login</dt>
+          <dd class="col-sm-8 d-flex flex-wrap align-items-center gap-2">
+            <span class="font-monospace fw-semibold" id="pm-login"><?= h($stud_mail['login']) ?></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary pm-kopiuj" data-copy="<?= h($stud_mail['login']) ?>">
+              <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj<span class="visually-hidden"> adres poczty</span></button>
+          </dd>
+          <dt class="col-sm-4 text-body-secondary fw-normal" id="poczta-haslo">Hasło startowe</dt>
+          <dd class="col-sm-8 mb-0">
+            <?php if ($_pm_pass !== ''): ?>
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="font-monospace fw-semibold"><?= h($_pm_pass) ?></span>
+                <button type="button" class="btn btn-sm btn-outline-secondary pm-kopiuj" data-copy="<?= h($_pm_pass) ?>">
+                  <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj<span class="visually-hidden"> hasło do poczty</span></button>
+              </div>
+              <p class="small text-body-secondary mt-1 mb-0">Widzisz je tylko teraz, po odświeżeniu strony zniknie.
+                <?= (int)$stud_mail['revealsLeft'] > 0 ? 'Możesz je pokazać jeszcze ' . (int)$stud_mail['revealsLeft'] . ' ' . ((int)$stud_mail['revealsLeft'] === 1 ? 'raz' : 'razy') . '.' : 'To było ostatnie pokazanie.' ?></p>
+            <?php elseif (!$stud_mail['hasPassword'] && !empty($stud_mail['password_cleared_at'])): ?>
+              Usunęliśmy je z panelu <?= h(date('d.m.Y', strtotime((string)$stud_mail['password_cleared_at']))) ?>. Logujesz się własnym hasłem.
+            <?php elseif (!$stud_mail['hasPassword']): ?>
+              Przekaże je biuro.
+            <?php elseif (!$stud_mail['canReveal']): ?>
+              <span role="status"><?= h($stud_mail['blockReason']) ?></span>
+            <?php elseif ($_pm_otp): ?>
+              <p class="small mb-2" role="status">
+                <?php if (($_pm_otp['channel'] ?? '') === 'ekran'): ?>Konto testowe: kod to <b class="font-monospace"><?= h((string)$_pm_otp['shown']) ?></b>.
+                <?php else: ?>Wysłaliśmy kod <?= ($_pm_otp['channel'] ?? '') === 'sms' ? 'SMS-em na numer' : 'e-mailem na adres' ?> <?= h((string)$_pm_otp['to']) ?>. Jest ważny 10 minut.<?php endif; ?>
+              </p>
+              <form method="post" class="d-flex flex-wrap align-items-end gap-2">
+                <input type="hidden" name="_token" value="<?= $_pm_tok ?>">
+                <input type="hidden" name="_op" value="stud_mail_verify">
+                <div><label class="form-label small mb-1" for="pm-kod">Kod (6 cyfr)</label>
+                  <input class="form-control form-control-sm font-monospace" id="pm-kod" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" size="8" required<?= $_pm_msg ? ' aria-invalid="true"' : '' ?>></div>
+                <button type="submit" class="btn btn-sm btn-primary">Pokaż hasło</button>
+              </form>
+              <form method="post" class="mt-2">
+                <input type="hidden" name="_token" value="<?= $_pm_tok ?>">
+                <input type="hidden" name="_op" value="stud_mail_code">
+                <button type="submit" class="btn btn-sm btn-link px-0">Wyślij kod jeszcze raz</button>
+              </form>
+            <?php else: ?>
+              <p class="small mb-2">Przyszło SMS-em. Jeśli go nie masz, pokażemy je tutaj po kodzie jednorazowym.</p>
+              <form method="post">
+                <input type="hidden" name="_token" value="<?= $_pm_tok ?>">
+                <input type="hidden" name="_op" value="stud_mail_code">
+                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż hasło<span class="visually-hidden"> do poczty (wyślemy kod SMS)</span></button>
+              </form>
+              <p class="small text-body-secondary mt-1 mb-0">Czeka w panelu do <?= h(date('d.m.Y', strtotime((string)$stud_mail['password_expires_at']))) ?>.
+                Możesz je pokazać jeszcze <?= (int)$stud_mail['revealsLeft'] ?> <?= (int)$stud_mail['revealsLeft'] === 1 ? 'raz' : 'razy' ?>.</p>
+            <?php endif; ?>
+          </dd>
+        </dl>
+        <?php if ($stud_mail['hasPassword']): ?>
+        <div class="border-top pt-3 mt-3">
+          <p class="small mb-2" id="pm-done-d">Masz już własne hasło do poczty? Usuń hasło startowe z panelu.</p>
           <form method="post">
             <input type="hidden" name="_token" value="<?= $_pm_tok ?>">
-            <input type="hidden" name="_op" value="stud_mail_code">
-            <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż hasło<span class="visually-hidden"> do poczty (wyślemy kod SMS)</span></button>
-          </form>
-          <div class="small text-body-secondary mt-1">Hasło startowe jest w panelu do <?= h(date('d.m.Y', strtotime((string)$stud_mail['password_expires_at']))) ?>.
-            Możesz je pokazać jeszcze <?= (int)$stud_mail['revealsLeft'] ?> <?= (int)$stud_mail['revealsLeft'] === 1 ? 'raz' : 'razy' ?>.</div>
-        <?php endif; ?>
-        <?php if ($stud_mail['hasPassword']): ?>
-          <form method="post" class="mt-2">
-            <input type="hidden" name="_token" value="<?= $_pm_tok ?>">
             <input type="hidden" name="_op" value="stud_mail_done">
-            <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Mam już własne hasło — usuń hasło startowe z panelu</button>
+            <button type="submit" class="btn btn-sm btn-outline-success" aria-describedby="pm-done-d"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Mam już własne hasło</button>
           </form>
+        </div>
         <?php endif; ?>
-      </dd>
-    </dl>
-    <a class="btn btn-primary mt-3" href="<?= h(PocztaStud::WEBMAIL) ?>" target="_blank" rel="noopener">
-      <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz pocztę<span class="visually-hidden"> (<?= h($_pm_host) ?>, otwiera się w nowej karcie)</span></a>
-    <span class="visually-hidden" id="pm-live" aria-live="polite"></span>
+        <a class="btn btn-primary mt-3" href="<?= h(PocztaStud::WEBMAIL) ?>" target="_blank" rel="noopener">
+          <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz pocztę<span class="visually-hidden"> (<?= h($_pm_host) ?>, otwiera się w nowej karcie)</span></a>
+        <span class="visually-hidden" id="pm-live" aria-live="polite"></span>
+      </div>
+    </section>
   </div>
-</section>
 
-<div class="alert alert-light border border-start border-4 border-primary" role="note" style="max-width:720px" aria-label="Ważne informacje o poczcie">
-  <p class="fw-semibold mb-1">Ważne</p>
-  <ul class="mb-0 small">
-    <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</li>
-    <li>Hasło startowe wysyłamy SMS-em. Jeśli SMS zginął, pokażemy je tutaj po kodzie jednorazowym. Hasło do poczty jest inne niż hasło do panelu.</li>
-    <li>To hasło startowe. Po pierwszym logowaniu ustaw na stronie poczty własne hasło i kliknij „Mam już własne hasło”.</li>
-    <li>Hasło startowe zniknie z panelu po <?= PocztaStud::TTL_DAYS ?> dniach od wpisania albo po <?= PocztaStud::MAX_REVEALS ?> pokazaniach.</li>
-    <li>Nikomu nie podawaj hasła ani kodu z SMS-a. Pracownicy Fundacji nigdy o nie nie proszą.</li>
-  </ul>
+  <div class="col-lg-5 d-flex flex-column gap-3">
+    <?php if ($stud_mail['hasPassword']): /* kroki pierwszego logowania tylko, gdy hasło startowe jeszcze czeka */ ?>
+    <section class="card" aria-labelledby="pm-start-h">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-2" id="pm-start-h">Pierwsze logowanie</h2>
+        <ol class="small mb-0 ps-3">
+          <li>Otwórz pocztę i zaloguj się pełnym adresem e-mail oraz hasłem startowym z SMS-a.</li>
+          <li>W ustawieniach poczty zmień hasło na własne, którego nie używasz nigdzie indziej.</li>
+          <li>Wróć tutaj i kliknij „Mam już własne hasło”.</li>
+        </ol>
+      </div>
+    </section>
+    <?php endif; ?>
+
+    <section class="card" aria-labelledby="pm-imap-h">
+      <div class="card-body">
+        <h2 class="h6 fw-bold mb-2" id="pm-imap-h">Program pocztowy albo telefon</h2>
+        <p class="small mb-2">Dodaj konto IMAP i podaj takie dane:</p>
+        <dl class="row small mb-0">
+          <dt class="col-5 fw-normal text-body-secondary">Serwer</dt><dd class="col-7 font-monospace mb-1"><?= h($_pm_host) ?></dd>
+          <dt class="col-5 fw-normal text-body-secondary">Użytkownik</dt><dd class="col-7 mb-1">pełny adres e-mail</dd>
+          <dt class="col-5 fw-normal text-body-secondary">Poczta przychodząca</dt><dd class="col-7 mb-1">IMAP, SSL/TLS, port 993</dd>
+          <dt class="col-5 fw-normal text-body-secondary">Poczta wychodząca</dt><dd class="col-7 mb-0">SMTP, SSL/TLS, port 465</dd>
+        </dl>
+      </div>
+    </section>
+
+    <div class="alert alert-light border border-start border-4 border-primary mb-0" role="note" aria-labelledby="pm-imp-h">
+      <p class="fw-semibold mb-1" id="pm-imp-h">Ważne</p>
+      <p class="small mb-1">Hasło do poczty jest inne niż do panelu kursanta. Startowe trzymamy tutaj <?= PocztaStud::TTL_DAYS ?> dni i pokazujemy najwyżej <?= PocztaStud::MAX_REVEALS ?> razy, potem znika.</p>
+      <p class="small mb-1">Nikt z Fundacji nie poprosi Cię o hasło ani o kod z SMS-a.</p>
+      <p class="small mb-0">Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</p>
+    </div>
+  </div>
 </div>
-<p class="small text-body-secondary mb-0">Kłopot z logowaniem do poczty? Napisz przez <a href="?tab=problem">Pomoc</a>.</p>
+<p class="small text-body-secondary mt-3 mb-0">Kłopot z logowaniem do poczty? Napisz przez <a href="?tab=problem">Pomoc</a>.</p>
 
 <script>
 (function () {
