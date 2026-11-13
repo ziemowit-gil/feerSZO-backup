@@ -525,6 +525,41 @@ final class SsoAccounts
         return ['email' => $email, 'username' => (string)$row['logto_username'], 'password' => $generated ? $password : null, 'logto' => 'password', 'cloud' => $cloud, 'job' => null];
     }
 
+    /**
+     * Reset hasła przez administratora (karta umowy, /ssoadmin#hasla; polecenie 2026-11-13): jedno nowe, wygenerowane hasło naraz
+     * w chmurze (NC) i w logowaniu jednokrotnym (zasada jednego hasła). Działa też przy samej chmurze, bez konta w Logto.
+     * Wyjątek, gdy osoba nie ma żadnego z tych kont albo nic się nie udało. Zwraca jak provision(): email, name, username,
+     * cloud_uid, password (do pokazania raz i SMS-a), logto ('password' | 'pominięte'), cloud (stan albo 'błąd: …').
+     */
+    public static function resetPassword(string $email, string $by): array
+    {
+        $email = strtolower(trim($email));
+        $row = self::get($email);
+        $hasLogto = $row && !empty($row['logto_id']) && SsoConfig::logtoConfigured();
+        $hasCloud = $row && !empty($row['cloud_uid']) && SsoConfig::cloudConfigured();
+        if (!$hasLogto && !$hasCloud) throw new RuntimeException('Ta osoba nie ma konta w chmurze ani w logowaniu jednokrotnym.');
+        $password = SsoConfig::generatePassword();
+        $logto = 'pominięte';
+        if ($hasLogto) {
+            SsoConfig::logto()->setPassword((string)$row['logto_id'], $password);
+            self::upsert($email, ['logto_pwd_at' => date('Y-m-d H:i:s'), 'logto_pwd_reset_at' => '']);
+            $logto = 'password';
+        }
+        $cloud = '';
+        if ($hasCloud) {
+            try { $cloud = self::cloudEnsure($email, (string)($row['logto_username'] ?? ''), (string)($row['name'] ?? ''), $password, false, $by); }
+            catch (\Throwable $e) { $cloud = 'błąd: ' . $e->getMessage(); }
+            if (!$hasLogto && ($cloud === 'usunięte w chmurze' || str_starts_with($cloud, 'błąd'))) {
+                throw new RuntimeException('Chmura: ' . ($cloud === 'usunięte w chmurze' ? 'konta nie ma już w chmurze' : substr($cloud, strlen('błąd: '))));
+            }
+        }
+        self::audit('sso.password_reset', ['email' => $email, 'by' => $by, 'logto' => $logto, 'cloud' => $cloud]);
+        $cur = self::get($email) ?? [];
+        return ['email' => $email, 'name' => (string)($row['name'] ?? ''),
+                'username' => $hasLogto ? (string)($row['logto_username'] ?? '') : (string)($cur['cloud_uid'] ?? ''),
+                'cloud_uid' => (string)($cur['cloud_uid'] ?? ''), 'password' => $password, 'logto' => $logto, 'cloud' => $cloud, 'job' => null];
+    }
+
     // ── Login chmury w Logto (customData.nc_uid) ────────────────────────────────────────────
 
     /**

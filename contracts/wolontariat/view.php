@@ -2838,6 +2838,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 <div class="tab-pane fade<?= ($_tab==='m365'||$_tab==='all')?' show active':'' ?>" id="tab-m365" role="tabpanel">
 
   <?php /* Skrzynka pocztowa (nowy serwer poczty) — modules/dhosting_migrator/view/contractMailbox.php */ include dirname(__DIR__, 2) . '/modules/dhosting_migrator/view/contractMailbox.php'; ?>
+  <?php /* Logowanie jednokrotne i chmura: nowe hasło (NC + Logto) — modules/sso_logto/view/contractPasswordCard.php */ include dirname(__DIR__, 2) . '/modules/sso_logto/view/contractPasswordCard.php'; ?>
 
   <?php
   // ── Kafle Metro: Microsoft 365 · Canva Pro · Dostępy IT ──────────────────────

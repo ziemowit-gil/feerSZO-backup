@@ -112,7 +112,10 @@ final class SsoController
         $type = (string)($_POST['type'] ?? '');
         $id = (int)($_POST['id'] ?? 0);
         if (!in_array($type, self::CONTRACT_TYPES, true) || $id <= 0) return Router::redirect(APP_URL . '/tozsamosc/index.php');
-        $back = APP_URL . '/tozsamosc/access.php?type=' . rawurlencode($type) . '&id=' . $id;
+        // ret=contract — karta „Hasła” na stronie umowy (zakładka M365) wraca na umowę, a nie do Zarządzania dostępem
+        $back = ($_POST['ret'] ?? '') === 'contract'
+            ? rtrim(APP_URL, '/') . '/contracts/' . $type . '/view.php?id=' . $id . '&tab=m365'
+            : APP_URL . '/tozsamosc/access.php?type=' . rawurlencode($type) . '&id=' . $id;
         $row = db_one("SELECT * FROM umowy_{$type} WHERE id=?", [$id]);
         if (!$row) return $this->flashGlobal($back, 'danger', 'Nie znaleziono umowy.');
         $person = self::personFromContract($row);
@@ -137,6 +140,7 @@ final class SsoController
             $res = match ($do) {
                 'create'   => SsoAccounts::provision($person, ['cloud' => !empty($_POST['cloud']), 'files' => !empty($_POST['files']), 'by' => $by, 'via' => 'admin']),
                 'password' => SsoAccounts::setPassword($person['email'], null, $by),
+                'reset'    => SsoAccounts::resetPassword($person['email'], $by),   // jedno nowe hasło: chmura (NC) + logowanie jednokrotne
                 'cloud'    => SsoAccounts::provision($person, ['cloud' => true, 'files' => !empty($_POST['files']), 'by' => $by, 'via' => 'admin']),
                 default    => throw new InvalidArgumentException('Nieznana czynność.'),
             };

@@ -2120,6 +2120,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <div class="tab-pane fade<?php if($_tab==='m365') echo ' show active'; ?>" id="tab-m365" role="tabpanel">
 
   <?php /* Skrzynka pocztowa (nowy serwer poczty) — modules/dhosting_migrator/view/contractMailbox.php */ include dirname(__DIR__, 2) . '/modules/dhosting_migrator/view/contractMailbox.php'; ?>
+  <?php /* Logowanie jednokrotne i chmura: nowe hasło (NC + Logto) — modules/sso_logto/view/contractPasswordCard.php */ include dirname(__DIR__, 2) . '/modules/sso_logto/view/contractPasswordCard.php'; ?>
 
   <div class="card shadow-sm">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
