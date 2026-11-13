@@ -744,6 +744,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // ── Skrzynka pocztowa na nowym serwerze poczty (polecenie 2026-11-13; konto M365 jest teraz opcjonalne) ──
+        if (!empty($_POST['dh_create']) && !$is_technical) {
+            try {
+                require_once dirname(dirname(__DIR__)) . '/modules/dhosting_migrator/logic/DhostingContractMail.php';
+                if (DhostingContractMail::enabled()) {
+                    $_dh_prefer = $m365_login_created ?: ($m365_create_mode === 'manual' ? trim((string)($_POST['m365_login'] ?? '')) : '');
+                    $_dh = DhostingContractMail::provision($TYPE, $id, $data, (string)(current_user()['email'] ?? ''), $_dh_prefer !== '' ? $_dh_prefer : null);
+                    $_dh_note = ' Skrzynka pocztowa ' . $_dh['mailbox'] . ($_dh['action'] === 'created' ? ' założona' : ' przywrócona')
+                        . ' — hasło w zakładce „M365” (widoczne tylko raz)' . ($_dh['sms'] !== '' ? ', SMS: ' . $_dh['sms'] : '') . '.';
+                }
+            } catch (\Throwable $e) {
+                $m365_warn .= ($m365_warn !== '' ? ' ' : '') . 'Skrzynka pocztowa nie została założona: ' . $e->getMessage();
+            }
+        }
+
         // ── Konto portalu wolontariusza ──────────────────────────────────────
         if (!empty($data['email'])) {
             $setup_result = _wolontariat_provision_account(
@@ -840,7 +855,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $done_msg = 'Porozumienie wolontariackie zostało dodane.';
         }
-        flash_set($m365_warn !== '' ? 'warning' : 'success', $done_msg . ($m365_warn !== '' ? ' ' . $m365_warn : ''));
+        flash_set($m365_warn !== '' ? 'warning' : 'success', $done_msg . ($_dh_note ?? '') . ($m365_warn !== '' ? ' ' . $m365_warn : ''));
         // ── Zachęta do uzupełnienia profilu w katalogu ────────────────────────
         if (!empty($data['email']) && filter_var($data['email'], FILTER_VALIDATE_EMAIL) && !$is_technical) {
             try {
@@ -887,7 +902,7 @@ HTML;
         }
 
         $show = $recovery_plain !== null ? '&show_recovery=1' : '';
-        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}&onboard=1{$show}");
+        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}&onboard=1{$show}" . (!empty($_dh) ? '&tab=m365#skrzynka' : ''));
         exit;
     }
 }
@@ -1920,32 +1935,51 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
+  <!-- Skrzynka pocztowa (nowy serwer poczty) -->
+  <?php require_once dirname(dirname(__DIR__)) . '/modules/dhosting_migrator/logic/DhostingContractMail.php';
+        $_dh_on = false; try { $_dh_on = DhostingContractMail::enabled(); } catch (\Throwable $e) {} ?>
+  <?php if ($_dh_on): ?>
+  <div class="wiz-card">
+    <div class="wiz-card-header">
+      <div class="wiz-card-icon" style="background:#EEF4FF;color:#0f6fa8"><i class="bi bi-envelope-at" aria-hidden="true"></i></div>
+      <div>
+        <div class="wiz-card-title">Skrzynka pocztowa</div>
+        <div class="wiz-card-subtitle">Adres imie.nazwisko@<?= h(DhostingContractMail::domain()) ?> na serwerze poczty Fundacji</div>
+      </div>
+    </div>
+    <div class="wiz-card-body">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="dh_create" id="dh_create" value="1" checked aria-describedby="dh_create_help">
+        <label class="form-check-label fw-semibold" for="dh_create">Załóż skrzynkę pocztową</label>
+        <div class="form-text ms-4" id="dh_create_help">Gdy ta osoba (PESEL) miała już skrzynkę, zostanie przywrócona. Hasło pójdzie SMS-em na numer z umowy
+          i pokaże się raz w zakładce „M365”. Skrzynka zostanie zawieszona <?= DhostingContractMail::GRACE_DAYS ?> dni po wygaśnięciu umowy (bez powiadomienia).</div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- Microsoft 365 -->
   <div class="wiz-card">
     <div class="wiz-card-header">
       <div class="wiz-card-icon" style="background:#EEF4FF;color:#0078D4"><i class="bi bi-microsoft"></i></div>
       <div>
-        <div class="wiz-card-title">Konto Microsoft 365</div>
-        <div class="wiz-card-subtitle">Utwórz lub powiąż konto M365 wolontariusza</div>
+        <div class="wiz-card-title">Konto Microsoft 365 <span class="fw-normal text-muted small">(opcjonalnie)</span></div>
+        <div class="wiz-card-subtitle">Domyślnie bez konta M365 — zaznacz, jeśli jest potrzebne</div>
       </div>
     </div>
     <div class="wiz-card-body">
       <?php if ($m365_enabled): ?>
       <div class="d-flex flex-column gap-2">
         <div class="form-check">
-          <input class="form-check-input" type="radio" name="m365_create_mode" id="m365_mode_auto" value="auto" checked>
+          <input class="form-check-input" type="checkbox" name="m365_create_mode" id="m365_mode_auto" value="auto">
           <label class="form-check-label fw-semibold" for="m365_mode_auto">
-            <i class="bi bi-magic text-primary me-1"></i>Utwórz konto M365 automatycznie
+            <i class="bi bi-magic text-primary me-1" aria-hidden="true"></i>Utwórz konto Microsoft 365
           </label>
-          <div class="form-text ms-4">Jedno hasło do portalu i Microsoft 365</div>
+          <div class="form-text ms-4">Jedno hasło do portalu i Microsoft 365. Niezaznaczone = bez konta M365.</div>
         </div>
         <div class="form-check">
-          <input class="form-check-input" type="radio" name="m365_create_mode" id="m365_mode_manual" value="manual">
+          <input class="form-check-input" type="checkbox" name="m365_create_mode" id="m365_mode_manual" value="manual">
           <label class="form-check-label" for="m365_mode_manual">Konto M365 już istnieje — podaj dane</label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="radio" name="m365_create_mode" id="m365_mode_none" value="none">
-          <label class="form-check-label text-muted" for="m365_mode_none">Bez konta M365</label>
         </div>
       </div>
       <?php else: ?>
@@ -1954,12 +1988,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <a href="<?= APP_URL ?>/admin/m365.php" class="small">Ustawienia</a>
       </div>
       <div class="form-check mb-1">
-        <input class="form-check-input" type="radio" name="m365_create_mode" id="m365_mode_manual" value="manual">
+        <input class="form-check-input" type="checkbox" name="m365_create_mode" id="m365_mode_manual" value="manual">
         <label class="form-check-label" for="m365_mode_manual">Konto M365 istnieje — wpisz dane</label>
-      </div>
-      <div class="form-check">
-        <input class="form-check-input" type="radio" name="m365_create_mode" id="m365_mode_none" value="none" checked>
-        <label class="form-check-label text-muted" for="m365_mode_none">Bez konta M365</label>
       </div>
       <?php endif; ?>
 
@@ -2640,15 +2670,16 @@ document.getElementById('z_webngo')?.addEventListener('change', function() {
   }
 });
 
-// M365 tryb
+// M365 (opcjonalnie): dwa pola wyboru, najwyżej jedno zaznaczone; „istnieje” pokazuje pola loginu
 (function() {
-  var radios = document.querySelectorAll('[name="m365_create_mode"]');
+  var boxes = document.querySelectorAll('[name="m365_create_mode"]');
   var manual = document.getElementById('m365_manual_fields');
-  function upd() {
+  function upd(e) {
+    if (e && e.target.checked) boxes.forEach(function(b) { if (b !== e.target) b.checked = false; });
     var v = document.querySelector('[name="m365_create_mode"]:checked')?.value;
     if (manual) manual.style.display = v === 'manual' ? '' : 'none';
   }
-  radios.forEach(function(r) { r.addEventListener('change', upd); }); upd();
+  boxes.forEach(function(r) { r.addEventListener('change', upd); }); upd();
 })();
 
 // ── Identity toggle ───────────────────────────────────────────────────────────

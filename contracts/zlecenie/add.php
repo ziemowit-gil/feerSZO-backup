@@ -224,7 +224,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('success', 'Umowa zlecenie została dodana.');
         }
-        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}"); exit;
+
+        // ── Skrzynka pocztowa na nowym serwerze poczty (polecenie 2026-11-13) ──
+        if (!empty($_POST['dh_create'])) {
+            $_dh_note = '';
+            try {
+                require_once dirname(dirname(__DIR__)) . '/modules/dhosting_migrator/logic/DhostingContractMail.php';
+                if (DhostingContractMail::enabled()) {
+                    $_dh = DhostingContractMail::provision($TYPE, $id, $data, (string)(current_user()['email'] ?? ''), $m365_login_created !== '' ? $m365_login_created : null);
+                    $_dh_note = 'Skrzynka pocztowa <strong>' . h($_dh['mailbox']) . '</strong> ' . ($_dh['action'] === 'created' ? 'założona' : 'przywrócona')
+                        . ' — hasło w zakładce „M365” (widoczne tylko raz).';
+                }
+            } catch (\Throwable $e) {
+                $_dh_note = '<span class="text-warning fw-semibold">Skrzynka pocztowa nie została założona:</span> ' . h($e->getMessage());
+            }
+            if ($_dh_note !== '') { $_f = flash_get(); flash_set($_f['type'] ?? 'success', trim(($_f['msg'] ?? '') . ' ' . $_dh_note)); }
+        }
+        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}" . (!empty($_dh) ? '&tab=m365#skrzynka' : '')); exit;
     }
 }
 
@@ -694,8 +710,18 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <label for="m365_create_now" class="zl-check">
         <input class="zl-cb" type="checkbox" name="m365_create_now" id="m365_create_now" value="1" aria-describedby="m365_create_help">
         <span><strong class="tw-font-semibold"><i class="bi bi-microsoft tw-mr-1 tw-text-blue-600" aria-hidden="true"></i>Utwórz konto Microsoft 365 przy zapisie</strong>
-          <span id="m365_create_help" class="tw-block tw-text-xs tw-text-slate-500">Wymaga wolnej licencji i aktywnej integracji M365. Dane logowania pójdą na e-mail kontaktowy. Konto można też założyć później w widoku umowy.</span></span>
+          <span id="m365_create_help" class="tw-block tw-text-xs tw-text-slate-500">Opcjonalnie. Wymaga wolnej licencji i aktywnej integracji M365. Dane logowania pójdą na e-mail kontaktowy. Konto można też założyć później w widoku umowy.</span></span>
       </label>
+      <?php require_once dirname(dirname(__DIR__)) . '/modules/dhosting_migrator/logic/DhostingContractMail.php';
+            $_dh_on = false; try { $_dh_on = DhostingContractMail::enabled(); } catch (\Throwable $e) {} ?>
+      <?php if ($_dh_on): ?>
+      <label for="dh_create" class="zl-check tw-mt-3">
+        <input class="zl-cb" type="checkbox" name="dh_create" id="dh_create" value="1" checked aria-describedby="dh_create_help">
+        <span><strong class="tw-font-semibold"><i class="bi bi-envelope-at tw-mr-1 tw-text-blue-600" aria-hidden="true"></i>Załóż skrzynkę pocztową imie.nazwisko@<?= h(DhostingContractMail::domain()) ?></strong>
+          <span id="dh_create_help" class="tw-block tw-text-xs tw-text-slate-500">Gdy ta osoba (PESEL) miała już skrzynkę, zostanie przywrócona. Hasło pokaże się raz w zakładce „M365” umowy.
+            Skrzynka zostanie zawieszona <?= DhostingContractMail::GRACE_DAYS ?> dni po wygaśnięciu umowy (bez powiadomienia).</span></span>
+      </label>
+      <?php endif; ?>
     </div>
 
     <?php if (!empty($_task_workspaces)): ?>

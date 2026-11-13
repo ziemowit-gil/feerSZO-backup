@@ -13,6 +13,7 @@ declare(strict_types=1);
  */
 require_once __DIR__ . '/DhostingMigrator.php';
 require_once __DIR__ . '/DhostingGuest.php';
+require_once __DIR__ . '/DhostingContractMail.php';
 require_once dirname(__DIR__) . '/lib/DhostingGraphSource.php';
 require_once dirname(__DIR__, 2) . '/audit_logs/logic/audit_logs.php';
 require_once dirname(__DIR__, 3) . '/includes/admin_audit.php';
@@ -157,6 +158,50 @@ final class DhostingMigratorController
         }
         DhostingCopy::runSoon($id);
         return $this->flash($back, 'success', 'Kopiowanie do ' . $job['mailbox'] . ' ruszy w najbliższym przebiegu (do 5 min).');
+    }
+
+    /**
+     * POST /migracjaadmin/skrzynka — administrator w widoku umowy: op=password | suspend | restore | create
+     * (karta „Skrzynka pocztowa”, view/contractMailbox.php). Komunikaty przez flash SZO, powrót do zakładki M365 umowy.
+     */
+    public function boxPost(): ?string
+    {
+        $type = (string)($_POST['type'] ?? '');
+        $id   = (int)($_POST['id'] ?? 0);
+        $table = DhostingContractMail::TABLES[$type] ?? null;
+        if (!$table || $id <= 0) return Router::redirect(route('dhm.index'));
+        $back = APP_URL . "/contracts/{$type}/view.php?id={$id}&tab=m365#skrzynka";
+        if (!ika_ok($back)) { flash_set('warning', 'Sesja kodu IKA wygasła — potwierdź kod IKA i powtórz.'); return Router::redirect($back); }
+        $row = db_one("SELECT * FROM {$table} WHERE id=?", [$id]);
+        if (!$row) { flash_set('error', 'Nie znaleziono umowy.'); return Router::redirect($back); }
+        $by = (string)(current_user()['email'] ?? '');
+        $phone = (string)($row['telefon'] ?? '');
+        $sms = !empty($_POST['sms']);
+        $op = (string)($_POST['op'] ?? '');
+        try {
+            if ($op === 'create') {
+                $r = DhostingContractMail::provision($type, $id, $row, $by, null);
+                flash_set('success', ($r['action'] === 'created' ? 'Założono skrzynkę ' : 'Przywrócono dawną skrzynkę ') . $r['mailbox'] . ' — hasło poniżej (tylko teraz).');
+            } else {
+                $box = DhostingContractMail::boxForContract($type, $id);
+                if (!$box) { flash_set('error', 'Ta umowa nie ma skrzynki pocztowej.'); return Router::redirect($back); }
+                $mb = (string)$box['mailbox'];
+                if ($op === 'password') {
+                    DhostingContractMail::adminPassword($mb, $by, $sms, $phone, [$type, $id]);
+                    flash_set('success', 'Ustawiono nowe hasło do ' . $mb . ' — widoczne poniżej tylko teraz.');
+                } elseif ($op === 'suspend') {
+                    DhostingContractMail::suspend($mb, 'decyzja administratora', $by);
+                    flash_set('success', 'Skrzynka ' . $mb . ' zawieszona (wyłączona, losowe hasło). Użytkownik nie dostał powiadomienia.');
+                } elseif ($op === 'restore') {
+                    DhostingContractMail::restore($mb, $by, $sms, $phone, [$type, $id]);
+                    flash_set('success', 'Skrzynka ' . $mb . ' przywrócona — nowe hasło poniżej (tylko teraz).');
+                }
+            }
+        } catch (\Throwable $e) {
+            flash_set('error', 'Serwer poczty: ' . $e->getMessage());
+        }
+        try { admin_audit_migrate(); admin_audit('dhosting_box_' . $op, 'dhosting', 'Skrzynka umowy ' . $type . ' #' . $id . ': ' . $op, $id, $type); } catch (\Throwable $e) {}
+        return Router::redirect($back);
     }
 
     // ── Użytkownik ─────────────────────────────────────────────────────────────────────────────

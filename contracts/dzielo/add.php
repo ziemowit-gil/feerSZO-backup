@@ -105,7 +105,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         flash_set('success', 'Umowa o dzieło została dodana.');
-        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}");
+        // ── Skrzynka pocztowa na nowym serwerze poczty (polecenie 2026-11-13) ──
+        if (!empty($_POST['dh_create'])) {
+            try {
+                require_once dirname(dirname(__DIR__)) . '/modules/dhosting_migrator/logic/DhostingContractMail.php';
+                if (DhostingContractMail::enabled()) {
+                    $_dh = DhostingContractMail::provision($TYPE, $id, $data, (string)(current_user()['email'] ?? ''), null);
+                    flash_set('success', 'Umowa o dzieło została dodana. Skrzynka pocztowa ' . $_dh['mailbox'] . ' ' . ($_dh['action'] === 'created' ? 'założona' : 'przywrócona') . ' — hasło poniżej (widoczne tylko raz).');
+                }
+            } catch (\Throwable $e) {
+                flash_set('warning', 'Umowa o dzieło została dodana, ale skrzynka pocztowa nie została założona: ' . $e->getMessage());
+            }
+        }
+        header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}" . (!empty($_dh) ? '&tab=m365#skrzynka' : ''));
         exit;
     }
 }
@@ -458,7 +470,21 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <!-- TAB 5: M365 i uwagi -->
 <div data-tab-pane="5" x-show="tab===5" x-cloak class="tw-p-6">
 
-  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-microsoft"></i> Microsoft 365</h2>
+  <?php require_once dirname(dirname(__DIR__)) . '/modules/dhosting_migrator/logic/DhostingContractMail.php';
+        $_dh_on = false; try { $_dh_on = DhostingContractMail::enabled(); } catch (\Throwable $e) {} ?>
+  <?php if ($_dh_on): ?>
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-envelope-at" aria-hidden="true"></i> Skrzynka pocztowa</h2>
+  <div class="tw-mb-6">
+    <label for="dh_create" class="tw-flex tw-items-start tw-gap-2 tw-text-sm tw-text-slate-700">
+      <input class="tw-h-4 tw-w-4 tw-mt-0.5 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="dh_create" id="dh_create" value="1" checked aria-describedby="dh_create_help">
+      <span>Załóż skrzynkę pocztową imie.nazwisko@<?= h(DhostingContractMail::domain()) ?>
+        <span id="dh_create_help" class="tw-block tw-text-xs tw-text-slate-500">Gdy ta osoba (PESEL) miała już skrzynkę, zostanie przywrócona. Hasło pokaże się raz w zakładce „M365” umowy.
+          Skrzynka zostanie zawieszona <?= DhostingContractMail::GRACE_DAYS ?> dni po wygaśnięciu umowy (bez powiadomienia).</span></span>
+    </label>
+  </div>
+  <?php endif; ?>
+
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-microsoft"></i> Microsoft 365 <span class="tw-normal-case tw-font-normal">(opcjonalnie)</span></h2>
   <div class="tw-mb-6">
     <label for="m365_konto" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700 tw-mb-3">
       <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="m365_konto" id="m365_konto" value="1" <?= !empty($row['m365_konto'])?'checked':'' ?>>

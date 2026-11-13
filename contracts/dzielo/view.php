@@ -712,6 +712,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <!-- ═══════════════════ TAB 5 — M365 ═══════════════════ -->
 <div class="tab-pane fade<?php if($_tab==='m365') echo ' show active'; ?>" id="tab-m365" role="tabpanel">
 
+  <?php /* Skrzynka pocztowa (nowy serwer poczty) — modules/dhosting_migrator/view/contractMailbox.php */ include dirname(__DIR__, 2) . '/modules/dhosting_migrator/view/contractMailbox.php'; ?>
+
   <div class="card shadow-sm">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
     <span><i class="bi bi-microsoft"></i> Microsoft 365</span>

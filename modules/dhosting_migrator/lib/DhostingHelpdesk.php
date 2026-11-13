@@ -30,15 +30,17 @@ final class DhostingHelpdesk
     /**
      * Dopisuje zdarzenie (notatka wewnętrzna) do zgłoszenia skrzynki; gdy zgłoszenia nie ma — zakłada je.
      * $who: osoba, której dotyczy skrzynka — user_id, name, login (konto Microsoft 365); brakujące dane z rejestru skrzynek.
-     * Zwraca id zgłoszenia albo null (błąd — zapisany w error_log).
+     * $create=false: tylko dopisz do istniejącego (np. ciche zawieszenie — nowe zgłoszenie wysłałoby osobie potwierdzenie).
+     * Zwraca id zgłoszenia albo null (brak zgłoszenia przy $create=false albo błąd — zapisany w error_log).
      */
-    public static function event(string $mailbox, string $note, array $who = []): ?int
+    public static function event(string $mailbox, string $note, array $who = [], bool $create = true): ?int
     {
         $mailbox = strtolower(trim($mailbox));
         if ($mailbox === '') return null;
         try {
             self::boot();
             $ticket = self::ticketFor($mailbox);
+            if (!$ticket && !$create) return null;
             $id = $ticket ? (int)$ticket['id'] : self::open($mailbox, $who);
             self::note($id, $note);
             return $id;

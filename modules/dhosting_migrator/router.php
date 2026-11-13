@@ -26,6 +26,7 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->post('/migracjaadmin/ustawienia', [DhostingMigratorController::class, 'saveSettings'])->name('dhm.settings');
     $r->post('/migracjaadmin/test',       [DhostingMigratorController::class, 'test'])->name('dhm.test');
     $r->post('/migracjaadmin/kopia',      [DhostingMigratorController::class, 'copyAction'])->name('dhm.copy');
+    $r->post('/migracjaadmin/skrzynka',   [DhostingMigratorController::class, 'boxPost'])->name('dhm.box');   // karta w widoku umowy
 });
 
 // Bez middleware 'auth': kontroler wpuszcza zalogowanego albo gościa potwierdzonego zestawem danych + kodem SMS

@@ -161,6 +161,12 @@ final class DhostingApi
         ]);
     }
 
+    /** Włącza (true) albo wyłącza (false) całą skrzynkę — PUT /email/changeMailboxStatus {MailboxName, NewStatus}. */
+    public function changeMailboxStatus(string $mailbox, bool $enabled): array
+    {
+        return $this->call('PUT', '/email/changeMailboxStatus', ['MailboxName' => strtolower(trim($mailbox)), 'NewStatus' => $enabled]);
+    }
+
     public function changeMailboxPhoneNumber(string $mailbox, string $phone): array
     {
         $p = self::phoneForApi($phone);

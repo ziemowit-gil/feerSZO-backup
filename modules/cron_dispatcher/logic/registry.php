@@ -385,6 +385,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/agents/dhosting_copy.php',
             'interval' => 300,          // co 5 min — kopiowanie poczty M365 → dhosting (migrator), porcja ~4 min; niedostępność = ponowienie zadania za 6 h; bez zadań pomija
         ],
+        'dhosting_suspend' => [
+            'file'     => $cronDir . '/agents/dhosting_suspend.php',
+            'interval' => 3600,         // co godzinę — skrzynki pocztowe zawieszane 2 dni po wygaśnięciu umowy (bez powiadomienia); dhosting_contract_suspend=0 wyłącza
+        ],
         'backup_remote_full' => [
             'file'     => $cronDir . '/agents/backup_remote_full.php',
             'interval' => 86400,        // raz dziennie — pełna kopia na serwer zdalny, gdy minął ustawiony okres (doba / 7 dni) + retencja na serwerze
