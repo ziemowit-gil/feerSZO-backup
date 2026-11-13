@@ -62,7 +62,7 @@ final class LicencjeKursantController
 
     /** Podstrony panelu: klucz => [trasa, tytuł]. Produkty płatne (claude, nordvpn) mają podstronę lk.licence. */
     public const PAGES = ['office' => ['lk.office', 'Licencje na Office'], 'programy' => ['lk.programs', 'Programy i klucze'], 'materialy' => ['lk.materials', 'Materiały dydaktyczne'],
-        'sprawy' => ['lk.cases', 'Moje sprawy'], 'produkty' => ['lk.products', 'Produkty i usługi'], 'rozliczenia' => ['lk.billing', 'Rozliczenia'], 'dysk' => ['lk.drive', 'Dysk Online'], 'poczta' => ['lk.mail', 'Poczta'], 'konto' => ['lk.account', 'Moje konto']];
+        'sprawy' => ['lk.cases', 'Moje sprawy'], 'produkty' => ['lk.products', 'Produkty i usługi'], 'rozliczenia' => ['lk.billing', 'Rozliczenia'], 'dysk' => ['lk.drive', 'Dysk Online'], 'poczta' => ['lk.mail', 'Poczta kursanta'], 'konto' => ['lk.account', 'Moje konto']];
 
     /** Adres podstrony dla klucza (produkt płatny, strona albo '' = start). */
     public static function pageUrl(string $key): string

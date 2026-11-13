@@ -46,7 +46,7 @@ $qf = '<input type="hidden" name="q" value="' . h($q) . '">';
       <div><dt>Panel Licencji</dt><dd><?= $r['login'] ? '<span class="m-mono">' . h($r['login']) . '</span>' : 'bez loginu' ?>, hasło <?= $r['hasPass'] ? 'ustawione' : 'brak' ?><?= $r['last'] !== '' ? '<span class="m-note tw-block">ostatnio ' . h(date('d.m.Y H:i', strtotime($r['last']))) . '</span>' : '' ?></dd></div>
       <div><dt>Konto Office</dt><dd><?= $o['upn'] !== '' ? '<span class="m-mono">' . h($o['upn']) . '</span> ' : 'brak imienia lub nazwiska ' ?><?= $tag($o['ok'] ? 'ok' : ($o['state'] === 'error' ? 'bad' : 'off'), $o['ok'] ? 'aktywne' : $o['label']) ?></dd></div>
       <div><dt>Karta</dt><dd><?= $r['card'] ? h(LicenceCard::label($r['card'])) : '<span class="m-muted">brak</span>' ?></dd></div>
-      <div><dt>Poczta @<?= h(PocztaStud::DOMAIN) ?></dt><dd><?= $r['mail'] ? '<span class="m-mono">' . h($r['mail']['login']) . '</span>, hasło ' . ($r['mail']['hasPassword'] ? 'wpisane' : 'brak') : '<span class="m-muted">brak</span>' ?></dd></div>
+      <div><dt>Poczta kursanta</dt><dd><?= $r['mail'] ? '<span class="m-mono">' . h($r['mail']['login']) . '</span>, hasło ' . ($r['mail']['hasPassword'] ? 'wpisane' : 'brak') : '<span class="m-muted">brak</span>' ?></dd></div>
     </dl>
     <p class="tw-text-sm"><?= $r['why'] ? 'Ma: ' . h(implode(', ', array_slice($r['why'], 0, 5))) . (count($r['why']) > 5 ? ' i ' . (count($r['why']) - 5) . ' inne' : '') : '<span class="m-muted">Brak licencji i produktów' . ($r['unpaid'] ? '. Płatne bez faktury VAT: ' . h(implode(', ', $r['unpaid'])) : '') . '.</span>' ?></p>
     <div class="tw-flex tw-flex-wrap tw-gap-2 tw-mt-2">
@@ -62,9 +62,9 @@ $qf = '<input type="hidden" name="q" value="' . h($q) . '">';
         <button class="m-btn-ghost" type="submit">Zaloguj jako uczestnik<span class="tw-sr-only"> (<?= h($r['name']) ?>, podgląd)</span></button></form>
     </div>
     <?php $mk = 'pm' . (int)$r['id']; $ml = $r['mail']; ?>
-    <details class="tw-mt-3"><summary>Poczta @<?= h(PocztaStud::DOMAIN) ?><span class="tw-sr-only"> (<?= h($r['name']) ?>)</span></summary>
+    <details class="tw-mt-3"><summary>Poczta kursanta (@<?= h(PocztaStud::DOMAIN) ?>)<span class="tw-sr-only"> (<?= h($r['name']) ?>)</span></summary>
       <form method="post" action="<?= h(route('lk.admin.studmail')) ?>" class="tw-mt-3" style="max-width:560px" autocomplete="off"><?= Router::csrfField() ?><?= $qf ?><input type="hidden" name="client_id" value="<?= (int)$r['id'] ?>">
-        <p class="tw-text-sm tw-mb-3">Skrzynkę prowadzi <?= h(PocztaStud::PROVIDER) ?>, to nie jest konto Microsoft 365. Wpisz login i hasło z panelu dostawcy. Uczestnik zobaczy login i link do poczty <?= h(PocztaStud::WEBMAIL) ?>, a hasło odsłoni kodem SMS w panelu kursanta albo w Panelu Licencji.</p>
+        <p class="tw-text-sm tw-mb-3">Skrzynkę prowadzi <?= h(PocztaStud::PROVIDER) ?>. Wpisz login i hasło z panelu dostawcy. Uczestnik zobaczy login i link do poczty <?= h(PocztaStud::WEBMAIL) ?>, a hasło odsłoni kodem SMS w panelu kursanta albo w Panelu Licencji.</p>
         <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3">
           <div><label class="m-label" for="<?= $mk ?>-l">Login (adres)</label>
             <input class="m-input" id="<?= $mk ?>-l" name="mail_login" value="<?= h($ml['login'] ?? '') ?>" placeholder="jan.kowalski@<?= h(PocztaStud::DOMAIN) ?>" required aria-describedby="<?= $mk ?>-lh">

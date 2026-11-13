@@ -87,7 +87,7 @@ $_alt_sections = [
         'items' => [
             $_it('licencje', 'Licencje',           $_g('licencje'), $_n_lic),
             ...(!empty($account['ms_upn']) ? [$_it('office', 'Microsoft 365 (EDU)', $_g('office'))] : []),   // tylko z aktywnym kontem EDU
-            ...(!empty($stud_mail) ? [$_it('poczta', 'Poczta szkolna', $_g('poczta'))] : []),               // poczta @stud.feer.org.pl (sdata.net.pl)
+            ...(!empty($stud_mail) ? [$_it('poczta', 'Poczta kursanta', $_g('poczta'))] : []),               // poczta @stud.feer.org.pl (sdata.net.pl)
             $_it('pfron',    'PFRON (konsultacje)', $_g('pfron')),
             $_it('',         'Biblioteka materiałów', '../ext/index.php?as=student'),
         ],

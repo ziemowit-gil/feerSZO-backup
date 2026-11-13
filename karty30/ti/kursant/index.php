@@ -169,7 +169,7 @@ if (!$account || empty($account['is_active'])) { student_logout(); header('Locat
 // Wymuszona zmiana hasła (po logowaniu kodem SMS) odbywa się w Tożsamości.
 if (!empty($account['must_change_password'])) { header('Location: ' . APP_URL . '/tozsamosc/kursant_haslo.php'); exit; }
 $client  = db_one("SELECT * FROM k30_clients WHERE id=?", [$student['client_id']]) ?: [];
-// Poczta @stud.feer.org.pl (sdata.net.pl, nie Microsoft 365): login i hasło wpisuje kadra; zakładka „Poczta” tylko, gdy jest wpis (modules/ti_poczta_stud)
+// Poczta kursanta @stud.feer.org.pl (sdata.net.pl, niezależna od Microsoft 365): login i hasło wpisuje kadra; zakładka tylko, gdy jest wpis (modules/ti_poczta_stud)
 require_once dirname(__DIR__, 3) . '/modules/ti_poczta_stud/logic/PocztaStud.php';
 $stud_mail = PocztaStud::get((int)$student['client_id']);
 
@@ -1382,7 +1382,7 @@ include __DIR__ . '/_layout_head.php';
       'Komunikacja' => [['komunikaty','megaphone','Komunikaty'], ['wiadomosci','envelope','Wiadomości']],
       'Konto' => array_merge($is_minor ? [] : [['platnosci','cash-coin','Płatności'], ['rozliczenia','receipt','Rozliczenia'],
                       ['portfel','wallet2','Portfel'], ['upowaznieni','person-check','Upoważnieni']], [['dokumenty','folder2-open','Dokumenty','dokumenty.php'], ['zgody','shield-check','Zgody','zgody.php'], ['ustawienia','gear','Ustawienia']]),
-      'Dostępy' => array_merge([['licencje','key','Licencje i usługi']], $stud_mail ? [['poczta','envelope-at','Poczta szkolna']] : [], [['pfron','shield-lock','PFRON (konsultacje)']]),
+      'Dostępy' => array_merge([['licencje','key','Licencje i usługi']], $stud_mail ? [['poczta','envelope-at','Poczta kursanta']] : [], [['pfron','shield-lock','PFRON (konsultacje)']]),
       'Inne' => [['problem','life-preserver','Pomoc'], ['aktywnosc','clock-history','Aktywność konta'], ['regulaminy','file-earmark-text','Regulaminy']],
   ];
   $kp_tab_label = [];
@@ -1501,7 +1501,7 @@ include __DIR__ . '/_layout_head.php';
           <?php if (!empty($my_licenses)): ?><span class="badge text-bg-secondary ms-2"><?= count($my_licenses) ?></span><?php endif; ?></a></li>
         <?php if ($stud_mail): ?>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='poczta'?'active':'' ?>" href="?tab=poczta" <?= $tab==='poczta'?'aria-current="page"':'' ?>>
-          <i class="bi bi-envelope-at me-2" aria-hidden="true"></i>Poczta szkolna</a></li>
+          <i class="bi bi-envelope-at me-2" aria-hidden="true"></i>Poczta kursanta</a></li>
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='pfron'?'active':'' ?>" href="?tab=pfron" <?= $tab==='pfron'?'aria-current="page"':'' ?>>
@@ -2294,7 +2294,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // nie jest wyłączona przez administratora (ti_edu_mail_enabled).
     if (ti_student_selfservice_enabled() && ti_edu_mail_enabled() && !empty($account['ms_upn']))
         $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
-    if ($stud_mail) $contact_emails[] = ['Poczta szkolna', $stud_mail['login']];   // @stud.feer.org.pl (sdata.net.pl)
+    if ($stud_mail) $contact_emails[] = ['Poczta kursanta', $stud_mail['login']];   // @stud.feer.org.pl (sdata.net.pl)
     if (!empty($account['guardian_email'])) $contact_emails[] = ['Opiekun', $account['guardian_email']];
 
     $contact_phones = [];

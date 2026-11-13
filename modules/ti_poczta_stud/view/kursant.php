@@ -1,7 +1,7 @@
 <?php
 /**
- * modules/ti_poczta_stud/view/kursant.php — zakładka „Poczta szkolna” w panelu kursanta TI (?tab=poczta, oba wyglądy panelu).
- * Poczta @stud.feer.org.pl prowadzona przez sdata.net.pl (nie Microsoft 365): adres/login, link do webmaila, hasło po kodzie jednorazowym.
+ * modules/ti_poczta_stud/view/kursant.php — zakładka „Poczta kursanta” w panelu kursanta TI (?tab=poczta, oba wyglądy panelu).
+ * Poczta @stud.feer.org.pl prowadzona przez sdata.net.pl, niezależna od Microsoft 365: adres/login, link do webmaila, hasło po kodzie jednorazowym.
  * Kod wysyła i sprawdza index.php (operacje stud_mail_code / stud_mail_verify, LicencjeKod z celem 'stud_mail').
  * Zmienne z index.php: $stud_mail (PocztaStud::get), $client.
  */
@@ -15,7 +15,7 @@ if ($_pm_otp && time() > (int)$_pm_otp['exp']) $_pm_otp = null;
 $_pm_host = preg_replace('#^https?://|/$#', '', PocztaStud::WEBMAIL);
 $_pm_tok  = h(student_token());
 ?>
-<h1 class="h5 fw-bold mb-1"><i class="bi bi-envelope-at text-primary me-2" aria-hidden="true"></i>Poczta szkolna</h1>
+<h1 class="h5 fw-bold mb-1"><i class="bi bi-envelope-at text-primary me-2" aria-hidden="true"></i>Poczta kursanta</h1>
 <p class="text-body-secondary small mb-3">Twoja skrzynka e-mail w Fundacji. Otwierasz ją w przeglądarce, na stronie <?= h($_pm_host) ?>.</p>
 
 <?php if ($_pm_msg): ?>
@@ -78,7 +78,7 @@ $_pm_tok  = h(student_token());
 <div class="alert alert-light border border-start border-4 border-primary" role="note" style="max-width:720px" aria-label="Ważne informacje o poczcie">
   <p class="fw-semibold mb-1">Ważne</p>
   <ul class="mb-0 small">
-    <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>. To nie jest konto Microsoft 365, więc nie zalogujesz się nim do Office ani Teams.</li>
+    <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</li>
     <li>Hasło do poczty jest inne niż hasło do panelu. Pokażemy je po kodzie, który wyślemy SMS-em.</li>
     <li>Jeśli zmienisz hasło na stronie poczty, tutaj nadal będzie stare.</li>
   </ul>

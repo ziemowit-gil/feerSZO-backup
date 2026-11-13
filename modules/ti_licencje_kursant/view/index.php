@@ -50,7 +50,7 @@ $tiles['produkty'] = ['Produkty i usługi', $products ? [count($products) . ' ' 
 $drive = array_values(array_filter($products, fn($x) => ($x['provider'] ?? '') === 'sdata' || stripos((string)$x['name'], 'dysk online') !== false))[0] ?? null;   // Dysk Online (pilotaż, sdata.net.pl)
 $tiles['dysk'] = ['Dysk Online', $drive ? ($drive['status'] === 'suspended' ? ['zawieszony', 'bad'] : ['aktywny', 'ok']) : ['pilotaż', 'due'], $drive ? (string)$drive['name'] : 'dysk w chmurze', false];
 // Poczta @stud.feer.org.pl (sdata.net.pl) — kafel tylko, gdy kadra wpisała konto (PocztaStud)
-if (!empty($studMail)) $tiles['poczta'] = ['Poczta', ['aktywna', 'ok'], (string)$studMail['login'], false];
+if (!empty($studMail)) $tiles['poczta'] = ['Poczta kursanta', ['aktywna', 'ok'], (string)$studMail['login'], false];
 $cardModes = array_filter($paid, fn($v) => ($v['payMode'] ?? '') === 'card' && $v['sub'] && in_array($v['sub']['status'], ['requested', 'active', 'suspended'], true));
 $tiles['rozliczenia'] = ['Rozliczenia', $card ? ['karta podpięta', 'ok'] : ($cardModes ? ['podepnij kartę', 'due'] : ['przelew', 'off']), $card ? LicenceCard::label($card) : 'karta i dane do faktur', !$card && $cardModes];
 $tiles['konto'] = ['Moje konto', $login ? ['aktywne', 'ok'] : ['bez numeru', 'off'], ($login ? 'numer ' . $login . ', ' : '') . 'hasło, kontakt', false];   // numer w opisie (znacznik zamienia litery na wielkie)
@@ -588,9 +588,9 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
 <?php endif; ?>
 
 <?php /* ── Moje konto ── */ ?>
-<?php /* ── Poczta @stud.feer.org.pl (sdata.net.pl): login, webmail, hasło po kodzie ── */ ?>
+<?php /* ── Poczta kursanta @stud.feer.org.pl (sdata.net.pl, niezależna od Microsoft 365): login, webmail, hasło po kodzie ── */ ?>
 <?php if ($page === 'poczta'): $sm = $studMail ?? null; $sp = (string)($studPass ?? ''); ?>
-<h1 class="m-title">Poczta</h1>
+<h1 class="m-title">Poczta kursanta</h1>
 <p class="m-explain">Twoja skrzynka e-mail w Fundacji. Otwierasz ją w przeglądarce, na stronie <?= h(preg_replace('#^https?://|/$#', '', PocztaStud::WEBMAIL)) ?>.</p>
 <?= $idsLine ?>
 <?php if (!$sm): ?>
@@ -612,7 +612,7 @@ $pchip = ['active' => ['działa', 'ok'], 'expiring' => ['kończy się wkrótce',
   <a class="m-btn tw-mt-3" href="<?= h(PocztaStud::WEBMAIL) ?>" target="_blank" rel="noopener">Otwórz pocztę ↗<span class="tw-sr-only"> (<?= h(PocztaStud::WEBMAIL) ?>, nowa karta)</span></a>
   <div class="m-imp" role="note" aria-label="Ważne informacje o poczcie"><p class="tw-font-semibold tw-mb-1">Ważne</p>
     <ul class="tw-list-disc tw-pl-5 tw-space-y-1" style="margin-top:0">
-      <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>. To nie jest konto Microsoft 365, więc nie zalogujesz się nim do Office.</li>
+      <li>Pocztę prowadzi <?= h(PocztaStud::PROVIDER) ?>.</li>
       <li>Hasło do poczty jest inne niż hasło do panelu. Pokażemy je po kodzie, który wyślemy SMS-em.</li>
       <li>Jeśli zmienisz hasło na stronie poczty, tutaj nadal będzie stare.</li>
     </ul></div>

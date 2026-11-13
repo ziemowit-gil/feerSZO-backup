@@ -2,9 +2,10 @@
 declare(strict_types=1);
 
 /**
- * modules/ti_poczta_stud/logic/PocztaStud.php — poczta uczestników TI w domenie stud.feer.org.pl (polecenie 2026-11-13).
+ * modules/ti_poczta_stud/logic/PocztaStud.php — „Poczta kursanta” w domenie stud.feer.org.pl (polecenie 2026-11-13).
  *
- * Skrzynki prowadzi sdata.net.pl, to NIE jest Microsoft 365. Webmail: https://titan.sdata.net.pl/.
+ * Osobna usługa sdata.net.pl, niezależna od Microsoft 365 (kont EDU i wyłącznika poczty Office) — w interfejsie nie wspominamy o M365.
+ * Webmail: https://titan.sdata.net.pl/.
  * System nie zakłada skrzynek: login i hasło wpisuje administrator — w Panelu Licencji (pulpit Administratora Licencji)
  * albo w Ewidencji Uczestników panelu TI (kierownik). Oba miejsca zapisują to samo konto (jedno na uczestnika, po client_id).
  *
