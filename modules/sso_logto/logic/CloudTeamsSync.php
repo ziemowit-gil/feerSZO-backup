@@ -89,8 +89,8 @@ final class CloudTeamsSync
         if ($out) self::members($out, [
             "SELECT a.id AS eid, a.koordynator_id AS user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
                FROM actions a JOIN users u ON u.id = a.koordynator_id",
-            ["SELECT action_id AS eid, 0 AS user_id, imie_nazwisko AS name, email, 1 AS is_active
-                FROM umowy_wolontariat WHERE COALESCE(action_id, 0) > 0 AND " . self::activeContract(), [date('Y-m-d')]],
+            ["SELECT action_id AS eid, 0 AS user_id, imie_nazwisko AS name, email, 1 AS is_active, 'wolontariat' AS ctype, id AS cid
+                FROM umowy_wolontariat WHERE COALESCE(action_id, 0) > 0 AND " . self::activeContractSql(), [date('Y-m-d')]],
         ]);
         return $out;
     }
@@ -107,15 +107,15 @@ final class CloudTeamsSync
                FROM org_units o JOIN users u ON u.id = o.supervisor_user_id",
         ];
         foreach (self::UNIT_CONTRACTS as $t) {
-            $sql[] = ["SELECT org_unit_id AS eid, 0 AS user_id, imie_nazwisko AS name, email, 1 AS is_active
-                         FROM umowy_{$t} WHERE COALESCE(org_unit_id, 0) > 0 AND " . self::activeContract(), [date('Y-m-d')]];
+            $sql[] = ["SELECT org_unit_id AS eid, 0 AS user_id, imie_nazwisko AS name, email, 1 AS is_active, '{$t}' AS ctype, id AS cid
+                         FROM umowy_{$t} WHERE COALESCE(org_unit_id, 0) > 0 AND " . self::activeContractSql(), [date('Y-m-d')]];
         }
         self::members($out, $sql);
         return $out;
     }
 
     /** Warunek SQL aktywnej umowy (status z grupy „active”, data zakończenia pusta albo nie minęła); parametr: dzisiejsza data. */
-    private static function activeContract(): string
+    public static function activeContractSql(): string
     {
         $in = function_exists('contractStatusSqlList') ? contractStatusSqlList('active') : "'podpisana','w realizacji','aneks'";
         return "status IN ($in) AND (COALESCE(data_zakonczenia, '') = '' OR data_zakonczenia >= ?)";
@@ -133,14 +133,15 @@ final class CloudTeamsSync
         foreach ($rows as $r) {
             $name = trim((string)$r['name']);
             $out[(int)$r['id']] = ['id' => (int)$r['id'], 'name' => $name, 'display' => $name !== '' ? self::KINDS[$prefix][2] . $name : '',
-                                   'active' => (int)$r['active'] === 1, 'want' => [], 'without' => []];
+                                   'active' => (int)$r['active'] === 1, 'want' => [], 'without' => [], 'withoutRefs' => []];
         }
         return $out;
     }
 
     /**
-     * Członkowie (zapytania zwracające eid, user_id, name, email, is_active; element może być [sql, parametry]) → listy „want”
-     * i „without” aktywnych pozycji. Zapytanie, którego tabela albo kolumna nie istnieje, pomijamy.
+     * Członkowie (zapytania zwracające eid, user_id, name, email, is_active, przy umowach także ctype i cid; element może być
+     * [sql, parametry]) → listy „want” i „without” aktywnych pozycji; „withoutRefs” [nazwa => user_id, email, ctype, cid] mówi,
+     * skąd jest osoba bez konta w chmurze (podpowiedzi w CloudAssignIssues). Zapytanie bez swojej tabeli albo kolumny pomijamy.
      */
     private static function members(array &$out, array $queries): void
     {
@@ -155,10 +156,17 @@ final class CloudTeamsSync
                 $uid = self::cloudUid((int)$m['user_id'], (string)($m['email'] ?? ''));
                 if ($uid !== '') { $out[$eid]['want'][$uid] = $name; continue; }
                 if (!in_array($name, $out[$eid]['without'], true)) $out[$eid]['without'][] = $name;
+                $ref = ['user_id' => (int)$m['user_id'], 'email' => strtolower(trim((string)($m['email'] ?? ''))), 'ctype' => (string)($m['ctype'] ?? ''), 'cid' => (int)($m['cid'] ?? 0)];
+                $prev = $out[$eid]['withoutRefs'][$name] ?? null;
+                if (!$prev || ($prev['ctype'] === '' && $ref['ctype'] !== '')) $out[$eid]['withoutRefs'][$name] = $ref;   // umowa daje lepszą podpowiedź
             }
         }
         // osoba z kontem w chmurze z innego źródła (np. umowa i konto SZO) nie jest „bez konta”
-        foreach ($out as &$e) if ($e['without'] && $e['want']) $e['without'] = array_values(array_diff($e['without'], $e['want']));
+        foreach ($out as &$e) {
+            if (!$e['without'] || !$e['want']) continue;
+            $e['without'] = array_values(array_diff($e['without'], $e['want']));
+            $e['withoutRefs'] = array_intersect_key($e['withoutRefs'], array_flip($e['without']));
+        }
         unset($e);
     }
 

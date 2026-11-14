@@ -360,7 +360,9 @@ $copyField = function (string $id, string $label, string $value) {
 
 <?php $tmRes = SsoController::takeResult('zespoly'); $tmTeams = CloudTeamsSync::teams(); $tmWs = CloudTeamsSync::workspaces(); $tmAct = CloudTeamsSync::actions(); $tmUnits = CloudTeamsSync::units();
       $tmKind = ['zespół' => 'Zespół', 'obszar' => 'Obszar', 'działanie' => 'Działanie', 'jednostka' => 'Jednostka'];
-      $tmCnt = fn(array $l) => count($l) . ' (aktywnych: ' . count(array_filter($l, fn($t) => $t['active'])) . ')'; ?>
+      $tmCnt = fn(array $l) => count($l) . ' (aktywnych: ' . count(array_filter($l, fn($t) => $t['active'])) . ')';
+      require_once dirname(__DIR__) . '/logic/CloudAssignIssues.php';
+      $tmIssues = CloudAssignIssues::collect(); $tmIssuesN = CloudAssignIssues::total($tmIssues); ?>
 <section class="card mb-4" id="zespoly" aria-labelledby="ssoTeamsH">
   <div class="card-header"><h2 id="ssoTeamsH" class="h6 mb-0"><i class="bi bi-people" aria-hidden="true"></i> Grupy w chmurze z SZO: zespoły, obszary, działania, jednostki</h2></div>
   <div class="card-body small">
@@ -399,6 +401,11 @@ $copyField = function (string $id, string $label, string $value) {
     <p class="mb-2">Grupę zakładamy, gdy pierwsza osoba ma do niej trafić. Grupa wyłączonej albo usuniętej pozycji zostaje, ale bez członków, więc udostępnienia nie znikają.
       Działanie zakończone albo anulowane liczy się jak wyłączone. Inne grupy w chmurze zostają bez zmian.
       Synchronizacja chodzi sama co 2 minuty, a przycisk uruchamia ją od razu.</p>
+    <?php if ($tmIssuesN > 0): ?>
+      <p class="mb-2">Część osób nie trafia do grup przez braki w przypisaniach (konto w chmurze, jednostka albo działanie w umowie, koordynator).
+        <button type="button" class="btn btn-warning btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#ssoAssignModal">
+          <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Problemy z przypisaniami: <?= (int)$tmIssuesN ?></button></p>
+    <?php endif; ?>
     <div class="d-flex flex-wrap gap-2">
       <form method="post" action="<?= h(route('sso.teamsSync')) ?>" class="m-0"><?= Router::csrfField() ?><input type="hidden" name="do" value="preview">
         <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-eye" aria-hidden="true"></i> Podgląd</button></form>
@@ -561,4 +568,5 @@ document.querySelectorAll('[data-copy]').forEach(function (b) {
 });
 </script>
 
+<?php include __DIR__ . '/assignIssuesModal.php';   // okno „Problemy z przypisaniami” poza panelami kart ?>
 <?php include dirname(__DIR__, 3) . '/includes/footer.php'; ?>
