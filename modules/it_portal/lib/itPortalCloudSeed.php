@@ -124,6 +124,9 @@ function itPortalCloudArticles(string $app): array {
         'menu-aplikacji' => ['Menu aplikacji i poruszanie się po chmurze',
             'menu aplikacji, launcher, aplikacje, kropki, dziewięć kropek, pulpit, pliki, biuro, zdjęcia, zespoły, aktywność, sklep aplikacji, text document, górny pasek, nawigacja, menu, menu konta, profil, status, wygląd i dostępność, motyw, wysoki kontrast, ciemny motyw, czcionka dla dysleksji, ustawienia osobiste, wyloguj, skróty klawiszowe, klawiatura, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNavBlocks($app), $app)), false, 13],
+        'linki-publiczne' => ['Linki publiczne i udostępnianie poza Fundację',
+            'link publiczny, linki publiczne, link, udostępnij linkiem, utwórz link publiczny, udostępnianie zewnętrzne, e-mail, hasło do linku, data wygaśnięcia, ukryj pobieranie, limit pobrań, notatka, etykieta, tylko podgląd, zezwalaj na edytowanie, uprawnienia niestandardowe, upuszczanie plików, prośba o plik, zdalny serwer, federacja, ustawienia zaawansowane, dodatkowe udostępnienia, usuń udostępnienie, rodo, dane osobowe, nextcloud',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudPublicLinkBlocks($app), $app)), false, 17],
         'biuro' => ['Biuro: dokumenty, arkusze i prezentacje w chmurze',
             'biuro, office, dokumenty, dokument, arkusze kalkulacyjne, arkusz, prezentacje, prezentacja, text document, plik tekstowy, notatki, szablony, szablon, utwórz nowy, pusty, ostatnie, moje, udostępnione dla mnie, odt, ods, odp, docx, xlsx, pptx, edycja, edytor, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudOfficeBlocks($app), $app)), false, 19],
@@ -471,7 +474,7 @@ function itPortalCloudListBlocks(string $app): array {
             . '<p>Udostępnienia zewnętrzne to dostęp dla osób spoza chmury Fundacji. W pole wpisujesz adres e-mail, a odbiorca dostanie wiadomość z linkiem. '
             . 'Identyfikator z innej chmury Nextcloud wpisujesz tylko wtedy, gdy odbiorca Ci go poda.</p>'
             . '<p>Utwórz link publiczny (plus po prawej) tworzy link, który otworzy każdy, kto go dostanie. Przy linku ustawisz hasło, datę wygaśnięcia '
-            . 'i to, czy odbiorca może tylko pobierać, czy także wgrywać i zmieniać pliki.</p>'
+            . 'i to, czy odbiorca może tylko pobierać, czy także wgrywać i zmieniać pliki. Szczegóły opisuje artykuł <a href="' . $base . 'linki-publiczne">Linki publiczne i udostępnianie poza Fundację</a>.</p>'
             . '<p>Dodatkowe udostępnienia pokazują dostęp nadany w inny sposób, na przykład przez inne aplikacje chmury. Często ta część jest pusta.</p>'
             . '<p>Ikony z literą „i” przy nagłówkach pokazują krótką podpowiedź po najechaniu myszą.</p>'],
         ...itPortalCloudShot('nc-udostepnianie.jpg', 'Panel udostępniania folderu Documents po prawej: zakładki Udostępnianie i Aktywność, pola Udostępnianie wewnętrzne i Udostępnienia zewnętrzne, Link wewnętrzny i Utwórz link publiczny',
@@ -556,6 +559,74 @@ function itPortalCloudNavBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie widzisz w menu aplikacji, o której mówią koledzy? Może być włączona tylko dla części osób. '
             . '<a href="' . $hd . '">Napisz do Helpdesku IT</a>, a sprawdzimy.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Linki publiczne i udostępnianie poza Fundację” (polecenie 2026-11-14: „opisz linki publiczne” i „i dodatkowe”, zrzut okna
+ * udostępniania: „Udostępnij ziemowit.gil na zdalnym serwerze feer.org.pl”, Tylko podgląd / Zezwalaj na edytowanie / Uprawnienia niestandardowe,
+ * Ustawienia zaawansowane). Aplikacje na serwerze: sharebymail, files_downloadlimit, federatedfilesharing.
+ */
+function itPortalCloudPublicLinkBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Link publiczny to adres, pod którym plik albo folder z chmury otworzy każdy, kto ten adres dostanie, bez konta w chmurze. '
+            . 'Służy do wysłania czegoś osobie spoza Fundacji. Osobom z Fundacji udostępniaj pliki wewnętrznie, wpisując ich imię i nazwisko, '
+            . 'jak opisuje artykuł <a href="' . $base . 'lista-plikow">Lista plików: przyciski, ikony i udostępnianie</a>.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Link publiczny działa dla każdego, kto go zna, także gdy ktoś przekaże go dalej. Dla plików z danymi osobowymi '
+            . 'zawsze ustaw hasło i datę wygaśnięcia, a hasło wyślij inną drogą niż link, na przykład SMS-em. Udostępniaj tylko to, czego odbiorca naprawdę potrzebuje.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Jak utworzyć link</h2>'
+            . '<p>Przy pliku albo folderze kliknij ikonę osoby z plusem. Po prawej otworzy się panel udostępniania. W części „Udostępnienia zewnętrzne” '
+            . 'kliknij plus przy „Utwórz link publiczny”. Gdy chmura wymaga hasła albo daty wygaśnięcia, najpierw poprosi o nie. Potem link pojawi się na liście, '
+            . 'a ikona kopiowania obok skopiuje go do schowka. Wklej go do wiadomości do odbiorcy.</p>'
+            . '<p>Do jednego pliku możesz utworzyć kilka linków, na przykład osobny dla każdego odbiorcy. Wtedy każdy łatwo wyłączysz osobno.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Co odbiorca może zrobić</h2>'
+            . '<p>Po kliknięciu linku na liście albo przy tworzeniu wybierasz prawa:</p><ul>'
+            . '<li>„Tylko podgląd”: odbiorca może obejrzeć i pobrać plik, ale nic nie zmieni.</li>'
+            . '<li>„Zezwalaj na edytowanie”: odbiorca może zmieniać plik, a w folderze także dodawać i zmieniać pliki.</li>'
+            . '<li>Przy folderze „Upuszczanie plików” albo „Tylko wysyłanie”: odbiorca może wgrać pliki do folderu, ale nie widzi, co w nim jest. Tak zbierzesz dokumenty od kilku osób, które nie zobaczą nawzajem swoich plików.</li>'
+            . '<li>„Uprawnienia niestandardowe”: sam zaznaczasz, czy odbiorca może czytać, tworzyć, edytować, usuwać i udostępniać dalej. Udostępniania dalej zwykle nie zaznaczaj.</li></ul>'],
+
+        ['type' => 'text', 'html' => '<h2>Ustawienia zaawansowane</h2>'
+            . '<p>Pod prawami jest rozwijana część „Ustawienia zaawansowane”. Znajdziesz w niej:</p><ul>'
+            . '<li>Etykietę udostępnienia, czyli Twoją nazwę linku, na przykład „dla księgowej”. Widzisz ją tylko Ty i pomaga odróżnić linki.</li>'
+            . '<li>Hasło. Odbiorca musi je wpisać, zanim zobaczy plik.</li>'
+            . '<li>Datę wygaśnięcia. Po tej dacie link przestaje działać.</li>'
+            . '<li>Ukrycie pobierania. Odbiorca obejrzy plik w przeglądarce, ale przycisk pobierania będzie ukryty. Nie chroni to w pełni przed skopiowaniem.</li>'
+            . '<li>Limit pobrań. Po podanej liczbie pobrań link przestaje działać.</li>'
+            . '<li>Notatkę do odbiorcy, którą zobaczy przy pliku.</li></ul>'
+            . '<p>Zmiany zapisz przyciskiem „Zapisz udostępnienie”. „Anuluj” zamyka okno bez zmian.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Udostępnienie na adres e-mail</h2>'
+            . '<p>W polu „Udostępnienia zewnętrzne” możesz też wpisać adres e-mail odbiorcy. Chmura wyśle mu wiadomość z linkiem. '
+            . 'Taki link ma te same ustawienia co link publiczny, więc też ustaw hasło i datę wygaśnięcia.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>„Udostępnij na zdalnym serwerze”</h2>'
+            . '<p>Gdy w polu „Udostępnienia zewnętrzne” wpiszesz login albo coś, co nie jest adresem e-mail, chmura może zaproponować „Udostępnij … na zdalnym serwerze”. '
+            . 'To udostępnienie do innej chmury Nextcloud, z której korzysta odbiorca. Wybierz je tylko wtedy, gdy odbiorca podał Ci swój identyfikator z innej chmury.</p>'
+            . '<p>Jeśli chcesz udostępnić coś osobie z Fundacji, a widzisz napis „na zdalnym serwerze feer.org.pl”, zamknij to okno. '
+            . 'Wpisz imię i nazwisko tej osoby w polu „Udostępnianie wewnętrzne” na górze panelu.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Dodatkowe udostępnienia</h2>'
+            . '<p>Na dole panelu jest część „Dodatkowe udostępnienia”. Pokazuje dostęp do pliku nadany w inny sposób, na przykład przez folder wyżej, grupę albo inne aplikacje chmury. '
+            . 'Często jest pusta. Ikona z literą „i” obok nagłówka wyjaśnia, co tam trafia.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Jak sprawdzić i wyłączyć linki</h2>'
+            . '<p>W menu bocznym aplikacji Pliki rozwiń „Udostępnienia” i wybierz „Udostępnione linkiem”. Zobaczysz wszystkie pliki i foldery, do których masz aktywne linki. '
+            . 'Przejrzyj tę listę od czasu do czasu.</p>'
+            . '<p>Aby wyłączyć link, otwórz panel udostępniania pliku, kliknij trzy kropki przy linku i wybierz usunięcie udostępnienia. '
+            . 'Link przestanie działać od razu, a plik zostanie w chmurze.</p>'],
+
+        ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Chcesz zebrać pliki od osób spoza Fundacji? W aplikacji Pliki kliknij „Nowy” i wybierz „Utwórz prośbę o plik”. '
+            . 'Chmura założy folder i link, przez który odbiorcy wgrają pliki, nie widząc reszty Twoich plików.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Bardzo duże pliki dla osób spoza Fundacji, bez danych osobowych, można też wysłać serwisem TransferNow albo WeTransfer. '
+            . 'Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/transfernow-wetransfer">Bardzo duże pliki: TransferNow i WeTransfer</a>. '
+            . 'Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
     ];
 }
 
