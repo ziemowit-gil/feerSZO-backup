@@ -2416,4 +2416,20 @@ return [
         },
     ],
 
+    // Portal Usług IT: „Poczta kursanta” także dla wolontariuszy (polecenie 2026-11-15 „Wolontariusze też mogą”). Dopisuje grupę, innych nie rusza.
+    '2026-11_it_portal_poczta_kursanta_wolontariusz' => [
+        'desc' => 'Portal Usług IT: usługa „Poczta kursanta” dostępna także dla grupy Wolontariusz',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/logic/itPortal.php';
+            itPortalMigrate();
+            $cat = db_one("SELECT id, audiences FROM itp_categories WHERE slug = 'poczta-kursanta'");
+            $wol = db_one("SELECT id FROM itp_audiences WHERE slug = 'wolontariusz' OR name = 'Wolontariusz' ORDER BY slug = 'wolontariusz' DESC LIMIT 1");
+            if (!$cat || !$wol) return;
+            $ids = itPortalIds($cat['audiences']);
+            if (in_array((int)$wol['id'], $ids, true)) return;
+            $ids[] = (int)$wol['id'];
+            db_exec("UPDATE itp_categories SET audiences = ?, updated_at = datetime('now') WHERE id = ?", [json_encode(array_values($ids)), (int)$cat['id']]);
+        },
+    ],
+
 ];

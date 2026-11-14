@@ -23,7 +23,7 @@ function itPortalPocztaKursantaApply(string $app, bool $dryRun = false): array {
     $rep = ['category' => '', 'created' => [], 'updated' => []];
     $intro = itPortalSanitizeHtml(itPortalPocztaKursantaIntro($app));
     $aud = array_column(itPortalAudiences(), 'id', 'name');
-    $audIds = array_values(array_filter([(int)($aud['Kursant'] ?? 0)]));
+    $audIds = array_values(array_filter([(int)($aud['Kursant'] ?? 0), (int)($aud['Wolontariusz'] ?? 0)]));   // wolontariusze też (2026-11-15)
 
     $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'poczta-kursanta'");
     if ($cat) {
