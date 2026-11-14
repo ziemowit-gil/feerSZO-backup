@@ -170,7 +170,6 @@ panelMetroAssets($_vol_color);
         <?php if (!empty($u_db['m365_security_group_name'])): ?><p>Grupa dostępu: <code><?= h($u_db['m365_security_group_name']) ?></code></p><?php endif; ?>
         <div class="mt-links">
           <a href="<?= h(webmail_chooser_url()) ?>" target="_blank" rel="noopener"><i class="bi bi-envelope" aria-hidden="true"></i>Poczta: <?= h(webmail_chooser_label()) ?><span class="visually-hidden"> — nowa karta</span></a>
-          <a href="https://portal.office.com" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Portal Microsoft (hasło, aplikacje)<span class="visually-hidden"> — nowa karta</span></a>
         </div>
       </div>
     </div>
