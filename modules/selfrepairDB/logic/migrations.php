@@ -2084,4 +2084,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Migracja”: artykuł „IAM i hasła w migracji: co się dzieje krok po kroku” ze ściągawką „Jak się nie pogubić
+    // w hasłach i loginach” — polecenia 2026-11-14. modules/it_portal/lib/itPortalMigracjaIamSeed.php.
+    '2026-11_it_portal_migracja_iam' => [
+        'desc' => 'Portal Usług IT, „Migracja”: IAM i hasła krok po kroku',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaIamSeed.php';
+            itPortalMigracjaIamApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
