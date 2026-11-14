@@ -260,6 +260,36 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; back
     })();
     </script>
 <?php endif; ?>
+
+<?php if (!empty($pim) && !$pending && !$result): ?>
+    <h2 id="m365">Kalendarz i kontakty z Microsoft 365</h2>
+    <?php
+    $pimBusy = false;
+    foreach ($pim['jobs'] as $pj) if (in_array($pj['status'], ['queued', 'running'], true)) $pimBusy = true;
+    ?>
+    <?php if (!$pim['jobs']): ?>
+      <p>Microsoft 365 wyłączamy 20 listopada 2026 r. Możemy przenieść Twój kalendarz i kontakty z Outlooka do chmury. W chmurze pojawi się kalendarz „Kalendarz z Outlooka” i książka adresowa „Kontakty z Outlooka”. Uczestników spotkań zobaczysz w opisie wydarzenia.</p>
+    <?php else: foreach ($pim['jobs'] as $pj): ?>
+      <p role="status"><?php
+        $when = static fn(?string $d): string => $d ? date('d.m.Y, H:i', strtotime($d)) : '';
+        echo match ($pj['status']) {
+            'queued', 'running' => 'Przenosimy kalendarz i kontakty z konta ' . h($pj['upn']) . '. Zwykle trwa to kilkanaście minut. Odśwież stronę, żeby zobaczyć stan.',
+            'done' => 'Gotowe ' . h($when($pj['imported_at'])) . ': w chmurze jest ' . (int)$pj['imported_events'] . ' wydarzeń i ' . (int)$pj['imported_contacts'] . ' kontaktów z konta ' . h($pj['upn']) . '. Znajdziesz je w kalendarzu „Kalendarz z Outlooka” i w książce „Kontakty z Outlooka”.',
+            'waiting' => $pj['exported_at'] && $cloudUid === ''
+                ? 'Kopia kalendarza i kontaktów z konta ' . h($pj['upn']) . ' jest gotowa. Trafi do chmury sama, gdy założysz w niej konto.'
+                : 'Przenoszenie z konta ' . h($pj['upn']) . ' chwilowo stoi. Spróbujemy ponownie za kilka godzin.' . ($pj['exported_at'] ? ' Kopia jest bezpieczna.' : ''),
+            'error' => 'Nie udało się przenieść kalendarza i kontaktów z konta ' . h($pj['upn']) . '. Napisz do Helpdesku IT.',
+            default => 'Przenoszenie z konta ' . h($pj['upn']) . ' zostało anulowane.',
+        };
+      ?></p>
+    <?php endforeach; endif; ?>
+    <?php if (!$pimBusy): ?>
+      <form method="post" action="<?= h($base . '/przenies') ?>"><?= Router::csrfField() ?>
+        <button type="submit" class="btn<?= $pim['jobs'] ? ' ghost' : '' ?>"><?= $pim['jobs'] ? 'Przenieś jeszcze raz' : 'Przenieś moje kalendarze i kontakty' ?></button>
+      </form>
+      <?php if ($pim['jobs']): ?><p class="help">Ponowne przeniesienie nadpisze te same wydarzenia i kontakty. Niczego nie zdubluje.</p><?php endif; ?>
+    <?php endif; ?>
+<?php endif; ?>
   </main>
 </div>
 <?php if ($result): ?>

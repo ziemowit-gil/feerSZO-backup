@@ -49,12 +49,20 @@ final class CloudDavController
         $ctx = $this->context();
         $st = $this->state();
         $flash = function_exists('flash_get') ? flash_get() : null;
+        // kalendarze i kontakty z Microsoft 365 (PimImport): zadania dla kont Microsoft tej osoby
+        $pim = null;
+        if (class_exists('PimImport') && PimImport::enabled() && PimImport::exportAvailable()) {
+            $u = db_one("SELECT id, email, m365_login FROM users WHERE id=?", [$ctx['userId']]) ?: [];
+            $upns = PimImport::upnsFor($u);
+            if ($upns) $pim = ['upns' => $upns, 'jobs' => array_values(array_filter(array_map([PimImport::class, 'forUpn'], $upns)))];
+        }
         return Router::view(self::VIEW . 'connect.php', $ctx + [
             'purposes' => self::purposes(),
             'pending'  => $st['pending'] ?? null,
             'result'   => $st['result'] ?? null,
             'purpose'  => (string)($st['purpose'] ?? ''),
             'flash'    => $flash,
+            'pim'      => $pim,
         ]);
     }
 

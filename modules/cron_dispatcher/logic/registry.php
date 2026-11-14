@@ -389,6 +389,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/agents/sso_cloud_files.php',
             'interval' => 300,          // co 5 min — kopiowanie plików OneDrive → chmura Nextcloud/ownCloud (modules/sso_logto), porcja ~4 min; niedostępność = ponowienie za 6 h; bez zadań pomija
         ],
+        'cloud_pim' => [
+            'file'     => $cronDir . '/agents/cloud_pim.php',
+            'interval' => 300,          // co 5 min — kalendarze i kontakty Microsoft 365 → kopia (zaszyfrowane .ics/.vcf) → chmura Nextcloud (modules/cloudDav/logic/PimImport.php), porcja ~4 min; bez zadań pomija
+        ],
         'sso_cloud_teams' => [
             'file'     => $cronDir . '/agents/sso_cloud_teams.php',
             'interval' => 120,          // co 2 min — zespoły i obszary robocze z Zadań → grupy „szo-zespol-{id}” / „szo-obszar-{id}” w chmurze (modules/sso_logto/logic/CloudTeamsSync.php); bez zmian same odczyty; bez chmury pomija

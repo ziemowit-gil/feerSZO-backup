@@ -16,6 +16,8 @@ require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/router/lib/Router.php';
 require_once __DIR__ . '/logic/CloudDavController.php';
+require_once __DIR__ . '/logic/PimController.php';
+require_once dirname(__DIR__) . '/audit_logs/logic/audit_logs.php';
 
 $r = new Router('/modules/cloudDav/router.php', 'path', rtrim(APP_URL, '/'));
 
@@ -25,6 +27,16 @@ $r->group(['auth'], function (Router $r) {
     $r->post('/kalendarz-kontakty/sprawdz', [CloudDavController::class, 'poll'])->name('dav.poll');
     $r->get('/kalendarz-kontakty/profil',   [CloudDavController::class, 'profile'])->name('dav.profile');
     $r->post('/kalendarz-kontakty/zakoncz', [CloudDavController::class, 'forget'])->name('dav.forget');
+    // kalendarze i kontakty z Microsoft 365 (PimImport): użytkownik zleca dla siebie
+    $r->post('/kalendarz-kontakty/przenies', [PimController::class, 'self'])->name('dav.pimSelf');
+});
+
+// administrator: kopia i import kalendarzy i kontaktów z Microsoft 365 dla wszystkich albo jednego konta
+$r->group(['auth', 'role:admin'], function (Router $r) {
+    $r->get('/kalendarz-kontakty/m365',          [PimController::class, 'admin'])->name('dav.pimAdmin');
+    $r->post('/kalendarz-kontakty/m365/zlec',    [PimController::class, 'queue'])->name('dav.pimQueue');
+    $r->post('/kalendarz-kontakty/m365/wlacz',   [PimController::class, 'toggle'])->name('dav.pimToggle');
+    $r->post('/kalendarz-kontakty/m365/zadanie', [PimController::class, 'jobAction'])->name('dav.pimJob');
 });
 
 $r->dispatch();
