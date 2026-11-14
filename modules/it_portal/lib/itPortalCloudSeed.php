@@ -126,6 +126,9 @@ function itPortalCloudArticles(string $app): array {
         'pulpit' => ['Ekran po zalogowaniu: Pulpit chmury plików',
             'ekran po zalogowaniu, po zalogowaniu, pulpit, strona startowa, start, dashboard, polecane pliki, zespoły, ostatnia aktywność, aktywność, powiadomienia, dzwonek, kontakty, status, awatar, menu aplikacji, wyszukiwarka, dostosuj, widżety, konto techniczne, szo, nextcloud',
             itPortalCloudPilot(itPortalCloudDashboardBlocks($app)), false, 12],
+        'lista-plikow' => ['Lista plików: przyciski, ikony i udostępnianie',
+            'lista plików, pliki, ikony, przyciski, nowy, prześlij, nowy folder, filtr, widok, siatka, kafelki, sortowanie, zaznaczanie, trzy kropki, akcje, readme, readme.md, opis folderu, onedrive, documents, photos, szablony, udostępnij, udostępnianie, link, link publiczny, link wewnętrzny, udostępnianie zewnętrzne, inni z dostępem, aktywność, panel boczny, nextcloud',
+            itPortalCloudPilot(itPortalCloudListBlocks($app)), false, 17],
         'grupy' => ['Grupy w chmurze: wspólne pliki zespołu, obszaru, działania i jednostki',
             'grupy, grupa, udostępnianie, udostępnij, folder wspólny, zespół, zespoły, obszar roboczy, obszar, działanie, działania, jednostka, jednostka organizacyjna, umowa, zadania, nextcloud, chmura, nie widzę folderu, brak dostępu',
             itPortalCloudPilot(itPortalCloudGroupsBlocks($app)), false, 30],
@@ -230,6 +233,85 @@ function itPortalCloudDashboardBlocks(string $app): array {
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Do samych plików przejdziesz przez menu aplikacji albo klikając plik w „Polecanych plikach”. '
             . 'Co oznaczają pozycje menu w aplikacji Pliki, wyjaśnia artykuł <a href="' . $base . 'menu-plikow">Co jest co w menu bocznym aplikacji Pliki</a>. '
             . 'Gdy coś na Pulpicie wygląda inaczej niż tutaj, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Lista plików: przyciski, ikony i udostępnianie” (polecenie 2026-11-14 ze zrzutami aplikacji Pliki i panelu udostępniania:
+ * „funkcje listy plików i ikony”). Folder „OneDrive” = kopia z Microsoft 365 robiona przez SZO (modules/sso_logto/logic/CloudFilesCopy.php).
+ */
+function itPortalCloudListBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Ten artykuł opisuje główną część aplikacji Pliki, czyli listę plików po prawej od menu bocznego, '
+            . 'a także panel, który otwiera się przy udostępnianiu. Pozycje samego menu bocznego wyjaśnia artykuł '
+            . '<a href="' . $base . 'menu-plikow">Co jest co w menu bocznym aplikacji Pliki</a>.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Twój ekran może wyglądać trochę inaczej. Nazwy plików i folderów, liczba kolumn '
+            . 'i część przycisków zależą od Twojego konta, szerokości okna i wersji chmury.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Pasek nad listą</h2>'
+            . '<p>Ikona prostokąta z paskiem po lewej chowa i pokazuje menu boczne. Przydaje się na małym ekranie.</p>'
+            . '<p>Niebieski przycisk „Nowy” dodaje coś do folderu, w którym jesteś. Prześlesz tu plik albo cały folder z komputera, '
+            . 'założysz nowy folder albo utworzysz pusty dokument, arkusz lub prezentację. Pliki z komputera możesz też po prostu przeciągnąć myszą na listę.</p>'
+            . '<p>Obok jest ścieżka, czyli nazwa folderu, w którym jesteś, i folderów nad nim. Kliknij nazwę wyższego folderu, żeby do niego wrócić. '
+            . 'Strzałka przy nazwie otwiera działania dla bieżącego folderu.</p>'
+            . '<p>Ikona z trzema poziomymi kreskami po prawej to filtry. Pokażesz nimi na przykład tylko dokumenty, tylko zdjęcia '
+            . 'albo pliki zmienione w ostatnim tygodniu.</p>'
+            . '<p>Ikona z czterema kwadratami przełącza widok między listą a kafelkami z miniaturami. Kafelki są wygodne przy zdjęciach.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Opis folderu nad listą</h2>'
+            . '<p>Nad listą może być widoczny tekst, na przykład „Welcome to Nextcloud!”. To zawartość pliku Readme.md z tego folderu. '
+            . 'Służy do opisania, co jest w folderze i jak z niego korzystać. Kliknij w tekst, żeby go zmienić. '
+            . 'Po wpisaniu ukośnika „/” dodasz nagłówek, listę, tabelę albo obrazek.</p>'
+            . '<p>Angielski tekst powitalny to przykład, który chmura wkłada do każdego nowego konta. Możesz go zmienić '
+            . 'albo usunąć plik Readme.md z listy. Wtedy opis zniknie.</p>'
+            . '<p>Pod opisem chmura pokazuje czasem kilka ostatnio zmienianych folderów i plików z tego miejsca, żeby szybciej do nich wrócić.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Kolumny i zaznaczanie</h2>'
+            . '<p>Kliknij nagłówek kolumny Nazwa, Rozmiar albo Zmodyfikowano, żeby posortować listę. Drugie kliknięcie odwraca kolejność. '
+            . 'Strzałka przy nagłówku pokazuje, według czego lista jest teraz ułożona. W wąskim oknie nagłówki są skrócone, na przykład „Roz…”.</p>'
+            . '<p>Kwadracik na początku wiersza zaznacza plik. Gdy zaznaczysz kilka, nad listą pojawią się przyciski dla wszystkich naraz: '
+            . 'pobranie, przeniesienie lub skopiowanie i usunięcie. Kwadracik w nagłówku zaznacza wszystko w folderze.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ikony w wierszu</h2>'
+            . '<p>Niebieski folder to folder. Plik ma ikonę swojego rodzaju albo miniaturę, na przykład zdjęcia. '
+            . 'Kliknij nazwę, żeby otworzyć folder albo plik. Dokumenty, arkusze i prezentacje otwierają się w przeglądarce i możesz je od razu edytować.</p>'
+            . '<p>Ikona osoby z plusem to udostępnianie. Otwiera po prawej panel, w którym dajesz komuś dostęp. Gdy plik jest już udostępniony, '
+            . 'zamiast niej widać awatar osoby albo napis „Udostępnione”.</p>'
+            . '<p>Trzy kropki otwierają pozostałe działania: pobieranie, dodanie do ulubionych, zmianę nazwy, przeniesienie lub skopiowanie, '
+            . 'szczegóły i usunięcie. To samo menu otworzysz prawym przyciskiem myszy na wierszu.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Foldery, które są na nowym koncie</h2>'
+            . '<p>Documents, Photos i Szablony oraz pliki Nextcloud.png i Nextcloud intro.mp4 chmura zakłada sama w każdym nowym koncie. '
+            . 'Folder Szablony jest potrzebny, gdy chcesz tworzyć dokumenty z własnych wzorów. Resztę możesz zostawić, przemianować albo usunąć.</p>'
+            . '<p>Folder OneDrive to kopia Twoich plików z OneDrive w Microsoft 365. SZO przenosi je w tle po założeniu konta w chmurze, '
+            . 'z tymi samymi folderami i datami zmian. Przy dużej ilości plików kopiowanie trwa nawet kilka godzin, więc folder może się jeszcze zapełniać.</p>'
+            . '<p>Foldery, które ktoś Ci udostępnił, na przykład wspólne foldery grupy, też są na tej liście. '
+            . 'Skąd się biorą, opisuje artykuł <a href="' . $base . 'grupy">Grupy w chmurze</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Panel udostępniania</h2>'
+            . '<p>Na górze panelu jest nazwa pliku lub folderu, jego rozmiar, czas ostatniej zmiany i właściciel. Trzy kropki obok otwierają te same działania co w wierszu, '
+            . 'a krzyżyk zamyka panel. Poniżej są zakładki. Udostępnianie służy do dawania dostępu, a Aktywność pokazuje, kto i kiedy coś zmienił. '
+            . 'Przy plikach bywają też zakładki Wersje i Komentarze.</p>'
+            . '<p>Udostępnianie wewnętrzne to dostęp dla osób z chmury Fundacji. Wpisz w pole imię, nazwisko, nazwę grupy albo zespołu i wybierz z listy. '
+            . 'Przy każdej osobie ustawisz potem, czy może tylko oglądać, czy także zmieniać.</p>'
+            . '<p>Inni z dostępem pokazuje osoby, które widzą ten element dzięki folderowi wyżej albo grupie, choć nie udostępniłeś go im tutaj bezpośrednio.</p>'
+            . '<p>Link wewnętrzny kopiujesz ikoną po prawej. Zadziała tylko u osób, które już mają dostęp, więc nadaje się do wysłania koledze w wiadomości. '
+            . 'Nikomu nowemu nie daje dostępu.</p>'
+            . '<p>Udostępnienia zewnętrzne to dostęp dla osób spoza chmury Fundacji. W pole wpisujesz adres e-mail, a odbiorca dostanie wiadomość z linkiem. '
+            . 'Identyfikator z innej chmury Nextcloud wpisujesz tylko wtedy, gdy odbiorca Ci go poda.</p>'
+            . '<p>Utwórz link publiczny (plus po prawej) tworzy link, który otworzy każdy, kto go dostanie. Przy linku ustawisz hasło, datę wygaśnięcia '
+            . 'i to, czy odbiorca może tylko pobierać, czy także wgrywać i zmieniać pliki.</p>'
+            . '<p>Dodatkowe udostępnienia pokazują dostęp nadany w inny sposób, na przykład przez inne aplikacje chmury. Często ta część jest pusta.</p>'
+            . '<p>Ikony z literą „i” przy nagłówkach pokazują krótką podpowiedź po najechaniu myszą.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Pliki z danymi osobowymi udostępniaj wewnętrznie, osobom, które ich potrzebują. '
+            . 'Jeśli musisz wysłać je poza Fundację, użyj linku publicznego z hasłem i datą wygaśnięcia, a hasło przekaż inną drogą, na przykład SMS-em.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Gdy czegoś nie możesz udostępnić albo nie widzisz przycisku z tego opisu, '
+            . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
     ];
 }
 
