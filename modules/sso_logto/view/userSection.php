@@ -30,10 +30,10 @@ $ssoBase   = rtrim(APP_URL, '/');
   <h2 class="ma-h2">Twoje hasła w organizacji</h2>
   <div class="ma-card">
     <ul class="ma-list ma-list--info">
-      <li><i class="bi bi-1-circle-fill" aria-hidden="true"></i><span>Logowanie jednokrotne i chmura plików mają jedno hasło. Zmieniasz je tutaj i od razu działa w obu miejscach.</span></li>
-      <li><i class="bi bi-2-circle-fill" aria-hidden="true"></i><span>Poczta ma własne, osobne hasło — celowo, ze względów bezpieczeństwa. Zmiana hasła tutaj go nie rusza.</span></li>
-      <li><i class="bi bi-3-circle-fill" aria-hidden="true"></i><span>Hasło do SZO<?= $has_m365 ? ' i Microsoft 365' : '' ?> jest osobne. Zmieniasz je w <a href="#bezpieczenstwo" @click.prevent="go('bezpieczenstwo', 'haslo')">Zabezpieczeniach</a>.</span></li>
-      <li><i class="bi bi-4-circle-fill" aria-hidden="true"></i><span>Nie używaj tego hasła poza organizacją i nie podawaj go nikomu. Administrator go nie zna i nigdy o nie nie poprosi.</span></li>
+      <li><i class="bi bi-1-circle-fill" aria-hidden="true"></i><span>Logowanie jednokrotne i chmura plików mają jedno wspólne hasło. Zmieniasz je tutaj albo na stronie <a href="<?= h($ssoBase) ?>/nowehaslo">Nowe hasło</a> i od razu działa w obu miejscach.</span></li>
+      <li><i class="bi bi-2-circle-fill" aria-hidden="true"></i><span>Poczta ma własne hasło, celowo inne, żeby wyciek jednego nie otwierał drugiego. Zmieniasz je na stronie <a href="<?= h($ssoBase) ?>/nowehaslo">Nowe hasło</a>.</span></li>
+      <li><i class="bi bi-3-circle-fill" aria-hidden="true"></i><span>Hasło do SZO<?= $has_m365 ? ' i Microsoft 365' : '' ?> też jest osobne. Zmieniasz je w <a href="#bezpieczenstwo" @click.prevent="go('bezpieczenstwo', 'haslo')">Zabezpieczeniach</a>.</span></li>
+      <li><i class="bi bi-4-circle-fill" aria-hidden="true"></i><span>Nie używaj tych haseł poza organizacją i nie podawaj ich nikomu. Administrator ich nie zna i nigdy o nie nie poprosi.</span></li>
     </ul>
   </div>
 
@@ -65,7 +65,8 @@ $ssoBase   = rtrim(APP_URL, '/');
 
     <?php else: ?>
       <dl class="ma-rows mb-3">
-        <div class="ma-row"><dt>Login</dt><dd><strong><?= h((string)$ssoAcc['logto_username']) ?></strong> albo <?= h($ssoEmail) ?></dd></div>
+        <div class="ma-row"><dt>Login</dt><dd><strong><?= h($ssoEmail) ?></strong> albo <code><?= h((string)$ssoAcc['logto_username']) ?></code>
+          <div class="small text-body-secondary">Login ma kreskę dolną zamiast kropki, bo strona logowania nie przyjmuje kropek w loginie. Najprościej wpisywać adres e-mail.</div></dd></div>
         <div class="ma-row"><dt>Hasło ustawione</dt><dd><?= h($ssoDate($ssoAcc['logto_pwd_at'] ?? null)) ?></dd></div>
         <div class="ma-row"><dt>Ostatnie logowanie</dt><dd><?= h($ssoDate($ssoAcc['last_sign_in_at'] ?? null)) ?></dd></div>
         <div class="ma-row"><dt>Chmura plików</dt><dd>
@@ -76,6 +77,14 @@ $ssoBase   = rtrim(APP_URL, '/');
           <?php else: ?>nie masz konta w chmurze<?php endif; ?>
         </dd></div>
       </dl>
+      <?php $ssoAc = rtrim(SsoConfig::logtoUrl(), '/') . '/account'; ?>
+      <h3 class="h6 mt-2">Na stronie logowania (<?= h($ssoHost) ?>)</h3>
+      <ul class="ma-list ma-list--info mb-3">
+        <li><i class="bi bi-shield-check" aria-hidden="true"></i><span><a href="<?= h($ssoAc) ?>/security" target="_blank" rel="noopener">Weryfikacja dwuetapowa i klucze dostępu<span class="visually-hidden"> (otwiera się w nowej karcie)</span></a>: telefon, klucz dostępu albo kody zapasowe.</span></li>
+        <li><i class="bi bi-laptop" aria-hidden="true"></i><span><a href="<?= h($ssoAc) ?>/sessions" target="_blank" rel="noopener">Zalogowane urządzenia<span class="visually-hidden"> (otwiera się w nowej karcie)</span></a>: zobaczysz, gdzie jesteś zalogowany(-a), i wylogujesz obce urządzenie.</span></li>
+        <li><i class="bi bi-person" aria-hidden="true"></i><span><a href="<?= h($ssoAc) ?>/profile" target="_blank" rel="noopener">Imię i nazwisko<span class="visually-hidden"> (otwiera się w nowej karcie)</span></a> widoczne w aplikacjach.</span></li>
+      </ul>
+
       <?php if (!empty($ssoAcc['logto_pwd_reset_at'])): ?>
         <p class="small mb-3" role="note"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Hasło zmieniłeś(-aś) na stronie logowania (<?= h($ssoDate($ssoAcc['logto_pwd_reset_at'])) ?>).<?= $ssoHasCld ? ' W chmurze plików działa jeszcze stare. Ustaw hasło poniżej, a znów będzie jedno w obu miejscach.' : '' ?></p>
       <?php endif; ?>
