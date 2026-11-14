@@ -11,17 +11,19 @@ require_once dirname(__DIR__) . '/includes/x509_login.php';
 
 auth_start();
 
-// Tenant CRM-standalone — cały ruch kieruj do CRM
-if (defined('CRM_STANDALONE') && CRM_STANDALONE) {
-    if (current_user()) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
-    header('Location: ' . APP_URL . '/crm/login.php'); exit;
-}
-
-if (current_user()) { header('Location: ' . auth_default_landing()); exit; }
-
 $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
     ? $raw_redirect : '';
+
+// Tenant CRM-standalone — cały ruch kieruj do CRM. Logowanie jest tutaj (ekran SZO), bo crm/login.php
+// od 14.11.2026 nie ma własnego logowania Microsoft 365 — tylko przekierowuje na ten ekran.
+if (defined('CRM_STANDALONE') && CRM_STANDALONE) {
+    if (current_user()) { header('Location: ' . APP_URL . '/crm/dashboard.php'); exit; }
+    if ($redirect === '') $redirect = APP_URL . '/crm/dashboard.php';
+}
+
+// Już zalogowany: wejście z ?redirect= (np. z CRM) wraca tam, a nie na ekran startowy
+if (current_user()) { header('Location: ' . ($redirect !== '' ? $redirect : auth_default_landing())); exit; }
 
 // Wejście do Systemu Tożsamości → dedykowane okno logowania z wyjaśnieniem (tozsamosc/login.php).
 // Tylko czyste GET z samym ?redirect= — każdy inny parametr (err, tab, pelne=1, awaryjne…) zostaje tutaj.

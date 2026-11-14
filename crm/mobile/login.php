@@ -2,7 +2,7 @@
 /**
  * crm/mobile/login.php — szybkie wejście do dialera: numer konta (UID) + PIN.
  *
- * Ścieżka alternatywna dla MS365, dostępna TYLKO w widoku mobilnym i otwierająca
+ * Ścieżka alternatywna dla logowania SZO, dostępna TYLKO w widoku mobilnym i otwierająca
  * TYLKO dialer. Po PIN-ie obowiązuje jeszcze weryfikacja IKA (jak w całym CRM) —
  * wymusza ją crm_mobile_guard() na stronie dialera.
  *
@@ -47,7 +47,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
 $csrf     = csrf_token();
 $asset_v  = (int)@filemtime(__DIR__ . '/assets/app.css');
-$ms_login = APP_URL . '/auth/login.php?redirect=' . urlencode($base . '/');
+$szo_login = APP_URL . '/auth/login.php?redirect=' . urlencode($base . '/');
 ?>
 <!doctype html>
 <html lang="pl">
@@ -100,7 +100,7 @@ $ms_login = APP_URL . '/auth/login.php?redirect=' . urlencode($base . '/');
   <?php endif; ?>
 
   <div class="d-login-alt">
-    <a href="<?= h($ms_login) ?>">Zaloguj przez Microsoft 365</a>
+    <a href="<?= h($szo_login) ?>">Zaloguj się do SZO (e-mail i hasło albo logowanie jednokrotne)</a>
   </div>
 </main>
 

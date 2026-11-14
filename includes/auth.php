@@ -144,6 +144,34 @@ function crm_alias_base_url(): ?string {
 }
 
 /**
+ * Ścieżka z aliasu crm.* (np. "/dashboard.php?x=1" — .htaccess wewnętrznie dokleja /crm/)
+ * → ścieżka pod APP_URL ("/crm/dashboard.php?x=1"). Pliki spoza crm/ (np. /portal.php) zostają.
+ */
+function crm_alias_path_to_szo(string $uri): string {
+    $path = (string)(parse_url($uri, PHP_URL_PATH) ?? '/');
+    if ($path === '' || $path === '/') return '/crm/dashboard.php';
+    if (str_starts_with(strtolower($path), '/crm/')) return $uri;
+    if (is_file(dirname(__DIR__) . '/crm' . $path)) return '/crm' . $uri;
+    return $uri;
+}
+
+/**
+ * Bezpieczny adres powrotu do CRM pod APP_URL (logowanie SZO przyjmuje tylko redirect w obrębie APP_URL).
+ * Przyjmuje APP_URL/crm/… albo adres na aliasie crm.* bieżącego żądania; wszystko inne → pulpit CRM.
+ * Logowanie do CRM idzie przez SZO (crm/login.php) — CRM nie ma już własnego logowania Microsoft 365.
+ */
+function crm_szo_target_url(string $raw): string {
+    $default = APP_URL . '/crm/dashboard.php';
+    if ($raw === '' || preg_match('/[\r\n]/', $raw)) return $default;
+    if (str_starts_with($raw, APP_URL . '/crm/')) return $raw;
+    $alias = crm_alias_base_url();
+    if ($alias !== null && ($raw === $alias || str_starts_with($raw, $alias . '/'))) {
+        return APP_URL . crm_alias_path_to_szo(substr($raw, strlen($alias)) ?: '/');
+    }
+    return $default;
+}
+
+/**
  * Zwraca "schemat://host" gdy request przyszedł na alias EZD (ezd.feer.org.pl,
  * ezd.ngosystem.pl, ezd-prod-srv.feer.org.pl), inaczej null. Traefik AddPrefix
  * dodaje /ezd/ do URI, więc redirect po zalogowaniu musi wskazywać na ezd.*
@@ -173,7 +201,10 @@ function require_login(): void {
         $crm_base = crm_alias_base_url();
         $ezd_base = ezd_alias_base_url();
         if ($crm_base !== null) {
-            header('Location: ' . $crm_base . '/crm/login.php?redirect=' . urlencode($crm_base . $uri));
+            // CRM loguje przez SZO: sesja (ciasteczko przypięte do hosta) powstaje na APP_URL,
+            // więc z aliasu crm.* prowadzimy na ten sam ekran CRM pod APP_URL — tam albo sesja
+            // już jest, albo require_login() odeśle na logowanie SZO z powrotem do CRM.
+            header('Location: ' . APP_URL . crm_alias_path_to_szo($uri));
         } elseif ($ezd_base !== null) {
             // Traefik AddPrefix dodał /ezd — zdejmij, żeby po logowaniu i powrocie
             // na ezd.* Traefik nie podwoił prefiksu (/ezd/ezd/).

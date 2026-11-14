@@ -1,218 +1,51 @@
 <?php
 /**
- * crm/login.php — logowanie do CRM (crm.feer.org.pl).
+ * crm/login.php — wejście do CRM (także /logowanieCRM, /crm-login i alias crm.feer.org.pl).
  *
- * WYŁĄCZNIE MICROSOFT 365. Do CRM nie da się wejść e-mailem i hasłem — ani kontem
- * służbowym, ani prywatnym. Powód: CRM trzyma dane osobowe kontaktów, zgody
- * i korespondencję, więc dostęp ma być pod kontrolą Entra ID (MFA, polityki
- * warunkowe, natychmiastowe odcięcie po odejściu współpracownika). Hasło lokalne
- * omijałoby to wszystko.
+ * OD 14.11.2026 CRM NIE MA WŁASNEGO LOGOWANIA. Wcześniej był to ekran „wyłącznie
+ * Microsoft 365” (od razu przekierowanie do login.microsoftonline.com). Fundacja
+ * odchodzi od M365 (poczta → dPoczta 13.11.2026, logowanie jednokrotne → Logto),
+ * a od 13.11 Microsoft wpuszcza do SZO już tylko administratorów
+ * (account_is_office_only()) — reszta zespołu nie miała jak wejść do CRM.
  *
- * Skutek uboczny, świadomy: konto bez powiązania z Microsoft 365 (współpracownik
- * z prywatnym adresem) nie wejdzie do CRM. Dostęp nadaje się przez konto służbowe.
+ * Teraz do CRM wchodzi się sesją SZO:
+ *  - zalogowany w SZO → prosto do CRM (uprawnienia sprawdza sam CRM: crm_require(),
+ *    role, crm_user, portal_scope=crm_only — bez zmian);
+ *  - niezalogowany → zwykłe logowanie SZO (/auth/login.php: e-mail i hasło, Logto,
+ *    Microsoft tylko dla administratorów) z ?redirect= z powrotem do CRM.
  *
- * Uwierzytelnia /auth/ms365.php — ten sam tor co logowanie systemowe, wraz
- * z bramką WebAuthn i wymuszoną zmianą hasła.
+ * Alias crm.feer.org.pl: ciasteczko sesji jest przypięte do hosta, a logowanie SZO
+ * (i powroty z Logto / Microsoft) odbywa się na APP_URL. Dlatego z aliasu prowadzimy
+ * na CRM pod APP_URL (szo.…/crm/…) — tam sesja SZO istnieje albo require_login()
+ * odeśle na logowanie i z powrotem. Ta sama zasada w require_login() (includes/auth.php).
  *
- * Warstwa CRM-owa zostaje: sprawdzenie uprawnień do modułu, bramka IKA dla kont
- * „tylko CRM" i powrót na host aliasu (crm.feer.org.pl), a nie na szo.feer.org.pl.
- *
- * WYGLĄD: ta sama powłoka co logowanie do systemu (includes/auth_screen.php) —
- * pasek dostępności (rozmiar tekstu, wysoki kontrast), tło marki z geometrią,
- * biała karta i te same kontrolki. Wcześniej ekran miał własny arkusz stylów
- * i wyglądał jak inna aplikacja, choć uwierzytelnia dokładnie tak samo; każda
- * poprawka wyglądu albo dostępności trzeba było robić dwa razy.
- *
- * WCAG: etykiety powiązane z polami, komunikat błędu jako role="alert",
- * widoczny fokus, obsługa klawiaturą, kontrast tekstu na tle marki.
+ * Ten plik celowo nic nie wyświetla: brak formularza = brak drugiej, osobnej ścieżki
+ * uwierzytelniania do utrzymania (WCAG i bezpieczeństwo pilnuje jeden ekran SZO).
  */
 
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
-require_once dirname(__DIR__) . '/includes/crm.php';
-require_once dirname(__DIR__) . '/includes/branding.php';
-require_once dirname(__DIR__) . '/includes/org_case.php';   // odmiana nazwy organizacji
-require_once dirname(__DIR__) . '/includes/crm_sender_trust.php';   // domena organizacji
 
 auth_start();
 
-// Alias crm.feer.org.pl → zostajemy na tym hoście; APP_URL wskazuje szo.feer.org.pl,
-// więc bez tego użytkownik po zalogowaniu wylądowałby na innej domenie.
-$crm_base = crm_alias_base_url() ?? APP_URL;
-$redirect = $crm_base . '/crm/dashboard.php';
+$crm_alias = crm_alias_base_url();   // "https://crm.feer.org.pl" albo null
 
-if (current_user()) { header('Location: ' . $redirect); exit; }
+// Dokąd w CRM po zalogowaniu — tylko adresy CRM (APP_URL/crm/… albo alias crm.*), inaczej pulpit CRM
+$target = crm_szo_target_url((string)($_GET['redirect'] ?? ''));
 
-$_b       = branding_load();
-$org_name = $_b['org_name'] ?: (defined('ORG_NAME') ? ORG_NAME : 'System');
-
-$org_domain   = crm_trusted_domains()[0] ?? 'feer.org.pl';
-$ms_available = ms_login_available();
-$ms_url       = $ms_available ? ms_auth_url($redirect) : '';
-
-$error = (string)($_GET['e'] ?? '');   // komunikat z powrotu z /auth/ms365.php
-
-/* Od razu do Microsoft 365: jedyna droga logowania do CRM to MS365, więc ekran z jednym przyciskiem był zbędnym krokiem.
-   Strona zostaje wyświetlona tylko gdy: wróciliśmy z błędem (?e=), integracja MS365 nie jest skonfigurowana albo ktoś świadomie
-   otworzył ją bez przekierowania (?bez_przekierowania=1 — np. po to, by zobaczyć odnośniki dla osoby, która trafiła tu przez pomyłkę).
-   Błąd w adresie zatrzymuje przekierowanie, więc nie ma pętli logowania. */
-if ($ms_available && $ms_url !== '' && $error === '' && empty($_GET['bez_przekierowania'])) {
-    header('Location: ' . $ms_url);
+if (current_user()) {
+    // Sesja na tym hoście już jest — zostajemy na nim
+    header('Location: ' . ($crm_alias !== null ? $crm_alias . substr($target, strlen(APP_URL)) : $target));
     exit;
 }
 
-/* Rozjazd dla kogoś, kto tu zabłądził.
-   crm.feer.org.pl łatwo trafić z wyszukiwarki, ze starego odnośnika albo przez
-   pomyłkę z adresem strony fundacji. Taka osoba widziała dotąd wyłącznie przycisk
-   logowania, którego nie ma jak użyć — czyli ślepy zaułek. Poniżej są miejsca,
-   w które najczęściej zmierzała naprawdę; adresy budujemy na APP_URL, bo z aliasu
-   crm.* pozostałe moduły nie są dostępne. */
-$_public_site = 'https://feer.org.pl';
-$_lost_links  = [
-    [
-        'url'   => $_public_site,
-        'icon'  => 'bi-globe2',
-        'label' => 'Strona Fundacji FEER',
-        'desc'  => 'Informacje o działalności, kontakt, aktualności',
-    ],
-    [
-        'url'   => APP_URL . '/panel/index.php',
-        'icon'  => 'bi-person-heart',
-        'label' => 'Panel współpracownika',
-        'desc'  => 'Umowy, zadania, godziny, zaświadczenia',
-    ],
-    [
-        'url'   => APP_URL . '/karty30/ti/kursant/index.php',
-        'icon'  => 'bi-mortarboard',
-        'label' => 'Panel kursanta',
-        'desc'  => 'Zajęcia, materiały, oceny i rozliczenia',
-    ],
-    [
-        'url'   => APP_URL . '/karty30/ti/dydaktyk/login.php',
-        'icon'  => 'bi-easel2',
-        'label' => 'Panel prowadzącego',
-        'desc'  => 'Lekcje, obecności, dziennik ocen',
-    ],
-];
-try {
-    require_once dirname(__DIR__) . '/includes/webmail_clients.php';
-    $_lost_links[] = [
-        'url'   => webmail_chooser_url(),
-        'icon'  => 'bi-envelope',
-        'label' => 'Poczta',
-        'desc'  => 'Skrzynka w domenie ' . $org_domain,
-    ];
-} catch (\Throwable $e) {}
-
-/* Logowanie hasłem zostało z tego ekranu USUNIĘTE (nie schowane): formularz, który
-   tylko nie jest wyświetlany, nadal przyjmuje POST i bywa znajdowany. Cała ścieżka
-   `password_verify`, bramka IKA i 2FA żyją w torze systemowym — tu nie ma czego
-   dublować, bo tu nie ma już czym się logować poza Microsoft 365. */
-
-require_once dirname(__DIR__) . '/includes/auth_screen.php';
-auth_screen_head([
-    'title'     => 'Logowanie do CRM',
-    'tab'       => '',            // CRM nie ma rejestracji — zakładki byłyby ślepą uliczką
-    'light'     => true,          // prosta, jednokolumnowa karta: bez panelu bocznego z kafelkami innych systemów
-    'account_buttons' => [],      // bez „Zaloguj się / Załóż konto / Nie pamiętasz hasła” — CRM wpuszcza tylko Microsoft 365
-    'bootstrap' => true,
-    'main_id'   => 'crm-login-main',
-]);
-?>
-
-    <?php if ($error): ?>
-    <div class="l-alert l-alert-danger" role="alert">
-      <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
-      <span><?= h($error) ?></span>
-    </div>
-    <?php endif; ?>
-
-    <?php /* Nazwa modułu + organizacja W DOPEŁNIACZU — „CRM Fundacji…", nie
-             „CRM Fundacja…". Wspólny wzorzec wszystkich ekranów logowania. */ ?>
-    <h1 class="ks-h1"><?= h(org_login_title('CRM')) ?></h1>
-    <?php /* Pierwsze zdanie musi odpowiedzieć „gdzie ja jestem", bo część osób
-             trafia tu przypadkiem. Dopiero drugie mówi, dla kogo to narzędzie. */ ?>
-    <p class="ks-lead">
-      Wewnętrzne narzędzie zespołu Fundacji. Zaloguj się kontem służbowym <strong>@<?= h($org_domain) ?></strong> (Microsoft 365).
-    </p>
-
-    <?php if ($ms_available): ?>
-    <a href="<?= h($ms_url) ?>" class="ks-btn ks-btn--primary"
-       aria-label="Zaloguj się przez Microsoft 365 — zostaniesz przekierowany do Microsoft">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
-        <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
-        <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
-      </svg>
-      Zaloguj przez Microsoft 365
-    </a>
-    <?php /* Bez akapitu o politykach Entra ID pod przyciskiem: informacja, że wchodzi
-             się kontem służbowym, jest już w zdaniu wstępnym, a powtórzona spychała
-             rozjazd „to nie tutaj" poniżej krawędzi ekranu. */ ?>
-
-    <?php else: ?>
-    <?php /* Bez skonfigurowanego Microsoft 365 nikt się tu nie zaloguje — i nie ma
-             obejścia hasłem, bo byłoby to dokładnie to wejście, które właśnie
-             zamknęliśmy. Wyjściem jest logowanie systemowe: stamtąd administrator
-             dojdzie do ustawień i włączy integrację. */ ?>
-    <div class="l-alert l-alert-info" role="status">
-      <i class="bi bi-info-circle-fill flex-shrink-0" aria-hidden="true"></i>
-      <span>
-        Logowanie do CRM odbywa się wyłącznie przez Microsoft 365, a integracja
-        nie jest w tej chwili skonfigurowana.
-      </span>
-    </div>
-    <p class="ks-hint">
-      Administrator włącza ją w <strong>Ustawienia → Microsoft 365</strong> po zalogowaniu
-      do systemu głównego.
-    </p>
-    <a href="<?= APP_URL ?>/auth/login.php" class="ks-btn ks-btn--ghost">
-      <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Logowanie systemowe
-    </a>
-    <?php endif; ?>
-
-    <?php /* „To nie tutaj” — schowane w rozwijanym bloku, żeby ekran miał jedną czynność. Zabłąkana osoba nadal ma
-             wyjście (strona Fundacji, panele, poczta), a zalogowany pracownik nie widzi listy, której nie potrzebuje. */ ?>
-    <details class="crm-lost-box">
-      <summary>Trafiłeś tu przez pomyłkę?</summary>
-      <ul class="crm-lost">
-        <?php foreach ($_lost_links as $l): ?>
-        <li><a href="<?= h($l['url']) ?>"><i class="bi <?= h($l['icon']) ?>" aria-hidden="true"></i><span><strong><?= h($l['label']) ?></strong></span><i class="bi bi-chevron-right crm-lost-arr" aria-hidden="true"></i></a></li>
-        <?php endforeach; ?>
-      </ul>
-    </details>
-
-<style>
-/* Rozjazd „to nie tutaj" — utrzymany w języku powłoki logowania (ks-*), ale
-   celowo cichszy od przycisku logowania: to podpowiedź, nie główna akcja. */
-.crm-lead-note{display:inline-block;margin-top:.35rem;font-size:.85rem;color:var(--ks-muted)}
-.crm-lost-h{font-size:1rem;font-weight:700;text-align:center;margin:0 0 .35rem;color:var(--ks-ink)}
-.crm-lost-sub{text-align:center;font-size:.85rem;color:var(--ks-muted);line-height:1.55;margin:0 0 1.1rem}
-.crm-lost{list-style:none;margin:.6rem 0 0;padding:0;display:flex;flex-direction:column;gap:.3rem}
-.crm-lost-box{margin-top:1.4rem;font-size:.88rem}
-.crm-lost-box summary{cursor:pointer;text-align:center;color:var(--ks-muted);padding:.3rem}
-.crm-lost-box summary:focus-visible{outline:3px solid #ff9800;outline-offset:2px}
-.crm-lost a{
-  display:flex;align-items:center;gap:.7rem;padding:.65rem .8rem;border:1px solid var(--ks-line);
-  border-radius:10px;text-decoration:none;color:var(--ks-ink);background:#fff;transition:border-color .12s,background .12s;
+if ($crm_alias !== null) {
+    // Alias bez sesji → CRM w domenie SZO (tam require_login() poprowadzi na logowanie i z powrotem)
+    header('Location: ' . $target);
+    exit;
 }
-.crm-lost a:hover,.crm-lost a:focus{border-color:var(--ks);background:#fafafa}
-.crm-lost i:first-child{font-size:1.05rem;color:var(--ks);flex-shrink:0}
-.crm-lost strong{display:block;font-size:.9rem;font-weight:600;line-height:1.3}
-.crm-lost-desc{display:block;font-size:.78rem;color:var(--ks-muted);line-height:1.4}
-.crm-lost-arr{margin-left:auto;font-size:.8rem;color:var(--ks-muted)}
-html[data-theme="hc"] .crm-lost a{border:2px solid #000}
-</style>
 
-<?php
-// Odnośniki pod kartą — te same, które ekran miał w stopce, w powłoce systemowej
-/* Bez „Odzyskaj dostęp": to odzyskiwanie HASŁA LOKALNEGO, którym do CRM i tak
-   nie da się wejść. Hasło do konta służbowego zmienia się po stronie Microsoftu. */
-$_crm_links = [
-    ['url' => APP_URL . '/tozsamosc/index.php', 'label' => 'Moja tożsamość', 'icon' => 'bi-person-vcard'],
-];
-if (!CRM_STANDALONE) {
-    $_crm_links[] = ['url' => APP_URL . '/auth/login.php', 'label' => 'Logowanie systemowe', 'icon' => 'bi-box-arrow-in-right'];
-}
-auth_screen_foot(['links' => $_crm_links, 'no_new_tiles' => true]);   // bez kafli „Nowy wolontariusz / zleceniobiorca” — tu nie dotyczą
+header('Location: ' . APP_URL . '/auth/login.php?redirect=' . urlencode($target));
+exit;

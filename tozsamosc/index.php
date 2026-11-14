@@ -454,7 +454,7 @@ $services = [[
     'href' => APP_URL . '/portal.php', 'cta' => 'Otwórz',
 ]];
 if (module_enabled('crm_enabled') && (can_read('crm') || can_write('crm') || is_admin())) {
-    // CRM ma własny host (crm.feer.org.pl) — jeśli skonfigurowany, prowadzimy tam (osobny ekran logowania, skrócona nawigacja).
+    // CRM ma własny host (crm.feer.org.pl) — jeśli skonfigurowany, prowadzimy tam (logowanie przez SZO, skrócona nawigacja).
     $crm_host = trim((string)(db_one("SELECT value FROM settings WHERE key_='crm_public_url'")['value'] ?? ''));
     $crm_link = $crm_host !== '' ? rtrim($crm_host, '/') . '/crm/dashboard.php' : APP_URL . '/crm/dashboard.php';
     $crm_rw   = can_write('crm') || is_admin();

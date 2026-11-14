@@ -23,8 +23,8 @@ require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
 
 /* Bramka wejścia do modułu. Dotąd sprawdzenie uprawnień do CRM robił ekran
-   logowania CRM — po przejściu na wyłączne logowanie przez Microsoft 365 nie ma
-   już tam czego sprawdzać, a zalogowany użytkownik bez uprawnień trafiał wprost
+   logowania CRM — od 14.11.2026 CRM loguje przez SZO (crm/login.php tylko
+   przekierowuje), więc nie ma już tam czego sprawdzać, a zalogowany użytkownik bez uprawnień trafiał wprost
    na pulpit modułu.
 
    Odsyłamy na stronę główną SYSTEMU, nie na crm/dashboard.php: crm_require()
