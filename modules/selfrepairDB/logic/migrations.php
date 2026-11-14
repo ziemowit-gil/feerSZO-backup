@@ -1869,4 +1869,14 @@ return [
         },
     ],
 
+    // „EZD”: artykuł „Drukowanie etykiet w EZD: adresowe i z kodem dokumentu” (książka nadawcza RPW-W i Rejestr dokumentów; polecenie 2026-11-14).
+    '2026-11_it_portal_ezd_etykiety' => [
+        'desc' => 'Portal Usług IT, „EZD”: drukowanie etykiet',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalEzdEtykietySeed.php';
+            itPortalEzdEtykietyApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
