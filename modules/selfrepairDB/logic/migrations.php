@@ -2323,4 +2323,15 @@ return [
         },
     ],
 
+    // „Polecenia administracyjne”: artykuł „Tokeny API na komputerze: Mac i Windows” (pęk kluczy macOS, SecretManagement w PowerShellu;
+    // token Cloudflare do feer-dns). Polecenie użytkownika 2026-11-14 „dodaj też do pomocy IT info, jak w Windowsie i Maku wgrywać tokeny lokalne”.
+    '2026-11_it_portal_polecenia_it_tokeny' => [
+        'desc' => 'Portal Usług IT, „Polecenia administracyjne”: artykuł o tokenach API na Macu i Windowsie',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPoleceniaItSeed.php';
+            itPortalPoleceniaItApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

@@ -280,6 +280,51 @@ function itPortalPoleceniaItArticles(string $app): array {
                 . 'Ten kursant nie jest wirtualny, więc e-maile i SMS-y naprawdę wychodzą. Pełną listę opcji wypisuje polecenie bez argumentów.</p>'),
         ], false],
 
+        'tokeny-api-lokalnie' => ['Tokeny API na komputerze: Mac i Windows',
+            'token, tokeny, api, cloudflare, dnscontrol, dns, feer-dns, keychain, pęk kluczy, security, windows, powershell, '
+            . 'secretmanagement, secretstore, set-secret, get-secret, menedżer poświadczeń, deploy-worker, sekret, hasło', [
+            $text('<p>Tokeny API, na przykład token Cloudflare do strefy DNS feer.org.pl, trzymamy w bezpiecznym magazynie systemu: '
+                . 'na Macu w pęku kluczy, na Windowsie w magazynie PowerShella. Nigdy w pliku ani w repozytorium. '
+                . 'Skrypty w repozytorium feer-dns (<code>./dnsc</code> do DNS i <code>./deploy-worker</code> do Workera Cloudflare) '
+                . 'biorą token ze zmiennej <code>CLOUDFLARE_API_TOKEN</code>, a gdy jej nie ma, z pęku kluczy Maka '
+                . '(wpis <code>dnscontrol-cloudflare</code> na Twoim koncie).</p>'
+                . '<p>Token do feer-dns tworzysz w Cloudflare: My Profile → API Tokens → Create Token → Custom token. Dla strefy feer.org.pl potrzebuje uprawnień '
+                . '<code>Zone → Zone → Read</code>, <code>Zone → DNS → Edit</code> i <code>Zone → Workers Routes → Edit</code>, '
+                . 'a do wgrywania Workera także <code>Account → Workers Scripts → Edit</code> dla konta FEER.</p>'),
+            $text('<h2>Mac: pęk kluczy</h2>'
+                . '<p>Zapisanie albo podmiana tokenu. Polecenie zapyta o wartość, więc token nie trafi do historii terminala:</p>'
+                . $pre('security add-generic-password -U -a "$USER" -s dnscontrol-cloudflare -w')
+                . '<p>Sprawdzenie, czy token jest zapisany (polecenie wypisze go na ekranie, więc uważaj, kto patrzy):</p>'
+                . $pre('security find-generic-password -a "$USER" -s dnscontrol-cloudflare -w')
+                . '<p>Usunięcie:</p>'
+                . $pre('security delete-generic-password -a "$USER" -s dnscontrol-cloudflare')
+                . '<p>Przy pierwszym odczycie system może zapytać o zgodę na dostęp do pęku kluczy. Potem skrypty działają same:</p>'
+                . $pre("./dnsc preview\n./deploy-worker --check")
+                . '<p><code>./dnsc preview</code> sprawdza dostęp do DNS, a <code>./deploy-worker --check</code> uprawnienia do Workera. Żadne z nich niczego nie zmienia.</p>'),
+            $text('<h2>Windows: magazyn PowerShella</h2>'
+                . '<p>W PowerShellu zainstaluj raz moduły magazynu i zarejestruj magazyn. Przy instalacji potwierdź pobranie z galerii PowerShell:</p>'
+                . $pre("Install-Module Microsoft.PowerShell.SecretManagement, Microsoft.PowerShell.SecretStore -Scope CurrentUser\n"
+                     . "Register-SecretVault -Name Lokalny -ModuleName Microsoft.PowerShell.SecretStore -DefaultVault")
+                . '<p>Zapisz token. Polecenie poprosi o wartość i nie pokaże jej na ekranie. Przy pierwszym użyciu poprosi też o hasło do magazynu, '
+                . 'którym będziesz go potem odblokowywać:</p>'
+                . $pre('Set-Secret -Name dnscontrol-cloudflare')
+                . '<p>Przed pracą wczytaj token do zmiennej, tylko na czas otwartego okna PowerShella, i uruchom DNSControl w katalogu repozytorium feer-dns:</p>'
+                . $pre("\$env:CLOUDFLARE_API_TOKEN = Get-Secret -Name dnscontrol-cloudflare -AsPlainText\ndnscontrol preview")
+                . '<p>Po pracy usuń zmienną albo zamknij okno:</p>'
+                . $pre('Remove-Item Env:CLOUDFLARE_API_TOKEN')
+                . '<p>Token z magazynu usuniesz poleceniem <code>Remove-Secret -Name dnscontrol-cloudflare</code>. '
+                . 'Zmiennej z tokenem nie zapisuj na stałe (na przykład poleceniem <code>setx</code>), bo trafi do ustawień systemu jawnym tekstem. '
+                . 'Menedżer poświadczeń Windows też przechowa token, ale PowerShell nie odczyta go bez dodatkowego modułu, dlatego polecamy magazyn opisany wyżej. '
+                . 'Skrypty <code>./dnsc</code> i <code>./deploy-worker</code> są napisane dla Maka. DNSControl dla Windowsa pobierzesz '
+                . 'ze <a href="https://github.com/dnscontrol/dnscontrol/releases">strony projektu</a>.</p>'
+                . '<p>Działanie tokenu sprawdzisz na Windowsie tak (wynik <code>active</code> znaczy, że token działa):</p>'
+                . $pre('(Invoke-RestMethod -Uri https://api.cloudflare.com/client/v4/user/tokens/verify -Headers @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }).result.status')),
+            $warn('<p>Tokenu nie wklejaj do czatu, e-maila, zgłoszenia, pliku ani repozytorium i nie wpisuj go jako argumentu polecenia, bo zostanie w historii. '
+                . 'Twórz tokeny z najmniejszymi potrzebnymi uprawnieniami i ograniczone do jednej strefy. '
+                . 'Gdy token mógł wyciec, od razu unieważnij go albo wygeneruj nowy w Cloudflare (My Profile → API Tokens, przycisk Roll albo Revoke) '
+                . 'i podmień go w pęku kluczy lub w magazynie.</p>'),
+        ], false],
+
         'tresci-pomocy-it' => ['Treści Pomocy IT z poleceń',
             'pomoc it, portal usług it, uslugi-it, seed, zasiew, artykuły, it_portal, migracja, aktualizacja treści', [
             $text('<p>Część artykułów Pomocy IT powstaje z kodu. Każdy taki zestaw ma polecenie, które zapisuje treść od nowa, '
