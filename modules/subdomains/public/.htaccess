@@ -1,0 +1,8 @@
+# modules/subdomains/public — public_html małych subdomen (it, autodiscover, autoconfig); wszystko obsługuje index.php
+Options -Indexes
+DirectoryIndex index.php
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_URI} !^/index\.php$
+  RewriteRule ^ index.php [L,QSA]
+</IfModule>
