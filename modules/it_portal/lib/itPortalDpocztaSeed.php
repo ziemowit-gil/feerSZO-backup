@@ -60,12 +60,14 @@ function itPortalDpocztaApply(string $app, bool $dryRun = false, ?array $only = 
     foreach ($articles as $slug => [$title, $keywords, $blocks, $pinned]) {
         $sort = (++$i) * 10;
         if ($only !== null && !in_array($slug, $only, true)) continue;
-        $old = $catId ? db_one("SELECT id FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]) : null;
+        $old = $catId ? db_one("SELECT id, related FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]) : null;
         $rep[$old ? 'updated' : 'created'][] = "moja-poczta/{$slug} — {$title}";
         if ($dryRun) continue;
         itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
             'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => $pinned ? 1 : 0,
-            'sort_order' => $sort], $old ? (int)$old['id'] : 0);
+            'sort_order' => $sort,
+            'related' => $old ? itPortalIds($old['related'] ?? '[]') : []],   // 2026-11-14: nie kasuj „Zobacz też” przy ponownym zasiewie
+            $old ? (int)$old['id'] : 0);
     }
     return $rep;
 }
@@ -114,9 +116,28 @@ function itPortalDpocztaArticles(string $app): array {
                 $step('Wybierz hasło do poczty', '<p>Zaznacz „Poczta”. Jeśli jesteś zalogowany do SZO, kod nie jest potrzebny. '
                     . 'Bez logowania kliknij „Wyślij kod”: przyjdzie SMS-em, a gdy nie mamy Twojego numeru, e-mailem na prywatny adres.</p>'),
                 $step('Ustaw nowe hasło', '<p>Wpisz nowe hasło dwa razy (bez logowania także kod) i kliknij „Zmień hasło”. Możesz też wybrać hasło losowe, które przyjdzie SMS-em.</p>'),
+                $step('Wyloguj się z poczty i zaloguj nowym hasłem', '<p>Jeśli masz otwartą pocztę na dpoczta.pl, wyloguj się z niej i zaloguj nowym hasłem. '
+                    . 'Inaczej poczta pokaże błąd „AUTHENTICATE PLAIN: Authentication failed”.</p>'),
             ]],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nowe hasło musi mieć co najmniej 12 znaków, w tym małą literę, wielką literę i cyfrę.</p>'],
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Masz pocztę też w telefonie albo w Outlooku? Po zmianie hasła wpisz nowe także tam, inaczej program przestanie pobierać wiadomości.</p>'],
+        ], false],
+
+        // 2026-11-14: błąd w dpoczta.pl po zmianie hasła w SZO bez wylogowania się z poczty
+        'blad-authenticate-plain' => ['Błąd „AUTHENTICATE PLAIN: Authentication failed” po zmianie hasła',
+            'authenticate plain, authentication failed, błąd serwera, błąd logowania, lista jest pusta, folder jest pusty, pusta skrzynka, zniknęły wiadomości, '
+            . 'po zmianie hasła, dpoczta, wyloguj, nowe hasło, nowehaslo', [
+            ['type' => 'text', 'html' => '<p>Po zmianie hasła do poczty w SZO otwarta karta dpoczta.pl może pokazać czerwony komunikat '
+                . '<strong>„Błąd serwera: AUTHENTICATE PLAIN: Authentication failed”</strong>, a lista wiadomości robi się pusta.</p>'
+                . '<p>Twoje wiadomości są bezpieczne. Poczta próbuje się łączyć starym hasłem, bo nie wylogowałeś się po zmianie.</p>'],
+            ['type' => 'wizard', 'title' => 'Jak to naprawić', 'intro' => '', 'steps' => [
+                $step('Wyloguj się z poczty', '<p>Na dpoczta.pl kliknij ikonę wyłączania (wyloguj) w prawym dolnym rogu albo zamknij kartę z pocztą.</p>'),
+                $step('Zaloguj się nowym hasłem', '<p>Otwórz <a href="https://dpoczta.pl">dpoczta.pl</a> i zaloguj się adresem <code>imie.nazwisko@feer.org.pl</code> i <strong>nowym</strong> hasłem.</p>'),
+                $step('Popraw hasło w telefonie i programie', '<p>Jeśli masz pocztę w telefonie albo w Outlooku, tam też wpisz nowe hasło. Inaczej program będzie pokazywał błąd logowania.</p>'),
+            ]],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Błąd nie znika po wylogowaniu i zalogowaniu nowym hasłem? Sprawdź, czy wpisujesz nowe hasło, a nie startowe z SMS-a. '
+                . 'Gdy dalej nie działa, napisz do <a href="' . $hd . '">Helpdesku IT</a>. Hasło zmieniaj tylko w SZO, na stronie '
+                . '<a href="' . $app . '/nowehaslo">Nowe hasło</a>, nie w ustawieniach dpoczta.pl.</p>'],
         ], false],
 
         'poczta-w-telefonie' => ['Poczta w telefonie, Outlooku i Thunderbirdzie', 'imap, smtp, pop3, telefon, outlook, thunderbird, apple mail, konfiguracja, serwer, port', [

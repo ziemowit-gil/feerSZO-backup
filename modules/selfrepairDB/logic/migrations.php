@@ -987,4 +987,31 @@ return [
         },
     ],
 
+    // Błąd „AUTHENTICATE PLAIN” w dpoczta.pl po zmianie hasła w SZO bez wylogowania (2026-11-14): nowy artykuł + krok w „Jak zmienić hasło do poczty”.
+    // Seeder poczty kasował dotąd „Zobacz też” nadpisywanych artykułów — po poprawce odtwarzamy powiązania z Gosposią, czatem i hasłami startowymi.
+    '2026-11_it_portal_authenticate_plain' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: błąd AUTHENTICATE PLAIN po zmianie hasła; odtworzenie „Zobacz też”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            foreach (['Dpoczta', 'VendorHelp', 'Gosposia', 'Chatbot', 'Startowe'] as $n) {
+                $f = $ROOT . '/modules/it_portal/lib/itPortal' . ($n === 'VendorHelp' ? 'VendorHelp' : $n . 'Seed') . '.php';
+                if (is_file($f)) require_once $f;
+            }
+            itPortalDpocztaApply(ITP_SZO_URL, false, ['zmiana-hasla-poczty', 'blad-authenticate-plain']);
+            if (function_exists('itPortalVendorHelpApply')) itPortalVendorHelpApply();
+            if (function_exists('itPortalGosposiaApply')) itPortalGosposiaApply(ITP_SZO_URL, false, true);
+            if (function_exists('itPortalChatbotApply')) itPortalChatbotApply(ITP_SZO_URL);
+            if (function_exists('itPortalStartoweApply')) itPortalStartoweApply(ITP_SZO_URL);
+            // nowy artykuł ↔ „Jak zmienić hasło do poczty”
+            $a = db_one("SELECT a.id, a.related FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'moja-poczta' AND a.slug = 'blad-authenticate-plain'");
+            $b = db_one("SELECT a.id, a.related FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'moja-poczta' AND a.slug = 'zmiana-hasla-poczty'");
+            if ($a && $b) {
+                foreach ([[$a, (int)$b['id']], [$b, (int)$a['id']]] as [$row, $add]) {
+                    $ids = itPortalIds($row['related']);
+                    if (!in_array($add, $ids, true)) { $ids[] = $add; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), (int)$row['id']]); }
+                }
+            }
+        },
+    ],
+
 ];

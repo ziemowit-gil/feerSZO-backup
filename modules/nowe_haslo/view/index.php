@@ -366,6 +366,7 @@ if ($noRandom) $mSel = 'own';
   <h2 id="nhDoneH" class="nh-dlg__h">Hasło zmienione</h2>
   <div id="nhDoneD">
     <p><?= h((string)$changed) ?></p>
+    <p>Masz otwartą pocztę na dpoczta.pl? Wyloguj się i zaloguj nowym hasłem — inaczej zobaczysz błąd „AUTHENTICATE PLAIN”.</p>
     <p>Jeśli telefon, Outlook albo aplikacja chmury pamięta stare hasło, wpisz w nich nowe.</p>
   </div>
   <form method="dialog"><button type="submit" class="mt-btn nh-dlg__ok" autofocus>OK, rozumiem</button></form>
