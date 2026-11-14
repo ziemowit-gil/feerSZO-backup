@@ -1338,4 +1338,28 @@ return [
         },
     ],
 
+    // „Chmura plików”: artykuł „Aktywność: historia zmian w chmurze” (polecenie 2026-11-14 ze zrzutami /apps/activity) + odsyłacz z „menu-aplikacji”
+    // i „Zobacz też” w obie strony z „menu-aplikacji”, „powiadomienia” i „pulpit”.
+    '2026-11_it_portal_cloud_activity' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł o aplikacji Aktywność',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'aktywnosc');
+            itPortalCloudArticleApply(ITP_SZO_URL, 'menu-aplikacji');
+            $q = "SELECT a.id FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'chmura-plikow' AND a.slug = ?";
+            $a = db_one($q, ['aktywnosc']);
+            if (!$a) return;
+            foreach (['menu-aplikacji', 'powiadomienia', 'pulpit'] as $other) {
+                $b = db_one($q, [$other]);
+                if (!$b) continue;
+                foreach ([[(int)$a['id'], (int)$b['id']], [(int)$b['id'], (int)$a['id']]] as [$id, $add]) {
+                    $row = db_one("SELECT related FROM itp_articles WHERE id = ?", [$id]);
+                    $ids = itPortalIds($row['related'] ?? null);
+                    if (!in_array($add, $ids, true)) { $ids[] = $add; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), $id]); }
+                }
+            }
+        },
+    ],
+
 ];

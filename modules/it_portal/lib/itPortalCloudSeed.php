@@ -124,6 +124,9 @@ function itPortalCloudArticles(string $app): array {
         'menu-aplikacji' => ['Menu aplikacji i poruszanie się po chmurze',
             'menu aplikacji, launcher, aplikacje, kropki, dziewięć kropek, pulpit, pliki, biuro, zdjęcia, zespoły, aktywność, sklep aplikacji, text document, górny pasek, nawigacja, menu, menu konta, profil, status, wygląd i dostępność, motyw, wysoki kontrast, ciemny motyw, czcionka dla dysleksji, ustawienia osobiste, wyloguj, skróty klawiszowe, klawiatura, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNavBlocks($app), $app)), false, 13],
+        'aktywnosc' => ['Aktywność: historia zmian w chmurze',
+            'aktywność, historia, historia zmian, kto zmienił, kto usunął, kto udostępnił, zmiany w plikach, przez ciebie, przez innych, skupienie, ulubione, bezpieczeństwo, udostępniony plik, kalendarz, zadania, komentarze, kontakty, mapa cieplna, dowolna osoba, dowolny czas, hasło zostało zresetowane przez administratora, contact birthdays, urodziny, ustawienia aktywności, nextcloud',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudActivityBlocks($app), $app)), false, 15],
         'ustawienia-osobiste' => ['Ustawienia osobiste w chmurze: profil, język, bezpieczeństwo',
             'ustawienia, ustawienia osobiste, personal, profil, profile & contact, zdjęcie profilowe, awatar, pełna nazwa, zaimki, lokalizacja, telefon, widoczność, kto widzi, kłódka, language & locale, język, format daty, bezpieczeństwo, urządzenia, sesje, hasło aplikacji, powiadomienia, wygląd i dostępność, udostępnianie, dostępność, nieobecność, godziny pracy, przepływ, prywatność, migracja danych, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudSettingsBlocks($app), $app)), false, 16],
@@ -500,7 +503,7 @@ function itPortalCloudNavBlocks(string $app): array {
             . '<p>Zespoły to lista zespołów, do których należysz, i miejsce na założenie własnego zespołu. Zespół to coś innego niż grupa z SZO, '
             . 'co wyjaśnia artykuł <a href="' . $base . 'grupy">Grupy w chmurze</a>.</p>'
             . '<p>Aktywność to pełna historia zmian w Twoich plikach: kto i kiedy dodał, zmienił, usunął albo udostępnił plik. '
-            . 'Po lewej przefiltrujesz ją, na przykład tylko do udostępnień albo tylko do Twoich zmian.</p>'
+            . 'Po lewej przefiltrujesz ją, na przykład tylko do udostępnień albo tylko do Twoich zmian. Opisuje ją artykuł <a href="' . $base . 'aktywnosc">Aktywność</a>.</p>'
             . '<p>Sklep aplikacji z ikoną plusa prowadzi do zewnętrznej strony z dodatkami do Nextcloud. Dodatki włącza administrator chmury, '
             . 'więc nie musisz z tej pozycji korzystać. Jeśli brakuje Ci jakiejś aplikacji, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'
             . '<p>Pod kreską jest skrót „Text document”. Tworzy od razu nowy plik tekstowy, w którym możesz pisać notatki.</p>'
@@ -538,6 +541,64 @@ function itPortalCloudNavBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie widzisz w menu aplikacji, o której mówią koledzy? Może być włączona tylko dla części osób. '
             . '<a href="' . $hd . '">Napisz do Helpdesku IT</a>, a sprawdzimy.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Aktywność: historia zmian w chmurze” (polecenie 2026-11-14 ze zrzutami nc.feer.org.pl/apps/activity: „opisz to”).
+ * Filtry po lewej jak na zrzucie, wyszukiwanie po nazwie pliku, „Dowolna osoba”, „Dowolny czas”; wpis o haśle zresetowanym przez administratora
+ * pojawia się, gdy SZO ustawia hasło w chmurze (/nowehaslo, zakładanie konta).
+ */
+function itPortalCloudActivityBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $nh = $app . '/nowehaslo';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Aplikacja Aktywność to pełna historia tego, co działo się w Twojej chmurze: kto dodał, zmienił, usunął albo udostępnił plik, '
+            . 'kto skomentował plik i co zmieniło się na Twoim koncie. Otworzysz ją z menu aplikacji, ikoną błyskawicy. '
+            . 'Krótki skrót tej listy jest też na Pulpicie w karcie „Ostatnia aktywność”.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Lista zdarzeń</h2>'
+            . '<p>Zdarzenia są ułożone od najnowszych i podzielone na dni: Dzisiaj, Wczoraj i starsze daty. Przy każdym zdarzeniu jest ikona rodzaju zmiany, '
+            . 'opis i czas po prawej, na przykład „27 minut temu”. Zielony plus oznacza dodanie pliku, strzałki w kółko oznaczają zmianę, a ikona kalendarza wydarzenie w kalendarzu.</p>'
+            . '<p>Pogrubione nazwy plików są linkami. Kliknij nazwę albo miniaturę pod opisem, żeby otworzyć plik. Gdy naraz zmieniło się kilka plików, '
+            . 'chmura łączy je w jedno zdarzenie z listą nazw i miniaturami.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Wyszukiwanie i filtry nad listą</h2>'
+            . '<p>Pole „Wyszukaj według nazwy pliku” pokazuje tylko zdarzenia dotyczące plików o pasującej nazwie. Przydaje się, gdy chcesz sprawdzić, kto ostatnio zmienił konkretny dokument.</p>'
+            . '<p>„Dowolna osoba” zawęża listę do zmian jednej osoby. „Dowolny czas” zawęża ją do wybranego okresu, na przykład ostatniego tygodnia. '
+            . 'Nie każdy widok ma oba filtry.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Widoki w menu po lewej</h2>'
+            . '<p>Wszystkie aktywności. Wszystko naraz.</p>'
+            . '<p>Skupienie. Wybrane, ważniejsze zdarzenia, bez drobnych zmian.</p>'
+            . '<p>Przez Ciebie i Przez innych. Tylko Twoje działania albo tylko działania innych osób w plikach, do których masz dostęp.</p>'
+            . '<p>Zespoły. Zdarzenia w zespołach, do których należysz.</p>'
+            . '<p>Ulubione. Zmiany w plikach i folderach oznaczonych gwiazdką.</p>'
+            . '<p>Zmiany w plikach. Dodawanie, zmiana, przenoszenie i usuwanie plików.</p>'
+            . '<p>Bezpieczeństwo. Zdarzenia na Twoim koncie, na przykład zmiana hasła albo logowanie z nowego urządzenia.</p>'
+            . '<p>Udostępniony plik. Udostępnienia, które dostałeś i które dałeś innym.</p>'
+            . '<p>Kalendarz, Zadania i Kontakty. Zmiany w tych aplikacjach, jeśli z nich korzystasz.</p>'
+            . '<p>Komentarze. Komentarze do plików, także te, w których ktoś Cię oznaczył.</p>'
+            . '<p>Mapa cieplna. Wykres, który pokazuje, w które dni było najwięcej zmian.</p>'
+            . '<p>Gdy w wybranym widoku nic się nie działo, zobaczysz napis „Brak aktywności”. To nie błąd.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Wpisy, które mogą zaskoczyć</h2>'
+            . '<p>„Twoje hasło zostało zresetowane przez administratora” pojawia się, gdy hasło w chmurze ustawia SZO, na przykład po zmianie hasła na stronie '
+            . '<a href="' . $nh . '">Nowe hasło</a> albo przy zakładaniu konta. Jeśli w tym czasie niczego nie zmieniałeś, od razu zmień hasło IAM i '
+            . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'
+            . '<p>Wpisy o wydarzeniach w kalendarzu „Contact birthdays” dotyczą kalendarza urodzin, który chmura sama tworzy z dat urodzenia w Twoich kontaktach. '
+            . 'Nie musisz nic z nimi robić.</p>'
+            . '<p>Wpisy „Utworzyłeś” z plikami takimi jak Readme.md, Nextcloud Manual.pdf czy Nextcloud intro.mp4 z dnia założenia konta to przykładowe pliki, '
+            . 'które chmura dodaje do każdego nowego konta.</p>'
+            . '<p>Wpisy od „SZO (konto techniczne)” oznaczają, że SZO dodało Cię do grupy albo udostępniło Ci folder. Więcej w artykule <a href="' . $base . 'grupy">Grupy w chmurze</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ustawienia aktywności</h2>'
+            . '<p>Na dole menu po lewej jest „Ustawienia aktywności”. Wybierzesz tam, które zdarzenia mają trafiać na listę i o których chmura ma Cię zawiadamiać e-mailem. '
+            . 'To te same ustawienia co w części „Powiadomienia” ustawień osobistych, opisane w artykule <a href="' . $base . 'powiadomienia">Powiadomienia w chmurze plików</a>.</p>'],
+
+        ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Ktoś zmienił albo usunął ważny plik? W Aktywności sprawdzisz, kto i kiedy to zrobił. '
+            . 'Usunięty plik przywrócisz z „Usuniętych plików” w aplikacji Pliki, a starszą wersję pliku z zakładki Wersje w panelu szczegółów pliku.</p>'],
     ];
 }
 
