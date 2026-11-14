@@ -211,9 +211,14 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 .au .alert-warning{--bs-alert-bg:var(--au-warn-bg);--bs-alert-border-color:var(--au-warn-line);--bs-alert-color:var(--au-warn-ink);border-left-color:var(--au-warn)}
 .au .alert-secondary{--bs-alert-bg:#f9fafb;--bs-alert-border-color:var(--au-line);--bs-alert-color:var(--au-ink2);border-left-color:var(--au-field)}
 .au .alert a{color:inherit;font-weight:600;text-decoration:underline}
-.au .au-card .card{border:1px solid var(--au-line);border-radius:10px;box-shadow:none!important;background:#fff}
-.au .au-card .card.border-primary{border-color:var(--au-acc-line)!important;border-left:4px solid var(--au-acc)!important;background:var(--au-acc-soft)}
-.au .card-header{background:#f9fafb;border-bottom-color:var(--au-line)}
+/* Karty Bootstrapa w karcie strony bez ramek i podwójnych odstępów; wyróżniona (.border-primary) jako niebieska ramka */
+.au .au-card .card{border:0;border-radius:0;background:transparent;box-shadow:none!important}
+.au .au-card .card-body{padding:0!important}
+.au .au-card .card-header{background:transparent;border-bottom:0}
+.au .au-card .card.border-primary{margin-bottom:1.25rem;border:1px solid var(--au-acc-line)!important;border-left:4px solid var(--au-acc)!important;
+  border-radius:var(--au-rs);background:var(--au-acc-soft)}
+.au .au-card .card.border-primary .card-body{padding:.9rem 1rem!important}
+.au .au-card .card + .card:not(.border-primary){margin-top:1.75rem!important;padding-top:1.25rem;border-top:1px solid var(--au-line)}
 .au .nav-tabs{border-bottom-color:var(--au-line2)}
 .au .nav-tabs .nav-link{display:flex;align-items:center;min-height:44px;color:var(--au-acc);border-radius:var(--au-rs) var(--au-rs) 0 0}
 .au .nav-tabs .nav-link.active{color:var(--au-ink);font-weight:600;border-color:var(--au-line2) var(--au-line2) #fff}

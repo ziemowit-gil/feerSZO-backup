@@ -564,8 +564,7 @@ require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'     => 'Odzyskiwanie dostępu',
     'account_buttons' => ['login', 'register'],
-    'light'     => true,
-    'cpl'       => true,   // skórka CPL (Centralny Portal Logowania)
+    'light'     => true,   // jasny wygląd ekranów wejścia (inc/loginShell/authUi.php)
     'width'     => 600,
     'bootstrap' => true,
     'main_id'   => 'reset-main',
@@ -578,6 +577,12 @@ auth_screen_head([
 
   <?php auth_screen_steps($step_labels, $reset_step, true); ?>
 
+  <?php
+  // Komunikat błędu (#login-error-text, role=alert) nad formularzem kroku — pola kroku wskazują go w aria-describedby;
+  // pojedyncze pole (kod SMS) dostaje też aria-invalid.
+  $_vr_ed = $error !== '' ? ' aria-describedby="login-error-text"' : '';
+  $_vr_ei = $error !== '' ? ' aria-invalid="true" aria-describedby="login-error-text"' : '';
+  ?>
   <?php if ($error !== ''): ?>
   <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
     <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
@@ -630,10 +635,10 @@ auth_screen_head([
         <div class="mb-3">
           <label for="email" class="form-label fw-semibold small">Adres e-mail</label>
           <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+            <span class="input-group-text"><i class="bi bi-envelope" aria-hidden="true"></i></span>
             <input type="email" class="form-control" id="email" name="email"
                    placeholder="Twój adres e-mail z umowy"
-                   value="<?= h($_POST['email'] ?? ($propose['email'] ?? '')) ?>"
+                   value="<?= h($_POST['email'] ?? ($propose['email'] ?? '')) ?>"<?= $_vr_ed ?>
                    required autofocus>
           </div>
         </div>
@@ -655,10 +660,10 @@ auth_screen_head([
         <div class="mb-3" id="row-numer-umowy" <?= !empty($_POST['no_numer_umowy']) ? 'style="display:none"' : '' ?>>
           <label for="numer_umowy" class="form-label fw-semibold small">Numer umowy</label>
           <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-file-earmark-text"></i></span>
+            <span class="input-group-text"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>
             <input type="text" class="form-control" id="numer_umowy" name="numer_umowy"
                    placeholder="np. RU/0001/2024/AB"
-                   value="<?= h($_POST['numer_umowy'] ?? '') ?>">
+                   value="<?= h($_POST['numer_umowy'] ?? '') ?>"<?= $_vr_ed ?>>
           </div>
         </div>
 
@@ -668,12 +673,12 @@ auth_screen_head([
             <i class="bi bi-shield-lock me-1 text-primary"></i>Kod odzyskiwania (8 cyfr)
           </label>
           <div class="input-group" style="max-width:260px">
-            <span class="input-group-text"><i class="bi bi-key"></i></span>
+            <span class="input-group-text"><i class="bi bi-key" aria-hidden="true"></i></span>
             <input type="text" class="form-control font-monospace text-center fw-bold"
                    id="recovery_code" name="recovery_code"
                    placeholder="00000000" maxlength="8" inputmode="numeric" pattern="\d{8}"
                    style="letter-spacing:.25em;font-size:1.1rem"
-                   value="<?= h($_POST['recovery_code'] ?? '') ?>">
+                   value="<?= h($_POST['recovery_code'] ?? '') ?>"<?= $_vr_ed ?>>
           </div>
           <div class="form-text">
             Kod wysłany SMS-em lub e-mailem przy tworzeniu umowy.
@@ -685,10 +690,10 @@ auth_screen_head([
             PESEL lub numer dokumentu tożsamości
           </label>
           <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-person-vcard"></i></span>
+            <span class="input-group-text"><i class="bi bi-person-vcard" aria-hidden="true"></i></span>
             <input type="text" class="form-control" id="pesel_or_doc" name="pesel_or_doc"
                    placeholder="Ostatnie 5 cyfr PESEL lub pełny numer dokumentu"
-                   value="<?= h($_POST['pesel_or_doc'] ?? '') ?>"
+                   value="<?= h($_POST['pesel_or_doc'] ?? '') ?>"<?= $_vr_ed ?>
                    required>
           </div>
           <div class="form-text">
@@ -884,7 +889,7 @@ auth_screen_head([
         <div class="mb-4">
           <label for="sms_code" class="form-label fw-semibold small">Kod SMS (6 cyfr)</label>
           <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-chat-square-dots"></i></span>
+            <span class="input-group-text"><i class="bi bi-chat-square-dots" aria-hidden="true"></i></span>
             <input type="text" class="form-control form-control-lg text-center"
                    id="sms_code" name="sms_code"
                    maxlength="6" minlength="6"
@@ -892,7 +897,7 @@ auth_screen_head([
                    placeholder="000000"
                    autocomplete="one-time-code"
                    required autofocus
-                   style="letter-spacing:.3em; font-size:1.3rem; font-weight:600">
+                   style="letter-spacing:.3em; font-size:1.3rem; font-weight:600"<?= $_vr_ei ?>>
           </div>
           <?php if ($sms_fails > 0): ?>
           <div class="form-text text-danger">
@@ -943,10 +948,10 @@ auth_screen_head([
         <div class="mb-3">
           <label for="password_new" class="form-label fw-semibold small">Nowe hasło</label>
           <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <span class="input-group-text"><i class="bi bi-lock" aria-hidden="true"></i></span>
             <input type="password" class="form-control" id="password_new" name="password_new"
                    minlength="8" required autofocus
-                   autocomplete="new-password">
+                   autocomplete="new-password"<?= $_vr_ed ?>>
             <button class="btn btn-outline-secondary" type="button" aria-pressed="false"
                     aria-label="Pokaż hasło" onclick="togglePass('password_new', this)">
               <i class="bi bi-eye" aria-hidden="true"></i>
@@ -958,10 +963,10 @@ auth_screen_head([
         <div class="mb-4">
           <label for="password_confirm" class="form-label fw-semibold small">Powtórz nowe hasło</label>
           <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+            <span class="input-group-text"><i class="bi bi-lock-fill" aria-hidden="true"></i></span>
             <input type="password" class="form-control" id="password_confirm" name="password_confirm"
                    minlength="8" required
-                   autocomplete="new-password">
+                   autocomplete="new-password"<?= $_vr_ed ?>>
             <button class="btn btn-outline-secondary" type="button" aria-pressed="false"
                     aria-label="Pokaż powtórzone hasło" onclick="togglePass('password_confirm', this)">
               <i class="bi bi-eye" aria-hidden="true"></i>
