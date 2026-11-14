@@ -347,6 +347,26 @@ include dirname(__DIR__) . '/includes/header.php';
     </form>
   </div>
 
+  <?php
+  // Kopie dokumentów na FTP i w chmurze Nextcloud (modules/ezdStorage) — od 2026-11-14 zamiast automatycznej kopii na SharePoint.
+  require_once dirname(__DIR__) . '/modules/ezdStorage/lib/EzdStorage.php';
+  $_ezs_nc  = EzdStorage::ncConfigured();
+  $_ezs_ftp = EzdStorage::ftpConfigured();
+  ?>
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold"><i class="bi bi-cloud-arrow-up me-2 text-primary" aria-hidden="true"></i>Kopie dokumentów (FTP + Nextcloud)</div>
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div>
+          Chmura (konto <?= h(EzdStorage::ncUser() ?: EzdStorage::NC_UID) ?>): <strong><?= $_ezs_nc ? 'działa' : 'nie skonfigurowana' ?></strong>
+          · FTP: <strong><?= $_ezs_ftp ? 'włączony' : 'wyłączony' ?></strong>
+          <div class="form-text">Kopia każdego zapisanego dokumentu idzie do chmury i na FTP (dawniej na SharePoint). Bez FTP — tylko do chmury.</div>
+        </div>
+        <a class="btn btn-outline-primary ms-auto" style="min-height:44px" href="<?= h(rtrim(APP_URL, '/')) ?>/modules/ezdStorage/router.php?_route=/ezdkopie"><i class="bi bi-gear me-1" aria-hidden="true"></i>Ustawienia kopii</a>
+      </div>
+    </div>
+  </div>
+
   <div class="col-12">
     <div class="card shadow-sm">
       <div class="card-header fw-semibold"><i class="bi bi-graph-up me-2 text-primary"></i>Przegląd modułu</div>
