@@ -121,6 +121,9 @@ function itPortalCloudArticles(string $app): array {
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
             'nextcloud, aplikacja, klient, instalacja, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudClientsBlocks($app), $app, true)), false, 20],
+        'menu-aplikacji' => ['Menu aplikacji i poruszanie się po chmurze',
+            'menu aplikacji, launcher, aplikacje, kropki, dziewięć kropek, pulpit, pliki, biuro, zdjęcia, zespoły, aktywność, sklep aplikacji, text document, górny pasek, nawigacja, menu, menu konta, profil, status, wygląd i dostępność, motyw, wysoki kontrast, ciemny motyw, czcionka dla dysleksji, ustawienia osobiste, wyloguj, skróty klawiszowe, klawiatura, nextcloud',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNavBlocks($app), $app)), false, 13],
         'powiadomienia' => ['Powiadomienia w chmurze plików',
             'powiadomienia, powiadomienie, dzwonek, czerwona kropka, udostępnienie, udostępnił, wzmianka, komentarz, e-mail z chmury, wiadomości z chmury, za dużo maili, podsumowanie, aktywność, nie przeszkadzać, status, powiadomienia push, telefon, komputer, przeglądarka, odrzuć, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNotifyBlocks($app), $app)), false, 14],
@@ -459,6 +462,72 @@ function itPortalCloudListBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Gdy czegoś nie możesz udostępnić albo nie widzisz przycisku z tego opisu, '
             . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Menu aplikacji i poruszanie się po chmurze” (polecenie 2026-11-14 ze zrzutem rozwiniętego menu aplikacji: „opisz launcher
+ * i menu nawigacyjne”). Menu aplikacji: Pulpit, Pliki, Biuro, Zdjęcia, Zespoły, Aktywność, Sklep aplikacji, niżej skrót Text document.
+ * Menu konta zwykłego użytkownika bez pozycji administratora.
+ */
+function itPortalCloudNavBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Chmura składa się z kilku aplikacji, na przykład Plików, Zdjęć i Aktywności. Przełączasz się między nimi menu aplikacji, '
+            . 'a w każdej aplikacji poruszasz się menu po lewej stronie. Górny pasek z wyszukiwarką, powiadomieniami i menu konta jest wszędzie taki sam.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Lista aplikacji w Twoim menu może być inna niż w tym opisie. Zależy od Twojego konta '
+            . 'i od tego, które aplikacje włączymy w chmurze. Po uruchomieniu instalacji produkcyjnej może ich przybyć.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Menu aplikacji</h2>'
+            . '<p>Menu aplikacji otwierasz ikoną z dziewięcioma kropkami w lewym górnym rogu, obok logo. Rozwinie się okienko z kafelkami. '
+            . 'Kliknij kafelek, żeby otworzyć aplikację. Nazwa aplikacji, w której jesteś, jest pogrubiona i widać ją też obok ikony z kropkami.</p>'
+            . '<p>Pulpit to strona startowa z kartami polecanych plików i ostatniej aktywności. Opisuje ją artykuł <a href="' . $base . 'pulpit">Ekran po zalogowaniu</a>.</p>'
+            . '<p>Pliki to wszystkie Twoje pliki i foldery oraz te, które Ci udostępniono. Opisują je artykuły <a href="' . $base . 'menu-plikow">Co jest co w menu bocznym aplikacji Pliki</a> '
+            . 'i <a href="' . $base . 'lista-plikow">Lista plików</a>.</p>'
+            . '<p>Biuro służy do pracy z dokumentami biurowymi w przeglądarce.</p>'
+            . '<p>Zdjęcia pokazują wszystkie zdjęcia i filmy z Twoich folderów w jednym miejscu, ułożone według daty. Zdjęć nie trzeba nigdzie przenosić, aplikacja sama je znajduje.</p>'
+            . '<p>Zespoły to lista zespołów, do których należysz, i miejsce na założenie własnego zespołu. Zespół to coś innego niż grupa z SZO, '
+            . 'co wyjaśnia artykuł <a href="' . $base . 'grupy">Grupy w chmurze</a>.</p>'
+            . '<p>Aktywność to pełna historia zmian w Twoich plikach: kto i kiedy dodał, zmienił, usunął albo udostępnił plik. '
+            . 'Po lewej przefiltrujesz ją, na przykład tylko do udostępnień albo tylko do Twoich zmian.</p>'
+            . '<p>Sklep aplikacji z ikoną plusa prowadzi do zewnętrznej strony z dodatkami do Nextcloud. Dodatki włącza administrator chmury, '
+            . 'więc nie musisz z tej pozycji korzystać. Jeśli brakuje Ci jakiejś aplikacji, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'
+            . '<p>Pod kreską jest skrót „Text document”. Tworzy od razu nowy plik tekstowy, w którym możesz pisać notatki.</p>'
+            . '<p>Menu zamkniesz klawiszem Escape albo klikając w dowolne miejsce poza nim.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Górny pasek</h2>'
+            . '<p>Logo po lewej zawsze przenosi na Pulpit. Pole „Aplikacje, pliki, wiadomości i nie tylko” na środku szuka w całej chmurze: w nazwach aplikacji, plików i folderów, '
+            . 'w kontaktach i w treści niektórych plików. Otworzysz je też skrótem Ctrl+K, a na Macu Cmd+K.</p>'
+            . '<p>Po prawej są dzwonek z powiadomieniami, ikona kontaktów do szybkiego wyszukania osoby z chmury i kółko z Twoimi inicjałami. '
+            . 'Powiadomienia opisuje artykuł <a href="' . $base . 'powiadomienia">Powiadomienia w chmurze plików</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Menu konta</h2>'
+            . '<p>Kliknij kółko z inicjałami w prawym górnym rogu. Na górze menu jest Twoje imię i nazwisko oraz „Zobacz profil”, czyli strona, '
+            . 'którą widzą inni użytkownicy chmury. Niżej są te pozycje:</p><ul>'
+            . '<li>„Ustaw status”: dostępny, zaraz wracam, nie przeszkadzać albo niewidoczny, z krótkim opisem i czasem wygaśnięcia.</li>'
+            . '<li>„Wygląd i dostępność”: motyw jasny albo ciemny, motyw o wysokim kontraście, czcionka łatwiejsza do czytania dla osób z dysleksją i tło strony.</li>'
+            . '<li>„Ustawienia osobiste”: dane konta, język, powiadomienia i bezpieczeństwo, w tym lista urządzeń połączonych z Twoim kontem.</li>'
+            . '<li>„Pomoc”: podręcznik Nextcloud.</li>'
+            . '<li>„Wyloguj się”: kończy pracę w chmurze w tej przeglądarce.</li></ul>'
+            . '<p>Hasła nie zmieniaj w ustawieniach osobistych chmury. Hasło IAM zmienisz na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>.</p>'],
+
+        ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Jeśli źle widzisz albo męczy Cię jasny ekran, w „Wyglądzie i dostępności” włącz motyw o wysokim kontraście '
+            . 'albo ciemny. Ustawienie działa od razu i zostaje na Twoim koncie, także na innym komputerze.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Menu po lewej w aplikacjach</h2>'
+            . '<p>Prawie każda aplikacja ma po lewej własne menu, na przykład Pliki mają „Wszystkie pliki”, „Ostatnie” i „Ulubione”. '
+            . 'Na dole tego menu zwykle są ustawienia danej aplikacji. Menu chowasz i pokazujesz ikoną prostokąta z paskiem nad treścią. '
+            . 'Na wąskim ekranie, na przykład na telefonie, menu jest schowane od początku.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Obsługa z klawiatury</h2>'
+            . '<p>Na początku każdej strony chmury jest ukryty link „Przejdź do głównej treści”, który pokazuje się po pierwszym naciśnięciu Tab. '
+            . 'Klawiszem Tab przechodzisz między przyciskami, Enter albo spacja otwiera menu i pozycje, a Escape zamyka otwarte menu i okna. '
+            . 'Aplikacja Pliki ma własne skróty, na przykład Delete usuwa zaznaczony plik, a F2 zmienia jego nazwę. Ich listę pokazuje znak zapytania na klawiaturze.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie widzisz w menu aplikacji, o której mówią koledzy? Może być włączona tylko dla części osób. '
+            . '<a href="' . $hd . '">Napisz do Helpdesku IT</a>, a sprawdzimy.</p>'],
     ];
 }
 
