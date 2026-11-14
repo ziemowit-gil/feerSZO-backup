@@ -33,8 +33,9 @@ $grRes = SsoController::takeResult('grupy-konto');
     <dl class="row mb-0">
       <dt class="col-sm-3 fw-normal">Login</dt><dd class="col-sm-9 mb-1"><code><?= h((string)($r['username'] ?? '')) ?></code></dd>
       <?php if (!empty($r['password'])): ?><dt class="col-sm-3 fw-normal">Hasło</dt><dd class="col-sm-9 mb-1"><code><?= h((string)$r['password']) ?></code></dd><?php endif; ?>
-      <dt class="col-sm-3 fw-normal">Chmura</dt><dd class="col-sm-9 mb-1"><?= h((string)(($r['cloud'] ?? '') ?: '—')) ?></dd>
-      <dt class="col-sm-3 fw-normal">Logowanie jednokrotne</dt><dd class="col-sm-9 mb-1"><?= h((string)(($r['logto'] ?? '') ?: '—')) ?></dd>
+      <?php $grSt = ['created' => 'konto założone', 'linked' => 'podpięte istniejące konto', 'synced' => 'konto zaktualizowane', 'pominięte' => 'pominięte (logowanie jednokrotne nieskonfigurowane)']; ?>
+      <dt class="col-sm-3 fw-normal">Chmura</dt><dd class="col-sm-9 mb-1"><?= h($grSt[(string)($r['cloud'] ?? '')] ?? ((string)($r['cloud'] ?? '') ?: '—')) ?></dd>
+      <dt class="col-sm-3 fw-normal">Logowanie jednokrotne</dt><dd class="col-sm-9 mb-1"><?= h($grSt[(string)($r['logto'] ?? '')] ?? ((string)($r['logto'] ?? '') ?: '—')) ?></dd>
       <dt class="col-sm-3 fw-normal">SMS</dt><dd class="col-sm-9 mb-1"><?= h((string)(($r['sms'] ?? '') ?: 'nie wysyłano (brak numeru)')) ?></dd>
       <?php if (!empty($r['ticket'])): ?><dt class="col-sm-3 fw-normal">Zgłoszenie w Helpdesku</dt><dd class="col-sm-9 mb-0"><?= h((string)$r['ticket']) ?> (osoba nie ma aktywnej umowy)</dd><?php endif; ?>
     </dl>
