@@ -158,7 +158,7 @@ check($c['unlinked'] === 1, 'Logto: logowanie konta bez powiązania z SZO policz
 check(count($mail->sent) === 3, '3 maile do administratora (Bartek, Celina, Darek)');
 check((int)$pdo->query("SELECT COUNT(*) FROM ls_audit WHERE level = 'ERROR' AND event = 'user_failed'")->fetchColumn() === 1, 'błąd Ewy w dzienniku jako ERROR');
 $bm = array_values(array_filter($mail->sent, fn($m) => str_contains($m['subject'], 'bartek')))[0] ?? null;
-check($bm !== null && str_contains($bm['text'], '6 błędnych haseł') && str_contains($bm['text'], 'Ziemowit Gil') && str_contains($bm['html'], '<ul'), 'mail o blokadzie: powody, podpis, lista HTML');
+check($bm !== null && str_contains($bm['text'], '6 błędnych haseł') && str_contains($bm['text'], 'automatyczna wiadomość') && !str_contains($bm['text'], 'Ziemowit') && str_contains($bm['html'], '<ul'), 'mail o blokadzie: powody, podpis, lista HTML');
 
 // Ponowny przebieg tego samego dnia: bez nowych maili i blokad.
 $mailsBefore = count($mail->sent);
@@ -213,7 +213,7 @@ $all = LoginSentryTemplates::ANNOUNCE_BODY . LoginSentryTemplates::SUSPEND_BODY 
 check(!preg_match('/[—–]/u', $all), 'bez myślników (humanizer)');
 check(str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'https://feer.org.pl/uslugi-it') && str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'Mietek, Bronek i Gosposia')
       && str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'Cloudflare'), 'ogłoszenie: link, Mietek/Bronek/Gosposia, Cloudflare');
-check(str_contains(LoginSentryTemplates::ANNOUNCE_BODY, "Ziemowit Gil\nZespół IT Fundacji FEER"), 'ogłoszenie: podpis');
+check(str_contains(LoginSentryTemplates::ANNOUNCE_BODY, "Pozdrawiamy\nZespół IT Fundacji FEER") && !str_contains($all, 'Ziemowit'), 'podpis zespołu, bez imienia i nazwiska');
 $h = LoginSentryTemplates::html("Test <b>x</b>\n\nLista:\n- a & b\n- c");
 check(str_contains($h, '&lt;b&gt;') && str_contains($h, '<li>a &amp; b</li>'), 'HTML escapowany, listy');
 

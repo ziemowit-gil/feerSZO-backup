@@ -2466,4 +2466,15 @@ return [
         },
     ],
 
+    // Staszek (LoginSentry, modules/login_sentry) w Pomocy IT (polecenie 2026-11-15 „dopisz go do usług IT, dokumentacja”):
+    // usługa „Bezpieczeństwo”, artykuł dla wszystkich + „Dla IT”, „Zobacz też” ze zmianą haseł i logowaniem jednokrotnym.
+    '2026-11_it_portal_staszek' => [
+        'desc' => 'Portal Usług IT, „Bezpieczeństwo”: Staszek (strażnik podejrzanych logowań), artykuł dla wszystkich i dla IT',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalStaszekSeed.php';
+            itPortalStaszekApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_staszek_seed.php [--dry-run]
+        },
+    ],
+
 ];

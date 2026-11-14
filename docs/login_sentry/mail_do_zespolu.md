@@ -31,7 +31,6 @@ Nie. Loguj się tak jak zawsze. Jeśli kiedyś nie wpuści Cię SZO ani Nextclou
 
 Dobrze też mieć hasło, którego nie używasz nigdzie indziej. Jak je zmienić, przeczytasz w portalu pomocy IT: https://feer.org.pl/uslugi-it
 
-Pozdrawiam
-Ziemowit Gil
+Pozdrawiamy
 Zespół IT Fundacji FEER
 ```

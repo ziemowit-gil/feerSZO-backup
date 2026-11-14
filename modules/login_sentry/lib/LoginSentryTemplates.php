@@ -9,12 +9,13 @@ namespace Feer\Szo\LoginSentry;
  *
  * Zmienne powiadomień: {{name}}, {{email}}, {{score}}, {{reasons}} (lista „- …”), {{ips}}, {{when}} (Europe/Warsaw),
  * {{outcome}} (lista „- …”), {{panel_url}}. Teksty przeszły przez humanizer: bez myślników, bez urzędowych ozdobników.
+ * Maile są systemowe, bez podpisu imiennego (polecenie 2026-11-15): ogłoszenie podpisuje Zespół IT, powiadomienia są oznaczone jako automatyczne.
  * Ogłoszenie leży też w docs/login_sentry/mail_do_zespolu.md, żeby dało się je wkleić do zwykłej poczty.
  */
 final class LoginSentryTemplates
 {
     public const HELP_URL = 'https://feer.org.pl/uslugi-it';
-    public const SIGNATURE = "Ziemowit Gil\nZespół IT Fundacji FEER";
+    public const SIGNATURE = "Zespół IT Fundacji FEER";
 
     public const ANNOUNCE_SUBJECT = 'Poznajcie Staszka, który pilnuje naszych logowań';
     public const ANNOUNCE_BODY = <<<'TXT'
@@ -44,8 +45,7 @@ Nie. Loguj się tak jak zawsze. Jeśli kiedyś nie wpuści Cię SZO ani Nextclou
 
 Dobrze też mieć hasło, którego nie używasz nigdzie indziej. Jak je zmienić, przeczytasz w portalu pomocy IT: https://feer.org.pl/uslugi-it
 
-Pozdrawiam
-Ziemowit Gil
+Pozdrawiamy
 Zespół IT Fundacji FEER
 TXT;
 
@@ -71,8 +71,7 @@ Co dalej:
 
 Panel: {{panel_url}}
 
-Ziemowit Gil
-Zespół IT Fundacji FEER
+To automatyczna wiadomość od Staszka (LoginSentry) z SZO Fundacji FEER.
 TXT;
 
     public const ESCALATE_SUBJECT = 'Staszek zawiesił konto {{email}}: dziś już drugie podejrzane logowanie';
@@ -94,8 +93,7 @@ Jeśli coś Ci tu nie pasuje, zapytaj tę osobę, czy to ona. Gdy wszystko jest 
 
 Panel: {{panel_url}}
 
-Ziemowit Gil
-Zespół IT Fundacji FEER
+To automatyczna wiadomość od Staszka (LoginSentry) z SZO Fundacji FEER.
 TXT;
 
     /** Krótki opis powodu do raportu, panelu i maila. */
