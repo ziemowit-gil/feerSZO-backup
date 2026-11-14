@@ -107,6 +107,7 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 /* Błąd przy polu: tekst pod polem, role="alert", pole ma aria-invalid i aria-describedby na ten element. */
 .au-ferr{display:flex;gap:.45rem;align-items:flex-start;margin:.45rem 0 0;font-size:.9rem;font-weight:600;line-height:1.45;color:var(--au-err)}
 .au-ferr>i{line-height:1.45}
+.au-ferr:empty{display:none}
 .au .invalid-feedback{font-size:.9rem;font-weight:600;color:var(--au-err)}
 .au .ks-otp,.au .sms-otp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:1.75rem;font-weight:700;
   letter-spacing:.5em;text-align:center;padding-left:calc(.875rem + .5em)}

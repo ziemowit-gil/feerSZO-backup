@@ -1,6 +1,7 @@
 <?php
 /**
- * tozsamosc/cpl.php — „CPL — Centralny Portal Logowania” (okno logowania w układzie TETA Web).
+ * tozsamosc/cpl.php — „CPL — Centralny Portal Logowania” (pełne okno logowania z wyborem profilu).
+ * Wygląd: jasna karta wspólna dla ekranów wejścia (includes/auth_screen.php, tryb 'light', inc/loginShell/authUi.php).
  *
  * Wejście przed logowaniem do SZO i Systemu Tożsamości. Pola:
  *  - Nazwa użytkownika + Hasło  → POST do /auth/login.php (anty-brute, „tylko Office”, 2FA, bramka WebAuthn),
@@ -11,7 +12,8 @@
  *                                  dostęp nadal rozstrzyga sam moduł).
  * Błędy wracają tutaj przez pole „from” (?err=). Rzadsze metody (SMS, kod, certyfikat) — /auth/login.php?pelne=1.
  *
- * WCAG 2.1 AA: etykiety pól, błąd w role=alert, widoczny fokus, obsługa klawiaturą, kontrast ≥ 4,5:1.
+ * WCAG 2.1 AA: etykiety pól, błąd w role=alert przy polach (także brak loginu/hasła przed wysłaniem), widoczny fokus,
+ * obsługa klawiaturą (zmiana profilu nie przenosi fokusu), kontrast ≥ 4,5:1.
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -75,173 +77,156 @@ foreach ($profiles as $k => $p) {
 }
 $from_url = $SELF . ($want !== '' ? '?redirect=' . urlencode($want) : '');
 
-// Siatka kropek w nagłówku — stała (ziarno), żeby wygląd nie „migał” między odświeżeniami.
-mt_srand(2610);
-$dots = '';
-$pal  = ['#6b2c91', '#0079c2', '#2e9b3f'];
-for ($cx = 0; $cx < 24; $cx++) {
-    for ($cy = 0; $cy < 9; $cy++) {
-        if (mt_rand(0, 99) < 38 - $cy * 2) continue;
-        $c = mt_rand(0, 99) < 22 ? $pal[mt_rand(0, 2)] : '#d4d4d8';
-        $dots .= '<circle cx="' . (12 + $cx * 19) . '" cy="' . (10 + $cy * 15) . '" r="3" fill="' . $c . '"/>';
-    }
-}
 header('Cache-Control: no-store');
-?><!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CPL — Centralny Portal Logowania · Fundacja FEER</title>
-<style>
-  :root{--ink:#1f2937;--ink2:#4b5563;--brand:#2e2a7a;--blue:#0a6fb8;--blue-d:#075f9e;--green:#2e9b3f;--line:#c9ced6;--bg:#e9ebee}
-  *{box-sizing:border-box}
-  html,body{margin:0}
-  body{background:var(--bg);color:var(--ink);font:14px/1.4 Tahoma,"Segoe UI",Verdana,Arial,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
-  .cpl{width:100%;max-width:460px;background:#fff;box-shadow:0 0 0 1px #d6d9de;overflow:hidden}
-  .cpl-top{position:relative;height:170px;background:linear-gradient(180deg,#fff 0%,#f4f5f6 70%,#eceeef 100%)}
-  .cpl-top svg{position:absolute;inset:0;width:100%;height:100%}
-  .cpl-logo{position:absolute;left:16px;bottom:22px;font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1}
-  .cpl-logo b{color:var(--brand)}
-  .cpl-logo span{background:linear-gradient(90deg,#0a7fd1,#2e9b3f);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .cpl-sub{position:absolute;left:16px;bottom:6px;font-size:11px;font-weight:700;color:var(--brand)}
-  .cpl-body{background:#eceeef;padding:22px 26px 14px}
-  .row{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;align-items:center;margin-bottom:10px}
-  .row>label{text-align:right;font-weight:700;color:#374151}
-  .row.sub{margin-top:-4px}
-  input[type=text],input[type=password],select{width:100%;height:30px;border:1px solid #8d95a1;background:#fff;padding:3px 7px;font:inherit;color:var(--ink);border-radius:2px}
-  input:focus,select:focus,button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #f59e0b;outline-offset:1px}
-  .chk{display:flex;align-items:center;gap:6px}
-  .chk input{width:16px;height:16px;margin:0}
-  .link{font-size:12px;color:#4b5563;text-align:right}
-  .link a{color:#374151}
-  .btn{display:block;margin:14px auto 6px;min-width:112px;height:34px;border:0;background:var(--blue);color:#fff;font:700 13px Tahoma,"Segoe UI",sans-serif;cursor:pointer;border-radius:2px;padding:0 18px}
-  .btn:hover{background:var(--blue-d)}
-  .btn--sso{width:max-content;max-width:100%;line-height:34px;text-align:center;text-decoration:none;background:#fff;color:var(--blue-d);border:1px solid var(--blue-d)}
-  .btn--sso:hover{background:#e6f1fb;color:var(--blue-d)}
-  .alert{margin:0 0 12px;padding:8px 10px;background:#fde8e8;border-left:5px solid #b42318;color:#7a1710;font-size:13px}
-  .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px 10px;background:#eceeef;font-size:12px;color:#374151;flex-wrap:wrap}
-  .foot .lang{display:flex;align-items:center;gap:6px;font-weight:700}
-  .more{padding:8px 26px 14px;background:#eceeef;font-size:12px}
-  .more a{color:#1d4ed8;margin-right:12px}
-  .vpn{margin:0;padding:9px 26px 11px;background:#fff7e0;border-top:1px solid #e6d9a8;border-bottom:1px solid #e6d9a8;color:#5c4400;font-size:12.5px}
-  .vpn a{color:#7a4a00;font-weight:700}
-  .hint{font-size:12px;color:var(--ink2);margin:0 0 10px;padding-left:130px}
-  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  [hidden]{display:none!important}
-  @media(max-width:420px){.row{grid-template-columns:1fr}.row>label{text-align:left}.hint{padding-left:0}}
-</style>
-</head>
-<body>
-<main class="cpl" id="cpl" aria-labelledby="cpl-h">
-  <div class="cpl-top">
-    <svg viewBox="0 0 460 170" preserveAspectRatio="xMidYMin slice" aria-hidden="true" focusable="false"><?= $dots ?></svg>
-    <div class="cpl-logo" id="cpl-h"><b>CPL</b> <span>Portal</span></div>
-    <div class="cpl-sub">Centralny Portal Logowania · Fundacja FEER</div>
+
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
+auth_screen_head([
+    'title'           => 'CPL — Centralny Portal Logowania',
+    'light'           => true,
+    'width'           => 520,
+    'main_id'         => 'cpl',
+    'account_buttons' => [],
+    'head_html'       => '<style>'
+        . '.cpl-opts{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0 1rem;margin:-.4rem 0 .9rem}'
+        . '.cpl-check{display:flex;align-items:center;gap:.6rem;min-height:44px}'
+        . '.cpl-check input{flex-shrink:0;width:1.2rem;height:1.2rem;margin:0}'
+        . '.cpl-check label{font-size:.95rem;cursor:pointer}'
+        . '.cpl-opts>a{display:inline-flex;align-items:center;min-height:44px;font-weight:600}'
+        . '#cpl-domain-h{margin:-.6rem 0 1.15rem}'
+        . '#cpl-vpn{margin:-.35rem 0 1.25rem}'
+        . '.cpl-sso-h{text-align:center}'
+        . '.cpl-foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0 1rem;margin:1.5rem 0 0;padding-top:.75rem;border-top:1px solid var(--au-line)}'
+        . '.cpl-lang{font-size:.9rem;font-weight:600;color:var(--au-muted)}'
+        . '</style>',
+]);
+$errIds = $err !== '' ? ' cpl-err' : '';
+?>
+<p class="au-kicker">CPL</p>
+<h1 class="ks-h1" id="cpl-h">Centralny Portal Logowania</h1>
+<p class="ks-lead">Jedno logowanie do SZO i modułów Fundacji. Wybierz profil, a po zalogowaniu od razu tam trafisz.</p>
+
+<form id="cpl-form" method="post" action="<?= $e($urls[$sel]['form']) ?>" novalidate autocomplete="on" aria-labelledby="cpl-h">
+  <input type="hidden" name="_csrf" value="<?= $e($token) ?>">
+  <input type="hidden" name="_method" value="local">
+  <input type="hidden" name="from" value="<?= $e($from_url) ?>">
+
+  <?php if ($err !== ''): ?>
+  <div class="l-alert l-alert-danger" role="alert" id="cpl-err"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span id="login-error-text"><?= $e($err) ?></span></div>
+  <?php endif; ?>
+
+  <div class="ks-field" id="row-user">
+    <label for="cpl-user">Nazwa użytkownika</label>
+    <input type="text" class="form-control" id="cpl-user" name="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false"
+           required aria-describedby="cpl-user-h cpl-user-err<?= $errIds ?>"<?= $err !== '' ? ' aria-invalid="true"' : '' ?> autofocus>
+    <p class="ks-fieldhint" id="cpl-user-h">Adres e-mail, którym logujesz się do SZO.</p>
+    <p class="au-ferr" id="cpl-user-err" role="alert"></p>
+  </div>
+  <div class="ks-field" id="row-pass">
+    <label for="cpl-pass">Hasło</label>
+    <div class="pass-wrap">
+      <input type="password" class="form-control" id="cpl-pass" name="password" autocomplete="current-password"
+             required aria-describedby="cpl-pass-err<?= $errIds ?>"<?= $err !== '' ? ' aria-invalid="true"' : '' ?>>
+      <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" aria-controls="cpl-pass" onclick="togglePass('cpl-pass', this)"><i class="bi bi-eye" aria-hidden="true"></i></button>
+    </div>
+    <p class="au-ferr" id="cpl-pass-err" role="alert"></p>
   </div>
 
-  <form class="cpl-body" id="cpl-form" method="post" action="<?= $e($urls[$sel]['form']) ?>" novalidate autocomplete="on">
-    <input type="hidden" name="_csrf" value="<?= $e($token) ?>">
-    <input type="hidden" name="_method" value="local">
-    <input type="hidden" name="from" value="<?= $e($from_url) ?>">
-
-    <?php if ($err !== ''): ?>
-    <div class="alert" role="alert" id="cpl-err"><?= $e($err) ?></div>
-    <?php endif; ?>
-
-    <div class="row" id="row-user">
-      <label for="cpl-user">Nazwa użytkownika:</label>
-      <input type="text" id="cpl-user" name="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false"
-             required <?= $err !== '' ? 'aria-invalid="true" aria-describedby="cpl-err"' : '' ?> autofocus>
-    </div>
-    <div class="row" id="row-pass">
-      <label for="cpl-pass">Hasło:</label>
-      <input type="password" id="cpl-pass" name="password" autocomplete="current-password" required <?= $err !== '' ? 'aria-invalid="true"' : '' ?>>
-    </div>
-
-    <div class="row sub">
-      <span></span>
-      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
-        <?php if ($ms_ok): ?>
-        <label class="chk"><input type="checkbox" id="cpl-domain" aria-describedby="cpl-domain-h"> <span>Logowanie domenowe (administratorzy)</span></label>
-        <?php else: ?><span></span><?php endif; ?>
-        <span class="link"><a href="<?= $e($APP . '/user/verify_reset.php') ?>">Zapomniałem hasła</a></span>
-      </div>
-    </div>
+  <div class="cpl-opts">
     <?php if ($ms_ok): ?>
-    <p class="hint" id="cpl-domain-h">Logowanie domenowe: Microsoft 365 — tylko konta <strong>administratorów</strong> @feer.org.pl. Pozostali logują się hasłem<?= $lt_ok ? ' albo logowaniem jednokrotnym' : '' ?>.</p>
-    <?php endif; ?>
-
-    <div class="row">
-      <label for="cpl-profile">Profil / Rola:</label>
-      <select id="cpl-profile" name="profil" aria-describedby="cpl-profile-h">
-        <?php foreach ($profiles as $k => $p): ?>
-        <option value="<?= $e($k) ?>"<?= $k === $sel ? ' selected' : '' ?>><?= $e($p[0]) ?> / <?= $e($p[1]) ?></option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-    <p class="hint" id="cpl-profile-h">Profil wskazuje, dokąd trafisz po zalogowaniu. Zakres dostępu nadają uprawnienia Twojego konta.</p>
-
-    <button type="submit" class="btn" id="cpl-go">Zaloguj</button>
-    <?php if ($lt_ok): ?>
-    <a class="btn btn--sso" id="cpl-sso" href="<?= $e($urls[$sel]['sso']) ?>">Zaloguj przez logowanie jednokrotne</a>
-    <p class="hint" style="padding-left:0;text-align:center">Jedno konto Fundacji (Logto) — to samo co do chmury plików.</p>
-    <?php endif; ?>
-  </form>
-
-  <p class="vpn" id="cpl-vpn" role="note"<?= $profiles[$sel][3] ? '' : ' hidden' ?>><strong>Niektóre usługi są dostępne wyłącznie z VPN.</strong>
-    Wybrany profil wymaga połączenia z VPN Fundacji — jeśli moduł nie otworzy się po zalogowaniu, połącz się z VPN i spróbuj ponownie. <a href="<?= $e($APP . '/vpn/') ?>">Dowiedz się więcej o VPN</a></p>
-
-  <div class="foot">
-    <label class="chk"><input type="checkbox" id="cpl-remember"> <span>Zapamiętaj profil i sposób logowania</span></label>
-    <span class="lang" title="Interfejs dostępny w języku polskim"><span aria-hidden="true">🇵🇱</span> polski</span>
+    <div class="cpl-check"><input type="checkbox" id="cpl-domain" aria-describedby="cpl-domain-h"><label for="cpl-domain">Logowanie domenowe (administratorzy)</label></div>
+    <?php else: ?><span></span><?php endif; ?>
+    <a href="<?= $e($APP . '/user/verify_reset.php') ?>">Zapomniałem hasła</a>
   </div>
-</main>
+  <?php if ($ms_ok): ?>
+  <p class="ks-fieldhint" id="cpl-domain-h">Logowanie domenowe to Microsoft 365, tylko dla kont <strong>administratorów</strong> @feer.org.pl. Pozostali logują się hasłem<?= $lt_ok ? ' albo logowaniem jednokrotnym' : '' ?>.</p>
+  <?php endif; ?>
 
-<script>
+  <div class="ks-field">
+    <label for="cpl-profile">Profil / Rola</label>
+    <select class="form-control" id="cpl-profile" name="profil" aria-describedby="cpl-profile-h">
+      <?php foreach ($profiles as $k => $p): ?>
+      <option value="<?= $e($k) ?>"<?= $k === $sel ? ' selected' : '' ?>><?= $e($p[0]) ?> / <?= $e($p[1]) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <p class="ks-fieldhint" id="cpl-profile-h">Profil wskazuje, dokąd trafisz po zalogowaniu. Zakres dostępu nadają uprawnienia Twojego konta.</p>
+  </div>
+
+  <div class="l-alert l-alert-warn" id="cpl-vpn" role="note"<?= $profiles[$sel][3] ? '' : ' hidden' ?>>
+    <i class="bi bi-shield-lock" aria-hidden="true"></i>
+    <span><strong>Niektóre usługi są dostępne wyłącznie z VPN.</strong>
+    Wybrany profil wymaga połączenia z VPN Fundacji. Jeśli moduł nie otworzy się po zalogowaniu, połącz się z VPN i spróbuj ponownie.
+    <a href="<?= $e($APP . '/vpn/') ?>">Dowiedz się więcej o VPN</a></span>
+  </div>
+
+  <button type="submit" class="ks-btn ks-btn--primary" id="cpl-go">Zaloguj</button>
+  <?php if ($lt_ok): ?>
+  <div class="ks-or">albo</div>
+  <a class="ks-btn ks-btn--ghost" id="cpl-sso" href="<?= $e($urls[$sel]['sso']) ?>"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
+  <p class="ks-fieldhint cpl-sso-h">Jedno konto Fundacji (Logto), to samo co do chmury plików.</p>
+  <?php endif; ?>
+</form>
+
+<div class="cpl-foot">
+  <div class="cpl-check"><input type="checkbox" id="cpl-remember"><label for="cpl-remember">Zapamiętaj profil i sposób logowania</label></div>
+  <span class="cpl-lang"><span aria-hidden="true">🇵🇱</span> polski<span class="sr"> (interfejs w języku polskim)</span></span>
+</div>
+<?php
+$cpl_js = '<script>
 (function () {
-  var URLS = <?= json_encode($urls, JSON_UNESCAPED_SLASHES) ?>;
-  var VPN = <?= json_encode($vpnMap) ?>;
-  var HAS_MS = <?= $ms_ok ? 'true' : 'false' ?>;
-  var form = document.getElementById('cpl-form'), prof = document.getElementById('cpl-profile'),
-      dom = document.getElementById('cpl-domain'), user = document.getElementById('cpl-user'),
-      pass = document.getElementById('cpl-pass'), rowUser = document.getElementById('row-user'),
-      rowPass = document.getElementById('row-pass'),
-      rem = document.getElementById('cpl-remember'), hasErr = <?= $err !== '' ? 'true' : 'false' ?>;
-  var KEY = 'cpl.prefs.v2';   // v2 (13.11.2026): Microsoft 365 tylko dla administratorów — dawne „Logowanie domenowe” nie wraca samo
-  function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
+  var URLS = ' . json_encode($urls, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) . ';
+  var VPN = ' . json_encode($vpnMap) . ';
+  var HAS_MS = ' . ($ms_ok ? 'true' : 'false') . ';
+  var WANT = ' . ($want !== '' ? 'true' : 'false') . ';
+  var form = document.getElementById("cpl-form"), prof = document.getElementById("cpl-profile"),
+      dom = document.getElementById("cpl-domain"), user = document.getElementById("cpl-user"),
+      pass = document.getElementById("cpl-pass"), rowUser = document.getElementById("row-user"),
+      rowPass = document.getElementById("row-pass"), rem = document.getElementById("cpl-remember"),
+      hasErr = ' . ($err !== '' ? 'true' : 'false') . ';
+  var KEY = "cpl.prefs.v2";   // v2 (13.11.2026): Microsoft 365 tylko dla administratorów; dawne „Logowanie domenowe” nie wraca samo
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; } }
   function save(v) { try { if (v) localStorage.setItem(KEY, JSON.stringify(v)); else localStorage.removeItem(KEY); } catch (e) {} }
 
+  // Błąd przy polu: tekst w role=alert pod polem, aria-invalid na polu.
+  function fieldErr(inp, msg) {
+    var box = document.getElementById(inp.id + "-err");
+    if (box) box.innerHTML = msg ? "<i class=\"bi bi-exclamation-circle-fill\" aria-hidden=\"true\"></i><span></span>" : "";
+    if (box && msg) box.lastChild.textContent = msg;
+    if (msg) inp.setAttribute("aria-invalid", "true"); else if (!hasErr) inp.removeAttribute("aria-invalid");
+  }
+  // Zmiana profilu albo sposobu logowania nie przenosi fokusu (WCAG 3.2.2).
   function apply() {
     var k = prof.value, domain = !!(dom && dom.checked);
     form.action = URLS[k].form;
-    var vn = document.getElementById('cpl-vpn'); if (vn) vn.hidden = !VPN[k];
-    var so = document.getElementById('cpl-sso'); if (so && URLS[k].sso) so.href = URLS[k].sso;
+    var vn = document.getElementById("cpl-vpn"); if (vn) vn.hidden = !VPN[k];
+    var so = document.getElementById("cpl-sso"); if (so && URLS[k].sso) so.href = URLS[k].sso;
     rowPass.hidden = domain; rowUser.hidden = domain;
     pass.disabled = domain; user.disabled = domain;
-    if (!domain) setTimeout(function () { try { user.focus(); } catch (e) {} }, 0);
   }
-  prof.addEventListener('change', apply);
-  if (dom) dom.addEventListener('change', apply);
+  prof.addEventListener("change", apply);
+  if (dom) dom.addEventListener("change", apply);
+  [user, pass].forEach(function (i) { i.addEventListener("input", function () { if (i.value) fieldErr(i, ""); }); });
 
-  form.addEventListener('submit', function (ev) {
+  form.addEventListener("submit", function (ev) {
     var k = prof.value, domain = !!(dom && dom.checked);
     save(rem.checked ? { profil: k, domain: domain } : null);
     if (domain && HAS_MS && URLS[k].ms) { ev.preventDefault(); window.location.href = URLS[k].ms; return; }
-    if (!user.value.trim() || !pass.value) {
-      ev.preventDefault();
-      (!user.value.trim() ? user : pass).focus();
-    }
+    var noUser = !user.value.trim(), noPass = !pass.value;
+    fieldErr(user, noUser ? "Wpisz nazwę użytkownika (adres e-mail)." : "");
+    fieldErr(pass, noPass ? "Wpisz hasło." : "");
+    if (noUser || noPass) { ev.preventDefault(); (noUser ? user : pass).focus(); }
   });
 
   var p = load();
   if (p) {
     rem.checked = true;
-    if (p.profil && URLS[p.profil] && !<?= $want !== '' ? 'true' : 'false' ?>) prof.value = p.profil;
+    if (p.profil && URLS[p.profil] && !WANT) prof.value = p.profil;
     if (dom) dom.checked = !hasErr && !!p.domain;   // zapamiętany wybór wygrywa z domyślnym
   }
   apply();
 })();
-</script>
-</body>
-</html>
+</script>';
+
+auth_screen_foot([
+    'no_new_tiles' => true,
+    'extra_js'     => $cpl_js,
+]);
