@@ -379,7 +379,9 @@ $_logto_url = APP_URL . '/sso/logowanie' . ($redirect !== '' ? '?redirect=' . ur
 $LOGIN_INFO = ['panel' => '', 'mini' => ''];
 try { require dirname(__DIR__) . '/modules/sso_logto/view/loginInfo.php'; }
 catch (\Throwable $e) { $LOGIN_INFO = ['panel' => '', 'mini' => '']; error_log('[login] kolumna informacji: ' . $e->getMessage()); }
-$_two = $LOGIN_INFO['panel'] !== '';
+// 2026-11-14 („prostszy, podobny do Logto”): jedna kolumna; z kolumny informacji zostaje krótki komunikat z odnośnikiem do instrukcji w Pomocy IT.
+$_two = false;
+$_ms_notice = $LOGIN_INFO['mini'] !== '' ? str_replace([' lg-info-mini', 'href="#lg-info">Przeczytaj, co zrobić'], ['', 'href="' . h(rtrim(APP_URL, '/')) . '/uslugi-it/uslugi/migracja/migracja">Co zrobić'], $LOGIN_INFO['mini']) : '';
 // Błąd formularza e-mail/hasło stoi przy polach (w formularzu); inne błędy (np. nieudane logowanie jednokrotne) nad przyciskami.
 $_err_form = $error !== '' && $active_tab === 'local' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 $_err_top  = $error !== '' && !$_err_form && !in_array($active_tab, ['code', 'sms', 'x509'], true);
@@ -390,14 +392,15 @@ $_err_ids  = $_err_form ? ' login-error-text' : '';
 // (inc/loginShell/authUi.php), druga kolumna „Odchodzimy od Microsoft 365” obok karty. Logika powyżej bez zmian.
 $_login_css = <<<'CSS'
 <style>
-.lg-cpl{margin:-1rem 0 1.5rem;font-size:.9rem;color:var(--au-ink2)}
-.lg-cpl a{font-weight:600}
-.lg-sso-h{margin:.45rem 0 0;font-size:.875rem;text-align:center;color:var(--au-muted)}
-.lg-first{margin:1.75rem 0 0;padding-top:1.25rem;border-top:1px solid var(--au-line)}
-.lg-first-h{margin:0 0 .75rem;font-size:1.05rem;font-weight:700;color:var(--au-ink)}
-.au .lg-first .lg-new{grid-template-columns:1fr;margin:0}
-.lg-first-pin{margin:.8rem 0 0;font-size:.9rem;color:var(--au-ink2)}
-.lg-first-pin a{font-weight:600}
+/* Jedna kolumna jak w Logto: logo i tytuł na środku, mniej tekstu (2026-11-14) */
+.au .au-brand{justify-content:center}
+.au .ks-h1,.au .ks-lead{text-align:center}
+.lg-hint{margin:.3rem 0 0;font-size:.875rem;color:var(--au-muted)}
+.lg-first{margin:1.25rem 0 0;font-size:.95rem;line-height:1.7;color:var(--au-ink2);text-align:center}
+.au .lg-linkbtn{display:inline;padding:0;border:0;background:none;font:inherit;color:var(--au-acc);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.lg-imp{margin:1.5rem 0 0;padding:.85rem 1rem;background:var(--au-warn-bg);border:2px solid var(--au-warn);color:var(--au-ink);font-size:.92rem;line-height:1.5}
+.lg-imp p{margin:0 0 .35rem}.lg-imp p:last-child{margin:0}
+.lg-imp-h{font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--au-warn-ink)}
 .lg-more{margin:1.5rem 0 0;padding-top:.75rem;border-top:1px solid var(--au-line)}
 .lg-more summary{display:flex;align-items:center;min-height:44px;font-weight:600;color:var(--au-acc);cursor:pointer}
 .lg-alt{display:grid;gap:.5rem;margin-top:.5rem}
@@ -431,7 +434,7 @@ CSS;
 auth_screen_head([
     'title'           => 'Logowanie',
     'light'           => true,
-    'width'           => 480,
+    'width'           => 420,
     'bootstrap'       => true,
     'main_id'         => 'login-main',
     'account_buttons' => [],
@@ -441,7 +444,6 @@ auth_screen_head([
 ?>
     <h1 class="ks-h1"><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się' ?></h1>
     <p class="ks-lead"><?= $_login_welcome_is_custom ? nl2br(h($_login_welcome)) : 'System Wspomagania Zarządzania Organizacją' ?></p>
-    <p class="lg-cpl">Logujesz się przez CPL, Centralny Portal Logowania Fundacji. Inny profil wybierzesz w <a href="<?= h(APP_URL) ?>/tozsamosc/cpl.php">pełnym oknie CPL</a>.</p>
 
     <?php if ($_ln_show): ?><div class="l-alert l-alert-info" role="region" aria-label="Komunikat"><i class="bi bi-megaphone" aria-hidden="true"></i><div><strong><?= h($_ln_show['title']) ?></strong><?php if ($_ln_show['body']): ?><br><?= nl2br(h($_ln_show['body'])) ?><?php endif; ?></div></div><?php endif; ?>
     <?php if ($_sso_hint): ?><div class="l-alert l-alert-info" role="alert" id="sso-hint"><i class="bi bi-shield-check" aria-hidden="true"></i><div>
@@ -451,11 +453,10 @@ auth_screen_head([
     <?php if (isset($_GET['ended'])): ?><div class="l-alert l-alert-success" role="status"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Sesja zakończona — zaloguj się ponownie.</span></div><?php endif; ?>
     <?php if ($_err_top): ?><div class="l-alert l-alert-danger" role="alert" id="login-error-box"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span id="login-error-text"><?= h($error) ?></span></div><?php endif; ?>
     <?php if ($emergency): ?><div class="l-alert l-alert-warn" role="note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>Logowanie awaryjne — użyj adresu e-mail i <strong>hasła awaryjnego</strong>.</span></div><?php endif; ?>
-    <?php if ($_two) echo $LOGIN_INFO['mini']; /* skrót informacji — tylko na wąskim ekranie (< 900 px), pełna treść pod kartą */ ?>
+    <?= $_ms_notice /* „Odchodzimy od Microsoft 365” w jednym zdaniu z odnośnikiem do Pomocy IT */ ?>
 
     <?php if ($_show_logto): ?>
     <a class="ks-btn ks-btn--primary" href="<?= h($_logto_url) ?>"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
-    <p class="lg-sso-h">Jedno konto Fundacji, to samo co do chmury plików</p>
     <div class="ks-or">albo e-mail i hasło</div>
     <?php endif; ?>
 
@@ -466,7 +467,8 @@ auth_screen_head([
       <div class="ks-field">
         <label for="f-email">Adres e-mail</label>
         <input type="email" name="email" id="f-email" class="form-control" autocomplete="email" inputmode="email" required
-               aria-describedby="f-email-err<?= $_err_ids ?>"<?= $_err_attr ?><?= (!$_show_logto || $_err_form) ? ' autofocus' : '' ?>>
+               aria-describedby="f-email-h f-email-err<?= $_err_ids ?>"<?= $_err_attr ?><?= (!$_show_logto || $_err_form) ? ' autofocus' : '' ?>>
+        <p class="lg-hint" id="f-email-h">np. jan.kowalski@feer.org.pl</p>
         <p class="au-ferr" id="f-email-err" role="alert"></p>
       </div>
       <div class="ks-field">
@@ -482,17 +484,11 @@ auth_screen_head([
     </form>
     <div class="lg-links"><a href="<?= APP_URL ?>/user/verify_reset.php">Nie pamiętasz hasła?</a><a href="<?= h($_help_url) ?>">Instrukcja logowania</a></div>
 
-    <section class="lg-first" aria-labelledby="lg-first-h">
-      <h2 id="lg-first-h" class="lg-first-h">Pierwszy raz w SZO?</h2>
-      <nav class="lg-new" aria-label="Pierwsze logowanie">
-        <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-person-plus" aria-hidden="true"></i><span>Nowy wolontariusz<strong>Aktywuj konto</strong><em>Dane z umowy i kod SMS</em></span></a>
-        <?php if ($code_available): ?>
-        <button type="button" data-bs-toggle="modal" data-bs-target="#modal-code"><i class="bi bi-key" aria-hidden="true"></i><span>Masz kod od koordynatora?<strong>Kod aktywacyjny</strong><em>Kod działa tylko raz</em></span></button>
-        <?php endif; ?>
-        <a href="<?= APP_URL ?>/zlecenie"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Nowy zleceniobiorca<strong>Oświadczenia</strong><em>Tylko przy umowie zlecenie</em></span></a>
-      </nav>
-      <?php if ($_reg_open): ?><p class="lg-first-pin">Masz PIN rejestracji od administratora? <a href="<?= APP_URL ?>/user/register.php">Załóż konto</a>.</p><?php endif; ?>
-    </section>
+    <p class="lg-first">Pierwszy raz w SZO?
+      <a href="<?= APP_URL ?>/user/verify_reset.php">Aktywuj konto</a><?php if ($code_available): ?> ·
+      <button type="button" class="lg-linkbtn" data-bs-toggle="modal" data-bs-target="#modal-code">Kod aktywacyjny</button><?php endif; ?> ·
+      <a href="<?= APP_URL ?>/zlecenie">Oświadczenia zleceniobiorcy</a><?php if ($_reg_open): ?> ·
+      <a href="<?= APP_URL ?>/user/register.php">Załóż konto (PIN)</a><?php endif; ?></p>
 
     <?php if ($has_alt || $_show_ms): ?>
     <details class="lg-more"<?= in_array($active_tab, ['code','sms','x509'], true) ? ' open' : '' ?>>
@@ -502,9 +498,16 @@ auth_screen_head([
         <?php if ($code_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-code"><i class="bi bi-key" aria-hidden="true"></i> Kod jednorazowy</button><?php endif; ?>
         <?php if ($sms_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-sms"><i class="bi bi-phone" aria-hidden="true"></i> Kod SMS</button><?php endif; ?>
         <?php if ($x509_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-x509"><i class="bi bi-patch-check" aria-hidden="true"></i> Certyfikat X.509 (administratorzy)</button><?php endif; ?>
+        <a href="<?= h(APP_URL) ?>/tozsamosc/cpl.php"><i class="bi bi-person-badge" aria-hidden="true"></i> Inny profil (CPL)</a>
       </div>
     </details>
     <?php endif; ?>
+
+    <div class="lg-imp" role="note" aria-labelledby="lg-imp-h">
+      <p class="lg-imp-h" id="lg-imp-h">Ważne</p>
+      <p>Login do SZO to adres e-mail. W logowaniu jednokrotnym wpisujesz nazwę użytkownika imię_nazwisko, np. jan_kowalski.</p>
+      <p>Hasło zmienisz na <a href="<?= h(rtrim(APP_URL, '/')) ?>/nowehaslo">szo.feer.org.pl/nowehaslo</a>. Nikt z Fundacji nie poprosi Cię o hasło.</p>
+    </div>
 <?php
 // Bootstrap (okna metod alternatywnych) ładuje się po extra_js — stąd DOMContentLoaded.
 $_login_js = '<script>
