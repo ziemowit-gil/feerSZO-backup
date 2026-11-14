@@ -1535,6 +1535,16 @@ return [
     ],
 
     // „Konto kursanta”, pakiet biurowy: konta office<nr szkolenia>@feer.org.pl „nie do użytku prywatnego” (poprawka 2026-11-14).
+    // Ten sam zapis także po zamianie trzykolumnowych tabel na listy w „Nowe konta” i „pakiet-biurowy” (wąska kolumna treści).
+    '2026-11_it_portal_konto_kursanta_listy' => [
+        'desc' => 'Portal Usług IT, „Konto kursanta”: tabele zamienione na listy',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKontoKursantaSeed.php';
+            itPortalKontoKursantaApply(ITP_SZO_URL);
+        },
+    ],
+
     '2026-11_it_portal_konto_kursanta_office_prywatne' => [
         'desc' => 'Portal Usług IT, „Konto kursanta”: konta Office szkolenia nie do użytku prywatnego',
         'run'  => static function () use ($ROOT): void {

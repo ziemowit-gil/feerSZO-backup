@@ -90,12 +90,16 @@ function itPortalKontoKursantaArticles(string $app): array {
             'nowe konto, nowe konta, kursant, uczestnik, panel kursanta, poczta kursanta, stud.feer.org.pl, login, hasło, hasło startowe, sms, kod, pierwsze logowanie, dwa hasła, titan, zimbra, edu.feer.org.pl', [
             ['type' => 'text', 'html' => '<p>Ten artykuł jest dla uczestników szkoleń i konsultacji, którzy dostali od Fundacji nowe konto. '
                 . 'Masz u nas dwa konta. Każde ma inny login, inne hasło i inną stronę logowania.</p>'
-                . '<table><thead><tr><th></th><th>Panel kursanta</th><th>Poczta kursanta</th></tr></thead><tbody>'
-                . '<tr><td>Do czego służy</td><td>plan zajęć, obecności, dokumenty, zgody, kontakt z biurem</td><td>Twoja skrzynka e-mail w Fundacji</td></tr>'
-                . '<tr><td>Login</td><td>krótki, np. <code>j.kowalski</code>, a przy konsultacjach np. <code>k1234</code></td><td>pełny adres, np. <code>j.kowalski@stud.feer.org.pl</code></td></tr>'
-                . '<tr><td>Pierwsze hasło</td><td>nie ma go: przy pierwszym logowaniu dostajesz kod SMS-em</td><td>hasło startowe przychodzi SMS-em</td></tr>'
-                . '<tr><td>Gdzie się logujesz</td><td><a href="' . $login . '">strona logowania panelu kursanta</a></td><td><a href="' . $web . '">titan.sdata.net.pl</a></td></tr>'
-                . '</tbody></table>'],
+                . '<h3>1. Panel kursanta</h3><ul>'
+                . '<li><strong>Do czego:</strong> plan zajęć, obecności, dokumenty, zgody, kontakt z biurem.</li>'
+                . '<li><strong>Login:</strong> krótki, np. <code>j.kowalski</code>, a przy konsultacjach np. <code>k1234</code>.</li>'
+                . '<li><strong>Pierwsze hasło:</strong> nie ma go. Przy pierwszym logowaniu dostajesz kod SMS-em i ustawiasz własne hasło.</li>'
+                . '<li><strong>Logowanie:</strong> <a href="' . $login . '">strona logowania panelu kursanta</a>.</li></ul>'
+                . '<h3>2. Poczta kursanta</h3><ul>'
+                . '<li><strong>Do czego:</strong> Twoja skrzynka e-mail w Fundacji.</li>'
+                . '<li><strong>Login:</strong> pełny adres, np. <code>j.kowalski@stud.feer.org.pl</code>.</li>'
+                . '<li><strong>Pierwsze hasło:</strong> hasło startowe przychodzi SMS-em.</li>'
+                . '<li><strong>Logowanie:</strong> najlepiej w programie pocztowym, a w przeglądarce na <a href="' . $web . '">titan.sdata.net.pl</a>.</li></ul>'],
 
             $titan,
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Kto zakłada konta.</strong> Konta poczty kursanta zakłada zewnętrzny administrator na polecenie kierownika szkolenia. '
@@ -222,12 +226,10 @@ function itPortalKontoKursantaArticles(string $app): array {
                 . 'Konto Microsoft zostało ze względów bezpieczeństwa wyłączone. Programy Microsoft zalogowane tym kontem nie pozwalają już na edycję albo w ogóle się nie otwierają. Adres <code>@edu.feer.org.pl</code> działa dalej jako alias poczty <code>@stud.feer.org.pl</code>.</p>'
                 . '<p>Zamiast nich zainstaluj darmowy pakiet biurowy. Nie potrzebujesz do niego konta ani licencji z Fundacji.</p>'],
             ['type' => 'text', 'html' => '<h2>Który program wybrać</h2>'
-                . '<table><thead><tr><th>Program</th><th>Dla kogo</th><th>Skąd pobrać</th></tr></thead><tbody>'
-                . '<tr><td><strong>LibreOffice</strong></td><td>pełny pakiet: dokumenty, arkusze, prezentacje, rysunki; po polsku; Windows, macOS i Linux</td>'
-                . '<td><a href="https://pl.libreoffice.org/">pl.libreoffice.org</a></td></tr>'
-                . '<tr><td><strong>ONLYOFFICE Desktop Editors</strong></td><td>wygląd podobny do Worda i Excela, dobrze zachowuje układ plików .docx i .xlsx</td>'
-                . '<td><a href="https://www.onlyoffice.com/">onlyoffice.com</a></td></tr>'
-                . '</tbody></table>'
+                . '<ul><li><strong>LibreOffice</strong>: pełny pakiet (dokumenty, arkusze, prezentacje, rysunki), po polsku, na Windows, macOS i Linux. '
+                . 'Pobierzesz go z <a href="https://pl.libreoffice.org/">pl.libreoffice.org</a>.</li>'
+                . '<li><strong>ONLYOFFICE Desktop Editors</strong>: wygląda podobnie do Worda i Excela i dobrze zachowuje układ plików .docx i .xlsx. '
+                . 'Pobierzesz go z <a href="https://www.onlyoffice.com/">onlyoffice.com</a>.</li></ul>'
                 . '<p>Oba programy otwierają i zapisują pliki Worda, Excela i PowerPointa (<code>.docx</code>, <code>.xlsx</code>, <code>.pptx</code>) oraz zapisują do PDF. '
                 . 'Pobieraj je tylko z oficjalnych stron podanych wyżej.</p>'],
             ['type' => 'wizard', 'title' => 'Instalacja LibreOffice', 'intro' => '', 'steps' => [
