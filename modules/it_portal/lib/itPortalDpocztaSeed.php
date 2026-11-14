@@ -86,6 +86,33 @@ function itPortalDpocztaOutlookBye(): string {
          . 'jak opisuje instrukcja „Poczta w telefonie, Outlooku i Thunderbirdzie”. Starą skrzynkę Microsoft usuń wtedy z listy kont w programie.</p>';
 }
 
+/**
+ * Grupy w rozwijanym menu „Mojej poczty” i kolejność (polecenie 2026-11-14: „też zrób kategorie”). Artykuły spoza seeda (np. gosposia) też tu są.
+ * @return array<string, array{0:string,1:int}>
+ */
+function itPortalDpocztaMenuGroups(): array {
+    $g1 = 'Pierwsze kroki'; $g2 = 'Hasło i bezpieczeństwo'; $g3 = 'Stopka i pisanie wiadomości'; $g4 = 'Porządek w skrzynce';
+    $g5 = 'Telefon, programy, kontakty i kalendarz'; $g6 = 'Załączniki i duże pliki';
+    return [
+        'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'ustawienia-poczty' => [$g1, 12],
+        'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22],
+        'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
+        'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43],
+        'poczta-w-telefonie' => [$g5, 50], 'kontakty-import-eksport' => [$g5, 51], 'kalendarz' => [$g5, 52],
+        'duze-zalaczniki' => [$g6, 60], 'transfernow-wetransfer' => [$g6, 61],
+    ];
+}
+
+/** Ustawia grupy i kolejność artykułów „Mojej poczty” (po itPortalDpocztaApply, które nadaje kolejność według seeda). */
+function itPortalDpocztaMenuApply(): void {
+    require_once dirname(__DIR__) . '/logic/itPortal.php';
+    itPortalMigrate();
+    foreach (itPortalDpocztaMenuGroups() as $slug => [$group, $sort]) {
+        db_exec("UPDATE itp_articles SET menu_group = ?, sort_order = ? WHERE slug = ? AND category_id = (SELECT id FROM itp_categories WHERE slug = 'moja-poczta')",
+                [$group, $sort, $slug]);
+    }
+}
+
 /** Zrzut dPoczty z lib/img jako blok obrazka (zrzuty ekranu od użytkownika z 2026-11-14, bez danych osobowych). */
 function itPortalDpocztaShot(string $name, string $alt, string $caption = ''): array {
     if (!function_exists('itPortalCloudShot')) require_once __DIR__ . '/itPortalCloudSeed.php';
@@ -97,6 +124,8 @@ function itPortalDpocztaIntro(string $app): string {
     return '<p>Poczta służbowa działa na serwerach dhosting. W przeglądarce otwierasz ją pod adresem <a href="https://dpoczta.pl">dpoczta.pl</a>. '
          . 'Logujesz się pełnym adresem <code>imie.nazwisko@feer.org.pl</code> i hasłem do skrzynki.</p>'
          . itPortalDpocztaOutlookBye()
+         . '<p>Zachęcamy, żeby od razu włączyć weryfikację dwuetapową. Chroni skrzynkę, nawet gdy ktoś pozna Twoje hasło. '
+         . 'Jak to zrobić, opisuje instrukcja „Weryfikacja dwuetapowa (2FA) w poczcie”.</p>'
          . '<p>Wybierz instrukcję z listy. Jeśli czegoś w niej brakuje, <a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
 }
 
@@ -151,15 +180,16 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'text', 'html' => '<h2>Ustawienia</h2>'
                 . '<p>Po kliknięciu koła zębatego po lewej jest lista części ustawień:</p><ul>'
                 . '<li>Preferencje: wygląd, język, strefa czasowa, sposób wyświetlania i pisania wiadomości.</li>'
-                . '<li>Foldery: dodawanie, zmiana nazw i usuwanie folderów.</li>'
+                . '<li>Foldery: lista wszystkich folderów z przełącznikami. Wyłączony przełącznik chowa folder z lewej kolumny, ale nie usuwa wiadomości. '
+                . 'Przyciski na górze: ołówek tworzy nowy folder, kosz usuwa zaznaczony, a gumka opróżnia go z wiadomości. Na dole jest pasek zajętego miejsca.</li>'
                 . '<li>Tożsamości: nazwa nadawcy i podpis, czyli stopka. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/podpis-w-poczcie">Jak ustawić podpis (stopkę) w poczcie</a>.</li>'
-                . '<li>Odpowiedzi: gotowe teksty do wstawiania w wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/szablony-odpowiedzi">Szablony odpowiedzi</a>.</li>'
+                . '<li>Odpowiedzi: gotowe teksty do wstawiania w wiadomości. Na początku lista jest pusta, a nowy tekst dodasz ikoną ołówka na górze. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/szablony-odpowiedzi">Szablony odpowiedzi</a>.</li>'
                 . '<li>Cloud View: ustawienia dodatku dostawcy poczty. Nie musisz ich zmieniać.</li>'
                 . '<li>Klucze PGP: szyfrowanie wiadomości. Na co dzień nie jest potrzebne.</li>'
                 . '<li>Filtry: automatyczne przenoszenie i przekazywanie wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/filtry-i-przekierowanie">Filtry i przekierowanie poczty</a>.</li>'
-                . '<li>Pomoc: instrukcje dostawcy poczty.</li>'
+                . '<li>Pomoc: „Centrum pomocy” dostawcy z rozwijanymi działami: Preferencje, Tożsamości, Uwierzytelnianie dwuetapowe (2FA), Kalendarz i Dodatkowe informacje.</li>'
                 . '<li>Autoresponder: odpowiedź na czas urlopu, opisana w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/autoresponder">Autoodpowiedź na czas nieobecności</a>.</li>'
-                . '<li>Uwierzytelnianie dwuetapowe: dodatkowy kod przy logowaniu, opisany w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/weryfikacja-dwuetapowa">Weryfikacja dwuetapowa w poczcie</a>.</li>'
+                . '<li>Uwierzytelnianie dwuetapowe: dodatkowy kod przy logowaniu. Zachęcamy, żeby je włączyć. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/weryfikacja-dwuetapowa">Weryfikacja dwuetapowa w poczcie</a>.</li>'
                 . '<li>CleanBox: filtr antyspamowy, opisany w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/spam-i-zaufani-nadawcy">Spam, zablokowani i zaufani nadawcy</a>.</li></ul>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Z części „Hasło” i „Przypomnienie hasła” w ustawieniach poczty nie korzystamy. Formularz „Aktualne hasło, Nowe hasło, Potwierdź hasło” zmieniłby hasło tylko w poczcie i nie trafi ono do SZO. '
                 . 'Hasło do poczty zmieniasz tylko na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/zmiana-hasla-poczty">Jak zmienić hasło do poczty</a>.</p>'],
@@ -244,7 +274,9 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'text', 'html' => '<p>POP3 (<code>pop3.dpoczta.pl</code>, port 995, SSL/TLS) pobiera wiadomości na jedno urządzenie i zwykle usuwa je z serwera. Jeśli to urządzenie się zepsuje, wiadomości przepadną.</p>'],
         ], true],
 
-        'weryfikacja-dwuetapowa' => ['Weryfikacja dwuetapowa (2FA) w poczcie', '2fa, weryfikacja dwuetapowa, uwierzytelnienie, authenticator, kod, bezpieczeństwo, kody zapasowe', [
+        'weryfikacja-dwuetapowa' => ['Weryfikacja dwuetapowa (2FA) w poczcie', '2fa, weryfikacja dwuetapowa, uwierzytelnianie dwuetapowe, uwierzytelnienie, bezpieczne konto, włamanie, authenticator, kod, bezpieczeństwo, kody zapasowe', [
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Zachęcamy wszystkich do włączenia weryfikacji dwuetapowej. Zajmuje to pięć minut, a skrzynka służbowa jest wtedy bezpieczna, '
+                . 'nawet jeśli ktoś wyłudzi albo podejrzy Twoje hasło. Większość włamań do poczty zaczyna się właśnie od wykradzionego hasła.</p>'],
             ['type' => 'text', 'html' => '<p>Weryfikacja dwuetapowa chroni skrzynkę, nawet gdy ktoś pozna Twoje hasło. Przy logowaniu oprócz hasła podajesz kod z aplikacji w telefonie.</p>'],
             ['type' => 'wizard', 'title' => 'Włączanie 2FA', 'intro' => '<p>Najpierw zainstaluj w telefonie aplikację z kodami, np. Google Authenticator albo Microsoft Authenticator.</p>', 'steps' => [
                 $step('Otwórz ustawienia', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Uwierzytelnianie dwuetapowe”.</p>'),

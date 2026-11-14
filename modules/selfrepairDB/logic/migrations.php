@@ -1641,4 +1641,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: zachęta do 2FA (wstęp, artykuł, „co jest co”), Foldery/Odpowiedzi/Pomoc według ekranów i rozwijane grupy menu
+    // (polecenia 2026-11-14: „zachęcamy do 2fa”, „też zrób kategorie”).
+    '2026-11_it_portal_dpoczta_groups_2fa' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: zachęta do 2FA i grupy w menu',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];
