@@ -1589,4 +1589,14 @@ return [
         },
     ],
 
+    // „fundacja@stud.feer.org.pl” dotyczy kursantów (polecenie 2026-11-14): artykuł fundacja-stud przeniesiony z „Mojej poczty” do „Poczty kursanta”.
+    '2026-11_it_portal_fundacja_stud_move' => [
+        'desc' => 'Portal Usług IT: artykuł o skrzynce fundacja@stud przeniesiony do „Poczty kursanta”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKontoKursantaSeed.php';
+            itPortalFundacjaStudApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

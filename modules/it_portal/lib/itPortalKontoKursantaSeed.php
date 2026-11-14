@@ -274,19 +274,24 @@ function itPortalKontoKursantaArticles(string $app): array {
 }
 
 /**
- * Krótki artykuł „Logowanie do skrzynki fundacja@stud.feer.org.pl” w usłudze „Moja poczta” (odbiorcy kadry, nie kursanci;
- * polecenie 2026-11-14: „zrób małą instrukcję zaloguj się jako fundacja@stud.feer.org.pl”). Hasła w artykule celowo nie ma —
- * przekazuje je kierownik. Pomija, gdy nie ma usługi „Moja poczta”. @return array{status:string, article:string}
+ * Krótki artykuł „Logowanie do skrzynki fundacja@stud.feer.org.pl” (polecenie 2026-11-14: „zrób małą instrukcję zaloguj się jako
+ * fundacja@stud.feer.org.pl”). Od 2026-11-14 w usłudze „Poczta kursanta” (polecenie: „dotyczy kursanta”); artykuł zostawiony wcześniej
+ * w „Mojej poczcie” jest przenoszony. Hasła w artykule celowo nie ma — przekazuje je kierownik. @return array{status:string, article:string}
  */
 function itPortalFundacjaStudApply(string $app, bool $dryRun = false): array {
     require_once dirname(__DIR__) . '/logic/itPortal.php';
     itPortalMigrate();
     $app = rtrim($app, '/');
-    $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'moja-poczta'");
-    if (!$cat) return ['status' => 'brak usługi „Moja poczta” — pominięto', 'article' => ''];
+    $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'poczta-kursanta'");
+    if (!$cat) return ['status' => 'brak usługi „Poczta kursanta” — pominięto', 'article' => ''];
     $old = db_one("SELECT * FROM itp_articles WHERE category_id = ? AND slug = 'fundacja-stud'", [(int)$cat['id']]);
+    if (!$old) {   // dawne miejsce: „Moja poczta” — przenosimy ten sam wiersz (zachowuje id, „Zobacz też” i licznik wejść)
+        $moved = db_one("SELECT a.* FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'moja-poczta' AND a.slug = 'fundacja-stud'");
+        if ($moved && !$dryRun) db_exec("UPDATE itp_articles SET category_id = ?, updated_at = datetime('now') WHERE id = ?", [(int)$cat['id'], (int)$moved['id']]);
+        $old = $moved ?: null;
+    }
     $title = 'Logowanie do skrzynki fundacja@stud.feer.org.pl';
-    $rep = ['status' => $old ? 'nadpisany' : 'utworzony', 'article' => "moja-poczta/fundacja-stud — {$title}"];
+    $rep = ['status' => $old ? 'nadpisany' : 'utworzony', 'article' => "poczta-kursanta/fundacja-stud — {$title}"];
     if ($dryRun) return $rep;
     $web = 'https://titan.sdata.net.pl/';
     $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
