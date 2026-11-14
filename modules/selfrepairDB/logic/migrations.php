@@ -1937,4 +1937,16 @@ return [
         },
     ],
 
+    // Nowa usługa „Panel współpracownika” (grupa „Konto i logowanie”) z artykułami „Mój panel w SZO” i „Zmiana swoich danych w SZO” (pola formularza,
+    // wniosek SZD podpisywany kodem, akceptacja rachunku, wnioski SZD/SKK/UPO1–3/DYD1) — polecenia 2026-11-14. modules/it_portal/lib/itPortalPanelSeed.php.
+    '2026-11_it_portal_panel' => [
+        'desc' => 'Portal Usług IT: usługa „Panel współpracownika”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPanelSeed.php';
+            itPortalPanelApply(ITP_SZO_URL);
+            db_exec("UPDATE itp_categories SET tile_group = 'Konto i logowanie', sort_order = 15 WHERE slug = 'panel-wspolpracownika'");
+        },
+    ],
+
 ];
