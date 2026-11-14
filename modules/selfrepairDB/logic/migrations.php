@@ -1211,4 +1211,15 @@ return [
         },
     ],
 
+    // „Chmura plików”: docelowe adresy nc.feer.org.pl, chmura.feer.org.pl i galaxy.feer.org.pl (polecenie 2026-11-14) we wstępie usługi
+    // i w ramce „Ważne” każdego artykułu. Ponowny zapis wstępu i artykułów (przypięcie, publikacja, „Zobacz też” zostają).
+    '2026-11_it_portal_cloud_addresses' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: docelowe adresy chmury',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

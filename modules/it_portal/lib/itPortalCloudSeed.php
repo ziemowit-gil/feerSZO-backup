@@ -104,6 +104,7 @@ function itPortalCloudIntro(string $app): string {
          . 'Zastępuje OneDrive z Microsoft 365, który wyłączamy 20 listopada 2026 r. Trzymasz w niej pliki służbowe, udostępniasz je innym osobom '
          . 'i synchronizujesz z komputerem i telefonem.</p>'
          . '<p>Obecna chmura to instalacja wdrożeniowa. Instalację produkcyjną uruchomimy na początku grudnia 2026 r.</p>'
+         . itPortalCloudAddresses()
          . '<p>Logujesz się logowaniem jednokrotnym (IAM), tak jak do SZO: adresem e-mail i hasłem IAM. To hasło jest inne niż hasło do poczty. '
          . 'Zacznij od instrukcji poniżej. Jeśli czegoś w niej brakuje, <a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
 }
@@ -115,7 +116,7 @@ function itPortalCloudIntro(string $app): string {
 function itPortalCloudArticles(string $app): array {
     return [
         'nextcloud' => ['Nextcloud: pierwsze kroki w chmurze plików',
-            'nextcloud, chmura, chmura plików, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, słabowidzący, pliki, dysk, onedrive, udostępnianie, link, synchronizacja, aplikacja, kosz, wersje, nc.feer.org.pl, iam, hasło',
+            'nextcloud, chmura, chmura plików, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, słabowidzący, pliki, dysk, onedrive, udostępnianie, link, synchronizacja, aplikacja, kosz, wersje, nc.feer.org.pl, chmura.feer.org.pl, galaxy.feer.org.pl, adres chmury, iam, hasło',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudBlocks($app), $app)), true, 10],
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
             'nextcloud, aplikacja, klient, instalacja, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
@@ -142,12 +143,22 @@ function itPortalCloudArticles(string $app): array {
 }
 
 /**
+ * Adresy chmury (polecenie 2026-11-14: „chmura będzie dostępna docelowo pod adresami nc.feer.org.pl, chmura.feer.org.pl i galaxy.feer.org.pl”).
+ */
+function itPortalCloudAddresses(): string {
+    return '<p>Docelowo chmura będzie dostępna pod trzema adresami: nc.feer.org.pl, chmura.feer.org.pl i galaxy.feer.org.pl. '
+         . 'Wszystkie prowadzą do tej samej chmury, tego samego konta i tych samych plików, więc wybierz ten, który łatwiej Ci zapamiętać. '
+         . 'Na razie używaj adresu nc.feer.org.pl.</p>';
+}
+
+/**
  * Ramka na początku artykułów o chmurze: instalacja wdrożeniowa, produkcyjna od początku grudnia 2026 r. (polecenie 2026-11-14:
  * „dopisz w Nextcloud pomoc, że to instalacja wdrożeniowa, produkcyjna zostanie uruchomiona na początku grudnia”).
  */
 function itPortalCloudPilot(array $blocks): array {
     return array_merge([['type' => 'callout', 'kind' => 'important',
-        'html' => '<p>Obecna chmura plików to instalacja wdrożeniowa. Instalację produkcyjną uruchomimy na początku grudnia 2026 r.</p>']], $blocks);
+        'html' => '<p>Obecna chmura plików to instalacja wdrożeniowa. Instalację produkcyjną uruchomimy na początku grudnia 2026 r.</p>'
+            . itPortalCloudAddresses()]], $blocks);
 }
 
 /**
