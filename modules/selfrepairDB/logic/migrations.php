@@ -1488,4 +1488,15 @@ return [
         },
     ],
 
+    // Portal Usług IT: usługa „Konto kursanta” tylko dla grupy „Kursant” — instrukcje dla nowych kont (polecenie 2026-11-14:
+    // „W kursant zrób też instrukcje dla kursantów i wrzuć do pomoc IT. Chodzi konkretnie o nowe konta”).
+    '2026-11_it_portal_konto_kursanta' => [
+        'desc' => 'Portal Usług IT: usługa „Konto kursanta” (nowe konta: panel kursanta i poczta @stud.feer.org.pl)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKontoKursantaSeed.php';
+            itPortalKontoKursantaApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_konto_kursanta_seed.php [--dry-run]
+        },
+    ],
+
 ];
