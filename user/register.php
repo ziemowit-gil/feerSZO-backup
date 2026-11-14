@@ -287,6 +287,10 @@ auth_screen_head([
 
     <?php auth_screen_steps($step_labels, $step); ?>
 
+    <?php
+    // Komunikat błędu (#login-error-text, role=alert) nad formularzem kroku — pola kroku wskazują go w aria-describedby.
+    $_rg_ed = $error !== '' ? ' login-error-text' : '';
+    ?>
     <?php if ($error !== ''): ?>
     <div class="l-alert l-alert-danger" role="alert">
       <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
@@ -330,7 +334,7 @@ auth_screen_head([
         <input type="text" class="form-control ks-otp" id="register_pin" name="register_pin"
                maxlength="6" minlength="6" inputmode="numeric" pattern="[0-9]{6}"
                placeholder="000000" autocomplete="off" required autofocus
-               aria-describedby="pin-hint">
+               aria-describedby="pin-hint<?= $_rg_ed ?>">
         <p class="ks-fieldhint" id="pin-hint">
           Kod otrzymasz od osoby, która przyjmowała Twoją umowę. Bez niego nie założysz konta.
         </p>
@@ -339,7 +343,7 @@ auth_screen_head([
       <div class="ks-field">
         <label for="email">Adres e-mail</label>
         <input type="email" class="form-control" id="email" name="email"
-               placeholder="adres@email.pl" value="<?= h($_POST['email'] ?? '') ?>"
+               placeholder="adres@email.pl" value="<?= h($_POST['email'] ?? '') ?>"<?= $error !== '' ? ' aria-describedby="login-error-text"' : '' ?>
                required autofocus autocomplete="email">
       </div>
 
@@ -347,7 +351,7 @@ auth_screen_head([
         <label for="pesel_or_doc">PESEL lub numer dokumentu</label>
         <input type="text" class="form-control" id="pesel_or_doc" name="pesel_or_doc"
                placeholder="Ostatnie 5 cyfr PESEL lub pełny numer dokumentu"
-               value="<?= h($_POST['pesel_or_doc'] ?? '') ?>" required>
+               value="<?= h($_POST['pesel_or_doc'] ?? '') ?>"<?= $error !== '' ? ' aria-describedby="login-error-text"' : '' ?> required>
         <p class="ks-fieldhint">Ostatnie 5 cyfr PESEL (np. <code>12345</code>) lub pełny numer dokumentu tożsamości.</p>
       </div>
 
@@ -376,7 +380,7 @@ auth_screen_head([
         <input type="text" class="form-control ks-otp" id="sms_code" name="sms_code"
                maxlength="6" minlength="6" inputmode="numeric" pattern="[0-9]{6}"
                placeholder="000000" autocomplete="one-time-code" required autofocus
-               aria-describedby="sms-hint">
+               aria-describedby="sms-hint<?= $_rg_ed ?>"<?= $error !== '' ? ' aria-invalid="true"' : '' ?>>
         <p class="ks-fieldhint" id="sms-hint" style="text-align:center<?= $sms_fails > 0 ? ';color:#b91c1c' : '' ?>">
           <?= $sms_fails > 0
               ? 'Błędna próba ' . (int)$sms_fails . '/3 — po 3 błędach zaczniesz od nowa.'
@@ -410,9 +414,9 @@ auth_screen_head([
         <label for="password_new">Hasło</label>
         <div class="pass-wrap">
           <input type="password" class="form-control" id="password_new" name="password_new"
-                 minlength="8" required autofocus autocomplete="new-password">
+                 minlength="8" required autofocus autocomplete="new-password"<?= $error !== '' ? ' aria-describedby="login-error-text"' : '' ?>>
           <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
-                  onclick="togglePass('password_new', this)">
+                  aria-controls="password_new" onclick="togglePass('password_new', this)">
             <i class="bi bi-eye" aria-hidden="true"></i>
           </button>
         </div>
@@ -423,9 +427,9 @@ auth_screen_head([
         <label for="password_confirm">Powtórz hasło</label>
         <div class="pass-wrap">
           <input type="password" class="form-control" id="password_confirm" name="password_confirm"
-                 minlength="8" required autocomplete="new-password">
+                 minlength="8" required autocomplete="new-password"<?= $error !== '' ? ' aria-describedby="login-error-text"' : '' ?>>
           <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
-                  onclick="togglePass('password_confirm', this)">
+                  aria-controls="password_confirm" onclick="togglePass('password_confirm', this)">
             <i class="bi bi-eye" aria-hidden="true"></i>
           </button>
         </div>
