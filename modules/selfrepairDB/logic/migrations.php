@@ -2014,4 +2014,19 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: zleceniobiorca loguje się prywatnym e-mailem i nadanym hasłem; kursant nie ma dostępu do SZO
+    // (CPL, IKA, Logowanie do SZO, Aktywacja konta) — polecenia 2026-11-14. Ponowne zastosowanie seedów.
+    '2026-11_it_portal_login_zlecenie_kursant' => [
+        'desc' => 'Portal Usług IT, „Mój login”: zleceniobiorcy i kursanci w instrukcjach logowania',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalLogowanieSzoSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalAktywacjaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCplIkaSeed.php';
+            itPortalLogowanieSzoApply(ITP_SZO_URL);
+            itPortalAktywacjaApply(ITP_SZO_URL);
+            itPortalCplIkaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

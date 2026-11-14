@@ -88,6 +88,7 @@ function itPortalAktywacjaBlocks(string $app): array {
             $step('Ustaw hasło do konta', '<p>Po przesłaniu skanu zakładamy Ci konto z dostępem tylko do Twoich oświadczeń. Link do ustawienia hasła przyjdzie na podany adres e-mail. '
                 . 'Na koncie sprawdzisz status dokumentów i wydrukujesz je ponownie. Później wejdziesz tam kaflem „Zaloguj się” na stronie oświadczeń.</p>'),
         ]],
+        ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Zleceniobiorcy często logują się do SZO prywatnym adresem e-mail, tym z umowy, i hasłem nadanym przez Fundację. Jeśli to Twoja sytuacja, wpisz ten adres i hasło w polach „Adres e-mail” i „Hasło”, a potem kliknij „Zaloguj”. Nie pamiętasz hasła? Kliknij „Nie pamiętasz hasła?”.</p>'],
 
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nikomu nie podawaj kodu z SMS-a, kodu aktywacyjnego ani hasła. Fundacja nigdy nie prosi o nie e-mailem ani telefonicznie. '
             . 'Nie możesz aktywować konta, mimo że masz umowę? <a href="' . $issue . '">Zgłoś problem z logowaniem</a>, to działa bez logowania, albo <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],

@@ -24,7 +24,7 @@ function itPortalCplIkaApply(string $app): string {
     $catId = (int)$cat['id'];
     $defs = [
         'cpl' => ['title' => 'CPL, czyli Centralny Portal Logowania', 'sort' => 6,
-            'keywords' => 'cpl, centralny portal logowania, okno logowania, logowanie do szo, profil, rola, profil rola, wybór modułu, logowanie jednokrotne, logto, logowanie domenowe, microsoft 365, administratorzy, zapamiętaj profil, vpn, zapomniałem hasła, pełne okno cpl, panel kursanta, panel dydaktyka, crm, ezd, helpdesk',
+            'keywords' => 'cpl, centralny portal logowania, okno logowania, logowanie do szo, profil, rola, profil rola, wybór modułu, logowanie jednokrotne, logto, logowanie domenowe, microsoft 365, administratorzy, zapamiętaj profil, vpn, zapomniałem hasła, pełne okno cpl, panel dydaktyka, crm, ezd, helpdesk',
             'blocks' => itPortalCplBlocks($app)],
         'ika' => ['title' => 'Kod IKA, czyli Indywidualny Kod Autoryzacyjny', 'sort' => 7,
             'keywords' => 'ika, kod ika, indywidualny kod autoryzacyjny, brama ika, kod autoryzacyjny, 6 cyfr, sześć cyfr, zablokowany kod, nie pamiętam kodu ika, reset kodu ika, zmiana kodu ika, admincode, ikaks, kod e-mail, pesel, dane osobowe, umowy, crm, dydaktyka, karty30, sesja ika wygasła, klucz bezpieczeństwa',
@@ -68,9 +68,10 @@ function itPortalCplBlocks(string $app): array {
     return [
         itPortalStanNaBlock(),
         ['type' => 'text', 'html' => '<p>CPL to skrót od „Centralny Portal Logowania”. To jedno okno logowania do wszystkich części SZO. '
-            . 'Przez CPL wchodzą pracownicy, wolontariusze, zleceniobiorcy, dydaktycy i kursanci. Każdy używa tego samego konta i tego samego hasła.</p>'
+            . 'Przez CPL wchodzą pracownicy, wolontariusze, zleceniobiorcy i dydaktycy. Każdy używa tego samego konta i tego samego hasła.</p>'
+            . '<p>Kursanci nie mają dostępu do SZO. Logują się do swojego panelu kursanta, który opisuje usługa <a href="' . $app . '/uslugi-it/uslugi/konto-kursanta">Konto kursanta</a>.</p>'
             . '<p>Rozpoznasz je po napisie „CPL Portal” i podpisie „Centralny Portal Logowania” u góry okna. Ten sam pasek widać na zwykłej <a href="' . $login . '">stronie logowania do SZO</a>. '
-            . 'Pod nim jest ramka „Logujesz się przez CPL, czyli Centralny Portal Logowania”.</p>'],
+            . 'Pod nim jest zdanie „Logujesz się przez CPL, Centralny Portal Logowania Fundacji”.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Zwykłe okno i pełne okno CPL</h2>'
             . '<p>Na zwykłej stronie logowania wpisujesz adres e-mail i hasło. Po zalogowaniu trafiasz na swój ekran startowy. Tak loguje się większość osób.</p>'
@@ -79,7 +80,7 @@ function itPortalCplBlocks(string $app): array {
 
         ['type' => 'wizard', 'title' => 'Logowanie w pełnym oknie CPL', 'intro' => '', 'steps' => [
             $step('Wpisz nazwę użytkownika i hasło', '<p>W polu „Nazwa użytkownika” wpisz adres e-mail, którym logujesz się do SZO. W polu „Hasło” wpisz swoje hasło do SZO.</p>'),
-            $step('Wybierz profil', '<p>Z listy „Profil / Rola” wybierz miejsce, do którego chcesz trafić. Na przykład „SZO, panel startowy”, „TI, panel kursanta”, „TI, panel dydaktyka”, „EZD”, „Helpdesk IT” albo „Panel współpracownika”.</p>'
+            $step('Wybierz profil', '<p>Z listy „Profil / Rola” wybierz miejsce, do którego chcesz trafić. Na przykład „SZO, panel startowy”, „TI, panel dydaktyka”, „EZD”, „Helpdesk IT” albo „Panel współpracownika”.</p>'
                 . '<p>Profil wskazuje tylko adres docelowy. Nie daje nowych uprawnień. Jeśli nie masz dostępu do wybranego modułu, system go nie otworzy.</p>'),
             $step('Zaloguj się', '<p>Kliknij „Zaloguj”. Jeśli masz włączoną weryfikację dwuskładnikową, system poprosi Cię jeszcze o drugi składnik.</p>'),
             $step('Zapamiętaj wybór, jeśli chcesz', '<p>Zaznacz na dole „Zapamiętaj profil i sposób logowania”. Przeglądarka zapamięta Twój profil na tym komputerze. Nie zaznaczaj tego na komputerze współdzielonym.</p>'),
@@ -115,7 +116,7 @@ function itPortalIkaBlocks(string $app): array {
 
         ['type' => 'text', 'html' => '<h2>Kto używa kodu IKA</h2>'
             . '<p>Kod IKA dotyczy osób, które pracują na danych osobowych innych ludzi. To administratorzy, koordynatorzy, osoby pracujące w CRM i doradcy w Dydaktyce. '
-            . 'Większość wolontariuszy, zleceniobiorców i kursantów nie ma kodu IKA i nigdy go nie zobaczy.</p>'
+            . 'Większość wolontariuszy i zleceniobiorców nie ma kodu IKA i nigdy go nie zobaczy.</p>'
             . '<p>System poprosi o kod na przykład przy otwieraniu umów, w CRM, w Dydaktyce (Karty30), przy dokumentach PFRON, przy wydruku sprawy w EZD i w panelu administratora.</p>'],
 
         ['type' => 'wizard', 'title' => 'Jak wpisać kod IKA', 'intro' => '<p>Gdy wejdziesz do chronionego miejsca, SZO pokaże ekran „Kod IKA”.</p>', 'steps' => [

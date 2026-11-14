@@ -49,9 +49,9 @@ function itPortalLogowanieSzoBlocks(string $app): array {
         itPortalCloudShot('szo-logowanie.jpg', 'Ekran logowania do SZO. Po lewej informacja „Odchodzimy od Microsoft 365” z krokami, po prawej karta CPL Portal z przyciskiem „Zaloguj przez logowanie jednokrotne”, formularzem e-mail i hasło oraz kaflami „Pierwszy raz w SZO?”', 'Ekran logowania do SZO'),
         [
             ['type' => 'wizard', 'title' => 'Karta logowania od góry do dołu', 'intro' => '', 'steps' => [
-                $step('CPL, Centralny Portal Logowania', '<p>Nagłówek „CPL Portal” oznacza wspólne logowanie Fundacji. Z tej samej strony wchodzisz do SZO. Jeśli masz kilka profili, na przykład pracownika i kursanta, inny profil wybierzesz w pełnym oknie CPL.</p>'),
+                $step('CPL, Centralny Portal Logowania', '<p>Nagłówek „CPL Portal” oznacza wspólne logowanie Fundacji. Z tej samej strony wchodzisz do SZO. Jeśli masz kilka profili, na przykład pracownika i dydaktyka, inny profil wybierzesz w pełnym oknie CPL. Kursanci nie mają dostępu do SZO, logują się do swojego panelu kursanta.</p>'),
                 $step('Zaloguj przez logowanie jednokrotne', '<p>To podstawowy sposób logowania. Używasz jednego konta Fundacji (IAM), tego samego co do chmury plików. Kliknij przycisk i wpisz e-mail oraz hasło IAM.</p>'),
-                $step('E-mail i hasło', '<p>Nie masz jeszcze konta IAM? Wpisz adres e-mail i hasło do SZO i kliknij „Zaloguj”. Po zalogowaniu panel zaproponuje założenie konta IAM.</p>'),
+                $step('E-mail i hasło', '<p>Tak logują się zwykle zleceniobiorcy: prywatnym adresem e-mail i nadanym hasłem. Nie masz jeszcze konta IAM? Wpisz adres e-mail i hasło do SZO i kliknij „Zaloguj”. Po zalogowaniu panel zaproponuje założenie konta IAM.</p>'),
                 $step('Nie pamiętasz hasła?', '<p>Odnośnik pod formularzem prowadzi do odzyskiwania dostępu. Potwierdzisz się danymi z umowy i kodem SMS, a potem ustawisz nowe hasło. Obok jest odnośnik „Instrukcja logowania”, który prowadzi do tego artykułu.</p>'),
                 $step('Pierwszy raz w SZO?', '<p>Tu są kafle dla nowych osób:</p><ul>'
                     . '<li>„Nowy wolontariusz, Aktywuj konto”: aktywacja danymi z umowy i kodem SMS.</li>'
@@ -61,6 +61,7 @@ function itPortalLogowanieSzoBlocks(string $app): array {
                 $step('Inne metody logowania i administratorzy', '<p>Na dole karty jest rozwijana lista. Znajdziesz w niej logowanie kodem SMS albo kodem jednorazowym, jeśli są włączone. '
                     . 'Jest tam też przycisk Microsoft 365, ale tylko dla administratorów z kontem @feer.org.pl. Pozostałe osoby z niego nie korzystają.</p>'),
             ]],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Zleceniobiorcy często logują się do SZO prywatnym adresem e-mail, tym z umowy, i hasłem nadanym przez Fundację. Jeśli to Twoja sytuacja, wpisz ten adres i hasło w polach „Adres e-mail” i „Hasło”, a potem kliknij „Zaloguj”. Nie pamiętasz hasła? Kliknij „Nie pamiętasz hasła?”.</p>'],
             ['type' => 'text', 'html' => '<h2>Lewa część: odchodzimy od Microsoft 365</h2>'
                 . '<p>Ramka po lewej mówi, kiedy wyłączymy Microsoft 365, i podaje trzy kroki: zaloguj się e-mailem i hasłem, załóż konto IAM, a następnym razem używaj logowania jednokrotnego. '
                 . 'Powody zmiany są pod odnośnikiem „Dlaczego odchodzimy od Microsoft 365?”. Kliknij go, żeby je rozwinąć.</p>'
