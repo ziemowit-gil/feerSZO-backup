@@ -27,6 +27,14 @@ function itPortalPageStart(string $title, string $active = '', string $descripti
         'uslugi'     => ['Usługi', itPortalUrl('uslugi')],
         'komunikaty' => ['Komunikaty', itPortalUrl('komunikaty')],
         'kontakt'    => ['Kontakt', itPortalUrl('kontakt')],
+        // Podmenu „Na skróty” z najczęstszymi sprawami (polecenia 2026-11-14 „dopisz w nagłówku migracja / aktywacja / reset hasła”,
+        // „jako submenu, pamiętaj o WCAG”): przenosiny poczty i reset haseł prowadzą do stron, na których się to robi, aktywacja do instrukcji
+        // (konto aktywuje się na stronie logowania SZO). Wzorzec „disclosure” na <details>/<summary>: działa z klawiatury i bez JS.
+        'skroty'     => ['Na skróty', '', [
+            ['Migracja', rtrim(APP_URL, '/') . '/migracjapoczty', 'Przeniesienie poczty na nowy serwer'],
+            ['Aktywacja', itPortalUrl('uslugi/moj-login/aktywacja-konta'), 'Jak aktywować konto w SZO'],
+            ['Reset hasła', rtrim(APP_URL, '/') . '/nowehaslo', 'Nowe hasło do poczty albo do logowania IAM'],
+        ]],
     ];
     ?><!DOCTYPE html>
 <html lang="pl">
@@ -58,10 +66,40 @@ function itPortalPageStart(string $title, string $active = '', string $descripti
 <nav class="itp-nav" aria-label="Menu portalu">
   <div class="itp-wrap itp-nav__inner">
     <ul class="itp-nav__list">
-      <?php foreach ($nav as $key => [$label, $href]): ?>
+      <?php foreach ($nav as $key => $item): [$label, $href] = $item; $kids = $item[2] ?? []; ?>
+        <?php if ($kids): ?>
+        <li class="itp-nav__sub">
+          <details class="itp-sub">
+            <summary><?= h($label) ?><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+            <ul class="itp-sub__list">
+              <?php foreach ($kids as [$kl, $kh, $kd]): ?>
+              <li><a href="<?= h($kh) ?>"><?= h($kl) ?><span class="itp-sr">, </span><span class="itp-sub__d"><?= h($kd) ?></span></a></li>
+              <?php endforeach; ?>
+            </ul>
+          </details>
+        </li>
+        <?php else: ?>
         <li><a href="<?= h($href) ?>"<?= $key === $active ? ' aria-current="page"' : '' ?>><?= h($label) ?></a></li>
+        <?php endif; ?>
       <?php endforeach; ?>
     </ul>
+    <script>
+    // Podmenu: Esc zamyka i wraca na przycisk; kliknięcie obok albo wyjście Tabem poza podmenu też zamyka.
+    (function () {
+      var subs = document.querySelectorAll('.itp-sub');
+      subs.forEach(function (d) {
+        d.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && d.open) { d.open = false; d.querySelector('summary').focus(); }
+        });
+        d.addEventListener('focusout', function (e) {
+          if (d.open && e.relatedTarget && !d.contains(e.relatedTarget)) d.open = false;
+        });
+      });
+      document.addEventListener('click', function (e) {
+        subs.forEach(function (d) { if (d.open && !d.contains(e.target)) d.open = false; });
+      });
+    })();
+    </script>
     <?php if ($active !== 'start'): ?>
     <form class="itp-nav__search" role="search" action="<?= h(itPortalUrl('szukaj')) ?>" method="get">
       <label class="itp-sr" for="itp-q-top">Szukaj na stronie</label>
