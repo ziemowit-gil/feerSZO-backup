@@ -16,7 +16,7 @@ $_lpTiles = [TiLogin::STUDENT => '#0f6fa8', TiLogin::PARENT => '#00a300', TiLogi
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h(($view === 'choice' ? 'Wybierz panel' : ($view === 'code' ? 'Kod z SMS-a' : 'Logowanie')) . ' — Panel TI — ' . $_lpOrg) ?></title>
+<title><?= h(($view === 'choice' ? 'Wybierz panel' : ($view === 'code' ? 'Kod z SMS-a' : 'Logowanie')) . ': panel kursanta i dydaktyka, ' . $_lpOrg) ?></title>
 <meta name="robots" content="noindex,nofollow">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
@@ -85,7 +85,8 @@ $_lpTiles = [TiLogin::STUDENT => '#0f6fa8', TiLogin::PARENT => '#00a300', TiLogi
 </head>
 <body class="pp">
 <?php
-$ppTitle = 'Panel TI'; $ppOrg = $_lpOrg; $ppCrumb = 'Logowanie'; $ppLogo = ''; $ppLoginUrl = $formAction; $ppAccount = null;
+$ppTitle = 'Panel kursanta / dydaktyka';   // nazwa wg polecenia 2026-11-14 „Panel TI = Panel kursanta / dydaktyka”
+ $ppOrg = $_lpOrg; $ppCrumb = 'Logowanie'; $ppLogo = ''; $ppLoginUrl = $formAction; $ppAccount = null;
 include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
 ?>
 <main id="pp-main" class="pp-wrap" tabindex="-1">
@@ -133,7 +134,7 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
   </div>
 <?php else: ?>
   <div class="lp-one">
-  <h1 class="pp-h1">Zaloguj się do panelu TI</h1>
+  <h1 class="pp-h1">Zaloguj się do panelu kursanta albo dydaktyka</h1>
   <p class="lp-lead">Wpisz login, a rozpoznamy, do którego panelu należy.</p>
   <?php if ($error): ?><div class="pp-error" role="alert" id="lp-err"><?= h($error) ?></div><?php endif; ?>
   <?php if (!$error && $notice): ?><div class="pp-ok" role="status"><?= h($notice) ?></div><?php endif; ?>
