@@ -1747,4 +1747,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: kalendarz dPoczty według ekranów (Stwórz, widoki, karty wydarzenia, Udostępnij/Opublikuj/Synchronizacja CalDAV/Import) ze zrzutami
+    // i nowy artykuł „dPoczta a Outlook: najważniejsze różnice” (polecenia 2026-11-14: „opisz kalendarz w dPoczcie”, „wypisz różnice między dPoczta a Outlook”).
+    '2026-11_it_portal_dpoczta_calendar_diff' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: kalendarz i różnice z Outlookiem',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

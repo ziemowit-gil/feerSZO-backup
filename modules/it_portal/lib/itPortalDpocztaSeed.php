@@ -94,7 +94,7 @@ function itPortalDpocztaMenuGroups(): array {
     $g1 = 'Pierwsze kroki'; $g2 = 'Hasło i bezpieczeństwo'; $g3 = 'Stopka i pisanie wiadomości'; $g4 = 'Porządek w skrzynce';
     $g5 = 'Telefon, programy, kontakty i kalendarz'; $g6 = 'Załączniki i duże pliki';
     return [
-        'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'ustawienia-poczty' => [$g1, 12],
+        'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13],
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
@@ -213,6 +213,33 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'Hasło do poczty zmieniasz tylko na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/zmiana-hasla-poczty">Jak zmienić hasło do poczty</a>.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie wiesz, do czego służy jakiś przycisk? Najedź na niego myszą, a pokaże się podpowiedź. Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], true],
+
+        'dpoczta-a-outlook' => ['dPoczta a Outlook: najważniejsze różnice', 'dpoczta, outlook, różnice, microsoft 365, porównanie, gdzie jest, reguły, filtry, podpis, tożsamości, automatyczne odpowiedzi, autoresponder, kategorie, etykiety, kalendarz, kontakty, onedrive, załączniki, spam, hasło', [
+            ['type' => 'text', 'html' => '<p>Jeśli do tej pory pracowałeś w Outlooku z Microsoft 365, w dPoczcie większość rzeczy znajdziesz łatwo, ale część ma inne nazwy albo działa trochę inaczej. Poniżej najważniejsze różnice.</p>'],
+            ['type' => 'text', 'html' => '<h2>Ogólnie</h2>'
+                . '<p>Outlook to rozbudowany program Microsoftu, który był połączony z OneDrive, Teams i resztą Microsoft 365. '
+                . 'dPoczta to prostszy program w przeglądarce od dostawcy naszego serwera pocztowego. Ma mniej przycisków, nie wymaga instalacji i działa w każdej przeglądarce, także w telefonie.</p>'
+                . '<p>Twoja skrzynka jest teraz na serwerze dhosting, a nie w Microsoft 365. Program Outlook na komputerze możesz nadal podłączyć do nowej skrzynki jako konto IMAP, '
+                . 'ale nie będzie już działał z kontem Microsoft dla poczty Fundacji.</p>'],
+            ['type' => 'text', 'html' => '<h2>Te same rzeczy pod innymi nazwami</h2><ul>'
+                . '<li>Reguły z Outlooka to w dPoczcie „Filtry”.</li>'
+                . '<li>Podpisy to „Tożsamości”, w części „Podpis”.</li>'
+                . '<li>Automatyczne odpowiedzi to „Autoresponder”.</li>'
+                . '<li>Kategorie to „Etykiety”, ikona metki nad wiadomością.</li>'
+                . '<li>Moje szablony albo szybkie części to „Odpowiedzi”.</li>'
+                . '<li>Elementy wysłane to folder „Wysłane”, a Wersje robocze to „Kopie robocze”.</li>'
+                . '<li>Wiadomości-śmieci to folder „Spam”, a ustawienia filtra to „CleanBox”.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Co działa inaczej</h2>'
+                . '<p>Filtr spamu jest łagodniejszy niż w Outlooku, więc do Odebranych może trafić więcej reklam. Pierwsza wiadomość od nowego nadawcy może przyjść z opóźnieniem przez filtr GreyList.</p>'
+                . '<p>Wyszukiwarka szuka domyślnie w bieżącym folderze. Żeby przeszukać całą skrzynkę, wybierz to w opcjach obok pola „Szukaj…”.</p>'
+                . '<p>Kontakty to Twoje osobiste kontakty i adresy zbierane automatycznie. Nie ma wspólnej listy adresowej całej organizacji z Microsoft 365.</p>'
+                . '<p>Kalendarz w dPoczcie zastępuje kalendarz z Outlooka, ale stare wydarzenia nie przenoszą się same. Spotkania z zaproszeniami działają, ale wolne terminy innych osób sprawdzisz tylko wtedy, gdy udostępnią Ci swój kalendarz.</p>'
+                . '<p>Duże pliki nie trafiają już do OneDrive. Zamiast dużego załącznika wyślij link z chmury Fundacji.</p>'
+                . '<p>Hasło do poczty jest osobne i zmieniasz je w SZO na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, a nie w ustawieniach poczty. '
+                . 'Weryfikację dwuetapową włączasz w samej dPoczcie.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Po kolei, co jest na ekranie dPoczty, opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/dpoczta-co-jest-co">dPoczta.pl: co jest co</a>. '
+                . 'Brakuje Ci czegoś, co było w Outlooku? <a href="' . $hd . '">Napisz do Helpdesku IT</a>, sprawdzimy, jak to zrobić w nowej poczcie.</p>'],
+        ], false],
 
         'ustawienia-poczty' => ['Ważne i przydatne ustawienia poczty', 'ustawienia, preferencje, interfejs użytkownika, język, strefa czasowa, format daty, odświeżanie, nowe wiadomości, mailto, tworzenie wiadomości, html, automatyczny zapis, kopia robocza, potwierdzenie odbioru, dsn, odpowiedz wszystkim, przekazywanie, czcionka, podpis, stopka, automatycznie wstaw podpis, separator, cytowanie', [
             ['type' => 'text', 'html' => '<p>W ustawieniach poczty, w części „Preferencje”, jest kilka ustawień, które warto sprawdzić od razu po przejściu na dPocztę. '
@@ -541,15 +568,41 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<p>Instrukcja dostawcy ze zrzutem i przykładowym plikiem CSV: <a href="' . $kb . 'importowanie-i-eksportowanie-kontaktow-w-dpoczta-pl/">importowanie i eksportowanie kontaktów w dPoczcie</a>.</p>'],
         ], false],
 
-        'kalendarz' => ['Kalendarz: spotkania, udostępnianie, telefon', 'kalendarz, spotkanie, zaproszenie, udostępnianie, caldav, synchronizacja, telefon, cykliczne', [
-            ['type' => 'wizard', 'title' => 'Nowe spotkanie', 'intro' => '', 'steps' => [
-                $step('Wybierz termin', '<p>Otwórz kalendarz z menu po prawej stronie i kliknij komórkę przy wybranym dniu i godzinie.</p>'),
-                $step('Opisz spotkanie', '<p>Wpisz tytuł, godzinę zakończenia, miejsce i opis. Możesz wybrać kategorię, np. służbowe.</p>'),
-                $step('Zaproś uczestników', '<p>W zakładce „Uczestnicy” wpisz adres e-mail, zaznacz wysłanie powiadomienia i kliknij „Dodaj uczestnika”. Uczestnicy dostaną zaproszenie i mogą je przyjąć, odrzucić albo wybrać „Może”.</p>'),
-                $step('Powtarzanie i zapis', '<p>Spotkanie co tydzień albo co miesiąc ustawisz w zakładce „Cykl”. Na koniec kliknij „Zapisz”.</p>'),
+        'kalendarz' => ['Kalendarz: spotkania, udostępnianie, telefon', 'kalendarz, spotkanie, wydarzenie, zaproszenie, uczestnicy, cykl, powiadomienia, przypomnienie, udostępnianie, opublikuj, wolny zajęty, caldav, synchronizacja, telefon, import, eksport, ics, cykliczne', [
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Kalendarz w dPoczcie zastępuje kalendarz z Outlooka w Microsoft 365. Nowe spotkania i wydarzenia zapisuj już tutaj. '
+                . 'Stare wydarzenia z Outlooka przeniesiesz plikiem, jak opisuje ramka na dole.</p>'],
+            ['type' => 'text', 'html' => '<p>Kalendarz otworzysz ikoną kalendarza na prawym pasku dPoczty. Na górze są przyciski: „Stwórz” (nowe wydarzenie), widoki „Dzień”, „Tydzień”, „Miesiąc” i „Agenda” '
+                . '(lista najbliższych wydarzeń), „Szukaj” i „Ustawienia”. Po lewej jest mały kalendarz miesiąca do szybkiego przechodzenia między dniami, a pod nim lista Twoich kalendarzy. '
+                . 'Na nowym koncie jest jeden kalendarz o nazwie „Nowy kalendarz”. Ołówkiem obok zmienisz jego nazwę na przykład na „Służbowy”.</p>'],
+            ...itPortalDpocztaShot('dp-kalendarz.jpg', 'Kalendarz w dPoczcie, widok tygodnia: na górze przyciski Stwórz, Dzień, Tydzień, Miesiąc, Agenda, Szukaj, Ustawienia; po lewej kalendarz miesiąca i lista Kalendarze z pozycją Nowy kalendarz', 'Kalendarz, widok tygodnia.'),
+            ['type' => 'wizard', 'title' => 'Nowe wydarzenie albo spotkanie', 'intro' => '', 'steps' => [
+                $step('Kliknij Stwórz', '<p>Kliknij „Stwórz” na górze albo dwa razy kliknij wybrany dzień i godzinę w siatce kalendarza.</p>'),
+                $step('Podsumowanie', '<p>Na karcie „Podsumowanie” wpisz „Tytuł”, ustaw „Początek” i „Koniec”, a dla wydarzenia na cały dzień włącz „Cały dzień”. '
+                    . 'Uzupełnij „Lokalizację”, na przykład adres albo link do spotkania online, i „Opis”. „Pokaż mnie jako” ustawia, czy w tym czasie jesteś zajęty.</p>'),
+                $step('Cykl i powiadomienia', '<p>Wydarzenie co tydzień albo co miesiąc ustawisz na karcie „Cykl”. Na karcie „Powiadomienia” dodasz przypomnienie, na przykład 15 minut wcześniej.</p>'),
+                $step('Uczestnicy', '<p>Na karcie „Uczestnicy” wpisz adresy osób, które chcesz zaprosić. Dostaną zaproszenie e-mailem i mogą je przyjąć, odrzucić albo odpowiedzieć „Może”. '
+                    . 'Na karcie „Załączniki” dodasz pliki, na przykład porządek spotkania.</p>'),
+                $step('Zapisz', '<p>Kliknij „Zapisz” na dole. „Anuluj” zamyka okno bez zmian.</p>'),
             ]],
-            ['type' => 'text', 'html' => '<h3>Udostępnienie kalendarza</h3><p>W lewej kolumnie najedź kursorem na kalendarz i kliknij ikonę ołówka. W zakładce „Udostępnij kalendarz” wpisz adres współpracownika, zaznacz uprawnienia i kliknij „Udostępnij”.</p>'
-                . '<h3>Kalendarz w telefonie i Outlooku</h3><p>Kliknij ołówek przy kalendarzu i przejdź do sekcji „Synchronizacja”. Utwórz nowe połączenie: wpisz nazwę i hasło, wybierz pełny dostęp albo tylko odczyt i kliknij „Dodaj”. Pojawi się adres kalendarza i nazwa użytkownika. Wpisz je w telefonie albo w programie jako konto CalDAV, z hasłem ustawionym przed chwilą.</p>'],
+            ...itPortalDpocztaShot('dp-kalendarz-wydarzenie.jpg', 'Okno Stwórz wydarzenie: karty Podsumowanie, Cykl, Powiadomienia, Uczestnicy, Załączniki; pola Tytuł, Początek, Koniec, Cały dzień, Lokalizacja, Opis, URL, Kalendarz, Kategoria, Pokaż mnie jako, Widoczność, Priorytet', 'Okno nowego wydarzenia.'),
+            ['type' => 'text', 'html' => '<h2>Udostępnianie kalendarza</h2>'
+                . '<p>Kliknij ołówek przy kalendarzu na liście po lewej i wybierz kartę „Udostępnij kalendarz”. Wpisz adres e-mail współpracownika i zaznacz, co może: '
+                . '„Podgląd” (widzi wydarzenia), „Edycja” (może je zmieniać), „Udostępnianie” i „Publikacja” (może udostępniać dalej) oraz „Powiadom”, czyli wysłanie mu wiadomości o udostępnieniu. '
+                . 'Kliknij „Udostępnij”, a potem „Zapisz”. Najczęściej wystarczy sam podgląd.</p>'],
+            ...itPortalDpocztaShot('dp-kalendarz-udostepnij.jpg', 'Edycja kalendarza, karta Udostępnij kalendarz: pole E-Mail i kolumny Udostępnianie, Publikacja, Edycja, Podgląd, Powiadom, przycisk Udostępnij', 'Edycja kalendarza, karta „Udostępnij kalendarz”.'),
+            ['type' => 'text', 'html' => '<h2>Pozostałe karty edycji kalendarza</h2>'
+                . '<p>„Podsumowanie”: nazwa, opis, kolory i domyślna widoczność wydarzeń.</p>'
+                . '<p>„Opublikuj kalendarz”: tworzy link do kalendarza dla osób spoza poczty. Jeden przycisk „Utwórz łącze” publikuje pełne informacje o wydarzeniach, drugi tylko to, kiedy jesteś zajęty, a kiedy wolny. '
+                . 'Publikuj ostrożnie, bo każdy, kto ma link, zobaczy te informacje. Zwykle wystarczy publikacja tylko czasu zajętego i wolnego.</p>'
+                . '<p>„Synchronizacja”: połączenie z telefonem albo programem na komputerze, opisane niżej.</p>'
+                . '<p>„Import / Eksport”: wczytanie wydarzeń z pliku, na przykład wyeksportowanego z Outlooka, i zapis kalendarza do pliku.</p>'],
+            ['type' => 'text', 'html' => '<h2>Kalendarz w telefonie i w programie na komputerze</h2>'
+                . '<p>Kliknij ołówek przy kalendarzu i wybierz kartę „Synchronizacja”. W części „Tworzenie nowego połączenia CalDav” wpisz „Nazwę wyświetlaną”, na przykład „Telefon”, '
+                . 'i wymyśl „Hasło” do tego połączenia. Jeśli urządzenie ma tylko oglądać kalendarz, włącz „Tylko do odczytu”. Kliknij „Dodaj połączenie”. '
+                . 'Pojawi się adres kalendarza i nazwa użytkownika. Wpisz je razem z tym hasłem w telefonie albo programie jako konto CalDAV. '
+                . 'Na iPhonie dodasz je w Ustawieniach, w części „Kalendarz”, „Konta”, „Dodaj konto”, „Inne”. Na Androidzie potrzebna jest aplikacja obsługująca CalDAV, na przykład DAVx5.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Kalendarz z Outlooka w Microsoft 365 nie przenosi się sam. Jeśli chcesz mieć stare wydarzenia w dPoczcie, wyeksportuj kalendarz z Outlooka do pliku .ics '
+                . 'i wczytaj go na karcie „Import / Eksport”. Gdy coś nie działa, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], false],
 
         'szablony-odpowiedzi' => ['Szablony odpowiedzi', 'szablon, szablony, gotowa odpowiedź, powtarzalna wiadomość', [
