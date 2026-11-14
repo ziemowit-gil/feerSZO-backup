@@ -327,6 +327,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Rola „IT” (users.it_staff): dostęp do artykułów „tylko dla IT” w Portalu Usług IT (/uslugi-it). Administrator ma go zawsze.
+    elseif ($action === 'it_staff_toggle') {
+        require_once dirname(__DIR__) . '/modules/it_portal/logic/itPortal.php';
+        itPortalItStaffMigrate();
+        $uid = (int)($_POST['user_id'] ?? 0);
+        $new = !empty($_POST['it_staff']) ? 1 : 0;
+        if ($uid && db_one("SELECT id FROM users WHERE id=?", [$uid])) {
+            db_exec("UPDATE users SET it_staff=? WHERE id=?", [$new, $uid]);
+            log_user_action($uid, (int)current_user()['id'], 'note', $new ? 'Nadano rolę IT (artykuły „tylko dla IT” w Pomocy IT)' : 'Odebrano rolę IT');
+            flash_set('success', $new ? 'Nadano rolę IT. Konto widzi teraz artykuły dla działu IT w Pomocy IT.' : 'Odebrano rolę IT.');
+        }
+        header('Location: ' . $SELF_URL . (($_GET['role'] ?? '') ? '?role=' . urlencode($_GET['role']) : ''));
+        exit;
+    }
+
     // TOGGLE WEBAUTHN REQUIRED — wymóg klucza przy KAŻDEJ metodzie logowania
     // (nie tylko haśle) dla wskazanego użytkownika; reszta admin/editor może
     // logować się zwykłą metodą (np. samym Microsoft 365).
@@ -504,6 +519,14 @@ try {
     foreach (db_all("SELECT id FROM users WHERE webauthn_required=1") as $wr) {
         $webauthn_required_uids[(int)$wr['id']] = true;
     }
+} catch (\Throwable $e) {}
+
+// Konta z rolą „IT” (artykuły „tylko dla IT” w Portalu Usług IT)
+$it_staff_uids = [];
+try {
+    require_once dirname(__DIR__) . '/modules/it_portal/logic/itPortal.php';
+    itPortalItStaffMigrate();
+    foreach (db_all("SELECT id FROM users WHERE it_staff=1") as $is) $it_staff_uids[(int)$is['id']] = true;
 } catch (\Throwable $e) {}
 
 // Użytkownicy z włączonym dostępem do Canva (poziom konta)
@@ -724,6 +747,16 @@ foreach ($users as $u) {
                 </option>
                 <?php endforeach; ?>
               </select>
+            </form>
+            <?php $is_it = isset($it_staff_uids[(int)$u['id']]); $it_cb = 'it-staff-' . (int)$u['id']; ?>
+            <form method="post" class="d-inline-flex align-items-center ms-2">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="action" value="it_staff_toggle">
+              <input type="hidden" name="user_id" value="<?= intval($u['id']) ?>">
+              <div class="form-check mb-0" title="Rola IT: widzi artykuły dla działu IT w Pomocy IT (administrator widzi je zawsze)">
+                <input class="form-check-input" type="checkbox" name="it_staff" value="1" id="<?= $it_cb ?>"<?= $is_it ? ' checked' : '' ?> onchange="this.form.submit()">
+                <label class="form-check-label small" for="<?= $it_cb ?>">IT<span class="visually-hidden">: <?= h($u['name']) ?></span></label>
+              </div>
             </form>
 <?php $u_role[(int)$u['id']] = ob_get_clean();
     ob_start(); ?>

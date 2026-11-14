@@ -24,12 +24,14 @@ if ($artSlug !== '') {
     exit;
 }
 if ($art) itPortalArticleTouch((int)$art['id']);
+// Artykuł „tylko dla IT”: osoba bez roli IT widzi tytuł i komunikat zamiast treści (tytuł zostaje w menu, żeby było wiadomo, że taki jest).
+$itLocked = $art && !empty($art['it_only']) && !itPortalViewerIsIt();
 
 $audiences = itPortalAudiences(true);
 $availIds  = itPortalIds($cat['audiences']);
 $related   = itPortalArticlesByIds(itPortalIds($art ? $art['related'] : $cat['related']));
 
-itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $art ? $art['body_plain'] : $cat['intro_plain']);
+itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $itLocked ? '' : ($art ? $art['body_plain'] : $cat['intro_plain']));
 ?>
 <div class="itp-service">
   <nav class="itp-side" aria-label="Artykuły: <?= h($cat['name']) ?>">
@@ -54,7 +56,23 @@ itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $art ? $art['bo
   <article class="itp-content">
     <?php if ($art): ?>
       <h1><?= h($art['title']) ?></h1>
+      <?php if ($itLocked): $viewer = itPortalViewer(); ?>
+      <div class="itp-body">
+        <aside class="itp-callout itp-callout--info" role="note">
+          <strong class="itp-callout__t">Artykuł dla działu IT</strong>
+          <div>
+          <?php if ($viewer === null): ?>
+            <p>Ten artykuł mogą czytać tylko osoby z rolą IT w SZO. Jeśli ją masz, <a href="<?= h(APP_URL . '/auth/login.php?redirect=' . urlencode((string)($_SERVER['REQUEST_URI'] ?? ''))) ?>">zaloguj się do SZO</a> i wróć na tę stronę.</p>
+          <?php else: ?>
+            <p>Ten artykuł mogą czytać tylko osoby z rolą IT w SZO, a Twoje konto jej nie ma.</p>
+          <?php endif; ?>
+            <p>Potrzebujesz pomocy w tej sprawie? Napisz do <a href="<?= h(APP_URL . '/helpdesk/new.php') ?>">Helpdesku IT</a>.</p>
+          </div>
+        </aside>
+      </div>
+      <?php else: ?>
       <div class="itp-body"><?= itPortalRenderBlocks($art, 'blocks', 'body_html', '<p>Treść w przygotowaniu.</p>') ?></div>
+      <?php endif; ?>
     <?php else: ?>
       <h1 class="itp-sr"><?= h($cat['name']) ?></h1>
       <div class="itp-body"><?= itPortalRenderBlocks($cat, 'intro_blocks', 'intro_html', '<p>Instrukcje do tej usługi są w przygotowaniu.</p>') ?></div>

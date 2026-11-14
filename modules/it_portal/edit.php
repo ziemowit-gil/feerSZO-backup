@@ -60,7 +60,7 @@ $row ??= match ($type) {
     'notice'   => ['title' => '', 'body_html' => '', 'status' => 'w_toku', 'signature' => (org_setting('itp_last_signature') ?: 'Dział IT'), 'notice_date' => date('Y-m-d'), 'is_published' => 1],
     'category' => ['name' => '', 'slug' => '', 'icon' => 'help', 'intro_html' => '', 'external_url' => '', 'audiences' => '[]', 'related' => '[]', 'tile_group' => '', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_categories")['m'] ?? 0) + 10, 'is_active' => 1],
     'audience' => ['name' => '', 'slug' => '', 'icon' => 'user', 'description' => '', 'services' => [], 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_audiences")['m'] ?? 0) + 1, 'is_active' => 1],
-    'article'  => ['category_id' => (int)($_GET['k'] ?? 0), 'title' => '', 'slug' => '', 'body_html' => '', 'keywords' => '', 'related' => '[]', 'is_pinned' => 0, 'is_published' => 1, 'sort_order' => 0, 'menu_group' => ''],
+    'article'  => ['category_id' => (int)($_GET['k'] ?? 0), 'title' => '', 'slug' => '', 'body_html' => '', 'keywords' => '', 'related' => '[]', 'is_pinned' => 0, 'is_published' => 1, 'sort_order' => 0, 'menu_group' => '', 'it_only' => 0],
     'contact'  => ['unit' => '', 'contact_html' => '', 'team' => '', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_contacts")['m'] ?? 0) + 10],
 };
 $v = fn(string $k) => h((string)($row[$k] ?? ''));
@@ -192,6 +192,8 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="col-md-5 pt-md-4">
       <div class="form-check"><input class="form-check-input" type="checkbox" id="f-p" name="is_published" value="1"<?= $chk('is_published') ?>><label class="form-check-label" for="f-p">Opublikowany</label></div>
       <div class="form-check"><input class="form-check-input" type="checkbox" id="f-pin" name="is_pinned" value="1"<?= $chk('is_pinned') ?>><label class="form-check-label" for="f-pin">Przypnij do „Popularne instrukcje” na Start</label></div>
+      <div class="form-check"><input type="hidden" name="it_only_sent" value="1"><input class="form-check-input" type="checkbox" id="f-it" name="it_only" value="1" aria-describedby="f-it-h"<?= $chk('it_only') ?>><label class="form-check-label" for="f-it">Tylko dla IT</label>
+        <div id="f-it-h" class="form-text">Treść zobaczą administratorzy i konta z rolą „IT” (Zarządzanie użytkownikami). Pozostali zobaczą tytuł i komunikat, a artykuł nie pojawi się im w wyszukiwarce.</div></div>
       <?php if ($id): ?><p class="small text-muted mt-2 mb-0">Wyświetlenia: <?= (int)($row['views'] ?? 0) ?></p><?php endif; ?>
     </div>
   </div>

@@ -2255,4 +2255,14 @@ return [
         },
     ],
 
+    // Pomoc IT: artykuły Ankietera „Dla IT” tylko dla roli IT (itp_articles.it_only, users.it_staff), SSO już nie przypięte (polecenie 2026-11-14).
+    '2026-11_it_portal_ankieter_it_only' => [
+        'desc' => 'Portal Usług IT: artykuły Ankietera dla IT widoczne tylko dla administratorów i kont z rolą IT',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalAnkieterSeed.php';
+            itPortalAnkieterApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

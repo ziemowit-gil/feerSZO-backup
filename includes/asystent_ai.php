@@ -444,7 +444,7 @@ function asai_fetch(string $type, int $id, array $ctx = []): array {
         case 'artykul_it':
             if (!asai_it_available()) break;
             $r = db_one("SELECT a.title, a.body_plain, c.name AS cname FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id
-                         WHERE a.id = ? AND a.is_published = 1 AND c.is_active = 1", [$id]);
+                         WHERE a.id = ? AND a.is_published = 1 AND c.is_active = 1" . itPortalItOnlySql('a'), [$id]);
             if (!$r) break;
             return ['ok'=>true, 'title'=>$r['title'],
                     'meta'=>'Artykuł Pomocy IT (Portal Usług IT), usługa: ' . $r['cname'] . ', adres: ' . asai_it_article_url($id),

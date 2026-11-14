@@ -217,9 +217,10 @@ function hdKbSearch(string $q, int $limit = 5, bool $publicOnly = false): array
     $words = array_values(array_unique(array_filter(preg_split('/[\s,.;:!?()\[\]"\'\/\\\\-]+/u', mb_strtolower($q)), fn($w) => mb_strlen($w) >= 3 && !in_array($w, $stop, true))));
     if (!$words) return [];
     try {
+        require_once dirname(__DIR__, 3) . '/modules/it_portal/logic/itPortal.php';   // itPortalItOnlySql: bez artykułów „tylko dla IT” dla osób bez roli IT
         $rows = db_all("SELECT a.id, a.title, a.slug, a.keywords, a.body_plain, c.name AS cat_name, c.slug AS cat_slug
                         FROM itp_articles a JOIN itp_categories c ON c.id=a.category_id
-                        WHERE a.is_published=1 AND c.is_active=1" . ($publicOnly ? " AND (c.audiences = '[]' OR c.audiences = '')" : ''));
+                        WHERE a.is_published=1 AND c.is_active=1" . itPortalItOnlySql('a') . ($publicOnly ? " AND (c.audiences = '[]' OR c.audiences = '')" : ''));
     } catch (\Throwable $e) { return []; }
     $scored = [];
     foreach ($rows as $r) {

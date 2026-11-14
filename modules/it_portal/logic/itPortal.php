@@ -91,6 +91,11 @@ function itPortalMigrate(): void {
             $pdo->exec("ALTER TABLE {$t} ADD COLUMN {$c} TEXT NOT NULL DEFAULT ''");
         }
     }
+    // Artykuły tylko dla działu IT (itp_articles.it_only) i rola „IT” przy koncie (users.it_staff), 2026-11-14
+    if (!in_array('it_only', array_column(db_all("PRAGMA table_info(itp_articles)"), 'name'), true)) {
+        $pdo->exec("ALTER TABLE itp_articles ADD COLUMN it_only INTEGER NOT NULL DEFAULT 0");
+    }
+    itPortalItStaffMigrate();
     $pdo->exec("CREATE TABLE IF NOT EXISTS itp_notices (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         title        TEXT    NOT NULL,
@@ -327,9 +332,52 @@ function itPortalArticleSave(array $in, int $id = 0, int $userId = 0): int {
     ];
     // Grupa w menu tylko, gdy przyszła w danych (formularz panelu); seedy bez tego pola jej nie kasują.
     if (array_key_exists('menu_group', $in)) $data['menu_group'] = mb_substr(trim((string)$in['menu_group']), 0, 80);
+    // „Tylko dla IT”: formularz panelu wysyła it_only_sent (checkbox bez zaznaczenia nic nie przysyła), seedy podają it_only wprost.
+    if (array_key_exists('it_only', $in) || !empty($in['it_only_sent'])) $data['it_only'] = !empty($in['it_only']) ? 1 : 0;
     if ($id > 0) { db_update('itp_articles', $data, $id); return $id; }
     $data['created_by'] = $userId ?: null;
     return db_insert('itp_articles', $data);
+}
+
+// ── Artykuły tylko dla działu IT ────────────────────────────────────────────
+
+/** Kolumna users.it_staff: rola „IT” nadawana checkboxem w zarządzaniu użytkownikami (admin/users.php). */
+function itPortalItStaffMigrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (!in_array('it_staff', array_column(db_all("PRAGMA table_info(users)"), 'name'), true)) {
+        db()->exec("ALTER TABLE users ADD COLUMN it_staff INTEGER NOT NULL DEFAULT 0");
+    }
+}
+
+/** Zalogowany w SZO oglądający (portal jest publiczny, więc tylko odczyt sesji). @return array{id:int, role:string, it_staff:int}|null */
+function itPortalViewer(): ?array {
+    static $v = false;
+    if ($v !== false) return $v;
+    $v = null;
+    try {
+        if (!function_exists('current_user')) require_once dirname(__DIR__, 3) . '/includes/auth.php';
+        $u = current_user();
+        if (!$u || empty($u['id'])) return $v;
+        itPortalItStaffMigrate();
+        $r = db_one("SELECT id, role, it_staff FROM users WHERE id = ? AND is_active = 1", [(int)$u['id']]);   // świeżo z bazy, nie z sesji
+        if ($r) $v = ['id' => (int)$r['id'], 'role' => (string)$r['role'], 'it_staff' => (int)$r['it_staff']];
+    } catch (\Throwable $e) { error_log('[itPortalViewer] ' . $e->getMessage()); }
+    return $v;
+}
+
+/** Czy oglądający widzi artykuły „tylko dla IT”: administrator SZO albo konto z zaznaczoną rolą „IT”. */
+function itPortalViewerIsIt(): bool {
+    $v = itPortalViewer();
+    return $v !== null && ($v['role'] === 'admin' || $v['it_staff'] === 1);
+}
+
+/** Warunek SQL ukrywający artykuły „tylko dla IT” przed osobami bez roli IT (wyszukiwarka, popularne, Asystent, Helpdesk). */
+function itPortalItOnlySql(string $alias = 'a'): string {
+    static $has = null;   // kolumnę dodaje itPortalMigrate(); Asystent i Helpdesk mogą tu trafić przed nią
+    $has ??= in_array('it_only', array_column(db_all("PRAGMA table_info(itp_articles)"), 'name'), true);
+    return !$has || itPortalViewerIsIt() ? '' : " AND COALESCE({$alias}.it_only, 0) = 0";
 }
 
 function itPortalArticleDelete(int $id): void {
@@ -355,7 +403,7 @@ function itPortalArticlesByIds(array $ids): array {
 function itPortalPopular(int $limit = 12): array {
     return db_all("SELECT a.id, a.slug, a.title, a.is_pinned, a.views, c.slug AS category_slug
                    FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id
-                   WHERE a.is_published = 1 AND c.is_active = 1
+                   WHERE a.is_published = 1 AND c.is_active = 1" . itPortalItOnlySql('a') . "
                    ORDER BY a.is_pinned DESC, a.views DESC, a.sort_order, a.title LIMIT " . max(1, $limit));
 }
 
@@ -578,7 +626,7 @@ function itPortalSearch(string $q, bool $log = true): array {
 
     $rows = db_all("SELECT a.id, a.slug, a.title, a.body_plain, a.keywords, a.views, c.slug AS category_slug, c.name AS category_name
                     FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id
-                    WHERE a.is_published = 1 AND c.is_active = 1");
+                    WHERE a.is_published = 1 AND c.is_active = 1" . itPortalItOnlySql('a'));
     foreach ($rows as $r) {
         $s = $score($r['title'], $r['keywords'] . ' ' . $r['body_plain'] . ' ' . $r['category_name']);
         if ($s < 0) continue;

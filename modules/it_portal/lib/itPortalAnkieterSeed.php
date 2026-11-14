@@ -6,6 +6,7 @@
  * (docs/uslugi-it/ankieter.md); fakty (adresy, ścieżki, polecenia) bez zmian, forma wg zasad pomocy: bez tabel i myślników,
  * nazwy przycisków w „cudzysłowie”, polecenia w <pre><code>.
  * Artykuły: dla wszystkich (co to jest, funkcje, role) i dla IT (SSO, poczta i Nextcloud, serwer, kopie i bezpieczeństwo, problemy).
+ * Artykuły „Dla IT” mają it_only = 1: treść widzą administratorzy i konta z rolą „IT” (users.it_staff), pozostali komunikat.
  * Bezpieczny do ponownego uruchomienia; „Zobacz też” między artykułami Ankietera jest dopisywane, cudze powiązania zostają.
  * Używają: migracja '2026-11_it_portal_ankieter', cli/it_portal_ankieter_seed.php.
  */
@@ -43,7 +44,7 @@ function itPortalAnkieterApply(string $app, bool $dryRun = false): array {
         $old = db_one("SELECT id, related FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]);
         $id = itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
             'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => $pinned ? 1 : 0,
-            'sort_order' => (++$i) * 10, 'menu_group' => $group, 'related' => $old ? itPortalIds($old['related'] ?? '[]') : []], $old ? (int)$old['id'] : 0);
+            'sort_order' => (++$i) * 10, 'menu_group' => $group, 'it_only' => $group === 'Dla IT' ? 1 : 0, 'related' => $old ? itPortalIds($old['related'] ?? '[]') : []], $old ? (int)$old['id'] : 0);
         $ids[] = $id;
         $rep[] = "ankieter/{$slug} — {$title} (" . ($old ? 'nadpisany' : 'utworzony') . ", #{$id})";
     }
@@ -145,7 +146,7 @@ function itPortalAnkieterArticles(string $app): array {
                 . 'Można włączyć kilku dostawców naraz, a każdy dostaje własny przycisk.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Adres powrotu w Logto musi dokładnie pasować do adresu Ankietera: https i bez ukośnika na końcu. '
                 . 'Inaczej przy logowaniu pojawi się „Sesja logowania wygasła”. Więcej w artykule <a href="' . $b . 'rozwiazywanie-problemow">Ankieter: rozwiązywanie problemów</a>.</p>'],
-        ], true, $g2],
+        ], false, $g2],
 
         'poczta-i-nextcloud' => ['Ankieter: poczta i zapis wyników w Nextcloud',
             'ankieter, poczta, smtp, mail, maile, testuj wysyłkę maili, kolejka, zaproszenia, przypomnienia, powiadomienia, nextcloud, nc.feer.org.pl, xlsx, wyślij do nextcloud, hasło aplikacji, env', [
