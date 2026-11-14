@@ -1900,4 +1900,14 @@ return [
         },
     ],
 
+    // „Helpdesk”: wstęp usługi i artykuły „Jak zgłosić problem w Helpdesku IT” i „Co dzieje się ze zgłoszeniem” (polecenie 2026-11-14: „opisz Helpdesk”).
+    '2026-11_it_portal_helpdesk' => [
+        'desc' => 'Portal Usług IT, „Helpdesk”: wstęp i instrukcje zgłoszeń',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalHelpdeskSeed.php';
+            itPortalHelpdeskApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
