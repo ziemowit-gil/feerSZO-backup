@@ -2372,4 +2372,15 @@ return [
         },
     ],
 
+    // „Polecenia administracyjne” (tylko IT): artykuł o migratorze poczty (/migracjaadmin, /migracjapoczty, agenty dhosting_copy
+    // i dhosting_suspend, ustawienia dhosting_*). Polecenie użytkownika 2026-11-14 „i opisz do pomocy IT migratora”.
+    '2026-11_it_portal_polecenia_it_migrator' => [
+        'desc' => 'Portal Usług IT, „Polecenia administracyjne”: artykuł o migratorze poczty',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPoleceniaItSeed.php';
+            itPortalPoleceniaItApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

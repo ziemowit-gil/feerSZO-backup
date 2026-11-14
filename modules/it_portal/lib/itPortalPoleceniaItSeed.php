@@ -371,6 +371,48 @@ function itPortalPoleceniaItArticles(string $app): array {
                 . $pre('curl -s "https://dns.google/resolve?name=autodiscover.feer.org.pl&type=A"')),
         ], false],
 
+        'migrator-poczty' => ['Migrator poczty: /migracjaadmin, /migracjapoczty i kopiowanie w tle',
+            'migrator, migracja poczty, migracjaadmin, migracjapoczty, dhosting, dpoczta, microsoft 365, skrzynka, zakładanie skrzynek, zleć migrację, '
+            . 'kopiowanie poczty, dhosting_copy, dhosting_suspend, dosyłanie, authenticationfailed, hasło, sms, pdf, umowa, zawieszenie, ustawienia, mig', [
+            $text('<p>Migrator przenosi pocztę z Microsoft 365 na nowy serwer poczty (dPoczta). Ma dwie strony: '
+                . '<a href="' . $app . '/migracjaadmin">/migracjaadmin</a> dla administratorów i <a href="' . $app . '/migracjapoczty">/migracjapoczty</a> dla osób. '
+                . 'Kod jest w module <code>modules/dhosting_migrator</code>.</p>'),
+            $text('<h2>Strona administratora: /migracjaadmin</h2>'
+                . '<p>Lista pokazuje konta Microsoft 365 obok stanu skrzynek na nowym serwerze. Zaznaczasz osoby i klikasz „Załóż skrzynki”. '
+                . 'Z opcją „Zleć migrację” osoba dostaje w SZO powiadomienie i e-mail, że administrator zlecił migrację, bez hasła. '
+                . 'Nowe hasła widać na ekranie tylko raz, mogą też pójść SMS-em, a przez 15 minut po nadaniu wydrukujesz je przyciskiem „Drukuj dane logowania (PDF)”.</p>'
+                . '<p>W części Kopiowanie są zadania przenoszenia poczty: ich stan, ponowienie, anulowanie i ponowne przenoszenie zapisanym albo nowym hasłem. '
+                . 'Przycisk „Utwórz konta NC i SSO dla przeniesionych skrzynek” zakłada konta logowania jednokrotnego i chmury osobom z przeniesioną pocztą. '
+                . 'Na tej samej stronie jest konfiguracja API serwera poczty i „Testuj połączenie”.</p>'),
+            $text('<h2>Strona dla osób: /migracjapoczty</h2>'
+                . '<p>Osoba wchodzi z Panelu współpracownika albo bez logowania: podaje prywatny e-mail albo PESEL oraz adres służbowy i potwierdza kodem SMS. '
+                . 'Zakłada skrzynkę z tym samym adresem, hasło dostaje SMS-em, a poczta kopiuje się w tle. Po zakończeniu strona pokazuje duży ptaszek, '
+                . 'login, hasło z SMS-a i zakładki z resztą informacji. Od tej chwili nowe hasło i ponowne kopiowanie robi już tylko administrator.</p>'),
+            $text('<h2>Kopiowanie w tle</h2>'
+                . '<p>Agent CRON dhosting_copy rusza co 5 minut i pracuje porcjami po około 4 minuty. Gdy serwer jest niedostępny, ponawia zadanie co 6 godzin, '
+                . 'najwyżej przez 7 dni bez postępu. Po pełnej kopii dosyła nowe wiadomości z Microsoft 365 co 3 godziny, do 7 dni po dacie przełączenia. '
+                . 'Ręcznie uruchomisz go tak:</p>'
+                . $szo('php cron/agents/dhosting_copy.php')
+                . '<p>Po pełnej kopii osoba dostaje e-mail, SMS i powiadomienie w SZO, a administratorzy podsumowanie. '
+                . 'Wiadomości, których Microsoft nie oddaje w całości, migrator odtwarza z dostępnych części, a ich listę widać przy osobie.</p>'),
+            $warn('<p>Błąd AUTHENTICATIONFAILED z <code>imap.dpoczta.pl</code> znaczy, że hasło zapisane w zadaniu kopiowania jest nieaktualne, '
+                . 'na przykład osoba zmieniła je po założeniu skrzynki. To nie jest problem po stronie Microsoftu. '
+                . 'Strona /migracjapoczty poprosi osobę o aktualne hasło, a Ty możesz ponowić kopiowanie z nowym hasłem na /migracjaadmin.</p>'),
+            $text('<h2>Skrzynki przy umowach</h2>'
+                . '<p>Nowa umowa wolontariacka, zlecenia albo o dzieło zakłada skrzynkę imie.nazwisko albo przywraca dawną skrzynkę tej osoby, rozpoznaną po PESEL. '
+                . 'Na stronie umowy jest karta „Skrzynka pocztowa” z nowym hasłem, zawieszeniem i przywróceniem. '
+                . 'Agent CRON dhosting_suspend co godzinę zawiesza skrzynki 2 dni po wygaśnięciu umowy, bez powiadamiania osoby. '
+                . 'Ustawienie <code>dhosting_contract_suspend</code> z wartością 0 to wyłącza. Ręcznie:</p>'
+                . $szo('php cron/agents/dhosting_suspend.php')),
+            $text('<h2>Ustawienia i zgłoszenia</h2>'
+                . '<p>Ustawienia mają przedrostek <code>dhosting_</code>: dane API (<code>api_url</code>, <code>api_user</code> i szyfrowane <code>api_pass</code>), '
+                . '<code>domains</code>, <code>quota</code>, <code>self_enabled</code> (1 pozwala osobom samym zakładać skrzynki), <code>webmail_url</code>, '
+                . '<code>imap_host</code>, <code>imap_port</code> i <code>switch_date</code>, czyli data przełączenia poczty.</p>'
+                . '<p>Każda skrzynka ma w Helpdesku zgłoszenie z kategorii Migracja poczty, z numerem MIG. Kolejne zdarzenia dopisują się do niego jako notatki wewnętrzne.</p>'),
+            $info('<p>W tekstach dla osób nie podajemy nazwy dostawcy, tylko „nowa skrzynka” i „nowy serwer poczty”. '
+                . 'Hasło do poczty jest zawsze inne niż hasło do SZO i do logowania jednokrotnego, a wysyłamy je tylko SMS-em.</p>'),
+        ], false],
+
         'tresci-pomocy-it' => ['Treści Pomocy IT z poleceń',
             'pomoc it, portal usług it, uslugi-it, seed, zasiew, artykuły, it_portal, migracja, aktualizacja treści', [
             $text('<p>Część artykułów Pomocy IT powstaje z kodu. Każdy taki zestaw ma polecenie, które zapisuje treść od nowa, '
