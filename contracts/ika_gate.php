@@ -443,7 +443,9 @@ $ika_css = <<<'CSS'
   border-radius:var(--au-rs);background:#fff;color:var(--au-ink);font:inherit;font-size:.95rem;text-align:left;text-decoration:none;cursor:pointer}
 #ika-main .recovery-btn:hover{border-color:var(--au-acc);background:#f9fafb}
 #ika-main .recovery-btn>i:first-child{flex-shrink:0;width:1.25rem;text-align:center;color:var(--au-acc)}
-#ika-main .recovery-btn .recovery-sub{margin-left:auto;font-size:.8rem;color:var(--au-muted);overflow-wrap:anywhere;text-align:right}
+#ika-main .recovery-btn .recovery-sub{margin-left:auto;min-width:0;font-size:.8rem;color:var(--au-muted);overflow-wrap:break-word;text-align:right}
+@media (max-width:480px){#ika-main .recovery-btn{flex-wrap:wrap;row-gap:.15rem}
+  #ika-main .recovery-btn .recovery-sub{flex:1 1 100%;margin-left:1.85rem;text-align:left}}
 #ika-main .recovery-btn--admin{background:var(--au-warn-bg);border-color:var(--au-warn-line);color:var(--au-warn-ink)}
 #ika-main .recovery-btn--admin>i{color:var(--au-warn)!important}
 /* Stany: blokada, brak kodu */
