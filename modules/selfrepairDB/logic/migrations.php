@@ -1969,4 +1969,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: artykuł „Aktywacja konta w SZO” (kod aktywacyjny, Aktywuj konto danymi z umowy + SMS, oświadczenia online
+    // TYLKO dla zawierających umowę zlecenie) — polecenia 2026-11-14. modules/it_portal/lib/itPortalAktywacjaSeed.php.
+    '2026-11_it_portal_aktywacja' => [
+        'desc' => 'Portal Usług IT, „Mój login”: aktywacja konta w SZO',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalAktywacjaSeed.php';
+            itPortalAktywacjaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
