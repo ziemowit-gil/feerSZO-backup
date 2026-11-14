@@ -2501,4 +2501,15 @@ return [
         },
     ],
 
+    // Ankieter w Pomocy IT (2026-11-15, repozytorium ankieter commit d7f7361): szczegółowa dokumentacja, odpowiednik Microsoft Forms, MySQL,
+    // role Respondent/Autor/Administrator; instrukcja dla prowadzących w 4 częściach, IT w 7 artykułach, 28 zrzutów (lib/img/ank-*.jpg).
+    '2026-11_it_portal_ankieter_full_docs' => [
+        'desc' => 'Portal Usług IT, „Ankieter”: szczegółowa instrukcja dla prowadzących i dokumentacja IT ze zrzutami',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalAnkieterSeed.php';
+            itPortalAnkieterApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_ankieter_seed.php [--dry-run]
+        },
+    ],
+
 ];
