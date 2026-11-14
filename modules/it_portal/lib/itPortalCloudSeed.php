@@ -162,13 +162,15 @@ function itPortalCloudMenuBlocks(string $app): array {
             . '<p>Pliki osobiste. Tylko Twoje własne pliki, bez tych, które ktoś Ci udostępnił.</p>'
             . '<p>Ostatnie. Pliki zmienione ostatnio, najnowsze na górze. Przydaje się, gdy nie pamiętasz, gdzie zapisałeś dokument.</p>'
             . '<p>Ulubione. Pliki i foldery oznaczone gwiazdką. Gwiazdkę dodasz w menu przy pliku, wybierając „Dodaj do ulubionych”.</p>'
-            . '<p>Udostępnienia. Po rozwinięciu strzałką zobaczysz osobno to, co inni udostępnili Tobie, to, co Ty udostępniłeś innym, '
-            . 'udostępnienia przez link i udostępnienia, które usunięto.</p>'
+            . '<p>Udostępnienia. Po rozwinięciu strzałką zobaczysz osobno oczekujące udostępnienia, prośby o plik, to, co Ty udostępniłeś innym, '
+            . 'udostępnienia przez link, to, co inni udostępnili Tobie, i udostępnienia, które usunięto.</p>'
             . '<p>Foldery zespołów. Wspólne foldery, które administrator chmury zakłada dla całej grupy. Pliki w takim folderze należą do zespołu, '
-            . 'a nie do jednej osoby, więc zostają, gdy ktoś odejdzie. Jeśli lista jest pusta, Twoja grupa nie ma jeszcze takiego folderu.</p>'
+            . 'a nie do jednej osoby, więc zostają, gdy ktoś odejdzie. Jeśli widzisz napis „Brak Folderów zespołów”, Twoja grupa nie ma jeszcze takiego folderu.</p>'
             . '<p>Etykiety. Słowa, którymi oznaczasz pliki, na przykład „faktura” albo „do podpisu”. Po kliknięciu etykiety widzisz wszystkie pliki nią oznaczone, '
             . 'z różnych folderów naraz.</p>'
             . '<p>Drzewo folderów. Twoje foldery jako rozwijane drzewo. Pozwala przejść do głębszego folderu bez klikania po kolei w każdy poziom.</p>'],
+        ...itPortalCloudShot('nc-foldery-zespolow.jpg', 'Menu boczne aplikacji Pliki z zaznaczoną pozycją Foldery zespołów; po prawej napis Brak Folderów zespołów',
+            'Menu boczne. Tu wybrano Foldery zespołów na koncie, które nie ma jeszcze żadnego.'),
 
         ['type' => 'text', 'html' => '<h2>Na dole menu</h2>'
             . '<p>Usunięte pliki. Kosz. Usunięty plik albo folder leży tu jeszcze przez jakiś czas i możesz go przywrócić. Później chmura usuwa go na stałe.</p>'
@@ -183,6 +185,22 @@ function itPortalCloudMenuBlocks(string $app): array {
 }
 
 /**
+ * Zrzut ekranu z repozytorium (modules/it_portal/lib/img/{nazwa}) kopiowany do uploads/it_portal/ pod nazwą z sumy SHA-1,
+ * bo uploads/ nie jest w gicie. Zwraca blok obrazka albo [] gdy pliku brak (artykuł zapisze się wtedy bez zrzutu).
+ */
+function itPortalCloudShot(string $name, string $alt, string $caption = ''): array {
+    require_once dirname(__DIR__) . '/logic/itPortalBlocks.php';
+    $src = __DIR__ . '/img/' . $name;
+    if (!is_file($src)) return [];
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION)) === 'jpeg' ? 'jpg' : strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    $file = substr(sha1_file($src), 0, 20) . '.' . $ext;
+    $dir = itPortalImageDir();
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    if (!is_file($dir . $file) && !@copy($src, $dir . $file)) return [];
+    return [['type' => 'image', 'file' => $file, 'alt' => $alt, 'caption' => $caption]];
+}
+
+/**
  * Bloki artykułu „Ekran po zalogowaniu: Pulpit chmury plików” (polecenie 2026-11-14 ze zrzutem Pulpitu Nextcloud: „opisz to i wypchnij na pomoc IT”,
  * potem „ekran po zalogowaniu i że niektóre elementy mogą się różnić”).
  * Górny pasek, trzy widżety (Polecane pliki, Zespoły, Ostatnia aktywność), wpisy konta technicznego SZO, przycisk „Dostosuj”.
@@ -194,6 +212,8 @@ function itPortalCloudDashboardBlocks(string $app): array {
         ['type' => 'text', 'html' => '<p>Po zalogowaniu do chmury widzisz Pulpit. To strona startowa: wita Cię po imieniu i zbiera w jednym miejscu '
             . 'pliki, nad którymi ostatnio pracowano, Twoje zespoły i to, co się ostatnio zmieniło. Na Pulpit wrócisz w każdej chwili, klikając logo w lewym górnym rogu.</p>'
             . '<p>Czasem po zalogowaniu otwiera się od razu aplikacja Pliki z listą folderów. To też jest w porządku. Na Pulpit przejdziesz wtedy, klikając logo.</p>'],
+        ...itPortalCloudShot('nc-pulpit.jpg', 'Pulpit chmury plików: górny pasek z wyszukiwarką, napis Witaj i karta Polecane pliki z listą przykładowych plików',
+            'Pulpit nowego konta. Jest na nim tylko karta Polecane pliki. Na Twoim koncie kart może być więcej.'),
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Twój ekran może wyglądać trochę inaczej niż w tym opisie. Inne będą nazwy plików i folderów, '
             . 'wpisy w aktywności i liczba kart, bo zależą od Twojego konta, grup i tego, co sam ustawisz. Część ikon i napisów może się też zmienić '
@@ -211,7 +231,8 @@ function itPortalCloudDashboardBlocks(string $app): array {
         ['type' => 'text', 'html' => '<h2>Polecane pliki</h2>'
             . '<p>Pierwsza karta pokazuje pliki i foldery, które ostatnio się zmieniały, razem z czasem ostatniej zmiany. '
             . 'Kliknij nazwę, a otworzysz plik albo przejdziesz do folderu. Lista sama się zmienia, więc nie musisz niczego tu ustawiać. '
-            . 'Pełną listę znajdziesz w aplikacji Pliki w pozycji „Ostatnie”.</p>'],
+            . 'Pełną listę znajdziesz w aplikacji Pliki w pozycji „Ostatnie”. Na nowym koncie są tu przykładowe pliki, które chmura dodaje sama, '
+            . 'a gdy nic się jeszcze nie zmieniało, zobaczysz napis „Nie ma jeszcze rekomendacji”.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Zespoły</h2>'
             . '<p>Druga karta pokazuje zespoły, do których należysz. Zespół to lista osób, którą zakłada sam użytkownik chmury, '
@@ -222,12 +243,12 @@ function itPortalCloudDashboardBlocks(string $app): array {
 
         ['type' => 'text', 'html' => '<h2>Ostatnia aktywność</h2>'
             . '<p>Trzecia karta to skrót tego, co ostatnio działo się z Twoimi plikami i kontem: kto coś udostępnił, zmienił albo dodał. '
-            . 'Przycisk „Więcej aktywności” na dole otwiera pełną listę.</p>'
+            . 'Przycisk „Więcej aktywności” na dole otwiera pełną listę. Na nowym koncie tej karty może jeszcze nie być.</p>'
             . '<p>Wpisy „@SZO (konto techniczne) dodał…” i „Zostałeś dodany jako członek…” są normalne. SZO samo dopisuje Cię do grup i udostępnia foldery, '
             . 'gdy podpiszesz umowę albo dołączysz do obszaru lub działania. Robi to przez swoje konto techniczne, dlatego to ono widnieje jako autor.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Jak zmienić wygląd Pulpitu</h2>'
-            . '<p>Przewiń Pulpit na sam dół i kliknij „Dostosuj”. Zaznaczysz tam, które karty mają być widoczne, i zmienisz tło. '
+            . '<p>Przewiń Pulpit na sam dół i kliknij przycisk „Dostosuj” z ikoną ołówka. Zaznaczysz tam, które karty mają być widoczne, i zmienisz tło. '
             . 'Kolejność kart zmienisz, przeciągając je myszą.</p>'],
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Do samych plików przejdziesz przez menu aplikacji albo klikając plik w „Polecanych plikach”. '
@@ -253,13 +274,19 @@ function itPortalCloudListBlocks(string $app): array {
 
         ['type' => 'text', 'html' => '<h2>Pasek nad listą</h2>'
             . '<p>Ikona prostokąta z paskiem po lewej chowa i pokazuje menu boczne. Przydaje się na małym ekranie.</p>'
-            . '<p>Niebieski przycisk „Nowy” dodaje coś do folderu, w którym jesteś. Prześlesz tu plik albo cały folder z komputera, '
-            . 'założysz nowy folder albo utworzysz pusty dokument, arkusz lub prezentację. Pliki z komputera możesz też po prostu przeciągnąć myszą na listę.</p>'
+            . '<p>Niebieski przycisk „Nowy” dodaje coś do folderu, w którym jesteś. „Wyślij pliki” i „Wyślij katalogi” przesyłają pliki albo cały folder z komputera. '
+            . '„Nowy katalog” zakłada folder. „Utwórz prośbę o plik” daje link, przez który ktoś wgra Ci pliki, nie widząc reszty folderu. '
+            . '„Text document” tworzy pusty plik tekstowy. Pliki z komputera możesz też po prostu przeciągnąć myszą na listę.</p>'
+            . '<p>Pozycje w menu „Nowy” zależą od tego, jakie aplikacje działają w chmurze. Później może tam dojść na przykład tworzenie dokumentów i arkuszy.</p>'
             . '<p>Obok jest ścieżka, czyli nazwa folderu, w którym jesteś, i folderów nad nim. Kliknij nazwę wyższego folderu, żeby do niego wrócić. '
             . 'Strzałka przy nazwie otwiera działania dla bieżącego folderu.</p>'
             . '<p>Ikona z trzema poziomymi kreskami po prawej to filtry. Pokażesz nimi na przykład tylko dokumenty, tylko zdjęcia '
             . 'albo pliki zmienione w ostatnim tygodniu.</p>'
             . '<p>Ikona z czterema kwadratami przełącza widok między listą a kafelkami z miniaturami. Kafelki są wygodne przy zdjęciach.</p>'],
+        ...itPortalCloudShot('nc-nowy.jpg', 'Rozwinięte menu przycisku Nowy: Wyślij pliki, Wyślij katalogi, Nowy katalog, Utwórz prośbę o plik, Text document',
+            'Menu przycisku Nowy.'),
+        ...itPortalCloudShot('nc-lista-plikow.jpg', 'Aplikacja Pliki: menu boczne, przycisk Nowy, opis folderu Welcome to Nextcloud, ostatnie pliki i lista folderów Documents, Photos, Templates z ikonami udostępniania i trzema kropkami',
+            'Wszystkie pliki na nowym koncie: opis folderu, ostatnio zmieniane pliki i lista z kolumnami Nazwa, Rozmiar i Zmodyfikowano.'),
 
         ['type' => 'text', 'html' => '<h2>Opis folderu nad listą</h2>'
             . '<p>Nad listą może być widoczny tekst, na przykład „Welcome to Nextcloud!”. To zawartość pliku Readme.md z tego folderu. '
@@ -277,15 +304,17 @@ function itPortalCloudListBlocks(string $app): array {
 
         ['type' => 'text', 'html' => '<h2>Ikony w wierszu</h2>'
             . '<p>Niebieski folder to folder. Plik ma ikonę swojego rodzaju albo miniaturę, na przykład zdjęcia. '
-            . 'Kliknij nazwę, żeby otworzyć folder albo plik. Dokumenty, arkusze i prezentacje otwierają się w przeglądarce i możesz je od razu edytować.</p>'
+            . 'Kliknij nazwę, żeby otworzyć folder albo plik. Zdjęcia, filmy i PDF-y otworzą się w podglądzie, a pliki tekstowe od razu w edytorze. '
+            . 'Inne pliki pobierzesz i otworzysz w programie na komputerze.</p>'
             . '<p>Ikona osoby z plusem to udostępnianie. Otwiera po prawej panel, w którym dajesz komuś dostęp. Gdy plik jest już udostępniony, '
             . 'zamiast niej widać awatar osoby albo napis „Udostępnione”.</p>'
             . '<p>Trzy kropki otwierają pozostałe działania: pobieranie, dodanie do ulubionych, zmianę nazwy, przeniesienie lub skopiowanie, '
             . 'szczegóły i usunięcie. To samo menu otworzysz prawym przyciskiem myszy na wierszu.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Foldery, które są na nowym koncie</h2>'
-            . '<p>Documents, Photos i Szablony oraz pliki Nextcloud.png i Nextcloud intro.mp4 chmura zakłada sama w każdym nowym koncie. '
-            . 'Folder Szablony jest potrzebny, gdy chcesz tworzyć dokumenty z własnych wzorów. Resztę możesz zostawić, przemianować albo usunąć.</p>'
+            . '<p>Foldery Documents i Photos, folder Szablony (na części kont Templates) oraz przykładowe pliki, takie jak Nextcloud.png, Nextcloud Manual.pdf '
+            . 'czy Nextcloud intro.mp4, chmura zakłada sama w każdym nowym koncie. Folder szablonów jest potrzebny, gdy chcesz tworzyć dokumenty z własnych wzorów. '
+            . 'Resztę możesz zostawić, przemianować albo usunąć.</p>'
             . '<p>Folder OneDrive to kopia Twoich plików z OneDrive w Microsoft 365. SZO przenosi je w tle po założeniu konta w chmurze, '
             . 'z tymi samymi folderami i datami zmian. Przy dużej ilości plików kopiowanie trwa nawet kilka godzin, więc folder może się jeszcze zapełniać.</p>'
             . '<p>Foldery, które ktoś Ci udostępnił, na przykład wspólne foldery grupy, też są na tej liście. '
@@ -306,6 +335,15 @@ function itPortalCloudListBlocks(string $app): array {
             . 'i to, czy odbiorca może tylko pobierać, czy także wgrywać i zmieniać pliki.</p>'
             . '<p>Dodatkowe udostępnienia pokazują dostęp nadany w inny sposób, na przykład przez inne aplikacje chmury. Często ta część jest pusta.</p>'
             . '<p>Ikony z literą „i” przy nagłówkach pokazują krótką podpowiedź po najechaniu myszą.</p>'],
+        ...itPortalCloudShot('nc-udostepnianie.jpg', 'Panel udostępniania folderu Documents po prawej: zakładki Udostępnianie i Aktywność, pola Udostępnianie wewnętrzne i Udostępnienia zewnętrzne, Link wewnętrzny i Utwórz link publiczny',
+            'Panel udostępniania otwiera się po kliknięciu ikony osoby z plusem przy folderze.'),
+
+        ['type' => 'text', 'html' => '<h2>Gdzie zobaczysz, co jest udostępnione</h2>'
+            . '<p>W menu bocznym kliknij „Udostępnienia” i rozwiń strzałką. Oczekujące udostępnienia to te, które ktoś Ci wysłał, a Ty ich jeszcze nie przyjąłeś. '
+            . 'Prośba o plik pozwala poprosić kogoś o wgranie plików do Twojego folderu przez link. Udostępnione innym, Udostępnione linkiem i Udostępnione Tobie '
+            . 'to listy według tego, kto komu dał dostęp. Usunięte udostępnienia pokazują dostęp, z którego zrezygnowałeś. Możesz go tam przywrócić.</p>'],
+        ...itPortalCloudShot('nc-udostepnienia-menu.jpg', 'Rozwinięte menu Udostępnienia: Oczekujące udostępnienia, Prośba o plik, Udostępnione innym, Udostępnione linkiem, Udostępnione Tobie, Usunięte udostępnienia; po prawej napis Brak udostępnień',
+            'Konto bez udostępnień. Gdy coś udostępnisz albo ktoś udostępni coś Tobie, pojawi się tutaj.'),
 
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Pliki z danymi osobowymi udostępniaj wewnętrznie, osobom, które ich potrzebują. '
             . 'Jeśli musisz wysłać je poza Fundację, użyj linku publicznego z hasłem i datą wygaśnięcia, a hasło przekaż inną drogą, na przykład SMS-em.</p>'],

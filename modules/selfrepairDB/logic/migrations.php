@@ -1121,4 +1121,16 @@ return [
         },
     ],
 
+    // „Chmura plików”: zrzuty ekranu z konta testowego nc.feer.org.pl (polecenie 2026-11-14: „porób screeny”) w artykułach „pulpit”,
+    // „lista-plikow” i „menu-plikow” + poprawki tekstu wg zrzutów (menu „Nowy”, Templates, pozycje „Udostępnień”). Zrzuty leżą
+    // w modules/it_portal/lib/img/ i itPortalCloudShot() kopiuje je do uploads/it_portal/ (uploads/ nie jest w gicie).
+    '2026-11_it_portal_cloud_shots' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: zrzuty ekranu w artykułach o Pulpicie, liście plików i menu bocznym',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            foreach (['pulpit', 'lista-plikow', 'menu-plikow'] as $slug) itPortalCloudArticleApply(ITP_SZO_URL, $slug);
+        },
+    ],
+
 ];
