@@ -145,15 +145,21 @@ function itPortalDpocztaArticles(string $app): array {
     $transfer = $app . '/uslugi-it/uslugi/moja-poczta/transfernow-wetransfer';
 
     return [
-        'logowanie-dpoczta' => ['Jak zalogować się do poczty', 'logowanie, login, hasło, sms, dpoczta, webmail, migracja, nowa poczta, imie.nazwisko', [
+        'logowanie-dpoczta' => ['Jak zalogować się do poczty', 'logowanie, login, hasło, sms, dpoczta, webmail, migracja, nowa poczta, imie.nazwisko, witamy w dpoczta.pl, nazwa użytkownika, nie pamiętasz hasła, sesja została zakończona', [
             ['type' => 'text', 'html' => '<p>Pocztę w przeglądarce otwierasz na stronie <a href="https://dpoczta.pl">dpoczta.pl</a>. Działa na komputerze i w telefonie, bez instalowania czegokolwiek.</p>'],
             ['type' => 'wizard', 'title' => 'Logowanie krok po kroku', 'intro' => '', 'steps' => [
-                $step('Otwórz stronę poczty', '<p>Wejdź na <a href="https://dpoczta.pl">dpoczta.pl</a>.</p>'),
+                ['images' => array_map(static fn(array $b): array => ['file' => $b['file'], 'alt' => $b['alt'], 'caption' => $b['caption']],
+                    itPortalDpocztaShot('dp-logowanie.jpg', 'Strona logowania dPoczta.pl: logo dhosting.pl, napis Witamy w dPoczta.pl, pola Nazwa użytkownika i Hasło, przycisk Zaloguj, link Nie pamiętasz hasła',
+                        'Strona logowania dPoczta.pl.'))]
+                    + $step('Otwórz stronę poczty', '<p>Wejdź na <a href="https://dpoczta.pl">dpoczta.pl</a>. Zobaczysz białą stronę z napisem „Witamy w dPoczta.pl” i dwoma polami. '
+                    . 'Napis „Sesja została zakończona poprawnie” pojawia się tylko po wylogowaniu.</p>'),
                 $step('Wpisz login', '<p>Loginem jest pełny adres służbowy: <code>imie.nazwisko@feer.org.pl</code>, małymi literami i bez polskich znaków (np. <code>jan.kowalski@feer.org.pl</code>).</p>'),
                 $step('Wpisz hasło z SMS-a', '<p>Hasło do skrzynki dostałeś SMS-em:</p><ul><li>jeśli konto pocztowe istniało przed 13.11.2026, SMS przyszedł po przeniesieniu poczty z Microsoft 365;</li><li>jeśli konto założyliśmy później, SMS przychodzi po podpisaniu umowy.</li></ul>'),
                 $step('Zmień hasło na własne', '<p>Po pierwszym logowaniu ustaw własne hasło w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. Nie zmieniaj go w ustawieniach dpoczta.pl. Opis jest w instrukcji „Jak zmienić hasło do poczty”.</p>'),
             ]],
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Hasło do poczty jest osobne. To inne hasło niż do Panelu współpracownika (SZO), do Microsoft 365 i do logowania jednokrotnego.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Hasło do poczty jest osobne. To inne hasło niż do Panelu współpracownika (SZO), do Microsoft 365 i do logowania jednokrotnego.</p>'
+                . '<p>Pod przyciskiem „Zaloguj” jest link „Nie pamiętasz hasła?”. Nie korzystaj z niego. Zapomniane hasło do poczty zmienisz na stronie '
+                . '<a href="' . $app . '/nowehaslo">Nowe hasło</a> w SZO, bo tylko tam hasło zapisuje się we wszystkich miejscach.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie masz SMS-a albo hasło nie działa? <a href="' . $hd . '">Zgłoś to w Helpdesku</a>, nadamy nowe hasło.</p>'],
         ], true],
 

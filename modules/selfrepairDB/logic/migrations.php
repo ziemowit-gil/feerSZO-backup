@@ -1663,4 +1663,15 @@ return [
         },
     ],
 
+    // „Moja poczta”: zrzut strony logowania dPoczta.pl w „logowanie-dpoczta” i ostrzeżenie przed linkiem „Nie pamiętasz hasła?” (polecenie 2026-11-14).
+    '2026-11_it_portal_dpoczta_login_shot' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: zrzut strony logowania dPoczty',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];
