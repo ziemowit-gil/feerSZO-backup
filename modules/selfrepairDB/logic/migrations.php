@@ -2188,4 +2188,20 @@ return [
         },
     ],
 
+    // Portal Usług IT: wyjaśnienie „404 Nie znaleziono” na logto.feer.org.pl (adres wpisany ręcznie, zakładka, „Wstecz”) w artykułach
+    // „Logowanie do SZO”, „IAM”, „Logowanie do chmury plików”, słowniczku i „Czym jest IAM, a czym poczta” — polecenie 2026-11-14.
+    '2026-11_it_portal_logto_404' => [
+        'desc' => 'Portal Usług IT: błąd 404 na stronie logowania IAM',
+        'run'  => static function () use ($ROOT): void {
+            $L = $ROOT . '/modules/it_portal/lib/';
+            require_once $L . 'itPortalSzoLinks.php';
+            foreach (['itPortalLogowanieSzoSeed.php', 'itPortalIamSeed.php', 'itPortalGlossarySeed.php', 'itPortalMigracjaSeed.php', 'itPortalCloudSeed.php'] as $f) require_once $L . $f;
+            itPortalLogowanieSzoApply(ITP_SZO_URL);
+            itPortalIamApply(ITP_SZO_URL);
+            itPortalGlossaryApply(ITP_SZO_URL);
+            itPortalMigracjaApply(ITP_SZO_URL);
+            itPortalCloudArticleApply(ITP_SZO_URL, 'logowanie');
+        },
+    ],
+
 ];

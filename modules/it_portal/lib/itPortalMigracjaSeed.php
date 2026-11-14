@@ -177,7 +177,7 @@ function itPortalMigracjaArticles(string $app): array {
                 . '<p>IAM to system tożsamości Fundacji. Jedno konto i jedno hasło otwiera SZO, chmurę plików i kolejne aplikacje Fundacji. '
                 . 'Od 1 grudnia 2026 r. tym kontem zalogujesz się do wszystkich aplikacji Fundacji.</p><ul>'
                 . '<li>Login to adres e-mail zapisany w SZO.</li>'
-                . '<li>Na stronie logowania SZO wybierz „Zaloguj przez logowanie jednokrotne”. Strona logowania IAM ma adres <code>logto.feer.org.pl</code>.</li>'
+                . '<li>Na stronie logowania SZO wybierz „Zaloguj przez logowanie jednokrotne”. Strona logowania IAM ma adres <code>logto.feer.org.pl</code>. Ta strona otwiera się sama po kliknięciu przycisku logowania jednokrotnego. Adres wpisany ręcznie albo zapisany w zakładkach pokaże błąd „404 Nie znaleziono”.</li>'
                 . '<li>Konto założysz po zalogowaniu do SZO albo w Systemie Tożsamości, w sekcji <a href="' . $app . '/tozsamosc/index.php#sso">Logowanie jednokrotne</a>.</li>'
                 . '<li>Chmura plików ma to samo hasło co IAM. Zastępuje OneDrive: trzymasz w niej pliki, udostępniasz je innym osobom i synchronizujesz z komputerem i telefonem.</li>'
                 . '<li>Hasło zmienisz na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. Kod potwierdzenia przyjdzie e-mailem.</li></ul>'],

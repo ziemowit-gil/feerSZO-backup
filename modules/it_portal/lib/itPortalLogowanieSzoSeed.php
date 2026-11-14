@@ -11,6 +11,14 @@ require_once __DIR__ . '/itPortalCloudSeed.php';
 
 if (!defined('ITP_STAN_NA')) define('ITP_STAN_NA', 'Stan na 14 listopada 2026 r., godz. 5:30. Trwa migracja, więc wygląd ekranów i kolejne kroki mogą się jeszcze zmienić.');
 
+/** Ramka o błędzie „404 Nie znaleziono” na logto.feer.org.pl (polecenie 2026-11-14: „logto, dlaczego to widzę, a logowanie działa”, „opisz”). */
+function itPortalLogto404Block(string $app): array {
+    return ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Widzisz stronę „404 Nie znaleziono” z napisem „Powered by Logto”? To nie awaria. Strona logowania IAM, logto.feer.org.pl, nie ma własnej strony startowej. '
+        . 'Otwiera się tylko wtedy, gdy przeniesie Cię na nią aplikacja, na przykład po kliknięciu „Zaloguj przez logowanie jednokrotne” w SZO albo w chmurze plików. '
+        . 'Błąd zobaczysz, gdy wpiszesz ten adres ręcznie, otworzysz go z zakładek, wrócisz do niego przyciskiem „Wstecz” albo karta z logowaniem była otwarta zbyt długo.</p>'
+        . '<p>Co zrobić: zamknij tę kartę i wejdź na <a href="' . $app . '/auth/login.php">stronę logowania SZO</a> albo do chmury plików, a potem kliknij przycisk logowania jednokrotnego. Nie zapisuj adresu logto.feer.org.pl w zakładkach.</p>'];
+}
+
 /** Ramka „stan na” do artykułów o logowaniu. */
 function itPortalStanNaBlock(): array {
     return ['type' => 'callout', 'kind' => 'info', 'html' => '<p>' . ITP_STAN_NA . '</p>'];
@@ -66,6 +74,7 @@ function itPortalLogowanieSzoBlocks(string $app): array {
                 . '<p>Ramka po lewej mówi, kiedy wyłączymy Microsoft 365, i podaje trzy kroki: zaloguj się e-mailem i hasłem, załóż konto IAM, a następnym razem używaj logowania jednokrotnego. '
                 . 'Powody zmiany są pod odnośnikiem „Dlaczego odchodzimy od Microsoft 365?” Kliknij go, żeby je rozwinąć.</p>'
                 . '<p>Co zobaczysz po pierwszym zalogowaniu, opisuje instrukcja <a href="' . $b . 'pierwsze-logowanie">Pierwsze logowanie krok po kroku</a>.</p>'],
+            itPortalLogto404Block($app),
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Przed wpisaniem hasła sprawdź, czy adres strony zaczyna się od https://szo.feer.org.pl. Nikt z Fundacji nie poprosi Cię o hasło ani kod z SMS-a. '
                 . 'Nie możesz się zalogować? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],
         ]

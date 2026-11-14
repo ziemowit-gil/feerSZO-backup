@@ -358,7 +358,7 @@ function itPortalCloudLoginBlocks(string $app): array {
             . 'i przestałoby pasować do SZO. Hasło IAM zmienisz albo odzyskasz na stronie <a href="' . $nh . '">Nowe hasło</a>, potwierdzając zmianę kodem.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Krok 2: strona logowania IAM</h2>'
-            . '<p>Druga strona jest biała, z logo Fundacji i napisem „Zaloguj się do swojego konta”. Jej adres zaczyna się od logto.feer.org.pl. '
+            . '<p>Druga strona jest biała, z logo Fundacji i napisem „Zaloguj się do swojego konta”. Jej adres zaczyna się od logto.feer.org.pl. Ta strona otwiera się sama po kliknięciu przycisku logowania jednokrotnego. Adres wpisany ręcznie albo zapisany w zakładkach pokaże błąd „404 Nie znaleziono”. '
             . 'Na dole jest dopisek „Powered by Logto”, to nazwa programu, który obsługuje logowanie.</p>'
             . '<p>W pole „Nazwa użytkownika” wpisz pełny adres e-mail, ten sam co do SZO. W pole „Hasło” wpisz hasło IAM i kliknij „Zaloguj się”. '
             . 'Jeśli zobaczysz komunikat, że nazwa użytkownika jest nieprawidłowa, sprawdź, czy wpisałeś cały adres razem z częścią po znaku @.</p>'

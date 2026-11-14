@@ -65,7 +65,7 @@ function itPortalGlossaryBlocks(string $app): array {
 
         $group('Logowanie i hasła', [
             ['IAM', 'system tożsamości Fundacji (z angielskiego <span lang="en">Identity and Access Management</span>). Jedno konto IAM i jedno hasło otwiera SZO, chmurę plików i kolejne aplikacje Fundacji. '
-                . 'Strona logowania IAM ma adres <code>logto.feer.org.pl</code>.'],
+                . 'Strona logowania IAM ma adres <code>logto.feer.org.pl</code>. Ta strona otwiera się sama po kliknięciu przycisku logowania jednokrotnego. Adres wpisany ręcznie albo zapisany w zakładkach pokaże błąd „404 Nie znaleziono”.'],
             ['Logowanie jednokrotne (SSO)', 'logujesz się raz, kontem IAM, i wchodzisz do kilku aplikacji bez ponownego wpisywania hasła. W SZO to przycisk „Zaloguj przez logowanie jednokrotne”.'],
             ['Hasło IAM', 'hasło do konta IAM i do chmury plików. Od 1 grudnia 2026 r. posłuży do wszystkich aplikacji Fundacji oprócz poczty.'],
             ['Hasło do poczty', 'osobne hasło do skrzynki pocztowej. Musi być inne niż hasło IAM.'],

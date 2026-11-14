@@ -77,6 +77,8 @@ function itPortalIamBlocks(string $app): array {
             . 'Nowe hasło od razu działa w IAM i w chmurze plików.</p>'
             . '<p>Różnicę między kontem IAM a pocztą opisuje też artykuł <a href="' . $mig . '">Czym jest IAM, a czym poczta</a>.</p>'],
 
+        itPortalLogto404Block($app),
+
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Hasło IAM wpisuj tylko na stronie logowania SZO, na stronie logowania IAM pod adresem logto.feer.org.pl i w aplikacji chmury plików. '
             . 'Nie używaj go nigdzie poza Fundacją i nikomu go nie podawaj. Administrator go nie zna i nigdy o nie nie poprosi. Coś Cię zaniepokoiło? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],
     ];
