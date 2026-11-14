@@ -8,9 +8,11 @@ use PDO;
 /**
  * modules/warden/lib/WardenDatabase.php — osobna baza SQLite strażnika kont (WAL, klucze obce).
  *
- * Plik leży POZA katalogiem publicznym (repozytorium = public_html na mydevil): domyślnie w katalogu obok repozytorium,
- * {rodzic repo}/szo-storage/warden_<16 losowych znaków>.sqlite. Nazwę pliku losujemy przy pierwszym użyciu i zapamiętujemy
- * w ustawieniu SZO `warden_db_file`. Katalog można przestawić stałą WARDEN_STORAGE_DIR (config.local.php) albo w teście.
+ * Plik: {repo}/storage/warden/warden_<16 losowych znaków>.sqlite. Na mydevil repozytorium JEST public_html, a open_basedir
+ * nie pozwala wyjść poza ~/feerSZO, więc katalog jest w repozytorium, ale zamknięty dla WWW: reguła ^storage/ → 403
+ * w głównym .htaccess, własny .htaccess „Require all denied” (zakładany tutaj), storage/ w .gitignore.
+ * Nazwę pliku losujemy przy pierwszym użyciu i zapamiętujemy w ustawieniu SZO `warden_db_file`.
+ * Katalog można przestawić stałą WARDEN_STORAGE_DIR (config.local.php) albo w teście.
  * Wszystkie zapytania przez przygotowane wyrażenia PDO.
  */
 final class WardenDatabase
@@ -51,7 +53,7 @@ final class WardenDatabase
     public static function storageDir(): string
     {
         if (defined('WARDEN_STORAGE_DIR')) return rtrim((string)WARDEN_STORAGE_DIR, '/');
-        return dirname(__DIR__, 4) . '/szo-storage';
+        return dirname(__DIR__, 3) . '/storage/warden';
     }
 
     public static function path(): string
@@ -60,6 +62,8 @@ final class WardenDatabase
         if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
             throw new \RuntimeException('WARDEN: nie mogę utworzyć katalogu bazy ' . $dir);
         }
+        $ht = $dir . '/.htaccess';
+        if (!is_file($ht)) @file_put_contents($ht, "Require all denied\n");
         $file = \function_exists('org_setting') ? \org_setting('warden_db_file') : '';
         if (!preg_match('/^warden_[a-z0-9]{16}\.sqlite$/', $file)) {
             $file = 'warden_' . self::randomName(16) . '.sqlite';

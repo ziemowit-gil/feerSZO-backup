@@ -19,6 +19,7 @@ uploads/
 !uploads/avatars/pending/.htaccess
 !uploads/avatars/pending/.gitkeep
 backups/
+storage/
 tenants/*/umowy.db
 tenants/*/uploads/
 tenants/*/master.db
