@@ -1910,4 +1910,31 @@ return [
         },
     ],
 
+    // Portal Usług IT: grupy kafli na stronie „Usługi” (kolumna itp_categories.tile_group, pole w edycji usługi) i przypisanie obecnych usług
+    // (polecenie 2026-11-14: „grupuj” ze zrzutem strony Usługi). Kolejność grup = kolejność usług (sort_order) ustawiana tutaj.
+    '2026-11_it_portal_tile_groups' => [
+        'desc' => 'Portal Usług IT: grupy kafli na stronie Usługi',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/logic/itPortal.php';
+            itPortalMigrate();
+            $map = [
+                'Konto i logowanie'          => ['moj-login', 'konto-i-hasla', 'migracja'],
+                'Poczta'                     => ['moja-poczta', 'microsoft-365'],
+                'Spotkania online'           => ['zoom', 'jitsi-meet', 'fathom'],
+                'Pliki, dokumenty i zadania' => ['chmura-plikow', 'ezd', 'zadania-szo', '@Zmiana danych'],
+                'Bezpieczeństwo i dostęp'    => ['bezpieczenstwo', 'vpn', 'podpis-kwalifikowany'],
+                'Dla kursantów'              => ['konto-kursanta', 'poczta-kursanta'],
+                'Pomoc i wsparcie'           => ['helpdesk', 'koordynatorzy-it'],
+            ];
+            $sort = 0;
+            foreach ($map as $group => $slugs) {
+                foreach ($slugs as $s) {
+                    $sort += 10;
+                    if ($s[0] === '@') db_exec("UPDATE itp_categories SET tile_group = ?, sort_order = ? WHERE name LIKE ?", [$group, $sort, substr($s, 1) . '%']);
+                    else db_exec("UPDATE itp_categories SET tile_group = ?, sort_order = ? WHERE slug = ?", [$group, $sort, $s]);
+                }
+            }
+        },
+    ],
+
 ];
