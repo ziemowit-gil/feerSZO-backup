@@ -2158,4 +2158,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Migracja poczty krok po kroku”: sekcja „Dlaczego 5 GB, skoro w Microsoft 365 był 1 TB” — polecenie 2026-11-14.
+    '2026-11_it_portal_migracja_poczty_quota' => [
+        'desc' => 'Portal Usług IT, „Migracja poczty”: 5 GB a 1 TB',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaPocztySeed.php';
+            itPortalMigracjaPocztyApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

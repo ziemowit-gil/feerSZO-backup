@@ -6,7 +6,8 @@
  * z Microsoft 365”, „Załóż skrzynkę i wyślij hasło SMS-em”, „Skopiuj też moją pocztę z Microsoft 365”, „Wznów kopiowanie”,
  * „Pobierz PDF z danymi logowania”, „Załóż konto w chmurze”), pliki: CloudFilesCopy::TARGET = folder „OneDrive” w chmurze
  * (kopiowanie zleca administrator), foldery „Google Drive” / „Kopia konta” = dane z dawnych serwerów. Bez nazwy dostawcy poczty
- * (decyzja 2026-11-13). Ramka ITP_STAN_NA. Używa migracja '2026-11_it_portal_migracja_poczty'.
+ * (decyzja 2026-11-13). Sekcja „Dlaczego 5 GB, skoro w Microsoft 365 był 1 TB” (polecenie 2026-11-14): 1 TB = OneDrive, poczta 5 GB
+ * (kadra kierownicza bez zmian), chmura 10 GB na osobę (itPortalCloudQuotaNote). Ramka ITP_STAN_NA. Używa migracja '2026-11_it_portal_migracja_poczty'.
  */
 
 require_once __DIR__ . '/itPortalLogowanieSzoSeed.php';
@@ -26,7 +27,7 @@ function itPortalMigracjaPocztyApply(string $app): string {
         if (!in_array((int)$r['id'], $related, true)) $related[] = (int)$r['id'];
     }
     itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId,
-        'keywords' => 'migracja poczty, migracjapoczty, przeniesienie poczty, nowa skrzynka, załóż skrzynkę, hasło sms, kopia poczty, kopiowanie poczty, stara poczta, gdzie są moje maile, gdzie są pliki, onedrive, google drive, kopia konta, chmura plików, foldery outlooka, wznów kopiowanie, pdf z danymi logowania',
+        'keywords' => '5 gb, 1 tb, pojemność, limit skrzynki, miejsce w poczcie, limit chmury, 10 gb, migracja poczty, migracjapoczty, przeniesienie poczty, nowa skrzynka, załóż skrzynkę, hasło sms, kopia poczty, kopiowanie poczty, stara poczta, gdzie są moje maile, gdzie są pliki, onedrive, google drive, kopia konta, chmura plików, foldery outlooka, wznów kopiowanie, pdf z danymi logowania',
         'blocks' => json_encode(itPortalMigracjaPocztyBlocks($app), JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => 1, 'sort_order' => 3,
         'related' => $related], $old ? (int)$old['id'] : 0);
     return "migracja/{$slug} — {$title} (" . ($old ? 'nadpisany' : 'utworzony') . ')';
@@ -76,6 +77,15 @@ function itPortalMigracjaPocztyBlocks(string $app): array {
             . '<li>Wspólne pliki zespołów są w chmurze w folderach zespołów.</li>'
             . '<li>Załączniki starych wiadomości są tam, gdzie wiadomości, czyli w nowej skrzynce.</li></ul>'
             . '<p>Jak zalogować się do chmury i znaleźć foldery, opisuje usługa <a href="' . $nc . 'nextcloud">Chmura plików</a>. Brakuje pliku, który był w OneDrive? Do 20 listopada możesz go jeszcze pobrać z OneDrive i wgrać do chmury.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Dlaczego 5 GB, skoro w Microsoft 365 był 1 TB</h2>'
+            . '<p>Te liczby dotyczą różnych rzeczy. W Microsoft 365 1 TB to było miejsce na pliki w OneDrive. Sama skrzynka pocztowa miała osobny, dużo mniejszy limit.</p>'
+            . '<p>Teraz poczta i pliki też są osobno:</p><ul>'
+            . '<li>Skrzynka pocztowa wolontariusza i pracownika ma 5 GB. Wystarcza to na lata zwykłej korespondencji, jeśli nie trzymasz w niej dużych załączników. Skrzynki kadry kierowniczej zachowują dotychczasowy limit.</li>'
+            . '<li>Pliki trzymasz w chmurze plików Fundacji. Każde konto ma tam 10 GB na pliki osobiste, a większy limit może przyznać administracja.</li>'
+            . '<li>Foldery zespołów i pliki udostępnione Ci przez innych nie zabierają Twoich 10 GB. Wspólne dokumenty trzymaj więc w folderach zespołów.</li></ul>'
+            . '<p>Większość osób nie zbliżała się nawet do 1 TB, a płacenie za puste miejsce nie ma sensu. Duży plik wyślij linkiem z chmury zamiast załącznika, a skrzynka nie będzie się zapełniać. '
+            . 'Brakuje Ci miejsca w poczcie albo w chmurze? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],
 
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Kopia stanęła z komunikatem „Nowa skrzynka nie przyjęła hasła”? Wpisz aktualne hasło do nowej skrzynki w sekcji „Kopiowanie poczty” i kliknij „Wznów kopiowanie”. Kopia ruszy od miejsca, w którym stanęła. '
             . 'Po zakończonej migracji nowe hasło i ponowne kopiowanie ustawia już tylko administrator, więc wtedy <a href="' . $hd . '">napisz do Helpdesku IT</a>. Hasło do skrzynki wysyłamy tylko SMS-em, nigdy e-mailem.</p>'],
