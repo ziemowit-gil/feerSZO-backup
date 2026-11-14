@@ -1807,4 +1807,17 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuły „Konta funkcyjne w dPoczcie” i „Szybkie spotkanie online: Jitsi Meet”, odsyłacze w spisie funkcji, kalendarzu
+    // i „adres-i-haslo” (polecenia 2026-11-14: „opisz konta funkcyjne w dPoczcie”, „nowa rzecz meet.jit.si, szybko skorzystać, jak potrzebujesz spotkania”;
+    // „spotkania ogólnie robimy na Zoom, mamy 2 licencje, więcej info wkrótce”).
+    '2026-11_it_portal_dpoczta_functional_jitsi' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: konta funkcyjne i Jitsi Meet',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

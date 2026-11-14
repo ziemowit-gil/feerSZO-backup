@@ -94,11 +94,11 @@ function itPortalDpocztaMenuGroups(): array {
     $g1 = 'Pierwsze kroki'; $g2 = 'Hasło i bezpieczeństwo'; $g3 = 'Stopka i pisanie wiadomości'; $g4 = 'Porządek w skrzynce';
     $g5 = 'Telefon, programy, kontakty i kalendarz'; $g6 = 'Załączniki i duże pliki';
     return [
-        'adres-i-haslo' => [$g1, 8], 'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13], 'preferencje' => [$g1, 14],
+        'adres-i-haslo' => [$g1, 8], 'konta-funkcyjne' => [$g1, 15], 'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13], 'preferencje' => [$g1, 14],
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
-        'poczta-w-telefonie' => [$g5, 50], 'kontakty' => [$g5, 51], 'kontakty-import-eksport' => [$g5, 52], 'kalendarz' => [$g5, 54], 'folder-wyslane' => [$g5, 53],
+        'poczta-w-telefonie' => [$g5, 50], 'kontakty' => [$g5, 51], 'kontakty-import-eksport' => [$g5, 52], 'kalendarz' => [$g5, 54], 'jitsi-meet' => [$g5, 55], 'folder-wyslane' => [$g5, 53],
         'duze-zalaczniki' => [$g6, 60], 'transfernow-wetransfer' => [$g6, 61],
     ];
 }
@@ -183,7 +183,8 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<p>W Fundacji są trzy rodzaje kont pocztowych.</p><ul>'
                 . '<li>Konto osobiste, czyli imienne. Jest przypisane do Ciebie. Logujesz się nim i z niego prowadzisz swoją korespondencję.</li>'
                 . '<li>Konto funkcyjne. Jest przypisane do grupy osób albo do jednostki organizacyjnej, na przykład <code>kontakt@feer.org.pl</code> należy do Zarządu. '
-                . 'Dostęp do niego dostajesz na podstawie pełnomocnictwa nadanego przez administratora serwera. Logujesz się nadal swoim imiennym adresem i swoim hasłem.</li>'
+                . 'Dostęp do niego dostajesz na podstawie pełnomocnictwa nadanego przez administratora serwera. Logujesz się nadal swoim imiennym adresem i swoim hasłem. '
+                . 'Więcej w artykule <a href="' . $base . 'konta-funkcyjne">Konta funkcyjne w dPoczcie</a>.</li>'
                 . '<li>Konto techniczne. Służy do obsługi systemów IT, na przykład do wysyłania powiadomień. Nie loguj się na takie konta i nie pisz z nich.</li></ul>'],
             ['type' => 'text', 'html' => '<h2>Jaki jest mój login i adres e-mail?</h2>'
                 . '<p>Loginy w Fundacji tworzymy według jednego wzoru. Adres imienny ma postać <code>imie.nazwisko@feer.org.pl</code>, małymi literami i bez polskich znaków. '
@@ -197,10 +198,28 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'Jak się zalogować, opisuje instrukcja <a href="' . $base . 'logowanie-dpoczta">Jak zalogować się do poczty</a>.</p>'],
         ], true],
 
+        'konta-funkcyjne' => ['Konta funkcyjne w dPoczcie (np. kontakt@feer.org.pl)', 'konto funkcyjne, skrzynka funkcyjna, skrzynka wspólna, kontakt@feer.org.pl, pełnomocnictwo, dostęp do skrzynki, wysyłanie jako, tożsamość, adres działu, zarząd', [
+            ['type' => 'text', 'html' => '<p>Konto funkcyjne to skrzynka przypisana do grupy osób albo do jednostki organizacyjnej, a nie do jednej osoby. '
+                . 'Przykładem jest <code>kontakt@feer.org.pl</code>, które należy do Zarządu. Dzięki temu wiadomości na ten adres widzi kilka osób, a korespondencja zostaje w Fundacji, gdy ktoś odchodzi.</p>'],
+            ['type' => 'text', 'html' => '<h2>Jak dostać dostęp</h2>'
+                . '<p>Dostęp do konta funkcyjnego nadaje administrator serwera pocztowego na podstawie pełnomocnictwa. Poproś o niego swojego przełożonego albo napisz do '
+                . '<a href="' . $hd . '">Helpdesku IT</a>, podając adres konta funkcyjnego i powód. Hasła do konta funkcyjnego nie dostajesz i go nie potrzebujesz.</p>'],
+            ['type' => 'text', 'html' => '<h2>Jak z niego korzystać</h2>'
+                . '<p>Logujesz się na <a href="https://dpoczta.pl">dpoczta.pl</a> jak zwykle, swoim imiennym adresem i swoim hasłem. Po nadaniu dostępu wiadomości konta funkcyjnego zobaczysz po zalogowaniu, '
+                . 'zwykle jako osobne foldery na liście po lewej. Jeśli ich nie widzisz, w ustawieniach otwórz „Foldery” i sprawdź, czy przełączniki przy tych folderach są włączone.</p>'
+                . '<p>Żeby odpowiadać z adresu funkcyjnego, dodaj go jako tożsamość. W ustawieniach wybierz „Tożsamości”, kliknij ołówek „Utwórz”, w polu „E-Mail” wpisz adres funkcyjny, '
+                . 'a w „Nazwie wyświetlanej” nazwę, na przykład „Fundacja FEER, kontakt”. Wklej stopkę i kliknij „Zapisz”. Przy pisaniu wiadomości wybierzesz ten adres w polu „Od”.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Z adresu funkcyjnego piszesz w imieniu Fundacji albo działu. Odpowiadaj tylko na sprawy, którymi się zajmujesz, i nie przenoś wiadomości konta funkcyjnego do swoich prywatnych folderów. '
+                . 'Gdy przestajesz zajmować się tymi sprawami, daj znać w Helpdesku, żeby odebrać Ci dostęp.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Konta techniczne, które obsługują systemy IT, to coś innego niż konta funkcyjne. Nie loguj się na nie i nie pisz z nich. '
+                . 'Rodzaje kont opisuje artykuł <a href="' . $base . 'adres-i-haslo">Jaki jest mój adres e-mail i hasło?</a>.</p>'],
+        ], false],
+
         'dpoczta-funkcje' => ['dPoczta: spis funkcji', 'dpoczta, spis funkcji, funkcje, co potrafi, lista, mapa, wszystkie instrukcje, poczta, spis treści', [
             ['type' => 'text', 'html' => '<p>Tu znajdziesz wszystko, co potrafi dPoczta, w jednym miejscu. Przy każdej funkcji jest jedno zdanie, do czego służy, i link do instrukcji krok po kroku.</p>'],
             ['type' => 'text', 'html' => '<h2>Na start</h2><ul>'
                 . '<li><a href="' . $base . 'adres-i-haslo">Adres e-mail i hasło</a>: rodzaje kont, wzór adresu i skąd wziąć hasło.</li>'
+                . '<li><a href="' . $base . 'konta-funkcyjne">Konta funkcyjne</a>: wspólne skrzynki, na przykład kontakt@feer.org.pl.</li>'
                 . '<li><a href="' . $base . 'logowanie-dpoczta">Logowanie</a>: pełny adres e-mail i hasło do poczty, na stronie dpoczta.pl.</li>'
                 . '<li><a href="' . $base . 'dpoczta-co-jest-co">Co jest co na ekranie</a>: foldery, lista wiadomości, przyciski i ustawienia.</li>'
                 . '<li><a href="' . $base . 'dpoczta-a-outlook">Różnice względem Outlooka</a>: gdzie znaleźć to, co znasz z Microsoft 365.</li>'
@@ -225,6 +244,7 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'text', 'html' => '<h2>Kontakty, kalendarz i inne urządzenia</h2><ul>'
                 . '<li><a href="' . $base . 'kontakty">Kontakty</a>: książki adresowe, grupy i nowe kontakty.</li>'
                 . '<li><a href="' . $base . 'kalendarz">Kalendarz</a>: spotkania, zaproszenia, udostępnianie i synchronizacja z telefonem. Zastępuje kalendarz z Outlooka.</li>'
+                . '<li><a href="' . $base . 'jitsi-meet">Jitsi Meet</a>: szybkie, doraźne spotkanie wideo przez link. Zwykłe spotkania prowadzimy na Zoomie.</li>'
                 . '<li><a href="' . $base . 'poczta-w-telefonie">Poczta w telefonie i programach</a>: dane serwera do Outlooka, Thunderbirda i telefonu.</li>'
                 . '<li><a href="' . $base . 'folder-wyslane">Folder Wysłane</a>: żeby wysłane z programu były widoczne wszędzie.</li></ul>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Z „Zadań” w dPoczcie nie korzystamy, zadania są w SZO w module <a href="' . $app . '/tasks/">Zadania</a>. '
@@ -535,6 +555,24 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nic nie pomogło? <a href="' . $hd . '">Napisz do Helpdesku IT</a>. Podaj adres nadawcy, przybliżoną datę i godzinę wysłania i, jeśli masz, treść zwrotki z kodem błędu.</p>'],
         ], false],
 
+        'jitsi-meet' => ['Szybkie spotkanie online: Jitsi Meet', 'spotkanie online, wideorozmowa, rozmowa wideo, zoom, licencja zoom, jitsi, jitsi meet, meet.jit.si, teams, zoom, link do spotkania, szybkie spotkanie', [
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Spotkania w Fundacji prowadzimy przede wszystkim na Zoomie, na który mamy dwie licencje. '
+                . 'Jitsi Meet to szybkie rozwiązanie na doraźną rozmowę, gdy Zoom jest zajęty albo nie ma czasu na umawianie. Więcej informacji o Zoomie opublikujemy wkrótce.</p>'],
+            ['type' => 'text', 'html' => '<p>Gdy potrzebujesz szybko porozmawiać z kimś przez wideo, możesz skorzystać z <a href="https://meet.jit.si/">Jitsi Meet</a>. '
+                . 'To darmowa usługa do spotkań online. Działa w przeglądarce, bez instalowania programu, a uczestnicy nie potrzebują żadnego konta. Wystarczy im link.</p>'],
+            ['type' => 'wizard', 'title' => 'Spotkanie w trzech krokach', 'intro' => '', 'steps' => [
+                $step('Załóż pokój', '<p>Wejdź na <a href="https://meet.jit.si/">meet.jit.si</a>, wpisz nazwę spotkania i kliknij „Rozpocznij spotkanie”. '
+                    . 'Wybierz nazwę trudną do odgadnięcia, na przykład z kilku słów i cyfr, a nie „FEER”. Strona może poprosić osobę zakładającą spotkanie o zalogowanie się, na przykład kontem Google.</p>'),
+                $step('Zezwól na kamerę i mikrofon', '<p>Przeglądarka zapyta o dostęp do kamery i mikrofonu. Zgódź się. Przed wejściem sprawdzisz obraz i dźwięk.</p>'),
+                $step('Wyślij link', '<p>Skopiuj adres strony spotkania z paska przeglądarki albo przyciskiem zaproszenia i wyślij go uczestnikom. Link możesz też wpisać w polu „Lokalizacja” spotkania w kalendarzu dPoczty.</p>'),
+            ]],
+            ['type' => 'text', 'html' => '<h2>Przydatne przyciski</h2>'
+                . '<p>Na dole okna spotkania wyłączysz mikrofon i kamerę, udostępnisz ekran, otworzysz czat i podniesiesz rękę. W ustawieniach bezpieczeństwa możesz ustawić hasło do spotkania '
+                . 'albo poczekalnię, w której zatwierdzasz każdego wchodzącego. Na telefonie wygodniej jest w aplikacji Jitsi Meet ze sklepu.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Jitsi Meet to publiczna usługa zewnętrzna. Nadaje się do szybkich, zwykłych rozmów. Przy rozmowach o danych osobowych albo sprawach poufnych '
+                . 'ustaw hasło do spotkania i nie nagrywaj go. Jeśli potrzebujesz stałego narzędzia do takich spotkań, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+        ], false],
+
         'generator-stopki' => ['Obowiązkowa stopka: jak ją wygenerować', 'stopka, podpis, generator stopki, obowiązkowa stopka, wzór stopki, dane organizacji, nip, krs, social, facebook, instagram, linkedin', [
             ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Każda wiadomość ze służbowej skrzynki musi mieć stopkę z generatora Fundacji. Stopka jest elementem tożsamości Fundacji, więc korzystanie z generatora jest obowiązkowe i nie zmieniamy stopki ręcznie: wszyscy mamy ten sam wzór i aktualne dane Fundacji.</p>'],
             ['type' => 'text', 'html' => '<p>Generator działa pod adresem <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a> i nie wymaga logowania. Wpisane dane zostają w Twojej przeglądarce.</p>'],
@@ -709,7 +747,7 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'wizard', 'title' => 'Nowe wydarzenie albo spotkanie', 'intro' => '', 'steps' => [
                 $step('Kliknij Stwórz', '<p>Kliknij „Stwórz” na górze albo dwa razy kliknij wybrany dzień i godzinę w siatce kalendarza.</p>'),
                 $step('Podsumowanie', '<p>Na karcie „Podsumowanie” wpisz „Tytuł”, ustaw „Początek” i „Koniec”, a dla wydarzenia na cały dzień włącz „Cały dzień”. '
-                    . 'Uzupełnij „Lokalizację”, na przykład adres albo link do spotkania online, i „Opis”. „Pokaż mnie jako” ustawia, czy w tym czasie jesteś zajęty.</p>'),
+                    . 'Uzupełnij „Lokalizację”, na przykład adres albo link do spotkania online w <a href="' . $base . 'jitsi-meet">Jitsi Meet</a>, i „Opis”. „Pokaż mnie jako” ustawia, czy w tym czasie jesteś zajęty.</p>'),
                 $step('Cykl i powiadomienia', '<p>Wydarzenie co tydzień albo co miesiąc ustawisz na karcie „Cykl”. Na karcie „Powiadomienia” dodasz przypomnienie, na przykład 15 minut wcześniej.</p>'),
                 $step('Uczestnicy', '<p>Na karcie „Uczestnicy” wpisz adresy osób, które chcesz zaprosić. Dostaną zaproszenie e-mailem i mogą je przyjąć, odrzucić albo odpowiedzieć „Może”. '
                     . 'Na karcie „Załączniki” dodasz pliki, na przykład porządek spotkania.</p>'),
