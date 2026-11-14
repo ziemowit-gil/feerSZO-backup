@@ -437,7 +437,10 @@ final class EzdStorage
 
     // ── Dosyłanie zaległych (CRON, przycisk, migracja istniejących plików) ─────────────────────
 
-    /** Id plików bez kopii w skonfigurowanych celach (najnowsze najpierw). Pomija cele w przerwie. */
+    /**
+     * Id plików bez kopii w skonfigurowanych celach (najnowsze najpierw). Pomija cele w przerwie oraz — gdy działa
+     * migracja z SharePointa — pliki, które przeniesie ona ze ścieżką z biblioteki (EzdSpMigrator).
+     */
     public static function pending(int $limit, bool $all = false): array
     {
         self::migrate();
@@ -445,9 +448,11 @@ final class EzdStorage
         if (self::ncConfigured() && !self::paused('nc')) $need[] = 's.nc_at IS NULL';
         if (self::ftpConfigured() && !self::paused('ftp')) $need[] = 's.ftp_at IS NULL';
         if (!$need) return [];
+        require_once __DIR__ . '/EzdSpMigrator.php';
         $sql = "SELECT z.id FROM ezd_zalaczniki z LEFT JOIN ezd_store_files s ON s.zal_id = z.id
                 WHERE (" . implode(' OR ', $need) . ")"
              . ($all ? '' : " AND COALESCE(s.local_missing,0) = 0 AND COALESCE(s.tries,0) < " . self::MAX_TRIES)
+             . (EzdSpMigrator::active() ? " AND NOT (" . EzdSpMigrator::awaitingSql() . ")" : '')
              . " ORDER BY z.id DESC LIMIT " . max(1, $limit);
         return array_map('intval', array_column(db_all($sql), 'id'));
     }
