@@ -42,8 +42,6 @@ try {
     }
 } catch (\Throwable $e) {}
 
-$_webmail_url = org_setting('poczta_webmail_url');
-
 include __DIR__ . '/includes/header_poczta.php';
 ?>
 

@@ -148,13 +148,13 @@ if (module_enabled('org_documents_enabled')) $_pv_daily[] = ['href'=>APP_URL.'/p
 if (module_enabled('whatsapp_group_enabled') && org_setting('whatsapp_group_link')) $_pv_daily[] = ['href'=>APP_URL.'/panel/whatsapp_group.php','icon'=>'bi-whatsapp','label'=>'Grupa WhatsApp','sub'=>'dołącz do grupy'];
 if (module_enabled('ezd_enabled') && can_read('ezd')) $_pv_daily[] = ['href'=>APP_URL.'/ezd/index.php','icon'=>'bi-folder2-open','label'=>'Wirtualne biurko','sub'=>'sprawy i pisma'];
 
-/* ── Poczta: klienty do wyboru (komunikat: od 1 IX 2026) ──────────────────
-   Lista i opisy z katalogu includes/webmail_clients.php — TEGO SAMEGO, z którego
-   korzysta publiczna strona rozjazdu (webmail/index.php pod poczta.feer.org.pl
-   i aliasem szo.feer.org.pl/poczta) oraz moduł Poczta. Klient bez ustawionego
-   adresu (Admin → Poczta → Webmail) po prostu się tu nie pojawia. */
+/* ── Poczta: dPoczta jako główny webmail (od przełączenia 14.11.2026) ─────
+   Adresy z katalogu includes/webmail_clients.php — TEGO SAMEGO, z którego
+   korzysta publiczna strona wyboru (webmail/index.php pod poczta.feer.org.pl
+   i aliasem szo.feer.org.pl/poczta) oraz moduł Poczta. Adres dPoczty pochodzi
+   z ustawień migratora poczty (dhosting_webmail_url, domyślnie dpoczta.pl). */
 require_once $ROOT . '/includes/webmail_clients.php';
-$_mail_clients       = webmail_clients();
+$_mail_dpoczta       = webmail_dpoczta_url();
 $_mail_chooser       = webmail_chooser_url();
 $_mail_chooser_label = webmail_chooser_label();
 
@@ -644,13 +644,16 @@ panelMetroAssets($_vol_color);
     </div>
     <?php endif; ?>
 
-    <!-- Poczta — klienci do wyboru (katalog includes/webmail_clients.php) -->
+    <!-- Poczta — dPoczta jako główny webmail (katalog includes/webmail_clients.php) -->
     <div class="mt-svc" style="--c:var(--m-blue)">
       <i class="bi bi-envelope ic" aria-hidden="true"></i>
       <div class="mt-svc__bd">
         <h3>Poczta organizacji</h3>
-        <p>Ta sama skrzynka w kilku programach do wyboru<?= $_mail_clients ? ' (' . count($_mail_clients) . ')' : '' ?> — wchodzisz zawsze przez <strong><?= h($_mail_chooser_label) ?></strong>.</p>
-        <a class="mt-btn mt-2" href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-open" aria-hidden="true"></i>Otwórz pocztę<span class="visually-hidden"> — nowa karta</span></a>
+        <p>Twoja skrzynka działa w dPoczcie. Logujesz się adresem e-mail i hasłem do poczty, innym niż hasło logowania jednokrotnego. Pocztę w telefonie i programach opisuje strona <strong><?= h($_mail_chooser_label) ?></strong>.</p>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <a class="mt-btn" href="<?= h($_mail_dpoczta) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-envelope-open" aria-hidden="true"></i>Otwórz dPocztę<span class="visually-hidden"> (nowa karta)</span></a>
+          <a class="mt-btn mt-btn--ghost" href="<?= h($_mail_chooser) ?>" target="_blank" rel="noopener noreferrer"><i class="bi bi-phone" aria-hidden="true"></i>Telefon i programy<span class="visually-hidden"> (nowa karta)</span></a>
+        </div>
       </div>
     </div>
   </section>

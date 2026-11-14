@@ -1,35 +1,37 @@
 <?php
 /**
- * webmail/index.php — strona wyboru klienta poczty (poczta.feer.org.pl).
+ * webmail/index.php — strona wyboru: jak otworzyć pocztę (poczta.feer.org.pl).
  *
- * PUBLICZNA, bez logowania: rozjazd do webmaili TEJ SAMEJ skrzynki. Nie ma tu
- * danych osobowych ani sesji użytkownika, więc nie ma czego bramkować.
+ * PUBLICZNA, bez logowania: rozjazd do TEJ SAMEJ skrzynki. Nie ma tu danych
+ * osobowych ani sesji użytkownika, więc nie ma czego bramkować.
  *
- * UKŁAD DWUPANELOWY: lewy panel — wybór klienta (przyciski), prawy — zestawienie
- * cech. Na wąskim ekranie panele składają się w jedną kolumnę (wybór na górze,
- * zestawienie pod nim), bo na telefonie najpierw się klika, a dopiero potem
+ * Od 14.11.2026 poczta działa w dPoczcie (moduł modules/dhosting_migrator), więc
+ * strona poleca dPocztę w przeglądarce, a jako drugą drogę program w telefonie
+ * lub na komputerze (IMAP). Stara skrzynka w Microsoft 365 (Outlook) pojawia
+ * się osobno, bez polecania i poza zestawieniem, tylko do dnia wyłączenia
+ * Microsoft 365 (`sso_ms_off_date`). W tekstach nie podajemy nazwy dostawcy
+ * serwera, tylko „dPoczta".
+ *
+ * UKŁAD DWUPANELOWY: lewy panel — wybór (przyciski), prawy — zestawienie cech
+ * i kalendarz/kontakty z chmury. Na wąskim ekranie panele składają się w jedną
+ * kolumnę (wybór na górze), bo na telefonie najpierw się klika, a dopiero potem
  * porównuje.
  *
  * WYGLĄD: powłoka ekranów wejścia do systemu (includes/auth_screen.php — te same
- * co logowanie/rejestracja: tło marki, pasek dostępności, logo, białe karty),
- * w trybie 'plain', żeby zmieścić dwa panele obok siebie. Dla użytkownika to
- * jeden ciąg „ekranów wejścia", a nie osobna, obco wyglądająca strona.
+ * co logowanie/rejestracja), w trybie 'plain', żeby zmieścić dwa panele obok siebie.
  *
- * KLIENCI: z katalogu includes/webmail_clients.php (jedno źródło prawdy razem
- * z panelem współpracownika i modułem Poczta). Klient bez ustawionego adresu
- * (Admin → Poczta → Webmail) NIE pojawia się tutaj — strona nigdy nie reklamuje
- * usługi, której nie wdrożono.
+ * KATALOG: includes/webmail_clients.php (jedno źródło prawdy razem z panelem
+ * współpracownika i modułem Poczta). Adres dPoczty z ustawień migratora poczty
+ * (`dhosting_webmail_url`, domyślnie https://dpoczta.pl).
  *
  * ROUTING (trzy adresy, jedna strona — patrz .htaccess i router Traefika
  * `feer-poczta` w docker/docker-compose.prod.yml):
  *   • poczta.feer.org.pl     → host `poczta.` przepisywany na /webmail/
- *   • webmail.feer.org.pl    → to samo; dwie nazwy, bo jedni szukają „poczty",
- *                              a drudzy „webmaila" (oba wymagają rekordu A)
+ *   • webmail.feer.org.pl    → to samo
  *   • szo.feer.org.pl/poczta → alias w .htaccess (goły katalog; moduł Poczta
  *                              działa dalej pod /poczta/dashboard.php itd.)
- *
- * Kontekst treści: od 1 września 2026 współpracownicy wybierają klienta sami
- * (wcześniej de facto tylko Outlook).
+ * Linki do stron SZO budujemy przez webmail_szo_url(): pod hostem poczta. APP_URL
+ * wskazywałby na ten host, a on jest przepisywany na /webmail/.
  */
 
 require_once dirname(__DIR__) . '/config.php';
@@ -38,13 +40,26 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/webmail_clients.php';
 
 $CLIENTS  = webmail_clients();
+$LEGACY   = webmail_clients_legacy();
 $FEATURES = webmail_features();
+
+$_dp_label  = webmail_dpoczta_label();
+$_switch    = webmail_switch_ts();
+$_off       = webmail_ms_off_ts();
+$_now       = time();
+$_switched  = $_switch !== null && $_switch <= $_now;
+$_u_newpass = webmail_szo_url('/nowehaslo');
+$_u_help    = webmail_szo_url('/panel/helpdesk.php');
+$_u_dav     = webmail_szo_url('/kalendarz-kontakty');
+$_u_dav_art = webmail_szo_url('/uslugi-it/uslugi/chmura-plikow/kontakty-i-kalendarz');
+$_u_2fa     = webmail_szo_url('/uslugi-it/uslugi/moja-poczta/weryfikacja-dwuetapowa');
+$_u_mail    = webmail_szo_url('/uslugi-it/uslugi/moja-poczta');
 
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
-    'title'     => 'Poczta — wybierz klienta',
+    'title'     => 'Poczta organizacji',
     'side_title'=> 'Poczta',
-    'side_sub'  => 'Wybierz program do poczty, a potem zaloguj się w nim.',
+    'side_sub'  => 'Otwórz pocztę w przeglądarce albo dodaj ją do programu.',
     'tab'       => '',
     'mode'      => 'plain',
     'bootstrap' => true,
@@ -70,13 +85,16 @@ auth_screen_head([
    jawnie wrócić do ciemnego atramentu, inaczej teksty są niewidoczne. */
 .pw-panel{background:#fff;border-radius:var(--ks-radius);box-shadow:0 18px 44px rgba(0,0,0,.16);
   padding:1.5rem 1.35rem;color:var(--ks-ink)}
-.pw-panel h2,.pw-panel p,.pw-panel li,.pw-panel table,.pw-panel th,.pw-panel td,
+.pw-panel h2,.pw-panel h3,.pw-panel p,.pw-panel li,.pw-panel table,.pw-panel th,.pw-panel td,
 .pw-panel .pw-opt,.pw-panel .pw-opt__name{color:var(--ks-ink)}
 @media(min-width:576px){.pw-panel{padding:1.75rem 1.6rem}}
 .pw-panel__h{display:flex;align-items:center;gap:.5rem;font-size:1.05rem;font-weight:800;
   letter-spacing:-.01em;margin:0 0 .3rem}
 .pw-panel__h i{color:var(--ks)}
 .pw-panel__sub{font-size:.85rem;color:var(--ks-muted)!important;margin:0 0 1.15rem;line-height:1.5}
+/* Bursztynowa ramka fokusu z powłoki ginie na białym tle (kontrast < 3:1) — na panelach granatowa. */
+.pw-panel :focus-visible{outline-color:#1d4ed8!important}
+.pw-panel p a,.pw-panel li a{color:#1d4ed8!important;text-decoration:underline;text-underline-offset:2px}
 
 /* ── Lewy panel: opcje ──────────────────────────────────────────────────── */
 .pw-opt{display:block;border:1px solid var(--ks-line);border-radius:12px;padding:.9rem 1rem;
@@ -84,19 +102,24 @@ auth_screen_head([
 .pw-opt:hover,.pw-opt:focus-visible{border-color:var(--ks);box-shadow:0 8px 22px -12px rgba(0,0,0,.35);
   transform:translateY(-1px);color:var(--ks-ink)}
 .pw-opt--rec{border-color:var(--ks);box-shadow:0 0 0 1px var(--ks)}
-.pw-opt--old{opacity:.85}
+.pw-opt--old{border-style:dashed;background:#fafafa}
 .pw-opt__top{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
 .pw-opt__ico{width:34px;height:34px;border-radius:9px;background:var(--c-bg,rgba(220,38,38,.07));
   color:var(--ks);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.05rem}
+.pw-opt--old .pw-opt__ico{background:#f3f4f6;color:#4b5563}
 .pw-opt__name{font-weight:700;font-size:1rem;line-height:1.25}
 .pw-opt__tag{display:block;font-size:.83rem;color:var(--ks-muted)!important;margin:.35rem 0 0;line-height:1.45}
 .pw-opt__hint{display:block;font-size:.81rem;color:var(--ks-muted)!important;margin:.45rem 0 0;line-height:1.5}
 .pw-opt__go{display:flex;align-items:center;gap:.35rem;margin-top:.6rem;font-size:.88rem;
   font-weight:700;color:var(--ks)!important}
+.pw-opt--old .pw-opt__go{color:#4b5563!important}
 .pw-badge{font-size:.7rem;font-weight:700;padding:.12rem .5rem;border-radius:999px;text-transform:uppercase;
   letter-spacing:.03em}
 .pw-badge--rec{background:#ecfdf5;color:#047857}
-.pw-badge--old{background:#fff7ed;color:#c2410c}
+.pw-badge--old{background:#fff7ed;color:#9a3412}
+.pw-legacy{margin-top:1.2rem;padding-top:1rem;border-top:1px solid #e5e7eb}
+.pw-legacy__h{font-size:.92rem;font-weight:800;margin:0 0 .3rem}
+.pw-legacy__p{font-size:.82rem;color:var(--ks-muted)!important;margin:0 0 .8rem;line-height:1.5}
 .pw-last{font-size:.82rem;color:var(--ks-muted)!important;margin:1rem 0 0;display:none}
 .pw-last b{color:var(--ks-ink)}
 
@@ -114,24 +137,25 @@ auth_screen_head([
 .pw-tbl td small{display:block;font-weight:400;color:var(--ks-muted)!important;font-size:.74rem;line-height:1.35;
   white-space:normal;margin-top:.1rem;text-align:left}
 .pw-yes{color:#15803d!important}
-.pw-no{color:#9ca3af!important}
+.pw-no{color:#6b7280!important}
 .pw-part{color:#b45309!important}
 .pw-legend{font-size:.78rem;color:var(--ks-muted)!important;margin:.7rem 0 0;display:flex;gap:1rem;flex-wrap:wrap}
-.pw-advice{margin:1.25rem 0 0;font-size:.86rem;line-height:1.6;color:var(--ks-muted)!important}
-.pw-advice strong{color:var(--ks-ink)}
-.pw-advice li{margin:.3rem 0}
-.pw-advice ul{margin:.4rem 0 0;padding-left:1.15rem}
+.pw-sect{margin:1.35rem 0 0}
+.pw-sect h3{font-size:.95rem;font-weight:800;margin:0 0 .35rem}
+.pw-sect p{font-size:.86rem;line-height:1.6;margin:0 0 .5rem}
+.pw-sect p:last-child{margin-bottom:0}
 
 .pw-alert{display:flex;gap:.7rem;align-items:flex-start;background:#eff6ff;border:1px solid #bfdbfe;
   border-left:4px solid #1d4ed8;color:#1e40af;border-radius:12px;padding:.85rem 1rem;font-size:.88rem;
   line-height:1.55;margin:0 0 1.1rem}
 .pw-alert i{font-size:1.1rem;flex-shrink:0;margin-top:.1rem}
 .pw-alert strong{color:#1e3a8a}
+.pw-alert a{color:#1e3a8a!important;text-decoration:underline;text-underline-offset:2px}
+.pw-alert :focus-visible{outline-color:#1e3a8a!important}
 .pw-alert__row{margin:0}
 .pw-alert__row + .pw-alert__row{margin-top:.6rem;padding-top:.6rem;border-top:1px solid #bfdbfe}
-.pw-alert__row--strong{color:#1e3a8a}
 
-/* ── „Dlaczego jeden adres" — pasek pełnej szerokości pod panelami ───────── */
+/* ── Logowanie i bezpieczeństwo — pasek pełnej szerokości pod panelami ───── */
 .pw-why{margin-top:1.1rem}
 .pw-why__grid{display:grid;gap:.9rem 1.4rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:0}
 .pw-why__item{display:flex;gap:.65rem;align-items:flex-start}
@@ -141,27 +165,35 @@ auth_screen_head([
 .pw-why__d{font-size:.83rem;line-height:1.5;color:var(--ks-muted)!important;margin:0}
 </style>
 
-<h1 class="pw-h1">Poczta organizacji — wybierz klienta</h1>
+<h1 class="pw-h1">Poczta organizacji</h1>
 <p class="pw-lead">
-  Ta sama skrzynka i te same wiadomości. Różni się widok i to, co program dodatkowo potrafi.
+  Swoją skrzynkę @feer.org.pl otworzysz w przeglądarce albo w programie pocztowym w telefonie
+  lub na komputerze. Wszędzie zobaczysz te same wiadomości.
 </p>
 
-<div class="pw-alert">
-  <i class="bi bi-calendar-check" aria-hidden="true"></i>
+<div class="pw-alert" role="note">
+  <i class="bi bi-info-circle" aria-hidden="true"></i>
   <div>
     <p class="pw-alert__row">
-      <strong>Od 1 września 2026 wybór należy do Ciebie</strong> — a korzystać możesz
-      <strong>już teraz</strong>, bez zgłaszania czegokolwiek. Wybór nie jest na zawsze:
-      w każdej chwili wchodzisz z innego klienta na tę samą skrzynkę, możesz też używać
-      kilku równolegle. Żadna wiadomość przy tym nie ginie.
+      <?php if ($_switch !== null && $_switched): ?>
+      <strong>Od <?= h(webmail_date_pl($_switch)) ?> poczta Fundacji działa w dPoczcie.</strong>
+      Adres e-mail się nie zmienił.
+      <?php elseif ($_switch !== null): ?>
+      <strong><?= h(webmail_date_pl($_switch)) ?> poczta Fundacji przechodzi do dPoczty.</strong>
+      Adres e-mail się nie zmieni.
+      <?php else: ?>
+      <strong>Poczta Fundacji działa w dPoczcie.</strong>
+      <?php endif; ?>
+      Logujesz się pełnym adresem e-mail i hasłem do poczty. To hasło jest inne niż hasło logowania
+      jednokrotnego do SZO i chmury plików. Zmienisz je w SZO, na stronie
+      <a href="<?= h($_u_newpass) ?>">Nowe hasło</a>.
     </p>
-    <p class="pw-alert__row pw-alert__row--strong">
-      <strong>Od 1 października 2026 <?= h(webmail_chooser_label()) ?> będzie jedynym
-      dedykowanym adresem do logowania do poczty.</strong>
-      Zapisz go w zakładkach — przestajemy podawać adresy Microsoftu i poszczególnych
-      klientów. Ten jeden adres zostanie ten sam, także gdy kiedyś zmienimy klienta
-      albo dodamy nowego.
+    <?php if ($LEGACY): ?>
+    <p class="pw-alert__row">
+      <strong><?= h(webmail_date_pl($_off)) ?> wyłączamy Microsoft 365</strong>, a razem z nim starą
+      skrzynkę w Outlooku.<?php if ($_switched): ?> Nowe wiadomości przychodzą już tylko do dPoczty.<?php endif; ?>
     </p>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -171,29 +203,47 @@ auth_screen_head([
   <section class="pw-panel" aria-labelledby="pw-pick-h">
     <h2 class="pw-panel__h" id="pw-pick-h"><i class="bi bi-hand-index-thumb" aria-hidden="true"></i>Wybierz i wejdź</h2>
     <p class="pw-panel__sub">
-      <?= count($CLIENTS) ?> <?= count($CLIENTS) === 1 ? 'klient' : (count($CLIENTS) < 5 ? 'klienty' : 'klientów') ?>
-      do wyboru. Logujesz się swoim kontem — żaden z nich nie przechowuje Twojego hasła.
+      Możesz korzystać z obu sposobów naraz.
     </p>
 
-    <?php foreach ($CLIENTS as $c):
-        $rec = $c['badge'] === 'zalecany';
-        $old = $c['badge'] === 'awaryjny';
-    ?>
+    <?php foreach ($CLIENTS as $c): $rec = $c['badge'] === 'zalecany'; ?>
     <a href="<?= h($c['url']) ?>" rel="noopener" data-pick="<?= h($c['key']) ?>"
-       class="pw-opt<?= $rec ? ' pw-opt--rec' : '' ?><?= $old ? ' pw-opt--old' : '' ?>">
+       class="pw-opt<?= $rec ? ' pw-opt--rec' : '' ?>">
       <span class="pw-opt__top">
         <span class="pw-opt__ico" aria-hidden="true"><i class="bi <?= h($c['icon']) ?>"></i></span>
         <span class="pw-opt__name"><?= h($c['label']) ?></span>
         <?php if ($rec): ?><span class="pw-badge pw-badge--rec">zalecany</span><?php endif; ?>
-        <?php if ($old): ?><span class="pw-badge pw-badge--old">awaryjny</span><?php endif; ?>
       </span>
       <span class="pw-opt__tag"><?= h($c['tagline']) ?></span>
       <span class="pw-opt__hint"><?= h($c['hint']) ?></span>
-      <span class="pw-opt__go">Otwórz <?= h($c['short']) ?>
+      <span class="pw-opt__go"><?= h($c['go']) ?>
         <i class="bi bi-arrow-right" aria-hidden="true"></i>
       </span>
     </a>
     <?php endforeach; ?>
+
+    <?php if ($LEGACY): ?>
+    <div class="pw-legacy">
+      <h3 class="pw-legacy__h" id="pw-old-h">Stara skrzynka w Microsoft 365</h3>
+      <p class="pw-legacy__p">
+        Nie odpisuj z niej na nowe wiadomości. Twoja poczta jest już w dPoczcie.
+      </p>
+      <?php foreach ($LEGACY as $c): ?>
+      <a href="<?= h($c['url']) ?>" rel="noopener" data-pick="<?= h($c['key']) ?>" class="pw-opt pw-opt--old">
+        <span class="pw-opt__top">
+          <span class="pw-opt__ico" aria-hidden="true"><i class="bi <?= h($c['icon']) ?>"></i></span>
+          <span class="pw-opt__name"><?= h($c['label']) ?></span>
+          <span class="pw-badge pw-badge--old">wyłączany <?= h(date('d.m.Y', (int)$c['until'])) ?></span>
+        </span>
+        <span class="pw-opt__tag"><?= h($c['tagline']) ?></span>
+        <span class="pw-opt__hint"><?= h($c['hint']) ?></span>
+        <span class="pw-opt__go"><?= h($c['go']) ?>
+          <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        </span>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 
     <p class="pw-last" id="pw-last" role="status"></p>
   </section>
@@ -201,11 +251,11 @@ auth_screen_head([
   <!-- ── PANEL 2: zestawienie ────────────────────────────────────────────── -->
   <section class="pw-panel" aria-labelledby="pw-cmp-h">
     <h2 class="pw-panel__h" id="pw-cmp-h"><i class="bi bi-table" aria-hidden="true"></i>Zestawienie</h2>
-    <p class="pw-panel__sub">Co który klient potrafi ze skrzynką Microsoft 365 Fundacji.</p>
+    <p class="pw-panel__sub">Co potrafi dPoczta, a co program pocztowy w telefonie lub na komputerze.</p>
 
     <div class="pw-tbl-wrap">
       <table class="pw-tbl">
-        <caption class="sr">Porównanie klientów poczty</caption>
+        <caption class="sr">Porównanie sposobów otwierania poczty</caption>
         <thead>
           <tr>
             <th scope="col">Co potrafi</th>
@@ -224,8 +274,8 @@ auth_screen_head([
             ?>
             <td>
               <span class="pw-<?= $cls ?>" aria-hidden="true"><?= $sym ?></span>
-              <span class="sr"><?= h($c['short']) ?>: <?= h($txt) ?><?= $note ? ' — ' . h($note) : '' ?></span>
-              <?php if ($note): ?><small><?= h($note) ?></small><?php endif; ?>
+              <span class="sr"><?= h($c['short']) ?>: <?= h($txt) ?><?= $note ? ', ' . h($note) : '' ?></span>
+              <?php if ($note): ?><small aria-hidden="true"><?= h($note) ?></small><?php endif; ?>
             </td>
             <?php endforeach; ?>
           </tr>
@@ -240,89 +290,80 @@ auth_screen_head([
       <span><span class="pw-no">—</span> nie</span>
     </p>
 
-    <div class="pw-advice">
-      <strong>Nie wiesz, co wybrać?</strong>
-      <ul>
-        <li>Umawiasz spotkania, prowadzisz kalendarz albo obsługujesz skrzynkę wspólną
-            → <strong>Outlook</strong>; pozostali tego nie mają.</li>
-        <li>Chcesz tylko przeczytać i odpisać, często z telefonu lub słabego łącza
-            → <strong>Roundcube</strong> albo <strong>SnappyMail</strong>.</li>
-        <li>Nie masz preferencji → zacznij od <strong>Outlooka</strong>, lekkiego klienta zostaw
-            jako zapas na wyjazd i wolny internet.</li>
-        <li>Reguły, podpis i autoodpowiedź ustawione w Outlooku działają na serwerze,
-            więc obowiązują <strong>we wszystkich klientach</strong>.</li>
-      </ul>
+    <div class="pw-sect">
+      <h3>Kalendarz i kontakty z chmury plików</h3>
+      <p>
+        Kalendarz w dPoczcie jest osobny od kalendarza w chmurze plików Fundacji. Wydarzenia nie
+        przenoszą się same między nimi. Kalendarz z chmury możesz dodać do dPoczty przez
+        „Dodaj kalendarz CalDAV”. Kontaktów z chmury dPoczta nie pobiera, więc podłączysz je
+        w telefonie albo w programie na komputerze.
+      </p>
+      <p>
+        Dane do wpisania przygotuje strona <a href="<?= h($_u_dav) ?>">Kalendarz i kontakty z chmury</a>
+        w SZO. Krok po kroku opisuje to artykuł
+        <a href="<?= h($_u_dav_art) ?>">Kalendarz i kontakty z chmury w poczcie, telefonie i programie</a>.
+      </p>
+    </div>
+
+    <div class="pw-sect">
+      <h3>Nie wiesz, co wybrać?</h3>
+      <p>
+        Zacznij od dPoczty. Działa od razu w każdej przeglądarce, także w telefonie.
+      </p>
+      <p>
+        Jeśli wolisz pocztę w aplikacji w telefonie albo w Thunderbirdzie czy Outlooku na komputerze,
+        dodaj skrzynkę jako konto IMAP według instrukcji. Program Outlook połączony z kontem Microsoft
+        nie będzie działał z pocztą Fundacji. Pozostałe instrukcje znajdziesz w Portalu Usług IT,
+        w części <a href="<?= h($_u_mail) ?>">Moja poczta</a>.
+      </p>
     </div>
   </section>
 
 </div>
 
-<!-- ── DLACZEGO JEDEN ADRES ──────────────────────────────────────────────── -->
+<!-- ── LOGOWANIE I BEZPIECZEŃSTWO ────────────────────────────────────────── -->
 <section class="pw-panel pw-why" aria-labelledby="pw-why-h">
-  <h2 class="pw-panel__h" id="pw-why-h"><i class="bi bi-patch-question" aria-hidden="true"></i>Dlaczego jeden adres</h2>
-  <p class="pw-panel__sub">
-    Nie chodzi o porządek na stronie — każdy z tych powodów kiedyś kogoś u nas kosztował czas
-    albo nerwy.
-  </p>
+  <h2 class="pw-panel__h" id="pw-why-h"><i class="bi bi-shield-check" aria-hidden="true"></i>Logowanie i bezpieczeństwo</h2>
+  <p class="pw-panel__sub">Kilka zasad, które chronią Twoją skrzynkę.</p>
 
   <div class="pw-why__grid">
 
     <div class="pw-why__item">
-      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-shield-check"></i></span>
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-shield-exclamation"></i></span>
       <div>
-        <p class="pw-why__t">Łatwiej rozpoznać oszustwo</p>
-        <p class="pw-why__d">Skoro poczta jest zawsze pod <strong><?= h(webmail_chooser_label()) ?></strong>,
-          każdy inny link „zaloguj się do poczty" — nawet ładnie wyglądający i podpisany naszą nazwą —
-          jest podejrzany. Nie musisz oceniać, czy dany adres Microsoftu jest prawdziwy: nie podajemy
-          żadnego.</p>
+        <h3 class="pw-why__t">Hasło wpisuj tylko w dPoczcie albo w swoim programie</h3>
+        <p class="pw-why__d">Strona logowania poczty to <strong><?= h($_dp_label) ?></strong>. Jeśli link
+          z wiadomości prowadzi gdzie indziej i prosi o hasło do poczty, to próba wyłudzenia. Nie wpisuj
+          tam hasła i zgłoś to w <a href="<?= h($_u_help) ?>">Helpdesku IT</a>.</p>
       </div>
     </div>
 
     <div class="pw-why__item">
-      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-arrow-repeat"></i></span>
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-key"></i></span>
       <div>
-        <p class="pw-why__t">Adres nie zmieni się przy zmianie programu</p>
-        <p class="pw-why__d">Klienta poczty można wymienić, dodać albo wyłączyć — a instrukcje, umowy,
-          wizytówki i zakładki w przeglądarce zostają aktualne. Wcześniej każda taka zmiana oznaczała
-          rozsyłanie nowych adresów.</p>
+        <h3 class="pw-why__t">Hasło zmieniasz w SZO</h3>
+        <p class="pw-why__d">Nie zmieniaj hasła w ustawieniach dPoczty. Zmień je w SZO, na stronie
+          <a href="<?= h($_u_newpass) ?>">Nowe hasło</a>. Potem wpisz nowe hasło także w telefonie
+          i w programach, w których masz pocztę.</p>
       </div>
     </div>
 
     <div class="pw-why__item">
-      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-braces"></i></span>
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-phone-vibrate"></i></span>
       <div>
-        <p class="pw-why__t">Jedna rzecz do zapamiętania</p>
-        <p class="pw-why__d">Zamiast <code>outlook.office.com</code>, <code>portal.office.com</code>
-          i adresów poszczególnych webmaili — jedna nazwa, ta sama na komputerze, telefonie i na
-          kartce dla nowej osoby.</p>
+        <h3 class="pw-why__t">Weryfikacja dwuetapowa</h3>
+        <p class="pw-why__d">W dPoczcie włączysz dodatkowy kod z aplikacji w telefonie, podawany przy
+          logowaniu. Chroni skrzynkę, nawet gdy ktoś pozna Twoje hasło. Zobacz instrukcję
+          <a href="<?= h($_u_2fa) ?>">Weryfikacja dwuetapowa w poczcie</a>.</p>
       </div>
     </div>
 
     <div class="pw-why__item">
-      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-people"></i></span>
+      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-bookmark-star"></i></span>
       <div>
-        <p class="pw-why__t">Wybór zostaje przy Tobie</p>
-        <p class="pw-why__d">Jeden adres nie znaczy jeden program: wchodzisz tu i wybierasz, w czym
-          czytasz pocztę. Każdy widzi to samo zestawienie, więc nikt nie trafia na klienta „bo taki
-          link dostał".</p>
-      </div>
-    </div>
-
-    <div class="pw-why__item">
-      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-life-preserver"></i></span>
-      <div>
-        <p class="pw-why__t">Krótsza pomoc, gdy coś nie działa</p>
-        <p class="pw-why__d">„Wejdź na <?= h(webmail_chooser_label()) ?>" to cała instrukcja — bez
-          dopytywania, którego programu używasz i skąd się logujesz.</p>
-      </div>
-    </div>
-
-    <div class="pw-why__item">
-      <span class="pw-why__ico" aria-hidden="true"><i class="bi bi-hdd-network"></i></span>
-      <div>
-        <p class="pw-why__d" style="margin-top:.35rem"><strong>Co się nie zmienia:</strong> skrzynka,
-          adres e-mail i hasło zostają dokładnie te same. To adres <em>strony do logowania</em>, nie
-          Twojego konta.</p>
+        <h3 class="pw-why__t">Ten adres się nie zmienia</h3>
+        <p class="pw-why__d"><strong><?= h(webmail_chooser_label()) ?></strong> to adres Fundacji, który
+          zawsze prowadzi do aktualnej poczty. Zapisz go w zakładkach i podawaj nowym osobom.</p>
       </div>
     </div>
 
@@ -332,10 +373,11 @@ auth_screen_head([
 <?php
 auth_screen_foot([
     'links' => [
-        ['url' => APP_URL . '/panel/',             'label' => 'Panel współpracownika', 'icon' => 'bi-house-door'],
-        ['url' => APP_URL . '/panel/helpdesk.php', 'label' => 'Problem z pocztą?',   'icon' => 'bi-life-preserver'],
+        ['url' => webmail_szo_url('/panel/'), 'label' => 'Panel współpracownika', 'icon' => 'bi-house-door'],
+        ['url' => $_u_newpass,                'label' => 'Nowe hasło do poczty',  'icon' => 'bi-key'],
+        ['url' => $_u_help,                   'label' => 'Problem z pocztą?',     'icon' => 'bi-life-preserver'],
     ],
-    // Podpowiedź „ostatnio wybierałeś" — progresywne ulepszenie. Świadomie BEZ
+    // Podpowiedź „ostatni wybór" — progresywne ulepszenie. Świadomie BEZ
     // automatycznego przekierowania: komputery bywają współdzielone, a wybór ma
     // pozostać odwracalny jednym kliknięciem.
     'extra_js' => '<script>(function(){'
@@ -344,7 +386,7 @@ auth_screen_foot([
         . 'N[a.dataset.pick]=(a.querySelector(".pw-opt__name")||{}).textContent||a.dataset.pick;'
         . 'a.addEventListener("click",function(){try{localStorage.setItem(K,a.dataset.pick);}catch(e){}});});'
         . 'try{var p=localStorage.getItem(K);if(p&&N[p]&&b){'
-        . 'b.innerHTML="Ostatnio wybierałeś: <b></b> — możesz to zmienić w każdej chwili.";'
+        . 'b.innerHTML="Ostatni wybór na tym urządzeniu: <b></b>. Możesz go zmienić w każdej chwili.";'
         . 'b.querySelector("b").textContent=N[p];b.style.display="block";}}catch(e){}'
         . '})();</script>',
 ]);

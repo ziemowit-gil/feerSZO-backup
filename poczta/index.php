@@ -19,8 +19,6 @@ $PAGE_TITLE = 'Skrzynki';
 
 $_mailboxes = poczta_mailboxes_for_user();
 
-$_webmail_url = org_setting('poczta_webmail_url');
-
 include __DIR__ . '/includes/header_poczta.php';
 ?>
 

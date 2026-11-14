@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/poczta.php';
+require_once dirname(__DIR__) . '/includes/webmail_clients.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Ustawienia modułu Poczty';
@@ -16,11 +17,10 @@ $settings_keys = [
     'poczta_download_attachments',
     'poczta_attach_max_kb',
     'poczta_worker_batch',
-    'poczta_webmail_url',
-    'poczta_snappy_url',
-    'poczta_squirrel_url',
+    // Webmail: dPoczta ustawia się w migratorze poczty (dhosting_webmail_url). Adresy wycofanych
+    // klientów (poczta_webmail_url = Roundcube M365, poczta_snappy_url, poczta_squirrel_url) i komunikat
+    // poczta_rc_login_notice zostają w bazie, ale ten formularz już ich nie zapisuje — includes/webmail_clients.php.
     'poczta_owa_url',
-    'poczta_rc_login_notice',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -34,11 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'poczta_download_attachments'  => isset($_POST['poczta_download_attachments']) ? '1' : '0',
         'poczta_attach_max_kb'         => (string)max(1, (int)($_POST['poczta_attach_max_kb'] ?? 5120)),
         'poczta_worker_batch'          => (string)max(1, (int)($_POST['poczta_worker_batch'] ?? 5)),
-        'poczta_webmail_url'           => rtrim(trim((string)($_POST['poczta_webmail_url'] ?? '')), '/'),
-        'poczta_snappy_url'            => rtrim(trim((string)($_POST['poczta_snappy_url'] ?? '')), '/'),
-        'poczta_squirrel_url'          => rtrim(trim((string)($_POST['poczta_squirrel_url'] ?? '')), '/'),
         'poczta_owa_url'               => rtrim(trim((string)($_POST['poczta_owa_url'] ?? '')), '/'),
-        'poczta_rc_login_notice'       => trim((string)($_POST['poczta_rc_login_notice'] ?? '')),
     ];
     foreach ($values as $k => $v) {
         org_setting_set($k, $v);
@@ -55,7 +51,8 @@ if ($cfg['poczta_scan_hour_from']       === '') $cfg['poczta_scan_hour_from']   
 if ($cfg['poczta_scan_hour_to']         === '') $cfg['poczta_scan_hour_to']         = '23';
 if ($cfg['poczta_attach_max_kb']        === '') $cfg['poczta_attach_max_kb']        = '5120';
 if ($cfg['poczta_worker_batch']         === '') $cfg['poczta_worker_batch']         = '5';
-if ($cfg['poczta_rc_login_notice']      === '') $cfg['poczta_rc_login_notice']      = poczta_rc_login_notice_default();
+$_dp_url  = webmail_dpoczta_url();
+$_ms_off  = webmail_ms_off_ts();
 
 $_mb_count = 0;
 try { $_mb_count = (int)(db_one("SELECT COUNT(*) AS n FROM poczta_mailboxes")['n'] ?? 0); } catch (\Throwable $e) {}
@@ -140,44 +137,36 @@ include dirname(__DIR__) . '/includes/header.php';
             </div>
 
             <div class="card shadow-sm mb-4">
-                <div class="card-header fw-semibold"><i class="bi bi-envelope-open me-2 text-primary"></i>Webmail — klienci poczty do wyboru</div>
+                <div class="card-header fw-semibold"><i class="bi bi-envelope-open me-2 text-primary"></i>Webmail i strona wyboru poczty</div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
-                        Adresy tych klientów są jednym źródłem prawdy (<code>includes/webmail_clients.php</code>) dla:
-                        publicznej strony wyboru <code>poczta.feer.org.pl</code> (= <code>szo.feer.org.pl/poczta</code>),
-                        kafla „Poczta organizacji" w panelu współpracownika i przycisków w module Poczta.
-                        <strong>Puste pole = klient nie pojawia się nigdzie</strong> — tak się go włącza i wyłącza,
-                        bez zmian w kodzie.
+                        Te adresy czyta katalog <code>includes/webmail_clients.php</code>, wspólny dla publicznej strony wyboru
+                        <code><?= h(webmail_chooser_label()) ?></code> (= <code>szo.feer.org.pl/poczta</code>),
+                        kafla „Poczta organizacji” w panelu współpracownika i przycisków w module Poczta.
                     </p>
 
-                    <label class="form-label">Outlook w przeglądarce (OWA)</label>
-                    <input type="url" class="form-control" name="poczta_owa_url" placeholder="https://outlook.office.com/mail" value="<?= h($cfg['poczta_owa_url']) ?>">
-                    <div class="form-text">Klient Microsoftu — nic nie trzeba wdrażać. Puste = użyty adres domyślny <code>outlook.office.com/mail</code> (żeby zalecany klient nigdy nie zniknął z listy).</div>
-
-                    <label class="form-label mt-3">Roundcube</label>
-                    <input type="url" class="form-control" name="poczta_webmail_url" placeholder="https://rc.feer.org.pl" value="<?= h($cfg['poczta_webmail_url']) ?>">
-                    <div class="form-text">Serwis Docker <code>rc</code> (<code>docker/docker-compose.rc.yml</code>) — logowanie OAuth2 do Microsoft 365, dołączanie plików z OneDrive i ownCloud. Wdrożenie i konfiguracja Azure AD: <code>docker/roundcube/README.md</code>.</div>
-
-                    <label class="form-label mt-3">SnappyMail</label>
-                    <input type="url" class="form-control" name="poczta_snappy_url" placeholder="https://sm.feer.org.pl" value="<?= h($cfg['poczta_snappy_url']) ?>">
-                    <div class="form-text">Serwis Docker <code>sm</code> (<code>docker/docker-compose.snappy.yml</code>) — najszybszy interfejs, instalowalny jako PWA. <strong>Zanim wpiszesz adres:</strong> włącz OAuth2 do Microsoft 365 w panelu admina SnappyMaila, inaczej użytkownicy nie zalogują się do skrzynek. Zob. <code>docker/snappymail/README.md</code>.</div>
-
-                    <label class="form-label mt-3">SquirrelMail <span class="badge bg-warning text-dark">awaryjny</span></label>
-                    <input type="url" class="form-control" name="poczta_squirrel_url" placeholder="(zostaw puste)" value="<?= h($cfg['poczta_squirrel_url']) ?>">
+                    <p class="form-label mb-1">dPoczta: zalecany webmail</p>
+                    <p class="mb-1">
+                        <a href="<?= h($_dp_url) ?>" target="_blank" rel="noopener"><?= h($_dp_url) ?><span class="visually-hidden"> (nowa karta)</span></a>
+                    </p>
                     <div class="form-text">
-                        Serwis Docker <code>sqm</code> (<code>docker/docker-compose.sqm.yml</code>).
-                        <strong>Nie zaloguje się do Microsoft 365</strong> — nie zna OAuth2, a Microsoft trwale wyłączył
-                        logowanie hasłem do IMAP/SMTP w Exchange Online. Ma sens wyłącznie dla skrzynek na innym serwerze
-                        poczty (i tylko po stronie sieci wewnętrznej — kod jest bez wsparcia od 2011 r.).
-                        Zob. <code>docker/squirrelmail/README.md</code>.
+                        Adres ustawiasz w migratorze poczty, w polu adresu poczty przez przeglądarkę:
+                        <a href="<?= APP_URL ?>/migracjaadmin#ustawienia">Migracja poczty, Konfiguracja</a>.
+                        Puste pole tam oznacza <code>https://dpoczta.pl</code>.
                     </div>
 
-                    <label class="form-label mt-3">Komunikat na stronie logowania Roundcube</label>
-                    <textarea class="form-control" name="poczta_rc_login_notice" rows="5"><?= h($cfg['poczta_rc_login_notice']) ?></textarea>
-                    <div class="form-text">
-                        Widoczny na stronie logowania <code>rc.feer.org.pl</code>, zanim ktoś kliknie „Zaloguj się przez Microsoft 365".
-                        Dopuszczone proste tagi HTML (<code>&lt;strong&gt;</code>, <code>&lt;br&gt;</code>, <code>&lt;a&gt;</code>) — to pole jest widoczne tylko dla adminów, ale trafia bez zmian na publiczną stronę logowania.
-                        Kontener Roundcube pobiera tę treść przez wewnętrzne API (<code>api/internal/rc_login_notice.php</code>) z cache ~5&nbsp;min — zmiana tutaj widoczna jest z niewielkim opóźnieniem, bez potrzeby restartu kontenera.
+                    <label class="form-label mt-3" for="poczta_owa_url">Outlook w przeglądarce: stara skrzynka Microsoft 365</label>
+                    <input type="url" class="form-control" id="poczta_owa_url" name="poczta_owa_url" placeholder="https://outlook.office.com/mail" value="<?= h($cfg['poczta_owa_url']) ?>" aria-describedby="poczta_owa_help">
+                    <div class="form-text" id="poczta_owa_help">
+                        Na stronie wyboru pokazywany osobno, bez polecania i poza zestawieniem, tylko do dnia wyłączenia
+                        Microsoft 365 (<?= h(webmail_date_pl($_ms_off)) ?>, ustawienie <code>sso_ms_off_date</code>). Potem znika sam.
+                        Puste pole oznacza <code>outlook.office.com/mail</code>.
+                    </div>
+
+                    <div class="alert alert-secondary small mt-3 mb-0">
+                        Wycofane 14.11.2026: Roundcube z logowaniem Microsoft 365 (<code>docker/roundcube</code>),
+                        SnappyMail (<code>docker/snappymail</code>, ustawiony na serwer Microsoft 365) i SquirrelMail.
+                        Ich adresy zostają w bazie, ale nic ich już nie pokazuje.
                     </div>
                 </div>
             </div>

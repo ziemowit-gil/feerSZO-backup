@@ -217,19 +217,22 @@ function poczta_acl_revoke(int $mailbox_id, int $user_id): void {
  *
  * Cienka nakładka na katalog klientów (includes/webmail_clients.php), który jest
  * jednym źródłem prawdy także dla publicznej strony wyboru (webmail/index.php)
- * i kafla w panelu współpracownika. Zwracany kształt zachowany dla istniejących
- * widoków (poczta/dashboard.php, poczta/index.php).
+ * i kafla w panelu współpracownika. Tylko webmaile polecane (dziś dPoczta):
+ * bez starej skrzynki Microsoft 365 i bez instrukcji programów (kind 'app').
+ * Zwracany kształt zachowany dla istniejących widoków (poczta/dashboard.php,
+ * poczta/index.php).
  *
  * @return array<int, array{key:string,label:string,url:string,hint:string,icon:string}>
  */
 function poczta_webmail_options(): array {
     require_once __DIR__ . '/webmail_clients.php';
 
-    return array_map(fn(array $c) => [
+    $web = array_filter(webmail_clients(), fn(array $c) => ($c['kind'] ?? 'web') === 'web');
+    return array_values(array_map(fn(array $c) => [
         'key'   => $c['key'],
         'label' => $c['label'],
         'url'   => $c['url'],
         'icon'  => $c['icon'],
         'hint'  => $c['hint'],
-    ], webmail_clients());
+    ], $web));
 }

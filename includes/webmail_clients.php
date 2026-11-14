@@ -1,42 +1,44 @@
 <?php
 /**
- * includes/webmail_clients.php — katalog klientów poczty (webmaili) organizacji.
+ * includes/webmail_clients.php — katalog sposobów otwierania poczty organizacji.
  *
  * JEDNO ŹRÓDŁO PRAWDY dla wszystkich miejsc, które pokazują „w czym czytać
  * pocztę": publicznej strony wyboru (webmail/index.php pod poczta.feer.org.pl),
  * kafla w panelu współpracownika (panel/includes/pv_home.php) i modułu Poczta
  * (poczta/dashboard.php, poczta/index.php przez poczta_webmail_options()).
  *
- * Klient pojawia się w interfejsach TYLKO gdy admin ustawi jego adres
- * (Admin → Poczta → Webmail). Dzięki temu strona nigdy nie reklamuje usługi,
- * której jeszcze nie wdrożono — a wyłączenie klienta to wyczyszczenie pola,
- * bez zmian w kodzie.
+ * Od przełączenia 14.11.2026 skrzynki @feer.org.pl są na serwerze dPoczty
+ * (moduł modules/dhosting_migrator). Decyzja 2026-11-14: webmailem jest
+ * dPoczta dostawcy, bez własnych instalacji. Stąd katalog:
+ *   • dpoczta  — webmail dostawcy, ZALECANY; adres z ustawienia migratora
+ *                `dhosting_webmail_url` (DhostingConfig::webmailOrDefault(),
+ *                domyślnie https://dpoczta.pl), nie wpisany na sztywno,
+ *   • program  — aplikacja w telefonie albo program na komputerze (IMAP);
+ *                prowadzi do instrukcji w Portalu Usług IT, nie do logowania,
+ *   • owa      — STARA skrzynka w Microsoft 365 (Outlook w przeglądarce),
+ *                pokazywana osobno, bez polecania, tylko do dnia wyłączenia
+ *                Microsoft 365 (`sso_ms_off_date`, domyślnie 2026-11-20);
+ *                potem znika sama, bez zmian w kodzie.
+ * Wycofane 2026-11-14: Roundcube z logowaniem Microsoft 365 (docker/roundcube,
+ * nigdzie nie działa), SnappyMail (docker/snappymail, ustawiony na serwer
+ * Microsoft 365) i SquirrelMail (nigdy nie wdrożony). Ich ustawienia
+ * poczta_webmail_url / poczta_snappy_url / poczta_squirrel_url zostają w bazie,
+ * ale nic ich już nie czyta.
  *
- * Skrzynki żyją na Microsoft 365, więc kluczowe kryterium to sposób logowania:
- *   • OWA        — natywny klient Microsoftu,
- *   • Roundcube  — OAuth2/XOAUTH2 (wdrożone, docker/roundcube/),
- *   • SnappyMail — OAuth2 trzeba włączyć w jego konfiguracji (docker/snappymail/),
- *   • SquirrelMail — TYLKO Basic Auth (login+hasło do IMAP). Microsoft wyłączył
- *     Basic Auth dla IMAP/SMTP w Exchange Online na stałe, więc SquirrelMail
- *     NIE zaloguje się do skrzynki @feer.org.pl. Jest w katalogu, bo bywa
- *     potrzebny do skrzynek na innym serwerze IMAP — i dlatego domyślnie nie ma
- *     ustawionego adresu. Szczegóły: docker/squirrelmail/README.md.
+ * W tekstach dla użytkowników nie piszemy nazwy dostawcy serwera (zasada
+ * z modułu migracji): mówimy „dPoczta".
  *
  * Wymaga: includes/functions.php (org_setting()).
  */
 
 /**
- * JEDEN adres poczty dla użytkowników: strona wyboru klienta.
+ * JEDEN adres poczty Fundacji: strona wyboru (webmail/index.php).
  *
- * Wszędzie, gdzie mówimy współpracownikowi „otwórz pocztę", ma stać TEN adres —
- * nie outlook.office.com, nie rc.feer.org.pl, nie portal.office.com. Dziwne,
- * cudze domeny w instrukcjach i mailach są nie do zapamiętania i wyglądają jak
- * phishing; poczta.feer.org.pl jest własna, jedna i sama kieruje dalej
- * (webmail/index.php). Adresy konkretnych klientów zostają TYLKO na tej stronie
- * i w ustawieniach admina.
+ * Adres w domenie organizacji, który zawsze prowadzi do aktualnej poczty —
+ * nawet gdy zmieni się dostawca albo program. Instrukcje, umowy i maile
+ * kierują tutaj, a strona sama wskazuje dPocztę i inne sposoby.
  *
- * Zmiana adresu: Admin → Organizacja → `webmail_url` (np. gdy dochodzi
- * webmail.feer.org.pl albo domena się zmienia).
+ * Zmiana adresu: Admin → Organizacja → `webmail_url`.
  */
 function webmail_chooser_url(): string {
     return rtrim(org_setting('webmail_url') ?: 'https://poczta.feer.org.pl', '/');
@@ -48,121 +50,183 @@ function webmail_chooser_label(): string {
 }
 
 /**
+ * Adres dPoczty w przeglądarce — z ustawień migratora poczty
+ * (Admin → /migracjaadmin, pole „adres poczty przez przeglądarkę").
+ */
+function webmail_dpoczta_url(): string {
+    try {
+        require_once dirname(__DIR__) . '/modules/dhosting_migrator/lib/DhostingConfig.php';
+        return rtrim(DhostingConfig::webmailOrDefault(), '/');
+    } catch (\Throwable $e) {
+        return 'https://dpoczta.pl';
+    }
+}
+
+/** Adres dPoczty do pokazania (bez schematu) — „dpoczta.pl". */
+function webmail_dpoczta_label(): string {
+    return (string)preg_replace('~^https?://~', '', webmail_dpoczta_url());
+}
+
+/** Początek dnia z ustawienia RRRR-MM-DD albo z wartości domyślnej; null, gdy żadna nie pasuje. */
+function webmail_setting_day(string $key, string $default = ''): ?int {
+    $d = trim((string)org_setting($key));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) $d = $default;
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) return null;
+    $t = strtotime($d . ' 00:00:00');
+    return $t === false ? null : $t;
+}
+
+/** Dzień wyłączenia Microsoft 365 (to samo ustawienie co ekran logowania, SsoConfig::msOffDate()). */
+function webmail_ms_off_ts(): int {
+    return webmail_setting_day('sso_ms_off_date', '2026-11-20') ?? (int)strtotime('2026-11-20 00:00:00');
+}
+
+/** Dzień przełączenia poczty na dPocztę (ustawienie migratora `dhosting_switch_date`); null = nieustawione. */
+function webmail_switch_ts(): ?int {
+    return webmail_setting_day('dhosting_switch_date');
+}
+
+/** Data po polsku: „20 listopada 2026". */
+function webmail_date_pl(int $ts): string {
+    static $m = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca',
+                 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
+    return date('j', $ts) . ' ' . $m[(int)date('n', $ts) - 1] . ' ' . date('Y', $ts);
+}
+
+/**
+ * Adres strony SZO (kalendarz i kontakty, instrukcje, helpdesk) — zawsze na hoście SZO.
+ * PUŁAPKA: bez zmiennej APP_URL w środowisku APP_URL bierze się z HTTP_HOST, więc pod
+ * poczta.feer.org.pl wyszłoby https://poczta.feer.org.pl/…, a .htaccess przepisuje ten host
+ * na /webmail/ (404). Podmieniamy wtedy poczta./webmail. na szo.
+ */
+function webmail_szo_url(string $path): string {
+    $base = (string)preg_replace('~^(https?://)(?:poczta|webmail)\.~i', '$1szo.', rtrim(APP_URL, '/'));
+    return $base . $path;
+}
+
+/**
  * Cechy do zestawienia — kolejność wierszy tabeli porównania.
+ * Tylko to, co sprawdzone (instrukcje „Moja poczta" w Portalu Usług IT,
+ * strona /kalendarz-kontakty, stan 2026-11-14).
  *
  * @return array<string, array{label:string, note:string}>
  */
 function webmail_features(): array {
     return [
-        'mailbox'   => ['label' => 'Ta sama skrzynka i te same wiadomości', 'note' => ''],
-        'ms_login'  => ['label' => 'Logowanie kontem Microsoft (bez osobnego hasła)', 'note' => ''],
-        'calendar'  => ['label' => 'Kalendarz i zapraszanie na spotkania', 'note' => ''],
-        'teams'     => ['label' => 'Teams, czat, plan dnia', 'note' => ''],
-        'gal'       => ['label' => 'Książka adresowa organizacji', 'note' => ''],
-        'shared'    => ['label' => 'Skrzynki współdzielone i dostęp w zastępstwie', 'note' => 'np. fundacja@feer.org.pl'],
-        'rules'     => ['label' => 'Reguły sortowania i autoodpowiedź', 'note' => 'ustawione w Outlooku działają na serwerze — obowiązują we wszystkich klientach'],
-        'onedrive'  => ['label' => 'Załączanie plików z OneDrive', 'note' => ''],
-        'owncloud'  => ['label' => 'Załączanie plików z ownCloud', 'note' => 'magazyn zespołowy Fundacji'],
-        'mobile'    => ['label' => 'Wygodne na telefonie', 'note' => ''],
-        'light'     => ['label' => 'Szybki przy słabym łączu i na starszym sprzęcie', 'note' => ''],
-        'supported' => ['label' => 'Aktywnie rozwijany i łatany', 'note' => ''],
+        'mailbox'        => ['label' => 'Twoja skrzynka @feer.org.pl i te same wiadomości', 'note' => ''],
+        'login'          => ['label' => 'Logowanie adresem e-mail i hasłem do poczty',
+                             'note'  => 'To hasło jest inne niż hasło logowania jednokrotnego do SZO i chmury plików.'],
+        'noinstall'      => ['label' => 'Działa bez instalowania', 'note' => ''],
+        'calendar'       => ['label' => 'Kalendarz i zaproszenia na spotkania', 'note' => ''],
+        'cloud_calendar' => ['label' => 'Kalendarz z chmury plików', 'note' => ''],
+        'cloud_contacts' => ['label' => 'Kontakty z chmury plików', 'note' => ''],
+        'filters'        => ['label' => 'Filtry i autoodpowiedź',
+                             'note'  => 'Działają na serwerze, więc obowiązują wszędzie, także gdy dPoczta jest zamknięta.'],
     ];
 }
 
 /**
- * Pełny katalog klientów — także tych bez ustawionego adresu.
+ * Pełny katalog — także wpisy bez adresu i stara skrzynka Microsoft 365.
  * Wartości cech: 'yes' | 'part' | 'no'.
+ *   kind   — 'web' (otwiera pocztę w przeglądarce) | 'app' (prowadzi do instrukcji)
+ *   legacy — true = stara skrzynka Microsoft 365: nigdy nie polecana, poza zestawieniem,
+ *            widoczna tylko przed `until` (dzień wyłączenia Microsoft 365)
+ *   go     — tekst przycisku
  *
  * @return array<int, array<string, mixed>>
  */
 function webmail_clients_all(): array {
+    $off = webmail_ms_off_ts();
     return [
         [
+            'key'      => 'dpoczta',
+            'kind'     => 'web',
+            'legacy'   => false,
+            'until'    => null,
+            'label'    => 'dPoczta w przeglądarce',
+            'short'    => 'dPoczta',
+            'icon'     => 'bi-envelope-open',
+            'url'      => webmail_dpoczta_url(),
+            'badge'    => 'zalecany',
+            'tagline'  => 'poczta, kalendarz i kontakty na ' . webmail_dpoczta_label(),
+            'hint'     => 'Otwierasz ją w każdej przeglądarce, na komputerze i w telefonie. '
+                        . 'Logujesz się pełnym adresem e-mail, na przykład imie.nazwisko@feer.org.pl, i hasłem do poczty.',
+            'go'       => 'Otwórz dPocztę',
+            'features' => [
+                'mailbox' => 'yes', 'login' => 'yes', 'noinstall' => 'yes', 'calendar' => 'yes',
+                'cloud_calendar' => 'yes', 'cloud_contacts' => 'no', 'filters' => 'yes',
+            ],
+            'notes'    => [
+                'calendar'       => 'kalendarz w dPoczcie',
+                'cloud_calendar' => 'przez „Dodaj kalendarz CalDAV”',
+                'cloud_contacts' => 'dPoczta ich nie pobiera',
+                'filters'        => 'ustawiasz je tutaj',
+            ],
+        ],
+        [
+            'key'      => 'program',
+            'kind'     => 'app',
+            'legacy'   => false,
+            'until'    => null,
+            'label'    => 'Program w telefonie lub na komputerze',
+            'short'    => 'Program',
+            'icon'     => 'bi-phone',
+            'url'      => webmail_szo_url('/uslugi-it/uslugi/moja-poczta/poczta-w-telefonie'),
+            'badge'    => '',
+            'tagline'  => 'aplikacja do poczty w telefonie, Thunderbird albo Outlook na komputerze',
+            'hint'     => 'Skrzynkę dodajesz jako konto IMAP. Instrukcja podaje dane serwera do wpisania.',
+            'go'       => 'Zobacz instrukcję',
+            'features' => [
+                'mailbox' => 'yes', 'login' => 'yes', 'noinstall' => 'part', 'calendar' => 'part',
+                'cloud_calendar' => 'yes', 'cloud_contacts' => 'yes', 'filters' => 'part',
+            ],
+            'notes'    => [
+                'mailbox'        => 'gdy dodasz ją jako konto IMAP',
+                'login'          => 'wpisujesz je raz, przy dodawaniu konta',
+                'noinstall'      => 'w telefonie zwykle wystarczy wbudowana aplikacja do poczty',
+                'calendar'       => 'zależy od programu',
+                'cloud_calendar' => 'połączysz na stronie Kalendarz i kontakty w SZO',
+                'cloud_contacts' => 'połączysz na stronie Kalendarz i kontakty w SZO',
+                'filters'        => 'działają, ale ustawiasz je w dPoczcie',
+            ],
+        ],
+        [
             'key'      => 'owa',
+            'kind'     => 'web',
+            'legacy'   => true,
+            'until'    => $off,
             'label'    => 'Outlook w przeglądarce',
             'short'    => 'Outlook',
-            'icon'     => 'bi-microsoft',
-            'url'      => rtrim(org_setting('poczta_owa_url') ?: 'https://outlook.office.com/mail', '/') . '/',
-            'badge'    => 'zalecany',
-            'tagline'  => 'pełny Microsoft 365 — poczta, kalendarz, Teams, skrzynki wspólne',
-            'hint'     => 'Natywny klient Microsoftu. Wybierz go, jeśli pracujesz na koncie '
-                        . '@feer.org.pl codziennie: umawiasz spotkania, prowadzisz kalendarz, '
-                        . 'obsługujesz skrzynkę wspólną.',
-            'features' => [
-                'mailbox' => 'yes', 'ms_login' => 'yes', 'calendar' => 'yes', 'teams' => 'yes',
-                'gal' => 'yes', 'shared' => 'yes', 'rules' => 'yes', 'onedrive' => 'yes',
-                'owncloud' => 'no', 'mobile' => 'yes', 'light' => 'part', 'supported' => 'yes',
-            ],
-        ],
-        [
-            'key'      => 'rc',
-            'label'    => 'Roundcube',
-            'short'    => 'Roundcube',
-            'icon'     => 'bi-envelope-open',
-            'url'      => rtrim(org_setting('poczta_webmail_url') ?: '', '/'),
-            'badge'    => '',
-            'tagline'  => 'lekki webmail — sama poczta, szybki na słabym łączu',
-            'hint'     => 'Tylko poczta: bez kalendarza, Teams i skrzynek współdzielonych. '
-                        . 'W zamian otwiera się na słabym łączu i starszym sprzęcie, logujesz się '
-                        . 'jednym przyciskiem „Microsoft 365", dołączasz pliki z OneDrive i ownCloud.',
-            'features' => [
-                'mailbox' => 'yes', 'ms_login' => 'yes', 'calendar' => 'no', 'teams' => 'no',
-                'gal' => 'part', 'shared' => 'no', 'rules' => 'no', 'onedrive' => 'yes',
-                'owncloud' => 'yes', 'mobile' => 'part', 'light' => 'yes', 'supported' => 'yes',
-            ],
-            'notes'    => ['gal' => 'kopia kontaktów z Outlooka, odświeżana przy logowaniu',
-                           'mobile' => 'przez przeglądarkę (responsywny), bez aplikacji'],
-        ],
-        [
-            'key'      => 'snappy',
-            'label'    => 'SnappyMail',
-            'short'    => 'SnappyMail',
-            'icon'     => 'bi-lightning-charge',
-            'url'      => rtrim(org_setting('poczta_snappy_url') ?: '', '/'),
-            'badge'    => '',
-            'tagline'  => 'najszybszy interfejs — jednostronicowa aplikacja, działa jak PWA',
-            'hint'     => 'Nowoczesny, bardzo szybki klient (rozwinięcie RainLoop). Sama poczta, '
-                        . 'jak Roundcube, ale lżejszy interfejs i wygodniejszy na telefonie — '
-                        . 'można go „zainstalować" jako aplikację z przeglądarki.',
-            'features' => [
-                'mailbox' => 'yes', 'ms_login' => 'part', 'calendar' => 'no', 'teams' => 'no',
-                'gal' => 'no', 'shared' => 'no', 'rules' => 'no', 'onedrive' => 'no',
-                'owncloud' => 'no', 'mobile' => 'yes', 'light' => 'yes', 'supported' => 'yes',
-            ],
-            'notes'    => ['ms_login' => 'OAuth2 do Microsoft 365 trzeba włączyć w konfiguracji SnappyMail (osobna rejestracja aplikacji Azure)',
-                           'mobile'   => 'responsywny + instalowalny jako PWA'],
-        ],
-        [
-            'key'      => 'squirrel',
-            'label'    => 'SquirrelMail',
-            'short'    => 'SquirrelMail',
             'icon'     => 'bi-archive',
-            'url'      => rtrim(org_setting('poczta_squirrel_url') ?: '', '/'),
-            'badge'    => 'awaryjny',
-            'tagline'  => 'archaiczny, ale działa wszędzie — tylko dla skrzynek z hasłem IMAP',
-            'hint'     => 'Klient z 2011 roku: czysty HTML, otwiera się na dowolnym sprzęcie '
-                        . 'i przeglądarce. NIE zaloguje się do skrzynki Microsoft 365 — nie zna '
-                        . 'nowoczesnego logowania (OAuth2), a Microsoft wyłączył logowanie '
-                        . 'hasłem do IMAP. Ma sens tylko dla skrzynek na innym serwerze poczty.',
-            'features' => [
-                'mailbox' => 'part', 'ms_login' => 'no', 'calendar' => 'no', 'teams' => 'no',
-                'gal' => 'no', 'shared' => 'no', 'rules' => 'no', 'onedrive' => 'no',
-                'owncloud' => 'no', 'mobile' => 'no', 'light' => 'yes', 'supported' => 'no',
-            ],
-            'notes'    => ['mailbox'   => 'tylko skrzynki spoza Microsoft 365',
-                           'ms_login'  => 'brak obsługi OAuth2 — Exchange Online odrzuci logowanie',
-                           'supported' => 'ostatnie wydanie 2011 — bez poprawek bezpieczeństwa'],
+            'url'      => rtrim(org_setting('poczta_owa_url') ?: 'https://outlook.office.com/mail', '/') . '/',
+            'badge'    => 'wyłączany',
+            'tagline'  => 'stara skrzynka w Microsoft 365',
+            'hint'     => 'Przyda się tylko do zajrzenia do starych wiadomości. Działa do '
+                        . webmail_date_pl($off - 86400) . '.',
+            'go'       => 'Otwórz starą skrzynkę',
+            'features' => [],
         ],
     ];
 }
 
 /**
- * Klienci gotowi do pokazania użytkownikom — tylko z ustawionym adresem.
+ * Sposoby polecane użytkownikom: bez starej skrzynki Microsoft 365, tylko z ustawionym adresem.
  *
  * @return array<int, array<string, mixed>>
  */
 function webmail_clients(): array {
-    return array_values(array_filter(webmail_clients_all(), fn($c) => $c['url'] !== ''));
+    return array_values(array_filter(webmail_clients_all(), fn($c) => !$c['legacy'] && $c['url'] !== ''));
+}
+
+/**
+ * Stara skrzynka Microsoft 365 — do dnia wyłączenia; potem pusta lista.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function webmail_clients_legacy(): array {
+    $now = time();
+    return array_values(array_filter(webmail_clients_all(),
+        fn($c) => $c['legacy'] && $c['url'] !== '' && ($c['until'] === null || $now < $c['until'])));
 }
 
 /** Symbol + opis tekstowy (dla czytników ekranu) wartości cechy. */
