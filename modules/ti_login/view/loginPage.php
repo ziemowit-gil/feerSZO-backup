@@ -64,6 +64,23 @@ $_lpTiles = [TiLogin::STUDENT => '#0f6fa8', TiLogin::PARENT => '#00a300', TiLogi
   .lp-code { max-width: 12rem; font-size: 1.5rem; letter-spacing: .3em; font-variant-numeric: tabular-nums; }
   .lp-linkbtn { background: none; border: 0; padding: 0; min-height: 44px; font: inherit; color: #0b5f91; text-decoration: underline; cursor: pointer; }
   .lp-linkbtn:hover { color: #084466; }
+  /* 2026-11-14 („prostszy, podobny do Logto”, „tak samo ti.feer.org.pl”): jedna wąska kolumna, kolor #1e6dff jak logowanie SZO.
+     Biały na #1e6dff = 4,48:1, więc napis przycisku duży i pogrubiony (WCAG: duży tekst wymaga 3:1). */
+  .lp-one { max-width: 28rem; margin: 0 auto; }
+  .lp-one > .pp-h1, .lp-one > .lp-lead { text-align: center; }
+  .lp-one .lp-lead { margin: -.3rem auto 1.4rem; }
+  .lp-one .pp-input { width: 100%; }
+  .lp-one .pp-submit { width: 100%; min-height: 50px; background: #1e6dff; border-color: #1e6dff; color: #fff; font-size: 1.2rem; font-weight: 700; }
+  .lp-one .pp-submit:hover { background: #1559e0; border-color: #1559e0; }
+  .lp-one .lp-actions { display: block; }
+  .lp-one .lp-ms { width: 100%; justify-content: center; }
+  .lp-one .lp-row { flex-wrap: wrap; }
+  .lp-kinds2 { margin: .5rem 0 0; padding-left: 1.2rem; }
+  .lp-kinds2 li { margin: 0 0 .35rem; }
+  .lp-imp { margin: 1.5rem 0 0; padding: .85rem 1rem; background: #fffbeb; border: 2px solid #b45309; font-size: .95rem; line-height: 1.5; }
+  .lp-imp p { margin: 0 0 .35rem; } .lp-imp p:last-child { margin: 0; }
+  .lp-imp-h { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #78350f; }
+  .lp-new { margin: 1.25rem 0 0; text-align: center; }
 </style>
 </head>
 <body class="pp">
@@ -88,128 +105,118 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
   </form>
   <p><a href="<?= h($formAction) ?>">Anuluj i wróć do logowania</a></p>
 <?php elseif ($view === 'code'): ?>
+  <div class="lp-one">
   <h1 class="pp-h1">Wpisz kod z SMS-a</h1>
-  <p class="lp-lead">Jeśli login należy do uczestnika albo prowadzącego z umową i mamy jego numer telefonu, wysłaliśmy SMS z sześciocyfrowym kodem. Kod działa 10 minut.</p>
+  <p class="lp-lead">Jeśli login należy do uczestnika albo prowadzącego z umową i mamy jego numer, wysłaliśmy SMS z kodem. Kod działa 10 minut.</p>
   <?php if ($error): ?><div class="pp-error" role="alert" id="lp-err"><?= h($error) ?></div><?php endif; ?>
   <?php if (!$error && $notice): ?><div class="pp-ok" role="status"><?= h($notice) ?></div><?php endif; ?>
-  <div class="pp-cols">
-    <div>
-      <form method="post" action="<?= h($formAction) ?>" autocomplete="off">
-        <div class="pp-field">
-          <label for="lp-code">Kod z SMS-a</label>
-          <input type="text" class="pp-input lp-code" id="lp-code" name="kod" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-                 autocomplete="one-time-code" required autofocus aria-describedby="lp-code-h<?= $error ? ' lp-err' : '' ?>"<?= $error ? ' aria-invalid="true"' : '' ?>>
-          <p id="lp-code-h" class="lp-help">Sześć cyfr, bez spacji.</p>
-        </div>
-        <div class="lp-actions">
-          <button type="submit" class="pp-submit">Zaloguj się</button>
-        </div>
-      </form>
-      <form method="post" action="<?= h($formAction) ?>" style="margin-top:1rem">
-        <button type="submit" name="ponow" value="1" class="lp-linkbtn">Kod nie przyszedł? Wyślij nowy</button>
-      </form>
-      <p style="margin-top:.5rem"><a href="<?= h($formAction) ?>">Wróć do logowania</a></p>
+  <form method="post" action="<?= h($formAction) ?>" autocomplete="off">
+    <div class="pp-field">
+      <label for="lp-code">Kod z SMS-a</label>
+      <input type="text" class="pp-input lp-code" id="lp-code" name="kod" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+             autocomplete="one-time-code" required autofocus aria-describedby="lp-code-h<?= $error ? ' lp-err' : '' ?>"<?= $error ? ' aria-invalid="true"' : '' ?>>
+      <p id="lp-code-h" class="lp-help">Sześć cyfr, bez spacji.</p>
     </div>
-    <aside class="pp-note" aria-labelledby="lp-code-side-h">
-      <p id="lp-code-side-h" style="margin-top:0"><strong>Skąd bierzemy numer?</strong></p>
-      <p>Uczestnik dostaje SMS na numer z karty w placówce. Prowadzący dostaje go na numer komórkowy z konta SZO, a gdy go tam nie ma, z umowy.</p>
-      <p>Numer się zmienił albo kod nie przychodzi? Skontaktuj się z placówką.</p>
-      <p>Rodzic, opiekun i osoba upoważniona logują się hasłem.</p>
-    </aside>
+    <div class="lp-actions">
+      <button type="submit" class="pp-submit">Zaloguj się</button>
+    </div>
+  </form>
+  <form method="post" action="<?= h($formAction) ?>" style="margin-top:1rem">
+    <button type="submit" name="ponow" value="1" class="lp-linkbtn">Kod nie przyszedł? Wyślij nowy</button>
+  </form>
+  <p style="margin-top:.5rem"><a href="<?= h($formAction) ?>">Wróć do logowania</a></p>
+  <details class="lp-more">
+    <summary>Skąd bierzemy numer?</summary>
+    <p>Uczestnik dostaje SMS na numer z karty w placówce. Prowadzący dostaje go na numer komórkowy z konta SZO, a gdy go tam nie ma, z umowy.
+      Numer się zmienił albo kod nie przychodzi? Skontaktuj się z placówką. Rodzic, opiekun i osoba upoważniona logują się hasłem.</p>
+  </details>
   </div>
 <?php else: ?>
+  <div class="lp-one">
   <h1 class="pp-h1">Zaloguj się do panelu TI</h1>
-  <p class="lp-lead">Jedno logowanie dla uczestników, rodziców i opiekunów, osób upoważnionych oraz kadry. Wpisz swój login — rozpoznamy, do którego panelu należy.</p>
+  <p class="lp-lead">Wpisz login, a rozpoznamy, do którego panelu należy.</p>
   <?php if ($error): ?><div class="pp-error" role="alert" id="lp-err"><?= h($error) ?></div><?php endif; ?>
   <?php if (!$error && $notice): ?><div class="pp-ok" role="status"><?= h($notice) ?></div><?php endif; ?>
   <?php if ($smsOn): ?>
-  <div class="lp-sms">
-    <strong>Logowanie kodem SMS.</strong> Uczestnik i prowadzący z umową wpisują sam login (prowadzący: adres e-mail) i wybierają
-    „Wyślij kod SMS”. Hasło wpisują rodzice, opiekunowie i osoby upoważnione. Ta zmiana wiąże się z modernizacją logowania.
-  </div>
+  <div class="lp-sms">Uczestnik i prowadzący z umową wpisują sam login (prowadzący: adres e-mail) i dostają kod SMS.
+    Rodzic, opiekun i osoba upoważniona wpisują hasło.</div>
   <?php endif; ?>
-  <div class="pp-cols">
-    <div>
-      <form method="post" action="<?= h($formAction) ?>" autocomplete="on" id="lp-form">
-        <div class="pp-field">
-          <label for="lp-login">Login lub e-mail</label>
-          <div class="lp-row">
-            <div>
-              <input type="text" class="pp-input" id="lp-login" name="login" value="<?= h($login) ?>" required autocomplete="username"
-                     autocapitalize="none" spellcheck="false" autofocus aria-describedby="lp-login-h<?= $error ? ' lp-err' : '' ?>"<?= $error ? ' aria-invalid="true"' : '' ?>>
-              <p id="lp-login-h" class="lp-help">Uczestnik: np. <span class="font-monospace">j.kowalski</span> lub <span class="font-monospace">k1234</span>.
-                Rodzic: login z końcówką <span class="font-monospace">-r</span>. Kadra: adres e-mail.</p>
-            </div>
-            <div class="lp-sec" id="lp-sec" hidden aria-live="polite">
-              <div class="lp-sec-img" id="lp-sec-img" aria-hidden="true"></div>
-              <div class="small"><span class="visually-hidden">Twój obrazek bezpieczeństwa: </span><span id="lp-sec-label"></span></div>
-            </div>
-          </div>
+  <form method="post" action="<?= h($formAction) ?>" autocomplete="on" id="lp-form">
+    <div class="pp-field">
+      <label for="lp-login">Login lub e-mail</label>
+      <div class="lp-row">
+        <div>
+          <input type="text" class="pp-input" id="lp-login" name="login" value="<?= h($login) ?>" required autocomplete="username"
+                 autocapitalize="none" spellcheck="false" autofocus aria-describedby="lp-login-h<?= $error ? ' lp-err' : '' ?>"<?= $error ? ' aria-invalid="true"' : '' ?>>
+          <p id="lp-login-h" class="lp-help">Uczestnik: np. <span class="font-monospace">j.kowalski</span> albo <span class="font-monospace">k1234</span>.
+            Rodzic: login z końcówką <span class="font-monospace">-r</span>. Kadra: adres e-mail.</p>
         </div>
-        <div class="lp-office" id="lp-office" role="status" hidden>
-          <?php if ($smsOn): ?>
-          <strong>Adres <?= h(TiLogin::OFFICE_DOMAIN) ?>.</strong> Hasła tu nie wpisujesz. Prowadzący z umową dostanie kod SMS,
-          a administratora przeniesiemy do logowania Microsoft 365.
-          <?php else: ?>
-          <strong>Konto Microsoft 365.</strong> Adresy <?= h(TiLogin::OFFICE_DOMAIN) ?> logują się tylko przez Microsoft — hasła tu nie wpisujesz.
-          Wybierz „Dalej”, a przeniesiemy Cię do logowania Microsoft 365.
-          <?php endif; ?>
+        <div class="lp-sec" id="lp-sec" hidden aria-live="polite">
+          <div class="lp-sec-img" id="lp-sec-img" aria-hidden="true"></div>
+          <div class="small"><span class="visually-hidden">Twój obrazek bezpieczeństwa: </span><span id="lp-sec-label"></span></div>
         </div>
-        <div class="pp-field" id="lp-pass-field">
-          <label for="lp-password">Hasło</label>
-          <div class="lp-pass">
-            <input type="password" class="pp-input" id="lp-password" name="password" autocomplete="current-password" aria-describedby="lp-pass-h">
-            <button type="button" class="lp-pass-btn" id="lp-pass-btn" aria-label="Pokaż hasło" aria-pressed="false" aria-controls="lp-password">
-              <i class="bi bi-eye" aria-hidden="true"></i>
-            </button>
-          </div>
-          <?php if ($smsOn): ?>
-          <p id="lp-pass-h" class="lp-help">Uczestnik i prowadzący z umową: zostaw puste, kod przyjdzie SMS-em. Rodzic, opiekun i osoba upoważniona: wpisz hasło.</p>
-          <?php else: ?>
-          <p id="lp-pass-h" class="lp-help">Pierwsze logowanie uczestnika: zostaw hasło puste — kod przyjdzie SMS-em. Kadra po haśle poda kod z aplikacji (TOTP).</p>
-          <?php endif; ?>
-        </div>
-        <div class="lp-actions">
-          <button type="submit" class="pp-submit" id="lp-submit"><?= $smsOn ? 'Wyślij kod SMS' : 'Zaloguj się' ?></button>
-        </div>
-      </form>
-
-      <div class="lp-or">albo</div>
-      <a class="lp-ms" href="<?= h($officeUrl) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> <?= $smsOn ? 'Administratorzy: zaloguj przez Microsoft 365' : 'Zaloguj przez Microsoft 365 (kadra ' . h(TiLogin::OFFICE_DOMAIN) . ')' ?></a>
-
-      <details class="lp-more"<?= in_array($hint, ['rodzic', 'up'], true) ? ' open' : '' ?>>
-        <summary>Inne sposoby logowania</summary>
-        <ul>
-          <li><a href="<?= h(tiPanelUrl('kursant', 'parent.php')) ?>"><i class="bi bi-chat-dots" aria-hidden="true"></i> Rodzic lub opiekun bez hasła — kod SMS na telefon opiekuna</a></li>
-          <li><button type="button" class="lp-link" id="lp-key"><i class="bi bi-usb-drive" aria-hidden="true"></i> Uczestnik — klucz sprzętowy (wpisz najpierw login)</button>
-            <div class="pp-error" id="lp-key-err" role="alert" hidden style="margin:.5rem 0 0"></div></li>
-          <?php if ($pfronOn): ?>
-          <li><a href="<?= h(tiPanelUrl('kursant', 'pfron.php')) ?>"><i class="bi bi-shield-lock" aria-hidden="true"></i> Rozliczenia PFRON (Aktywny Samorząd) — numer umowy i telefon</a></li>
-          <?php endif; ?>
-          <li><a href="/nabor/logowanie"><i class="bi bi-person-badge" aria-hidden="true"></i> Kandydat na zajęcia (zapisy) — konto kandydata</a></li>
-        </ul>
-      </details>
-    </div>
-
-    <aside class="pp-note" aria-labelledby="lp-side-h">
-      <p id="lp-side-h" style="margin-top:0"><strong>Jak rozpoznajemy konto?</strong></p>
-      <ul class="lp-kinds">
-        <li><strong>Uczestnik</strong> — login z SMS-a lub wydruku, np. <code>j.kowalski</code>, <code>k1234</code> (konsultacje), albo własny alias.</li>
-        <li><strong>Rodzic lub opiekun</strong> — login rodzica, np. <code>j.kowalski-r</code>.</li>
-        <li><strong>Osoba upoważniona</strong> — login od uczestnika, np. <code>a.nowak-up</code>.</li>
-        <?php if ($smsOn): ?>
-        <li><strong>Kadra</strong> (prowadzący, konsultant, kierownik): adres e-mail. Prowadzący z umową dostaje kod SMS, administratorzy logują się przez Microsoft 365.</li>
-        <?php else: ?>
-        <li><strong>Kadra</strong> (prowadzący, konsultant, kierownik) — e-mail. Konta <?= h(TiLogin::OFFICE_DOMAIN) ?> przez Microsoft 365.</li>
-        <?php endif; ?>
-      </ul>
-      <p style="margin-top:1rem"><strong>Twój obrazek.</strong> Uczestnik po wpisaniu loginu widzi swój obrazek (czytnik ekranu go opisze). Widzisz inny? Nie wpisuj hasła.</p>
-      <p>Nie pamiętasz loginu albo hasła? Skontaktuj się z placówką. Pierwsze hasło uczestnika to kod z SMS-a.</p>
-      <div style="border-top:1px solid #4b5563;margin-top:1.2rem;padding-top:1rem">
-        <strong>Nie masz jeszcze konta?</strong><br>
-        <?php if ($naborOn): ?><a href="/nabor">Zapisz się na zajęcia</a> · <?php else: ?><a href="<?= h($TI_BASE) ?>zapisy.php">Zostaw kontakt</a> · <?php endif; ?><a href="/nabor/rejestracja">Załóż konto kandydata</a>
       </div>
-    </aside>
+    </div>
+    <div class="lp-office" id="lp-office" role="status" hidden>
+      <?php if ($smsOn): ?>
+      Adres <?= h(TiLogin::OFFICE_DOMAIN) ?>: hasła tu nie wpisujesz. Prowadzący z umową dostanie kod SMS, a administratora przeniesiemy do logowania Microsoft 365.
+      <?php else: ?>
+      Adresy <?= h(TiLogin::OFFICE_DOMAIN) ?> logują się przez Microsoft 365, więc hasła tu nie wpisujesz. Wybierz „Dalej”.
+      <?php endif; ?>
+    </div>
+    <div class="pp-field" id="lp-pass-field">
+      <label for="lp-password">Hasło</label>
+      <div class="lp-pass">
+        <input type="password" class="pp-input" id="lp-password" name="password" autocomplete="current-password" aria-describedby="lp-pass-h">
+        <button type="button" class="lp-pass-btn" id="lp-pass-btn" aria-label="Pokaż hasło" aria-pressed="false" aria-controls="lp-password">
+          <i class="bi bi-eye" aria-hidden="true"></i>
+        </button>
+      </div>
+      <?php if ($smsOn): ?>
+      <p id="lp-pass-h" class="lp-help">Uczestnik i prowadzący z umową zostawiają to pole puste, kod przyjdzie SMS-em.</p>
+      <?php else: ?>
+      <p id="lp-pass-h" class="lp-help">Pierwsze logowanie uczestnika: zostaw to pole puste, kod przyjdzie SMS-em. Kadra po haśle poda kod z aplikacji.</p>
+      <?php endif; ?>
+    </div>
+    <div class="lp-actions">
+      <button type="submit" class="pp-submit" id="lp-submit"><?= $smsOn ? 'Wyślij kod SMS' : 'Zaloguj się' ?></button>
+    </div>
+  </form>
+
+  <div class="lp-or">albo</div>
+  <a class="lp-ms" href="<?= h($officeUrl) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> <?= $smsOn ? 'Administratorzy: Microsoft 365' : 'Kadra ' . h(TiLogin::OFFICE_DOMAIN) . ': Microsoft 365' ?></a>
+
+  <details class="lp-more">
+    <summary>Jak wygląda login</summary>
+    <ul class="lp-kinds2">
+      <li>Uczestnik: login z SMS-a albo z wydruku, np. <code>j.kowalski</code> albo <code>k1234</code> (konsultacje), albo własny alias.</li>
+      <li>Rodzic lub opiekun: login rodzica, np. <code>j.kowalski-r</code>.</li>
+      <li>Osoba upoważniona: login od uczestnika, np. <code>a.nowak-up</code>.</li>
+      <li>Kadra (prowadzący, konsultant, kierownik): adres e-mail.<?= $smsOn ? ' Prowadzący z umową dostaje kod SMS, administratorzy logują się przez Microsoft 365.' : ' Konta ' . h(TiLogin::OFFICE_DOMAIN) . ' logują się przez Microsoft 365.' ?></li>
+    </ul>
+  </details>
+
+  <details class="lp-more"<?= in_array($hint, ['rodzic', 'up'], true) ? ' open' : '' ?>>
+    <summary>Inne sposoby logowania</summary>
+    <ul>
+      <li><a href="<?= h(tiPanelUrl('kursant', 'parent.php')) ?>"><i class="bi bi-chat-dots" aria-hidden="true"></i> Rodzic lub opiekun bez hasła: kod SMS na telefon opiekuna</a></li>
+      <li><button type="button" class="lp-link" id="lp-key"><i class="bi bi-usb-drive" aria-hidden="true"></i> Uczestnik: klucz sprzętowy (najpierw wpisz login)</button>
+        <div class="pp-error" id="lp-key-err" role="alert" hidden style="margin:.5rem 0 0"></div></li>
+      <?php if ($pfronOn): ?>
+      <li><a href="<?= h(tiPanelUrl('kursant', 'pfron.php')) ?>"><i class="bi bi-shield-lock" aria-hidden="true"></i> Rozliczenia PFRON (Aktywny Samorząd): numer umowy i telefon</a></li>
+      <?php endif; ?>
+      <li><a href="/nabor/logowanie"><i class="bi bi-person-badge" aria-hidden="true"></i> Kandydat na zajęcia: konto kandydata</a></li>
+    </ul>
+  </details>
+
+  <div class="lp-imp" role="note" aria-labelledby="lp-imp-h">
+    <p class="lp-imp-h" id="lp-imp-h">Ważne</p>
+    <p>Po wpisaniu loginu uczestnik widzi swój obrazek. Gdy widzisz inny, nie wpisuj hasła.</p>
+    <p>Nikt z Fundacji nie poprosi Cię o hasło ani o kod z SMS-a. Nie pamiętasz loginu albo hasła? Skontaktuj się z placówką.</p>
+  </div>
+
+  <p class="lp-new">Nie masz konta?
+    <?php if ($naborOn): ?><a href="/nabor">Zapisz się na zajęcia</a><?php else: ?><a href="<?= h($TI_BASE) ?>zapisy.php">Zostaw kontakt</a><?php endif; ?> albo <a href="/nabor/rejestracja">załóż konto kandydata</a>.</p>
   </div>
 <?php endif; ?>
 </main>
@@ -254,7 +261,7 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_footer.php';
     passField.hidden = isOffice;
     pass.disabled = isOffice;
     submit.textContent = (smsOn && (isOffice || pass.value === '')) ? 'Wyślij kod SMS'
-                       : (isOffice ? 'Dalej — Microsoft 365' : 'Zaloguj się');
+                       : (isOffice ? 'Dalej: Microsoft 365' : 'Zaloguj się');
     if (k !== 'panel') { sec.hidden = true; }
     lastKind = k;
   }
@@ -280,7 +287,7 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_footer.php';
   function bufToB64u(buf) { var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
     return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function keyError(m) { kerr.textContent = m; kerr.hidden = false; }
-  if (!window.PublicKeyCredential || !navigator.credentials) { kbtn.disabled = true; kbtn.setAttribute('aria-describedby', 'lp-key-na'); kbtn.insertAdjacentHTML('beforeend', '<span id="lp-key-na" class="visually-hidden"> — przeglądarka nie obsługuje kluczy</span>'); }
+  if (!window.PublicKeyCredential || !navigator.credentials) { kbtn.disabled = true; kbtn.setAttribute('aria-describedby', 'lp-key-na'); kbtn.insertAdjacentHTML('beforeend', '<span id="lp-key-na" class="visually-hidden">, przeglądarka nie obsługuje kluczy</span>'); }
   kbtn.addEventListener('click', function () {
     var login = inp.value.trim(); kerr.hidden = true;
     if (!login || kind(login) !== 'panel') { keyError('Najpierw wpisz login uczestnika.'); inp.focus(); return; }
