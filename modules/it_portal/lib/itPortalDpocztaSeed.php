@@ -86,6 +86,12 @@ function itPortalDpocztaOutlookBye(): string {
          . 'jak opisuje instrukcja „Poczta w telefonie, Outlooku i Thunderbirdzie”. Starą skrzynkę Microsoft usuń wtedy z listy kont w programie.</p>';
 }
 
+/** Zrzut dPoczty z lib/img jako blok obrazka (zrzuty ekranu od użytkownika z 2026-11-14, bez danych osobowych). */
+function itPortalDpocztaShot(string $name, string $alt, string $caption = ''): array {
+    if (!function_exists('itPortalCloudShot')) require_once __DIR__ . '/itPortalCloudSeed.php';
+    return itPortalCloudShot($name, $alt, $caption);
+}
+
 /** Wstęp strony usługi „Moja poczta”. */
 function itPortalDpocztaIntro(string $app): string {
     return '<p>Poczta służbowa działa na serwerach dhosting. W przeglądarce otwierasz ją pod adresem <a href="https://dpoczta.pl">dpoczta.pl</a>. '
@@ -159,6 +165,38 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'Hasło do poczty zmieniasz tylko na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/zmiana-hasla-poczty">Jak zmienić hasło do poczty</a>.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie wiesz, do czego służy jakiś przycisk? Najedź na niego myszą, a pokaże się podpowiedź. Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], true],
+
+        'ustawienia-poczty' => ['Ważne i przydatne ustawienia poczty', 'ustawienia, preferencje, interfejs użytkownika, język, strefa czasowa, format daty, odświeżanie, nowe wiadomości, mailto, tworzenie wiadomości, html, automatyczny zapis, kopia robocza, potwierdzenie odbioru, dsn, odpowiedz wszystkim, przekazywanie, czcionka, podpis, stopka, automatycznie wstaw podpis, separator, cytowanie', [
+            ['type' => 'text', 'html' => '<p>W ustawieniach poczty, w części „Preferencje”, jest kilka ustawień, które warto sprawdzić od razu po przejściu na dPocztę. '
+                . 'Otworzysz je kołem zębatym na prawym pasku, a potem wybierzesz „Preferencje”. Środkowa kolumna pokazuje działy, a prawa ich ustawienia. '
+                . 'Po każdej zmianie kliknij „Zapisz” na dole.</p>'],
+            ['type' => 'text', 'html' => '<h2>Interfejs użytkownika</h2>'
+                . '<p>„Język” ustaw na Polish (Polski), a „Strefę czasową” zostaw na wyborze automatycznym. „Format czasu” i „Format daty” wybierz tak, jak lubisz, na przykład 07:30 i 24.7.2026. '
+                . '„Ładne daty” pokazują przy wiadomościach napisy „Dzisiaj” i „Wczoraj” zamiast samej daty.</p>'
+                . '<p>„Po usunięciu elementu listy wyświetl następny” otwiera kolejną wiadomość, gdy usuniesz bieżącą. Przyspiesza porządki w skrzynce. '
+                . '„Odświeżanie” ustala, jak często poczta sprawdza nowe wiadomości. Co 1 minutę to dobre ustawienie.</p>'
+                . '<p>Link „Zainstaluj obsługę linków mailto:” sprawia, że kliknięcie adresu e-mail na dowolnej stronie otworzy nową wiadomość w dPoczcie, a nie w programie na komputerze. '
+                . 'Przeglądarka zapyta o zgodę. Zgódź się na swoim komputerze.</p>'],
+            ['type' => 'text', 'html' => '<h2>Tworzenie wiadomości</h2>'
+                . '<p>To najważniejszy dział, bo decyduje o stopce i o tym, czy nic nie zginie w trakcie pisania.</p>'],
+            ...itPortalDpocztaShot('dp-tworzenie-wiadomosci.jpg', 'Ustawienia dPoczty, Preferencje, Tworzenie wiadomości: Opcje główne i Opcje podpisów z przełącznikami i listami wyboru',
+                'Preferencje, dział „Tworzenie wiadomości” z polecanymi ustawieniami.'),
+            ['type' => 'text', 'html' => '<p>„Twórz wiadomości HTML” ustaw na „zawsze”. Tylko wtedy stopka z generatora wygląda tak jak w podglądzie, z pogrubieniami i linkami.</p>'
+                . '<p>„Automatycznie zapisuj tworzoną wiadomość” ustaw na „co 1 minut(y)”. Pisana wiadomość zapisuje się wtedy w Kopiach roboczych, więc nie przepadnie, gdy zamkniesz kartę albo stracisz internet.</p>'
+                . '<p>„Zawsze żądaj potwierdzenia odbioru” i „Zawsze żądaj statusu dostarczenia (DSN)” zostaw wyłączone. Potwierdzenia odbioru irytują odbiorców, '
+                . 'a gdy naprawdę potrzebujesz go przy jednej wiadomości, zaznaczysz je przy jej pisaniu.</p>'
+                . '<p>„Podczas odpowiadania rozpocznij wiadomość” ustaw na „powyżej cytowanej treści”. Odbiorca od razu widzi Twoją odpowiedź, a pod nią poprzednią wiadomość. '
+                . '„Przekazywanie wiadomości” ustawione na „w treści” przekazuje wiadomość jako tekst. Wybierz „jako załącznik”, gdy odbiorca ma dostać oryginał, na przykład do zgłoszenia spamu.</p>'
+                . '<p>„Czcionka wiadomości HTML” to krój i wielkość liter, którymi piszesz. Wybierz czytelny krój, na przykład Verdana albo Arial, w rozmiarze 10 albo 12 pt.</p>'],
+            ['type' => 'text', 'html' => '<h2>Opcje podpisów</h2>'
+                . '<p>„Automatycznie wstaw podpis” ustaw na „zawsze”. Stopka dopisze się wtedy sama do każdej nowej wiadomości, odpowiedzi i przekazania.</p>'
+                . '<p>„Umieść podpis poniżej cytowanej wiadomości” zostaw wyłączone, żeby stopka była zaraz pod Twoją odpowiedzią, a nie na samym dole długiej rozmowy.</p>'
+                . '<p>„Podczas odpowiedzi usuń podpis z cytowanej treści” i „Wymuś standardowy separator w podpisie” zostaw włączone. '
+                . 'Pierwsze nie powiela stopek w długich wątkach, a drugie dodaje przed stopką krótką kreskę, dzięki której programy pocztowe rozpoznają podpis.</p>'
+                . '<p>Samą stopkę wklejasz w „Tożsamościach”, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/podpis-w-poczcie">Jak ustawić podpis (stopkę) w poczcie</a>.</p>'],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Pozostałe działy, na przykład „Widok skrzynki pocztowej”, „Wyświetlanie wiadomości” czy „Ustawienia wyglądu”, możesz zostawić bez zmian. '
+                . 'Jeśli coś przestanie Ci się podobać, wróć do Preferencji i zmień to z powrotem. Nic tu nie usuwa wiadomości.</p>'],
+        ], false],
 
         'zmiana-hasla-poczty' => ['Jak zmienić hasło do poczty', 'hasło, zmiana hasła, nowe hasło, nowehaslo, szo, dpoczta, wymagania hasła, synchronizacja', [
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p><strong>Ważne: hasło do poczty zmieniaj wyłącznie w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>.</strong> ' . 'Nie zmieniaj go w ustawieniach dpoczta.pl. Hasło zmienione w dpoczta.pl nie trafi do SZO, więc systemy się rozjadą: ' . 'kopia poczty, Gosposia i inne usługi przestaną działać, a przy kolejnej zmianie hasło może wrócić do starego.</p>'],
@@ -245,6 +283,12 @@ function itPortalDpocztaArticles(string $app): array {
                 $step('Wklej kod w polu „Sygnaturka”', '<p>Zaznacz opcję „Używaj HTML”, potem wklej kod w pole „Sygnaturka” (Ctrl+V). Ustawienia zapisują się same.</p>'),
                 $step('Sprawdź wiadomością próbną', '<p>Napisz wiadomość do siebie i zobacz, czy stopka wygląda tak jak w podglądzie generatora.</p>'),
             ]],
+            ['type' => 'text', 'html' => '<h2>Żeby stopka wstawiała się sama</h2>'
+                . '<p>W ustawieniach wybierz „Preferencje”, potem „Tworzenie wiadomości”. W „Opcjach głównych” ustaw „Twórz wiadomości HTML” na „zawsze”, '
+                . 'a w „Opcjach podpisów” ustaw „Automatycznie wstaw podpis” na „zawsze”. Kliknij „Zapisz”. Pozostałe opcje opisuje artykuł '
+                . '<a href="' . $app . '/uslugi-it/uslugi/moja-poczta/ustawienia-poczty">Ważne i przydatne ustawienia poczty</a>.</p>'],
+            ...itPortalDpocztaShot('dp-tworzenie-wiadomosci.jpg', 'Ustawienia dPoczty, Preferencje, Tworzenie wiadomości: Twórz wiadomości HTML zawsze, Automatycznie wstaw podpis zawsze',
+                'Preferencje, „Tworzenie wiadomości”: tu włączasz automatyczne wstawianie stopki.'),
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Zamiast wklejać kod, możesz kliknąć w generatorze „Pobierz plik HTML” i w ustawieniach konta wskazać ten plik jako sygnaturkę. Masz kilka skrzynek? W „Zarządzaj tożsamościami” wybierz „Edytuj” albo „Dodaj” i ustaw stopkę przy każdej tożsamości.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>W Outlooku wklej stopkę z przycisku „Kopiuj stopkę do schowka” w oknie edycji podpisu (Plik → Opcje → Poczta → Podpisy).</p>'],
             ['type' => 'text', 'html' => '<p>W „Tożsamościach” nad podpisem są też inne pola. „Nazwa wyświetlana” to nazwa nadawcy, którą widzą odbiorcy, zwykle imię i nazwisko. '

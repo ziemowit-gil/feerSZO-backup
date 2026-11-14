@@ -1619,4 +1619,15 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuł „Ważne i przydatne ustawienia poczty” (Preferencje: Interfejs użytkownika, Tworzenie wiadomości, Opcje podpisów)
+    // ze zrzutem dp-tworzenie-wiadomosci.jpg i część „Żeby stopka wstawiała się sama” w „podpis-w-poczcie” (polecenie 2026-11-14: „ważne i fajne ustawienia”).
+    '2026-11_it_portal_dpoczta_settings' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: ważne ustawienia dPoczty ze zrzutem',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
