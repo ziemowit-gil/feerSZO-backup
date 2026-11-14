@@ -1833,4 +1833,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuł „Spotkanie na Zoomie: jak je zamówić” (2 licencje, szkoleniowe automatycznie, pozostałe 2 do 3 dni wcześniej mailem
+    // na jarek@feer.org.pl albo w Helpdesku) + odsyłacze w Jitsi, Fathom i spisie funkcji (polecenie 2026-11-14).
+    '2026-11_it_portal_dpoczta_zoom' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: jak zamówić spotkanie na Zoomie',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];
