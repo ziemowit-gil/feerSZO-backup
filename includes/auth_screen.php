@@ -20,6 +20,7 @@
 require_once __DIR__ . '/branding.php';
 require_once __DIR__ . '/auth_security.php';
 require_once dirname(__DIR__) . '/inc/loginShell/loginShell.php';
+require_once dirname(__DIR__) . '/inc/loginShell/authUi.php';
 
 /** Wzór geometryczny tła ekranów wejścia (data URI, bez zewnętrznych zasobów). */
 const AUTH_SCREEN_BG_SVG = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'420\' height=\'420\' viewBox=\'0 0 420 420\'%3E%3Cg fill=\'%23000\' fill-opacity=\'.055\'%3E%3Crect x=\'24\' y=\'40\' width=\'120\' height=\'120\' rx=\'8\'/%3E%3Ccircle cx=\'330\' cy=\'96\' r=\'58\'/%3E%3Crect x=\'210\' y=\'250\' width=\'150\' height=\'150\' rx=\'8\'/%3E%3Cpath d=\'M0 210l70-70v46l-24 24zm52 132l96-96v46l-50 50z\'/%3E%3Cpath d=\'M300 0l60 60-24 24-60-60z\'/%3E%3C/g%3E%3C/svg%3E")';
@@ -70,10 +71,13 @@ function auth_screen_bg_css(string $sel = 'html,body'): void {
  *                 account_buttons — podzbiór ['login','register','reset']: przyciski konta w lewej kolumnie
  *                                   (zastępują zakładki side_tabs_html)
  *                 actions    — kafle „Serwisy i systemy z kontem w Tożsamości"; domyślnie w trybie 'card'
- *                 light      — lekki wygląd jak /auth/login.php: jedna biała karta na jasnym tle, logo u góry,
- *                              bez lewej kolumny z instrukcją i bez kafli serwisów; pod treścią kafle
- *                              „Nowy wolontariusz / Nowy zleceniobiorca” i linki konta (account_buttons).
- *                              Wyklucza metro; width = maks. szerokość karty (domyślnie 560).
+ *                 light      — jasny wygląd ekranów wejścia (inc/loginShell/authUi.php, przebudowa 2026-11-14):
+ *                              biała karta na jasnoszarym tle, logo u góry karty, granatowy akcent; pod treścią
+ *                              kafle „Nowy wolontariusz / Nowy zleceniobiorca” (no_new_tiles w stopce je wyłącza)
+ *                              i linki konta (account_buttons). Wyklucza metro; width = maks. szerokość karty
+ *                              (domyślnie 560). Dawna opcja 'cpl' nie zmienia już wyglądu.
+ *                 aside_html — (light) druga kolumna obok karty; na wąskim ekranie pod kartą
+ *                 head_html  — (light) HTML dopisany na końcu <head> (style strony)
  */
 function auth_screen_head(array $o = []): void {
     $b         = branding_load();
@@ -89,15 +93,17 @@ function auth_screen_head(array $o = []): void {
     $metro     = $o['metro'] ?? true;
     $light     = !empty($o['light']);
     if ($light) { $metro = false; $width = (int)($o['width'] ?? 560); }
-    $cpl       = $light && !empty($o['cpl']);   // skórka CPL (jak tozsamosc/cpl.php): pasek z kropkami, Tahoma, niebieski akcent
     $GLOBALS['__ks_mode']    = $mode;
     $GLOBALS['__ks_bs']      = $bootstrap;
     $GLOBALS['__ks_org']     = $org_name;
     $GLOBALS['__ks_split']   = !$metro && $side_tabs !== null;
     $GLOBALS['__ks_metro']   = $metro;
     $GLOBALS['__ks_light']   = $light;
-    $GLOBALS['__ks_cpl']     = $cpl;
     $GLOBALS['__ks_account'] = $o['account_buttons'] ?? ['login', 'register', 'reset'];
+    if ($light) {
+        auth_screen_head_light($o, $b, $org_name, $title, $width, $bootstrap, $main_id);
+        return;
+    }
     ?><!DOCTYPE html>
 <html lang="pl" data-fs="m">
 <head>
@@ -453,104 +459,6 @@ html[data-theme="hc"] .ks-choice__item{background:#000;border:2px solid #000}
 html[data-theme="hc"] .tzl .tz-side{background:#000;border-right:3px solid #fff}
 html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
 <?php endif; ?>
-<?php if ($light): ?>
-
-/* ── Lekki wygląd (jak /auth/login.php): jedna karta, stałe kolory AA ──── */
-body.lgx{--ks:#0f6fa8;--ks-dark:#0b5582;--ks-on:#fff;--ks-ink:#1f1f1f;--ks-line:#6b6b6b;--ks-muted:#3b3b3b;--ks-radius:0;
-  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:#f3f2f1;color:#1f1f1f;
-  min-height:100vh;display:flex;flex-direction:column}
-/* WCAG 2.4.7/2.4.11: czerwony, gruby fokus — #c50f1f na tle #f3f2f1/#fff ≥ 5:1 */
-.lgx :focus-visible{outline:3px solid #c50f1f!important;outline-offset:3px!important;box-shadow:none!important}
-.lgx .form-control:focus-visible{outline-offset:1px!important}
-.lgx .skip-link{border-radius:0;background:#1f1f1f;color:#fff}
-.lgx-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem 1rem}
-.lgx-card{background:#fff;width:100%;max-width:<?= $width ?>px;padding:2.4rem 2.4rem 2rem;border:1px solid #c8c8c8;box-shadow:0 2px 6px rgba(0,0,0,.08)}
-.lgx-brand{margin-bottom:1.5rem}
-.lgx-brand img{height:44px;width:auto;display:block}
-.lgx-brand span{display:block;font-size:.95rem;font-weight:600}
-.lgx-card a:not(.btn):not(.ks-btn):not(.tz-btn):not(.nav-link){color:#0b5582}
-.lgx .ks-hero-ico{width:48px;height:48px;border-radius:0;background:#0f6fa8;color:#fff;font-size:1.4rem;margin:0 0 1rem}
-.lgx .ks-hero-h1,.lgx .ks-h1{color:#111;text-align:left;font-size:1.75rem;font-weight:600;letter-spacing:0;margin:0 0 .25rem}
-.lgx .ks-hero-lead,.lgx .ks-lead{color:#3b3b3b;text-align:left;font-size:1rem;margin:0 0 1.6rem}
-.lgx .ks-steps{justify-content:flex-start;margin-bottom:1.6rem}
-.lgx .ks-step .dot,.lgx .ks-steps--light .ks-step .dot{border-radius:0;background:#fff;border-color:#8a8886;color:#3b3b3b}
-.lgx .ks-step .cap,.lgx .ks-steps--light .ks-step .cap{color:#3b3b3b}
-.lgx .ks-step.is-active .dot{border-color:#0f6fa8;color:#0b5582}
-.lgx .ks-step.is-active .cap{color:#111;font-weight:600}
-.lgx .ks-step.is-done .dot{background:#0f6fa8;border-color:#0f6fa8;color:#fff}
-.lgx .ks-line,.lgx .ks-steps--light .ks-line{background:#c8c8c8}
-.lgx .ks-line.is-done{background:#0f6fa8}
-.lgx .form-control{border:1px solid #6b6b6b;border-radius:0;min-height:46px;color:#111}
-.lgx .form-control:focus{border-color:#1f1f1f;box-shadow:none}
-.lgx .form-label,.lgx .ks-field label{font-size:.95rem!important;font-weight:600;color:#111}
-.lgx .form-text,.lgx .text-muted,.lgx .ks-fieldhint,.lgx .ks-hint,.lgx .ks-note{color:#3b3b3b!important}
-.lgx .ks-btn,.lgx .ks-shell .btn,.lgx .ks-shell .input-group-text,.lgx .ks-shell .alert,.lgx .l-alert,
-.lgx .ks-shell .nav-link,.lgx .lm-content,.lgx .modal-content{border-radius:0!important}
-.lgx .ks-btn--primary{background:#1f1f1f;border-color:#1f1f1f;color:#fff}
-.lgx .ks-btn--primary:hover,.lgx .ks-btn--primary:focus{background:#000;border-color:#000;color:#fff}
-.lgx .ks-btn--ghost{border:2px solid #1f1f1f;color:#1f1f1f}
-.lgx .ks-btn--ghost:hover{border-color:#000;background:#f3f2f1}
-.lgx .ks-shell .input-group-text{border-color:#6b6b6b;background:#f3f2f1;color:#3b3b3b}
-/* Karty Bootstrapa wewnątrz karty strony — bez ramek i podwójnych odstępów */
-.lgx .ks-shell .card{border:0;border-radius:0;box-shadow:none!important;background:transparent}
-.lgx .ks-shell .card-body{padding:0!important}
-.lgx .ks-shell .card.border-primary{border:0!important;border-left:4px solid #0f6fa8!important;background:#eff6fc;margin-bottom:1.25rem}
-.lgx .ks-shell .card.border-primary .card-body{padding:.9rem 1rem!important}
-.lgx .ks-shell .nav-tabs{border-bottom:1px solid #c8c8c8!important;padding:0!important;margin-bottom:1rem}
-.lgx .ks-shell .nav-link{color:#0b5582;min-height:44px}
-.lgx .ks-shell .nav-link.active{color:#111;border-color:#c8c8c8 #c8c8c8 #fff}
-/* Kafle „Nowy wolontariusz / zleceniobiorca” (jak na /auth/login.php); #0b5582 na białym = 7,9:1 */
-.lg-new{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:1.6rem}
-.lg-new a{display:flex;align-items:center;gap:.65rem;min-height:56px;padding:.6rem .7rem;border:1px solid #c8c8c8;background:#fff;color:#1f1f1f!important;text-decoration:none}
-.lg-new a:hover{border-color:#1f1f1f}
-.lg-new i{flex:0 0 2.2rem;height:2.2rem;display:flex;align-items:center;justify-content:center;background:#0f6fa8;color:#fff;font-size:1.15rem}
-.lg-new span{display:flex;flex-direction:column;line-height:1.25;font-size:.85rem;color:#3b3b3b}
-.lg-new strong{font-size:.95rem;color:#0b5582}
-.lg-links{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-top:1.2rem;font-size:.95rem}
-.lg-links a{font-weight:600;display:inline-flex;align-items:center;min-height:44px}
-.lg-foot{text-align:center;font-size:.88rem;color:#3b3b3b;padding:0 1rem 1.2rem}
-.lg-foot a{color:#3b3b3b}
-@media(max-width:480px){.lgx-card{padding:1.6rem 1.2rem;border:0}}
-@media(max-width:380px){.lg-new{grid-template-columns:1fr}}
-/* Zapamiętany „wysoki kontrast” z dawnego wyglądu — tu czarno-biało, bez czarnego tła strony */
-html[data-theme="hc"] body.lgx{background:#fff}
-html[data-theme="hc"] .lgx-card{border:3px solid #000;box-shadow:none}
-html[data-theme="hc"] .lg-foot,html[data-theme="hc"] .lg-foot a{color:#000}
-<?php endif; ?>
-<?php if ($cpl): ?>
-
-/* ── Skórka CPL — Centralny Portal Logowania (jak tozsamosc/cpl.php) ──────── */
-body.lgx{--ks:#0a7fd1;--ks-dark:#075f9e;font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
-.lgx-wrap{align-items:flex-start;padding-top:1.5rem}
-.lgx-card{padding:0;border:1px solid #d6d9de;box-shadow:none;overflow:hidden}
-.cpl-top{position:relative;height:120px;background:linear-gradient(180deg,#fff 0%,#f4f5f6 70%,#eceeef 100%);border-bottom:1px solid #e1e4e8}
-.cpl-top svg{position:absolute;inset:0;width:100%;height:100%}
-.cpl-logo{position:absolute;left:24px;bottom:30px;font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1}
-.cpl-logo b{color:#2e2a7a}
-.cpl-logo span{background:linear-gradient(90deg,#0a7fd1,#2e9b3f);-webkit-background-clip:text;background-clip:text;color:transparent}
-.cpl-sub{position:absolute;left:24px;bottom:10px;font-size:11px;font-weight:700;color:#2e2a7a}
-.lgx-body{padding:1.5rem 2.2rem 1.8rem;background:#eceeef}
-.lgx-brand{display:none}
-.lgx .ks-hero-ico{width:40px;height:40px;background:#0a7fd1;font-size:1.2rem;margin:0 0 .6rem}
-.lgx .ks-hero-h1,.lgx .ks-h1{font-size:1.35rem;font-weight:700;color:#1f2937}
-.lgx .ks-hero-lead,.lgx .ks-lead{font-size:.9rem;margin-bottom:1.2rem}
-.lgx .form-control,.lgx .ks-shell .input-group-text,.lgx .ks-btn,.lgx .ks-shell .btn{border-radius:2px!important}
-.lgx .form-control{min-height:34px;border:1px solid #8d95a1;padding:.3rem .55rem;font-size:.9rem}
-.lgx .form-label,.lgx .ks-field label{font-size:.85rem!important}
-.lgx .ks-btn{min-height:38px}
-.lgx .ks-btn--primary{background:#0a7fd1;border-color:#0a7fd1}
-.lgx .ks-btn--primary:hover,.lgx .ks-btn--primary:focus{background:#075f9e;border-color:#075f9e}
-.lgx .ks-btn--ghost{border:1px solid #0a7fd1;color:#075f9e}
-.lgx .ks-btn--ghost:hover{background:#dbeafe;border-color:#075f9e}
-.lgx .ks-step.is-active .dot{border-color:#0a7fd1;color:#075f9e}
-.lgx .ks-step.is-done .dot,.lgx .ks-line.is-done{background:#0a7fd1;border-color:#0a7fd1}
-.lgx .ks-hero-ico{border-radius:2px}
-.lgx :focus-visible{outline:3px solid #f59e0b!important}
-.lg-new i{background:#0a7fd1}
-.lg-new strong,.lgx-card a:not(.btn):not(.ks-btn):not(.tz-btn):not(.nav-link){color:#075f9e}
-.lgx .ks-shell .card.border-primary{border-left-color:#0a7fd1!important;background:#e6f1fb}
-@media(max-width:480px){.lgx-body{padding:1.2rem}}
-<?php endif; ?>
 
 </style>
 <?php if ($metro): ?>
@@ -621,7 +529,7 @@ body.lgx{--ks:#0a7fd1;--ks-dark:#075f9e;font-family:Tahoma,"Segoe UI",Verdana,Ar
 </style>
 <?php endif; ?>
 </head>
-<body<?= $metro ? ' class="tzl"' : ($light ? ' class="lgx"' : '') ?>>
+<body<?= $metro ? ' class="tzl"' : '' ?>>
 
 <a href="#<?= h($main_id) ?>" class="skip-link">Przejdź do treści</a>
 <div role="status" aria-live="polite"    aria-atomic="true" id="login-live"  class="sr"></div>
@@ -713,33 +621,10 @@ ob_start(); ?>
   })();
   </script>
 </header>
-<?php elseif (!$light): ?>
+<?php else: ?>
 <?= $__ks_a11y ?>
 <?php endif; ?>
 
-<?php if ($light): ?>
-<main class="lgx-wrap" id="<?= h($main_id) ?>" tabindex="-1">
-  <div class="lgx-card">
-    <?php if ($cpl):
-      mt_srand(2610); $dots = ''; $pal = ['#6b2c91', '#0079c2', '#2e9b3f'];
-      for ($cx = 0; $cx < 30; $cx++) for ($cy = 0; $cy < 6; $cy++) {
-          if (mt_rand(0, 99) < 38 - $cy * 3) continue;
-          $dots .= '<circle cx="' . (12 + $cx * 19) . '" cy="' . (10 + $cy * 15) . '" r="3" fill="' . (mt_rand(0, 99) < 22 ? $pal[mt_rand(0, 2)] : '#d4d4d8') . '"/>';
-      } ?>
-    <div class="cpl-top">
-      <svg viewBox="0 0 570 120" preserveAspectRatio="xMidYMin slice" aria-hidden="true" focusable="false"><?= $dots ?></svg>
-      <div class="cpl-logo"><b>CPL</b> <span>Portal</span></div>
-      <div class="cpl-sub">Centralny Portal Logowania · <?= h($org_name ?: 'Fundacja FEER') ?></div>
-    </div>
-    <div class="lgx-body">
-    <?php endif; ?>
-    <div class="lgx-brand">
-      <?php if (!empty($b['logo_url'])): ?><img src="<?= h($b['logo_url']) ?>" alt="<?= h($org_name) ?>"><?php else: ?><span><?= h($org_name) ?></span><?php endif; ?>
-    </div>
-    <div class="ks-shell">
-<?php
-    return;
-endif; ?>
 
 <?php if ($metro): ?>
 <div class="tz-split<?= ($mode !== 'card' && $width > 800) ? ' tz-split--wide' : '' ?>">
@@ -1041,17 +926,66 @@ function auth_screen_foot_light(array $o, bool $bs, string $org): void {
         if ($self !== '' && str_ends_with($self, $btn[$k][0])) continue;
         $links .= '<a href="' . $app . $btn[$k][0] . '">' . h($btn[$k][1]) . '</a>';
     }
+    $aside = (string)($GLOBALS['__ks_aside'] ?? '');
     ?>
     </div><!-- /.ks-shell -->
     <?php if (empty($o['no_new_tiles'])) echo auth_screen_new_tiles(); ?>
     <?php if ($links !== ''): ?><div class="lg-links"><?= $links ?></div><?php endif; ?>
-    <?php if (!empty($GLOBALS['__ks_cpl'])) echo '</div><!-- /.lgx-body -->'; ?>
-  </div>
+  </div><!-- /.au-card -->
+<?php if ($aside !== ''): ?>
+<?= $aside ?>
+</div><!-- /.au-two -->
+<?php endif; ?>
 </main>
 <?= $o['extra_html'] ?? '' ?>
-<footer class="lg-foot"><?= h($org) ?> · <a href="<?= $app ?>/auth/help.php">Pomoc w logowaniu</a> · <a href="<?= $app ?>/dostepnosc/">Deklaracja dostępności</a></footer>
+<footer class="au-foot"><?= h($org) ?> · <a href="<?= $app ?>/auth/help.php">Pomoc w logowaniu</a> · <a href="<?= $app ?>/dostepnosc/">Deklaracja dostępności</a></footer>
 <?php
     auth_screen_scripts($o, $bs);
+}
+
+/**
+ * Nagłówek jasnego wyglądu (tryb 'light'): <head> z arkuszem authUiCss(), skip-link, regiony komunikatów
+ * dla czytników ekranu, <main> z kartą i logo Fundacji. Treść strony trafia do .ks-shell w karcie.
+ */
+function auth_screen_head_light(array $o, array $b, string $org_name, string $title, int $width, bool $bootstrap, string $main_id): void {
+    $aside = (string)($o['aside_html'] ?? '');
+    $GLOBALS['__ks_aside'] = $aside;
+    ?><!DOCTYPE html>
+<html lang="pl" data-fs="m">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= h($title) ?> — <?= h($org_name) ?></title>
+<?php if ($bootstrap): ?>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<?php endif; ?>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<script>
+/* Zapamiętany rozmiar tekstu i wysoki kontrast — przed pierwszym malowaniem */
+(function(){try{
+  var fs=localStorage.getItem('szoFs'); if(fs==='L'||fs==='XL') document.documentElement.dataset.fs=fs;
+  if(localStorage.getItem('szoHc')==='1') document.documentElement.dataset.theme='hc';
+}catch(e){}})();
+</script>
+<style>
+<?= authUiCss($width) ?>
+</style>
+<?= $o['head_html'] ?? '' ?>
+</head>
+<body class="au">
+
+<a href="#<?= h($main_id) ?>" class="skip-link">Przejdź do treści</a>
+<div role="status" aria-live="polite"    aria-atomic="true" id="login-live"  class="sr"></div>
+<div role="alert"  aria-live="assertive" aria-atomic="true" id="login-alert" class="sr"></div>
+
+<main class="au-wrap" id="<?= h($main_id) ?>" tabindex="-1">
+<?php if ($aside !== ''): ?><div class="au-two"><?php endif; ?>
+  <div class="au-card">
+    <div class="au-brand">
+      <?php if (!empty($b['logo_url'])): ?><img src="<?= h($b['logo_url']) ?>" alt="<?= h($org_name) ?>"><?php else: ?><span class="au-brand__name"><?= h($org_name) ?></span><?php endif; ?>
+    </div>
+    <div class="ks-shell">
+<?php
 }
 
 /** Pasek nagłówka CPL (siatka kropek + logo „CPL Portal”) — dla ekranów z własnym układem, które dostają wygląd CPL. */
