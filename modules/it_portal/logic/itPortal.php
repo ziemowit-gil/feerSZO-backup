@@ -167,7 +167,7 @@ function itPortalSanitizeHtml(string $html): string {
     $html = preg_replace('#<(script|style|iframe|object|embed|form)\b[^>]*>.*?</\1>#is', '', $html) ?? '';
     $html = preg_replace('#<(script|style|iframe|object|embed|form|input|button)\b[^>]*/?>#i', '', $html) ?? '';
     $allowed = '<p><br><strong><b><em><i><u><s><ul><ol><li><blockquote><a><span><h2><h3><h4><hr>'
-             . '<table><thead><tbody><tr><th><td><code><pre><img>';
+             . '<table><thead><tbody><tr><th><td><code><pre><img><kbd>';
     $clean = strip_tags($html, $allowed);
     $clean = preg_replace('/\s+(on[a-z]+|style|class|id)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? '';
     $clean = preg_replace('/\s+(href|src)\s*=\s*("\s*(javascript|data|vbscript):[^"]*"|\'\s*(javascript|data|vbscript):[^\']*\'|(javascript|data|vbscript):[^\s>]*)/i', '', $clean) ?? '';

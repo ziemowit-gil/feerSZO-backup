@@ -321,6 +321,8 @@ a:hover { text-decoration-thickness: 2px; }
 
 /* ── Edytor blokowy: zrzuty ekranu, wyróżnienia, kreator krok po kroku ── */
 .itp-shot { margin: 0 0 1.2em; }
+.itp-body kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; font: inherit; font-size: .875em; line-height: 1.4; text-align: center;
+  border: 1px solid #8a94a3; border-bottom-width: 2px; border-radius: 4px; background: #f6f7f9; color: #1f2933; }
 .itp-dl { margin: 0 0 1.4em; }
 .itp-dl__h { margin: 0 0 .5em; }
 .itp-dl__list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
