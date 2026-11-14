@@ -124,6 +124,9 @@ function itPortalCloudArticles(string $app): array {
         'menu-aplikacji' => ['Menu aplikacji i poruszanie się po chmurze',
             'menu aplikacji, launcher, aplikacje, kropki, dziewięć kropek, pulpit, pliki, biuro, zdjęcia, zespoły, aktywność, sklep aplikacji, text document, górny pasek, nawigacja, menu, menu konta, profil, status, wygląd i dostępność, motyw, wysoki kontrast, ciemny motyw, czcionka dla dysleksji, ustawienia osobiste, wyloguj, skróty klawiszowe, klawiatura, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNavBlocks($app), $app)), false, 13],
+        'pulpit-roboczy' => ['Pulpit z oknami (Desktop Workspace)',
+            'desktop workspace, desktop, pulpit roboczy, pulpit z oknami, okna, pasek zadań, przypinanie, ikony na pulpicie, folder pulpitu, menedżer plików, dekoracje okien, reset, ustawienia pulpitu, eksperymentalne, nextcloud',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudWorkspaceBlocks($app), $app)), false, 18],
         'aktywnosc' => ['Aktywność: historia zmian w chmurze',
             'aktywność, historia, historia zmian, kto zmienił, kto usunął, kto udostępnił, zmiany w plikach, przez ciebie, przez innych, skupienie, ulubione, bezpieczeństwo, udostępniony plik, kalendarz, zadania, komentarze, kontakty, mapa cieplna, dowolna osoba, dowolny czas, hasło zostało zresetowane przez administratora, contact birthdays, urodziny, ustawienia aktywności, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudActivityBlocks($app), $app)), false, 15],
@@ -545,6 +548,48 @@ function itPortalCloudNavBlocks(string $app): array {
 }
 
 /**
+ * Bloki artykułu „Pulpit z oknami (Desktop Workspace)” (polecenie 2026-11-14 z opisem dodatku Desktop Workspace ze sklepu Nextcloud: „opisz też to”).
+ * Opis według dokumentacji dodatku; nazwy w chmurze mogą być po angielsku. Ustawienia użytkownika: Ustawienia osobiste → Pulpit.
+ */
+function itPortalCloudWorkspaceBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Desktop Workspace to dodatek, który zamienia chmurę w przeglądarce w coś podobnego do pulpitu komputera. '
+            . 'Aplikacje chmury, na przykład Pliki czy Aktywność, otwierają się w oknach, które możesz przesuwać, zmieniać ich rozmiar i trzymać kilka obok siebie. '
+            . 'Na dole jest pasek zadań, a na pulpicie ikony.</p>'
+            . '<p>Z pulpitu z oknami nie musisz korzystać. Zwykły widok chmury, opisany w pozostałych artykułach, działa tak samo jak wcześniej.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Dodatek jest nowy i część jego funkcji jest oznaczona jako eksperymentalna. Nazwy w nim mogą być po angielsku, '
+            . 'a wygląd może się zmieniać po aktualizacjach. Jeśli czegoś nie ma tam, gdzie opisujemy, poszukaj w menu aplikacji albo w ustawieniach osobistych w części „Pulpit”.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Okna i pasek zadań</h2>'
+            . '<p>Każda otwarta aplikacja ma własne okno z paskiem tytułu i przyciskami do zmniejszenia, powiększenia i zamknięcia. Okno przesuniesz, chwytając pasek tytułu myszą, '
+            . 'a rozmiar zmienisz, ciągnąc za brzeg albo róg.</p>'
+            . '<p>Pasek zadań na dole pokazuje otwarte okna. Kliknij okno na pasku, żeby je wysunąć na wierzch albo schować. Aplikacje, z których korzystasz najczęściej, '
+            . 'przypniesz do paska, żeby otwierać je jednym kliknięciem.</p>'
+            . '<p>Chmura zapamiętuje układ okien, menu aplikacji i ikon. Po ponownym wejściu zobaczysz pulpit taki, jaki zostawiłeś.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ikony i folder pulpitu</h2>'
+            . '<p>Na pulpicie możesz ułożyć ikony aplikacji. Jeśli włączysz folder pulpitu, na pulpicie pokażą się też pliki z wybranego folderu w chmurze, '
+            . 'tak jak pliki na pulpicie komputera. Folder wskazujesz w ustawieniach pulpitu. Pliki nadal leżą w chmurze, pulpit tylko je pokazuje.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ustawienia pulpitu</h2>'
+            . '<p>Kliknij swoje inicjały, wybierz „Ustawienia osobiste”, a po lewej „Pulpit”. Ustawisz tam ikony na pulpicie, folder pulpitu, wygląd ramek okien '
+            . 'i funkcje eksperymentalne, na przykład menedżer plików w oknie. Jest tam też przycisk, który przywraca pulpit do ustawień początkowych. '
+            . 'Użyj go, gdy okna się pogubią albo pulpit przestanie się dobrze wyświetlać. Twoje pliki zostaną bez zmian.</p>'
+            . '<p>Funkcje eksperymentalne włączaj tylko wtedy, gdy chcesz je wypróbować. Mogą działać niestabilnie.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Jeśli korzystasz z czytnika ekranu albo tylko z klawiatury, pulpit z oknami może być trudny w obsłudze. '
+            . 'Zostań przy zwykłym widoku chmury albo pracuj w aplikacji Nextcloud na komputerze, opisanej w artykule '
+            . '<a href="' . $base . 'aplikacja-komputer">Aplikacja Nextcloud na komputerze</a>.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Coś na pulpicie nie działa, a przywrócenie ustawień początkowych nie pomaga? '
+            . '<a href="' . $hd . '">Napisz do Helpdesku IT</a> i opisz, co się dzieje.</p>'],
+    ];
+}
+
+/**
  * Bloki artykułu „Aktywność: historia zmian w chmurze” (polecenie 2026-11-14 ze zrzutami nc.feer.org.pl/apps/activity: „opisz to”).
  * Filtry po lewej jak na zrzucie, wyszukiwanie po nazwie pliku, „Dowolna osoba”, „Dowolny czas”; wpis o haśle zresetowanym przez administratora
  * pojawia się, gdy SZO ustawia hasło w chmurze (/nowehaslo, zakładanie konta).
@@ -650,6 +695,7 @@ function itPortalCloudSettingsBlocks(string $app): array {
             . '<p>Dostępność. Godziny pracy i informacja o nieobecności, na przykład w czasie urlopu. Inni zobaczą ją przy Twoim nazwisku.</p>'
             . '<p>Przepływ. Reguły, które same coś robią z plikami, na przykład oznaczają je etykietą. Na co dzień nie są potrzebne.</p>'
             . '<p>Prywatność. Informacja o tym, gdzie są przechowywane Twoje dane i kto ma do nich dostęp.</p>'
+            . '<p>Pulpit. Ustawienia pulpitu z oknami, jeśli z niego korzystasz. Opisuje je artykuł <a href="' . $base . 'pulpit-roboczy">Pulpit z oknami (Desktop Workspace)</a>.</p>'
             . '<p>Migracja danych. Eksport całego konta do jednego pliku albo wczytanie takiego pliku. Nie korzystaj z tego bez porozumienia z Helpdeskiem IT. '
             . 'Przeniesienie plików między instalacjami chmury Fundacji zaplanujemy sami.</p>'],
 
@@ -856,6 +902,63 @@ function itPortalCloudPhoneBlocks(string $app): array {
 }
 
 /**
+ * Artykuł w usłudze „Koordynatorzy IT”: „Ustawienia chmury dla Koordynatorów IT: limity folderów zespołów i pulpit z oknami” (polecenie 2026-11-14
+ * ze zrzutem Ustawienia → Administration → Zespoły → Default quotas: „też dla IT”, „chodzi o Koordynatorów IT”). Koordynatorzy mają w chmurze
+ * dostęp do części ustawień administracyjnych.
+ */
+function itPortalCloudItAdminApply(string $app, bool $dryRun = false): string {
+    require_once dirname(__DIR__) . '/logic/itPortal.php';
+    itPortalMigrate();
+    $app = rtrim($app, '/');
+    $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'koordynatorzy-it'");
+    if (!$cat) { if (!$dryRun) itPortalCloudCoordApply($app); $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'koordynatorzy-it'"); }
+    $def = ['Ustawienia chmury dla Koordynatorów IT: limity folderów zespołów i pulpit z oknami',
+        'koordynator it, koordynatorzy it, administracja, administrator, ustawienia administracyjne, administration, zespoły, foldery zespołów, team folders, default quotas, domyślny limit, limit, quota, quota overrides, nadpisanie limitu, grupa, desktop workspace, pulpit, dekoracje, menedżer plików, wiele okien, reset pulpitu, nextcloud',
+        itPortalCloudItAdminBlocks($app), false, 20];
+    return itPortalCloudArticleSave($cat ? (int)$cat['id'] : 0, 'administracja-chmury', $def, $dryRun, 'koordynatorzy-it');
+}
+
+function itPortalCloudItAdminBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $coord = $app . '/uslugi-it/uslugi/koordynatorzy-it/grupy-w-chmurze';
+    $users = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Ten artykuł jest dla Koordynatorów IT. Jako koordynator masz w chmurze dostęp do części ustawień administracyjnych, '
+            . 'między innymi do zespołów i ich folderów. Jeśli po zalogowaniu nie widzisz tych ustawień, <a href="' . $hd . '">napisz do Helpdesku IT</a>. '
+            . 'Skład grup z SZO ustawiasz w SZO, co opisuje artykuł <a href="' . $coord . '">Zarządzanie grupami w chmurze</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<p>Ustawienia otworzysz, klikając swoje inicjały i wybierając „Ustawienia administracyjne”. W menu po lewej, pod ustawieniami osobistymi, '
+            . 'jest część „Administration” z działami, do których masz dostęp. Część nazw jest po angielsku, bo dodatki nie mają jeszcze tłumaczeń.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Zespoły: domyślne limity folderów zespołów</h2>'
+            . '<p>W części „Administration” wybierz „Zespoły”. Na górze są dwie zakładki: „Foldery zespołów” z listą folderów i ich ustawieniami oraz „Default quotas” z limitami miejsca.</p>'
+            . '<p>W zakładce „Default quotas” pole „Domyślny limit” ustala, ile miejsca dostaje każdy folder zespołu założony automatycznie. Wybierz wartość, na przykład 5 GB, '
+            . 'i kliknij „Zapisz” obok pola. Wartość 0 oznacza brak limitu. W prawym górnym rogu pojawi się potwierdzenie „Changed default team folder quotas”. '
+            . 'Zmiana dotyczy folderów zakładanych od tej chwili. Limit istniejącego folderu zmienisz w zakładce „Foldery zespołów”.</p>'
+            . '<p>Część „Quota overrides” pozwala dać innym grupom albo zespołom inny limit domyślny. Wybierz grupę albo zespół z listy „Select a team or group”, kliknij „Dodaj”, '
+            . 'ustaw limit w tabeli i kliknij „Zapisz” pod tabelą. Gdy osoba zakładająca folder należy do kilku grup z własnymi limitami, nowy folder dostaje najwyższy z nich.</p>'
+            . '<p>Dodatek działa tylko wtedy, gdy w chmurze jest włączona aplikacja Team Folders (foldery zespołów).</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Zanim zmniejszysz limit, sprawdź, ile miejsca zajmują już foldery. Gdy folder przekroczy limit, '
+            . 'nikt nie wgra do niego nowych plików, ale nic z niego nie zniknie. Większe zmiany limitów uzgodnij z zespołem IT.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Desktop Workspace: pulpit z oknami</h2>'
+            . '<p>Dodatek Desktop Workspace włącza i wyłącza administrator chmury. Jeśli masz dostęp do jego ustawień, znajdziesz je w części „Administration” pod nazwą dodatku. Ustawisz tam:</p><ul>'
+            . '<li>wygląd ramek okien (dekoracje),</li>'
+            . '<li>eksperymentalny menedżer plików,</li>'
+            . '<li>czy jedna aplikacja może mieć kilka okien naraz,</li>'
+            . '<li>reset pulpitu wybranemu użytkownikowi, gdy jego układ okien się popsuł.</li></ul>'
+            . '<p>Użytkownicy ustawiają swój pulpit sami w ustawieniach osobistych, w części „Pulpit”. Ich instrukcja to artykuł '
+            . '<a href="' . $users . 'pulpit-roboczy">Pulpit z oknami (Desktop Workspace)</a>.</p>'
+            . '<p>Funkcje eksperymentalne włączaj najpierw dla siebie i sprawdzaj na koncie testowym. Pamiętaj, że pulpit z oknami jest trudny w obsłudze czytnikiem ekranu, '
+            . 'więc zwykły widok chmury musi zostać dostępny.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Jeśli widzisz ustawienia „OpenID Connect” albo „Uprawnienia administracyjne”, nie zmieniaj ich bez uzgodnienia z zespołem IT. '
+            . 'Od pierwszego zależy logowanie jednokrotne przez IAM, a od drugiego, kto może zarządzać chmurą. Zgłoś potrzebę zmiany w <a href="' . $hd . '">Helpdesku IT</a>.</p>'],
+    ];
+}
+
+/**
  * Ściąga dla Koordynatorów IT w artykule „Zarządzanie grupami w chmurze” (polecenie 2026-11-14: „dopisz koordynatorom”, wybór: ściąga w ich artykule).
  * Linki do instrukcji dla użytkowników i najczęstsze pytania z odpowiedzią i artykułem do wysłania.
  */
@@ -889,6 +992,8 @@ function itPortalCloudCoordCheatSheet(string $app): array {
             . 'Jeśli osoba niczego nie zmieniała, niech od razu zmieni hasło i zgłosi to w Helpdesku. Wyślij: ' . $a('aktywnosc', 'Aktywność') . '.</p>'
             . '<p>„Korzystam z czytnika ekranu.” Poleć aplikację Nextcloud na komputerze albo telefonie. Wyślij: ' . $a('aplikacja-komputer', 'Aplikacja na komputerze') . '.</p>'
             . '<p>„Ktoś usunął albo zmienił plik.” W Aktywności widać, kto i kiedy to zrobił. Plik wraca z „Usuniętych plików”, a starsza wersja z zakładki Wersje.</p>'
+            . '<p>Limity miejsca folderów zespołów i ustawienia pulpitu z oknami opisuje artykuł '
+            . '<a href="' . $app . '/uslugi-it/uslugi/koordynatorzy-it/administracja-chmury">Ustawienia chmury dla Koordynatorów IT</a>.</p>'
             . '<p>Z czymś, czego nie ma w ściądze, odeślij osobę do <a href="' . $hd . '">Helpdesku IT</a> albo zgłoś to sam.</p>'],
     ];
 }

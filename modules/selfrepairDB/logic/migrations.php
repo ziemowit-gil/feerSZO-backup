@@ -1373,4 +1373,31 @@ return [
         },
     ],
 
+    // „Chmura plików”: artykuł „Pulpit z oknami (Desktop Workspace)” (polecenie 2026-11-14) i w „Koordynatorzy IT” artykuł dla Koordynatorów IT
+    // „Ustawienia chmury dla Koordynatorów IT” (polecenie „też dla IT”, „chodzi o Koordynatorów IT”, zrzut Default quotas); odsyłacz w „ustawienia-osobiste”.
+    '2026-11_it_portal_cloud_workspace_admin' => [
+        'desc' => 'Portal Usług IT: Desktop Workspace dla użytkowników i ustawienia chmury dla Koordynatorów IT',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'pulpit-roboczy');
+            itPortalCloudArticleApply(ITP_SZO_URL, 'ustawienia-osobiste');
+            itPortalCloudItAdminApply(ITP_SZO_URL);
+            itPortalCloudCoordApply(ITP_SZO_URL);
+            $q = "SELECT a.id FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = ? AND a.slug = ?";
+            $pairs = [[['chmura-plikow', 'pulpit-roboczy'], ['chmura-plikow', 'ustawienia-osobiste']],
+                      [['chmura-plikow', 'pulpit-roboczy'], ['koordynatorzy-it', 'administracja-chmury']],
+                      [['koordynatorzy-it', 'administracja-chmury'], ['koordynatorzy-it', 'grupy-w-chmurze']]];
+            foreach ($pairs as [$x, $y]) {
+                $a = db_one($q, $x); $b = db_one($q, $y);
+                if (!$a || !$b) continue;
+                foreach ([[(int)$a['id'], (int)$b['id']], [(int)$b['id'], (int)$a['id']]] as [$id, $add]) {
+                    $row = db_one("SELECT related FROM itp_articles WHERE id = ?", [$id]);
+                    $ids = itPortalIds($row['related'] ?? null);
+                    if (!in_array($add, $ids, true)) { $ids[] = $add; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), $id]); }
+                }
+            }
+        },
+    ],
+
 ];
