@@ -1178,4 +1178,37 @@ return [
         },
     ],
 
+    // „Chmura plików”: artykuł „Aplikacja Nextcloud na telefonie: jak z niej korzystać” (polecenie 2026-11-14) + „Zobacz też” w obie strony
+    // z „instalacja-aplikacji” i „lista-plikow”. modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud_phone' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł o aplikacji Nextcloud na telefonie',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'aplikacja-telefon');
+            $q = "SELECT a.id FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'chmura-plikow' AND a.slug = ?";
+            $a = db_one($q, ['aplikacja-telefon']);
+            if (!$a) return;
+            foreach (['instalacja-aplikacji', 'lista-plikow'] as $other) {
+                $b = db_one($q, [$other]);
+                if (!$b) continue;
+                foreach ([[(int)$a['id'], (int)$b['id']], [(int)$b['id'], (int)$a['id']]] as [$id, $add]) {
+                    $row = db_one("SELECT related FROM itp_articles WHERE id = ?", [$id]);
+                    $ids = itPortalIds($row['related'] ?? null);
+                    if (!in_array($add, $ids, true)) { $ids[] = $add; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), $id]); }
+                }
+            }
+        },
+    ],
+
+    // „Chmura plików”, „Logowanie”: na razie najpierw strona Nextcloud, potem IAM; docelowo IAM od razu (polecenie 2026-11-14).
+    '2026-11_it_portal_cloud_login_order' => [
+        'desc' => 'Portal Usług IT, „Logowanie do chmury”: kolejność stron logowania',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'logowanie');
+        },
+    ],
+
 ];

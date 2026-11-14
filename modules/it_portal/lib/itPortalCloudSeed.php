@@ -120,6 +120,9 @@ function itPortalCloudArticles(string $app): array {
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
             'nextcloud, aplikacja, klient, instalacja, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudClientsBlocks($app), $app, true)), false, 20],
+        'aplikacja-telefon' => ['Aplikacja Nextcloud na telefonie: jak z niej korzystać',
+            'aplikacja, telefon, komórka, smartfon, android, iphone, ios, nextcloud, aplikacja mobilna, offline, dostępne offline, automatyczne wysyłanie, zdjęcia, aparat, skanowanie, skan dokumentu, udostępnianie, blokada, kod, odcisk palca, face id, zgubiony telefon, aplikacja pliki, talkback, voiceover, czytnik ekranu, wylogowanie',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudPhoneBlocks($app), $app, true)), false, 22],
         'menu-plikow' => ['Co jest co w menu bocznym aplikacji Pliki',
             'menu, menu boczne, pliki, wszystkie pliki, pliki osobiste, ostatnie, ulubione, udostępnienia, foldery zespołów, etykiety, drzewo folderów, usunięte pliki, kosz, miejsce, limit, ustawienia plików, webdav, wyszukiwanie, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudMenuBlocks($app), $app)), false, 15],
@@ -219,7 +222,8 @@ function itPortalCloudShot(string $name, string $alt, string $caption = ''): arr
 }
 
 /**
- * Bloki artykułu „Logowanie do chmury plików” (polecenie 2026-11-14: „opisz też ekran logowania”). Zrzuty z nc.feer.org.pl po wylogowaniu:
+ * Bloki artykułu „Logowanie do chmury plików” (polecenie 2026-11-14: „opisz też ekran logowania”; potem: „nie ma okienka IAM od razu,
+ * przynajmniej na razie, ale będzie docelowo”, więc najpierw strona Nextcloud, potem IAM). Zrzuty z nc.feer.org.pl po wylogowaniu:
  * strona logowania Nextcloud (formularz + „Login with logowanie jednokrotne”) i strona IAM logto.feer.org.pl. Hasła zmienia się tylko na /nowehaslo.
  */
 function itPortalCloudLoginBlocks(string $app): array {
@@ -230,22 +234,13 @@ function itPortalCloudLoginBlocks(string $app): array {
     return [
         ['type' => 'text', 'html' => '<p>Do chmury plików wchodzisz przez stronę <a href="' . $cloud . '">' . $host . '</a>. '
             . 'Logujesz się kontem IAM, czyli tym samym adresem e-mail i hasłem co przy logowaniu jednokrotnym do SZO. Hasło IAM jest inne niż hasło do poczty.</p>'
-            . '<p>Zależnie od tego, jak trafisz do chmury, zobaczysz jedną z dwóch stron logowania. Obie prowadzą do tego samego konta.</p>'],
+            . '<p>Na razie logowanie ma dwa kroki. Najpierw widzisz stronę logowania Nextcloud, a z niej przechodzisz na stronę logowania IAM. '
+            . 'Docelowo strona IAM będzie otwierać się od razu po wejściu na ' . $host . ', bez pierwszego kroku.</p>'],
 
-        ['type' => 'text', 'html' => '<h2>Strona logowania IAM</h2>'
-            . '<p>Najczęściej po wejściu na ' . $host . ' od razu otwiera się biała strona z logo Fundacji i napisem „Zaloguj się do swojego konta”. '
-            . 'Jej adres zaczyna się od logto.feer.org.pl. Na dole jest dopisek „Powered by Logto”, to nazwa programu, który obsługuje logowanie.</p>'
-            . '<p>W pole „Nazwa użytkownika” wpisz pełny adres e-mail, ten sam co do SZO. W pole „Hasło” wpisz hasło IAM i kliknij „Zaloguj się”. '
-            . 'Jeśli zobaczysz komunikat, że nazwa użytkownika jest nieprawidłowa, sprawdź, czy wpisałeś cały adres razem z częścią po znaku @.</p>'
-            . '<p>Linku „Utwórz konto” nie używaj. Konto w chmurze zakłada SZO i tylko takie konto ma Twoje grupy i wspólne foldery. '
-            . 'Jeśli nie masz jeszcze konta, zaproponuje je panel SZO przy logowaniu.</p>'],
-        ...itPortalCloudShot('nc-logowanie-iam.jpg', 'Strona logowania IAM: logo FEER, napis Zaloguj się do swojego konta, pola Nazwa użytkownika i Hasło, przycisk Zaloguj się, link Utwórz konto, na dole Powered by Logto',
-            'Strona logowania IAM pod adresem logto.feer.org.pl.'),
-
-        ['type' => 'text', 'html' => '<h2>Strona logowania Nextcloud</h2>'
-            . '<p>Po wylogowaniu albo po wejściu z niektórych linków zobaczysz niebieską stronę z logo Nextcloud i napisem „Zaloguj się do Nextcloud”. '
-            . 'Najprościej kliknij na dole przycisk „Login with logowanie jednokrotne”. Przeniesie Cię na stronę logowania IAM opisaną wyżej, '
-            . 'a jeśli jesteś już zalogowany do SZO, często od razu do chmury, bez wpisywania hasła.</p>'
+        ['type' => 'text', 'html' => '<h2>Krok 1: strona logowania Nextcloud</h2>'
+            . '<p>Po wejściu na ' . $host . ' zobaczysz niebieską stronę z logo Nextcloud i napisem „Zaloguj się do Nextcloud”. '
+            . 'Kliknij na dole przycisk „Login with logowanie jednokrotne”. Przeniesie Cię na stronę logowania IAM. '
+            . 'Jeśli jesteś już zalogowany do SZO, często od razu trafisz do chmury, bez wpisywania hasła.</p>'
             . '<p>Możesz też wpisać adres e-mail i hasło IAM w pola na tej stronie i kliknąć „Zaloguj”. Zaznaczone „Zapamiętaj mnie” sprawia, '
             . 'że przeglądarka nie wyloguje Cię po zamknięciu. Odznacz to pole na wspólnym albo cudzym komputerze.</p>'
             . '<p>„Zaloguj się za pomocą urządzenia” działa tylko wtedy, gdy wcześniej dodałeś w ustawieniach osobistych chmury klucz dostępu, '
@@ -255,6 +250,16 @@ function itPortalCloudLoginBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie zmieniaj hasła linkiem „Zapomniałeś hasła?” na stronie Nextcloud. Zmieniłbyś je tylko w chmurze '
             . 'i przestałoby pasować do SZO. Hasło IAM zmienisz albo odzyskasz na stronie <a href="' . $nh . '">Nowe hasło</a>, potwierdzając zmianę kodem.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Krok 2: strona logowania IAM</h2>'
+            . '<p>Druga strona jest biała, z logo Fundacji i napisem „Zaloguj się do swojego konta”. Jej adres zaczyna się od logto.feer.org.pl. '
+            . 'Na dole jest dopisek „Powered by Logto”, to nazwa programu, który obsługuje logowanie.</p>'
+            . '<p>W pole „Nazwa użytkownika” wpisz pełny adres e-mail, ten sam co do SZO. W pole „Hasło” wpisz hasło IAM i kliknij „Zaloguj się”. '
+            . 'Jeśli zobaczysz komunikat, że nazwa użytkownika jest nieprawidłowa, sprawdź, czy wpisałeś cały adres razem z częścią po znaku @.</p>'
+            . '<p>Linku „Utwórz konto” nie używaj. Konto w chmurze zakłada SZO i tylko takie konto ma Twoje grupy i wspólne foldery. '
+            . 'Jeśli nie masz jeszcze konta, zaproponuje je panel SZO przy logowaniu.</p>'],
+        ...itPortalCloudShot('nc-logowanie-iam.jpg', 'Strona logowania IAM: logo FEER, napis Zaloguj się do swojego konta, pola Nazwa użytkownika i Hasło, przycisk Zaloguj się, link Utwórz konto, na dole Powered by Logto',
+            'Strona logowania IAM pod adresem logto.feer.org.pl.'),
 
         ['type' => 'text', 'html' => '<h2>Wylogowanie</h2>'
             . '<p>Kliknij kółko ze swoimi inicjałami w prawym górnym rogu i wybierz „Wyloguj się” na dole menu. Zrób to zawsze na komputerze, '
@@ -420,6 +425,78 @@ function itPortalCloudListBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Gdy czegoś nie możesz udostępnić albo nie widzisz przycisku z tego opisu, '
             . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Aplikacja Nextcloud na telefonie: jak z niej korzystać” (polecenie 2026-11-14: „opisz też aplikację Nextcloud na telefonie”).
+ * Bez zrzutów; nazwy w aplikacjach na Androida i iPhone'a różnią się, więc opis podaje obie drogi i ramkę o różnicach.
+ */
+function itPortalCloudPhoneBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $nh = $app . '/nowehaslo';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    $cloud = itPortalCloudUrl();
+    $host = (string)(parse_url($cloud, PHP_URL_HOST) ?: $cloud);
+    return [
+        ['type' => 'text', 'html' => '<p>Aplikacja Nextcloud na telefonie pokazuje te same pliki i foldery co strona ' . $host . '. Przydaje się w podróży, '
+            . 'do zrobienia zdjęcia albo skanu i wysłania go od razu do właściwego folderu. Jak ją zainstalować i się zalogować, opisuje artykuł '
+            . '<a href="' . $base . 'instalacja-aplikacji">Instalacja aplikacji Nextcloud na komputerze i telefonie</a>.</p>'
+            . '<p>Przy logowaniu w aplikacji na razie najpierw pokaże się strona logowania Nextcloud. Stuknij na niej „Login with logowanie jednokrotne”, '
+            . 'a potem zaloguj się na stronie IAM adresem e-mail i hasłem IAM. Docelowo strona IAM będzie otwierać się od razu.</p>'
+            . '<p>Telefon nie trzyma kopii całej chmury. Pliki pobierają się dopiero wtedy, gdy je otworzysz, więc aplikacja nie zapcha pamięci.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Aplikacje na Androida i na iPhone’a wyglądają trochę inaczej, a nazwy przycisków mogą się zmieniać po aktualizacji. '
+            . 'Jeśli czegoś nie widzisz tam, gdzie opisujemy, poszukaj w menu z trzema kropkami albo w ustawieniach aplikacji.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ekran główny</h2>'
+            . '<p>Po otwarciu aplikacji widzisz listę plików i folderów, tak jak w „Wszystkich plikach” na stronie. Stuknij folder, żeby go otworzyć. '
+            . 'Strzałka albo przycisk wstecz telefonu wraca o poziom wyżej.</p>'
+            . '<p>Na dole ekranu albo w menu są skróty do innych widoków: ulubionych, zdjęć i filmów, plików udostępnionych, ostatnio zmienionych i plików offline. '
+            . 'Na Androidzie menu otworzysz przyciskiem z trzema kreskami w lewym górnym rogu. Na iPhonie część widoków jest na dolnym pasku, a reszta pod przyciskiem „Więcej”.</p>'
+            . '<p>Lupa u góry szuka plików po nazwie w całej chmurze. Przeciągnięcie listy w dół odświeża ją, gdy ktoś właśnie dodał plik.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Dodawanie plików</h2>'
+            . '<p>Przycisk z plusem dodaje coś do folderu, który masz otwarty. Wybierzesz tam przesłanie pliku albo zdjęcia z telefonu, zrobienie zdjęcia aparatem, '
+            . 'zeskanowanie dokumentu i założenie nowego folderu. Skan zapisuje się jako PDF albo obraz, więc nadaje się do faktur i podpisanych pism.</p>'
+            . '<p>Plik możesz też wysłać do chmury z innej aplikacji, na przykład z poczty albo galerii. Stuknij „Udostępnij”, wybierz Nextcloud i wskaż folder.</p>'
+            . '<p>Postęp wysyłania pokazuje lista przesyłanych plików. Przy słabym zasięgu wysyłanie poczeka i dokończy się samo.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Działania na pliku</h2>'
+            . '<p>Stuknij plik, żeby go otworzyć. Zdjęcia, PDF-y i pliki tekstowe zobaczysz w aplikacji. Dokumenty, arkusze i prezentacje otworzą się w programie zainstalowanym w telefonie. '
+            . 'Jeśli zmieniasz plik w innym programie, sprawdź potem w aplikacji Nextcloud, czy nowa wersja wróciła do chmury.</p>'
+            . '<p>Trzy kropki przy pliku, albo dłuższe przytrzymanie palca, otwierają resztę działań: udostępnianie, dodanie do ulubionych, pobranie, '
+            . 'zmianę nazwy, przeniesienie lub skopiowanie i usunięcie. Usunięty plik trafia do kosza w chmurze, tak jak na stronie.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Pliki bez internetu</h2>'
+            . '<p>Plik albo cały folder, którego potrzebujesz bez zasięgu, oznacz w menu z trzema kropkami jako „Dostępne offline”. '
+            . 'Aplikacja pobierze go i będzie aktualizować, gdy telefon złapie internet. Nie oznaczaj tak dużych folderów, bo zajmą dużo miejsca w telefonie.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Udostępnianie</h2>'
+            . '<p>Wybierz „Udostępnij” w menu pliku. Zobaczysz te same możliwości co w panelu udostępniania na stronie: wyszukasz osobę albo grupę z Fundacji, '
+            . 'wyślesz zaproszenie na adres e-mail albo utworzysz link publiczny. Przy linku ustaw hasło i datę wygaśnięcia. Szczegóły opisuje artykuł '
+            . '<a href="' . $base . 'lista-plikow">Lista plików: przyciski, ikony i udostępnianie</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Automatyczne wysyłanie zdjęć</h2>'
+            . '<p>W ustawieniach aplikacji jest automatyczne wysyłanie zdjęć i filmów z telefonu do chmury. Domyślnie jest wyłączone. Włącz je tylko na telefonie służbowym '
+            . 'albo tylko dla folderu ze zdjęciami służbowymi. Prywatnych zdjęć nie wysyłaj do chmury Fundacji. Przy włączaniu warto zaznaczyć wysyłanie tylko przez Wi-Fi.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Pliki chmury w innych aplikacjach</h2>'
+            . '<p>Na iPhonie chmura pojawia się w aplikacji Pliki w części „Przeglądaj” jako Nextcloud. Jeśli jej tam nie ma, stuknij trzy kropki u góry, wybierz „Edytuj” i włącz Nextcloud. '
+            . 'Na Androidzie chmurę zobaczysz w oknie wyboru pliku, na przykład przy dodawaniu załącznika do wiadomości. Dzięki temu dołączysz plik z chmury bez pobierania go wcześniej.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Zabezpieczenie aplikacji</h2>'
+            . '<p>Aplikacja pamięta logowanie, więc każdy, kto weźmie Twój odblokowany telefon, zobaczy pliki Fundacji. W ustawieniach aplikacji włącz blokadę kodem '
+            . 'albo odciskiem palca czy Face ID. Aplikacja zapyta o nie przy każdym otwarciu.</p>'
+            . '<p>Aby odłączyć telefon od chmury, w ustawieniach aplikacji usuń konto albo wyloguj się. Usuwasz tylko połączenie w telefonie. '
+            . 'Konto i pliki w chmurze zostają.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Zgubiłeś telefon albo ktoś go ukradł? Od razu zmień hasło IAM na stronie <a href="' . $nh . '">Nowe hasło</a>. '
+            . 'Potem na stronie ' . $host . ' kliknij swoje inicjały, wybierz ustawienia osobiste, a w części o bezpieczeństwie usuń ten telefon z listy urządzeń. '
+            . 'Daj nam też znać w <a href="' . $hd . '">Helpdesku IT</a>.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Aplikacja się nie loguje albo pliki się nie wysyłają? Sprawdź, czy masz najnowszą wersję ze Sklepu Play albo App Store. '
+            . 'Jeśli to nie pomoże, <a href="' . $hd . '">napisz do Helpdesku IT</a> i podaj model telefonu.</p>'],
     ];
 }
 
