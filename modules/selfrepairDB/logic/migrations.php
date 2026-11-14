@@ -1362,4 +1362,15 @@ return [
         },
     ],
 
+    // „Koordynatorzy IT”: ściąga z linkami do instrukcji dla użytkowników i najczęstszymi pytaniami w artykule „Zarządzanie grupami w chmurze”
+    // (polecenie 2026-11-14: „dopisz koordynatorom”). itPortalCloudCoordCheatSheet w modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud_coord_cheatsheet' => [
+        'desc' => 'Portal Usług IT, „Koordynatorzy IT”: ściąga o chmurze',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudCoordApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

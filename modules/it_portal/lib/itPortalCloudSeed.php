@@ -855,6 +855,44 @@ function itPortalCloudPhoneBlocks(string $app): array {
     ];
 }
 
+/**
+ * Ściąga dla Koordynatorów IT w artykule „Zarządzanie grupami w chmurze” (polecenie 2026-11-14: „dopisz koordynatorom”, wybór: ściąga w ich artykule).
+ * Linki do instrukcji dla użytkowników i najczęstsze pytania z odpowiedzią i artykułem do wysłania.
+ */
+function itPortalCloudCoordCheatSheet(string $app): array {
+    $b = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    $a = static fn(string $slug, string $t): string => '<a href="' . $b . $slug . '">' . $t . '</a>';
+    $hd = $app . '/helpdesk/new.php';
+    return [
+        ['type' => 'text', 'html' => '<h2>Ściąga: instrukcje dla użytkowników</h2>'
+            . '<p>Gdy ktoś z Twojej grupy pyta o chmurę, wyślij mu link do właściwej instrukcji:</p><ul>'
+            . '<li>' . $a('nextcloud', 'Nextcloud: pierwsze kroki w chmurze plików') . '</li>'
+            . '<li>' . $a('logowanie', 'Logowanie do chmury plików') . '</li>'
+            . '<li>' . $a('pulpit', 'Ekran po zalogowaniu: Pulpit') . ' i ' . $a('menu-aplikacji', 'Menu aplikacji i poruszanie się po chmurze') . '</li>'
+            . '<li>' . $a('menu-plikow', 'Co jest co w menu bocznym aplikacji Pliki') . ' i ' . $a('lista-plikow', 'Lista plików: przyciski, ikony i udostępnianie') . '</li>'
+            . '<li>' . $a('grupy', 'Grupy w chmurze') . '</li>'
+            . '<li>' . $a('powiadomienia', 'Powiadomienia') . ', ' . $a('aktywnosc', 'Aktywność') . ' i ' . $a('ustawienia-osobiste', 'Ustawienia osobiste') . '</li>'
+            . '<li>' . $a('instalacja-aplikacji', 'Instalacja aplikacji') . ', ' . $a('aplikacja-komputer', 'Aplikacja na komputerze') . ' i ' . $a('aplikacja-telefon', 'Aplikacja na telefonie') . '</li>'
+            . '</ul>'],
+
+        ['type' => 'text', 'html' => '<h2>Ściąga: najczęstsze pytania</h2>'
+            . '<p>„Nie mogę się zalogować.” Na razie logowanie ma dwa kroki: strona Nextcloud, przycisk „Login with logowanie jednokrotne”, potem strona IAM. '
+            . 'W polu „Nazwa użytkownika” trzeba wpisać pełny adres e-mail. Zapomniane hasło zmienia się na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, '
+            . 'nigdy linkiem „Zapomniałeś hasła?” w chmurze. Wyślij: ' . $a('logowanie', 'Logowanie do chmury plików') . '.</p>'
+            . '<p>„Nie widzę folderu grupy.” Sprawdź u siebie okno „Problemy z przypisaniami” i przypisanie tej osoby w SZO. Po poprawce grupa zmieni się w ciągu 2 minut. '
+            . 'Folder pojawi się w „Wszystkich plikach”, a czasem najpierw w „Oczekujących udostępnieniach”. Wyślij: ' . $a('grupy', 'Grupy w chmurze') . '.</p>'
+            . '<p>„Osoba nie ma konta w chmurze.” Załóż je przyciskiem „Załóż konto” w oknie „Problemy z przypisaniami”. Login i hasło pójdą SMS-em.</p>'
+            . '<p>„Gdzie są moje pliki z OneDrive?” W folderze OneDrive na liście plików. SZO kopiuje je w tle, przy dużej ilości nawet kilka godzin. '
+            . 'Foldery „Google Drive” i „Kopia konta” to dane z dawnych serwerów. Wyślij: ' . $a('lista-plikow', 'Lista plików') . '.</p>'
+            . '<p>„Chmura działa wolno.” Tak, to serwer przedwdrożeniowy. Trzeba chwilę poczekać i odświeżyć stronę. Instalację produkcyjną uruchomimy na początku grudnia 2026 r.</p>'
+            . '<p>„W Aktywności jest wpis, że administrator zresetował mi hasło.” To normalne po zmianie hasła na stronie Nowe hasło albo po założeniu konta, bo hasło w chmurze ustawia SZO. '
+            . 'Jeśli osoba niczego nie zmieniała, niech od razu zmieni hasło i zgłosi to w Helpdesku. Wyślij: ' . $a('aktywnosc', 'Aktywność') . '.</p>'
+            . '<p>„Korzystam z czytnika ekranu.” Poleć aplikację Nextcloud na komputerze albo telefonie. Wyślij: ' . $a('aplikacja-komputer', 'Aplikacja na komputerze') . '.</p>'
+            . '<p>„Ktoś usunął albo zmienił plik.” W Aktywności widać, kto i kiedy to zrobił. Plik wraca z „Usuniętych plików”, a starsza wersja z zakładki Wersje.</p>'
+            . '<p>Z czymś, czego nie ma w ściądze, odeślij osobę do <a href="' . $hd . '">Helpdesku IT</a> albo zgłoś to sam.</p>'],
+    ];
+}
+
 /** Bloki artykułu „Grupy w chmurze” dla użytkowników: pracowników i wolontariuszy (grupy z SZO: modules/sso_logto/logic/CloudTeamsSync.php). */
 function itPortalCloudGroupsBlocks(string $app): array {
     $hd = $app . '/helpdesk/new.php';
@@ -951,6 +989,8 @@ function itPortalCloudCoordBlocks(string $app): array {
             . '<p>Ostrzeżenie, które Cię nie dotyczy, ukryjesz przyciskiem „Ignoruj”. „Ignoruj cały rodzaj” ukrywa wszystkie ostrzeżenia danego rodzaju, '
             . 'na przykład wszystkie umowy bez jednostki. Zignorowane widać na dole okna i stamtąd przywrócisz je przyciskiem „Przywróć”.</p>'
             . '<p>Lista zignorowanych jest wspólna dla wszystkich koordynatorów. SZO zapisuje w dzienniku, kto i kiedy coś zignorował albo przywrócił.</p>'],
+
+        ...itPortalCloudCoordCheatSheet($app),
 
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie zmieniaj składu grup <code>szo-</code> ręcznie w chmurze, bo SZO przywróci go przy następnym przebiegu. '
             . 'Nie usuwaj też tych grup: razem z grupą znikają jej udostępnienia. Użytkownikom wysyłaj artykuł <a href="' . $users . '">Grupy w chmurze</a>.</p>'],
