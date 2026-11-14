@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * cron/agents/sso_cloud_teams.php — zespoły i obszary robocze z modułu Zadań SZO jako grupy w chmurze plików
+ * cron/agents/sso_cloud_teams.php — grupy z SZO w chmurze plików: zespoły i obszary Zadań, Działania, jednostki organizacyjne
  * (modules/sso_logto/logic/CloudTeamsSync.php).
  *
  * Uruchamiany przez cron/dispatcher.php co 2 min (polecenie 2026-11-14 „co 2 minut”). Pomija cicho (exit 0), gdy chmura nie jest skonfigurowana.

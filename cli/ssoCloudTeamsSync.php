@@ -1,8 +1,9 @@
 <?php
 /**
- * cli/ssoCloudTeamsSync.php — zespoły i obszary robocze z modułu Zadań SZO jako grupy w chmurze plików (Nextcloud / ownCloud):
- * „szo-zespol-{id}” i „szo-obszar-{id}”. Ten sam przebieg co /ssoadmin#zespoly i agent CRON sso_cloud_teams (co 2 min).
- * Ruszamy tylko grupy z tymi przedrostkami; grupa wyłączonego albo usuniętego zespołu czy obszaru zostaje, ale bez członków.
+ * cli/ssoCloudTeamsSync.php — grupy z SZO w chmurze plików (Nextcloud / ownCloud): zespoły i obszary Zadań, Działania i jednostki
+ * organizacyjne („szo-zespol-”, „szo-obszar-”, „szo-dzialanie-”, „szo-jednostka-” + numer; logic/CloudTeamsSync.php). Ten sam przebieg
+ * co /ssoadmin#zespoly i agent CRON sso_cloud_teams (co 2 min). Ruszamy tylko grupy z tymi przedrostkami; grupa wyłączonej albo
+ * usuniętej pozycji zostaje, ale bez członków.
  *
  * Użycie:
  *   php cli/ssoCloudTeamsSync.php --dry-run   # pokaż, co się zmieni

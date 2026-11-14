@@ -2,33 +2,46 @@
 declare(strict_types=1);
 
 /**
- * modules/sso_logto/logic/CloudTeamsSync.php — zespoły i obszary robocze z modułu Zadań SZO jako grupy w chmurze plików
- * (Nextcloud / ownCloud). Polecenia 2026-11-13 „zespoły też pobierz z SZO” i 2026-11-14 „dodaj obszary robocze”.
+ * modules/sso_logto/logic/CloudTeamsSync.php — grupy z SZO w chmurze plików (Nextcloud / ownCloud). Polecenia: 2026-11-13
+ * „zespoły też pobierz z SZO”; 2026-11-14 „dodaj obszary robocze”, „zespoły to działania i grupy w umowach”, „obszar = grupa”,
+ * „jednostka organizacyjna w umowie”, „podziel to wszystko” (każdy rodzaj ma własne grupy).
  *
- * Zespół = task_teams + task_team_members (includes/tasks.php; NIE jednostki organizacyjne) → grupa „szo-zespol-{id}”,
- * nazwa wyświetlana = nazwa zespołu. Obszar roboczy = task_workspaces; członkowie to osoby dopisane do obszaru
- * (task_workspace_members) oraz członkowie aktywnych zespołów przypisanych do obszaru (task_workspace_teams) → grupa
- * „szo-obszar-{id}”, nazwa wyświetlana „Obszar: {nazwa}” (żeby w chmurze nie myliła się z zespołem o podobnej nazwie).
- * Konto w chmurze osoby: sso_accounts.cloud_uid (po user_id, a gdy brak, po adresie e-mail konta SZO). Zasady:
- *   • aktywny zespół / obszar → grupa z przedrostkiem; nazwa wyświetlana działa w Nextcloud (ownCloud zna tylko identyfikator);
- *   • w grupie są dokładnie członkowie z aktywnym kontem SZO i kontem w chmurze: brakujących dopisujemy, pozostałych wypisujemy;
- *   • wyłączony albo usunięty → grupa zostaje (udostępnienia dla grupy nie znikają), ale bez członków;
- *   • ruszamy WYŁĄCZNIE grupy z przedrostkami PREFIX i WS_PREFIX; inne grupy w chmurze zostają bez zmian.
- * Tryb podglądu ($dry) niczego nie zmienia. Wywołują: /ssoadmin#zespoly, cli/ssoCloudTeamsSync.php, agent CRON sso_cloud_teams (co 1 h).
+ * Rodzaje (przedrostek grupy → źródło w SZO, nazwa wyświetlana):
+ *   • szo-zespol-{id}    — zespół z Zadań (task_teams + task_team_members); nazwa zespołu;
+ *   • szo-obszar-{id}    — obszar roboczy Zadań: osoby dopisane (task_workspace_members) + członkowie aktywnych zespołów obszaru
+ *                          (task_workspace_teams); „Obszar: {nazwa}”;
+ *   • szo-dzialanie-{id} — Działanie (/dzialania, tabela actions): koordynator + osoby z aktywnych umów wolontariackich z tym
+ *                          działaniem (umowy_wolontariat.action_id); „Działanie: {nazwa}”; aktywne = nie zakończone i nie anulowane;
+ *   • szo-jednostka-{id} — jednostka organizacyjna (org_units): użytkownicy z users.org_unit_id, kierownik (supervisor_user_id)
+ *                          i osoby z aktywnych umów z tą jednostką (zlecenie, wolontariat, dzieło, praca); „Jednostka: {nazwa}”.
+ * Aktywna umowa = status z grupy „active” słownika statusów (contractStatusSqlList) i data zakończenia pusta albo nie minęła.
+ * Konto w chmurze osoby: sso_accounts.cloud_uid (po user_id, a gdy brak, po adresie e-mail z konta SZO albo z umowy). Zasady:
+ *   • w grupie są dokładnie osoby z kontem w chmurze (i aktywnym kontem SZO, gdy to użytkownik): brakujących dopisujemy, resztę wypisujemy;
+ *   • grupę zakładamy dopiero, gdy ktoś ma do niej trafić (bez pustych grup dla każdego działania);
+ *   • wyłączony albo usunięty → grupa zostaje (udostępnienia nie znikają), ale bez członków;
+ *   • ruszamy WYŁĄCZNIE grupy z przedrostkami z KINDS; inne grupy w chmurze zostają bez zmian.
+ * Tryb podglądu ($dry) niczego nie zmienia. Wywołują: /ssoadmin#zespoly, cli/ssoCloudTeamsSync.php, agent CRON sso_cloud_teams (co 2 min).
  */
 require_once dirname(__DIR__) . '/lib/SsoConfig.php';
 require_once dirname(__DIR__) . '/lib/CloudGroups.php';
 
 final class CloudTeamsSync
 {
-    public const PREFIX    = 'szo-zespol-';
-    public const WS_PREFIX = 'szo-obszar-';
+    public const PREFIX        = 'szo-zespol-';
+    public const WS_PREFIX     = 'szo-obszar-';
+    public const ACTION_PREFIX = 'szo-dzialanie-';
+    public const UNIT_PREFIX   = 'szo-jednostka-';
 
-    /** Rodzaje grup: przedrostek => [etykieta w wynikach, dopisek grupy bez odpowiednika w SZO]. */
+    /** Rodzaje grup: przedrostek => [etykieta w wynikach, dopisek grupy bez odpowiednika w SZO, przedrostek nazwy wyświetlanej]. */
     private const KINDS = [
-        self::PREFIX    => ['zespół', 'zespołu nie ma w SZO'],
-        self::WS_PREFIX => ['obszar', 'obszaru nie ma w SZO'],
+        self::PREFIX        => ['zespół', 'zespołu nie ma w SZO', ''],
+        self::WS_PREFIX     => ['obszar', 'obszaru nie ma w SZO', 'Obszar: '],
+        self::ACTION_PREFIX => ['działanie', 'działania nie ma w SZO', 'Działanie: '],
+        self::UNIT_PREFIX   => ['jednostka', 'jednostki nie ma w SZO', 'Jednostka: '],
     ];
+
+    /** Typy umów z jednostką organizacyjną (tabela umowy_{typ}, kolumna org_unit_id). */
+    private const UNIT_CONTRACTS = ['zlecenie', 'wolontariat', 'dzielo', 'praca'];
 
     public static function gid(int $teamId): string
     {
@@ -42,73 +55,111 @@ final class CloudTeamsSync
 
     /**
      * Zespoły z członkami: [team_id => ['id','name','display','active', 'want' => [cloud_uid => nazwa osoby], 'without' => [nazwy bez konta w chmurze]]].
-     * Wszystkie zespoły (także wyłączone); wyłączony ma pustą listę „want”.
+     * Wszystkie zespoły (także wyłączone); wyłączony ma pustą listę „want”. Ten sam kształt mają workspaces(), actions(), units().
      */
     public static function teams(): array
     {
-        try {
-            $rows = db_all("SELECT id, name, is_active FROM task_teams ORDER BY name");
-        } catch (\Throwable $e) {
-            return [];   // moduł Zadań bez tabel zespołów
-        }
-        $out = self::entities($rows, fn($name) => $name);
-        if (!$out) return [];
-        self::members($out, db_all("SELECT m.team_id AS eid, m.user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
-                                      FROM task_team_members m LEFT JOIN users u ON u.id = m.user_id"));
+        $out = self::entities("SELECT id, name, is_active AS active FROM task_teams ORDER BY name", self::PREFIX);
+        if ($out) self::members($out, ["SELECT m.team_id AS eid, m.user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
+                                          FROM task_team_members m LEFT JOIN users u ON u.id = m.user_id"]);
         return $out;
     }
 
-    /** Obszary robocze z członkami (osoby dopisane wprost + członkowie aktywnych zespołów obszaru); kształt jak teams(). */
+    /** Obszary robocze z członkami (osoby dopisane wprost + członkowie aktywnych zespołów obszaru). */
     public static function workspaces(): array
     {
-        try {
-            $rows = db_all("SELECT id, name, is_active FROM task_workspaces ORDER BY name");
-        } catch (\Throwable $e) {
-            return [];   // moduł Zadań bez obszarów
-        }
-        $out = self::entities($rows, fn($name) => 'Obszar: ' . $name);
-        if (!$out) return [];
-        $direct = "SELECT m.workspace_id AS eid, m.user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
-                     FROM task_workspace_members m LEFT JOIN users u ON u.id = m.user_id";
-        try {
-            $members = db_all($direct . "
-                UNION
-                SELECT wt.workspace_id AS eid, tm.user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
-                  FROM task_workspace_teams wt
-                  JOIN task_teams t ON t.id = wt.team_id AND t.is_active = 1
-                  JOIN task_team_members tm ON tm.team_id = wt.team_id
-                  LEFT JOIN users u ON u.id = tm.user_id");
-        } catch (\Throwable $e) {
-            $members = db_all($direct);   // bez tabel zespołów: tylko osoby dopisane do obszaru
-        }
-        self::members($out, $members);
+        $out = self::entities("SELECT id, name, is_active AS active FROM task_workspaces ORDER BY name", self::WS_PREFIX);
+        if ($out) self::members($out, [
+            "SELECT m.workspace_id AS eid, m.user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
+               FROM task_workspace_members m LEFT JOIN users u ON u.id = m.user_id",
+            "SELECT wt.workspace_id AS eid, tm.user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
+               FROM task_workspace_teams wt
+               JOIN task_teams t ON t.id = wt.team_id AND t.is_active = 1
+               JOIN task_team_members tm ON tm.team_id = wt.team_id
+               LEFT JOIN users u ON u.id = tm.user_id",
+        ]);
         return $out;
     }
 
-    /** Wiersze tabeli (id, name, is_active) → szkielety zespołów / obszarów; $display buduje nazwę wyświetlaną w chmurze. */
-    private static function entities(array $rows, callable $display): array
+    /** Działania (/dzialania): koordynator + osoby z aktywnych umów wolontariackich z tym działaniem. */
+    public static function actions(): array
     {
+        $out = self::entities("SELECT id, nazwa AS name, CASE WHEN status IN ('zakończone', 'anulowane') THEN 0 ELSE 1 END AS active
+                                 FROM actions ORDER BY nazwa", self::ACTION_PREFIX);
+        if ($out) self::members($out, [
+            "SELECT a.id AS eid, a.koordynator_id AS user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
+               FROM actions a JOIN users u ON u.id = a.koordynator_id",
+            ["SELECT action_id AS eid, 0 AS user_id, imie_nazwisko AS name, email, 1 AS is_active
+                FROM umowy_wolontariat WHERE COALESCE(action_id, 0) > 0 AND " . self::activeContract(), [date('Y-m-d')]],
+        ]);
+        return $out;
+    }
+
+    /** Jednostki organizacyjne: użytkownicy jednostki, kierownik i osoby z aktywnych umów z tą jednostką. */
+    public static function units(): array
+    {
+        $out = self::entities("SELECT id, name, CASE WHEN COALESCE(status, 'active') = 'active' THEN 1 ELSE 0 END AS active
+                                 FROM org_units ORDER BY name", self::UNIT_PREFIX);
+        if (!$out) return [];
+        $sql = [
+            "SELECT org_unit_id AS eid, id AS user_id, name, email, COALESCE(is_active, 1) AS is_active FROM users WHERE COALESCE(org_unit_id, 0) > 0",
+            "SELECT o.id AS eid, o.supervisor_user_id AS user_id, u.name, u.email, COALESCE(u.is_active, 1) AS is_active
+               FROM org_units o JOIN users u ON u.id = o.supervisor_user_id",
+        ];
+        foreach (self::UNIT_CONTRACTS as $t) {
+            $sql[] = ["SELECT org_unit_id AS eid, 0 AS user_id, imie_nazwisko AS name, email, 1 AS is_active
+                         FROM umowy_{$t} WHERE COALESCE(org_unit_id, 0) > 0 AND " . self::activeContract(), [date('Y-m-d')]];
+        }
+        self::members($out, $sql);
+        return $out;
+    }
+
+    /** Warunek SQL aktywnej umowy (status z grupy „active”, data zakończenia pusta albo nie minęła); parametr: dzisiejsza data. */
+    private static function activeContract(): string
+    {
+        $in = function_exists('contractStatusSqlList') ? contractStatusSqlList('active') : "'podpisana','w realizacji','aneks'";
+        return "status IN ($in) AND (COALESCE(data_zakonczenia, '') = '' OR data_zakonczenia >= ?)";
+    }
+
+    /** Wiersze (id, name, active) → szkielety; nazwa wyświetlana w chmurze = przedrostek rodzaju + nazwa. Brak tabeli = []. */
+    private static function entities(string $sql, string $prefix): array
+    {
+        try {
+            $rows = db_all($sql);
+        } catch (\Throwable $e) {
+            return [];   // moduł bez swoich tabel
+        }
         $out = [];
         foreach ($rows as $r) {
             $name = trim((string)$r['name']);
-            $out[(int)$r['id']] = ['id' => (int)$r['id'], 'name' => $name, 'display' => $name !== '' ? $display($name) : '',
-                                   'active' => (int)$r['is_active'] === 1, 'want' => [], 'without' => []];
+            $out[(int)$r['id']] = ['id' => (int)$r['id'], 'name' => $name, 'display' => $name !== '' ? self::KINDS[$prefix][2] . $name : '',
+                                   'active' => (int)$r['active'] === 1, 'want' => [], 'without' => []];
         }
         return $out;
     }
 
-    /** Członkowie (eid, user_id, name, email, is_active) → listy „want” i „without” aktywnych zespołów / obszarów. */
-    private static function members(array &$out, array $members): void
+    /**
+     * Członkowie (zapytania zwracające eid, user_id, name, email, is_active; element może być [sql, parametry]) → listy „want”
+     * i „without” aktywnych pozycji. Zapytanie, którego tabela albo kolumna nie istnieje, pomijamy.
+     */
+    private static function members(array &$out, array $queries): void
     {
-        foreach ($members as $m) {
-            $eid = (int)$m['eid'];
-            if (!isset($out[$eid]) || !$out[$eid]['active']) continue;
-            if ((int)$m['is_active'] !== 1) continue;   // konto SZO wyłączone: nie dopisujemy do grupy
-            $name = trim((string)($m['name'] ?? '')) ?: (string)($m['email'] ?? ('#' . $m['user_id']));
-            $uid = self::cloudUid((int)$m['user_id'], (string)($m['email'] ?? ''));
-            if ($uid === '') { if (!in_array($name, $out[$eid]['without'], true)) $out[$eid]['without'][] = $name; }
-            else $out[$eid]['want'][$uid] = $name;
+        foreach ($queries as $q) {
+            [$sql, $params] = is_array($q) ? $q : [$q, []];
+            try { $rows = db_all($sql, $params); } catch (\Throwable $e) { continue; }
+            foreach ($rows as $m) {
+                $eid = (int)$m['eid'];
+                if (!isset($out[$eid]) || !$out[$eid]['active']) continue;
+                if ((int)$m['is_active'] !== 1) continue;   // konto SZO wyłączone: nie dopisujemy do grupy
+                $name = trim((string)($m['name'] ?? '')) ?: (string)($m['email'] ?? ('#' . $m['user_id']));
+                $uid = self::cloudUid((int)$m['user_id'], (string)($m['email'] ?? ''));
+                if ($uid !== '') { $out[$eid]['want'][$uid] = $name; continue; }
+                if (!in_array($name, $out[$eid]['without'], true)) $out[$eid]['without'][] = $name;
+            }
         }
+        // osoba z kontem w chmurze z innego źródła (np. umowa i konto SZO) nie jest „bez konta”
+        foreach ($out as &$e) if ($e['without'] && $e['want']) $e['without'] = array_values(array_diff($e['without'], $e['want']));
+        unset($e);
     }
 
     /** Login osoby w chmurze ('' gdy nie ma konta w chmurze). */
@@ -126,9 +177,9 @@ final class CloudTeamsSync
     }
 
     /**
-     * Synchronizacja. Zwraca ['teams' => list<wiersz>, 'error' => ''], wiersz: kind ('zespół'|'obszar'), id, name, gid, active,
-     * group ('utworzona'|'jest'|'do utworzenia'|'—'), renamed (bool), added, removed (loginy w chmurze), without (osoby bez konta
-     * w chmurze), error. Najpierw zespoły, potem obszary.
+     * Synchronizacja. Zwraca ['teams' => list<wiersz>, 'error' => ''], wiersz: kind ('zespół'|'obszar'|'działanie'|'jednostka'), id, name,
+     * gid, active, group ('utworzona'|'jest'|'do utworzenia'|'—'), renamed (bool), added, removed (loginy w chmurze), without (osoby
+     * bez konta w chmurze), error. Pomija pozycje wyłączone bez grupy (nic do zrobienia).
      */
     public static function run(bool $dry = false, ?CloudGroups $groups = null): array
     {
@@ -136,43 +187,42 @@ final class CloudTeamsSync
         try {
             $groups = $groups ?? new CloudGroups(SsoConfig::cloud());
             $existing = [];
-            foreach (self::KINDS as $prefix => $_) $existing[$prefix] = $groups->listByPrefix($prefix);   // obie listy przed pierwszą zmianą
+            foreach (self::KINDS as $prefix => $_) $existing[$prefix] = $groups->listByPrefix($prefix);   // wszystkie listy przed pierwszą zmianą
         } catch (\Throwable $e) {
             $res['error'] = $e->getMessage();
             return $res;
         }
-        $sources = [self::PREFIX => self::teams(), self::WS_PREFIX => self::workspaces()];
-        foreach (self::KINDS as $prefix => [$kind, $orphan]) {
-            array_push($res['teams'], ...self::syncKind($groups, $prefix, $kind, $orphan, $sources[$prefix], $existing[$prefix], $dry));
+        $sources = [self::PREFIX => self::teams(), self::WS_PREFIX => self::workspaces(), self::ACTION_PREFIX => self::actions(), self::UNIT_PREFIX => self::units()];
+        foreach (self::KINDS as $prefix => [$kind, $orphan, $label]) {
+            array_push($res['teams'], ...self::syncKind($groups, $prefix, $kind, $orphan, $label, $sources[$prefix], $existing[$prefix], $dry));
         }
         if (!$dry) self::audit($res);
         return $res;
     }
 
-    /** Jeden rodzaj grup (zespoły albo obszary): zakładanie, nazwy, członkowie, opróżnianie grup bez odpowiednika w SZO. */
-    private static function syncKind(CloudGroups $groups, string $prefix, string $kind, string $orphan, array $items, array $existing, bool $dry): array
+    /** Jeden rodzaj grup: zakładanie, nazwy, członkowie, opróżnianie grup bez odpowiednika w SZO. */
+    private static function syncKind(CloudGroups $groups, string $prefix, string $kind, string $orphan, string $label, array $items, array $existing, bool $dry): array
     {
         $rows = [];
         foreach ($items as $t) {
             $gid = $prefix . $t['id'];
+            $has = array_key_exists($gid, $existing);
+            if (!$has && !$t['active']) continue;   // wyłączony bez grupy: nic do zrobienia
             $row = ['kind' => $kind, 'id' => $t['id'], 'name' => $t['name'], 'gid' => $gid, 'active' => $t['active'], 'group' => '—', 'renamed' => false,
                     'added' => [], 'removed' => [], 'without' => $t['without'], 'error' => ''];
             try {
-                $has = array_key_exists($gid, $existing);
-                if ($t['active'] && !$has) {
+                if (!$has) {
+                    if (!$t['want']) { $rows[] = $row; continue; }   // nikt nie ma konta w chmurze: grupę założymy przy pierwszej osobie
                     $row['group'] = $dry ? 'do utworzenia' : 'utworzona';
                     if (!$dry) $groups->create($gid, $t['display'] !== '' ? $t['display'] : $gid);
                     $current = [];
-                } elseif ($has) {
+                } else {
                     $row['group'] = 'jest';
                     // nazwa zmieniona w SZO albo grupa bez nazwy wyświetlanej; ownCloud jej nie zna (rename() zwraca false)
                     if ($t['active'] && $t['display'] !== '' && $existing[$gid] !== $t['display']) {
                         $row['renamed'] = $dry ? true : $groups->rename($gid, $t['display']);
                     }
                     $current = $groups->members($gid);
-                } else {
-                    $rows[] = $row;   // wyłączony bez grupy: nic do zrobienia
-                    continue;
                 }
                 $want = $t['active'] ? array_keys($t['want']) : [];
                 foreach (array_diff($want, $current) as $uid) { if (!$dry) $groups->addMember((string)$uid, $gid); $row['added'][] = (string)$uid; }
@@ -184,9 +234,9 @@ final class CloudTeamsSync
             unset($existing[$gid]);
         }
 
-        // Grupy z przedrostkiem bez odpowiednika w SZO (zespół / obszar usunięty): opróżniamy, grupę zostawiamy.
+        // Grupy z przedrostkiem bez odpowiednika w SZO (usunięte w SZO): opróżniamy, grupę zostawiamy.
         foreach ($existing as $gid => $display) {
-            if (str_starts_with($display, 'Obszar: ')) $display = substr($display, strlen('Obszar: '));   // rodzaj pokazuje osobna etykieta
+            if ($label !== '' && str_starts_with($display, $label)) $display = substr($display, strlen($label));   // rodzaj pokazuje osobna etykieta
             $row = ['kind' => $kind, 'id' => (int)substr($gid, strlen($prefix)), 'name' => $display . ' (' . $orphan . ')', 'gid' => $gid, 'active' => false,
                     'group' => 'jest', 'renamed' => false, 'added' => [], 'removed' => [], 'without' => [], 'error' => ''];
             try {
@@ -197,7 +247,7 @@ final class CloudTeamsSync
         return $rows;
     }
 
-    /** Krótkie podsumowanie do dziennika CRON i komunikatów: liczby zespołów, obszarów, nowych grup, dopisanych, wypisanych, błędów. */
+    /** Krótkie podsumowanie do dziennika CRON i komunikatów: liczby pozycji każdego rodzaju, nowych grup, dopisanych, wypisanych, błędów. */
     public static function summary(array $res): string
     {
         if ($res['error'] !== '') return 'błąd: ' . $res['error'];
@@ -206,8 +256,8 @@ final class CloudTeamsSync
         $add = array_sum(array_map(fn($r) => count($r['added']), $res['teams']));
         $rem = array_sum(array_map(fn($r) => count($r['removed']), $res['teams']));
         $err = count(array_filter($res['teams'], fn($r) => $r['error'] !== ''));
-        return 'zespołów: ' . $count('zespół') . ', obszarów: ' . $count('obszar') . ', nowe grupy: ' . $made . ', dopisani: ' . $add
-             . ', wypisani: ' . $rem . ($err ? ', błędy: ' . $err : '');
+        return 'zespołów: ' . $count('zespół') . ', obszarów: ' . $count('obszar') . ', działań: ' . $count('działanie') . ', jednostek: ' . $count('jednostka')
+             . ', nowe grupy: ' . $made . ', dopisani: ' . $add . ', wypisani: ' . $rem . ($err ? ', błędy: ' . $err : '');
     }
 
     private static function audit(array $res): void
@@ -219,6 +269,6 @@ final class CloudTeamsSync
             audit_log('sso.cloud_teams_sync', ['podsumowanie' => self::summary($res), 'zmiany' => array_map(fn($r) => [
                 'rodzaj' => $r['kind'], 'nazwa' => $r['name'], 'grupa' => $r['gid'], 'stan' => $r['group'], 'dopisani' => $r['added'], 'wypisani' => $r['removed'], 'blad' => $r['error'],
             ], $changed)]);
-        } catch (\Throwable $e) { error_log('[sso] audit zespołów i obszarów: ' . $e->getMessage()); }
+        } catch (\Throwable $e) { error_log('[sso] audit grup w chmurze: ' . $e->getMessage()); }
     }
 }
