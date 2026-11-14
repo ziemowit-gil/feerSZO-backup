@@ -1723,4 +1723,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuł „Wiadomości nie dochodzą: co sprawdzić” i instrukcje konfiguracji dostawcy w „poczta-w-telefonie” (polecenie 2026-11-14
+    // z linkami do kategorii pomocy dhosting: konfiguracja programów pocztowych, problemy z odbiorem wiadomości).
+    '2026-11_it_portal_dpoczta_delivery_help' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: problemy z odbiorem i instrukcje dostawcy',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

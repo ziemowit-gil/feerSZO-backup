@@ -97,7 +97,7 @@ function itPortalDpocztaMenuGroups(): array {
         'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'ustawienia-poczty' => [$g1, 12],
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
-        'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43],
+        'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
         'poczta-w-telefonie' => [$g5, 50], 'kontakty-import-eksport' => [$g5, 51], 'kalendarz' => [$g5, 52], 'folder-wyslane' => [$g5, 53],
         'duze-zalaczniki' => [$g6, 60], 'transfernow-wetransfer' => [$g6, 61],
     ];
@@ -291,6 +291,12 @@ function itPortalDpocztaArticles(string $app): array {
                 . '</tbody></table>'],
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Wybieraj IMAP. Wiadomości zostają wtedy na serwerze i widzisz je tak samo w telefonie, na komputerze i w przeglądarce.</p>'],
             ['type' => 'text', 'html' => '<p>POP3 (<code>pop3.dpoczta.pl</code>, port 995, SSL/TLS) pobiera wiadomości na jedno urządzenie i zwykle usuwa je z serwera. Jeśli to urządzenie się zepsuje, wiadomości przepadną.</p>'],
+            ['type' => 'text', 'html' => '<h2>Instrukcje dostawcy ze zrzutami</h2>'
+                . '<p>Dostawca poczty ma instrukcje krok po kroku dla popularnych programów. Wpisuj w nich dane z tabeli powyżej:</p><ul>'
+                . '<li><a href="' . $kb . 'jak-skonfigurowac-poczte-w-outlook-365/">Outlook z Microsoft 365</a></li>'
+                . '<li><a href="' . $kb . 'konfiguracja-poczty-na-ios-11-iphone/">iPhone</a></li>'
+                . '<li><a href="https://dhosting.pl/pomoc/kategoria/poczta/konfiguracja-programow-pocztowych/">wszystkie instrukcje konfiguracji programów pocztowych</a></li></ul>'
+                . '<p>Po dodaniu skrzynki sprawdź, gdzie program zapisuje wysłane wiadomości, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/folder-wyslane">Folder „Wysłane”</a>.</p>'],
         ], true],
 
         'weryfikacja-dwuetapowa' => ['Weryfikacja dwuetapowa (2FA) w poczcie', '2fa, weryfikacja dwuetapowa, uwierzytelnianie dwuetapowe, uwierzytelnienie, bezpieczne konto, włamanie, authenticator, kod, bezpieczeństwo, kody zapasowe', [
@@ -356,6 +362,36 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<a href="' . $kb . 'definiowanie-folderu-na-wiadomosci-wyslane-w-programie-pocztowym-mail-na-komputerach-apple/">folder wysłanych w Mail na komputerach Apple</a>.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Jak w ogóle dodać skrzynkę do programu albo telefonu, opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/poczta-w-telefonie">Poczta w telefonie, Outlooku i Thunderbirdzie</a>. '
                 . 'Więcej porad dostawcy znajdziesz w <a href="https://dhosting.pl/pomoc/">pomocy dhosting.pl</a>, na przykład <a href="' . $kb . 'dpoczta-pl-najwazniejsze-informacje/">dPoczta.pl: najważniejsze informacje</a>.</p>'],
+        ], false],
+
+        'problemy-z-odbiorem' => ['Wiadomości nie dochodzą: co sprawdzić', 'nie dochodzą, nie przychodzą, nie dostaję wiadomości, brak wiadomości, zginęła wiadomość, opóźnienie, zwrotka, błąd dostarczenia, kod błędu smtp, outlook 0x800ccc0e, 0x800ccc18, 0x8004210a, 0x800c0133, 0x800ccc15, greylist, pełna skrzynka, wyszukiwanie', [
+            ['type' => 'text', 'html' => '<p>Ktoś mówi, że wysłał Ci wiadomość, a jej nie ma? Zanim napiszesz do Helpdesku, sprawdź po kolei poniższe miejsca. Zwykle przyczyna jest w jednym z nich.</p>'],
+            ['type' => 'wizard', 'title' => 'Lista do sprawdzenia', 'intro' => '', 'steps' => [
+                $step('Folder Spam', '<p>Otwórz folder Spam. Jeśli wiadomość tam jest, otwórz ją i oznacz jako „Nie spam”, a nadawcę dodaj do zaufanych w CleanBox.</p>'),
+                $step('Filtry', '<p>W ustawieniach otwórz „Filtry”. Sprawdź, czy któryś filtr nie przenosi takich wiadomości do innego folderu albo ich nie usuwa.</p>'),
+                $step('Zablokowane adresy', '<p>W „CleanBox”, w „Regułach adresów”, otwórz zakładkę „Zablokowane adresy”. Wiadomości od zablokowanych nadawców nie trafiają nawet do Spamu.</p>'),
+                $step('Miejsce w skrzynce', '<p>Spójrz na pasek zajętego miejsca na dole listy folderów. Gdy skrzynka jest pełna, nowe wiadomości są odrzucane. Opróżnij Kosz i Spam.</p>'),
+                $step('Wyszukiwarka', '<p>Poszukaj wiadomości po nadawcy w polu „Szukaj…”. Strzałką obok pola wybierz szukanie we wszystkich folderach, a nie tylko w bieżącym.</p>'),
+                $step('Opóźnienie od nowego nadawcy', '<p>Pierwsza wiadomość od kogoś, kto nigdy do Ciebie nie pisał, może przyjść z opóźnieniem przez filtr GreyList. Odczekaj chwilę, nawet do kilku godzin.</p>'),
+                $step('Zwrotka u nadawcy', '<p>Poproś nadawcę, żeby sprawdził, czy nie dostał wiadomości zwrotnej o niedostarczeniu. Jest w niej kod błędu, który pomoże nam znaleźć przyczynę.</p>'),
+            ]],
+            ['type' => 'text', 'html' => '<h2>Błędy w programie Outlook</h2>'
+                . '<p>Komunikaty z kodami w rodzaju 0x800CCC0E albo 0x8004210A zwykle znaczą, że program nie może połączyć się z serwerem. Najczęściej przyczyną jest złe hasło, '
+                . 'zły adres serwera albo port. Porównaj ustawienia z instrukcją <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/poczta-w-telefonie">Poczta w telefonie, Outlooku i Thunderbirdzie</a>. '
+                . 'Opisy poszczególnych kodów są w pomocy dostawcy: '
+                . '<a href="' . $kb . 'blad-0x800ccc0e-w-aplikacji-outlook/">0x800CCC0E</a>, '
+                . '<a href="' . $kb . 'blad-0x800ccc18-w-aplikacji-outlook/">0x800CCC18</a>, '
+                . '<a href="' . $kb . 'blad-0x8004210a-w-aplikacji-outlook/">0x8004210A</a>, '
+                . '<a href="' . $kb . 'blad-0x800c0133-w-aplikacji-outlook/">0x800C0133</a> i '
+                . '<a href="' . $kb . 'blad-0x800ccc15-w-aplikacji-outlook/">0x800CCC15</a>.</p>'],
+            ['type' => 'text', 'html' => '<h2>Więcej w pomocy dostawcy</h2><ul>'
+                . '<li><a href="' . $kb . 'mozliwe-problemy-z-odbiorem-wiadomosci-e-mail/">Możliwe problemy z odbiorem wiadomości e-mail</a></li>'
+                . '<li><a href="' . $kb . 'wiadomosci-nagle-przestaly-do-mnie-docierac/">Wiadomości nagle przestały do mnie docierać</a></li>'
+                . '<li><a href="' . $kb . 'mam-problem-z-wyszukiwaniem-wiadomosci/">Mam problem z wyszukiwaniem wiadomości</a></li>'
+                . '<li><a href="' . $kb . 'jak-dziala-greylisting-ochrona-antyspamowa/">Jak działa greylisting</a></li>'
+                . '<li><a href="' . $kb . 'liczbowe-kody-bledow-smtp/">Kody błędów SMTP z wyjaśnieniem</a></li>'
+                . '<li><a href="https://dhosting.pl/pomoc/kategoria/poczta/problemy-z-odbiorem-wiadomosci/">wszystkie artykuły o problemach z odbiorem</a></li></ul>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nic nie pomogło? <a href="' . $hd . '">Napisz do Helpdesku IT</a>. Podaj adres nadawcy, przybliżoną datę i godzinę wysłania i, jeśli masz, treść zwrotki z kodem błędu.</p>'],
         ], false],
 
         'generator-stopki' => ['Obowiązkowa stopka: jak ją wygenerować', 'stopka, podpis, generator stopki, obowiązkowa stopka, wzór stopki, dane organizacji, nip, krs, social, facebook, instagram, linkedin', [
