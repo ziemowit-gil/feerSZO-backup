@@ -211,8 +211,8 @@ check($e2->run('test')['mode'] === 'off', 'tryb off: przebieg nic nie robi');
 echo "Teksty\n";
 $all = LoginSentryTemplates::ANNOUNCE_BODY . LoginSentryTemplates::SUSPEND_BODY . LoginSentryTemplates::WARN_BODY . LoginSentryTemplates::ESCALATE_INTRO;
 check(!preg_match('/[—–]/u', $all), 'bez myślników (humanizer)');
-check(str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'https://feer.org.pl/uslugi-it') && str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'Mietek, Bronek i Gosposia')
-      && str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'Cloudflare'), 'ogłoszenie: link, Mietek/Bronek/Gosposia, Cloudflare');
+check(str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'https://feer.org.pl/uslugi-it') && str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'Mietek i Gosposia') && !str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'Bronek')
+      && str_contains(LoginSentryTemplates::ANNOUNCE_BODY, 'Cloudflare'), 'ogłoszenie: link, Mietek i Gosposia, bez Bronka, Cloudflare');
 check(str_contains(LoginSentryTemplates::ANNOUNCE_BODY, "Pozdrawiamy\nZespół IT Fundacji FEER") && !str_contains($all, 'Ziemowit'), 'podpis zespołu, bez imienia i nazwiska');
 $h = LoginSentryTemplates::html("Test <b>x</b>\n\nLista:\n- a & b\n- c");
 check(str_contains($h, '&lt;b&gt;') && str_contains($h, '<li>a &amp; b</li>'), 'HTML escapowany, listy');
