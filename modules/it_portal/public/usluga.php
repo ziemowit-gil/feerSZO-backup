@@ -17,7 +17,7 @@ if (!defined('ITP_SHORT_HOST')) define('ITP_SHORT_HOST', 'it.feer.org.pl');
 $cat = itPortalCategoryBySlug((string)($_GET['k'] ?? ''));
 if (!$cat) itPortalNotFound('Ta usługa nie istnieje albo została ukryta.');
 
-$articles = itPortalArticles((int)$cat['id']);
+$articles = itPortalHideLocked(itPortalArticles((int)$cat['id']));   // osoba bez roli IT nie widzi tytułów artykułów tylko dla IT
 $artSlug  = (string)($_GET['a'] ?? '');
 $art      = null;
 if ($artSlug !== '') {
@@ -28,7 +28,8 @@ if ($artSlug !== '') {
     exit;
 }
 if ($art) itPortalArticleTouch((int)$art['id']);
-// Artykuł tylko dla IT (oznaczony albo w usłudze z samą grupą IT): osoba bez roli IT widzi tytuł i komunikat zamiast treści (tytuł zostaje w menu, żeby było wiadomo, że taki jest).
+// Artykuł tylko dla IT (oznaczony albo w usłudze z samą grupą IT): osoba bez roli IT nie ma go w menu ani w „Zobacz też” (2026-11-15),
+// a po wejściu wprost na adres widzi tytuł i komunikat zamiast treści.
 $itLocked = $art && itPortalArticleLocked($art);
 
 $audiences = itPortalAudiences(true);

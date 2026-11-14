@@ -409,6 +409,13 @@ function itPortalArticleLocked(array $art): bool {
     return itPortalArticleIsItOnly($art) && !itPortalViewerIsIt();
 }
 
+/** Lista artykułów bez tych, których treść jest przed oglądającym zablokowana (menu usługi): osoba bez roli IT nie widzi nawet tytułów
+ *  artykułów tylko dla IT. Polecenie 2026-11-15 „Ukryj tytuły”. Wejście wprost na adres takiego artykułu dalej pokazuje komunikat. */
+function itPortalHideLocked(array $rows): array {
+    if (itPortalViewerIsIt()) return $rows;
+    return array_values(array_filter($rows, fn(array $a) => !itPortalArticleLocked($a)));
+}
+
 /** Warunek SQL ukrywający artykuły tylko dla IT przed osobami bez roli IT (wyszukiwarka, popularne, Asystent, Helpdesk). */
 function itPortalItOnlySql(string $alias = 'a'): string {
     static $has = null;   // kolumnę dodaje itPortalMigrate(); Asystent i Helpdesk mogą tu trafić przed nią
@@ -427,13 +434,13 @@ function itPortalArticleTouch(int $id): void {
     db_exec("UPDATE itp_articles SET views = views + 1 WHERE id = ?", [$id]);
 }
 
-/** Artykuły o podanych id (tylko opublikowane, w aktywnych usługach), w kolejności listy. */
+/** Artykuły o podanych id (tylko opublikowane, w aktywnych usługach), w kolejności listy. Bez artykułów tylko dla IT, gdy oglądający nie jest z IT. */
 function itPortalArticlesByIds(array $ids): array {
     $ids = itPortalIds($ids);
     if (!$ids) return [];
     $rows = db_all("SELECT a.id, a.slug, a.title, c.slug AS category_slug, c.name AS category_name
                     FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id
-                    WHERE a.is_published = 1 AND c.is_active = 1 AND a.id IN (" . implode(',', $ids) . ")");
+                    WHERE a.is_published = 1 AND c.is_active = 1 AND a.id IN (" . implode(',', $ids) . ")" . itPortalItOnlySql('a'));
     $byId = array_column($rows, null, 'id');
     return array_values(array_filter(array_map(fn($i) => $byId[$i] ?? null, $ids)));
 }
