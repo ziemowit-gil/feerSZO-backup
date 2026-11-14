@@ -13,7 +13,7 @@ $grRes = SsoController::takeResult('grupy-konto');
 <div class="sso-wrap">
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h1 class="h4 mb-0"><i class="bi bi-people" aria-hidden="true"></i> Grupy w chmurze</h1>
-  <a href="<?= h($base) ?>/uslugi-it/uslugi/chmura-plikow/grupy-koordynatorzy-it" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-question-circle" aria-hidden="true"></i> Pomoc dla Koordynatorów IT</a>
+  <a href="<?= h($base) ?>/uslugi-it/uslugi/koordynatorzy-it/grupy-w-chmurze" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-question-circle" aria-hidden="true"></i> Pomoc dla Koordynatorów IT</a>
   <?php if (is_admin()): ?>
     <a href="<?= h(route('sso.index')) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-gear" aria-hidden="true"></i> Ustawienia logowania i chmury</a>
   <?php endif; ?>

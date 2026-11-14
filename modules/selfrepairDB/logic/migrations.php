@@ -1035,4 +1035,24 @@ return [
         },
     ],
 
+    // Pomoc o chmurze (polecenia 2026-11-14): ramka „instalacja wdrożeniowa, produkcyjna na początku grudnia” we wstępie „Chmury plików”
+    // i w jej artykułach; „Grupy w chmurze” przepisany dla użytkowników (pracownicy i wolontariusze); nowa usługa „Koordynatorzy IT”
+    // (odbiorcy: IT) z artykułem „Zarządzanie grupami w chmurze”, powiązanym z artykułem dla użytkowników. modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud_groups_split' => [
+        'desc' => 'Portal Usług IT: chmura wdrożeniowa (produkcja w grudniu), grupy osobno dla użytkowników i dla Koordynatorów IT',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);   // wstęp + wszystkie artykuły „Chmury plików” (powiązania, przypięcie, kolejność zostają)
+            itPortalCloudCoordApply(ITP_SZO_URL);
+            $q = "SELECT a.id, a.related FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = ? AND a.slug = ?";
+            $coord = db_one($q, ['koordynatorzy-it', 'grupy-w-chmurze']);
+            $users = db_one($q, ['chmura-plikow', 'grupy']);
+            if ($coord && $users) {   // koordynator → artykuł dla użytkowników (w drugą stronę nie: użytkownik nie potrzebuje instrukcji koordynatora)
+                $ids = itPortalIds($coord['related']);
+                if (!in_array((int)$users['id'], $ids, true)) { $ids[] = (int)$users['id']; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), (int)$coord['id']]); }
+            }
+        },
+    ],
+
 ];
