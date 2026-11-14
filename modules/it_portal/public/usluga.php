@@ -7,8 +7,12 @@
  * Układ: po lewej artykuły usługi na osi, w środku treść, po prawej ikona usługi,
  * „Dostępność usługi” (grupy odbiorców) i „Powiązane tematy”.
  * Usługa bez wstępu → od razu pierwszy artykuł.
+ * Krótki adres (2026-11-14, polecenie „dodaj krótki adres it.feer.org.pl do artykułów”): it.feer.org.pl/X przekierowuje
+ * na szo.feer.org.pl/uslugi-it/X (Worker Cloudflare „przekierowanie-it”, repozytorium feer-dns), więc w prawej kolumnie
+ * jest it.feer.org.pl/uslugi/{usługa}[/{artykuł}] z przyciskiem kopiowania.
  */
 require_once __DIR__ . '/_layout.php';
+if (!defined('ITP_SHORT_HOST')) define('ITP_SHORT_HOST', 'it.feer.org.pl');
 
 $cat = itPortalCategoryBySlug((string)($_GET['k'] ?? ''));
 if (!$cat) itPortalNotFound('Ta usługa nie istnieje albo została ukryta.');
@@ -30,6 +34,8 @@ $itLocked = $art && itPortalArticleLocked($art);
 $audiences = itPortalAudiences(true);
 $availIds  = itPortalIds($cat['audiences']);
 $related   = itPortalArticlesByIds(itPortalIds($art ? $art['related'] : $cat['related']));
+$shortPath = 'uslugi/' . rawurlencode($cat['slug']) . ($art ? '/' . rawurlencode($art['slug']) : '');
+$shortUrl  = 'https://' . ITP_SHORT_HOST . '/' . $shortPath;
 
 itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $itLocked ? '' : ($art ? $art['body_plain'] : $cat['intro_plain']));
 ?>
@@ -92,6 +98,12 @@ itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $itLocked ? '' 
         </ul>
       </section>
     <?php endif; ?>
+    <section class="itp-short" aria-labelledby="itp-short-h">
+      <h2 class="itp-h" id="itp-short-h">Krótki adres</h2>
+      <p class="itp-short__url"><a href="<?= h($shortUrl) ?>"><?= h(ITP_SHORT_HOST . '/' . $shortPath) ?></a></p>
+      <button type="button" class="itp-short__copy" data-copy="<?= h($shortUrl) ?>" hidden>Kopiuj adres</button>
+      <span class="itp-sr" role="status" aria-live="polite" id="itp-short-st"></span>
+    </section>
     <?php if ($related): ?>
       <section class="itp-related" aria-labelledby="itp-rel-h">
         <h2 class="itp-h" id="itp-rel-h">Zobacz też</h2>
@@ -104,5 +116,21 @@ itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $itLocked ? '' 
     <?php endif; ?>
   </aside>
 </div>
+<script>
+(function () {
+  var b = document.querySelector('.itp-short__copy'), st = document.getElementById('itp-short-st');
+  if (!b || !navigator.clipboard || !window.isSecureContext) return;   // bez schowka zostaje sam link do zaznaczenia
+  b.hidden = false;
+  b.addEventListener('click', function () {
+    navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () {
+      b.textContent = 'Skopiowano';
+      st.textContent = 'Krótki adres skopiowany do schowka.';
+      setTimeout(function () { b.textContent = 'Kopiuj adres'; }, 2500);
+    }, function () {
+      st.textContent = 'Nie udało się skopiować. Zaznacz adres i skopiuj go ręcznie.';
+    });
+  });
+})();
+</script>
 <?php
 itPortalPageEnd();

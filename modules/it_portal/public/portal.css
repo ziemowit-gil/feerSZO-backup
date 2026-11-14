@@ -169,6 +169,13 @@ a:hover { text-decoration: underline; }
 .itp-pic { background: var(--itp-accent-soft); border-radius: var(--itp-r); display: flex; align-items: center; justify-content: center; padding: 26px; }
 .itp-pic svg { width: 96px; height: 96px; color: var(--itp-accent); }
 .itp-avail, .itp-related { background: var(--itp-sub); border-radius: var(--itp-r); padding: 14px 16px; }
+/* Krótki adres it.feer.org.pl (2026-11-14) */
+.itp-short { background: var(--itp-sub); border-radius: var(--itp-r); padding: 14px 16px; }
+.itp-short__url { margin: 0 0 10px; font-size: .95rem; overflow-wrap: anywhere; }
+.itp-short__copy { font: inherit; font-size: .88rem; padding: 6px 12px; min-height: 36px; border: 1px solid var(--itp-accent-dark); border-radius: var(--itp-r);
+  background: #fff; color: var(--itp-accent-dark); cursor: pointer; }
+.itp-short__copy:hover { background: var(--itp-accent-soft); }
+@media (forced-colors: active) { .itp-short__copy { border-color: ButtonText; } }
 .itp-avail__list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; padding: 0; }
 .itp-avail__list li { display: flex; align-items: center; gap: 8px; font-size: .92rem; }
 .itp-avail__list svg { width: 28px; height: 28px; flex: none; }
