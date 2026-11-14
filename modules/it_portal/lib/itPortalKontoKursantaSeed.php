@@ -223,3 +223,47 @@ function itPortalKontoKursantaArticles(string $app): array {
         ], false],
     ];
 }
+
+/**
+ * Krótki artykuł „Logowanie do skrzynki fundacja@stud.feer.org.pl” w usłudze „Moja poczta” (odbiorcy kadry, nie kursanci;
+ * polecenie 2026-11-14: „zrób małą instrukcję zaloguj się jako fundacja@stud.feer.org.pl”). Hasła w artykule celowo nie ma —
+ * przekazuje je kierownik. Pomija, gdy nie ma usługi „Moja poczta”. @return array{status:string, article:string}
+ */
+function itPortalFundacjaStudApply(string $app, bool $dryRun = false): array {
+    require_once dirname(__DIR__) . '/logic/itPortal.php';
+    itPortalMigrate();
+    $app = rtrim($app, '/');
+    $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'moja-poczta'");
+    if (!$cat) return ['status' => 'brak usługi „Moja poczta” — pominięto', 'article' => ''];
+    $old = db_one("SELECT * FROM itp_articles WHERE category_id = ? AND slug = 'fundacja-stud'", [(int)$cat['id']]);
+    $title = 'Logowanie do skrzynki fundacja@stud.feer.org.pl';
+    $rep = ['status' => $old ? 'nadpisany' : 'utworzony', 'article' => "moja-poczta/fundacja-stud — {$title}"];
+    if ($dryRun) return $rep;
+    $web = 'https://titan.sdata.net.pl/';
+    $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
+    $blocks = [
+        ['type' => 'text', 'html' => '<p>Skrzynka <code>fundacja@stud.feer.org.pl</code> to konto Fundacji w domenie poczty kursantów. '
+            . 'Działa na tym samym odrębnym serwerze co poczta kursantów (sdata.net.pl), a nie na dpoczta.pl.</p>'],
+        ['type' => 'wizard', 'title' => 'Zaloguj się jako fundacja@stud.feer.org.pl', 'intro' => '', 'steps' => [
+            $step('Otwórz pocztę', '<p>W przeglądarce wejdź na <a href="' . $web . '">https://titan.sdata.net.pl</a>.</p>'),
+            $step('Wpisz login', '<p>Jako nazwę użytkownika wpisz pełny adres: <code>fundacja@stud.feer.org.pl</code>.</p>'),
+            $step('Wpisz hasło', '<p>Hasło przekazuje kierownik. Nie wysyłamy go e-mailem i nie zapisujemy w Pomocy IT.</p>'),
+            $step('Przy pierwszym logowaniu zmień hasło', '<p>Jeśli to hasło startowe, zmień je w <strong>Preferencjach</strong> (Właściwościach), '
+                . 'w sekcji Ogólne, przyciskiem <strong>Zmień hasło</strong>. Nowe hasło przekaż kierownikowi bezpiecznym kanałem, nie e-mailem.</p>'),
+        ]],
+        ['type' => 'text', 'html' => '<h2>W programie pocztowym albo w telefonie</h2>'
+            . '<p>Serwer poczty przychodzącej i wychodzącej: <code>titan.sdata.net.pl</code>. IMAP z szyfrowaniem SSL/TLS na porcie 993, '
+            . 'SMTP z szyfrowaniem SSL/TLS na porcie 465. Nazwa użytkownika to pełny adres <code>fundacja@stud.feer.org.pl</code>.</p>'],
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>To konto wspólne. Nie zapisuj hasła w przeglądarce na cudzym komputerze i po pracy wyloguj się. '
+            . 'Konta w domenie <code>@stud.feer.org.pl</code> zakłada zewnętrzny administrator na polecenie kierownika.</p>'],
+    ];
+    itPortalArticleSave([
+        'title' => $title, 'slug' => 'fundacja-stud', 'category_id' => (int)$cat['id'],
+        'keywords' => 'fundacja@stud.feer.org.pl, stud.feer.org.pl, skrzynka fundacji, konto wspólne, poczta kursanta, titan, titan.sdata.net.pl, zimbra, logowanie, imap, smtp',
+        'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE),
+        'related' => $old ? (json_decode((string)$old['related'], true) ?: []) : [],
+        'is_published' => 1, 'is_pinned' => $old ? (int)$old['is_pinned'] : 0,
+        'sort_order' => $old ? (int)$old['sort_order'] : 900,
+    ], $old ? (int)$old['id'] : 0);
+    return $rep;
+}

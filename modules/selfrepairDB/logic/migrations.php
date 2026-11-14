@@ -1499,4 +1499,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Moja poczta”: krótka instrukcja logowania do skrzynki fundacja@stud.feer.org.pl (polecenie 2026-11-14), bez hasła.
+    '2026-11_it_portal_fundacja_stud' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: logowanie do skrzynki fundacja@stud.feer.org.pl',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKontoKursantaSeed.php';
+            itPortalFundacjaStudApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

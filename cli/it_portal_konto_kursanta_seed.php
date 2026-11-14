@@ -27,6 +27,8 @@ echo ($dry ? "PODGLĄD (bez zapisu)" : "ZAPIS") . " — baza: " . DB_PATH . "\n\
 
 $rep = itPortalKontoKursantaApply(ITP_SZO_URL, $dry);   // linki zawsze na szo.feer.org.pl, nie na APP_URL (z CLI to localhost)
 echo "Usługa „Konto kursanta”: {$rep['category']}\n";
+$fs = itPortalFundacjaStudApply(ITP_SZO_URL, $dry);
+echo "Moja poczta: {$fs['article']} ({$fs['status']})\n";
 foreach (['created' => 'Nowe artykuły', 'updated' => 'Nadpisane artykuły'] as $k => $label) {
     echo "\n{$label} (" . count($rep[$k]) . "):\n";
     foreach ($rep[$k] as $line) echo "  - {$line}\n";
