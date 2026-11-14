@@ -94,6 +94,11 @@ panelMetroAssets(panelMetroColor('blue'));
   .pvm .dm-done__when{color:var(--pvm-muted);margin:0}
   .pvm .dm-done__tip{margin:1rem 0 1.25rem;font-size:1.05rem}
   .pvm .mt-grid .mt-tile .val{word-break:break-word}
+  /* kafle z danymi logowania po migracji: szersze i bez stałej wysokości, żeby długi adres e-mail się nie ucinał (2026-11-14) */
+  .pvm .mt-grid.dm-logins{grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));grid-auto-rows:auto}
+  .pvm .dm-logins .mt-tile{min-height:7.5rem;gap:.9rem}
+  .pvm .dm-logins .mt-tile .val{font-size:1.3rem;font-weight:600;line-height:1.25;letter-spacing:0;overflow-wrap:anywhere;margin:0 0 .25rem}
+  .pvm .dm-logins .mt-tile .lbl{font-size:.9rem;font-weight:400;line-height:1.35}
   @media(max-width:480px){.pvm .dm-done{flex-direction:column;align-items:flex-start}.pvm .dm-ok{width:72px;height:72px}.pvm .dm-ok i{font-size:48px}}
   /* zakładki „Więcej informacji” (wzorzec ARIA tabs; bez JS sekcje jedna pod drugą) */
   .pvm .dm-tabs{margin:1.75rem 0 1.25rem}

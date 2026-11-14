@@ -187,7 +187,7 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
     <?php if (($inf['active'] ?? null) === false): ?>
       <div class="dm-msg dm-msg--danger" role="alert"><i class="bi bi-lock" aria-hidden="true"></i><div><strong>Skrzynka jest teraz zablokowana.</strong> <?= ucfirst($helpLink) ?>.</div></div>
     <?php endif; ?>
-    <div class="mt-grid mt-grid--sm" role="list" aria-label="Dane do logowania">
+    <div class="mt-grid dm-logins" role="list" aria-label="Dane do logowania">
       <div class="mt-tile dm-static" role="listitem" style="--c:var(--m-blue)">
         <i class="bi bi-person ic" aria-hidden="true"></i>
         <div><span class="val"><?= h((string)($st['mailbox'] ?? '')) ?></span><span class="lbl">Login, czyli Twój adres e-mail</span></div>
