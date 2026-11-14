@@ -143,6 +143,23 @@ function itPortalCloudArticles(string $app): array {
 }
 
 /**
+ * Przyciski pobierania aplikacji Nextcloud (polecenie 2026-11-14: „dodaj też przyciski i linki do pobrania aplikacji”). Tylko oficjalne źródła:
+ * strona nextcloud.com/install (komputer), Sklep Play i F-Droid (Android), App Store (iPhone, iPad).
+ */
+function itPortalCloudDownloadButtons(bool $desktop = true, bool $phone = true): array {
+    $items = [];
+    if ($desktop) {
+        $items[] = ['label' => 'Pobierz na komputer', 'url' => 'https://nextcloud.com/install/#install-clients', 'note' => 'Windows, macOS, Linux (strona Nextcloud)'];
+    }
+    if ($phone) {
+        $items[] = ['label' => 'Pobierz z Google Play', 'url' => 'https://play.google.com/store/apps/details?id=com.nextcloud.client', 'note' => 'Telefon i tablet z Androidem'];
+        $items[] = ['label' => 'Pobierz z App Store', 'url' => 'https://apps.apple.com/app/nextcloud/id1125420102', 'note' => 'iPhone i iPad'];
+        $items[] = ['label' => 'Pobierz z F-Droid', 'url' => 'https://f-droid.org/packages/com.nextcloud.client/', 'note' => 'Android bez usług Google'];
+    }
+    return [['type' => 'buttons', 'title' => 'Pobierz aplikację Nextcloud', 'items' => $items]];
+}
+
+/**
  * Adresy chmury (polecenie 2026-11-14: „chmura będzie dostępna docelowo pod adresami nc.feer.org.pl, chmura.feer.org.pl i galaxy.feer.org.pl”).
  */
 function itPortalCloudAddresses(): string {
@@ -456,6 +473,7 @@ function itPortalCloudPhoneBlocks(string $app): array {
             . '<p>Przy logowaniu w aplikacji na razie najpierw pokaże się strona logowania Nextcloud. Stuknij na niej „Login with logowanie jednokrotne”, '
             . 'a potem zaloguj się na stronie IAM adresem e-mail i hasłem IAM. Docelowo strona IAM będzie otwierać się od razu.</p>'
             . '<p>Telefon nie trzyma kopii całej chmury. Pliki pobierają się dopiero wtedy, gdy je otworzysz, więc aplikacja nie zapcha pamięci.</p>'],
+        ...itPortalCloudDownloadButtons(false, true),
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Aplikacje na Androida i na iPhone’a wyglądają trochę inaczej, a nazwy przycisków mogą się zmieniać po aktualizacji. '
             . 'Jeśli czegoś nie widzisz tam, gdzie opisujemy, poszukaj w menu z trzema kropkami albo w ustawieniach aplikacji.</p>'],
@@ -667,7 +685,9 @@ function itPortalCloudClientsBlocks(string $app): array {
 
     return [
         ['type' => 'text', 'html' => '<p>Aplikacja Nextcloud na komputerze trzyma kopię plików z chmury w zwykłym folderze i sama synchronizuje zmiany w obie strony, tak jak OneDrive. '
-            . 'Aplikacja w telefonie daje dostęp do plików w podróży. Zanim zaczniesz, załóż konto w chmurze i sprawdź, czy logujesz się na <a href="' . $cloud . '">' . $host . '</a> w przeglądarce.</p>'],
+            . 'Aplikacja w telefonie daje dostęp do plików w podróży. Zanim zaczniesz, załóż konto w chmurze i sprawdź, czy logujesz się na <a href="' . $cloud . '">' . $host . '</a> w przeglądarce.</p>'
+            . '<p>Pobieraj aplikację tylko z linków poniżej, czyli ze strony Nextcloud albo z oficjalnego sklepu. Wydawcą jest Nextcloud GmbH.</p>'],
+        ...itPortalCloudDownloadButtons(),
         ['type' => 'wizard', 'title' => 'Komputer: instalacja (Windows, macOS, Linux)', 'intro' => '', 'steps' => [
             $step('Pobierz instalator', '<p>Wejdź na <a href="https://nextcloud.com/install/#install-clients">nextcloud.com/install</a>, w części dla komputerów (<span lang="en">Desktop</span>) wybierz swój system i pobierz plik.</p>'),
             $step('Zainstaluj', '<p>Uruchom pobrany plik i przejdź przez kolejne ekrany instalatora, zostawiając ustawienia domyślne. Na komputerze służbowym instalacja może wymagać uprawnień administratora. '

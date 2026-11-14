@@ -1222,4 +1222,15 @@ return [
         },
     ],
 
+    // „Chmura plików”: przyciski pobierania aplikacji Nextcloud (nowy blok „buttons” w itPortalBlocks.php) w „instalacja-aplikacji”
+    // i „aplikacja-telefon” (polecenie 2026-11-14: „dodaj też przyciski i linki do pobrania aplikacji”).
+    '2026-11_it_portal_cloud_download_buttons' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: przyciski pobierania aplikacji',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            foreach (['instalacja-aplikacji', 'aplikacja-telefon'] as $slug) itPortalCloudArticleApply(ITP_SZO_URL, $slug);
+        },
+    ],
+
 ];
