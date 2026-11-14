@@ -13,8 +13,10 @@
  * au-ferr (błąd przy polu), au-links, au-foot.
  *
  * WCAG 2.1 AA (kontrast na białym tle):
- *   tekst #111827 = 17,7:1; tekst drugorzędny #4b5563 = 7,6:1 (na #f3f4f6 = 6,9:1);
- *   granat #1e3a8a: biały napis na przycisku i link na białym = 10,4:1;
+ *   tekst #111827 = 17,7:1; tekst drugorzędny #4b5563 = 7,6:1;
+ *   2026-11-14 (polecenie „podobne logowanie w SZO tylko w kolorze 1e6dff”): płasko w stylu Metro, białe tło, bez zaokrągleń i cieni.
+ *   Kolor marki #1e6dff (--au-brand): biały napis = 4,48:1, więc tylko na głównym przycisku z dużym, pogrubionym napisem (duży tekst: 3:1);
+ *   linki, mniejsze przyciski i akcenty tekstu w odcieniu #1559e0 (--au-acc) = 5,9:1, po najechaniu #0f47b8;
  *   błąd #b91c1c = 6,5:1; ramka pola #6b7280 = 4,8:1 (wymóg dla elementów UI: 3:1);
  *   fokus: czerwony obrys #c50f1f, 3 px, odsunięty o 2 px (6,1:1 na białym, 5,6:1 na tle strony).
  */
@@ -24,14 +26,14 @@ function authUiCss(int $cardWidth = 480): string {
     $col = max(360, min($cardWidth, 960));
     return <<<CSS
 :root{
-  --au-bg:#f3f4f6;--au-card:#fff;--au-line:#e5e7eb;--au-line2:#d1d5db;--au-field:#6b7280;
+  --au-bg:#fff;--au-card:#fff;--au-line:#e5e7eb;--au-line2:#d1d5db;--au-field:#6b7280;
   --au-ink:#111827;--au-ink2:#374151;--au-muted:#4b5563;
-  --au-acc:#1e3a8a;--au-acc-h:#172554;--au-acc-soft:#eff6ff;--au-acc-line:#bfdbfe;
+  --au-brand:#1e6dff;--au-acc:#1559e0;--au-acc-h:#0f47b8;--au-acc-soft:#eef4ff;--au-acc-line:#c4d8ff;
   --au-focus:#c50f1f;
   --au-err:#b91c1c;--au-err-ink:#7f1d1d;--au-err-bg:#fef2f2;--au-err-line:#fecaca;
   --au-ok:#15803d;--au-ok-ink:#14532d;--au-ok-bg:#f0fdf4;--au-ok-line:#bbf7d0;
   --au-warn:#b45309;--au-warn-ink:#78350f;--au-warn-bg:#fffbeb;--au-warn-line:#fde68a;
-  --au-r:12px;--au-rs:8px;--au-col:{$col}px;
+  --au-r:0;--au-rs:0;--au-col:{$col}px;
   /* Zgodność: zmienne, których używa treść starszych ekranów (style w atrybutach, modale logowania, bramka IKA). */
   --c:var(--au-acc);--c-dark:var(--au-acc-h);--c-darker:var(--au-acc-h);--c-light:var(--au-acc-line);--c-text:#fff;
   --c-ring:rgba(30,58,138,.18);--c-bg:var(--au-acc-soft);
@@ -44,7 +46,7 @@ html[data-fs="L"]{font-size:18px}
 html[data-fs="XL"]{font-size:20px}
 html,body{margin:0;padding:0}
 body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-bg);color:var(--au-ink);
-  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:1rem;line-height:1.5;
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;font-size:1rem;line-height:1.5;
   -webkit-font-smoothing:antialiased}
 .au :focus-visible{outline:3px solid var(--au-focus)!important;outline-offset:2px!important;box-shadow:none!important}
 .au :focus:not(:focus-visible){outline:none}
@@ -58,8 +60,7 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 
 /* ── Układ: karta na środku, pod nią stopka ─────────────────────────────── */
 .au-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2.5rem 1rem 2rem}
-.au-card{width:100%;max-width:var(--au-col);background:var(--au-card);border:1px solid var(--au-line);border-radius:var(--au-r);
-  box-shadow:0 1px 2px rgba(17,24,39,.04),0 14px 34px -18px rgba(17,24,39,.22);padding:2.5rem 2.25rem 2.1rem}
+.au-card{width:100%;max-width:var(--au-col);background:var(--au-card);border:0;border-radius:0;box-shadow:none;padding:2.5rem 2.25rem 2.1rem}
 .au-brand{display:flex;align-items:center;gap:.75rem;min-height:40px;margin:0 0 1.75rem}
 .au-brand img{display:block;height:40px;width:auto;max-width:220px;object-fit:contain}
 .au-brand__name{font-size:1rem;font-weight:700;color:var(--au-ink)}
@@ -73,13 +74,13 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 }
 @media(max-width:520px){
   .au-wrap{padding:1rem .75rem 1.5rem}
-  .au-card{padding:1.75rem 1.25rem 1.5rem;border-radius:10px}
+  .au-card{padding:1.75rem 1.25rem 1.5rem;border-radius:0}
 }
 
 /* ── Nagłówki ───────────────────────────────────────────────────────────── */
 .au .ks-h1,.au .ks-hero-h1,.au-h1{margin:0 0 .35rem;font-size:1.625rem;font-weight:700;letter-spacing:-.01em;line-height:1.25;color:var(--au-ink);text-align:left}
 .au .ks-lead,.au .ks-hero-lead,.au-lead{margin:0 0 1.75rem;font-size:1rem;line-height:1.55;color:var(--au-muted);text-align:left}
-.au .ks-hero-ico{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin:0 0 1rem;border-radius:12px;
+.au .ks-hero-ico{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin:0 0 1rem;border-radius:0;
   background:var(--au-acc-soft);color:var(--au-acc);font-size:1.4rem}
 .au .ks-sub{margin:0 0 .9rem;font-size:1rem;font-weight:600}
 
@@ -99,7 +100,7 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 .au .pass-wrap{position:relative}
 .au .pass-wrap .form-control{padding-right:3.25rem}
 .au .pass-toggle{position:absolute;top:2px;right:2px;bottom:2px;width:2.9rem;display:flex;align-items:center;justify-content:center;
-  border:0;border-radius:6px;background:transparent;color:var(--au-ink);font-size:1.1rem;cursor:pointer}
+  border:0;border-radius:0;background:transparent;color:var(--au-ink);font-size:1.1rem;cursor:pointer}
 .au .pass-toggle:hover{background:var(--au-bg)}
 .au .ks-fieldhint,.au .ks-hint,.au .form-text,.au-hint{margin:.4rem 0 0;font-size:.875rem;line-height:1.5;color:var(--au-muted)}
 .au .ks-hint{text-align:left}
@@ -116,8 +117,9 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 .au .ks-btn{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;min-height:48px;padding:.7rem 1.25rem;
   border:1px solid transparent;border-radius:var(--au-rs);font:inherit;font-size:1rem;font-weight:600;line-height:1.25;
   text-align:center;text-decoration:none;cursor:pointer;transition:background-color .12s,border-color .12s,color .12s}
-.au .ks-btn--primary{background:var(--au-acc);border-color:var(--au-acc);color:#fff}
-.au .ks-btn--primary:hover{background:var(--au-acc-h);border-color:var(--au-acc-h);color:#fff}
+/* #1e6dff z białym tekstem ma 4,48:1, więc napis duży i pogrubiony (WCAG: duży tekst wymaga 3:1); po najechaniu ciemniejszy odcień */
+.au .ks-btn--primary{background:var(--au-brand);border-color:var(--au-brand);color:#fff;font-size:1.2rem;font-weight:700}
+.au .ks-btn--primary:hover{background:var(--au-acc);border-color:var(--au-acc);color:#fff}
 .au .ks-btn--ok{background:var(--au-ok);border-color:var(--au-ok);color:#fff}
 .au .ks-btn--ok:hover{background:#166534;border-color:#166534;color:#fff}
 .au .ks-btn--ghost{background:#fff;border-color:var(--au-acc);color:var(--au-acc)}
@@ -162,10 +164,10 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 /* ── Kafle „Pierwsze logowanie” ─────────────────────────────────────────── */
 .au .lg-new{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin:1.75rem 0 0}
 .au .lg-new a,.au .lg-new button{display:flex;align-items:center;gap:.75rem;min-height:60px;padding:.75rem .85rem;
-  border:1px solid var(--au-line2);border-radius:10px;background:#fff;color:var(--au-ink);font:inherit;text-align:left;
+  border:1px solid var(--au-line2);border-radius:0;background:#fff;color:var(--au-ink);font:inherit;text-align:left;
   text-decoration:none;cursor:pointer;transition:border-color .12s,background-color .12s}
 .au .lg-new a:hover,.au .lg-new button:hover{border-color:var(--au-acc);background:#f9fafb}
-.au .lg-new i{flex:0 0 2.5rem;display:flex;align-items:center;justify-content:center;height:2.5rem;border-radius:8px;
+.au .lg-new i{flex:0 0 2.5rem;display:flex;align-items:center;justify-content:center;height:2.5rem;border-radius:0;
   background:var(--au-acc-soft);color:var(--au-acc);font-size:1.2rem}
 .au .lg-new span{display:flex;flex-direction:column;font-size:.85rem;line-height:1.3;color:var(--au-muted)}
 .au .lg-new strong{font-size:.95rem;color:var(--au-acc)}
@@ -188,13 +190,13 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 .au .btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;border-radius:var(--au-rs);font-weight:600}
 .au .btn-sm{min-height:36px}
 .au .btn-lg{min-height:52px}
-.au .btn-primary{--bs-btn-color:#fff;--bs-btn-bg:#1e3a8a;--bs-btn-border-color:#1e3a8a;--bs-btn-hover-color:#fff;--bs-btn-hover-bg:#172554;
-  --bs-btn-hover-border-color:#172554;--bs-btn-active-color:#fff;--bs-btn-active-bg:#172554;--bs-btn-active-border-color:#172554;
-  --bs-btn-disabled-color:#fff;--bs-btn-disabled-bg:#1e3a8a;--bs-btn-disabled-border-color:#1e3a8a}
+.au .btn-primary{--bs-btn-color:#fff;--bs-btn-bg:#1559e0;--bs-btn-border-color:#1559e0;--bs-btn-hover-color:#fff;--bs-btn-hover-bg:#0f47b8;
+  --bs-btn-hover-border-color:#0f47b8;--bs-btn-active-color:#fff;--bs-btn-active-bg:#0f47b8;--bs-btn-active-border-color:#0f47b8;
+  --bs-btn-disabled-color:#fff;--bs-btn-disabled-bg:#1559e0;--bs-btn-disabled-border-color:#1559e0}
 .au .btn-success{--bs-btn-bg:#15803d;--bs-btn-border-color:#15803d;--bs-btn-hover-bg:#166534;--bs-btn-hover-border-color:#166534;
   --bs-btn-active-bg:#166534;--bs-btn-active-border-color:#166534;--bs-btn-disabled-bg:#15803d;--bs-btn-disabled-border-color:#15803d}
-.au .btn-outline-primary{--bs-btn-color:#1e3a8a;--bs-btn-border-color:#1e3a8a;--bs-btn-hover-color:#172554;--bs-btn-hover-bg:#eff6ff;
-  --bs-btn-hover-border-color:#172554;--bs-btn-active-color:#172554;--bs-btn-active-bg:#dbeafe;--bs-btn-active-border-color:#172554}
+.au .btn-outline-primary{--bs-btn-color:#1559e0;--bs-btn-border-color:#1559e0;--bs-btn-hover-color:#0f47b8;--bs-btn-hover-bg:#eff6ff;
+  --bs-btn-hover-border-color:#0f47b8;--bs-btn-active-color:#0f47b8;--bs-btn-active-bg:#dbeafe;--bs-btn-active-border-color:#0f47b8}
 .au .btn-outline-secondary{--bs-btn-color:#374151;--bs-btn-border-color:#6b7280;--bs-btn-hover-color:#111827;--bs-btn-hover-bg:#f3f4f6;
   --bs-btn-hover-border-color:#374151;--bs-btn-active-color:#111827;--bs-btn-active-bg:#e5e7eb;--bs-btn-active-border-color:#374151}
 .au .btn-link{color:var(--au-acc)}
