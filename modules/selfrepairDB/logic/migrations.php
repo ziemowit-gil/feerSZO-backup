@@ -2134,4 +2134,17 @@ return [
         },
     ],
 
+    // Portal Usług IT: artykuł „Nowe hasło krok po kroku” (konto-i-hasla) i pojęcia UID, Entra ID, „Identyfikator obiektu Entra ID”
+    // w słowniczku — polecenia 2026-11-14. itPortalNoweHasloSeed.php, itPortalGlossarySeed.php.
+    '2026-11_it_portal_nowe_haslo' => [
+        'desc' => 'Portal Usług IT: Nowe hasło krok po kroku, słowniczek UID i Entra ID',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalNoweHasloSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalGlossarySeed.php';
+            itPortalNoweHasloApply(ITP_SZO_URL);
+            itPortalGlossaryApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
