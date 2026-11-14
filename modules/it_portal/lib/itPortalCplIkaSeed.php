@@ -4,7 +4,8 @@
  * (slug 'cpl') i „Kod IKA, czyli Indywidualny Kod Autoryzacyjny” (slug 'ika'), polecenie 2026-11-14: „artykuł o CPL i IKA w SZO”.
  * Źródła: tozsamosc/cpl.php (pola: nazwa użytkownika, hasło, logowanie domenowe tylko dla administratorów, logowanie jednokrotne Logto,
  * Profil / Rola = adres docelowy, nie uprawnienia; profile z wymogiem VPN: TI panel dydaktyka, CRM; „Zapamiętaj profil”),
- * auth_screen_cpl_band() w includes/auth_screen.php i ramka „Logujesz się przez CPL… pełne okno CPL” w auth/login.php;
+ * nagłówek „Centralny Portal Logowania” z dopiskiem „CPL” (jasny wygląd ekranów wejścia od 14.11.2026, inc/loginShell/authUi.php)
+ * i zdanie „Logujesz się przez CPL… pełne okno CPL” w auth/login.php;
  * contracts/ika_gate.php (brama IKA: kod 6 cyfr, 3 błędne próby = blokada 15 min, kod e-mail ważny 15 min, 3 cyfry PESEL z kartoteki
  * umów, AdminCode 10 znaków do ustawienia IKA + IKAKS), ika_ok()/ika_require() w includes/functions.php (role admin, editor, crm_user
  * i doradcy Dydaktyki; weryfikacja ważna 30 min, wspólna dla SZO, CRM i Dydaktyki; logowanie kluczem bezpieczeństwa zwalnia
@@ -70,8 +71,8 @@ function itPortalCplBlocks(string $app): array {
         ['type' => 'text', 'html' => '<p>CPL to skrót od „Centralny Portal Logowania”. To jedno okno logowania do wszystkich części SZO. '
             . 'Przez CPL wchodzą pracownicy, wolontariusze, zleceniobiorcy i dydaktycy. Każdy używa tego samego konta i tego samego hasła.</p>'
             . '<p>Kursanci nie mają dostępu do SZO. Logują się do swojego panelu kursanta, który opisuje usługa <a href="' . $app . '/uslugi-it/uslugi/konto-kursanta">Konto kursanta</a>.</p>'
-            . '<p>Rozpoznasz je po napisie „CPL Portal” i podpisie „Centralny Portal Logowania” u góry okna. Ten sam pasek widać na zwykłej <a href="' . $login . '">stronie logowania do SZO</a>. '
-            . 'Pod nim jest zdanie „Logujesz się przez CPL, Centralny Portal Logowania Fundacji”.</p>'],
+            . '<p>Pełne okno CPL rozpoznasz po nagłówku „Centralny Portal Logowania” z dopiskiem „CPL” nad nim. '
+            . 'Na zwykłej <a href="' . $login . '">stronie logowania do SZO</a> pod tytułem jest zdanie „Logujesz się przez CPL, Centralny Portal Logowania Fundacji”.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Zwykłe okno i pełne okno CPL</h2>'
             . '<p>Na zwykłej stronie logowania wpisujesz adres e-mail i hasło. Po zalogowaniu trafiasz na swój ekran startowy. Tak loguje się większość osób.</p>'

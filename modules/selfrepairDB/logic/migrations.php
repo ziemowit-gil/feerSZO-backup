@@ -2234,4 +2234,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „CPL, czyli Centralny Portal Logowania”: opis wyglądu po przebudowie ekranów wejścia (jasna karta, nagłówek
+    // „Centralny Portal Logowania” zamiast paska „CPL Portal” z kropkami) — 2026-11-14. Ponowne zastosowanie itPortalCplIkaSeed.php.
+    '2026-11_it_portal_cpl_new_look' => [
+        'desc' => 'Portal Usług IT, „Mój login”: CPL w nowym wyglądzie ekranów logowania',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCplIkaSeed.php';
+            itPortalCplIkaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
