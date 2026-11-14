@@ -409,6 +409,11 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/agents/dhosting_suspend.php',
             'interval' => 3600,         // co godzinę — skrzynki pocztowe zawieszane 2 dni po wygaśnięciu umowy (bez powiadomienia); dhosting_contract_suspend=0 wyłącza
         ],
+        'warden' => [
+            'file'     => $cronDir . '/agents/warden.php',
+            'interval' => 86400,        // raz na dobę — AccountWarden („Mietek”): ostrzeżenia i blokada kont bez logowania (Logto + SZO); wyłącznik w panelu /modules/warden/router.php
+            'schedule' => [9, 12],      // w godzinach pracy, żeby e-maile i SMS-y nie szły w nocy
+        ],
         'backup_remote_full' => [
             'file'     => $cronDir . '/agents/backup_remote_full.php',
             'interval' => 86400,        // raz dziennie — pełna kopia na serwer zdalny, gdy minął ustawiony okres (doba / 7 dni) + retencja na serwerze
