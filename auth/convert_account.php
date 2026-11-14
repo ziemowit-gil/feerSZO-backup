@@ -72,8 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $me && !$no_ms) {
 
 require_once dirname(__DIR__) . '/includes/branding.php';
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
-$_b       = branding_load();
-$org_name = $_b['org_name'] ?: (defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : 'Organizacja');
 
 $login_url     = APP_URL . '/auth/login.php';
 $emergency_url = APP_URL . '/auth/awaryjne.php';
@@ -82,218 +80,151 @@ $has_pw        = false;
 if (!$not_logged && !$no_ms && !empty($me['microsoft_id'])) {
     try { $has_pw = (bool)(db_one("SELECT password FROM users WHERE id=?", [(int)$me['id']])['password'] ?? ''); } catch (\Throwable $e) {}
 }
+
+// Widok: jasny wygląd ekranów wejścia (includes/auth_screen.php, tryb 'light'; przebudowa 2026-11-14). Logika powyżej bez zmian.
+auth_screen_head([
+    'title'           => 'Hasło awaryjne',
+    'light'           => true,
+    'width'           => 500,
+    'main_id'         => 'conv-main',
+    'account_buttons' => [],
+    'head_html'       => '<style>'
+        . '.cred-box{margin:0 0 1.25rem;padding:.5rem 1rem;background:#f9fafb;border:1px dashed var(--au-field);border-radius:var(--au-rs)}'
+        . '.cred-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.25rem .75rem;padding:.5rem 0}'
+        . '.cred-row + .cred-row{border-top:1px solid var(--au-line)}'
+        . '.cred-k{font-size:.85rem;color:var(--au-muted)}'
+        . '.cred-v{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.95rem;font-weight:700;overflow-wrap:anywhere;text-align:right}'
+        . '.copy-btn{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border:1px solid var(--au-field);'
+        . 'border-radius:var(--au-rs);background:#fff;color:var(--au-ink);cursor:pointer}'
+        . '.copy-btn:hover{background:var(--au-bg)}'
+        . '.conv-ok{margin:0 0 .75rem;font-size:2.4rem;color:var(--au-ok)}'
+        . '.au .conv-h2{margin:0 0 .5rem;font-size:1.1rem;font-weight:700}'
+        . '.au .conv-p{margin:0 0 1rem;font-size:.95rem;line-height:1.6;color:var(--au-ink2)}'
+        . '</style>',
+]);
 ?>
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hasło awaryjne — <?= h($org_name) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<?php branding_css($_b); ?>
-<?php auth_screen_bg_css(); ?>
-<style>
-*, *::before, *::after { box-sizing: border-box; }
-html, body { min-height: 100%; margin: 0; }
-.page-wrap {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  padding: 2rem 1rem;
-}
-.login-card {
-  width: 100%; max-width: 480px;
-  background: #fff; border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,.1);
-  overflow: hidden;
-}
-.card-top {
-  background: linear-gradient(155deg, var(--c-darker) 0%, var(--c) 55%, var(--c-light) 100%);
-  padding: 1.75rem 2rem 1.5rem; text-align: center;
-}
-.card-top-icon {
-  width: 56px; height: 56px; border-radius: 14px;
-  background: rgba(255,255,255,.15);
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto .75rem; font-size: 1.75rem; color: #fff;
-}
-.card-top h1 { color: #fff; font-size: 1.2rem; font-weight: 700; margin: 0; }
-.card-top p  { color: rgba(255,255,255,.85); font-size: .85rem; margin: .4rem 0 0; }
-.card-body-inner { padding: 2rem; }
-.btn-primary { background: var(--c); border-color: var(--c); }
-.btn-primary:hover { background: var(--c-darker); border-color: var(--c-darker); }
-.cred-box { background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 10px; padding: .9rem 1rem; }
-.cred-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .3rem 0; }
-.cred-row + .cred-row { border-top: 1px solid #e2e8f0; }
-.cred-k { color: #64748b; font-size: .78rem; }
-.cred-v { font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92rem; text-align: right; }
-.copy-btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: .15rem .45rem; font-size: .75rem; }
-</style>
-</head>
-<body>
-<div class="page-wrap">
-  <div class="login-card">
+<div class="ks-hero-ico" aria-hidden="true"><i class="bi bi-shield-lock-fill"></i></div>
+<h1 class="ks-h1">Hasło awaryjne do logowania lokalnego</h1>
+<?php if ($not_logged): ?>
+<p class="ks-lead">Zapasowy sposób wejścia, gdy logowanie przez Office nie działa.</p>
+<?php else: ?>
+<p class="ks-lead">Zalogowano jako <strong><?= h($me['email']) ?></strong></p>
+<?php endif; ?>
 
-    <!-- Nagłówek -->
-    <div class="card-top">
-      <div class="card-top-icon"><i class="bi bi-shield-lock-fill"></i></div>
-      <h1>Hasło awaryjne do logowania lokalnego</h1>
-      <?php if ($not_logged): ?>
-      <p>Zapasowy sposób wejścia, gdy logowanie przez Office nie działa</p>
-      <?php else: ?>
-      <p>Zalogowano jako <strong><?= h($me['email']) ?></strong></p>
-      <?php endif; ?>
-    </div>
+<?php if ($err): ?>
+<div class="l-alert l-alert-danger" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><div><?= h($err) ?></div></div>
+<?php endif; ?>
 
-    <div class="card-body-inner">
-
-      <?php if ($err): ?>
-      <div class="alert alert-danger d-flex gap-2 align-items-start" role="alert">
-        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
-        <div><?= h($err) ?></div>
-      </div>
-      <?php endif; ?>
-
-      <?php if ($not_logged): ?>
-      <!-- ── Strona wyjaśniająca (użytkownik niezalogowany) ─────────────────── -->
-      <h6 class="fw-semibold mb-2">Co to jest hasło awaryjne?</h6>
-      <p class="text-muted" style="font-size:.88rem;line-height:1.55">
-        Zwykle logujesz się przyciskiem <strong>„Zaloguj przez Microsoft 365"</strong> (Office).
-        Czasem jednak logowanie Microsoft może nie działać — np. awaria po stronie Microsoftu,
-        problem z kontem służbowym albo brak dostępu do telefonu z aplikacją uwierzytelniającą.
-      </p>
-      <p class="text-muted" style="font-size:.88rem;line-height:1.55">
-        <strong>Hasło awaryjne</strong> to zapasowy sposób wejścia do systemu: ustawiasz dodatkowe
-        hasło lokalne, którym zalogujesz się <em>loginem (e-mail) i hasłem</em>, gdy Office zawiedzie.
-      </p>
-      <div class="alert alert-warning d-flex gap-2 align-items-start mb-3" style="font-size:.85rem">
-        <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
-        <div>
-          Aby utworzyć hasło awaryjne, musisz <strong>najpierw raz zalogować się przez Microsoft 365</strong>
-          (póki działa) — w ten sposób potwierdzasz swoją tożsamość. Zrób to <strong>zawczasu</strong>,
-          zanim pojawią się problemy.
-        </div>
-      </div>
-      <div class="d-grid mb-3">
-        <a href="<?= h($start_login_url) ?>" class="btn btn-primary fw-semibold">
-          <i class="bi bi-microsoft me-1"></i>Zaloguj przez Microsoft 365 i utwórz hasło
-        </a>
-      </div>
-      <div class="text-center">
-        <a href="<?= h($login_url) ?>" class="text-muted small text-decoration-none">
-          <i class="bi bi-arrow-left me-1"></i>Wróć do logowania
-        </a>
-      </div>
-
-      <?php elseif ($no_ms): ?>
-      <!-- ── Konto bez powiązania z Microsoft 365 ───────────────────────────── -->
-      <h6 class="fw-semibold mb-2">To konto nie wymaga hasła awaryjnego</h6>
-      <p class="text-muted" style="font-size:.88rem;line-height:1.55">
-        Funkcja jest przeznaczona dla kont logujących się przez Microsoft 365 (Office) — tworzy dla nich
-        zapasowe hasło lokalne. Twoje konto <strong><?= h($me['email']) ?></strong> nie jest powiązane
-        z Microsoft 365 i loguje się standardowo loginem i hasłem.
-      </p>
-      <p class="text-muted mb-3" style="font-size:.88rem">
-        Jeśli zapomniałeś hasła, użyj opcji odzyskiwania na stronie logowania.
-      </p>
-      <div class="text-center">
-        <a href="<?= h(APP_URL) ?>/portal.php" class="text-muted small text-decoration-none">
-          <i class="bi bi-arrow-left me-1"></i>Wróć do systemu
-        </a>
-      </div>
-
-      <?php elseif ($generated !== null): ?>
-      <!-- ── Wynik: hasło pokazane RAZ ───────────────────────────────────────── -->
-      <div class="text-center mb-3">
-        <i class="bi bi-check-circle-fill text-success" style="font-size:2.2rem"></i>
-        <h6 class="fw-bold mt-2 mb-0">Hasło zostało utworzone</h6>
-      </div>
-      <p class="text-muted text-center mb-3" style="font-size:.85rem">
-        Zapisz te dane w bezpiecznym miejscu — <strong>hasło pokażemy tylko teraz</strong>.
-      </p>
-      <div class="cred-box mb-3">
-        <div class="cred-row">
-          <span class="cred-k">Adres logowania awaryjnego</span>
-          <a class="cred-v text-decoration-none" style="font-size:.78rem" href="<?= h($emergency_url) ?>"><?= h($emergency_url) ?></a>
-        </div>
-        <div class="cred-row">
-          <span class="cred-k">Login (e-mail)</span>
-          <span class="cred-v" id="c-login"><?= h($me['email']) ?></span>
-        </div>
-        <div class="cred-row">
-          <span class="cred-k">Hasło tymczasowe</span>
-          <span class="d-flex align-items-center gap-2">
-            <span class="cred-v" id="c-pass"><?= h($generated) ?></span>
-            <button type="button" class="copy-btn" onclick="convCopy('<?= h($generated) ?>', this)">
-              <i class="bi bi-clipboard"></i>
-            </button>
-          </span>
-        </div>
-      </div>
-      <div class="alert alert-warning d-flex gap-2 align-items-start mb-3" style="font-size:.83rem">
-        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
-        <div>
-          Przy pierwszym logowaniu lokalnym system poprosi o ustawienie własnego hasła.
-          <?php if (account_is_office_only($me)): ?>
-          Logowanie lokalne zostało odblokowane wyłącznie dla Twojego konta — pozostali użytkownicy
-          @feer.org.pl nadal logują się tylko przez Office.
-          <?php endif; ?>
-        </div>
-      </div>
-      <div class="text-center">
-        <a href="<?= h(APP_URL) ?>/portal.php" class="text-muted small text-decoration-none">
-          <i class="bi bi-arrow-left me-1"></i>Wróć do systemu
-        </a>
-      </div>
-
-      <?php else: ?>
-      <!-- ── Formularz potwierdzenia ─────────────────────────────────────────── -->
-      <h6 class="fw-semibold mb-2">Utwórz hasło awaryjne</h6>
-      <p class="text-muted" style="font-size:.88rem;line-height:1.55">
-        Gdy logowanie przez Microsoft 365 nie działa, możesz wejść do systemu loginem i hasłem lokalnym.
-        Wygenerujemy dla Ciebie silne hasło i pokażemy je <strong>jednorazowo</strong> na następnym ekranie.
-      </p>
-      <?php if (account_is_office_only($me)): ?>
-      <div class="alert alert-info d-flex gap-2 align-items-start" style="font-size:.83rem">
-        <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
-        <div>
-          Twoje konto służbowe @feer.org.pl normalnie loguje się tylko przez Office — utworzenie hasła
-          odblokuje dla niego również logowanie lokalne (jako awaryjne).
-        </div>
-      </div>
-      <?php endif; ?>
-      <?php if ($has_pw): ?>
-      <div class="alert alert-warning d-flex gap-2 align-items-start" style="font-size:.83rem">
-        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
-        <div>Twoje konto ma już hasło lokalne — wygenerowanie nowego nadpisze stare.</div>
-      </div>
-      <?php endif; ?>
-      <form method="post" class="mt-3">
-        <input type="hidden" name="_csrf" value="<?= h($tok) ?>">
-        <div class="d-grid mb-2">
-          <button class="btn btn-primary fw-semibold" type="submit">
-            <i class="bi bi-key-fill me-1"></i>Wygeneruj hasło awaryjne
-          </button>
-        </div>
-      </form>
-      <div class="text-center">
-        <a href="<?= h(APP_URL) ?>/portal.php" class="text-muted small text-decoration-none">
-          <i class="bi bi-arrow-left me-1"></i>Anuluj i wróć
-        </a>
-      </div>
-      <?php endif; ?>
-
-    </div>
+<?php if ($not_logged): ?>
+<!-- ── Strona wyjaśniająca (użytkownik niezalogowany) ─────────────────── -->
+<h2 class="conv-h2">Co to jest hasło awaryjne?</h2>
+<p class="conv-p">
+  Zwykle logujesz się przyciskiem <strong>„Zaloguj przez Microsoft 365"</strong> (Office).
+  Czasem jednak logowanie Microsoft może nie działać — np. awaria po stronie Microsoftu,
+  problem z kontem służbowym albo brak dostępu do telefonu z aplikacją uwierzytelniającą.
+</p>
+<p class="conv-p">
+  <strong>Hasło awaryjne</strong> to zapasowy sposób wejścia do systemu: ustawiasz dodatkowe
+  hasło lokalne, którym zalogujesz się <em>loginem (e-mail) i hasłem</em>, gdy Office zawiedzie.
+</p>
+<div class="l-alert l-alert-warn" role="note">
+  <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
+  <div>
+    Aby utworzyć hasło awaryjne, musisz <strong>najpierw raz zalogować się przez Microsoft 365</strong>
+    (póki działa) — w ten sposób potwierdzasz swoją tożsamość. Zrób to <strong>zawczasu</strong>,
+    zanim pojawią się problemy.
   </div>
 </div>
-<script>
+<a href="<?= h($start_login_url) ?>" class="ks-btn ks-btn--primary"><i class="bi bi-microsoft" aria-hidden="true"></i>Zaloguj przez Microsoft 365 i utwórz hasło</a>
+<p class="ks-note"><a href="<?= h($login_url) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wróć do logowania</a></p>
+
+<?php elseif ($no_ms): ?>
+<!-- ── Konto bez powiązania z Microsoft 365 ───────────────────────────── -->
+<h2 class="conv-h2">To konto nie wymaga hasła awaryjnego</h2>
+<p class="conv-p">
+  Funkcja jest przeznaczona dla kont logujących się przez Microsoft 365 (Office) — tworzy dla nich
+  zapasowe hasło lokalne. Twoje konto <strong><?= h($me['email']) ?></strong> nie jest powiązane
+  z Microsoft 365 i loguje się standardowo loginem i hasłem.
+</p>
+<p class="conv-p">Jeśli zapomniałeś hasła, użyj opcji odzyskiwania na stronie logowania.</p>
+<p class="ks-note"><a href="<?= h(APP_URL) ?>/portal.php"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wróć do systemu</a></p>
+
+<?php elseif ($generated !== null): ?>
+<!-- ── Wynik: hasło pokazane RAZ ───────────────────────────────────────── -->
+<div class="conv-ok" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></div>
+<h2 class="conv-h2">Hasło zostało utworzone</h2>
+<p class="conv-p">Zapisz te dane w bezpiecznym miejscu — <strong>hasło pokażemy tylko teraz</strong>.</p>
+<div class="cred-box">
+  <div class="cred-row">
+    <span class="cred-k">Adres logowania awaryjnego</span>
+    <a class="cred-v" href="<?= h($emergency_url) ?>"><?= h($emergency_url) ?></a>
+  </div>
+  <div class="cred-row">
+    <span class="cred-k">Login (e-mail)</span>
+    <span class="cred-v" id="c-login"><?= h($me['email']) ?></span>
+  </div>
+  <div class="cred-row">
+    <span class="cred-k">Hasło tymczasowe</span>
+    <span style="display:flex;align-items:center;gap:.5rem">
+      <span class="cred-v" id="c-pass"><?= h($generated) ?></span>
+      <button type="button" class="copy-btn" aria-label="Skopiuj hasło" onclick="convCopy('<?= h($generated) ?>', this)">
+        <i class="bi bi-clipboard" aria-hidden="true"></i>
+      </button>
+    </span>
+  </div>
+</div>
+<div class="l-alert l-alert-warn" role="note">
+  <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+  <div>
+    Przy pierwszym logowaniu lokalnym system poprosi o ustawienie własnego hasła.
+    <?php if (account_is_office_only($me)): ?>
+    Logowanie lokalne zostało odblokowane wyłącznie dla Twojego konta — pozostali użytkownicy
+    @feer.org.pl nadal logują się tylko przez Office.
+    <?php endif; ?>
+  </div>
+</div>
+<p class="ks-note"><a href="<?= h(APP_URL) ?>/portal.php"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wróć do systemu</a></p>
+
+<?php else: ?>
+<!-- ── Formularz potwierdzenia ─────────────────────────────────────────── -->
+<h2 class="conv-h2">Utwórz hasło awaryjne</h2>
+<p class="conv-p">
+  Gdy logowanie przez Microsoft 365 nie działa, możesz wejść do systemu loginem i hasłem lokalnym.
+  Wygenerujemy dla Ciebie silne hasło i pokażemy je <strong>jednorazowo</strong> na następnym ekranie.
+</p>
+<?php if (account_is_office_only($me)): ?>
+<div class="l-alert l-alert-info" role="note">
+  <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
+  <div>
+    Twoje konto służbowe @feer.org.pl normalnie loguje się tylko przez Office — utworzenie hasła
+    odblokuje dla niego również logowanie lokalne (jako awaryjne).
+  </div>
+</div>
+<?php endif; ?>
+<?php if ($has_pw): ?>
+<div class="l-alert l-alert-warn" role="note">
+  <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+  <div>Twoje konto ma już hasło lokalne — wygenerowanie nowego nadpisze stare.</div>
+</div>
+<?php endif; ?>
+<form method="post">
+  <input type="hidden" name="_csrf" value="<?= h($tok) ?>">
+  <button class="ks-btn ks-btn--primary" type="submit"><i class="bi bi-key-fill" aria-hidden="true"></i>Wygeneruj hasło awaryjne</button>
+</form>
+<p class="ks-note"><a href="<?= h(APP_URL) ?>/portal.php"><i class="bi bi-arrow-left" aria-hidden="true"></i> Anuluj i wróć</a></p>
+<?php endif; ?>
+<?php
+auth_screen_foot([
+    'no_new_tiles' => true,
+    'extra_js'     => '<script>
 function convCopy(text, btn) {
   if (!navigator.clipboard) return;
   navigator.clipboard.writeText(text).then(function () {
-    var old = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check2"></i>';
+    var old = btn.innerHTML, live = document.getElementById("login-live");
+    btn.innerHTML = "<i class=\"bi bi-check2\" aria-hidden=\"true\"></i>";
+    if (live) live.textContent = "Hasło skopiowane do schowka.";
     setTimeout(function () { btn.innerHTML = old; }, 1200);
   });
 }
-</script>
-</body>
-</html>
+</script>',
+]);
