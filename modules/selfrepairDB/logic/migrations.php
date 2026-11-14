@@ -2285,4 +2285,18 @@ return [
         },
     ],
 
+    // Przywrócenie instrukcji kursantów ukrytych 14.11.2026 przez zbyt szeroką regułę seedera dPoczty („Office 365” w treści
+    // + „poczta” w tytule w dowolnej usłudze). Zgłoszenie użytkownika: w „Poczcie kursanta” został tylko artykuł o fundacja@stud.
+    // Ponowny zapis obu seedów kursanckich ustawia is_published = 1 (nadpisuje ich własne artykuły, innych nie rusza).
+    '2026-11_it_portal_kursant_unhide' => [
+        'desc' => 'Portal Usług IT: przywrócenie artykułów „Poczta kursanta” i „Konto kursanta” ukrytych przez seeder dPoczty',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPocztaKursantaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKontoKursantaSeed.php';
+            itPortalPocztaKursantaApply(ITP_SZO_URL);   // ręcznie: php cli/it_portal_poczta_kursanta_seed.php
+            itPortalKontoKursantaApply(ITP_SZO_URL);    // ręcznie: php cli/it_portal_konto_kursanta_seed.php
+        },
+    ],
+
 ];

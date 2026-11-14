@@ -42,16 +42,16 @@ function itPortalDpocztaApply(string $app, bool $dryRun = false, ?array $only = 
         }
     }
 
-    // dawne instrukcje poczty w Office 365: w „Mojej poczcie” każdy artykuł o Office/M365/Outlooku/Exchange,
-    // w innych usługach tylko taki, którego tytuł mówi o poczcie, skrzynce lub Outlooku
+    // dawne instrukcje poczty w Office 365: TYLKO w „Mojej poczcie” i tylko artykuły sprzed migracji (13.11.2026).
+    // Wcześniej reguła sięgała też innych usług i 14.11 ukryła instrukcje kursantów (poczta-kursanta/logowanie,
+    // konto-kursanta/haslo-do-poczty i poczta-w-telefonie), bo wspominają Microsoft 365. Przywraca je migracja
+    // '2026-11_it_portal_kursant_unhide'.
     $o365 = static fn(string $s): bool => (bool)preg_match('/office\s*365|microsoft\s*365|\bm365\b|outlook|exchange/iu', $s);
-    foreach ($only !== null ? [] : db_all("SELECT a.id, a.category_id, a.slug, a.title, a.keywords, a.body_plain, c.slug AS cslug
-                       FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE a.is_published = 1") as $a) {
-        $own = (int)$a['category_id'] === $catId;
-        if ($own && isset($articles[$a['slug']])) continue;
-        $text = $a['title'] . ' ' . $a['keywords'] . ' ' . $a['body_plain'];
-        $hit = $own ? $o365($text) : ($o365($text) && preg_match('/poczt|outlook|skrzynk|e-?mail/iu', (string)$a['title']));
-        if (!$hit) continue;
+    foreach ($only !== null || !$catId ? [] : db_all("SELECT a.id, a.slug, a.title, a.keywords, a.body_plain, c.slug AS cslug
+                       FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id
+                      WHERE a.is_published = 1 AND a.category_id = ? AND a.created_at < '2026-11-13'", [$catId]) as $a) {
+        if (isset($articles[$a['slug']])) continue;
+        if (!$o365($a['title'] . ' ' . $a['keywords'] . ' ' . $a['body_plain'])) continue;
         $rep['hidden'][] = "#{$a['id']} {$a['cslug']}/{$a['slug']} — {$a['title']}";
         if (!$dryRun) db_exec("UPDATE itp_articles SET is_published = 0, updated_at = datetime('now') WHERE id = ?", [$a['id']]);
     }
