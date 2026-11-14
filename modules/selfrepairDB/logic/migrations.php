@@ -1735,4 +1735,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: PGP przeznaczone dla Zarządu (polecenie 2026-11-14: „PGP dla Zarządu jest”), opcje szyfrowania w oknie pisania i odsyłacz
+    // do instrukcji dostawcy „Jak mogę wysłać zaszyfrowaną wiadomość?”.
+    '2026-11_it_portal_dpoczta_pgp_board' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: PGP dla Zarządu',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

@@ -201,7 +201,7 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<li>Tożsamości: nazwa nadawcy i podpis, czyli stopka. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/podpis-w-poczcie">Jak ustawić podpis (stopkę) w poczcie</a>.</li>'
                 . '<li>Odpowiedzi: gotowe teksty do wstawiania w wiadomości. Na początku lista jest pusta, a nowy tekst dodasz ikoną ołówka na górze. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/szablony-odpowiedzi">Szablony odpowiedzi</a>.</li>'
                 . '<li>Cloud View: ustawienia dodatku dostawcy poczty. Nie musisz ich zmieniać.</li>'
-                . '<li>Klucze PGP: szyfrowanie i podpisywanie wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/szyfrowanie-pgp">Szyfrowanie PGP</a>. Na co dzień nie jest potrzebne.</li>'
+                . '<li>Klucze PGP: szyfrowanie i podpisywanie wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/szyfrowanie-pgp">Szyfrowanie PGP</a>. Korzysta z nich Zarząd, pozostałe osoby nie muszą tu nic zmieniać.</li>'
                 . '<li>Filtry: automatyczne przenoszenie i przekazywanie wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/filtry-i-przekierowanie">Filtry i przekierowanie poczty</a>.</li>'
                 . '<li>Pomoc: „Centrum pomocy” dostawcy z rozwijanymi działami: Preferencje, Tożsamości, Uwierzytelnianie dwuetapowe (2FA), Kalendarz i Dodatkowe informacje.</li>'
                 . '<li>Autoresponder: odpowiedź na czas urlopu, opisana w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/autoresponder">Autoodpowiedź na czas nieobecności</a>.</li>'
@@ -313,13 +313,14 @@ function itPortalDpocztaArticles(string $app): array {
             ...itPortalDpocztaShot('dp-2fa.jpg', 'Ustawienia dPoczty, Uwierzytelnianie dwuetapowe: metody Aplikacja mobilna i Email, każda z przyciskiem Włącz', 'Ustawienia, „Uwierzytelnianie dwuetapowe”: wybór metody.'),
         ], false],
 
-        'szyfrowanie-pgp' => ['Szyfrowanie PGP: klucze i jak je wygenerować', 'pgp, gpg, openpgp, szyfrowanie, podpis cyfrowy, klucz publiczny, klucz prywatny, generowanie klucza, klucze pgp, enigma, rsa, ecc, import klucza, eksport klucza, serwer kluczy', [
+        'szyfrowanie-pgp' => ['Szyfrowanie PGP dla Zarządu: klucze i jak je wygenerować', 'pgp, gpg, openpgp, zarząd, szyfrowanie, zaszyfrowana wiadomość, wyślij klucz publiczny, podpis cyfrowy, klucz publiczny, klucz prywatny, generowanie klucza, klucze pgp, enigma, rsa, ecc, import klucza, eksport klucza, serwer kluczy', [
             ['type' => 'text', 'html' => '<p>PGP to sposób szyfrowania wiadomości e-mail od nadawcy do odbiorcy. Zaszyfrowaną wiadomość przeczyta tylko odbiorca, nawet jeśli ktoś przechwyci ją po drodze albo zajrzy na serwer. '
                 . 'PGP pozwala też podpisać wiadomość cyfrowo, żeby odbiorca wiedział, że naprawdę pochodzi od Ciebie i nikt jej nie zmienił.</p>'
                 . '<p>Każda osoba ma parę kluczy. Klucz publiczny dajesz innym: służy im do szyfrowania wiadomości do Ciebie i do sprawdzania Twojego podpisu. '
                 . 'Klucz prywatny zostaje u Ciebie i chroni go hasło. Służy do odczytywania wiadomości i do podpisywania.</p>'],
-            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Na co dzień PGP nie jest potrzebne. Przyda się, gdy Twój rozmówca sam używa PGP i prosi o szyfrowaną korespondencję. '
-                . 'Szyfrowanie działa tylko wtedy, gdy obie strony mają klucze. Dane osobowe dla osób spoza Fundacji łatwiej wysłać linkiem z chmury zabezpieczonym hasłem.</p>'],
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Szyfrowanie PGP w Fundacji jest przeznaczone dla Zarządu. Jeśli nie jesteś członkiem Zarządu, nie generuj kluczy PGP. '
+                . 'Gdy ktoś prosi Cię o szyfrowaną korespondencję, <a href="' . $hd . '">napisz do Helpdesku IT</a>, a pomożemy wybrać inny sposób.</p>'
+                . '<p>Szyfrowanie działa tylko wtedy, gdy obie strony mają klucze. Dane osobowe dla osób spoza Fundacji łatwiej wysłać linkiem z chmury zabezpieczonym hasłem.</p>'],
             ['type' => 'wizard', 'title' => 'Jak wygenerować klucz', 'intro' => '', 'steps' => [
                 $step('Otwórz Klucze PGP', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Klucze PGP”. '
                     . 'Na początku lista jest pusta i pojawia się komunikat „Nie znaleziono kluczy”.</p>'),
@@ -337,7 +338,11 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'Chmurka ze strzałką w górę eksportuje klucze do pliku. Swój klucz publiczny wyeksportuj i wyślij osobom, które mają do Ciebie pisać szyfrowane wiadomości.</p>'
                 . '<p>Przy eksporcie można dołączyć też klucz prywatny. Zrób tak tylko po to, żeby zachować kopię zapasową, i trzymaj ten plik w bezpiecznym miejscu. Nikomu go nie wysyłaj.</p>'],
             ['type' => 'text', 'html' => '<h2>Szyfrowanie i podpisywanie wiadomości</h2>'
-                . '<p>Gdy masz klucz, w oknie pisania wiadomości pojawią się opcje szyfrowania. Możesz podpisać wiadomość cyfrowo, zaszyfrować ją albo dołączyć swój klucz publiczny. '
+                . '<p>Gdy masz klucz, w oknie pisania nowej wiadomości, w kolumnie po prawej pod miejscem na załączniki, pojawią się dodatkowe opcje. '
+                . 'Przełącznikami włączysz podpisanie wiadomości, jej zaszyfrowanie i dołączenie swojego klucza publicznego. '
+                . 'Pierwszej wiadomości do nowej osoby zwykle nie szyfrujesz, tylko dołączasz do niej swój klucz publiczny, żeby odbiorca mógł Ci odpisać szyfrowaną wiadomością. '
+                . 'Instrukcja dostawcy ze zrzutem: <a href="' . $kb . 'jak-moge-wyslac-zaszyfrowana-wiadomosc/">jak wysłać zaszyfrowaną wiadomość</a>.</p>'
+                . '<p>Możesz podpisać wiadomość cyfrowo, zaszyfrować ją albo dołączyć swój klucz publiczny. '
                 . 'Zaszyfrować wiadomość możesz tylko do osoby, której klucz publiczny masz na liście. Domyślne zachowanie ustawisz w Preferencjach, w dziale „Szyfrowanie”, '
                 . 'a w „Tożsamościach” zobaczysz, który klucz jest przypisany do Twojego adresu.</p>'
                 . '<p>Zaszyfrowaną wiadomość od innej osoby dPoczta odszyfruje po wpisaniu hasła do Twojego klucza.</p>'],
