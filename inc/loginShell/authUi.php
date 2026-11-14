@@ -203,7 +203,7 @@ body.au{min-height:100vh;display:flex;flex-direction:column;background:var(--au-
 .au .form-check-input{border-color:var(--au-field)}
 .au .form-check-input:checked{background-color:var(--au-acc);border-color:var(--au-acc)}
 .au .input-group-text{background:#f9fafb;border-color:var(--au-field);color:var(--au-ink2)}
-.au .input-group>.form-control{min-height:48px}
+.au .input-group>.form-control,.au .input-group>.form-select{width:1%;flex:1 1 auto;min-width:0;min-height:48px}
 .au .alert{border-left-width:4px;border-radius:var(--au-rs);font-size:.95rem}
 .au .alert-danger{--bs-alert-bg:var(--au-err-bg);--bs-alert-border-color:var(--au-err-line);--bs-alert-color:var(--au-err-ink);border-left-color:var(--au-err)}
 .au .alert-success{--bs-alert-bg:var(--au-ok-bg);--bs-alert-border-color:var(--au-ok-line);--bs-alert-color:var(--au-ok-ink);border-left-color:var(--au-ok)}
