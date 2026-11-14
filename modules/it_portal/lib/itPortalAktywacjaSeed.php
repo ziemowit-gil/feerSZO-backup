@@ -8,8 +8,10 @@
  * 5 ostatnich cyfr PESEL albo numer dokumentu; „Nie znam numeru umowy” = kod odzyskiwania 8 cyfr dla umów sprzed 1.06.2026; kod SMS 6 cyfr
  * ważny 10 min, 3 błędne = od nowa; konto zakładane automatycznie; zakładki „Nie masz konta?”, „Sprawdź numer umowy”),
  * modules/zlecenie_oswiadczenie (/zlecenie: kreator, wydruk, skan, konto tylko do oświadczeń, link do hasła e-mailem).
- * Używa migracja '2026-11_it_portal_aktywacja'.
+ * Używa migracja '2026-11_it_portal_aktywacja'; ramka „stan na” (ITP_STAN_NA) od migracji '2026-11_it_portal_logowanie_szo'.
  */
+
+require_once __DIR__ . '/itPortalLogowanieSzoSeed.php';
 
 function itPortalAktywacjaApply(string $app): string {
     require_once dirname(__DIR__) . '/logic/itPortal.php';
@@ -40,6 +42,7 @@ function itPortalAktywacjaBlocks(string $app): array {
     $first = $app . '/uslugi-it/uslugi/moj-login/pierwsze-logowanie';
     $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
     return [
+        itPortalStanNaBlock(),
         ['type' => 'text', 'html' => '<p>Konto w SZO zakładamy na podstawie umowy z Fundacją. Gdy umowa jest już w systemie, aktywujesz konto sam, bez pisania do administratora. '
             . 'Pod formularzem na <a href="' . $login . '">stronie logowania</a> są kafle „Pierwsze logowanie”. Wybierz ten, który pasuje do Twojej sytuacji:</p><ul>'
             . '<li>„Nowy wolontariusz, Kod aktywacyjny”, gdy koordynator dał Ci kod.</li>'

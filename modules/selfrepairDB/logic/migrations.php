@@ -1980,4 +1980,28 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: artykuł „Logowanie do SZO: ekran logowania krok po kroku” (nowy ekran logowania z 2026-11-14, zrzut
+    // img/szo-logowanie.jpg) + ramka „stan na 14.11.2026, godz. 5:30, trwa migracja” w artykule o aktywacji konta — polecenia 2026-11-14.
+    '2026-11_it_portal_logowanie_szo' => [
+        'desc' => 'Portal Usług IT, „Mój login”: logowanie do SZO, ramka „stan na”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalLogowanieSzoSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalAktywacjaSeed.php';
+            itPortalLogowanieSzoApply(ITP_SZO_URL);
+            itPortalAktywacjaApply(ITP_SZO_URL);
+        },
+    ],
+
+    // Portal Usług IT, „Mój login”: artykuły „CPL, czyli Centralny Portal Logowania” i „Kod IKA, czyli Indywidualny Kod Autoryzacyjny”
+    // (z ramką „stan na 14.11.2026, godz. 5:30”) — polecenie 2026-11-14. modules/it_portal/lib/itPortalCplIkaSeed.php.
+    '2026-11_it_portal_cpl_ika' => [
+        'desc' => 'Portal Usług IT, „Mój login”: CPL i kod IKA',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCplIkaSeed.php';
+            itPortalCplIkaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
