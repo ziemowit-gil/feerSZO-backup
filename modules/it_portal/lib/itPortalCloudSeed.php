@@ -104,7 +104,7 @@ function itPortalCloudIntro(string $app): string {
          . 'Zastępuje OneDrive z Microsoft 365, który wyłączamy 20 listopada 2026 r. Trzymasz w niej pliki służbowe, udostępniasz je innym osobom '
          . 'i synchronizujesz z komputerem i telefonem.</p>'
          . '<p>Obecna chmura to instalacja wdrożeniowa. Instalację produkcyjną uruchomimy na początku grudnia 2026 r.</p>'
-         . itPortalCloudSlowNote() . itPortalCloudAddresses()
+         . itPortalCloudSlowNote() . itPortalCloudAddresses() . itPortalCloudQuotaNote($app)
          . '<p>Logujesz się logowaniem jednokrotnym (IAM), tak jak do SZO: adresem e-mail i hasłem IAM. To hasło jest inne niż hasło do poczty. '
          . 'Zacznij od instrukcji poniżej. Jeśli czegoś w niej brakuje, <a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
 }
@@ -116,7 +116,7 @@ function itPortalCloudIntro(string $app): string {
 function itPortalCloudArticles(string $app): array {
     return [
         'nextcloud' => ['Nextcloud: pierwsze kroki w chmurze plików',
-            'nextcloud, chmura, chmura plików, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, słabowidzący, pliki, dysk, onedrive, udostępnianie, link, synchronizacja, aplikacja, kosz, wersje, nc.feer.org.pl, chmura.feer.org.pl, galaxy.feer.org.pl, adres chmury, wolno, wolna, wolno działa, długo się ładuje, iam, hasło',
+            'nextcloud, chmura, chmura plików, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, słabowidzący, pliki, dysk, onedrive, udostępnianie, link, synchronizacja, aplikacja, kosz, wersje, nc.feer.org.pl, chmura.feer.org.pl, galaxy.feer.org.pl, adres chmury, limit, 10 gb, miejsce, pojemność, wolno, wolna, wolno działa, długo się ładuje, iam, hasło',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudBlocks($app), $app)), true, 10],
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
             'nextcloud, aplikacja, klient, instalacja, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
@@ -180,6 +180,15 @@ function itPortalCloudDownloadButtons(bool $desktop = true, bool $phone = true):
     return [['type' => 'buttons', 'title' => 'Pobierz aplikację Nextcloud', 'items' => $items]];
 }
 
+/**
+ * Limit miejsca (polecenie 2026-11-14: „opisz na stronie usługi limit 10 GB per user i administracja wg uznania”).
+ */
+function itPortalCloudQuotaNote(string $app): string {
+    return '<p>Każde konto w chmurze ma 10 GB miejsca na pliki osobiste. Foldery zespołów i pliki udostępnione Ci przez innych nie zabierają tego miejsca. '
+         . 'Większy limit może przyznać administracja według uznania, gdy wymaga tego praca. O więcej miejsca poproś w '
+         . '<a href="' . rtrim($app, '/') . '/helpdesk/new.php">Helpdesku IT</a> i napisz, do czego jest potrzebne.</p>';
+}
+
 /** Uwaga o wolnym działaniu (polecenie 2026-11-14: „NC może wolno działać, bo to serwer przedwdrożeniowy”). */
 function itPortalCloudSlowNote(): string {
     return '<p>Chmura działa teraz na serwerze przedwdrożeniowym, więc może być wolna. Strony mogą się dłużej ładować, a duże pliki dłużej wysyłać. '
@@ -235,8 +244,8 @@ function itPortalCloudMenuBlocks(string $app): array {
 
         ['type' => 'text', 'html' => '<h2>Na dole menu</h2>'
             . '<p>Usunięte pliki. Kosz. Usunięty plik albo folder leży tu jeszcze przez jakiś czas i możesz go przywrócić. Później chmura usuwa go na stałe.</p>'
-            . '<p>Wykorzystane miejsce. Ile miejsca zajmują Twoje pliki i ile masz go łącznie. Pliki w folderach zespołów i pliki udostępnione Ci przez innych '
-            . 'nie zabierają Twojego miejsca. Gdy zaczyna go brakować, opróżnij kosz albo napisz do Helpdesku.</p>'
+            . '<p>Wykorzystane miejsce. Ile miejsca zajmują Twoje pliki i ile masz go łącznie. Każde konto ma 10 GB, a większy limit może przyznać administracja według uznania. '
+            . 'Pliki w folderach zespołów i pliki udostępnione Ci przez innych nie zabierają Twojego miejsca. Gdy zaczyna go brakować, opróżnij kosz albo napisz do Helpdesku.</p>'
             . '<p>Ustawienia Plików. Wygląd listy, na przykład pokazywanie plików ukrytych. Jest tam też adres WebDAV, którego potrzebują niektóre programy do łączenia się z chmurą.</p>'],
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Pliki, które udostępniono Twojej grupie z SZO, znajdziesz w „Wszystkich plikach” i w „Udostępnieniach”. '

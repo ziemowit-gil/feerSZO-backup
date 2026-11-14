@@ -1435,4 +1435,14 @@ return [
         },
     ],
 
+    // „Chmura plików”: limit 10 GB na konto, większy według uznania administracji (polecenie 2026-11-14) we wstępie usługi i w „menu-plikow”.
+    '2026-11_it_portal_cloud_quota' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: limit 10 GB na konto',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
