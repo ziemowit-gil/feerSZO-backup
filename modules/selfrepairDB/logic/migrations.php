@@ -2477,4 +2477,15 @@ return [
         },
     ],
 
+    // Pozostałe skrypty IT z imieniem w Pomocy IT, opisane jak Staszek (polecenie 2026-11-15 „tak samo opisz pozostałe boty”):
+    // Mietek (AccountWarden) w „Bezpieczeństwie”: dla wszystkich + dla IT; Gosposia w „Mojej poczcie”: dla IT.
+    '2026-11_it_portal_boty' => [
+        'desc' => 'Portal Usług IT: Mietek (dla wszystkich i dla IT) i Gosposia (dla IT), opisani jak Staszek',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalBotySeed.php';
+            itPortalBotyApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_boty_seed.php [--dry-run]
+        },
+    ],
+
 ];

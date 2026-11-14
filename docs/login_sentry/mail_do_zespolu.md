@@ -23,7 +23,7 @@ Jak to działa?
 
 Samo logowanie z nowego miejsca, na przykład z hotelu albo z telefonu u rodziny, nie wystarczy do blokady.
 
-Staszek ma ludzkie imię tak jak Mietek, Bronek i Gosposia. Łatwiej powiedzieć „Staszek zablokował mi konto” niż podawać nazwę skryptu, a od razu wiadomo, do kogo z IT pisać. Każdy z nich robi jedną rzecz i robi ją po cichu w tle.
+Staszek ma ludzkie imię tak jak Mietek, Bronek i Gosposia. Łatwiej powiedzieć „Staszek zablokował mi konto” niż podawać nazwę skryptu, a od razu wiadomo, do kogo z IT pisać. Każdy z nich ma jedno zadanie.
 
 Czy musisz coś zrobić?
 
