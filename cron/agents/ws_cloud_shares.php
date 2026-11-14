@@ -4,7 +4,7 @@
  * cron/agents/ws_cloud_shares.php — udostępnienia folderów obszarów Zadań w chmurze (modules/wsCloud/lib/WsCloud.php):
  * członek obszaru z kontem w chmurze ma udostępniony folder obszaru (viewer — odczyt, pozostali — edycja), osoba spoza
  * obszaru traci udostępnienie. Uzupełnia synchronizację przy zmianie członków (zmiany spoza ekranu ustawień obszaru,
- * nowe konta w chmurze).
+ * nowe konta w chmurze). Najpierw folder główny dla administratorów folderów (ustawienie ws_cloud_admins, cli/wsCloudAdmins.php).
  *
  * Uruchamiany przez cron/dispatcher.php co 1 h. Pomija cicho (exit 0), gdy chmura nie jest skonfigurowana.
  * Ręcznie: php cron/agents/ws_cloud_shares.php [--dry-run]
@@ -20,6 +20,12 @@ if (!WsCloud::available()) exit(0);
 @set_time_limit(600);
 $dry = in_array('--dry-run', $argv ?? [], true);
 $errors = 0;
+$root = WsCloud::syncRootShares($dry);   // administratorzy folderów (ws_cloud_admins) — cały folder główny
+if ($root['error'] !== '') $errors++;
+if ($root['added'] || $root['updated'] || $root['removed'] || $root['error'] !== '') {
+    echo 'folder główny: dodane ' . implode(', ', $root['added']) . '; zmienione ' . implode(', ', $root['updated']) . '; usunięte ' . implode(', ', $root['removed'])
+       . ($root['error'] !== '' ? '; błąd: ' . $root['error'] : '') . ($dry ? ' (podgląd)' : '') . "\n";
+}
 foreach (WsCloud::syncAll($dry) as $wsId => $r) {
     if ($r['error'] !== '') $errors++;
     if ($r['added'] || $r['updated'] || $r['removed'] || $r['error'] !== '') {

@@ -15,6 +15,10 @@ declare(strict_types=1);
  * Ścieżka folderu obszaru zapisuje się przy pierwszym użyciu (ws_cloud_roots) i nie zmienia się po zmianie nazwy obszaru.
  * Udostępnienia: syncShares() przy zakładaniu folderów, przy zapisie członków i co godzinę (agent CRON ws_cloud_shares).
  * Ruszamy wyłącznie udostępnienia osobom (share_type 0) folderu obszaru; udostępnienia grupom i linki zostają.
+ *
+ * Administratorzy folderów (ustawienie ws_cloud_admins: loginy w chmurze, polecenie 2026-11-14): cały folder „{root}”
+ * z pełnymi uprawnieniami (także dalsze udostępnianie), więc widzą wszystkie obszary, też przyszłe. Nie dostają osobnych
+ * udostępnień folderów obszarów (byłyby podwójne). Ustawia je cli/wsCloudAdmins.php; uzgadnia syncRootShares().
  */
 require_once dirname(__DIR__, 2) . '/sso_logto/lib/SsoConfig.php';
 
@@ -23,6 +27,7 @@ final class WsCloud
     public const DEFAULT_ROOT = 'Obszary zadań';
     public const PERM_READ = 1;
     public const PERM_EDIT = 15;   // odczyt + zmiana + dodawanie + usuwanie (bez dalszego udostępniania)
+    public const PERM_ALL  = 31;   // jak wyżej + dalsze udostępnianie (administratorzy folderów)
 
     private static ?CloudApi $api = null;
 
@@ -152,6 +157,55 @@ final class WsCloud
 
     // ── Udostępnienia ───────────────────────────────────────────────────────────────────────
 
+    /** Administratorzy folderów: loginy w chmurze z ustawienia ws_cloud_admins (czytane wprost z bazy, bez cache). */
+    public static function admins(): array
+    {
+        try { $v = (string)(db_one("SELECT value FROM settings WHERE key_ = 'ws_cloud_admins'")['value'] ?? ''); } catch (\Throwable $e) { $v = ''; }
+        $out = [];
+        foreach (preg_split('/[\s,;]+/', $v) as $uid) {
+            $uid = trim($uid);
+            if ($uid !== '') $out[strtolower($uid)] = $uid;
+        }
+        return array_values($out);
+    }
+
+    public static function setAdmins(array $uids): void
+    {
+        $uids = array_values(array_unique(array_filter(array_map('trim', $uids), fn($u) => $u !== '')));
+        org_setting_set('ws_cloud_admins', implode(',', $uids));
+    }
+
+    /**
+     * Folder „{root}” udostępniony administratorom folderów z pełnymi uprawnieniami; osobom spoza listy udostępnienie
+     * folderu głównego jest odbierane. Zwraca ['added','updated','removed','error'].
+     */
+    public static function syncRootShares(bool $dry = false): array
+    {
+        $res = ['added' => [], 'updated' => [], 'removed' => [], 'error' => ''];
+        try {
+            $api = self::api();
+            $admins = array_values(array_filter(self::admins(), fn($u) => strcasecmp($u, $api->apiUid()) !== 0));
+            if (!$admins && !$api->ownStat(self::root())) return $res;   // nic do udostępniania, folderu jeszcze nie ma
+            if (!$dry) $api->ownMkdirs(self::root());
+            $have = [];
+            if ($api->ownStat(self::root())) {
+                foreach ($api->shares(self::root()) as $s) if ($s['share_type'] === 0) $have[strtolower($s['share_with'])] = $s;
+            }
+            foreach ($admins as $uid) {
+                $s = $have[strtolower($uid)] ?? null;
+                if (!$s) { if (!$dry) $api->shareCreate(self::root(), $uid, self::PERM_ALL); $res['added'][] = $uid; continue; }
+                if ($s['permissions'] !== self::PERM_ALL) { if (!$dry) $api->shareUpdate($s['id'], self::PERM_ALL); $res['updated'][] = $uid; }
+            }
+            $lc = array_map('strtolower', $admins);
+            foreach ($have as $k => $s) {
+                if (!in_array($k, $lc, true)) { if (!$dry) $api->shareDelete($s['id']); $res['removed'][] = $s['share_with']; }
+            }
+        } catch (\Throwable $e) {
+            $res['error'] = mb_substr($e->getMessage(), 0, 300);
+        }
+        return $res;
+    }
+
     /** Konto w chmurze osoby z SZO (po user_id, a gdy brak — po e-mailu konta). */
     public static function cloudUid(int $userId, string $email): string
     {
@@ -212,6 +266,9 @@ final class WsCloud
             $w = self::wantedShares($wsId);
             $res['without'] = $w['without'];
             unset($w['want'][$api->apiUid()]);
+            // Administratorzy folderów mają cały folder główny — bez osobnych (podwójnych) udostępnień obszaru
+            $adminsLc = array_map('strtolower', self::admins());
+            foreach (array_keys($w['want']) as $uid) if (in_array(strtolower($uid), $adminsLc, true)) unset($w['want'][$uid]);
             $have = [];
             foreach ($api->shares((string)$row['path']) as $s) {
                 if ($s['share_type'] === 0) $have[strtolower($s['share_with'])] = $s;
