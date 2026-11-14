@@ -115,23 +115,23 @@ function itPortalCloudIntro(string $app): string {
 function itPortalCloudArticles(string $app): array {
     return [
         'nextcloud' => ['Nextcloud: pierwsze kroki w chmurze plików',
-            'nextcloud, chmura, chmura plików, pliki, dysk, onedrive, udostępnianie, link, synchronizacja, aplikacja, kosz, wersje, nc.feer.org.pl, iam, hasło',
-            itPortalCloudPilot(itPortalCloudBlocks($app)), true, 10],
+            'nextcloud, chmura, chmura plików, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, słabowidzący, pliki, dysk, onedrive, udostępnianie, link, synchronizacja, aplikacja, kosz, wersje, nc.feer.org.pl, iam, hasło',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudBlocks($app), $app)), true, 10],
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
-            'nextcloud, aplikacja, klient, instalacja, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
-            itPortalCloudPilot(itPortalCloudClientsBlocks($app)), false, 20],
+            'nextcloud, aplikacja, klient, instalacja, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudClientsBlocks($app), $app, true)), false, 20],
         'menu-plikow' => ['Co jest co w menu bocznym aplikacji Pliki',
             'menu, menu boczne, pliki, wszystkie pliki, pliki osobiste, ostatnie, ulubione, udostępnienia, foldery zespołów, etykiety, drzewo folderów, usunięte pliki, kosz, miejsce, limit, ustawienia plików, webdav, wyszukiwanie, nextcloud',
-            itPortalCloudPilot(itPortalCloudMenuBlocks($app)), false, 15],
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudMenuBlocks($app), $app)), false, 15],
         'logowanie' => ['Logowanie do chmury plików',
             'logowanie, zaloguj, zaloguj się, ekran logowania, strona logowania, login, nazwa użytkownika, hasło, iam, logowanie jednokrotne, logto, logto.feer.org.pl, nc.feer.org.pl, zapamiętaj mnie, zapomniałeś hasła, nie pamiętam hasła, utwórz konto, nazwa użytkownika jest nieprawidłowa, urządzenie, klucz dostępu, wyloguj, nextcloud',
-            itPortalCloudPilot(itPortalCloudLoginBlocks($app)), false, 11],
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudLoginBlocks($app), $app)), false, 11],
         'pulpit' => ['Ekran po zalogowaniu: Pulpit chmury plików',
             'ekran po zalogowaniu, po zalogowaniu, pulpit, strona startowa, start, dashboard, polecane pliki, zespoły, ostatnia aktywność, aktywność, powiadomienia, dzwonek, kontakty, status, awatar, menu aplikacji, wyszukiwarka, dostosuj, widżety, konto techniczne, szo, nextcloud',
-            itPortalCloudPilot(itPortalCloudDashboardBlocks($app)), false, 12],
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudDashboardBlocks($app), $app)), false, 12],
         'lista-plikow' => ['Lista plików: przyciski, ikony i udostępnianie',
             'lista plików, pliki, ikony, google drive, kopia konta, dawne pliki, przeniesione pliki, przyciski, nowy, prześlij, nowy folder, filtr, widok, siatka, kafelki, sortowanie, zaznaczanie, trzy kropki, akcje, readme, readme.md, opis folderu, onedrive, documents, photos, szablony, udostępnij, udostępnianie, link, link publiczny, link wewnętrzny, udostępnianie zewnętrzne, inni z dostępem, aktywność, panel boczny, nextcloud',
-            itPortalCloudPilot(itPortalCloudListBlocks($app)), false, 17],
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudListBlocks($app), $app)), false, 17],
         'grupy' => ['Grupy w chmurze: wspólne pliki zespołu, obszaru, działania i jednostki',
             'grupy, grupa, udostępnianie, udostępnij, folder wspólny, zespół, zespoły, obszar roboczy, obszar, działanie, działania, jednostka, jednostka organizacyjna, umowa, zadania, nextcloud, chmura, nie widzę folderu, brak dostępu',
             itPortalCloudPilot(itPortalCloudGroupsBlocks($app)), false, 30],
@@ -185,6 +185,21 @@ function itPortalCloudMenuBlocks(string $app): array {
             . 'Jak działają grupy, opisuje artykuł <a href="' . $groups . '">Grupy w chmurze</a>. Gdy czegoś w menu brakuje albo działa inaczej, '
             . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
     ];
+}
+
+/**
+ * Ramka o czytniku ekranu wstawiana po pierwszym bloku artykułów o chmurze (polecenie 2026-11-14: „dopisz, że z NC najlepiej z czytnikiem
+ * ekranu korzystać z aplikacji”). W artykule o instalacji aplikacji ($inClients) bez odsyłacza do samego siebie.
+ */
+function itPortalCloudA11y(array $blocks, string $app, bool $inClients = false): array {
+    $apps = $app . '/uslugi-it/uslugi/chmura-plikow/instalacja-aplikacji';
+    $html = '<p>Jeśli korzystasz z czytnika ekranu, na przykład NVDA, JAWS, VoiceOver albo TalkBack, najwygodniej pracować z chmurą przez aplikację Nextcloud '
+        . 'na komputerze albo telefonie, a nie przez stronę w przeglądarce. Na komputerze pliki z chmury są wtedy zwykłym folderem w Eksploratorze plików '
+        . 'albo w Finderze, więc obsługujesz je tak samo jak inne pliki, skrótami klawiszowymi, które już znasz. Strona w przeglądarce też działa z czytnikiem, '
+        . 'ale ma dużo przycisków i paneli, które otwierają się z boku, więc poruszanie się po niej trwa dłużej.</p>'
+        . ($inClients ? '' : '<p>Jak zainstalować aplikację, opisuje artykuł <a href="' . $apps . '">Instalacja aplikacji Nextcloud na komputerze i telefonie</a>.</p>');
+    $note = ['type' => 'callout', 'kind' => 'tip', 'html' => $html];
+    return array_merge(array_slice($blocks, 0, 1), [$note], array_slice($blocks, 1));
 }
 
 /**

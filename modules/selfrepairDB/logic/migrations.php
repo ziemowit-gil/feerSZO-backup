@@ -1167,4 +1167,15 @@ return [
         },
     ],
 
+    // „Chmura plików”: ramka, że z czytnikiem ekranu najwygodniej korzystać z aplikacji Nextcloud (polecenie 2026-11-14). Ponowny zapis
+    // wszystkich artykułów usługi oprócz „grupy” (itPortalCloudA11y w modules/it_portal/lib/itPortalCloudSeed.php).
+    '2026-11_it_portal_cloud_a11y' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: ramka o czytniku ekranu',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            foreach (['nextcloud', 'instalacja-aplikacji', 'logowanie', 'pulpit', 'menu-plikow', 'lista-plikow'] as $slug) itPortalCloudArticleApply(ITP_SZO_URL, $slug);
+        },
+    ],
+
 ];
