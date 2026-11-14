@@ -2063,4 +2063,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: artykuł „Logowanie jednokrotne w Systemie Tożsamości: konto IAM i hasło” — polecenie 2026-11-14.
+    // modules/it_portal/lib/itPortalSsoSekcjaSeed.php.
+    '2026-11_it_portal_sso_sekcja' => [
+        'desc' => 'Portal Usług IT, „Mój login”: Logowanie jednokrotne w Systemie Tożsamości',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSsoSekcjaSeed.php';
+            itPortalSsoSekcjaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
