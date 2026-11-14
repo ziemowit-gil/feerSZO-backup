@@ -2522,7 +2522,7 @@ function ezd_rpw_assign(int $id, array $d, int $user_id): int {
                 )->execute([$sprawa_id, $pismo_id, $stored, $r['scan_name'] ?: $r['scan_file'], $r['scan_mime'] ?: 'application/octet-stream', (int)$r['scan_size'], $user_id]);
                 $_nzid = (int)db()->lastInsertId();
                 try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $_nzid); } catch (\Throwable $e) {}   // numer + kod + QR skanu po przeniesieniu do koszulki
-                try { ezd_sp_sync_attachment($_nzid); } catch (\Throwable $e) {}
+                ezd_store_push($_nzid);   // kopia na FTP i do chmury (dawniej SharePoint)
             }
         }
     }
@@ -3190,7 +3190,7 @@ function ezd_attach_path(string $srcPath, string $origName, int $sprawa_id, ?int
     $new_id = (int)db()->lastInsertId();   // PRZED ezd_log() — log też wstawia wiersz i nadpisałby lastInsertId (zwracało id wpisu logu, nie załącznika)
     ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'upload', 'Wgrano plik: ' . $origName);
     try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $new_id); } catch (\Throwable $e) {}
-    try { ezd_sp_sync_attachment($new_id); } catch (\Throwable $e) {}
+    ezd_store_push($new_id);   // kopia na FTP i do chmury (dawniej SharePoint)
     return $new_id;
 }
 
@@ -3426,8 +3426,8 @@ function _ezd_upload_process(array $f, int $sprawa_id, int $user_id, ?int $pismo
 
     ezd_log(null, $sprawa_id, $pismo_id, $umowa_id, $user_id, 'upload', 'Wgrano plik: ' . $orig_name . " (v$wersja)");
 
-    // Synchronizacja z SharePoint (folder sprawy) w tle — błąd nie blokuje uploadu.
-    try { ezd_sp_sync_attachment($new_zal_id); } catch (\Throwable $e) {}
+    // Kopia na FTP i do chmury Nextcloud (dawniej SharePoint) — błąd nie blokuje uploadu.
+    ezd_store_push($new_zal_id);
 
     return null;
 }
@@ -3555,8 +3555,8 @@ function ezd_new_office_file(int $sprawa_id, int $user_id, string $type, string 
 
     ezd_log(null, $sprawa_id, null, null, $user_id, 'new_file', 'Utworzono nowy plik: ' . $orig_name);
 
-    // Synchronizacja z SharePoint (folder sprawy) w tle — błąd nie blokuje utworzenia pliku.
-    try { ezd_sp_sync_attachment($new_id); } catch (\Throwable $e) {}
+    // Kopia na FTP i do chmury Nextcloud (dawniej SharePoint) — błąd nie blokuje utworzenia pliku.
+    ezd_store_push($new_id);
 
     return ['ok' => true, 'error' => null, 'id' => $new_id];
 }
@@ -3605,10 +3605,62 @@ function ezd_sprawa_sp_folder(int $sprawa_id): ?string {
 }
 
 /**
+ * Kopia pliku EZD na FTP i do chmury Nextcloud (konto techniczne ezdmigracja) — od 2026-11-14 zamiast automatycznej
+ * kopii na SharePoint (modules/ezdStorage/lib/EzdStorage.php). Wołana po każdym zapisie pliku; nigdy nie rzuca wyjątku
+ * i nie blokuje zapisu w EZD (niedostępny cel = wpis w dzienniku, kopię dośle agent CRON ezd_store_sync).
+ * EZD_NO_SP_SYNC (autotesty w wycofywanej transakcji) wyłącza też tę kopię — wysłanego pliku nie da się „wycofać”.
+ */
+function ezd_store_push(int $zal_id): void {
+    if (defined('EZD_NO_SP_SYNC') || defined('EZD_NO_STORE')) return;
+    try {
+        require_once dirname(__DIR__) . '/modules/ezdStorage/lib/EzdStorage.php';
+        EzdStorage::push($zal_id);
+    } catch (\Throwable $e) {
+        error_log('[ezd_store] ' . $zal_id . ': ' . $e->getMessage());
+    }
+}
+
+/** Usuwa kopie pliku z FTP i z chmury (przy usunięciu pliku z EZD). Nigdy nie rzuca wyjątku. */
+function ezd_store_forget(int $zal_id): void {
+    if (defined('EZD_NO_SP_SYNC') || defined('EZD_NO_STORE')) return;
+    try {
+        require_once dirname(__DIR__) . '/modules/ezdStorage/lib/EzdStorage.php';
+        EzdStorage::forget($zal_id);
+    } catch (\Throwable $e) {
+        error_log('[ezd_store] forget ' . $zal_id . ': ' . $e->getMessage());
+    }
+}
+
+/** Wstrzymuje / wznawia kopie (Spinacz na czas plików tymczasowych). */
+function ezd_store_hold(bool $on): void {
+    try {
+        require_once dirname(__DIR__) . '/modules/ezdStorage/lib/EzdStorage.php';
+        EzdStorage::hold($on);
+    } catch (\Throwable $e) {}
+}
+
+/**
+ * Ścieżka pliku załącznika na dysku. Gdy pliku brakuje, odtwarza go z kopii w chmurze albo na FTP.
+ * Zwraca null, gdy pliku nie ma i nie da się go odtworzyć.
+ */
+function ezd_zal_local_file(array $z): ?string {
+    $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . (int)$z['sprawa_id'] . '/' . $z['filename'];
+    if (is_file($path)) return $path;
+    try {
+        require_once dirname(__DIR__) . '/modules/ezdStorage/lib/EzdStorage.php';
+        return EzdStorage::ensureLocal($z);
+    } catch (\Throwable $e) {
+        error_log('[ezd_store] restore ' . (int)($z['id'] ?? 0) . ': ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
  * Wysyła załącznik na SharePoint do folderu jego sprawy (patrz ezd_sprawa_sp_folder)
- * i zapamiętuje webUrl/drive_id/item_id na rekordzie. Bezpieczna do wywołania
- * „w tle" (fire-and-forget) po każdym wgraniu pliku — nigdy nie zgłasza wyjątku,
- * błąd wraca w tablicy wyniku.
+ * i zapamiętuje webUrl/drive_id/item_id na rekordzie. Od 2026-11-14 tylko na żądanie:
+ * „Otwórz w Office Online”, „Konwertuj na PDF” i konwersja przy druku (potrzebują Word Online
+ * / Microsoft Graph); automatyczna kopia po zapisie to ezd_store_push(). Nigdy nie zgłasza
+ * wyjątku, błąd wraca w tablicy wyniku.
  * @return array{ok:bool,error:?string,url:?string}
  */
 function ezd_sp_sync_attachment(int $zal_id): array {
@@ -3732,6 +3784,7 @@ function ezd_office_online_pull(int $zal_id, int $user_id, string $mode = 'versi
 
         ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online_pull_replace',
             'Zastąpiono oryginalny plik zmianami z Office Online: ' . $z['original_name']);
+        ezd_store_push($zal_id);   // nowa treść pod tą samą ścieżką kopii na FTP i w chmurze
 
         return ['ok' => true, 'error' => null, 'id' => $zal_id, 'mode' => 'replace'];
     }
@@ -3754,6 +3807,7 @@ function ezd_office_online_pull(int $zal_id, int $user_id, string $mode = 'versi
 
     ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'office_online_pull',
         'Zapisano zmiany z Office Online jako nową wersję: ' . $z['original_name'] . " (v" . ((int)$z['wersja'] + 1) . ")");
+    ezd_store_push($new_id);
 
     return ['ok' => true, 'error' => null, 'id' => $new_id, 'mode' => 'version'];
 }
@@ -3808,6 +3862,7 @@ function ezd_convert_to_pdf(int $zal_id, int $user_id): array {
 
     ezd_log(null, (int)$z['sprawa_id'], $z['pismo_id'] ?: null, $z['umowa_id'] ?: null, $user_id, 'convert_pdf',
         'Przekonwertowano na PDF: ' . $z['original_name'] . ' → ' . $pdf_name);
+    ezd_store_push($new_id);
 
     return ['ok' => true, 'error' => null, 'id' => $new_id];
 }
@@ -3879,6 +3934,19 @@ function ezd_merge_pdf_files(array $paths, string $out): void {
 }
 
 function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?string $custom_name = null, ?int $grupa_id = null): array {
+    // Oryginały i pośrednie PDF-y są tymczasowe (usuwa je $cleanup) — w tym czasie bez kopii na FTP/w chmurze;
+    // kopię dostaje tylko wynikowy, scalony PDF.
+    ezd_store_hold(true);
+    try {
+        $r = _ezd_spinacz_merge_run($sprawa_id, $user_id, $files_field, $custom_name, $grupa_id);
+    } finally {
+        ezd_store_hold(false);
+    }
+    if (!empty($r['ok']) && !empty($r['id'])) ezd_store_push((int)$r['id']);
+    return $r;
+}
+
+function _ezd_spinacz_merge_run(int $sprawa_id, int $user_id, string $files_field, ?string $custom_name, ?int $grupa_id): array {
     $f = $_FILES[$files_field] ?? null;
     if (!$f || empty($f['name']) || !is_array($f['name'])) {
         return ['ok' => false, 'error' => 'Nie wybrano plików.', 'id' => null];
@@ -3912,6 +3980,7 @@ function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?s
             if (!empty($z['sp_drive_id']) && !empty($z['sp_item_id'])) {
                 try { (new M365Graph())->sp_delete_item($z['sp_drive_id'], $z['sp_item_id']); } catch (\Throwable $e) {}
             }
+            ezd_store_forget((int)$zid);
             $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $z['sprawa_id'] . '/' . $z['filename'];
             if (is_file($path)) @unlink($path);
             db()->prepare("DELETE FROM ezd_zalaczniki WHERE id=?")->execute([$zid]);
@@ -4007,15 +4076,14 @@ function ezd_spinacz_merge(int $sprawa_id, int $user_id, string $files_field, ?s
     // Porządki — usuń tymczasowe oryginały i pośrednie konwersje (patrz $cleanup powyżej).
     $cleanup($created);
 
-    // Synchronizacja wynikowego PDF z SharePoint w tle — błąd nie blokuje operacji.
-    try { ezd_sp_sync_attachment($merged_id); } catch (\Throwable $e) {}
-
+    // Kopia wynikowego PDF na FTP i do chmury robi ezd_spinacz_merge() po zdjęciu wstrzymania.
     return ['ok' => true, 'error' => null, 'id' => $merged_id];
 }
 
 function ezd_zal_delete(int $id, int $user_id): void {
     $z = ezd_zal_get($id);
     if (!$z) return;
+    ezd_store_forget($id);   // kopie na FTP i w chmurze (chmura: do kosza konta)
     $path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $z['sprawa_id'] . '/' . $z['filename'];
     if (is_file($path)) unlink($path);
     db()->prepare("DELETE FROM ezd_zalaczniki WHERE id=?")->execute([$id]);

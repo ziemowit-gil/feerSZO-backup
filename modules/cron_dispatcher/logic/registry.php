@@ -397,6 +397,10 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/agents/ws_cloud_shares.php',
             'interval' => 3600,         // co 1 h — folder obszaru Zadań w chmurze udostępniony członkom obszaru (modules/wsCloud); bez chmury pomija
         ],
+        'ezd_store_sync' => [
+            'file'     => $cronDir . '/agents/ezd_store_sync.php',
+            'interval' => 600,          // co 10 min — zaległe kopie dokumentów EZD na FTP i do chmury (modules/ezdStorage): po awarii celu i pliki sprzed włączenia; porcja do 200 plików / ~4 min; bez celów pomija
+        ],
         'dhosting_suspend' => [
             'file'     => $cronDir . '/agents/dhosting_suspend.php',
             'interval' => 3600,         // co godzinę — skrzynki pocztowe zawieszane 2 dni po wygaśnięciu umowy (bez powiadomienia); dhosting_contract_suspend=0 wyłącza

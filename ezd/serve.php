@@ -17,7 +17,8 @@ if (!$z) {
     http_response_code(404); echo 'Plik nie istnieje.'; exit;
 }
 
-$path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $z['sprawa_id'] . '/' . $z['filename'];
+// Brak pliku na dysku → odtworzenie z kopii w chmurze albo na FTP (modules/ezdStorage).
+$path = ezd_zal_local_file($z) ?? (UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $z['sprawa_id'] . '/' . $z['filename']);
 
 if (!is_file($path)) {
     http_response_code(404); echo 'Plik nie znaleziony na serwerze.'; exit;

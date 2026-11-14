@@ -203,6 +203,7 @@ db()->prepare(
 ]);
 $new_zal_id = (int)db()->lastInsertId();
 try { require_once dirname(__DIR__) . '/modules/doc_registry/lib/DocRegistry.php'; DocRegistry::assign('ezd_zalacznik', $new_zal_id); } catch (\Throwable $e) {}   // numer + kod + QR podpisanej wersji (poprzednia → nieaktualna)
+ezd_store_push($new_zal_id);   // kopia podpisanej wersji na FTP i do chmury
 
 // Pełna walidacja kryptograficzna (certyfikat, integralność)
 $valid = ezd_validate_signature($dir . $stored, $signed_name);
