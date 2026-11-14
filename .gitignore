@@ -20,6 +20,7 @@ uploads/
 !uploads/avatars/pending/.gitkeep
 backups/
 storage/
+config/login_sentry.php
 tenants/*/umowy.db
 tenants/*/uploads/
 tenants/*/master.db

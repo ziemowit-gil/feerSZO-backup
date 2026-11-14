@@ -19,6 +19,7 @@ function adminRegistry(array $cnt = []): array
             ['icon'=>'bi-people',               'label'=>'Użytkownicy',              'url'=>'/admin/users.php',              'tile'=>true, 'badge'=>$cnt['users'] ?: null, 'badge_type'=>'secondary', 'kw'=>'konta loginy hasła'],
             ['icon'=>'bi-shield-lock',          'label'=>'Role i uprawnienia',       'url'=>'/admin/roles.php',              'tile'=>true, 'kw'=>'role uprawnienia dostęp'],
             ['icon'=>'bi-shield-check',         'label'=>'AccountWarden (nieaktywne konta)', 'url'=>'/modules/warden/router.php', 'tile'=>true, 'kw'=>'warden mietek nieaktywne konta blokada logto tożsamość iam strażnik'],
+            ['icon'=>'bi-shield-exclamation',   'label'=>'LoginSentry (podejrzane logowania)', 'url'=>'/modules/login_sentry/router.php', 'tile'=>true, 'kw'=>'staszek loginsentry podejrzane logowania ip blokada logto bezpieczeństwo'],
             ['icon'=>'bi-door-open',            'label'=>'Metody logowania',         'url'=>'/admin/login_settings.php',     'tile'=>true, 'kw'=>'logowanie 2fa office'],
             ['icon'=>'bi-envelope-paper',       'label'=>'E-mail: nowe dane logowania TI', 'url'=>'/admin/tiLoginyMail.php',  'kw'=>'login loginy nowy format kursant rodzic mail wysyłka'],
             ['icon'=>'bi-person-badge',         'label'=>'Podszywanie',              'url'=>'/admin/impersonate.php',        'tile'=>true, 'kw'=>'impersonacja zaloguj jako'],

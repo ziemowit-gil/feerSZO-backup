@@ -487,6 +487,8 @@ function _menu_editor(): array {
         $obs_g[] = _mi('Grupy w chmurze','/ssoadmin/grupy','bi-people',['match'=>'/ssoadmin/grupy','kw'=>'grupy chmura nextcloud zespoły obszary działania jednostki koordynator it przypisania konto w chmurze']);
     if (is_admin())   // AccountWarden („Mietek”): strażnik nieaktywnych kont, tylko w Ctrl+K
         $biuro_search[] = _mi('AccountWarden — nieaktywne konta','/modules/warden/router.php','bi-shield-check',['match'=>'/modules/warden/','kw'=>'warden mietek nieaktywne konta blokada logto tożsamość iam strażnik']);
+    if (is_admin())   // LoginSentry („Staszek”): podejrzane logowania (IP), tylko w Ctrl+K
+        $biuro_search[] = _mi('LoginSentry — podejrzane logowania','/modules/login_sentry/router.php','bi-shield-exclamation',['match'=>'/modules/login_sentry/','kw'=>'staszek loginsentry podejrzane logowania ip blokada logto bezpieczeństwo włamanie']);
     if (module_enabled('helpdesk_enabled')) {
         $obs_g[] = _mi('Helpdesk','/helpdesk/index.php','bi-ticket-perforated',['match'=>'/helpdesk/','badge'=>$cnt['hd'],'kw'=>'helpdesk zgłoszenie it wsparcie']);
         if ($cnt['alias_op'])

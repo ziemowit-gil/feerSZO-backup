@@ -414,6 +414,10 @@ function cron_dispatcher_registry(): array
             'interval' => 86400,        // raz na dobę — AccountWarden („Mietek”): ostrzeżenia i blokada kont bez logowania (Logto + SZO); wyłącznik w panelu /modules/warden/router.php
             'schedule' => [9, 12],      // w godzinach pracy, żeby e-maile i SMS-y nie szły w nocy
         ],
+        'login_sentry' => [
+            'file'     => dirname(__DIR__, 3) . '/bin/login_sentry.php',
+            'interval' => 21600,        // co 6 h — LoginSentry („Staszek”): ocena IP logowań SZO + Logto, przy podejrzanym zawieszenie konta i e-mail do administratora; tryb off/preview/live w panelu /modules/login_sentry/router.php
+        ],
         'backup_remote_full' => [
             'file'     => $cronDir . '/agents/backup_remote_full.php',
             'interval' => 86400,        // raz dziennie — pełna kopia na serwer zdalny, gdy minął ustawiony okres (doba / 7 dni) + retencja na serwerze
