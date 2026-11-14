@@ -2147,4 +2147,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Migracja”: artykuł „Migracja poczty krok po kroku i gdzie są Twoje pliki” — polecenie 2026-11-14.
+    // modules/it_portal/lib/itPortalMigracjaPocztySeed.php.
+    '2026-11_it_portal_migracja_poczty' => [
+        'desc' => 'Portal Usług IT, „Migracja”: migracja poczty krok po kroku, gdzie są pliki',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaPocztySeed.php';
+            itPortalMigracjaPocztyApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
