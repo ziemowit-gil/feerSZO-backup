@@ -19,6 +19,7 @@ require_once dirname(__DIR__) . '/lib/SsoConfig.php';
 require_once __DIR__ . '/SsoAccounts.php';
 require_once __DIR__ . '/CloudFilesCopy.php';
 require_once __DIR__ . '/CloudTeamsSync.php';
+require_once __DIR__ . '/CloudAssignIssues.php';
 require_once dirname(__DIR__) . '/lib/ssoPrompt.php';
 require_once dirname(__DIR__) . '/lib/LogtoOidc.php';
 
@@ -246,9 +247,92 @@ final class SsoController
      * POST /ssoadmin/zespoly — grupy w chmurze z SZO: zespoły i obszary Zadań, Działania, jednostki organizacyjne (CloudTeamsSync;
      * polecenia 2026-11-13 „zespoły też pobierz z SZO” i 2026-11-14 „dodaj obszary robocze”, „zespoły to działania i grupy w umowach”). do=preview — tylko podgląd. Ten sam przebieg robi co 2 min agent CRON sso_cloud_teams.
      */
+    /**
+     * GET /ssoadmin/grupy — grupy w chmurze z SZO dla Koordynatorów IT (administrator albo uprawnienie grupy_chmury; polecenie 2026-11-14
+     * „zarządzanie grupami tylko dla nowej roli Koordynatorzy IT”): synchronizacja, okno „Problemy z przypisaniami”, konta w chmurze.
+     */
+    public function groups(): string
+    {
+        ika_require();
+        return Router::view(self::VIEW . 'groups.php', ['flash' => $this->take(self::K_FLASH)]);
+    }
+
+    /** POST /ssoadmin/grupy/ignoruj — ignoruj albo przywróć ostrzeżenie (pozycję albo cały rodzaj). Fetch z Accept: JSON dostaje {ok}. */
+    public function assignIgnore(): array|string|null
+    {
+        $key = (string)($_POST['key'] ?? '');
+        $on = ($_POST['do'] ?? 'ignore') !== 'restore';
+        $ok = CloudAssignIssues::setIgnored($key, $on, (string)($_POST['label'] ?? ''), (int)(current_user()['id'] ?? 0));
+        if (str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) return ['ok' => $ok];
+        if (!$ok) return $this->flash(route('sso.groups') . '?problemy=1', 'danger', 'Nie rozpoznano ostrzeżenia.');
+        return Router::redirect(route('sso.groups') . '?problemy=1');
+    }
+
+    /**
+     * POST /ssoadmin/grupy/konto — konto w chmurze (i w logowaniu jednokrotnym) z okna „Problemy z przypisaniami”. Z umowy (ctype, cid)
+     * albo, gdy osoba nie ma aktywnej umowy, z konta SZO (user_id) — wtedy także zgłoszenie w Helpdesku (polecenie 2026-11-14:
+     * „załóż konto mimo braku umowy i rób ticket, ale twórz konto”). Hasło: SMS, gdy jest numer, i raz na ekranie; nigdzie go nie zapisujemy.
+     */
+    public function assignAccount(): ?string
+    {
+        $back = route('sso.groups');
+        if (!SsoConfig::cloudConfigured()) return $this->flash($back, 'warning', 'Chmura plików nie jest skonfigurowana.');
+        $ctype = (string)($_POST['ctype'] ?? '');
+        $by = (string)(current_user()['email'] ?? '');
+        if ($ctype !== '') {
+            $cid = (int)($_POST['cid'] ?? 0);
+            if (!in_array($ctype, ['wolontariat', 'zlecenie', 'dzielo', 'praca'], true) || $cid <= 0) return $this->flash($back, 'danger', 'Nieznana umowa.');
+            $row = db_one("SELECT * FROM umowy_{$ctype} WHERE id=?", [$cid]);
+            if (!$row) return $this->flash($back, 'danger', 'Nie znaleziono umowy.');
+            $person = self::personFromContract($row);
+        } else {
+            $u = db_one("SELECT id, name, email, phone_number, m365_login, is_active FROM users WHERE id=?", [(int)($_POST['user_id'] ?? 0)]);
+            if (!$u || (int)$u['is_active'] !== 1) return $this->flash($back, 'danger', 'Nie znaleziono aktywnego konta SZO tej osoby.');
+            $person = ['email' => strtolower(trim((string)$u['email'])), 'name' => trim((string)$u['name']), 'user_id' => (int)$u['id'],
+                       'login' => trim((string)($u['m365_login'] ?? '')), 'phone' => trim((string)$u['phone_number'])];
+        }
+        @set_time_limit(120);
+        try {
+            $res = SsoAccounts::provision($person, ['cloud' => true, 'files' => false, 'by' => $by, 'via' => 'admin']);
+        } catch (\Throwable $e) {
+            return $this->flash($back, 'danger', 'Konto w chmurze: ' . $e->getMessage());
+        }
+        $res['name'] = $person['name'];
+        $res['sms'] = $res['password'] && ($person['phone'] ?? '') !== '' ? $this->smsCredentials((string)$person['phone'], $res) : '';
+        $res['ticket'] = $ctype === '' ? self::noContractTicket($person, $res) : '';
+        $_SESSION[self::K_RESULT] = ['ctx' => 'grupy-konto', 'rows' => [$res]];
+        if (function_exists('audit_log')) {
+            try { audit_log('sso.cloud_account_from_groups', ['osoba' => $person['email'], 'login' => $res['username'], 'chmura' => $res['cloud'],
+                'zrodlo' => $ctype !== '' ? $ctype . ' nr ' . (int)$_POST['cid'] : 'konto SZO bez umowy', 'sms' => $res['sms'], 'zgloszenie' => $res['ticket']]); } catch (\Throwable $e) {}
+        }
+        return Router::redirect($back . '#konto');
+    }
+
+    /** Zgłoszenie w Helpdesku o koncie w chmurze dla osoby bez aktywnej umowy (bez hasła). Zwraca numer albo opis błędu. */
+    private static function noContractTicket(array $person, array $res): string
+    {
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/helpdesk.php';
+            $u = current_user() ?: [];
+            $desc = "Założono konto w chmurze plików i w logowaniu jednokrotnym osobie, która nie ma w SZO aktywnej umowy.\n\n"
+                  . 'Osoba: ' . $person['name'] . ' (' . $person['email'] . ")\n"
+                  . 'Login: ' . $res['username'] . "\n"
+                  . 'Chmura: ' . ($res['cloud'] !== '' ? $res['cloud'] : '—') . "\n"
+                  . 'Dane logowania: ' . ($res['sms'] !== '' ? 'SMS ' . $res['sms'] : 'przekazuje osoba zakładająca konto') . "\n"
+                  . 'Założył(a): ' . (string)($u['name'] ?? '') . "\n\n"
+                  . 'Do zrobienia: uzupełnić umowę tej osoby albo potwierdzić, że konto bez umowy jest potrzebne. Hasła nie zapisujemy w zgłoszeniu.';
+            $tid = hd_ticket_quick_create(['id' => (int)($u['id'] ?? 0), 'name' => (string)($u['name'] ?? ''), 'email' => (string)($u['email'] ?? '')],
+                'Konto w chmurze bez umowy: ' . $person['name'], str_replace(['<', '>'], ['‹', '›'], $desc), 'it_konto', 'normalny', 'grupy_chmury');
+            return (string)(db_one("SELECT number FROM helpdesk_tickets WHERE id=?", [$tid])['number'] ?? ('#' . $tid));
+        } catch (\Throwable $e) {
+            error_log('[sso] zgłoszenie konta bez umowy: ' . $e->getMessage());
+            return 'nie udało się założyć: ' . $e->getMessage();
+        }
+    }
+
     public function teamsSync(): ?string
     {
-        $back = route('sso.index') . '#zespoly';
+        $back = route('sso.groups') . '#zespoly';
         if (!SsoConfig::cloudConfigured()) return $this->flash($back, 'warning', 'Chmura plików nie jest skonfigurowana. Najpierw uzupełnij połączenie.');
         @set_time_limit(300);
         $dry = ($_POST['do'] ?? '') === 'preview';

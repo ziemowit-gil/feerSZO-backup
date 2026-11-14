@@ -37,6 +37,7 @@ const PERMISSION_MODULES = [
     'msues_wdrozenie' => 'Wdrożenie MSUES (aplikacja zewnętrzna, SSO)',
     'audytor'       => 'Tajemniczy Klient — audyty dostępności (aplikacja zewnętrzna, SSO)',
     'licencje_admin' => 'Administrator Licencji (Panel Licencji — logowanie Microsoft 365 / SZO)',
+    'grupy_chmury'  => 'Grupy w chmurze (Koordynatorzy IT: /ssoadmin/grupy)',
     'admin'         => 'Administracja',
 ];
 
@@ -212,6 +213,17 @@ function _permissions_init(): void {
         $srs_id = (int)$pdo->query("SELECT id FROM roles WHERE name='srs_koordynator'")->fetchColumn();
         $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
             ->execute([$srs_id, 'srs', 1, 1, 0]);
+    }
+
+    // Idempotentnie dodaj rolę koordynator_it — „Koordynator IT”: grupy w chmurze plików z SZO (/ssoadmin/grupy: synchronizacja,
+    // problemy z przypisaniami, ignorowanie ostrzeżeń, zakładanie kont w chmurze). Polecenie 2026-11-14: „zarządzanie grupami tylko
+    // dla nowej roli Koordynatorzy IT”. Moduł grupy_chmury można też nadać pojedynczej osobie (uprawnienia konta) bez zmiany jej roli.
+    if (!$pdo->query("SELECT COUNT(*) FROM roles WHERE name='koordynator_it'")->fetchColumn()) {
+        $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, sort_order)
+                    VALUES ('koordynator_it','Koordynator IT','Zarządza grupami w chmurze plików z SZO: synchronizacja, problemy z przypisaniami, zakładanie kont w chmurze',1,8)");
+        $kit_id = (int)$pdo->query("SELECT id FROM roles WHERE name='koordynator_it'")->fetchColumn();
+        $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
+            ->execute([$kit_id, 'grupy_chmury', 1, 1, 0]);
     }
 
     // Idempotentnie dodaj rolę dydaktyk_ti — konto panelu dydaktyka TI (system

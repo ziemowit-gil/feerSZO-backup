@@ -33,7 +33,23 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->post('/ssoadmin/loginy',       [SsoController::class, 'cloudRename'])->name('sso.cloudRename');   // loginy w chmurze z „_” → imie.nazwisko
     $r->post('/ssoadmin/nc-uid',       [SsoController::class, 'ncUidSync'])->name('sso.ncUid');            // login chmury w Logto (customData.nc_uid)
     $r->post('/ssoadmin/hasla',        [SsoController::class, 'passwordReset'])->name('sso.passwordReset'); // reset haseł w chmurze (NC) + logowaniu jednokrotnym
-    $r->post('/ssoadmin/zespoly',      [SsoController::class, 'teamsSync'])->name('sso.teamsSync');         // zespoły i obszary robocze Zadań → grupy w chmurze
+});
+
+// Grupy w chmurze z SZO (polecenie 2026-11-14: „zarządzanie grupami tylko dla nowej roli Koordynatorzy IT”): administrator albo uprawnienie
+// grupy_chmury (rola koordynator_it albo nadane osobie). Synchronizacja, okno „Problemy z przypisaniami”, ignorowanie ostrzeżeń, konto w chmurze.
+$r->aliasMiddleware('grupy', function (string $arg = ''): void {
+    if (can_write('grupy_chmury')) return;
+    http_response_code(403);
+    include dirname(__DIR__, 2) . '/includes/header.php';
+    echo '<div class="container mt-5"><div class="alert alert-danger" role="alert">Grupami w chmurze zarządzają Koordynatorzy IT. Nie masz tego uprawnienia.</div></div>';
+    include dirname(__DIR__, 2) . '/includes/footer.php';
+    exit;
+});
+$r->group(['auth', 'grupy'], function (Router $r) {
+    $r->get('/ssoadmin/grupy',          [SsoController::class, 'groups'])->name('sso.groups');
+    $r->post('/ssoadmin/zespoly',       [SsoController::class, 'teamsSync'])->name('sso.teamsSync');          // synchronizacja teraz albo podgląd
+    $r->post('/ssoadmin/grupy/ignoruj', [SsoController::class, 'assignIgnore'])->name('sso.assignIgnore');    // ignoruj / przywróć ostrzeżenie
+    $r->post('/ssoadmin/grupy/konto',   [SsoController::class, 'assignAccount'])->name('sso.assignAccount');  // konto w chmurze z okna problemów
 });
 
 $r->group(['auth'], function (Router $r) {
