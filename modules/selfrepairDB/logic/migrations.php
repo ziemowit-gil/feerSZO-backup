@@ -1879,4 +1879,15 @@ return [
         },
     ],
 
+    // „EZD”: wstęp usługi i artykuły „Pierwsze kroki”, „Korespondencja: dziennik podawczy i książka nadawcza”, „Koszulki, pisma i dekretacje”;
+    // grupy menu Na start / Codzienna praca / Narzędzia (polecenie 2026-11-14: „opisz EZD”). modules/it_portal/lib/itPortalEzdOgolnySeed.php.
+    '2026-11_it_portal_ezd_ogolny' => [
+        'desc' => 'Portal Usług IT, „EZD”: wstęp i artykuły ogólne',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalEzdOgolnySeed.php';
+            itPortalEzdOgolnyApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
