@@ -74,7 +74,7 @@ ob_start(); ?>
 </aside>
 <?php
 $LOGIN_INFO['panel'] = (string)ob_get_clean();
-$LOGIN_INFO['mini'] = '<div class="lg-alert warn lg-info-mini" role="note"><i class="bi bi-info-circle" aria-hidden="true"></i><div>'
+$LOGIN_INFO['mini'] = '<div class="l-alert l-alert-warn lg-info-mini" role="note"><i class="bi bi-info-circle" aria-hidden="true"></i><div>'
     . 'Odchodzimy od Microsoft 365. '
     . ($__off !== null && !$__past ? h($__when) . ' wyłączymy go. ' : '')
     . ($__iamReady ? 'Prosimy, zaloguj się do IAM. ' : '')

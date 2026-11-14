@@ -355,8 +355,7 @@ $_konto_url = function (string $k): string {
 // Nazwa systemu na ekranie powitania (spójna z nagłówkiem SZO)
 $_sys_name = 'Systemie Wspomagania Zarządzania Organizacją';
 
-// ── Widok: lekka karta logowania (2026-10-20: „toporne to okno”) — Microsoft 365 + e-mail/hasło na jednym ekranie,
-// inne metody schowane; bez panelu z instrukcją. Logika powyżej bez zmian; modale metod alternatywnych z _login_modals.php.
+// ── Widok: karta logowania — logowanie jednokrotne + e-mail/hasło, inne metody schowane; modale metod alternatywnych z _login_modals.php.
 ob_start();
 require __DIR__ . '/_login_modals.php';
 $_modals_html = ob_get_clean();
@@ -381,189 +380,105 @@ $LOGIN_INFO = ['panel' => '', 'mini' => ''];
 try { require dirname(__DIR__) . '/modules/sso_logto/view/loginInfo.php'; }
 catch (\Throwable $e) { $LOGIN_INFO = ['panel' => '', 'mini' => '']; error_log('[login] kolumna informacji: ' . $e->getMessage()); }
 $_two = $LOGIN_INFO['panel'] !== '';
-?><!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Logowanie — <?= h($_org) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<?php branding_css($_b); ?>
+// Błąd formularza e-mail/hasło stoi przy polach (w formularzu); inne błędy (np. nieudane logowanie jednokrotne) nad przyciskami.
+$_err_form = $error !== '' && $active_tab === 'local' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
+$_err_top  = $error !== '' && !$_err_form && !in_array($active_tab, ['code', 'sms', 'x509'], true);
+$_err_attr = $_err_form ? ' aria-invalid="true"' : '';
+$_err_ids  = $_err_form ? ' login-error-text' : '';
+
+// ── Widok (przebudowa 2026-11-14, jasny wygląd ekranów wejścia): powłoka includes/auth_screen.php w trybie 'light'
+// (inc/loginShell/authUi.php), druga kolumna „Odchodzimy od Microsoft 365” obok karty. Logika powyżej bez zmian.
+$_login_css = <<<'CSS'
 <style>
-body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:#f3f2f1;color:#1f1f1f;min-height:100vh;display:flex;flex-direction:column;margin:0}
-/* WCAG 2.4.7/2.4.11: czerwony, gruby fokus — #c50f1f na tle #f3f2f1/#fff ≥ 5:1, odsunięty od niebieskiego przycisku */
-:focus-visible{outline:3px solid #c50f1f!important;outline-offset:3px!important;box-shadow:none!important}
-.lg-in:focus-visible{outline-offset:1px!important}
-.lg-skip{position:absolute;left:1rem;top:-4rem;background:#1f1f1f;color:#fff;padding:.6rem 1rem;font-weight:600;z-index:10}
-.lg-skip:focus{top:1rem}
-.lg-in[aria-invalid=true]{border:2px solid #a4262c}
-.lg-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem 1rem}
-.lg-card{background:#fff;width:100%;max-width:460px;padding:2.4rem 2.4rem 2rem;border:1px solid #c8c8c8;box-shadow:0 2px 6px rgba(0,0,0,.08)}
-.lg-brand{margin-bottom:1.5rem}
-.lg-brand img{height:44px;width:auto;display:block}
-.lg-brand span{display:block;font-size:.95rem;font-weight:600;color:#1f1f1f}
-.lg-h1{font-size:1.75rem;font-weight:600;margin:0 0 .25rem;color:#111}
-.lg-lead{color:#3b3b3b;margin:0 0 1.6rem;font-size:1rem}
-/* stałe kolory (nie z brandingu — jasny kolor marki dawał biały napis na jasnym tle): #0f6fa8 na białym = 5,6:1 */
-.lg-ms{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;min-height:50px;background:#0f6fa8;color:#fff!important;text-decoration:none;font-weight:600;font-size:1.02rem}
-.lg-ms:hover,.lg-ms:focus{background:#0b5582}
-.lg-ms-sub{font-size:.88rem;color:#3b3b3b;text-align:center;margin:.45rem 0 0}
-/* Microsoft 365 tylko dla administratorów — przycisk drugoplanowy (obrys); #075f9e na białym = 6,6:1 */
-.lg-ms.lg-ms--admin{background:#fff;color:#075f9e!important;border:1px solid #075f9e;min-height:40px;font-size:.92rem}
-.lg-ms.lg-ms--admin:hover,.lg-ms.lg-ms--admin:focus{background:#e6f1fb}
-.lg-or{display:flex;align-items:center;gap:.8rem;margin:1.5rem 0 1.1rem;color:#3b3b3b;font-size:.9rem}
-.lg-or::before,.lg-or::after{content:"";flex:1;border-top:1px solid #c8c8c8}
-.lg-field{margin-bottom:.9rem}
-.lg-field label{display:block;font-weight:600;font-size:.95rem;margin-bottom:.35rem;color:#111}
-.lg-in{width:100%;min-height:46px;border:1px solid #6b6b6b;border-radius:0;padding:.5rem .7rem;font:inherit;font-size:1rem;color:#111;background:#fff}
-.lg-in:focus{border-color:#1f1f1f}
-.lg-pass{position:relative}.lg-pass .lg-in{padding-right:2.8rem}
-.lg-pass button{position:absolute;right:1px;top:1px;bottom:1px;width:2.6rem;border:0;background:#fff;cursor:pointer}
-.lg-btn{width:100%;min-height:48px;border:0;background:#1f1f1f;color:#fff;font-weight:600;font-size:1.02rem;cursor:pointer}
-.lg-btn:hover,.lg-btn:focus{background:#000}
-.lg-links{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-top:1rem;font-size:.95rem}
-.lg-links a{color:#0b5582;font-weight:600}
-.lg-alert{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .8rem;margin-bottom:1rem;font-size:.9rem;border-left:4px solid}
-.lg-alert.info{background:#eff6fc;border-color:#0f6fa8}.lg-alert.ok{background:#eef7ee;border-color:#107c10}
-.lg-alert.err{background:#fde7e9;border-color:#a4262c}.lg-alert.warn{background:#fff4ce;border-color:#c25100}
-/* „Nowy wolontariusz / zleceniobiorca” — kafle z ikoną; #0b5582 na białym = 7,9:1 */
-.lg-new{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:1.4rem}
-.lg-new a,.lg-new button{display:flex;align-items:center;gap:.65rem;min-height:56px;padding:.6rem .7rem;border:1px solid #c8c8c8;background:#fff;color:#1f1f1f;text-decoration:none;text-align:left;font:inherit;cursor:pointer}
-.lg-new a:hover,.lg-new button:hover{border-color:#1f1f1f}
-.lg-new i{flex:0 0 2.2rem;height:2.2rem;display:flex;align-items:center;justify-content:center;background:#0f6fa8;color:#fff;font-size:1.15rem}
-.lg-new span{display:flex;flex-direction:column;line-height:1.25;font-size:.85rem;color:#3b3b3b}
-.lg-new strong{font-size:.95rem;color:#0b5582}
-@media(max-width:380px){.lg-new{grid-template-columns:1fr}}
-.lg-more{margin-top:1.4rem;border-top:1px solid #c8c8c8;padding-top:1rem}
-.lg-more summary{cursor:pointer;color:#0b5582;font-size:.95rem;font-weight:600}
-.lg-more .lg-alt{display:grid;gap:.4rem;margin-top:.7rem}
-.lg-alt button{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;border:1px solid #e1e1e1;background:#fff;padding:.55rem .7rem;font:inherit;font-size:.9rem;cursor:pointer}
-.lg-alt button:hover{border-color:#1f1f1f}
-.lg-foot{text-align:center;font-size:.88rem;color:#3b3b3b;padding:0 1rem 1.2rem}
-.lg-foot a{color:#3b3b3b}
-@media(max-width:480px){.lg-card{padding:1.6rem 1.2rem;border:0}}
-/* klasy używane w modalach metod alternatywnych (auth/_login_modals.php) */
-.ks-field{margin-bottom:.9rem}.ks-field label{display:block;font-weight:600;font-size:.9rem;margin-bottom:.3rem}
-.ks-muted{color:#5f5f5f;font-size:.88rem}
-.ks-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;width:100%;min-height:44px;border:2px solid #1f1f1f;background:#fff;color:#1f1f1f;font-weight:600}
-.ks-btn--primary{background:#1f1f1f;color:#fff}.ks-btn--primary:hover{background:#000}
-.l-alert{display:flex;gap:.6rem;align-items:flex-start;padding:.6rem .8rem;margin-bottom:.9rem;font-size:.9rem;border-left:4px solid #0f6fa8;background:#eff6fc}
-.l-alert-danger{border-color:#a4262c;background:#fde7e9}.l-alert-success{border-color:#107c10;background:#eef7ee}
-.pass-wrap{position:relative}.pass-toggle{position:absolute;right:1px;top:1px;bottom:1px;width:2.6rem;border:0;background:#fff}
-.modal-content{border-radius:0}
-
-/* ── Wygląd CPL (Centralny Portal Logowania) ── */
-body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
-:focus-visible{outline:3px solid #f59e0b!important;outline-offset:2px!important}
-.lg-wrap{align-items:flex-start;padding-top:1.5rem}
-.lg-card{padding:0;border:1px solid #d6d9de;box-shadow:none;overflow:hidden;max-width:480px}
-<?= auth_screen_cpl_band_css() ?>
-.cpl-top{border:0;border-bottom:1px solid #e1e4e8}
-.lg-body{padding:1.4rem 2.2rem 1.8rem;background:#eceeef}
-.lg-brand{display:none}
-.lg-h1{font-size:1.35rem;font-weight:700;color:#1f2937}
-.lg-lead{font-size:.9rem;margin-bottom:1rem}
-/* #075f9e z białym = 6,7:1 (wcześniejszy #0a7fd1 = 4,2:1 — za mało dla tekstu 15 px, WCAG 1.4.3) */
-.lg-ms{background:#075f9e;border-radius:2px;min-height:42px;font-size:.95rem}
-.lg-ms:hover,.lg-ms:focus{background:#054a7a}
-.lg-in{border:1px solid #8d95a1;border-radius:2px;min-height:34px;font-size:.9rem;padding:.3rem .55rem}
-.lg-in:focus{border-color:#0a7fd1}
-.lg-field label{font-size:.85rem}
-.lg-btn{background:#075f9e;border-radius:2px;min-height:40px;font-size:.95rem}
-.lg-btn:hover,.lg-btn:focus{background:#054a7a}
-.lg-links a,.lg-more summary,.lg-new strong{color:#075f9e}
-.lg-new i{background:#0a7fd1;border-radius:2px}
-.lg-new a,.lg-new button,.lg-alt button{border-radius:2px;background:#fff;border-color:#c9ced6}
-.lg-new a:hover,.lg-new button:hover,.lg-alt button:hover{background:#dbeafe;border-color:#93c5fd}
-.lg-alert{border-radius:2px}
-.lg-alert.info{background:#e6f1fb;border-color:#0a7fd1}
-.lg-cpl{font-size:.88rem;color:#374151;margin:-.9rem 0 1.3rem}
-.lg-cpl a{color:#075f9e;font-weight:600}
-.lg-first{margin-top:1.6rem;padding-top:1.2rem;border-top:1px solid #c8c8c8}
-.lg-first-h{font-size:1.05rem;font-weight:700;margin:0 0 .7rem;color:#111}
-.lg-first .lg-new{grid-template-columns:1fr;margin-top:0}
-.lg-new em{font-style:normal;font-size:.82rem;color:#4b5563}
-.lg-first-pin{font-size:.88rem;margin:.8rem 0 0;color:#374151}
-.lg-first-pin a{color:#075f9e;font-weight:600}
-.lg-alt a.lg-alt-ms{display:flex;align-items:center;gap:.6rem;border:1px solid #075f9e;background:#fff;color:#075f9e;padding:.55rem .7rem;font-size:.9rem;font-weight:600;text-decoration:none;border-radius:2px}
-.lg-alt a.lg-alt-ms:hover{background:#e6f1fb}
-@media(max-width:480px){.lg-body{padding:1.2rem}}
-
-/* ── Dwie kolumny (polecenie 2026-11-13): informacja „Odchodzimy od Microsoft 365” + karta logowania ──
-   DOM: najpierw karta (h1), potem kolumna informacji (h2). Wąsko: jedna kolumna (karta, pod nią informacja,
-   w karcie skrót .lg-info-mini z odnośnikiem). Szeroko (≥ 900 px): informacja po lewej, karta 480 px po prawej.
-   Kontrast: #1f2937/#374151 na białym ≥ 9:1, #075f9e 6,7:1, #a33b00 6,6:1, tekst na #fff4ce i #e6f1fb ≥ 8:1. */
-.lg-two{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"card" "info";gap:1.25rem;width:100%;max-width:480px}
-.lg-two .lg-card{grid-area:card;max-width:none}
-.lg-info{grid-area:info;background:#fff;border:1px solid #d6d9de;border-radius:2px;padding:1.4rem 1.6rem 1.5rem;color:#1f2937;font-size:.9rem;line-height:1.5}
-.lg-info-kicker{margin:0 0 .2rem;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#a33b00}
-.lg-info-h{font-size:1.35rem;font-weight:700;color:#1f2937;margin:0 0 .5rem}
-.lg-info-lead{margin:0;color:#374151}
-.lg-info-h3{font-size:1rem;font-weight:700;color:#1f2937;margin:1.15rem 0 .4rem}
-.lg-info-list{margin:0;padding-left:1.15rem}
-.lg-info-list li{margin:0 0 .45rem}
-.lg-info-box{display:flex;gap:.6rem;align-items:flex-start;padding:.7rem .85rem;margin:1rem 0 0;background:#e6f1fb;border-left:4px solid #075f9e;border-radius:2px}
-.lg-info-box>i{font-size:1.1rem;line-height:1.35;color:#075f9e}
-.lg-info-box--warn{background:#fff4ce;border-left-color:#c25100}
-.lg-info-box--warn>i{color:#8a3a00}
-.lg-info-steps{margin:.45rem 0;padding-left:1.2rem}
-.lg-info-steps li{margin:0 0 .25rem}
-.lg-info-small{display:block;font-size:.82rem;color:#374151}
-.lg-info-help{margin:1rem 0 0;font-size:.85rem;color:#374151}
-.lg-info a{color:#075f9e;font-weight:600}
-.lg-info-why{margin:1.1rem 0 0;border-top:1px solid #e5e7eb;padding-top:.8rem}
-.lg-info-why summary{cursor:pointer;font-weight:700;color:#075f9e;min-height:44px;display:flex;align-items:center}
-.lg-info-why .lg-info-list{margin-top:.4rem}
-.lg-info-mini a{color:#075f9e;font-weight:600}
-@media(min-width:900px){
-  .lg-two{grid-template-columns:minmax(0,1fr) 480px;grid-template-areas:"info card";max-width:1080px;align-items:start}
-  .lg-info-mini{display:none}
-}
-@media(max-width:480px){.lg-info{padding:1.1rem 1.2rem}}
+.lg-cpl{margin:-1rem 0 1.5rem;font-size:.9rem;color:var(--au-ink2)}
+.lg-cpl a{font-weight:600}
+.lg-sso-h{margin:.45rem 0 0;font-size:.875rem;text-align:center;color:var(--au-muted)}
+.lg-first{margin:1.75rem 0 0;padding-top:1.25rem;border-top:1px solid var(--au-line)}
+.lg-first-h{margin:0 0 .75rem;font-size:1.05rem;font-weight:700;color:var(--au-ink)}
+.au .lg-first .lg-new{grid-template-columns:1fr;margin:0}
+.lg-first-pin{margin:.8rem 0 0;font-size:.9rem;color:var(--au-ink2)}
+.lg-first-pin a{font-weight:600}
+.lg-more{margin:1.5rem 0 0;padding-top:.75rem;border-top:1px solid var(--au-line)}
+.lg-more summary{display:flex;align-items:center;min-height:44px;font-weight:600;color:var(--au-acc);cursor:pointer}
+.lg-alt{display:grid;gap:.5rem;margin-top:.5rem}
+.au .lg-alt a,.au .lg-alt button{display:flex;align-items:center;gap:.6rem;width:100%;min-height:48px;padding:.6rem .85rem;
+  border:1px solid var(--au-line2);border-radius:var(--au-rs);background:#fff;color:var(--au-ink);font:inherit;font-size:.95rem;
+  text-align:left;text-decoration:none;cursor:pointer}
+.au .lg-alt a:hover,.au .lg-alt button:hover{border-color:var(--au-acc);background:#f9fafb}
+.lg-alt i{font-size:1.1rem;color:var(--au-acc)}
+/* Kolumna „Odchodzimy od Microsoft 365” (modules/sso_logto/view/loginInfo.php). #a33b00 na białym = 6,6:1 */
+.lg-info{padding:1.6rem 1.75rem;background:#fff;border:1px solid var(--au-line);border-radius:var(--au-r);font-size:.95rem;line-height:1.55;color:var(--au-ink)}
+.lg-info-kicker{margin:0 0 .25rem;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#a33b00}
+.lg-info-h{margin:0 0 .5rem;font-size:1.35rem;font-weight:700;color:var(--au-ink)}
+.lg-info-lead{margin:0;color:var(--au-ink2)}
+.lg-info-h3{margin:1.25rem 0 .4rem;font-size:1rem;font-weight:700;color:var(--au-ink)}
+.lg-info-steps,.lg-info-list{margin:.4rem 0 0;padding-left:1.25rem}
+.lg-info-steps li,.lg-info-list li{margin:0 0 .4rem}
+.lg-info-box{display:flex;gap:.6rem;align-items:flex-start;margin:1rem 0 0;padding:.75rem .9rem;border-left:4px solid var(--au-acc);border-radius:var(--au-rs);background:var(--au-acc-soft)}
+.lg-info-box>i{font-size:1.1rem;line-height:1.4;color:var(--au-acc)}
+.lg-info-box--warn{background:var(--au-warn-bg);border-left-color:var(--au-warn);color:var(--au-warn-ink)}
+.lg-info-box--warn>i{color:var(--au-warn-ink)}
+.lg-info-small{display:block;margin:.6rem 0 0;font-size:.875rem;color:var(--au-ink2)}
+.lg-info-help{margin:1rem 0 0;font-size:.9rem;color:var(--au-ink2)}
+.lg-info a{font-weight:600;color:var(--au-acc);text-decoration:underline;text-underline-offset:2px}
+.lg-info-why{margin:1.1rem 0 0;padding-top:.5rem;border-top:1px solid var(--au-line)}
+.lg-info-why summary{display:flex;align-items:center;min-height:44px;font-weight:700;color:var(--au-acc);cursor:pointer}
+@media(min-width:900px){.lg-info-mini{display:none!important}}
+@media(max-width:520px){.lg-info{padding:1.25rem}}
 </style>
-</head>
-<body>
-<a class="lg-skip" href="#f-email">Przejdź do logowania</a>
-<main class="lg-wrap" id="login-main">
-<?php if ($_two): ?><div class="lg-two"><?php endif; ?>
-  <div class="lg-card">
-    <?= auth_screen_cpl_band($_org ?: 'Fundacja FEER') ?>
-    <div class="lg-body">
-    <div class="lg-brand">
-      <?php if ($_b['logo_url']): ?><img src="<?= h($_b['logo_url']) ?>" alt="<?= h($_org) ?>"><?php else: ?><span><?= h($_org) ?></span><?php endif; ?>
-    </div>
-    <h1 class="lg-h1"><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się' ?></h1>
-    <p class="lg-lead"><?= $_login_welcome_is_custom ? nl2br(h($_login_welcome)) : 'System Wspomagania Zarządzania Organizacją' ?></p>
+CSS;
+
+auth_screen_head([
+    'title'           => 'Logowanie',
+    'light'           => true,
+    'width'           => 480,
+    'bootstrap'       => true,
+    'main_id'         => 'login-main',
+    'account_buttons' => [],
+    'aside_html'      => $_two ? $LOGIN_INFO['panel'] : '',
+    'head_html'       => $_login_css,
+]);
+?>
+    <h1 class="ks-h1"><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się' ?></h1>
+    <p class="ks-lead"><?= $_login_welcome_is_custom ? nl2br(h($_login_welcome)) : 'System Wspomagania Zarządzania Organizacją' ?></p>
     <p class="lg-cpl">Logujesz się przez CPL, Centralny Portal Logowania Fundacji. Inny profil wybierzesz w <a href="<?= h(APP_URL) ?>/tozsamosc/cpl.php">pełnym oknie CPL</a>.</p>
 
-    <?php if ($_ln_show): ?><div class="lg-alert info" role="region" aria-label="Komunikat"><i class="bi bi-megaphone" aria-hidden="true"></i><div><strong><?= h($_ln_show['title']) ?></strong><?php if ($_ln_show['body']): ?><br><?= nl2br(h($_ln_show['body'])) ?><?php endif; ?></div></div><?php endif; ?>
-    <?php if ($_sso_hint): ?><div class="lg-alert info" role="alert" id="sso-hint"><i class="bi bi-shield-check" aria-hidden="true"></i><div>
+    <?php if ($_ln_show): ?><div class="l-alert l-alert-info" role="region" aria-label="Komunikat"><i class="bi bi-megaphone" aria-hidden="true"></i><div><strong><?= h($_ln_show['title']) ?></strong><?php if ($_ln_show['body']): ?><br><?= nl2br(h($_ln_show['body'])) ?><?php endif; ?></div></div><?php endif; ?>
+    <?php if ($_sso_hint): ?><div class="l-alert l-alert-info" role="alert" id="sso-hint"><i class="bi bi-shield-check" aria-hidden="true"></i><div>
       <?php if (!empty($_sso_hint['reauth'])): ?><strong>Wymagane ponowne logowanie.</strong> <?php endif; ?>
       Logujesz się, aby otworzyć <?= ($_sso_hint['app'] ?? '') !== '' ? 'aplikację: <strong>' . h($_sso_hint['app']) . '</strong>' : 'zewnętrzną aplikację' ?>.
       Jeśli nie otwierasz żadnej aplikacji, nie wpisuj hasła.</div></div><?php endif; ?>
-    <?php if (isset($_GET['ended'])): ?><div class="lg-alert ok" role="status"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Sesja zakończona — zaloguj się ponownie.</span></div><?php endif; ?>
-    <?php if ($error && !in_array($active_tab, ['code','sms','x509'], true)): ?><div class="lg-alert err" role="alert" id="login-error-box"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span id="login-error-text"><?= h($error) ?></span></div><?php endif; ?>
-    <?php if ($emergency): ?><div class="lg-alert warn" role="note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>Logowanie awaryjne — użyj adresu e-mail i <strong>hasła awaryjnego</strong>.</span></div><?php endif; ?>
+    <?php if (isset($_GET['ended'])): ?><div class="l-alert l-alert-success" role="status"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Sesja zakończona — zaloguj się ponownie.</span></div><?php endif; ?>
+    <?php if ($_err_top): ?><div class="l-alert l-alert-danger" role="alert" id="login-error-box"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span id="login-error-text"><?= h($error) ?></span></div><?php endif; ?>
+    <?php if ($emergency): ?><div class="l-alert l-alert-warn" role="note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>Logowanie awaryjne — użyj adresu e-mail i <strong>hasła awaryjnego</strong>.</span></div><?php endif; ?>
     <?php if ($_two) echo $LOGIN_INFO['mini']; /* skrót informacji — tylko na wąskim ekranie (< 900 px), pełna treść pod kartą */ ?>
 
     <?php if ($_show_logto): ?>
-    <a class="lg-ms" href="<?= h($_logto_url) ?>"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
-    <p class="lg-ms-sub">Jedno konto Fundacji, to samo co do chmury plików</p>
-    <?php endif; ?>
-    <?php if ($_show_logto): ?>
-    <div class="lg-or">albo e-mail i hasło</div>
+    <a class="ks-btn ks-btn--primary" href="<?= h($_logto_url) ?>"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
+    <p class="lg-sso-h">Jedno konto Fundacji, to samo co do chmury plików</p>
+    <div class="ks-or">albo e-mail i hasło</div>
     <?php endif; ?>
 
-    <form method="post" novalidate autocomplete="on" aria-label="Logowanie e-mailem i hasłem">
+    <form method="post" id="login-form" novalidate autocomplete="on" aria-label="Logowanie e-mailem i hasłem">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_method" value="local">
-      <div class="lg-field"><label for="f-email">Adres e-mail</label>
-        <input type="email" name="email" id="f-email" class="lg-in" autocomplete="email" inputmode="email" required<?= (!$_show_logto || ($error && $active_tab === 'local')) ? ' autofocus' : '' ?><?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>></div>
-      <div class="lg-field"><label for="f-pass">Hasło</label>
-        <div class="lg-pass"><input type="password" name="password" id="f-pass" class="lg-in" autocomplete="current-password" required<?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>>
-          <button type="button" aria-label="Pokaż hasło" aria-pressed="false" onclick="var i=document.getElementById('f-pass'),s=i.type==='password';i.type=s?'text':'password';this.setAttribute('aria-pressed',s);this.firstElementChild.className=s?'bi bi-eye-slash':'bi bi-eye'"><i class="bi bi-eye" aria-hidden="true"></i></button></div></div>
-      <button type="submit" class="lg-btn">Zaloguj</button>
+      <?php if ($_err_form): ?><div class="l-alert l-alert-danger" role="alert" id="login-error-box"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span id="login-error-text"><?= h($error) ?></span></div><?php endif; ?>
+      <div class="ks-field">
+        <label for="f-email">Adres e-mail</label>
+        <input type="email" name="email" id="f-email" class="form-control" autocomplete="email" inputmode="email" required
+               aria-describedby="f-email-err<?= $_err_ids ?>"<?= $_err_attr ?><?= (!$_show_logto || $_err_form) ? ' autofocus' : '' ?>>
+        <p class="au-ferr" id="f-email-err" role="alert"></p>
+      </div>
+      <div class="ks-field">
+        <label for="f-pass">Hasło</label>
+        <div class="pass-wrap">
+          <input type="password" name="password" id="f-pass" class="form-control" autocomplete="current-password" required
+                 aria-describedby="f-pass-err<?= $_err_ids ?>"<?= $_err_attr ?>>
+          <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" aria-controls="f-pass" onclick="togglePass('f-pass', this)"><i class="bi bi-eye" aria-hidden="true"></i></button>
+        </div>
+        <p class="au-ferr" id="f-pass-err" role="alert"></p>
+      </div>
+      <button type="submit" class="ks-btn ks-btn--primary">Zaloguj</button>
     </form>
     <div class="lg-links"><a href="<?= APP_URL ?>/user/verify_reset.php">Nie pamiętasz hasła?</a><a href="<?= h($_help_url) ?>">Instrukcja logowania</a></div>
 
@@ -583,29 +498,42 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
     <details class="lg-more"<?= in_array($active_tab, ['code','sms','x509'], true) ? ' open' : '' ?>>
       <summary>Inne metody logowania i administratorzy</summary>
       <div class="lg-alt">
-        <?php if ($_show_ms): ?><a class="lg-alt-ms" href="<?= h($_ms_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Microsoft 365, tylko administratorzy @feer.org.pl</a><?php endif; ?>
+        <?php if ($_show_ms): ?><a href="<?= h($_ms_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Microsoft 365, tylko administratorzy @feer.org.pl</a><?php endif; ?>
         <?php if ($code_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-code"><i class="bi bi-key" aria-hidden="true"></i> Kod jednorazowy</button><?php endif; ?>
         <?php if ($sms_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-sms"><i class="bi bi-phone" aria-hidden="true"></i> Kod SMS</button><?php endif; ?>
         <?php if ($x509_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-x509"><i class="bi bi-patch-check" aria-hidden="true"></i> Certyfikat X.509 (administratorzy)</button><?php endif; ?>
       </div>
     </details>
     <?php endif; ?>
-    </div><!-- /.lg-body -->
-  </div>
-<?php if ($_two): ?>
-<?= $LOGIN_INFO['panel'] ?>
-</div><!-- /.lg-two -->
-<?php endif; ?>
-</main>
-<footer class="lg-foot"><?= h($_org) ?> · <a href="<?= APP_URL ?>/auth/help.php">Pomoc w logowaniu</a> · <a href="<?= APP_URL ?>/dostepnosc/">Deklaracja dostępności</a></footer>
-<?= $_modals_html ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-function togglePass(id, btn){var i=document.getElementById(id);if(!i)return;var s=i.type==='password';i.type=s?'text':'password';btn.setAttribute('aria-pressed',s);var ic=btn.querySelector('i');if(ic)ic.className=s?'bi bi-eye-slash':'bi bi-eye';}
-(function(){
-document.querySelectorAll(".modal").forEach(function(m){m.addEventListener("shown.bs.modal",function(){var f=m.querySelector("input:not([type=hidden])");if(f)f.focus();});});
-var a=<?= json_encode(in_array($active_tab, ['code','sms','x509'], true) ? $active_tab : null) ?>;
-if(a){var el=document.getElementById("modal-"+a);if(el)bootstrap.Modal.getOrCreateInstance(el).show();}
-})();</script>
-</body>
-</html>
+<?php
+// Bootstrap (okna metod alternatywnych) ładuje się po extra_js — stąd DOMContentLoaded.
+$_login_js = '<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll(".modal").forEach(function (m) {
+    m.addEventListener("shown.bs.modal", function () { var f = m.querySelector("input:not([type=hidden])"); if (f) f.focus(); });
+  });
+  var a = ' . json_encode(in_array($active_tab, ['code', 'sms', 'x509'], true) ? $active_tab : null) . ';
+  if (a && window.bootstrap) { var el = document.getElementById("modal-" + a); if (el) bootstrap.Modal.getOrCreateInstance(el).show(); }
+  // Puste pole: komunikat przy polu (role=alert) zamiast wysyłania pustego formularza.
+  var form = document.getElementById("login-form"); if (!form) return;
+  function fieldErr(inp, msg) {
+    var box = document.getElementById(inp.id + "-err"); if (!box) return;
+    box.innerHTML = msg ? "<i class=\"bi bi-exclamation-circle-fill\" aria-hidden=\"true\"></i><span></span>" : "";
+    if (msg) { box.lastChild.textContent = msg; inp.setAttribute("aria-invalid", "true"); }
+  }
+  var em = document.getElementById("f-email"), pw = document.getElementById("f-pass");
+  [em, pw].forEach(function (i) { i.addEventListener("input", function () { if (i.value) fieldErr(i, ""); }); });
+  form.addEventListener("submit", function (ev) {
+    var noE = !em.value.trim(), noP = !pw.value;
+    fieldErr(em, noE ? "Wpisz adres e-mail." : "");
+    fieldErr(pw, noP ? "Wpisz hasło." : "");
+    if (noE || noP) { ev.preventDefault(); (noE ? em : pw).focus(); }
+  });
+});
+</script>';
+
+auth_screen_foot([
+    'no_new_tiles' => true,
+    'extra_html'   => $_modals_html,
+    'extra_js'     => $_login_js,
+]);
