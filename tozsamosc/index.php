@@ -513,8 +513,8 @@ $trello_ws_url = org_setting('trello_workspace_url') ?: 'https://trello.com';
 
 // Sekcje (klucze = #hash; kolejność jak w menu _head.php)
 $tabs = ['przeglad' => 'Przegląd', 'podstawowe' => 'Dane konta', 'bezpieczenstwo' => 'Zabezpieczenia',
-         'urzadzenia' => 'Urządzenia i logowania', 'uslugi' => 'Usługi',
-         'sso' => 'Logowanie jednokrotne'];   // urzadzenia: modules/account_security; sso: modules/sso_logto
+         'sso' => 'Logowanie jednokrotne', 'urzadzenia' => 'Urządzenia i logowania',
+         'uslugi' => 'Usługi'];   // sso: modules/sso_logto (zaraz po Zabezpieczeniach: hasła i logowanie); urzadzenia: modules/account_security
 if ($has_ika) $tabs['ika'] = 'Kod IKA';
 $tabs['rejestr'] = 'Moje dane (RODO)';
 $tabs['opanelu'] = 'Pomoc i informacje';
@@ -745,7 +745,7 @@ button.ma-tag:hover{background:var(--tz-hover)}
 
 <!-- ═══════════ PRZEGLĄD ═══════════ -->
 <section id="przeglad" class="ma-sec" aria-labelledby="przeglad-h" x-show="tab === 'przeglad'" x-cloak>
-  <?php $sec_title('przeglad', 'Przegląd', 'Twoje konto w organizacji: jeden identyfikator i jedno hasło do SZO, Microsoft 365 i usług powiązanych.'); ?>
+  <?php $sec_title('przeglad', 'Przegląd', 'Twoje konto w organizacji: dane, hasła, zabezpieczenia i usługi w jednym miejscu.'); ?>
 
   <?php if ($first_visit): ?>
   <div class="ma-bar ma-bar--info" role="note" aria-labelledby="welcome-h">
@@ -784,7 +784,7 @@ button.ma-tag:hover{background:var(--tz-hover)}
       <a href="#podstawowe" class="ma-link" @click.prevent="go('podstawowe')">Wyświetl dane konta <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
       <details class="ma-why">
         <summary>Dlaczego nie mogę edytować danych?</summary>
-        <p>Imię, nazwisko, login i numer UID pochodzą z umowy i rejestru tożsamości organizacji. Zmienia je administrator — jeśli coś się nie zgadza, zgłoś to przez <a href="<?= APP_URL ?>/helpdesk/index.php">helpdesk</a>.</p>
+        <p>Imię, nazwisko, login i numer UID pochodzą z umowy i rejestru tożsamości organizacji. Zmienia je administrator. Jeśli coś się nie zgadza, zgłoś to przez <a href="<?= APP_URL ?>/helpdesk/index.php">helpdesk</a>.</p>
       </details>
     </aside>
 
@@ -798,11 +798,31 @@ button.ma-tag:hover{background:var(--tz-hover)}
       </article>
 
       <article class="ma-card ma-tile" aria-labelledby="t-pwd">
-        <div class="ma-tile-hd"><span class="ma-ic<?= $has_local_password ? '' : ' ma-ic--warn' ?>" aria-hidden="true"><i class="bi bi-key"></i></span><h2 id="t-pwd" class="ma-tile-t">Hasło</h2></div>
-        <p class="ma-tile-p"><?= $has_m365 ? 'Jedno hasło do SZO i Microsoft 365 — zmiana działa w obu systemach naraz.' : 'Hasło do SZO i modułów, które z niego korzystają (CRM, EZD, panel).' ?></p>
-        <p class="ma-tile-meta"><?= $has_local_password ? 'Hasło jest ustawione.' : 'Nie masz jeszcze hasła lokalnego.' ?></p>
-        <div class="ma-tile-ft"><a href="#bezpieczenstwo" class="ma-link" @click.prevent="go('bezpieczenstwo', 'haslo')"><?= $has_local_password ? 'Zmień hasło' : 'Ustaw hasło' ?> <i class="bi bi-chevron-right" aria-hidden="true"></i></a></div>
+        <div class="ma-tile-hd"><span class="ma-ic<?= $has_local_password ? '' : ' ma-ic--warn' ?>" aria-hidden="true"><i class="bi bi-key"></i></span><h2 id="t-pwd" class="ma-tile-t">Hasła</h2></div>
+        <p class="ma-tile-p">Masz trzy osobne hasła: do SZO<?= $has_m365 ? ' i Microsoft 365' : '' ?>, do logowania jednokrotnego i chmury plików oraz do poczty.</p>
+        <p class="ma-tile-meta"><?= $has_local_password ? 'Hasło do SZO jest ustawione.' : 'Nie masz jeszcze hasła do SZO.' ?></p>
+        <div class="ma-tile-ft">
+          <a href="#bezpieczenstwo" class="ma-link" @click.prevent="go('bezpieczenstwo', 'haslo')"><?= $has_local_password ? 'Zmień' : 'Ustaw' ?> hasło do SZO <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+          <a href="<?= APP_URL ?>/nowehaslo" class="ma-link">Poczta, logowanie jednokrotne i chmura <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+        </div>
       </article>
+
+      <?php
+      // Kafel „Logowanie jednokrotne” (modules/sso_logto): konto i login, szczegóły w sekcji #sso
+      $tile_sso = null;
+      try {
+          require_once dirname(__DIR__) . '/modules/sso_logto/logic/SsoAccounts.php';
+          if (SsoConfig::logtoConfigured() && !empty($db_user['email'])) $tile_sso = SsoAccounts::get(strtolower((string)$db_user['email'])) ?: [];
+      } catch (\Throwable $e) { $tile_sso = null; }
+      ?>
+      <?php if ($tile_sso !== null): $tile_sso_on = !empty($tile_sso['logto_id']); ?>
+      <article class="ma-card ma-tile" aria-labelledby="t-sso">
+        <div class="ma-tile-hd"><span class="ma-ic<?= $tile_sso_on ? ' ma-ic--ok' : ' ma-ic--warn' ?>" aria-hidden="true"><i class="bi bi-box-arrow-in-right"></i></span><h2 id="t-sso" class="ma-tile-t">Logowanie jednokrotne</h2></div>
+        <p class="ma-tile-p">Jedno konto do chmury plików i kolejnych aplikacji Fundacji.</p>
+        <p class="ma-tile-meta"><?= $tile_sso_on ? 'Login: ' . h((string)$db_user['email']) : 'Nie masz jeszcze konta.' ?></p>
+        <div class="ma-tile-ft"><a href="#sso" class="ma-link" @click.prevent="go('sso')"><?= $tile_sso_on ? 'Konto i hasło' : 'Załóż konto' ?><span class="visually-hidden"> logowania jednokrotnego</span> <i class="bi bi-chevron-right" aria-hidden="true"></i></a></div>
+      </article>
+      <?php endif; ?>
 
       <article class="ma-card ma-tile" aria-labelledby="t-mfa">
         <div class="ma-tile-hd"><span class="ma-ic<?= $mfa_active ? ' ma-ic--ok' : ' ma-ic--warn' ?>" aria-hidden="true"><i class="bi bi-shield-check"></i></span><h2 id="t-mfa" class="ma-tile-t">Metody weryfikacji</h2></div>
