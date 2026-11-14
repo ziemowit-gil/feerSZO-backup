@@ -123,6 +123,9 @@ function itPortalCloudArticles(string $app): array {
         'menu-plikow' => ['Co jest co w menu bocznym aplikacji Pliki',
             'menu, menu boczne, pliki, wszystkie pliki, pliki osobiste, ostatnie, ulubione, udostępnienia, foldery zespołów, etykiety, drzewo folderów, usunięte pliki, kosz, miejsce, limit, ustawienia plików, webdav, wyszukiwanie, nextcloud',
             itPortalCloudPilot(itPortalCloudMenuBlocks($app)), false, 15],
+        'logowanie' => ['Logowanie do chmury plików',
+            'logowanie, zaloguj, zaloguj się, ekran logowania, strona logowania, login, nazwa użytkownika, hasło, iam, logowanie jednokrotne, logto, logto.feer.org.pl, nc.feer.org.pl, zapamiętaj mnie, zapomniałeś hasła, nie pamiętam hasła, utwórz konto, nazwa użytkownika jest nieprawidłowa, urządzenie, klucz dostępu, wyloguj, nextcloud',
+            itPortalCloudPilot(itPortalCloudLoginBlocks($app)), false, 11],
         'pulpit' => ['Ekran po zalogowaniu: Pulpit chmury plików',
             'ekran po zalogowaniu, po zalogowaniu, pulpit, strona startowa, start, dashboard, polecane pliki, zespoły, ostatnia aktywność, aktywność, powiadomienia, dzwonek, kontakty, status, awatar, menu aplikacji, wyszukiwarka, dostosuj, widżety, konto techniczne, szo, nextcloud',
             itPortalCloudPilot(itPortalCloudDashboardBlocks($app)), false, 12],
@@ -198,6 +201,55 @@ function itPortalCloudShot(string $name, string $alt, string $caption = ''): arr
     if (!is_dir($dir)) @mkdir($dir, 0775, true);
     if (!is_file($dir . $file) && !@copy($src, $dir . $file)) return [];
     return [['type' => 'image', 'file' => $file, 'alt' => $alt, 'caption' => $caption]];
+}
+
+/**
+ * Bloki artykułu „Logowanie do chmury plików” (polecenie 2026-11-14: „opisz też ekran logowania”). Zrzuty z nc.feer.org.pl po wylogowaniu:
+ * strona logowania Nextcloud (formularz + „Login with logowanie jednokrotne”) i strona IAM logto.feer.org.pl. Hasła zmienia się tylko na /nowehaslo.
+ */
+function itPortalCloudLoginBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $nh = $app . '/nowehaslo';
+    $cloud = itPortalCloudUrl();
+    $host = (string)(parse_url($cloud, PHP_URL_HOST) ?: $cloud);
+    return [
+        ['type' => 'text', 'html' => '<p>Do chmury plików wchodzisz przez stronę <a href="' . $cloud . '">' . $host . '</a>. '
+            . 'Logujesz się kontem IAM, czyli tym samym adresem e-mail i hasłem co przy logowaniu jednokrotnym do SZO. Hasło IAM jest inne niż hasło do poczty.</p>'
+            . '<p>Zależnie od tego, jak trafisz do chmury, zobaczysz jedną z dwóch stron logowania. Obie prowadzą do tego samego konta.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Strona logowania IAM</h2>'
+            . '<p>Najczęściej po wejściu na ' . $host . ' od razu otwiera się biała strona z logo Fundacji i napisem „Zaloguj się do swojego konta”. '
+            . 'Jej adres zaczyna się od logto.feer.org.pl. Na dole jest dopisek „Powered by Logto”, to nazwa programu, który obsługuje logowanie.</p>'
+            . '<p>W pole „Nazwa użytkownika” wpisz pełny adres e-mail, ten sam co do SZO. W pole „Hasło” wpisz hasło IAM i kliknij „Zaloguj się”. '
+            . 'Jeśli zobaczysz komunikat, że nazwa użytkownika jest nieprawidłowa, sprawdź, czy wpisałeś cały adres razem z częścią po znaku @.</p>'
+            . '<p>Linku „Utwórz konto” nie używaj. Konto w chmurze zakłada SZO i tylko takie konto ma Twoje grupy i wspólne foldery. '
+            . 'Jeśli nie masz jeszcze konta, zaproponuje je panel SZO przy logowaniu.</p>'],
+        ...itPortalCloudShot('nc-logowanie-iam.jpg', 'Strona logowania IAM: logo FEER, napis Zaloguj się do swojego konta, pola Nazwa użytkownika i Hasło, przycisk Zaloguj się, link Utwórz konto, na dole Powered by Logto',
+            'Strona logowania IAM pod adresem logto.feer.org.pl.'),
+
+        ['type' => 'text', 'html' => '<h2>Strona logowania Nextcloud</h2>'
+            . '<p>Po wylogowaniu albo po wejściu z niektórych linków zobaczysz niebieską stronę z logo Nextcloud i napisem „Zaloguj się do Nextcloud”. '
+            . 'Najprościej kliknij na dole przycisk „Login with logowanie jednokrotne”. Przeniesie Cię na stronę logowania IAM opisaną wyżej, '
+            . 'a jeśli jesteś już zalogowany do SZO, często od razu do chmury, bez wpisywania hasła.</p>'
+            . '<p>Możesz też wpisać adres e-mail i hasło IAM w pola na tej stronie i kliknąć „Zaloguj”. Zaznaczone „Zapamiętaj mnie” sprawia, '
+            . 'że przeglądarka nie wyloguje Cię po zamknięciu. Odznacz to pole na wspólnym albo cudzym komputerze.</p>'
+            . '<p>„Zaloguj się za pomocą urządzenia” działa tylko wtedy, gdy wcześniej dodałeś w ustawieniach osobistych chmury klucz dostępu, '
+            . 'na przykład odcisk palca w laptopie albo klucz sprzętowy. Jeśli tego nie robiłeś, pomiń ten przycisk.</p>'],
+        ...itPortalCloudShot('nc-logowanie-nextcloud.jpg', 'Strona logowania Nextcloud: pola Nazwa konta lub e-mail i Hasło, pole Zapamiętaj mnie, przycisk Zaloguj, linki Zaloguj się za pomocą urządzenia i Zapomniałeś hasła, przycisk Login with logowanie jednokrotne',
+            'Strona logowania Nextcloud. Przycisk logowania jednokrotnego jest na samym dole.'),
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie zmieniaj hasła linkiem „Zapomniałeś hasła?” na stronie Nextcloud. Zmieniłbyś je tylko w chmurze '
+            . 'i przestałoby pasować do SZO. Hasło IAM zmienisz albo odzyskasz na stronie <a href="' . $nh . '">Nowe hasło</a>, potwierdzając zmianę kodem.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Wylogowanie</h2>'
+            . '<p>Kliknij kółko ze swoimi inicjałami w prawym górnym rogu i wybierz „Wyloguj się” na dole menu. Zrób to zawsze na komputerze, '
+            . 'z którego korzysta ktoś jeszcze.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Czym konto IAM różni się od poczty, opisuje artykuł '
+            . '<a href="' . $app . '/uslugi-it/uslugi/migracja/iam-i-poczta">Czym jest IAM, a czym poczta</a>. Co zobaczysz po zalogowaniu, opisuje artykuł '
+            . '<a href="' . $app . '/uslugi-it/uslugi/chmura-plikow/pulpit">Ekran po zalogowaniu</a>. Gdy hasło nie działa mimo zmiany, '
+            . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+    ];
 }
 
 /**
