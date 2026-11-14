@@ -1686,4 +1686,15 @@ return [
         },
     ],
 
+    // „Moja poczta”: dPoczta prostsza od Outlooka (polecenie 2026-11-14) we wstępie i w „dpoczta-co-jest-co”.
+    '2026-11_it_portal_dpoczta_simpler' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: dPoczta prostsza od Outlooka',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

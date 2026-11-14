@@ -122,7 +122,7 @@ function itPortalDpocztaShot(string $name, string $alt, string $caption = ''): a
 /** Wstęp strony usługi „Moja poczta”. */
 function itPortalDpocztaIntro(string $app): string {
     return '<p>Poczta służbowa działa na serwerach dhosting. W przeglądarce otwierasz ją pod adresem <a href="https://dpoczta.pl">dpoczta.pl</a>. '
-         . 'dPoczta to program pocztowy w przeglądarce, który udostępnia dostawca serwera pocztowego. '
+         . 'dPoczta to program pocztowy w przeglądarce, który udostępnia dostawca serwera pocztowego. Jest prostsza od Outlooka i ma mniej opcji, więc łatwiej się w niej odnaleźć. '
          . 'Logujesz się pełnym adresem <code>imie.nazwisko@feer.org.pl</code> i hasłem do skrzynki.</p>'
          . itPortalDpocztaOutlookBye()
          . '<p>Zachęcamy, żeby od razu włączyć weryfikację dwuetapową. Chroni skrzynkę, nawet gdy ktoś pozna Twoje hasło. '
@@ -167,7 +167,8 @@ function itPortalDpocztaArticles(string $app): array {
         // 2026-11-14: hasło do poczty TYLKO przez SZO (/nowehaslo) — zmiana w dpoczta.pl nie synchronizuje się z SZO
         'dpoczta-co-jest-co' => ['dPoczta.pl: co jest co na ekranie i w ustawieniach', 'dpoczta, co jest co, ekran, foldery, odebrane, kopie robocze, wysłane, spam, kosz, archiwum, utwórz, szukaj, wątki, pasek, kontakty, kalendarz, zadania, ustawienia, preferencje, tożsamości, odpowiedzi, cloud view, przypomnienie hasła, klucze pgp, filtry, hasło, pomoc, autoresponder, uwierzytelnianie dwuetapowe, cleanbox, tryb ciemny, wyloguj, miejsce w skrzynce', [
             ['type' => 'text', 'html' => '<p>dPoczta.pl to program do czytania poczty w przeglądarce, który udostępnia dostawca naszego serwera pocztowego, firma dhosting.pl. '
-                . 'Twoja skrzynka jest na serwerze dostawcy, a dPoczta jest tylko jednym ze sposobów, żeby do niej zajrzeć. Tę samą skrzynkę możesz otworzyć w telefonie albo w programie na komputerze.</p>'],
+                . 'Twoja skrzynka jest na serwerze dostawcy, a dPoczta jest tylko jednym ze sposobów, żeby do niej zajrzeć. Tę samą skrzynkę możesz otworzyć w telefonie albo w programie na komputerze.</p>'
+                . '<p>dPoczta jest prostsza od Outlooka. Ma mniej przycisków i opcji, więc łatwiej się w niej odnaleźć, a do codziennej pracy z pocztą wystarcza.</p>'],
             ['type' => 'text', 'html' => '<p>Po zalogowaniu na <a href="https://dpoczta.pl">dpoczta.pl</a> ekran ma trzy kolumny: po lewej foldery, w środku listę wiadomości, '
                 . 'a po prawej treść otwartej wiadomości. Na samym prawym brzegu jest wąski pasek z przejściem do innych części poczty.</p>'],
             ...itPortalDpocztaShot('dp-skrzynka.jpg', 'Główny ekran dPoczty: po lewej przycisk Utwórz i foldery z liczbą nieprzeczytanych wiadomości, w środku zamazana lista wiadomości z polem Szukaj, po prawej pusty podgląd, na prawym brzegu pasek z ikonami', 'Główny ekran poczty. Lista wiadomości jest celowo zamazana.'),
