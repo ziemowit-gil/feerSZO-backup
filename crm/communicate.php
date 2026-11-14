@@ -69,17 +69,10 @@ try {
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
 require_once dirname(__DIR__) . '/includes/crm_attachments.php';
 require_once dirname(__DIR__) . '/includes/crm_sender.php';
-$m365_mail_configured = _mail_m365_configured();
-$mail_channel = $m365_mail_configured ? 'Microsoft 365' : (
-    _mail_setting('smtp_host') ? 'SMTP' : 'PHP mail()'
-);
-// Wysyłka z konta M365 zalogowanego użytkownika (do wyboru)
-$_cu_now        = current_user();
-$can_send_as_me = $m365_mail_configured && !empty($_cu_now['microsoft_id']) && !empty($_cu_now['email']);
-$my_ms_email    = $can_send_as_me ? trim($_cu_now['email']) : '';
-$sys_from_email = _mail_setting('m365_send_from_email');
-// Konta, z których wolno wysyłać: systemowe, własna skrzynka M365 i skrzynki
-// współdzielone z modułu Poczta (wg ACL). Wybór da się zapamiętać.
+// Kanał wysyłki: korespondencja CRM idzie przez SMTP z Ustawienia → Poczta (bez Microsoft 365, od 14.11.2026)
+$mail_channel = _mail_setting('smtp_host') ? 'SMTP' : 'PHP mail()';
+$_cu_now      = current_user();
+// Konta, z których wolno wysyłać: Konto Fundacji (SMTP) i własna skrzynka dPoczta (includes/crm_sender.php).
 $sender_accounts = crm_sender_accounts($_cu_now);
 $sender_default  = crm_sender_default($sender_accounts);
 
@@ -93,8 +86,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tpl_name  = trim($_POST['template_name'] ?? '');
     $do_send   = !empty($_POST['do_send']);
 
-    // Nadawca: system / własna skrzynka M365 / skrzynka współdzielona (mbox:ID)
+    // Nadawca: Konto Fundacji / własna skrzynka dPoczta
     $send_as    = (string)($_POST['send_as'] ?? 'system');
+    if ($channel === 'email' && $do_send && ($sp = crm_sender_problem($send_as, $_cu_now)) !== '') {
+        flash_set('danger', $sp);
+        header('Location: ' . ($_SERVER['REQUEST_URI'] ?? (APP_URL . '/crm/communicate.php'))); exit;
+    }
     $from_email = $channel === 'email' ? crm_sender_email($send_as, $_cu_now) : '';
     if (!empty($_POST['send_as_remember'])) {
         user_pref_set('crm_send_as', $send_as);
@@ -539,6 +536,7 @@ include __DIR__ . '/includes/header_crm.php';
                       <?= $acc['key'] === $sender_default ? 'selected' : '' ?>><?= h($acc['label']) ?></option>
               <?php endforeach; ?>
             </select>
+            <?= crm_sender_mailbox_hint($sender_accounts) ?>
             <details class="mt-1">
               <summary class="small text-muted" style="cursor:pointer">Szczegóły konta</summary>
               <div id="senderHelp" class="form-text" style="font-size:.74rem"><?= h($sender_accounts[0]['hint']) ?></div>
@@ -660,7 +658,7 @@ include __DIR__ . '/includes/header_crm.php';
           </button>
         </div>
         <div class="comm-flags">
-          <?php if ($m365_mail_configured || _mail_setting('smtp_host')): /* poprawna konfiguracja — bez znaczka, nie ma o czym informować */ ?>
+          <?php if (_mail_setting('smtp_host')): /* poprawna konfiguracja — bez znaczka, nie ma o czym informować */ ?>
           <?php else: ?>
           <div class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:.75rem">
             <i class="bi bi-exclamation-triangle me-1"></i>E-mail przez PHP mail() —

@@ -234,6 +234,11 @@ final class NoweHaslo
                 ['user_id' => (int)$p['user_id'], 'name' => (string)$p['name'], 'login' => (string)$p['address']], false);
             throw new RuntimeException('Serwer poczty nie przyjął hasła.' . ($own ? ' Spróbuj dłuższego hasła albo wybierz losowe.' : ' Spróbuj za kilka minut albo napisz do Helpdesku IT.'));
         }
+        // Zapisane w CRM hasło do własnej skrzynki (wysyłka „z mojej skrzynki”, modules/userSmtp) przestaje obowiązywać
+        try {
+            require_once dirname(__DIR__, 2) . '/userSmtp/lib/UserSmtp.php';
+            UserSmtp::passwordChanged($box);
+        } catch (\Throwable $e) { error_log('[nowehaslo] userSmtp ' . $box . ': ' . $e->getMessage()); }
         $copy = 0;
         try { $copy = DhostingCopy::passwordChanged($box, $pw); } catch (\Throwable $e) { error_log('[nowehaslo] kopiowanie ' . $box . ': ' . $e->getMessage()); }
         return ['what' => 'poczta ' . $box, 'whatTo' => 'do poczty ' . $box,

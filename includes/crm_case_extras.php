@@ -571,6 +571,8 @@ function crm_case_letter_mail(int $caseId, int $letterId, array $in, array $user
 
     require_once __DIR__ . '/crm_sender.php';
     require_once __DIR__ . '/mail_queue.php';
+    $sp = crm_sender_problem((string)($in['sender'] ?? 'system'), $user);
+    if ($sp !== '') return ['ok' => false, 'error' => $sp];   // bez cichego przejścia na Konto Fundacji
     $from = crm_sender_email((string)($in['sender'] ?? 'system'), $user);
     $sent = 0; $queued = 0; $mailIds = [];
     foreach ($to as $i => $addr) {

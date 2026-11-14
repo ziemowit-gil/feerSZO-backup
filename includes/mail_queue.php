@@ -47,7 +47,28 @@
     // Powód: List-Unsubscribe / List-Unsubscribe-Post (RFC 8058). Gmail i Yahoo
     // od 2024 wymagają jednoklikowego wypisu przy wysyłkach masowych.
     try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN headers TEXT"); } catch (\Throwable $e) {}
+    // Tor wysyłki (2026-11-14, odejście od M365): '' = zwykła kolejność, 'smtp' = bez Microsoft 365 (SMTP 1 → SMTP 2),
+    // 'user:<id>' = wyłącznie własna skrzynka użytkownika przez SMTP dPoczta (modules/userSmtp). Ustawia mail_queue_add().
+    try { $pdo->exec("ALTER TABLE mail_queue ADD COLUMN transport TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 })();
+
+/**
+ * Tor wysyłki dla korespondencji CRM (context_type crm*): Konto Fundacji → 'smtp' (ustawienia SMTP z Ustawienia → Poczta,
+ * bez Microsoft 365); własna skrzynka (from_email = skrzynka dPoczta zalogowanego, z zapisanym hasłem) → 'user:<id>'.
+ * Inne konteksty → '' (bez zmian).
+ */
+function _mail_queue_transport(string $context_type, string $from_email): string {
+    if (!str_starts_with($context_type, 'crm')) return '';
+    $from = strtolower(trim($from_email));
+    if ($from !== '' && function_exists('current_user') && ($u = current_user())) {
+        try {
+            require_once dirname(__DIR__) . '/modules/userSmtp/lib/UserSmtp.php';
+            $acc = UserSmtp::get((int)$u['id']);
+            if ($acc && strtolower((string)$acc['email']) === $from) return 'user:' . (int)$u['id'];
+        } catch (\Throwable $e) { error_log('[mail_queue] transport: ' . $e->getMessage()); }
+    }
+    return 'smtp';
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
@@ -179,13 +200,14 @@ function mail_queue_add(
     $bcc_json = $bcc_emails  ? json_encode($bcc_emails,  JSON_UNESCAPED_UNICODE) : '[]';
     $hdr_json = $headers     ? json_encode($headers,     JSON_UNESCAPED_UNICODE) : null;
     db()->prepare(
-        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments,from_email,cc_emails,bcc_emails,headers)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO mail_queue (to_email,to_name,subject,body_html,body_text,context_type,context_id,scheduled_at,attachments,from_email,cc_emails,bcc_emails,headers,transport)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([
         $to_email, $to_name, $subject, $body_html, $body_text,
         $context_type, $context_id,
         $scheduled_at ?: date('Y-m-d H:i:s'),
         $att_json, $from_email, $cc_json, $bcc_json, $hdr_json,
+        _mail_queue_transport($context_type, $from_email),
     ]);
     $mail_id = (int)db()->lastInsertId();
 
@@ -375,14 +397,41 @@ function _mail_send(array $msg): bool {
             return null;
         }
     };
+    $transport = (string)($msg['transport'] ?? '');
+    // Własna skrzynka użytkownika (CRM → „Moja skrzynka”, SMTP dPoczta). BEZ zapasowych dróg: wiadomość nie może wyjść
+    // z innego konta niż wybrane. Odrzucone logowanie = hasło do poczty zmienione → zapis nieaktualny, trzeba podać ponownie.
+    if (str_starts_with($transport, 'user:')) {
+        require_once dirname(__DIR__) . '/modules/userSmtp/lib/UserSmtp.php';
+        $uid = (int)substr($transport, 5);
+        try {
+            $cr = UserSmtp::credentials($uid);
+        } catch (\Throwable $e) {
+            mail_trace(['via' => 'Moja skrzynka (dPoczta)', 'target' => 'konto #' . $uid, 'ok' => false, 'error' => $e->getMessage(), 'ms' => 0]);
+            return false;
+        }
+        $um = $msg;
+        $um['_smtp'] = $cr;
+        $um['_system'] = false;
+        $t = microtime(true);
+        try {
+            $ok = _mail_send_smtp($um, $cr['host'], 'smtp');
+            mail_trace(['via' => 'Moja skrzynka (dPoczta)', 'target' => $cr['host'] . ':' . $cr['port'] . ', STARTTLS, nadawca ' . $cr['from'], 'ok' => $ok, 'error' => $ok ? '' : 'funkcja zwróciła false', 'ms' => (int)round((microtime(true) - $t) * 1000)]);
+            return $ok;
+        } catch (\Throwable $e) {
+            if (UserSmtp::isAuthError($e->getMessage())) UserSmtp::authFailed($uid, $e->getMessage());
+            mail_trace(['via' => 'Moja skrzynka (dPoczta)', 'target' => $cr['host'] . ':' . $cr['port'] . ', nadawca ' . $cr['from'], 'ok' => false, 'error' => $e->getMessage(), 'ms' => (int)round((microtime(true) - $t) * 1000)]);
+            error_log('[mail] user SMTP #' . $uid . ' failed: ' . $e->getMessage());
+            return false;
+        }
+    }
     // 0. Wiadomości systemowe przez SMTP 1 (Ustawienia → Poczta → „Wysyłka wiadomości systemowych”, 2026-11-13: nowy serwer
     //    poczty, nadawca fundacja@). Błąd SMTP → dalej zwykła kolejność, wiadomość nie ginie.
     if (!empty($msg['_system']) && _mail_setting('system_mail_transport') === 'smtp') {
         $smtp_host = _mail_setting('smtp_host');
         if ($smtp_host && $try('SMTP 1 (wiadomości systemowe)', _mail_smtp_target('smtp', $smtp_host, $msg), fn() => _mail_send_smtp($msg, $smtp_host, 'smtp'))) return true;
     }
-    // 1. M365 Graph API
-    if (_mail_m365_configured()) {
+    // 1. M365 Graph API — pomijany dla toru 'smtp' (korespondencja CRM z Konta Fundacji idzie przez SMTP z ustawień)
+    if ($transport !== 'smtp' && _mail_m365_configured()) {
         $from = trim((string)($msg['from_email'] ?? '')) ?: (_mail_setting('m365_send_from_email') ?: _mail_setting('m365_sender_user_id'));
         if ($try('Microsoft 365', 'Graph sendMail, nadawca ' . $from, fn() => _mail_send_m365($msg))) return true;
         // Skrzynka systemowa niedostępna (brak skrzynki / uprawnień) — wyślij od domyślnego nadawcy, nie gub wiadomości
@@ -732,6 +781,17 @@ function _mail_send_smtp(array $msg, string $host, string $prefix = 'smtp'): boo
     $from_setting = _mail_setting("{$prefix}_from_email");
     $from       = !empty($msg['_system']) ? $msg['from_email'] : ($from_setting ?: _mail_from());
     $from_name  = $msg['_from_name'] ?? _mail_from_name();
+    // Dane logowania podane wprost (własna skrzynka użytkownika — modules/userSmtp) mają pierwszeństwo przed ustawieniami
+    if (!empty($msg['_smtp']) && is_array($msg['_smtp'])) {
+        $ov = $msg['_smtp'];
+        $port = (int)$ov['port']; $user = (string)$ov['user']; $pass = (string)$ov['pass'];
+        $encryption = (string)$ov['encryption']; $from = (string)$ov['from'];
+        if (!isset($msg['_from_name'])) {
+            $fn = function_exists('current_user') ? trim((string)(current_user()['name'] ?? '')) : '';
+            if ($fn === '') { try { $fn = trim((string)(db_one("SELECT name FROM users WHERE lower(email)=lower(?)", [$from])['name'] ?? '')); } catch (\Throwable $e) {} }
+            if ($fn !== '') $from_name = $fn;
+        }
+    }
 
     // Ustaw timeout i połącz
     $timeout = 15;

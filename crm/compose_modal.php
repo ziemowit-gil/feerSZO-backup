@@ -63,6 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Konto nadawcy: wybór z okna albo zapamiętane domyślne użytkownika
     $send_as    = (string)($data['send_as'] ?? crm_sender_default());
+    if ($channel === 'email' && $do_send && ($sp = crm_sender_problem($send_as)) !== '') {
+        echo json_encode(['ok' => false, 'error' => $sp]); exit;   // bez cichego przejścia na Konto Fundacji
+    }
     $from_email = $channel === 'email' ? crm_sender_email($send_as) : '';
     if (!empty($data['send_as_remember'])) user_pref_set('crm_send_as', $send_as);
 
@@ -296,6 +299,7 @@ $csrf      = csrf_token();
     <option value="<?= h($acc['key']) ?>" <?= $acc['key'] === $cm_default ? 'selected' : '' ?>><?= h($acc['label']) ?></option>
     <?php endforeach; ?>
   </select>
+  <?= crm_sender_mailbox_hint($cm_accounts) ?>
 </div>
 <?php endif; ?>
 

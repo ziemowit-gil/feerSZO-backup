@@ -283,14 +283,8 @@ if ($action === 'start') {
     $dw_raw   = (array)($body['dw'] ?? []);
     $dw_clean = array_values(array_filter($dw_raw, fn($e) => filter_var(trim($e), FILTER_VALIDATE_EMAIL)));
 
-    // Nadawca: konto systemowe albo skrzynka M365 zalogowanego użytkownika
+    // Nadawca: zawsze Konto Fundacji (SMTP z ustawień, mail_queue transport 'smtp') — bez Microsoft 365 od 14.11.2026
     $from_email = '';
-    if ($channel === 'email' && ($body['send_as'] ?? 'system') === 'me') {
-        $cu = current_user();
-        if (!empty($cu['microsoft_id']) && !empty($cu['email']) && _mail_m365_configured()) {
-            $from_email = trim($cu['email']);
-        }
-    }
 
     // Pierwsza grupa dla kompatybilności wstecznej
     $group_ids_arr = array_filter(array_map('intval', (array)($body['group_ids'] ?? [])));
@@ -387,10 +381,7 @@ if ($action === 'mail_preview') {
         $out['text'] = $sig !== '' ? rtrim($r_body) . "\n" . $sig : $r_body;
         api_ok($out);
     }
-    $from = '';
-    if (($body['send_as'] ?? 'system') === 'me' && !empty($me['microsoft_id']) && !empty($me['email']) && _mail_m365_configured()) {
-        $from = trim((string)$me['email']);
-    }
+    $from = trim((string)(_mail_setting('smtp_from_email') ?: _mail_setting('notify_from_email')));   // Konto Fundacji (SMTP)
     $out['from']    = $from !== '' ? $from : _mail_from();   // ten sam wybór nadawcy co przy wysyłce z konta systemowego
     $out['subject'] = $r_subj;
     $out['html']    = CrmManager::emailHtml($r_body, $uid);

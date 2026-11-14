@@ -26,16 +26,13 @@ $sms_chain = sms_provider_chain();            // domyślny + zapasowy dostawca S
 $sms_ok    = $sms_chain !== [];
 $sms_label = $sms_ok ? sms_provider_label($sms_chain[0]) : '';
 $sms_fb    = count($sms_chain) > 1 ? sms_provider_label($sms_chain[1]) : '';
-$m365_ok  = _mail_m365_configured();
 $smtp_ok  = (bool)_mail_setting('smtp_host');
 
-// Diagnostyka poczty — sprawdź czy jakakolwiek metoda jest dostępna
-$mail_method = 'php_mail'; // fallback zawsze dostępny
-if ($m365_ok)  $mail_method = 'm365';
-elseif ($smtp_ok) $mail_method = 'smtp';
+// Diagnostyka poczty — korespondencja CRM idzie przez SMTP z Ustawienia → Poczta (bez Microsoft 365, od 14.11.2026)
+$mail_method = $smtp_ok ? 'smtp' : 'php_mail'; // PHP mail() jako ostatni fallback
 
-// Ostrzeżenie gdy ani M365 ani SMTP nie skonfigurowane
-$mail_warning = !$m365_ok && !$smtp_ok;
+// Ostrzeżenie gdy SMTP nie skonfigurowany
+$mail_warning = !$smtp_ok;
 $email_ok     = true; // email zawsze "możliwy" (PHP mail() jako fallback)
 
 // Grupy z liczbą członków
@@ -91,9 +88,7 @@ $cat_list = crm_categories();
 
 // Wysyłka z konta M365 zalogowanego użytkownika (do wyboru)
 $_cu_now        = current_user();
-$can_send_as_me = $m365_ok && !empty($_cu_now['microsoft_id']) && !empty($_cu_now['email']);
-$my_ms_email    = $can_send_as_me ? trim($_cu_now['email']) : '';
-$sys_from_email = _mail_setting('m365_send_from_email');
+// Wysyłka masowa wyłącznie z Konta Fundacji (SMTP) — wybór „Moje konto Microsoft” usunięty 14.11.2026
 
 include __DIR__ . '/includes/header_crm.php';
 ?>
@@ -433,8 +428,7 @@ include __DIR__ . '/includes/header_crm.php';
       <div>
         <strong>Brak skonfigurowanego serwera poczty.</strong>
         E-maile będą wysyłane przez PHP mail() (zawodne).
-        Skonfiguruj <a href="<?= APP_URL ?>/admin/m365_settings.php">Microsoft 365</a>
-        lub <a href="<?= APP_URL ?>/admin/settings.php">SMTP</a> dla pewnej dostarczalności.
+        Skonfiguruj <a href="<?= APP_URL ?>/admin/settings.php">serwer SMTP</a> dla pewnej dostarczalności.
       </div>
     </div>
     <?php endif; ?>
@@ -506,20 +500,6 @@ include __DIR__ . '/includes/header_crm.php';
       </div>
     </div>
 
-    <?php if ($can_send_as_me): ?>
-    <div id="ms_sender_row" class="mt-3">
-      <label class="form-label small fw-semibold mb-1 d-flex align-items-center gap-2" for="ms_send_as">
-        <i class="bi bi-person-badge text-primary" aria-hidden="true"></i> Konto nadawcy (e-mail)
-      </label>
-      <select id="ms_send_as" class="form-select form-select-sm" style="max-width:420px">
-        <option value="system">Konto Fundacji<?= $sys_from_email ? ' (' . h($sys_from_email) . ')' : '' ?></option>
-        <option value="me">Moje konto Microsoft — <?= h($my_ms_email) ?></option>
-      </select>
-      <div class="form-text" style="font-size:.74rem">
-        Wybierając swoje konto, wiadomości wyjdą z Twojej skrzynki M365 i trafią do „Elementów wysłanych".
-      </div>
-    </div>
-    <?php endif; ?>
   </div>
 
   <!-- Odbiorcy -->

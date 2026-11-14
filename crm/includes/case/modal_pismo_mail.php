@@ -1,7 +1,7 @@
 <?php
 /**
  * crm/includes/case/modal_pismo_mail.php — okno „Wyślij pismo e-mailem” przy sprawie CRM: dowolne adresy Do/DW,
- * temat, treść, nadawca (konto Fundacji albo skrzynka imienna — crm_sender_accounts), plik pisma jako załącznik.
+ * temat, treść, nadawca (Konto Fundacji przez SMTP albo własna skrzynka dPoczta — crm_sender_accounts), plik pisma jako załącznik.
  * Włączany przez include w zakresie crm/cases/view.php ($case, $id, $can_write). Obsługa: akcja POST mail_pismo
  * → crm_case_letter_mail() w includes/crm_case_extras.php.
  */
@@ -45,6 +45,7 @@ $_pm_contact  = (int)($case['contact_id'] ?? 0) ? (string)(db_one("SELECT email 
               <select class="form-select form-select-sm" id="pmSender" name="mail_sender">
                 <?php foreach ($_pm_accounts as $a): ?><option value="<?= h($a['key']) ?>"<?= $a['key'] === $_pm_default ? ' selected' : '' ?>><?= h($a['label']) ?></option><?php endforeach; ?>
               </select>
+              <?= crm_sender_mailbox_hint($_pm_accounts) ?>
             </div>
             <div class="col-12">
               <label class="form-label small fw-semibold mb-1" for="pmBody">Treść wiadomości</label>
