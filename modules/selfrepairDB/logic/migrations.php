@@ -1697,4 +1697,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: „Filtry i przekierowanie poczty” przepisane według ekranu dPoczty (Moje filtry dpoczta.pl, Nazwa filtru, Filtr włączony, Zakres,
+    // Reguły, Akcje) ze zrzutem formularza (polecenie 2026-11-14: „opisz filtry w dPoczcie”).
+    '2026-11_it_portal_dpoczta_filters' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: filtry w dPoczcie',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

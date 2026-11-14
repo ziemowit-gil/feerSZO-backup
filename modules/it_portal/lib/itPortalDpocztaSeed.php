@@ -397,15 +397,38 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie widzisz „Autorespondera” w ustawieniach? <a href="' . $hd . '">Napisz w Helpdesku</a>, włączymy go z panelu administratora.</p>'],
         ], false],
 
-        'filtry-i-przekierowanie' => ['Filtry i przekierowanie poczty', 'filtr, filtry, reguły, przekierowanie, przekazywanie, forward, folder, sortowanie', [
-            ['type' => 'text', 'html' => '<p>Filtr sam przenosi wybrane wiadomości do folderu albo przekazuje je na inny adres.</p>'],
-            ['type' => 'wizard', 'title' => 'Filtr z otwartej wiadomości', 'intro' => '<p>Najszybciej zrobisz filtr z wiadomości, która ma być filtrowana.</p>', 'steps' => [
-                $step('Zaznacz wiadomość', '<p>Zaznacz wiadomość na liście, a w górnym pasku wybierz „Więcej”, potem „Utwórz filtr”.</p>'),
-                $step('Wybierz, po czym filtrować', '<p>Wskaż, czy filtr ma działać np. po nadawcy albo temacie, i kliknij „Następny krok”.</p>'),
-                $step('Ustaw akcję', '<p>Nadaj filtrowi nazwę, sprawdź warunki i wybierz folder, do którego mają trafiać wiadomości. Zapisz.</p>'),
+        'filtry-i-przekierowanie' => ['Filtry i przekierowanie poczty', 'filtr, filtry, reguły, reguła, przekierowanie, przekazywanie, forward, kopia, folder, sortowanie, automatyczne przenoszenie, moje filtry, zakres, akcje, nazwa filtru, filtr włączony, faktury, newsletter', [
+            ['type' => 'text', 'html' => '<p>Filtr sam robi coś z wiadomościami, które spełniają podane warunki, zaraz po tym, jak przyjdą. Najczęściej przenosi je do wybranego folderu, '
+                . 'na przykład faktury do folderu FAKTURA, a newslettery do „Mało istotne”. Może też wysłać kopię na inny adres albo oznaczyć wiadomość. '
+                . 'Filtry działają na serwerze, więc sortują pocztę także wtedy, gdy dPoczta jest zamknięta, a porządek zobaczysz w telefonie i w każdym programie.</p>'],
+            ['type' => 'text', 'html' => '<h2>Gdzie są filtry</h2>'
+                . '<p>' . $gear . ' W lewej kolumnie wybierz „Filtry”. W środku jest zestaw „Moje filtry dpoczta.pl” z listą Twoich filtrów. Na początku lista jest pusta. '
+                . 'Ołówek na górze („Utwórz”) dodaje nowy filtr, a kosz usuwa zaznaczony. Koło zębate obok nazwy „Ustawienia” służy do zarządzania zestawami filtrów i nie jest potrzebne na co dzień.</p>'],
+            ['type' => 'wizard', 'title' => 'Nowy filtr krok po kroku', 'intro' => '<p>Przykład: wiadomości od Fakturowni mają same trafiać do folderu FAKTURA.</p>', 'steps' => [
+                $step('Kliknij Utwórz', '<p>W „Filtrach” kliknij ikonę ołówka na górze. Po prawej pojawi się formularz.</p>'),
+                $step('Nazwij filtr', '<p>W polu „Nazwa filtru” wpisz nazwę, po której go poznasz, na przykład „Faktury”. Przełącznik „Filtr włączony” zostaw włączony.</p>'),
+                $step('Wybierz zakres', '<p>W polu „Zakres” wybierz „spełniających wszystkie poniższe kryteria”, gdy muszą być spełnione wszystkie reguły, '
+                    . 'albo „spełniających dowolne z poniższych kryteriów”, gdy wystarczy jedna. Opcja „wszystkich” obejmuje każdą wiadomość bez wyjątku.</p>'),
+                $step('Ustaw regułę', '<p>W części „Reguły” wybierz, co sprawdzać, na przykład „Od” (nadawca), „Temat”, „Do” albo „Treść”. Obok wybierz warunek, najczęściej „zawiera”, '
+                    . 'i wpisz szukany tekst, na przykład <code>fakturownia.pl</code>. Plus po prawej dodaje kolejną regułę, a kosz ją usuwa.</p>'),
+                $step('Ustaw akcję', '<p>W części „Akcje” zostaw „Przenieś wiadomość do” i wybierz folder, na przykład FAKTURA. Plus po prawej dodaje kolejną akcję.</p>'),
+                $step('Zapisz', '<p>Kliknij „Zapisz”. Filtr pojawi się na liście i zadziała dla nowych wiadomości. Wiadomości, które już są w skrzynce, przenieś ręcznie.</p>'),
             ]],
-            ['type' => 'text', 'html' => '<h3>Przekierowanie na inny adres</h3><p>Wejdź w ustawienia, wybierz „Filtry” i dodaj nowy filtr (ikona ołówka pod listą „Moje filtry”). Jako warunek ustaw wiadomości kierowane do Twojej skrzynki, a jako akcję przekazanie na adres docelowy. Jeśli kopia ma nie zostawać w skrzynce, dodaj drugą akcję (ikona plusa): usunięcie wiadomości. Zapisz.</p>'
-                . '<p>Filtr wyłączysz bez usuwania, zaznaczając „Filtr wyłączony”.</p>'],
+            ...itPortalDpocztaShot('dp-filtr-nowy.jpg', 'Formularz nowego filtra w dPoczcie: Nazwa filtru, Filtr włączony, Zakres spełniających wszystkie poniższe kryteria, Reguły Temat zawiera, Akcje Przenieś wiadomość do Odebrane, przycisk Zapisz', 'Ustawienia, „Filtry”, formularz nowego filtra.'),
+            ['type' => 'text', 'html' => '<h2>Najprzydatniejsze akcje</h2><ul>'
+                . '<li>„Przenieś wiadomość do”: wiadomość trafia od razu do wybranego folderu, a nie do Odebranych.</li>'
+                . '<li>„Skopiuj wiadomość do”: wiadomość zostaje w Odebranych, a jej kopia trafia do folderu.</li>'
+                . '<li>„Wyślij kopię do”: kopia idzie na inny adres, a oryginał zostaje u Ciebie. Tak przekażesz pocztę zastępcy na czas urlopu.</li>'
+                . '<li>„Przekaż wiadomość na konto”: wiadomość idzie na inny adres i nie zostaje u Ciebie.</li>'
+                . '<li>„Ustaw flagi wiadomości”: na przykład od razu oznacza wiadomość jako przeczytaną albo ważną.</li>'
+                . '<li>„Przerwij przetwarzanie reguł”: kolejne filtry nie zadziałają już dla tej wiadomości. Przydaje się, gdy masz kilka filtrów, które mogłyby się nakładać.</li></ul>'
+                . '<p>Na liście jest też „Usuń wiadomość”, „Odrzuć z komunikatem” i „Odpowiedz wiadomością o treści”. Używaj ich ostrożnie, bo łatwo stracić ważną wiadomość. '
+                . 'Na czas urlopu wygodniejsza jest autoodpowiedź, opisana w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/autoresponder">Autoodpowiedź na czas nieobecności</a>.</p>'],
+            ['type' => 'text', 'html' => '<h2>Zmiana i wyłączanie filtra</h2>'
+                . '<p>Kliknij filtr na liście, popraw go po prawej i kliknij „Zapisz”. Żeby filtr na chwilę nie działał, wyłącz przełącznik „Filtr włączony” i zapisz. '
+                . 'Filtry działają po kolei, od góry listy.</p>'],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Filtr szybciej zrobisz z otwartej wiadomości. Zaznacz ją na liście, kliknij trzy kropki „Więcej” nad wiadomością i wybierz „Utwórz filtr”. '
+                . 'Formularz wypełni się danymi z tej wiadomości, na przykład nadawcą.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie przekierowuj poczty służbowej na prywatne skrzynki (Gmail, Onet, WP itp.). W wiadomościach bywają dane osobowe, które muszą zostać w systemach organizacji.</p>'],
         ], false],
 
