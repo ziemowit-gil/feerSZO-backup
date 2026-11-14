@@ -50,7 +50,7 @@ function itPortalMigracjaIamBlocks(string $app): array {
 
         ['type' => 'wizard', 'title' => 'Co dzieje się z Twoimi hasłami', 'intro' => '<p>Tak wygląda cała droga, od przeniesienia poczty do jednego hasła IAM.</p>', 'steps' => [
             $step('Przenieś pocztę', '<p>Od 14 listopada 2026 r. poczta działa u nowego dostawcy. Adres się nie zmienia, nadal jest to imie.nazwisko@feer.org.pl.</p>'
-                . '<p>Wejdź na stronę <a href="' . $app . '/migracjapoczty">Migracja poczty</a>. Jeśli poczta jest już przeniesiona, zobaczysz to od razu, a hasło do nowej skrzynki masz w SMS-ie. '
+                . '<p>Wejdź na stronę <a href="' . $app . '/migracjapoczty">Migracja poczty</a>. Jeśli poczta jest już przeniesiona, na przykład zrobił to już administrator, zobaczysz to od razu, a hasło do nowej skrzynki masz w SMS-ie. '
                 . 'Jeśli nie, założysz skrzynkę sam: hasło przyjdzie SMS-em, a stare wiadomości skopiujemy w tle.</p>'),
             $step('Dostajesz hasła startowe SMS-em', '<p>Po przeniesieniu poczty przychodzi SMS z hasłami startowymi: jednym do poczty i drugim do IAM i chmury plików. To hasła tymczasowe. '
                 . 'Jeśli konto IAM zakładasz sam, hasła startowego do IAM nie dostajesz, tylko od razu wybierasz własne.</p>'),

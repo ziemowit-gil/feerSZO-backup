@@ -2122,4 +2122,16 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Migracja” i „IAM i hasła w migracji”: krok „Przenieś pocztę” — pocztę mógł już przenieść administrator (2026-11-14).
+    '2026-11_it_portal_migracja_admin_moved' => [
+        'desc' => 'Portal Usług IT, „Migracja”: pocztę mógł przenieść administrator',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaIamSeed.php';
+            itPortalMigracjaApply(ITP_SZO_URL);
+            itPortalMigracjaIamApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

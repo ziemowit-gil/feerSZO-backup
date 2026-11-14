@@ -83,7 +83,7 @@ function itPortalMigracjaArticles(string $app): array {
                 . 'Szczegóły opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/migracja/dlaczego-migrujemy">Dlaczego odchodzimy od Microsoft 365</a>.</p>'],
 
             ['type' => 'wizard', 'title' => 'Co masz zrobić', 'intro' => '<p>Część kroków mógł już zrobić za Ciebie administrator. Wtedy na stronach z kroków 1 i 3 zobaczysz, że są gotowe.</p>', 'steps' => [
-                $step('Przenieś pocztę', '<p>Wejdź na stronę <a href="' . $app . '/migracjapoczty">Migracja poczty</a>. Jeśli poczta jest już przeniesiona, zobaczysz to od razu, '
+                $step('Przenieś pocztę', '<p>Wejdź na stronę <a href="' . $app . '/migracjapoczty">Migracja poczty</a>. Jeśli poczta jest już przeniesiona, na przykład zrobił to już administrator, zobaczysz to od razu, '
                     . 'a hasło do nowej skrzynki masz w SMS-ie. Jeśli nie, założysz skrzynkę sam: hasło przyjdzie SMS-em, a stare wiadomości skopiujemy w tle.</p>'
                     . '<p>Na tę stronę wejdziesz też bez logowania do SZO. Podaj prywatny e-mail albo PESEL z umowy, adres służbowy i kod z SMS-a.</p>'),
                 $step('Zaloguj się do nowej poczty', '<p>W przeglądarce otwórz <a href="https://dpoczta.pl">dpoczta.pl</a>. Login to pełny adres <code>imie.nazwisko@feer.org.pl</code>, '
