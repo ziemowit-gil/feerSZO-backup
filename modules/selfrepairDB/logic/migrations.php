@@ -2265,4 +2265,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Koordynatorzy IT”: artykuł o roli IT i artykułach „tylko dla IT” (polecenie 2026-11-14).
+    '2026-11_it_portal_rola_it_article' => [
+        'desc' => 'Portal Usług IT, „Koordynatorzy IT”: artykuł „Rola IT: kto czyta artykuły dla działu IT”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalRolaItSeed.php';
+            itPortalRolaItApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

@@ -66,7 +66,8 @@ itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $itLocked ? '' 
           <?php else: ?>
             <p>Ten artykuł mogą czytać tylko osoby z rolą IT w SZO, a Twoje konto jej nie ma.</p>
           <?php endif; ?>
-            <p>Potrzebujesz pomocy w tej sprawie? Napisz do <a href="<?= h(APP_URL . '/helpdesk/new.php') ?>">Helpdesku IT</a>.</p>
+            <p>Potrzebujesz pomocy w tej sprawie? Napisz do <a href="<?= h(APP_URL . '/helpdesk/new.php') ?>">Helpdesku IT</a>.
+              Więcej o tym, kto czyta takie artykuły, w artykule <a href="<?= h(itPortalUrl('uslugi/koordynatorzy-it/rola-it')) ?>">Rola IT</a>.</p>
           </div>
         </aside>
       </div>
