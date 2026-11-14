@@ -2,11 +2,12 @@
 /**
  * includes/auth_screen.php — wspólna powłoka ekranów wejścia do systemu.
  *
- * Jeden wygląd dla: logowania (/auth/login.php), rejestracji
- * (/user/register.php) i odzyskiwania dostępu (/user/verify_reset.php):
- * pasek dostępności (rozmiar tekstu, wysoki kontrast), pełnoekranowe tło
- * w kolorze marki z geometrią, logo organizacji zawsze białe, zakładki
- * Zaloguj / Rejestracja i biała karta z treścią.
+ * Tryb 'light' (od 2026-11-14 wygląd wszystkich ekranów wejścia SZO): jasna karta z logo Fundacji,
+ * arkusz inc/loginShell/authUi.php. Korzystają z niego: logowanie (/auth/login.php), CPL
+ * (/tozsamosc/cpl.php), dawne logowanie Tożsamości (?stary=1), bramka IKA, 2FA, nowe logowanie,
+ * ustawianie hasła, hasło awaryjne, rejestracja i odzyskiwanie dostępu.
+ * Wygląd METRO (domyślny, gdy 'light' nie podano) i klasyczny ('metro' => false) zostają dla
+ * pozostałych stron (np. /webmail/, wybór roli w panelu dydaktyka) — ich wynik się nie zmienia.
  *
  * Użycie:
  *   require_once __DIR__ . '/../includes/auth_screen.php';
@@ -27,28 +28,13 @@ const AUTH_SCREEN_BG_SVG = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3
 
 /**
  * Warstwy graficzne tła ekranów wejścia — geometria + delikatny skos.
- * Jedno źródło wzoru dla powłoki (.ks-hero) i dla ekranów z własnym układem
- * (auth_screen_bg_css()), żeby logowanie, 2FA i weryfikacje wyglądały tak samo.
+ * Tło klasycznego wyglądu powłoki (.ks-hero). Jasny wygląd ekranów wejścia (tryb 'light')
+ * ma własne tło z inc/loginShell/authUi.php.
  */
 function auth_screen_bg_layers(): string {
     return "background-image:" . AUTH_SCREEN_BG_SVG . ",\n"
          . "    repeating-linear-gradient(135deg,rgba(0,0,0,.045) 0 3px,transparent 3px 26px);\n"
          . "  background-size:420px 420px,auto";
-}
-
-/**
- * Emituje <style> z tłem ekranu logowania dla stron, które mają własny układ
- * i nie korzystają z auth_screen_head() (2FA, logowanie Tożsamości, ustawianie
- * hasła). Wywołaj w <head> PO branding_css() — kolor bierze się z --c.
- *
- * @param string $sel selektor, na który nakładamy tło (domyślnie html,body)
- */
-function auth_screen_bg_css(string $sel = 'html,body'): void {
-    echo '<style>' . $sel . '{background-color:var(--c,#DC2626);'
-       . auth_screen_bg_layers() . ';background-attachment:fixed}'
-       . 'html[data-theme="hc"] ' . str_replace(',', ',html[data-theme="hc"] ', $sel)
-       . '{background:#000;background-image:none}'
-       . '</style>' . "\n";
 }
 
 /**
@@ -986,27 +972,6 @@ function auth_screen_head_light(array $o, array $b, string $org_name, string $ti
     </div>
     <div class="ks-shell">
 <?php
-}
-
-/** Pasek nagłówka CPL (siatka kropek + logo „CPL Portal”) — dla ekranów z własnym układem, które dostają wygląd CPL. */
-function auth_screen_cpl_band(string $org = 'Fundacja FEER'): string {
-    mt_srand(2610); $dots = ''; $pal = ['#6b2c91', '#0079c2', '#2e9b3f'];
-    for ($cx = 0; $cx < 30; $cx++) for ($cy = 0; $cy < 6; $cy++) {
-        if (mt_rand(0, 99) < 38 - $cy * 3) continue;
-        $dots .= '<circle cx="' . (12 + $cx * 19) . '" cy="' . (10 + $cy * 15) . '" r="3" fill="' . (mt_rand(0, 99) < 22 ? $pal[mt_rand(0, 2)] : '#d4d4d8') . '"/>';
-    }
-    return '<div class="cpl-top cpl-band"><svg viewBox="0 0 570 120" preserveAspectRatio="xMidYMin slice" aria-hidden="true" focusable="false">' . $dots . '</svg>'
-         . '<div class="cpl-logo"><b>CPL</b> <span>Portal</span></div>'
-         . '<div class="cpl-sub">Centralny Portal Logowania · ' . htmlspecialchars($org, ENT_QUOTES, 'UTF-8') . '</div></div>';
-}
-
-/** CSS paska CPL (do użycia razem z auth_screen_cpl_band()). */
-function auth_screen_cpl_band_css(): string {
-    return '.cpl-top{position:relative;height:120px;background:linear-gradient(180deg,#fff 0%,#f4f5f6 70%,#eceeef 100%);border:1px solid #d6d9de;border-bottom:1px solid #e1e4e8}'
-         . '.cpl-top svg{position:absolute;inset:0;width:100%;height:100%}'
-         . '.cpl-logo{position:absolute;left:24px;bottom:30px;font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1}'
-         . '.cpl-logo b{color:#2e2a7a}.cpl-logo span{background:linear-gradient(90deg,#0a7fd1,#2e9b3f);-webkit-background-clip:text;background-clip:text;color:transparent}'
-         . '.cpl-sub{position:absolute;left:24px;bottom:10px;font-size:11px;font-weight:700;color:#2e2a7a}';
 }
 
 /** Wypisuje komunikat „coś tu się zmieniło" (zamykany, zapamiętywany). */
