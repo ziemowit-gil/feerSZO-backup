@@ -124,6 +124,9 @@ function itPortalCloudArticles(string $app): array {
         'menu-aplikacji' => ['Menu aplikacji i poruszanie się po chmurze',
             'menu aplikacji, launcher, aplikacje, kropki, dziewięć kropek, pulpit, pliki, biuro, zdjęcia, zespoły, aktywność, sklep aplikacji, text document, górny pasek, nawigacja, menu, menu konta, profil, status, wygląd i dostępność, motyw, wysoki kontrast, ciemny motyw, czcionka dla dysleksji, ustawienia osobiste, wyloguj, skróty klawiszowe, klawiatura, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNavBlocks($app), $app)), false, 13],
+        'ustawienia-osobiste' => ['Ustawienia osobiste w chmurze: profil, język, bezpieczeństwo',
+            'ustawienia, ustawienia osobiste, personal, profil, profile & contact, zdjęcie profilowe, awatar, pełna nazwa, zaimki, lokalizacja, telefon, widoczność, kto widzi, kłódka, language & locale, język, format daty, bezpieczeństwo, urządzenia, sesje, hasło aplikacji, powiadomienia, wygląd i dostępność, udostępnianie, dostępność, nieobecność, godziny pracy, przepływ, prywatność, migracja danych, nextcloud',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudSettingsBlocks($app), $app)), false, 16],
         'powiadomienia' => ['Powiadomienia w chmurze plików',
             'powiadomienia, powiadomienie, dzwonek, czerwona kropka, udostępnienie, udostępnił, wzmianka, komentarz, e-mail z chmury, wiadomości z chmury, za dużo maili, podsumowanie, aktywność, nie przeszkadzać, status, powiadomienia push, telefon, komputer, przeglądarka, odrzuć, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNotifyBlocks($app), $app)), false, 14],
@@ -508,7 +511,8 @@ function itPortalCloudNavBlocks(string $app): array {
             . 'którą widzą inni użytkownicy chmury. Niżej są te pozycje:</p><ul>'
             . '<li>„Ustaw status”: dostępny, zaraz wracam, nie przeszkadzać albo niewidoczny, z krótkim opisem i czasem wygaśnięcia.</li>'
             . '<li>„Wygląd i dostępność”: motyw jasny albo ciemny, motyw o wysokim kontraście, czcionka łatwiejsza do czytania dla osób z dysleksją i tło strony.</li>'
-            . '<li>„Ustawienia osobiste”: dane konta, język, powiadomienia i bezpieczeństwo, w tym lista urządzeń połączonych z Twoim kontem.</li>'
+            . '<li>„Ustawienia osobiste”: dane konta, język, powiadomienia i bezpieczeństwo, w tym lista urządzeń połączonych z Twoim kontem. '
+            . 'Opisuje je artykuł <a href="' . $base . 'ustawienia-osobiste">Ustawienia osobiste w chmurze</a>.</li>'
             . '<li>„Pomoc”: podręcznik Nextcloud.</li>'
             . '<li>„Wyloguj się”: kończy pracę w chmurze w tej przeglądarce.</li></ul>'
             . '<p>Hasła nie zmieniaj w ustawieniach osobistych chmury. Hasło IAM zmienisz na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>.</p>'],
@@ -528,6 +532,61 @@ function itPortalCloudNavBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie widzisz w menu aplikacji, o której mówią koledzy? Może być włączona tylko dla części osób. '
             . '<a href="' . $hd . '">Napisz do Helpdesku IT</a>, a sprawdzimy.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Ustawienia osobiste w chmurze: profil, język, bezpieczeństwo” (polecenie 2026-11-14 ze zrzutem Ustawień → Personal → Profile & contact).
+ * Pozycje menu jak na zrzucie; część nazw jest jeszcze po angielsku. Zrzut użytkownika nie trafił do artykułu (dane osobowe).
+ */
+function itPortalCloudSettingsBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $nh = $app . '/nowehaslo';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Ustawienia osobiste otworzysz, klikając kółko ze swoimi inicjałami w prawym górnym rogu i wybierając „Ustawienia osobiste”. '
+            . 'Po lewej jest lista części ustawień, a po prawej ustawienia wybranej części. Zmiany zapisują się same, bez osobnego przycisku.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Część nazw w ustawieniach jest na razie po angielsku, na przykład „Personal”, „Profile &amp; contact” i „Language &amp; locale”. '
+            . 'To brak tłumaczenia w programie. Po aktualizacji nazwy mogą zmienić się na polskie.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Profil i kontakt (Profile &amp; contact)</h2>'
+            . '<p>Na górze jest Twoje zdjęcie albo inicjały i imię z nazwiskiem. Przełącznik „Nextcloud profile” włącza stronę profilu, którą widzą inni użytkownicy chmury, '
+            . 'a „View full profile” pokazuje, jak ta strona wygląda.</p>'
+            . '<p>„Wyślij zdjęcie profilowe” wgrywa zdjęcie z komputera, a „Wybierz z plików Nextcloud” bierze je z chmury. Zdjęcie musi być w formacie PNG albo JPG. '
+            . 'Zdjęcie pomaga współpracownikom rozpoznać, kto udostępnił plik, ale nie musisz go dodawać.</p>'
+            . '<p>Niżej są pola z danymi o Tobie: pełna nazwa, zaimki, lokalizacja, a po przewinięciu między innymi e-mail, telefon, organizacja, rola i krótki opis. Wszystkie poza imieniem i nazwiskiem są dobrowolne.</p>'
+            . '<p>Ikona po prawej stronie każdego pola mówi, kto widzi tę informację. Kłódka oznacza, że widzisz ją tylko Ty. Ikona z kilkoma osobami oznacza, '
+            . 'że widzą ją inni użytkownicy chmury Fundacji. Kliknij ikonę, żeby to zmienić. Prywatny numer telefonu i adres zostaw z kłódką.</p>'
+            . '<p>Imię i nazwisko oraz adres e-mail chmura dostaje z SZO. Jeśli są błędne, nie poprawiaj ich tutaj, bo przy kolejnym logowaniu mogą wrócić do dawnej wersji. '
+            . 'Popraw je w SZO albo <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Język i region (Language &amp; locale)</h2>'
+            . '<p>Wybierzesz tu język chmury oraz format daty i godziny i pierwszy dzień tygodnia. Dla polskiego ustaw język polski i region Polska. '
+            . 'Zmiana języka działa po odświeżeniu strony.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Bezpieczeństwo</h2>'
+            . '<p>Najważniejsza jest tu lista urządzeń i sesji, czyli przeglądarek i aplikacji, które są zalogowane na Twoje konto. Przy każdym urządzeniu jest menu, '
+            . 'którym je wylogujesz. Przejrzyj listę od czasu do czasu, a zgubiony telefon albo cudzy komputer od razu usuń.</p>'
+            . '<p>Możesz tu też utworzyć hasło aplikacji, czyli osobne hasło dla programu, który łączy się z chmurą bez logowania jednokrotnego, na przykład przez WebDAV. '
+            . 'Hasło aplikacji widzisz tylko raz, więc od razu wpisz je w program. Gdy przestaniesz z niego korzystać, usuń to hasło z listy.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie zmieniaj tu swojego hasła, nawet jeśli zobaczysz takie pole. Hasło zmienione w chmurze przestanie pasować do SZO. '
+            . 'Hasło IAM zmienisz na stronie <a href="' . $nh . '">Nowe hasło</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Pozostałe części</h2>'
+            . '<p>Powiadomienia. Wybierasz, o czym chmura ma Cię zawiadamiać e-mailem i jak często. Szczegóły są w artykule <a href="' . $base . 'powiadomienia">Powiadomienia w chmurze plików</a>.</p>'
+            . '<p>Wygląd i dostępność. Motyw jasny, ciemny albo o wysokim kontraście, czcionka dla osób z dysleksją i tło. Opisuje to artykuł '
+            . '<a href="' . $base . 'menu-aplikacji">Menu aplikacji i poruszanie się po chmurze</a>.</p>'
+            . '<p>Udostępnianie. Ustawisz, czy przyjmować udostępnienia od innych automatycznie, czy najpierw je akceptować. '
+            . 'Jest tu też Twój identyfikator do udostępniania między różnymi chmurami Nextcloud. Podaj go tylko osobie spoza Fundacji, która ma własną chmurę i chce Ci coś udostępnić.</p>'
+            . '<p>Dostępność. Godziny pracy i informacja o nieobecności, na przykład w czasie urlopu. Inni zobaczą ją przy Twoim nazwisku.</p>'
+            . '<p>Przepływ. Reguły, które same coś robią z plikami, na przykład oznaczają je etykietą. Na co dzień nie są potrzebne.</p>'
+            . '<p>Prywatność. Informacja o tym, gdzie są przechowywane Twoje dane i kto ma do nich dostęp.</p>'
+            . '<p>Migracja danych. Eksport całego konta do jednego pliku albo wczytanie takiego pliku. Nie korzystaj z tego bez porozumienia z Helpdeskiem IT. '
+            . 'Przeniesienie plików między instalacjami chmury Fundacji zaplanujemy sami.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie wiesz, czy coś zmieniać? Zostaw ustawienia domyślne i <a href="' . $hd . '">zapytaj w Helpdesku IT</a>.</p>'],
     ];
 }
 
