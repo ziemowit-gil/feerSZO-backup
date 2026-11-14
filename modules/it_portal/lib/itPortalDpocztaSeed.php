@@ -287,7 +287,7 @@ function itPortalDpocztaArticles(string $app): array {
                 $step('Zmień hasło na własne', '<p>Po pierwszym logowaniu ustaw własne hasło w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. Nie zmieniaj go w ustawieniach dpoczta.pl. Opis jest w instrukcji „Jak zmienić hasło do poczty”.</p>'),
             ]],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Hasło do poczty jest osobne. To inne hasło niż do Panelu współpracownika (SZO), do Microsoft 365 i do logowania jednokrotnego.</p>'
-                . '<p>Pod przyciskiem „Zaloguj” jest link „Nie pamiętasz hasła?”. Nie korzystaj z niego. Zapomniane hasło do poczty zmienisz na stronie '
+                . '<p>Pod przyciskiem „Zaloguj” jest link „Nie pamiętasz hasła?” Nie korzystaj z niego. Zapomniane hasło do poczty zmienisz na stronie '
                 . '<a href="' . $app . '/nowehaslo">Nowe hasło</a> w SZO, bo tylko tam hasło zapisuje się we wszystkich miejscach.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie masz SMS-a albo hasło nie działa? <a href="' . $hd . '">Zgłoś to w Helpdesku</a>, nadamy nowe hasło.</p>'],
         ], true],

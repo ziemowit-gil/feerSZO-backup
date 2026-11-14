@@ -69,9 +69,9 @@ function itPortalChatbotArticle(string $app): array {
                 . 'Znajdziesz go też w panelu współpracownika, na kafelku „Czat Pomocy IT”.</p>'],
 
             ['type' => 'text', 'html' => '<h2>O co możesz zapytać</h2><ul>'
-                . '<li><strong>Sprawy IT</strong> — poczta, hasła, logowanie, chmura, VPN. Na przykład: „Jak zmienić hasło do poczty?”.</li>'
-                . '<li><strong>Procedury i dokumenty</strong> — na przykład: „Jak rozliczyć zwrot kosztów wolontariusza?”.</li>'
-                . '<li><strong>Obsługa systemu SZO</strong> — gdzie co kliknąć. Na przykład: „Gdzie wpisuję godziny?”.</li>'
+                . '<li><strong>Sprawy IT</strong> — poczta, hasła, logowanie, chmura, VPN. Na przykład: „Jak zmienić hasło do poczty?”</li>'
+                . '<li><strong>Procedury i dokumenty</strong> — na przykład: „Jak rozliczyć zwrot kosztów wolontariusza?”</li>'
+                . '<li><strong>Obsługa systemu SZO</strong> — gdzie co kliknąć. Na przykład: „Gdzie wpisuję godziny?”</li>'
                 . '</ul><p>Gdy trwa awaria, czat pokaże ją z boku strony.</p>'],
 
             ['type' => 'wizard', 'title' => 'Jak zadać pytanie', 'intro' => '<p>To zajmie chwilę.</p>', 'steps' => [
@@ -79,7 +79,7 @@ function itPortalChatbotArticle(string $app): array {
                 $step('Napisz pytanie', '<p>Wpisz pytanie w polu na dole i naciśnij Enter. Możesz też kliknąć jedną z gotowych podpowiedzi.</p>'),
                 $step('Przeczytaj odpowiedź', '<p>Pod odpowiedzią są linki do źródeł, na przykład do artykułu w Pomocy IT. '
                     . 'Otwórz je, jeśli chcesz zobaczyć całą instrukcję.</p>'),
-                $step('Dopytaj', '<p>Czat pamięta rozmowę, więc możesz dopytać, np. „a w telefonie?”. '
+                $step('Dopytaj', '<p>Czat pamięta rozmowę, więc możesz dopytać, np. „a w telefonie?” '
                     . 'Przycisk „Nowa rozmowa” zaczyna od początku.</p>'),
             ]],
 

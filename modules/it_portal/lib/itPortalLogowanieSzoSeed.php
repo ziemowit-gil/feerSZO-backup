@@ -61,10 +61,10 @@ function itPortalLogowanieSzoBlocks(string $app): array {
                 $step('Inne metody logowania i administratorzy', '<p>Na dole karty jest rozwijana lista. Znajdziesz w niej logowanie kodem SMS albo kodem jednorazowym, jeśli są włączone. '
                     . 'Jest tam też przycisk Microsoft 365, ale tylko dla administratorów z kontem @feer.org.pl. Pozostałe osoby z niego nie korzystają.</p>'),
             ]],
-            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Zleceniobiorcy często logują się do SZO prywatnym adresem e-mail, tym z umowy, i hasłem nadanym przez Fundację. Jeśli to Twoja sytuacja, wpisz ten adres i hasło w polach „Adres e-mail” i „Hasło”, a potem kliknij „Zaloguj”. Nie pamiętasz hasła? Kliknij „Nie pamiętasz hasła?”.</p>'],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Zleceniobiorcy często logują się do SZO prywatnym adresem e-mail, tym z umowy, i hasłem nadanym przez Fundację. Jeśli to Twoja sytuacja, wpisz ten adres i hasło w polach „Adres e-mail” i „Hasło”, a potem kliknij „Zaloguj”. Nie pamiętasz hasła? Kliknij „Nie pamiętasz hasła?”</p>'],
             ['type' => 'text', 'html' => '<h2>Lewa część: odchodzimy od Microsoft 365</h2>'
                 . '<p>Ramka po lewej mówi, kiedy wyłączymy Microsoft 365, i podaje trzy kroki: zaloguj się e-mailem i hasłem, załóż konto IAM, a następnym razem używaj logowania jednokrotnego. '
-                . 'Powody zmiany są pod odnośnikiem „Dlaczego odchodzimy od Microsoft 365?”. Kliknij go, żeby je rozwinąć.</p>'
+                . 'Powody zmiany są pod odnośnikiem „Dlaczego odchodzimy od Microsoft 365?” Kliknij go, żeby je rozwinąć.</p>'
                 . '<p>Co zobaczysz po pierwszym zalogowaniu, opisuje instrukcja <a href="' . $b . 'pierwsze-logowanie">Pierwsze logowanie krok po kroku</a>.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Przed wpisaniem hasła sprawdź, czy adres strony zaczyna się od https://szo.feer.org.pl. Nikt z Fundacji nie poprosi Cię o hasło ani kod z SMS-a. '
                 . 'Nie możesz się zalogować? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],

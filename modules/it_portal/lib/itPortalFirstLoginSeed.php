@@ -53,7 +53,7 @@ function itPortalFirstLoginBlocks(string $app): array {
             $step('Pierwszy raz i nie masz hasła?', '<p>Pod formularzem logowania wybierz swoją sytuację:</p><ul>'
                 . '<li><strong>Nowy wolontariusz</strong>: kliknij „Aktywuj konto” albo „Kod aktywacyjny”. Potwierdzisz się danymi z umowy i kodem SMS, a potem ustawisz hasło.</li>'
                 . '<li><strong>Nowy zleceniobiorca</strong>: kliknij „Oświadczenie” i wypełnij formularz.</li>'
-                . '<li><strong>Nie pamiętasz hasła</strong>: kliknij „Nie pamiętasz hasła?”.</li></ul>'),
+                . '<li><strong>Nie pamiętasz hasła</strong>: kliknij „Nie pamiętasz hasła?”</li></ul>'),
             $step('Ustaw własne hasło', '<p>Jeśli logujesz się hasłem startowym, panel od razu poprosi o nowe hasło. Wymyśl własne i zapisz je.</p>'),
             $step('Zaakceptuj regulamin panelu', '<p>Na ekranie „Witaj w panelu” przeczytaj pouczenie i regulamin. Zaznacz zgodę na dokumentową formę umów i korzystanie z panelu, potem kliknij „Akceptuję — przejdź do panelu”. Bez tej zgody dalsze kroki są niedostępne.</p>'
                 . '<p>Możesz też podać zapasowy e-mail i telefon do powiadomień.</p>'),

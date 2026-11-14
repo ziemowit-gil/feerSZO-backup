@@ -2095,4 +2095,21 @@ return [
         },
     ],
 
+    // Portal Usług IT: bez kropki po pytajniku w cudzysłowie („Nie pamiętasz hasła?”, nie „…?”.) — polecenie 2026-11-14 „popraw pytajnik
+    // w seederach”. Ponownie wgrywa artykuły, których dotyczy poprawka.
+    '2026-11_it_portal_question_mark_fix' => [
+        'desc' => 'Portal Usług IT: interpunkcja po pytajniku w cudzysłowie',
+        'run'  => static function () use ($ROOT): void {
+            $L = $ROOT . '/modules/it_portal/lib/';
+            require_once $L . 'itPortalSzoLinks.php';
+            foreach (['itPortalLogowanieSzoSeed.php', 'itPortalAktywacjaSeed.php', 'itPortalCplIkaSeed.php', 'itPortalChatbotSeed.php', 'itPortalFirstLoginSeed.php', 'itPortalDpocztaSeed.php'] as $f) require_once $L . $f;
+            itPortalLogowanieSzoApply(ITP_SZO_URL);
+            itPortalAktywacjaApply(ITP_SZO_URL);
+            itPortalCplIkaApply(ITP_SZO_URL);
+            itPortalChatbotApply(ITP_SZO_URL);
+            itPortalFirstLoginApply(ITP_SZO_URL);
+            itPortalDpocztaApply(ITP_SZO_URL, false, ['logowanie-dpoczta']);
+        },
+    ],
+
 ];

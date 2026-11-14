@@ -129,7 +129,7 @@ function itPortalIkaBlocks(string $app): array {
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Po trzech błędnych próbach kod IKA blokuje się na 15 minut. Ekran pokaże godzinę odblokowania. Poczekaj albo skorzystaj z jednej z dróg opisanych niżej.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Nie pamiętasz kodu IKA</h2>'
-            . '<p>Pod polem kodu jest sekcja „nie pamiętasz kodu?”. Możesz tam wybrać jedną z dróg:</p><ul>'
+            . '<p>Pod polem kodu jest sekcja „nie pamiętasz kodu?” Możesz tam wybrać jedną z dróg:</p><ul>'
             . '<li>„Wyślij jednorazowy kod e-mail”. Kod przyjdzie na adres e-mail Twojego konta i jest ważny 15 minut.</li>'
             . '<li>„Zweryfikuj cyframi PESEL”. Podajesz 3 cyfry PESEL ze wskazanych pozycji. Ta droga działa, gdy Twoja umowa w SZO ma PESEL.</li>'
             . '<li>„Mam AdminCode”. AdminCode to jednorazowy kod z 10 znaków od Koordynatora IT. Po jego wpisaniu ustawiasz nowy kod IKA.</li></ul>'],
