@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $ext = TiConsultantAccess::externalAccounts();   // zakłada też tabelę dziennika
-$METHODS = ['ms365' => 'Microsoft 365', 'email' => 'E-mail + kod', 'numer' => 'Numer zastępczy', 'wznowienie' => 'Wznowienie („zapamiętaj mnie”)', 'impersonacja' => 'Impersonacja', 'inne' => 'Inne'];
+$METHODS = ['ms365' => 'Microsoft 365', 'sso' => 'Logowanie jednokrotne', 'szo' => 'Sesja SZO', 'email' => 'E-mail + kod', 'numer' => 'Numer zastępczy', 'wznowienie' => 'Wznowienie („zapamiętaj mnie”)', 'impersonacja' => 'Impersonacja', 'inne' => 'Inne'];
 $fUser = (int)($_GET['osoba'] ?? 0);
 $fMeth = isset($METHODS[$_GET['droga'] ?? '']) ? (string)$_GET['droga'] : '';
 $fFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['od'] ?? '')) ? (string)$_GET['od'] : date('Y-m-d', strtotime('-30 days'));

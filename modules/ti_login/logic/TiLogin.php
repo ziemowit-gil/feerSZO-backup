@@ -73,6 +73,24 @@ final class TiLogin
         return $app . '/auth/ms365.php?redirect=' . urlencode($app . '/karty30/ti/dydaktyk/office_enter.php');
     }
 
+    /** Logowanie jednokrotne kadry (Logto): mostek sso_enter.php sam przekierowuje na stronę logowania i z powrotem. */
+    public static function ssoUrl(): string
+    {
+        return rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/sso_enter.php';
+    }
+
+    /** Czy logowanie jednokrotne do SZO jest włączone (ustawienie sso_szo_login i konfiguracja Logto). */
+    public static function ssoEnabled(): bool
+    {
+        try {
+            require_once dirname(__DIR__, 3) . '/modules/sso_logto/lib/SsoConfig.php';
+            require_once dirname(__DIR__, 3) . '/modules/sso_logto/lib/LogtoOidc.php';
+            return \LogtoOidc::enabled();
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     public static function normalize(string $login): string
     {
         return mb_strtolower(trim($login));

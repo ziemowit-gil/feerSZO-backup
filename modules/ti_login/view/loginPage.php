@@ -6,9 +6,13 @@
  * z SMS-a (tymczasowe logowanie samym loginem, TiLoginSms, gdy $smsOn).
  *
  * Wejście: $view ('form'|'choice'|'code'), $error, $notice, $login, $hint (tab ze starych adresów), $choiceItems, $choiceNonce,
- *          $formAction, $officeUrl, $pfronOn, $naborOn, $TI_BASE, $smsOn.
+ *          $formAction, $officeUrl, $pfronOn, $naborOn, $TI_BASE, $smsOn, $ssoOn, $ssoUrl.
+ * Logowanie jednokrotne (2026-11-14 „pozwól już na jednokrotne albo logowanie kursanta”, $ssoOn): kadra wchodzi przyciskiem
+ * na górze (mostek dydaktyk/sso_enter.php), formularz niżej jest dla uczestnika, rodzica i osoby upoważnionej. Kadra może nadal
+ * wpisać w nim adres e-mail (kod SMS dla prowadzącego z umową), a Microsoft 365 dla administratorów jest w „Inne sposoby logowania”.
  */
 $smsOn = !empty($smsOn);
+$ssoOn = !empty($ssoOn) && !empty($ssoUrl);
 $_lpOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
 $_lpTiles = [TiLogin::STUDENT => '#0f6fa8', TiLogin::PARENT => '#00a300', TiLogin::AUTHP => '#7e3878', TiLogin::STAFF => '#1d1d1d'];
 ?><!DOCTYPE html>
@@ -81,6 +85,11 @@ $_lpTiles = [TiLogin::STUDENT => '#0f6fa8', TiLogin::PARENT => '#00a300', TiLogi
   .lp-imp p { margin: 0 0 .35rem; } .lp-imp p:last-child { margin: 0; }
   .lp-imp-h { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #78350f; }
   .lp-new { margin: 1.25rem 0 0; text-align: center; }
+  /* Logowanie jednokrotne kadry: ten sam kolor i rozmiar co „Zaloguj się” (biały na #1e6dff tylko dużym, pogrubionym tekstem) */
+  .lp-sso { display: flex; align-items: center; justify-content: center; gap: .55rem; width: 100%; min-height: 50px; padding: .55rem 1rem;
+            background: #1e6dff; border: 2px solid #1e6dff; color: #fff !important; font-size: 1.2rem; font-weight: 700; text-decoration: none; }
+  .lp-sso:hover { background: #1559e0; border-color: #1559e0; }
+  .lp-sso-h { text-align: center; }
 </style>
 </head>
 <body class="pp">
@@ -135,22 +144,29 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
 <?php else: ?>
   <div class="lp-one">
   <h1 class="pp-h1">Zaloguj się do panelu kursanta albo dydaktyka</h1>
-  <p class="lp-lead">Wpisz login, a rozpoznamy, do którego panelu należy.</p>
+  <p class="lp-lead"><?= $ssoOn ? 'Kadra wchodzi przez logowanie jednokrotne. Uczestnik, rodzic i osoba upoważniona wpisują swój login.'
+                                 : 'Wpisz login, a rozpoznamy, do którego panelu należy.' ?></p>
   <?php if ($error): ?><div class="pp-error" role="alert" id="lp-err"><?= h($error) ?></div><?php endif; ?>
   <?php if (!$error && $notice): ?><div class="pp-ok" role="status"><?= h($notice) ?></div><?php endif; ?>
+  <?php if ($ssoOn): ?>
+  <a class="lp-sso" href="<?= h($ssoUrl) ?>" aria-describedby="lp-sso-h"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
+  <p class="lp-help lp-sso-h" id="lp-sso-h">Prowadzący, konsultant i kierownik. Na następnej stronie wpisz adres e-mail albo login z kreską dolną, np. jan_kowalski.</p>
+  <div class="lp-or">albo login uczestnika</div>
+  <?php endif; ?>
   <?php if ($smsOn): ?>
-  <div class="lp-sms">Uczestnik i prowadzący z umową wpisują sam login (prowadzący: adres e-mail) i dostają kod SMS.
+  <div class="lp-sms"><?= $ssoOn ? 'Uczestnik wpisuje sam login i dostaje kod SMS.'
+                                 : 'Uczestnik i prowadzący z umową wpisują sam login (prowadzący: adres e-mail) i dostają kod SMS.' ?>
     Rodzic, opiekun i osoba upoważniona wpisują hasło.</div>
   <?php endif; ?>
   <form method="post" action="<?= h($formAction) ?>" autocomplete="on" id="lp-form">
     <div class="pp-field">
-      <label for="lp-login">Login lub e-mail</label>
+      <label for="lp-login"><?= $ssoOn ? 'Login' : 'Login lub e-mail' ?></label>
       <div class="lp-row">
         <div>
           <input type="text" class="pp-input" id="lp-login" name="login" value="<?= h($login) ?>" required autocomplete="username"
-                 autocapitalize="none" spellcheck="false" autofocus aria-describedby="lp-login-h<?= $error ? ' lp-err' : '' ?>"<?= $error ? ' aria-invalid="true"' : '' ?>>
+                 autocapitalize="none" spellcheck="false"<?= $ssoOn ? '' : ' autofocus' ?> aria-describedby="lp-login-h<?= $error ? ' lp-err' : '' ?>"<?= $error ? ' aria-invalid="true"' : '' ?>>
           <p id="lp-login-h" class="lp-help">Uczestnik: np. <span class="font-monospace">j.kowalski</span> albo <span class="font-monospace">k1234</span>.
-            Rodzic: login z końcówką <span class="font-monospace">-r</span>. Kadra: adres e-mail.</p>
+            Rodzic: login z końcówką <span class="font-monospace">-r</span>.<?= $ssoOn ? '' : ' Kadra: adres e-mail.' ?></p>
         </div>
         <div class="lp-sec" id="lp-sec" hidden aria-live="polite">
           <div class="lp-sec-img" id="lp-sec-img" aria-hidden="true"></div>
@@ -174,7 +190,7 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
         </button>
       </div>
       <?php if ($smsOn): ?>
-      <p id="lp-pass-h" class="lp-help">Uczestnik i prowadzący z umową zostawiają to pole puste, kod przyjdzie SMS-em.</p>
+      <p id="lp-pass-h" class="lp-help"><?= $ssoOn ? 'Uczestnik zostawia to pole puste' : 'Uczestnik i prowadzący z umową zostawiają to pole puste' ?>, kod przyjdzie SMS-em.</p>
       <?php else: ?>
       <p id="lp-pass-h" class="lp-help">Pierwsze logowanie uczestnika: zostaw to pole puste, kod przyjdzie SMS-em. Kadra po haśle poda kod z aplikacji.</p>
       <?php endif; ?>
@@ -184,8 +200,10 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
     </div>
   </form>
 
+  <?php if (!$ssoOn): ?>
   <div class="lp-or">albo</div>
   <a class="lp-ms" href="<?= h($officeUrl) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> <?= $smsOn ? 'Administratorzy: Microsoft 365' : 'Kadra ' . h(TiLogin::OFFICE_DOMAIN) . ': Microsoft 365' ?></a>
+  <?php endif; ?>
 
   <details class="lp-more">
     <summary>Jak wygląda login</summary>
@@ -193,13 +211,21 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
       <li>Uczestnik: login z SMS-a albo z wydruku, np. <code>j.kowalski</code> albo <code>k1234</code> (konsultacje), albo własny alias.</li>
       <li>Rodzic lub opiekun: login rodzica, np. <code>j.kowalski-r</code>.</li>
       <li>Osoba upoważniona: login od uczestnika, np. <code>a.nowak-up</code>.</li>
+      <?php if ($ssoOn): ?>
+      <li>Kadra (prowadzący, konsultant, kierownik): logowanie jednokrotne, czyli adres e-mail albo login z kreską dolną, np. <code>jan_kowalski</code>.
+        Kreska dolna zastępuje kropkę z adresu, bo login w logowaniu jednokrotnym nie może mieć kropki.<?= $smsOn ? ' Prowadzący z umową może też wpisać tu adres e-mail i dostać kod SMS.' : '' ?></li>
+      <?php else: ?>
       <li>Kadra (prowadzący, konsultant, kierownik): adres e-mail.<?= $smsOn ? ' Prowadzący z umową dostaje kod SMS, administratorzy logują się przez Microsoft 365.' : ' Konta ' . h(TiLogin::OFFICE_DOMAIN) . ' logują się przez Microsoft 365.' ?></li>
+      <?php endif; ?>
     </ul>
   </details>
 
   <details class="lp-more"<?= in_array($hint, ['rodzic', 'up'], true) ? ' open' : '' ?>>
     <summary>Inne sposoby logowania</summary>
     <ul>
+      <?php if ($ssoOn): ?>
+      <li><a href="<?= h($officeUrl) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Administratorzy: Microsoft 365</a></li>
+      <?php endif; ?>
       <li><a href="<?= h(tiPanelUrl('kursant', 'parent.php')) ?>"><i class="bi bi-chat-dots" aria-hidden="true"></i> Rodzic lub opiekun bez hasła: kod SMS na telefon opiekuna</a></li>
       <li><button type="button" class="lp-link" id="lp-key"><i class="bi bi-usb-drive" aria-hidden="true"></i> Uczestnik: klucz sprzętowy (najpierw wpisz login)</button>
         <div class="pp-error" id="lp-key-err" role="alert" hidden style="margin:.5rem 0 0"></div></li>

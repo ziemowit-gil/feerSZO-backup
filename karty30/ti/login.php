@@ -39,6 +39,11 @@ $ERR = [
     2 => 'Rodzic lub opiekun wstrzymał dostęp do panelu. Skontaktuj się z nim.',
     4 => 'To konto Microsoft 365 nie ma dostępu do panelu prowadzącego. Napisz do kierownika.',
     5 => TiLogin::ERROR_THROTTLE,
+    // Logowanie jednokrotne kadry (mostek dydaktyk/sso_enter.php, 2026-11-14)
+    6 => 'Logowanie jednokrotne jest teraz niedostępne. Spróbuj za chwilę.',
+    7 => 'Nie znaleźliśmy konta dla tego logowania jednokrotnego. Napisz do kierownika albo do Helpdesku IT.',
+    8 => 'To konto nie ma dostępu do panelu dydaktyka. Napisz do kierownika.',
+    9 => 'Konto administratora loguje się przez Microsoft 365.',
 ];
 $ec     = (int)($_GET['e'] ?? 0);
 $error  = $ec > 0 ? ($ERR[$ec] ?? TiLogin::ERROR) : null;
@@ -170,8 +175,9 @@ if ($smsOn && $_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['kod']) || 
 } elseif ($ec === 0 && $notice === null) {
     // Podpowiedź dla wejść ze starych adresów (dawne zakładki ról) — formularz i tak jest jeden.
     $notice = [
-        'dydaktyk' => $smsOn ? 'Kadra: wpisz adres e-mail. Prowadzący z umową dostanie kod SMS.'
-                             : 'Kadra: zaloguj się przez Microsoft 365 albo wpisz adres e-mail konta panelu.',
+        'dydaktyk' => TiLogin::ssoEnabled() ? 'Kadra: wybierz „Zaloguj przez logowanie jednokrotne”.'
+                    : ($smsOn ? 'Kadra: wpisz adres e-mail. Prowadzący z umową dostanie kod SMS.'
+                              : 'Kadra: zaloguj się przez Microsoft 365 albo wpisz adres e-mail konta panelu.'),
         'rodzic'   => 'Rodzic lub opiekun: wpisz login rodzica (np. j.kowalski-r) i hasło. Bez hasła — kod SMS w „Inne sposoby logowania”.',
         'up'       => 'Osoba upoważniona: wpisz login od uczestnika (np. a.nowak-up) i hasło.',
     ][$hint] ?? null;
@@ -179,6 +185,8 @@ if ($smsOn && $_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['kod']) || 
 
 $formAction = TiLogin::url();
 $officeUrl  = TiLogin::officeUrl();
+$ssoOn      = TiLogin::ssoEnabled();   // kadra: „Zaloguj przez logowanie jednokrotne”, Microsoft 365 schowany w „Inne sposoby”
+$ssoUrl     = TiLogin::ssoUrl();
 $pfronOn    = k30_pfron_enabled();
 $naborOn    = org_setting('ti_nabor_enabled') === '1';
 header('Cache-Control: no-store');

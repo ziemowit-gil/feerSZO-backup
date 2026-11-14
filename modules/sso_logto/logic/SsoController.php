@@ -453,21 +453,31 @@ final class SsoController
         if ($email === '' && $c['email'] !== '' && $c['email_verified']) {
             if (!db_one("SELECT id FROM users WHERE LOWER(email)=?", [$c['email']])) {   // nie zakładamy powiązań dla obcych adresów
                 authlog_write(null, 'login_fail', $c['email'], 'Logto: brak konta w SZO');
-                return $this->loginFail('Nie ma konta w SZO z adresem ' . $c['email'] . '. Napisz do Helpdesku IT.');
+                return $this->loginFail('Nie ma konta w SZO z adresem ' . $c['email'] . '. Napisz do Helpdesku IT.', $c['redirect']);
             }
             $email = SsoAccounts::linkFromLogto(['id' => $c['sub'], 'primaryEmail' => $c['email'], 'username' => $c['username'], 'name' => $c['name']]);
         }
         if ($email === '') {
             authlog_write(null, 'login_fail', $c['email'], 'Logto: konto bez powiązania z SZO (' . $c['sub'] . ')');
-            return $this->loginFail('Twoje konto logowania jednokrotnego nie jest połączone z kontem w SZO' . ($c['email'] !== '' ? ' (' . $c['email'] . ')' : '') . '. Zaloguj się e-mailem i hasłem albo napisz do Helpdesku IT.');
+            return $this->loginFail('Twoje konto logowania jednokrotnego nie jest połączone z kontem w SZO' . ($c['email'] !== '' ? ' (' . $c['email'] . ')' : '') . '. Zaloguj się e-mailem i hasłem albo napisz do Helpdesku IT.', $c['redirect']);
         }
         $user = userMergeFollow(db_one("SELECT * FROM users WHERE LOWER(email)=?", [$email]) ?: null);
         if (!$user) {
             authlog_write(null, 'login_fail', $email, 'Logto: brak konta w SZO');
-            return $this->loginFail('Nie ma konta w SZO z adresem ' . $email . '. Napisz do Helpdesku IT.');
+            return $this->loginFail('Nie ma konta w SZO z adresem ' . $email . '. Napisz do Helpdesku IT.', $c['redirect']);
         }
         $uid = (int)$user['id'];
-        if (empty($user['is_active'])) return $this->loginFail('Konto zostało dezaktywowane. Skontaktuj się z administratorem.');
+        if (empty($user['is_active'])) return $this->loginFail('Konto zostało dezaktywowane. Skontaktuj się z administratorem.', $c['redirect']);
+        // Panel dydaktyka TI (2026-11-14 „pozwól już na jednokrotne albo logowanie kursanta”): logowanie jednokrotne ze strony
+        // ti.feer.org.pl wraca na mostek karty30/ti/dydaktyk/sso_enter.php. Sesji SZO tu nie zakładamy, bo konta dydaktyk_ti
+        // nie mają wstępu do SZO. Mostek dostaje jednorazowy znacznik z id konta i otwiera sesję panelu po obowiązkowym kodzie TOTP.
+        if (self::isTiBridge($c['redirect'])) {
+            if (account_is_office_only($user)) return Router::redirect(APP_URL . self::TI_BRIDGE . '?blad=admin');
+            try { SsoAccounts::touchSignIn($c['sub']); } catch (\Throwable $e) {}
+            authlog_write($uid, 'login', (string)$user['email'], 'Logowanie jednokrotne (Logto): panel dydaktyka TI');
+            $_SESSION['sso_dyd'] = ['uid' => $uid, 'at' => time()];
+            return Router::redirect(APP_URL . self::TI_BRIDGE);
+        }
         if (account_is_ti_panel_only($user)) {
             authlog_write($uid, 'login_blocked_ti_panel', (string)$user['email'], 'Logto: konto panelu dydaktyka TI');
             return $this->loginFail('To konto działa wyłącznie w panelu dydaktyka TI — zaloguj się pod adresem karty30/ti/dydaktyk/.');
@@ -513,9 +523,21 @@ final class SsoController
         return Router::redirect($target);
     }
 
-    /** Błąd logowania przez Logto — komunikat na zwykłym ekranie logowania (auth/login.php czyta login_notice_error). */
-    private function loginFail(string $msg): ?string
+    /** Mostek panelu dydaktyka TI: logowanie jednokrotne z ti.feer.org.pl (karty30/ti/dydaktyk/sso_enter.php). */
+    public const TI_BRIDGE = '/karty30/ti/dydaktyk/sso_enter.php';
+
+    private static function isTiBridge(string $redirect): bool
     {
+        return $redirect !== '' && strtok($redirect, '?') === APP_URL . self::TI_BRIDGE;
+    }
+
+    /**
+     * Błąd logowania przez Logto — komunikat na zwykłym ekranie logowania (auth/login.php czyta login_notice_error).
+     * Gdy logowanie zaczęło się w panelu dydaktyka TI, wracamy na mostek, a on na stronę logowania TI z kodem błędu.
+     */
+    private function loginFail(string $msg, string $redirect = ''): ?string
+    {
+        if (self::isTiBridge($redirect)) return Router::redirect(APP_URL . self::TI_BRIDGE . '?blad=konto');
         $_SESSION['login_notice_error'] = $msg;
         return Router::redirect(APP_URL . '/auth/login.php');
     }
