@@ -38,7 +38,7 @@ function itPortalAnkieterApply(string $app, bool $dryRun = false): array {
         $aud = array_column(itPortalAudiences(), 'id', 'name');
         $catId = itPortalCategorySave(['name' => 'Ankieter', 'slug' => 'ankieter', 'icon' => 'document', 'sort_order' => 27, 'is_active' => 1,
             'tile_group' => 'Pliki, dokumenty i zadania',
-            'audiences' => array_values(array_filter([$aud['Pracownik'] ?? 0, $aud['IT'] ?? 0])), 'intro_html' => $intro]);
+            'audiences' => array_values(array_filter([$aud['Pracownik'] ?? 0, $aud['Wolontariusz'] ?? 0, $aud['IT'] ?? 0])), 'intro_html' => $intro]);
     }
 
     $ids = []; $i = 0;
@@ -110,7 +110,39 @@ function itPortalAnkieterArticles(string $app, bool $noShots = false): array {
             [$t('<p>Zmiany zapisują się jako wersja robocza. Respondenci zobaczą je dopiero po kliknięciu „Opublikuj”. '
                 . 'Przycisk „Podgląd” pokazuje ankietę tak, jak zobaczy ją respondent, ale nic nie zapisuje.</p>'
                 . '<p>W pytaniu możesz ustawić warunek, na przykład „pokaż tylko, gdy ktoś odpowiedział Nie”, albo przejście '
-                . 'do innej sekcji. Dzięki temu każdy widzi tylko pytania, które go dotyczą.</p>')],
+                . 'do innej sekcji. Dzięki temu każdy widzi tylko pytania, które go dotyczą.</p>'),
+             // Rodzaje pytań i ustawienia: z kreatora Ankietera (resources/js/form-builder.js QUESTION_TYPES, admin/forms/edit.blade.php), 2026-11-15
+             $t('<h3>Rodzaje pytań</h3>'
+                . '<p>Rodzaj wybierasz z listy „Typ nowego pytania” na dole sekcji. Później zmienisz go w polu „Typ pytania”.</p><ul>'
+                . '<li>„Krótki tekst”: odpowiedź w jednej linii, na przykład imię, e-mail albo numer. W „Format odpowiedzi” wybierzesz: dowolny tekst, '
+                . 'adres e-mail, numer telefonu, PESEL, NIP albo własny wzorzec. Możesz ustawić najmniejszą i największą liczbę znaków.</li>'
+                . '<li>„Długi tekst”: odpowiedź w kilku liniach, na przykład uwagi albo opis. Też z limitem znaków.</li>'
+                . '<li>„Jednokrotny wybór”: osoba zaznacza jedną odpowiedź z listy.</li>'
+                . '<li>„Wielokrotny wybór”: osoba zaznacza kilka odpowiedzi. Możesz ustawić, ile najmniej i najwięcej.</li>'
+                . '<li>„Lista rozwijana”: jedna odpowiedź z rozwijanej listy. Przydaje się, gdy odpowiedzi jest dużo.</li>'
+                . '<li>„Skala liniowa”: ocena na skali, domyślnie od 1 do 5. Zakres zmienisz w polach „Od” i „Do”, a końce skali opiszesz, '
+                . 'na przykład „bardzo źle” i „bardzo dobrze”.</li>'
+                . '<li>„NPS (0 do 10)”: pytanie, czy osoba poleciłaby coś innym. W wynikach Ankieter liczy wskaźnik NPS.</li>'
+                . '<li>„Siatka jednokrotnego wyboru”: kilka wierszy z tymi samymi odpowiedziami w kolumnach, w każdym wierszu jedna odpowiedź. '
+                . 'Dobra do oceny kilku rzeczy naraz, na przykład prowadzącego, materiałów i sali.</li>'
+                . '<li>„Siatka wielokrotnego wyboru”: jak wyżej, ale w wierszu można zaznaczyć kilka kolumn.</li>'
+                . '<li>„Data”: wybór daty. Możesz podać najwcześniejszą i najpóźniejszą datę.</li>'
+                . '<li>„Przesyłanie pliku”: osoba dołącza plik. Ustawiasz największy rozmiar (domyślnie 5 MB) i dozwolone rozszerzenia (domyślnie pdf, jpg, png).</li>'
+                . '<li>„Blok informacyjny”: nagłówek i tekst bez odpowiedzi, na przykład wyjaśnienie przed kolejną częścią.</li>'
+                . '</ul>'),
+             $t('<h3>Ustawienia pytania</h3><ul>'
+                . '<li>„Treść pytania” i „Podpowiedź dla respondenta”, czyli krótki tekst pod pytaniem.</li>'
+                . '<li>„Pytanie wymagane”: bez odpowiedzi nie da się przejść dalej.</li>'
+                . '<li>„Komunikat błędu z przykładem” przy własnym wzorcu, żeby osoba wiedziała, jak poprawić odpowiedź.</li>'
+                . '<li>„Autouzupełnianie” przy krótkim tekście, na przykład imię i nazwisko, e-mail, telefon albo organizacja. Przeglądarka podpowie wtedy dane osoby.</li>'
+                . '<li>„Dane wrażliwe”: przeglądarka respondenta nie zapamięta tej odpowiedzi, nawet gdy wolno przerwać wypełnianie i wrócić później.</li>'
+                . '</ul>'),
+             $t('<h3>Warunki i sekcje</h3>'
+                . '<p>W „Warunek wyświetlenia” wybierasz wcześniejsze pytanie i porównanie: jest równe, jest różne od, zawiera, '
+                . 'jest większe albo mniejsze niż, ma odpowiedź, nie ma odpowiedzi. Kilka warunków łączysz jako „wszystkie warunki” albo „dowolny z warunków”.</p>'
+                . '<p>Sekcja ma tytuł i opis. W polu „Po tej sekcji” zostawiasz „Przejdź do następnej sekcji” albo wskazujesz inną. '
+                . 'Możesz też dodać przejście zależne od odpowiedzi („to przejdź do”) i ustawić, co dzieje się „W pozostałych przypadkach”.</p>'
+                . '<p>W „Tło ankiety” wybierzesz fale, kropki albo jednolite tło.</p>')],
 
             [$t('<h2>4. Udostępnianie i ustawienia</h2>'
                 . '<p>W zakładce „Udostępnianie i ustawienia” jest link do ankiety. Kopiujesz go przyciskiem „Kopiuj”, '

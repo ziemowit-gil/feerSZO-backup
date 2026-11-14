@@ -2432,4 +2432,21 @@ return [
         },
     ],
 
+    // Ankieter w Pomocy IT (2026-11-15): także dla wolontariuszy + rodzaje pytań, ustawienia pytania, warunki i sekcje w instrukcji dla prowadzących.
+    '2026-11_it_portal_ankieter_question_types' => [
+        'desc' => 'Portal Usług IT, „Ankieter”: grupa Wolontariusz i opis rodzajów pytań w instrukcji dla prowadzących',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalAnkieterSeed.php';
+            itPortalAnkieterApply(ITP_SZO_URL);
+            $cat = db_one("SELECT id, audiences FROM itp_categories WHERE slug = 'ankieter'");
+            $wol = db_one("SELECT id FROM itp_audiences WHERE slug = 'wolontariusz' OR name = 'Wolontariusz' ORDER BY slug = 'wolontariusz' DESC LIMIT 1");
+            if (!$cat || !$wol) return;
+            $ids = itPortalIds($cat['audiences']);
+            if (in_array((int)$wol['id'], $ids, true)) return;
+            $ids[] = (int)$wol['id'];
+            db_exec("UPDATE itp_categories SET audiences = ?, updated_at = datetime('now') WHERE id = ?", [json_encode(array_values($ids)), (int)$cat['id']]);
+        },
+    ],
+
 ];
