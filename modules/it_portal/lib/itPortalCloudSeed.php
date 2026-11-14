@@ -897,6 +897,9 @@ function itPortalCloudSettingsBlocks(string $app): array {
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Część nazw w ustawieniach jest na razie po angielsku, na przykład „Personal”, „Profile &amp; contact” i „Language &amp; locale”. '
             . 'To brak tłumaczenia w programie. Po aktualizacji nazwy mogą zmienić się na polskie.</p>'],
 
+        ...itPortalCloudShot('nc-ustawienia-osobiste.jpg', 'Ustawienia osobiste Nextcloud, część Profile & contact: menu Personal po lewej, zdjęcie z inicjałami, przełącznik Nextcloud profile, View full profile, Wyślij zdjęcie profilowe, Wybierz z plików Nextcloud, pola Pełna nazwa, Zaimki, Lokalizacja z ikonami widoczności',
+            'Ustawienia osobiste, część „Profile & contact”. Po prawej od pól widać ikony, które mówią, kto widzi daną informację.'),
+
         ['type' => 'text', 'html' => '<h2>Profil i kontakt (Profile &amp; contact)</h2>'
             . '<p>Na górze jest Twoje zdjęcie albo inicjały i imię z nazwiskiem. Przełącznik „Nextcloud profile” włącza stronę profilu, którą widzą inni użytkownicy chmury, '
             . 'a „View full profile” pokazuje, jak ta strona wygląda.</p>'

@@ -1653,4 +1653,14 @@ return [
         },
     ],
 
+    // „Chmura plików”: zrzut ustawień osobistych (Profile & contact) w „ustawienia-osobiste” (polecenie 2026-11-14: „dodaj screeny mimo danych”).
+    '2026-11_it_portal_cloud_settings_shot' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: zrzut ustawień osobistych',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'ustawienia-osobiste');
+        },
+    ],
+
 ];
