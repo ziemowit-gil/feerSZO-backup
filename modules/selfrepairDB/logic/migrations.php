@@ -1795,4 +1795,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: nowa strona wstępu (dhosting.pl i dPoczta, od czego zacząć) i artykuł „Jaki jest mój adres e-mail i hasło?” (rodzaje kont: osobiste,
+    // funkcyjne z pełnomocnictwem, techniczne; wzór loginu; hasło SMS-em po umowie) — polecenia 2026-11-14 z tekstem od użytkownika.
+    '2026-11_it_portal_dpoczta_intro_accounts' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: wstęp i rodzaje kont pocztowych',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

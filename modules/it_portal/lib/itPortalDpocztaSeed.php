@@ -94,7 +94,7 @@ function itPortalDpocztaMenuGroups(): array {
     $g1 = 'Pierwsze kroki'; $g2 = 'Hasło i bezpieczeństwo'; $g3 = 'Stopka i pisanie wiadomości'; $g4 = 'Porządek w skrzynce';
     $g5 = 'Telefon, programy, kontakty i kalendarz'; $g6 = 'Załączniki i duże pliki';
     return [
-        'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13], 'preferencje' => [$g1, 14],
+        'adres-i-haslo' => [$g1, 8], 'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13], 'preferencje' => [$g1, 14],
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
@@ -119,15 +119,27 @@ function itPortalDpocztaShot(string $name, string $alt, string $caption = ''): a
     return itPortalCloudShot($name, $alt, $caption);
 }
 
-/** Wstęp strony usługi „Moja poczta”. */
+/**
+ * Wstęp strony usługi „Moja poczta” (polecenie 2026-11-14: „przygotuj stronę wstępu + ogólnie informacje dPoczta i dhosting”).
+ */
 function itPortalDpocztaIntro(string $app): string {
-    return '<p>Poczta służbowa działa na serwerach dhosting. W przeglądarce otwierasz ją pod adresem <a href="https://dpoczta.pl">dpoczta.pl</a>. '
-         . 'dPoczta to program pocztowy w przeglądarce, który udostępnia dostawca serwera pocztowego. Jest prostsza od Outlooka i ma mniej opcji, więc łatwiej się w niej odnaleźć. '
+    $b = rtrim($app, '/') . '/uslugi-it/uslugi/moja-poczta/';
+    return '<p>Poczta służbowa Fundacji działa u firmy dhosting.pl, polskiej firmy hostingowej, która utrzymuje nasz serwer pocztowy. '
+         . 'Twoja skrzynka jest na tym serwerze, a dostać się do niej możesz na kilka sposobów: w przeglądarce, w telefonie albo w programie pocztowym na komputerze.</p>'
+         . '<p>W przeglądarce otwierasz pocztę na stronie <a href="https://dpoczta.pl">dpoczta.pl</a>. dPoczta to program pocztowy, który udostępnia dhosting.pl. '
+         . 'Jest prostszy od Outlooka i ma mniej opcji, więc łatwiej się w nim odnaleźć. Masz w nim pocztę, kontakty i kalendarz. '
          . 'Logujesz się pełnym adresem <code>imie.nazwisko@feer.org.pl</code> i hasłem do skrzynki.</p>'
+         . '<h2>Od czego zacząć</h2><ul>'
+         . '<li><a href="' . $b . 'adres-i-haslo">Jaki jest mój adres e-mail i hasło?</a></li>'
+         . '<li><a href="' . $b . 'logowanie-dpoczta">Jak zalogować się do poczty</a></li>'
+         . '<li><a href="' . $b . 'dpoczta-funkcje">dPoczta: spis funkcji</a>, czyli wszystkie instrukcje w jednym miejscu</li>'
+         . '<li><a href="' . $b . 'dpoczta-co-jest-co">Co jest co na ekranie i w ustawieniach</a></li>'
+         . '<li><a href="' . $b . 'dpoczta-a-outlook">Najważniejsze różnice względem Outlooka</a></li></ul>'
          . itPortalDpocztaOutlookBye()
          . '<p>Zachęcamy, żeby od razu włączyć weryfikację dwuetapową. Chroni skrzynkę, nawet gdy ktoś pozna Twoje hasło. '
-         . 'Jak to zrobić, opisuje instrukcja „Weryfikacja dwuetapowa (2FA) w poczcie”.</p>'
-         . '<p>Wybierz instrukcję z listy. Jeśli czegoś w niej brakuje, <a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
+         . 'Jak to zrobić, opisuje instrukcja <a href="' . $b . 'weryfikacja-dwuetapowa">Weryfikacja dwuetapowa (2FA) w poczcie</a>.</p>'
+         . '<p>Hasło do poczty zmieniasz tylko w SZO, na stronie <a href="' . rtrim($app, '/') . '/nowehaslo">Nowe hasło</a>, nigdy w ustawieniach dPoczty. '
+         . 'Jeśli czegoś brakuje w instrukcjach, <a href="' . rtrim($app, '/') . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
 }
 
 /**
@@ -166,9 +178,29 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie masz SMS-a albo hasło nie działa? <a href="' . $hd . '">Zgłoś to w Helpdesku</a>, nadamy nowe hasło.</p>'],
         ], true],
 
+        'adres-i-haslo' => ['Jaki jest mój adres e-mail i hasło?', 'adres e-mail, mój adres, login, hasło, jakie mam hasło, konto osobiste, konto imienne, konto funkcyjne, kontakt@feer.org.pl, konto techniczne, pełnomocnictwo, imie.nazwisko, sms, pierwsze logowanie', [
+            ['type' => 'text', 'html' => '<h2>Rodzaje kont pocztowych</h2>'
+                . '<p>W Fundacji są trzy rodzaje kont pocztowych.</p><ul>'
+                . '<li>Konto osobiste, czyli imienne. Jest przypisane do Ciebie. Logujesz się nim i z niego prowadzisz swoją korespondencję.</li>'
+                . '<li>Konto funkcyjne. Jest przypisane do grupy osób albo do jednostki organizacyjnej, na przykład <code>kontakt@feer.org.pl</code> należy do Zarządu. '
+                . 'Dostęp do niego dostajesz na podstawie pełnomocnictwa nadanego przez administratora serwera. Logujesz się nadal swoim imiennym adresem i swoim hasłem.</li>'
+                . '<li>Konto techniczne. Służy do obsługi systemów IT, na przykład do wysyłania powiadomień. Nie loguj się na takie konta i nie pisz z nich.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Jaki jest mój login i adres e-mail?</h2>'
+                . '<p>Loginy w Fundacji tworzymy według jednego wzoru. Adres imienny ma postać <code>imie.nazwisko@feer.org.pl</code>, małymi literami i bez polskich znaków. '
+                . 'Jeśli dwie osoby mają to samo imię i nazwisko, druga dostaje adres z cyfrą, na przykład <code>imie.nazwisko1@feer.org.pl</code>.</p>'
+                . '<p>Ten sam pełny adres wpisujesz jako login przy logowaniu do poczty.</p>'],
+            ['type' => 'text', 'html' => '<h2>Jakie jest moje hasło?</h2>'
+                . '<p>Hasło do poczty nadaje administrator po utworzeniu Twojej umowy. Dostajesz je SMS-em na numer telefonu, który podałeś Fundacji.</p>'
+                . '<p>Po pierwszym logowaniu zmień je na własne. Robisz to w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>. '
+                . 'Hasło do poczty jest inne niż hasło do logowania jednokrotnego i chmury plików.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie dostałeś SMS-a, zmieniłeś numer telefonu albo potrzebujesz dostępu do konta funkcyjnego? <a href="' . $hd . '">Napisz do Helpdesku IT</a>. '
+                . 'Jak się zalogować, opisuje instrukcja <a href="' . $base . 'logowanie-dpoczta">Jak zalogować się do poczty</a>.</p>'],
+        ], true],
+
         'dpoczta-funkcje' => ['dPoczta: spis funkcji', 'dpoczta, spis funkcji, funkcje, co potrafi, lista, mapa, wszystkie instrukcje, poczta, spis treści', [
             ['type' => 'text', 'html' => '<p>Tu znajdziesz wszystko, co potrafi dPoczta, w jednym miejscu. Przy każdej funkcji jest jedno zdanie, do czego służy, i link do instrukcji krok po kroku.</p>'],
             ['type' => 'text', 'html' => '<h2>Na start</h2><ul>'
+                . '<li><a href="' . $base . 'adres-i-haslo">Adres e-mail i hasło</a>: rodzaje kont, wzór adresu i skąd wziąć hasło.</li>'
                 . '<li><a href="' . $base . 'logowanie-dpoczta">Logowanie</a>: pełny adres e-mail i hasło do poczty, na stronie dpoczta.pl.</li>'
                 . '<li><a href="' . $base . 'dpoczta-co-jest-co">Co jest co na ekranie</a>: foldery, lista wiadomości, przyciski i ustawienia.</li>'
                 . '<li><a href="' . $base . 'dpoczta-a-outlook">Różnice względem Outlooka</a>: gdzie znaleźć to, co znasz z Microsoft 365.</li>'
