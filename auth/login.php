@@ -399,6 +399,7 @@ $_login_css = <<<'CSS'
 .lg-first{margin:1.25rem 0 0;font-size:.95rem;line-height:1.7;color:var(--au-ink2);text-align:center}
 .au .lg-linkbtn{display:inline;padding:0;border:0;background:none;font:inherit;color:var(--au-acc);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .lg-imp{margin:1.5rem 0 0;padding:.85rem 1rem;background:var(--au-warn-bg);border:2px solid var(--au-warn);color:var(--au-ink);font-size:.92rem;line-height:1.5}
+.lg-imp--top{margin:1rem 0 0}
 .lg-imp p{margin:0 0 .35rem}.lg-imp p:last-child{margin:0}
 .lg-imp-h{font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--au-warn-ink)}
 .lg-more{margin:1.5rem 0 0;padding-top:.75rem;border-top:1px solid var(--au-line)}
@@ -455,8 +456,23 @@ auth_screen_head([
     <?php if ($emergency): ?><div class="l-alert l-alert-warn" role="note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span>Logowanie awaryjne — użyj adresu e-mail i <strong>hasła awaryjnego</strong>.</span></div><?php endif; ?>
     <?= $_ms_notice /* „Odchodzimy od Microsoft 365” w jednym zdaniu z odnośnikiem do Pomocy IT */ ?>
 
+    <?php
+    // Ramka „Ważne” (polecenie 2026-11-14 „ramka z wyjaśnieniem po bloku, w logowaniu do SZO”): stoi zaraz pod przyciskiem logowania
+    // jednokrotnego, bo dotyczy tego, co wpisać na stronie logto.feer.org.pl. Logto przyjmuje adres e-mail albo nazwę użytkownika
+    // (SsoAccounts::usernameBase: tylko litery, cyfry i „_”, więc jan.kowalski → jan_kowalski). Bez logowania jednokrotnego zostaje na dole.
+    $_imp_url = rtrim(APP_URL, '/') . '/nowehaslo';
+    $_imp_box = '<div class="lg-imp' . ($_show_logto ? ' lg-imp--top' : '') . '" role="note" aria-labelledby="lg-imp-h">'
+        . '<p class="lg-imp-h" id="lg-imp-h">Ważne</p>'
+        . ($_show_logto
+            ? '<p>W logowaniu jednokrotnym wpisz adres e-mail albo login z kreską dolną, np. jan_kowalski. '
+              . 'Kreska dolna zastępuje kropkę z adresu, bo login w logowaniu jednokrotnym nie może mieć kropki.</p>'
+            : '<p>Login do SZO to adres e-mail.</p>')
+        . '<p>Hasło zmienisz na <a href="' . h($_imp_url) . '">szo.feer.org.pl/nowehaslo</a>. Nikt z Fundacji nie poprosi Cię o hasło.</p>'
+        . '</div>';
+    ?>
     <?php if ($_show_logto): ?>
     <a class="ks-btn ks-btn--primary" href="<?= h($_logto_url) ?>"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
+    <?= $_imp_box ?>
     <div class="ks-or">albo e-mail i hasło</div>
     <?php endif; ?>
 
@@ -503,11 +519,7 @@ auth_screen_head([
     </details>
     <?php endif; ?>
 
-    <div class="lg-imp" role="note" aria-labelledby="lg-imp-h">
-      <p class="lg-imp-h" id="lg-imp-h">Ważne</p>
-      <p>Login do SZO to adres e-mail. W logowaniu jednokrotnym wpisujesz nazwę użytkownika imię_nazwisko, np. jan_kowalski.</p>
-      <p>Hasło zmienisz na <a href="<?= h(rtrim(APP_URL, '/')) ?>/nowehaslo">szo.feer.org.pl/nowehaslo</a>. Nikt z Fundacji nie poprosi Cię o hasło.</p>
-    </div>
+    <?php if (!$_show_logto) echo $_imp_box; ?>
 <?php
 // Bootstrap (okna metod alternatywnych) ładuje się po extra_js — stąd DOMContentLoaded.
 $_login_js = '<script>
