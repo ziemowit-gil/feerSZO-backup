@@ -7,6 +7,12 @@
  * Zmienne: $flash, $mode, $liveFrom, $cfg, $open, $blocked, $history, $exemptions, $users, $lastRun, $preview,
  *          $announced, $announceTargets, $logtoReady.
  */
+// Wejście wprost na plik widoku (bez routera) → panel. Szablon dostaje dane tylko z WardenController::index().
+if (realpath((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) === __FILE__) {
+    header('Location: ../router.php', true, 302);
+    exit;
+}
+
 use Feer\Szo\Warden\WardenEngine;
 use Feer\Szo\Warden\SzoDirectory;
 
