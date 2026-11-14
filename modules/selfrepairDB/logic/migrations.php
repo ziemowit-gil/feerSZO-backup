@@ -1783,4 +1783,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuł „Preferencje dPoczty: wszystkie działy po kolei” (odczytane z konta 2026-11-14: Interfejs, Widok skrzynki, Wyświetlanie,
+    // Tworzenie, Książka adresowa, Foldery specjalne, Szyfrowanie, Ustawienia serwera, Pasek boczny, Wygląd, Kalendarz) + pozycja w spisie funkcji.
+    '2026-11_it_portal_dpoczta_prefs' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: wszystkie Preferencje dPoczty',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

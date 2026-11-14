@@ -94,7 +94,7 @@ function itPortalDpocztaMenuGroups(): array {
     $g1 = 'Pierwsze kroki'; $g2 = 'Hasło i bezpieczeństwo'; $g3 = 'Stopka i pisanie wiadomości'; $g4 = 'Porządek w skrzynce';
     $g5 = 'Telefon, programy, kontakty i kalendarz'; $g6 = 'Załączniki i duże pliki';
     return [
-        'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13],
+        'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13], 'preferencje' => [$g1, 14],
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
@@ -172,7 +172,8 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<li><a href="' . $base . 'logowanie-dpoczta">Logowanie</a>: pełny adres e-mail i hasło do poczty, na stronie dpoczta.pl.</li>'
                 . '<li><a href="' . $base . 'dpoczta-co-jest-co">Co jest co na ekranie</a>: foldery, lista wiadomości, przyciski i ustawienia.</li>'
                 . '<li><a href="' . $base . 'dpoczta-a-outlook">Różnice względem Outlooka</a>: gdzie znaleźć to, co znasz z Microsoft 365.</li>'
-                . '<li><a href="' . $base . 'ustawienia-poczty">Ważne ustawienia</a>: język, odświeżanie, wiadomości HTML, autozapis i automatyczna stopka.</li></ul>'],
+                . '<li><a href="' . $base . 'ustawienia-poczty">Ważne ustawienia</a>: język, odświeżanie, wiadomości HTML, autozapis i automatyczna stopka.</li>'
+                . '<li><a href="' . $base . 'preferencje">Wszystkie Preferencje</a>: każdy dział ustawień po kolei, z tym, co polecamy.</li></ul>'],
             ['type' => 'text', 'html' => '<h2>Pisanie wiadomości</h2><ul>'
                 . '<li><a href="' . $base . 'generator-stopki">Generator stopki</a>: obowiązkowa stopka Fundacji z Twoimi danymi.</li>'
                 . '<li><a href="' . $base . 'podpis-w-poczcie">Podpis (Tożsamości)</a>: wklejenie stopki, nazwa nadawcy i dodatkowe adresy.</li>'
@@ -274,6 +275,47 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'Weryfikację dwuetapową włączasz w samej dPoczcie.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Po kolei, co jest na ekranie dPoczty, opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/dpoczta-co-jest-co">dPoczta.pl: co jest co</a>. '
                 . 'Brakuje Ci czegoś, co było w Outlooku? <a href="' . $hd . '">Napisz do Helpdesku IT</a>, sprawdzimy, jak to zrobić w nowej poczcie.</p>'],
+        ], false],
+
+        'preferencje' => ['Preferencje dPoczty: wszystkie działy po kolei', 'preferencje, ustawienia, interfejs użytkownika, widok skrzynki pocztowej, wyświetlanie wiadomości, tworzenie wiadomości, książka adresowa, foldery specjalne, szyfrowanie, ustawienia serwera, pasek boczny, ustawienia wyglądu, kalendarz, powiadomienia pulpitu, zdalne zasoby, obrazki, rozmiar czcionki, opróżnij kosz', [
+            ['type' => 'text', 'html' => '<p>Preferencje otworzysz kołem zębatym na prawym pasku i pozycją „Preferencje” na górze listy. W środkowej kolumnie są działy, a po prawej ich ustawienia. '
+                . 'Po każdej zmianie kliknij „Zapisz” na dole. Poniżej opisujemy każdy dział i podajemy, co polecamy. Najważniejsze ustawienia zebraliśmy też w artykule '
+                . '<a href="' . $base . 'ustawienia-poczty">Ważne i przydatne ustawienia poczty</a>.</p>'],
+            ['type' => 'text', 'html' => '<h2>Interfejs użytkownika</h2>'
+                . '<p>Język, strefa czasowa, format czasu i daty, „Ładne daty” (napisy Dzisiaj i Wczoraj), przejście do następnej wiadomości po usunięciu i to, jak często poczta sprawdza nowe wiadomości. '
+                . 'Polecamy język polski, automatyczną strefę czasową i odświeżanie co 1 minutę. W „Opcjach przeglądarki” jest link, który ustawia dPocztę jako program do otwierania adresów e-mail klikniętych na stronach.</p>'],
+            ['type' => 'text', 'html' => '<h2>Widok skrzynki pocztowej</h2>'
+                . '<p>„Oznacz wiadomości jako przeczytane” ustala, czy wiadomość staje się przeczytana od razu po otwarciu, czy po kilku sekundach. „Rozwijaj wątki” decyduje, czy rozmowy z odpowiedziami są od razu rozwinięte. '
+                . '„Liczba wierszy na stronie” to ile wiadomości widać na liście naraz.</p>'
+                . '<p>W części „Nowa wiadomość” włącz „Sprawdzaj czy nadeszły nowe wiadomości we wszystkich folderach”, jeśli filtry przenoszą Ci pocztę do innych folderów. '
+                . '„Powiadomienia Pulpitu” pokażą dymek o nowej wiadomości na ekranie komputera. Włącz je tylko na swoim komputerze. Opisuje to artykuł '
+                . '<a href="' . $base . 'powiadomienia-o-poczcie">Powiadomienia o nowej poczcie</a>.</p>'],
+            ['type' => 'text', 'html' => '<h2>Wyświetlanie wiadomości</h2>'
+                . '<p>„Domyślny HTML” zostaw włączony, żeby wiadomości wyglądały tak, jak przygotował je nadawca. „Zezwól na zdalne zasoby (obrazki, style)” zostaw na „nigdy”. '
+                . 'Obrazki z obcych serwerów służą często do śledzenia i oszustw. Pojedynczej zaufanej wiadomości pozwolisz na nie przyciskiem nad treścią.</p>'
+                . '<p>„Na żądanie potwierdzenia odbioru” ustawione na „pytaj mnie” sprawia, że sam decydujesz, czy nadawca dostanie potwierdzenie. '
+                . '„Domyślnego zestawu znaków” w opcjach zaawansowanych nie zmieniaj.</p>'],
+            ['type' => 'text', 'html' => '<h2>Tworzenie wiadomości</h2>'
+                . '<p>Wiadomości HTML, autozapis, cytowanie i stopka. Szczegółowo opisuje je artykuł <a href="' . $base . 'ustawienia-poczty">Ważne i przydatne ustawienia poczty</a>. '
+                . 'W opcjach zaawansowanych zostaw „Stosuj nazwy załączników zgodne z” na „RFC 2047/2231 (MS Outlook)”. Dzięki temu polskie znaki w nazwach załączników dobrze widzą też odbiorcy z Outlookiem.</p>'],
+            ['type' => 'text', 'html' => '<h2>Książka adresowa</h2>'
+                . '<p>Która książka jest domyślna, jak wyświetlać i sortować kontakty oraz gdzie poczta zapisuje adresy osób, do których piszesz („Zebrani adresaci”), i zaufanych nadawców. '
+                . 'Zostaw ustawienia domyślne. „Używaj Zdjęć z Gravatar” zostaw wyłączone, bo wysyła adresy e-mail do zewnętrznej usługi. Więcej w artykule <a href="' . $base . 'kontakty">Kontakty w dPoczcie</a>.</p>'],
+            ['type' => 'text', 'html' => '<h2>Foldery specjalne</h2>'
+                . '<p>Tu poczta wie, który folder jest Kopiami roboczymi, Wysłanymi, Spamem, Koszem i Archiwum. Nie zmieniaj tych przypisań, bo programy na komputerze i telefon przestałyby trafiać do właściwych folderów. '
+                . 'W części „Archiwum” możesz ustawić, żeby archiwizowane wiadomości same dzieliły się na podfoldery, na przykład według roku.</p>'],
+            ['type' => 'text', 'html' => '<h2>Szyfrowanie</h2>'
+                . '<p>Ustawienia PGP: czy podpisywać i szyfrować wiadomości domyślnie i jak długo pamiętać hasło do klucza. Z PGP korzysta Zarząd, pozostali nie muszą tu nic zmieniać. '
+                . 'Opisuje to artykuł <a href="' . $base . 'szyfrowanie-pgp">Szyfrowanie PGP dla Zarządu</a>. Część „Opcje Mailvelope” dotyczy dodatku do przeglądarki i nie jest potrzebna.</p>'],
+            ['type' => 'text', 'html' => '<h2>Ustawienia serwera</h2>'
+                . '<p>Co dzieje się przy usuwaniu i archiwizowaniu wiadomości. „Przy wylogowaniu opróżnij Kosz” zostaw na „nigdy”, żeby móc odzyskać przypadkiem usunięte wiadomości. '
+                . '„Kasuj wiadomości bezpośrednio w folderze Spam” zostaw wyłączone. Pozostałe opcje możesz zostawić bez zmian.</p>'],
+            ['type' => 'text', 'html' => '<h2>Pasek boczny, Ustawienia wyglądu i Kalendarz</h2>'
+                . '<p>„Pasek boczny” pozwala pokazać przy poczcie agendę kalendarza, czyli listę najbliższych spotkań. '
+                . '„Ustawienia wyglądu” zmieniają ikony, rozmiar czcionki i grubość liter. Jeśli źle widzisz drobny tekst, ustaw większą czcionkę albo włącz „Grubą czcionkę”. '
+                . 'Dział „Kalendarz” ustala domyślny widok i godziny pracy w kalendarzu, opisanym w artykule <a href="' . $base . 'kalendarz">Kalendarz</a>.</p>'],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Nie wiesz, czy coś zmieniać? Zostaw ustawienie domyślne. Żadna opcja w Preferencjach nie usuwa wiadomości od razu, '
+                . 'a każdą zmianę cofniesz w tym samym miejscu. Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], false],
 
         'ustawienia-poczty' => ['Ważne i przydatne ustawienia poczty', 'ustawienia, preferencje, interfejs użytkownika, język, strefa czasowa, format daty, odświeżanie, nowe wiadomości, mailto, tworzenie wiadomości, html, automatyczny zapis, kopia robocza, potwierdzenie odbioru, dsn, odpowiedz wszystkim, przekazywanie, czcionka, podpis, stopka, automatycznie wstaw podpis, separator, cytowanie', [
