@@ -2029,4 +2029,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: artykuł „IAM: czym jest i jakie są moje dane logowania” — polecenie 2026-11-14.
+    // modules/it_portal/lib/itPortalIamSeed.php.
+    '2026-11_it_portal_iam' => [
+        'desc' => 'Portal Usług IT, „Mój login”: IAM i moje dane logowania',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalIamSeed.php';
+            itPortalIamApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
