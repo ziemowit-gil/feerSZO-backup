@@ -1,15 +1,19 @@
 <?php
 /**
- * wolontariat/m365_setup.php — Strona aktywacji konta Microsoft 365
- * Dostęp: jednorazowy token (bez logowania). Admin wysyła link przez m365_action.php.
+ * wolontariat/m365_setup.php — strona z jednorazowego linku „dane logowania” wysyłanego z umowy
+ * (contracts/m365_action.php, akcja send_m365_setup_link). Dostęp: jednorazowy token, bez logowania.
+ *
+ * Od 14.11.2026 poczta działa w dPoczcie, a Microsoft 365 wyłączamy 20.11.2026, więc strona nie pokazuje
+ * już hasła tymczasowego Microsoft 365 ani nie odsyła do portalu Microsoft (polecenie 2026-11-14).
+ * Pokazuje adres w organizacji (login) i prowadzi do /nowehaslo oraz dPoczty. Nazwa pliku zostaje,
+ * bo prowadzą do niej linki z wysłanych już wiadomości.
  */
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
-require_once dirname(__DIR__) . '/includes/it_helpers.php';
-it_migrate();
+require_once dirname(__DIR__) . '/includes/webmail_clients.php';
 
 // ─── Migracja kolumn tokena ──────────────────────────────────────────────────
 try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN m365_setup_token TEXT"); } catch (\Throwable $e) {}
@@ -18,6 +22,7 @@ try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN m365_setup_token_used
 $token = trim($_GET['token'] ?? '');
 $error = '';
 $row   = null;
+$login = '';
 
 if ($token === '') {
     $error = 'Link jest nieprawidłowy lub wygasł.';
@@ -31,43 +36,15 @@ if ($token === '') {
     }
 }
 
-// ─── Pobierz dane M365 (ostatnie wydane hasło) ───────────────────────────────
-$m365_data  = null;
-$show_creds = false;
-
 if (!$error && $row) {
     // Oznacz token jako użyty
     db()->prepare(
         "UPDATE umowy_wolontariat SET m365_setup_token_used_at = datetime('now','localtime') WHERE id = ?"
     )->execute([(int)$row['id']]);
 
-    $login = $row['m365_login'] ?? '';
-
-    // Pobierz najnowsze (nie-superseded) hasło dla tego konta z it_service_passwords
-    $svc = db_one("SELECT id FROM it_services WHERE slug='m365'");
-    $pwd_row = null;
-    if ($svc && $login) {
-        $pwd_row = db_one(
-            "SELECT password_enc, issued_at FROM it_service_passwords
-             WHERE service_id=? AND login=? AND is_superseded=0
-             ORDER BY issued_at DESC LIMIT 1",
-            [(int)$svc['id'], $login]
-        );
-    }
-
-    $plain_password = null;
-    if ($pwd_row && !empty($pwd_row['password_enc'])) {
-        $plain_password = it_decrypt_password($pwd_row['password_enc']);
-    }
-
-    if ($login) {
-        $m365_data = [
-            'login'    => $login,
-            'password' => $plain_password,
-        ];
-        $show_creds = true;
-    } else {
-        $error = 'Brak danych konta M365 w systemie. Skontaktuj się z administratorem.';
+    $login = trim((string)($row['m365_login'] ?? ''));
+    if ($login === '') {
+        $error = 'W systemie nie ma Twojego adresu w organizacji. Napisz do administratora.';
     }
 }
 
@@ -75,6 +52,8 @@ if (!$error && $row) {
 $org_name = defined('ORG_NAME') ? ORG_NAME : (function_exists('org_setting') ? (org_setting('org_name') ?: 'Organizacja') : 'Organizacja');
 $org_logo = function_exists('org_setting') ? org_setting('org_logo') : '';
 $app_url  = defined('APP_URL') ? APP_URL : '';
+$newpass  = webmail_szo_url('/nowehaslo');
+$dpoczta  = webmail_dpoczta_url();
 
 if (!function_exists('h')) {
     function h(mixed $v): string {
@@ -87,7 +66,7 @@ if (!function_exists('h')) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Aktywacja konta Microsoft 365 — <?= h($org_name) ?></title>
+  <title>Twoje konto w organizacji · <?= h($org_name) ?></title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
@@ -96,15 +75,15 @@ if (!function_exists('h')) {
     .brand-header { text-align:center; padding:1.5rem 1rem 1rem; }
     .brand-header img { max-height:56px; margin-bottom:.6rem; }
     .brand-header h1  { font-size:1.25rem; font-weight:800; color:#1a1a2e; margin-bottom:.2rem; }
-    .brand-header .sub{ color:#6c757d; font-size:.9rem; }
+    .brand-header .sub{ color:#4b5563; font-size:.9rem; }
 
     .cred-card {
       background:#fff; border-radius:16px;
-      box-shadow:0 4px 24px rgba(0,78,212,.13);
+      box-shadow:0 4px 24px rgba(30,64,175,.13);
       overflow:hidden;
     }
     .cred-header {
-      background:linear-gradient(135deg,#0078d4,#106ebe);
+      background:linear-gradient(135deg,#1e40af,#1d4ed8);
       padding:1.5rem 1.75rem;
       display:flex; align-items:center; gap:1rem;
     }
@@ -115,14 +94,14 @@ if (!function_exists('h')) {
       font-size:1.4rem; color:#fff; flex-shrink:0;
     }
     .cred-header h2 { color:#fff; font-size:1.05rem; font-weight:800; margin:0; }
-    .cred-header p  { color:rgba(255,255,255,.82); font-size:.82rem; margin:0; }
+    .cred-header p  { color:#fff; font-size:.82rem; margin:0; }
 
     .cred-body { padding:1.75rem; }
 
     .cred-field { margin-bottom:1.1rem; }
-    .cred-field label {
+    .cred-field .cred-label {
       font-size:.72rem; font-weight:700; text-transform:uppercase;
-      letter-spacing:.07em; color:#6B7280; display:block; margin-bottom:.35rem;
+      letter-spacing:.07em; color:#4b5563; display:block; margin-bottom:.35rem;
     }
     .cred-field-inner {
       display:flex; align-items:center; gap:.5rem;
@@ -135,21 +114,11 @@ if (!function_exists('h')) {
       word-break:break-all;
     }
     .cred-copy-btn {
-      background:none; border:1.5px solid #E5E7EB; border-radius:7px;
-      padding:.3rem .6rem; font-size:.82rem; color:#6B7280;
+      background:none; border:1.5px solid #9CA3AF; border-radius:7px;
+      padding:.3rem .6rem; font-size:.82rem; color:#374151;
       cursor:pointer; transition:all .12s; flex-shrink:0;
     }
-    .cred-copy-btn:hover { background:#EFF6FF; border-color:#2563EB; color:#2563EB; }
-
-    .pass-hidden  { filter:blur(5px); user-select:none; transition:filter .2s; }
-    .pass-visible { filter:none; }
-
-    .reveal-btn {
-      background:none; border:1.5px solid #E5E7EB; border-radius:7px;
-      padding:.3rem .6rem; font-size:.82rem; color:#6B7280;
-      cursor:pointer; transition:all .12s; flex-shrink:0; white-space:nowrap;
-    }
-    .reveal-btn:hover { background:#FFF8F0; border-color:#F59E0B; color:#D97706; }
+    .cred-copy-btn:hover { background:#EFF6FF; border-color:#1d4ed8; color:#1d4ed8; }
 
     .warn-box {
       background:#FFF8E1; border:1px solid #FDE68A; border-left:4px solid #F59E0B;
@@ -159,166 +128,131 @@ if (!function_exists('h')) {
     .step-list { list-style:none; padding:0; margin:0; }
     .step-list li {
       display:flex; align-items:flex-start; gap:.75rem;
-      padding:.5rem 0; border-bottom:1px solid #F9FAFB; font-size:.88rem;
+      padding:.5rem 0; border-bottom:1px solid #E0F2FE; font-size:.88rem;
     }
     .step-list li:last-child { border-bottom:none; }
     .step-num {
       width:24px; height:24px; border-radius:50%; flex-shrink:0;
-      background:#0078d4; color:#fff; font-size:.75rem; font-weight:700;
+      background:#1d4ed8; color:#fff; font-size:.75rem; font-weight:700;
       display:flex; align-items:center; justify-content:center;
     }
+    .step-list a, .cred-body p a { color:#1d4ed8; text-decoration:underline; }
 
     .action-btn {
       display:block; width:100%; padding:.85rem; border-radius:10px;
       text-align:center; font-size:1rem; font-weight:700;
       text-decoration:none; transition:opacity .15s;
-      background:linear-gradient(135deg,#0078d4,#106ebe); color:#fff;
+      background:linear-gradient(135deg,#1e40af,#1d4ed8); color:#fff;
       border:none; margin-bottom:.6rem;
     }
     .action-btn:hover { opacity:.9; color:#fff; }
+    a:focus-visible, button:focus-visible { outline:3px solid #1d4ed8; outline-offset:2px; }
 
     .error-card {
       background:#fff; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,.08);
       padding:3rem 2rem; text-align:center;
     }
-    footer { text-align:center; font-size:.75rem; color:#aaa; margin-top:2rem; }
+    footer { text-align:center; font-size:.75rem; color:#4b5563; margin-top:2rem; }
   </style>
 </head>
 <body>
-<div class="page-wrap">
+<main class="page-wrap">
 
   <!-- Header marki -->
   <div class="brand-header">
     <?php if ($org_logo): ?>
       <img src="<?= h($org_logo) ?>" alt="<?= h($org_name) ?>">
     <?php else: ?>
-      <div style="font-size:2.5rem;color:#0078d4;margin-bottom:.4rem">
-        <i class="bi bi-microsoft"></i>
+      <div style="font-size:2.5rem;color:#1d4ed8;margin-bottom:.4rem" aria-hidden="true">
+        <i class="bi bi-person-badge"></i>
       </div>
     <?php endif; ?>
     <h1><?= h($org_name) ?></h1>
-    <div class="sub">Aktywacja konta Microsoft 365</div>
+    <div class="sub">Twoje konto w organizacji</div>
   </div>
 
   <?php if ($error): ?>
   <!-- Błąd tokenu -->
-  <div class="error-card">
-    <div style="font-size:3rem;color:#e74c3c;margin-bottom:1rem">
+  <div class="error-card" role="alert">
+    <div style="font-size:3rem;color:#b91c1c;margin-bottom:1rem" aria-hidden="true">
       <i class="bi bi-shield-x"></i>
     </div>
-    <h2 class="h5 fw-bold text-danger mb-3">Link wygasł lub jest nieprawidłowy</h2>
-    <p class="text-muted mb-4"><?= h($error) ?></p>
+    <h2 class="h5 fw-bold text-danger mb-3">Nie da się otworzyć tego linku</h2>
+    <p class="mb-4" style="color:#4b5563"><?= h($error) ?></p>
     <?php if ($app_url): ?>
     <a href="<?= h($app_url) ?>/panel/index.php" class="btn btn-outline-primary">
-      <i class="bi bi-house me-2"></i>Przejdź do panelu
+      <i class="bi bi-house me-2" aria-hidden="true"></i>Przejdź do panelu
     </a>
     <?php endif; ?>
   </div>
 
-  <?php elseif ($show_creds && $m365_data): ?>
-  <!-- Dane logowania -->
+  <?php else: ?>
+  <!-- Adres w organizacji i co dalej -->
   <div class="cred-card">
     <div class="cred-header">
-      <div class="cred-header-icon">
-        <i class="bi bi-microsoft"></i>
+      <div class="cred-header-icon" aria-hidden="true">
+        <i class="bi bi-person-badge"></i>
       </div>
       <div>
-        <h2>Twoje dane logowania M365</h2>
-        <p>Zapisz je w bezpiecznym miejscu</p>
+        <h2>Twój adres w organizacji</h2>
+        <p>Tym adresem logujesz się do poczty i do SZO</p>
       </div>
     </div>
 
     <div class="cred-body">
 
       <div class="warn-box">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-        Ten link jest <strong>jednorazowy</strong> — po zamknięciu strony nie będzie dostępny ponownie.
-        Zapisz dane logowania teraz!
+        <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
+        Ten link działa <strong>tylko raz</strong>. Zapisz adres, zanim zamkniesz stronę.
       </div>
 
       <!-- Login -->
       <div class="cred-field">
-        <label><i class="bi bi-envelope me-1"></i>Login (adres e-mail)</label>
+        <span class="cred-label" id="loginLbl"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Login (adres e-mail)</span>
         <div class="cred-field-inner">
-          <span class="cred-value" id="loginVal"><?= h($m365_data['login']) ?></span>
+          <span class="cred-value" id="loginVal" aria-labelledby="loginLbl"><?= h($login) ?></span>
           <button type="button" class="cred-copy-btn" onclick="copyText('loginVal', this)"
-                  title="Kopiuj login">
-            <i class="bi bi-clipboard"></i>
+                  aria-label="Kopiuj adres do schowka">
+            <i class="bi bi-clipboard" aria-hidden="true"></i>
           </button>
         </div>
-      </div>
-
-      <!-- Hasło -->
-      <div class="cred-field">
-        <label><i class="bi bi-key me-1"></i>Hasło tymczasowe</label>
-        <?php if ($m365_data['password']): ?>
-        <div class="cred-field-inner">
-          <span class="cred-value pass-hidden" id="passVal"><?= h($m365_data['password']) ?></span>
-          <button type="button" class="reveal-btn" id="revealBtn" onclick="revealPass()"
-                  title="Pokaż / ukryj hasło">
-            <i class="bi bi-eye" id="revealIcon"></i> Pokaż
-          </button>
-          <button type="button" class="cred-copy-btn" onclick="copyText('passVal', this)"
-                  title="Kopiuj hasło">
-            <i class="bi bi-clipboard"></i>
-          </button>
-        </div>
-        <div style="font-size:.78rem;color:#6B7280;margin-top:.4rem">
-          <i class="bi bi-info-circle me-1"></i>
-          Po zalogowaniu system poprosi o ustawienie własnego hasła.
-        </div>
-        <?php else: ?>
-        <div class="alert alert-warning py-2 small">
-          <i class="bi bi-exclamation-triangle me-1"></i>
-          Nie udało się pobrać hasła z bazy. Skontaktuj się z administratorem.
-        </div>
-        <?php endif; ?>
       </div>
 
       <!-- Kroki -->
       <div style="background:#F0F9FF;border-radius:10px;padding:1.1rem 1.25rem;margin-bottom:1.5rem">
-        <div style="font-size:.8rem;font-weight:700;color:#0369A1;margin-bottom:.65rem;text-transform:uppercase;letter-spacing:.06em">
-          <i class="bi bi-list-check me-1"></i>Co dalej?
-        </div>
+        <h3 style="font-size:.8rem;font-weight:700;color:#075985;margin-bottom:.65rem;text-transform:uppercase;letter-spacing:.06em">
+          <i class="bi bi-list-check me-1" aria-hidden="true"></i>Co dalej?
+        </h3>
         <ol class="step-list">
           <li>
-            <div class="step-num">1</div>
-            <div>Kliknij <strong>Zaloguj do Microsoft 365</strong> poniżej</div>
+            <div class="step-num" aria-hidden="true">1</div>
+            <div>Ustaw hasła na stronie <a href="<?= h($newpass) ?>">Nowe hasło</a>. Kod potwierdzający dostaniesz SMS-em albo e-mailem.</div>
           </li>
           <li>
-            <div class="step-num">2</div>
-            <div>Wpisz login i hasło tymczasowe (pamiętaj o skopiowaniu)</div>
+            <div class="step-num" aria-hidden="true">2</div>
+            <div>Masz dwa hasła. Jedno służy do logowania jednokrotnego w SZO i w chmurze plików, drugie tylko do poczty.</div>
           </li>
           <li>
-            <div class="step-num">3</div>
-            <div>Postępuj zgodnie z instrukcjami — ustaw własne hasło i skonfiguruj weryfikację dwustopniową</div>
-          </li>
-          <li>
-            <div class="step-num">4</div>
-            <div>Po zalogowaniu masz dostęp do Outlook, Teams, OneDrive i innych aplikacji organizacji</div>
+            <div class="step-num" aria-hidden="true">3</div>
+            <div>Pocztę otwierasz w dPoczcie adresem e-mail i hasłem do poczty.</div>
           </li>
         </ol>
       </div>
 
       <!-- CTA -->
-      <a href="https://portal.office.com" target="_blank" rel="noopener noreferrer"
-         class="action-btn">
-        <i class="bi bi-box-arrow-up-right me-2"></i>Zaloguj do Microsoft 365
+      <a href="<?= h($newpass) ?>" class="action-btn">
+        <i class="bi bi-key me-2" aria-hidden="true"></i>Ustaw hasła
       </a>
 
-      <?php
-      // Po ustawieniu hasła poczty szuka się już pod NASZYM adresem, nie pod
-      // outlook.office.com — jeden adres do zapamiętania.
-      require_once dirname(__DIR__) . '/includes/webmail_clients.php';
-      ?>
-      <p class="text-muted" style="font-size:.85rem;margin:.6rem 0 1rem;text-align:center">
-        Pocztę otwierasz potem zawsze tutaj:
-        <a href="<?= h(webmail_chooser_url()) ?>" target="_blank" rel="noopener noreferrer"><strong><?= h(webmail_chooser_label()) ?></strong></a>
+      <p style="font-size:.85rem;margin:.6rem 0 1rem;text-align:center;color:#4b5563">
+        Pocztę otwierasz w <a href="<?= h($dpoczta) ?>" target="_blank" rel="noopener noreferrer">dPoczcie<span class="visually-hidden"> (otwiera się w nowej karcie)</span></a>.
+        Jak ustawić ją w telefonie albo programie, opisuje strona
+        <a href="<?= h(webmail_chooser_url()) ?>" target="_blank" rel="noopener noreferrer"><strong><?= h(webmail_chooser_label()) ?></strong><span class="visually-hidden"> (otwiera się w nowej karcie)</span></a>.
       </p>
 
       <?php if ($app_url): ?>
       <a href="<?= h($app_url) ?>/panel/index.php" class="btn btn-outline-secondary w-100" style="border-radius:10px">
-        <i class="bi bi-house me-2"></i>Wróć do panelu współpracownika
+        <i class="bi bi-house me-2" aria-hidden="true"></i>Wróć do panelu współpracownika
       </a>
       <?php endif; ?>
 
@@ -328,53 +262,36 @@ if (!function_exists('h')) {
   <?php endif; ?>
 
   <footer>
-    &copy; <?= date('Y') ?> <?= h($org_name) ?> &mdash; Dane chronione zgodnie z RODO.
+    &copy; <?= date('Y') ?> <?= h($org_name) ?>. Dane chronione zgodnie z RODO.
   </footer>
-</div>
+</main>
 
 <script>
 function copyText(id, btn) {
   var el = document.getElementById(id);
   if (!el) return;
   var text = el.textContent.trim();
-  navigator.clipboard.writeText(text).then(function() {
+  var done = function () {
     var orig = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check-lg text-success"></i>';
+    btn.innerHTML = '<i class="bi bi-check-lg text-success" aria-hidden="true"></i><span class="visually-hidden">Skopiowano</span>';
     btn.style.borderColor = '#16a34a';
-    setTimeout(function() {
-      btn.innerHTML = orig;
-      btn.style.borderColor = '';
-    }, 1800);
-  }).catch(function() {
-    // fallback
+    setTimeout(function() { btn.innerHTML = orig; btn.style.borderColor = ''; }, 1800);
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(done).catch(fallback);
+  } else {
+    fallback();
+  }
+  function fallback() {
     var ta = document.createElement('textarea');
     ta.value = text;
     ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta);
     ta.select(); document.execCommand('copy');
     document.body.removeChild(ta);
-  });
-}
-
-var passRevealed = false;
-function revealPass() {
-  passRevealed = !passRevealed;
-  var val  = document.getElementById('passVal');
-  var icon = document.getElementById('revealIcon');
-  var btn  = document.getElementById('revealBtn');
-  if (passRevealed) {
-    val.classList.remove('pass-hidden');
-    val.classList.add('pass-visible');
-    icon.className = 'bi bi-eye-slash';
-    btn.innerHTML  = '<i class="bi bi-eye-slash" id="revealIcon"></i> Ukryj';
-  } else {
-    val.classList.add('pass-hidden');
-    val.classList.remove('pass-visible');
-    icon.className = 'bi bi-eye';
-    btn.innerHTML  = '<i class="bi bi-eye" id="revealIcon"></i> Pokaż';
+    done();
   }
 }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
