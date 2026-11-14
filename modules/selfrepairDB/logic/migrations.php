@@ -1075,4 +1075,27 @@ return [
         },
     ],
 
+    // „Chmura plików”: artykuł „Ekran po zalogowaniu: Pulpit chmury plików” (polecenie 2026-11-14 ze zrzutem Pulpitu Nextcloud: „opisz to i wypchnij
+    // na pomoc IT”) + „Zobacz też” w obie strony z „Nextcloud: pierwsze kroki” i „Co jest co w menu bocznym”. modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud_dashboard' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł o Pulpicie Nextcloud',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'pulpit');
+            $q = "SELECT a.id, a.related FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'chmura-plikow' AND a.slug = ?";
+            $a = db_one($q, ['pulpit']);
+            if (!$a) return;
+            foreach (['nextcloud', 'menu-plikow'] as $other) {
+                $b = db_one($q, [$other]);
+                if (!$b) continue;
+                foreach ([[$a, (int)$b['id']], [$b, (int)$a['id']]] as [$row, $add]) {
+                    $row = db_one("SELECT id, related FROM itp_articles WHERE id = ?", [(int)$row['id']]);
+                    $ids = itPortalIds($row['related']);
+                    if (!in_array($add, $ids, true)) { $ids[] = $add; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), (int)$row['id']]); }
+                }
+            }
+        },
+    ],
+
 ];

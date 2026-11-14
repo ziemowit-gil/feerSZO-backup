@@ -123,6 +123,9 @@ function itPortalCloudArticles(string $app): array {
         'menu-plikow' => ['Co jest co w menu bocznym aplikacji Pliki',
             'menu, menu boczne, pliki, wszystkie pliki, pliki osobiste, ostatnie, ulubione, udostępnienia, foldery zespołów, etykiety, drzewo folderów, usunięte pliki, kosz, miejsce, limit, ustawienia plików, webdav, wyszukiwanie, nextcloud',
             itPortalCloudPilot(itPortalCloudMenuBlocks($app)), false, 15],
+        'pulpit' => ['Ekran po zalogowaniu: Pulpit chmury plików',
+            'ekran po zalogowaniu, po zalogowaniu, pulpit, strona startowa, start, dashboard, polecane pliki, zespoły, ostatnia aktywność, aktywność, powiadomienia, dzwonek, kontakty, status, awatar, menu aplikacji, wyszukiwarka, dostosuj, widżety, konto techniczne, szo, nextcloud',
+            itPortalCloudPilot(itPortalCloudDashboardBlocks($app)), false, 12],
         'grupy' => ['Grupy w chmurze: wspólne pliki zespołu, obszaru, działania i jednostki',
             'grupy, grupa, udostępnianie, udostępnij, folder wspólny, zespół, zespoły, obszar roboczy, obszar, działanie, działania, jednostka, jednostka organizacyjna, umowa, zadania, nextcloud, chmura, nie widzę folderu, brak dostępu',
             itPortalCloudPilot(itPortalCloudGroupsBlocks($app)), false, 30],
@@ -173,6 +176,60 @@ function itPortalCloudMenuBlocks(string $app): array {
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Pliki, które udostępniono Twojej grupie z SZO, znajdziesz w „Wszystkich plikach” i w „Udostępnieniach”. '
             . 'Jak działają grupy, opisuje artykuł <a href="' . $groups . '">Grupy w chmurze</a>. Gdy czegoś w menu brakuje albo działa inaczej, '
             . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Ekran po zalogowaniu: Pulpit chmury plików” (polecenie 2026-11-14 ze zrzutem Pulpitu Nextcloud: „opisz to i wypchnij na pomoc IT”,
+ * potem „ekran po zalogowaniu i że niektóre elementy mogą się różnić”).
+ * Górny pasek, trzy widżety (Polecane pliki, Zespoły, Ostatnia aktywność), wpisy konta technicznego SZO, przycisk „Dostosuj”.
+ */
+function itPortalCloudDashboardBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Po zalogowaniu do chmury widzisz Pulpit. To strona startowa: wita Cię po imieniu i zbiera w jednym miejscu '
+            . 'pliki, nad którymi ostatnio pracowano, Twoje zespoły i to, co się ostatnio zmieniło. Na Pulpit wrócisz w każdej chwili, klikając logo w lewym górnym rogu.</p>'
+            . '<p>Czasem po zalogowaniu otwiera się od razu aplikacja Pliki z listą folderów. To też jest w porządku. Na Pulpit przejdziesz wtedy, klikając logo.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Twój ekran może wyglądać trochę inaczej niż w tym opisie. Inne będą nazwy plików i folderów, '
+            . 'wpisy w aktywności i liczba kart, bo zależą od Twojego konta, grup i tego, co sam ustawisz. Część ikon i napisów może się też zmienić '
+            . 'po aktualizacji chmury, zwłaszcza po uruchomieniu instalacji produkcyjnej.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Górny pasek</h2>'
+            . '<p>Logo Nextcloud po lewej przenosi na Pulpit.</p>'
+            . '<p>Ikona z kropkami obok logo otwiera menu aplikacji. Wybierzesz tam Pliki, Kontakty, Kalendarz i inne aplikacje chmury.</p>'
+            . '<p>Napis obok ikony z kropkami pokazuje, w której aplikacji jesteś. Na stronie startowej to „Pulpit”.</p>'
+            . '<p>Pole „Aplikacje, pliki, wiadomości i nie tylko” na środku to wyszukiwarka całej chmury. Otworzysz ją też skrótem Ctrl+K, a na Macu Cmd+K.</p>'
+            . '<p>Dzwonek po prawej to powiadomienia, na przykład o nowym udostępnieniu. Czerwona kropka przy dzwonku oznacza, że masz nieprzeczytane.</p>'
+            . '<p>Ikona z sylwetką na karcie to szybkie wyszukiwanie osób z chmury. Wpisz imię albo nazwisko, a zobaczysz adres e-mail i możliwość wysłania wiadomości.</p>'
+            . '<p>Kółko z Twoimi inicjałami to menu konta. Ustawisz tam status (zielony znaczek oznacza, że jesteś dostępny), otworzysz ustawienia osobiste i wylogujesz się.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Polecane pliki</h2>'
+            . '<p>Pierwsza karta pokazuje pliki i foldery, które ostatnio się zmieniały, razem z czasem ostatniej zmiany. '
+            . 'Kliknij nazwę, a otworzysz plik albo przejdziesz do folderu. Lista sama się zmienia, więc nie musisz niczego tu ustawiać. '
+            . 'Pełną listę znajdziesz w aplikacji Pliki w pozycji „Ostatnie”.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Zespoły</h2>'
+            . '<p>Druga karta pokazuje zespoły, do których należysz. Zespół to lista osób, którą zakłada sam użytkownik chmury, '
+            . 'żeby szybciej udostępniać pliki kilku osobom naraz. Napis „Nie znaleziono żadnych zespołów” jest w porządku i nie oznacza, że czegoś brakuje.</p>'
+            . '<p>Zespoły to coś innego niż grupy z SZO. Grupy zakłada system na podstawie umów, obszarów i działań i to dzięki nim widzisz wspólne foldery. '
+            . 'Opisuje je artykuł <a href="' . $base . 'grupy">Grupy w chmurze</a>. Własny zespół załóż przyciskiem „Utwórz swój pierwszy zespół” tylko wtedy, '
+            . 'gdy często współpracujesz z kilkoma osobami spoza swojej grupy.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ostatnia aktywność</h2>'
+            . '<p>Trzecia karta to skrót tego, co ostatnio działo się z Twoimi plikami i kontem: kto coś udostępnił, zmienił albo dodał. '
+            . 'Przycisk „Więcej aktywności” na dole otwiera pełną listę.</p>'
+            . '<p>Wpisy „@SZO (konto techniczne) dodał…” i „Zostałeś dodany jako członek…” są normalne. SZO samo dopisuje Cię do grup i udostępnia foldery, '
+            . 'gdy podpiszesz umowę albo dołączysz do obszaru lub działania. Robi to przez swoje konto techniczne, dlatego to ono widnieje jako autor.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Jak zmienić wygląd Pulpitu</h2>'
+            . '<p>Przewiń Pulpit na sam dół i kliknij „Dostosuj”. Zaznaczysz tam, które karty mają być widoczne, i zmienisz tło. '
+            . 'Kolejność kart zmienisz, przeciągając je myszą.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Do samych plików przejdziesz przez menu aplikacji albo klikając plik w „Polecanych plikach”. '
+            . 'Co oznaczają pozycje menu w aplikacji Pliki, wyjaśnia artykuł <a href="' . $base . 'menu-plikow">Co jest co w menu bocznym aplikacji Pliki</a>. '
+            . 'Gdy coś na Pulpicie wygląda inaczej niż tutaj, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
     ];
 }
 
