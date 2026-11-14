@@ -1709,4 +1709,18 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuł „Folder Wysłane w programie pocztowym i w telefonie” z odsyłaczami do bazy wiedzy dhosting (Outlook, iPhone, Thunderbird,
+    // Mail na Macu), część o GreyList w „spam-i-zaufani-nadawcy”, źródło wiadomości (eml) w „co jest co”, odsyłacze do instrukcji filtrów i kontaktów; import/eksport kontaktów
+    // tylko dla Koordynatorów IT („jeżeli nie jesteś Koordynatorem IT, nie ruszaj”)
+    // dostawcy (polecenie 2026-11-14 z linkami i zrzutami pomocy dhosting).
+    '2026-11_it_portal_dpoczta_sent_greylist' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: folder Wysłane w programach i GreyList',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

@@ -98,7 +98,7 @@ function itPortalDpocztaMenuGroups(): array {
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43],
-        'poczta-w-telefonie' => [$g5, 50], 'kontakty-import-eksport' => [$g5, 51], 'kalendarz' => [$g5, 52],
+        'poczta-w-telefonie' => [$g5, 50], 'kontakty-import-eksport' => [$g5, 51], 'kalendarz' => [$g5, 52], 'folder-wyslane' => [$g5, 53],
         'duze-zalaczniki' => [$g6, 60], 'transfernow-wetransfer' => [$g6, 61],
     ];
 }
@@ -144,6 +144,7 @@ function itPortalDpocztaArticles(string $app): array {
         if (SsoConfig::cloudUrl() !== '') $cloud = SsoConfig::cloudUrl();
     } catch (\Throwable $e) {}
     $transfer = $app . '/uslugi-it/uslugi/moja-poczta/transfernow-wetransfer';
+    $kb = 'https://dhosting.pl/pomoc/baza-wiedzy/';   // baza wiedzy dostawcy poczty
 
     return [
         'logowanie-dpoczta' => ['Jak zalogować się do poczty', 'logowanie, login, hasło, sms, dpoczta, webmail, migracja, nowa poczta, imie.nazwisko, witamy w dpoczta.pl, nazwa użytkownika, nie pamiętasz hasła, sesja została zakończona', [
@@ -184,7 +185,11 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'czyli całą rozmowę z odpowiedziami. Na dole są strzałki do przechodzenia między stronami listy i informacja, ile jest wątków.</p>'],
             ['type' => 'text', 'html' => '<h2>Prawa kolumna: wiadomość</h2>'
                 . '<p>Nad otwartą wiadomością są przyciski: Odpowiedz, Odpowiedz wszystkim, Przekaż, Usuń, Archiwizuj, Oznacz jako spam (ikona płomienia), '
-                . 'Etykiety (ikona metki) i trzy kropki z pozostałymi działaniami, na przykład drukowaniem albo pobraniem wiadomości.</p>'],
+                . 'Etykiety (ikona metki) i trzy kropki z pozostałymi działaniami: drukowaniem, pobraniem, pokazaniem źródła, przeniesieniem, kopiowaniem, '
+                . 'otwarciem w nowym oknie i utworzeniem filtra.</p>'
+                . '<p>Źródło wiadomości to jej pełny zapis z nagłówkami, po których widać, skąd naprawdę przyszła. Gdy zgłaszasz podejrzaną wiadomość do Helpdesku, '
+                . 'kliknij trzy kropki, potem „Pobierz…” i „Źródło wiadomości (eml)”, a pobrany plik dołącz do zgłoszenia. '
+                . 'Opis dostawcy: <a href="' . $kb . 'gdzie-znalezc-zrodlo-wiadomosci-w-dpoczta-pl/">gdzie znaleźć źródło wiadomości w dPoczcie</a>.</p>'],
             ['type' => 'text', 'html' => '<h2>Pasek po prawej</h2>'
                 . '<p>Ikony od góry: Poczta (koperta), Kontakty, Kalendarz, Zadania, Ustawienia (koło zębate) i inne aplikacje dostawcy (kratka). '
                 . 'Na dole są księżyc, który włącza tryb ciemny, i czerwony przycisk wyłączania, którym się wylogujesz.</p>'],
@@ -334,6 +339,25 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'Przed usunięciem klucza wyeksportuj go. Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], false],
 
+        'folder-wyslane' => ['Folder „Wysłane” w programie pocztowym i w telefonie', 'wysłane, elementy wysłane, folder wysłanych, sent, outlook, thunderbird, iphone, apple mail, mail, kopia wysłanych, nie widzę wysłanych, brak wysłanych w dpoczcie', [
+            ['type' => 'text', 'html' => '<p>Gdy wysyłasz wiadomości z programu na komputerze albo z telefonu, program sam decyduje, gdzie zapisze ich kopię. '
+                . 'Jeśli zapisze ją tylko na Twoim urządzeniu albo w niewłaściwym folderze, nie zobaczysz wysłanych wiadomości w dPoczcie ani na innych urządzeniach. '
+                . 'Dlatego w każdym programie warto sprawdzić, czy kopie wysłanych trafiają do folderu „Wysłane” na serwerze.</p>'],
+            ['type' => 'text', 'html' => '<h2>Microsoft Outlook</h2>'
+                . '<p>Outlook nie pozwala wskazać innego folderu na wysłane. Sprawdź tylko, czy w ogóle zapisuje kopie: kliknij „Plik”, potem „Opcje” i „Poczta”. '
+                . 'W części „Wysyłanie wiadomości” zaznacz „Zapisz kopie wiadomości w folderze Elementy wysłane”.</p>'
+                . '<p>Instrukcja dostawcy: <a href="' . $kb . 'definiowanie-folderu-na-wiadomosci-wyslane-w-programie-pocztowym-microsoft-outlook/">folder wysłanych w Microsoft Outlook</a>.</p>'],
+            ['type' => 'text', 'html' => '<h2>iPhone i iPad (aplikacja Mail)</h2>'
+                . '<p>Otwórz „Ustawienia”, potem „Mail”, „Konta” i swoje konto służbowe. Wybierz „Zaawansowane”, a w części „Postępowanie” ustaw folder na wysłane wiadomości na „Wysłane” na serwerze.</p>'
+                . '<p>Instrukcja dostawcy: <a href="' . $kb . 'definiowanie-folderu-na-wiadomosci-wyslane-w-programie-pocztowym-iphone-mail/">folder wysłanych w iPhone Mail</a>.</p>'],
+            ['type' => 'text', 'html' => '<h2>Mozilla Thunderbird i Mail na Macu</h2>'
+                . '<p>W obu programach folder na wysłane wybierasz w ustawieniach konta. Szczegóły opisują instrukcje dostawcy: '
+                . '<a href="' . $kb . 'definiowanie-folderu-na-wiadomosci-wyslane-w-programie-pocztowym-mozilla-thunderbird/">folder wysłanych w Thunderbirdzie</a> i '
+                . '<a href="' . $kb . 'definiowanie-folderu-na-wiadomosci-wyslane-w-programie-pocztowym-mail-na-komputerach-apple/">folder wysłanych w Mail na komputerach Apple</a>.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Jak w ogóle dodać skrzynkę do programu albo telefonu, opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/poczta-w-telefonie">Poczta w telefonie, Outlooku i Thunderbirdzie</a>. '
+                . 'Więcej porad dostawcy znajdziesz w <a href="https://dhosting.pl/pomoc/">pomocy dhosting.pl</a>, na przykład <a href="' . $kb . 'dpoczta-pl-najwazniejsze-informacje/">dPoczta.pl: najważniejsze informacje</a>.</p>'],
+        ], false],
+
         'generator-stopki' => ['Obowiązkowa stopka: jak ją wygenerować', 'stopka, podpis, generator stopki, obowiązkowa stopka, wzór stopki, dane organizacji, nip, krs, social, facebook, instagram, linkedin', [
             ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Każda wiadomość ze służbowej skrzynki musi mieć stopkę z generatora Fundacji. Stopka jest elementem tożsamości Fundacji, więc korzystanie z generatora jest obowiązkowe i nie zmieniamy stopki ręcznie: wszyscy mamy ten sam wzór i aktualne dane Fundacji.</p>'],
             ['type' => 'text', 'html' => '<p>Generator działa pod adresem <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a> i nie wymaga logowania. Wpisane dane zostają w Twojej przeglądarce.</p>'],
@@ -428,11 +452,12 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<p>Kliknij filtr na liście, popraw go po prawej i kliknij „Zapisz”. Żeby filtr na chwilę nie działał, wyłącz przełącznik „Filtr włączony” i zapisz. '
                 . 'Filtry działają po kolei, od góry listy.</p>'],
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Filtr szybciej zrobisz z otwartej wiadomości. Zaznacz ją na liście, kliknij trzy kropki „Więcej” nad wiadomością i wybierz „Utwórz filtr”. '
-                . 'Formularz wypełni się danymi z tej wiadomości, na przykład nadawcą.</p>'],
+                . 'Formularz wypełni się danymi z tej wiadomości, na przykład nadawcą.</p>'
+                . '<p>Instrukcja dostawcy ze zrzutami: <a href="' . $kb . 'jak-korzystac-z-filtrowania-wiadomosci-w-dpoczta-pl/">jak korzystać z filtrowania wiadomości w dPoczcie</a>.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie przekierowuj poczty służbowej na prywatne skrzynki (Gmail, Onet, WP itp.). W wiadomościach bywają dane osobowe, które muszą zostać w systemach organizacji.</p>'],
         ], false],
 
-        'spam-i-zaufani-nadawcy' => ['Spam, zablokowani i zaufani nadawcy', 'spam, antyspam, cleanbox, łagodny filtr, więcej spamu niż w outlooku, filtr antyspamowy, czułość filtra, reguły adresów, zaufane adresy, zablokowane adresy, blokowanie, czarna lista, biała lista, zaufani nadawcy, *@feer.org.pl, obrazki, wirusy', [
+        'spam-i-zaufani-nadawcy' => ['Spam, zablokowani i zaufani nadawcy', 'spam, antyspam, cleanbox, greylist, greylisting, opóźnienie, wiadomość przychodzi z opóźnieniem, łagodny filtr, więcej spamu niż w outlooku, filtr antyspamowy, czułość filtra, reguły adresów, zaufane adresy, zablokowane adresy, blokowanie, czarna lista, biała lista, zaufani nadawcy, *@feer.org.pl, obrazki, wirusy', [
             ['type' => 'text', 'html' => '<p>Każda skrzynka ma włączone filtry antyspamowe, a poczta jest sprawdzana pod kątem wirusów. Możesz sam zablokować natrętnego nadawcę albo oznaczyć zaufanego.</p>'],
             ['type' => 'wizard', 'title' => 'Blokowanie i zaufane adresy', 'intro' => '', 'steps' => [
                 $step('Otwórz CleanBox', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' Na dole lewej kolumny wybierz „CleanBox”. '
@@ -450,6 +475,11 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Filtr antyspamowy dPoczty jest łagodniejszy niż ten w Outlooku z Microsoft 365. Do Odebranych może więc trafić więcej reklam i spamu niż wcześniej. '
                 . 'Oznaczaj takie wiadomości ikoną płomienia „Oznacz jako spam”, a natrętnych nadawców dodaj do zablokowanych. Jeśli spamu jest bardzo dużo, podnieś „Czułość filtra” o jeden poziom '
                 . 'i przez kilka dni zaglądaj do folderu Spam, czy nie trafia tam zwykła poczta.</p>'],
+            ['type' => 'text', 'html' => '<h3>Opóźnione wiadomości i GreyList</h3>'
+                . '<p>Serwer pocztowy może korzystać z filtra GreyList. Pierwszą wiadomość od nowego nadawcy na chwilę odrzuca i przyjmuje ją dopiero wtedy, gdy serwer nadawcy spróbuje wysłać ją ponownie. '
+                . 'Spamerzy zwykle nie próbują drugi raz, więc ten filtr zatrzymuje dużo spamu. Skutek uboczny jest taki, że wiadomość od nowej osoby może dotrzeć z opóźnieniem, od kilkunastu minut do kilku godzin. '
+                . 'Jeśli czekasz na ważną wiadomość od kogoś, kto pisze do Ciebie pierwszy raz, poproś go o wysłanie jej z wyprzedzeniem. '
+                . 'Opis dostawcy: <a href="https://dhosting.pl/pomoc/kategoria/poczta/filtry-antyspamowe/">filtry antyspamowe w dhosting.pl</a>.</p>'],
             ['type' => 'text', 'html' => '<p>Pod polem dodawania są dwie listy. „Reguły globalne (tylko do odczytu)” ustawia administrator dla wszystkich skrzynek i nie możesz ich zmienić. '
                 . '„Twoje reguły” to adresy dodane przez Ciebie. Krzyżyk przy regule ją usuwa. Znak zapytania przy nagłówku pokazuje krótką podpowiedź.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Blokuj ostrożnie, zwłaszcza całe domeny. Wpis <code>*@gmail.com</code> na czarnej liście odrzuci wiadomości od wszystkich osób z Gmaila, a nadawca nie zawsze dowie się, że wiadomość nie dotarła.</p>'],
@@ -457,14 +487,17 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Dostałeś podejrzaną wiadomość z prośbą o hasło, kod albo przelew? Nie klikaj linków i <a href="' . $hd . '">zgłoś ją w Helpdesku</a>.</p>'],
         ], false],
 
-        'kontakty-import-eksport' => ['Kontakty: import i eksport', 'kontakty, książka adresowa, import, eksport, vcard, csv, outlook', [
+        'kontakty-import-eksport' => ['Kontakty: import i eksport (dla Koordynatorów IT)', 'kontakty, książka adresowa, import, eksport, vcard, csv, outlook, koordynator it', [
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Ta instrukcja jest dla Koordynatorów IT. Jeśli nie jesteś Koordynatorem IT, nie importuj ani nie eksportuj kontaktów. '
+                . 'Gdy potrzebujesz przenieść kontakty, poproś o to swojego Koordynatora IT albo <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
             ['type' => 'text', 'html' => '<p>Kontakty przeniesiesz z innego programu plikiem vCard (.vcf) albo CSV.</p>'],
             ['type' => 'wizard', 'title' => 'Import kontaktów', 'intro' => '', 'steps' => [
                 $step('Przygotuj plik', '<p>Wyeksportuj kontakty ze starego programu do pliku vCard albo CSV. W pliku CSV pola rozdziela przecinek, a pierwszy wiersz to nagłówek, np. <code>First Name,Last Name,E-mail Address</code>.</p>'),
                 $step('Otwórz Kontakty', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a> i przejdź do „Kontakty”.</p>'),
                 $step('Zaimportuj', '<p>W górnym menu kliknij ikonę chmurki do importu (podpowiedź pojawi się po najechaniu kursorem) i wskaż plik.</p>'),
             ]],
-            ['type' => 'text', 'html' => '<p>Eksport działa tak samo: w „Kontaktach” kliknij drugą ikonę chmurki, do eksportu.</p>'],
+            ['type' => 'text', 'html' => '<p>Eksport działa tak samo: w „Kontaktach” kliknij drugą ikonę chmurki, do eksportu.</p>'
+                . '<p>Instrukcja dostawcy ze zrzutem i przykładowym plikiem CSV: <a href="' . $kb . 'importowanie-i-eksportowanie-kontaktow-w-dpoczta-pl/">importowanie i eksportowanie kontaktów w dPoczcie</a>.</p>'],
         ], false],
 
         'kalendarz' => ['Kalendarz: spotkania, udostępnianie, telefon', 'kalendarz, spotkanie, zaproszenie, udostępnianie, caldav, synchronizacja, telefon, cykliczne', [
