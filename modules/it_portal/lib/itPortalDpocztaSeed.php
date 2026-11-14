@@ -161,7 +161,7 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<li>Autoresponder: odpowiedź na czas urlopu, opisana w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/autoresponder">Autoodpowiedź na czas nieobecności</a>.</li>'
                 . '<li>Uwierzytelnianie dwuetapowe: dodatkowy kod przy logowaniu, opisany w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/weryfikacja-dwuetapowa">Weryfikacja dwuetapowa w poczcie</a>.</li>'
                 . '<li>CleanBox: filtr antyspamowy, opisany w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/spam-i-zaufani-nadawcy">Spam, zablokowani i zaufani nadawcy</a>.</li></ul>'],
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie zmieniaj hasła w częściach „Hasło” ani „Przypomnienie hasła” w ustawieniach poczty. Takie hasło nie trafi do SZO. '
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Z części „Hasło” i „Przypomnienie hasła” w ustawieniach poczty nie korzystamy. Formularz „Aktualne hasło, Nowe hasło, Potwierdź hasło” zmieniłby hasło tylko w poczcie i nie trafi ono do SZO. '
                 . 'Hasło do poczty zmieniasz tylko na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/zmiana-hasla-poczty">Jak zmienić hasło do poczty</a>.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie wiesz, do czego służy jakiś przycisk? Najedź na niego myszą, a pokaże się podpowiedź. Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], true],
@@ -328,13 +328,22 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie przekierowuj poczty służbowej na prywatne skrzynki (Gmail, Onet, WP itp.). W wiadomościach bywają dane osobowe, które muszą zostać w systemach organizacji.</p>'],
         ], false],
 
-        'spam-i-zaufani-nadawcy' => ['Spam, zablokowani i zaufani nadawcy', 'spam, antyspam, cleanbox, blokowanie, czarna lista, biała lista, zaufani nadawcy, obrazki, wirusy', [
+        'spam-i-zaufani-nadawcy' => ['Spam, zablokowani i zaufani nadawcy', 'spam, antyspam, cleanbox, filtr antyspamowy, czułość filtra, reguły adresów, zaufane adresy, zablokowane adresy, blokowanie, czarna lista, biała lista, zaufani nadawcy, *@feer.org.pl, obrazki, wirusy', [
             ['type' => 'text', 'html' => '<p>Każda skrzynka ma włączone filtry antyspamowe, a poczta jest sprawdzana pod kątem wirusów. Możesz sam zablokować natrętnego nadawcę albo oznaczyć zaufanego.</p>'],
             ['type' => 'wizard', 'title' => 'Blokowanie i zaufane adresy', 'intro' => '', 'steps' => [
-                $step('Otwórz Cleanbox', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>, wejdź w „Ustawienia” i wybierz „Cleanbox”.</p>'),
-                $step('Ustaw poziom filtra', '<p>W zakładce „Filtr antyspamowy” ustawisz, jak ostro ma działać filtr.</p>'),
-                $step('Dodaj adresy', '<p>W zakładce „Reguły adresów” są dwie listy: „Zaufane adresy” i „Zablokowane adresy”. Wpis <code>*@nazwadomeny.pl</code> obejmuje wszystkie adresy z tej domeny.</p>'),
+                $step('Otwórz CleanBox', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' Na dole lewej kolumny wybierz „CleanBox”. '
+                    . 'W środkowej kolumnie są dwie części: „Filtr antyspamowy” i „Reguły adresów”.</p>'),
+                $step('Ustaw czułość filtra', '<p>W „Filtrze antyspamowym” zostaw „Czułość filtra” na „Średnia (zalecana)”. Wyższa czułość zatrzyma więcej spamu, '
+                    . 'ale częściej wrzuci do Spamu zwykłą wiadomość. Niższa przepuści więcej, ale rzadziej się pomyli. Po zmianie kliknij „Zapisz”.</p>'),
+                $step('Dodaj zaufanych nadawców', '<p>Wybierz „Reguły adresów” i zakładkę „Zaufane adresy”, czyli białą listę. Wiadomości od tych nadawców nie trafią do Spamu. '
+                    . 'Wpisz adres albo wzorzec i kliknij „Dodaj regułę”. Gwiazdka zastępuje dowolny ciąg znaków, więc <code>*@feer.org.pl</code> obejmuje wszystkie adresy Fundacji. '
+                    . 'Polecamy dodać właśnie ten wzorzec.</p>'),
+                $step('Zablokuj natrętnego nadawcę', '<p>W zakładce „Zablokowane adresy”, czyli na czarnej liście, wpisz adres albo wzorzec, na przykład <code>*@spam.pl</code>, i kliknij „Dodaj regułę”. '
+                    . 'Wiadomości od tego nadawcy będą odrzucane, zanim dotrą do skrzynki, więc nie znajdziesz ich nawet w Spamie.</p>'),
             ]],
+            ['type' => 'text', 'html' => '<p>Pod polem dodawania są dwie listy. „Reguły globalne (tylko do odczytu)” ustawia administrator dla wszystkich skrzynek i nie możesz ich zmienić. '
+                . '„Twoje reguły” to adresy dodane przez Ciebie. Krzyżyk przy regule ją usuwa. Znak zapytania przy nagłówku pokazuje krótką podpowiedź.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Blokuj ostrożnie, zwłaszcza całe domeny. Wpis <code>*@gmail.com</code> na czarnej liście odrzuci wiadomości od wszystkich osób z Gmaila, a nadawca nie zawsze dowie się, że wiadomość nie dotarła.</p>'],
             ['type' => 'text', 'html' => '<h3>Obrazki w wiadomościach</h3><p>Poczta domyślnie może blokować obrazki z obcych serwerów, bo służą do śledzenia i oszustw. W otwartej wiadomości kliknij „Zezwól”, żeby pokazać je raz, albo „Zawsze zezwalaj od…”, żeby dodać nadawcę do zaufanych. Ustawienie zmienisz w „Ustawienia” → „Preferencje” → „Wyświetlanie wiadomości”. Polecamy opcję „od zaufanych nadawców”.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Dostałeś podejrzaną wiadomość z prośbą o hasło, kod albo przelew? Nie klikaj linków i <a href="' . $hd . '">zgłoś ją w Helpdesku</a>.</p>'],
         ], false],

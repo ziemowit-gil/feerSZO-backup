@@ -1630,4 +1630,15 @@ return [
         },
     ],
 
+    // „Moja poczta”: CleanBox według ekranów (czułość „Średnia (zalecana)”, zaufane *@feer.org.pl, czarna lista odrzuca przy dostarczaniu,
+    // reguły globalne) i „z części Hasło nie korzystamy” w „dpoczta-co-jest-co” (polecenie 2026-11-14 ze zrzutami).
+    '2026-11_it_portal_dpoczta_cleanbox' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: CleanBox i część Hasło według ekranów',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
