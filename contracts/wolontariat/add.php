@@ -21,6 +21,7 @@ require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
+require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.php';   // panel „Konta i grupy IT”
 $PAGE_TITLE = 'Nowe porozumienie wolontariackie';
 cpc_migrate(); // ensure new columns exist
 try { db()->exec("ALTER TABLE umowy_wolontariat ADD COLUMN template_id INTEGER NULL"); } catch (\Throwable $e) {}
@@ -1170,7 +1171,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <div class="wiz-hstep-sep" id="step-sep-5"></div>
   <button type="button" class="wiz-hstep" id="step-btn-6" role="tab" aria-selected="false" onclick="goToStep(6)">
     <span class="wiz-hstep-num" id="step-num-6">6</span>
-    <span class="wiz-hstep-label">Grupy IT</span>
+    <span class="wiz-hstep-label">Dodatkowe</span>
   </button>
 </nav>
 
@@ -1936,29 +1937,22 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  <!-- Skrzynka pocztowa (nowy serwer poczty) -->
-  <?php require_once dirname(dirname(__DIR__)) . '/modules/dhosting_migrator/logic/DhostingContractMail.php';
-        $_dh_on = false; try { $_dh_on = DhostingContractMail::enabled(); } catch (\Throwable $e) {} ?>
-  <?php if ($_dh_on): ?>
+  <!-- Konta i grupy IT: logowanie jednokrotne, chmura, poczta (pole „Załóż skrzynkę”), jednostka i działanie — modules/contractIt -->
   <div class="wiz-card">
     <div class="wiz-card-header">
-      <div class="wiz-card-icon" style="background:#EEF4FF;color:#0f6fa8"><i class="bi bi-envelope-at" aria-hidden="true"></i></div>
+      <div class="wiz-card-icon" style="background:#EEF4FF;color:#1d4ed8"><i class="bi bi-shield-lock" aria-hidden="true"></i></div>
       <div>
-        <div class="wiz-card-title">Skrzynka pocztowa</div>
-        <div class="wiz-card-subtitle">Adres imie.nazwisko@<?= h(DhostingContractMail::domain()) ?> na serwerze poczty Fundacji</div>
+        <div class="wiz-card-title">Konta i grupy IT</div>
+        <div class="wiz-card-subtitle">Logowanie jednokrotne, chmura plików, poczta i grupy w chmurze. Microsoft 365 wyłączamy <?= h(ContractIt::msOffLabel()) ?>.</div>
       </div>
     </div>
     <div class="wiz-card-body">
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" name="dh_create" id="dh_create" value="1" checked aria-describedby="dh_create_help">
-        <label class="form-check-label fw-semibold" for="dh_create">Załóż skrzynkę pocztową</label>
-        <div class="form-text ms-4" id="dh_create_help">Gdy ta osoba (PESEL) miała już skrzynkę, zostanie przywrócona. Hasło pójdzie SMS-em na numer z umowy
-          i pokaże się raz w zakładce „M365”. Skrzynka zostanie zawieszona <?= DhostingContractMail::GRACE_DAYS ?> dni po wygaśnięciu umowy (bez powiadomienia).</div>
-      </div>
+      <?= ContractIt::render($TYPE, 0, $row, ['skin' => 'bare', 'mailCheckbox' => true, 'unitLabel' => 'Komórka org.', 'unitWhere' => 'w kroku 1 (Umowa)', 'actionWhere' => 'w kroku 3 (Szczegóły)']) ?>
     </div>
   </div>
-  <?php endif; ?>
 
+  <!-- Microsoft 365 (wygaszane): zakładanie konta i grupa zabezpieczeń, zwinięte. Pola bez zmian (dane do migracji). -->
+  <?= ContractIt::legacyOpen('zakładanie konta i grupa zabezpieczeń, nieobowiązkowe') ?>
   <!-- Microsoft 365 -->
   <div class="wiz-card">
     <div class="wiz-card-header">
@@ -2009,6 +2003,38 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
+  <!-- Security Group M365 -->
+  <div class="wiz-card">
+    <div class="wiz-card-header">
+      <div class="wiz-card-icon" style="background:#EEF4FF;color:#0078D4"><i class="bi bi-people-fill"></i></div>
+      <div>
+        <div class="wiz-card-title">Security Group M365</div>
+        <div class="wiz-card-subtitle">Wolontariusz zostanie dodany do wybranej grupy bezpieczeństwa</div>
+      </div>
+    </div>
+    <div class="wiz-card-body">
+      <div class="row g-3">
+        <div class="col-sm-8">
+          <label class="form-label fw-semibold" for="add_sg_id">Wybierz grupę</label>
+          <div class="input-group">
+            <span class="input-group-text bg-white"><i class="bi bi-people-fill text-primary"></i></span>
+            <select name="m365_security_group_id" id="add_sg_id" class="form-select">
+              <option value="">— ładowanie grup… —</option>
+            </select>
+            <button type="button" class="btn btn-outline-secondary" id="add_sg_refresh" title="Odśwież listę grup" aria-label="Odśwież listę grup">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+          <input type="hidden" name="m365_security_group_name" id="add_sg_name">
+          <div id="add_sg_status" class="form-text mt-1"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <?= ContractIt::legacyClose() ?>
+
   <!-- Zakres dostępu portalu -->
   <div class="wiz-card">
     <div class="wiz-card-header">
@@ -2044,36 +2070,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </label>
           <div class="form-text ms-4">Po zalogowaniu wolontariusz trafia bezpośrednio do CRM. Inne moduły są ukryte.</div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Security Group M365 -->
-  <div class="wiz-card">
-    <div class="wiz-card-header">
-      <div class="wiz-card-icon" style="background:#EEF4FF;color:#0078D4"><i class="bi bi-people-fill"></i></div>
-      <div>
-        <div class="wiz-card-title">Security Group M365 <span class="text-danger">*</span></div>
-        <div class="wiz-card-subtitle">Wolontariusz zostanie dodany do wybranej grupy bezpieczeństwa</div>
-      </div>
-    </div>
-    <div class="wiz-card-body">
-      <div class="row g-3">
-        <div class="col-sm-8">
-          <label class="form-label fw-semibold">Wybierz grupę <span class="text-danger">*</span></label>
-          <div class="input-group">
-            <span class="input-group-text bg-white"><i class="bi bi-people-fill text-primary"></i></span>
-            <select name="m365_security_group_id" id="add_sg_id" class="form-select" required>
-              <option value="">— ładowanie grup… —</option>
-            </select>
-            <button type="button" class="btn btn-outline-secondary" id="add_sg_refresh" title="Odśwież listę grup">
-              <i class="bi bi-arrow-clockwise"></i>
-            </button>
-          </div>
-          <input type="hidden" name="m365_security_group_name" id="add_sg_name">
-          <div id="add_sg_status" class="form-text mt-1"></div>
-        </div>
-
       </div>
     </div>
   </div>
@@ -2426,9 +2422,7 @@ var ADD_STEP_FIELDS = {
     {name:'projekt_program',        label:'Projekt / program'},
   ],
   5: [
-    {name:'m365_security_group_id', label:'Security Group M365', customCheck: function() {
-      return !!document.getElementById('add_sg_id')?.value;
-    }},
+    // Security Group M365 nie jest już sprawdzana (Microsoft 365 wygaszane; pole zostaje w zwiniętej sekcji).
     {name:'plik_umowy', label:'Plik porozumienia', customCheck: function() {
       var el = document.querySelector('[name="plik_umowy"]');
       return el && el.files && el.files.length > 0;

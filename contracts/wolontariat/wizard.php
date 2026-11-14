@@ -11,6 +11,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/grants.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
+require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.php';   // panel „Konta i grupy IT”
 
 require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
@@ -50,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'projekt_program'      => trim($_POST['projekt_program']   ?? ''),
         'person_id'            => (int)($_POST['person_id']        ?? 0) ?: null,
         'action_id'            => (int)($_POST['action_id']        ?? 0) ?: null,
+        'org_unit_id'          => (int)($_POST['org_unit_id']      ?? 0) ?: null,   // jednostka → grupa w chmurze (polecenie 2026-11-14)
         'uwagi'                        => trim($_POST['uwagi']                        ?? ''),
         'm365_security_group_id'       => trim($_POST['m365_security_group_id']       ?? '') ?: null,
         'm365_security_group_name'     => trim($_POST['m365_security_group_name']     ?? '') ?: null,
@@ -404,7 +406,17 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
     <div class="col-sm-6">
-      <label class="form-label fw-semibold">Działanie</label>
+      <label class="form-label fw-semibold" for="wz_org_unit_id">Jednostka organizacyjna</label>
+      <select name="org_unit_id" id="wz_org_unit_id" class="form-select" aria-describedby="wz_org_unit_help">
+        <option value="">— wybierz —</option>
+        <?php foreach (ContractIt::units() as $__uid => $__un): ?>
+        <option value="<?= (int)$__uid ?>"><?= h($__un) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text" id="wz_org_unit_help">Od jednostki zależy grupa w chmurze plików.</div>
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label fw-semibold" for="wz_action_id">Działanie</label>
       <select name="action_id" id="wz_action_id" class="form-select">
         <option value="">— brak —</option>
         <?php foreach ($__actions as $a): ?>
@@ -519,46 +531,45 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  <!-- Sekcja: M365 Security Group (podgląd) -->
+  <!-- Konta i grupy IT: logowanie jednokrotne, chmura, poczta, jednostka i działanie — modules/contractIt (zastępuje Security Group M365) -->
   <div class="mb-4">
-    <div class="d-flex align-items-center gap-2 mb-2">
-      <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-semibold">
-        <i class="bi bi-microsoft me-1"></i>Microsoft 365
-      </span>
-    </div>
+    <?= ContractIt::render($TYPE, 0, ['email' => $prefill['email'] ?? ''], ['unitLabel' => 'Jednostka organizacyjna', 'unitWhere' => 'w kroku 2 (Porozumienie)', 'actionWhere' => 'w kroku 2 (Porozumienie)']) ?>
+  </div>
+
+  <!-- Microsoft 365 (wygaszane): grupa zabezpieczeń, zwinięta i nieobowiązkowa. Pola bez zmian. -->
+  <?= ContractIt::legacyOpen('grupa zabezpieczeń, nieobowiązkowa') ?>
+  <!-- Sekcja: M365 Security Group (podgląd) -->
+  <div class="mb-3">
     <div id="review-m365">
       <div class="review-row">
         <div class="review-label">Security Group</div>
         <div class="review-value" id="rv-sg">
-          <span class="text-danger fst-italic">Nie wybrano — wymagane</span>
+          <span class="text-muted fst-italic">nie wybrano</span>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Sekcja: Security Group M365 -->
-  <div class="mb-4">
-    <div class="d-flex align-items-center gap-2 mb-3">
-      <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-semibold">
-        <i class="bi bi-microsoft me-1"></i>Microsoft 365
-      </span>
-    </div>
-    <label class="form-label fw-semibold">
-      Security Group <span class="text-danger">*</span>
-      <span class="fw-normal text-muted small ms-1">— wolontariusz zostanie dodany do tej grupy</span>
+  <div class="mb-1">
+    <label class="form-label fw-semibold" for="wz_sg_id">
+      Security Group
+      <span class="fw-normal text-muted small ms-1">(nieobowiązkowe)</span>
     </label>
     <div class="input-group">
       <span class="input-group-text bg-white"><i class="bi bi-people-fill text-primary"></i></span>
-      <select name="m365_security_group_id" id="wz_sg_id" class="form-select" required>
+      <select name="m365_security_group_id" id="wz_sg_id" class="form-select">
         <option value="">— ładowanie grup… —</option>
       </select>
-      <button type="button" class="btn btn-outline-secondary" id="wz_sg_refresh" title="Odśwież listę grup">
+      <button type="button" class="btn btn-outline-secondary" id="wz_sg_refresh" title="Odśwież listę grup" aria-label="Odśwież listę grup">
         <i class="bi bi-arrow-clockwise"></i>
       </button>
     </div>
     <input type="hidden" name="m365_security_group_name" id="wz_sg_name">
     <div id="wz_sg_status" class="form-text mt-1"></div>
   </div>
+
+  <?= ContractIt::legacyClose() ?>
 
   <!-- Info o akceptacji -->
   <div class="alert alert-info d-flex gap-2 mb-0">
@@ -796,7 +807,7 @@ function fillReview() {
   if (sgName) {
     rvSg.innerHTML = '<i class="bi bi-people-fill text-primary me-1"></i><strong>' + sgName + '</strong>';
   } else {
-    rvSg.innerHTML = '<span class="text-danger fst-italic">Nie wybrano — wymagane</span>';
+    rvSg.innerHTML = '<span class="text-muted fst-italic">nie wybrano</span>';
   }
 }
 
@@ -859,9 +870,7 @@ var WZ_STEP_FIELDS = {
     }},
   ],
   3: [
-    {name:'m365_security_group_id', label:'Security Group M365', customCheck: function() {
-      return !!document.getElementById('wz_sg_id')?.value;
-    }},
+    // Security Group M365 nie jest już sprawdzana (Microsoft 365 wygaszane; pole zostaje w zwiniętej sekcji).
   ],
 };
 

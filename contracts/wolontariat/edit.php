@@ -16,6 +16,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
+require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.php';   // panel „Konta i grupy IT”
 cpc_migrate();
 
 require_role('admin', 'editor');
@@ -553,10 +554,13 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
       <div class="toggle-row w-100 mb-0">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch"
-                 name="m365_nie_wylaczaj" id="m365_nie_wylaczaj" value="1"
+                 name="m365_nie_wylaczaj" id="m365_nie_wylaczaj" value="1" aria-describedby="m365_nie_wylaczaj_opis"
                  <?= !empty($row['m365_nie_wylaczaj']) ? 'checked' : '' ?>>
         </div>
-        <label for="m365_nie_wylaczaj" class="mb-0">Nie wyłączaj dostępu po wygaśnięciu umowy</label>
+        <div>
+          <label for="m365_nie_wylaczaj" class="mb-0">Nie wyłączaj dostępu po wygaśnięciu umowy</label>
+          <div id="m365_nie_wylaczaj_opis" class="ts-sub ms-0">Skrzynka pocztowa i dawne konto Microsoft 365 nie zostaną wyłączone po końcu umowy.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1512,18 +1516,7 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
 <section id="sec-it" class="esec">
   <div class="esec-head">
     <i class="bi bi-shield-lock" style="color:#7c3aed"></i>
-    <h6>Dostęp IT <span class="esec-sub">portal, Canva, security group</span></h6>
-  </div>
-
-  <!-- Ważna uwaga o uprawnieniach -->
-  <div class="alert alert-primary d-flex gap-2 py-2 mb-3" style="font-size:.83rem;background:#eff6ff;border-color:#bfdbfe;color:#1e40af">
-    <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
-    <div>
-      <strong>Uprawnienia przez Security Group:</strong>
-      Wszelkie ścieżki uprawnień (dostęp do plików, SharePoint, Teams, aplikacji M365)
-      są przypisywane na poziomie <strong>Security Group</strong> w Azure AD — nie per użytkownik.
-      Zmiana grupy poniżej automatycznie aktualizuje zakres dostępu w całej platformie M365.
-    </div>
+    <h6>Dostęp IT <span class="esec-sub">portal, noclegi, Canva, dawne Microsoft 365</span></h6>
   </div>
 
   <!-- Zakres portalu -->
@@ -1578,99 +1571,10 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
     </div>
   </div>
 
-  <!-- Security Group M365 -->
-  <div class="fgroup">
-    <label class="fw-semibold small"><i class="bi bi-people-fill text-primary me-1"></i>Security Group M365</label>
-    <div class="input-group input-group-sm">
-      <span class="input-group-text bg-white border-end-0"><i class="bi bi-microsoft text-primary"></i></span>
-      <input name="m365_security_group_name" id="sg_name_edit" class="form-control border-start-0"
-             value="<?= h($row['m365_security_group_name']??'') ?>"
-             placeholder="np. Wolontariusze-Aktywni" style="font-family:monospace;font-size:.85rem">
-    </div>
-    <input type="hidden" name="m365_security_group_id" id="sg_id_edit" value="<?= h($row['m365_security_group_id']??'') ?>">
-    <div class="form-text">
-      Przypisanie do grupy nadaje <strong>wszystkie uprawnienia M365</strong> (SharePoint, Teams, aplikacje).
-      Zmiana grupy wymaga ręcznej aktualizacji w Azure AD — system zapisuje tylko metadane.
-    </div>
-  </div>
-
-</section>
-
-<!-- ══════════════════════════════════════════════════════════
-     SEKCJA 7 — ZAAWANSOWANE
-     ══════════════════════════════════════════════════════════ -->
-<section id="sec-zaawansowane" class="esec">
-  <div class="esec-head">
-    <i class="bi bi-gear"></i>
-    <h6>Zaawansowane <span class="esec-sub">webNGO</span></h6>
-  </div>
-
-  <div class="toggle-row">
-    <div class="form-check form-switch">
-      <input class="form-check-input" type="checkbox" role="switch"
-             name="z_webngo" id="z_webngo" value="1"
-             <?= !empty($row['z_webngo']) ? 'checked' : '' ?>>
-    </div>
-    <label for="z_webngo" class="mb-0 fw-semibold">Przeniesione z webNGO</label>
-  </div>
-  <div id="webngo_fields" style="display:<?= !empty($row['z_webngo']) ? '' : 'none' ?>" class="row g-3 mt-1">
-    <div class="col-md-4 fgroup">
-      <label>ID w webNGO</label>
-      <input name="webngo_id" id="webngo_id" class="form-control font-monospace" value="<?= h($row['webngo_id'] ?? '') ?>" placeholder="4829">
-    </div>
-    <div class="col-md-8 fgroup">
-      <label>Numer umowy w webNGO</label>
-      <input name="webngo_numer_umowy" id="webngo_numer_umowy" class="form-control" value="<?= h($row['webngo_numer_umowy'] ?? '') ?>" placeholder="JST/WOL/2025/08">
-    </div>
-  </div>
-</section>
-
-</div><!-- /col-lg-8 -->
-
-<!-- ══════════════════════════════════════════════════════════
-     SIDEBAR
-     ══════════════════════════════════════════════════════════ -->
-<div class="col-lg-4">
-<div class="edit-sidebar">
-
-  <!-- Save buttons -->
-  <div class="sidebar-card sc-save">
-    <div class="sidebar-card-head"><i class="bi bi-floppy"></i> Status umowy</div>
-    <div class="sidebar-card-body d-grid gap-2 pt-0">
-      <div class="sc-save-st"><?= h($__st['label']) ?></div>
-      <button type="submit" class="btn btn-primary">
-        <i class="bi bi-check-lg me-1"></i>Zapisz zmiany
-      </button>
-      <a href="view.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm text-center">
-        <i class="bi bi-x me-1"></i>Anuluj
-      </a>
-    </div>
-  </div>
-
-  <!-- Plik umowy -->
-  <div class="sidebar-card">
-    <div class="sidebar-card-head"><i class="bi bi-file-pdf"></i> Plik porozumienia</div>
-    <div class="sidebar-card-body">
-      <?php if ($row['plik_umowy']): ?>
-      <div class="mb-2"><?= upload_link($row['plik_umowy']) ?></div>
-      <div class="fgroup">
-        <label class="text-muted">Zastąp nowym plikiem:</label>
-        <input name="plik_umowy" type="file" class="form-control form-control-sm" accept=".pdf,.docx">
-      </div>
-      <?php else: ?>
-      <div class="fgroup">
-        <label>Plik porozumienia (PDF/DOCX)</label>
-        <input name="plik_umowy" type="file" class="form-control form-control-sm" accept=".pdf,.docx">
-      </div>
-      <?php endif; ?>
-    </div>
-  </div>
-
-  <!-- Microsoft 365 -->
+  <!-- Microsoft 365 (wygaszane): podpięte konto, wpis ręczny i grupa zabezpieczeń. Pola i skrypty bez zmian (dane do migracji). -->
   <?php $__m365_uid = trim((string)($row['m365_user_id'] ?? '')); $__m365_login = trim((string)($row['m365_login'] ?? '')); ?>
-  <div class="sidebar-card sc-m365">
-    <div class="sidebar-card-head"><i class="bi bi-microsoft"></i> Microsoft 365</div>
-    <div class="sidebar-card-body">
+  <?= ContractIt::legacyOpen($__m365_login !== '' ? 'konto ' . $__m365_login : 'bez konta') ?>
+  <div class="mb-3">
 
       <!-- Podpięte konto (kafel) -->
       <div class="m365-linked" id="m365_linked_tile" <?= ($__m365_login || $__m365_uid) && !empty($row['m365_konto']) ? '' : 'hidden' ?>>
@@ -1749,9 +1653,99 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
       </div>
       <button type="button" id="m365_manual_toggle" class="mt-1">Wpisz login ręcznie</button>
 
-      <div class="form-text mt-2">Nowe konto można założyć z widoku szczegółów (zakładka M365).</div>
+  </div>
+  <!-- Security Group M365 -->
+  <div class="fgroup">
+    <label for="sg_name_edit" class="fw-semibold small"><i class="bi bi-people-fill text-primary me-1" aria-hidden="true"></i>Security Group M365</label>
+    <div class="input-group input-group-sm">
+      <span class="input-group-text bg-white border-end-0"><i class="bi bi-microsoft text-primary"></i></span>
+      <input name="m365_security_group_name" id="sg_name_edit" class="form-control border-start-0"
+             value="<?= h($row['m365_security_group_name']??'') ?>"
+             placeholder="np. Wolontariusze-Aktywni" style="font-family:monospace;font-size:.85rem">
+    </div>
+    <input type="hidden" name="m365_security_group_id" id="sg_id_edit" value="<?= h($row['m365_security_group_id']??'') ?>">
+    <div class="form-text">
+      Przypisanie do grupy nadaje <strong>wszystkie uprawnienia M365</strong> (SharePoint, Teams, aplikacje).
+      Zmiana grupy wymaga ręcznej aktualizacji w Azure AD — system zapisuje tylko metadane.
     </div>
   </div>
+
+  <?= ContractIt::legacyClose() ?>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     SEKCJA 7 — ZAAWANSOWANE
+     ══════════════════════════════════════════════════════════ -->
+<section id="sec-zaawansowane" class="esec">
+  <div class="esec-head">
+    <i class="bi bi-gear"></i>
+    <h6>Zaawansowane <span class="esec-sub">webNGO</span></h6>
+  </div>
+
+  <div class="toggle-row">
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" role="switch"
+             name="z_webngo" id="z_webngo" value="1"
+             <?= !empty($row['z_webngo']) ? 'checked' : '' ?>>
+    </div>
+    <label for="z_webngo" class="mb-0 fw-semibold">Przeniesione z webNGO</label>
+  </div>
+  <div id="webngo_fields" style="display:<?= !empty($row['z_webngo']) ? '' : 'none' ?>" class="row g-3 mt-1">
+    <div class="col-md-4 fgroup">
+      <label>ID w webNGO</label>
+      <input name="webngo_id" id="webngo_id" class="form-control font-monospace" value="<?= h($row['webngo_id'] ?? '') ?>" placeholder="4829">
+    </div>
+    <div class="col-md-8 fgroup">
+      <label>Numer umowy w webNGO</label>
+      <input name="webngo_numer_umowy" id="webngo_numer_umowy" class="form-control" value="<?= h($row['webngo_numer_umowy'] ?? '') ?>" placeholder="JST/WOL/2025/08">
+    </div>
+  </div>
+</section>
+
+</div><!-- /col-lg-8 -->
+
+<!-- ══════════════════════════════════════════════════════════
+     SIDEBAR
+     ══════════════════════════════════════════════════════════ -->
+<div class="col-lg-4">
+<div class="edit-sidebar">
+
+  <!-- Save buttons -->
+  <div class="sidebar-card sc-save">
+    <div class="sidebar-card-head"><i class="bi bi-floppy"></i> Status umowy</div>
+    <div class="sidebar-card-body d-grid gap-2 pt-0">
+      <div class="sc-save-st"><?= h($__st['label']) ?></div>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check-lg me-1"></i>Zapisz zmiany
+      </button>
+      <a href="view.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm text-center">
+        <i class="bi bi-x me-1"></i>Anuluj
+      </a>
+    </div>
+  </div>
+
+  <!-- Plik umowy -->
+  <div class="sidebar-card">
+    <div class="sidebar-card-head"><i class="bi bi-file-pdf"></i> Plik porozumienia</div>
+    <div class="sidebar-card-body">
+      <?php if ($row['plik_umowy']): ?>
+      <div class="mb-2"><?= upload_link($row['plik_umowy']) ?></div>
+      <div class="fgroup">
+        <label class="text-muted">Zastąp nowym plikiem:</label>
+        <input name="plik_umowy" type="file" class="form-control form-control-sm" accept=".pdf,.docx">
+      </div>
+      <?php else: ?>
+      <div class="fgroup">
+        <label>Plik porozumienia (PDF/DOCX)</label>
+        <input name="plik_umowy" type="file" class="form-control form-control-sm" accept=".pdf,.docx">
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Konta i grupy IT (logowanie jednokrotne, chmura, poczta, grupy) — modules/contractIt; zastępuje kafel Microsoft 365 -->
+  <?= ContractIt::render($TYPE, (int)$id, $row, ['skin' => 'metro', 'unitWhere' => 'w sekcji Wolontariusz', 'actionWhere' => 'w sekcji Powiązania']) ?>
 
   <!-- Metadata -->
   <div class="sidebar-card">
