@@ -1055,4 +1055,24 @@ return [
         },
     ],
 
+    // „Chmura plików”: artykuł „Co jest co w menu bocznym aplikacji Pliki” (polecenie 2026-11-14 ze zrzutem Nextcloud: „wyjaśnij to menu boczne
+    // i zrób pomoc, co jest co”) + „Zobacz też” w obie strony z „Nextcloud: pierwsze kroki”. modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud_menu' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł o menu bocznym aplikacji Pliki',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'menu-plikow');
+            $q = "SELECT a.id, a.related FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'chmura-plikow' AND a.slug = ?";
+            $a = db_one($q, ['menu-plikow']);
+            $b = db_one($q, ['nextcloud']);
+            if ($a && $b) {
+                foreach ([[$a, (int)$b['id']], [$b, (int)$a['id']]] as [$row, $add]) {
+                    $ids = itPortalIds($row['related']);
+                    if (!in_array($add, $ids, true)) { $ids[] = $add; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), (int)$row['id']]); }
+                }
+            }
+        },
+    ],
+
 ];

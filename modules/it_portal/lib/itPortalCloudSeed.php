@@ -120,6 +120,9 @@ function itPortalCloudArticles(string $app): array {
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
             'nextcloud, aplikacja, klient, instalacja, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
             itPortalCloudPilot(itPortalCloudClientsBlocks($app)), false, 20],
+        'menu-plikow' => ['Co jest co w menu bocznym aplikacji Pliki',
+            'menu, menu boczne, pliki, wszystkie pliki, pliki osobiste, ostatnie, ulubione, udostępnienia, foldery zespołów, etykiety, drzewo folderów, usunięte pliki, kosz, miejsce, limit, ustawienia plików, webdav, wyszukiwanie, nextcloud',
+            itPortalCloudPilot(itPortalCloudMenuBlocks($app)), false, 15],
         'grupy' => ['Grupy w chmurze: wspólne pliki zespołu, obszaru, działania i jednostki',
             'grupy, grupa, udostępnianie, udostępnij, folder wspólny, zespół, zespoły, obszar roboczy, obszar, działanie, działania, jednostka, jednostka organizacyjna, umowa, zadania, nextcloud, chmura, nie widzę folderu, brak dostępu',
             itPortalCloudPilot(itPortalCloudGroupsBlocks($app)), false, 30],
@@ -133,6 +136,44 @@ function itPortalCloudArticles(string $app): array {
 function itPortalCloudPilot(array $blocks): array {
     return array_merge([['type' => 'callout', 'kind' => 'important',
         'html' => '<p>Obecna chmura plików to instalacja wdrożeniowa. Instalację produkcyjną uruchomimy na początku grudnia 2026 r.</p>']], $blocks);
+}
+
+/**
+ * Bloki artykułu „Co jest co w menu bocznym aplikacji Pliki” (polecenie 2026-11-14 ze zrzutem ekranu Nextcloud 35: „wyjaśnij to menu
+ * boczne i zrób pomoc, co jest co”). Kolejność jak w menu. Bez liczb zależnych od ustawień (limit miejsca, czas trzymania w koszu).
+ */
+function itPortalCloudMenuBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $groups = $app . '/uslugi-it/uslugi/chmura-plikow/grupy';
+    return [
+        ['type' => 'text', 'html' => '<p>Po lewej stronie aplikacji Pliki jest menu. Każda pozycja to inny widok Twoich plików, '
+            . 'więc nic się nie przenosi ani nie kopiuje, gdy przełączasz się między nimi. Menu chowasz i pokazujesz przyciskiem nad listą plików.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Pozycje menu od góry</h2>'
+            . '<p>Szukaj tutaj. Pole na górze menu szuka plików i folderów po nazwie w aplikacji Pliki. '
+            . 'Wyszukiwarka w górnym pasku („Aplikacje, pliki, wiadomości i nie tylko”) szuka w całej chmurze. Otworzysz ją też skrótem Ctrl+K, a na Macu Cmd+K.</p>'
+            . '<p>Wszystkie pliki. Wszystko, do czego masz dostęp: Twoje pliki i foldery oraz to, co udostępnili Ci inni.</p>'
+            . '<p>Pliki osobiste. Tylko Twoje własne pliki, bez tych, które ktoś Ci udostępnił.</p>'
+            . '<p>Ostatnie. Pliki zmienione ostatnio, najnowsze na górze. Przydaje się, gdy nie pamiętasz, gdzie zapisałeś dokument.</p>'
+            . '<p>Ulubione. Pliki i foldery oznaczone gwiazdką. Gwiazdkę dodasz w menu przy pliku, wybierając „Dodaj do ulubionych”.</p>'
+            . '<p>Udostępnienia. Po rozwinięciu strzałką zobaczysz osobno to, co inni udostępnili Tobie, to, co Ty udostępniłeś innym, '
+            . 'udostępnienia przez link i udostępnienia, które usunięto.</p>'
+            . '<p>Foldery zespołów. Wspólne foldery, które administrator chmury zakłada dla całej grupy. Pliki w takim folderze należą do zespołu, '
+            . 'a nie do jednej osoby, więc zostają, gdy ktoś odejdzie. Jeśli lista jest pusta, Twoja grupa nie ma jeszcze takiego folderu.</p>'
+            . '<p>Etykiety. Słowa, którymi oznaczasz pliki, na przykład „faktura” albo „do podpisu”. Po kliknięciu etykiety widzisz wszystkie pliki nią oznaczone, '
+            . 'z różnych folderów naraz.</p>'
+            . '<p>Drzewo folderów. Twoje foldery jako rozwijane drzewo. Pozwala przejść do głębszego folderu bez klikania po kolei w każdy poziom.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Na dole menu</h2>'
+            . '<p>Usunięte pliki. Kosz. Usunięty plik albo folder leży tu jeszcze przez jakiś czas i możesz go przywrócić. Później chmura usuwa go na stałe.</p>'
+            . '<p>Wykorzystane miejsce. Ile miejsca zajmują Twoje pliki i ile masz go łącznie. Pliki w folderach zespołów i pliki udostępnione Ci przez innych '
+            . 'nie zabierają Twojego miejsca. Gdy zaczyna go brakować, opróżnij kosz albo napisz do Helpdesku.</p>'
+            . '<p>Ustawienia Plików. Wygląd listy, na przykład pokazywanie plików ukrytych. Jest tam też adres WebDAV, którego potrzebują niektóre programy do łączenia się z chmurą.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Pliki, które udostępniono Twojej grupie z SZO, znajdziesz w „Wszystkich plikach” i w „Udostępnieniach”. '
+            . 'Jak działają grupy, opisuje artykuł <a href="' . $groups . '">Grupy w chmurze</a>. Gdy czegoś w menu brakuje albo działa inaczej, '
+            . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+    ];
 }
 
 /** Bloki artykułu „Grupy w chmurze” dla użytkowników: pracowników i wolontariuszy (grupy z SZO: modules/sso_logto/logic/CloudTeamsSync.php). */
