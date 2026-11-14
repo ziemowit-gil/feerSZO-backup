@@ -1599,4 +1599,14 @@ return [
         },
     ],
 
+    // „Moja poczta”: pożegnanie z pocztą Outlook w Microsoft 365 we wstępie i w „poczta-w-telefonie” (polecenie 2026-11-14).
+    '2026-11_it_portal_dpoczta_outlook_bye' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: pożegnanie z Outlookiem w Microsoft 365',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

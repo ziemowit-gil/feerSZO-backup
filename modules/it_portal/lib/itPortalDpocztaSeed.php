@@ -72,10 +72,22 @@ function itPortalDpocztaApply(string $app, bool $dryRun = false, ?array $only = 
     return $rep;
 }
 
+/**
+ * Pożegnanie z pocztą Outlook w Microsoft 365 (polecenie 2026-11-14: „dodaj informację, że z Outlookiem można się pożegnać”; bez odpowiedzi
+ * na doprecyzowanie, więc chodzi o pocztę w Microsoft 365, a program Outlook nadal działa z dPocztą przez IMAP).
+ */
+function itPortalDpocztaOutlookBye(): string {
+    return '<p>Z pocztą w Outlooku z Microsoft 365, czyli ze skrzynką na outlook.office.com i w aplikacji Outlook połączonej z kontem Microsoft, możesz się pożegnać. '
+         . 'Twoja skrzynka jest teraz w dPoczcie i tam przychodzą nowe wiadomości. Starego konta Microsoft w Outlooku nie musisz już sprawdzać.</p>'
+         . '<p>Jeśli lubisz program Outlook na komputerze, możesz go zostawić i podłączyć w nim nową skrzynkę jako konto IMAP, '
+         . 'jak opisuje instrukcja „Poczta w telefonie, Outlooku i Thunderbirdzie”. Starą skrzynkę Microsoft usuń wtedy z listy kont w programie.</p>';
+}
+
 /** Wstęp strony usługi „Moja poczta”. */
 function itPortalDpocztaIntro(string $app): string {
     return '<p>Poczta służbowa działa na serwerach dhosting. W przeglądarce otwierasz ją pod adresem <a href="https://dpoczta.pl">dpoczta.pl</a>. '
          . 'Logujesz się pełnym adresem <code>imie.nazwisko@feer.org.pl</code> i hasłem do skrzynki.</p>'
+         . itPortalDpocztaOutlookBye()
          . '<p>Wybierz instrukcję z listy. Jeśli czegoś w niej brakuje, <a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
 }
 
@@ -177,7 +189,8 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<a href="' . $app . '/nowehaslo">Nowe hasło</a>, nie w ustawieniach dpoczta.pl.</p>'],
         ], false],
 
-        'poczta-w-telefonie' => ['Poczta w telefonie, Outlooku i Thunderbirdzie', 'imap, smtp, pop3, telefon, outlook, thunderbird, apple mail, konfiguracja, serwer, port', [
+        'poczta-w-telefonie' => ['Poczta w telefonie, Outlooku i Thunderbirdzie', 'imap, smtp, pop3, telefon, outlook, microsoft 365, pożegnanie z outlookiem, stare konto, thunderbird, apple mail, konfiguracja, serwer, port', [
+            ['type' => 'callout', 'kind' => 'important', 'html' => itPortalDpocztaOutlookBye()],
             ['type' => 'text', 'html' => '<p>Pocztę możesz dodać do aplikacji w telefonie albo do programu na komputerze. Wybierz konto typu IMAP i wpisz dane z tabeli.</p>'
                 . '<table><thead><tr><th>Ustawienie</th><th>Wartość</th></tr></thead><tbody>'
                 . '<tr><td>Nazwa użytkownika</td><td><code>imie.nazwisko@feer.org.pl</code></td></tr>'
