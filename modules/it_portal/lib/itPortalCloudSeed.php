@@ -127,7 +127,7 @@ function itPortalCloudArticles(string $app): array {
             'ekran po zalogowaniu, po zalogowaniu, pulpit, strona startowa, start, dashboard, polecane pliki, zespoły, ostatnia aktywność, aktywność, powiadomienia, dzwonek, kontakty, status, awatar, menu aplikacji, wyszukiwarka, dostosuj, widżety, konto techniczne, szo, nextcloud',
             itPortalCloudPilot(itPortalCloudDashboardBlocks($app)), false, 12],
         'lista-plikow' => ['Lista plików: przyciski, ikony i udostępnianie',
-            'lista plików, pliki, ikony, przyciski, nowy, prześlij, nowy folder, filtr, widok, siatka, kafelki, sortowanie, zaznaczanie, trzy kropki, akcje, readme, readme.md, opis folderu, onedrive, documents, photos, szablony, udostępnij, udostępnianie, link, link publiczny, link wewnętrzny, udostępnianie zewnętrzne, inni z dostępem, aktywność, panel boczny, nextcloud',
+            'lista plików, pliki, ikony, google drive, kopia konta, dawne pliki, przeniesione pliki, przyciski, nowy, prześlij, nowy folder, filtr, widok, siatka, kafelki, sortowanie, zaznaczanie, trzy kropki, akcje, readme, readme.md, opis folderu, onedrive, documents, photos, szablony, udostępnij, udostępnianie, link, link publiczny, link wewnętrzny, udostępnianie zewnętrzne, inni z dostępem, aktywność, panel boczny, nextcloud',
             itPortalCloudPilot(itPortalCloudListBlocks($app)), false, 17],
         'grupy' => ['Grupy w chmurze: wspólne pliki zespołu, obszaru, działania i jednostki',
             'grupy, grupa, udostępnianie, udostępnij, folder wspólny, zespół, zespoły, obszar roboczy, obszar, działanie, działania, jednostka, jednostka organizacyjna, umowa, zadania, nextcloud, chmura, nie widzę folderu, brak dostępu',
@@ -315,8 +315,11 @@ function itPortalCloudListBlocks(string $app): array {
             . '<p>Foldery Documents i Photos, folder Szablony (na części kont Templates) oraz przykładowe pliki, takie jak Nextcloud.png, Nextcloud Manual.pdf '
             . 'czy Nextcloud intro.mp4, chmura zakłada sama w każdym nowym koncie. Folder szablonów jest potrzebny, gdy chcesz tworzyć dokumenty z własnych wzorów. '
             . 'Resztę możesz zostawić, przemianować albo usunąć.</p>'
-            . '<p>Folder OneDrive to kopia Twoich plików z OneDrive w Microsoft 365. SZO przenosi je w tle po założeniu konta w chmurze, '
-            . 'z tymi samymi folderami i datami zmian. Przy dużej ilości plików kopiowanie trwa nawet kilka godzin, więc folder może się jeszcze zapełniać.</p>'
+            . '<p>Jeśli na liście masz folder „OneDrive”, „Google Drive” albo „Kopia konta”, są w nim Twoje dane przeniesione z zewnętrznych serwerów, '
+            . 'z których Fundacja kiedyś korzystała. Foldery zachowują układ i daty zmian z dawnego miejsca. Pracuj na tych plikach normalnie, '
+            . 'przenoś je, gdzie chcesz, albo usuń te, których już nie potrzebujesz.</p>'
+            . '<p>Folder OneDrive to kopia Twoich plików z OneDrive w Microsoft 365. SZO przenosi je w tle po założeniu konta w chmurze. '
+            . 'Przy dużej ilości plików kopiowanie trwa nawet kilka godzin, więc folder może się jeszcze zapełniać.</p>'
             . '<p>Foldery, które ktoś Ci udostępnił, na przykład wspólne foldery grupy, też są na tej liście. '
             . 'Skąd się biorą, opisuje artykuł <a href="' . $base . 'grupy">Grupy w chmurze</a>.</p>'],
 

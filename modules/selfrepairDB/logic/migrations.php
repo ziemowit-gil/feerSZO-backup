@@ -1133,4 +1133,15 @@ return [
         },
     ],
 
+    // „Chmura plików”, „Lista plików”: foldery „OneDrive”, „Google Drive” i „Kopia konta” = dane z dawnych zewnętrznych serwerów Fundacji
+    // (polecenie 2026-11-14). Ponowny zapis artykułu lista-plikow.
+    '2026-11_it_portal_cloud_filelist_legacy' => [
+        'desc' => 'Portal Usług IT, „Lista plików”: foldery z danymi z dawnych serwerów',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'lista-plikow');
+        },
+    ],
+
 ];
