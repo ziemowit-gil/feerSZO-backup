@@ -1233,4 +1233,27 @@ return [
         },
     ],
 
+    // „Chmura plików”: artykuł „Aplikacja Nextcloud na komputerze: jak z niej korzystać” (polecenie 2026-11-14) + „Zobacz też” w obie strony
+    // z „instalacja-aplikacji”, „aplikacja-telefon” i „lista-plikow”. modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud_desktop' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł o aplikacji Nextcloud na komputerze',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'aplikacja-komputer');
+            $q = "SELECT a.id FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'chmura-plikow' AND a.slug = ?";
+            $a = db_one($q, ['aplikacja-komputer']);
+            if (!$a) return;
+            foreach (['instalacja-aplikacji', 'aplikacja-telefon', 'lista-plikow'] as $other) {
+                $b = db_one($q, [$other]);
+                if (!$b) continue;
+                foreach ([[(int)$a['id'], (int)$b['id']], [(int)$b['id'], (int)$a['id']]] as [$id, $add]) {
+                    $row = db_one("SELECT related FROM itp_articles WHERE id = ?", [$id]);
+                    $ids = itPortalIds($row['related'] ?? null);
+                    if (!in_array($add, $ids, true)) { $ids[] = $add; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), $id]); }
+                }
+            }
+        },
+    ],
+
 ];

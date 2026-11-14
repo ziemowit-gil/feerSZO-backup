@@ -121,6 +121,9 @@ function itPortalCloudArticles(string $app): array {
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
             'nextcloud, aplikacja, klient, instalacja, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudClientsBlocks($app), $app, true)), false, 20],
+        'aplikacja-komputer' => ['Aplikacja Nextcloud na komputerze: jak z niej korzystać',
+            'aplikacja, komputer, laptop, windows, macos, mac, linux, nextcloud, klient, synchronizacja, folder, eksplorator, finder, zasobnik, pasek menu, ikona, ikony, pliki wirtualne, zwolnij miejsce, zawsze na tym urządzeniu, konflikt, conflicted copy, wstrzymaj, ustawienia, udostępnij, kopiuj link, usuwanie, czytnik ekranu, nvda, jaws, voiceover',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudDesktopBlocks($app), $app)), false, 21],
         'aplikacja-telefon' => ['Aplikacja Nextcloud na telefonie: jak z niej korzystać',
             'aplikacja, telefon, komórka, smartfon, android, iphone, ios, nextcloud, aplikacja mobilna, offline, dostępne offline, automatyczne wysyłanie, zdjęcia, aparat, skanowanie, skan dokumentu, udostępnianie, blokada, kod, odcisk palca, face id, zgubiony telefon, aplikacja pliki, talkback, voiceover, czytnik ekranu, wylogowanie',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudPhoneBlocks($app), $app, true)), false, 22],
@@ -453,6 +456,81 @@ function itPortalCloudListBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Gdy czegoś nie możesz udostępnić albo nie widzisz przycisku z tego opisu, '
             . '<a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Aplikacja Nextcloud na komputerze: jak z niej korzystać” (polecenie 2026-11-14: „opisz też aplikację Nextcloud na komputerze”).
+ * Bez zrzutów; Windows i macOS różnią się wyglądem, więc opis podaje obie drogi i ramkę o różnicach.
+ */
+function itPortalCloudDesktopBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    $cloud = itPortalCloudUrl();
+    $host = (string)(parse_url($cloud, PHP_URL_HOST) ?: $cloud);
+    return [
+        ['type' => 'text', 'html' => '<p>Aplikacja Nextcloud na komputerze łączy chmurę z folderem na dysku. Pliki z chmury widzisz w Eksploratorze plików na Windows '
+            . 'albo w Finderze na Macu i pracujesz na nich jak na zwykłych plikach. Każdą zmianę aplikacja sama wysyła do chmury, a zmiany innych osób pobiera na komputer.</p>'
+            . '<p>Jak zainstalować aplikację i połączyć ją z chmurą, opisuje artykuł <a href="' . $base . 'instalacja-aplikacji">Instalacja aplikacji Nextcloud na komputerze i telefonie</a>. '
+            . 'Przy logowaniu na razie najpierw zobaczysz stronę logowania Nextcloud. Kliknij na niej „Login with logowanie jednokrotne” i zaloguj się na stronie IAM. '
+            . 'Docelowo strona IAM będzie otwierać się od razu.</p>'],
+        ...itPortalCloudDownloadButtons(true, false),
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Aplikacja wygląda trochę inaczej na Windows, macOS i Linuksie, a nazwy pozycji mogą się zmieniać po aktualizacji. '
+            . 'Jeśli czegoś nie widzisz tam, gdzie opisujemy, poszukaj w menu pod prawym przyciskiem myszy albo w ustawieniach aplikacji.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ikona aplikacji</h2>'
+            . '<p>Działająca aplikacja ma ikonę chmurki. Na Windows jest w zasobniku obok zegara. Jeśli jej nie widać, kliknij strzałkę w górę obok zegara, bo Windows chowa część ikon. '
+            . 'Na Macu ikona jest na pasku menu u góry ekranu.</p>'
+            . '<p>Znaczek na ikonie mówi, co się dzieje. Zielony znaczek z ptaszkiem oznacza, że wszystko jest zsynchronizowane. Niebieskie strzałki oznaczają, że pliki właśnie się wysyłają albo pobierają. '
+            . 'Żółty albo pomarańczowy wykrzyknik to ostrzeżenie, na przykład o pliku, którego nie da się wysłać. Czerwony znak oznacza błąd, na przykład brak połączenia albo potrzebę ponownego zalogowania. '
+            . 'Znak pauzy oznacza, że synchronizacja jest wstrzymana.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Okno aplikacji</h2>'
+            . '<p>Kliknij ikonę chmurki, a otworzy się małe okno. Na górze jest Twoje konto i przyciski: otwarcie folderu z plikami na komputerze '
+            . 'i otwarcie chmury w przeglądarce. Niżej jest lista ostatnich zmian, czyli pliki, które aplikacja niedawno wysłała albo pobrała, '
+            . 'oraz powiadomienia, na przykład o tym, że ktoś Ci coś udostępnił. Ostrzeżenia i błędy też pojawiają się na tej liście, z opisem, którego pliku dotyczą.</p>'
+            . '<p>Menu przy nazwie konta albo przycisk z trzema kropkami otwiera ustawienia, wstrzymanie synchronizacji i wylogowanie.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Folder Nextcloud na dysku</h2>'
+            . '<p>Na Windows folder Nextcloud jest w lewym panelu Eksploratora plików. Na Macu znajdziesz go w Finderze na pasku bocznym, w części „Lokalizacje”. '
+            . 'Wszystko, co tam zapiszesz, skopiujesz albo przeciągniesz, trafi do chmury. Program, w którym pracujesz, na przykład Word, zapisuje plik prosto do tego folderu.</p>'
+            . '<p>Przy plikach i folderach są małe znaczki. Zielony ptaszek oznacza, że plik jest na komputerze i w chmurze w tej samej wersji. '
+            . 'Chmurka oznacza, że plik jest tylko w chmurze i pobierze się, gdy go otworzysz. Niebieskie strzałki oznaczają, że plik się właśnie synchronizuje. '
+            . 'Czerwony znak oznacza problem z tym plikiem. Znaczek z osobami pokazuje, że plik albo folder jest udostępniony.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Pliki wirtualne i miejsce na dysku</h2>'
+            . '<p>Jeśli przy instalacji wybrałeś pliki wirtualne, na komputerze widzisz wszystkie pliki z chmury, ale zajmują miejsce dopiero po otwarciu. '
+            . 'Kliknij plik albo folder prawym przyciskiem myszy. „Zawsze przechowuj na tym urządzeniu” pobierze go na stałe, żeby był dostępny bez internetu. '
+            . '„Zwolnij miejsce” usunie kopię z dysku, a plik zostanie w chmurze. Na Macu te polecenia mogą nazywać się „Pobierz teraz” i „Usuń pobraną kopię”.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Udostępnianie z komputera</h2>'
+            . '<p>Kliknij plik albo folder w folderze Nextcloud prawym przyciskiem myszy i wybierz pozycję Nextcloud. Na Windows 11 może być ukryta pod „Pokaż więcej opcji”. '
+            . 'Znajdziesz tam udostępnianie, skopiowanie linku wewnętrznego, otwarcie pliku w przeglądarce i historię zmian. '
+            . 'Udostępnianie działa tak samo jak na stronie, co opisuje artykuł <a href="' . $base . 'lista-plikow">Lista plików: przyciski, ikony i udostępnianie</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ustawienia</h2>'
+            . '<p>W ustawieniach konta wybierzesz, które foldery z chmury mają być na tym komputerze, dodasz kolejny folder do synchronizacji albo wstrzymasz synchronizację, '
+            . 'na przykład na czas pracy przez słabe łącze. W ustawieniach ogólnych włączysz albo wyłączysz uruchamianie aplikacji razem z komputerem i powiadomienia. '
+            . 'W ustawieniach sieci ograniczysz prędkość wysyłania i pobierania.</p>'
+            . '<p>Zostaw uruchamianie razem z komputerem włączone. Gdy aplikacja nie działa, zmiany zostają tylko na Twoim dysku i nikt inny ich nie widzi.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Konflikty i pliki, które się nie wysyłają</h2>'
+            . '<p>Gdy dwie osoby zmienią ten sam plik w tym samym czasie, aplikacja zachowa obie wersje. Obok oryginału pojawi się plik z dopiskiem „conflicted copy” i datą. '
+            . 'Otwórz oba, przenieś potrzebne zmiany do jednego pliku i usuń drugi.</p>'
+            . '<p>Aplikacja pomija pliki tymczasowe, na przykład te, których nazwa zaczyna się od ~$, tworzone przez Worda w czasie pracy. '
+            . 'Nie wyśle też pliku z nazwą, której chmura nie przyjmuje, na przykład ze znakami \\ : * ? " < > |. Ostrzeżenie zobaczysz w oknie aplikacji. Zmień wtedy nazwę pliku.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Plik usunięty z folderu Nextcloud znika też z chmury i u osób, którym go udostępniłeś. Odzyskasz go z kosza na stronie '
+            . '<a href="' . $cloud . '">' . $host . '</a> w „Usuniętych plikach”. Gdy usuwasz naraz dużo plików, aplikacja zapyta, czy na pewno. Przeczytaj to pytanie uważnie.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Odłączenie komputera</h2>'
+            . '<p>Jeśli oddajesz komputer albo korzysta z niego ktoś jeszcze, otwórz ustawienia konta w aplikacji i usuń konto. Odłączasz tylko ten komputer. '
+            . 'Konto i pliki w chmurze zostają. Pliki na dysku mogą zostać w folderze Nextcloud, więc usuń je ręcznie, jeśli nie mają tam zostać.</p>'
+            . '<p>Po zmianie hasła IAM aplikacja poprosi o ponowne zalogowanie. To normalne.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Ikona ciągle pokazuje błąd albo synchronizacja stoi od dawna? Sprawdź, czy masz najnowszą wersję aplikacji ze strony Nextcloud. '
+            . 'Jeśli to nie pomoże, <a href="' . $hd . '">napisz do Helpdesku IT</a>, podaj system komputera i przepisz komunikat z okna aplikacji.</p>'],
     ];
 }
 
