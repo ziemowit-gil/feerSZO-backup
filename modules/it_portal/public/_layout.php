@@ -31,9 +31,9 @@ function itPortalPageStart(string $title, string $active = '', string $descripti
         // „jako submenu, pamiętaj o WCAG”): przenosiny poczty i reset haseł prowadzą do stron, na których się to robi, aktywacja do instrukcji
         // (konto aktywuje się na stronie logowania SZO). Wzorzec „disclosure” na <details>/<summary>: działa z klawiatury i bez JS.
         'skroty'     => ['Na skróty', '', [
-            ['Migracja', rtrim(APP_URL, '/') . '/migracjapoczty', 'Przeniesienie poczty na nowy serwer'],
-            ['Aktywacja', itPortalUrl('uslugi/moj-login/aktywacja-konta'), 'Jak aktywować konto w SZO'],
-            ['Reset hasła', rtrim(APP_URL, '/') . '/nowehaslo', 'Nowe hasło do poczty albo do logowania IAM'],
+            ['Migracja', rtrim(APP_URL, '/') . '/migracjapoczty'],
+            ['Aktywacja', itPortalUrl('uslugi/moj-login/aktywacja-konta')],
+            ['Reset hasła', rtrim(APP_URL, '/') . '/nowehaslo'],
         ]],
     ];
     ?><!DOCTYPE html>
@@ -72,8 +72,8 @@ function itPortalPageStart(string $title, string $active = '', string $descripti
           <details class="itp-sub">
             <summary><?= h($label) ?><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
             <ul class="itp-sub__list">
-              <?php foreach ($kids as [$kl, $kh, $kd]): ?>
-              <li><a href="<?= h($kh) ?>"><?= h($kl) ?><span class="itp-sr">, </span><span class="itp-sub__d"><?= h($kd) ?></span></a></li>
+              <?php foreach ($kids as [$kl, $kh]): ?>
+              <li><a href="<?= h($kh) ?>"><?= h($kl) ?></a></li>
               <?php endforeach; ?>
             </ul>
           </details>
