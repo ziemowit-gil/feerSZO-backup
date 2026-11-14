@@ -4,6 +4,8 @@
  * (/uslugi-it/uslugi/migracja/terminologia). Polecenie 2026-11-13: „Nowy artykuł - terminologia”; doprecyzowanie:
  * „SZO - Panel Współpracownika lub System Zarządzania Organizacją, ale to to samo”.
  *
+ * 2026-11-14: dopisane UID, Entra ID i „Identyfikator obiektu Entra ID” (polecenie „do pojęć dopisz UID i Entra ID identyfikator obiektu”).
+ *
  * Słowniczek pojęć z artykułów o migracji, poczcie i logowaniu, wyjaśnionych prostym językiem. Nazwy i adresy zgodne
  * z innymi artykułami portalu (itPortalMigracjaSeed, itPortalDpocztaSeed, itPortalFirstLoginSeed).
  * Nadpisuje treść, tytuł i słowa kluczowe; zostawia id, przypięcie, publikację, powiązane i kolejność. Nowy artykuł trafia
@@ -25,7 +27,7 @@ function itPortalGlossaryApply(string $app, bool $dryRun = false): array {
     $sort = $old ? (int)$old['sort_order'] : (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_articles WHERE category_id = ?", [$catId])['m'] ?? 0) + 10;
     itPortalArticleSave([
         'title' => $title, 'slug' => 'terminologia', 'category_id' => $catId,
-        'keywords' => 'terminologia, słowniczek, słownik, pojęcia, skróty, co to jest, SZO, Panel Współpracownika, System Zarządzania Organizacją, IAM, SSO, logowanie jednokrotne, '
+        'keywords' => 'terminologia, słowniczek, słownik, pojęcia, skróty, co to jest, SZO, Panel Współpracownika, System Zarządzania Organizacją, UID, Entra ID, identyfikator obiektu, IAM, SSO, logowanie jednokrotne, '
                     . 'CPL, System Tożsamości, chmura, Nextcloud, OneDrive, dpoczta, webmail, IMAP, SMTP, POP3, 2FA, Helpdesk, Microsoft 365, migracja, vendor lock-in, phishing',
         'blocks' => json_encode(itPortalGlossaryBlocks($app), JSON_UNESCAPED_UNICODE),
         'related' => $old ? (json_decode((string)$old['related'], true) ?: []) : [],
@@ -55,6 +57,10 @@ function itPortalGlossaryBlocks(string $app): array {
             ['Helpdesk IT', 'miejsce w SZO, w którym zgłaszasz problem albo prośbę do działu IT. Każde zgłoszenie ma numer i historię odpowiedzi. <a href="' . $hd . '">Nowe zgłoszenie</a>.'],
             ['CPL', 'Centralny Portal Logowania, czyli strona logowania SZO. Pozwala też wybrać, do którego profilu chcesz wejść.'],
             ['System Tożsamości', 'część SZO z ustawieniami Twojego konta (<a href="' . $app . '/tozsamosc/index.php">/tozsamosc</a>): hasła, logowanie jednokrotne, urządzenia i bezpieczeństwo konta.'],
+            ['UID', 'Twój stały numer w Fundacji (skrót od angielskiego <span lang="en">User ID</span>). Dostajesz go przy zawarciu pierwszej umowy i zostaje z Tobą na stałe, nawet gdy zmienia się e-mail albo umowa. '
+                . 'Znajdziesz go w Systemie Tożsamości, w sekcji Dane konta.'],
+            ['Entra ID', 'usługa Microsoftu, która przechowuje konta i hasła do Microsoft 365 (wcześniej Azure Active Directory). Do niedawna działał na niej System Tożsamości. Teraz jej rolę przejmuje konto IAM.'],
+            ['Identyfikator obiektu Entra ID', 'długi ciąg liter i cyfr, którym Microsoft oznacza Twoje konto w Entra ID. Widać go w Systemie Tożsamości, w Danych konta. To ślad po Microsoft 365, nie musisz nic z nim robić.'],
         ]),
 
         $group('Logowanie i hasła', [
