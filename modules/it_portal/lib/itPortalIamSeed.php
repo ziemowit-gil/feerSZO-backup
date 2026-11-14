@@ -3,9 +3,12 @@
  * modules/it_portal/lib/itPortalIamSeed.php — artykuł „IAM: czym jest i jakie są moje dane logowania” w usłudze „Mój login”
  * (polecenie 2026-11-14: „o IAM opisz i jakie są moje dane do IAM”). Źródła: modules/sso_logto/view/userSection.php (sekcja #sso
  * w Tożsamości: login = adres e-mail z SZO, hasło min. 10 znaków wybierane samodzielnie, SZO go nie zapisuje; poczta osobno),
- * loginPrompt.php (/sso/start po zalogowaniu, login e-mail albo zapasowy login), modules/nowe_haslo (/nowehaslo, hasła startowe
+ * loginPrompt.php (/sso/start po zalogowaniu, login e-mail albo nazwa użytkownika z „_”), modules/nowe_haslo (/nowehaslo, hasła startowe
  * z SMS-a, po 7 dniach wymuszona zmiana), artykuł migracja/iam-i-poczta. Ramka ITP_STAN_NA z itPortalLogowanieSzoSeed.php.
  * Używa migracja '2026-11_it_portal_iam'.
+ * 2026-11-14: Logto przyjmuje e-mail ALBO nazwę użytkownika (SsoAccounts::usernameBase: litery, cyfry, „_”, więc jan.kowalski →
+ * jan_kowalski); chmura zostawia uid z kropką (customData.nc_uid). Pełne wyjaśnienie „Skąd kreska dolna” jest tylko tutaj,
+ * inne artykuły linkują. Migracja '2026-11_it_portal_logto_logowanie'.
  */
 
 require_once __DIR__ . '/itPortalLogowanieSzoSeed.php';
@@ -61,10 +64,15 @@ function itPortalIamBlocks(string $app): array {
 
         ['type' => 'text', 'html' => '<h2>Jakie są moje dane do IAM</h2><ul>'
             . '<li>Login to Twój adres e-mail zapisany w SZO. Zwykle jest to adres służbowy imie.nazwisko@feer.org.pl. Jeśli nie masz poczty służbowej, na przykład jako zleceniobiorca, loginem jest prywatny adres e-mail z umowy.</li>'
-            . '<li>Przy zakładaniu konta ekran może podać też zapasowy login, na przykład imie.nazwisko. Zapisz go, przyda się przy logowaniu do chmury plików.</li>'
+            . '<li>Na stronie logowania jednokrotnego możesz wpisać ten adres e-mail albo krótszy login z kreską dolną, na przykład jan_kowalski. Hasło jest w obu przypadkach to samo.</li>'
             . '<li>Hasło wybierasz sam przy zakładaniu konta. Ma co najmniej 10 znaków. Fundacja go nie zna i nie przechowuje.</li>'
             . '<li>Jeśli konto założyliśmy za Ciebie, dostałeś SMS-em hasło startowe. Zmień je w ciągu 7 dni, potem SZO samo poprosi o zmianę.</li></ul>'
-            . '<p>To samo hasło działa w IAM i w chmurze plików. Hasło do poczty jest inne i musi takie zostać.</p>'],
+            . '<p>To samo hasło działa w IAM i w chmurze plików. Hasło do poczty jest inne i musi takie zostać.</p>'
+            . '<h3>Skąd kreska dolna w loginie</h3>'
+            . '<p>Login w logowaniu jednokrotnym może mieć tylko litery, cyfry i kreskę dolną. Dlatego SZO przy zakładaniu konta zamienia kropkę z adresu na „_”: '
+            . 'z jan.kowalski@feer.org.pl robi się login jan_kowalski. Polskie litery zamienia na zwykłe, więc z „ł” robi się „l”.</p>'
+            . '<p>Chmura plików zostawia login z kropką, jan.kowalski. Widzisz go w chmurze przy swoim nazwisku. Gdy logujesz się przyciskiem logowania jednokrotnego, '
+            . 'wpisujesz adres e-mail albo jan_kowalski. W formularzu samej chmury, w polu „Nazwa konta lub e-mail”, działa jan.kowalski albo adres e-mail.</p>'],
 
         ['type' => 'wizard', 'title' => 'Jak sprawdzić swoje dane', 'intro' => '', 'steps' => [
             $step('Zaloguj się do SZO', '<p>Wejdź na <a href="' . $login . '">stronę logowania</a> i zaloguj się przyciskiem „Zaloguj przez logowanie jednokrotne” albo e-mailem i hasłem.</p>'),

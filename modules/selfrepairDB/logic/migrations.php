@@ -2383,4 +2383,26 @@ return [
         },
     ],
 
+
+    // Logto przyjmuje adres e-mail albo login z kreską dolną (jan_kowalski) przy tym samym haśle (polecenie 2026-11-14).
+    // Artykuły dla osób: pełne wyjaśnienie „Skąd kreska dolna” w moj-login/iam, odnośniki w logowanie-jednokrotne i chmura-plikow/logowanie,
+    // poprawki w migracja/iam-i-hasla, tabeli loginów w usłudze „Migracja” i ściądze koordynatorów. Dla IT artykuł
+    // „Logto: strona logowania (metody, podpowiedź, teksty, wygląd)” w „Polecenia administracyjne”.
+    '2026-11_it_portal_logto_logowanie' => [
+        'desc' => 'Portal Usług IT: logowanie jednokrotne adresem e-mail albo loginem z kreską dolną, artykuł IT o stronie logowania Logto',
+        'run'  => static function () use ($ROOT): void {
+            $L = $ROOT . '/modules/it_portal/lib/';
+            require_once $L . 'itPortalSzoLinks.php';
+            foreach (['itPortalLogowanieSzoSeed.php', 'itPortalIamSeed.php', 'itPortalSsoSekcjaSeed.php', 'itPortalMigracjaIamSeed.php',
+                      'itPortalMigracjaSeed.php', 'itPortalCloudSeed.php', 'itPortalPoleceniaItSeed.php'] as $f) require_once $L . $f;
+            itPortalIamApply(ITP_SZO_URL);
+            itPortalSsoSekcjaApply(ITP_SZO_URL);
+            itPortalMigracjaIamApply(ITP_SZO_URL);
+            itPortalMigracjaApply(ITP_SZO_URL);
+            itPortalCloudArticleApply(ITP_SZO_URL, 'logowanie');
+            itPortalCloudCoordApply(ITP_SZO_URL);
+            itPortalPoleceniaItApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

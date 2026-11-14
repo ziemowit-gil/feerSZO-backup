@@ -413,6 +413,72 @@ function itPortalPoleceniaItArticles(string $app): array {
                 . 'Hasło do poczty jest zawsze inne niż hasło do SZO i do logowania jednokrotnego, a wysyłamy je tylko SMS-em.</p>'),
         ], false],
 
+        // Polecenie 2026-11-14: Logto przyjmuje e-mail albo nazwę użytkownika (jan_kowalski), podpowiedź w customContent, frazy pl-PL i en,
+        // ramka „Ważne” zniknęła z Custom CSS. Stan sprawdzony GET /api/sign-in-exp i /api/custom-phrases 2026-11-14.
+        'logto-strona-logowania' => ['Logto: strona logowania (metody, podpowiedź, teksty, wygląd)',
+            'logto, logto.feer.org.pl, logowanie jednokrotne, sso, iam, strona logowania, sign-in experience, sign-in-exp, customcontent, custom content, '
+            . 'custom phrases, frazy, etykiety pól, tłumaczenie, custom css, branding, wygląd, nazwa użytkownika, username, login, e-mail, kreska dolna, kopia, przywracanie', [
+            $text('<p>Stronę logowania pod adresem logto.feer.org.pl ustawiamy przez Management API Logto, wywołaniami z SZO przez '
+                . '<code>SsoConfig::logto()-&gt;request()</code>. Wyjątkiem jest wygląd, który wklejasz ręcznie w konsoli Logto. '
+                . 'Poniżej jest stan z 14 listopada 2026 r. i sposób na każdą zmianę.</p>'
+                . '<p>Wywołania API robisz krótkim skryptem PHP. Zapisz go na serwerze, na przykład jako <code>~/logto_tmp.php</code>, uruchom i od razu usuń:</p>'
+                . $pre("<?php\nchdir(getenv('HOME') . '/feerSZO');\nrequire 'config.php'; require 'includes/db.php'; require 'includes/functions.php';\n"
+                     . "require_once 'modules/sso_logto/lib/SsoConfig.php';\n\$api = SsoConfig::logto();\n"
+                     . "echo json_encode(\$api->request('GET', '/api/sign-in-exp')['signIn'], JSON_PRETTY_PRINT), \"\\n\";")
+                . $pre("ssh mydevil 'php ~/logto_tmp.php && rm ~/logto_tmp.php'")),
+            $text('<h2>Metody logowania</h2>'
+                . '<p>Działają dwie metody, obie z hasłem i bez kodów weryfikacyjnych: adres e-mail i nazwa użytkownika. W pole logowania można więc wpisać '
+                . 'jan.kowalski@feer.org.pl albo jan_kowalski. Nazwę użytkownika tworzy SZO w <code>SsoAccounts::usernameBase()</code>. '
+                . 'Logto przyjmuje w niej tylko litery, cyfry i „_”, więc kropka z adresu zamienia się na kreskę dolną, a polskie litery na zwykłe.</p>'
+                . '<p>Chmura plików ma login z kropką, jan.kowalski. Logto przekazuje go do Nextclouda w <code>customData.nc_uid</code>.</p>'
+                . '<p>Tryb strony to <code>SignInAndRegister</code>, więc pod formularzem jest link „Utwórz konto”. Konto założone tym linkiem nie ma powiązania z SZO '
+                . 'ani grup w chmurze, dlatego artykuły dla osób każą go nie używać.</p>'),
+            $text('<h2>Podpowiedź nad formularzem</h2>'
+                . '<p>Ramka „Jak się zalogować” to pole <code>customContent</code> w ustawieniach strony logowania. To zwykły HTML ze stylami w atrybutach '
+                . '<code>style</code>, bo Logto nie podpina do niego żadnego arkusza. Ten sam HTML jest przypisany do czterech ścieżek: '
+                . '<code>/sign-in</code>, <code>/sign-in/email</code>, <code>/sign-in/password</code> i <code>/sign-in/username</code>. '
+                . 'Bez którejś z nich ramka zniknęłaby po przejściu do kroku z hasłem.</p>'
+                . '<p>Logto pokazuje tę ramkę tylko na szerokim ekranie, na telefonie jej nie ma. Dlatego to, co najważniejsze, mówią też etykiety pól.</p>'
+                . $pre("\$html = '<section aria-labelledby=\"feer-hint-h\">…</section>';   // pełny HTML ze stylami: GET /api/sign-in-exp\n"
+                     . "\$paths = ['/sign-in', '/sign-in/email', '/sign-in/password', '/sign-in/username'];\n"
+                     . "\$api->request('PATCH', '/api/sign-in-exp', ['customContent' => array_fill_keys(\$paths, \$html)]);")),
+            $text('<h2>Teksty na stronie</h2>'
+                . '<p>Napis nad formularzem i etykiety pól to własne frazy Logto. Język strony jest ustawiony na stałe na polski, bez rozpoznawania języka przeglądarki. '
+                . 'Frazy są w dwóch zestawach, <code>pl-PL</code> i <code>en</code>. W polskim:</p><ul>'
+                . '<li><code>description.sign_in_to_your_account</code>: Zaloguj się do usług Fundacji FEER</li>'
+                . '<li><code>input.email</code>: E-mail (jan.kowalski@feer.org.pl)</li>'
+                . '<li><code>input.username</code>: login (jan_kowalski)</li>'
+                . '<li><code>input.password</code>: Hasło logowania jednokrotnego</li></ul>'
+                . '<p>Gdy pole przyjmuje e-mail i login, Logto łączy obie etykiety ukośnikiem. Osoba widzi więc „E-mail (jan.kowalski@feer.org.pl) / login (jan_kowalski)”.</p>'
+                . '<p><code>PUT /api/custom-phrases/pl-PL</code> zastępuje cały zestaw języka, a w polskim są też frazy Centrum konta. '
+                . 'Dlatego najpierw pobierz zestaw, zmień tylko potrzebny klucz i wyślij całość:</p>'
+                . $pre("\$pl = \$api->request('GET', '/api/custom-phrases/pl-PL')['translation'];\n"
+                     . "\$pl['input']['username'] = 'login (jan_kowalski)';\n"
+                     . "\$api->request('PUT', '/api/custom-phrases/pl-PL', \$pl);")
+                . '<p>Z zestawem <code>en</code> postępujesz tak samo.</p>'),
+            $text('<h2>Kopia i przywracanie</h2>'
+                . '<p>Przed zmianami z 14 listopada 2026 r. ustawienia strony logowania zapisaliśmy w pliku <code>/home/feer/logto_sign_in_exp_backup_20261114.json</code>. '
+                . 'W tamtym stanie działała tylko nazwa użytkownika, a podpowiedź była na trzech ścieżkach. Powrót do niego:</p>'
+                . $pre("\$old = json_decode(file_get_contents('/home/feer/logto_sign_in_exp_backup_20261114.json'), true);\n"
+                     . "\$keep = ['signIn', 'signUp', 'signInMode', 'customContent', 'customCss', 'languageInfo'];\n"
+                     . "\$api->request('PATCH', '/api/sign-in-exp', array_intersect_key(\$old, array_flip(\$keep)));")
+                . '<p>Frazy nie są w tej kopii. Cofasz je osobno, usuwając klucze z zestawu i wysyłając go jak wyżej. '
+                . 'Przed każdą większą zmianą zrób nową kopię:</p>'
+                . $pre("file_put_contents(getenv('HOME') . '/logto_sign_in_exp_backup_' . date('Ymd_His') . '.json',\n"
+                     . "    json_encode(\$api->request('GET', '/api/sign-in-exp'), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));")),
+            $text('<h2>Wygląd</h2>'
+                . '<p>Arkusz stylów wklejasz w konsoli Logto: Sign-in experience, zakładka Branding, pole Custom CSS. Strona jest biała, bez górnego paska, '
+                . 'z ostrymi rogami. Pola mają ramkę 2 px w kolorze #8a8a8a, przycisk i linki kolor #0f6fa8, a fokus żółty obrys #fbbf24.</p>'
+                . '<p>W arkuszu nie ma już ramki „Ważne”. Podpowiedź daje <code>customContent</code> jako prawdziwy HTML z nagłówkiem, który czytniki ekranu czytają normalnie, '
+                . 'a ramka z CSS powtarzała ją drugi raz.</p>'),
+            $warn('<p>Logto nadaje elementom klasy z losową końcówką, dlatego arkusz wybiera je wzorcami w rodzaju <code>[class*=\'main\']</code>. '
+                . 'Po każdej aktualizacji Logto otwórz stronę logowania z SZO albo z chmury i sprawdź wygląd. Jeśli się rozjechał, znajdź w narzędziach przeglądarki '
+                . 'nowe nazwy klas i popraw selektory.</p>'),
+            $info('<p>Dla osób całość, razem z tym, skąd kreska dolna w loginie, opisuje artykuł '
+                . '<a href="' . $app . '/uslugi-it/uslugi/moj-login/iam">IAM: czym jest i jakie są moje dane logowania</a>. '
+                . 'Logowanie do SZO ma tę samą podpowiedź w ramce „Ważne” pod przyciskiem logowania jednokrotnego (<code>auth/login.php</code>).</p>'),
+        ], false],
+
         'tresci-pomocy-it' => ['Treści Pomocy IT z poleceń',
             'pomoc it, portal usług it, uslugi-it, seed, zasiew, artykuły, it_portal, migracja, aktualizacja treści', [
             $text('<p>Część artykułów Pomocy IT powstaje z kodu. Każdy taki zestaw ma polecenie, które zapisuje treść od nowa, '

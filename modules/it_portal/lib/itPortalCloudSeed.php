@@ -9,7 +9,8 @@
  * artykułach mówi już, że chmura obsługuje IAM (wcześniej: „Docelowo chmurę obsłuży IAM”). Migracja '2026-11_it_portal_cloud_iam'.
  *
  * Fakty zgodne z kodem na 2026-11-13: adres chmury z SsoConfig::cloudUrl() (produkcja https://nc.feer.org.pl), login
- * imie.nazwisko albo adres e-mail, hasło IAM (inne niż do poczty), konto zakładane po zalogowaniu do SZO (/sso/start)
+ * w chmurze imie.nazwisko albo adres e-mail, na stronie Logto adres e-mail albo imie_nazwisko (od 2026-11-14), hasło IAM (inne niż do
+ * poczty), konto zakładane po zalogowaniu do SZO (/sso/start)
  * albo w Systemie Tożsamości (#sso), kopia OneDrive w folderze „OneDrive” (SsoAccounts::cloudMail, CloudFilesCopy),
  * zmiana hasła na /nowehaslo. Limitu miejsca celowo nie podajemy (ustawienie sso_cloud_quota może się zmieniać).
  *
@@ -358,13 +359,14 @@ function itPortalCloudLoginBlocks(string $app): array {
             . 'i przestałoby pasować do SZO. Hasło IAM zmienisz albo odzyskasz na stronie <a href="' . $nh . '">Nowe hasło</a>, potwierdzając zmianę kodem.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Krok 2: strona logowania IAM</h2>'
-            . '<p>Druga strona jest biała, z logo Fundacji i napisem „Zaloguj się do swojego konta”. Jej adres zaczyna się od logto.feer.org.pl. Ta strona otwiera się sama po kliknięciu przycisku logowania jednokrotnego. Adres wpisany ręcznie albo zapisany w zakładkach pokaże błąd „404 Nie znaleziono”. '
+            . '<p>Druga strona jest biała, z logo Fundacji i napisem „Zaloguj się do usług Fundacji FEER”. Jej adres zaczyna się od logto.feer.org.pl. Ta strona otwiera się sama po kliknięciu przycisku logowania jednokrotnego. Adres wpisany ręcznie albo zapisany w zakładkach pokaże błąd „404 Nie znaleziono”. '
             . 'Na dole jest dopisek „Powered by Logto”, to nazwa programu, który obsługuje logowanie.</p>'
-            . '<p>W pole „Nazwa użytkownika” wpisz pełny adres e-mail, ten sam co do SZO. W pole „Hasło” wpisz hasło IAM i kliknij „Zaloguj się”. '
-            . 'Jeśli zobaczysz komunikat, że nazwa użytkownika jest nieprawidłowa, sprawdź, czy wpisałeś cały adres razem z częścią po znaku @.</p>'
+            . '<p>W pole „E-mail (jan.kowalski@feer.org.pl) / login (jan_kowalski)” wpisz adres e-mail, ten sam co do SZO, albo login z kreską dolną. '
+            . 'W pole „Hasło logowania jednokrotnego” wpisz hasło IAM i kliknij „Zaloguj się”. Skąd kreska dolna w loginie, wyjaśnia artykuł '
+            . '<a href="' . $app . '/uslugi-it/uslugi/moj-login/iam">IAM: czym jest i jakie są moje dane logowania</a>.</p>'
             . '<p>Linku „Utwórz konto” nie używaj. Konto w chmurze zakłada SZO i tylko takie konto ma Twoje grupy i wspólne foldery. '
             . 'Jeśli nie masz jeszcze konta, zaproponuje je panel SZO przy logowaniu.</p>'],
-        ...itPortalCloudShot('nc-logowanie-iam.jpg', 'Strona logowania IAM: logo FEER, napis Zaloguj się do swojego konta, pola Nazwa użytkownika i Hasło, przycisk Zaloguj się, link Utwórz konto, na dole Powered by Logto',
+        ...itPortalCloudShot('nc-logowanie-iam.jpg', 'Strona logowania IAM: logo FEER, napis Zaloguj się do usług Fundacji FEER, pola E-mail / login i Hasło logowania jednokrotnego, przycisk Zaloguj się, link Utwórz konto, na dole Powered by Logto',
             'Strona logowania IAM pod adresem logto.feer.org.pl.'),
 
         ['type' => 'text', 'html' => '<h2>Wylogowanie</h2>'
@@ -1228,7 +1230,7 @@ function itPortalCloudCoordCheatSheet(string $app): array {
 
         ['type' => 'text', 'html' => '<h2>Ściąga: najczęstsze pytania</h2>'
             . '<p>„Nie mogę się zalogować.” Na razie logowanie ma dwa kroki: strona Nextcloud, przycisk „Login with logowanie jednokrotne”, potem strona IAM. '
-            . 'W polu „Nazwa użytkownika” trzeba wpisać pełny adres e-mail. Zapomniane hasło zmienia się na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, '
+            . 'Na stronie IAM wpisuje się adres e-mail albo login z kreską dolną, na przykład jan_kowalski. Zapomniane hasło zmienia się na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, '
             . 'nigdy linkiem „Zapomniałeś hasła?” w chmurze. Wyślij: ' . $a('logowanie', 'Logowanie do chmury plików') . '.</p>'
             . '<p>„Nie widzę folderu grupy.” Sprawdź u siebie okno „Problemy z przypisaniami” i przypisanie tej osoby w SZO. Po poprawce grupa zmieni się w ciągu 2 minut. '
             . 'Folder pojawi się w „Wszystkich plikach”, a czasem najpierw w „Oczekujących udostępnieniach”. Wyślij: ' . $a('grupy', 'Grupy w chmurze') . '.</p>'

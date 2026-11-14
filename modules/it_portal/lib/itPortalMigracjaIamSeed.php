@@ -69,7 +69,7 @@ function itPortalMigracjaIamBlocks(string $app): array {
         ['type' => 'text', 'html' => '<h2>Jak się nie pogubić w hasłach i loginach</h2>'
             . '<p>Ściągawka. Loginem prawie wszędzie jest Twój adres e-mail, zmieniają się tylko hasła.</p><ul>'
             . '<li>Poczta: login to pełny adres imie.nazwisko@feer.org.pl, hasło to hasło do poczty. Wpisujesz je na dpoczta.pl, w telefonie i w programie pocztowym.</li>'
-            . '<li>SZO, chmura plików i inne aplikacje Fundacji: login to adres e-mail zapisany w SZO albo zapasowy login imie.nazwisko, hasło to hasło IAM. Do SZO wchodzisz przyciskiem „Zaloguj przez logowanie jednokrotne”.</li>'
+            . '<li>SZO, chmura plików i inne aplikacje Fundacji: login to adres e-mail zapisany w SZO albo login z kreską dolną, na przykład jan_kowalski, hasło to hasło IAM. Do SZO wchodzisz przyciskiem „Zaloguj przez logowanie jednokrotne”.</li>'
             . '<li>Zleceniobiorcy bez poczty służbowej logują się do SZO prywatnym adresem e-mail z umowy.</li></ul>'
             . '<p>Kilka prostych zasad:</p><ul>'
             . '<li>Zapamiętaj regułę: poczta ma swoje hasło, a wszystko inne hasło IAM.</li>'

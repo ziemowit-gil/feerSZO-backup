@@ -53,7 +53,8 @@ function itPortalSsoSekcjaBlocks(string $app): array {
             . '<li>Nie masz konta: zobaczysz formularz do założenia konta. Login to Twój adres e-mail z SZO, a hasło wymyślasz sam.</li>'
             . '<li>Masz konto: zobaczysz swój login, datę ustawienia hasła, datę ostatniego logowania i informację o koncie w chmurze plików, z odnośnikiem „Otwórz chmurę”.</li>'
             . '<li>Jeśli zamiast formularza jest prośba o kontakt z Helpdeskiem, konto zakłada administrator. Wtedy <a href="' . $hd . '">napisz do Helpdesku IT</a>.</li></ul>'
-            . '<p>Login może mieć dwie formy, na przykład imie.nazwisko albo pełny adres e-mail. Obie działają.</p>'],
+            . '<p>Na stronie logowania jednokrotnego wpisujesz adres e-mail albo login z kreską dolną, na przykład jan_kowalski. Hasło jest to samo. '
+            . 'Skąd kreska dolna zamiast kropki, wyjaśnia artykuł <a href="' . $b . 'iam">IAM: czym jest i jakie są moje dane logowania</a>.</p>'],
 
         ['type' => 'wizard', 'title' => 'Załóż konto IAM', 'intro' => '', 'steps' => [
             $step('Otwórz sekcję', '<p>Zaloguj się do SZO i otwórz <a href="' . $sso . '">Logowanie jednokrotne w Systemie Tożsamości</a>.</p>'),

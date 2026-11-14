@@ -102,7 +102,7 @@ function itPortalMigracjaArticles(string $app): array {
                 . '<p>5 GB wystarcza na lata zwykłej korespondencji, jeśli duże pliki wysyłasz linkiem z chmury zamiast załącznika. Więcej wyjaśnia artykuł <a href="' . $app . '/uslugi-it/uslugi/migracja/migracja-poczty-krok-po-kroku">Migracja poczty krok po kroku</a>.</p>'],
             ['type' => 'text', 'html' => '<h2>Loginy i hasła</h2>'
                 . '<table><thead><tr><th>Gdzie</th><th>Login</th><th>Hasło</th></tr></thead><tbody>'
-                . '<tr><td>IAM (logowanie jednokrotne)</td><td>Twój adres e-mail z SZO</td><td>hasło IAM</td></tr>'
+                . '<tr><td>IAM (logowanie jednokrotne)</td><td>Twój adres e-mail z SZO albo login <code>imie_nazwisko</code></td><td>hasło IAM</td></tr>'
                 . '<tr><td>Chmura plików</td><td>Twój adres e-mail albo login <code>imie.nazwisko</code></td><td>to samo hasło IAM</td></tr>'
                 . '<tr><td>SZO</td><td>Twój adres e-mail</td><td>przycisk „Zaloguj przez logowanie jednokrotne” albo hasło do SZO; od 1 grudnia hasło IAM</td></tr>'
                 . '<tr><td>Poczta</td><td><code>imie.nazwisko@feer.org.pl</code></td><td>osobne hasło do poczty</td></tr>'
