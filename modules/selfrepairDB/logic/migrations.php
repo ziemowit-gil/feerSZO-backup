@@ -2311,4 +2311,16 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Polecenia administracyjne” (tylko dla IT): artykuł „Skrót mydevil w poleceniach ssh” (skąd się bierze
+    // ssh mydevil: własny klucz, wpis w ~/.ssh/config, klucz w authorized_keys, odebranie dostępu) i odnośnik w „Jak uruchamiać”.
+    // Polecenie użytkownika 2026-11-14 „Zrób artykuł dla IT: skąd wziąć ten prefix mydevil w ssh”. Seed nadpisuje artykuły usługi.
+    '2026-11_it_portal_polecenia_it_ssh' => [
+        'desc' => 'Portal Usług IT: artykuł „Skrót mydevil w poleceniach ssh” w usłudze „Polecenia administracyjne”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPoleceniaItSeed.php';
+            itPortalPoleceniaItApply(ITP_SZO_URL);   // ręcznie: php cli/it_portal_polecenia_it_seed.php
+        },
+    ],
+
 ];

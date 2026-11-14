@@ -91,7 +91,8 @@ function itPortalPoleceniaItArticles(string $app): array {
         'jak-uruchamiac' => ['Jak uruchamiać polecenia na serwerze SZO',
             'serwer, ssh, mydevil, terminal, konsola, cli, polecenie, skrypt, dry-run, podgląd, wdrożenie, git, feerSZO', [
             $text('<p>SZO działa na serwerze MyDevil (s89.mydevil.net, konto feer). Kod jest w katalogu <code>~/feerSZO</code> '
-                . 'i obsługuje domeny szo, kursant i ti.feer.org.pl. Na komputerze z kluczem SSH skrót <code>mydevil</code> prowadzi od razu na to konto, '
+                . 'i obsługuje domeny szo, kursant i ti.feer.org.pl. Na komputerze z kluczem SSH skrót <code>mydevil</code> prowadzi od razu na to konto '
+                . '(jak go ustawić, opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/' . ITP_POLECENIA_SLUG . '/skrot-mydevil">Skrót mydevil w poleceniach ssh</a>), '
                 . 'więc każde polecenie z tej usługi wpisujesz w terminalu na swoim komputerze w takiej postaci:</p>'
                 . $pre("ssh mydevil 'cd ~/feerSZO && php cli/nazwa.php --dry-run'")
                 . '<p>Polecenia Nextclouda (<code>occ</code>) uruchamiasz tak samo, tylko bez przechodzenia do katalogu SZO:</p>'
@@ -108,6 +109,67 @@ function itPortalPoleceniaItArticles(string $app): array {
             $warn('<p>MyDevil na chwilę blokuje połączenia SSH, gdy jest ich dużo w krótkim czasie. Kilka poleceń połącz w jednym wywołaniu, '
                 . 'oddzielając je <code>&amp;&amp;</code>, zamiast łączyć się z serwerem kilka razy pod rząd.</p>'),
         ], true],
+
+        'skrot-mydevil' => ['Skrót mydevil w poleceniach ssh',
+            'ssh, mydevil, skrót, alias, config, .ssh, klucz, ssh-keygen, authorized_keys, s89, feer, terminal, powershell, windows, mac, '
+            . 'permission denied, publickey, could not resolve hostname, dostęp do serwera, nowy komputer, odebranie dostępu', [
+            $text('<p>W poleceniach z tej usługi po <code>ssh</code> stoi słowo <code>mydevil</code>. To skrót, który każdy ustawia sobie sam '
+                . 'na swoim komputerze, w pliku konfiguracyjnym SSH. Mówi programowi ssh, z którym serwerem ma się połączyć (s89.mydevil.net), '
+                . 'na jakie konto (feer) i którym kluczem. Serwera o nazwie mydevil w internecie nie ma, więc na komputerze bez tego wpisu polecenie nie zadziała.</p>'
+                . '<p>Bez skrótu to samo polecenie wygląda tak:</p>'
+                . $pre("ssh -i ~/.ssh/mydevil_feer_ed25519 feer@s89.mydevil.net 'cd ~/feerSZO && git log -1 --oneline'")
+                . '<p>Żeby polecenia z artykułów dało się wklejać bez zmian, ustaw skrót pod tą samą nazwą. Potrzebujesz własnego klucza SSH, '
+                . 'wpisu w pliku konfiguracyjnym i dopisania klucza na serwerze. Całość zajmuje kilka minut.</p>'),
+            $text('<h2>1. Własny klucz SSH</h2>'
+                . '<p>Klucz tworzysz raz, na komputerze, z którego będziesz pracować. W terminalu (na Macu aplikacja Terminal, w Windows PowerShell) wpisz:</p>'
+                . $pre('ssh-keygen -t ed25519 -f ~/.ssh/mydevil_feer_ed25519 -C "Jan Kowalski, laptop"')
+                . '<p>W PowerShell zamiast <code>~/.ssh/</code> wpisz <code>$HOME\.ssh\</code>, czyli <code>-f $HOME\.ssh\mydevil_feer_ed25519</code>.</p>'
+                . '<p>Zamiast „Jan Kowalski, laptop” wpisz swoje imię i nazwisko oraz nazwę komputera. Po tym opisie łatwo później znaleźć Twój klucz na serwerze. '
+                . 'Program zapyta jeszcze o hasło do klucza. Ustaw je, wtedy kopia pliku zabrana z Twojego komputera nikomu się nie przyda.</p>'
+                . '<p>Powstaną dwa pliki. <code>mydevil_feer_ed25519</code> to klucz prywatny, który zostaje na Twoim komputerze. '
+                . '<code>mydevil_feer_ed25519.pub</code> to klucz publiczny i ten możesz przekazać dalej.</p>'),
+            $warn('<p>Klucza prywatnego, czyli pliku bez końcówki .pub, nie wysyłaj nikomu: ani e-mailem, ani na czacie, ani w zgłoszeniu. '
+                . 'Nie kopiuj też na swój komputer cudzego klucza. Każda osoba ma własny, dzięki temu można odebrać dostęp jednej osobie bez odcinania pozostałych.</p>'),
+            $text('<h2>2. Wpis w pliku konfiguracyjnym</h2>'
+                . '<p>Plik konfiguracyjny SSH to <code>~/.ssh/config</code> na Macu i w Linuksie oraz <code>C:\Users\twoja-nazwa\.ssh\config</code> w Windows. '
+                . 'Jeśli go nie ma, utwórz zwykły plik tekstowy bez rozszerzenia. Dopisz na jego końcu:</p>'
+                . $pre("Host mydevil s89\n    HostName s89.mydevil.net\n    User feer\n    IdentityFile ~/.ssh/mydevil_feer_ed25519\n    IdentitiesOnly yes")
+                . '<p>Pierwsza linia nadaje nazwy, pod którymi wołasz serwer: <code>mydevil</code> albo krócej <code>s89</code>. '
+                . 'HostName to prawdziwy adres serwera, User to konto na serwerze, a IdentityFile wskazuje Twój klucz prywatny. '
+                . 'Dzięki IdentitiesOnly ssh próbuje tylko tego jednego klucza, a nie wszystkich, jakie masz na komputerze.</p>'
+                . '<p>Na Macu możesz dopisać jeszcze linię <code>UseKeychain yes</code>. System zapamięta wtedy hasło do klucza w pęku kluczy '
+                . 'i nie będzie o nie pytał przy każdym połączeniu. W Windows i Linuksie tej linii nie dodawaj, bo ssh uzna ją za błąd w pliku.</p>'),
+            $text('<h2>3. Klucz na serwerze</h2>'
+                . '<p>Serwer wpuszcza tylko klucze zapisane na koncie feer w pliku <code>~/.ssh/authorized_keys</code>. '
+                . 'Plik <code>mydevil_feer_ed25519.pub</code> przekaż w <a href="' . $app . '/helpdesk/new.php">zgłoszeniu do Helpdesku IT</a> osobie, '
+                . 'która ma już dostęp do serwera. Ta osoba zapisuje go u siebie i dopisuje na serwerze jednym poleceniem:</p>'
+                . $pre("ssh mydevil 'cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys' < jan_kowalski.pub")
+                . '<p>W PowerShell znak <code>&lt;</code> nie działa, tam to samo polecenie wygląda tak:</p>'
+                . $pre("Get-Content jan_kowalski.pub | ssh mydevil 'cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'")
+                . '<p>Każdy klucz zajmuje w tym pliku jedną linię. Nowy klucz zawsze dopisuj na końcu (dwa znaki <code>&gt;&gt;</code>). '
+                . 'Nadpisanie całego pliku odcięłoby od serwera wszystkich pozostałych.</p>'),
+            $text('<h2>Sprawdzenie</h2>'
+                . $pre("ssh mydevil 'hostname && whoami'")
+                . '<p>Przy pierwszym połączeniu ssh pokaże odcisk klucza serwera i zapyta, czy mu ufasz. Wpisz <code>yes</code>. '
+                . 'Polecenie powinno wypisać s89.mydevil.net i feer. Od tej chwili działają wszystkie polecenia z tej usługi.</p>'),
+            $text('<h2>Gdy coś nie działa</h2>'
+                . '<p>Komunikat „Permission denied (publickey)” oznacza, że serwer nie zna Twojego klucza albo ssh wysyła inny klucz, niż myślisz. '
+                . 'Sprawdź, czy klucz publiczny trafił na serwer i czy IdentityFile wskazuje właściwy plik. '
+                . 'Przebieg połączenia, łącznie z tym, który klucz idzie do serwera, pokaże:</p>'
+                . $pre('ssh -v mydevil')
+                . '<p>„Could not resolve hostname mydevil” oznacza, że ssh nie widzi wpisu w pliku konfiguracyjnym. '
+                . 'Sprawdź nazwę i miejsce pliku. W Windows Notatnik potrafi dopisać ukryte rozszerzenie .txt.</p>'
+                . '<p>Gdy ssh odmawia użycia klucza z powodu uprawnień („UNPROTECTED PRIVATE KEY FILE”), na Macu i w Linuksie popraw je tak:</p>'
+                . $pre('chmod 600 ~/.ssh/mydevil_feer_ed25519')
+                . '<p>Gdy połączenie po dłuższej chwili kończy się bez żadnego komunikatu, MyDevil najpewniej chwilowo blokuje SSH po zbyt wielu połączeniach '
+                . 'w krótkim czasie. Odczekaj kilka minut. Strony SZO działają w tym czasie normalnie.</p>'),
+            $text('<h2>Odebranie dostępu</h2>'
+                . '<p>Gdy ktoś kończy pracę w dziale IT albo zmienia komputer, usuń jego klucz z serwera. Opisy wszystkich kluczy wypisze:</p>'
+                . $pre("ssh mydevil 'cut -d\" \" -f3- ~/.ssh/authorized_keys'")
+                . '<p>Linię z danym opisem usuniesz tak (poprzednia wersja pliku zostaje jako authorized_keys.bak):</p>'
+                . $pre("ssh mydevil 'sed -i.bak \"/Jan Kowalski, laptop/d\" ~/.ssh/authorized_keys'")
+                . '<p>Potem sprawdź poleceniem z części „Sprawdzenie”, że Twoje własne połączenie nadal działa.</p>'),
+        ], false],
 
         'foldery-zadan-w-chmurze' => ['Foldery obszarów Zadań w chmurze',
             'zadania, obszar, obszary, folder, foldery, pliki, nextcloud, chmura, udostępnianie, administratorzy folderów, wsCloudAdmins, '
