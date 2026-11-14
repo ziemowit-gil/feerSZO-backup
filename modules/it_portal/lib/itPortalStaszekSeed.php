@@ -6,7 +6,8 @@
  * Dwa artykuły: „Staszek: pilnuje logowań do Twojego konta” (dla wszystkich) i „Staszek (LoginSentry): obsługa dla IT”
  * (it_only = 1: treść widzą administratorzy i konta z rolą IT). Forma wg zasad pomocy: bez tabel i myślników, nazwy przycisków
  * w „cudzysłowie”, polecenia w <pre><code>. Fakty zgodne z modules/login_sentry (LoginSentryConfig::DEFAULTS, LoginSentryEngine).
- * „Zobacz też”: artykuły Staszka nawzajem + zmiana haseł i logowanie jednokrotne (dopisywane, cudze powiązania zostają).
+ * „Zobacz też”: artykuł IT → ogólny (nie odwrotnie) + zmiana haseł i logowanie jednokrotne (dopisywane, cudze powiązania zostają).
+ * Artykuł ogólny ma it_only = -1 (dla wszystkich także wtedy, gdy usługa „Bezpieczeństwo” jest tylko dla IT), polecenie 2026-11-15.
  * Bezpieczny do ponownego uruchomienia. Używają: migracja '2026-11_it_portal_staszek', cli/it_portal_staszek_seed.php.
  */
 
@@ -38,7 +39,7 @@ function itPortalStaszekApply(string $app, bool $dryRun = false): array {
         if ($dryRun) continue;
         $id = itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
             'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => 0,
-            'sort_order' => $base + (++$i) * 10, 'it_only' => $itOnly ? 1 : 0,
+            'sort_order' => $base + (++$i) * 10, 'it_only' => $itOnly ? 1 : -1,   // -1: dla wszystkich, nawet gdy usługa jest tylko dla IT
             'related' => $old ? itPortalIds($old['related'] ?? '[]') : []], $old ? (int)$old['id'] : 0);
         $ids[] = $id;
     }
@@ -46,9 +47,12 @@ function itPortalStaszekApply(string $app, bool $dryRun = false): array {
         foreach ($ext as $r) $rep[] = 'Zobacz też: ' . $r['title'] . ($r['both'] ? ' (w obie strony)' : '');
         return $rep;
     }
-    foreach ($ids as $id) {
+    // Artykuł dla wszystkich ($ids[0]) nie wskazuje artykułu IT (osoba spoza IT zobaczyłaby tylko kłódkę); artykuł IT wskazuje ogólny.
+    foreach ($ids as $n => $id) {
         $r = db_one("SELECT related FROM itp_articles WHERE id = ?", [$id]);
-        $rel = array_values(array_unique(array_merge(itPortalIds($r['related'] ?? '[]'), array_values(array_diff($ids, [$id])), array_keys($ext))));
+        $own = $n === 0 ? [] : [$ids[0]];
+        $rel = array_values(array_unique(array_merge(itPortalIds($r['related'] ?? '[]'), $own, array_keys($ext))));
+        if ($n === 0) $rel = array_values(array_diff($rel, array_slice($ids, 1)));
         db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($rel), $id]);
     }
     // w drugą stronę tylko artykuł dla wszystkich (pierwszy), żeby artykuł IT nie wisiał przy tekstach dla pracowników

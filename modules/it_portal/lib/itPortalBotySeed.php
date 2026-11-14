@@ -7,7 +7,8 @@
  *   Gosposia (modules/gosposia)             → usługa „Moja poczta”: gosposia-it (IT); artykuł dla wszystkich już jest (itPortalGosposiaSeed.php).
  * Fakty z kodu: WardenEngine (cykl 7 dni, e-mail dzień 0 i 4, SMS dzień 6, próg domyślnie 30 dni, limit 30 nowych cykli), WardenController,
  * cron/agents/warden.php; Gosposia, GosposiaImap, GosposiaClassifier, GosposiaStore, GosposiaNotify, router (gosposia.access).
- * „Zobacz też”: artykuły jednego skryptu nawzajem, Mietek ↔ Staszek (dla wszystkich), logowanie jednokrotne; gosposia-it ↔ gosposia.
+ * „Zobacz też”: artykuł IT → ogólny (nie odwrotnie), Mietek ↔ Staszek, logowanie jednokrotne. Artykuły ogólne mają it_only = -1:
+ * czyta je każdy, także gdy usługa jest tylko dla IT (polecenie 2026-11-15).
  * Forma wg zasad pomocy: bez tabel i myślników, przyciski w „cudzysłowie”, polecenia w <pre><code>. Bezpieczny do ponownego uruchomienia.
  * Używają: migracja '2026-11_it_portal_boty', cli/it_portal_boty_seed.php.
  */
@@ -33,7 +34,7 @@ function itPortalBotyApply(string $app, bool $dryRun = false): array {
         $sort = $old ? (int)$old['sort_order'] : (int)(db_one("SELECT COALESCE(MAX(sort_order), 0) + 10 AS s FROM itp_articles WHERE category_id = ?", [$catId])['s'] ?? 10);
         $saved[$key] = itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
             'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => 0, 'sort_order' => $sort,
-            'it_only' => $itOnly ? 1 : 0, 'related' => $old ? itPortalIds($old['related'] ?? '[]') : []], $old ? (int)$old['id'] : 0);
+            'it_only' => $itOnly ? 1 : -1, 'related' => $old ? itPortalIds($old['related'] ?? '[]') : []], $old ? (int)$old['id'] : 0);
     }
     if ($dryRun) return $rep;
 
@@ -44,11 +45,11 @@ function itPortalBotyApply(string $app, bool $dryRun = false): array {
         if (!isset($ids[$k]) && ($r = $art($c, $s))) $ids[$k] = (int)$r['id'];
     }
     $links = [
-        ['bezpieczenstwo/mietek', 'bezpieczenstwo/mietek-it'], ['bezpieczenstwo/mietek-it', 'bezpieczenstwo/mietek'],
+        ['bezpieczenstwo/mietek-it', 'bezpieczenstwo/mietek'],
         ['bezpieczenstwo/mietek', 'bezpieczenstwo/staszek'], ['bezpieczenstwo/staszek', 'bezpieczenstwo/mietek'],
         ['bezpieczenstwo/mietek-it', 'bezpieczenstwo/staszek-it'], ['bezpieczenstwo/staszek-it', 'bezpieczenstwo/mietek-it'],
         ['bezpieczenstwo/mietek', 'moj-login/logowanie-jednokrotne'],
-        ['moja-poczta/gosposia-it', 'moja-poczta/gosposia'], ['moja-poczta/gosposia', 'moja-poczta/gosposia-it'],
+        ['moja-poczta/gosposia-it', 'moja-poczta/gosposia'],
     ];
     foreach ($links as [$from, $to]) {
         if (!isset($ids[$from], $ids[$to])) continue;
@@ -59,6 +60,19 @@ function itPortalBotyApply(string $app, bool $dryRun = false): array {
         db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode(array_values(array_unique($cur))), $ids[$from]]);
         $rep[] = "Zobacz też: {$from} → {$to}";
     }
+    // Artykuły dla wszystkich nie wskazują artykułów tylko dla IT (osoba spoza IT zobaczyłaby kłódkę). Sprząta też wcześniejsze powiązania.
+    $itIds = [];
+    foreach (['bezpieczenstwo/mietek-it', 'bezpieczenstwo/staszek-it', 'moja-poczta/gosposia-it'] as $k) if (isset($ids[$k])) $itIds[] = $ids[$k];
+    foreach (['bezpieczenstwo/mietek', 'bezpieczenstwo/staszek', 'moja-poczta/gosposia'] as $k) {
+        if (!isset($ids[$k])) continue;
+        $cur = itPortalIds((db_one("SELECT related FROM itp_articles WHERE id = ?", [$ids[$k]]) ?: [])['related'] ?? '[]');
+        $clean = array_values(array_diff($cur, $itIds));
+        if ($clean === $cur) continue;
+        db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($clean), $ids[$k]]);
+        $rep[] = "Zobacz też: z {$k} usunięto artykuły tylko dla IT";
+    }
+    // Artykuł Staszka dla wszystkich: czytelny dla każdego, nawet gdy usługa jest tylko dla IT
+    if (isset($ids['bezpieczenstwo/staszek'])) db_exec("UPDATE itp_articles SET it_only = -1 WHERE id = ?", [$ids['bezpieczenstwo/staszek']]);
     return $rep;
 }
 

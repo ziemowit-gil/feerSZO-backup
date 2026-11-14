@@ -2488,4 +2488,17 @@ return [
         },
     ],
 
+    // Staszek i Mietek „dla wszystkich” czytelni dla każdego (it_only = -1, także gdy „Bezpieczeństwo” jest tylko dla IT),
+    // a ich „Zobacz też” bez artykułów tylko dla IT. Polecenie 2026-11-15 („…tylko DLA IT, inni tego nie widzą”).
+    '2026-11_it_portal_boty_widocznosc' => [
+        'desc' => 'Portal Usług IT: artykuły Staszka i Mietka dla wszystkich widoczne dla każdego, bez linków do artykułów IT',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalStaszekSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalBotySeed.php';
+            itPortalStaszekApply(ITP_SZO_URL);
+            itPortalBotyApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
