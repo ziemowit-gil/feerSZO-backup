@@ -19,6 +19,7 @@
  */
 function itPortalKontoKursantaApply(string $app, bool $dryRun = false): array {
     require_once dirname(__DIR__) . '/logic/itPortal.php';
+    require_once __DIR__ . '/itPortalCloudSeed.php';   // itPortalCloudShot: zrzuty z lib/img do uploads/it_portal
     itPortalMigrate();
     $app = rtrim($app, '/');
     $rep = ['category' => '', 'created' => [], 'updated' => []];
@@ -59,9 +60,11 @@ function itPortalKontoKursantaIntro(string $app): string {
     return '<p>Jako uczestnik szkoleń albo konsultacji masz w Fundacji dwa konta: <strong>panel kursanta</strong> i <strong>pocztę kursanta</strong> '
          . 'z adresem w domenie <code>@stud.feer.org.pl</code>. Każde ma osobne hasło. '
          . 'Konta poczty zakłada zewnętrzny administrator na polecenie kierownika szkolenia.</p>'
+         . '<p>Poczta kursanta działa na serwerze TITAN (titan.sdata.net.pl) i jest niezależna od dPoczty, czyli poczty wolontariuszy i współpracowników Fundacji. '
+         . 'Polecamy czytać ją w programie pocztowym na komputerze albo w telefonie.</p>'
          . '<p>Dostałeś(-aś) właśnie nowe konto? Zacznij od artykułu <a href="' . $u . 'nowe-konta">Nowe konta: od czego zacząć</a>. '
          . 'Prowadzi krok po kroku od pierwszej wiadomości do własnych haseł.</p>'
-         . '<p>Word i Excel z konta <code>@edu.feer.org.pl</code> zastąpisz darmowym programem. Zobacz <a href="' . $u . 'pakiet-biurowy">Word i Excel po wyłączeniu konta @edu</a>.</p>';
+         . '<p>Word i Excel z konta <code>@edu.feer.org.pl</code> zastąpisz darmowym programem. Zobacz <a href="' . $u . 'pakiet-biurowy">Word i Excel bez konta Microsoft</a>.</p>';
 }
 
 /**
@@ -76,7 +79,9 @@ function itPortalKontoKursantaArticles(string $app): array {
     $u      = $app . '/uslugi-it/uslugi/konto-kursanta/';
     $pk     = $app . '/uslugi-it/uslugi/poczta-kursanta/';
     $web    = 'https://titan.sdata.net.pl/';
-    $step   = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
+    $step   = static fn(string $t, string $h, array $img = []): array => ['title' => $t, 'html' => $h, 'images' => $img];
+    $shot   = static fn(string $n, string $alt): array => itPortalKontoKursantaShot($n, $alt);   // lista obrazków do kroku ([] gdy brak pliku)
+    $titan  = itPortalKontoKursantaTitanNote();
     $safe   = ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nikt z Fundacji nie poprosi Cię o hasło ani o kod z SMS-a, ani przez telefon, ani e-mailem. '
         . 'Jeśli przyjdzie kod, o który nie prosiłeś(-aś), nikomu go nie podawaj i napisz do nas przez <a href="' . $pomoc . '">zakładkę Pomoc w panelu kursanta</a>.</p>'];
 
@@ -92,6 +97,7 @@ function itPortalKontoKursantaArticles(string $app): array {
                 . '<tr><td>Gdzie się logujesz</td><td><a href="' . $login . '">strona logowania panelu kursanta</a></td><td><a href="' . $web . '">titan.sdata.net.pl</a></td></tr>'
                 . '</tbody></table>'],
 
+            $titan,
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Kto zakłada konta.</strong> Konta poczty kursanta zakłada zewnętrzny administrator na polecenie kierownika szkolenia. '
                 . 'Nie zakładasz konta sam(a) i nie trzeba o nie prosić. Jeśli uważasz, że powinieneś(-aś) mieć konto, a nie dostałeś(-aś) danych, zapytaj kierownika szkolenia.</p>'],
 
@@ -107,18 +113,20 @@ function itPortalKontoKursantaArticles(string $app): array {
                 $step('Ustaw własne hasło do panelu', '<p>Po kodzie z SMS-a panel poprosi o własne hasło. Musi mieć co najmniej 12 znaków, wielką i małą literę, cyfrę i znak specjalny.</p>'),
                 $step('Sprawdź dane poczty', '<p>W panelu otwórz zakładkę <a href="' . $poczta . '">„Poczta kursanta”</a>. Zobaczysz tam swój adres. '
                     . 'Gdy nie masz SMS-a z hasłem startowym, kliknij „Pokaż hasło” i wpisz kod, który przyjdzie SMS-em.</p>'),
-                $step('Zaloguj się do poczty', '<p>Wejdź na <a href="' . $web . '">titan.sdata.net.pl</a>. Jako nazwę użytkownika wpisz pełny adres, np. <code>j.kowalski@stud.feer.org.pl</code>, a hasło przepisz z SMS-a.</p>'),
+                $step('Zaloguj się do poczty', '<p>Wejdź na <a href="' . $web . '">titan.sdata.net.pl</a>. Jako nazwę użytkownika wpisz pełny adres, np. <code>j.kowalski@stud.feer.org.pl</code>, a hasło przepisz z SMS-a.</p>',
+                    $shot('zimbra-logowanie.jpg', 'Strona logowania poczty Zimbra na titan.sdata.net.pl: pola Nazwa użytkownika i Hasło, przycisk Zaloguj się')),
                 $step('Ustaw własne hasło do poczty', '<p>W poczcie zmień hasło startowe na własne. Jak to zrobić, opisuje artykuł <a href="' . $u . 'haslo-do-poczty">Własne hasło do poczty kursanta</a>. '
-                    . 'Wybierz inne hasło niż do panelu kursanta.</p>'),
+                    . 'Wybierz inne hasło niż do panelu kursanta.</p>',
+                    $shot('zimbra-wlasciwosci.jpg', 'Zimbra, karta Właściwości, sekcja Ogólne: na górze część Zaloguj się z przyciskiem Zmień hasło')),
                 $step('Potwierdź w panelu', '<p>Wróć do zakładki <a href="' . $poczta . '">„Poczta kursanta”</a> i kliknij „Mam już własne hasło”. Hasło startowe zniknie z panelu.</p>'),
-                $step('Dodaj pocztę do telefonu (jeśli chcesz)', '<p>Instrukcję znajdziesz w artykule <a href="' . $u . 'poczta-w-telefonie">Poczta kursanta w telefonie</a>.</p>'),
-                $step('Zainstaluj darmowy pakiet biurowy', '<p>Word i Excel z konta <code>@edu.feer.org.pl</code> przestaną działać 20 listopada 2026 r. '
-                    . 'Co zainstalować zamiast nich, opisuje artykuł <a href="' . $u . 'pakiet-biurowy">Word i Excel po wyłączeniu konta @edu</a>.</p>'),
+                $step('Dodaj pocztę do programu pocztowego albo telefonu (polecamy)', '<p>Z poczty najwygodniej korzystać w programie pocztowym. Instrukcję znajdziesz w artykule <a href="' . $u . 'poczta-w-telefonie">Poczta kursanta w telefonie</a>.</p>'),
+                $step('Zainstaluj darmowy pakiet biurowy', '<p>Konto Microsoft <code>@edu.feer.org.pl</code> zostało ze względów bezpieczeństwa wyłączone, więc Word i Excel z tego konta już nie działają. '
+                    . 'Co zainstalować zamiast nich, opisuje artykuł <a href="' . $u . 'pakiet-biurowy">Word i Excel bez konta Microsoft</a>.</p>'),
             ]],
 
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Termin.</strong> Hasło startowe do poczty czeka w panelu 14 dni i można je pokazać najwyżej 5 razy. '
                 . 'Potem znika. Gdy nie zdążysz, napisz do nas, a wyślemy nowe.</p>'],
-            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Miałeś(-aś) konto w domenie <code>@edu.feer.org.pl</code>? Wyłączamy je 20 listopada 2026 r., a wiadomości z niego trafią na nowy adres. '
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Miałeś(-aś) konto w domenie <code>@edu.feer.org.pl</code>? Konto Microsoft zostało ze względów bezpieczeństwa wyłączone. Sam adres <code>@edu.feer.org.pl</code> działa dalej jako alias: wiadomości na niego trafiają do Twojej skrzynki <code>@stud.feer.org.pl</code>. '
                 . 'Więcej w artykule <a href="' . $pk . 'logowanie">Poczta kursanta: login, hasło i logowanie</a>.</p>'],
             $safe,
         ], true],
@@ -154,12 +162,19 @@ function itPortalKontoKursantaArticles(string $app): array {
         'haslo-do-poczty' => ['Własne hasło do poczty kursanta',
             'poczta kursanta, hasło, zmiana hasła, hasło startowe, własne hasło, zimbra, titan, titan.sdata.net.pl, preferencje, ustawienia, mam już własne hasło, stud.feer.org.pl', [
             ['type' => 'text', 'html' => '<p>Hasło startowe z SMS-a służy tylko do pierwszego logowania. Zaraz po nim ustaw własne hasło. '
-                . 'Poczta działa na odrębnym serwerze, więc jej hasło zmieniasz w samej poczcie, a nie w panelu kursanta.</p>'],
-            ['type' => 'wizard', 'title' => 'Zmiana hasła w poczcie', 'intro' => '<p>Poczta na titan.sdata.net.pl to program Zimbra. Nazwy przycisków mogą być po polsku albo po angielsku.</p>', 'steps' => [
-                $step('Zaloguj się', '<p>Wejdź na <a href="' . $web . '">titan.sdata.net.pl</a>. Wpisz pełny adres e-mail i hasło startowe.</p>'),
-                $step('Otwórz ustawienia', '<p>Kliknij kartę <strong>Preferencje</strong> (w niektórych wersjach <strong>Właściwości</strong>, ang. Preferences) u góry ekranu. W nowszym wyglądzie to ikona koła zębatego.</p>'),
-                $step('Zmień hasło', '<p>W sekcji <strong>Ogólne</strong> (General), w części <strong>Logowanie</strong> (Sign in), kliknij <strong>Zmień hasło</strong> (Change Password). '
-                    . 'Wpisz stare hasło, potem dwa razy nowe, i zapisz.</p>'),
+                . 'Poczta działa na odrębnym serwerze, więc jej hasło zmieniasz w samej poczcie, a nie w panelu kursanta ani w dPoczcie.</p>'],
+            $titan,
+            ['type' => 'wizard', 'title' => 'Zmiana hasła w poczcie', 'intro' => '<p>Poczta na titan.sdata.net.pl to program Zimbra. Zrzuty ekranu pokazują wersję polską.</p>', 'steps' => [
+                $step('Zaloguj się', '<p>Wejdź na <a href="' . $web . '">titan.sdata.net.pl</a>. W polu „Nazwa użytkownika” wpisz pełny adres e-mail, w polu „Hasło” hasło startowe i kliknij „Zaloguj się”.</p>',
+                    $shot('zimbra-logowanie.jpg', 'Strona logowania poczty Zimbra na titan.sdata.net.pl: pola Nazwa użytkownika i Hasło, przycisk Zaloguj się')),
+                $step('Otwórz Właściwości', '<p>Po zalogowaniu zobaczysz skrzynkę odbiorczą. Na ciemnym pasku u góry kliknij ostatnią kartę, <strong>Właściwości</strong>.</p>',
+                    $shot('zimbra-skrzynka.jpg', 'Poczta Zimbra po zalogowaniu: skrzynka odbiorcza, u góry karty Poczta, Kontakty, Kalendarz, Zadania, Aktówka i Właściwości')),
+                $step('Kliknij „Zmień hasło”', '<p>Otworzy się sekcja <strong>Ogólne</strong>. Na samej górze, w części <strong>Zaloguj się</strong>, przy napisie „Hasło” kliknij przycisk <strong>Zmień hasło</strong>.</p>'
+                    . '<p>Hasło otwiera się w nowym oknie. Jeśli nic się nie dzieje, przeglądarka mogła zablokować wyskakujące okno. Zezwól na nie dla titan.sdata.net.pl i kliknij jeszcze raz.</p>',
+                    $shot('zimbra-wlasciwosci.jpg', 'Zimbra, karta Właściwości, sekcja Ogólne: na górze część Zaloguj się z przyciskiem Zmień hasło')),
+                $step('Wpisz hasła i zapisz', '<p>W oknie „Zmień hasło” wpisz w polu „Aktualne hasło” hasło startowe, a w polach „Nowe hasło” i „Potwierdź hasło” dwa razy nowe hasło. '
+                    . 'Zimbra wymaga co najmniej 6 znaków, ale wybierz dłuższe. Gdy oba warunki pod polami są spełnione, kliknij „Zapisz”.</p>',
+                    $shot('zimbra-zmiana-hasla.jpg', 'Okno Zmień hasło w Zimbrze: pola Aktualne hasło, Nowe hasło i Potwierdź hasło, warunki 6 lub więcej znaków i Hasło musi pasować, przyciski Zapisz i Anuluj')),
                 $step('Potwierdź w panelu kursanta', '<p>W <a href="' . $poczta . '">zakładce „Poczta kursanta”</a> kliknij „Mam już własne hasło”. Hasło startowe zniknie z panelu.</p>'),
             ]],
             ['type' => 'text', 'html' => '<h2>Jakie hasło wybrać</h2><ul>'
@@ -174,7 +189,7 @@ function itPortalKontoKursantaArticles(string $app): array {
 
         'poczta-w-telefonie' => ['Poczta kursanta w telefonie',
             'poczta kursanta, telefon, android, iphone, ios, gmail, poczta, mail, dodaj konto, imap, smtp, 993, 465, titan.sdata.net.pl, stud.feer.org.pl, thunderbird, outlook', [
-            ['type' => 'text', 'html' => '<p>Pocztę kursanta możesz czytać w telefonie. Dodajesz ją jako konto <strong>IMAP</strong>. Przygotuj takie dane:</p>'
+            ['type' => 'text', 'html' => '<p>Polecamy korzystać z poczty kursanta w programie pocztowym: w telefonie albo na komputerze (Thunderbird, Outlook). Dodajesz ją jako konto <strong>IMAP</strong>. Przygotuj takie dane:</p>'
                 . '<table><thead><tr><th>Ustawienie</th><th>Wartość</th></tr></thead><tbody>'
                 . '<tr><td>Adres e-mail i nazwa użytkownika</td><td>pełny adres, np. <code>j.kowalski@stud.feer.org.pl</code></td></tr>'
                 . '<tr><td>Hasło</td><td>hasło do poczty kursanta (nie do panelu)</td></tr>'
@@ -201,10 +216,10 @@ function itPortalKontoKursantaArticles(string $app): array {
                 . 'Jeśli to nie pomoże, napisz przez <a href="' . $pomoc . '">zakładkę Pomoc w panelu kursanta</a>.</p>'],
         ], false],
 
-        'pakiet-biurowy' => ['Word i Excel po wyłączeniu konta @edu: darmowy pakiet biurowy',
-            'office, ooffice, libreoffice, openoffice, onlyoffice, word, excel, powerpoint, pakiet biurowy, dokumenty, arkusze, prezentacje, docx, xlsx, pptx, odt, ods, odp, pdf, microsoft 365, edu.feer.org.pl, darmowy, instalacja', [
+        'pakiet-biurowy' => ['Word i Excel bez konta Microsoft: darmowy pakiet biurowy',
+            'office, ooffice, office@feer.org.pl, instancja office, szkolenie z office, libreoffice, openoffice, onlyoffice, word, excel, powerpoint, pakiet biurowy, dokumenty, arkusze, prezentacje, docx, xlsx, pptx, odt, ods, odp, pdf, microsoft 365, edu.feer.org.pl, darmowy, instalacja', [
             ['type' => 'text', 'html' => '<p>Z kontem <code>@edu.feer.org.pl</code> mogłeś(-aś) korzystać z Worda, Excela i PowerPointa z Microsoft 365. '
-                . '20 listopada 2026 r. wyłączamy te konta. Programy Microsoft zalogowane tym kontem przestaną wtedy pozwalać na edycję albo w ogóle się nie otworzą.</p>'
+                . 'Konto Microsoft zostało ze względów bezpieczeństwa wyłączone. Programy Microsoft zalogowane tym kontem nie pozwalają już na edycję albo w ogóle się nie otwierają. Adres <code>@edu.feer.org.pl</code> działa dalej jako alias poczty <code>@stud.feer.org.pl</code>.</p>'
                 . '<p>Zamiast nich zainstaluj darmowy pakiet biurowy. Nie potrzebujesz do niego konta ani licencji z Fundacji.</p>'],
             ['type' => 'text', 'html' => '<h2>Który program wybrać</h2>'
                 . '<table><thead><tr><th>Program</th><th>Dla kogo</th><th>Skąd pobrać</th></tr></thead><tbody>'
@@ -221,7 +236,11 @@ function itPortalKontoKursantaArticles(string $app): array {
                 $step('Zapisuj w formacie, którego potrzebujesz', '<p>Gdy wysyłasz plik prowadzącemu albo do biura, przy zapisie wybierz format Worda (<code>.docx</code>) albo PDF. '
                     . 'W LibreOffice: „Plik”, „Zapisz jako” i typ pliku „Word 2007–365”, albo „Plik”, „Eksportuj jako PDF”.</p>'),
             ]],
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Masz pliki w OneDrive na koncie <code>@edu.feer.org.pl</code>? Pobierz je na swój komputer przed 20 listopada 2026 r. Po wyłączeniu konta nie da się ich odzyskać.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Microsoft Office aktywujemy wyłącznie na potrzebę szkolenia.</strong> Gdy szkolenie dotyczy pakietu Office, na czas zajęć uruchamiamy '
+                . 'dedykowaną instancję Office dla tego szkolenia, z kontem w postaci <code>office&lt;numer szkolenia&gt;@feer.org.pl</code>.</p>'
+                . '<p>To nie są konta do użytku osobistego. Służą tylko do zajęć w ramach danego szkolenia. Nie zapisuj na nich swoich prywatnych plików i nie używaj ich do własnej poczty. '
+                . 'Do codziennej pracy z dokumentami zainstaluj darmowy program opisany niżej.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Miałeś(-aś) pliki w OneDrive na koncie <code>@edu.feer.org.pl</code>? Konto jest wyłączone, więc nie otworzysz ich sam(a). Jeśli potrzebujesz któregoś pliku, napisz przez <a href="' . $pomoc . '">zakładkę Pomoc w panelu kursanta</a>.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Na telefonie dokumenty otworzysz w bezpłatnej aplikacji ONLYOFFICE Documents albo w podglądzie wbudowanym w telefon. '
                 . 'Kłopot z instalacją? Napisz przez <a href="' . $pomoc . '">zakładkę Pomoc w panelu kursanta</a>.</p>'],
         ], false],
@@ -271,12 +290,15 @@ function itPortalFundacjaStudApply(string $app, bool $dryRun = false): array {
     $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
     $blocks = [
         ['type' => 'text', 'html' => '<p>Skrzynka <code>fundacja@stud.feer.org.pl</code> to konto Fundacji w domenie poczty kursantów. '
-            . 'Działa na tym samym odrębnym serwerze co poczta kursantów (sdata.net.pl), a nie na dpoczta.pl.</p>'],
+            . 'Działa na serwerze TITAN, tym samym co poczta kursantów, i jest niezależna od dPoczty, czyli poczty wolontariuszy i współpracowników. '
+            . 'Hasło do dPoczty tu nie działa.</p>'
+            . '<p>Polecamy korzystać ze skrzynki w programie pocztowym (dane niżej), a stronę w przeglądarce traktować jako zapas.</p>'],
         ['type' => 'wizard', 'title' => 'Zaloguj się jako fundacja@stud.feer.org.pl', 'intro' => '', 'steps' => [
-            $step('Otwórz pocztę', '<p>W przeglądarce wejdź na <a href="' . $web . '">https://titan.sdata.net.pl</a>.</p>'),
+            ['images' => itPortalKontoKursantaShot('zimbra-logowanie.jpg', 'Strona logowania poczty Zimbra na titan.sdata.net.pl')]
+                + $step('Otwórz pocztę', '<p>W przeglądarce wejdź na <a href="' . $web . '">https://titan.sdata.net.pl</a>.</p>'),
             $step('Wpisz login', '<p>Jako nazwę użytkownika wpisz pełny adres: <code>fundacja@stud.feer.org.pl</code>.</p>'),
             $step('Wpisz hasło', '<p>Hasło przekazuje kierownik. Nie wysyłamy go e-mailem i nie zapisujemy w Pomocy IT.</p>'),
-            $step('Przy pierwszym logowaniu zmień hasło', '<p>Jeśli to hasło startowe, zmień je w <strong>Preferencjach</strong> (Właściwościach), '
+            $step('Przy pierwszym logowaniu zmień hasło', '<p>Jeśli to hasło startowe, zmień je na karcie <strong>Właściwości</strong>, '
                 . 'w sekcji Ogólne, przyciskiem <strong>Zmień hasło</strong>. Nowe hasło przekaż kierownikowi bezpiecznym kanałem, nie e-mailem.</p>'),
         ]],
         ['type' => 'text', 'html' => '<h2>W programie pocztowym albo w telefonie</h2>'
@@ -294,4 +316,20 @@ function itPortalFundacjaStudApply(string $app, bool $dryRun = false): array {
         'sort_order' => $old ? (int)$old['sort_order'] : 900,
     ], $old ? (int)$old['id'] : 0);
     return $rep;
+}
+
+/** Zrzut ekranu Zimbry z lib/img jako lista obrazków do kroku kreatora (zrzuty z 2026-11-14, konto fundacja@stud.feer.org.pl, pusta skrzynka). */
+function itPortalKontoKursantaShot(string $name, string $alt): array {
+    if (!function_exists('itPortalCloudShot')) require_once __DIR__ . '/itPortalCloudSeed.php';
+    $b = itPortalCloudShot($name, $alt);
+    return $b ? [['file' => $b[0]['file'], 'alt' => $alt, 'caption' => '']] : [];
+}
+
+/** Ramka: TITAN niezależny od dPoczty i rekomendacja programu pocztowego (polecenia 2026-11-14). */
+function itPortalKontoKursantaTitanNote(): array {
+    return ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Serwer TITAN to nie dPoczta.</strong> Poczta <code>@stud.feer.org.pl</code> działa na serwerze TITAN '
+        . '(titan.sdata.net.pl) i jest całkowicie niezależna od dPoczty, czyli poczty wolontariuszy i współpracowników Fundacji. Ma osobne konta, osobne hasła i osobną stronę logowania. '
+        . 'Na dpoczta.pl kontem <code>@stud.feer.org.pl</code> się nie zalogujesz.</p>'
+        . '<p><strong>Polecamy program pocztowy.</strong> Najwygodniej korzystać z poczty w programie pocztowym, np. Thunderbird, Outlook albo poczta w telefonie. '
+        . 'Program sam sprawdza nowe wiadomości i nie trzeba za każdym razem logować się na stronie. Strona titan.sdata.net.pl przydaje się do zmiany hasła i gdy nie masz przy sobie swojego urządzenia.</p>'];
 }

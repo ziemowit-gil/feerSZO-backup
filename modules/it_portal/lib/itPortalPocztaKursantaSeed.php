@@ -54,8 +54,8 @@ function itPortalPocztaKursantaApply(string $app, bool $dryRun = false): array {
 
 /** Wstęp strony usługi „Poczta kursanta”. */
 function itPortalPocztaKursantaIntro(string $app): string {
-    return '<p>Po ostatnich awariach Microsoft 365 Fundacja rezygnuje z jego usług. Konta uczestników w domenie <code>@edu.feer.org.pl</code> '
-         . 'wyłączamy 20 listopada 2026 r.</p>'
+    return '<p>Po ostatnich awariach Microsoft 365 Fundacja rezygnuje z jego usług. Konta Microsoft uczestników w domenie <code>@edu.feer.org.pl</code> '
+         . 'zostały ze względów bezpieczeństwa wyłączone. Adres <code>@edu.feer.org.pl</code> działa dalej jako alias poczty <code>@stud.feer.org.pl</code>.</p>'
          . '<p>W zamian uczestnicy szkoleń dostają imienny adres e-mail w domenie <code>@stud.feer.org.pl</code>. '
          . 'Ta poczta działa na odrębnym serwerze i ma własne hasło, inne niż do panelu kursanta.</p>'
          . '<p>Jak się zalogować i jak dodać pocztę do telefonu, opisuje artykuł '
@@ -74,8 +74,8 @@ function itPortalPocztaKursantaArticles(string $app): array {
     return [
         'logowanie' => ['Poczta kursanta: login, hasło i logowanie',
             'poczta kursanta, stud.feer.org.pl, stud, edu.feer.org.pl, edu, e-mail, skrzynka, login, hasło, hasło startowe, sms, titan, titan.sdata.net.pl, sdata, imap, smtp, 993, 465, thunderbird, outlook, telefon, przekierowanie, odrębny serwer, 20 listopada, wyłączenie', [
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Po ostatnich awariach Microsoft 365 wyłączamy konta <code>@edu.feer.org.pl</code> 20 listopada 2026 r. '
-                . 'Od tego dnia Twoją pocztą w Fundacji jest poczta kursanta, opisana poniżej. Dlaczego tak, wyjaśnia artykuł '
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Konto Microsoft <code>@edu.feer.org.pl</code> zostało ze względów bezpieczeństwa wyłączone. Adres <code>@edu.feer.org.pl</code> działa dalej jako alias: wiadomości na niego trafiają na Twój adres <code>@stud.feer.org.pl</code>. '
+                . 'Twoją pocztą w Fundacji jest poczta kursanta, opisana poniżej. Dlaczego tak, wyjaśnia artykuł '
                 . '<a href="' . $app . '/uslugi-it/uslugi/poczta-kursanta/rezygnujemy-z-microsoft-365">Dlaczego rezygnujemy z Microsoft 365</a>.</p>'],
             ['type' => 'text', 'html' => '<p>Poczta kursanta to Twoja skrzynka e-mail w Fundacji, w domenie <code>@stud.feer.org.pl</code>. '
                 . 'Działa na odrębnym serwerze pocztowym, który prowadzi sdata.net.pl. Ma własne hasło, inne niż hasło do panelu kursanta. '
@@ -110,9 +110,8 @@ function itPortalPocztaKursantaArticles(string $app): array {
                 . '</tbody></table>'],
 
             ['type' => 'text', 'html' => '<h2>Konta i wiadomości @edu.feer.org.pl</h2>'
-                . '<p>Konta w domenie <code>@edu.feer.org.pl</code> wyłączamy 20 listopada 2026 r. Jeśli trzymasz na swoim koncie pliki, na przykład w OneDrive, '
-                . 'zapisz je wcześniej u siebie.</p>'
-                . '<p>Wiadomości wysłane na adres <code>@edu.feer.org.pl</code> będziemy przekierowywać na Twój imienny adres <code>@stud.feer.org.pl</code>. '
+                . '<p>Konto Microsoft w domenie <code>@edu.feer.org.pl</code> zostało ze względów bezpieczeństwa wyłączone. Nie zalogujesz się już nim do Outlooka, Teams ani OneDrive.</p>'
+                . '<p>Adres <code>@edu.feer.org.pl</code> działa dalej jako alias Twojego imiennego adresu <code>@stud.feer.org.pl</code>: wiadomości na niego trafiają do nowej skrzynki. '
                 . 'Nowy adres podawaj już osobom i instytucjom, z którymi piszesz.</p>'],
 
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nikt z Fundacji nie poprosi Cię o hasło ani o kod z SMS-a. '
@@ -125,7 +124,7 @@ function itPortalPocztaKursantaArticles(string $app): array {
             'microsoft 365, office 365, ms365, m365, rezygnacja, dlaczego, powód, licencje, ceny, awaria, 12 listopada, 13 listopada, 20 listopada, wyłączenie, edu.feer.org.pl, stud.feer.org.pl, poczta kursanta, imap, smtp', [
             ['type' => 'text', 'html' => '<p>Po ostatnich wydarzeniach Fundacja rezygnuje z Microsoft 365. 12 i 13 listopada 2026 r. przyszła jedna z największych awarii '
                 . 'tej usługi: poczta w Outlooku, Teams i SharePoint nie działały w 74 krajach, a Microsoft jeszcze następnego dnia przywracał ich działanie. '
-                . 'Konta uczestników w domenie <code>@edu.feer.org.pl</code> wyłączamy 20 listopada 2026 r.</p>'
+                . 'Konta Microsoft uczestników w domenie <code>@edu.feer.org.pl</code> zostały ze względów bezpieczeństwa wyłączone, a adres <code>@edu.feer.org.pl</code> działa jako alias poczty <code>@stud.feer.org.pl</code>.</p>'
                 . '<p>Pocztę, pliki i logowanie przenosimy do usług, nad którymi mamy kontrolę. Uczestnicy szkoleń dostają w zamian pocztę kursanta: '
                 . 'imienny adres <code>@stud.feer.org.pl</code> na odrębnym serwerze.</p>'],
 
@@ -139,9 +138,9 @@ function itPortalPocztaKursantaArticles(string $app): array {
                 . 'Nowa poczta działa na otwartych standardach IMAP i SMTP. W razie potrzeby przeniesiemy ją do innego dostawcy, a Twój adres zostanie ten sam.</p>'],
 
             ['type' => 'text', 'html' => '<h2>Co to zmienia dla Ciebie</h2><ul>'
-                . '<li>20 listopada 2026 r. wyłączamy konta <code>@edu.feer.org.pl</code>. Jeśli trzymasz na nich pliki, na przykład w OneDrive, zapisz je wcześniej u siebie.</li>'
+                . '<li>Konto Microsoft <code>@edu.feer.org.pl</code> zostało ze względów bezpieczeństwa wyłączone.</li>'
                 . '<li>Dostajesz imienny adres <code>@stud.feer.org.pl</code>. Login przyjdzie e-mailem, a hasło startowe SMS-em.</li>'
-                . '<li>Wiadomości wysłane na adres <code>@edu.feer.org.pl</code> będziemy przekierowywać na Twój nowy adres.</li>'
+                . '<li>Adres <code>@edu.feer.org.pl</code> jest aliasem nowego adresu: wiadomości na niego trafiają do skrzynki <code>@stud.feer.org.pl</code>.</li>'
                 . '<li>Pocztę otwierasz na <a href="https://titan.sdata.net.pl/">titan.sdata.net.pl</a> albo w programie pocztowym.</li></ul>'
                 . '<p>Szczegóły logowania opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/poczta-kursanta/logowanie">Poczta kursanta: login, hasło i logowanie</a>.</p>'],
 

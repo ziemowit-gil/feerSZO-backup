@@ -1519,4 +1519,19 @@ return [
         },
     ],
 
+    // Pomoc IT dla kursantów (polecenia 2026-11-14): zrzuty ekranu Zimbry w instrukcjach, serwer TITAN niezależny od dPoczty, rekomendacja
+    // programu pocztowego, konto Microsoft @edu wyłączone ze względów bezpieczeństwa, a adres @edu jest aliasem @stud.
+    // Ponowny zapis „Konta kursanta”, „fundacja@stud” i „Poczty kursanta”.
+    '2026-11_it_portal_kursant_zimbra_alias' => [
+        'desc' => 'Portal Usług IT: zrzuty Zimbry, TITAN ≠ dPoczta, program pocztowy, @edu jako alias @stud',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKontoKursantaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPocztaKursantaSeed.php';
+            itPortalKontoKursantaApply(ITP_SZO_URL);
+            itPortalFundacjaStudApply(ITP_SZO_URL);
+            itPortalPocztaKursantaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
