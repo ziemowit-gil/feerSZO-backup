@@ -125,7 +125,7 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
   <?php if ($smsOn): ?>
   <div class="lp-sms">
     <strong>Logowanie kodem SMS.</strong> Uczestnik i prowadzący z umową wpisują sam login (prowadzący: adres e-mail) i wybierają
-    „Wyślij kod SMS”. Hasło wpisują rodzice, opiekunowie i osoby upoważnione.
+    „Wyślij kod SMS”. Hasło wpisują rodzice, opiekunowie i osoby upoważnione. Ta zmiana wiąże się z modernizacją logowania.
   </div>
   <?php endif; ?>
   <div class="pp-cols">
