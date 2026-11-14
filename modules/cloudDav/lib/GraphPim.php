@@ -69,17 +69,35 @@ final class GraphPim
         return ['items' => array_values((array)($j['value'] ?? [])), 'next' => $j['@odata.nextLink'] ?? null];
     }
 
+    /** Graph odrzuca /instances dla okna dłuższego niż 5 lat („Maximum number of years: 5”) — dłuższe okno dzielimy na odcinki. */
+    public const INSTANCES_MAX_YEARS = 4;
+
     /** Wystąpienia serii w oknie (UTC, 'Y-m-d\TH:i:s'), wszystkie strony; typy occurrence i exception. @return list<array> */
     public function instances(string $upn, string $masterId, string $fromUtc, string $toUtc): array
     {
+        $utc = new \DateTimeZone('UTC');
+        $from = new \DateTimeImmutable($fromUtc, $utc);
+        $to = new \DateTimeImmutable($toUtc, $utc);
         $out = [];
-        $url = $this->user($upn) . '/events/' . rawurlencode($masterId) . '/instances?startDateTime=' . rawurlencode($fromUtc . 'Z')
-             . '&endDateTime=' . rawurlencode($toUtc . 'Z') . '&$top=200&$select=' . self::EVENT_FIELDS;
-        $guard = 0;
-        while ($url && $guard++ < 100) {
-            $j = $this->getJson($url, true);
-            foreach ((array)($j['value'] ?? []) as $e) $out[] = $e;
-            $url = $j['@odata.nextLink'] ?? null;
+        $seen = [];
+        while ($from < $to) {
+            $end = $from->modify('+' . self::INSTANCES_MAX_YEARS . ' years');
+            if ($end > $to) $end = $to;
+            $url = $this->user($upn) . '/events/' . rawurlencode($masterId) . '/instances?startDateTime=' . rawurlencode($from->format('Y-m-d\TH:i:s') . 'Z')
+                 . '&endDateTime=' . rawurlencode($end->format('Y-m-d\TH:i:s') . 'Z') . '&$top=200&$select=' . self::EVENT_FIELDS;
+            $guard = 0;
+            while ($url && $guard++ < 100) {
+                $j = $this->getJson($url, true);
+                foreach ((array)($j['value'] ?? []) as $e) {
+                    // wystąpienie na granicy odcinków przychodzi w obu odpowiedziach
+                    $key = (string)($e['id'] ?? '') !== '' ? (string)$e['id'] : json_encode([$e['originalStart'] ?? null, $e['start'] ?? null]);
+                    if (isset($seen[$key])) continue;
+                    $seen[$key] = true;
+                    $out[] = $e;
+                }
+                $url = $j['@odata.nextLink'] ?? null;
+            }
+            $from = $end;
         }
         return $out;
     }
