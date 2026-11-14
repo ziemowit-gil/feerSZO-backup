@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', function () {
       + rich(s, 'html', 4) + '<div class="mt-2">' + shots(s.images) + drop(s.images, true) + '</div></div>';
   }
   function blockHtml(b, i) {
-    var title = {text: 'Tekst', wizard: 'Kreator krok po kroku', image: 'Zrzut ekranu', callout: 'Wyróżnienie'}[b.type], body = '';
+    var title = {text: 'Tekst', wizard: 'Kreator krok po kroku', image: 'Zrzut ekranu', callout: 'Wyróżnienie', buttons: 'Przyciski'}[b.type], body = '';
     if (b.type === 'text') body = rich(b, 'html', 8);
     else if (b.type === 'callout') {
       var opts = Object.keys(CFG.callouts).map(function (k) { return '<option value="' + k + '"' + (b.kind === k ? ' selected' : '') + '>' + esc(CFG.callouts[k]) + '</option>'; }).join('');
@@ -89,6 +89,17 @@ document.addEventListener('DOMContentLoaded', function () {
     } else if (b.type === 'image') {
       var one = b.file ? [b] : [];
       body = (b.file ? shots(one) : '') + drop({push: function (im) { b.file = im.file; b.alt = b.alt || im.alt; }}, false);
+    } else if (b.type === 'buttons') {
+      b.items = b.items || [];
+      body = '<label class="form-label small">Nagłówek (opcjonalnie)</label>' + inp(b, 'title', 'mb-2', 'placeholder="np. Pobierz aplikację"')
+        + b.items.map(function (it, k) {
+            return '<div class="blk-step"><div class="blk-h"><span class="blk-no">' + (k + 1) + '</span><div class="flex-grow-1">'
+              + inp(it, 'label', 'form-control-sm mb-1', 'placeholder="Napis na przycisku" aria-label="Napis na przycisku ' + (k + 1) + '"')
+              + inp(it, 'url', 'form-control-sm mb-1', 'placeholder="https://… albo /uslugi-it/…" aria-label="Adres przycisku ' + (k + 1) + '"')
+              + inp(it, 'note', 'form-control-sm', 'placeholder="Dopisek pod napisem, np. Android" aria-label="Dopisek przycisku ' + (k + 1) + '"')
+              + '</div>' + ctrls(b.items, k, 'przycisk ' + (k + 1)) + '</div></div>';
+          }).join('')
+        + btn('<i class="bi bi-plus-lg"></i> Dodaj przycisk', function () { b.items.push({label: '', url: '', note: ''}); render(); }, 'btn-outline-primary');
     } else if (b.type === 'wizard') {
       b.steps = b.steps || [];
       body = '<label class="form-label small">Tytuł kreatora</label>' + inp(b, 'title', 'mb-2', 'placeholder="np. Jak zmienić hasło krok po kroku"')
@@ -124,6 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
       + btn('<i class="bi bi-list-ol"></i> Kreator krok po kroku', function () { blocks.push({type: 'wizard', title: '', intro: '', steps: [{title: '', html: '', images: []}]}); render(); }, 'btn-primary')
       + btn('<i class="bi bi-image"></i> Zrzut ekranu', function () { blocks.push({type: 'image', file: '', alt: '', caption: ''}); render(); }, 'btn-outline-primary')
       + btn('<i class="bi bi-info-circle"></i> Wyróżnienie', function () { blocks.push({type: 'callout', kind: 'info', html: ''}); render(); }, 'btn-outline-primary')
+      + btn('<i class="bi bi-box-arrow-up-right"></i> Przyciski', function () { blocks.push({type: 'buttons', title: '', items: [{label: '', url: '', note: ''}]}); render(); }, 'btn-outline-primary')
       + '</div><p class="blk-msg mt-2 mb-0" role="alert">' + esc(msg) + '</p>';
     root.innerHTML = h;
     if (window.tinymce && root.querySelector('.blk-rich')) {

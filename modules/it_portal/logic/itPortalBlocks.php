@@ -7,6 +7,7 @@
  *   wizard  {title, intro, steps:[{title, html, images:[{file, alt, caption}]}]}   — „Kreator krok po kroku”
  *   image   {file, alt, caption}                                                   — pojedynczy zrzut ekranu
  *   callout {kind: info|warn|tip|important, html}
+ *   buttons {title, items:[{label, url, note}]}                                    — „Przyciski” (np. pobieranie aplikacji), linki http(s) albo /…
  * Zrzuty ekranu: uploads/it_portal/{hex}.{png|jpg|gif|webp}, publicznie przez /uslugi-it/img/{plik}.
  * Kolumny body_html / intro_html trzymają sam tekst z bloków (zgodność wsteczna, wyszukiwarka);
  * artykuł bez bloków renderuje się jak dawniej z body_html.
@@ -65,6 +66,17 @@ function itPortalBlocksClean(mixed $raw): array {
             case 'image':
                 if ($im = itPortalBlockImage($b)) $out[] = ['type' => 'image'] + $im;
                 break;
+            case 'buttons':
+                $items = [];
+                foreach (array_slice((array)($b['items'] ?? []), 0, 12) as $it) {
+                    if (!is_array($it)) continue;
+                    $label = mb_substr(trim((string)($it['label'] ?? '')), 0, 80);
+                    $url = trim((string)($it['url'] ?? ''));
+                    if ($label === '' || !preg_match('~^(https?://[^\s<>"]+|/[^\s<>"]*)$~i', $url)) continue;
+                    $items[] = ['label' => $label, 'url' => mb_substr($url, 0, 500), 'note' => mb_substr(trim((string)($it['note'] ?? '')), 0, 120)];
+                }
+                if ($items) $out[] = ['type' => 'buttons', 'title' => mb_substr(trim((string)($b['title'] ?? '')), 0, 200), 'items' => $items];
+                break;
             case 'wizard':
                 $steps = [];
                 foreach (array_slice((array)($b['steps'] ?? []), 0, 60) as $s) {
@@ -97,6 +109,8 @@ function itPortalBlocksPlain(string $blocksJson, string $fallbackHtml): string {
             foreach ($b['steps'] as $s) $parts[] = $s['title'] . ' ' . itPortalPlain($s['html']);
         } elseif ($b['type'] === 'image') {
             $parts[] = $b['alt'] . ' ' . $b['caption'];
+        } elseif ($b['type'] === 'buttons') {
+            $parts[] = $b['title'] . ' ' . implode(' ', array_map(fn($it) => $it['label'] . ' ' . $it['note'], $b['items']));
         }
     }
     return trim(implode("\n", array_filter($parts, fn($p) => trim($p) !== '')));
@@ -130,6 +144,17 @@ function itPortalRenderBlocks(array $row, string $blocksKey, string $htmlKey, st
         switch ($b['type']) {
             case 'text': $out .= $b['html']; break;
             case 'image': $out .= itPortalRenderImage($b); break;
+            case 'buttons':
+                $out .= '<section class="itp-dl"' . ($b['title'] !== '' ? ' aria-label="' . h($b['title']) . '"' : '') . '>'
+                      . ($b['title'] !== '' ? '<h2 class="itp-dl__h">' . h($b['title']) . '</h2>' : '') . '<ul class="itp-dl__list">';
+                foreach ($b['items'] as $it) {
+                    $ext = str_starts_with($it['url'], 'http');
+                    $out .= '<li><a class="itp-dl__btn" href="' . h($it['url']) . '"' . ($ext ? ' rel="noopener"' : '') . '>'
+                          . '<span class="itp-dl__label">' . h($it['label']) . '</span>'
+                          . ($it['note'] !== '' ? '<span class="itp-dl__note">' . h($it['note']) . '</span>' : '') . '</a></li>';
+                }
+                $out .= '</ul></section>';
+                break;
             case 'callout':
                 $out .= '<aside class="itp-callout itp-callout--' . $b['kind'] . '"><strong class="itp-callout__t">' . h(ITP_CALLOUTS[$b['kind']]) . '</strong><div>' . $b['html'] . '</div></aside>';
                 break;
