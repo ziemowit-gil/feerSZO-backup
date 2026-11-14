@@ -1,13 +1,14 @@
 <?php
 /**
- * tozsamosc/login.php — dedykowane okno logowania do Systemu Tożsamości (wygląd logowania TI, METRO).
+ * tozsamosc/login.php — dedykowane okno logowania do Systemu Tożsamości (dawny wygląd pod ?stary=1).
+ * Wygląd: jasna karta wspólna dla ekranów wejścia (includes/auth_screen.php, tryb 'light', przebudowa 2026-11-14).
  *
- * Lewa kolumna wyjaśnia, czym jest System Tożsamości i SSO. Prawa: logowanie jednokrotne (Logto), Microsoft 365 (tylko administratorzy) albo e-mail i hasło.
+ * Kolumna obok karty wyjaśnia, czym jest System Tożsamości i SSO. Prawa: logowanie jednokrotne (Logto), Microsoft 365 (tylko administratorzy) albo e-mail i hasło.
  * Formularz NIE ma własnej kryptografii — wysyła dane do /auth/login.php (anty-brute, „tylko Office”, 2FA,
  * bramka WebAuthn, wymuszona zmiana hasła). Pole „from” sprawia, że po błędzie wracamy tutaj z ?err=.
  * Rzadsze metody (kod jednorazowy, SMS, certyfikat X.509) — przez pełny ekran /auth/login.php (?pelne=1).
  *
- * WCAG 2.1 AA: etykiety pól, błąd w role=alert, widoczny fokus (#facc15), obsługa klawiaturą, cele ≥ 44 px.
+ * WCAG 2.1 AA: etykiety pól, błąd w role=alert przy polach, widoczny fokus, obsługa klawiaturą, cele ≥ 44 px.
  */
 // CPL — Centralny Portal Logowania (układ TETA Web) jest teraz domyślnym oknem logowania Tożsamości.
 // Poprzedni wygląd (METRO) zostaje pod ?stary=1.
@@ -16,7 +17,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
-require_once dirname(__DIR__) . '/inc/loginShell/loginShell.php';
+require_once dirname(__DIR__) . '/includes/auth_screen.php';
 
 auth_start();
 
@@ -45,7 +46,7 @@ $sso_url  = $APP . '/karty30/ti/sso.php';
 $e        = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 // Lewa kolumna: czym jest System Tożsamości (krótko, zwykłym językiem)
-$side = '<div class="tzt-opis">'
+$side = '<aside class="tzt-aside" aria-labelledby="tzt-aside-h"><h2 id="tzt-aside-h" class="tzt-aside-h">Czym jest System Tożsamości?</h2>'
       . '<p class="tzt-lead">Jedno konto i jedno logowanie do systemów Fundacji FEER.</p>'
       . '<ul class="tzt-lista">'
       . '<li><i class="bi bi-key" aria-hidden="true"></i><span><strong>Jedno logowanie (SSO).</strong> Logujesz się raz, a SZO, panel TI, CRM, poczta i połączone aplikacje otwierają się bez ponownego wpisywania hasła.</span></li>'
@@ -57,108 +58,115 @@ $side = '<div class="tzt-opis">'
       . '<span>Hasło wpisuj tylko na stronach <strong>' . $e(parse_url($APP, PHP_URL_HOST) ?: 'szo.feer.org.pl') . '</strong>. '
       . 'Fundacja nigdy nie prosi o hasło ani kod SMS przez telefon czy e-mail. '
       . '<a href="' . $e($sso_url) . '">Więcej o SSO</a></span></p>'
-      . '</div>';
+      . '</aside>';
 
-loginShellHead([
-    'title'     => 'Logowanie — System Tożsamości · Fundacja FEER',
-    'orgLabel'  => 'FEER · System Tożsamości',
-    'sideTitle' => 'Czym jest System Tożsamości?',
-    'sideHtml'  => $side,
-    'mainId'    => 'tzt-main',
-    'extraHead' => '<style>'
-        . '.tzt-lead{color:#e5e7eb;font-size:1.05rem;margin:.25rem 0 1.25rem}'
-        . '.tzt-lista{list-style:none;padding:0!important;margin:0!important;display:grid;gap:.85rem;max-width:460px}'
-        . '.tzt-lista li{display:flex;gap:.75rem;align-items:flex-start;margin:0!important;font-size:.95rem;line-height:1.5;color:#e5e7eb}'
-        . '.tzt-lista strong{color:#fff}'
-        . '.tzt-lista .bi{flex:0 0 2.2rem;height:2.2rem;display:flex;align-items:center;justify-content:center;background:#1ba1e2;color:#fff;font-size:1.1rem}'
-        . '.tzt-uwaga{display:flex;gap:.6rem;align-items:flex-start;margin:1.5rem 0 0;padding:.8rem 1rem;max-width:460px;border-left:5px solid #facc15;background:rgba(255,255,255,.07);font-size:.88rem;color:#e5e7eb}'
-        . '.tzt-uwaga .bi{color:#facc15;font-size:1.1rem}'
-        . '.tzt-ms{display:flex!important;align-items:center;justify-content:center;gap:.6rem;min-height:48px}'
-        . '.tzt-card-h{font-size:1.5rem;font-weight:700;margin:0 0 .25rem}'
-        . '.tz-btn{min-height:48px;display:flex;align-items:center;justify-content:center}'
-        . '.tzt-nowy{display:flex;gap:.6rem;align-items:flex-start;margin:0 0 1.25rem;padding:.75rem .9rem;background:#e6f4fb;border-left:6px solid #1ba1e2;font-size:.9rem;color:#1d1d1d}'
-        . '.tzt-nowy .bi{color:#0f6fa8;font-size:1.15rem}'
-        . '.tzt-inne{display:grid;gap:.5rem;margin-top:.5rem}'
-        . '.tzt-inne a{display:flex;align-items:center;gap:.5rem;min-height:44px;padding:.4rem .2rem;color:#1d4ed8;font-weight:600}'
-        . '.tzt-inne a .bi{color:#1ba1e2;font-size:1.1rem}'
+$_err_attr = $err !== '' ? ' aria-invalid="true"' : '';
+$_err_ids  = $err !== '' ? ' tzt-err' : '';
+auth_screen_head([
+    'title'           => 'Logowanie — System Tożsamości',
+    'light'           => true,
+    'width'           => 480,
+    'main_id'         => 'tzt-main',
+    'account_buttons' => [],
+    'aside_html'      => $side,
+    'head_html'       => '<style>'
+        . '.au .d-none{display:none!important}'
+        . '.tzt-aside{padding:1.6rem 1.75rem;background:#fff;border:1px solid var(--au-line);border-radius:var(--au-r);color:var(--au-ink)}'
+        . '.tzt-aside-h{margin:0 0 .35rem;font-size:1.35rem;font-weight:700}'
+        . '.tzt-lead{margin:0 0 1.25rem;color:var(--au-ink2)}'
+        . '.tzt-lista{list-style:none;display:grid;gap:.85rem;margin:0;padding:0}'
+        . '.tzt-lista li{display:flex;gap:.75rem;align-items:flex-start;font-size:.95rem;line-height:1.5}'
+        . '.tzt-lista .bi{flex:0 0 2.25rem;display:flex;align-items:center;justify-content:center;height:2.25rem;border-radius:8px;background:var(--au-acc-soft);color:var(--au-acc);font-size:1.1rem}'
+        . '.tzt-uwaga{display:flex;gap:.6rem;align-items:flex-start;margin:1.5rem 0 0;padding:.8rem 1rem;border-left:4px solid var(--au-warn);border-radius:var(--au-rs);background:var(--au-warn-bg);color:var(--au-warn-ink);font-size:.9rem}'
+        . '.tzt-uwaga .bi{font-size:1.1rem;color:var(--au-warn-ink)}'
+        . '.tzt-aside a{font-weight:600;color:var(--au-acc);text-decoration:underline}'
+        . '.tzt-sso-h{margin:.45rem 0 0;font-size:.875rem;text-align:center;color:var(--au-muted)}'
+        . '.tzt-ms svg{flex-shrink:0}'
+        . '.tzt-inne-h{margin:1.75rem 0 .25rem;font-size:.95rem;font-weight:700}'
+        . '.tzt-inne{display:grid;gap:.25rem;margin:0 0 .5rem}'
+        . '.tzt-inne a{display:flex;align-items:center;gap:.5rem;min-height:44px;font-weight:600}'
+        . '.tzt-inne a .bi{color:var(--au-acc);font-size:1.1rem}'
+        . '@media(max-width:520px){.tzt-aside{padding:1.25rem}}'
         . '</style>',
 ]);
 ?>
-      <div class="tzt-nowy" role="note">
-        <i class="bi bi-calendar-check" aria-hidden="true"></i>
-        <span><strong>Od 10.10.2026 obowiązuje nowy system zarządzania tożsamością.</strong>
-        Konta założone wcześniej logują się jak za pierwszym razem — dotychczasowych haseł nie dało się przenieść.</span>
-      </div>
-      <h1 class="tzt-card-h">Zaloguj się</h1>
-      <p class="tz-hint mt-0 mb-3">do Systemu Tożsamości Fundacji FEER</p>
+<div class="l-alert l-alert-info" role="note">
+  <i class="bi bi-calendar-check" aria-hidden="true"></i>
+  <span><strong>Od 10.10.2026 obowiązuje nowy system zarządzania tożsamością.</strong>
+  Konta założone wcześniej logują się jak za pierwszym razem — dotychczasowych haseł nie dało się przenieść.</span>
+</div>
+<h1 class="ks-h1">Zaloguj się</h1>
+<p class="ks-lead">do Systemu Tożsamości Fundacji FEER</p>
 
-      <?php if ($err !== ''): ?>
-      <div class="alert alert-danger small py-2" role="alert" id="tzt-err"><i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i><?= $e($err) ?></div>
-      <?php endif; ?>
+<?php if ($lt_ok): ?>
+<a href="<?= $e($lt_url) ?>" class="ks-btn ks-btn--primary">
+  <i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne
+</a>
+<p class="tzt-sso-h">Jedno konto Fundacji — to samo co do chmury plików.</p>
+<?php endif; ?>
+<?php if ($ms_ok): ?>
+<a href="<?= $e($ms_url) ?>" class="ks-btn ks-btn--ghost tzt-ms"<?= $lt_ok ? ' style="margin-top:1rem"' : '' ?>
+   aria-label="Microsoft 365 — tylko administratorzy; zostaniesz przekierowany do Microsoft">
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
+    <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
+    <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+  </svg>
+  Microsoft 365 — administratorzy
+</a>
+<p class="tzt-sso-h">Tylko konta administratorów <strong>@feer.org.pl</strong>.</p>
+<?php endif; ?>
+<?php if ($lt_ok || $ms_ok): ?>
+<div class="ks-or">lub e-mailem i hasłem</div>
+<?php endif; ?>
 
-      <?php if ($lt_ok): ?>
-      <a href="<?= $e($lt_url) ?>" class="tz-btn tzt-ms">
-        <i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne
-      </a>
-      <p class="tz-hint mt-2 mb-0">Jedno konto Fundacji — to samo co do chmury plików.</p>
-      <?php endif; ?>
-      <?php if ($ms_ok): ?>
-      <a href="<?= $e($ms_url) ?>" class="tz-btn tz-btn-ghost tzt-ms<?= $lt_ok ? ' mt-3' : '' ?>"
-         aria-label="Microsoft 365 — tylko administratorzy; zostaniesz przekierowany do Microsoft">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
-          <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
-          <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
-        </svg>
-        Microsoft 365 — administratorzy
-      </a>
-      <p class="tz-hint mt-2 mb-0">Tylko konta administratorów <strong>@feer.org.pl</strong>.</p>
-      <?php endif; ?>
-      <?php if ($lt_ok || $ms_ok): ?>
-      <div class="tz-sep">lub e-mailem i hasłem</div>
-      <?php endif; ?>
+<form method="post" action="<?= $e($action) ?>" novalidate autocomplete="on" aria-label="Logowanie e-mailem i hasłem">
+  <input type="hidden" name="_csrf" value="<?= $e($token) ?>">
+  <input type="hidden" name="_method" value="local">
+  <input type="hidden" name="from" value="<?= $e($self_url) ?>">
 
-      <form method="post" action="<?= $e($action) ?>" novalidate autocomplete="on">
-        <input type="hidden" name="_csrf" value="<?= $e($token) ?>">
-        <input type="hidden" name="_method" value="local">
-        <input type="hidden" name="from" value="<?= $e($self_url) ?>">
-
-        <div class="mb-3">
-          <label for="tzt-email">Adres e-mail</label>
-          <input type="email" class="form-control form-control-lg" id="tzt-email" name="email"
-                 autocomplete="username" inputmode="email" required <?= ($ms_ok || $lt_ok) ? '' : 'autofocus' ?>
-                 <?= $err !== '' ? 'aria-invalid="true" aria-describedby="tzt-err"' : '' ?>>
-        </div>
-        <div class="mb-2">
-          <label for="tzt-pass">Hasło</label>
-          <div class="pass-wrap">
-            <input type="password" class="form-control form-control-lg" id="tzt-pass" name="password"
-                   autocomplete="current-password" required <?= $err !== '' ? 'aria-invalid="true"' : '' ?>>
-            <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" onclick="tzPokaz('tzt-pass', this)">
-              <i class="bi bi-eye" aria-hidden="true"></i>
-            </button>
-          </div>
-        </div>
-        <p class="mb-4"><a href="<?= $e($APP . '/user/verify_reset.php') ?>">Nie pamiętasz hasła?</a></p>
-
-        <button type="submit" class="tz-btn">Zaloguj do Tożsamości</button>
-      </form>
-
-      <?php /* Logowanie kluczem bezpieczeństwa (WebAuthn) — logika w tozsamosc/klucz_login.php */ ?>
-      <div class="tz-sep">lub kluczem bezpieczeństwa</div>
-      <button type="button" class="tz-btn tz-btn-ghost tzt-ms" id="tzt-klucz" aria-describedby="tzt-klucz-hint">
-        <i class="bi bi-usb-drive" aria-hidden="true"></i>Zaloguj kluczem bezpieczeństwa
+  <?php if ($err !== ''): ?>
+  <div class="l-alert l-alert-danger" role="alert" id="tzt-err"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span id="login-error-text"><?= $e($err) ?></span></div>
+  <?php endif; ?>
+  <div class="ks-field">
+    <label for="tzt-email">Adres e-mail</label>
+    <input type="email" class="form-control" id="tzt-email" name="email"
+           autocomplete="username" inputmode="email" required<?= ($ms_ok || $lt_ok) && $err === '' ? '' : ' autofocus' ?>
+           aria-describedby="tzt-email-err<?= $_err_ids ?>"<?= $_err_attr ?>>
+    <p class="au-ferr" id="tzt-email-err" role="alert"></p>
+  </div>
+  <div class="ks-field">
+    <label for="tzt-pass">Hasło</label>
+    <div class="pass-wrap">
+      <input type="password" class="form-control" id="tzt-pass" name="password"
+             autocomplete="current-password" required aria-describedby="tzt-pass-err<?= $_err_ids ?>"<?= $_err_attr ?>>
+      <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" aria-controls="tzt-pass" onclick="togglePass('tzt-pass', this)">
+        <i class="bi bi-eye" aria-hidden="true"></i>
       </button>
-      <p class="tz-hint mt-2 mb-0" id="tzt-klucz-hint">YubiKey, passkey w telefonie, Windows Hello lub Touch ID.
-        Masz YubiKey? Najpierw wpisz adres e-mail powyżej. Klucz dodasz w Tożsamości: <strong>Bezpieczeństwo</strong>.</p>
-      <div class="alert alert-danger small py-2 mt-2 mb-0 d-none" id="tzt-klucz-err" role="alert"></div>
-      <div class="visually-hidden" role="status" aria-live="polite" id="tzt-klucz-live"></div>
+    </div>
+    <p class="au-ferr" id="tzt-pass-err" role="alert"></p>
+  </div>
+  <p class="ks-note" style="margin:-.25rem 0 1.25rem"><a href="<?= $e($APP . '/user/verify_reset.php') ?>">Nie pamiętasz hasła?</a></p>
 
-      <p class="tz-hint mt-4 mb-1 fw-semibold">Inne sposoby logowania</p>
-      <div class="tzt-inne">
-        <a href="<?= $e($full_url) ?>"><i class="bi bi-phone" aria-hidden="true"></i>Kod SMS, kod jednorazowy lub certyfikat</a>
-        <a href="<?= $e($APP . '/tozsamosc/kursant.php') ?>"><i class="bi bi-mortarboard" aria-hidden="true"></i>Jestem kursantem TI</a>
-      </div>
-      <p class="tz-hint mb-0">Logowanie chronione: logowanie dwuetapowe i klucze bezpieczeństwa działają tak jak w całym systemie.</p>
+  <button type="submit" class="ks-btn ks-btn--primary">Zaloguj do Tożsamości</button>
+</form>
+
+<?php /* Logowanie kluczem bezpieczeństwa (WebAuthn) — logika w tozsamosc/klucz_login.php */ ?>
+<div class="ks-or">lub kluczem bezpieczeństwa</div>
+<button type="button" class="ks-btn ks-btn--ghost" id="tzt-klucz" aria-describedby="tzt-klucz-hint">
+  <i class="bi bi-usb-drive" aria-hidden="true"></i>Zaloguj kluczem bezpieczeństwa
+</button>
+<p class="ks-fieldhint" id="tzt-klucz-hint">YubiKey, passkey w telefonie, Windows Hello lub Touch ID.
+  Masz YubiKey? Najpierw wpisz adres e-mail powyżej. Klucz dodasz w Tożsamości: <strong>Bezpieczeństwo</strong>.</p>
+<div class="l-alert l-alert-danger d-none" id="tzt-klucz-err" role="alert" style="margin-top:.75rem"></div>
+<div class="sr" role="status" aria-live="polite" id="tzt-klucz-live"></div>
+
+<h2 class="tzt-inne-h">Inne sposoby logowania</h2>
+<div class="tzt-inne">
+  <a href="<?= $e($full_url) ?>"><i class="bi bi-phone" aria-hidden="true"></i>Kod SMS, kod jednorazowy lub certyfikat</a>
+  <a href="<?= $e($APP . '/tozsamosc/kursant.php') ?>"><i class="bi bi-mortarboard" aria-hidden="true"></i>Jestem kursantem TI</a>
+  <a href="<?= $e($APP . '/auth/report_login_issue.php') ?>"><i class="bi bi-life-preserver" aria-hidden="true"></i>Problem z logowaniem</a>
+</div>
+<p class="ks-fieldhint">Logowanie chronione: logowanie dwuetapowe i klucze bezpieczeństwa działają tak jak w całym systemie.</p>
 <?php
 $_klucz_js = '<script>(function () {'
     . 'var btn = document.getElementById("tzt-klucz"), err = document.getElementById("tzt-klucz-err"), live = document.getElementById("tzt-klucz-live");'
@@ -191,11 +199,19 @@ $_klucz_js = '<script>(function () {'
     . '});'
     . '})();</script>';
 
-loginShellFoot([
-    'extraJs' => $_klucz_js,
-    'links' => [
-        ['url' => $APP . '/auth/report_login_issue.php', 'label' => 'Problem z logowaniem'],
-        ['url' => $sso_url,                              'label' => 'Czym jest SSO?'],
-        ['url' => 'https://feer.org.pl',                 'label' => 'Strona Fundacji FEER'],
-    ],
+// Puste pole e-mail / hasło: komunikat przy polu (role=alert) zamiast wysłania pustego formularza.
+$_pola_js = '<script>(function () {'
+    . 'var em = document.getElementById("tzt-email"), pw = document.getElementById("tzt-pass"); if (!em || !pw) return;'
+    . 'function err(i, t) { var b = document.getElementById(i.id + "-err"); if (!b) return;'
+    . '  b.innerHTML = t ? "<i class=\"bi bi-exclamation-circle-fill\" aria-hidden=\"true\"></i><span></span>" : "";'
+    . '  if (t) { b.lastChild.textContent = t; i.setAttribute("aria-invalid", "true"); } }'
+    . '[em, pw].forEach(function (i) { i.addEventListener("input", function () { if (i.value) err(i, ""); }); });'
+    . 'em.form.addEventListener("submit", function (ev) { var a = !em.value.trim(), b = !pw.value;'
+    . '  err(em, a ? "Wpisz adres e-mail." : ""); err(pw, b ? "Wpisz hasło." : "");'
+    . '  if (a || b) { ev.preventDefault(); (a ? em : pw).focus(); } });'
+    . '})();</script>';
+
+auth_screen_foot([
+    'no_new_tiles' => true,
+    'extra_js'     => $_klucz_js . $_pola_js,
 ]);
