@@ -2,11 +2,13 @@
 /**
  * modules/ti_login/view/loginPage.php — wspólna strona logowania TI (szata METRO portalu TI, modules/ti/view/portal).
  * Jeden formularz „login + hasło” dla uczestników, rodziców/opiekunów, osób upoważnionych i kadry; rodzaj konta
- * rozpoznaje TiLogin. Drugi widok: wybór panelu, gdy ten sam login i hasło pasują do kilku kont.
+ * rozpoznaje TiLogin. Drugi widok: wybór panelu, gdy ten sam login i hasło pasują do kilku kont. Trzeci: wpisanie kodu
+ * z SMS-a (tymczasowe logowanie samym loginem, TiLoginSms, gdy $smsOn).
  *
- * Wejście: $view ('form'|'choice'), $error, $notice, $login, $hint (tab ze starych adresów), $choiceItems, $choiceNonce,
- *          $formAction, $officeUrl, $pfronOn, $naborOn, $TI_BASE.
+ * Wejście: $view ('form'|'choice'|'code'), $error, $notice, $login, $hint (tab ze starych adresów), $choiceItems, $choiceNonce,
+ *          $formAction, $officeUrl, $pfronOn, $naborOn, $TI_BASE, $smsOn.
  */
+$smsOn = !empty($smsOn);
 $_lpOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
 $_lpTiles = [TiLogin::STUDENT => '#0f6fa8', TiLogin::PARENT => '#00a300', TiLogin::AUTHP => '#7e3878', TiLogin::STAFF => '#1d1d1d'];
 ?><!DOCTYPE html>
@@ -14,7 +16,7 @@ $_lpTiles = [TiLogin::STUDENT => '#0f6fa8', TiLogin::PARENT => '#00a300', TiLogi
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h(($view === 'choice' ? 'Wybierz panel' : 'Logowanie') . ' — Panel TI — ' . $_lpOrg) ?></title>
+<title><?= h(($view === 'choice' ? 'Wybierz panel' : ($view === 'code' ? 'Kod z SMS-a' : 'Logowanie')) . ' — Panel TI — ' . $_lpOrg) ?></title>
 <meta name="robots" content="noindex,nofollow">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
@@ -57,6 +59,11 @@ $_lpTiles = [TiLogin::STUDENT => '#0f6fa8', TiLogin::PARENT => '#00a300', TiLogi
   .lp-tile .bi { font-size: 2rem; }
   .lp-tile-t { display: block; font-size: 1.15rem; font-weight: 600; }
   .lp-tile-d { display: block; font-size: .92rem; opacity: .92; }
+  /* Kod z SMS-a (tymczasowe logowanie samym loginem) */
+  .lp-sms { border-left: 5px solid var(--pp-blue); background: #e8f2f9; padding: .75rem 1rem; margin: 0 0 1.35rem; }
+  .lp-code { max-width: 12rem; font-size: 1.5rem; letter-spacing: .3em; font-variant-numeric: tabular-nums; }
+  .lp-linkbtn { background: none; border: 0; padding: 0; min-height: 44px; font: inherit; color: #0b5f91; text-decoration: underline; cursor: pointer; }
+  .lp-linkbtn:hover { color: #084466; }
 </style>
 </head>
 <body class="pp">
@@ -80,11 +87,47 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
     </ul>
   </form>
   <p><a href="<?= h($formAction) ?>">Anuluj i wróć do logowania</a></p>
+<?php elseif ($view === 'code'): ?>
+  <h1 class="pp-h1">Wpisz kod z SMS-a</h1>
+  <p class="lp-lead">Jeśli login należy do uczestnika albo prowadzącego z umową i mamy jego numer telefonu, wysłaliśmy SMS z sześciocyfrowym kodem. Kod działa 10 minut.</p>
+  <?php if ($error): ?><div class="pp-error" role="alert" id="lp-err"><?= h($error) ?></div><?php endif; ?>
+  <?php if (!$error && $notice): ?><div class="pp-ok" role="status"><?= h($notice) ?></div><?php endif; ?>
+  <div class="pp-cols">
+    <div>
+      <form method="post" action="<?= h($formAction) ?>" autocomplete="off">
+        <div class="pp-field">
+          <label for="lp-code">Kod z SMS-a</label>
+          <input type="text" class="pp-input lp-code" id="lp-code" name="kod" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                 autocomplete="one-time-code" required autofocus aria-describedby="lp-code-h<?= $error ? ' lp-err' : '' ?>"<?= $error ? ' aria-invalid="true"' : '' ?>>
+          <p id="lp-code-h" class="lp-help">Sześć cyfr, bez spacji.</p>
+        </div>
+        <div class="lp-actions">
+          <button type="submit" class="pp-submit">Zaloguj się</button>
+        </div>
+      </form>
+      <form method="post" action="<?= h($formAction) ?>" style="margin-top:1rem">
+        <button type="submit" name="ponow" value="1" class="lp-linkbtn">Kod nie przyszedł? Wyślij nowy</button>
+      </form>
+      <p style="margin-top:.5rem"><a href="<?= h($formAction) ?>">Wróć do logowania</a></p>
+    </div>
+    <aside class="pp-note" aria-labelledby="lp-code-side-h">
+      <p id="lp-code-side-h" style="margin-top:0"><strong>Skąd bierzemy numer?</strong></p>
+      <p>Uczestnik dostaje SMS na numer z karty w placówce. Prowadzący dostaje go na numer komórkowy z konta SZO, a gdy go tam nie ma, z umowy.</p>
+      <p>Numer się zmienił albo kod nie przychodzi? Skontaktuj się z placówką.</p>
+      <p>Rodzic, opiekun i osoba upoważniona logują się hasłem.</p>
+    </aside>
+  </div>
 <?php else: ?>
   <h1 class="pp-h1">Zaloguj się do panelu TI</h1>
   <p class="lp-lead">Jedno logowanie dla uczestników, rodziców i opiekunów, osób upoważnionych oraz kadry. Wpisz swój login — rozpoznamy, do którego panelu należy.</p>
   <?php if ($error): ?><div class="pp-error" role="alert" id="lp-err"><?= h($error) ?></div><?php endif; ?>
   <?php if (!$error && $notice): ?><div class="pp-ok" role="status"><?= h($notice) ?></div><?php endif; ?>
+  <?php if ($smsOn): ?>
+  <div class="lp-sms">
+    <strong>Logowanie kodem SMS.</strong> Uczestnik i prowadzący z umową wpisują sam login (prowadzący: adres e-mail) i wybierają
+    „Wyślij kod SMS”. Hasło wpisują rodzice, opiekunowie i osoby upoważnione.
+  </div>
+  <?php endif; ?>
   <div class="pp-cols">
     <div>
       <form method="post" action="<?= h($formAction) ?>" autocomplete="on" id="lp-form">
@@ -104,8 +147,13 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
           </div>
         </div>
         <div class="lp-office" id="lp-office" role="status" hidden>
+          <?php if ($smsOn): ?>
+          <strong>Adres <?= h(TiLogin::OFFICE_DOMAIN) ?>.</strong> Hasła tu nie wpisujesz. Prowadzący z umową dostanie kod SMS,
+          a administratora przeniesiemy do logowania Microsoft 365.
+          <?php else: ?>
           <strong>Konto Microsoft 365.</strong> Adresy <?= h(TiLogin::OFFICE_DOMAIN) ?> logują się tylko przez Microsoft — hasła tu nie wpisujesz.
           Wybierz „Dalej”, a przeniesiemy Cię do logowania Microsoft 365.
+          <?php endif; ?>
         </div>
         <div class="pp-field" id="lp-pass-field">
           <label for="lp-password">Hasło</label>
@@ -115,15 +163,19 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
               <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
           </div>
+          <?php if ($smsOn): ?>
+          <p id="lp-pass-h" class="lp-help">Uczestnik i prowadzący z umową: zostaw puste, kod przyjdzie SMS-em. Rodzic, opiekun i osoba upoważniona: wpisz hasło.</p>
+          <?php else: ?>
           <p id="lp-pass-h" class="lp-help">Pierwsze logowanie uczestnika: zostaw hasło puste — kod przyjdzie SMS-em. Kadra po haśle poda kod z aplikacji (TOTP).</p>
+          <?php endif; ?>
         </div>
         <div class="lp-actions">
-          <button type="submit" class="pp-submit" id="lp-submit">Zaloguj się</button>
+          <button type="submit" class="pp-submit" id="lp-submit"><?= $smsOn ? 'Wyślij kod SMS' : 'Zaloguj się' ?></button>
         </div>
       </form>
 
       <div class="lp-or">albo</div>
-      <a class="lp-ms" href="<?= h($officeUrl) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Zaloguj przez Microsoft 365 (kadra <?= h(TiLogin::OFFICE_DOMAIN) ?>)</a>
+      <a class="lp-ms" href="<?= h($officeUrl) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> <?= $smsOn ? 'Administratorzy: zaloguj przez Microsoft 365' : 'Zaloguj przez Microsoft 365 (kadra ' . h(TiLogin::OFFICE_DOMAIN) . ')' ?></a>
 
       <details class="lp-more"<?= in_array($hint, ['rodzic', 'up'], true) ? ' open' : '' ?>>
         <summary>Inne sposoby logowania</summary>
@@ -145,7 +197,11 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
         <li><strong>Uczestnik</strong> — login z SMS-a lub wydruku, np. <code>j.kowalski</code>, <code>k1234</code> (konsultacje), albo własny alias.</li>
         <li><strong>Rodzic lub opiekun</strong> — login rodzica, np. <code>j.kowalski-r</code>.</li>
         <li><strong>Osoba upoważniona</strong> — login od uczestnika, np. <code>a.nowak-up</code>.</li>
+        <?php if ($smsOn): ?>
+        <li><strong>Kadra</strong> (prowadzący, konsultant, kierownik): adres e-mail. Prowadzący z umową dostaje kod SMS, administratorzy logują się przez Microsoft 365.</li>
+        <?php else: ?>
         <li><strong>Kadra</strong> (prowadzący, konsultant, kierownik) — e-mail. Konta <?= h(TiLogin::OFFICE_DOMAIN) ?> przez Microsoft 365.</li>
+        <?php endif; ?>
       </ul>
       <p style="margin-top:1rem"><strong>Twój obrazek.</strong> Uczestnik po wpisaniu loginu widzi swój obrazek (czytnik ekranu go opisze). Widzisz inny? Nie wpisuj hasła.</p>
       <p>Nie pamiętasz loginu albo hasła? Skontaktuj się z placówką. Pierwsze hasło uczestnika to kod z SMS-a.</p>
@@ -189,16 +245,20 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_footer.php';
     if (v.indexOf('@') >= 0) return v.slice(-officeDomain.length) === officeDomain ? 'office' : 'staff';
     return v === '' ? '' : 'panel';
   }
+  // Tymczasowe logowanie kodem SMS: pusty login lub hasło (albo adres w domenie Microsoft 365) → „Wyślij kod SMS”.
+  var smsOn = <?= json_encode($smsOn) ?>;
   function update() {
     var k = kind(inp.value);
     var isOffice = k === 'office';
     office.hidden = !isOffice;
     passField.hidden = isOffice;
     pass.disabled = isOffice;
-    submit.textContent = isOffice ? 'Dalej — Microsoft 365' : 'Zaloguj się';
+    submit.textContent = (smsOn && (isOffice || pass.value === '')) ? 'Wyślij kod SMS'
+                       : (isOffice ? 'Dalej — Microsoft 365' : 'Zaloguj się');
     if (k !== 'panel') { sec.hidden = true; }
     lastKind = k;
   }
+  pass.addEventListener('input', update);
   // Obrazek bezpieczeństwa uczestnika (nie dla e-maili ani loginów rodzica „-r” / osoby upoważnionej „-up”).
   function showSec() {
     var v = inp.value.trim();

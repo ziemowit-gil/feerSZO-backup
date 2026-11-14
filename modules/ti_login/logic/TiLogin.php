@@ -227,14 +227,14 @@ final class TiLogin
      * Zakłada sesję wybranego panelu i zwraca adres, pod który przekierować.
      * Konto zablokowane przez opiekuna → null (strona pokaże komunikat — hasło było poprawne).
      */
-    public static function completePanel(array $match, string $login): ?string
+    public static function completePanel(array $match, string $login, string $method = 'password'): ?string
     {
         $id = (int)$match['id'];
         switch ($match['type']) {
             case self::STUDENT:
                 $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id = ? AND is_active = 1", [$id]);
                 if (!$acc || !empty($acc['child_access_blocked'])) return null;
-                student_login_user($acc, 'password', 'login: ' . $login . ' (wspólne logowanie TI)');
+                student_login_user($acc, $method, 'login: ' . $login . ($method === 'sms' ? ', kod SMS' : '') . ' (wspólne logowanie TI)');
                 $sec = function_exists('ti_sec_image_required') ? db_one("SELECT sec_chosen FROM k30_ti_student_accounts WHERE id = ?", [$id]) : null;
                 return tiPanelUrl('kursant', ($sec !== null && empty($sec['sec_chosen']) && ti_sec_image_required($id)) ? 'sec_choose.php' : 'index.php');
 
@@ -279,6 +279,28 @@ final class TiLogin
         $profile['login_method'] = 'email';   // dziennik logowań panelu (dyd_login_log)
         dyd_2fa_stash($profile, $next);
         return tiPanelUrl('dydaktyk', 'totp_gate.php');
+    }
+
+    /**
+     * Kadra po kodzie SMS (TiLoginSms, tymczasowe logowanie prowadzących z umową): sesja panelu dydaktyka bez bramki TOTP,
+     * bo kod SMS jest drugim składnikiem. Sprawdza ponownie konto, dostęp do panelu i umowę. Zwraca adres panelu albo null.
+     * Wymaga dydaktyk/auth.php.
+     */
+    public static function completeStaffSms(int $userId): ?string
+    {
+        $u = db_one("SELECT * FROM users WHERE id = ? AND is_active = 1", [$userId]);
+        if (!$u || account_is_office_only($u)) return null;
+        if (!empty($u['locked_until']) && strtotime((string)$u['locked_until']) > time()) return null;
+        $profile = dyd_profile_from_user($u);
+        if (!$profile || !TiLoginSms::contractsOf($u)) return null;
+        try { db()->prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?")->execute([$userId]); } catch (\Throwable $e) {}
+        $next = (string)($_COOKIE['k30_dyd_next'] ?? '');
+        if ($next !== '') setcookie('k30_dyd_next', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        $profile['login_method'] = 'sms';
+        $profile['sms_login']    = 1;
+        $profile['totp_bypass']  = 'kod SMS (tymczasowe logowanie TI)';
+        dyd_login_user($profile);
+        return tiPanelUrl('dydaktyk', dyd_safe_next($next));
     }
 
     /** Osobna strona logowania loginem zastępczym konsultanta (na ti.* / kurs.* „/konsultant.php”). */

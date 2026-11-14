@@ -24,6 +24,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/ti_sec_image.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ti_student_reauth.php';
 require_once __DIR__ . '/kursant/auth.php';
 require_once dirname(dirname(__DIR__)) . '/modules/ti_login/logic/TiLogin.php';
+require_once dirname(dirname(__DIR__)) . '/modules/ti_login/logic/TiLoginSms.php';
 
 karty30_migrate();
 ti_sec_image_migrate();
@@ -48,7 +49,59 @@ $choiceItems = []; $choiceNonce = '';
 
 $go = static function (string $url): void { header('Location: ' . $url, true, 303); exit; };
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wybor'])) {
+// Tymczasowe logowanie kodem SMS po samym loginie (uczestnik, prowadzący z umową) — TiLoginSms; wyłączenie: ti_login_sms = 0.
+$smsOn  = TiLoginSms::enabled();
+$smsMsg = [
+    'throttled' => 'Wysłaliśmy już kilka kodów na ten login. Odczekaj kwadrans albo wpisz ostatni kod, który przyszedł.',
+    'failed'    => 'Nie udało się wysłać SMS-a z kodem. Spróbuj za chwilę albo zaloguj się hasłem.',
+    'expired'   => 'Kod wygasł albo wpisano go za wiele razy. Wpisz login jeszcze raz, a wyślemy nowy.',
+];
+$smsStart = static function (string $login) use ($go, $smsMsg): string {
+    TiLogin::recordAttempt($login);   // jak przy kodzie SMS pierwszego logowania: wysyłka liczy się do limitu prób
+    $res = TiLoginSms::start($login);
+    if ($res === 'ok') $go(TiLogin::url(['krok' => 'kod']));
+    if ($res === 'throttled' && TiLoginSms::pending()) $go(TiLogin::url(['krok' => 'kod', 'limit' => 1]));
+    return $smsMsg[$res] ?? TiLogin::ERROR;
+};
+
+if ($smsOn && $_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['kod']) || isset($_POST['ponow']))) {
+    // Krok kodu SMS: sprawdzenie albo ponowna wysyłka.
+    $view = 'code';
+    if (isset($_POST['ponow'])) {
+        $res = TiLoginSms::resend();
+        if ($res === 'ok') $go(TiLogin::url(['krok' => 'kod', 'ponow' => 1]));
+        if ($res === 'expired') { $view = 'form'; }
+        $error = $smsMsg[$res] ?? TiLogin::ERROR;
+    } else {
+        $ok = TiLoginSms::verify((string)$_POST['kod']);
+        if ($ok && $ok['kind'] === TiLoginSms::KIND_STUDENT) {
+            TiLogin::clearAttempts($ok['login']);
+            $acc = db_one("SELECT child_access_blocked FROM k30_ti_student_accounts WHERE id = ? AND is_active = 1", [$ok['ref_id']]);
+            $url = ($acc && empty($acc['child_access_blocked']))
+                ? TiLogin::completePanel(['type' => TiLogin::STUDENT, 'id' => $ok['ref_id']], $ok['login'], 'sms') : null;
+            if ($url !== null) $go($url);
+            $view = 'form';
+            $error = $acc ? $ERR[2] : TiLogin::ERROR;
+        } elseif ($ok && $ok['kind'] === TiLoginSms::KIND_STAFF) {
+            require_once __DIR__ . '/dydaktyk/auth.php';
+            TiLogin::clearAttempts($ok['login']);
+            $url = TiLogin::completeStaffSms($ok['ref_id']);
+            if ($url !== null) $go($url);
+            $view = 'form';
+            $error = TiLogin::ERROR;
+        } elseif (!TiLoginSms::pending()) {
+            $view = 'form';
+            $error = $smsMsg['expired'];
+        } else {
+            $error = 'Nieprawidłowy kod. Sprawdź SMS i wpisz kod jeszcze raz.';
+        }
+    }
+} elseif ($smsOn && ($_GET['krok'] ?? '') === 'kod' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $view = TiLoginSms::pending() ? 'code' : 'form';
+    if ($view === 'form') $error = $smsMsg['expired'];
+    elseif (!empty($_GET['limit'])) $error = $smsMsg['throttled'];
+    elseif (!empty($_GET['ponow'])) $notice = 'Wysłaliśmy nowy kod. Poprzedni już nie działa.';
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wybor'])) {
     // Krok 2 przy kolizji: wybrany panel (konta zapamiętane w sesji po poprawnym haśle).
     $c = TiLogin::pendingChoice();
     $i = (int)$_POST['wybor'];
@@ -67,14 +120,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wybor'])) {
 
     if ($login === '' || mb_strlen($login) > 190) {
         $error = 'Wpisz login lub adres e-mail.';
-    } elseif (TiLogin::isOfficeLogin($login)) {
+    } elseif (TiLogin::isOfficeLogin($login) && (!$smsOn || TiLoginSms::isOfficeAdmin($login))) {
         // Konta Microsoft 365 organizacji — tylko logowanie Microsoft (reguła po domenie, bez sprawdzania hasła).
+        // Przy logowaniu kodem SMS: tylko administratorzy; pozostałe adresy @feer.org.pl dostają kod (prowadzący z umową).
         $go(TiLogin::officeUrl());
     } elseif (TiLogin::throttled($login)) {
         $error = TiLogin::ERROR_THROTTLE;
     } elseif (TiLogin::isAltConsultantLogin($login)) {
         // Login zastępczy konsultanta (numer 3-cyfrowy) ma osobny adres logowania (konsultant.php) — tu tylko podpowiedź.
         $error = 'Login zastępczy konsultanta wpisz na stronie: ' . TiLogin::altUrl();
+    } elseif ($smsOn && ($pass === '' || TiLogin::isOfficeLogin($login))) {
+        // Sam login (bez hasła): kod SMS dla uczestnika albo prowadzącego z umową. Odpowiedź zawsze taka sama.
+        $error = $smsStart($login);
     } elseif (TiLogin::isStaffLogin($login)) {
         // Kadra hasłem (konta panelowe spoza domeny Microsoft 365) → obowiązkowe TOTP w panelu dydaktyka.
         require_once __DIR__ . '/dydaktyk/auth.php';
@@ -113,7 +170,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wybor'])) {
 } elseif ($ec === 0 && $notice === null) {
     // Podpowiedź dla wejść ze starych adresów (dawne zakładki ról) — formularz i tak jest jeden.
     $notice = [
-        'dydaktyk' => 'Kadra: zaloguj się przez Microsoft 365 albo wpisz adres e-mail konta panelu.',
+        'dydaktyk' => $smsOn ? 'Kadra: wpisz adres e-mail. Prowadzący z umową dostanie kod SMS.'
+                             : 'Kadra: zaloguj się przez Microsoft 365 albo wpisz adres e-mail konta panelu.',
         'rodzic'   => 'Rodzic lub opiekun: wpisz login rodzica (np. j.kowalski-r) i hasło. Bez hasła — kod SMS w „Inne sposoby logowania”.',
         'up'       => 'Osoba upoważniona: wpisz login od uczestnika (np. a.nowak-up) i hasło.',
     ][$hint] ?? null;

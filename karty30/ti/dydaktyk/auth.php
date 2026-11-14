@@ -91,6 +91,12 @@ function dyd_current(): ?array {
             $profile['totp_bypass'] = 'login zastępczy konsultanta';
             $profile['alt_login'] = (string)($rem['payload']['alt_login'] ?? '');
         }
+        // Tymczasowe logowanie kodem SMS (modules/ti_login/logic/TiLoginSms.php): wznowienie też bez TOTP, dopóki
+        // ustawienie ti_login_sms nie jest wyłączone (= 0). Po wyłączeniu wznowiona sesja trafia na bramkę TOTP.
+        if ($profile && !empty($rem['payload']['sms_login']) && function_exists('org_setting') && trim((string)org_setting('ti_login_sms')) !== '0') {
+            $profile['sms_login'] = 1;
+            $profile['totp_bypass'] = 'kod SMS (tymczasowe logowanie TI)';
+        }
         if ($profile) { dyd_login_user($profile); $_SESSION['k30_dyd_resumed'] = 1; return $_SESSION[DYD_SESSION_KEY]; }
         ti_remember_forget('dyd');
     }
@@ -176,7 +182,9 @@ function dyd_login_user(array $data): void {
     $_SESSION[DYD_SESSION_KEY] = $data;
     $_SESSION['k30_dyd_csrf']  = bin2hex(random_bytes(16));
     // Login zastępczy konsultanta: wznowienie z tokenu też tylko w trybie Konsultacje (flaga w payloadzie tokenu)
-    ti_remember_issue('dyd', (int)$data['user_id'], !empty($data['alt_konsultacje']) ? ['alt_konsultacje' => 1, 'alt_login' => (string)($data['alt_login'] ?? '')] : []);
+    // Kod SMS (tymczasowe logowanie TI): znacznik w tokenie, żeby wznowienie też nie wymagało TOTP (dyd_current()).
+    ti_remember_issue('dyd', (int)$data['user_id'], !empty($data['alt_konsultacje']) ? ['alt_konsultacje' => 1, 'alt_login' => (string)($data['alt_login'] ?? '')]
+        : (!empty($data['sms_login']) ? ['sms_login' => 1] : []));
 }
 
 function dyd_logout(): void {
