@@ -2245,4 +2245,14 @@ return [
         },
     ],
 
+    // Portal Usług IT: usługa „Ankieter” (formularz.feer.org.pl) z dokumentacją IT, w tym SSO przez Logto (polecenie 2026-11-14).
+    '2026-11_it_portal_ankieter' => [
+        'desc' => 'Portal Usług IT: usługa „Ankieter” (ankiety i formularze, logowanie jednokrotne przez Logto, serwer, kopie)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalAnkieterSeed.php';
+            itPortalAnkieterApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_ankieter_seed.php [--dry-run]
+        },
+    ],
+
 ];
