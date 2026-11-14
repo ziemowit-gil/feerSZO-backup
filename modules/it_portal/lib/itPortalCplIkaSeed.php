@@ -114,7 +114,7 @@ function itPortalIkaBlocks(string $app): array {
             . '<p>Kod IKA nie zastępuje hasła. Najpierw logujesz się przez <a href="' . $cpl . '">Centralny Portal Logowania</a>, a kod IKA wpisujesz dopiero przy wejściu do wybranych modułów.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Kto używa kodu IKA</h2>'
-            . '<p>Kod IKA dotyczy osób, które pracują na danych osobowych innych ludzi. To administratorzy, redaktorzy, osoby pracujące w CRM i doradcy w Dydaktyce. '
+            . '<p>Kod IKA dotyczy osób, które pracują na danych osobowych innych ludzi. To administratorzy, koordynatorzy, osoby pracujące w CRM i doradcy w Dydaktyce. '
             . 'Większość wolontariuszy, zleceniobiorców i kursantów nie ma kodu IKA i nigdy go nie zobaczy.</p>'
             . '<p>System poprosi o kod na przykład przy otwieraniu umów, w CRM, w Dydaktyce (Karty30), przy dokumentach PFRON, przy wydruku sprawy w EZD i w panelu administratora.</p>'],
 
@@ -144,7 +144,7 @@ function itPortalIkaBlocks(string $app): array {
         ['type' => 'text', 'html' => '<h2>Zmiana kodu IKA</h2>'
             . '<p>Kod zmienisz sam w Systemie Tożsamości. Otwórz <a href="' . $tz . '">sekcję „Kod IKA” w Systemie Tożsamości</a>. '
             . 'Wpisz obecny kod, potem dwa razy nowy i kliknij „Zmień kod IKA”. Na tej samej stronie, w kafelku „Kod IKA”, widzisz, czy kod jest aktywny, czy tymczasowo zablokowany.</p>'
-            . '<p>Jeśli logujesz się kluczem bezpieczeństwa, na przykład YubiKey albo passkey, a jesteś administratorem lub redaktorem, system nie pyta Cię o kod IKA. Klucz jest silniejszym potwierdzeniem.</p>'],
+            . '<p>Jeśli logujesz się kluczem bezpieczeństwa, na przykład YubiKey albo passkey, a jesteś administratorem lub koordynatorem, system nie pyta Cię o kod IKA. Klucz jest silniejszym potwierdzeniem.</p>'],
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Dla Koordynatorów IT: kody IKA nadajesz i resetujesz w Systemie Tożsamości, w sekcji administracyjnej „Kody IKA”. Tam też wygenerujesz AdminCode dla osoby.</p>'],
 

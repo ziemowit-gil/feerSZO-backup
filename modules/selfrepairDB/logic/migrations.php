@@ -2004,4 +2004,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Kod IKA”: „redaktorzy” → „koordynatorzy” (polecenie 2026-11-14). Ponowne zastosowanie itPortalCplIkaSeed.php.
+    '2026-11_it_portal_cpl_ika_koordynatorzy' => [
+        'desc' => 'Portal Usług IT, „Kod IKA”: koordynatorzy zamiast redaktorów',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCplIkaSeed.php';
+            itPortalCplIkaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
