@@ -85,7 +85,8 @@ function itPortalMigrate(): void {
     }
     // Edytor blokowy podstron: JSON bloków (tekst / kreator krok po kroku / obraz / wyróżnienie), 2026-10-20
     // + grupa w menu bocznym usługi (rozwijane sekcje), 2026-11-14
-    foreach ([['itp_articles', 'blocks'], ['itp_categories', 'intro_blocks'], ['itp_articles', 'menu_group']] as [$t, $c]) {
+    // + grupa kafla na stronie „Usługi” (itp_categories.tile_group), 2026-11-14
+    foreach ([['itp_articles', 'blocks'], ['itp_categories', 'intro_blocks'], ['itp_articles', 'menu_group'], ['itp_categories', 'tile_group']] as [$t, $c]) {
         if (!in_array($c, array_column(db_all("PRAGMA table_info({$t})"), 'name'), true)) {
             $pdo->exec("ALTER TABLE {$t} ADD COLUMN {$c} TEXT NOT NULL DEFAULT ''");
         }
@@ -196,6 +197,23 @@ function itPortalExcerpt(string $plain, int $len = 220): string {
 
 // ── Usługi (kategorie) ──────────────────────────────────────────────────────
 
+/**
+ * Usługi pogrupowane do strony „Usługi” (nagłówki nad kaflami). Kolejność grup = kolejność pierwszej usługi grupy (sort_order);
+ * usługi bez grupy trafiają na koniec pod nagłówek „Pozostałe” (gdy są jakieś grupy) albo bez nagłówka (gdy grup nie ma).
+ * @return list<array{group:string, items:list<array>}>
+ */
+function itPortalCategoryGroups(array $cats): array {
+    $out = []; $idx = []; $rest = [];
+    foreach ($cats as $c) {
+        $g = trim((string)($c['tile_group'] ?? ''));
+        if ($g === '') { $rest[] = $c; continue; }
+        if (!isset($idx[$g])) { $idx[$g] = count($out); $out[] = ['group' => $g, 'items' => []]; }
+        $out[$idx[$g]]['items'][] = $c;
+    }
+    if ($rest) $out[] = ['group' => $out ? 'Pozostałe' : '', 'items' => $rest];
+    return $out;
+}
+
 function itPortalCategories(bool $onlyActive = true): array {
     return db_all("SELECT c.*, (SELECT COUNT(*) FROM itp_articles a WHERE a.category_id = c.id AND a.is_published = 1) AS n_articles
                    FROM itp_categories c " . ($onlyActive ? "WHERE c.is_active = 1 " : "") . "ORDER BY c.sort_order, c.name");
@@ -234,6 +252,7 @@ function itPortalCategorySave(array $in, int $id = 0): int {
         'sort_order'   => (int)($in['sort_order'] ?? 0),
         'is_active'    => !empty($in['is_active']) ? 1 : 0,
     ];
+    if (array_key_exists('tile_group', $in)) $data['tile_group'] = mb_substr(trim((string)$in['tile_group']), 0, 80);
     if ($id > 0) { db_update('itp_categories', $data, $id); return $id; }
     return db_insert('itp_categories', $data);
 }

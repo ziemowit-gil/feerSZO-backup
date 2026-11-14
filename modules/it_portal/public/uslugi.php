@@ -41,16 +41,21 @@ itPortalPageStart($aud ? 'Usługi dla: ' . $aud['name'] : 'Usługi', 'uslugi',
 <?php if (!$cats): ?>
   <div class="itp-empty"><p><?= $aud ? 'Dla tej grupy nie ma jeszcze przypisanych usług.' : 'Lista usług jest w przygotowaniu.' ?></p></div>
 <?php else: ?>
-  <ul class="itp-tiles" aria-label="<?= h($aud ? 'Usługi dla: ' . $aud['name'] : 'Usługi informatyczne') ?>">
-    <?php foreach ($cats as $c): $ext = $c['external_url'] !== ''; ?>
-      <li>
-        <a class="itp-tile" href="<?= h(itPortalServiceUrl($c)) ?>">
-          <?= itPortalIcon($c['icon']) ?>
-          <span><?= h($c['name']) ?><?php if ($ext): ?><span class="itp-tile__ext">otwiera osobny serwis</span><?php endif; ?></span>
-        </a>
-      </li>
-    <?php endforeach; ?>
-  </ul>
+  <?php foreach (itPortalCategoryGroups($cats) as $gi => $grp): $gid = 'itp-tg-' . $gi; ?>
+  <section class="itp-tilegroup"<?= $grp['group'] !== '' ? ' aria-labelledby="' . $gid . '"' : '' ?>>
+    <?php if ($grp['group'] !== ''): ?><h2 class="itp-tilegroup__h" id="<?= $gid ?>"><?= h($grp['group']) ?></h2><?php endif; ?>
+    <ul class="itp-tiles" aria-label="<?= h($grp['group'] !== '' ? $grp['group'] : ($aud ? 'Usługi dla: ' . $aud['name'] : 'Usługi informatyczne')) ?>">
+      <?php foreach ($grp['items'] as $c): $ext = $c['external_url'] !== ''; ?>
+        <li>
+          <a class="itp-tile" href="<?= h(itPortalServiceUrl($c)) ?>">
+            <?= itPortalIcon($c['icon']) ?>
+            <span><?= h($c['name']) ?><?php if ($ext): ?><span class="itp-tile__ext">otwiera osobny serwis</span><?php endif; ?></span>
+          </a>
+        </li>
+      <?php endforeach; ?>
+    </ul>
+  </section>
+  <?php endforeach; ?>
 <?php endif; ?>
 <?php
 itPortalPageEnd();

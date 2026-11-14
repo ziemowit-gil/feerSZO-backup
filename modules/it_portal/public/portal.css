@@ -99,6 +99,8 @@ a:hover { text-decoration: underline; }
 
 /* ── Usługi (kafle) ───────────────────────────────────── */
 .itp-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.itp-tilegroup { margin: 0 0 28px; }
+.itp-tilegroup__h { font-size: 1.15rem; font-weight: 600; margin: 0 0 10px; }
 .itp-tile {
   display: flex; align-items: center; gap: 18px; min-height: 88px; padding: 14px 18px; background: #fff;
   border: 1px solid var(--itp-line); border-radius: var(--itp-r); color: var(--itp-ink); font-size: 1.1rem; font-weight: 600;

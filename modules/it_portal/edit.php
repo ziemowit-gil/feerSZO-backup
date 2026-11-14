@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Wartości domyślne nowego wpisu
 $row ??= match ($type) {
     'notice'   => ['title' => '', 'body_html' => '', 'status' => 'w_toku', 'signature' => (org_setting('itp_last_signature') ?: 'Dział IT'), 'notice_date' => date('Y-m-d'), 'is_published' => 1],
-    'category' => ['name' => '', 'slug' => '', 'icon' => 'help', 'intro_html' => '', 'external_url' => '', 'audiences' => '[]', 'related' => '[]', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_categories")['m'] ?? 0) + 10, 'is_active' => 1],
+    'category' => ['name' => '', 'slug' => '', 'icon' => 'help', 'intro_html' => '', 'external_url' => '', 'audiences' => '[]', 'related' => '[]', 'tile_group' => '', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_categories")['m'] ?? 0) + 10, 'is_active' => 1],
     'audience' => ['name' => '', 'slug' => '', 'icon' => 'user', 'description' => '', 'services' => [], 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_audiences")['m'] ?? 0) + 1, 'is_active' => 1],
     'article'  => ['category_id' => (int)($_GET['k'] ?? 0), 'title' => '', 'slug' => '', 'body_html' => '', 'keywords' => '', 'related' => '[]', 'is_pinned' => 0, 'is_published' => 1, 'sort_order' => 0, 'menu_group' => ''],
     'contact'  => ['unit' => '', 'contact_html' => '', 'team' => '', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_contacts")['m'] ?? 0) + 10],
@@ -102,6 +102,10 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="col-md-4"><label class="form-label" for="f-sl">Adres <span class="text-muted small">(puste = z nazwy)</span></label>
       <div class="input-group"><span class="input-group-text small">/uslugi/</span><input id="f-sl" class="form-control" name="slug" value="<?= $v('slug') ?>" pattern="[a-z0-9-]*"></div></div>
     <div class="col-md-2"><label class="form-label" for="f-o">Kolejność</label><input id="f-o" type="number" class="form-control" name="sort_order" value="<?= $v('sort_order') ?>"></div>
+    <?php $tgList = array_values(array_filter(array_column(db_all("SELECT DISTINCT tile_group FROM itp_categories WHERE tile_group <> '' ORDER BY tile_group"), 'tile_group'))); ?>
+    <div class="col-md-6"><label class="form-label" for="f-tg">Grupa na stronie Usługi <span class="text-muted small">(nagłówek nad kaflami; puste = „Pozostałe”)</span></label>
+      <input id="f-tg" class="form-control" name="tile_group" value="<?= $v('tile_group') ?>" list="f-tg-list" maxlength="80" placeholder="np. Poczta">
+      <datalist id="f-tg-list"><?php foreach ($tgList as $g): ?><option value="<?= h($g) ?>"><?php endforeach; ?></datalist></div>
     <div class="col-12">
       <span class="form-label d-block">Ikona</span>
       <div class="d-flex flex-wrap gap-2">
