@@ -124,6 +124,9 @@ function itPortalCloudArticles(string $app): array {
         'menu-aplikacji' => ['Menu aplikacji i poruszanie się po chmurze',
             'menu aplikacji, launcher, aplikacje, kropki, dziewięć kropek, pulpit, pliki, biuro, zdjęcia, zespoły, aktywność, sklep aplikacji, text document, górny pasek, nawigacja, menu, menu konta, profil, status, wygląd i dostępność, motyw, wysoki kontrast, ciemny motyw, czcionka dla dysleksji, ustawienia osobiste, wyloguj, skróty klawiszowe, klawiatura, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNavBlocks($app), $app)), false, 13],
+        'biuro' => ['Biuro: dokumenty, arkusze i prezentacje w chmurze',
+            'biuro, office, dokumenty, dokument, arkusze kalkulacyjne, arkusz, prezentacje, prezentacja, text document, plik tekstowy, notatki, szablony, szablon, utwórz nowy, pusty, ostatnie, moje, udostępnione dla mnie, odt, ods, odp, docx, xlsx, pptx, edycja, edytor, nextcloud',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudOfficeBlocks($app), $app)), false, 19],
         'pulpit-roboczy' => ['Pulpit z oknami (Desktop Workspace)',
             'desktop workspace, desktop, pulpit roboczy, pulpit z oknami, okna, pasek zadań, przypinanie, ikony na pulpicie, folder pulpitu, menedżer plików, dekoracje okien, reset, ustawienia pulpitu, eksperymentalne, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudWorkspaceBlocks($app), $app)), false, 18],
@@ -501,7 +504,7 @@ function itPortalCloudNavBlocks(string $app): array {
             . '<p>Pulpit to strona startowa z kartami polecanych plików i ostatniej aktywności. Opisuje ją artykuł <a href="' . $base . 'pulpit">Ekran po zalogowaniu</a>.</p>'
             . '<p>Pliki to wszystkie Twoje pliki i foldery oraz te, które Ci udostępniono. Opisują je artykuły <a href="' . $base . 'menu-plikow">Co jest co w menu bocznym aplikacji Pliki</a> '
             . 'i <a href="' . $base . 'lista-plikow">Lista plików</a>.</p>'
-            . '<p>Biuro służy do pracy z dokumentami biurowymi w przeglądarce.</p>'
+            . '<p>Biuro zbiera pliki tekstowe, dokumenty, arkusze i prezentacje z całej chmury i pozwala założyć nowy plik z wzoru. Opisuje je artykuł <a href="' . $base . 'biuro">Biuro</a>.</p>'
             . '<p>Zdjęcia pokazują wszystkie zdjęcia i filmy z Twoich folderów w jednym miejscu, ułożone według daty. Zdjęć nie trzeba nigdzie przenosić, aplikacja sama je znajduje.</p>'
             . '<p>Zespoły to lista zespołów, do których należysz, i miejsce na założenie własnego zespołu. Zespół to coś innego niż grupa z SZO, '
             . 'co wyjaśnia artykuł <a href="' . $base . 'grupy">Grupy w chmurze</a>.</p>'
@@ -544,6 +547,54 @@ function itPortalCloudNavBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie widzisz w menu aplikacji, o której mówią koledzy? Może być włączona tylko dla części osób. '
             . '<a href="' . $hd . '">Napisz do Helpdesku IT</a>, a sprawdzimy.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Biuro: dokumenty, arkusze i prezentacje w chmurze” (polecenie 2026-11-14: „opisz Biuro w NC”). Sprawdzone na koncie testowym
+ * (aplikacja office, /apps/office): widoki Text document, Dokumenty, Arkusze kalkulacyjne, Prezentacje; „Utwórz nowy” z szablonami;
+ * „Ostatnie …” z filtrami. Kliknięcie .odt przenosi do pliku w Plikach (brak edytora biurowego w przeglądarce na instalacji wdrożeniowej).
+ */
+function itPortalCloudOfficeBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Biuro zbiera w jednym miejscu Twoje pliki tekstowe, dokumenty, arkusze i prezentacje z całej chmury, '
+            . 'bez szukania ich po folderach. Pozwala też założyć nowy plik od razu z gotowego wzoru. Otworzysz je z menu aplikacji, ikoną dokumentu z napisem „Biuro”.</p>'],
+
+        ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Na instalacji wdrożeniowej dokumenty, arkusze i prezentacje nie otwierają się jeszcze do edycji w przeglądarce. '
+            . 'Po kliknięciu takiego pliku chmura przejdzie do niego w aplikacji Pliki. Pobierz go wtedy i edytuj w programie na komputerze, na przykład LibreOffice albo Word, '
+            . 'albo pracuj na nim w folderze aplikacji Nextcloud na komputerze. W przeglądarce edytujesz na razie tylko pliki tekstowe.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Menu po lewej</h2>'
+            . '<p>Po lewej są cztery rodzaje plików: Text document, czyli pliki tekstowe na notatki, Dokumenty, Arkusze kalkulacyjne i Prezentacje. '
+            . 'Kliknij rodzaj, a po prawej zobaczysz wzory do nowego pliku i listę ostatnich plików tego rodzaju. '
+            . 'Pole „Szukaj w …” nad menu szuka po nazwie tylko w wybranym rodzaju.</p>'],
+        ...itPortalCloudShot('nc-biuro-tekst.jpg', 'Biuro, widok Text document: menu Text document, Dokumenty, Arkusze kalkulacyjne, Prezentacje; część Utwórz nowy z wzorami Pusty, Product plan, Readme, Meeting notes; lista Ostatnie Text document z przyciskami Wszystkie, Moje, Udostępnione dla mnie',
+            'Biuro, widok plików tekstowych.'),
+
+        ['type' => 'text', 'html' => '<h2>Utwórz nowy</h2>'
+            . '<p>Na górze jest pas „Utwórz nowy” z wzorami. „Pusty” zakłada pusty plik. Pozostałe to gotowe wzory, na przykład plan projektu albo notatki ze spotkania '
+            . 'dla plików tekstowych oraz menu, faktura czy kalendarz dla dokumentów. Przykładowe wzory mają angielskie nazwy i treść. Kliknij wzór, podaj nazwę pliku, '
+            . 'a chmura zapisze go w Twoich plikach.</p>'
+            . '<p>Wzory biorą się z folderu Szablony (na części kont Templates) w Twoich plikach. Jeśli wgrasz tam własny dokument, na przykład papier firmowy, '
+            . 'pojawi się w Biurze jako wzór. Zbędne przykładowe wzory możesz z tego folderu usunąć.</p>'],
+        ...itPortalCloudShot('nc-biuro-dokumenty.jpg', 'Biuro, widok Dokumenty: Utwórz nowy z wzorami Pusty, Menu, Invoice, Mother’s day, Calendar; lista Ostatnie Dokumenty z plikami Party invitation.odt, Report.odt, Syllabus.odt',
+            'Biuro, widok dokumentów z przykładowymi wzorami i plikami nowego konta.'),
+
+        ['type' => 'text', 'html' => '<h2>Ostatnie pliki</h2>'
+            . '<p>Pod wzorami jest lista ostatnio zmienianych plików wybranego rodzaju, najnowsze na górze. Przyciski nad listą zawężają ją: '
+            . '„Wszystkie”, „Moje”, czyli pliki, których jesteś właścicielem, i „Udostępnione dla mnie”, czyli pliki od innych osób. '
+            . 'Ikona z czterema kwadratami po prawej przełącza listę na kafelki z podglądem.</p>'
+            . '<p>Kliknij plik, żeby go otworzyć. Plik tekstowy otworzy się w edytorze w przeglądarce, a zmiany zapisują się same. '
+            . 'Pozostałe pliki otworzą się w aplikacji Pliki, jak opisuje ramka na górze.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Formaty plików</h2>'
+            . '<p>Biuro zakłada nowe pliki w otwartych formatach: dokumenty .odt, arkusze .ods i prezentacje .odp. Otworzysz je w LibreOffice, a także w Wordzie, Excelu i PowerPoincie. '
+            . 'Pliki .docx, .xlsx i .pptx z dawnego OneDrive też są widoczne na listach. Pliki tekstowe mają rozszerzenie .md.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Gdzie leżą pliki i jak je udostępniać, opisuje artykuł <a href="' . $base . 'lista-plikow">Lista plików: przyciski, ikony i udostępnianie</a>. '
+            . 'Gdy plik się nie otwiera albo nie zapisuje, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
     ];
 }
 
