@@ -257,7 +257,8 @@ final class PimIcal
     }
 
     /** UID wydarzenia: iCalUId z Outlooka, a bez niego stały skrót z id (ponowny import trafia w to samo wydarzenie). */
-    private static function uidOf(array $ev): string
+    /** UID wydarzenia w iCalendar: iCalUId z Outlooka albo stały zastępczy z id elementu. */
+    public static function uidOf(array $ev): string
     {
         $u = trim((string)($ev['iCalUId'] ?? ''));
         return $u !== '' ? $u : 'graph-' . sha1((string)($ev['seriesMasterId'] ?? '') ?: (string)($ev['id'] ?? uniqid('', true)));

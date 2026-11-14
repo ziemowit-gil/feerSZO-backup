@@ -264,6 +264,11 @@ final class PimImport
                 $page = $g->events($upn, $c['id'], $c['next']);
                 $buf = '';
                 foreach ($page['items'] as $ev) {
+                    // dwa elementy Outlooka z jednym iCalUId (np. to samo zaproszenie zapisane dwa razy) dałyby w chmurze obiekt
+                    // z dwoma wydarzeniami głównymi, a Nextcloud odrzuca wtedy oba; powtórka dostaje stały dopisek z id elementu
+                    $u = substr(sha1(PimIcal::uidOf($ev)), 0, 16);
+                    if (isset($c['uids'][$u])) $ev['iCalUId'] = PimIcal::uidOf($ev) . '-' . substr(sha1((string)($ev['id'] ?? '')), 0, 12);
+                    else $c['uids'][$u] = 1;
                     $inst = [];
                     if (($ev['type'] ?? '') === 'seriesMaster' && !empty($ev['recurrence'])) {
                         $s = PimIcal::dt((array)$ev['start']);
@@ -323,7 +328,7 @@ final class PimImport
     private static function import(array $job, string $uid, array &$st, int $deadline): bool
     {
         $dir = self::dir($job);
-        $st['imp'] = ($st['imp'] ?? []) + ['cal' => 0, 'events' => 0, 'contacts' => 0, 'ab' => false, 'notes' => []];
+        $st['imp'] = ($st['imp'] ?? []) + ['cal' => 0, 'events' => 0, 'contacts' => 0, 'ab' => false, 'notes' => [], 'failed_ev' => 0, 'failed_ct' => 0];
         $imp = &$st['imp'];
         foreach ($st['cals'] ?? [] as $i => $c) {
             if ($i < $imp['cal']) continue;
@@ -333,7 +338,11 @@ final class PimImport
                 NcPim::ensureCalendar($uid, $uri, (string)($c['name_nc'] ?? 'Kalendarz z Outlooka'), self::color((string)($c['color'] ?? '')));
                 $tmp = self::plainTemp($dir, $enc);
                 try { $r = NcPim::importIcs($uid, $uri, $tmp); } finally { @unlink($tmp); }
-                $imp['events'] += (int)$c['events'];
+                // occ podaje, ile obiektów zapisał i ile odrzucił; bez podsumowania liczymy wydarzenia z kopii
+                $sum = (string)$r['summary'];
+                if (preg_match('/Total Created:\s*(\d+)/i', $sum, $a) && preg_match('/Total Updated:\s*(\d+)/i', $sum, $b)) $imp['events'] += (int)$a[1] + (int)$b[1];
+                else $imp['events'] += (int)$c['events'];
+                if (preg_match('/Total Errors:\s*(\d+)/i', $sum, $e)) $imp['failed_ev'] += (int)$e[1];
                 $imp['notes'][] = $uri . ': ' . mb_substr(trim((string)$r['summary']), 0, 300);
             }
             $imp['cal'] = $i + 1;
@@ -347,13 +356,13 @@ final class PimImport
                 $tmp = self::plainTemp($dir, $enc);
                 try { $r = NcPim::importVcards($uid, self::ADDRESSBOOK_URI, $tmp); } finally { @unlink($tmp); }
                 $imp['contacts'] = $r['created'] + $r['updated'];
-                db_exec("UPDATE pim_jobs SET failed=? WHERE id=?", [(int)$r['failed'], (int)$job['id']]);
+                $imp['failed_ct'] = (int)$r['failed'];
                 if ($r['errors']) $imp['notes'][] = 'kontakty: ' . implode('; ', $r['errors']);
             }
             $imp['ab'] = true;
         }
-        db_exec("UPDATE pim_jobs SET imported_events=?, imported_contacts=?, log=? WHERE id=?",
-                [(int)$imp['events'], (int)$imp['contacts'], mb_substr(implode("\n", $imp['notes']), 0, 4000), (int)$job['id']]);
+        db_exec("UPDATE pim_jobs SET imported_events=?, imported_contacts=?, failed=?, log=? WHERE id=?",
+                [(int)$imp['events'], (int)$imp['contacts'], (int)$imp['failed_ev'] + (int)$imp['failed_ct'], mb_substr(implode("\n", $imp['notes']), 0, 4000), (int)$job['id']]);
         unset($imp);
         return true;
     }
