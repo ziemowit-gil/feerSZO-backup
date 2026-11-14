@@ -2168,4 +2168,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Migracja poczty”: skrzynka w Microsoft 365 miała 50 GB (polecenie 2026-11-14).
+    '2026-11_it_portal_migracja_poczty_50gb' => [
+        'desc' => 'Portal Usług IT, „Migracja poczty”: skrzynka M365 50 GB',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaPocztySeed.php';
+            itPortalMigracjaPocztyApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

@@ -79,7 +79,7 @@ function itPortalMigracjaPocztyBlocks(string $app): array {
             . '<p>Jak zalogować się do chmury i znaleźć foldery, opisuje usługa <a href="' . $nc . 'nextcloud">Chmura plików</a>. Brakuje pliku, który był w OneDrive? Do 20 listopada możesz go jeszcze pobrać z OneDrive i wgrać do chmury.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Dlaczego 5 GB, skoro w Microsoft 365 był 1 TB</h2>'
-            . '<p>Te liczby dotyczą różnych rzeczy. W Microsoft 365 1 TB to było miejsce na pliki w OneDrive. Sama skrzynka pocztowa miała osobny, dużo mniejszy limit.</p>'
+            . '<p>Te liczby dotyczą różnych rzeczy. W Microsoft 365 1 TB to było miejsce na pliki w OneDrive. Sama skrzynka pocztowa miała osobny limit 50 GB.</p>'
             . '<p>Teraz poczta i pliki też są osobno:</p><ul>'
             . '<li>Skrzynka pocztowa wolontariusza i pracownika ma 5 GB. Wystarcza to na lata zwykłej korespondencji, jeśli nie trzymasz w niej dużych załączników. Skrzynki kadry kierowniczej zachowują dotychczasowy limit.</li>'
             . '<li>Pliki trzymasz w chmurze plików Fundacji. Każde konto ma tam 10 GB na pliki osobiste, a większy limit może przyznać administracja.</li>'
