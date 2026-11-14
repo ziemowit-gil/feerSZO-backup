@@ -2299,4 +2299,16 @@ return [
         },
     ],
 
+    // Portal Usług IT: usługa „Polecenia administracyjne” tylko dla IT (jedyna grupa „IT”) z poleceniami serwera SZO: foldery Zadań
+    // w chmurze, konto API Nextclouda, poczta Zadań, reset haseł, zasiewy Pomocy IT (polecenia 2026-11-14 „dodaj to do /uslugi-it,
+    // ogólnie tego typu polecenia dodawaj, tylko dla IT”). Kolejne polecenia: nowy artykuł w seedzie + nowa migracja.
+    '2026-11_it_portal_polecenia_it' => [
+        'desc' => 'Portal Usług IT: usługa „Polecenia administracyjne” (tylko dla IT) z poleceniami serwera SZO',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPoleceniaItSeed.php';
+            itPortalPoleceniaItApply(ITP_SZO_URL);   // ręcznie: php cli/it_portal_polecenia_it_seed.php
+        },
+    ],
+
 ];
