@@ -16,6 +16,7 @@ $_zi_units = ['' => '— wybierz —'];
 try { foreach (db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name") as $_ou) $_zi_units[$_ou['id']] = $_ou['name']; } catch (\Throwable $e) {}
 require_once dirname(__DIR__, 3) . '/includes/person_picker.php';
 require_once dirname(__DIR__, 3) . '/includes/contract_access.php';
+require_once dirname(__DIR__, 3) . '/modules/contractIt/logic/ContractIt.php';   // panel „Konta i grupy IT” (zamiast sekcji Microsoft 365)
 
 /** Ikona i kolor sekcji — te same co w podglądzie umowy. */
 $_zi_icons = [
@@ -81,7 +82,18 @@ $_zi_col = function (array $d): string {
       <?php endif; ?>
     </div>
 
-    <?php foreach ($_zi_fields as $_sec => $_flds): [$_ico, $_bg, $_fg] = $_zi_icons[$_sec] ?? ['bi-card-list', '#F8FAFC', '#475569']; ?>
+    <?php foreach ($_zi_fields as $_sec => $_flds): [$_ico, $_bg, $_fg] = $_zi_icons[$_sec] ?? ['bi-card-list', '#F8FAFC', '#475569'];
+      $_zi_m365 = $_sec === 'Microsoft 365'; ?>
+    <?php if ($_zi_m365): /* Nowe IT przed dawną sekcją Microsoft 365; jednostka w panelu = to samo pole co w sekcji Zleceniobiorca */ ?>
+    <div class="cv-section zi-section">
+      <div class="cv-section-head">
+        <div class="cv-section-icon" style="background:#EEF4FF;color:#1D4ED8"><i class="bi bi-shield-lock" aria-hidden="true"></i></div>
+        <span class="cv-section-title">Konta i grupy IT</span>
+      </div>
+      <?= ContractIt::render('zlecenie', (int)$id, $_zi_vals, ['skin' => 'bare', 'unitWhere' => 'w sekcji Zleceniobiorca']) ?>
+    </div>
+    <?= ContractIt::legacyOpen() ?>
+    <?php endif; ?>
     <div class="cv-section zi-section">
       <div class="cv-section-head">
         <div class="cv-section-icon" style="background:<?= $_bg ?>;color:<?= $_fg ?>"><i class="bi <?= $_ico ?>"></i></div>
@@ -137,6 +149,7 @@ $_zi_col = function (array $d): string {
         <?php endforeach; ?>
       </div>
     </div>
+    <?php if ($_zi_m365): ?><?= ContractIt::legacyClose() ?><?php endif; ?>
     <?php endforeach; ?>
 
     <div class="zi-actions d-flex flex-wrap gap-2 justify-content-end">

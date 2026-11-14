@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/person_picker.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
+require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.php';   // panel „Konta i grupy IT”
 
 require_role('admin','editor');
 require_module_enabled('contract_zlecenie', 'Ten typ umowy');
@@ -319,7 +320,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     'zl-realizacja'=> ['Realizacja i stawka', 'bi-play-circle'],
     'zl-zus'       => ['ZUS', 'bi-shield-check'],
     'zl-rozlicz'   => ['Rozliczenie', 'bi-cash-coin'],
-    'zl-dostep'    => ['Dostęp i uwagi', 'bi-shield-lock'],
+    'zl-dostep'    => ['Konta IT i uwagi', 'bi-shield-lock'],
   ];
 ?>
 <form method="post" enctype="multipart/form-data" id="zlecForm" novalidate x-data="tabbedContractForm(1)" @submit="onSubmit($event)">
@@ -473,7 +474,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <i class="bi bi-envelope tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-text-slate-400" aria-hidden="true"></i>
           <input id="m365_login" name="m365_login" type="email" class="zl-input tw-pl-9" value="<?= h($row['m365_login']??'') ?>" placeholder="imie.nazwisko@feer.org.pl lub prywatny@email.com" aria-describedby="m365_login_help">
         </div>
-        <p id="m365_login_help" class="zl-help">Adres M365 albo prywatny — daje dostęp do panelu umów. Konto M365 możesz założyć w sekcji „Dostęp i uwagi”.</p>
+        <p id="m365_login_help" class="zl-help">Adres służbowy albo prywatny. Na ten adres osoba loguje się do panelu umów.</p>
       </div>
     </div>
   </section>
@@ -703,26 +704,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <section id="zl-dostep" class="zl-card" aria-labelledby="zl-dostep-h">
     <div class="zl-head">
       <span class="zl-num" aria-hidden="true"><i class="bi bi-shield-lock"></i></span>
-      <div><h2 id="zl-dostep-h" class="zl-title">Dostęp i uwagi</h2><p class="zl-sub">Konto M365, obszar zadań, kto widzi umowę, uwagi i upoważnienie RODO.</p></div>
+      <div><h2 id="zl-dostep-h" class="zl-title">Konta IT i uwagi</h2><p class="zl-sub">Logowanie jednokrotne, chmura, poczta i grupy, obszar zadań, kto widzi umowę, uwagi i upoważnienie RODO.</p></div>
     </div>
 
-    <div class="zl-box">
+    <?= ContractIt::render($TYPE, 0, $row, ['mailCheckbox' => true, 'unitWhere' => 'w sekcji Zleceniobiorca']) ?>
+
+    <!-- Microsoft 365 (wygaszane): zakładanie konta przy zapisie, zwinięte. Pole bez zmian. -->
+    <?= ContractIt::legacyOpen('zakładanie konta przy zapisie, nieobowiązkowe') ?>
       <label for="m365_create_now" class="zl-check">
         <input class="zl-cb" type="checkbox" name="m365_create_now" id="m365_create_now" value="1" aria-describedby="m365_create_help">
         <span><strong class="tw-font-semibold"><i class="bi bi-microsoft tw-mr-1 tw-text-blue-600" aria-hidden="true"></i>Utwórz konto Microsoft 365 przy zapisie</strong>
           <span id="m365_create_help" class="tw-block tw-text-xs tw-text-slate-500">Opcjonalnie. Wymaga wolnej licencji i aktywnej integracji M365. Dane logowania pójdą na e-mail kontaktowy. Konto można też założyć później w widoku umowy.</span></span>
       </label>
-      <?php require_once dirname(dirname(__DIR__)) . '/modules/dhosting_migrator/logic/DhostingContractMail.php';
-            $_dh_on = false; try { $_dh_on = DhostingContractMail::enabled(); } catch (\Throwable $e) {} ?>
-      <?php if ($_dh_on): ?>
-      <label for="dh_create" class="zl-check tw-mt-3">
-        <input class="zl-cb" type="checkbox" name="dh_create" id="dh_create" value="1" checked aria-describedby="dh_create_help">
-        <span><strong class="tw-font-semibold"><i class="bi bi-envelope-at tw-mr-1 tw-text-blue-600" aria-hidden="true"></i>Załóż skrzynkę pocztową imie.nazwisko@<?= h(DhostingContractMail::domain()) ?></strong>
-          <span id="dh_create_help" class="tw-block tw-text-xs tw-text-slate-500">Gdy ta osoba (PESEL) miała już skrzynkę, zostanie przywrócona. Hasło pokaże się raz w zakładce „M365” umowy.
-            Skrzynka zostanie zawieszona <?= DhostingContractMail::GRACE_DAYS ?> dni po wygaśnięciu umowy (bez powiadomienia).</span></span>
-      </label>
-      <?php endif; ?>
-    </div>
+    <?= ContractIt::legacyClose() ?>
 
     <?php if (!empty($_task_workspaces)): ?>
     <div class="zl-box-warn tw-mt-4">

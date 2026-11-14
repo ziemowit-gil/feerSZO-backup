@@ -295,7 +295,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                value="<?= h($row['email_login'] ?? '') ?>"
                placeholder="imie.nazwisko@feer.org.pl  lub  prywatny@email.com">
       </div>
-      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Adres Microsoft 365 (<code>@feer.org.pl</code>) lub prywatny e-mail — umożliwia dostęp do panelu umów.</p>
+      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Adres służbowy albo prywatny. Na ten adres osoba loguje się do panelu umów.</p>
     </div>
   </div>
 

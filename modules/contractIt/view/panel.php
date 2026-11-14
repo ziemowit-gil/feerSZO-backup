@@ -48,16 +48,16 @@ if (!$citCss): $citCss = true; ?>
 .cit .cit-note{margin:.4rem 0 0;color:var(--cit-muted);font-size:.8rem}
 .cit .cit-alert{margin:.5rem 0 0;padding:.45rem .6rem;border-left:4px solid #c2410c;background:#fff7ed;color:#7c2d12;font-size:.8rem}
 .cit .cit-links{margin:.5rem 0 0;display:flex;flex-wrap:wrap;gap:.25rem .9rem;font-size:.8rem}
-.cit a{color:var(--cit-acc);text-decoration:underline;text-underline-offset:2px}
+.cit a{color:var(--cit-acc);text-decoration:underline;text-underline-offset:2px;display:inline-block;padding:.3rem 0}
 .cit a:hover{color:#1e3a8a}
 .cit .cit-field{margin:.25rem 0 .7rem}
 .cit .cit-label{display:block;font-weight:600;font-size:.8rem;margin-bottom:.2rem;color:var(--cit-ink)}
-.cit .cit-select{display:block;width:100%;min-height:38px;padding:.3rem .5rem;font-size:.875rem;color:var(--cit-ink);background:#fff;border:1px solid #6b7280;border-radius:6px}
+.cit .cit-select{display:block;width:100%;min-height:44px;padding:.3rem .5rem;font-size:.875rem;color:var(--cit-ink);background:#fff;border:1px solid #6b7280;border-radius:6px}
 .cit--metro .cit-select{border-radius:0}
 .cit .cit-help{margin:.25rem 0 0;color:var(--cit-muted);font-size:.78rem}
 .cit .cit-help b{color:var(--cit-ink)}
 .cit .cit-sug{margin:.35rem 0 0;padding:.4rem .55rem;background:#eff6ff;border-left:4px solid var(--cit-acc);font-size:.8rem;color:var(--cit-ink)}
-.cit .cit-btn{display:inline-flex;align-items:center;min-height:32px;margin-left:.35rem;padding:.15rem .65rem;font-size:.8rem;font-weight:600;color:#fff;background:#1d4ed8;border:0;border-radius:4px;cursor:pointer}
+.cit .cit-btn{display:inline-flex;align-items:center;min-height:44px;margin:.25rem 0 0 .35rem;padding:.25rem .9rem;font-size:.8rem;font-weight:600;color:#fff;background:#1d4ed8;border:0;border-radius:4px;cursor:pointer}
 .cit .cit-btn:hover{background:#1e3a8a}
 .cit .cit-check{display:flex;gap:.5rem;align-items:flex-start;margin:.2rem 0 0}
 .cit .cit-check input{width:1.1rem;height:1.1rem;margin-top:.15rem;flex-shrink:0}
@@ -66,7 +66,7 @@ if (!$citCss): $citCss = true; ?>
 .cit .cit-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 /* Zwinięte pola Microsoft 365 (formularze umów) */
 .cit-legacy{border:1px dashed #94a3b8;border-radius:6px;background:#f8fafc;margin:.75rem 0;color:#1f2937}
-.cit-legacy>summary{cursor:pointer;padding:.55rem .8rem;font-weight:600;font-size:.85rem;color:#334155;list-style-position:inside}
+.cit-legacy>summary{cursor:pointer;padding:.75rem .8rem;font-weight:600;font-size:.85rem;color:#334155;list-style-position:inside}
 .cit-legacy>summary .cit-legacy-sub{font-weight:400;color:#4b5563;font-size:.78rem;margin-left:.35rem}
 .cit-legacy[open]>summary{border-bottom:1px dashed #94a3b8}
 .cit-legacy>.cit-legacy-body{padding:.75rem .8rem}

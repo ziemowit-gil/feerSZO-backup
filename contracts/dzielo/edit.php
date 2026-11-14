@@ -3,6 +3,7 @@ require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
+require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.php';   // panel „Konta i grupy IT”
 require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/persons.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
@@ -124,7 +125,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
 <!-- Zakładki -->
 <div class="tw-flex tw-gap-1 tw-overflow-x-auto tw-border-b tw-border-solid tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-pt-2" role="tablist" aria-label="Sekcje formularza umowy">
-  <?php $_tabs = ['Umowa', 'Wykonawca', 'Dzieło i wynagrodzenie', 'Podpisanie i pliki', 'M365 i uwagi']; ?>
+  <?php $_tabs = ['Umowa', 'Wykonawca', 'Dzieło i wynagrodzenie', 'Podpisanie i pliki', 'Konta IT i uwagi']; ?>
   <?php foreach ($_tabs as $_ti => $_tlabel): $_tn = $_ti + 1; ?>
   <button type="button" role="tab" :aria-selected="(tab===<?= $_tn ?>).toString()" @click="goTab(<?= $_tn ?>)"
           class="tw-inline-flex tw-items-center tw-whitespace-nowrap tw-rounded-t-lg tw-border tw-border-solid tw-border-b-0 tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-transition tw-cursor-pointer"
@@ -288,7 +289,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                value="<?= h($row['m365_login'] ?? '') ?>"
                placeholder="imie.nazwisko@feer.org.pl  lub  prywatny@email.com">
       </div>
-      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Adres Microsoft 365 (<code>@feer.org.pl</code>) lub prywatny e-mail — umożliwia dostęp do panelu umów.</p>
+      <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Adres służbowy albo prywatny. Na ten adres osoba loguje się do panelu umów.</p>
     </div>
   </div>
 </div>
@@ -453,11 +454,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
 </div>
 
-<!-- TAB 5: M365 i uwagi -->
+<!-- TAB 5: Konta IT i uwagi (logowanie jednokrotne, chmura, poczta, grupy; Microsoft 365 zwinięte) -->
 <div data-tab-pane="5" x-show="tab===5" x-cloak class="tw-p-6">
+  <?= ContractIt::render($TYPE, (int)$id, $row, ['unitWhere' => 'w zakładce Wykonawca']) ?>
 
-  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-microsoft"></i> Microsoft 365</h2>
+  <!-- Microsoft 365 (wygaszane): pola bez zmian, zwinięte (dane do migracji) -->
   <div class="tw-mb-6">
+  <?= ContractIt::legacyOpen() ?>
+  <div>
     <label for="m365_konto" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700 tw-mb-3">
       <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="m365_konto" id="m365_konto" value="1" <?= !empty($row['m365_konto'])?'checked':'' ?>>
       Konto M365 zostało utworzone
@@ -469,7 +473,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
                value="<?= h($row['m365_user_id']??'') ?>">
       </div>
     </div>
-    <p class="tw-mt-2 tw-text-xs tw-text-slate-500">Konto można też <a href="#" class="tw-text-blue-600 hover:tw-underline">utworzyć automatycznie</a> po zapisaniu umowy z widoku szczegółów.</p>
+  </div>
+  <?= ContractIt::legacyClose() ?>
   </div>
 
   <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-chat-left-text"></i> Uwagi</h2>
