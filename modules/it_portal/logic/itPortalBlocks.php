@@ -130,7 +130,8 @@ function itPortalBlocksHas(array $row, string $blocksKey, string $htmlKey): bool
 function itPortalRenderImage(array $im): string {
     $alt = $im['alt'] !== '' ? $im['alt'] : ($im['caption'] !== '' ? $im['caption'] : 'Zrzut ekranu');
     $u = h(itPortalImageUrl($im['file']));
-    return '<figure class="itp-shot"><a href="' . $u . '" target="_blank" rel="noopener" title="Otwórz w pełnym rozmiarze">'
+    // data-itp-zoom: public/lightbox.js otwiera powiększenie w oknie; bez JavaScriptu link otwiera obraz w nowej karcie.
+    return '<figure class="itp-shot"><a href="' . $u . '" target="_blank" rel="noopener" title="Otwórz w pełnym rozmiarze" data-itp-zoom>'
          . '<img src="' . $u . '" alt="' . h($alt) . '" loading="lazy"></a>'
          . ($im['caption'] !== '' ? '<figcaption>' . h($im['caption']) . '</figcaption>' : '') . '</figure>';
 }

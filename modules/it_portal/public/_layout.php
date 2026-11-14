@@ -91,6 +91,7 @@ function itPortalPageEnd(): void {
     <p class="itp-footer__org">© <?= date('Y') ?> <?= h(ORG_NAME) ?></p>
   </div>
 </footer>
+<script src="<?= h(APP_URL . '/modules/it_portal/public/lightbox.js?v=' . @filemtime(__DIR__ . '/lightbox.js')) ?>" defer></script>
 </body>
 </html>
 <?php
