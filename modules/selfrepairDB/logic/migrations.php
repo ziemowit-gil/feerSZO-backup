@@ -1534,4 +1534,14 @@ return [
         },
     ],
 
+    // „Konto kursanta”, pakiet biurowy: konta office<nr szkolenia>@feer.org.pl „nie do użytku prywatnego” (poprawka 2026-11-14).
+    '2026-11_it_portal_konto_kursanta_office_prywatne' => [
+        'desc' => 'Portal Usług IT, „Konto kursanta”: konta Office szkolenia nie do użytku prywatnego',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKontoKursantaSeed.php';
+            itPortalKontoKursantaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

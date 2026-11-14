@@ -238,7 +238,7 @@ function itPortalKontoKursantaArticles(string $app): array {
             ]],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Microsoft Office aktywujemy wyłącznie na potrzebę szkolenia.</strong> Gdy szkolenie dotyczy pakietu Office, na czas zajęć uruchamiamy '
                 . 'dedykowaną instancję Office dla tego szkolenia, z kontem w postaci <code>office&lt;numer szkolenia&gt;@feer.org.pl</code>.</p>'
-                . '<p>To nie są konta do użytku osobistego. Służą tylko do zajęć w ramach danego szkolenia. Nie zapisuj na nich swoich prywatnych plików i nie używaj ich do własnej poczty. '
+                . '<p>To nie są konta do użytku prywatnego. Służą tylko do zajęć w ramach danego szkolenia. Nie zapisuj na nich swoich prywatnych plików i nie używaj ich do własnej poczty. '
                 . 'Do codziennej pracy z dokumentami zainstaluj darmowy program opisany niżej.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Miałeś(-aś) pliki w OneDrive na koncie <code>@edu.feer.org.pl</code>? Konto jest wyłączone, więc nie otworzysz ich sam(a). Jeśli potrzebujesz któregoś pliku, napisz przez <a href="' . $pomoc . '">zakładkę Pomoc w panelu kursanta</a>.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Na telefonie dokumenty otworzysz w bezpłatnej aplikacji ONLYOFFICE Documents albo w podglądzie wbudowanym w telefon. '
