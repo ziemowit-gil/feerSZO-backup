@@ -95,7 +95,7 @@ function itPortalDpocztaMenuGroups(): array {
     $g5 = 'Telefon, programy, kontakty i kalendarz'; $g6 = 'Załączniki i duże pliki';
     return [
         'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'ustawienia-poczty' => [$g1, 12],
-        'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22],
+        'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43],
         'poczta-w-telefonie' => [$g5, 50], 'kontakty-import-eksport' => [$g5, 51], 'kalendarz' => [$g5, 52],
@@ -122,6 +122,7 @@ function itPortalDpocztaShot(string $name, string $alt, string $caption = ''): a
 /** Wstęp strony usługi „Moja poczta”. */
 function itPortalDpocztaIntro(string $app): string {
     return '<p>Poczta służbowa działa na serwerach dhosting. W przeglądarce otwierasz ją pod adresem <a href="https://dpoczta.pl">dpoczta.pl</a>. '
+         . 'dPoczta to program pocztowy w przeglądarce, który udostępnia dostawca serwera pocztowego. '
          . 'Logujesz się pełnym adresem <code>imie.nazwisko@feer.org.pl</code> i hasłem do skrzynki.</p>'
          . itPortalDpocztaOutlookBye()
          . '<p>Zachęcamy, żeby od razu włączyć weryfikację dwuetapową. Chroni skrzynkę, nawet gdy ktoś pozna Twoje hasło. '
@@ -165,8 +166,11 @@ function itPortalDpocztaArticles(string $app): array {
 
         // 2026-11-14: hasło do poczty TYLKO przez SZO (/nowehaslo) — zmiana w dpoczta.pl nie synchronizuje się z SZO
         'dpoczta-co-jest-co' => ['dPoczta.pl: co jest co na ekranie i w ustawieniach', 'dpoczta, co jest co, ekran, foldery, odebrane, kopie robocze, wysłane, spam, kosz, archiwum, utwórz, szukaj, wątki, pasek, kontakty, kalendarz, zadania, ustawienia, preferencje, tożsamości, odpowiedzi, cloud view, przypomnienie hasła, klucze pgp, filtry, hasło, pomoc, autoresponder, uwierzytelnianie dwuetapowe, cleanbox, tryb ciemny, wyloguj, miejsce w skrzynce', [
+            ['type' => 'text', 'html' => '<p>dPoczta.pl to program do czytania poczty w przeglądarce, który udostępnia dostawca naszego serwera pocztowego, firma dhosting.pl. '
+                . 'Twoja skrzynka jest na serwerze dostawcy, a dPoczta jest tylko jednym ze sposobów, żeby do niej zajrzeć. Tę samą skrzynkę możesz otworzyć w telefonie albo w programie na komputerze.</p>'],
             ['type' => 'text', 'html' => '<p>Po zalogowaniu na <a href="https://dpoczta.pl">dpoczta.pl</a> ekran ma trzy kolumny: po lewej foldery, w środku listę wiadomości, '
                 . 'a po prawej treść otwartej wiadomości. Na samym prawym brzegu jest wąski pasek z przejściem do innych części poczty.</p>'],
+            ...itPortalDpocztaShot('dp-skrzynka.jpg', 'Główny ekran dPoczty: po lewej przycisk Utwórz i foldery z liczbą nieprzeczytanych wiadomości, w środku zamazana lista wiadomości z polem Szukaj, po prawej pusty podgląd, na prawym brzegu pasek z ikonami', 'Główny ekran poczty. Lista wiadomości jest celowo zamazana.'),
             ['type' => 'text', 'html' => '<h2>Lewa kolumna: foldery</h2>'
                 . '<p>Na górze jest Twój adres e-mail, a obok trzy kropki z menu konta. Duży przycisk „Utwórz” otwiera nową wiadomość.</p>'
                 . '<p>Niżej są foldery: Odebrane, Kopie robocze (zaczęte, niewysłane wiadomości), Wysłane, Spam, Kosz i Archiwum, a pod nimi Twoje własne foldery. '
@@ -191,12 +195,14 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<li>Tożsamości: nazwa nadawcy i podpis, czyli stopka. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/podpis-w-poczcie">Jak ustawić podpis (stopkę) w poczcie</a>.</li>'
                 . '<li>Odpowiedzi: gotowe teksty do wstawiania w wiadomości. Na początku lista jest pusta, a nowy tekst dodasz ikoną ołówka na górze. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/szablony-odpowiedzi">Szablony odpowiedzi</a>.</li>'
                 . '<li>Cloud View: ustawienia dodatku dostawcy poczty. Nie musisz ich zmieniać.</li>'
-                . '<li>Klucze PGP: szyfrowanie wiadomości. Na co dzień nie jest potrzebne.</li>'
+                . '<li>Klucze PGP: szyfrowanie i podpisywanie wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/szyfrowanie-pgp">Szyfrowanie PGP</a>. Na co dzień nie jest potrzebne.</li>'
                 . '<li>Filtry: automatyczne przenoszenie i przekazywanie wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/filtry-i-przekierowanie">Filtry i przekierowanie poczty</a>.</li>'
                 . '<li>Pomoc: „Centrum pomocy” dostawcy z rozwijanymi działami: Preferencje, Tożsamości, Uwierzytelnianie dwuetapowe (2FA), Kalendarz i Dodatkowe informacje.</li>'
                 . '<li>Autoresponder: odpowiedź na czas urlopu, opisana w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/autoresponder">Autoodpowiedź na czas nieobecności</a>.</li>'
                 . '<li>Uwierzytelnianie dwuetapowe: dodatkowy kod przy logowaniu. Zachęcamy, żeby je włączyć. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/weryfikacja-dwuetapowa">Weryfikacja dwuetapowa w poczcie</a>.</li>'
                 . '<li>CleanBox: filtr antyspamowy, opisany w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/spam-i-zaufani-nadawcy">Spam, zablokowani i zaufani nadawcy</a>.</li></ul>'],
+            ...itPortalDpocztaShot('dp-ustawienia-menu.jpg', 'Lista części ustawień dPoczty: Preferencje, Foldery, Tożsamości, Odpowiedzi, Cloud View, Przypomnienie hasła, Klucze PGP, Filtry, Hasło, Pomoc, Autoresponder, Uwierzytelnianie dwuetapowe, CleanBox', 'Ustawienia: lista części po lewej.'),
+            ...itPortalDpocztaShot('dp-foldery.jpg', 'Ustawienia dPoczty, Foldery: lista folderów z przełącznikami, na górze ikony ołówka, kosza i gumki, na dole pasek zajętego miejsca', 'Ustawienia, „Foldery”.'),
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Z części „Hasło” i „Przypomnienie hasła” w ustawieniach poczty nie korzystamy. Formularz „Aktualne hasło, Nowe hasło, Potwierdź hasło” zmieniłby hasło tylko w poczcie i nie trafi ono do SZO. '
                 . 'Hasło do poczty zmieniasz tylko na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/zmiana-hasla-poczty">Jak zmienić hasło do poczty</a>.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie wiesz, do czego służy jakiś przycisk? Najedź na niego myszą, a pokaże się podpowiedź. Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
@@ -213,6 +219,7 @@ function itPortalDpocztaArticles(string $app): array {
                 . '„Odświeżanie” ustala, jak często poczta sprawdza nowe wiadomości. Co 1 minutę to dobre ustawienie.</p>'
                 . '<p>Link „Zainstaluj obsługę linków mailto:” sprawia, że kliknięcie adresu e-mail na dowolnej stronie otworzy nową wiadomość w dPoczcie, a nie w programie na komputerze. '
                 . 'Przeglądarka zapyta o zgodę. Zgódź się na swoim komputerze.</p>'],
+            ...itPortalDpocztaShot('dp-interfejs.jpg', 'Preferencje dPoczty, Interfejs użytkownika: Język Polish, Strefa czasowa automatyczna, Format czasu, Format daty, Ładne daty, Po usunięciu wyświetl następny, Odświeżanie co 1 minutę, Opcje przeglądarki', 'Preferencje, dział „Interfejs użytkownika”.'),
             ['type' => 'text', 'html' => '<h2>Tworzenie wiadomości</h2>'
                 . '<p>To najważniejszy dział, bo decyduje o stopce i o tym, czy nic nie zginie w trakcie pisania.</p>'],
             ...itPortalDpocztaShot('dp-tworzenie-wiadomosci.jpg', 'Ustawienia dPoczty, Preferencje, Tworzenie wiadomości: Opcje główne i Opcje podpisów z przełącznikami i listami wyboru',
@@ -291,6 +298,39 @@ function itPortalDpocztaArticles(string $app): array {
                 $step('Zeskanuj kod QR', '<p>Otwórz aplikację w telefonie i zeskanuj kod QR z ekranu. Wpisz kod, który pokaże aplikacja, i kliknij „Zakończ”.</p><p>Zamiast aplikacji możesz podać inny adres e-mail (nie ten służbowy). Kod przyjdzie tam i jest ważny 5 minut.</p>'),
                 $step('Zapisz kody zapasowe', '<p>Kliknij „Pokaż kody zapasowe” i zapisz je albo wydrukuj. Przydadzą się, gdy zgubisz telefon. Zużyte kody wymienisz przyciskiem „Wygeneruj nowe kody zapasowe”.</p>'),
             ]],
+            ...itPortalDpocztaShot('dp-2fa.jpg', 'Ustawienia dPoczty, Uwierzytelnianie dwuetapowe: metody Aplikacja mobilna i Email, każda z przyciskiem Włącz', 'Ustawienia, „Uwierzytelnianie dwuetapowe”: wybór metody.'),
+        ], false],
+
+        'szyfrowanie-pgp' => ['Szyfrowanie PGP: klucze i jak je wygenerować', 'pgp, gpg, openpgp, szyfrowanie, podpis cyfrowy, klucz publiczny, klucz prywatny, generowanie klucza, klucze pgp, enigma, rsa, ecc, import klucza, eksport klucza, serwer kluczy', [
+            ['type' => 'text', 'html' => '<p>PGP to sposób szyfrowania wiadomości e-mail od nadawcy do odbiorcy. Zaszyfrowaną wiadomość przeczyta tylko odbiorca, nawet jeśli ktoś przechwyci ją po drodze albo zajrzy na serwer. '
+                . 'PGP pozwala też podpisać wiadomość cyfrowo, żeby odbiorca wiedział, że naprawdę pochodzi od Ciebie i nikt jej nie zmienił.</p>'
+                . '<p>Każda osoba ma parę kluczy. Klucz publiczny dajesz innym: służy im do szyfrowania wiadomości do Ciebie i do sprawdzania Twojego podpisu. '
+                . 'Klucz prywatny zostaje u Ciebie i chroni go hasło. Służy do odczytywania wiadomości i do podpisywania.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Na co dzień PGP nie jest potrzebne. Przyda się, gdy Twój rozmówca sam używa PGP i prosi o szyfrowaną korespondencję. '
+                . 'Szyfrowanie działa tylko wtedy, gdy obie strony mają klucze. Dane osobowe dla osób spoza Fundacji łatwiej wysłać linkiem z chmury zabezpieczonym hasłem.</p>'],
+            ['type' => 'wizard', 'title' => 'Jak wygenerować klucz', 'intro' => '', 'steps' => [
+                $step('Otwórz Klucze PGP', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Klucze PGP”. '
+                    . 'Na początku lista jest pusta i pojawia się komunikat „Nie znaleziono kluczy”.</p>'),
+                $step('Kliknij Utwórz', '<p>Na górze kliknij ikonę ołówka „Utwórz”. Pojawi się formularz z informacją, że wszystkie klucze, publiczne i prywatne, są przechowywane na serwerze.</p>'),
+                $step('Wybierz tożsamość i typ klucza', '<p>Przy „Tożsamości” zostaw włączony swój adres. W polu „Typ klucza” wybierz „RSA 4096 bitów”, który działa z większością programów. '
+                    . '„RSA 2048 bitów” też jest bezpieczny, a „ECC (krzywe eliptyczne)” jest nowocześniejszy, ale starsze programy mogą go nie obsłużyć.</p>'),
+                $step('Ustaw hasło do klucza', '<p>Wpisz hasło w polach „Hasło” i „Potwierdź hasło”. To osobne hasło do klucza prywatnego, inne niż do poczty. '
+                    . 'Zapamiętaj je albo zapisz w menedżerze haseł. Bez niego nie odczytasz zaszyfrowanych wiadomości i nikt go nie odzyska.</p>'),
+                $step('Zapisz', '<p>Kliknij „Zapisz”. Tworzenie klucza może potrwać kilkadziesiąt sekund. Gotowy klucz pojawi się na liście po lewej.</p>'),
+            ]],
+            ...itPortalDpocztaShot('dp-pgp-nowy.jpg', 'Klucze PGP w dPoczcie, formularz Utwórz: informacja o przechowywaniu kluczy na serwerze, Tożsamość, Typ klucza RSA 2048 bitów, Hasło, Potwierdź hasło, przycisk Zapisz', 'Ustawienia, „Klucze PGP”, formularz tworzenia klucza.'),
+            ['type' => 'text', 'html' => '<h2>Przyciski na górze listy kluczy</h2>'
+                . '<p>Ołówek tworzy nowy klucz, a kosz usuwa zaznaczony. Lupa szuka klucza innej osoby na publicznym serwerze kluczy, po jej adresie e-mail. '
+                . 'Chmurka ze strzałką w dół importuje klucz z pliku, na przykład klucz publiczny, który przysłał Ci rozmówca. '
+                . 'Chmurka ze strzałką w górę eksportuje klucze do pliku. Swój klucz publiczny wyeksportuj i wyślij osobom, które mają do Ciebie pisać szyfrowane wiadomości.</p>'
+                . '<p>Przy eksporcie można dołączyć też klucz prywatny. Zrób tak tylko po to, żeby zachować kopię zapasową, i trzymaj ten plik w bezpiecznym miejscu. Nikomu go nie wysyłaj.</p>'],
+            ['type' => 'text', 'html' => '<h2>Szyfrowanie i podpisywanie wiadomości</h2>'
+                . '<p>Gdy masz klucz, w oknie pisania wiadomości pojawią się opcje szyfrowania. Możesz podpisać wiadomość cyfrowo, zaszyfrować ją albo dołączyć swój klucz publiczny. '
+                . 'Zaszyfrować wiadomość możesz tylko do osoby, której klucz publiczny masz na liście. Domyślne zachowanie ustawisz w Preferencjach, w dziale „Szyfrowanie”, '
+                . 'a w „Tożsamościach” zobaczysz, który klucz jest przypisany do Twojego adresu.</p>'
+                . '<p>Zaszyfrowaną wiadomość od innej osoby dPoczta odszyfruje po wpisaniu hasła do Twojego klucza.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Jeśli zapomnisz hasła do klucza albo usuniesz klucz bez kopii zapasowej, nie odczytasz już wiadomości zaszyfrowanych tym kluczem. '
+                . 'Przed usunięciem klucza wyeksportuj go. Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], false],
 
         'generator-stopki' => ['Obowiązkowa stopka: jak ją wygenerować', 'stopka, podpis, generator stopki, obowiązkowa stopka, wzór stopki, dane organizacji, nip, krs, social, facebook, instagram, linkedin', [
@@ -315,6 +355,7 @@ function itPortalDpocztaArticles(string $app): array {
                     . 'kliknij w pole i wklej stopkę (Ctrl+V). Jeśli w polu była stara stopka, najpierw ją zaznacz i usuń.</p>'),
                 $step('Zapisz i sprawdź', '<p>Kliknij „Zapisz” na dole strony. Napisz wiadomość do siebie i zobacz, czy stopka wygląda tak jak w podglądzie generatora.</p>'),
             ]],
+            ...itPortalDpocztaShot('dp-tozsamosc-podpis.jpg', 'Tożsamości w dPoczcie: pola Nazwa wyświetlana, E-Mail, Organizacja, Odpowiedź do, Ukryta kopia, Domyślna, część Podpis ze stopką Fundacji w edytorze', 'Ustawienia, „Tożsamości”: stopka wklejona w pole podpisu.'),
             ['type' => 'wizard', 'title' => 'Stopka z generatora w Thunderbirdzie', 'intro' => '', 'steps' => [
                 $step('Skopiuj kod HTML', '<p>W <a href="' . $app . '/pomocne/generatorstopki">generatorze</a> wpisz swoje dane i kliknij „Kopiuj kod HTML”. Przycisk „Kopiuj stopkę do schowka” nie nadaje się do Thunderbirda, bo wkleiłby zwykły tekst bez układu.</p>'),
                 $step('Otwórz ustawienia konta', '<p>Uruchom Thunderbirda. W lewej kolumnie kliknij prawym przyciskiem myszy nazwę swojej skrzynki i wybierz „Ustawienia”.</p>'),
@@ -347,6 +388,7 @@ function itPortalDpocztaArticles(string $app): array {
                     . 'W polu „Temat” zostaw „Automatyczna odpowiedź” albo wpisz własny. W polu „Treść” napisz, do kiedy Cię nie ma i z kim się kontaktować w pilnych sprawach. Kliknij „Zapisz”.</p>'),
                 $step('Wyłącz po powrocie', '<p>Po dacie z pola „Do kiedy” odpowiedź wyłączy się sama. Jeśli wrócisz wcześniej, odznacz pole „Włączona” i kliknij „Zapisz”.</p>'),
             ]],
+            ...itPortalDpocztaShot('dp-autoresponder.jpg', 'Ustawienia Autorespondera w dPoczcie: pole Włączona, Od kiedy, Do kiedy, Temat Automatyczna odpowiedź, edytor treści i przycisk Zapisz', 'Ustawienia, „Autoresponder”.'),
             ['type' => 'text', 'html' => '<h2>Przykładowa treść</h2>'
                 . '<p>Dzień dobry, dziękuję za wiadomość. Do 28 listopada jestem na urlopie i nie czytam poczty. Odpowiem po powrocie. '
                 . 'W pilnych sprawach proszę pisać do [imię i nazwisko osoby zastępującej, jej adres e-mail]. Pozdrawiam, [Twoje imię i nazwisko], Fundacja Edukacji Empatii Rozwoju FEER</p>'
@@ -366,7 +408,7 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie przekierowuj poczty służbowej na prywatne skrzynki (Gmail, Onet, WP itp.). W wiadomościach bywają dane osobowe, które muszą zostać w systemach organizacji.</p>'],
         ], false],
 
-        'spam-i-zaufani-nadawcy' => ['Spam, zablokowani i zaufani nadawcy', 'spam, antyspam, cleanbox, filtr antyspamowy, czułość filtra, reguły adresów, zaufane adresy, zablokowane adresy, blokowanie, czarna lista, biała lista, zaufani nadawcy, *@feer.org.pl, obrazki, wirusy', [
+        'spam-i-zaufani-nadawcy' => ['Spam, zablokowani i zaufani nadawcy', 'spam, antyspam, cleanbox, łagodny filtr, więcej spamu niż w outlooku, filtr antyspamowy, czułość filtra, reguły adresów, zaufane adresy, zablokowane adresy, blokowanie, czarna lista, biała lista, zaufani nadawcy, *@feer.org.pl, obrazki, wirusy', [
             ['type' => 'text', 'html' => '<p>Każda skrzynka ma włączone filtry antyspamowe, a poczta jest sprawdzana pod kątem wirusów. Możesz sam zablokować natrętnego nadawcę albo oznaczyć zaufanego.</p>'],
             ['type' => 'wizard', 'title' => 'Blokowanie i zaufane adresy', 'intro' => '', 'steps' => [
                 $step('Otwórz CleanBox', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' Na dole lewej kolumny wybierz „CleanBox”. '
@@ -379,6 +421,11 @@ function itPortalDpocztaArticles(string $app): array {
                 $step('Zablokuj natrętnego nadawcę', '<p>W zakładce „Zablokowane adresy”, czyli na czarnej liście, wpisz adres albo wzorzec, na przykład <code>*@spam.pl</code>, i kliknij „Dodaj regułę”. '
                     . 'Wiadomości od tego nadawcy będą odrzucane, zanim dotrą do skrzynki, więc nie znajdziesz ich nawet w Spamie.</p>'),
             ]],
+            ...itPortalDpocztaShot('dp-cleanbox-filtr.jpg', 'CleanBox, Filtr antyspamowy: Czułość filtra Średnia (zalecana) i przycisk Zapisz', 'CleanBox, „Filtr antyspamowy”.'),
+            ...itPortalDpocztaShot('dp-cleanbox-reguly.jpg', 'CleanBox, Reguły adresów, zakładka Zaufane adresy: pole Email lub wzorzec, przycisk Dodaj regułę, Reguły globalne, Twoje reguły z wpisem *@feer.org.pl', 'CleanBox, „Reguły adresów”, zakładka „Zaufane adresy” z regułą *@feer.org.pl.'),
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Filtr antyspamowy dPoczty jest łagodniejszy niż ten w Outlooku z Microsoft 365. Do Odebranych może więc trafić więcej reklam i spamu niż wcześniej. '
+                . 'Oznaczaj takie wiadomości ikoną płomienia „Oznacz jako spam”, a natrętnych nadawców dodaj do zablokowanych. Jeśli spamu jest bardzo dużo, podnieś „Czułość filtra” o jeden poziom '
+                . 'i przez kilka dni zaglądaj do folderu Spam, czy nie trafia tam zwykła poczta.</p>'],
             ['type' => 'text', 'html' => '<p>Pod polem dodawania są dwie listy. „Reguły globalne (tylko do odczytu)” ustawia administrator dla wszystkich skrzynek i nie możesz ich zmienić. '
                 . '„Twoje reguły” to adresy dodane przez Ciebie. Krzyżyk przy regule ją usuwa. Znak zapytania przy nagłówku pokazuje krótką podpowiedź.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Blokuj ostrożnie, zwłaszcza całe domeny. Wpis <code>*@gmail.com</code> na czarnej liście odrzuci wiadomości od wszystkich osób z Gmaila, a nadawca nie zawsze dowie się, że wiadomość nie dotarła.</p>'],
@@ -410,9 +457,10 @@ function itPortalDpocztaArticles(string $app): array {
         'szablony-odpowiedzi' => ['Szablony odpowiedzi', 'szablon, szablony, gotowa odpowiedź, powtarzalna wiadomość', [
             ['type' => 'text', 'html' => '<p>Na te same pytania odpowiadasz wiele razy? Zapisz odpowiedź jako szablon.</p>'],
             ['type' => 'wizard', 'title' => 'Szablon krok po kroku', 'intro' => '', 'steps' => [
-                $step('Dodaj szablon', '<p>' . $gear . ' Wybierz „Szablony odpowiedzi”, kliknij ikonę ołówka, wpisz tytuł i treść, potem „Zapisz”.</p>'),
+                $step('Dodaj szablon', '<p>' . $gear . ' Wybierz „Odpowiedzi”. Kliknij ikonę ołówka na górze (Utwórz), wpisz nazwę i treść, potem „Zapisz”.</p>'),
                 $step('Użyj szablonu', '<p>Odpowiadając na wiadomość, kliknij u góry okna ikonę zakładki i wybierz szablon z listy.</p>'),
             ]],
+            ...itPortalDpocztaShot('dp-odpowiedzi.jpg', 'Ustawienia dPoczty, Odpowiedzi: pusta lista z napisem Lista jest pusta, na górze ikona ołówka i kosza', 'Ustawienia, „Odpowiedzi”, zanim dodasz pierwszy szablon.'),
         ], false],
 
         'powiadomienia-o-poczcie' => ['Powiadomienia o nowej poczcie', 'powiadomienia, nowa wiadomość, dźwięk, przeglądarka, alert', [

@@ -1674,4 +1674,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: zrzuty dPoczty z sesji 2026-11-14 (skrzynka z zamazaną listą, ustawienia, foldery, preferencje, autoresponder, 2FA, CleanBox,
+    // tożsamość, odpowiedzi, PGP), artykuł „Szyfrowanie PGP”, dPoczta = klient dostawcy, filtr spamu łagodniejszy niż w Outlooku, „Odpowiedzi”.
+    '2026-11_it_portal_dpoczta_shots_pgp' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: zrzuty dPoczty i artykuł o PGP',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];
