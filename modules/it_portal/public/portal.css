@@ -333,6 +333,12 @@ a:hover { text-decoration-thickness: 2px; }
 .itp-body blockquote > :last-child { margin-bottom: 0; }
 .itp-callout--important .itp-callout__t { color: #8c1d18; }
 .itp-callout__t { display: block; margin-bottom: 4px; }
+.itp-callout.has-x { position: relative; padding-right: 52px; }
+.itp-callout__x { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; display: grid; place-items: center; font-size: 1.4rem; line-height: 1;
+  border: 1px solid currentColor; background: #fff; color: #1f2933; cursor: pointer; }
+.itp-callout__x:hover { background: #1f2933; color: #fff; }
+.itp-callout-restore { margin: 0 0 1.2em; }
+.itp-callout[hidden], .itp-callout-restore[hidden] { display: none; }
 .itp-callout .itp-body p:last-child, .itp-callout div > p:last-child { margin-bottom: 0; }
 .itp-wizard { margin: 0 0 1.6em; border: 1px solid var(--itp-line); padding: 16px 20px 6px; background: #fff; }
 .itp-wizard__h { margin: 0 0 .4em; font-size: 1.25rem; }

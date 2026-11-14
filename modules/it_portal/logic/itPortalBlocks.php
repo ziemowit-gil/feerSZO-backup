@@ -139,7 +139,7 @@ function itPortalRenderImage(array $im): string {
 function itPortalRenderBlocks(array $row, string $blocksKey, string $htmlKey, string $empty = ''): string {
     $blocks = itPortalBlocksClean((string)($row[$blocksKey] ?? ''));
     if (!$blocks) return itPortalSanitizeHtml((string)($row[$htmlKey] ?? '')) ?: $empty;
-    $out = ''; $n = 0;
+    $out = ''; $n = 0; $c = 0;
     foreach ($blocks as $b) {
         switch ($b['type']) {
             case 'text': $out .= $b['html']; break;
@@ -156,7 +156,8 @@ function itPortalRenderBlocks(array $row, string $blocksKey, string $htmlKey, st
                 $out .= '</ul></section>';
                 break;
             case 'callout':
-                $out .= '<aside class="itp-callout itp-callout--' . $b['kind'] . '"><strong class="itp-callout__t">' . h(ITP_CALLOUTS[$b['kind']]) . '</strong><div>' . $b['html'] . '</div></aside>';
+                $c++;
+                $out .= '<aside class="itp-callout itp-callout--' . $b['kind'] . '" data-itp-key="' . substr(sha1($b['kind'] . $b['html']), 0, 16) . '"><strong class="itp-callout__t">' . h(ITP_CALLOUTS[$b['kind']]) . '</strong><div>' . $b['html'] . '</div></aside>';
                 break;
             case 'wizard':
                 $n++; $total = count($b['steps']);
@@ -176,7 +177,55 @@ function itPortalRenderBlocks(array $row, string $blocksKey, string $htmlKey, st
                 break;
         }
     }
-    return $out . ($n ? itPortalWizardScript() : '');
+    return $out . ($n ? itPortalWizardScript() : '') . ($c ? itPortalCalloutScript() : '');
+}
+
+/**
+ * Zamykanie ramek (callout) po przeczytaniu (polecenie 2026-11-14: „pozwól zamykać ramki jak przeczytane”). Przycisk „Zamknij” w każdej ramce,
+ * zamknięcie zapamiętane w localStorage po kluczu z treści, więc ta sama ramka znika we wszystkich artykułach, a po zmianie treści wraca.
+ * Pod treścią przycisk „Pokaż zamknięte ramki (n)”. Bez JS albo bez localStorage ramki są zawsze widoczne.
+ */
+function itPortalCalloutScript(): string {
+    static $sent = false;
+    if ($sent) return '';
+    $sent = true;
+    return <<<'HTML'
+<script>
+(function () {
+  var KEY = 'itp_closed_callouts', closed = [];
+  try { closed = JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch (e) { return; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(closed.slice(-300))); } catch (e) {} }
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.itp-callout[data-itp-key]'));
+  if (!boxes.length) return;
+  var host = boxes[0].parentNode, bar = document.createElement('p'), restore = document.createElement('button');
+  bar.className = 'itp-callout-restore'; restore.type = 'button'; restore.className = 'itp-btn'; bar.appendChild(restore); host.appendChild(bar);
+  function hiddenCount() { return boxes.filter(function (b) { return b.hidden; }).length; }
+  function update() { var n = hiddenCount(); bar.hidden = n === 0; restore.textContent = 'Pokaż zamknięte ramki (' + n + ')'; }
+  boxes.forEach(function (b) {
+    var k = b.getAttribute('data-itp-key'), t = b.querySelector('.itp-callout__t'), x = document.createElement('button');
+    x.type = 'button'; x.className = 'itp-callout__x';
+    x.setAttribute('aria-label', 'Zamknij ramkę ' + (t ? '„' + t.textContent + '”' : '') + ', przeczytane');
+    x.title = 'Zamknij, przeczytane';
+    x.innerHTML = '<span aria-hidden="true">&times;</span>';
+    b.classList.add('has-x'); b.insertBefore(x, b.firstChild);
+    if (closed.indexOf(k) !== -1) b.hidden = true;
+    x.addEventListener('click', function () {
+      b.hidden = true; if (closed.indexOf(k) === -1) closed.push(k); save(); update();
+      var next = b.nextElementSibling;
+      while (next && next.hidden) next = next.nextElementSibling;
+      (next && next !== bar ? next : restore).setAttribute('tabindex', '-1');
+      (next && next !== bar ? next : restore).focus();
+    });
+  });
+  restore.addEventListener('click', function () {
+    var first = null;
+    boxes.forEach(function (b) { if (b.hidden) { b.hidden = false; first = first || b; closed = closed.filter(function (k) { return k !== b.getAttribute('data-itp-key'); }); } });
+    save(); update(); if (first) first.querySelector('.itp-callout__x').focus();
+  });
+  update();
+})();
+</script>
+HTML;
 }
 
 /** Tryb „po kolei” kreatora (progresywne ulepszenie — bez JS lista kroków jest w pełni czytelna). */
