@@ -56,7 +56,7 @@ final class WardenController
 
     public function saveSettings(): ?string
     {
-        $days = (int)($_POST['inactivity_days'] ?? 60);
+        $days = (int)($_POST['inactivity_days'] ?? 30);
         $max = (int)($_POST['max_new_per_run'] ?? 30);
         $url = trim((string)($_POST['login_url'] ?? ''));
         if ($days < 14 || $days > 365) return $this->flash('danger', 'Próg nieaktywności musi mieć od 14 do 365 dni.');

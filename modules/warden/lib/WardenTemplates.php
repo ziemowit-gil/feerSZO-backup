@@ -7,7 +7,7 @@ namespace Feer\Szo\Warden;
  * modules/warden/lib/WardenTemplates.php — treść wiadomości WARDEN (2x e-mail + 1x SMS).
  *
  * Zmienne: {{first_name}}, {{deadline_date}} (d.m.Y, czas Europe/Warsaw), {{login_url}}, {{inactivity}} (np. „dwóch miesięcy”),
- * {{inactivity_days}} (liczba dni progu). Próg ustawia administrator (WardenSettings, domyślnie 60 dni).
+ * {{inactivity_days}} (liczba dni progu). Próg ustawia administrator (panel, domyślnie 30 dni; decyzja 2026-11-15).
  * Treść e-maili przeszła przez humanizer (polecenie 2026-11-14): bez myślników, bez urzędowych ozdobników.
  * SMS: tylko ASCII, najwyżej 160 znaków (pilnuje AsciiSms::prepare()).
  */

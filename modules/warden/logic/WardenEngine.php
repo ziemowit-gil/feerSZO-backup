@@ -20,7 +20,7 @@ require_once dirname(__DIR__) . '/lib/SzoDirectory.php';
  * osoba nie dostała od razu nowego cyklu.
  *
  * Cykl (dni od cycle_started_at, deadline_at = start + 7 dni):
- *   brak aktywności > próg (domyślnie 60 dni)  → warning_1_sent + e-mail #1
+ *   brak aktywności > próg (domyślnie 30 dni)  → warning_1_sent + e-mail #1
  *   dzień 4                                       → warning_2_sent + e-mail #2
  *   dzień 6, jest numer telefonu                  → sms_sent + SMS (bez numeru: sms_skipped, status bez zmian)
  *   po deadline_at                                → zawieszenie w Logto (PATCH is-suspended) + blokada w SZO → deactivated
@@ -67,8 +67,8 @@ final class WardenEngine
 
     public static function inactivityDays(): int
     {
-        $d = (int)WardenDatabase::setting('inactivity_days', '60');
-        return $d >= 14 && $d <= 365 ? $d : 60;
+        $d = (int)WardenDatabase::setting('inactivity_days', '30');
+        return $d >= 14 && $d <= 365 ? $d : 30;
     }
 
     public static function maxNewPerRun(): int
