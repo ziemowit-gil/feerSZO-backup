@@ -2214,4 +2214,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Chmura plików”: kalendarz i kontakty z chmury (CalDAV, CardDAV) w dPoczcie, telefonie i programach; strona SZO /kalendarz-kontakty (polecenie 2026-11-14).
+    '2026-11_it_portal_cloud_dav_article' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł „Kalendarz i kontakty z chmury w poczcie, telefonie i programie”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDavSeed.php';
+            itPortalDavApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
