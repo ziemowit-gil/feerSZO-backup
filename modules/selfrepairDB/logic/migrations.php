@@ -1858,4 +1858,15 @@ return [
         },
     ],
 
+    // Nowa usługa „Zadania w SZO” z pięcioma artykułami (pierwsze kroki, praca z zadaniem, powiadomienia i iCal, zadania z e-maila, funkcje dla liderów)
+    // w grupach „Dla każdego” / „Dla liderów obszarów” (polecenie 2026-11-14: „opisz zadania w SZO”). modules/it_portal/lib/itPortalZadaniaSeed.php.
+    '2026-11_it_portal_zadania_szo' => [
+        'desc' => 'Portal Usług IT: usługa „Zadania w SZO”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalZadaniaSeed.php';
+            itPortalZadaniaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
