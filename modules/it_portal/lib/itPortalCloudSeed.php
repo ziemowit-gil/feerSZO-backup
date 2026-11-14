@@ -124,6 +124,9 @@ function itPortalCloudArticles(string $app): array {
         'menu-aplikacji' => ['Menu aplikacji i poruszanie się po chmurze',
             'menu aplikacji, launcher, aplikacje, kropki, dziewięć kropek, pulpit, pliki, biuro, zdjęcia, zespoły, aktywność, sklep aplikacji, text document, górny pasek, nawigacja, menu, menu konta, profil, status, wygląd i dostępność, motyw, wysoki kontrast, ciemny motyw, czcionka dla dysleksji, ustawienia osobiste, wyloguj, skróty klawiszowe, klawiatura, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNavBlocks($app), $app)), false, 13],
+        'ustawienia-plikow' => ['Ustawienia aplikacji Pliki: sortowanie, widok, ostrzeżenia, WebDAV, skróty',
+            'ustawienia plików, ustawienia, pliki, sortowanie, ulubione na górze, katalogi przed plikami, drzewo folderów, widok domyślny, pliki osobiste, ukryte pliki, kolumna typu pliku, rozszerzenia plików, podglądy obrazów, polecane, opis katalogu, readme, ostrzeżenie, zmiana rozszerzenia, usunięcie pliku, webdav, adres webdav, co to jest webdav, skróty klawiszowe, keyboard shortcuts, klawiatura, nextcloud',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudFilesSettingsBlocks($app), $app)), false, 25],
         'linki-publiczne' => ['Linki publiczne i udostępnianie poza Fundację',
             'link publiczny, linki publiczne, link, udostępnij linkiem, utwórz link publiczny, udostępnianie zewnętrzne, e-mail, hasło do linku, data wygaśnięcia, ukryj pobieranie, limit pobrań, notatka, etykieta, tylko podgląd, zezwalaj na edytowanie, uprawnienia niestandardowe, upuszczanie plików, prośba o plik, zdalny serwer, federacja, ustawienia zaawansowane, dodatkowe udostępnienia, usuń udostępnienie, rodo, dane osobowe, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudPublicLinkBlocks($app), $app)), false, 17],
@@ -200,7 +203,7 @@ function itPortalCloudMenuGroups(): array {
     return [
         'nextcloud' => ['Pierwsze kroki', 10], 'logowanie' => ['Pierwsze kroki', 11], 'pulpit' => ['Pierwsze kroki', 12], 'menu-aplikacji' => ['Pierwsze kroki', 13],
         'menu-plikow' => ['Pliki i udostępnianie', 20], 'lista-plikow' => ['Pliki i udostępnianie', 21], 'linki-publiczne' => ['Pliki i udostępnianie', 22],
-        'grupy' => ['Pliki i udostępnianie', 23], 'biuro' => ['Pliki i udostępnianie', 24],
+        'grupy' => ['Pliki i udostępnianie', 23], 'biuro' => ['Pliki i udostępnianie', 24], 'ustawienia-plikow' => ['Pliki i udostępnianie', 25],
         'powiadomienia' => ['Powiadomienia i ustawienia', 30], 'aktywnosc' => ['Powiadomienia i ustawienia', 31],
         'ustawienia-osobiste' => ['Powiadomienia i ustawienia', 32], 'pulpit-roboczy' => ['Powiadomienia i ustawienia', 33],
         'instalacja-aplikacji' => ['Aplikacje na komputer i telefon', 40], 'aplikacja-komputer' => ['Aplikacje na komputer i telefon', 41],
@@ -284,7 +287,8 @@ function itPortalCloudMenuBlocks(string $app): array {
             . '<p>Usunięte pliki. Kosz. Usunięty plik albo folder leży tu jeszcze przez jakiś czas i możesz go przywrócić. Później chmura usuwa go na stałe.</p>'
             . '<p>Wykorzystane miejsce. Ile miejsca zajmują Twoje pliki i ile masz go łącznie. Każde konto ma 10 GB, a większy limit może przyznać administracja według uznania. '
             . 'Pliki w folderach zespołów i pliki udostępnione Ci przez innych nie zabierają Twojego miejsca. Gdy zaczyna go brakować, opróżnij kosz albo napisz do Helpdesku.</p>'
-            . '<p>Ustawienia Plików. Wygląd listy, na przykład pokazywanie plików ukrytych. Jest tam też adres WebDAV, którego potrzebują niektóre programy do łączenia się z chmurą.</p>'],
+            . '<p>Ustawienia Plików. Wygląd listy, na przykład pokazywanie plików ukrytych. Jest tam też adres WebDAV, którego potrzebują niektóre programy do łączenia się z chmurą. '
+            . 'Opisuje je artykuł <a href="' . $app . '/uslugi-it/uslugi/chmura-plikow/ustawienia-plikow">Ustawienia aplikacji Pliki</a>.</p>'],
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Pliki, które udostępniono Twojej grupie z SZO, znajdziesz w „Wszystkich plikach” i w „Udostępnieniach”. '
             . 'Jak działają grupy, opisuje artykuł <a href="' . $groups . '">Grupy w chmurze</a>. Gdy czegoś w menu brakuje albo działa inaczej, '
@@ -454,8 +458,8 @@ function itPortalCloudListBlocks(string $app): array {
             . '<p>Pozycje w menu „Nowy” zależą od tego, jakie aplikacje działają w chmurze. Później może tam dojść na przykład tworzenie dokumentów i arkuszy.</p>'
             . '<p>Obok jest ścieżka, czyli nazwa folderu, w którym jesteś, i folderów nad nim. Kliknij nazwę wyższego folderu, żeby do niego wrócić. '
             . 'Strzałka przy nazwie otwiera działania dla bieżącego folderu.</p>'
-            . '<p>Ikona z trzema poziomymi kreskami po prawej to filtry. Pokażesz nimi na przykład tylko dokumenty, tylko zdjęcia '
-            . 'albo pliki zmienione w ostatnim tygodniu.</p>'
+            . '<p>Ikona z trzema poziomymi kreskami po prawej to filtry. W szerszym oknie zamiast niej widać od razu przyciski „Rodzaj”, „Zmodyfikowany”, „Etykiety” i „Osoby”. '
+            . 'Pokażesz nimi na przykład tylko dokumenty albo zdjęcia, pliki zmienione w ostatnim tygodniu, pliki z wybraną etykietą albo pliki od wybranej osoby.</p>'
             . '<p>Ikona z czterema kwadratami przełącza widok między listą a kafelkami z miniaturami. Kafelki są wygodne przy zdjęciach.</p>'],
         ...itPortalCloudShot('nc-nowy.jpg', 'Rozwinięte menu przycisku Nowy: Wyślij pliki, Wyślij katalogi, Nowy katalog, Utwórz prośbę o plik, Text document',
             'Menu przycisku Nowy.'),
@@ -594,6 +598,70 @@ function itPortalCloudNavBlocks(string $app): array {
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie widzisz w menu aplikacji, o której mówią koledzy? Może być włączona tylko dla części osób. '
             . '<a href="' . $hd . '">Napisz do Helpdesku IT</a>, a sprawdzimy.</p>'],
+    ];
+}
+
+/**
+ * Bloki artykułu „Ustawienia aplikacji Pliki” (polecenie 2026-11-14 ze zrzutami okna „Ustawienia Plików” na koncie testowym, potem „wyjaśnij, co to”
+ * o WebDAV i skrótach). Zrzut przycięty do okna; w adresie WebDAV login konta testowego. Skróty jak na zrzucie (Mac: ⌘ ⌥ ⇧).
+ */
+function itPortalCloudFilesSettingsBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    $k = static fn(string ...$keys): string => implode('+', array_map(fn($x) => '<kbd>' . $x . '</kbd>', $keys));
+    return [
+        ['type' => 'text', 'html' => '<p>Aplikacja Pliki ma własne ustawienia, osobne od ustawień osobistych konta. Otworzysz je przyciskiem „Ustawienia Plików” '
+            . 'na samym dole menu po lewej. Otworzy się okno z częściami: Ogólne, Wygląd, Ustawienia dodatkowe, Ostrzeżenie, WebDAV i skróty klawiszowe. '
+            . 'Przełączniki działają od razu, a okno zamkniesz krzyżykiem albo klawiszem Escape.</p>'],
+        ...itPortalCloudShot('nc-ustawienia-plikow.jpg', 'Okno Ustawienia Plików: części Ogólne, Wygląd, Ustawienia dodatkowe, Ostrzeżenie, WebDAV i Keyboard shortcuts z przełącznikami',
+            'Okno „Ustawienia Plików” z domyślnymi ustawieniami.'),
+
+        ['type' => 'text', 'html' => '<h2>Ogólne</h2>'
+            . '<p>„Najpierw sortuj ulubione” pokazuje pliki i foldery z gwiazdką na górze listy. „Sortuj katalogi przed plikami” układa foldery nad plikami. '
+            . '„Włącz widok drzewa folderów” dodaje do menu po lewej pozycję „Drzewo folderów”.</p>'
+            . '<p>„Widok domyślny” wybiera, co zobaczysz po otwarciu aplikacji Pliki: „Wszystkie pliki”, czyli także to, co Ci udostępniono, albo tylko „Pliki osobiste”.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Wygląd</h2>'
+            . '<p>„Pokaż ukryte pliki” pokazuje pliki, których nazwa zaczyna się od kropki. Zwykle nie są potrzebne, więc zostaw to wyłączone. '
+            . '„Pokaż kolumnę typu pliku” dodaje do listy kolumnę z rodzajem pliku. „Pokaż rozszerzenia plików” dopisuje do nazw końcówki, na przykład .pdf albo .docx. '
+            . 'Warto to mieć włączone, bo łatwiej odróżnić pliki. „Przytnij podglądy obrazów” wyświetla miniatury zdjęć jako równe kwadraty.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ustawienia dodatkowe</h2>'
+            . '<p>„Pokaż polecane” pokazuje nad listą kilka ostatnio zmienianych plików. „Pokaż opis katalogu” pokazuje nad listą treść pliku Readme.md z danego folderu. '
+            . 'Gdy wyłączysz tę opcję, angielski tekst powitalny „Welcome to Nextcloud!” zniknie ze wszystkich folderów.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Ostrzeżenie</h2>'
+            . '<p>„Ostrzegaj przed zmianą rozszerzenia pliku” zapyta, czy na pewno, gdy zmienisz końcówkę nazwy, na przykład z .docx na .pdf. Taka zmiana nie zmienia zawartości pliku '
+            . 'i plik może przestać się otwierać, więc zostaw to włączone.</p>'
+            . '<p>„Ostrzegaj przed usunięciem pliku” zapyta o potwierdzenie przed każdym usunięciem. Domyślnie jest wyłączone. Włącz je, jeśli łatwo Ci coś usunąć przez pomyłkę.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>WebDAV: co to jest</h2>'
+            . '<p>WebDAV to wspólny język, którym różne programy rozmawiają z chmurą. Dzięki niemu chmurę można podłączyć jak dysk sieciowy, na przykład w Eksploratorze plików na Windows '
+            . 'przez „Mapuj dysk sieciowy” albo w Finderze na Macu przez „Połącz z serwerem”. Korzystają z niego też programy do kopii zapasowych i niektóre aplikacje na telefon.</p>'
+            . '<p>Pole „URL WebDAV” zawiera adres Twoich plików, a ikona obok kopiuje go do schowka. Ten adres wpisujesz w programie, który ma się połączyć z chmurą. '
+            . 'Link „Jak uzyskać dostęp do plików przez WebDAV” otwiera instrukcję Nextcloud dla różnych systemów.</p>'
+            . '<p>Program poprosi o login i hasło. Nie podawaj mu hasła IAM. Utwórz dla niego osobne hasło aplikacji w ustawieniach osobistych, w części Bezpieczeństwo, '
+            . 'jak opisuje artykuł <a href="' . $base . 'ustawienia-osobiste">Ustawienia osobiste w chmurze</a>. Gdy przestaniesz z programu korzystać, usuń to hasło.</p>'
+            . '<p>Większość osób WebDAV nie potrzebuje. Do zwykłej pracy wygodniejsza i szybsza jest aplikacja Nextcloud na komputerze, opisana w artykule '
+            . '<a href="' . $base . 'aplikacja-komputer">Aplikacja Nextcloud na komputerze</a>.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Skróty klawiszowe</h2>'
+            . '<p>Ostatnia część okna, „Keyboard shortcuts”, to lista skrótów, którymi obsłużysz listę plików bez myszy. Najpierw zaznacz plik strzałkami, potem użyj skrótu. '
+            . 'Na Macu zamiast Ctrl naciskasz ⌘ (Cmd), a zamiast Alt klawisz ⌥ (Option). Najważniejsze skróty:</p><ul>'
+            . '<li>' . $k('A') . ': menu działań na zaznaczonym pliku.</li>'
+            . '<li>' . $k('S') . ': dodanie albo usunięcie z ulubionych.</li>'
+            . '<li>' . $k('D') . ': panel szczegółów pliku, w tym udostępnianie.</li>'
+            . '<li>' . $k('T') . ': etykiety pliku.</li>'
+            . '<li>' . $k('F2') . ': zmiana nazwy.</li>'
+            . '<li>' . $k('Delete') . ': usunięcie zaznaczonego pliku.</li>'
+            . '<li>' . $k('Ctrl', 'A') . ': zaznaczenie wszystkich plików, a ' . $k('Esc') . ' odznaczenie wszystkich.</li>'
+            . '<li>' . $k('Ctrl', 'Spacja') . ': zaznaczenie albo odznaczenie jednego pliku, a ' . $k('Ctrl', 'Shift', 'Spacja') . ' zaznaczenie zakresu.</li>'
+            . '<li>' . $k('↑') . ' i ' . $k('↓') . ': przejście do pliku wyżej albo niżej, a w widoku kafelków także ' . $k('←') . ' i ' . $k('→') . '.</li>'
+            . '<li>' . $k('Alt', '↑') . ': przejście do folderu nadrzędnego.</li></ul>'
+            . '<p>Pełną listę zobaczysz w oknie ustawień. Część nazw jest tam na razie po angielsku.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Ustawienia Plików dotyczą tylko Ciebie i zostają na Twoim koncie, także na innym komputerze. '
+            . 'Nie zmieniają tego, co widzą inni. Gdy coś na liście plików wygląda dziwnie, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
     ];
 }
 
