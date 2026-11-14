@@ -2224,4 +2224,14 @@ return [
         },
     ],
 
+    // Ten sam artykuł z częścią „Kalendarz i kontakty z Microsoft 365” (import przez Graph, modules/cloudDav/logic/PimImport.php; polecenie 2026-11-14).
+    '2026-11_it_portal_cloud_dav_article_m365' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł o kalendarzu i kontaktach z chmury, część o przenoszeniu z Microsoft 365',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDavSeed.php';
+            itPortalDavApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

@@ -80,6 +80,14 @@ function itPortalDavArticle(string $app): array {
                 . 'Przycisk „Kopiuj” przenosi każde pole do schowka. Hasło widać na stronie przez pół godziny, a SZO go nie zapisuje.</p>'),
         ]],
 
+        ['type' => 'text', 'html' => '<h2>Kalendarz i kontakty z Microsoft 365</h2>'
+            . '<p>Microsoft 365 wyłączamy 20 listopada 2026 r. Kalendarze i kontakty z Outlooka przeniesiemy do chmury, a zrobi to administrator. '
+            . 'W chmurze pojawi się kalendarz „Kalendarz z Outlooka”, pozostałe kalendarze jako „Outlook:” z dawną nazwą, i książka adresowa „Kontakty z Outlooka”.</p>'
+            . '<p>Uczestników spotkań zobaczysz w opisie wydarzenia, bo przy przenoszeniu nie wysyłamy nikomu zaproszeń. Kalendarzy, które udostępnili Ci inni, '
+            . 'nie kopiujemy, bo przeniesie je ich właściciel. Jeśli nie masz jeszcze konta w chmurze, kopia poczeka i trafi do chmury, gdy je założysz.</p>'
+            . '<p>Stan przenoszenia zobaczysz na stronie <a href="' . $szo . '">Kalendarz i kontakty z chmury</a>. Jest tam też przycisk, którym przeniesiesz wszystko jeszcze raz. '
+            . 'Te same wydarzenia i kontakty zostaną wtedy nadpisane, więc nic się nie zdubluje.</p>'],
+
         ['type' => 'text', 'html' => '<h2>Hasło aplikacji</h2>'
             . '<p>Telefon ani program nie dostaje Twojego hasła do logowania jednokrotnego. Dostaje własne hasło aplikacji, a każde urządzenie powinno mieć osobne. '
             . 'Gdy zgubisz telefon, usuniesz tylko jego hasło, a pozostałe urządzenia będą działać dalej.</p>'
