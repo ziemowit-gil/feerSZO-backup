@@ -1476,4 +1476,16 @@ return [
         },
     ],
 
+    // Portal Usług IT: rozwijane grupy w menu bocznym usługi (kolumna itp_articles.menu_group, pole „Grupa w menu” w panelu) i grupy dla
+    // „Chmury plików” (polecenie 2026-11-14: „zrób menu rozwijane”); adres nadawcy chmura.feer@dpoczta.pl w ramce „Ważne” każdego artykułu („dodaj”).
+    '2026-11_it_portal_menu_groups' => [
+        'desc' => 'Portal Usług IT: rozwijane grupy w menu bocznym, grupy „Chmury plików”, nadawca w ramce „Ważne”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);
+            itPortalCloudMenuApply();
+        },
+    ],
+
 ];

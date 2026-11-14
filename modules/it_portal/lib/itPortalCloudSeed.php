@@ -192,6 +192,34 @@ function itPortalCloudQuotaNote(string $app): string {
          . '<a href="' . rtrim($app, '/') . '/helpdesk/new.php">Helpdesku IT</a> i napisz, do czego jest potrzebne.</p>';
 }
 
+/**
+ * Grupy w rozwijanym menu bocznym usługi „Chmura plików” i kolejność artykułów (polecenie 2026-11-14: „zrób menu rozwijane”).
+ * @return array<string, array{0:string,1:int}> slug => [grupa, kolejność]
+ */
+function itPortalCloudMenuGroups(): array {
+    return [
+        'nextcloud' => ['Pierwsze kroki', 10], 'logowanie' => ['Pierwsze kroki', 11], 'pulpit' => ['Pierwsze kroki', 12], 'menu-aplikacji' => ['Pierwsze kroki', 13],
+        'menu-plikow' => ['Pliki i udostępnianie', 20], 'lista-plikow' => ['Pliki i udostępnianie', 21], 'linki-publiczne' => ['Pliki i udostępnianie', 22],
+        'grupy' => ['Pliki i udostępnianie', 23], 'biuro' => ['Pliki i udostępnianie', 24],
+        'powiadomienia' => ['Powiadomienia i ustawienia', 30], 'aktywnosc' => ['Powiadomienia i ustawienia', 31],
+        'ustawienia-osobiste' => ['Powiadomienia i ustawienia', 32], 'pulpit-roboczy' => ['Powiadomienia i ustawienia', 33],
+        'instalacja-aplikacji' => ['Aplikacje na komputer i telefon', 40], 'aplikacja-komputer' => ['Aplikacje na komputer i telefon', 41],
+        'aplikacja-telefon' => ['Aplikacje na komputer i telefon', 42],
+    ];
+}
+
+/** Ustawia grupy i kolejność artykułów „Chmury plików” w menu bocznym (nadpisuje ręczne zmiany tych dwóch pól). */
+function itPortalCloudMenuApply(): int {
+    require_once dirname(__DIR__) . '/logic/itPortal.php';
+    itPortalMigrate();
+    $n = 0;
+    foreach (itPortalCloudMenuGroups() as $slug => [$group, $sort]) {
+        $n += db_exec("UPDATE itp_articles SET menu_group = ?, sort_order = ? WHERE slug = ? AND category_id = (SELECT id FROM itp_categories WHERE slug = 'chmura-plikow')",
+                      [$group, $sort, $slug]) ? 1 : 0;
+    }
+    return $n;
+}
+
 /** Adres, z którego chmura wysyła e-maile (polecenie 2026-11-14: „z chmura.feer@dpoczta.pl są wysyłane powiadomienia z chmurki”). */
 function itPortalCloudSenderNote(): string {
     return '<p>Powiadomienia e-mail z chmury, na przykład o udostępnionym pliku, przychodzą z adresu chmura.feer@dpoczta.pl. '
@@ -221,7 +249,7 @@ function itPortalCloudAddresses(): string {
 function itPortalCloudPilot(array $blocks): array {
     return array_merge([['type' => 'callout', 'kind' => 'important',
         'html' => '<p>Obecna chmura plików to instalacja wdrożeniowa. Instalację produkcyjną uruchomimy na początku grudnia 2026 r.</p>'
-            . itPortalCloudSlowNote() . itPortalCloudAddresses()]], $blocks);
+            . itPortalCloudSlowNote() . itPortalCloudAddresses() . itPortalCloudSenderNote()]], $blocks);
 }
 
 /**
