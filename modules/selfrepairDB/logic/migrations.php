@@ -1509,4 +1509,14 @@ return [
         },
     ],
 
+    // „Konto kursanta”: artykuł o darmowym pakiecie biurowym (LibreOffice, ONLYOFFICE) po wyłączeniu kont @edu (polecenie 2026-11-14 „dodaj też info o ooffice”).
+    '2026-11_it_portal_konto_kursanta_office' => [
+        'desc' => 'Portal Usług IT, „Konto kursanta”: darmowy pakiet biurowy zamiast Microsoft 365',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKontoKursantaSeed.php';
+            itPortalKontoKursantaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

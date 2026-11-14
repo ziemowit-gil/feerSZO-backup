@@ -60,7 +60,8 @@ function itPortalKontoKursantaIntro(string $app): string {
          . 'z adresem w domenie <code>@stud.feer.org.pl</code>. Każde ma osobne hasło. '
          . 'Konta poczty zakłada zewnętrzny administrator na polecenie kierownika szkolenia.</p>'
          . '<p>Dostałeś(-aś) właśnie nowe konto? Zacznij od artykułu <a href="' . $u . 'nowe-konta">Nowe konta: od czego zacząć</a>. '
-         . 'Prowadzi krok po kroku od pierwszej wiadomości do własnych haseł.</p>';
+         . 'Prowadzi krok po kroku od pierwszej wiadomości do własnych haseł.</p>'
+         . '<p>Word i Excel z konta <code>@edu.feer.org.pl</code> zastąpisz darmowym programem. Zobacz <a href="' . $u . 'pakiet-biurowy">Word i Excel po wyłączeniu konta @edu</a>.</p>';
 }
 
 /**
@@ -111,6 +112,8 @@ function itPortalKontoKursantaArticles(string $app): array {
                     . 'Wybierz inne hasło niż do panelu kursanta.</p>'),
                 $step('Potwierdź w panelu', '<p>Wróć do zakładki <a href="' . $poczta . '">„Poczta kursanta”</a> i kliknij „Mam już własne hasło”. Hasło startowe zniknie z panelu.</p>'),
                 $step('Dodaj pocztę do telefonu (jeśli chcesz)', '<p>Instrukcję znajdziesz w artykule <a href="' . $u . 'poczta-w-telefonie">Poczta kursanta w telefonie</a>.</p>'),
+                $step('Zainstaluj darmowy pakiet biurowy', '<p>Word i Excel z konta <code>@edu.feer.org.pl</code> przestaną działać 20 listopada 2026 r. '
+                    . 'Co zainstalować zamiast nich, opisuje artykuł <a href="' . $u . 'pakiet-biurowy">Word i Excel po wyłączeniu konta @edu</a>.</p>'),
             ]],
 
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p><strong>Termin.</strong> Hasło startowe do poczty czeka w panelu 14 dni i można je pokazać najwyżej 5 razy. '
@@ -196,6 +199,31 @@ function itPortalKontoKursantaArticles(string $app): array {
                 . 'W programach Thunderbird i Outlook podajesz je tak samo.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Telefon nie łączy się z pocztą? Sprawdź, czy wpisujesz pełny adres jako nazwę użytkownika i hasło do poczty, a nie do panelu. '
                 . 'Jeśli to nie pomoże, napisz przez <a href="' . $pomoc . '">zakładkę Pomoc w panelu kursanta</a>.</p>'],
+        ], false],
+
+        'pakiet-biurowy' => ['Word i Excel po wyłączeniu konta @edu: darmowy pakiet biurowy',
+            'office, ooffice, libreoffice, openoffice, onlyoffice, word, excel, powerpoint, pakiet biurowy, dokumenty, arkusze, prezentacje, docx, xlsx, pptx, odt, ods, odp, pdf, microsoft 365, edu.feer.org.pl, darmowy, instalacja', [
+            ['type' => 'text', 'html' => '<p>Z kontem <code>@edu.feer.org.pl</code> mogłeś(-aś) korzystać z Worda, Excela i PowerPointa z Microsoft 365. '
+                . '20 listopada 2026 r. wyłączamy te konta. Programy Microsoft zalogowane tym kontem przestaną wtedy pozwalać na edycję albo w ogóle się nie otworzą.</p>'
+                . '<p>Zamiast nich zainstaluj darmowy pakiet biurowy. Nie potrzebujesz do niego konta ani licencji z Fundacji.</p>'],
+            ['type' => 'text', 'html' => '<h2>Który program wybrać</h2>'
+                . '<table><thead><tr><th>Program</th><th>Dla kogo</th><th>Skąd pobrać</th></tr></thead><tbody>'
+                . '<tr><td><strong>LibreOffice</strong></td><td>pełny pakiet: dokumenty, arkusze, prezentacje, rysunki; po polsku; Windows, macOS i Linux</td>'
+                . '<td><a href="https://pl.libreoffice.org/">pl.libreoffice.org</a></td></tr>'
+                . '<tr><td><strong>ONLYOFFICE Desktop Editors</strong></td><td>wygląd podobny do Worda i Excela, dobrze zachowuje układ plików .docx i .xlsx</td>'
+                . '<td><a href="https://www.onlyoffice.com/">onlyoffice.com</a></td></tr>'
+                . '</tbody></table>'
+                . '<p>Oba programy otwierają i zapisują pliki Worda, Excela i PowerPointa (<code>.docx</code>, <code>.xlsx</code>, <code>.pptx</code>) oraz zapisują do PDF. '
+                . 'Pobieraj je tylko z oficjalnych stron podanych wyżej.</p>'],
+            ['type' => 'wizard', 'title' => 'Instalacja LibreOffice', 'intro' => '', 'steps' => [
+                $step('Pobierz', '<p>Wejdź na <a href="https://pl.libreoffice.org/">pl.libreoffice.org</a> i kliknij „Pobierz”. Strona sama dobierze wersję do Twojego komputera.</p>'),
+                $step('Zainstaluj', '<p>Otwórz pobrany plik i klikaj „Dalej”. Ustawienia domyślne są dobre.</p>'),
+                $step('Zapisuj w formacie, którego potrzebujesz', '<p>Gdy wysyłasz plik prowadzącemu albo do biura, przy zapisie wybierz format Worda (<code>.docx</code>) albo PDF. '
+                    . 'W LibreOffice: „Plik”, „Zapisz jako” i typ pliku „Word 2007–365”, albo „Plik”, „Eksportuj jako PDF”.</p>'),
+            ]],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Masz pliki w OneDrive na koncie <code>@edu.feer.org.pl</code>? Pobierz je na swój komputer przed 20 listopada 2026 r. Po wyłączeniu konta nie da się ich odzyskać.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Na telefonie dokumenty otworzysz w bezpłatnej aplikacji ONLYOFFICE Documents albo w podglądzie wbudowanym w telefon. '
+                . 'Kłopot z instalacją? Napisz przez <a href="' . $pomoc . '">zakładkę Pomoc w panelu kursanta</a>.</p>'],
         ], false],
 
         'problemy-z-nowym-kontem' => ['Nie dostałem(-am) loginu, hasła albo kodu',
