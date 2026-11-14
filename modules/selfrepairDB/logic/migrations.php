@@ -2040,4 +2040,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: artykuł „System Tożsamości: Twoje konto o koncie” (sekcje /tozsamosc) — polecenie 2026-11-14.
+    // modules/it_portal/lib/itPortalTozsamoscSeed.php.
+    '2026-11_it_portal_tozsamosc' => [
+        'desc' => 'Portal Usług IT, „Mój login”: System Tożsamości',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalTozsamoscSeed.php';
+            itPortalTozsamoscApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
