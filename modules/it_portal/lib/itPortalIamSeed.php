@@ -10,6 +10,17 @@
 
 require_once __DIR__ . '/itPortalLogowanieSzoSeed.php';
 
+/** Prosty opis powiązania IAM z Systemem Tożsamości (polecenie 2026-11-14: „powiązanie między IAM a Tożsamością”, „wyjaśnij prosto”). Też w itPortalTozsamoscSeed.php. */
+function itPortalIamTozsamoscBlock(string $app): array {
+    return ['type' => 'text', 'html' => '<h2>IAM i System Tożsamości: jak to się łączy</h2>'
+        . '<p>Pomyśl o tym jak o legitymacji i kluczu.</p><ul>'
+        . '<li>System Tożsamości to Twoja legitymacja w Fundacji. Zapisane są w niej Twoje dane, numer UID i to, do czego masz dostęp.</li>'
+        . '<li>IAM to klucz. Otwierasz nim aplikacje: SZO, chmurę plików i kolejne.</li>'
+        . '<li>Klucz jest przypisany do legitymacji przez Twój adres e-mail. Dlatego login do IAM to ten sam e-mail, który masz w SZO.</li>'
+        . '<li>Klucz zakładasz i zmieniasz w Systemie Tożsamości, w sekcji <a href="' . $app . '/tozsamosc/index.php#sso">Logowanie jednokrotne</a>.</li></ul>'
+        . '<p>Krótko: w Systemie Tożsamości zarządzasz kontem, a kontem IAM się logujesz.</p>'];
+}
+
 function itPortalIamApply(string $app): string {
     require_once dirname(__DIR__) . '/logic/itPortal.php';
     itPortalMigrate();
@@ -45,6 +56,8 @@ function itPortalIamBlocks(string $app): array {
         ['type' => 'text', 'html' => '<p>IAM to system tożsamości Fundacji, czyli Twoje jedno konto do aplikacji Fundacji. Na ekranach nazywamy go też logowaniem jednokrotnym. '
             . 'Działa jak jeden klucz do wielu drzwi: logujesz się raz, a kolejne aplikacje nie pytają już o hasło, dopóki nie wylogujesz się w przeglądarce.</p>'
             . '<p>Kontem IAM logujesz się dziś do SZO i do chmury plików. Od 1 grudnia 2026 r. posłuży do wszystkich aplikacji Fundacji. Poczta zostaje osobno, z własnym hasłem.</p>'],
+
+        itPortalIamTozsamoscBlock($app),
 
         ['type' => 'text', 'html' => '<h2>Jakie są moje dane do IAM</h2><ul>'
             . '<li>Login to Twój adres e-mail zapisany w SZO. Zwykle jest to adres służbowy imie.nazwisko@feer.org.pl. Jeśli nie masz poczty służbowej, na przykład jako zleceniobiorca, loginem jest prywatny adres e-mail z umowy.</li>'

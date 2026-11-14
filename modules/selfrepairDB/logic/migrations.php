@@ -2051,4 +2051,16 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: prosty opis powiązania IAM z Systemem Tożsamości (legitymacja i klucz) w artykułach „IAM”
+    // i „System Tożsamości” — polecenie 2026-11-14. Ponowne zastosowanie itPortalIamSeed.php i itPortalTozsamoscSeed.php.
+    '2026-11_it_portal_iam_tozsamosc_link' => [
+        'desc' => 'Portal Usług IT, „Mój login”: IAM a System Tożsamości',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalTozsamoscSeed.php';
+            itPortalIamApply(ITP_SZO_URL);
+            itPortalTozsamoscApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

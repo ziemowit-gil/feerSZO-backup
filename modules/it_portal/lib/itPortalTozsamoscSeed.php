@@ -9,6 +9,7 @@
  */
 
 require_once __DIR__ . '/itPortalLogowanieSzoSeed.php';
+require_once __DIR__ . '/itPortalIamSeed.php';
 
 function itPortalTozsamoscApply(string $app): string {
     require_once dirname(__DIR__) . '/logic/itPortal.php';
@@ -42,6 +43,8 @@ function itPortalTozsamoscBlocks(string $app): array {
             . 'Nie służy do codziennej pracy. Zaglądasz tu, gdy chcesz coś zmienić albo sprawdzić.</p>'
             . '<p>Otworzysz go pod adresem <a href="' . $tz . '">System Tożsamości</a> albo z menu SZO, pozycja „System Tożsamości”. Logujesz się tym samym kontem co do SZO. '
             . 'Strona ma własny wygląd, podobny do ustawień konta Microsoft. Z lewej jest menu sekcji, a u góry odnośnik „Wróć do SZO”.</p>'],
+
+        itPortalIamTozsamoscBlock($app),
 
         ['type' => 'text', 'html' => '<h2>Sekcje w menu</h2><ul>'
             . '<li><a href="' . $s('przeglad') . '">Przegląd</a>: kafle z najważniejszymi informacjami i skrótami, na przykład stan zabezpieczeń, zmiana hasła i Twoje usługi.</li>'
