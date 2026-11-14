@@ -977,4 +977,14 @@ return [
         },
     ],
 
+    // Logowanie do CRM przez SZO zamiast Microsoft 365 (73a0c933d, 2026-11-14) — artykuł w usłudze „Mój login”.
+    '2026-11_it_portal_crm_login_article' => [
+        'desc' => 'Portal Usług IT, „Mój login”: artykuł „Logowanie do CRM” (przez SZO, bez Microsoft 365)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCrmLoginSeed.php';
+            itPortalCrmLoginApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
