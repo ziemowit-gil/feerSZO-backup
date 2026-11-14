@@ -1890,4 +1890,14 @@ return [
         },
     ],
 
+    // Nowa usługa „Podpis kwalifikowany (CenCert)” z artykułem o używaniu, odnawianiu i przenoszeniu certyfikatu (polecenie 2026-11-14 z listą instrukcji CenCert).
+    '2026-11_it_portal_cencert' => [
+        'desc' => 'Portal Usług IT: usługa „Podpis kwalifikowany (CenCert)”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCencertSeed.php';
+            itPortalCencertApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
