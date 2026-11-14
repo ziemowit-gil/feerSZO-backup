@@ -87,6 +87,120 @@ function itPortalDpocztaOutlookBye(): string {
 }
 
 /**
+ * Trzy osobne usługi portalu: „Zoom”, „Jitsi Meet”, „Fathom” (polecenie 2026-11-14: „to osobna kategoria… to mają być osobne kategorie”, wybór:
+ * trzy osobne usługi). Artykuły były wcześniej w „Mojej poczcie” jako zoom / jitsi-meet / fathom; te wiersze są przenoszone (to samo id). @return list<string>
+ */
+function itPortalMeetingServicesApply(string $app): array {
+    require_once dirname(__DIR__) . '/logic/itPortal.php';
+    itPortalMigrate();
+    $app = rtrim($app, '/');
+    $hdl = '<a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>';
+    $svc = [
+        'zoom' => ['Zoom', 'monitor', 21, 'zoom',
+            '<p>Zoom to główne narzędzie do spotkań online w Fundacji. Mamy dwie licencje. Spotkania edukacyjne prowadzimy z technicznego konta edukacja@feer.org.pl. '
+            . 'Spotkania szkoleniowe zakładają się same, a inne zamawiasz 2 do 3 dni wcześniej.</p>'],
+        'jitsi-meet' => ['Jitsi Meet', 'chat', 23, 'jitsi-meet',
+            '<p>Jitsi Meet to darmowe spotkania wideo w przeglądarce, bez konta i bez instalowania programu. Przydaje się do szybkich, doraźnych rozmów.</p>'],
+        'fathom' => ['Fathom', 'document', 24, 'fathom',
+            '<p>Fathom nagrywa spotkania online i przygotowuje z nich notatki. W Fundacji jest podłączony do technicznego konta edukacja@feer.org.pl, z którego prowadzimy spotkania edukacyjne.</p>'],
+    ];
+    $arts = itPortalMeetingArticles($app);
+    $aud = array_column(itPortalAudiences(), 'id', 'name');
+    $audIds = array_values(array_filter([$aud['Pracownik'] ?? 0, $aud['Wolontariusz'] ?? 0, $aud['IT'] ?? 0]));
+    $rep = [];
+    foreach ($svc as $catSlug => [$name, $icon, $sort, $oldSlug, $introP]) {
+        $intro = itPortalSanitizeHtml($introP . '<p>Jeśli czegoś brakuje w instrukcji, ' . $hdl . '.</p>');
+        $cat = db_one("SELECT id FROM itp_categories WHERE slug = ?", [$catSlug]);
+        if ($cat) {
+            $catId = (int)$cat['id'];
+            db_exec("UPDATE itp_categories SET intro_html = ?, intro_blocks = '', intro_plain = ?, is_active = 1, updated_at = datetime('now') WHERE id = ?", [$intro, itPortalPlain($intro), $catId]);
+        } else {
+            $catId = itPortalCategorySave(['name' => $name, 'slug' => $catSlug, 'icon' => $icon, 'sort_order' => $sort, 'is_active' => 1, 'audiences' => $audIds, 'intro_html' => $intro]);
+        }
+        foreach ($arts[$catSlug] as $slug => [$title, $keywords, $blocks, $pinned]) {
+            $old = db_one("SELECT id, related FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]);
+            if (!$old) {
+                $old = db_one("SELECT a.id, a.related FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'moja-poczta' AND a.slug = ?", [$oldSlug]);
+                if ($old) db_exec("UPDATE itp_articles SET category_id = ?, menu_group = '' WHERE id = ?", [$catId, (int)$old['id']]);
+            }
+            itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
+                'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => $pinned ? 1 : 0,
+                'sort_order' => 10, 'related' => $old ? itPortalIds($old['related'] ?? '[]') : []], $old ? (int)$old['id'] : 0);
+            $rep[] = "{$catSlug}/{$slug} — {$title}";
+        }
+    }
+    return $rep;
+}
+
+/** Artykuły trzech usług spotkań: [usługa => [slug => [tytuł, słowa kluczowe, bloki, przypięty]]]. */
+function itPortalMeetingArticles(string $app): array {
+    $app = rtrim($app, '/');
+    $hd = $app . '/helpdesk/new.php';
+    $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
+    return [
+        'zoom' => [
+        'zamawianie-spotkan' => ['Spotkanie na Zoomie: jak je zamówić', 'zoom, spotkanie zoom, licencja zoom, zamówić spotkanie, rezerwacja zoom, spotkanie online, wideokonferencja, spotkanie szkoleniowe, jarek@feer.org.pl, helpdesk', [
+            ['type' => 'text', 'html' => '<p>Spotkania online w Fundacji prowadzimy przede wszystkim na Zoomie. Mamy dwie licencje Zoom, więc w tym samym czasie mogą trwać najwyżej dwa spotkania z naszych kont.</p>'],
+            ['type' => 'text', 'html' => '<h2>Spotkania szkoleniowe</h2>'
+                . '<p>Spotkania edukacyjne prowadzimy z technicznego konta <code>edukacja@feer.org.pl</code>. Spotkania dla grup szkoleniowych zakładają się automatycznie, gdy w systemie dodawana jest grupa. Mają stały link, ten sam na wszystkie zajęcia grupy. '
+                . 'Spotkanie może też założyć dydaktyk w swoim panelu, w panelu kursanta. Do takich spotkań nie trzeba niczego zamawiać.</p>'],
+            ['type' => 'text', 'html' => '<h2>Pozostałe spotkania</h2>'
+                . '<p>Jeśli potrzebujesz spotkania na Zoomie, na przykład z partnerem albo zespołem, napisz 2 do 3 dni wcześniej na adres '
+                . '<a href="mailto:jarek@feer.org.pl">jarek@feer.org.pl</a> albo <a href="' . $hd . '">zgłoś to w Helpdesku IT</a>. Podaj:</p><ul>'
+                . '<li>datę i godzinę rozpoczęcia oraz przewidywany czas trwania,</li>'
+                . '<li>temat spotkania,</li>'
+                . '<li>przybliżoną liczbę uczestników,</li>'
+                . '<li>czy spotkanie ma być nagrywane albo mieć notatki z Fathom.</li></ul>'
+                . '<p>W odpowiedzi dostaniesz link do spotkania. Wyślij go uczestnikom albo wpisz w polu „Lokalizacja” spotkania w kalendarzu dPoczty.</p>'],
+            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Potrzebujesz porozmawiać od razu, bez zamawiania? Skorzystaj z <a href="' . $app . '/uslugi-it/uslugi/jitsi-meet/szybkie-spotkanie">Jitsi Meet</a>. '
+                . 'Nagrywanie i notatki ze spotkań opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/fathom/notatki-ze-spotkan">Fathom: notatki ze spotkań online</a>.</p>'],
+        ], false],
+
+        ],
+        'jitsi-meet' => [
+        'szybkie-spotkanie' => ['Szybkie spotkanie online: Jitsi Meet', 'spotkanie online, wideorozmowa, rozmowa wideo, zoom, licencja zoom, jitsi, jitsi meet, meet.jit.si, teams, zoom, link do spotkania, szybkie spotkanie', [
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Spotkania w Fundacji prowadzimy przede wszystkim na Zoomie, na który mamy dwie licencje. '
+                . 'Spotkania szkoleniowe zakładają się na Zoomie same przy dodaniu grupy i mają stały link, a dydaktyk może je też założyć w swoim panelu. '
+                . 'Inne spotkanie na Zoomie zamów 2 do 3 dni wcześniej, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/zoom/zamawianie-spotkan">Spotkanie na Zoomie</a>. '
+                . 'Jitsi Meet to szybkie rozwiązanie na doraźną rozmowę, gdy Zoom jest zajęty albo nie ma czasu na umawianie.</p>'],
+            ['type' => 'text', 'html' => '<p>Gdy potrzebujesz szybko porozmawiać z kimś przez wideo, możesz skorzystać z <a href="https://meet.jit.si/">Jitsi Meet</a>. '
+                . 'To darmowa usługa do spotkań online. Działa w przeglądarce, bez instalowania programu, a uczestnicy nie potrzebują żadnego konta. Wystarczy im link.</p>'],
+            ['type' => 'wizard', 'title' => 'Spotkanie w trzech krokach', 'intro' => '', 'steps' => [
+                $step('Załóż pokój', '<p>Wejdź na <a href="https://meet.jit.si/">meet.jit.si</a>, wpisz nazwę spotkania i kliknij „Rozpocznij spotkanie”. '
+                    . 'Wybierz nazwę trudną do odgadnięcia, na przykład z kilku słów i cyfr, a nie „FEER”. Strona może poprosić osobę zakładającą spotkanie o zalogowanie się, na przykład kontem Google.</p>'),
+                $step('Zezwól na kamerę i mikrofon', '<p>Przeglądarka zapyta o dostęp do kamery i mikrofonu. Zgódź się. Przed wejściem sprawdzisz obraz i dźwięk.</p>'),
+                $step('Wyślij link', '<p>Skopiuj adres strony spotkania z paska przeglądarki albo przyciskiem zaproszenia i wyślij go uczestnikom. Link możesz też wpisać w polu „Lokalizacja” spotkania w kalendarzu dPoczty.</p>'),
+            ]],
+            ['type' => 'text', 'html' => '<h2>Przydatne przyciski</h2>'
+                . '<p>Na dole okna spotkania wyłączysz mikrofon i kamerę, udostępnisz ekran, otworzysz czat i podniesiesz rękę. W ustawieniach bezpieczeństwa możesz ustawić hasło do spotkania '
+                . 'albo poczekalnię, w której zatwierdzasz każdego wchodzącego. Na telefonie wygodniej jest w aplikacji Jitsi Meet ze sklepu.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Jitsi Meet to publiczna usługa zewnętrzna. Nadaje się do szybkich, zwykłych rozmów. Przy rozmowach o danych osobowych albo sprawach poufnych '
+                . 'ustaw hasło do spotkania i nie nagrywaj go. Jeśli potrzebujesz stałego narzędzia do takich spotkań, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+        ], false],
+
+        ],
+        'fathom' => [
+        'notatki-ze-spotkan' => ['Fathom: notatki ze spotkań online', 'fathom, spotkania szkoleniowe, grupa, stały link, dydaktyk, notatki ze spotkań, nagrywanie spotkań, transkrypcja, podsumowanie, ai, sztuczna inteligencja, zoom, edukacja@feer.org.pl, notetaker', [
+            ['type' => 'text', 'html' => '<p><a href="https://www.fathom.ai/">Fathom</a> to narzędzie, które dołącza do spotkania online, nagrywa je i przygotowuje notatki: '
+                . 'zapis rozmowy, krótkie podsumowanie i listę ustaleń. Dzięki temu nikt nie musi notować w trakcie spotkania.</p>'
+                . '<p>W Fundacji Fathom jest domyślnie podłączony do konta <code>edukacja@feer.org.pl</code>. To konto techniczne do prowadzenia spotkań o charakterze edukacyjnym. '
+                . 'Fathom działa na spotkaniach prowadzonych z tego konta, a notatki trafiają do tego konta.</p>'
+                . '<p>Spotkania szkoleniowe na Zoomie zakładają się automatycznie, gdy w systemie dodawana jest grupa szkoleniowa, i mają stały link, ten sam na wszystkie zajęcia grupy. '
+                . 'Spotkanie może też założyć dydaktyk w swoim panelu, w panelu kursanta.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Gdy Fathom nagrywa spotkanie, na początku powiedz o tym wszystkim uczestnikom. Nagranie i zapis rozmowy to dane osobowe uczestników. '
+                . 'Jeśli ktoś się nie zgadza albo rozmawiacie o sprawach poufnych, na przykład o zdrowiu czy sprawach kadrowych, wyłącz nagrywanie dla tego spotkania.</p>'],
+            ['type' => 'text', 'html' => '<p>Notatki z Fathom sprawdź, zanim je komuś wyślesz. Automatyczny zapis bywa niedokładny, zwłaszcza przy nazwiskach i liczbach. '
+                . 'Spotkanie na Zoomie z notatkami zamówisz tak, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/zoom/zamawianie-spotkan">Spotkanie na Zoomie</a>. '
+                . 'Więcej informacji o Fathom, w tym o tym, kto ma dostęp do notatek, opublikujemy wkrótce.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Szybkie spotkania bez umawiania opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/jitsi-meet/szybkie-spotkanie">Szybkie spotkanie online: Jitsi Meet</a>. '
+                . 'Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+        ], false],
+
+        ],
+    ];
+}
+
+/**
  * Grupy w rozwijanym menu „Mojej poczty” i kolejność (polecenie 2026-11-14: „też zrób kategorie”). Artykuły spoza seeda (np. gosposia) też tu są.
  * @return array<string, array{0:string,1:int}>
  */
@@ -98,7 +212,7 @@ function itPortalDpocztaMenuGroups(): array {
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'wiadomosci' => [$g3, 29], 'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
-        'poczta-w-telefonie' => [$g5, 50], 'kontakty' => [$g5, 51], 'kontakty-import-eksport' => [$g5, 52], 'kalendarz' => [$g5, 54], 'zoom' => [$g5, 55], 'jitsi-meet' => [$g5, 56], 'fathom' => [$g5, 57], 'folder-wyslane' => [$g5, 53],
+        'poczta-w-telefonie' => [$g5, 50], 'kontakty' => [$g5, 51], 'kontakty-import-eksport' => [$g5, 52], 'kalendarz' => [$g5, 54], 'folder-wyslane' => [$g5, 53],
         'duze-zalaczniki' => [$g6, 60], 'transfernow-wetransfer' => [$g6, 61],
     ];
 }
@@ -245,9 +359,9 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'text', 'html' => '<h2>Kontakty, kalendarz i inne urządzenia</h2><ul>'
                 . '<li><a href="' . $base . 'kontakty">Kontakty</a>: książki adresowe, grupy i nowe kontakty.</li>'
                 . '<li><a href="' . $base . 'kalendarz">Kalendarz</a>: spotkania, zaproszenia, udostępnianie i synchronizacja z telefonem. Zastępuje kalendarz z Outlooka.</li>'
-                . '<li><a href="' . $base . 'zoom">Spotkanie na Zoomie</a>: jak zamówić spotkanie, 2 do 3 dni wcześniej.</li>'
-                . '<li><a href="' . $base . 'jitsi-meet">Jitsi Meet</a>: szybkie, doraźne spotkanie wideo przez link. Zwykłe spotkania prowadzimy na Zoomie.</li>'
-                . '<li><a href="' . $base . 'fathom">Fathom</a>: nagrywanie i notatki ze spotkań, podłączony do konta edukacja@feer.org.pl.</li>'
+                . '<li><a href="' . $app . '/uslugi-it/uslugi/zoom/zamawianie-spotkan">Spotkanie na Zoomie</a>: jak zamówić spotkanie, 2 do 3 dni wcześniej.</li>'
+                . '<li><a href="' . $app . '/uslugi-it/uslugi/jitsi-meet/szybkie-spotkanie">Jitsi Meet</a>: szybkie, doraźne spotkanie wideo przez link. Zwykłe spotkania prowadzimy na Zoomie.</li>'
+                . '<li><a href="' . $app . '/uslugi-it/uslugi/fathom/notatki-ze-spotkan">Fathom</a>: nagrywanie i notatki ze spotkań, podłączony do konta edukacja@feer.org.pl.</li>'
                 . '<li><a href="' . $base . 'poczta-w-telefonie">Poczta w telefonie i programach</a>: dane serwera do Outlooka, Thunderbirda i telefonu.</li>'
                 . '<li><a href="' . $base . 'folder-wyslane">Folder Wysłane</a>: żeby wysłane z programu były widoczne wszędzie.</li></ul>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Z „Zadań” w dPoczcie nie korzystamy, zadania są w SZO w module <a href="' . $app . '/tasks/">Zadania</a>. '
@@ -558,43 +672,6 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nic nie pomogło? <a href="' . $hd . '">Napisz do Helpdesku IT</a>. Podaj adres nadawcy, przybliżoną datę i godzinę wysłania i, jeśli masz, treść zwrotki z kodem błędu.</p>'],
         ], false],
 
-        'zoom' => ['Spotkanie na Zoomie: jak je zamówić', 'zoom, spotkanie zoom, licencja zoom, zamówić spotkanie, rezerwacja zoom, spotkanie online, wideokonferencja, spotkanie szkoleniowe, jarek@feer.org.pl, helpdesk', [
-            ['type' => 'text', 'html' => '<p>Spotkania online w Fundacji prowadzimy przede wszystkim na Zoomie. Mamy dwie licencje Zoom, więc w tym samym czasie mogą trwać najwyżej dwa spotkania z naszych kont.</p>'],
-            ['type' => 'text', 'html' => '<h2>Spotkania szkoleniowe</h2>'
-                . '<p>Spotkania dla grup szkoleniowych zakładają się automatycznie, gdy w systemie dodawana jest grupa. Mają stały link, ten sam na wszystkie zajęcia grupy. '
-                . 'Spotkanie może też założyć dydaktyk w swoim panelu, w panelu kursanta. Do takich spotkań nie trzeba niczego zamawiać.</p>'],
-            ['type' => 'text', 'html' => '<h2>Pozostałe spotkania</h2>'
-                . '<p>Jeśli potrzebujesz spotkania na Zoomie, na przykład z partnerem albo zespołem, napisz 2 do 3 dni wcześniej na adres '
-                . '<a href="mailto:jarek@feer.org.pl">jarek@feer.org.pl</a> albo <a href="' . $hd . '">zgłoś to w Helpdesku IT</a>. Podaj:</p><ul>'
-                . '<li>datę i godzinę rozpoczęcia oraz przewidywany czas trwania,</li>'
-                . '<li>temat spotkania,</li>'
-                . '<li>przybliżoną liczbę uczestników,</li>'
-                . '<li>czy spotkanie ma być nagrywane albo mieć notatki z Fathom.</li></ul>'
-                . '<p>W odpowiedzi dostaniesz link do spotkania. Wyślij go uczestnikom albo wpisz w polu „Lokalizacja” spotkania w kalendarzu dPoczty.</p>'],
-            ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Potrzebujesz porozmawiać od razu, bez zamawiania? Skorzystaj z <a href="' . $base . 'jitsi-meet">Jitsi Meet</a>. '
-                . 'Nagrywanie i notatki ze spotkań opisuje artykuł <a href="' . $base . 'fathom">Fathom: notatki ze spotkań online</a>.</p>'],
-        ], false],
-
-        'jitsi-meet' => ['Szybkie spotkanie online: Jitsi Meet', 'spotkanie online, wideorozmowa, rozmowa wideo, zoom, licencja zoom, jitsi, jitsi meet, meet.jit.si, teams, zoom, link do spotkania, szybkie spotkanie', [
-            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Spotkania w Fundacji prowadzimy przede wszystkim na Zoomie, na który mamy dwie licencje. '
-                . 'Spotkania szkoleniowe zakładają się na Zoomie same przy dodaniu grupy i mają stały link, a dydaktyk może je też założyć w swoim panelu. '
-                . 'Inne spotkanie na Zoomie zamów 2 do 3 dni wcześniej, jak opisuje artykuł <a href="' . $base . 'zoom">Spotkanie na Zoomie</a>. '
-                . 'Jitsi Meet to szybkie rozwiązanie na doraźną rozmowę, gdy Zoom jest zajęty albo nie ma czasu na umawianie.</p>'],
-            ['type' => 'text', 'html' => '<p>Gdy potrzebujesz szybko porozmawiać z kimś przez wideo, możesz skorzystać z <a href="https://meet.jit.si/">Jitsi Meet</a>. '
-                . 'To darmowa usługa do spotkań online. Działa w przeglądarce, bez instalowania programu, a uczestnicy nie potrzebują żadnego konta. Wystarczy im link.</p>'],
-            ['type' => 'wizard', 'title' => 'Spotkanie w trzech krokach', 'intro' => '', 'steps' => [
-                $step('Załóż pokój', '<p>Wejdź na <a href="https://meet.jit.si/">meet.jit.si</a>, wpisz nazwę spotkania i kliknij „Rozpocznij spotkanie”. '
-                    . 'Wybierz nazwę trudną do odgadnięcia, na przykład z kilku słów i cyfr, a nie „FEER”. Strona może poprosić osobę zakładającą spotkanie o zalogowanie się, na przykład kontem Google.</p>'),
-                $step('Zezwól na kamerę i mikrofon', '<p>Przeglądarka zapyta o dostęp do kamery i mikrofonu. Zgódź się. Przed wejściem sprawdzisz obraz i dźwięk.</p>'),
-                $step('Wyślij link', '<p>Skopiuj adres strony spotkania z paska przeglądarki albo przyciskiem zaproszenia i wyślij go uczestnikom. Link możesz też wpisać w polu „Lokalizacja” spotkania w kalendarzu dPoczty.</p>'),
-            ]],
-            ['type' => 'text', 'html' => '<h2>Przydatne przyciski</h2>'
-                . '<p>Na dole okna spotkania wyłączysz mikrofon i kamerę, udostępnisz ekran, otworzysz czat i podniesiesz rękę. W ustawieniach bezpieczeństwa możesz ustawić hasło do spotkania '
-                . 'albo poczekalnię, w której zatwierdzasz każdego wchodzącego. Na telefonie wygodniej jest w aplikacji Jitsi Meet ze sklepu.</p>'],
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Jitsi Meet to publiczna usługa zewnętrzna. Nadaje się do szybkich, zwykłych rozmów. Przy rozmowach o danych osobowych albo sprawach poufnych '
-                . 'ustaw hasło do spotkania i nie nagrywaj go. Jeśli potrzebujesz stałego narzędzia do takich spotkań, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
-        ], false],
-
         'wiadomosci' => ['Wiadomości w dPoczcie: pisanie, odpowiadanie, załączniki', 'wiadomość, nowa wiadomość, pisanie, utwórz, wyślij, odpowiedz, odpowiedz wszystkim, przekaż, załącznik, dołącz plik, do, dw, udw, kopia, ukryta kopia, temat, kopia robocza, priorytet, potwierdzenie odbioru, etykiety, oznacz, przeczytane, przenieś, archiwizuj, usuń, kosz, drukuj, szukaj', [
             ['type' => 'text', 'html' => '<p>Tu opisujemy codzienną pracę z wiadomościami w dPoczcie: czytanie, pisanie, odpowiadanie, załączniki i porządkowanie. '
                 . 'Co jest gdzie na ekranie, pokazuje artykuł <a href="' . $base . 'dpoczta-co-jest-co">dPoczta.pl: co jest co</a>.</p>'],
@@ -631,21 +708,6 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<p>Kilka wiadomości zaznaczysz, przytrzymując Ctrl (na Macu Cmd) i klikając je na liście. Działania wykonasz wtedy na wszystkich naraz.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Zanim klikniesz link albo otworzysz załącznik, sprawdź nadawcę. Fałszywe wiadomości często udają bank, kuriera albo Fundację i proszą o hasło lub przelew. '
                 . 'Podejrzaną wiadomość zgłoś w <a href="' . $hd . '">Helpdesku IT</a>, dołączając jej źródło, jak opisuje artykuł „co jest co”.</p>'],
-        ], false],
-
-        'fathom' => ['Fathom: notatki ze spotkań online', 'fathom, spotkania szkoleniowe, grupa, stały link, dydaktyk, notatki ze spotkań, nagrywanie spotkań, transkrypcja, podsumowanie, ai, sztuczna inteligencja, zoom, edukacja@feer.org.pl, notetaker', [
-            ['type' => 'text', 'html' => '<p><a href="https://www.fathom.ai/">Fathom</a> to narzędzie, które dołącza do spotkania online, nagrywa je i przygotowuje notatki: '
-                . 'zapis rozmowy, krótkie podsumowanie i listę ustaleń. Dzięki temu nikt nie musi notować w trakcie spotkania.</p>'
-                . '<p>W Fundacji Fathom jest domyślnie podłączony do konta <code>edukacja@feer.org.pl</code>. Działa na spotkaniach prowadzonych z tego konta, a notatki trafiają do tego konta.</p>'
-                . '<p>Spotkania szkoleniowe na Zoomie zakładają się automatycznie, gdy w systemie dodawana jest grupa szkoleniowa, i mają stały link, ten sam na wszystkie zajęcia grupy. '
-                . 'Spotkanie może też założyć dydaktyk w swoim panelu, w panelu kursanta.</p>'],
-            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Gdy Fathom nagrywa spotkanie, na początku powiedz o tym wszystkim uczestnikom. Nagranie i zapis rozmowy to dane osobowe uczestników. '
-                . 'Jeśli ktoś się nie zgadza albo rozmawiacie o sprawach poufnych, na przykład o zdrowiu czy sprawach kadrowych, wyłącz nagrywanie dla tego spotkania.</p>'],
-            ['type' => 'text', 'html' => '<p>Notatki z Fathom sprawdź, zanim je komuś wyślesz. Automatyczny zapis bywa niedokładny, zwłaszcza przy nazwiskach i liczbach. '
-                . 'Spotkanie na Zoomie z notatkami zamówisz tak, jak opisuje artykuł <a href="' . $base . 'zoom">Spotkanie na Zoomie</a>. '
-                . 'Więcej informacji o Fathom, w tym o tym, kto ma dostęp do notatek, opublikujemy wkrótce.</p>'],
-            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Szybkie spotkania bez umawiania opisuje artykuł <a href="' . $base . 'jitsi-meet">Szybkie spotkanie online: Jitsi Meet</a>. '
-                . 'Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], false],
 
         'generator-stopki' => ['Obowiązkowa stopka: jak ją wygenerować', 'stopka, podpis, generator stopki, obowiązkowa stopka, wzór stopki, dane organizacji, nip, krs, social, facebook, instagram, linkedin', [
@@ -822,7 +884,7 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'wizard', 'title' => 'Nowe wydarzenie albo spotkanie', 'intro' => '', 'steps' => [
                 $step('Kliknij Stwórz', '<p>Kliknij „Stwórz” na górze albo dwa razy kliknij wybrany dzień i godzinę w siatce kalendarza.</p>'),
                 $step('Podsumowanie', '<p>Na karcie „Podsumowanie” wpisz „Tytuł”, ustaw „Początek” i „Koniec”, a dla wydarzenia na cały dzień włącz „Cały dzień”. '
-                    . 'Uzupełnij „Lokalizację”, na przykład adres albo link do spotkania online w <a href="' . $base . 'jitsi-meet">Jitsi Meet</a>, i „Opis”. „Pokaż mnie jako” ustawia, czy w tym czasie jesteś zajęty.</p>'),
+                    . 'Uzupełnij „Lokalizację”, na przykład adres albo link do spotkania online w <a href="' . $app . '/uslugi-it/uslugi/jitsi-meet/szybkie-spotkanie">Jitsi Meet</a>, i „Opis”. „Pokaż mnie jako” ustawia, czy w tym czasie jesteś zajęty.</p>'),
                 $step('Cykl i powiadomienia', '<p>Wydarzenie co tydzień albo co miesiąc ustawisz na karcie „Cykl”. Na karcie „Powiadomienia” dodasz przypomnienie, na przykład 15 minut wcześniej.</p>'),
                 $step('Uczestnicy', '<p>Na karcie „Uczestnicy” wpisz adresy osób, które chcesz zaprosić. Dostaną zaproszenie e-mailem i mogą je przyjąć, odrzucić albo odpowiedzieć „Może”. '
                     . 'Na karcie „Załączniki” dodasz pliki, na przykład porządek spotkania.</p>'),

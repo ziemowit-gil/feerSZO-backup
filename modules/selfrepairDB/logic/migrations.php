@@ -1845,4 +1845,17 @@ return [
         },
     ],
 
+    // Trzy osobne usługi portalu: „Zoom”, „Jitsi Meet”, „Fathom” zamiast artykułów w „Mojej poczcie” (polecenie 2026-11-14, wybór: trzy osobne usługi;
+    // edukacja@feer.org.pl = konto techniczne do spotkań edukacyjnych): przeniesienie wierszy, potem zasiew poczty.
+    '2026-11_it_portal_meeting_services' => [
+        'desc' => 'Portal Usług IT: usługi Zoom, Jitsi Meet i Fathom',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalMeetingServicesApply(ITP_SZO_URL);
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];
