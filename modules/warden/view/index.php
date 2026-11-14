@@ -3,6 +3,7 @@
  * modules/warden/view/index.php — panel AccountWarden („Mietek”).
  * Tailwind (CDN, prefiks tw-, bez preflightu: obramowania wymagają tw-border-solid) + Alpine. WCAG 2.2 AA:
  * jeden h1, sekcje h2, komunikaty w regionie aria-live, tabele z <caption> i scope="col", widoczny fokus, etykiety pól.
+ * Adres /modules/warden/router.php#uruchom otwiera od razu okno „Uruchom AccountWarden” (link do wysłania administratorowi).
  * Zmienne: $flash, $mode, $liveFrom, $cfg, $open, $blocked, $history, $exemptions, $users, $lastRun, $preview,
  *          $announced, $announceTargets, $logtoReady.
  */
@@ -79,7 +80,7 @@ $days = (int)$cfg['inactivity_days'];
 
     <div class="tw-flex tw-flex-wrap tw-gap-2">
       <?php if ($mode !== 'live' && $announced === 0): ?>
-        <div x-data="{ open: false }">
+        <div id="uruchom" x-data="{ open: false }" x-init="if (location.hash === '#uruchom') { open = true; $nextTick(() => $refs.dlg.focus()) }">
           <button type="button" class="wd-btn wd-btn-primary" @click="open = true; $nextTick(() => $refs.dlg.focus())" :aria-expanded="open" aria-controls="wd-launch">
             <i class="bi bi-play-fill" aria-hidden="true"></i> Uruchom AccountWarden
           </button>
