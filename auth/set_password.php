@@ -61,119 +61,61 @@ if (!$invalid_token && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$_b       = branding_load();
-$org_name = $_b['org_name'] ?: (defined('ORG_NAME') && ORG_NAME !== '' ? ORG_NAME : 'Organizacja');
+// Widok: jasny wygląd ekranów wejścia (includes/auth_screen.php, tryb 'light'; przebudowa 2026-11-14). Logika powyżej bez zmian.
+// Błąd stoi pod polem, którego dotyczy: niezgodne hasła — pod „Powtórz hasło”, pozostałe — pod „Nowe hasło”.
+$err_field = $error === '' ? '' : ($error === 'Hasła nie są identyczne.' ? 'password2' : 'password');
+$_ferr = function (string $f) use ($error, $err_field): string {
+    if ($f !== $err_field) return '';
+    return '<p class="au-ferr" id="' . $f . '-err" role="alert"><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>'
+         . '<span id="login-error-text">' . h($error) . '</span></p>';
+};
+$_fattr = fn(string $f, string $hint = ''): string => ($f === $err_field)
+    ? ' aria-invalid="true" aria-describedby="' . trim($hint . ' ' . $f . '-err') . '"'
+    : ($hint !== '' ? ' aria-describedby="' . $hint . '"' : '');
+
+auth_screen_head([
+    'title'           => 'Ustaw hasło',
+    'light'           => true,
+    'width'           => 460,
+    'main_id'         => 'setpw-main',
+    'account_buttons' => [],
+]);
 ?>
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ustaw hasło — <?= h($org_name) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<?php branding_css($_b); ?>
-<?php auth_screen_bg_css(); ?>
-<style>
-*, *::before, *::after { box-sizing: border-box; }
-html, body { min-height: 100%; margin: 0; }
-.page-wrap {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  padding: 2rem 1rem;
-}
-.login-card {
-  width: 100%; max-width: 420px;
-  background: #fff; border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,.1);
-  overflow: hidden;
-}
-.card-top {
-  background: linear-gradient(155deg, var(--c-darker) 0%, var(--c) 55%, var(--c-light) 100%);
-  padding: 1.75rem 2rem 1.5rem; text-align: center;
-}
-.card-top-icon {
-  width: 56px; height: 56px; border-radius: 14px;
-  background: rgba(255,255,255,.15);
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto .75rem; font-size: 1.75rem; color: #fff;
-}
-.card-top h1 { color: #fff; font-size: 1.25rem; font-weight: 700; margin: 0; }
-.card-top p  { color: rgba(255,255,255,.8); font-size: .875rem; margin: .4rem 0 0; }
-.card-body-inner { padding: 2rem; }
-.btn-primary { background: var(--c); border-color: var(--c); }
-.btn-primary:hover { background: var(--c-darker); border-color: var(--c-darker); }
-.pwd-hint { font-size: .8rem; color: #6c757d; margin-top: .4rem; }
-</style>
-</head>
-<body>
-<div class="page-wrap">
-  <div class="login-card">
+<div class="ks-hero-ico" aria-hidden="true"><i class="bi bi-key-fill"></i></div>
+<h1 class="ks-h1">Ustaw swoje hasło</h1>
 
-    <!-- Nagłówek -->
-    <div class="card-top">
-      <div class="card-top-icon"><i class="bi bi-key-fill"></i></div>
-      <h1>Ustaw swoje hasło</h1>
-      <p><?= h($org_name) ?></p>
-    </div>
-
-    <div class="card-body-inner">
-
-      <?php if ($invalid_token): ?>
-      <!-- Link nieprawidłowy / wygasły -->
-      <div class="alert alert-danger d-flex gap-2 align-items-start">
-        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
-        <div>
-          <strong>Link jest nieprawidłowy lub już został użyty.</strong><br>
-          Skontaktuj się z administratorem, który wyśle nowy link.
-        </div>
-      </div>
-      <div class="text-center mt-3">
-        <a href="<?= h(APP_URL) ?>/auth/login.php" class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-arrow-left me-1"></i>Wróć do logowania
-        </a>
-      </div>
-
-      <?php else: ?>
-      <!-- Formularz ustawiania hasła -->
-      <p class="text-muted mb-4" style="font-size:.9rem">
-        Witaj, <strong><?= h($user['name'] ?? $user['email']) ?></strong>!<br>
-        Ustaw swoje hasło, aby aktywować konto.
-      </p>
-
-      <?php if ($error): ?>
-      <div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-circle me-1"></i><?= h($error) ?></div>
-      <?php endif; ?>
-
-      <form method="post" autocomplete="off" novalidate>
-        <input type="hidden" name="token" value="<?= h($token) ?>">
-
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Nowe hasło</label>
-          <input type="password" name="password" id="password"
-                 class="form-control" autofocus autocomplete="new-password" required>
-          <div class="pwd-hint">Min. 8 znaków, 1 wielka litera, 1 cyfra.</div>
-        </div>
-
-        <div class="mb-4">
-          <label class="form-label fw-semibold">Powtórz hasło</label>
-          <input type="password" name="password2" id="password2"
-                 class="form-control" autocomplete="new-password" required>
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100 fw-semibold">
-          <i class="bi bi-check-lg me-1"></i>Ustaw hasło i zaloguj się
-        </button>
-      </form>
-
-      <div class="text-center mt-3">
-        <a href="<?= h(APP_URL) ?>/auth/login.php" class="text-muted" style="font-size:.85rem">
-          Masz już hasło? Zaloguj się
-        </a>
-      </div>
-      <?php endif; ?>
-
-    </div>
-  </div>
+<?php if ($invalid_token): ?>
+<div class="l-alert l-alert-danger" role="alert">
+  <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+  <div><strong>Link jest nieprawidłowy lub już został użyty.</strong><br>Skontaktuj się z administratorem, który wyśle nowy link.</div>
 </div>
-</body>
-</html>
+<a href="<?= h(APP_URL) ?>/auth/login.php" class="ks-btn ks-btn--ghost"><i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć do logowania</a>
+
+<?php else: ?>
+<p class="ks-lead">Witaj, <strong><?= h($user['name'] ?? $user['email']) ?></strong>! Ustaw swoje hasło, aby aktywować konto.</p>
+
+<form method="post" autocomplete="off" novalidate>
+  <input type="hidden" name="token" value="<?= h($token) ?>">
+  <div class="ks-field">
+    <label for="password">Nowe hasło</label>
+    <div class="pass-wrap">
+      <input type="password" name="password" id="password" class="form-control" autofocus autocomplete="new-password" required<?= $_fattr('password', 'password-hint') ?>>
+      <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" aria-controls="password" onclick="togglePass('password', this)"><i class="bi bi-eye" aria-hidden="true"></i></button>
+    </div>
+    <p class="ks-fieldhint" id="password-hint">Min. 8 znaków, 1 wielka litera, 1 cyfra.</p>
+    <?= $_ferr('password') ?>
+  </div>
+  <div class="ks-field">
+    <label for="password2">Powtórz hasło</label>
+    <div class="pass-wrap">
+      <input type="password" name="password2" id="password2" class="form-control" autocomplete="new-password" required<?= $_fattr('password2') ?>>
+      <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" aria-controls="password2" onclick="togglePass('password2', this)"><i class="bi bi-eye" aria-hidden="true"></i></button>
+    </div>
+    <?= $_ferr('password2') ?>
+  </div>
+  <button type="submit" class="ks-btn ks-btn--primary"><i class="bi bi-check-lg" aria-hidden="true"></i>Ustaw hasło i zaloguj się</button>
+</form>
+<p class="ks-note"><a href="<?= h(APP_URL) ?>/auth/login.php">Masz już hasło? Zaloguj się</a></p>
+<?php endif; ?>
+<?php
+auth_screen_foot(['no_new_tiles' => true]);
