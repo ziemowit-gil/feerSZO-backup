@@ -62,14 +62,8 @@ if (!$citCss): $citCss = true; ?>
 .cit .cit-check{display:flex;gap:.5rem;align-items:flex-start;margin:.2rem 0 0}
 .cit .cit-check input{width:1.1rem;height:1.1rem;margin-top:.15rem;flex-shrink:0}
 .cit .cit-check label{font-weight:600}
-.cit :focus-visible,.cit-legacy>summary:focus-visible{outline:3px solid #1d4ed8;outline-offset:2px}
+.cit :focus-visible{outline:3px solid #1d4ed8;outline-offset:2px}
 .cit .cit-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-/* Zwinięte pola Microsoft 365 (formularze umów) */
-.cit-legacy{border:1px dashed #94a3b8;border-radius:6px;background:#f8fafc;margin:.75rem 0;color:#1f2937}
-.cit-legacy>summary{cursor:pointer;padding:.75rem .8rem;font-weight:600;font-size:.85rem;color:#334155;list-style-position:inside}
-.cit-legacy>summary .cit-legacy-sub{font-weight:400;color:#4b5563;font-size:.78rem;margin-left:.35rem}
-.cit-legacy[open]>summary{border-bottom:1px dashed #94a3b8}
-.cit-legacy>.cit-legacy-body{padding:.75rem .8rem}
 </style>
 <?php endif; ?>
 <section class="cit<?= $skin !== '' ? ' cit--' . h($skin) : '' ?>" id="contractIt" aria-labelledby="citH"
@@ -99,7 +93,7 @@ if (!$citCss): $citCss = true; ?>
   <?php elseif ($links['access'] !== ''): ?>
   <p class="cit-links">
     <a href="<?= h($links['access']) ?>">Zarządzaj kontem<span class="cit-sr"> w Zarządzaniu dostępem</span></a>
-    <a href="<?= h($links['card']) ?>">Hasło i konto na stronie umowy</a>
+    <a href="<?= h($links['card']) ?>">Zakładka „Konta IT” umowy</a>
   </p>
   <?php endif; ?>
 
@@ -111,13 +105,13 @@ if (!$citCss): $citCss = true; ?>
       <input type="checkbox" name="dh_create" id="dh_create" value="1"<?= ($o['mailChecked'] ?? true) ? ' checked' : '' ?> aria-describedby="dh_create_help">
       <div><label for="dh_create">Załóż skrzynkę pocztową</label>
         <p class="cit-help" id="dh_create_help">Adres imie.nazwisko@<?= h($mail['domain']) ?>. Gdy ta osoba (PESEL) miała już skrzynkę, wróci do niej.
-          Hasło pójdzie SMS-em na numer z umowy i pokaże się raz na stronie umowy. Skrzynkę zawieszamy <?= (int)$mail['graceDays'] ?> dni po końcu umowy, bez powiadomienia.
+          Hasło pójdzie SMS-em na numer z umowy i pokaże się raz w zakładce „Konta IT” umowy. Skrzynkę zawieszamy <?= (int)$mail['graceDays'] ?> dni po końcu umowy, bez powiadomienia.
           Hasło do poczty jest inne niż hasło logowania jednokrotnego.</p></div>
     </div>
     <?php elseif (!$mail['on']): ?>
     <p class="cit-note">Zakładanie skrzynek przy umowach jest wyłączone.<?php if ($links['migration'] !== ''): ?> <a href="<?= h($links['migration']) ?>">Migracja poczty</a><?php endif; ?></p>
     <?php else: ?>
-    <p class="cit-note">Skrzynkę imie.nazwisko@<?= h($mail['domain']) ?> założysz po zapisie umowy, na jej stronie w karcie „Skrzynka pocztowa”.</p>
+    <p class="cit-note">Skrzynkę imie.nazwisko@<?= h($mail['domain']) ?> założysz po zapisie umowy w zakładce „Konta IT”, w karcie „Skrzynka pocztowa”.</p>
     <?php endif; ?>
   <?php else: ?>
   <dl class="cit-dl">

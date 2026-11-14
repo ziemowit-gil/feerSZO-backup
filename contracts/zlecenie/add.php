@@ -234,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (DhostingContractMail::enabled()) {
                     $_dh = DhostingContractMail::provision($TYPE, $id, $data, (string)(current_user()['email'] ?? ''), $m365_login_created !== '' ? $m365_login_created : null);
                     $_dh_note = 'Skrzynka pocztowa <strong>' . h($_dh['mailbox']) . '</strong> ' . ($_dh['action'] === 'created' ? 'założona' : 'przywrócona')
-                        . ' — hasło w zakładce „M365” (widoczne tylko raz).';
+                        . '. Hasło jest w zakładce „Konta IT” umowy (widoczne tylko raz).';
                 }
             } catch (\Throwable $e) {
                 $_dh_note = '<span class="text-warning fw-semibold">Skrzynka pocztowa nie została założona:</span> ' . h($e->getMessage());

@@ -133,6 +133,7 @@ $_cvh_list_url   = APP_URL . '/contracts/dzielo/list.php';
 $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 require_once dirname(__DIR__) . '/includes/cv_layout.php';
+require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.php';   // zakładka „Konta IT”, zwinięte Microsoft 365
 ?>
 
 <div class="cv-tabs-layout">
@@ -175,7 +176,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   <li class="nav-item" role="presentation">
     <button class="nav-link<?php if($_tab==='m365') echo ' active'; ?>" id="tab-m365-btn" data-bs-toggle="tab"
             data-bs-target="#tab-m365" type="button" role="tab">
-      <i class="bi bi-microsoft"></i> M365
+      <i class="bi bi-shield-lock" aria-hidden="true"></i> Konta IT
       <?php if ($row['m365_konto']): ?>
       <span class="badge <?= $row['m365_konto_aktywne'] ? 'bg-success' : 'bg-secondary' ?> ms-1">
         <?= $row['m365_konto_aktywne'] ? '●' : '○' ?>
@@ -709,12 +710,14 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
 </div><!-- /tab-obieg -->
 
-<!-- ═══════════════════ TAB 5 — M365 ═══════════════════ -->
+<!-- ═══════════════════ TAB 5 — KONTA IT (klucz m365; logowanie jednokrotne, chmura, poczta, zwinięte Microsoft 365) ═══════════════════ -->
 <div class="tab-pane fade<?php if($_tab==='m365') echo ' show active'; ?>" id="tab-m365" role="tabpanel">
 
   <?php /* Skrzynka pocztowa (nowy serwer poczty) — modules/dhosting_migrator/view/contractMailbox.php */ include dirname(__DIR__, 2) . '/modules/dhosting_migrator/view/contractMailbox.php'; ?>
   <?php /* Logowanie jednokrotne i chmura: nowe hasło (NC + Logto) — modules/sso_logto/view/contractPasswordCard.php */ include dirname(__DIR__, 2) . '/modules/sso_logto/view/contractPasswordCard.php'; ?>
 
+  <?php /* Microsoft 365 (wygaszane): karta zwinięta, akcje bez zmian (dane potrzebne do migracji) */ ?>
+  <?= ContractIt::legacyOpen(!empty($row['m365_konto']) ? 'konto ' . ((string)($row['m365_login'] ?? '') ?: 'bez loginu') . (!empty($row['m365_konto_aktywne']) ? ', aktywne' : ', nieaktywne') : 'bez konta', 'citLegacyM365Tab') ?>
   <div class="card shadow-sm">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
     <span><i class="bi bi-microsoft"></i> Microsoft 365</span>
@@ -859,6 +862,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
   </div>
   </div>
+  <?= ContractIt::legacyClose() ?>
 
 </div><!-- /tab-m365 -->
 

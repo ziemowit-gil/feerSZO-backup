@@ -286,7 +286,7 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="alert alert-secondary">
   <i class="bi bi-info-circle me-1"></i>
   Brak wolontariuszy z zaznaczonym dostępem do Canva.
-  Dostęp nadajesz przy <a href="<?= APP_URL ?>/contracts/wolontariat/add.php">dodawaniu umowy</a> lub w widoku umowy (zakładka M365).
+  Dostęp nadajesz przy <a href="<?= APP_URL ?>/contracts/wolontariat/add.php">dodawaniu umowy</a> lub w widoku umowy (zakładka „Konta IT”).
 </div>
 <?php else: ?>
 <div class="card shadow-sm">

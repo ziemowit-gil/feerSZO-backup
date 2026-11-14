@@ -28,6 +28,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/apaczka.php';
 require_once dirname(dirname(__DIR__)) . '/includes/sms.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rpts.php';
+require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.php';   // zakładka „Konta IT”, zwinięte Microsoft 365
 require_once dirname(dirname(__DIR__)) . '/includes/wolontariat_schema.php';
 require_once dirname(dirname(__DIR__)) . '/includes/impersonation.php';
 require_login();
@@ -956,8 +957,10 @@ $_tabs_def['obieg']        = ['Obieg',        'bi-arrow-repeat',
     $_badge_obieg ? '<span class="badge bg-danger ms-1">'.$_badge_obieg.'</span>' : ''];
 $_tabs_def['profil']       = ['Profil',       'bi-person-lines-fill',
     (!empty($row['wojewodztwo'])||!empty($row['wolontariat_typ'])) ? '<span class="badge bg-secondary ms-1" style="font-size:.6rem">●</span>' : ''];
-$_tabs_def['m365']         = ['M365',         'bi-microsoft',
-    $row['m365_konto'] ? '<span class="badge '.($row['m365_konto_aktywne']?'bg-success':'bg-secondary').' ms-1">'.($row['m365_konto_aktywne']?'●':'○').'</span>' : ''];
+// Zakładka „Konta IT” (klucz m365 bez zmian — prowadzą do niego adresy ?tab=m365): logowanie jednokrotne, chmura, poczta, dawne Microsoft 365.
+$_it_acc_tab = ContractIt::account((string)($row['email'] ?? ''));
+$_tabs_def['m365']         = ['Konta IT',     'bi-shield-lock',
+    ($_it_acc_tab['logto'] || $_it_acc_tab['cloud']) ? '<span class="badge bg-success ms-1" title="Ma konto logowania jednokrotnego"><span aria-hidden="true">●</span><span class="visually-hidden">ma konto</span></span>' : ''];
 // Zakładka RODO
 try {
     require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
@@ -2877,14 +2880,14 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   </style>
 
   <div class="wm-tiles">
-    <!-- Microsoft 365 i panel — zarządzane w Systemie Tożsamości -->
+    <!-- Panel i dawne Microsoft 365 (wygaszane) — zarządzane w Systemie Tożsamości -->
     <section class="wm-tile <?= $_wm_cls ?>" aria-labelledby="wm-m365-h">
-      <div class="wm-tile-top"><i class="bi bi-microsoft" aria-hidden="true"></i><span id="wm-m365-h">Microsoft 365 i panel</span>
+      <div class="wm-tile-top"><i class="bi bi-microsoft" aria-hidden="true"></i><span id="wm-m365-h">Panel i Microsoft 365 (wygaszane)</span>
         <span class="wm-tile-flag"><?= h($_wm_state) ?></span></div>
       <div class="wm-tile-main<?= $_wm_has ? ' is-mail' : '' ?>"><?= $_wm_has ? h($row['m365_login'] ?: 'konto aktywne') : 'Brak konta' ?></div>
       <div class="wm-tile-sub">
         <?php if (!empty($row['m365_nie_wylaczaj'])): ?><i class="bi bi-shield-lock me-1"></i>Dostęp utrzymany po wygaśnięciu umowy.<br><?php endif; ?>
-        Konto, hasło, skrzynka pocztowa i wysyłka danych do panelu — w Systemie Tożsamości.
+        Microsoft 365 wyłączamy <?= h(ContractIt::msOffLabel()) ?>. Logowanie jednokrotne, chmura i nowa poczta są w kartach powyżej. Konto w panelu i dawne konto Microsoft obsłużysz w Zarządzaniu dostępem.
       </div>
       <?php if (can_edit()): ?>
       <div class="wm-tile-actions">
@@ -3292,7 +3295,8 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
     <?php
     $canva_access     = !empty($row['canva_access']);
     $canva_invited_at = $row['canva_invited_at'] ?? null;
-    $has_m365_for_canva = !empty($row['m365_login']) || !empty($row['m365_user_id']);
+    // Canva nie loguje przez Microsoft 365 (zaproszenie na adres e-mail), więc dostęp nie wymaga już konta M365.
+    $canva_login_shown = trim((string)($row['canva_login'] ?? '')) ?: trim((string)($row['email'] ?? '')) ?: trim((string)($row['m365_login'] ?? ''));
     $_wc_cls = $canva_access ? ($canva_invited_at ? 'is-canva' : 'is-wait') : 'is-light';
     ?>
     <section class="wm-tile <?= $_wc_cls ?>" aria-labelledby="wm-canva-h">
@@ -3301,13 +3305,9 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
         <span id="wm-canva-h">Canva Pro</span>
         <span class="wm-tile-flag"><?= $canva_access ? ($canva_invited_at ? 'Aktywny' : 'Oczekuje') : 'Brak dostępu' ?></span>
       </div>
-      <?php if (!$has_m365_for_canva): ?>
-      <div class="wm-tile-main">Brak dostępu</div>
-      <div class="wm-tile-warn"><i class="bi bi-exclamation-triangle-fill me-1"></i>Najpierw konto M365 — Canva loguje przez Microsoft 365.</div>
-
-      <?php elseif ($canva_access && $canva_invited_at): ?>
+      <?php if ($canva_access && $canva_invited_at): ?>
       <div class="wm-tile-main">Zaproszony</div>
-      <div class="wm-tile-sub"><?= date_pl($canva_invited_at) ?> · logowanie kontem <strong><?= h($row['m365_login'] ?? '') ?></strong></div>
+      <div class="wm-tile-sub"><?= date_pl($canva_invited_at) ?><?php if ($canva_login_shown !== ''): ?> · logowanie kontem <strong><?= h($canva_login_shown) ?></strong><?php endif; ?></div>
       <div class="wm-tile-actions">
         <form method="post">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

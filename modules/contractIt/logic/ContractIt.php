@@ -225,10 +225,23 @@ final class ContractIt
         return (string)ob_get_clean();
     }
 
+    /** Style zwiniętej sekcji Microsoft 365 — raz na stronę, z pierwszym legacyOpen() (formularze i widoki umów). */
+    private const LEGACY_CSS = '<style>'
+        . '.cit-legacy{border:1px dashed #94a3b8;border-radius:6px;background:#f8fafc;margin:.75rem 0;color:#1f2937}'
+        . '.cit-legacy>summary{cursor:pointer;padding:.75rem .8rem;font-weight:600;font-size:.85rem;color:#334155;list-style-position:inside}'
+        . '.cit-legacy>summary .cit-legacy-sub{font-weight:400;color:#4b5563;font-size:.78rem;margin-left:.35rem}'
+        . '.cit-legacy>summary:focus-visible{outline:3px solid #1d4ed8;outline-offset:2px}'
+        . '.cit-legacy[open]>summary{border-bottom:1px dashed #94a3b8}'
+        . '.cit-legacy>.cit-legacy-body{padding:.75rem .8rem}'
+        . '</style>';
+    private static bool $legacyCssDone = false;
+
     /** Początek i koniec zwiniętej sekcji z polami Microsoft 365 (pola i ich nazwy bez zmian; dane potrzebne do migracji). */
-    public static function legacyOpen(string $note = ''): string
+    public static function legacyOpen(string $note = '', string $id = 'citLegacyM365'): string
     {
-        return '<details class="cit-legacy" id="citLegacyM365"><summary>Microsoft 365 (wygaszane ' . h(self::msOffLabel()) . ')'
+        $css = self::$legacyCssDone ? '' : self::LEGACY_CSS;
+        self::$legacyCssDone = true;
+        return $css . '<details class="cit-legacy" id="' . h($id) . '"><summary>Microsoft 365 (wygaszane ' . h(self::msOffLabel()) . ')'
              . '<span class="cit-legacy-sub">' . h($note !== '' ? $note : 'stare dane konta, potrzebne do przeniesienia poczty i plików') . '</span></summary>'
              . '<div class="cit-legacy-body">';
     }

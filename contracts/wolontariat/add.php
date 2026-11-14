@@ -754,7 +754,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_dh_prefer = $m365_login_created ?: ($m365_create_mode === 'manual' ? trim((string)($_POST['m365_login'] ?? '')) : '');
                     $_dh = DhostingContractMail::provision($TYPE, $id, $data, (string)(current_user()['email'] ?? ''), $_dh_prefer !== '' ? $_dh_prefer : null);
                     $_dh_note = ' Skrzynka pocztowa ' . $_dh['mailbox'] . ($_dh['action'] === 'created' ? ' założona' : ' przywrócona')
-                        . ' — hasło w zakładce „M365” (widoczne tylko raz)' . ($_dh['sms'] !== '' ? ', SMS: ' . $_dh['sms'] : '') . '.';
+                        . '. Hasło jest w zakładce „Konta IT” umowy (widoczne tylko raz)' . ($_dh['sms'] !== '' ? ', SMS: ' . $_dh['sms'] : '') . '.';
                 }
             } catch (\Throwable $e) {
                 $m365_warn .= ($m365_warn !== '' ? ' ' : '') . 'Skrzynka pocztowa nie została założona: ' . $e->getMessage();
@@ -2123,27 +2123,16 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
     <div class="wiz-card-body">
-      <?php
-      $m365_configured = $m365_enabled;
-      $has_m365_login  = !empty($row['m365_login']);
-      ?>
-
-      <?php if (!$m365_configured): ?>
-      <div class="alert alert-secondary py-2 small mb-0">
-        <i class="bi bi-info-circle me-1"></i>
-        Integracja M365 musi być skonfigurowana, aby nadawać dostęp do Canva.
-      </div>
-      <?php else: ?>
+      <?php /* Canva nie loguje przez Microsoft 365 (zaproszenie na adres e-mail), więc pole nie zależy już od konfiguracji M365. */ ?>
       <div class="form-check d-flex align-items-start gap-2">
         <input class="form-check-input mt-1 flex-shrink-0" type="checkbox"
                name="canva_access" id="canva_access" value="1"
                <?= !empty($row['canva_access']) ? 'checked' : '' ?>
-               onchange="toggleCanvaInfo(this.checked)">
+               onchange="toggleCanvaInfo(this.checked)" aria-describedby="canva_access_help">
         <label class="form-check-label" for="canva_access" style="cursor:pointer">
           <span class="fw-semibold">Nadaj dostęp do Canva Pro organizacji</span>
-          <div class="form-text mt-1">
-            System wyśle powiadomienie do administratora Canva oraz e-mail do wolontariusza
-            z instrukcją jak zalogować się przez Microsoft 365.
+          <div class="form-text mt-1" id="canva_access_help">
+            SZO powiadomi administratora Canva i wyśle wolontariuszowi e-mail z instrukcją logowania.
           </div>
         </label>
       </div>
@@ -2152,17 +2141,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <div class="alert alert-warning d-flex gap-2 py-2 mb-2" style="font-size:.83rem">
           <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
           <div>
-            <strong>Canva Pro — zaproszenie ręczne przez admina.</strong><br>
-            Canva API nie obsługuje automatycznych zaproszeń na planie Pro.
-            System wyśle notyfikację do admina, który wykona zaproszenie w panelu Canva.
+            Zaproszenie do Canva Pro wysyła administrator ręcznie, bo Canva na planie Pro nie pozwala zapraszać automatycznie.
+            SZO da mu znać, że jest nowa osoba do zaproszenia.
           </div>
         </div>
-        <div class="alert alert-info d-flex gap-2 py-2 mb-0" id="canva_m365_check" style="font-size:.83rem;display:none!important">
-          <i class="bi bi-microsoft flex-shrink-0 mt-1"></i>
-          <div>Wolontariusz musi mieć konto M365 — logowanie do Canva odbywa się przez Microsoft 365.</div>
-        </div>
       </div>
-      <?php endif; ?>
     </div>
   </div>
 
