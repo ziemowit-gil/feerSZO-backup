@@ -1949,4 +1949,13 @@ return [
         },
     ],
 
+    // Ukrycie ręcznie założonej usługi „Zmiana danych w systemie” (is_active = 0, nic nie jest kasowane) — zastępuje ją usługa „Panel współpracownika”
+    // z artykułem „Zmiana swoich danych w SZO” (polecenie 2026-11-14: „ukryj starą”). Cofnięcie: is_active = 1 w panelu portalu.
+    '2026-11_it_portal_hide_old_data_change' => [
+        'desc' => 'Portal Usług IT: ukrycie starej usługi „Zmiana danych w systemie”',
+        'run'  => static function (): void {
+            db_exec("UPDATE itp_categories SET is_active = 0, updated_at = datetime('now') WHERE name LIKE 'Zmiana danych w systemie%' AND slug <> 'panel-wspolpracownika'");
+        },
+    ],
+
 ];
