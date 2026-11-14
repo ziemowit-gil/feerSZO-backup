@@ -156,19 +156,35 @@ function crm_alias_path_to_szo(string $uri): string {
 }
 
 /**
- * Bezpieczny adres powrotu do CRM pod APP_URL (logowanie SZO przyjmuje tylko redirect w obrębie APP_URL).
- * Przyjmuje APP_URL/crm/… albo adres na aliasie crm.* bieżącego żądania; wszystko inne → pulpit CRM.
+ * Ścieżka powrotu do CRM ("/crm/…") z parametru ?redirect= — przyjmuje adres pod APP_URL/crm/… albo na aliasie
+ * crm.* bieżącego żądania; wszystko inne → pulpit CRM. Zwraca ŚCIEŻKĘ, host dokleja wołający.
  * Logowanie do CRM idzie przez SZO (crm/login.php) — CRM nie ma już własnego logowania Microsoft 365.
  */
-function crm_szo_target_url(string $raw): string {
-    $default = APP_URL . '/crm/dashboard.php';
+function crm_szo_target_path(string $raw): string {
+    $default = '/crm/dashboard.php';
     if ($raw === '' || preg_match('/[\r\n]/', $raw)) return $default;
-    if (str_starts_with($raw, APP_URL . '/crm/')) return $raw;
+    if (str_starts_with($raw, APP_URL . '/crm/')) return substr($raw, strlen(APP_URL));
     $alias = crm_alias_base_url();
     if ($alias !== null && ($raw === $alias || str_starts_with($raw, $alias . '/'))) {
-        return APP_URL . crm_alias_path_to_szo(substr($raw, strlen($alias)) ?: '/');
+        return crm_alias_path_to_szo(substr($raw, strlen($alias)) ?: '/');
     }
     return $default;
+}
+
+/**
+ * Adres głównego SZO, gdy żądanie przyszło na alias crm.*. UWAGA: APP_URL bywa liczony z hosta żądania
+ * (mydevil, config.php) — wtedy na crm.* równa się aliasowi i przekierowanie „na APP_URL” zapętlało
+ * przeglądarkę (ERR_TOO_MANY_REDIRECTS). Logowanie (Logto, Microsoft) działa tylko na hoście SZO,
+ * więc w takim wypadku zamieniamy „crm.” na „szo.” (crm.feer.org.pl → szo.feer.org.pl).
+ */
+function crm_szo_main_base(): string {
+    $alias = crm_alias_base_url();
+    if ($alias === null) return APP_URL;
+    $app_host = strtolower((string)parse_url(APP_URL, PHP_URL_HOST));
+    $al_host  = strtolower((string)parse_url($alias, PHP_URL_HOST));
+    if ($app_host !== '' && $app_host !== $al_host) return APP_URL;
+    $scheme = (string)(parse_url($alias, PHP_URL_SCHEME) ?: 'https');
+    return $scheme . '://' . preg_replace('/^crm\./i', 'szo.', $al_host);
 }
 
 /**
@@ -202,9 +218,9 @@ function require_login(): void {
         $ezd_base = ezd_alias_base_url();
         if ($crm_base !== null) {
             // CRM loguje przez SZO: sesja (ciasteczko przypięte do hosta) powstaje na APP_URL,
-            // więc z aliasu crm.* prowadzimy na ten sam ekran CRM pod APP_URL — tam albo sesja
+            // więc z aliasu crm.* prowadzimy na ten sam ekran CRM na głównym hoście SZO — tam albo sesja
             // już jest, albo require_login() odeśle na logowanie SZO z powrotem do CRM.
-            header('Location: ' . APP_URL . crm_alias_path_to_szo($uri));
+            header('Location: ' . crm_szo_main_base() . crm_alias_path_to_szo($uri));
         } elseif ($ezd_base !== null) {
             // Traefik AddPrefix dodał /ezd — zdejmij, żeby po logowaniu i powrocie
             // na ezd.* Traefik nie podwoił prefiksu (/ezd/ezd/).
