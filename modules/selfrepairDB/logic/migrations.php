@@ -1465,4 +1465,15 @@ return [
         },
     ],
 
+    // „Chmura plików”: powiadomienia e-mail z chmury przychodzą z chmura.feer@dpoczta.pl (polecenie 2026-11-14) we wstępie usługi,
+    // w „powiadomienia” i „linki-publiczne”. Ponowny zapis wstępu i artykułów.
+    '2026-11_it_portal_cloud_sender' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: adres nadawcy powiadomień chmura.feer@dpoczta.pl',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

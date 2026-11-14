@@ -104,7 +104,7 @@ function itPortalCloudIntro(string $app): string {
          . 'Zastępuje OneDrive z Microsoft 365, który wyłączamy 20 listopada 2026 r. Trzymasz w niej pliki służbowe, udostępniasz je innym osobom '
          . 'i synchronizujesz z komputerem i telefonem.</p>'
          . '<p>Obecna chmura to instalacja wdrożeniowa. Instalację produkcyjną uruchomimy na początku grudnia 2026 r.</p>'
-         . itPortalCloudSlowNote() . itPortalCloudAddresses() . itPortalCloudQuotaNote($app)
+         . itPortalCloudSlowNote() . itPortalCloudAddresses() . itPortalCloudQuotaNote($app) . itPortalCloudSenderNote()
          . '<p>Logujesz się logowaniem jednokrotnym (IAM), tak jak do SZO: adresem e-mail i hasłem IAM. To hasło jest inne niż hasło do poczty. '
          . 'Zacznij od instrukcji poniżej. Jeśli czegoś w niej brakuje, <a href="' . $app . '/helpdesk/new.php">napisz do nas w Helpdesku</a>.</p>';
 }
@@ -140,7 +140,7 @@ function itPortalCloudArticles(string $app): array {
             'ustawienia, ustawienia osobiste, personal, profil, profile & contact, zdjęcie profilowe, awatar, pełna nazwa, zaimki, lokalizacja, telefon, widoczność, kto widzi, kłódka, language & locale, język, format daty, bezpieczeństwo, urządzenia, sesje, hasło aplikacji, powiadomienia, wygląd i dostępność, udostępnianie, dostępność, nieobecność, godziny pracy, przepływ, prywatność, migracja danych, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudSettingsBlocks($app), $app)), false, 16],
         'powiadomienia' => ['Powiadomienia w chmurze plików',
-            'powiadomienia, powiadomienie, dzwonek, czerwona kropka, udostępnienie, udostępnił, wzmianka, komentarz, e-mail z chmury, wiadomości z chmury, za dużo maili, podsumowanie, aktywność, nie przeszkadzać, status, powiadomienia push, telefon, komputer, przeglądarka, odrzuć, nextcloud',
+            'powiadomienia, powiadomienie, chmura.feer@dpoczta.pl, nadawca, spam, dzwonek, czerwona kropka, udostępnienie, udostępnił, wzmianka, komentarz, e-mail z chmury, wiadomości z chmury, za dużo maili, podsumowanie, aktywność, nie przeszkadzać, status, powiadomienia push, telefon, komputer, przeglądarka, odrzuć, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNotifyBlocks($app), $app)), false, 14],
         'aplikacja-komputer' => ['Aplikacja Nextcloud na komputerze: jak z niej korzystać',
             'aplikacja, komputer, laptop, windows, macos, mac, linux, nextcloud, klient, synchronizacja, folder, eksplorator, finder, zasobnik, pasek menu, ikona, ikony, pliki wirtualne, zwolnij miejsce, zawsze na tym urządzeniu, konflikt, conflicted copy, wstrzymaj, ustawienia, udostępnij, kopiuj link, usuwanie, czytnik ekranu, nvda, jaws, voiceover',
@@ -190,6 +190,13 @@ function itPortalCloudQuotaNote(string $app): string {
     return '<p>Każde konto w chmurze ma 10 GB miejsca na pliki osobiste. Foldery zespołów i pliki udostępnione Ci przez innych nie zabierają tego miejsca. '
          . 'Większy limit może przyznać administracja według uznania, gdy wymaga tego praca. O więcej miejsca poproś w '
          . '<a href="' . rtrim($app, '/') . '/helpdesk/new.php">Helpdesku IT</a> i napisz, do czego jest potrzebne.</p>';
+}
+
+/** Adres, z którego chmura wysyła e-maile (polecenie 2026-11-14: „z chmura.feer@dpoczta.pl są wysyłane powiadomienia z chmurki”). */
+function itPortalCloudSenderNote(): string {
+    return '<p>Powiadomienia e-mail z chmury, na przykład o udostępnionym pliku, przychodzą z adresu chmura.feer@dpoczta.pl. '
+         . 'Z tego samego adresu dostają wiadomości osoby spoza Fundacji, którym udostępnisz plik na ich e-mail. '
+         . 'Jeśli takie wiadomości trafiają do spamu, oznacz je jako bezpieczne albo dodaj ten adres do kontaktów.</p>';
 }
 
 /** Uwaga o wolnym działaniu (polecenie 2026-11-14: „NC może wolno działać, bo to serwer przedwdrożeniowy”). */
@@ -602,7 +609,8 @@ function itPortalCloudPublicLinkBlocks(string $app): array {
             . '<p>Zmiany zapisz przyciskiem „Zapisz udostępnienie”. „Anuluj” zamyka okno bez zmian.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Udostępnienie na adres e-mail</h2>'
-            . '<p>W polu „Udostępnienia zewnętrzne” możesz też wpisać adres e-mail odbiorcy. Chmura wyśle mu wiadomość z linkiem. '
+            . '<p>W polu „Udostępnienia zewnętrzne” możesz też wpisać adres e-mail odbiorcy. Chmura wyśle mu wiadomość z linkiem z adresu chmura.feer@dpoczta.pl. '
+            . 'Uprzedź odbiorcę, żeby jej szukał, także w spamie. '
             . 'Taki link ma te same ustawienia co link publiczny, więc też ustaw hasło i datę wygaśnięcia.</p>'],
 
         ['type' => 'text', 'html' => '<h2>„Udostępnij na zdalnym serwerze”</h2>'
@@ -860,7 +868,8 @@ function itPortalCloudNotifyBlocks(string $app): array {
             . 'albo gdy brakuje Ci miejsca. Pełną historię zmian w plikach, także tych bez powiadomienia, pokazuje aplikacja Aktywność w menu aplikacji.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Powiadomienia e-mail i ich ustawienia</h2>'
-            . '<p>Część powiadomień chmura wysyła też e-mailem na adres z Twojego konta. Jeśli dostajesz ich za dużo albo za mało, zmień to sam. '
+            . '<p>Część powiadomień chmura wysyła też e-mailem na adres z Twojego konta. Przychodzą z adresu chmura.feer@dpoczta.pl. '
+            . 'Jeśli trafiają do spamu, oznacz je jako bezpieczne albo dodaj ten adres do kontaktów. Jeśli dostajesz ich za dużo albo za mało, zmień to sam. '
             . 'Kliknij kółko ze swoimi inicjałami, wybierz „Ustawienia osobiste”, a potem w menu po lewej „Powiadomienia”.</p>'
             . '<p>Zobaczysz listę zdarzeń, na przykład udostępnienie pliku, zmianę albo usunięcie pliku i komentarz. Przy każdym zaznaczasz, czy chcesz o nim wiadomość e-mail, '
             . 'czy wystarczy powiadomienie w chmurze i aplikacjach. Niżej ustawisz, jak często chmura ma wysyłać e-mailowe podsumowanie, na przykład raz na godzinę albo raz dziennie.</p>'],
@@ -876,7 +885,7 @@ function itPortalCloudNotifyBlocks(string $app): array {
             . '<a href="' . $base . 'aplikacja-komputer">Aplikacja Nextcloud na komputerze</a> i <a href="' . $base . 'aplikacja-telefon">Aplikacja Nextcloud na telefonie</a>.</p>'
             . '<p>Przeglądarka może zapytać, czy pozwolić stronie chmury pokazywać powiadomienia. Zgódź się na swoim komputerze, a na wspólnym komputerze odmów.</p>'],
 
-        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Uważaj na fałszywe wiadomości, które udają powiadomienia z chmury. Prawdziwe powiadomienie prowadzi zawsze na adres chmury Fundacji. '
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Uważaj na fałszywe wiadomości, które udają powiadomienia z chmury. Prawdziwe powiadomienie przychodzi z adresu chmura.feer@dpoczta.pl i prowadzi zawsze na adres chmury Fundacji. '
             . 'Gdy wiadomość prosi o hasło na innej stronie, nie klikaj w nią, tylko wejdź do chmury sam, wpisując jej adres, i sprawdź dzwonek.</p>'],
 
         ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie dostajesz powiadomień, choć ktoś mówi, że coś Ci udostępnił? Sprawdź „Oczekujące udostępnienia” w aplikacji Pliki. '
