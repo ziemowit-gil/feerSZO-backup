@@ -1424,4 +1424,15 @@ return [
         },
     ],
 
+    // „EZD”: artykuł „Kopie dokumentów EZD w chmurze (zamiast SharePointa)” (polecenie 2026-11-14: „wypchnij to do pomocy IT”) — po zmianie
+    // kopii EZD na FTP + Nextcloud (konto ezdmigracja) i migracji z SharePointa (modules/ezdStorage).
+    '2026-11_it_portal_ezd_kopie_article' => [
+        'desc' => 'Portal Usług IT, „EZD”: artykuł o kopiach dokumentów EZD w chmurze zamiast SharePointa',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalEzdKopieSeed.php';
+            itPortalEzdKopieApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
