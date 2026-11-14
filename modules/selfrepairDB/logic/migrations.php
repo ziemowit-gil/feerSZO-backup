@@ -2361,4 +2361,15 @@ return [
         },
     ],
 
+    // „Chmura plików”, artykuł „Biuro”: sekcja o programie Nextcloud Office na komputer (Windows, Mac z procesorem Apple, Linux),
+    // polecenie użytkownika 2026-11-14. Tylko ten artykuł (wstęp i reszta usługi bez zmian).
+    '2026-11_it_portal_cloud_office_desktop' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: Nextcloud Office na komputerze w artykule „Biuro”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'biuro');
+        },
+    ],
+
 ];

@@ -131,7 +131,7 @@ function itPortalCloudArticles(string $app): array {
             'link publiczny, linki publiczne, link, udostępnij linkiem, utwórz link publiczny, udostępnianie zewnętrzne, e-mail, hasło do linku, data wygaśnięcia, ukryj pobieranie, limit pobrań, notatka, etykieta, tylko podgląd, zezwalaj na edytowanie, uprawnienia niestandardowe, upuszczanie plików, prośba o plik, zdalny serwer, federacja, ustawienia zaawansowane, dodatkowe udostępnienia, usuń udostępnienie, rodo, dane osobowe, nextcloud',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudPublicLinkBlocks($app), $app)), false, 17],
         'biuro' => ['Biuro: dokumenty, arkusze i prezentacje w chmurze',
-            'biuro, office, dokumenty, dokument, arkusze kalkulacyjne, arkusz, prezentacje, prezentacja, text document, plik tekstowy, notatki, szablony, szablon, utwórz nowy, pusty, ostatnie, moje, udostępnione dla mnie, odt, ods, odp, docx, xlsx, pptx, edycja, edytor, nextcloud',
+            'biuro, office, dokumenty, dokument, arkusze kalkulacyjne, arkusz, prezentacje, prezentacja, text document, plik tekstowy, notatki, szablony, szablon, utwórz nowy, pusty, ostatnie, moje, udostępnione dla mnie, odt, ods, odp, docx, xlsx, pptx, edycja, edytor, nextcloud, nextcloud office, program biurowy, desktop editors, pobierz, windows, mac, linux',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudOfficeBlocks($app), $app)), false, 19],
         'pulpit-roboczy' => ['Pulpit z oknami (Desktop Workspace)',
             'desktop workspace, desktop, pulpit roboczy, pulpit z oknami, okna, pasek zadań, przypinanie, ikony na pulpicie, folder pulpitu, menedżer plików, dekoracje okien, reset, ustawienia pulpitu, eksperymentalne, nextcloud',
@@ -749,6 +749,15 @@ function itPortalCloudOfficeBlocks(string $app): array {
         ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Na instalacji wdrożeniowej dokumenty, arkusze i prezentacje nie otwierają się jeszcze do edycji w przeglądarce. '
             . 'Po kliknięciu takiego pliku chmura przejdzie do niego w aplikacji Pliki. Pobierz go wtedy i edytuj w programie na komputerze, na przykład LibreOffice albo Word, '
             . 'albo pracuj na nim w folderze aplikacji Nextcloud na komputerze. W przeglądarce edytujesz na razie tylko pliki tekstowe.</p>'],
+
+        // Nextcloud Office na komputer (download.nextcloud.com/office/desktopeditors), polecenie 2026-11-14 „do Nextclouda dopisz też info o” + zrzut strony pobierania
+        ['type' => 'text', 'html' => '<h2>Nextcloud Office na komputerze</h2>'
+            . '<p>Nextcloud ma też bezpłatny program biurowy na komputer, Nextcloud Office. Edytujesz w nim dokumenty, arkusze i prezentacje, '
+            . 'także pliki .docx, .xlsx i .pptx. Pobierzesz go ze <a href="https://nextcloud.com/install/">strony pobierania Nextcloud</a>, w części „Nextcloud Office”. '
+            . 'Jest wersja dla Windowsa, dla Maka z procesorem Apple (M1 i nowsze) i dla Linuksa (pakiety .deb i .rpm). '
+            . 'Na Maka z procesorem Intel wersji nie ma, więc użyj na nim LibreOffice.</p>'
+            . '<p>Najwygodniej pracuje się z nim razem z <a href="' . $base . 'aplikacja-komputer">aplikacją Nextcloud na komputerze</a>. '
+            . 'Otwierasz plik z folderu Nextcloud, zapisujesz zmiany, a aplikacja sama wysyła je do chmury.</p>'],
 
         ['type' => 'text', 'html' => '<h2>Menu po lewej</h2>'
             . '<p>Po lewej są cztery rodzaje plików: Text document, czyli pliki tekstowe na notatki, Dokumenty, Arkusze kalkulacyjne i Prezentacje. '
