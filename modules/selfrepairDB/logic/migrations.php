@@ -2112,4 +2112,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „IAM i hasła w migracji”: krok „Przenieś pocztę” z odnośnikiem do /migracjapoczty (jak w artykule „Migracja”) — 2026-11-14.
+    '2026-11_it_portal_migracja_iam_poczta' => [
+        'desc' => 'Portal Usług IT, „IAM i hasła w migracji”: krok „Przenieś pocztę”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaIamSeed.php';
+            itPortalMigracjaIamApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
