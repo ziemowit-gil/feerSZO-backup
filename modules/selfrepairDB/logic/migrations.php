@@ -1759,4 +1759,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuł „Kontakty w dPoczcie” (zrzut z zamazaną listą), Zadania w SZO zamiast dPoczty, Seafile dla IT i Zarządu w „Duże załączniki”
+    // (polecenia 2026-11-14: „opisz kontakty”, „zadań nie używamy, są od tego /tasks w SZO”, „Seafile to osobna szyfrowana usługa dla IT i Zarządu”).
+    '2026-11_it_portal_dpoczta_contacts_tasks' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: kontakty, zadania w SZO, Seafile',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

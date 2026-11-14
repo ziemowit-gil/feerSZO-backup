@@ -98,7 +98,7 @@ function itPortalDpocztaMenuGroups(): array {
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
-        'poczta-w-telefonie' => [$g5, 50], 'kontakty-import-eksport' => [$g5, 51], 'kalendarz' => [$g5, 52], 'folder-wyslane' => [$g5, 53],
+        'poczta-w-telefonie' => [$g5, 50], 'kontakty' => [$g5, 51], 'kontakty-import-eksport' => [$g5, 52], 'kalendarz' => [$g5, 54], 'folder-wyslane' => [$g5, 53],
         'duze-zalaczniki' => [$g6, 60], 'transfernow-wetransfer' => [$g6, 61],
     ];
 }
@@ -192,7 +192,8 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'Opis dostawcy: <a href="' . $kb . 'gdzie-znalezc-zrodlo-wiadomosci-w-dpoczta-pl/">gdzie znaleźć źródło wiadomości w dPoczcie</a>.</p>'],
             ['type' => 'text', 'html' => '<h2>Pasek po prawej</h2>'
                 . '<p>Ikony od góry: Poczta (koperta), Kontakty, Kalendarz, Zadania, Ustawienia (koło zębate) i inne aplikacje dostawcy (kratka). '
-                . 'Na dole są księżyc, który włącza tryb ciemny, i czerwony przycisk wyłączania, którym się wylogujesz.</p>'],
+                . 'Na dole są księżyc, który włącza tryb ciemny, i czerwony przycisk wyłączania, którym się wylogujesz.</p>'
+                . '<p>Z „Zadań” w dPoczcie nie korzystamy. Zadania prowadzimy w SZO, w module <a href="' . $app . '/tasks/">Zadania</a>, gdzie widzą je cały zespół i obszar.</p>'],
             ['type' => 'text', 'html' => '<h2>Ustawienia</h2>'
                 . '<p>Po kliknięciu koła zębatego po lewej jest lista części ustawień:</p><ul>'
                 . '<li>Preferencje: wygląd, język, strefa czasowa, sposób wyświetlania i pisania wiadomości.</li>'
@@ -227,6 +228,7 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<li>Automatyczne odpowiedzi to „Autoresponder”.</li>'
                 . '<li>Kategorie to „Etykiety”, ikona metki nad wiadomością.</li>'
                 . '<li>Moje szablony albo szybkie części to „Odpowiedzi”.</li>'
+                . '<li>Zadania z Outlooka albo Microsoft To Do prowadzimy teraz w SZO, w module <a href="' . $app . '/tasks/">Zadania</a>. Z „Zadań” w dPoczcie nie korzystamy.</li>'
                 . '<li>Elementy wysłane to folder „Wysłane”, a Wersje robocze to „Kopie robocze”.</li>'
                 . '<li>Wiadomości-śmieci to folder „Spam”, a ustawienia filtra to „CleanBox”.</li></ul>'],
             ['type' => 'text', 'html' => '<h2>Co działa inaczej</h2>'
@@ -555,6 +557,28 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Dostałeś podejrzaną wiadomość z prośbą o hasło, kod albo przelew? Nie klikaj linków i <a href="' . $hd . '">zgłoś ją w Helpdesku</a>.</p>'],
         ], false],
 
+        'kontakty' => ['Kontakty w dPoczcie', 'kontakty, książka adresowa, kontakty osobiste, zebrani adresaci, zaufani nadawcy, automatycznie zbierane, nowy kontakt, grupy, wizytówka, szukaj kontaktu, adres e-mail, telefon', [
+            ['type' => 'text', 'html' => '<p>Kontakty otworzysz ikoną osoby na prawym pasku dPoczty. Ekran ma trzy kolumny: po lewej książki adresowe i grupy, w środku listę kontaktów z polem „Szukaj…”, '
+                . 'a po prawej dane wybranego kontaktu.</p>'],
+            ...itPortalDpocztaShot('dp-kontakty.jpg', 'Kontakty w dPoczcie: po lewej książki adresowe Kontakty osobiste, Zebrani adresaci, Zaufani nadawcy, Automatycznie zbierane; w środku zamazana lista kontaktów z polem Szukaj; na górze przyciski Utwórz, drukuj, usuń, szukaj, import, eksport', 'Kontakty. Lista jest celowo zamazana.'),
+            ['type' => 'text', 'html' => '<h2>Książki adresowe po lewej</h2>'
+                . '<p>„Kontakty osobiste” to kontakty, które sam dodajesz. „Zebrani adresaci” to adresy osób, do których pisałeś. Poczta zapisuje je sama, '
+                . 'żeby przy pisaniu podpowiadać adres po pierwszych literach. „Zaufani nadawcy” to osoby, którym pozwoliłeś na przykład wyświetlać obrazki w wiadomościach. '
+                . '„Automatycznie zbierane” to adresy zapisane przez pocztę wcześniej. Nad listą jest nagłówek „Grupy” z trzema kropkami, którymi dodasz grupę, na przykład „Zespół”, i wyślesz wiadomość do wszystkich jej członków naraz.</p>'],
+            ['type' => 'wizard', 'title' => 'Nowy kontakt', 'intro' => '', 'steps' => [
+                $step('Kliknij Utwórz', '<p>Wybierz po lewej „Kontakty osobiste” i kliknij ikonę ołówka „Utwórz” na górze.</p>'),
+                $step('Wpisz dane', '<p>Wpisz imię i nazwisko, a w razie potrzeby organizację i zawód. Na karcie „Właściwości” dodaj e-mail, telefon i adres. '
+                    . 'Na kartach „Osobiste” i „Notatki” są dodatkowe pola. „Dodaj pole…” dokłada kolejne, na przykład drugi telefon.</p>'),
+                $step('Zapisz', '<p>Kliknij „Zapisz” na dole formularza.</p>'),
+            ]],
+            ['type' => 'text', 'html' => '<h2>Przyciski na górze</h2>'
+                . '<p>Ołówek dodaje kontakt, drukarka drukuje wybrany, a kosz go usuwa. Lupa otwiera szukanie zaawansowane, na przykład po firmie. '
+                . 'Chmurki służą do importu i eksportu kontaktów, opisanych w osobnej instrukcji dla Koordynatorów IT.</p>'
+                . '<p>Kontakt dodasz też prosto z wiadomości: kliknij nazwę nadawcy w otwartej wiadomości i wybierz dodanie do książki adresowej.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>W kontaktach zapisuj tylko dane potrzebne do pracy. Nie wpisuj w notatkach danych wrażliwych, na przykład o zdrowiu. '
+                . 'Prywatnych kontaktów nie trzymaj w skrzynce służbowej.</p>'],
+        ], false],
+
         'kontakty-import-eksport' => ['Kontakty: import i eksport (dla Koordynatorów IT)', 'kontakty, książka adresowa, import, eksport, vcard, csv, outlook, koordynator it', [
             ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Ta instrukcja jest dla Koordynatorów IT. Jeśli nie jesteś Koordynatorem IT, nie importuj ani nie eksportuj kontaktów. '
                 . 'Gdy potrzebujesz przenieść kontakty, poproś o to swojego Koordynatora IT albo <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
@@ -624,13 +648,15 @@ function itPortalDpocztaArticles(string $app): array {
         ], false],
 
         'duze-zalaczniki' => ['Duże załączniki', 'załącznik, załączniki, limit, rozmiar, duży plik, zip, link, chmura, transfernow, wetransfer, wiadomość wróciła', [
-            ['type' => 'text', 'html' => '<p>Dostawca poczty podaje limit 2 GB na załączniki. Serwer odbiorcy często przyjmuje jednak dużo mniej, zwykle 20–30 MB. '
+            ['type' => 'text', 'html' => '<p>Dostawca poczty podaje limit 2 GB na załączniki. Serwer odbiorcy często przyjmuje jednak dużo mniej, zwykle od 20 do 30 MB. '
                 . 'Wtedy wiadomość wraca do Ciebie z informacją, że jest za duża.</p>'
                 . '<p>Plik większy niż ok. 20 MB wyślij jako link, a nie załącznik:</p><ul>'
                 . '<li>z <a href="' . $cloud . '">chmury Fundacji</a>, gdy w pliku są dane osobowe albo gdy wysyłasz go komuś z Fundacji,</li>'
                 . '<li>przez TransferNow albo WeTransfer, gdy wysyłasz go poza Fundację i nie ma w nim danych osobowych. '
                 . 'Jak to zrobić, opisuje artykuł <a href="' . $transfer . '">Bardzo duże pliki: TransferNow i WeTransfer</a>.</li></ul>'
                 . '<p>Kilka mniejszych plików możesz też spakować do jednego archiwum ZIP.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Dla IT i Zarządu jest też Seafile, osobna, szyfrowana usługa do przechowywania i przekazywania dużych plików, '
+                . 'na zewnętrznym hostingu. Z Seafile korzystają tylko te osoby. Pozostali wysyłają duże pliki linkiem z chmury Fundacji albo przez TransferNow lub WeTransfer, jak opisano wyżej.</p>'],
         ], false],
 
         'transfernow-wetransfer' => ['Bardzo duże pliki: TransferNow i WeTransfer',
