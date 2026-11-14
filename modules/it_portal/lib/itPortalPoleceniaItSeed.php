@@ -345,7 +345,10 @@ function itPortalPoleceniaItArticles(string $app): array {
                 . '<code>autodiscover.xml</code> i <code>autodiscover.json</code>. Wcześniej ten adres prowadził do Microsoft 365. '
                 . 'Inne programy korzystają z rekordów SRV <code>_imaps._tcp</code>, <code>_pop3s._tcp</code> i <code>_submission._tcp</code>.</p>'
                 . '<p>Wszystkie źródła podają te same dane. IMAP to <code>imap.dpoczta.pl</code>, port 993, SSL. POP3 to <code>pop3.dpoczta.pl</code>, port 995, SSL. '
-                . 'SMTP to <code>smtp.dpoczta.pl</code>, port 587, STARTTLS. Loginem jest pełny adres e-mail.</p>'),
+                . 'SMTP to <code>smtp.dpoczta.pl</code>, port 587, STARTTLS. Loginem jest pełny adres e-mail.</p>'
+                . '<p>Tak jak wcześniej w Microsoft 365, osoba wpisuje tylko login (adres e-mail) i hasło do poczty, a resztę program bierze z autowykrywania. '
+                . 'OAuth, czyli logowania przez konto Microsoft albo Google, nie konfigurujemy i nie obsługujemy. Gdy program je proponuje, '
+                . 'osoba wybiera konto IMAP z adresem i hasłem.</p>'),
             $text('<h2>Krótki adres it.feer.org.pl</h2>'
                 . '<p>Adres <code>it.feer.org.pl</code> przekierowuje na <a href="https://szo.feer.org.pl/uslugi-it">Portal Usług IT</a>. '
                 . 'Dalsza część adresu zostaje, więc <code>it.feer.org.pl/uslugi/vpn</code> prowadzi do usługi VPN w portalu.</p>'),

@@ -556,9 +556,10 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'important', 'html' => itPortalDpocztaOutlookBye()],
             // Autokonfiguracja (autoconfig, autodiscover, SRV przez Worker Cloudflare „przekierowanie-it”) — 2026-11-14
             ['type' => 'text', 'html' => '<h2>Najprościej: adres i hasło</h2>'
-                . '<p>Thunderbird, Outlook i większość aplikacji pocztowych w telefonie same znajdą serwery poczty Fundacji. '
-                . 'Wystarczy, że przy dodawaniu konta wpiszesz adres <code>imie.nazwisko@feer.org.pl</code> i hasło do poczty. '
-                . 'Dane do wpisania ręcznie są niżej, gdyby program o nie zapytał.</p>'],
+                . '<p>Poczta Fundacji ma skonfigurowane autowykrywanie serwerów, więc tak jak wcześniej w Microsoft 365 wpisujesz tylko login i hasło. '
+                . 'Loginem jest Twój adres <code>imie.nazwisko@feer.org.pl</code>, a hasłem hasło do poczty. Thunderbird, Outlook i większość aplikacji '
+                . 'pocztowych w telefonie resztę ustawień znajdą same. Dane do wpisania ręcznie są niżej, gdyby program o nie zapytał.</p>'
+                . '<p>Nie ma tu logowania przez konto Microsoft ani Google. Jeśli program je proponuje, pomiń ten krok i wybierz konto IMAP z adresem i hasłem.</p>'],
             ['type' => 'text', 'html' => '<p>Pocztę możesz dodać do aplikacji w telefonie albo do programu na komputerze. Wybierz konto typu IMAP i wpisz dane z tabeli.</p>'
                 . '<table><thead><tr><th>Ustawienie</th><th>Wartość</th></tr></thead><tbody>'
                 . '<tr><td>Nazwa użytkownika</td><td><code>imie.nazwisko@feer.org.pl</code></td></tr>'

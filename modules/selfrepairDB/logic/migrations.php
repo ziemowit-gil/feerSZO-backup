@@ -2348,4 +2348,17 @@ return [
         },
     ],
 
+    // Dopisek: autowykrywanie poczty skonfigurowane, logowanie zwykłym hasłem, bez OAuth (polecenie użytkownika 2026-11-14
+    // „dopisz, że skonfigurowane jest autowykrywanie i nie bawimy się w oauthy”) — „Poczta w telefonie” i artykuł IT o DNS.
+    '2026-11_it_portal_autowykrywanie_bez_oauth' => [
+        'desc' => 'Portal Usług IT: autowykrywanie poczty i logowanie hasłem bez OAuth w „Poczcie w telefonie” i artykule IT o DNS',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPoleceniaItSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalPoleceniaItApply(ITP_SZO_URL);
+            itPortalDpocztaApply(ITP_SZO_URL, false, ['poczta-w-telefonie']);
+        },
+    ],
+
 ];
