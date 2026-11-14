@@ -73,12 +73,15 @@ function itPortalDpocztaApply(string $app, bool $dryRun = false, ?array $only = 
 }
 
 /**
- * Pożegnanie z pocztą Outlook w Microsoft 365 (polecenie 2026-11-14: „dodaj informację, że z Outlookiem można się pożegnać”; bez odpowiedzi
+ * Pożegnanie z pocztą Outlook w Microsoft 365 (polecenie 2026-11-14: „dodaj informację, że z Outlookiem można się pożegnać”, potem „da się połączyć nowym hasłem na stronie
+ * office.com, jak czegoś brakuje w sensie maila”; bez odpowiedzi
  * na doprecyzowanie, więc chodzi o pocztę w Microsoft 365, a program Outlook nadal działa z dPocztą przez IMAP).
  */
 function itPortalDpocztaOutlookBye(): string {
     return '<p>Z pocztą w Outlooku z Microsoft 365, czyli ze skrzynką na outlook.office.com i w aplikacji Outlook połączonej z kontem Microsoft, możesz się pożegnać. '
-         . 'Twoja skrzynka jest teraz w dPoczcie i tam przychodzą nowe wiadomości. Starego konta Microsoft w Outlooku nie musisz już sprawdzać.</p>'
+         . 'Twoja skrzynka jest teraz w dPoczcie i tam przychodzą nowe wiadomości. Starego konta Microsoft w Outlooku nie musisz już sprawdzać na co dzień.</p>'
+         . '<p>Jeśli brakuje Ci jakiejś starej wiadomości, wejdź na <a href="https://www.office.com">office.com</a> i zaloguj się swoim adresem i nowym hasłem. '
+         . 'Znajdziesz tam dawną skrzynkę w Outlooku i możesz z niej przekazać potrzebną wiadomość na nowy adres. Dopóki konto Microsoft działa, zrób to od razu, gdy zauważysz brak.</p>'
          . '<p>Jeśli lubisz program Outlook na komputerze, możesz go zostawić i podłączyć w nim nową skrzynkę jako konto IMAP, '
          . 'jak opisuje instrukcja „Poczta w telefonie, Outlooku i Thunderbirdzie”. Starą skrzynkę Microsoft usuń wtedy z listy kont w programie.</p>';
 }
@@ -189,7 +192,7 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<a href="' . $app . '/nowehaslo">Nowe hasło</a>, nie w ustawieniach dpoczta.pl.</p>'],
         ], false],
 
-        'poczta-w-telefonie' => ['Poczta w telefonie, Outlooku i Thunderbirdzie', 'imap, smtp, pop3, telefon, outlook, microsoft 365, pożegnanie z outlookiem, stare konto, thunderbird, apple mail, konfiguracja, serwer, port', [
+        'poczta-w-telefonie' => ['Poczta w telefonie, Outlooku i Thunderbirdzie', 'imap, smtp, pop3, telefon, outlook, microsoft 365, pożegnanie z outlookiem, stare konto, office.com, brakująca wiadomość, stara poczta, thunderbird, apple mail, konfiguracja, serwer, port', [
             ['type' => 'callout', 'kind' => 'important', 'html' => itPortalDpocztaOutlookBye()],
             ['type' => 'text', 'html' => '<p>Pocztę możesz dodać do aplikacji w telefonie albo do programu na komputerze. Wybierz konto typu IMAP i wpisz dane z tabeli.</p>'
                 . '<table><thead><tr><th>Ustawienie</th><th>Wartość</th></tr></thead><tbody>'

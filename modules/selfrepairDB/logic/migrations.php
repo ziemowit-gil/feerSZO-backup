@@ -1609,4 +1609,14 @@ return [
         },
     ],
 
+    // „Moja poczta”: brakującą starą wiadomość można znaleźć na office.com, logując się nowym hasłem (polecenie 2026-11-14).
+    '2026-11_it_portal_dpoczta_office_old_mail' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: stare wiadomości na office.com',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
