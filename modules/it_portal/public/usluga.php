@@ -34,13 +34,21 @@ itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $art ? $art['bo
 <div class="itp-service">
   <nav class="itp-side" aria-label="Artykuły: <?= h($cat['name']) ?>">
     <p class="itp-side__title"><a href="<?= h(itPortalUrl('uslugi/' . rawurlencode($cat['slug']))) ?>"<?= !$art ? ' aria-current="page"' : '' ?>><?= h($cat['name']) ?></a></p>
-    <?php if ($articles): ?>
+    <?php foreach (itPortalArticleGroups($articles) as $gi => $grp):
+      $hasCur = $art && in_array((int)$art['id'], array_map('intval', array_column($grp['items'], 'id')), true);
+      ob_start(); ?>
       <ul class="itp-axis">
-        <?php foreach ($articles as $a): $cur = $art && (int)$a['id'] === (int)$art['id']; ?>
+        <?php foreach ($grp['items'] as $a): $cur = $art && (int)$a['id'] === (int)$art['id']; ?>
           <li<?= $cur ? ' aria-current="page"' : '' ?>><a href="<?= h(itPortalServiceUrl($cat, $a)) ?>"<?= $cur ? ' aria-current="page"' : '' ?>><?= h($a['title']) ?></a></li>
         <?php endforeach; ?>
       </ul>
-    <?php endif; ?>
+      <?php $list = ob_get_clean();
+      if ($grp['group'] === ''): echo $list; else: ?>
+      <details class="itp-group"<?= $hasCur || (!$art && $gi === 0) ? ' open' : '' ?>>
+        <summary><span class="itp-group__t"><?= h($grp['group']) ?></span> <span class="itp-group__n">(<?= count($grp['items']) ?>)</span></summary>
+        <?= $list ?>
+      </details>
+    <?php endif; endforeach; ?>
   </nav>
 
   <article class="itp-content">

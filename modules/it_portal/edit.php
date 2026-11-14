@@ -60,7 +60,7 @@ $row ??= match ($type) {
     'notice'   => ['title' => '', 'body_html' => '', 'status' => 'w_toku', 'signature' => (org_setting('itp_last_signature') ?: 'Dział IT'), 'notice_date' => date('Y-m-d'), 'is_published' => 1],
     'category' => ['name' => '', 'slug' => '', 'icon' => 'help', 'intro_html' => '', 'external_url' => '', 'audiences' => '[]', 'related' => '[]', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_categories")['m'] ?? 0) + 10, 'is_active' => 1],
     'audience' => ['name' => '', 'slug' => '', 'icon' => 'user', 'description' => '', 'services' => [], 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_audiences")['m'] ?? 0) + 1, 'is_active' => 1],
-    'article'  => ['category_id' => (int)($_GET['k'] ?? 0), 'title' => '', 'slug' => '', 'body_html' => '', 'keywords' => '', 'related' => '[]', 'is_pinned' => 0, 'is_published' => 1, 'sort_order' => 0],
+    'article'  => ['category_id' => (int)($_GET['k'] ?? 0), 'title' => '', 'slug' => '', 'body_html' => '', 'keywords' => '', 'related' => '[]', 'is_pinned' => 0, 'is_published' => 1, 'sort_order' => 0, 'menu_group' => ''],
     'contact'  => ['unit' => '', 'contact_html' => '', 'team' => '', 'sort_order' => (int)(db_one("SELECT MAX(sort_order) AS m FROM itp_contacts")['m'] ?? 0) + 10],
 };
 $v = fn(string $k) => h((string)($row[$k] ?? ''));
@@ -175,6 +175,10 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="col-md-6"><label class="form-label" for="f-sl">Adres <span class="text-muted small">(puste = z tytułu)</span></label><input id="f-sl" class="form-control" name="slug" value="<?= $v('slug') ?>" pattern="[a-z0-9-]*"></div>
     <div class="col-md-2"><label class="form-label" for="f-o">Kolejność</label><input id="f-o" type="number" class="form-control" name="sort_order" value="<?= $v('sort_order') ?>"></div>
     <div class="col-md-4"><label class="form-label" for="f-k">Słowa kluczowe <span class="text-muted small">(dla wyszukiwarki)</span></label><input id="f-k" class="form-control" name="keywords" value="<?= $v('keywords') ?>" placeholder="np. hasło, reset, logowanie"></div>
+    <?php $grpList = array_values(array_filter(array_column(db_all("SELECT DISTINCT menu_group FROM itp_articles WHERE menu_group <> '' ORDER BY menu_group"), 'menu_group'))); ?>
+    <div class="col-md-6"><label class="form-label" for="f-g">Grupa w menu <span class="text-muted small">(rozwijana sekcja w menu po lewej; puste = bez grupy)</span></label>
+      <input id="f-g" class="form-control" name="menu_group" value="<?= $v('menu_group') ?>" list="f-g-list" maxlength="80" placeholder="np. Pierwsze kroki">
+      <datalist id="f-g-list"><?php foreach ($grpList as $g): ?><option value="<?= h($g) ?>"><?php endforeach; ?></datalist></div>
     <div class="col-12"><span class="form-label d-block">Treść podstrony <span class="text-muted small">(składaj z bloków: tekst, kreator krok po kroku, zrzut ekranu, wyróżnienie)</span></span>
       <?php $blkName = 'blocks'; $blkInit = itPortalBlocksInit($row, 'blocks', 'body_html'); include __DIR__ . '/_blocks.php'; ?></div>
     <div class="col-md-7"><label class="form-label" for="f-r">Powiązane tematy <span class="text-muted small">(Ctrl/⌘ = kilka)</span></label>

@@ -84,7 +84,8 @@ function itPortalMigrate(): void {
         db_exec("UPDATE itp_audiences SET slug = ? WHERE id = ?", [$slug, $a['id']]);
     }
     // Edytor blokowy podstron: JSON bloków (tekst / kreator krok po kroku / obraz / wyróżnienie), 2026-10-20
-    foreach (['itp_articles' => 'blocks', 'itp_categories' => 'intro_blocks'] as $t => $c) {
+    // + grupa w menu bocznym usługi (rozwijane sekcje), 2026-11-14
+    foreach ([['itp_articles', 'blocks'], ['itp_categories', 'intro_blocks'], ['itp_articles', 'menu_group']] as [$t, $c]) {
         if (!in_array($c, array_column(db_all("PRAGMA table_info({$t})"), 'name'), true)) {
             $pdo->exec("ALTER TABLE {$t} ADD COLUMN {$c} TEXT NOT NULL DEFAULT ''");
         }
@@ -244,6 +245,21 @@ function itPortalCategoryDelete(int $id): void {
 
 // ── Artykuły ────────────────────────────────────────────────────────────────
 
+/**
+ * Artykuły usługi pogrupowane do menu bocznego (rozwijane sekcje). Kolejność grup = kolejność pierwszego artykułu grupy;
+ * artykuły bez grupy tworzą sekcję '' i nie są zwijane.
+ * @return list<array{group:string, items:list<array>}>
+ */
+function itPortalArticleGroups(array $articles): array {
+    $out = []; $idx = [];
+    foreach ($articles as $a) {
+        $g = trim((string)($a['menu_group'] ?? ''));
+        if (!isset($idx[$g])) { $idx[$g] = count($out); $out[] = ['group' => $g, 'items' => []]; }
+        $out[$idx[$g]]['items'][] = $a;
+    }
+    return $out;
+}
+
 function itPortalArticles(int $categoryId, bool $onlyPublished = true): array {
     return db_all("SELECT * FROM itp_articles WHERE category_id = ?" . ($onlyPublished ? " AND is_published = 1" : "")
                 . " ORDER BY sort_order, title", [$categoryId]);
@@ -290,6 +306,8 @@ function itPortalArticleSave(array $in, int $id = 0, int $userId = 0): int {
         'is_published' => !empty($in['is_published']) ? 1 : 0,
         'sort_order'   => (int)($in['sort_order'] ?? 0),
     ];
+    // Grupa w menu tylko, gdy przyszła w danych (formularz panelu); seedy bez tego pola jej nie kasują.
+    if (array_key_exists('menu_group', $in)) $data['menu_group'] = mb_substr(trim((string)$in['menu_group']), 0, 80);
     if ($id > 0) { db_update('itp_articles', $data, $id); return $id; }
     $data['created_by'] = $userId ?: null;
     return db_insert('itp_articles', $data);
