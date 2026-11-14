@@ -1958,4 +1958,15 @@ return [
         },
     ],
 
+    // Portal Usług IT, usługa „VPN”: wstęp i artykuł „Dostęp do VPN: wniosek i połączenie” (NordVPN + OpenVPN, BEZ adresów serwerów, są poufne)
+    // — polecenie 2026-11-14. modules/it_portal/lib/itPortalVpnSeed.php.
+    '2026-11_it_portal_vpn' => [
+        'desc' => 'Portal Usług IT, „VPN”: wstęp i dostęp do VPN',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalVpnSeed.php';
+            itPortalVpnApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
