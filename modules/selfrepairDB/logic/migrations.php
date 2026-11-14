@@ -2178,4 +2178,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Migracja” i „Czym jest IAM, a czym poczta”: rozmiar skrzynki (M365 50 GB / OneDrive 1 TB → 5 GB + chmura 10 GB) — 2026-11-14.
+    '2026-11_it_portal_migracja_mailbox_size' => [
+        'desc' => 'Portal Usług IT, „Migracja”: rozmiar skrzynki',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalMigracjaSeed.php';
+            itPortalMigracjaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

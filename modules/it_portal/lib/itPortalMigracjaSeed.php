@@ -96,6 +96,10 @@ function itPortalMigracjaArticles(string $app): array {
                 $step('Zapisz dane logowania', '<p>Na stronie <a href="' . $app . '/migracjapoczty">Migracja poczty</a> pobierzesz PDF z loginami do poczty, IAM i chmury. Haseł w nim nie ma.</p>'),
             ]],
 
+            ['type' => 'text', 'html' => '<h2>Zmienia się też rozmiar skrzynki</h2>'
+                . '<p>W Microsoft 365 skrzynka pocztowa miała 50 GB, a na pliki w OneDrive było 1 TB. Nowa skrzynka wolontariusza i pracownika ma 5 GB. Skrzynki kadry kierowniczej zachowują dotychczasowy limit. '
+                . 'Pliki trzymasz teraz w chmurze plików Fundacji: 10 GB na osobę, a foldery zespołów nie zabierają tego miejsca.</p>'
+                . '<p>5 GB wystarcza na lata zwykłej korespondencji, jeśli duże pliki wysyłasz linkiem z chmury zamiast załącznika. Więcej wyjaśnia artykuł <a href="' . $app . '/uslugi-it/uslugi/migracja/migracja-poczty-krok-po-kroku">Migracja poczty krok po kroku</a>.</p>'],
             ['type' => 'text', 'html' => '<h2>Loginy i hasła</h2>'
                 . '<table><thead><tr><th>Gdzie</th><th>Login</th><th>Hasło</th></tr></thead><tbody>'
                 . '<tr><td>IAM (logowanie jednokrotne)</td><td>Twój adres e-mail z SZO</td><td>hasło IAM</td></tr>'
@@ -182,7 +186,7 @@ function itPortalMigracjaArticles(string $app): array {
                 . '<li>W przeglądarce otwierasz ją na <a href="https://dpoczta.pl">dpoczta.pl</a>. Do telefonu i programu pocztowego dodajesz ją jako konto IMAP, '
                 . 'według instrukcji w usłudze <a href="' . $app . '/uslugi-it/uslugi/moja-poczta">Moja poczta</a>.</li>'
                 . '<li>Logujesz się pełnym adresem e-mail i hasłem do poczty, innym niż hasło IAM.</li>'
-                . '<li>Skrzynka wolontariusza i pracownika ma 5 GB. Skrzynki kadry kierowniczej zachowują dotychczasowy limit.</li>'
+                . '<li>Skrzynka wolontariusza i pracownika ma 5 GB. W Microsoft 365 skrzynka miała 50 GB, a 1 TB było miejscem na pliki w OneDrive. Pliki trzymasz teraz w chmurze plików. Skrzynki kadry kierowniczej zachowują dotychczasowy limit.</li>'
                 . '<li>Hasło zmieniasz wyłącznie w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, nigdy w ustawieniach dpoczta.pl (inaczej nie zsynchronizuje się z SZO). Kod potwierdzenia przyjdzie SMS-em, a gdy nie mamy Twojego numeru, na prywatny e-mail.</li>'
                 . '<li>Skrzynkę możesz dodatkowo zabezpieczyć weryfikacją dwuetapową (2FA). Opis jest w usłudze Moja poczta.</li></ul>'],
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Skrzynka zapełnia się szybciej, gdy trzymasz w niej duże załączniki. Pliki zapisuj w chmurze i wysyłaj link zamiast załącznika.</p>'],
