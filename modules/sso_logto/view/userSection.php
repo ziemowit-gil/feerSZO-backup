@@ -72,6 +72,7 @@ $ssoBase   = rtrim(APP_URL, '/');
           <?php if ($ssoHasCld): ?>
             <?= h($ssoCloudName) ?>, login <strong><?= h((string)$ssoAcc['cloud_uid']) ?></strong>, hasło to samo
             <?php if (SsoConfig::cloudUrl() !== ''): ?> · <a href="<?= h(SsoConfig::cloudUrl()) ?>" target="_blank" rel="noopener">Otwórz chmurę<span class="visually-hidden"> (nowa karta)</span> <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a><?php endif; ?>
+            · <a href="<?= h($ssoBase) ?>/kalendarz-kontakty">Kalendarz i kontakty w poczcie i telefonie</a>
           <?php else: ?>nie masz konta w chmurze<?php endif; ?>
         </dd></div>
       </dl>
