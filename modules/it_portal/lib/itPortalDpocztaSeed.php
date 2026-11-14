@@ -108,6 +108,43 @@ function itPortalDpocztaArticles(string $app): array {
         ], true],
 
         // 2026-11-14: hasło do poczty TYLKO przez SZO (/nowehaslo) — zmiana w dpoczta.pl nie synchronizuje się z SZO
+        'dpoczta-co-jest-co' => ['dPoczta.pl: co jest co na ekranie i w ustawieniach', 'dpoczta, co jest co, ekran, foldery, odebrane, kopie robocze, wysłane, spam, kosz, archiwum, utwórz, szukaj, wątki, pasek, kontakty, kalendarz, zadania, ustawienia, preferencje, tożsamości, odpowiedzi, cloud view, przypomnienie hasła, klucze pgp, filtry, hasło, pomoc, autoresponder, uwierzytelnianie dwuetapowe, cleanbox, tryb ciemny, wyloguj, miejsce w skrzynce', [
+            ['type' => 'text', 'html' => '<p>Po zalogowaniu na <a href="https://dpoczta.pl">dpoczta.pl</a> ekran ma trzy kolumny: po lewej foldery, w środku listę wiadomości, '
+                . 'a po prawej treść otwartej wiadomości. Na samym prawym brzegu jest wąski pasek z przejściem do innych części poczty.</p>'],
+            ['type' => 'text', 'html' => '<h2>Lewa kolumna: foldery</h2>'
+                . '<p>Na górze jest Twój adres e-mail, a obok trzy kropki z menu konta. Duży przycisk „Utwórz” otwiera nową wiadomość.</p>'
+                . '<p>Niżej są foldery: Odebrane, Kopie robocze (zaczęte, niewysłane wiadomości), Wysłane, Spam, Kosz i Archiwum, a pod nimi Twoje własne foldery. '
+                . 'Liczba przy folderze to liczba nieprzeczytanych wiadomości. Foldery dodasz, zmienisz i usuniesz w ustawieniach, w części „Foldery”.</p>'
+                . '<p>Na dole kolumny jest pasek z procentem zajętego miejsca w skrzynce. Gdy zbliża się do pełna, opróżnij Kosz i Spam albo przenieś stare załączniki do chmury.</p>'],
+            ['type' => 'text', 'html' => '<h2>Środek: lista wiadomości</h2>'
+                . '<p>Na górze jest pole „Szukaj…”. Ikona koperty i strzałka obok otwierają opcje, na przykład szukanie tylko w nadawcy albo w temacie. '
+                . 'Nad listą są też przyciski do zaznaczania wiadomości, ustawień listy i odświeżania.</p>'
+                . '<p>Każda wiadomość ma nadawcę, temat i datę. Pogrubiony temat oznacza wiadomość nieprzeczytaną. Strzałka po lewej stronie wiadomości rozwija wątek, '
+                . 'czyli całą rozmowę z odpowiedziami. Na dole są strzałki do przechodzenia między stronami listy i informacja, ile jest wątków.</p>'],
+            ['type' => 'text', 'html' => '<h2>Prawa kolumna: wiadomość</h2>'
+                . '<p>Nad otwartą wiadomością są przyciski: Odpowiedz, Odpowiedz wszystkim, Przekaż, Usuń, Archiwizuj, Oznacz jako spam (ikona płomienia), '
+                . 'Etykiety (ikona metki) i trzy kropki z pozostałymi działaniami, na przykład drukowaniem albo pobraniem wiadomości.</p>'],
+            ['type' => 'text', 'html' => '<h2>Pasek po prawej</h2>'
+                . '<p>Ikony od góry: Poczta (koperta), Kontakty, Kalendarz, Zadania, Ustawienia (koło zębate) i inne aplikacje dostawcy (kratka). '
+                . 'Na dole są księżyc, który włącza tryb ciemny, i czerwony przycisk wyłączania, którym się wylogujesz.</p>'],
+            ['type' => 'text', 'html' => '<h2>Ustawienia</h2>'
+                . '<p>Po kliknięciu koła zębatego po lewej jest lista części ustawień:</p><ul>'
+                . '<li>Preferencje: wygląd, język, strefa czasowa, sposób wyświetlania i pisania wiadomości.</li>'
+                . '<li>Foldery: dodawanie, zmiana nazw i usuwanie folderów.</li>'
+                . '<li>Tożsamości: nazwa nadawcy i podpis, czyli stopka. Opisuje to artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/podpis-w-poczcie">Jak ustawić podpis (stopkę) w poczcie</a>.</li>'
+                . '<li>Odpowiedzi: gotowe teksty do wstawiania w wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/szablony-odpowiedzi">Szablony odpowiedzi</a>.</li>'
+                . '<li>Cloud View: ustawienia dodatku dostawcy poczty. Nie musisz ich zmieniać.</li>'
+                . '<li>Klucze PGP: szyfrowanie wiadomości. Na co dzień nie jest potrzebne.</li>'
+                . '<li>Filtry: automatyczne przenoszenie i przekazywanie wiadomości, opisane w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/filtry-i-przekierowanie">Filtry i przekierowanie poczty</a>.</li>'
+                . '<li>Pomoc: instrukcje dostawcy poczty.</li>'
+                . '<li>Autoresponder: odpowiedź na czas urlopu, opisana w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/autoresponder">Autoodpowiedź na czas nieobecności</a>.</li>'
+                . '<li>Uwierzytelnianie dwuetapowe: dodatkowy kod przy logowaniu, opisany w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/weryfikacja-dwuetapowa">Weryfikacja dwuetapowa w poczcie</a>.</li>'
+                . '<li>CleanBox: filtr antyspamowy, opisany w artykule <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/spam-i-zaufani-nadawcy">Spam, zablokowani i zaufani nadawcy</a>.</li></ul>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie zmieniaj hasła w częściach „Hasło” ani „Przypomnienie hasła” w ustawieniach poczty. Takie hasło nie trafi do SZO. '
+                . 'Hasło do poczty zmieniasz tylko na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/zmiana-hasla-poczty">Jak zmienić hasło do poczty</a>.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie wiesz, do czego służy jakiś przycisk? Najedź na niego myszą, a pokaże się podpowiedź. Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+        ], true],
+
         'zmiana-hasla-poczty' => ['Jak zmienić hasło do poczty', 'hasło, zmiana hasła, nowe hasło, nowehaslo, szo, dpoczta, wymagania hasła, synchronizacja', [
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p><strong>Ważne: hasło do poczty zmieniaj wyłącznie w SZO, na stronie <a href="' . $app . '/nowehaslo">Nowe hasło</a>.</strong> ' . 'Nie zmieniaj go w ustawieniach dpoczta.pl. Hasło zmienione w dpoczta.pl nie trafi do SZO, więc systemy się rozjadą: ' . 'kopia poczty, Gosposia i inne usługi przestaną działać, a przy kolejnej zmianie hasło może wrócić do starego.</p>'],
             ['type' => 'wizard', 'title' => 'Zmiana hasła w SZO', 'intro' => '', 'steps' => [
@@ -156,8 +193,9 @@ function itPortalDpocztaArticles(string $app): array {
         'weryfikacja-dwuetapowa' => ['Weryfikacja dwuetapowa (2FA) w poczcie', '2fa, weryfikacja dwuetapowa, uwierzytelnienie, authenticator, kod, bezpieczeństwo, kody zapasowe', [
             ['type' => 'text', 'html' => '<p>Weryfikacja dwuetapowa chroni skrzynkę, nawet gdy ktoś pozna Twoje hasło. Przy logowaniu oprócz hasła podajesz kod z aplikacji w telefonie.</p>'],
             ['type' => 'wizard', 'title' => 'Włączanie 2FA', 'intro' => '<p>Najpierw zainstaluj w telefonie aplikację z kodami, np. Google Authenticator albo Microsoft Authenticator.</p>', 'steps' => [
-                $step('Otwórz ustawienia', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Uwierzytelnienie dwuetapowe (2FA)”.</p>'),
-                $step('Włącz i potwierdź hasłem', '<p>Kliknij „Włącz”, wpisz hasło do skrzynki i kliknij „Kontynuuj”.</p>'),
+                $step('Otwórz ustawienia', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Uwierzytelnianie dwuetapowe”.</p>'),
+                $step('Wybierz metodę i potwierdź hasłem', '<p>Zobaczysz dwie metody: „Aplikacja mobilna”, która generuje kody w telefonie, i „Email”, która wysyła kody na inny adres e-mail. '
+                    . 'Polecamy aplikację mobilną. Kliknij „Włącz” przy wybranej metodzie. W okienku „Potwierdź hasło” wpisz hasło do skrzynki i kliknij „Kontynuuj”.</p>'),
                 $step('Zeskanuj kod QR', '<p>Otwórz aplikację w telefonie i zeskanuj kod QR z ekranu. Wpisz kod, który pokaże aplikacja, i kliknij „Zakończ”.</p><p>Zamiast aplikacji możesz podać inny adres e-mail (nie ten służbowy). Kod przyjdzie tam i jest ważny 5 minut.</p>'),
                 $step('Zapisz kody zapasowe', '<p>Kliknij „Pokaż kody zapasowe” i zapisz je albo wydrukuj. Przydadzą się, gdy zgubisz telefon. Zużyte kody wymienisz przyciskiem „Wygeneruj nowe kody zapasowe”.</p>'),
             ]],
@@ -180,8 +218,9 @@ function itPortalDpocztaArticles(string $app): array {
             ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Stopka musi pochodzić z generatora Fundacji: <a href="' . $app . '/pomocne/generatorstopki">' . $app . '/pomocne/generatorstopki</a>. Jak go używać, opisuje artykuł „<a href="' . $app . '/uslugi-it/uslugi/moja-poczta/generator-stopki">Obowiązkowa stopka: jak ją wygenerować</a>”. Tu pokazujemy, gdzie ją wkleić w poczcie.</p>'],
             ['type' => 'wizard', 'title' => 'Stopka z generatora w dPoczta.pl', 'intro' => '', 'steps' => [
                 $step('Skopiuj stopkę z generatora', '<p>Otwórz <a href="' . $app . '/pomocne/generatorstopki">generator</a>, wpisz swoje dane i kliknij „Kopiuj stopkę do schowka”.</p>'),
-                $step('Otwórz tożsamość', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Tożsamość” i kliknij swój adres.</p>'),
-                $step('Wklej stopkę', '<p>Jeśli suwak „Włącz projektanta podpisu” jest włączony, wyłącz go. W polu podpisu wklej stopkę (Ctrl+V). Jeśli edytor ma tryb HTML, włącz go przed wklejeniem.</p>'),
+                $step('Otwórz tożsamość', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' W lewej kolumnie wybierz „Tożsamości” i kliknij swój adres w środkowej kolumnie.</p>'),
+                $step('Włącz podpis w HTML i wklej stopkę', '<p>W części „Podpis” suwak „Włącz Projektanta Podpisu” zostaw wyłączony. Włącz suwak „Podpis w HTML” pod polem podpisu, '
+                    . 'kliknij w pole i wklej stopkę (Ctrl+V). Jeśli w polu była stara stopka, najpierw ją zaznacz i usuń.</p>'),
                 $step('Zapisz i sprawdź', '<p>Kliknij „Zapisz” na dole strony. Napisz wiadomość do siebie i zobacz, czy stopka wygląda tak jak w podglądzie generatora.</p>'),
             ]],
             ['type' => 'wizard', 'title' => 'Stopka z generatora w Thunderbirdzie', 'intro' => '', 'steps' => [
@@ -192,16 +231,28 @@ function itPortalDpocztaArticles(string $app): array {
             ]],
             ['type' => 'callout', 'kind' => 'tip', 'html' => '<p>Zamiast wklejać kod, możesz kliknąć w generatorze „Pobierz plik HTML” i w ustawieniach konta wskazać ten plik jako sygnaturkę. Masz kilka skrzynek? W „Zarządzaj tożsamościami” wybierz „Edytuj” albo „Dodaj” i ustaw stopkę przy każdej tożsamości.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>W Outlooku wklej stopkę z przycisku „Kopiuj stopkę do schowka” w oknie edycji podpisu (Plik → Opcje → Poczta → Podpisy).</p>'],
-            ['type' => 'text', 'html' => '<p>W „Tożsamości” zmienisz też nazwę nadawcy, którą widzą odbiorcy. Jeśli masz dostęp do innej skrzynki, np. działu, dodasz ją przyciskiem „Nowa tożsamość” (ikona ołówka) i wybierzesz przy pisaniu wiadomości.</p>'],
+            ['type' => 'text', 'html' => '<p>W „Tożsamościach” nad podpisem są też inne pola. „Nazwa wyświetlana” to nazwa nadawcy, którą widzą odbiorcy, zwykle imię i nazwisko. '
+                . '„Organizacja” możesz zostawić pustą. „Odpowiedź do” wpisz tylko wtedy, gdy odpowiedzi mają trafiać na inny adres. „Ukryta kopia” wysyła kopię każdej Twojej wiadomości na podany adres, '
+                . 'więc zwykle zostaw ją pustą. „Domyślna” oznacza tożsamość wybieraną przy pisaniu. Część „Szyfrowanie” z kluczami PGP nie jest potrzebna na co dzień.</p>'],
+            ['type' => 'text', 'html' => '<p>W „Tożsamościach” zmienisz też nazwę nadawcy, którą widzą odbiorcy. Jeśli masz dostęp do innej skrzynki, np. działu, dodasz ją przyciskiem „Nowa tożsamość” (ikona ołówka) i wybierzesz przy pisaniu wiadomości.</p>'],
         ], false],
 
-        'autoresponder' => ['Autoodpowiedź na czas nieobecności', 'autoresponder, autoodpowiedź, urlop, nieobecność, poza biurem, automatyczna odpowiedź', [
-            ['type' => 'text', 'html' => '<p>Autoodpowiedź wysyła nadawcom wiadomość, że jesteś na urlopie albo poza biurem.</p>'],
+        'autoresponder' => ['Autoodpowiedź na czas nieobecności', 'autoresponder, autoodpowiedź, czym jest autoodpowiedź, urlop, nieobecność, poza biurem, automatyczna odpowiedź, zwolnienie, przykładowa treść, od kiedy, do kiedy', [
+            ['type' => 'text', 'html' => '<p>Autoodpowiedź, w poczcie nazwana „Autoresponder”, to wiadomość, którą skrzynka sama wysyła każdemu, kto do Ciebie napisze, '
+                . 'gdy jesteś na urlopie, zwolnieniu albo poza biurem. Nadawca od razu wie, że nie odpiszesz szybko i do kogo zwrócić się w pilnej sprawie. '
+                . 'Ty nie musisz nic robić: wystarczy raz ustawić daty i treść.</p>'
+                . '<p>Wiadomości nadal przychodzą do Twojej skrzynki jak zwykle. Autoodpowiedź niczego nie przekazuje dalej. Jeśli ktoś ma odbierać Twoją pocztę pod Twoją nieobecność, '
+                . 'ustaw przekierowanie, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/moja-poczta/filtry-i-przekierowanie">Filtry i przekierowanie poczty</a>.</p>'],
             ['type' => 'wizard', 'title' => 'Ustawienie autoodpowiedzi', 'intro' => '', 'steps' => [
                 $step('Otwórz ustawienia', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a>. ' . $gear . ' Wybierz „Autoresponder”.</p>'),
-                $step('Włącz i wpisz treść', '<p>Na górze formularza włącz autoresponder. Wpisz temat i treść odpowiedzi oraz okres, w którym ma działać. Kliknij „Zapisz”.</p>'),
-                $step('Wyłącz po powrocie', '<p>W tym samym miejscu wybierz „Wyłączona” i zapisz. Jeśli ustawiłeś daty, odpowiedź wyłączy się sama.</p>'),
+                $step('Ustaw daty i treść', '<p>W „Ustawieniach Autorespondera” zaznacz pole „Włączona”. W polach „Od kiedy” i „Do kiedy” ustaw początek i koniec nieobecności, z godziną. '
+                    . 'W polu „Temat” zostaw „Automatyczna odpowiedź” albo wpisz własny. W polu „Treść” napisz, do kiedy Cię nie ma i z kim się kontaktować w pilnych sprawach. Kliknij „Zapisz”.</p>'),
+                $step('Wyłącz po powrocie', '<p>Po dacie z pola „Do kiedy” odpowiedź wyłączy się sama. Jeśli wrócisz wcześniej, odznacz pole „Włączona” i kliknij „Zapisz”.</p>'),
             ]],
+            ['type' => 'text', 'html' => '<h2>Przykładowa treść</h2>'
+                . '<p>Dzień dobry, dziękuję za wiadomość. Do 28 listopada jestem na urlopie i nie czytam poczty. Odpowiem po powrocie. '
+                . 'W pilnych sprawach proszę pisać do [imię i nazwisko osoby zastępującej, jej adres e-mail]. Pozdrawiam, [Twoje imię i nazwisko], Fundacja Edukacji Empatii Rozwoju FEER</p>'
+                . '<p>Podmień datę i to, co jest w nawiasach kwadratowych, na swoje dane. Osobę zastępującą uprzedź wcześniej. Nie podawaj w autoodpowiedzi prywatnego numeru telefonu, bo dostanie ją każdy, także nadawca spamu.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie widzisz „Autorespondera” w ustawieniach? <a href="' . $hd . '">Napisz w Helpdesku</a>, włączymy go z panelu administratora.</p>'],
         ], false],
 

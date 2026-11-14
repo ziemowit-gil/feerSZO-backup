@@ -1578,4 +1578,15 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuł „dPoczta.pl: co jest co” i poprawki „Podpis”, „Autoresponder”, „Weryfikacja dwuetapowa” według zrzutów dPoczta.pl
+    // (polecenie 2026-11-14: „szybki opis dpoczta.pl, co jest co, stopka”). Ponowny zasiew wszystkich artykułów usługi (related zostaje).
+    '2026-11_it_portal_dpoczta_overview' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: przegląd dPoczta.pl i poprawki według ekranów',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
