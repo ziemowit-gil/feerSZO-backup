@@ -369,6 +369,10 @@ if (!$_ln_show && !empty($_login_notices)) $_ln_show = $_login_notices[0];
 $_sso_hint = $_SESSION['sso_hint'] ?? null;
 if ($_sso_hint && time() - (int)($_sso_hint['at'] ?? 0) > 900) { unset($_SESSION['sso_hint']); $_sso_hint = null; }
 $has_alt = ($code_available || $sms_available || $x509_available);
+// Przebudowa 2026-11-14 („przebuduj widok”): Microsoft 365 (tylko administratorzy) schowany w „Inne metody logowania”, kafle „Pierwszy raz w SZO?”,
+// „Załóż konto” tylko przy otwartej rejestracji (PIN), odnośnik do instrukcji w Portalu Usług IT.
+$_reg_open = function_exists('register_is_open') && register_is_open();
+$_help_url = APP_URL . '/uslugi-it/uslugi/moj-login/logowanie-do-szo';
 $_show_ms = $ms_available && !$emergency;
 $_show_logto = $logto_available && !$emergency;
 $_logto_url = APP_URL . '/sso/logowanie' . ($redirect !== '' ? '?redirect=' . urlencode($redirect) : '');
@@ -474,7 +478,16 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
 .lg-new a:hover,.lg-new button:hover,.lg-alt button:hover{background:#dbeafe;border-color:#93c5fd}
 .lg-alert{border-radius:2px}
 .lg-alert.info{background:#e6f1fb;border-color:#0a7fd1}
-.lg-cpl{font-size:.85rem}
+.lg-cpl{font-size:.88rem;color:#374151;margin:-.9rem 0 1.3rem}
+.lg-cpl a{color:#075f9e;font-weight:600}
+.lg-first{margin-top:1.6rem;padding-top:1.2rem;border-top:1px solid #c8c8c8}
+.lg-first-h{font-size:1.05rem;font-weight:700;margin:0 0 .7rem;color:#111}
+.lg-first .lg-new{grid-template-columns:1fr;margin-top:0}
+.lg-new em{font-style:normal;font-size:.82rem;color:#4b5563}
+.lg-first-pin{font-size:.88rem;margin:.8rem 0 0;color:#374151}
+.lg-first-pin a{color:#075f9e;font-weight:600}
+.lg-alt a.lg-alt-ms{display:flex;align-items:center;gap:.6rem;border:1px solid #075f9e;background:#fff;color:#075f9e;padding:.55rem .7rem;font-size:.9rem;font-weight:600;text-decoration:none;border-radius:2px}
+.lg-alt a.lg-alt-ms:hover{background:#e6f1fb}
 @media(max-width:480px){.lg-body{padding:1.2rem}}
 
 /* ── Dwie kolumny (polecenie 2026-11-13): informacja „Odchodzimy od Microsoft 365” + karta logowania ──
@@ -499,6 +512,9 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
 .lg-info-small{display:block;font-size:.82rem;color:#374151}
 .lg-info-help{margin:1rem 0 0;font-size:.85rem;color:#374151}
 .lg-info a{color:#075f9e;font-weight:600}
+.lg-info-why{margin:1.1rem 0 0;border-top:1px solid #e5e7eb;padding-top:.8rem}
+.lg-info-why summary{cursor:pointer;font-weight:700;color:#075f9e;min-height:44px;display:flex;align-items:center}
+.lg-info-why .lg-info-list{margin-top:.4rem}
 .lg-info-mini a{color:#075f9e;font-weight:600}
 @media(min-width:900px){
   .lg-two{grid-template-columns:minmax(0,1fr) 480px;grid-template-areas:"info card";max-width:1080px;align-items:start}
@@ -519,8 +535,7 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
     </div>
     <h1 class="lg-h1"><?= $_login_tagline ? h($_login_tagline) : 'Zaloguj się' ?></h1>
     <p class="lg-lead"><?= $_login_welcome_is_custom ? nl2br(h($_login_welcome)) : 'System Wspomagania Zarządzania Organizacją' ?></p>
-    <div class="lg-alert info lg-cpl" role="note"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Logujesz się przez CPL, czyli Centralny Portal Logowania.</strong>
-      Wchodzisz do SZO, Systemu Wspomagania Zarządzania Organizacją. Chcesz wybrać inny profil? Otwórz <a href="<?= h(APP_URL) ?>/tozsamosc/cpl.php">pełne okno CPL</a>.</div></div>
+    <p class="lg-cpl">Logujesz się przez CPL, Centralny Portal Logowania Fundacji. Inny profil wybierzesz w <a href="<?= h(APP_URL) ?>/tozsamosc/cpl.php">pełnym oknie CPL</a>.</p>
 
     <?php if ($_ln_show): ?><div class="lg-alert info" role="region" aria-label="Komunikat"><i class="bi bi-megaphone" aria-hidden="true"></i><div><strong><?= h($_ln_show['title']) ?></strong><?php if ($_ln_show['body']): ?><br><?= nl2br(h($_ln_show['body'])) ?><?php endif; ?></div></div><?php endif; ?>
     <?php if ($_sso_hint): ?><div class="lg-alert info" role="alert" id="sso-hint"><i class="bi bi-shield-check" aria-hidden="true"></i><div>
@@ -534,13 +549,9 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
 
     <?php if ($_show_logto): ?>
     <a class="lg-ms" href="<?= h($_logto_url) ?>"><i class="bi bi-key" aria-hidden="true"></i> Zaloguj przez logowanie jednokrotne</a>
-    <p class="lg-ms-sub">Jedno konto Fundacji — to samo co do chmury plików</p>
+    <p class="lg-ms-sub">Jedno konto Fundacji, to samo co do chmury plików</p>
     <?php endif; ?>
-    <?php if ($_show_ms): ?>
-    <a class="lg-ms lg-ms--admin<?= $_show_logto ? ' mt-3' : '' ?>" href="<?= h($_ms_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Microsoft 365 — administratorzy</a>
-    <p class="lg-ms-sub">Tylko konta administratorów @feer.org.pl</p>
-    <?php endif; ?>
-    <?php if ($_show_logto || $_show_ms): ?>
+    <?php if ($_show_logto): ?>
     <div class="lg-or">albo e-mail i hasło</div>
     <?php endif; ?>
 
@@ -548,27 +559,31 @@ body{font-family:Tahoma,"Segoe UI",Verdana,Arial,sans-serif;background:#e9ebee}
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="_method" value="local">
       <div class="lg-field"><label for="f-email">Adres e-mail</label>
-        <input type="email" name="email" id="f-email" class="lg-in" autocomplete="email" inputmode="email" required<?= ((!$_show_ms && !$_show_logto) || ($error && $active_tab === 'local')) ? ' autofocus' : '' ?><?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>></div>
+        <input type="email" name="email" id="f-email" class="lg-in" autocomplete="email" inputmode="email" required<?= (!$_show_logto || ($error && $active_tab === 'local')) ? ' autofocus' : '' ?><?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>></div>
       <div class="lg-field"><label for="f-pass">Hasło</label>
         <div class="lg-pass"><input type="password" name="password" id="f-pass" class="lg-in" autocomplete="current-password" required<?= ($error && $active_tab === 'local') ? ' aria-invalid="true" aria-describedby="login-error-text"' : '' ?>>
           <button type="button" aria-label="Pokaż hasło" aria-pressed="false" onclick="var i=document.getElementById('f-pass'),s=i.type==='password';i.type=s?'text':'password';this.setAttribute('aria-pressed',s);this.firstElementChild.className=s?'bi bi-eye-slash':'bi bi-eye'"><i class="bi bi-eye" aria-hidden="true"></i></button></div></div>
       <button type="submit" class="lg-btn">Zaloguj</button>
     </form>
-    <div class="lg-links"><a href="<?= APP_URL ?>/user/verify_reset.php">Nie pamiętasz hasła?</a><a href="<?= APP_URL ?>/user/register.php">Załóż konto</a></div>
+    <div class="lg-links"><a href="<?= APP_URL ?>/user/verify_reset.php">Nie pamiętasz hasła?</a><a href="<?= h($_help_url) ?>">Instrukcja logowania</a></div>
 
-    <nav class="lg-new" aria-label="Pierwsze logowanie">
-      <?php if ($code_available): ?>
-      <button type="button" data-bs-toggle="modal" data-bs-target="#modal-code"><i class="bi bi-person-plus" aria-hidden="true"></i><span>Nowy wolontariusz<strong>Kod aktywacyjny</strong></span></button>
-      <?php else: ?>
-      <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-person-plus" aria-hidden="true"></i><span>Nowy wolontariusz<strong>Aktywuj konto</strong></span></a>
-      <?php endif; ?>
-      <a href="<?= APP_URL ?>/zlecenie"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Nowy zleceniobiorca<strong>Oświadczenie</strong></span></a>
-    </nav>
+    <section class="lg-first" aria-labelledby="lg-first-h">
+      <h2 id="lg-first-h" class="lg-first-h">Pierwszy raz w SZO?</h2>
+      <nav class="lg-new" aria-label="Pierwsze logowanie">
+        <a href="<?= APP_URL ?>/user/verify_reset.php"><i class="bi bi-person-plus" aria-hidden="true"></i><span>Nowy wolontariusz<strong>Aktywuj konto</strong><em>Dane z umowy i kod SMS</em></span></a>
+        <?php if ($code_available): ?>
+        <button type="button" data-bs-toggle="modal" data-bs-target="#modal-code"><i class="bi bi-key" aria-hidden="true"></i><span>Masz kod od koordynatora?<strong>Kod aktywacyjny</strong><em>Kod działa tylko raz</em></span></button>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>/zlecenie"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Nowy zleceniobiorca<strong>Oświadczenia</strong><em>Tylko przy umowie zlecenie</em></span></a>
+      </nav>
+      <?php if ($_reg_open): ?><p class="lg-first-pin">Masz PIN rejestracji od administratora? <a href="<?= APP_URL ?>/user/register.php">Załóż konto</a>.</p><?php endif; ?>
+    </section>
 
-    <?php if ($has_alt): ?>
+    <?php if ($has_alt || $_show_ms): ?>
     <details class="lg-more"<?= in_array($active_tab, ['code','sms','x509'], true) ? ' open' : '' ?>>
-      <summary>Inne metody logowania</summary>
+      <summary>Inne metody logowania i administratorzy</summary>
       <div class="lg-alt">
+        <?php if ($_show_ms): ?><a class="lg-alt-ms" href="<?= h($_ms_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Microsoft 365, tylko administratorzy @feer.org.pl</a><?php endif; ?>
         <?php if ($code_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-code"><i class="bi bi-key" aria-hidden="true"></i> Kod jednorazowy</button><?php endif; ?>
         <?php if ($sms_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-sms"><i class="bi bi-phone" aria-hidden="true"></i> Kod SMS</button><?php endif; ?>
         <?php if ($x509_available): ?><button type="button" data-bs-toggle="modal" data-bs-target="#modal-x509"><i class="bi bi-patch-check" aria-hidden="true"></i> Certyfikat X.509 (administratorzy)</button><?php endif; ?>
