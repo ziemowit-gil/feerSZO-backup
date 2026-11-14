@@ -24,8 +24,8 @@ if ($artSlug !== '') {
     exit;
 }
 if ($art) itPortalArticleTouch((int)$art['id']);
-// Artykuł „tylko dla IT”: osoba bez roli IT widzi tytuł i komunikat zamiast treści (tytuł zostaje w menu, żeby było wiadomo, że taki jest).
-$itLocked = $art && !empty($art['it_only']) && !itPortalViewerIsIt();
+// Artykuł tylko dla IT (oznaczony albo w usłudze z samą grupą IT): osoba bez roli IT widzi tytuł i komunikat zamiast treści (tytuł zostaje w menu, żeby było wiadomo, że taki jest).
+$itLocked = $art && itPortalArticleLocked($art);
 
 $audiences = itPortalAudiences(true);
 $availIds  = itPortalIds($cat['audiences']);

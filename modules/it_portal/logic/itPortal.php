@@ -332,8 +332,8 @@ function itPortalArticleSave(array $in, int $id = 0, int $userId = 0): int {
     ];
     // Grupa w menu tylko, gdy przyszła w danych (formularz panelu); seedy bez tego pola jej nie kasują.
     if (array_key_exists('menu_group', $in)) $data['menu_group'] = mb_substr(trim((string)$in['menu_group']), 0, 80);
-    // „Tylko dla IT”: formularz panelu wysyła it_only_sent (checkbox bez zaznaczenia nic nie przysyła), seedy podają it_only wprost.
-    if (array_key_exists('it_only', $in) || !empty($in['it_only_sent'])) $data['it_only'] = !empty($in['it_only']) ? 1 : 0;
+    // Kto czyta treść: formularz panelu wysyła listę wyboru it_only, seedy podają wartość wprost; brak pola = bez zmian.
+    if (array_key_exists('it_only', $in)) $data['it_only'] = max(-1, min(1, (int)$in['it_only']));   // 1 / 0 / -1, zob. ITP_READ_*
     if ($id > 0) { db_update('itp_articles', $data, $id); return $id; }
     $data['created_by'] = $userId ?: null;
     return db_insert('itp_articles', $data);
@@ -373,11 +373,50 @@ function itPortalViewerIsIt(): bool {
     return $v !== null && ($v['role'] === 'admin' || $v['it_staff'] === 1);
 }
 
-/** Warunek SQL ukrywający artykuły „tylko dla IT” przed osobami bez roli IT (wyszukiwarka, popularne, Asystent, Helpdesk). */
+/*
+ * Kto czyta treść artykułu (itp_articles.it_only):
+ *   1 = tylko dla IT,
+ *   0 = jak usługa (domyślnie): usługa, której JEDYNĄ grupą odbiorców jest „IT”, jest tylko dla IT, pozostałe są otwarte,
+ *  -1 = dla wszystkich, także w usłudze tylko dla IT (np. artykuł „Rola IT”, do którego linkuje komunikat o blokadzie).
+ * „Tylko dla IT” = administrator SZO albo konto z rolą IT (users.it_staff). Polecenia 2026-11-14.
+ */
+const ITP_READ_IT = 1, ITP_READ_SERVICE = 0, ITP_READ_ALL = -1;
+
+/** Id usług, których jedyną grupą odbiorców jest „IT” (grupa o adresie „it”). @return list<int> */
+function itPortalItOnlyCategoryIds(): array {
+    static $ids = null;
+    if ($ids !== null) return $ids;
+    $ids = [];
+    try {
+        $it = db_one("SELECT id FROM itp_audiences WHERE slug = 'it' OR name = 'IT' ORDER BY slug = 'it' DESC LIMIT 1");
+        if (!$it) return $ids;
+        foreach (db_all("SELECT id, audiences FROM itp_categories") as $c) {
+            if (itPortalIds($c['audiences']) === [(int)$it['id']]) $ids[] = (int)$c['id'];
+        }
+    } catch (\Throwable $e) {}
+    return $ids;
+}
+
+/** Czy treść artykułu jest tylko dla IT (bez względu na to, kto ogląda). */
+function itPortalArticleIsItOnly(array $art): bool {
+    $mode = (int)($art['it_only'] ?? 0);
+    if ($mode === ITP_READ_ALL) return false;
+    return $mode === ITP_READ_IT || in_array((int)($art['category_id'] ?? 0), itPortalItOnlyCategoryIds(), true);
+}
+
+/** Czy przed bieżącym oglądającym ukryć treść artykułu. */
+function itPortalArticleLocked(array $art): bool {
+    return itPortalArticleIsItOnly($art) && !itPortalViewerIsIt();
+}
+
+/** Warunek SQL ukrywający artykuły tylko dla IT przed osobami bez roli IT (wyszukiwarka, popularne, Asystent, Helpdesk). */
 function itPortalItOnlySql(string $alias = 'a'): string {
     static $has = null;   // kolumnę dodaje itPortalMigrate(); Asystent i Helpdesk mogą tu trafić przed nią
     $has ??= in_array('it_only', array_column(db_all("PRAGMA table_info(itp_articles)"), 'name'), true);
-    return !$has || itPortalViewerIsIt() ? '' : " AND COALESCE({$alias}.it_only, 0) = 0";
+    if (!$has || itPortalViewerIsIt()) return '';
+    $cats = itPortalItOnlyCategoryIds();
+    $inIt = $cats ? " OR {$alias}.category_id IN (" . implode(',', $cats) . ")" : '';
+    return " AND (COALESCE({$alias}.it_only, 0) = -1 OR NOT (COALESCE({$alias}.it_only, 0) = 1{$inIt}))";
 }
 
 function itPortalArticleDelete(int $id): void {

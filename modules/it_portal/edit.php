@@ -125,6 +125,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <div class="form-check"><input class="form-check-input" type="checkbox" name="audiences[]" id="au-<?= (int)$a['id'] ?>" value="<?= (int)$a['id'] ?>"<?= in_array((int)$a['id'], $avail, true) ? ' checked' : '' ?>><label class="form-check-label" for="au-<?= (int)$a['id'] ?>"><?= h($a['name']) ?></label></div>
       <?php endforeach; ?>
       <?php if (!$auds): ?><p class="small text-muted">Brak grup.</p><?php endif; ?>
+      <p class="form-text mb-1">Gdy zaznaczysz tylko „IT”, artykuły usługi przeczytają tylko administratorzy i konta z rolą IT. Pojedynczy artykuł otworzysz dla wszystkich w jego edycji („Kto czyta treść”).</p>
       <a class="small" href="<?= h(APP_URL . '/modules/it_portal/index.php?tab=grupy') ?>"><i class="bi bi-people"></i> Zarządzaj grupami</a>
     </fieldset>
     <div class="col-md-7"><label class="form-label" for="f-r">Powiązane tematy przy wstępie <span class="text-muted small">(Ctrl/⌘ = kilka)</span></label>
@@ -192,8 +193,14 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="col-md-5 pt-md-4">
       <div class="form-check"><input class="form-check-input" type="checkbox" id="f-p" name="is_published" value="1"<?= $chk('is_published') ?>><label class="form-check-label" for="f-p">Opublikowany</label></div>
       <div class="form-check"><input class="form-check-input" type="checkbox" id="f-pin" name="is_pinned" value="1"<?= $chk('is_pinned') ?>><label class="form-check-label" for="f-pin">Przypnij do „Popularne instrukcje” na Start</label></div>
-      <div class="form-check"><input type="hidden" name="it_only_sent" value="1"><input class="form-check-input" type="checkbox" id="f-it" name="it_only" value="1" aria-describedby="f-it-h"<?= $chk('it_only') ?>><label class="form-check-label" for="f-it">Tylko dla IT</label>
-        <div id="f-it-h" class="form-text">Treść zobaczą administratorzy i konta z rolą „IT” (Zarządzanie użytkownikami). Pozostali zobaczą tytuł i komunikat, a artykuł nie pojawi się im w wyszukiwarce.</div></div>
+      <?php $itMode = (int)($row['it_only'] ?? 0); ?>
+      <div class="mt-2"><label class="form-label" for="f-it">Kto czyta treść</label>
+        <select id="f-it" class="form-select form-select-sm" name="it_only" aria-describedby="f-it-h">
+          <option value="0"<?= $itMode === 0 ? ' selected' : '' ?>>Jak usługa (domyślnie)</option>
+          <option value="1"<?= $itMode === 1 ? ' selected' : '' ?>>Tylko dla IT</option>
+          <option value="-1"<?= $itMode === -1 ? ' selected' : '' ?>>Wszyscy, także w usłudze dla IT</option>
+        </select>
+        <div id="f-it-h" class="form-text">„Jak usługa”: jeśli jedyną grupą usługi jest IT, treść jest tylko dla IT, w pozostałych usługach dla wszystkich. Tylko dla IT znaczy: administratorzy i konta z rolą „IT” (Zarządzanie użytkownikami). Pozostali zobaczą tytuł i komunikat, a artykuł nie pojawi się im w wyszukiwarce.</div></div>
       <?php if ($id): ?><p class="small text-muted mt-2 mb-0">Wyświetlenia: <?= (int)($row['views'] ?? 0) ?></p><?php endif; ?>
     </div>
   </div>

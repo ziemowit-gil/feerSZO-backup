@@ -3,7 +3,8 @@
  * modules/it_portal/lib/itPortalRolaItSeed.php — artykuł „Rola IT: kto czyta artykuły dla działu IT” w usłudze „Koordynatorzy IT”
  * (/uslugi-it/uslugi/koordynatorzy-it/rola-it). Polecenie 2026-11-14: „dodaj artykuł o roli IT do pomocy”, po wprowadzeniu
  * artykułów „tylko dla IT” (itp_articles.it_only) i roli IT przy koncie (users.it_staff, checkbox „IT” w Zarządzaniu użytkownikami).
- * Artykuł jest otwarty dla wszystkich (it_only = 0), bo prowadzi do niego komunikat przy zablokowanym artykule (public/usluga.php).
+ * Artykuł jest otwarty dla wszystkich (it_only = -1, ITP_READ_ALL), choć usługa „Koordynatorzy IT” ma tylko grupę IT,
+ * bo prowadzi do niego komunikat przy zablokowanym artykule (public/usluga.php).
  * Prosty język wg zasad pomocy: bez tabel i myślników. Uruchamia migracja '2026-11_it_portal_rola_it_article'.
  */
 
@@ -29,7 +30,7 @@ function itPortalRolaItApply(string $app, bool $dryRun = false): array {
     }
     $sort = $old ? (int)$old['sort_order'] : (int)(db_one("SELECT COALESCE(MAX(sort_order), 0) + 10 AS s FROM itp_articles WHERE category_id = ?", [$catId])['s'] ?? 10);
     itPortalArticleSave(['title' => $title, 'slug' => ITP_ROLA_IT_SLUG, 'category_id' => $catId, 'keywords' => $keywords,
-        'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => 0, 'sort_order' => $sort, 'it_only' => 0,
+        'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => 0, 'sort_order' => $sort, 'it_only' => -1,   // dla wszystkich, choć usługa „Koordynatorzy IT” jest tylko dla IT
         'related' => array_values(array_unique(array_merge(itPortalIds($old['related'] ?? '[]'), $rel)))], $old ? (int)$old['id'] : 0);
     return $rep;
 }
@@ -47,7 +48,9 @@ function itPortalRolaItArticle(string $app): array {
         [
             ['type' => 'text', 'html' => '<p>Część artykułów w Pomocy IT jest przeznaczona dla działu IT. Opisują na przykład ustawienia serwera '
                 . 'i logowania jednokrotnego w <a href="' . $ank . '">Ankieterze</a>. Treść takiego artykułu widzą administratorzy SZO '
-                . 'i osoby, którym nadano rolę IT. Pozostali zobaczą tytuł i komunikat „Artykuł dla działu IT”.</p>'],
+                . 'i osoby, którym nadano rolę IT. Pozostali zobaczą tytuł i komunikat „Artykuł dla działu IT”.</p>'
+                . '<p>Tak samo działają całe usługi przeznaczone tylko dla IT, czyli takie, przy których w „Dla kogo” jest wyłącznie grupa IT, '
+                . 'na przykład „Koordynatorzy IT”. Ich artykuły są domyślnie tylko dla osób z rolą IT. Ten artykuł jest wyjątkiem i może go przeczytać każdy.</p>'],
 
             ['type' => 'text', 'html' => '<h2>Widzisz komunikat zamiast treści</h2>'
                 . '<p>Jeśli nie jesteś zalogowany(-a) do SZO, kliknij w komunikacie „zaloguj się do SZO”. Po zalogowaniu wrócisz do tego samego artykułu. '
@@ -68,10 +71,14 @@ function itPortalRolaItArticle(string $app): array {
             ['type' => 'text', 'html' => '<p>Żeby odebrać rolę, odznacz pole „IT” w tym samym miejscu. Administrator widzi artykuły dla działu IT zawsze, '
                 . 'więc jemu roli nadawać nie trzeba. Każda zmiana zapisuje się w historii konta.</p>'],
 
-            ['type' => 'text', 'html' => '<h2>Jak oznaczyć artykuł jako przeznaczony dla IT</h2>'
+            ['type' => 'text', 'html' => '<h2>Jak ustawić, kto czyta artykuł</h2>'
                 . '<p>Otwórz <a href="' . $panel . '">panel Portalu Usług IT</a> (w menu SZO: Obsługa, Portal Usług IT) i wybierz artykuł do edycji. '
-                . 'Zaznacz „Tylko dla IT” i zapisz. Od tej chwili treść artykułu zobaczą tylko administratorzy i osoby z rolą IT.</p>'
-                . '<p>Tytuł artykułu dalej widać w menu usługi. Dzięki temu każdy wie, że taki artykuł istnieje i do kogo się zwrócić.</p>'],
+                . 'W polu „Kto czyta treść” są trzy możliwości.</p><ul>'
+                . '<li>„Jak usługa” to ustawienie domyślne. Jeśli jedyną grupą usługi jest IT, artykuł jest tylko dla IT, a w pozostałych usługach dla wszystkich.</li>'
+                . '<li>„Tylko dla IT” zamyka pojedynczy artykuł w usłudze dla wszystkich, tak jak artykuły techniczne o Ankieterze.</li>'
+                . '<li>„Wszyscy, także w usłudze dla IT” otwiera pojedynczy artykuł w usłudze tylko dla IT, tak jak ten artykuł.</li></ul>'
+                . '<p>Całą usługę zamkniesz w jej edycji: w „Dla kogo” zostaw zaznaczoną tylko grupę IT. Dotyczy to też nowych usług.</p>'
+                . '<p>Tytuły zamkniętych artykułów dalej widać w menu usługi. Dzięki temu każdy wie, że taki artykuł istnieje i do kogo się zwrócić.</p>'],
 
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Rola IT otwiera tylko artykuły w Pomocy IT. Nie daje dostępu do innych modułów SZO, '
                 . 'do serwerów ani do haseł. Te uprawnienia nadaje się osobno.</p>'],

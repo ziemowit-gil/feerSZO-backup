@@ -2275,4 +2275,14 @@ return [
         },
     ],
 
+    // Pomoc IT: usługi z samą grupą „IT” domyślnie tylko dla roli IT; artykuł „Rola IT” otwarty dla wszystkich (it_only = -1) i opisuje to (2026-11-14).
+    '2026-11_it_portal_it_services_locked' => [
+        'desc' => 'Portal Usług IT: usługi tylko dla grupy IT wymagają roli IT, artykuł „Rola IT” otwarty i zaktualizowany',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalRolaItSeed.php';
+            itPortalRolaItApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
