@@ -96,9 +96,9 @@ function itPortalDpocztaMenuGroups(): array {
     return [
         'adres-i-haslo' => [$g1, 8], 'konta-funkcyjne' => [$g1, 15], 'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13], 'preferencje' => [$g1, 14],
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
-        'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
+        'wiadomosci' => [$g3, 29], 'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
-        'poczta-w-telefonie' => [$g5, 50], 'kontakty' => [$g5, 51], 'kontakty-import-eksport' => [$g5, 52], 'kalendarz' => [$g5, 54], 'jitsi-meet' => [$g5, 55], 'folder-wyslane' => [$g5, 53],
+        'poczta-w-telefonie' => [$g5, 50], 'kontakty' => [$g5, 51], 'kontakty-import-eksport' => [$g5, 52], 'kalendarz' => [$g5, 54], 'jitsi-meet' => [$g5, 55], 'fathom' => [$g5, 56], 'folder-wyslane' => [$g5, 53],
         'duze-zalaczniki' => [$g6, 60], 'transfernow-wetransfer' => [$g6, 61],
     ];
 }
@@ -226,6 +226,7 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<li><a href="' . $base . 'ustawienia-poczty">Ważne ustawienia</a>: język, odświeżanie, wiadomości HTML, autozapis i automatyczna stopka.</li>'
                 . '<li><a href="' . $base . 'preferencje">Wszystkie Preferencje</a>: każdy dział ustawień po kolei, z tym, co polecamy.</li></ul>'],
             ['type' => 'text', 'html' => '<h2>Pisanie wiadomości</h2><ul>'
+                . '<li><a href="' . $base . 'wiadomosci">Wiadomości</a>: czytanie, pisanie, odpowiadanie, załączniki i porządkowanie.</li>'
                 . '<li><a href="' . $base . 'generator-stopki">Generator stopki</a>: obowiązkowa stopka Fundacji z Twoimi danymi.</li>'
                 . '<li><a href="' . $base . 'podpis-w-poczcie">Podpis (Tożsamości)</a>: wklejenie stopki, nazwa nadawcy i dodatkowe adresy.</li>'
                 . '<li><a href="' . $base . 'szablony-odpowiedzi">Odpowiedzi</a>: gotowe teksty do wstawiania w wiadomości.</li>'
@@ -245,6 +246,7 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<li><a href="' . $base . 'kontakty">Kontakty</a>: książki adresowe, grupy i nowe kontakty.</li>'
                 . '<li><a href="' . $base . 'kalendarz">Kalendarz</a>: spotkania, zaproszenia, udostępnianie i synchronizacja z telefonem. Zastępuje kalendarz z Outlooka.</li>'
                 . '<li><a href="' . $base . 'jitsi-meet">Jitsi Meet</a>: szybkie, doraźne spotkanie wideo przez link. Zwykłe spotkania prowadzimy na Zoomie.</li>'
+                . '<li><a href="' . $base . 'fathom">Fathom</a>: nagrywanie i notatki ze spotkań, podłączony do konta edukacja@feer.org.pl.</li>'
                 . '<li><a href="' . $base . 'poczta-w-telefonie">Poczta w telefonie i programach</a>: dane serwera do Outlooka, Thunderbirda i telefonu.</li>'
                 . '<li><a href="' . $base . 'folder-wyslane">Folder Wysłane</a>: żeby wysłane z programu były widoczne wszędzie.</li></ul>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Z „Zadań” w dPoczcie nie korzystamy, zadania są w SZO w module <a href="' . $app . '/tasks/">Zadania</a>. '
@@ -557,6 +559,7 @@ function itPortalDpocztaArticles(string $app): array {
 
         'jitsi-meet' => ['Szybkie spotkanie online: Jitsi Meet', 'spotkanie online, wideorozmowa, rozmowa wideo, zoom, licencja zoom, jitsi, jitsi meet, meet.jit.si, teams, zoom, link do spotkania, szybkie spotkanie', [
             ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Spotkania w Fundacji prowadzimy przede wszystkim na Zoomie, na który mamy dwie licencje. '
+                . 'Spotkania szkoleniowe zakładają się na Zoomie same przy dodaniu grupy i mają stały link, a dydaktyk może je też założyć w swoim panelu. '
                 . 'Jitsi Meet to szybkie rozwiązanie na doraźną rozmowę, gdy Zoom jest zajęty albo nie ma czasu na umawianie. Więcej informacji o Zoomie opublikujemy wkrótce.</p>'],
             ['type' => 'text', 'html' => '<p>Gdy potrzebujesz szybko porozmawiać z kimś przez wideo, możesz skorzystać z <a href="https://meet.jit.si/">Jitsi Meet</a>. '
                 . 'To darmowa usługa do spotkań online. Działa w przeglądarce, bez instalowania programu, a uczestnicy nie potrzebują żadnego konta. Wystarczy im link.</p>'],
@@ -571,6 +574,58 @@ function itPortalDpocztaArticles(string $app): array {
                 . 'albo poczekalnię, w której zatwierdzasz każdego wchodzącego. Na telefonie wygodniej jest w aplikacji Jitsi Meet ze sklepu.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Jitsi Meet to publiczna usługa zewnętrzna. Nadaje się do szybkich, zwykłych rozmów. Przy rozmowach o danych osobowych albo sprawach poufnych '
                 . 'ustaw hasło do spotkania i nie nagrywaj go. Jeśli potrzebujesz stałego narzędzia do takich spotkań, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+        ], false],
+
+        'wiadomosci' => ['Wiadomości w dPoczcie: pisanie, odpowiadanie, załączniki', 'wiadomość, nowa wiadomość, pisanie, utwórz, wyślij, odpowiedz, odpowiedz wszystkim, przekaż, załącznik, dołącz plik, do, dw, udw, kopia, ukryta kopia, temat, kopia robocza, priorytet, potwierdzenie odbioru, etykiety, oznacz, przeczytane, przenieś, archiwizuj, usuń, kosz, drukuj, szukaj', [
+            ['type' => 'text', 'html' => '<p>Tu opisujemy codzienną pracę z wiadomościami w dPoczcie: czytanie, pisanie, odpowiadanie, załączniki i porządkowanie. '
+                . 'Co jest gdzie na ekranie, pokazuje artykuł <a href="' . $base . 'dpoczta-co-jest-co">dPoczta.pl: co jest co</a>.</p>'],
+            ['type' => 'text', 'html' => '<h2>Czytanie</h2>'
+                . '<p>Kliknij wiadomość na liście, a jej treść pojawi się po prawej. Dwukrotne kliknięcie otwiera ją na całym ekranie. Pogrubione wiadomości są nieprzeczytane. '
+                . 'Załączniki są pod nagłówkiem wiadomości. Kliknij załącznik, żeby go podejrzeć albo pobrać.</p>'
+                . '<p>Obrazki z obcych serwerów są domyślnie zablokowane. Jeśli ufasz nadawcy, pozwól na nie przyciskiem nad treścią wiadomości.</p>'],
+            ['type' => 'wizard', 'title' => 'Nowa wiadomość', 'intro' => '', 'steps' => [
+                $step('Kliknij Utwórz', '<p>Kliknij duży przycisk „Utwórz” na górze listy folderów. Otworzy się okno nowej wiadomości ze stopką na dole.</p>'),
+                $step('Adresaci', '<p>W polu „Do” wpisz adres albo pierwsze litery nazwiska. Poczta podpowie adresy z kontaktów. Ikona osób obok otwiera książkę adresową, '
+                    . 'a plus dodaje pola „Dw” (kopia), „Udw” (ukryta kopia) i „Odpowiedź do”. Gdy piszesz do wielu osób spoza Fundacji, wpisz je w „Udw”, żeby nie widziały nawzajem swoich adresów.</p>'),
+                $step('Temat i treść', '<p>Wpisz „Temat” i treść. Pasek nad treścią formatuje tekst: pogrubienie, listy, wyrównanie, krój i wielkość liter, kolor, linki. '
+                    . 'Pole „Od” pozwala wybrać inną tożsamość, na przykład adres funkcyjny.</p>'),
+                $step('Załączniki', '<p>Plik dodasz przyciskiem „Dołącz plik” w kolumnie „Opcje i załączniki” po prawej albo przeciągając go myszą do ramki ze strzałką. '
+                    . 'Poczta przyjmie plik do 2 GB, ale serwer odbiorcy zwykle przyjmuje dużo mniej, więc większe pliki wysyłaj linkiem, jak opisuje artykuł '
+                    . '<a href="' . $base . 'duze-zalaczniki">Duże załączniki</a>.</p>'),
+                $step('Wyślij', '<p>Kliknij „Wyślij” pod treścią. Kopia trafi do folderu „Wysłane”. Pisaną wiadomość poczta co minutę zapisuje w „Kopiach roboczych”, '
+                    . 'więc możesz do niej wrócić. Ikona dyskietki na górze zapisuje ją od razu.</p>'),
+            ]],
+            ...itPortalDpocztaShot('dp-nowa-wiadomosc.jpg', 'Okno nowej wiadomości w dPoczcie: pola Od, Do, Temat, edytor ze stopką Fundacji, przyciski Wyślij i Otwórz w nowym oknie; po prawej Opcje i załączniki: Dołącz plik do 2 GB, przełączniki Podpisz, Szyfruj, Załącz klucz publiczny, Potwierdzenie odbioru, Status dostarczenia, Zachowaj formatowanie, Priorytet, Zapisz wiadomość w', 'Okno nowej wiadomości ze stopką i kolumną „Opcje i załączniki”.'),
+            ['type' => 'text', 'html' => '<h2>Opcje i przyciski w oknie pisania</h2>'
+                . '<p>Na górze okna są cztery ikony: dyskietka zapisuje kopię roboczą, spinacz dodaje załącznik, pióro wstawia podpis, a zakładka wstawia gotową odpowiedź z „Odpowiedzi”.</p>'
+                . '<p>W kolumnie „Opcje i załączniki” są przełączniki. „Potwierdzenie odbioru” prosi odbiorcę o informację, że przeczytał wiadomość. Używaj go rzadko. '
+                . '„Priorytet” oznacza wiadomość jako pilną. „Zapisz wiadomość w” wskazuje folder na kopię wysłanej wiadomości, zwykle „Wysłane”. '
+                . 'Przełączniki „Podpisz wiadomość”, „Szyfruj wiadomość” i „Załącz mój klucz publiczny” dotyczą PGP, z którego korzysta Zarząd.</p>'
+                . '<p>„Otwórz w nowym oknie” przenosi pisanie do osobnego okna przeglądarki, żeby w tym czasie przeglądać pocztę.</p>'],
+            ['type' => 'text', 'html' => '<h2>Odpowiadanie i przekazywanie</h2>'
+                . '<p>Nad otwartą wiadomością kliknij „Odpowiedz”, żeby odpisać nadawcy, albo „Odpowiedz wszystkim”, żeby odpisać nadawcy i wszystkim adresatom. '
+                . 'Zastanów się, czy wszyscy naprawdę potrzebują Twojej odpowiedzi. „Przekaż” wysyła wiadomość dalej. Strzałka obok pozwala przekazać ją jako załącznik, z oryginalnymi nagłówkami.</p>'],
+            ['type' => 'text', 'html' => '<h2>Porządkowanie</h2>'
+                . '<p>Wiadomość przeniesiesz do folderu, przeciągając ją myszą na folder po lewej. „Archiwizuj” odkłada ją do Archiwum, a „Usuń” do Kosza, skąd jeszcze ją odzyskasz. '
+                . '„Oznacz jako spam”, ikona płomienia, przenosi ją do Spamu. Ikona metki dodaje etykietę, na przykład „Ważne”. '
+                . 'Trzy kropki mają resztę działań: oznaczenie jako nieprzeczytane, drukowanie, pobranie, przeniesienie, kopiowanie i utworzenie filtra.</p>'
+                . '<p>Kilka wiadomości zaznaczysz, przytrzymując Ctrl (na Macu Cmd) i klikając je na liście. Działania wykonasz wtedy na wszystkich naraz.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Zanim klikniesz link albo otworzysz załącznik, sprawdź nadawcę. Fałszywe wiadomości często udają bank, kuriera albo Fundację i proszą o hasło lub przelew. '
+                . 'Podejrzaną wiadomość zgłoś w <a href="' . $hd . '">Helpdesku IT</a>, dołączając jej źródło, jak opisuje artykuł „co jest co”.</p>'],
+        ], false],
+
+        'fathom' => ['Fathom: notatki ze spotkań online', 'fathom, spotkania szkoleniowe, grupa, stały link, dydaktyk, notatki ze spotkań, nagrywanie spotkań, transkrypcja, podsumowanie, ai, sztuczna inteligencja, zoom, edukacja@feer.org.pl, notetaker', [
+            ['type' => 'text', 'html' => '<p><a href="https://www.fathom.ai/">Fathom</a> to narzędzie, które dołącza do spotkania online, nagrywa je i przygotowuje notatki: '
+                . 'zapis rozmowy, krótkie podsumowanie i listę ustaleń. Dzięki temu nikt nie musi notować w trakcie spotkania.</p>'
+                . '<p>W Fundacji Fathom jest domyślnie podłączony do konta <code>edukacja@feer.org.pl</code>. Działa na spotkaniach prowadzonych z tego konta, a notatki trafiają do tego konta.</p>'
+                . '<p>Spotkania szkoleniowe na Zoomie zakładają się automatycznie, gdy w systemie dodawana jest grupa szkoleniowa, i mają stały link, ten sam na wszystkie zajęcia grupy. '
+                . 'Spotkanie może też założyć dydaktyk w swoim panelu, w panelu kursanta.</p>'],
+            ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Gdy Fathom nagrywa spotkanie, na początku powiedz o tym wszystkim uczestnikom. Nagranie i zapis rozmowy to dane osobowe uczestników. '
+                . 'Jeśli ktoś się nie zgadza albo rozmawiacie o sprawach poufnych, na przykład o zdrowiu czy sprawach kadrowych, wyłącz nagrywanie dla tego spotkania.</p>'],
+            ['type' => 'text', 'html' => '<p>Notatki z Fathom sprawdź, zanim je komuś wyślesz. Automatyczny zapis bywa niedokładny, zwłaszcza przy nazwiskach i liczbach. '
+                . 'Więcej informacji o Fathom i Zoomie, w tym o tym, kto ma dostęp do notatek, opublikujemy wkrótce.</p>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Szybkie spotkania bez umawiania opisuje artykuł <a href="' . $base . 'jitsi-meet">Szybkie spotkanie online: Jitsi Meet</a>. '
+                . 'Z pytaniami <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
         ], false],
 
         'generator-stopki' => ['Obowiązkowa stopka: jak ją wygenerować', 'stopka, podpis, generator stopki, obowiązkowa stopka, wzór stopki, dane organizacji, nip, krs, social, facebook, instagram, linkedin', [

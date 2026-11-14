@@ -1820,4 +1820,17 @@ return [
         },
     ],
 
+    // „Moja poczta”: artykuły „Wiadomości w dPoczcie” (ze zrzutem okna pisania) i „Fathom: notatki ze spotkań online” (domyślnie podłączony do
+    // edukacja@feer.org.pl), pozycje w spisie funkcji (polecenia 2026-11-14: „opisz wiadomości w dPoczcie”, „nowa rzecz fathom.ai”; spotkania
+    // szkoleniowe zakładane automatycznie przy dodaniu grupy, stały link, albo z roli dydaktyka w panelu).
+    '2026-11_it_portal_dpoczta_messages_fathom' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: wiadomości i Fathom',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];
