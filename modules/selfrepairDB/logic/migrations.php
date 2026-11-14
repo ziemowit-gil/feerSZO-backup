@@ -1771,4 +1771,16 @@ return [
         },
     ],
 
+    // „Moja poczta”: podstrona „dPoczta: spis funkcji” z linkami do wszystkich instrukcji, pierwsza w grupie „Pierwsze kroki”, przypięta na Start
+    // (polecenie 2026-11-14: „zróbmy podstronę dPoczta, spis funkcji”).
+    '2026-11_it_portal_dpoczta_features' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: spis funkcji dPoczty',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalDpocztaApply(ITP_SZO_URL);
+            itPortalDpocztaMenuApply();
+        },
+    ],
+
 ];

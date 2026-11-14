@@ -94,7 +94,7 @@ function itPortalDpocztaMenuGroups(): array {
     $g1 = 'Pierwsze kroki'; $g2 = 'Hasło i bezpieczeństwo'; $g3 = 'Stopka i pisanie wiadomości'; $g4 = 'Porządek w skrzynce';
     $g5 = 'Telefon, programy, kontakty i kalendarz'; $g6 = 'Załączniki i duże pliki';
     return [
-        'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13],
+        'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13],
         'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
         'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
@@ -145,6 +145,7 @@ function itPortalDpocztaArticles(string $app): array {
     } catch (\Throwable $e) {}
     $transfer = $app . '/uslugi-it/uslugi/moja-poczta/transfernow-wetransfer';
     $kb = 'https://dhosting.pl/pomoc/baza-wiedzy/';   // baza wiedzy dostawcy poczty
+    $base = $app . '/uslugi-it/uslugi/moja-poczta/';
 
     return [
         'logowanie-dpoczta' => ['Jak zalogować się do poczty', 'logowanie, login, hasło, sms, dpoczta, webmail, migracja, nowa poczta, imie.nazwisko, witamy w dpoczta.pl, nazwa użytkownika, nie pamiętasz hasła, sesja została zakończona', [
@@ -163,6 +164,38 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<p>Pod przyciskiem „Zaloguj” jest link „Nie pamiętasz hasła?”. Nie korzystaj z niego. Zapomniane hasło do poczty zmienisz na stronie '
                 . '<a href="' . $app . '/nowehaslo">Nowe hasło</a> w SZO, bo tylko tam hasło zapisuje się we wszystkich miejscach.</p>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie masz SMS-a albo hasło nie działa? <a href="' . $hd . '">Zgłoś to w Helpdesku</a>, nadamy nowe hasło.</p>'],
+        ], true],
+
+        'dpoczta-funkcje' => ['dPoczta: spis funkcji', 'dpoczta, spis funkcji, funkcje, co potrafi, lista, mapa, wszystkie instrukcje, poczta, spis treści', [
+            ['type' => 'text', 'html' => '<p>Tu znajdziesz wszystko, co potrafi dPoczta, w jednym miejscu. Przy każdej funkcji jest jedno zdanie, do czego służy, i link do instrukcji krok po kroku.</p>'],
+            ['type' => 'text', 'html' => '<h2>Na start</h2><ul>'
+                . '<li><a href="' . $base . 'logowanie-dpoczta">Logowanie</a>: pełny adres e-mail i hasło do poczty, na stronie dpoczta.pl.</li>'
+                . '<li><a href="' . $base . 'dpoczta-co-jest-co">Co jest co na ekranie</a>: foldery, lista wiadomości, przyciski i ustawienia.</li>'
+                . '<li><a href="' . $base . 'dpoczta-a-outlook">Różnice względem Outlooka</a>: gdzie znaleźć to, co znasz z Microsoft 365.</li>'
+                . '<li><a href="' . $base . 'ustawienia-poczty">Ważne ustawienia</a>: język, odświeżanie, wiadomości HTML, autozapis i automatyczna stopka.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Pisanie wiadomości</h2><ul>'
+                . '<li><a href="' . $base . 'generator-stopki">Generator stopki</a>: obowiązkowa stopka Fundacji z Twoimi danymi.</li>'
+                . '<li><a href="' . $base . 'podpis-w-poczcie">Podpis (Tożsamości)</a>: wklejenie stopki, nazwa nadawcy i dodatkowe adresy.</li>'
+                . '<li><a href="' . $base . 'szablony-odpowiedzi">Odpowiedzi</a>: gotowe teksty do wstawiania w wiadomości.</li>'
+                . '<li><a href="' . $base . 'autoresponder">Autoresponder</a>: automatyczna odpowiedź na czas urlopu.</li>'
+                . '<li><a href="' . $base . 'duze-zalaczniki">Duże załączniki</a>: kiedy wysłać link zamiast pliku.</li>'
+                . '<li><a href="' . $base . 'transfernow-wetransfer">TransferNow i WeTransfer</a>: bardzo duże pliki dla osób spoza Fundacji.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Porządek w skrzynce</h2><ul>'
+                . '<li><a href="' . $base . 'filtry-i-przekierowanie">Filtry</a>: automatyczne przenoszenie, kopiowanie i przekazywanie wiadomości.</li>'
+                . '<li><a href="' . $base . 'spam-i-zaufani-nadawcy">CleanBox</a>: filtr spamu, zaufani i zablokowani nadawcy.</li>'
+                . '<li><a href="' . $base . 'powiadomienia-o-poczcie">Powiadomienia</a>: dźwięk i powiadomienie o nowej wiadomości.</li>'
+                . '<li><a href="' . $base . 'problemy-z-odbiorem">Gdy wiadomości nie dochodzą</a>: lista rzeczy do sprawdzenia.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Hasło i bezpieczeństwo</h2><ul>'
+                . '<li><a href="' . $base . 'zmiana-hasla-poczty">Zmiana hasła</a>: tylko w SZO, na stronie Nowe hasło.</li>'
+                . '<li><a href="' . $base . 'weryfikacja-dwuetapowa">Weryfikacja dwuetapowa</a>: dodatkowy kod przy logowaniu. Zachęcamy do włączenia.</li>'
+                . '<li><a href="' . $base . 'szyfrowanie-pgp">Szyfrowanie PGP</a>: szyfrowane wiadomości, dla Zarządu.</li></ul>'],
+            ['type' => 'text', 'html' => '<h2>Kontakty, kalendarz i inne urządzenia</h2><ul>'
+                . '<li><a href="' . $base . 'kontakty">Kontakty</a>: książki adresowe, grupy i nowe kontakty.</li>'
+                . '<li><a href="' . $base . 'kalendarz">Kalendarz</a>: spotkania, zaproszenia, udostępnianie i synchronizacja z telefonem. Zastępuje kalendarz z Outlooka.</li>'
+                . '<li><a href="' . $base . 'poczta-w-telefonie">Poczta w telefonie i programach</a>: dane serwera do Outlooka, Thunderbirda i telefonu.</li>'
+                . '<li><a href="' . $base . 'folder-wyslane">Folder Wysłane</a>: żeby wysłane z programu były widoczne wszędzie.</li></ul>'],
+            ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Z „Zadań” w dPoczcie nie korzystamy, zadania są w SZO w module <a href="' . $app . '/tasks/">Zadania</a>. '
+                . 'Import i eksport kontaktów jest tylko dla Koordynatorów IT. Brakuje Ci czegoś na tej liście? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],
         ], true],
 
         // 2026-11-14: hasło do poczty TYLKO przez SZO (/nowehaslo) — zmiana w dpoczta.pl nie synchronizuje się z SZO
