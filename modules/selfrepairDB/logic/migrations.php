@@ -1327,4 +1327,15 @@ return [
         },
     ],
 
+    // „Chmura plików”: uwaga, że chmura może działać wolno, bo to serwer przedwdrożeniowy (polecenie 2026-11-14), we wstępie i w ramce „Ważne”
+    // każdego artykułu. Ponowny zapis wstępu i wszystkich artykułów usługi.
+    '2026-11_it_portal_cloud_slow' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: uwaga o wolnym działaniu serwera przedwdrożeniowego',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
