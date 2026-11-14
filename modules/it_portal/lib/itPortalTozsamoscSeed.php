@@ -5,6 +5,7 @@
  * Urządzenia i logowania, Usługi, Logowanie jednokrotne, Kod IKA (gdy jest), Moje dane (RODO), Pomoc i informacje, Administracja
  * dla admina; $sec_items: Hasło, Telefon do SMS, Weryfikacja dwuskładnikowa, Klucz bezpieczeństwa), tozsamosc/login.php (osobne
  * logowanie), tozsamosc/mfa.php, modules/account_security (urządzenia, „To nie ja”, powiadomienia), modules/sso_logto/view/userSection.php.
+ * 2026-11-14: sekcja „Czym jest Entra ID” („Tożsamość do niedawna obsługiwało Entra od MS, opisz czym jest Entra”).
  * Ramka ITP_STAN_NA. Używa migracja '2026-11_it_portal_tozsamosc'.
  */
 
@@ -26,7 +27,7 @@ function itPortalTozsamoscApply(string $app): string {
         if (!in_array((int)$r['id'], $related, true)) $related[] = (int)$r['id'];
     }
     itPortalArticleSave(['title' => $title, 'slug' => $slug, 'category_id' => $catId,
-        'keywords' => 'system tożsamości, tożsamość, tozsamosc, moje konto, dane konta, uid, identyfikator sieciowy, zabezpieczenia, hasło, telefon do sms, weryfikacja dwuskładnikowa, mfa, 2fa, klucz bezpieczeństwa, passkey, urządzenia i logowania, to nie ja, wyloguj wszędzie, usługi, logowanie jednokrotne, kod ika, rodo, moje dane, rejestr czynności',
+        'keywords' => 'entra, entra id, azure active directory, azure ad, microsoft entra, identyfikator obiektu entra id, system tożsamości, tożsamość, tozsamosc, moje konto, dane konta, uid, identyfikator sieciowy, zabezpieczenia, hasło, telefon do sms, weryfikacja dwuskładnikowa, mfa, 2fa, klucz bezpieczeństwa, passkey, urządzenia i logowania, to nie ja, wyloguj wszędzie, usługi, logowanie jednokrotne, kod ika, rodo, moje dane, rejestr czynności',
         'blocks' => json_encode(itPortalTozsamoscBlocks($app), JSON_UNESCAPED_UNICODE), 'is_published' => 1, 'is_pinned' => 1, 'sort_order' => 3,
         'related' => $related], $old ? (int)$old['id'] : 0);
     return "moj-login/{$slug} — {$title} (" . ($old ? 'nadpisany' : 'utworzony') . ')';
@@ -69,8 +70,12 @@ function itPortalTozsamoscBlocks(string $app): array {
             . '<p>Sekcja pokazuje ostatnie logowania i zapamiętane urządzenia. Jeśli nie rozpoznajesz jakiegoś logowania, kliknij „To nie ja”. Wylogujemy wtedy wszystkie inne urządzenia, a zgłoszenie potwierdzimy e-mailem. Potem zmień hasło. '
             . 'Przyciskiem „Wyloguj wszystkie inne” zamkniesz sesje na pozostałych urządzeniach także bez zgłoszenia. W tej samej sekcji ustawisz, kiedy wysyłamy Ci powiadomienie o nowym logowaniu.</p>'],
 
-        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>W danych konta może być jeszcze pole „Login Microsoft 365”. Po wyłączeniu Microsoft 365 nie będzie potrzebne. '
-            . 'Do aplikacji Fundacji logujesz się kontem IAM, opisanym w artykule <a href="' . $b . 'iam">IAM: czym jest i jakie są moje dane logowania</a>.</p>'],
+        ['type' => 'text', 'html' => '<h2>Czym jest Entra ID i co ma wspólnego z Systemem Tożsamości</h2>'
+            . '<p>Entra ID to usługa firmy Microsoft, która przechowuje konta i hasła do Microsoft 365. Wcześniej nazywała się Azure Active Directory. '
+            . 'Dzięki niej jednym kontem logowałeś się do Outlooka, Teams i OneDrive.</p>'
+            . '<p>Do niedawna System Tożsamości działał właśnie na Entra ID. Gdy zmieniałeś tu hasło, zmieniało się ono też w Microsoft 365. '
+            . 'Teraz odchodzimy od Microsoft 365, więc tę rolę przejmuje nasze własne konto IAM. Entra ID zostaje tylko dla administratorów, dopóki Microsoft 365 całkiem nie zniknie.</p>'
+            . '<p>Dlatego w danych konta możesz jeszcze zobaczyć pola „Login Microsoft 365” i „Identyfikator obiektu Entra ID”. To ślad po starym systemie. Nie musisz nic z nimi robić.</p>'],
 
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Widzisz w Systemie Tożsamości błędne dane, na przykład złe imię albo rolę? Nie zmieniaj ich na własną rękę, tylko <a href="' . $hd . '">napisz do Helpdesku IT</a>. '
             . 'Dane osobowe, takie jak telefon, adres i rachunek, zmieniasz w Panelu współpracownika.</p>'],

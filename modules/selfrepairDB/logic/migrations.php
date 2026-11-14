@@ -2074,4 +2074,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „System Tożsamości”: sekcja „Czym jest Entra ID” — polecenie 2026-11-14. Ponowne zastosowanie itPortalTozsamoscSeed.php.
+    '2026-11_it_portal_tozsamosc_entra' => [
+        'desc' => 'Portal Usług IT, „System Tożsamości”: Entra ID',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalTozsamoscSeed.php';
+            itPortalTozsamoscApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
