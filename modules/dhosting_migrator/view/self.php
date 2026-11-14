@@ -101,7 +101,7 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
     <div>
       <div class="mt-kicker">Poczta Fundacji</div>
       <h1 class="mt-title">Migracja poczty</h1>
-      <p class="mt-lead">Zakładasz nową skrzynkę z tym samym adresem e-mail. Hasło przyjdzie SMS-em, a poczta z Microsoft 365 przeniesie się sama.</p>
+      <p class="mt-lead">Nowa skrzynka z tym samym adresem. Hasło przyjdzie SMS-em, poczta przeniesie się sama.</p>
     </div>
   </div>
   <?php endif; ?>
@@ -190,29 +190,28 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
     <div class="mt-grid dm-logins" role="list" aria-label="Dane do logowania">
       <div class="mt-tile dm-static" role="listitem" style="--c:var(--m-blue)">
         <i class="bi bi-person ic" aria-hidden="true"></i>
-        <div><span class="val"><?= h((string)($st['mailbox'] ?? '')) ?></span><span class="lbl">Login, czyli Twój adres e-mail</span></div>
+        <div><span class="val"><?= h((string)($st['mailbox'] ?? '')) ?></span><span class="lbl">Login</span></div>
       </div>
       <div class="mt-tile dm-static" role="listitem" style="--c:var(--m-indigo)">
         <i class="bi bi-phone ic" aria-hidden="true"></i>
-        <div><span class="val">Hasło z SMS-a</span><span class="lbl"><?= $smsTo !== '' ? 'wysłane na numer ' . h($smsTo) : 'albo od administratora' ?><?= !empty($reg['sms_at']) ? ', ' . h(date('d.m.Y', strtotime((string)$reg['sms_at']))) : '' ?></span></div>
+        <div><span class="val">Hasło z SMS-a</span><span class="lbl"><?= $smsTo !== '' ? 'na numer ' . h($smsTo) : 'od administratora' ?><?= !empty($reg['sms_at']) ? ', ' . h(date('d.m.Y', strtotime((string)$reg['sms_at']))) : '' ?></span></div>
       </div>
       <a class="mt-tile" role="listitem" style="--c:var(--m-green)" href="<?= h($loginUrl) ?>" target="_blank" rel="noopener">
         <i class="bi bi-box-arrow-up-right ic" aria-hidden="true"></i>
-        <div><span class="val"><?= h($loginHost) ?></span><span class="lbl">Otwórz pocztę w przeglądarce<span class="visually-hidden"> (nowa karta)</span></span></div>
+        <div><span class="val"><?= h($loginHost) ?></span><span class="lbl">Otwórz pocztę<span class="visually-hidden"> (nowa karta)</span></span></div>
       </a>
     </div>
-    <p class="dm-done__tip">W telefonie i programie pocztowym wpisz tylko adres e-mail i hasło, tak jak w Microsoft 365. Resztę ustawień program znajdzie sam.</p>
+    <p class="dm-done__tip">W telefonie i programie wpisz tylko adres e-mail i hasło, jak w Microsoft 365.</p>
     <?php if (!$locked): ?>
       <div class="dm-msg dm-msg--info" role="status"><i class="bi bi-shield-check" aria-hidden="true"></i>
-        <div>Konto jest już zmigrowane. Jako administrator możesz ustawić nowe hasło niżej, a ponowne kopiowanie uruchomisz na <a href="<?= h(rtrim(APP_URL, '/')) ?>/migracjaadmin#kopiowanie">/migracjaadmin</a>.</div></div>
+        <div>Konto zmigrowane. Ponowne kopiowanie: <a href="<?= h(rtrim(APP_URL, '/')) ?>/migracjaadmin#kopiowanie">/migracjaadmin</a>.</div></div>
     <?php endif; ?>
     <?php if ($needPw) echo $copyHtml; // dosyłanie czeka na aktualne hasło: to wymaga działania, więc na wierzchu ?>
   <?php else: ?>
   <div class="mt-imp">
     <div class="mt-imp__item" style="--c:var(--m-blue)">
-      <h2 class="mt-imp__ttl">Co się zmienia</h2>
-      <p class="mt-imp__body"><?php if ($swTxt !== ''): ?><strong>Od <?= h($swTxt) ?></strong> poczta @<?= h($domain) ?> <?= $swPast ? 'działa' : 'będzie działać' ?><?php else: ?>Wkrótce poczta @<?= h($domain) ?> będzie działać<?php endif; ?> u nowego dostawcy.
-        Adres e-mail się nie zmienia. Zrób kroki poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt) : '' ?>, zajmie to około 5 minut.</p>
+      <p class="mt-imp__body"><?php if ($swTxt !== ''): ?><strong>Od <?= h($swTxt) ?></strong> poczta @<?= h($domain) ?> <?= $swPast ? 'działa' : 'będzie działać' ?><?php else: ?>Wkrótce poczta @<?= h($domain) ?> będzie działać<?php endif; ?> na nowym serwerze.
+        Zrób kroki poniżej<?= $swTxt !== '' && !$swPast ? ' przed ' . h($swTxt) : '' ?>, to około 5 minut.</p>
     </div>
   </div>
 
@@ -340,36 +339,35 @@ $stIcon  = ['done' => 'bi-check-circle-fill', 'doing' => 'bi-hourglass-split', '
   // ── Zakładki: [id, etykieta, HTML] ────────────────────────────────────────────────────────────
   $tabs = [];
   ob_start(); ?>
-    <p><?= $migrated ? 'Thunderbird, Outlook i większość aplikacji w telefonie same znajdą serwery poczty.' : (($swTxt !== '' ? ($swPast ? 'Od ' . h($swTxt) : 'Od ' . h($swTxt) . ', nie wcześniej,') : 'Po przełączeniu') . ' dodasz pocztę w telefonie i programie. Thunderbird, Outlook i większość aplikacji same znajdą serwery.') ?>
-      Wpisujesz tylko adres e-mail i hasło do poczty. Jeśli program proponuje logowanie przez konto Microsoft albo Google, pomiń ten krok i wybierz konto IMAP.</p>
+    <p><?= $migrated ? '' : ($swTxt !== '' ? ($swPast ? 'Od ' . h($swTxt) . '. ' : 'Od ' . h($swTxt) . ', nie wcześniej. ') : 'Po przełączeniu. ') ?>Wpisz adres e-mail i hasło, serwery program znajdzie sam.
+      Logowanie przez konto Microsoft albo Google pomiń i wybierz IMAP.</p>
     <details class="dm-more">
-      <summary>Dane do wpisania ręcznie, gdyby program o nie zapytał</summary>
+      <summary>Dane do wpisania ręcznie</summary>
       <?php $cfgBox = (string)($st['mailbox'] ?? ''); include __DIR__ . '/_mailConfig.php'; ?>
     </details>
     <?php if ($migrated): ?>
       <p style="margin-top:.8rem"><a class="mt-btn mt-btn--ghost" href="<?= h(route('dhm.selfPdf')) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Pobierz PDF z danymi logowania</a>
-        <span class="dm-help" style="display:block">Bez haseł. Hasło masz z SMS-a.</span></p>
+        <span class="dm-help" style="display:block">Bez haseł.</span></p>
     <?php endif; ?>
   <?php $tabs[] = ['program', $migrated ? 'Telefon i program' : 'Program pocztowy', (string)ob_get_clean()];
 
   ob_start(); ?>
     <?php if ($migrated): ?>
-      <p>Hasło z SMS-a możesz zmienić na własne. Zaloguj się na <a href="<?= h($loginUrl) ?>" target="_blank" rel="noopener"><?= h($loginHost) ?><span class="visually-hidden"> (nowa karta)</span></a>
-        i zmień je w ustawieniach poczty. Potem wpisz nowe hasło w telefonie i programie.
-        <?php if (!empty($st['sync']['active'])): ?>Jeśli zrobisz to przed <?= h(date('d.m.Y', strtotime((string)$st['sync']['until']))) ?>, podaj nowe hasło na tej stronie, gdy o nie poprosimy. Wtedy dalej dosyłamy wiadomości z Microsoft 365.<?php endif; ?></p>
+      <p>Hasło z SMS-a zmienisz na własne w ustawieniach poczty na <a href="<?= h($loginUrl) ?>" target="_blank" rel="noopener"><?= h($loginHost) ?><span class="visually-hidden"> (nowa karta)</span></a>.
+        <?php if (!empty($st['sync']['active'])): ?>Jeśli zmienisz je przed <?= h(date('d.m.Y', strtotime((string)$st['sync']['until']))) ?>, podaj nowe tutaj, gdy o nie poprosimy, a dosyłanie poczty z Microsoft 365 będzie działać dalej.<?php endif; ?></p>
     <?php endif; ?>
-    <p>Hasło do poczty jest inne niż hasło do Panelu współpracownika (SZO) i do logowania jednokrotnego. Gdy ktoś pozna jedno z nich, nie wejdzie na pozostałe konta.</p>
-    <p>Hasło do skrzynki wysyłamy tylko SMS-em, nigdy e-mailem. Nikt z Fundacji nie poprosi Cię o hasło. Taka prośba to próba oszustwa: zgłoś ją, <?= $helpLink ?>.</p>
+    <p>Hasło do poczty jest inne niż hasło do SZO i do logowania jednokrotnego.</p>
+    <p>Hasło wysyłamy tylko SMS-em. Nikt z Fundacji nie poprosi Cię o hasło. Taką prośbę zgłoś: <?= $helpLink ?>.</p>
   <?php $tabs[] = ['hasla', $migrated ? 'Hasło' : 'Hasła', (string)ob_get_clean()];
 
   if ($migrated && $copyHtml !== '' && !$needPw) $tabs[] = ['kopia', 'Kopia poczty', $copyHtml];
   if ($ssoHtml !== '') $tabs[] = ['sso', 'Logowanie jednokrotne', $ssoHtml];
   if (!$migrated) { ob_start(); $whyCollapsed = false; include __DIR__ . '/_why.php'; $tabs[] = ['why', 'Dlaczego zmiana', (string)ob_get_clean()]; }
-  $tabs[] = ['pomoc', 'Pomoc', '<p>Nie masz hasła albo coś nie działa? ' . ucfirst($helpLink) . '.</p>'];
+  $tabs[] = ['pomoc', 'Pomoc', '<p>' . ucfirst($helpLink) . '.</p>'];
   ?>
   <section class="dm-tabs" aria-labelledby="hMore">
-    <h2 id="hMore" class="mt-h2">Więcej <b>informacji</b></h2>
-    <div class="dm-tabs__list" role="tablist" aria-label="Więcej informacji" hidden>
+    <h2 id="hMore" class="mt-h2">Szczegóły</h2>
+    <div class="dm-tabs__list" role="tablist" aria-label="Szczegóły" hidden>
       <?php foreach ($tabs as $i => [$tid, $tlabel]): ?>
       <button type="button" role="tab" id="tab-<?= $tid ?>" aria-controls="pan-<?= $tid ?>" aria-selected="<?= $i === 0 ? 'true' : 'false' ?>" tabindex="<?= $i === 0 ? '0' : '-1' ?>"><?= h($tlabel) ?></button>
       <?php endforeach; ?>
