@@ -325,6 +325,49 @@ function itPortalPoleceniaItArticles(string $app): array {
                 . 'i podmień go w pęku kluczy lub w magazynie.</p>'),
         ], false],
 
+        'dns-i-autokonfiguracja' => ['DNS feer.org.pl, autokonfiguracja poczty i it.feer.org.pl',
+            'dns, cloudflare, dnscontrol, feer-dns, dnsconfig, strefa, rekord, autokonfiguracja, autoconfig, autodiscover, thunderbird, outlook, '
+            . 'srv, dpoczta, imap, smtp, it.feer.org.pl, przekierowanie, worker, przekierowanie-it, deploy-worker, mydevil, delegacja', [
+            $text('<p>Polecenia z tego artykułu uruchamiasz na swoim komputerze, w katalogu repozytorium feer-dns, a nie na serwerze SZO. '
+                . 'Token Cloudflare musi być zapisany tak, jak opisuje artykuł <a href="' . $app . '/uslugi-it/uslugi/' . ITP_POLECENIA_SLUG . '/tokeny-api-lokalnie">Tokeny API na komputerze: Mac i Windows</a>.</p>'),
+            $text('<h2>DNS strefy feer.org.pl</h2>'
+                . '<p>Strefa feer.org.pl jest w Cloudflare, ale jej rekordów nie zmieniamy w panelu. Źródłem prawdy jest plik <code>dnsconfig.js</code> '
+                . 'w repozytorium feer-dns, a zmiany wysyła program DNSControl:</p>'
+                . $pre("./dnsc check\n./dnsc preview\n./dnsc push")
+                . '<p><code>check</code> sprawdza tylko składnię pliku. <code>preview</code> pokazuje, co zmieni wysyłka, i niczego nie zmienia. '
+                . '<code>push</code> wysyła zmiany. Przed każdym <code>push</code> uruchom <code>preview</code> i przeczytaj listę, zwłaszcza pozycje DELETE. '
+                . '<code>push</code> przywraca stan z pliku, więc rekord dodany albo zmieniony w panelu Cloudflare zniknie albo wróci do wersji z pliku.</p>'
+                . '<p>Część subdomen, między innymi szo, ti, crm i ezd, Cloudflare tylko przekazuje do serwerów DNS MyDevil. '
+                . 'Ich rekordy zmieniasz w panelu MyDevil, a nie w <code>dnsconfig.js</code>.</p>'),
+            $text('<h2>Autokonfiguracja poczty</h2>'
+                . '<p>Programy pocztowe same znajdują serwery dPoczty, gdy osoba wpisze tylko adres e-mail i hasło. Thunderbird pobiera ustawienia z adresu '
+                . '<code>autoconfig.feer.org.pl/mail/config-v1.1.xml</code>. Outlook pyta <code>autodiscover.feer.org.pl</code> o pliki '
+                . '<code>autodiscover.xml</code> i <code>autodiscover.json</code>. Wcześniej ten adres prowadził do Microsoft 365. '
+                . 'Inne programy korzystają z rekordów SRV <code>_imaps._tcp</code>, <code>_pop3s._tcp</code> i <code>_submission._tcp</code>.</p>'
+                . '<p>Wszystkie źródła podają te same dane. IMAP to <code>imap.dpoczta.pl</code>, port 993, SSL. POP3 to <code>pop3.dpoczta.pl</code>, port 995, SSL. '
+                . 'SMTP to <code>smtp.dpoczta.pl</code>, port 587, STARTTLS. Loginem jest pełny adres e-mail.</p>'),
+            $text('<h2>Krótki adres it.feer.org.pl</h2>'
+                . '<p>Adres <code>it.feer.org.pl</code> przekierowuje na <a href="https://szo.feer.org.pl/uslugi-it">Portal Usług IT</a>. '
+                . 'Dalsza część adresu zostaje, więc <code>it.feer.org.pl/uslugi/vpn</code> prowadzi do usługi VPN w portalu.</p>'),
+            $text('<h2>Worker Cloudflare</h2>'
+                . '<p>Autokonfigurację i adres it.feer.org.pl obsługuje Worker „przekierowanie-it” na koncie FEER w Cloudflare '
+                . '(adres testowy <code>przekierowanie-it.kontakt-805.workers.dev</code>). Nie ma za nimi żadnego serwera. '
+                . 'Rekordy autoconfig, autodiscover i it to <code>AAAA 100::</code> z włączonym proxy Cloudflare, a odpowiedzi daje Worker.</p>'
+                . '<p>Kod Workera jest w repozytorium feer-dns, w pliku <code>workers/mail-autoconfig/worker.js</code>. Zmieniony kod wgrasz w panelu Cloudflare '
+                . '(Workers &amp; Pages → przekierowanie-it → Edit code → Deploy) albo poleceniem:</p>'
+                . $pre('./deploy-worker')
+                . '<p>Wgranie z terminala wymaga, żeby token miał też uprawnienie konta <code>Workers Scripts → Edit</code>. '
+                . 'Sam token „dnscontrol” z pęku kluczy ma <code>Zone → Read</code>, <code>DNS → Edit</code> i <code>Workers Routes → Edit</code>. '
+                . 'Gdy kod wgrywasz w panelu, trasy ustawisz osobno, a uprawnienia tokenu sprawdzisz bez żadnych zmian:</p>'
+                . $pre("./deploy-worker --routes-only\n./deploy-worker --check")),
+            $text('<h2>Sprawdzenie na żywo</h2>'
+                . '<p>Autokonfiguracja Thunderbirda powinna wypisać serwery dPoczty, a it.feer.org.pl adres portalu:</p>'
+                . $pre("curl -s \"https://autoconfig.feer.org.pl/mail/config-v1.1.xml\" | grep hostname\ncurl -sI https://it.feer.org.pl/ | grep -i location")),
+            $warn('<p>Niektóre sieci przechwytują zapytania DNS i podają stare odpowiedzi albo żadnych. Gdy wynik się nie zgadza, '
+                . 'sprawdź prawdziwy stan przez DNS Google:</p>'
+                . $pre('curl -s "https://dns.google/resolve?name=autodiscover.feer.org.pl&type=A"')),
+        ], false],
+
         'tresci-pomocy-it' => ['Treści Pomocy IT z poleceń',
             'pomoc it, portal usług it, uslugi-it, seed, zasiew, artykuły, it_portal, migracja, aktualizacja treści', [
             $text('<p>Część artykułów Pomocy IT powstaje z kodu. Każdy taki zestaw ma polecenie, które zapisuje treść od nowa, '

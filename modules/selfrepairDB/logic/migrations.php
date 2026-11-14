@@ -2334,4 +2334,18 @@ return [
         },
     ],
 
+    // DNS feer.org.pl (DNSControl w feer-dns), autokonfiguracja poczty dPoczty (autoconfig, autodiscover, SRV) i it.feer.org.pl przez Worker
+    // Cloudflare „przekierowanie-it”: artykuł dla IT w „Poleceniach administracyjnych” oraz dopisek w „Poczcie w telefonie” (tylko ten artykuł
+    // seeda dPoczty, bez wstępu i ukrywania). Polecenie użytkownika 2026-11-14 „zrób dokumentację na pomoc IT”.
+    '2026-11_it_portal_dns_autokonfiguracja' => [
+        'desc' => 'Portal Usług IT: artykuł IT o DNS, autokonfiguracji poczty i it.feer.org.pl; autokonfiguracja w „Poczcie w telefonie”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalPoleceniaItSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            itPortalPoleceniaItApply(ITP_SZO_URL);
+            itPortalDpocztaApply(ITP_SZO_URL, false, ['poczta-w-telefonie']);
+        },
+    ],
+
 ];

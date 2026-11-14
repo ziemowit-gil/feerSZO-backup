@@ -552,8 +552,13 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<a href="' . $app . '/nowehaslo">Nowe hasło</a>, nie w ustawieniach dpoczta.pl.</p>'],
         ], false],
 
-        'poczta-w-telefonie' => ['Poczta w telefonie, Outlooku i Thunderbirdzie', 'imap, smtp, pop3, telefon, outlook, microsoft 365, pożegnanie z outlookiem, stare konto, office.com, brakująca wiadomość, stara poczta, thunderbird, apple mail, konfiguracja, serwer, port', [
+        'poczta-w-telefonie' => ['Poczta w telefonie, Outlooku i Thunderbirdzie', 'imap, smtp, pop3, telefon, outlook, microsoft 365, pożegnanie z outlookiem, stare konto, office.com, brakująca wiadomość, stara poczta, thunderbird, apple mail, konfiguracja, serwer, port, autokonfiguracja, automatyczna konfiguracja', [
             ['type' => 'callout', 'kind' => 'important', 'html' => itPortalDpocztaOutlookBye()],
+            // Autokonfiguracja (autoconfig, autodiscover, SRV przez Worker Cloudflare „przekierowanie-it”) — 2026-11-14
+            ['type' => 'text', 'html' => '<h2>Najprościej: adres i hasło</h2>'
+                . '<p>Thunderbird, Outlook i większość aplikacji pocztowych w telefonie same znajdą serwery poczty Fundacji. '
+                . 'Wystarczy, że przy dodawaniu konta wpiszesz adres <code>imie.nazwisko@feer.org.pl</code> i hasło do poczty. '
+                . 'Dane do wpisania ręcznie są niżej, gdyby program o nie zapytał.</p>'],
             ['type' => 'text', 'html' => '<p>Pocztę możesz dodać do aplikacji w telefonie albo do programu na komputerze. Wybierz konto typu IMAP i wpisz dane z tabeli.</p>'
                 . '<table><thead><tr><th>Ustawienie</th><th>Wartość</th></tr></thead><tbody>'
                 . '<tr><td>Nazwa użytkownika</td><td><code>imie.nazwisko@feer.org.pl</code></td></tr>'
