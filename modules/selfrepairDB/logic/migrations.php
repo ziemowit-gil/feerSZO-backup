@@ -1014,4 +1014,25 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Chmura plików”: artykuł „Grupy w chmurze” (polecenie 2026-11-14 „zrób też o tym artykuł”): grupy zakładane z SZO
+    // (zespoły i obszary Zadań, Działania, jednostki; CloudTeamsSync co 2 min) i udostępnianie im plików. Tylko ten artykuł (wstęp
+    // i pozostałe bez zmian) + „Zobacz też” w obie strony z „Nextcloud: pierwsze kroki”. modules/it_portal/lib/itPortalCloudSeed.php.
+    '2026-11_it_portal_cloud_groups' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł o grupach w chmurze z SZO',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCloudSeed.php';
+            itPortalCloudArticleApply(ITP_SZO_URL, 'grupy');
+            $q = "SELECT a.id, a.related FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id WHERE c.slug = 'chmura-plikow' AND a.slug = ?";
+            $a = db_one($q, ['grupy']);
+            $b = db_one($q, ['nextcloud']);
+            if ($a && $b) {
+                foreach ([[$a, (int)$b['id']], [$b, (int)$a['id']]] as [$row, $add]) {
+                    $ids = itPortalIds($row['related']);
+                    if (!in_array($add, $ids, true)) { $ids[] = $add; db_exec("UPDATE itp_articles SET related = ? WHERE id = ?", [json_encode($ids), (int)$row['id']]); }
+                }
+            }
+        },
+    ],
+
 ];

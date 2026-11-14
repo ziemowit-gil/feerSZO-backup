@@ -13,6 +13,10 @@
  * albo w Systemie Tożsamości (#sso), kopia OneDrive w folderze „OneDrive” (SsoAccounts::cloudMail, CloudFilesCopy),
  * zmiana hasła na /nowehaslo. Limitu miejsca celowo nie podajemy (ustawienie sso_cloud_quota może się zmieniać).
  *
+ * Artykuł „grupy” (polecenie 2026-11-14 „zrób też o tym artykuł”): grupy w chmurze zakładane z SZO (modules/sso_logto/logic/
+ * CloudTeamsSync.php: zespoły i obszary Zadań, Działania, jednostki organizacyjne; co 2 min) i udostępnianie im plików. Wgrywa go
+ * sam (itPortalCloudArticleApply) migracja '2026-11_it_portal_cloud_groups', bez ruszania wstępu i pozostałych artykułów.
+ *
  * Usługę tworzy, gdy jej nie ma; gdy jest — nadpisuje tylko wstęp. Artykuł: ten sam adres = nadpisanie treści, przypięcie,
  * publikacja i powiązane zostają. Bezpieczne do ponownego uruchomienia. Używa migracja '2026-11_it_portal_cloud'
  * i cli/it_portal_cloud_seed.php.
@@ -53,19 +57,40 @@ function itPortalCloudApply(string $app, bool $dryRun = false): array {
     }
 
     $rep['article'] = [];
-    foreach (itPortalCloudArticles($app) as $slug => [$title, $keywords, $blocks, $pinned, $sort]) {
-        $old = $catId ? db_one("SELECT * FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]) : null;
-        $rep['article'][] = "chmura-plikow/{$slug} — {$title} (" . ($old ? 'nadpisany' : 'utworzony') . ')';
-        if ($dryRun) continue;
-        itPortalArticleSave([
-            'title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
-            'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE),
-            'related' => $old ? (json_decode((string)$old['related'], true) ?: []) : [],
-            'is_published' => $old ? (int)$old['is_published'] : 1, 'is_pinned' => $old ? (int)$old['is_pinned'] : ($pinned ? 1 : 0),
-            'sort_order' => $old ? (int)$old['sort_order'] : $sort,
-        ], $old ? (int)$old['id'] : 0);
-    }
+    foreach (itPortalCloudArticles($app) as $slug => $def) $rep['article'][] = itPortalCloudArticleSave($catId, $slug, $def, $dryRun);
     return $rep;
+}
+
+/**
+ * Zapis jednego artykułu usługi: ten sam adres = nadpisanie treści; przypięcie, publikacja, kolejność i „Zobacz też” zostają.
+ * $def = [tytuł, słowa kluczowe, bloki, przypięty, kolejność]. Zwraca opis do raportu.
+ */
+function itPortalCloudArticleSave(int $catId, string $slug, array $def, bool $dryRun = false): string {
+    [$title, $keywords, $blocks, $pinned, $sort] = $def;
+    $old = $catId ? db_one("SELECT * FROM itp_articles WHERE category_id = ? AND slug = ?", [$catId, $slug]) : null;
+    if (!$dryRun) itPortalArticleSave([
+        'title' => $title, 'slug' => $slug, 'category_id' => $catId, 'keywords' => $keywords,
+        'blocks' => json_encode($blocks, JSON_UNESCAPED_UNICODE),
+        'related' => $old ? (json_decode((string)$old['related'], true) ?: []) : [],
+        'is_published' => $old ? (int)$old['is_published'] : 1, 'is_pinned' => $old ? (int)$old['is_pinned'] : ($pinned ? 1 : 0),
+        'sort_order' => $old ? (int)$old['sort_order'] : $sort,
+    ], $old ? (int)$old['id'] : 0);
+    return "chmura-plikow/{$slug} — {$title} (" . ($old ? 'nadpisany' : 'utworzony') . ')';
+}
+
+/** Tylko jeden artykuł usługi (wstęp i pozostałe artykuły bez zmian). Bez usługi zakłada ją razem ze wszystkimi artykułami. */
+function itPortalCloudArticleApply(string $app, string $slug, bool $dryRun = false): string {
+    require_once dirname(__DIR__) . '/logic/itPortal.php';
+    itPortalMigrate();
+    $app = rtrim($app, '/');
+    $all = itPortalCloudArticles($app);
+    if (!isset($all[$slug])) return 'nie ma artykułu ' . $slug;
+    $cat = db_one("SELECT id FROM itp_categories WHERE slug = 'chmura-plikow'");
+    if (!$cat) {
+        if (!$dryRun) itPortalCloudApply($app);
+        return 'usługa „Chmura plików” utworzona razem z artykułami';
+    }
+    return itPortalCloudArticleSave((int)$cat['id'], $slug, $all[$slug], $dryRun);
 }
 
 /** Wprowadzenie na stronie usługi „Chmura plików”. */
@@ -91,6 +116,52 @@ function itPortalCloudArticles(string $app): array {
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
             'nextcloud, aplikacja, klient, instalacja, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
             itPortalCloudClientsBlocks($app), false, 20],
+        'grupy' => ['Grupy w chmurze: udostępnianie zespołowi, obszarowi, działaniu i jednostce',
+            'grupy, grupa, udostępnianie, udostępnij, folder wspólny, zespół, zespoły, obszar roboczy, obszar, działanie, działania, jednostka, jednostka organizacyjna, umowa, zadania, nextcloud, chmura, nie widzę folderu, brak dostępu',
+            itPortalCloudGroupsBlocks($app), false, 30],
+    ];
+}
+
+/** Bloki artykułu „Grupy w chmurze” (grupy zakładane z SZO przez modules/sso_logto/logic/CloudTeamsSync.php). */
+function itPortalCloudGroupsBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $cloud = itPortalCloudUrl();
+    $host = (string)(parse_url($cloud, PHP_URL_HOST) ?: $cloud);
+    $step = static fn(string $t, string $h): array => ['title' => $t, 'html' => $h, 'images' => []];
+    return [
+        ['type' => 'text', 'html' => '<p>W chmurze plików są gotowe grupy osób z SZO. Gdy udostępnisz plik albo folder grupie, dostaną go wszyscy jej członkowie. '
+            . 'Dostanie go też każdy, kto dołączy do grupy później.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Jakie grupy są w chmurze</h2>'
+            . '<ul>'
+            . '<li>Zespół z modułu Zadań ma grupę o nazwie zespołu. Należą do niej członkowie zespołu.</li>'
+            . '<li>Obszar roboczy z Zadań ma grupę „Obszar: nazwa obszaru”. Należą do niej osoby dopisane do obszaru i członkowie zespołów przypisanych do obszaru.</li>'
+            . '<li>Działanie ma grupę „Działanie: nazwa działania”. Należą do niej koordynator i osoby, których umowa wolontariacka jest przypisana do tego działania.</li>'
+            . '<li>Jednostka organizacyjna ma grupę „Jednostka: nazwa jednostki”. Należą do niej osoby przypisane do jednostki w SZO, jej kierownik i osoby z umową w tej jednostce.</li>'
+            . '</ul>'],
+
+        ['type' => 'text', 'html' => '<h2>Kto jest w grupie</h2>'
+            . '<p>W grupie są tylko osoby, które mają konto w chmurze i trwającą umowę albo aktywne konto w SZO. '
+            . 'SZO sprawdza skład grup co 2 minuty i sam dopisuje albo wypisuje osoby. Kiedy ktoś odejdzie z zespołu albo skończy mu się umowa, '
+            . 'traci dostęp do plików udostępnionych grupie. Kiedy ktoś dostanie konto w chmurze albo nową umowę, dostęp pojawi się bez Twojej pomocy.</p>'
+            . '<p>Grupa powstaje, gdy ma do niej trafić pierwsza osoba z kontem w chmurze. Grupa zakończonego działania albo usuniętego obszaru zostaje w chmurze, '
+            . 'ale jest pusta, więc nikt już nie widzi udostępnionych jej plików.</p>'],
+
+        ['type' => 'wizard', 'title' => 'Jak udostępnić folder grupie', 'intro' => '<p>Tak samo udostępnisz pojedynczy plik.</p>', 'steps' => [
+            $step('Otwórz chmurę', '<p>Wejdź na <a href="' . $cloud . '">' . $host . '</a> i zaloguj się logowaniem jednokrotnym.</p>'),
+            $step('Wybierz folder', '<p>Przy folderze kliknij ikonę udostępniania. Z prawej strony otworzy się panel z polem wyszukiwania.</p>'),
+            $step('Wpisz nazwę grupy', '<p>Wpisz początek nazwy, na przykład „Obszar”, „Działanie”, „Jednostka” albo nazwę zespołu, i wybierz grupę z listy.</p>'),
+            $step('Ustaw uprawnienia', '<p>Zdecyduj, czy grupa może tylko czytać pliki, czy także je zmieniać i dodawać nowe.</p>'),
+        ]],
+
+        ['type' => 'text', 'html' => '<h2>Nie ma Cię w grupie</h2>'
+            . '<p>Najpierw sprawdź, czy masz konto w chmurze. Jeśli nie masz, załóż je w SZO: po zalogowaniu zobaczysz prośbę o założenie konta, '
+            . 'a później zrobisz to w Systemie Tożsamości. Po kilku minutach od założenia konta trafisz do swoich grup.</p>'
+            . '<p>Jeśli konto masz, a grupy nadal brakuje, sprawdź swoje przypisania w SZO: zespół i obszar w Zadaniach, działanie i jednostkę w umowie. '
+            . 'Przypisania zmienia koordynator albo administrator. Kiedy coś się nie zgadza, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Nie dopisuj osób do tych grup ręcznie w chmurze. Przy następnym sprawdzeniu SZO ustawi skład grupy z powrotem według przypisań w SZO. '
+            . 'Kogoś spoza grupy dodaj w udostępnieniu osobno, po jego nazwie.</p>'],
     ];
 }
 
