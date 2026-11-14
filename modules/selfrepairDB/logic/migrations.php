@@ -2405,4 +2405,15 @@ return [
         },
     ],
 
+    // Ankieter w Pomocy IT (2026-11-15, repozytorium ankieter commit 10b2f19): instrukcja dla prowadzących ankiety ze zrzutami (dla wszystkich),
+    // artykuły IT ze zrzutami, przycisk SSO „Logowanie jednokrotne”, stan Logto, nowy objaw w problemach. Zrzuty: lib/img/ank-*.jpg.
+    '2026-11_it_portal_ankieter_shots' => [
+        'desc' => 'Portal Usług IT, „Ankieter”: instrukcja dla prowadzących ankiety i zaktualizowane artykuły IT ze zrzutami',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalAnkieterSeed.php';
+            itPortalAnkieterApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_ankieter_seed.php [--dry-run]
+        },
+    ],
+
 ];
