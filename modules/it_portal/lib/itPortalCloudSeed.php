@@ -121,6 +121,9 @@ function itPortalCloudArticles(string $app): array {
         'instalacja-aplikacji' => ['Instalacja aplikacji Nextcloud na komputerze i telefonie',
             'nextcloud, aplikacja, klient, instalacja, czytnik ekranu, nvda, jaws, voiceover, talkback, dostępność, niewidomy, konfiguracja, synchronizacja, windows, macos, linux, android, iphone, ios, pliki wirtualne, folder, zasobnik, agh',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudClientsBlocks($app), $app, true)), false, 20],
+        'powiadomienia' => ['Powiadomienia w chmurze plików',
+            'powiadomienia, powiadomienie, dzwonek, czerwona kropka, udostępnienie, udostępnił, wzmianka, komentarz, e-mail z chmury, wiadomości z chmury, za dużo maili, podsumowanie, aktywność, nie przeszkadzać, status, powiadomienia push, telefon, komputer, przeglądarka, odrzuć, nextcloud',
+            itPortalCloudPilot(itPortalCloudA11y(itPortalCloudNotifyBlocks($app), $app)), false, 14],
         'aplikacja-komputer' => ['Aplikacja Nextcloud na komputerze: jak z niej korzystać',
             'aplikacja, komputer, laptop, windows, macos, mac, linux, nextcloud, klient, synchronizacja, folder, eksplorator, finder, zasobnik, pasek menu, ikona, ikony, pliki wirtualne, zwolnij miejsce, zawsze na tym urządzeniu, konflikt, conflicted copy, wstrzymaj, ustawienia, udostępnij, kopiuj link, usuwanie, czytnik ekranu, nvda, jaws, voiceover',
             itPortalCloudPilot(itPortalCloudA11y(itPortalCloudDesktopBlocks($app), $app)), false, 21],
@@ -460,6 +463,56 @@ function itPortalCloudListBlocks(string $app): array {
 }
 
 /**
+ * Bloki artykułu „Powiadomienia w chmurze plików” (polecenie 2026-11-14: „opisz powiadomienia NC”). Dzwonek w górnym pasku, rodzaje powiadomień,
+ * ustawienia powiadomień e-mail (Ustawienia osobiste → Powiadomienia), status „Nie przeszkadzać”, powiadomienia w aplikacjach.
+ */
+function itPortalCloudNotifyBlocks(string $app): array {
+    $hd = $app . '/helpdesk/new.php';
+    $base = $app . '/uslugi-it/uslugi/chmura-plikow/';
+    return [
+        ['type' => 'text', 'html' => '<p>Chmura daje znać, gdy dzieje się coś, co Cię dotyczy: ktoś udostępnił Ci plik albo folder, wspomniał o Tobie w komentarzu '
+            . 'albo zmienił coś w udostępnionych plikach. Powiadomienia widzisz w chmurze pod dzwonkiem, a część z nich także w wiadomościach e-mail i w aplikacjach.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Dzwonek w górnym pasku</h2>'
+            . '<p>Dzwonek jest w prawym górnym rogu, obok ikony kontaktów i Twoich inicjałów. Czerwona kropka przy nim oznacza, że masz nieprzeczytane powiadomienia. '
+            . 'Kliknij dzwonek, a otworzy się lista, najnowsze na górze.</p>'
+            . '<p>Kliknij powiadomienie, żeby przejść do pliku albo folderu, którego dotyczy. Niektóre powiadomienia mają własne przyciski, na przykład „Akceptuj” '
+            . 'i „Odrzuć” przy udostępnieniu, które trzeba przyjąć. Takie udostępnienie zobaczysz też w menu bocznym aplikacji Pliki w „Oczekujących udostępnieniach”.</p>'
+            . '<p>Krzyżyk przy powiadomieniu usuwa je z listy. Przycisk na dole listy usuwa wszystkie naraz. Usunięcie powiadomienia nie zmienia niczego w plikach.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Co zobaczysz w powiadomieniach</h2>'
+            . '<p>Najczęściej będą to nowe udostępnienia od osób z Fundacji i od SZO. Konto techniczne SZO dodaje Cię do grup i udostępnia foldery, '
+            . 'gdy podpiszesz umowę albo dołączysz do obszaru lub działania, więc powiadomienia z napisem „SZO (konto techniczne)” są normalne. '
+            . 'Więcej o tym piszemy w artykule <a href="' . $base . 'grupy">Grupy w chmurze</a>.</p>'
+            . '<p>Dostaniesz też powiadomienie, gdy ktoś oznaczy Cię w komentarzu do pliku, wpisując @ i Twoje imię, gdy zbliża się koniec ważności udostępnionego linku '
+            . 'albo gdy brakuje Ci miejsca. Pełną historię zmian w plikach, także tych bez powiadomienia, pokazuje aplikacja Aktywność w menu aplikacji.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Powiadomienia e-mail i ich ustawienia</h2>'
+            . '<p>Część powiadomień chmura wysyła też e-mailem na adres z Twojego konta. Jeśli dostajesz ich za dużo albo za mało, zmień to sam. '
+            . 'Kliknij kółko ze swoimi inicjałami, wybierz „Ustawienia osobiste”, a potem w menu po lewej „Powiadomienia”.</p>'
+            . '<p>Zobaczysz listę zdarzeń, na przykład udostępnienie pliku, zmianę albo usunięcie pliku i komentarz. Przy każdym zaznaczasz, czy chcesz o nim wiadomość e-mail, '
+            . 'czy wystarczy powiadomienie w chmurze i aplikacjach. Niżej ustawisz, jak często chmura ma wysyłać e-mailowe podsumowanie, na przykład raz na godzinę albo raz dziennie.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Gdy nie chcesz, żeby Ci przeszkadzano</h2>'
+            . '<p>Kliknij swoje inicjały, wybierz „Ustaw status” i zaznacz „Nie przeszkadzać”. Chmura przestanie pokazywać wyskakujące powiadomienia, '
+            . 'ale nadal będzie je zbierać pod dzwonkiem. Po powrocie zmień status z powrotem na „Dostępny”. Status możesz też ustawić tak, żeby sam się wyłączył po jakimś czasie.</p>'],
+
+        ['type' => 'text', 'html' => '<h2>Powiadomienia w aplikacjach</h2>'
+            . '<p>Aplikacja Nextcloud na komputerze pokazuje te same powiadomienia w swoim oknie i jako dymki systemowe. Aplikacja na telefonie może wysyłać powiadomienia na ekran telefonu. '
+            . 'Gdy ich nie dostajesz, sprawdź w ustawieniach telefonu, czy aplikacja Nextcloud ma zgodę na powiadomienia. Na Androidzie bez usług Google, '
+            . 'na przykład z aplikacją z F-Droid, powiadomienia na ekran mogą nie działać. Opisują to artykuły '
+            . '<a href="' . $base . 'aplikacja-komputer">Aplikacja Nextcloud na komputerze</a> i <a href="' . $base . 'aplikacja-telefon">Aplikacja Nextcloud na telefonie</a>.</p>'
+            . '<p>Przeglądarka może zapytać, czy pozwolić stronie chmury pokazywać powiadomienia. Zgódź się na swoim komputerze, a na wspólnym komputerze odmów.</p>'],
+
+        ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Uważaj na fałszywe wiadomości, które udają powiadomienia z chmury. Prawdziwe powiadomienie prowadzi zawsze na adres chmury Fundacji. '
+            . 'Gdy wiadomość prosi o hasło na innej stronie, nie klikaj w nią, tylko wejdź do chmury sam, wpisując jej adres, i sprawdź dzwonek.</p>'],
+
+        ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Nie dostajesz powiadomień, choć ktoś mówi, że coś Ci udostępnił? Sprawdź „Oczekujące udostępnienia” w aplikacji Pliki. '
+            . 'Jeśli tam też nic nie ma, <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
+    ];
+}
+
+/**
  * Bloki artykułu „Aplikacja Nextcloud na komputerze: jak z niej korzystać” (polecenie 2026-11-14: „opisz też aplikację Nextcloud na komputerze”).
  * Bez zrzutów; Windows i macOS różnią się wyglądem, więc opis podaje obie drogi i ramkę o różnicach.
  */
@@ -519,7 +572,7 @@ function itPortalCloudDesktopBlocks(string $app): array {
             . '<p>Gdy dwie osoby zmienią ten sam plik w tym samym czasie, aplikacja zachowa obie wersje. Obok oryginału pojawi się plik z dopiskiem „conflicted copy” i datą. '
             . 'Otwórz oba, przenieś potrzebne zmiany do jednego pliku i usuń drugi.</p>'
             . '<p>Aplikacja pomija pliki tymczasowe, na przykład te, których nazwa zaczyna się od ~$, tworzone przez Worda w czasie pracy. '
-            . 'Nie wyśle też pliku z nazwą, której chmura nie przyjmuje, na przykład ze znakami \\ : * ? " < > |. Ostrzeżenie zobaczysz w oknie aplikacji. Zmień wtedy nazwę pliku.</p>'],
+            . 'Nie wyśle też pliku z nazwą, której chmura nie przyjmuje, na przykład ze znakami \\ : * ? " &lt; &gt; |. Ostrzeżenie zobaczysz w oknie aplikacji. Zmień wtedy nazwę pliku.</p>'],
 
         ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>Plik usunięty z folderu Nextcloud znika też z chmury i u osób, którym go udostępniłeś. Odzyskasz go z kosza na stronie '
             . '<a href="' . $cloud . '">' . $host . '</a> w „Usuniętych plikach”. Gdy usuwasz naraz dużo plików, aplikacja zapyta, czy na pewno. Przeczytaj to pytanie uważnie.</p>'],
