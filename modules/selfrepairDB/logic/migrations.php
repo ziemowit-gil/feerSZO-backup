@@ -2204,4 +2204,14 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: logowanie do panelu strony feer.org.pl (CMS) przez logowanie jednokrotne (polecenie 2026-11-14).
+    '2026-11_it_portal_cms_login_article' => [
+        'desc' => 'Portal Usług IT, „Mój login”: artykuł „Logowanie do panelu strony feer.org.pl (CMS)”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCmsLoginSeed.php';
+            itPortalCmsLoginApply(ITP_SZO_URL);
+        },
+    ],
+
 ];
