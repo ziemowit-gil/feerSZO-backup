@@ -2523,4 +2523,15 @@ return [
         },
     ],
 
+    // Pomoc IT, „Strona feer.org.pl (CMS)”: poprawiator → Autonaprawa (nowy adres artykułu), trzy artykuły „Podstawy CMS” ze zrzutami
+    // i „Spis opisanych funkcji CMS” (polecenie 2026-11-15).
+    '2026-11_it_portal_cms_basics' => [
+        'desc' => 'Portal Usług IT, „Strona feer.org.pl (CMS)”: podstawy CMS, Autonaprawa i spis opisanych funkcji',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCmsSeed.php';
+            itPortalCmsApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_cms_seed.php [--dry-run]
+        },
+    ],
+
 ];
