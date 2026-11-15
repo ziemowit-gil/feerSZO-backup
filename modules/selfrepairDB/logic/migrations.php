@@ -797,6 +797,17 @@ return [
         },
     ],
 
+    // Portal Usług IT, „Mój login”: artykuł „Logowanie jednokrotne (SSO): jak się zalogować” (polecenie 2026-11-15: strona, na którą
+    // Logto przekierowuje kogoś, kto otworzy logto.feer.org.pl bez aplikacji). modules/it_portal/lib/itPortalSsoSeed.php.
+    '2026-11_it_portal_sso_article' => [
+        'desc' => 'Portal Usług IT: artykuł „Logowanie jednokrotne (SSO): jak się zalogować”',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSsoSeed.php';
+            itPortalSsoApply(ITP_SZO_URL);   // ręcznie: php cli/it_portal_sso_seed.php [--dry-run]
+        },
+    ],
+
     // Portal Usług IT: usługa „Chmura plików” z wprowadzeniem i artykułem „Nextcloud: pierwsze kroki w chmurze plików”
     // (polecenie 2026-11-13: „Przygotuj też krótki artykuł o NextCloud + takie wprowadzenie”). modules/it_portal/lib/itPortalCloudSeed.php.
     '2026-11_it_portal_cloud' => [
