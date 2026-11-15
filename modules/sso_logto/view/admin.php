@@ -58,6 +58,10 @@ $copyField = function (string $id, string $label, string $value) {
 
 <div class="d-flex flex-wrap gap-2 mb-3">
   <form method="post" action="<?= h(route('sso.test')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plug" aria-hidden="true"></i> Testuj Logto</button></form>
+  <form method="post" action="<?= h(route('sso.redirects')) ?>" class="m-0 d-flex gap-2"><?= Router::csrfField() ?>
+    <button type="submit" name="do" value="check" class="btn btn-outline-secondary btn-sm"><i class="bi bi-signpost-split" aria-hidden="true"></i> Sprawdź adresy powrotu</button>
+    <button type="submit" name="do" value="apply" class="btn btn-outline-primary btn-sm" onclick="return confirm('Dopisać brakujące adresy powrotu (aliasy ezd., crm.) w aplikacji logowania do SZO w Logto? Istniejących adresów nie usuwamy.')"><i class="bi bi-plus-circle" aria-hidden="true"></i> Dopisz brakujące adresy</button>
+  </form>
   <form method="post" action="<?= h(route('sso.testCloud')) ?>" class="m-0"><?= Router::csrfField() ?><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cloud-check" aria-hidden="true"></i> Testuj chmurę</button></form>
 </div>
 

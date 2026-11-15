@@ -22,6 +22,7 @@ require_once __DIR__ . '/CloudTeamsSync.php';
 require_once __DIR__ . '/CloudAssignIssues.php';
 require_once dirname(__DIR__) . '/lib/ssoPrompt.php';
 require_once dirname(__DIR__) . '/lib/LogtoOidc.php';
+require_once dirname(__DIR__) . '/lib/LogtoRedirects.php';
 
 final class SsoController
 {
@@ -85,6 +86,32 @@ final class SsoController
         try {
             $n = SsoConfig::logto()->ping();
             $out['lines'][] = 'Połączenie z ' . SsoConfig::logtoUrl() . ' działa' . ($n >= 0 ? ', kont użytkowników: ' . $n : '') . '.';
+        } catch (\Throwable $e) {
+            $out['ok'] = false;
+            $out['lines'][] = $e->getMessage();
+        }
+        $_SESSION[self::K_TEST] = $out;
+        return Router::redirect(route('sso.index') . '#ustawienia');
+    }
+
+    /** Sprawdza (check) albo dopisuje (apply) adresy powrotu aliasów w aplikacji logowania do SZO w Logto. */
+    public function redirects(): ?string
+    {
+        $apply = (string)($_POST['do'] ?? '') === 'apply';
+        $out = ['what' => 'Adresy powrotu w Logto', 'ok' => true, 'lines' => []];
+        try {
+            if ($apply) {
+                $added = LogtoRedirects::apply();
+                $out['lines'][] = $added ? 'Dopisano w Logto: ' . implode(', ', $added) . '.' : 'Nic do dopisania, wszystkie adresy są już w Logto.';
+            }
+            $st = LogtoRedirects::status();
+            foreach ($st['rows'] as $r) {
+                $ok = $r['redirect'] && $r['logout'];
+                if (!$ok) $out['ok'] = false;
+                $out['lines'][] = ($ok ? 'OK: ' : 'BRAK: ') . $r['host'] . ($ok ? '' : ' (' . implode(', ', array_filter([
+                    $r['redirect'] ? '' : 'adres powrotu', $r['logout'] ? '' : 'adres po wylogowaniu'])) . ')');
+            }
+            if (!$apply && !$out['ok']) $out['lines'][] = 'Kliknij „Dopisz brakujące adresy”, żeby je zarejestrować.';
         } catch (\Throwable $e) {
             $out['ok'] = false;
             $out['lines'][] = $e->getMessage();

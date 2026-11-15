@@ -27,6 +27,7 @@ $r->group(['auth', 'role:admin'], function (Router $r) {
     $r->get('/ssoadmin',               [SsoController::class, 'index'])->name('sso.index');
     $r->post('/ssoadmin/ustawienia',   [SsoController::class, 'saveSettings'])->name('sso.settings');
     $r->post('/ssoadmin/test',         [SsoController::class, 'testLogto'])->name('sso.test');
+    $r->post('/ssoadmin/adresy-powrotu', [SsoController::class, 'redirects'])->name('sso.redirects');     // adresy powrotu aliasów (ezd., crm.) w Logto: sprawdź / dopisz
     $r->post('/ssoadmin/test-chmury',  [SsoController::class, 'testCloud'])->name('sso.testCloud');
     $r->post('/ssoadmin/osoba',        [SsoController::class, 'personAction'])->name('sso.person');
     $r->post('/ssoadmin/pliki',        [SsoController::class, 'filesAction'])->name('sso.files');
