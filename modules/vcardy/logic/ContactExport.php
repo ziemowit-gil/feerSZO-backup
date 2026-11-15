@@ -155,6 +155,14 @@ final class ContactExport
         return $j && !empty($j['exported_at']) ? substr((string)$j['exported_at'], 0, 16) : '';
     }
 
+    /** Kontakty już przeniesione do chmury przez PimImport (książka „Kontakty z Outlooka”): ['contacts'=>n, 'date'=>Y-m-d] albo null. */
+    public static function inCloud(string $upn): ?array
+    {
+        try { $j = PimImport::forUpn($upn); } catch (\Throwable $e) { return null; }
+        if (!$j || ($j['status'] ?? '') !== 'done' || (int)($j['contacts'] ?? 0) < 1) return null;
+        return ['contacts' => (int)$j['contacts'], 'date' => substr((string)($j['imported_at'] ?? ''), 0, 10)];
+    }
+
     public static function countCards(string $vcf): int
     {
         return preg_match_all('/^BEGIN:VCARD\r?$/mi', $vcf);

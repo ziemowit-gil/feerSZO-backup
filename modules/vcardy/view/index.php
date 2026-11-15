@@ -2,14 +2,14 @@
 /**
  * modules/vcardy/view/index.php — /pomocne/vcardy: kontakty z Outlooka (Microsoft 365) do pliku VCF albo CSV i instrukcja importu.
  * Samodzielna strona bez menu SZO, wygląd METRO jak /pomocne/gosposia (style: modules/dhosting_migrator/view/_metro.php).
- * Zmienne: $user, $accounts (list<{upn, folders:?list<{id,name}>, error:''|'gone'|'down', copyDate, copyCount}>), $flash.
+ * Zmienne: $user, $accounts (list<{upn, folders:?list<{id,name}>, error:''|'gone'|'down', copyDate, copyCount, inCloud:?{contacts,date}}>), $flash.
  *
  * WCAG 2.2 AA: grupy pól w <fieldset> z <legend>, etykiety <label>, komunikaty w role="status"/role="alert", fokus: żółta ramka 3 px,
  * cele dotyku ≥ 44 px, bez JS (zwykły formularz, plik pobiera przeglądarka). Teksty prostym językiem (humanizer).
  */
 $org = org_setting('org_short_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'SZO');
 $app = rtrim(APP_URL, '/');
-$article = $app . '/uslugi-it/uslugi/microsoft-365/kontakty-z-outlooka';
+$article = $app . '/uslugi-it/uslugi/moja-poczta/kontakty-z-outlooka';
 $hd = $app . '/helpdesk/new.php';
 $cloudDav = $app . '/kalendarz-kontakty';
 $cloud = function_exists('org_setting') && org_setting('sso_cloud_url') ? rtrim((string)org_setting('sso_cloud_url'), '/') : 'https://nc.feer.org.pl';
@@ -77,12 +77,17 @@ $n = 0;
 
   <?php if (!$accounts): ?>
     <div class="dm-msg dm-msg--warning" role="status"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-      <div>Nie znaleźliśmy Twojego konta Microsoft 365. Jeśli miałeś skrzynkę w Outlooku, <a href="<?= h($hd) ?>">napisz do Helpdesku IT</a> i podaj jej adres.</div></div>
+      <div>Nie znaleźliśmy Twojego konta Microsoft 365. Jeśli masz skrzynkę w Outlooku, <a href="<?= h($hd) ?>">napisz do Helpdesku IT</a> i podaj jej adres.</div></div>
   <?php endif; ?>
 
   <?php foreach ($accounts as $a): $n++; $id = 'vc' . $n; ?>
     <div class="vc-acc">
       <p style="margin:0 0 .6rem"><i class="bi bi-microsoft" aria-hidden="true"></i> Konto Microsoft 365: <strong><?= h($a['upn']) ?></strong></p>
+    <?php if ($a['inCloud']): ?>
+      <div class="dm-msg dm-msg--success" role="status"><i class="bi bi-cloud-check" aria-hidden="true"></i>
+        <div>Twoje kontakty z tego konta są już w chmurze Fundacji, w książce adresowej „Kontakty z Outlooka” (kontaktów: <?= (int)$a['inCloud']['contacts'] ?>).
+          Nie wczytuj ich do chmury drugi raz. Plik przyda Ci się do poczty dPoczta albo do telefonu.</div></div>
+    <?php endif; ?>
 
     <?php if ($a['error'] === ''): ?>
       <form method="post" action="<?= h(route('vcardy.download')) ?>">
@@ -152,7 +157,8 @@ $n = 0;
       <li>Na dole lewego panelu kliknij „Ustawienia kontaktów”.</li>
       <li>Kliknij „Importuj kontakty”, wybierz książkę adresową i wskaż pobrany plik VCF z komputera.</li>
     </ol>
-    <p>Żeby mieć te kontakty w telefonie, połącz go z chmurą na stronie <a href="<?= h($cloudDav) ?>">Kalendarz i kontakty z chmury</a>.</p>
+    <p>Jeśli administrator przeniósł już Twoje kontakty do chmury, znajdziesz je w książce adresowej „Kontakty z Outlooka” i nie musisz nic wczytywać.
+      Żeby mieć kontakty z chmury w telefonie, połącz go z chmurą na stronie <a href="<?= h($cloudDav) ?>">Kalendarz i kontakty z chmury</a>.</p>
 
     <h3>Poczta dPoczta</h3>
     <ol>
@@ -181,7 +187,7 @@ $n = 0;
       Inne programy pocztowe zwykle mają podobną opcję importu kontaktów.</p>
 
     <div class="dm-msg dm-msg--warning" role="note"><i class="bi bi-shield-exclamation" aria-hidden="true"></i>
-      <div>W pliku są dane osobowe innych osób. Nie wysyłaj go nikomu i nie zostawiaj na wspólnym komputerze. Gdy wczytasz kontakty, usuń plik z Pobranych i z Kosza.</div></div>
+      <div>W pliku są dane osobowe innych osób. Nie wysyłaj go innym osobom i nie zostawiaj na wspólnym komputerze. Gdy wczytasz kontakty, usuń plik z Pobranych i z Kosza.</div></div>
     <p>Coś nie działa? <a href="<?= h($hd) ?>">Napisz do Helpdesku IT</a>. Więcej w artykule <a href="<?= h($article) ?>">Kontakty z Outlooka do pliku</a>.</p>
   </section>
 </main>

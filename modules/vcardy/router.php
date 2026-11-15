@@ -6,7 +6,7 @@
  *   GET  /pomocne/vcardy          — strona z wyborem i instrukcją;
  *   POST /pomocne/vcardy/pobierz  — plik .vcf albo .csv.
  * Bez przepisywania (np. php -S): /modules/vcardy/router.php?_route=/pomocne/vcardy. Tylko zalogowani; CSRF dla POST sprawdza Router.
- * Artykuł dla użytkowników: /uslugi-it/uslugi/microsoft-365/kontakty-z-outlooka (modules/it_portal/lib/itPortalVcardySeed.php).
+ * Artykuł dla użytkowników: /uslugi-it/uslugi/moja-poczta/kontakty-z-outlooka (modules/it_portal/lib/itPortalVcardySeed.php).
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';

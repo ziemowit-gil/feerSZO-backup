@@ -20,7 +20,7 @@ final class VcardyController
         $upns = ContactExport::upns($me);
         $accounts = [];
         foreach ($upns as $upn) {
-            $a = ['upn' => $upn, 'folders' => null, 'error' => '', 'copyDate' => '', 'copyCount' => 0];
+            $a = ['upn' => $upn, 'folders' => null, 'error' => '', 'copyDate' => '', 'copyCount' => 0, 'inCloud' => ContactExport::inCloud($upn)];
             if (ContactExport::graphReady()) {
                 try { $a['folders'] = ContactExport::folders($upn); }
                 catch (PimGraphGone $e) { $a['error'] = 'gone'; }
