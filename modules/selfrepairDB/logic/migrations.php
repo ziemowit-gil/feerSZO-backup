@@ -2512,4 +2512,15 @@ return [
         },
     ],
 
+    // Pomoc IT: usługa „Strona feer.org.pl (CMS)” — poprawiator dostępności treści, zadanie antyspamowe w formularzach, poczta formularzy przez SMTP
+    // (polecenie 2026-11-15, repo feer-web commity 6744bc5d i 53f35d92); 4 zrzuty lib/img/cms-*.jpg.
+    '2026-11_it_portal_cms_docs' => [
+        'desc' => 'Portal Usług IT: usługa „Strona feer.org.pl (CMS)” (poprawiator, antyspam w formularzach, poczta przez SMTP) ze zrzutami',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCmsSeed.php';
+            itPortalCmsApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_cms_seed.php [--dry-run]
+        },
+    ],
+
 ];
