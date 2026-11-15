@@ -2566,4 +2566,14 @@ return [
         },
     ],
 
+    // Pomoc IT: artykuł „Kontakty z Outlooka do pliku (VCF albo CSV)” do strony /pomocne/vcardy (polecenie 2026-11-15, wyłączenie M365 20.11).
+    '2026-11_it_portal_vcardy' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: artykuł o pobraniu kontaktów z Outlooka do pliku VCF albo CSV (/pomocne/vcardy)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalVcardySeed.php';
+            itPortalVcardyApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_vcardy_seed.php [--dry-run]
+        },
+    ],
+
 ];
