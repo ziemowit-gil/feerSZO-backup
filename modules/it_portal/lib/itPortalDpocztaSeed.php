@@ -365,7 +365,7 @@ function itPortalDpocztaArticles(string $app): array {
                 . '<li><a href="' . $base . 'poczta-w-telefonie">Poczta w telefonie i programach</a>: dane serwera do Outlooka, Thunderbirda i telefonu.</li>'
                 . '<li><a href="' . $base . 'folder-wyslane">Folder Wysłane</a>: żeby wysłane z programu były widoczne wszędzie.</li></ul>'],
             ['type' => 'callout', 'kind' => 'info', 'html' => '<p>Z „Zadań” w dPoczcie nie korzystamy, zadania są w SZO w module <a href="' . $app . '/tasks/">Zadania</a>. '
-                . 'Import i eksport kontaktów jest tylko dla Koordynatorów IT. Brakuje Ci czegoś na tej liście? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],
+                . 'Kontakty z pliku wczytasz sam, jak opisuje <a href="' . $base . 'kontakty-import-eksport">import i eksport kontaktów</a>. Brakuje Ci czegoś na tej liście? <a href="' . $hd . '">Napisz do Helpdesku IT</a>.</p>'],
         ], true],
 
         // 2026-11-14: hasło do poczty TYLKO przez SZO (/nowehaslo) — zmiana w dpoczta.pl nie synchronizuje się z SZO
@@ -861,22 +861,26 @@ function itPortalDpocztaArticles(string $app): array {
             ]],
             ['type' => 'text', 'html' => '<h2>Przyciski na górze</h2>'
                 . '<p>Ołówek dodaje kontakt, drukarka drukuje wybrany, a kosz go usuwa. Lupa otwiera szukanie zaawansowane, na przykład po firmie. '
-                . 'Chmurki służą do importu i eksportu kontaktów, opisanych w osobnej instrukcji dla Koordynatorów IT.</p>'
+                . 'Chmurki służą do importu i eksportu kontaktów, opisanych w <a href="' . $base . 'kontakty-import-eksport">osobnej instrukcji</a>.</p>'
                 . '<p>Kontakt dodasz też prosto z wiadomości: kliknij nazwę nadawcy w otwartej wiadomości i wybierz dodanie do książki adresowej.</p>'],
             ['type' => 'callout', 'kind' => 'warn', 'html' => '<p>W kontaktach zapisuj tylko dane potrzebne do pracy. Nie wpisuj w notatkach danych wrażliwych, na przykład o zdrowiu. '
                 . 'Prywatnych kontaktów nie trzymaj w skrzynce służbowej.</p>'],
         ], false],
 
-        'kontakty-import-eksport' => ['Kontakty: import i eksport (dla Koordynatorów IT)', 'kontakty, książka adresowa, import, eksport, vcard, csv, outlook, koordynator it', [
-            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Ta instrukcja jest dla Koordynatorów IT. Jeśli nie jesteś Koordynatorem IT, nie importuj ani nie eksportuj kontaktów. '
-                . 'Gdy potrzebujesz przenieść kontakty, poproś o to swojego Koordynatora IT albo <a href="' . $hd . '">napisz do Helpdesku IT</a>.</p>'],
-            ['type' => 'text', 'html' => '<p>Kontakty przeniesiesz z innego programu plikiem vCard (.vcf) albo CSV.</p>'],
+        // 2026-11-15: import i eksport dla wszystkich (wcześniej tylko Koordynatorzy IT); kontakty z Outlooka plikiem z /pomocne/vcardy
+        'kontakty-import-eksport' => ['Kontakty: import i eksport', 'kontakty, książka adresowa, import, eksport, vcard, vcf, csv, outlook, microsoft 365, przeniesienie kontaktów', [
+            ['type' => 'text', 'html' => '<p>Kontakty przeniesiesz z innego programu plikiem vCard (.vcf) albo CSV. Nie potrzebujesz do tego Helpdesku IT ani Koordynatora IT.</p>'],
+            ['type' => 'callout', 'kind' => 'important', 'html' => '<p>Kontakty z Outlooka (Microsoft 365) pobierzesz do pliku na stronie '
+                . '<a href="' . $app . '/pomocne/vcardy">Kontakty z Outlooka</a> w SZO. Zrób to przed 20.11.2026, bo wtedy wyłączamy Microsoft 365. '
+                . 'Jeśli strona napisze, że Twoje kontakty są już w chmurze, nie wczytuj ich drugi raz.</p>'],
             ['type' => 'wizard', 'title' => 'Import kontaktów', 'intro' => '', 'steps' => [
-                $step('Przygotuj plik', '<p>Wyeksportuj kontakty ze starego programu do pliku vCard albo CSV. W pliku CSV pola rozdziela przecinek, a pierwszy wiersz to nagłówek, np. <code>First Name,Last Name,E-mail Address</code>.</p>'),
+                $step('Przygotuj plik', '<p>Pobierz plik ze strony <a href="' . $app . '/pomocne/vcardy">Kontakty z Outlooka</a> albo wyeksportuj kontakty z innego programu do pliku vCard albo CSV. '
+                    . 'W pliku CSV pola rozdziela przecinek, a pierwszy wiersz to nagłówek, np. <code>First Name,Last Name,E-mail Address</code>.</p>'),
                 $step('Otwórz Kontakty', '<p>Zaloguj się na <a href="https://dpoczta.pl">dpoczta.pl</a> i przejdź do „Kontakty”.</p>'),
                 $step('Zaimportuj', '<p>W górnym menu kliknij ikonę chmurki do importu (podpowiedź pojawi się po najechaniu kursorem) i wskaż plik.</p>'),
             ]],
-            ['type' => 'text', 'html' => '<p>Eksport działa tak samo: w „Kontaktach” kliknij drugą ikonę chmurki, do eksportu.</p>'
+            ['type' => 'text', 'html' => '<p>Import dopisuje kontakty do książki adresowej. Ten sam plik wczytany drugi raz zrobi duplikaty, więc wczytuj go raz.</p>'
+                . '<p>Eksport działa tak samo: w „Kontaktach” kliknij drugą ikonę chmurki, do eksportu.</p>'
                 . '<p>Instrukcja dostawcy ze zrzutem i przykładowym plikiem CSV: <a href="' . $kb . 'importowanie-i-eksportowanie-kontaktow-w-dpoczta-pl/">importowanie i eksportowanie kontaktów w dPoczcie</a>.</p>'],
         ], false],
 

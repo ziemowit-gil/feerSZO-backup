@@ -2576,4 +2576,17 @@ return [
         },
     ],
 
+    // „Kontakty: import i eksport” dla wszystkich, nie tylko Koordynatorów IT (decyzja 2026-11-15), z odnośnikiem do /pomocne/vcardy;
+    // te same poprawki w „dpoczta-funkcje” i „kontakty”. Pomoc dostawcy dopisuje ponownie itPortalVendorHelpApply.
+    '2026-11_it_portal_kontakty_import_all' => [
+        'desc' => 'Portal Usług IT, „Moja poczta”: import i eksport kontaktów dla wszystkich (bez ograniczenia do Koordynatorów IT)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalDpocztaSeed.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalVendorHelp.php';
+            itPortalDpocztaApply(ITP_SZO_URL, false, ['dpoczta-funkcje', 'kontakty', 'kontakty-import-eksport']);
+            itPortalVendorHelpApply();
+        },
+    ],
+
 ];
