@@ -10,7 +10,10 @@
 function host_aliases(?string $kind = null): array {
     static $all = [
         'crm' => ['crm.feer.org.pl' => true, 'crm.ngosystem.pl' => false],
-        'ezd' => ['ezd.feer.org.pl' => true, 'ezd.ngosystem.pl' => false, 'ezd-prod-srv.feer.org.pl' => true],
+        'ezd' => ['ezd.feer.org.pl' => true, 'www.ezd.feer.org.pl' => true, 'ezd.ngosystem.pl' => false, 'ezd-prod-srv.feer.org.pl' => true],
+        // TI (karty30) na własnej domenie: logowanie jednokrotne kadry wraca na /sso/powrot tego hosta (2026-11-15: Logto
+        // odrzucało www.ti.feer.org.pl/sso/powrot błędem 400, bo adres nie był zarejestrowany).
+        'ti'  => ['ti.feer.org.pl' => true, 'www.ti.feer.org.pl' => true],
     ];
     return $kind === null ? $all : ($all[$kind] ?? []);
 }
