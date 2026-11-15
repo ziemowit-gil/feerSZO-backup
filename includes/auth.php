@@ -6,6 +6,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/permissions.php';
 require_once __DIR__ . '/context.php';
+require_once __DIR__ . '/hostAliases.php';
 
 function auth_start(): void {
     if (session_status() === PHP_SESSION_NONE) {
@@ -136,11 +137,7 @@ function is_ezd_rpw_only(): bool {
  * na crm.*.
  */
 function crm_alias_base_url(): ?string {
-    $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
-    if (!in_array($host, ['crm.feer.org.pl', 'crm.ngosystem.pl'], true)) return null;
-    $https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
-        || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
-    return ($https ? 'https' : 'http') . '://' . $host;
+    return host_alias_origin('crm');   // lista hostów: includes/hostAliases.php
 }
 
 /**
@@ -194,12 +191,7 @@ function crm_szo_main_base(): string {
  * z ścieżką BEZ prefiksu /ezd (Traefik sam go dołoży).
  */
 function ezd_alias_base_url(): ?string {
-    $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
-    static $EZD_HOSTS = ['ezd.feer.org.pl', 'ezd.ngosystem.pl', 'ezd-prod-srv.feer.org.pl'];
-    if (!in_array($host, $EZD_HOSTS, true)) return null;
-    $https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
-        || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
-    return ($https ? 'https' : 'http') . '://' . $host;
+    return host_alias_origin('ezd');   // lista hostów: includes/hostAliases.php
 }
 
 function require_login(): void {
