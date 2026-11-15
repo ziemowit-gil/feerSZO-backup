@@ -166,7 +166,7 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
           <input type="text" class="pp-input" id="lp-login" name="login" value="<?= h($login) ?>" required autocomplete="username"
                  autocapitalize="none" spellcheck="false"<?= $ssoOn ? '' : ' autofocus' ?> aria-describedby="lp-login-h<?= $error ? ' lp-err' : '' ?>"<?= $error ? ' aria-invalid="true"' : '' ?>>
           <p id="lp-login-h" class="lp-help">Uczestnik: np. <span class="font-monospace">j.kowalski</span> albo <span class="font-monospace">k1234</span>.
-            Rodzic: login z końcówką <span class="font-monospace">-r</span>.<?= $ssoOn ? '' : ' Kadra: adres e-mail.' ?></p>
+            Rodzic: login z końcówką <span class="font-monospace">-r</span>. Kadra: adres e-mail i hasło do SZO.</p>
         </div>
         <div class="lp-sec" id="lp-sec" hidden aria-live="polite">
           <div class="lp-sec-img" id="lp-sec-img" aria-hidden="true"></div>
@@ -176,9 +176,9 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
     </div>
     <div class="lp-office" id="lp-office" role="status" hidden>
       <?php if ($smsOn): ?>
-      Adres <?= h(TiLogin::OFFICE_DOMAIN) ?>: hasła tu nie wpisujesz. Prowadzący z umową dostanie kod SMS, a administratora przeniesiemy do logowania Microsoft 365.
+      Adres <?= h(TiLogin::OFFICE_DOMAIN) ?>: wpisz hasło do SZO albo zostaw pole puste, a prowadzący z umową dostanie kod SMS. Administratora przeniesiemy do logowania Microsoft 365.
       <?php else: ?>
-      Adresy <?= h(TiLogin::OFFICE_DOMAIN) ?> logują się przez Microsoft 365, więc hasła tu nie wpisujesz. Wybierz „Dalej”.
+      Adres <?= h(TiLogin::OFFICE_DOMAIN) ?>: wpisz hasło do SZO. Bez hasła przeniesiemy Cię do logowania Microsoft 365.
       <?php endif; ?>
     </div>
     <div class="pp-field" id="lp-pass-field">
@@ -213,9 +213,9 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_header.php';
       <li>Osoba upoważniona: login od uczestnika, np. <code>a.nowak-up</code>.</li>
       <?php if ($ssoOn): ?>
       <li>Kadra (prowadzący, konsultant, kierownik): logowanie jednokrotne, czyli adres e-mail albo login z kreską dolną, np. <code>jan_kowalski</code>.
-        Kreska dolna zastępuje kropkę z adresu, bo login w logowaniu jednokrotnym nie może mieć kropki.<?= $smsOn ? ' Prowadzący z umową może też wpisać tu adres e-mail i dostać kod SMS.' : '' ?></li>
+        Kreska dolna zastępuje kropkę z adresu, bo login w logowaniu jednokrotnym nie może mieć kropki. Możesz też wpisać tu adres e-mail i hasło do SZO.<?= $smsOn ? ' Prowadzący z umową bez hasła dostanie kod SMS.' : '' ?></li>
       <?php else: ?>
-      <li>Kadra (prowadzący, konsultant, kierownik): adres e-mail.<?= $smsOn ? ' Prowadzący z umową dostaje kod SMS, administratorzy logują się przez Microsoft 365.' : ' Konta ' . h(TiLogin::OFFICE_DOMAIN) . ' logują się przez Microsoft 365.' ?></li>
+      <li>Kadra (prowadzący, konsultant, kierownik): adres e-mail i hasło do SZO.<?= $smsOn ? ' Prowadzący z umową bez hasła dostaje kod SMS.' : '' ?> Administratorzy logują się przez Microsoft 365.</li>
       <?php endif; ?>
     </ul>
   </details>
@@ -284,11 +284,10 @@ include dirname(__DIR__, 2) . '/ti/view/portal/_footer.php';
   function update() {
     var k = kind(inp.value);
     var isOffice = k === 'office';
-    office.hidden = !isOffice;
-    passField.hidden = isOffice;
-    pass.disabled = isOffice;
-    submit.textContent = (smsOn && (isOffice || pass.value === '')) ? 'Wyślij kod SMS'
-                       : (isOffice ? 'Dalej: Microsoft 365' : 'Zaloguj się');
+    office.hidden = !isOffice;   // adres @feer.org.pl: podpowiedź, ale pole hasła zostaje (hasło do SZO)
+    var empty = pass.value === '';
+    submit.textContent = (smsOn && empty) ? 'Wyślij kod SMS'
+                       : ((isOffice && empty) ? 'Dalej: Microsoft 365' : 'Zaloguj się');
     if (k !== 'panel') { sec.hidden = true; }
     lastKind = k;
   }

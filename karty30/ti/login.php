@@ -4,7 +4,7 @@
  *
  * Jeden formularz „login + hasło” dla wszystkich: uczestnik, rodzic/opiekun, osoba upoważniona i kadra (prowadzący,
  * konsultant, kierownik). Rodzaj konta rozpoznaje TiLogin (modules/ti_login/logic/TiLogin.php) — reguły i zabezpieczenia
- * opisane tam. Adresy @feer.org.pl → Microsoft 365; kolizja loginów → wybór panelu po poprawnym haśle.
+ * opisane tam. Adresy @feer.org.pl → hasło do SZO (administratorzy → Microsoft 365); kolizja loginów → wybór panelu po haśle.
  *
  * Stare wejścia (tozsamosc/kursant.php, kursant/login.php, kursant/parent_login.php, kursant/authp_login.php,
  * dydaktyk/login.php, dydaktyk/logowanie.php) przekierowują tutaj — POST kodem 307 (z danymi formularza).
@@ -125,20 +125,21 @@ if ($smsOn && $_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['kod']) || 
 
     if ($login === '' || mb_strlen($login) > 190) {
         $error = 'Wpisz login lub adres e-mail.';
-    } elseif (TiLogin::isOfficeLogin($login) && (!$smsOn || TiLoginSms::isOfficeAdmin($login))) {
-        // Konta Microsoft 365 organizacji — tylko logowanie Microsoft (reguła po domenie, bez sprawdzania hasła).
-        // Przy logowaniu kodem SMS: tylko administratorzy; pozostałe adresy @feer.org.pl dostają kod (prowadzący z umową).
+    } elseif (TiLogin::isOfficeLogin($login) && (TiLoginSms::isOfficeAdmin($login) || (!$smsOn && $pass === ''))) {
+        // Administratorzy (konta „tylko Microsoft 365”) — zawsze logowanie Microsoft. Pozostali z adresem @feer.org.pl:
+        // hasło do SZO (niżej, completeStaff), a bez hasła kod SMS (prowadzący z umową) albo Microsoft 365, gdy SMS wyłączone.
+        // Polecenie 2026-11-15 „zrób też logowanie hasłem”: logowanie jednokrotne nie działało na ti.feer.org.pl.
         $go(TiLogin::officeUrl());
     } elseif (TiLogin::throttled($login)) {
         $error = TiLogin::ERROR_THROTTLE;
     } elseif (TiLogin::isAltConsultantLogin($login)) {
         // Login zastępczy konsultanta (numer 3-cyfrowy) ma osobny adres logowania (konsultant.php) — tu tylko podpowiedź.
         $error = 'Login zastępczy konsultanta wpisz na stronie: ' . TiLogin::altUrl();
-    } elseif ($smsOn && ($pass === '' || TiLogin::isOfficeLogin($login))) {
+    } elseif ($smsOn && $pass === '') {
         // Sam login (bez hasła): kod SMS dla uczestnika albo prowadzącego z umową. Odpowiedź zawsze taka sama.
         $error = $smsStart($login);
     } elseif (TiLogin::isStaffLogin($login)) {
-        // Kadra hasłem (konta panelowe spoza domeny Microsoft 365) → obowiązkowe TOTP w panelu dydaktyka.
+        // Kadra hasłem do SZO (także adresy @feer.org.pl poza administratorami) → obowiązkowe TOTP w panelu dydaktyka.
         require_once __DIR__ . '/dydaktyk/auth.php';
         $url = TiLogin::completeStaff($login, $pass);
         if ($url !== null) { TiLogin::clearAttempts($login); $go($url); }

@@ -280,7 +280,7 @@ final class TiLogin
      */
     public static function completeStaff(string $email, string $pass): ?string
     {
-        if (self::isOfficeLogin($email) || $pass === '') return null;
+        if ($pass === '') return null;   // adresy @feer.org.pl też (hasło do SZO); administratorów odcina account_is_office_only niżej
         $u = db_one("SELECT * FROM users WHERE email = ? AND is_active = 1", [trim($email)]);
         if (!$u || empty($u['password']) || !password_verify($pass, (string)$u['password'])) {
             if (!$u) password_verify($pass, self::DUMMY_HASH);
