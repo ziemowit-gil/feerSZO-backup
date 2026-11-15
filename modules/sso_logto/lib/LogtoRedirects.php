@@ -21,7 +21,8 @@ final class LogtoRedirects
     {
         $hosts = [];
         $main = strtolower((string)parse_url(APP_URL, PHP_URL_HOST));
-        if ($main !== '') $hosts[] = $main;
+        // Bez localhost: z CLI APP_URL to http://localhost, a takiego adresu powrotu nie chcemy w Logto (2026-11-15).
+        if ($main !== '' && !in_array($main, ['localhost', '127.0.0.1'], true)) $hosts[] = $main;
         foreach (host_alias_serving_hosts() as $h) $hosts[] = $h;
         return array_values(array_unique($hosts));
     }
