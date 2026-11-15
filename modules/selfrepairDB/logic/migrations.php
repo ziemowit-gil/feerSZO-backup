@@ -2534,4 +2534,14 @@ return [
         },
     ],
 
+    // Pomoc IT: usługa „Sekrety (przekazywanie haseł)” dla sekrety.feer.org.pl (polecenie 2026-11-15); 3 zrzuty lib/img/sek-*.jpg.
+    '2026-11_it_portal_sekrety' => [
+        'desc' => 'Portal Usług IT: usługa „Sekrety (przekazywanie haseł)” (sekrety.feer.org.pl) ze zrzutami',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSekretySeed.php';
+            itPortalSekretyApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_sekrety_seed.php [--dry-run]
+        },
+    ],
+
 ];
