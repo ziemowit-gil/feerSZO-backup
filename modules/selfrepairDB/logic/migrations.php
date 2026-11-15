@@ -2544,4 +2544,15 @@ return [
         },
     ],
 
+    // Pomoc IT: usługa „Menedżer haseł (Kufer)”, aplikacja Passwords w Nextcloudzie, kufer.feer.org.pl (polecenie 2026-11-15). Po Sekretach,
+    // bo „Zobacz też” wskazuje artykuł sekrety/wyslij-haslo.
+    '2026-11_it_portal_kufer' => [
+        'desc' => 'Portal Usług IT: usługa „Menedżer haseł (Kufer)” (aplikacja Passwords w Nextcloudzie)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalKuferSeed.php';
+            itPortalKuferApply(ITP_SZO_URL);   // to samo ręcznie: php cli/it_portal_kufer_seed.php [--dry-run]
+        },
+    ],
+
 ];
