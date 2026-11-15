@@ -31,6 +31,7 @@ const HD_CATEGORIES = [
     'it_licencje_am'    => 'Wnioski AM (licencje)',
     'it_migracja_poczty'=> 'Migracja poczty', // zgłoszenia zakładane przez migrator poczty (modules/dhosting_migrator)
     'it_poczta_kursanta'=> 'Poczta kursanta', // konto @stud.feer.org.pl wpisane przez kadrę TI — zgłoszenie na każde konto (modules/ti_poczta_stud)
+    'it_claude'         => 'Dostęp do Claude', // kreator helpdesk/claude.php (migracja @edu → @stud, logowanie, licencje) — modules/helpdeskClaude
     'inne'              => 'Inne (spoza IT)',
     'zgl_blad'          => 'Błąd w systemie',
     'zgl_sugestia'      => 'Sugestia dot. obecnej funkcji',
@@ -46,6 +47,7 @@ const HD_CATEGORY_PREFIXES = [
     'bug_report'       => 'HER',
     'it_licencje_am'   => 'AM',
     'it_migracja_poczty' => 'MIG',
+    'it_claude'        => 'CLA',      // numer CLA-2026-00001
     'it_poczta_kursanta' => 'MIG-ST',   // numer MIG-ST-2026-00001 (stała, bo słownik przyjmuje tylko 2–5 wielkich liter)
 ];
 

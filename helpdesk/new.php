@@ -263,6 +263,13 @@ try {
   <div class="hd-dyn-sub">Opisz problem — zajmiemy się nim zgodnie z priorytetem SLA.</div>
 </div>
 
+<?php if (is_admin()): ?>
+<div class="alert alert-info py-2 mb-3 d-flex align-items-center gap-2" role="note">
+  <i class="bi bi-stars" aria-hidden="true"></i>
+  <span>Problem z dostępem do Claude, na przykład migracja konta @edu na @stud? Użyj <a href="<?= APP_URL ?>/helpdesk/claude.php" class="alert-link">kreatora zgłoszeń Claude</a>.</span>
+</div>
+<?php endif; ?>
+
 <?php if ($errors): ?>
 <div class="alert alert-danger py-2 mb-3"><ul class="mb-0 ps-3">
   <?php foreach ($errors as $e) echo '<li style="font-size:.85rem">' . h($e) . '</li>'; ?>
