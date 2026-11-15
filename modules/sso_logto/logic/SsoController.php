@@ -461,6 +461,9 @@ final class SsoController
     /** GET /sso/powrot — Redirect URI aplikacji SZO w Logto: konto SZO po identyfikatorze Logto albo potwierdzonym e-mailu. */
     public function loginCallback(): ?string
     {
+        // Sesja MUSI ruszyć przed odczytem state/PKCE z $_SESSION (LogtoOidc::callback) i przed zapisem komunikatu błędu (loginFail).
+        // Bez tego powrót z Logto widział pustą sesję, odrzucał logowanie i odsyłał na ekran logowania bez żadnego komunikatu.
+        auth_start();
         $root = dirname(__DIR__, 3);
         require_once $root . '/includes/approval.php';        // log_auth_action
         require_once $root . '/includes/auth_security.php';   // authlog_write
