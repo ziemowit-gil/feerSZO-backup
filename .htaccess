@@ -77,6 +77,9 @@ RewriteRule ^nowehaslo(/.*)?$ /modules/nowe_haslo/router.php [QSA,L]
 # ── Gosposia: sprzątanie reklam i newsletterów ze skrzynki dPoczta: /pomocne/gosposia/… → modules/gosposia/router.php ──
 RewriteRule ^pomocne/gosposia(/.*)?$ /modules/gosposia/router.php [QSA,L]
 
+# ── Kontakty z Outlooka (Microsoft 365) do pliku VCF albo CSV: /pomocne/vcardy/… → modules/vcardy/router.php ──
+RewriteRule ^pomocne/vcardy(/.*)?$ /modules/vcardy/router.php [QSA,L]
+
 # ── Logowanie jednokrotne (Logto) i chmura plików: /ssoadmin/… (administrator), /sso/… (użytkownik) ──
 RewriteRule ^ssoadmin(/.*)?$ /modules/sso_logto/router.php [QSA,L]
 RewriteRule ^sso(/.*)?$      /modules/sso_logto/router.php [QSA,L]
