@@ -108,6 +108,13 @@ $copyField = function (string $id, string $label, string $value) {
           <div class="form-text" id="ssoPromptH">Ekran z formularzem hasła pojawia się raz po zalogowaniu (po regulaminie i kreatorze), z przyciskiem „Nie teraz”. Działa, gdy włączone jest samodzielne zakładanie konta; konto w chmurze powstaje, gdy zaznaczysz to niżej w sekcji chmury.</div>
         </div>
       </div>
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="admin_login" value="1" id="ssoAdminLogin" aria-describedby="ssoAdminLoginH" <?= $cfg['admin_login'] ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ssoAdminLogin">Administratorzy mogą logować się przez logowanie jednokrotne (bez Microsoft 365)</label>
+          <div class="form-text" id="ssoAdminLoginH">Po odznaczeniu konta administratorów @feer.org.pl znów logują się wyłącznie przez Microsoft 365. Klucz bezpieczeństwa (WebAuthn) i dwuetapowe logowanie obowiązują tak jak dotąd, ale tylko na kontach, które mają je włączone.</div>
+        </div>
+      </div>
       <details class="col-12 small">
         <summary>Jak założyć aplikację Machine-to-machine w Logto</summary>
         <ol class="sso-steps mt-2">

@@ -49,6 +49,7 @@ final class SsoController
                 'has_webhook' => SsoConfig::has('sso_logto_webhook_key'),
                 'self'        => SsoConfig::selfEnabled(),
                 'prompt'      => SsoConfig::get('sso_login_prompt', '1') !== '0',
+                'admin_login' => SsoConfig::get('sso_admin_login', '1') !== '0',
                 'szo_login'   => SsoConfig::get('sso_szo_login') === '1',
                 'szo_app_id'  => SsoConfig::get('sso_szo_app_id'),
                 'has_szo_secret' => SsoConfig::has('sso_szo_app_secret'),
@@ -512,7 +513,9 @@ final class SsoController
             authlog_write($uid, 'login_blocked_ti_panel', (string)$user['email'], 'Logto: konto panelu dydaktyka TI');
             return $this->loginFail('To konto działa wyłącznie w panelu dydaktyka TI — zaloguj się pod adresem karty30/ti/dydaktyk/.');
         }
-        if (account_is_office_only($user)) {
+        // Administratorzy @feer.org.pl: od 2026-11-15 mogą logować się też przez Logto (polecenie „włącz adminom możliwość SSO już bez MS”).
+        // Wyłącznik: sso_admin_login = '0' (/ssoadmin). Dalej obowiązują: bramka WebAuthn (konta z flagą webauthn_required), 2FA konta i ograniczenie IP panelu admina.
+        if (account_is_office_only($user) && SsoConfig::get('sso_admin_login', '1') === '0') {
             authlog_write($uid, 'login_blocked_office', (string)$user['email'], 'Logto: konto administratora — wymagane logowanie przez Microsoft 365');
             return $this->loginFail('Konto administratora @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).');
         }
@@ -526,7 +529,7 @@ final class SsoController
         $endUrl = LogtoOidc::endSessionUrl($c['id_token']);
         try { SsoAccounts::touchSignIn($c['sub']); } catch (\Throwable $e) {}
 
-        // Logowanie dwuetapowe SZO (TOTP/SMS) — jak przy haśle; administratorów tu nie ma (tylko Microsoft 365).
+        // Logowanie dwuetapowe SZO (TOTP/SMS) — jak przy haśle (dotyczy też administratorów, gdy sso_admin_login nie jest wyłączone).
         if (!empty($user['twofa_method'])) {
             $_SESSION['2fa_uid']      = $uid;
             $_SESSION['2fa_method']   = $user['twofa_method'];

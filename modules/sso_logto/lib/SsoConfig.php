@@ -11,6 +11,7 @@ declare(strict_types=1);
  *   sso_logto_webhook_key  — Signing key webhooka Logto → SZO (zaszyfrowany)
  *   sso_self_enabled       — '1' = użytkownik sam zakłada konto w Tożsamości (domyślnie tak)
  *   sso_login_prompt       — '1' = po każdym zalogowaniu prośba o konto (lib/ssoPrompt.php, /sso/start); domyślnie tak
+ *   sso_admin_login        — '1' (domyślnie) = administratorzy @feer.org.pl mogą logować się też przez Logto (bez Microsoft 365); '0' = tylko Microsoft
  *   sso_szo_login          — '1' = logowanie do SZO przez Logto (przycisk na ekranie logowania, lib/LogtoOidc.php)
  *   sso_szo_app_id         — App ID aplikacji „Traditional web” w Logto (SZO jako klient OpenID Connect)
  *   sso_szo_app_secret     — App secret tej aplikacji (zaszyfrowany)
@@ -180,6 +181,7 @@ final class SsoConfig
         org_setting_set('sso_logto_m2m_id', $m2m);
         org_setting_set('sso_self_enabled', !empty($in['self_enabled']) ? '1' : '0');
         org_setting_set('sso_login_prompt', !empty($in['login_prompt']) ? '1' : '0');
+        org_setting_set('sso_admin_login', !empty($in['admin_login']) ? '1' : '0');
         org_setting_set('sso_szo_login', !empty($in['szo_login']) ? '1' : '0');
         org_setting_set('sso_szo_app_id', $szoApp);
         org_setting_set('sso_ms_off_date', $msOff);
