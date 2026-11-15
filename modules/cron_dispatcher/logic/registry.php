@@ -359,11 +359,6 @@ function cron_dispatcher_registry(): array
             'interval' => 3600,         // co godzinę — powiadomienia o otwarciu egzaminu i o zamknięciu w ciągu 24 h (e-mail + SMS), każde raz; wyłączone, póki nie włączy kierownik
             'schedule' => [8, 20],      // tylko w ciągu dnia
         ],
-        'stopka_exchange_sync' => [
-            'file'     => $cronDir . '/stopka_exchange_sync.php',
-            'interval' => 86400,        // raz dziennie — odświeża regułę transportową Exchange ze stopką e-mail (wyłączone, póki admin nie włączy synchronizacji)
-            'schedule' => [2, 4],       // w nocy
-        ],
         'backup' => [
             'file'     => $cronDir . '/agents/backup.php',
             'interval' => 14400,        // co 4h — backup przyrostowy (lokalny)

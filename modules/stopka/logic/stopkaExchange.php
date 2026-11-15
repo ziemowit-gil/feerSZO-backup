@@ -1,70 +1,16 @@
 <?php
 /**
- * modules/stopka/logic/stopkaExchange.php — automatyczna stopka w Outlooku (klasyczny, web, telefony).
+ * modules/stopka/logic/stopkaExchange.php — WSPÓŁDZIELONE połączenie SZO z Exchange Online (REST „InvokeCommand”)
+ * i kreator konfiguracji uprawnień. Korzysta z niego moduł aliasów poczty (modules/mail_alias, admin/email_aliasy.php)
+ * oraz cli/exoDiag.php.
  *
- * Mechanizm: JEDNA reguła transportowa Exchange Online (HTML disclaimer, „Append"), która
- * dopisuje stopkę do każdej wiadomości wysłanej z organizacji — po stronie serwera, więc
- * działa w każdym kliencie, także w Outlooku w przeglądarce. Dane osoby Exchange podstawia
- * sam z Entra ID (%%DisplayName%%, %%Title%%, %%MobilePhone%% …); SZO utrzymuje tylko
- * wspólny szablon (dane organizacji + treść promocyjna) i wypycha go do reguły.
+ * Automatyczna stopka przez regułę transportową Exchange (tryb Audit/Enforce, agent CRON, CLI, ustawienia ex_*)
+ * została USUNIĘTA 2026-11-15 (polecenie „wywal stopki te exchangowe”). Zostały: generator i konfigurator stopki
+ * (ręczne kopiowanie) oraz publiczny /pomocne/generatorstopki. Kolumny ex_* w stopka_settings są nieużywane i zostają w bazie.
  *
- * Konsekwencja: stanowisko/telefon w stopce biorą się z Entra ID, nie z stopka_profile
- * (ten ręczny profil służy tylko do podglądu i ręcznego kopiowania).
- *
- * Wywołania idą REST-em „InvokeCommand" Exchange Online (to samo, czym mówi moduł
- * ExchangeOnlineManagement) z tokenem aplikacji (client credentials) zasobu
- * https://outlook.office365.com. Wymaga w Entra ID: uprawnienia aplikacji
- * Office 365 Exchange Online → Exchange.ManageAsApp (z zgodą admina) ORAZ roli
- * „Exchange Administrator" (lub „Transport Hygiene") przypisanej tej aplikacji.
- *
- * Reguła startuje w trybie Audit (nic nie zmienia w wiadomościach, tylko loguje) —
- * administrator przełącza na Enforce po obejrzeniu podglądu.
+ * Wymaga w Entra ID: uprawnienia aplikacji Office 365 Exchange Online → Exchange.ManageAsApp (zgoda administratora),
+ * certyfikatu aplikacji i roli „Exchange Administrator” przypisanej aplikacji (kreator: modules/stopka/index.php#h-wz).
  */
-
-const STOPKA_EX_RULE      = 'SZO - stopka e-mail';
-const STOPKA_EX_MARK_HDR  = 'X-SZO-Stopka';
-const STOPKA_EX_MAX_CHARS = 5000; // limit Exchange dla ApplyHtmlDisclaimerText
-
-function stopkaExMigrate(): void {
-    static $done = false;
-    if ($done) return;
-    $done = true;
-    stopkaMigrate();
-    foreach ([
-        'ex_enabled'    => "ALTER TABLE stopka_settings ADD COLUMN ex_enabled INTEGER NOT NULL DEFAULT 0",
-        'ex_mode'       => "ALTER TABLE stopka_settings ADD COLUMN ex_mode TEXT NOT NULL DEFAULT 'Audit'",
-        'ex_phone_attr' => "ALTER TABLE stopka_settings ADD COLUMN ex_phone_attr TEXT NOT NULL DEFAULT 'MobilePhone'",
-        'ex_last_sync'  => "ALTER TABLE stopka_settings ADD COLUMN ex_last_sync TEXT NOT NULL DEFAULT ''",
-        'ex_last_msg'   => "ALTER TABLE stopka_settings ADD COLUMN ex_last_msg TEXT NOT NULL DEFAULT ''",
-    ] as $col => $sql) {
-        try { db()->exec($sql); } catch (\Throwable $e) { /* kolumna już jest */ }
-    }
-}
-
-function stopkaExSettings(): array {
-    return db_one("SELECT * FROM stopka_settings WHERE id=1") ?? [];
-}
-
-/** Szablon HTML dla Exchange: placeholdery %%…%% zamiast danych osoby. Wygląd = konfigurator. */
-function stopkaExBuildHtml(array $s): string {
-    $ph = in_array($s['ex_phone_attr'] ?? '', ['MobilePhone', 'PhoneNumber'], true) ? $s['ex_phone_attr'] : 'MobilePhone';
-    return stopkaRenderHtml(stopkaSettings(), [
-        'name' => '%%DisplayName%%', 'title' => '%%Title%%', 'phone' => '%%' . $ph . '%%', 'email' => '%%Email%%',
-    ]);
-}
-
-/** Podgląd szablonu z podstawionymi danymi osoby (placeholdery → wartości). */
-function stopkaExPreviewHtml(array $s, array $me): string {
-    $map = [
-        '%%DisplayName%%' => trim($me['first_name'] . ' ' . $me['last_name']),
-        '%%Title%%'       => $me['job_title'],
-        '%%MobilePhone%%' => $me['phone'],
-        '%%PhoneNumber%%' => $me['phone'],
-        '%%Email%%'       => $me['email'],
-    ];
-    foreach ($map as $k => $v) $map[$k] = htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    return strtr(stopkaExBuildHtml($s), $map);
-}
 
 /**
  * Certyfikat aplikacji dla Exchange Online. Administracyjne API Exchange (InvokeCommand) w trybie aplikacji
@@ -273,102 +219,6 @@ function stopkaExInvoke(string $token, string $cmdlet, array $params = []): arra
     throw new RuntimeException('Brak identyfikatora dzierżawy Microsoft 365.');
 }
 
-/** Tworzy/aktualizuje regułę. Zwraca [komunikat, czy_błąd]. Zapisuje wynik w ex_last_*. */
-function stopkaExPush(): array {
-    stopkaExMigrate();
-    $s = stopkaExSettings();
-    try {
-        $html = stopkaExBuildHtml($s);
-        if (mb_strlen($html) > STOPKA_EX_MAX_CHARS) {
-            throw new RuntimeException('Szablon ma ' . mb_strlen($html) . ' znaków; Exchange dopuszcza ' . STOPKA_EX_MAX_CHARS . '. Skróć treść promocyjną.');
-        }
-        $mode = ($s['ex_mode'] ?? 'Audit') === 'Enforce' ? 'Enforce' : 'Audit';
-        $tok  = stopkaExToken();
-        $params = [
-            'ApplyHtmlDisclaimerLocation'       => 'Append',
-            'ApplyHtmlDisclaimerText'           => $html,
-            'ApplyHtmlDisclaimerFallbackAction' => 'Wrap',
-            'FromScope'                         => 'InOrganization',
-            // znacznik + wyjątek: wiadomość już ostemplowana (odpowiedź w wątku) nie dostaje drugiej stopki
-            'SetHeaderName'                     => STOPKA_EX_MARK_HDR,
-            'SetHeaderValue'                    => '1',
-            'ExceptIfHeaderMatchesMessageHeader' => STOPKA_EX_MARK_HDR,
-            'ExceptIfHeaderMatchesPatterns'     => ['1'],
-            'Mode'                              => $mode,
-            'Comments'                          => 'Zarządzane przez SZO (modules/stopka). Nie edytuj ręcznie.',
-        ];
-        $exists = false;
-        try { $exists = (bool)stopkaExInvoke($tok, 'Get-TransportRule', ['Identity' => STOPKA_EX_RULE]); } catch (RuntimeException $e) { $exists = false; }
-        if ($exists) {
-            stopkaExInvoke($tok, 'Set-TransportRule', ['Identity' => STOPKA_EX_RULE] + $params);
-        } else {
-            stopkaExInvoke($tok, 'New-TransportRule', ['Name' => STOPKA_EX_RULE, 'Enabled' => true] + $params);
-        }
-        $msg = 'Reguła „' . STOPKA_EX_RULE . '” ' . ($exists ? 'zaktualizowana' : 'utworzona') . ' (tryb: ' . $mode . ').';
-        $err = false;
-    } catch (Throwable $e) {
-        $msg = $e->getMessage();
-        $err = true;
-    }
-    db_exec("UPDATE stopka_settings SET ex_last_sync=?, ex_last_msg=? WHERE id=1",
-        [date('Y-m-d H:i:s'), ($err ? 'BŁĄD: ' : 'OK: ') . $msg]);
-    return [$msg, $err];
-}
-
-
-/**
- * Diagnostyka uprawnień: lista [etykieta, ok(true|false|null=info), szczegóły/podpowiedź].
- * Niczego nie zmienia w Exchange (tylko odczyty).
- */
-function stopkaExCheck(): array {
-    $out = [];
-    $tenant = m365_setting('m365_tenant_id') ?: (defined('MS_TENANT_ID') ? MS_TENANT_ID : '');
-    $cid    = m365_setting('m365_graph_client_id');
-    $cfgOk  = $tenant !== '' && $cid !== '' && m365_setting('m365_graph_client_secret') !== '';
-    $out[] = ['Konfiguracja aplikacji Graph (tenant, client id, secret)', $cfgOk,
-        $cfgOk ? 'Aplikacja: ' . $cid : 'Uzupełnij dane aplikacji w ustawieniach Microsoft 365 SZO.'];
-    if (!$cfgOk) return $out;
-
-    // Graph: User.Read.All (synchronizacja stanowiska/telefonu z Entra ID)
-    try {
-        $r = stopkaExHttp('POST', "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token", ['Content-Type: application/x-www-form-urlencoded'],
-            http_build_query(['grant_type' => 'client_credentials', 'client_id' => $cid, 'client_secret' => m365_setting('m365_graph_client_secret'), 'scope' => 'https://graph.microsoft.com/.default']));
-        $roles = M365Graph::decode_jwt($r['access_token'] ?? '')['roles'] ?? [];
-        $ok = in_array('User.Read.All', $roles, true) || in_array('Directory.Read.All', $roles, true);
-        $out[] = ['Graph: uprawnienie User.Read.All (odczyt profili)', $ok,
-            $ok ? 'Jest.' : 'Brak. Entra ID → Rejestracje aplikacji → Uprawnienia API → Microsoft Graph → Uprawnienia aplikacji → User.Read.All + zgoda administratora. (Dotyczy tylko przycisku „Synchronizuj z M365”.)'];
-    } catch (Throwable $e) {
-        $out[] = ['Graph: token aplikacji', false, $e->getMessage()];
-    }
-
-    // Exchange: token i rola aplikacji
-    try {
-        $tok = stopkaExToken();
-    } catch (Throwable $e) {
-        $out[] = ['Exchange Online: token aplikacji', false, $e->getMessage()];
-        return $out;
-    }
-    $roles = M365Graph::decode_jwt($tok)['roles'] ?? [];
-    $hasRole = in_array('Exchange.ManageAsApp', $roles, true);
-    $out[] = ['Exchange: uprawnienie aplikacji Exchange.ManageAsApp', $hasRole,
-        $hasRole ? 'Jest w tokenie.' : 'Brak. Uprawnienia API → Dodaj uprawnienie → Office 365 Exchange Online → Uprawnienia aplikacji → Exchange.ManageAsApp, potem zgoda administratora.'];
-
-    // Exchange: rola administracyjna (próba odczytu reguł)
-    try {
-        $rules = stopkaExInvoke($tok, 'Get-TransportRule');
-        $out[] = ['Exchange: rola administracyjna aplikacji (odczyt reguł transportowych)', true, 'Odczyt działa (reguł w organizacji: ' . count($rules) . ').'];
-        $mine = null;
-        foreach ($rules as $r) { if (($r['Name'] ?? '') === STOPKA_EX_RULE) { $mine = $r; break; } }
-        $out[] = ['Reguła „' . STOPKA_EX_RULE . '”', null, $mine
-            ? 'Istnieje — stan: ' . ($mine['State'] ?? '?') . ', tryb: ' . ($mine['Mode'] ?? '?') . '.'
-            : 'Jeszcze nie utworzona (powstanie przy pierwszym „Zapisz i wypchnij”).'];
-    } catch (Throwable $e) {
-        $out[] = ['Exchange: rola administracyjna aplikacji', false,
-            $e->getMessage() . ' — przypisz aplikacji (Enterprise application o tej nazwie) rolę „Exchange Administrator” w Entra ID → Role i administratorzy.'];
-    }
-    return $out;
-}
-
 // ── Kreator konfiguracji Exchange (graficzny, panel administratora) ──────────────────────
 
 const STOPKA_EX_RESOURCE_APP = '00000002-0000-0ff1-ce00-000000000000';   // Office 365 Exchange Online
@@ -377,7 +227,7 @@ const STOPKA_EX_ADMIN_ROLE   = '29232cdf-9323-42fd-ade2-1d097af3e4de';   // Entr
 
 /**
  * Stan kreatora: dane aplikacji, linki do Entra ID, skrypt PowerShell i status kroków
- * (app, perm, consent, role, rule) — każdy: status ok|fail|wait|info + komunikat.
+ * (app, perm, consent, cert, role) — każdy: status ok|fail|wait|info + komunikat.
  * \$probe=false: bez połączeń z Microsoft (pierwsze renderowanie strony, kroki „loading”).
  * Tylko odczyty; niczego nie zmienia w Entra ID ani w Exchange.
  */
@@ -395,7 +245,7 @@ function stopkaExWizardState(bool $probe = true): array {
     $st['script'] = stopkaExWizardScript($tenant, $cid);
     $wait = ['status' => 'wait', 'msg' => 'Najpierw dokończ poprzedni krok.'];
     if (!$probe) {
-        foreach (['app', 'perm', 'consent', 'cert', 'role', 'rule'] as $k) $st['steps'][$k] = ['status' => 'loading', 'msg' => 'Sprawdzanie…'];
+        foreach (['app', 'perm', 'consent', 'cert', 'role'] as $k) $st['steps'][$k] = ['status' => 'loading', 'msg' => 'Sprawdzanie…'];
         return $st;
     }
 
@@ -404,7 +254,7 @@ function stopkaExWizardState(bool $probe = true): array {
         ? ['status' => 'ok', 'msg' => 'Aplikacja ' . $cid . ' w dzierżawie ' . $tenant . '.']
         : ['status' => 'fail', 'msg' => 'Brakuje: ' . implode(', ', array_keys(array_filter(['identyfikatora dzierżawy' => $tenant === '', 'Client ID' => $cid === '', 'sekretu' => !$hasSec]))) . '. Uzupełnij je w ustawieniach Microsoft 365 SZO.'];
     if (!$appOk) {
-        foreach (['perm', 'consent', 'cert', 'role', 'rule'] as $k) $st['steps'][$k] = $wait;
+        foreach (['perm', 'consent', 'cert', 'role'] as $k) $st['steps'][$k] = $wait;
         return $st;
     }
 
@@ -432,7 +282,7 @@ function stopkaExWizardState(bool $probe = true): array {
         $consented = in_array('Exchange.ManageAsApp', $claims['roles'] ?? [], true);
     } catch (Throwable $e) {
         $st['steps']['perm']    = ['status' => 'fail', 'msg' => $e->getMessage()];
-        $st['steps']['consent'] = $wait; $st['steps']['cert'] = $wait; $st['steps']['role'] = $wait; $st['steps']['rule'] = $wait;
+        $st['steps']['consent'] = $wait; $st['steps']['cert'] = $wait; $st['steps']['role'] = $wait;
         return $st;
     }
     if ($consented) {
@@ -451,7 +301,7 @@ function stopkaExWizardState(bool $probe = true): array {
                 ? 'Certyfikat SZO nie jest jeszcze wgrany do aplikacji w Entra ID'
                 : 'Nie udało się uzyskać tokenu z certyfikatu: ' . mb_substr($m, 0, 220))
                 . '. Exchange Online przyjmuje tylko tokeny z certyfikatu — sekret klienta daje 403 mimo poprawnych ról.'];
-            $st['steps']['role'] = $wait; $st['steps']['rule'] = $wait;
+            $st['steps']['role'] = $wait;
             return $st;
         }
     } else {
@@ -462,21 +312,15 @@ function stopkaExWizardState(bool $probe = true): array {
                 : 'Nie da się odczytać rejestracji aplikacji (brak Application.Read.All) — sprawdź w portalu.'];
         $st['steps']['consent'] = ['status' => 'fail', 'msg' => 'Token Exchange nie zawiera roli Exchange.ManageAsApp — brak zgody administratora (role w tokenie: '
             . (($claims['roles'] ?? []) ? implode(', ', $claims['roles']) : 'brak') . ').'];
-        $st['steps']['cert'] = $wait; $st['steps']['role'] = $wait; $st['steps']['rule'] = $wait;
+        $st['steps']['cert'] = $wait; $st['steps']['role'] = $wait;
         return $st;
     }
 
     try {
-        $rules = stopkaExInvoke($tok, 'Get-TransportRule');
-        $st['steps']['role'] = ['status' => 'ok', 'msg' => 'Aplikacja ma rolę administracyjną w Exchange (reguł transportowych: ' . count($rules) . ').'];
-        $mine = null;
-        foreach ($rules as $r) { if (($r['Name'] ?? '') === STOPKA_EX_RULE) { $mine = $r; break; } }
-        $st['steps']['rule'] = $mine
-            ? ['status' => 'ok', 'msg' => 'Reguła „' . STOPKA_EX_RULE . '” istnieje — stan: ' . ($mine['State'] ?? '?') . ', tryb: ' . ($mine['Mode'] ?? '?') . '.']
-            : ['status' => 'info', 'msg' => 'Uprawnienia gotowe. Reguła powstanie po „Zapisz i wypchnij do Exchange”.'];
+        $doms = stopkaExInvoke($tok, 'Get-AcceptedDomain');   // odczyt, którego używa też moduł aliasów
+        $st['steps']['role'] = ['status' => 'ok', 'msg' => 'Aplikacja ma rolę administracyjną w Exchange (domen w organizacji: ' . count($doms) . ').'];
     } catch (Throwable $e) {
         $st['steps']['role'] = ['status' => 'fail', 'msg' => $e->getMessage()];
-        $st['steps']['rule'] = $wait;
     }
     return $st;
 }

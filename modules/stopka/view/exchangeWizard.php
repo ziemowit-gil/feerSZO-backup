@@ -1,6 +1,6 @@
 <?php
 /**
- * Kreator konfiguracji Exchange Online dla automatycznej stopki (tylko administrator).
+ * Kreator konfiguracji dostępu SZO do Exchange Online (tylko administrator). Korzysta z niego moduł aliasów poczty.
  * Kroki i ich stan: stopkaExWizardState() w logic/stopkaExchange.php; odświeżanie przez
  * POST _action=wizard_check (JSON). Wymaga: $self, csrf_token(), Alpine.
  */
@@ -11,7 +11,6 @@ $wzSteps = [
     ['consent', 'Zgoda administratora', 'Na tej samej stronie (Uprawnienia API) kliknij „Udziel zgody administratora dla …” i potwierdź. W kolumnie Stan ma pojawić się zielony znacznik.'],
     ['cert', 'Certyfikat aplikacji', 'Exchange Online w trybie aplikacji przyjmuje tylko logowanie certyfikatem (sekret klienta kończy się błędem 403). Pobierz certyfikat SZO (plik .cer — sama część publiczna), potem Entra ID → Rejestracje aplikacji → ta aplikacja → Certyfikaty i wpisy tajne → zakładka Certyfikaty → Przekaż certyfikat → wybierz plik → Dodaj. Odcisk palca w Entra ma się zgadzać z podanym niżej.'],
     ['role', 'Rola „Exchange Administrator” dla aplikacji', 'Entra ID → Role i administratorzy → Exchange Administrator → Dodaj przypisania → wyszukaj aplikację po nazwie lub Client ID → Przypisz. Uprawnienia działają po kilku–kilkunastu minutach.'],
-    ['rule', 'Reguła transportowa stopki', 'Gdy kroki 1–5 są zielone, włącz synchronizację poniżej i kliknij „Zapisz i wypchnij do Exchange”. Zacznij od trybu Audit.'],
 ];
 ?>
 <section class="mt-group" aria-labelledby="h-wz"
@@ -91,8 +90,6 @@ $wzSteps = [
         <?php elseif ($key === 'role'): ?>
           <a :href="state.links.role" target="_blank" rel="noopener"
             class="tw-inline-block tw-rounded tw-bg-blue-700 tw-text-white tw-px-4 tw-py-2 hover:tw-bg-blue-800 tw-no-underline">Otwórz rolę „Exchange Administrator” ↗</a>
-        <?php elseif ($key === 'rule'): ?>
-          <a href="#h-ex" class="tw-inline-block tw-text-blue-700 tw-underline">Przejdź do ustawień synchronizacji ↓</a>
         <?php endif; ?>
       </div>
     </div>
@@ -111,13 +108,13 @@ $wzSteps = [
 
 <script>
 function stopkaWizard(d) {
-  const ORDER = ['app', 'perm', 'consent', 'cert', 'role', 'rule'];
+  const ORDER = ['app', 'perm', 'consent', 'cert', 'role'];
   const TITLES = <?= json_encode(array_column($wzSteps, 1, 0), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
   return {
     state: d.state, busy: false, err: '', open: '', copied: '',
     get done() { return ORDER.every(k => ['ok', 'info'].includes(this.st(k))) && this.st('role') === 'ok'; },
     st(k) { return this.state.steps[k]?.status || 'loading'; },
-    firstOpen() { return ORDER.find(k => this.st(k) !== 'ok' && !(k === 'rule' && this.st(k) === 'info')) || ''; },
+    firstOpen() { return ORDER.find(k => this.st(k) !== 'ok') || ''; },
     firstOpenTitle() { const k = this.firstOpen(); return k ? TITLES[k] : '—'; },
     icon(k) { return {ok: '✔', fail: '✖', info: 'ℹ', loading: '…'}[this.st(k)] || ''; },
     label(k) { return {ok: 'Gotowe', fail: 'Do poprawy', info: 'Informacja', wait: 'Czeka', loading: 'Sprawdzanie…'}[this.st(k)]; },
