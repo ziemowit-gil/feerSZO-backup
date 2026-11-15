@@ -12,7 +12,27 @@ $uid = (int)$u['id'];
 
 $errors = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Kreator „Dostęp do Claude” (tylko administrator): ?type=claude albo POST z _wizard=claude. Logika: modules/helpdeskClaude/lib.
+$isAdmin = is_admin();
+$wizardMode = $isAdmin && (($_GET['type'] ?? '') === 'claude' || ($_POST['_wizard'] ?? '') === 'claude');
+$wizErrors = []; $wizOld = [];
+if ($wizardMode) {
+    require_once dirname(__DIR__) . '/modules/helpdeskClaude/lib/helpdeskClaude.php';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_check();
+        $wizOld = $_POST;
+        [$wizErrors, $wizData] = hdcValidate($_POST);
+        if (!$wizErrors) {
+            $res = hdcCreate($wizData, $u, $_FILES['attachments'] ?? []);
+            $ack = $res['ack'];
+            flash_set('success', "Zgłoszenie {$res['number']} zostało zarejestrowane. Potwierdzenie dla zgłaszającego: SMS {$ack['sms']}, e-mail {$ack['email']}.");
+            header('Location: ' . APP_URL . '/helpdesk/view.php?id=' . $res['id']);
+            exit;
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$wizardMode) {
     csrf_check();
 
     $title       = trim($_POST['title']       ?? '');
@@ -25,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$title)                         $errors[] = 'Temat jest wymagany.';
     if (!$description)                   $errors[] = 'Opis problemu jest wymagany.';
-    if (!isset(hd_categories()[$category])) $category = 'it_inne';
+    if (!isset(hd_categories()[$category]) || ($category === 'it_claude' && !$isAdmin)) $category = 'it_inne';
     if (!isset(HD_PRIORITIES[$priority])) $priority = 'normalny';
 
     if (!$errors) {
@@ -255,20 +275,28 @@ try {
 <div class="hd-dyn-cmd" role="toolbar" aria-label="Polecenia">
   <a href="<?= APP_URL ?>/helpdesk/index.php" class="hd-dyn-btn"><i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć do listy</a>
   <span class="hd-dyn-sep" aria-hidden="true"></span>
-  <button type="submit" form="hdNewForm" class="hd-dyn-btn hd-dyn-btn-pri"><i class="bi bi-send" aria-hidden="true"></i>Wyślij zgłoszenie</button>
+  <?php if (!$wizardMode): ?><button type="submit" form="hdNewForm" class="hd-dyn-btn hd-dyn-btn-pri"><i class="bi bi-send" aria-hidden="true"></i>Wyślij zgłoszenie</button><?php endif; ?>
 </div>
 <div class="hd-dyn-head">
   <div class="hd-dyn-entity">Zgłoszenie · Helpdesk IT</div>
-  <h1 class="hd-dyn-title">Nowe zgłoszenie IT</h1>
+  <h1 class="hd-dyn-title"><?= $wizardMode ? 'Dostęp do Claude' : 'Nowe zgłoszenie IT' ?></h1>
   <div class="hd-dyn-sub">Opisz problem — zajmiemy się nim zgodnie z priorytetem SLA.</div>
 </div>
 
-<?php if (is_admin()): ?>
-<div class="alert alert-info py-2 mb-3 d-flex align-items-center gap-2" role="note">
-  <i class="bi bi-stars" aria-hidden="true"></i>
-  <span>Problem z dostępem do Claude, na przykład migracja konta @edu na @stud? Użyj <a href="<?= APP_URL ?>/helpdesk/claude.php" class="alert-link">kreatora zgłoszeń Claude</a>.</span>
-</div>
+<?php if ($isAdmin): ?>
+<nav class="d-flex gap-2 mb-3" aria-label="Rodzaj zgłoszenia">
+  <a href="<?= APP_URL ?>/helpdesk/new.php" class="btn btn-sm <?= $wizardMode ? 'btn-outline-secondary' : 'btn-primary' ?>" <?= $wizardMode ? '' : 'aria-current="page"' ?>><i class="bi bi-pencil-square" aria-hidden="true"></i> Zwykłe zgłoszenie</a>
+  <a href="<?= APP_URL ?>/helpdesk/new.php?type=claude" class="btn btn-sm <?= $wizardMode ? 'btn-primary' : 'btn-outline-secondary' ?>" <?= $wizardMode ? 'aria-current="page"' : '' ?>><i class="bi bi-stars" aria-hidden="true"></i> Dostęp do Claude (kreator)</a>
+</nav>
 <?php endif; ?>
+
+<?php if ($wizardMode):
+    $errors = $wizErrors; $old = $wizOld;
+    require dirname(__DIR__) . '/modules/helpdeskClaude/view/wizard.php';
+    echo '</div><!-- /hd-new-wrap -->';
+    include dirname(__DIR__) . '/includes/footer.php';
+    exit;
+endif; ?>
 
 <?php if ($errors): ?>
 <div class="alert alert-danger py-2 mb-3"><ul class="mb-0 ps-3">
@@ -297,8 +325,8 @@ try {
         <div class="col-sm-12 col-xl-6">
           <label class="form-label fw-semibold mb-1" style="font-size:.85rem">Kategoria</label>
           <select name="category" class="form-select">
-            <?php foreach (hd_categories() as $k => $v): ?>
-            <option value="<?= h($k) ?>" <?= ($_POST['category'] ?? 'it_inne') === $k ? 'selected' : '' ?>><?= h($v) ?></option>
+            <?php foreach (hd_categories() as $k => $v): if ($k === 'it_claude' && !$isAdmin) continue; ?>
+            <option value="<?= h($k) ?>" <?= $k === 'it_claude' ? 'data-wizard="claude"' : '' ?> <?= ($_POST['category'] ?? 'it_inne') === $k ? 'selected' : '' ?>><?= h($v) ?><?= $k === 'it_claude' ? ' (kreator)' : '' ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -423,6 +451,11 @@ try {
   }
   [t, d].forEach(function (el) { if (el) el.addEventListener('input', function () { clearTimeout(tm); tm = setTimeout(run, 500); }); });
 })();
+var catSel = document.querySelector('select[name="category"]');
+if (catSel) catSel.addEventListener('change', function () {
+  var o = this.options[this.selectedIndex];
+  if (o && o.dataset.wizard === 'claude') window.location.href = '<?= APP_URL ?>/helpdesk/new.php?type=claude';   // kategoria Claude = kreator
+});
 document.querySelectorAll('.hd-pri-radio').forEach(function(r) {
   r.addEventListener('change', function() {
     document.querySelectorAll('.hd-pri-btn').forEach(function(l) { l.classList.remove('active-pri'); });

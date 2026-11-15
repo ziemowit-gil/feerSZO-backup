@@ -497,7 +497,7 @@ function _menu_editor(): array {
            reszta wyszukiwalna w Ctrl+K. */
         $biuro_search[] = _mi('Nowe zgłoszenie IT','/helpdesk/new.php','bi-plus-circle',['match'=>'/helpdesk/new','kw'=>'helpdesk nowe zgłoszenie problem awaria wniosek it']);
         if (is_admin())
-            $biuro_search[] = _mi('Zgłoszenie: dostęp do Claude (kreator)','/helpdesk/claude.php','bi-stars',['match'=>'/helpdesk/claude','kw'=>'helpdesk claude kreator zgłoszenie dostęp migracja edu stud logowanie licencja kursant']);
+            $biuro_search[] = _mi('Zgłoszenie: dostęp do Claude (kreator)','/helpdesk/new.php?type=claude','bi-stars',['match'=>'/helpdesk/new','kw'=>'helpdesk claude kreator zgłoszenie dostęp migracja edu stud logowanie licencja kursant']);
         if ($cnt['alias_op']) {
             $biuro_search[] = _mi('Helpdesk — raporty','/modules/helpdeskReports/router.php','bi-graph-up',['match'=>'/modules/helpdeskReports/','kw'=>'helpdesk raporty statystyki sla csat czas pracy eksport csv']);
             $biuro_search[] = _mi('Helpdesk — gotowe odpowiedzi i makra','/helpdesk/admin_macros.php','bi-card-text',['match'=>'/helpdesk/admin_macros','kw'=>'helpdesk makra gotowe odpowiedzi przebiegi akcje']);

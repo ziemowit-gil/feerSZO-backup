@@ -1,6 +1,7 @@
 <?php
 /**
- * modules/helpdeskClaude/view/wizard.php — widok kreatora (Alpine, 4 kroki). Zmienne: $errors, $old (ostatni POST).
+ * modules/helpdeskClaude/view/wizard.php — kreator wbudowany w helpdesk/new.php (?type=claude); Alpine, 4 kroki.
+ * Zmienne: $errors, $old (ostatni POST). Formularz idzie na new.php z _wizard=claude.
  * Pola różnych typów mają te same nazwy (np. claude_email), więc nieaktywny typ jest w <fieldset disabled> i nie jest wysyłany.
  */
 $types = hdcTypes();
@@ -33,17 +34,6 @@ $initStep = $errors ? 3 : 1;
 </style>
 
 <div class="hdc-wrap" x-data='hdcWizard(<?= json_encode(['step' => $initStep, 'type' => $oldType], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
-  <div class="hd-dyn-cmd" role="toolbar" aria-label="Polecenia">
-    <a href="<?= APP_URL ?>/helpdesk/index.php" class="hd-dyn-btn"><i class="bi bi-arrow-left" aria-hidden="true"></i>Wróć do listy</a>
-    <span class="hd-dyn-sep" aria-hidden="true"></span>
-    <a href="<?= APP_URL ?>/helpdesk/new.php" class="hd-dyn-btn"><i class="bi bi-plus-circle" aria-hidden="true"></i>Zwykłe zgłoszenie</a>
-  </div>
-  <div class="hd-dyn-head">
-    <div class="hd-dyn-entity">Zgłoszenie · Helpdesk IT</div>
-    <h1 class="hd-dyn-title">Dostęp do Claude</h1>
-    <div class="hd-dyn-sub">Kreator zgłoszeń od kursantów i kadry. Zgłaszasz w imieniu osoby jako administrator.</div>
-  </div>
-
   <?php if ($errors): ?>
   <div class="alert alert-danger py-2 mb-3" role="alert"><ul class="mb-0 ps-3">
     <?php foreach ($errors as $e) echo '<li style="font-size:.85rem">' . h($e) . '</li>'; ?>
@@ -56,8 +46,9 @@ $initStep = $errors ? 3 : 1;
     </template>
   </ol>
 
-  <form method="post" enctype="multipart/form-data" novalidate x-ref="form" @submit="beforeSubmit($event)" class="hdc-card">
+  <form method="post" action="<?= APP_URL ?>/helpdesk/new.php?type=claude" enctype="multipart/form-data" novalidate x-ref="form" @submit="beforeSubmit($event)" class="hdc-card">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="_wizard" value="claude">
 
     <!-- Krok 1: typ -->
     <section x-show="step === 1" aria-labelledby="hdc-h1">
