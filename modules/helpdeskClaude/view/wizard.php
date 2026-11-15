@@ -8,7 +8,7 @@ $types = hdcTypes();
 $oldType = (string)($old['type'] ?? '');
 $val = fn(string $k) => (string)($old['f'][$k] ?? '');
 $reqVal = fn(string $k) => (string)($old[$k] ?? '');
-$initStep = $errors ? 3 : 1;
+$initStep = $errors ? 4 : 1;
 ?>
 <style>
 .hdc-wrap { max-width: 860px; }
@@ -33,7 +33,7 @@ $initStep = $errors ? 3 : 1;
 .hdc-note { background: #fff4ce; border-left: 4px solid #835c00; padding: .6rem .9rem; font-size: .88rem; color: #242424; }
 </style>
 
-<div class="hdc-wrap" x-data='hdcWizard(<?= json_encode(['step' => $initStep, 'type' => $oldType], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
+<div class="hdc-wrap" x-data='hdcWizard(<?= json_encode(['step' => $initStep, 'type' => $oldType, 'url' => APP_URL . '/helpdesk/new.php?type=claude'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
   <?php if ($errors): ?>
   <div class="alert alert-danger py-2 mb-3" role="alert"><ul class="mb-0 ps-3">
     <?php foreach ($errors as $e) echo '<li style="font-size:.85rem">' . h($e) . '</li>'; ?>
@@ -50,9 +50,46 @@ $initStep = $errors ? 3 : 1;
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <input type="hidden" name="_wizard" value="claude">
 
-    <!-- Krok 1: typ -->
+    <!-- Krok 1: kursant z kartoteki TI (opcjonalnie) -->
     <section x-show="step === 1" aria-labelledby="hdc-h1">
-      <h2 id="hdc-h1" class="h5 mb-3">Czego dotyczy problem?</h2>
+      <h2 id="hdc-h1" class="h5 mb-1">Kursant z kartoteki</h2>
+      <p class="text-muted small mb-3">Wyszukaj kursanta, a kreator uzupełni jego dane i pokaże konta @edu, @stud oraz licencję Claude. Możesz pominąć ten krok.</p>
+      <input type="hidden" name="client_id" :value="card ? card.id : ''">
+      <div x-show="!card">
+        <label class="form-label" for="hdc-q">Imię i nazwisko, e-mail albo telefon</label>
+        <input id="hdc-q" type="search" class="form-control" autocomplete="off" x-model="q" @input.debounce.350ms="search()"
+               role="combobox" aria-autocomplete="list" aria-controls="hdc-results" :aria-expanded="results.length > 0 ? 'true' : 'false'" placeholder="np. Kowalski Jan">
+        <p class="form-text" x-show="searching" x-cloak>Szukam…</p>
+        <p class="form-text" x-show="!searching && searched && !results.length" x-cloak>Nie znaleziono nikogo w kartotece. Wypełnisz dane ręcznie w kolejnych krokach.</p>
+        <ul id="hdc-results" class="list-group mt-2" role="listbox" x-show="results.length" x-cloak>
+          <template x-for="r in results" :key="r.id">
+            <li class="list-group-item list-group-item-action p-0" role="option">
+              <button type="button" class="btn btn-link text-start text-decoration-none w-100 px-3 py-2" @click="pick(r.id)">
+                <strong x-text="r.name"></strong>
+                <span class="d-block small text-muted" x-text="[r.groups || 'bez aktywnej grupy', r.email, r.phone].filter(Boolean).join(' · ')"></span>
+              </button>
+            </li>
+          </template>
+        </ul>
+      </div>
+      <div x-show="card" x-cloak class="border p-3" role="region" aria-label="Karta kursanta">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div><strong x-text="card?.name"></strong>
+            <span class="d-block small text-muted" x-text="(card?.groups || 'bez aktywnej grupy') + (card?.minor ? ' · małoletni' : '')"></span></div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" @click="clearCard()">Zmień kursanta</button>
+        </div>
+        <dl class="hdc-sum mt-3 mb-0">
+          <template x-for="l in (card?.lines || [])" :key="l[0]"><div><dt x-text="l[0]"></dt><dd x-text="l[1]"></dd></div></template>
+        </dl>
+        <a x-show="card?.link" :href="card?.link" target="_blank" rel="noopener" class="small">Otwórz w Ewidencji Uczestników</a>
+        <p class="hdc-note mt-3 mb-0">Dane z kartoteki wpisano w kolejne kroki. Sprawdź je i popraw, jeśli kursant podaje inne.</p>
+      </div>
+      <p class="text-danger small mt-2" x-show="msg && step === 1" x-text="msg" role="alert"></p>
+    </section>
+
+    <!-- Krok 2: typ -->
+    <section x-show="step === 2" aria-labelledby="hdc-h2">
+      <h2 id="hdc-h2" class="h5 mb-3">Czego dotyczy problem?</h2>
       <?php foreach ($types as $k => $t): ?>
       <label class="hdc-type" :class="type === '<?= h($k) ?>' ? 'on' : ''">
         <input type="radio" name="type" value="<?= h($k) ?>" class="visually-hidden" x-model="type">
@@ -60,12 +97,12 @@ $initStep = $errors ? 3 : 1;
         <span><b><?= h($t['label']) ?></b><span><?= h($t['desc']) ?></span></span>
       </label>
       <?php endforeach; ?>
-      <p class="text-danger small mt-2" x-show="msg && step === 1" x-text="msg" role="alert"></p>
+      <p class="text-danger small mt-2" x-show="msg && step === 2" x-text="msg" role="alert"></p>
     </section>
 
-    <!-- Krok 2: szczegóły wybranego typu -->
-    <section x-show="step === 2" aria-labelledby="hdc-h2">
-      <h2 id="hdc-h2" class="h5 mb-3">Szczegóły problemu</h2>
+    <!-- Krok 3: szczegóły wybranego typu -->
+    <section x-show="step === 3" aria-labelledby="hdc-h3">
+      <h2 id="hdc-h3" class="h5 mb-3">Szczegóły problemu</h2>
       <?php foreach ($types as $k => $t): ?>
       <fieldset data-type="<?= h($k) ?>" x-show="type === '<?= h($k) ?>'" :disabled="type !== '<?= h($k) ?>'" class="border-0 p-0 m-0">
         <legend class="visually-hidden"><?= h($t['label']) ?></legend>
@@ -92,12 +129,12 @@ $initStep = $errors ? 3 : 1;
         <input id="hdc-files" name="attachments[]" type="file" class="form-control" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv">
         <div class="form-text">Maks. 10 MB na plik. Zrzut komunikatu błędu bardzo przyspiesza pomoc.</div>
       </div>
-      <p class="text-danger small mt-2" x-show="msg && step === 2" x-text="msg" role="alert"></p>
+      <p class="text-danger small mt-2" x-show="msg && step === 3" x-text="msg" role="alert"></p>
     </section>
 
-    <!-- Krok 3: zgłaszający -->
-    <section x-show="step === 3" aria-labelledby="hdc-h3">
-      <h2 id="hdc-h3" class="h5 mb-3">Kto zgłasza</h2>
+    <!-- Krok 4: zgłaszający -->
+    <section x-show="step === 4" aria-labelledby="hdc-h4">
+      <h2 id="hdc-h4" class="h5 mb-3">Kto zgłasza</h2>
       <div class="row g-3">
         <div class="col-md-6"><label class="form-label" for="r-name">Imię i nazwisko <span class="text-danger" aria-hidden="true">*</span></label>
           <input id="r-name" name="req_name" class="form-control" required maxlength="120" autocomplete="off" value="<?= h($reqVal('req_name')) ?>"></div>
@@ -120,12 +157,12 @@ $initStep = $errors ? 3 : 1;
           </select>
           <div class="form-text">Migracja @edu na @stud domyślnie ma priorytet wysoki.</div></div>
       </div>
-      <p class="text-danger small mt-2" x-show="msg && step === 3" x-text="msg" role="alert"></p>
+      <p class="text-danger small mt-2" x-show="msg && step === 4" x-text="msg" role="alert"></p>
     </section>
 
-    <!-- Krok 4: podsumowanie -->
-    <section x-show="step === 4" aria-labelledby="hdc-h4">
-      <h2 id="hdc-h4" class="h5 mb-3">Sprawdź i wyślij</h2>
+    <!-- Krok 5: podsumowanie -->
+    <section x-show="step === 5" aria-labelledby="hdc-h5">
+      <h2 id="hdc-h5" class="h5 mb-3">Sprawdź i wyślij</h2>
       <dl class="hdc-sum" x-html="summary"></dl>
       <p class="hdc-note mt-3 mb-0">Po zapisaniu zgłaszający dostanie SMS i e-mail z numerem zgłoszenia i linkiem do śledzenia. Tożsamość nie jest weryfikowana w kreatorze, więc operator potwierdzi ją przed zmianą dostępu.</p>
     </section>
@@ -133,8 +170,8 @@ $initStep = $errors ? 3 : 1;
     <div class="d-flex justify-content-between mt-4">
       <button type="button" class="btn btn-outline-secondary" x-show="step > 1" @click="back()"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wstecz</button>
       <span x-show="step === 1"></span>
-      <button type="button" class="btn btn-primary" x-show="step < 4" @click="next()">Dalej <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-      <button type="submit" class="btn btn-primary" x-show="step === 4"><i class="bi bi-send" aria-hidden="true"></i> Zapisz zgłoszenie</button>
+      <button type="button" class="btn btn-primary" x-show="step < 5" @click="next()">Dalej <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+      <button type="submit" class="btn btn-primary" x-show="step === 5"><i class="bi bi-send" aria-hidden="true"></i> Zapisz zgłoszenie</button>
     </div>
   </form>
 </div>
@@ -146,7 +183,8 @@ function hdcWizard(init) {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   return {
     step: init.step, type: init.type, msg: '', summary: '', touchedPrio: false,
-    names: ['Typ', 'Szczegóły', 'Zgłaszający', 'Podsumowanie'],
+    q: '', results: [], searching: false, searched: false, card: null, url: init.url,
+    names: ['Kursant', 'Typ', 'Szczegóły', 'Zgłaszający', 'Podsumowanie'],
     get prioDefault() { return PRIO[this.type] || ''; },
     init() {
       this.$watch('type', () => { this.msg = ''; const s = this.$refs.form.querySelector('[name=priority]'); if (s && !this.touchedPrio && PRIO[this.type]) s.value = PRIO[this.type]; });
@@ -154,7 +192,8 @@ function hdcWizard(init) {
     },
     // Walidacja bieżącego kroku: wymagane pola widoczne w tym kroku (nieaktywne fieldsety są wyłączone, więc pomijane).
     valid() {
-      if (this.step === 1) { if (!this.type) { this.msg = 'Wybierz typ zgłoszenia.'; return false; } return true; }
+      if (this.step === 1) return true;   // kursant z kartoteki jest opcjonalny
+      if (this.step === 2) { if (!this.type) { this.msg = 'Wybierz typ zgłoszenia.'; return false; } return true; }
       const sec = this.$refs.form.querySelectorAll('section')[this.step - 1];
       for (const el of sec.querySelectorAll('input:not([type=file]), select, textarea')) {
         if (el.disabled) continue;
@@ -166,12 +205,47 @@ function hdcWizard(init) {
       this.msg = '';
       if (!this.valid()) return;
       this.step++;
-      if (this.step === 4) this.buildSummary();
+      if (this.step === 5) this.buildSummary();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     back() { this.msg = ''; if (this.step > 1) this.step--; },
+    async search() {
+      const q = this.q.trim();
+      if (q.length < 2) { this.results = []; this.searched = false; return; }
+      this.searching = true;
+      try {
+        const r = await fetch(this.url + '&ajax=kursant&q=' + encodeURIComponent(q), { credentials: 'same-origin' });
+        this.results = (await r.json()).items || [];
+      } catch (e) { this.results = []; }
+      this.searching = false; this.searched = true;
+    },
+    async pick(id) {
+      this.msg = '';
+      try {
+        const r = await fetch(this.url + '&ajax=karta&id=' + id, { credentials: 'same-origin' });
+        this.card = (await r.json()).card || null;
+      } catch (e) { this.card = null; }
+      if (!this.card) { this.msg = 'Nie udało się pobrać karty kursanta.'; return; }
+      this.results = []; this.q = '';
+      this.fill(this.card.prefill || {});
+    },
+    clearCard() { this.card = null; this.searched = false; },
+    // Wpisuje dane z kartoteki w pola formularza (pola o tej samej nazwie w różnych typach dostają tę samą wartość); puste wartości pomija.
+    fill(p) {
+      const f = this.$refs.form;
+      for (const k of ['edu_email', 'stud_email', 'claude_email']) {
+        if (!p[k]) continue;
+        f.querySelectorAll('[name="f[' + k + ']"]').forEach(el => { el.value = p[k]; });
+      }
+      for (const k of ['req_name', 'req_email', 'req_phone', 'req_role', 'req_group']) {
+        const el = f.querySelector('[name="' + k + '"]');
+        if (el && p[k]) el.value = p[k];
+      }
+    },
     buildSummary() {
-      const f = this.$refs.form, rows = [['Typ problemu', LABEL[this.type]]];
+      const f = this.$refs.form, rows = [];
+      if (this.card) rows.push(['Kursant z kartoteki', this.card.name + (this.card.groups ? ' (' + this.card.groups + ')' : '')]);
+      rows.push(['Typ problemu', LABEL[this.type]]);
       f.querySelectorAll('fieldset[data-type="' + this.type + '"] [name^="f["]').forEach(el => {
         if (el.value.trim()) rows.push([(el.labels?.[0]?.textContent.replace('*', '').trim() || el.name), el.value.trim()]);
       });
@@ -181,7 +255,7 @@ function hdcWizard(init) {
       }
       this.summary = rows.map(([k, v]) => '<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>').join('');
     },
-    beforeSubmit(e) { if (this.step !== 4) { e.preventDefault(); this.next(); } },
+    beforeSubmit(e) { if (this.step !== 5) { e.preventDefault(); this.next(); } },
   };
 }
 </script>

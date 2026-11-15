@@ -18,6 +18,15 @@ $wizardMode = $isAdmin && (($_GET['type'] ?? '') === 'claude' || ($_POST['_wizar
 $wizErrors = []; $wizOld = [];
 if ($wizardMode) {
     require_once dirname(__DIR__) . '/modules/helpdeskClaude/lib/helpdeskClaude.php';
+    // AJAX kreatora: wyszukiwanie kursanta w kartotece TI (?ajax=kursant&q=) i jego karta (?ajax=karta&id=)
+    if (isset($_GET['ajax'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        if ($_GET['ajax'] === 'kursant') echo json_encode(['items' => hdcClientSearch((string)($_GET['q'] ?? ''))], JSON_UNESCAPED_UNICODE);
+        elseif ($_GET['ajax'] === 'karta') echo json_encode(['card' => hdcClientCard((int)($_GET['id'] ?? 0))], JSON_UNESCAPED_UNICODE);
+        else echo json_encode(['error' => 'nieznana akcja']);
+        exit;
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_check();
         $wizOld = $_POST;

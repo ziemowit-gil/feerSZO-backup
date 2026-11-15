@@ -97,6 +97,7 @@ function hdcValidate(array $in): array {
     $d['phone'] = preg_replace('/\D/', '', (string)($in['req_phone'] ?? ''));
     $d['role']  = (string)($in['req_role'] ?? '');
     $d['group'] = trim(mb_substr((string)($in['req_group'] ?? ''), 0, 120));
+    $d['client_id'] = max(0, (int)($in['client_id'] ?? 0));   // kursant z kartoteki (opcjonalnie) — dane sprawdzamy w bazie przy zapisie
     $d['priority'] = (string)($in['priority'] ?? $types[$type]['priority']);
     if (!isset(HD_PRIORITIES[$d['priority']])) $d['priority'] = $types[$type]['priority'];
     if ($d['name'] === '') $errors[] = 'Podaj imię i nazwisko zgłaszającego.';
@@ -148,6 +149,12 @@ function hdcCreate(array $d, array $admin, array $files = []): array {
     $note = ['Zgłoszenie założone w kreatorze „Dostęp do Claude” przez administratora: ' . ($admin['name'] ?? '') . '.',
              'Tożsamość zgłaszającego NIE jest zweryfikowana. Przed zmianą dostępu potwierdź ją, np. przez kod SMS albo dane z kartoteki kursanta.',
              'Zgłaszający: ' . $d['role'] . ($d['group'] !== '' ? '. Grupa lub kurs: ' . $d['group'] : '') . '.'];
+    if (!empty($d['client_id']) && ($card = hdcClientCard((int)$d['client_id']))) {
+        $note[] = '';
+        $note[] = 'Kursant w kartotece TI: nr ' . $card['id'] . ', ' . $card['name'] . ($card['groups'] !== '' ? ' (' . $card['groups'] . ')' : '') . '.';
+        foreach ($card['lines'] as [$label, $text]) $note[] = $label . ': ' . $text;
+        if ($card['link'] !== '') $note[] = 'Karta w Ewidencji Uczestników: ' . $card['link'];
+    }
     db_insert('helpdesk_messages', ['ticket_id' => $id, 'user_id' => (int)($admin['id'] ?? 0) ?: null, 'user_name' => $admin['name'] ?? '', 'body' => implode("\n", $note), 'is_internal' => 1]);
 
     try { hd_redmine_sync_ticket($id); } catch (\Throwable $e) {}
@@ -228,4 +235,95 @@ function hdcSendAck(array $ticket, array $d): array {
         $out['email'] = 'w kolejce wysyłki';
     } catch (\Throwable $e) { $out['email'] = 'błąd (' . mb_substr($e->getMessage(), 0, 120) . ')'; }
     return $out;
+}
+
+
+// ── Kartoteka kursanta TI (k30_clients) ─────────────────────────────────────────────────
+
+/** Grupy aktywnych zapisów: client_id => „GRUPA1, GRUPA2”. */
+function hdcClientGroups(array $ids): array {
+    $ids = array_values(array_filter(array_map('intval', $ids)));
+    if (!$ids) return [];
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $out = [];
+    try {
+        foreach (db_all("SELECT e.client_id, GROUP_CONCAT(DISTINCT COALESCE(NULLIF(TRIM(c.group_code),''), c.name)) AS g
+                           FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id = e.course_id
+                          WHERE e.client_id IN ($in) AND e.status = 'active' AND c.closed_at IS NULL GROUP BY e.client_id", $ids) as $r) {
+            $out[(int)$r['client_id']] = (string)$r['g'];
+        }
+    } catch (\Throwable $e) {}
+    return $out;
+}
+
+/** Małe litery bez polskich znaków diakrytycznych — do porównań w wyszukiwaniu („Łukasiewicz” = „lukasiewicz”). */
+function hdcFold(string $s): string {
+    return strtr(mb_strtolower($s), ['ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z']);
+}
+
+/**
+ * Wyszukiwanie kursanta w kartotece po fragmentach imienia i nazwiska (wszystkie słowa), e-mailu albo telefonie.
+ * Filtrowanie w PHP (hdcFold: małe litery, bez polskich znaków), bo LOWER()/LIKE w SQLite nie radzą sobie z polskimi wielkimi literami. Konta wirtualne (testowe) pomijamy.
+ * @return list<array{id:int,name:string,email:string,phone:string,groups:string}>
+ */
+function hdcClientSearch(string $q, int $limit = 12): array {
+    $q = trim($q);
+    if (mb_strlen($q) < 2) return [];
+    $tokens = array_values(array_filter(preg_split('/\s+/u', hdcFold($q))));
+    $digits = preg_replace('/\D/', '', $q);
+    $rows = db_all("SELECT cl.id, cl.name, cl.email, cl.phone FROM k30_clients cl
+                     WHERE NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts sa WHERE sa.client_id = cl.id AND COALESCE(sa.is_virtual,0) = 1)");
+    $hits = [];
+    foreach ($rows as $r) {
+        $hay = hdcFold((string)$r['name'] . ' ' . (string)$r['email']);
+        $ok = true;
+        foreach ($tokens as $t) if (mb_strpos($hay, $t) === false) { $ok = false; break; }
+        if (!$ok && strlen($digits) >= 6 && str_contains(preg_replace('/\D/', '', (string)$r['phone']), $digits)) $ok = true;
+        if ($ok) $hits[] = $r;
+    }
+    $groups = hdcClientGroups(array_column(array_slice($hits, 0, 60), 'id'));
+    $out = [];
+    foreach ($hits as $r) {
+        $out[] = ['id' => (int)$r['id'], 'name' => trim((string)$r['name']), 'email' => trim((string)($r['email'] ?? '')),
+                  'phone' => trim((string)($r['phone'] ?? '')), 'groups' => $groups[(int)$r['id']] ?? ''];
+    }
+    usort($out, fn($a, $b) => [$a['groups'] === '' ? 1 : 0, hdcFold($a['name'])] <=> [$b['groups'] === '' ? 1 : 0, hdcFold($b['name'])]);
+    return array_slice($out, 0, $limit);
+}
+
+/**
+ * Karta kursanta do kreatora: konta (@edu, @stud), licencja Claude, dane opiekuna oraz propozycja uzupełnień formularza.
+ * Źródła: k30_clients, ClaudeBilling::eduAccount/assignment, PocztaStud::get, k30_ti_student_accounts (małoletni, opiekun).
+ * @return array{id:int,name:string,groups:string,minor:bool,lines:list<array{0:string,1:string}>,link:string,prefill:array}|null
+ */
+function hdcClientCard(int $cid): ?array {
+    $c = db_one("SELECT id, name, email, phone FROM k30_clients WHERE id=?", [$cid]);
+    if (!$c) return null;
+    $sa = db_one("SELECT id, is_minor, guardian_name, guardian_phone, guardian_email FROM k30_ti_student_accounts WHERE client_id=?", [$cid]) ?: [];
+    $groups = hdcClientGroups([$cid])[$cid] ?? '';
+    $minor = !empty($sa['is_minor']);
+    $edu = $stud = null; $lic = null; $studAcc = null;
+    try { $f = dirname(__DIR__, 2) . '/claude_billing/logic/claudeBilling.php'; if (is_file($f)) { require_once $f; $edu = ClaudeBilling::eduAccount($cid); $lic = ClaudeBilling::assignment($cid, 'claude'); } } catch (\Throwable $e) {}
+    try { $f = dirname(__DIR__, 2) . '/ti_poczta_stud/logic/PocztaStud.php'; if (is_file($f)) { require_once $f; $studAcc = PocztaStud::get($cid); $stud = $studAcc['login'] ?? null; } } catch (\Throwable $e) {}
+
+    $lines = [];
+    $lines[] = ['Konto @edu', $edu ?: 'brak w kartotece'];
+    $lines[] = ['Poczta @stud', $stud ? $stud . ($studAcc ? ' (' . PocztaStud::staffStatus($studAcc) . ')' : '') : 'brak skrzynki wpisanej przez kadrę'];
+    $lines[] = ['Licencja Claude', $lic ? ($lic['license_name'] . ($lic['login'] ? ', konto ' . $lic['login'] : '') . ($lic['expires_at'] ? ', ważna do ' . $lic['expires_at'] : '')) : 'brak aktywnej licencji'];
+    if ($minor) $lines[] = ['Małoletni', 'tak' . (!empty($sa['guardian_name']) ? ', opiekun: ' . $sa['guardian_name'] : '') . (!empty($sa['guardian_phone']) ? ', tel. ' . $sa['guardian_phone'] : '')];
+
+    $ok = fn($v) => $v !== '' && filter_var($v, FILTER_VALIDATE_EMAIL) && !preg_match('/@(edu|stud)\.feer\.org\.pl$/i', $v);
+    $clientEmail = trim((string)($c['email'] ?? '')); $guardEmail = trim((string)($sa['guardian_email'] ?? ''));
+    $contactEmail = $minor && $ok($guardEmail) ? $guardEmail : ($ok($clientEmail) ? $clientEmail : ($ok($guardEmail) ? $guardEmail : ''));
+    $phone = preg_replace('/\D/', '', $minor && !empty($sa['guardian_phone']) ? (string)$sa['guardian_phone'] : (string)($c['phone'] ?? ''));
+    $name = $minor && !empty($sa['guardian_name']) ? (string)$sa['guardian_name'] : trim((string)$c['name']);
+    return [
+        'id' => (int)$c['id'], 'name' => trim((string)$c['name']), 'groups' => $groups, 'minor' => $minor, 'lines' => $lines,
+        'link' => !empty($sa['id']) ? APP_URL . '/karty30/ti/dydaktyk/konta.php?selected=' . (int)$sa['id'] : '',
+        'prefill' => [
+            'edu_email' => (string)$edu, 'stud_email' => (string)$stud, 'claude_email' => (string)($lic['login'] ?? ($stud ?: $edu ?: '')),
+            'req_name' => $name, 'req_email' => $contactEmail, 'req_phone' => $phone,
+            'req_role' => $minor ? 'Rodzic lub opiekun kursanta' : 'Kursant', 'req_group' => $groups,
+        ],
+    ];
 }
