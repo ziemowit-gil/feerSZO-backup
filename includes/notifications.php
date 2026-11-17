@@ -68,12 +68,14 @@ function notif_migrate(): void {
 // ── Powiadomienia ─────────────────────────────────────────────────────────────
 
 function notif_create(int $user_id, string $type, string $title, string $body = '', string $url = ''): int {
+    // Z CLI/CRON-a APP_URL to http://localhost(/feerSZO) — link w dzwonku nigdzie by nie prowadził (2026-11-17).
+    require_once dirname(__DIR__) . '/inc/publicLinks/publicLinks.php';
     return db_insert('notifications', [
         'user_id'    => $user_id,
         'type'       => $type,
         'title'      => $title,
-        'body'       => $body,
-        'url'        => $url,
+        'body'       => publicLinks($body),
+        'url'        => publicLinks($url),
         'is_read'    => 0,
         'created_at' => date('Y-m-d H:i:s'),
     ]);

@@ -2589,4 +2589,16 @@ return [
         },
     ],
 
+    // Powiadomienia w dzwonku: linki zapisane z CRON-a jako http://localhost/feerSZO/… (APP_URL z CLI) na adres publiczny
+    // (polecenie 2026-11-17; na produkcji 134 z 206, głównie admin/backups.php). Nowe poprawia już notif_create().
+    '2026-11_notifications_public_links' => [
+        'desc' => 'Powiadomienia: linki http://localhost/… na https://szo.feer.org.pl (panele TI na ti.feer.org.pl)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/notifications.php';
+            require_once $ROOT . '/inc/publicLinks/publicLinks.php';
+            notif_migrate();
+            publicLinksFixNotifications();
+        },
+    ],
+
 ];
