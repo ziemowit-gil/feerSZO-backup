@@ -214,7 +214,8 @@ printf '%sUWAGA: wynik zawiera hasła jawnym tekstem.%s\n' "$C_NO" "$C_0"
 sect "1. Proces redis-server"
 ME=$(id -un)
 PS_ALL=$(T ps -U "$ME" -ww -o pid= -o ppid= -o etime= -o command= 2>/dev/null)
-RS_LINES=$(printf '%s\n' "$PS_ALL" | awk '{ c = $4; sub(/.*\//, "", c) } c == "redis-server"')
+# FreeBSD (setproctitle) pokazuje „redis-server: redis-server unixsocket:… (redis-server)”.
+RS_LINES=$(printf '%s\n' "$PS_ALL" | awk '{ c = $4; sub(/.*\//, "", c); sub(/:$/, "", c) } c == "redis-server"')
 RPID= RPPID= RCMD= PCMD= CWD=
 if [ -z "$RS_LINES" ]; then
     brak "nie działa żaden proces redis-server użytkownika $ME"
