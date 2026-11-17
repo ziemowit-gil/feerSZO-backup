@@ -159,8 +159,51 @@ function sms_smsapi_sender(string $kind, bool $legacy): string {
     return sms_kind_sender($kind) ?? (sms_setting('sms_sender_name') ?: ($legacy ? 'INFO' : ''));
 }
 
+/**
+ * Linki w SMS-ach nigdy na localhost (polecenie 2026-11-17: „linki w SMS-ach — gdzie localhost, podmień na inne”).
+ * Z CLI/CRON-a APP_URL to http://localhost (na serwerze http://localhost/feerSZO — katalog aplikacji), a SMS otwiera się
+ * na telefonie, więc taki link nigdzie nie prowadzi. Host localhost / 127.0.0.1 (z portem i ścieżką katalogu z APP_URL)
+ * zamieniamy na adres publiczny wg ścieżki:
+ *   • panele TI (/karty30/ti/…, /plan/…, /dyzury) → https://ti.feer.org.pl, od razu krótkie adresy jak w .htaccess
+ *     (/karty30/ti/kursant/x → /x, /karty30/ti/dydaktyk/x → /dydaktyk/x) — tam uczestnik i prowadzący są zalogowani,
+ *   • panel licencji (/licencje/…) → https://kursant.feer.org.pl (jak LicencjePanelAuth::publicUrl()),
+ *   • reszta → https://szo.feer.org.pl.
+ * Inne domeny bez zmian. Nadpisanie domen: ustawienia sms_link_szo_url / sms_link_ti_url (tylko https://).
+ */
+const SMS_LINK_SZO_URL = 'https://szo.feer.org.pl';
+const SMS_LINK_TI_URL  = 'https://ti.feer.org.pl';
+const SMS_LINK_LIC_URL = 'https://kursant.feer.org.pl';
+
+function sms_public_links(string $message): string {
+    if (stripos($message, 'localhost') === false && strpos($message, '127.0.0.1') === false) return $message;
+    $base = function (string $key, string $default): string {
+        $u = rtrim(trim(sms_setting($key)), '/');
+        return preg_match('~^https://[^\s/]+(/[^\s]*)?$~i', $u) ? $u : $default;
+    };
+    $szo = $base('sms_link_szo_url', SMS_LINK_SZO_URL);
+    $ti  = $base('sms_link_ti_url', SMS_LINK_TI_URL);
+    // Katalog aplikacji doklejany do localhost w APP_URL (np. /feerSZO) — wycinamy go razem z hostem.
+    $appPath = '';
+    if (defined('APP_URL') && preg_match('~^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?(/[^?#\s]*)?$~i', rtrim((string)APP_URL, '/'), $m)) {
+        $appPath = rtrim($m[1] ?? '', '/');
+    }
+    $re = '~https?://(?:localhost|127\.0\.0\.1)(?::\d+)?'
+        . ($appPath !== '' ? '(?:' . preg_quote($appPath, '~') . '(?=[/?#\s]|$))?' : '')
+        . '([/?#][^\s]*)?~i';
+    return (string)preg_replace_callback($re, function (array $m) use ($szo, $ti): string {
+        $rest = $m[1] ?? '';
+        if (preg_match('~^/karty30/ti/kursant/(.*)$~is', $rest, $x))  return $ti . '/' . $x[1];
+        if (preg_match('~^/karty30/ti/dydaktyk/(.*)$~is', $rest, $x)) return $ti . '/dydaktyk/' . $x[1];
+        if (preg_match('~^/karty30/ti/(.*)$~is', $rest, $x))          return $ti . '/' . $x[1];
+        if (preg_match('~^/(plan|dyzury)(?=[/?#]|$)~i', $rest))       return $ti . $rest;
+        if (preg_match('~^/licencje(?=[/?#]|$)~i', $rest))            return SMS_LINK_LIC_URL . $rest;
+        return $szo . ($rest === '' ? '/' : $rest);
+    }, $message);
+}
+
 /** Router: wyślij wiadomość przez wskazanego dostawcę. Rzuca wyjątek przy błędzie. */
 function _sms_dispatch(string $provider, string $phone, string $message, string $kind = ''): void {
+    $message = sms_public_links($message);   // linki z CLI/CRON-a (APP_URL = localhost) → adres publiczny
     if ($provider === 'twilio') {
         _sms_send_twilio($phone, $message);
     } elseif ($provider === 'serwersms') {
