@@ -81,17 +81,20 @@ function szo_redis(bool $force = false, ?array $cfg = null, ?string &$error = nu
     if (!$force && $conn !== null) return $conn;
     $cfg = $cfg ?? szo_redis_config();
     if (!$force && (!$cfg['enabled'] || $failed)) return null;
+    $connected = false;   // po połączeniu błąd to odpowiedź Redisa (np. WRONGPASS), nie problem z gniazdem
     try {
         if (extension_loaded('redis')) {
             $r = new \Redis();
             $ok = $cfg['socket'] !== '' ? @$r->connect($cfg['socket'], 0, 0.25) : @$r->connect($cfg['host'], $cfg['port'], 0.25);
             if (!$ok) throw new \RuntimeException('Brak połączenia z Redisem');
-            if ($cfg['password'] !== '') $r->auth($cfg['password']);
+            $connected = true;
+            if ($cfg['password'] !== '' && $r->auth($cfg['password']) !== true) throw new \RuntimeException('Redis: WRONGPASS — złe hasło');
             if ($cfg['db']) $r->select($cfg['db']);
             $c = ['type' => 'phpredis', 'r' => $r, 'prefix' => $cfg['prefix']];
         } else {
             $addr = $cfg['socket'] !== '' ? 'unix://' . $cfg['socket'] : 'tcp://' . $cfg['host'] . ':' . $cfg['port'];
             $r = new SzoRespClient($addr, 0.25);
+            $connected = true;
             if ($cfg['password'] !== '') $r->cmd('AUTH', $cfg['password']);
             if ($cfg['db']) $r->cmd('SELECT', (string)$cfg['db']);
             $c = ['type' => 'resp', 'r' => $r, 'prefix' => $cfg['prefix']];
@@ -100,7 +103,7 @@ function szo_redis(bool $force = false, ?array $cfg = null, ?string &$error = nu
         return $c;
     } catch (\Throwable $e) {
         $error = $e->getMessage();
-        if ($cfg['socket'] !== '' && ($why = _szo_redis_socket_problem($cfg['socket']))) $error = $why;
+        if (!$connected && $cfg['socket'] !== '' && ($why = _szo_redis_socket_problem($cfg['socket']))) $error = $why;
         if (!$force) $failed = true;
         return null;
     }
