@@ -10,6 +10,8 @@
 set -eu
 
 REDIS_CONF_URL="https://raw.githubusercontent.com/redis/redis/8.0.3/redis.conf"
+MAXMEM="64mb"                  # limit pamięci (zużycie cache SZO: ok. 1–3 MB)
+MAXMEM_POLICY="volatile-lru"   # przy limicie usuwa tylko klucze z TTL
 
 # ---------- 1. pytania ----------
 DEF_LOGIN="$(id -un)"
@@ -76,6 +78,8 @@ else
 
   # ustawienia wg pomoc.mydevil.net/Redis: port 0 + unixsocket + requirepass
   # (bez GNU sed -i; FreeBSD wymaga argumentu po -i, więc piszemy do pliku tymczasowego)
+  # Limit pamięci: 64 MB, volatile-lru — usuwane są tylko klucze z TTL (cache SZO zawsze
+  # ma TTL), liczniki pokoleń gen:* (bez TTL) zostają.
   TMP="$CONF.tmp"
   sed \
     -e "s|^port .*|port 0|" \
@@ -86,15 +90,18 @@ else
     -e "s|^logfile .*|logfile $LOG_FILE|" \
     -e "s|^daemonize .*|daemonize no|" \
     -e "s|^protected-mode .*|protected-mode yes|" \
+    -e "s|^# *maxmemory <bytes>$|maxmemory $MAXMEM|" \
+    -e "s|^# *maxmemory-policy noeviction$|maxmemory-policy $MAXMEM_POLICY|" \
     "$CONF" > "$TMP"
   # jeśli w szablonie nie było danej linii (np. zakomentowanej) — dopisz jawnie
-  for kv in "unixsocket $SOCK" "unixsocketperm 700" "requirepass $PASS" "dir $WORK_DIR" "logfile $LOG_FILE"; do
+  for kv in "unixsocket $SOCK" "unixsocketperm 700" "requirepass $PASS" "dir $WORK_DIR" "logfile $LOG_FILE" \
+            "maxmemory $MAXMEM" "maxmemory-policy $MAXMEM_POLICY"; do
     key="${kv%% *}"
     grep -q "^$key " "$TMP" || printf '%s\n' "$kv" >> "$TMP"
   done
   mv "$TMP" "$CONF"
   chmod 600 "$CONF"
-  echo "redis.conf: skonfigurowano (port 0, unixsocket, requirepass, dir, logfile)"
+  echo "redis.conf: skonfigurowano (port 0, unixsocket, requirepass, dir, logfile, maxmemory $MAXMEM $MAXMEM_POLICY)"
 fi
 
 # ---------- 4. uruchomienie w screen ----------
@@ -131,6 +138,7 @@ Gotowe.
   Hasło:       (w pliku) $PASS_FILE
   Konfig:      $CONF
   Log:         $LOG_FILE
+  Pamięć:      maxmemory w $CONF (nowa instalacja: $MAXMEM, $MAXMEM_POLICY)
   Screen:      screen -r $SCREEN_NAME
   Test:        redis-cli -s $SOCK -a "\$(cat $PASS_FILE)" ping
 
@@ -142,4 +150,9 @@ W SZO: Panel admina → „Redis (cache)” (admin/redis.php):
 Persystencja: domyślnie RDB (save 900 1 / 300 10 / 60 10000) do $WORK_DIR/dump.rdb.
 Aby włączyć AOF: w $CONF zmień 'appendonly no' na 'appendonly yes' i zrestartuj
 (redis-cli -s $SOCK -a HASŁO shutdown; potem ponownie ten skrypt).
+
+Limit pamięci bez restartu: zmień maxmemory w $CONF (na stałe) i ustaw na żywo:
+  REDISCLI_AUTH="\$(cat $PASS_FILE)" redis-cli -s $SOCK CONFIG SET maxmemory $MAXMEM
+  REDISCLI_AUTH="\$(cat $PASS_FILE)" redis-cli -s $SOCK CONFIG SET maxmemory-policy $MAXMEM_POLICY
+Istniejący redis.conf nie jest nadpisywany, więc ponowne uruchomienie skryptu limitu nie zmieni.
 SUMMARY
