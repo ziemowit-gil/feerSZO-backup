@@ -35,6 +35,15 @@ if ($knownApp) {   // aplikacja z rejestru: tylko jej scope'y, nazwa z rejestru 
     $scopeParam = $scopeParam === null ? $knownApp['scopes'] : array_values(array_intersect($scopeParam, $knownApp['scopes']));
     $device = $knownApp['name'];
 }
+// Aplikacja CRM (tylko crm:*): ta sama brama IKA co przy wejściu do klasycznego CRM. 1500 s = weryfikacja musi mieć
+// jeszcze ≥ 5 min ważności, bo token aplikacji żyje do jej końca (crm_app_token_ttl()).
+$crmApp = desktop_is_crm_app_scope($scopeParam);
+if ($crmApp && !ika_ok(APP_URL . '/crm/', 1500)) {
+    $again = APP_URL . '/auth/desktop_login.php?' . http_build_query(['redirect_uri' => $redirect, 'state' => $state,
+        'code_challenge' => $challenge, 'device' => $device, 'scope' => implode(' ', $scopeParam)]);
+    header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($again));
+    exit;
+}
 $user   = current_user();
 $scopes = desktop_effective_scopes($user, $scopeParam);   // przecięcie z uprawnieniami konta
 $back   = static fn(array $q) => $redirect . (str_contains($redirect, '?') ? '&' : '?') . http_build_query($q + ['state' => $state]);
@@ -48,8 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $code = bin2hex(random_bytes(32));
     db()->prepare("DELETE FROM desktop_auth_codes WHERE expires_at < ?")->execute([time() - 3600]);
     db()->prepare(
-        "INSERT INTO desktop_auth_codes (code_hash, user_id, code_challenge, device, scope, expires_at) VALUES (?,?,?,?,?,?)"
-    )->execute([hash('sha256', $code), (int)$user['id'], $challenge, $device, $scopeParam === null ? '' : implode(' ', $scopeParam), time() + DESKTOP_CODE_TTL_SEC]);
+        "INSERT INTO desktop_auth_codes (code_hash, user_id, code_challenge, device, scope, expires_at, ttl_sec) VALUES (?,?,?,?,?,?,?)"
+    )->execute([hash('sha256', $code), (int)$user['id'], $challenge, $device, $scopeParam === null ? '' : implode(' ', $scopeParam),
+                time() + DESKTOP_CODE_TTL_SEC, $crmApp ? crm_app_token_ttl() : null]);
     header('Location: ' . $back(['code' => $code]));
     exit;
 }

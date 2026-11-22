@@ -23,6 +23,7 @@ require_once dirname(__DIR__, 2) . '/includes/desktop_auth.php';
 
 api_auth_migrate();
 desktop_auth_migrate();
+desktop_cors();   // aplikacje przeglądarkowe (CRM na osobnej domenie): CORS + OPTIONS
 
 if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') api_error('Method Not Allowed — użyj POST.', 405);
 
@@ -45,6 +46,7 @@ if ($action === 'renew' || $action === 'logout') {
     }
     $lim = db_one("SELECT scopes FROM desktop_token_limits WHERE key_id=?", [(int)$api_current_key['id']]);
     $limit = $lim ? (desktop_parse_scope((string)$lim['scopes']) ?: []) : null;   // zawężony token nie rośnie do pełnych uprawnień konta
+    if (desktop_is_crm_app_scope($limit)) api_error('Token aplikacji CRM odnawia się ponownym logowaniem (brama IKA).', 403);
     $scopes  = desktop_effective_scopes($user, $limit);
     $expires = date('Y-m-d H:i:s', time() + DESKTOP_TOKEN_TTL_DAYS * 86400);
     db()->prepare("UPDATE api_keys SET expires_at=?, permissions=? WHERE id=?")
@@ -75,7 +77,8 @@ if (!hash_equals((string)$row['code_challenge'], desktop_b64url(hash('sha256', $
 $user = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [(int)$row['user_id']]);
 if (!$user) api_error('Konto jest nieaktywne.', 403);
 $limit  = desktop_parse_scope((string)($row['scope'] ?? '')) ?: null;   // '' = bez zawężenia
-$issued = desktop_issue_token($user, (string)$row['device'], $limit);
+$ttlSec = isset($row['ttl_sec']) && $row['ttl_sec'] !== null ? (int)$row['ttl_sec'] : null;   // aplikacja CRM: krótszy token
+$issued = desktop_issue_token($user, (string)$row['device'], $limit, $ttlSec);
 if (!$issued['scopes']) api_error($limit !== null
     ? 'Konto nie ma uprawnień wymaganych przez aplikację.'
     : 'Konto nie ma uprawnień do żadnej aplikacji zewnętrznej.', 403);

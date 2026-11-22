@@ -11,11 +11,19 @@
  * właściwego autora, a uprawnienia (scope) wynikają z uprawnień konta — nie ze wspólnego klucza.
  * Opcjonalny parametr `scope` (spacje) zawęża token do PRZECIĘCIA żądanych scope'ów z uprawnieniami konta
  * (zasada najmniejszych uprawnień); bez parametru token dostaje wszystkie uprawnienia konta (zgodność wstecz).
+ *
+ * Aplikacja CRM (crmApp/, Nuxt SPA pod /crm2/ albo na osobnej domenie) prosi wyłącznie o scope'y crm:* — wtedy:
+ *   - przed zgodą obowiązuje brama IKA jak w klasycznym CRM (desktop_login.php),
+ *   - token żyje krócej: do końca ważności weryfikacji IKA albo CRM_APP_TOKEN_TTL_SEC, bez odnawiania (renew),
+ *   - adres powrotu APP_URL/crm2/auth/callback jest dozwolony z automatu (ta sama domena co SZO); osobną domenę
+ *     dopisuje administrator w ustawieniu desktop_allowed_redirects — z niej bierze się też lista CORS.
  */
 
 const DESKTOP_TOKEN_PREFIX  = 'EZD Client — ';
 const DESKTOP_TOKEN_TTL_DAYS = 30;
 const DESKTOP_CODE_TTL_SEC  = 120;
+const CRM_APP_CALLBACK_PATH = '/crm2/auth/callback';
+const CRM_APP_TOKEN_TTL_SEC = 8 * 3600;   // dzień pracy, gdy konto nie podlega IKA
 
 function desktop_auth_migrate(): void {
     static $done = false;
@@ -40,7 +48,7 @@ function desktop_auth_migrate(): void {
             scopes TEXT NOT NULL DEFAULT ''
         )
     ");
-    foreach (['scope' => "TEXT NOT NULL DEFAULT ''"] as $col => $def) {
+    foreach (['scope' => "TEXT NOT NULL DEFAULT ''", 'ttl_sec' => 'INTEGER'] as $col => $def) {
         try { db()->exec("ALTER TABLE desktop_auth_codes ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) { /* już istnieje */ }
     }
 }
@@ -135,7 +143,62 @@ function desktop_allowed_redirects(): array {
 function desktop_valid_redirect(string $uri): bool {
     if (preg_match('#^http://127\.0\.0\.1:(\d{4,5})/callback$#', $uri)
         && (int)parse_url($uri, PHP_URL_PORT) >= 1024 && (int)parse_url($uri, PHP_URL_PORT) <= 65535) return true;
+    if ($uri === crm_app_callback_url()) return true;            // aplikacja CRM na domenie SZO (/crm2/)
     return in_array($uri, desktop_allowed_redirects(), true);   // porównanie dokładne, bez wildcardów
+}
+
+/** Adres powrotu aplikacji CRM wystawionej na domenie SZO. */
+function crm_app_callback_url(): string {
+    return rtrim(APP_URL, '/') . CRM_APP_CALLBACK_PATH;
+}
+
+/** Żądanie pochodzi od aplikacji CRM: jawny scope zawężony wyłącznie do crm:* (null/[] = nie). */
+function desktop_is_crm_app_scope(?array $scopes): bool {
+    return $scopes !== null && $scopes !== [] && !array_diff($scopes, ['crm:read', 'crm:write']);
+}
+
+/**
+ * Czas życia tokenu aplikacji CRM liczony w chwili zgody (sesja SZO jest wtedy dostępna):
+ * gdy konto przeszło weryfikację IKA — do końca jej ważności (30 min od weryfikacji, min. 5 min, bo brama
+ * wymaga zapasu), inaczej CRM_APP_TOKEN_TTL_SEC. Wywołuj po ika_ok().
+ */
+function crm_app_token_ttl(): int {
+    $ikaTs = (int)($_SESSION['_ika_ts'] ?? 0);
+    if ($ikaTs > 0 && function_exists('module_enabled') && module_enabled('ika_enabled')) {
+        return max(300, 1800 - (time() - $ikaTs));
+    }
+    return CRM_APP_TOKEN_TTL_SEC;
+}
+
+/** Źródła (origin) dopuszczone do wywołań API z przeglądarki: SZO + domeny z desktop_allowed_redirects. */
+function desktop_cors_origins(): array {
+    $origin = static function (string $url): string {
+        $p = parse_url($url);
+        if (!$p || empty($p['scheme']) || empty($p['host'])) return '';
+        return strtolower($p['scheme'] . '://' . $p['host']) . (isset($p['port']) ? ':' . $p['port'] : '');
+    };
+    $out = [$origin(APP_URL)];
+    foreach (desktop_allowed_redirects() as $r) $out[] = $origin($r);
+    return array_values(array_unique(array_filter($out)));
+}
+
+/**
+ * Nagłówki CORS dla aplikacji przeglądarkowych z listy dozwolonych źródeł (tokeny Bearer, bez ciasteczek).
+ * Zapytanie wstępne OPTIONS kończy tutaj (204). Obce źródło nie dostaje nagłówków — przeglądarka odrzuci odpowiedź.
+ */
+function desktop_cors(): void {
+    $o = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+    if ($o !== '' && in_array(strtolower($o), desktop_cors_origins(), true)) {
+        header('Access-Control-Allow-Origin: ' . $o);
+        header('Vary: Origin');
+        header('Access-Control-Allow-Headers: Authorization, Content-Type');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Access-Control-Max-Age: 600');
+    }
+    if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+        http_response_code(204);
+        exit;
+    }
 }
 
 function desktop_b64url(string $bin): string {
@@ -147,14 +210,17 @@ function desktop_clean_device(string $d): string {
     return mb_substr($d, 0, 60);
 }
 
-/** Wystawia token dla użytkownika (z opcjonalnym zawężeniem scope'ów). Poprzednie tokeny tego urządzenia są unieważniane. */
-function desktop_issue_token(array $user, string $device, ?array $limit = null): array {
+/**
+ * Wystawia token dla użytkownika (z opcjonalnym zawężeniem scope'ów). Poprzednie tokeny tego urządzenia są unieważniane.
+ * $ttlSec — krótszy czas życia (aplikacja CRM); null = DESKTOP_TOKEN_TTL_DAYS.
+ */
+function desktop_issue_token(array $user, string $device, ?array $limit = null, ?int $ttlSec = null): array {
     $scopes = desktop_effective_scopes($user, $limit);
     if (!$scopes) return ['token' => '', 'expires_at' => '', 'scopes' => []];   // nic nie wydajemy
     $name = DESKTOP_TOKEN_PREFIX . $user['name'] . ($device !== '' ? ' (' . $device . ')' : '');
     db()->prepare("UPDATE api_keys SET is_active=0 WHERE created_by=? AND name=?")->execute([(int)$user['id'], $name]);
     $plain   = 'ezdc_' . bin2hex(random_bytes(32));
-    $expires = date('Y-m-d H:i:s', time() + DESKTOP_TOKEN_TTL_DAYS * 86400);
+    $expires = date('Y-m-d H:i:s', time() + ($ttlSec !== null && $ttlSec > 0 ? $ttlSec : DESKTOP_TOKEN_TTL_DAYS * 86400));
     $id = db_insert('api_keys', [
         'key_hash'    => hash('sha256', $plain),
         'name'        => $name,
