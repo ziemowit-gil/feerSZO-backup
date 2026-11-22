@@ -524,6 +524,14 @@ window.openCommModal = function(contactId, channel, opts) {
   <!-- Prawa strona: szybkie akcje → „⋯" → launcher modułów → konto -->
   <div class="crm-topbar-user">
 
+    <?php /* Przełącznik na nową aplikację CRM (Nuxt, crmApp/ → /crm2/) — widoczny, gdy build jest wdrożony. */
+      if ($_cu && is_file(dirname(dirname(__DIR__)) . '/crm2/index.html')): ?>
+    <a class="crm-macro" href="<?= APP_URL ?>/crm2/" title="Nowy wygląd CRM — wersja testowa" aria-label="Nowy CRM (wersja testowa)">
+      <i class="bi bi-stars" style="color:#1d4ed8" aria-hidden="true"></i>
+      <span class="crm-macro-txt">Nowy CRM</span>
+    </a>
+    <?php endif; ?>
+
     <?php /* Szybkie akcje: przypięte makra + menu „Nowe". Zestaw przypiętych
              wybiera sobie KAŻDY UŻYTKOWNIK (includes/crm_macros.php). */
       require_once dirname(dirname(__DIR__)) . '/includes/crm_macros.php';
