@@ -1,0 +1,1 @@
+import{G as e,V as t,m as n}from"./9Sk5xdZn.js";var r=(e,t)=>{let n=e.__vccOpts||e;for(let[e,r]of t)n[e]=r;return n},i={},a={id:`tresc`,tabindex:`-1`,class:`mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-4 py-10`};function o(r,i){return t(),n(`main`,a,[e(r.$slots,`default`)])}var s=r(i,[[`render`,o]]);export{s as default};

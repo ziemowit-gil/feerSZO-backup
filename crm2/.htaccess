@@ -1,0 +1,19 @@
+# SZO CRM (Nuxt SPA) pod /crm2/ — każda ścieżka bez pliku trafia do index.html (routing po stronie przeglądarki).
+DirectoryIndex index.html
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.html [L]
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "^(index\.html|200\.html|404\.html|config\.json)$">
+    Header set Cache-Control "no-store"
+  </FilesMatch>
+  <If "%{REQUEST_URI} =~ m#/_nuxt/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set X-Content-Type-Options "nosniff"
+</IfModule>
