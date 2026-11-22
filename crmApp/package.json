@@ -1,0 +1,26 @@
+{
+  "name": "szo-crm-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SZO CRM — aplikacja Nuxt (SPA) na API SZO",
+  "scripts": {
+    "dev": "nuxt dev --port 3000",
+    "build": "nuxt generate",
+    "build:szo": "nuxt generate && node scripts/publishToSzo.mjs",
+    "preview": "nuxt preview",
+    "typecheck": "nuxt typecheck",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.158",
+    "@nuxt/ui": "^4.13.0",
+    "nuxt": "^4.6.4",
+    "tailwindcss": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.0",
+    "vue-tsc": "^3.3.14"
+  }
+}

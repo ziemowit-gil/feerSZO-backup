@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* Czcionka systemowa — bez pobierania z zewnątrz (RODO, intranet). */
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/*
+ * Kontrast WCAG 2.1 AA. Domyślne odcienie Nuxt UI (primary-500, text-dimmed neutral-400) dają na bieli < 4,5:1,
+ * więc w trybie jasnym bierzemy 700–800 (biały na blue-700 = 6,7:1; slate-600 na bieli = 7,6:1; amber/green-800 także
+ * na jasnych tłach plakietek ≥ 4,5:1),
+ * a w ciemnym jaśniejsze odcienie na tle slate-900.
+ */
+:root {
+  --ui-radius: 0.5rem;
+  --ui-primary: var(--ui-color-primary-700);
+  --ui-secondary: var(--ui-color-secondary-700);
+  --ui-success: var(--ui-color-success-800);
+  --ui-info: var(--ui-color-info-700);
+  --ui-warning: var(--ui-color-warning-800);
+  --ui-error: var(--ui-color-error-700);
+  --ui-text-dimmed: var(--ui-color-neutral-600);
+  --ui-text-muted: var(--ui-color-neutral-600);
+  --ui-text-toned: var(--ui-color-neutral-700);
+  --ui-text: var(--ui-color-neutral-800);
+  --ui-bg-muted: var(--ui-color-neutral-50);
+  --ui-border: var(--ui-color-neutral-300);
+  --ui-border-accented: var(--ui-color-neutral-500);   /* obrys pól: 4,8:1 (WCAG 1.4.11 wymaga 3:1) */
+  --szo-focus: #c50f1f;
+  --szo-page: #f4f6fa;
+}
+.dark {
+  --ui-primary: var(--ui-color-primary-300);
+  --ui-secondary: var(--ui-color-secondary-300);
+  --ui-success: var(--ui-color-success-400);
+  --ui-info: var(--ui-color-info-300);
+  --ui-warning: var(--ui-color-warning-300);
+  --ui-error: var(--ui-color-error-300);
+  --ui-text-dimmed: var(--ui-color-neutral-400);
+  --ui-text-muted: var(--ui-color-neutral-300);
+  --ui-text-toned: var(--ui-color-neutral-200);
+  --ui-text: var(--ui-color-neutral-100);
+  --ui-border: var(--ui-color-neutral-700);
+  --ui-border-accented: var(--ui-color-neutral-500);
+  --szo-focus: #ff9b9b;
+  --szo-page: var(--ui-color-neutral-950);
+}
+
+html { background: var(--szo-page); }
+body { font-family: var(--font-sans); color: var(--ui-text); }
+
+/* Widoczny, gruby fokus jak w całym SZO (3 px, odsunięty) — także na komponentach Nuxt UI. */
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="option"], [role="menuitem"]):focus-visible {
+  outline: 3px solid var(--szo-focus) !important;
+  outline-offset: 2px !important;
+}
+
+/* Link „Przejdź do treści”: niewidoczny, dopóki nie dostanie fokusu. */
+.skip-link {
+  position: absolute; left: 1rem; top: -5rem; z-index: 100;
+  background: var(--ui-bg-inverted); color: var(--ui-text-inverted);
+  padding: .75rem 1.25rem; border-radius: var(--ui-radius); font-weight: 600;
+}
+.skip-link:focus { top: 1rem; }
+
+/* Kotwica treści po zmianie strony dostaje fokus programowo — bez ramki przy kliknięciu myszą. */
+#tresc:focus { outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
