@@ -18,6 +18,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/claudeBilling.php';
 require_once dirname(__DIR__, 2) . '/license_login/logic/licenseLogin.php';
 require_once __DIR__ . '/LicencjePanelAuth.php';
+require_once __DIR__ . '/ClaudeStud.php';
 require_once __DIR__ . '/LicencjeKod.php';
 require_once __DIR__ . '/LicencjeId.php';
 require_once dirname(__DIR__, 2) . '/claude_billing/logic/LicenceRequest.php';
@@ -397,6 +398,9 @@ final class LicencjeKursantController
                 $paid[$p] = $v;
             } catch (\Throwable $e) { error_log('lk ' . $p . ': ' . $e->getMessage()); }
         }
+        // Claude: bez trwającego abonamentu w SZO strona prowadzi do aplikacji kont @stud (ClaudeStud), nie do wniosku z kontem @edu
+        $claudeStud = isset(ClaudeBilling::PRODUCTS['claude']) && ClaudeStud::redirects($cid) ? ['url' => ClaudeStud::url()] : null;
+        if ($claudeStud) unset($paid['claude']);
         $software = function_exists('k30_ti_client_licenses') ? k30_ti_client_licenses($cid) : [];
         require_once dirname(__DIR__, 3) . '/includes/ti_terms.php';
         $term = ti_term_get('licencje');
@@ -440,6 +444,7 @@ final class LicencjeKursantController
             'driveReq' => $page === 'dysk' ? self::driveRequest($cid) : null,
             'studMail' => PocztaStud::get($cid),   // hasło ($studPass) przychodzi tylko w $extra z mail() — tablica bazowa wygrywa przy „+”
             'accessMsgs' => (function () use ($cid) { require_once __DIR__ . '/LicencjeDostep.php'; return LicencjeDostep::forClient($cid); })(),
+            'claudeStud' => $claudeStud,
             'flash' => $flash, 'err' => $err, 'old' => $old, 'org' => self::org()] + $extra);
     }
 
@@ -539,7 +544,9 @@ final class LicencjeKursantController
     /** Dawne bezpośrednie włączanie — teraz kreator wniosku. */
     public function activate(string $product): ?string
     {
-        header('Location: ' . route('lk.wizard', ['product' => ClaudeBilling::product($product)]));
+        $p = ClaudeBilling::product($product);
+        if ($p === 'claude' && ClaudeStud::redirects($this->me()['cid'])) { header('Location: ' . route('lk.licence', ['product' => 'claude'])); return null; }   // Claude: konta @stud (stud-cloude)
+        header('Location: ' . route('lk.wizard', ['product' => $p]));
         return null;
     }
 
@@ -549,6 +556,7 @@ final class LicencjeKursantController
     {
         $me = $this->me();
         $p = ClaudeBilling::product($product);
+        if ($p === 'claude' && ClaudeStud::redirects($me['cid'])) { header('Location: ' . route('lk.licence', ['product' => 'claude'])); exit; }   // Claude: konta @stud (stud-cloude)
         $el = LicenceRequest::eligibility($me['cid'], $p);
         if (!$el['ok']) { $this->flash('err', $el['reason'], $p); exit; }
         $step = max(1, min(3, (int)($_GET['krok'] ?? 1)));
@@ -566,6 +574,7 @@ final class LicencjeKursantController
     {
         $me = $this->me();
         $p = ClaudeBilling::product($product);
+        if ($p === 'claude' && ClaudeStud::redirects($me['cid'])) { header('Location: ' . route('lk.licence', ['product' => 'claude'])); return null; }   // Claude: konta @stud (stud-cloude)
         $L = ClaudeBilling::P($p)['label'];
         $go = fn(int $k) => header('Location: ' . route('lk.wizard', ['product' => $p]) . '&krok=' . $k);
         $step = (int)($_POST['krok'] ?? 1);

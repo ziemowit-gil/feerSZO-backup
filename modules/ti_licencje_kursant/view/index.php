@@ -24,6 +24,7 @@ foreach ($paid as $pk => $v) {
         : ($sub['status'] === 'suspended' ? ['wstrzymany', 'bad'] : ['włączony', 'ok']));
     $tiles[$pk] = [$v['P']['label'], $st, $n ? 'do zapłaty ' . ClaudeBilling::zl($due) : ($open ? 'opłacone' : ''), $n > 0];
 }
+if (!empty($claudeStud)) $tiles = ['claude' => ['Claude', ['konto @stud', 'off'], 'asystent AI', false]] + $tiles;   // Claude przez aplikację kont @stud (ClaudeStud)
 $tiles['office'] = ['Office', $eduAccount ? ['aktywny', 'ok'] : ($office ? ['wniosek', 'due'] : ['brak', 'off']), $eduAccount ? (string)$eduAccount : '', false];
 // Konto Office (inicjał.nazwisko@edu) — stan i przycisk „Załóż konto Office” (sprawdza tenant EDU; gdy konta nie ma, zakłada je; kod jednorazowy)
 $officeBox = function (string $back) use ($officeAcc, $virtual) {
@@ -367,7 +368,22 @@ $accBox = function (string $only = '') use ($accessMsgs, $accSecrets, $accMask, 
   </section>
   <?php $accBox($pk); ?>
 <?php endforeach; ?>
-<?php if (isset(ClaudeBilling::PRODUCTS[$page]) && !isset($paid[$page])): ?>
+<?php if ($page === 'claude' && !empty($claudeStud)): ?>
+<h1 class="m-title">Claude</h1>
+<p class="m-explain">Claude to asystent AI, czyli program oparty na sztucznej inteligencji. Tworzy go firma Anthropic. Do Claude logujesz się kontem e-mail @stud.feer.org.pl.</p>
+<section class="m-tile" aria-labelledby="claude-jak">
+  <h2 class="m-head" id="claude-jak">Jak dostać dostęp do Claude</h2>
+  <ol class="tw-list-decimal tw-pl-6 tw-space-y-2 tw-mb-4">
+    <li>Biuro zakłada Ci konto e-mail @stud.feer.org.pl<?= !empty($studMail['login']) ? ' (Twoje konto: <b>' . h((string)$studMail['login']) . '</b>)' : '' ?>.</li>
+    <li>Na Twój prywatny adres e-mail przyjdzie link aktywacyjny. Zalogujesz się do nowej poczty i potwierdzisz, że działa.</li>
+    <li>Na stronie aktywacji zobaczysz koszt subskrypcji. Jeśli jest płatna, podasz tam kartę. Opłatę pobierzemy dopiero w dniu, w którym dodamy Cię do Claude.</li>
+    <li>Gdy dodamy Twój adres do Claude, dostaniesz wiadomość na nową skrzynkę.</li>
+  </ol>
+  <p class="tw-mb-3">Masz już link aktywacyjny? Otwórz go z wiadomości e-mail.</p>
+  <p class="tw-mb-4">Chcesz dostęp do Claude, a nie masz jeszcze konta? Napisz do nas w zakładce <a href="<?= h($U('sprawy')) ?>">Moje sprawy</a>.</p>
+  <a class="m-btn" href="<?= h($claudeStud['url']) ?>" target="_blank" rel="noopener">Strona kont @stud i Claude<span class="tw-sr-only"> (otwiera się w nowej karcie)</span></a>
+</section>
+<?php elseif (isset(ClaudeBilling::PRODUCTS[$page]) && !isset($paid[$page])): ?>
 <h1 class="m-title"><?= h(ClaudeBilling::P($page)['label']) ?></h1>
 <p class="m-explain">Nie masz przypisanej licencji <?= h(ClaudeBilling::P($page)['label']) ?>. Przypisuje ją prowadzący albo biuro.</p>
 <?php endif; ?>

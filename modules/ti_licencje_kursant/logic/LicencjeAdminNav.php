@@ -5,6 +5,8 @@ declare(strict_types=1);
  * modules/ti_licencje_kursant/logic/LicencjeAdminNav.php — pozycje menu Administratora Licencji (Panel Licencji): [adres, etykieta, klucz bieżącej strony, grupa].
  * Grupa (4. pole) składa pozycje w rozwijane menu boczne (sideNav → _top.php, <details>); poziomy pasek Bootstrap (_admin_nav_bs.php) jest płaski.
  */
+require_once __DIR__ . '/ClaudeStud.php';
+
 final class LicencjeAdminNav
 {
     public static function items(): array
@@ -17,6 +19,7 @@ final class LicencjeAdminNav
             [$b . 'licencjeDydaktyczne.php', 'Licencje AM5 / AM7 i operacje', 'licencjeDydaktyczne.php', 'Licencje'],
             [$b . 'licencjeDydaktyczne.php?_route=' . rawurlencode('/korekty'), 'Korekty AMSK', 'licencjeDydaktyczne.php?_route=%2Fkorekty', 'Licencje'],
             [$b . 'claudeAbonament.php', 'Płatne licencje', 'claudeAbonament.php', 'Płatne usługi i ceny'],
+            [ClaudeStud::url('admin/'), 'Claude: konta @stud', '', 'Płatne usługi i ceny'],   // aplikacja „Zarządzaj subskrypcją Claude”
             [$b . '?_route=' . rawurlencode('/admin/ceny-office'), 'Office: ceny i poczta', 'ceny-office', 'Płatne usługi i ceny'],
             [$b . '?_route=' . rawurlencode('/admin/dysk'), 'Dysk Online: pakiety', 'dysk', 'Płatne usługi i ceny'],
         ];
