@@ -13,7 +13,7 @@ const tiles = computed(() => {
     { label: 'Zaległe działania', value: t.acts_late, icon: 'i-lucide-alarm-clock', href: session.legacy('activities.php'), tone: t.acts_late ? 'error' : 'neutral' },
     { label: 'Działania na dziś', value: t.acts_today, icon: 'i-lucide-calendar-check', href: session.legacy('activities.php'), tone: t.acts_today ? 'primary' : 'neutral' },
   ]
-  if (t.inbox_unread !== null) out.push({ label: 'Nieprzeczytane w skrzynce', value: t.inbox_unread, icon: 'i-lucide-inbox', href: session.legacy('inbox.php'), tone: t.inbox_unread ? 'primary' : 'neutral' })
+  if (t.inbox_unread !== null) out.push({ label: 'Nieprzeczytane w skrzynce', value: t.inbox_unread, icon: 'i-lucide-inbox', to: '/skrzynka', tone: t.inbox_unread ? 'primary' : 'neutral' })
   if (t.cases_open !== null) out.push({ label: 'Otwarte sprawy', value: t.cases_open, icon: 'i-lucide-briefcase', to: '/sprawy?status=active', tone: 'neutral' })
   if (t.cases_high) out.push({ label: 'Sprawy pilne', value: t.cases_high, icon: 'i-lucide-flame', to: '/sprawy?status=active&priority=high', tone: 'warning' })
   if (t.cases_stale) out.push({ label: `Bez ruchu ponad 60 dni`, value: t.cases_stale, icon: 'i-lucide-clock-alert', to: '/sprawy?status=active', tone: 'warning' })

@@ -54,3 +54,23 @@ export function useApi() {
     post: <T>(path: string, body?: unknown, query?: Query) => request<T>('POST', path, query, body),
   }
 }
+
+/** Pobranie pliku z API (Bearer nie przejdzie przez zwykły link) — zapis przez przeglądarkę. */
+export async function downloadFromApi(path: string, filename: string): Promise<void> {
+  const token = useAuth().token()
+  const url = `${runtimeConfig().szoUrl}/api/v1/crmApp.php?_route=${encodeURIComponent(path)}`
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) {
+    let msg = `Nie udało się pobrać pliku (błąd ${res.status}).`
+    try { msg = (await res.json()).error || msg } catch { /* nie JSON */ }
+    throw new ApiError(msg, res.status)
+  }
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000)
+}

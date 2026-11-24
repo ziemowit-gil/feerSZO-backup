@@ -23,13 +23,13 @@ const nav = computed<NavigationMenuItem[]>(() => {
     { label: 'Pulpit', icon: 'i-lucide-layout-dashboard', to: '/', exact: true },
     { label: 'Kontakty', icon: 'i-lucide-users', to: '/kontakty' },
   ]
+  if (can('inbox')) items.splice(1, 0, { label: 'Skrzynka', icon: 'i-lucide-inbox', to: '/skrzynka', badge: badge(me.value?.badges.inbox_unread) })
   if (can('cases')) items.push({ label: 'Sprawy', icon: 'i-lucide-briefcase', to: '/sprawy', badge: badge(me.value?.badges.cases_stale) })
   return items
 })
 
 const legacyLinks = computed(() => {
   const l: { label: string, icon: string, href: string, badge?: number }[] = []
-  if (can('inbox')) l.push({ label: 'Skrzynka', icon: 'i-lucide-inbox', href: legacy('inbox.php'), badge: me.value?.badges.inbox_unread })
   l.push({ label: 'Moja kolejka', icon: 'i-lucide-list-checks', href: legacy('activities.php'), badge: me.value?.badges.queue_due })
   l.push({ label: 'Kalendarz', icon: 'i-lucide-calendar', href: legacy('calendar.php') })
   if (me.value?.can_mailing) l.push({ label: 'Komunikacja', icon: 'i-lucide-send', href: legacy('communicate.php') })

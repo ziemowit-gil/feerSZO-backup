@@ -125,3 +125,56 @@ export interface Dashboard {
   recent_communications: Communication[]
   status_bars: (Option & { count: number })[]
 }
+
+// ── Skrzynka (modules/crmApi/logic/CrmApiInboxController.php) ─────────────────
+export interface InboxMeta {
+  views: { value: string, label: string, count: number }[]
+  mailboxes: { id: number, name: string, color: string, count: number }[]
+  queues: { id: number, name: string, color: string | null, count: number }[]
+  tags: string[]
+  accounts: { key: string, label: string, ready: boolean }[]
+  send_as_default: string
+  templates: { id: number, name: string, subject: string, body: string }[]
+  can_write: boolean
+  threads_default: boolean
+  me: number
+}
+
+export interface InboxRow {
+  id: number
+  msg_no: string | null
+  direction: 'in' | 'out'
+  subject: string | null
+  snippet: string
+  from_name: string | null
+  from_email: string | null
+  sent_at: string | null
+  is_read: boolean
+  status: string | null
+  hidden: boolean
+  has_attachments: boolean
+  contact_id: number | null
+  contact_name: string | null
+  assigned_to: number | null
+  assigned_name: string | null
+  mailbox_id: number | null
+  mailbox_name: string | null
+  queue_name: string | null
+  queue_color: string | null
+  thread_count: number
+  tags: string[]
+}
+
+export interface InboxMessage extends InboxRow {
+  to: string | null
+  frame: string
+  has_remote_images: boolean
+  is_preview: boolean
+  case_id: number | null
+  queue: { id: number, name: string } | null
+  attachments: { id: number, name: string, mime: string, size: number }[]
+  contact: { id: number, name: string | null, email: string | null, messages: number, cases: number, owner_name: string | null, last_at: string | null } | null
+  candidates: { id: number, name: string | null, email: string | null, organizacja: string | null }[]
+  contact_cases: { id: number, title: string, case_number: string | null, is_closed: boolean }[]
+  thread: { id: number, direction: 'in' | 'out', subject: string | null, sent_at: string | null, is_read: boolean }[]
+}
