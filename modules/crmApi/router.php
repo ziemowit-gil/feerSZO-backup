@@ -21,6 +21,7 @@ require_once __DIR__ . '/logic/CrmApiPresenter.php';
 require_once __DIR__ . '/logic/CrmApiMetaController.php';
 require_once __DIR__ . '/logic/CrmApiContactsController.php';
 require_once __DIR__ . '/logic/CrmApiCasesController.php';
+require_once __DIR__ . '/logic/CrmApiInboxController.php';
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -58,6 +59,17 @@ $r->group(['crmApi.auth'], function (Router $r) {
     $r->get('/cases/{id}',         [CrmApiCasesController::class, 'show']);
     $post('/cases/{id}/notes',     [CrmApiCasesController::class, 'addNote']);
     $post('/cases/{id}/status',    [CrmApiCasesController::class, 'setStatus']);
+
+    // Skrzynka CRM (odpowiednik crm/inbox.php)
+    $r->get('/inbox/meta',              [CrmApiInboxController::class, 'meta']);
+    $r->get('/inbox/poll',              [CrmApiInboxController::class, 'poll']);
+    $post('/inbox/bulk',                [CrmApiInboxController::class, 'bulk']);
+    $post('/inbox/mark-all-read',       [CrmApiInboxController::class, 'markAllRead']);
+    $r->get('/inbox/attachments/{id}',  [CrmApiInboxController::class, 'attachment']);
+    $r->get('/inbox',                   [CrmApiInboxController::class, 'index']);
+    $r->get('/inbox/{id}',              [CrmApiInboxController::class, 'show']);
+    $post('/inbox/{id}/action',         [CrmApiInboxController::class, 'action']);
+    $post('/inbox/{id}/reply',          [CrmApiInboxController::class, 'reply']);
 });
 
 try {
