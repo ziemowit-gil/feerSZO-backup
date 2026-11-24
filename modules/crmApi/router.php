@@ -66,10 +66,15 @@ $r->group(['crmApi.auth'], function (Router $r) {
     $post('/inbox/bulk',                [CrmApiInboxController::class, 'bulk']);
     $post('/inbox/mark-all-read',       [CrmApiInboxController::class, 'markAllRead']);
     $r->get('/inbox/attachments/{id}',  [CrmApiInboxController::class, 'attachment']);
+    $r->get('/inbox/ezd-options',       [CrmApiInboxController::class, 'ezdOptions']);
+    $post('/inbox/ooo-back',            [CrmApiInboxController::class, 'oooBack']);
+    $post('/inbox/admin/scan',          [CrmApiInboxController::class, 'adminScan']);
+    $post('/inbox/admin/autocreate',    [CrmApiInboxController::class, 'adminAutocreate']);
     $r->get('/inbox',                   [CrmApiInboxController::class, 'index']);
     $r->get('/inbox/{id}',              [CrmApiInboxController::class, 'show']);
     $post('/inbox/{id}/action',         [CrmApiInboxController::class, 'action']);
     $post('/inbox/{id}/reply',          [CrmApiInboxController::class, 'reply']);
+    $post('/inbox/{id}/assist',         [CrmApiInboxController::class, 'assist']);
 });
 
 try {

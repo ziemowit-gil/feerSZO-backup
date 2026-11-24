@@ -12,6 +12,13 @@
  *   POST /inbox/bulk                 {op: read|unread|hide|unhide|archive|queue|tag, ids[], value?}
  *   POST /inbox/mark-all-read        {view, mailbox_id}
  *   GET  /inbox/attachments/{id}     plik załącznika (strumień)
+ *   GET  /inbox/ezd-options?q=       teczki i sprawy EZD do rejestracji wiadomości
+ *   POST /inbox/{id}/assist          asystent AI (intencja, streszczenie, szkic odpowiedzi)
+ *   POST /inbox/ooo-back             koniec nieobecności zalogowanej osoby
+ *   POST /inbox/admin/scan           pobranie poczty ze skrzynek (admin, prawo zarządzania skrzynką)
+ *   POST /inbox/admin/autocreate     {on} — nieznani nadawcy zakładają kontakt (admin)
+ * Dodatkowe operacje /action: fol_me, fol_add, fol_remove (obserwujący), nozbe, ezd.
+ * Odpowiedź przyjmuje też multipart/form-data z files[] (maks. 5 plików, 15 MB, typy jak w klasycznym oknie).
  *
  * W odróżnieniu od crm/inbox.php każda operacja na wiadomości sprawdza dostęp do jej skrzynki (crm_mailbox_message ≠ null),
  * a otwarcie wiadomości jej NIE oznacza jako przeczytanej — aplikacja robi to jawnie akcją „read”.
@@ -19,7 +26,8 @@
 final class CrmApiInboxController
 {
     private const OPS_WRITE = ['read', 'unread', 'archive', 'spam', 'restore', 'assign', 'hide', 'unhide', 'queue', 'tag_add',
-        'tag_remove', 'add_contact', 'link_contact', 'case', 'attach_case', 'forward', 'fetch_body'];
+        'tag_remove', 'add_contact', 'link_contact', 'case', 'attach_case', 'forward', 'fetch_body',
+        'fol_me', 'fol_add', 'fol_remove', 'nozbe', 'ezd'];
 
     public function __construct()
     {
@@ -28,6 +36,8 @@ final class CrmApiInboxController
         require_once $root . '/includes/ezd_mail.php';          // kolumny inbox_status, assigned_to, thread_key, from_* (samonaprawa)
         require_once $root . '/includes/crm_sender.php';
         require_once $root . '/modules/crm_inbox/lib/inboxView.php';
+        require_once $root . '/includes/crm_attachments.php';
+        require_once $root . '/includes/crm_sender_trust.php';
         CrmApiAuth::need('inbox', 'read');
         if (!crm_mailbox_ready()) api_error('Skrzynka CRM nie jest skonfigurowana (brak skrzynek pocztowych).', 503);
     }
@@ -48,7 +58,19 @@ final class CrmApiInboxController
         $templates = array_map(fn($t) => ['id' => (int)$t['id'], 'name' => (string)$t['name'], 'subject' => $t['subject'] ?? '', 'body' => (string)$t['body']],
             db_all("SELECT id, name, subject, body FROM crm_templates WHERE is_active=1 AND channel='email' ORDER BY name"));
         $accounts = array_map(fn($a) => ['key' => $a['key'], 'label' => $a['label'], 'ready' => (bool)$a['ready']], crm_sender_accounts());
+        $folders = crm_mf_list();
+        $fc = $folders ? crm_mf_counts($folders) : [];
+        $away = uav_get($uid);
+        $awayOn = uav_row_active($away);
         return ['data' => [
+            'folders' => array_map(fn($f) => ['id' => (int)$f['id'], 'name' => (string)$f['name'], 'color' => $f['color'] ?? null,
+                'shared' => !empty($f['is_shared']), 'count' => (int)($fc[(int)$f['id']] ?? 0)], $folders),
+            'is_admin' => is_admin(),
+            'autocreate' => crm_mailbox_autocreate(),
+            'away' => $awayOn ? ['label' => uav_period_label($away)] : null,
+            'ezd_available' => crm_mailbox_ezd_available(),
+            'nozbe_available' => $this->nozbeReady(),
+            'assist_available' => crm_can('inbox', 'write'),
             'views' => $views, 'mailboxes' => $mailboxes, 'queues' => $queues, 'tags' => crm_mt_suggest(40),
             'accounts' => $accounts, 'send_as_default' => crm_sender_default(), 'templates' => $templates,
             'can_write' => crm_can('inbox', 'write'), 'threads_default' => user_pref('crm_inbox_threads', '1') === '1',
@@ -65,9 +87,13 @@ final class CrmApiInboxController
         $res = crm_mailbox_inbox($f);
         $rows = $res['rows'] ?? [];
         $tags = $rows ? crm_mt_for_rows($rows) : [];
+        $fol = $rows ? crm_fol_flags_for_rows($rows, CrmApiAuth::userId()) : [];
+        $trust = $rows ? crm_sender_trust_bulk(array_column($rows, 'from_email')) : [];
         $data = [];
         foreach ($rows as $r) {
-            $data[] = $this->row($r) + ['tags' => array_values($tags[(int)$r['id']] ?? [])];
+            $t = $trust[strtolower(trim((string)($r['from_email'] ?? '')))] ?? null;
+            $data[] = $this->row($r) + ['tags' => array_values($tags[(int)$r['id']] ?? []), 'followed' => !empty($fol[(int)$r['id']]),
+                'trust' => $t && ($t['label'] ?? '') !== '' ? (string)$t['label'] : null];
         }
         $total = (int)($res['total'] ?? 0);
         return ['data' => $data, 'meta' => ['total' => $total, 'page' => $f['page'], 'per_page' => 30,
@@ -96,7 +122,28 @@ final class CrmApiInboxController
             }
         }
         $q = crm_mq_of($id);
+        $uid = CrmApiAuth::userId();
+        $followers = array_map(fn($u) => ['id' => (int)$u['id'], 'name' => (string)$u['name']], crm_fol_list($id));
+        $conversation = null;
+        if (!empty($_GET['conv']) && !empty($m['thread_key'])) {
+            $conversation = [];
+            foreach ($this->scopedThread($ctx['thread'] ?? []) as $t) {
+                $tm = (int)$t['id'] === $id ? $m : crm_mailbox_message((int)$t['id']);
+                if (!$tm) continue;
+                $conversation[] = ['id' => (int)$tm['id'], 'direction' => ($tm['direction'] ?? '') === 'in' ? 'in' : 'out',
+                    'from' => ($tm['direction'] ?? '') === 'in' ? ($tm['from_name'] ?: ($tm['from_email'] ?? null)) : $this->senderName($tm),
+                    'sent_at' => $tm['sent_at'] ?? null,
+                    'subject' => $tm['subject'] ?? null, 'frame' => crmInboxFrameDoc($tm)];
+            }
+        }
+        $trust = crm_sender_trust_bulk([(string)($m['from_email'] ?? '')]);
+        $t = $trust[strtolower(trim((string)($m['from_email'] ?? '')))] ?? null;
         return ['data' => $this->row($m) + [
+            'followers' => $followers,
+            'following' => in_array($uid, array_column($followers, 'id'), true),
+            'conversation' => $conversation,
+            'ezd_sprawa_id' => !empty($m['ezd_sprawa_id']) ? (int)$m['ezd_sprawa_id'] : null,
+            'trust' => $t && ($t['label'] ?? '') !== '' ? ['label' => (string)$t['label'], 'title' => (string)($t['title'] ?? '')] : null,
             'to' => $m['to_email'] ?? null,
             'frame' => crmInboxFrameDoc($m),
             'has_remote_images' => crmInboxHasRemote((string)($m['body_html'] ?? '')),
@@ -210,6 +257,42 @@ final class CrmApiInboxController
                 if (empty($r['ok'])) api_error((string)($r['error'] ?? 'Nie udało się pobrać pełnej treści.'), 502);
                 $msg = 'Pobrano pełną treść.';
                 break;
+            case 'fol_me':
+                if (in_array($uid, array_map('intval', array_column(crm_fol_list($id), 'id')), true)) {
+                    crm_fol_remove($id, $uid);
+                    $msg = 'Przestajesz obserwować tę rozmowę.';
+                } else {
+                    if (!crm_fol_add($id, $uid, $uid)) api_error('Nie możesz obserwować tej rozmowy (brak dostępu do skrzynki).', 409);
+                    $msg = 'Obserwujesz rozmowę — dostaniesz powiadomienia o odpowiedziach i zmianach.';
+                }
+                break;
+            case 'fol_add':
+                if (!crm_fol_add($id, (int)($in['user_id'] ?? 0), $uid)) api_error('Nie dodano: ta osoba już obserwuje albo nie ma dostępu do tej skrzynki.', 409);
+                $msg = 'Dodano obserwującego.';
+                break;
+            case 'fol_remove':
+                crm_fol_remove($id, (int)($in['user_id'] ?? 0));
+                $msg = 'Usunięto obserwującego.';
+                break;
+            case 'nozbe':
+                if (!$this->nozbeReady()) api_error('Integracja z Nozbe nie jest skonfigurowana.', 409);
+                $r = nozbe_push_crm_message($id);
+                if (empty($r['ok'])) api_error((string)($r['error'] ?? 'Nie udało się utworzyć zadania w Nozbe.'), 502);
+                $msg = !empty($r['existing']) ? 'To zadanie jest już w Nozbe.' : 'Utworzono zadanie w Nozbe.';
+                if (!empty($r['url'])) $extra['url'] = (string)$r['url'];
+                break;
+            case 'ezd':
+                if (!crm_mailbox_ezd_available()) api_error('Rejestracja w EZD jest niedostępna (moduł wyłączony albo brak prawa zapisu w EZD).', 403);
+                $sprawa = (int)($in['sprawa_id'] ?? 0) ?: null;
+                $teczka = (int)($in['teczka_id'] ?? 0) ?: null;
+                if (!$sprawa && !$teczka) api_json(['error' => 'Wybierz sprawę albo teczkę.', 'fields' => ['sprawa_id' => 'Wybierz istniejącą sprawę albo teczkę dla nowej.']], 422);
+                $r = crm_mailbox_to_ezd($id, $sprawa, $teczka, ['name' => (string)($in['strona_name'] ?? ''),
+                    'crm_id' => (int)($in['strona_crm_id'] ?? 0) ?: null, 'rola' => (string)($in['strona_rola'] ?? '')]);
+                if (empty($r['ok'])) api_error((string)($r['error'] ?: 'Nie udało się zarejestrować w dzienniku EZD.'), 409);
+                $msg = 'Zarejestrowano w dzienniku EZD' . (!empty($r['znak']) ? ' — ' . $r['znak'] : '') . '.'
+                     . (!empty($r['notified']) ? ' Nadawca dostał e-mail o zarejestrowaniu.' : '');
+                if (!empty($r['url'])) $extra['url'] = (string)$r['url'];
+                break;
         }
         api_audit('inbox_' . $op, 'crm_communications', $id);
         return ['data' => ['op' => $op, 'id' => $id, 'message' => $msg] + $extra];
@@ -234,8 +317,9 @@ final class CrmApiInboxController
         if (($p = crm_sender_problem($sendAs)) !== '') api_error($p, 409);
         // Treść z pola tekstowego: zachowujemy akapity i łamania linii, bez wstrzykiwania HTML
         $html = nl2br(htmlspecialchars(CrmManager::renderTemplate($body, $contact), ENT_QUOTES, 'UTF-8'));
+        $attachments = $this->replyAttachments((int)($in['template_id'] ?? 0));
         $commId = CrmManager::sendAndLog($cid, 'email', $html, CrmManager::renderTemplate($subject, $contact),
-            trim((string)($in['template_name'] ?? '')), true, [], crm_sender_email($sendAs));
+            trim((string)($in['template_name'] ?? '')), true, $attachments, crm_sender_email($sendAs));
         // Odpowiedź zostaje w wątku, skrzynce i sprawie oryginału (klasyczne okno tego nie robiło)
         if ($commId > 0) {
             db()->prepare("UPDATE crm_communications SET thread_key=COALESCE(thread_key, ?), mailbox_id=COALESCE(mailbox_id, ?), case_id=COALESCE(case_id, ?) WHERE id=?")
@@ -299,7 +383,103 @@ final class CrmApiInboxController
         return null;
     }
 
+    public function ezdOptions(): array
+    {
+        if (!crm_mailbox_ezd_available()) return ['data' => ['available' => false, 'teczki' => [], 'sprawy' => []]];
+        return ['data' => ['available' => true,
+            'teczki' => array_map(fn($t) => ['id' => (int)$t['id'], 'label' => trim(($t['symbol'] ?? '') . ' ' . ($t['title'] ?? ''))], crm_mailbox_ezd_teczki()),
+            'sprawy' => array_map(fn($t) => ['id' => (int)$t['id'], 'label' => trim(($t['znak_sprawy'] ?? '') . ' — ' . ($t['title'] ?? ''))],
+                crm_mailbox_ezd_sprawy(mb_substr(trim((string)($_GET['q'] ?? '')), 0, 100))),
+            'roles' => ['Wnioskodawca', 'Strona', 'Pełnomocnik', 'Uczestnik']]];
+    }
+
+    public function assist(int $id): array
+    {
+        CrmApiAuth::need('inbox', 'write');
+        $m = $this->load($id);                              // klasyczny endpoint czytał wiadomość bez sprawdzenia skrzynki
+        require_once dirname(__DIR__, 3) . '/includes/crm_inbox_assistant.php';
+        $r = crm_inbox_assist($m);
+        $intent = CRM_ASSIST_INTENTS[$r['intent'] ?? 'inne'] ?? CRM_ASSIST_INTENTS['inne'];
+        if (empty($r['ok'])) api_error((string)($r['error'] ?? 'Asystent jest niedostępny.'), 502);
+        return ['data' => [
+            'intent' => (string)($r['intent'] ?? 'inne'), 'intent_label' => (string)$intent['label'],
+            'summary' => (string)($r['summary'] ?? ''), 'escalate' => !empty($r['escalate']),
+            'escalate_reason' => (string)($r['escalate_reason'] ?? ''), 'missing' => array_values((array)($r['missing'] ?? [])),
+            'sensitive' => !empty($r['sensitive']), 'reply' => (string)($r['reply'] ?? ''),
+        ]];
+    }
+
+    public function oooBack(): array
+    {
+        uav_set(CrmApiAuth::userId(), false);
+        return ['data' => ['message' => 'Witaj z powrotem — nieobecność wyłączona.']];
+    }
+
+    public function adminScan(): array
+    {
+        if (!is_admin()) api_error('Tylko administrator.', 403);
+        $r = crm_mailbox_scan((int)(CrmApiAuth::input()['mailbox_id'] ?? 0) ?: null);
+        if (empty($r['ok'])) api_error((string)($r['error'] ?? 'Skanowanie nieudane.'), 409);
+        return ['data' => ['message' => sprintf('Pobrano %d, dopasowano %d, zapisano %d, pominięto %d.',
+            (int)($r['fetched'] ?? 0), (int)($r['matched'] ?? 0), (int)($r['created'] ?? 0), (int)($r['skipped'] ?? 0))
+            . (!empty($r['errors']) ? ' Część skrzynek zgłosiła błędy.' : '')]];
+    }
+
+    public function adminAutocreate(): array
+    {
+        if (!is_admin()) api_error('Tylko administrator.', 403);
+        $on = !empty(CrmApiAuth::input()['on']);
+        crm_setting_save('poczta_autocreate_contacts', $on ? '1' : '0');
+        return ['data' => ['autocreate' => $on, 'message' => $on ? 'Nieznani nadawcy będą zakładać kontakty.' : 'Nieznani nadawcy nie będą zakładać kontaktów.']];
+    }
+
     // ── pomocnicze ─────────────────────────────────────────────────────────────
+
+    /** Autor wiadomości wychodzącej: użytkownik SZO (sent_by), inaczej skrzynka. */
+    private function senderName(array $m): ?string
+    {
+        if (!empty($m['sent_by'])) {
+            $u = db_one("SELECT name FROM users WHERE id=?", [(int)$m['sent_by']]);
+            if ($u) return (string)$u['name'];
+        }
+        return $m['mailbox_name'] ?? ($m['from_email'] ?: null);
+    }
+
+    private function nozbeReady(): bool
+    {
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/nozbe.php';
+            return nozbe_configured();
+        } catch (\Throwable $e) { return false; }
+    }
+
+    /**
+     * Załączniki odpowiedzi: pliki z formularza (files[]) zapisane w poczekalni crm_attachments/ + załączniki szablonu.
+     * Te same limity co klasyczne okno (crm/api/attachments.php): 5 plików, 15 MB, lista rozszerzeń.
+     * @return list<array{path:string,name:string,mime:string,size:int}>
+     */
+    private function replyAttachments(int $templateId): array
+    {
+        $out = $templateId > 0 ? crm_tpl_attachments($templateId) : [];
+        $f = $_FILES['files'] ?? null;
+        if (!$f || !is_array($f['name'] ?? null)) return array_slice($out, 0, CRM_ATT_MAX_FILES);
+        $total = array_sum(array_column($out, 'size'));
+        foreach ($f['name'] as $i => $name) {
+            if (($f['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) continue;
+            if (($f['error'][$i] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'][$i])) api_error('Nie udało się przesłać pliku „' . $name . '”.', 422);
+            $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
+            if (!in_array($ext, crm_att_allowed_ext(), true)) api_json(['error' => 'Niedozwolony typ pliku: .' . $ext, 'fields' => ['files' => 'Dozwolone: ' . implode(', ', crm_att_allowed_ext()) . '.']], 422);
+            $size = (int)$f['size'][$i];
+            $total += $size;
+            if (count($out) >= CRM_ATT_MAX_FILES) api_json(['error' => 'Najwyżej ' . CRM_ATT_MAX_FILES . ' załączników.', 'fields' => ['files' => 'Najwyżej ' . CRM_ATT_MAX_FILES . ' plików.']], 422);
+            if ($total > CRM_ATT_MAX_BYTES) api_json(['error' => 'Załączniki są za duże (razem do 15 MB).', 'fields' => ['files' => 'Razem do 15 MB.']], 422);
+            $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            if (!move_uploaded_file($f['tmp_name'][$i], crm_att_dir() . $stored)) api_error('Nie udało się zapisać pliku „' . $name . '”.', 500);
+            $out[] = ['path' => 'crm_attachments/' . $stored, 'name' => (string)$name,
+                      'mime' => (string)(mime_content_type(crm_att_dir() . $stored) ?: 'application/octet-stream'), 'size' => $size];
+        }
+        return $out;
+    }
 
     private function view(): string
     {
@@ -320,6 +500,7 @@ final class CrmApiInboxController
             'unread' => !empty($_GET['unread']),
             'att' => !empty($_GET['att']),
             'group_threads' => $threads && $q === '',
+            'folder_rules' => ($fid = (int)($_GET['folder_id'] ?? 0)) && ($fo = crm_mf_get($fid)) ? $fo['rules_arr'] : null,
         ];
     }
 
