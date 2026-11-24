@@ -2612,4 +2612,15 @@ return [
         },
     ],
 
+    // Portal Usług IT: instrukcja „Poczta w Zimbrze krok po kroku” (titan.sdata.net.pl, autor Ziemowit Gil) jako strona
+    // /uslugi-it/instrukcje/zimbra-poczta z PDF; tu artykuł-wejście w „Poczcie kursanta” (polecenie 2026-11-24).
+    '2026-11_it_portal_instrukcja_zimbra' => [
+        'desc' => 'Portal Usług IT, „Poczta kursanta”: artykuł z odnośnikiem do instrukcji „Poczta w Zimbrze krok po kroku” i PDF',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalInstrukcjeSeed.php';
+            itPortalInstrukcjeApply(ITP_SZO_URL, false, ['zimbra-poczta']);
+        },
+    ],
+
 ];

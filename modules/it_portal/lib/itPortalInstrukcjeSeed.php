@@ -24,6 +24,17 @@ function itPortalInstrukcjeDefs(): array {
                     . '<p>Zrzuty zrobiono w innej instalacji Nextcloud, więc kolory i logo mogą wyglądać inaczej niż w chmurze Fundacji. '
                     . 'Przyciski i menu nazywają się tak samo. Autor instrukcji: Ziemowit Gil.</p>',
         ],
+        // Polecenie 2026-11-24: instrukcja Zimbry (titan.sdata.net.pl) w tym samym układzie; wejście w „Poczcie kursanta”.
+        'zimbra-poczta' => [
+            'cat' => 'poczta-kursanta', 'art' => 'zimbra-krok-po-kroku', 'group' => '', 'sort' => 15,
+            'title' => 'Poczta w Zimbrze krok po kroku (instrukcja z PDF)',
+            'keywords' => 'instrukcja, pdf, krok po kroku, dla początkujących, zimbra, titan, titan.sdata.net.pl, sdata, poczta, webmail, logowanie, wiadomość, nowa wiadomość, odpowiedz, przekaż, załącznik, folder, przenoszenie, wyszukiwanie, kosz, spam, kontakty, kalendarz, podpis, poza biurem, automatyczna odpowiedź, zmiana hasła, strefa czasowa, wyloguj, imap, smtp, telefon',
+            'html' => '<p>Pełna instrukcja dla początkujących w 13 rozdziałach: logowanie na titan.sdata.net.pl, ekran poczty, czytanie i pisanie '
+                    . 'wiadomości, załączniki, odpowiadanie, foldery, wyszukiwanie, kosz i spam, kontakty, kalendarz, ustawienia (hasło, podpis, '
+                    . 'automatyczna odpowiedź, wylogowanie) oraz poczta w telefonie. Ma zrzuty ekranu i boczny spis rozdziałów. Do druku jest wersja PDF.</p>'
+                    . '<p>Kolory i skórka Twojej poczty mogą wyglądać inaczej niż na zrzutach. Przyciski i menu nazywają się tak samo. '
+                    . 'Autor instrukcji: Ziemowit Gil.</p>',
+        ],
     ];
 }
 
