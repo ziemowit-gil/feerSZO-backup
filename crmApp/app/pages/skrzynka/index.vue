@@ -5,9 +5,10 @@ const route = useRoute()
 const router = useRouter()
 const api = useApi()
 const toast = useToast()
+const session = useCrmSession()
 
 // Widok, skrzynka, kolejka, tag i filtry w adresie (?view=new&mailbox_id=…) — jak w klasycznej Skrzynce.
-const KEYS = ['view', 'mailbox_id', 'queue_id', 'tag', 'q', 'unread', 'att', 'threads'] as const
+const KEYS = ['view', 'mailbox_id', 'queue_id', 'folder_id', 'tag', 'q', 'unread', 'att', 'threads'] as const
 const f = reactive<Record<string, string>>(Object.fromEntries(KEYS.map(k => [k, String(route.query[k] ?? '')])))
 const view = computed(() => String(route.query.view || 'new'))
 const page = computed(() => Math.max(1, Number(route.query.page || 1)))
@@ -83,6 +84,32 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(timer))
 async function showNew() { newArrived.value = false; await Promise.all([refresh(), refreshMeta()]) }
 
+// ── nieobecność i opcje administratora ─────────────────────────────────────
+async function oooBack() {
+  try {
+    const r = await api.post<{ data: { message: string } }>('/inbox/ooo-back')
+    toast.add({ title: r.data.message, color: 'success', icon: 'i-lucide-check' })
+    await refreshMeta()
+  } catch (e) { toast.add({ title: 'Nie udało się', description: (e as Error).message, color: 'error' }) }
+}
+const scanMailbox = ref('')
+const scanning = ref(false)
+async function scan() {
+  scanning.value = true
+  try {
+    const r = await api.post<{ data: { message: string } }>('/inbox/admin/scan', { mailbox_id: Number(scanMailbox.value || 0) })
+    toast.add({ title: 'Pobrano pocztę', description: r.data.message, color: 'success', icon: 'i-lucide-check' })
+    await Promise.all([refresh(), refreshMeta()])
+  } catch (e) { toast.add({ title: 'Skanowanie nieudane', description: (e as Error).message, color: 'error' }) } finally { scanning.value = false }
+}
+async function setAutocreate(on: boolean) {
+  try {
+    const r = await api.post<{ data: { message: string } }>('/inbox/admin/autocreate', { on })
+    toast.add({ title: r.data.message, color: 'success', icon: 'i-lucide-check' })
+    await refreshMeta()
+  } catch (e) { toast.add({ title: 'Nie zapisano', description: (e as Error).message, color: 'error' }) }
+}
+
 const sender = (r: InboxRow) => r.direction === 'out' ? `Do: ${r.contact_name || '—'}` : (r.from_name || r.from_email || r.contact_name || 'Nieznany nadawca')
 </script>
 
@@ -93,6 +120,11 @@ const sender = (r: InboxRow) => r.direction === 'out' ? `Do: ${r.contact_name ||
         <UButton v-if="canWrite && (view === 'new' || view === 'all' || view === 'mine')" label="Oznacz wszystkie jako przeczytane" icon="i-lucide-check-check" color="neutral" variant="outline" @click="markAllRead" />
       </template>
     </PageHeader>
+
+    <UAlert v-if="meta?.away" color="warning" variant="subtle" icon="i-lucide-plane" class="mb-4" title="Jesteś oznaczony jako nieobecny"
+            :description="`${meta.away.label}. Nowe wiadomości nie są Ci przypisywane.`">
+      <template #actions><UButton label="Wróciłem" color="warning" variant="outline" @click="oooBack" /></template>
+    </UAlert>
 
     <!-- Widoki skrzynki: linki z liczbą, bieżący oznaczony aria-current -->
     <nav aria-label="Widoki skrzynki" class="mb-4 overflow-x-auto">
@@ -117,6 +149,8 @@ const sender = (r: InboxRow) => r.direction === 'out' ? `Do: ${r.contact_name ||
                     :options="(meta?.mailboxes ?? []).map(m => ({ value: String(m.id), label: `${m.name} (${m.count})` }))" />
       <NativeSelect v-if="meta?.queues.length" id="ib-queue" v-model="f.queue_id" label="Kolejka" placeholder="Wszystkie"
                     :options="(meta?.queues ?? []).map(q => ({ value: String(q.id), label: `${q.name} (${q.count})` }))" />
+      <NativeSelect v-if="meta?.folders.length" id="ib-folder" v-model="f.folder_id" label="Folder" placeholder="— bez folderu —"
+                    :options="(meta?.folders ?? []).map(x => ({ value: String(x.id), label: `${x.name}${x.shared ? '' : ' (mój)'} (${x.count})` }))" />
       <NativeSelect v-if="meta?.tags.length" id="ib-tag" v-model="f.tag" label="Tag" placeholder="Dowolny" :options="(meta?.tags ?? []).map(t => ({ value: t, label: t }))" />
       <fieldset class="flex flex-col gap-2">
         <legend class="mb-1 text-sm font-medium text-highlighted">Pokaż</legend>
@@ -126,7 +160,7 @@ const sender = (r: InboxRow) => r.direction === 'out' ? `Do: ${r.contact_name ||
       </fieldset>
       <div class="flex items-end gap-2">
         <UButton type="submit" label="Pokaż" icon="i-lucide-filter" />
-        <UButton color="neutral" variant="ghost" label="Wyczyść" @click="apply(1, { mailbox_id: '', queue_id: '', tag: '', q: '', unread: '', att: '' })" />
+        <UButton color="neutral" variant="ghost" label="Wyczyść" @click="apply(1, { mailbox_id: '', queue_id: '', folder_id: '', tag: '', q: '', unread: '', att: '' })" />
       </div>
     </form>
 
@@ -170,6 +204,8 @@ const sender = (r: InboxRow) => r.direction === 'out' ? `Do: ${r.contact_name ||
             </NuxtLink>
             <p class="truncate text-sm text-muted">{{ r.snippet }}</p>
             <p class="mt-1 flex flex-wrap items-center gap-2 text-sm">
+              <UBadge v-if="r.followed" color="info" variant="subtle" icon="i-lucide-bell" label="Obserwujesz" size="sm" />
+              <UBadge v-if="r.trust" color="success" variant="subtle" icon="i-lucide-shield-check" :label="r.trust" size="sm" />
               <UBadge v-if="r.has_attachments" color="neutral" variant="outline" icon="i-lucide-paperclip" label="Załącznik" size="sm" />
               <UBadge v-if="r.contact_name && r.direction === 'in'" color="neutral" variant="outline" icon="i-lucide-user" :label="r.contact_name" size="sm" />
               <UBadge v-if="r.assigned_name" color="primary" variant="subtle" :label="`Prowadzi: ${r.assigned_name}`" size="sm" />
@@ -182,6 +218,22 @@ const sender = (r: InboxRow) => r.direction === 'out' ? `Do: ${r.contact_name ||
       </ol>
     </div>
     <EmptyState v-else-if="status !== 'pending' && !error" title="Pusto" :description="view === 'new' ? 'Wszystko przeczytane. Nowe wiadomości pojawią się tutaj.' : 'W tym widoku nie ma wiadomości.'" icon="i-lucide-inbox" />
+
+    <details v-if="meta?.is_admin" class="mt-8 rounded-xl border border-default bg-default p-4">
+      <summary class="min-h-11 cursor-pointer font-semibold text-highlighted">Administracja skrzynki</summary>
+      <div class="mt-4 grid gap-6 md:grid-cols-2">
+        <form class="space-y-3" @submit.prevent="scan">
+          <NativeSelect id="ib-scan" v-model="scanMailbox" label="Pobierz pocztę teraz" placeholder="Wszystkie skrzynki"
+                        :options="(meta?.mailboxes ?? []).map(m => ({ value: String(m.id), label: m.name }))" hint="Zwykle robi to harmonogram co kilka minut." />
+          <UButton type="submit" label="Pobierz" icon="i-lucide-refresh-cw" :loading="scanning" />
+        </form>
+        <div class="space-y-2">
+          <USwitch :model-value="meta.autocreate" label="Nieznani nadawcy zakładają kontakt" description="Każdy nowy adres nadawcy staje się kartoteką CRM (osoba, status prospect)."
+                   @update:model-value="v => setAutocreate(!!v)" />
+          <p class="text-sm text-muted">Foldery, kolejki i reguły skrzynki zmienisz w <a :href="`${session.me.value?.legacy_url}mail_folders.php`" class="text-primary underline">klasycznym CRM</a>.</p>
+        </div>
+      </div>
+    </details>
 
     <Pager v-if="data" :page="page" :pages="data.meta.pages" :total="total" label="Strony skrzynki" @update:page="p => apply(p)" />
   </div>

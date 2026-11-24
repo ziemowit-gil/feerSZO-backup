@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ApiError } from '~/composables/useApi'
-import type { InboxMessage, InboxMeta } from '~/utils/types'
+import type { InboxAssist, InboxMessage, InboxMeta } from '~/utils/types'
 
 const route = useRoute()
 const api = useApi()
@@ -9,8 +9,13 @@ const session = useCrmSession()
 const id = computed(() => Number(route.params.id))
 
 const { data: meta } = await useAsyncData('inbox-meta-detail', () => api.get<{ data: InboxMeta }>('/inbox/meta').then(r => r.data))
-const { data, error, refresh } = await useAsyncData(() => `inbox-msg-${id.value}`,
-  () => api.get<{ data: InboxMessage, legacy_url: string }>(`/inbox/${id.value}`), { watch: [id], deep: true })
+// Tryb rozmowy (cały wątek jedną kolumną) — preferencja w adresie ?conv=1
+const conv = computed({
+  get: () => route.query.conv === '1',
+  set: v => navigateTo({ query: { ...route.query, conv: v ? '1' : undefined } }, { replace: true }),
+})
+const { data, error, refresh } = await useAsyncData(() => `inbox-msg-${id.value}-${conv.value}`,
+  () => api.get<{ data: InboxMessage, legacy_url: string }>(`/inbox/${id.value}`, { conv: conv.value }), { watch: [id, conv], deep: true })
 const m = computed(() => data.value?.data)
 const canWrite = computed(() => !!meta.value?.can_write)
 useHead({ title: () => m.value?.subject || 'Wiadomość' })
@@ -111,7 +116,15 @@ async function sendReply() {
   replyBusy.value = true
   try {
     const tpl = meta.value?.templates.find(x => String(x.id) === reply.template)
-    const r = await api.post<{ data: { message: string } }>(`/inbox/${id.value}/reply`, { subject: reply.subject, body: reply.body, send_as: reply.send_as, template_name: tpl?.name ?? '' })
+    const fd = new FormData()
+    fd.append('subject', reply.subject)
+    fd.append('body', reply.body)
+    fd.append('send_as', reply.send_as)
+    fd.append('template_name', tpl?.name ?? '')
+    fd.append('template_id', tpl ? String(tpl.id) : '0')
+    for (const file of replyFiles.value) fd.append('files[]', file, file.name)
+    const r = await api.post<{ data: { message: string } }>(`/inbox/${id.value}/reply`, fd)
+    replyFiles.value = []
     toast.add({ title: r.data.message, color: 'success', icon: 'i-lucide-send' })
     replyOpen.value = false
     reply.body = ''; reply.template = ''
@@ -121,6 +134,51 @@ async function sendReply() {
     if (!Object.keys(replyErr.value).length) toast.add({ title: 'Nie wysłano', description: (e as Error).message, color: 'error' })
   } finally { replyBusy.value = false }
 }
+
+// Obserwujący
+const followerTo = ref('')
+async function addFollower() { if (followerTo.value) { await act('fol_add', { user_id: Number(followerTo.value) }); followerTo.value = '' } }
+
+// Nozbe i EZD — po sukcesie link do utworzonego zadania / sprawy
+const lastUrl = ref<string | null>(null)
+async function toNozbe() { const r = await act('nozbe'); lastUrl.value = (r as { url?: string } | undefined)?.url ?? null }
+const ezdOpen = ref(false)
+const ezdOpts = ref<{ teczki: { id: number, label: string }[], sprawy: { id: number, label: string }[], roles: string[] } | null>(null)
+const ezd = reactive({ mode: 'new', sprawa_id: '', teczka_id: '', strona_name: '', strona_rola: '', q: '' })
+const ezdErr = ref('')
+watch(ezdOpen, async (o) => {
+  if (!o) return
+  ezd.strona_name = m.value?.contact_name || m.value?.from_name || ''
+  ezdOpts.value = (await api.get<{ data: NonNullable<typeof ezdOpts.value> }>('/inbox/ezd-options')).data
+})
+async function ezdSearch() { ezdOpts.value = (await api.get<{ data: NonNullable<typeof ezdOpts.value> }>('/inbox/ezd-options', { q: ezd.q })).data }
+async function toEzd() {
+  ezdErr.value = ''
+  const body = ezd.mode === 'new' ? { teczka_id: Number(ezd.teczka_id || 0) } : { sprawa_id: Number(ezd.sprawa_id || 0) }
+  if (!Object.values(body)[0]) { ezdErr.value = ezd.mode === 'new' ? 'Wybierz teczkę dla nowej sprawy.' : 'Wybierz sprawę.'; return }
+  const r = await act('ezd', { ...body, strona_name: ezd.strona_name, strona_crm_id: m.value?.contact_id ?? 0, strona_rola: ezd.strona_rola })
+  if (r) { ezdOpen.value = false; lastUrl.value = (r as { url?: string }).url ?? null }
+}
+
+// Asystent AI
+const assist = ref<InboxAssist | null>(null)
+const assistBusy = ref(false)
+async function runAssist() {
+  assistBusy.value = true
+  try { assist.value = (await api.post<{ data: InboxAssist }>(`/inbox/${id.value}/assist`)).data } catch (e) {
+    toast.add({ title: 'Asystent niedostępny', description: (e as Error).message, color: 'error' })
+  } finally { assistBusy.value = false }
+}
+function useDraft() {
+  if (!assist.value) return
+  reply.body = assist.value.reply
+  replyOpen.value = true
+}
+watch(id, () => { assist.value = null; lastUrl.value = null })
+
+// Załączniki odpowiedzi
+const replyFiles = ref<File[]>([])
+function onFiles(e: Event) { replyFiles.value = Array.from((e.target as HTMLInputElement).files ?? []) }
 
 async function download(a: { id: number, name: string }) {
   try { await downloadFromApi(`/inbox/attachments/${a.id}`, a.name) } catch (e) {
@@ -140,7 +198,15 @@ const STATUS: Record<string, string> = { active: 'W skrzynce', archived: 'Załat
         <template #actions>
           <UButton v-if="canWrite && m.contact_id && m.direction === 'in'" icon="i-lucide-reply" label="Odpowiedz" @click="replyOpen = true" />
           <UButton v-if="canWrite" icon="i-lucide-forward" label="Przekaż" color="neutral" variant="outline" @click="fwdOpen = true" />
-          <UButton :href="data.legacy_url" icon="i-lucide-external-link" label="EZD, Nozbe, obserwujący" color="neutral" variant="ghost" />
+          <UButton v-if="canWrite && meta?.assist_available" icon="i-lucide-sparkles" label="Asystent AI" color="neutral" variant="outline" :loading="assistBusy" @click="runAssist" />
+          <UDropdownMenu :items="[[
+            ...(canWrite && meta?.ezd_available ? [{ label: 'Zarejestruj w EZD…', icon: 'i-lucide-book-marked', onSelect: () => { ezdOpen = true } }] : []),
+            ...(canWrite && meta?.nozbe_available ? [{ label: 'Zadanie w Nozbe', icon: 'i-lucide-list-todo', onSelect: () => toNozbe() }] : []),
+            { label: 'Zadanie w SZO', icon: 'i-lucide-square-check', href: `${session.me.value?.szo_url}/tasks/router.php?_route=/nowe&comm=${m.id}&src=crm` },
+            { label: 'Otwórz w klasycznym CRM', icon: 'i-lucide-external-link', href: data.legacy_url },
+          ]]">
+            <UButton icon="i-lucide-ellipsis" color="neutral" variant="outline" aria-label="Więcej akcji" />
+          </UDropdownMenu>
         </template>
       </PageHeader>
 
@@ -161,9 +227,40 @@ const STATUS: Record<string, string> = { active: 'W skrzynce', archived: 'Załat
                 <UBadge :label="STATUS[m.status || 'active'] || m.status || ''" color="neutral" variant="outline" />
                 <UBadge v-if="m.hidden" label="Ukryta w CRM" color="warning" variant="subtle" />
                 <span v-if="m.msg_no" class="text-sm text-muted">Nr {{ m.msg_no }}</span>
+                <UBadge v-if="m.trust" color="success" variant="subtle" icon="i-lucide-shield-check" :label="m.trust.label" :title="m.trust.title" />
+                <a v-if="m.ezd_sprawa_id" :href="`${session.me.value?.szo_url}/ezd/sprawy/view.php?id=${m.ezd_sprawa_id}`" class="text-sm text-primary underline">Sprawa w EZD</a>
               </dd>
             </dl>
           </UCard>
+
+          <UAlert v-if="lastUrl" color="success" variant="subtle" icon="i-lucide-check" title="Gotowe">
+            <template #actions><UButton :href="lastUrl" target="_blank" label="Otwórz" color="success" variant="outline" trailing-icon="i-lucide-external-link" /></template>
+          </UAlert>
+
+          <UCard v-if="assist" as="section" aria-labelledby="h-ai">
+            <template #header>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 id="h-ai" class="font-semibold text-highlighted">Asystent AI</h2>
+                <UBadge :label="assist.intent_label" color="neutral" variant="outline" />
+                <UBadge v-if="assist.sensitive" label="Dane wrażliwe" color="warning" variant="subtle" />
+              </div>
+            </template>
+            <div class="space-y-3">
+              <p>{{ assist.summary }}</p>
+              <UAlert v-if="assist.escalate" color="warning" variant="subtle" icon="i-lucide-triangle-alert" title="Do decyzji człowieka" :description="assist.escalate_reason" />
+              <div v-if="assist.missing.length"><p class="font-medium">Brakuje:</p><ul class="list-disc pl-5"><li v-for="x in assist.missing" :key="x">{{ x }}</li></ul></div>
+              <details v-if="assist.reply"><summary class="cursor-pointer font-medium">Proponowana odpowiedź</summary><p class="mt-2 whitespace-pre-line rounded-lg bg-muted p-3">{{ assist.reply }}</p></details>
+              <div class="flex flex-wrap gap-2">
+                <UButton v-if="assist.reply && m.contact_id" label="Użyj w odpowiedzi" icon="i-lucide-reply" @click="useDraft" />
+                <UButton label="Zamknij" color="neutral" variant="ghost" @click="assist = null" />
+              </div>
+              <p class="text-sm text-muted">Podpowiedź modelu AI — sprawdź przed wysłaniem.</p>
+            </div>
+          </UCard>
+
+          <div v-if="m.thread.length > 1" class="flex justify-end">
+            <USwitch v-model="conv" label="Pokaż całą rozmowę" />
+          </div>
 
           <UAlert v-if="m.is_preview" color="info" variant="subtle" icon="i-lucide-info" title="To tylko podgląd treści" description="Pełną wiadomość można pobrać ze skrzynki pocztowej.">
             <template #actions><UButton label="Pobierz pełną treść" color="info" variant="outline" :loading="busy === 'fetch_body'" @click="act('fetch_body')" /></template>
@@ -173,7 +270,21 @@ const STATUS: Record<string, string> = { active: 'W skrzynce', archived: 'Załat
             <template #actions><UButton label="Pokaż obrazy" color="neutral" variant="outline" @click="showImages = true" /></template>
           </UAlert>
 
-          <section aria-labelledby="h-tresc" class="overflow-hidden rounded-xl border border-default bg-white">
+          <section v-if="m.conversation" aria-labelledby="h-rozmowa" class="space-y-3">
+            <h2 id="h-rozmowa" class="sr-only">Cała rozmowa</h2>
+            <article v-for="c in m.conversation" :key="c.id" :aria-current="c.id === m.id ? 'true' : undefined"
+                     class="overflow-hidden rounded-xl border bg-default" :class="c.id === m.id ? 'border-primary' : 'border-default'">
+              <header class="flex flex-wrap items-center gap-2 border-b border-default px-4 py-2 text-sm">
+                <UIcon :name="c.direction === 'in' ? 'i-lucide-arrow-down-left' : 'i-lucide-arrow-up-right'" class="size-4" aria-hidden="true" />
+                <strong>{{ c.direction === 'in' ? 'Od:' : 'Wysłana:' }} {{ c.from || '—' }}</strong>
+                <span class="ml-auto text-muted">{{ fmtDateTime(c.sent_at) }}</span>
+              </header>
+              <iframe :srcdoc="c.frame.replace(/CRM_IMG_SRC/g, showImages ? 'https: http:' : '')" :title="`Treść wiadomości z ${fmtDateTime(c.sent_at)}`"
+                      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" class="block w-full border-0 bg-white" style="height: 200px"
+                      @load="e => { const f = e.target as HTMLIFrameElement; const d = f.contentDocument; if (d?.body) { f.style.height = '0px'; f.style.height = `${Math.min(d.body.scrollHeight + 8, 3000)}px` } }" />
+            </article>
+          </section>
+          <section v-else aria-labelledby="h-tresc" class="overflow-hidden rounded-xl border border-default bg-white">
             <h2 id="h-tresc" class="sr-only">Treść wiadomości</h2>
             <iframe ref="frame" :srcdoc="frameDoc" title="Treść wiadomości" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                     class="block w-full border-0" style="height: 240px" @load="fitFrame" />
@@ -203,6 +314,11 @@ const STATUS: Record<string, string> = { active: 'W skrzynce', archived: 'Załat
               <UFormField label="Treść" name="reply_body" :error="replyErr.body" required help="Podpis i stopka Fundacji dołączą się same. Zmienne szablonu ({imie}, {nadawca_imie}…) też działają.">
                 <UTextarea v-model="reply.body" name="reply_body" :rows="8" autoresize class="w-full" />
               </UFormField>
+              <UFormField label="Załączniki" name="files" :error="replyErr.files" help="Najwyżej 5 plików, razem do 15 MB (pdf, dokumenty, arkusze, obrazy, archiwa). Załączniki szablonu dołączą się same.">
+                <input id="r-files" type="file" name="files" multiple class="block w-full rounded-md border border-accented p-2 text-sm file:mr-3 file:min-h-9 file:rounded-md file:border-0 file:bg-elevated file:px-3"
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.gif,.zip,.rar,.7z,.odt,.ods" @change="onFiles">
+              </UFormField>
+              <ul v-if="replyFiles.length" class="text-sm text-muted" aria-label="Wybrane pliki"><li v-for="f in replyFiles" :key="f.name">{{ f.name }} ({{ fmtSize(f.size) }})</li></ul>
               <div class="flex flex-wrap gap-3">
                 <UButton type="submit" label="Wyślij odpowiedź" icon="i-lucide-send" :loading="replyBusy" />
                 <UButton label="Anuluj" color="neutral" variant="outline" @click="replyOpen = false" />
@@ -287,6 +403,25 @@ const STATUS: Record<string, string> = { active: 'W skrzynce', archived: 'Załat
             </div>
           </UCard>
 
+          <UCard as="section" aria-labelledby="h-obs">
+            <template #header><h2 id="h-obs" class="font-semibold text-highlighted">Obserwujący</h2></template>
+            <div class="space-y-3">
+              <ul v-if="m.followers.length" class="space-y-1">
+                <li v-for="u in m.followers" :key="u.id" class="flex items-center justify-between gap-2">
+                  <span>{{ u.name }}</span>
+                  <UButton v-if="canWrite" size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="`Usuń obserwującego ${u.name}`" @click="act('fol_remove', { user_id: u.id })" />
+                </li>
+              </ul>
+              <p v-else class="text-sm text-muted">Nikt nie obserwuje tej rozmowy.</p>
+              <UButton :label="m.following ? 'Przestań obserwować' : 'Obserwuj rozmowę'" :icon="m.following ? 'i-lucide-bell-off' : 'i-lucide-bell'" color="neutral" variant="outline" block @click="act('fol_me')" />
+              <form v-if="canWrite" class="flex items-end gap-2" @submit.prevent="addFollower">
+                <NativeSelect id="a-fol" v-model="followerTo" label="Dodaj osobę" placeholder="Wybierz…" class="flex-1"
+                              :options="(session.dict.value?.owners ?? []).filter(o => !(m?.followers ?? []).some(f => f.id === o.id)).map(o => ({ value: String(o.id), label: o.name }))" />
+                <UButton type="submit" label="Dodaj" color="neutral" variant="outline" aria-label="Dodaj obserwującego" />
+              </form>
+            </div>
+          </UCard>
+
           <UCard v-if="session.can('cases')" as="section" aria-labelledby="h-sprawa">
             <template #header><h2 id="h-sprawa" class="font-semibold text-highlighted">Sprawa</h2></template>
             <div class="space-y-3">
@@ -302,6 +437,39 @@ const STATUS: Record<string, string> = { active: 'W skrzynce', archived: 'Załat
           </UCard>
         </aside>
       </div>
+
+      <UModal v-model:open="ezdOpen" title="Zarejestruj w dzienniku EZD" description="Wiadomość z załącznikami trafi do EZD jako pismo przychodzące.">
+        <template #body>
+          <form id="ezd-form" novalidate class="space-y-4" @submit.prevent="toEzd">
+            <fieldset class="space-y-2">
+              <legend class="text-sm font-medium text-highlighted">Gdzie</legend>
+              <URadioGroup v-model="ezd.mode" :items="[{ value: 'new', label: 'Nowa sprawa w teczce' }, { value: 'existing', label: 'Istniejąca sprawa' }]" />
+            </fieldset>
+            <NativeSelect v-if="ezd.mode === 'new'" id="ezd-teczka" v-model="ezd.teczka_id" label="Teczka" placeholder="Wybierz…" :options="(ezdOpts?.teczki ?? []).map(t => ({ value: String(t.id), label: t.label }))" />
+            <template v-else>
+              <div class="flex items-end gap-2">
+                <div class="flex flex-1 flex-col gap-1">
+                  <label for="ezd-q" class="text-sm font-medium text-highlighted">Szukaj sprawy</label>
+                  <UInput id="ezd-q" v-model="ezd.q" placeholder="Znak albo tytuł" class="w-full" @keydown.enter.prevent="ezdSearch" />
+                </div>
+                <UButton label="Szukaj" color="neutral" variant="outline" @click="ezdSearch" />
+              </div>
+              <NativeSelect id="ezd-sprawa" v-model="ezd.sprawa_id" label="Sprawa" placeholder="Wybierz…" :options="(ezdOpts?.sprawy ?? []).map(t => ({ value: String(t.id), label: t.label }))" />
+            </template>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UFormField label="Strona (nadawca)" name="strona_name"><UInput v-model="ezd.strona_name" class="w-full" /></UFormField>
+              <NativeSelect id="ezd-rola" v-model="ezd.strona_rola" label="Rola strony" placeholder="— rola —" :options="(ezdOpts?.roles ?? []).map(r => ({ value: r, label: r }))" />
+            </div>
+            <p v-if="ezdErr" role="alert" class="text-sm text-error">{{ ezdErr }}</p>
+          </form>
+        </template>
+        <template #footer>
+          <div class="flex w-full justify-end gap-2">
+            <UButton label="Anuluj" color="neutral" variant="outline" @click="ezdOpen = false" />
+            <UButton type="submit" form="ezd-form" label="Zarejestruj" icon="i-lucide-book-marked" :loading="busy === 'ezd'" />
+          </div>
+        </template>
+      </UModal>
 
       <UModal v-model:open="fwdOpen" title="Przekaż wiadomość" description="Wiadomość z załącznikami trafi pod wskazany adres.">
         <template #body>

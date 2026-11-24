@@ -128,6 +128,13 @@ export interface Dashboard {
 
 // ── Skrzynka (modules/crmApi/logic/CrmApiInboxController.php) ─────────────────
 export interface InboxMeta {
+  folders: { id: number, name: string, color: string | null, shared: boolean, count: number }[]
+  is_admin: boolean
+  autocreate: boolean
+  away: { label: string } | null
+  ezd_available: boolean
+  nozbe_available: boolean
+  assist_available: boolean
   views: { value: string, label: string, count: number }[]
   mailboxes: { id: number, name: string, color: string, count: number }[]
   queues: { id: number, name: string, color: string | null, count: number }[]
@@ -163,9 +170,16 @@ export interface InboxRow {
   queue_color: string | null
   thread_count: number
   tags: string[]
+  followed?: boolean
+  trust?: string | null
 }
 
-export interface InboxMessage extends InboxRow {
+export interface InboxMessage extends Omit<InboxRow, 'trust'> {
+  followers: { id: number, name: string }[]
+  following: boolean
+  conversation: { id: number, direction: 'in' | 'out', from: string | null, sent_at: string | null, subject: string | null, frame: string }[] | null
+  ezd_sprawa_id: number | null
+  trust: { label: string, title: string } | null
   to: string | null
   frame: string
   has_remote_images: boolean
@@ -178,3 +192,5 @@ export interface InboxMessage extends InboxRow {
   contact_cases: { id: number, title: string, case_number: string | null, is_closed: boolean }[]
   thread: { id: number, direction: 'in' | 'out', subject: string | null, sent_at: string | null, is_read: boolean }[]
 }
+
+export interface InboxAssist { intent: string, intent_label: string, summary: string, escalate: boolean, escalate_reason: string, missing: string[], sensitive: boolean, reply: string }
