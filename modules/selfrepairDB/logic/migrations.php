@@ -2601,4 +2601,15 @@ return [
         },
     ],
 
+    // Portal Usług IT: instrukcja „Pliki w Nextcloud krok po kroku” (autor Ziemowit Gil) jako osobna strona /uslugi-it/instrukcje/nextcloud-pliki
+    // ze spisem rozdziałów i PDF; tu artykuł-wejście w „Chmurze plików” (polecenie 2026-11-24). modules/it_portal/lib/itPortalInstrukcjeSeed.php.
+    '2026-11_it_portal_instrukcja_nextcloud' => [
+        'desc' => 'Portal Usług IT, „Chmura plików”: artykuł z odnośnikiem do instrukcji „Pliki w Nextcloud krok po kroku” i PDF',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalInstrukcjeSeed.php';
+            itPortalInstrukcjeApply(ITP_SZO_URL, false, ['nextcloud-pliki']);
+        },
+    ],
+
 ];
