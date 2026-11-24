@@ -44,8 +44,9 @@ onMounted(async () => {
       items.value = [contact.value]
     } catch { /* brak dostępu — wybór ręczny */ }
   }
-  form.owner_id = String(session.me.value?.user.id ?? '')
 })
+// Domyślnie opiekunem jest zalogowana osoba — dane konta mogą dojść po zamontowaniu strony.
+watch(() => session.me.value?.user.id, (uid) => { if (uid && !form.owner_id) form.owner_id = String(uid) }, { immediate: true })
 
 async function save() {
   busy.value = true
@@ -88,7 +89,7 @@ async function save() {
           <NativeSelect id="c-prio" v-model="form.priority" label="Priorytet" :options="session.dict.value?.case_priorities ?? []" />
           <NativeSelect v-if="session.dict.value?.case_types.length" id="c-type" v-model="form.type_id" label="Typ sprawy" placeholder="— bez typu —"
                         :options="(session.dict.value?.case_types ?? []).map(t => ({ value: String(t.id), label: t.name }))" />
-          <NativeSelect id="c-owner" v-model="form.owner_id" label="Opiekun" :options="(session.dict.value?.owners ?? []).map(o => ({ value: String(o.id), label: o.name }))" />
+          <NativeSelect id="c-owner" v-model="form.owner_id" label="Opiekun" placeholder="— ja —" :options="(session.dict.value?.owners ?? []).map(o => ({ value: String(o.id), label: o.name }))" />
           <UFormField label="Termin" name="due_date" :error="errors.due_date">
             <UInput v-model="form.due_date" name="due_date" type="date" class="w-full" />
           </UFormField>

@@ -24,7 +24,6 @@
   --ui-text-muted: var(--ui-color-neutral-600);
   --ui-text-toned: var(--ui-color-neutral-700);
   --ui-text: var(--ui-color-neutral-800);
-  --ui-bg-muted: var(--ui-color-neutral-50);
   --ui-border: var(--ui-color-neutral-300);
   --ui-border-accented: var(--ui-color-neutral-500);   /* obrys pól: 4,8:1 (WCAG 1.4.11 wymaga 3:1) */
   --szo-focus: #c50f1f;
@@ -51,7 +50,7 @@ html { background: var(--szo-page); }
 body { font-family: var(--font-sans); color: var(--ui-text); }
 
 /* Widoczny, gruby fokus jak w całym SZO (3 px, odsunięty) — także na komponentach Nuxt UI. */
-:where(a, button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="option"], [role="menuitem"]):focus-visible {
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="option"], [role="menuitem"]):not(#tresc):focus-visible {
   outline: 3px solid var(--szo-focus) !important;
   outline-offset: 2px !important;
 }
@@ -63,6 +62,9 @@ body { font-family: var(--font-sans); color: var(--ui-text); }
   padding: .75rem 1.25rem; border-radius: var(--ui-radius); font-weight: 600;
 }
 .skip-link:focus { top: 1rem; }
+
+/* Pola wyboru: kwadratowe (nie mylą się z radiem) i większe — cel ≥ 20 px plus odstęp w komórce. */
+button[role="checkbox"][data-slot="base"] { border-radius: 4px !important; width: 1.25rem; height: 1.25rem; }
 
 /* Kotwica treści po zmianie strony dostaje fokus programowo — bez ramki przy kliknięciu myszą. */
 #tresc:focus { outline: none; }

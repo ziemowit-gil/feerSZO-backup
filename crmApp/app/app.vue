@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { pl } from '@nuxt/ui/locale'
 
-useHead({ titleTemplate: t => (t ? `${t} — CRM SZO` : 'CRM SZO') })
+useHead({ titleTemplate: t => (t && t !== 'CRM SZO' ? `${t} — CRM SZO` : 'CRM SZO') })
 </script>
 
 <template>

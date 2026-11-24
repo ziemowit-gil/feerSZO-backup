@@ -65,7 +65,7 @@ defineShortcuts({ '/': () => searchInput.value?.inputRef?.focus() })
 
     <header class="sticky top-0 z-40 border-b border-default bg-default/95 backdrop-blur">
       <div class="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
-        <UButton class="lg:hidden" color="neutral" variant="ghost" icon="i-lucide-menu" aria-label="Otwórz menu" :aria-expanded="mobileOpen" @click="mobileOpen = true" />
+        <UButton class="xl:hidden" color="neutral" variant="ghost" icon="i-lucide-menu" aria-label="Otwórz menu" :aria-expanded="mobileOpen" @click="mobileOpen = true" />
         <NuxtLink to="/" class="flex items-center gap-2 rounded-md font-semibold text-highlighted">
           <span class="grid size-9 place-items-center rounded-lg bg-primary text-inverted" aria-hidden="true"><UIcon name="i-lucide-contact" class="size-5" /></span>
           <span>CRM <span class="font-normal text-muted">SZO</span></span>
@@ -108,14 +108,14 @@ defineShortcuts({ '/': () => searchInput.value?.inputRef?.focus() })
       </template>
     </USlideover>
 
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:grid lg:grid-cols-[1fr_14rem] lg:gap-8">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 xl:grid xl:grid-cols-[1fr_14rem] xl:gap-8">
       <main id="tresc" ref="main" tabindex="-1" class="min-w-0 py-6 sm:py-8">
         <UAlert v-if="session.loadError.value" color="error" variant="subtle" class="mb-6" icon="i-lucide-circle-alert"
                 title="Nie udało się połączyć z SZO" :description="session.loadError.value" role="alert" />
         <slot />
       </main>
 
-      <aside class="hidden py-8 lg:block" aria-labelledby="klasyczny-crm">
+      <aside class="hidden py-8 xl:block" aria-labelledby="klasyczny-crm">
         <h2 id="klasyczny-crm" class="mb-2 text-sm font-semibold text-muted">W klasycznym CRM</h2>
         <ul class="space-y-1">
           <li v-for="l in legacyLinks" :key="l.href">

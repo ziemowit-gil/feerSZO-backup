@@ -10,8 +10,10 @@ const toast = useToast()
 const session = useCrmSession()
 const id = Number(route.params.id)
 
-const { data, error, refresh } = await useAsyncData(`contact-${id}`, () => api.get<ContactDetail>(`/contacts/${id}`))
+// deep: true — notatki/tagi zmieniają dane na miejscu (w Nuxt 4 useAsyncData jest domyślnie płytkie)
+const { data, error, refresh } = await useAsyncData(`contact-${id}`, () => api.get<ContactDetail>(`/contacts/${id}`), { deep: true })
 const c = computed(() => data.value?.data)
+useHead({ title: () => c.value?.imie_nazwisko || 'Kartoteka' })
 const perms = computed(() => data.value?.perms)
 
 // Zakładki: aktywna w ?tab= (link do konkretnej zakładki, „wstecz” działa).
@@ -53,7 +55,11 @@ const noteErr = ref('')
 const noteBusy = ref(false)
 async function addNote() {
   noteErr.value = ''
-  if (!noteBody.value.trim()) { noteErr.value = 'Wpisz treść notatki.'; return }
+  if (!noteBody.value.trim()) {
+    noteErr.value = 'Wpisz treść notatki.'
+    document.querySelector<HTMLElement>('textarea[name="body"]')?.focus()
+    return
+  }
   noteBusy.value = true
   try {
     const r = await api.post<{ data: Note }>(`/contacts/${id}/notes`, { body: noteBody.value, pinned: notePinned.value })
@@ -88,6 +94,7 @@ async function addTag() {
   try {
     c.value.tags = (await api.post<{ data: string[] }>(`/contacts/${id}/tags`, { tag: t })).data
     newTag.value = ''
+    toast.add({ title: `Dodano tag „${t.toLowerCase()}”`, color: 'success', icon: 'i-lucide-check' })
   } catch (e) {
     toast.add({ title: 'Nie dodano tagu', description: (e as Error).message, color: 'error' })
   }
@@ -212,7 +219,7 @@ const CH_LABEL: Record<string, string> = { email: 'E-mail', sms: 'SMS', telefon:
         </div>
       </section>
 
-      <UTabs v-model="tab" :items="tabs" variant="link" class="w-full" :ui="{ list: 'overflow-x-auto', trigger: 'min-h-11' }">
+      <UTabs v-model="tab" :items="tabs" variant="link" class="w-full" :ui="{ list: 'overflow-x-auto overflow-y-hidden', trigger: 'min-h-11 shrink-0' }">
         <template #aktywnosc>
           <div class="space-y-6 pt-4">
             <ErrorState v-if="tabError" :message="tabError" @retry="activity = null; loadTab('aktywnosc')" />

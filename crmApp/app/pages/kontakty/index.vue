@@ -166,7 +166,7 @@ const opt = (list?: { value: string, label: string }[]) => list ?? []
     </section>
 
     <div v-if="rows.length" class="overflow-x-auto rounded-xl border border-default bg-default">
-      <table class="w-full min-w-[44rem] text-left">
+      <table class="w-full text-left md:min-w-[44rem]">
         <caption class="sr-only">Lista kontaktów, {{ summary }}, strona {{ page }}</caption>
         <thead class="border-b border-default bg-muted text-sm text-toned">
           <tr>
@@ -174,8 +174,8 @@ const opt = (list?: { value: string, label: string }[]) => list ?? []
               <UCheckbox :model-value="allOnPage" aria-label="Zaznacz wszystkie na tej stronie" @update:model-value="v => toggleAll(!!v)" />
             </th>
             <th scope="col" class="px-3 py-3 font-semibold">Nazwa</th>
-            <th scope="col" class="px-3 py-3 font-semibold">Status</th>
-            <th scope="col" class="px-3 py-3 font-semibold">Kontakt</th>
+            <th scope="col" class="hidden px-3 py-3 font-semibold sm:table-cell">Status</th>
+            <th scope="col" class="hidden px-3 py-3 font-semibold md:table-cell">Kontakt</th>
             <th scope="col" class="hidden px-3 py-3 font-semibold lg:table-cell">Opiekun</th>
             <th scope="col" class="hidden px-3 py-3 font-semibold md:table-cell">Ostatni kontakt</th>
           </tr>
@@ -194,16 +194,21 @@ const opt = (list?: { value: string, label: string }[]) => list ?? []
                   <p class="text-sm text-muted">
                     {{ session.typeOf(c.type)?.label }}<template v-if="c.organizacja || c.stanowisko"> · {{ [c.stanowisko, c.organizacja].filter(Boolean).join(', ') }}</template>
                   </p>
+                  <!-- wąski ekran: status i kontakt w komórce nazwy (kolumny są ukryte) -->
+                  <div class="mt-1 space-y-1 md:hidden">
+                    <StatusChip v-if="c.status" class="sm:hidden" :label="session.statusOf(c.status)?.label || c.status" :color="session.statusOf(c.status)?.color" />
+                    <a v-if="c.email" :href="`mailto:${c.email}`" class="block break-all text-sm text-primary underline-offset-2 hover:underline">{{ c.email }}</a>
+                  </div>
                   <ul v-if="c.tags.length" class="mt-1 flex flex-wrap gap-1" aria-label="Tagi">
                     <li v-for="t in c.tags.slice(0, 4)" :key="t"><UBadge color="neutral" variant="outline" :label="t" size="sm" /></li>
                   </ul>
                 </div>
               </div>
             </td>
-            <td class="px-3 py-3 align-top">
+            <td class="hidden px-3 py-3 align-top sm:table-cell">
               <StatusChip v-if="c.status" :label="session.statusOf(c.status)?.label || c.status" :color="session.statusOf(c.status)?.color" />
             </td>
-            <td class="px-3 py-3 align-top text-sm">
+            <td class="hidden px-3 py-3 align-top text-sm md:table-cell">
               <a v-if="c.email" :href="`mailto:${c.email}`" class="block break-all text-primary underline-offset-2 hover:underline">{{ c.email }}</a>
               <a v-if="c.telefon" :href="`tel:${c.telefon.replace(/\s/g, '')}`" class="block text-primary underline-offset-2 hover:underline">{{ c.telefon }}</a>
               <span v-if="!c.email && !c.telefon" class="text-muted">—</span>

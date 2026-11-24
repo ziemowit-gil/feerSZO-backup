@@ -4,6 +4,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const auth = useAuth()
   if (!auth.isLoggedIn()) {
     await auth.login(to.fullPath)
-    return abortNavigation()
+    // Przeglądarka właśnie przechodzi na logowanie SZO — nie kończymy nawigacji (abort = błąd startu aplikacji).
+    return new Promise<void>(() => {})
   }
 })

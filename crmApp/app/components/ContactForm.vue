@@ -26,6 +26,12 @@ watch(() => props.initial, (v) => {
     if (k === 'is_critical') s[k] = !!val
     else if (val !== null && val !== undefined) s[k] = String(val)
   }
+  // Starsze kartoteki mają tylko „imię i nazwisko” w jednym polu — rozdzielamy na pierwsze słowo i resztę.
+  if (!s.imie && !s.nazwisko && s.imie_nazwisko && !dict.value?.types.find(t => t.value === s.type)?.org_like) {
+    const [first, ...rest] = String(s.imie_nazwisko).trim().split(/\s+/)
+    s.imie = first ?? ''
+    s.nazwisko = rest.join(' ')
+  }
 }, { immediate: true })
 
 const orgLike = computed(() => !!dict.value?.types.find(t => t.value === s.type)?.org_like)
