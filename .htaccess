@@ -67,6 +67,8 @@ RewriteRule ^seeder-test(/.*)?$  /modules/seeders/router.php [QSA,L]
 # ── Migrator kont Microsoft 365 → dhosting: /migracjapoczty (użytkownik), /migracjaadmin/… (administrator) ──
 RewriteRule ^migracjapoczty(/.*)?$ /modules/dhosting_migrator/router.php [QSA,L]
 RewriteRule ^migracjaadmin(/.*)?$  /modules/dhosting_migrator/router.php [QSA,L]
+# ── Konto bez umowy, bezosobowe (skrzynka boXXXX): /kontabezosobowe/… (administrator) ──
+RewriteRule ^kontabezosobowe(/.*)?$ /modules/kontoBezosobowe/router.php [QSA,L]
 
 # ── Narzędzia pomocnicze (bez logowania): /pomocne/generatorstopki → modules/stopka/public/generator.php ──
 RewriteRule ^pomocne/generatorstopki$ /pomocne/generatorstopki/ [R=301,L]
