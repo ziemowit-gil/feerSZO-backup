@@ -218,6 +218,9 @@ RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
 RewriteCond %{REQUEST_URI} !^/licencje(/|$) [NC]
 # Router modułu TI (nabór do grup: /nabor → modules/ti/router.php) — publiczny, nie ścieżka panelu kursanta
 RewriteCond %{REQUEST_URI} !^/modules/ti/router\.php [NC]
+# Logowanie jednokrotne (/sso/logowanie, /sso/powrot → modules/sso_logto/router.php): przycisk „Zaloguj przez logowanie
+# jednokrotne” na ti./kurs. (dydaktyk/sso_enter.php). Bez tego drugi przebieg reguł kierował router do panelu kursanta → 404.
+RewriteCond %{REQUEST_URI} !^/modules/sso_logto/router\.php [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl, kursant.feer.org.pl) ──
@@ -230,6 +233,9 @@ RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
 RewriteCond %{REQUEST_URI} !^/licencje(/|$) [NC]
 # Router modułu TI (nabór do grup: /nabor → modules/ti/router.php) — publiczny, nie ścieżka panelu kursanta
 RewriteCond %{REQUEST_URI} !^/modules/ti/router\.php [NC]
+# Logowanie jednokrotne (/sso/logowanie, /sso/powrot → modules/sso_logto/router.php): przycisk „Zaloguj przez logowanie
+# jednokrotne” na ti./kurs. (dydaktyk/sso_enter.php). Bez tego drugi przebieg reguł kierował router do panelu kursanta → 404.
+RewriteCond %{REQUEST_URI} !^/modules/sso_logto/router\.php [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena crm. → moduł CRM ──────────────────────────────────────────────
