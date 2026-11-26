@@ -16,6 +16,11 @@
  * Z mimeshield: nie wolno naraz zaznaczyć podpisu/szyfrowania mimeshield (dwa podpisy) —
  * JS odznacza, serwer odmawia. Plugin musi być PO mimeshield na liście plugins.
  *
+ * PAdES załączników: przycisk „Podpisz załączniki PDF (PAdES)” w oknie „Podpis cyfrowy” podpisuje
+ * każdy PDF z okna pisania od razu (przed wysyłką) przez agenta i PEM-HEART. Serwer sprawdza
+ * ostatni podpis w PDF (/ByteRange obejmuje cały plik, CMS zgodny, certyfikat kwalifikowany)
+ * i podmienia plik załącznika na miejscu (filesystem_attachments: path). Działa z S/MIME.
+ *
  * Konfiguracja (config.inc.php):
  *   feer_qsign_users          — loginy z dostępem do opcji (pusta lista = wszyscy)
  *
@@ -54,6 +59,9 @@ class feer_qsign extends rcube_plugin
         $this->add_hook('message_sent', [$this, 'message_sent']);
         $this->register_action('plugin.feer_qsign-entity', [$this, 'action_entity']);
         $this->register_action('plugin.feer_qsign-store', [$this, 'action_store']);
+        $this->register_action('plugin.feer_qsign-pdfs', [$this, 'action_pdfs']);
+        $this->register_action('plugin.feer_qsign-pdf', [$this, 'action_pdf']);
+        $this->register_action('plugin.feer_qsign-pdfstore', [$this, 'action_pdfstore']);
     }
 
     private function allowed(): bool
@@ -78,7 +86,10 @@ class feer_qsign extends rcube_plugin
             . html::div('form-check col-6', $chk->show(''))
         )
         . html::div(['id' => 'feer-qsign-status', 'class' => 'feer-qsign-status', 'aria-live' => 'polite', 'hidden' => 'hidden'], '')
-        . html::tag('input', ['type' => 'hidden', 'name' => '_feer_qsign_token', 'id' => 'feer-qsign-token', 'value' => '']);
+        . html::tag('input', ['type' => 'hidden', 'name' => '_feer_qsign_token', 'id' => 'feer-qsign-token', 'value' => ''])
+        . html::div(['id' => 'feer-pades-row', 'class' => 'feer-pades-row'],
+            html::tag('button', ['type' => 'button', 'id' => 'feer-pades-btn', 'class' => 'btn btn-secondary feer-pades-btn'], rcube::Q($this->gettext('pades_button')))
+            . html::div(['id' => 'feer-pades-status', 'class' => 'feer-qsign-status', 'aria-live' => 'polite', 'hidden' => 'hidden'], ''));
         $p['content'] = ($p['content'] ?? '') . $row;
         return $p;
     }
@@ -216,6 +227,139 @@ class feer_qsign extends rcube_plugin
         @chmod($this->path($token, 'p7s'), 0600);
         $_SESSION['feer_qsign'][$token] = array_merge($job, ['verified' => true] + $info);
         $this->json(200, ['ok' => true, 'signer' => $info['signer'], 'micalg' => $info['micalg']]);
+    }
+
+    // ── PAdES załączników ───────────────────────────────────────────────────
+
+    /** Załączniki PDF bieżącego okna pisania. */
+    public function action_pdfs(): void
+    {
+        $this->requireAjax();
+        $out = [];
+        foreach ($this->rc->list_uploaded_files($this->composeId()) as $a) {
+            if (!$this->isPdf($a)) {
+                continue;
+            }
+            $out[] = ['id' => (string) $a['id'], 'name' => (string) $a['name'], 'size' => (int) ($a['size'] ?? 0),
+                'signed' => !empty($a['feer_pades'])];
+        }
+        $this->json(200, ['ok' => true, 'files' => $out]);
+    }
+
+    public function action_pdf(): void
+    {
+        $this->requireAjax();
+        $a = $this->pdfAttachment((string) rcube_utils::get_input_string('_file', rcube_utils::INPUT_GET));
+        $this->json(200, ['ok' => true, 'name' => (string) $a['name'], 'data_b64' => base64_encode($this->attachmentData($a))]);
+    }
+
+    /** Podpisany PDF z agenta: sprawdź podpis i podmień plik załącznika. */
+    public function action_pdfstore(): void
+    {
+        $this->requireAjax();
+        $a = $this->pdfAttachment((string) rcube_utils::get_input_string('_file', rcube_utils::INPUT_POST));
+        $orig = $this->attachmentData($a);
+        $pdf = base64_decode((string) ($_POST['_pdf'] ?? ''), true);
+        if ($pdf === false || strncmp($pdf, '%PDF-', 5) !== 0) {
+            $this->json(400, ['ok' => false, 'error' => $this->gettext('pades_bad')]);
+        }
+        try {
+            [$content, $der] = $this->padesParts($pdf);
+            $info = $this->verify($content, $der);
+        } catch (\Throwable $e) {
+            rcube::write_log('feer_qsign', 'user ' . $this->rc->get_user_name() . ': PAdES odrzucony: ' . $e->getMessage());
+            $this->json(422, ['ok' => false, 'error' => $e->getMessage()]);
+        }
+        $path = (string) ($a['path'] ?? '');
+        if ($path === '' || !is_file($path) || file_put_contents($path, $pdf) !== strlen($pdf)) {
+            $this->json(500, ['ok' => false, 'error' => $this->gettext('internal')]);
+        }
+        $incremental = str_starts_with($pdf, $orig);
+        $this->rc->update_uploaded_file($a['id'], ['size' => strlen($pdf), 'feer_pades' => $info['signer']]);
+        rcube::write_log('feer_qsign', sprintf('user %s: PAdES %s (%s, %s)', $this->rc->get_user_name(), $a['name'], $info['signer'], $incremental ? 'przyrostowo' : 'NIEPRZYROSTOWO'));
+        $this->json(200, ['ok' => true, 'signer' => $info['signer'], 'incremental' => $incremental, 'size' => strlen($pdf)]);
+    }
+
+    /**
+     * Ostatni podpis PDF: [bajty z /ByteRange, CMS DER]. Podpis musi obejmować cały plik.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function padesParts(string $pdf): array
+    {
+        if (!preg_match_all('#/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]#', $pdf, $m, PREG_SET_ORDER)) {
+            throw new \RuntimeException($this->gettext('pades_nosig'));
+        }
+        [, $a, $b, $c, $d] = array_map('intval', end($m));
+        if ($a !== 0 || $b <= 0 || $c <= $b || $c + $d !== strlen($pdf)) {
+            throw new \RuntimeException($this->gettext('pades_partial'));
+        }
+        $hex = trim(substr($pdf, $b, $c - $b));
+        if (!preg_match('/^<([0-9A-Fa-f\s]+)>$/', $hex, $hm)) {
+            throw new \RuntimeException($this->gettext('pades_bad'));
+        }
+        $der = (string) hex2bin(preg_replace('/\s+/', '', $hm[1]));
+        $der = substr($der, 0, $this->derLength($der)); // bez dopełnienia zerami
+        return [substr($pdf, 0, $b) . substr($pdf, $c, $d), $der];
+    }
+
+    /** Długość pierwszego elementu DER (SEQUENCE CMS). */
+    private function derLength(string $der): int
+    {
+        if (strlen($der) < 2 || ord($der[0]) !== 0x30) {
+            throw new \RuntimeException($this->gettext('pades_bad'));
+        }
+        $l = ord($der[1]);
+        if ($l < 0x80) {
+            return 2 + $l;
+        }
+        $n = $l & 0x7f;
+        if ($n < 1 || $n > 4 || strlen($der) < 2 + $n) {
+            throw new \RuntimeException($this->gettext('pades_bad'));
+        }
+        $len = 0;
+        for ($i = 0; $i < $n; $i++) {
+            $len = ($len << 8) | ord($der[2 + $i]);
+        }
+        if (2 + $n + $len > strlen($der)) {
+            throw new \RuntimeException($this->gettext('pades_bad'));
+        }
+        return 2 + $n + $len;
+    }
+
+    private function composeId(): string
+    {
+        $id = (string) rcube_utils::get_input_string('_id', rcube_utils::INPUT_GPC);
+        if ($id === '' || empty($_SESSION['compose_data_' . $id])) {
+            $this->json(404, ['ok' => false, 'error' => $this->gettext('expired')]);
+        }
+        return $id;
+    }
+
+    private function isPdf(array $a): bool
+    {
+        return strtolower((string) ($a['mimetype'] ?? '')) === 'application/pdf'
+            || preg_match('/\.pdf$/i', (string) ($a['name'] ?? ''));
+    }
+
+    private function pdfAttachment(string $fileId): array
+    {
+        $group = $this->composeId();
+        $a = $fileId !== '' ? $this->rc->get_uploaded_file($fileId) : null;
+        if (!$a || (string) ($a['group'] ?? '') !== $group || !$this->isPdf($a)) {
+            $this->json(404, ['ok' => false, 'error' => $this->gettext('pades_nofile')]);
+        }
+        return $a;
+    }
+
+    private function attachmentData(array $a): string
+    {
+        $a = $this->rc->plugins->exec_hook('attachment_get', $a);
+        $data = !empty($a['data']) ? (string) $a['data'] : (!empty($a['path']) ? (string) @file_get_contents($a['path']) : '');
+        if ($data === '' || strlen($data) > self::MAX_BYTES) {
+            $this->json(422, ['ok' => false, 'error' => $this->gettext($data === '' ? 'pades_nofile' : 'toolarge')]);
+        }
+        return $data;
     }
 
     /**

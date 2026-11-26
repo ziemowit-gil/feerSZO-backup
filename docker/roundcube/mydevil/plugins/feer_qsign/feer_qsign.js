@@ -17,6 +17,7 @@ window.rcmail && rcmail.addEventListener('init', function () {
     var last = ms.children('.form-group').last();
     (last.length ? last : ms.children('legend').first()).after(row);
     row.after(status);
+    status.after($('#feer-pades-row'));
   }
   tokenField.appendTo(rcmail.gui_objects.messageform || $('form[name=form]'));
 
@@ -138,6 +139,81 @@ window.rcmail && rcmail.addEventListener('init', function () {
       headers: { 'X-Roundcube-Request': rcmail.env.request_token }
     }).then(function (r) { return r.json(); });
   }
+
+  // ── PAdES: podpis załączników PDF od razu, przed wysyłką ─────────────────
+  var padesStatus = $('#feer-pades-status'), padesBusy = false;
+
+  function padesSay(text, level) {
+    padesStatus.prop('hidden', !text).text(text || '').attr('data-level', level || '');
+  }
+
+  function markSigned(id, signer) {
+    var li = $('#rcmfile' + id);
+    li.addClass('feer-pades-signed').attr('title', t('pades_badge') + ': ' + signer);
+    if (!li.find('.feer-pades-badge').length) {
+      li.find('.attachment-name, a.filename').first().append($('<span class="feer-pades-badge">').text(' ✓ ' + t('pades_badge')));
+    }
+  }
+
+  $('#feer-pades-btn').on('click', function () {
+    if (padesBusy) return;
+    var compose = { _id: rcmail.env.compose_id };
+    padesBusy = true;
+    padesSay(t('checking'));
+    var done = 0, failed = null;
+    ping().then(function () {
+      return serverFetch('pdfs', { query: compose });
+    }).then(function (r) {
+      if (!r.ok) throw new Error(r.error);
+      $.each(r.files, function (i, f) { if (f.signed) markSigned(f.id, ''); });
+      var todo = $.grep(r.files, function (f) { return !f.signed; });
+      if (!todo.length) {
+        padesSay(t(r.files.length ? 'pades_allsigned' : 'pades_none'), 'warning');
+        return;
+      }
+      // po kolei: PEM-HEART obsługuje jeden plik naraz
+      return todo.reduce(function (chain, f) {
+        return chain.then(function () {
+          padesSay(t('pades_file') + ' ' + f.name + ' — ' + t('pades_hint'));
+          return serverFetch('pdf', { query: $.extend({ _file: f.id }, compose) }).then(function (r) {
+            if (!r.ok) throw new Error(r.error);
+            return agentFetch('/qsign/sign', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kind: 'pades', filename: f.name, data_b64: r.data_b64, subject: $('#compose-subject').val() || '' })
+            });
+          }).then(function (r) {
+            if (!r.ok) throw new Error(r.error || t('agenterror'));
+            var id = r.job_id;
+            var poll = function () {
+              return agentFetch('/qsign/job?id=' + encodeURIComponent(id)).then(function (j) {
+                if (j.status === 'pending') return wait(1500).then(poll);
+                if (j.status !== 'done') throw new Error(j.error || t('agenterror'));
+                return j;
+              });
+            };
+            return poll();
+          }).then(function (j) {
+            var fd = new FormData();
+            fd.append('_id', rcmail.env.compose_id);
+            fd.append('_file', f.id);
+            fd.append('_pdf', j.pdf_b64);
+            return serverFetch('pdfstore', { body: fd });
+          }).then(function (r) {
+            if (!r.ok) throw new Error(f.name + ': ' + r.error);
+            markSigned(f.id, r.signer);
+            done++;
+            if (!r.incremental) rcmail.display_message(f.name + ': ' + t('pades_rewritten'), 'warning', 10000);
+          });
+        });
+      }, Promise.resolve());
+    }).catch(function (e) {
+      failed = (e && e.message) || t('agenterror');
+    }).then(function () {
+      padesBusy = false;
+      if (failed) padesSay(failed, 'error');
+      else if (done) padesSay(t('pades_done').replace('$n', done), 'ok');
+    });
+  });
 
   rcmail.addEventListener('plugin.feer_qsign_sign', function (data) {
     var token = data.token, current = 'step_agent';

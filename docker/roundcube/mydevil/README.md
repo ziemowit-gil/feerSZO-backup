@@ -172,6 +172,13 @@ Przebieg wysyłki:
 3. Ponowne Wyślij z tokenem → `EntityBuilder::clearSigned` + `SmimeMessage` (te same bajty do SMTP i
    Wysłanych), `DotGuard` przed SMTP. Token wygasa po 2 h. Każde ręczne Wyślij zaczyna od nowa.
 
+PAdES załączników: w tym samym oknie przycisk „Podpisz załączniki PDF (PAdES)”. Działa od razu, przed
+wysyłką: akcje `plugin.feer_qsign-pdfs/-pdf/-pdfstore` (załączniki z `uploads`, grupa = compose id),
+agent `kind: pades`, w PEM-HEART format PAdES. Serwer sprawdza ostatni podpis (cały plik w `/ByteRange`,
+`openssl_cms_verify`, certyfikat kwalifikowany), nadpisuje plik załącznika (`path`, filesystem_attachments)
+i zapisuje `feer_pades` w metadanych (znaczek „✓ podpisany PAdES” na liście). Gdy PEM-HEART zapisze PDF
+nieprzyrostowo, użytkownik dostaje ostrzeżenie (log `feer_qsign`). Działa razem z S/MIME.
+
 Z mimeshield: zaznaczenie jednej opcji odznacza drugą (JS), serwer odmawia, gdy przyjdą obie.
 Szyfrowanie z podpisem kwalifikowanym nie jest obsługiwane. Szkice zapisują się bez podpisu.
 

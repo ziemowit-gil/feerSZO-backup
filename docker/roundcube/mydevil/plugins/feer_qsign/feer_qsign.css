@@ -27,3 +27,9 @@ html.dark-mode .feer-qsign-steps li.error,
 html.dark-mode .feer-qsign-msg.error { color: #fca5a5; }
 html.dark-mode .feer-qsign-steps li { color: #d1d5db; }
 html.dark-mode .feer-qsign-steps li.active { color: #f9fafb; }
+
+/* PAdES załączników */
+.feer-pades-row { flex-basis: 100%; margin: .6rem 0 .2rem; }
+.feer-pades-btn { width: 100%; }
+.feer-pades-badge { color: #166534; font-weight: 600; font-size: .85em; }
+html.dark-mode .feer-pades-badge { color: #86efac; }
