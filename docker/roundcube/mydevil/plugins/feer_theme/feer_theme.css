@@ -33,7 +33,7 @@
 :root {
   --feer-navy:       #1e3a8a;   /* --pc-blue-dark  — pasek zadań, tło logowania */
   --feer-navy-dark:  #172554;
-  --feer-blue:       #1d4ed8;   /* --pc-blue       — akcent, przyciski akcji   */
+  --feer-blue:       #1E6DFF;   /* kolor FEER (2026-11-26, wcześniej #1d4ed8 z palety Poczty) — akcent, przyciski */
   --feer-blue-mid:   #3b82f6;   /* --pc-blue-mid   — hover, ikony              */
   --feer-blue-bg:    #eff6ff;   /* --pc-blue-bg    — zaznaczony wiersz         */
   --feer-focus:      #facc15;   /* --pc-focus      — pierścień focusu (WCAG)   */
@@ -572,7 +572,7 @@ body.task-login #login-form input.form-control {
 body.task-login #login-form input.form-control::placeholder { color: #64748b; opacity: 1; }
 body.task-login #login-form input.form-control:focus {
   border-color: var(--feer-blue) !important;
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, .18) !important;
+  box-shadow: 0 0 0 3px rgba(30, 109, 255, .2) !important;
 }
 
 /* „Nie wylogowuj mnie” (persistent_login) — przełącznik w barwach FEER,
@@ -606,7 +606,7 @@ body.task-login #rcmloginsubmit {
   font-weight: 700 !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
-  box-shadow: 0 8px 20px -10px rgba(29, 78, 216, .7);
+  box-shadow: 0 8px 20px -10px rgba(30, 109, 255, .7);
 }
 body.task-login #rcmloginsubmit:hover {
   background-color: var(--feer-navy) !important;
@@ -732,7 +732,7 @@ body.feer-compose .feer-smime-nocert {
   border-radius: var(--feer-radius); padding: .4rem .65rem;
 }
 body.feer-compose .feer-smime-nocert[hidden] { display: none; }
-body.feer-compose .feer-smime-nocert a { color: #1d4ed8; font-weight: 700; text-decoration: underline; }
+body.feer-compose .feer-smime-nocert a { color: #1858d6; font-weight: 700; text-decoration: underline; }
 html.dark-mode body.feer-compose .feer-smime-bar { background: #0f172a; }
 html.dark-mode body.feer-compose .feer-smime-bar #mimeshield-compose legend { color: #93c5fd; }
 html.dark-mode body.feer-compose .feer-smime-nocert { background: #422006; color: #fde68a; }
@@ -800,9 +800,9 @@ html.dark-mode body.task-login #login-form input.form-control {
 }
 html.dark-mode body.task-login #login-form input.form-control::placeholder { color: #94a3b8; }
 html.dark-mode body.task-login #rcmloginsubmit {
-  background-color: #2563eb !important; border-color: #2563eb !important;   /* biały tekst 5,2:1 */
+  background-color: #1E6DFF !important; border-color: #1E6DFF !important;   /* kolor FEER */
 }
-html.dark-mode body.task-login #rcmloginsubmit:hover { background-color: #1d4ed8 !important; }
+html.dark-mode body.task-login #rcmloginsubmit:hover { background-color: #1858d6 !important; }
 html.dark-mode body.task-login #login-footer a { color: #93c5fd !important; }
 
 /* ══════════════════════════════════════════════════════════════════════════
