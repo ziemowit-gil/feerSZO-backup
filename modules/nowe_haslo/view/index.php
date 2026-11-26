@@ -20,6 +20,7 @@ $hasMail = $acc ? $acc['mailbox'] !== '' : true;
 $okSso  = $hasSso && (!$conf || $chSso !== null || $mode === 'user');   // zalogowany zmienia bez kodu — kanał niepotrzebny
 $okMail = $hasMail && (!$conf || $chMail !== null || $mode === 'user');
 $tSel = (string)($form['target'] ?? '');
+if ($tSel === 'all' && ($mode !== 'user' || !$okSso || !$okMail)) $tSel = '';
 if ($tSel === '' || ($tSel === 'sso' && !$okSso) || ($tSel === 'mail' && !$okMail)) $tSel = $okSso ? 'sso' : ($okMail ? 'mail' : '');
 $mSel = in_array($form['mode'] ?? '', ['own', 'random'], true) ? $form['mode'] : 'own';
 $noRandom = $conf && $p && $p['phone'] === '';   // hasło losowe idzie tylko SMS-em
@@ -50,6 +51,10 @@ if ($noRandom) $mSel = 'own';
   .pvm .nh-tile:has(input:checked){border-color:var(--m-blue);background:var(--pvm-light);box-shadow:inset 0 4px 0 var(--m-blue)}
   .pvm .nh-tile:has(input:focus-visible){outline:3px solid #fbbf24;outline-offset:2px}
   .pvm .nh-tile--off{cursor:default;opacity:.7}
+  .pvm .nh-all{margin:1rem 0;padding:1rem;border-left:4px solid #EA8F00;background:#FFF7ED}
+  .pvm .nh-all .dm-chk{display:flex;gap:.5rem;align-items:flex-start;margin:.5rem 0}
+  .pvm .nh-all .dm-chk input{width:1.25rem;height:1.25rem;flex-shrink:0;margin-top:.15rem}
+  .pvm .nh-all__err{color:#B91C1C;font-weight:600;margin:.5rem 0 0}
   .pvm .nh-tile input{width:1.25rem;height:1.25rem;margin-top:.2rem;flex-shrink:0;accent-color:var(--m-blue)}
   .pvm .nh-tile__b{display:flex;flex-direction:column;gap:.2rem;min-width:0}
   .pvm .nh-tile__h{font-weight:600;font-size:1.05rem;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
@@ -202,12 +207,17 @@ if ($noRandom) $mSel = 'own';
       <?php if ($mode === 'user'): /* zalogowany: kreator 1) które hasło 2) nowe hasło 3) gotowe — bez kodu (NoweHasloController::changePost) */
         $initSys = array_column($initial['rows'] ?? [], 'system');
         $cards = [
-          'sso'  => ['icon' => 'bi-cloud-check', 'title' => 'Logowanie jednokrotne i chmura plików', 'ok' => $okSso,
+          'sso'  => ['icon' => 'bi-cloud-check', 'title' => 'Logowanie jednokrotne (Logto) i chmura plików', 'ok' => $okSso,
                      'login' => $acc ? $acc['login'] : '', 'start' => in_array('sso', $initSys, true),
-                     'desc' => 'SZO, chmura plików i inne aplikacje Fundacji.', 'none' => 'Nie masz jeszcze tego konta.'],
+                     'desc' => 'Hasło, które wpisujesz na niebieskiej stronie logowania logto.feer.org.pl („Zaloguj się do usług Fundacji FEER”): SZO, chmura plików i inne aplikacje Fundacji.', 'none' => 'Nie masz jeszcze tego konta.'],
           'mail' => ['icon' => 'bi-envelope', 'title' => 'Poczta', 'ok' => $okMail,
                      'login' => $acc ? $acc['mailbox'] : '', 'start' => in_array('poczta', $initSys, true),
                      'desc' => 'Skrzynka pocztowa. Hasło musi być inne niż do logowania jednokrotnego.', 'none' => 'Nie masz skrzynki pocztowej Fundacji.'],
+          // jedno hasło do wszystkiego (polecenie 2026-11-27): tylko gdy są oba konta, w kroku 2 trzy potwierdzenia
+          'all'  => ['icon' => 'bi-key', 'title' => 'Jedno hasło do wszystkiego', 'ok' => $okSso && $okMail,
+                     'login' => $acc ? $acc['login'] : '', 'start' => false,
+                     'desc' => 'To samo hasło do poczty, SZO, logowania jednokrotnego (Logto) i chmury. Wygodniej, ale mniej bezpiecznie.',
+                     'none' => 'Potrzebne są konto logowania jednokrotnego i skrzynka pocztowa.'],
         ];
         $done = $flash && $flash['type'] === 'success';
         $wStep = $done ? 3 : (($form['target'] ?? '') !== '' ? 2 : 1);
@@ -260,7 +270,15 @@ if ($noRandom) $mSel = 'own';
               <li data-r="dig">cyfra</li>
               <li data-r="eq">oba pola takie same</li>
             </ul>
-            <p class="dm-help">Bez imienia, nazwiska i loginu. Hasło do poczty musi być inne niż hasło logowania jednokrotnego — sprawdzimy to.</p>
+            <p class="dm-help" id="nhHelpSep">Bez imienia, nazwiska i loginu. Hasło do poczty musi być inne niż hasło logowania jednokrotnego — sprawdzimy to.</p>
+            <fieldset class="nh-set nh-all" id="nhAll" hidden>
+              <legend>Jedno hasło do wszystkiego: potwierdź trzy razy</legend>
+              <p class="dm-help">To hasło zadziała w poczcie, SZO, logowaniu jednokrotnym i chmurze plików. Bez imienia, nazwiska i loginu.</p>
+              <label class="dm-chk"><input type="checkbox" name="all_ok1" value="1" id="nhAll1"> <span>1 z 3. Chcę mieć to samo hasło do poczty, SZO, logowania jednokrotnego (Logto) i chmury plików.</span></label>
+              <label class="dm-chk"><input type="checkbox" name="all_ok2" value="1" id="nhAll2"> <span>2 z 3. Rozumiem, że kto pozna to hasło, dostanie się do mojej poczty, SZO i wszystkich aplikacji Fundacji naraz.</span></label>
+              <label class="dm-chk"><input type="checkbox" name="all_ok3" value="1" id="nhAll3"> <span>3 z 3. Nie podam tego hasła nikomu i nie zapiszę go w miejscu, które widzą inni.</span></label>
+              <p class="nh-all__err" id="nhAllErr" role="alert" hidden>Zaznacz wszystkie trzy potwierdzenia albo wróć i wybierz osobne hasła.</p>
+            </fieldset>
             <div class="nh-actions">
               <button type="button" class="mt-btn mt-btn--ghost" data-go="1"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wstecz</button>
               <button type="submit" class="mt-btn" id="nhSubmit"><i class="bi bi-check2" aria-hidden="true"></i> Zmień hasło</button>
@@ -402,6 +420,9 @@ if ($noRandom) $mSel = 'own';
         document.getElementById('nhTitle').textContent = r.dataset.title;
         document.getElementById('nhLogin').textContent = r.dataset.login;
         document.getElementById('nhUser').value = r.dataset.login;
+        var all = r.value === 'all';
+        document.getElementById('nhAll').hidden = !all;
+        document.getElementById('nhHelpSep').hidden = all;
         pw.focus();
       }
     }
@@ -422,7 +443,13 @@ if ($noRandom) $mSel = 'own';
     var rnd = document.getElementById('nhRandom');
     if (rnd) rnd.addEventListener('click', function () { mode.value = 'random'; });
     document.getElementById('nhSubmit').addEventListener('click', function () { mode.value = 'own'; });
-    wiz.addEventListener('submit', function () {
+    wiz.addEventListener('submit', function (e) {
+      var r = picked(), err = document.getElementById('nhAllErr');
+      if (r && r.value === 'all') {   // trzy potwierdzenia (serwer sprawdza je też)
+        var miss = ['nhAll1', 'nhAll2', 'nhAll3'].map(function (id) { return document.getElementById(id); }).filter(function (c) { return !c.checked; });
+        err.hidden = miss.length === 0;
+        if (miss.length) { e.preventDefault(); miss[0].focus(); return; }
+      } else if (err) { err.hidden = true; }
       var b = document.getElementById('nhSubmit');
       setTimeout(function () { b.disabled = true; if (rnd) rnd.disabled = true; b.lastChild.textContent = ' Chwileczkę…'; }, 0);
     });

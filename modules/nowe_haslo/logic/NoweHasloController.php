@@ -89,9 +89,16 @@ final class NoweHasloController
                 $acc = NoweHaslo::overview($p);
                 if ($target === 'sso' && !$acc['sso']) throw new RuntimeException('Nie masz jeszcze konta logowania jednokrotnego. Napisz do Helpdesku IT.');
                 if ($target === 'mail' && $acc['mailbox'] === '') throw new RuntimeException('Nie masz skrzynki pocztowej Fundacji.');
-                $confirm = 'sesja SZO (bez kodu)';
+                if ($target === 'all') {   // jedno hasło do wszystkiego (polecenie 2026-11-27): konta w obu systemach i TRZY potwierdzenia
+                    if (!$acc['sso'] || $acc['mailbox'] === '') throw new RuntimeException('Jedno hasło do wszystkiego wymaga konta logowania jednokrotnego i skrzynki pocztowej Fundacji.');
+                    foreach ([1, 2, 3] as $n) {
+                        if (($_POST['all_ok' . $n] ?? '') !== '1') throw new RuntimeException('Jedno hasło do wszystkiego wymaga trzech potwierdzeń. Zaznacz wszystkie trzy pola albo wybierz osobne hasła.');
+                    }
+                }
+                $confirm = 'sesja SZO (bez kodu)' . ($target === 'all' ? ' + 3 potwierdzenia „jedno hasło do wszystkiego”' : '');
             } else {
                 [$p, $target, $confirm] = NoweHasloAuth::checkCode((string)($_POST['code'] ?? ''));   // hasło, którego dotyczy kod
+                if ($target === 'all') throw new RuntimeException('Jedno hasło do wszystkiego ustawisz tylko po zalogowaniu do SZO.');
                 if (!$p) throw new RuntimeException('Kod się nie zgadza.');      // atrapa (brak dopasowania) — tu nie dojdzie, ale na wszelki wypadek
                 $codeOk = true;
             }

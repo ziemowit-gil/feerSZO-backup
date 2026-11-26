@@ -8,6 +8,8 @@ declare(strict_types=1);
  *  • logowanie jednokrotne (Logto) + chmura plików (Nextcloud) — JEDNO wspólne hasło (SsoAccounts::setPassword; bez Logto —
  *    samo konto w chmurze, tryb samej chmury);
  *  • poczta — ZAWSZE INNE hasło (DhostingApi::changeMailboxPassword + DhostingCopy::passwordChanged dla kopiowania w tle).
+ *  • wyjątek „jedno hasło do wszystkiego” (target 'all', polecenie 2026-11-27, tylko zalogowany do SZO, potrójne potwierdzenie
+ *    w kontrolerze): to samo hasło w logowaniu jednokrotnym, chmurze, poczcie i w koncie SZO (users.password) — changeAll().
  * Własne hasło sprawdzamy w drugim systemie (NoweHasloCheck) i odrzucamy takie samo; gdy sprawdzić się nie da — też odrzucamy
  * (osoba może wybrać hasło losowe). Hasło losowe idzie tylko SMS-em, nigdy e-mailem.
  * Login: jeden do SZO, logowania jednokrotnego i chmury — adres e-mail konta (overview()['login']); w chmurze działa też imie.nazwisko.
@@ -82,7 +84,7 @@ final class NoweHaslo
      */
     public static function change(array $p, string $target, string $mode, string $pw1, string $pw2, string $by, string $confirm = 'kod SMS'): string
     {
-        if (!in_array($target, ['sso', 'mail'], true)) throw new RuntimeException('Wybierz, które hasło zmieniasz.');
+        if (!in_array($target, ['sso', 'mail', 'all'], true)) throw new RuntimeException('Wybierz, które hasło zmieniasz.');
         if (!in_array($mode, ['own', 'random'], true)) throw new RuntimeException('Wybierz: własne hasło albo losowe SMS-em.');
         if ($mode === 'random' && (string)($p['phone'] ?? '') === '') {
             throw new RuntimeException('Nie mamy Twojego numeru komórkowego, a hasła nie wysyłamy e-mailem. Ustaw własne hasło.');
@@ -92,16 +94,24 @@ final class NoweHaslo
         }
         $own = $mode === 'own';
         if ($own) self::validate($p, $pw1, $pw2);
-        $res = $target === 'sso' ? self::changeSso($p, $own, $pw1, $by) : self::changeMail($p, $own, $pw1, $by);
+        $res = match ($target) {
+            'sso'  => self::changeSso($p, $own, $pw1, $by),
+            'mail' => self::changeMail($p, $own, $pw1, $by),
+            'all'  => self::changeAll($p, $own, $pw1, $by),
+        };
         NoweHasloLimit::hit('chg:' . $p['key']);
         // Zmiana przez samą osobę (także hasło losowe na jej prośbę) — hasło przestaje być startowe
         // Gdy zmieniła się tylko chmura (Logto nie działało), hasło logowania jednokrotnego nadal jest startowe
-        if (empty($res['keepInitial'])) NoweHasloInitial::clear($target === 'sso' ? 'sso' : 'poczta', (string)$res['login']);
+        if ($target === 'all') {
+            if (empty($res['keepInitial'])) NoweHasloInitial::clear('sso', (string)$res['login']);
+            if (!empty($res['mailOk'])) NoweHasloInitial::clear('poczta', (string)$res['mailbox']);
+        } elseif (empty($res['keepInitial'])) NoweHasloInitial::clear($target === 'sso' ? 'sso' : 'poczta', (string)$res['login']);
 
         // SMS: losowe hasło albo informacja o zmianie (bez hasła)
         $smsNote = self::smsAfter($p, $res, $own);
         $mailNote = self::mailAfter($p, $res, $own, $smsNote === 'wysłany');
-        $how = $own ? 'własne (sprawdzone: ' . ($target === 'sso' ? 'inne niż do poczty' : 'inne niż logowania jednokrotnego i chmury') . ')' : 'losowe';
+        $how = $target === 'all' ? ($own ? 'własne, JEDNO DO WSZYSTKIEGO (potwierdzone 3 razy)' : 'losowe, JEDNO DO WSZYSTKIEGO (potwierdzone 3 razy)')
+             : ($own ? 'własne (sprawdzone: ' . ($target === 'sso' ? 'inne niż do poczty' : 'inne niż logowania jednokrotnego i chmury') . ')' : 'losowe');
         $who = ($p['via'] ?? '') === 'szo' ? 'zalogowany do SZO + ' . $confirm
              : 'bez logowania: ' . (($p['via'] ?? '') === 'pesel' ? 'PESEL' : 'prywatny e-mail') . ' + adres służbowy + ' . $confirm;
         NoweHasloHelpdesk::event($p, 'Zmiana hasła na /nowehaslo (' . $who . '): ' . $res['what'] . '. ' . $res['detail']
@@ -141,11 +151,11 @@ final class NoweHaslo
     }
 
     /** @return array{what:string,whatTo:string,detail:string,warn:string,warnUser:string,password:string,login:string,target:string,site:string} */
-    private static function changeSso(array $p, bool $own, string $pw, string $by): array
+    private static function changeSso(array $p, bool $own, string $pw, string $by, bool $allowSame = false): array
     {
         $acc = self::ssoAccount($p, true);
         if (!$acc) throw new RuntimeException('Nie masz jeszcze konta logowania jednokrotnego ani konta w chmurze plików. Napisz do Helpdesku IT — założymy je.');
-        if ($own && (string)($p['mailbox'] ?? '') !== '') {
+        if ($own && !$allowSame && (string)($p['mailbox'] ?? '') !== '') {
             $same = NoweHasloCheck::sameAsMail((string)$p['mailbox'], $pw);
             if ($same === true) throw new RuntimeException('To hasło jest takie samo jak hasło do poczty. Hasło do poczty musi być inne — wpisz inne hasło.');
             if ($same === null) throw new RuntimeException(self::cantCheck('poczty'));
@@ -203,7 +213,7 @@ final class NoweHaslo
                 'site' => $logtoOn ? SsoConfig::logtoUrl() : SsoConfig::cloudUrl()];
     }
 
-    private static function changeMail(array $p, bool $own, string $pw, string $by): array
+    private static function changeMail(array $p, bool $own, string $pw, string $by, bool $allowSame = false): array
     {
         $box = (string)($p['mailbox'] ?? '');
         if ($box === '') throw new RuntimeException('Nie masz skrzynki pocztowej Fundacji. Jeśli to pomyłka, napisz do Helpdesku IT.');
@@ -216,14 +226,14 @@ final class NoweHaslo
             throw new RuntimeException('Nie udało się sprawdzić Twojej skrzynki. Spróbuj za kilka minut.');
         }
         if (!$exists) throw new RuntimeException('Twoja nowa skrzynka jeszcze nie istnieje. Załóż ją na stronie migracji poczty albo napisz do Helpdesku IT.');
-        if ($own) {
+        if ($own && !$allowSame) {
             $acc = self::ssoAccount($p, true);
             if ($acc) {
                 $same = NoweHasloCheck::sameAsSso($acc, $pw);
                 if ($same === true) throw new RuntimeException('To hasło jest takie samo jak hasło logowania jednokrotnego i chmury. Hasło do poczty musi być inne — wpisz inne hasło.');
                 if ($same === null) throw new RuntimeException(self::cantCheck('logowania jednokrotnego i chmury'));
             }
-        } else {
+        } elseif (!$own) {
             $pw = DhostingConfig::generatePassword();
         }
         try {
@@ -244,6 +254,49 @@ final class NoweHaslo
         return ['what' => 'poczta ' . $box, 'whatTo' => 'do poczty ' . $box,
                 'detail' => 'poczta ' . $box . ': nowe hasło' . ($copy > 0 ? ' (przekazane do kopiowania poczty w tle: ' . $copy . ' zad.)' : ''),
                 'warn' => '', 'warnUser' => '', 'password' => $pw, 'login' => $box, 'target' => 'mail', 'site' => DhostingConfig::webmailOrDefault()];
+    }
+
+    /**
+     * Jedno hasło do wszystkiego (target 'all'): najpierw logowanie jednokrotne + chmura (wyjątek = nic nie zmieniono), potem poczta
+     * i konto SZO tym samym hasłem. Gdy poczta albo SZO się nie uda, logowanie jednokrotne zostaje zmienione — ostrzeżenie dla osoby
+     * i do Helpdesku. Hasło losowe: generatePassword() z SsoConfig (spełnia też wymagania poczty).
+     */
+    private static function changeAll(array $p, bool $own, string $pw, string $by): array
+    {
+        $box = (string)($p['mailbox'] ?? '');
+        if ($box === '') throw new RuntimeException('Nie masz skrzynki pocztowej Fundacji, więc jedno hasło do wszystkiego nie ma sensu. Zmień hasło logowania jednokrotnego.');
+        if (!$own) $pw = SsoConfig::generatePassword();
+        $sso = self::changeSso($p, true, $pw, $by, true);
+        $warn = $sso['warn'] !== '' ? [$sso['warn']] : [];
+        $warnUser = $sso['warnUser'] !== '' ? [$sso['warnUser']] : [];
+        $mailOk = false; $mailDetail = '';
+        try {
+            $m = self::changeMail($p, true, $pw, $by, true);
+            $mailOk = true; $mailDetail = $m['detail'];
+        } catch (\RuntimeException $e) {
+            $mailDetail = 'poczta ' . $box . ': NIEZMIENIONA — ' . $e->getMessage();
+            $warn[] = 'poczta ma stare hasło (' . $e->getMessage() . ')';
+            $warnUser[] = 'Hasło do poczty się nie zmieniło: ' . $e->getMessage() . ' Poczta ma nadal stare hasło.';
+        }
+        $szo = 'konto SZO: brak';
+        if ((int)($p['user_id'] ?? 0) > 0) {
+            try {
+                db()->prepare("UPDATE users SET password=?, login_code=NULL WHERE id=?")->execute([password_hash($pw, PASSWORD_BCRYPT), (int)$p['user_id']]);
+                $szo = 'konto SZO: to samo nowe hasło';
+            } catch (\Throwable $e) {
+                error_log('[nowehaslo] SZO users ' . (int)$p['user_id'] . ': ' . $e->getMessage());
+                $szo = 'konto SZO: NIEZMIENIONE';
+                $warn[] = 'konto SZO ma stare hasło';
+                $warnUser[] = 'Hasło do SZO się nie zmieniło.';
+            }
+        }
+        return ['what' => 'jedno hasło do wszystkiego: logowanie jednokrotne, chmura plików, poczta ' . $box . ' i SZO',
+                'whatTo' => 'do wszystkiego naraz (logowanie jednokrotne, chmura plików, poczta i SZO)',
+                'detail' => 'JEDNO HASŁO: ' . $sso['detail'] . '; ' . $mailDetail . '; ' . $szo,
+                'warn' => implode('; ', $warn), 'warnUser' => implode(' ', $warnUser),
+                'keepInitial' => !empty($sso['keepInitial']), 'mailOk' => $mailOk, 'mailbox' => $box,
+                'password' => $pw, 'login' => $sso['login'], 'target' => 'all', 'cloudUid' => (string)($sso['cloudUid'] ?? ''),
+                'site' => $sso['site']];
     }
 
     private static function cantCheck(string $other): string
@@ -268,11 +321,12 @@ final class NoweHaslo
         } elseif (!$own) {
             // login w chmurze imie.nazwisko jako zapasowy: Nextcloud wpuszcza e-mailem tylko przy unikalnym adresie
             $alt = (string)($res['cloudUid'] ?? '') !== '' ? ' (w chmurze tez ' . $res['cloudUid'] . ')' : '';
-            $msg = $org . ': nowe haslo - ' . $res['what'] . '. Login: ' . $res['login'] . $alt . ' Haslo: ' . $res['password']
-                 . ' (inne niz do poczty). Obowiazuje od ' . $when . ($host !== '' ? '. Strona: ' . $host : '');
+            $msg = $org . ': nowe haslo - ' . ($res['target'] === 'all' ? 'jedno do wszystkiego (SSO, chmura, poczta, SZO)' : $res['what'])
+                 . '. Login: ' . $res['login'] . $alt . ' Haslo: ' . $res['password']
+                 . ($res['target'] === 'all' ? '' : ' (inne niz do poczty)') . '. Obowiazuje od ' . $when . ($host !== '' ? '. Strona: ' . $host : '');
             $kind = 'access_data';
         } else {
-            $msg = $org . ': zmieniono haslo - ' . $res['what'] . ' (' . $when . '). Jesli to nie Ty, napisz od razu do Helpdesku IT.';
+            $msg = $org . ': zmieniono haslo - ' . ($res['target'] === 'all' ? 'jedno do wszystkiego' : $res['what']) . ' (' . $when . '). Jesli to nie Ty, napisz od razu do Helpdesku IT.';
             $kind = 'security_alert';
         }
         $msg = function_exists('sms_ascii') ? sms_ascii($msg) : $msg;
@@ -296,15 +350,17 @@ final class NoweHaslo
         if (!$to) return 'brak adresu';
         $e = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         $sso = $res['target'] === 'sso';
-        $subject = $sso ? 'Zmieniliśmy hasło: ' . $res['what'] : 'Zmieniliśmy hasło do poczty';
+        $all = $res['target'] === 'all';
+        $subject = $all ? 'Zmieniliśmy hasło: jedno do wszystkiego' : ($sso ? 'Zmieniliśmy hasło: ' . $res['what'] : 'Zmieniliśmy hasło do poczty');
         $lines = [
             'Kiedy: ' . date('d.m.Y, H:i') . '.',
             'Login: ' . $res['login'] . '.',
             $own ? 'Hasło ustawiłeś(-aś) sam(a) na stronie zmiany hasła.'
                  : ($smsOk ? 'Nowe hasło wysłaliśmy SMS-em.' : 'SMS z nowym hasłem nie wyszedł — zmień hasło jeszcze raz albo napisz do Helpdesku IT.'),
             'Hasła nigdy nie wysyłamy e-mailem.',
-            $sso ? 'Hasło do poczty zostaje bez zmian i musi być inne niż to hasło.'
-                 : 'Hasło logowania jednokrotnego i chmury plików zostaje bez zmian i musi być inne niż hasło do poczty.',
+            $all ? 'To samo hasło działa teraz w logowaniu jednokrotnym, chmurze plików, poczcie i SZO. Wybrałeś(-aś) to świadomie, potwierdzając trzy razy.'
+                 : ($sso ? 'Hasło do poczty zostaje bez zmian i musi być inne niż to hasło.'
+                         : 'Hasło logowania jednokrotnego i chmury plików zostaje bez zmian i musi być inne niż hasło do poczty.'),
         ];
         if ($sso) $lines[] = 'Od ' . self::ONE_PASSWORD_FROM . ' tym samym loginem i hasłem zalogujesz się do wszystkich aplikacji Fundacji. Poczta ma swoje, osobne hasło.';
         $alert = 'Jeśli to nie Ty zmieniałeś(-aś) hasło, napisz od razu do Helpdesku IT. Nikt z Fundacji nie poprosi Cię o hasło.';
