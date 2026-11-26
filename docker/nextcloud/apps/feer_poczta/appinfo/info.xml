@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>feer_poczta</id>
+	<name>Poczta FEER</name>
+	<summary>Przycisk „Sprawdź pocztę” na pulpicie</summary>
+	<description>Widżet pulpitu z odnośnikiem do poczta.feer.org.pl.</description>
+	<version>1.0.0</version>
+	<licence>agpl</licence>
+	<author>Fundacja FEER</author>
+	<namespace>FeerPoczta</namespace>
+	<category>dashboard</category>
+	<dependencies>
+		<nextcloud min-version="30" max-version="36"/>
+	</dependencies>
+</info>
