@@ -71,6 +71,19 @@ $recent = db_all(
 
 // Workspaces stats
 $ws_stats = task_user_workspaces($uid);
+// Filtr „Mój zespół”: obszary przypięte do zespołów osoby (Struktura › Zespoły, z dziedziczeniem i zastępstwami).
+$ws_myteam = !empty($_GET['myteam']);
+$ws_team_ids = [];
+if (module_enabled('org_enabled')) {
+    require_once dirname(__DIR__) . '/modules/teams/lib/TeamService.php';
+    $myTeamIds = TeamService::getUserTeamIds($uid);
+    if ($myTeamIds) {
+        $ws_team_ids = array_flip(array_map('intval', array_column(db_all(
+            "SELECT DISTINCT workspace_id FROM task_workspace_teams WHERE team_id IN (" . implode(',', array_map('intval', $myTeamIds)) . ")"
+        ), 'workspace_id')));
+    }
+}
+if ($ws_myteam) $ws_stats = array_values(array_filter($ws_stats, fn($w) => isset($ws_team_ids[(int)$w['id']])));
 
 $PAGE_TITLE      = 'Dashboard';
 $PAGE_SUBTITLE   = 'Przegląd zadań';
@@ -411,12 +424,18 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 </div>
 
 <!-- ── Obszary robocze ────────────────────────────────────────────────── -->
-<?php if ($ws_stats): ?>
+<?php if ($ws_stats || $ws_myteam): ?>
 <h2 class="tz-section-h" style="margin-top:1.6rem">Obszary robocze</h2>
 <div class="tz-card">
   <div class="tz-card__hd">
     <i class="bi bi-grid" aria-hidden="true"></i>
     Obszary robocze
+    <?php if ($ws_team_ids || $ws_myteam): ?>
+    <nav aria-label="Filtr obszarów" class="d-inline-flex gap-1 ms-2">
+      <a href="?" class="btn btn-sm py-0 <?= $ws_myteam ? 'btn-outline-secondary' : 'btn-secondary' ?>" style="font-size:.74rem"<?= $ws_myteam ? '' : ' aria-current="true"' ?>>Wszystkie</a>
+      <a href="?myteam=1" class="btn btn-sm py-0 <?= $ws_myteam ? 'btn-secondary' : 'btn-outline-secondary' ?>" style="font-size:.74rem"<?= $ws_myteam ? ' aria-current="true"' : '' ?>><i class="bi bi-people-fill me-1" aria-hidden="true"></i>Mój zespół</a>
+    </nav>
+    <?php endif; ?>
     <?php if ($is_admin): ?>
     <a href="<?= APP_URL ?>/admin/tasks_workspaces.php"
        class="btn btn-outline-secondary btn-sm py-0"
@@ -424,6 +443,9 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
     <?php endif; ?>
   </div>
   <div class="row g-0">
+    <?php if (!$ws_stats): ?>
+    <p class="text-muted small p-3 mb-0">Twoje zespoły nie mają przypiętych obszarów. Przypniesz je na karcie zespołu (Struktura organizacyjna › Zespoły › Obszary zadań).</p>
+    <?php endif; ?>
     <?php foreach ($ws_stats as $ws):
       $ws_done  = (int)(db_one(
         "SELECT COUNT(*) AS n FROM tasks WHERE workspace_id=? AND completed_at IS NOT NULL AND deleted_at IS NULL",
