@@ -565,3 +565,9 @@ body:not([data-themes*="dark"]) .passwordsapp .row:hover { background: #F5F8FF !
 .passwordsapp :focus-visible, .passwords-form :focus-visible, .password-form :focus-visible, .passwords-sidebar-password :focus-visible {
 	outline: 3px solid #1559D6 !important; outline-offset: 2px !important;
 }
+/* Hasła: napis stanu bezpieczeństwa obok tarczy (js/a11y-forms.js) — nie tylko kolor */
+.feer-sec-label { display: inline-block; margin-inline-start: 4px; padding: 0 6px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 18px; border: 1px solid currentColor; background: #ffffff; vertical-align: middle; }
+.feer-sec--ok { color: #15803D; }
+.feer-sec--weak { color: #B45309; }
+.feer-sec--breached { color: #B91C1C; }
+.feer-sec--unknown { color: #4B5563; }

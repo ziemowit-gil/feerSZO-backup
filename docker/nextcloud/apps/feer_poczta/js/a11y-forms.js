@@ -3,6 +3,8 @@
  *   • Kalendarz › „Utwórz harmonogram spotkań”: pola opisane tylko tekstem zastępczym (placeholder) dostają widoczną
  *     etykietę <label for> (1.3.1, 3.3.2) — placeholder znika przy pisaniu.
  *   • Strona rezerwacji: zepsuty obrazek awatara (brak zdjęcia) zastąpiony inicjałami.
+ *   • Hasła: stan bezpieczeństwa hasła nie tylko kolorem tarczy (1.4.1) — napis „Bezpieczne / Słabe / Ujawnione /
+ *     Niesprawdzone” obok ikony i jako nazwa dla czytników (kolor z atrybutu fill: --color-element-success/warning/error).
  *   • Kalendarz: brakujące polskie tłumaczenia (np. „Start time”, „End date”, „When shared”) w edytorze i dymku wydarzenia,
  *     w etykietach, podpowiedziach pól i aria-label.
  * Bez przenoszenia elementów Vue: etykieta wstawiana tuż przed polem, idempotentnie (MutationObserver).
@@ -62,6 +64,34 @@
 			else img.addEventListener('error', fallback, { once: true });
 		});
 	}
+	var SEC = [
+		['--color-element-success', 'Bezpieczne', 'ok'],
+		['--color-element-warning', 'Słabe', 'weak'],
+		['--color-element-error', 'Ujawnione', 'breached'],
+		['--color-main-text', 'Niesprawdzone', 'unknown'],
+	];
+	function passwordSecurity(root) {
+		root.querySelectorAll('.shield-half-full-icon').forEach(function (icon) {
+			var path = icon.querySelector('svg path, svg');
+			var fill = ((path && (path.getAttribute('fill') || path.style.fill)) || icon.getAttribute('style') || '').toString();
+			var hit = null;
+			SEC.forEach(function (x) { if (!hit && fill.indexOf(x[0]) >= 0) hit = x; });
+			if (!hit) return;
+			icon.setAttribute('role', 'img');
+			icon.setAttribute('aria-label', 'Bezpieczeństwo hasła: ' + hit[1]);
+			var next = icon.nextElementSibling;
+			if (next && next.classList.contains('feer-sec-label')) {
+				if (next.textContent !== hit[1]) { next.textContent = hit[1]; next.className = 'feer-sec-label feer-sec--' + hit[2]; }
+				return;
+			}
+			var lab = document.createElement('span');
+			lab.className = 'feer-sec-label feer-sec--' + hit[2];
+			lab.setAttribute('aria-hidden', 'true');
+			lab.textContent = hit[1];
+			icon.insertAdjacentElement('afterend', lab);
+		});
+	}
+
 	var queued = false;
 	function run() {
 		queued = false;
@@ -69,6 +99,7 @@
 		// Nie w każdym oknie — np. edytor wydarzenia ma własne etykiety (dublowały się i nachodziły na pola).
 		document.querySelectorAll('.appointment-config-modal, .booking-details, .appointment-details').forEach(labelize);
 		avatars(document);
+		if (document.querySelector('.passwordsapp, #app-content .shield-half-full-icon')) passwordSecurity(document);
 		// Strona rezerwacji (publiczna): bez stopki Nextclouda („Chmura FEER · Załóż własne bezpłatne konto”).
 		if (document.querySelector('.booking, .booking__container, .appointment-booking-confirmation')) {
 			document.querySelectorAll('footer, #footer, .footer, a[href*="nextcloud.com/signup"]').forEach(function (n) {
