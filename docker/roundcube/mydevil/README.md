@@ -113,8 +113,13 @@ Wymaga wdrożenia SZO z endpointem. LDAP (ldap-prod.feer.org.pl) nie istnieje �
   logowaniu (feer_cloud_save, „Przypomnij za tydzień”, bez „nigdy”).
 - S/MIME: takenek/mimeshield 1.0.3 (composer). Klucz główny `secrets/mimeshield.key` (0400) —
   KOPIA OSOBNO od kopii bazy. Tabele `mimeshield_*` założone ręcznie (`SQL/mysql.initial.sql`).
-  `bin/mimeshield.sh diag`: brak pakietu CA S/MIME (`mimeshield_ca_bundle`) → podpisy „niezaufane”;
-  OpenSSL w PHP 3.0.20 < 3.0.23 (CVE-2026-35189) — zależy od łatki MyDevil.
+  Zaufane CA: `config/smime-roots.pem` = repo `ca/smime-roots.pem` — 83 główne CA z zaufaniem do
+  poczty (`CKA_TRUST_EMAIL_PROTECTION = TRUSTED_DELEGATOR`) z Mozilla NSS `certdata.txt`, bez wygasłych
+  i bez „email distrust-after” (m.in. Certum, SZAFIR, Actalis, Sectigo, DigiCert, GlobalSign, HARICA).
+  Odświeżanie (raz na kwartał): pobrać
+  https://hg.mozilla.org/mozilla-central/raw-file/tip/security/nss/lib/ckfw/builtins/certdata.txt,
+  `python3 -I tools/smime_roots.py certdata.txt ca/smime-roots.pem`, wgrać do `~/roundcube/config/`.
+  OpenSSL w PHP 3.0.20 < 3.0.23 (CVE-2026-35189) — zależy od łatki MyDevil (`diag` ostrzega).
 - Foldery specjalne stałe (`dont_override`), archiwum dPoczty = `Archives`.
 - `ip_check = true`: zmiana IP kończy sesję („Błąd sesji bądź sesja wygasła”).
 - Link „Odzyskaj dostęp” → szo.feer.org.pl/nowehaslo (`feer_login_recovery_url`).
