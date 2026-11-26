@@ -646,3 +646,44 @@ body:not([data-themes*="dark"]) .passwordsapp .row:hover { background: #F5F8FF !
 #app-dashboard :focus-visible, .modal__content :focus-visible {
 	outline: 3px solid #1559D6 !important; outline-offset: 2px !important; box-shadow: 0 0 0 6px #ffffff !important;
 }
+
+/* ── Kalendarz: widok główny (WCAG 2.2 AA) ──
+ * Nextcloud daje nazwom dni i godzinom --color-text-lighter (za jasne) — tu #374151 (10:1).
+ */
+.app-calendar .fc-col-header-cell a, .app-calendar .fc-col-header-cell-cushion, .app-calendar .fc-timegrid-slot-label,
+.app-calendar .fc-timegrid-axis-frame, .app-calendar .fc-timegrid-slot-label-cushion {
+	color: #374151 !important; font-weight: 600;
+}
+.app-calendar .fc-daygrid-day-number { color: #111827 !important; font-weight: 600; }
+/* wydarzenia: ciemny tekst, wyraźna godzina; odwołane przekreślone (już) i nie wyblakłe do nieczytelności */
+.app-calendar .fc-daygrid-dot-event .fc-event-title, .app-calendar .fc-daygrid-dot-event .fc-event-time,
+.app-calendar .fc-list-event-title, .app-calendar .fc-list-event-time { color: #111827 !important; }
+.app-calendar .fc-event-time { font-weight: 700; }
+.app-calendar .fc-event { min-height: 22px; }
+.app-calendar .fc-event-nc-cancelled { opacity: 1 !important; }
+.app-calendar .fc-event-nc-cancelled .fc-event-title { color: #4B5563 !important; }
+/* „N więcej” */
+.app-calendar .fc-daygrid-more-link {
+	color: #1559D6 !important; font-weight: 700; text-decoration: underline; text-underline-offset: 2px;
+	display: inline-block; min-height: 24px; padding: 2px 4px;
+}
+/* lewy panel */
+.app-calendar .app-navigation-caption, .app-calendar .app-navigation-caption__name, .app-calendar .app-navigation-entry__name {
+	color: #111827 !important;
+}
+.app-calendar .app-navigation-caption__name { font-weight: 700 !important; font-size: 15px; }
+.app-calendar .datepicker-button-section__datepicker input, .app-calendar .datepicker-button-section button {
+	border: 1px solid #64748B !important; color: #111827 !important; min-height: 44px; font-weight: 600;
+}
+.app-calendar .new-event-today-view-section button { min-height: 44px; }
+.app-calendar .new-event-today-view-section .button-vue--vue-primary { background: #1559D6 !important; border-color: #1559D6 !important; color: #ffffff !important; }
+.app-calendar .app-navigation input[type="text"], .app-calendar .app-navigation input[type="search"] {
+	min-height: 40px; border: 1px solid #64748B !important; border-radius: 10px !important; color: #111827 !important;
+}
+/* lista (widok „Lista”) */
+.app-calendar .fc-list-day-cushion { background: #F1F5F9 !important; color: #111827 !important; font-weight: 700; }
+/* fokus w siatce i na wydarzeniach */
+.app-calendar .fc a:focus-visible, .app-calendar .fc-event:focus-visible, .app-calendar .fc :focus-visible,
+.app-calendar .app-navigation :focus-visible {
+	outline: 3px solid #1559D6 !important; outline-offset: 2px !important; border-radius: 4px;
+}
