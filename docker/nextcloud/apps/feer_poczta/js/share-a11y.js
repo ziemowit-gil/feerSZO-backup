@@ -5,6 +5,9 @@
  *   • na górze dwa przyciski: „Udostępnij osobie z FEER” i „Udostępnij na zewnątrz” (przenoszą fokus do właściwego pola),
  *   • proste nagłówki i widoczne podpowiedzi zamiast ikon (i), prostsze podpowiedzi w polach wyszukiwania,
  *   • „Zaawansowane” (rozwijane, aria-expanded): link wewnętrzny, „Kto jeszcze ma dostęp”, dodatkowe udostępnienia,
+ *   • „Udostępnij i skopiuj link”: istniejący link publiczny albo nowy (OCS, tylko podgląd) → schowek,
+ *   • szczegóły udostępnienia (uprawnienia, Zapisz/Anuluj) jako okno dialogowe: role=dialog, aria-modal, fokus w oknie,
+ *     Esc = „Anuluj” (klik w przycisk Nextclouda), po zamknięciu fokus wraca,
  *   • komunikaty dla czytników ekranu (role=status), widoczny fokus, większe pola kliknięcia (css/share-a11y.css).
  * Stan „Zaawansowane” pamiętany w przeglądarce (localStorage, gdy dostępny).
  */
@@ -28,7 +31,14 @@
 		publicLink: 'Link publiczny',
 		liveInternal: 'Wpisz imię, nazwisko albo zespół i wybierz osobę z listy.',
 		liveExternal: 'Wpisz adres e-mail albo skopiuj link publiczny poniżej.',
+		btnCopyLink: 'Udostępnij i skopiuj link',
+		copyWorking: 'Tworzę link…',
+		copyDone: 'Link skopiowany do schowka. Wklej go w wiadomości (Ctrl+V / ⌘V). Otworzy go każdy, kto go dostanie.',
+		copyManual: 'Link gotowy. Skopiuj go z pola poniżej (Ctrl+C / ⌘C).',
+		copyFail: 'Nie udało się utworzyć linku: ',
+		dialogClose: 'Zamknij',
 	};
+	var ICON_LINK = 'M3.9 12a3.1 3.1 0 0 1 3.1-3.1h4V7H7a5 5 0 0 0 0 10h4v-1.9H7A3.1 3.1 0 0 1 3.9 12zM8 13h8v-2H8v2zm9-6h-4v1.9h4a3.1 3.1 0 0 1 0 6.2h-4V17h4a5 5 0 0 0 0-10z';
 	// Teksty Nextclouda (pl i en) → prostsze; tylko w zakładce udostępniania.
 	var RENAME = {
 		'Udostępnianie wewnętrzne': TEXT.internalTitle, 'Internal shares': TEXT.internalTitle,
@@ -154,7 +164,10 @@
 			}
 			announce(content, TEXT.liveExternal);
 		});
-		quick.appendChild(bIn); quick.appendChild(bEx); quick.appendChild(live);
+		var bLink = el('button', { type: 'button', 'class': 'feer-share-btn feer-share-btn--link' });
+		bLink.appendChild(svg(ICON_LINK)); bLink.appendChild(el('span', {}, TEXT.btnCopyLink));
+		bLink.addEventListener('click', function () { shareAndCopy(bLink); });
+		quick.appendChild(bIn); quick.appendChild(bEx); quick.appendChild(bLink); quick.appendChild(live);
 		content.insertBefore(quick, content.firstChild);
 		return quick;
 	}
@@ -220,6 +233,143 @@
 		if (!parts.external) { var b = content.querySelectorAll('.feer-share-btn')[1]; if (b) b.hidden = true; }
 	}
 
+	// ── Udostępnij i skopiuj link ─────────────────────────────────────────────────────────────
+	function requestToken() {
+		return (document.head && document.head.dataset && document.head.dataset.requesttoken) || (window.OC && window.OC.requestToken) || '';
+	}
+	function ocsUrl(q) {
+		var root = (window.OC && typeof window.OC.webroot === 'string') ? window.OC.webroot : '';
+		return root + '/ocs/v2.php/apps/files_sharing/api/v1/shares' + (q || '');
+	}
+	function currentPath() {
+		var sb = window.OCA && window.OCA.Files && window.OCA.Files.Sidebar;
+		if (sb && typeof sb.file === 'string' && sb.file) return sb.file;
+		var name = document.querySelector('.app-sidebar-header__mainname');
+		var dir = new URLSearchParams(window.location.search).get('dir') || '/';
+		if (!name) return '';
+		return (dir.replace(/\/$/, '') + '/' + name.textContent.trim()).replace(/^\/+/, '/');
+	}
+	function ocs(method, url, body) {
+		return fetch(url, {
+			method: method, credentials: 'same-origin',
+			headers: { 'OCS-APIREQUEST': 'true', 'requesttoken': requestToken(), 'Accept': 'application/json', 'Content-Type': 'application/json' },
+			body: body ? JSON.stringify(body) : undefined,
+		}).then(function (r) {
+			return r.json().catch(function () { return {}; }).then(function (j) {
+				var meta = (j.ocs && j.ocs.meta) || {};
+				if (!r.ok || (meta.statuscode && meta.statuscode >= 400 && meta.statuscode !== 100)) throw new Error(meta.message || ('HTTP ' + r.status));
+				return (j.ocs && j.ocs.data);
+			});
+		});
+	}
+	var toastEl = null;
+	function toast(msg, url) {
+		if (!toastEl) {
+			toastEl = el('div', { 'class': 'feer-toast', role: 'status', 'aria-live': 'polite' });
+			document.body.appendChild(toastEl);
+		}
+		toastEl.innerHTML = '';
+		toastEl.appendChild(el('p', {}, msg));
+		if (url) {
+			var inp = el('input', { type: 'text', readonly: 'readonly', 'aria-label': 'Link publiczny', value: url });
+			toastEl.appendChild(inp);
+			window.setTimeout(function () { inp.focus(); inp.select(); }, 30);
+		}
+		var close = el('button', { type: 'button', 'class': 'feer-toast__close', 'aria-label': TEXT.dialogClose }, '×');
+		close.addEventListener('click', function () { toastEl.hidden = true; });
+		toastEl.appendChild(close);
+		toastEl.hidden = false;
+		window.clearTimeout(toastEl._t);
+		if (!url) toastEl._t = window.setTimeout(function () { toastEl.hidden = true; }, 12000);
+	}
+	function copy(url) {
+		if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(url).then(function () { return true; }, function () { return false; });
+		return Promise.resolve(false);
+	}
+	function shareAndCopy(btn) {
+		var path = currentPath();
+		if (!path) { toast(TEXT.copyFail + 'nie wiem, który plik jest otwarty.'); return; }
+		btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+		toast(TEXT.copyWorking);
+		var created = false;
+		ocs('GET', ocsUrl('?format=json&reshares=false&path=' + encodeURIComponent(path)))
+			.then(function (list) {
+				var link = (list || []).filter(function (sh) { return Number(sh.share_type) === 3 && sh.url; })[0];
+				if (link) return link.url;
+				created = true;
+				return ocs('POST', ocsUrl('?format=json'), { path: path, shareType: 3, permissions: 1 }).then(function (d) { return d && d.url; });
+			})
+			.then(function (url) {
+				if (!url) throw new Error('brak adresu linku');
+				return copy(url).then(function (ok) {
+					toast(ok ? TEXT.copyDone : TEXT.copyManual, ok ? null : url);
+					if (created) refreshSidebar(path);
+				});
+			})
+			.catch(function (e) { toast(TEXT.copyFail + (e && e.message ? e.message : 'błąd')); })
+			.then(function () { btn.disabled = false; btn.removeAttribute('aria-busy'); });
+	}
+	function refreshSidebar(path) {
+		var sb = window.OCA && window.OCA.Files && window.OCA.Files.Sidebar;
+		if (!sb || typeof sb.open !== 'function') return;
+		try { sb.close(); window.setTimeout(function () { sb.open(path); }, 120); } catch (e) { /* zostaw */ }
+	}
+
+	// ── Szczegóły udostępnienia jako okno dialogowe (WCAG: role=dialog, aria-modal, fokus w oknie, Esc = Anuluj) ──
+	var lastFocus = null;
+	document.addEventListener('focusin', function (e) {
+		if (!e.target.closest || !e.target.closest('.feer-share-dialog')) lastFocus = e.target;
+	}, true);
+	function focusables(root) {
+		return Array.prototype.slice.call(root.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+			.filter(function (n) { return n.offsetParent !== null || n === document.activeElement; });
+	}
+	function dialogify(tab) {
+		var d = tab.querySelector('.sharingTabDetailsView');
+		var open = !!d && window.getComputedStyle(d).display !== 'none';
+		if (!open) {
+			if (tab._feerDialogOpen) {
+				tab._feerDialogOpen = false;
+				document.body.classList.remove('feer-share-dialog-open');
+				if (lastFocus && document.contains(lastFocus)) { try { lastFocus.focus(); } catch (e) { /* */ } }
+			}
+			return;
+		}
+		if (tab._feerDialogOpen && d.hasAttribute('data-feer-dialog')) return;
+		tab._feerDialogOpen = true;
+		document.body.classList.add('feer-share-dialog-open');
+		d.classList.add('feer-share-dialog');
+		d.setAttribute('data-feer-dialog', '1');
+		d.setAttribute('role', 'dialog');
+		d.setAttribute('aria-modal', 'true');
+		d.setAttribute('tabindex', '-1');
+		var head = d.querySelector('.sharingTabDetailsView__header');
+		if (head) { if (!head.id) head.id = id('dlg-title'); d.setAttribute('aria-labelledby', head.id); }
+		if (!d._feerKeys) {
+			d._feerKeys = true;
+			d.addEventListener('keydown', function (e) {
+				if (e.key === 'Escape') {
+					var cancel = d.querySelector('[data-cy-files-sharing-share-editor-action="cancel"]');
+					if (cancel) { e.preventDefault(); e.stopPropagation(); cancel.click(); }
+				} else if (e.key === 'Tab') {
+					var f = focusables(d);
+					if (!f.length) return;
+					var first = f[0], last = f[f.length - 1];
+					if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+					else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+				}
+			});
+		}
+		window.requestAnimationFrame(function () {
+			// Gdy przodek ma transform, „fixed” liczy się od panelu — wtedy zostaw okno jako kartę w panelu.
+			var r = d.getBoundingClientRect();
+			var centered = Math.abs((r.left + r.right) / 2 - window.innerWidth / 2) < 80;
+			d.classList.toggle('feer-share-dialog--inpanel', !centered);
+			var f = focusables(d);
+			(f[0] || d).focus();
+		});
+	}
+
 	/**
 	 * Karty panelu bocznego: „Udostępnianie” jest domyślne, więc jego karta znika, gdy jest otwarte (wraca jako ikona,
 	 * gdy otworzysz inną kartę). Pozostałe karty (np. „Aktywność”) jako małe ikony; nazwa zostaje dla czytników ekranu.
@@ -246,6 +396,7 @@
 		try { compactTabs(); } catch (e) { if (window.console) console.warn('feer share-a11y tabs', e); }
 		document.querySelectorAll('.sharingTab').forEach(function (tab) {
 			try { enhance(tab); } catch (e) { if (window.console) console.warn('feer share-a11y', e); }
+			try { dialogify(tab); } catch (e) { if (window.console) console.warn('feer share-a11y dialog', e); }
 		});
 	}
 	function schedule() {

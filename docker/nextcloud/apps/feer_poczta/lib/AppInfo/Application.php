@@ -34,5 +34,8 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function boot(IBootContext $context): void {
+		// Białe tła i okienka (css/feer-ui.css) na każdej stronie — także w aplikacjach, które nie wywołują
+		// BeforeTemplateRenderedEvent przed zebraniem stylów (np. Kalendarz).
+		\OCP\Util::addStyle(self::APP_ID, 'feer-ui');
 	}
 }

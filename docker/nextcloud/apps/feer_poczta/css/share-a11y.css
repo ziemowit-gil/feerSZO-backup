@@ -97,3 +97,58 @@ body[data-themes*="dark"] .sharingTab button.feer-share-adv-toggle { background:
 .app-sidebar-tabs__nav.feer-tabs-compact .app-sidebar-tabs__tab.active label { background: #EEF4FF !important; color: #1559D6 !important; }
 .app-sidebar-tabs__nav.feer-tabs-compact :focus-visible,
 .app-sidebar-tabs__nav.feer-tabs-compact .app-sidebar-tabs__tab:focus-within { outline: 3px solid #1559D6; outline-offset: 2px; border-radius: 10px; }
+
+/* ── „Udostępnij i skopiuj link” + komunikat (toast) ── */
+.sharingTab .feer-share-quick button.feer-share-btn.feer-share-btn--link { border-style: dashed !important; }
+.feer-toast {
+	position: fixed; z-index: 100001; inset-block-end: 24px; inset-inline-start: 50%; transform: translateX(-50%);
+	width: min(520px, calc(100vw - 32px)); padding: 14px 52px 14px 16px; border-radius: 12px;
+	background: #ffffff; color: #111827; border: 1px solid #64748B; border-inline-start: 6px solid #1559D6;
+	box-shadow: 0 12px 32px rgba(15, 23, 42, .3); font-size: 15px; line-height: 1.45;
+}
+.feer-toast[hidden] { display: none; }
+.feer-toast p { margin: 0 0 6px; }
+.feer-toast input { width: 100%; min-height: 40px; font-size: 14px; }
+.feer-toast__close {
+	position: absolute; inset-block-start: 6px; inset-inline-end: 6px; width: 44px; height: 44px;
+	border: 0 !important; background: transparent !important; font-size: 24px; line-height: 1; color: #111827 !important; cursor: pointer;
+}
+.feer-toast__close:focus-visible, .feer-toast input:focus-visible { outline: 3px solid #1559D6; outline-offset: 2px; }
+
+/* ── Szczegóły udostępnienia jako okno dialogowe na środku ekranu ── */
+.sharingTabDetailsView.feer-share-dialog:not(.feer-share-dialog--inpanel) {
+	position: fixed !important; z-index: 100000; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
+	width: min(560px, calc(100vw - 32px)) !important; height: auto !important; max-height: min(86vh, 760px);
+	overflow: auto !important; padding: 20px 20px 8px; border-radius: 14px;
+	background: #ffffff; color: #111827; border: 1px solid #64748B;
+	box-shadow: 0 0 0 100vmax rgba(15, 23, 42, .55), 0 18px 48px rgba(15, 23, 42, .4);
+}
+.sharingTabDetailsView.feer-share-dialog--inpanel {
+	border: 2px solid #1559D6; border-radius: 12px; padding: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, .2);
+}
+.sharingTabDetailsView.feer-share-dialog:focus { outline: none; }
+.sharingTabDetailsView.feer-share-dialog .sharingTabDetailsView__header { font-size: 17px; font-weight: 700; padding-bottom: 8px; }
+.sharingTabDetailsView.feer-share-dialog .sharingTabDetailsView__footer {
+	position: sticky; inset-block-end: 0; background: #ffffff; padding: 12px 0; border-top: 1px solid #E2E8F0;
+}
+.sharingTabDetailsView.feer-share-dialog :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
+body.feer-share-dialog-open { overflow: hidden; }
+@media (prefers-reduced-motion: no-preference) {
+	.sharingTabDetailsView.feer-share-dialog:not(.feer-share-dialog--inpanel) { animation: feerDlgIn .15s ease-out; }
+	@keyframes feerDlgIn { from { opacity: 0; transform: translate(-50%, -48%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+}
+
+/* ── Czytelniejszy panel boczny Plików ── */
+.app-sidebar .app-sidebar-header__figure { max-height: 150px; background-size: cover !important; }
+.app-sidebar .app-sidebar-header__mainname { font-size: 20px !important; }
+.sharingTab { font-size: 15px; line-height: 1.5; }
+.sharingTab .sharing-entry { min-height: 56px; padding-block: 6px; }
+.sharingTab .sharing-entry + .sharing-entry { border-top: 1px solid #E5E7EB; }
+.sharingTab .sharing-entry__title { font-size: 15px !important; font-weight: 600; color: #111827; }
+.sharingTab .sharing-entry .share-select button,
+.sharingTab .sharing-entry .share-select .button-vue {
+	min-height: 32px; padding: 2px 10px !important; border: 1px solid #94A3B8 !important; border-radius: 8px !important;
+	font-size: 14px !important; background: #ffffff !important;
+}
+.sharingTab section[data-feer] + section[data-feer], .sharingTab .feer-share-adv-toggle { margin-top: 8px; }
+.sharingTab section[data-feer] { padding-block: 14px 16px !important; }
