@@ -1023,3 +1023,54 @@ a, .link { color: var(--feer-link); }
 
 /* Książka „Fundacja FEER” (feer_directory) i z chmury tylko do odczytu — wyraźna informacja */
 .contactlist .readonly, #directorylist li.readonly > a:after { color: var(--feer-muted); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WCAG 2.2 AA — Kalendarz w poczcie (kolab/calendar, FullCalendar) (2026-11-26)
+   ══════════════════════════════════════════════════════════════════════════ */
+/* Siatka */
+#calendar .fc-day-header, #calendar .fc-col-header-cell, #calendar th, #calendar .fc-axis, #calendar .fc-time,
+#calendar .fc-timegrid-slot-label, #calendar .fc-widget-header { color: #374151 !important; font-weight: 600; }
+#calendar .fc-day-number, #calendar .fc-daygrid-day-number { color: var(--feer-text) !important; font-weight: 600; }
+#calendar .fc-other-month .fc-day-number, #calendar .fc-day-other .fc-daygrid-day-number { color: #6B7280 !important; }
+#calendar .fc-other-month, #calendar .fc-day-other { background: #ffffff !important; }
+#calendar td, #calendar th { border-color: #D1D5DB !important; }
+/* Dzisiaj: ramka + pogrubiony numer, nie tylko blade tło */
+#calendar .fc-today, #calendar .fc-day-today { background: #ffffff !important; box-shadow: inset 0 0 0 3px #1559D6; }
+#calendar .fc-today .fc-day-number, #calendar .fc-day-today .fc-daygrid-day-number {
+  background: #1559D6; color: #ffffff !important; border-radius: 999px; padding: 0 .45rem; font-weight: 700;
+}
+/* Wydarzenia: czytelny tekst; godzina pogrubiona; odwołane przekreślone */
+#calendar .fc-event .fc-title, #calendar .fc-event .fc-event-title, #calendar .fc-event .fc-time { font-size: .85rem; }
+#calendar .fc-event .fc-time, #calendar .fc-event .fc-event-time { font-weight: 700; }
+#calendar .fc-event.cancelled .fc-title, #calendar .fc-event.fc-event-cancelled .fc-event-title { text-decoration: line-through; }
+#calendar .fc-event:focus-visible, #calendar a:focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
+#calendar .fc-more, #calendar .fc-daygrid-more-link { color: var(--feer-link) !important; font-weight: 700; text-decoration: underline; }
+#calendar .fc-list-heading td, #calendar .fc-list-day-cushion { background: #F1F5F9 !important; color: var(--feer-text) !important; font-weight: 700; }
+
+/* Lista kalendarzy i mini-kalendarz */
+#calendarslist li .calname, #calendarslist li a, #calendarslist .listing li { color: var(--feer-text) !important; }
+#calendarslist li.selected > div, #calendarslist li.selected > a { font-weight: 700; box-shadow: inset 4px 0 0 #1559D6; }
+#calendarslist .custom-switch, #calendarslist input[type="checkbox"] { min-width: 24px; min-height: 24px; }
+#datepicker .ui-datepicker-calendar td a { color: var(--feer-text) !important; min-width: 28px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; }
+#datepicker .ui-datepicker-today a { border: 2px solid #1559D6 !important; font-weight: 700; }
+#datepicker .ui-state-active, #datepicker .ui-datepicker-current-day a { background: #1559D6 !important; color: #ffffff !important; }
+#datepicker .ui-datepicker-other-month a, #datepicker .ui-priority-secondary { color: #6B7280 !important; opacity: 1 !important; }
+#datepicker .ui-datepicker-title { color: var(--feer-text); font-weight: 700; }
+
+/* Okna wydarzenia: podgląd i edycja */
+#eventshow .event-title, #eventshow h1 { color: var(--feer-text) !important; font-size: 1.3rem; font-weight: 700; }
+#eventshow .event-line label, #eventshow .form-group label, #eventshow .col-form-label { color: #374151 !important; font-weight: 600; }
+#eventshow .event-text, #eventshow .event-line .event-text, #eventshow .form-group .col-sm-8 { color: var(--feer-text) !important; }
+#eventshow a { color: var(--feer-link) !important; text-decoration: underline; }
+#eventedit .col-form-label, #eventedit label, #eventedit legend { color: var(--feer-text) !important; font-weight: 600; }
+#eventedit input.form-control, #eventedit select, #eventedit .custom-select, #eventedit textarea {
+  border: 1px solid #64748B !important; min-height: 44px; color: var(--feer-text) !important; border-radius: 8px !important;
+}
+#eventedit textarea { min-height: 96px; }
+#eventedit .nav-tabs a { color: var(--feer-text) !important; }
+#eventedit .nav-tabs a.active { color: var(--feer-navy) !important; font-weight: 700; border-bottom: 3px solid #1559D6 !important; }
+.ui-dialog .ui-dialog-buttonpane button.mainaction, .ui-dialog .ui-dialog-buttonpane .btn-primary {
+  background: #1559D6 !important; border-color: #1559D6 !important; color: #ffffff !important; min-height: 44px;
+}
+.ui-dialog .ui-dialog-buttonpane button { min-height: 44px; }
+.ui-dialog .ui-dialog-titlebar-close { min-width: 44px; min-height: 44px; }
