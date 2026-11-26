@@ -1,0 +1,26 @@
+<?php
+/**
+ * feer_theme — warstwa wizualna webmaila (skin Elastic) w barwach modułu Poczta
+ * głównej aplikacji (paleta z poczta/includes/header_poczta.php: granat
+ * #1e3a8a, niebieski #1d4ed8, focus #facc15, font system-ui). Webmail bywa
+ * osadzany w iframe (crm/webmail.php), więc ma wyglądać jak przedłużenie
+ * modułu, a nie jak obca aplikacja.
+ *
+ * Celowo TYLKO nakładka CSS na wbudowany skin Elastic (nie fork skina) —
+ * arkusz pluginu ładuje się PO arkuszu skina, więc wygrywa przy równej
+ * specyficzności, jest o rzędy wielkości mniejszy w utrzymaniu i przeżywa
+ * aktualizacje obrazu roundcube/roundcubemail. Szczegóły i pułapki: feer_theme.css.
+ *
+ * Bez $this->task — arkusz ma się wczytywać na każdym zadaniu (login, mail,
+ * kontakty, ustawienia).
+ */
+
+class feer_theme extends rcube_plugin
+{
+    public function init(): void
+    {
+        // Bez ?v=…: rdzeń 1.7 sprawdza is_file() na podanej nazwie i z dopiskiem
+        // po cichu pomija arkusz. Wersję (?s=mtime) dopisuje sam.
+        $this->include_stylesheet('feer_theme.css');
+    }
+}

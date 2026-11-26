@@ -1,0 +1,653 @@
+/**
+ * feer_theme.css — warstwa wizualna webmaila (skin Elastic) w barwach modułu Poczta.
+ *
+ * ŹRÓDŁO PALETY: poczta/includes/header_poczta.php (zmienne --pc-*) głównej
+ * aplikacji. Webmail jest osadzany w iframe (crm/webmail.php) i otwierany
+ * z modułu Poczta, więc ma wyglądać jak jego przedłużenie: granatowy pasek,
+ * niebieski akcent, żółty pierścień focusu (WCAG), ta sama rodzina fontów,
+ * te same promienie narożników.
+ *
+ * DLACZEGO NAKŁADKA, A NIE FORK SKINA: Elastic kompiluje swój CSS z LESS przy
+ * buildzie obrazu — fork oznaczałby albo trzymanie własnej kopii całego
+ * styles.css (tysiące linii do ręcznego mergowania przy każdej aktualizacji
+ * obrazu), albo skin "extends: elastic", którego własny styles/styles.css
+ * ZASTĘPUJE rodzica, nie dokłada się do niego. Arkusz pluginu ładuje się PO
+ * arkuszu skina, więc wygrywa przy równej specyficzności — i przeżywa
+ * aktualizacje obrazu roundcube/roundcubemail.
+ *
+ * !important występuje tam, gdzie Elastic ustawia kolor regułą o wyższej
+ * specyficzności (zagnieżdżone selektory z LESS). Nie usuwać "na czysto" bez
+ * sprawdzenia na żywym kontenerze.
+ *
+ * PUŁAPKA: obraz nie jest przypięty do wersji (docker-compose.rc.yml), a
+ * Elastic bywa refaktorowany między wydaniami — po aktualizacji obrazu
+ * przejrzeć wizualnie: logowanie, listę wiadomości, okno tworzenia, Ustawienia.
+ * Wersję (?v=) bumpować w feer_theme.php po każdej zmianie tego pliku, inaczej
+ * przeglądarki użytkowników zostaną na starym arkuszu.
+ */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   1. Tokeny
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --feer-navy:       #1e3a8a;   /* --pc-blue-dark  — pasek zadań, tło logowania */
+  --feer-navy-dark:  #172554;
+  --feer-blue:       #1d4ed8;   /* --pc-blue       — akcent, przyciski akcji   */
+  --feer-blue-mid:   #3b82f6;   /* --pc-blue-mid   — hover, ikony              */
+  --feer-blue-bg:    #eff6ff;   /* --pc-blue-bg    — zaznaczony wiersz         */
+  --feer-focus:      #facc15;   /* --pc-focus      — pierścień focusu (WCAG)   */
+
+  --feer-text:       #0f172a;   /* --pc-text   */
+  --feer-muted:      #64748b;   /* --pc-muted  */
+  --feer-border:     #e2e8f0;   /* --pc-border */
+  --feer-border-soft:#eef2f7;
+  --feer-bg:         #f8fafc;   /* --pc-bg     */
+  --feer-panel:      #ffffff;
+  --feer-hover:      #f1f5f9;
+
+  --feer-radius:     8px;
+  --feer-radius-lg:  14px;
+  --feer-shadow:     0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
+  --feer-shadow-lg:  0 10px 30px rgba(15, 23, 42, .18);
+  --feer-font:       system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   2. Baza, typografia, focus
+   ══════════════════════════════════════════════════════════════════════════ */
+
+body,
+input, select, textarea, button,
+.propform, .listing, .menu {
+  font-family: var(--feer-font);
+}
+
+body {
+  color: var(--feer-text);
+  background: var(--feer-bg);
+  font-size: .9375rem;      /* 15px — jak główna aplikacja */
+  line-height: 1.55;
+}
+
+a, .link { color: var(--feer-blue); }
+a:hover, .link:hover { color: var(--feer-navy); }
+
+/* Pierścień focusu jak w głównej aplikacji — Elastic w wielu miejscach
+   wygasza outline, dlatego !important. Klawiatura widzi, mysz nie. */
+*:focus-visible {
+  outline: 3px solid var(--feer-focus) !important;
+  outline-offset: 2px !important;
+  border-radius: 3px;
+}
+*:focus:not(:focus-visible) { outline: none; }
+
+::selection { background: #bfdbfe; color: var(--feer-text); }
+
+/* Paski przewijania — cieńsze, mniej hałaśliwe niż domyślne */
+.scroller, #messagelist-content, .iframe-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.scroller::-webkit-scrollbar { width: 10px; height: 10px; }
+.scroller::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background-clip: content-box;
+}
+.scroller::-webkit-scrollbar-thumb:hover { background-clip: content-box; background-color: #94a3b8; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   3. Szkielet layoutu — kolumny jako karty na jasnym tle
+   ══════════════════════════════════════════════════════════════════════════ */
+
+#layout,
+#layout-sidebar, #layout-list, #layout-content {
+  background: var(--feer-bg);
+}
+
+#layout > div > .header,
+#layout > div > .footer {
+  background: var(--feer-panel) !important;
+  border-color: var(--feer-border) !important;
+  color: var(--feer-text);
+}
+
+#layout > div > .header {
+  box-shadow: 0 1px 0 var(--feer-border);
+}
+
+.header-title,
+#layout > div > .header .header-title {
+  color: var(--feer-text) !important;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+#layout-sidebar, #layout-list { border-color: var(--feer-border) !important; }
+
+/* Uchwyt splittera — widoczny dopiero przy najechaniu, nie rozprasza */
+.splitter { background: transparent; }
+.splitter:hover { background: var(--feer-blue-bg); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   4. Pasek zadań (lewa szyna: Poczta / Kontakty / Ustawienia)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+#layout-menu,
+#taskmenu {
+  background: var(--feer-navy) !important;
+  border: 0 !important;
+}
+
+#layout-menu .popover-header,
+#taskmenu .popover-header { background: var(--feer-navy-dark) !important; color: #fff !important; }
+
+#taskmenu a,
+#taskmenu a span.inner {
+  color: rgba(255, 255, 255, .82) !important;
+}
+
+#taskmenu a {
+  border: 0 !important;
+  border-radius: var(--feer-radius);
+  margin: 2px 6px;
+  transition: background .15s, color .15s;
+}
+
+#taskmenu a:hover,
+#taskmenu a:hover span.inner {
+  background: rgba(255, 255, 255, .12) !important;
+  color: #fff !important;
+}
+
+#taskmenu a.selected,
+#taskmenu a.selected span.inner,
+#taskmenu a.selected:hover {
+  background: var(--feer-blue) !important;
+  color: #fff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+}
+
+/* Logo/produkt nad szyną + akcje na dole (wyloguj, o programie) */
+#taskmenu a.logout,
+#taskmenu a.logout span.inner { color: #fecaca !important; }
+#taskmenu a.logout:hover { background: rgba(220, 38, 38, .35) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   5. Listy — foldery, wiadomości, kontakty
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.listing, table.listing, ul.listing { background: var(--feer-panel); }
+
+.listing li, .listing tr { border-color: var(--feer-border-soft) !important; }
+
+.listing li > a, .listing tr > td { color: var(--feer-text); }
+
+.listing li:hover, .listing tbody tr:hover,
+.listing li > a:hover {
+  background: var(--feer-hover) !important;
+}
+
+/* Zaznaczenie: delikatne niebieskie tło + wyraźny pasek po lewej.
+   Elastic celuje w .selected na <li>/<tr> i na <a> wewnątrz. */
+.listing li.selected, .listing li.selected > a,
+.listing tr.selected, .listing tr.selected td,
+#messagelist tr.selected td,
+li.selected > a {
+  background-color: var(--feer-blue-bg) !important;
+  color: var(--feer-navy) !important;
+  box-shadow: none;
+}
+.listing li.selected > a,
+.listing tr.selected > td:first-child,
+#messagelist tr.selected > td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--feer-blue);
+}
+.listing li.focused > a,
+.listing tr.focused > td { outline: none; }
+
+/* Foldery — licznik nieprzeczytanych jako pigułka w akcencie */
+#folderlist .unreadcount,
+.listing .unreadcount,
+.listing span.badge {
+  background: var(--feer-blue) !important;
+  color: #fff !important;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: .72rem;
+  padding: .05rem .45rem;
+}
+#folderlist li.unread > a,
+.listing li.unread > a { font-weight: 600; }
+
+/* Lista wiadomości */
+#messagelist { background: var(--feer-panel); }
+
+#messagelist tr td.subject span.subject,
+#messagelist tr td.subject a.subject { color: var(--feer-text); }
+
+#messagelist tr td.subject span.fromto,
+#messagelist tr td.fromto,
+#messagelist tr td.date,
+#messagelist tr span.date,
+#messagelist tr td.size {
+  color: var(--feer-muted);
+}
+
+/* Nieprzeczytane: pogrubiony temat + granatowy nadawca (nie tylko kropka) */
+#messagelist tr.unread td.subject span.subject,
+#messagelist tr.unread td.subject a.subject,
+#messagelist tr.unread td.fromto,
+#messagelist tr.unread span.fromto {
+  font-weight: 700;
+  color: var(--feer-navy);
+}
+
+#messagelist tr.flagged td.subject span.subject { color: #b91c1c; }
+#messagelist tr.deleted td, #messagelist tr.deleted span { opacity: .5; text-decoration: line-through; }
+
+/* Awatary nadawcy (plugin identicon) — kółko, nie kwadrat */
+#messagelist .contactphoto img,
+#messagelist td.subject img.contactphoto,
+.contactphoto img {
+  border-radius: 50%;
+}
+
+/* Wysokość wiersza — Elastic bywa ciasny, tu wygodniej trafić palcem */
+#messagelist tr > td { padding-top: .45rem; padding-bottom: .45rem; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   6. Toolbar i przyciski
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.toolbar { background: transparent !important; }
+
+.toolbar a.button,
+.toolbar button.button {
+  color: var(--feer-text) !important;
+  border-radius: var(--feer-radius);
+  transition: background .15s, color .15s;
+}
+.toolbar a.button:hover,
+.toolbar button.button:hover {
+  background: var(--feer-blue-bg) !important;
+  color: var(--feer-navy) !important;
+}
+.toolbar a.button.disabled,
+.toolbar a.button[aria-disabled="true"] { color: #94a3b8 !important; }
+
+.btn, button.btn, a.btn {
+  border-radius: var(--feer-radius);
+  font-weight: 600;
+}
+
+.btn-primary, a.btn-primary, button.btn-primary,
+a.button.mainaction, button.mainaction, .mainaction {
+  background-color: var(--feer-blue) !important;
+  border-color: var(--feer-blue) !important;
+  color: #fff !important;
+}
+.btn-primary:hover, .btn-primary:focus,
+a.button.mainaction:hover, button.mainaction:hover, .mainaction:hover {
+  background-color: var(--feer-navy) !important;
+  border-color: var(--feer-navy) !important;
+  color: #fff !important;
+}
+
+.btn-secondary, button.btn-secondary, a.btn-secondary {
+  background-color: var(--feer-panel) !important;
+  border-color: var(--feer-border) !important;
+  color: var(--feer-text) !important;
+}
+.btn-secondary:hover { background-color: var(--feer-hover) !important; }
+
+.btn-danger, button.btn-danger { background-color: #dc2626 !important; border-color: #dc2626 !important; }
+
+/* Pływający przycisk „Nowa wiadomość" na mobile */
+a.button.floating-action-buttons,
+.floating-action-buttons a.button {
+  background: var(--feer-blue) !important;
+  color: #fff !important;
+  box-shadow: var(--feer-shadow-lg);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   7. Podgląd wiadomości i okno tworzenia
+   ══════════════════════════════════════════════════════════════════════════ */
+
+#messageheader, .message-partheaders,
+#messagecontframe, .message-htmlpart, .message-part {
+  background: var(--feer-panel);
+  color: var(--feer-text);
+}
+
+#messageheader { border-bottom: 1px solid var(--feer-border); }
+#messageheader .subject { font-weight: 700; letter-spacing: -.01em; }
+#messageheader .adr, #messageheader .rcmContactAddress { color: var(--feer-muted); }
+
+/* Załączniki — czytelne kafelki zamiast surowej listy */
+#attachment-list li, .attachmentslist li {
+  border: 1px solid var(--feer-border) !important;
+  border-radius: var(--feer-radius);
+  background: var(--feer-bg);
+  margin: .2rem .3rem .2rem 0;
+}
+#attachment-list li:hover, .attachmentslist li:hover { border-color: var(--feer-blue-mid) !important; }
+
+/* Cytat / zwinięty blockquote (plugin hide_blockquote) */
+blockquote {
+  border-left: 3px solid var(--feer-blue-mid) !important;
+  background: var(--feer-bg);
+  color: #334155 !important;
+  padding: .4rem .8rem !important;
+  border-radius: 0 var(--feer-radius) var(--feer-radius) 0;
+}
+
+/* Edytor treści (TinyMCE) — dopasowane obramowanie */
+.tox.tox-tinymce { border-color: var(--feer-border) !important; border-radius: var(--feer-radius) !important; }
+#compose-contacts, #compose-attachments { background: var(--feer-panel); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   8. Formularze, Ustawienia
+   ══════════════════════════════════════════════════════════════════════════ */
+
+input.form-control, select.form-control, textarea.form-control,
+input[type="text"], input[type="password"], input[type="email"], select, textarea {
+  border-color: var(--feer-border);
+  border-radius: var(--feer-radius);
+  color: var(--feer-text);
+  background-color: var(--feer-panel);
+}
+input.form-control:focus, select.form-control:focus, textarea.form-control:focus {
+  border-color: var(--feer-blue-mid);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .18);
+}
+
+.propform, fieldset.propform, .formcontent { background: var(--feer-panel); }
+.propform legend, fieldset legend, .boxtitle {
+  color: var(--feer-navy);
+  font-weight: 700;
+  border-color: var(--feer-border);
+}
+
+/* Zakładki ustawień */
+.tablist a.selected, .nav-tabs .nav-link.active {
+  color: var(--feer-blue) !important;
+  border-color: var(--feer-blue) !important;
+  background: var(--feer-panel) !important;
+  font-weight: 700;
+}
+
+/* Przełączniki (Elastic rysuje je jako .custom-switch) */
+.custom-switch input:checked ~ .custom-control-label::before,
+input[type="checkbox"]:checked, input[type="radio"]:checked {
+  background-color: var(--feer-blue) !important;
+  border-color: var(--feer-blue) !important;
+}
+
+/* Quota */
+#quotadisplay .bar, .quota .bar { background: var(--feer-blue-mid) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   9. Menu kontekstowe, dialogi, komunikaty
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.popupmenu, .menu, .popover, .toolbarmenu, .ui-dialog {
+  border-radius: var(--feer-radius-lg) !important;
+  box-shadow: var(--feer-shadow-lg) !important;
+  border-color: var(--feer-border) !important;
+}
+.popupmenu li > a:hover, .menu li > a:hover, .toolbarmenu li > a:hover {
+  background: var(--feer-blue-bg) !important;
+  color: var(--feer-navy) !important;
+}
+
+.ui-dialog .ui-dialog-titlebar {
+  background: var(--feer-navy) !important;
+  color: #fff !important;
+  border: 0 !important;
+  border-radius: var(--feer-radius-lg) var(--feer-radius-lg) 0 0 !important;
+}
+.ui-dialog .ui-dialog-titlebar .ui-button, .ui-dialog .ui-dialog-titlebar a { color: #fff !important; }
+
+/* Komunikaty (błąd/ok/info) */
+.ui.alert, div.ui.alert, .alert {
+  border-radius: var(--feer-radius) !important;
+  border-width: 1px;
+  box-shadow: var(--feer-shadow);
+}
+.ui.alert.information, .alert-info {
+  background: var(--feer-blue-bg) !important;
+  border-color: #bfdbfe !important;
+  color: #1e40af !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   10. Strona logowania (poczta.feer.org.pl, plugin feer_login)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* TŁO: kanwa wejść do systemu (wzór z includes/app_bg.php → app_bg_tile,
+   tu jako data-URI). Przy zmianie geometrii w app_bg.php podmienić TAKŻE tu. */
+body.task-login,
+body.task-login #layout,
+body.task-login #layout-content {
+  background-color: var(--feer-navy-dark) !important;
+  background-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='420'%20height='420'%20viewBox='0%200%20420%20420'%3E%3Cg%20fill='%23fff'%20fill-opacity='.035'%3E%3Crect%20x='24'%20y='40'%20width='120'%20height='120'%20rx='8'/%3E%3Ccircle%20cx='330'%20cy='96'%20r='58'/%3E%3Crect%20x='210'%20y='250'%20width='150'%20height='150'%20rx='8'/%3E%3Cpath%20d='M0%20210l70-70v46l-24%2024zm52%20132l96-96v46l-50%2050z'/%3E%3Cpath%20d='M300%200l60%2060-24%2024-60-60z'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(160deg, var(--feer-navy) 0%, var(--feer-navy-dark) 55%, #0b1220 100%) !important;
+  background-size: 420px 420px, auto !important;
+  background-attachment: fixed !important;
+  background-position: center top !important;
+}
+body.task-login #layout-content { background: transparent !important; }
+
+body.task-login #layout-menu, body.task-login .header { display: none !important; }
+
+/* Logo + formularz = jedna biała karta na środku ekranu.
+   Elastic: #layout-content > img#logo + form#login-form (rodzeństwo). */
+body.task-login #layout-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  padding: 2rem 1rem !important;
+  overflow-y: auto !important;
+}
+
+body.task-login #logo {
+  display: block;
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: 26rem !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 2rem 4.5rem .25rem !important;
+  object-fit: contain;
+  background: var(--feer-panel);
+  border-radius: 18px 18px 0 0;
+}
+
+body.task-login #login-form {
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: 26rem !important;
+  margin: 0 !important;
+  padding: 1rem 2rem 1.5rem !important;
+  background: var(--feer-panel) !important;
+  border: 0 !important;
+  border-radius: 0 0 18px 18px !important;
+  /* cień tylko w dół: rozmycie < przesunięcie + ujemny spread, inaczej kładzie
+     się szarą linią na dolnej krawędzi logo */
+  box-shadow: 0 32px 40px -22px rgba(0, 0, 0, .6) !important;
+}
+/* Elastic przesuwa logo i formularz przez position:relative + top — bez tego
+   między nimi zostaje ciemna szczelina, a karta zjeżdża w dół. */
+body.task-login #logo,
+body.task-login #login-form { position: static !important; top: auto !important; }
+body.task-login #login-form table { width: 100%; margin: 0; }
+body.task-login #login-form .form-group { margin: 0 0 .75rem !important; }
+
+/* Nagłówek i podpowiedź (wstrzykuje feer_login) */
+body.task-login .feer-login-intro { text-align: center; margin: 0 0 1.25rem; }
+body.task-login .feer-login-title {
+  margin: 0 0 .35rem;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--feer-text);
+  letter-spacing: -.01em;
+}
+body.task-login .feer-login-hint {
+  margin: 0;
+  font-size: .875rem;
+  line-height: 1.5;
+  color: #475569;             /* kontrast 7,6:1 na bieli */
+}
+
+/* Pola: jasna ramka, wyraźny stan aktywny */
+body.task-login #login-form .input-group-text {
+  background: var(--feer-bg) !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+  border-radius: var(--feer-radius) 0 0 var(--feer-radius) !important;
+}
+body.task-login #login-form input.form-control {
+  border-color: #cbd5e1 !important;
+  border-radius: 0 var(--feer-radius) var(--feer-radius) 0 !important;
+  font-size: 1rem !important;
+  color: var(--feer-text) !important;
+}
+body.task-login #login-form input.form-control::placeholder { color: #64748b; opacity: 1; }
+body.task-login #login-form input.form-control:focus {
+  border-color: var(--feer-blue) !important;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, .18) !important;
+}
+
+body.task-login .formbuttons { margin: 1.25rem 0 0 !important; }
+body.task-login #rcmloginsubmit {
+  display: flex !important;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--feer-blue) !important;
+  border-color: var(--feer-blue) !important;
+  color: #fff !important;
+  border-radius: var(--feer-radius) !important;
+  padding: .75rem 1rem !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  box-shadow: 0 8px 20px -10px rgba(29, 78, 216, .7);
+}
+body.task-login #rcmloginsubmit:hover {
+  background-color: var(--feer-navy) !important;
+  border-color: var(--feer-navy) !important;
+}
+
+/* Stopka w karcie: nazwa + odnośnik do pomocy, oddzielona linią */
+body.task-login #login-footer {
+  margin: 1.5rem 0 0 !important;
+  padding: 1rem 0 0 !important;
+  border-top: 1px solid var(--feer-border);
+  text-align: center !important;
+  font-size: .8125rem !important;
+  color: #475569 !important;
+}
+body.task-login #login-footer a { color: var(--feer-blue) !important; font-weight: 600; }
+body.task-login #login-footer a:hover { color: var(--feer-navy) !important; text-decoration: underline; }
+
+/* Komunikaty (np. błędne hasło) nad kartą */
+body.task-login #messagestack { z-index: 10; }
+
+@media (max-width: 480px) {
+  body.task-login #layout-content { justify-content: flex-start !important; padding-top: 1.5rem !important; }
+  body.task-login #logo { padding: 1.5rem 3rem .25rem !important; }
+  body.task-login #login-form { padding: 1rem 1.25rem 1.25rem !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   11. Tryb ciemny (Ustawienia → Interfejs → tryb ciemny w Elastic)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.dark-mode {
+  --feer-text:        #e2e8f0;
+  --feer-muted:       #94a3b8;
+  --feer-border:      #334155;
+  --feer-border-soft: #273449;
+  --feer-bg:          #0f172a;
+  --feer-panel:       #1e293b;
+  --feer-hover:       #273449;
+  --feer-blue:        #3b82f6;
+  --feer-blue-mid:    #60a5fa;
+  --feer-blue-bg:     #1d3054;
+  --feer-navy:        #172554;
+  --feer-navy-dark:   #0b1220;
+  --feer-shadow:      0 1px 3px rgba(0, 0, 0, .5);
+  --feer-shadow-lg:   0 10px 30px rgba(0, 0, 0, .6);
+}
+
+html.dark-mode a, html.dark-mode .link { color: var(--feer-blue-mid); }
+html.dark-mode a:hover { color: #93c5fd; }
+
+html.dark-mode .listing li.selected, html.dark-mode .listing li.selected > a,
+html.dark-mode .listing tr.selected, html.dark-mode .listing tr.selected td,
+html.dark-mode #messagelist tr.selected td {
+  color: #dbeafe !important;
+}
+
+html.dark-mode #messagelist tr.unread td.subject span.subject,
+html.dark-mode #messagelist tr.unread td.subject a.subject,
+html.dark-mode #messagelist tr.unread td.fromto {
+  color: #dbeafe;
+}
+
+html.dark-mode .btn-secondary { color: var(--feer-text) !important; }
+html.dark-mode blockquote { color: #cbd5e1 !important; }
+html.dark-mode .ui.alert.information, html.dark-mode .alert-info { color: #bfdbfe !important; }
+
+/* Logowanie w trybie ciemnym (Elastic włącza go wg prefers-color-scheme):
+   ciemna karta, ale logo w oryginalnych barwach na jasnym pasku u góry
+   (filtr invert nie trafiał w kolor karty i zmieniał barwy znaku). */
+html.dark-mode body.task-login #logo { background: #f1f5f9; }
+html.dark-mode body.task-login .feer-login-hint,
+html.dark-mode body.task-login #login-footer { color: #cbd5e1 !important; }
+html.dark-mode body.task-login .feer-login-title { color: #f1f5f9; }
+html.dark-mode body.task-login #login-form .input-group-text {
+  background: #0f172a !important; border-color: #475569 !important; color: #cbd5e1 !important;
+}
+html.dark-mode body.task-login #login-form input.form-control {
+  background: #0f172a !important; border-color: #475569 !important; color: #f1f5f9 !important;
+}
+html.dark-mode body.task-login #login-form input.form-control::placeholder { color: #94a3b8; }
+html.dark-mode body.task-login #rcmloginsubmit {
+  background-color: #2563eb !important; border-color: #2563eb !important;   /* biały tekst 5,2:1 */
+}
+html.dark-mode body.task-login #rcmloginsubmit:hover { background-color: #1d4ed8 !important; }
+html.dark-mode body.task-login #login-footer a { color: #93c5fd !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   12. Mobile i wydruk
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Na wąskich ekranach Elastic przełącza się na jedną kolumnę i pokazuje
+   pasek zadań jako dolną nawigację — nie wolno mu narzucać marginesów z §4,
+   bo rozjeżdżają siatkę przycisków. */
+@media screen and (max-width: 767px) {
+  #taskmenu a { margin: 0; border-radius: 0; }
+  #messagelist tr > td { padding-top: .55rem; padding-bottom: .55rem; }
+}
+
+/* Wydruk — bez naszej „chromu": biało, czarno, bez cieni i tła. */
+@media print {
+  body, #layout, #layout-content, #messageheader, .message-part {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+  #layout-menu, #layout-sidebar, #layout-list, .toolbar, .footer { display: none !important; }
+  blockquote { background: none !important; border-left: 2px solid #666 !important; }
+}
