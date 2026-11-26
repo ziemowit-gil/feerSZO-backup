@@ -867,3 +867,68 @@ html.feer-menu-collapsed:not(.layout-phone) #taskmenu a:before { width: 100% !im
 /* Przycisk zwijania jak pozostałe dolne przyciski szyny (bez szarego tła Elastic) */
 #taskmenu .special-buttons a.feer-menu-toggle { background: transparent !important; }
 #taskmenu .special-buttons a.feer-menu-toggle:hover { background: rgba(255, 255, 255, .12) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WCAG 2.2 AA — widok poczty (2026-11-26)
+   Pomiary: żółty fokus #facc15 na białym 1,53:1 (wymóg 3:1), szare opisy #64748b na zaznaczonym wierszu
+   4,37:1, linki #1E6DFF 4,48:1, licznik nieprzeczytanych biały na #1E6DFF przy drobnej czcionce 4,48:1.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --feer-link:  #1559D6;   /* 6,1:1 na białym, 5,6:1 na zaznaczonym wierszu */
+  --feer-muted: #4B5563;   /* 7,6:1 na białym, 6,9:1 na zaznaczonym wierszu (było #64748b) */
+}
+a, .link { color: var(--feer-link); }
+
+/* Fokus: niebieski pierścień z białą obwódką na jasnym tle; żółty zostaje na granatowej szynie (6,8:1) */
+*:focus-visible {
+  outline: 3px solid #1559D6 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 5px #ffffff !important;
+}
+#layout-menu *:focus-visible, #taskmenu *:focus-visible, .login-header *:focus-visible {
+  outline-color: var(--feer-focus) !important;
+  box-shadow: none !important;
+}
+
+/* Licznik nieprzeczytanych: ciemniejszy błękit (biały tekst 6,1:1) */
+#folderlist .unreadcount, .listing .unreadcount, .listing span.badge { background: #1559D6 !important; }
+#folderlist li.selected .unreadcount { background: #ffffff !important; color: #1559D6 !important; }
+
+/* Lista wiadomości */
+#messagelist tr td.subject span.fromto, #messagelist tr td.fromto, #messagelist tr td.date,
+#messagelist tr span.date, #messagelist tr td.size { color: var(--feer-muted) !important; }
+#messagelist tr.selected td.subject span.fromto, #messagelist tr.selected td.date, #messagelist tr.selected span.date {
+  color: #374151 !important;
+}
+/* Oznaczone: nie tylko kolor — ikona flagi przed tematem + czerwony temat */
+#messagelist tr.flagged td.subject span.subject:before, #messagelist tr.flagged td.subject a.subject:before {
+  content: "\f024"; font-family: "Icons", "Font Awesome 5 Free"; font-weight: 900; color: #b91c1c;
+  margin-inline-end: .35em; font-size: .85em;
+}
+#messagelist tr.flagged td.subject span.subject, #messagelist tr.flagged td.subject a.subject { color: #b91c1c !important; }
+/* Usunięte: przekreślone i szare, ale nie półprzezroczyste (czytelne) */
+#messagelist tr.deleted td, #messagelist tr.deleted span { opacity: 1 !important; color: #6B7280 !important; }
+/* Załącznik, odpowiedziano, przekazano — ikony w pełnym kontraście */
+#messagelist tr td.flags span, #messagelist tr td.attachment span, #messagelist span.msgicon { color: #374151 !important; opacity: 1 !important; }
+
+/* Foldery */
+#folderlist li a { color: var(--feer-text) !important; }
+#folderlist li.selected > a { color: var(--feer-navy) !important; font-weight: 700; }
+
+/* Pasek narzędzi: podpisy w pełnym kontraście, cele ≥ 44 px */
+.toolbar a.button, .toolbar button.button { color: var(--feer-text) !important; min-height: 44px; min-width: 44px; }
+
+/* Wyszukiwarka i filtry */
+.searchbar input, #mailsearchform input, .searchoptions input, .searchoptions select {
+  border: 1px solid #64748B !important; color: var(--feer-text) !important;
+}
+
+/* Podgląd wiadomości: nagłówek czytelniejszy */
+#message-header .subject, .message-header .subject { font-size: 1.3rem !important; font-weight: 700; color: var(--feer-text); }
+#message-header .header-headers, #message-header .date, .message-header .date { color: var(--feer-muted) !important; }
+#message-header .header-links a, .message-partheaders a { text-decoration: underline; text-underline-offset: 2px; }
+#message-objects .notice, #message-objects .warning, .boxwarning { color: #7c2d12 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
