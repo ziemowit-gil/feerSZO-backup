@@ -209,7 +209,7 @@ if ($noRandom) $mSel = 'own';
         $cards = [
           'sso'  => ['icon' => 'bi-cloud-check', 'title' => 'Logowanie jednokrotne i chmura plików', 'ok' => $okSso,
                      'login' => $acc ? $acc['login'] : '', 'start' => in_array('sso', $initSys, true),
-                     'desc' => 'Hasło, które wpisujesz na niebieskiej stronie logowania logto.feer.org.pl („Zaloguj się do usług Fundacji FEER”): SZO, chmura plików i inne aplikacje Fundacji.', 'none' => 'Nie masz jeszcze tego konta.'],
+                     'desc' => 'Hasło, które wpisujesz na niebieskiej stronie logowania „Zaloguj się do usług Fundacji FEER”: SZO, chmura plików i inne aplikacje Fundacji.', 'none' => 'Nie masz jeszcze tego konta.'],
           'mail' => ['icon' => 'bi-envelope', 'title' => 'Poczta', 'ok' => $okMail,
                      'login' => $acc ? $acc['mailbox'] : '', 'start' => in_array('poczta', $initSys, true),
                      'desc' => 'Skrzynka pocztowa. Hasło musi być inne niż do logowania jednokrotnego.', 'none' => 'Nie masz skrzynki pocztowej Fundacji.'],
