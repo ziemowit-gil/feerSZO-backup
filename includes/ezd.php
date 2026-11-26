@@ -1100,6 +1100,13 @@ function ezd_sprawy_all(array $f = [], ?int $viewer_id = null): array {
     if (!empty($f['priority']))  { $where[] = "s.priority=?";   $params[] = $f['priority']; }
     if (!empty($f['teczka_id'])) { $where[] = "s.teczka_id=?";  $params[] = (int)$f['teczka_id']; }
     if (!empty($f['owner_id']))  { $where[] = "s.owner_id=?";   $params[] = (int)$f['owner_id']; }
+    // „Mój zespół” (Struktura › Zespoły): sprawy prowadzone przez członków zespołów osoby albo im współdzielone.
+    if (isset($f['owner_ids'])) {
+        $oids = array_values(array_filter(array_map('intval', (array)$f['owner_ids'])));
+        if (!$oids) return [];
+        $in = implode(',', $oids);
+        $where[] = "(s.owner_id IN ($in) OR EXISTS (SELECT 1 FROM ezd_sprawa_users su2 WHERE su2.sprawa_id=s.id AND su2.user_id IN ($in)))";
+    }
     if (!empty($f['q']))         {
         // Szukanie po: tytule koszulki, numerze koszulki (znak), numerze/tytule dokumentu (pisma w koszulce)
         $where[] = "(s.title LIKE ? OR s.znak_sprawy LIKE ?

@@ -223,6 +223,19 @@ final class TeamService
         return array_values(array_unique($ids));
     }
 
+    /** Osoby z zespołów danej osoby (z dziedziczeniem i zastępstwami), łącznie z nią samą — do filtrów „Mój zespół”. */
+    public static function getTeammateIds(int $userId): array
+    {
+        self::migrate();
+        $teams = self::getUserTeamIds($userId);
+        $ids = [$userId];
+        if ($teams) {
+            $in = implode(',', array_map('intval', $teams));
+            foreach (db_all("SELECT DISTINCT user_id FROM task_team_members WHERE team_id IN ($in)") as $r) $ids[] = (int)$r['user_id'];
+        }
+        return array_values(array_unique($ids));
+    }
+
     /** Kto dziś działa za osobę w zespole: zastępca w okresie zastępstwa, inaczej sama osoba. */
     public static function getEffectiveAssignee(int $userId, int $teamId): int
     {

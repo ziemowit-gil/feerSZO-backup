@@ -20,6 +20,7 @@ $q          = trim($_GET['q']    ?? '');
 $hide_ciagla_f  = !empty($_GET['hide_ciagla']);
 $hide_old_f     = !empty($_GET['hide_old']);
 $show_hidden_f  = !empty($_GET['show_hidden']);
+$myteam_f       = !empty($_GET['myteam']);
 
 $filters = [
     'status' => $status_f, 'priority' => $priority_f, 'q' => $q,
@@ -27,6 +28,13 @@ $filters = [
     'mine_or_shared' => $mine_f, 'hide_ciagla' => $hide_ciagla_f, 'hide_old' => $hide_old_f,
     'show_hidden' => $show_hidden_f,
 ];
+// „Mój zespół”: sprawy osób z moich zespołów (Struktura › Zespoły).
+$has_teams = false;
+if (module_enabled('org_enabled')) {
+    require_once dirname(__DIR__, 2) . '/modules/teams/lib/TeamService.php';
+    $has_teams = (bool)TeamService::getUserTeamIds($user_id);
+    if ($myteam_f) $filters['owner_ids'] = TeamService::getTeammateIds($user_id);
+}
 // ── Masowe przerejestrowanie zaznaczonych koszulek ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'bulk_reregister') {
     csrf_check();
@@ -81,7 +89,7 @@ $today = date('Y-m-d');
 $active_filters = array_filter([
     'status' => $status_f, 'priority' => $priority_f, 'owner_id' => $owner_f ?: '', 'deadline_od' => $dod, 'deadline_do' => $ddo,
 ]);
-$n_filters   = count($active_filters) + (int)$mine_f + (int)$hide_ciagla_f + (int)$hide_old_f + (int)$show_hidden_f;
+$n_filters   = count($active_filters) + (int)$mine_f + (int)$myteam_f + (int)$hide_ciagla_f + (int)$hide_old_f + (int)$show_hidden_f;
 $owner_names = array_column($owners, 'name', 'id');
 $cnt_over = 0; $cnt_mine_dekr = 0;
 foreach ($sprawy as $s) {
@@ -226,6 +234,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
   <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2 tw-mt-3" role="group" aria-label="Szybkie przełączniki">
     <label class="ezx-chip<?= $mine_f ? ' ezx-chip--on' : '' ?>"><input type="checkbox" name="mine" value="1" <?= $mine_f ? 'checked' : '' ?> onchange="this.form.submit()"><i class="bi bi-person-check" aria-hidden="true"></i>Tylko moje i współdzielone</label>
+    <?php if ($has_teams || $myteam_f): ?>
+    <label class="ezx-chip<?= $myteam_f ? ' ezx-chip--on' : '' ?>"><input type="checkbox" name="myteam" value="1" <?= $myteam_f ? 'checked' : '' ?> onchange="this.form.submit()"><i class="bi bi-people-fill" aria-hidden="true"></i>Mój zespół</label>
+    <?php endif; ?>
     <label class="ezx-chip<?= $hide_ciagla_f ? ' ezx-chip--on' : '' ?>"><input type="checkbox" name="hide_ciagla" value="1" <?= $hide_ciagla_f ? 'checked' : '' ?> onchange="this.form.submit()"><i class="bi bi-infinity" aria-hidden="true"></i>Ukryj ciągle otwarte</label>
     <label class="ezx-chip<?= $hide_old_f ? ' ezx-chip--on' : '' ?>"><input type="checkbox" name="hide_old" value="1" <?= $hide_old_f ? 'checked' : '' ?> onchange="this.form.submit()"><i class="bi bi-clock-history" aria-hidden="true"></i>Ukryj starsze niż 14 dni</label>
     <?php if (can_edit()): ?>
