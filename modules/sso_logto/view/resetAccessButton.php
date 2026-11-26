@@ -3,6 +3,7 @@
  * modules/sso_logto/view/resetAccessButton.php — przycisk „Resetuj dane dostępowe” w nagłówku umowy (includes/contract_view_header.php)
  * i na karcie osoby (persons/view.php); polecenie 2026-11-27. Otwiera okno z potwierdzeniem: jedno nowe hasło naraz w logowaniu
  * jednokrotnym (Logto) i w chmurze (SsoAccounts::resetPassword), opcjonalnie SMS. Hasło do poczty zostaje bez zmian.
+ * Gdy osoba nie ma konta, okno proponuje jego założenie (do=create, bez Logto do=cloud; SsoAccounts::provision).
  * Tylko administrator (POST /ssoadmin/osoba jest w grupie role:admin).
  *
  * Zmienne: $__raType ('wolontariat'|'zlecenie'|'dzielo'|'person'), $__raId (int), $__raRow (wiersz umowy albo osoby),
@@ -28,7 +29,7 @@ if (($__raOnly ?? '') === 'result') {
   <dl class="row small mb-0">
     <dt class="col-sm-4 fw-normal">Login</dt><dd class="col-sm-8 mb-1"><code><?= h((string)($r['username'] ?? '')) ?></code><?php if (!empty($r['cloud_uid']) && $r['cloud_uid'] !== ($r['username'] ?? '')): ?> (w chmurze: <code><?= h((string)$r['cloud_uid']) ?></code>)<?php endif; ?></dd>
     <?php if (!empty($r['password'])): ?><dt class="col-sm-4 fw-normal">Hasło</dt><dd class="col-sm-8 mb-1"><code><?= h((string)$r['password']) ?></code></dd><?php endif; ?>
-    <dt class="col-sm-4 fw-normal">Logowanie jednokrotne</dt><dd class="col-sm-8 mb-1"><?= ($r['logto'] ?? '') === 'password' ? 'to samo nowe hasło' : 'brak konta' ?></dd>
+    <dt class="col-sm-4 fw-normal">Logowanie jednokrotne</dt><dd class="col-sm-8 mb-1"><?= h(SsoController::logtoLabel((string)($r['logto'] ?? ''))) ?></dd>
     <dt class="col-sm-4 fw-normal">Chmura</dt><dd class="col-sm-8 mb-1"><?= h((string)(($r['cloud'] ?? '') ?: '—')) ?></dd>
     <dt class="col-sm-4 fw-normal">SMS</dt><dd class="col-sm-8 mb-0"><?= h((string)(($r['sms'] ?? '') ?: 'nie wysyłano')) ?></dd>
   </dl>
@@ -50,6 +51,8 @@ $__raSms    = false;
 try { require_once dirname(__DIR__, 3) . '/includes/sms.php'; $__raSms = function_exists('sms_channel_ready') && sms_channel_ready() && $__raPerson['phone'] !== ''; } catch (\Throwable $e) {}
 $__raMgmt   = $__raIsPerson ? '' : rtrim(APP_URL, '/') . '/tozsamosc/access.php?type=' . rawurlencode((string)$__raType) . '&id=' . (int)$__raId . '#sso';
 $__raMid    = 'raModal' . preg_replace('/[^a-z]/', '', (string)$__raType) . (int)$__raId;
+$__raCanNew = $__raEmail !== '' && filter_var($__raEmail, FILTER_VALIDATE_EMAIL);
+$__raNewDo  = SsoConfig::logtoConfigured() ? 'create' : 'cloud';   // bez Logto — samo konto w chmurze
 $__raWhat   = trim(($__raLogto ? 'do logowania jednokrotnego' : '') . ($__raLogto && $__raCloud ? ' i ' : '') . ($__raCloud ? 'do chmury plików' : ''));
 ?>
 <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#<?= h($__raMid) ?>">
@@ -62,10 +65,10 @@ $__raWhat   = trim(($__raLogto ? 'do logowania jednokrotnego' : '') . ($__raLogt
       <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="type" value="<?= h((string)$__raType) ?>">
       <input type="hidden" name="id" value="<?= (int)$__raId ?>">
-      <input type="hidden" name="do" value="reset">
+      <input type="hidden" name="do" value="<?= $__raHas ? 'reset' : h($__raNewDo) ?>">
       <?php if (!$__raIsPerson): ?><input type="hidden" name="ret" value="contract"><?php endif; ?>
       <div class="modal-header">
-        <h2 class="modal-title h5" id="<?= h($__raMid) ?>H">Resetuj dane dostępowe</h2>
+        <h2 class="modal-title h5" id="<?= h($__raMid) ?>H"><?= $__raHas ? 'Resetuj dane dostępowe' : 'Brak konta — załóż je' ?></h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body text-start">
@@ -83,14 +86,30 @@ $__raWhat   = trim(($__raLogto ? 'do logowania jednokrotnego' : '') . ($__raLogt
           <?php else: ?>
             <p class="small text-body-secondary mb-0">SMS nie wyjdzie (brak numeru telefonu albo bramki SMS). Hasło przekażesz osobie sam.</p>
           <?php endif; ?>
+        <?php elseif ($__raCanNew): ?>
+          <div class="alert alert-info mb-3" role="note" id="<?= h($__raMid) ?>D"><strong>Ta osoba nie ma jeszcze konta</strong>, więc nie ma czego resetować.
+            Możesz je teraz założyć: SZO utworzy konto<?= $__raNewDo === 'create' ? ' logowania jednokrotnego' : ' w chmurze plików' ?> z loginem <?= h($__raEmail) ?> i pokaże hasło raz.</div>
+          <?php if ($__raNewDo === 'create' && SsoConfig::cloudConfigured()): ?>
+            <div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="cloud" value="1" id="<?= h($__raMid) ?>Cloud" checked>
+              <label class="form-check-label" for="<?= h($__raMid) ?>Cloud">Załóż też konto w chmurze plików (to samo hasło)</label></div>
+          <?php endif; ?>
+          <?php if ($__raSms): ?>
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="sms" value="1" id="<?= h($__raMid) ?>Sms" checked>
+              <label class="form-check-label" for="<?= h($__raMid) ?>Sms">Wyślij login i hasło SMS-em na <?= h($__raPerson['phone']) ?></label></div>
+          <?php else: ?>
+            <p class="small text-body-secondary mb-0">SMS nie wyjdzie (brak numeru telefonu albo bramki SMS). Hasło przekażesz osobie sam.</p>
+          <?php endif; ?>
+          <?php if ($__raMgmt !== ''): ?><p class="small mt-2 mb-0">Więcej opcji (pliki z OneDrive, zmiana loginu) w <a href="<?= h($__raMgmt) ?>">Zarządzaniu dostępem</a>.</p><?php endif; ?>
         <?php else: ?>
-          <p class="mb-0">Ta osoba nie ma jeszcze konta logowania jednokrotnego ani w chmurze, więc nie ma czego resetować.<?php if ($__raMgmt !== ''): ?> Konto założysz w <a href="<?= h($__raMgmt) ?>">Zarządzaniu dostępem</a>.<?php endif; ?></p>
+          <p class="mb-0">Ta osoba nie ma konta ani adresu e-mail. Dopisz e-mail<?= $__raIsPerson ? ' w danych osoby' : ' w umowie' ?>, a potem załóż konto tym przyciskiem.</p>
         <?php endif; ?>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Anuluj</button>
         <?php if ($__raHas): ?>
         <button type="submit" class="btn btn-sm btn-danger" aria-describedby="<?= h($__raMid) ?>D"><i class="bi bi-key" aria-hidden="true"></i> Resetuj i pokaż nowe hasło</button>
+        <?php elseif ($__raCanNew): ?>
+        <button type="submit" class="btn btn-sm btn-primary" aria-describedby="<?= h($__raMid) ?>D"><i class="bi bi-person-plus" aria-hidden="true"></i> Załóż konto i pokaż hasło</button>
         <?php endif; ?>
       </div>
     </form>

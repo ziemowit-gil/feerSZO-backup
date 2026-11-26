@@ -197,16 +197,31 @@ final class SsoController
         $back = rtrim(APP_URL, '/') . '/persons/view.php?id=' . $id;
         $row = db_one("SELECT * FROM persons WHERE id=?", [$id]);
         if (!$row) return $this->flashGlobal(rtrim(APP_URL, '/') . '/persons/index.php', 'danger', 'Nie znaleziono osoby.');
-        if (($_POST['do'] ?? '') !== 'reset') return $this->flashGlobal($back, 'danger', 'Nieznana czynność.');
+        $do = (string)($_POST['do'] ?? '');
+        if (!in_array($do, ['reset', 'create', 'cloud'], true)) return $this->flashGlobal($back, 'danger', 'Nieznana czynność.');
         $person = self::personFromContract($row);
-        if ($person['email'] === '') return $this->flashGlobal($back, 'warning', 'Osoba nie ma adresu e-mail, więc nie ma też konta logowania jednokrotnego.');
+        if ($person['email'] === '') return $this->flashGlobal($back, 'warning', 'Osoba nie ma adresu e-mail. Dopisz go, a potem załóż konto.');
         $by = (string)(current_user()['email'] ?? '');
-        try { $res = SsoAccounts::resetPassword($person['email'], $by); }
-        catch (\Throwable $e) { return $this->flashGlobal($back, 'danger', 'Reset danych dostępowych: ' . $e->getMessage()); }
+        try {
+            // create/cloud — brak konta: okno „Resetuj dane dostępowe” proponuje założenie (polecenie 2026-11-27)
+            $res = $do === 'reset' ? SsoAccounts::resetPassword($person['email'], $by)
+                 : SsoAccounts::provision($person, ['cloud' => $do === 'cloud' || !empty($_POST['cloud']), 'by' => $by, 'via' => 'admin']);
+        } catch (\Throwable $e) { return $this->flashGlobal($back, 'danger', ($do === 'reset' ? 'Reset danych dostępowych: ' : 'Zakładanie konta: ') . $e->getMessage()); }
         $res['name'] = $person['name'];
         $res['sms'] = !empty($_POST['sms']) && $res['password'] ? $this->smsCredentials($person['phone'], $res) : '';
         $_SESSION[self::K_RESULT] = ['ctx' => 'person:' . $id, 'rows' => [$res]];
         return Router::redirect($back . '#raResult');
+    }
+
+    /** Stan konta logowania jednokrotnego z wyniku resetPassword/provision — opis dla administratora. */
+    public static function logtoLabel(string $state): string
+    {
+        return match ($state) {
+            'password' => 'to samo nowe hasło',
+            'created'  => 'nowe konto, to samo hasło',
+            'linked'   => 'istniejące konto, to samo nowe hasło',
+            default    => 'brak konta',
+        };
     }
 
     /** Osoba z wiersza umowy: e-mail z SZO, login organizacji (Microsoft 365) jako podstawa nazwy użytkownika. */

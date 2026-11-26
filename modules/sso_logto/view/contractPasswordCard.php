@@ -34,7 +34,7 @@ $__spMgmt  = rtrim(APP_URL, '/') . '/tozsamosc/access.php?type=' . rawurlencode(
           <dt class="col-sm-4 fw-normal">Login</dt><dd class="col-sm-8 mb-1"><code><?= h((string)($r['username'] ?? '')) ?></code><?php if (!empty($r['cloud_uid']) && $r['cloud_uid'] !== ($r['username'] ?? '')): ?> (w chmurze: <code><?= h((string)$r['cloud_uid']) ?></code>)<?php endif; ?></dd>
           <?php if (!empty($r['password'])): ?><dt class="col-sm-4 fw-normal">Hasło</dt><dd class="col-sm-8 mb-1"><code><?= h((string)$r['password']) ?></code></dd><?php endif; ?>
           <dt class="col-sm-4 fw-normal">Chmura</dt><dd class="col-sm-8 mb-1"><?= h((string)(($r['cloud'] ?? '') ?: '—')) ?></dd>
-          <dt class="col-sm-4 fw-normal">Logowanie jednokrotne</dt><dd class="col-sm-8 mb-1"><?= ($r['logto'] ?? '') === 'password' ? 'to samo nowe hasło' : 'brak konta' ?></dd>
+          <dt class="col-sm-4 fw-normal">Logowanie jednokrotne</dt><dd class="col-sm-8 mb-1"><?= h(SsoController::logtoLabel((string)($r['logto'] ?? ''))) ?></dd>
           <dt class="col-sm-4 fw-normal">SMS</dt><dd class="col-sm-8 mb-0"><?= h((string)(($r['sms'] ?? '') ?: 'nie wysyłano')) ?></dd>
         </dl>
       </div>
