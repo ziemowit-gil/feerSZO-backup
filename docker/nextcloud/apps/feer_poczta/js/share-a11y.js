@@ -220,9 +220,30 @@
 		if (!parts.external) { var b = content.querySelectorAll('.feer-share-btn')[1]; if (b) b.hidden = true; }
 	}
 
+	/**
+	 * Karty panelu bocznego: „Udostępnianie” jest domyślne, więc jego karta znika, gdy jest otwarte (wraca jako ikona,
+	 * gdy otworzysz inną kartę). Pozostałe karty (np. „Aktywność”) jako małe ikony; nazwa zostaje dla czytników ekranu.
+	 */
+	function compactTabs() {
+		document.querySelectorAll('.app-sidebar-tabs__nav').forEach(function (nav) {
+			if (!nav.querySelector('[aria-controls="tab-sharing"]')) return; // tylko panel Plików z udostępnianiem
+			nav.classList.add('feer-tabs-compact');
+			nav.querySelectorAll('.app-sidebar-tabs__tab').forEach(function (tab) {
+				var ctl = tab.matches('[aria-controls]') ? tab : tab.querySelector('[aria-controls]');
+				var target = ctl ? ctl.getAttribute('aria-controls') : '';
+				tab.classList.toggle('feer-tab-sharing', target === 'tab-sharing');
+				var caption = tab.querySelector('.app-sidebar-tabs__tab-caption');
+				var name = caption ? caption.textContent.trim() : '';
+				if (name && ctl && ctl.getAttribute('title') !== name) ctl.setAttribute('title', name);
+				if (name && ctl && !ctl.getAttribute('aria-label')) ctl.setAttribute('aria-label', name);
+			});
+		});
+	}
+
 	var scheduled = false;
 	function scan() {
 		scheduled = false;
+		try { compactTabs(); } catch (e) { if (window.console) console.warn('feer share-a11y tabs', e); }
 		document.querySelectorAll('.sharingTab').forEach(function (tab) {
 			try { enhance(tab); } catch (e) { if (window.console) console.warn('feer share-a11y', e); }
 		});
