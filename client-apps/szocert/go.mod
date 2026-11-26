@@ -3,6 +3,7 @@ module szocert
 go 1.27.1
 
 require (
+	github.com/digitorus/pkcs7 v0.0.0-20261104125046-a476de3098e4
 	golang.org/x/crypto v0.57.0
 	golang.org/x/term v0.46.0
 	software.sslmate.com/src/go-pkcs12 v0.7.3

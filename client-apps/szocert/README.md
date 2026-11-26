@@ -33,6 +33,36 @@ zamiast cudzych programów do podpisu kwalifikowanego.
   certyfikatu), potem start nasłuchu i okno „SzoCert uruchomiony" — zamknięcie
   okna wyłącza aplikację. Bez terminala.
 
+## Podpis kwalifikowany w poczcie (`szocert podpis`)
+
+Agent dla wtyczki `feer_qsign` w poczta.feer.org.pl (opis wtyczki:
+[docker/roundcube/mydevil/README.md](../../docker/roundcube/mydevil/README.md)). Klucz kwalifikowany
+jest w rSign (CenCert, zdalny HSM) i obsługuje go tylko PEM-HEART Signature (bez PKCS#11, bez API),
+więc agent nie podpisuje sam. Przygotowuje plik, otwiera go w PEM-HEART, odbiera podpis zewnętrzny
+CAdES i sprawdza go.
+
+- `szocert podpis` — nasłuch `127.0.0.1:52118` (kod: `qsign.go`, okna i autostart: `qsign_darwin.go`).
+- `szocert podpis install` — kopiuje program do `~/Library/Application Support/SzoCert/bin/` i dodaje
+  LaunchAgent `pl.feer.szocert.podpis` (dziennik `~/Library/Logs/SzoCert-podpis.log`);
+  `szocert podpis uninstall` usuwa autostart.
+
+API (tylko `Origin: https://poczta.feer.org.pl`, inne źródła i brak Origin = 403; nagłówek
+`Access-Control-Allow-Private-Network` dla Chrome; testowo `SZOCERT_QSIGN_ORIGINS`):
+
+- `GET /qsign/ping` — wersja, czy jest PEM-HEART
+- `POST /qsign/sign` `{data_b64, from, to, subject}` — okno potwierdzenia (domyślnie „Anuluj”,
+  podgląd treści i załączników odczytany z samego MIME, SHA-256), zapis do
+  `~/Library/Application Support/SzoCert/podpis/<data>-<id>/wiadomosc.eml` (0600), otwarcie w PEM-HEART,
+  zwraca `job_id`; jedno zadanie naraz
+- `GET /qsign/job?id=` — `pending` / `done` (`cms_b64`, `micalg`, `signer`, `qualified`) / `error`
+- `POST /qsign/cancel?id=`
+
+Agent czeka do 15 min na plik obok `wiadomosc.eml` (`.sig`, `.p7s`… — DER, PEM albo Base64). Odrzuca
+XAdES (komunikat „wybierz CAdES”), podpis wewnętrzny (z treścią) i podpis innej treści
+(`github.com/digitorus/pkcs7`). Katalog zadania usuwa po zakończeniu. Testy: `go test ./...`
+(`qsign_test.go`, PEM-HEART zastąpiony podpisem testowym). Poza macOS agent odmawia podpisu (brak okna
+potwierdzenia).
+
 ## Budowanie
 
 ```bash

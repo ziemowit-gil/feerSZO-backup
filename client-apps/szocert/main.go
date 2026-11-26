@@ -44,6 +44,20 @@ func main() {
 			fmt.Fprintln(os.Stderr, "Błąd:", err)
 			os.Exit(1)
 		}
+	case "podpis":
+		var err error
+		switch {
+		case len(os.Args) > 2 && os.Args[2] == "install":
+			err = qsignInstall()
+		case len(os.Args) > 2 && os.Args[2] == "uninstall":
+			err = qsignUninstall()
+		default:
+			err = serveQsign()
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Błąd:", err)
+			os.Exit(1)
+		}
 	case "-h", "--help", "help":
 		printUsage()
 	default:
@@ -60,7 +74,11 @@ Polecenia:
   szocert import ścieżka/do/certyfikatu.p12   Jednorazowy import certyfikatu
                                                 (od admina, plik .p12/.pfx)
   szocert serve                                Uruchom nasłuch do logowania
-                                                (zostaw okno otwarte)`)
+                                                (zostaw okno otwarte)
+  szocert podpis                               Agent podpisu kwalifikowanego dla
+                                                poczta.feer.org.pl (PEM-HEART, CAdES)
+  szocert podpis install                       Agent podpisu w autostarcie (macOS)
+  szocert podpis uninstall                     Usuń agenta podpisu z autostartu`)
 }
 
 func cmdImport(p12Path string) error {
