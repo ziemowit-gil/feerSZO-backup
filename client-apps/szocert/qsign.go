@@ -127,6 +127,7 @@ func (j *qsignJob) finish(status, errMsg string) {
 		return
 	}
 	j.Status, j.Err = status, errMsg
+	log.Printf("zadanie %s (%s %s): %s — %s", j.ID[:6], j.Kind, j.File, status, errMsg)
 }
 
 type qsignServer struct {
@@ -242,7 +243,9 @@ func (s *qsignServer) handleSign(w http.ResponseWriter, r *http.Request) {
 	if kind == "pades" {
 		text = confirmTextPDF(req, data)
 	}
+	log.Printf("prośba o podpis: %s, %d B", kind, len(data))
 	if !qsignConfirm(text) {
+		log.Printf("odmowa w oknie potwierdzenia")
 		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "status": "cancelled", "error": "Podpis anulowany na komputerze."})
 		return
 	}
@@ -291,6 +294,7 @@ func (s *qsignServer) startJob(data []byte, kind, filename string) (*qsignJob, e
 		_ = os.RemoveAll(dir)
 		return job, nil
 	}
+	log.Printf("zadanie %s: otwarto %s w PEM-HEART", id[:6], path)
 	go s.watch(job)
 	return job, nil
 }
