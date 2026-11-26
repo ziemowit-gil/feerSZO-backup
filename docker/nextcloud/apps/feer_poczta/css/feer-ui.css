@@ -341,3 +341,52 @@ body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list
 	width: 100% !important; min-width: 0 !important; margin: 0 !important; box-sizing: border-box;
 }
 .booking .booking__container { flex-wrap: wrap; }
+
+/* ── Logowanie i strony gościa chmury (WCAG 2.2 AA) ──
+ * Karta na pełnej bieli (zamiast półprzezroczystej na wzorzystym tle), pola 48 px z ramką 4,8:1, przycisk #1559D6
+ * (6,1:1 z białym tekstem), linki podkreślone, tekst stopki na ciemnym tle (zamiast wprost na grafice), fokus 3 px
+ * z białą obwódką widoczny na każdym tle.
+ */
+#body-login .guest-box, #body-public .guest-box, #body-login .login-box__wrapper {
+	background-color: #ffffff !important; color: #111827 !important;
+	-webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+	border: 1px solid #64748B; border-radius: 16px !important; box-shadow: 0 18px 48px rgba(15, 23, 42, .35);
+}
+#body-login .login-form__headline, #body-login .guest-box h2, #body-login .guest-box h1 {
+	color: #111827 !important; font-size: 24px !important; font-weight: 700; text-align: center;
+}
+#body-login .login-form__fieldset { gap: 14px; }
+#body-login .input-field__input, #body-login input[type="text"], #body-login input[type="password"], #body-login input[type="email"] {
+	min-height: 48px !important; font-size: 16px !important; color: #111827 !important;
+	border: 1px solid #64748B !important; border-radius: 10px !important; background: #ffffff !important;
+}
+#body-login .input-field__label { color: #374151 !important; }
+#body-login input::placeholder { color: #6B7280 !important; opacity: 1; }
+#body-login button[type="submit"], #body-login .login-form button.button-vue--vue-primary, #body-login .button-vue--primary {
+	min-height: 48px !important; font-size: 16px !important; font-weight: 600;
+	background-color: #1559D6 !important; border-color: #1559D6 !important; color: #ffffff !important;
+}
+#body-login button[type="submit"]:hover { background-color: #0F4AB8 !important; }
+#body-login .guest-box a, #body-login .login-form a, #body-login .login-box__wrapper a {
+	color: #1559D6 !important; text-decoration: underline !important; text-underline-offset: 3px;
+}
+#body-login .login-box__alternative-logins .button-vue, #body-login .alternative-logins a {
+	min-height: 48px; border: 2px solid #1559D6 !important; color: #1559D6 !important; background: #ffffff !important; border-radius: 10px !important;
+}
+/* komunikaty błędów i ostrzeżeń */
+#body-login .notecard, #body-login .warning, #body-login .error {
+	color: #111827 !important; background: #FEF2F2 !important; border-inline-start: 6px solid #B91C1C !important; border-radius: 10px;
+}
+/* stopka i nagłówek na grafice: biały tekst na ciemnym tle */
+#body-login footer, #body-public footer.guest-box, #body-login .info, #body-login footer p {
+	color: #ffffff !important;
+}
+#body-login footer, #body-login .info {
+	background: rgba(15, 23, 42, .78) !important; padding: 8px 14px !important; border-radius: 10px; display: inline-block;
+}
+#body-login footer a, #body-login .info a { color: #ffffff !important; text-decoration: underline !important; }
+/* fokus widoczny na białej karcie i na grafice */
+#body-login :focus-visible, #body-public :focus-visible {
+	outline: 3px solid #1559D6 !important; outline-offset: 2px !important; box-shadow: 0 0 0 6px #ffffff !important;
+}
+@media (prefers-reduced-motion: reduce) { #body-login *, #body-public * { transition: none !important; animation: none !important; } }

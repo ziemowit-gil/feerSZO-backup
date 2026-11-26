@@ -70,6 +70,12 @@
 		document.querySelectorAll('.appointment-config-modal, .booking-details, .appointment-details').forEach(labelize);
 		avatars(document);
 		document.querySelectorAll('.app-full, .event-popover, .app-calendar .app-navigation, #app-navigation-vue').forEach(translate);
+		// Szybkie okienko wydarzenia: pola z samą podpowiedzią dostają dostępną nazwę (bez zmiany wyglądu).
+		document.querySelectorAll('.event-popover input[placeholder]:not([aria-label]), .event-popover textarea[placeholder]:not([aria-label])').forEach(function (f) {
+			if (f.id && document.querySelector('label[for="' + CSS.escape(f.id) + '"]')) return;
+			var ph = (f.getAttribute('placeholder') || '').split('\n')[0].trim();
+			if (ph) f.setAttribute('aria-label', ph);
+		});
 	}
 	function schedule() { if (!queued) { queued = true; window.requestAnimationFrame(run); } }
 	function start() { schedule(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }); }
