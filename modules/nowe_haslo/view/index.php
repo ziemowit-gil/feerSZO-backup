@@ -85,6 +85,29 @@ if ($noRandom) $mSel = 'own';
   .nh-dlg p{margin:.4rem 0;line-height:1.5}
   .nh-dlg__ok{margin-top:1rem;min-width:10rem;min-height:44px;justify-content:center}
   .nh-dlg__ok:focus-visible{outline:3px solid #c50f1f;outline-offset:3px}
+  /* Wygląd jak strona logowania jednokrotnego (polecenie 2026-11-27): niebieskie tło marki, białe płaskie karty — formularz i „Ważne informacje” */
+  html,body{background:#1E6DFF}
+  .dm-bar{background:#1D1D1A}
+  .dm-bar__in{max-width:1200px;padding-left:16px;padding-right:16px;box-sizing:border-box}
+  .dm-bar__org .sq{background:#1E6DFF}
+  body .pvm{--m-blue:#1E6DFF;--pvm-acc:#1E6DFF;--pvm-acc-on:#fff;--pvm-ink:#1D1D1A}
+  .nh-shell{max-width:1200px;margin:32px auto 48px;padding:0 16px;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start;box-sizing:border-box}
+  .nh-shell>.pvm.dm{max-width:none;margin:0;background:#fff;padding:40px 36px;min-width:0}
+  .nh-info{background:#fff;color:#1D1D1A;padding:40px 32px;font-size:.95rem;line-height:1.6}
+  .nh-info h2{font-size:1.5rem;font-weight:600;margin:0 0 1.1rem;line-height:1.25}
+  .nh-info h3{font-size:.95rem;font-weight:700;margin:0 0 .2rem}
+  .nh-info p{margin:0 0 1rem}
+  .nh-info a{color:#1557D0;font-weight:600;text-underline-offset:3px}
+  .nh-info a:hover{color:#1D1D1A}
+  .nh-info a:focus-visible{outline:3px solid #EA8F00;outline-offset:2px}
+  .nh-info__lead{padding:12px 14px;background:#EAF1FF;border-left:4px solid #1E6DFF}
+  .nh-info__alert{padding:14px 16px;background:#F3F4F6;border-left:4px solid #EA8F00;margin:1.2rem 0 0!important}
+  .nh-info__login{word-break:break-all}
+  .pvm .mt-btn:focus-visible,.pvm a:focus-visible{outline:3px solid #EA8F00;outline-offset:2px}
+  @media (max-width:959.98px){
+    .nh-shell{grid-template-columns:1fr;margin-top:16px}
+    .nh-shell>.pvm.dm,.nh-info{padding:28px 20px}
+  }
   @media (prefers-reduced-motion:no-preference){.nh-dlg[open]{animation:nhPop .18s ease-out}@keyframes nhPop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}}
 </style>
 </head>
@@ -106,13 +129,14 @@ if ($noRandom) $mSel = 'own';
   </div>
 </header>
 
+<div class="nh-shell">
 <main id="tresc" class="pvm dm">
   <div class="mt-head">
     <div>
       <div class="mt-kicker">Konta Fundacji</div>
       <h1 class="mt-title">Nowe hasło</h1>
       <p class="mt-lead">Tu zmienisz hasło do logowania jednokrotnego i chmury plików albo hasło do poczty.
-        <?php if ($mode === 'user'): ?>Masz dwa osobne hasła. Zmienisz każde od razu, bez kodu.
+        <?php if ($mode === 'user'): ?>Zmienisz je od razu, bez kodu. Możesz też ustawić jedno hasło do wszystkiego.
         <?php else: ?>Najpierw potwierdzimy, że to Ty: danymi z umowy z Fundacją i kodem.
         Przy haśle do poczty kod przychodzi SMS-em (a gdy nie mamy numeru, na prywatny e-mail), przy haśle logowania jednokrotnego e-mailem.<?php endif; ?></p>
     </div>
@@ -377,6 +401,22 @@ if ($noRandom) $mSel = 'own';
     <?php endif; ?>
   <?php endif; ?>
 </main>
+
+<aside class="nh-info" aria-labelledby="nhInfoH">
+  <h2 id="nhInfoH">Ważne informacje</h2>
+  <p class="nh-info__lead">Hasło logowania jednokrotnego wpisujesz na niebieskiej stronie „Zaloguj się do usług Fundacji FEER”. Tym jednym loginem i hasłem wejdziesz do SZO, chmury plików i innych aplikacji Fundacji.</p>
+  <h3>Login</h3>
+  <p><?php if ($acc && $mode === 'user'): ?><strong class="nh-info__login"><?= h($acc['login']) ?></strong>.
+    <?php endif; ?>Twój adres e-mail w Fundacji. Zadziała też login z kreską dolną zamiast kropki, na przykład <code>jan_kowalski</code>.</p>
+  <h3>Poczta</h3>
+  <p>Hasło do poczty jest osobne<?= $mode === 'user' ? ', chyba że wybierzesz „Jedno hasło do wszystkiego”' : '' ?>.</p>
+  <h3>Dobre hasło</h3>
+  <p>Co najmniej <?= NoweHaslo::MIN_LEN ?> znaków, małe i wielkie litery oraz cyfra. Bez imienia, nazwiska i loginu.</p>
+  <h3>Pomoc</h3>
+  <p>Coś nie działa? Napisz do <a href="<?= h(APP_URL . '/helpdesk/new.php') ?>">Helpdesku IT</a>.</p>
+  <p class="nh-info__alert">Nikt z Fundacji nie poprosi Cię o hasło. Nie podawaj go w e-mailu ani przez telefon.</p>
+</aside>
+</div>
 
 <?php if (!empty($changed)): /* okno po zmianie hasła: natywny <dialog> (showModal = pułapka fokusu, Esc, tło inert), role=alertdialog */ ?>
 <dialog id="nhDone" class="nh-dlg" role="alertdialog" aria-modal="true" aria-labelledby="nhDoneH" aria-describedby="nhDoneD">
