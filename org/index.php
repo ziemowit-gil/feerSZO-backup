@@ -44,7 +44,6 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="text-muted" style="font-size:.78rem;margin-top:.1rem">Hierarchia jednostek, stanowiska i przypisania osobowe</div>
   </div>
   <div class="d-flex gap-2 flex-wrap">
-    <a href="<?= APP_URL ?>/org/teams.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-people-fill me-1"></i>Zespoły</a>
   <?php if(is_admin()): ?>
     <a href="<?= APP_URL ?>/org/units/add.php?level=jednostka" class="btn btn-primary btn-sm"><i class="bi bi-building me-1"></i>Nowa jednostka</a>
     <a href="<?= APP_URL ?>/org/units/add.php?level=dzial" class="btn btn-outline-primary btn-sm"><i class="bi bi-diagram-3 me-1"></i>Nowy dział</a>
@@ -55,6 +54,8 @@ include dirname(__DIR__) . '/includes/header.php';
   <?php endif; ?>
   </div>
 </div>
+
+<?php $ORG_NAV_ACTIVE = 'schemat'; include __DIR__ . '/includes/org_nav.php'; ?>
 
 <?= flash_html() ?>
 

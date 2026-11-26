@@ -1,236 +1,178 @@
 <?php
+declare(strict_types=1);
+
 /**
- * org/teams.php — Zespoły w Strukturze Organizacyjnej (2026-11-26; wcześniej tasks/settings/teams.php).
- * Te same tabele co w Zadaniach (task_teams, task_team_members): zespół przypisuje się do obszarów
- * roboczych i trafia do chmury jako grupa szo-zespol-{id} (CloudTeamsSync). Zespół może należeć do
- * jednostki (task_teams.unit_id, opcjonalnie) — wtedy widać go też na karcie jednostki.
- * Podgląd: każdy zalogowany; zmiany: tylko is_admin() (tasks/api/team.php).
+ * org/teams.php — Struktura Organizacyjna › Zespoły (lista). Karta zespołu: org/team.php?id=.
+ * Dane i uprawnienia: modules/teams/lib/TeamService.php; zmiany: org/team_api.php.
+ * Filtry: q, type, status (domyślnie bez zarchiwizowanych), unit, mine=1 („Moje zespoły”).
+ * Podzespoły pokazujemy pod zespołem nadrzędnym (wcięcie), gdy nie ma filtrów zawężających.
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
-require_once dirname(__DIR__) . '/includes/tasks.php';
 require_once dirname(__DIR__) . '/includes/org.php';
+require_once dirname(__DIR__) . '/modules/teams/lib/TeamService.php';
 
 require_login();
 require_module_enabled('org_enabled', 'Moduł struktury organizacyjnej');
-$can_edit = is_admin();
+TeamService::migrate();
 
-$teams     = task_get_teams(!$can_edit);
-$units     = org_units_all('active');
-$unit_name = [];
-foreach ($units as $u) { $unit_name[(int)$u['id']] = $u['name']; }
-$all_users = db_all("SELECT id, name, email FROM users WHERE is_active=1 ORDER BY name");
+$me     = current_user();
+$f = [
+    'q'       => trim((string)($_GET['q'] ?? '')),
+    'type'    => (string)($_GET['type'] ?? ''),
+    'status'  => (string)($_GET['status'] ?? ''),
+    'unit_id' => (int)($_GET['unit'] ?? 0),
+];
+$mine = !empty($_GET['mine']);
+if ($mine) $f['ids'] = TeamService::getUserTeamIds((int)$me['id']);
+$teams = TeamService::list($f);
+if ($f['status'] === '') $teams = array_values(array_filter($teams, fn($t) => $t['status'] !== 'archived'));
+$archivedCount = (int)(db_one("SELECT COUNT(*) c FROM task_teams WHERE status='archived'")['c'] ?? 0);
+$filtered = $f['q'] !== '' || $f['type'] !== '' || $f['status'] !== '' || $f['unit_id'] || $mine;
 
-$team_members = [];
-foreach ($teams as $t) {
-    $team_members[$t['id']] = db_all(
-        "SELECT u.id, u.name FROM task_team_members tm JOIN users u ON u.id = tm.user_id
-         WHERE tm.team_id = ? ORDER BY u.name",
-        [$t['id']]
-    );
+// Drzewo: rodzic → dzieci (tylko bez filtrów; z filtrami płaska lista).
+$rows = [];
+if (!$filtered) {
+    $byParent = [];
+    $ids = array_column($teams, 'id');
+    foreach ($teams as $t) {
+        $p = (int)($t['parent_id'] ?? 0);
+        $byParent[in_array($p, $ids) ? $p : 0][] = $t;
+    }
+    $walk = function (int $pid, int $depth) use (&$walk, &$rows, $byParent) {
+        foreach ($byParent[$pid] ?? [] as $t) {
+            $t['_depth'] = $depth;
+            $rows[] = $t;
+            if ($depth < 8) $walk((int)$t['id'], $depth + 1);
+        }
+    };
+    $walk(0, 0);
+} else {
+    $rows = array_map(fn($t) => $t + ['_depth' => 0], $teams);
 }
+$myIds = array_flip(TeamService::getUserTeamIds((int)$me['id'], false));
 
-// Grupy: jednostka (kolejność jak w strukturze) → zespoły; na końcu zespoły bez jednostki.
-$groups = [];
-foreach ($teams as $t) {
-    $uid_ = (int)($t['unit_id'] ?? 0);
-    $key  = isset($unit_name[$uid_]) ? $uid_ : 0;
-    $groups[$key][] = $t;
-}
-$group_order = array_values(array_filter(array_map(fn($u) => (int)$u['id'], $units), fn($id) => isset($groups[$id])));
-if (isset($groups[0])) $group_order[] = 0;
+$units = org_units_all('active');
+$TF_TEAM = null; $TF_UNITS = $units; $TF_TEAMS = TeamService::list();
 
 $PAGE_TITLE = 'Zespoły — Struktura Organizacyjna';
 include dirname(__DIR__) . '/includes/header.php';
+$statusBadge = ['active' => 'bg-success', 'suspended' => 'bg-warning text-dark', 'archived' => 'bg-secondary'];
 ?>
-<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-
-<style type="text/tailwindcss">
-.tm-card {
-  @apply tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-p-4 tw-flex tw-flex-col tw-gap-3;
-}
-.tm-card.tm-inactive { @apply tw-opacity-55; }
-.tm-dot { @apply tw-w-8 tw-h-8 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-white tw-text-sm tw-shrink-0; }
-.tm-stat { @apply tw-inline-flex tw-items-center tw-gap-1 tw-text-[.76rem] tw-text-slate-500; }
-.tm-member-chip {
-  @apply tw-inline-flex tw-items-center tw-gap-1 tw-bg-slate-100 tw-text-slate-700 tw-text-[.74rem]
-         tw-font-medium tw-py-[.15rem] tw-px-2 tw-rounded-full;
-}
+<style>
+.team-tbl td, .team-tbl th { vertical-align: middle; }
+.team-dot { width: 1.9rem; height: 1.9rem; border-radius: .5rem; display: inline-flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+.team-tbl a:focus-visible, .team-icon-pick .btn:focus-visible, .btn-check:focus-visible + .btn { outline: 3px solid #1E6DFF; outline-offset: 2px; }
 </style>
 
-<?= flash_html() ?>
-
+<nav aria-label="Ścieżka" class="small mb-1"><a href="<?= APP_URL ?>/org/index.php">Struktura organizacyjna</a> › <span aria-current="page">Zespoły</span></nav>
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-  <div>
-    <nav aria-label="Ścieżka" class="tw-text-sm tw-mb-1"><a href="<?= APP_URL ?>/org/index.php">Struktura Organizacyjna</a> › Zespoły</nav>
-    <h1 class="tw-text-lg tw-font-bold tw-mb-0 tw-flex tw-items-center tw-gap-2">
-      <i class="bi bi-people-fill tw-text-blue-600" aria-hidden="true"></i>Zespoły
-    </h1>
-  </div>
-  <?php if ($can_edit): ?>
-  <button type="button" class="btn btn-primary btn-sm" onclick="tmOpenTeamModal()">
+  <h1 class="h4 fw-bold mb-0"><i class="bi bi-people-fill text-primary me-2" aria-hidden="true"></i>Zespoły</h1>
+  <?php if (TeamService::canCreate()): ?>
+  <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#teamFormModal">
     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowy zespół
   </button>
   <?php endif; ?>
 </div>
+<?php $ORG_NAV_ACTIVE = 'zespoly'; include __DIR__ . '/includes/org_nav.php'; ?>
+<?= flash_html() ?>
+<div class="visually-hidden" role="status" aria-live="polite" data-team-live></div>
 
-<?php if (!$teams): ?>
-<div class="tw-bg-white tw-border tw-border-slate-200 tw-rounded-xl tw-p-8 tw-text-center tw-text-slate-500">
-  <i class="bi bi-people tw-text-3xl tw-block tw-mb-2 tw-opacity-40" aria-hidden="true"></i>
-  Brak zespołów.
+<form method="get" class="row g-2 align-items-end mb-3" aria-label="Filtry zespołów">
+  <div class="col-sm-6 col-lg-3">
+    <label class="form-label small mb-1" for="f-q">Szukaj</label>
+    <input type="search" id="f-q" name="q" class="form-control form-control-sm" value="<?= h($f['q']) ?>" placeholder="Nazwa albo kod">
+  </div>
+  <div class="col-6 col-lg-2">
+    <label class="form-label small mb-1" for="f-type">Typ</label>
+    <select id="f-type" name="type" class="form-select form-select-sm">
+      <option value="">Wszystkie</option>
+      <?php foreach (TeamService::TYPES as $k => $l): ?><option value="<?= $k ?>"<?= $f['type'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-6 col-lg-2">
+    <label class="form-label small mb-1" for="f-status">Status</label>
+    <select id="f-status" name="status" class="form-select form-select-sm">
+      <option value="">Aktywne i zawieszone</option>
+      <?php foreach (TeamService::STATUSES as $k => $l): ?><option value="<?= $k ?>"<?= $f['status'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <label class="form-label small mb-1" for="f-unit">Jednostka</label>
+    <select id="f-unit" name="unit" class="form-select form-select-sm">
+      <option value="0">Wszystkie</option>
+      <?php foreach ($units as $u): ?><option value="<?= (int)$u['id'] ?>"<?= $f['unit_id'] === (int)$u['id'] ? ' selected' : '' ?>><?= h($u['name']) ?></option><?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-auto">
+    <div class="form-check mb-1">
+      <input class="form-check-input" type="checkbox" id="f-mine" name="mine" value="1"<?= $mine ? ' checked' : '' ?>>
+      <label class="form-check-label small" for="f-mine">Moje zespoły</label>
+    </div>
+  </div>
+  <div class="col-auto d-flex gap-1">
+    <button type="submit" class="btn btn-sm btn-primary">Filtruj</button>
+    <?php if ($filtered): ?><a href="<?= APP_URL ?>/org/teams.php" class="btn btn-sm btn-outline-secondary">Wyczyść</a><?php endif; ?>
+  </div>
+</form>
+
+<?php if (!$rows): ?>
+<div class="border rounded-3 bg-white p-4 text-center text-muted">
+  <i class="bi bi-people fs-2 d-block mb-2 opacity-50" aria-hidden="true"></i>
+  <?= $filtered ? 'Żaden zespół nie pasuje do filtrów.' : 'Nie ma jeszcze zespołów.' ?>
 </div>
 <?php else: ?>
-<?php foreach ($group_order as $gid): ?>
-<h2 class="tw-text-sm tw-font-bold tw-text-slate-600 tw-mt-4 tw-mb-2 tw-flex tw-items-center tw-gap-2">
-  <?php if ($gid): ?>
-  <i class="bi bi-diagram-3 tw-text-blue-600" aria-hidden="true"></i><a href="<?= APP_URL ?>/org/units/view.php?id=<?= $gid ?>" class="tw-text-slate-700"><?= h($unit_name[$gid]) ?></a>
-  <?php else: ?>
-  <i class="bi bi-people tw-text-slate-400" aria-hidden="true"></i>Bez jednostki
-  <?php endif; ?>
-</h2>
-<div class="tw-grid tw-grid-cols-1 md:tw-grid-cols-2 lg:tw-grid-cols-3 tw-gap-3">
-  <?php foreach ($groups[$gid] as $t): ?>
-  <div class="tm-card <?= $t['is_active'] ? '' : 'tm-inactive' ?>" id="team-<?= (int)$t['id'] ?>" data-team-id="<?= (int)$t['id'] ?>">
-    <div class="tw-flex tw-items-start tw-gap-3">
-      <span class="tm-dot" style="background:<?= h($t['color']) ?>" aria-hidden="true"><i class="bi <?= h($t['icon']) ?>"></i></span>
-      <div class="tw-flex-1 tw-min-w-0">
-        <div class="tw-font-semibold tw-text-slate-900 tw-truncate"><?= h($t['name']) ?></div>
-        <?php if ($t['description']): ?>
-        <div class="tw-text-[.78rem] tw-text-slate-500 tw-mt-[.1rem]"><?= h($t['description']) ?></div>
-        <?php endif; ?>
-      </div>
-      <?php if (!$t['is_active']): ?>
-      <span class="badge bg-secondary" style="font-size:.65rem">Nieaktywny</span>
-      <?php endif; ?>
-    </div>
-
-    <div class="tw-flex tw-gap-3">
-      <span class="tm-stat"><i class="bi bi-person-fill" aria-hidden="true"></i><?= (int)$t['member_count'] ?> os.</span>
-      <span class="tm-stat"><i class="bi bi-kanban" aria-hidden="true"></i><?= (int)$t['workspace_count'] ?> obszar(y)</span>
-    </div>
-
-    <div class="tw-flex tw-flex-wrap tw-gap-1" data-member-chips>
-      <?php foreach (array_slice($team_members[$t['id']], 0, 6) as $m): ?>
-      <span class="tm-member-chip"><?= h($m['name']) ?></span>
+<div class="table-responsive bg-white border rounded-3">
+  <table class="table table-hover mb-0 team-tbl">
+    <caption class="visually-hidden">Zespoły (<?= count($rows) ?>)<?= $filtered ? ' — po filtrach' : '' ?></caption>
+    <thead class="table-light small">
+      <tr>
+        <th scope="col">Zespół</th>
+        <th scope="col">Typ</th>
+        <th scope="col">Status</th>
+        <th scope="col">Jednostka</th>
+        <th scope="col" class="text-end">Osoby</th>
+        <th scope="col" class="text-end">Umowy</th>
+        <th scope="col" class="text-end">Obszary zadań</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($rows as $t): ?>
+      <tr<?= $t['status'] === 'archived' ? ' class="text-muted"' : '' ?>>
+        <td>
+          <div class="d-flex align-items-center gap-2" style="padding-left:<?= (int)$t['_depth'] * 1.5 ?>rem">
+            <?php if ($t['_depth']): ?><span class="text-muted" aria-hidden="true">↳</span><?php endif; ?>
+            <span class="team-dot" style="background:<?= h($t['color'] ?: '#1E6DFF') ?>" aria-hidden="true"><i class="bi <?= h($t['icon'] ?: 'bi-people-fill') ?>"></i></span>
+            <div>
+              <a href="<?= APP_URL ?>/org/team.php?id=<?= (int)$t['id'] ?>" class="fw-semibold"><?= h($t['name']) ?></a>
+              <?php if ($t['_depth']): ?><span class="visually-hidden">(podzespół)</span><?php endif; ?>
+              <?php if (!empty($t['code'])): ?><span class="badge bg-light text-dark border font-monospace ms-1"><?= h($t['code']) ?></span><?php endif; ?>
+              <?php if (isset($myIds[(int)$t['id']])): ?><span class="badge bg-primary-subtle text-primary-emphasis ms-1">Mój</span><?php endif; ?>
+              <?php if ($t['type'] === 'project' && ($t['starts_at'] || $t['ends_at'])): ?>
+              <div class="small text-muted"><?= $t['starts_at'] ? date('d.m.Y', strtotime($t['starts_at'])) : '…' ?> – <?= $t['ends_at'] ? date('d.m.Y', strtotime($t['ends_at'])) : '…' ?></div>
+              <?php endif; ?>
+            </div>
+          </div>
+        </td>
+        <td class="small"><?= h(TeamService::TYPES[$t['type']] ?? $t['type']) ?></td>
+        <td><span class="badge <?= $statusBadge[$t['status']] ?? 'bg-secondary' ?>"><?= h(TeamService::STATUSES[$t['status']] ?? $t['status']) ?></span></td>
+        <td class="small"><?= $t['unit_name'] ? '<a href="' . APP_URL . '/org/units/view.php?id=' . (int)$t['unit_id'] . '">' . h($t['unit_name']) . '</a>' : '<span class="text-muted">—</span>' ?></td>
+        <td class="text-end"><?= (int)$t['member_count'] ?></td>
+        <td class="text-end"><?= (int)$t['contract_count'] ?></td>
+        <td class="text-end"><?= (int)$t['workspace_count'] ?></td>
+      </tr>
       <?php endforeach; ?>
-      <?php if (count($team_members[$t['id']]) > 6): ?>
-      <span class="tm-member-chip">+<?= count($team_members[$t['id']]) - 6 ?></span>
-      <?php endif; ?>
-      <?php if (!$team_members[$t['id']]): ?>
-      <span class="tw-text-[.76rem] tw-text-slate-400">Brak członków</span>
-      <?php endif; ?>
-    </div>
-
-    <?php if ($can_edit): ?>
-    <div class="tw-flex tw-gap-2 tw-pt-2 tw-border-t tw-border-slate-100">
-      <button type="button" class="btn btn-outline-secondary btn-sm" onclick='tmOpenMembersModal(<?= json_encode(["id"=>(int)$t["id"],"name"=>$t["name"],"members"=>$team_members[$t["id"]]]) ?>)'>
-        <i class="bi bi-people me-1" aria-hidden="true"></i>Członkowie
-      </button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" onclick='tmOpenTeamModal(<?= json_encode($t) ?>)'>
-        <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj
-      </button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="tmToggleTeam(<?= (int)$t['id'] ?>)">
-        <i class="bi bi-<?= $t['is_active'] ? 'pause' : 'play' ?>-fill me-1" aria-hidden="true"></i><?= $t['is_active'] ? 'Wyłącz' : 'Włącz' ?>
-      </button>
-      <button type="button" class="btn btn-outline-danger btn-sm tw-ml-auto"
-              onclick="tmDeleteTeam(<?= (int)$t['id'] ?>, <?= json_encode($t['name']) ?>, <?= (int)$t['workspace_count'] ?>)">
-        <i class="bi bi-trash3" aria-label="Usuń zespół"></i>
-      </button>
-    </div>
-    <?php endif; ?>
-  </div>
-  <?php endforeach; ?>
+    </tbody>
+  </table>
 </div>
-<?php endforeach; ?>
+<?php endif; ?>
+<?php if ($f['status'] === '' && $archivedCount): ?>
+<p class="small text-muted mt-2"><a href="<?= APP_URL ?>/org/teams.php?status=archived">Zarchiwizowane zespoły (<?= $archivedCount ?>)</a></p>
 <?php endif; ?>
 
-<?php if ($can_edit): ?>
-
-<!-- ── Modal: dodaj/edytuj zespół ─────────────────────────────────────────── -->
-<div class="modal fade" id="tmTeamModal" tabindex="-1" aria-labelledby="tmTeamModalLabel" aria-modal="true" role="dialog">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h2 class="h6 modal-title fw-bold mb-0" id="tmTeamModalLabel"><i class="bi bi-people-fill me-1 text-primary" aria-hidden="true"></i><span id="tm-team-modal-title">Nowy zespół</span></h2>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="tm-team-id" value="0">
-        <div class="mb-3">
-          <label class="form-label fw-semibold small" for="tm-name">Nazwa <span class="text-danger">*</span></label>
-          <input type="text" id="tm-name" class="form-control" maxlength="100" placeholder="np. Zespół komunikacji">
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold small" for="tm-unit">Jednostka <span class="text-muted fw-normal">(opcjonalnie)</span></label>
-          <select id="tm-unit" class="form-select">
-            <option value="0">— bez jednostki —</option>
-            <?php foreach ($units as $u): ?>
-            <option value="<?= (int)$u['id'] ?>"><?= h($u['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold small" for="tm-desc">Opis <span class="text-muted fw-normal">(opcjonalnie)</span></label>
-          <textarea id="tm-desc" class="form-control" rows="2"></textarea>
-        </div>
-        <div class="row g-2">
-          <div class="col-6">
-            <label class="form-label fw-semibold small" for="tm-color">Kolor</label>
-            <input type="color" id="tm-color" class="form-control form-control-color" value="#2563eb">
-          </div>
-          <div class="col-6">
-            <label class="form-label fw-semibold small" for="tm-icon">Ikona (bootstrap-icons)</label>
-            <input type="text" id="tm-icon" class="form-control" value="people-fill" placeholder="people-fill">
-          </div>
-        </div>
-        <div id="tm-team-error" class="alert alert-danger py-2 small mt-3 d-none" role="alert"></div>
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
-        <button type="button" class="btn btn-primary btn-sm" id="tm-team-save" onclick="tmSaveTeam()">
-          <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Modal: członkowie zespołu ───────────────────────────────────────────── -->
-<div class="modal fade" id="tmMembersModal" tabindex="-1" aria-labelledby="tmMembersModalLabel" aria-modal="true" role="dialog">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h2 class="h6 modal-title fw-bold mb-0" id="tmMembersModalLabel"><i class="bi bi-people me-1 text-primary" aria-hidden="true"></i>Członkowie — <span id="tm-members-team-name"></span></h2>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="tm-members-team-id" value="0">
-        <div class="mb-3">
-          <label class="form-label fw-semibold small" for="tm-add-user-select">Dodaj osobę</label>
-          <select id="tm-add-user-select" placeholder="Wyszukaj osobę…" aria-label="Wybierz osobę do dodania">
-            <option value="">— wybierz —</option>
-            <?php foreach ($all_users as $u): ?>
-            <option value="<?= (int)$u['id'] ?>"><?= h($u['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="tw-text-[.7rem] tw-font-bold tw-uppercase tw-tracking-wide tw-text-slate-400 tw-mb-1">Obecni członkowie</div>
-        <ul class="list-group" id="tm-members-list"></ul>
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-  window.TSK_TEAMS = { csrf: <?= json_encode(csrf_token()) ?>, base: <?= json_encode(rtrim(APP_URL, '/')) ?> };
-</script>
-<script src="<?= APP_URL ?>/assets/js/tasks-settings-teams.js?v=2" defer></script>
-<?php endif; ?>
-
+<?php if (TeamService::canCreate()) include __DIR__ . '/includes/team_form_modal.php'; ?>
+<script>window.ORG_TEAMS = { csrf: <?= json_encode(csrf_token()) ?>, api: <?= json_encode(APP_URL . '/org/team_api.php') ?> };</script>
+<script src="<?= APP_URL ?>/assets/js/org-teams.js?v=1" defer></script>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

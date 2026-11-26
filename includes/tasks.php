@@ -447,7 +447,7 @@ function task_user_workspaces(?int $user_id = null): array {
 // ── Zespoły ──────────────────────────────────────────────────────────────
 // Grupa użytkowników, niezależna od jednostek organizacyjnych (org_units).
 // Zespół można przypisać do obszaru roboczego (task_workspace_teams) — wszyscy
-// jego członkowie dostają wtedy rolę w tym obszarze, DODATKOWO do ewentualnego
+// jego członkowie dostają wtedy rolę w tym obszarze (obserwator zespołu: najwyżej „viewer”), DODATKOWO do ewentualnego
 // bezpośredniego przypisania pojedynczych osób (task_workspace_members).
 
 function task_teams_migrate(): void {
@@ -481,8 +481,33 @@ function task_teams_migrate(): void {
         added_at     DATETIME    NOT NULL DEFAULT (datetime('now','localtime')),
         PRIMARY KEY (workspace_id, team_id)
     )");
-    // Zespół w Strukturze Organizacyjnej (org/teams.php): opcjonalna jednostka.
-    try { $pdo->exec("ALTER TABLE task_teams ADD COLUMN unit_id INTEGER NULL"); } catch (\Throwable $e) {}
+    // Zespół w Strukturze Organizacyjnej (org/teams.php, modules/teams/lib/TeamService.php):
+    // jednostka, kod, typ (stały/projektowy), status, podzespoły, cel, okres; w składzie rola lokalna,
+    // umowa jako podstawa udziału i zastępstwo.
+    foreach ([
+        "ALTER TABLE task_teams ADD COLUMN unit_id INTEGER NULL",
+        "ALTER TABLE task_teams ADD COLUMN code VARCHAR(40) NULL",
+        "ALTER TABLE task_teams ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'permanent'",
+        "ALTER TABLE task_teams ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active'",
+        "ALTER TABLE task_teams ADD COLUMN parent_id INTEGER NULL",
+        "ALTER TABLE task_teams ADD COLUMN goal TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE task_teams ADD COLUMN starts_at DATE NULL",
+        "ALTER TABLE task_teams ADD COLUMN ends_at DATE NULL",
+        "ALTER TABLE task_team_members ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'member'",
+        "ALTER TABLE task_team_members ADD COLUMN contract_type VARCHAR(30) NULL",
+        "ALTER TABLE task_team_members ADD COLUMN contract_id INTEGER NULL",
+        "ALTER TABLE task_team_members ADD COLUMN deputy_user_id INTEGER NULL",
+        "ALTER TABLE task_team_members ADD COLUMN deputy_from DATE NULL",
+        "ALTER TABLE task_team_members ADD COLUMN deputy_to DATE NULL",
+        "ALTER TABLE task_team_members ADD COLUMN deputy_note TEXT NOT NULL DEFAULT ''",
+    ] as $sql) {
+        try { $pdo->exec($sql); } catch (\Throwable $e) {}
+    }
+    try {
+        $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_task_teams_code ON task_teams(code) WHERE code IS NOT NULL AND code <> ''");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_task_teams_parent ON task_teams(parent_id)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_task_team_members_user ON task_team_members(user_id)");
+    } catch (\Throwable $e) {}
 }
 
 /** Najwyższa z dwóch ról wg hierarchii admin>editor>member>viewer (null-owe pomijane). */
@@ -499,7 +524,8 @@ function task_workspace_team_role(int $workspace_id, int $user_id): ?string {
     task_teams_migrate();
     try {
         $rows = db_all(
-            "SELECT wt.role FROM task_workspace_teams wt
+            "SELECT CASE WHEN COALESCE(tm.role, 'member') = 'observer' THEN 'viewer' ELSE wt.role END AS role
+             FROM task_workspace_teams wt
              JOIN task_team_members tm ON tm.team_id = wt.team_id
              JOIN task_teams t ON t.id = wt.team_id AND t.is_active = 1
              WHERE wt.workspace_id = ? AND tm.user_id = ?",
