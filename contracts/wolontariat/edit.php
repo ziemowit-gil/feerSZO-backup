@@ -49,10 +49,33 @@ if (!empty($row['person_id'])) {
     $row['_person_name'] = $person_row['imie_nazwisko'] ?? '';
 }
 
+// Komórka organizacyjna i zespół — wymagane (polecenie 2026-11-26), poza wpisem technicznym sprzed 01.06.2026
+$_ed_units = [];
+try { $_ed_units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name"); } catch (\Throwable $e) {}
+$_ed_teams = []; $_ed_team_cur = 0;
+try {
+    if (module_enabled('org_enabled')) {
+        require_once dirname(dirname(__DIR__)) . '/modules/teams/lib/TeamService.php';
+        $_ed_teams = TeamService::selectable();
+        $_ed_linked = TeamService::getContractTeams($id, $TYPE);
+        $_ed_team_cur = $_ed_linked ? (int)$_ed_linked[0]['id'] : 0;
+    }
+} catch (\Throwable $e) {}
+$_ed_tech = !empty($row['is_technical']) || !empty($row['wspolpraca_przed_2026']);
+$row['team_id'] = $_ed_team_cur ?: '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $data = $_POST;
     unset($data['_csrf']);
+    if (!$_ed_tech) {
+        if (empty($_POST['org_unit_id']) || !in_array((int)$_POST['org_unit_id'], array_map('intval', array_column($_ed_units, 'id')), true)) {
+            $errors[] = 'Wskaż komórkę organizacyjną — pole jest wymagane.';
+        }
+        if ($_ed_teams && (empty($_POST['team_id']) || !in_array((int)$_POST['team_id'], array_map('intval', array_column($_ed_teams, 'id')), true))) {
+            $errors[] = 'Wskaż zespół — pole jest wymagane.';
+        }
+    }
 
     if (empty($data['numer_umowy'])) $errors[] = 'Numer umowy jest wymagany.';
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
@@ -199,6 +222,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ContractMinorGuard::syncAfterSave($TYPE, $id, array_merge($row, $save), (int)current_user()['id']);
         // Przelicz godzin_przepracowanych = godzin_z_zadan + godzin_korekta
         volunteer_recompute_hours($id);
+        // Komórka → Przypisanie; zespół → przypięcie umowy (dotychczasowe przypięcia zostają, odpina się w panelu „Zespoły”)
+        try {
+            require_once dirname(dirname(__DIR__)) . '/modules/contract_links/lib/ContractLinks.php';
+            if (!empty($_POST['org_unit_id'])) ContractLinks::save($TYPE, $id, ['unit_id' => (int)$_POST['org_unit_id']], 'manual', (int)current_user()['id']);
+            $_ed_team_new = (int)($_POST['team_id'] ?? 0);
+            if ($_ed_teams && $_ed_team_new > 0 && $_ed_team_new !== $_ed_team_cur
+                && TeamService::linkContractOnCreate($_ed_team_new, $TYPE, $id, (int)current_user()['id'])) {
+                log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Przypięto do zespołu ID=' . $_ed_team_new);
+            }
+        } catch (\Throwable $e) {}
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'edit', $diff ?: 'Edytowano umowę');
 
@@ -666,15 +699,27 @@ html body #content .status-banner .btn-warning{background:var(--eo)!important;bo
              placeholder="prywatny@email.com lub imie@org.pl">
     </div>
     <div class="col-md-5 fgroup">
-      <label>Komórka organizacyjna</label>
-      <select name="org_unit_id" class="form-select">
-        <option value="">— wybierz —</option>
-        <?php foreach ($__units as $pos):
+      <label for="ed_org_unit_id">Komórka organizacyjna<?php if (!$_ed_tech): ?> <span class="text-danger" aria-hidden="true">*</span><?php endif; ?></label>
+      <select name="org_unit_id" id="ed_org_unit_id" class="form-select"<?= $_ed_tech ? '' : ' required aria-required="true"' ?>>
+        <option value="">— wybierz komórkę —</option>
+        <?php foreach ($_ed_units as $pos):
           $sel = ($row['org_unit_id'] ?? '') == $pos['id'] ? 'selected' : ''; ?>
         <option value="<?= h($pos['id']) ?>" <?= $sel ?>><?= h($pos['name']) ?></option>
         <?php endforeach; ?>
       </select>
     </div>
+    <?php if ($_ed_teams): ?>
+    <div class="col-md-7 fgroup">
+      <label for="ed_team_id">Zespół<?php if (!$_ed_tech): ?> <span class="text-danger" aria-hidden="true">*</span><?php endif; ?></label>
+      <select name="team_id" id="ed_team_id" class="form-select" aria-describedby="ed_team_hint"<?= $_ed_tech ? '' : ' required aria-required="true"' ?>>
+        <option value="">— wybierz zespół —</option>
+        <?php foreach ($_ed_teams as $t): ?>
+        <option value="<?= (int)$t['id'] ?>"<?= (string)($row['team_id'] ?? '') === (string)$t['id'] ? ' selected' : '' ?>><?= h($t['name']) ?><?= !empty($t['unit_name']) ? ' (' . h($t['unit_name']) . ')' : '' ?></option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text" id="ed_team_hint">Nowy zespół: umowa zostanie do niego przypięta, a wolontariusz dopisany do składu. Odpinanie — w panelu „Zespoły” na karcie umowy.</div>
+    </div>
+    <?php endif; ?>
   </div>
 
   <!-- Niepełnoletni toggle -->
