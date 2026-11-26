@@ -623,6 +623,9 @@ body:not([data-themes*="dark"]) .passwordsapp .row:hover { background: #F5F8FF !
 /* kafle */
 #app-dashboard .panel--header h2, #app-dashboard .panel--header h2 span { color: #111827 !important; font-size: 18px !important; font-weight: 700 !important; }
 #app-dashboard .panel--content { color: #111827; }
+/* treść kafla rośnie z wpisami (np. „Ostatnia aktywność” ma wyższe wpisy) — bez wychodzenia poza białe tło;
+ * kafle w rzędzie i tak mają równą wysokość (align-self: stretch) */
+#app-dashboard .panel--content, #app-dashboard .panels > div > .panel--content { height: auto !important; min-height: 424px; }
 #app-dashboard .panel--content a { color: #111827; }
 #app-dashboard .panel--content .item-list__entry, #app-dashboard .panel--content [class*="item"] { min-height: 44px; }
 #app-dashboard .panel--content .item__details .subline, #app-dashboard .panel--content .subline,
