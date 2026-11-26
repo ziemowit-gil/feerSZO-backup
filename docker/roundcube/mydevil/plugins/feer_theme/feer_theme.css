@@ -846,3 +846,17 @@ html.feer-menu-collapsed:not(.layout-phone) #taskmenu a span.inner {
   padding: 0 !important;
 }
 html.feer-menu-collapsed:not(.layout-phone) #layout-menu #logo { max-width: 32px !important; max-height: 32px !important; }
+/* Elastic daje przyciskom szyny stałą szerokość (~78 px): po zwinięciu wystawały poza szynę
+   i ikony były ucięte — szerokość od szyny */
+html.feer-menu-collapsed:not(.layout-phone) #taskmenu,
+html.feer-menu-collapsed:not(.layout-phone) #taskmenu .special-buttons { width: 100% !important; min-width: 0 !important; }
+html.feer-menu-collapsed:not(.layout-phone) #taskmenu a {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+html.feer-menu-collapsed:not(.layout-phone) #taskmenu a:before { width: 100% !important; text-align: center; }
+/* Przycisk zwijania jak pozostałe dolne przyciski szyny (bez szarego tła Elastic) */
+#taskmenu .special-buttons a.feer-menu-toggle { background: transparent !important; }
+#taskmenu .special-buttons a.feer-menu-toggle:hover { background: rgba(255, 255, 255, .12) !important; }
