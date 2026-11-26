@@ -9,6 +9,9 @@
  * W sesji grupa skrzynek (feer_acc: [{email, pass}] — pierwsza = główna, hasło z $_SESSION['password']), przenoszona
  * przy przełączeniu, więc ze skrzynki dodatkowej wraca się bez hasła. Zarządzanie listą tylko na skrzynce głównej.
  *
+ * Przełącznik na górze widoku Poczty: adres skrzynki w nagłówku nad folderami (span.header-title.username) zamieniony na
+ * rozwijaną listę (<details>/<summary>) z „Przełącz” przy każdej skrzynce i „Zarządzaj skrzynkami”.
+ *
  * Przełączenie (plugin.feer_accounts-switch, POST + token): najpierw test IMAP z hasłem docelowej skrzynki (przy błędzie
  * zostajesz w obecnej), potem jak w public_html/index.php: kill_session → login → regenerate_id → set_auth_cookie →
  * log_login → hook login_after (stopka SZO, kalendarz z chmury) → przekierowanie.
@@ -25,6 +28,7 @@ class feer_accounts extends rcube_plugin
         $this->add_hook('login_after', [$this, 'login_after']);
         $this->add_hook('startup', [$this, 'startup']);
         $this->add_hook('settings_actions', [$this, 'settings_actions']);
+        $this->add_hook('render_page', [$this, 'render_page']);
         $this->register_action('plugin.feer_accounts', [$this, 'action_page']);
         $this->register_action('plugin.feer_accounts-add', [$this, 'action_add']);
         $this->register_action('plugin.feer_accounts-remove', [$this, 'action_remove']);
@@ -119,6 +123,59 @@ class feer_accounts extends rcube_plugin
         ]);
         $imap->closeConnection();
         return (bool) $ok;
+    }
+
+    // ── Przełącznik na górze widoku Poczty ───────────────────────────────────
+
+    public function render_page(array $args): array
+    {
+        if (($args['template'] ?? '') !== 'mail' || empty($_SESSION['user_id'])) {
+            return $args;
+        }
+        $rc = rcmail::get_instance();
+        $q = fn($s) => rcube::Q($s);
+        $current = strtolower((string) $rc->get_user_name());
+        $token = html::tag('input', ['type' => 'hidden', 'name' => '_token', 'value' => $rc->get_request_token()]);
+        $items = '';
+        foreach ($this->group() as $i => $a) {
+            if ($a['email'] === $current) {
+                $items .= html::tag('li', ['class' => 'feer-sw-item is-current'],
+                    html::span(['class' => 'feer-sw-email'], $q($a['email']))
+                    . html::span(['class' => 'feer-sw-meta'], $q($this->gettext('current'))));
+                continue;
+            }
+            $items .= html::tag('li', ['class' => 'feer-sw-item'],
+                html::tag('form', ['method' => 'post', 'action' => './?_task=settings&_action=plugin.feer_accounts-switch'],
+                    $token . html::tag('input', ['type' => 'hidden', 'name' => '_email', 'value' => $a['email']])
+                    . html::tag('button', ['type' => 'submit', 'class' => 'feer-sw-btn'],
+                        html::span(['class' => 'feer-sw-email'], $q($a['email']))
+                        . html::span(['class' => 'feer-sw-action'], $q($this->gettext('switch'))))));
+        }
+        if ($items === '') {
+            $items = html::tag('li', ['class' => 'feer-sw-item is-current'], html::span(['class' => 'feer-sw-email'], $q($current)));
+        }
+        $html = html::tag('details', ['class' => 'feer-sw', 'id' => 'feer-sw'],
+            html::tag('summary', ['class' => 'feer-sw-summary', 'aria-label' => $this->gettext('title') . ': ' . $current],
+                html::span(['class' => 'feer-sw-current'], $q($current)))
+            . html::div(['class' => 'feer-sw-panel'],
+                html::tag('ul', ['class' => 'feer-sw-list', 'aria-label' => $this->gettext('title')], $items)
+                . html::a(['href' => './?_task=settings&_action=plugin.feer_accounts', 'class' => 'feer-sw-manage'],
+                    $q(count($this->group()) > 1 ? $this->gettext('title') : $this->gettext('add')))));
+        $rc->output->add_footer(html::div(['id' => 'feer-sw-src', 'hidden' => 'hidden'], $html));
+        $rc->output->add_script(<<<'JS'
+(function () {
+  var src = document.getElementById('feer-sw-src'), sw = src && src.querySelector('#feer-sw');
+  var slot = document.querySelector('#layout-sidebar .header-title.username') || document.querySelector('.header-title.username');
+  if (!sw || !slot) return;
+  slot.textContent = '';
+  slot.classList.add('feer-sw-slot');
+  slot.appendChild(sw);
+  src.remove();
+  document.addEventListener('click', function (e) { if (sw.open && !sw.contains(e.target)) sw.open = false; });
+  sw.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sw.open) { sw.open = false; sw.querySelector('summary').focus(); } });
+})();
+JS, 'docready');
+        return $args;
     }
 
     // ── Strona ustawień ──────────────────────────────────────────────────────

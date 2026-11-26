@@ -14,3 +14,29 @@
 .feer-acc-actions .button, .feer-acc-form .button { min-height: 44px; min-width: 44px; }
 .feer-acc-note { color: #374151; }
 .feer-acc :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px; }
+
+/* Przełącznik skrzynek na górze widoku Poczty (nagłówek nad folderami) */
+.header-title.feer-sw-slot { overflow: visible !important; white-space: normal; }
+.feer-sw { position: relative; display: inline-block; max-width: 100%; }
+.feer-sw-summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
+	min-height: 40px; padding: .25rem .6rem; border: 1px solid #64748B; border-radius: 999px; background: #fff;
+	color: #0f172a; font-weight: 700; max-width: 100%; }
+.feer-sw-summary::-webkit-details-marker { display: none; }
+.feer-sw-summary:after { content: "\25BE"; font-size: .85em; color: #374151; }
+.feer-sw[open] .feer-sw-summary:after { content: "\25B4"; }
+.feer-sw-current { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feer-sw-panel { position: absolute; z-index: 1000; top: calc(100% + 6px); left: 0; min-width: 18rem; max-width: 90vw;
+	background: #fff; color: #0f172a; border: 1px solid #64748B; border-radius: 12px; box-shadow: 0 12px 32px rgba(15,23,42,.25); padding: .4rem; }
+.feer-sw-list { list-style: none; margin: 0; padding: 0; }
+.feer-sw-item { margin: 0; }
+.feer-sw-item.is-current { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .55rem .75rem;
+	border-radius: 8px; background: #EEF4FF; border-left: 4px solid #1559D6; }
+.feer-sw-item form { margin: 0; }
+.feer-sw-btn { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .75rem; min-height: 44px;
+	padding: .5rem .75rem; border: 0; border-radius: 8px; background: transparent; color: #0f172a; text-align: left; cursor: pointer; font: inherit; }
+.feer-sw-btn:hover { background: #F1F5F9; }
+.feer-sw-email { font-weight: 600; overflow-wrap: anywhere; }
+.feer-sw-meta { color: #374151; font-size: .85rem; }
+.feer-sw-action { color: #1559D6; font-weight: 700; font-size: .9rem; white-space: nowrap; }
+.feer-sw-manage { display: block; margin-top: .3rem; padding: .55rem .75rem; border-top: 1px solid #E2E8F0; color: #1559D6 !important; font-weight: 600; text-decoration: underline; }
+.feer-sw :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
