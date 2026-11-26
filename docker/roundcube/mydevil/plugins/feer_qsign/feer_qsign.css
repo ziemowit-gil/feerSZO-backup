@@ -1,0 +1,29 @@
+/* feer_qsign — tylko własne elementy; wygląd paska S/MIME należy do skórki (feer_theme/feer_compose). */
+.feer-qsign-status { font-size: .8125rem; line-height: 1.4; margin: .25rem 0 0; flex-basis: 100%; color: #374151; }
+.feer-qsign-status[hidden] { display: none; }
+.feer-qsign-status[data-level="ok"] { color: #166534; }
+.feer-qsign-status[data-level="warning"] { color: #92400e; }
+.feer-qsign-status[data-level="error"] { color: #b91c1c; font-weight: 600; }
+
+.feer-qsign-dialog p { margin: 0 0 .75rem; }
+.feer-qsign-steps { list-style: none; margin: 0 0 .75rem; padding: 0; }
+.feer-qsign-steps li { display: flex; align-items: center; gap: .6rem; padding: .3rem 0; color: #4b5563; }
+.feer-qsign-mark { flex: none; width: 1.1rem; height: 1.1rem; border-radius: 50%; border: 2px solid #9ca3af; box-sizing: border-box; }
+.feer-qsign-steps li.active { color: #111827; font-weight: 600; }
+.feer-qsign-steps li.active .feer-qsign-mark { border-color: #1d4ed8; border-top-color: transparent; animation: feer-qsign-spin 1s linear infinite; }
+.feer-qsign-steps li.done .feer-qsign-mark { background: #166534; border-color: #166534; }
+.feer-qsign-steps li.error { color: #b91c1c; }
+.feer-qsign-steps li.error .feer-qsign-mark { background: #b91c1c; border-color: #b91c1c; }
+.feer-qsign-msg { min-height: 1.4em; font-size: .875rem; }
+.feer-qsign-msg.error { color: #b91c1c; font-weight: 600; }
+@keyframes feer-qsign-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .feer-qsign-steps li.active .feer-qsign-mark { animation: none; border-top-color: #1d4ed8; } }
+
+html.dark-mode .feer-qsign-status { color: #d1d5db; }
+html.dark-mode .feer-qsign-status[data-level="ok"] { color: #86efac; }
+html.dark-mode .feer-qsign-status[data-level="warning"] { color: #fcd34d; }
+html.dark-mode .feer-qsign-status[data-level="error"],
+html.dark-mode .feer-qsign-steps li.error,
+html.dark-mode .feer-qsign-msg.error { color: #fca5a5; }
+html.dark-mode .feer-qsign-steps li { color: #d1d5db; }
+html.dark-mode .feer-qsign-steps li.active { color: #f9fafb; }

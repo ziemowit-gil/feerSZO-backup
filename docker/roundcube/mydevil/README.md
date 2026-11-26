@@ -149,6 +149,39 @@ skrzynki (397 dni, SAN e-mail), od razu `mimeshield services()->keys()->import()
 pobrania (hasło nie jest zapisywane). Rejestr `feer_cert_issued`, limit `feer_cert_max_per_30d`.
 Brak CRL/unieważniania — do zrobienia, gdyby było potrzebne (kolumna `revoked_at` jest).
 
+## Podpis kwalifikowany (feer_qsign)
+
+Opcja „Podpisz certyfikatem kwalifikowanym” w oknie pisania (w pasku S/MIME, obok przełączników
+mimeshield). Klucz nie trafia na serwer: podpis składa PEM-HEART Signature (rSign CenCert) na komputerze
+użytkownika przez agenta SzoCert (`client-apps/szocert`, `szocert podpis`, 127.0.0.1:52118).
+Wynik to S/MIME `multipart/signed` z podpisem CAdES (RSA-SHA512 ze znacznikiem czasu CenCert).
+
+Włączenie: użytkownik sam w Ustawienia → Preferencje → Tworzenie wiadomości (`feer_qsign_enabled`,
+domyślnie wyłączone, bo łączenie z 127.0.0.1 wywołuje w Chrome pytanie o sieć lokalną).
+`feer_qsign_users` (lista loginów) może zawęzić, kto widzi tę preferencję.
+
+Przebieg wysyłki:
+1. Wyślij → `message_ready` (feer_qsign jest PO mimeshield) buduje kanoniczną część MIME klasami
+   mimeshield (`EntityBuilder::prepareOriginal/innerEntity`: CRLF, QP, „=46rom”), zapisuje ją w
+   `tmp/feer_qsign/<user_id>/<token>.eml` i przerywa wysyłkę poleceniem JS.
+2. JS: akcja `plugin.feer_qsign-entity` → agent (`/qsign/sign`, okno potwierdzenia, PEM-HEART) →
+   odpytywanie `/qsign/job` → akcja `plugin.feer_qsign-store`: `openssl_cms_verify` (detached, binary)
+   na ZAPISANYCH bajtach, jeden podpisujący, SHA-256/384/512, certyfikat ważny i z qcStatements
+   (`feer_qsign_require_qualified`).
+3. Ponowne Wyślij z tokenem → `EntityBuilder::clearSigned` + `SmimeMessage` (te same bajty do SMTP i
+   Wysłanych), `DotGuard` przed SMTP. Token wygasa po 2 h. Każde ręczne Wyślij zaczyna od nowa.
+
+Z mimeshield: zaznaczenie jednej opcji odznacza drugą (JS), serwer odmawia, gdy przyjdą obie.
+Szyfrowanie z podpisem kwalifikowanym nie jest obsługiwane. Szkice zapisują się bez podpisu.
+
+Certyfikat rSign nie ma adresu e-mail, a jego KU to tylko nonRepudiation: Thunderbird i Outlook
+pokazują podpis jako poprawny, ale z ostrzeżeniem o adresie nadawcy. Mimeshield w podglądzie oznaczy
+go jako niezaufany, dopóki CenCert/NCCert nie ma w `smime-roots.pem`.
+
+Użytkownik raz: `szocert podpis install` (kopia programu i LaunchAgent). W PEM-HEART przy każdym
+podpisie: plik `wiadomosc.eml`, format CAdES, podpis zewnętrzny, zapis w tym samym folderze.
+Cofnięcie: usunąć `feer_qsign` z `plugins` i dowiązanie `app/plugins/feer_qsign`.
+
 ## Okno pisania (feer_compose)
 
 „Wyślij” na górze obok pól Od/Do/Temat (jak w Outlooku), zwarte etykiety, edytor do dołu okna,

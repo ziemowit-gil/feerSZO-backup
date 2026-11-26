@@ -83,6 +83,7 @@ $config['plugins'] = [
     'twofactor_gauthenticator', // 2FA: kod TOTP z aplikacji (dobrowolne; GitHub b6afa8f44b)
     'mimeshield',            // S/MIME: podpis, weryfikacja, szyfrowanie (takenek/mimeshield 1.0.3)
     'feer_cert',             // certyfikaty S/MIME z urzędu FEER (Ustawienia → Certyfikat FEER; własny)
+    'feer_qsign',            // podpis certyfikatem kwalifikowanym przez SzoCert + PEM-HEART (PO mimeshield; własny)
     'identity_select',       // tożsamość nadawcy wg adresu, na który przyszła wiadomość
     'archive',
     'zipdownload',
