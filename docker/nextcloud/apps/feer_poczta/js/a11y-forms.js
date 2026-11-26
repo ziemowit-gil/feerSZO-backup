@@ -3,11 +3,32 @@
  *   • Kalendarz › „Utwórz harmonogram spotkań”: pola opisane tylko tekstem zastępczym (placeholder) dostają widoczną
  *     etykietę <label for> (1.3.1, 3.3.2) — placeholder znika przy pisaniu.
  *   • Strona rezerwacji: zepsuty obrazek awatara (brak zdjęcia) zastąpiony inicjałami.
+ *   • Kalendarz: brakujące polskie tłumaczenia (np. „Start time”, „End date”, „When shared”) w edytorze i dymku wydarzenia,
+ *     w etykietach, podpowiedziach pól i aria-label.
  * Bez przenoszenia elementów Vue: etykieta wstawiana tuż przed polem, idempotentnie (MutationObserver).
  */
 (function () {
 	'use strict';
 	var n = 0;
+	var PL = {
+		'Start time': 'Godzina od', 'End time': 'Godzina do', 'Start date': 'Data od', 'End date': 'Data do',
+		'When shared': 'Gdy udostępnione', 'Filter events …': 'Szukaj wydarzeń…', 'Filter events ...': 'Szukaj wydarzeń…',
+		'Filter events': 'Szukaj wydarzeń', 'Add a location': 'Dodaj lokalizację', 'All day': 'Cały dzień',
+	};
+	function translate(root) {
+		var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+		var t;
+		while ((t = w.nextNode())) {
+			var v = t.nodeValue.trim();
+			if (v && PL[v]) t.nodeValue = t.nodeValue.replace(v, PL[v]);
+		}
+		root.querySelectorAll('[placeholder], [aria-label], [title]').forEach(function (el) {
+			['placeholder', 'aria-label', 'title'].forEach(function (a) {
+				var v = (el.getAttribute(a) || '').trim();
+				if (v && PL[v]) el.setAttribute(a, PL[v]);
+			});
+		});
+	}
 	function labelize(root) {
 		root.querySelectorAll('input[placeholder]:not([type="hidden"]):not([type="search"]), textarea[placeholder]').forEach(function (inp) {
 			if (inp.closest('.feer-apps, .sharingTab, .mx-datepicker, .native-datetime-picker, .vs__dropdown-toggle')) return;
@@ -48,6 +69,7 @@
 		// Nie w każdym oknie — np. edytor wydarzenia ma własne etykiety (dublowały się i nachodziły na pola).
 		document.querySelectorAll('.appointment-config-modal, .booking-details, .appointment-details').forEach(labelize);
 		avatars(document);
+		document.querySelectorAll('.app-full, .event-popover, .app-calendar .app-navigation, #app-navigation-vue').forEach(translate);
 	}
 	function schedule() { if (!queued) { queued = true; window.requestAnimationFrame(run); } }
 	function start() { schedule(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }); }

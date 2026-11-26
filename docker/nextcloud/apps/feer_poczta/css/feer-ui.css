@@ -256,3 +256,31 @@ body:not([data-themes*="dark"]) .files-list__row td { border-bottom-color: #E5E7
 body:not([data-themes*="dark"]) .files-list__column-sort-button, body:not([data-themes*="dark"]) .files-list__thead th { color: #374151 !important; }
 /* checkboxy w liście: wyraźna ramka (1.4.11) */
 body:not([data-themes*="dark"]) .files-list .checkbox-radio-switch__icon svg { color: #1559D6 !important; }
+
+/* ── Kalendarz: edytor wydarzenia (app-full) i dymek (event-popover) — WCAG + czytelność ── */
+.app-full, .event-popover { color: #111827; }
+.app-full .app-full-body { gap: 24px; }
+.app-full .property-title input, .app-full .property-title__input input {
+	font-size: 22px !important; font-weight: 700; min-height: 52px; border: 1px solid #64748B !important; border-radius: 10px !important;
+}
+.app-full input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), .app-full textarea,
+.app-full .vs__dropdown-toggle, .event-popover input:not([type="checkbox"]):not([type="radio"]), .event-popover textarea {
+	min-height: 44px; font-size: 15px; color: #111827 !important;
+	border: 1px solid #64748B !important; border-radius: 10px !important;
+}
+.app-full input::placeholder, .app-full textarea::placeholder, .event-popover input::placeholder { color: #6B7280 !important; opacity: 1; }
+.app-full label, .app-full legend, .app-full .property-title-time-picker__time-pickers label,
+.app-full .property-text__label, .app-full .invitees-list__header__title__text { color: #111827 !important; font-weight: 600; font-size: 15px; }
+/* ikony przy polach: pełny kontrast zamiast wyblakłych (1.4.11) */
+.app-full .property-text__icon, .app-full .property-title-time-picker__icon, .app-full .property-select__icon,
+.app-full .material-design-icon, .event-popover .material-design-icon { color: #374151 !important; opacity: 1 !important; }
+/* „Zapisz” zawsze widoczny przy przewijaniu */
+.app-full .app-full__actions { position: sticky; top: 8px; z-index: 5; }
+.app-full .app-full__actions button { min-height: 44px; padding-inline: 18px !important; font-size: 15px; }
+/* pola wyboru i przyciski ≥ 24/44 px, fokus */
+.app-full .invitees-list__header button, .app-full .property-alarm-item button, .app-full .property-repeat button { min-width: 44px; min-height: 44px; }
+.app-full :focus-visible, .event-popover :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
+.app-full .property-title-time-picker__time-pickers-from-inner__timezone, .app-full .property-title-time-picker__time-pickers-to-inner__timezone { color: #374151; }
+/* sekcje oddzielone */
+.app-full .app-full-body__left > * + *, .app-full .app-full-body__right > * + * { margin-top: 10px; }
+.app-full .invitees-list { border-top: 1px solid #E5E7EB; padding-top: 14px; margin-top: 18px; }

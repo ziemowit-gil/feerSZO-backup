@@ -5,7 +5,7 @@
 	<name>Poczta FEER</name>
 	<summary>Kafle SZO na pulpicie i prostsze udostępnianie</summary>
 	<description>Widżet pulpitu z odnośnikiem do poczta.feer.org.pl, komunikatami i zadaniami z SZO.</description>
-	<version>1.12.2</version>
+	<version>1.13.0</version>
 	<licence>agpl</licence>
 	<author>Fundacja FEER</author>
 	<namespace>FeerPoczta</namespace>
