@@ -1,8 +1,7 @@
 <?php
-// kolab/calendar — kalendarz w bazie Roundcube (sterownik database).
-// CalDAV do nc.feer.org.pl odpada: sterownik loguje się hasłem POCZTY, a hasło chmury jest inne.
+// kolab/calendar. Sterownik i adres CalDAV ustawia feer_cloud_dav (NIE tutaj — load_config wtyczki
+// nadpisałby ustawienie): chmura połączona → caldav na nc.feer.org.pl, inaczej database (main config).
 // Zaproszenia (iTIP) z maili da się przyjąć do tego kalendarza; wysyłka przez SMTP użytkownika.
-$config['calendar_driver'] = 'database';
 $config['calendar_default_view'] = 'agendaWeek';
 $config['calendar_timeslots'] = 2;
 $config['calendar_first_day'] = 1;
