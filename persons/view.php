@@ -126,9 +126,14 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="d-flex gap-2">
     <a href="edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Edytuj</a>
     <?= envelope_dropdown_html('person_id=' . (int)$id) ?>
+    <?php /* „Resetuj dane dostępowe”: nowe hasło Logto + chmura (polecenie 2026-11-27), tylko administrator */
+      $__raType = 'person'; $__raId = (int)$id; $__raRow = $person; $__raOnly = '';
+      include dirname(__DIR__) . '/modules/sso_logto/view/resetAccessButton.php'; ?>
     <a href="index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
   </div>
 </div>
+<?php $__raType = 'person'; $__raId = (int)$id; $__raRow = $person; $__raOnly = 'result';
+  include dirname(__DIR__) . '/modules/sso_logto/view/resetAccessButton.php'; ?>
 
 <div class="row g-3">
 <div class="col-lg-8">

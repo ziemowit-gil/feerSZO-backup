@@ -366,6 +366,9 @@ $_cvh_card_li = '<li><a class="dropdown-item" href="' . APP_URL . '/modules/cont
       <?php if (($_cvh_type ?? '') !== 'wolontariat'): /* dla wolontariatu wydruki są w dropdownie „Dokumenty i wydruki" */ ?>
       <?= wydruki_dropdown_html($_cvh_src, ['extra' => $_cvh_card_li]) ?>
       <?php endif; ?>
+      <?php /* „Resetuj dane dostępowe”: nowe hasło Logto + chmura (polecenie 2026-11-27), tylko administrator */
+        $__raType = (string)($_cvh_type ?? ''); $__raId = (int)($_cvh_id ?? 0); $__raRow = (array)($_cvh_row ?? []); $__raOnly = '';
+        include dirname(__DIR__) . '/modules/sso_logto/view/resetAccessButton.php'; ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark" title="Drukuj tę stronę">
         <i class="bi bi-printer"></i> <span>Drukuj stronę</span>
       </button>

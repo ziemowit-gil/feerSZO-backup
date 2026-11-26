@@ -141,6 +141,8 @@ final class SsoController
     {
         $type = (string)($_POST['type'] ?? '');
         $id = (int)($_POST['id'] ?? 0);
+        // type=person — „Resetuj dane dostępowe” z karty osoby (persons/view.php, polecenie 2026-11-27): tylko do=reset
+        if ($type === 'person' && $id > 0) return $this->personReset($id);
         if (!in_array($type, self::CONTRACT_TYPES, true) || $id <= 0) return Router::redirect(APP_URL . '/tozsamosc/index.php');
         // ret=contract — karta „Hasła” na stronie umowy (zakładka M365) wraca na umowę, a nie do Zarządzania dostępem
         $back = ($_POST['ret'] ?? '') === 'contract'
@@ -184,6 +186,27 @@ final class SsoController
             try { log_contract_action($type, $id, (int)(current_user()['id'] ?? 0), 'note', 'Logowanie jednokrotne (' . $do . '): ' . $res['username'] . ($res['cloud'] ? ', chmura: ' . $res['cloud'] : '')); } catch (\Throwable $e) {}
         }
         return Router::redirect($back . '#sso');
+    }
+
+    /**
+     * „Resetuj dane dostępowe” z karty osoby (persons/view.php): jedno nowe hasło do chmury i logowania jednokrotnego
+     * (SsoAccounts::resetPassword), opcjonalnie SMS. Wynik pokazuje raz modules/sso_logto/view/resetAccessButton.php (ctx „person:id”).
+     */
+    private function personReset(int $id): ?string
+    {
+        $back = rtrim(APP_URL, '/') . '/persons/view.php?id=' . $id;
+        $row = db_one("SELECT * FROM persons WHERE id=?", [$id]);
+        if (!$row) return $this->flashGlobal(rtrim(APP_URL, '/') . '/persons/index.php', 'danger', 'Nie znaleziono osoby.');
+        if (($_POST['do'] ?? '') !== 'reset') return $this->flashGlobal($back, 'danger', 'Nieznana czynność.');
+        $person = self::personFromContract($row);
+        if ($person['email'] === '') return $this->flashGlobal($back, 'warning', 'Osoba nie ma adresu e-mail, więc nie ma też konta logowania jednokrotnego.');
+        $by = (string)(current_user()['email'] ?? '');
+        try { $res = SsoAccounts::resetPassword($person['email'], $by); }
+        catch (\Throwable $e) { return $this->flashGlobal($back, 'danger', 'Reset danych dostępowych: ' . $e->getMessage()); }
+        $res['name'] = $person['name'];
+        $res['sms'] = !empty($_POST['sms']) && $res['password'] ? $this->smsCredentials($person['phone'], $res) : '';
+        $_SESSION[self::K_RESULT] = ['ctx' => 'person:' . $id, 'rows' => [$res]];
+        return Router::redirect($back . '#raResult');
     }
 
     /** Osoba z wiersza umowy: e-mail z SZO, login organizacji (Microsoft 365) jako podstawa nazwy użytkownika. */
