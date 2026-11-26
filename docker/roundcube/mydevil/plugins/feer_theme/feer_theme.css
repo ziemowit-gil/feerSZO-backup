@@ -313,6 +313,11 @@ li.selected > a {
 .toolbar a.button.disabled,
 .toolbar a.button[aria-disabled="true"] { color: #94a3b8 !important; }
 
+/* Pełne nazwy przycisków: Elastic tnie etykiety do 6rem z wielokropkiem („Podpis cyfr…”).
+   Na telefonie zostaje limit — tam pasek jest wąski. */
+html:not(.layout-phone) .menu.toolbar a { max-width: none; text-overflow: clip; }
+html:not(.layout-phone) .menu.toolbar a span.inner { white-space: nowrap; }
+
 .btn, button.btn, a.btn {
   border-radius: var(--feer-radius);
   font-weight: 600;
