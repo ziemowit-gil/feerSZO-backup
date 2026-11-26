@@ -988,3 +988,38 @@ a, .link { color: var(--feer-link); }
 #messagestack div.warning { border-inline-start-color: #B45309 !important; }
 #messagestack div.confirmation { border-inline-start-color: #15803D !important; }
 #messagestack div a { color: var(--feer-link) !important; text-decoration: underline; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WCAG 2.2 AA — Kontakty w poczcie (2026-11-26)
+   ══════════════════════════════════════════════════════════════════════════ */
+/* Książki adresowe i grupy (lewa kolumna) */
+#directorylist li a, #directorylist-content li a, .treelist li a { color: var(--feer-text) !important; }
+#directorylist li.selected > a, #directorylist-content li.selected > a { color: var(--feer-navy) !important; font-weight: 700; }
+#directorylist li.selected > a, .treelist li.selected > a { box-shadow: inset 4px 0 0 #1559D6; }
+#directorylist li .count, #directorylist-content .count { color: var(--feer-muted) !important; }
+
+/* Lista kontaktów */
+#contacts-table tr td, table.contactlist tr td { color: var(--feer-text) !important; padding-top: .55rem; padding-bottom: .55rem; }
+#contacts-table tr td.name, table.contactlist td.name { font-weight: 600; }
+#contacts-table tr.selected td, table.contactlist tr.selected td { background: var(--feer-blue-bg) !important; color: var(--feer-text) !important; }
+#contacts-table tr.selected > td:first-child, table.contactlist tr.selected > td:first-child { box-shadow: inset 4px 0 0 #1559D6; }
+#contacts-table tr .email, table.contactlist .email { color: var(--feer-muted) !important; }
+
+/* Karta kontaktu (widok i edycja) */
+.contact-header .names, .contact-head .names, .contact-header .name { color: var(--feer-text) !important; font-size: 1.35rem; font-weight: 700; }
+.contact-head .organization, .contact-header .organization, .contact-head .department, .contact-head .jobtitle { color: #374151 !important; }
+.propform.grouped legend, fieldset.propform legend, .contactfieldgroup legend { color: var(--feer-text) !important; font-weight: 700; font-size: 1.05rem; }
+.propform .col-form-label, .propform label, .contactfieldlabel, .contactfieldgroup .label { color: #374151 !important; font-weight: 600; }
+.propform.readonly .contactfieldcontent, .propform.readonly a, .proplist .contactfieldcontent { color: var(--feer-text) !important; }
+.propform.readonly a, .contact-head a { color: var(--feer-link) !important; text-decoration: underline; text-underline-offset: 2px; }
+.propform input.form-control, .propform select, .propform .custom-select, .propform textarea {
+  border: 1px solid #64748B !important; min-height: 44px; color: var(--feer-text) !important; border-radius: 8px !important;
+}
+.propform .input-group-text, .propform .input-group-append a, .propform a.delete, .propform .add-field a, .contact-photo .image-upload {
+  min-width: 44px; min-height: 44px; color: #374151 !important; opacity: 1 !important;
+}
+.contact-photo img, .contact-photo .image-upload { border: 1px solid #94A3B8; border-radius: 50%; }
+.formbuttons .btn.submit, .formbuttons .btn-primary.edit { background: #1559D6 !important; border-color: #1559D6 !important; color: #ffffff !important; min-height: 44px; }
+
+/* Książka „Fundacja FEER” (feer_directory) i z chmury tylko do odczytu — wyraźna informacja */
+.contactlist .readonly, #directorylist li.readonly > a:after { color: var(--feer-muted); }
