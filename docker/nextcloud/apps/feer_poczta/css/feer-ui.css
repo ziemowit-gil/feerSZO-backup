@@ -390,3 +390,39 @@ body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list
 	outline: 3px solid #1559D6 !important; outline-offset: 2px !important; box-shadow: 0 0 0 6px #ffffff !important;
 }
 @media (prefers-reduced-motion: reduce) { #body-login *, #body-public * { transition: none !important; animation: none !important; } }
+
+/* ── Strona rezerwacji: nowy wygląd (nadpisuje wcześniejszą siatkę) ──
+ * Dwie kolumny: po lewej informacje o spotkaniu (przyklejone), po prawej kalendarz i pod nim terminy jako lekkie
+ * „pigułki” (jasne tło, tekst #1559D6 6,1:1, ramka 3:1), na wąskim ekranie jedna kolumna.
+ */
+.booking__container { max-width: 1040px !important; margin-inline: auto !important; }
+.booking__container .booking {
+	display: grid !important; grid-template-columns: minmax(240px, 0.9fr) minmax(320px, 1.1fr);
+	grid-template-areas: "info date" "info slots"; gap: 28px 40px; align-items: start; padding: 36px 40px !important;
+}
+.booking .booking__config-user-info { grid-area: info; position: sticky; top: 24px; padding-inline-end: 28px;
+	border-inline-end: 1px solid #E5E7EB; display: flex; flex-direction: column; gap: 10px; }
+.booking .booking__display-name { font-size: 15px; font-weight: 600; color: #374151; }
+.booking .booking__name { font-size: 26px !important; line-height: 1.2; font-weight: 700; color: #111827; margin: 4px 0 !important; }
+.booking .booking__description { font-size: 15px; line-height: 1.55; color: #374151; white-space: pre-line; }
+.booking .booking__date-selection { grid-area: date; width: 100%; }
+.booking .booking__date-header, .booking .booking__slot-selection h2, .booking .booking__slot-selection h3 {
+	font-size: 17px !important; font-weight: 700; color: #111827; margin: 0 0 10px !important;
+}
+.booking .booking__time-zone { margin-top: 10px; }
+.booking .booking__slot-selection { grid-area: slots; grid-column: auto !important; width: 100%; }
+.booking .booking__slots {
+	display: grid !important; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)) !important; gap: 8px !important;
+	max-height: none !important; overflow: visible !important; padding: 0 !important;
+}
+.booking .booking__slots .appointment-slot, .booking .booking__slots button.appointment-slot {
+	width: 100% !important; min-height: 44px !important; margin: 0 !important; padding: 8px 10px !important;
+	border: 1px solid #94A3B8 !important; border-radius: 999px !important; background: #F8FAFC !important;
+	color: #1559D6 !important; font-size: 15px !important; font-weight: 600 !important; letter-spacing: .01em;
+}
+.booking .booking__slots .appointment-slot:hover { background: #1559D6 !important; border-color: #1559D6 !important; color: #ffffff !important; }
+.booking .booking__slots .appointment-slot:focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
+@media (max-width: 820px) {
+	.booking__container .booking { grid-template-columns: 1fr; grid-template-areas: "info" "date" "slots"; padding: 24px 18px !important; }
+	.booking .booking__config-user-info { position: static; border-inline-end: 0; border-bottom: 1px solid #E5E7EB; padding: 0 0 18px; }
+}
